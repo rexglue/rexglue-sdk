@@ -51,6 +51,8 @@ constexpr bool is_pow2(T value) {
 }
 
 /**
+ * Rounds up to a power of 2 alignment. 0 stays 0.
+ *
  * @tparam T Integer type.
  * @param value The value to round up.
  * @param alignment Power of 2 alignment.
@@ -62,19 +64,34 @@ constexpr T Align(T value, T alignment) {
 }
 
 /**
+ * Rounds up to any multiple. 0 stays 0, as with Align.
+ *
  * @tparam T Value type.
  * @tparam V Multiple type.
  * @param value The value to round up.
  * @param multiple The multiple to round to, any positive value.
- * @param force_non_zero When true, a value of 0 rounds to multiple.
  * @return value rounded up to a multiple of multiple.
  */
 template <typename T, typename V>
-constexpr T round_up(T value, V multiple, bool force_non_zero = true) {
-  if (force_non_zero && !value) {
+constexpr T round_up(T value, V multiple) {
+  return (value + multiple - 1) / multiple * multiple;
+}
+
+/**
+ * Rounds up to any multiple. 0 becomes 1 multiple, so a size of 0 still takes space.
+ *
+ * @tparam T Value type.
+ * @tparam V Multiple type.
+ * @param value The value to round up.
+ * @param multiple The multiple to round to, any positive value.
+ * @return value rounded up to a multiple of multiple, never 0.
+ */
+template <typename T, typename V>
+constexpr T round_up_nonzero(T value, V multiple) {
+  if (!value) {
     return multiple;
   }
-  return (value + multiple - 1) / multiple * multiple;
+  return round_up(value, multiple);
 }
 
 /**

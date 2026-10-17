@@ -42,7 +42,7 @@ void StringBuffer::Grow(size_t additional_length) {
   }
   size_t old_capacity = buffer_capacity_;
   size_t new_capacity =
-      std::max(rex::round_up(buffer_offset_ + additional_length, 16_KiB), old_capacity * 2);
+      std::max(rex::round_up_nonzero(buffer_offset_ + additional_length, 16_KiB), old_capacity * 2);
   auto new_buffer = std::realloc(buffer_, new_capacity);
   REX_ASSERT(new_buffer != nullptr);
   buffer_ = reinterpret_cast<char*>(new_buffer);

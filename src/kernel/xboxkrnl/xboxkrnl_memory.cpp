@@ -122,7 +122,8 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
   u32 adjusted_size = i32(*region_size_ptr) < 0 ? -static_cast<i32>(region_size_ptr.GetValue())
                                                 : region_size_ptr.GetValue();
   // Without a base address the allocation granularity is 64 KB, otherwise the heap page size.
-  adjusted_size = rex::round_up(adjusted_size, adjusted_base ? page_size : runtime::kPageSize64KiB);
+  adjusted_size =
+      rex::round_up_nonzero(adjusted_size, adjusted_base ? page_size : runtime::kPageSize64KiB);
 
   if (alloc_type & kXMemReset) {
     *base_addr_ptr = adjusted_base;
@@ -216,7 +217,7 @@ u32 NtProtectVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_
     return X_STATUS_INVALID_PARAMETER;
   }
   u32 adjusted_base = *base_addr_ptr - (*base_addr_ptr % heap->GetPageSize());
-  u32 adjusted_size = rex::round_up(*region_size_ptr, heap->GetPageSize());
+  u32 adjusted_size = rex::round_up_nonzero(*region_size_ptr, heap->GetPageSize());
   u32 protect = FromXdkProtectFlags(protect_bits);
 
   u32 tmp_old_protect = 0;
@@ -275,7 +276,7 @@ u32 NtFreeVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr
       }
       region_size_value = info.allocation_size;
     } else {
-      const u64 end = rex::round_up(u64{base_addr_value} + region_size_value, page_size);
+      const u64 end = rex::round_up_nonzero(u64{base_addr_value} + region_size_value, page_size);
       base_addr_value -= base_addr_value % page_size;
       region_size_value = static_cast<u32>(end - base_addr_value);
     }
@@ -382,8 +383,8 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
     page_size = runtime::kPageSize16MiB;
   }
 
-  u32 adjusted_size = rex::round_up(region_size, page_size);
-  u32 adjusted_alignment = rex::round_up(alignment, page_size);
+  u32 adjusted_size = rex::round_up_nonzero(region_size, page_size);
+  u32 adjusted_alignment = rex::round_up_nonzero(alignment, page_size);
 
   u32 allocation_type = runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit |
                         runtime::kMemoryAllocationTitle;
@@ -700,7 +701,7 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  const u32 region_size_adjusted = rex::round_up(region_size, runtime::kPageSize64KiB);
+  const u32 region_size_adjusted = rex::round_up_nonzero(region_size, runtime::kPageSize64KiB);
   if (region_size_adjusted > 16 * 1024 * 1024) {
     return X_STATUS_INVALID_PARAMETER;
   }

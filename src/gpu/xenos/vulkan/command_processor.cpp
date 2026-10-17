@@ -3961,9 +3961,10 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFullPath(u32 total_size) 
     readback_memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     readback_memory_range.memory = readback_memory;
     readback_memory_range.offset = 0;
-    readback_memory_range.size = std::min(
-        rex::round_up(VkDeviceSize(total_size), vulkan_device->GetProperties().nonCoherentAtomSize),
-        readback_memory_size);
+    readback_memory_range.size =
+        std::min(rex::round_up_nonzero(VkDeviceSize(total_size),
+                                       vulkan_device->GetProperties().nonCoherentAtomSize),
+                 readback_memory_size);
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
   }
 
@@ -4614,9 +4615,10 @@ bool VulkanCommandProcessor::EndGuestOcclusionQuery(u32 sample_count_address) {
     memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memory_range.memory = occlusion_query_readback_memory_;
     memory_range.offset = 0;
-    memory_range.size = std::min(rex::round_up(VkDeviceSize(sizeof(u64) * kMaxOcclusionQueries),
-                                               vulkan_device->GetProperties().nonCoherentAtomSize),
-                                 occlusion_query_readback_memory_size_);
+    memory_range.size =
+        std::min(rex::round_up_nonzero(VkDeviceSize(sizeof(u64) * kMaxOcclusionQueries),
+                                       vulkan_device->GetProperties().nonCoherentAtomSize),
+                 occlusion_query_readback_memory_size_);
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &memory_range);
   }
 

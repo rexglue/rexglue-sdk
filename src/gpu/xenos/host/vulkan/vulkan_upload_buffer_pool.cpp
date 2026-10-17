@@ -24,7 +24,7 @@ namespace vulkan {
 VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanDevice* const vulkan_device,
                                                const VkBufferUsageFlags usage,
                                                const size_t page_size)
-    : GraphicsUploadBufferPool(static_cast<size_t>(rex::round_up(
+    : GraphicsUploadBufferPool(static_cast<size_t>(rex::round_up_nonzero(
           VkDeviceSize(page_size), vulkan_device->GetProperties().nonCoherentAtomSize))),
       vulkan_device_(vulkan_device),
       usage_(usage) {}

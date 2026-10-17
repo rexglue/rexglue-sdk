@@ -43,7 +43,8 @@ void FlushMappedMemoryRange(const VulkanDevice* const vulkan_device, const VkDev
   range.offset = offset / non_coherent_atom_size * non_coherent_atom_size;
   if (size != VK_WHOLE_SIZE) {
     range.size =
-        std::min(rex::round_up(offset + size, non_coherent_atom_size), memory_size) - range.offset;
+        std::min(rex::round_up_nonzero(offset + size, non_coherent_atom_size), memory_size) -
+        range.offset;
   }
   vulkan_device->GetFunctions().vkFlushMappedMemoryRanges(vulkan_device->GetDevice(), 1, &range);
 }

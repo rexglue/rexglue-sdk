@@ -101,9 +101,10 @@ VolumeInfo ContainerProvider::GetVolume() const {
           kSTFSMaxBlocks - (descriptor.total_block_count - descriptor.free_block_count);
     }
   } else {
-    const u64 header_bytes = header.header.header_size
-                                 ? round_up(u64{header.header.header_size}, u64{kSTFSBlockSize})
-                                 : u64{sizeof(STFSHeader)};
+    const u64 header_bytes =
+        header.header.header_size
+            ? round_up_nonzero(u64{header.header.header_size}, u64{kSTFSBlockSize})
+            : u64{sizeof(STFSHeader)};
     const u64 data_size = container_.GetTotalSize() - header_bytes;
     total_units = static_cast<u32>(data_size / kPackageSectorsPerUnit / kBytesPerSector);
   }

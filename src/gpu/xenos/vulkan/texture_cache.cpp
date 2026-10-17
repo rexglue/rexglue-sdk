@@ -1264,10 +1264,10 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       level_guest_z_extent_texels = std::max(depth >> level, UINT32_C(1));
     }
     level_host_layout.x_pitch_blocks =
-        rex::round_up((level_guest_x_extent_texels_unscaled * texture_resolution_scale_x +
-                       (host_block_width - 1)) /
-                          host_block_width,
-                      host_x_blocks_per_thread);
+        rex::round_up_nonzero((level_guest_x_extent_texels_unscaled * texture_resolution_scale_x +
+                               (host_block_width - 1)) /
+                                  host_block_width,
+                              host_x_blocks_per_thread);
     level_host_layout.y_pitch_blocks =
         (level_guest_y_extent_texels_unscaled * texture_resolution_scale_y +
          (host_block_height - 1)) /

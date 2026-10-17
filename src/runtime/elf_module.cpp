@@ -115,9 +115,9 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
       }
 
       u32 virtual_addr = phdr[i].p_vaddr & ~(phdr[i].p_align - 1);
-      u32 virtual_size =
-          rex::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, static_cast<u32>(phdr[i].p_align)) -
-          virtual_addr;
+      u32 virtual_size = rex::round_up_nonzero(phdr[i].p_vaddr + phdr[i].p_memsz,
+                                               static_cast<u32>(phdr[i].p_align)) -
+                         virtual_addr;
       if (!GetMemory()
                ->LookupHeap(virtual_addr)
                ->AllocFixed(

@@ -228,7 +228,7 @@ REX_TEST_CASE("Container walks a long GDFX sibling chain without recursion", "[c
   constexpr size_t kSector = 0x800;
   TempFolder temp;
   auto gdfx = Fixture("gdfx.iso");
-  const size_t table = rex::round_up(gdfx.size(), kSector);
+  const size_t table = rex::round_up_nonzero(gdfx.size(), kSector);
   const size_t table_size = size_t{kEntries} * 16;
   gdfx.resize(table + table_size, 0);
   for (rex::u32 i = 0; i < kEntries; ++i) {

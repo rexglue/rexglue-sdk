@@ -14,7 +14,7 @@ namespace rex::runtime {
 u32 ResolveGuestStackSize(u32 requested, u32 guest_default, u32 minimum) {
   const u32 fallback = guest_default ? guest_default : kDefaultGuestStackSize;
   const u32 size = requested ? requested : fallback;
-  return std::max(rex::round_up(size, 4096u), minimum);
+  return std::max(rex::round_up_nonzero(size, 4096u), minimum);
 }
 
 u32 ResolveTLSSlotCount(u32 xex_slot_count) {
@@ -29,9 +29,9 @@ u32 ResolveTLSSlotCount(u32 xex_slot_count) {
 
 Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size, bool title_memory) {
   BaseHeap* heap = memory.LookupHeap(KernelThread::kStackAddressRangeBegin);
-  size = rex::round_up(size, 4096u);
-  tls_size = rex::round_up(tls_size, 16u, false);
-  const u32 committed_size = rex::round_up(size + tls_size, kGuestStackPageSize);
+  size = rex::round_up_nonzero(size, 4096u);
+  tls_size = rex::round_up(tls_size, 16u);
+  const u32 committed_size = rex::round_up_nonzero(size + tls_size, kGuestStackPageSize);
   const u32 alloc_size = committed_size + kGuestStackPageSize;
   u32 alloc_base = 0;
   if (!heap->AllocRange(KernelThread::kStackAddressRangeBegin, KernelThread::kStackAddressRangeEnd,

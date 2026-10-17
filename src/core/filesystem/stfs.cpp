@@ -92,7 +92,8 @@ class STFSReader {
 
  private:
   [[nodiscard]] u64 DataStart() const {
-    return round_up(static_cast<u64>(header_.header.header_size), static_cast<u64>(kSTFSBlockSize));
+    return round_up_nonzero(static_cast<u64>(header_.header.header_size),
+                            static_cast<u64>(kSTFSBlockSize));
   }
 
   [[nodiscard]] u32 HashBlockNumber(u32 block_index, u32 level) const {
@@ -182,12 +183,12 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
       node.info.name.assign(entry.name,
                             std::min<size_t>(entry.flags.name_length & 0x3F, sizeof(entry.name)));
       node.parent = parent;
-      node.info.size = entry.length;
-      node.info.allocation_size =
+      node.size = entry.length;
+      node.allocation_size =
           round_up_nonzero(static_cast<u64>(entry.length), static_cast<u64>(kSTFSBlockSize));
-      node.info.create_time = DecodeFATTimestamp(entry.create_date, entry.create_time);
-      node.info.write_time = DecodeFATTimestamp(entry.modified_date, entry.modified_time);
-      node.info.access_time = node.info.write_time;
+      node.create_time = DecodeFATTimestamp(entry.create_date, entry.create_time);
+      node.write_time = DecodeFATTimestamp(entry.modified_date, entry.modified_time);
+      node.access_time = node.write_time;
       if (entry.flags.directory) {
         node.info.attributes = FileAttributes::kDirectory;
       } else {

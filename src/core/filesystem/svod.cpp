@@ -210,11 +210,11 @@ class SVODReader {
     if (directory) {
       node.info.attributes = FileAttributes::kDirectory | FileAttributes::kReadOnly;
     } else {
-      node.info.attributes = FileAttributes::kNormal | FileAttributes::kReadOnly;
-      node.info.size = entry.length;
-      node.info.allocation_size = round_up_nonzero(static_cast<u64>(entry.length), kFileBlockSize);
+      node.attributes = FileAttributes::kNormal | FileAttributes::kReadOnly;
+      node.size = entry.length;
+      node.allocation_size = round_up_nonzero(static_cast<u64>(entry.length), kFileBlockSize);
       u64 data_block = entry.data_block;
-      u64 remaining = round_up(static_cast<u64>(entry.length), kSVODBlockSize);
+      u64 remaining = round_up_nonzero(static_cast<u64>(entry.length), kSVODBlockSize);
       while (remaining) {
         auto data = BlockToOffset(data_block);
         if (!data) {
