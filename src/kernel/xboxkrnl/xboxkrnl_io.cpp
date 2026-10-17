@@ -26,6 +26,7 @@
 #include <rex/runtime/xtypes.h>
 #include "kernel/argument_check.h"
 #include "kernel/object_lookup.h"
+#include "kernel/path_check.h"
 #include "kernel/stub_log.h"
 
 namespace rex::kernel::xboxkrnl {
@@ -47,49 +48,6 @@ static bool QueueCompletionAPC(u32 apc_routine, u32 apc_context, u32 io_status_b
     return false;
   }
   KernelThread::GetCurrentThread()->EnqueueAPC(routine, apc_context, io_status_block, 0);
-  return true;
-}
-
-static bool IsValidPath(const std::string_view s, bool is_pattern) {
-  bool got_asterisk = false;
-  for (const auto& c : s) {
-    if (c <= 31 || c >= 127) {
-      return false;
-    }
-    if (got_asterisk) {
-      // A * must be followed by a . because some titles loop forever on other filters.
-      if (c != '.') {
-        return false;
-      }
-      got_asterisk = false;
-    }
-    switch (c) {
-      case '"':
-      case '+':
-      case ',':
-      case '<':
-      case '>':
-      case '|': {
-        return false;
-      }
-      case '*': {
-        if (!is_pattern) {
-          return false;
-        }
-        got_asterisk = true;
-        break;
-      }
-      case '?': {
-        if (!is_pattern) {
-          return false;
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
   return true;
 }
 
@@ -118,7 +76,7 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
                static_cast<u32>(share_access), static_cast<u32>(creation_disposition),
                static_cast<u32>(create_options));
 
-  if (!IsValidPath(target_path, false)) {
+  if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 
@@ -530,7 +488,7 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> obj_attribs,
 
   auto target_path = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name);
 
-  if (!IsValidPath(target_path, false)) {
+  if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 
@@ -571,7 +529,7 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routin
   auto file = runtime::GetCurrent().GetObjectTable().Get<FileObject>(file_handle);
   auto name = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), file_name);
 
-  if (!IsValidPath(name, true)) {
+  if (!IsValidPath(name, PathUse::kPattern)) {
     return X_STATUS_INVALID_PARAMETER;
   }
 
@@ -633,7 +591,7 @@ u32 NtOpenSymbolicLinkObject_entry(MappedU32 handle_out,
 
   auto target_path = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name);
 
-  if (!IsValidPath(target_path, false)) {
+  if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 

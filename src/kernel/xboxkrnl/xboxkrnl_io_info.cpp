@@ -27,54 +27,11 @@
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/object_lookup.h"
+#include "kernel/path_check.h"
 #include "kernel/stub_log.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
-
-static bool IsValidPath(const std::string_view s, bool is_pattern) {
-  bool got_asterisk = false;
-  for (const auto& c : s) {
-    if (c <= 31 || c >= 127) {
-      return false;
-    }
-    if (got_asterisk) {
-      if (c != '.') {
-        return false;
-      }
-      got_asterisk = false;
-    }
-    switch (c) {
-      case '"':
-      case '+':
-      case ',':
-      case ';':
-      case '<':
-      case '=':
-      case '>':
-      case '|': {
-        return false;
-      }
-      case '*': {
-        if (!is_pattern) {
-          return false;
-        }
-        got_asterisk = true;
-        break;
-      }
-      case '?': {
-        if (!is_pattern) {
-          return false;
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-  return true;
-}
 
 u32 GetQueryFileInfoMinimumLength(u32 info_class) {
   switch (info_class) {
@@ -280,7 +237,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
       auto info = info_ptr.As<X_FILE_RENAME_INFORMATION*>();
       auto target_path =
           runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), &info->ansi_string);
-      if (!IsValidPath(target_path, false)) {
+      if (!IsValidPath(target_path, PathUse::kNewName)) {
         return X_STATUS_OBJECT_NAME_INVALID;
       }
 

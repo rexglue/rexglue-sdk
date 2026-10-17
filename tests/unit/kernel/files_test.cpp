@@ -165,6 +165,42 @@ REX_TEST_CASE("files: a rename onto a file needs replace existing", "[kernel][fi
   CHECK(std::filesystem::file_size(fixture.GetRoot() / "scratch" / "r2.bin") == 16);
 }
 
+REX_TEST_CASE("files: create accepts ; and = and rename rejects them", "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "n.bin", 4); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    for (const char* name : {"scratch:\\a;b.bin", "scratch:\\a=b.bin"}) {
+      CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes(name),
+                                      status_block, 0, 0, 3, 2, 0x20}) == 0);
+      CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
+    }
+    CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\a+b.bin"),
+                                    status_block, 0, 0, 3, 2, 0x20}) ==
+          rex::X_STATUS_OBJECT_NAME_INVALID);
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\n.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    const u32 info = c.Alloc(16);
+    for (const std::string_view target :
+         {"scratch:\\a;b.bin", "scratch:\\a=b.bin", "scratch:\\a+b.bin"}) {
+      c.Store32(info, 1);
+      c.Store32(info + 4, 0);
+      c.Store32(info + 8, static_cast<u32>(target.size() << 16 | target.size()));
+      c.Store32(info + 12, c.String(target));
+      CHECK(c.Kernel("NtSetInformationFile",
+                     {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) ==
+            rex::X_STATUS_OBJECT_NAME_INVALID);
+    }
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
 REX_TEST_CASE("files: an allocation size above the end of file keeps the size", "[kernel][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "b.bin", 16); });
   MountScratch(fixture);
