@@ -239,8 +239,9 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
 
 Result<void> FileSystem::Mount(const MountEntry& entry) {
   std::lock_guard lock(mutex_);
-  if (std::ranges::any_of(providers_,
-                          [&](const auto& p) { return p->GetMountPath() == entry.path; })) {
+  if (std::ranges::any_of(providers_, [&](const auto& p) {
+        return utf8_equal_case(p->GetMountPath(), entry.path);
+      })) {
     return Err(
         BuildError(FileSystemError::kMountExists, std::format("'{}' is mounted", entry.path)));
   }
@@ -252,8 +253,8 @@ Result<void> FileSystem::Mount(const MountEntry& entry) {
 
 Result<void> FileSystem::Unmount(std::string_view path) {
   std::lock_guard lock(mutex_);
-  const auto it =
-      std::ranges::find_if(providers_, [&](const auto& p) { return p->GetMountPath() == path; });
+  const auto it = std::ranges::find_if(
+      providers_, [&](const auto& p) { return utf8_equal_case(p->GetMountPath(), path); });
   if (it == providers_.end()) {
     return Err(BuildError(FileSystemError::kNoMount, std::format("'{}' is not mounted", path)));
   }

@@ -36,14 +36,15 @@ void Parse(CLI::App& app, std::vector<std::string> args) {
   app.parse(args);
 }
 
-rex::Result<void> RunInit(const std::filesystem::path& root, bool force) {
+rex::Result<void> RunInit(const std::filesystem::path& root, bool force,
+                          const std::string& name = "demo") {
   CLI::App app;
   app.require_subcommand(1);
   rexglue::cli::CLIContext ctx;
   ctx.overwrite_existing = force;
   rexglue::cli::DeferredAction pending;
   rexglue::cli::RegisterInit(app, ctx, pending);
-  Parse(app, {"init", "--project-name", "demo", "--project-root", root.string(), "--xex-path",
+  Parse(app, {"init", "--project-name", name, "--project-root", root.string(), "--xex-path",
               (root / "default.xex").string()});
   rexglue::ui::Init({.tty = false, .color = false});
   rex::Result<void> result = pending();
@@ -209,4 +210,16 @@ REX_TEST_CASE("init applies the recompiled options to the library target only", 
   REQUIRE(clear != std::string::npos);
   REQUIRE(apply != std::string::npos);
   CHECK(clear < apply);
+}
+
+REX_TEST_CASE("init keeps the separators of the project name", "[rexglue][init][case]") {
+  rex::test::TempFolder root("rexglue_init_name_");
+  WriteText(root.path / "default.xex", "");
+  REQUIRE(RunInit(root.path, false, "my_game-2"));
+  CHECK(std::filesystem::exists(root.path / "src" / "my_game-2_hooks.cpp"));
+  const std::string text = ReadText(root.path / "CMakeLists.txt");
+  CHECK(text.find("project(my_game-2 ") != std::string::npos);
+  CHECK(text.find("add_library(my_game-2_common OBJECT") != std::string::npos);
+  const std::string glue = ReadText(root.path / "generated" / "rexglue.cmake");
+  CHECK(glue.find("my_game-2_codegen") != std::string::npos);
 }

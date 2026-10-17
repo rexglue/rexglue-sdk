@@ -22,6 +22,7 @@
 #include <rex/platform/lock_order.h>
 #include <rex/runtime/module_registry.h>
 #include <rex/runtime/module_object.h>
+#include <rex/string/key.h>
 
 #include "runtime/object_table.h"
 
@@ -200,7 +201,7 @@ class ModuleRegistry final : public IModuleRegistry {
   std::vector<X_HANDLE> kernel_modules_;
   std::vector<X_HANDLE> user_modules_;
   std::atomic<u64> generation_{1};
-  std::unordered_set<std::string> loading_paths_;
+  std::unordered_set<StringKeyCase> loading_paths_;
   std::vector<RecompiledModuleInfo> recompiled_modules_;
   std::vector<std::string> import_candidates_;
   std::unordered_map<std::string, rex::platform::DynamicLibrary> module_libraries_;

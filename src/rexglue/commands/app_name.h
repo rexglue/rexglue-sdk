@@ -55,7 +55,7 @@ inline AppNameParts ParseAppName(const std::string& input) {
   };
 
   AppNameParts parts;
-  parts.original.reserve(input.size());
+  parts.original = input;
   parts.pascal_case.reserve(input.size());
   parts.upper_case.reserve(input.size());
 
@@ -66,7 +66,6 @@ inline AppNameParts ParseAppName(const std::string& input) {
       continue;
     }
 
-    parts.original += c;
     parts.upper_case += kToUpper(c);
     parts.pascal_case += at_new_word ? kToUpper(c) : kToLower(c);
 

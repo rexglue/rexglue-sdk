@@ -128,7 +128,7 @@ struct XCONTENT_DATA {
    */
   bool operator==(const XCONTENT_DATA& other) const {
     return device_id == other.device_id && content_type == other.content_type &&
-           GetFileName() == other.GetFileName();
+           rex::utf8_equal_case(GetFileName(), other.GetFileName());
   }
 
   /**
@@ -203,7 +203,8 @@ struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
    */
   bool operator==(const XCONTENT_AGGREGATE_DATA& other) const {
     return device_id == other.device_id && title_id == other.title_id &&
-           content_type == other.content_type && GetFileName() == other.GetFileName();
+           content_type == other.content_type &&
+           rex::utf8_equal_case(GetFileName(), other.GetFileName());
   }
 };
 REX_STATIC_ASSERT_SIZE(XCONTENT_AGGREGATE_DATA, 0x148);

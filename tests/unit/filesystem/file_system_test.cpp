@@ -124,6 +124,20 @@ REX_TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][m
   CHECK(CodeOf(gone.error()) == FileSystemError::kNoMount);
 }
 
+REX_TEST_CASE_METHOD(Fixture, "Mount and Unmount compare the mount path without case",
+                     "[filesystem][mounts][case]") {
+  REQUIRE(
+      GetFs().Mount({"\\Device\\Harddisk0\\Partition1", ProviderKind::kHostDirectory, GetTemp()}));
+  auto duplicate =
+      GetFs().Mount({"\\DEVICE\\HARDDISK0\\PARTITION1", ProviderKind::kHostDirectory, GetTemp()});
+  REQUIRE_FALSE(duplicate);
+  CHECK(CodeOf(duplicate.error()) == FileSystemError::kMountExists);
+  CHECK(GetFs().GetMounts().size() == 1);
+
+  REQUIRE(GetFs().Unmount("\\device\\harddisk0\\partition1"));
+  CHECK(GetFs().GetMounts().empty());
+}
+
 REX_TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files",
                      "[filesystem][open]") {
   WriteHost(GetTemp() / "present.txt", "data");

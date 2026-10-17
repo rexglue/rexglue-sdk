@@ -173,6 +173,15 @@ std::optional<HostInfo> HostStat(const std::filesystem::path& path) {
   }
   HostInfo info;
   info.name = path.filename();
+  if (info.name.native().find_first_of(L"*?") == std::wstring::npos) {
+    WIN32_FIND_DATAW found{};
+    if (HANDLE handle = FindFirstFileW(path.c_str(), &found); handle != INVALID_HANDLE_VALUE) {
+      FindClose(handle);
+      if (rex::utf8_equal_case(PathToUTF8(found.cFileName), PathToUTF8(info.name))) {
+        info.name = found.cFileName;
+      }
+    }
+  }
   info.directory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
   info.size = info.directory ? 0 : Combine(data.nFileSizeHigh, data.nFileSizeLow);
   info.create_time = Combine(data.ftCreationTime);

@@ -334,6 +334,43 @@ REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be w
   });
 }
 
+REX_TEST_CASE("files: content is found under folders whose names differ in case",
+              "[kernel][files][content][case]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    constexpr u32 kTitleId = 0xABCDEF01;
+    constexpr u64 kXUID = 0xABCDEF0123456789;
+    const auto title_dir = c.GetRuntime().GetUserDataRoot() / "abcdef0123456789" / "abcdef01";
+    std::filesystem::create_directories(title_dir / "00000001" / "RexSave");
+    std::filesystem::create_directories(title_dir / "headers" / "00000001");
+
+    rex::runtime::XCONTENT_AGGREGATE_DATA data{};
+    data.device_id = 1;
+    data.content_type = rex::runtime::XContentType::kSavedGame;
+    std::memcpy(data.file_name_raw, "rexsave", 7);
+    data.xuid = kXUID;
+    data.title_id = kTitleId;
+    CHECK(c.GetRuntime().GetContentManager().ContentExists(kXUID, data));
+  });
+}
+
+REX_TEST_CASE("files: deleting a symbolic link names it as creating it does",
+              "[kernel][files][case]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const auto ansi = [&c](std::string_view text) {
+      const u32 address = c.Alloc(8);
+      c.Store32(address, (static_cast<u32>(text.size()) << 16) | static_cast<u32>(text.size() + 1));
+      c.Store32(address + 4, c.String(text));
+      return address;
+    };
+    const u32 target = ansi("\\Device\\Harddisk0\\Partition1");
+    CHECK(c.Kernel("ObCreateSymbolicLink", {ansi("\\??\\Linked:"), target}) == 0);
+    CHECK(c.Kernel("ObDeleteSymbolicLink", {ansi("\\??\\LINKED:")}) == 0);
+    CHECK(c.Kernel("ObDeleteSymbolicLink", {ansi("\\??\\Linked:")}) != 0);
+  });
+}
+
 REX_TEST_CASE("files: closing content with no link leaves other files open",
               "[kernel][files][content]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "k.bin", 4); });
@@ -383,6 +420,34 @@ REX_TEST_CASE("files: closing content leaves a sibling root that shares its pref
     c.GetRuntime().GetContentManager().CloseOpenedFilesFromContent("conta");
     CHECK(c.GetRuntime().GetObjectTable().Get(handle));
     CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE(
+    "files: closing content closes a file when the link target is cased differently than the mount",
+    "[kernel][files][content][case]") {
+  KernelFixture fixture([](const std::filesystem::path& root) {
+    std::filesystem::create_directories(root / "conta");
+    std::ofstream(root / "conta" / "k.bin", std::ios::binary) << "xxxx";
+  });
+  namespace fs = rex::filesystem;
+  auto* file_system = fixture.GetAPI().Get<fs::IFileSystem>();
+  REQUIRE(file_system);
+  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderKind::kHostDirectory,
+                              fixture.GetRoot() / "conta", fs::MountFlags::kWritable}));
+  REQUIRE(file_system->Link("conta:", "\\DEVICE\\CONTA"));
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("conta:\\k.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    c.GetRuntime().GetContentManager().CloseOpenedFilesFromContent("conta");
+    CHECK_FALSE(c.GetRuntime().GetObjectTable().Get(handle));
   });
 }
 

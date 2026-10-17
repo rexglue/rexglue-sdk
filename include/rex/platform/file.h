@@ -79,6 +79,18 @@ REX_API std::filesystem::path GetUserFolder();
                                                  std::string_view text);
 
 /**
+ * Joins a name onto a folder, using the name as the folder stores it when an entry matches without
+ * regard to case. A name that matches no entry joins unchanged, so a caller can create it.
+ *
+ * @param parent The host folder to search.
+ * @param name The entry name, a single path component.
+ * @return The path of the existing entry whose name equals name, preferring an exact match, or
+ *         parent joined with name when none exists.
+ */
+[[nodiscard]] REX_API std::filesystem::path ResolveEntryCase(const std::filesystem::path& parent,
+                                                             std::string_view name);
+
+/**
  * Opens a storage file for reading and writing, creating it when missing.
  *
  * @param file Stream to open.

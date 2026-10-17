@@ -2,6 +2,7 @@
 #include "app_name.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <fstream>
 #include <regex>
@@ -15,6 +16,8 @@
 #include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/platform/file.h>
+#include <rex/string.h>
+#include <rex/string/key.h>
 
 namespace rexglue::cli {
 
@@ -22,16 +25,12 @@ namespace fs = std::filesystem;
 
 namespace {
 
-std::string ToLower(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return s;
-}
-
 bool IsSourceExtension(const fs::path& p) {
-  static const std::unordered_set<std::string> kExts = {".cpp", ".cc",  ".cxx", ".c",  ".h",
-                                                        ".hh",  ".hpp", ".hxx", ".inl"};
-  return kExts.contains(ToLower(p.extension().string()));
+  static constexpr std::array<std::string_view, 9> kExts = {".cpp", ".cc",  ".cxx", ".c",  ".h",
+                                                            ".hh",  ".hpp", ".hxx", ".inl"};
+  const std::string ext = p.extension().string();
+  return std::ranges::any_of(
+      kExts, [&](std::string_view known) { return rex::utf8_equal_case(ext, known); });
 }
 
 }  // namespace
@@ -72,10 +71,10 @@ std::vector<SourceWarning> ScanStaleIncludes(
   if (!fs::is_directory(src_dir))
     return matches;
 
-  std::unordered_set<std::string> removed_lower;
-  removed_lower.reserve(removed_basenames.size());
+  std::unordered_set<rex::StringKeyCase> removed;
+  removed.reserve(removed_basenames.size());
   for (const auto& name : removed_basenames)
-    removed_lower.insert(ToLower(name));
+    removed.insert(rex::StringKeyCase::Create(name));
 
   static const std::regex kIncludeRe(R"(^\s*#\s*include\s*[<"]([^>"]+)[>"])");
 
@@ -95,7 +94,7 @@ std::vector<SourceWarning> ScanStaleIncludes(
       std::string target = m[1].str();
       auto pos = target.find_last_of("/\\");
       std::string basename = pos == std::string::npos ? target : target.substr(pos + 1);
-      if (!removed_lower.contains(ToLower(basename)))
+      if (!removed.contains(rex::StringKeyCase::Create(basename)))
         continue;
       matches.push_back({entry.path(), line_number, std::format("stale include: {}", target),
                          "header no longer emitted by codegen; update or remove the include"});

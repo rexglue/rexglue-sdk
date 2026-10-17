@@ -59,7 +59,8 @@ bool ModuleRegistry::AddUser(X_HANDLE handle) {
     return false;
   }
   for (X_HANDLE listed : GetUserModules()) {
-    if (auto other = table_.Get<ModuleObject>(listed); other && other->path == module->path) {
+    if (auto other = table_.Get<ModuleObject>(listed);
+        other && rex::utf8_equal_case(other->path, module->path)) {
       return false;
     }
   }
@@ -161,12 +162,12 @@ std::vector<X_HANDLE> ModuleRegistry::GetUserModules() {
 
 bool ModuleRegistry::BeginLoad(std::string_view path) {
   std::lock_guard lock(mutex_);
-  return loading_paths_.emplace(path).second;
+  return loading_paths_.emplace(StringKeyCase::Create(path)).second;
 }
 
 void ModuleRegistry::EndLoad(const std::string& path) {
   std::lock_guard lock(mutex_);
-  loading_paths_.erase(path);
+  loading_paths_.erase(StringKeyCase::Create(path));
 }
 
 void ModuleRegistry::Shutdown() {

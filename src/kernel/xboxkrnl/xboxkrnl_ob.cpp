@@ -222,7 +222,11 @@ u32 ObCreateSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr,
 }
 
 u32 ObDeleteSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr) {
-  auto path = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), path_ptr);
+  auto path = rex::utf8_canonicalize_guest_path(
+      runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), path_ptr));
+  if (rex::utf8_starts_with(path, u8"\\??\\")) {
+    path = path.substr(4);
+  }
   if (!runtime::GetCurrent().GetFileSystem()->Unlink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }

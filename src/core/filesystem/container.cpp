@@ -10,6 +10,7 @@
 
 #include <rex/logging/log.h>
 #include <rex/memory/mapped_memory.h>
+#include <rex/platform/file.h>
 #include <rex/string.h>
 
 #include "container_parse.h"
@@ -103,8 +104,8 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
       if (stored.metadata.data_file_count <= 1) {
         container.files_.push_back(std::move(map));
       } else {
-        std::filesystem::path fragments = file;
-        fragments += ".data";
+        const std::filesystem::path fragments =
+            platform::ResolveEntryCase(file.parent_path(), PathToUTF8(file.filename()) + ".data");
         std::vector<std::filesystem::path> names;
         for (const auto& entry : std::filesystem::directory_iterator(fragments, ec)) {
           if (!entry.is_directory(ec)) {

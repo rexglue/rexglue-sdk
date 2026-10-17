@@ -235,9 +235,9 @@ REX_TEST_CASE("embedded metadata assets resolve by metadata-relative path",
 
 REX_TEST_CASE("the unlock save is found under names that differ in case",
               "[runtime][achievements][case]") {
-  rex::test::TempFolder temp("rex_achievement_save_case_");
-  std::filesystem::create_directories(temp.path / "Achievements");
-  std::ofstream(temp.path / "Achievements" / "abcdef01.toml") << "";
-  const auto found = rex::runtime::ResolveUnlockSavePath(temp.path, 0xABCDEF01);
+  TempDirectory temp("rex_achievement_save_case");
+  std::filesystem::create_directories(temp.GetPath() / "Achievements");
+  std::ofstream(temp.GetPath() / "Achievements" / "abcdef01.toml") << "";
+  const auto found = rex::runtime::ResolveUnlockSavePath(temp.GetPath(), 0xABCDEF01);
   CHECK(std::filesystem::exists(found));
 }

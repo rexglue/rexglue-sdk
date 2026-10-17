@@ -13,6 +13,11 @@
 
 namespace rex::runtime {
 
+std::filesystem::path ResolveUnlockSavePath(const std::filesystem::path& user_root, u32 title_id) {
+  return platform::ResolveEntryCase(platform::ResolveEntryCase(user_root, "achievements"),
+                                    std::format("{:08X}.toml", title_id));
+}
+
 u64 AchievementManager::GetCurrentFileTime() {
   using namespace std::chrono;
   auto now = system_clock::now().time_since_epoch();

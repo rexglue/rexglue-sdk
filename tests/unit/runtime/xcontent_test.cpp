@@ -42,6 +42,31 @@ REX_TEST_CASE("a full file name stops at the field end before a guard page",
   rex::memory::DeallocFixed(base, 0, DeallocationType::kRelease);
 }
 
+REX_TEST_CASE("content data locating the same package compares equal without regard to case",
+              "[runtime][xcontent][case]") {
+  using rex::runtime::XCONTENT_AGGREGATE_DATA;
+  using rex::runtime::XContentType;
+  XCONTENT_DATA left{};
+  XCONTENT_DATA right{};
+  left.device_id = 1;
+  right.device_id = 1;
+  left.content_type = XContentType::kSavedGame;
+  right.content_type = XContentType::kSavedGame;
+  left.SetFileName("Save1");
+  right.SetFileName("SAVE1");
+  CHECK(left == right);
+  right.SetFileName("Save2");
+  CHECK_FALSE(left == right);
+
+  XCONTENT_AGGREGATE_DATA aggregate_left{};
+  XCONTENT_AGGREGATE_DATA aggregate_right{};
+  aggregate_left.SetFileName("Save1");
+  aggregate_right.SetFileName("sAVE1");
+  CHECK(aggregate_left == aggregate_right);
+  aggregate_right.content_type = XContentType::kMarketplaceContent;
+  CHECK_FALSE(aggregate_left == aggregate_right);
+}
+
 REX_TEST_CASE("a language id outside the language range converts to no language",
               "[runtime][xcontent]") {
   using rex::runtime::ToXLanguage;

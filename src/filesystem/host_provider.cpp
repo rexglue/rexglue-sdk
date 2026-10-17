@@ -12,6 +12,7 @@
 #include <rex/result.h>
 #include <rex/math.h>
 #include <rex/memory/mapped_memory.h>
+#include <rex/platform/file.h>
 #include <rex/string.h>
 
 namespace rex::filesystem {
@@ -123,16 +124,13 @@ Node* HostProvider::Resolve(std::string_view path) {
     if (!IsHostName(part)) {
       return nullptr;
     }
-    std::optional<HostInfo> info = HostStat(current->GetHostPath() / to_path(part));
+    const std::filesystem::path host_path = current->GetHostPath();
+    std::optional<HostInfo> info = HostStat(host_path / to_path(part));
     if (!info) {
-      std::vector<HostInfo> children = HostList(current->GetHostPath());
-      const auto match = std::ranges::find_if(children, [&](const HostInfo& candidate) {
-        return utf8_equal_case(PathToUTF8(candidate.name), part);
-      });
-      if (match == children.end()) {
-        return nullptr;
-      }
-      info = *match;
+      info = HostStat(platform::ResolveEntryCase(host_path, part));
+    }
+    if (!info) {
+      return nullptr;
     }
     current = static_cast<HostNode*>(current->AddChild(HostNode::Create(*this, *current, *info)));
   }

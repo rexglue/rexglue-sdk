@@ -84,4 +84,19 @@ Result<void> WriteHostFile(const std::filesystem::path& path, std::string_view t
                        std::span<const u8>(reinterpret_cast<const u8*>(text.data()), text.size()));
 }
 
+std::filesystem::path ResolveEntryCase(const std::filesystem::path& parent, std::string_view name) {
+  std::error_code ec;
+  const std::filesystem::path exact = parent / to_path(name);
+  if (std::filesystem::exists(std::filesystem::symlink_status(exact, ec))) {
+    return exact;
+  }
+  const std::filesystem::directory_iterator end;
+  for (std::filesystem::directory_iterator it(parent, ec); !ec && it != end; it.increment(ec)) {
+    if (utf8_equal_case(PathToUTF8(it->path().filename()), name)) {
+      return it->path();
+    }
+  }
+  return exact;
+}
+
 }  // namespace rex::platform

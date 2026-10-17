@@ -12,6 +12,11 @@
 #include "rex_test.h"
 
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
+#include <future>
+#include <mutex>
+#include <thread>
 #include <cstring>
 #include <string>
 #include <filesystem>
@@ -19,6 +24,9 @@
 #include <vector>
 
 #include <rex/filesystem/xex.h>
+#include <rex/api.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/sink.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/module_object.h>
@@ -294,4 +302,83 @@ REX_TEST_CASE("modules: a patch changes the image before the sections are copied
     CHECK(CallFunction(runtime) == kResultA);
     modules.UnloadUserModule(*first);
   });
+}
+
+namespace {
+
+class GateSink final : public rex::log::ISink {
+ public:
+  void Write(const rex::log::Message& message) override {
+    std::unique_lock lock(mutex_);
+    messages_.emplace_back(message.text);
+    if (!gated_ && message.text.starts_with("File not found: game:\\Mod.xex")) {
+      gated_ = true;
+      inside_ = true;
+      changed_.notify_all();
+      changed_.wait_for(lock, std::chrono::seconds(20), [this] { return released_; });
+    }
+  }
+
+  void Flush() override {}
+
+  bool WaitInside() {
+    std::unique_lock lock(mutex_);
+    return changed_.wait_for(lock, std::chrono::seconds(10), [this] { return inside_; });
+  }
+
+  void Release() {
+    std::lock_guard lock(mutex_);
+    released_ = true;
+    changed_.notify_all();
+  }
+
+  size_t Count(std::string_view prefix) {
+    std::lock_guard lock(mutex_);
+    return static_cast<size_t>(std::ranges::count_if(
+        messages_, [&](const std::string& text) { return text.starts_with(prefix); }));
+  }
+
+ private:
+  std::mutex mutex_;
+  std::condition_variable changed_;
+  std::vector<std::string> messages_;
+  bool gated_ = false;
+  bool inside_ = false;
+  bool released_ = false;
+};
+
+}  // namespace
+
+REX_TEST_CASE("registry: a load of a case variant of a path being loaded is refused",
+              "[runtime][module][case]") {
+  using namespace std::chrono_literals;
+  KernelFixture fixture;
+  auto* logger = fixture.GetAPI().Get<rex::ILogger>();
+  REQUIRE(logger);
+  GateSink sink;
+  logger->AddSink(sink);
+  fixture.RunOnGuestThread([&](Caller& c) {
+    auto& modules = c.GetRuntime().GetModuleRegistry();
+    auto first_done = std::make_shared<std::promise<bool>>();
+    auto second_done = std::make_shared<std::promise<bool>>();
+    auto first_future = first_done->get_future();
+    auto second_future = second_done->get_future();
+    const u32 first = c.Spawn([&](Caller&) {
+      first_done->set_value(static_cast<bool>(modules.LoadUserModule("game:\\Mod.xex")));
+    });
+    const bool inside = sink.WaitInside();
+    const u32 second = c.Spawn([&](Caller&) {
+      second_done->set_value(static_cast<bool>(modules.LoadUserModule("game:\\MOD.XEX")));
+    });
+    std::this_thread::sleep_for(500ms);
+    sink.Release();
+    CHECK(first_future.wait_for(10s) == std::future_status::ready);
+    CHECK(second_future.wait_for(10s) == std::future_status::ready);
+    CHECK(inside);
+    c.Kernel("NtClose", {first});
+    c.Kernel("NtClose", {second});
+  });
+  logger->RemoveSink(sink);
+  CHECK(sink.Count("LoadUserModule: 'game:\\MOD.XEX' already being loaded") == 1);
+  CHECK(sink.Count("File not found") == 1);
 }

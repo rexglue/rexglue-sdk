@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <rex/platform/file.h>
+#include <rex/string.h>
 
 namespace {
 
@@ -89,4 +90,32 @@ REX_TEST_CASE_METHOD(HostFileFixture, "WriteHostFile writes text and leaves no t
   read = rex::platform::ReadHostFile(target);
   REQUIRE(read);
   CHECK(read->empty());
+}
+
+REX_TEST_CASE_METHOD(HostFileFixture, "ResolveEntryCase names the entry the folder holds",
+                     "[core][host_file][case]") {
+  std::filesystem::create_directories(folder.path / "Save1");
+  for (const char* name : {"SAVE1", "Save1", "save1"}) {
+    const auto resolved = rex::platform::ResolveEntryCase(folder.path, name);
+    CHECK(std::filesystem::exists(resolved));
+    CHECK(rex::utf8_equal_case(rex::PathToUTF8(resolved.filename()), "Save1"));
+  }
+  CHECK(rex::platform::ResolveEntryCase(folder.path, "save2").filename() == "save2");
+  CHECK(rex::platform::ResolveEntryCase(folder.path / "absent", "Anything").filename() ==
+        "Anything");
+}
+
+REX_TEST_CASE_METHOD(HostFileFixture, "ResolveEntryCase prefers the exact name over a case variant",
+                     "[core][host_file][case]") {
+  std::filesystem::create_directories(folder.path / "Both");
+  std::filesystem::create_directories(folder.path / "both");
+  size_t entries = 0;
+  for (const auto& entry : std::filesystem::directory_iterator(folder.path)) {
+    entries += entry.is_directory() ? 1 : 0;
+  }
+  if (entries < 2) {
+    SKIP("the folder does not distinguish case");
+  }
+  CHECK(rex::platform::ResolveEntryCase(folder.path, "both").filename() == "both");
+  CHECK(rex::platform::ResolveEntryCase(folder.path, "Both").filename() == "Both");
 }

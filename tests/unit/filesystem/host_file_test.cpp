@@ -11,6 +11,7 @@
 #include <array>
 #include <atomic>
 #include <cstdio>
+#include <optional>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -31,6 +32,7 @@ using rex::filesystem::Access;
 using rex::filesystem::HostFile;
 using rex::filesystem::HostInfo;
 using rex::filesystem::HostList;
+using rex::filesystem::HostStat;
 using rex::filesystem::test::TempFolder;
 using rex::filesystem::test::WriteHost;
 
@@ -187,6 +189,19 @@ REX_TEST_CASE("HostList reports a link to a folder as a folder", "[filesystem][h
     CHECK(child.directory);
     CHECK(child.size == 0);
   }
+}
+
+REX_TEST_CASE("HostStat names the entry as the folder holds it", "[filesystem][host][case]") {
+  TempFolder temp;
+  std::filesystem::create_directories(temp.path / "Save1");
+  const std::optional<HostInfo> info = HostStat(temp.path / "SAVE1");
+  if (!info) {
+    SKIP("the host tells names apart by case");
+  }
+  CHECK(info->name == "Save1");
+  std::filesystem::create_directories(temp.path / "Save2");
+  CHECK_FALSE(HostStat(temp.path / "Sav*"));
+  CHECK_FALSE(HostStat(temp.path / "Save?"));
 }
 
 #if defined(_WIN32)

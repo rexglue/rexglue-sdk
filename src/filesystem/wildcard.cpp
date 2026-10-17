@@ -8,21 +8,20 @@
 namespace rex::filesystem {
 
 WildcardMatcher::WildcardMatcher(std::string_view pattern)
-    : pattern_(pattern == "*.*" ? std::string("*") : utf8_lower_ascii(pattern)) {}
+    : pattern_(pattern == "*.*" ? std::string("*") : std::string(pattern)) {}
 
 bool WildcardMatcher::Match(std::string_view name) const {
   if (pattern_.empty()) {
     return true;
   }
-  const std::string lower = utf8_lower_ascii(name);
-  const size_t last_dot = lower.rfind('.');
+  const size_t last_dot = name.rfind('.');
   const size_t count = pattern_.size();
   std::vector<bool> active(count + 1);
   std::vector<bool> next(count + 1);
   active[0] = true;
   for (size_t n = 0;; ++n) {
-    const bool at_end = n == lower.size();
-    const char c = at_end ? '\0' : lower[n];
+    const bool at_end = n == name.size();
+    const char c = at_end ? '\0' : name[n];
     for (size_t p = 0; p < count; ++p) {
       const char token = pattern_[p];
       if (active[p] && (token == '*' || token == '<' || (token == '>' && (at_end || c == '.')) ||
@@ -55,7 +54,7 @@ bool WildcardMatcher::Match(std::string_view name) const {
           next[p + 1] = next[p + 1] || c == '.';
           break;
         default:
-          next[p + 1] = next[p + 1] || pattern_[p] == c;
+          next[p + 1] = next[p + 1] || utf8_equal_case({&pattern_[p], 1}, {&c, 1});
           break;
       }
     }

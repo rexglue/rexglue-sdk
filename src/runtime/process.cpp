@@ -251,7 +251,7 @@ void Runtime::LoadAchievementsData() {
   const auto user_root = GetUserDataRoot();
   if (!user_root.empty()) {
     achievement_manager_->SetUnlockSavePath(
-        user_root / "achievements" / std::format("{:08X}.toml", content_manager_->GetTitleId()));
+        ResolveUnlockSavePath(user_root, content_manager_->GetTitleId()));
     achievement_manager_->LoadUnlockState();
   }
 }

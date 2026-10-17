@@ -272,3 +272,23 @@ REX_TEST_CASE("Container reports truncated and out of range images as corrupt",
   REQUIRE_FALSE(garbage);
   CHECK(fs::CodeOf(garbage.error()) == fs::FileSystemError::kCorrupt);
 }
+
+REX_TEST_CASE("Container finds the SVOD data folder without regard to case",
+              "[core][container][case]") {
+  TempFolder temp;
+  auto bytes = Fixture("stfs_con.bin");
+  constexpr size_t kMetadata = offsetof(fs::STFSHeader, metadata);
+  bytes[kMetadata + offsetof(fs::XContentMetadata, data_file_count) + 3] = 2;
+  bytes[kMetadata + offsetof(fs::XContentMetadata, volume_type) + 3] =
+      static_cast<rex::u8>(fs::XContentVolumeType::kSVOD);
+  const auto package = WriteVariant(temp, "disc", bytes);
+  const auto fragments = temp.path / "disc.DATA";
+  std::filesystem::create_directories(fragments);
+  const std::vector<rex::u8> filler(0x40, 0);
+  WriteVariant(temp, "disc.DATA/Data0000", filler);
+  WriteVariant(temp, "disc.DATA/Data0001", filler);
+
+  auto container = fs::Container::Open(package);
+  REQUIRE_FALSE(container);
+  CHECK(container.error().message.find("data fragments") == std::string::npos);
+}

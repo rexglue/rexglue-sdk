@@ -24,6 +24,16 @@
 
 namespace rex::runtime {
 
+/**
+ * Finds the unlock save of a title under the user data folder.
+ *
+ * @param user_root The user data folder.
+ * @param title_id The title ID.
+ * @return The save path, naming the folder and file as they exist when they differ only in case.
+ */
+REX_RUNTIME_API std::filesystem::path ResolveUnlockSavePath(const std::filesystem::path& user_root,
+                                                            u32 title_id);
+
 /** The achievement manager of a runtime. */
 class REX_RUNTIME_API AchievementManager final : public IAchievementManager {
  public:

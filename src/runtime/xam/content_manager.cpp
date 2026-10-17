@@ -24,6 +24,7 @@
 #include <rex/filesystem/container.h>
 #include <rex/logging/log.h>
 #include <rex/no_throw.h>
+#include <rex/platform/file.h>
 #include <rex/runtime/module_registry.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
@@ -108,6 +109,12 @@ constexpr std::string_view kGameUserContentDirName = "profile";
 
 constexpr std::string_view kGameContentHeaderDirName = "Headers";
 
+template <typename... Names>
+std::filesystem::path ResolveChain(std::filesystem::path path, const Names&... names) {
+  ((path = rex::platform::ResolveEntryCase(path, names)), ...);
+  return path;
+}
+
 }  // namespace
 
 ContentManager::ContentManager(Runtime& runtime, const std::filesystem::path& root_path,
@@ -129,7 +136,7 @@ std::filesystem::path ContentManager::ResolvePackageRoot(u64 xuid, XContentType 
   auto content_type_str = std::format("{:08X}", static_cast<u32>(content_type));
 
   // Layout is content_root/xuid/title_id/content_type/
-  return root_path_ / xuid_str / title_id_str / content_type_str;
+  return ResolveChain(root_path_, xuid_str, title_id_str, content_type_str);
 }
 
 std::filesystem::path ContentManager::ResolvePackagePath(u64 xuid,
@@ -142,7 +149,7 @@ std::filesystem::path ContentManager::ResolvePackagePath(u64 xuid,
   }
 
   auto package_root = ResolvePackageRoot(used_xuid, data.content_type, data.title_id);
-  return package_root / rex::to_path(data.GetFileName());
+  return rex::platform::ResolveEntryCase(package_root, data.GetFileName());
 }
 
 std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string_view file_name,
@@ -162,8 +169,8 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
   std::string final_name = std::string(file_name) + ".header";
 
   // Layout is content_root/xuid/title_id/Headers/content_type/filename.header
-  return root_path_ / xuid_str / title_id_str / kGameContentHeaderDirName / content_type_str /
-         final_name;
+  return ResolveChain(root_path_, xuid_str, title_id_str, kGameContentHeaderDirName,
+                      content_type_str, final_name);
 }
 
 std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(u32 device_id, u64 xuid,
@@ -439,7 +446,7 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
       runtime_.GetObjectTable().All<FileObject>();
   for (const Pinned<FileObject>& file : all_files_handles) {
     const std::string file_path = file->file->GetInfo().absolute_path;
-    if (!rex::utf8_starts_with(file_path, root)) {
+    if (!rex::utf8_starts_with_case(file_path, root)) {
       continue;
     }
     const std::string_view rest = std::string_view(file_path).substr(root.size());
