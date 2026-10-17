@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/validation_errors.h
+ * @file        tests/validation_errors.h
  * @brief       Searches the errors of a recompiler config validation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

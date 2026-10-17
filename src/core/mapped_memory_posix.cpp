@@ -251,7 +251,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
     const std::filesystem::path& path, size_t chunk_size, bool low_address_space) {
   return std::make_unique<PosixChunkedMappedMemoryWriter>(
-      path, rex::round_up_nonzero(chunk_size, AllocationGranularity()), low_address_space);
+      path, rex::RoundUpNonZero(chunk_size, AllocationGranularity()), low_address_space);
 }
 
 }  // namespace rex::memory

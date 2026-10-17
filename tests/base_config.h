@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/base_config.h
+ * @file        tests/base_config.h
  * @brief       A Config that reads no config file
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

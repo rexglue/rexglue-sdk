@@ -1,5 +1,5 @@
 /**
- * @file        codegen/test_support.h
+ * @file        codegen/module_stub.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -22,27 +22,27 @@ namespace rex::codegen {
 /**
  * @brief Lightweight Module for loading raw binary test data
  *
- * TestModule provides the Module interface needed by FunctionScanner and
- * Recompiler without requiring a full Runtime/FunctionDispatcher setup. It accepts
- * raw binary data by reference (caller owns the buffer).
+ * StubModule provides the Module interface needed by Recompiler without requiring a full
+ * Runtime/FunctionDispatcher setup. It accepts raw binary data by reference (caller owns the
+ * buffer).
  *
  * @code
  * std::vector<uint8_t> data = load_binary_file(...);
- * TestModule module;
+ * StubModule module;
  * module.Load(0x82010000, data.data(), data.size());
  * recompiler.module_ = &module;
  * @endcode
  */
-class TestModule : public runtime::Module {
+class StubModule : public runtime::Module {
  public:
   /** Creates an empty module with no runtime. */
-  TestModule();
-  ~TestModule() override = default;
+  StubModule();
+  ~StubModule() override = default;
 
   /**
    * @brief Load binary data for analysis
    * @param base_address Guest virtual address where code is loaded
-   * @param data Pointer to binary data (caller owns, must outlive TestModule usage)
+   * @param data Pointer to binary data (caller owns, must outlive StubModule usage)
    * @param size Size of binary data in bytes
    */
   void Load(u32 base_address, const u8* data, size_t size);

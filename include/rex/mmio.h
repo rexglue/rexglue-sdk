@@ -98,13 +98,17 @@ namespace detail {
 /** Recipient of each block, indexed by MMIOBlock. */
 REX_API extern MMIORecipient mmio_slots[2];
 
+}  // namespace detail
+
+namespace ppc {
+
 /**
  * Loads a register for a guarded access.
  *
  * @param address The guest address.
  * @return The register value, or 0 when the address is outside both blocks.
  */
-REX_API u32 MMIOLoad(u32 address);
+REX_API u32 MMIOLoad32(u32 address);
 
 /**
  * Stores a register for a guarded access. A store outside both blocks is dropped.
@@ -112,7 +116,7 @@ REX_API u32 MMIOLoad(u32 address);
  * @param address The guest address.
  * @param value The register value.
  */
-REX_API void MMIOStore(u32 address, u32 value);
+REX_API void MMIOStore32(u32 address, u32 value);
 
 /**
  * Loads 1 byte of a register for a guarded access, from the big endian lane the address names.
@@ -138,6 +142,6 @@ REX_API u16 MMIOLoad16(u32 address);
  */
 [[noreturn]] REX_API void MMIONarrowWrite(u32 address, u32 size);
 
-}  // namespace detail
+}  // namespace ppc
 
 }  // namespace rex

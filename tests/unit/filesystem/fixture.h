@@ -25,7 +25,7 @@
 #include <rex/platform/file.h>
 #include <rex/types.h>
 
-#include "support/temp_folder.h"
+#include "temp_folder.h"
 
 namespace rex::filesystem::test {
 

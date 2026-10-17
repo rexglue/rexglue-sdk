@@ -9,10 +9,10 @@
  */
 
 #include "builder_context.h"
-#include "helpers.h"
 
 #include <algorithm>
 #include <charconv>
+#include <cstring>
 #include <string_view>
 
 #include <rex/codegen/binary_view.h>
@@ -20,6 +20,9 @@
 #include <rex/logging/log.h>
 
 #include <rex/runtime/exports.h>
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
 
 namespace rex::codegen {
 
@@ -507,6 +510,22 @@ void BuilderContext::EmitStoreXForm(const char* store_macro, const char* src_typ
   if (insn.operands[1] != 0)
     Print("{}.u32 + ", R(insn.operands[1]));
   Println("{}.u32, {}.{});", R(insn.operands[2]), R(insn.operands[0]), src_type);
+}
+
+const char* GetCRBitName(u32 bi) {
+  static constexpr const char* kNames[] = {"lt", "gt", "eq", "so"};
+  return kNames[bi & 3];
+}
+
+bool IsRecordForm(const ppc_insn& insn) {
+  return std::strchr(insn.opcode->name, '.') != nullptr;
+}
+
+void EmitRecordFormCompare(BuilderContext& ctx) {
+  if (IsRecordForm(ctx.insn)) {
+    ctx.Println("	{}.Compare<i32>({}.s32, 0, {});", ctx.CR(0), ctx.R(ctx.insn.operands[0]),
+                ctx.XER());
+  }
 }
 
 }  // namespace rex::codegen

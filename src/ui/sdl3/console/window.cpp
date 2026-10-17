@@ -14,7 +14,7 @@ namespace rex::ui {
 
 class ConsoleWindow::Dialog final : public ImGuiDialog {
  public:
-  Dialog(const Style& style, ConsoleModel& model, ConsoleHost& host)
+  Dialog(const Style& style, ConsoleModel& model, IConsoleHost& host)
       : style_(style), view_(model, host) {}
 
  protected:
@@ -37,7 +37,7 @@ class ConsoleWindow::Dialog final : public ImGuiDialog {
 
 class ConsoleWindow::Listener final : public WindowListener {
  public:
-  explicit Listener(ConsoleHost& host) : host_(host) {}
+  explicit Listener(IConsoleHost& host) : host_(host) {}
 
   bool OnCloseRequested(UIEvent&) override {
     host_.Dock();
@@ -45,7 +45,7 @@ class ConsoleWindow::Listener final : public WindowListener {
   }
 
  private:
-  ConsoleHost& host_;
+  IConsoleHost& host_;
 };
 
 ConsoleWindow::ConsoleWindow(Key) {}
@@ -67,7 +67,7 @@ ConsoleWindow::~ConsoleWindow() {
 
 Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(
     WindowedAppContext& context, gpu::IGPUBackend& backend, const ImGuiStyle& imgui_style,
-    const Style& style, ConsoleModel& model, ConsoleHost& host) {
+    const Style& style, ConsoleModel& model, IConsoleHost& host) {
   using Created = std::unique_ptr<ConsoleWindow>;
   Created console = std::make_unique<ConsoleWindow>(Key{});
   console->window_ = Window::Create(context, "Console");

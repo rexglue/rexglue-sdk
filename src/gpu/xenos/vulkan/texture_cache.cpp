@@ -1264,10 +1264,10 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       level_guest_z_extent_texels = std::max(depth >> level, UINT32_C(1));
     }
     level_host_layout.x_pitch_blocks =
-        rex::round_up_nonzero((level_guest_x_extent_texels_unscaled * texture_resolution_scale_x +
-                               (host_block_width - 1)) /
-                                  host_block_width,
-                              host_x_blocks_per_thread);
+        rex::RoundUpNonZero((level_guest_x_extent_texels_unscaled * texture_resolution_scale_x +
+                             (host_block_width - 1)) /
+                                host_block_width,
+                            host_x_blocks_per_thread);
     level_host_layout.y_pitch_blocks =
         (level_guest_y_extent_texels_unscaled * texture_resolution_scale_y +
          (host_block_height - 1)) /
@@ -1338,8 +1338,8 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       write_descriptor_set_source_base_buffer_info.buffer = scaled_resolve_buffer_;
     } else {
       source_base_start = source_base_start_unscaled;
-      source_base_range = rex::Align(static_cast<u64>(vulkan_texture.GetGuestBaseSize()),
-                                     static_cast<u64>(source_length_alignment));
+      source_base_range = rex::RoundUpPow2(static_cast<u64>(vulkan_texture.GetGuestBaseSize()),
+                                           static_cast<u64>(source_length_alignment));
       if (source_base_range > static_cast<u64>(SharedMemory::kBufferSize) - source_base_start) {
         return false;
       }
@@ -1378,8 +1378,8 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       write_descriptor_set_source_mips_buffer_info.buffer = scaled_resolve_buffer_;
     } else {
       source_mips_start = source_mips_start_unscaled;
-      source_mips_range = rex::Align(static_cast<u64>(vulkan_texture.GetGuestMipsSize()),
-                                     static_cast<u64>(source_length_alignment));
+      source_mips_range = rex::RoundUpPow2(static_cast<u64>(vulkan_texture.GetGuestMipsSize()),
+                                           static_cast<u64>(source_length_alignment));
       if (source_mips_range > static_cast<u64>(SharedMemory::kBufferSize) - source_mips_start) {
         return false;
       }
@@ -2069,7 +2069,7 @@ bool VulkanTextureCache::GetScaledResolveRange(u32 start_unscaled, u32 length_un
   u64 start_scaled = static_cast<u64>(start_unscaled) * scale_area;
   u64 length_scaled = static_cast<u64>(length_unscaled) * scale_area;
   u64 alignment = static_cast<u64>(1) << length_scaled_alignment_log2;
-  length_scaled = rex::Align(length_scaled, alignment);
+  length_scaled = rex::RoundUpPow2(length_scaled, alignment);
 
   if (start_scaled > scaled_resolve_buffer_size_ ||
       length_scaled > scaled_resolve_buffer_size_ - start_scaled) {
@@ -2847,8 +2847,8 @@ bool VulkanTextureCache::Initialize() {
     if (null_image_memory_type_common != UINT32_MAX) {
       // One allocation for both null images because the total allocation count is limited.
       VkDeviceSize null_image_memory_offset_3d =
-          rex::Align(null_image_memory_requirements_2d_array_cube.size,
-                     std::max(null_image_memory_requirements_3d.alignment, VkDeviceSize(1)));
+          rex::RoundUpPow2(null_image_memory_requirements_2d_array_cube.size,
+                           std::max(null_image_memory_requirements_3d.alignment, VkDeviceSize(1)));
       VkMemoryAllocateInfo null_image_memory_allocate_info;
       null_image_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
       null_image_memory_allocate_info.pNext = nullptr;

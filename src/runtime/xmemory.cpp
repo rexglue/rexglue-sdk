@@ -44,7 +44,7 @@
 namespace rex::runtime {
 
 u32 GetPageCount(u32 value, u32 page_size, u32 page_size_shift) {
-  return rex::round_up_nonzero(value, page_size) >> page_size_shift;
+  return rex::RoundUpNonZero(value, page_size) >> page_size_shift;
 }
 
 static std::atomic<runtime::Memory*> active_memory{nullptr};
@@ -88,7 +88,7 @@ class PendingScribble : public NonCopyable {
     }
     auto& range = ranges_[ranges_[0].first ? 1 : 0];
     range = {heap.TranslateRelative(address - heap.GetHeapBase()),
-             rex::round_up_nonzero(size, heap.GetPageSize())};
+             rex::RoundUpNonZero(size, heap.GetPageSize())};
   }
 
  private:
@@ -214,8 +214,8 @@ bool Memory::Initialize() {
   file_name_ = rex::memory::CreateFileMappingName(kFileMappingPrefix);
 
   const size_t mapping_size =
-      rex::round_up_nonzero(static_cast<size_t>(0x120000000ull) + system_allocation_granularity_,
-                            static_cast<size_t>(system_allocation_granularity_));
+      rex::RoundUpNonZero(static_cast<size_t>(0x120000000ull) + system_allocation_granularity_,
+                          static_cast<size_t>(system_allocation_granularity_));
   mapping_ = rex::memory::CreateFileMappingHandle(file_name_, mapping_size,
                                                   rex::memory::PageAccess::kReadWrite, false);
   if (mapping_ == rex::memory::kFileMappingHandleInvalid) {
@@ -525,7 +525,7 @@ bool Memory::ReserveMMIOBlocks() const {
   return std::ranges::all_of(std::array{MMIOBlock::kGPU, MMIOBlock::kAPU}, [&](MMIOBlock block) {
     u8* const start = TranslateVirtual(MMIOBlockBase(block));
     u8* const aligned_start = start - (reinterpret_cast<uintptr_t>(start) & (host_page_size - 1));
-    const size_t aligned_length = rex::round_up_nonzero(
+    const size_t aligned_length = rex::RoundUpNonZero(
         static_cast<size_t>(start - aligned_start) + kMMIOBlockSize, host_page_size);
     return rex::memory::AllocFixed(aligned_start, aligned_length,
                                    rex::memory::AllocationType::kCommit,
@@ -994,8 +994,8 @@ void BaseHeap::Dispose() {
 bool BaseHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 protect, bool top_down,
                      u32* out_address) {
   *out_address = 0;
-  size = rex::round_up_nonzero(size, page_size_);
-  alignment = rex::round_up_nonzero(alignment, page_size_);
+  size = rex::RoundUpNonZero(size, page_size_);
+  alignment = rex::RoundUpNonZero(alignment, page_size_);
 
   // The top is reserved for thread stacks, 0x3XXXXXXX system and 0x7XXXXXXX title.
   u32 heap_virtual_guest_offset = 0;
@@ -1015,8 +1015,8 @@ bool BaseHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 protect, 
 bool BaseHeap::AllocSystemHeap(u32 size, u32 alignment, u32 allocation_type, u32 protect,
                                bool top_down, u32* out_address) {
   *out_address = 0;
-  size = rex::round_up_nonzero(size, page_size_);
-  alignment = rex::round_up_nonzero(alignment, page_size_);
+  size = rex::RoundUpNonZero(size, page_size_);
+  alignment = rex::RoundUpNonZero(alignment, page_size_);
 
   u32 low_address = heap_base_;
   if (heap_type_ == runtime::HeapType::kGuestVirtual) {
@@ -1042,7 +1042,7 @@ bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 a
                                 u32 protect) {
   const bool title_memory = (allocation_type & runtime::kMemoryAllocationTitle) != 0;
   allocation_type &= ~static_cast<u32>(runtime::kMemoryAllocationTitle);
-  alignment = rex::round_up_nonzero(alignment, page_size_);
+  alignment = rex::RoundUpNonZero(alignment, page_size_);
   if (base_address % alignment != 0) {
     if (base_address % page_size_ != 0) {
       REX_FAIL(system, false,
@@ -1057,7 +1057,7 @@ bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 a
                 alignment, page_size_, base_address);
     alignment = page_size_;
   }
-  size = rex::Align(size, alignment);
+  size = rex::RoundUpPow2(size, alignment);
   u32 page_count = GetPageCount(size, page_size_, page_size_shift_);
   u32 start_page_number = (base_address - heap_base_) >> page_size_shift_;
   u32 end_page_number = start_page_number + page_count - 1;
@@ -1152,10 +1152,10 @@ bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32
   const bool title_memory = (allocation_type & runtime::kMemoryAllocationTitle) != 0;
   allocation_type &= ~static_cast<u32>(runtime::kMemoryAllocationTitle);
 
-  alignment = rex::round_up_nonzero(alignment, page_size_);
+  alignment = rex::RoundUpNonZero(alignment, page_size_);
   u32 page_count = GetPageCount(size, page_size_, page_size_shift_);
-  low_address = std::max(heap_base_, rex::Align(low_address, alignment));
-  high_address = std::min(heap_base_ + (heap_size_ - 1), rex::Align(high_address, alignment));
+  low_address = std::max(heap_base_, rex::RoundUpPow2(low_address, alignment));
+  high_address = std::min(heap_base_ + (heap_size_ - 1), rex::RoundUpPow2(high_address, alignment));
   if (high_address < low_address) {
     REX_FAIL(system, false, "BaseHeap::Alloc invalid requested range");
   }
@@ -1224,7 +1224,7 @@ bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32
         bool is_free = page_table_[page_number].state == 0;
         if (!is_free) {
           any_taken = true;
-          base_page_number = rex::round_up_nonzero(page_number + 1, page_scan_stride);
+          base_page_number = rex::RoundUpNonZero(page_number + 1, page_scan_stride);
           base_page_number -= page_scan_stride;
           break;
         }
@@ -1577,8 +1577,8 @@ bool PhysicalHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 prote
   // Top-down by default, the parent heap is bottom-up so this avoids collisions.
   top_down = true;
 
-  size = rex::round_up_nonzero(size, page_size_);
-  alignment = rex::round_up_nonzero(alignment, page_size_);
+  size = rex::RoundUpNonZero(size, page_size_);
+  alignment = rex::RoundUpNonZero(alignment, page_size_);
 
   PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
@@ -1609,8 +1609,8 @@ bool PhysicalHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 prote
 
 bool PhysicalHeap::AllocFixed(u32 base_address, u32 size, u32 alignment, u32 allocation_type,
                               u32 protect) {
-  size = rex::round_up_nonzero(size, page_size_);
-  alignment = rex::round_up_nonzero(alignment, page_size_);
+  size = rex::RoundUpNonZero(size, page_size_);
+  alignment = rex::RoundUpNonZero(alignment, page_size_);
 
   PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
@@ -1619,7 +1619,8 @@ bool PhysicalHeap::AllocFixed(u32 base_address, u32 size, u32 alignment, u32 all
   // The parent heap allocation gives a physical address in the first 512MB.
   u32 parent_base_address = GetPhysicalAddress(base_address);
   std::lock_guard<std::recursive_mutex> parent_lock(parent_heap_->heap_mutex_);
-  const u32 parent_size = parent_base_address % alignment == 0 ? rex::Align(size, alignment) : size;
+  const u32 parent_size =
+      parent_base_address % alignment == 0 ? rex::RoundUpPow2(size, alignment) : size;
   const u32 parent_first =
       (parent_base_address - parent_heap_->heap_base_) >> parent_heap_->page_size_shift_;
   const u32 parent_count = parent_size >> parent_heap_->page_size_shift_;
@@ -1662,8 +1663,8 @@ bool PhysicalHeap::AllocRange(u32 low_address, u32 high_address, u32 size, u32 a
                               u32 allocation_type, u32 protect, bool top_down, u32* out_address) {
   *out_address = 0;
 
-  size = rex::round_up_nonzero(size, page_size_);
-  alignment = rex::round_up_nonzero(alignment, page_size_);
+  size = rex::RoundUpNonZero(size, page_size_);
+  alignment = rex::RoundUpNonZero(alignment, page_size_);
 
   PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();

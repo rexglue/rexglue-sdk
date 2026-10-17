@@ -158,12 +158,12 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
 
   static u32 AlignReadbackBufferSize(u32 size) {
     if (size < 1 * 1024 * 1024) {
-      return rex::Align(size, 256u * 1024u);
+      return rex::RoundUpPow2(size, 256u * 1024u);
     }
     if (size < 4 * 1024 * 1024) {
-      return rex::Align(size, 1u * 1024u * 1024u);
+      return rex::RoundUpPow2(size, 1u * 1024u * 1024u);
     }
-    return rex::Align(size, kReadbackBufferSizeIncrement);
+    return rex::RoundUpPow2(size, kReadbackBufferSizeIncrement);
   }
   static u64 BuildReadbackResolveKey(u32 address, u32 length) {
     return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
@@ -434,7 +434,7 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   SwapPostEffect swap_post_effect_actual_ = SwapPostEffect::kNone;
 
   /** Set by backend command processors to their legacy memexport readback cvar. */
-  const rex::cvar::IVar* legacy_readback_memexport_cvar_ = nullptr;
+  const rex::cvar::VarBase* legacy_readback_memexport_cvar_ = nullptr;
 
  private:
   xenos::reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};

@@ -241,17 +241,18 @@ target_include_directories(unit_tests PRIVATE
 #CLI11 instantiates std::wstring_convert, which libc++ marks deprecated
 target_include_directories(unit_tests SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include)
 
-target_link_libraries(unit_tests PRIVATE
-    rexcodegen
-    rexruntime
-    excrypt
-    reximgui
-    rexui
-    rexhid-common
-    rexui-sdl3-static
-    xxHash::xxhash
-    Catch2::Catch2WithMain
-    SDL3::Headers
+target_link_libraries(
+  unit_tests
+  PRIVATE rexcodegen
+          rexruntime
+          excrypt
+          reximgui
+          rexui
+          rexhid
+          rexui-sdl3-static
+          xxHash::xxhash
+          Catch2::Catch2WithMain
+          SDL3::Headers
 )
 if(WIN32)
     target_link_libraries(unit_tests PRIVATE ws2_32)

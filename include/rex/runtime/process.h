@@ -89,7 +89,7 @@ struct KernelGuestGlobals {
   u8 UsbdBootEnumerationDoneEvent[0x10]; /**< An X_DISPATCH_HEADER. */
   /** Elliptic curve table XeCryptEccGetCurveParameters points into, entry N holds 0x80000000 + N.
    */
-  be_u32 EccCurves[15];
+  be_u32 ecc_curves[15];
 };
 
 }  // namespace rex::runtime

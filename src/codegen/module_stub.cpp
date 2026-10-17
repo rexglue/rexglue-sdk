@@ -1,4 +1,4 @@
-#include <rex/codegen/test_support.h>
+#include <rex/codegen/module_stub.h>
 
 #include <algorithm>
 #include <vector>
@@ -17,9 +17,9 @@ using rex::codegen::detail::DecodeInstruction;
 
 namespace rex::codegen {
 
-TestModule::TestModule() : Module(nullptr) {}
+StubModule::StubModule() : Module(nullptr) {}
 
-void TestModule::Load(u32 base_address, const u8* data, size_t size) {
+void StubModule::Load(u32 base_address, const u8* data, size_t size) {
   base_address_ = base_address;
   size_ = static_cast<u32>(size);
 

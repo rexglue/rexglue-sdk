@@ -10,7 +10,7 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
+#include "temp_folder.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -25,7 +25,7 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/codegen_writer.h>
 #include <rex/codegen/config.h>
-#include <rex/codegen/test_support.h>
+#include <rex/codegen/module_stub.h>
 #include <rex/memory/byte_swap.h>
 #include <rex/mmio.h>
 
@@ -330,7 +330,7 @@ struct EmitFixture {
   rex::test::TempFolder folder;
   fs::path root;
   std::vector<u8> data;
-  TestModule module;
+  StubModule module;
   CodegenContext ctx;
 
   EmitFixture(std::string_view name, std::initializer_list<u32> words,
@@ -350,7 +350,7 @@ struct EmitFixture {
     }
   }
 
-  static CodegenContext MakeContext(const fs::path& root, TestModule& module,
+  static CodegenContext MakeContext(const fs::path& root, StubModule& module,
                                     const std::vector<u8>& data,
                                     std::unordered_map<u32, MMIODeclaredAccess> declared) {
     module.Load(kBase, data.data(), data.size());

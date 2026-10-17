@@ -9,7 +9,6 @@
  */
 
 #include "builder_context.h"
-#include "builders.h"
 
 #include <dis-asm.h>
 #include <ppc-inst.h>
@@ -209,8 +208,7 @@ void EmitVectorTempEA(BuilderContext& ctx) {
 
 }  // namespace
 
-template <>
-bool Build<PPC_INST_LI>(BuilderContext& ctx) {
+bool BuildLi(BuilderContext& ctx) {
   ctx.Println("\t{}.s64 = {};", ctx.R(ctx.insn.operands[0]),
               static_cast<i32>(ctx.insn.operands[1]));
   return true;

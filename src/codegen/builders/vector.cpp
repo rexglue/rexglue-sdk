@@ -9,7 +9,6 @@
  */
 
 #include "builder_context.h"
-#include "builders.h"
 
 #include <bit>
 #include <cmath>
@@ -21,6 +20,9 @@
 #include <rex/logging/log.h>
 
 #include <ppc.h>
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
 
 namespace rex::codegen {
 

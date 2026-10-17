@@ -22,13 +22,13 @@ class CaptureSink;
 
 namespace rex::ui {
 
-class ConsoleHost;
+class IConsoleHost;
 class ConsoleModel;
 
 struct ModuleOverlayContext {
   OverlayContext base;
   ConsoleModel& console;
-  ConsoleHost& console_host;
+  IConsoleHost& console_host;
   log::CaptureSink& log_capture;
   Runtime*& runtime;
   FrameStatsProvider& frame_stats;

@@ -35,7 +35,7 @@ void KernelThunk(PPCContext& ctx, rex::u8*) {
 void IndirectKernelFunction(PPCContext& ctx, rex::u8* base) {
   const rex::u32 slot = kImageBase + 0x2020;
   const rex::u32 target = *reinterpret_cast<rex::be_u32*>(base + slot);
-  rex::runtime::ResolveIndirectFunction(target)(ctx, base);
+  rex::ppc::ResolveFunction(target)(ctx, base);
 }
 
 void DirectFunction(PPCContext& ctx, rex::u8* base) {
@@ -46,7 +46,7 @@ void DirectFunction(PPCContext& ctx, rex::u8* base) {
 void IndirectFunction(PPCContext& ctx, rex::u8* base) {
   const rex::u32 slot = kImageBase + 0x2000;
   const rex::u32 target = *reinterpret_cast<rex::be_u32*>(base + slot);
-  rex::runtime::ResolveIndirectFunction(target)(ctx, base);
+  rex::ppc::ResolveFunction(target)(ctx, base);
 }
 #endif
 

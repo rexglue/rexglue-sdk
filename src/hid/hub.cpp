@@ -63,7 +63,7 @@ void Hub::ClearPadDrivers() {
   }
 }
 
-void Hub::SetDeviceAssignment(std::unique_ptr<DeviceAssignment> assignment) {
+void Hub::SetDeviceAssignment(std::unique_ptr<IDeviceAssignment> assignment) {
   std::lock_guard lock(mutex_);
   assignment_ = std::move(assignment);
   if (assignment_) {

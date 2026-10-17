@@ -59,7 +59,7 @@ class Hub final : public IHIDBackend {
    *
    * @param assignment The assignment.
    */
-  void SetDeviceAssignment(std::unique_ptr<DeviceAssignment> assignment);
+  void SetDeviceAssignment(std::unique_ptr<IDeviceAssignment> assignment);
 
   /**
    * Starts the keyboard and mouse driver parsing the hid.keybind_* cvars and following their
@@ -121,7 +121,7 @@ class Hub final : public IHIDBackend {
   std::vector<std::unique_ptr<Driver>> drivers_;
   size_t pad_drivers_ = 0;
   KeyboardMouseDriver* keyboard_mouse_ = nullptr;
-  std::unique_ptr<DeviceAssignment> assignment_;
+  std::unique_ptr<IDeviceAssignment> assignment_;
   ActiveDeviceTracker active_devices_;
   std::vector<DeviceInfo> devices_;
   std::vector<Driver*> device_owners_;

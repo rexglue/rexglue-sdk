@@ -35,7 +35,7 @@
 
 #include "file_io.h"
 #include "tool_runtime.h"
-#include "template_registry_internal.h"
+#include "template_render.h"
 
 namespace rex::codegen {
 
@@ -95,7 +95,7 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
   return ComputeInputFingerprint(inputs, sdk_version, flags);
 }
 
-void ReportBinaryInfo(ProgressReporter* reporter, std::string_view display_name,
+void ReportBinaryInfo(IProgressReporter* reporter, std::string_view display_name,
                       const rex::runtime::XEXModule& xex) {
   if (!reporter)
     return;

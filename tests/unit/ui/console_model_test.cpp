@@ -9,7 +9,7 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
+#include "temp_folder.h"
 
 #include <chrono>
 #include <deque>
@@ -136,7 +136,7 @@ REX_TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins 
 
   std::deque<std::string> names;
   std::deque<rex::cvar::Var<bool>> vars;
-  std::vector<const rex::cvar::IVar*> table;
+  std::vector<const rex::cvar::VarBase*> table;
   for (int index = 0; index < 70; ++index) {
     names.push_back(std::format("many.v{:02}", index));
     vars.emplace_back(names.back(), false, "Generated");

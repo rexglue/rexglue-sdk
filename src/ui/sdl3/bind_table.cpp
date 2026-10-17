@@ -65,7 +65,7 @@ void BindTable::AddToRegistry(Entry& entry) {
   if (!registry || entry.added || !entry.callback) {
     return;
   }
-  const cvar::IVar* one[] = {entry.var.get()};
+  const cvar::VarBase* one[] = {entry.var.get()};
   if (auto added = registry->Add(one); !added) {
     REXLOG_WARN(ui, "{}", added.error().message);
     return;
@@ -94,7 +94,7 @@ void BindTable::RemoveFromRegistry(Entry& entry) {
     registry = registry_;
   }
   if (registry) {
-    const cvar::IVar* one[] = {entry.var.get()};
+    const cvar::VarBase* one[] = {entry.var.get()};
     registry->Unregister(one);
   }
   entry.added = false;

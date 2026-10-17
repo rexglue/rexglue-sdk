@@ -1,5 +1,5 @@
 /**
- * @file        codegen/phase_helpers.h
+ * @file        codegen/known_functions.h
  * @brief       Shared helpers for analysis phase files
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

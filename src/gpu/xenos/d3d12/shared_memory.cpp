@@ -135,8 +135,8 @@ bool D3D12SharedMemory::Initialize() {
       buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
 
   upload_buffer_pool_ = std::make_unique<gpu::d3d12::D3D12UploadBufferPool>(
-      provider, rex::Align(gpu::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
-                           static_cast<size_t>(1) << GetPageSizeLog2()));
+      provider, rex::RoundUpPow2(gpu::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
+                                 static_cast<size_t>(1) << GetPageSizeLog2()));
 
   return true;
 }

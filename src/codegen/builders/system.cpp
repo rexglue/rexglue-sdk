@@ -9,7 +9,6 @@
  */
 
 #include "builder_context.h"
-#include "builders.h"
 
 #include <dis-asm.h>
 #include <ppc-inst.h>
@@ -64,8 +63,7 @@ void EmitTrap(BuilderContext& ctx, u32 to, const std::string& a_signed,
 
 }  // namespace
 
-template <>
-bool Build<PPC_INST_NOP>(BuilderContext& ctx) {
+bool BuildNop(BuilderContext& ctx) {
   (void)ctx;
   return true;
 }

@@ -788,7 +788,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
     xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask,
     VulkanRenderTargetCache::RenderPassKey render_pass_key, VkPipeline& pipeline_out,
-    const PipelineLayoutProvider*& pipeline_layout_out, void** pipeline_handle_out) {
+    const IPipelineLayoutProvider*& pipeline_layout_out, void** pipeline_handle_out) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
@@ -836,7 +836,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
   if (last_pipeline_ && last_pipeline_->first == description) {
     VkPipeline last_pipeline = last_pipeline_->second.pipeline.load(std::memory_order_acquire);
-    const PipelineLayoutProvider* last_pipeline_layout =
+    const IPipelineLayoutProvider* last_pipeline_layout =
         last_pipeline_->second.pipeline_layout.load(std::memory_order_acquire);
     if (last_pipeline != VK_NULL_HANDLE && last_pipeline_layout != nullptr) {
       pipeline_out = last_pipeline;
@@ -873,7 +873,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
       }
       found_pipeline = it->second.pipeline.load(std::memory_order_acquire);
     }
-    const PipelineLayoutProvider* found_pipeline_layout =
+    const IPipelineLayoutProvider* found_pipeline_layout =
         it->second.pipeline_layout.load(std::memory_order_acquire);
     last_pipeline_ = &*it;
     pipeline_out = found_pipeline;
@@ -950,7 +950,7 @@ bool VulkanPipelineCache::IsCreatingPipelines() const {
 }
 
 void VulkanPipelineCache::GetPipelineAndLayoutByHandle(
-    void* handle, VkPipeline& pipeline_out, const PipelineLayoutProvider*& pipeline_layout_out,
+    void* handle, VkPipeline& pipeline_out, const IPipelineLayoutProvider*& pipeline_layout_out,
     bool* is_placeholder_out) const {
   if (!handle) {
     pipeline_out = VK_NULL_HANDLE;
@@ -2570,7 +2570,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
     }
   }
 
-  const PipelineLayoutProvider* pipeline_layout = command_processor_.GetPipelineLayout(
+  const IPipelineLayoutProvider* pipeline_layout = command_processor_.GetPipelineLayout(
       (!for_placeholder && pixel_shader)
           ? static_cast<const VulkanShader&>(pixel_shader->GetShader())
                 .GetTextureBindingsAfterTranslation()

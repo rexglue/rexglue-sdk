@@ -32,6 +32,6 @@ namespace rex::codegen {
  * @param reporter Optional progress sink, may be null
  * @return Success if the graph is valid, error otherwise
  */
-[[nodiscard]] Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> Analyze(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 }  // namespace rex::codegen

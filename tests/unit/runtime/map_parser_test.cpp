@@ -13,8 +13,8 @@
 #include <rex/filesystem/error.h>
 #include <rex/runtime/map_parser.h>
 
-#include "support/file_text.h"
-#include "support/temp_folder.h"
+#include "file_text.h"
+#include "temp_folder.h"
 
 using rex::filesystem::FileSystemError;
 using rex::runtime::MapParseOptions;

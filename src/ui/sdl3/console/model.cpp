@@ -144,10 +144,10 @@ void ConsoleModel::Execute(std::string_view line) {
 }
 
 void ConsoleModel::ListCvars() {
-  std::vector<const cvar::IVar*> vars = cvars_.Enumerate();
-  std::ranges::sort(vars, {}, [](const cvar::IVar* var) { return var->GetDesc().name; });
-  for (const cvar::IVar* var : vars) {
-    const cvar::Desc& desc = var->GetDesc();
+  std::vector<const cvar::VarBase*> vars = cvars_.Enumerate();
+  std::ranges::sort(vars, {}, [](const cvar::VarBase* var) { return var->GetDesc().name; });
+  for (const cvar::VarBase* var : vars) {
+    const cvar::CvarDesc& desc = var->GetDesc();
     if (desc.type == cvar::Type::kCommand) {
       Add(log::Level::kInfo, std::format("  {}  {}", desc.name, desc.description));
     } else {
@@ -168,8 +168,8 @@ std::vector<Completion> ConsoleModel::Complete(std::string_view input) const {
     }
   }
   std::vector<Completion> vars;
-  for (const cvar::IVar* var : cvars_.Enumerate()) {
-    const cvar::Desc& desc = var->GetDesc();
+  for (const cvar::VarBase* var : cvars_.Enumerate()) {
+    const cvar::CvarDesc& desc = var->GetDesc();
     if (desc.name.starts_with(input)) {
       vars.push_back({std::string(desc.name), std::string(desc.scope),
                       std::string(desc.description), desc.type == cvar::Type::kCommand});
@@ -200,8 +200,8 @@ std::string ConsoleModel::HelpLine(std::string_view input) const {
   if (!found) {
     return {};
   }
-  const cvar::IVar* var = &found->get();
-  const cvar::Desc& desc = var->GetDesc();
+  const cvar::VarBase* var = &found->get();
+  const cvar::CvarDesc& desc = var->GetDesc();
   if (desc.type == cvar::Type::kCommand) {
     return std::format("{} command. {}", name, desc.description);
   }

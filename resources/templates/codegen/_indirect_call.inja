@@ -5,7 +5,7 @@
 // IMAGE_BASE + IMAGE_SIZE. REX_CALL_INDIRECT_FUNC bounds-checks the target
 // against the caller's [REX_CODE_BASE, REX_CODE_BASE + REX_CODE_SIZE +
 // REX_THUNK_RESERVE_SIZE) range; out-of-bounds targets and in-bounds
-// unregistered slots fall back to rex::runtime::ResolveIndirectFunction,
+// unregistered slots fall back to rex::ppc::ResolveFunction,
 // which queries the global FunctionDispatcher across every loaded module.
 //=============================================================================
 
@@ -32,7 +32,7 @@
     }                                                                                      \
     if (!rex_indirect_func_) [[unlikely]] {                                                \
       ctx.last_indirect_target = rex_indirect_target_;                                     \
-      rex_indirect_func_ = rex::runtime::ResolveIndirectFunction(rex_indirect_target_);    \
+      rex_indirect_func_ = rex::ppc::ResolveFunction(rex_indirect_target_);    \
     }                                                                                      \
     rex_indirect_func_(ctx, base);                                                         \
   } while (0)

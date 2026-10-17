@@ -17,7 +17,7 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/memory.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex {

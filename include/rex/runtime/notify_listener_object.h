@@ -21,7 +21,7 @@
 #include <rex/assert.h>
 #include <rex/export.h>
 #include <rex/platform/thread.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
 

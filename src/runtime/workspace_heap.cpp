@@ -35,7 +35,7 @@ u32 WorkspaceHeap::ResolveSize(u32 header_size) {
   if (!header_size) {
     return kDefaultSize;
   }
-  return rex::round_up_nonzero(std::max(header_size, kMinimumSize), kSizeStep);
+  return rex::RoundUpNonZero(std::max(header_size, kMinimumSize), kSizeStep);
 }
 
 u32 WorkspaceHeap::GetSize() const {

@@ -126,12 +126,14 @@ class GDFXReader {
     ContainerNode node;
     node.info.name = std::move(visit.name);
     node.parent = visit.parent;
-    node.attributes = static_cast<FileAttributes>(visit.attributes) | FileAttributes::kReadOnly;
-    node.size = visit.length;
-    node.allocation_size = round_up_nonzero(static_cast<u64>(visit.length), u64{kBytesPerSector});
-    node.create_time = kUnixEpochTicks;
-    node.access_time = kUnixEpochTicks;
-    node.write_time = kUnixEpochTicks;
+    node.info.attributes =
+        static_cast<FileAttributes>(visit.attributes) | FileAttributes::kReadOnly;
+    node.info.size = visit.length;
+    node.info.allocation_size =
+        RoundUpNonZero(static_cast<u64>(visit.length), u64{kBytesPerSector});
+    node.info.create_time = kUnixEpochTicks;
+    node.info.access_time = kUnixEpochTicks;
+    node.info.write_time = kUnixEpochTicks;
     const u64 data_offset = game_offset_ + (static_cast<u64>(visit.sector) * kSectorSize);
     const bool directory = HasFlags(node.info.attributes, FileAttributes::kDirectory);
     if (!directory) {

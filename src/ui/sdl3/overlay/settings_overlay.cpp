@@ -162,10 +162,10 @@ static rex::hid::KeyModifiers HeldModifiers(const ImGuiIO& io) {
 }
 
 void SettingsDialog::OnDraw(ImGuiIO& io) {
-  const std::vector<const rex::cvar::IVar*> vars = registry_.Enumerate();
+  const std::vector<const rex::cvar::VarBase*> vars = registry_.Enumerate();
 
   std::set<std::string> category_set;
-  for (const rex::cvar::IVar* var : vars) {
+  for (const rex::cvar::VarBase* var : vars) {
     category_set.insert(std::string(var->GetDesc().scope));
   }
 
@@ -278,12 +278,12 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
     return false;
   };
 
-  auto is_keybind = [](const rex::cvar::IVar* v) -> bool {
+  auto is_keybind = [](const rex::cvar::VarBase* v) -> bool {
     return v->GetDesc().name.starts_with("hid.keybind_");
   };
 
   ImGui::BeginChild("##cvars", ImVec2(0, -metrics.footer_height), false);
-  for (const rex::cvar::IVar* var : vars) {
+  for (const rex::cvar::VarBase* var : vars) {
     const auto& desc = var->GetDesc();
     const std::string name(desc.name);
     const std::string description(desc.description);
@@ -372,7 +372,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
 
       if (!current_val.empty()) {
         int conflict_count = 0;
-        for (const rex::cvar::IVar* other : vars) {
+        for (const rex::cvar::VarBase* other : vars) {
           if (is_keybind(other) && other->GetDesc().name != desc.name &&
               other->Render() == current_val) {
             conflict_count++;

@@ -23,7 +23,7 @@ namespace {
 
 struct ScopeTable {
   std::string_view scope;
-  std::span<const cvar::IVar* const> vars;
+  std::span<const cvar::VarBase* const> vars;
 };
 
 const std::array<ScopeTable, 3> kScopes = {{

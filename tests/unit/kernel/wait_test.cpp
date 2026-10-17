@@ -16,7 +16,7 @@
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
-#include "support/elapsed.h"
+#include "elapsed.h"
 
 using rex::X_STATUS;
 

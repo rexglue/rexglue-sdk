@@ -9,7 +9,7 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
+#include "temp_folder.h"
 
 #include <algorithm>
 #include <fstream>
@@ -24,7 +24,7 @@
 #include "rexglue/cli_context.h"
 #include "rexglue/commands/init_command.h"
 #include "rexglue/ui/ui.h"
-#include "support/file_text.h"
+#include "file_text.h"
 
 namespace {
 

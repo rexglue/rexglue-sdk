@@ -27,7 +27,7 @@ namespace rex::ui {
 struct ConsoleStyle;
 
 /** Dock changes a console view asks its owner for. The owner applies them after the frame. */
-REX_INTERFACE(ConsoleHost)
+REX_INTERFACE(IConsoleHost)
  public:
   /**
    * Reports whether the console can move to its own OS window.
@@ -58,7 +58,7 @@ class ConsoleView : public NonCopyable {
    * @param model The model drawn and edited. Outlives the view.
    * @param host Receives dock changes. Outlives the view.
    */
-  ConsoleView(ConsoleModel& model, ConsoleHost& host);
+  ConsoleView(ConsoleModel& model, IConsoleHost& host);
 
   /**
    * Draws the filter row, the output, the completion popup, the input and the help line.
@@ -82,7 +82,7 @@ class ConsoleView : public NonCopyable {
   std::string SelectedText(bool all) const;
 
   ConsoleModel& model_;
-  ConsoleHost& host_;
+  IConsoleHost& host_;
   ImGuiSelectionBasicStorage selection_;
   std::vector<const ConsoleLine*> visible_;
   std::vector<Completion> completions_;

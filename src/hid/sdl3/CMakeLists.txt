@@ -7,4 +7,4 @@ set_target_properties(rexhid-sdl3 PROPERTIES
 )
 rexglue_add_version_resource(rexhid-sdl3 DESCRIPTION "ReXGlue SDL3 gamepads")
 target_include_directories(rexhid-sdl3 PRIVATE ${REXGLUE_ROOT}/src)
-target_link_libraries(rexhid-sdl3 PRIVATE rexcore rexhid-common SDL3::SDL3)
+target_link_libraries(rexhid-sdl3 PRIVATE rexcore rexhid SDL3::SDL3)

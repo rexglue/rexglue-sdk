@@ -24,16 +24,16 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info, u32 pitch, u
   extent.pitch = pitch;
   extent.height = height;
   extent.block_width =
-      rex::round_up_nonzero(extent.pitch, format_info->block_width) / format_info->block_width;
+      rex::RoundUpNonZero(extent.pitch, format_info->block_width) / format_info->block_width;
   extent.block_height =
-      rex::round_up_nonzero(extent.height, format_info->block_height) / format_info->block_height;
+      rex::RoundUpNonZero(extent.height, format_info->block_height) / format_info->block_height;
   extent.block_pitch_h = extent.block_width;
   extent.block_pitch_v = extent.block_height;
   extent.depth = depth;
 
   if (is_guest) {
-    extent.block_pitch_h = rex::round_up_nonzero(extent.block_pitch_h, 32);
-    extent.block_pitch_v = rex::round_up_nonzero(extent.block_pitch_v, 32);
+    extent.block_pitch_h = rex::RoundUpNonZero(extent.block_pitch_h, 32);
+    extent.block_pitch_v = rex::RoundUpNonZero(extent.block_pitch_v, 32);
 
     extent.pitch = extent.block_pitch_h * format_info->block_width;
     extent.height = extent.block_pitch_v * format_info->block_height;
@@ -43,7 +43,7 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info, u32 pitch, u
 
     if (!is_tiled) {
       // Linear rows are multiples of 256 bytes.
-      byte_pitch = rex::round_up_nonzero(byte_pitch, 256);
+      byte_pitch = rex::RoundUpNonZero(byte_pitch, 256);
       extent.block_pitch_h = byte_pitch / bytes_per_block;
       extent.pitch = extent.block_pitch_h * format_info->block_width;
     }

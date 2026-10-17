@@ -20,9 +20,9 @@ namespace rex::detail {
 namespace {
 
 using cvar::BuildError;
+using cvar::CvarDesc;
 using cvar::CvarSource;
-using cvar::Desc;
-using cvar::IVar;
+using cvar::VarBase;
 using E = cvar::CvarError;
 
 bool ValidName(std::string_view name, std::string_view scope) {
@@ -93,7 +93,8 @@ std::string_view CvarRegistryImpl::DefaultOf(const Entry& entry) const {
                                     : entry.var->GetDefaultText();
 }
 
-Result<void> CvarRegistryImpl::Register(std::string_view scope, std::span<const IVar* const> vars) {
+Result<void> CvarRegistryImpl::Register(std::string_view scope,
+                                        std::span<const VarBase* const> vars) {
   std::lock_guard lock(mutex_);
   if (!cvar::IsNamePart(scope)) {
     return Err(
@@ -124,7 +125,7 @@ Result<void> CvarRegistryImpl::Register(std::string_view scope, std::span<const 
   scopes_.emplace_back(scope);
   if (vars.empty())
     pinned_scopes_.emplace_back(scope);
-  for (const IVar* var : vars) {
+  for (const VarBase* var : vars) {
     index_[var->GetDesc().name] = entries_.size();
     Entry entry;
     entry.var = var;
@@ -134,7 +135,7 @@ Result<void> CvarRegistryImpl::Register(std::string_view scope, std::span<const 
   return Ok();
 }
 
-Result<void> CvarRegistryImpl::Add(std::span<const IVar* const> vars) {
+Result<void> CvarRegistryImpl::Add(std::span<const VarBase* const> vars) {
   Fired fired;
   {
     std::lock_guard lock(mutex_);
@@ -160,7 +161,7 @@ Result<void> CvarRegistryImpl::Add(std::span<const IVar* const> vars) {
         }
       }
     }
-    for (const IVar* var : vars) {
+    for (const VarBase* var : vars) {
       index_[var->GetDesc().name] = entries_.size();
       Entry entry;
       entry.var = var;
@@ -199,9 +200,9 @@ void CvarRegistryImpl::ApplyPending(Entry& entry, Fired& fired) {
   std::erase_if(pending_, [&](const CvarOverride& o) { return o.name == name; });
 }
 
-void CvarRegistryImpl::Unregister(std::span<const IVar* const> vars) {
+void CvarRegistryImpl::Unregister(std::span<const VarBase* const> vars) {
   std::lock_guard lock(mutex_);
-  for (const IVar* var : vars) {
+  for (const VarBase* var : vars) {
     auto it = index_.find(var->GetDesc().name);
     if (it == index_.end())
       continue;
@@ -227,7 +228,7 @@ void CvarRegistryImpl::Unregister(std::span<const IVar* const> vars) {
 
 Result<void> CvarRegistryImpl::Validate(const Entry& entry, std::string_view value,
                                         CvarSource source) const {
-  const Desc& d = entry.var->GetDesc();
+  const CvarDesc& d = entry.var->GetDesc();
   const auto& c = d.constraints;
   auto rejected = [&](std::string_view reason) {
     return Err(BuildError(E::kInvalid, std::format("cvar '{}' rejected value '{}' from {}: {}",
@@ -255,7 +256,7 @@ Result<void> CvarRegistryImpl::Validate(const Entry& entry, std::string_view val
 
 Result<void> CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarSource source,
                                      Fired& fired) {
-  const Desc& d = entry.var->GetDesc();
+  const CvarDesc& d = entry.var->GetDesc();
   if (d.type == cvar::Type::kCommand) {
     return Err(BuildError(E::kNotAVar, std::format("'{}' is a command", d.name)));
   }
@@ -268,7 +269,7 @@ Result<void> CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarS
   }
   REX_TRY_VOID(Validate(entry, value, source));
   std::string before = entry.var->Render();
-  auto* var = const_cast<IVar*>(entry.var);
+  auto* var = const_cast<VarBase*>(entry.var);
   if (auto status = var->Parse(value); !status) {
     return Err(
         BuildError(E::kInvalid, std::format("cvar '{}' rejected value '{}' from {}: {}", d.name,
@@ -373,7 +374,7 @@ Result<void> CvarRegistryImpl::ResetToDefault(std::string_view name) {
   return Ok();
 }
 
-std::optional<std::reference_wrapper<const IVar>> CvarRegistryImpl::Find(
+std::optional<std::reference_wrapper<const VarBase>> CvarRegistryImpl::Find(
     std::string_view name) const {
   std::lock_guard lock(mutex_);
   const Entry* entry = FindEntry(name);
@@ -389,9 +390,9 @@ CvarSource CvarRegistryImpl::Source(std::string_view name) const {
   return entry ? entry->source : CvarSource::kDefault;
 }
 
-std::vector<const IVar*> CvarRegistryImpl::Enumerate(std::string_view scope) const {
+std::vector<const VarBase*> CvarRegistryImpl::Enumerate(std::string_view scope) const {
   std::lock_guard lock(mutex_);
-  std::vector<const IVar*> out;
+  std::vector<const VarBase*> out;
   for (const Entry& e : entries_) {
     if (scope.empty() || e.var->GetDesc().scope == scope)
       out.push_back(e.var);
@@ -423,7 +424,7 @@ void CvarRegistryImpl::RemoveCallback(u64 id) {
 }
 
 Result<void> CvarRegistryImpl::Invoke(std::string_view name, std::string_view args) {
-  const IVar* var = nullptr;
+  const VarBase* var = nullptr;
   {
     std::lock_guard lock(mutex_);
     const Entry* entry = FindEntry(name);
@@ -434,7 +435,7 @@ Result<void> CvarRegistryImpl::Invoke(std::string_view name, std::string_view ar
     }
     var = entry->var;
   }
-  return const_cast<IVar*>(var)->Invoke(args);
+  return const_cast<VarBase*>(var)->Invoke(args);
 }
 
 std::vector<std::string> CvarRegistryImpl::GetPendingRestart() const {
@@ -446,7 +447,7 @@ std::string CvarRegistryImpl::Serialize() const {
   std::lock_guard lock(mutex_);
   std::map<std::string_view, std::vector<std::string>> tables;
   for (const Entry& e : entries_) {
-    const Desc& d = e.var->GetDesc();
+    const CvarDesc& d = e.var->GetDesc();
     if (d.type == cvar::Type::kCommand)
       continue;
     if (d.no_save)
@@ -573,7 +574,7 @@ bool IsName(std::string_view name) {
 namespace {
 
 template <typename T, typename Wide>
-std::string ClampIntegerText(const rex::cvar::Desc& desc, std::string_view text) {
+std::string ClampIntegerText(const rex::cvar::CvarDesc& desc, std::string_view text) {
   Wide value = std::clamp<Wide>(rex::from_string<Wide>(text), std::numeric_limits<T>::min(),
                                 std::numeric_limits<T>::max());
   if (desc.constraints.min && static_cast<f64>(value) < *desc.constraints.min) {
@@ -587,7 +588,7 @@ std::string ClampIntegerText(const rex::cvar::Desc& desc, std::string_view text)
 
 }  // namespace
 
-std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text) {
+std::string ClampIntegerCvarText(const rex::cvar::CvarDesc& desc, std::string_view text) {
   switch (desc.type) {
     case rex::cvar::Type::kInt32:
       return ClampIntegerText<i32, i64>(desc, text);

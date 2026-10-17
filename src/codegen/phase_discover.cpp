@@ -17,7 +17,7 @@
 #include <unordered_set>
 
 #include <rex/codegen/phases.h>
-#include "phase_helpers.h"
+#include "known_functions.h"
 
 #include <rex/codegen/vtable_scanner.h>
 #include <rex/logging/log.h>
@@ -257,7 +257,7 @@ size_t DiscoverPendingFunctions(CodegenContext& ctx,
 
 namespace detail {
 
-[[nodiscard]] Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Discover(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   DiscoverAllFunctions(ctx);
   return Ok();

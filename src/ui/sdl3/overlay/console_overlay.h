@@ -52,7 +52,7 @@ class ConsoleDialog : public ImGuiDialog {
  private:
   IUserInterface& ui_;
   ConsoleModel& model_;
-  ConsoleHost& host_;
+  IConsoleHost& host_;
   ConsoleView view_;
   bool minimized_ = false;
   bool first_draw_ = true;

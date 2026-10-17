@@ -18,7 +18,7 @@
 
 #include "file_io.h"
 #include "mmio_analysis.h"
-#include "template_registry_internal.h"
+#include "template_render.h"
 
 namespace {
 

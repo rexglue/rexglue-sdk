@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "support/code_image.h"
+#include "code_image.h"
 
 #include <format>
 #include <string>

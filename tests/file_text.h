@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/file_text.h
+ * @file        tests/file_text.h
  * @brief       Whole file reads and writes for test assertions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

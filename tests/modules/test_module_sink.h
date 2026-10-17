@@ -1,5 +1,5 @@
 /**
- * @file        tests/modules/test_module_common.h
+ * @file        tests/modules/test_module_sink.h
  * @brief       Event sink shared by the test modules
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

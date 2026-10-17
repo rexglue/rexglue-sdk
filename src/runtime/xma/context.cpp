@@ -19,7 +19,7 @@
 
 #include "runtime/xma/context.h"
 #include "runtime/xma/decoder.h"
-#include "runtime/xma/helpers.h"
+#include "runtime/xma/packet.h"
 #include <rex/dbg.h>
 #include <rex/fail.h>
 #include <rex/logging/log.h>

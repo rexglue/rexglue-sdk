@@ -157,7 +157,7 @@ void ScanBinary(CodegenContext& ctx) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Scan(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   ScanBinary(ctx);
   return Ok();

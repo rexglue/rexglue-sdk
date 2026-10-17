@@ -19,7 +19,7 @@
 
 namespace rex::hid {
 
-REX_INTERFACE(DeviceAssignment)
+REX_INTERFACE(IDeviceAssignment)
  public:
   /**
    * Replaces the device list. Devices arrive sorted by ordinal.
@@ -42,7 +42,7 @@ REX_INTERFACE(DeviceAssignment)
  * Device ordinal N feeds title user N, keyed by ordinal and not list position so
  * unplugging pad 1 does not promote pad 2. Synthetic devices feed user 0.
  */
-class SlotAssignment final : public DeviceAssignment {
+class SlotAssignment final : public IDeviceAssignment {
  public:
   void OnDevicesChanged(const std::vector<DeviceInfo>& devices) override;
   void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
@@ -55,7 +55,7 @@ class SlotAssignment final : public DeviceAssignment {
  * Every device feeds guest user 0. Users 1 and up report not connected. Serves
  * single player titles that only poll user 0.
  */
-class SharedAssignment final : public DeviceAssignment {
+class SharedAssignment final : public IDeviceAssignment {
  public:
   void OnDevicesChanged(const std::vector<DeviceInfo>& devices) override;
   void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;

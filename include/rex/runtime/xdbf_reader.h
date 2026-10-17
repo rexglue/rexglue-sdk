@@ -19,7 +19,7 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/export.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/runtime/xdbf.h>
 #include <rex/runtime/xtypes.h>
 

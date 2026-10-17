@@ -351,7 +351,7 @@ std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
   SYSTEM_INFO system_info;
   GetSystemInfo(&system_info);
   size_t aligned_chunk_size =
-      rex::round_up_nonzero(chunk_size, static_cast<size_t>(system_info.dwAllocationGranularity));
+      rex::RoundUpNonZero(chunk_size, static_cast<size_t>(system_info.dwAllocationGranularity));
   return std::make_unique<Win32ChunkedMappedMemoryWriter>(path, aligned_chunk_size,
                                                           low_address_space);
 }

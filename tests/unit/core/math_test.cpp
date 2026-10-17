@@ -113,18 +113,18 @@ REX_TEST_CASE("mul_div matches plain arithmetic for small ratios", "[core][math]
   CHECK(rex::mul_div(1'000'003, 1, 20) == 50'000);
 }
 
-REX_TEST_CASE("round_up leaves 0 at 0 as Align does", "[core][math]") {
-  CHECK(rex::round_up(0u, 16u) == 0u);
-  CHECK(rex::Align(0u, 16u) == 0u);
-  CHECK(rex::round_up(1u, 16u) == 16u);
-  CHECK(rex::round_up(33u, 16u) == 48u);
-  CHECK(rex::round_up(48u, 16u) == 48u);
-  CHECK(rex::round_up(10u, 3u) == 12u);
+REX_TEST_CASE("RoundUp leaves 0 at 0 as RoundUpPow2 does", "[core][math]") {
+  CHECK(rex::RoundUp(0u, 16u) == 0u);
+  CHECK(rex::RoundUpPow2(0u, 16u) == 0u);
+  CHECK(rex::RoundUp(1u, 16u) == 16u);
+  CHECK(rex::RoundUp(33u, 16u) == 48u);
+  CHECK(rex::RoundUp(48u, 16u) == 48u);
+  CHECK(rex::RoundUp(10u, 3u) == 12u);
 }
 
-REX_TEST_CASE("round_up_nonzero turns 0 into 1 multiple", "[core][math]") {
-  CHECK(rex::round_up_nonzero(0u, 16u) == 16u);
-  CHECK(rex::round_up_nonzero(1u, 16u) == 16u);
-  CHECK(rex::round_up_nonzero(48u, 16u) == 48u);
-  CHECK(rex::round_up_nonzero(10u, 3u) == 12u);
+REX_TEST_CASE("RoundUpNonZero turns 0 into 1 multiple", "[core][math]") {
+  CHECK(rex::RoundUpNonZero(0u, 16u) == 16u);
+  CHECK(rex::RoundUpNonZero(1u, 16u) == 16u);
+  CHECK(rex::RoundUpNonZero(48u, 16u) == 48u);
+  CHECK(rex::RoundUpNonZero(10u, 3u) == 12u);
 }

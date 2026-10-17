@@ -9,8 +9,8 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
-#include "support/file_text.h"
+#include "temp_folder.h"
+#include "file_text.h"
 
 #include <format>
 
@@ -28,7 +28,7 @@
 
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/codegen_writer.h>
-#include <rex/codegen/test_support.h>
+#include <rex/codegen/module_stub.h>
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;
@@ -55,7 +55,7 @@ struct WriterFixture {
   rex::test::TempFolder folder;
   fs::path root;
   std::vector<u8> data;
-  TestModule module;
+  StubModule module;
   std::unique_ptr<CodegenContext> ctx;
 
   explicit WriterFixture(std::string_view name, u32 function_count = kFunctionCount)

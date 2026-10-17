@@ -10,7 +10,7 @@
  */
 
 #include "rex_test.h"
-#include "support/base_config.h"
+#include "base_config.h"
 
 #include <algorithm>
 #include <string>

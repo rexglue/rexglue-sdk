@@ -25,7 +25,7 @@ namespace rex::codegen::detail {
  * @param reporter Optional progress sink, may be null
  * @return Success, or the failing phase error
  */
-[[nodiscard]] Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> Register(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 /**
  * Scans the binary for bl targets, thunks and bctr locations.
@@ -34,7 +34,7 @@ namespace rex::codegen::detail {
  * @param reporter Optional progress sink, may be null
  * @return Success, or the failing phase error
  */
-[[nodiscard]] Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> Scan(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 /**
  * Discovers function blocks from candidates.
@@ -43,7 +43,7 @@ namespace rex::codegen::detail {
  * @param reporter Optional progress sink, may be null
  * @return Success, or the failing phase error
  */
-[[nodiscard]] Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> Discover(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 /**
  * Expands and seals functions by vacancy.
@@ -52,7 +52,7 @@ namespace rex::codegen::detail {
  * @param reporter Optional progress sink, may be null
  * @return Success, or the failing phase error
  */
-[[nodiscard]] Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> Merge(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 /**
  * Finds uncovered code regions and registers them as functions.
@@ -61,7 +61,7 @@ namespace rex::codegen::detail {
  * @param reporter Optional progress sink, may be null
  * @return Success, or the failing phase error
  */
-[[nodiscard]] Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> GapFill(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 /**
  * Validates that all call targets resolve.
@@ -70,6 +70,6 @@ namespace rex::codegen::detail {
  * @param reporter Optional progress sink, may be null
  * @return Success, or the failing phase error
  */
-[[nodiscard]] Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> Validate(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 }  // namespace rex::codegen::detail

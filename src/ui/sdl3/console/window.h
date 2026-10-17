@@ -21,7 +21,7 @@ struct ImGuiStyle;
 
 namespace rex::ui {
 
-class ConsoleHost;
+class IConsoleHost;
 class ConsoleModel;
 class ImGuiDrawer;
 struct Style;
@@ -46,7 +46,7 @@ class ConsoleWindow : public NonCopyable {
    */
   [[nodiscard]] static Result<std::unique_ptr<ConsoleWindow>> Create(
       WindowedAppContext& context, gpu::IGPUBackend& backend, const ImGuiStyle& imgui_style,
-      const Style& style, ConsoleModel& model, ConsoleHost& host);
+      const Style& style, ConsoleModel& model, IConsoleHost& host);
 
   /**
    * Builds an empty window. Only Create can make the key.

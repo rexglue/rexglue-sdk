@@ -85,8 +85,8 @@ REX_TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_
   }
   backend->InitializeRingBuffer(ring, 9);
   backend->EnableReadPointerWriteBack(writeback, 6);
-  rex::detail::MMIOStore(rex::MMIOBlockBase(rex::MMIOBlock::kGPU) + kWritePointerRegister * 4,
-                         std::size(packets));
+  rex::ppc::MMIOStore32(rex::MMIOBlockBase(rex::MMIOBlock::kGPU) + kWritePointerRegister * 4,
+                        std::size(packets));
 
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
   while (Get(memory, writeback) != std::size(packets) &&

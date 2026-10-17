@@ -951,7 +951,7 @@ std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_
   if (!exact_range) {
     // Invalidate whole buckets for access callbacks, which cuts access violation handling.
     physical_address_start &= ~(kCacheBucketSizeBytes - 1);
-    physical_address_end = rex::Align(physical_address_end, kCacheBucketSizeBytes);
+    physical_address_end = rex::RoundUpPow2(physical_address_end, kCacheBucketSizeBytes);
   }
   bool any_invalidated = false;
   u32 bucket_index_first = physical_address_start >> kCacheBucketSizeBytesLog2;

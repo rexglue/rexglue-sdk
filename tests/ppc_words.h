@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/ppc_words.h
+ * @file        tests/ppc_words.h
  * @brief       Big endian instruction words for codegen tests
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

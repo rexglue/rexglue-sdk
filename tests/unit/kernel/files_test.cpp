@@ -25,7 +25,7 @@
 #include <rex/runtime/file_object.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/xam/user_profile.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"

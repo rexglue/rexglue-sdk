@@ -14,7 +14,7 @@ set(REXGLUE_INSTALL_TARGETS
     rexui
     rexui-sdl3
     rexapu-sdl3
-    rexhid-common
+    rexhid
     rexhid-sdl3
     rexgpu-xenos
     rexgpu-xenos-vulkan

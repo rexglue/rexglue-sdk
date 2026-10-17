@@ -225,7 +225,7 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Validate(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   return ValidateGraph(ctx);
 }

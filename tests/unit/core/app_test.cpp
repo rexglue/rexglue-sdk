@@ -44,8 +44,8 @@
 #include "core/app_state.h"
 #include "core/module_loader.h"
 #include "modules/echo.h"
-#include "modules/test_module_common.h"
-#include "support/temp_folder.h"
+#include "modules/test_module_sink.h"
+#include "temp_folder.h"
 
 namespace {
 

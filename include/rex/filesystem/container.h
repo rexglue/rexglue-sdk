@@ -22,7 +22,7 @@
 
 #include <rex/platform.h>
 #include <rex/filesystem/info.h>
-#include <rex/filesystem/xcontent.h>
+#include <rex/filesystem/xcontent_layout.h>
 #include <rex/export.h>
 #include <rex/result.h>
 #include <rex/types.h>

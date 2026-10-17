@@ -9,8 +9,8 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
-#include "support/ppc_words.h"
+#include "temp_folder.h"
+#include "ppc_words.h"
 
 #include <filesystem>
 #include <fstream>
@@ -22,7 +22,7 @@
 
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/codegen_writer.h>
-#include <rex/codegen/test_support.h>
+#include <rex/codegen/module_stub.h>
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;
@@ -43,7 +43,7 @@ std::string EmitFunction(std::string_view name, std::initializer_list<u32> words
   const rex::test::TempFolder folder(std::string("rexglue_flush_mode_") + std::string(name) + "_");
   const fs::path& root = folder.path;
   const std::vector<u8> data = Encode(words);
-  TestModule module;
+  StubModule module;
   module.Load(kBase, data.data(), data.size());
 
   RecompilerConfig config;

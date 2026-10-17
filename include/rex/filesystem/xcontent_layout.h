@@ -1,5 +1,5 @@
 /**
- * @file        filesystem/xcontent.h
+ * @file        filesystem/xcontent_layout.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,7 +24,7 @@
 #include <rex/memory/byte_swap.h>
 #include <rex/result.h>
 #include <rex/filesystem/xex_types.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/types.h>
 
 namespace rex::filesystem {
@@ -540,8 +540,9 @@ struct XContentHeader {
    * @return True when the magic names a package.
    */
   [[nodiscard]] bool IsMagicValid() const {
-    return magic == XContentPackageType::kCon || magic == XContentPackageType::kLive ||
-           magic == XContentPackageType::kPirs;
+    const XContentPackageType type = memory::load<BE<XContentPackageType>>(&magic);
+    return type == XContentPackageType::kCon || type == XContentPackageType::kLive ||
+           type == XContentPackageType::kPirs;
   }
 };
 REX_STATIC_ASSERT_SIZE(XContentHeader, 0x344);

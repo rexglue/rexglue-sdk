@@ -104,7 +104,7 @@
   do {                                                                               \
     u32 _mmio_addr = (addr);                                                         \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                       \
-      rex::detail::MMIONarrowWrite(_mmio_addr, 1);                                   \
+      rex::ppc::MMIONarrowWrite(_mmio_addr, 1);                                   \
     } else {                                                                         \
       *(volatile u8*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = (val); \
     }                                                                                \
@@ -114,7 +114,7 @@
   do {                                                                         \
     u32 _mmio_addr = (addr);                                                   \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                 \
-      rex::detail::MMIONarrowWrite(_mmio_addr, 2);                             \
+      rex::ppc::MMIONarrowWrite(_mmio_addr, 2);                             \
     } else {                                                                   \
       *(volatile u16*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = \
           __builtin_bswap16(val);                                              \
@@ -125,7 +125,7 @@
   do {                                                                      \
     u32 _mmio_addr = (addr);                                                \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                              \
-      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(val));            \
+      rex::ppc::MMIOStore32(_mmio_addr, static_cast<u32>(val));            \
     } else {                                                                \
       *(volatile u32*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = \
           __builtin_bswap32(val);                                           \
@@ -137,8 +137,8 @@
     u32 _mmio_addr = (addr);                                                     \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                   \
       u64 _mmio_value = static_cast<u64>(val);                                   \
-      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(_mmio_value >> 32));   \
-      rex::detail::MMIOStore(_mmio_addr + 4, static_cast<u32>(_mmio_value));     \
+      rex::ppc::MMIOStore32(_mmio_addr, static_cast<u32>(_mmio_value >> 32));   \
+      rex::ppc::MMIOStore32(_mmio_addr + 4, static_cast<u32>(_mmio_value));     \
     } else {                                                                     \
       *(volatile u64*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =   \
           __builtin_bswap64(val);                                                \
@@ -149,7 +149,7 @@
   ({                                                                             \
     u32 _mmio_addr = (addr);                                                     \
     rex::IsMMIOBlockAddress(_mmio_addr)                                          \
-        ? rex::detail::MMIOLoad8(_mmio_addr)                                     \
+        ? rex::ppc::MMIOLoad8(_mmio_addr)                                     \
         : *(volatile u8*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)); \
   })
 
@@ -157,7 +157,7 @@
   ({                                                                                                 \
     u32 _mmio_addr = (addr);                                                                         \
     rex::IsMMIOBlockAddress(_mmio_addr)                                                              \
-        ? rex::detail::MMIOLoad16(_mmio_addr)                                                        \
+        ? rex::ppc::MMIOLoad16(_mmio_addr)                                                        \
         : __builtin_bswap16(*(volatile u16*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr))); \
   })
 
@@ -165,7 +165,7 @@
   ({                                                                                              \
     u32 _mmio_addr = (addr);                                                                      \
     rex::IsMMIOBlockAddress(_mmio_addr)                                                           \
-        ? rex::detail::MMIOLoad(_mmio_addr)                                                       \
+        ? rex::ppc::MMIOLoad32(_mmio_addr)                                                       \
         : __builtin_bswap32(*(volatile u32*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr))); \
   })
 
@@ -174,8 +174,8 @@
     u32 _mmio_addr = (addr);                                                                  \
     u64 _mmio_value;                                                                          \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                                \
-      u64 _mmio_high = rex::detail::MMIOLoad(_mmio_addr);                                     \
-      _mmio_value = (_mmio_high << 32) | rex::detail::MMIOLoad(_mmio_addr + 4);               \
+      u64 _mmio_high = rex::ppc::MMIOLoad32(_mmio_addr);                                     \
+      _mmio_value = (_mmio_high << 32) | rex::ppc::MMIOLoad32(_mmio_addr + 4);               \
     } else {                                                                                  \
       _mmio_value =                                                                           \
           __builtin_bswap64(*(volatile u64*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr))); \
@@ -202,7 +202,7 @@
 // Misc
 //=============================================================================
 
-#define REX_UNIMPLEMENTED(addr, opcode) ::rex::ppc::Unimplemented(opcode)
+#define REX_UNIMPLEMENTED(addr, opcode) ::rex::ppc::UnimplementedInstruction(opcode)
 
 #define REX_QUERY_TIMEBASE() rex::Clock::QueryGuestTickCount()
 
@@ -210,7 +210,7 @@
 // Setjmp/Longjmp
 //=============================================================================
 
-#define ppc_setjmp(guest_buf_addr) (setjmp(::rex::ppc::JumpBuffer(guest_buf_addr)))
+#define ppc_setjmp(guest_buf_addr) (setjmp(::rex::ppc::GetJumpBuffer(guest_buf_addr)))
 
 #define ppc_longjmp(guest_buf_addr, val) ::rex::ppc::LongJump((guest_buf_addr), (val))
 

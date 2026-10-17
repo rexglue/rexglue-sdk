@@ -1565,21 +1565,21 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
       level_host_layer_layout.Footprint.Depth = std::max(depth >> level, static_cast<u32>(1));
     }
     level_host_layer_layout.Footprint.Width =
-        rex::round_up_nonzero(level_host_layer_layout.Footprint.Width * texture_resolution_scale_x,
-                              UINT(host_block_width));
+        rex::RoundUpNonZero(level_host_layer_layout.Footprint.Width * texture_resolution_scale_x,
+                            UINT(host_block_width));
     level_host_layer_layout.Footprint.Height =
-        rex::round_up_nonzero(level_host_layer_layout.Footprint.Height * texture_resolution_scale_y,
-                              UINT(host_block_height));
-    level_host_layer_layout.Footprint.RowPitch =
-        rex::Align(rex::round_up_nonzero(level_host_layer_layout.Footprint.Width / host_block_width,
-                                         host_x_blocks_per_thread) *
-                       load_shader_info.bytes_per_host_block,
-                   static_cast<u32>(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+        rex::RoundUpNonZero(level_host_layer_layout.Footprint.Height * texture_resolution_scale_y,
+                            UINT(host_block_height));
+    level_host_layer_layout.Footprint.RowPitch = rex::RoundUpPow2(
+        rex::RoundUpNonZero(level_host_layer_layout.Footprint.Width / host_block_width,
+                            host_x_blocks_per_thread) *
+            load_shader_info.bytes_per_host_block,
+        static_cast<u32>(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
     UINT64 level_host_layer_size =
-        rex::Align(UINT64(level_host_layer_layout.Footprint.RowPitch) *
-                       (level_host_layer_layout.Footprint.Height / host_block_height) *
-                       level_host_layer_layout.Footprint.Depth,
-                   UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+        rex::RoundUpPow2(UINT64(level_host_layer_layout.Footprint.RowPitch) *
+                             (level_host_layer_layout.Footprint.Height / host_block_height) *
+                             level_host_layer_layout.Footprint.Depth,
+                         UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
     (is_base ? host_layer_size_base : host_layer_sizes_mips[level]) = level_host_layer_size;
     copy_buffer_size += level_host_layer_size * array_size;
   }
@@ -1779,13 +1779,13 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
       source_box.top = level_offset_blocks_y * block_height * texture_resolution_scale_y;
       source_box.front = level_offset_z;
       source_box.right =
-          source_box.left +
-          rex::Align(std::max((width * texture_resolution_scale_x) >> level, static_cast<u32>(1)),
-                     host_block_width);
+          source_box.left + rex::RoundUpPow2(std::max((width * texture_resolution_scale_x) >> level,
+                                                      static_cast<u32>(1)),
+                                             host_block_width);
       source_box.bottom =
-          source_box.top +
-          rex::Align(std::max((height * texture_resolution_scale_y) >> level, static_cast<u32>(1)),
-                     host_block_height);
+          source_box.top + rex::RoundUpPow2(std::max((height * texture_resolution_scale_y) >> level,
+                                                     static_cast<u32>(1)),
+                                            host_block_height);
       source_box.back = source_box.front + std::max(depth >> level, static_cast<u32>(1));
       source_box_ptr = &source_box;
     } else {

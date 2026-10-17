@@ -24,11 +24,11 @@
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/function_scanner.h>
 #include <rex/codegen/template_registry.h>
-#include <rex/codegen/test_support.h>
+#include <rex/codegen/module_stub.h>
 #include <rex/logging/log.h>
 #include <rex/runtime/map_parser.h>
 
-#include "codegen/template_registry_internal.h"
+#include "codegen/template_render.h"
 
 namespace rexglue::cli {
 
@@ -147,7 +147,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
       continue;
     }
 
-    codegen::TestModule module;
+    codegen::StubModule module;
     module.Load(kTestBaseAddress, file_data.data(), file_data.size());
     module.SetName(stem);
 

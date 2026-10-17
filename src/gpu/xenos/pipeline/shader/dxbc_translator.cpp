@@ -1785,7 +1785,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
         shader_object_.data() + constant_position_dwords_descriptor_indices);
     constant_descriptor_indices.name_ptr = constant_name_ptr_descriptor_indices;
     constant_descriptor_indices.size_bytes =
-        sizeof(u32) * rex::Align(GetBindlessResourceCount(), static_cast<u32>(4));
+        sizeof(u32) * rex::RoundUpPow2(GetBindlessResourceCount(), static_cast<u32>(4));
     constant_descriptor_indices.flags = dxbc::kRdefVariableFlagUsed;
     constant_descriptor_indices.type_ptr =
         types_ptr + sizeof(dxbc::RdefType) *
@@ -1831,7 +1831,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
         cbuffer.variables_ptr =
             (constant_position_dwords_system - blob_position_dwords) * sizeof(u32);
         cbuffer.size_vector_aligned_bytes =
-            static_cast<u32>(rex::Align(sizeof(SystemConstants), sizeof(u32) * 4));
+            static_cast<u32>(rex::RoundUpPow2(sizeof(SystemConstants), sizeof(u32) * 4));
       } else if (i == cbuffer_index_float_constants_) {
         REX_ASSERT(constant_register_map.float_count != 0);
         cbuffer.name_ptr = cbuffer_name_ptr_float;
@@ -1858,7 +1858,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
         cbuffer.variables_ptr =
             (constant_position_dwords_descriptor_indices - blob_position_dwords) * sizeof(u32);
         cbuffer.size_vector_aligned_bytes =
-            sizeof(u32) * rex::Align(GetBindlessResourceCount(), static_cast<u32>(4));
+            sizeof(u32) * rex::RoundUpPow2(GetBindlessResourceCount(), static_cast<u32>(4));
       } else {
         REX_UNHANDLED_CASE(i);
       }

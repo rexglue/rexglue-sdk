@@ -22,7 +22,7 @@
 #include <unordered_set>
 
 #include <rex/codegen/phases.h>
-#include "phase_helpers.h"
+#include "known_functions.h"
 
 #include <rex/logging/log.h>
 
@@ -328,7 +328,7 @@ void CleanupAbsorbedGapFills(CodegenContext& ctx) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> GapFill(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   GapFillCodeRegions(ctx);
   CleanupAbsorbedGapFills(ctx);

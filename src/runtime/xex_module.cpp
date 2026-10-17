@@ -192,7 +192,7 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
   auto* heap = GetMemory()->LookupHeap(base_address_);
   HeapAllocationInfo occupant{};
   if (!heap->QueryRegionInfo(base_address_, &occupant) || occupant.state != 0 ||
-      occupant.region_size < rex::Align(alloc_size, heap->GetPageSize())) {
+      occupant.region_size < rex::RoundUpPow2(alloc_size, heap->GetPageSize())) {
     REX_FAIL(system, false,
              "XEX image range {:08X}-{:08X} is already in use, the module holding it must be "
              "unloaded first.",

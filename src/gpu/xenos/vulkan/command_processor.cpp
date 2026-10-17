@@ -722,7 +722,7 @@ bool VulkanCommandProcessor::SetupContext() {
   // 16384 is the minimum maxUniformBufferRange and exceeds any single uniform buffer needed.
   uniform_buffer_pool_ = std::make_unique<gpu::vulkan::VulkanUploadBufferPool>(
       vulkan_device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-      rex::Align(
+      rex::RoundUpPow2(
           std::max(gpu::GraphicsUploadBufferPool::kDefaultPageSize, static_cast<size_t>(16384)),
           static_cast<size_t>(device_properties.minUniformBufferOffsetAlignment)));
 
@@ -3179,7 +3179,7 @@ VkDescriptorSetLayout VulkanCommandProcessor::GetTextureDescriptorSetLayout(bool
   return texture_descriptor_set_layout;
 }
 
-const VulkanPipelineCache::PipelineLayoutProvider* VulkanCommandProcessor::GetPipelineLayout(
+const VulkanPipelineCache::IPipelineLayoutProvider* VulkanCommandProcessor::GetPipelineLayout(
     size_t texture_count_pixel, size_t sampler_count_pixel, size_t texture_count_vertex,
     size_t sampler_count_vertex) {
   PipelineLayoutKey pipeline_layout_key;
@@ -3272,7 +3272,7 @@ VulkanCommandProcessor::ScratchBufferAcquisition VulkanCommandProcessor::Acquire
                                     initial_access_mask);
   }
 
-  size = rex::Align(size, kScratchBufferSizeIncrement);
+  size = rex::RoundUpPow2(size, kScratchBufferSizeIncrement);
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
 
@@ -3613,7 +3613,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
       (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMaskAfterTranslation() : 0);
   texture_cache_->RequestTextures(used_texture_mask);
 
-  const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
+  const VulkanPipelineCache::IPipelineLayoutProvider* pipeline_layout_provider;
   if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
                                     normalized_color_mask, *vertex_shader)) {
     return draw_fail("render_target_update");
@@ -3962,8 +3962,8 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFullPath(u32 total_size) 
     readback_memory_range.memory = readback_memory;
     readback_memory_range.offset = 0;
     readback_memory_range.size =
-        std::min(rex::round_up_nonzero(VkDeviceSize(total_size),
-                                       vulkan_device->GetProperties().nonCoherentAtomSize),
+        std::min(rex::RoundUpNonZero(VkDeviceSize(total_size),
+                                     vulkan_device->GetProperties().nonCoherentAtomSize),
                  readback_memory_size);
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
   }
@@ -4616,8 +4616,8 @@ bool VulkanCommandProcessor::EndGuestOcclusionQuery(u32 sample_count_address) {
     memory_range.memory = occlusion_query_readback_memory_;
     memory_range.offset = 0;
     memory_range.size =
-        std::min(rex::round_up_nonzero(VkDeviceSize(sizeof(u64) * kMaxOcclusionQueries),
-                                       vulkan_device->GetProperties().nonCoherentAtomSize),
+        std::min(rex::RoundUpNonZero(VkDeviceSize(sizeof(u64) * kMaxOcclusionQueries),
+                                     vulkan_device->GetProperties().nonCoherentAtomSize),
                  occlusion_query_readback_memory_size_);
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &memory_range);
   }

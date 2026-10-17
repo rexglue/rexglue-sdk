@@ -89,11 +89,11 @@ REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[run
   gpu.EnableReadPointerWriteBack(writeback, 6);
   const rex::u32 register_address =
       rex::MMIOBlockBase(rex::MMIOBlock::kGPU) + kWritePointerRegister * 4;
-  rex::detail::MMIOStore(register_address, 0x20);
+  rex::ppc::MMIOStore32(register_address, 0x20);
   CHECK(*memory->TranslatePhysical<const be_u32*>(writeback) == 0x20);
-  CHECK(rex::detail::MMIOLoad(register_address) == 0x20);
+  CHECK(rex::ppc::MMIOLoad32(register_address) == 0x20);
   gpu.Shutdown();
-  rex::detail::MMIOStore(register_address, 0x30);
+  rex::ppc::MMIOStore32(register_address, 0x30);
   CHECK(*memory->TranslatePhysical<const be_u32*>(writeback) == 0x20);
 }
 

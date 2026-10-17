@@ -25,11 +25,15 @@ struct PPCContext;
 // Function signature for recompiled PPC functions
 using PPCFunc = void(PPCContext& ctx, u8* base);
 
-namespace rex::runtime {
-REX_RUNTIME_API PPCFunc* ResolveIndirectFunction(u32 guest_address);
-}  // namespace rex::runtime
-
 namespace rex::ppc {
+/**
+ * Resolves a guest address to the recompiled function that implements it.
+ *
+ * @param guest_address The guest address.
+ * @return The function, or a trap function when the address has none.
+ */
+REX_RUNTIME_API PPCFunc* ResolveFunction(u32 guest_address);
+
 /**
  * Handles a trap instruction of generated code.
  *
@@ -45,7 +49,7 @@ REX_RUNTIME_API void Trap(PPCContext& ctx, u8* base, u16 trap_type);
  * @param address The guest address of the jump buffer.
  * @return The host jump buffer, created on first use.
  */
-REX_RUNTIME_API std::jmp_buf& JumpBuffer(u32 address);
+REX_RUNTIME_API std::jmp_buf& GetJumpBuffer(u32 address);
 
 /**
  * Jumps to the host jump buffer of the calling thread for a title jump buffer.
@@ -60,7 +64,7 @@ REX_RUNTIME_API std::jmp_buf& JumpBuffer(u32 address);
  *
  * @param opcode The instruction name.
  */
-[[noreturn]] REX_RUNTIME_API void Unimplemented(const char* opcode);
+[[noreturn]] REX_RUNTIME_API void UnimplementedInstruction(const char* opcode);
 }  // namespace rex::ppc
 
 /**

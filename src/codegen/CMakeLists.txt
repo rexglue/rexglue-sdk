@@ -16,7 +16,7 @@ set(CODEGEN_CORE_SOURCES
     binary_view.cpp
     instruction_dispatch.cpp
     mmio_analysis.cpp
-    test_support.cpp
+    module_stub.cpp
     codegen_context.cpp
     phase_register.cpp
     phase_scan.cpp

@@ -22,7 +22,7 @@
 #include "runtime/apu.h"
 #include "runtime/runtime_module.h"
 #include "test_memory.h"
-#include "support/base_config.h"
+#include "base_config.h"
 
 namespace {
 

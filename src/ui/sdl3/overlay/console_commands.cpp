@@ -38,7 +38,7 @@ void ConsoleFind(std::string_view args) {
   }
   std::string needle(args);
   int matches = 0;
-  for (const rex::cvar::IVar* var : registry->Enumerate()) {
+  for (const rex::cvar::VarBase* var : registry->Enumerate()) {
     const std::string_view n = var->GetDesc().name;
     if (n.find(needle) != std::string_view::npos) {
       REXLOG_INFO(console, "  {}", n);

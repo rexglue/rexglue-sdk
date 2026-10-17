@@ -20,7 +20,7 @@
 #include <rex/runtime/xdbf_reader.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/types.h>
 #include <rex/module.h>
 

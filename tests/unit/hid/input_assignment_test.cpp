@@ -20,12 +20,12 @@
 #include "hid/hub.h"
 
 using rex::hid::CodeOf;
-using rex::hid::DeviceAssignment;
 using rex::hid::DeviceId;
 using rex::hid::DeviceInfo;
 using rex::hid::Driver;
 using rex::hid::HIDError;
 using rex::hid::Hub;
+using rex::hid::IDeviceAssignment;
 using rex::hid::kXInputGamepadA;
 using rex::hid::kXInputGamepadB;
 using rex::hid::SharedAssignment;
@@ -44,7 +44,7 @@ DeviceInfo Pad(rex::u64 id, rex::u32 ordinal) {
   return info;
 }
 
-std::vector<DeviceId> For(const DeviceAssignment& a, rex::u32 user) {
+std::vector<DeviceId> For(const IDeviceAssignment& a, rex::u32 user) {
   std::vector<DeviceId> out;
   a.DevicesForUser(user, out);
   return out;

@@ -15,7 +15,7 @@
 #include <string>
 
 #include <rex/memory/virtual_memory.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 
 using rex::memory::AllocationType;
 using rex::memory::DeallocationType;

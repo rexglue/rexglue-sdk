@@ -16,7 +16,7 @@
 #include <vector>
 
 #include <rex/codegen/codegen_context.h>
-#include <rex/codegen/test_support.h>
+#include <rex/codegen/module_stub.h>
 #include <rex/memory/byte_swap.h>
 
 using namespace rex::codegen;
@@ -33,7 +33,7 @@ constexpr u32 kMoveR1ToR31 = 0x7C3F0B78;
 
 struct LoopFunction {
   std::vector<u8> data;
-  TestModule module;
+  StubModule module;
   std::unique_ptr<CodegenContext> ctx;
   FunctionNode* node = nullptr;
 

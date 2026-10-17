@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/elapsed.h
+ * @file        tests/elapsed.h
  * @brief       Elapsed wall time for test assertions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

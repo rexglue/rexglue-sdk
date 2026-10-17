@@ -360,4 +360,37 @@ struct BuilderContext {
    */
   void EmitStoreXForm(const char* store_macro, const char* src_type);
 };
+
+/**
+ * Returns the CRRegister member name of a BI field bit.
+ *
+ * @param bi BI field bit index, 0 to 3.
+ * @return "lt", "gt", "eq" or "so".
+ */
+const char* GetCRBitName(u32 bi);
+
+/**
+ * Reports whether the current instruction is a record form (has '.' suffix).
+ *
+ * Rc forms update CR0 from the result.
+ *
+ * @param insn The ppc_insn being processed
+ * @return True when the instruction name contains '.' (record form)
+ */
+bool IsRecordForm(const ppc_insn& insn);
+
+/**
+ * Emits the CR0 comparison for Rc forms.
+ *
+ * Rc forms (the '.' suffix, such as add. and and.)
+ * update CR0 based on the result compared to zero.
+ *   CR0[LT] = result < 0
+ *   CR0[GT] = result > 0
+ *   CR0[EQ] = result == 0
+ *   CR0[SO] = XER[SO]
+ *
+ * @param ctx The builder context containing the instruction being processed
+ */
+void EmitRecordFormCompare(BuilderContext& ctx);
+
 }  // namespace rex::codegen

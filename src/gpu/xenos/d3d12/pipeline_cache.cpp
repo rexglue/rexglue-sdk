@@ -1585,8 +1585,8 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
             static_cast<u32>(offsetof(DXBCShaderTranslator::SystemConstants, user_clip_planes) +
                              sizeof(f32) * 4 * 6));
       }
-      system_cbuffer_size_vector_aligned_bytes =
-          rex::Align(system_cbuffer_size_vector_aligned_bytes, static_cast<u32>(sizeof(u32) * 4));
+      system_cbuffer_size_vector_aligned_bytes = rex::RoundUpPow2(
+          system_cbuffer_size_vector_aligned_bytes, static_cast<u32>(sizeof(u32) * 4));
       rdef_cbuffer_system.size_vector_aligned_bytes = system_cbuffer_size_vector_aligned_bytes;
     }
 

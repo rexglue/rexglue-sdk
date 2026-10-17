@@ -9,8 +9,8 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
-#include "support/validation_errors.h"
+#include "temp_folder.h"
+#include "validation_errors.h"
 
 #include <algorithm>
 #include <filesystem>

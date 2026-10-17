@@ -1,6 +1,21 @@
 set(REXGLUE_RUNTIME_FOLDED_LIBS rexui)
 set(REXGLUE_FOLDED_LIB_USERS rexui-sdl3 unit_tests)
-set(REXGLUE_ABOVE_CORE_TARGETS rexruntime rexfilesystem reximgui rexui rexui-sdl3 rexgpu rexgpu-xenos rexgpu-xenos-vulkan rexgpu-xenos-d3d12 rexcodegen rexapu-sdl3 rexhid-common rexhid-sdl3 rexhid-xinput)
+set(REXGLUE_ABOVE_CORE_TARGETS
+    rexruntime
+    rexfilesystem
+    reximgui
+    rexui
+    rexui-sdl3
+    rexgpu
+    rexgpu-xenos
+    rexgpu-xenos-vulkan
+    rexgpu-xenos-d3d12
+    rexcodegen
+    rexapu-sdl3
+    rexhid
+    rexhid-sdl3
+    rexhid-xinput
+)
 set(REXGLUE_REGISTRAR_REGEX "REXCVAR_DEFINE_|REXLOG_DEFINE_CATEGORY|REXLOG_DEFINE_SUBCATEGORY")
 
 function(_rexglue_collect_targets dir out_var)
@@ -176,53 +191,62 @@ rexglue_audit_module_registrars()
 rexglue_audit_module_links()
 rexglue_audit_ui_links()
 
-function(rexglue_audit_host_service_links)
-    set(host_libs SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static xinput d3d12 dxgi dxguid
-        Vulkan::Headers GPUOpen::VulkanMemoryAllocator reximgui rex::imgui)
-    foreach(target IN ITEMS rexhid-common rexgpu)
-        if(NOT TARGET ${target})
-            continue()
-        endif()
-        get_target_property(links ${target} LINK_LIBRARIES)
-        get_target_property(interface_links ${target} INTERFACE_LINK_LIBRARIES)
-        foreach(link IN LISTS links interface_links)
-            if(link IN_LIST host_libs)
-                message(FATAL_ERROR "link audit: ${target} links the host library ${link}")
-            endif()
-        endforeach()
-    endforeach()
-    set(ui_sdl3_allowed "rexui-sdl3=rexcore|rexui|rexgpu|reximgui|rexruntime|SDL3::SDL3")
-    if(APPLE)
-        string(APPEND ui_sdl3_allowed "|-framework CoreFoundation")
-    endif()
-    set(module_allowed
-        "rexapu-sdl3=rexcore|SDL3::SDL3"
-        "rexhid-sdl3=rexcore|rexhid-common|SDL3::SDL3"
-        "rexhid-xinput=rexcore|rexhid-common"
-        "reximgui=rexcore"
-        "${ui_sdl3_allowed}")
-    foreach(entry IN LISTS module_allowed)
-        string(REPLACE "=" ";" pair "${entry}")
-        list(GET pair 0 module)
-        list(GET pair 1 allowed)
-        string(REPLACE "|" ";" allowed "${allowed}")
-        if(NOT TARGET ${module})
-            continue()
-        endif()
-        get_target_property(links ${module} LINK_LIBRARIES)
-        foreach(link IN LISTS links)
-            if(NOT link IN_LIST allowed)
-                message(FATAL_ERROR "link audit: ${module} links ${link}, allowed are ${allowed}")
-            endif()
-        endforeach()
-    endforeach()
-    get_target_property(runtime_links rexruntime LINK_LIBRARIES)
-    foreach(link IN LISTS runtime_links)
-        if(link MATCHES "^rex(apu|hid|ui)-")
-            message(FATAL_ERROR "link audit: rexruntime links the host module ${link}")
-        endif()
-    endforeach()
-endfunction()
+# Keeps host libraries out of the neutral targets and out of rexruntime.
+function (rexglue_audit_host_service_links)
+  set(host_libs
+      SDL3::SDL3
+      SDL3::SDL3-shared
+      SDL3::SDL3-static
+      xinput
+      d3d12
+      dxgi
+      dxguid
+      Vulkan::Headers
+      GPUOpen::VulkanMemoryAllocator
+      reximgui
+      rex::imgui
+  )
+  foreach (target_name IN ITEMS rexhid rexgpu)
+    if (NOT TARGET ${target_name})
+      continue()
+    endif ()
+    get_target_property(links ${target_name} LINK_LIBRARIES)
+    get_target_property(interface_links ${target_name} INTERFACE_LINK_LIBRARIES)
+    foreach (link IN LISTS links interface_links)
+      if (link IN_LIST host_libs)
+        message(FATAL_ERROR "link audit: ${target_name} links the host library ${link}")
+      endif ()
+    endforeach ()
+  endforeach ()
+  set(ui_sdl3_allowed "rexui-sdl3=rexcore|rexui|rexgpu|reximgui|rexruntime|SDL3::SDL3")
+  if (APPLE)
+    string(APPEND ui_sdl3_allowed "|-framework CoreFoundation")
+  endif ()
+  set(module_allowed "rexapu-sdl3=rexcore|SDL3::SDL3" "rexhid-sdl3=rexcore|rexhid|SDL3::SDL3"
+                     "rexhid-xinput=rexcore|rexhid" "reximgui=rexcore" "${ui_sdl3_allowed}"
+  )
+  foreach (entry IN LISTS module_allowed)
+    string(REPLACE "=" ";" pair "${entry}")
+    list(GET pair 0 module)
+    list(GET pair 1 allowed)
+    string(REPLACE "|" ";" allowed "${allowed}")
+    if (NOT TARGET ${module})
+      continue()
+    endif ()
+    get_target_property(links ${module} LINK_LIBRARIES)
+    foreach (link IN LISTS links)
+      if (NOT link IN_LIST allowed)
+        message(FATAL_ERROR "link audit: ${module} links ${link}, allowed are ${allowed}")
+      endif ()
+    endforeach ()
+  endforeach ()
+  get_target_property(runtime_links rexruntime LINK_LIBRARIES)
+  foreach (link IN LISTS runtime_links)
+    if (link MATCHES "^rex(apu|hid|ui)-")
+      message(FATAL_ERROR "link audit: rexruntime links the host module ${link}")
+    endif ()
+  endforeach ()
+endfunction ()
 
 rexglue_audit_host_service_links()
 

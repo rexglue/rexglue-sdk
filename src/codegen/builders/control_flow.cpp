@@ -9,11 +9,13 @@
  */
 
 #include "builder_context.h"
-#include "builders.h"
 
 #include <format>
 
 #include <rex/logging/log.h>
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
 
 namespace rex::codegen {
 
@@ -44,8 +46,7 @@ void EmitBranchWithBoundsCheck(BuilderContext& ctx, u32 target, std::string_view
 
 }  // namespace
 
-template <>
-bool Build<PPC_INST_B>(BuilderContext& ctx) {
+bool BuildB(BuilderContext& ctx) {
   u32 target = ctx.insn.operands[0];
 
   auto kind = ctx.GetGraph().ClassifyTarget(target, ctx.base, false);

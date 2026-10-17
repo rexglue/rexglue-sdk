@@ -19,7 +19,7 @@
 
 #include <rex/filesystem/container.h>
 #include <rex/filesystem/error.h>
-#include <rex/filesystem/xcontent.h>
+#include <rex/filesystem/xcontent_layout.h>
 #include <rex/result.h>
 #include <rex/types.h>
 

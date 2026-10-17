@@ -218,13 +218,15 @@ bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pend
   if (base_outdated) {
     PendingSharedMemoryRange pending_range;
     pending_range.start = texture_key.base_page << 12;
-    pending_range.length = static_cast<u32>(rex::Align(texture.GetGuestBaseSize(), UINT32_C(16)));
+    pending_range.length =
+        static_cast<u32>(rex::RoundUpPow2(texture.GetGuestBaseSize(), UINT32_C(16)));
     pending_ranges_out[pending_range_count_out++] = pending_range;
   }
   if (mips_outdated) {
     PendingSharedMemoryRange pending_range;
     pending_range.start = texture_key.mip_page << 12;
-    pending_range.length = static_cast<u32>(rex::Align(texture.GetGuestMipsSize(), UINT32_C(16)));
+    pending_range.length =
+        static_cast<u32>(rex::RoundUpPow2(texture.GetGuestMipsSize(), UINT32_C(16)));
     pending_ranges_out[pending_range_count_out++] = pending_range;
   }
 
@@ -593,13 +595,13 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     }
     const xenos::FormatInfo* format_info = xenos::FormatInfo::Get(key.format);
     u32 rebased_pitch_texels = std::max(rex::next_pow2(old_width) >> 1, UINT32_C(1));
-    rebased_pitch_texels = rex::Align(rebased_pitch_texels, format_info->block_width);
-    rebased_pitch_texels = rex::Align(rebased_pitch_texels, xenos::kTextureTileWidthHeight);
+    rebased_pitch_texels = rex::RoundUpPow2(rebased_pitch_texels, format_info->block_width);
+    rebased_pitch_texels = rex::RoundUpPow2(rebased_pitch_texels, xenos::kTextureTileWidthHeight);
     if (!key.tiled) {
       u32 rebased_pitch_blocks = rebased_pitch_texels / format_info->block_width;
       u32 rebased_row_pitch_bytes = rebased_pitch_blocks * format_info->GetBytesPerBlock();
       rebased_row_pitch_bytes =
-          rex::Align(rebased_row_pitch_bytes, xenos::kTextureLinearRowAlignmentBytes);
+          rex::RoundUpPow2(rebased_row_pitch_bytes, xenos::kTextureLinearRowAlignmentBytes);
       rebased_pitch_blocks = rebased_row_pitch_bytes / format_info->GetBytesPerBlock();
       rebased_pitch_texels = rebased_pitch_blocks * format_info->block_width;
     }

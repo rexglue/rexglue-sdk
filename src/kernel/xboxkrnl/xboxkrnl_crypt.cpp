@@ -800,10 +800,10 @@ struct XECRYPT_AES_STATE {
 REX_STATIC_ASSERT_SIZE(XECRYPT_AES_STATE, 0x160);
 
 /** AES key schedule in guest memory, the words of EXCRYPT_AES_SCHEDULE in big endian. */
-struct XECRYPT_AES_SCHEDULE {
+struct AESSchedule {
   be_u32 words[sizeof(EXCRYPT_AES_SCHEDULE) / sizeof(u32)];
 };
-REX_STATIC_ASSERT_SIZE(XECRYPT_AES_SCHEDULE, 0x1D4);
+REX_STATIC_ASSERT_SIZE(AESSchedule, 0x1D4);
 
 /** The ExCrypt round key bit behind each title round key bit, -1 where the title bit stays 0. */
 constexpr std::array<i8, 64> kDESRoundKeyBits = {
@@ -855,14 +855,14 @@ void ToHost(const XECRYPT_AES_STATE& title, EXCRYPT_AES_STATE& host) {
   ExCryptAesKey(&host, &title.keytabenc[0][0][0]);
 }
 
-void ToHost(const XECRYPT_AES_SCHEDULE& title, EXCRYPT_AES_SCHEDULE& host) {
+void ToHost(const AESSchedule& title, EXCRYPT_AES_SCHEDULE& host) {
   std::array<u32, std::size(title.words)> words;
   std::transform(std::begin(title.words), std::end(title.words), words.begin(),
                  [](const be_u32& word) { return static_cast<u32>(word); });
   std::memcpy(&host, words.data(), sizeof(host));
 }
 
-void ToGuest(const EXCRYPT_AES_SCHEDULE& host, XECRYPT_AES_SCHEDULE& title) {
+void ToGuest(const EXCRYPT_AES_SCHEDULE& host, AESSchedule& title) {
   std::array<u32, std::size(title.words)> words;
   std::memcpy(words.data(), &host, sizeof(host));
   std::copy(words.begin(), words.end(), std::begin(title.words));
@@ -1021,7 +1021,7 @@ void XeCryptAesCbc_entry(GuestPtrT<XECRYPT_AES_STATE> state_ptr, MappedVoid inp_
  * @param schedule_ptr Receives the schedule.
  */
 void XeCryptAesCreateKeySchedule_entry(MappedVoid key, u32 key_size,
-                                       GuestPtrT<XECRYPT_AES_SCHEDULE> schedule_ptr) {
+                                       GuestPtrT<AESSchedule> schedule_ptr) {
   if (key_size != 0x10 && key_size != 0x18 && key_size != 0x20) {
     return;
   }
@@ -1039,21 +1039,21 @@ void XeCryptAesCreateKeySchedule_entry(MappedVoid key, u32 key_size,
   ToGuest(schedule, *schedule_ptr);
 }
 
-void XeCryptAesEncryptOne_entry(GuestPtrT<XECRYPT_AES_SCHEDULE> schedule_ptr, MappedVoid inp_ptr,
+void XeCryptAesEncryptOne_entry(GuestPtrT<AESSchedule> schedule_ptr, MappedVoid inp_ptr,
                                 MappedVoid out_ptr) {
   alignas(16) EXCRYPT_AES_SCHEDULE schedule;
   ToHost(*schedule_ptr, schedule);
   ExCryptAesEncryptOne(&schedule, inp_ptr.As<const u8*>(), out_ptr.As<u8*>());
 }
 
-void XeCryptAesDecryptOne_entry(GuestPtrT<XECRYPT_AES_SCHEDULE> schedule_ptr, MappedVoid inp_ptr,
+void XeCryptAesDecryptOne_entry(GuestPtrT<AESSchedule> schedule_ptr, MappedVoid inp_ptr,
                                 MappedVoid out_ptr) {
   alignas(16) EXCRYPT_AES_SCHEDULE schedule;
   ToHost(*schedule_ptr, schedule);
   ExCryptAesDecryptOne(&schedule, inp_ptr.As<const u8*>(), out_ptr.As<u8*>());
 }
 
-void XeCryptAesCbcEncrypt_entry(GuestPtrT<XECRYPT_AES_SCHEDULE> schedule_ptr, MappedVoid inp_ptr,
+void XeCryptAesCbcEncrypt_entry(GuestPtrT<AESSchedule> schedule_ptr, MappedVoid inp_ptr,
                                 u32 inp_size, MappedVoid out_ptr, MappedVoid feed_ptr) {
   alignas(16) EXCRYPT_AES_SCHEDULE schedule;
   ToHost(*schedule_ptr, schedule);
@@ -1061,7 +1061,7 @@ void XeCryptAesCbcEncrypt_entry(GuestPtrT<XECRYPT_AES_SCHEDULE> schedule_ptr, Ma
                        feed_ptr.As<u8*>());
 }
 
-void XeCryptAesCbcDecrypt_entry(GuestPtrT<XECRYPT_AES_SCHEDULE> schedule_ptr, MappedVoid inp_ptr,
+void XeCryptAesCbcDecrypt_entry(GuestPtrT<AESSchedule> schedule_ptr, MappedVoid inp_ptr,
                                 u32 inp_size, MappedVoid out_ptr, MappedVoid feed_ptr) {
   alignas(16) EXCRYPT_AES_SCHEDULE schedule;
   ToHost(*schedule_ptr, schedule);
@@ -1086,7 +1086,7 @@ u32 XeCryptEccGetCurveParameters_entry(u32 curve_id, GuestPtrT<be_u32> out_ptr) 
     return 4;
   }
   *out_ptr = runtime::GetCurrent().GetKernelGlobals() +
-             static_cast<u32>(offsetof(runtime::KernelGuestGlobals, EccCurves)) + 4 * curve_id;
+             static_cast<u32>(offsetof(runtime::KernelGuestGlobals, ecc_curves)) + 4 * curve_id;
   return 0;
 }
 

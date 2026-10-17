@@ -28,7 +28,7 @@
 
 #include "core/module_loader.h"
 #include "modules/echo.h"
-#include "modules/test_module_common.h"
+#include "modules/test_module_sink.h"
 
 namespace {
 
@@ -372,7 +372,7 @@ REX_TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any
                      "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
-  static const rex::cvar::IVar* wrong_scope[] = {&app_cvars::debug};
+  static const rex::cvar::VarBase* wrong_scope[] = {&app_cvars::debug};
   cfg.cvars.tables.push_back({"other", wrong_scope});
   auto api = rex::Init(cfg);
   REQUIRE_FALSE(api);

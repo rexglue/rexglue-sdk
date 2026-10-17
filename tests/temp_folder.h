@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/temp_folder.h
+ * @file        tests/temp_folder.h
  * @brief       Host folders that tests create and remove without throwing
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

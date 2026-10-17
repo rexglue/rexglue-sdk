@@ -9,7 +9,6 @@
  */
 
 #include "builder_context.h"
-#include "builders.h"
 
 #include <format>
 #include <string_view>
@@ -80,8 +79,7 @@ void EmitCRBitOperation(BuilderContext& ctx, std::string_view op, bool invert_a 
 
 }  // namespace
 
-template <>
-bool Build<PPC_INST_AND>(BuilderContext& ctx) {
+bool BuildAnd(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = {}.u64 & {}.u64;", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);

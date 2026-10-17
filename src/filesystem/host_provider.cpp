@@ -165,7 +165,7 @@ std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& par
       node->info_.attributes |= FileAttributes::kReadOnly;
     }
     node->info_.size = info.size;
-    node->info_.allocation_size = round_up_nonzero(info.size, u64{kBytesPerSector});
+    node->info_.allocation_size = RoundUpNonZero(info.size, u64{kBytesPerSector});
   }
   return node;
 }
@@ -231,7 +231,7 @@ void HostNode::Refresh() {
   }
   std::lock_guard lock(GetProvider().GetMutex());
   info_.size = info->size;
-  info_.allocation_size = round_up_nonzero(info->size, u64{kBytesPerSector});
+  info_.allocation_size = RoundUpNonZero(info->size, u64{kBytesPerSector});
 }
 
 bool HostNode::HasChildVanished(const Node& child) const {

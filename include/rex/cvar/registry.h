@@ -26,7 +26,7 @@
 
 namespace rex::cvar {
 
-class IVar;
+class VarBase;
 class CallbackHandle;
 
 /** Where a cvar value came from, ascending precedence. */
@@ -58,7 +58,7 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    * @return Ok, or the error.
    */
   [[nodiscard]] virtual Result<void> Register(std::string_view scope,
-                                              std::span<const IVar* const> vars) = 0;
+                                              std::span<const VarBase* const> vars) = 0;
   /**
    * Adds vars to scopes that are already reserved, for vars created at runtime such as keybinds.
    * A value Init received for a name in a scope reserved with an empty table waits here and is
@@ -68,14 +68,14 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    * @param vars The vars to add.
    * @return Ok, or the error.
    */
-  [[nodiscard]] virtual Result<void> Add(std::span<const IVar* const> vars) = 0;
+  [[nodiscard]] virtual Result<void> Add(std::span<const VarBase* const> vars) = 0;
   /**
    * Removes the vars. A scope reserved through Register with vars is released when its last var
    * leaves. A scope reserved with an empty table stays until Reset.
    *
    * @param vars The vars to remove.
    */
-  virtual void Unregister(std::span<const IVar* const> vars) = 0;
+  virtual void Unregister(std::span<const VarBase* const> vars) = 0;
   /**
    * Sets a cvar. Fails with NotFound, Invalid, InitOnly after finalize, or Locked.
    *
@@ -120,7 +120,7 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    * @return The var, or empty when the name is not registered. Valid until the var is
    *         unregistered. Only GetDesc(), Render() and GetDefaultText() are read on it.
    */
-  [[nodiscard]] virtual std::optional<std::reference_wrapper<const IVar>> Find(
+  [[nodiscard]] virtual std::optional<std::reference_wrapper<const VarBase>> Find(
       std::string_view name) const = 0;
   /**
    * Reports where a value came from.
@@ -135,7 +135,7 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    * @param scope A scope to list, or empty for every scope.
    * @return Every registered var, or those of 1 scope, in registration order.
    */
-  virtual std::vector<const IVar*> Enumerate(std::string_view scope = {}) const = 0;
+  virtual std::vector<const VarBase*> Enumerate(std::string_view scope = {}) const = 0;
   /**
    * Lists reserved scopes.
    *

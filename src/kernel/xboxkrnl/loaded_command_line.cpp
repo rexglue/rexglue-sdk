@@ -19,7 +19,7 @@ std::string LoadedCommandLine(std::string_view image_path, std::string_view argu
 
 u32 LoadedCommandLineCapacity(std::string_view arguments) {
   const size_t longest = kExLoadedImageNameSize + 3 + arguments.size() + 1;
-  return rex::Align(static_cast<u32>(longest), 1024u);
+  return rex::RoundUpPow2(static_cast<u32>(longest), 1024u);
 }
 
 }  // namespace rex::runtime

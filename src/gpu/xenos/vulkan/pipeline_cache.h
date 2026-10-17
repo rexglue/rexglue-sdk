@@ -51,12 +51,12 @@ class VulkanPipelineCache {
  public:
   static constexpr size_t kLayoutUIDEmpty = 0;
 
-  REX_INTERFACE(PipelineLayoutProvider)
+  REX_INTERFACE(IPipelineLayoutProvider)
    public:
     virtual VkPipelineLayout GetPipelineLayout() const = 0;
 
    protected:
-    PipelineLayoutProvider() = default;
+    IPipelineLayoutProvider() = default;
   };
 
   VulkanPipelineCache(VulkanCommandProcessor& command_processor,
@@ -91,10 +91,10 @@ class VulkanPipelineCache {
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask,
       VulkanRenderTargetCache::RenderPassKey render_pass_key, VkPipeline& pipeline_out,
-      const PipelineLayoutProvider*& pipeline_layout_out, void** pipeline_handle_out = nullptr);
+      const IPipelineLayoutProvider*& pipeline_layout_out, void** pipeline_handle_out = nullptr);
   bool IsCreatingPipelines() const;
   void GetPipelineAndLayoutByHandle(void* handle, VkPipeline& pipeline_out,
-                                    const PipelineLayoutProvider*& pipeline_layout_out,
+                                    const IPipelineLayoutProvider*& pipeline_layout_out,
                                     bool* is_placeholder_out = nullptr) const;
 
  private:
@@ -234,10 +234,10 @@ class VulkanPipelineCache {
   struct Pipeline {
     std::atomic<VkPipeline> pipeline{VK_NULL_HANDLE};
     /** Owned by VulkanCommandProcessor, which must keep it alive while the cache is active. */
-    std::atomic<const PipelineLayoutProvider*> pipeline_layout{nullptr};
+    std::atomic<const IPipelineLayoutProvider*> pipeline_layout{nullptr};
     std::atomic<bool> is_placeholder{false};
     Pipeline() = default;
-    Pipeline(const PipelineLayoutProvider* pipeline_layout_provider)
+    Pipeline(const IPipelineLayoutProvider* pipeline_layout_provider)
         : pipeline_layout(pipeline_layout_provider) {}
     Pipeline(const Pipeline& other)
         : pipeline(other.pipeline.load(std::memory_order_acquire)),
@@ -260,7 +260,7 @@ class VulkanPipelineCache {
   struct PipelineCreationArguments {
     u8 priority = 0;
     std::pair<const PipelineDescription, Pipeline>* pipeline = nullptr;
-    const PipelineLayoutProvider* pipeline_layout = nullptr;
+    const IPipelineLayoutProvider* pipeline_layout = nullptr;
     const VulkanShader::VulkanTranslation* vertex_shader = nullptr;
     const VulkanShader::VulkanTranslation* pixel_shader = nullptr;
     VkShaderModule tessellation_vertex_shader = VK_NULL_HANDLE;

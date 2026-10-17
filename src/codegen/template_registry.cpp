@@ -1,6 +1,6 @@
 #include <rex/platform/file.h>
 #include <rex/codegen/template_registry.h>
-#include "template_registry_internal.h"
+#include "template_render.h"
 
 #include <inja/inja.hpp>
 #include <rex/hash.h>

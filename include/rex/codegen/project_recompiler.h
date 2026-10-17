@@ -25,7 +25,7 @@ struct ProjectRecompilerOptions {
   std::vector<std::string> targets;       /**< Empty selects all */
   bool force = false;                     /**< Rewrite outputs whose content is unchanged */
   bool enable_exception_handlers = false; /**< Generate SEH exception handler wrappers */
-  ProgressReporter* reporter = nullptr;   /**< Receives progress events, null for none */
+  IProgressReporter* reporter = nullptr;  /**< Receives progress events, null for none */
 
   /** Bypasses the stamp gate and regenerates every targeted module. */
   bool ignore_stamp = false;

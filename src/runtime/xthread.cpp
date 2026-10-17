@@ -335,7 +335,7 @@ X_STATUS KernelThread::Create() {
   const auto* process =
       process_address ? GetMemory()->TranslateVirtual<const X_KPROCESS*>(process_address) : nullptr;
   const u32 guest_default = process ? static_cast<u32>(process->kernel_stack_size) : 0;
-  const u32 data_size = process ? rex::round_up(static_cast<u32>(process->tls_data_size), 4u) : 0;
+  const u32 data_size = process ? rex::RoundUp(static_cast<u32>(process->tls_data_size), 4u) : 0;
   const u32 slot_count =
       process ? static_cast<u32>(process->tls_slot_size) / 4 : ResolveTLSSlotCount(0);
   const u32 tls_size = data_size + slot_count * 4;

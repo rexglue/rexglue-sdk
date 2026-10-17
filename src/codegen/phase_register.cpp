@@ -14,7 +14,7 @@
 #include "ppc/opcode.h"
 
 #include <rex/codegen/phases.h>
-#include "phase_helpers.h"
+#include "known_functions.h"
 
 #include <algorithm>
 #include <format>
@@ -910,7 +910,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Register(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   return RegisterEntryPoints(ctx);
 }

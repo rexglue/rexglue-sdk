@@ -17,7 +17,7 @@
 #include "rex_test.h"
 
 #include "filesystem/fixture.h"
-#include "support/fixture_dir.h"
+#include "fixture_dir.h"
 
 namespace {
 

@@ -539,8 +539,8 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
 
   x0 &= ~static_cast<i32>(xenos::kResolveAlignmentPixels - 1);
   y0 &= ~static_cast<i32>(xenos::kResolveAlignmentPixels - 1);
-  x1 = rex::Align(x1, static_cast<i32>(xenos::kResolveAlignmentPixels));
-  y1 = rex::Align(y1, static_cast<i32>(xenos::kResolveAlignmentPixels));
+  x1 = rex::RoundUpPow2(x1, static_cast<i32>(xenos::kResolveAlignmentPixels));
+  y1 = rex::RoundUpPow2(y1, static_cast<i32>(xenos::kResolveAlignmentPixels));
 
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
   if (rb_surface_info.msaa_samples > xenos::MSAASamples::k4X) {

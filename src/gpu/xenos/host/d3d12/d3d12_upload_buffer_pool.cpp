@@ -18,8 +18,8 @@
 namespace rex::gpu::d3d12 {
 
 D3D12UploadBufferPool::D3D12UploadBufferPool(const D3D12Provider& provider, size_t page_size)
-    : GraphicsUploadBufferPool(
-          rex::Align(page_size, static_cast<size_t>(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
+    : GraphicsUploadBufferPool(rex::RoundUpPow2(
+          page_size, static_cast<size_t>(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
       provider_(provider) {}
 
 u8* D3D12UploadBufferPool::Request(u64 submission_index, size_t size, size_t alignment,

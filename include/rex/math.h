@@ -59,12 +59,12 @@ constexpr bool is_pow2(T value) {
  * @return value rounded up to a multiple of alignment.
  */
 template <typename T>
-constexpr T Align(T value, T alignment) {
+constexpr T RoundUpPow2(T value, T alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
 
 /**
- * Rounds up to any multiple. 0 stays 0, as with Align.
+ * Rounds up to any multiple. 0 stays 0, as with RoundUpPow2.
  *
  * @tparam T Value type.
  * @tparam V Multiple type.
@@ -73,7 +73,7 @@ constexpr T Align(T value, T alignment) {
  * @return value rounded up to a multiple of multiple.
  */
 template <typename T, typename V>
-constexpr T round_up(T value, V multiple) {
+constexpr T RoundUp(T value, V multiple) {
   return (value + multiple - 1) / multiple * multiple;
 }
 
@@ -87,11 +87,11 @@ constexpr T round_up(T value, V multiple) {
  * @return value rounded up to a multiple of multiple, never 0.
  */
 template <typename T, typename V>
-constexpr T round_up_nonzero(T value, V multiple) {
+constexpr T RoundUpNonZero(T value, V multiple) {
   if (!value) {
     return multiple;
   }
-  return round_up(value, multiple);
+  return RoundUp(value, multiple);
 }
 
 /**

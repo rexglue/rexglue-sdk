@@ -14,7 +14,7 @@ namespace rex::ui {
 
 namespace {
 
-Color LevelColor(const ConsoleStyle& style, log::Level level) {
+Color GetLevelStyleColor(const ConsoleStyle& style, log::Level level) {
   const size_t index = std::to_underlying(level);
   return index < style.level.size() ? style.level[index]
                                     : style.level[std::to_underlying(log::Level::kInfo)];
@@ -32,7 +32,7 @@ void TextDisabled(std::string_view text) {
 
 }  // namespace
 
-ConsoleView::ConsoleView(ConsoleModel& model, ConsoleHost& host) : model_(model), host_(host) {
+ConsoleView::ConsoleView(ConsoleModel& model, IConsoleHost& host) : model_(model), host_(host) {
   selection_.UserData = &visible_;
   selection_.AdapterIndexToStorageId = [](ImGuiSelectionBasicStorage* self, int index) {
     const auto& lines = *static_cast<const std::vector<const ConsoleLine*>*>(self->UserData);
@@ -183,8 +183,9 @@ void ConsoleView::DrawOutput(const ConsoleStyle& style) {
       ImGui::Selectable("##line", selection_.Contains(LineID(line)), ImGuiSelectableFlags_None,
                         ImVec2(std::max(width, ImGui::CalcTextSize(begin, end).x), 0.0f));
       ImGui::PopID();
-      draw_list->AddText(position, ImGui::GetColorU32(ToImVec4(LevelColor(style, line.level))),
-                         begin, end);
+      draw_list->AddText(position,
+                         ImGui::GetColorU32(ToImVec4(GetLevelStyleColor(style, line.level))), begin,
+                         end);
     }
   }
   request = ImGui::EndMultiSelect();

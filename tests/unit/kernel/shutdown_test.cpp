@@ -32,7 +32,7 @@
 #include <rex/runtime/xthread.h>
 
 #include "kernel_fixture.h"
-#include "support/elapsed.h"
+#include "elapsed.h"
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>

@@ -10,7 +10,7 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
+#include "temp_folder.h"
 
 #include <array>
 #include <fstream>

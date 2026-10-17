@@ -103,7 +103,7 @@ VolumeInfo ContainerProvider::GetVolume() const {
   } else {
     const u64 header_bytes =
         header.header.header_size
-            ? round_up_nonzero(u64{header.header.header_size}, u64{kSTFSBlockSize})
+            ? RoundUpNonZero(u64{header.header.header_size}, u64{kSTFSBlockSize})
             : u64{sizeof(STFSHeader)};
     const u64 data_size = container_.GetTotalSize() - header_bytes;
     total_units = static_cast<u32>(data_size / kPackageSectorsPerUnit / kBytesPerSector);

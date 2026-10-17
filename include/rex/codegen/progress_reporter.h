@@ -41,7 +41,7 @@ struct BinaryInfo {
  * All methods are called from the thread that drove the pipeline, and no
  * cross-thread synchronization is implied.
  */
-REX_INTERFACE(ProgressReporter)
+REX_INTERFACE(IProgressReporter)
  public:
   /**
    * Reports identifying info for an input binary, emitted right after each XEX is loaded.

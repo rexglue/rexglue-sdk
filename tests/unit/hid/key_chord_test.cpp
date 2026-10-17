@@ -169,7 +169,7 @@ REX_TEST_CASE("A bad list item fails the whole list", "[hid][key_chord]") {
 
 REX_TEST_CASE("Every hid.keybind default value parses", "[hid][key_chord]") {
   rex::u32 checked = 0;
-  for (const rex::cvar::IVar* var : rex::hid::cvars::kHIDCvars) {
+  for (const rex::cvar::VarBase* var : rex::hid::cvars::kHIDCvars) {
     if (!var->GetDesc().name.starts_with("hid.keybind_")) {
       continue;
     }

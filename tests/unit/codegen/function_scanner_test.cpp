@@ -20,7 +20,7 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/config.h>
 #include <rex/codegen/function_scanner.h>
-#include <rex/codegen/test_support.h>
+#include <rex/codegen/module_stub.h>
 #include <rex/memory/byte_swap.h>
 
 #include "codegen/decoded_binary.h"
@@ -37,7 +37,7 @@ constexpr u32 kBlr = 0x4E800020;
 
 struct ScannerFixture {
   std::vector<u8> data;
-  TestModule module;
+  StubModule module;
   std::unique_ptr<CodegenContext> ctx;
 
   explicit ScannerFixture(std::initializer_list<u32> words) {

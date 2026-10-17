@@ -67,14 +67,14 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(u64 submission
                                                                   size_t& offset_out) {
   alignment = std::max(alignment, static_cast<size_t>(1));
   REX_ASSERT(rex::is_pow2(alignment));
-  size = rex::Align(size, alignment);
+  size = rex::RoundUpPow2(size, alignment);
   REX_ASSERT(size <= page_size_);
   if (size > page_size_) {
     return nullptr;
   }
   REX_ASSERT(!current_page_used_ || submission_index >= writable_first_->last_submission_index);
   REX_ASSERT(!submitted_last_ || submission_index >= submitted_last_->last_submission_index);
-  size_t current_page_used_aligned = rex::Align(current_page_used_, alignment);
+  size_t current_page_used_aligned = rex::RoundUpPow2(current_page_used_, alignment);
   if (current_page_used_aligned + size > page_size_ || !writable_first_) {
     if (writable_first_) {
       FlushWrites();
@@ -114,9 +114,9 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(
     u64 submission_index, size_t size, size_t alignment, size_t& offset_out, size_t& size_out) {
   alignment = std::max(alignment, static_cast<size_t>(1));
   REX_ASSERT(rex::is_pow2(alignment));
-  size = rex::Align(size, alignment);
+  size = rex::RoundUpPow2(size, alignment);
   size = std::min(size, page_size_);
-  size_t current_page_used_aligned = rex::Align(current_page_used_, alignment);
+  size_t current_page_used_aligned = rex::RoundUpPow2(current_page_used_, alignment);
   if (current_page_used_aligned + alignment <= page_size_) {
     size = std::min(size, (page_size_ - current_page_used_aligned) & ~(alignment - 1));
   }

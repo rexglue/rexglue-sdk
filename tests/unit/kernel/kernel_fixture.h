@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "codegen/tool_runtime.h"
-#include "support/temp_folder.h"
+#include "temp_folder.h"
 #include <rex/ppc/context.h>
 #include <rex/runtime.h>
 #include <rex/runtime/exports.h>

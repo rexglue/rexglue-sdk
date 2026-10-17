@@ -9,7 +9,6 @@
  */
 
 #include "builder_context.h"
-#include "builders.h"
 
 #include <dis-asm.h>
 #include <ppc-inst.h>
@@ -58,8 +57,7 @@ void EmitCompareImmediate(BuilderContext& ctx, const char* type_name, const char
 
 }  // namespace
 
-template <>
-bool Build<PPC_INST_CMPD>(BuilderContext& ctx) {
+bool BuildCmpd(BuilderContext& ctx) {
   EmitCompareRegister(ctx, "i64", "s64");
   return true;
 }

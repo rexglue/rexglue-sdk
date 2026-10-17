@@ -10,8 +10,8 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
-#include "support/file_text.h"
+#include "temp_folder.h"
+#include "file_text.h"
 
 #include <algorithm>
 #include <atomic>

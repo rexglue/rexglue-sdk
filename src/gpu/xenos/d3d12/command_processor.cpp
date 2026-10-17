@@ -688,7 +688,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(u32 size,
     return scratch_buffer_;
   }
 
-  size = rex::Align(size, kScratchBufferSizeIncrement);
+  size = rex::RoundUpPow2(size, kScratchBufferSizeIncrement);
 
   const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
@@ -2838,12 +2838,12 @@ bool D3D12CommandProcessor::IssueCopyReadbackResolvePath() {
     const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
     ID3D12Device* device = provider.GetDevice();
     u32 aligned_scaled_length =
-        rex::Align(scaled_length, static_cast<u32>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
+        rex::RoundUpPow2(scaled_length, static_cast<u32>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
     gpu::d3d12::objects::CreateBufferRawSRV(device, downscale_descriptors[0].first,
                                             scaled_resolve_buffer, aligned_scaled_length,
                                             source_offset);
     u32 aligned_written_length =
-        rex::Align(written_length, static_cast<u32>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
+        rex::RoundUpPow2(written_length, static_cast<u32>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
     gpu::d3d12::objects::CreateBufferRawUAV(device, downscale_descriptors[1].first,
                                             resolve_downscale_buffer_.Get(), aligned_written_length,
                                             0);
@@ -4468,7 +4468,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(u32 size) {
   if (size == 0) {
     return nullptr;
   }
-  size = rex::Align(size, kReadbackBufferSizeIncrement);
+  size = rex::RoundUpPow2(size, kReadbackBufferSizeIncrement);
   if (size > readback_buffer_size_) {
     const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
     ID3D12Device* device = provider.GetDevice();

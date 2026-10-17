@@ -37,18 +37,18 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
   ~CvarRegistryImpl() override;
 
   [[nodiscard]] Result<void> Register(std::string_view scope,
-                                      std::span<const cvar::IVar* const> vars) override;
-  [[nodiscard]] Result<void> Add(std::span<const cvar::IVar* const> vars) override;
-  void Unregister(std::span<const cvar::IVar* const> vars) override;
+                                      std::span<const cvar::VarBase* const> vars) override;
+  [[nodiscard]] Result<void> Add(std::span<const cvar::VarBase* const> vars) override;
+  void Unregister(std::span<const cvar::VarBase* const> vars) override;
   [[nodiscard]] Result<void> Set(std::string_view name, std::string_view value) override;
   [[nodiscard]] Result<std::string> Get(std::string_view name) const override;
   [[nodiscard]] Result<void> SetDefault(std::string_view name, std::string_view value) override;
   [[nodiscard]] Result<void> Lock(std::string_view name) override;
   [[nodiscard]] Result<void> ResetToDefault(std::string_view name) override;
-  [[nodiscard]] std::optional<std::reference_wrapper<const cvar::IVar>> Find(
+  [[nodiscard]] std::optional<std::reference_wrapper<const cvar::VarBase>> Find(
       std::string_view name) const override;
   cvar::CvarSource Source(std::string_view name) const override;
-  std::vector<const cvar::IVar*> Enumerate(std::string_view scope = {}) const override;
+  std::vector<const cvar::VarBase*> Enumerate(std::string_view scope = {}) const override;
   std::vector<std::string_view> GetScopes() const override;
   [[nodiscard]] Result<cvar::CallbackHandle> OnChange(std::string_view name,
                                                       cvar::ChangeCallback callback) override;
@@ -88,7 +88,7 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
 
  private:
   struct Entry {
-    const cvar::IVar* var = nullptr;
+    const cvar::VarBase* var = nullptr;
     std::string default_override;
     bool has_default_override = false;
     cvar::CvarSource source = cvar::CvarSource::kDefault;

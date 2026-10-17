@@ -471,7 +471,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   static constexpr u32 kCacheBucketSizeBytesLog2 = 18;
   static constexpr u32 kCacheBucketSizeBytes = static_cast<u32>(1) << kCacheBucketSizeBytesLog2;
   static constexpr u32 kCacheBucketCount =
-      rex::Align(SharedMemory::kBufferSize, kCacheBucketSizeBytes) / kCacheBucketSizeBytes;
+      rex::RoundUpPow2(SharedMemory::kBufferSize, kCacheBucketSizeBytes) / kCacheBucketSizeBytes;
 
   union CacheKey {
     u64 key;

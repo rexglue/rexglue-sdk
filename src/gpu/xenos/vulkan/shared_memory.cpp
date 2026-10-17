@@ -157,8 +157,8 @@ bool VulkanSharedMemory::Initialize() {
 
   upload_buffer_pool_ = std::make_unique<gpu::vulkan::VulkanUploadBufferPool>(
       vulkan_device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-      rex::Align(gpu::vulkan::VulkanUploadBufferPool::kDefaultPageSize, static_cast<size_t>(1)
-                                                                            << GetPageSizeLog2()));
+      rex::RoundUpPow2(gpu::vulkan::VulkanUploadBufferPool::kDefaultPageSize,
+                       static_cast<size_t>(1) << GetPageSizeLog2()));
 
   return true;
 }

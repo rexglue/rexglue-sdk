@@ -29,7 +29,7 @@
 #include <rex/ui/title_app.h>
 
 #include "core/module_loader.h"
-#include "modules/test_module_common.h"
+#include "modules/test_module_sink.h"
 
 namespace {
 

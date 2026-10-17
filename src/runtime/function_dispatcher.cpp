@@ -21,25 +21,25 @@
 
 #include "runtime/dispatcher.h"
 
-namespace rex::runtime {
+namespace rex::ppc {
 
 namespace {
 
-FunctionDispatcher* GetBoundFunctionDispatcher() {
-  ThreadState* state = ThreadState::Get();
-  Runtime* runtime = state != nullptr ? state->GetRuntime() : nullptr;
-  return runtime != nullptr ? runtime->GetFunctionDispatcher() : nullptr;
+runtime::FunctionDispatcher* GetBoundFunctionDispatcher() {
+  runtime::ThreadState* state = runtime::ThreadState::Get();
+  Runtime* instance = state != nullptr ? state->GetRuntime() : nullptr;
+  return instance != nullptr ? instance->GetFunctionDispatcher() : nullptr;
 }
 
-}  // namespace
-
-static void InvalidFunctionTrap(PPCContext& ctx, u8* /*base*/) {
+void InvalidFunctionTrap(PPCContext& ctx, u8* /*base*/) {
   REX_FATAL(cpu, "Call to invalid or unregistered function at guest address 0x{:08X}",
             ctx.last_indirect_target);
 }
 
-PPCFunc* ResolveIndirectFunction(u32 guest_address) {
-  FunctionDispatcher* dispatcher = GetBoundFunctionDispatcher();
+}  // namespace
+
+PPCFunc* ResolveFunction(u32 guest_address) {
+  runtime::FunctionDispatcher* dispatcher = GetBoundFunctionDispatcher();
   if (!dispatcher) {
     return &InvalidFunctionTrap;
   }
@@ -50,10 +50,6 @@ PPCFunc* ResolveIndirectFunction(u32 guest_address) {
 
   return &InvalidFunctionTrap;
 }
-
-}  // namespace rex::runtime
-
-namespace rex::ppc {
 
 void Trap(PPCContext& ctx, u8* base, u16 trap_type) {
   switch (trap_type) {
@@ -85,7 +81,7 @@ std::unordered_map<u32, std::jmp_buf>& JumpBuffers() {
 }
 }  // namespace
 
-std::jmp_buf& JumpBuffer(u32 address) {
+std::jmp_buf& GetJumpBuffer(u32 address) {
   return JumpBuffers()[address];
 }
 
@@ -98,7 +94,7 @@ void LongJump(u32 address, int value) {
   std::abort();
 }
 
-void Unimplemented(const char* opcode) {
+void UnimplementedInstruction(const char* opcode) {
   throw std::runtime_error(std::string("Unimplemented PPC instruction: ") + opcode);
 }
 

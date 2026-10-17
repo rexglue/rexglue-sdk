@@ -19,7 +19,7 @@ namespace rex::ui {
 
 class SDL3UserInterface;
 
-class ConsoleDockHost final : public ConsoleHost {
+class ConsoleDockHost final : public IConsoleHost {
  public:
   explicit ConsoleDockHost(SDL3UserInterface& ui) : ui_(ui) {}
 

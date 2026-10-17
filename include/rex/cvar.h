@@ -93,7 +93,7 @@ struct Constraints {
 };
 
 /** Everything the registry and the console know about a cvar. */
-struct Desc {
+struct CvarDesc {
   /** Dotted scope.leaf name such as gpu.vsync. */
   std::string_view name;
   /** Scope part of the name. */
@@ -117,20 +117,20 @@ class DetailAccess;
 /**
  * Type erased view of a Var<T> or Command. Registered by pointer, never copied.
  */
-class IVar {
+class VarBase {
  public:
   /** Constructs a var that no registry holds. */
-  constexpr IVar() noexcept = default;
+  constexpr VarBase() noexcept = default;
   /** Copies nothing but the vtable. Chain methods copy a Var before any registration. */
-  constexpr IVar(const IVar&) noexcept {}
-  IVar& operator=(const IVar&) = delete;
-  virtual ~IVar() = default;
+  constexpr VarBase(const VarBase&) noexcept {}
+  VarBase& operator=(const VarBase&) = delete;
+  virtual ~VarBase() = default;
   /**
    * Returns the descriptor.
    *
    * @return The descriptor.
    */
-  virtual const Desc& GetDesc() const = 0;
+  virtual const CvarDesc& GetDesc() const = 0;
   /**
    * Returns the default as text.
    *
@@ -170,7 +170,7 @@ class IVar {
 };
 
 /**
- * Lets the registry implementation set IVar::registry_. Nothing else uses it.
+ * Lets the registry implementation set VarBase::registry_. Nothing else uses it.
  */
 class DetailAccess {
  public:
@@ -180,7 +180,7 @@ class DetailAccess {
    * @param var The var.
    * @param registry The registry, or null.
    */
-  static void SetRegistry(const IVar& var, ICvarRegistry* registry) {
+  static void SetRegistry(const VarBase& var, ICvarRegistry* registry) {
     var.registry_.store(registry, std::memory_order_release);
   }
 };
@@ -308,7 +308,7 @@ constexpr size_t CountArgs(Args&&...) noexcept {
  * @endcode
  */
 template <typename T>
-class Var final : public IVar {
+class Var final : public VarBase {
  public:
   /** The stored type. */
   using value_type = T;
@@ -382,7 +382,7 @@ class Var final : public IVar {
   /**
    * Shows the cvar only in debug builds of the settings overlay.
    *
-   * @return This var with Desc::debug_only set.
+   * @return This var with CvarDesc::debug_only set.
    */
   constexpr Var SetDebugOnly() && noexcept {
     desc_.debug_only = true;
@@ -392,7 +392,7 @@ class Var final : public IVar {
   /**
    * Marks the cvar as never written to a config file.
    *
-   * @return This var with Desc::no_save set.
+   * @return This var with CvarDesc::no_save set.
    */
   constexpr Var SetNoSave() && noexcept {
     desc_.no_save = true;
@@ -418,7 +418,7 @@ class Var final : public IVar {
    *
    * @return The descriptor.
    */
-  const Desc& GetDesc() const override { return desc_; }
+  const CvarDesc& GetDesc() const override { return desc_; }
   /**
    * Returns the default as text.
    *
@@ -483,7 +483,7 @@ class Var final : public IVar {
   }
   void Store(const T& value);
 
-  Desc desc_;
+  CvarDesc desc_;
   detail::DefaultText default_text_;
   detail::StringCell default_string_;
   mutable Cell cell_;
@@ -497,7 +497,7 @@ class Var final : public IVar {
  * REXCVAR_COMMAND_ARGS(console, echo, ConsoleEcho, "Print the arguments");
  * @endcode
  */
-class Command final : public IVar {
+class Command final : public VarBase {
  public:
   /** The command function. */
   using Fn = void (*)(std::string_view args);
@@ -519,7 +519,7 @@ class Command final : public IVar {
    *
    * @return The descriptor.
    */
-  const Desc& GetDesc() const override { return desc_; }
+  const CvarDesc& GetDesc() const override { return desc_; }
   /**
    * Returns the placeholder default text.
    *
@@ -552,7 +552,7 @@ class Command final : public IVar {
   }
 
  private:
-  Desc desc_;
+  CvarDesc desc_;
   Fn fn_;
 };
 
@@ -562,7 +562,7 @@ class Command final : public IVar {
  * @param var The var or command to inspect.
  * @return True when the var is registered and its value came from anywhere but the default.
  */
-inline bool IsSet(const IVar& var) {
+inline bool IsSet(const VarBase& var) {
   auto* registry = var.GetRegistry();
   return registry && registry->Source(var.GetDesc().name) != CvarSource::kDefault;
 }
@@ -582,7 +582,7 @@ REX_API void ApplyEnvironment(rex::Config& config);
  * @param text The value text. Text that does not parse reads as 0.
  * @return The clamped value text.
  */
-REX_API std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text);
+REX_API std::string ClampIntegerCvarText(const rex::cvar::CvarDesc& desc, std::string_view text);
 
 /**
  * Reports whether text is 1 part of a cvar name, which starts with a lowercase letter and holds
@@ -604,8 +604,8 @@ REX_API bool IsName(std::string_view name);
 namespace detail {
 
 template <typename... Vars>
-constexpr std::array<const IVar*, sizeof...(Vars)> BuildTable(const Vars&... vars) noexcept {
-  return {static_cast<const IVar*>(&vars)...};
+constexpr std::array<const VarBase*, sizeof...(Vars)> BuildTable(const Vars&... vars) noexcept {
+  return {static_cast<const VarBase*>(&vars)...};
 }
 
 template <>

@@ -25,8 +25,8 @@
 #include <rex/runtime.h>
 #include <rex/embedded_metadata.h>
 #include "runtime/achievement_manager.h"
-#include "support/temp_folder.h"
-#include "support/file_text.h"
+#include "temp_folder.h"
+#include "file_text.h"
 
 namespace {
 

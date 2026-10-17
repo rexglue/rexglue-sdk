@@ -7,4 +7,4 @@ set_target_properties(rexhid-xinput PROPERTIES
 )
 rexglue_add_version_resource(rexhid-xinput DESCRIPTION "ReXGlue XInput gamepads")
 target_include_directories(rexhid-xinput PRIVATE ${REXGLUE_ROOT}/src)
-target_link_libraries(rexhid-xinput PRIVATE rexcore rexhid-common)
+target_link_libraries(rexhid-xinput PRIVATE rexcore rexhid)

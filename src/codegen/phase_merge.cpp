@@ -86,7 +86,7 @@ void MergeAndSeal(CodegenContext& ctx) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Merge(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   MergeAndSeal(ctx);
   return Ok();

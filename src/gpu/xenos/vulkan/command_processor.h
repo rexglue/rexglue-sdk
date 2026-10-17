@@ -259,10 +259,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDescriptorSetLayout GetTextureDescriptorSetLayout(bool is_vertex, size_t texture_count,
                                                       size_t sampler_count);
   // The returned reference is valid until a cache clear.
-  const VulkanPipelineCache::PipelineLayoutProvider* GetPipelineLayout(size_t texture_count_pixel,
-                                                                       size_t sampler_count_pixel,
-                                                                       size_t texture_count_vertex,
-                                                                       size_t sampler_count_vertex);
+  const VulkanPipelineCache::IPipelineLayoutProvider* GetPipelineLayout(
+      size_t texture_count_pixel, size_t sampler_count_pixel, size_t texture_count_vertex,
+      size_t sampler_count_vertex);
 
   /**
    * Returns a temporary GPU side buffer within a submission for tasks like texture untiling and
@@ -379,7 +378,7 @@ class VulkanCommandProcessor : public CommandProcessor {
     bool operator!=(const PipelineLayoutKey& other_key) const { return !(*this == other_key); }
   };
 
-  class PipelineLayout : public VulkanPipelineCache::PipelineLayoutProvider {
+  class PipelineLayout : public VulkanPipelineCache::IPipelineLayoutProvider {
    public:
     explicit PipelineLayout(VkPipelineLayout pipeline_layout,
                             VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref,

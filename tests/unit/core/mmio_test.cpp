@@ -57,13 +57,13 @@ REX_TEST_CASE("MMIO block helpers match both blocks at every edge", "[core][mmio
 REX_TEST_CASE("An attached recipient serves its block until it detaches", "[core][mmio]") {
   Recorder gpu{.value = 0x11};
   rex::AttachMMIO(rex::MMIOBlock::kGPU, RecipientFor(gpu));
-  CHECK(rex::detail::MMIOLoad(0x7FC86530) == 0x11u);
+  CHECK(rex::ppc::MMIOLoad32(0x7FC86530) == 0x11u);
   CHECK(gpu.last_address == 0x7FC86530u);
-  rex::detail::MMIOStore(0x7FC80010, 0x22);
+  rex::ppc::MMIOStore32(0x7FC80010, 0x22);
   CHECK(gpu.last_address == 0x7FC80010u);
   CHECK(gpu.last_value == 0x22u);
   rex::DetachMMIO(rex::MMIOBlock::kGPU, &gpu);
-  CHECK(rex::detail::MMIOLoad(0x7FC86530) == 0u);
+  CHECK(rex::ppc::MMIOLoad32(0x7FC86530) == 0u);
 }
 
 REX_TEST_CASE("A late detach by an old owner keeps the new owner", "[core][mmio]") {
@@ -72,16 +72,16 @@ REX_TEST_CASE("A late detach by an old owner keeps the new owner", "[core][mmio]
   rex::AttachMMIO(rex::MMIOBlock::kAPU, RecipientFor(old_owner));
   rex::AttachMMIO(rex::MMIOBlock::kAPU, RecipientFor(new_owner));
   rex::DetachMMIO(rex::MMIOBlock::kAPU, &old_owner);
-  CHECK(rex::detail::MMIOLoad(0x7FEA0000) == 2u);
+  CHECK(rex::ppc::MMIOLoad32(0x7FEA0000) == 2u);
   rex::DetachMMIO(rex::MMIOBlock::kAPU, &new_owner);
-  CHECK(rex::detail::MMIOLoad(0x7FEA0000) == 0u);
+  CHECK(rex::ppc::MMIOLoad32(0x7FEA0000) == 0u);
 }
 
 REX_TEST_CASE("The null recipient returns 0 and drops stores", "[core][mmio]") {
-  rex::detail::MMIOStore(0x7FC80000, 0x33);
-  CHECK(rex::detail::MMIOLoad(0x7FC80000) == 0u);
-  rex::detail::MMIOStore(0x7FEA0000, 0x44);
-  CHECK(rex::detail::MMIOLoad(0x7FEA0000) == 0u);
+  rex::ppc::MMIOStore32(0x7FC80000, 0x33);
+  CHECK(rex::ppc::MMIOLoad32(0x7FC80000) == 0u);
+  rex::ppc::MMIOStore32(0x7FEA0000, 0x44);
+  CHECK(rex::ppc::MMIOLoad32(0x7FEA0000) == 0u);
   CHECK(rex::detail::mmio_slots[0].context == nullptr);
   CHECK(rex::detail::mmio_slots[1].context == nullptr);
 }
@@ -91,9 +91,9 @@ REX_TEST_CASE("Guarded accesses pick the slot by block", "[core][mmio]") {
   Recorder apu{.value = 0xB};
   rex::AttachMMIO(rex::MMIOBlock::kGPU, RecipientFor(gpu));
   rex::AttachMMIO(rex::MMIOBlock::kAPU, RecipientFor(apu));
-  CHECK(rex::detail::MMIOLoad(0x7FC8FFFC) == 0xAu);
-  CHECK(rex::detail::MMIOLoad(0x7FEA0004) == 0xBu);
-  rex::detail::MMIOStore(0x7FEA0008, 5);
+  CHECK(rex::ppc::MMIOLoad32(0x7FC8FFFC) == 0xAu);
+  CHECK(rex::ppc::MMIOLoad32(0x7FEA0004) == 0xBu);
+  rex::ppc::MMIOStore32(0x7FEA0008, 5);
   CHECK(apu.last_value == 5u);
   CHECK(gpu.last_value == 0u);
   rex::DetachMMIO(rex::MMIOBlock::kGPU, &gpu);
@@ -104,7 +104,7 @@ REX_TEST_CASE("An incomplete recipient is refused", "[core][mmio]") {
   Recorder recorder;
   rex::AttachMMIO(rex::MMIOBlock::kGPU, {&recorder, nullptr, RecorderWrite});
   CHECK(rex::detail::mmio_slots[0].context == nullptr);
-  CHECK(rex::detail::MMIOLoad(0x7FC80000) == 0u);
+  CHECK(rex::ppc::MMIOLoad32(0x7FC80000) == 0u);
 }
 
 REX_TEST_CASE("An address outside both blocks reaches no recipient", "[core][mmio]") {
@@ -112,8 +112,8 @@ REX_TEST_CASE("An address outside both blocks reaches no recipient", "[core][mmi
   Recorder apu{.value = 0xB};
   rex::AttachMMIO(rex::MMIOBlock::kGPU, RecipientFor(gpu));
   rex::AttachMMIO(rex::MMIOBlock::kAPU, RecipientFor(apu));
-  CHECK(rex::detail::MMIOLoad(0x7FEB0000) == 0u);
-  rex::detail::MMIOStore(0x7FC90000, 7);
+  CHECK(rex::ppc::MMIOLoad32(0x7FEB0000) == 0u);
+  rex::ppc::MMIOStore32(0x7FC90000, 7);
   CHECK(gpu.last_address == 0u);
   CHECK(apu.last_address == 0u);
   rex::DetachMMIO(rex::MMIOBlock::kGPU, &gpu);
@@ -123,13 +123,13 @@ REX_TEST_CASE("An address outside both blocks reaches no recipient", "[core][mmi
 REX_TEST_CASE("Narrow guarded loads read the big endian lane of the register", "[core][mmio]") {
   Recorder gpu{.value = 0x11223344};
   rex::AttachMMIO(rex::MMIOBlock::kGPU, RecipientFor(gpu));
-  CHECK(rex::detail::MMIOLoad8(0x7FC80010) == 0x11u);
-  CHECK(rex::detail::MMIOLoad8(0x7FC80011) == 0x22u);
-  CHECK(rex::detail::MMIOLoad8(0x7FC80012) == 0x33u);
-  CHECK(rex::detail::MMIOLoad8(0x7FC80013) == 0x44u);
+  CHECK(rex::ppc::MMIOLoad8(0x7FC80010) == 0x11u);
+  CHECK(rex::ppc::MMIOLoad8(0x7FC80011) == 0x22u);
+  CHECK(rex::ppc::MMIOLoad8(0x7FC80012) == 0x33u);
+  CHECK(rex::ppc::MMIOLoad8(0x7FC80013) == 0x44u);
   CHECK(gpu.last_address == 0x7FC80010u);
-  CHECK(rex::detail::MMIOLoad16(0x7FC80010) == 0x1122u);
-  CHECK(rex::detail::MMIOLoad16(0x7FC80012) == 0x3344u);
+  CHECK(rex::ppc::MMIOLoad16(0x7FC80010) == 0x1122u);
+  CHECK(rex::ppc::MMIOLoad16(0x7FC80012) == 0x3344u);
   CHECK(gpu.last_address == 0x7FC80010u);
   rex::DetachMMIO(rex::MMIOBlock::kGPU, &gpu);
 }

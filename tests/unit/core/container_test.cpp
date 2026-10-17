@@ -9,8 +9,8 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
-#include "support/fixture_dir.h"
+#include "temp_folder.h"
+#include "fixture_dir.h"
 
 #include <algorithm>
 #include <cstring>
@@ -24,7 +24,7 @@
 #include <rex/bit.h>
 #include <rex/filesystem/container.h>
 #include <rex/filesystem/error.h>
-#include <rex/filesystem/xcontent.h>
+#include <rex/filesystem/xcontent_layout.h>
 #include <rex/math.h>
 #include <rex/memory/byte_swap.h>
 #include <rex/platform/file.h>
@@ -228,7 +228,7 @@ REX_TEST_CASE("Container walks a long GDFX sibling chain without recursion", "[c
   constexpr size_t kSector = 0x800;
   TempFolder temp;
   auto gdfx = Fixture("gdfx.iso");
-  const size_t table = rex::round_up_nonzero(gdfx.size(), kSector);
+  const size_t table = rex::RoundUpNonZero(gdfx.size(), kSector);
   const size_t table_size = size_t{kEntries} * 16;
   gdfx.resize(table + table_size, 0);
   for (rex::u32 i = 0; i < kEntries; ++i) {

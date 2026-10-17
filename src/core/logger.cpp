@@ -260,7 +260,7 @@ void Logger::AttachCvar(u16 slot) {
     var = entry.cvar.get();
     cvar_name = entry.cvar_name;
   }
-  const std::array<const cvar::IVar*, 1> vars = {var};
+  const std::array<const cvar::VarBase*, 1> vars = {var};
   if (auto added = cvars_->Add(vars); !added) {
     REXLOG_ERROR(core, "{}", added.error().message);
     return;
@@ -281,7 +281,7 @@ void Logger::AttachCvar(u16 slot) {
 void Logger::DetachCvar(Slot& slot) {
   slot.callback.Reset();
   if (slot.cvar && cvars_) {
-    const std::array<const cvar::IVar*, 1> vars = {slot.cvar.get()};
+    const std::array<const cvar::VarBase*, 1> vars = {slot.cvar.get()};
     cvars_->Unregister(vars);
   }
   slot.cvar.reset();

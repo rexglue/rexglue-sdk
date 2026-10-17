@@ -53,7 +53,7 @@ bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
   }
 
   initial_segment_size_ =
-      rex::Align<u32>(std::max(heap_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
+      rex::RoundUpPow2<u32>(std::max(heap_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
 
   std::lock_guard lock(mutex_);
   segments_.clear();
@@ -161,7 +161,7 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
   }
 
   segment_size_bytes =
-      rex::Align<u32>(std::max(segment_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
+      rex::RoundUpPow2<u32>(std::max(segment_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
 
   // The system heap range is shared with kernel bookkeeping allocations and cannot hold a segment.
   auto segment = runtime::GuestAllocator::Create(*mem, segment_size_bytes, O1HEAP_ALIGNMENT, false,
@@ -206,7 +206,8 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
     }
   }
 
-  const u32 min_required_segment = rex::Align<u32>(alloc_size + kHeaderSize, O1HEAP_ALIGNMENT);
+  const u32 min_required_segment =
+      rex::RoundUpPow2<u32>(alloc_size + kHeaderSize, O1HEAP_ALIGNMENT);
   const u32 growth_segment_size =
       std::max({initial_segment_size_, kDefaultGrowthSegmentSize, min_required_segment});
   if (!AllocateSegmentLocked(growth_segment_size)) {

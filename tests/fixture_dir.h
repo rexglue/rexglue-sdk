@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/fixture_dir.h
+ * @file        tests/fixture_dir.h
  * @brief       The folder of the committed filesystem fixtures
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

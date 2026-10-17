@@ -10,7 +10,7 @@
 
 namespace rex::codegen {
 
-[[nodiscard]] Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Analyze(CodegenContext& ctx, IProgressReporter* reporter) {
   REXLOG_TRACE(codegen, "Analyze: starting analysis...");
 
   ctx.InitDecoded();

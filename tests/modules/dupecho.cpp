@@ -16,7 +16,7 @@
 #include <rex/module.h>
 
 #include "echo.h"
-#include "test_module_common.h"
+#include "test_module_sink.h"
 
 REX_TEST_MODULE_SINK()
 

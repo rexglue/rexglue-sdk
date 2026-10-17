@@ -1,5 +1,5 @@
 /**
- * @file        tests/support/code_image.h
+ * @file        tests/code_image.h
  * @brief       Builds a single module code image and runs code generation over it
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -12,7 +12,7 @@
 #pragma once
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
+#include "temp_folder.h"
 
 #include <cstring>
 #include <filesystem>

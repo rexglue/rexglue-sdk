@@ -123,7 +123,7 @@ inline constexpr u32 kBlobCount = 5;
  */
 inline u32 AppendAlignedString(std::vector<u32>& dest, const char* source) {
   size_t size = std::strlen(source) + 1;
-  size_t size_aligned = rex::Align(size, sizeof(u32));
+  size_t size_aligned = rex::RoundUpPow2(size, sizeof(u32));
   size_t dest_position = dest.size();
   dest.resize(dest_position + size_aligned / sizeof(u32));
   std::memcpy(&dest[dest_position], source, size);
@@ -139,7 +139,7 @@ inline u32 AppendAlignedString(std::vector<u32>& dest, const char* source) {
  * @return Length in bytes aligned to a DWORD.
  */
 inline u32 GetAlignedStringLength(const char* source) {
-  return static_cast<u32>(rex::Align(std::strlen(source) + 1, sizeof(u32)));
+  return static_cast<u32>(rex::RoundUpPow2(std::strlen(source) + 1, sizeof(u32)));
 }
 
 // D3DCOMPILE subset
@@ -1689,7 +1689,7 @@ class Assembler {
    * @return Pointer to the data to write.
    */
   void* OpCustomData(CustomDataClass custom_data_class, u32 length_bytes) {
-    u32 length_bytes_aligned = rex::Align(length_bytes, static_cast<u32>(sizeof(u32)));
+    u32 length_bytes_aligned = rex::RoundUpPow2(length_bytes, static_cast<u32>(sizeof(u32)));
     u32 total_length_dwords = length_bytes_aligned / sizeof(u32) + 2;
     size_t offset_dwords = code_.size();
     code_.resize(offset_dwords + total_length_dwords);

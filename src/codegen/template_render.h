@@ -1,5 +1,5 @@
 /**
- * @file        codegen/template_registry_internal.h
+ * @file        codegen/template_render.h
  * @brief       Internal json-native render for TemplateRegistry
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

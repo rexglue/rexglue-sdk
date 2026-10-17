@@ -9,7 +9,7 @@
  */
 
 #include "rex_test.h"
-#include "support/validation_errors.h"
+#include "validation_errors.h"
 
 #include <algorithm>
 #include <string>

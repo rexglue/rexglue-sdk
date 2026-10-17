@@ -50,7 +50,11 @@ namespace detail {
 
 MMIORecipient mmio_slots[2]{kNullRecipient, kNullRecipient};
 
-u32 MMIOLoad(u32 address) {
+}  // namespace detail
+
+namespace ppc {
+
+u32 MMIOLoad32(u32 address) {
   const auto block = MMIOBlockOf(address);
   if (!block) {
     return 0;
@@ -59,7 +63,7 @@ u32 MMIOLoad(u32 address) {
   return slot.read(slot.context, address);
 }
 
-void MMIOStore(u32 address, u32 value) {
+void MMIOStore32(u32 address, u32 value) {
   const auto block = MMIOBlockOf(address);
   if (!block) {
     return;
@@ -70,12 +74,12 @@ void MMIOStore(u32 address, u32 value) {
 
 u8 MMIOLoad8(u32 address) {
   const u32 shift = (3 - (address & 3)) * 8;
-  return static_cast<u8>(MMIOLoad(address & ~3u) >> shift);
+  return static_cast<u8>(MMIOLoad32(address & ~3u) >> shift);
 }
 
 u16 MMIOLoad16(u32 address) {
   const u32 shift = (2 - (address & 2)) * 8;
-  return static_cast<u16>(MMIOLoad(address & ~3u) >> shift);
+  return static_cast<u16>(MMIOLoad32(address & ~3u) >> shift);
 }
 
 void MMIONarrowWrite(u32 address, u32 size) {
@@ -84,7 +88,7 @@ void MMIONarrowWrite(u32 address, u32 size) {
   REX_FATAL(core, "{}", message);
 }
 
-}  // namespace detail
+}  // namespace ppc
 
 void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient) {
   if (!recipient.read || !recipient.write) {

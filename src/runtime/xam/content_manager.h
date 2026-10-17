@@ -22,7 +22,7 @@
 #include <rex/platform/lock_order.h>
 #include <rex/result.h>
 #include <rex/runtime/content_manager.h>
-#include <rex/runtime/xcontent.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/string/key.h>
 

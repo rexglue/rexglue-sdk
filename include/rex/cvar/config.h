@@ -35,7 +35,7 @@ struct CvarTable {
   /** Scope every cvar in the table belongs to. */
   std::string scope;
   /** The cvars in the table. */
-  std::span<const cvar::IVar* const> vars;
+  std::span<const cvar::VarBase* const> vars;
 };
 
 /** Cvar tables, values and locks that Init applies in order. */

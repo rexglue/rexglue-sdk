@@ -74,7 +74,7 @@ namespace {
 struct Fixture {
   std::unique_ptr<rex::detail::CvarRegistryImpl> registry = rex::detail::CreateCvarRegistry();
   rex::detail::CvarRegistryImpl& GetReg() const { return *registry; }
-  const rex::cvar::IVar& Var(std::string_view name) const {
+  const rex::cvar::VarBase& Var(std::string_view name) const {
     const auto found = GetReg().Find(name);
     if (!found) {
       throw std::logic_error("cvar not registered");
@@ -156,7 +156,7 @@ REX_TEST_CASE_METHOD(Fixture, "set on an unregistered var fails NotFound", "[cor
 
 REX_TEST_CASE_METHOD(Fixture, "Register exposes descriptors, scopes and order", "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
-  const rex::cvar::IVar& d = Var("test.count");
+  const rex::cvar::VarBase& d = Var("test.count");
   REQUIRE(d.GetDesc().type == rex::cvar::Type::kInt32);
   REQUIRE(d.GetDefaultText() == "42");
   REQUIRE(d.GetDesc().lifecycle == rex::cvar::Lifecycle::kHotReload);
@@ -191,11 +191,11 @@ REX_TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails Dupli
   GetReg().Unregister(test_cvars::kTestCvars);
   REQUIRE(GetReg().GetScopes().empty());
   REQUIRE(GetReg().Register("test", dupe_cvars::kDupeCvars));
-  const rex::cvar::IVar* again[] = {&test_cvars::flag};
+  const rex::cvar::VarBase* again[] = {&test_cvars::flag};
   auto status = GetReg().Register("test", again);
   REQUIRE_FALSE(status);
   REQUIRE(status.error().code == static_cast<int>(rex::cvar::CvarError::kDuplicateScope));
-  const rex::cvar::IVar* other_scope_dupe[] = {&dupe_cvars::flag};
+  const rex::cvar::VarBase* other_scope_dupe[] = {&dupe_cvars::flag};
   GetReg().Unregister(dupe_cvars::kDupeCvars);
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   auto dupe = GetReg().Register("test", other_scope_dupe);
@@ -394,13 +394,13 @@ REX_TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes su
   REQUIRE(GetReg().Register("bind", {}));
   REQUIRE(GetReg().GetScopes() == std::vector<std::string_view>{"bind"});
   auto dynamic = std::make_unique<rex::cvar::Var<std::string>>("bind.console", "Backtick", "d");
-  const rex::cvar::IVar* one[] = {dynamic.get()};
+  const rex::cvar::VarBase* one[] = {dynamic.get()};
   REQUIRE(GetReg().Add(one));
   REQUIRE(GetReg().Get("bind.console").value() == "Backtick");
   auto dupe = GetReg().Add(one);
   REQUIRE_FALSE(dupe);
   REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::CvarError::kDuplicateName));
-  const rex::cvar::IVar* unreserved[] = {&test_cvars::flag};
+  const rex::cvar::VarBase* unreserved[] = {&test_cvars::flag};
   auto bad = GetReg().Add(unreserved);
   REQUIRE_FALSE(bad);
   REQUIRE(bad.error().code == static_cast<int>(rex::cvar::CvarError::kBadName));
@@ -410,7 +410,7 @@ REX_TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes su
   REQUIRE(GetReg().Add(one));
   GetReg().Unregister(one);
   dynamic = std::make_unique<rex::cvar::Var<std::string>>("bind.other", "F1", "d");
-  const rex::cvar::IVar* two[] = {dynamic.get()};
+  const rex::cvar::VarBase* two[] = {dynamic.get()};
   REQUIRE(GetReg().Add(two));
   GetReg().Unregister(two);
 }
@@ -430,7 +430,7 @@ REX_TEST_CASE_METHOD(Fixture, "Values for a reserved scope wait for Add", "[core
   std::vector<std::string> seen;
   auto console = std::make_unique<rex::cvar::Var<std::string>>("bind.console", "Backtick", "d");
   auto other = std::make_unique<rex::cvar::Var<std::string>>("bind.other", "F1", "d");
-  const rex::cvar::IVar* both[] = {console.get(), other.get()};
+  const rex::cvar::VarBase* both[] = {console.get(), other.get()};
   REQUIRE(GetReg().Add(both));
   REQUIRE(GetReg().Get("bind.console").value() == "F9");
   REQUIRE(GetReg().Source("bind.console") == rex::cvar::CvarSource::kConfig);
@@ -482,8 +482,8 @@ REX_TEST_CASE("cvar and log category descriptors construct without throwing", "[
 
 namespace {
 
-rex::cvar::Desc IntegerDesc(rex::cvar::Type type) {
-  rex::cvar::Desc desc;
+rex::cvar::CvarDesc IntegerDesc(rex::cvar::Type type) {
+  rex::cvar::CvarDesc desc;
   desc.name = "test.value";
   desc.type = type;
   return desc;
@@ -502,7 +502,7 @@ REX_TEST_CASE("a UInt64 cvar beyond 32 bits survives an edit round trip", "[core
 }
 
 REX_TEST_CASE("an integer cvar clamps to its constraints", "[core][cvar]") {
-  rex::cvar::Desc desc = IntegerDesc(rex::cvar::Type::kInt64);
+  rex::cvar::CvarDesc desc = IntegerDesc(rex::cvar::Type::kInt64);
   desc.constraints.min = 2.0;
   desc.constraints.max = 8.0;
   CHECK(rex::cvar::ClampIntegerCvarText(desc, "1") == "2");
