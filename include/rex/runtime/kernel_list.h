@@ -160,20 +160,6 @@ void InsertTailList(u32 list_head, u32 entry, VirtualTranslator context) {
  *
  * @tparam VirtualTranslator The translator type.
  * @param list_head The host list head.
- * @param entry The guest address of the list entry.
- * @param context The translator.
- */
-template <typename VirtualTranslator>
-void InsertTailList(X_LIST_ENTRY* list_head, u32 entry, VirtualTranslator context) {
-  InsertTailList(list_head, GuestList(list_head, context), HostList(entry, context), entry,
-                 context);
-}
-
-/**
- * Links an entry at the tail of a list.
- *
- * @tparam VirtualTranslator The translator type.
- * @param list_head The host list head.
  * @param entry The host list entry.
  * @param context The translator.
  */
@@ -201,33 +187,6 @@ void InsertHeadList(X_LIST_ENTRY* list_head, u32 list_head_guest, X_LIST_ENTRY* 
   host_entry->blink_ptr = list_head_guest;
   HostList(old_list_head_flink, context)->blink_ptr = entry;
   list_head->flink_ptr = entry;
-}
-
-/**
- * Links an entry at the head of a list.
- *
- * @tparam VirtualTranslator The translator type.
- * @param list_head The guest address of the list head.
- * @param entry The guest address of the list entry.
- * @param context The translator.
- */
-template <typename VirtualTranslator>
-void InsertHeadList(u32 list_head, u32 entry, VirtualTranslator context) {
-  InsertHeadList(HostList(list_head, context), list_head, HostList(entry, context), entry, context);
-}
-
-/**
- * Links an entry at the head of a list.
- *
- * @tparam VirtualTranslator The translator type.
- * @param list_head The host list head.
- * @param entry The guest address of the list entry.
- * @param context The translator.
- */
-template <typename VirtualTranslator>
-void InsertHeadList(X_LIST_ENTRY* list_head, u32 entry, VirtualTranslator context) {
-  InsertHeadList(list_head, GuestList(list_head, context), HostList(entry, context), entry,
-                 context);
 }
 
 /**

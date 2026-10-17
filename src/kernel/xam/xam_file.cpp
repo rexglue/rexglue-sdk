@@ -39,8 +39,6 @@ constexpr u32 kTruncateExisting = 5;
 
 constexpr u32 kFileEnd = 2;
 
-constexpr u32 kInvalidHandleValue = 0xFFFFFFFF;
-
 static filesystem::Disposition MapDisposition(u32 win32_disp) {
   using FD = filesystem::Disposition;
   switch (win32_disp) {
@@ -75,13 +73,13 @@ REX_SHIM_FN(CreateFileA, u32, MappedString lpFileName, u32 dwDesiredAccess,
   if (!opened) {
     REXLOG_DEV(kernel, "rexshim_CreateFileA: FAILED path='{}' status={:#x}", path,
                rex::runtime::ToXStatus(opened.error()));
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
   }
 
   auto added = runtime.GetObjectTable().Emplace<rex::runtime::FileObject>(
       rex::runtime::AddOptions{}, std::move(opened->file), true);
   if (!added) {
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
   }
   const X_HANDLE handle = *added;
   REXLOG_DEV(kernel, "rexshim_CreateFileA: '{}' -> handle={:#x}", path, handle);
@@ -153,7 +151,7 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, MappedU32 lpDis
             u32 dwMoveMethod) {
   auto file = runtime::GetCurrent().GetObjectTable().Get<rex::runtime::FileObject>(hFile);
   if (!file)
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
 
   i64 distance = static_cast<i32>(lDistanceToMove);
   if (lpDistanceToMoveHigh) {
@@ -161,7 +159,7 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, MappedU32 lpDis
   }
 
   if (dwMoveMethod > kFileEnd)
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
   const u64 new_pos = file->Seek(distance, static_cast<rex::runtime::SeekOrigin>(dwMoveMethod));
   if (lpDistanceToMoveHigh)
     *lpDistanceToMoveHigh = static_cast<u32>(new_pos >> 32);
@@ -171,7 +169,7 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, MappedU32 lpDis
 REX_SHIM_FN(GetFileSize, u32, u32 hFile, MappedU32 lpFileSizeHigh) {
   auto file = runtime::GetCurrent().GetObjectTable().Get<rex::runtime::FileObject>(hFile);
   if (!file)
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
 
   u64 size = file->file->GetInfo().size;
   if (lpFileSizeHigh)
@@ -216,7 +214,7 @@ REX_SHIM_FN(DeleteFileA, u32, MappedString lpFileName) {
 
 REX_SHIM_FN(CloseHandle, u32, u32 hObject) {
   u32 h = hObject;
-  if (h == kInvalidHandleValue || h == 0)
+  if (h == kXInvalidHandleValue || h == 0)
     return 0;
   if (!runtime::GetCurrent().GetObjectTable().Close(h)) {
     REXLOG_WARN(kernel, "rexshim_CloseHandle: unknown handle {:#x}", h);
@@ -267,13 +265,13 @@ REX_SHIM_FN(FindFirstFileA, u32, MappedString lpFileName, MappedVoid lpFindFileD
   auto opened = runtime.GetFileSystem()->Open(dir, options);
   if (!opened) {
     REXLOG_DEBUG(kernel, "rexshim_FindFirstFileA: dir not found '{}'", dir);
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
   }
 
   auto added = runtime.GetObjectTable().Emplace<rex::runtime::FileObject>(
       rex::runtime::AddOptions{}, std::move(opened->file), true);
   if (!added) {
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
   }
   const X_HANDLE handle = *added;
   auto xfile = runtime.GetObjectTable().Get<rex::runtime::FileObject>(handle);
@@ -283,7 +281,7 @@ REX_SHIM_FN(FindFirstFileA, u32, MappedString lpFileName, MappedVoid lpFindFileD
   if (!entry) {
     REXLOG_DEBUG(kernel, "rexshim_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
     runtime::CloseOwned(runtime::GetCurrent().GetObjectTable(), handle);
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
   }
 
   FillFindData(lpFindFileData, *entry);
@@ -321,7 +319,7 @@ REX_SHIM_FN(GetFileAttributesA, u32, MappedString lpFileName) {
   if (!entry) {
     REXLOG_DEBUG(kernel, "rexshim_GetFileAttributesA: not found '{}'", path);
     // INVALID_FILE_ATTRIBUTES
-    return kInvalidHandleValue;
+    return kXInvalidHandleValue;
   }
   REXLOG_TRACE(kernel, "rexshim_GetFileAttributesA: '{}' -> attrs={:#x}", path,
                std::to_underlying(entry->attributes));

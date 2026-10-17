@@ -30,10 +30,8 @@ using rex::X_STATUS;
 
 namespace rex::kernel::shim {
 
-constexpr u32 kInvalidHandleValue = 0xFFFFFFFF;
-
 REX_SHIM_FN(FindClose, u32, u32 hFindFile) {
-  if (hFindFile == kInvalidHandleValue || hFindFile == 0)
+  if (hFindFile == kXInvalidHandleValue || hFindFile == 0)
     return 0;
   if (!runtime::GetCurrent().GetObjectTable().Close(hFindFile)) {
     REXLOG_WARN(kernel, "rexshim_FindClose: unknown handle {:#x}", hFindFile);

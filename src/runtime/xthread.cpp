@@ -236,8 +236,7 @@ void KernelThread::InitializeGuestObject() {
   guest_thread->unk_10 = guest_ptr + 0x010;
   guest_thread->unk_14 = guest_ptr + 0x010;
 
-  guest_thread->wait_timeout_block.wait_list_entry.flink_ptr = guest_ptr + 0x20;
-  guest_thread->wait_timeout_block.wait_list_entry.blink_ptr = guest_ptr + 0x20;
+  runtime::InitializeListHead(&guest_thread->wait_timeout_block.wait_list_entry, GetMemory());
   guest_thread->wait_timeout_block.thread = guest_ptr;
   guest_thread->wait_timeout_block.object = guest_ptr + 0x18;
   guest_thread->wait_timeout_block.wait_result_xstatus = 0x0100;
@@ -285,14 +284,12 @@ void KernelThread::InitializeGuestObject() {
   guest_thread->stack_alloc_base = stack_base_;
   guest_thread->create_time = Clock::QueryGuestSystemTime();
 
-  guest_thread->timer_list.flink_ptr = guest_ptr + offsetof(X_KTHREAD, timer_list);
-  guest_thread->timer_list.blink_ptr = guest_ptr + offsetof(X_KTHREAD, timer_list);
+  runtime::InitializeListHead(&guest_thread->timer_list, GetMemory());
 
   guest_thread->thread_id = thread_id_;
   guest_thread->start_address = creation_params_.start_address;
 
-  guest_thread->unk_154.flink_ptr = guest_ptr + offsetof(X_KTHREAD, unk_154);
-  guest_thread->unk_154.blink_ptr = guest_ptr + offsetof(X_KTHREAD, unk_154);
+  runtime::InitializeListHead(&guest_thread->unk_154, GetMemory());
 
   guest_thread->last_error = 0;
   guest_thread->creation_flags = creation_params_.creation_flags;

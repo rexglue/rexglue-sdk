@@ -58,6 +58,15 @@ constexpr u32 RemovePhysicalHostOffset(std::size_t host_offset) noexcept {
 
 namespace rex::runtime {
 
+/** Bytes in a small guest page. */
+inline constexpr u32 kPageSize4KiB = 4 * 1024;
+
+/** Bytes in a large guest page and in the allocation granularity of a title. */
+inline constexpr u32 kPageSize64KiB = 64 * 1024;
+
+/** Bytes in a huge guest page. */
+inline constexpr u32 kPageSize16MiB = 16 * 1024 * 1024;
+
 /**
  * Translates a guest address to a host pointer from the memory base, with the same arithmetic as
  * recompiled code and without a Memory or heap lookup.

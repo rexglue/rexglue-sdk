@@ -162,7 +162,7 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
   u32 guest_base = 0;
 
   // The system heap range is shared with kernel bookkeeping allocations and cannot hold a segment.
-  auto* vheap = mem->LookupHeapByType(false, 4096);
+  auto* vheap = mem->LookupHeapByType(false, runtime::kPageSize4KiB);
   if (!vheap ||
       !vheap->Alloc(segment_size_bytes, O1HEAP_ALIGNMENT,
                     rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,

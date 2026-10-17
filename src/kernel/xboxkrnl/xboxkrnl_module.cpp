@@ -66,7 +66,7 @@ static_assert(offsetof(X_KE_TIMESTAMP_BUNDLE, tick_count) == 0x10);
 }  // namespace
 
 X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
-  const X_HANDLE handle = CreateKernelModule(runtime, "xe:\\xboxkrnl.exe");
+  const X_HANDLE handle = ModuleObject::CreateKernelModule(runtime, "xe:\\xboxkrnl.exe");
   if (!handle) {
     return 0;
   }

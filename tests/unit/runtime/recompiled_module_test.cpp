@@ -257,7 +257,7 @@ REX_TEST_CASE("modules: the PE header stays in host memory until the sections ar
   fixture.RunOnGuestThread([](Caller& c) {
     auto& runtime = c.GetRuntime();
     const auto file = BuildImageFile();
-    const rex::X_HANDLE created = rex::runtime::CreateUserModule(runtime);
+    const rex::X_HANDLE created = rex::runtime::ModuleObject::CreateUserModule(runtime);
     REQUIRE(created);
     {
       auto module = runtime.GetObjectTable().Get<rex::runtime::ModuleObject>(created);

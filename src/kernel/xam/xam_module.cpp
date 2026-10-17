@@ -27,7 +27,7 @@ bool XamIsUIActive() {
 }
 
 X_HANDLE CreateXAMModule(Runtime& runtime) {
-  return CreateKernelModule(runtime, "xe:\\xam.xex");
+  return ModuleObject::CreateKernelModule(runtime, "xe:\\xam.xex");
 }
 
 }  // namespace xam

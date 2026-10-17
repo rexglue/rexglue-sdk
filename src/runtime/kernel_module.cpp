@@ -22,7 +22,7 @@ size_t KernelModuleData::ThunkKeyHash::operator()(const ThunkKey& key) const noe
   return std::hash<u64>{}((static_cast<u64>(key.caller_module_base) << 16) | key.ordinal);
 }
 
-X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path) {
+X_HANDLE ModuleObject::CreateKernelModule(Runtime& runtime, std::string_view path) {
   const X_HANDLE handle = CreateModule(runtime, ModuleType::kKernel);
   if (!handle) {
     return 0;

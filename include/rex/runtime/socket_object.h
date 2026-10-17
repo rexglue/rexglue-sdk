@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <mutex>
 
@@ -31,6 +32,9 @@ class Runtime;
 }  // namespace rex
 
 namespace rex::runtime {
+
+/** Largest length in bytes a socket call accepts. */
+inline constexpr u32 kMaxSocketLength = static_cast<u32>(std::numeric_limits<i32>::max());
 
 class IObjectTable;
 class PinnedSlot;

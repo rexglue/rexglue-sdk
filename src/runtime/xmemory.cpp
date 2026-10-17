@@ -254,22 +254,22 @@ bool Memory::Initialize() {
               reinterpret_cast<uintptr_t>(physical_membase_));
 
   heaps_.v00000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestVirtual, 0x00000000,
-                              0x40000000, 4096);
+                              0x40000000, kPageSize4KiB);
   heaps_.v40000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestVirtual, 0x40000000,
-                              0x40000000 - 0x01000000, 64 * 1024);
+                              0x40000000 - 0x01000000, kPageSize64KiB);
   heaps_.v80000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestXEX, 0x80000000,
-                              0x10000000, 64 * 1024);
+                              0x10000000, kPageSize64KiB);
   heaps_.v90000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestXEX, 0x90000000,
-                              0x10000000, 4096);
+                              0x10000000, kPageSize4KiB);
 
   heaps_.physical.Initialize(this, physical_membase_, runtime::HeapType::kGuestPhysical, 0x00000000,
-                             0x20000000, 4096);
+                             0x20000000, kPageSize4KiB);
   heaps_.va0000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestPhysical, 0xA0000000,
-                              0x20000000, 64 * 1024, &heaps_.physical);
+                              0x20000000, kPageSize64KiB, &heaps_.physical);
   heaps_.vc0000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestPhysical, 0xC0000000,
-                              0x20000000, 16 * 1024 * 1024, &heaps_.physical);
+                              0x20000000, kPageSize16MiB, &heaps_.physical);
   heaps_.ve0000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestPhysical, 0xE0000000,
-                              0x1FD00000, 4096, &heaps_.physical);
+                              0x1FD00000, kPageSize4KiB, &heaps_.physical);
 
   heaps_.v00000000.AllocFixed(0x00000000, 0x10000, 0x10000,
                               runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
@@ -297,12 +297,12 @@ bool Memory::Initialize() {
   rex::platform::ExceptionHandler::Install(OnAccessViolation, this);
 
   u32 unk_phys_alloc;
-  heaps_.va0000000.Alloc(0x340000, 64 * 1024, runtime::kMemoryAllocationReserve,
+  heaps_.va0000000.Alloc(0x340000, kPageSize64KiB, runtime::kMemoryAllocationReserve,
                          runtime::kMemoryProtectNoAccess, true, &unk_phys_alloc);
 
   // A guest reads a constant at 0x8000001C in the XEX range.
   u32 unknown_xex_range;
-  heaps_.v80000000.Alloc(0x40000, 4 * 1024, runtime::kMemoryAllocationCommit,
+  heaps_.v80000000.Alloc(0x40000, kPageSize4KiB, runtime::kMemoryAllocationCommit,
                          runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
                          &unknown_xex_range);
 

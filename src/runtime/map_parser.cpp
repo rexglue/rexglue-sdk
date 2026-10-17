@@ -1,7 +1,7 @@
 #include <charconv>
-#include <fstream>
-#include <sstream>
+#include <format>
 
+#include <rex/filesystem/error.h>
 #include <rex/platform/file.h>
 #include <rex/runtime/map_parser.h>
 
@@ -46,8 +46,8 @@ bool IsFunctionType(char c) {
 
 }  // namespace
 
-std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
-    std::string_view map_data, const MapParseOptions& options) {
+Result<std::vector<BinarySymbol>> ParseNmMapString(std::string_view map_data,
+                                                   const MapParseOptions& options) {
   std::vector<BinarySymbol> symbols;
 
   size_t pos = 0;
@@ -117,21 +117,26 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
   }
 
   if (symbols.empty()) {
-    return std::unexpected(MapParseError::kEmpty);
+    return Err<std::vector<BinarySymbol>>(filesystem::BuildError(
+        filesystem::FileSystemError::kCorrupt, "no symbols found in the map"));
   }
 
   return symbols;
 }
 
-std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
-    const std::filesystem::path& map_path, const MapParseOptions& options) {
+Result<std::vector<BinarySymbol>> ParseNmMap(const std::filesystem::path& map_path,
+                                             const MapParseOptions& options) {
   if (!std::filesystem::exists(map_path)) {
-    return std::unexpected(MapParseError::kFileNotFound);
+    return Err<std::vector<BinarySymbol>>(
+        filesystem::BuildError(filesystem::FileSystemError::kNotFound,
+                               std::format("map file {} not found", map_path.string())));
   }
 
   auto bytes = platform::ReadHostFile(map_path);
   if (!bytes) {
-    return std::unexpected(MapParseError::kFileReadError);
+    return Err<std::vector<BinarySymbol>>(
+        filesystem::BuildError(filesystem::FileSystemError::kIO,
+                               std::format("cannot read map file {}", map_path.string())));
   }
 
   return ParseNmMapString(std::string(bytes->begin(), bytes->end()), options);

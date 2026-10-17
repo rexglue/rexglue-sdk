@@ -308,7 +308,7 @@ u8* Runtime::GetVirtualMembase() const {
 Result<void> Runtime::LoadXEXImage(const std::string_view module_path) {
   REXLOG_DEBUG(system, "Loading XEX image: {}", std::string(module_path));
 
-  const X_HANDLE handle = runtime::CreateUserModule(*this);
+  const X_HANDLE handle = runtime::ModuleObject::CreateUserModule(*this);
   if (!handle) {
     return Err(SetupError(X_STATUS_NO_MEMORY, "no module object for the image"));
   }

@@ -44,8 +44,6 @@
 
 namespace rex::runtime {
 
-constexpr u32 kMaxSocketLength = static_cast<u32>(std::numeric_limits<i32>::max());
-
 /** An overlapped receive and the references it holds until a joiner releases them. */
 struct PendingReceive {
   IObjectTable* table = nullptr;              /**< The table that owns the socket. */

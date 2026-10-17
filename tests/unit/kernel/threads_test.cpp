@@ -21,6 +21,7 @@
 
 #include <rex/platform/thread.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/kernel_list.h>
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
@@ -572,5 +573,21 @@ REX_TEST_CASE("threads: a new thread starts on its creator's processor", "[kerne
     Join(c, handle);
     CHECK(parent->load() == 4);
     CHECK(child->load() == 4);
+  });
+}
+
+REX_TEST_CASE("A new thread links its wait, timer and spare lists to themselves",
+              "[kernel][threads]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto* object =
+        rex::runtime::KernelThread::GetCurrentThread()->GetGuestObject<rex::runtime::X_KTHREAD>();
+    auto* memory = c.GetRuntime().GetMemory();
+    for (auto* list :
+         {&object->wait_timeout_block.wait_list_entry, &object->timer_list, &object->unk_154}) {
+      const rex::u32 address = rex::runtime::GuestList(list, memory);
+      CHECK(list->flink_ptr == address);
+      CHECK(list->blink_ptr == address);
+    }
   });
 }

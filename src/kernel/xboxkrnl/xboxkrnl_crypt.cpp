@@ -100,13 +100,23 @@ struct XECRYPT_HMACSHA_STATE {
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_HMACSHA_STATE, 0xB0);
 
-void ToHost(const XECRYPT_SHA_STATE& title, EXCRYPT_SHA_STATE& host) {
+template <typename GuestState, typename HostState>
+  requires requires(HostState host) {
+    host.state;
+    host.buffer;
+  }
+void ToHost(const GuestState& title, HostState& host) {
   host.count = title.count;
   std::copy(std::begin(title.state), std::end(title.state), host.state);
   std::copy(std::begin(title.buffer), std::end(title.buffer), host.buffer);
 }
 
-void ToGuest(const EXCRYPT_SHA_STATE& host, XECRYPT_SHA_STATE& title) {
+template <typename HostState, typename GuestState>
+  requires requires(HostState host) {
+    host.state;
+    host.buffer;
+  }
+void ToGuest(const HostState& host, GuestState& title) {
   title.count = host.count;
   std::copy(std::begin(host.state), std::end(host.state), title.state);
   std::copy_n(host.buffer, host.count % sizeof(host.buffer), title.buffer);
@@ -572,18 +582,6 @@ struct XECRYPT_HMACMD5_STATE {
 REX_STATIC_ASSERT_SIZE(XECRYPT_HMACMD5_STATE, 0xA8);
 
 constexpr u32 kMd5DigestSize = 16;
-
-void ToHost(const XECRYPT_MD5_STATE& title, EXCRYPT_MD5_STATE& host) {
-  host.count = title.count;
-  std::copy(std::begin(title.state), std::end(title.state), host.state);
-  std::copy(std::begin(title.buffer), std::end(title.buffer), host.buffer);
-}
-
-void ToGuest(const EXCRYPT_MD5_STATE& host, XECRYPT_MD5_STATE& title) {
-  title.count = host.count;
-  std::copy(std::begin(host.state), std::end(host.state), title.state);
-  std::copy_n(host.buffer, host.count % sizeof(host.buffer), title.buffer);
-}
 
 void ToHost(const XECRYPT_HMACMD5_STATE& title, EXCRYPT_HMACMD5_STATE& host) {
   ToHost(title.md5[0], host.Md5State[0]);

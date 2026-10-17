@@ -322,6 +322,23 @@ struct ModuleObject : public rex::NonCopyable {
   REX_RUNTIME_API static X_HANDLE FromHModule(Runtime& runtime, void* hmodule);
 
   /**
+   * Creates the `KernelObject` of a kernel module with its first handle.
+   *
+   * @param runtime The runtime the call runs in.
+   * @param path The guest path of the module, its name is the file name of the path.
+   * @return The handle with a count of 1, 0 when the table cannot grow.
+   */
+  REX_RUNTIME_API static X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path);
+
+  /**
+   * Creates the `KernelObject` of a user module with its first handle.
+   *
+   * @param runtime The runtime the call runs in.
+   * @return The handle with a count of 1, 0 when the table cannot grow.
+   */
+  REX_RUNTIME_API static X_HANDLE CreateUserModule(Runtime& runtime);
+
+  /**
    * Finds an optional header of an XEX header in memory and returns an address that the title can
    * read.
    *
@@ -345,22 +362,5 @@ struct ModuleObject : public rex::NonCopyable {
  * @return The handle with a count of 1, 0 when the table cannot grow.
  */
 REX_RUNTIME_API X_HANDLE CreateModule(Runtime& runtime, ModuleType type);
-
-/**
- * Creates the `KernelObject` of a kernel module with its first handle.
- *
- * @param runtime The runtime the call runs in.
- * @param path The guest path of the module, its name is the file name of the path.
- * @return The handle with a count of 1, 0 when the table cannot grow.
- */
-REX_RUNTIME_API X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path);
-
-/**
- * Creates the `KernelObject` of a user module with its first handle.
- *
- * @param runtime The runtime the call runs in.
- * @return The handle with a count of 1, 0 when the table cannot grow.
- */
-REX_RUNTIME_API X_HANDLE CreateUserModule(Runtime& runtime);
 
 }  // namespace rex::runtime

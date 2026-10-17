@@ -18,7 +18,6 @@ namespace {
 constexpr u32 kDefaultSize = 384 * 1024;
 constexpr u32 kMinimumSize = 256 * 1024;
 constexpr u32 kSizeStep = 16 * 1024;
-constexpr u32 kPageSize = 4096;
 
 }  // namespace
 
@@ -30,10 +29,10 @@ WorkspaceHeap::~WorkspaceHeap() {
 }
 
 Result<std::unique_ptr<WorkspaceHeap>> WorkspaceHeap::Create(Memory& memory, u32 size) {
-  BaseHeap* heap = memory.LookupHeapByType(false, kPageSize);
+  BaseHeap* heap = memory.LookupHeapByType(false, kPageSize4KiB);
   u32 base = 0;
   if (!heap ||
-      !heap->Alloc(size, kPageSize,
+      !heap->Alloc(size, kPageSize4KiB,
                    kMemoryAllocationReserve | kMemoryAllocationCommit | kMemoryAllocationTitle,
                    kMemoryProtectRead | kMemoryProtectWrite, true, &base)) {
     return Err<std::unique_ptr<WorkspaceHeap>>(StatusError(X_STATUS_NO_MEMORY));

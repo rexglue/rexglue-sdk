@@ -11,13 +11,13 @@
 #pragma once
 
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <rex/platform.h>
+#include <rex/result.h>
 #include <rex/types.h>
 #include <rex/export.h>
 #include <rex/runtime/binary_types.h>
@@ -39,31 +39,6 @@ struct MapParseOptions {
 };
 
 /**
- * Error types for map parsing operations.
- */
-enum class MapParseError : u8 { kFileNotFound, kFileReadError, kInvalidFormat, kEmpty };
-
-/**
- * Returns a readable description of a MapParseError.
- *
- * @param error The error to describe.
- * @return The description text.
- */
-constexpr std::string_view to_string(MapParseError error) {
-  switch (error) {
-    case MapParseError::kFileNotFound:
-      return "File not found";
-    case MapParseError::kFileReadError:
-      return "Failed to read file";
-    case MapParseError::kInvalidFormat:
-      return "Invalid map format";
-    case MapParseError::kEmpty:
-      return "No symbols found";
-  }
-  return "Unknown error";
-}
-
-/**
  * Parse an nm-style map file whose lines read "address type name".
  *
  * This is the format produced by `nm` on Unix systems.
@@ -80,9 +55,9 @@ constexpr std::string_view to_string(MapParseError error) {
  *
  * @param map_path    Path to the .map file
  * @param options     Parsing options (base address, filters)
- * @return            Vector of parsed symbols or error
+ * @return            Vector of parsed symbols, or a not found, IO or corrupt map error
  */
-REX_RUNTIME_API std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
+[[nodiscard]] REX_RUNTIME_API Result<std::vector<BinarySymbol>> ParseNmMap(
     const std::filesystem::path& map_path, const MapParseOptions& options = {});
 
 /**
@@ -90,9 +65,9 @@ REX_RUNTIME_API std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmM
  *
  * @param map_data    Map file contents as a string
  * @param options     Parsing options
- * @return            Vector of parsed symbols or error
+ * @return            Vector of parsed symbols, or a not found, IO or corrupt map error
  */
-REX_RUNTIME_API std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
+[[nodiscard]] REX_RUNTIME_API Result<std::vector<BinarySymbol>> ParseNmMapString(
     std::string_view map_data, const MapParseOptions& options = {});
 
 }  // namespace rex::runtime

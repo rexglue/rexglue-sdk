@@ -1,4 +1,4 @@
-# Unit Tests for ReXGlue core components
+#Unit Tests for ReXGlue core components
 
 add_executable(
   unit_tests
@@ -238,7 +238,7 @@ target_include_directories(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/thirdparty/disasm
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-# CLI11 instantiates std::wstring_convert, which libc++ marks deprecated
+#CLI11 instantiates std::wstring_convert, which libc++ marks deprecated
 target_include_directories(unit_tests SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include)
 
 target_link_libraries(unit_tests PRIVATE
@@ -306,7 +306,7 @@ if(WIN32)
     add_dependencies(unit_tests rexhid-xinput)
 endif()
 
-# Strip Tracy/profiling instrumentation from test targets
+#Strip Tracy / profiling instrumentation from test targets
 target_compile_options(unit_tests PRIVATE
     -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING
     -UREXGLUE_ENABLE_PERF_COUNTERS
@@ -322,7 +322,7 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-# Discover tests
+#Discover tests
 include(Catch)
 set(_unit_test_spec "")
 if(REXGLUE_ENABLE_TSAN)

@@ -401,7 +401,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     return *existing;
   }
 
-  const X_HANDLE created = CreateUserModule(runtime_);
+  const X_HANDLE created = ModuleObject::CreateUserModule(runtime_);
   if (!created) {
     return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
   }

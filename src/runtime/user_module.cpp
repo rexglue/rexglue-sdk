@@ -68,7 +68,7 @@ X_STATUS LoadXEXContinue(Runtime& runtime, ModuleObject& module) {
 
 }  // namespace
 
-X_HANDLE CreateUserModule(Runtime& runtime) {
+X_HANDLE ModuleObject::CreateUserModule(Runtime& runtime) {
   return CreateModule(runtime, ModuleType::kUser);
 }
 

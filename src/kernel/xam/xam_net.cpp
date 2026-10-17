@@ -64,7 +64,6 @@ constexpr u32 kWSAEWOULDBLOCK = 0x2733;
 constexpr u32 kWSAECANCELLED = 0x2777;
 constexpr u32 kWSAIOIncomplete = 996;
 constexpr u32 kWSAIOPending = 997;
-constexpr u32 kMaxSocketLength = static_cast<u32>(std::numeric_limits<i32>::max());
 using namespace rex::runtime;
 
 namespace {

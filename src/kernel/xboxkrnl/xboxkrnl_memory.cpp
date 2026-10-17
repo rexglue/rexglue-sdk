@@ -111,9 +111,9 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
     }
     page_size = heap->GetPageSize();
   } else {
-    page_size = 4 * 1024;
+    page_size = runtime::kPageSize4KiB;
     if (alloc_type & kXMemLargePages) {
-      page_size = 64 * 1024;
+      page_size = runtime::kPageSize64KiB;
     }
   }
 
@@ -122,7 +122,7 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
   u32 adjusted_size = i32(*region_size_ptr) < 0 ? -static_cast<i32>(region_size_ptr.GetValue())
                                                 : region_size_ptr.GetValue();
   // Without a base address the allocation granularity is 64 KB, otherwise the heap page size.
-  adjusted_size = rex::round_up(adjusted_size, adjusted_base ? page_size : 64 * 1024);
+  adjusted_size = rex::round_up(adjusted_size, adjusted_base ? page_size : runtime::kPageSize64KiB);
 
   if (alloc_type & kXMemReset) {
     *base_addr_ptr = adjusted_base;
@@ -375,11 +375,11 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
     REX_FAIL(kernel, 0, "MmAllocatePhysicalMemoryEx: bad protection bits");
   }
 
-  u32 page_size = 4 * 1024;
+  u32 page_size = runtime::kPageSize4KiB;
   if (protect_bits & kXMemLargePages) {
-    page_size = 64 * 1024;
+    page_size = runtime::kPageSize64KiB;
   } else if (protect_bits & kXMem16MBPages) {
-    page_size = 16 * 1024 * 1024;
+    page_size = runtime::kPageSize16MiB;
   }
 
   u32 adjusted_size = rex::round_up(region_size, page_size);
@@ -616,7 +616,7 @@ u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero
     header->tag = tag;
     return addr + sizeof(X_POOL_ALLOC_HEADER);
   } else {
-    return runtime::GetCurrent().GetMemory()->SystemHeapAlloc(size, 4096);
+    return runtime::GetCurrent().GetMemory()->SystemHeapAlloc(size, runtime::kPageSize4KiB);
   }
 }
 
@@ -627,7 +627,7 @@ u32 ExAllocatePool_entry(u32 size) {
 
 void ExFreePool_entry(MappedVoid base_address) {
   u32 addr = base_address.GetGuestAddress();
-  if ((addr & (4096 - 1)) == 0) {
+  if ((addr & (runtime::kPageSize4KiB - 1)) == 0) {
     // A page aligned address is a large allocation without a pool header.
     runtime::GetCurrent().GetMemory()->SystemHeapFree(addr);
   } else {
@@ -700,7 +700,7 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  const u32 region_size_adjusted = rex::round_up(region_size, 64 * 1024);
+  const u32 region_size_adjusted = rex::round_up(region_size, runtime::kPageSize64KiB);
   if (region_size_adjusted > 16 * 1024 * 1024) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -710,7 +710,7 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
   if (!heap) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  if (!heap->AllocRange(0x8C000000, 0x8FFFFFFF, region_size_adjusted, 64 * 1024,
+  if (!heap->AllocRange(0x8C000000, 0x8FFFFFFF, region_size_adjusted, runtime::kPageSize64KiB,
                         runtime::kMemoryAllocationCommit | runtime::kMemoryAllocationTitle,
                         runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
                         &out_address)) {

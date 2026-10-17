@@ -199,7 +199,7 @@ X_STATUS FileObject::ReadScatter(Runtime& runtime, u32 segments_address, u32 len
   be_u32* segments =
       reinterpret_cast<be_u32*>(runtime.GetMemory()->TranslateVirtual(segments_address));
 
-  u32 page_size = 4096;
+  u32 page_size = kPageSize4KiB;
 
   u32 read_total = 0;
   u32 read_remain = length;
