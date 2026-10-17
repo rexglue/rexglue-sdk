@@ -867,12 +867,14 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
   void WriteExitState(u32 exit_code);
 
   /**
-   * Returns the processor of a single bit affinity mask.
+   * Returns a processor from an affinity mask. Bits 6 and 7 are ignored.
    *
-   * @param mask The mask, 1 bit below bit 6.
-   * @return The processor index.
+   * @param mask The mask, with at least 1 bit below bit 6.
+   * @param preferred The processor to keep when the mask contains it.
+   * @return The preferred processor when the mask contains it, else the lowest processor in the
+   * mask.
    */
-  static u8 ProcessorFromMask(u8 mask);
+  static u8 ProcessorFromMask(u8 mask, u8 preferred);
 
   Runtime* runtime_;
   ThreadRegistry* registry_ = nullptr;

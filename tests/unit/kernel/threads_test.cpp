@@ -597,3 +597,63 @@ REX_TEST_CASE("A new thread links its wait, timer and spare lists to themselves"
     }
   });
 }
+
+namespace {
+
+u32 CpuOfThreadCreatedWith(Caller& c, u32 creation_flags) {
+  auto cpu = std::make_shared<std::atomic<u32>>(0xFF);
+  const u32 handle = c.Spawn(
+      [cpu](Caller&) {
+        cpu->store(rex::runtime::KernelThread::GetCurrentThread()->GetActiveCPU());
+      },
+      creation_flags);
+  Join(c, handle);
+  return cpu->load();
+}
+
+u32 CpuAfterSetAffinity(Caller& c, u32 affinity) {
+  auto* thread = rex::runtime::KernelThread::GetCurrentThread();
+  const u32 object = thread->GetGuestObject();
+  c.Kernel("KeSetAffinityThread", {object, affinity, 0});
+  return thread->GetActiveCPU();
+}
+
+}  // namespace
+
+REX_TEST_CASE("A creation mask without a valid processor bit inherits the creator processor",
+              "[kernel][threads][affinity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 creator = rex::runtime::KernelThread::GetCurrentThread()->GetActiveCPU();
+    CHECK(CpuOfThreadCreatedWith(c, 0xC0000000) == creator);
+    CHECK(CpuOfThreadCreatedWith(c, 0x80000000) == creator);
+  });
+}
+
+REX_TEST_CASE("A creation mask with several bits picks a processor from the mask",
+              "[kernel][threads][affinity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    CHECK(CpuOfThreadCreatedWith(c, 0x28000000) == 3);
+    CHECK(CpuOfThreadCreatedWith(c, 0xFF000000) < 6);
+    CHECK(CpuOfThreadCreatedWith(c, 0x3F000000) < 6);
+    CHECK(CpuOfThreadCreatedWith(c, 0x60000000) == 5);
+  });
+}
+
+REX_TEST_CASE("KeSetAffinityThread keeps the processor inside the six hardware threads",
+              "[kernel][threads][affinity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    CHECK(CpuAfterSetAffinity(c, 0x04) == 2);
+    CHECK(CpuAfterSetAffinity(c, 0xC0) == 2);
+    CHECK(CpuAfterSetAffinity(c, 0x00) == 2);
+    CHECK(c.Kernel("KeSetAffinityThread",
+                   {rex::runtime::KernelThread::GetCurrentThread()->GetGuestObject(), 0xC0, 0}) ==
+          0);
+    CHECK(CpuAfterSetAffinity(c, 0x3F) == 2);
+    CHECK(CpuAfterSetAffinity(c, 0x30) == 4);
+    CHECK(CpuAfterSetAffinity(c, 0xFF) == 4);
+    CHECK(CpuAfterSetAffinity(c, 0x40) == 4);
+  });
+}

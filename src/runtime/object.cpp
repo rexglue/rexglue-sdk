@@ -259,9 +259,12 @@ X_STATUS SignalAndWait(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait_h
   if (!signal.slot || !wait.slot) {
     return X_STATUS_INVALID_HANDLE;
   }
+  if (!wait.handle) {
+    return X_STATUS_SUCCESS;
+  }
   KernelThread::CheckStop();
   KernelThread::WriteKernelTime();
-  bool signaled = false;
+  bool signaled = !signal.handle;
   auto result = WaitGuest(
       alertable, TimeoutOf(opt_timeout),
       [&](std::chrono::milliseconds left) {
@@ -288,25 +291,42 @@ X_STATUS WaitMultiple(Runtime& runtime, std::span<const X_HANDLE> handles, u32 w
   targets.reserve(handles.size());
   std::vector<rex::platform::WaitHandle*> wait_handles;
   wait_handles.reserve(handles.size());
+  size_t idle_index = handles.size();
   for (const X_HANDLE handle : handles) {
     WaitTarget target = Resolve(runtime, handle);
     if (!target.slot) {
       return X_STATUS_INVALID_PARAMETER;
     }
-    REX_ASSERT(target.handle != nullptr);
-    wait_handles.push_back(target.handle);
+    if (!target.handle) {
+      idle_index = std::min(idle_index, targets.size());
+    } else if (wait_type ? idle_index == handles.size() : true) {
+      wait_handles.push_back(target.handle);
+    }
     targets.push_back(std::move(target));
+  }
+  if (!wait_type && wait_handles.empty()) {
+    return X_STATUS_SUCCESS;
   }
   const auto timeout = TimeoutOf(opt_timeout);
   KernelThread::CheckStop();
   KernelThread::WriteKernelTime();
   if (wait_type) {
-    auto result = WaitGuest(
-        alertable, timeout,
-        [&](std::chrono::milliseconds left) {
-          return rex::platform::WaitAny(wait_handles.data(), wait_handles.size(), true, left);
-        },
-        [](const auto& r) { return IsCallback(r.first); });
+    std::pair<rex::platform::WaitResult, size_t> result{rex::platform::WaitResult::kSuccess,
+                                                        idle_index};
+    if (idle_index == handles.size()) {
+      result = WaitGuest(
+          alertable, timeout,
+          [&](std::chrono::milliseconds left) {
+            return rex::platform::WaitAny(wait_handles.data(), wait_handles.size(), true, left);
+          },
+          [](const auto& r) { return IsCallback(r.first); });
+    } else if (!wait_handles.empty()) {
+      const auto polled = rex::platform::WaitAny(wait_handles.data(), wait_handles.size(), true,
+                                                 std::chrono::milliseconds(0));
+      if (polled.first == rex::platform::WaitResult::kSuccess) {
+        result = polled;
+      }
+    }
     KernelThread::CheckStop();
     switch (result.first) {
       case rex::platform::WaitResult::kSuccess:

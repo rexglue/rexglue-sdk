@@ -225,6 +225,63 @@ REX_TEST_CASE("waits: signal and wait", "[kernel][waits]") {
   });
 }
 
+namespace {
+
+u32 AddNonWaitable(Caller& c) {
+  auto added = c.GetRuntime().GetObjectTable().Emplace<rex::runtime::SymbolicLinkObject>(
+      rex::runtime::AddOptions{}, "a", "b");
+  REQUIRE(added);
+  return *added;
+}
+
+u32 NewEvent(Caller& c, u32 signaled) {
+  const u32 handle_ptr = c.Alloc(4);
+  REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, signaled}) == 0);
+  return c.Load32(handle_ptr);
+}
+
+u32 WaitHandles(Caller& c, std::initializer_list<u32> handles, u32 wait_type) {
+  const u32 array = c.Alloc(static_cast<u32>(handles.size() * 4));
+  u32 offset = 0;
+  for (const u32 handle : handles) {
+    c.Store32(array + offset, handle);
+    offset += 4;
+  }
+  return c.Kernel("NtWaitForMultipleObjectsEx",
+                  {static_cast<u32>(handles.size()), array, wait_type, 1, 0, Poll(c)});
+}
+
+}  // namespace
+
+REX_TEST_CASE("waits: a handle with nothing to wait on counts as signaled", "[kernel][waits]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 idle = AddNonWaitable(c);
+    const u32 event = NewEvent(c, 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {idle, 1, 0, Poll(c)}) == 0);
+    CHECK(WaitHandles(c, {event, idle}, 1) == 1);
+    CHECK(WaitHandles(c, {idle, event}, 1) == 0);
+    CHECK(WaitHandles(c, {event, idle}, 0) == kTimeout);
+    CHECK(WaitHandles(c, {idle, idle}, 0) == 0);
+    c.Kernel("NtSetEvent", {event, 0});
+    CHECK(WaitHandles(c, {event, idle}, 0) == 0);
+    c.Kernel("NtClose", {event});
+  });
+}
+
+REX_TEST_CASE("waits: signal and wait treat a handle with nothing to wait on as signaled",
+              "[kernel][waits]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 idle = AddNonWaitable(c);
+    const u32 event = NewEvent(c, 0);
+    CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {event, idle, 0, 0, Poll(c)}) == 0);
+    c.Kernel("NtSetEvent", {event, 0});
+    CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {idle, event, 0, 0, Poll(c)}) == 0);
+    c.Kernel("NtClose", {event});
+  });
+}
+
 REX_TEST_CASE("waits: a handle closed during a wait still completes the wait",
               "[kernel][waits][pin]") {
   KernelFixture fixture;

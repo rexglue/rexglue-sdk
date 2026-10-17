@@ -96,11 +96,12 @@ u32 KernelThread::GetProcessAddress() const {
                                         : runtime_->GetProcessInfoBlockAddress();
 }
 
-u8 KernelThread::ProcessorFromMask(u8 mask) {
-  REX_ASSERT(!(mask & 0xC0));
-  const u8 processor = static_cast<u8>(7 - std::countl_zero(mask));
-  REX_ASSERT((1u << processor) == mask);
-  return processor;
+u8 KernelThread::ProcessorFromMask(u8 mask, u8 preferred) {
+  mask &= 0x3F;
+  if (preferred < 6 && (mask >> preferred & 1)) {
+    return preferred;
+  }
+  return static_cast<u8>(std::countr_zero(mask));
 }
 
 thread_local KernelThread* current_thread_tls = nullptr;
@@ -379,12 +380,13 @@ X_STATUS KernelThread::Create() {
   REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
              stack_limit_, stack_base_);
 
-  const u8 processor_mask = static_cast<u8>(creation_params_.creation_flags >> 24);
+  const u8 processor_mask = static_cast<u8>(creation_params_.creation_flags >> 24) & 0x3F;
   u8 cpu_index = 0;
-  if (processor_mask) {
-    cpu_index = ProcessorFromMask(processor_mask);
-  } else if (KernelThread* creator = GetBoundCurrentThread(); creator && creator->IsGuestThread()) {
+  if (KernelThread* creator = GetBoundCurrentThread(); creator && creator->IsGuestThread()) {
     cpu_index = creator->GetActiveCPU();
+  }
+  if (processor_mask) {
+    cpu_index = ProcessorFromMask(processor_mask, cpu_index);
   }
 
   InitializeGuestObject();
@@ -839,9 +841,9 @@ void KernelThread::SetPriority(i32 increment) {
 }
 
 void KernelThread::SetAffinity(u32 affinity) {
-  const u8 mask = static_cast<u8>(affinity);
+  const u8 mask = static_cast<u8>(affinity) & 0x3F;
   if (mask) {
-    SetActiveCPU(ProcessorFromMask(mask));
+    SetActiveCPU(ProcessorFromMask(mask, GetActiveCPU()));
   }
 }
 
