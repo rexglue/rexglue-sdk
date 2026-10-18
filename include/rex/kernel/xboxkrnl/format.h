@@ -420,6 +420,7 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
 
   char work8[512];
   char16_t work16[4];
+  std::string float_text;
 
   struct {
     const void* buffer;
@@ -682,9 +683,8 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
               prefix.length = 0;
             }
 
-            char* end = &work8[std::size(work8) - 1];
+            char* end = work8 + std::size(work8);
             char* start = end;
-            start[0] = '\0';
 
             while (precision-- > 0 || value != 0) {
               auto digit = static_cast<i32>(value % radix);
@@ -749,18 +749,11 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
               flags |= detail::kFFAddNegative;
             }
 
-            auto s = detail::FormatDouble(value, precision, c, flags);
-            auto length = static_cast<i32>(s.size());
-            REX_ASSERT(length < static_cast<i32>(std::size(work8)));
+            float_text = detail::FormatDouble(
+                value, std::min(precision, static_cast<i32>(std::size(work8))), c, flags);
 
-            auto fstart = &work8[0];
-            auto fend = &fstart[length];
-
-            std::memcpy(fstart, s.c_str(), length);
-            fend[0] = '\0';
-
-            text.buffer = fstart;
-            text.length = static_cast<i32>(fend - fstart);
+            text.buffer = float_text.c_str();
+            text.length = static_cast<i32>(float_text.size());
             text.is_wide = false;
             break;
           }
@@ -830,12 +823,28 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
           }
 
           case 'Z': {
-            REX_ASSERT_ALWAYS();
+            const u32 pointer = args.get32();
+            const u32 buffer_pointer =
+                pointer
+                    ? static_cast<u32>(*rex::runtime::GuestPtr<const be_u32*>(base, pointer + 4))
+                    : 0;
+            if (!buffer_pointer) {
+              static constexpr char kNullString[] = "(null)";
+              text.buffer = kNullString;
+              text.length = static_cast<i32>(std::size(kNullString) - 1);
+              text.is_wide = false;
+            } else {
+              const i32 bytes = static_cast<i16>(
+                  static_cast<u16>(*rex::runtime::GuestPtr<const be_u16*>(base, pointer)));
+              text.is_wide = (flags & detail::kFFIsWide) != 0;
+              text.length = std::max(text.is_wide ? bytes / 2 : bytes, 0);
+              text.buffer = rex::runtime::GuestPtr<void*>(base, buffer_pointer);
+            }
             break;
           }
 
           default: {
-            REX_ASSERT_ALWAYS();
+            return -1;
           }
         }
       }
