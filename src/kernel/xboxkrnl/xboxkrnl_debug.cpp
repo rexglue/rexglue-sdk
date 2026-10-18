@@ -34,10 +34,14 @@ struct X_THREADNAME_INFO {
 };
 REX_STATIC_ASSERT_SIZE(X_THREADNAME_INFO, 0x10);
 
+constexpr size_t kMaxThreadNameLength = 256;
+
 void HandleSetThreadName(GuestPtrT<X_EXCEPTION_RECORD> record) {
   auto thread_info = reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 
-  REX_ASSERT(thread_info->type == 0x1000);
+  if (thread_info->type != 0x1000) {
+    return;
+  }
 
   if (!thread_info->name_ptr) {
     REXLOG_DEBUG(kernel, "SetThreadName called with null name_ptr");
@@ -45,8 +49,9 @@ void HandleSetThreadName(GuestPtrT<X_EXCEPTION_RECORD> record) {
   }
 
   // A title may pass freed memory for the name, which holds junk.
-  auto name = std::string(
-      runtime::GetCurrent().GetMemory()->TranslateVirtual<const char*>(thread_info->name_ptr));
+  const char* name_data =
+      runtime::GetCurrent().GetMemory()->TranslateVirtual<const char*>(thread_info->name_ptr);
+  auto name = std::string(name_data, strnlen(name_data, kMaxThreadNameLength));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   ThreadPin thread;

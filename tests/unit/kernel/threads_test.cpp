@@ -657,3 +657,39 @@ REX_TEST_CASE("KeSetAffinityThread keeps the processor inside the six hardware t
     CHECK(CpuAfterSetAffinity(c, 0x40) == 4);
   });
 }
+
+namespace {
+
+std::string NameAfterSetThreadNameRecord(Caller& c, u32 type, u32 name) {
+  const u32 record = c.Alloc(0x50);
+  c.Store32(record, 0x406D1388);
+  c.Store32(record + 16, 4);
+  c.Store32(record + 20, type);
+  c.Store32(record + 24, name);
+  c.Store32(record + 28, 0xFFFFFFFF);
+  c.Kernel("RtlRaiseException", {record});
+  return rex::runtime::KernelThread::GetCurrentThread()->GetName();
+}
+
+}  // namespace
+
+REX_TEST_CASE("A thread name record of another type leaves the thread name alone",
+              "[kernel][threads][name]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 name = c.String("Worker");
+    const std::string before = rex::runtime::KernelThread::GetCurrentThread()->GetName();
+    CHECK(NameAfterSetThreadNameRecord(c, 0x2000, name) == before);
+    CHECK(NameAfterSetThreadNameRecord(c, 0x1000, name).rfind("Worker", 0) == 0);
+  });
+}
+
+REX_TEST_CASE("A thread name without a terminator is cut at a fixed length",
+              "[kernel][threads][name]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 name = c.String(std::string(2000, 'A'));
+    const std::string applied = NameAfterSetThreadNameRecord(c, 0x1000, name);
+    CHECK(applied.rfind(std::string(256, 'A') + " (", 0) == 0);
+  });
+}
