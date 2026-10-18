@@ -547,7 +547,6 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
         if (c == 'l') {
           if (data.peek(0) == 'l') {
             data.skip(1);
-            flags |= detail::kFFIsLongLong;
           } else {
             flags |= detail::kFFIsLong;
           }
@@ -659,9 +658,10 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
             char* end = work8 + std::size(work8);
             char* start = end;
 
-            while (precision-- > 0 || value != 0) {
-              auto digit = static_cast<i32>(value % radix);
-              value /= radix;
+            u64 magnitude = static_cast<u64>(value);
+            while (precision-- > 0 || magnitude != 0) {
+              auto digit = static_cast<i32>(magnitude % radix);
+              magnitude /= radix;
               REX_ASSERT(digit < static_cast<i32>(strlen(digits)));
               *--start = digits[digit];
             }

@@ -32,6 +32,17 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
+namespace {
+
+constexpr u16 kLastLatin1 = 0xFF;
+constexpr u8 kFirstLatin1Lower = 0xE0;
+constexpr u8 kLatin1Division = 0xF7;
+constexpr u8 kCaseBit = 0x20;
+constexpr u8 kUnmappableChar = '?';
+constexpr u32 kMaxStringBytes = 0xFFFF;
+
+}  // namespace
+
 u32 RtlCompareMemory_entry(MappedVoid source1, MappedVoid source2, u32 length) {
   u8* p1 = source1;
   u8* p2 = source2;
@@ -72,7 +83,10 @@ void RtlFillMemoryUlong_entry(MappedVoid destination, u32 length, u32 pattern) {
 u32 RtlUpperChar_entry(u32 in) {
   const u8 c = static_cast<u8>(in & 0xFF);
   if (c >= 'a' && c <= 'z') {
-    return c ^ 0x20;
+    return c ^ kCaseBit;
+  }
+  if (c >= kFirstLatin1Lower && c != kLatin1Division) {
+    return c == kLastLatin1 ? kUnmappableChar : c ^ kCaseBit;
   }
 
   return c;
@@ -188,38 +202,69 @@ void RtlCopyUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination,
 
 u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
                                        GuestPtrT<X_UNICODE_STRING> source_ptr, u32 alloc_dest) {
-  std::u16string unicode_str =
-      runtime::TranslateUnicodeString(runtime::GetCurrent().GetMemory(), source_ptr);
-  std::string ansi_str = rex::ToUTF8(unicode_str);
-  if (ansi_str.size() > 0xFFFF - 1) {
-    return X_STATUS_INVALID_PARAMETER_2;
-  }
-
-  X_STATUS result = X_STATUS_SUCCESS;
+  auto* memory = runtime::GetCurrent().GetMemory();
+  const u32 count = source_ptr->length / 2;
+  u32 capacity = 0;
+  u32 buffer_ptr = 0;
   if (alloc_dest) {
-    u32 buffer_ptr =
-        runtime::GetCurrent().GetMemory()->SystemHeapAlloc(static_cast<u32>(ansi_str.size() + 1));
-
-    memcpy(runtime::GetCurrent().GetMemory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
-           ansi_str.size() + 1);
-    destination_ptr->length = static_cast<u16>(ansi_str.size());
-    destination_ptr->maximum_length = static_cast<u16>(ansi_str.size() + 1);
+    capacity = count + 1;
+    buffer_ptr = memory->SystemHeapAlloc(capacity);
+    if (!buffer_ptr) {
+      return X_STATUS_NO_MEMORY;
+    }
+    destination_ptr->maximum_length = static_cast<u16>(capacity);
     destination_ptr->pointer = buffer_ptr;
   } else {
-    u32 buffer_capacity = destination_ptr->maximum_length;
-    if (buffer_capacity == 0) {
+    capacity = destination_ptr->maximum_length;
+    buffer_ptr = destination_ptr->pointer;
+  }
+  if (capacity == 0) {
+    destination_ptr->length = static_cast<u16>(count);
+    return X_STATUS_BUFFER_OVERFLOW;
+  }
+
+  const u32 copy_len = std::min(count, capacity - 1);
+  const auto* source = memory->TranslateVirtual<const be_u16*>(source_ptr->pointer);
+  u8* buffer = memory->TranslateVirtual(buffer_ptr);
+  std::transform(source, source + copy_len, buffer, [](u16 unit) {
+    return unit <= kLastLatin1 ? static_cast<u8>(unit) : kUnmappableChar;
+  });
+  buffer[copy_len] = 0;
+  destination_ptr->length = static_cast<u16>(copy_len);
+  return copy_len < count ? X_STATUS_BUFFER_OVERFLOW : X_STATUS_SUCCESS;
+}
+
+u32 RtlAnsiStringToUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination_ptr,
+                                       GuestPtrT<X_ANSI_STRING> source_ptr, u32 alloc_dest) {
+  auto* memory = runtime::GetCurrent().GetMemory();
+  const u32 count = source_ptr->length;
+  const u32 length = count * 2;
+  const u32 needed = length + 2;
+  if (needed > kMaxStringBytes) {
+    return X_STATUS_INVALID_PARAMETER_2;
+  }
+  u32 buffer_ptr = 0;
+  if (alloc_dest) {
+    buffer_ptr = memory->SystemHeapAlloc(needed);
+    if (!buffer_ptr) {
+      return X_STATUS_NO_MEMORY;
+    }
+    destination_ptr->maximum_length = static_cast<u16>(needed);
+    destination_ptr->pointer = buffer_ptr;
+  } else {
+    if (destination_ptr->maximum_length < needed) {
+      destination_ptr->length = static_cast<u16>(length);
       return X_STATUS_BUFFER_OVERFLOW;
     }
-    auto buffer_ptr = runtime::GetCurrent().GetMemory()->TranslateVirtual(destination_ptr->pointer);
-    if (buffer_capacity < ansi_str.size() + 1) {
-      result = X_STATUS_BUFFER_OVERFLOW;
-      memcpy(buffer_ptr, ansi_str.data(), buffer_capacity - 1);
-    } else {
-      memcpy(buffer_ptr, ansi_str.data(), ansi_str.size() + 1);
-    }
-    buffer_ptr[buffer_capacity - 1] = 0;
+    buffer_ptr = destination_ptr->pointer;
   }
-  return result;
+
+  const auto* source = memory->TranslateVirtual<const u8*>(source_ptr->pointer);
+  auto* buffer = memory->TranslateVirtual<be_u16*>(buffer_ptr);
+  std::copy_n(source, count, buffer);
+  buffer[count] = 0;
+  destination_ptr->length = static_cast<u16>(length);
+  return X_STATUS_SUCCESS;
 }
 
 u32 RtlMultiByteToUnicodeN_entry(MappedU16 destination_ptr, u32 destination_len,
@@ -252,6 +297,22 @@ u32 RtlUnicodeToMultiByteN_entry(GuestPtrT<u8> destination_ptr, u32 destination_
     *written_ptr = copy_len;
   }
   return 0;
+}
+
+u32 RtlMultiByteToUnicodeSize_entry(MappedU32 size_ptr, [[maybe_unused]] MappedVoid source,
+                                    u32 source_len) {
+  if (size_ptr.GetGuestAddress() != 0) {
+    *size_ptr = source_len << 1;
+  }
+  return X_STATUS_SUCCESS;
+}
+
+u32 RtlUnicodeToMultiByteSize_entry(MappedU32 size_ptr, [[maybe_unused]] MappedVoid source,
+                                    u32 source_len) {
+  if (size_ptr.GetGuestAddress() != 0) {
+    *size_ptr = source_len >> 1;
+  }
+  return X_STATUS_SUCCESS;
 }
 
 u32 RtlImageNtHeader_entry([[maybe_unused]] MappedVoid module) {
@@ -521,7 +582,6 @@ void __C_specific_handler_entry() {
   REX_KERNEL_STUB("__C_specific_handler");
 }
 
-REX_EXPORT_STUB(__imp__RtlAnsiStringToUnicodeString);
 REX_EXPORT_STUB(__imp__RtlAppendStringToString);
 REX_EXPORT_STUB(__imp__RtlAppendUnicodeStringToString);
 REX_EXPORT_STUB(__imp__RtlAppendUnicodeToString);
@@ -533,8 +593,6 @@ REX_EXPORT_STUB(__imp__RtlDowncaseUnicodeChar);
 REX_EXPORT_STUB(__imp__RtlGetCallersAddress);
 REX_EXPORT_STUB(__imp__RtlGetStackLimits);
 REX_EXPORT_STUB(__imp__RtlLookupFunctionEntry);
-REX_EXPORT_STUB(__imp__RtlMultiByteToUnicodeSize);
-REX_EXPORT_STUB(__imp__RtlUnicodeToMultiByteSize);
 REX_EXPORT_STUB(__imp__RtlUnicodeToUtf8);
 REX_EXPORT_STUB(__imp__RtlUnicodeToUtf8Size);
 REX_EXPORT_STUB(__imp__RtlUnwind2);
@@ -562,8 +620,12 @@ REX_EXPORT(__imp__RtlCopyString, rex::kernel::xboxkrnl::RtlCopyString_entry)
 REX_EXPORT(__imp__RtlCopyUnicodeString, rex::kernel::xboxkrnl::RtlCopyUnicodeString_entry)
 REX_EXPORT(__imp__RtlUnicodeStringToAnsiString,
            rex::kernel::xboxkrnl::RtlUnicodeStringToAnsiString_entry)
+REX_EXPORT(__imp__RtlAnsiStringToUnicodeString,
+           rex::kernel::xboxkrnl::RtlAnsiStringToUnicodeString_entry)
 REX_EXPORT(__imp__RtlMultiByteToUnicodeN, rex::kernel::xboxkrnl::RtlMultiByteToUnicodeN_entry)
 REX_EXPORT(__imp__RtlUnicodeToMultiByteN, rex::kernel::xboxkrnl::RtlUnicodeToMultiByteN_entry)
+REX_EXPORT(__imp__RtlMultiByteToUnicodeSize, rex::kernel::xboxkrnl::RtlMultiByteToUnicodeSize_entry)
+REX_EXPORT(__imp__RtlUnicodeToMultiByteSize, rex::kernel::xboxkrnl::RtlUnicodeToMultiByteSize_entry)
 REX_EXPORT(__imp__RtlImageNtHeader, rex::kernel::xboxkrnl::RtlImageNtHeader_entry)
 REX_EXPORT(__imp__RtlImageXexHeaderField, rex::kernel::xboxkrnl::RtlImageXexHeaderField_entry)
 REX_EXPORT(__imp__RtlInitializeCriticalSection,
