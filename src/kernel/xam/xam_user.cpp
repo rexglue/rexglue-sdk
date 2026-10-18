@@ -627,6 +627,80 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
   return X_ERROR_SUCCESS;
 }
 
+namespace {
+
+constexpr u32 kStatsMaxRows = 100;
+constexpr u32 kStatsMaxSpecs = 10;
+constexpr u32 kStatsAttrsInSpec = 64;
+constexpr u32 kStatsSpecSize = 8 + kStatsAttrsInSpec * 2;
+constexpr u32 kStatsResultsSize = 8;
+constexpr u32 kStatsViewSize = 16;
+constexpr u32 kStatsRowSize = 48;
+constexpr u32 kStatsColumnSize = 24;
+
+}  // namespace
+
+u32 XamUserCreateStatsEnumerator_entry([[maybe_unused]] u32 title_id, [[maybe_unused]] u32 by_rank,
+                                       [[maybe_unused]] u64 pivot, u32 row_count, u32 spec_count,
+                                       MappedVoid specs_ptr, MappedU32 buffer_size_ptr,
+                                       MappedU32 handle_ptr) {
+  if (!row_count || row_count > kStatsMaxRows || !spec_count || spec_count > kStatsMaxSpecs ||
+      !specs_ptr || !buffer_size_ptr || !handle_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  const u8* specs = specs_ptr.As<const u8*>();
+  std::vector<u32> view_ids;
+  u64 buffer_size = kStatsResultsSize;
+  for (u32 i = 0; i < spec_count; ++i) {
+    const u8* spec = specs + static_cast<size_t>(i) * kStatsSpecSize;
+    const u32 column_count = *reinterpret_cast<const be_u32*>(spec + 4);
+    if (column_count > kStatsAttrsInSpec) {
+      return X_ERROR_INVALID_PARAMETER;
+    }
+    view_ids.push_back(*reinterpret_cast<const be_u32*>(spec));
+    buffer_size += kStatsViewSize +
+                   static_cast<u64>(row_count) * (kStatsRowSize + column_count * kStatsColumnSize);
+  }
+
+  EnumeratorObject stats(
+      1, static_cast<size_t>(buffer_size),
+      [view_ids = std::move(view_ids), delivered = false](u32 buffer_ptr, u8* buffer_data,
+                                                          u32* written_count) mutable -> u32 {
+        if (delivered) {
+          return X_ERROR_NO_MORE_FILES;
+        }
+        delivered = true;
+        const u32 view_count = static_cast<u32>(view_ids.size());
+        std::memset(buffer_data, 0, kStatsResultsSize + view_count * kStatsViewSize);
+        *reinterpret_cast<be_u32*>(buffer_data) = view_count;
+        *reinterpret_cast<be_u32*>(buffer_data + 4) = buffer_ptr + kStatsResultsSize;
+        for (u32 i = 0; i < view_count; ++i) {
+          *reinterpret_cast<be_u32*>(buffer_data + kStatsResultsSize + i * kStatsViewSize) =
+              view_ids[i];
+        }
+        if (written_count) {
+          *written_count = view_count;
+        }
+        return X_ERROR_SUCCESS;
+      });
+  stats.results_in_buffer = true;
+
+  X_HANDLE handle = kXInvalidHandleValue;
+  auto result = CreateEnumerator(runtime::GetCurrent(), &handle, EnumeratorInit{0xFF, 0, 0, 0, 0},
+                                 std::move(stats));
+  if (result == X_STATUS_NO_MEMORY) {
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
+  if (XFAILED(result)) {
+    return result;
+  }
+
+  *buffer_size_ptr = static_cast<u32>(buffer_size);
+  *handle_ptr = handle;
+  return X_ERROR_SUCCESS;
+}
+
 u32 XamParseGamerTileKey_entry([[maybe_unused]] MappedU32 key_ptr, MappedU32 out1_ptr,
                                MappedU32 out2_ptr, MappedU32 out3_ptr) {
   *out1_ptr = 0xC0DE0001;
@@ -717,6 +791,8 @@ REX_EXPORT(__imp__XamUserAreUsersFriends, rex::kernel::xam::XamUserAreUsersFrien
 REX_EXPORT(__imp__XamShowSigninUI, rex::kernel::xam::XamShowSigninUI_entry)
 REX_EXPORT(__imp__XamUserCreateAchievementEnumerator,
            rex::kernel::xam::XamUserCreateAchievementEnumerator_entry)
+REX_EXPORT(__imp__XamUserCreateStatsEnumerator,
+           rex::kernel::xam::XamUserCreateStatsEnumerator_entry)
 REX_EXPORT(__imp__XamParseGamerTileKey, rex::kernel::xam::XamParseGamerTileKey_entry)
 REX_EXPORT(__imp__XamReadTileToTexture, rex::kernel::xam::XamReadTileToTexture_entry)
 REX_EXPORT(__imp__XamWriteGamerTile, rex::kernel::xam::XamWriteGamerTile_entry)
@@ -727,7 +803,6 @@ REX_EXPORT_STUB(__imp__XamUserAddRecentPlayer);
 REX_EXPORT_STUB(__imp__XamUserAllowedToPostToSocialNetwork);
 REX_EXPORT_STUB(__imp__XamUserCreateAvatarAssetEnumerator);
 REX_EXPORT_STUB(__imp__XamUserCreatePlayerEnumerator);
-REX_EXPORT_STUB(__imp__XamUserCreateStatsEnumerator);
 REX_EXPORT_STUB(__imp__XamUserCreateTitlesPlayedEnumerator);
 REX_EXPORT_STUB(__imp__XamUserFlushLogonQueue);
 REX_EXPORT_STUB(__imp__XamUserGetAge);

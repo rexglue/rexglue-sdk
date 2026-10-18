@@ -163,6 +163,18 @@ rex::u32 MessageBox(rex::testing::Caller& caller, rex::Runtime& runtime, std::u1
   return caller.Load32(result_ptr);
 }
 
+rex::u32 MessageBoxEx(rex::testing::Caller& caller, rex::Runtime& runtime, std::u16string_view text,
+                      rex::u32 active_button, rex::u32 result_ptr, rex::u32* status) {
+  const rex::u32 no = PutWide(caller, runtime, u"No");
+  const rex::u32 yes = PutWide(caller, runtime, u"Yes");
+  const rex::u32 buttons = caller.Alloc(8);
+  caller.Store32(buttons, no);
+  caller.Store32(buttons + 4, yes);
+  *status = caller.XAM("XamShowMessageBoxUIEx", {0xFF, 0, PutWide(caller, runtime, text), 2,
+                                                 buttons, active_button, 1, 0x55, result_ptr, 0});
+  return caller.Load32(result_ptr);
+}
+
 rex::u32 WaitOverlapped(rex::Runtime& runtime, rex::u32 overlapped) {
   auto* host = runtime.GetMemory()->TranslateVirtual<XAM_OVERLAPPED*>(overlapped);
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
@@ -225,6 +237,32 @@ REX_TEST_CASE("XamShowMessageBoxUI over a NullUserInterface returns the focused 
     const rex::u32 result_ptr = caller.Alloc(4);
     rex::u32 status = 0xFFFFFFFF;
     CHECK(MessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 1, result_ptr, &status) == 1);
+    CHECK(status == 0);
+  });
+}
+
+REX_TEST_CASE("XamShowMessageBoxUIEx returns the pressed button through the result pointer",
+              "[ui][xam]") {
+  ScriptedUI scripted;
+  scripted.answer = {.cancelled = false, .button = 1};
+  rex::testing::KernelFixture fixture({}, {}, &scripted);
+  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+    const rex::u32 result_ptr = caller.Alloc(4);
+    rex::u32 status = 0xFFFFFFFF;
+    CHECK(MessageBoxEx(caller, fixture.GetRuntime(), u"Body", 0, result_ptr, &status) == 1);
+    CHECK(status == 0);
+    CHECK(scripted.Desc().body == "Body");
+    CHECK(scripted.Desc().buttons == std::vector<std::string>{"No", "Yes"});
+  });
+}
+
+REX_TEST_CASE("XamShowMessageBoxUIEx without a ui returns the focused button", "[ui][xam]") {
+  rex::testing::KernelFixture fixture;
+  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+    const rex::u32 result_ptr = caller.Alloc(4);
+    caller.Store32(result_ptr, 0xDEADBEEF);
+    rex::u32 status = 0xFFFFFFFF;
+    CHECK(MessageBoxEx(caller, fixture.GetRuntime(), u"Body", 1, result_ptr, &status) == 1);
     CHECK(status == 0);
   });
 }

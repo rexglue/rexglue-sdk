@@ -71,6 +71,9 @@ struct EnumeratorObject {
   size_t item_size; /**< Size in bytes of 1 item in the output buffer. */
   /** Called by the enumerate message to write the next batch into the guest buffer. */
   EnumeratorWriter write_items;
+  /** True when the buffer describes its own results, so an asynchronous enumerate reports length 0.
+   */
+  bool results_in_buffer = false;
 };
 
 /** A fixed list of items that an enumerator hands out in batches. */

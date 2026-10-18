@@ -207,3 +207,76 @@ REX_TEST_CASE("enumerate: an overlapped enumeration of an empty enumerator fails
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }
+
+namespace {
+
+constexpr u32 kStatsSpecSize = 136;
+
+u32 PutStatsSpecs(Caller& c, std::initializer_list<std::pair<u32, u32>> specs) {
+  const u32 address = c.Alloc(static_cast<u32>(specs.size()) * kStatsSpecSize);
+  u32 offset = 0;
+  for (const auto& [view, columns] : specs) {
+    c.Store32(address + offset, view);
+    c.Store32(address + offset + 4, columns);
+    offset += kStatsSpecSize;
+  }
+  return address;
+}
+
+}  // namespace
+
+REX_TEST_CASE("enumerate: a stats enumerator reports its buffer size and hands out the views",
+              "[kernel][enumerate]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 specs = PutStatsSpecs(c, {{0x10, 3}, {0x20, 1}});
+    const u32 size_ptr = c.Alloc(4);
+    const u32 handle_ptr = c.Alloc(4);
+    REQUIRE(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 10, 2, specs, size_ptr, handle_ptr}) ==
+            rex::X_ERROR_SUCCESS);
+    CHECK(c.Load32(size_ptr) == 1960);
+    const u32 handle = c.Load32(handle_ptr);
+    const u32 buffer = c.Alloc(c.Load32(size_ptr));
+    const u32 items_ptr = c.Alloc(4);
+    CHECK(c.XAM("XamEnumerate", {handle, 0, buffer, c.Load32(size_ptr), items_ptr, 0}) ==
+          rex::X_ERROR_SUCCESS);
+    CHECK(c.Load32(buffer) == 2);
+    const u32 views = c.Load32(buffer + 4);
+    CHECK(views == buffer + 8);
+    CHECK(c.Load32(views) == 0x10);
+    CHECK(c.Load32(views + 4) == 0);
+    CHECK(c.Load32(views + 8) == 0);
+    CHECK(c.Load32(views + 12) == 0);
+    CHECK(c.Load32(views + 16) == 0x20);
+    CHECK(c.XAM("XamEnumerate", {handle, 0, buffer, c.Load32(size_ptr), items_ptr, 0}) ==
+          rex::X_ERROR_NO_MORE_FILES);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("enumerate: a stats enumerator rejects arguments outside the documented limits",
+              "[kernel][enumerate]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 specs = PutStatsSpecs(c, {{0x10, 3}});
+    const u32 size_ptr = c.Alloc(4);
+    const u32 handle_ptr = c.Alloc(4);
+    constexpr u32 kInvalid = rex::X_ERROR_INVALID_PARAMETER;
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 0, 1, specs, size_ptr, handle_ptr}) ==
+          kInvalid);
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 101, 1, specs, size_ptr, handle_ptr}) ==
+          kInvalid);
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 10, 0, specs, size_ptr, handle_ptr}) ==
+          kInvalid);
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 10, 11, specs, size_ptr, handle_ptr}) ==
+          kInvalid);
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 10, 1, 0, size_ptr, handle_ptr}) ==
+          kInvalid);
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 10, 1, specs, 0, handle_ptr}) ==
+          kInvalid);
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 10, 1, specs, size_ptr, 0}) == kInvalid);
+    const u32 wide = PutStatsSpecs(c, {{0x10, 65}});
+    CHECK(c.XAM("XamUserCreateStatsEnumerator", {0, 1, 1, 10, 1, wide, size_ptr, handle_ptr}) ==
+          kInvalid);
+  });
+}

@@ -42,8 +42,8 @@ u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_return
     return X_ERROR_INVALID_HANDLE;
   }
 
-  auto run = [runtime = &runtime, handle, buffer_ptr](u32& extended_error,
-                                                      u32& length) -> X_RESULT {
+  auto run = [runtime = &runtime, handle, buffer_ptr](u32& extended_error, u32& length,
+                                                      bool& results_in_buffer) -> X_RESULT {
     X_RESULT result;
     u32 item_count = 0;
     auto e = runtime->GetObjectTable().Get<EnumeratorObject>(handle);
@@ -53,6 +53,7 @@ u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_return
       result = X_ERROR_INVALID_PARAMETER;
     } else {
       result = e->write_items(buffer_ptr.GetGuestAddress(), buffer_ptr.As<u8*>(), &item_count);
+      results_in_buffer = e->results_in_buffer;
     }
     extended_error = XHResultFromWin32(result);
     length = item_count;
@@ -63,7 +64,8 @@ u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_return
     REX_ASSERT(!overlapped_ptr);
     u32 extended_error;
     u32 item_count;
-    X_RESULT result = run(extended_error, item_count);
+    bool results_in_buffer = false;
+    X_RESULT result = run(extended_error, item_count, results_in_buffer);
     *items_returned = result == X_ERROR_SUCCESS ? item_count : 0;
     return result;
   } else if (overlapped_ptr) {
@@ -72,11 +74,12 @@ u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_return
         overlapped_ptr, [run = std::move(run)]() mutable {
           u32 extended_error = 0;
           u32 length = 0;
-          const X_RESULT result = run(extended_error, length);
+          bool results_in_buffer = false;
+          const X_RESULT result = run(extended_error, length, results_in_buffer);
           return runtime::CompletionOptions{
               .result = result == X_ERROR_SUCCESS ? result : X_ERROR_FUNCTION_FAILED,
               .extended_error = extended_error,
-              .length = length};
+              .length = results_in_buffer ? 0 : length};
         });
     return X_ERROR_IO_PENDING;
   } else {

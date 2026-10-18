@@ -183,16 +183,11 @@ u32 XamIsUIActive_entry() {
   return XamIsUIActive();
 }
 
-u32 XamShowMessageBoxUI_entry(u32 user_index, MappedWString title_ptr, MappedWString text_ptr,
-                              u32 button_count, MappedU32 button_ptrs, u32 active_button, u32 flags,
-                              MappedU32 result_ptr, MappedVoid overlapped) {
-  REXLOG_DEBUG(
-      kernel,
-      "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-      static_cast<u32>(user_index), title_ptr.GetGuestAddress(), text_ptr.GetGuestAddress(),
-      static_cast<u32>(button_count), button_ptrs.GetGuestAddress(),
-      static_cast<u32>(active_button), static_cast<u32>(flags), result_ptr.GetGuestAddress(),
-      overlapped.GetGuestAddress());
+namespace {
+
+u32 ShowMessageBox(MappedWString title_ptr, MappedWString text_ptr, u32 button_count,
+                   MappedU32 button_ptrs, u32 active_button, MappedU32 result_ptr,
+                   MappedVoid overlapped) {
   std::string title;
   if (title_ptr) {
     title = rex::ToUTF8(rex::memory::load_and_swap<std::u16string>(
@@ -229,6 +224,37 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, MappedWString title_ptr, MappedWSt
     result = XAMDispatchPrompt(std::move(desc), close, overlapped.GetGuestAddress());
   }
   return result;
+}
+
+}  // namespace
+
+u32 XamShowMessageBoxUI_entry(u32 user_index, MappedWString title_ptr, MappedWString text_ptr,
+                              u32 button_count, MappedU32 button_ptrs, u32 active_button, u32 flags,
+                              MappedU32 result_ptr, MappedVoid overlapped) {
+  REXLOG_DEBUG(
+      kernel,
+      "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
+      static_cast<u32>(user_index), title_ptr.GetGuestAddress(), text_ptr.GetGuestAddress(),
+      static_cast<u32>(button_count), button_ptrs.GetGuestAddress(),
+      static_cast<u32>(active_button), static_cast<u32>(flags), result_ptr.GetGuestAddress(),
+      overlapped.GetGuestAddress());
+  return ShowMessageBox(title_ptr, text_ptr, button_count, button_ptrs, active_button, result_ptr,
+                        overlapped);
+}
+
+u32 XamShowMessageBoxUIEx_entry(u32 user_index, MappedWString title_ptr, MappedWString text_ptr,
+                                u32 button_count, MappedU32 button_ptrs, u32 active_button,
+                                u32 flags, u32 extra, MappedU32 result_ptr, MappedVoid overlapped) {
+  REXLOG_DEBUG(kernel,
+               "XamShowMessageBoxUIEx({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, "
+               "{:08X}, {:08X}, {:08X})",
+               static_cast<u32>(user_index), title_ptr.GetGuestAddress(),
+               text_ptr.GetGuestAddress(), static_cast<u32>(button_count),
+               button_ptrs.GetGuestAddress(), static_cast<u32>(active_button),
+               static_cast<u32>(flags), static_cast<u32>(extra), result_ptr.GetGuestAddress(),
+               overlapped.GetGuestAddress());
+  return ShowMessageBox(title_ptr, text_ptr, button_count, button_ptrs, active_button, result_ptr,
+                        overlapped);
 }
 
 u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, MappedWString default_text,
@@ -351,15 +377,6 @@ u32 XamShowPartyUI_entry([[maybe_unused]] u32 r3, [[maybe_unused]] u32 r4) {
 
 u32 XamShowCommunitySessionsUI_entry([[maybe_unused]] u32 r3, [[maybe_unused]] u32 r4) {
   return X_ERROR_FUNCTION_FAILED;
-}
-
-u32 XamShowMessageBoxUIEx_entry() {
-  static bool warned = false;
-  if (!warned) {
-    REX_KERNEL_STUB("XamShowMessageBoxUIEx");
-    warned = true;
-  }
-  return 0;
 }
 
 }  // namespace xam
