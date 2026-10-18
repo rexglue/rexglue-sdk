@@ -2,3 +2,5 @@
 # Install: python -m pip install -r scripts/requirements-dev.txt
 clang-format==20.1.8
 pytest==9.1.1
+cmakelang==0.6.13
+pyyaml==6.0.2

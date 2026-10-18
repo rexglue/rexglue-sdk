@@ -1,7 +1,6 @@
 set(REXKERNEL_SOURCES
     kernel_init.cpp
     exports.cpp
-
     # XAM subsystem - provides __imp__Xam* symbols
     xam/xam_module.cpp
     xam/xam_avatar.cpp
@@ -31,11 +30,9 @@ set(REXKERNEL_SOURCES
     xam/apps/xgi_app.cpp
     xam/apps/xlivebase_app.cpp
     xam/apps/xmp_app.cpp
-
     # XBDM subsystem - provides __imp__Xbdm* symbols
     xbdm/xbdm_module.cpp
     xbdm/xbdm_stubs.cpp
-
     # xboxkrnl exports - provides __imp__ symbols for generated code
     xboxkrnl/xboxkrnl_crypt.cpp
     xboxkrnl/xboxkrnl_debug.cpp
@@ -58,7 +55,6 @@ set(REXKERNEL_SOURCES
     xboxkrnl/loaded_command_line.cpp
     xboxkrnl/xboxkrnl_audio.cpp
     xboxkrnl/xboxkrnl_audio_xma.cpp
-
     shim/heap.cpp
     shim/file.cpp
     shim/memory.cpp

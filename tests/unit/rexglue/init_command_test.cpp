@@ -150,10 +150,11 @@ REX_TEST_CASE("init writes the recompiled library macros", "[rexglue][init]") {
   WriteText(root.path / "default.xex", "");
   REQUIRE(RunInit(root.path, false));
   const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(text.find("macro(rexglue_setup_host_library") != std::string::npos);
+  CHECK(text.find("macro (rexglue_setup_host_library") != std::string::npos);
   CHECK(text.find("NOT TARGET demo_recompiled") != std::string::npos);
   CHECK(text.find("add_library(demo_recompiled OBJECT") != std::string::npos);
-  CHECK(text.find("set(REXGLUE_RECOMP_OPTIMIZATION \"\" CACHE STRING") != std::string::npos);
+  CHECK(text.find("set(REXGLUE_RECOMP_OPTIMIZATION") != std::string::npos);
+  CHECK(text.find("Optimization level for generated code") != std::string::npos);
   CHECK(text.find("MSVC_RUNTIME_CHECKS") != std::string::npos);
   CHECK(text.find("demo_recomp ") == std::string::npos);
 }
@@ -205,8 +206,8 @@ REX_TEST_CASE("init applies the recompiled options to the library target only", 
   const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
   const size_t library = text.find("add_library(demo_recompiled OBJECT");
   REQUIRE(library != std::string::npos);
-  const size_t clear = text.find("PROPERTIES COMPILE_OPTIONS \"\")", library);
-  const size_t apply = text.find("rexglue_apply_recomp_settings(demo_recompiled", library);
+  const size_t clear = text.find("PROPERTIES COMPILE_OPTIONS \"\"", library);
+  const size_t apply = text.find("rexglue_apply_recomp_settings(", library);
   REQUIRE(clear != std::string::npos);
   REQUIRE(apply != std::string::npos);
   CHECK(clear < apply);

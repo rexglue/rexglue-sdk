@@ -27,31 +27,30 @@ set(REX_UI_SDL3_SOURCES
     window.cpp
     window_sdl.cpp
 )
-if(WIN32)
-    list(APPEND REX_UI_SDL3_SOURCES message_box_win.cpp)
-else()
-    list(APPEND REX_UI_SDL3_SOURCES message_box_posix.cpp)
-endif()
-if(APPLE)
-    list(APPEND REX_UI_SDL3_SOURCES surface_mac.cpp)
-elseif(NOT WIN32)
-    list(APPEND REX_UI_SDL3_SOURCES surface_gnulinux.cpp)
-endif()
+if (WIN32)
+  list(APPEND REX_UI_SDL3_SOURCES message_box_win.cpp)
+else ()
+  list(APPEND REX_UI_SDL3_SOURCES message_box_posix.cpp)
+endif ()
+if (APPLE)
+  list(APPEND REX_UI_SDL3_SOURCES surface_mac.cpp)
+elseif (NOT WIN32)
+  list(APPEND REX_UI_SDL3_SOURCES surface_gnulinux.cpp)
+endif ()
 
-function(rex_ui_sdl3_configure target_name)
-    set_target_properties(${target_name} PROPERTIES
-        CXX_VISIBILITY_PRESET hidden
-        VISIBILITY_INLINES_HIDDEN ON
-    )
-    rex_target_pch(${target_name} <rex/math.h>)
-    target_include_directories(${target_name} PRIVATE ${REXGLUE_ROOT}/src)
-    target_include_directories(${target_name} SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/stb)
-    target_link_libraries(${target_name} PRIVATE
-        rexcore rexui rexgpu reximgui rexruntime SDL3::SDL3)
-    if(APPLE)
-        target_link_libraries(${target_name} PRIVATE "-framework CoreFoundation")
-    endif()
-endfunction()
+# Applies the visibility, include and link settings of the SDL3 UI module.
+function (rex_ui_sdl3_configure target_name)
+  set_target_properties(
+    ${target_name} PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON
+  )
+  rex_target_pch(${target_name} <rex/math.h>)
+  target_include_directories(${target_name} PRIVATE ${REXGLUE_ROOT}/src)
+  target_include_directories(${target_name} SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/stb)
+  target_link_libraries(${target_name} PRIVATE rexcore rexui rexgpu reximgui rexruntime SDL3::SDL3)
+  if (APPLE)
+    target_link_libraries(${target_name} PRIVATE "-framework CoreFoundation")
+  endif ()
+endfunction ()
 
 add_library(rexui-sdl3 SHARED module.cpp ${REX_UI_SDL3_SOURCES})
 add_library(rex::ui-sdl3 ALIAS rexui-sdl3)
@@ -59,8 +58,8 @@ set_target_properties(rexui-sdl3 PROPERTIES EXPORT_NAME ui-sdl3)
 rexglue_add_version_resource(rexui-sdl3 DESCRIPTION "ReXGlue SDL3 user interface")
 rex_ui_sdl3_configure(rexui-sdl3)
 
-if(REXGLUE_BUILD_TESTS)
-    add_library(rexui-sdl3-static STATIC module.cpp ${REX_UI_SDL3_SOURCES})
-    set_target_properties(rexui-sdl3-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    rex_ui_sdl3_configure(rexui-sdl3-static)
-endif()
+if (REXGLUE_BUILD_TESTS)
+  add_library(rexui-sdl3-static STATIC module.cpp ${REX_UI_SDL3_SOURCES})
+  set_target_properties(rexui-sdl3-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  rex_ui_sdl3_configure(rexui-sdl3-static)
+endif ()

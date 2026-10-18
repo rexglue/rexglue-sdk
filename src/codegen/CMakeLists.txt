@@ -30,12 +30,7 @@ set(CODEGEN_CORE_SOURCES
 )
 
 # PPC architecture sources (merged from rexarch)
-set(CODEGEN_PPC_SOURCES
-    ppc/opcode.cpp
-    ppc/instruction.cpp
-    ppc/disasm.cpp
-    ppc/ppc_dis_access.c
-)
+set(CODEGEN_PPC_SOURCES ppc/opcode.cpp ppc/instruction.cpp ppc/disasm.cpp ppc/ppc_dis_access.c)
 
 # Instruction builder sources
 set(CODEGEN_BUILDER_SOURCES
@@ -58,64 +53,56 @@ file(GLOB_RECURSE INJA_TEMPLATE_FILES CONFIGURE_DEPENDS "${TEMPLATE_SOURCE_DIR}/
 
 # Build output header paths
 set(EMBEDDED_HEADERS "")
-foreach(TEMPLATE_FILE ${INJA_TEMPLATE_FILES})
-    file(RELATIVE_PATH REL_PATH "${TEMPLATE_SOURCE_DIR}" "${TEMPLATE_FILE}")
-    string(REGEX REPLACE "\\.inja$" "" CANONICAL_ID "${REL_PATH}")
-    string(REPLACE "/" "_" VAR_NAME "${CANONICAL_ID}")
-    string(REPLACE "-" "_" VAR_NAME "${VAR_NAME}")
-    string(REGEX REPLACE "_+" "_" VAR_NAME "${VAR_NAME}")
-    list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
-endforeach()
+foreach (template_file ${INJA_TEMPLATE_FILES})
+  file(RELATIVE_PATH REL_PATH "${TEMPLATE_SOURCE_DIR}" "${template_file}")
+  string(REGEX REPLACE "\\.inja$" "" CANONICAL_ID "${REL_PATH}")
+  string(REPLACE "/" "_" VAR_NAME "${CANONICAL_ID}")
+  string(REPLACE "-" "_" VAR_NAME "${VAR_NAME}")
+  string(REGEX REPLACE "_+" "_" VAR_NAME "${VAR_NAME}")
+  list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
+endforeach ()
 list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/embedded_templates.h")
 
 add_custom_command(
-    OUTPUT ${EMBEDDED_HEADERS}
-    COMMAND ${CMAKE_COMMAND}
-        -DTEMPLATE_SOURCE_DIR=${TEMPLATE_SOURCE_DIR}
-        -DTEMPLATE_OUTPUT_DIR=${TEMPLATE_OUTPUT_DIR}
-        -P ${REXGLUE_ROOT}/cmake/embed_templates.cmake
-    DEPENDS ${INJA_TEMPLATE_FILES} ${REXGLUE_ROOT}/cmake/embed_templates.cmake
-    COMMENT "Embedding inja templates"
-    VERBATIM
+  OUTPUT ${EMBEDDED_HEADERS}
+  COMMAND
+    ${CMAKE_COMMAND} -DTEMPLATE_SOURCE_DIR=${TEMPLATE_SOURCE_DIR}
+    -DTEMPLATE_OUTPUT_DIR=${TEMPLATE_OUTPUT_DIR} -P ${REXGLUE_ROOT}/cmake/embed_templates.cmake
+  DEPENDS ${INJA_TEMPLATE_FILES} ${REXGLUE_ROOT}/cmake/embed_templates.cmake
+  COMMENT "Embedding inja templates"
+  VERBATIM
 )
 
-add_custom_target(embed_templates DEPENDS ${EMBEDDED_HEADERS})
+add_custom_target(
+  embed_templates
+  COMMENT "Embedding inja templates"
+  DEPENDS ${EMBEDDED_HEADERS}
+)
 
-add_library(rexcodegen STATIC
-    ${CODEGEN_CORE_SOURCES}
-    ${CODEGEN_PPC_SOURCES}
-    ${CODEGEN_BUILDER_SOURCES}
+add_library(
+  rexcodegen STATIC ${CODEGEN_CORE_SOURCES} ${CODEGEN_PPC_SOURCES} ${CODEGEN_BUILDER_SOURCES}
 )
 add_library(rex::codegen ALIAS rexcodegen)
-set_source_files_properties(ppc/ppc_dis_access.c
-    PROPERTIES SKIP_PRECOMPILE_HEADERS ON COMPILE_OPTIONS -w)
+set_source_files_properties(
+  ppc/ppc_dis_access.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON COMPILE_OPTIONS -w
+)
 add_dependencies(rexcodegen embed_templates)
 
 rex_target_pch(rexcodegen <rex/codegen/function_types.h>)
 
-target_include_directories(rexcodegen
-    PUBLIC
-        $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    PRIVATE
-        ${REXGLUE_ROOT}/thirdparty/disasm
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/builders
-        ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
+target_include_directories(
+  rexcodegen
+  PUBLIC $<BUILD_INTERFACE:${REXGLUE_ROOT}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  PRIVATE ${REXGLUE_ROOT}/thirdparty/disasm ${CMAKE_CURRENT_SOURCE_DIR}
+          ${CMAKE_CURRENT_SOURCE_DIR}/builders ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
 )
-target_include_directories(rexcodegen SYSTEM
-    PUBLIC
-        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
-        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
+target_include_directories(
+  rexcodegen SYSTEM PUBLIC $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
+                           $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
 )
 
-target_link_libraries(rexcodegen
-    PUBLIC
-        rexruntime
-    PRIVATE
-        tomlplusplus
-        disasm
-        xxHash::xxhash
-        simde
+target_link_libraries(
+  rexcodegen
+  PUBLIC rexruntime
+  PRIVATE tomlplusplus disasm xxHash::xxhash simde
 )
-

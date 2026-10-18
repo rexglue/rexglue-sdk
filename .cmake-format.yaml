@@ -17,3 +17,8 @@ format:
 
 markup:
   enable_markup: false
+
+lint:
+  local_var_pattern: '_?[a-z][a-z0-9_]+'
+  argument_var_pattern: '_?[a-z][a-z0-9_]+'
+  macro_pattern: '[0-9a-z_]+'

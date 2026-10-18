@@ -3,9 +3,11 @@
 # generated/rexglue.cmake pins the compile options onto these sources, so any
 # target may build them. Add rexglue_apply_recomp_settings() for the PCH.
 
+# cmake-format: off
 set(GENERATED_SOURCES
     {{ cmake_var("CMAKE_CURRENT_LIST_DIR") }}/{{ project }}_init.cpp
     {{ cmake_var("CMAKE_CURRENT_LIST_DIR") }}/{{ project }}_register.cpp
 {% if has_dll_modules and not is_dll %}    {{ cmake_var("CMAKE_CURRENT_LIST_DIR") }}/module_registry.cpp
 {% endif %}{% for file in recomp_files %}    {{ cmake_var("CMAKE_CURRENT_LIST_DIR") }}/{{ file }}
 {% endfor %})
+# cmake-format: on

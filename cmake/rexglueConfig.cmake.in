@@ -3,7 +3,8 @@
 set(REXGLUE_VERSION_STRING "@REXGLUE_FULL_VERSION@")
 
 set(REXGLUE_MOLTENVK_ICD
-    "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_DATADIR@/vulkan/icd.d/MoltenVK_icd.json")
+    "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_DATADIR@/vulkan/icd.d/MoltenVK_icd.json"
+)
 
 include(CMakeFindDependencyMacro)
 
@@ -18,32 +19,38 @@ find_dependency(SDL3 CONFIG)
 
 find_dependency(VulkanHeaders CONFIG)
 find_dependency(VulkanMemoryAllocator CONFIG)
-if(APPLE)
-    if(NOT TARGET rex::vulkan-loader)
-        add_library(rex::vulkan-loader SHARED IMPORTED)
-        set_target_properties(rex::vulkan-loader PROPERTIES
-            IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libvulkan.1.dylib")
-    endif()
+if (APPLE)
+  if (NOT TARGET rex::vulkan-loader)
+    add_library(rex::vulkan-loader SHARED IMPORTED)
+    set_target_properties(
+      rex::vulkan-loader
+      PROPERTIES IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libvulkan.1.dylib"
+    )
+  endif ()
 
-    if(NOT TARGET rex::moltenvk)
-        add_library(rex::moltenvk SHARED IMPORTED)
-        set_target_properties(rex::moltenvk PROPERTIES
-            IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libMoltenVK.dylib")
-    endif()
-endif()
+  if (NOT TARGET rex::moltenvk)
+    add_library(rex::moltenvk SHARED IMPORTED)
+    set_target_properties(
+      rex::moltenvk PROPERTIES IMPORTED_LOCATION
+                               "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libMoltenVK.dylib"
+    )
+  endif ()
+endif ()
 
 include("${CMAKE_CURRENT_LIST_DIR}/rexglueTargets.cmake")
 
 # Only Release rexglue is installed, so every consumer config has to reach it.
-if(TARGET rex::rexglue)
-    set_target_properties(rex::rexglue PROPERTIES
-        MAP_IMPORTED_CONFIG_DEBUG Release
-        MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
-        MAP_IMPORTED_CONFIG_MINSIZEREL Release)
-endif()
+if (TARGET rex::rexglue)
+  set_target_properties(
+    rex::rexglue
+    PROPERTIES MAP_IMPORTED_CONFIG_DEBUG Release
+               MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
+               MAP_IMPORTED_CONFIG_MINSIZEREL Release
+  )
+endif ()
 
-if(NOT rexglue_FIND_QUIETLY)
-    message(STATUS "Found ReXGlue SDK ${REXGLUE_VERSION_STRING} at (${PACKAGE_PREFIX_DIR})")
-endif()
+if (NOT rexglue_FIND_QUIETLY)
+  message(STATUS "Found ReXGlue SDK ${REXGLUE_VERSION_STRING} at (${PACKAGE_PREFIX_DIR})")
+endif ()
 
 check_required_components(rexglue)

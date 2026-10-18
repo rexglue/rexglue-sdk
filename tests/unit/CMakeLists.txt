@@ -206,37 +206,33 @@ add_executable(
   rexglue/test_spec_test.cpp
 )
 
-target_sources(unit_tests PRIVATE
-    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/interpreter.cpp
-    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
-    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/draw_state.cpp
-    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/host/fixed_point.cpp
-    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/index_conversion.cpp
-    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
-    ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
-    ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
-    ${PROJECT_SOURCE_DIR}/src/rexglue/commands/init_command.cpp
-    ${PROJECT_SOURCE_DIR}/src/rexglue/commands/project_scan.cpp
-    ${PROJECT_SOURCE_DIR}/src/rexglue/commands/test_spec.cpp
-    ${PROJECT_SOURCE_DIR}/src/filesystem/wildcard.cpp
+target_sources(
+  unit_tests
+  PRIVATE ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/interpreter.cpp
+          ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
+          ${PROJECT_SOURCE_DIR}/src/gpu/xenos/draw_state.cpp
+          ${PROJECT_SOURCE_DIR}/src/gpu/xenos/host/fixed_point.cpp
+          ${PROJECT_SOURCE_DIR}/src/gpu/xenos/index_conversion.cpp
+          ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
+          ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
+          ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
+          ${PROJECT_SOURCE_DIR}/src/rexglue/commands/init_command.cpp
+          ${PROJECT_SOURCE_DIR}/src/rexglue/commands/project_scan.cpp
+          ${PROJECT_SOURCE_DIR}/src/rexglue/commands/test_spec.cpp
+          ${PROJECT_SOURCE_DIR}/src/filesystem/wildcard.cpp
 )
 
-if(WIN32)
-    target_sources(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/filesystem/host_file_win.cpp)
-elseif(UNIX)
-    target_sources(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/filesystem/host_file_posix.cpp)
-endif()
+if (WIN32)
+  target_sources(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/filesystem/host_file_win.cpp)
+elseif (UNIX)
+  target_sources(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/filesystem/host_file_posix.cpp)
+endif ()
 
-set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
-    PROPERTIES LANGUAGE CXX COMPILE_OPTIONS -w)
-
-target_include_directories(unit_tests PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/tests
-    ${PROJECT_SOURCE_DIR}/thirdparty
-    ${PROJECT_SOURCE_DIR}/thirdparty/disasm
-    ${CMAKE_CURRENT_SOURCE_DIR}
+target_include_directories(
+  unit_tests
+  PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/tests
+          ${PROJECT_SOURCE_DIR}/thirdparty ${PROJECT_SOURCE_DIR}/thirdparty/disasm
+          ${CMAKE_CURRENT_SOURCE_DIR}
 )
 #CLI11 instantiates std::wstring_convert, which libc++ marks deprecated
 target_include_directories(unit_tests SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include)
@@ -254,93 +250,126 @@ target_link_libraries(
           Catch2::Catch2WithMain
           SDL3::Headers
 )
-if(WIN32)
-    target_link_libraries(unit_tests PRIVATE ws2_32)
-endif()
+if (WIN32)
+  target_link_libraries(unit_tests PRIVATE ws2_32)
+endif ()
 
-target_include_directories(unit_tests SYSTEM PRIVATE
-    $<TARGET_PROPERTY:SPIRV,INTERFACE_INCLUDE_DIRECTORIES>
-    $<TARGET_PROPERTY:Vulkan::Headers,INTERFACE_INCLUDE_DIRECTORIES>
-    $<TARGET_PROPERTY:renderdoc,INTERFACE_INCLUDE_DIRECTORIES>
-    $<TARGET_PROPERTY:GPUOpen::VulkanMemoryAllocator,INTERFACE_INCLUDE_DIRECTORIES>
-    $<TARGET_PROPERTY:spirv-tools-headers,INTERFACE_INCLUDE_DIRECTORIES>)
+target_include_directories(
+  unit_tests SYSTEM
+  PRIVATE $<TARGET_PROPERTY:SPIRV,INTERFACE_INCLUDE_DIRECTORIES>
+          $<TARGET_PROPERTY:Vulkan::Headers,INTERFACE_INCLUDE_DIRECTORIES>
+          $<TARGET_PROPERTY:renderdoc,INTERFACE_INCLUDE_DIRECTORIES>
+          $<TARGET_PROPERTY:GPUOpen::VulkanMemoryAllocator,INTERFACE_INCLUDE_DIRECTORIES>
+          $<TARGET_PROPERTY:spirv-tools-headers,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
-target_compile_definitions(unit_tests PRIVATE
-    REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rexruntime>"
-    REX_TEST_RECOMPILED_A_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-a>"
-    REX_TEST_RECOMPILED_B_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-b>"
-    REX_TEST_CROSS_EXPORTER_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-cross-exporter>"
-    REX_TEST_CROSS_IMPORTER_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-cross-importer>"
-    REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem")
+target_compile_definitions(
+  unit_tests
+  PRIVATE REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rexruntime>"
+          REX_TEST_RECOMPILED_A_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-a>"
+          REX_TEST_RECOMPILED_B_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-b>"
+          REX_TEST_CROSS_EXPORTER_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-cross-exporter>"
+          REX_TEST_CROSS_IMPORTER_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-cross-importer>"
+          REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem"
+)
 
 add_executable(rex-crash-probe crash_probe.cpp crash_probe_recompiled_code.cpp)
-if(WIN32)
-    set_source_files_properties(crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasync-exceptions)
-else()
-    set_source_files_properties(crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasynchronous-unwind-tables)
-endif()
+if (WIN32)
+  set_source_files_properties(
+    crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasync-exceptions
+  )
+else ()
+  set_source_files_properties(
+    crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasynchronous-unwind-tables
+  )
+endif ()
 target_link_libraries(rex-crash-probe PRIVATE rexruntime)
-set_target_properties(rex-crash-probe PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+set_target_properties(
+  rex-crash-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
 )
-if(UNIX AND NOT APPLE)
-    set_target_properties(rex-crash-probe PROPERTIES
-        INSTALL_RPATH "$ORIGIN"
-        BUILD_WITH_INSTALL_RPATH ON
-    )
-endif()
+if (UNIX AND NOT APPLE)
+  set_target_properties(
+    rex-crash-probe PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
+  )
+endif ()
 
-add_dependencies(unit_tests rexfilesystem rexgpu-xenos rexgpu-xenos-vulkan rex-sample-console rex-sample-title rex-crash-probe)
-if(TARGET rexgpu-xenos-d3d12)
-    add_dependencies(unit_tests rexgpu-xenos-d3d12)
-endif()
+add_dependencies(
+  unit_tests
+  rexfilesystem
+  rexgpu-xenos
+  rexgpu-xenos-vulkan
+  rex-sample-console
+  rex-sample-title
+  rex-crash-probe
+)
+if (TARGET rexgpu-xenos-d3d12)
+  add_dependencies(unit_tests rexgpu-xenos-d3d12)
+endif ()
 target_compile_definitions(unit_tests PRIVATE REX_GPU_XENOS_STATIC)
 
-add_dependencies(unit_tests
-    rexmod-test-good rexmod-test-missing rexmod-test-badversion
-    rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu
-    rexmod-test-noidentity rexmod-test-otheridentity
-    rexmod-test-apu rexapu-sdl3 rexmod-test-hid rexhid-sdl3 rexui-sdl3
-    rexmod-test-recompiled-a rexmod-test-recompiled-b
-    rexmod-test-cross-exporter rexmod-test-cross-importer)
-if(WIN32)
-    add_dependencies(unit_tests rexhid-xinput)
-endif()
+add_dependencies(
+  unit_tests
+  rexmod-test-good
+  rexmod-test-missing
+  rexmod-test-badversion
+  rexmod-test-failinit
+  rexmod-test-dupecho
+  rexmod-test-null-gpu
+  rexmod-test-noidentity
+  rexmod-test-otheridentity
+  rexmod-test-apu
+  rexapu-sdl3
+  rexmod-test-hid
+  rexhid-sdl3
+  rexui-sdl3
+  rexmod-test-recompiled-a
+  rexmod-test-recompiled-b
+  rexmod-test-cross-exporter
+  rexmod-test-cross-importer
+)
+if (WIN32)
+  add_dependencies(unit_tests rexhid-xinput)
+endif ()
 
 #Strip Tracy / profiling instrumentation from test targets
-target_compile_options(unit_tests PRIVATE
-    -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING
-    -UREXGLUE_ENABLE_PERF_COUNTERS
+target_compile_options(
+  unit_tests PRIVATE -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING -UREXGLUE_ENABLE_PERF_COUNTERS
 )
 
-set_target_properties(unit_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
-)
-if(UNIX AND NOT APPLE)
-    set_target_properties(unit_tests PROPERTIES
-        INSTALL_RPATH "$ORIGIN"
-        BUILD_WITH_INSTALL_RPATH ON
-    )
-endif()
+set_target_properties(unit_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>)
+if (UNIX AND NOT APPLE)
+  set_target_properties(unit_tests PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
+endif ()
 
 #Discover tests
 include(Catch)
 set(_unit_test_spec "")
-if(REXGLUE_ENABLE_TSAN)
-    set(_unit_test_spec TEST_SPEC "~[forced_stop]~[crash_report]") # TSan defers asynchronous signals to the next interceptor, so the forced stop redirect cannot land
-    catch_discover_tests(unit_tests
-        TEST_SPEC "[crash_report]"
-        TEST_PREFIX "unit."
-        ADD_TAGS_AS_LABELS
-        PROPERTIES
-            TIMEOUT 60
-            ENVIRONMENT "TSAN_OPTIONS=handle_segv=0" # TSan takes SIGSEGV for its own report unless handle_segv is 0
-    )
-endif()
-catch_discover_tests(unit_tests
-    ${_unit_test_spec}
-    TEST_PREFIX "unit."
+if (REXGLUE_ENABLE_TSAN)
+  set(_unit_test_spec TEST_SPEC "~[forced_stop]~[crash_report]")
+
+  # TSan defers asynchronous signals to the next interceptor, so the forced stop redirect cannot
+  # land
+  catch_discover_tests(
+    unit_tests
+    TEST_SPEC
+    "[crash_report]"
+    TEST_PREFIX
+    "unit."
     ADD_TAGS_AS_LABELS
     PROPERTIES
-        TIMEOUT 60
+    TIMEOUT
+    60
+    ENVIRONMENT
+    "TSAN_OPTIONS=handle_segv=0" # TSan takes SIGSEGV for its own report unless handle_segv is 0
+  )
+endif ()
+catch_discover_tests(
+  unit_tests
+  ${_unit_test_spec}
+  TEST_PREFIX
+  "unit."
+  ADD_TAGS_AS_LABELS
+  PROPERTIES
+  TIMEOUT
+  60
 )

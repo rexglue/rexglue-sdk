@@ -1,9 +1,10 @@
 add_library(rexapu-sdl3 SHARED module.cpp sdl3_backend.cpp)
 add_library(rex::apu-sdl3 ALIAS rexapu-sdl3)
-set_target_properties(rexapu-sdl3 PROPERTIES
-    EXPORT_NAME apu-sdl3
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
+set_target_properties(
+  rexapu-sdl3
+  PROPERTIES EXPORT_NAME apu-sdl3
+             CXX_VISIBILITY_PRESET hidden
+             VISIBILITY_INLINES_HIDDEN ON
 )
 rexglue_add_version_resource(rexapu-sdl3 DESCRIPTION "ReXGlue SDL3 audio output")
 target_include_directories(rexapu-sdl3 PRIVATE ${REXGLUE_ROOT}/src)

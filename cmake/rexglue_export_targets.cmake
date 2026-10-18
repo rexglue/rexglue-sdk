@@ -19,23 +19,37 @@ set(REXGLUE_INSTALL_TARGETS
     rexgpu-xenos
     rexgpu-xenos-vulkan
     rexfilesystem
-    renderdoc simde tomlplusplus
-    excrypt mspack o1heap disasm xxhash
-    libavcodec libavutil
+    renderdoc
+    simde
+    tomlplusplus
+    excrypt
+    mspack
+    o1heap
+    disasm
+    xxhash
+    libavcodec
+    libavutil
 )
-if(WIN32)
-    list(APPEND REXGLUE_INSTALL_TARGETS rexhid-xinput)
-endif()
+if (WIN32)
+  list(APPEND REXGLUE_INSTALL_TARGETS rexhid-xinput)
+endif ()
 
-list(APPEND REXGLUE_INSTALL_TARGETS
-    SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler  # glslang
-    spirv-tools-headers
+list(
+  APPEND
+  REXGLUE_INSTALL_TARGETS
+  SPIRV
+  glslang
+  MachineIndependent
+  GenericCodeGen
+  OSDependent
+  OGLCompiler # glslang
+  spirv-tools-headers
 )
 
-if(REXGLUE_GPU_D3D12)
-    list(APPEND REXGLUE_INSTALL_TARGETS rexgpu-xenos-d3d12 dxc-headers)
-endif()
+if (REXGLUE_GPU_D3D12)
+  list(APPEND REXGLUE_INSTALL_TARGETS rexgpu-xenos-d3d12 dxc-headers)
+endif ()
 
-if(REXGLUE_ENABLE_TRACY)
-    list(APPEND REXGLUE_INSTALL_TARGETS TracyClient)
-endif()
+if (REXGLUE_ENABLE_TRACY)
+  list(APPEND REXGLUE_INSTALL_TARGETS TracyClient)
+endif ()

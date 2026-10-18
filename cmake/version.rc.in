@@ -1,10 +1,10 @@
 1 VERSIONINFO
-FILEVERSION @REX_RC_FILE_VERSION@
-PRODUCTVERSION @REX_RC_FILE_VERSION@
+FILEVERSION @rex_rc_file_version@
+PRODUCTVERSION @rex_rc_file_version@
 FILEFLAGSMASK 0x3F
 FILEFLAGS 0x0
 FILEOS 0x40004
-FILETYPE @REX_RC_FILETYPE@
+FILETYPE @rex_rc_filetype@
 FILESUBTYPE 0x0
 BEGIN
     BLOCK "StringFileInfo"
@@ -12,12 +12,12 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "ReXGlue"
-            VALUE "FileDescription", "@REX_RC_DESCRIPTION@"
-            VALUE "FileVersion", "@REX_RC_VERSION_STRING@"
-            VALUE "InternalName", "@REX_RC_TARGET@"
+            VALUE "FileDescription", "@rex_rc_description@"
+            VALUE "FileVersion", "@rex_rc_version_string@"
+            VALUE "InternalName", "@rex_rc_target@"
             VALUE "LegalCopyright", "Copyright (c) 2026 ReXGlue"
             VALUE "ProductName", "ReXGlue SDK"
-            VALUE "ProductVersion", "@REX_RC_VERSION_STRING@"
+            VALUE "ProductVersion", "@rex_rc_version_string@"
         END
     END
     BLOCK "VarFileInfo"
