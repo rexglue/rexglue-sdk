@@ -185,6 +185,14 @@ class KernelFixture {
    */
   void RunOnGuestThread(const std::function<void(Caller&)>& body);
 
+  /**
+   * Runs a body on a guest thread and waits for the thread to end, whether the body returns or
+   * the thread exits from inside an export such as one that terminates the title.
+   *
+   * @param body The test body, called with a Caller bound to the guest thread.
+   */
+  void RunUntilGuestThreadEnds(const std::function<void(Caller&)>& body);
+
  private:
   struct ThreadDrain {
     ThreadDrain();

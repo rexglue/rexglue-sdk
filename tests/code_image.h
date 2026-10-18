@@ -27,6 +27,7 @@
 #include <rex/filesystem/xex.h>
 #include <rex/logging/config.h>
 #include <rex/logging/logger.h>
+#include <rex/logging/sink.h>
 
 #include "core/xex_builder.h"
 #include "pe/pe_image.h"
@@ -144,11 +145,13 @@ inline std::string ReadGeneratedTree(const std::filesystem::path& root) {
  * @param extra_manifest Text appended to the manifest.
  * @param force True to continue past validation errors, as the force option does.
  * @param imports The import libraries of the image and the thunk addresses of each.
+ * @param sink A sink that receives the log messages of the run, or null for none.
  * @return The result of the run, with the output under folder/generated/entry.
  */
 inline Result<void> GenerateFromImage(const TempFolder& folder, std::vector<u8> image,
                                       std::string_view extra_manifest = {}, bool force = true,
-                                      std::vector<XEXImportSpec> imports = {}) {
+                                      std::vector<XEXImportSpec> imports = {},
+                                      log::ISink* sink = nullptr) {
   XEXSpec spec;
   spec.load_address = kCodeImageBase;
   spec.entry_point = kCodeImageBase + kCodeImageCodeOffset;
@@ -171,6 +174,9 @@ out_directory_path = "generated/entry"
   testing::ReleaseTestMemory();
   LogConfig config;
   config.debugger = false;
+  if (sink) {
+    config.sinks.push_back(sink);
+  }
   config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
   REQUIRE(log::Start(config).has_value());
   codegen::ProjectRecompiler recompiler(*manifest);

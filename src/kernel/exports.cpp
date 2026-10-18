@@ -117,9 +117,10 @@ struct NoReturnRow {
 };
 
 constexpr NoReturnRow kNoReturnExports[] = {
-    {ExportModule::kXboxkrnl, 0x0019},
-    {ExportModule::kXAM, 0x01A4},
-    {ExportModule::kXAM, 0x01A5},
+    {ExportModule::kXboxkrnl, 0x0019}, {ExportModule::kXboxkrnl, 0x0028},
+    {ExportModule::kXboxkrnl, 0x0052}, {ExportModule::kXboxkrnl, 0x0053},
+    {ExportModule::kXAM, 0x01A4},      {ExportModule::kXAM, 0x01A5},
+    {ExportModule::kXAM, 0x01A9},
 };
 
 }  // namespace

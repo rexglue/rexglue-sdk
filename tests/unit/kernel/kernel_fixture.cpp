@@ -256,6 +256,26 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   runtime::ThreadState::Bind(previous);
 }
 
+void KernelFixture::RunUntilGuestThreadEnds(const std::function<void(Caller&)>& body) {
+  runtime::ThreadState host_state(0, 0, 0, GetRuntime().GetMemory(), &GetRuntime());
+  runtime::ThreadState* previous = runtime::ThreadState::Get();
+  runtime::ThreadState::Bind(&host_state);
+
+  u8* base = GetRuntime().GetMemory()->GetVirtualMembase();
+  Caller main_caller(*host_state.GetContext(), base, GetRuntime());
+  const u32 handle = main_caller.Spawn(body);
+
+  constexpr i64 kTwentySeconds = 200000000;
+  const bool ended = main_caller.Kernel("NtWaitForSingleObjectEx",
+                                        {handle, 1, 0, main_caller.Quad(-kTwentySeconds)}) == 0;
+  CHECK(ended);
+  CheckNoFailures();
+  if (ended) {
+    main_caller.Kernel("NtClose", {handle});
+  }
+  runtime::ThreadState::Bind(previous);
+}
+
 u32 Put(Caller& c, std::span<const u8> bytes) {
   const u32 address = c.Alloc(static_cast<u32>(bytes.size()) + 8);
   for (u32 offset = 0; offset < bytes.size(); offset += 4) {

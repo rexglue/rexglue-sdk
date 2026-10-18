@@ -634,9 +634,11 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
     }
 
     const bool recorded = GetFallThroughs().contains(block_end);
+    const auto last = block.size > 0 ? rex::codegen::detail::DecodeInstruction(
+                                           block_end - 4, memory::load<be_u32>(data - 1))
+                                     : rex::codegen::detail::Instruction{};
     if ((recorded || !IsWithinBounds(block_end)) && block.size > 0 &&
-        FallsThrough(ctx.graph, rex::codegen::detail::DecodeInstruction(
-                                    block_end - 4, memory::load<be_u32>(data - 1)))) {
+        FallsThrough(ctx.graph, last)) {
       BuilderContext builder_ctx{body,      ctx,     *this, insn, block_end, data, local_variables,
                                  csr_state, nullptr, &mmio};
       const FunctionNode* next = ctx.graph.GetFunction(block_end);
@@ -646,7 +648,8 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
       } else if (next && !next->IsImport()) {
         builder_ctx.EmitCallToFunction(*next);
         EmitPrintln(body, "\treturn;");
-      } else {
+      } else if (last.opcode != rex::codegen::detail::Opcode::bl &&
+                 last.opcode != rex::codegen::detail::Opcode::bla) {
         REXLOG_WARN(codegen, "0x{:08X} runs off its end into 0x{:08X}, which is not a function",
                     GetBase(), block_end);
       }
@@ -898,6 +901,8 @@ class NoReturnSolver {
         case Opcode::bl:
         case Opcode::bla:
           if (insn.branch_target && !Returns(*insn.branch_target))
+            break;
+          if (find(next) < 0 && !graph_.GetFunction(next))
             break;
           if (go(next))
             return true;

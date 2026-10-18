@@ -88,11 +88,13 @@ void RtlRaiseException_entry(GuestPtrT<X_EXCEPTION_RECORD> record) {
 }
 
 void KeBugCheckEx_entry(u32 code, u32 param1, u32 param2, u32 param3, u32 param4) {
-  REXLOG_DEBUG(kernel, "*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code, param1,
+  REXLOG_ERROR(kernel, "*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code, param1,
                param2, param3, param4);
   fflush(stdout);
-  rex::platform::Break();
-  REX_ASSERT_ALWAYS();
+  if (rex::platform::IsDebuggerAttached()) {
+    rex::platform::Break();
+  }
+  runtime::GetCurrent().ExitTitle(TitleExitReason::kBugCheck);
 }
 
 void KeBugCheck_entry(u32 code) {

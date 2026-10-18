@@ -11,9 +11,12 @@
 
 #include "code_image.h"
 
+#include <algorithm>
 #include <format>
 #include <string>
 #include <vector>
+
+#include <rex/logging/sink.h>
 
 namespace {
 
@@ -24,6 +27,7 @@ constexpr u32 kBlr = 0x4E800020;
 constexpr u32 kBeqlr = 0x4D820020;
 constexpr u32 kLiR3Zero = 0x38600000;
 constexpr u32 kLiR3One = 0x38600001;
+constexpr u32 kAddiR3One = 0x38630001;
 constexpr u32 kMtctrR11 = 0x7D6903A6;
 constexpr u32 kBctr = 0x4E800420;
 constexpr u32 kImportFunctionRecord = 1u << 24;
@@ -53,17 +57,38 @@ void AddFunction(Image& image, u32 second_word, u32 first_word = kLiR3One) {
   image.words.push_back(second_word);
 }
 
-std::string Generate(Image image, u32 ordinal, std::string_view manifest = {}) {
+struct Output {
+  std::string tree;
+  size_t run_offs = 0;
+};
+
+Output Run(Image image, u32 ordinal, std::string_view manifest, bool count_run_offs) {
   image.thunk = static_cast<u32>(image.words.size());
   image.words.push_back(kImportFunctionRecord | ordinal);
   image.words.insert(image.words.end(), {kLiR3Zero, kMtctrR11, kBctr});
+  rex::log::CaptureSink sink;
   rex::test::TempFolder folder;
   const auto result = rex::test::GenerateFromImage(
       folder, rex::test::BuildCodeImage(image.words, image.pdata), manifest, true,
-      {rex::test::XEXImportSpec{"xboxkrnl.exe", {Address(image.thunk)}, 0}});
+      {rex::test::XEXImportSpec{"xboxkrnl.exe", {Address(image.thunk)}, 0}},
+      count_run_offs ? &sink : nullptr);
+  Output output;
+  if (count_run_offs) {
+    std::vector<rex::log::CapturedMessage> messages;
+    sink.CopySince(0, messages);
+    output.run_offs = static_cast<size_t>(
+        std::ranges::count_if(messages, [](const rex::log::CapturedMessage& message) {
+          return message.text.contains("runs off its end");
+        }));
+  }
   INFO((result ? std::string() : result.error().message));
   REQUIRE(result);
-  return rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
+  output.tree = rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
+  return output;
+}
+
+std::string Generate(Image image, u32 ordinal, std::string_view manifest = {}) {
+  return Run(std::move(image), ordinal, manifest, false).tree;
 }
 
 bool Calls(const std::string& tree, u32 index) {
@@ -130,4 +155,38 @@ REX_TEST_CASE("A call to the longjmp routine does not fall into the next", "[cod
   const auto tree = Generate(std::move(image), kKeDelayExecutionThread,
                              std::format("longjmp_address = 0x{:08X}\n", Address(4)));
   CHECK_FALSE(Calls(tree, 2));
+}
+
+REX_TEST_CASE("A body ending in a call followed by padding does not warn", "[codegen][noreturn]") {
+  Image image;
+  AddFunction(image, BranchLink(1, 5));
+  image.words.push_back(0);
+  AddFunction(image, kBlr);
+  AddFunction(image, kBlr);
+  const auto output = Run(std::move(image), kKeDelayExecutionThread, {}, true);
+  CHECK(output.run_offs == 0);
+}
+
+REX_TEST_CASE("A body ending in an add followed by padding still warns", "[codegen][noreturn]") {
+  Image image;
+  AddFunction(image, kAddiR3One);
+  image.words.push_back(0);
+  AddFunction(image, kBlr);
+  const auto output = Run(std::move(image), kKeDelayExecutionThread, {}, true);
+  CHECK(output.run_offs == 1);
+}
+
+REX_TEST_CASE("A function whose every path ends in a call with no return path never returns",
+              "[codegen][noreturn]") {
+  Image image;
+  AddFunction(image, BranchLink(1, 4));
+  AddFunction(image, kBlr);
+  AddFunction(image, BranchLink(5, 7));
+  image.words.push_back(0);
+  AddFunction(image, kBlr);
+  AddFunction(image, BranchLink(10, 7));
+  AddFunction(image, kBlr);
+  const auto tree = Generate(std::move(image), kKeDelayExecutionThread);
+  CHECK_FALSE(Calls(tree, 2));
+  CHECK(Calls(tree, 11));
 }

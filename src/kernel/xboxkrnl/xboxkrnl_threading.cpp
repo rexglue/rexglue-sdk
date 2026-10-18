@@ -752,6 +752,9 @@ u32 KeReleaseMutant_entry(GuestPtrT<X_KMUTANT> mutant, [[maybe_unused]] u32 incr
  */
 u32 NtCreateTimer_entry(MappedU32 handle_ptr, MappedVoid obj_attributes_ptr, u32 timer_type) {
   REX_KERNEL_NAMED_CREATE(kTimer, handle_ptr, obj_attributes_ptr);
+  if (timer_type > 1) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
   X_HANDLE handle = 0;
   auto added = runtime::GetCurrent().GetObjectTable().CreateObject<TimerObject>(

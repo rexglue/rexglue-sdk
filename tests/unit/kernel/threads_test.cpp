@@ -261,19 +261,25 @@ REX_TEST_CASE("threads: KeDelayExecutionThread holds a sub millisecond interval 
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     using Clock = std::chrono::steady_clock;
+    INFO("clock source std::chrono::steady_clock, period " << Clock::period::num << "/"
+                                                           << Clock::period::den << " s");
     for (const u32 alertable : {0u, 1u}) {
       for (const rex::i64 ticks : {1, 5000, 15000}) {
         const u32 interval = c.Quad(-ticks);
+        const auto requested = std::chrono::nanoseconds(ticks * 100);
         std::array<std::chrono::nanoseconds, 21> samples;
         for (auto& sample : samples) {
           const auto start = Clock::now();
           c.Kernel("KeDelayExecutionThread", {1, alertable, interval});
           sample = Clock::now() - start;
-          CHECK(sample >= std::chrono::nanoseconds(ticks * 100));
+          CAPTURE(alertable, ticks, requested.count(), sample.count());
+          CHECK(sample >= requested);
         }
         std::ranges::sort(samples);
         if (ticks == 1) {
-          CHECK(samples[samples.size() / 2] < std::chrono::microseconds(500));
+          const auto median = samples[samples.size() / 2];
+          CAPTURE(alertable, requested.count(), median.count());
+          CHECK(median < std::chrono::microseconds(500));
         }
       }
     }

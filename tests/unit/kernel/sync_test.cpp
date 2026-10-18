@@ -549,3 +549,18 @@ REX_TEST_CASE("mutants: a Ke mutant abandon by a thread that does not own it fai
     CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
   });
 }
+
+REX_TEST_CASE("timers: a timer type other than 0 or 1 fails and creates no handle",
+              "[kernel][timers]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    c.Store32(handle_ptr, 0x1234);
+    CHECK(c.Kernel("NtCreateTimer", {handle_ptr, 0, 2}) == rex::X_STATUS_INVALID_PARAMETER);
+    CHECK(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0xFFFFFFFF}) ==
+          rex::X_STATUS_INVALID_PARAMETER);
+    CHECK(c.Load32(handle_ptr) == 0x1234);
+    CHECK(c.Kernel("NtCreateTimer", {handle_ptr, 0, 1}) == 0);
+    CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
+  });
+}

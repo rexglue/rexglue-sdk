@@ -76,6 +76,8 @@ std::string ExitMessage(runtime::TitleExitReason reason) {
       return "The title returned to the dashboard.";
     case runtime::TitleExitReason::kTitleDataError:
       return "The title could not read its data from the disc.";
+    case runtime::TitleExitReason::kBugCheck:
+      return "The title stopped with a system error.";
   }
   return "The title has exited.";
 }

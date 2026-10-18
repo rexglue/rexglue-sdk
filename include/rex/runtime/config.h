@@ -51,6 +51,7 @@ enum class TitleExitReason : u8 {
   kNormalExit,     /**< The title's main thread returned. */
   kHardExit,       /**< The title called HalReturnToFirmware. */
   kTitleDataError, /**< XAM reported that title data could not be read from the disc. */
+  kBugCheck,       /**< The title called KeBugCheck or KeBugCheckEx. */
 };
 
 }  // namespace rex::runtime

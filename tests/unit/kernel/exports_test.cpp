@@ -127,7 +127,7 @@ REX_TEST_CASE("Export variables bind per instance", "[kernel][exports]") {
   CHECK(second.Get(0x0193) == 0x40002000u);
 }
 
-REX_TEST_CASE("Exports that never return are the thread exit and the title launches",
+REX_TEST_CASE("Exports that never return end the thread, the title or the console",
               "[kernel][exports]") {
   std::unordered_set<std::string_view> found;
   for (const auto module : kModules) {
@@ -138,7 +138,9 @@ REX_TEST_CASE("Exports that never return are the thread exit and the title launc
     }
   }
   const std::unordered_set<std::string_view> expected = {
-      "ExTerminateThread", "XamLoaderLaunchTitle", "XamLoaderLaunchTitleEx"};
+      "ExTerminateThread",      "HalReturnToFirmware",  "KeBugCheck",
+      "KeBugCheckEx",           "XamLoaderLaunchTitle", "XamLoaderLaunchTitleEx",
+      "XamLoaderTerminateTitle"};
   CHECK(found == expected);
 }
 
