@@ -641,3 +641,21 @@ REX_TEST_CASE("LookupHeapByType selects correct heap", "[memory][heap]") {
     REQUIRE(heap != nullptr);
   }
 }
+
+REX_TEST_CASE("Heap queries reject the page past the heap end", "[memory][heap]") {
+  auto& memory = GetTestMemory();
+  auto* heap = memory.LookupHeap(0x10000000);
+  REQUIRE(heap != nullptr);
+  const u32 past_end = heap->GetHeapBase() + heap->GetHeapSize();
+
+  u32 size = 0xFFFFFFFF;
+  CHECK_FALSE(heap->QuerySize(past_end, &size));
+  CHECK(size == 0);
+
+  u32 protect = 0xFFFFFFFF;
+  CHECK_FALSE(heap->QueryProtect(past_end, &protect));
+  CHECK(protect == 0);
+
+  rex::runtime::HeapAllocation info{};
+  CHECK_FALSE(heap->QueryRegionInfo(past_end, &info));
+}

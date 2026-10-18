@@ -1412,7 +1412,7 @@ bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protec
 
 bool BaseHeap::QueryRegionInfo(u32 base_address, HeapAllocation* out_info) {
   u32 start_page_number = (base_address - heap_base_) >> page_size_shift_;
-  if (start_page_number > page_table_.size()) {
+  if (start_page_number >= page_table_.size()) {
     REX_FAIL(system, false, "BaseHeap::QueryRegionInfo base page out of range");
   }
 
@@ -1457,7 +1457,7 @@ bool BaseHeap::QueryRegionInfo(u32 base_address, HeapAllocation* out_info) {
 
 bool BaseHeap::QuerySize(u32 address, u32* out_size) {
   u32 page_number = (address - heap_base_) >> page_size_shift_;
-  if (page_number > page_table_.size()) {
+  if (page_number >= page_table_.size()) {
     REXLOG_ERROR(system, "BaseHeap::QuerySize base page out of range");
     *out_size = 0;
     return false;
@@ -1470,7 +1470,7 @@ bool BaseHeap::QuerySize(u32 address, u32* out_size) {
 
 bool BaseHeap::QueryProtect(u32 address, u32* out_protect) {
   u32 page_number = (address - heap_base_) >> page_size_shift_;
-  if (page_number > page_table_.size()) {
+  if (page_number >= page_table_.size()) {
     REXLOG_ERROR(system, "BaseHeap::QueryProtect base page out of range");
     *out_protect = 0;
     return false;

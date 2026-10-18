@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <bit>
 #include <cstring>
 
 #include <rex/assert.h>
@@ -26,6 +27,46 @@
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
+
+namespace {
+
+constexpr u32 kMaxMemoryRegionType = 2;
+constexpr u32 kInvalidAllocationTypeMask = 0x9F67CFFF;
+constexpr u32 kInvalidProtectionMask = 0xFFFFCE98;
+constexpr u32 kUserProtectionBits = kXPageGuard | 0x1000 | 0x2000;
+constexpr u32 kBaseProtectionBits =
+    kXPageNoAccess | kXPageReadOnly | kXPageReadWrite | kXPageExecuteRead | kXPageExecuteReadWrite;
+constexpr u32 kAllocationOperations = kXMemCommit | kXMemReserve | kXMemReset;
+
+bool IsValidMemoryRegionType(u32 region_type) {
+  return region_type <= kMaxMemoryRegionType;
+}
+
+bool IsValidAllocationType(u32 alloc_type) {
+  if (alloc_type & kInvalidAllocationTypeMask) {
+    return false;
+  }
+  if (!(alloc_type & kAllocationOperations)) {
+    return false;
+  }
+  return !(alloc_type & kXMemReset) || !(alloc_type & ~u32{kXMemReset});
+}
+
+bool IsValidProtection(u32 protect) {
+  if (protect & kInvalidProtectionMask) {
+    return false;
+  }
+  if ((protect & kXPageNoAccess) && (protect & kUserProtectionBits)) {
+    return false;
+  }
+  return std::popcount(protect & kBaseProtectionBits) == 1;
+}
+
+bool IsValidFreeType(u32 free_type) {
+  return free_type == kXMemDecommit || free_type == kXMemRelease;
+}
+
+}  // namespace
 
 u32 ToXdkProtectFlags(u32 protect) {
   u32 result = 0;
@@ -62,44 +103,40 @@ u32 FromXdkProtectFlags(u32 protect) {
 }
 
 /**
- * Allocates virtual memory. Allocating from the devkit memory area only logs a warning.
+ * Allocates virtual memory.
  *
  * @param base_addr_ptr The base address, updated with the allocated address.
  * @param region_size_ptr The region size, updated with the size rounded to the allocation unit.
  * @param alloc_type The X_MEM_ allocation type.
  * @param protect_bits The X_PAGE_ protection.
- * @param debug_memory Nonzero when allocating from the devkit memory area.
+ * @param region_type The memory region, 0 to 2, which all use the guest heap.
  * @return X_STATUS_SUCCESS or an error status.
  */
 u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr,
-                                  u32 alloc_type, u32 protect_bits, u32 debug_memory) {
+                                  u32 alloc_type, u32 protect_bits, u32 region_type) {
   u32 input_base = base_addr_ptr ? static_cast<u32>(*base_addr_ptr) : 0;
   u32 input_size = region_size_ptr ? static_cast<u32>(*region_size_ptr) : 0;
   REXLOG_TRACE(kernel,
                "NtAllocateVirtualMemory "
-               "base={:#x} size={:#x} type={:#x} protect={:#x} debug={}",
+               "base={:#x} size={:#x} type={:#x} protect={:#x} region={}",
                input_base, input_size, static_cast<u32>(alloc_type), static_cast<u32>(protect_bits),
-               static_cast<u32>(debug_memory));
+               static_cast<u32>(region_type));
+
+  if (!IsValidMemoryRegionType(region_type)) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
   REX_ASSERT(base_addr_ptr != nullptr);
   REX_ASSERT(region_size_ptr != nullptr);
 
-  if (debug_memory != 0)
-    REXLOG_WARN(kernel, "attempted allocation to devkit memory area (debug_memory={})",
-                static_cast<u32>(debug_memory));
-
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  if (!(alloc_type & (kXMemCommit | kXMemReset | kXMemReserve))) {
+  if (!IsValidAllocationType(alloc_type)) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  if (alloc_type & kXMemReset && (alloc_type & ~kXMemReset)) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
-  if (protect_bits &
-      (kXPageExecute | kXPageExecuteRead | kXPageExecuteReadWrite | kXPageExecuteWriteCopy)) {
-    REXLOG_WARN(kernel, "Title setting EXECUTE bit on allocation");
+  if (!IsValidProtection(protect_bits)) {
+    return X_STATUS_INVALID_PAGE_PROTECTION;
   }
 
   u32 page_size;
@@ -196,25 +233,25 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
  * @param region_size_ptr The region size, updated with the size rounded to the page size.
  * @param protect_bits The X_PAGE_ protection.
  * @param old_protect Receives the previous protection, may be null.
- * @param debug_memory Nonzero when the memory is in the devkit memory area, which is unsupported.
+ * @param region_type The memory region, as for NtAllocateVirtualMemory.
  * @return X_STATUS_SUCCESS or an error status.
  */
 u32 NtProtectVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr,
-                                 u32 protect_bits, MappedU32 old_protect, u32 debug_memory) {
-  REX_ASSERT(debug_memory == 0);
+                                 u32 protect_bits, MappedU32 old_protect, u32 region_type) {
+  if (!IsValidMemoryRegionType(region_type)) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  if (protect_bits &
-      (kXPageExecute | kXPageExecuteRead | kXPageExecuteReadWrite | kXPageExecuteWriteCopy)) {
-    REXLOG_WARN(kernel, "Title setting EXECUTE bit on protect");
+  if (!IsValidProtection(protect_bits)) {
     return X_STATUS_INVALID_PAGE_PROTECTION;
   }
 
   auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(*base_addr_ptr);
-  if (heap->GetHeapType() != runtime::HeapType::kGuestVirtual) {
+  if (!heap || heap->GetHeapType() != runtime::HeapType::kGuestVirtual) {
     return X_STATUS_INVALID_PARAMETER;
   }
   u32 adjusted_base = *base_addr_ptr - (*base_addr_ptr % heap->GetPageSize());
@@ -243,26 +280,30 @@ u32 NtProtectVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_
  * @param base_addr_ptr The base address, updated with the freed address.
  * @param region_size_ptr The region size, updated with the freed size.
  * @param free_type kXMemDecommit or kXMemRelease.
- * @param debug_memory Nonzero when freeing external devkit memory, which is unsupported.
+ * @param region_type The memory region, as for NtAllocateVirtualMemory.
  * @return X_STATUS_SUCCESS or an error status.
  */
 u32 NtFreeVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr, u32 free_type,
-                              u32 debug_memory) {
+                              u32 region_type) {
+  if (!IsValidMemoryRegionType(region_type) || !IsValidFreeType(free_type)) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
   u32 base_addr_value = *base_addr_ptr;
   u32 region_size_value = *region_size_ptr;
   REXLOG_TRACE(kernel,
                "NtFreeVirtualMemory "
-               "base={:#x} size={:#x} type={:#x} debug={}",
+               "base={:#x} size={:#x} type={:#x} region={}",
                base_addr_value, region_size_value, static_cast<u32>(free_type),
-               static_cast<u32>(debug_memory));
-
-  REX_ASSERT(debug_memory == 0);
+               static_cast<u32>(region_type));
 
   if (!base_addr_value) {
     return X_STATUS_MEMORY_NOT_ALLOCATED;
   }
 
   auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_addr_value);
+  if (!heap) {
+    return X_STATUS_MEMORY_NOT_ALLOCATED;
+  }
   if (heap->GetHeapType() != runtime::HeapType::kGuestVirtual) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -427,13 +468,15 @@ void MmFreePhysicalMemory_entry(u32 type, u32 base_address) {
   REX_ASSERT((base_address & 0x1F) == 0);
 
   auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address);
-  heap->Release(base_address);
+  if (heap) {
+    heap->Release(base_address);
+  }
 }
 
 u32 MmQueryAddressProtect_entry(u32 base_address) {
   auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address);
   u32 access;
-  if (!heap->QueryProtect(base_address, &access)) {
+  if (!heap || !heap->QueryProtect(base_address, &access)) {
     access = 0;
   }
   access = !access ? 0 : ToXdkProtectFlags(access);
@@ -465,7 +508,7 @@ void MmSetAddressProtect_entry(MappedVoid base_address, u32 region_size, u32 pro
 u32 MmQueryAllocationSize_entry(MappedVoid base_address) {
   auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address.GetGuestAddress());
   u32 size;
-  if (!heap->QuerySize(base_address.GetGuestAddress(), &size)) {
+  if (!heap || !heap->QuerySize(base_address.GetGuestAddress(), &size)) {
     size = 0;
   }
 
