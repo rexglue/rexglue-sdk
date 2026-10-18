@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cstring>
 #include <span>
 
 #include <rex/hook.h>
@@ -33,6 +34,7 @@ extern "C" void rexshim_DeleteFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_SwitchToFiber(PPCContext& ctx, rex::u8* base);
 
 using rex::be_u32;
+using rex::f32;
 using rex::f64;
 using rex::u32;
 using rex::u64;
@@ -310,6 +312,32 @@ void ReturnPointer(PPCContext& ctx, u8*) {
   ctx.r3.u64 = ctx.r3.u64 + 0x10;
 }
 
+u32 g_frame_r1 = 0;
+u32 g_saved_link_word = 0;
+u64 g_seen_r2 = 0;
+u64 g_seen_r13 = 0;
+
+void SaveLinkRegister(PPCContext& ctx, u8* base) {
+  g_frame_r1 = ctx.r1.u32;
+  rex::memory::store<be_u32>(base + ctx.r1.u32 - 8, static_cast<u32>(ctx.lr));
+  g_saved_link_word = rex::memory::load<be_u32>(base + ctx.r1.u32 - 8);
+}
+
+void RecordFrame(PPCContext& ctx, u8*) {
+  g_frame_r1 = ctx.r1.u32;
+}
+
+void RecordReservedRegisters(PPCContext& ctx, u8*) {
+  g_seen_r2 = ctx.r2.u64;
+  g_seen_r13 = ctx.r13.u64;
+}
+
+rex::ppc::ImportFunction<void()> g_link_saver{SaveLinkRegister};
+rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32)> g_eight_slots{RecordFrame};
+rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32, u32)> g_nine_slots{
+    RecordFrame};
+rex::ppc::ImportFunction<void()> g_reserved_reader{RecordReservedRegisters};
+
 }  // namespace
 
 REX_TEST_CASE("A call places integer, float and stack arguments", "[runtime][call]") {
@@ -332,6 +360,37 @@ REX_TEST_CASE("A call places integer, float and stack arguments", "[runtime][cal
   CHECK(g_slots[11] == 9);
   CHECK(g_slots[12] == 10);
   CHECK(g_floats == std::array<f64, 3>{0.25, 0.5, 0.75});
+}
+
+REX_TEST_CASE("The callee saves LR at -8 from its r1 and the call reserves nothing for it",
+              "[runtime][call]") {
+  GuestThread thread;
+  const u32 caller_r1 = thread.state.GetContext()->r1.u32;
+  g_link_saver();
+  CHECK(g_saved_link_word == rex::ppc::kHostReturnAddress);
+  CHECK(caller_r1 - g_frame_r1 == rex::ppc::kLinkageSize);
+}
+
+REX_TEST_CASE("A call frame is at least 0x50 bytes and grows past 8 argument slots",
+              "[runtime][call]") {
+  GuestThread thread;
+  const u32 caller_r1 = thread.state.GetContext()->r1.u32;
+  g_eight_slots(1, 2, 3, 4, 5, 6, 7, 8);
+  CHECK(caller_r1 - g_frame_r1 == 0x50);
+  g_nine_slots(1, 2, 3, 4, 5, 6, 7, 8, 9);
+  CHECK(caller_r1 - g_frame_r1 == 0x60);
+}
+
+REX_TEST_CASE("r2 and r13 are untouched across a host call", "[runtime][call]") {
+  GuestThread thread;
+  PPCContext& ctx = *thread.state.GetContext();
+  const u64 pcr = ctx.r13.u64;
+  ctx.r2.u64 = 0x2222AAAA;
+  g_reserved_reader();
+  CHECK(g_seen_r2 == 0x2222AAAA);
+  CHECK(g_seen_r13 == pcr);
+  CHECK(ctx.r2.u64 == 0x2222AAAA);
+  CHECK(ctx.r13.u64 == pcr);
 }
 
 REX_TEST_CASE("A call passes the 14th float in its stack slot", "[runtime][call]") {
@@ -391,6 +450,284 @@ REX_TEST_CASE("FunctionDispatcher::Execute places register and stack arguments",
   CHECK(g_back_chain == thread.stack + kStackSize);
   CHECK(g_callee_lr == rex::ppc::kHostReturnAddress);
   CHECK(thread.state.GetContext()->r1.u32 == thread.stack + kStackSize);
+}
+
+namespace {
+
+constexpr u64 kWideValue = 0x1122334455667788;
+u64 g_wide_slot = 0;
+
+void ReadWideArgument(PPCContext& ctx, u8* base) {
+  g_wide_slot = rex::memory::load<rex::be_u64>(base + ctx.r1.u32 + 0x50);
+}
+
+rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32, u64)> g_wide_argument{
+    ReadWideArgument};
+
+}  // namespace
+
+REX_TEST_CASE("A call keeps the high word of a 64 bit stack argument", "[runtime][call]") {
+  GuestThread thread;
+  g_wide_slot = 0;
+  g_wide_argument(1, 2, 3, 4, 5, 6, 7, 8, kWideValue);
+  CHECK(g_wide_slot == kWideValue);
+}
+
+REX_TEST_CASE("FunctionDispatcher::Execute keeps the high word of a 64 bit stack argument",
+              "[runtime][call]") {
+  GuestThread thread;
+  rex::runtime::FunctionDispatcher dispatcher(&thread.memory);
+  constexpr u32 kModule = 0x8C000000;
+  REQUIRE(dispatcher.InitializeFunctionTable(kModule, 0x10000, kModule, 0x100000));
+  REQUIRE(dispatcher.SetFunction(kModule + 0x40, &ReadWideArgument));
+  g_wide_slot = 0;
+  u64 args[] = {1, 2, 3, 4, 5, 6, 7, 8, kWideValue};
+  dispatcher.Execute(&thread.state, kModule + 0x40, args, std::size(args));
+  CHECK(g_wide_slot == kWideValue);
+}
+
+namespace {
+
+f64 g_float_register = 0;
+f64 g_float_slot = 0;
+f32 g_single_slot = 0;
+f32 g_single_register = 0;
+
+void ReadDoubleInSlotNine(PPCContext& ctx, u8* base) {
+  g_float_register = ctx.f1.f64;
+  g_float_slot = std::bit_cast<f64>(
+      static_cast<u64>(rex::memory::load<rex::be_u64>(base + ctx.r1.u32 + 0x50)));
+}
+
+void ReadSingleInSlotNine(PPCContext& ctx, u8* base) {
+  g_single_register = static_cast<f32>(ctx.f1.f64);
+  g_single_slot =
+      std::bit_cast<f32>(static_cast<u32>(rex::memory::load<be_u32>(base + ctx.r1.u32 + 0x54)));
+}
+
+rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32, f64)> g_double_in_slot_nine{
+    ReadDoubleInSlotNine};
+rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32, f32)> g_single_in_slot_nine{
+    ReadSingleInSlotNine};
+
+}  // namespace
+
+REX_TEST_CASE("A double in the 9th slot is written to its register and its stack slot",
+              "[runtime][call]") {
+  GuestThread thread;
+  g_float_register = 0;
+  g_float_slot = 0;
+  g_double_in_slot_nine(1, 2, 3, 4, 5, 6, 7, 8, 6.25);
+  CHECK(g_float_register == 6.25);
+  CHECK(g_float_slot == 6.25);
+}
+
+REX_TEST_CASE("A 4 byte f32 in the 9th slot sits in the low word of the slot", "[runtime][call]") {
+  GuestThread thread;
+  g_single_register = 0;
+  g_single_slot = 0;
+  g_single_in_slot_nine(1, 2, 3, 4, 5, 6, 7, 8, 1.5f);
+  CHECK(g_single_register == 1.5f);
+  CHECK(g_single_slot == 1.5f);
+}
+
+namespace {
+
+PPCVRegister g_vector_in{};
+PPCVRegister g_thirteenth_vector{};
+PPCVRegister g_stack_vector{};
+u64 g_vector_ints[2]{};
+
+PPCVRegister MakeVector(u32 seed) {
+  PPCVRegister value{};
+  for (u32 lane = 0; lane < 4; ++lane) {
+    value.u32[lane] = seed * 16 + lane;
+  }
+  return value;
+}
+
+bool SameVector(const PPCVRegister& a, const PPCVRegister& b) {
+  return std::memcmp(&a, &b, sizeof(PPCVRegister)) == 0;
+}
+
+void ReadVectorFirst(PPCContext& ctx, u8*) {
+  g_vector_in = ctx.v1;
+  g_vector_ints[0] = ctx.r3.u64;
+  g_vector_ints[1] = ctx.r4.u64;
+}
+
+void ReadFourteenVectors(PPCContext& ctx, u8* base) {
+  g_thirteenth_vector = ctx.v13;
+  const u8* slot = base + ctx.r1.u32 + 0x50;
+  for (u32 i = 0; i < 16; ++i) {
+    g_stack_vector.u8[i] = slot[15 - i];
+  }
+}
+
+void ReturnVector(PPCContext& ctx, u8*) {
+  ctx.v1 = MakeVector(ctx.r3.u32);
+}
+
+PPCVRegister EchoVector(PPCVRegister value, u32 mask) {
+  value.u32[0] ^= mask;
+  return value;
+}
+
+rex::ppc::ImportFunction<void(PPCVRegister, u32, u32)> g_vector_first{ReadVectorFirst};
+rex::ppc::ImportFunction<void(PPCVRegister, PPCVRegister, PPCVRegister, PPCVRegister, PPCVRegister,
+                              PPCVRegister, PPCVRegister, PPCVRegister, PPCVRegister, PPCVRegister,
+                              PPCVRegister, PPCVRegister, PPCVRegister, PPCVRegister)>
+    g_fourteen_vectors{ReadFourteenVectors};
+rex::ppc::ImportFunction<PPCVRegister(u32)> g_vector_return{ReturnVector};
+
+}  // namespace
+
+REX_TEST_CASE("A vector argument uses v1 and no integer register", "[runtime][call]") {
+  GuestThread thread;
+  g_vector_first(MakeVector(3), 7, 9);
+  CHECK(SameVector(g_vector_in, MakeVector(3)));
+  CHECK(g_vector_ints[0] == 7);
+  CHECK(g_vector_ints[1] == 9);
+}
+
+REX_TEST_CASE("The 13th vector is in v13 and the 14th is on the stack at 16 bytes",
+              "[runtime][call]") {
+  GuestThread thread;
+  g_fourteen_vectors(MakeVector(1), MakeVector(2), MakeVector(3), MakeVector(4), MakeVector(5),
+                     MakeVector(6), MakeVector(7), MakeVector(8), MakeVector(9), MakeVector(10),
+                     MakeVector(11), MakeVector(12), MakeVector(13), MakeVector(14));
+  CHECK(SameVector(g_thirteenth_vector, MakeVector(13)));
+  CHECK(SameVector(g_stack_vector, MakeVector(14)));
+}
+
+REX_TEST_CASE("A call returning a vector reads v1", "[runtime][call]") {
+  GuestThread thread;
+  CHECK(SameVector(g_vector_return(5), MakeVector(5)));
+}
+
+REX_TEST_CASE("A hook reads a vector from v1 and returns it in v1", "[runtime][call]") {
+  GuestThread thread;
+  PPCContext& ctx = *thread.state.GetContext();
+  ctx.v1 = MakeVector(2);
+  ctx.r3.u64 = 0xFF;
+  rex::ppc::HostToGuestFunction<&EchoVector>(ctx, thread.state.GetMemory()->GetVirtualMembase());
+  PPCVRegister expected = MakeVector(2);
+  expected.u32[0] ^= 0xFF;
+  CHECK(SameVector(ctx.v1, expected));
+}
+
+namespace {
+
+struct Twelve {
+  rex::be_u32 a;
+  rex::be_u32 b;
+  rex::be_u32 c;
+};
+
+struct Four {
+  rex::be_u32 a;
+};
+
+u64 g_structure_registers[8]{};
+u32 g_structure_stack_word = 0;
+u32 g_hidden_pointer = 0;
+u64 g_hidden_first_argument = 0;
+
+Twelve MakeTwelve(u32 seed) {
+  return Twelve{seed, seed + 1, seed + 2};
+}
+
+void ReadSplitStructure(PPCContext& ctx, u8* base) {
+  g_structure_registers[7] = ctx.r10.u64;
+  g_structure_stack_word = rex::memory::load<be_u32>(base + ctx.r1.u32 + 0x50);
+}
+
+void ReadJustifiedStructures(PPCContext& ctx, u8*) {
+  g_structure_registers[0] = ctx.r3.u64;
+  g_structure_registers[1] = ctx.r4.u64;
+  g_structure_registers[2] = ctx.r5.u64;
+}
+
+void ReturnHiddenTwelve(PPCContext& ctx, u8* base) {
+  g_hidden_pointer = ctx.r3.u32;
+  g_hidden_first_argument = ctx.r4.u64;
+  const Twelve value = MakeTwelve(ctx.r4.u32);
+  std::memcpy(base + g_hidden_pointer, &value, sizeof(value));
+  ctx.r3.u64 = g_hidden_pointer;
+}
+
+void ReturnHiddenVector(PPCContext& ctx, u8* base) {
+  g_hidden_pointer = ctx.r3.u32;
+  g_hidden_first_argument = ctx.r4.u64;
+  const PPCVRegister value = MakeVector(ctx.r4.u32);
+  for (u32 i = 0; i < 16; ++i) {
+    base[g_hidden_pointer + i] = value.u8[15 - i];
+  }
+  ctx.r3.u64 = g_hidden_pointer;
+}
+
+rex::ppc::ByValue<Twelve> HookTwelve(u32 first) {
+  g_hidden_first_argument = first;
+  return rex::ppc::ByValue<Twelve>{MakeTwelve(first)};
+}
+
+rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, rex::ppc::ByValue<Twelve>)>
+    g_split_structure{ReadSplitStructure};
+rex::ppc::ImportFunction<void(rex::ppc::ByValue<Four>, rex::ppc::ByValue<Twelve>)>
+    g_justified_structures{ReadJustifiedStructures};
+rex::ppc::ImportFunction<rex::ppc::ByValue<Twelve>(u32)> g_hidden_twelve{ReturnHiddenTwelve};
+rex::ppc::ImportFunction<rex::ppc::ByValue<PPCVRegister>(u32)> g_hidden_vector{ReturnHiddenVector};
+
+}  // namespace
+
+REX_TEST_CASE("A 12 byte structure splits between r10 and the stack", "[runtime][call]") {
+  GuestThread thread;
+  g_split_structure(1, 2, 3, 4, 5, 6, 7, rex::ppc::ByValue<Twelve>{MakeTwelve(0x10)});
+  CHECK(g_structure_registers[7] == ((u64{0x10} << 32) | 0x11));
+  CHECK(g_structure_stack_word == 0x12);
+}
+
+REX_TEST_CASE("A 4 byte structure is right justified and a 12 byte one left justified",
+              "[runtime][call]") {
+  GuestThread thread;
+  g_justified_structures(rex::ppc::ByValue<Four>{Four{0xAABB}},
+                         rex::ppc::ByValue<Twelve>{MakeTwelve(0x20)});
+  CHECK(g_structure_registers[0] == 0xAABB);
+  CHECK(g_structure_registers[1] == ((u64{0x20} << 32) | 0x21));
+  CHECK(g_structure_registers[2] == (u64{0x22} << 32));
+}
+
+REX_TEST_CASE("A structure over 8 bytes returns through a hidden pointer", "[runtime][call]") {
+  GuestThread thread;
+  const auto result = g_hidden_twelve(0x30);
+  CHECK(g_hidden_pointer != 0);
+  CHECK(g_hidden_first_argument == 0x30);
+  CHECK(result.value.a == 0x30);
+  CHECK(result.value.b == 0x31);
+  CHECK(result.value.c == 0x32);
+}
+
+REX_TEST_CASE("A member function returning a vector uses the hidden pointer", "[runtime][call]") {
+  GuestThread thread;
+  const auto result = g_hidden_vector(5);
+  CHECK(g_hidden_pointer != 0);
+  CHECK(g_hidden_first_argument == 5);
+  CHECK(SameVector(result.value, MakeVector(5)));
+}
+
+REX_TEST_CASE("A hook returning a structure over 8 bytes fills the caller's pointer",
+              "[runtime][call]") {
+  GuestThread thread;
+  PPCContext& ctx = *thread.state.GetContext();
+  u8* base = thread.state.GetMemory()->GetVirtualMembase();
+  const u32 destination = thread.stack + 0x100;
+  ctx.r3.u64 = destination;
+  ctx.r4.u64 = 0x40;
+  rex::ppc::HostToGuestFunction<&HookTwelve>(ctx, base);
+  CHECK(g_hidden_first_argument == 0x40);
+  CHECK(ctx.r3.u32 == destination);
+  CHECK(rex::memory::load<be_u32>(base + destination) == 0x40);
+  CHECK(rex::memory::load<be_u32>(base + destination + 8) == 0x42);
 }
 
 namespace {

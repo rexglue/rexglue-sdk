@@ -26,7 +26,8 @@
 
 /**
  * Hooks a recompiled function with a native C++ function. The native function uses plain types
- * (u32, MappedU32 and others) and HostToGuestFunction translates the registers.
+ * (u32, MappedU32, PPCVRegister, ByValue structures and others) and HostToGuestFunction translates
+ * the registers.
  *
  * @param subroutine The recompiled function symbol.
  * @param function The native function the hook calls.

@@ -118,7 +118,7 @@ u32 Caller::Call(runtime::ExportModule module, std::string_view name,
     if (index < 8) {
       registers[index]->u64 = value;
     } else {
-      Store32(ctx_.r1.u32 + 0x54 + static_cast<u32>((index - 8) * 8), static_cast<u32>(value));
+      Store64(ctx_.r1.u32 + 0x50 + static_cast<u32>((index - 8) * 8), value);
     }
     ++index;
   }

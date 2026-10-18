@@ -130,8 +130,8 @@ namespace rex::runtime {
 
 /**
  * Reads variadic arguments from PPC registers and the stack, for sprintf, _snprintf, DbgPrint and
- * others where varargs follow fixed parameters. Arguments 0 to 7 come from r3 to r10 as 64 bit
- * values, the rest from 8 byte slots at r1 + 0x54.
+ * others where varargs follow fixed parameters. Arguments 0 to 7 come from r3 to r10, the rest from
+ * the 8 byte argument image slots at r1 + 0x50, where a 32 bit value sits in the low word.
  */
 class StackArgList {
  public:
@@ -145,51 +145,24 @@ class StackArgList {
   StackArgList(PPCContext& ctx, u8* base, i32 start_index)
       : ctx_(ctx), base_(base), index_(start_index) {}
 
-  u32 get32() { return static_cast<u32>(get64()); }
+  /**
+   * Returns the next argument as a 32 bit value and advances the index.
+   *
+   * @return The low word of the argument slot.
+   */
+  u32 get32() {
+    return static_cast<u32>(rex::ppc::ArgTranslator::GetIntegerArgumentValue<sizeof(u32)>(
+        ctx_, base_, static_cast<size_t>(index_++)));
+  }
 
   /**
-   * Returns the next argument and advances the index.
+   * Returns the next argument as a 64 bit value and advances the index.
    *
-   * @return The argument as a 64 bit value.
+   * @return The whole argument slot.
    */
   u64 get64() {
-    u64 value;
-    if (index_ <= 7) {
-      switch (index_) {
-        case 0:
-          value = ctx_.r3.u64;
-          break;
-        case 1:
-          value = ctx_.r4.u64;
-          break;
-        case 2:
-          value = ctx_.r5.u64;
-          break;
-        case 3:
-          value = ctx_.r6.u64;
-          break;
-        case 4:
-          value = ctx_.r7.u64;
-          break;
-        case 5:
-          value = ctx_.r8.u64;
-          break;
-        case 6:
-          value = ctx_.r9.u64;
-          break;
-        case 7:
-          value = ctx_.r10.u64;
-          break;
-        default:
-          value = 0;
-          break;
-      }
-    } else {
-      u32 stack_addr = ctx_.r1.u32 + 0x54 + ((index_ - 8) * 8);
-      value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, stack_addr));
-    }
-    ++index_;
-    return value;
+    return rex::ppc::ArgTranslator::GetIntegerArgumentValue<sizeof(u64)>(
+        ctx_, base_, static_cast<size_t>(index_++));
   }
 
  private:

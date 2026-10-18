@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <bit>
@@ -62,9 +63,78 @@ concept MappedPtrType = is_mapped_ptr_v<T>;
 template <typename T>
 concept PreciseType = is_precise_v<T>;
 
-/** A plain type, which is not a pointer, a big endian type or a MappedPtr. */
+/** A 128 bit vector value, which travels in v1 to v13 or in a 16 byte aligned stack slot pair. */
 template <typename T>
-concept PlainType = !std::is_pointer_v<T> && !BigEndianType<T> && !MappedPtrType<T>;
+concept VectorType = std::is_same_v<std::remove_cvref_t<T>, PPCVRegister>;
+
+/**
+ * A structure passed or returned by value in guest layout.
+ *
+ * @tparam T A trivially copyable structure made of be_ fields.
+ */
+template <typename T>
+struct ByValue {
+  T value; /**< The structure. */
+};
+
+/**
+ * Reports whether a type is a ByValue structure.
+ *
+ * @tparam T The type.
+ */
+template <typename T>
+struct IsByValue : std::false_type {};
+
+/**
+ * A ByValue structure.
+ *
+ * @tparam T The structure a ByValue holds.
+ */
+template <typename T>
+struct IsByValue<ByValue<T>> : std::true_type {};
+
+/** A ByValue structure. */
+template <typename T>
+concept ByValueType = IsByValue<std::remove_cvref_t<T>>::value;
+
+/**
+ * Size in bytes of the structure a ByValue holds.
+ *
+ * @tparam T The ByValue type.
+ */
+template <ByValueType T>
+inline constexpr size_t kByValueSize = sizeof(std::declval<std::remove_cvref_t<T>>().value);
+
+/** A ByValue structure over 8 bytes, which a function returns through a pointer the caller passes.
+ */
+template <typename T>
+concept HiddenReturnType = ByValueType<T> && kByValueSize<T> > sizeof(u64);
+
+/**
+ * Returns the number of 8 byte image slots a structure takes.
+ *
+ * @param size The structure size in bytes.
+ * @return The size rounded up to whole slots.
+ */
+constexpr u32 ByValueSlots(size_t size) {
+  return static_cast<u32>((size + sizeof(u64) - 1) / sizeof(u64));
+}
+
+/**
+ * Reports whether a structure sits at the low end of its slot instead of the start.
+ *
+ * @param size The structure size in bytes.
+ * @return True when the size is a power of 2 under 8.
+ */
+constexpr bool IsRightJustified(size_t size) {
+  return size < sizeof(u64) && std::has_single_bit(size);
+}
+
+/** A plain type, which is not a pointer, a big endian type, a MappedPtr, a vector or a structure.
+ */
+template <typename T>
+concept PlainType = !std::is_pointer_v<T> && !BigEndianType<T> && !MappedPtrType<T> &&
+                    !VectorType<T> && !ByValueType<T>;
 
 /**
  * Number of parameters of a function.
@@ -77,14 +147,14 @@ struct ArgCountT {
   static constexpr size_t value = std::tuple_size_v<decltype(FunctionArgs(Func))>;
 };
 
-/** Places of 1 argument in the guest calling convention. */
-struct Argument {
-  /** 1 for a float, 0 for an integer. */
-  int type{};
-  /** Index in r3 to r10 for an integer, in f1 to f13 for a float. */
-  int ordinal{};
-  /** Double word the argument takes in the argument image, which a float skips in r3 to r10. */
-  int slot{};
+/** Where 1 argument travels in the guest calling convention. */
+struct ArgPlace {
+  u32 slot{};   /**< First 8 byte image slot the argument takes. */
+  u32 slots{};  /**< Number of slots the argument takes. */
+  i32 gpr{-1};  /**< First integer register index, 0 for r3, or -1 when it is not in one. */
+  i32 fpr{-1};  /**< Float register index, 0 for f1, or -1. */
+  i32 vr{-1};   /**< Vector register index, 0 for v1, or -1. */
+  bool stack{}; /**< True when any part of the argument is in the stack image. */
 };
 
 /** Reads and writes function arguments in the guest calling convention. */
@@ -93,6 +163,8 @@ struct ArgTranslator {
   static constexpr size_t kIntegerRegisters = 8;
   /** Number of float argument registers, f1 to f13. */
   static constexpr size_t kFloatRegisters = 13;
+  /** Number of vector argument registers, v1 to v13. */
+  static constexpr size_t kVectorRegisters = 13;
 
   /**
    * Returns the integer argument register for an argument image slot.
@@ -161,6 +233,19 @@ struct ArgTranslator {
   }
 
   /**
+   * Returns a vector argument register.
+   *
+   * @param ctx The register file.
+   * @param ordinal The vector argument index, under kVectorRegisters.
+   * @return v1 for index 0 through v13 for index 12.
+   */
+  static constexpr PPCVRegister& VectorRegister(PPCContext& ctx, size_t ordinal) noexcept {
+    PPCVRegister* registers[] = {&ctx.v1, &ctx.v2, &ctx.v3,  &ctx.v4,  &ctx.v5,  &ctx.v6, &ctx.v7,
+                                 &ctx.v8, &ctx.v9, &ctx.v10, &ctx.v11, &ctx.v12, &ctx.v13};
+    return *registers[ordinal];
+  }
+
+  /**
    * Returns the guest address of an argument image slot past the integer registers.
    *
    * @param ctx The register file at the callee's entry.
@@ -205,10 +290,10 @@ struct ArgTranslator {
    * @param single True when the argument is a 4 byte float.
    * @return The argument widened to a double.
    */
-  static f64 GetPrecisionArgumentValue(const PPCContext& ctx, u8* base, const Argument& arg,
+  static f64 GetPrecisionArgumentValue(const PPCContext& ctx, u8* base, const ArgPlace& arg,
                                        bool single) noexcept {
-    if (static_cast<size_t>(arg.ordinal) < kFloatRegisters) {
-      return FloatRegister(const_cast<PPCContext&>(ctx), arg.ordinal).f64;
+    if (arg.fpr >= 0) {
+      return FloatRegister(const_cast<PPCContext&>(ctx), static_cast<size_t>(arg.fpr)).f64;
     }
     const u32 address = StackSlotAddress(ctx, arg.slot);
     if (single) {
@@ -223,21 +308,27 @@ struct ArgTranslator {
    *
    * @param ctx The register file.
    * @param base The guest memory base.
+   * @tparam Bytes The argument width in bytes, 4 or 8.
    * @param slot The argument image slot.
-   * @param value The value to write, only the low 32 bits go to a stack slot.
+   * @param value The value to write, a 4 byte value goes to the low word of a stack slot.
    */
+  template <size_t Bytes = sizeof(u32)>
   static constexpr void SetIntegerArgumentValue(PPCContext& ctx, u8* base, size_t slot,
                                                 u64 value) noexcept {
     if (slot < kIntegerRegisters) {
       IntegerRegister(ctx, slot).u64 = value;
       return;
     }
-    *rex::runtime::GuestPtr<be_u32*>(base, StackSlotAddress(ctx, slot) + 4) =
-        static_cast<u32>(value);
+    if constexpr (Bytes == sizeof(u64)) {
+      *rex::runtime::GuestPtr<be_u64*>(base, StackSlotAddress(ctx, slot)) = value;
+    } else {
+      *rex::runtime::GuestPtr<be_u32*>(base, StackSlotAddress(ctx, slot) + 4) =
+          static_cast<u32>(value);
+    }
   }
 
   /**
-   * Writes a float argument to its register or its stack slot.
+   * Writes a float argument to its register, and also to its stack slot when its slot is past r10.
    *
    * @param ctx The register file.
    * @param base The guest memory base.
@@ -245,11 +336,13 @@ struct ArgTranslator {
    * @param value The value to write.
    * @param single True when the argument is a 4 byte float.
    */
-  static void SetPrecisionArgumentValue(PPCContext& ctx, u8* base, const Argument& arg, f64 value,
+  static void SetPrecisionArgumentValue(PPCContext& ctx, u8* base, const ArgPlace& arg, f64 value,
                                         bool single) noexcept {
-    if (static_cast<size_t>(arg.ordinal) < kFloatRegisters) {
-      FloatRegister(ctx, arg.ordinal).f64 = value;
-      return;
+    if (arg.fpr >= 0) {
+      FloatRegister(ctx, static_cast<size_t>(arg.fpr)).f64 = value;
+      if (!arg.stack) {
+        return;
+      }
     }
     const u32 address = StackSlotAddress(ctx, arg.slot);
     if (single) {
@@ -257,6 +350,103 @@ struct ArgTranslator {
           std::bit_cast<u32>(static_cast<f32>(value));
     } else {
       *rex::runtime::GuestPtr<be_u64*>(base, address) = std::bit_cast<u64>(value);
+    }
+  }
+
+  /**
+   * Reads a vector argument from its register or its 16 byte stack slot pair.
+   *
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @return The vector, whose stack image is the byte reversed register.
+   */
+  static PPCVRegister GetVectorArgumentValue(const PPCContext& ctx, u8* base,
+                                             const ArgPlace& arg) noexcept {
+    if (arg.vr >= 0) {
+      return VectorRegister(const_cast<PPCContext&>(ctx), static_cast<size_t>(arg.vr));
+    }
+    PPCVRegister result{};
+    const u8* image = rex::runtime::GuestPtr<const u8*>(base, StackSlotAddress(ctx, arg.slot));
+    for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
+      result.u8[i] = image[sizeof(PPCVRegister) - 1 - i];
+    }
+    return result;
+  }
+
+  /**
+   * Writes a vector argument to its register or its 16 byte stack slot pair.
+   *
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @param value The vector, stored byte reversed in the stack image.
+   */
+  static void SetVectorArgumentValue(PPCContext& ctx, u8* base, const ArgPlace& arg,
+                                     const PPCVRegister& value) noexcept {
+    if (arg.vr >= 0) {
+      VectorRegister(ctx, static_cast<size_t>(arg.vr)) = value;
+      return;
+    }
+    u8* image = rex::runtime::GuestPtr<u8*>(base, StackSlotAddress(ctx, arg.slot));
+    for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
+      image[sizeof(PPCVRegister) - 1 - i] = value.u8[i];
+    }
+  }
+
+  /**
+   * Reads a structure argument from its registers and stack slots.
+   *
+   * @tparam T The ByValue type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @return The structure.
+   */
+  template <ByValueType T>
+  static T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
+    constexpr size_t kSize = kByValueSize<T>;
+    u8 image[ByValueSlots(kSize) * sizeof(u64)]{};
+    for (u32 k = 0; k < arg.slots; ++k) {
+      const size_t slot = arg.slot + k;
+      const u64 word = slot < kIntegerRegisters ? IntegerRegister(ctx, slot).u64
+                                                : static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(
+                                                      base, StackSlotAddress(ctx, slot)));
+      for (size_t b = 0; b < sizeof(u64); ++b) {
+        image[k * sizeof(u64) + b] = static_cast<u8>(word >> (56 - 8 * b));
+      }
+    }
+    T result{};
+    std::memcpy(&result.value, image + (IsRightJustified(kSize) ? sizeof(u64) - kSize : 0), kSize);
+    return result;
+  }
+
+  /**
+   * Writes a structure argument to its registers and stack slots.
+   *
+   * @tparam T The ByValue type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @param value The structure.
+   */
+  template <ByValueType T>
+  static void SetByValueArgument(PPCContext& ctx, u8* base, const ArgPlace& arg,
+                                 const T& value) noexcept {
+    constexpr size_t kSize = kByValueSize<T>;
+    u8 image[ByValueSlots(kSize) * sizeof(u64)]{};
+    std::memcpy(image + (IsRightJustified(kSize) ? sizeof(u64) - kSize : 0), &value.value, kSize);
+    for (u32 k = 0; k < arg.slots; ++k) {
+      u64 word = 0;
+      for (size_t b = 0; b < sizeof(u64); ++b) {
+        word = (word << 8) | image[k * sizeof(u64) + b];
+      }
+      const size_t slot = arg.slot + k;
+      if (slot < kIntegerRegisters) {
+        IntegerRegister(ctx, slot).u64 = word;
+      } else {
+        *rex::runtime::GuestPtr<be_u64*>(base, StackSlotAddress(ctx, slot)) = word;
+      }
     }
   }
 
@@ -270,7 +460,7 @@ struct ArgTranslator {
    * @return The argument.
    */
   template <BigEndianType T>
-  static constexpr T GetValue(PPCContext& ctx, u8* base, const Argument& arg) noexcept {
+  static constexpr T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     T result;
     result.value = static_cast<decltype(result.value)>(
         GetIntegerArgumentValue<sizeof(result.value)>(ctx, base, arg.slot));
@@ -287,7 +477,7 @@ struct ArgTranslator {
    * @return The mapped pointer, null when the argument is 0.
    */
   template <MappedPtrType T>
-  static T GetValue(PPCContext& ctx, u8* base, const Argument& arg) noexcept {
+  static T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     using InnerT = mapped_ptr_inner_type<T>::type;
     const auto v = GetIntegerArgumentValue(ctx, base, arg.slot);
     if (!v) {
@@ -296,6 +486,20 @@ struct ArgTranslator {
     u32 guest_addr = static_cast<u32>(v);
     InnerT* host_ptr = rex::runtime::GuestPtr<InnerT*>(base, guest_addr);
     return T(host_ptr, guest_addr);
+  }
+
+  /**
+   * Reads a vector argument.
+   *
+   * @tparam T The vector type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @return The vector.
+   */
+  template <VectorType T>
+  static T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
+    return GetVectorArgumentValue(ctx, base, arg);
   }
 
   /**
@@ -308,7 +512,7 @@ struct ArgTranslator {
    * @return The argument.
    */
   template <PlainType T>
-  static constexpr T GetValue(PPCContext& ctx, u8* base, const Argument& arg) noexcept {
+  static constexpr T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     if constexpr (is_precise_v<T>) {
       return static_cast<T>(GetPrecisionArgumentValue(ctx, base, arg, std::is_same_v<T, f32>));
     } else {
@@ -327,7 +531,7 @@ struct ArgTranslator {
    */
   template <typename T>
     requires std::is_pointer_v<T>
-  static constexpr T GetValue(PPCContext& ctx, u8* base, const Argument& arg) noexcept {
+  static constexpr T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     const auto v = GetIntegerArgumentValue(ctx, base, arg.slot);
     if (!v) {
       return nullptr;
@@ -346,9 +550,13 @@ struct ArgTranslator {
    * @param value The value to write.
    */
   template <typename T>
-  static constexpr void SetValue(PPCContext& ctx, u8* base, const Argument& arg, T value) noexcept {
+  static constexpr void SetValue(PPCContext& ctx, u8* base, const ArgPlace& arg, T value) noexcept {
     if constexpr (is_precise_v<T>) {
       SetPrecisionArgumentValue(ctx, base, arg, value, std::is_same_v<T, f32>);
+    } else if constexpr (VectorType<T>) {
+      SetVectorArgumentValue(ctx, base, arg, value);
+    } else if constexpr (ByValueType<T>) {
+      SetByValueArgument(ctx, base, arg, value);
     } else if constexpr (std::is_null_pointer_v<T>) {
       SetIntegerArgumentValue(ctx, base, arg.slot, 0);
     } else if constexpr (std::is_pointer_v<T>) {
@@ -356,7 +564,8 @@ struct ArgTranslator {
           ctx, base, arg.slot,
           static_cast<u32>(reinterpret_cast<uintptr_t>(value) - reinterpret_cast<uintptr_t>(base)));
     } else {
-      SetIntegerArgumentValue(ctx, base, arg.slot, value);
+      SetIntegerArgumentValue<(sizeof(T) > sizeof(u32)) ? sizeof(u64) : sizeof(u32)>(
+          ctx, base, arg.slot, value);
     }
   }
 };
@@ -373,32 +582,75 @@ constexpr bool IsPreciseType() {
 }
 
 /**
- * Places each argument by the guest calling convention.
+ * Places an argument list by the guest calling convention.
  *
- * Every argument takes the next double word of the argument image. A float takes the next of
- * f1 to f13 and leaves its slot in r3 to r10 unused.
+ * An integer, pointer or big endian value takes the next slot and the next of r3 to r10. A float
+ * takes the next slot and the next of f1 to f13, and leaves its slot in r3 to r10 unused. A float
+ * whose slot is past r10 is also written to that slot. A vector takes the next of v1 to v13 and
+ * no slot. A vector without a register takes 2 slots from the first even slot at or past the first
+ * stack slot. A structure takes whole slots from the next slot, split between r3 to r10 and the
+ * stack when it crosses the 8th slot.
  *
- * @tparam Args The argument types.
- * @return The places of each argument.
+ * @tparam Args The argument types in order.
+ * @return One placement per argument.
  */
 template <typename... Args>
-constexpr std::array<Argument, sizeof...(Args)> GatherFunctionArgumentsFromTypes() {
-  std::array<Argument, sizeof...(Args)> args{};
+constexpr std::array<ArgPlace, sizeof...(Args)> PlaceArgs() {
+  std::array<ArgPlace, sizeof...(Args)> places{};
   if constexpr (sizeof...(Args) > 0) {
-    int float_ordinal{};
-    int slot{};
+    constexpr u32 kIntegerSlots = 8;
+    constexpr u32 kFloatSlots = 13;
+    constexpr u32 kVectorRegisters = 13;
+    u32 slot = 0;
+    u32 float_register = 0;
+    u32 vector_register = 0;
+    size_t index = 0;
     (
         [&]<typename T>() {
-          if constexpr (IsPreciseType<T>()) {
-            args[slot] = {1, float_ordinal++, slot};
+          ArgPlace place;
+          place.slot = slot;
+          place.slots = 1;
+          if constexpr (VectorType<T>) {
+            if (vector_register < kVectorRegisters) {
+              place.vr = static_cast<i32>(vector_register);
+              place.slots = 0;
+            } else {
+              const u32 first = (std::max(slot, kIntegerSlots) + 1) & ~1u;
+              place.slot = first;
+              place.slots = 2;
+              place.stack = true;
+              slot = first + place.slots;
+            }
+            ++vector_register;
+            places[index++] = place;
+            return;
+          } else if constexpr (ByValueType<T>) {
+            place.slots = ByValueSlots(kByValueSize<T>);
+            if (slot < kIntegerSlots) {
+              place.gpr = static_cast<i32>(slot);
+            }
+            place.stack = slot + place.slots > kIntegerSlots;
+            slot += place.slots;
+            places[index++] = place;
+            return;
+          } else if constexpr (IsPreciseType<std::remove_cvref_t<T>>()) {
+            if (float_register < kFloatSlots) {
+              place.fpr = static_cast<i32>(float_register);
+            }
+            place.stack = slot >= kIntegerSlots || place.fpr < 0;
+            ++float_register;
           } else {
-            args[slot] = {0, slot, slot};
+            if (slot < kIntegerSlots) {
+              place.gpr = static_cast<i32>(slot);
+            }
+            place.stack = slot >= kIntegerSlots;
           }
-          slot++;
+          ++slot;
+          places[index++] = place;
         }.template operator()<Args>(),
         ...);
   }
-  return args;
+  return places;
 }
 
 /**
@@ -409,8 +661,17 @@ constexpr std::array<Argument, sizeof...(Args)> GatherFunctionArgumentsFromTypes
  * @return The places of each argument.
  */
 template <typename R, typename... Args>
-constexpr auto GatherFromSignature(R (*)(Args...)) {
-  return GatherFunctionArgumentsFromTypes<Args...>();
+constexpr auto PlaceSignatureArgs(R (*)(Args...)) {
+  if constexpr (HiddenReturnType<R>) {
+    const auto all = PlaceArgs<u32, Args...>();
+    std::array<ArgPlace, sizeof...(Args)> places{};
+    for (size_t i = 0; i < sizeof...(Args); ++i) {
+      places[i] = all[i + 1];
+    }
+    return places;
+  } else {
+    return PlaceArgs<Args...>();
+  }
 }
 
 /**
@@ -420,8 +681,8 @@ constexpr auto GatherFromSignature(R (*)(Args...)) {
  * @return The places of each argument.
  */
 template <auto Func>
-constexpr auto GatherFunctionArguments() {
-  return GatherFromSignature(Func);
+constexpr auto PlaceFunctionArgs() {
+  return PlaceSignatureArgs(Func);
 }
 
 /**
@@ -431,9 +692,9 @@ constexpr auto GatherFunctionArguments() {
  * @tparam I The argument index.
  */
 template <auto Func, size_t I>
-struct ArgOrdinalT {
+struct ArgPlaceT {
   /** Places of argument I. */
-  static constexpr Argument value = GatherFunctionArguments<Func>()[I];
+  static constexpr ArgPlace value = PlaceFunctionArgs<Func>()[I];
 };
 
 /**
@@ -465,7 +726,7 @@ template <auto Func, int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
 void TranslateArgsToHost(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
   using T = std::tuple_element_t<I, std::remove_reference_t<decltype(tpl)>>;
-  std::get<I>(tpl) = ArgTranslator::GetValue<T>(ctx, base, ArgOrdinalT<Func, I>::value);
+  std::get<I>(tpl) = ArgTranslator::GetValue<T>(ctx, base, ArgPlaceT<Func, I>::value);
   TranslateArgsToHost<Func, I + 1>(ctx, base, tpl);
 }
 
@@ -496,9 +757,89 @@ template <int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
 void TranslateArgsToGuest(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
   using T = std::tuple_element_t<I, std::remove_reference_t<decltype(tpl)>>;
-  ArgTranslator::SetValue<T>(ctx, base, GatherFunctionArgumentsFromTypes<TArgs...>()[I],
-                             std::get<I>(tpl));
+  ArgTranslator::SetValue<T>(ctx, base, PlaceArgs<TArgs...>()[I], std::get<I>(tpl));
   TranslateArgsToGuest<I + 1>(ctx, base, tpl);
+}
+
+/**
+ * Writes a structure to guest memory in guest layout, a vector byte reversed.
+ *
+ * @tparam T The ByValue type.
+ * @param base The guest memory base.
+ * @param address The guest address.
+ * @param value The structure.
+ */
+template <ByValueType T>
+void StoreByValue(u8* base, u32 address, const T& value) {
+  u8* destination = rex::runtime::GuestPtr<u8*>(base, address);
+  if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value.value)>, PPCVRegister>) {
+    for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
+      destination[sizeof(PPCVRegister) - 1 - i] = value.value.u8[i];
+    }
+  } else {
+    std::memcpy(destination, &value.value, sizeof(value.value));
+  }
+}
+
+/**
+ * Packs a structure of at most 8 bytes into the register image a function returns in r3.
+ *
+ * @tparam T The ByValue type.
+ * @param value The structure.
+ * @return The register value, a power of 2 size under 8 right justified and any other size left
+ *         justified.
+ */
+template <ByValueType T>
+u64 ByValueToWord(const T& value) {
+  constexpr size_t kSize = kByValueSize<T>;
+  u8 image[sizeof(u64)]{};
+  std::memcpy(image + (IsRightJustified(kSize) ? sizeof(u64) - kSize : 0), &value.value, kSize);
+  u64 word = 0;
+  for (const u8 byte : image) {
+    word = (word << 8) | byte;
+  }
+  return word;
+}
+
+/**
+ * Unpacks a structure of at most 8 bytes from the register image a function returns in r3.
+ *
+ * @tparam T The ByValue type.
+ * @param word The register value.
+ * @return The structure.
+ */
+template <ByValueType T>
+T ByValueFromWord(u64 word) {
+  constexpr size_t kSize = kByValueSize<T>;
+  u8 image[sizeof(u64)]{};
+  for (size_t b = 0; b < sizeof(u64); ++b) {
+    image[b] = static_cast<u8>(word >> (56 - 8 * b));
+  }
+  T result{};
+  std::memcpy(&result.value, image + (IsRightJustified(kSize) ? sizeof(u64) - kSize : 0), kSize);
+  return result;
+}
+
+/**
+ * Reads a structure from guest memory in guest layout, a vector byte reversed.
+ *
+ * @tparam T The ByValue type.
+ * @param base The guest memory base.
+ * @param address The guest address.
+ * @return The structure.
+ */
+template <ByValueType T>
+T LoadByValue(u8* base, u32 address) {
+  const u8* source = rex::runtime::GuestPtr<const u8*>(base, address);
+  T result{};
+  if constexpr (std::is_same_v<std::remove_cvref_t<decltype(result.value)>, PPCVRegister>) {
+    for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
+      result.value.u8[i] = source[sizeof(PPCVRegister) - 1 - i];
+    }
+  } else {
+    std::memcpy(&result.value, source, sizeof(result.value));
+  }
+  return result;
 }
 
 /**
@@ -520,6 +861,7 @@ __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, u8* base) {
 #if !REX_PLATFORM_WIN32
   const rex::platform::HostCallDepth host_call_depth;
 #endif
+  const u32 hidden_pointer = ctx.r3.u32;
   auto args = FunctionArgs(Func);
   TranslateArgsToHost<Func>(ctx, base, args);
 
@@ -538,6 +880,13 @@ __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, u8* base) {
       }
     } else if constexpr (is_precise_v<RetT>) {
       ctx.f1.f64 = v;
+    } else if constexpr (VectorType<RetT>) {
+      ctx.v1 = v;
+    } else if constexpr (HiddenReturnType<RetT>) {
+      StoreByValue(base, hidden_pointer, v);
+      ctx.r3.u64 = hidden_pointer;
+    } else if constexpr (ByValueType<RetT>) {
+      ctx.r3.u64 = ByValueToWord(v);
     } else {
       ctx.r3.u64 = static_cast<u64>(v);
     }
@@ -634,8 +983,26 @@ inline u32 OpenCallFrame(PPCContext& ctx, u8* base, u32 stack_bytes) {
  */
 template <typename... Args>
 constexpr u32 GetStackArgumentBytes() {
-  constexpr u32 kSlots = sizeof...(Args);
-  return kSlots > 8 ? (kSlots - 8) * 8 : 0;
+  u32 end = 0;
+  for (const ArgPlace& place : PlaceArgs<Args...>()) {
+    end = std::max(end, place.slot + place.slots);
+  }
+  return end > 8 ? (end - 8) * 8 : 0;
+}
+
+/**
+ * Returns the call frame bytes the result of a hidden return call needs.
+ *
+ * @tparam R The return type.
+ * @return The structure size rounded up to 16 bytes, 0 when R is not returned through a pointer.
+ */
+template <typename R>
+constexpr u32 HiddenReturnBytes() {
+  if constexpr (HiddenReturnType<R>) {
+    return (static_cast<u32>(kByValueSize<R>) + 15) & ~15u;
+  } else {
+    return 0;
+  }
 }
 
 /**
@@ -652,12 +1019,29 @@ constexpr u32 GetStackArgumentBytes() {
 template <typename R, typename... Args>
 R Call(PPCContext& ctx, u8* base, PPCFunc& fn, Args... args) {
   const PPCContext saved = ctx;
-  OpenCallFrame(ctx, base, GetStackArgumentBytes<Args...>());
-  auto tpl = std::make_tuple(args...);
+  constexpr bool kHidden = HiddenReturnType<R>;
+  u32 result_storage = 0;
+  auto tpl = [&] {
+    if constexpr (kHidden) {
+      return std::make_tuple(u32{0}, args...);
+    } else {
+      return std::make_tuple(args...);
+    }
+  }();
+  constexpr u32 kStackBytes =
+      ((kHidden ? GetStackArgumentBytes<u32, Args...>() : GetStackArgumentBytes<Args...>()) + 15) &
+      ~15u;
+  constexpr u32 kStorageBytes = HiddenReturnBytes<R>();
+  OpenCallFrame(ctx, base, kStackBytes + kStorageBytes);
+  if constexpr (kHidden) {
+    result_storage = ctx.r1.u32 + kLinkageSize + kStackBytes;
+    std::get<0>(tpl) = result_storage;
+  }
   TranslateArgsToGuest(ctx, base, tpl);
   fn(ctx, base);
   const PPCRegister r3 = ctx.r3;
   const PPCRegister f1 = ctx.f1;
+  const PPCVRegister v1 = ctx.v1;
   const PPCFPSCRRegister fpscr = ctx.fpscr;
   ctx = saved;
   ctx.fpscr = fpscr;
@@ -667,6 +1051,12 @@ R Call(PPCContext& ctx, u8* base, PPCFunc& fn, Args... args) {
     return r3.u32 ? rex::runtime::GuestPtr<R>(base, r3.u32) : nullptr;
   } else if constexpr (is_precise_v<R>) {
     return static_cast<R>(f1.f64);
+  } else if constexpr (VectorType<R>) {
+    return v1;
+  } else if constexpr (HiddenReturnType<R>) {
+    return LoadByValue<R>(base, result_storage);
+  } else if constexpr (ByValueType<R>) {
+    return ByValueFromWord<R>(r3.u64);
   } else {
     return static_cast<R>(r3.u64);
   }

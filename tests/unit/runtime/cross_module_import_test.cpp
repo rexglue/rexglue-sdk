@@ -371,3 +371,17 @@ REX_TEST_CASE(
     UnloadBoth(runtime, *importer);
   });
 }
+
+REX_TEST_CASE("imports: a kernel import record patches the thunk address into its slot",
+              "[runtime][module][import]") {
+  KernelFixture fixture(PopulateAll);
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& runtime = c.GetRuntime();
+    RegisterImages(runtime);
+    auto importer = runtime.GetModuleRegistry().LoadUserModule(kImporterPath);
+    REQUIRE(importer);
+    CHECK(c.Load32(kKernelSlot) == kKernelThunk);
+    CHECK(c.Load32(kKernelThunk) == ((1u << 24) | kKernelOrdinal));
+    UnloadBoth(runtime, *importer);
+  });
+}

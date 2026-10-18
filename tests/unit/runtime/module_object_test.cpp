@@ -196,6 +196,31 @@ REX_TEST_CASE("A user module hands the same thunk to a caller that asks for an o
   rex::runtime::CloseOwned(runtime.GetObjectTable(), handle);
 }
 
+REX_TEST_CASE("The exception directory is read from the cached PE info when the header is zeroed",
+              "[runtime][module]") {
+  constexpr u32 kDirectoryRva = 0x1800;
+  constexpr u32 kDirectorySize = 0x20;
+  rex::testing::KernelFixture fixture;
+  rex::Runtime& runtime = fixture.GetRuntime();
+  rex::test::XEXSpec spec;
+  spec.load_address = kExportImageBase;
+  spec.image = BuildExportImage();
+  auto* nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(spec.image.data() + 0x80);
+  nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION].VirtualAddress = kDirectoryRva;
+  nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION].Size = kDirectorySize;
+  const auto file = rex::test::BuildXEX(spec);
+  rex::runtime::XEXModule xex(runtime.GetFunctionDispatcher(), runtime);
+  REQUIRE(xex.Load("exporter", "game:\\exporter.xex", file.data(), file.size()));
+  REQUIRE(xex.LoadContinue());
+
+  std::memset(runtime.GetMemory()->TranslateVirtual(kExportImageBase), 0, 0x1000);
+
+  const rex::runtime::Module& module = xex;
+  CHECK(module.GetExceptionDirectoryRva() == kDirectoryRva);
+  CHECK(module.GetExceptionDirectorySize() == kDirectorySize);
+  CHECK(module.GetExceptionDirectoryAddress() == kExportImageBase + kDirectoryRva);
+}
+
 REX_TEST_CASE("The loaded command line quotes the image name and appends the arguments",
               "[runtime][module]") {
   using rex::runtime::LoadedCommandLine;

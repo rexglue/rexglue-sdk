@@ -26,14 +26,26 @@ static rex::runtime::Memory& get_memory() {
                 rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
                 rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite);
         }
+        if (!memory.InitializeFunctionTable(REX_CODE_BASE, REX_CODE_SIZE, REX_IMAGE_BASE, REX_IMAGE_SIZE)) {
+            throw std::runtime_error("Failed to initialize function table");
+        }
         initialized = true;
     }
     return memory;
 }
 
+## for entry in stems
+[[maybe_unused]] static void register_functions_{{ entry.stem }}(rex::runtime::Memory& memory) {
+## for func in entry.functions
+    memory.SetFunction(0x{{ func.address }}, {{ func.name }});
+## endfor
+}
+
+## endfor
 ## for test in tests
 TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
     auto& mem = get_memory();
+    register_functions_{{ test.stem }}(mem);
     u8* memory = mem.GetVirtualMembase();
     PPCContext ctx{};
     ctx.fpscr.LoadFromHost();

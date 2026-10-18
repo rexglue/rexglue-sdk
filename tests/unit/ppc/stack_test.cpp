@@ -29,7 +29,7 @@ REX_TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "
 
   u32 addr = rex::ppc::stack_push(ctx, g_mem, u32{0x12345678});
 
-  CHECK(ctx.r1.u32 == 0x8000 - 8);
+  CHECK(ctx.r1.u32 == 0x8000 - 16);
   CHECK(addr == ctx.r1.u32);
   u32 raw;
   std::memcpy(&raw, g_mem + addr, 4);
@@ -43,7 +43,7 @@ REX_TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
   f32 val = 3.14f;
   u32 addr = rex::ppc::stack_push(ctx, g_mem, val);
 
-  CHECK(ctx.r1.u32 == 0x8000 - 8);
+  CHECK(ctx.r1.u32 == 0x8000 - 16);
   u32 raw;
   std::memcpy(&raw, g_mem + addr, 4);
   u32 val_bits;
@@ -58,18 +58,32 @@ REX_TEST_CASE("stack_push_string writes NUL-terminated string", "[ppc][stack]") 
 
   u32 addr = rex::ppc::stack_push_string(ctx, g_mem, "hello");
 
-  CHECK(ctx.r1.u32 == 0x8000 - 8);
+  CHECK(ctx.r1.u32 == 0x8000 - 16);
   CHECK(addr == ctx.r1.u32);
   CHECK(std::strcmp(reinterpret_cast<char*>(g_mem + addr), "hello") == 0);
 }
 
-REX_TEST_CASE("stack_push_string aligns to 8 bytes", "[ppc][stack]") {
+REX_TEST_CASE("stack_push_string aligns to 16 bytes", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
-  u32 addr = rex::ppc::stack_push_string(ctx, g_mem, "longstring1");
-  CHECK(ctx.r1.u32 == 0x8000 - 16);
+  u32 addr = rex::ppc::stack_push_string(ctx, g_mem, "longstring12345678");
+  CHECK(ctx.r1.u32 == 0x8000 - 32);
   CHECK(addr == ctx.r1.u32);
+}
+
+REX_TEST_CASE("stack_push keeps r1 16 byte aligned", "[ppc][stack]") {
+  PPCContext ctx{};
+  ctx.r1.u32 = 0x8000;
+
+  rex::ppc::stack_push(ctx, g_mem, u8{1});
+  CHECK(ctx.r1.u32 % 16 == 0);
+  rex::ppc::stack_push(ctx, g_mem, u16{2});
+  CHECK(ctx.r1.u32 % 16 == 0);
+  rex::ppc::stack_push(ctx, g_mem, f64{3.0});
+  CHECK(ctx.r1.u32 % 16 == 0);
+  rex::ppc::stack_push_string(ctx, g_mem, "five!");
+  CHECK(ctx.r1.u32 % 16 == 0);
 }
 
 REX_TEST_CASE("stack_push raw bytes", "[ppc][stack]") {
@@ -79,7 +93,7 @@ REX_TEST_CASE("stack_push raw bytes", "[ppc][stack]") {
   u8 data[] = {0xAA, 0xBB, 0xCC};
   u32 addr = rex::ppc::stack_push(ctx, g_mem, data, 3);
 
-  CHECK(ctx.r1.u32 == 0x8000 - 8);
+  CHECK(ctx.r1.u32 == 0x8000 - 16);
   CHECK(g_mem[addr] == 0xAA);
   CHECK(g_mem[addr + 1] == 0xBB);
   CHECK(g_mem[addr + 2] == 0xCC);
@@ -90,7 +104,7 @@ REX_TEST_CASE("stack_pop restores r1", "[ppc][stack]") {
   ctx.r1.u32 = 0x8000;
 
   rex::ppc::stack_push(ctx, g_mem, u32{42});
-  CHECK(ctx.r1.u32 == 0x8000 - 8);
+  CHECK(ctx.r1.u32 == 0x8000 - 16);
 
   rex::ppc::stack_pop(ctx, 8);
   CHECK(ctx.r1.u32 == 0x8000);
@@ -130,7 +144,7 @@ REX_TEST_CASE("stack_guard restores after multiple pushes", "[ppc][stack]") {
     rex::ppc::stack_push(ctx, g_mem, u32{1});
     rex::ppc::stack_push(ctx, g_mem, u32{2});
     rex::ppc::stack_push_string(ctx, g_mem, "three");
-    CHECK(ctx.r1.u32 == 0x8000 - 8 - 8 - 8);
+    CHECK(ctx.r1.u32 == 0x8000 - 16 - 16 - 16);
   }
 
   CHECK(ctx.r1.u32 == 0x8000);
@@ -148,7 +162,7 @@ REX_TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
       rex::ppc::StackGuard inner(ctx);
       rex::ppc::stack_push_string(ctx, g_mem, "inner");
     }
-    CHECK(ctx.r1.u32 == 0x8000 - 8);
+    CHECK(ctx.r1.u32 == 0x8000 - 16);
   }
   CHECK(ctx.r1.u32 == 0x8000);
 }

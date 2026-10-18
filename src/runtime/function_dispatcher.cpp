@@ -135,8 +135,8 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, u32 address, std::span<c
     if (index < 8) {
       registers[index]->u64 = value;
     } else {
-      *memory_->TranslateVirtual<be_u32*>(ctx->r1.u32 + 0x54 + static_cast<u32>(index - 8) * 8) =
-          static_cast<u32>(value);
+      *memory_->TranslateVirtual<be_u64*>(ctx->r1.u32 + 0x50 + static_cast<u32>(index - 8) * 8) =
+          value;
     }
   }
 

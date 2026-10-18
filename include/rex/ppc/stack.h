@@ -26,15 +26,13 @@
 namespace rex::ppc {
 
 /**
- * Rounds a size up to 8 bytes. The PPC64 ABI requires 16 byte frame alignment, but r1 is
- * already frame aligned on entry, so individual pushes round to 8 bytes to keep doubleword
- * alignment.
+ * Rounds a size up to 16 bytes, which keeps r1 16 byte aligned across a push.
  *
  * @param size The size in bytes.
- * @return The size rounded up to a multiple of 8.
+ * @return The size rounded up to a multiple of 16.
  */
 constexpr u32 stack_align(u32 size) {
-  return (size + 7u) & ~7u;
+  return (size + 15u) & ~15u;
 }
 
 /**

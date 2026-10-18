@@ -27,6 +27,7 @@
 #include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
+#include <rex/ppc/function.h>
 #include <rex/ppc/recompiled_code.h>
 #include <rex/platform/exceptions.h>
 #include <rex/runtime.h>
@@ -377,6 +378,10 @@ X_STATUS KernelThread::Create() {
     }
   }
 
+  const u32 root_frame = stack_base_ - rex::ppc::kLinkageSize;
+  GetMemory()->Fill(root_frame, rex::ppc::kLinkageSize, 0);
+  thread_state_->GetContext()->r1.u64 = root_frame;
+
   REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
              stack_limit_, stack_base_);
 
@@ -624,7 +629,9 @@ int KernelThread::Execute() {
   main_fiber_ = rex::platform::Fiber::ConvertCurrentThread();
 
   REXLOG_DEV(system, "KernelThread::Execute - Calling function at {:08X}", address);
+  const u32 root_r1 = rex::ppc::OpenCallFrame(*ctx, base, 0);
   func(*ctx, base);
+  ctx->r1.u64 = root_r1;
 
   exit_code = static_cast<int>(ctx->r3.u32);
 
