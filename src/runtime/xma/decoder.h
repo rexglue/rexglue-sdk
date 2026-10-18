@@ -57,8 +57,31 @@ class REX_RUNTIME_API XMADecoder {
   u32 GetContextArrayPtr() const { return register_file_[XMARegister::kContextArrayAddress]; }
 
   u32 AllocateContext();
+
+  /**
+   * Releases an allocated context. Does nothing for a pointer that is not an allocated context.
+   *
+   * @param context_ptr The context address.
+   */
   void ReleaseContext(u32 context_ptr);
+
+  /**
+   * Waits for a context to finish its current packet.
+   *
+   * @param context_ptr The context address.
+   * @param poll True to check without waiting.
+   * @return True when the context is idle, also for a pointer that is not a context.
+   */
   bool BlockOnContext(u32 context_ptr, bool poll);
+
+  /**
+   * Sets the bit of a context in an indexed register such as the enable or disable kick.
+   *
+   * @param base_register The first register of the indexed range.
+   * @param context_physical_address The physical address of the context.
+   * @return False and no register written when the address is not inside the context array.
+   */
+  bool SignalContext(u32 base_register, u32 context_physical_address);
 
   /**
    * Reads an APU register.

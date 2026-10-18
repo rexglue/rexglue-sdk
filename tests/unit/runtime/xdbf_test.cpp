@@ -171,3 +171,55 @@ REX_TEST_CASE("An XDBF language block smaller than its record keeps the default 
   REQUIRE(db.IsValid());
   CHECK(db.GetDefaultLanguage() == XLanguage::kEnglish);
 }
+
+REX_TEST_CASE("An XDBF string table with another magic or version reads no string",
+              "[runtime][xdbf]") {
+  const std::vector<u8> good = TitleStrings(1, "Name");
+  const Entry entry{XDBFSection::kStringTable, static_cast<u64>(XLanguage::kEnglish), 0,
+                    static_cast<u32>(good.size())};
+  {
+    const std::vector<u8> data = Database(entry, good);
+    const XDBFGameData db(data.data(), data.size());
+    REQUIRE(db.IsValid());
+    CHECK(db.GetTitle(XLanguage::kEnglish) == "Name");
+  }
+  auto bad_magic = good;
+  bad_magic[3] = 'X';
+  auto bad_version = good;
+  bad_version[7] = 2;
+  for (const auto& content : {bad_magic, bad_version}) {
+    const std::vector<u8> data = Database(entry, content);
+    const XDBFGameData db(data.data(), data.size());
+    REQUIRE(db.IsValid());
+    CHECK(db.GetTitle(XLanguage::kEnglish).empty());
+  }
+}
+
+REX_TEST_CASE("An XDBF achievement table with another magic or version lists nothing",
+              "[runtime][xdbf]") {
+  const Entry entry{XDBFSection::kMetadata, kXachId, 0,
+                    static_cast<u32>(kSectionHeaderSize + kAchievementSize)};
+  for (const auto& [magic, version] :
+       {std::pair<std::string_view, u32>{"XACH", 1}, std::pair<std::string_view, u32>{"XACX", 1},
+        std::pair<std::string_view, u32>{"XACH", 2}}) {
+    Bytes content;
+    content.Text(magic).Put(version, 4).Put(0, 4).Put(1, 2).Zeros(kAchievementSize);
+    const std::vector<u8> data = Database(entry, content.data);
+    const XDBFReader reader(data.data(), data.size());
+    REQUIRE(reader.IsValid());
+    CHECK(reader.GetAchievements().size() == (magic == "XACH" && version == 1 ? 1 : 0));
+  }
+}
+
+REX_TEST_CASE("An XDBF language block with another magic keeps the default language",
+              "[runtime][xdbf]") {
+  for (const std::string_view magic : {"XSTC", "XSTX"}) {
+    Bytes content;
+    content.Text(magic).Put(1, 4).Put(4, 4).Put(static_cast<u32>(XLanguage::kJapanese), 4);
+    const std::vector<u8> data = Database({XDBFSection::kMetadata, kXstcId, 0, 16}, content.data);
+    const XDBFGameData db(data.data(), data.size());
+    REQUIRE(db.IsValid());
+    CHECK(db.GetDefaultLanguage() ==
+          (magic == "XSTC" ? XLanguage::kJapanese : XLanguage::kEnglish));
+  }
+}

@@ -331,7 +331,11 @@ void ModuleRegistry::ReleaseDependencies(ModuleObject& module, bool call_entry) 
 
 X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view path,
                                         bool call_entry) {
-  for (const XEXModule::ImportLibrary& library : module.GetXEX()->GetImportLibraries()) {
+  const XEXModule* xex = module.GetXEX();
+  if (!xex) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  for (const XEXModule::ImportLibrary& library : xex->GetImportLibraries()) {
     if (rex::runtime::ModuleFromName(library.name) || IsKernel(library.name)) {
       continue;
     }
@@ -345,7 +349,8 @@ X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view p
       return X_STATUS_DLL_NOT_FOUND;
     }
     for (const XEXModule::ImportLibraryFn& import : library.imports) {
-      const u32 address = dependency->GetXEX()->GetProcAddress(static_cast<u16>(import.ordinal));
+      const XEXModule* exporter = dependency->GetXEX();
+      const u32 address = exporter ? exporter->GetProcAddress(static_cast<u16>(import.ordinal)) : 0;
       if (!address) {
         REXLOG_ERROR(system, "Import of ordinal {} from '{}' by '{}' is not exported",
                      import.ordinal, library.file_name, module.name);
@@ -364,7 +369,8 @@ PPCFunc* ModuleRegistry::ResolveExport(std::string_view library, u16 ordinal) {
     auto module = table_.Get<ModuleObject>(handle);
     if (module &&
         rex::utf8_equal_case(rex::utf8_find_base_name_from_guest_path(module->path), library)) {
-      const u32 address = module->GetXEX()->GetProcAddress(ordinal);
+      const XEXModule* xex = module->GetXEX();
+      const u32 address = xex ? xex->GetProcAddress(ordinal) : 0;
       return address ? runtime_.GetFunctionDispatcher()->GetFunction(address) : nullptr;
     }
   }
@@ -457,7 +463,9 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       } else {
         auto* xex = module->GetXEX();
         const auto* image_info = get_image_info();
-        if (!image_info) {
+        if (!xex) {
+          REXLOG_ERROR(system, "Recompiled module '{}' is not an XEX", recomp->pe_name);
+        } else if (!image_info) {
           REXLOG_ERROR(system, "ReXModule_GetImageInfo returned null for '{}'",
                        recomp->shared_lib_name);
         } else if (image_info->image_base != xex->GetBaseAddress() ||

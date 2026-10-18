@@ -70,16 +70,10 @@ u32 XMAReleaseContext_entry(MappedVoid context_ptr) {
 
 void StoreXMAContextIndexedRegister(Runtime& runtime, u32 base_reg, u32 context_ptr) {
   u32 context_physical_address = runtime.GetMemory()->GetPhysicalAddress(context_ptr);
-  REX_ASSERT(context_physical_address != UINT32_MAX);
   auto* xma_decoder = Decoder(runtime);
-  if (!xma_decoder) {
-    return;
+  if (xma_decoder) {
+    xma_decoder->SignalContext(base_reg, context_physical_address);
   }
-  u32 hw_index =
-      (context_physical_address - xma_decoder->GetContextArrayPtr()) / sizeof(XMA_CONTEXT_DATA);
-  u32 reg_num = base_reg + (hw_index >> 5) * 4;
-  u32 reg_value = 1 << (hw_index & 0x1F);
-  xma_decoder->WriteRegister(reg_num, std::byteswap(reg_value));
 }
 
 struct XMA_LOOP_DATA {

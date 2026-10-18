@@ -66,7 +66,8 @@ u32 KernelProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordin
 
 u32 UserProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordinal,
                              u32 caller_address) {
-  const u32 guest_addr = module.GetXEX()->GetProcAddress(ordinal);
+  const auto* xex = module.GetXEX();
+  const u32 guest_addr = xex ? xex->GetProcAddress(ordinal) : 0;
   if (!guest_addr || !caller_address) {
     return guest_addr;
   }
@@ -127,8 +128,13 @@ X_STATUS ModuleObject::GetSection(std::string_view section_name, u32* out_sectio
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  const auto* resource_header = GetXEX()->GetImage().OptHeader<filesystem::XEXOptResourceInfo>(
-      filesystem::kXEXHeaderResourceInfo);
+  const auto* xex = GetXEX();
+  if (!xex) {
+    return X_STATUS_NOT_FOUND;
+  }
+
+  const auto* resource_header =
+      xex->GetImage().OptHeader<filesystem::XEXOptResourceInfo>(filesystem::kXEXHeaderResourceInfo);
   if (!resource_header) {
     return X_STATUS_NOT_FOUND;
   }
@@ -170,7 +176,8 @@ u32 ModuleObject::GetProcAddress(std::string_view export_name) const {
   if (type == ModuleType::kKernel) {
     REX_FAIL(system, 0, "GetProcAddress by name is not implemented for kernel modules");
   }
-  return GetXEX()->GetProcAddress(export_name);
+  const auto* xex = GetXEX();
+  return xex ? xex->GetProcAddress(export_name) : 0;
 }
 
 }  // namespace rex::runtime

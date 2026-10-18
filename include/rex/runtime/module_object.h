@@ -204,14 +204,14 @@ struct ModuleObject : public rex::NonCopyable {
   /**
    * Returns the XEX image of a user module.
    *
-   * @return The XEX module.
+   * @return The XEX module, null when the module is not an XEX.
    */
   REX_RUNTIME_API rex::runtime::XEXModule* GetXEX();
 
   /**
    * Returns the XEX image of a user module for reading.
    *
-   * @return The XEX module.
+   * @return The XEX module, null when the module is not an XEX.
    */
   REX_RUNTIME_API const rex::runtime::XEXModule* GetXEX() const;
 

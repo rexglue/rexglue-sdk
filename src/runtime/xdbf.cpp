@@ -82,11 +82,9 @@ XDBFBlock XDBFReader::GetEntry(XDBFSection section, u64 id) const {
 std::string XDBFReader::GetStringTableEntry(XLanguage language, u16 string_id) const {
   auto language_block = GetEntry(XDBFSection::kStringTable, static_cast<u64>(language));
   const auto* xstr_head = RecordAt<XDBFSectionHeader>(language_block, 0);
-  if (!xstr_head) {
+  if (!xstr_head || xstr_head->magic != kXDBFSignatureXstr || xstr_head->version != 1) {
     return "";
   }
-  REX_ASSERT(xstr_head->magic == kXDBFSignatureXstr);
-  REX_ASSERT(xstr_head->version == 1);
 
   size_t offset = sizeof(XDBFSectionHeader);
   for (u16 i = 0; i < xstr_head->count; ++i) {
@@ -112,11 +110,9 @@ std::vector<XDBFAchievementTableEntry> XDBFReader::GetAchievements() const {
 
   auto achievement_table = GetEntry(XDBFSection::kMetadata, kXDBFIdXach);
   const auto* xach_head = RecordAt<XDBFSectionHeader>(achievement_table, 0);
-  if (!xach_head) {
+  if (!xach_head || xach_head->magic != kXDBFSignatureXach || xach_head->version != 1) {
     return achievements;
   }
-  REX_ASSERT(xach_head->magic == kXDBFSignatureXach);
-  REX_ASSERT(xach_head->version == 1);
 
   size_t offset = sizeof(XDBFSectionHeader);
   for (u16 i = 0; i < xach_head->count; ++i) {
@@ -140,10 +136,9 @@ XDBFBlock XDBFGameData::GetIcon() const {
 
 XLanguage XDBFGameData::GetDefaultLanguage() const {
   const auto* xstc = RecordAt<XDBFXstc>(GetEntry(XDBFSection::kMetadata, kXDBFIdXstc), 0);
-  if (!xstc) {
+  if (!xstc || xstc->magic != kXDBFSignatureXstc) {
     return XLanguage::kEnglish;
   }
-  REX_ASSERT(xstc->magic == kXDBFSignatureXstc);
   return ToXLanguage(xstc->default_language);
 }
 

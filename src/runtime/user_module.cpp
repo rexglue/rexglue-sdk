@@ -73,12 +73,16 @@ X_HANDLE ModuleObject::CreateUserModule(Runtime& runtime) {
 }
 
 rex::runtime::XEXModule* ModuleObject::GetXEX() {
-  REX_ASSERT(user.module_format == ModuleFormat::kXEX);
+  if (user.module_format != ModuleFormat::kXEX) {
+    return nullptr;
+  }
   return static_cast<rex::runtime::XEXModule*>(processor_module.get());
 }
 
 const rex::runtime::XEXModule* ModuleObject::GetXEX() const {
-  REX_ASSERT(user.module_format == ModuleFormat::kXEX);
+  if (user.module_format != ModuleFormat::kXEX) {
+    return nullptr;
+  }
   return static_cast<const rex::runtime::XEXModule*>(processor_module.get());
 }
 
@@ -132,7 +136,8 @@ X_STATUS ModuleObject::LoadFromFile(Runtime& owning_runtime, std::string_view gu
     ModuleObject patch_module(&owning_runtime, ModuleType::kUser);
     result = patch_module.LoadFromFile(owning_runtime, patch_path);
     if (!result) {
-      result = patch_module.GetXEX()->ApplyPatch(GetXEX());
+      result = patch_module.GetXEX() && GetXEX() ? patch_module.GetXEX()->ApplyPatch(GetXEX())
+                                                 : X_STATUS_UNSUCCESSFUL;
       if (result) {
         REXLOG_ERROR(system, "Failed to apply XEX patch, code: {}", result);
       }
@@ -205,7 +210,7 @@ X_STATUS ModuleObject::Unload() {
 X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, void** out_ptr) {
   REX_ASSERT(out_ptr != nullptr);
 
-  if (user.module_format == ModuleFormat::kELF) {
+  if (!GetXEX()) {
     return X_STATUS_UNSUCCESSFUL;
   }
 

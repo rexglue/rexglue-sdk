@@ -13,10 +13,12 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/elf_module.h>
 #include <rex/runtime/module.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/object_table.h>
@@ -207,4 +209,99 @@ REX_TEST_CASE("The loaded command line fits the capacity for the longest image n
   const std::string longest(kExLoadedImageNameSize - 1, 'a');
   CHECK(rex::runtime::LoadedCommandLine(longest, "-x").size() <
         rex::runtime::LoadedCommandLineCapacity("-x"));
+}
+
+namespace {
+
+constexpr size_t kElfHeaderSize = 52;
+constexpr size_t kElfProgramHeaderSize = 32;
+
+void PutBE16(std::vector<u8>& bytes, size_t offset, u16 value) {
+  bytes[offset] = static_cast<u8>(value >> 8);
+  bytes[offset + 1] = static_cast<u8>(value);
+}
+
+void PutBE32(std::vector<u8>& bytes, size_t offset, u32 value) {
+  PutBE16(bytes, offset, static_cast<u16>(value >> 16));
+  PutBE16(bytes, offset + 2, static_cast<u16>(value));
+}
+
+std::vector<u8> MakeElf(u32 segment_type, u32 offset, u32 file_size, u32 align) {
+  std::vector<u8> bytes(kElfHeaderSize + kElfProgramHeaderSize + 16);
+  const u8 ident[] = {0x7F, 'E', 'L', 'F', 1, 2, 1};
+  std::memcpy(bytes.data(), ident, sizeof(ident));
+  PutBE16(bytes, 16, 2);
+  PutBE16(bytes, 18, 20);
+  PutBE32(bytes, 24, 0x82000000);
+  PutBE32(bytes, 28, kElfHeaderSize);
+  PutBE16(bytes, 40, kElfHeaderSize);
+  PutBE16(bytes, 42, kElfProgramHeaderSize);
+  PutBE16(bytes, 44, 1);
+  PutBE32(bytes, kElfHeaderSize, segment_type);
+  PutBE32(bytes, kElfHeaderSize + 4, offset);
+  PutBE32(bytes, kElfHeaderSize + 8, 0x9F000000);
+  PutBE32(bytes, kElfHeaderSize + 16, file_size);
+  PutBE32(bytes, kElfHeaderSize + 20, file_size);
+  PutBE32(bytes, kElfHeaderSize + 28, align);
+  return bytes;
+}
+
+bool LoadElf(rex::testing::KernelFixture& fixture, const std::vector<u8>& bytes) {
+  rex::runtime::ELFModule module(fixture.GetRuntime().GetFunctionDispatcher());
+  return module.Load("test.elf", "game:\test.elf", bytes.data(), bytes.size());
+}
+
+}  // namespace
+
+REX_TEST_CASE("An ELF with an unsupported header is refused instead of read out of bounds",
+              "[runtime][module][elf]") {
+  rex::testing::KernelFixture fixture;
+  CHECK(LoadElf(fixture, MakeElf(4, 0, 0, 0)));
+
+  auto elf64 = MakeElf(4, 0, 0, 0);
+  elf64[4] = 2;
+  CHECK_FALSE(LoadElf(fixture, elf64));
+
+  auto wide_entries = MakeElf(4, 0, 0, 0);
+  PutBE16(wide_entries, 42, kElfProgramHeaderSize + 8);
+  CHECK_FALSE(LoadElf(fixture, wide_entries));
+
+  auto outside = MakeElf(4, 0, 0, 0);
+  PutBE32(outside, 28, 0x1000);
+  CHECK_FALSE(LoadElf(fixture, outside));
+
+  auto many = MakeElf(4, 0, 0, 0);
+  PutBE16(many, 44, 0xFFFF);
+  CHECK_FALSE(LoadElf(fixture, many));
+
+  auto truncated = MakeElf(4, 0, 0, 0);
+  truncated.resize(kElfHeaderSize - 1);
+  CHECK_FALSE(LoadElf(fixture, truncated));
+}
+
+REX_TEST_CASE("An ELF segment outside the file is refused", "[runtime][module][elf]") {
+  rex::testing::KernelFixture fixture;
+  CHECK_FALSE(LoadElf(fixture, MakeElf(1, 0x10000, 0x100, 0x1000)));
+  CHECK_FALSE(LoadElf(fixture, MakeElf(1, kElfHeaderSize, 0xFFFFFFF0, 0x1000)));
+  CHECK_FALSE(LoadElf(fixture, MakeElf(1, 0, 0x10, 3)));
+}
+
+REX_TEST_CASE("A module that is not an XEX answers its XEX only calls with a failure",
+              "[runtime][module]") {
+  rex::testing::KernelFixture fixture;
+  ModuleObject module(&fixture.GetRuntime(), ModuleType::kUser);
+  module.user.module_format = ModuleFormat::kELF;
+  CHECK(module.GetXEX() == nullptr);
+  CHECK(module.GetProcAddress("Export") == 0);
+  CHECK(module.GetProcAddress(fixture.GetRuntime(), 1, 0) == 0);
+  u32 section_data = 0;
+  u32 section_size = 0;
+  CHECK(module.GetSection("section", &section_data, &section_size) == rex::X_STATUS_NOT_FOUND);
+  void* header = nullptr;
+  CHECK(module.OptHeader(rex::filesystem::kXEXHeaderExecutionInfo, &header) ==
+        rex::X_STATUS_UNSUCCESSFUL);
+
+  ModuleObject undefined(&fixture.GetRuntime(), ModuleType::kUser);
+  CHECK(undefined.GetXEX() == nullptr);
+  CHECK(undefined.GetProcAddress("Export") == 0);
 }

@@ -170,20 +170,39 @@ u32 XMADecoder::AllocateContext() {
 
 void XMADecoder::ReleaseContext(u32 context_ptr) {
   auto context_id = GetContextId(context_ptr);
-  REX_ASSERT(context_id >= 0);
+  if (context_id < 0) {
+    return;
+  }
 
   XMAContext& context = contexts_[context_id];
-  REX_ASSERT(context.IsAllocated());
+  if (!context.IsAllocated()) {
+    return;
+  }
   context.Release();
   context_bitmap_.Release(context_id);
 }
 
 bool XMADecoder::BlockOnContext(u32 context_ptr, bool poll) {
   auto context_id = GetContextId(context_ptr);
-  REX_ASSERT(context_id >= 0);
+  if (context_id < 0) {
+    return true;
+  }
 
   XMAContext& context = contexts_[context_id];
   return context.Block(poll);
+}
+
+bool XMADecoder::SignalContext(u32 base_register, u32 context_physical_address) {
+  const u32 array_base = GetContextArrayPtr();
+  if (context_physical_address < array_base) {
+    return false;
+  }
+  const u32 hw_index = (context_physical_address - array_base) / sizeof(XMA_CONTEXT_DATA);
+  if (hw_index >= kContextCount) {
+    return false;
+  }
+  WriteRegister(base_register + (hw_index >> 5) * 4, std::byteswap(1u << (hw_index & 0x1F)));
+  return true;
 }
 
 u32 XMADecoder::ReadRegister(u32 addr) {
