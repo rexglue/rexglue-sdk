@@ -89,21 +89,23 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     REX_FAIL(ui, nullptr, "Failed to get Vulkan loader function pointers");
   }
 
-  functions_loaded &= (ifn.vkCreateInstance = PFN_vkCreateInstance(
+  functions_loaded &= (ifn.vkCreateInstance = reinterpret_cast<PFN_vkCreateInstance>(
                            ifn.vkGetInstanceProcAddr(nullptr, "vkCreateInstance"))) != nullptr;
-  functions_loaded &= (ifn.vkEnumerateInstanceExtensionProperties =
-                           PFN_vkEnumerateInstanceExtensionProperties(ifn.vkGetInstanceProcAddr(
-                               nullptr, "vkEnumerateInstanceExtensionProperties"))) != nullptr;
   functions_loaded &=
-      (ifn.vkEnumerateInstanceLayerProperties = PFN_vkEnumerateInstanceLayerProperties(
-           ifn.vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties"))) != nullptr;
+      (ifn.vkEnumerateInstanceExtensionProperties =
+           reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(ifn.vkGetInstanceProcAddr(
+               nullptr, "vkEnumerateInstanceExtensionProperties"))) != nullptr;
+  functions_loaded &=
+      (ifn.vkEnumerateInstanceLayerProperties =
+           reinterpret_cast<PFN_vkEnumerateInstanceLayerProperties>(ifn.vkGetInstanceProcAddr(
+               nullptr, "vkEnumerateInstanceLayerProperties"))) != nullptr;
   if (!functions_loaded) {
     REX_FAIL(ui, nullptr,
              "Failed to get Vulkan global function pointers via "
              "vkGetInstanceProcAddr");
   }
   // Available since Vulkan 1.1, so null means a Vulkan 1.0 instance.
-  ifn.vkEnumerateInstanceVersion = PFN_vkEnumerateInstanceVersion(
+  ifn.vkEnumerateInstanceVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
       ifn.vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion"));
 
   if (ifn.vkEnumerateInstanceVersion) {
@@ -344,29 +346,30 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 
   if (instance_create_result != VK_SUCCESS) {
     REX_FAIL(ui, nullptr, "Failed to create a Vulkan instance: {}",
-             vk::to_string(vk::Result(instance_create_result)));
+             vk::to_string(static_cast<vk::Result>(instance_create_result)));
   }
 
-#define REX_VK_FUNCTION(name)                                                                  \
-  functions_loaded &=                                                                          \
-      (ifn.name = PFN_##name(ifn.vkGetInstanceProcAddr(vulkan_instance->instance_, #name))) != \
-      nullptr;
+#define REX_VK_FUNCTION(name)                                                             \
+  functions_loaded &= (ifn.name = reinterpret_cast<PFN_##name>(ifn.vkGetInstanceProcAddr( \
+                           vulkan_instance->instance_, #name))) != nullptr;
 
 #include "gpu/xenos/host/vulkan/functions/instance_1_0.inc"
 
   // Promoted functions load by their core names when the instance supports that core version.
-#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)                       \
-  functions_loaded &= (ifn.core_name = PFN_##core_name(ifn.vkGetInstanceProcAddr( \
-                           vulkan_instance->instance_, #core_name))) != nullptr;
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name) \
+  functions_loaded &=                                       \
+      (ifn.core_name = reinterpret_cast<PFN_##core_name>(   \
+           ifn.vkGetInstanceProcAddr(vulkan_instance->instance_, #core_name))) != nullptr;
   if (vulkan_instance->api_version_ >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
 #include "gpu/xenos/host/vulkan/functions/instance_1_1_khr_get_physical_device_properties2.inc"
   }
 #undef REX_VK_FUNCTION_PROMOTED
 
   // Below that core version they load by their extension names.
-#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)                       \
-  functions_loaded &= (ifn.core_name = PFN_##core_name(ifn.vkGetInstanceProcAddr( \
-                           vulkan_instance->instance_, #extension_name))) != nullptr;
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name) \
+  functions_loaded &=                                       \
+      (ifn.core_name = reinterpret_cast<PFN_##core_name>(   \
+           ifn.vkGetInstanceProcAddr(vulkan_instance->instance_, #extension_name))) != nullptr;
   if (vulkan_instance->api_version_ < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     if (vulkan_instance->extensions_.ext_1_1_KHR_get_physical_device_properties2) {
 #include "gpu/xenos/host/vulkan/functions/instance_1_1_khr_get_physical_device_properties2.inc"
@@ -464,7 +467,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
           &vulkan_instance->debug_utils_messenger_);
       if (debug_utils_messenger_create_result != VK_SUCCESS) {
         REXLOG_WARN(ui, "Failed to create the Vulkan debug utils messenger: {}",
-                    vk::to_string(vk::Result(debug_utils_messenger_create_result)));
+                    vk::to_string(static_cast<vk::Result>(debug_utils_messenger_create_result)));
       }
     }
   }
@@ -514,9 +517,10 @@ VkBool32 VulkanInstance::DebugUtilsMessengerCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data, [[maybe_unused]] void* user_data) {
   std::ostringstream log_str;
 
-  log_str << "Vulkan " << vk::to_string(vk::DebugUtilsMessageSeverityFlagBitsEXT(message_severity))
-          << " (" << vk::to_string(vk::DebugUtilsMessageTypeFlagsEXT(message_types)) << ", ID "
-          << callback_data->messageIdNumber;
+  log_str << "Vulkan "
+          << vk::to_string(static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>(message_severity))
+          << " (" << vk::to_string(static_cast<vk::DebugUtilsMessageTypeFlagsEXT>(message_types))
+          << ", ID " << callback_data->messageIdNumber;
   if (callback_data->pMessageIdName) {
     log_str << ": " << callback_data->pMessageIdName;
   }
@@ -551,8 +555,8 @@ VkBool32 VulkanInstance::DebugUtilsMessengerCallback(
     const VkDebugUtilsObjectNameInfoEXT& object_info = callback_data->pObjects[object_index];
     // Lowercase hexadecimal handle digits match the default Vulkan debug utils messenger.
     log_str << "object " << object_index << ": "
-            << vk::to_string(vk::ObjectType(object_info.objectType)) << " 0x" << std::hex
-            << object_info.objectHandle << std::dec;
+            << vk::to_string(static_cast<vk::ObjectType>(object_info.objectType)) << " 0x"
+            << std::hex << object_info.objectHandle << std::dec;
     if (object_info.pObjectName) {
       log_str << " '" << object_info.pObjectName << '\'';
     }

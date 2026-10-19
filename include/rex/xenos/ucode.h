@@ -644,7 +644,7 @@ enum class FetchDestinationSwizzle : u8 {
  * @return Swizzle of the component.
  */
 constexpr FetchDestinationSwizzle GetFetchDestinationComponentSwizzle(u32 swizzle, u32 component) {
-  return FetchDestinationSwizzle((swizzle >> (3 * component)) & 0b111);
+  return static_cast<FetchDestinationSwizzle>((swizzle >> (3 * component)) & 0b111);
 }
 
 /** Vertex fetch instruction of 3 dwords. */
@@ -2268,11 +2268,11 @@ struct alignas(u32) AluInstruction {
   bool IsSrcTemp(size_t i) const {
     switch (i) {
       case 1:
-        return bool(data_.src1_sel);
+        return static_cast<bool>(data_.src1_sel);
       case 2:
-        return bool(data_.src2_sel);
+        return static_cast<bool>(data_.src2_sel);
       case 3:
-        return bool(data_.src3_sel);
+        return static_cast<bool>(data_.src3_sel);
       default:
         REX_UNHANDLED_CASE(i);
         return 0;
@@ -2298,11 +2298,12 @@ struct alignas(u32) AluInstruction {
   bool IsSrcConstAddressed(size_t i) const {
     switch (i) {
       case 1:
-        return bool(data_.const_0_rel_abs);
+        return static_cast<bool>(data_.const_0_rel_abs);
       case 2:
-        return bool(IsSrcTemp(1) ? data_.const_0_rel_abs : data_.const_1_rel_abs);
+        return static_cast<bool>(IsSrcTemp(1) ? data_.const_0_rel_abs : data_.const_1_rel_abs);
       case 3:
-        return bool((IsSrcTemp(1) && IsSrcTemp(2)) ? data_.const_0_rel_abs : data_.const_1_rel_abs);
+        return static_cast<bool>((IsSrcTemp(1) && IsSrcTemp(2)) ? data_.const_0_rel_abs
+                                                                : data_.const_1_rel_abs);
       default:
         REX_UNHANDLED_CASE(i);
         return false;

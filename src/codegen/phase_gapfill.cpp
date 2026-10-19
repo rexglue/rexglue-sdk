@@ -19,6 +19,7 @@
 #include <vector>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <unordered_set>
 
 #include <rex/codegen/phases.h>
@@ -32,7 +33,6 @@
 
 using rex::codegen::detail::DecodeInstruction;
 using rex::codegen::detail::Disassemble;
-using rex::codegen::detail::Instruction;
 using rex::codegen::detail::Opcode;
 
 namespace rex::codegen {
@@ -92,20 +92,20 @@ class Coverage {
   void Add(u32 start, u32 end) {
     if (end <= start)
       return;
-    auto it = ranges_.upper_bound(start);
-    if (it != ranges_.begin()) {
+    auto it = ranges_->upper_bound(start);
+    if (it != ranges_->begin()) {
       auto prev = std::prev(it);
       if (prev->second >= start) {
         start = prev->first;
         end = std::max(end, prev->second);
-        it = ranges_.erase(prev);
+        it = ranges_->erase(prev);
       }
     }
-    while (it != ranges_.end() && it->first <= end) {
+    while (it != ranges_->end() && it->first <= end) {
       end = std::max(end, it->second);
-      it = ranges_.erase(it);
+      it = ranges_->erase(it);
     }
-    ranges_[start] = end;
+    (*ranges_)[start] = end;
   }
 
   /**
@@ -114,16 +114,16 @@ class Coverage {
    * @param addr Address to look up.
    * @return The address 1 past the range, or 0 when no range holds the address.
    */
-  u32 CoveredUntil(u32 addr) const {
-    auto it = ranges_.upper_bound(addr);
-    if (it == ranges_.begin())
+  u32 GetCoveredEnd(u32 addr) const {
+    auto it = ranges_->upper_bound(addr);
+    if (it == ranges_->begin())
       return 0;
     --it;
     return addr < it->second ? it->second : 0;
   }
 
  private:
-  std::map<u32, u32> ranges_;
+  std::unique_ptr<std::map<u32, u32>> ranges_ = std::make_unique<std::map<u32, u32>>();
 };
 
 /**

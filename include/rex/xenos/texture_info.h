@@ -121,7 +121,7 @@ inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
       return xenos::TextureFormat::k_24_8_FLOAT;
     default:
       REX_UNHANDLED_CASE(depth_format);
-      return xenos::TextureFormat(~0);
+      return static_cast<xenos::TextureFormat>(~0);
   }
 }
 

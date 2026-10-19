@@ -153,7 +153,7 @@ class VulkanDevice : public rex::NonCopyable {
 
     // VK_KHR_driver_properties (#197, promoted to 1.2)
 
-    VkDriverId driverID = VkDriverId(0);
+    VkDriverId driverID = static_cast<VkDriverId>(0);
 
     // VK_KHR_shader_float_controls (#198, promoted to 1.2)
 

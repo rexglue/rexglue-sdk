@@ -110,16 +110,17 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
     REX_FAIL(ui, false, "Failed to load dxgi.dll or D3D12.dll");
   }
   bool libraries_loaded = true;
-  libraries_loaded &= (pfn_create_dxgi_factory2_ = PFNCreateDXGIFactory2(
+  libraries_loaded &= (pfn_create_dxgi_factory2_ = reinterpret_cast<PFNCreateDXGIFactory2>(
                            GetProcAddress(library_dxgi_, "CreateDXGIFactory2"))) != nullptr;
-  libraries_loaded &= (pfn_dxgi_get_debug_interface1_ = PFNDXGIGetDebugInterface1(
+  libraries_loaded &= (pfn_dxgi_get_debug_interface1_ = reinterpret_cast<PFNDXGIGetDebugInterface1>(
                            GetProcAddress(library_dxgi_, "DXGIGetDebugInterface1"))) != nullptr;
-  libraries_loaded &= (pfn_d3d12_get_debug_interface_ = PFN_D3D12_GET_DEBUG_INTERFACE(
-                           GetProcAddress(library_d3d12_, "D3D12GetDebugInterface"))) != nullptr;
-  libraries_loaded &= (pfn_d3d12_create_device_ = PFN_D3D12_CREATE_DEVICE(
+  libraries_loaded &=
+      (pfn_d3d12_get_debug_interface_ = reinterpret_cast<PFN_D3D12_GET_DEBUG_INTERFACE>(
+           GetProcAddress(library_d3d12_, "D3D12GetDebugInterface"))) != nullptr;
+  libraries_loaded &= (pfn_d3d12_create_device_ = reinterpret_cast<PFN_D3D12_CREATE_DEVICE>(
                            GetProcAddress(library_d3d12_, "D3D12CreateDevice"))) != nullptr;
   libraries_loaded &=
-      (pfn_d3d12_serialize_root_signature_ = PFN_D3D12_SERIALIZE_ROOT_SIGNATURE(
+      (pfn_d3d12_serialize_root_signature_ = reinterpret_cast<PFN_D3D12_SERIALIZE_ROOT_SIGNATURE>(
            GetProcAddress(library_d3d12_, "D3D12SerializeRootSignature"))) != nullptr;
   if (!libraries_loaded) {
     REX_FAIL(ui, false, "Failed to get DXGI or Direct3D 12 functions");
@@ -128,7 +129,8 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   pfn_d3d_disassemble_ = nullptr;
   library_d3dcompiler_ = LoadLibraryW(L"D3DCompiler_47.dll");
   if (library_d3dcompiler_) {
-    pfn_d3d_disassemble_ = pD3DDisassemble(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
+    pfn_d3d_disassemble_ =
+        reinterpret_cast<pD3DDisassemble>(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
     if (pfn_d3d_disassemble_ == nullptr) {
       REXLOG_DEBUG(ui,
                    "Failed to get D3DDisassemble from D3DCompiler_47.dll, DXBC "
@@ -143,8 +145,8 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   pfn_dxilconv_dxc_create_instance_ = nullptr;
   library_dxilconv_ = LoadLibraryW(L"dxilconv.dll");
   if (library_dxilconv_) {
-    pfn_dxilconv_dxc_create_instance_ =
-        DxcCreateInstanceProc(GetProcAddress(library_dxilconv_, "DxcCreateInstance"));
+    pfn_dxilconv_dxc_create_instance_ = reinterpret_cast<DxcCreateInstanceProc>(
+        GetProcAddress(library_dxilconv_, "DxcCreateInstance"));
     if (pfn_dxilconv_dxc_create_instance_ == nullptr) {
       REXLOG_DEBUG(ui,
                    "Failed to get DxcCreateInstance from dxilconv.dll, converted DXIL "
@@ -159,8 +161,8 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   pfn_dxcompiler_dxc_create_instance_ = nullptr;
   library_dxcompiler_ = LoadLibraryW(L"dxcompiler.dll");
   if (library_dxcompiler_) {
-    pfn_dxcompiler_dxc_create_instance_ =
-        DxcCreateInstanceProc(GetProcAddress(library_dxcompiler_, "DxcCreateInstance"));
+    pfn_dxcompiler_dxc_create_instance_ = reinterpret_cast<DxcCreateInstanceProc>(
+        GetProcAddress(library_dxcompiler_, "DxcCreateInstance"));
     if (pfn_dxcompiler_dxc_create_instance_ == nullptr) {
       REXLOG_DEBUG(ui,
                    "Failed to get DxcCreateInstance from dxcompiler.dll, converted DXIL "
@@ -261,7 +263,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
     dxgi_factory->Release();
     return false;
   }
-  adapter_vendor_id_ = GPUVendorID(adapter_desc.VendorId);
+  adapter_vendor_id_ = static_cast<GPUVendorID>(adapter_desc.VendorId);
   int adapter_name_mb_size =
       WideCharToMultiByte(CP_UTF8, 0, adapter_desc.Description, -1, nullptr, 0, nullptr, nullptr);
   if (adapter_name_mb_size != 0) {
@@ -298,9 +300,10 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
     };
     D3D12_INFO_QUEUE_FILTER d3d12_info_queue_filter = {};
     d3d12_info_queue_filter.DenyList.NumSeverities =
-        UINT(rex::CountOf(d3d12_info_queue_denied_severities));
+        static_cast<UINT>(rex::CountOf(d3d12_info_queue_denied_severities));
     d3d12_info_queue_filter.DenyList.pSeverityList = d3d12_info_queue_denied_severities;
-    d3d12_info_queue_filter.DenyList.NumIDs = UINT(rex::CountOf(d3d12_info_queue_denied_messages));
+    d3d12_info_queue_filter.DenyList.NumIDs =
+        static_cast<UINT>(rex::CountOf(d3d12_info_queue_denied_messages));
     d3d12_info_queue_filter.DenyList.pIDList = d3d12_info_queue_denied_messages;
     d3d12_info_queue->PushStorageFilter(&d3d12_info_queue_filter);
     if (REXCVAR_GET(::rex::gpu::cvars::break_on_error)) {
@@ -356,7 +359,8 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   direct_queue_ = direct_queue;
 
   for (u32 i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
-    descriptor_sizes_[i] = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE(i));
+    descriptor_sizes_[i] =
+        device->GetDescriptorHandleIncrementSize(static_cast<D3D12_DESCRIPTOR_HEAP_TYPE>(i));
   }
 
   // D3D12_HEAP_FLAG_CREATE_NOT_ZEROED requires Windows 10 2004 (ID3D12Device8 or OPTIONS7).
@@ -374,8 +378,9 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   D3D12_FEATURE_DATA_D3D12_OPTIONS options;
   if (SUCCEEDED(
           device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options)))) {
-    ps_specified_stencil_reference_supported_ = bool(options.PSSpecifiedStencilRefSupported);
-    rasterizer_ordered_views_supported_ = bool(options.ROVsSupported);
+    ps_specified_stencil_reference_supported_ =
+        static_cast<bool>(options.PSSpecifiedStencilRefSupported);
+    rasterizer_ordered_views_supported_ = static_cast<bool>(options.ROVsSupported);
     resource_binding_tier_ = options.ResourceBindingTier;
     tiled_resources_tier_ = options.TiledResourcesTier;
   }
@@ -388,7 +393,8 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   D3D12_FEATURE_DATA_D3D12_OPTIONS8 options8;
   if (SUCCEEDED(
           device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS8, &options8, sizeof(options8)))) {
-    unaligned_block_textures_supported_ = bool(options8.UnalignedBlockTexturesSupported);
+    unaligned_block_textures_supported_ =
+        static_cast<bool>(options8.UnalignedBlockTexturesSupported);
   }
   virtual_address_bits_per_resource_ = 0;
   D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT virtual_address_support;

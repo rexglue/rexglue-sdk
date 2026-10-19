@@ -86,7 +86,7 @@ Result<void> WriteHostFile(const std::filesystem::path& path, std::string_view t
 
 std::filesystem::path ResolveEntryCase(const std::filesystem::path& parent, std::string_view name) {
   std::error_code ec;
-  const std::filesystem::path exact = parent / to_path(name);
+  std::filesystem::path exact = parent / to_path(name);
   if (std::filesystem::exists(std::filesystem::symlink_status(exact, ec))) {
     return exact;
   }

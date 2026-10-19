@@ -1257,7 +1257,7 @@ bool D3D12CommandProcessor::SetupContext() {
   D3D12_ROOT_PARAMETER fxaa_root_parameters[static_cast<UINT>(FxaaRootParameter::kCount)];
   {
     D3D12_ROOT_PARAMETER& fxaa_root_parameter_constants =
-        fxaa_root_parameters[static_cast<UINT>(ApplyGammaRootParameter::kConstants)];
+        fxaa_root_parameters[static_cast<UINT>(FxaaRootParameter::kConstants)];
     fxaa_root_parameter_constants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     fxaa_root_parameter_constants.Constants.ShaderRegister = 0;
     fxaa_root_parameter_constants.Constants.RegisterSpace = 0;
@@ -2834,7 +2834,7 @@ bool D3D12CommandProcessor::IssueCopyReadbackResolvePath() {
     }
 
     ID3D12Resource* scaled_resolve_buffer = texture_cache_->GetCurrentScaledResolveBufferResource();
-    size_t scaled_resolve_buffer_index = texture_cache_->GetCurrentScaledResolveBufferIndexPublic();
+    size_t scaled_resolve_buffer_index = texture_cache_->GetCurrentScaledResolveBufferIndex();
     if (!scaled_resolve_buffer) {
       return true;
     }

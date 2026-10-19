@@ -34,25 +34,11 @@ class REX_API Clock {
   static bool GetNoScaling();
 
   /**
-   * Host tick frequency from the platform time source. Prefer QueryHostTickFrequency.
-   *
-   * @return Host ticks per second.
-   */
-  static u64 GetHostTickFrequencyPlatform() noexcept;
-
-  /**
-   * Host tick count from the platform time source. Prefer QueryHostTickCount.
-   *
-   * @return The current host tick count.
-   */
-  static u64 GetHostTickCountPlatform();
-
-  /**
    * Returns the host tick frequency.
    *
    * @return Host ticks per second from the platform time source.
    */
-  static u64 QueryHostTickFrequency();
+  static u64 GetHostTickFrequency() noexcept;
 
   /**
    * Returns the current host tick count.

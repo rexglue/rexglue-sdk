@@ -42,7 +42,7 @@ union XNotificationKey {
    *
    * @param notification_id The id.
    */
-  constexpr XNotificationKey(XNotificationID notification_id = XNotificationID(0))
+  constexpr XNotificationKey(XNotificationID notification_id = static_cast<XNotificationID>(0))
       : id(notification_id) {
     REX_STATIC_ASSERT_SIZE(*this, sizeof(id));
   }

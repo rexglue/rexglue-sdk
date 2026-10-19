@@ -20,7 +20,6 @@
 
 namespace rex::codegen {
 
-using rex::codegen::detail::DecodeInstruction;
 using rex::codegen::detail::Instruction;
 using rex::codegen::detail::Opcode;
 

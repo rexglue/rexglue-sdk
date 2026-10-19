@@ -2486,7 +2486,7 @@ std::array<spv::Id, 4> SPIRVShaderTranslator::FSIUnpackColor(std::array<spv::Id,
       for (u32 j = 0; j <= i; ++j) {
         color_packed_signed[j] = builder_->createUnaryOp(spv::OpBitcast, type_int, color_packed[j]);
       }
-      for (u32 j = 0; j < u32(i ? 4 : 2); ++j) {
+      for (u32 j = 0; j < static_cast<u32>(i ? 4 : 2); ++j) {
         spv::Id component = builder_->CreateNoContractionBinOp(
             spv::OpFMul, type_float,
             builder_->createUnaryOp(

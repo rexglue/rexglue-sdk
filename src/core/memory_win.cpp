@@ -113,7 +113,8 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
 #ifdef REX_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   return VirtualAlloc(base_address, length, alloc_type, protect);
 #else
-  return VirtualAllocFromApp(base_address, length, ULONG(alloc_type), ULONG(protect));
+  return VirtualAllocFromApp(base_address, length, static_cast<ULONG>(alloc_type),
+                             static_cast<ULONG>(protect));
 #endif
 }
 
@@ -144,7 +145,8 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   BOOL result = VirtualProtect(base_address, length, new_protect, &old_protect);
 #else
   ULONG old_protect = 0;
-  BOOL result = VirtualProtectFromApp(base_address, length, ULONG(new_protect), &old_protect);
+  BOOL result =
+      VirtualProtectFromApp(base_address, length, static_cast<ULONG>(new_protect), &old_protect);
 #endif
   if (!result) {
     return false;
@@ -180,8 +182,8 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
       CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, protect, static_cast<DWORD>(length >> 32),
                          static_cast<DWORD>(length), full_path.c_str());
 #else
-  HANDLE h = CreateFileMappingFromApp(INVALID_HANDLE_VALUE, nullptr, ULONG(protect),
-                                      ULONG64(length), full_path.c_str());
+  HANDLE h = CreateFileMappingFromApp(INVALID_HANDLE_VALUE, nullptr, static_cast<ULONG>(protect),
+                                      static_cast<ULONG64>(length), full_path.c_str());
 #endif
   if (!h) {
     return kFileMappingHandleInvalid;
@@ -240,9 +242,9 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   if (!placeholder) {
     return nullptr;
   }
-  void* mapping = MapViewOfFile3FromApp(handle, process, placeholder, ULONG64(file_offset), length,
-                                        MEM_REPLACE_PLACEHOLDER, ULONG(ToWin32ProtectFlags(access)),
-                                        nullptr, 0);
+  void* mapping = MapViewOfFile3FromApp(
+      handle, process, placeholder, static_cast<ULONG64>(file_offset), length,
+      MEM_REPLACE_PLACEHOLDER, static_cast<ULONG>(ToWin32ProtectFlags(access)), nullptr, 0);
   if (!mapping) {
     VirtualFree(placeholder, length, MEM_RELEASE);
     return nullptr;

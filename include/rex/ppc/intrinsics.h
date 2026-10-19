@@ -154,7 +154,7 @@ simde__m128i Average(simde__m128i a, simde__m128i b);
  */
 template <>
 inline simde__m128i Average<i8>(simde__m128i a, simde__m128i b) {
-  simde__m128i c = simde_mm_set1_epi8(char(128));
+  simde__m128i c = simde_mm_set1_epi8(static_cast<char>(128));
   return simde_mm_xor_si128(c,
                             simde_mm_avg_epu8(simde_mm_xor_si128(c, a), simde_mm_xor_si128(c, b)));
 }
@@ -168,7 +168,7 @@ inline simde__m128i Average<i8>(simde__m128i a, simde__m128i b) {
  */
 template <>
 inline simde__m128i Average<i16>(simde__m128i a, simde__m128i b) {
-  simde__m128i c = simde_mm_set1_epi16(short(32768));
+  simde__m128i c = simde_mm_set1_epi16(static_cast<short>(32768));
   return simde_mm_xor_si128(c,
                             simde_mm_avg_epu16(simde_mm_xor_si128(c, a), simde_mm_xor_si128(c, b)));
 }
@@ -251,7 +251,7 @@ simde__m128i CompareGreater(simde__m128i a, simde__m128i b);
  */
 template <>
 inline simde__m128i CompareGreater<u8>(simde__m128i a, simde__m128i b) {
-  simde__m128i c = simde_mm_set1_epi8(char(128));
+  simde__m128i c = simde_mm_set1_epi8(static_cast<char>(128));
   return simde_mm_cmpgt_epi8(simde_mm_xor_si128(a, c), simde_mm_xor_si128(b, c));
 }
 
@@ -264,7 +264,7 @@ inline simde__m128i CompareGreater<u8>(simde__m128i a, simde__m128i b) {
  */
 template <>
 inline simde__m128i CompareGreater<u16>(simde__m128i a, simde__m128i b) {
-  simde__m128i c = simde_mm_set1_epi16(short(32768));
+  simde__m128i c = simde_mm_set1_epi16(static_cast<short>(32768));
   return simde_mm_cmpgt_epi16(simde_mm_xor_si128(a, c), simde_mm_xor_si128(b, c));
 }
 
@@ -323,7 +323,7 @@ inline simde__m128i ConvertSaturate<u32, f32>(simde__m128 src1) {
   simde__m128 adjusted = simde_mm_sub_ps(clamped, simde_mm_and_ps(high_bit_mask, half_range));
   simde__m128i low_bits = simde_mm_cvttps_epi32(adjusted);
   simde__m128i high_bit = simde_mm_and_si128(simde_mm_castps_si128(high_bit_mask),
-                                             simde_mm_set1_epi32(int(0x80000000u)));
+                                             simde_mm_set1_epi32(static_cast<int>(0x80000000u)));
   simde__m128i result = simde_mm_or_si128(low_bits, high_bit);
 
   result = simde_mm_andnot_si128(simde_mm_castps_si128(nan_mask), result);

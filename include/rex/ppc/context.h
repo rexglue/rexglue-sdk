@@ -179,7 +179,7 @@ struct FPSCRRegister {
         }
         return true;
       }(),
-      "kHostToReX must invert kGuestToHost");
+      "kHostToGuest must invert kGuestToHost");
 
   /** Bits the guest owns, the rest is host policy set by InitHost. */
   static constexpr u32 kGuestMask = static_cast<u32>(kRoundMaskVal) | static_cast<u32>(kFlushMask);

@@ -676,8 +676,8 @@ u32 XamUserCreateStatsEnumerator_entry([[maybe_unused]] u32 title_id, [[maybe_un
         *reinterpret_cast<be_u32*>(buffer_data) = view_count;
         *reinterpret_cast<be_u32*>(buffer_data + 4) = buffer_ptr + kStatsResultsSize;
         for (u32 i = 0; i < view_count; ++i) {
-          *reinterpret_cast<be_u32*>(buffer_data + kStatsResultsSize + i * kStatsViewSize) =
-              view_ids[i];
+          *reinterpret_cast<be_u32*>(buffer_data + kStatsResultsSize +
+                                     static_cast<size_t>(i) * kStatsViewSize) = view_ids[i];
         }
         if (written_count) {
           *written_count = view_count;

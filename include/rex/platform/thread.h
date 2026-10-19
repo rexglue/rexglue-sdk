@@ -80,7 +80,7 @@ class Fence {
 
  private:
   using StateT = uint_fast32_t;
-  static constexpr StateT kSigMask = StateT(1) << (sizeof(StateT) * 8 - 1);
+  static constexpr StateT kSigMask = static_cast<StateT>(1) << (sizeof(StateT) * 8 - 1);
 
   std::mutex mutex_;
   std::condition_variable cond_;

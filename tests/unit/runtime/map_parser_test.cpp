@@ -16,7 +16,6 @@
 #include "file_text.h"
 #include "temp_folder.h"
 
-using rex::filesystem::FileSystemError;
 using rex::runtime::MapParseOptions;
 using rex::runtime::ParseNmMap;
 using rex::runtime::ParseNmMapString;

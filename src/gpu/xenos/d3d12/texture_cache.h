@@ -208,8 +208,14 @@ class D3D12TextureCache final : public TextureCache {
   ID3D12Resource* GetCurrentScaledResolveBufferResource() {
     return GetCurrentScaledResolveBuffer().GetResource();
   }
-  size_t GetCurrentScaledResolveBufferIndexPublic() const {
-    return GetCurrentScaledResolveBufferIndex();
+  /**
+   * Returns the index of the current scaled resolve buffer, which is its offset in
+   * gigabytes from the start of the scaled physical memory address space.
+   *
+   * @return The buffer index.
+   */
+  size_t GetCurrentScaledResolveBufferIndex() const {
+    return scaled_resolve_1gb_buffer_indices_[scaled_resolve_current_range_start_scaled_ >> 30];
   }
   void MarkCurrentScaledResolveRangeUAVWritesCommitNeeded() {
     REX_ASSERT(IsDrawResolutionScaled());
@@ -501,15 +507,6 @@ class D3D12TextureCache final : public TextureCache {
     return std::array<size_t, 2>{
         std::min(address_gb, max_index),
         std::min(std::max(address_gb, static_cast<size_t>(1)) - static_cast<size_t>(1), max_index)};
-  }
-  /**
-   * Returns the index of the current scaled resolve buffer, which is its offset in
-   * gigabytes from the start of the scaled physical memory address space.
-   *
-   * @return The buffer index.
-   */
-  size_t GetCurrentScaledResolveBufferIndex() const {
-    return scaled_resolve_1gb_buffer_indices_[scaled_resolve_current_range_start_scaled_ >> 30];
   }
   ScaledResolveVirtualBuffer& GetCurrentScaledResolveBuffer() {
     ScaledResolveVirtualBuffer* scaled_resolve_buffer =

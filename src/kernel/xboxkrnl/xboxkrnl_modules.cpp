@@ -114,7 +114,8 @@ u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_fla
 
   if (!hmodule) {
     auto loaded = modules.LoadUserModule(module_name.GetValue());
-    auto user_module = runtime.GetObjectTable().Get<ModuleObject>(loaded ? *loaded : X_HANDLE(0));
+    auto user_module =
+        runtime.GetObjectTable().Get<ModuleObject>(loaded ? *loaded : static_cast<X_HANDLE>(0));
     if (user_module) {
       hmodule = user_module->hmodule_ptr;
       result = X_STATUS_SUCCESS;

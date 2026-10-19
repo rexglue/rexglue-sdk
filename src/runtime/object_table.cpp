@@ -348,7 +348,7 @@ std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
     as_type = header->type;
   }
   if (header->wait_list_flink == kStashSignature) {
-    return X_HANDLE(header->wait_list_blink);
+    return static_cast<X_HANDLE>(header->wait_list_blink);
   }
   Result<X_HANDLE> added = Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
   switch (as_type) {

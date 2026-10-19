@@ -115,7 +115,7 @@ bool Instruction::IsTrapAlways() const {
   return opcode == Opcode::tw && X.RT == kTrapAlways;
 }
 
-Instruction DecodeInstruction(GuestAddrT address, u32 code) {
+Instruction DecodeInstruction(u32 address, u32 code) {
   Instruction instr;
   instr.address = address;
   instr.code = code;
@@ -130,7 +130,7 @@ Instruction DecodeInstruction(GuestAddrT address, u32 code) {
         i32 offset = Instruction::GetIOffset(code);
         bool aa = (code >> 1) & 1;
         if (aa) {
-          instr.branch_target = static_cast<GuestAddrT>(offset & 0xFFFFFFFF);
+          instr.branch_target = static_cast<u32>(offset & 0xFFFFFFFF);
         } else {
           instr.branch_target = address + offset;
         }
@@ -141,7 +141,7 @@ Instruction DecodeInstruction(GuestAddrT address, u32 code) {
         i32 offset = Instruction::GetBOffset(code);
         bool aa = (code >> 1) & 1;
         if (aa) {
-          instr.branch_target = static_cast<GuestAddrT>(offset & 0xFFFF);
+          instr.branch_target = static_cast<u32>(offset & 0xFFFF);
         } else {
           instr.branch_target = address + offset;
         }

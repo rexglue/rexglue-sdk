@@ -34,7 +34,6 @@ set(REXSYSTEM_SOURCES
     xam/app_manager.cpp
     xam/content_manager.cpp
     xam/user_profile.cpp
-    ppc_types.cpp
     elf_module.cpp
     map_parser.cpp
     module.cpp

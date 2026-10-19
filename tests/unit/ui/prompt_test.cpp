@@ -277,7 +277,7 @@ void DriveDrawerWithCaller(ImGuiContext* caller) {
     CHECK(ImGui::GetCurrentContext() == caller);
     CHECK(fixture.ui->GetImGuiStyle() != nullptr);
     CHECK(ImGui::GetCurrentContext() == caller);
-    fixture.ui->Prompt(PromptDesc{.title = "Title", .body = "Body"}, [](PromptResult) {});
+    fixture.ui->Prompt(PromptDesc{.title = "Title", .body = "Body"}, [](const PromptResult&) {});
     for (rex::i32 frame = 0; frame < 100 && !fixture.ui->HasDialogs(); ++frame) {
       fixture.ui->PumpFrame();
     }
@@ -287,7 +287,7 @@ void DriveDrawerWithCaller(ImGuiContext* caller) {
     REQUIRE(windows != nullptr);
     REQUIRE(count > 0);
     const SDL_WindowID window = SDL_GetWindowID(windows[0]);
-    SDL_free(windows);
+    SDL_free(static_cast<void*>(windows));
     PushMouse(window, SDL_EVENT_MOUSE_BUTTON_DOWN);
     fixture.ui->PumpFrame();
     CHECK(ImGui::GetCurrentContext() == caller);

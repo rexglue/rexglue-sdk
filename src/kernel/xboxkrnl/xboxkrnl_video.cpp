@@ -472,7 +472,7 @@ void VdSwap_entry(MappedVoid buffer_ptr, MappedVoid fetch_ptr, [[maybe_unused]] 
   }
   gpu_fetch.base_address = frontbuffer_physical_address >> 12;
 
-  auto texture_format = rex::xenos::TextureFormat(texture_format_ptr.GetValue());
+  auto texture_format = static_cast<rex::xenos::TextureFormat>(texture_format_ptr.GetValue());
   auto color_space = *color_space_ptr;
   REX_ASSERT(texture_format == rex::xenos::TextureFormat::k_8_8_8_8 ||
              texture_format == rex::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);

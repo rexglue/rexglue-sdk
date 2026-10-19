@@ -672,11 +672,11 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
     xenos::ColorRenderTargetFormat GetColorFormat() const {
       REX_ASSERT(!is_depth);
-      return xenos::ColorRenderTargetFormat(resource_format);
+      return static_cast<xenos::ColorRenderTargetFormat>(resource_format);
     }
     xenos::DepthRenderTargetFormat GetDepthFormat() const {
       REX_ASSERT(is_depth);
-      return xenos::DepthRenderTargetFormat(resource_format);
+      return static_cast<xenos::DepthRenderTargetFormat>(resource_format);
     }
   };
 

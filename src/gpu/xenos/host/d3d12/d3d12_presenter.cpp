@@ -74,7 +74,8 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
       swap_chain_buffer_ref.Reset();
     }
     bool swap_chain_resized = SUCCEEDED(paint_context_.swap_chain->ResizeBuffers(
-        0, UINT(new_swap_chain_width), UINT(new_swap_chain_height), DXGI_FORMAT_UNKNOWN,
+        0, static_cast<UINT>(new_swap_chain_width), static_cast<UINT>(new_swap_chain_height),
+        DXGI_FORMAT_UNKNOWN,
         paint_context_.swap_chain_allows_tearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0));
     if (swap_chain_resized) {
       for (u32 i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
@@ -98,14 +99,14 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
   if (!paint_context_.swap_chain) {
     gpu::Surface::TypeIndex surface_type = new_surface.GetType();
     DXGI_SWAP_CHAIN_DESC1 swap_chain_desc;
-    swap_chain_desc.Width = UINT(new_swap_chain_width);
-    swap_chain_desc.Height = UINT(new_swap_chain_height);
+    swap_chain_desc.Width = static_cast<UINT>(new_swap_chain_width);
+    swap_chain_desc.Height = static_cast<UINT>(new_swap_chain_height);
     swap_chain_desc.Format = kSwapChainFormat;
     swap_chain_desc.Stereo = FALSE;
     swap_chain_desc.SampleDesc.Count = 1;
     swap_chain_desc.SampleDesc.Quality = 0;
     swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    swap_chain_desc.BufferCount = UINT(PaintContext::kSwapChainBufferCount);
+    swap_chain_desc.BufferCount = static_cast<UINT>(PaintContext::kSwapChainBufferCount);
     // DXGI_SCALING_STRETCH makes content shake while resizing, so stretch only when needed.
     swap_chain_desc.Scaling =
         (new_swap_chain_width == new_surface_width && new_swap_chain_height == new_surface_height)
@@ -249,7 +250,7 @@ void D3D12Presenter::PaintContext::DestroySwapChain() {
 
 Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawers) {
   UINT64 current_paint_submission = paint_context_.paint_submission_tracker.GetCurrentSubmission();
-  UINT64 command_allocator_count = UINT64(paint_context_.command_allocators.size());
+  UINT64 command_allocator_count = static_cast<UINT64>(paint_context_.command_allocators.size());
   if (current_paint_submission >= command_allocator_count) {
     paint_context_.paint_submission_tracker.AwaitSubmissionCompletion(current_paint_submission -
                                                                       command_allocator_count);
@@ -333,7 +334,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
         }
         guest_output_resource_paint_ref_index = guest_output_resource_paint_ref_new_index;
         paint_context_.guest_output_resource_paint_refs[guest_output_resource_paint_ref_index] =
-            std::make_pair(UINT64(0), guest_output_resource);
+            std::make_pair(static_cast<UINT64>(0), guest_output_resource);
         D3D12_SHADER_RESOURCE_VIEW_DESC guest_output_resource_srv_desc;
         guest_output_resource_srv_desc.Format = kGuestOutputFormat;
         guest_output_resource_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -388,8 +389,8 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       D3D12_RECT scissor;
       scissor.left = 0;
       scissor.top = 0;
-      scissor.right = LONG(back_buffer_desc.Width);
-      scissor.bottom = LONG(back_buffer_desc.Height);
+      scissor.right = static_cast<LONG>(back_buffer_desc.Width);
+      scissor.bottom = static_cast<LONG>(back_buffer_desc.Height);
       command_list->RSSetScissorRects(1, &scissor);
 
       command_list->SetPipelineState(
@@ -401,10 +402,10 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
                                                   guest_output_paint_root_signature_index)]
               .Get());
 
-      UINT effect_src_view_index =
-          UINT(PaintContext::kViewIndexGuestOutput0SRV + guest_output_resource_paint_ref_index);
+      UINT effect_src_view_index = static_cast<UINT>(PaintContext::kViewIndexGuestOutput0SRV +
+                                                     guest_output_resource_paint_ref_index);
       command_list->SetGraphicsRootDescriptorTable(
-          UINT(GuestOutputPaintRootParameter::kSource),
+          static_cast<UINT>(GuestOutputPaintRootParameter::kSource),
           provider_.OffsetViewDescriptor(view_heap_gpu_start, effect_src_view_index));
 
       GuestOutputPaintRectangleConstants effect_rect_constants;
@@ -418,9 +419,9 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
           static_cast<f32>(guest_output_flow.effect_output_size.first) * effect_x_to_ndc;
       effect_rect_constants.height =
           -static_cast<f32>(guest_output_flow.effect_output_size.second) * effect_y_to_ndc;
-      command_list->SetGraphicsRoot32BitConstants(UINT(GuestOutputPaintRootParameter::kRectangle),
-                                                  sizeof(effect_rect_constants) / sizeof(u32),
-                                                  &effect_rect_constants, 0);
+      command_list->SetGraphicsRoot32BitConstants(
+          static_cast<UINT>(GuestOutputPaintRootParameter::kRectangle),
+          sizeof(effect_rect_constants) / sizeof(u32), &effect_rect_constants, 0);
 
       UINT effect_constants_size = 0;
       union {
@@ -436,7 +437,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       }
       if (effect_constants_size) {
         command_list->SetGraphicsRoot32BitConstants(
-            UINT(GuestOutputPaintRootParameter::kEffectConstants),
+            static_cast<UINT>(GuestOutputPaintRootParameter::kEffectConstants),
             effect_constants_size / sizeof(u32), &effect_constants, 0);
       }
 
@@ -458,9 +459,10 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
               static_cast<LONG>(letterbox_clear_rectangle.y) +
               static_cast<LONG>(letterbox_clear_rectangle.height);
         }
-        command_list->ClearRenderTargetView(back_buffer_rtv, kBackBufferClearColor,
-                                            UINT(guest_output_flow.letterbox_clear_rectangle_count),
-                                            letterbox_clear_d3d12_rectangles);
+        command_list->ClearRenderTargetView(
+            back_buffer_rtv, kBackBufferClearColor,
+            static_cast<UINT>(guest_output_flow.letterbox_clear_rectangle_count),
+            letterbox_clear_d3d12_rectangles);
       }
       back_buffer_clear_needed = false;
     }
@@ -556,7 +558,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   ID3D12Device* device = provider_.GetDevice();
 
   D3D12_ROOT_PARAMETER
-  guest_output_paint_root_parameters[UINT(GuestOutputPaintRootParameter::kCount)];
+  guest_output_paint_root_parameters[static_cast<UINT>(GuestOutputPaintRootParameter::kCount)];
   D3D12_DESCRIPTOR_RANGE guest_output_paint_root_descriptor_range_source;
   guest_output_paint_root_descriptor_range_source.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   guest_output_paint_root_descriptor_range_source.NumDescriptors = 1;
@@ -565,7 +567,8 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   guest_output_paint_root_descriptor_range_source.OffsetInDescriptorsFromTableStart = 0;
   {
     D3D12_ROOT_PARAMETER& guest_output_paint_root_parameter_source =
-        guest_output_paint_root_parameters[UINT(GuestOutputPaintRootParameter::kSource)];
+        guest_output_paint_root_parameters[static_cast<UINT>(
+            GuestOutputPaintRootParameter::kSource)];
     guest_output_paint_root_parameter_source.ParameterType =
         D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     guest_output_paint_root_parameter_source.DescriptorTable.NumDescriptorRanges = 1;
@@ -575,7 +578,8 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   }
   {
     D3D12_ROOT_PARAMETER& guest_output_paint_root_parameter_rect =
-        guest_output_paint_root_parameters[UINT(GuestOutputPaintRootParameter::kRectangle)];
+        guest_output_paint_root_parameters[static_cast<UINT>(
+            GuestOutputPaintRootParameter::kRectangle)];
     guest_output_paint_root_parameter_rect.ParameterType =
         D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     guest_output_paint_root_parameter_rect.Constants.ShaderRegister = 0;
@@ -585,7 +589,8 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     guest_output_paint_root_parameter_rect.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   }
   D3D12_ROOT_PARAMETER& guest_output_paint_root_parameter_effect_constants =
-      guest_output_paint_root_parameters[UINT(GuestOutputPaintRootParameter::kEffectConstants)];
+      guest_output_paint_root_parameters[static_cast<UINT>(
+          GuestOutputPaintRootParameter::kEffectConstants)];
   guest_output_paint_root_parameter_effect_constants.ParameterType =
       D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
   guest_output_paint_root_parameter_effect_constants.Constants.ShaderRegister = 0;
@@ -608,7 +613,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   guest_output_paint_root_sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
   D3D12_ROOT_SIGNATURE_DESC guest_output_paint_root_signature_desc;
   guest_output_paint_root_signature_desc.NumParameters =
-      UINT(GuestOutputPaintRootParameter::kCount);
+      static_cast<UINT>(GuestOutputPaintRootParameter::kCount);
   guest_output_paint_root_signature_desc.pParameters = guest_output_paint_root_parameters;
   guest_output_paint_root_signature_desc.NumStaticSamplers = 1;
   guest_output_paint_root_signature_desc.pStaticSamplers = &guest_output_paint_root_sampler;
@@ -640,8 +645,8 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   guest_output_paint_pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   guest_output_paint_pipeline_desc.NumRenderTargets = 1;
   guest_output_paint_pipeline_desc.SampleDesc.Count = 1;
-  for (size_t i = 0; i < size_t(GuestOutputPaintEffect::kCount); ++i) {
-    GuestOutputPaintEffect guest_output_paint_effect = GuestOutputPaintEffect(i);
+  for (size_t i = 0; i < static_cast<size_t>(GuestOutputPaintEffect::kCount); ++i) {
+    GuestOutputPaintEffect guest_output_paint_effect = static_cast<GuestOutputPaintEffect>(i);
     switch (guest_output_paint_effect) {
       case GuestOutputPaintEffect::kBilinear:
         guest_output_paint_pipeline_desc.PS.pShaderBytecode = shaders::kGuestOutputBilinearPS;

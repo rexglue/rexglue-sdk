@@ -165,7 +165,7 @@ REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[runtime
 
   std::vector<std::thread> threads;
   for (u32 id = 1; id <= 8; ++id) {
-    threads.emplace_back([&manager, id]() { (void)manager.UnlockAchievement(id); });
+    threads.emplace_back([&manager, id]() { static_cast<void>(manager.UnlockAchievement(id)); });
   }
   for (auto& thread : threads) {
     thread.join();

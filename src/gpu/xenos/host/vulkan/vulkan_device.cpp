@@ -532,7 +532,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  */
 #define REX_VK_ENUM_LIMIT(name, type)                \
   device->properties_.name = properties.limits.name; \
-  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type(properties.limits.name)));
+  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(static_cast<vk::type>(properties.limits.name)));
 /**
  * Enables a core device feature when supported and stores whether it is supported.
  *
@@ -574,7 +574,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  */
 #define REX_VK_ENUM_PROPERTY_2(structure, name, type) \
   device->properties_.name = (structure).name;        \
-  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type((structure).name)));
+  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(static_cast<vk::type>((structure).name)));
 /**
  * Enables a feature from an extension features structure when supported and stores the result.
  *
@@ -768,24 +768,23 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     REX_FAIL(ui, nullptr,
              "Failed to create a Vulkan logical device from the physical device "
              "'{}': {}",
-             properties.deviceName, vk::to_string(vk::Result(device_create_result)));
+             properties.deviceName, vk::to_string(static_cast<vk::Result>(device_create_result)));
   }
 
   bool functions_loaded = true;
 
   Functions& dfn = device->functions_;
 
-#define REX_VK_FUNCTION(name) \
-  functions_loaded &=         \
-      (dfn.name = PFN_##name(ifn.vkGetDeviceProcAddr(device->device_, #name))) != nullptr;
+#define REX_VK_FUNCTION(name)                                   \
+  functions_loaded &= (dfn.name = reinterpret_cast<PFN_##name>( \
+                           ifn.vkGetDeviceProcAddr(device->device_, #name))) != nullptr;
 
 #include "gpu/xenos/host/vulkan/functions/device_1_0.inc"
 
   // Promoted functions load by their core names when the device supports that core version.
-#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)                                      \
-  functions_loaded &=                                                                            \
-      (dfn.core_name = PFN_##core_name(ifn.vkGetDeviceProcAddr(device->device_, #core_name))) != \
-      nullptr;
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)               \
+  functions_loaded &= (dfn.core_name = reinterpret_cast<PFN_##core_name>( \
+                           ifn.vkGetDeviceProcAddr(device->device_, #core_name))) != nullptr;
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
 #include "gpu/xenos/host/vulkan/functions/device_1_1_khr_bind_memory2.inc"
 #include "gpu/xenos/host/vulkan/functions/device_1_1_khr_get_memory_requirements2.inc"
@@ -797,8 +796,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #undef REX_VK_FUNCTION_PROMOTED
 
   // Below that core version they load by their extension names.
-#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name) \
-  functions_loaded &= (dfn.core_name = PFN_##core_name(     \
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)               \
+  functions_loaded &= (dfn.core_name = reinterpret_cast<PFN_##core_name>( \
                            ifn.vkGetDeviceProcAddr(device->device_, #extension_name))) != nullptr;
   if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     if (device->extensions_.ext_1_1_KHR_get_memory_requirements2) {

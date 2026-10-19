@@ -103,7 +103,7 @@ bool D3D12ImmediateDrawer::Initialize() {
     root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   }
   D3D12_ROOT_SIGNATURE_DESC root_signature_desc;
-  root_signature_desc.NumParameters = UINT(RootParameter::kCount);
+  root_signature_desc.NumParameters = static_cast<UINT>(RootParameter::kCount);
   root_signature_desc.pParameters = root_parameters;
   root_signature_desc.NumStaticSamplers = 0;
   root_signature_desc.pStaticSamplers = nullptr;
@@ -145,7 +145,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_input_elements[2].Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   pipeline_input_elements[2].AlignedByteOffset = offsetof(gpu::OverlayVertex, color);
   pipeline_desc.InputLayout.pInputElementDescs = pipeline_input_elements;
-  pipeline_desc.InputLayout.NumElements = UINT(rex::CountOf(pipeline_input_elements));
+  pipeline_desc.InputLayout.NumElements = static_cast<UINT>(rex::CountOf(pipeline_input_elements));
   pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   pipeline_desc.NumRenderTargets = 1;
   pipeline_desc.RTVFormats[0] = D3D12Presenter::kSwapChainFormat;
@@ -161,7 +161,7 @@ bool D3D12ImmediateDrawer::Initialize() {
 
   D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc;
   sampler_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
-  sampler_heap_desc.NumDescriptors = UINT(SamplerIndex::kCount);
+  sampler_heap_desc.NumDescriptors = static_cast<UINT>(SamplerIndex::kCount);
   sampler_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   sampler_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&sampler_heap_desc, IID_PPV_ARGS(&sampler_heap_)))) {
@@ -347,8 +347,8 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
   f32 coordinate_space_size_inv[2];
   coordinate_space_size_inv[0] = 1.0f / GetCoordinateSpaceWidth();
   coordinate_space_size_inv[1] = 1.0f / GetCoordinateSpaceHeight();
-  command_list->SetGraphicsRoot32BitConstants(UINT(RootParameter::kCoordinateSpaceSizeInv), 2,
-                                              coordinate_space_size_inv, 0);
+  command_list->SetGraphicsRoot32BitConstants(
+      static_cast<UINT>(RootParameter::kCoordinateSpaceSizeInv), 2, coordinate_space_size_inv, 0);
 
   current_scissor_.left = 0;
   current_scissor_.top = 0;
@@ -370,8 +370,9 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.GetCommandList();
 
   D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
-  vertex_buffer_view.StrideInBytes = UINT(sizeof(gpu::OverlayVertex));
-  vertex_buffer_view.SizeInBytes = UINT(sizeof(gpu::OverlayVertex)) * UINT(batch.vertices.size());
+  vertex_buffer_view.StrideInBytes = static_cast<UINT>(sizeof(gpu::OverlayVertex));
+  vertex_buffer_view.SizeInBytes =
+      static_cast<UINT>(sizeof(gpu::OverlayVertex)) * static_cast<UINT>(batch.vertices.size());
   void* vertex_buffer_mapping = vertex_buffer_pool_->Request(
       last_paint_submission_index_, vertex_buffer_view.SizeInBytes, sizeof(f32), nullptr, nullptr,
       &vertex_buffer_view.BufferLocation);
@@ -386,7 +387,8 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   batch_has_index_buffer_ = !batch.indices.empty();
   if (batch_has_index_buffer_) {
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-    index_buffer_view.SizeInBytes = UINT(sizeof(u16)) * UINT(batch.indices.size());
+    index_buffer_view.SizeInBytes =
+        static_cast<UINT>(sizeof(u16)) * static_cast<UINT>(batch.indices.size());
     index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
     void* index_buffer_mapping = vertex_buffer_pool_->Request(
         last_paint_submission_index_, index_buffer_view.SizeInBytes, sizeof(u16), nullptr, nullptr,
@@ -473,7 +475,7 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
         provider_.OffsetViewDescriptor(texture_descriptor_pool_->GetLastRequestHeapCPUStart(),
                                        texture_descriptor_index));
     command_list->SetGraphicsRootDescriptorTable(
-        UINT(RootParameter::kTexture),
+        static_cast<UINT>(RootParameter::kTexture),
         provider_.OffsetViewDescriptor(texture_descriptor_pool_->GetLastRequestHeapGPUStart(),
                                        texture_descriptor_index));
   }
@@ -483,7 +485,7 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   if (current_sampler_index_ != sampler_index) {
     current_sampler_index_ = sampler_index;
     command_list->SetGraphicsRootDescriptorTable(
-        UINT(RootParameter::kSampler),
+        static_cast<UINT>(RootParameter::kSampler),
         provider_.OffsetSamplerDescriptor(sampler_heap_gpu_start_,
                                           static_cast<u32>(sampler_index)));
   }
@@ -598,7 +600,7 @@ void D3D12ImmediateDrawer::UploadTextures() {
   }
   texture_uploads_pending_.clear();
   REX_ASSERT(!barriers.empty());
-  command_list->ResourceBarrier(UINT(barriers.size()), barriers.data());
+  command_list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
 }
 
 }  // namespace rex::gpu::d3d12

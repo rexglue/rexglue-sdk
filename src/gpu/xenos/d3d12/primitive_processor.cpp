@@ -89,7 +89,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
   ID3D12Device* device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC resource_desc;
-  gpu::d3d12::objects::FillBufferResourceDesc(resource_desc, UINT64(size_bytes),
+  gpu::d3d12::objects::FillBufferResourceDesc(resource_desc, static_cast<UINT64>(size_bytes),
                                               D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> draw_resource;
   if (FAILED(device->CreateCommittedResource(
@@ -144,7 +144,7 @@ void* D3D12PrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
   if (coalign_for_simd) {
     ptrdiff_t coalignment_offset = GetSimdCoalignmentOffset(mapping, coalignment_original_address);
     mapping += coalignment_offset;
-    gpu_address = D3D12_GPU_VIRTUAL_ADDRESS(gpu_address + coalignment_offset);
+    gpu_address = static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(gpu_address + coalignment_offset);
   }
   backend_handle_out = frame_index_buffers_.size();
   frame_index_buffers_.push_back(gpu_address);

@@ -65,7 +65,8 @@ inline i32 CompareCaseN(const char* string1, const char* string2, size_t count) 
 namespace detail {
 
 template <typename CharT>
-inline constexpr CharT kWhitespaceChars[] = {CharT(' '), CharT('\t'), CharT('\r'), CharT('\n')};
+inline constexpr CharT kWhitespaceChars[] = {static_cast<CharT>(' '), static_cast<CharT>('\t'),
+                                             static_cast<CharT>('\r'), static_cast<CharT>('\n')};
 
 }  // namespace detail
 

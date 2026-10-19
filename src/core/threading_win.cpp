@@ -71,7 +71,8 @@ void RaiseThreadNameException(HANDLE thread, const std::string& name) {
 static void SetThreadNameImpl(HANDLE thread, const std::string_view name) {
   auto kernel = GetModuleHandleW(L"kernel32.dll");
   if (kernel) {
-    auto func = (SetThreadDescriptionFn)GetProcAddress(kernel, "SetThreadDescription");
+    auto func =
+        reinterpret_cast<SetThreadDescriptionFn>(GetProcAddress(kernel, "SetThreadDescription"));
     if (func) {
       int size_needed =
           MultiByteToWideChar(CP_UTF8, 0, name.data(), static_cast<int>(name.size()), nullptr, 0);
@@ -233,13 +234,14 @@ DWORD WaitUntilDeadline(std::chrono::milliseconds timeout, Fn&& wait) {
   }
   timeout = std::max(timeout, std::chrono::milliseconds::zero());
   const auto deadline = Clock::now() + timeout;
-  DWORD result = wait(DWORD(timeout.count()));
+  DWORD result = wait(static_cast<DWORD>(timeout.count()));
   while (result == WAIT_TIMEOUT) {
     const auto remaining = deadline - Clock::now();
     if (remaining <= Clock::duration::zero()) {
       break;
     }
-    result = wait(DWORD(std::chrono::ceil<std::chrono::milliseconds>(remaining).count()));
+    result =
+        wait(static_cast<DWORD>(std::chrono::ceil<std::chrono::milliseconds>(remaining).count()));
   }
   return result;
 }
@@ -300,8 +302,9 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[], size_t wa
     handles[i] = wait_handles[i]->GetNativeHandle();
   }
   DWORD result = WaitUntilDeadline(timeout, [&](DWORD milliseconds) {
-    return WaitForMultipleObjectsEx(DWORD(handles.size()), handles.data(), wait_all ? TRUE : FALSE,
-                                    milliseconds, is_alertable ? TRUE : FALSE);
+    return WaitForMultipleObjectsEx(static_cast<DWORD>(handles.size()), handles.data(),
+                                    wait_all ? TRUE : FALSE, milliseconds,
+                                    is_alertable ? TRUE : FALSE);
   });
   if (result >= WAIT_OBJECT_0 && result < WAIT_OBJECT_0 + handles.size()) {
     return std::pair<WaitResult, size_t>(WaitResult::kSuccess, result - WAIT_OBJECT_0);

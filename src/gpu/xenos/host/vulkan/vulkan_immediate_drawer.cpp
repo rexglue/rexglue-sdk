@@ -862,7 +862,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
     size_t data_size = sizeof(u32) * width * height;
     u32 upload_buffer_memory_type;
     if (!objects::CreateDedicatedAllocationBuffer(
-            vulkan_device_, VkDeviceSize(data_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            vulkan_device_, static_cast<VkDeviceSize>(data_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             objects::MemoryPurpose::kUpload, upload_buffer, upload_buffer_memory,
             &upload_buffer_memory_type)) {
       REXLOG_ERROR(ui,

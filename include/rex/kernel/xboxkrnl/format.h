@@ -253,7 +253,7 @@ class StringFormatData {
     if (c >= 0x100) {
       return false;
     }
-    output_.push_back(char(c));
+    output_.push_back(static_cast<char>(c));
     return true;
   }
 
@@ -309,7 +309,7 @@ class WideStringFormatData {
    * @return True always.
    */
   bool put(u16 c) {
-    output_.push_back(char16_t(c));
+    output_.push_back(static_cast<char16_t>(c));
     return true;
   }
 

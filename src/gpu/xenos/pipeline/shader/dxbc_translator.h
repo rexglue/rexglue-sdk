@@ -628,7 +628,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param index System constant to mark.
    */
   void MarkSystemConstantUsed(SystemConstants::Index index) {
-    system_constants_used_ |= static_cast<u64>(1) << u32(index);
+    system_constants_used_ |= static_cast<u64>(1) << static_cast<u32>(index);
   }
   /**
    * Builds a constant buffer source for a system constant.

@@ -167,7 +167,7 @@ bool ModuleRegistry::BeginLoad(std::string_view path) {
 
 void ModuleRegistry::EndLoad(const std::string& path) {
   std::lock_guard lock(mutex_);
-  loading_paths_.erase(StringKeyCase::Create(path));
+  loading_paths_.erase(StringKeyIgnoreCase(std::string_view(path)));
 }
 
 void ModuleRegistry::Shutdown() {

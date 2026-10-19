@@ -1045,7 +1045,7 @@ dxbc::Src DXBCShaderTranslator::LoadOperand(const InstructionOperand& operand,
         u32 temp = PushSystemTemp();
         temp_pushed_out = true;
         u32 used_swizzle_components = 0;
-        for (u32 i = 0; i < u32(operand.component_count); ++i) {
+        for (u32 i = 0; i < static_cast<u32>(operand.component_count); ++i) {
           if (!(needed_components & (1 << i))) {
             continue;
           }
@@ -1647,7 +1647,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
       type.variable_type = translator_type.variable_type;
       type.row_count = translator_type.row_count;
       type.column_count = translator_type.column_count;
-      switch (ShaderRdefTypeIndex(i)) {
+      switch (static_cast<ShaderRdefTypeIndex>(i)) {
         case ShaderRdefTypeIndex::kFloat4ConstantArray:
           type.element_count =
               std::max(static_cast<u16>(constant_register_map.float_count), static_cast<u16>(1));
@@ -1666,7 +1666,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
   name_ptr = (static_cast<u32>(shader_object_.size()) - blob_position_dwords) * sizeof(u32);
   u32 constant_name_ptrs_system[std::to_underlying(SystemConstants::Index::kCount)];
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
-    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(SystemConstants::Index::kCount); ++i) {
       constant_name_ptrs_system[i] = name_ptr;
       name_ptr += dxbc::AppendAlignedString(shader_object_, kSystemConstantRDEF[i].name);
     }
@@ -1699,7 +1699,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
     auto constants_system = reinterpret_cast<dxbc::RdefVariable*>(shader_object_.data() +
                                                                   constant_position_dwords_system);
     u32 constant_offset_system = 0;
-    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(SystemConstants::Index::kCount); ++i) {
       dxbc::RdefVariable& constant_system = constants_system[i];
       const SystemConstantRdef& translator_constant_system = kSystemConstantRDEF[i];
       constant_system.name_ptr = constant_name_ptrs_system[i];
@@ -1871,7 +1871,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
     if (bindless_resources_used_) {
       name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_samplers");
     } else {
-      for (u32 i = 0; i < u32(sampler_bindings_.size()); ++i) {
+      for (u32 i = 0; i < static_cast<u32>(sampler_bindings_.size()); ++i) {
         name_ptr +=
             dxbc::AppendAlignedString(shader_object_, sampler_bindings_[i].bindful_name.c_str());
       }
@@ -2691,7 +2691,7 @@ void DXBCShaderTranslator::WriteShaderCode() {
     if (bindless_resources_used_) {
       ao_.OpDclSampler(dxbc::Src::S(dxbc::Src::kDcl, 0, 0, UINT32_MAX));
     } else {
-      for (u32 i = 0; i < u32(sampler_bindings_.size()); ++i) {
+      for (u32 i = 0; i < static_cast<u32>(sampler_bindings_.size()); ++i) {
         ao_.OpDclSampler(dxbc::Src::S(dxbc::Src::kDcl, i, i, i));
       }
     }

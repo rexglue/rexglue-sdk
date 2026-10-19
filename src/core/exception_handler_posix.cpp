@@ -339,8 +339,8 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
                     &thread_context.xmm_registers[modified_register_index], sizeof(Vec128T));
       }
 #else
-      mcontext.gregs[REG_RIP] = greg_t(thread_context.rip);
-      mcontext.gregs[REG_EFL] = greg_t(thread_context.eflags);
+      mcontext.gregs[REG_RIP] = static_cast<greg_t>(thread_context.rip);
+      mcontext.gregs[REG_EFL] = static_cast<greg_t>(thread_context.eflags);
       u32 modified_register_index;
       // The order must match the order in X64Register.
       static const size_t kIntRegisterMap[] = {

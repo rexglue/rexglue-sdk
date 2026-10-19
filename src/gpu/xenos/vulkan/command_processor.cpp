@@ -3790,7 +3790,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
       !shader_32bit_index_dma && memexport_writes_possible) {
     // Memexporting draws with guest DMA indices read an index snapshot to avoid aliasing.
     VkDeviceSize guest_dma_index_size =
-        VkDeviceSize(primitive_processing_result.host_draw_vertex_count) *
+        static_cast<VkDeviceSize>(primitive_processing_result.host_draw_vertex_count) *
         (primitive_processing_result.host_index_format == xenos::IndexFormat::kInt16 ? sizeof(u16)
                                                                                      : sizeof(u32));
     if (guest_dma_index_size) {
@@ -3962,7 +3962,7 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFullPath(u32 total_size) 
     readback_memory_range.memory = readback_memory;
     readback_memory_range.offset = 0;
     readback_memory_range.size =
-        std::min(rex::RoundUpNonZero(VkDeviceSize(total_size),
+        std::min(rex::RoundUpNonZero(static_cast<VkDeviceSize>(total_size),
                                      vulkan_device->GetProperties().nonCoherentAtomSize),
                  readback_memory_size);
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
@@ -4616,7 +4616,7 @@ bool VulkanCommandProcessor::EndGuestOcclusionQuery(u32 sample_count_address) {
     memory_range.memory = occlusion_query_readback_memory_;
     memory_range.offset = 0;
     memory_range.size =
-        std::min(rex::RoundUpNonZero(VkDeviceSize(sizeof(u64) * kMaxOcclusionQueries),
+        std::min(rex::RoundUpNonZero(static_cast<VkDeviceSize>(sizeof(u64) * kMaxOcclusionQueries),
                                      vulkan_device->GetProperties().nonCoherentAtomSize),
                  occlusion_query_readback_memory_size_);
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &memory_range);
@@ -6047,7 +6047,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       if (!mapping) {
         return false;
       }
-      buffer_info.range = VkDeviceSize(float_constants_size);
+      buffer_info.range = static_cast<VkDeviceSize>(float_constants_size);
       for (u32 i = 0; i < 4; ++i) {
         u64 float_constant_map_entry = current_float_constant_map_vertex_[i];
         u32 float_constant_index;
@@ -6075,7 +6075,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       if (!mapping) {
         return false;
       }
-      buffer_info.range = VkDeviceSize(float_constants_size);
+      buffer_info.range = static_cast<VkDeviceSize>(float_constants_size);
       for (u32 i = 0; i < 4; ++i) {
         u64 float_constant_map_entry = current_float_constant_map_pixel_[i];
         u32 float_constant_index;
@@ -6102,7 +6102,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       if (!mapping) {
         return false;
       }
-      buffer_info.range = VkDeviceSize(kBoolLoopConstantsSize);
+      buffer_info.range = static_cast<VkDeviceSize>(kBoolLoopConstantsSize);
       std::memcpy(mapping, &regs[std::to_underlying(xenos::Register::SHADER_CONSTANT_BOOL_000_031)],
                   kBoolLoopConstantsSize);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
@@ -6119,7 +6119,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       if (!mapping) {
         return false;
       }
-      buffer_info.range = VkDeviceSize(kFetchConstantsSize);
+      buffer_info.range = static_cast<VkDeviceSize>(kFetchConstantsSize);
       std::memcpy(mapping, &regs[std::to_underlying(xenos::Register::SHADER_CONSTANT_FETCH_00_0)],
                   kFetchConstantsSize);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
@@ -6172,7 +6172,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
           texture_binding.fetch_constant, texture_binding.dimension,
-          bool(texture_binding.is_signed));
+          static_cast<bool>(texture_binding.is_signed));
       descriptor_image_info.imageLayout = descriptor_image_info.imageView != VK_NULL_HANDLE
                                               ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                               : VK_IMAGE_LAYOUT_UNDEFINED;
@@ -6192,7 +6192,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
           texture_binding.fetch_constant, texture_binding.dimension,
-          bool(texture_binding.is_signed));
+          static_cast<bool>(texture_binding.is_signed));
       descriptor_image_info.imageLayout = descriptor_image_info.imageView != VK_NULL_HANDLE
                                               ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                               : VK_IMAGE_LAYOUT_UNDEFINED;

@@ -119,7 +119,7 @@ bool Open(NullGPUApp& app) {
   if (!app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{})) {
     return false;
   }
-  return bool(app.CreateTitleWindow());
+  return static_cast<bool>(app.CreateTitleWindow());
 }
 
 std::vector<std::string> After(const std::string& first) {

@@ -39,11 +39,13 @@ class Surface : public rex::NonCopyable {
   using TypeFlags = u32;
   enum : u8 {
     /** Bit of kTypeIndexWaylandSurface. */
-    kTypeFlagWaylandSurface = TypeFlags(1) << kTypeIndexWaylandSurface,
-    kTypeFlagXCBWindow = TypeFlags(1) << kTypeIndexXCBWindow, /**< Bit of kTypeIndexXCBWindow. */
-    kTypeFlagWin32HWND = TypeFlags(1) << kTypeIndexWin32HWND, /**< Bit of kTypeIndexWin32HWND. */
+    kTypeFlagWaylandSurface = static_cast<TypeFlags>(1) << kTypeIndexWaylandSurface,
+    /** Bit of kTypeIndexXCBWindow. */
+    kTypeFlagXCBWindow = static_cast<TypeFlags>(1) << kTypeIndexXCBWindow,
+    /** Bit of kTypeIndexWin32HWND. */
+    kTypeFlagWin32HWND = static_cast<TypeFlags>(1) << kTypeIndexWin32HWND,
     /** Bit of kTypeIndexCAMetalLayer. */
-    kTypeFlagCAMetalLayer = TypeFlags(1) << kTypeIndexCAMetalLayer,
+    kTypeFlagCAMetalLayer = static_cast<TypeFlags>(1) << kTypeIndexCAMetalLayer,
   };
 
   virtual ~Surface() = default;

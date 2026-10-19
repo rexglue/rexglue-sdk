@@ -353,7 +353,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   if (msaa_samples > xenos::MSAASamples::k4X) {
     REX_ASSERT_ALWAYS();
     REX_FAIL(gpu, false, "{}x MSAA requested by the guest, Xenos only supports up to 4x",
-             static_cast<u32>(1) << u32(msaa_samples));
+             static_cast<u32>(1) << static_cast<u32>(msaa_samples));
   }
   u32 msaa_samples_x_log2 = static_cast<u32>(msaa_samples >= xenos::MSAASamples::k4X);
   u32 pitch_pixels = rb_surface_info.surface_pitch;
@@ -508,9 +508,10 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   RenderTargetKey rt_keys[1 + xenos::kMaxColorRenderTargets];
   RenderTarget* rts[1 + xenos::kMaxColorRenderTargets];
   u32 rt_lengths_tiles[1 + xenos::kMaxColorRenderTargets];
-  u32 length_used_tiles_at_32bpp = ((height_used << u32(msaa_samples >= xenos::MSAASamples::k2X)) +
-                                    (xenos::kEDRAMTileHeightSamples - 1)) /
-                                   xenos::kEDRAMTileHeightSamples * pitch_tiles_at_32bpp;
+  u32 length_used_tiles_at_32bpp =
+      ((height_used << static_cast<u32>(msaa_samples >= xenos::MSAASamples::k2X)) +
+       (xenos::kEDRAMTileHeightSamples - 1)) /
+      xenos::kEDRAMTileHeightSamples * pitch_tiles_at_32bpp;
   for (u32 i = 0; i < edram_bases_sorted_count; ++i) {
     const std::pair<u32, u32>& rt_base_index = edram_bases_sorted[i];
     u32 rt_base = rt_base_index.first;
@@ -683,8 +684,10 @@ void RenderTargetCache::GetHostDepthStoreRectangleInfo(
   rectangle_constant.width_pixels_div_8_minus_1 = (transfer_rectangle.width_pixels >> 3) - 1;
   rectangle_constant_out = rectangle_constant;
   // 1 thread group = 64x8 host samples.
-  u32 pixel_size_x = GetDrawResolutionScaleX() << u32(msaa_samples >= xenos::MSAASamples::k4X);
-  u32 pixel_size_y = GetDrawResolutionScaleY() << u32(msaa_samples >= xenos::MSAASamples::k2X);
+  u32 pixel_size_x = GetDrawResolutionScaleX()
+                     << static_cast<u32>(msaa_samples >= xenos::MSAASamples::k4X);
+  u32 pixel_size_y = GetDrawResolutionScaleY()
+                     << static_cast<u32>(msaa_samples >= xenos::MSAASamples::k2X);
   group_count_x_out = (transfer_rectangle.width_pixels * pixel_size_x + 63) >> 6;
   group_count_y_out = (transfer_rectangle.height_pixels * pixel_size_y) >> 3;
 }
@@ -763,7 +766,8 @@ void RenderTargetCache::GetResolveCopyDispatchesToDump(
     std::vector<ResolveCopyDispatch>& dispatches_out) const {
   GetResolveCopyRectanglesToDump(base, row_length, rows, pitch, rectangles_out);
   dispatches_out.clear();
-  for (u32 rectangle_index = 0; rectangle_index < u32(rectangles_out.size()); ++rectangle_index) {
+  for (u32 rectangle_index = 0; rectangle_index < static_cast<u32>(rectangles_out.size());
+       ++rectangle_index) {
     const ResolveCopyDumpRectangle& rectangle = rectangles_out[rectangle_index];
     ResolveCopyDumpRectangle::Dispatch
         rectangle_dispatches[ResolveCopyDumpRectangle::kMaxDispatches];
@@ -814,7 +818,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
     REX_FAIL(gpu, false,
              "Surface pitch in 80-sample groups {} at {}x MSAA larger than the "
              "maximum texture width {} specified by the guest in a resolve",
-             pitch_tiles_at_32bpp, static_cast<u32>(1) << u32(msaa_samples),
+             pitch_tiles_at_32bpp, static_cast<u32>(1) << static_cast<u32>(msaa_samples),
              xenos::kTexture2DCubeMaxWidthHeight);
   }
   u32 pitch_pixels = pitch_tiles_at_32bpp * (xenos::kEDRAMTileWidthSamples >> msaa_samples_x_log2);
@@ -923,7 +927,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
     color_render_target_key.msaa_samples = msaa_samples;
     color_render_target_key.is_depth = 0;
     color_render_target_key.resource_format = static_cast<u32>(GetColorResourceFormat(
-        xenos::ColorRenderTargetFormat(resolve_info.color_edram_info.format)));
+        static_cast<xenos::ColorRenderTargetFormat>(resolve_info.color_edram_info.format)));
     color_render_target = GetOrCreateRenderTarget(color_render_target_key);
     if (!color_render_target) {
       color_render_target_key = RenderTargetKey();
@@ -980,14 +984,14 @@ RenderTargetCache::RenderTarget* RenderTargetCache::GetOrCreateRenderTarget(Rend
       REXLOG_DEBUG(gpu,
                    "Created a {}x{} {}xMSAA {} render target with guest format {} at "
                    "EDRAM base {}",
-                   width, height, static_cast<u32>(1) << u32(key.msaa_samples),
+                   width, height, static_cast<u32>(1) << static_cast<u32>(key.msaa_samples),
                    key.is_depth ? "depth" : "color", static_cast<u32>(key.resource_format),
                    static_cast<u32>(key.base_tiles));
     } else {
       REXLOG_ERROR(gpu,
                    "Failed to create a {}x{} {}xMSAA {} render target with guest format "
                    "{} at EDRAM base {}",
-                   width, height, static_cast<u32>(1) << u32(key.msaa_samples),
+                   width, height, static_cast<u32>(1) << static_cast<u32>(key.msaa_samples),
                    key.is_depth ? "depth" : "color", static_cast<u32>(key.resource_format),
                    static_cast<u32>(key.base_tiles));
     }

@@ -125,8 +125,8 @@ bool Build<PPC_INST_DIVW>(BuilderContext& ctx) {
   auto r_a = ctx.R(ctx.insn.operands[1]);
   auto r_b = ctx.R(ctx.insn.operands[2]);
   ctx.Println(
-      "\t{}.u64 = u32(({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / {}.s32 : "
-      "0);",
+      "\t{}.u64 = static_cast<u32>(({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / "
+      "{}.s32 : 0);",
       r_d, r_b, r_a, r_b, r_a, r_b);
   EmitRecordFormCompare(ctx);
   return true;
@@ -137,23 +137,25 @@ bool Build<PPC_INST_DIVWU>(BuilderContext& ctx) {
   auto r_d = ctx.R(ctx.insn.operands[0]);
   auto r_a = ctx.R(ctx.insn.operands[1]);
   auto r_b = ctx.R(ctx.insn.operands[2]);
-  ctx.Println("\t{}.u64 = u32({}.u32 ? {}.u32 / {}.u32 : 0);", r_d, r_b, r_a, r_b);
+  ctx.Println("\t{}.u64 = static_cast<u32>({}.u32 ? {}.u32 / {}.u32 : 0);", r_d, r_b, r_a, r_b);
   EmitRecordFormCompare(ctx);
   return true;
 }
 
 template <>
 bool Build<PPC_INST_MULHW>(BuilderContext& ctx) {
-  ctx.Println("\t{}.s64 = (i64({}.s32) * i64({}.s32)) >> 32;", ctx.R(ctx.insn.operands[0]),
-              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  ctx.Println("\t{}.s64 = (static_cast<i64>({}.s32) * static_cast<i64>({}.s32)) >> 32;",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);
   return true;
 }
 
 template <>
 bool Build<PPC_INST_MULHWU>(BuilderContext& ctx) {
-  ctx.Println("\t{}.u64 = (u64({}.u32) * u64({}.u32)) >> 32;", ctx.R(ctx.insn.operands[0]),
-              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  ctx.Println("\t{}.u64 = (static_cast<u64>({}.u32) * static_cast<u64>({}.u32)) >> 32;",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);
   return true;
 }
@@ -178,8 +180,9 @@ bool Build<PPC_INST_MULLI>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_MULLW>(BuilderContext& ctx) {
-  ctx.Println("\t{}.s64 = i64({}.s32) * i64({}.s32);", ctx.R(ctx.insn.operands[0]),
-              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  ctx.Println("\t{}.s64 = static_cast<i64>({}.s32) * static_cast<i64>({}.s32);",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);
   return true;
 }

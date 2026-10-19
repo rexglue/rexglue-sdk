@@ -89,7 +89,9 @@ class FunctionGraph : public rex::MoveOnly {
    * @param address Entry point address
    * @return True after DeclareNoReturn for the address
    */
-  bool IsDeclaredNoReturn(u32 address) const { return declared_no_return_.contains(address); }
+  bool IsDeclaredNoReturn(u32 address) const {
+    return tables_->declared_no_return.contains(address);
+  }
 
   /**
    * Reports whether a function never returns to its caller. A declared address never returns.
@@ -163,7 +165,7 @@ class FunctionGraph : public rex::MoveOnly {
    * @return Functions keyed by entry point
    */
   const std::unordered_map<u32, std::unique_ptr<FunctionNode>>& GetFunctions() const {
-    return functions_;
+    return tables_->functions;
   }
 
   /**
@@ -181,7 +183,7 @@ class FunctionGraph : public rex::MoveOnly {
   std::vector<FunctionNode*> GetSealedFunctions();
 
   /** Returns the number of functions. */
-  size_t GetFunctionCount() const { return functions_.size(); }
+  size_t GetFunctionCount() const { return tables_->functions.size(); }
   /**
    * Counts the functions that are not sealed.
    *
@@ -367,13 +369,18 @@ class FunctionGraph : public rex::MoveOnly {
   TargetKind ClassifyTarget(u32 target, u32 caller_addr, bool is_call_instruction) const;
 
  private:
-  std::unordered_map<u32, std::unique_ptr<FunctionNode>> functions_;
-  std::map<u32, FunctionNode*> functions_by_base_;
-  std::unordered_map<u32, bool> function_has_xrefs_;
+  /** The containers, held behind a pointer so that moving the graph moves a pointer. */
+  struct Tables {
+    std::unordered_map<u32, std::unique_ptr<FunctionNode>> functions;
+    std::map<u32, FunctionNode*> functions_by_base;
+    std::unordered_map<u32, bool> function_has_xrefs;
+    std::unordered_set<u32> declared_no_return;
+    std::optional<std::unordered_set<u32>> no_return;
+  };
+
+  std::unique_ptr<Tables> tables_ = std::make_unique<Tables>();
   std::vector<std::pair<u32, u32>> chunks_;
   MemoryReader memory_reader_;
-  std::unordered_set<u32> declared_no_return_;
-  mutable std::optional<std::unordered_set<u32>> no_return_;
 
   void NotifyFunctionAdded(FunctionNode* new_function);
 };

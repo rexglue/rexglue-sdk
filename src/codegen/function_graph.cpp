@@ -744,8 +744,8 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
 
 FunctionNode* FunctionGraph::AddFunction(u32 base, u32 size, FunctionAuthority authority,
                                          bool has_xrefs) {
-  auto it = functions_.find(base);
-  if (it != functions_.end()) {
+  auto it = tables_->functions.find(base);
+  if (it != tables_->functions.end()) {
     FunctionNode* existing = it->second.get();
 
     if (existing->GetAuthority() >= authority) {
@@ -762,11 +762,11 @@ FunctionNode* FunctionGraph::AddFunction(u32 base, u32 size, FunctionAuthority a
 
   auto node = std::make_unique<FunctionNode>(base, size, authority);
   FunctionNode* node_ptr = node.get();
-  functions_[base] = std::move(node);
-  functions_by_base_[base] = node_ptr;
-  no_return_.reset();
+  tables_->functions[base] = std::move(node);
+  tables_->functions_by_base[base] = node_ptr;
+  tables_->no_return.reset();
 
-  function_has_xrefs_[base] = has_xrefs;
+  tables_->function_has_xrefs[base] = has_xrefs;
 
   NotifyFunctionAdded(node_ptr);
 
@@ -938,14 +938,14 @@ bool FunctionGraph::IsNoReturn(u32 entry) const {
     return true;
   if (!GetFunction(entry))
     return false;
-  if (!no_return_)
-    no_return_ = NoReturnSolver(*this).Solve();
-  return no_return_->contains(entry);
+  if (!tables_->no_return)
+    tables_->no_return = NoReturnSolver(*this).Solve();
+  return tables_->no_return->contains(entry);
 }
 
 void FunctionGraph::DeclareNoReturn(u32 address) {
-  declared_no_return_.insert(address);
-  no_return_.reset();
+  tables_->declared_no_return.insert(address);
+  tables_->no_return.reset();
 }
 
 FunctionNode* FunctionGraph::AddImportFunction(u32 address, std::string_view resolved_name,
@@ -957,31 +957,31 @@ FunctionNode* FunctionGraph::AddImportFunction(u32 address, std::string_view res
 }
 
 FunctionNode* FunctionGraph::GetFunction(u32 entry_point) {
-  auto it = functions_.find(entry_point);
-  return it != functions_.end() ? it->second.get() : nullptr;
+  auto it = tables_->functions.find(entry_point);
+  return it != tables_->functions.end() ? it->second.get() : nullptr;
 }
 
 const FunctionNode* FunctionGraph::GetFunction(u32 entry_point) const {
-  auto it = functions_.find(entry_point);
-  return it != functions_.end() ? it->second.get() : nullptr;
+  auto it = tables_->functions.find(entry_point);
+  return it != tables_->functions.end() ? it->second.get() : nullptr;
 }
 
 bool FunctionGraph::RemoveFunction(u32 entry_point) {
-  auto it = functions_.find(entry_point);
-  if (it == functions_.end()) {
+  auto it = tables_->functions.find(entry_point);
+  if (it == tables_->functions.end()) {
     return false;
   }
   REXLOG_TRACE(codegen, "FunctionGraph: removing absorbed function 0x{:08X}", entry_point);
-  functions_by_base_.erase(entry_point);
-  functions_.erase(it);
-  no_return_.reset();
-  function_has_xrefs_.erase(entry_point);
+  tables_->functions_by_base.erase(entry_point);
+  tables_->functions.erase(it);
+  tables_->no_return.reset();
+  tables_->function_has_xrefs.erase(entry_point);
   return true;
 }
 
 FunctionNode* FunctionGraph::GetFunctionContaining(u32 addr) {
-  auto it = functions_by_base_.upper_bound(addr);
-  if (it != functions_by_base_.begin()) {
+  auto it = tables_->functions_by_base.upper_bound(addr);
+  if (it != tables_->functions_by_base.begin()) {
     --it;
     if (it->second->ContainsAddress(addr)) {
       return it->second;
@@ -991,8 +991,8 @@ FunctionNode* FunctionGraph::GetFunctionContaining(u32 addr) {
 }
 
 const FunctionNode* FunctionGraph::GetFunctionContaining(u32 addr) const {
-  auto it = functions_by_base_.upper_bound(addr);
-  if (it != functions_by_base_.begin()) {
+  auto it = tables_->functions_by_base.upper_bound(addr);
+  if (it != tables_->functions_by_base.begin()) {
     --it;
     if (it->second->ContainsAddress(addr)) {
       return it->second;
@@ -1002,17 +1002,17 @@ const FunctionNode* FunctionGraph::GetFunctionContaining(u32 addr) const {
 }
 
 bool FunctionGraph::IsEntryPoint(u32 addr) const {
-  return functions_.contains(addr);
+  return tables_->functions.contains(addr);
 }
 
 bool FunctionGraph::IsImport(u32 addr) const {
-  auto it = functions_.find(addr);
-  return it != functions_.end() && it->second->GetAuthority() == FunctionAuthority::kImport;
+  auto it = tables_->functions.find(addr);
+  return it != tables_->functions.end() && it->second->GetAuthority() == FunctionAuthority::kImport;
 }
 
 std::vector<FunctionNode*> FunctionGraph::GetPendingFunctions() {
   std::vector<FunctionNode*> result;
-  for (auto& [base, node] : functions_) {
+  for (auto& [base, node] : tables_->functions) {
     if (node->IsPending()) {
       result.push_back(node.get());
     }
@@ -1022,7 +1022,7 @@ std::vector<FunctionNode*> FunctionGraph::GetPendingFunctions() {
 
 std::vector<FunctionNode*> FunctionGraph::GetSealedFunctions() {
   std::vector<FunctionNode*> result;
-  for (auto& [base, node] : functions_) {
+  for (auto& [base, node] : tables_->functions) {
     if (node->IsSealed()) {
       result.push_back(node.get());
     }
@@ -1032,7 +1032,7 @@ std::vector<FunctionNode*> FunctionGraph::GetSealedFunctions() {
 
 size_t FunctionGraph::GetPendingCount() const {
   size_t count = 0;
-  for (const auto& [base, node] : functions_) {
+  for (const auto& [base, node] : tables_->functions) {
     if (node->IsPending())
       ++count;
   }
@@ -1041,7 +1041,7 @@ size_t FunctionGraph::GetPendingCount() const {
 
 size_t FunctionGraph::GetSealedCount() const {
   size_t count = 0;
-  for (const auto& [base, node] : functions_) {
+  for (const auto& [base, node] : tables_->functions) {
     if (node->IsSealed())
       ++count;
   }
@@ -1216,7 +1216,7 @@ bool FunctionGraph::TrySealFunction(u32 entry) {
 size_t FunctionGraph::SealAllReady() {
   size_t sealed = 0;
   size_t could_not_seal = 0;
-  for (auto& [base, node] : functions_) {
+  for (auto& [base, node] : tables_->functions) {
     if (node->IsPending()) {
       if (node->CanSeal()) {
         node->Seal();
@@ -1240,7 +1240,7 @@ size_t FunctionGraph::SealAllReady() {
 void FunctionGraph::SealAll() {
   std::vector<std::pair<u32, std::string>> errors;
 
-  for (auto& [base, node] : functions_) {
+  for (auto& [base, node] : tables_->functions) {
     if (node->IsSealed())
       continue;
 
@@ -1270,7 +1270,8 @@ void FunctionGraph::SealAll() {
     throw std::runtime_error(msg);
   }
 
-  REXLOG_TRACE(codegen, "FunctionGraph::SealAll: all {} functions sealed", functions_.size());
+  REXLOG_TRACE(codegen, "FunctionGraph::SealAll: all {} functions sealed",
+               tables_->functions.size());
 }
 
 void FunctionGraph::RegisterChunk(u32 base, u32 size) {
@@ -1306,7 +1307,7 @@ bool FunctionGraph::IsVacant(u32 from_addr, u32 target_addr) const {
     }
   }
 
-  for (const auto& [base, node] : functions_) {
+  for (const auto& [base, node] : tables_->functions) {
     if (node->ContainsAddress(target_addr)) {
       if (IsMergeableEntryPoint(target_addr)) {
         REXLOG_TRACE(codegen, "FunctionGraph::IsVacant: 0x{:08X} is mergeable (GAP_FILL)",
@@ -1337,15 +1338,15 @@ bool FunctionGraph::IsVacant(u32 from_addr, u32 target_addr) const {
 size_t FunctionGraph::MarkFuncletRegisterSharing() {
   std::vector<std::pair<u32, u32>> ranges;
 
-  for (auto& entry : functions_) {
+  for (auto& entry : tables_->functions) {
     auto& node = entry.second;
     const auto& info = node->GetExceptionData();
     if (!info || !info->HasInfo())
       continue;
 
     auto claim = [&](u32 addr) {
-      auto it = addr ? functions_.find(addr) : functions_.end();
-      if (it == functions_.end())
+      auto it = addr ? tables_->functions.find(addr) : tables_->functions.end();
+      if (it == tables_->functions.end())
         return;
       ranges.emplace_back(it->second->GetBase(), it->second->GetEnd());
     };
@@ -1390,8 +1391,8 @@ size_t FunctionGraph::MarkFuncletRegisterSharing() {
   };
 
   size_t marked = 0;
-  for (const auto& [base, node] : functions_) {
-    if (inside_funclet(base) && !node->SharesRegisters()) {
+  for (const auto& [base, node] : tables_->functions) {
+    if (inside_funclet(base) && !node->IsRegisterSharing()) {
       node->SetSharesRegisters(true);
       ++marked;
     }
@@ -1401,8 +1402,8 @@ size_t FunctionGraph::MarkFuncletRegisterSharing() {
 }
 
 bool FunctionGraph::IsMergeableEntryPoint(u32 addr) const {
-  auto it = functions_.find(addr);
-  if (it == functions_.end()) {
+  auto it = tables_->functions.find(addr);
+  if (it == tables_->functions.end()) {
     return false;
   }
 
@@ -1446,7 +1447,7 @@ TargetKind FunctionGraph::ClassifyTarget(u32 target, u32 caller_addr,
 }
 
 void FunctionGraph::NotifyFunctionAdded(FunctionNode* new_function) {
-  for (auto& [base, node] : functions_) {
+  for (auto& [base, node] : tables_->functions) {
     if (node.get() != new_function && node->IsPending()) {
       node->TryResolveAgainst(new_function);
     }

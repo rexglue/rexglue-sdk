@@ -1327,8 +1327,8 @@ bool PipelineCache::GetCurrentStateDescription(
       // The format is set only when depth or stencil is used.
       if (description_out.depth_func != xenos::CompareFunction::kAlways ||
           description_out.depth_write || description_out.stencil_enable) {
-        description_out.depth_format =
-            xenos::DepthRenderTargetFormat(bound_depth_and_color_render_target_formats[0]);
+        description_out.depth_format = static_cast<xenos::DepthRenderTargetFormat>(
+            bound_depth_and_color_render_target_formats[0]);
         depth_stencil_bound_and_used = true;
       }
     } else {
@@ -1381,8 +1381,8 @@ bool PipelineCache::GetCurrentStateDescription(
       }
       PipelineRenderTarget& rt = description_out.render_targets[i];
       rt.used = 1;
-      rt.format =
-          xenos::ColorRenderTargetFormat(bound_depth_and_color_render_target_formats[1 + i]);
+      rt.format = static_cast<xenos::ColorRenderTargetFormat>(
+          bound_depth_and_color_render_target_formats[1 + i]);
       rt.write_mask = (normalized_color_mask >> (i * 4)) & 0xF;
       if (rt.write_mask) {
         auto blendcontrol = regs.Get<xenos::reg::RB_BLENDCONTROL>(
@@ -2376,8 +2376,8 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
           .vertex.host_vertex_shader_type;
   if (Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type)) {
     state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
-    xenos::TessellationMode tessellation_mode =
-        xenos::TessellationMode(description.primitive_topology_type_or_tessellation_mode);
+    xenos::TessellationMode tessellation_mode = static_cast<xenos::TessellationMode>(
+        description.primitive_topology_type_or_tessellation_mode);
     if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
       state_desc.VS.pShaderBytecode = shaders::kTessellationAdaptiveVS;
       state_desc.VS.BytecodeLength = sizeof(shaders::kTessellationAdaptiveVS);
@@ -2461,7 +2461,8 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     state_desc.VS.pShaderBytecode = runtime_description.vertex_shader->GetTranslatedBinary().data();
     state_desc.VS.BytecodeLength = runtime_description.vertex_shader->GetTranslatedBinary().size();
     PipelinePrimitiveTopologyType primitive_topology_type =
-        PipelinePrimitiveTopologyType(description.primitive_topology_type_or_tessellation_mode);
+        static_cast<PipelinePrimitiveTopologyType>(
+            description.primitive_topology_type_or_tessellation_mode);
     switch (primitive_topology_type) {
       case PipelinePrimitiveTopologyType::kPoint:
         state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
@@ -2535,14 +2536,14 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       static_cast<f32>(std::max(render_target_cache_.GetDrawResolutionScaleX(),
                                 render_target_cache_.GetDrawResolutionScaleY()));
   state_desc.RasterizerState.DepthClipEnable = description.depth_clip ? TRUE : FALSE;
-  u32 msaa_sample_count = static_cast<u32>(1) << u32(description.host_msaa_samples);
+  u32 msaa_sample_count = static_cast<u32>(1) << static_cast<u32>(description.host_msaa_samples);
   if (edram_rov_used) {
     REX_ASSERT(msaa_sample_count == 1 || msaa_sample_count == 4);
     if (msaa_sample_count != 1 && msaa_sample_count != 4) {
       return nullptr;
     }
-    state_desc.RasterizerState.ForcedSampleCount = static_cast<u32>(1)
-                                                   << u32(description.host_msaa_samples);
+    state_desc.RasterizerState.ForcedSampleCount =
+        static_cast<u32>(1) << static_cast<u32>(description.host_msaa_samples);
   }
 
   state_desc.SampleMask = UINT_MAX;
@@ -2567,7 +2568,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       state_desc.DepthStencilState.DepthWriteMask =
           description.depth_write ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
       // Comparison functions map to the Direct3D 12 ones plus 1.
-      state_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC(
+      state_desc.DepthStencilState.DepthFunc = static_cast<D3D12_COMPARISON_FUNC>(
           static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) + static_cast<u32>(description.depth_func));
     }
     if (description.stencil_enable) {
@@ -2576,29 +2577,29 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       state_desc.DepthStencilState.StencilWriteMask = description.stencil_write_mask;
       // Stencil operations map to the Direct3D 12 ones plus 1.
       state_desc.DepthStencilState.FrontFace.StencilFailOp =
-          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<u32>(description.stencil_front_fail_op));
+          static_cast<D3D12_STENCIL_OP>(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                                        static_cast<u32>(description.stencil_front_fail_op));
       state_desc.DepthStencilState.FrontFace.StencilDepthFailOp =
-          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<u32>(description.stencil_front_depth_fail_op));
+          static_cast<D3D12_STENCIL_OP>(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                                        static_cast<u32>(description.stencil_front_depth_fail_op));
       state_desc.DepthStencilState.FrontFace.StencilPassOp =
-          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<u32>(description.stencil_front_pass_op));
+          static_cast<D3D12_STENCIL_OP>(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                                        static_cast<u32>(description.stencil_front_pass_op));
       state_desc.DepthStencilState.FrontFace.StencilFunc =
-          D3D12_COMPARISON_FUNC(static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) +
-                                static_cast<u32>(description.stencil_front_func));
+          static_cast<D3D12_COMPARISON_FUNC>(static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) +
+                                             static_cast<u32>(description.stencil_front_func));
       state_desc.DepthStencilState.BackFace.StencilFailOp =
-          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<u32>(description.stencil_back_fail_op));
+          static_cast<D3D12_STENCIL_OP>(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                                        static_cast<u32>(description.stencil_back_fail_op));
       state_desc.DepthStencilState.BackFace.StencilDepthFailOp =
-          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<u32>(description.stencil_back_depth_fail_op));
+          static_cast<D3D12_STENCIL_OP>(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                                        static_cast<u32>(description.stencil_back_depth_fail_op));
       state_desc.DepthStencilState.BackFace.StencilPassOp =
-          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<u32>(description.stencil_back_pass_op));
+          static_cast<D3D12_STENCIL_OP>(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                                        static_cast<u32>(description.stencil_back_pass_op));
       state_desc.DepthStencilState.BackFace.StencilFunc =
-          D3D12_COMPARISON_FUNC(static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) +
-                                static_cast<u32>(description.stencil_back_func));
+          static_cast<D3D12_COMPARISON_FUNC>(static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) +
+                                             static_cast<u32>(description.stencil_back_func));
     }
     if (state_desc.DepthStencilState.DepthEnable || state_desc.DepthStencilState.StencilEnable) {
       state_desc.DSVFormat =

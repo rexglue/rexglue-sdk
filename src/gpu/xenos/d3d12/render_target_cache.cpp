@@ -279,7 +279,8 @@ bool D3D12RenderTargetCache::Initialize() {
   resolve_copy_root_parameters[2].DescriptorTable.pDescriptorRanges = &resolve_copy_source_range;
   resolve_copy_root_parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   D3D12_ROOT_SIGNATURE_DESC resolve_copy_root_signature_desc;
-  resolve_copy_root_signature_desc.NumParameters = UINT(resolve_copy_root_parameters.size());
+  resolve_copy_root_signature_desc.NumParameters =
+      static_cast<UINT>(resolve_copy_root_parameters.size());
   resolve_copy_root_signature_desc.pParameters = resolve_copy_root_parameters.data();
   resolve_copy_root_signature_desc.NumStaticSamplers = 0;
   resolve_copy_root_signature_desc.pStaticSamplers = nullptr;
@@ -298,7 +299,7 @@ bool D3D12RenderTargetCache::Initialize() {
   direct_resolve_root_signature_color_->AddRef();
   direct_resolve_root_signature_depth_->AddRef();
 
-  for (size_t i = 0; i < size_t(draw_state::ResolveCopyShaderIndex::kCount); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount); ++i) {
     const draw_state::ResolveCopyShaderInfo& resolve_copy_shader_info =
         draw_state::kResolveCopyShaderInfo[i];
     const ResolveCopyShaderCode& resolve_copy_shader_code = kResolveCopyShaders[i];
@@ -452,7 +453,8 @@ bool D3D12RenderTargetCache::Initialize() {
         &host_depth_store_root_dest_range;
     host_depth_store_root_dest.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     D3D12_ROOT_SIGNATURE_DESC host_depth_store_root_desc;
-    host_depth_store_root_desc.NumParameters = UINT(rex::CountOf(host_depth_store_root_parameters));
+    host_depth_store_root_desc.NumParameters =
+        static_cast<UINT>(rex::CountOf(host_depth_store_root_parameters));
     host_depth_store_root_desc.pParameters = host_depth_store_root_parameters;
     host_depth_store_root_desc.NumStaticSamplers = 0;
     host_depth_store_root_desc.pStaticSamplers = nullptr;
@@ -542,7 +544,7 @@ bool D3D12RenderTargetCache::Initialize() {
     transfer_root_desc.NumStaticSamplers = 0;
     transfer_root_desc.pStaticSamplers = nullptr;
     transfer_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-    for (size_t i = 0; i < size_t(TransferRootSignatureIndex::kCount); ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(TransferRootSignatureIndex::kCount); ++i) {
       u32 transfer_root_mask = kTransferUsedRootParameters[i];
       if (transfer_root_mask & kTransferUsedRootParameterStencilMaskConstantBit) {
         D3D12_ROOT_PARAMETER& transfer_root_stencil_mask_constant =
@@ -691,7 +693,7 @@ bool D3D12RenderTargetCache::Initialize() {
       dump_root_edram.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
     D3D12_ROOT_SIGNATURE_DESC dump_root_desc;
-    dump_root_desc.NumParameters = UINT(rex::CountOf(dump_root_color_parameters));
+    dump_root_desc.NumParameters = static_cast<UINT>(rex::CountOf(dump_root_color_parameters));
     dump_root_desc.pParameters = dump_root_color_parameters;
     dump_root_desc.NumStaticSamplers = 0;
     dump_root_desc.pStaticSamplers = nullptr;
@@ -704,7 +706,7 @@ bool D3D12RenderTargetCache::Initialize() {
       Shutdown();
       return false;
     }
-    dump_root_desc.NumParameters = UINT(rex::CountOf(dump_root_depth_parameters));
+    dump_root_desc.NumParameters = static_cast<UINT>(rex::CountOf(dump_root_depth_parameters));
     dump_root_desc.pParameters = dump_root_depth_parameters;
     dump_root_signature_depth_ = gpu::d3d12::objects::CreateRootSignature(provider, dump_root_desc);
     if (!dump_root_signature_depth_) {
@@ -755,7 +757,7 @@ bool D3D12RenderTargetCache::Initialize() {
                                                 : xenos::ColorRenderTargetFormat::k_32_FLOAT);
       for (size_t j = static_cast<size_t>(xenos::MSAASamples::k1X);
            j <= static_cast<size_t>(xenos::MSAASamples::k4X); ++j) {
-        if (xenos::MSAASamples(j) == xenos::MSAASamples::k2X && !msaa_2x_supported_) {
+        if (static_cast<xenos::MSAASamples>(j) == xenos::MSAASamples::k2X && !msaa_2x_supported_) {
           // Emulated 2x uses samples 0 and 3 of 4x as its samples 0 and 1.
           uint32_rtv_clear_pipeline_desc.SampleMask = 0b1001;
           uint32_rtv_clear_pipeline_desc.SampleDesc.Count = 4;
@@ -815,7 +817,7 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     D3D12_ROOT_SIGNATURE_DESC resolve_rov_clear_root_signature_desc;
     resolve_rov_clear_root_signature_desc.NumParameters =
-        UINT(resolve_rov_clear_root_parameters.size());
+        static_cast<UINT>(resolve_rov_clear_root_parameters.size());
     resolve_rov_clear_root_signature_desc.pParameters = resolve_rov_clear_root_parameters.data();
     resolve_rov_clear_root_signature_desc.NumStaticSamplers = 0;
     resolve_rov_clear_root_signature_desc.pStaticSamplers = nullptr;
@@ -1461,7 +1463,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> D3D12RenderTargetCache::CreateR
   if (key.msaa_samples == xenos::MSAASamples::k2X && !GetMSAA2xSupported()) {
     resource_desc.SampleDesc.Count = 4;
   } else {
-    resource_desc.SampleDesc.Count = UINT(1) << UINT(key.msaa_samples);
+    resource_desc.SampleDesc.Count = static_cast<UINT>(1) << static_cast<UINT>(key.msaa_samples);
   }
   resource_desc.SampleDesc.Quality = 0;
   resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -1650,15 +1652,15 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   bool dest_is_color = (mode.output == TransferOutput::kColor);
 
   xenos::ColorRenderTargetFormat dest_color_format =
-      xenos::ColorRenderTargetFormat(key.dest_resource_format);
+      static_cast<xenos::ColorRenderTargetFormat>(key.dest_resource_format);
   xenos::DepthRenderTargetFormat dest_depth_format =
-      xenos::DepthRenderTargetFormat(key.dest_resource_format);
+      static_cast<xenos::DepthRenderTargetFormat>(key.dest_resource_format);
   bool dest_is_64bpp = dest_is_color && xenos::IsColorRenderTargetFormat64bpp(dest_color_format);
 
   xenos::ColorRenderTargetFormat source_color_format =
-      xenos::ColorRenderTargetFormat(key.source_resource_format);
+      static_cast<xenos::ColorRenderTargetFormat>(key.source_resource_format);
   xenos::DepthRenderTargetFormat source_depth_format =
-      xenos::DepthRenderTargetFormat(key.source_resource_format);
+      static_cast<xenos::DepthRenderTargetFormat>(key.source_resource_format);
   bool source_is_color = (rs & kTransferUsedRootParameterColorSRVBit) != 0;
   bool source_is_64bpp;
   u32 source_color_format_component_count;
@@ -3192,7 +3194,8 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     pipeline_desc.SampleDesc.Count = 4;
   } else {
     pipeline_desc.SampleMask = UINT_MAX;
-    pipeline_desc.SampleDesc.Count = UINT(1) << UINT(key.dest_msaa_samples);
+    pipeline_desc.SampleDesc.Count = static_cast<UINT>(1)
+                                     << static_cast<UINT>(key.dest_msaa_samples);
   }
   pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
   pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -3215,7 +3218,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
             .first->second;
     bool stencil_pipelines_created = true;
     for (u32 i = 0; i < 8; ++i) {
-      pipeline_desc.DepthStencilState.StencilWriteMask = UINT8(1) << i;
+      pipeline_desc.DepthStencilState.StencilWriteMask = static_cast<UINT8>(1) << i;
       if (SUCCEEDED(device->CreateGraphicsPipelineState(&pipeline_desc,
                                                         IID_PPV_ARGS(&stencil_bit_pipelines[i])))) {
         continue;
@@ -3278,17 +3281,19 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                    "D3D12RenderTargetCache: Failed to create a render target ownership "
                    "transfer pipeline for {}-sample {} + {}-sample host depth{} -> "
                    "{}-sample {} for mode {}",
-                   static_cast<u32>(1) << u32(key.source_msaa_samples), source_format_name,
-                   static_cast<u32>(1) << u32(key.host_depth_source_msaa_samples),
+                   static_cast<u32>(1) << static_cast<u32>(key.source_msaa_samples),
+                   source_format_name,
+                   static_cast<u32>(1) << static_cast<u32>(key.host_depth_source_msaa_samples),
                    key.host_depth_source_is_copy ? " copy" : "",
-                   static_cast<u32>(1) << u32(key.dest_msaa_samples), dest_format_name,
+                   static_cast<u32>(1) << static_cast<u32>(key.dest_msaa_samples), dest_format_name,
                    static_cast<u32>(key.mode));
     } else {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create a render target ownership "
                    "transfer pipeline for {}-sample {} -> {}-sample {} for mode {}",
-                   static_cast<u32>(1) << u32(key.source_msaa_samples), source_format_name,
-                   static_cast<u32>(1) << u32(key.dest_msaa_samples), dest_format_name,
+                   static_cast<u32>(1) << static_cast<u32>(key.source_msaa_samples),
+                   source_format_name,
+                   static_cast<u32>(1) << static_cast<u32>(key.dest_msaa_samples), dest_format_name,
                    static_cast<u32>(key.mode));
     }
   }
@@ -3605,7 +3610,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       bool need_stencil_bit_draws = dest_rt_key.is_depth && !use_stencil_reference_output_;
       current_transfer_invocations_.clear();
       current_transfer_invocations_.reserve(current_transfers.size()
-                                            << u32(need_stencil_bit_draws));
+                                            << static_cast<u32>(need_stencil_bit_draws));
       u32 rt_sort_index = 0;
       TransferShaderKey new_transfer_shader_key;
       new_transfer_shader_key.dest_msaa_samples = dest_rt_key.msaa_samples;
@@ -3723,8 +3728,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         D3D12_RECT transfer_scissor;
         transfer_scissor.left = 0;
         transfer_scissor.top = 0;
-        transfer_scissor.right = LONG(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
-        transfer_scissor.bottom = LONG(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+        transfer_scissor.right = static_cast<LONG>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+        transfer_scissor.bottom = static_cast<LONG>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
         command_processor_.SetScissorRect(transfer_scissor);
       }
 
@@ -4013,10 +4018,10 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             dest_d3d12_rt.SetResourceState(D3D12_RESOURCE_STATE_DEPTH_WRITE),
             D3D12_RESOURCE_STATE_DEPTH_WRITE);
         command_processor_.SubmitBarriers();
-        command_list.D3DClearDepthStencilView(dest_d3d12_rt.GetDescriptorDraw().GetHandle(),
-                                              D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
-                                              depth_host_clear_value, UINT(clear_value) & 0xFF, 1,
-                                              &clear_rect);
+        command_list.D3DClearDepthStencilView(
+            dest_d3d12_rt.GetDescriptorDraw().GetHandle(),
+            D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth_host_clear_value,
+            static_cast<UINT>(clear_value) & 0xFF, 1, &clear_rect);
       } else {
         f32 color_clear_value[4] = {};
         bool clear_via_drawing = false;
@@ -4688,14 +4693,15 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
                                 ? xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat())
                                 : xenos::GetColorRenderTargetFormatName(key.GetColorFormat());
   if (pipeline) {
-    std::u16string pipeline_name = rex::ToUTF16(std::format(
-        "RT Dump {} {}xMSAA", format_name, static_cast<u32>(1) << u32(key.msaa_samples)));
+    std::u16string pipeline_name =
+        rex::ToUTF16(std::format("RT Dump {} {}xMSAA", format_name,
+                                 static_cast<u32>(1) << static_cast<u32>(key.msaa_samples)));
     pipeline->SetName(reinterpret_cast<LPCWSTR>(pipeline_name.c_str()));
   } else {
     REXLOG_ERROR(gpu,
                  "D3D12RenderTargetCache: Failed to create a render target dumping "
                  "pipeline for {}-sample render targets with format {}",
-                 static_cast<u32>(1) << u32(key.msaa_samples), format_name);
+                 static_cast<u32>(1) << static_cast<u32>(key.msaa_samples), format_name);
   }
   // A failed creation stores null to avoid retrying.
   dump_pipelines_.emplace(key, pipeline);
@@ -4710,7 +4716,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDirectResolvePipeline(
   }
   ID3D12PipelineState* pipeline = nullptr;
   size_t copy_shader_index = static_cast<size_t>(key.copy_shader);
-  if (copy_shader_index < size_t(draw_state::ResolveCopyShaderIndex::kCount)) {
+  if (copy_shader_index < static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount)) {
     pipeline = resolve_copy_pipelines_[copy_shader_index];
   }
   direct_resolve_pipelines_.emplace(key, pipeline);
@@ -4965,7 +4971,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
       command_processor_.SubmitBarriers();
       // Each group covers 40x16 samples times scale, so a 32bpp tile takes 2 groups at 1x1 scale.
       command_list.D3DDispatch((dispatch.width_tiles * GetDrawResolutionScaleX())
-                                   << u32(!format_is_64bpp),
+                                   << static_cast<u32>(!format_is_64bpp),
                                dispatch.height_tiles * GetDrawResolutionScaleY(), 1);
     }
     MarkEDRAMBufferModified();

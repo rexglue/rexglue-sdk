@@ -17,14 +17,16 @@
 #endif
 
 #define REX_LOOKUP_FUNC(x, y) \
-  (*(PPCFunc**)(x + REX_IMAGE_BASE + REX_IMAGE_SIZE + (u64(u32(y) - REX_CODE_BASE) * 2)))
+  (*reinterpret_cast<PPCFunc**>(                                                   \
+      x + REX_IMAGE_BASE + REX_IMAGE_SIZE +                                        \
+      (static_cast<u64>(static_cast<u32>(y) - REX_CODE_BASE) * 2)))
 
 #define REX_CALL_INDIRECT_FUNC(x)                                                          \
   do {                                                                                     \
     REX_PROFILE_INDIRECT_DISPATCH();                                                       \
-    u32 rex_indirect_target_ = (u32)(x);                                                   \
+    u32 rex_indirect_target_ = static_cast<u32>(x);                                        \
     PPCFunc* rex_indirect_func_;                                                           \
-    if ((u32)(rex_indirect_target_ - REX_CODE_BASE) <                                      \
+    if (static_cast<u32>(rex_indirect_target_ - REX_CODE_BASE) <                           \
         REX_CODE_SIZE + REX_THUNK_RESERVE_SIZE) [[likely]] {                               \
       rex_indirect_func_ = REX_LOOKUP_FUNC(base, rex_indirect_target_);                    \
     } else {                                                                               \

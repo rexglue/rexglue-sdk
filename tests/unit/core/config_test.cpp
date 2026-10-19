@@ -197,7 +197,8 @@ REX_TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[c
   REQUIRE_FALSE(config.cvars.Get("gpu.nothing").has_value());
 }
 
-REX_TEST_CASE("Config defaults for the 6a fields", "[core][config]") {
+REX_TEST_CASE("Config defaults for single instance, terminate timeout, HID and UI fields",
+              "[core][config]") {
   rex::Config config;
   REQUIRE(config.single_instance.empty());
   REQUIRE(config.runtime.terminate_timeout == std::chrono::milliseconds(2000));

@@ -629,14 +629,14 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 
   decoded_frame_.fill(0);
 
-  if (PrepareDecoder(data->sample_rate, bool(data->is_stereo)) == 1) {
+  if (PrepareDecoder(data->sample_rate, static_cast<bool>(data->is_stereo)) == 1) {
     // A reopened codec restarts its output, so the carried tail is stale.
     carry_valid_ = false;
   }
   PreparePacket(packet_info.current_frame_size, padding_start);
   const bool decoded = DecodePacket(av_context_, av_packet_, av_frame_);
   if (decoded) {
-    ConvertFrame(reinterpret_cast<const u8**>(&av_frame_->data), bool(data->is_stereo),
+    ConvertFrame(reinterpret_cast<const u8**>(&av_frame_->data), static_cast<bool>(data->is_stereo),
                  decoded_frame_.data());
 
     const size_t pad_bytes = kDecoderStartPadding * kBytesPerSample << data->is_stereo;

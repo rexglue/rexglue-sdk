@@ -30,7 +30,7 @@ namespace {
 constexpr u64 kFileTimeTicksPerSecond = 10000000;
 
 f64 g_guest_time_scalar = 1.0;
-u64 g_guest_tick_frequency = Clock::GetHostTickFrequencyPlatform();
+u64 g_guest_tick_frequency = Clock::GetHostTickFrequency();
 u64 g_guest_system_time_base = Clock::QueryHostSystemTime();
 constinit std::pair<u64, u64> g_guest_tick_ratio{1, 1};
 
@@ -84,13 +84,6 @@ u64 QueryGuestSystemTimeOffset() {
   return GuestSystemTimeOffsetLocked();
 }
 }  // namespace
-
-u64 Clock::QueryHostTickFrequency() {
-  return GetHostTickFrequencyPlatform();
-}
-u64 Clock::QueryHostTickCount() noexcept {
-  return GetHostTickCountPlatform();
-}
 
 f64 Clock::GetGuestTimeScalar() {
   std::lock_guard<std::mutex> lock(g_tick_mutex);

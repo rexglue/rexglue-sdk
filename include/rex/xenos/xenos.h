@@ -423,7 +423,7 @@ constexpr u32 kEDRAMBaseTilesBits = 11;
  * @return Pitch in tiles.
  */
 constexpr u32 GetSurfacePitchTiles(u32 pitch_pixels, MSAASamples msaa_samples, bool is_64bpp) {
-  u32 pitch_samples = pitch_pixels << u32(msaa_samples >= MSAASamples::k4X);
+  u32 pitch_samples = pitch_pixels << static_cast<u32>(msaa_samples >= MSAASamples::k4X);
   u32 pitch_tiles = (pitch_samples + (kEDRAMTileWidthSamples - 1)) / kEDRAMTileWidthSamples;
   if (is_64bpp) {
     pitch_tiles <<= 1;
@@ -1434,8 +1434,8 @@ enum Type3Opcode : u8 {
  * @return Packet header.
  */
 inline u32 BuildPacketType0(u16 index, u16 count, bool one_reg = false) {
-  assert(index <= 0x7FFF);
-  assert(count >= 1 && count <= 0x4000);
+  REX_ASSERT(index <= 0x7FFF);
+  REX_ASSERT(count >= 1 && count <= 0x4000);
   return (0u << 30) | (((count - 1) & 0x3FFF) << 16) | (one_reg ? 1u << 15 : 0u) | (index & 0x7FFF);
 }
 
@@ -1449,8 +1449,8 @@ inline u32 BuildPacketType0(u16 index, u16 count, bool one_reg = false) {
  * @return Packet header.
  */
 inline u32 BuildPacketType1(u16 index_1, u16 index_2) {
-  assert(index_1 <= 0x7FF);
-  assert(index_2 <= 0x7FF);
+  REX_ASSERT(index_1 <= 0x7FF);
+  REX_ASSERT(index_2 <= 0x7FF);
   return (1u << 30) | ((index_2 & 0x7FF) << 11) | (index_1 & 0x7FF);
 }
 
@@ -1474,8 +1474,8 @@ constexpr u32 BuildPacketType2() {
  * @return Packet header.
  */
 inline u32 BuildPacketType3(Type3Opcode opcode, u16 count, bool predicate = false) {
-  assert(opcode <= 0x7F);
-  assert(count >= 1 && count <= 0x4000);
+  REX_ASSERT(opcode <= 0x7F);
+  REX_ASSERT(count >= 1 && count <= 0x4000);
   return (3u << 30) | (((count - 1) & 0x3FFF) << 16) | ((opcode & 0x7F) << 8) | (predicate ? 1 : 0);
 }
 

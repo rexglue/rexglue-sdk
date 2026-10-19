@@ -414,7 +414,7 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       REXLOG_DEBUG(kernel, "XMPSetPlaybackController({:08X}, {:08X})",
                    static_cast<u32>(args->controller), static_cast<u32>(args->playback_client));
 
-      playback_client_ = PlaybackClient(static_cast<u32>(args->playback_client));
+      playback_client_ = static_cast<PlaybackClient>(static_cast<u32>(args->playback_client));
       runtime_.GetNotifier().BroadcastNotification(kMsgPlaybackControllerChanged,
                                                    !args->playback_client);
       return X_E_SUCCESS;

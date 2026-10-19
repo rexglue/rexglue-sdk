@@ -12,7 +12,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 namespace rex {
 
-u64 Clock::GetHostTickFrequencyPlatform() noexcept {
+u64 Clock::GetHostTickFrequency() noexcept {
 #ifdef __APPLE__
   mach_timebase_info_data_t info;
   mach_timebase_info(&info);
@@ -29,7 +29,7 @@ u64 Clock::GetHostTickFrequencyPlatform() noexcept {
 #endif
 }
 
-u64 Clock::GetHostTickCountPlatform() {
+u64 Clock::GetHostTickCount() noexcept {
 #ifdef __APPLE__
   // Ticks must stay in mach units, since nanoseconds against the 24 MHz frequency run 41x fast.
   return mach_absolute_time();
@@ -56,7 +56,7 @@ u64 Clock::QueryHostSystemTime() noexcept {
 }
 
 u64 Clock::QueryHostUptimeMillis() {
-  return GetHostTickCountPlatform() * 1000 / GetHostTickFrequencyPlatform();
+  return GetHostTickCount() * 1000 / GetHostTickFrequency();
 }
 
 }  // namespace rex

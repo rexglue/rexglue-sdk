@@ -308,7 +308,7 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
       }
       spv::Id operand_1 = GetOperandComponents(operand_storage[1], instr.vector_operands[1],
                                                used_result_components);
-      spv::Op op = spv::Op(kOps[static_cast<size_t>(instr.vector_opcode)]);
+      spv::Op op = static_cast<spv::Op>(kOps[static_cast<size_t>(instr.vector_opcode)]);
       if (!identical) {
         REX_ASSERT(static_cast<u32>(builder_->getNumComponents(operand_0_per_component)) ==
                    used_result_component_count);
@@ -348,12 +348,13 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
     case xenos::ucode::AluVectorOpcode::kSne:
       return builder_->createTriOp(
           spv::OpSelect, result_type,
-          builder_->createBinOp(spv::Op(kOps[static_cast<size_t>(instr.vector_opcode)]),
-                                type_bool_vectors[used_result_component_count - 1],
-                                GetOperandComponents(operand_storage[0], instr.vector_operands[0],
-                                                     used_result_components),
-                                GetOperandComponents(operand_storage[1], instr.vector_operands[1],
-                                                     used_result_components)),
+          builder_->createBinOp(
+              static_cast<spv::Op>(kOps[static_cast<size_t>(instr.vector_opcode)]),
+              type_bool_vectors[used_result_component_count - 1],
+              GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+                                   used_result_components),
+              GetOperandComponents(operand_storage[1], instr.vector_operands[1],
+                                   used_result_components)),
           const_float_vectors_1[used_result_component_count - 1],
           const_float_vectors_0[used_result_component_count - 1]);
 
@@ -362,7 +363,7 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
     case xenos::ucode::AluVectorOpcode::kFloor:
       return builder_->CreateUnaryBuiltinCall(
           result_type, ext_inst_glsl_std_450_,
-          GLSLstd450(kOps[static_cast<size_t>(instr.vector_opcode)]),
+          static_cast<GLSLstd450>(kOps[static_cast<size_t>(instr.vector_opcode)]),
           GetOperandComponents(operand_storage[0], instr.vector_operands[0],
                                used_result_components));
 
@@ -371,11 +372,12 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
     case xenos::ucode::AluVectorOpcode::kCndGt:
       return builder_->createTriOp(
           spv::OpSelect, result_type,
-          builder_->createBinOp(spv::Op(kOps[static_cast<size_t>(instr.vector_opcode)]),
-                                type_bool_vectors[used_result_component_count - 1],
-                                GetOperandComponents(operand_storage[0], instr.vector_operands[0],
-                                                     used_result_components),
-                                const_float_vectors_0[used_result_component_count - 1]),
+          builder_->createBinOp(
+              static_cast<spv::Op>(kOps[static_cast<size_t>(instr.vector_opcode)]),
+              type_bool_vectors[used_result_component_count - 1],
+              GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+                                   used_result_components),
+              const_float_vectors_0[used_result_component_count - 1]),
           GetOperandComponents(operand_storage[1], instr.vector_operands[1],
                                used_result_components),
           GetOperandComponents(operand_storage[2], instr.vector_operands[2],
@@ -594,7 +596,7 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
           operands_w[i] = operands[i];
         }
       }
-      spv::Op op = spv::Op(kOps[static_cast<size_t>(instr.vector_opcode)]);
+      spv::Op op = static_cast<spv::Op>(kOps[static_cast<size_t>(instr.vector_opcode)]);
       builder_->createStore(
           builder_->createBinOp(
               spv::OpLogicalAnd, type_bool,
@@ -628,7 +630,7 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
           builder_->createUnaryOp(
               spv::OpAny, type_bool,
               builder_->createBinOp(
-                  spv::Op(kOps[static_cast<size_t>(instr.vector_opcode)]), type_bool4,
+                  static_cast<spv::Op>(kOps[static_cast<size_t>(instr.vector_opcode)]), type_bool4,
                   GetOperandComponents(operand_storage[0], instr.vector_operands[0], 0b1111),
                   GetOperandComponents(operand_storage[1], instr.vector_operands[1], 0b1111))),
           memexport_em_potentially_written_before);
@@ -765,12 +767,12 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
       spv::Id a, b;
       GetOperandScalarXY(operand_storage[0], instr.scalar_operands[0], a, b);
       return builder_->CreateNoContractionBinOp(
-          spv::Op(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_float, a, b);
+          static_cast<spv::Op>(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_float, a, b);
     }
     case xenos::ucode::AluScalarOpcode::kAddsPrev:
     case xenos::ucode::AluScalarOpcode::kSubsPrev: {
       return builder_->CreateNoContractionBinOp(
-          spv::Op(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_float,
+          static_cast<spv::Op>(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_float,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001),
           builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision));
     }
@@ -866,8 +868,9 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
       }
       return builder_->createTriOp(
           spv::OpSelect, type_float,
-          builder_->createBinOp(spv::Op(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool,
-                                a, b),
+          builder_->createBinOp(
+              static_cast<spv::Op>(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool, a,
+              b),
           a, b);
     }
 
@@ -878,7 +881,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
       return builder_->createTriOp(
           spv::OpSelect, type_float,
           builder_->createBinOp(
-              spv::Op(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool,
+              static_cast<spv::Op>(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool,
               GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001),
               const_float_0),
           const_float_1, const_float_0);
@@ -894,7 +897,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
     case xenos::ucode::AluScalarOpcode::kCos:
       return builder_->CreateUnaryBuiltinCall(
           type_float, ext_inst_glsl_std_450_,
-          GLSLstd450(kOps[static_cast<size_t>(instr.scalar_opcode)]),
+          static_cast<GLSLstd450>(kOps[static_cast<size_t>(instr.scalar_opcode)]),
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
     case xenos::ucode::AluScalarOpcode::kLogc: {
       spv::Id result = builder_->CreateUnaryBuiltinCall(
@@ -974,7 +977,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
     case xenos::ucode::AluScalarOpcode::kSetpGt:
     case xenos::ucode::AluScalarOpcode::kSetpGe: {
       spv::Id predicate = builder_->createBinOp(
-          spv::Op(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool,
+          static_cast<spv::Op>(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001),
           const_float_0);
       builder_->createStore(predicate, var_main_predicate_);
@@ -1023,7 +1026,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
     case xenos::ucode::AluScalarOpcode::kKillsOne: {
       KillPixel(
           builder_->createBinOp(
-              spv::Op(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool,
+              static_cast<spv::Op>(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_bool,
               GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001),
               instr.scalar_opcode == xenos::ucode::AluScalarOpcode::kKillsOne ? const_float_1
                                                                               : const_float_0),
@@ -1051,7 +1054,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
     case xenos::ucode::AluScalarOpcode::kSubsc0:
     case xenos::ucode::AluScalarOpcode::kSubsc1: {
       return builder_->CreateNoContractionBinOp(
-          spv::Op(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_float,
+          static_cast<spv::Op>(kOps[static_cast<size_t>(instr.scalar_opcode)]), type_float,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001),
           GetOperandComponents(operand_storage[1], instr.scalar_operands[1], 0b0001));
     }

@@ -13,10 +13,12 @@
 
 #include <string_view>
 
+#include <rex/types.h>
+
 namespace rex::kernel {
 
 /** What a path names, which decides the characters it may hold. */
-enum class PathUse {
+enum class PathUse : u8 {
   kExisting, /**< A path being opened, which may hold a semicolon and an equals sign. */
   kPattern,  /**< A search pattern, which may also hold * and ?. */
   kNewName,  /**< A name being given, which reserves the semicolon and the equals sign. */

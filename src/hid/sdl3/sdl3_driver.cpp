@@ -465,7 +465,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
 
   // Clear pass first, matching xinput order, so THUMB_UPLEFT is up before THUMB_LEFT is down.
   for (auto [clear_pass, pass] = std::tuple{true, 0}; pass < 2; clear_pass = false, pass++) {
-    for (u8 i = 0; i < u8(std::size(kVkLookup)); i++) {
+    for (u8 i = 0; i < static_cast<u8>(std::size(kVkLookup)); i++) {
       auto fbutton = static_cast<u64>(1) << i;
       if (!(butts_changed & fbutton)) {
         continue;

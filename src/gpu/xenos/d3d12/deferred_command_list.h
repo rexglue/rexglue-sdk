@@ -203,7 +203,7 @@ class DeferredCommandList {
       args.SizeInBytes = view->SizeInBytes;
       args.Format = view->Format;
     } else {
-      args.BufferLocation = D3D12_GPU_VIRTUAL_ADDRESS(0);
+      args.BufferLocation = static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(0);
       args.SizeInBytes = 0;
       args.Format = DXGI_FORMAT_UNKNOWN;
     }
@@ -247,8 +247,8 @@ class DeferredCommandList {
                              const D3D12_CPU_DESCRIPTOR_HANDLE* depth_stencil_descriptor) {
     auto& args = *reinterpret_cast<D3DOMSetRenderTargetsArguments*>(
         WriteCommand(Command::kD3DOMSetRenderTargets, sizeof(D3DOMSetRenderTargetsArguments)));
-    num_render_target_descriptors =
-        std::min(num_render_target_descriptors, UINT(D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT));
+    num_render_target_descriptors = std::min(
+        num_render_target_descriptors, static_cast<UINT>(D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT));
     args.num_render_target_descriptors = num_render_target_descriptors;
     args.rts_single_handle_to_descriptor_range = rts_single_handle_to_descriptor_range ? 1 : 0;
     if (num_render_target_descriptors != 0) {
@@ -425,9 +425,9 @@ class DeferredCommandList {
         WriteCommand(Command::kD3DSetSamplePositions, sizeof(D3DSetSamplePositionsArguments)));
     args.num_samples_per_pixel = num_samples_per_pixel;
     args.num_pixels = num_pixels;
-    std::memcpy(
-        args.sample_positions, sample_positions,
-        std::min(num_samples_per_pixel * num_pixels, UINT(16)) * sizeof(D3D12_SAMPLE_POSITION));
+    std::memcpy(args.sample_positions, sample_positions,
+                std::min(num_samples_per_pixel * num_pixels, static_cast<UINT>(16)) *
+                    sizeof(D3D12_SAMPLE_POSITION));
   }
 
   void BeginDebugMarker(const char* label_name) {

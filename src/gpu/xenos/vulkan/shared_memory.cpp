@@ -200,8 +200,8 @@ void VulkanSharedMemory::Use(Usage usage, std::pair<u32, u32> written_range) {
     GetUsageMasks(usage, dst_stage_mask, dst_access_mask);
     VkDeviceSize offset, size;
     if (last_usage_ == usage) {
-      offset = VkDeviceSize(last_written_range_.first);
-      size = VkDeviceSize(last_written_range_.second);
+      offset = static_cast<VkDeviceSize>(last_written_range_.first);
+      size = static_cast<VkDeviceSize>(last_written_range_.second);
     } else {
       // All preceding writes must be available to the destination stage as well as the source.
       offset = 0;

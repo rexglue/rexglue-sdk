@@ -244,11 +244,11 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
     xenos::ColorRenderTargetFormat GetColorFormat() const {
       REX_ASSERT(!is_depth);
-      return xenos::ColorRenderTargetFormat(resource_format);
+      return static_cast<xenos::ColorRenderTargetFormat>(resource_format);
     }
     xenos::DepthRenderTargetFormat GetDepthFormat() const {
       REX_ASSERT(is_depth);
-      return xenos::DepthRenderTargetFormat(resource_format);
+      return static_cast<xenos::DepthRenderTargetFormat>(resource_format);
     }
     bool Is64bpp() const {
       if (is_depth) {
@@ -261,7 +261,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
                       : xenos::GetColorRenderTargetFormatName(GetColorFormat());
     }
 
-    u32 GetPitchTiles() const { return pitch_tiles_at_32bpp << u32(Is64bpp()); }
+    u32 GetPitchTiles() const { return pitch_tiles_at_32bpp << static_cast<u32>(Is64bpp()); }
     static constexpr u32 GetWidth(u32 pitch_tiles_at_32bpp, xenos::MSAASamples msaa_samples) {
       return pitch_tiles_at_32bpp * (xenos::kEDRAMTileWidthSamples >>
                                      static_cast<u32>(msaa_samples >= xenos::MSAASamples::k4X));
@@ -270,7 +270,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
     std::string GetDebugName() const {
       return std::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
-                         static_cast<u32>(1) << u32(msaa_samples), GetFormatName());
+                         static_cast<u32>(1) << static_cast<u32>(msaa_samples), GetFormatName());
     }
   };
 

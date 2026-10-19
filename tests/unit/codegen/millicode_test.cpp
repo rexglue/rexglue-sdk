@@ -57,7 +57,15 @@ constexpr u32 VMX128Word(bool save, u32 reg) {
   return base + (index % 32) * 0x00200000 + (index >= 32 ? 4 : 0);
 }
 
-enum class Run { kGPRSave, kGPRRestore, kFPRSave, kFPRRestore, kVMXSave, kVMXRestore, kVMXXSave };
+enum class Run : rex::u8 {
+  kGPRSave,
+  kGPRRestore,
+  kFPRSave,
+  kFPRRestore,
+  kVMXSave,
+  kVMXRestore,
+  kVMXXSave
+};
 
 struct RunSpec {
   Run run = Run::kGPRSave;

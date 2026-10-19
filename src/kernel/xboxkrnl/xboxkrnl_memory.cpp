@@ -119,8 +119,9 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
 
   u32 adjusted_base = *base_addr_ptr - (*base_addr_ptr % page_size);
   // Titles can pass negative sizes.
-  u32 adjusted_size = i32(*region_size_ptr) < 0 ? -static_cast<i32>(region_size_ptr.GetValue())
-                                                : region_size_ptr.GetValue();
+  u32 adjusted_size = static_cast<i32>(*region_size_ptr) < 0
+                          ? -static_cast<i32>(region_size_ptr.GetValue())
+                          : region_size_ptr.GetValue();
   // Without a base address the allocation granularity is 64 KB, otherwise the heap page size.
   adjusted_size =
       rex::RoundUpNonZero(adjusted_size, adjusted_base ? page_size : runtime::kPageSize64KiB);

@@ -1495,9 +1495,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   std::vector<spv::Id> id_vector_temp;
   std::vector<unsigned int> uint_vector_temp;
 
-  spv::ExecutionMode input_primitive_execution_mode = spv::ExecutionMode(0);
+  spv::ExecutionMode input_primitive_execution_mode = static_cast<spv::ExecutionMode>(0);
   u32 input_primitive_vertex_count = 0;
-  spv::ExecutionMode output_primitive_execution_mode = spv::ExecutionMode(0);
+  spv::ExecutionMode output_primitive_execution_mode = static_cast<spv::ExecutionMode>(0);
   u32 output_max_vertices = 0;
   switch (key.type) {
     case PipelineGeometryShader::kPointList:
@@ -1614,26 +1614,28 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     type_system_constants = builder.makeStructType(id_vector_temp, "XeSystemConstants");
     builder.addMemberName(type_system_constants, kPointConstantConstantDiameter,
                           "point_constant_diameter");
-    builder.addMemberDecoration(
-        type_system_constants, kPointConstantConstantDiameter, spv::DecorationOffset,
-        int(offsetof(SPIRVShaderTranslator::SystemConstants, point_constant_diameter)));
+    builder.addMemberDecoration(type_system_constants, kPointConstantConstantDiameter,
+                                spv::DecorationOffset,
+                                static_cast<int>(offsetof(SPIRVShaderTranslator::SystemConstants,
+                                                          point_constant_diameter)));
     builder.addMemberName(type_system_constants, kPointConstantScreenDiameterToNdcRadius,
                           "point_screen_diameter_to_ndc_radius");
-    builder.addMemberDecoration(
-        type_system_constants, kPointConstantScreenDiameterToNdcRadius, spv::DecorationOffset,
-        int(offsetof(SPIRVShaderTranslator::SystemConstants, point_screen_diameter_to_ndc_radius)));
+    builder.addMemberDecoration(type_system_constants, kPointConstantScreenDiameterToNdcRadius,
+                                spv::DecorationOffset,
+                                static_cast<int>(offsetof(SPIRVShaderTranslator::SystemConstants,
+                                                          point_screen_diameter_to_ndc_radius)));
     builder.addMemberName(type_system_constants, kPointConstantNdcScale, "ndc_scale");
-    builder.addMemberDecoration(type_system_constants, kPointConstantNdcScale,
-                                spv::DecorationOffset,
-                                int(offsetof(SPIRVShaderTranslator::SystemConstants, ndc_scale)));
+    builder.addMemberDecoration(
+        type_system_constants, kPointConstantNdcScale, spv::DecorationOffset,
+        static_cast<int>(offsetof(SPIRVShaderTranslator::SystemConstants, ndc_scale)));
     builder.addMemberName(type_system_constants, kPointConstantNdcOffset, "ndc_offset");
-    builder.addMemberDecoration(type_system_constants, kPointConstantNdcOffset,
-                                spv::DecorationOffset,
-                                int(offsetof(SPIRVShaderTranslator::SystemConstants, ndc_offset)));
+    builder.addMemberDecoration(
+        type_system_constants, kPointConstantNdcOffset, spv::DecorationOffset,
+        static_cast<int>(offsetof(SPIRVShaderTranslator::SystemConstants, ndc_offset)));
     builder.addMemberName(type_system_constants, kPointConstantUserClipPlanes, "user_clip_planes");
     builder.addMemberDecoration(
         type_system_constants, kPointConstantUserClipPlanes, spv::DecorationOffset,
-        int(offsetof(SPIRVShaderTranslator::SystemConstants, user_clip_planes)));
+        static_cast<int>(offsetof(SPIRVShaderTranslator::SystemConstants, user_clip_planes)));
   }
   spv::Id uniform_system_constants = spv::NoResult;
   if (type_system_constants != spv::NoType) {
@@ -1642,9 +1644,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.createVariable(spv::NoPrecision, spv::StorageClassUniform, type_system_constants,
                                "xe_uniform_system_constants");
     builder.addDecoration(uniform_system_constants, spv::DecorationDescriptorSet,
-                          int(SPIRVShaderTranslator::kDescriptorSetConstants));
+                          static_cast<int>(SPIRVShaderTranslator::kDescriptorSetConstants));
     builder.addDecoration(uniform_system_constants, spv::DecorationBinding,
-                          int(SPIRVShaderTranslator::kConstantBufferSystem));
+                          static_cast<int>(SPIRVShaderTranslator::kConstantBufferSystem));
     main_interface.push_back(uniform_system_constants);
   }
 
@@ -1701,7 +1703,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.createVariable(spv::NoPrecision, spv::StorageClassOutput, type_float4,
                                std::format("xe_out_interpolator_{}", i).c_str());
     out_interpolators[i] = out_interpolator;
-    builder.addDecoration(out_interpolator, spv::DecorationLocation, int(output_location));
+    builder.addDecoration(out_interpolator, spv::DecorationLocation,
+                          static_cast<int>(output_location));
     builder.addDecoration(out_interpolator, spv::DecorationInvariant);
     main_interface.push_back(out_interpolator);
     ++output_location;
@@ -1711,7 +1714,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   if (key.has_point_coordinates) {
     out_point_coordinates = builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
                                                    type_float2, "xe_out_point_coordinates");
-    builder.addDecoration(out_point_coordinates, spv::DecorationLocation, int(output_location));
+    builder.addDecoration(out_point_coordinates, spv::DecorationLocation,
+                          static_cast<int>(output_location));
     builder.addDecoration(out_point_coordinates, spv::DecorationInvariant);
     main_interface.push_back(out_point_coordinates);
     ++output_location;
@@ -1726,7 +1730,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.makeArrayType(type_float4, const_input_primitive_vertex_count, 0),
         std::format("xe_in_interpolator_{}", i).c_str());
     in_interpolators[i] = in_interpolator;
-    builder.addDecoration(in_interpolator, spv::DecorationLocation, int(input_location));
+    builder.addDecoration(in_interpolator, spv::DecorationLocation,
+                          static_cast<int>(input_location));
     main_interface.push_back(in_interpolator);
     ++input_location;
   }
@@ -1737,7 +1742,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         spv::NoPrecision, spv::StorageClassInput,
         builder.makeArrayType(type_float, const_input_primitive_vertex_count, 0),
         "xe_in_point_size");
-    builder.addDecoration(in_point_size, spv::DecorationLocation, int(input_location));
+    builder.addDecoration(in_point_size, spv::DecorationLocation, static_cast<int>(input_location));
     main_interface.push_back(in_point_size);
     ++input_location;
   }
@@ -1787,7 +1792,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   builder.addExecutionMode(main_function, spv::ExecutionModeInvocations, 1);
   builder.addExecutionMode(main_function, output_primitive_execution_mode);
   builder.addExecutionMode(main_function, spv::ExecutionModeOutputVertices,
-                           int(output_max_vertices));
+                           static_cast<int>(output_max_vertices));
   if (denorm_flush_to_zero_float32) {
     builder.addCapability(spv::CapabilityDenormFlushToZero);
     builder.addExecutionMode(main_function, spv::ExecutionModeDenormFlushToZero, 32);
@@ -2865,8 +2870,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
       multisample_state.pSampleMask = &sample_mask;
     }
   } else {
-    multisample_state.rasterizationSamples =
-        VkSampleCountFlagBits(static_cast<u32>(1) << u32(description.render_pass_key.msaa_samples));
+    multisample_state.rasterizationSamples = static_cast<VkSampleCountFlagBits>(
+        static_cast<u32>(1) << static_cast<u32>(description.render_pass_key.msaa_samples));
   }
   if (description.sample_rate_shading &&
       multisample_state.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT) {
@@ -2882,35 +2887,35 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
         description.depth_compare_op != xenos::CompareFunction::kAlways) {
       depth_stencil_state.depthTestEnable = VK_TRUE;
       depth_stencil_state.depthWriteEnable = description.depth_write_enable ? VK_TRUE : VK_FALSE;
-      depth_stencil_state.depthCompareOp = VkCompareOp(
+      depth_stencil_state.depthCompareOp = static_cast<VkCompareOp>(
           static_cast<u32>(VK_COMPARE_OP_NEVER) + static_cast<u32>(description.depth_compare_op));
     }
     if (description.stencil_test_enable) {
       depth_stencil_state.stencilTestEnable = VK_TRUE;
       depth_stencil_state.front.failOp =
-          VkStencilOp(static_cast<u32>(VK_STENCIL_OP_KEEP) +
-                      static_cast<u32>(description.stencil_front_fail_op));
+          static_cast<VkStencilOp>(static_cast<u32>(VK_STENCIL_OP_KEEP) +
+                                   static_cast<u32>(description.stencil_front_fail_op));
       depth_stencil_state.front.passOp =
-          VkStencilOp(static_cast<u32>(VK_STENCIL_OP_KEEP) +
-                      static_cast<u32>(description.stencil_front_pass_op));
+          static_cast<VkStencilOp>(static_cast<u32>(VK_STENCIL_OP_KEEP) +
+                                   static_cast<u32>(description.stencil_front_pass_op));
       depth_stencil_state.front.depthFailOp =
-          VkStencilOp(static_cast<u32>(VK_STENCIL_OP_KEEP) +
-                      static_cast<u32>(description.stencil_front_depth_fail_op));
+          static_cast<VkStencilOp>(static_cast<u32>(VK_STENCIL_OP_KEEP) +
+                                   static_cast<u32>(description.stencil_front_depth_fail_op));
       depth_stencil_state.front.compareOp =
-          VkCompareOp(static_cast<u32>(VK_COMPARE_OP_NEVER) +
-                      static_cast<u32>(description.stencil_front_compare_op));
+          static_cast<VkCompareOp>(static_cast<u32>(VK_COMPARE_OP_NEVER) +
+                                   static_cast<u32>(description.stencil_front_compare_op));
       depth_stencil_state.back.failOp =
-          VkStencilOp(static_cast<u32>(VK_STENCIL_OP_KEEP) +
-                      static_cast<u32>(description.stencil_back_fail_op));
+          static_cast<VkStencilOp>(static_cast<u32>(VK_STENCIL_OP_KEEP) +
+                                   static_cast<u32>(description.stencil_back_fail_op));
       depth_stencil_state.back.passOp =
-          VkStencilOp(static_cast<u32>(VK_STENCIL_OP_KEEP) +
-                      static_cast<u32>(description.stencil_back_pass_op));
+          static_cast<VkStencilOp>(static_cast<u32>(VK_STENCIL_OP_KEEP) +
+                                   static_cast<u32>(description.stencil_back_pass_op));
       depth_stencil_state.back.depthFailOp =
-          VkStencilOp(static_cast<u32>(VK_STENCIL_OP_KEEP) +
-                      static_cast<u32>(description.stencil_back_depth_fail_op));
+          static_cast<VkStencilOp>(static_cast<u32>(VK_STENCIL_OP_KEEP) +
+                                   static_cast<u32>(description.stencil_back_depth_fail_op));
       depth_stencil_state.back.compareOp =
-          VkCompareOp(static_cast<u32>(VK_COMPARE_OP_NEVER) +
-                      static_cast<u32>(description.stencil_back_compare_op));
+          static_cast<VkCompareOp>(static_cast<u32>(VK_COMPARE_OP_NEVER) +
+                                   static_cast<u32>(description.stencil_back_compare_op));
     }
   }
 
@@ -2974,7 +2979,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
           color_blend_attachment.alphaBlendOp =
               kBlendOpMap[static_cast<u32>(color_rt.alpha_blend_op)];
         }
-        color_blend_attachment.colorWriteMask = VkColorComponentFlags(color_rt.color_write_mask);
+        color_blend_attachment.colorWriteMask =
+            static_cast<VkColorComponentFlags>(color_rt.color_write_mask);
       }
     }
     color_blend_state.attachmentCount = 32 - rex::lzcnt(color_rts_used);

@@ -470,7 +470,7 @@ bool utf8_equal_case_z(const std::string_view left, const std::string_view right
 std::string_view::size_type utf8_find_any_of(const std::string_view haystack,
                                              const std::string_view needles) {
   if (needles.empty()) {
-    return std::string_view::size_type(0);
+    return static_cast<std::string_view::size_type>(0);
   } else if (haystack.empty()) {
     return std::string_view::npos;
   }
@@ -483,13 +483,13 @@ std::string_view::size_type utf8_find_any_of(const std::string_view haystack,
     return std::string_view::npos;
   }
 
-  return std::string_view::size_type(ByteLength(haystack_begin, it));
+  return static_cast<std::string_view::size_type>(ByteLength(haystack_begin, it));
 }
 
 std::string_view::size_type utf8_find_any_of_case(const std::string_view haystack,
                                                   const std::string_view needles) {
   if (needles.empty()) {
-    return std::string_view::size_type(0);
+    return static_cast<std::string_view::size_type>(0);
   } else if (haystack.empty()) {
     return std::string_view::npos;
   }
@@ -502,13 +502,13 @@ std::string_view::size_type utf8_find_any_of_case(const std::string_view haystac
     return std::string_view::npos;
   }
 
-  return std::string_view::size_type(ByteLength(haystack_begin, it));
+  return static_cast<std::string_view::size_type>(ByteLength(haystack_begin, it));
 }
 
 std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
                                                const std::string_view needle) {
   if (needle.empty()) {
-    return std::string_view::size_type(0);
+    return static_cast<std::string_view::size_type>(0);
   } else if (haystack.empty()) {
     return std::string_view::npos;
   }
@@ -534,7 +534,7 @@ std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
 
     auto [sub_start, sub_end] = BuildIterators(it, end);
     if (std::equal(needle_begin, needle_end, sub_start, sub_end)) {
-      return std::string_view::size_type(ByteLength(haystack_begin, it));
+      return static_cast<std::string_view::size_type>(ByteLength(haystack_begin, it));
     }
   }
 
@@ -544,7 +544,7 @@ std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
 std::string_view::size_type utf8_find_first_of_case(const std::string_view haystack,
                                                     const std::string_view needle) {
   if (needle.empty()) {
-    return std::string_view::size_type(0);
+    return static_cast<std::string_view::size_type>(0);
   } else if (haystack.empty()) {
     return std::string_view::npos;
   }
@@ -571,7 +571,7 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
 
     auto [sub_start, sub_end] = BuildIterators(it, end);
     if (std::equal(needle_begin, needle_end, sub_start, sub_end, EqualASCIICase)) {
-      return std::string_view::size_type(ByteLength(haystack_begin, it));
+      return static_cast<std::string_view::size_type>(ByteLength(haystack_begin, it));
     }
   }
 

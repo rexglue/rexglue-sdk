@@ -331,9 +331,9 @@ X_STATUS WaitMultiple(Runtime& runtime, std::span<const X_HANDLE> handles, u32 w
     switch (result.first) {
       case rex::platform::WaitResult::kSuccess:
         if (targets[result.second].mutant && targets[result.second].mutant->OnAcquired()) {
-          return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
+          return static_cast<X_STATUS>(X_STATUS_ABANDONED_WAIT_0 + result.second);
         }
-        return X_STATUS(result.second);
+        return static_cast<X_STATUS>(result.second);
       case rex::platform::WaitResult::kUserCallback:
         return X_STATUS_USER_APC;
       case rex::platform::WaitResult::kTimeout:
@@ -345,7 +345,7 @@ X_STATUS WaitMultiple(Runtime& runtime, std::span<const X_HANDLE> handles, u32 w
         if (targets[result.second].mutant) {
           (void)targets[result.second].mutant->OnAcquired();
         }
-        return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
+        return static_cast<X_STATUS>(X_STATUS_ABANDONED_WAIT_0 + result.second);
     }
   }
   auto result = WaitGuest(

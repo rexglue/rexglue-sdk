@@ -504,7 +504,7 @@ inline T log2_ceil(T v) {
  */
 template <typename T>
 inline T RotateLeft(T v, u8 sh) {
-  return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
+  return (v << sh) | (v >> ((sizeof(T) * 8) - sh));
 }
 
 /**
@@ -598,16 +598,16 @@ i64 m128_i64(const simde__m128& v) {
 template <typename T>
 inline T SatAdd(T a, T b) {
   using TU = std::make_unsigned<T>::type;
-  TU result = TU(a) + TU(b);
+  TU result = static_cast<TU>(a) + static_cast<TU>(b);
   if (std::is_unsigned<T>::value) {
-    result |= TU(-static_cast<std::make_signed<T>::type>(result < TU(a)));
+    result |= static_cast<TU>(-static_cast<std::make_signed<T>::type>(result < static_cast<TU>(a)));
   } else {
-    TU overflowed = (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
-    if (T((overflowed ^ TU(b)) | ~(TU(b) ^ result)) >= 0) {
+    TU overflowed = (static_cast<TU>(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    if (static_cast<T>((overflowed ^ static_cast<TU>(b)) | ~(static_cast<TU>(b) ^ result)) >= 0) {
       result = overflowed;
     }
   }
-  return T(result);
+  return static_cast<T>(result);
 }
 
 /**
@@ -621,16 +621,17 @@ inline T SatAdd(T a, T b) {
 template <typename T>
 inline T SatSub(T a, T b) {
   using TU = std::make_unsigned<T>::type;
-  TU result = TU(a) - TU(b);
+  TU result = static_cast<TU>(a) - static_cast<TU>(b);
   if (std::is_unsigned<T>::value) {
-    result &= TU(-static_cast<std::make_signed<T>::type>(result <= TU(a)));
+    result &=
+        static_cast<TU>(-static_cast<std::make_signed<T>::type>(result <= static_cast<TU>(a)));
   } else {
-    TU overflowed = (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
-    if (T((overflowed ^ TU(b)) & (overflowed ^ result)) < 0) {
+    TU overflowed = (static_cast<TU>(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    if (static_cast<T>((overflowed ^ static_cast<TU>(b)) & (overflowed ^ result)) < 0) {
       result = overflowed;
     }
   }
-  return T(result);
+  return static_cast<T>(result);
 }
 
 }  // namespace rex

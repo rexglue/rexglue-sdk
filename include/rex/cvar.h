@@ -208,11 +208,11 @@ constexpr DefaultText RenderDefault(T v) noexcept {
   DefaultText out;
   bool negative = v < 0;
   using U = std::make_unsigned_t<T>;
-  U mag = negative ? U(0) - U(v) : U(v);
+  U mag = negative ? static_cast<U>(0) - static_cast<U>(v) : static_cast<U>(v);
   std::array<char, 24> tmp{};
   i32 n = 0;
   do {
-    tmp[n++] = char('0' + mag % 10);
+    tmp[n++] = static_cast<char>('0' + mag % 10);
     mag /= 10;
   } while (mag);
   if (negative)
@@ -238,7 +238,7 @@ constexpr DefaultText RenderDefault(f64 v) noexcept {
   for (i32 i = 0; i < 6; ++i) {
     frac *= 10.0;
     auto digit = static_cast<i32>(frac);
-    out.text[out.size++] = char('0' + digit);
+    out.text[out.size++] = static_cast<char>('0' + digit);
     frac -= digit;
   }
   while (out.size > 0 && out.text[out.size - 1] == '0')

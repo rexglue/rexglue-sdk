@@ -24,8 +24,9 @@ namespace vulkan {
 VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanDevice* const vulkan_device,
                                                const VkBufferUsageFlags usage,
                                                const size_t page_size)
-    : GraphicsUploadBufferPool(static_cast<size_t>(rex::RoundUpNonZero(
-          VkDeviceSize(page_size), vulkan_device->GetProperties().nonCoherentAtomSize))),
+    : GraphicsUploadBufferPool(static_cast<size_t>(
+          rex::RoundUpNonZero(static_cast<VkDeviceSize>(page_size),
+                              vulkan_device->GetProperties().nonCoherentAtomSize))),
       vulkan_device_(vulkan_device),
       usage_(usage) {}
 
@@ -38,7 +39,7 @@ u8* VulkanUploadBufferPool::Request(u64 submission_index, size_t size, size_t al
     return nullptr;
   }
   buffer_out = page->buffer;
-  offset_out = VkDeviceSize(offset);
+  offset_out = static_cast<VkDeviceSize>(offset);
   return reinterpret_cast<u8*>(page->mapping) + offset;
 }
 
@@ -52,8 +53,8 @@ u8* VulkanUploadBufferPool::RequestPartial(u64 submission_index, size_t size, si
     return nullptr;
   }
   buffer_out = page->buffer;
-  offset_out = VkDeviceSize(offset);
-  size_out = VkDeviceSize(size_obtained);
+  offset_out = static_cast<VkDeviceSize>(offset);
+  size_out = static_cast<VkDeviceSize>(size_obtained);
   return reinterpret_cast<u8*>(page->mapping) + offset;
 }
 
@@ -70,7 +71,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
   buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer_create_info.pNext = nullptr;
   buffer_create_info.flags = 0;
-  buffer_create_info.size = VkDeviceSize(page_size_);
+  buffer_create_info.size = static_cast<VkDeviceSize>(page_size_);
   buffer_create_info.usage = usage_;
   buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_create_info.queueFamilyIndexCount = 0;
@@ -163,8 +164,8 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
 
 void VulkanUploadBufferPool::FlushPageWrites(Page* page, size_t offset, size_t size) {
   objects::FlushMappedMemoryRange(vulkan_device_, static_cast<const VulkanPage*>(page)->memory,
-                                  memory_type_, VkDeviceSize(offset), allocation_size_,
-                                  VkDeviceSize(size));
+                                  memory_type_, static_cast<VkDeviceSize>(offset), allocation_size_,
+                                  static_cast<VkDeviceSize>(size));
 }
 
 VulkanUploadBufferPool::VulkanPage::~VulkanPage() {

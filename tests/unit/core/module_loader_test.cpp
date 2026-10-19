@@ -418,7 +418,7 @@ REX_TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
   REQUIRE(api.error().message.find("unknown cvar 'nope.value'") != std::string::npos);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope",
+REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a known scope",
                      "[core][module_loader][cvar]") {
   static const std::vector<std::string_view> kScopes = {
       "log", "clock", "perf",  "runtime", "apu",     "hid", "ui",

@@ -362,7 +362,7 @@ void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
       continue;
     }
     const xenos::FormatInfo& format_info =
-        *xenos::FormatInfo::Get(xenos::TextureFormat(stream.format));
+        *xenos::FormatInfo::Get(static_cast<xenos::TextureFormat>(stream.format));
     if (format_info.type != xenos::FormatType::kResolvable) {
       REXLOG_ERROR(gpu, "Unsupported memexport format {}", format_info.name);
       continue;
@@ -548,7 +548,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     REX_FAIL(gpu, false,
              "{}x MSAA requested by the guest in a resolve, Xenos only supports up "
              "to 4x",
-             static_cast<u32>(1) << u32(rb_surface_info.msaa_samples));
+             static_cast<u32>(1) << static_cast<u32>(rb_surface_info.msaa_samples));
   }
 
   // The maximum surface pitch is assumed to be the largest resolvable size.
@@ -590,7 +590,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     REXLOG_WARN(gpu,
                 "Incorrect resolve sample selected for {}-sample {} ({}), treating like "
                 "{}",
-                1 << u32(rb_surface_info.msaa_samples), is_depth ? "depth" : "color",
+                1 << static_cast<u32>(rb_surface_info.msaa_samples), is_depth ? "depth" : "color",
                 static_cast<u32>(rb_copy_control.copy_sample_select),
                 static_cast<u32>(sample_select));
   }
@@ -601,7 +601,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   if (is_depth) {
     dest_format = DepthRenderTargetToTextureFormat(rb_depth_info.depth_format);
   } else {
-    dest_format = xenos::TextureFormat(rb_copy_dest_info.copy_dest_format);
+    dest_format = static_cast<xenos::TextureFormat>(rb_copy_dest_info.copy_dest_format);
     xenos::TextureFormat dest_closest_format;
     switch (dest_format) {
       case xenos::TextureFormat::k_8_A:
@@ -637,12 +637,14 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   const xenos::FormatInfo& dest_format_info = *xenos::FormatInfo::Get(dest_format);
   if (is_depth || dest_format_info.type == xenos::FormatType::kResolvable) {
     u32 bpp_log2 = rex::log2_floor(dest_format_info.bits_per_pixel >> 3);
-    u32 dest_base_relative_x_mask = (UINT32_C(1) << xenos::GetTextureTiledXBaseGranularityLog2(
-                                         bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
-                                    1;
-    u32 dest_base_relative_y_mask = (UINT32_C(1) << xenos::GetTextureTiledYBaseGranularityLog2(
-                                         bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
-                                    1;
+    u32 dest_base_relative_x_mask =
+        (UINT32_C(1) << xenos::GetTextureTiledXBaseGranularityLog2(
+             static_cast<bool>(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
+        1;
+    u32 dest_base_relative_y_mask =
+        (UINT32_C(1) << xenos::GetTextureTiledYBaseGranularityLog2(
+             static_cast<bool>(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
+        1;
     info_out.copy_dest_coordinate_info.offset_x_div_8 =
         (static_cast<u32>(x0) & dest_base_relative_x_mask) >> xenos::kResolveAlignmentPixelsLog2;
     info_out.copy_dest_coordinate_info.offset_y_div_8 =
@@ -751,7 +753,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   info_out.color_edram_info = color_edram_info;
 
   info_out.copy_dest_info = rb_copy_dest_info;
-  info_out.copy_dest_info.copy_dest_format = xenos::ColorFormat(dest_format);
+  info_out.copy_dest_info.copy_dest_format = static_cast<xenos::ColorFormat>(dest_format);
   info_out.copy_dest_info.copy_dest_exp_bias = exp_bias;
   if (is_depth) {
     info_out.copy_dest_info.copy_dest_swap = false;
@@ -766,9 +768,9 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
                "modified memory range 0x{:08X} to 0x{:08X})",
                x0, y0, x1, y1,
                is_depth ? xenos::GetDepthRenderTargetFormatName(
-                              xenos::DepthRenderTargetFormat(depth_edram_info.format))
+                              static_cast<xenos::DepthRenderTargetFormat>(depth_edram_info.format))
                         : xenos::GetColorRenderTargetFormatName(
-                              xenos::ColorRenderTargetFormat(color_edram_info.format)),
+                              static_cast<xenos::ColorRenderTargetFormat>(color_edram_info.format)),
                dest_format_info.name, rb_copy_dest_base, copy_dest_extent_start,
                copy_dest_extent_end);
 
@@ -788,8 +790,8 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(u32 draw_resolution_scale_x,
       (!copy_dest_info.copy_dest_exp_bias &&
        xenos::IsSingleCopySampleSelected(copy_dest_coordinate_info.copy_sample_select) &&
        xenos::IsColorResolveFormatBitwiseEquivalent(
-           xenos::ColorRenderTargetFormat(color_edram_info.format),
-           xenos::ColorFormat(copy_dest_info.copy_dest_format)))) {
+           static_cast<xenos::ColorRenderTargetFormat>(color_edram_info.format),
+           static_cast<xenos::ColorFormat>(copy_dest_info.copy_dest_format)))) {
     if (edram_info.msaa_samples >= xenos::MSAASamples::k4X) {
       shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp4xMSAA
                                : ResolveCopyShaderIndex::kFast32bpp4xMSAA;
@@ -799,7 +801,7 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(u32 draw_resolution_scale_x,
     }
   } else {
     const xenos::FormatInfo& dest_format_info =
-        *xenos::FormatInfo::Get(xenos::TextureFormat(copy_dest_info.copy_dest_format));
+        *xenos::FormatInfo::Get(static_cast<xenos::TextureFormat>(copy_dest_info.copy_dest_format));
     switch (dest_format_info.bits_per_pixel) {
       case 8:
         shader = ResolveCopyShaderIndex::kFull8bpp;

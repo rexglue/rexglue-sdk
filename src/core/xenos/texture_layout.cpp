@@ -434,7 +434,8 @@ u8 SwizzleSigns(const xenos::TextureFetch& fetch) {
     if (swizzle & 0b100) {
       constant_mask |= static_cast<u8>(1) << (i * 2);
     } else {
-      xenos::TextureSign sign = xenos::TextureSign((fetch.dword_0 >> (2 + swizzle * 2)) & 0b11);
+      xenos::TextureSign sign =
+          static_cast<xenos::TextureSign>((fetch.dword_0 >> (2 + swizzle * 2)) & 0b11);
       signs |= static_cast<u8>(sign) << (i * 2);
       if (sign == xenos::TextureSign::kSigned) {
         any_signed = true;

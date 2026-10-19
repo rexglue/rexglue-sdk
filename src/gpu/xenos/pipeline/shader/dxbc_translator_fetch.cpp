@@ -390,7 +390,7 @@ u32 DXBCShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
   if (dimension == xenos::FetchOpDimension::k1D) {
     dimension = xenos::FetchOpDimension::k2D;
   }
-  for (u32 i = 0; i < u32(texture_bindings_.size()); ++i) {
+  for (u32 i = 0; i < static_cast<u32>(texture_bindings_.size()); ++i) {
     const TextureBinding& texture_binding = texture_bindings_[i];
     if (texture_binding.fetch_constant == fetch_constant &&
         texture_binding.dimension == dimension && texture_binding.is_signed == is_signed) {
@@ -446,7 +446,7 @@ u32 DXBCShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
     mip_filter = xenos::TextureFilter::kLinear;
     aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax161);
   }
-  for (u32 i = 0; i < u32(sampler_bindings_.size()); ++i) {
+  for (u32 i = 0; i < static_cast<u32>(sampler_bindings_.size()); ++i) {
     const SamplerBinding& sampler_binding = sampler_bindings_[i];
     if (sampler_binding.fetch_constant == fetch_constant &&
         sampler_binding.mag_filter == mag_filter && sampler_binding.min_filter == min_filter &&

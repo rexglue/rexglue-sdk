@@ -28,7 +28,7 @@ struct ELF32Ehdr {
   be_u16 e_type;
   be_u16 e_machine;
   be_u32 e_version;
-  rex::BE<u32> e_entry;
+  be_u32 e_entry;
   be_u32 e_phoff;
   be_u32 e_shoff;
   be_u32 e_flags;

@@ -135,7 +135,7 @@ function (rexglue_audit_module_registrars)
 
   if (violations)
     list(JOIN violations "\n" detail)
-    message(FATAL_ERROR "static registrars in module DLLs (charter 4.7):\n${detail}\n"
+    message(FATAL_ERROR "static registrars in module DLLs:\n${detail}\n"
                         "Register at Connect instead."
     )
   endif ()
@@ -155,7 +155,7 @@ function (rexglue_audit_core_tier)
     list(JOIN violations "
 " detail
     )
-    message(FATAL_ERROR "rexcore is tier 0 and links no SDK target (charter 2.2):
+    message(FATAL_ERROR "rexcore is tier 0 and links no SDK target:
 ${detail}"
     )
   endif ()
@@ -179,10 +179,8 @@ function (rexglue_audit_module_links)
   endforeach ()
   if (violations)
     list(JOIN violations "\n" detail)
-    message(
-      FATAL_ERROR
-        "rexfilesystem is a module loaded through rex::Init and is never linked (charter 4):\n"
-        "${detail}"
+    message(FATAL_ERROR "rexfilesystem is a module loaded through rex::Init and is never linked:\n"
+                        "${detail}"
     )
   endif ()
 endfunction ()
@@ -332,7 +330,7 @@ function (rexglue_audit_export_visibility)
   endforeach ()
   if (violations)
     list(JOIN violations "\n" detail)
-    message(FATAL_ERROR "SDK binaries export only what they mark (charter 4.8, 7.11):\n${detail}")
+    message(FATAL_ERROR "SDK binaries export only what they mark:\n${detail}")
   endif ()
 endfunction ()
 

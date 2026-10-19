@@ -91,11 +91,11 @@ bool WindowSDL::OpenImpl() {
   // SDL window coordinates are physical pixels on Windows and X11, logical points on Cocoa.
   SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
 #if REX_PLATFORM_MAC
-  int initial_width = int(GetDesiredLogicalWidth());
-  int initial_height = int(GetDesiredLogicalHeight());
+  int initial_width = static_cast<int>(GetDesiredLogicalWidth());
+  int initial_height = static_cast<int>(GetDesiredLogicalHeight());
 #else
-  int initial_width = int(SizeToPhysical(GetDesiredLogicalWidth()));
-  int initial_height = int(SizeToPhysical(GetDesiredLogicalHeight()));
+  int initial_width = static_cast<int>(SizeToPhysical(GetDesiredLogicalWidth()));
+  int initial_height = static_cast<int>(SizeToPhysical(GetDesiredLogicalHeight()));
 #endif
   sdl_window_ = SDL_CreateWindow(GetTitle().c_str(), initial_width, initial_height, flags);
   if (!sdl_window_) {
@@ -360,10 +360,11 @@ void WindowSDL::ApplyNewDesiredLogicalSize() {
     return;
   }
 #if REX_PLATFORM_MAC
-  SDL_SetWindowSize(sdl_window_, int(GetDesiredLogicalWidth()), int(GetDesiredLogicalHeight()));
+  SDL_SetWindowSize(sdl_window_, static_cast<int>(GetDesiredLogicalWidth()),
+                    static_cast<int>(GetDesiredLogicalHeight()));
 #else
-  SDL_SetWindowSize(sdl_window_, int(SizeToPhysical(GetDesiredLogicalWidth())),
-                    int(SizeToPhysical(GetDesiredLogicalHeight())));
+  SDL_SetWindowSize(sdl_window_, static_cast<int>(SizeToPhysical(GetDesiredLogicalWidth())),
+                    static_cast<int>(SizeToPhysical(GetDesiredLogicalHeight())));
 #endif
 }
 
@@ -658,8 +659,8 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
   size_t remaining = std::strlen(text);
   while (remaining > 0) {
     const u32 codepoint = SDL_StepUTF8(&it, &remaining);
-    KeyEvent e(UIEvent::Type::kChar, this, hid::VirtualKey(codepoint), 1, false, false, false,
-               false);
+    KeyEvent e(UIEvent::Type::kChar, this, static_cast<hid::VirtualKey>(codepoint), 1, false, false,
+               false, false);
     OnKeyChar(e, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyed()) {
       return;

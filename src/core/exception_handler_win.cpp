@@ -30,7 +30,12 @@ void* g_veh_handle = nullptr;
 
 constexpr size_t kMaxHandlerCount = 8;
 
-std::pair<ExceptionHandler::Handler, void*> g_handlers[kMaxHandlerCount];
+struct HandlerSlot {
+  ExceptionHandler::Handler fn = nullptr;
+  void* data = nullptr;
+};
+
+HandlerSlot g_handlers[kMaxHandlerCount];
 
 LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
   if (ex_info->ExceptionRecord->ExceptionCode == kSetThreadNameException) {
@@ -71,8 +76,8 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
       return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  for (size_t i = 0; i < rex::CountOf(g_handlers) && g_handlers[i].first; ++i) {
-    if (g_handlers[i].first(&ex, g_handlers[i].second)) {
+  for (size_t i = 0; i < rex::CountOf(g_handlers) && g_handlers[i].fn; ++i) {
+    if (g_handlers[i].fn(&ex, g_handlers[i].data)) {
       ex_info->ContextRecord->Rip = thread_context.rip;
       ex_info->ContextRecord->EFlags = thread_context.eflags;
       u32 modified_register_index;
@@ -100,7 +105,7 @@ void ExceptionHandler::Install(Handler fn, void* data) {
     g_veh_handle = AddVectoredExceptionHandler(1, ExceptionHandlerCallback);
   }
 
-  auto slot = std::ranges::find_if(g_handlers, [](const auto& handler) { return !handler.first; });
+  auto slot = std::ranges::find_if(g_handlers, [](const auto& handler) { return !handler.fn; });
   if (slot != std::end(g_handlers)) {
     *slot = {fn, data};
     return;
@@ -110,17 +115,17 @@ void ExceptionHandler::Install(Handler fn, void* data) {
 
 void ExceptionHandler::Uninstall(Handler fn, void* data) {
   for (size_t i = 0; i < rex::CountOf(g_handlers); ++i) {
-    if (g_handlers[i].first == fn && g_handlers[i].second == data) {
+    if (g_handlers[i].fn == fn && g_handlers[i].data == data) {
       for (; i < rex::CountOf(g_handlers) - 1; ++i) {
         g_handlers[i] = g_handlers[i + 1];
       }
-      g_handlers[i].first = nullptr;
-      g_handlers[i].second = nullptr;
+      g_handlers[i].fn = nullptr;
+      g_handlers[i].data = nullptr;
       break;
     }
   }
 
-  if (std::ranges::none_of(g_handlers, [](const auto& handler) { return handler.first; })) {
+  if (std::ranges::none_of(g_handlers, [](const auto& handler) { return handler.fn; })) {
     if (g_veh_handle) {
       RemoveVectoredExceptionHandler(g_veh_handle);
       g_veh_handle = nullptr;

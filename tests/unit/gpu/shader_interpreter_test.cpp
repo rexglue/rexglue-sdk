@@ -36,7 +36,7 @@ std::array<u32, 6> MulConstTempProgram(bool abs_constants) {
   std::array<u32, 6> ucode{};
   ucode[0] = 1 | (1 << 12);
   ucode[1] = kExecEnd << 12;
-  ucode[3] = (u32(abs_constants) << 7) | (1 << 8) | (0b0001 << 20) | (kMulsc0 << 26);
+  ucode[3] = (static_cast<u32>(abs_constants) << 7) | (1 << 8) | (0b0001 << 20) | (kMulsc0 << 26);
   return ucode;
 }
 

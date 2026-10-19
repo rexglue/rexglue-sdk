@@ -291,7 +291,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
   if (paint_context_.swapchain == VK_NULL_HANDLE) {
     REX_ASSERT(paint_context_.vulkan_surface == VK_NULL_HANDLE);
     gpu::Surface::TypeIndex surface_type = new_surface.GetType();
-    if (!(GetSupportedSurfaceTypes() & (gpu::Surface::TypeFlags(1) << surface_type))) {
+    if (!(GetSupportedSurfaceTypes() & (static_cast<gpu::Surface::TypeFlags>(1) << surface_type))) {
       REX_FAIL(ui, SurfacePaintConnectResult::kFailureSurfaceUnusable,
                "VulkanPresenter: Tried to create a Vulkan surface for an "
                "unsupported ReXGlue surface type");
@@ -626,7 +626,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
       queue_family_present_supported) {
     queue_family_index_present = queue_family_index_graphics_compute;
   } else {
-    for (u32 i = 0; i < u32(queue_families.size()); ++i) {
+    for (u32 i = 0; i < static_cast<u32>(queue_families.size()); ++i) {
       const VulkanDevice::QueueFamily& queue_family = queue_families[i];
       if (!queue_family.queues.empty() && queue_family.may_support_presentation &&
           ifn.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface,
@@ -793,7 +793,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
                "mode");
     }
     swapchain_create_info.compositeAlpha =
-        VkCompositeAlphaFlagBitsKHR(static_cast<u32>(1) << composite_alpha_shift);
+        static_cast<VkCompositeAlphaFlagBitsKHR>(static_cast<u32>(1) << composite_alpha_shift);
   }
   // Update the cvar descriptions when these priorities change.
   if (REXCVAR_GET(::rex::gpu::cvars::allow_present_mode_immediate) &&
@@ -1185,7 +1185,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
             guest_output_paint_pipeline_layouts_[guest_output_paint_pipeline_layout_index];
 
         PaintContext::GuestOutputDescriptorSet effect_src_descriptor_set =
-            PaintContext::GuestOutputDescriptorSet(
+            static_cast<PaintContext::GuestOutputDescriptorSet>(
                 PaintContext::kGuestOutputDescriptorSetGuestOutput0Sampled +
                 guest_output_image_paint_ref_index);
         dfn.vkCmdBindDescriptorSets(
@@ -1447,13 +1447,13 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
       &guest_output_paint_image_descriptor_set_layout_;
   guest_output_paint_pipeline_layout_create_info.pPushConstantRanges =
       guest_output_paint_push_constant_ranges;
-  for (size_t i = 0; i < size_t(kGuestOutputPaintPipelineLayoutCount); ++i) {
-    switch (GuestOutputPaintPipelineLayoutIndex(i)) {
+  for (size_t i = 0; i < static_cast<size_t>(kGuestOutputPaintPipelineLayoutCount); ++i) {
+    switch (static_cast<GuestOutputPaintPipelineLayoutIndex>(i)) {
       case kGuestOutputPaintPipelineLayoutIndexBilinear:
         guest_output_paint_push_constant_range.size = sizeof(BilinearConstants);
         break;
       default:
-        REX_UNHANDLED_CASE(GuestOutputPaintPipelineLayoutIndex(i));
+        REX_UNHANDLED_CASE(static_cast<GuestOutputPaintPipelineLayoutIndex>(i));
         continue;
     }
     guest_output_paint_pipeline_layout_create_info.pushConstantRangeCount =
@@ -1480,8 +1480,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
              "VulkanPresenter: Failed to create the guest output presentation "
              "vertex shader module");
   }
-  for (size_t i = 0; i < size_t(GuestOutputPaintEffect::kCount); ++i) {
-    GuestOutputPaintEffect guest_output_paint_effect = GuestOutputPaintEffect(i);
+  for (size_t i = 0; i < static_cast<size_t>(GuestOutputPaintEffect::kCount); ++i) {
+    GuestOutputPaintEffect guest_output_paint_effect = static_cast<GuestOutputPaintEffect>(i);
     switch (guest_output_paint_effect) {
       case GuestOutputPaintEffect::kBilinear:
         shader_module_create_info.codeSize = sizeof(shaders::kGuestOutputBilinearPS);

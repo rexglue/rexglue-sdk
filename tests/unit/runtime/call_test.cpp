@@ -547,7 +547,7 @@ PPCVRegister MakeVector(u32 seed) {
 }
 
 bool SameVector(const PPCVRegister& a, const PPCVRegister& b) {
-  return std::memcmp(&a, &b, sizeof(PPCVRegister)) == 0;
+  return std::ranges::equal(a.u32, b.u32);
 }
 
 void ReadVectorFirst(PPCContext& ctx, u8*) {

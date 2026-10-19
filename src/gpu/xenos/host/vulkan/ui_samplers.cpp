@@ -56,9 +56,9 @@ std::unique_ptr<UISamplers> UISamplers::Create(const VulkanDevice* const vulkan_
       REX_FAIL(ui, nullptr,
                "Failed to create the Vulkan UI sampler with filter {}, addressing "
                "mode {}: {}",
-               vk::to_string(vk::Filter(sampler_create_info.magFilter)),
-               vk::to_string(vk::SamplerAddressMode(sampler_create_info.addressModeU)),
-               vk::to_string(vk::Result(sampler_create_result)));
+               vk::to_string(static_cast<vk::Filter>(sampler_create_info.magFilter)),
+               vk::to_string(static_cast<vk::SamplerAddressMode>(sampler_create_info.addressModeU)),
+               vk::to_string(static_cast<vk::Result>(sampler_create_result)));
     }
   }
 

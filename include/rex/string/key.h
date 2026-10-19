@@ -31,8 +31,11 @@ struct StringKeyBase {
   explicit StringKeyBase(std::string value) : value_(std::move(value)) {}
 
   std::string_view GetView() const {
-    return std::holds_alternative<std::string>(value_) ? std::get<std::string>(value_)
-                                                       : std::get<std::string_view>(value_);
+    if (const auto* owned = std::get_if<std::string>(&value_)) {
+      return *owned;
+    }
+    const auto* borrowed = std::get_if<std::string_view>(&value_);
+    return borrowed ? *borrowed : std::string_view();
   }
 };
 
