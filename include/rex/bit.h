@@ -168,7 +168,7 @@ void SetRange(Block* bits, size_t first, size_t length) {
   }
   bits[block_first] |= set_first;
   if (block_first + 1 < block_last) {
-    std::memset(bits + block_first + 1, CHAR_MAX, (block_last - (block_first + 1)) * sizeof(Block));
+    std::fill_n(bits + block_first + 1, block_last - (block_first + 1), ~Block(0));
   }
   bits[block_last] |= set_last;
 }

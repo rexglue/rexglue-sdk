@@ -46,9 +46,7 @@ REX_TEST_CASE("BitMap hands each bit to 1 of 4 racing threads", "[core][bit]") {
 }
 
 template <typename Block>
-void CheckSetRange(rex::i32 first_bit, rex::i32 bit_count) {
-  const size_t first = static_cast<size_t>(first_bit);
-  const size_t length = static_cast<size_t>(bit_count);
+void CheckSetRange(size_t first, size_t length) {
   constexpr size_t kBlockBits = sizeof(Block) * 8;
   constexpr Block kOutside = static_cast<Block>(0x5555555555555555ull);
   std::vector<Block> bits(8, kOutside);
@@ -59,6 +57,23 @@ void CheckSetRange(rex::i32 first_bit, rex::i32 bit_count) {
     const bool was_set = (kOutside >> (bit % kBlockBits)) & 1;
     CHECK(is_set == (in_range || was_set));
   }
+}
+
+REX_TEST_CASE("SetRange sets every bit of a range spanning 3 or more blocks", "[core][bit]") {
+  CheckSetRange<rex::u32>(5, 3 * 32 + 7);
+  CheckSetRange<rex::u32>(0, 5 * 32);
+  CheckSetRange<rex::u32>(31, 4 * 32 + 2);
+  CheckSetRange<rex::u64>(5, 3 * 64 + 7);
+  CheckSetRange<rex::u64>(0, 5 * 64);
+  CheckSetRange<rex::u64>(63, 4 * 64 + 2);
+}
+
+REX_TEST_CASE("AppendVarargs formats every argument", "[core][string]") {
+  REQUIRE(Format("%s-%d-%s", "alpha", 42, "beta") == "alpha-42-beta");
+}
+
+REX_TEST_CASE("utf8_upper_ascii uppercases ASCII letters", "[core][string]") {
+  REQUIRE(rex::utf8_upper_ascii("abc XYZ 1") == "ABC XYZ 1");
 }
 
 REX_TEST_CASE("SetRange sets every bit of a range spanning 3 or more blocks", "[core][bit]") {
