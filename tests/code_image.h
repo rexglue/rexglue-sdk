@@ -169,7 +169,9 @@ file_path = "entry.xex"
 out_directory_path = "generated/entry"
 )" << extra_manifest;
   const auto manifest = codegen::ManifestConfig::Load(manifest_path);
-  REQUIRE(manifest);
+  if (!manifest) {
+    return Err<void>(ErrorCategory::kConfig, "the manifest did not load");
+  }
 
   test::ReleaseTestMemory();
   LogConfig config;

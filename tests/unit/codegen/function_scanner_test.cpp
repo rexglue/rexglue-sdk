@@ -223,7 +223,7 @@ REX_TEST_CASE("A return that only an unconditional branch goes past is a cut",
   const BlockDiscoveryResult result = fixture.Discover({kBase});
   const std::optional<u32> cut = FindReturnCut(result, kBase);
   REQUIRE(cut.has_value());
-  CHECK(*cut == kBase + 20);
+  CHECK(cut == kBase + 20);
 }
 
 REX_TEST_CASE("Case bodies that each end in a return after a jump table are not a cut",

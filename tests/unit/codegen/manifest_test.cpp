@@ -121,7 +121,10 @@ longjmp_address = 0x82001000
 0x82001000 = { name = "shared_fn" }
 )" << kProject;
   const auto manifest = rex::codegen::ManifestConfig::Load(path);
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
   CHECK(manifest->shared.functions.contains(0x82001000));
   CHECK(manifest->shared.skip_lr);
   CHECK(manifest->entrypoint.recompiler.skip_lr);

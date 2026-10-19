@@ -130,7 +130,9 @@ guest_path = "b.xex"
 out_directory_path = "generated/b"
 )" << extra_text;
   const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
-  REQUIRE(manifest);
+  if (!manifest) {
+    return rex::Err<void>(rex::ErrorCategory::kConfig, "the manifest did not load");
+  }
 
   rex::test::ReleaseTestMemory();
   rex::LogConfig config;
@@ -196,7 +198,10 @@ file_path = "entry.xex"
 out_directory_path = "generated/entry"
 )";
   const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
 
   rex::test::ReleaseTestMemory();
   rex::LogConfig config;
@@ -392,7 +397,10 @@ guest_path = "Exporter.xex"
 out_directory_path = "generated/exporter"
 )";
   const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
 
   rex::test::ReleaseTestMemory();
   rex::LogConfig config;
