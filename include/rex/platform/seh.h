@@ -28,7 +28,7 @@ class SEHException;
 namespace rex::platform {
 
 #if !REX_PLATFORM_WIN32
-/** 1 open SEH scope on POSIX, linked into the chain of its thread. */
+/** An open SEH scope on POSIX, linked into the chain of its thread. */
 struct SEHScope {
   sigjmp_buf env;            /**< Where a fault inside the scope resumes. */
   SEHScope* outer = nullptr; /**< The enclosing scope, null for the outermost. */

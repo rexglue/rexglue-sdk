@@ -168,7 +168,7 @@ REX_TEST_CASE("A body ending in a call followed by padding does not warn", "[cod
   CHECK(output.run_offs == 0);
 }
 
-REX_TEST_CASE("A body ending in an add followed by padding still warns", "[codegen][noreturn]") {
+REX_TEST_CASE("A body ending in an add followed by padding warns", "[codegen][noreturn]") {
   Image image;
   AddFunction(image, kAddiR3One);
   image.words.push_back(0);

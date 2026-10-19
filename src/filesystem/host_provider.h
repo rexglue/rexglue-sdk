@@ -66,7 +66,7 @@ class HostProvider final : public Provider {
  private:
 };
 
-/** 1 host file or folder. */
+/** A host file or folder. */
 class HostNode final : public Node {
  public:
   /**

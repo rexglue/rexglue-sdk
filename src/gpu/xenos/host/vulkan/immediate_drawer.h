@@ -73,7 +73,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     /** Null for a blank texture or after the immediate drawer has been destroyed. */
     VulkanImmediateDrawer* immediate_drawer;
     size_t immediate_drawer_index;
-    /** Invalid when immediate_drawer_ is null, as the immediate drawer manages it. */
+    /** Invalid when immediate_drawer is null, as the immediate drawer manages it. */
     Resource resource;
     size_t pending_upload_index;
     u64 last_usage_submission = 0;

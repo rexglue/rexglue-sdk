@@ -91,8 +91,7 @@ REX_EXPORT_STUB(__imp__VdSetWSS2Data);
 REX_EXPORT_STUB(__imp__VdSetStudioRGBMode);
 
 /**
- * Returns the display gamma, which D3D SetGammaRamp and SetPWLGamma use to adjust the ramp for the
- * display.
+ * Returns the display gamma.
  *
  * The gamma type is 1 for sRGB, 2 for TV (BT.709), 3 to use the power in power_ptr, otherwise
  * linear.
@@ -261,8 +260,7 @@ u32 VdInitializeEngines_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 ca
 void VdShutdownEngines_entry() {}
 
 /**
- * Returns the graphics ASIC id. Titles compare it against 0x10 to choose between VdInitializeEDRAM
- * and retraining.
+ * Returns the graphics ASIC id.
  *
  * @return 0x11.
  */

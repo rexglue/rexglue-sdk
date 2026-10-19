@@ -214,7 +214,7 @@ REX_TEST_CASE("runtime metadata root overrides legacy metadata discovery",
   }
 }
 
-REX_TEST_CASE("embedded metadata assets resolve by metadata-relative path",
+REX_TEST_CASE("embedded metadata assets resolve by metadata relative path",
               "[runtime][achievements]") {
   static constexpr u8 kIconBytes[] = {0x89, 0x50, 0x4E, 0x47};
   REQUIRE(rex::RegisterEmbeddedMetadataAsset("icons/custom/unit-test.png", kIconBytes,

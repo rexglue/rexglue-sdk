@@ -717,7 +717,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   if (FAILED(
           device->CreateDescriptorHeap(&view_heap_desc, IID_PPV_ARGS(&paint_context_.view_heap)))) {
     REX_FAIL(ui, false,
-             "D3D12Presenter: Failed to create a shader-visible CBV/SRV/UAV "
+             "D3D12Presenter: Failed to create a shader visible CBV/SRV/UAV "
              "descriptor heap with {} descriptors",
              view_heap_desc.NumDescriptors);
   }

@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_validate.cpp
- * @brief       Validate phase: verify all call targets resolve
+ * @brief       Validate phase that verifies all call targets resolve
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -72,7 +72,6 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
       continue;
     }
 
-    // Use the declared size, since Discover() grows node->size() to cover its blocks.
     u32 declared = fc.GetSize(addr);
     if (declared == 0)
       continue;
@@ -93,11 +92,11 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
 }
 
 /**
- * Reports whether an address lies inside a millicode run without being an entry of it.
+ * Reports whether an address is inside a millicode run without being an entry of it.
  *
  * @param graph Function graph holding the run entries.
  * @param addr Address to test.
- * @return True for an address in the middle of an entry or in the closing words.
+ * @return True when the address is in the middle of an entry or in the closing words.
  */
 bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
   const FunctionNode* node = graph.GetFunctionContaining(addr);
@@ -146,7 +145,7 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
 
           if (IsInsideMillicodeRun(graph, target)) {
             errors.Add(AnalysisErrors::Category::kMillicode, target, site,
-                       std::format("{} 0x{:08X} from 0x{:08X} lands inside a millicode run, off "
+                       std::format("{} 0x{:08X} from 0x{:08X} is inside a millicode run, off "
                                    "its entries",
                                    is_call ? "bl" : "b", target, site));
             continue;
@@ -182,7 +181,7 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
 
           if (!target_exists) {
             errors.Add(AnalysisErrors::Category::kUnresolvedCall, target, site,
-                       std::format("{} 0x{:08X} from 0x{:08X} - target not in any function",
+                       std::format("{} 0x{:08X} from 0x{:08X} has a target in no function",
                                    is_call ? "bl" : "b", target, site));
             continue;
           }
@@ -193,7 +192,7 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
               const FunctionNode* containing_func = graph.GetFunctionContaining(target);
               if (!containing_func) {
                 errors.Add(AnalysisErrors::Category::kUnresolvedCall, target, site,
-                           std::format("{} 0x{:08X} from 0x{:08X} in {} - no CallEdge recorded",
+                           std::format("{} 0x{:08X} from 0x{:08X} in {} has no CallEdge",
                                        is_call ? "bl" : "b", target, site, node->GetName()));
               }
             } else {

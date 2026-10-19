@@ -95,8 +95,8 @@ class Fence {
 REX_API u32 LogicalProcessorCount();
 
 /**
- * Widens the process affinity to every processor so threads can pin to any of them. Call at
- * startup before setting thread affinity. Does nothing on POSIX.
+ * Widens the process affinity to every processor so threads can pin to any of them. Does nothing
+ * on POSIX.
  */
 REX_API void EnableAffinityConfiguration();
 
@@ -108,7 +108,7 @@ REX_API void EnableAffinityConfiguration();
 REX_API u32 CurrentThreadSystemId();
 
 /**
- * Returns the ID of the calling thread. Equals current_thread_system_id() until
+ * Returns the ID of the calling thread. Equals CurrentThreadSystemId() until
  * SetCurrentThreadId overrides it. Guest threads set it to their guest thread handle.
  *
  * @return Thread ID.
@@ -229,7 +229,7 @@ REX_API bool SetTLSValue(TLSHandle handle, uintptr_t value);
 
 /**
  * Repeating millisecond timer on the shared timer queue thread. Callbacks of every timer run
- * on that thread, so keep them short. Destruction cancels the timer.
+ * on that thread. Destruction cancels the timer.
  */
 class HighResolutionTimer {
   /** Limits construction to the Create functions. */
@@ -420,7 +420,7 @@ class REX_API Event : public WaitHandle {
    */
   virtual void Set() = 0;
 
-  /** Clears the signal. No effect when already clear. */
+  /** Clears the signal. No effect when clear. */
   virtual void Reset() = 0;
 
   /** Signals the event, releases the waiters it can, then clears the signal. */
@@ -634,7 +634,7 @@ class REX_API Thread : public WaitHandle {
   /**
    * Returns the thread name.
    *
-   * @return Name set by set_name, empty when never set.
+   * @return Name set by SetName, empty when never set.
    */
   const std::string& GetName() const { return name_; }
 
@@ -728,7 +728,7 @@ class REX_API Thread : public WaitHandle {
   virtual bool SuspendIf(RedirectFilter filter, void* context) = 0;
 
  protected:
-  std::string name_; /**< Thread name returned by name() and replaced by set_name(). */
+  std::string name_; /**< Thread name returned by GetName() and replaced by SetName(). */
 };
 
 namespace detail {

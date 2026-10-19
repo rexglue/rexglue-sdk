@@ -38,7 +38,7 @@ namespace rex {
  */
 template <typename T, std::endian E>
 struct EndianValue {
-  /** The native value type, read by MappedPtr::value. */
+  /** The native value type, read by MappedPtr::GetValue. */
   using value_type = T;
 
   EndianValue() = default;
@@ -219,7 +219,7 @@ template <typename T>
 using LE = EndianValue<T, std::endian::little>;
 
 /**
- * True when T is a be<> type.
+ * True when T is a BE<> type.
  *
  * @tparam T The type to test.
  */
@@ -227,7 +227,7 @@ template <typename T>
 struct IsBEType : std::false_type {};
 
 /**
- * Matches be<T>.
+ * Matches BE<T>.
  *
  * @tparam T The wrapped value type.
  */
@@ -235,7 +235,7 @@ template <typename T>
 struct IsBEType<rex::BE<T>> : std::true_type {};
 
 /**
- * True when T is a be<> type.
+ * True when T is a BE<> type.
  *
  * @tparam T The type to test.
  */
@@ -325,7 +325,7 @@ class MappedPtr {
   T& operator*() const { return *host_ptr_; }
 
   /**
-   * @return The pointee, converted to native byte order when T is a be<> type.
+   * @return The pointee, converted to native byte order when T is a BE<> type.
    */
   auto GetValue() const {
     if constexpr (is_be_type_v<T>) {
@@ -372,7 +372,7 @@ class MappedPtr {
 
   /**
    * @tparam U The element value type.
-   * @return The host pointer as an array of be<U>.
+   * @return The host pointer as an array of rex::BE<U>.
    */
   template <typename U>
   rex::BE<U>* AsArray() const {
@@ -495,7 +495,7 @@ class MappedPtr<void> {
 
   /**
    * @tparam U The element value type.
-   * @return The host pointer as an array of be<U>.
+   * @return The host pointer as an array of rex::BE<U>.
    */
   template <typename U>
   rex::BE<U>* AsArray() const {

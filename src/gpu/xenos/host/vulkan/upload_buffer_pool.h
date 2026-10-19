@@ -25,7 +25,7 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
    *
    * The page size is rounded up to nonCoherentAtomSize, the memory mapping granularity, so the
    * padding of host visible allocations is not wasted.
-   * Map and flush ranges must still be clamped to the actual allocation size.
+   * Map and flush ranges must be clamped to the allocation size.
    *
    * @param vulkan_device The device to allocate on.
    * @param usage The buffer usage flags.

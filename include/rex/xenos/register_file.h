@@ -44,7 +44,7 @@ class REX_API RegisterFile {
    * Looks up a register in the register table.
    *
    * @param index Dword register index.
-   * @return Name and type of the register, or nullptr when the index is not in the table.
+   * @return Name and type of the register, or null when the index is not in the table.
    */
   static const RegisterInfo* GetRegisterInfo(u32 index);
 
@@ -58,7 +58,6 @@ class REX_API RegisterFile {
   const u32& operator[](Register reg) const { return values[std::to_underlying(reg)]; }
   u32& operator[](Register reg) { return values[std::to_underlying(reg)]; }
 
-  template <typename T>
   /**
    * Reinterprets a register value as a register layout or other 32 bit type.
    *
@@ -66,10 +65,10 @@ class REX_API RegisterFile {
    * @param reg Dword register index.
    * @return The register bits as T.
    */
+  template <typename T>
   T Get(u32 reg) const {
     return std::bit_cast<T>(values[reg]);
   }
-  template <typename T>
   /**
    * Reinterprets a register value as a register layout or other 32 bit type.
    *
@@ -77,16 +76,17 @@ class REX_API RegisterFile {
    * @param reg Register to read.
    * @return The register bits as T.
    */
+  template <typename T>
   T Get(Register reg) const {
     return Get<T>(std::to_underlying(reg));
   }
-  template <typename T>
   /**
    * Reads the register that a register layout declares as its own.
    *
-   * @tparam T Register layout declaring `register_index`.
+   * @tparam T Register layout declaring `kRegisterIndex`.
    * @return The register bits as T.
    */
+  template <typename T>
   T Get() const {
     return Get<T>(T::kRegisterIndex);
   }

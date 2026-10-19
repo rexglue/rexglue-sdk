@@ -28,9 +28,7 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
-/**
- * Xmp app 0xFA, which serves the music player state and title playlists.
- */
+/** XMP app 0xFA, which serves the music player state and title playlists. */
 class REX_RUNTIME_API XmpApp : public runtime::App {
  public:
   /** Playback state reported to the title. */
@@ -66,7 +64,7 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
 
     u32 handle;                  /**< Handle for the song. */
     std::u16string file_path;    /**< Path of the song added to the playlist. */
-    std::u16string name;         /**< Song title. */
+    std::u16string name;         /**< Song name. */
     std::u16string artist;       /**< Artist name. */
     std::u16string album;        /**< Album name. */
     std::u16string album_artist; /**< Album artist name. */
@@ -84,6 +82,8 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
   };
 
   /**
+   * Creates the app.
+   *
    * @param runtime The runtime the app serves.
    */
   explicit XmpApp(Runtime& runtime);
@@ -102,7 +102,7 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
    * @param songs_ptr Guest address of the song descriptors, or 0 for an empty playlist.
    * @param song_count Number of song descriptors.
    * @param playlist_name_ptr Guest address of the playlist name, used only for logging.
-   * @param playlist_name The playlist name.
+   * @param playlist_name The playlist name as a UTF-16 string.
    * @param flags Playlist flags.
    * @param out_song_handles Guest address of an array that receives the song handles, or 0 to skip.
    * @param out_playlist_handle Guest address that receives the playlist handle, or 0 to skip.
@@ -114,14 +114,14 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
   /**
    * Deletes a playlist and stops playback when it was the active one.
    *
-   * @param playlist_handle The playlist handle.
+   * @param playlist_handle Handle of the playlist to delete.
    * @return X_E_SUCCESS, or X_E_NOTFOUND when the handle is unknown.
    */
   X_HRESULT XMPDeleteTitlePlaylist(u32 playlist_handle);
   /**
    * Starts playing a playlist from its first song.
    *
-   * @param playlist_handle The playlist handle.
+   * @param playlist_handle Handle of the playlist to play.
    * @param song_handle Handle of the song to start with, unused.
    * @return X_E_SUCCESS, or X_E_NOTFOUND when the handle is unknown.
    */
@@ -159,7 +159,7 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
   X_HRESULT XMPPrevious();
 
   /**
-   * Handles a message sent to the Xmp app.
+   * Handles a message sent to the XMP app.
    *
    * @param message The message identifier.
    * @param buffer_ptr Guest address of the message buffer.

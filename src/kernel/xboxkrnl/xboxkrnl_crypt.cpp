@@ -470,7 +470,7 @@ class Montgomery {
 };
 
 /**
- * Checks that a key header describes a usable modulus size.
+ * Reports whether a key header describes a usable modulus size.
  *
  * @param rsa The key.
  * @return True when the modulus has between 2 and 64 quadwords.

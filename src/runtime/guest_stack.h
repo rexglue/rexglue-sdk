@@ -78,7 +78,7 @@ struct GuestStack {
  * Releases a stack from AllocateGuestStack.
  *
  * @param memory Guest memory.
- * @param alloc_base The alloc_base of the stack, 0 for none.
+ * @param alloc_base The first byte of the stack allocation, 0 for none.
  */
 REX_RUNTIME_API void FreeGuestStack(Memory& memory, u32 alloc_base);
 

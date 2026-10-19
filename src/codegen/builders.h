@@ -28,11 +28,11 @@ template <int Opcode>
 bool Build(BuilderContext& ctx);
 
 /**
- * Build C++ code for a PPC instruction using the dispatch table.
+ * Builds the C++ code of a PPC instruction through the dispatch table.
  *
  * @param id The PPC instruction ID (PPC_INST_*)
  * @param ctx The builder context
- * @return true if instruction was handled, false if unknown
+ * @return True when the instruction was handled.
  */
 bool DispatchInstruction(int id, BuilderContext& ctx);
 

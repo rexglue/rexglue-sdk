@@ -19,9 +19,7 @@ struct powerpc_opcode;
 
 namespace rex::codegen::detail {
 
-/**
- * PowerPC instruction formats the decoder needs to find a branch target
- */
+/** Lists the PowerPC instruction formats the decoder needs to find a branch target. */
 enum class InstrFormat : u8 {
   kUnknown = 0,
   kI,  /**< Branch (LI, AA, LK). */
@@ -90,7 +88,7 @@ enum class Opcode : u8 {
  * Reports whether an instruction ends a block.
  *
  * @param op The instruction.
- * @return True for every branch, sc, tw and twi.
+ * @return True when the instruction is a branch, sc, tw or twi.
  */
 inline bool IsTerminatorInstruction(Opcode op) {
   switch (op) {
@@ -124,7 +122,7 @@ inline bool IsTerminatorInstruction(Opcode op) {
 bool IsDropped(int id);
 
 /**
- * Gives the id the dispatch and discovery use for a decoded instruction.
+ * Returns the id the dispatch and discovery use for a decoded instruction.
  *
  * An instruction the Xenon CPU dropped has no id. The SH forms of vupkhsb128 and vupklsb128 that
  * the binutils table reports as the byte forms get the halfword ids.

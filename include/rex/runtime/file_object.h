@@ -125,7 +125,7 @@ struct FileObject {
    * @param runtime The runtime the call runs in.
    * @param segments_address The guest address of the segment array.
    * @param length The bytes to read.
-   * @param byte_offset The file offset, or a negative value to read at the current position.
+   * @param byte_offset The file offset, or the maximum value to read at the current position.
    * @param out_bytes_read Receives the bytes read, may be null.
    * @param apc_context The context reported to the completion ports.
    * @return The status of the first failed read, otherwise X_STATUS_SUCCESS.
@@ -228,7 +228,7 @@ struct FileObject {
   REX_RUNTIME_API void SetPosition(u64 value);
 
   /**
-   * Reads the current position of the file.
+   * Returns the current position of the file.
    *
    * @return The position.
    */

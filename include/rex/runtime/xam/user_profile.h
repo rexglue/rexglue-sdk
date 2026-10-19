@@ -162,11 +162,7 @@ class UserProfile {
      * @return The bytes.
      */
     virtual std::vector<u8> Serialize() const { return std::vector<u8>(); }
-    /**
-     * Restores the value from bytes saved to disk.
-     *
-     * @param data The saved bytes.
-     */
+    /** Restores the value from bytes saved to disk. */
     virtual void Deserialize(const std::vector<u8>&) {}
     /**
      * Reports whether the setting is saved per title.
@@ -370,6 +366,8 @@ class UserProfile {
   };
 
   /**
+   * Constructs the profile from the settings its runtime holds.
+   *
    * @param runtime The runtime whose content manager holds the profile settings.
    */
   REX_RUNTIME_API explicit UserProfile(Runtime& runtime);

@@ -55,7 +55,7 @@ namespace {
 }
 
 [[noreturn, gnu::noinline]] void Throw() {
-  throw std::runtime_error("probe terminate");
+  throw std::runtime_error("crash child terminate");
 }
 
 // NOLINTNEXTLINE(bugprone-exception-escape): the test needs the throw to reach std::terminate
@@ -65,7 +65,7 @@ namespace {
 
 rex::u32 DescribeForProbe(rex::u64 address, std::span<char> out) {
   return static_cast<rex::u32>(std::format_to_n(out.data(), static_cast<std::ptrdiff_t>(out.size()),
-                                                "probe describer {}", address)
+                                                "crash child describer {}", address)
                                    .size);
 }
 
@@ -74,7 +74,7 @@ std::atomic<bool> g_fault_other_thread{false};
 rex::u32 DescribeWhileAnotherThreadFaults(rex::u64, std::span<char> out) {
   g_fault_other_thread = true;
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
-  constexpr std::string_view kText = "probe concurrent describer";
+  constexpr std::string_view kText = "crash child concurrent describer";
   const auto end = std::ranges::copy(kText.substr(0, out.size()), out.begin()).out;
   return static_cast<rex::u32>(end - out.begin());
 }
@@ -191,14 +191,14 @@ int main(int argc, char** argv) {
     if (!rex::log::Start(config)) {
       return 6;
     }
-    if (!rex::platform::InstallCrashReporter({.app_name = "rex-crash-probe"})) {
+    if (!rex::platform::InstallCrashReporter({.app_name = "rex-crash-child"})) {
       return 7;
     }
     if (mode != "terminate") {
       return Run(mode);
     }
   } catch (const std::exception& error) {
-    std::fprintf(stderr, "probe failed: %s\n", error.what());
+    std::fprintf(stderr, "crash child failed: %s\n", error.what());
     return 9;
   }
   ThrowFromNoexcept();

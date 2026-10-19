@@ -201,7 +201,7 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
       SDL_AddEventWatch(EventWatch, this);
 
       if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
-        REXLOG_ERROR(hid, "SDL: Failed to init gamecontroller subsystem: {}", SDL_GetError());
+        REXLOG_ERROR(hid, "SDL: Failed to init gamepad subsystem: {}", SDL_GetError());
         return;
       }
       sdl_gamepad_initialized_ = true;

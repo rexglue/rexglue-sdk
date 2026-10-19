@@ -24,7 +24,7 @@ constexpr u32 kPageSize = 0x10000;
 constexpr u32 kStateOffset = 16;
 }  // namespace
 
-REX_TEST_CASE("memory: a reset leaves committed pages committed", "[kernel]") {
+REX_TEST_CASE("memory: a reset leaves committed pages committed", "[kernel][memory]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 base_ptr = c.Alloc(4);

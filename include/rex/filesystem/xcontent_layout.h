@@ -116,7 +116,7 @@ enum class STFSHashState : u8 {
   kInUse = 2, /**< Allocated. */
 };
 
-/** 1 hash table entry, the hash and chain information of 1 block. */
+/** A hash table entry, the hash and chain information of a block. */
 struct STFSHashEntry {
   u8 sha1[0x14];   /**< SHA1 of the block. */
   be_u32 info_raw; /**< Packed chain and allocation fields. */
@@ -217,7 +217,7 @@ struct STFSHashEntry {
 };
 REX_STATIC_ASSERT_SIZE(STFSHashEntry, 0x18);
 
-/** 1 STFS hash table block. */
+/** An STFS hash table block. */
 struct STFSHashTable {
   STFSHashEntry entries[170]; /**< Entries for 170 blocks or tables. */
   be_u32 num_blocks;          /**< Level 0 blocks this table covers. */
@@ -225,7 +225,7 @@ struct STFSHashTable {
 };
 REX_STATIC_ASSERT_SIZE(STFSHashTable, 0x1000);
 
-/** 1 STFS directory entry. */
+/** An STFS directory entry. */
 struct STFSDirectoryEntry {
   char name[40]; /**< Entry name, not NUL terminated when 40 characters long. */
   /** Name length and entry kind. */
@@ -300,7 +300,7 @@ struct STFSDirectoryEntry {
 };
 REX_STATIC_ASSERT_SIZE(STFSDirectoryEntry, 0x40);
 
-/** 1 STFS directory block of 64 entries. */
+/** An STFS directory block of 64 entries. */
 struct STFSDirectoryBlock {
   STFSDirectoryEntry entries[0x40]; /**< The entries, unused ones have a 0 name length. */
 };
@@ -347,7 +347,7 @@ struct SVODDeviceDescriptor {
 };
 REX_STATIC_ASSERT_SIZE(SVODDeviceDescriptor, 0x24);
 
-/** 1 package license entry. */
+/** A package license entry. */
 struct XContentLicense {
   be_u64 licensee_id;   /**< Profile or console the license binds to. */
   be_u32 license_bits;  /**< License mask. */

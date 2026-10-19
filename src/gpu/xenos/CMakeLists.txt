@@ -50,7 +50,7 @@ set(REXGPU_XENOS_VULKAN_SOURCES
 
 # D3D12 backend
 if (REXGLUE_GPU_D3D12)
-  # DXBC third-party dependency
+  # DXBC third party dependency
   set(REXGPU_XENOS_DXBC_THIRDPARTY_SOURCES ${REXGLUE_ROOT}/thirdparty/dxbc/DXBCChecksum.cpp)
 
   # DXBC shader translation (required for D3D12)

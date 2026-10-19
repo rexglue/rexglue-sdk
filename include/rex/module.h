@@ -115,7 +115,7 @@ class Interface : public IInterface {
  * @param name The dotted interface name, a string literal.
  * @param version The interface version, an integer literal.
  * @code
- * REX_DETAIL_INTERFACE_3(IFileSystem, "rex.filesystem", 1)
+ * REX_DETAIL_INTERFACE_3(IExample, "rex.example", 1)
  * @endcode
  */
 #define REX_DETAIL_INTERFACE_3(Name, name, version) \
@@ -130,7 +130,7 @@ class Interface : public IInterface {
  *        string literal and the interface version as an integer literal.
  *
  * @code
- * REX_INTERFACE(IFileSystem, "rex.filesystem", 1)
+ * REX_INTERFACE(IExample, "rex.example", 1)
  *  public:
  *   virtual Result<void> Mount(const MountEntry& entry) = 0;
  * };
@@ -141,12 +141,12 @@ class Interface : public IInterface {
                             REX_DETAIL_INTERFACE_1)(__VA_ARGS__)
 
 /**
- * Serves interfaces by name and version. The loader implements it and passes it to Connect.
+ * Serves interfaces by name and version.
  */
 REX_INTERFACE(IInterfaceFactory)
  public:
   /**
-   * Fetches an interface.
+   * Returns an interface.
    *
    * @param name Interface name, the kInterfaceName of the requested interface class.
    * @param version Version the caller was compiled against.
@@ -168,10 +168,10 @@ REX_INTERFACE(IInterfaceFactory)
     }
     return static_cast<T*>(*found);
   }
-};  // namespace rex
+};
 
 /**
- * Lifecycle of a module. Every module DLL serves it.
+ * Lifecycle of a module.
  */
 REX_INTERFACE(IModule, "rex.module", 1)
  public:

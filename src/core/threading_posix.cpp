@@ -313,7 +313,7 @@ Deadline MakeDeadline(std::chrono::milliseconds timeout) {
 /**
  * Reports whether a deadline has passed.
  *
- * @param deadline The deadline.
+ * @param deadline The time point to compare against now.
  * @return True when the deadline is finite and now is at or past it.
  */
 bool DeadlinePassed(Deadline deadline) {
@@ -331,7 +331,7 @@ class Waiter {
   }
 
   /**
-   * Returns the current change count. Read it before checking the state it guards.
+   * Returns the current change count.
    *
    * @return The change count.
    */
@@ -539,7 +539,7 @@ class PosixConditionBase {
   /**
    * Removes a waiter added by Register.
    *
-   * @param waiter The waiter.
+   * @param waiter The waiter to remove.
    */
   void Unregister(Waiter& waiter) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -1023,10 +1023,9 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 
   /**
-   * Wraps a running thread. Thread::GetCurrentThread() calls it for a thread Thread::Create did
-   * not create.
+   * Wraps a running thread.
    *
-   * @param thread The thread.
+   * @param thread The running pthread to wrap.
    */
   explicit PosixCondition(pthread_t thread)
       : thread_(thread),
@@ -1196,13 +1195,13 @@ class PosixCondition<Thread> : public PosixConditionBase {
     if (result != 0) {
       switch (result) {
         case EPERM:
-          REXLOG_WARN(system, "set_priority: permission denied");
+          REXLOG_WARN(system, "SetPriority: permission denied");
           break;
         case EINVAL:
           REX_ASSERT_ALWAYS();
           break;
         default:
-          REXLOG_WARN(system, "set_priority: pthread_setschedparam failed ({})", result);
+          REXLOG_WARN(system, "SetPriority: pthread_setschedparam failed ({})", result);
           break;
       }
     }
@@ -1334,7 +1333,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       if (state_ == State::kSuspended) {
         state_ = State::kRunning;
       }
-      // Async-signal-safe wakeup for WaitSuspended() from signal handler path.
+      // Async signal safe wakeup for WaitSuspended() from signal handler path.
       sem_post(GetSuspendSemPtr());
     }
     state_signal_.notify_all();

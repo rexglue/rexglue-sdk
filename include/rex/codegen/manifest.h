@@ -1,6 +1,6 @@
 /**
  * @file        codegen/manifest.h
- * @brief       Manifest TOML parser for multi-binary projects
+ * @brief       Manifest TOML parser for multi binary projects
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -26,8 +26,8 @@ inline constexpr std::string_view kModuleGuestPathKey = "guest_path";
 
 /**
  * Codegen settings for a single binary inside a manifest. The entrypoint
- * uses an empty `guestPath`, and module entries set it to the canonicalized
- * guest-visible path the host runtime resolves against.
+ * uses an empty `guest_path`, and module entries set it to the canonicalized
+ * guest visible path the host runtime resolves against.
  */
 struct BinaryConfig {
   BinaryConfig() = default;
@@ -54,7 +54,7 @@ struct BinaryConfig {
 std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view project_name = {});
 
 /**
- * Parsed manifest TOML. Construct via Load() and treat as read-only after.
+ * Parsed manifest TOML.
  */
 struct ManifestConfig {
   ManifestConfig() = default;
@@ -67,7 +67,7 @@ struct ManifestConfig {
   std::string project_name;               /**< Value of `[project].name`, a valid identifier. */
   std::optional<std::string> sdk_version; /**< Last SDK that ran codegen on this project */
   std::filesystem::path manifest_path;    /**< Path the manifest was loaded from. */
-  /** Game asset root relative to manifest_dir. Set by `rexglue init` to anchor DLL guest paths. */
+  /** Game asset root relative to manifest_dir. */
   std::optional<std::string> game_root;
   /** Directory of the manifest, which relative paths in it resolve against. */
   std::filesystem::path manifest_dir;

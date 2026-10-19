@@ -23,12 +23,9 @@ namespace rex::gpu {
 
 /** A host graphics API the Xenos backend runs on. */
 enum class HostAPI : u8 {
-  /** Direct3D 12, Windows only. */
-  kD3D12,
-  /** Vulkan. */
-  kVulkan,
-  /** No host API, the backend discards its draws. */
-  kNull,
+  kD3D12,  /**< Direct3D 12, Windows only. */
+  kVulkan, /**< Vulkan. */
+  kNull,   /**< No host API, the backend discards its draws. */
 };
 
 #if REX_PLATFORM_WIN32

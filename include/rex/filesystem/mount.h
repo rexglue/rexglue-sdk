@@ -42,13 +42,13 @@ enum class MountFlags : u8 {
   kWritable = 1, /**< Writes, creation and deletion are allowed. */
 };
 
-/** Description of 1 mount. */
+/** Description of a mount. */
 struct MountEntry {
   std::string path; /**< Guest mount path, such as \\Device\\Cdrom0. */
   ProviderKind kind = ProviderKind::kHostDirectory; /**< The provider. */
   std::filesystem::path source = {};    /**< Host folder or container file, empty for kNull. */
   MountFlags flags = MountFlags::kNone; /**< Behavior bits. */
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::vector<std::string> null_paths = {}; /**< Paths the null provider answers. */
 };
 

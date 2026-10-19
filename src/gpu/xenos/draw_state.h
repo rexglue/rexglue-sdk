@@ -302,7 +302,7 @@ struct REX_GPU_XENOS_API ViewportInfo {
  * not exact. For -W...W the host depth range is offset - scale and scale * 2, with ndc_scale 0.5
  * and ndc_offset 0.5 for Z.
  *
- * Without clipping, the vertex shader returns a position in pixels pre-divided by W, the viewport
+ * Without clipping, the vertex shader returns a position in pixels predivided by W, the viewport
  * is usually disabled through PA_CL_VTE_CNTL VPORT_X/Y/Z_SCALE/OFFSET_ENA, which equals scale
  * (1, 1, 1) and offset (0, 0, 0), and the NDC is treated as pixel coordinates before the window
  * and half-pixel offsets. Direct3D 10 hosts clamp Z to the viewport depth range in the output

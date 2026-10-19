@@ -51,7 +51,7 @@ struct X_KENUMERATOR_CONTENT_AGGREGATE {
  * @param buffer_ptr The guest address of the output buffer.
  * @param buffer_data The host address of the output buffer.
  * @param written_count Receives the number of items written.
- * @return The guest error code.
+ * @return The error code the guest receives.
  */
 using EnumeratorWriter =
     rex::MoveOnlyFunction<u32(u32 buffer_ptr, u8* buffer_data, u32* written_count)>;
@@ -127,7 +127,7 @@ class REX_RUNTIME_API StaticItems {
   std::vector<u8> buffer_;
 };
 
-/** The fields a guest enumerator reports to its consumers. */
+/** The fields of the X_KENUMERATOR block the guest reads. */
 struct EnumeratorInit {
   u32 user_index; /**< Stored in X_KENUMERATOR::user_index, the user the enumerator belongs to. */
   u32 app_id;     /**< Stored in X_KENUMERATOR::app_id, the XAM app that receives the messages. */

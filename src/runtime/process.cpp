@@ -100,7 +100,7 @@ void Runtime::CreateSubsystems() {
   globals->ObSymbolicLinkObjectType.pool_tag = memory::make_fourcc('O', 'b', 'S', 'l');
 
   auto* usbd_event = reinterpret_cast<X_DISPATCH_HEADER*>(&globals->UsbdBootEnumerationDoneEvent);
-  // Dispatch header type 1 is a notification event.
+  // Dispatch header type 0 is a notification event and type 1 is a synchronization event.
   usbd_event->type = 1;
   usbd_event->signal_state = 1;
 

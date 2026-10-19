@@ -5,7 +5,7 @@
 #   3 = PACK_TYPE_FLOAT16_2
 #   5 = PACK_TYPE_FLOAT16_4
 
-# vupkd3d128 is broken in binutils, so these are hand coded
+# binutils cannot assemble vupkd3d128, so these use .long encodings
 
 test_vupkd3d128_d3dcolor:
   #_ REGISTER_IN v3 [CDCDCDCD, CDCDCDCD, CDCDCDCD, 04010203]

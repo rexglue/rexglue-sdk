@@ -132,7 +132,7 @@ class REX_RUNTIME_API GuestAllocator : public NonCopyable {
   [[nodiscard]] Diagnostics GetDiagnostics() const;
 
   /**
-   * Checks the allocator invariants.
+   * Reports whether the allocator invariants hold.
    *
    * @return True when they hold.
    */

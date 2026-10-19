@@ -22,12 +22,12 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
-/**
- * XAM app 0xFE, which serves content enumeration messages.
- */
+/** XAM app 0xFE, which serves content enumeration messages. */
 class XAMApp : public runtime::App {
  public:
   /**
+   * Creates the app.
+   *
    * @param runtime The runtime the app serves.
    */
   REX_RUNTIME_API explicit XAMApp(Runtime& runtime);

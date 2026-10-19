@@ -1,4 +1,5 @@
-# Test modules for the module loader tests. They link only the header only SDK targets.
+# Test modules for the module loader tests. Most link only the header only SDK targets, the apu
+# and hid modules link rexcore and the cross modules link rexruntime.
 
 foreach (name good missing badversion failinit dupecho)
   set(_target rexmod-test-${name})

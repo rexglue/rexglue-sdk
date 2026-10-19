@@ -16,7 +16,7 @@ REXLOG_CATEGORY(core, "Core library, module loading, cvars and the app lifecycle
 REXLOG_CATEGORY(filesystem, "Mount table, links and file providers")
 REXLOG_CATEGORY(kernel, "Kernel exports of xboxkrnl and xam")
 REXLOG_CATEGORY(system, "Kernel state, guest threads, guest memory and modules")
-REXLOG_CATEGORY(cpu, "Function dispatch and the guest CPU state")
+REXLOG_CATEGORY(cpu, "Function dispatch and the PPC context")
 REXLOG_CATEGORY(title, "Debug output the title writes through DbgPrint and OutputDebugString")
 REXLOG_CATEGORY(apu, "APU emulation, XMA decoding and the audio output modules")
 REXLOG_CATEGORY(hid, "Pads, keyboard and pointer, and the hid modules")

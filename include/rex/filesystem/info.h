@@ -60,17 +60,17 @@ inline constexpr u32 kBytesPerSector = 0x200;
 
 /** Times to change on a file. An empty field keeps the current time. */
 struct FileTimes {
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::optional<u64> create = {}; /**< New creation time in FILETIME ticks. */
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::optional<u64> access = {}; /**< New last access time in FILETIME ticks. */
   std::optional<u64> write;       /**< New last write time in FILETIME ticks. */
 };
 
 /** Information about the volume a file resides on. */
 struct VolumeInfo {
-  std::string name;                    /**< File system name titles see, such as STFS. */
-  u32 attributes = 0;                  /**< NT file system attribute bits. */
+  std::string name;                    /**< Filesystem name titles see, such as STFS. */
+  u32 attributes = 0;                  /**< NT filesystem attribute bits. */
   u32 component_name_max_length = 0;   /**< Longest path component the volume accepts. */
   u32 total_allocation_units = 0;      /**< Allocation units in the volume. */
   u32 available_allocation_units = 0;  /**< Free allocation units. */

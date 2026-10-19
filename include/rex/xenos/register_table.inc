@@ -470,8 +470,7 @@ REXGPU_REGISTER(0x2324, kDword, RB_SAMPLE_COUNT_CTL)
 REXGPU_REGISTER(0x2325, kDword, RB_SAMPLE_COUNT_ADDR)
 
 /**
- * Scales and offsets are 32 bit floats. The backends convert the slope scale (FRONT_BACK/SCALE)
- * from subpixels to pixels with xenos::kPolygonOffsetScaleSubpixelUnit.
+ * Scales and offsets are 32 bit floats. The slope scale (FRONT_BACK/SCALE) is in subpixels.
  */
 REXGPU_REGISTER(0x2380, kFloat, PA_SU_POLY_OFFSET_FRONT_SCALE)
 REXGPU_REGISTER(0x2381, kFloat, PA_SU_POLY_OFFSET_FRONT_OFFSET)

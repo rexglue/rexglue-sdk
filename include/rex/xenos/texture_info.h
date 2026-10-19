@@ -60,6 +60,8 @@ inline xenos::TextureFormat GetBaseFormat(xenos::TextureFormat texture_format) {
 }
 
 /**
+ * Returns the size of 1 texel of an uncompressed format in bytes.
+ *
  * @param format An uncompressed format.
  * @return The size of 1 texel in bytes, or 0 for an unhandled format.
  */
@@ -95,6 +97,8 @@ inline size_t GetTexelSize(xenos::TextureFormat format) {
 }
 
 /**
+ * Returns the texture format with the same numeric value as a color format.
+ *
  * @param color_format The render target color format.
  * @return The texture format with the same numeric value.
  */
@@ -103,6 +107,8 @@ inline xenos::TextureFormat ColorFormatToTextureFormat(xenos::ColorFormat color_
 }
 
 /**
+ * Returns the texture format that matches a depth render target format.
+ *
  * @param depth_format The depth render target format.
  * @return The matching texture format, or TextureFormat(~0) for an unhandled format.
  */
@@ -121,7 +127,7 @@ inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
 
 /** Storage class of a texture format. */
 enum class FormatType : u8 {
-  kResolvable,   /**< Uncompressed and also a ColorFormat. */
+  kResolvable,   /**< Uncompressed and a ColorFormat. */
   kUncompressed, /**< Uncompressed, not a resolve or memory export target. */
   kCompressed,   /**< Block compressed. */
 };
@@ -135,16 +141,24 @@ struct REX_API FormatInfo {
   u32 block_height;            /**< Block height in texels. */
   u32 bits_per_pixel;          /**< Bits per texel. */
 
-  /** @return The size of 1 block in bytes. */
+  /**
+   * Returns the size of 1 block in bytes.
+   *
+   * @return The size of 1 block in bytes.
+   */
   u32 GetBytesPerBlock() const { return block_width * block_height * bits_per_pixel / 8; }
 
   /**
+   * Returns the table entry for a TextureFormat value.
+   *
    * @param gpu_format A TextureFormat value, below 64.
    * @return The table entry for gpu_format.
    */
   static const FormatInfo* Get(u32 gpu_format);
 
   /**
+   * Returns the table entry for a format.
+   *
    * @param format The format to look up.
    * @return The table entry for format.
    */
@@ -165,13 +179,23 @@ struct REX_API TextureExtent {
   u32 block_pitch_v; /**< Block rows including padding. */
   u32 depth;         /**< Depth in layers. */
 
-  /** @return The block count including padding in every dimension. */
+  /**
+   * Returns the block count including padding in every dimension.
+   *
+   * @return The block count including padding in every dimension.
+   */
   u32 GetAllBlocks() const { return block_pitch_h * block_pitch_v * depth; }
 
-  /** @return The block count including row padding but only the visible block rows. */
+  /**
+   * Returns the block count including row padding but only the visible block rows.
+   *
+   * @return The block count including row padding but only the visible block rows.
+   */
   u32 GetVisibleBlocks() const { return block_pitch_h * block_height * depth; }
 
   /**
+   * Returns the extent of a texture level from its block layout and size.
+   *
    * @param format_info Block layout of the texture.
    * @param pitch Row pitch in texels.
    * @param height Height in texels.
@@ -186,6 +210,8 @@ struct REX_API TextureExtent {
                                  bool is_tiled, bool is_guest);
 
   /**
+   * Returns the extent of the base level of a texture.
+   *
    * @param texture_info The texture, using its base level size.
    * @param is_guest True for the padded guest memory layout, false for a packed host layout.
    * @return The extent.
@@ -193,6 +219,8 @@ struct REX_API TextureExtent {
   static TextureExtent Calculate(const TextureInfo* texture_info, bool is_guest);
 
   /**
+   * Reports whether every field matches another extent.
+   *
    * @param other The extent to compare with.
    * @return True when every field matches.
    */
@@ -207,6 +235,8 @@ struct TextureMemoryInfo {
   u32 mip_size;     /**< Size of the mip levels in bytes. */
 
   /**
+   * Reports whether every field matches another set of ranges.
+   *
    * @param other The ranges to compare with.
    * @return True when every field matches.
    */
@@ -232,16 +262,30 @@ struct REX_API TextureInfo {
   TextureMemoryInfo memory; /**< Guest memory ranges. */
   TextureExtent extent;     /**< Base level extent in the guest layout. */
 
-  /** @return The block layout of format. */
+  /**
+   * Returns the block layout of format.
+   *
+   * @return The block layout of format.
+   */
   const FormatInfo* GetFormatInfo() const { return FormatInfo::Get(static_cast<u32>(format)); }
 
-  /** @return True when format is block compressed. */
+  /**
+   * Reports whether format is block compressed.
+   *
+   * @return True when format is block compressed.
+   */
   bool IsCompressed() const { return GetFormatInfo()->type == FormatType::kCompressed; }
 
-  /** @return The number of stored mip levels. */
+  /**
+   * Returns the number of stored mip levels.
+   *
+   * @return The number of stored mip levels.
+   */
   u32 GetMipLevels() const { return 1 + (mip_max_level - mip_min_level); }
 
   /**
+   * Decodes a texture description from a texture fetch constant.
+   *
    * @param fetch The texture fetch constant.
    * @param out_info Receives the texture description.
    * @return True on success.
@@ -265,10 +309,16 @@ struct REX_API TextureInfo {
                              xenos::Endian endian, u32 pitch, u32 width, u32 height, u32 depth,
                              TextureInfo* out_info);
 
-  /** @return The mip level count of a full chain for the texture size. */
+  /**
+   * Returns the mip level count of a full chain for the texture size.
+   *
+   * @return The mip level count of a full chain for the texture size.
+   */
   u32 GetMaxMipLevels() const;
 
   /**
+   * Returns the extent of a mip level.
+   *
    * @param mip The mip level.
    * @param is_guest True for the padded guest memory layout with power of 2 mip sizes, false for a
    *        packed host layout.
@@ -278,6 +328,8 @@ struct REX_API TextureInfo {
   const TextureExtent GetMipExtent(u32 mip, bool is_guest) const;
 
   /**
+   * Computes the size of a mip level in texels.
+   *
    * @param mip The mip level.
    * @param width Receives the width in texels, rounded to a power of 2 for levels above 0.
    * @param height Receives the height in texels, rounded to a power of 2 for levels above 0.
@@ -285,6 +337,8 @@ struct REX_API TextureInfo {
   void GetMipSize(u32 mip, u32* width, u32* height) const;
 
   /**
+   * Returns the guest address of a mip level and its offset within a packed tile.
+   *
    * @param mip The mip level.
    * @param offset_x Receives the X offset in blocks within a packed tile.
    * @param offset_y Receives the Y offset in blocks within a packed tile.
@@ -294,6 +348,8 @@ struct REX_API TextureInfo {
   u32 GetMipLocation(u32 mip, u32* offset_x, u32* offset_y, bool is_guest) const;
 
   /**
+   * Computes the block offset of a level within a packed tile.
+   *
    * @param width Width of the packed level set in texels.
    * @param height Height of the packed level set in texels.
    * @param format_info Block layout of the texture.
@@ -306,6 +362,8 @@ struct REX_API TextureInfo {
                                   u32 packed_tile, u32* offset_x, u32* offset_y);
 
   /**
+   * Computes the block offset of a level of this texture within its packed tile.
+   *
    * @param packed_tile Index of the level within the packed tile.
    * @param offset_x Receives the X offset in blocks.
    * @param offset_y Receives the Y offset in blocks.
@@ -313,10 +371,16 @@ struct REX_API TextureInfo {
    */
   bool GetPackedTileOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const;
 
-  /** @return The 64 bit XXH3 hash of every field. */
+  /**
+   * Returns the 64 bit XXH3 hash of every field.
+   *
+   * @return The 64 bit XXH3 hash of every field.
+   */
   u64 Hash() const;
 
   /**
+   * Reports whether every field matches another description.
+   *
    * @param other The description to compare with.
    * @return True when every field matches.
    */

@@ -43,11 +43,11 @@ namespace rex::ui {
  */
 class Window : public IWindow, public gpu::IPresentationHost {
  public:
-  /** Life cycle phase of the window. */
+  /** Lifecycle phase of the window. */
   enum class Phase : u8 {
     kClosedOpenable,         /**< Not open. State changes update only the desired state. */
     kOpening,                /**< OpenImpl runs. External state changes are dropped. */
-    kOpen,                   /**< Fully interactive. The only phase that creates a surface. */
+    kOpen,                   /**< Interactive. The only phase that creates a surface. */
     kOpenBeforeClosing,      /**< OnBeforeClose runs. Listeners are still called. */
     kClosing,                /**< The implementation destroys the native window. */
     kClosedLeavingListeners, /**< Closed from a listener that has not returned yet. */
@@ -74,7 +74,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   WindowedAppContext& GetAppContext() const { return app_context_; }
 
   /**
-   * Returns the life cycle phase.
+   * Returns the lifecycle phase.
    *
    * @return The current phase.
    */
@@ -118,14 +118,14 @@ class Window : public IWindow, public gpu::IPresentationHost {
 
   /**
    * Opens the platform window. Listeners may close or destroy the window during the call, check
-   * phase() afterward when the window must be open.
+   * GetPhase() afterward when the window must be open.
    *
    * @return False only when the platform failed to open the window.
    */
   bool Open();
 
   /**
-   * Requests closing. The platform may close the window later, check phase() afterward.
+   * Requests closing. The platform may close the window later, check GetPhase() afterward.
    */
   void RequestClose() {
     if (phase_ != Phase::kOpen) {
@@ -241,7 +241,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   /**
    * Reports whether the window is fullscreen.
    *
-   * @return The desired fullscreen state.
+   * @return True when the window is fullscreen.
    */
   bool IsFullscreen() const override { return fullscreen_; }
 
@@ -297,7 +297,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   /**
    * Returns the SDL window.
    *
-   * @return The SDL window, or nullptr before the window opens.
+   * @return The SDL window, or null before the window opens.
    */
   virtual SDL_Window* GetSDL() const { return nullptr; }
 
@@ -350,7 +350,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   /**
    * Reports whether the window is an active text input field for the OS input method.
    *
-   * @return The desired text input state.
+   * @return True when the window is an active text input field.
    */
   bool IsTextInputActive() const { return text_input_active_; }
 

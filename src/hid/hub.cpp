@@ -207,9 +207,9 @@ void Hub::UpdateConnectedUserLocked(u32 user, bool connected) {
   }
   connected_users_.set(user, connected);
   if (connected) {
-    REXLOG_INFO(hid, "New controller connected to slot {}.", user);
+    REXLOG_INFO(hid, "New controller connected to user {}.", user);
   } else {
-    REXLOG_INFO(hid, "Controller disconnected from slot {}.", user);
+    REXLOG_INFO(hid, "Controller disconnected from user {}.", user);
   }
 
   // Titles read capabilities only on this notification, so a hot plugged pad needs it.

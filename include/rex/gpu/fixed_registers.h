@@ -23,7 +23,7 @@ namespace rex::gpu {
 inline constexpr u32 kViewportLimit = 0x0FFF;
 
 /**
- * Gives the value a title reads from a register that reports the display mode or a fixed value.
+ * Returns the value a title reads from a register that reports the display mode or a fixed value.
  *
  * @param index The register index.
  * @param mode The display mode.

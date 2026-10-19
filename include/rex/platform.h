@@ -64,7 +64,7 @@
 /** 1 when the target architecture is ARM64. */
 #define REX_ARCH_ARM64 1
 #elif defined(_M_IX86) || defined(__i386__) || defined(_M_ARM) || defined(__arm__)
-#error Rex is not supported on 32-bit platforms.
+#error ReX is not supported on 32 bit platforms.
 #endif
 
 #if REX_PLATFORM_WIN32

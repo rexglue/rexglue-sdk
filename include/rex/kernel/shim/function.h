@@ -37,7 +37,7 @@
   static RET NAME##_shim(__VA_ARGS__)
 
 /**
- * Defines a shim function that reads the PPC context directly.
+ * Defines a shim function that reads the PPC context.
  *
  * @param NAME The registered name.
  *

@@ -39,7 +39,7 @@ struct AddOptions {
 REX_INTERFACE(IObjectTable, "rex.runtime.object_table", 1)
  public:
   /**
-   * Takes ownership of an `KernelObject` and gives it its first handle with a count of 1.
+   * Takes ownership of a `KernelObject` and gives it its first handle with a count of 1.
    *
    * @param object The `KernelObject`.
    * @param options The name to register and the guest block that backs the object.

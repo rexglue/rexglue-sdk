@@ -36,7 +36,7 @@ class D3D12Provider : public GraphicsProvider {
   std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 
   IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
-  /** Returns nullptr when PIX is not attached. */
+  /** Returns null when PIX is not attached. */
   IDXGraphicsAnalysis* GetGraphicsAnalysis() const { return graphics_analysis_; }
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
@@ -121,7 +121,7 @@ class D3D12Provider : public GraphicsProvider {
 
   HMODULE library_dxgi_ = nullptr;
   PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
-  /** Needed during shutdown to report live objects, so may be nullptr. */
+  /** Needed during shutdown to report live objects, so may be null. */
   PFNDXGIGetDebugInterface1 pfn_dxgi_get_debug_interface1_ = nullptr;
 
   HMODULE library_d3d12_ = nullptr;

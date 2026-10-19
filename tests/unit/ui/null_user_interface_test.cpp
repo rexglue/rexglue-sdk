@@ -84,7 +84,7 @@ REX_TEST_CASE("Post from another thread runs on PumpFrame", "[ui]") {
   CHECK(ran_on == std::this_thread::get_id());
 }
 
-REX_TEST_CASE("RunSynchronous runs inline on the ui thread and posts from another thread", "[ui]") {
+REX_TEST_CASE("RunSynchronous runs inline on the UI thread and posts from another thread", "[ui]") {
   NullUserInterface ui;
   CHECK(ui.IsUIThread());
   bool inline_ran = false;

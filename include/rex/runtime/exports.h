@@ -74,7 +74,7 @@ class ExportVariables {
 /**
  * Returns the rows of a module table, sorted by ordinal.
  *
- * @param module The module.
+ * @param module The kernel module whose table is returned.
  * @return The table rows.
  */
 REX_RUNTIME_API std::span<const ExportEntry> Exports(ExportModule module);
@@ -82,8 +82,8 @@ REX_RUNTIME_API std::span<const ExportEntry> Exports(ExportModule module);
 /**
  * Finds a row by ordinal.
  *
- * @param module The module.
- * @param ordinal The ordinal.
+ * @param module The kernel module whose table is searched.
+ * @param ordinal The export ordinal to find.
  * @return The row, or null when the module has no such ordinal.
  */
 REX_RUNTIME_API const ExportEntry* FindByOrdinal(ExportModule module, u16 ordinal);
@@ -91,9 +91,9 @@ REX_RUNTIME_API const ExportEntry* FindByOrdinal(ExportModule module, u16 ordina
 /**
  * Reports whether an export never returns to its caller.
  *
- * @param module The module.
- * @param ordinal The ordinal.
- * @return True when a call to the export ends the calling thread, or restarts the console
+ * @param module The kernel module whose table is searched.
+ * @param ordinal The export ordinal to check.
+ * @return True when a call to the export ends the calling thread, or restarts the console.
  */
 REX_RUNTIME_API bool IsNoReturnExport(ExportModule module, u16 ordinal);
 

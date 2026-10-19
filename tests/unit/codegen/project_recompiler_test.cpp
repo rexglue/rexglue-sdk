@@ -219,7 +219,7 @@ out_directory_path = "generated/entry"
   CHECK(registration.find("ModuleImport target{\"xboxkrnl\"") == std::string::npos);
 }
 
-REX_TEST_CASE("A top level midasm hook reaches the entrypoint", "[codegen][project]") {
+REX_TEST_CASE("A top level mid function hook reaches the entrypoint", "[codegen][project]") {
   rex::test::TempFolder folder;
   const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
                                  R"([[midasm_hook]]
@@ -290,7 +290,7 @@ name = "included_hook"
   CHECK(ReadTree(folder.path / "generated" / "entry").find("included_hook") != std::string::npos);
 }
 
-REX_TEST_CASE("A per binary midasm hook works without a shared layer", "[codegen][project]") {
+REX_TEST_CASE("A per binary mid function hook works without a shared layer", "[codegen][project]") {
   rex::test::TempFolder folder;
   const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase, {},
                                  R"([[entrypoint.midasm_hook]]
@@ -317,8 +317,7 @@ REX_TEST_CASE("A top level functions table reaches only the binary that contains
   CHECK(ReadTree(folder.path / "generated" / "entry").find("second_fn") == std::string::npos);
 }
 
-REX_TEST_CASE("A targeted run still rejects a shared address inside no image",
-              "[codegen][project]") {
+REX_TEST_CASE("A targeted run rejects a shared address inside no image", "[codegen][project]") {
   rex::test::TempFolder folder;
   const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
                                  R"([functions]

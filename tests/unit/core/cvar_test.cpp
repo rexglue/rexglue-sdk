@@ -185,7 +185,7 @@ REX_TEST_CASE_METHOD(Fixture, "Register rejects duplicates and bad names and reg
   REQUIRE(dupe_cvars::wrong_scope.GetRegistry() == nullptr);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails DuplicateName",
+REX_TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails DuplicateScope",
                      "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   GetReg().Unregister(test_cvars::kTestCvars);

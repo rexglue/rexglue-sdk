@@ -46,8 +46,7 @@ struct InitModuleOptions {
 struct InitAchievementsOptions {
   std::string xex_path;
   std::string output_dir;
-  /** XLanguage ID to extract strings for, English (1) by default. */
-  u32 language = 1;
+  u32 language = 1; /**< XLanguage ID to extract strings for, English (1) by default. */
 };
 
 [[nodiscard]] Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx);

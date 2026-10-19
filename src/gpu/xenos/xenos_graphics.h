@@ -47,7 +47,7 @@ REX_INTERFACE(IXenosGraphics, "rex.gpu.xenos", 1)
   /**
    * Hands over the graphics system of the host API. A null pointer destroys the current one.
    *
-   * @param backend The graphics system, the neutral module serves it as the GPU backend.
+   * @param backend The graphics system of the host API, used as the GPU backend.
    * @return Ok, or an error when a graphics system is already set and backend is not null.
    */
   [[nodiscard]] virtual Result<void> SetBackend(std::unique_ptr<GraphicsSystem> backend) = 0;

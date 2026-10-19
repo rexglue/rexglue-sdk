@@ -641,7 +641,7 @@ REX_TEST_CASE("A creation mask with several bits picks a processor from the mask
   });
 }
 
-REX_TEST_CASE("KeSetAffinityThread keeps the processor inside the six hardware threads",
+REX_TEST_CASE("KeSetAffinityThread keeps the processor inside the 6 hardware threads",
               "[kernel][threads][affinity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {

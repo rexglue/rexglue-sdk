@@ -69,52 +69,35 @@ class OverlayTexture : public NonCopyable {
 
 /** A rectangle in coordinate space units. A right edge left of the left edge draws nothing. */
 struct OverlayRect {
-  /** Left edge. */
-  f32 left = 0.0f;
-  /** Top edge. */
-  f32 top = 0.0f;
-  /** Right edge. */
-  f32 right = 0.0f;
-  /** Bottom edge. */
-  f32 bottom = 0.0f;
+  f32 left = 0.0f;   /**< Left edge. */
+  f32 top = 0.0f;    /**< Top edge. */
+  f32 right = 0.0f;  /**< Right edge. */
+  f32 bottom = 0.0f; /**< Bottom edge. */
 };
 
 /** An overlay vertex, laid out as the ImGui vertex. */
 struct OverlayVertex {
-  /** Position x in coordinate space units. */
-  f32 x = 0.0f;
-  /** Position y in coordinate space units. */
-  f32 y = 0.0f;
-  /** Texture coordinate u. */
-  f32 u = 0.0f;
-  /** Texture coordinate v. */
-  f32 v = 0.0f;
-  /** RGBA8 color, red in the low byte. */
-  u32 color = 0;
+  f32 x = 0.0f;  /**< Position x in coordinate space units. */
+  f32 y = 0.0f;  /**< Position y in coordinate space units. */
+  f32 u = 0.0f;  /**< Texture coordinate u. */
+  f32 v = 0.0f;  /**< Texture coordinate v. */
+  u32 color = 0; /**< RGBA8 color, red in the low byte. */
 };
 
 /** The vertices and optional indices a batch of draws reads. */
 struct OverlayBatch {
-  /** The vertices. */
-  std::span<const OverlayVertex> vertices;
-  /** The indices, empty for draws without indices. */
-  std::span<const u16> indices;
+  std::span<const OverlayVertex> vertices; /**< The vertices. */
+  std::span<const u16> indices;            /**< The indices, empty for draws without indices. */
 };
 
-/** 1 draw inside a batch. */
+/** A draw inside a batch. */
 struct OverlayDraw {
-  /** Primitive topology. */
-  OverlayPrimitive primitive = OverlayPrimitive::kTriangles;
-  /** Index count, or vertex count for a batch without indices. */
-  u32 count = 0;
-  /** First index. */
-  u32 index_offset = 0;
-  /** Value added to each index, or the first vertex without indices. */
-  i32 base_vertex = 0;
-  /** The texture, null for the white texture. */
-  OverlayTexture* texture = nullptr;
-  /** The scissor in coordinate space units, none for the whole render target. */
-  std::optional<OverlayRect> scissor;
+  OverlayPrimitive primitive = OverlayPrimitive::kTriangles; /**< Primitive topology. */
+  u32 count = 0;        /**< Index count, or vertex count for a batch without indices. */
+  u32 index_offset = 0; /**< First index. */
+  i32 base_vertex = 0;  /**< Value added to each index, or the first vertex without indices. */
+  OverlayTexture* texture = nullptr;  /**< The texture, null for the white texture. */
+  std::optional<OverlayRect> scissor; /**< Scissor in coordinate space units, or none. */
 };
 
 /** Render target state a backend hands to overlay layers for 1 paint. */
@@ -173,8 +156,7 @@ REX_INTERFACE(IOverlayDrawer)
    * @param filter Sampling filter.
    * @param repeat True to repeat outside 0 to 1, false to clamp.
    * @param rgba8 width times height RGBA8 pixels.
-   * @return The texture, or an error when the device is not ready. The caller retries on a later
-   *         frame.
+   * @return The texture, or an error when the device is not ready.
    */
   [[nodiscard]] virtual Result<std::unique_ptr<OverlayTexture>> CreateTexture(
       u32 width, u32 height, OverlayTextureFilter filter, bool repeat,

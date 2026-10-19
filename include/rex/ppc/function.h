@@ -105,8 +105,7 @@ concept ByValueType = IsByValue<std::remove_cvref_t<T>>::value;
 template <ByValueType T>
 inline constexpr size_t kByValueSize = sizeof(std::declval<std::remove_cvref_t<T>>().value);
 
-/** A ByValue structure over 8 bytes, which a function returns through a pointer the caller passes.
- */
+/** A ByValue structure over 8 bytes, returned through a pointer the caller passes. */
 template <typename T>
 concept HiddenReturnType = ByValueType<T> && kByValueSize<T> > sizeof(u64);
 
@@ -130,8 +129,7 @@ constexpr bool IsRightJustified(size_t size) {
   return size < sizeof(u64) && std::has_single_bit(size);
 }
 
-/** A plain type, which is not a pointer, a big endian type, a MappedPtr, a vector or a structure.
- */
+/** A plain type that is not a pointer, a big endian type, a MappedPtr, a vector or a structure. */
 template <typename T>
 concept PlainType = !std::is_pointer_v<T> && !BigEndianType<T> && !MappedPtrType<T> &&
                     !VectorType<T> && !ByValueType<T>;
@@ -328,7 +326,7 @@ struct ArgTranslator {
   }
 
   /**
-   * Writes a float argument to its register, and also to its stack slot when its slot is past r10.
+   * Writes a float argument to its register, and to its stack slot when its slot is past r10.
    *
    * @param ctx The register file.
    * @param base The guest memory base.
@@ -586,13 +584,13 @@ constexpr bool IsPreciseType() {
  *
  * An integer, pointer or big endian value takes the next slot and the next of r3 to r10. A float
  * takes the next slot and the next of f1 to f13, and leaves its slot in r3 to r10 unused. A float
- * whose slot is past r10 is also written to that slot. A vector takes the next of v1 to v13 and
+ * whose slot is past r10 is written to that slot. A vector takes the next of v1 to v13 and
  * no slot. A vector without a register takes 2 slots from the first even slot at or past the first
  * stack slot. A structure takes whole slots from the next slot, split between r3 to r10 and the
  * stack when it crosses the 8th slot.
  *
  * @tparam Args The argument types in order.
- * @return One placement per argument.
+ * @return A placement per argument.
  */
 template <typename... Args>
 constexpr std::array<ArgPlace, sizeof...(Args)> PlaceArgs() {
@@ -979,7 +977,7 @@ inline u32 OpenCallFrame(PPCContext& ctx, u8* base, u32 stack_bytes) {
  * Returns the stack argument bytes a call with these argument types needs.
  *
  * @tparam Args The argument types.
- * @return 8 bytes per argument past the eighth.
+ * @return 8 bytes per argument slot past slot 8.
  */
 template <typename... Args>
 constexpr u32 GetStackArgumentBytes() {

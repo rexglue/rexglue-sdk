@@ -25,7 +25,7 @@ u64 AchievementManager::GetCurrentFileTime() {
 
 Result<void> AchievementManager::RegisterAchievement(AchievementInfo info) {
   if (info.id == 0) {
-    REXLOG_WARN(system, "Achievement store: refusing achievement with ID 0");
+    REXLOG_WARN(system, "Achievement manager: refusing achievement with ID 0");
     return Err(ErrorCategory::kValidation, "achievement ID 0 is reserved");
   }
 
@@ -44,7 +44,7 @@ Result<void> AchievementManager::RegisterAchievement(AchievementInfo info) {
 Result<void> AchievementManager::RegisterAchievements(
     std::span<const AchievementInfo> achievements) {
   if (std::ranges::any_of(achievements, [](const AchievementInfo& info) { return info.id == 0; })) {
-    REXLOG_WARN(system, "Achievement store: refusing a batch with achievement ID 0");
+    REXLOG_WARN(system, "Achievement manager: refusing a batch with achievement ID 0");
     return Err(ErrorCategory::kValidation, "achievement ID 0 is reserved");
   }
 
@@ -66,7 +66,7 @@ void AchievementManager::ReplaceAchievements(std::vector<AchievementInfo> achiev
   achievements_.clear();
   for (auto& achievement : achievements) {
     if (achievement.id == 0) {
-      REXLOG_WARN(system, "Achievement store: refusing achievement with ID 0");
+      REXLOG_WARN(system, "Achievement manager: refusing achievement with ID 0");
       continue;
     }
     auto existing =
@@ -78,7 +78,7 @@ void AchievementManager::ReplaceAchievements(std::vector<AchievementInfo> achiev
       achievements_.push_back(std::move(achievement));
     }
   }
-  REXLOG_DEBUG(system, "Achievement store: loaded {} entries", achievements_.size());
+  REXLOG_DEBUG(system, "Achievement manager: loaded {} entries", achievements_.size());
 }
 
 Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& path) {
@@ -130,7 +130,7 @@ AchievementUnlockResult AchievementManager::UnlockAchievement(
     auto info = std::find_if(achievements_.begin(), achievements_.end(),
                              [&](const AchievementInfo& current) { return current.id == id; });
     if (info == achievements_.end()) {
-      REXLOG_WARN(system, "Achievement store: ignoring unknown achievement {:08X}", id);
+      REXLOG_WARN(system, "Achievement manager: ignoring unknown achievement {:08X}", id);
       return AchievementUnlockResult::kUnknownAchievement;
     }
 
@@ -250,7 +250,7 @@ void AchievementManager::SaveUnlockState() const {
     return;
   }
 
-  std::string content = "# Achievement unlock state - managed by ReXGlue runtime\n\n";
+  std::string content = "# Achievement unlock state managed by the ReXGlue runtime\n\n";
   for (const auto& [id, filetime] : unlocked) {
     content += std::format("[unlocked.{}]\nfiletime = {}\n\n", id, filetime);
   }

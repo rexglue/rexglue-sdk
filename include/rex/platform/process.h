@@ -44,14 +44,14 @@ class REX_API InstanceLock : public MoveOnly {
    *
    * @param other The object to take from, left empty.
    */
-  InstanceLock(InstanceLock&&) noexcept;
+  InstanceLock(InstanceLock&& other) noexcept;
   /**
    * Releases the lock held, then takes ownership of the lock held by another object.
    *
    * @param other The object to take from, left empty.
    * @return This object.
    */
-  InstanceLock& operator=(InstanceLock&&) noexcept;
+  InstanceLock& operator=(InstanceLock&& other) noexcept;
   /** Releases the lock. */
   ~InstanceLock();
 
@@ -79,7 +79,7 @@ class REX_API InstanceLock : public MoveOnly {
 /**
  * Reports whether this process may start a new one.
  *
- * @return False where the platform forbids it, such as Steam Game Mode.
+ * @return True when the platform allows starting a new process.
  */
 REX_API bool CanRelaunch();
 

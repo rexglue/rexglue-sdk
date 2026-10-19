@@ -403,7 +403,7 @@ inline bool AnyOutside(simde__m128i value, u32 lowest, u32 highest) {
 namespace detail {
 
 /**
- * Reads lane 0 of a vector estimate applied to one operand.
+ * Reads lane 0 of a vector estimate applied to an operand.
  *
  * @tparam Estimate The vector estimate.
  * @param bits The operand bits.
@@ -419,7 +419,7 @@ inline u32 EstimateOne(u32 bits) {
  * Reports whether an operand is a denormal other than zero.
  *
  * @param bits The operand bits.
- * @return True for a nonzero magnitude below the smallest normal.
+ * @return True when the magnitude is nonzero and below the smallest normal.
  */
 inline bool IsDenormal(u32 bits) {
   return (bits & kInfinity32) == 0 && (bits & 0x7FFFFFu) != 0;

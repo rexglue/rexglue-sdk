@@ -20,7 +20,7 @@ namespace rex::test {
 /**
  * Measures the time since a point on the steady clock.
  *
- * @param start The start.
+ * @param start The time point to measure from.
  * @return The elapsed milliseconds.
  */
 inline i64 MillisSince(std::chrono::steady_clock::time_point start) {

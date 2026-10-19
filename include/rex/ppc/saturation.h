@@ -165,8 +165,7 @@ inline constexpr std::array<std::array<PackRange, 4>, 7> kPackD3DRanges = {{
     {kSigned20Range, kSigned20Range, kSigned20Range, kFourBitRange},
 }};
 
-/** The lowest or highest float of the range of each host lane, or 0 for a lane that never
- * saturates. */
+/** The lowest or highest float of each host lane range, or 0 for a lane that never saturates. */
 template <u32 Type, bool High>
 inline constexpr std::array<f32, 4> kPackD3DBounds = [] {
   std::array<f32, 4> bounds{};

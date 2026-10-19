@@ -37,7 +37,7 @@ inline constexpr bool kThreadSanitized = false;
 #endif
 
 /**
- * Gives every value of a range, or under ThreadSanitizer the edge values, the values next to
+ * Returns every value of a range, or under ThreadSanitizer the edge values, the values next to
  * them and a coprime stride through the rest.
  *
  * @param count The number of values in the range.
@@ -68,7 +68,8 @@ std::vector<u32> SweptValues(u32 count, u32 stride, const std::vector<u32>& edge
 }
 
 /**
- * Gives the operand values to try for an element width. 8 bit elements get every value.
+ * Returns the operand values to try for an element width. 8 bit elements get every value, or a
+ * strided subset under ThreadSanitizer.
  *
  * @param bits The element width.
  * @return The values, as unsigned element patterns.
@@ -106,9 +107,7 @@ i64 Widen(u32 pattern, u32 bits, bool is_signed) {
   return static_cast<i64>(pattern);
 }
 
-/**
- * The first case a sweep got wrong.
- */
+/** The first case a sweep got wrong. */
 struct Mismatch {
   bool found = false;
   u32 x = 0;
@@ -202,45 +201,48 @@ void CheckPack(BinaryFunction check, u32 bits, bool is_signed_source, bool is_si
 
 }  // namespace
 
-REX_TEST_CASE("AddSaturates reports the clamped lanes of the byte adds", "[ppc][saturation]") {
+REX_TEST_CASE("AddSaturates reports the clamped elements of the byte adds", "[ppc][saturation]") {
   CheckPairs(rex::ppc::simd::AddSaturates<8, true>, 8, true, false);
   CheckPairs(rex::ppc::simd::AddSaturates<8, false>, 8, false, false);
 }
 
-REX_TEST_CASE("AddSaturates reports the clamped lanes of the halfword adds", "[ppc][saturation]") {
+REX_TEST_CASE("AddSaturates reports the clamped elements of the halfword adds",
+              "[ppc][saturation]") {
   CheckPairs(rex::ppc::simd::AddSaturates<16, true>, 16, true, false);
   CheckPairs(rex::ppc::simd::AddSaturates<16, false>, 16, false, false);
 }
 
-REX_TEST_CASE("AddSaturates reports the clamped lanes of the word adds", "[ppc][saturation]") {
+REX_TEST_CASE("AddSaturates reports the clamped elements of the word adds", "[ppc][saturation]") {
   CheckPairs(rex::ppc::simd::AddSaturates<32, true>, 32, true, false);
   CheckPairs(rex::ppc::simd::AddSaturates<32, false>, 32, false, false);
 }
 
-REX_TEST_CASE("SubSaturates reports the clamped lanes of the byte subtracts", "[ppc][saturation]") {
+REX_TEST_CASE("SubSaturates reports the clamped elements of the byte subtracts",
+              "[ppc][saturation]") {
   CheckPairs(rex::ppc::simd::SubSaturates<8, true>, 8, true, true);
   CheckPairs(rex::ppc::simd::SubSaturates<8, false>, 8, false, true);
 }
 
-REX_TEST_CASE("SubSaturates reports the clamped lanes of the halfword subtracts",
+REX_TEST_CASE("SubSaturates reports the clamped elements of the halfword subtracts",
               "[ppc][saturation]") {
   CheckPairs(rex::ppc::simd::SubSaturates<16, true>, 16, true, true);
   CheckPairs(rex::ppc::simd::SubSaturates<16, false>, 16, false, true);
 }
 
-REX_TEST_CASE("SubSaturates reports the clamped lanes of the word subtracts", "[ppc][saturation]") {
+REX_TEST_CASE("SubSaturates reports the clamped elements of the word subtracts",
+              "[ppc][saturation]") {
   CheckPairs(rex::ppc::simd::SubSaturates<32, true>, 32, true, true);
   CheckPairs(rex::ppc::simd::SubSaturates<32, false>, 32, false, true);
 }
 
-REX_TEST_CASE("PackSaturates reports the clamped lanes of the halfword packs",
+REX_TEST_CASE("PackSaturates reports the clamped elements of the halfword packs",
               "[ppc][saturation]") {
   CheckPack(rex::ppc::simd::PackSaturates<16, false>, 16, false, false);
   CheckPack(rex::ppc::simd::PackSaturates<16, false>, 16, true, false);
   CheckPack(rex::ppc::simd::PackSaturates<16, true>, 16, true, true);
 }
 
-REX_TEST_CASE("PackSaturates reports the clamped lanes of the word packs", "[ppc][saturation]") {
+REX_TEST_CASE("PackSaturates reports the clamped elements of the word packs", "[ppc][saturation]") {
   CheckPack(rex::ppc::simd::PackSaturates<32, false>, 32, false, false);
   CheckPack(rex::ppc::simd::PackSaturates<32, false>, 32, true, false);
   CheckPack(rex::ppc::simd::PackSaturates<32, true>, 32, true, true);

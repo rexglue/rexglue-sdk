@@ -282,8 +282,7 @@ REX_TEST_CASE("waits: signal and wait treat a handle with nothing to wait on as 
   });
 }
 
-REX_TEST_CASE("waits: a handle closed during a wait still completes the wait",
-              "[kernel][waits][pin]") {
+REX_TEST_CASE("waits: a handle closed during a wait completes the wait", "[kernel][waits][pin]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);

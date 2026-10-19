@@ -327,10 +327,8 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
     auto [it, inserted] = extended_register_values_.insert_or_assign(index, value);
     (void)it;
     if (inserted) {
-      REXLOG_WARN(
-          gpu,
-          "CommandProcessor::WriteRegister index out of bounds: {} (stored as extended register)",
-          index);
+      REXLOG_WARN(gpu, "register index {} is out of bounds and stored as an extended register",
+                  index);
     }
     return;
   }
@@ -576,7 +574,7 @@ u32 CommandProcessor::ExecutePrimaryBuffer(u32 read_index, u32 write_index) {
   reader.SetWriteOffset(write_index * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
-      REXLOG_ERROR(gpu, "**** PRIMARY RINGBUFFER: Failed to execute packet.");
+      REXLOG_ERROR(gpu, "primary ring buffer failed to execute a packet");
       REX_ASSERT_ALWAYS();
       break;
     }
@@ -594,7 +592,7 @@ void CommandProcessor::ExecuteIndirectBuffer(u32 ptr, u32 count) {
   reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
-      REXLOG_ERROR(gpu, "**** INDIRECT RINGBUFFER: Failed to execute packet.");
+      REXLOG_ERROR(gpu, "indirect buffer failed to execute a packet");
       REX_ASSERT_ALWAYS();
       break;
     }
@@ -606,7 +604,7 @@ void CommandProcessor::ExecutePacket(u32 ptr, u32 count) {
   reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
-      REXLOG_ERROR(gpu, "**** ExecutePacket: Failed to execute packet.");
+      REXLOG_ERROR(gpu, "ExecutePacket failed to execute a packet");
       REX_ASSERT_ALWAYS();
       break;
     }
@@ -621,7 +619,7 @@ bool CommandProcessor::ExecutePacket(memory::RingBuffer* reader) {
   }
 
   if (packet == 0xCDCDCDCD) {
-    REXLOG_WARN(gpu, "GPU packet is CDCDCDCD - probably read uninitialized memory!");
+    REXLOG_WARN(gpu, "GPU packet is CDCDCDCD, which probably means uninitialized memory was read");
   }
 
   switch (packet_type) {
@@ -1198,7 +1196,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
                                               u32 count_remaining) {
   REX_ASSERT(count_remaining != 0);
   if (!count_remaining) {
-    REX_FAIL(gpu, false, "{}: Packet too small, can't read VGT_DRAW_INITIATOR", opcode_name);
+    REX_FAIL(gpu, false, "{} packet is too small to read VGT_DRAW_INITIATOR", opcode_name);
   }
   xenos::reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
   vgt_draw_initiator.value = reader->ReadAndSwap<u32>();
@@ -1215,7 +1213,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       // Check bounds separately so a single missing value skips 1 word, not 2.
       REX_ASSERT(count_remaining != 0);
       if (!count_remaining) {
-        REX_FAIL(gpu, false, "{}: Packet too small, can't read VGT_DMA_BASE", opcode_name);
+        REX_FAIL(gpu, false, "{} packet is too small to read VGT_DMA_BASE", opcode_name);
       }
       u32 vgt_dma_base = reader->ReadAndSwap<u32>();
       --count_remaining;
@@ -1223,7 +1221,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       xenos::reg::VGT_DMA_SIZE vgt_dma_size;
       REX_ASSERT(count_remaining != 0);
       if (!count_remaining) {
-        REX_FAIL(gpu, false, "{}: Packet too small, can't read VGT_DMA_SIZE", opcode_name);
+        REX_FAIL(gpu, false, "{} packet is too small to read VGT_DMA_SIZE", opcode_name);
       }
       vgt_dma_size.value = reader->ReadAndSwap<u32>();
       --count_remaining;
@@ -1271,7 +1269,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
         auto rb_modecontrol = register_file_->Get<xenos::reg::RB_MODECONTROL>();
         REXLOG_ERROR(
             gpu,
-            "{}({}, {}, {}): Failed in backend "
+            "{}({}, {}, {}) failed in the backend "
             "(major_mode={}, explicit_major={}, path_select={}, tess_mode={}, edram_mode={})",
             opcode_name, static_cast<u32>(vgt_draw_initiator.num_indices),
             static_cast<u32>(vgt_draw_initiator.prim_type),
@@ -1292,7 +1290,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, 
   u32 count_remaining = count;
   REX_ASSERT(count_remaining != 0);
   if (!count_remaining) {
-    REX_FAIL(gpu, false, "PM4_DRAW_INDX: Packet too small, can't read the viz query token");
+    REX_FAIL(gpu, false, "PM4_DRAW_INDX packet is too small to read the viz query token");
   }
   u32 viz_query_condition = reader->ReadAndSwap<u32>();
   --count_remaining;

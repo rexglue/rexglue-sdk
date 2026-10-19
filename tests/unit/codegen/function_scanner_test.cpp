@@ -140,7 +140,7 @@ REX_TEST_CASE("A conditional branch to another function keeps its condition",
   CHECK(code.find("if (") != std::string::npos);
 }
 
-REX_TEST_CASE("A function with two fall throughs calls both next functions", "[codegen][scanner]") {
+REX_TEST_CASE("A function with 2 fall throughs calls both next functions", "[codegen][scanner]") {
   constexpr u32 kBranchEqualPlus16 = 0x419A0010;
   ScannerFixture fixture({kBranchEqualPlus16, kNop, kNop, kBlr, kNop, kNop, kBlr});
   auto& graph = fixture.ctx->graph;

@@ -414,7 +414,7 @@ bool D3D12TextureCache::Initialize() {
   root_parameters[2].DescriptorTable.pDescriptorRanges = &root_source_range;
   root_parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   D3D12_ROOT_SIGNATURE_DESC root_signature_desc;
-  root_signature_desc.NumParameters = UINT(rex::CountOf(root_parameters));
+  root_signature_desc.NumParameters = static_cast<UINT>(rex::CountOf(root_parameters));
   root_signature_desc.pParameters = root_parameters;
   root_signature_desc.NumStaticSamplers = 0;
   root_signature_desc.pStaticSamplers = nullptr;
@@ -550,7 +550,7 @@ bool D3D12TextureCache::Initialize() {
                 current_load_shader_code_scaled.BytecodeLength, load_root_signature_.Get());
         if (!load_pipelines_scaled_[i]) {
           REX_FAIL(gpu, false,
-                   "D3D12TextureCache: Failed to create the resolution-scaled "
+                   "D3D12TextureCache: Failed to create the resolution scaled "
                    "texture loading pipeline for shader {}",
                    i);
         }
@@ -649,10 +649,11 @@ void D3D12TextureCache::EndFrame() {
       continue;
     }
     if (!unsupported_header_written) {
-      REXLOG_ERROR(gpu, "Unsupported texture formats used in the frame:");
+      REXLOG_ERROR(gpu, "Unsupported texture formats used in the frame");
       unsupported_header_written = true;
     }
-    REXLOG_ERROR(gpu, "* {}{}{}{}", xenos::FormatInfo::Get(xenos::TextureFormat(i))->name,
+    REXLOG_ERROR(gpu, "* {}{}{}{}",
+                 xenos::FormatInfo::Get(static_cast<xenos::TextureFormat>(i))->name,
                  unsupported_features & kUnsupportedResourceBit ? " resource" : "",
                  unsupported_features & kUnsupportedUnormBit ? " unsigned" : "",
                  unsupported_features & kUnsupportedSnormBit ? " signed" : "");
@@ -930,7 +931,7 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
   i32 anisotropic_override = REXCVAR_GET(::rex::gpu::cvars::anisotropic_override);
   if (anisotropic_override > -1 && anisotropic_override < 6 && has_mips && !mip_base_map &&
       min_mag_linear && mip_filter_bilinear_or_trilinear) {
-    aniso_filter = xenos::AnisoFilter(anisotropic_override);
+    aniso_filter = static_cast<xenos::AnisoFilter>(anisotropic_override);
   }
   aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax161);
   parameters.aniso_filter = aniso_filter;
@@ -1121,7 +1122,7 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u
         D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed());
     Microsoft::WRL::ComPtr<ID3D12Heap> scaled_resolve_heap;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&scaled_resolve_heap)))) {
-      REX_FAIL(gpu, false, "D3D12TextureCache: Failed to create a scaled resolve tile heap");
+      REX_FAIL(gpu, false, "Failed to create a scaled resolve tile heap");
     }
     scaled_resolve_heaps_[i] = scaled_resolve_heap;
     ++scaled_resolve_heap_count_;
@@ -1144,9 +1145,10 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u
       if (j && buffer_index == buffer_indices[0]) {
         break;
       }
-      region_start_coordinates.X = UINT(((static_cast<u64>(i) << kScaledResolveHeapSizeLog2) -
-                                         (static_cast<u64>(buffer_index) << 30)) /
-                                        D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES);
+      region_start_coordinates.X =
+          static_cast<UINT>(((static_cast<u64>(i) << kScaledResolveHeapSizeLog2) -
+                             (static_cast<u64>(buffer_index) << 30)) /
+                            D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES);
       direct_queue->UpdateTileMappings(
           scaled_resolve_2gb_buffers_[buffer_index]->GetResource(), 1, &region_start_coordinates,
           &region_size, scaled_resolve_heap.Get(), 1, &range_flags, &heap_range_start_offset,
@@ -1566,20 +1568,20 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     }
     level_host_layer_layout.Footprint.Width =
         rex::RoundUpNonZero(level_host_layer_layout.Footprint.Width * texture_resolution_scale_x,
-                            UINT(host_block_width));
+                            static_cast<UINT>(host_block_width));
     level_host_layer_layout.Footprint.Height =
         rex::RoundUpNonZero(level_host_layer_layout.Footprint.Height * texture_resolution_scale_y,
-                            UINT(host_block_height));
+                            static_cast<UINT>(host_block_height));
     level_host_layer_layout.Footprint.RowPitch = rex::RoundUpPow2(
         rex::RoundUpNonZero(level_host_layer_layout.Footprint.Width / host_block_width,
                             host_x_blocks_per_thread) *
             load_shader_info.bytes_per_host_block,
         static_cast<u32>(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
     UINT64 level_host_layer_size =
-        rex::RoundUpPow2(UINT64(level_host_layer_layout.Footprint.RowPitch) *
+        rex::RoundUpPow2(static_cast<UINT64>(level_host_layer_layout.Footprint.RowPitch) *
                              (level_host_layer_layout.Footprint.Height / host_block_height) *
                              level_host_layer_layout.Footprint.Depth,
-                         UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+                         static_cast<UINT64>(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
     (is_base ? host_layer_size_base : host_layer_sizes_mips[level]) = level_host_layer_size;
     copy_buffer_size += level_host_layer_size * array_size;
   }
@@ -1880,7 +1882,7 @@ ID3D12Resource* D3D12TextureCache::D3D12Texture::GetOrCreate3DAs2DResource(
   if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              provider.GetHeapFlagCreateNotZeroed(), &desc,
                                              initial_state, nullptr, IID_PPV_ARGS(&resource_2d)))) {
-    REX_FAIL(gpu, nullptr, "D3D12TextureCache: Failed to create 3D-as-2D wrapper resource");
+    REX_FAIL(gpu, nullptr, "Failed to create the 3D as 2D wrapper resource");
   }
 
   TextureKey key_2d = GetKey();
@@ -1891,7 +1893,7 @@ ID3D12Resource* D3D12TextureCache::D3D12Texture::GetOrCreate3DAs2DResource(
   texture_3d_as_2d_->SetForceLoad3DTiling(true);
 
   if (!d3d12_cache.LoadTextureData(*texture_3d_as_2d_)) {
-    REXLOG_ERROR(gpu, "D3D12TextureCache: Failed to load 3D-as-2D wrapper data");
+    REXLOG_ERROR(gpu, "D3D12TextureCache: Failed to load 3D as 2D wrapper data");
     texture_3d_as_2d_.reset();
     return nullptr;
   }
@@ -1992,8 +1994,8 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
     descriptor_index = command_processor_.RequestPersistentViewBindlessDescriptor();
     if (descriptor_index == UINT32_MAX) {
       REX_FAIL(gpu, UINT32_MAX,
-               "Failed to create a texture descriptor - no free bindless view "
-               "descriptors");
+               "Failed to create a texture descriptor because no bindless view "
+               "descriptors are free");
     }
   } else {
     if (srv_descriptor_cache_free_count_) {
@@ -2014,8 +2016,8 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
           Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> cache_heap;
           if (FAILED(device->CreateDescriptorHeap(&cache_heap_desc, IID_PPV_ARGS(&cache_heap)))) {
             REX_FAIL(gpu, UINT32_MAX,
-                     "D3D12TextureCache: Failed to create a texture descriptor - "
-                     "couldn't create a descriptor cache heap");
+                     "D3D12TextureCache: Failed to create a texture descriptor because "
+                     "the descriptor cache heap could not be created");
           }
           srv_descriptor_cache_.emplace_back(cache_heap.Get());
         }

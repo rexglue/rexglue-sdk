@@ -47,7 +47,8 @@ REXCVAR_STRING(xenos, render_target_path_vulkan, "", "Vulkan render target imple
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(xenos, vulkan_sparse_shared_memory, true, "Use sparse shared memory on Vulkan")
     .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_BOOL(xenos, non_seamless_cube_map, false, "Use non-seamless cube map sampling");
+REXCVAR_BOOL(xenos, non_seamless_cube_map, false,
+             "Sample cube maps without edge filtering across faces");
 REXCVAR_BOOL(vulkan, require_geometry_shader, !REX_PLATFORM_MAC,
              "Require geometryShader support for Vulkan GPU emulation (disable to allow fallback "
              "primitive emulation paths)")
@@ -65,17 +66,18 @@ REXCVAR_BOOL(vulkan, allow_present_mode_fifo_relaxed, true, "Allow FIFO relaxed 
 REXCVAR_BOOL(vulkan, validation, false, "Enable Vulkan validation layers")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_geometry_shader, true,
-             "Prefer physical devices supporting geometryShader when auto-selecting")
+             "Prefer physical devices supporting geometryShader when selecting automatically")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_fragment_stores_and_atomics, true,
-             "Prefer physical devices supporting fragmentStoresAndAtomics when auto-selecting")
+             "Prefer physical devices supporting fragmentStoresAndAtomics when selecting "
+             "automatically")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_vertex_pipeline_stores_and_atomics, true,
              "Prefer physical devices supporting vertexPipelineStoresAndAtomics when "
-             "auto-selecting")
+             "selecting automatically")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_fill_mode_non_solid, true,
-             "Prefer physical devices supporting fillModeNonSolid when auto-selecting")
+             "Prefer physical devices supporting fillModeNonSolid when selecting automatically")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 REXCVAR_TABLE(kVulkanCvars, require_geometry_shader, require_fill_mode_non_solid,

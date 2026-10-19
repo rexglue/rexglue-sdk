@@ -185,7 +185,8 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    * after the title stops, where the app destroys the dialogs it owns.
    *
    * @param event The event.
-   * @return True consumes the event. For UIEvent::Type::kClose, true keeps the window open.
+   * @return True when the app consumed the event. For UIEvent::Type::kClose, true keeps the window
+   * open.
    */
   virtual bool OnEvent(const UIEvent& event);
 
@@ -233,7 +234,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   /**
    * Puts rexfilesystem and then rexruntime first in the module list when the consumer did not
    * list them, so the mount table is served before rexruntime connects. Adds the host API library
-   * that gpu.backend names after rexgpu-xenos, unless the list already holds one or the backend
+   * that gpu.backend names after rexgpu-xenos, unless the list holds one or the backend
    * is null.
    *
    * @param config The configuration the modules load from.
@@ -243,15 +244,15 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   /**
    * Returns the runtime.
    *
-   * @return The runtime, or nullptr before LaunchTitle and after Release.
+   * @return The runtime, or null before LaunchTitle and after Release.
    */
   Runtime* GetRuntime();
 
   /**
    * Returns the title window.
    *
-   * @return The window. Valid from OnCreateWindow until Stop closes it. Never call it on the
-   *         headless provider, which opens no window.
+   * @return The window. Valid from OnCreateWindow until Stop closes it. The headless
+   *         provider opens no window.
    */
   IWindow& GetWindow();
 

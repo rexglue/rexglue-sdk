@@ -39,11 +39,10 @@ runtime::XMADecoder* Decoder(Runtime& runtime) {
 }  // namespace
 
 /**
- * Creates a decoder context. Titles decode with XMAInitializeContext, then the buffer valid
- * setters, XMAEnableContext, offset and validity polls, and finally XMAReleaseContext.
+ * Creates a decoder context.
  *
  * @param context_out_ptr Receives the context address.
- * @return X_ERROR_SUCCESS or an error code.
+ * @return X_STATUS_SUCCESS, or X_STATUS_NO_MEMORY when no context could be allocated.
  */
 u32 XMACreateContext_entry(MappedU32 context_out_ptr) {
   REXLOG_DEV(kernel, "XMACreateContext called!");

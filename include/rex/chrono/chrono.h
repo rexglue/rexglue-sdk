@@ -48,6 +48,8 @@ struct NtSystemClock {
 
  public:
   /**
+   * Returns the offset from the system clock epoch to the FILETIME epoch.
+   *
    * @return The offset from the std::chrono::system_clock epoch, Jan 1 1970, to the FILETIME
    *         epoch, Jan 1 1601, in seconds.
    */
@@ -63,6 +65,8 @@ struct NtSystemClock {
   }
 
   /**
+   * Converts a time point to a FILETIME.
+   *
    * @param tp The time point to convert.
    * @return The time point as a FILETIME.
    */
@@ -71,6 +75,8 @@ struct NtSystemClock {
   }
 
   /**
+   * Converts a FILETIME to a time point.
+   *
    * @param tp The FILETIME to convert.
    * @return The FILETIME as a time point.
    */
@@ -107,6 +113,8 @@ struct NtSystemClock {
   }
 
   /**
+   * Returns the current time.
+   *
    * @return The current time from Clock::QueryHostSystemTime or Clock::QueryGuestSystemTime.
    */
   [[nodiscard]] static time_point now() noexcept {
@@ -187,6 +195,8 @@ struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
   using XClock = ::rex::XSystemClock;
 
   /**
+   * Converts a guest time point to a host time point.
+   *
    * @tparam Duration The duration of the source time point.
    * @param t The guest time point.
    * @return The same instant in host time.
@@ -218,6 +228,8 @@ struct clock_time_conversion<::rex::XSystemClock, ::rex::WinSystemClock> {
   using XClock = ::rex::XSystemClock;
 
   /**
+   * Converts a host time point to a guest time point.
+   *
    * @tparam Duration The duration of the source time point.
    * @param t The host time point.
    * @return The same instant in guest time.

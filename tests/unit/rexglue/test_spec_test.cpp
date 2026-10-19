@@ -53,7 +53,7 @@ REX_TEST_CASE("A label right after an output block registers its own test",
 
 REX_TEST_CASE("A plain comment in the body does not end the test", "[rexglue][test_spec]") {
   const auto specs = Parse(
-      "test_a:\n  # a note about the test\n  li r5, 0x30\n  #a note with no space\n  blr\n"
+      "test_a:\n  # a remark about the test\n  li r5, 0x30\n  #a remark with no space\n  blr\n"
       "  #_ REGISTER_OUT r5 0x30\n  #_ REGISTER_OUT r7 0x06\n");
   REQUIRE(specs.size() == 1);
   REQUIRE(specs[0].outputs.size() == 2);

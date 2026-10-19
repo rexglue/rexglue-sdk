@@ -18,7 +18,7 @@
 #   3 ...
 # special case: mask3/shift3 = 00000000 00000000 00000000 FFFFFFFF
 
-# vpkd3d128 is broken in binutils, so these are hand coded
+# binutils cannot assemble vpkd3d128, so these use .long encodings
 
 test_vpkd3d128_d3dcolor_invalid_0:
   #_ REGISTER_IN v3 [00000001, 00000002, 00000003, 00000004]

@@ -94,7 +94,7 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   if (!IsValidProjectName(manifest.project_name)) {
     REX_FAIL(codegen, std::nullopt,
              "Manifest [project].name '{}' is not a valid identifier "
-             "(letters, digits, underscore; must not start with a digit): {}",
+             "(letters, digits and underscore, and must not start with a digit): {}",
              manifest.project_name, path.string());
   }
   if (auto stamp = (*project)["sdk_version"].value<std::string>(); stamp && !stamp->empty()) {

@@ -49,7 +49,7 @@ REX_API std::filesystem::path LibraryFileName(std::string_view name);
 /**
  * Returns the file name of a module for the current build configuration and platform.
  *
- * @param name The module name.
+ * @param name The module name without the build postfix or the extension.
  * @return The name with the build postfix and the platform library extension.
  */
 REX_API std::filesystem::path ModuleFileName(std::string_view name);

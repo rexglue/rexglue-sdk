@@ -97,7 +97,7 @@ std::vector<SourceWarning> ScanStaleIncludes(
       if (!removed.contains(rex::StringKeyCase::Create(basename)))
         continue;
       matches.push_back({entry.path(), line_number, std::format("stale include: {}", target),
-                         "header no longer emitted by codegen; update or remove the include"});
+                         "Header no longer emitted by codegen. Update or remove the include."});
     }
   }
 

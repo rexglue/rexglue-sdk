@@ -358,7 +358,7 @@ class REX_RUNTIME_API BaseHeap {
   virtual std::unique_lock<rex::platform::RankedMutex> AcquireHostPageReconcileLock() const;
 
   /**
-   * Allocates at a fixed address with the reconcile lock already held.
+   * Allocates at a fixed address with the reconcile lock held.
    *
    * @param base_address Guest address to allocate at.
    * @param size Size in bytes.
@@ -371,7 +371,7 @@ class REX_RUNTIME_API BaseHeap {
                         u32 protect);
 
   /**
-   * Allocates within an address range with the reconcile lock already held.
+   * Allocates within an address range with the reconcile lock held.
    *
    * @param low_address Lowest acceptable guest address.
    * @param high_address Highest acceptable guest address.
@@ -387,7 +387,7 @@ class REX_RUNTIME_API BaseHeap {
                         u32 allocation_type, u32 protect, bool top_down, u32* out_address);
 
   /**
-   * Decommits with the reconcile lock already held.
+   * Decommits with the reconcile lock held.
    *
    * @param address Guest address of the range.
    * @param size Size in bytes.
@@ -396,7 +396,7 @@ class REX_RUNTIME_API BaseHeap {
   bool DecommitLocked(u32 address, u32 size);
 
   /**
-   * Releases with the reconcile lock already held.
+   * Releases with the reconcile lock held.
    *
    * @param address Guest base address of the region.
    * @param out_region_size Receives the size of the released region.
@@ -405,7 +405,7 @@ class REX_RUNTIME_API BaseHeap {
   bool ReleaseLocked(u32 address, u32* out_region_size);
 
   /**
-   * Changes protection with the reconcile lock already held.
+   * Changes protection with the reconcile lock held.
    *
    * @param address Guest address of the range.
    * @param size Size in bytes.
@@ -613,7 +613,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
                         bool unprotect = true);
 
   /**
-   * TriggerCallbacks with the memory watch lock already held.
+   * TriggerCallbacks with the memory watch lock held.
    *
    * @param virtual_address Guest address of the range.
    * @param length Length in bytes.
@@ -662,8 +662,8 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
     u64 notify_on_invalidation;
   };
   /**
-   * Guarded by Memory::watch_mutex(). Flags for each 64 system pages, interleaved as blocks for bit
-   * scans.
+   * Guarded by Memory::GetWatchMutex(). Flags for each 64 system pages, interleaved as blocks for
+   * bit scans.
    */
   std::vector<SystemPageFlagsBlock> system_page_flags_;
 };

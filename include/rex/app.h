@@ -92,8 +92,7 @@ class REX_API App : public NonCopyable {
   Config& GetConfig();
 
   /**
-   * Reports an error from a lifecycle step. The base class logs it. TitleApp also shows it in a
-   * message box.
+   * Reports an error from a lifecycle step. The base class logs it.
    *
    * @param message The error text.
    */
@@ -165,15 +164,12 @@ class REX_API App : public NonCopyable {
   /** Runs in Shutdown after Stop, while every module and everything created after Init is up. */
   virtual void OnShutdown();
 
-  /**
-   * Stops what a derived app type runs. Shutdown calls it first, before OnShutdown. TitleApp
-   * stops the title and closes the window here.
-   */
+  /** Stops what a derived app type runs. Shutdown calls it first, before OnShutdown. */
   virtual void Stop();
 
   /**
    * Adds the modules a derived app type needs to the module list. Init calls it after OnConfigure
-   * and the command line, right before the modules load. TitleApp puts rexruntime first.
+   * and the command line, right before the modules load.
    *
    * @param config The configuration the modules load from.
    */
@@ -181,8 +177,7 @@ class REX_API App : public NonCopyable {
 
   /**
    * Releases what a derived app type created after Init. Shutdown calls it after OnShutdown
-   * and before the modules shut down. TitleApp destroys the window and shuts down the runtime
-   * here.
+   * and before the modules shut down.
    */
   virtual void Release();
 
@@ -291,8 +286,7 @@ REX_API CLIArgList GetWindowsCommandLine();
 
 #if REX_PLATFORM_WIN32
 /**
- * Defines main and wWinMain, both calling fn with the parsed command line. Used by REX_APP_MAIN and
- * the title entry point macro.
+ * Defines main and wWinMain, both calling fn with the parsed command line.
  *
  * @param fn A function taking const rex::CLIArgList& and returning int.
  *

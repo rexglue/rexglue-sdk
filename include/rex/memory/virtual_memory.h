@@ -77,11 +77,11 @@ REX_API bool IsWritableExecutableMemorySupported();
 /**
  * Allocates host pages at a page aligned address.
  *
- * @param base_address Requested address, or nullptr to let the system choose.
+ * @param base_address Requested address, or null to let the system choose.
  * @param length Byte count.
  * @param allocation_type Reserve, commit or both.
  * @param access Access rights of the new pages.
- * @return Address of the allocation, or nullptr when the range is not available.
+ * @return Address of the allocation, or null when the range is not available.
  */
 REX_API void* AllocFixed(void* base_address, size_t length, AllocationType allocation_type,
                          PageAccess access);
@@ -102,7 +102,7 @@ REX_API bool DeallocFixed(void* base_address, size_t length, DeallocationType de
  * @param base_address Start of the range.
  * @param length Byte count.
  * @param access New access rights.
- * @param out_old_access Receives the previous access rights of the first page, or nullptr.
+ * @param out_old_access Receives the previous access rights of the first page, or null.
  * @return True on success.
  */
 REX_API bool Protect(void* base_address, size_t length, PageAccess access,
@@ -119,11 +119,11 @@ REX_API bool Protect(void* base_address, size_t length, PageAccess access,
 REX_API bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
 
 /**
- * Allocates aligned host memory for 1 object. Free it with AlignedFree.
+ * Allocates aligned host memory for 1 object.
  *
  * @tparam T Object type.
  * @param alignment Alignment in bytes, a power of 2.
- * @return Uninitialized storage for a T, or nullptr on failure.
+ * @return Uninitialized storage for a T, or null on failure.
  */
 template <typename T>
 inline T* AlignedAlloc(size_t alignment) {
@@ -209,11 +209,11 @@ REX_API void CloseFileMappingHandle(FileMappingHandle handle, const std::filesys
  * Maps a view of a shared memory object.
  *
  * @param handle Handle CreateFileMappingHandle returned.
- * @param base_address Requested address, or nullptr to let the system choose.
+ * @param base_address Requested address, or null to let the system choose.
  * @param length Byte count of the view.
  * @param access Access rights of the view.
  * @param file_offset Offset of the view in the object, page aligned.
- * @return Address of the view, or nullptr on failure.
+ * @return Address of the view, or null on failure.
  */
 REX_API void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                           PageAccess access, size_t file_offset);

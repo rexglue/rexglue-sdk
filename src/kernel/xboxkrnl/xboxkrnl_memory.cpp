@@ -85,7 +85,7 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
   REX_ASSERT(region_size_ptr != nullptr);
 
   if (debug_memory != 0)
-    REXLOG_WARN(kernel, "attmpted allocation to devkit memory area (debug_memory={})",
+    REXLOG_WARN(kernel, "attempted allocation to devkit memory area (debug_memory={})",
                 static_cast<u32>(debug_memory));
 
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
@@ -99,7 +99,7 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
   }
   if (protect_bits &
       (kXPageExecute | kXPageExecuteRead | kXPageExecuteReadWrite | kXPageExecuteWriteCopy)) {
-    REXLOG_WARN(kernel, "Game setting EXECUTE bit on allocation");
+    REXLOG_WARN(kernel, "Title setting EXECUTE bit on allocation");
   }
 
   u32 page_size;
@@ -208,7 +208,7 @@ u32 NtProtectVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_
 
   if (protect_bits &
       (kXPageExecute | kXPageExecuteRead | kXPageExecuteReadWrite | kXPageExecuteWriteCopy)) {
-    REXLOG_WARN(kernel, "Game setting EXECUTE bit on protect");
+    REXLOG_WARN(kernel, "Title setting EXECUTE bit on protect");
     return X_STATUS_INVALID_PAGE_PROTECTION;
   }
 

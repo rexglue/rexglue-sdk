@@ -60,7 +60,7 @@ class FilesystemModule final : public IModule {
   std::span<const char* const> GetRequiredInterfaces() const override;
 
   /**
-   * Copies FilesystemConfig and registers the filesystem log category.
+   * Copies the game mount flags and registers the filesystem log category.
    *
    * @param factory Serves the logger.
    * @param config The configuration rex::Init was called with.

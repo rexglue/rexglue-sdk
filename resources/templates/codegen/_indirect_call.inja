@@ -4,7 +4,7 @@
 // REX_LOOKUP_FUNC indexes into the per-module dispatch table at
 // IMAGE_BASE + IMAGE_SIZE. REX_CALL_INDIRECT_FUNC bounds-checks the target
 // against the caller's [REX_CODE_BASE, REX_CODE_BASE + REX_CODE_SIZE +
-// REX_THUNK_RESERVE_SIZE) range; out-of-bounds targets and in-bounds
+// REX_THUNK_RESERVE_SIZE) range. Out-of-bounds targets and in-bounds
 // unregistered slots fall back to rex::ppc::ResolveFunction,
 // which queries the global FunctionDispatcher across every loaded module.
 //=============================================================================

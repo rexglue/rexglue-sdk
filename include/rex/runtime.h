@@ -104,14 +104,17 @@ struct RuntimeDesc {
 };
 
 /**
- * The runtime of a recompiled title. Owns the guest memory, the function dispatcher, the object
- * table, the thread and module registries, the notifier, the content and achievement managers,
- * the dispatcher, the process blocks, the APU and the HID backend.
+ * The runtime of a recompiled title. It owns these parts.
+ * - The guest memory, the function dispatcher and the object table.
+ * - The thread and module registries and the notifier.
+ * - The content and achievement managers.
+ * - The dispatcher, the process blocks, the APU and the HID backend.
  */
 class REX_RUNTIME_API Runtime : public rex::NonCopyable {
  public:
   /**
-   * @param config The configuration Init copied, read through API::config().
+   * @param config The configuration the runtime keeps a reference to, read through
+   *        API::GetConfig().
    */
   explicit Runtime(const Config& config);
   /** Stops the runtime and frees what it owns. */
@@ -162,7 +165,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   /**
    * Reports whether audio is parked.
    *
-   * @return True while SetAudioPaused(true) holds.
+   * @return True when audio is parked.
    */
   bool GetAudioPaused() const;
 
@@ -249,8 +252,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   ui::IUserInterface* GetUI() const { return ui_; }
 
   /**
-   * Builds the memory, the function dispatcher, the object table, the registries, the managers and
-   * the subsystems.
+   * Builds the memory and every other part the runtime owns.
    *
    * @param config The subsystems to create. tool_mode skips the GPU.
    * @return Ok, or a Runtime error whose code is the status of the step that failed.
@@ -274,8 +276,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   const PPCCodegenFlags& GetCodegenFlags() const { return codegen_flags_; }
 
   /**
-   * Stops the subsystems and destroys the object table, the registries, the managers, the
-   * dispatcher and the memory.
+   * Stops the subsystems and destroys the memory and every other part the runtime owns.
    */
   void Shutdown();
 
@@ -441,7 +442,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   /**
    * Reports whether TerminateTitle runs.
    *
-   * @return True from the start of TerminateTitle.
+   * @return True when TerminateTitle has started.
    */
   bool IsTerminatingTitle() const { return terminating_title_.load(std::memory_order_acquire); }
 

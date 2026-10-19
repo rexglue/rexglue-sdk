@@ -50,7 +50,7 @@ void
 /**
  * Builds the table entry of a variable export, which has no function pointer.
  *
- * @param ordinal The export ordinal.
+ * @param ordinal The number a title import uses to find the export.
  * @param text The export name as text.
  * @param symbol The __imp__ symbol, unused here.
  *

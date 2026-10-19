@@ -76,7 +76,7 @@ class UIEvent {
    * Casts this event to the class that carries its data.
    *
    * @tparam T A class derived from UIEvent.
-   * @return This event as T when GetType() is 1 of the types T carries, otherwise nullptr.
+   * @return This event as T when GetType() is 1 of the types T carries, otherwise null.
    */
   template <typename T>
   const T* As() const {

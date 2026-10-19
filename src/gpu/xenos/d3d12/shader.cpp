@@ -50,8 +50,8 @@ void D3D12Shader::D3D12Translation::DisassembleDXBCAndDxil(
     void* dxil;
     UINT32 dxil_size;
     if (SUCCEEDED(dxbc_converter->Convert(GetTranslatedBinary().data(),
-                                          UINT32(GetTranslatedBinary().size()), nullptr, &dxil,
-                                          &dxil_size, nullptr)) &&
+                                          static_cast<UINT32>(GetTranslatedBinary().size()),
+                                          nullptr, &dxil, &dxil_size, nullptr)) &&
         dxil != nullptr) {
       IDxcBlobEncoding* dxil_blob;
       if (SUCCEEDED(dxc_utils->CreateBlobFromPinned(dxil, dxil_size, DXC_CP_ACP, &dxil_blob))) {

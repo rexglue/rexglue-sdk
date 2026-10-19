@@ -41,7 +41,6 @@ struct TemplateRegistry::Impl {
       return oss.str();
     });
 
-    // Templates are embedded under IDs without the .inja extension, so include names drop it.
     env.set_search_included_templates_in_files(false);
     env.set_include_callback(
         [this](const std::filesystem::path&, const std::string& name) -> inja::Template {

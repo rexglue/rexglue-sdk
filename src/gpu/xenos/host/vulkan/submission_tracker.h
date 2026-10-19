@@ -109,8 +109,8 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
    * Reports whether the expected GPU signal was reached rather than a fallback condition.
    *
    * Needed where stronger completeness is required, such as downloading rather than destroying.
-   * When false, GetCompletedSubmission may still return less than submission_index. The index
-   * must not exceed the current submission. Awaiting the current submission is valid after a
+   * When false, UpdateAndGetCompletedSubmission may still return less than submission_index. The
+   * index must not exceed the current submission. Awaiting the current submission is valid after a
    * failed or dropped submission that did not increment the index, to release the objects it
    * referenced, for example on shutdown. A failed signal after a successful submission can still
    * race, so the closest successful signal is the best approximation. Waiting starts from the

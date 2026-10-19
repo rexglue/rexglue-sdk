@@ -131,7 +131,7 @@ bool VulkanImmediateDrawer::Initialize() {
   size_t white_texture_pending_upload_index;
   if (!CreateTextureResource(1, 1, gpu::OverlayTextureFilter::kNearest, false, nullptr,
                              white_texture_, white_texture_pending_upload_index)) {
-    REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create a blank texture");
+    REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create a white texture");
   }
 
   vertex_buffer_pool_ = std::make_unique<VulkanUploadBufferPool>(
@@ -504,7 +504,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
   const VkDevice device = vulkan_device_->GetDevice();
 
-  // Safe to destroy as usage of a recreated render pass was already awaited.
+  // Safe to destroy as usage of a recreated render pass was awaited.
   objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
   objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
   // A failed creation is not retried every frame.

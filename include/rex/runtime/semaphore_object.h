@@ -32,12 +32,16 @@ REX_STATIC_ASSERT_SIZE(X_KSEMAPHORE, 0x14);
 /** The host state of a semaphore object. */
 struct SemaphoreObject {
   /**
+   * Constructs a semaphore from a starting count and a maximum count.
+   *
    * @param initial_count The starting count.
    * @param maximum_count_in The count the semaphore cannot exceed.
    */
   REX_RUNTIME_API SemaphoreObject(i32 initial_count, i32 maximum_count_in);
 
   /**
+   * Constructs a semaphore from a guest semaphore.
+   *
    * @param header The guest semaphore whose signal state and limit initialize the object.
    */
   REX_RUNTIME_API explicit SemaphoreObject(const X_KSEMAPHORE& header);

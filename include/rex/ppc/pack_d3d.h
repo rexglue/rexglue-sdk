@@ -137,9 +137,9 @@ inline u64 PackElements(const VRegister& source, u8& saturated) {
 }  // namespace detail
 
 /**
- * Packs a vector the way vpkd3d128 does for one pack format, mask and shift.
+ * Packs a vector the way vpkd3d128 does for a pack format, a mask and a shift.
  *
- * The source is read completely before the destination is written, so both may be the same
+ * The source is read before the destination is written, so both may be the same
  * register. Element 0 is word index 3 of the register.
  *
  * @tparam Type The pack format, 0 to 6.

@@ -20,7 +20,7 @@ namespace rex::hid {
 constexpr u32 kMaxTitleUsers = 4;
 
 /**
- * Driver-scoped device handle. Never reused within a process run, so a handle that outlives its
+ * Driver scoped device handle. Never reused within a process run, so a handle that outlives its
  * device resolves to nothing rather than aliasing whichever device took the freed slot.
  */
 // NOLINTNEXTLINE(performance-enum-size): u64 counter, ids never reused
@@ -28,9 +28,9 @@ enum class DeviceId : u64 { kInvalid = 0 };
 
 /** A device a driver reports. */
 struct DeviceInfo {
-  /** The driver-scoped handle. */
+  /** The driver scoped handle. */
   DeviceId id = DeviceId::kInvalid;
-  /** Connection order, assigned by the hub. */
+  /** Connection order, assigned by the backend. */
   u32 ordinal = 0;
   /** The device name. */
   std::string name;
@@ -38,7 +38,7 @@ struct DeviceInfo {
   std::string guid;
   /** XINPUT_DEVSUBTYPE_*. */
   u8 subtype = 0x01;
-  /** Keyboard/mouse emulation or the NOP stand-in. */
+  /** Keyboard/mouse emulation or the null backend pad. */
   bool synthetic = false;
 };
 

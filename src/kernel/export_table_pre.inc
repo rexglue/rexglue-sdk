@@ -10,17 +10,14 @@
  */
 
 /**
- * Pre-include file for an export table.
- *
- * The includer defines REX_EXPORT_ROW_kFunction and REX_EXPORT_ROW_kVariable, each taking
- * (ordinal, text, symbol), then includes this file, a table file and export_table_post.inc.
+ * Pre-include file for an export table. Defines XE_EXPORT and FLAG.
  */
 
 /**
  * Forwards an export table row to the REX_EXPORT_ROW macro named by its type.
  *
  * @param module The module that owns the export.
- * @param ordinal The export ordinal.
+ * @param ordinal The number a title import uses to find the export.
  * @param name The export name, passed as text and as the __imp__ symbol.
  * @param type The export kind, kFunction or kVariable.
  *

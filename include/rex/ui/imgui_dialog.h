@@ -41,7 +41,7 @@ REX_INTERFACE(IDialogHost)
  */
 class REX_IMGUI_API ImGuiDialog : public NonCopyable {
  public:
-  /** Removes the dialog from its host when it is still attached. */
+  /** Removes the dialog from its host when it is attached. */
   virtual ~ImGuiDialog();
 
   /**
@@ -67,7 +67,7 @@ class REX_IMGUI_API ImGuiDialog : public NonCopyable {
   /**
    * Sets the host that draws the dialog. Only a host calls this.
    *
-   * @param host The host, or nullptr to detach.
+   * @param host The host, or null to detach.
    */
   void Attach(IDialogHost* host);
 

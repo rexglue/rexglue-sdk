@@ -47,7 +47,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
 
   REXLOG_WARN(ui,
               "Available Vulkan physical devices (set Config::gpu.vulkan_device to force a "
-              "specific device):");
+              "device):");
   for (size_t physical_device_index = 0; physical_device_index < physical_devices.size();
        ++physical_device_index) {
     VkPhysicalDeviceProperties physical_device_properties;

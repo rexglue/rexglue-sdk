@@ -95,7 +95,7 @@ class REX_GPU_XENOS_API GraphicsSystem : public gpu::IGPUBackend {
   GraphicsSystem();
 
   /**
-   * Builds the backend provider. Called lazily from either setup entry point.
+   * Builds the backend provider.
    *
    * @param with_presentation False only on headless guest GPU paths.
    */

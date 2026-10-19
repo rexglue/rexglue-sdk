@@ -152,7 +152,7 @@ REX_TEST_CASE("fibers: ResolveGuestStackSize allows 12 KB fiber stacks", "[kerne
 }
 
 REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breaking the lock order",
-              "[kernel][fiber][lock_order]") {
+              "[kernel][fibers][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif

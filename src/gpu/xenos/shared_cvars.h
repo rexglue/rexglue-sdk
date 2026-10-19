@@ -26,7 +26,7 @@ namespace rex::gpu {
 REX_GPU_XENOS_API std::string GetDumpShaders();
 
 /**
- * Reports xenos.allow_invalid_fetch_constants.
+ * Reports whether invalid fetch constants are tolerated.
  *
  * @return True when invalid fetch constants are tolerated.
  */

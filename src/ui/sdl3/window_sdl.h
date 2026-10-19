@@ -41,7 +41,7 @@ class WindowSDL final : public Window {
   bool GetDisplayPixelSize(u32& width, u32& height) const override;
 
   /**
-   * Handles a window event. SDLWindowedAppContext calls all Handle methods on the UI thread.
+   * Handles a window event.
    *
    * @param event SDL window event.
    */

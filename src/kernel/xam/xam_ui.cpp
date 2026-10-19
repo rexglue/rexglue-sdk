@@ -352,7 +352,8 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
 void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
   REXLOG_ERROR(kernel, "XamShowDirtyDiscErrorUI called! user_index={}",
                static_cast<u32>(user_index));
-  REXLOG_ERROR(kernel, "This indicates a disc/file read error - check that all game files exist");
+  REXLOG_ERROR(kernel,
+               "This indicates a disc or file read error. Check that all game files exist.");
 
   if (HasWindow()) {
     XAMDispatchPrompt(

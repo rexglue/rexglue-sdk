@@ -94,7 +94,7 @@ struct Fixture {
 
 }  // namespace
 
-REX_TEST_CASE("Level names round trip and reject other spellings", "[core][logger]") {
+REX_TEST_CASE("Level names round trip and reject other forms", "[core][logger]") {
   for (Level level : {Level::kTrace, Level::kDev, Level::kDebug, Level::kInfo, Level::kWarn,
                       Level::kError, Level::kCritical, Level::kOff}) {
     auto parsed = rex::log::ParseLevel(rex::log::LevelName(level));

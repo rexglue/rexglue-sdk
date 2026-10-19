@@ -15,7 +15,7 @@ test_vupklsh_3:
   #_ REGISTER_IN v3 [FFFCFFFD, FFFEFFFF, 00000001, 00020003]
   vupklsh v3, v3
   blr
-  # {-4, -3, -2, -1}
+  # {0, 1, 2, 3}
   #_ REGISTER_OUT v3 [00000000, 00000001, 00000002, 00000003]
 
 test_vupklsh_4:

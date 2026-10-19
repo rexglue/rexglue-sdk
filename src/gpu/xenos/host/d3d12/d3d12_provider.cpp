@@ -41,7 +41,7 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create(i32 adapter_index) {
     REX_FATAL(gpu,
               "Unable to initialize Direct3D 12 graphics subsystem.\n"
               "\n"
-              "Ensure that you have the latest drivers for your GPU and it supports "
+              "Install the latest drivers for your GPU, which must support "
               "Direct3D 12 with the feature level of at least 11_0.");
   }
   return provider;
@@ -153,7 +153,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   } else {
     REXLOG_DEBUG(ui,
                  "Failed to load dxilconv.dll, converted DXIL disassembly for debugging "
-                 "will be unavailable - DXIL may be unsupported by your OS version");
+                 "will be unavailable, DXIL may be unsupported by your OS version");
   }
 
   pfn_dxcompiler_dxc_create_instance_ = nullptr;
@@ -169,7 +169,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   } else {
     REXLOG_DEBUG(ui,
                  "Failed to load dxcompiler.dll, converted DXIL disassembly for "
-                 "debugging will be unavailable - if needed, download the DirectX "
+                 "debugging will be unavailable, if needed, download the DirectX "
                  "Shader Compiler and place the DLL in the ReXGlue directory");
   }
 
@@ -210,7 +210,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
         REXLOG_INFO(ui, "DRED (Device Removed Extended Data) enabled");
       } else {
         REXLOG_WARN(ui,
-                    "Failed to enable DRED - device removal diagnostics will be "
+                    "Failed to enable DRED, device removal diagnostics will be "
                     "limited");
       }
     }
@@ -402,9 +402,9 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
               "Direct3D 12 device and OS features:\n"
               "* Max GPU virtual address bits per resource: {}\n"
               "* Non-zeroed heap creation: {}\n"
-              "* Pixel-shader-specified stencil reference: {}\n"
+              "* Pixel shader specified stencil reference: {}\n"
               "* Programmable sample positions: tier {}\n"
-              "* Rasterizer-ordered views: {}\n"
+              "* Rasterizer ordered views: {}\n"
               "* Resource binding: tier {}\n"
               "* Tiled resources: tier {}\n"
               "* Unaligned block-compressed textures: {}",

@@ -28,7 +28,6 @@ set(REXSYSTEM_SOURCES
     notifier.cpp
     dispatcher.cpp
     process.cpp
-    # Utilities
     object_table.cpp
     xdbf.cpp
     # XAM services

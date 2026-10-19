@@ -12,7 +12,7 @@ function Invoke-ReXConfigure {
     param()
 
     $preset = Get-ReXPreset
-    Write-Host "=== Configuring with preset: $preset ==="
+    Write-Host "=== Configuring with preset $preset ==="
     cmake --preset $preset
     if ($LASTEXITCODE -ne 0) { throw "cmake configure failed (exit $LASTEXITCODE)" }
 }

@@ -42,14 +42,13 @@ struct RecompilerLocalVariables {
 
 /**
  * Text of the lines that stand for the copy of every localized nonvolatile into ctx or back out of
- * it. FunctionNode::EmitCpp expands them once the whole function has been emitted and the localized
- * set is known.
+ * it.
  */
 inline constexpr std::string_view kSyncToCtx = "@sync_to_ctx";
 inline constexpr std::string_view kSyncFromCtx = "@sync_from_ctx";
 
 /**
- * @brief CSR (Control/Status Register) flush mode state.
+ * CSR (Control/Status Register) flush mode state.
  *
  * Tracks the current MXCSR configuration for floating-point operations.
  * - **Unknown** is the initial state and the state after a function call. The next FP/VMX
@@ -61,9 +60,7 @@ inline constexpr std::string_view kSyncFromCtx = "@sync_from_ctx";
  */
 enum class CSRState : u8 { kUnknown, kFPU, kVMX };
 
-/**
- * @brief Context passed to instruction builders during code generation.
- */
+/** Context passed to instruction builders during code generation. */
 struct BuilderContext {
   /** Raw output buffer for code generation. */
   std::string& out;
@@ -89,10 +86,10 @@ struct BuilderContext {
   /** Current CSR state for flush mode (FPU vs VMX). */
   CSRState& csr_state;
 
-  /** Pointer to active jump table for bctr dispatch, or nullptr. */
+  /** Pointer to active jump table for bctr dispatch, or null. */
   const JumpTable* active_jump_table = nullptr;
 
-  /** MMIO classification of the current function, or nullptr. */
+  /** MMIO classification of the current function, or null. */
   const MMIOClassification* mmio = nullptr;
 
   /**
@@ -110,7 +107,8 @@ struct BuilderContext {
   const FunctionGraph& GetGraph() const;
 
   /**
-   * @brief Reports whether non-volatiles may be localized in the current function.
+   * Reports whether nonvolatiles may be localized in the current function.
+   *
    * False when the function shares registers with an intra-function bl partner.
    * An SEH funclet inherits its owner's live registers through ctx, so it never localizes them.
    * A save or restore helper moves registers between ctx and the frame, so it never does either.
@@ -120,28 +118,32 @@ struct BuilderContext {
   bool ShouldLocalizeNonVolatiles() const;
 
   /**
-   * @brief Returns the expression for general purpose register access.
+   * Returns the expression for general purpose register access.
+   *
    * @param index Register index (0-31)
    * @return "rN" for local variables, "ctx.rN" for context access
    */
   std::string R(size_t index);
 
   /**
-   * @brief Returns the expression for floating point register access.
+   * Returns the expression for floating point register access.
+   *
    * @param index Register index (0-31)
    * @return "fN" for local variables, "ctx.fN" for context access
    */
   std::string F(size_t index);
 
   /**
-   * @brief Returns the expression for vector register access.
+   * Returns the expression for vector register access.
+   *
    * @param index Register index (0-127, extended VMX128)
    * @return "vN" for local variables, "ctx.vN" for context access
    */
   std::string V(size_t index);
 
   /**
-   * @brief Returns the expression for condition register field access.
+   * Returns the expression for condition register field access.
+   *
    * @param index CR field index (0-7)
    * @return "crN" for local variables, "ctx.crN" for context access
    */
@@ -197,7 +199,8 @@ struct BuilderContext {
   const char* EA();
 
   /**
-   * @brief Print formatted text to the output buffer (no newline).
+   * Prints formatted text to the output buffer (no newline).
+   *
    * @tparam Args Format argument types (deduced)
    * @param fmt Format string with {} placeholders
    * @param args Values to substitute into placeholders
@@ -208,7 +211,8 @@ struct BuilderContext {
   }
 
   /**
-   * @brief Print formatted text to output buffer with newline.
+   * Prints formatted text to the output buffer with a newline.
+   *
    * @tparam Args Format argument types (deduced)
    * @param fmt Format string with {} placeholders
    * @param args Values to substitute into placeholders
@@ -229,53 +233,57 @@ struct BuilderContext {
   std::string_view MMIOMacro(std::string_view plain) const;
 
   /**
-   * @brief Find pre-resolved call target for an instruction site.
-   * @param site Address of the call/branch instruction
-   * @return Pointer to CallTarget if found, nullptr otherwise
+   * Returns the pre resolved call target of an instruction site.
    *
    * Searches the FunctionNode's calls and tailCalls for a matching site.
+   *
+   * @param site Address of the call/branch instruction
+   * @return The call target, or null when none matches.
    */
   const CallTarget* FindCallTarget(u32 site) const;
 
   /**
-   * @brief Emit C++ code for a function call.
-   * @param address Target function address
+   * Emits C++ code for a function call.
    *
    * Uses pre-resolved CallTarget from FunctionNode when available.
-   * Falls back to symbol lookup for backward compatibility.
+   * Logs an error and emits REX_FATAL when the FunctionNode has no CallTarget.
    * Handles special cases like setjmp/longjmp and __restgprlr_N functions.
    * Helper bodies keep nonvolatiles in ctx, so a kept helper call saves and restores real values.
    * Save and restore helpers are elided in a function that localizes its nonvolatiles. An SEH
    * funclet runs on its owner's frame, so the localized registers are copied through ctx before
    * the call and back after it. A setjmp call copies them into ctx before the snapshot and back
    * out of ctx after the call, so a return through longjmp shows the values from the setjmp call.
+   *
+   * @param address Target function address
    */
   void EmitFunctionCall(u32 address);
 
   /**
-   * @brief Emit the call to a function.
+   * Emits the call to a function.
    *
    * @param target_fn The function to call.
    */
   void EmitCallToFunction(const FunctionNode& target_fn);
 
   /**
-   * @brief Emit C++ code for a conditional branch.
-   * @param negate If true, invert the condition
-   * @param cond Condition field name ("eq", "lt", "gt")
+   * Emits C++ code for a conditional branch.
    *
    * Emits either `goto loc_X` for intra-function branches or a function
    * call for inter-function branches.
+   *
+   * @param negate If true, invert the condition
+   * @param cond Condition field name ("eq", "lt", "gt")
    */
   void EmitConditionalBranch(bool negate, std::string_view cond);
 
   /**
-   * @brief Emit CSR flush mode change if needed.
-   * @param enable true for VMX mode (flush-to-zero), false for FPU mode
+   * Emits the CSR flush mode change if needed.
+   *
+   * @param enable true for VMX mode (flush follows the VSCR NJ bit), false for FPU mode
    */
   void EmitSetFlushMode(bool enable);
 
-  /** Emit mid-asm hook if configured for current address. */
+  /** Emits the mid asm hook if configured for the current address. */
   void EmitMidAsmHook();
 
   /**
@@ -285,94 +293,102 @@ struct BuilderContext {
    */
   bool HasMidAsmHook() const;
 
-  /** Clear active jump table pointer (used after processing a switch). */
+  /** Clears the active jump table pointer (used after processing a switch). */
   void GetResetSwitchTable() { active_jump_table = nullptr; }
 
   /**
-   * @brief Emit binary float vector operation: vD = op(vA, vB)
-   * @param simd_op The SIMDE function name (e.g., "add_ps", "sub_ps", "mul_ps")
+   * Emits binary float vector operation `vD = op(vA, vB)`.
    *
    * Emits `simde_mm_store_ps(vD.f32, simde_mm_OP(load(vA.f32), load(vB.f32)));`
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
+   *
+   * @param simd_op The SIMDE function name (e.g., "add_ps", "sub_ps", "mul_ps")
    */
   void EmitVecFPBinary(const char* simd_op);
 
   /**
-   * @brief Emit unary float vector operation: vD = op(vA)
-   * @param simd_expr SIMDE expression for the operation (will be wrapped in store)
+   * Emits unary float vector operation `vD = op(vA)`.
    *
-   * Use when the operation is more complex than a single function call.
    * Emits `simde_mm_store_ps(vD.f32, EXPR);`
    * Uses operands[0]=vD, operands[1]=vA from current instruction.
    * Example `EmitVecFPUnaryExpr("simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32))")`
+   *
+   * @param simd_expr SIMDE expression for the operation (will be wrapped in store)
    */
   void EmitVecFPUnaryExpr(std::string_view simd_expr);
 
   /**
-   * @brief Emit binary integer vector operation: vD = op(vA, vB)
-   * @param simd_op The SIMDE function name (e.g., "add_epi16", "and_si128")
-   * @param element_type The vector element type suffix (e.g., "u8", "s16", "u32")
+   * Emits binary integer vector operation `vD = op(vA, vB)`.
    *
    * Emits `simde_mm_store_si128((simde__m128i*)vD.TYPE, simde_mm_OP(load(vA), load(vB)));`
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
+   *
+   * @param simd_op The SIMDE function name (e.g., "add_epi16", "and_si128")
+   * @param element_type The vector element type suffix (e.g., "u8", "s16", "u32")
    */
   void EmitVecIntBinary(const char* simd_op, const char* element_type);
 
   /**
-   * @brief Emit binary integer vector operation with swapped operands: vD = op(vB, vA)
+   * Emits binary integer vector operation with swapped operands `vD = op(vB, vA)`.
+   *
+   * Same as EmitVecIntBinary but swaps vA and vB order (useful for andnot)
+   *
    * @param simd_op The SIMDE function name
    * @param element_type The vector element type suffix
-   *
-   * Same as emit_vec_int_binary but swaps vA and vB order (useful for andnot)
    */
   void EmitVecIntBinarySwapped(const char* simd_op, const char* element_type);
 
   /**
-   * @brief Emit variable shift: vD = rex::ppc::simd::{function}(vA, vB & mask)
-   * @param function The rex::ppc::simd shift function ("ShiftLeftLanes<u16>", ...)
-   * @param element_type The SIMDE element type suffix ("epi16")
-   * @param mask_value Shift amount mask (e.g., 0xF for 16-bit)
+   * Emits variable shift `vD = rex::ppc::simd::{function}(vA, vB & mask)`.
    *
    * Uses the rex::ppc::simd variable shift helpers.
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
+   *
+   * @param function The rex::ppc::simd shift function ("ShiftLeftLanes<u16>", ...)
+   * @param element_type The SIMDE element type suffix ("epi16")
+   * @param mask_value Shift amount mask (e.g., 0xF for 16-bit)
    */
   void EmitVecVarShift(const char* function, const char* element_type, u32 mask_value);
 
   /**
-   * @brief Emit load with D-form addressing: rD = LOAD(rA + offset)
-   * @param load_macro The load macro name (e.g., "REX_LOAD_U8", "REX_LOAD_U32")
-   * @param dest_type The destination type suffix (e.g., "u64", "s64")
+   * Emits load with D-form addressing `rD = LOAD(rA + offset)`.
    *
    * Uses operands[0]=rD, operands[1]=offset (D), operands[2]=rA from current instruction.
    * If rA (operands[2]) is 0, omits the base register addition.
+   *
+   * @param load_macro The load macro name (e.g., "REX_LOAD_U8", "REX_LOAD_U32")
+   * @param dest_type The destination type suffix (e.g., "u64", "s64")
    */
   void EmitLoadDForm(const char* load_macro, const char* dest_type);
 
   /**
-   * @brief Emit load with X-form addressing: rD = LOAD(rA + rB)
-   * @param load_macro The load macro name
-   * @param dest_type The destination type suffix
+   * Emits load with X-form addressing `rD = LOAD(rA + rB)`.
    *
    * Uses operands[0]=rD, operands[1]=rA, operands[2]=rB from current instruction.
    * If rA (operands[1]) is 0, omits the first register addition.
+   *
+   * @param load_macro The load macro name
+   * @param dest_type The destination type suffix
    */
   void EmitLoadXForm(const char* load_macro, const char* dest_type);
 
   /**
-   * @brief Emit store with D-form addressing: STORE(rA + offset, rS)
-   * @param store_macro The store macro name (e.g., "REX_STORE_U8")
-   * @param src_type The source type suffix (e.g., "u8", "u32")
+   * Emits store with D-form addressing `STORE(rA + offset, rS)`.
    *
    * Uses operands[0]=rS, operands[1]=offset (D), operands[2]=rA from current instruction.
+   *
+   * @param store_macro The store macro name (e.g., "REX_STORE_U8")
+   * @param src_type The source type suffix (e.g., "u8", "u32")
    */
   void EmitStoreDForm(const char* store_macro, const char* src_type);
 
   /**
-   * @brief Emit store with X-form addressing: STORE(rA + rB, rS)
-   * @param store_macro The store macro name
-   * @param src_type The source type suffix
+   * Emits store with X-form addressing `STORE(rA + rB, rS)`.
    *
    * Uses operands[0]=rS, operands[1]=rA, operands[2]=rB from current instruction.
+   *
+   * @param store_macro The store macro name
+   * @param src_type The source type suffix
    */
   void EmitStoreXForm(const char* store_macro, const char* src_type);
 };

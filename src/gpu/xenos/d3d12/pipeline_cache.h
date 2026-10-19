@@ -67,7 +67,7 @@ class PipelineCache {
   /**
    * Analyzes shader microcode on the translator thread.
    *
-   * @param shader Shader to analyze.
+   * @param shader Shader that receives the analysis results.
    */
   void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
 
@@ -89,10 +89,10 @@ class PipelineCache {
 
   /**
    * Configures the pipeline for the current state. If
-   * draw_state::IsRasterizationDone is false, the pixel shader must be nullptr.
+   * draw_state::IsRasterizationDone is false, the pixel shader must be null.
    *
    * @param vertex_shader Translated vertex shader.
-   * @param pixel_shader Translated pixel shader, or nullptr.
+   * @param pixel_shader Translated pixel shader, or null.
    * @param primitive_processing_result Primitive processing result of the draw.
    * @param normalized_depth_control Normalized RB_DEPTHCONTROL.
    * @param normalized_color_mask Normalized color write mask.
@@ -111,10 +111,10 @@ class PipelineCache {
                          void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
   /**
-   * Returns a pipeline with deferred creation by its handle, or nullptr if creation failed.
+   * Returns a pipeline with deferred creation by its handle, or null if creation failed.
    *
    * @param handle Handle from ConfigurePipeline.
-   * @return The pipeline state, or nullptr.
+   * @return The pipeline state, or null.
    */
   ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
     return reinterpret_cast<const Pipeline*>(handle)->state.load(std::memory_order_acquire);
@@ -301,7 +301,7 @@ class PipelineCache {
 
   /**
    * Builds the description of the current state. If draw_state::IsRasterizationDone
-   * is false, the pixel shader must be nullptr. The shaders must be translated and valid unless
+   * is false, the pixel shader must be null. The shaders must be translated and valid unless
    * for_placeholder is true.
    *
    * Direct3D 12 has no per side fill mode and depth bias, so the culled side selects the
@@ -314,7 +314,7 @@ class PipelineCache {
    * With 0 render targets and depth and stencil disabled the sample count must be 1.
    *
    * @param vertex_shader Translated vertex shader.
-   * @param pixel_shader Translated pixel shader, or nullptr.
+   * @param pixel_shader Translated pixel shader, or null.
    * @param primitive_processing_result Primitive processing result of the draw.
    * @param normalized_depth_control Normalized RB_DEPTHCONTROL.
    * @param normalized_color_mask Normalized color write mask.
@@ -358,7 +358,7 @@ class PipelineCache {
    * v3 = -v0 + v1 + v2 for the longest edge 12 (strip 0123), with strip 1203 for the longest
    * edge 20 and strip 2013 for the longest edge 01.
    *
-   * @param key Geometry shader key.
+   * @param key Key that selects the geometry shader variant.
    * @param shader_out Receives the shader dwords.
    */
   static void CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<u32>& shader_out);
@@ -373,7 +373,7 @@ class PipelineCache {
    * used on a 4x pipeline.
    *
    * @param runtime_description Description of the pipeline to create.
-   * @return The pipeline state, or nullptr on failure.
+   * @return The pipeline state, or null on failure.
    */
   ID3D12PipelineState* CreateD3D12Pipeline(const PipelineRuntimeDescription& runtime_description);
   bool PrepareRuntimeDescriptionForQueuedCreation(Pipeline* pipeline,
@@ -385,7 +385,7 @@ class PipelineCache {
   bool bindless_resources_used_;
 
   StringBuffer ucode_disasm_buffer_;
-  /** Used on the processor thread only. */
+  /** Used on the processor thread and, under translation_request_lock_, the creation threads. */
   std::unique_ptr<DXBCShaderTranslator> shader_translator_;
   std::mutex translation_request_lock_;
 
@@ -420,7 +420,7 @@ class PipelineCache {
   std::vector<u8> depth_only_pixel_shader_;
 
   struct Pipeline {
-    /** nullptr if creation failed. */
+    /** Null if creation failed. */
     std::atomic<ID3D12PipelineState*> state{nullptr};
     std::atomic<ID3D12RootSignature*> root_signature{nullptr};
     PipelineRuntimeDescription description;

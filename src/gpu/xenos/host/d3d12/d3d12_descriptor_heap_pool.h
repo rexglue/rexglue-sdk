@@ -41,15 +41,15 @@ class D3D12DescriptorHeapPool {
    * Callers doing partial updates pass the previous return value for their descriptor set. A
    * result equal to previous_heap_index means a partial update with count_for_partial_update
    * descriptors allocated. Any other result means all descriptors are rewritten with
-   * count_for_full_update allocated. Must be called even when a partial update writes nothing
-   * (count_for_partial_update 0), because a full update may be required.
+   * count_for_full_update allocated. A partial update with 0 descriptors still returns whether a
+   * full update is required.
    *
    * @param submission_index Fence value or a value derived from it.
    * @param previous_heap_index Value returned by the previous call for this descriptor set.
    * @param count_for_partial_update Descriptors to allocate for a partial update.
    * @param count_for_full_update Descriptors to allocate for a full update.
    * @param index_out Receives the first allocated descriptor index within the heap.
-   * @return The heap reset index, or kHeapIndexInvalid on error.
+   * @return The heap index, or kHeapIndexInvalid on error.
    */
   u64 Request(u64 submission_index, u64 previous_heap_index, u32 count_for_partial_update,
               u32 count_for_full_update, u32& index_out);

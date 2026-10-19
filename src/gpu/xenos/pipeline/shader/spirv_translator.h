@@ -143,7 +143,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     /**
      * kMemExportCompute, kPointListAsTriangleStrip and kRectangleListAsTriangleStrip. Loads the
      * vertex index from the index buffer and flags whether it is 32-bit. Separate from
-     * kSysFlag_VertexIndexLoad.
+     * kSysFlagVertexIndexLoad.
      */
     kSysFlagComputeOrPrimitiveVertexIndexLoad = 1u
                                                 << kSysFlagComputeOrPrimitiveVertexIndexLoadShift,
@@ -209,7 +209,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     f32 point_constant_diameter[2];
     /** Diameter in guest screen coordinates to radius in NDC for the host viewport. */
     f32 point_screen_diameter_to_ndc_radius[2];
-    /** One bit per texture fetch constant that references a draw resolution scaled texture. */
+    /** 1 bit per texture fetch constant that references a draw resolution scaled texture. */
     u32 textures_resolution_scaled;
 
     /**
@@ -437,7 +437,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
                                        bool round_to_nearest_even, bool remap_from_0_to_0_5,
                                        spv::Id ext_inst_glsl_std_450);
   /**
-   * Converts the 20e4 number in bits [f24_shift, f24_shift + 10) to a 32 bit float.
+   * Converts the 20e4 number in bits [f24_shift, f24_shift + 24) to a 32 bit float.
    *
    * @param builder Builder emitting the instructions.
    * @param f24_uint_scalar Uint scalar holding the 20e4 number.
@@ -604,7 +604,11 @@ class SPIRVShaderTranslator : public ShaderTranslator {
                             : modification.pixel.interpolator_mask;
   }
 
-  /** @return UINT32_MAX when PsParamGen need not be written. */
+  /**
+   * Returns the index of the interpolator that PsParamGen is written to.
+   *
+   * @return The interpolator index, or UINT32_MAX when PsParamGen need not be written.
+   */
   u32 GetPsParamGenInterpolator() const;
 
   /**
@@ -973,8 +977,8 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Id FSIAddSampleOffset(spv::Id sample_0_address, u32 sample_index,
                              spv::Id is_64bpp = spv::NoResult);
   /**
-   * Updates main_fsi_sample_mask_. Call outside non uniform control flow as it takes derivatives
-   * of the fragment depth.
+   * Updates main_fsi_sample_mask_. Takes derivatives of the fragment depth, so it needs uniform
+   * control flow.
    *
    * Per sample depths are computed manually since interpolateAtSample(gl_FragCoord) is invalid in
    * GLSL. The polygon offset is applied at the center without clamping so that derivatives scaled
@@ -1298,7 +1302,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * BuiltIn member decorations are valid only for Input and Output variables.
    */
   spv::Id var_main_rectangle_per_vertex_;
-  /** One per user clip plane plus 1 cull distance for vertex killing. */
+  /** 1 per user clip plane plus 1 cull distance for vertex killing. */
   static constexpr size_t kMaxRectanglePerVertexDistances = 8;
   /**
    * float[3] per clip and cull distance, VS rectangle list fallback only. Kept separate from
@@ -1328,7 +1332,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * rejection of the pixel is possible when bits 0:3 and 4:7 are both zero.
    */
   spv::Id main_fsi_sample_mask_;
-  /** Loaded by FSI_LoadEDRAMOffsets, including the depth render target base. */
+  /** Loaded by FSILoadEDRAMOffsets, including the depth render target base. */
   spv::Id main_fsi_address_depth_;
   /** Excludes the render target base. */
   spv::Id main_fsi_offset_32bpp_;
@@ -1377,7 +1381,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   bool cf_instruction_predicate_condition_;
   /**
    * True when a `setp` occurred in the current exec before the current instruction, so the
-   * instruction level predicate can differ from the exec level one and two execs with the same
+   * instruction level predicate can differ from the exec level one and 2 execs with the same
    * predicate condition cannot merge.
    */
   bool cf_exec_predicate_written_;

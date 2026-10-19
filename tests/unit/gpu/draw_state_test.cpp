@@ -78,7 +78,7 @@ REX_TEST_CASE("The depth function is ignored without the depth test", "[gpu][dra
   CHECK(rex::gpu::draw_state::IsRasterizationDone(*regs, true, false));
 }
 
-REX_TEST_CASE("The existing reasons to skip rasterization still apply", "[gpu][draw_state]") {
+REX_TEST_CASE("The reasons to skip rasterization apply", "[gpu][draw_state]") {
   auto regs = MakeDraw(CompareFunction::kLess, true, false);
   reg::RB_SURFACE_INFO surface{};
   Write(*regs, surface);

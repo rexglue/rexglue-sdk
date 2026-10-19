@@ -195,7 +195,8 @@ PageAccess PermsToPageAccess(const std::array<char, 4>& perms) {
  * Emulates VirtualAlloc.
  *
  * Reserve maps PROT_NONE to hold the address space. Commit on an existing reservation uses
- * mprotect. A new allocation uses MAP_FIXED_NOREPLACE so nothing is replaced.
+ * mprotect. A new allocation uses MAP_FIXED_NOREPLACE, or MAP_FIXED on macOS and where
+ * MAP_FIXED_NOREPLACE is undefined.
  *
  * @param base_address The requested address, or null.
  * @param length The size in bytes.
@@ -315,7 +316,7 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   const int prot = ToPosixProtectFlags(access);
   int ret = mprotect(base_address, length, prot);
   if (ret != 0) {
-    REXLOG_ERROR(system, "mprotect({}, 0x{:X}, {}) failed: {} ({})", base_address, length, prot,
+    REXLOG_ERROR(system, "mprotect({}, 0x{:X}, {}) failed with {} ({})", base_address, length, prot,
                  strerror(errno), errno);
   }
   return ret == 0;

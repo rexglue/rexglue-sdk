@@ -151,10 +151,10 @@ REX_STATIC_ASSERT_SIZE(XAPC, 40);
 /** Guest fiber context buffer layout. */
 struct X_FIBER_CONTEXT {
   be_u32 fiber_data;       /**< lpParameter. */
-  be_u32 stack_alloc_base; /**< KTHREAD.stack_alloc_base (0xD0). */
-  /** KTHREAD.stack_base (0x5C), PCR.stack_base_ptr. */
+  be_u32 stack_alloc_base; /**< KTHREAD.stack_alloc_base. */
+  /** KTHREAD.stack_base, PCR.stack_base_ptr. */
   be_u32 stack_base;
-  /** KTHREAD.stack_limit (0x60), PCR.stack_end_ptr. */
+  /** KTHREAD.stack_limit, PCR.stack_end_ptr. */
   be_u32 stack_limit;
   rex::be_u32 cr_save;  /**< Saved CR. */
   u8 reserved_14[0x08]; /**< Padding. */
@@ -341,6 +341,8 @@ class ThreadRegistry;
 /** The table slot data of a thread, naming the `KernelThread` in the registry by thread id. */
 struct ThreadRef : public rex::NonCopyable {
   /**
+   * Constructs a reference that names a thread in a registry.
+   *
    * @param thread_id_in The thread id.
    * @param registry_in The registry that owns the `KernelThread`.
    */
@@ -438,7 +440,8 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    */
   static u32 GetCurrentThreadId();
 
-  /** Throws rex::ThreadStop when the calling thread has a stop request or the title is terminating.
+  /**
+   * Throws rex::ThreadStop when the calling thread has a stop request or the title is terminating.
    */
   static void CheckStop();
 
@@ -449,8 +452,11 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    */
   static void Sleep(std::chrono::microseconds duration);
 
-  /** Writes the CPU time of the calling thread to its KTHREAD. Does nothing without a
-   * `KernelThread`. */
+  /**
+   * Writes the CPU time of the calling thread to its KTHREAD.
+   *
+   * Does nothing without a `KernelThread`.
+   */
   static void WriteKernelTime();
 
   /**
@@ -808,7 +814,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
 
   /** Guards the suspend count in the X_KTHREAD and suspend_deferred_. */
   std::mutex suspend_mutex_;
-  /** Signalled by Resume to release a thread waiting in a deferred suspend. */
+  /** Signaled by Resume to release a thread waiting in a deferred suspend. */
   std::condition_variable suspend_cv_;
   /** True when Suspend could not stop the thread, which suspends itself at its next CheckStop. */
   std::atomic<bool> suspend_deferred_{false};

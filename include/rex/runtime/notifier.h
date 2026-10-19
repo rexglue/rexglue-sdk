@@ -32,8 +32,8 @@ REX_INTERFACE(INotifier, "rex.runtime.notifier", 1)
   /**
    * Queues a notification on every registered listener whose mask accepts it.
    *
-   * @param id The notification id.
-   * @param data The notification data.
+   * @param id The identifier of the notification to queue.
+   * @param data The parameter queued with the notification.
    */
   virtual void BroadcastNotification(XNotificationID id, u32 data) = 0;
 };

@@ -109,7 +109,7 @@ def main() -> int:
 
     if args.fix:
         apply_fix(args.repo_root, mismatches)
-        print("submodules moved; commit the gitlink changes")
+        print("submodules moved, commit the gitlink changes")
         return 0
 
     for mismatch in mismatches:
@@ -118,7 +118,7 @@ def main() -> int:
             f"expected {mismatch.expected} for SDK {config.sdk_version}",
             file=sys.stderr,
         )
-    print("run: python scripts/check_vulkan_stack.py --fix", file=sys.stderr)
+    print("run python scripts/check_vulkan_stack.py --fix", file=sys.stderr)
     return 1
 
 

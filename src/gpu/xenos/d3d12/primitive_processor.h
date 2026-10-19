@@ -38,9 +38,10 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
 
   void CompletedSubmissionUpdated();
   /**
-   * Copies the built-in index buffer upload in the first submission. No deferred barriers are
-   * submitted first, as the destination is in its initial state and the upload buffer in an upload
-   * heap is GENERIC_READ.
+   * Copies the builtin index buffer upload in the first submission.
+   *
+   * No deferred barriers are submitted first, as the destination is in its initial state and the
+   * upload buffer in an upload heap is GENERIC_READ.
    */
   void BeginSubmission();
   void BeginFrame();

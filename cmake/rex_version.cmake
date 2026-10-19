@@ -6,15 +6,15 @@
 #     GIT_DESCRIBE_EXACT <string>   # output of git describe --tags --exact-match
 #     BRANCH_NAME        <string>)  # output of git symbolic-ref --short HEAD
 #
-# Emits a CMake-style version string: MAJOR.MINOR[.PATCH[.TWEAK]][-id].
+# Emits a CMake style version string of the form MAJOR.MINOR[.PATCH[.TWEAK]][-id].
 # See https://cmake.org/cmake/help/latest/variable/CMAKE_VERSION.html
 #
-# Tagged commit (vX.Y[.Z[.W]]): emits the tag verbatim (without the v).
-# Untagged commit, floor at the last tag's major.minor:
+# Tagged commit (vX.Y[.Z[.W]]) emits the tag verbatim (without the v).
+# Untagged commit with the floor at the last tag's major.minor
 #   emits MAJOR.MINOR.<tag-patch>.<commit-count>-<id> (the released base plus
-#   commits; the patch is not pre-incremented, so the next tag lands on it).
-# Untagged commit, floor ahead of the last tag (minor/major bumped on development
-#   but not yet released): holds at MAJOR.MINOR.0-<id> until main catches up.
+#   commits). The patch is not pre-incremented, so the next release tag uses it.
+# Untagged commit with the floor ahead of the last tag (minor/major bumped on development
+#   but not yet released) holds at MAJOR.MINOR.0-<id> until main catches up.
 #   id is "dev.gSHA" on any branch and "rc.gSHA" on a release/* branch.
 #==========================================================
 function (rex_compute_version out_var)
@@ -36,7 +36,7 @@ function (rex_compute_version out_var)
     message(
       WARNING "rex_compute_version: no v* tag reachable from HEAD. "
               "Falling back to ${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.0.0-dev.unknown. "
-              "If this is a CI build, ensure tags are fetched (fetch-depth: 0 + fetch-tags: true). "
+              "If this is a CI build, fetch tags with fetch-depth: 0 and fetch-tags: true. "
               "If this is a fork, push tags with: git push <fork-remote> --tags"
     )
     set(${out_var}
@@ -81,15 +81,15 @@ function (rex_compute_version out_var)
   endif ()
 
   if (ARG_FLOOR_MAJOR EQUAL tag_major AND ARG_FLOOR_MINOR EQUAL tag_minor)
-    # main has caught up to the floor: track the released base plus commits.
-    # Do not pre-increment the patch; the next release tag lands on it directly.
+    # main has caught up to the floor, so track the released base plus commits.
+    # Do not pre-increment the patch. The next release tag uses it.
     set(${out_var}
         "${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.${tag_patch}.${commit_count}-${id}"
         PARENT_SCOPE
     )
   else ()
     # Floor is ahead of the last tag (minor/major bumped on development but not
-    # yet released): hold at MAJOR.MINOR.0 until main catches up, ignoring the
+    # yet released) hold at MAJOR.MINOR.0 until main catches up, ignoring the
     # commit count so the version does not track commits-ahead-of-main.
     set(${out_var}
         "${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.0-${id}"

@@ -1,6 +1,6 @@
 /**
  * @file        kernel/shim/memory.cpp
- * @brief       Native memory operation hooks -- replaces recompiled PPC
+ * @brief       Native memory operation hooks that replace recompiled PPC
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

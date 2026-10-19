@@ -24,7 +24,7 @@
 
 namespace rex::runtime {
 
-/** One completed request queued on an IO completion port. */
+/** A completed request queued on an IO completion port. */
 struct IONotification {
   u32 key_context; /**< Completion key of the port registration the file was bound with. */
   u32 apc_context; /**< APC context the title passed to the IO call. */
@@ -47,7 +47,7 @@ struct IOCompletionObject {
   std::unique_ptr<rex::platform::Semaphore> notification_semaphore;
 
   /**
-   * Queues a notification and wakes one waiter.
+   * Queues a notification and wakes 1 waiter.
    *
    * @param notification The notification to queue.
    */

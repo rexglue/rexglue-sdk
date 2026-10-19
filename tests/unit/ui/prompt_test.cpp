@@ -128,7 +128,7 @@ REX_TEST_CASE("Prompt on an open window completes cancelled when the prompts are
   fixture.ui->CloseWindow();
 }
 
-REX_TEST_CASE("A prompt still queued when the window closes completes cancelled", "[ui][prompt]") {
+REX_TEST_CASE("A prompt queued when the window closes completes cancelled", "[ui][prompt]") {
   ModuleFixture fixture;
   auto opened =
       fixture.ui->OpenWindow(fixture.config.ui, [](const rex::ui::UIEvent&) { return false; });

@@ -153,7 +153,7 @@ Result<SDL_AudioStream*> SDL3Backend::OpenDeviceStream(Stream& stream) {
   }
 
   const char* device_name = SDL_GetAudioDeviceName(sdl_device);
-  REXLOG_INFO(apu, "audio endpoint '{}': {} ch, {} Hz, format 0x{:04X}; submitting {} ch",
+  REXLOG_INFO(apu, "audio endpoint '{}': {} ch, {} Hz, format 0x{:04X}, submitting {} ch",
               device_name ? device_name : "?", obtained_spec.channels, obtained_spec.freq,
               static_cast<u32>(obtained_spec.format), stream.device_channels);
 
@@ -169,7 +169,7 @@ void SDL3Backend::Callback(void* userdata, SDL_AudioStream* stream, int addition
                            [[maybe_unused]] int total_amount) {
   REX_PROFILE_SCOPE("apu");
   if (!userdata || !stream) {
-    REXLOG_ERROR(apu, "SDL3Backend::Callback called with nullptr.");
+    REXLOG_ERROR(apu, "SDL3Backend::Callback called with a null stream or userdata.");
     return;
   }
   auto* stream_state = static_cast<Stream*>(userdata);

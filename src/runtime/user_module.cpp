@@ -101,7 +101,7 @@ X_STATUS ModuleObject::LoadFromFile(Runtime& owning_runtime, std::string_view gu
   auto* fs = owning_runtime.GetFileSystem();
   auto fs_entry = fs->Stat(guest_path);
   if (!fs_entry) {
-    REX_FAIL(system, X_STATUS_NO_SUCH_FILE, "File not found: {}", guest_path);
+    REX_FAIL(system, X_STATUS_NO_SUCH_FILE, "File {} was not found", guest_path);
   }
 
   path = fs_entry->absolute_path;
@@ -139,10 +139,10 @@ X_STATUS ModuleObject::LoadFromFile(Runtime& owning_runtime, std::string_view gu
       result = patch_module.GetXEX() && GetXEX() ? patch_module.GetXEX()->ApplyPatch(GetXEX())
                                                  : X_STATUS_UNSUCCESSFUL;
       if (result) {
-        REXLOG_ERROR(system, "Failed to apply XEX patch, code: {}", result);
+        REXLOG_ERROR(system, "Failed to apply XEX patch, status {}", result);
       }
     } else {
-      REXLOG_ERROR(system, "Failed to load XEX patch, code: {}", result);
+      REXLOG_ERROR(system, "Failed to load XEX patch, status {}", result);
     }
 
     if (result) {
@@ -164,7 +164,7 @@ X_STATUS ModuleObject::LoadFromMemory(Runtime& owning_runtime, const void* addr,
   } else if (magic == runtime::kELFSignature) {
     user.module_format = ModuleFormat::kELF;
   } else {
-    REX_FAIL(system, X_STATUS_NOT_IMPLEMENTED, "Unknown *this magic: {:08X}",
+    REX_FAIL(system, X_STATUS_NOT_IMPLEMENTED, "Unknown module magic {:08X}",
              static_cast<u32>(magic));
   }
 

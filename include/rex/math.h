@@ -31,6 +31,8 @@
 namespace rex {
 
 /**
+ * Returns the number of elements in a C array.
+ *
  * @tparam T Element type.
  * @tparam N Element count.
  * @return The number of elements in a C array.
@@ -41,6 +43,8 @@ constexpr size_t CountOf(T (&)[N]) noexcept {
 }
 
 /**
+ * Reports whether a value is a power of 2 or 0.
+ *
  * @tparam T Integer type.
  * @param value The value to test.
  * @return True when value is a power of 2 or 0.
@@ -98,7 +102,7 @@ constexpr T RoundUpNonZero(T value, V multiple) {
  * Clamps a floating point value. NaN becomes min_value, or max_value when min_value is NaN too.
  * A result at a zero bound takes the sign of that bound.
  *
- * @tparam T Floating point type.
+ * @tparam T Floating point type. The lower clamp narrows through f32.
  * @param value The value to clamp.
  * @param min_value The lower bound.
  * @param max_value The upper bound.
@@ -123,6 +127,8 @@ T saturate(T value) {
 }
 
 /**
+ * Returns the smallest power of 2 greater than or equal to a value.
+ *
  * @tparam T Unsigned integer type up to 32 bits.
  * @param value The value to round up.
  * @return The smallest power of 2 greater than or equal to value.
@@ -165,7 +171,7 @@ constexpr void reduce_fraction(std::pair<T, T>& fraction) {
 }
 
 /**
- * Multiplies a value by a fraction through a 128-bit product and a 128 by 64 bit division.
+ * Multiplies a value by a fraction through a 128 bit product and a 128 by 64 bit division.
  *
  * @param value The value to scale.
  * @param numerator The fraction numerator.
@@ -218,6 +224,8 @@ constexpr u64 mul_div(u64 value, u64 numerator, u64 denominator) {
 }
 
 /**
+ * Returns a mask with a contiguous range of bits set.
+ *
  * @param a Index of the lowest set bit.
  * @param b Index of the highest set bit.
  * @return A mask with bits a through b set.
@@ -227,6 +235,8 @@ constexpr u32 MakeBitmask(u32 a, u32 b) {
 }
 
 /**
+ * Returns a range of bits of a value, shifted down to bit 0.
+ *
  * @param value The source value.
  * @param a Index of the lowest bit to extract.
  * @param b Index of the highest bit to extract.
@@ -237,6 +247,8 @@ constexpr u32 select_bits(u32 value, u32 a, u32 b) {
 }
 
 /**
+ * Returns the number of set bits in a value.
+ *
  * @tparam T Unsigned integer type.
  * @param v The value to count.
  * @return The number of set bits in v.
@@ -247,6 +259,8 @@ constexpr u32 BitCount(T v) {
 }
 
 /**
+ * Returns the number of leading zero bits in an 8 bit value.
+ *
  * @param v The value to scan.
  * @return The number of leading zero bits, or 8 when v is 0.
  */
@@ -255,6 +269,8 @@ inline u8 lzcnt(u8 v) {
 }
 
 /**
+ * Returns the number of leading zero bits in a 16 bit value.
+ *
  * @param v The value to scan.
  * @return The number of leading zero bits, or 16 when v is 0.
  */
@@ -263,6 +279,8 @@ inline u8 lzcnt(u16 v) {
 }
 
 /**
+ * Returns the number of leading zero bits in a 32 bit value.
+ *
  * @param v The value to scan.
  * @return The number of leading zero bits, or 32 when v is 0.
  */
@@ -271,6 +289,8 @@ inline u8 lzcnt(u32 v) {
 }
 
 /**
+ * Returns the number of leading zero bits in a 64 bit value.
+ *
  * @param v The value to scan.
  * @return The number of leading zero bits, or 64 when v is 0.
  */
@@ -279,6 +299,8 @@ inline u8 lzcnt(u64 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in an 8 bit value.
+ *
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 8 when v is 0.
  */
@@ -287,6 +309,8 @@ inline u8 tzcnt(u8 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in a 16 bit value.
+ *
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 16 when v is 0.
  */
@@ -295,6 +319,8 @@ inline u8 tzcnt(u16 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in a 32 bit value.
+ *
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 32 when v is 0.
  */
@@ -303,6 +329,8 @@ inline u8 tzcnt(u32 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in a 64 bit value.
+ *
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 64 when v is 0.
  */
@@ -311,6 +339,8 @@ inline u8 tzcnt(u64 v) {
 }
 
 /**
+ * Returns the number of leading zero bits in a signed 8 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of leading zero bits, or 8 when v is 0.
  */
@@ -319,6 +349,8 @@ inline u8 lzcnt(i8 v) {
 }
 
 /**
+ * Returns the number of leading zero bits in a signed 16 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of leading zero bits, or 16 when v is 0.
  */
@@ -327,6 +359,8 @@ inline u8 lzcnt(i16 v) {
 }
 
 /**
+ * Returns the number of leading zero bits in a signed 32 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of leading zero bits, or 32 when v is 0.
  */
@@ -335,6 +369,8 @@ inline u8 lzcnt(i32 v) {
 }
 
 /**
+ * Returns the number of leading zero bits in a signed 64 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of leading zero bits, or 64 when v is 0.
  */
@@ -343,6 +379,8 @@ inline u8 lzcnt(i64 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in a signed 8 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of trailing zero bits, or 8 when v is 0.
  */
@@ -351,6 +389,8 @@ inline u8 tzcnt(i8 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in a signed 16 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of trailing zero bits, or 16 when v is 0.
  */
@@ -359,6 +399,8 @@ inline u8 tzcnt(i16 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in a signed 32 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of trailing zero bits, or 32 when v is 0.
  */
@@ -367,6 +409,8 @@ inline u8 tzcnt(i32 v) {
 }
 
 /**
+ * Returns the number of trailing zero bits in a signed 64 bit value.
+ *
  * @param v The value to scan, read as unsigned.
  * @return The number of trailing zero bits, or 64 when v is 0.
  */
@@ -427,6 +471,8 @@ inline bool bit_scan_forward(i64 v, u32* out_first_set_index) {
 }
 
 /**
+ * Returns the base 2 logarithm of a value rounded down.
+ *
  * @tparam T Integer type.
  * @param v A value greater than 0.
  * @return The base 2 logarithm of v rounded down.
@@ -437,6 +483,8 @@ inline T log2_floor(T v) {
 }
 
 /**
+ * Returns the base 2 logarithm of a value rounded up.
+ *
  * @tparam T Integer type.
  * @param v A value greater than 0.
  * @return The base 2 logarithm of v rounded up.
@@ -447,6 +495,8 @@ inline T log2_ceil(T v) {
 }
 
 /**
+ * Rotates a value left.
+ *
  * @tparam T Unsigned integer type.
  * @param v The value to rotate.
  * @param sh Rotation amount in bits, between 1 and the bit width of T minus 1.
@@ -458,6 +508,8 @@ inline T RotateLeft(T v, u8 sh) {
 }
 
 /**
+ * Returns a lane of an SSE register as f32.
+ *
  * @tparam N Lane index, 0 to 3.
  * @param v The SSE register.
  * @return Lane N of v as f32.
@@ -470,6 +522,8 @@ f32 m128_f32(const simde__m128& v) {
 }
 
 /**
+ * Returns the bits of a lane of an SSE register as i32.
+ *
  * @tparam N Lane index, 0 to 3.
  * @param v The SSE register.
  * @return The bits of lane N of v as i32.
@@ -482,6 +536,8 @@ i32 m128_i32(const simde__m128& v) {
 }
 
 /**
+ * Returns a lane of an SSE register as f64.
+ *
  * @tparam N Lane index, 0 or 1.
  * @param v The SSE register.
  * @return Lane N of v as f64.
@@ -494,6 +550,8 @@ f64 m128_f64(const simde__m128d& v) {
 }
 
 /**
+ * Returns a lane of an SSE register as f64.
+ *
  * @tparam N Lane index, 0 or 1.
  * @param v The SSE register, read as 2 f64 lanes.
  * @return Lane N of v as f64.
@@ -504,6 +562,8 @@ f64 m128_f64(const simde__m128& v) {
 }
 
 /**
+ * Returns the bits of a lane of an SSE register as i64.
+ *
  * @tparam N Lane index, 0 or 1.
  * @param v The SSE register.
  * @return The bits of lane N of v as i64.
@@ -516,6 +576,8 @@ i64 m128_i64(const simde__m128d& v) {
 }
 
 /**
+ * Returns the bits of a lane of an SSE register as i64.
+ *
  * @tparam N Lane index, 0 or 1.
  * @param v The SSE register, read as 2 64 bit lanes.
  * @return The bits of lane N of v as i64.

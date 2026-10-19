@@ -63,7 +63,7 @@ foreach (template_file ${INJA_TEMPLATE_FILES})
   set(HEADER_FILE "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
   file(
     WRITE "${HEADER_FILE}"
-    "// Auto-generated from resources/templates/${REL_PATH} -- DO NOT EDIT\n"
+    "// Auto-generated from resources/templates/${REL_PATH}. DO NOT EDIT\n"
     "#pragma once\n"
     "#include <string_view>\n\n"
     "namespace rex::codegen::embedded {\n"
@@ -78,7 +78,7 @@ endforeach ()
 
 file(
   WRITE "${TEMPLATE_OUTPUT_DIR}/embedded_templates.h"
-  "// Auto-generated master template index -- DO NOT EDIT\n"
+  "// Auto-generated master template index. DO NOT EDIT\n"
   "#pragma once\n\n"
   "#include <string_view>\n"
   "#include <unordered_map>\n"

@@ -49,7 +49,7 @@ class NullUserInterface final : public IUserInterface {
   /**
    * Returns the open window.
    *
-   * @return The window, or nullptr when none is open.
+   * @return The window, or null when none is open.
    */
   IWindow* GetWindow() override;
 
@@ -92,21 +92,21 @@ class NullUserInterface final : public IUserInterface {
   /**
    * Returns no font atlas.
    *
-   * @return nullptr.
+   * @return Null.
    */
   ImFontAtlas* GetFonts() override;
 
   /**
    * Returns no ImGui style.
    *
-   * @return nullptr.
+   * @return Null.
    */
   ImGuiStyle* GetImGuiStyle() override;
 
   /**
    * Returns no ImGui IO.
    *
-   * @return nullptr.
+   * @return Null.
    */
   ImGuiIO* GetImGuiIO() override;
 
@@ -144,7 +144,7 @@ class NullUserInterface final : public IUserInterface {
    * Returns no overlay.
    *
    * @param name Ignored.
-   * @return nullptr.
+   * @return Null.
    */
   ImGuiDialog* Overlay(std::string_view name) override;
 
@@ -200,12 +200,12 @@ class NullUserInterface final : public IUserInterface {
   /**
    * Returns the drawer handed to SetOverlayDrawer.
    *
-   * @return The drawer, or nullptr when none was set.
+   * @return The drawer, or null when none was set.
    */
   gpu::IOverlayDrawer* GetOverlayDrawer() override;
 
   /**
-   * Keeps the provider so a caller can set it.
+   * Stores the provider.
    *
    * @param provider The source, or an empty function for none.
    */
@@ -243,7 +243,7 @@ class NullUserInterface final : public IUserInterface {
   [[nodiscard]] Result<u32> ShowChoice(const ChoiceDesc& desc) override;
 
   /**
-   * Completes the prompt as cancelled at once.
+   * Completes the prompt as canceled at once.
    *
    * @param desc Ignored.
    * @param done Called before the function returns.

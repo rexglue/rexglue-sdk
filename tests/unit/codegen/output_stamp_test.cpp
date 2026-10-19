@@ -113,7 +113,7 @@ REX_TEST_CASE("A missing input file still yields a usable fingerprint", "[codege
   CHECK_FALSE(ComputeInputFingerprint(inputs, "1.2.3", flags).empty());
 }
 
-REX_TEST_CASE("Stamp round-trips through Serialize and Load", "[codegen][output_stamp]") {
+REX_TEST_CASE("Stamp round trips through Serialize and Load", "[codegen][output_stamp]") {
   Scratch scratch("roundtrip");
 
   OutputStamp stamp;
@@ -170,7 +170,7 @@ REX_TEST_CASE("Outputs are stale when the fingerprint differs", "[codegen][outpu
   CHECK_FALSE(AreOutputsUpToDate(stamp, "def456", scratch.root));
 }
 
-REX_TEST_CASE("Outputs are stale when a recorded file was deleted", "[codegen][output_stamp]") {
+REX_TEST_CASE("Outputs are stale when a listed file was deleted", "[codegen][output_stamp]") {
   Scratch scratch("deleted");
 
   OutputStamp stamp;
@@ -180,7 +180,7 @@ REX_TEST_CASE("Outputs are stale when a recorded file was deleted", "[codegen][o
   CHECK_FALSE(AreOutputsUpToDate(stamp, "abc123", scratch.root));
 }
 
-REX_TEST_CASE("Config records every TOML it loaded", "[codegen][output_stamp]") {
+REX_TEST_CASE("Config lists every TOML it loaded", "[codegen][output_stamp]") {
   Scratch scratch("loadedfiles");
   scratch.WriteFile("base.toml", "skip_lr = true\n");
   auto main =

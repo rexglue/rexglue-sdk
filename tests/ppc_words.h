@@ -21,8 +21,8 @@ namespace rex::test {
 /**
  * Encodes instruction words as big endian bytes.
  *
- * @param words The words.
- * @return The bytes.
+ * @param words Big endian instruction words to encode.
+ * @return Each word as 4 big endian bytes in order.
  */
 inline std::vector<u8> Encode(std::initializer_list<u32> words) {
   std::vector<u8> data;

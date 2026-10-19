@@ -1,4 +1,4 @@
-# vpkd3d128 is broken in binutils, so these are hand coded
+# binutils cannot assemble vpkd3d128, so these use .long encodings
 
 test_vscr_vpkd3d128_d3dcolor_above:
   #_ REGISTER_IN v3 [40400100, 40400000, 40400000, 40400000]

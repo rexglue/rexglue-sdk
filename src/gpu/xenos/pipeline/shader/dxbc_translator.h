@@ -53,15 +53,19 @@ class DXBCShaderTranslator : public ShaderTranslator {
   ~DXBCShaderTranslator() override;
 
   union Modification {
-    /** Layout version in 0xYYYYMMDD form, increased on incompatible changes to invalidate pipeline
-     * storage. */
+    /**
+     * Layout version in 0xYYYYMMDD form, increased on incompatible changes to invalidate pipeline
+     * storage.
+     */
     static constexpr u32 kVersion = 0x20260226;
 
     // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
     enum class DepthStencilMode : u32 {
       kNoModifiers,
-      /** Enables [earlydepthstencil] when alpha test and alpha to coverage are disabled, ignored if
-         the shader blocks early Z writes. */
+      /**
+       * Enables [earlydepthstencil] when alpha test and alpha to coverage are disabled, ignored if
+       * the shader blocks early Z writes.
+       */
       kEarlyHint,
       /**
        * Converts depth to the nearest 32 bit float exactly representable as 20e4, rounding towards
@@ -96,8 +100,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
       u32 interpolators_centroid : xenos::kMaxInterpolators;
       u32 param_gen_enable : 1;
       u32 param_gen_interpolator : 4;
-      /** Must be set for point primitives and clear otherwise when param_gen_enable is set. Enables
-       * the point sprite coordinates input and changes the PsParamGen flag bits. */
+      /**
+       * Must be set for point primitives and clear otherwise when param_gen_enable is set. Enables
+       * the point sprite coordinates input and changes the PsParamGen flag bits.
+       */
       u32 param_gen_point : 1;
       u32 dynamic_addressable_register_count : 8;
       /** Used without ROV only. */
@@ -220,18 +226,24 @@ class DXBCShaderTranslator : public ShaderTranslator {
     /** Converts diameter in guest screen coordinates to radius in NDC for the host viewport. */
     f32 point_screen_diameter_to_ndc_radius[2];
 
-    /** Post swizzle TextureSign values, 1 byte per needed component of each of the 32 texture fetch
-     * constants. */
+    /**
+     * Post swizzle TextureSign values, 1 byte per needed component of each of the 32 texture fetch
+     * constants.
+     */
     u32 texture_swizzled_signs[8];
 
     u32 textures_resolution_scaled;
-    /** Log2 of the X and Y sample size, used for alpha to mask and for EDRAM addressing with ROV
-     * MSAA. */
+    /**
+     * Log2 of the X and Y sample size, used for alpha to mask and for EDRAM addressing with ROV
+     * MSAA.
+     */
     u32 sample_count_log2[2];
     f32 alpha_test_reference;
 
-    /** 0 when alpha to mask is disabled. When enabled, bits 0 to 7 are sample offsets and bit 8 is
-     * set. */
+    /**
+     * 0 when alpha to mask is disabled. When enabled, bits 0 to 7 are sample offsets and bit 8 is
+     * set.
+     */
     u32 alpha_to_mask;
     u32 edram_32bpp_tile_pitch_dwords_scaled;
     u32 edram_depth_base_dwords_scaled;
@@ -283,20 +295,28 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
     u32 edram_rt_base_dwords_scaled[4];
 
-    /** Render target format combined with RenderTargetCache::kPSIColorFormatFlag values from
-     * RenderTargetCache::AddPSIColorFormatFlags. */
+    /**
+     * Render target format combined with RenderTargetCache::kPSIColorFormatFlag values from
+     * RenderTargetCache::AddPSIColorFormatFlags.
+     */
     u32 edram_rt_format_flags[4];
 
-    /** Color clamp values applied before blending or storing, ordered low color, low alpha, high
-     * color, high alpha. */
+    /**
+     * Color clamp values applied before blending or storing, ordered low color, low alpha, high
+     * color, high alpha.
+     */
     f32 edram_rt_clamp[4][4];
 
-    /** Mask applied to the old packed render target data and, inverted, to the new packed data
-     * before storing. When 0 and not blending, reading the old data from EDRAM is not required. */
+    /**
+     * Mask applied to the old packed render target data and, inverted, to the new packed data
+     * before storing. When 0 and not blending, reading the old data from EDRAM is not required.
+     */
     u32 edram_rt_keep_mask[4][2];
 
-    /** RB_BLENDCONTROL factors and operations masked with 0x1FFF1FFF. A value of 0x00010001 (1 *
-     * src + 0 * dst) disables blending for the render target. */
+    /**
+     * RB_BLENDCONTROL factors and operations masked with 0x1FFF1FFF. A value of 0x00010001 (1 *
+     * src + 0 * dst) disables blending for the render target.
+     */
     u32 edram_rt_blend_factors_ops[4];
 
     f32 edram_blend_constant[4];
@@ -374,8 +394,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
     kBindfulTexturesStart,
   };
 
-  /** At most 192 textures, from 32 fetch constants times 2D array, 3D or cube dimensions and signed
-   * or unsigned. */
+  /**
+   * At most 192 textures, from 32 fetch constants times 2D array, 3D or cube dimensions and signed
+   * or unsigned.
+   */
   static constexpr u32 kMaxTextureBindingIndexBits = 8;
   static constexpr u32 kMaxTextureBindings = (1 << kMaxTextureBindingIndexBits) - 1;
   struct TextureBinding {
@@ -487,14 +509,14 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param temp_temp Scratch temporary register.
    * @param temp_temp_component Component of temp_temp to use.
    * @param round_to_nearest_even Whether to round to nearest even instead of towards zero.
-   * @param remap_from_0_to_0_5 Whether the input has 0...1 pre-remapped to 0...0.5.
+   * @param remap_from_0_to_0_5 Whether the input has 0...1 pre remapped to 0...0.5.
    */
   static void PreClampedDepthTo20e4(dxbc::Assembler& a, u32 f24_temp, u32 f24_temp_component,
                                     u32 f32_temp, u32 f32_temp_component, u32 temp_temp,
                                     u32 temp_temp_component, bool round_to_nearest_even,
                                     bool remap_from_0_to_0_5);
   /**
-   * Converts the 20e4 number in bits [f24_shift, f24_shift + 10) to a 32 bit float.
+   * Converts the 20e4 number in bits [f24_shift, f24_shift + 24) to a 32 bit float.
    *
    * The temporaries must differ from each other, 1 may be the source. The destination may be
    * anything writable.
@@ -526,7 +548,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param target_temp_component Component of target_temp to write.
    * @param source_temp Temporary register holding the gamma source.
    * @param source_temp_component Component of source_temp to read.
-   * @param source_pre_saturated Whether the source is already saturated.
+   * @param source_pre_saturated Whether the source is saturated.
    * @param temp1 First scratch temporary register.
    * @param temp1_component Component of temp1 to use.
    * @param temp2 Second scratch temporary register.
@@ -601,8 +623,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
   static constexpr u32 kInRegisterDSControlPointIndex = 0;
 
   /**
-   * Marks a system constant as used. Together with GetSystemConstantSrc it builds a source
-   * unconditionally, otherwise use LoadSystemConstant.
+   * Marks a system constant as used.
    *
    * @param index System constant to mark.
    */
@@ -688,8 +709,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
   void PopSystemTemp(u32 count = 1);
 
   /**
-   * Exports eM# to memory. Modifies eA and eM# values, so call only before starting a new export or
-   * ending or deactivating the invocation.
+   * Exports eM# to memory and modifies the eA and eM# values.
    *
    * @param export_em Mask of eM# registers to export.
    */
@@ -883,8 +903,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
   void CompleteShaderCode();
 
-  /** Writes the original instruction disassembly from instruction_disassembly_buffer_ as shader
-   * messages when enabled. */
+  /**
+   * Writes the original instruction disassembly from instruction_disassembly_buffer_ as shader
+   * messages when enabled.
+   */
   void EmitInstructionDisassembly();
 
   /**
@@ -914,6 +936,9 @@ class DXBCShaderTranslator : public ShaderTranslator {
                    bool can_store_memexport_address = false);
 
   /**
+   * Updates the flow control condition at exec start and in jumps, closing previous conditionals if
+   * needed, then emits the pending disassembly.
+   *
    * Conditionals nest as pc checks for labels, then the exec predicate or bool constant check, then
    * instruction level predicate checks.
    *
@@ -922,11 +947,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * instruction with the same condition as its exec gets no `if` until a `setp`. Instructions with
    * derivatives, such as texture fetches with computed LOD, run the derivative part unpredicated
    * and predicate only the result store.
-   */
-
-  /**
-   * Updates the flow control condition at exec start and in jumps, closing previous conditionals if
-   * needed, then emits the pending disassembly.
    *
    * An unchanged condition leaves the instruction level predicate `if` open, which callers such as
    * jumps must check separately.
@@ -1083,21 +1103,27 @@ class DXBCShaderTranslator : public ShaderTranslator {
   };
   static const SystemConstantRdef
       kSystemConstantRDEF[std::to_underlying(SystemConstants::Index::kCount)];
-  /** Mask of system constants (1 << SystemConstants::Index) used, so the rest are marked unused in
-   * RDEF. */
+  /**
+   * Mask of system constants (1 << SystemConstants::Index) used, so the rest are marked unused in
+   * RDEF.
+   */
   u64 system_constants_used_;
 
   u32 out_reg_vs_interpolators_;
   u32 out_reg_vs_position_;
-  /** Clip and cull distances are tightly packed with up to 6 SV_ClipDistance or SV_CullDistance
-   * depending on user_clip_plane_cull, then 1 SV_CullDistance when vertex_kill_and is used. */
+  /**
+   * Clip and cull distances are tightly packed with up to 6 SV_ClipDistance or SV_CullDistance
+   * depending on user_clip_plane_cull, then 1 SV_CullDistance when vertex_kill_and is used.
+   */
   u32 out_reg_vs_clip_cull_distances_;
   u32 out_reg_vs_point_size_;
   u32 in_reg_ps_interpolators_;
   u32 in_reg_ps_point_coordinates_;
   u32 in_reg_ps_position_;
-  /** Nointerpolation inputs. SV_IsFrontFace (X) is for non point PsParamGen, SV_SampleIndex (Y) is
-   * for memexport when sample rate shading is needed for depth conversion. */
+  /**
+   * Nointerpolation inputs. SV_IsFrontFace (X) is for non point PsParamGen, SV_SampleIndex (Y) is
+   * for memexport when sample rate shading is needed for depth conversion.
+   */
   u32 in_reg_ps_front_face_sample_index_;
 
   u32 in_domain_location_used_;
@@ -1136,12 +1162,16 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * before any return.
    */
   u32 system_temp_depth_stencil_;
-  /** Up to 4 color outputs, readable for alpha test, alpha to coverage, exponent bias, gamma and
-   * ROV writing. */
+  /**
+   * Up to 4 color outputs, readable for alpha test, alpha to coverage, exponent bias, gamma and
+   * ROV writing.
+   */
   u32 system_temps_color_[4];
 
-  /** Allocated only when the shader writes any eM#. X is whether memexport is enabled for the
-   * invocation, Y is the mask of eM# elements written since the last memory write. */
+  /**
+   * Allocated only when the shader writes any eM#. X is whether memexport is enabled for the
+   * invocation, Y is the mask of eM# elements written since the last memory write.
+   */
   u32 system_temp_memexport_enabled_and_em_written_;
   u32 system_temp_memexport_address_;
   u32 system_temps_memexport_data_[xenos::ucode::kMaxMemExportElementCount];
@@ -1153,12 +1183,16 @@ class DXBCShaderTranslator : public ShaderTranslator {
   /** Loop counter stack with the active loop in .x, holding the remaining iteration count. */
   u32 system_temp_loop_count_;
   u32 system_temp_grad_h_lod_;
-  /** The .w component holds `base + index * stride` in bytes from the last vfetch_full for
-   * vfetch_mini. */
+  /**
+   * The .w component holds `base + index * stride` in bytes from the last vfetch_full for
+   * vfetch_mini.
+   */
   u32 system_temp_grad_v_vfetch_address_;
 
-  /** Bool constant index of the processed exec condition, or kCfExecBoolConstantNone when
-   * unchecked. */
+  /**
+   * Bool constant index of the processed exec condition, or kCfExecBoolConstantNone when
+   * unchecked.
+   */
   u32 cf_exec_bool_constant_;
   static constexpr u32 kCfExecBoolConstantNone = UINT32_MAX;
   bool cf_exec_bool_constant_condition_;
@@ -1166,8 +1200,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
   bool cf_exec_predicate_condition_;
   bool cf_instruction_predicate_if_open_;
   bool cf_instruction_predicate_condition_;
-  /** Set by a `setp` in the current exec, after which the instruction level predicate can differ
-   * from the exec level one and execs with the same condition cannot be merged. */
+  /**
+   * Set by a `setp` in the current exec, after which the instruction level predicate can differ
+   * from the exec level one and execs with the same condition cannot be merged.
+   */
   bool cf_exec_predicate_written_;
 
   u32 srv_count_;

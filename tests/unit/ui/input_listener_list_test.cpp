@@ -39,7 +39,7 @@ REX_TEST_CASE("A listener that lowers its own Z order below a later layer runs o
   CHECK(calls[&second] == 1);
 }
 
-REX_TEST_CASE("A listener moved below the current layer before its turn still runs",
+REX_TEST_CASE("A listener moved below the current layer before its turn runs",
               "[ui][input_listener_list]") {
   WindowInputListener first;
   WindowInputListener second;

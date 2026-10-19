@@ -52,7 +52,7 @@ class WildcardMatcher;
  */
 [[nodiscard]] bool CanSetLength(Access access);
 
-/** Byte access of 1 open node, served by its provider. */
+/** Byte access of an open node, served by its provider. */
 class NodeStream {
  public:
   virtual ~NodeStream() = default;
@@ -99,7 +99,7 @@ class NodeStream {
 };
 
 /**
- * 1 file or directory of a mount. Every open handle on the path shares the node. Tree changes take
+ * A file or directory of a mount. Every open handle on the path shares the node. Tree changes take
  * the provider mutex.
  */
 class Node : public NonCopyable {

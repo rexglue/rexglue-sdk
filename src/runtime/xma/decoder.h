@@ -46,7 +46,7 @@ class REX_RUNTIME_API XMADecoder {
   /**
    * Allocates the context array, attaches the APU MMIO block and starts the worker.
    *
-   * Contexts live in physical memory and the ContextArrayAddress register holds the physical
+   * Contexts reside in physical memory and the ContextArrayAddress register holds the physical
    * address of the array.
    *
    * @return X_STATUS_SUCCESS.
@@ -75,7 +75,7 @@ class REX_RUNTIME_API XMADecoder {
   bool BlockOnContext(u32 context_ptr, bool poll);
 
   /**
-   * Sets the bit of a context in an indexed register such as the enable or disable kick.
+   * Sets the bit of a context in an indexed register such as the Kick or Lock registers.
    *
    * @param base_register The first register of the indexed range.
    * @param context_physical_address The physical address of the context.

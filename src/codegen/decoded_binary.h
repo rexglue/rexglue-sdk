@@ -79,7 +79,7 @@ class DecodedBinary : public rex::NonCopyable {
    * Returns the instruction at an address in O(1).
    *
    * @param addr Instruction address.
-   * @return The instruction, or nullptr when the address is not in an executable section.
+   * @return The instruction, or null when the address is not in an executable section.
    */
   DecodedInsn* FindInsn(u32 addr);
   const DecodedInsn* FindInsn(u32 addr) const;
@@ -98,7 +98,7 @@ class DecodedBinary : public rex::NonCopyable {
    *
    * @param addr Start address.
    * @param len Byte count.
-   * @return Pointer to the bytes, or nullptr when the span is not in a section.
+   * @return Pointer to the bytes, or null when the span is not in a section.
    */
   const u8* GetRawData(u32 addr, size_t len) const;
 
@@ -119,7 +119,7 @@ class DecodedBinary : public rex::NonCopyable {
    * Returns the code region containing an address.
    *
    * @param addr Address to find.
-   * @return The region, or nullptr when none contains the address.
+   * @return The region, or null when none contains the address.
    */
   const CodeRegion* FindRegionContaining(u32 addr) const;
 
@@ -169,7 +169,7 @@ class DecodedBinary : public rex::NonCopyable {
    * Returns the section containing an address.
    *
    * @param addr Address to find.
-   * @return The section, or nullptr when none contains the address.
+   * @return The section, or null when none contains the address.
    */
   Section* FindSection(u32 addr);
   const Section* FindSection(u32 addr) const;

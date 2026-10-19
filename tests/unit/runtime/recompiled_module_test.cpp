@@ -312,7 +312,7 @@ class GateSink final : public rex::log::ISink {
   void Write(const rex::log::Message& message) override {
     std::unique_lock lock(mutex_);
     messages_.emplace_back(message.text);
-    if (!gated_ && message.text.starts_with("File not found: game:\\Mod.xex")) {
+    if (!gated_ && message.text.starts_with("File game:\\Mod.xex was not found")) {
       gated_ = true;
       inside_ = true;
       changed_.notify_all();
@@ -388,5 +388,5 @@ REX_TEST_CASE("registry: a load of a case variant of a path being loaded is refu
   });
   logger->RemoveSink(sink);
   CHECK(sink.Count("LoadUserModule: 'game:\\MOD.XEX' already being loaded") == 1);
-  CHECK(sink.Count("File not found") == 1);
+  CHECK(sink.Count("File game:\\Mod.xex was not found") == 1);
 }

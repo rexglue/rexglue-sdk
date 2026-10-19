@@ -30,7 +30,7 @@
 
 namespace rex {
 
-/** Runtime control of the logger. Core serves it. */
+/** Runtime control of the logger. */
 REX_INTERFACE(ILogger, "rex.log", 1)
  public:
   /**
@@ -117,7 +117,7 @@ namespace log {
  */
 [[nodiscard]] REX_API Result<void> Start(const LogConfig& config);
 
-/** Stops a logger started with Start. Call it after the last rex::Shutdown. */
+/** Stops a logger started with Start. */
 REX_API void Stop();
 
 }  // namespace log

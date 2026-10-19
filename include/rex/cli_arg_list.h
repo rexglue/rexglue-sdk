@@ -22,7 +22,7 @@
 
 namespace rex {
 
-/** 1 option of a command line. */
+/** An option of a command line. */
 struct CLIOption {
   /** Name without the leading dashes. */
   std::string name;

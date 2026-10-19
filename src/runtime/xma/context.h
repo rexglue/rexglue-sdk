@@ -169,7 +169,7 @@ class XMAContext {
    */
   static const u32 kDecoderStartPadding = 192;
   static_assert(kDecoderStartPadding < kSamplesPerFrame,
-                "start padding must fit inside one decoded frame");
+                "start padding must fit inside 1 decoded frame");
 
   explicit XMAContext();
   ~XMAContext();
@@ -227,7 +227,7 @@ class XMAContext {
   void UpdateLoopStatus(XMA_CONTEXT_DATA* data);
   void ClearLocked(XMA_CONTEXT_DATA* data);
   /**
-   * Discards the MDCT overlap-add tail so a freed or re-initialized context starts a new stream.
+   * Discards the MDCT overlap-add tail so a freed or reinitialized context starts a new stream.
    *
    * Invalidating the cached format makes PrepareDecoder reopen the codec on the next decode.
    * A flush does not clear the tail because the xmaframes decoder declares no flush callback.
@@ -270,7 +270,7 @@ class XMAContext {
   std::array<u8, size_t{kBytesPerPacketData} * 2> input_buffer_;
   /** First byte holds the bit offset */
   std::array<u8, 1 + 4096> xma_frame_;
-  /** Conversion buffer for a frame of up to 2 channels */
+  /** Realigned output frame built from carry_frame_ and decoded_frame_, up to 2 channels */
   std::array<u8, size_t{kBytesPerFrameChannel} * 2> raw_frame_;
   /** Freshly decoded block, before start padding realignment */
   std::array<u8, size_t{kBytesPerFrameChannel} * 2> decoded_frame_;
@@ -283,11 +283,11 @@ class XMAContext {
   u8 loop_frame_output_limit_ = 0;
   bool loop_start_skip_pending_ = false;
 
+  bool carry_valid_ = false;
   /**
    * Pending limit and skip belong to the frame being assembled,
-   * so they apply one decode after the frame they describe.
+   * so they apply 1 decode after the frame they describe.
    */
-  bool carry_valid_ = false;
   u8 pending_output_limit_ = 0;
   u8 pending_start_skip_ = 0;
 };

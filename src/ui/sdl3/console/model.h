@@ -30,7 +30,7 @@ class ICvarRegistry;
 
 namespace rex::ui {
 
-/** 1 line of console output. */
+/** A line of console output. */
 struct ConsoleLine {
   log::Level level = log::Level::kInfo; /**< Level, for color and filtering. */
   std::string category;                 /**< Category name, console for command output. */
@@ -39,7 +39,7 @@ struct ConsoleLine {
   u64 id = 0;                           /**< Unique among the model's lines, for selection. */
 };
 
-/** 1 completion candidate. */
+/** A completion candidate. */
 struct Completion {
   std::string name;        /**< Dotted cvar name, command name or built in. */
   std::string scope;       /**< Cvar scope, empty for a built in. */
@@ -74,7 +74,7 @@ class ConsoleModel : public NonCopyable {
   ConsoleModel(cvar::ICvarRegistry& cvars, log::CaptureSink& capture,
                std::filesystem::path history_path);
 
-  /** Pulls new entries from the capture sink. The view calls it once per frame. */
+  /** Pulls new entries from the capture sink. */
   void Poll();
 
   /**
@@ -121,7 +121,7 @@ class ConsoleModel : public NonCopyable {
   /**
    * Returns the output lines that pass the filters, oldest first.
    *
-   * @return Pointers into lines(), valid until the next Poll, Execute or Clear.
+   * @return Pointers into GetLines(), valid until the next Poll, Execute or Clear.
    */
   std::vector<const ConsoleLine*> GetVisibleLines() const;
 

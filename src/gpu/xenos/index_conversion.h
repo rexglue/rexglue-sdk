@@ -46,10 +46,10 @@ inline void StoreUnalignedVectorU32(u32* dest, SimdVectorU32 source) {
 }
 static_assert(sizeof(SimdVectorU16) == REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE,
               "REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE must reflect the vector size "
-              "actually used");
+              "used");
 static_assert(sizeof(SimdVectorU32) == REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE,
               "REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE must reflect the vector size "
-              "actually used");
+              "used");
 inline constexpr u32 kSimdVectorU16Elements = sizeof(SimdVectorU16) / sizeof(u16);
 inline constexpr u32 kSimdVectorU32Elements = sizeof(SimdVectorU32) / sizeof(u32);
 
@@ -87,8 +87,8 @@ bool IsResetUsed(const u32* source, u32 count, u32 reset_index_guest_endian,
 /**
  * Copies 16 bit indices, replacing the reset index with 0xFFFF.
  *
- * @param dest The destination indices.
- * @param source The source indices.
+ * @param dest Receives the copied indices with the reset index replaced by 0xFFFF.
+ * @param source The 16 bit indices to copy.
  * @param count The number of indices.
  * @param reset_index_guest_endian The reset index in guest endian.
  */
@@ -102,25 +102,25 @@ void ReplaceResetIndex16To16(u16* dest, const u16* source, u32 count, u16 reset_
  * reset and 0x0000#### otherwise, including 0x0000FFFF if the original buffer had 0xFFFF but the
  * reset index differs.
  *
- * @param dest The destination indices.
- * @param source The source indices.
+ * @param dest Receives the 32 bit indices.
+ * @param source The 16 bit indices to convert.
  * @param count The number of indices.
  * @param reset_index_guest_endian The reset index in guest endian.
  */
 void ReplaceResetIndex16To24(u32* dest, const u16* source, u32 count, u16 reset_index_guest_endian);
 /**
  * Masks 32 bit indices to 24 bits and replaces the reset index with 0xFFFFFFFF. The reset index
- * and the low 24 bits mask are taken explicitly because the function is used 2 ways. Passthrough
+ * and the low 24 bits mask are taken because the function is used 2 ways. Passthrough
  * is for when the vertex shader swaps the indices, with 32 bit indices supported on the host.
  * Then HostSwap is kNone, but the reset index and the low bits mask can be swapped to the title
  * endian. Swapping for the host is for when the host supports only 24 bits of an index. Then
  * masking and comparison happen before applying HostSwap, and the data is swapped according to
- * HostSwap from the PowerPC big endianness to the host GPU little endianness, which matches the
+ * HostSwap from the PPC big endianness to the host GPU little endianness, which matches the
  * Xenos.
  *
  * @tparam HostSwap The endian swap applied for the host.
- * @param dest The destination indices.
- * @param source The source indices.
+ * @param dest Receives the masked indices after the HostSwap swap.
+ * @param source The 32 bit indices to mask.
  * @param count The number of indices.
  * @param reset_index_guest_endian The reset index in guest endian.
  * @param low_bits_mask_guest_endian The low 24 bits mask in guest endian.

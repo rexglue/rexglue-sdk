@@ -485,8 +485,8 @@ union ControlFlowInstruction {
   ControlFlowAllocInstruction alloc;                 /**< kAlloc */
 
   struct {
-    u32 dword_0; /**< Low dword of the 64 bit instruction. */
-    u32 dword_1; /**< High dword of the 64 bit instruction. */
+    u32 dword_0; /**< Low dword of the instruction. */
+    u32 dword_1; /**< High dword of the instruction. */
   };
   struct {
     u32 unused_0 : 32;                  /**< Bits 0 to 31 of the instruction. No code reads it. */
@@ -722,7 +722,7 @@ struct alignas(u32) VertexFetchInstruction {
       u32 const_index_sel : 2;
       /** Prefetch count minus 1. */
       u32 prefetch_count : 3;
-      /** Absolute, 1 comp1nt. */
+      /** Absolute, 1 component. */
       u32 src_swiz : 2;
     };
     struct {
@@ -1147,7 +1147,7 @@ enum class AluScalarOpcode : u32 {
   /**
    * Scalar Reciprocal, Clamp to Zero.
    *
-   * Mimicking the behavior of the fixed-function pipeline.
+   * Mimicking the behavior of the fixed function pipeline.
    *
    * @code
    * rcpf/RECIP_FF dest, src0.a
@@ -2241,7 +2241,7 @@ struct alignas(u32) AluInstruction {
   static constexpr bool IsSrcTempValueAbsolute(u32 src_reg) { return (src_reg & 0x80) != 0; }
   /**
    * Returns the full register index for constants, or the packed structure for temporary registers
-   * (unpack using src_temp_reg, is_src_temp_relative and is_src_temp_value_absolute).
+   * (unpack using GetSrcTempReg, IsSrcTempRelative and IsSrcTempValueAbsolute).
    *
    * @param i 1 based source operand index.
    * @return Register index or packed temporary register.
@@ -2280,11 +2280,9 @@ struct alignas(u32) AluInstruction {
   }
   /**
    * Reports whether a constant operand uses relative addressing. Whether the operand is a constant
-   * is disregarded, so the scope is limited to parsing the structure layout. To decide whether to
-   * use relative addressing for the operand as a whole, check externally that the operand is a
-   * constant first.
+   * is disregarded, so the scope is limited to parsing the structure layout.
    *
-   * For the constant operand in mulsc, addsc and subsc, call with operand index 3. Its addressing
+   * Operand index 3 is the constant operand in mulsc, addsc and subsc. Its addressing
    * mode is taken the same way as for the third vector operand, from const_0_rel_abs if there are
    * no constant vector operands or from const_1_rel_abs if there is at least one. Taking it
    * unconditionally from const_1_rel_abs gives different microcode when the disassembly is

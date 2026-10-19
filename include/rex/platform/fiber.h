@@ -32,7 +32,7 @@ namespace rex::platform {
  */
 struct REX_API Fiber {
   /**
-   * Converts the calling thread into a fiber. Call once per thread before any SwitchTo.
+   * Converts the calling thread into a fiber.
    *
    * @return Fiber for the current execution context, or null on failure.
    */

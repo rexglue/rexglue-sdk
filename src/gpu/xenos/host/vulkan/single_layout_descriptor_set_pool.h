@@ -33,7 +33,7 @@ class SingleLayoutDescriptorSetPool {
    * @param pool_set_count The number of sets in each pool.
    * @param set_layout_descriptor_counts_count The number of entries in the counts array.
    * @param set_layout_descriptor_counts The descriptors of each type in a single set.
-   * @param set_layout The set layout.
+   * @param set_layout The layout of every set allocated from the pool.
    */
   SingleLayoutDescriptorSetPool(const VulkanDevice* vulkan_device, u32 pool_set_count,
                                 u32 set_layout_descriptor_counts_count,

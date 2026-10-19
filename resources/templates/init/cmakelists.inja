@@ -1,6 +1,6 @@
 # {{ names.original }} - ReXGlue Recompiled Project
 #
-# SDK boilerplate lives in generated/rexglue.cmake.
+# SDK boilerplate resides in generated/rexglue.cmake.
 
 cmake_minimum_required(VERSION 3.25)
 if (POLICY CMP0184)
@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(generated/rexglue.cmake)
 
-# Host sources. Add yours here, src/main.cpp stays on the executable.
+# Host sources. src/main.cpp stays on the executable.
 set({{ names.upper_case }}_HOST_SOURCES src/{{ names.original }}_hooks.cpp)
 
 # OBJECT and never STATIC, an archive drops the REX_EXPORT symbols.

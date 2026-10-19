@@ -16,8 +16,7 @@
 namespace rex {
 namespace ui {
 
-/** Listener for Window events. Manage with Window::Add[Input]Listener and Remove[Input]Listener. */
-
+/** Listener for Window events. */
 class WindowListener {
  public:
   virtual ~WindowListener() = default;
@@ -36,7 +35,7 @@ class WindowListener {
    * Window::RequestClose, once renderers are drained and guest threads stopped.
    *
    * @param event Close request event.
-   * @return True to accept the close, the default.
+   * @return True when the close is accepted. The default accepts.
    */
   virtual bool OnCloseRequested(UIEvent&) { return true; }
 

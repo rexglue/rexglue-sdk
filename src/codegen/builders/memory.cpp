@@ -176,7 +176,7 @@ void EmitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type, const c
  * Uses operands[1] as optional base register and operands[2] as index register.
  *
  * @param ctx The builder context
- * @param align_mask Alignment mask string (e.g., "0xF"), or nullptr for no alignment
+ * @param align_mask Alignment mask string (e.g., "0xF"), or null for no alignment
  */
 void EmitVectorEA(BuilderContext& ctx, const char* align_mask = nullptr) {
   if (align_mask)

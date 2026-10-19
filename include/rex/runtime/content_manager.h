@@ -35,7 +35,7 @@ REX_INTERFACE(IContentManager, "rex.runtime.content_manager", 1)
   /**
    * Lists the content packages of a type.
    *
-   * @param device_id The device the packages live on.
+   * @param device_id The device the packages reside on.
    * @param xuid The owner, 0 for shared content.
    * @param content_type The content type.
    * @param title_id The title, 0xFFFFFFFF for the running title.

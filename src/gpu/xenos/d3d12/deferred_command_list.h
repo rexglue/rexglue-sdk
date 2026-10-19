@@ -631,7 +631,7 @@ class DeferredCommandList {
 
   struct DebugMarkerHeader {
     u32 label_length;
-    // Followed by null-terminated label string.
+    // Followed by null terminated label string.
   };
 
   void* WriteCommand(Command command, size_t arguments_size_bytes);

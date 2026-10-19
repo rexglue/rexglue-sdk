@@ -58,7 +58,7 @@ namespace rex::runtime {
  * Maps a result to the NT status the kernel reports.
  *
  * @tparam T The value type of the result.
- * @param result The result.
+ * @param result The result to map.
  * @return X_STATUS_SUCCESS, or the status of its error.
  */
 template <typename T>
@@ -70,7 +70,7 @@ template <typename T>
  * Maps a result to the Win32 code XAM reports.
  *
  * @tparam T The value type of the result.
- * @param result The result.
+ * @param result The result to map.
  * @return X_ERROR_SUCCESS, or the code of its error.
  */
 template <typename T>

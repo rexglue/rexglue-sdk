@@ -35,7 +35,7 @@ using NativeHandle = void*;
 using NativeHandle = int;
 #endif
 
-/** Host view of 1 file or folder. */
+/** Host view of a file or folder. */
 struct HostInfo {
   std::filesystem::path name; /**< Last path component. */
   bool directory = false;     /**< True for a folder. */

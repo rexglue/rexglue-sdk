@@ -1,6 +1,6 @@
 /**
  * @file        ui/sdl3/image_decode.h
- * @brief       Minimal host-side PNG decode helper (wraps stb_image).
+ * @brief       Minimal host side PNG decode helper (wraps stb_image).
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.
@@ -18,7 +18,7 @@
 namespace rex::ui {
 
 /**
- * Decodes a PNG or any stb supported image byte buffer to tightly packed R8G8B8A8 pixels.
+ * Decodes a PNG byte buffer to tightly packed R8G8B8A8 pixels.
  *
  * @param data Encoded image bytes.
  * @param size Size of data in bytes.

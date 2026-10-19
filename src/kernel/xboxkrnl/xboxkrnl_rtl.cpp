@@ -332,7 +332,7 @@ u32 RtlImageXexHeaderField_entry(GuestPtrT<filesystem::XEXHeader> xex_header, u3
 /**
  * Critical section as laid out on the console, 28 bytes. The host RTL_CRITICAL_SECTION is 32
  * bytes, so it cannot replace the console one in place, and the console never calls
- * RtlDeleteCriticalSection, so host handles could not be freed. The struct is mapped directly
+ * RtlDeleteCriticalSection, so host handles could not be freed. The struct is mapped
  * into guest memory, where it is opaque to the title. Titles can embed critical sections in
  * initialized form, so the initializers may never run.
  *

@@ -74,14 +74,14 @@ class Driver {
   /**
    * Receives a window input event on the UI thread.
    *
-   * @param event The event.
+   * @param event The window input event to handle.
    */
   virtual void OnEvent(const InputEvent& event) { (void)event; }
 
   /**
    * Attaches the input host, null to detach. Called on the UI thread.
    *
-   * @param host The host.
+   * @param host The input host to attach, or null to detach.
    */
   void AttachHost(IInputHost* host) {
     host_.store(host, std::memory_order_release);
@@ -106,7 +106,7 @@ class Driver {
   /**
    * Reports whether input reaches the title.
    *
-   * @return True without a host, otherwise IInputHost::capture_active.
+   * @return True when there is no host or the host captures input.
    */
   bool IsActive() const {
     IInputHost* current = GetHost();

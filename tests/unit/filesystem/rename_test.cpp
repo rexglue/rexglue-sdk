@@ -67,7 +67,7 @@ REX_TEST_CASE_METHOD(Fixture, "Rename moves a file into another folder of the tr
   CHECK(HostText(GetTemp() / "to" / "b.txt") == "alpha");
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Rename of a folder waits for the files below it to close",
+REX_TEST_CASE_METHOD(Fixture, "Rename of a folder is refused while files below it are open",
                      "[filesystem][rename]") {
   WriteHost(GetTemp() / "old" / "sub" / "c.txt", "charlie");
   MountTemp(kRoot);

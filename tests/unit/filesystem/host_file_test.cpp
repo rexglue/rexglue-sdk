@@ -196,7 +196,7 @@ REX_TEST_CASE("HostStat names the entry as the folder holds it", "[filesystem][h
   std::filesystem::create_directories(temp.path / "Save1");
   const std::optional<HostInfo> info = HostStat(temp.path / "SAVE1");
   if (!info) {
-    SKIP("the host tells names apart by case");
+    SKIP("the host distinguishes names by case");
   }
   CHECK(info->name == "Save1");
   std::filesystem::create_directories(temp.path / "Save2");

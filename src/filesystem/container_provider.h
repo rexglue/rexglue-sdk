@@ -66,7 +66,7 @@ class ContainerProvider final : public Provider {
   Container container_;
 };
 
-/** 1 file or directory of a container. */
+/** A file or directory of a container. */
 class ContainerNodeImpl final : public Node {
  public:
   /**

@@ -103,7 +103,7 @@ class SDL3Driver final : public Driver {
    * created for the joystick subsystem. It only buffers and never takes controllers_mutex_, which
    * avoids a lock ordering inversion with the SDL joystick lock.
    *
-   * @param event  The SDL event.
+   * @param event  SDL event to buffer.
    */
   void HandleEvent(const SDL_Event& event);
   std::unique_lock<std::mutex> DrainAndLock();
@@ -123,7 +123,7 @@ class SDL3Driver final : public Driver {
   /**
    * Builds the keystroke bit field for analog inputs past their thresholds.
    *
-   * @param gamepad  Gamepad report.
+   * @param gamepad  Gamepad report whose triggers and sticks are compared with the thresholds.
    * @return Bit field with the trigger and stick direction bits set.
    */
   inline u64 AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;

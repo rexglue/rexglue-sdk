@@ -22,12 +22,12 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
-/**
- * XLiveBase app 0xFC, which serves online service queries such as the logon ID and NAT type.
- */
+/** XLiveBase app 0xFC, which serves online service queries such as the logon ID and NAT type. */
 class XLiveBaseApp : public runtime::App {
  public:
   /**
+   * Creates the app.
+   *
    * @param runtime The runtime the app serves.
    */
   REX_RUNTIME_API explicit XLiveBaseApp(Runtime& runtime);

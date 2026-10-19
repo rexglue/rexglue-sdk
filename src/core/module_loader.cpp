@@ -188,7 +188,7 @@ Result<void> ModuleLoader::LoadAll() {
       return Err(ModuleError(std::format("module '{}' not found at '{}'", name, path.string())));
     }
     if (!entry.library.Load(path, platform::SymbolResolution::kImmediate)) {
-      return Err(ModuleError(std::format("module '{}' failed to load from '{}': {}", name,
+      return Err(ModuleError(std::format("module '{}' failed to load from '{}', {}", name,
                                          path.string(), entry.library.GetLastError())));
     }
     auto identity = entry.library.GetSymbol<BuildIdentityFn>(kBuildIdentitySymbol);
@@ -282,7 +282,7 @@ Result<void> ModuleLoader::ConnectAll() {
   for (auto& entry : loaded_) {
     auto status = entry.module->Connect(this, config_);
     if (!status) {
-      return Err(ModuleError(std::format("module '{}' Connect failed: {}", entry.name,
+      return Err(ModuleError(std::format("module '{}' Connect failed, {}", entry.name,
                                          status.error().GetDescription())));
     }
     entry.connected = true;
@@ -344,7 +344,8 @@ void ModuleLoader::Shutdown() {
 Result<void> ModuleLoader::RegisterConsumerTables() {
   for (const CvarTable& table : config_.cvars.tables) {
     if (auto status = cvars_->Register(table.scope, table.vars); !status) {
-      auto message = std::format("consumer table '{}': {}", table.scope, status.error().message);
+      auto message = std::format("consumer table '{}' failed to register, {}", table.scope,
+                                 status.error().message);
       REX_FAIL(core, Err(Error(ErrorCategory::kConfig, std::move(message), status.error().code)),
                "{}", message);
     }

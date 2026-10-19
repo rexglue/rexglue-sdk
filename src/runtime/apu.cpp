@@ -70,7 +70,7 @@ void APU::WorkerMain() {
     auto result = platform::WaitAny(wait_handles_.data(), wait_handles_.size(), true,
                                     std::chrono::milliseconds(500));
     if (result.first == platform::WaitResult::kFailed) {
-      REXLOG_WARN(apu, "AudioWorker: WaitAny failed");
+      REXLOG_WARN(apu, "Audio worker: WaitAny failed");
       continue;
     }
 

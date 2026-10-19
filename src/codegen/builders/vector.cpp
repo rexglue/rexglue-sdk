@@ -1161,7 +1161,7 @@ bool Build<PPC_INST_VPKSHUS>(BuilderContext& ctx) {
  * Builds vpkpx, packing the 8 words of vA and vB into 1:5:5:5 pixels.
  *
  * Each halfword takes the low bit of byte 0 and the top 5 bits of bytes 1 to 3 of its source word.
- * vA fills title halfwords 0 to 3 and vB fills 4 to 7.
+ * vA fills vector halfwords 0 to 3 and vB fills vector halfwords 4 to 7.
  *
  * @param ctx The builder context
  * @return True when the instruction is handled.
@@ -1295,12 +1295,12 @@ bool Build<PPC_INST_VPKD3D128>(BuilderContext& ctx) {
  * (0x3F800000). The SHORT and NORM formats yield 0x40400000 plus the field sign extended from 16
  * bits (SHORT2, SHORT4), 10 bits (NORMPACKED32) or 20 bits (NORMPACKED64), and a field at its
  * minimum gives the quiet NaN 0x7FC00000. The NORM formats give w as 0x3F800000 OR the w bits.
- * NORMPACKED32 reads w2:z10:y10:x10 from guest element 3 (host s32[0]) and NORMPACKED64 reads
- * w4:z20:y20:x20 from title elements 2 and 3 (host u64[0]).
+ * NORMPACKED32 reads w2:z10:y10:x10 from vector element 3 (host s32[0]) and NORMPACKED64 reads
+ * w4:z20:y20:x20 from vector elements 2 and 3 (host u64[0]).
  * FLOAT16 conversion adds the exponent bias adjustment 0x1C000 to the 0x7C00 exponent field and
- * maps a zero exponent to a signed zero. Guest element i is host array index 3 - i. The 2 and 4
- * element short and half float formats read the host u16 array from guest elements 2-3, with
- * guest element 0 taken from the highest u16 index.
+ * maps a zero exponent to a signed zero. Vector element i is host array index 3 - i. The 2 and 4
+ * element short and half float formats read the host u16 array from vector elements 2 and 3, with
+ * vector element 0 taken from the highest u16 index.
  *
  * @param ctx The builder context
  * @return True when the instruction is handled.

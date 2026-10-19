@@ -134,11 +134,15 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   virtual Path GetPath() const = 0;
 
   /**
+   * Returns the horizontal resolution scale.
+   *
    * Resolution scaling on the EDRAM side multiplies the EDRAM tile size by the resolution scale.
    * Only integer scales are supported, since fractional ones such as 1.5 break pixel coverage of
    * odd sized screen space geometry (notably the 1x1 final step of reduction passes), break the gap
    * fill used for 2x and 3x scaling when the half pixel offset becomes whole pixel, and complicate
    * rounding of integer coordinates.
+   *
+   * @return The resolution scale along X.
    */
   u32 GetDrawResolutionScaleX() const { return draw_resolution_scale_x_; }
   u32 GetDrawResolutionScaleY() const { return draw_resolution_scale_y_; }
@@ -146,10 +150,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
     return GetDrawResolutionScaleX() > 1 || GetDrawResolutionScaleY() > 1;
   }
 
-  /**
-   * Virtual so both the common code and the implementation can act. Must not be called from
-   * destructors, as it does work shutdown does not need.
-   */
+  /** Destroys the render targets that no EDRAM ownership range references. */
   virtual void ClearCache();
 
   virtual void BeginFrame();
@@ -208,14 +209,11 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
   virtual bool IsGammaFormatHostStorageSeparate() const = 0;
 
-  /** Call last in implementation initialization, once things like the path are initialized. */
+  /** Initializes the EDRAM ownership ranges as a single empty range. */
   void InitializeCommon();
-  /**
-   * May be called from the destructor or from the implementation shutdown to destroy all render
-   * targets before destroying what they depend on in the implementation.
-   */
+  /** Destroys all render targets. */
   void DestroyAllRenderTargets() noexcept;
-  /** Call last in implementation shutdown, also callable from the destructor. */
+  /** Destroys all render targets and EDRAM ownership ranges. */
   void ShutdownCommon() noexcept;
 
   union RenderTargetKey {
@@ -468,12 +466,10 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   /**
    * Returns the height of a render target that is needed and can be created, within guest and host
    * limits. EDRAM base and 32bpp/64bpp are not considered, so one height serves all render targets
-   * even if the implementation supports mixed size render targets. The implementation can then
-   * disable individual render targets and let the others use the freed space without restarting the
-   * render pass (on Vulkan the used height is set in VkFramebuffer).
+   * even if the implementation supports mixed size render targets.
    *
    * @param pitch_tiles_at_32bpp Pitch in tiles at 32bpp.
-   * @param msaa_samples MSAA sample count.
+   * @param msaa_samples MSAA sample count, which sets the vertical sample factor of the height.
    * @return Render target height.
    */
   u32 GetRenderTargetHeight(u32 pitch_tiles_at_32bpp, xenos::MSAASamples msaa_samples) const;
@@ -524,7 +520,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
    *
    * @param base First tile.
    * @param row_length Row length in tiles.
-   * @param rows Row count.
+   * @param rows Row count of the tile rectangle.
    * @param pitch Row pitch in tiles.
    * @param rectangles_out Receives the mappings.
    */
@@ -538,7 +534,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
    * Sets up the render targets and transfers needed to clear in a resolve operation through a host
    * render target clear. resolve_info is expected to come from draw_state::GetResolveInfo.
    *
-   * @param resolve_info Resolve information.
+   * @param resolve_info Resolve whose clear flags, EDRAM formats, bases and extent are read.
    * @param clear_rectangle_out Receives the area to clear.
    * @param depth_render_target_out Receives the depth render target to clear.
    * @param depth_transfers_out Receives the transfers needed for the depth render target.
@@ -555,8 +551,10 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
   virtual void RequestPixelShaderInterlockBarrier() {}
 
-  /** Called by the implementation when interlocked writes to all of the EDRAM are committed with a
-   * memory barrier. */
+  /**
+   * Clears the EDRAM ownership ranges after a memory barrier committed interlocked writes to all
+   * of the EDRAM.
+   */
   void PixelShaderInterlockFullEDRAMBarrierPlaced();
 
  private:
@@ -636,13 +634,11 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
   /**
    * Reports whether changing ownership of the range to the render target would require transferring
-   * data. Used primarily for barrier placement on the pixel shader interlock path, where transfers
-   * do not copy but barriers are needed before accessing ranges written before the barrier and
-   * addressed by different render target independent rasterization pixel positions.
+   * data.
    *
    * @param dest Render target taking ownership.
    * @param start_tiles_base_relative First tile, relative to the base.
-   * @param length_tiles Length in tiles.
+   * @param length_tiles Tile count of the range.
    * @return True when transfers would be required.
    */
   bool WouldOwnershipChangeRequireTransfers(RenderTargetKey dest, u32 start_tiles_base_relative,
@@ -653,7 +649,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
    *
    * @param dest Render target taking ownership.
    * @param start_tiles_base_relative First tile, relative to the base.
-   * @param length_tiles Length in tiles.
+   * @param length_tiles Tile count of the range.
    * @param transfers_append_out Receives the transfers, may be null.
    * @param resolve_clear_cutout Area excluded from transfers, may be null.
    */
@@ -661,49 +657,40 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
                        std::vector<Transfer>* transfers_append_out,
                        const Transfer::Rectangle* resolve_clear_cutout = nullptr);
 
+  /** May hold null after a failed creation, to prevent attempting to create it twice. */
   std::unordered_map<RenderTargetKey, std::unique_ptr<RenderTarget>, RenderTargetKey::Hasher>
-      /** May hold nullptr after a failed creation, to prevent attempting to create it twice. */
       render_targets_;
 
-  std::map<u32, OwnershipRange>
-      /**
-       * Host render targets holding the most up to date tile data. Has no gaps, unused parts are
-       * represented by empty render target keys.
-       */
-      ownership_ranges_;
+  /**
+   * Host render targets holding the most up to date tile data. Has no gaps, unused parts are
+   * represented by empty render target keys.
+   */
+  std::map<u32, OwnershipRange> ownership_ranges_;
 
-  RenderTarget*
-      last_update_used_render_targets_[1 +
-                                       /**
-                                        * Render targets of the last successful update draw. Index 0
-                                        * is depth, colors start from 1, nullptr when not bound.
-                                        * Valid only on non pixel shader interlock paths.
-                                        */
-                                       xenos::kMaxColorRenderTargets];
-  RenderTarget* last_update_accumulated_render_targets_
-      /**
-       * Render targets of the last successful update or earlier ones, unless a different or new one
-       * was bound or surface info changed, to avoid needless switching (undesirable on tile based
-       * GPUs) when depth and stencil test or color writes are toggled. Must also decide whether
-       * depth and stencil or a color render target may be enabled in the pipeline for the draw.
-       * Valid only on non pixel shader interlock paths.
-       */
-      [1 + xenos::kMaxColorRenderTargets];
-  bool are_accumulated_render_targets_valid_ =
-      /**
-       * When false, the next update copies last_update_used_render_targets_ to
-       * last_update_accumulated_render_targets_, as keeping the previously bound render targets is
-       * not beneficial or is incorrect.
-       */
-      false;
-  std::vector<Transfer>
-      last_update_transfers_[1 +
-                             /**
-                              * After an update, even an unsuccessful one, the ownership transfer
-                              * sources needed for each current render target, ordered so all
-                              * transfers of one source are consecutive.
-                              */
-                             xenos::kMaxColorRenderTargets];
+  /**
+   * Render targets of the last successful update draw. Index 0 is depth, colors start from 1, null
+   * when not bound. Valid only on non pixel shader interlock paths.
+   */
+  RenderTarget* last_update_used_render_targets_[1 + xenos::kMaxColorRenderTargets];
+  /**
+   * Render targets of the last successful update or earlier ones, unless a different or new one
+   * was bound or surface info changed, to avoid needless switching (undesirable on tile based
+   * GPUs) when depth and stencil test or color writes are toggled. Must also decide whether
+   * depth and stencil or a color render target may be enabled in the pipeline for the draw.
+   * Valid only on non pixel shader interlock paths.
+   */
+  RenderTarget* last_update_accumulated_render_targets_[1 + xenos::kMaxColorRenderTargets];
+  /**
+   * When false, the next update copies last_update_used_render_targets_ to
+   * last_update_accumulated_render_targets_, as keeping the previously bound render targets is
+   * not beneficial or is incorrect.
+   */
+  bool are_accumulated_render_targets_valid_ = false;
+  /**
+   * After an update, even an unsuccessful one, the ownership transfer sources needed for each
+   * current render target, ordered so all transfers of one source are consecutive.
+   */
+  std::vector<Transfer> last_update_transfers_[1 + xenos::kMaxColorRenderTargets];
 };
 
 }  // namespace rex::gpu

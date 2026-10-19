@@ -47,7 +47,7 @@ class VulkanInstance : public rex::NonCopyable {
   /**
    * Returns the RenderDoc API.
    *
-   * @return The API, or nullptr when RenderDoc is not connected.
+   * @return The API, or null when RenderDoc is not connected.
    */
   RenderDocAPI* GetRenderdocAPI() const { return renderdoc_api_.get(); }
 
@@ -56,7 +56,7 @@ class VulkanInstance : public rex::NonCopyable {
     PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = nullptr;
     PFN_vkDestroyInstance vkDestroyInstance = nullptr;
 
-    // From vkGetInstanceProcAddr for nullptr.
+    // From vkGetInstanceProcAddr for a null instance.
     PFN_vkCreateInstance vkCreateInstance = nullptr;
     PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties = nullptr;
     PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties = nullptr;

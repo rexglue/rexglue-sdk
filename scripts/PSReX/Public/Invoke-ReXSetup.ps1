@@ -32,7 +32,7 @@ function Invoke-ReXSetup {
     # Resolve pwsh path and bake it into the hook so MSYS2 bash can find it.
     $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
     if (-not $pwshCmd) {
-        Write-Host "[WARN] pwsh not found — cannot install pre-commit hook"
+        Write-Host "[WARN] pwsh not found, cannot install pre-commit hook"
     } else {
         $pwshPath = $pwshCmd.Source
         # On Windows, express pwsh path using $PROGRAMFILES so Git Bash
@@ -74,7 +74,7 @@ function Invoke-ReXSetup {
             Copy-Item -Path $profileSrc -Destination $profileDst -Force
             Write-Host "[OK] VS Developer PowerShell profile installed to .vs/"
         } else {
-            Write-Host "[WARN] Profile source not found: $profileSrc"
+            Write-Host "[WARN] Profile source $profileSrc not found"
         }
     }
 

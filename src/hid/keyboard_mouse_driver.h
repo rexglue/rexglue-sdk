@@ -30,6 +30,8 @@ class Hub;
 class KeyboardMouseDriver final : public Driver {
  public:
   /**
+   * Creates the driver.
+   *
    * @param hub The hub the driver belongs to, asked to reapply the pointer mode when mouse look
    *        starts or stops.
    */
@@ -46,7 +48,7 @@ class KeyboardMouseDriver final : public Driver {
   /**
    * Reports whether mouse look wants the pointer locked.
    *
-   * @return True while hid.mnk_mouse emulation is active, focused and captured.
+   * @return True when hid.mnk_mouse emulation is active, focused and captured.
    */
   bool WantsPointerLock() const { return pointer_lock_.load(std::memory_order_relaxed); }
 

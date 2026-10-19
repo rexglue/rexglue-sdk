@@ -483,7 +483,7 @@ bool XMAContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REX_FAIL(apu, false, "XMAContext {}: Error sending packet for decoding: {} ({})", GetId(),
+    REX_FAIL(apu, false, "XMAContext {}: Error sending packet for decoding, {} ({})", GetId(),
              errbuf, ret);
   }
   ret = avcodec_receive_frame(av_context, av_frame);
@@ -494,7 +494,7 @@ bool XMAContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REX_FAIL(apu, false, "XMAContext {}: Error during decoding: {} ({})", GetId(), errbuf, ret);
+    REX_FAIL(apu, false, "XMAContext {}: Error during decoding, {} ({})", GetId(), errbuf, ret);
   }
   return true;
 }
@@ -528,7 +528,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   }
 
   if (!data->output_buffer_block_count) {
-    REXLOG_ERROR(apu, "XMAContext {}: Error - Received 0 for output_buffer_block_count!", GetId());
+    REXLOG_ERROR(apu, "XMAContext {}: Received 0 for output_buffer_block_count!", GetId());
     return;
   }
 

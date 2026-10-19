@@ -49,6 +49,8 @@ struct Error {
   Error() = default;
 
   /**
+   * Creates an error.
+   *
    * @param cat Classification.
    * @param msg Human readable detail.
    * @param err_code Platform or library specific code.
@@ -69,12 +71,17 @@ struct Error {
   }
 
   /**
-   * @return True when the category is NoError.
+   * Reports whether the error is a success.
+   *
+   * @return True when the category is kNoError.
    */
   [[nodiscard]] bool IsSuccess() const noexcept { return category == ErrorCategory::kNoError; }
 
   /**
-   * @return The message, with the code appended when it is not 0.
+   * Returns a description of the error.
+   *
+   * @return "Success" when the category is kNoError, otherwise the message with the code appended
+   *         when it is not 0.
    */
   [[nodiscard]] std::string GetDescription() const {
     if (IsSuccess()) {
@@ -82,7 +89,7 @@ struct Error {
     }
     std::string result = message;
     if (code != 0) {
-      result += " (code: " + std::to_string(code) + ")";
+      result += " (code " + std::to_string(code) + ")";
     }
     return result;
   }

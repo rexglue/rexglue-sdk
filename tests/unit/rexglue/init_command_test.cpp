@@ -108,7 +108,7 @@ REX_TEST_CASE("init keeps the case of the host file paths in the manifest", "[re
   CHECK(text.find("generated/plugin") != std::string::npos);
 }
 
-REX_TEST_CASE("init without a project name still reports it as required", "[rexglue][init]") {
+REX_TEST_CASE("init without a project name reports it as required", "[rexglue][init]") {
   CLI::App app;
   app.require_subcommand(1);
   const rexglue::cli::CLIContext ctx;

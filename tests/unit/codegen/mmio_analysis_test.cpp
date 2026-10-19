@@ -176,8 +176,7 @@ REX_TEST_CASE("A 0x7F constant used as data stays plain", "[codegen][mmio]") {
   CHECK(result.sites.empty());
 }
 
-REX_TEST_CASE("The generic common load pattern with no barrier hints is guarded",
-              "[codegen][mmio]") {
+REX_TEST_CASE("The common load pattern with no barrier hints is guarded", "[codegen][mmio]") {
   const auto result = Program{kAddisOffset, kShiftOffset, kLoadWordZero, kBlr}.Classify();
   CHECK(result.At(Address(2)) == MMIOAccess::kGuarded);
   REQUIRE(SiteAt(result, Address(2)) != nullptr);
@@ -256,7 +255,7 @@ REX_TEST_CASE("A float instruction between lis and the access keeps the proof", 
   CHECK(result.At(Address(2)) == MMIOAccess::kGPU);
 }
 
-REX_TEST_CASE("A mid asm hook clears every register", "[codegen][mmio]") {
+REX_TEST_CASE("A mid function hook clears every register", "[codegen][mmio]") {
   Program program{kLisGPU, kNop, kLoadWordZero, kBlr};
   program.hook_sites = {Address(1)};
   CHECK(program.Classify().At(Address(2)) == MMIOAccess::kPlain);
@@ -436,9 +435,9 @@ REX_TEST_CASE("A read declaration on a store fails the write", "[codegen][mmio]"
   CHECK_FALSE(writer.Write(false));
 }
 
-REX_TEST_CASE("A declaration that disagrees with the proven block fails the write",
+REX_TEST_CASE("A declaration that differs from the proven block fails the write",
               "[codegen][mmio]") {
-  EmitFixture fixture("disagree", {kLisGPU, kLoadWord, kBlr}, {12},
+  EmitFixture fixture("mismatch", {kLisGPU, kLoadWord, kBlr}, {12},
                       {{kBase + 4, {rex::MMIOBlock::kAPU, false}}});
   CodegenWriter writer(fixture.ctx);
   CHECK_FALSE(writer.Write(false));

@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_gapfill.cpp
- * @brief       GapFill phase: find uncovered code regions and register them as functions
+ * @brief       GapFill phase that finds uncovered code regions and registers them as functions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -79,7 +79,7 @@ bool LooksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph
 }
 
 /**
- * Disjoint address ranges already covered by functions.
+ * Disjoint address ranges covered by functions.
  */
 class Coverage {
  public:
@@ -273,11 +273,11 @@ void GapFillCodeRegions(CodegenContext& ctx) {
     }
   }
 
-  REXLOG_TRACE(codegen, "Analyze: registered {} gap functions", registered);
+  REXLOG_TRACE(codegen, "Analyze: registered {} GAP_FILL functions", registered);
 }
 
 /**
- * Removes GAP_FILL functions that lie inside another function.
+ * Removes GAP_FILL functions that another function contains.
  *
  * @param ctx Codegen context.
  */

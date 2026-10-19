@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/ui/style_test.cpp
- * @brief       The default Palette and Metrics hold today's overlay values
+ * @brief       The default Palette and Metrics hold the overlay values
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

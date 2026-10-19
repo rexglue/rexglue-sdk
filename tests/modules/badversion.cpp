@@ -1,6 +1,6 @@
 /**
  * @file        tests/modules/badversion.cpp
- * @brief       Test module that serves rex.module at version 2 only
+ * @brief       Test module that serves the module interface at version 2 only
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -67,7 +67,7 @@ REX_TEST_CASE("A destroyed allocator releases its range", "[runtime][allocator]"
   CHECK(ReserveAndRelease(memory, kRangeSize) == expected);
 }
 
-REX_TEST_CASE("Blocks lie inside the range and Free returns them", "[runtime][allocator]") {
+REX_TEST_CASE("Blocks reside inside the range and Free returns them", "[runtime][allocator]") {
   rex::testing::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   auto allocator = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0);

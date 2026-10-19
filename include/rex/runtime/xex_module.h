@@ -32,10 +32,10 @@ constexpr memory::FourCCT kXEX1Signature = memory::make_fourcc("XEX1");
 constexpr memory::FourCCT kXEX2Signature = memory::make_fourcc("XEX2");
 constexpr memory::FourCCT kELFSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F');
 
-/** A module loaded from an XEX image, or an XEX patch for 1. */
+/** A module loaded from an XEX image, or from an XEX patch image. */
 class REX_RUNTIME_API XEXModule : public Module {
  public:
-  /** 1 import of an `ImportLibrary`. */
+  /** An import of an `ImportLibrary`. */
   struct ImportLibraryFn {
    public:
     u32 ordinal = 0;       /**< Export ordinal the import names. */

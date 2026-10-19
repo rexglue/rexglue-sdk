@@ -95,7 +95,7 @@ bool VulkanSharedMemory::Initialize() {
 
   if (buffer_ == VK_NULL_HANDLE) {
     REXLOG_INFO(gpu,
-                "Vulkan sparse binding is not used for shared memory emulation - video "
+                "Vulkan sparse binding is not used for shared memory emulation. Video "
                 "memory usage may increase significantly because a full {} MB buffer "
                 "will be created",
                 kBufferSize >> 20);
@@ -233,7 +233,7 @@ bool VulkanSharedMemory::AllocateSparseHostGPUMemoryRange(u32 offset_allocations
   memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
   VkDeviceMemory memory;
   if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Shared memory: Failed to allocate sparse buffer memory");
+    REX_FAIL(gpu, false, "Shared memory failed to allocate sparse buffer memory");
   }
   buffer_memory_.push_back(memory);
 

@@ -1,5 +1,5 @@
 # rex_target_pch(<target> [extra headers...]) attaches a PRIVATE precompiled
-# header: a common base plus per-module extras.
+# header made of a common base plus per module extras.
 function (rex_target_pch target)
   target_precompile_headers(
     ${target}

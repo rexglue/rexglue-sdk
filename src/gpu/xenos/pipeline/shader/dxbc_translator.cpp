@@ -839,7 +839,7 @@ std::vector<u8> DXBCShaderTranslator::CompleteTranslation() {
 
   shader_object_.clear();
 
-  // The container holds 6 or 7 blobs, RDEF, ISGN, optional PCSG, OSGN, SHEX, SFI0 and STAT.
+  // The container holds 6 blobs, or 7 with the PCSG blob for a domain shader.
   u32 blob_count = 6 + static_cast<u32>(IsDXBCDomainShader());
   shader_object_.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + blob_count);
 

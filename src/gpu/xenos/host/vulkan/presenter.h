@@ -78,7 +78,7 @@ class VulkanPresenter final : public Presenter {
   }
 
   /**
-   * Maximum number of guest output image versions that may still be alive and given to the
+   * Maximum number of guest output image versions that may be alive and given to the
    * refresher.
    *
    * The refresher may need to keep this many instances of dependent objects such as framebuffers
@@ -181,8 +181,8 @@ class VulkanPresenter final : public Presenter {
    * swapchain awaits GPU usage of the swapchain and the surface.
    *
    * @param new_surface The surface to paint to.
-   * @param new_surface_width The surface width.
-   * @param new_surface_height The surface height.
+   * @param new_surface_width The width of new_surface in pixels.
+   * @param new_surface_height The height of new_surface in pixels.
    * @param was_paintable True when painting was connected before.
    * @param is_vsync_implicit_out Receives whether vsync is implicit.
    * @return The connection result.
@@ -396,8 +396,8 @@ class VulkanPresenter final : public Presenter {
      * frame rate but lets overlong frames tear. FIFO has the highest latency and is always
      * available.
      *
-     * @param vulkan_device The device.
-     * @param surface The surface.
+     * @param vulkan_device The device that owns the swapchain.
+     * @param surface The surface to create the swapchain for.
      * @param width The requested width.
      * @param height The requested height.
      * @param old_swapchain The swapchain to replace, or null.

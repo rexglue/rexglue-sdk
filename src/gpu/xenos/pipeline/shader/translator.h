@@ -46,7 +46,7 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
    * AnalyzeUcode must be done on the shader before translating.
    *
    * @param translation Translation to fill.
-   * @return Whether translation succeeded.
+   * @return True when translation succeeded.
    */
   bool TranslateAnalyzedShader(Shader::Translation& translation);
 
@@ -73,7 +73,7 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
    * Emits a translation error that is passed back in the result.
    *
    * @param message Error text.
-   * @param is_fatal Whether the error fails the translation.
+   * @param is_fatal True when the error fails the translation.
    */
   virtual void EmitTranslationError(const char* message, bool is_fatal = true);
 
@@ -110,8 +110,13 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
 
   virtual void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& /*instr*/) {}
   virtual void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& /*instr*/) {}
-  /** memexport_eM_potentially_written_before must be handled by `kill` so exports of eM# written in
-   * earlier execs and the current exec are done before the invocation becomes inactive. */
+  /**
+   * Processes an ALU instruction.
+   *
+   * @param instr Instruction to process.
+   * @param memexport_em_potentially_written_before Must be handled by `kill` so exports of eM#
+   * written in earlier execs and the current exec are done before the invocation becomes inactive.
+   */
   virtual void ProcessAluInstruction(const ParsedAluInstruction& /*instr*/,
                                      u8 /*memexport_em_potentially_written_before*/) {}
 

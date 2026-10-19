@@ -477,7 +477,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    * Returns the paint mode wanted from conditions such as UI drawing and implicit vertical sync.
    *
    * After connection updates the UI thread owns the connection, so its state is passed to allow
-   * kNone. When only toggling between the 2 threads, never to or from kNone, pass true.
+   * kNone. A false is_paintable always results in kNone.
    *
    * @param is_paintable True when the connection can paint.
    * @return The desired paint mode.

@@ -30,7 +30,7 @@ class ISink;
 
 /** Log file policy. */
 struct LogFileConfig {
-  /** Opens a file. App sets it to true before OnConfigure. */
+  /** Opens a file. */
   bool enabled = false;
   /** Explicit file. Empty names a sequential file in folder. */
   std::filesystem::path path;

@@ -86,7 +86,7 @@ void FunctionNode::Discover(std::vector<Block> blocks,
 
 void FunctionNode::DiscoverAsImport() {
   assert(CanDiscover() && "Invalid state transition: must be kRegistered");
-  assert(IsImport() && "Only imports can use discoverAsImport()");
+  assert(IsImport() && "Only imports can use DiscoverAsImport()");
 
   state_ = FunctionState::kDiscovered;
   REXLOG_DEBUG(codegen, "FunctionNode 0x{:08X} ({}): DISCOVERED as import", base_, name_);
@@ -389,7 +389,7 @@ namespace {
  *
  * @param graph The function graph.
  * @param insn The instruction.
- * @return False after a branch, return, trap or call that never returns.
+ * @return True when control can continue to the next address.
  */
 bool FallsThrough(const FunctionGraph& graph, const rex::codegen::detail::Instruction& insn) {
   using rex::codegen::detail::Opcode;
@@ -419,7 +419,7 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
   std::string out;
 
   if (GetBlocks().empty()) {
-    REXLOG_WARN(codegen, "Function 0x{:08X} has no blocks - generating stub", GetBase());
+    REXLOG_WARN(codegen, "Function 0x{:08X} has no blocks, generating stub", GetBase());
 
     std::string name;
     if (GetBase() == ctx.entry_point) {
@@ -572,7 +572,7 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
     auto block_end = block.GetEnd();
     auto* data = reinterpret_cast<const u32*>(ctx.binary.Translate(block.base));
     if (!data) {
-      REXLOG_WARN(codegen, "Block 0x{:08X} in function 0x{:08X} has no mapped data - skipping",
+      REXLOG_WARN(codegen, "Block 0x{:08X} in function 0x{:08X} has no mapped data, skipping",
                   block.base, GetBase());
       continue;
     }
@@ -751,7 +751,7 @@ FunctionNode* FunctionGraph::AddFunction(u32 base, u32 size, FunctionAuthority a
     if (existing->GetAuthority() >= authority) {
       REXLOG_TRACE(
           codegen,
-          "FunctionGraph: ignoring add of 0x{:08X} ({}) - existing has higher authority ({})", base,
+          "FunctionGraph: ignoring add of 0x{:08X} ({}), existing has higher authority ({})", base,
           AuthorityName(authority), AuthorityName(existing->GetAuthority()));
       return existing;
     }
@@ -835,7 +835,7 @@ class NoReturnSolver {
    * Reports whether control that reaches a function entry can come back.
    *
    * @param target Entry point address.
-   * @return False for an import that never returns or a function already known not to return.
+   * @return True when control entering the function can come back.
    */
   bool Returns(u32 target) const {
     return !graph_.IsDeclaredNoReturn(target) && !no_return_.contains(target);
@@ -1149,7 +1149,7 @@ size_t FunctionGraph::TryResolveFunction(u32 entry) {
   // Copy, since resolution modifies the list.
   auto jumps = node->GetUnresolvedJumps();
 
-  REXLOG_TRACE(codegen, "FunctionGraph::tryResolveFunction 0x{:08X}: {} unresolved jumps", entry,
+  REXLOG_TRACE(codegen, "FunctionGraph::TryResolveFunction 0x{:08X}: {} unresolved jumps", entry,
                jumps.size());
 
   for (const auto& jump : jumps) {
@@ -1189,7 +1189,7 @@ size_t FunctionGraph::TryResolveFunction(u32 entry) {
       continue;
     }
 
-    REXLOG_TRACE(codegen, "  0x{:08X}->0x{:08X}: still unresolved", jump.site, jump.target);
+    REXLOG_TRACE(codegen, "  0x{:08X}->0x{:08X}: unresolved", jump.site, jump.target);
   }
 
   return resolved;
@@ -1224,7 +1224,7 @@ size_t FunctionGraph::SealAllReady() {
       } else {
         could_not_seal++;
         REXLOG_DEBUG(codegen,
-                     "FunctionGraph::sealAllReady: 0x{:08X} ({}) cannot seal ({} unresolved)", base,
+                     "FunctionGraph::SealAllReady: 0x{:08X} ({}) cannot seal ({} unresolved)", base,
                      node->GetName(), node->GetUnresolvedJumps().size());
         for (const auto& jump : node->GetUnresolvedJumps()) {
           REXLOG_DEBUG(codegen, "  0x{:08X} -> 0x{:08X}", jump.site, jump.target);
@@ -1232,7 +1232,7 @@ size_t FunctionGraph::SealAllReady() {
       }
     }
   }
-  REXLOG_DEBUG(codegen, "FunctionGraph::sealAllReady: sealed {} functions, {} could not seal",
+  REXLOG_DEBUG(codegen, "FunctionGraph::SealAllReady: sealed {} functions, {} could not seal",
                sealed, could_not_seal);
   return sealed;
 }
@@ -1247,7 +1247,7 @@ void FunctionGraph::SealAll() {
     if (!node->CanSeal()) {
       std::string reason;
       if (node->IsRegistered()) {
-        reason = "still in kRegistered state (blocks not discovered)";
+        reason = "in kRegistered state (blocks not discovered)";
       } else if (node->GetBlocks().empty() && !node->IsImport()) {
         reason = "has 0 blocks (non-import)";
       } else if (!node->GetUnresolvedJumps().empty()) {
@@ -1263,14 +1263,14 @@ void FunctionGraph::SealAll() {
   }
 
   if (!errors.empty()) {
-    std::string msg = std::format("sealAll: {} functions cannot be sealed:\n", errors.size());
+    std::string msg = std::format("SealAll: {} functions cannot be sealed:\n", errors.size());
     for (const auto& [addr, err] : errors) {
       msg += std::format("  - {}\n", err);
     }
     throw std::runtime_error(msg);
   }
 
-  REXLOG_TRACE(codegen, "FunctionGraph::sealAll: all {} functions sealed", functions_.size());
+  REXLOG_TRACE(codegen, "FunctionGraph::SealAll: all {} functions sealed", functions_.size());
 }
 
 void FunctionGraph::RegisterChunk(u32 base, u32 size) {
@@ -1291,7 +1291,7 @@ bool FunctionGraph::IsVacant(u32 from_addr, u32 target_addr) const {
     if (target_addr > from_addr) {
       auto val = memory_reader_(target_addr);
       if (val && *val == 0x00000000) {
-        REXLOG_TRACE(codegen, "FunctionGraph::isVacant: null dword at 0x{:08X} blocks vacancy",
+        REXLOG_TRACE(codegen, "FunctionGraph::IsVacant: null dword at 0x{:08X} blocks vacancy",
                      target_addr);
         return false;
       }
@@ -1300,7 +1300,7 @@ bool FunctionGraph::IsVacant(u32 from_addr, u32 target_addr) const {
 
   for (const auto& [chunkBase, chunkSize] : chunks_) {
     if (target_addr >= chunkBase && target_addr < chunkBase + chunkSize) {
-      REXLOG_TRACE(codegen, "FunctionGraph::isVacant: chunk 0x{:08X}-0x{:08X} claims 0x{:08X}",
+      REXLOG_TRACE(codegen, "FunctionGraph::IsVacant: chunk 0x{:08X}-0x{:08X} claims 0x{:08X}",
                    chunkBase, chunkBase + chunkSize, target_addr);
       return false;
     }
@@ -1309,12 +1309,12 @@ bool FunctionGraph::IsVacant(u32 from_addr, u32 target_addr) const {
   for (const auto& [base, node] : functions_) {
     if (node->ContainsAddress(target_addr)) {
       if (IsMergeableEntryPoint(target_addr)) {
-        REXLOG_TRACE(codegen, "FunctionGraph::isVacant: 0x{:08X} is mergeable (GAP_FILL)",
+        REXLOG_TRACE(codegen, "FunctionGraph::IsVacant: 0x{:08X} is mergeable (GAP_FILL)",
                      target_addr);
         continue;
       }
       REXLOG_TRACE(codegen,
-                   "FunctionGraph::isVacant: 0x{:08X} is within protected function 0x{:08X}",
+                   "FunctionGraph::IsVacant: 0x{:08X} is within protected function 0x{:08X}",
                    target_addr, base);
       return false;
     }

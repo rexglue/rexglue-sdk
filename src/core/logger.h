@@ -68,7 +68,7 @@ class Logger final : public ILogger {
   /**
    * Returns the effective level of a slot.
    *
-   * @param slot The slot.
+   * @param slot The index into the level table.
    * @return The level.
    */
   Level SlotLevel(u16 slot) const { return levels_[slot].load(std::memory_order_relaxed); }
@@ -76,8 +76,8 @@ class Logger final : public ILogger {
   /**
    * Writes a message to every sink.
    *
-   * @param category The category.
-   * @param level The level.
+   * @param category The category the message belongs to.
+   * @param level The severity of the message.
    * @param text The message.
    */
   void Write(const Category& category, Level level, std::string_view text);
@@ -114,7 +114,7 @@ class Logger final : public ILogger {
    * Opens the sinks of a configuration, registers core and consumer categories and attaches the
    * log cvars.
    *
-   * @param config The configuration.
+   * @param config The sinks, levels and categories of the logger.
    * @param cvars The registry holding the log scope.
    * @return Ok, or the first registration error.
    */
@@ -122,7 +122,7 @@ class Logger final : public ILogger {
 
   /**
    * Opens the log file with the log.file value, replays the bootstrap entries into it and starts
-   * the flush thread. Runs after the loader applies the cvar values.
+   * the flush thread.
    *
    * @param cvars The registry holding the log scope.
    */
@@ -136,7 +136,7 @@ class Logger final : public ILogger {
   /**
    * Starts the logger for a process that logs outside rex::Init.
    *
-   * @param config The configuration.
+   * @param config The sinks, levels and categories of the logger.
    * @return Ok, or an error when the logger is already started or a registration fails.
    */
   [[nodiscard]] Result<void> StartStandalone(const LogConfig& config);
@@ -271,7 +271,7 @@ void CloseCrashFile(int fd);
 namespace rex::detail {
 
 /**
- * Starts the process logger. ModuleLoader::Connect calls it before any module loads.
+ * Starts the process logger.
  *
  * @param config The log configuration.
  * @param cvars The core cvar registry.
@@ -280,8 +280,7 @@ namespace rex::detail {
 [[nodiscard]] Result<void> StartLogger(const LogConfig& config, cvar::ICvarRegistry& cvars);
 
 /**
- * Opens the log file and starts the flush thread. ModuleLoader::Connect calls it after it applies
- * the cvar values.
+ * Opens the log file and starts the flush thread.
  *
  * @param cvars The core cvar registry.
  */
@@ -290,7 +289,7 @@ void FinishLoggerStart(cvar::ICvarRegistry& cvars);
 /** Releases the cvar handles of the process logger before the cvar registry resets. */
 void DetachLoggerCvars();
 
-/** Stops the process logger. The teardown calls it last, after the libraries close. */
+/** Stops the process logger. */
 void StopLogger();
 
 }  // namespace rex::detail

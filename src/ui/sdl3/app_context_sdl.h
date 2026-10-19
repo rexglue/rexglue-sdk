@@ -32,8 +32,7 @@ class SDLWindowedAppContext final : public WindowedAppContext {
   ~SDLWindowedAppContext() override;
 
   /**
-   * Initializes the SDL video subsystem and registers the custom event types. Must succeed before
-   * any other use.
+   * Initializes the SDL video subsystem and registers the custom event types.
    *
    * @param config UI configuration.
    * @return True on success.

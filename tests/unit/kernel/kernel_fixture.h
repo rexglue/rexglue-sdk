@@ -28,7 +28,7 @@
 
 namespace rex::testing {
 
-/** One frozen entry point call made the way recompiled code makes it. */
+/** Calls exports by name the way recompiled code does. */
 class Caller {
  public:
   Caller(PPCContext& ctx, u8* base, Runtime& runtime) : ctx_(ctx), base_(base), runtime_(runtime) {}
@@ -158,6 +158,8 @@ class Caller {
 class KernelFixture {
  public:
   /**
+   * Creates the fixture and runs the Runtime on a game root.
+   *
    * @param populate Called with the game root before the Runtime mounts it, to create host files.
    * @param modules Modules loaded after rexruntime.
    * @param ui The user interface the Runtime shows prompts through, null for the served one.

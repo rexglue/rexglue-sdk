@@ -47,11 +47,15 @@ class DeferredStream {
   void Clear() { stream_.clear(); }
 
   /**
+   * Returns the first element.
+   *
    * @return The first element.
    */
   const uintmax_t* Data() const { return stream_.data(); }
 
   /**
+   * Returns the element count.
+   *
    * @return The element count.
    */
   size_t Size() const { return stream_.size(); }

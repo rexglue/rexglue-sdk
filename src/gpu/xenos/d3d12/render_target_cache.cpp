@@ -461,7 +461,7 @@ bool D3D12RenderTargetCache::Initialize() {
         gpu::d3d12::objects::CreateRootSignature(provider, host_depth_store_root_desc);
     if (!host_depth_store_root_signature_) {
       REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the host depth storing "
+                   "D3D12RenderTargetCache: Failed to create the host depth store "
                    "root signature");
       Shutdown();
       return false;
@@ -473,7 +473,7 @@ bool D3D12RenderTargetCache::Initialize() {
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)]) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the 1-sample host depth "
-                   "storing pipeline");
+                   "write pipeline");
       Shutdown();
       return false;
     }
@@ -486,7 +486,7 @@ bool D3D12RenderTargetCache::Initialize() {
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)]) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the 2-sample host depth "
-                   "storing pipeline");
+                   "write pipeline");
       Shutdown();
       return false;
     }
@@ -499,7 +499,7 @@ bool D3D12RenderTargetCache::Initialize() {
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k4X)]) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the 4-sample host depth "
-                   "storing pipeline");
+                   "write pipeline");
       Shutdown();
       return false;
     }
@@ -785,7 +785,7 @@ bool D3D12RenderTargetCache::Initialize() {
     // The FXC compiled dump shader is about 2 KB, so 1024 words (4 KB) leave headroom.
     built_shader_.reserve(1024);
   } else if (path_ == Path::kPixelShaderInterlock) {
-    // Blending is done in linear space directly in shaders.
+    // Blending is done in linear space in shaders.
     gamma_render_target_as_unorm16_ = false;
 
     // Always true float24 depth rounded to the nearest even.
@@ -1321,7 +1321,7 @@ DXGI_FORMAT D3D12RenderTargetCache::GetColorResourceDXGIFormat(
     case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
     case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return DXGI_FORMAT_R16G16B16A16_FLOAT;
-    // SNORM has two representations of -1.
+    // SNORM has 2 representations of -1.
     case xenos::ColorRenderTargetFormat::k_16_16:
       return DXGI_FORMAT_R16G16_TYPELESS;
     case xenos::ColorRenderTargetFormat::k_16_16_16_16:
@@ -1672,7 +1672,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         xenos::GetColorRenderTargetFormatComponentCount(source_color_format);
     if (dest_is_stencil_bit) {
       if (source_is_64bpp && !dest_is_64bpp) {
-        // Needs 1 component, chosen from the two 32bpp halves of the 64bpp sample.
+        // Needs 1 component, chosen from the 2 32bpp halves of the 64bpp sample.
         source_color_srv_component_mask = 0b1 | (0b1 << (source_color_format_component_count >> 1));
       } else {
         // Red is at least 8 bits per component in all formats.
@@ -2527,7 +2527,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
 
   if (osgn_parameter_index_sv_stencil_ref != UINT32_MAX && srv_index_stencil != UINT32_MAX) {
-    // Depth to depth writes the stencil loaded to r1.x directly to the output.
+    // Depth to depth writes the stencil loaded to r1.x to the output.
     REX_ASSERT(mode.output == TransferOutput::kDepth);
     a.OpMov(dxbc::Dest::OStencilRef(), dxbc::Src::R(1, dxbc::Src::kXXXX));
   }
@@ -2778,7 +2778,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
         case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT: {
           if (dest_is_stencil_bit) {
-            // High bits are unneeded as only the bit already loaded to red is checked.
+            // High bits are unneeded as only the bit loaded to red is checked.
           } else if (dest_is_color &&
                      (dest_color_format == xenos::ColorRenderTargetFormat::k_16_16 ||
                       dest_color_format == xenos::ColorRenderTargetFormat::k_16_16_FLOAT)) {
@@ -3310,7 +3310,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
   bool resolve_clear_needed = render_target_resolve_clear_values && resolve_clear_rectangle;
   D3D12_RECT clear_rect;
   if (resolve_clear_needed) {
-    // The rectangle is already clamped by the common render target cache setup.
+    // The rectangle is clamped by the common render target cache setup.
     clear_rect.left = static_cast<LONG>(resolve_clear_rectangle->x_pixels) *
                       static_cast<LONG>(GetDrawResolutionScaleX());
     clear_rect.top = static_cast<LONG>(resolve_clear_rectangle->y_pixels) *

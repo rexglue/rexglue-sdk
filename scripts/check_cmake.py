@@ -81,12 +81,12 @@ def check_version(root: Path) -> None:
         found = metadata.version("cmakelang")
     except metadata.PackageNotFoundError:
         raise SystemExit(
-            f"cmakelang {pinned} is not installed. Run: python -m pip install -r {REQUIREMENTS}"
+            f"cmakelang {pinned} is not installed. Run python -m pip install -r {REQUIREMENTS}"
         )
     if found != pinned:
         raise SystemExit(
-            f"cmakelang version mismatch: found {found}, expected {pinned}. "
-            f"Run: python -m pip install -r {REQUIREMENTS}"
+            f"cmakelang found {found}, expected {pinned}. "
+            f"Run python -m pip install -r {REQUIREMENTS}"
         )
 
 

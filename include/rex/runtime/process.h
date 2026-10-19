@@ -22,26 +22,26 @@ constexpr u32 kXProcTypeSystem = 2;
 
 /** The guest KPROCESS block. */
 struct X_KPROCESS {
-  X_KSPINLOCK thread_list_spinlock; /**< 0x00 */
-  X_LIST_ENTRY thread_list;         /**< 0x04 */
-  be_i32 quantum;                   /**< 0x0C */
-  be_u32 clrdataa_masked_ptr;       /**< 0x10 */
-  be_u32 thread_count;              /**< 0x14 */
-  u8 unk_18;                        /**< 0x18 */
-  u8 unk_19;                        /**< 0x19 */
-  u8 unk_1a;                        /**< 0x1A */
-  u8 unk_1b;                        /**< 0x1B */
-  be_u32 kernel_stack_size;         /**< 0x1C */
-  be_u32 tls_static_data_address;   /**< 0x20 */
-  be_u32 tls_data_size;             /**< 0x24 */
-  be_u32 tls_raw_data_size;         /**< 0x28 */
-  be_u16 tls_slot_size;             /**< 0x2C */
-  u8 is_terminating;                /**< 0x2E */
-  u8 process_type;                  /**< 0x2F */
-  be_u32 tls_slot_bitmap[8];        /**< 0x30 */
-  be_u32 unk_50;                    /**< 0x50 */
-  X_LIST_ENTRY unk_54;              /**< 0x54 */
-  be_u32 unk_5c;                    /**< 0x5C */
+  X_KSPINLOCK thread_list_spinlock;
+  X_LIST_ENTRY thread_list;
+  be_i32 quantum;
+  be_u32 clrdataa_masked_ptr;
+  be_u32 thread_count;
+  u8 unk_18;
+  u8 unk_19;
+  u8 unk_1a;
+  u8 unk_1b;
+  be_u32 kernel_stack_size;
+  be_u32 tls_static_data_address;
+  be_u32 tls_data_size;
+  be_u32 tls_raw_data_size;
+  be_u16 tls_slot_size;
+  u8 is_terminating;
+  u8 process_type;
+  be_u32 tls_slot_bitmap[8];
+  be_u32 unk_50;
+  X_LIST_ENTRY unk_54;
+  be_u32 unk_5c;
 };
 REX_STATIC_ASSERT_SIZE(X_KPROCESS, 0x60);
 

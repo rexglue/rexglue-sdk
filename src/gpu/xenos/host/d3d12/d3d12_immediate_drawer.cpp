@@ -279,7 +279,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
     }
   }
   upload_buffer->Unmap(0, nullptr);
-  // Holds the resource until the upload completes since the texture does not own its lifetime.
+  // The pending entry holds the texture and its upload buffer until the upload completes.
   texture_uploads_pending_.emplace_back(resource.Get(), upload_buffer.Get());
 
   SamplerIndex sampler_index;

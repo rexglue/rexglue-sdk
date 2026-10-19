@@ -166,7 +166,7 @@ REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[ui][sty
   }
 }
 
-REX_TEST_CASE("a palette changed before SetPresenter reaches ImGuiStyle", "[ui][style]") {
+REX_TEST_CASE("a changed palette reaches ImGuiStyle through ApplyDefaultStyle", "[ui][style]") {
   ImGuiStyle imgui_style;
   rex::ui::Style style;
   style.palette.accent = rex::Color::RGBA(0.7f, 0.1f, 0.3f);

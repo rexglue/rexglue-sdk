@@ -46,7 +46,7 @@ struct FaultReport {
 /**
  * Takes the report guard.
  *
- * @return True for the first caller. Every later caller gets false.
+ * @return True when the caller took the guard.
  */
 bool BeginReport();
 

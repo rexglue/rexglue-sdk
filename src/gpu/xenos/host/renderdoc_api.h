@@ -34,9 +34,9 @@ class REX_GPU_XENOS_API RenderDocAPI : public rex::NonCopyable {
   /**
    * Creates the API object when RenderDoc is attached to the process.
    *
-   * Always returns nullptr on macOS, where the vendored header exposes no API.
+   * Always returns null on macOS, where the vendored header exposes no API.
    *
-   * @return The API object, or nullptr when RenderDoc is not connected.
+   * @return The API object, or null when RenderDoc is not connected.
    */
   static std::unique_ptr<RenderDocAPI> CreateIfConnected();
 

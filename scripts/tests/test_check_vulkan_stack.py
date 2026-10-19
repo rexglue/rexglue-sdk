@@ -14,7 +14,7 @@ def real_config() -> StackConfig:
     return parse_stack_config((REPO_ROOT / STACK_FILE).read_text(encoding="utf-8"))
 
 
-def test_parses_the_shipped_stack_file():
+def test_parses_the_stack_file():
     config = real_config()
     assert config.sdk_version
     assert config.pins

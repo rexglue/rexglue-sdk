@@ -238,7 +238,7 @@ u32 ObDeleteSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr) {
  * Creates a new handle to the same object.
  *
  * @param handle The source handle, -2 is the current thread pseudo handle.
- * @param new_handle_ptr Receives the new handle, may be null to only close the source.
+ * @param new_handle_ptr Receives the new handle when not null.
  * @param options 1 closes the source handle (DUPLICATE_CLOSE_SOURCE).
  * @return X_STATUS_SUCCESS or an error status.
  */

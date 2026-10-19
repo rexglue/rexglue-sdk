@@ -11,7 +11,7 @@
 
 #pragma once
 
-// clang - format off
+// clang-format off
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif

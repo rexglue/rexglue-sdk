@@ -27,6 +27,8 @@ namespace rex {
 class REX_API Clock {
  public:
   /**
+   * Returns the clock.no_scaling cvar.
+   *
    * @return The clock.no_scaling cvar. When true, guest time follows host time unscaled.
    */
   static bool GetNoScaling();
@@ -46,26 +48,36 @@ class REX_API Clock {
   static u64 GetHostTickCountPlatform();
 
   /**
+   * Returns the host tick frequency.
+   *
    * @return Host ticks per second from the platform time source.
    */
   static u64 QueryHostTickFrequency();
 
   /**
+   * Returns the current host tick count.
+   *
    * @return The current host tick count from the platform time source.
    */
   static u64 QueryHostTickCount() noexcept;
 
   /**
+   * Returns the host system time.
+   *
    * @return The host system time as a FILETIME, in 100ns units since Jan 1 1601.
    */
   static u64 QueryHostSystemTime() noexcept;
 
   /**
+   * Returns the host uptime in milliseconds.
+   *
    * @return Milliseconds since the host platform tick source started.
    */
   static u64 QueryHostUptimeMillis();
 
   /**
+   * Returns the guest time scalar.
+   *
    * @return The guest time scalar. 1 is normal speed.
    */
   static f64 GetGuestTimeScalar();
@@ -79,12 +91,16 @@ class REX_API Clock {
   static void SetGuestTimeScalar(f64 scalar);
 
   /**
+   * Returns the host to guest tick ratio.
+   *
    * @return The host to guest tick ratio with time scaling applied, as a reduced numerator and
    *         denominator pair.
    */
   static std::pair<u64, u64> GetGuestTickRatio();
 
   /**
+   * Returns the guest tick frequency.
+   *
    * @return Guest ticks per second.
    */
   static u64 GetGuestTickFrequency();
@@ -97,6 +113,8 @@ class REX_API Clock {
   static void SetGuestTickFrequency(u64 frequency);
 
   /**
+   * Returns the FILETIME base of the guest system time.
+   *
    * @return The FILETIME base the guest system time counts from. It defaults to the host system
    *         time at startup.
    */
@@ -117,12 +135,16 @@ class REX_API Clock {
   static u64 QueryGuestTickCount();
 
   /**
+   * Returns the guest system time.
+   *
    * @return The guest system time as a scaled FILETIME. It equals host system time when
    *         no_scaling is true.
    */
   static u64 QueryGuestSystemTime();
 
   /**
+   * Returns the title uptime in milliseconds.
+   *
    * @return Scaled milliseconds since the guest system time base, clamped to the u32 range.
    */
   static u32 QueryGuestUptimeMillis();

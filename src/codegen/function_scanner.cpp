@@ -532,7 +532,7 @@ std::optional<JumpTable> DetectJumpTable(DecodedBinary& decoded, const Limits& l
 
     if (target & 3) {
       REXLOG_TRACE(codegen,
-                   "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} not 4-byte aligned",
+                   "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} not 4 byte aligned",
                    bctr_addr, i, target);
       if (jt.targets.empty())
         return std::nullopt;
@@ -741,11 +741,10 @@ BlockDiscoveryResult DiscoverBlocks(
                       "that is registered as a known function entry; dropping it",
                       addr, t);
                 } else {
-                  REXLOG_TRACE(
-                      codegen,
-                      "discoverBlocks: auto-detected jump table at bctr 0x{:08X} has target "
-                      "0x{:08X} that is a known function entry; dropping it",
-                      addr, t);
+                  REXLOG_TRACE(codegen,
+                               "discoverBlocks: detected jump table at bctr 0x{:08X} has target "
+                               "0x{:08X} that is a known function entry; dropping it",
+                               addr, t);
                 }
                 continue;
               }

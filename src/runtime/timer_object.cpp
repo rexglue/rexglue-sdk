@@ -115,7 +115,7 @@ X_STATUS TimerObject::Set(Runtime& runtime, i64 due_time, u32 period_ms, u32 rou
       return;
     }
     dispatcher.Post([runtime, thread_id, routine, routine_arg, time_low, time_high] {
-      REXLOG_DEBUG(system, "*this enqueuing callback to {:08X}({:08X}, {:08X}, {:08X})", routine,
+      REXLOG_DEBUG(system, "Timer enqueuing APC to {:08X}({:08X}, {:08X}, {:08X})", routine,
                    routine_arg, time_low, time_high);
       if (auto thread = runtime->GetThreadRegistry().Find(thread_id)) {
         thread->EnqueueAPC(routine, routine_arg, time_low, time_high);

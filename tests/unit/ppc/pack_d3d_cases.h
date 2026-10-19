@@ -142,8 +142,7 @@ inline constexpr PackD3DCase kPackD3DCases[] = {
     {6, {0x40400000, 0x40400000, 0x40480000, 0x40400000}, true},
 };
 
-/** One captured vpkd3d128 result, with the source words and the destination words in big endian
- * order. */
+/** One captured vpkd3d128 result, with the source and destination words in big endian order. */
 struct PackD3DRecord {
   u32 group;
   u32 type;

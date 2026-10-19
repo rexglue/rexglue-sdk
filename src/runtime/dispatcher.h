@@ -50,6 +50,8 @@ REX_RUNTIME_API bool LeaveInterrupt();
 class REX_RUNTIME_API Dispatcher final : public IDispatcher {
  public:
   /**
+   * Creates the dispatcher.
+   *
    * @param runtime The runtime whose memory, table and thread registry completions use.
    */
   explicit Dispatcher(Runtime& runtime);

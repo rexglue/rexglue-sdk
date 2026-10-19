@@ -162,7 +162,7 @@ REX_TEST_CASE("An XDBF achievement table stops at its block end", "[runtime][xdb
   CHECK(reader.GetAchievements().size() == 1);
 }
 
-REX_TEST_CASE("An XDBF language block smaller than its record keeps the default language",
+REX_TEST_CASE("An XDBF language block smaller than the XSTC structure keeps the default language",
               "[runtime][xdbf]") {
   Bytes content;
   content.Text("XSTC").Put(1, 4).Put(4, 4).Put(static_cast<u32>(XLanguage::kJapanese), 4);

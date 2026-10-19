@@ -14,7 +14,7 @@
 
 namespace rex::hid::cvars {
 
-REXCVAR_BOOL(hid, guide_button, false, "Enable guide button pass-through");
+REXCVAR_BOOL(hid, guide_button, false, "Enable guide button pass through");
 REXCVAR_BOOL(hid, vibration, true, "Enable controller vibration");
 REXCVAR_DOUBLE(hid, left_stick_deadzone, 0.0,
                "Deadzone applied to the left stick, as a fraction of its range")

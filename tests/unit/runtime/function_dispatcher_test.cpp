@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/runtime/function_dispatcher_test.cpp
- * @brief       Unit tests for thunk allocation, unregister cleanup, and trap-frame dispatch
+ * @brief       Unit tests for thunk allocation, unregister cleanup, and trap frame dispatch
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -150,7 +150,7 @@ REX_TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots",
   CHECK(dispatcher.GetFunction(kRegisterModBase + 0x10) == nullptr);
   CHECK(dispatcher.GetFunction(thunk) == nullptr);
 
-  // UnregisterModule destroys the per-module table, so the same code range reloads.
+  // UnregisterModule destroys the per module table, so the same code range reloads.
   REQUIRE(dispatcher.InitializeFunctionTable(kRegisterModBase, kCodeSize, kRegisterModBase,
                                              kImageSize));
   u32 thunk_after = dispatcher.AllocateThunk(&DummyFn, kRegisterModBase + 0x100);
@@ -226,7 +226,7 @@ REX_TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register
   memory.SystemHeapFree(stack);
 }
 
-REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr5 and fpscr",
+REX_TEST_CASE("PPCContext: nonvolatile save area round trips cr2-cr5 and fpscr",
               "[runtime][context]") {
   PPCContext ctx{};
   ctx.r31.u64 = 0x31313131;

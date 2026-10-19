@@ -241,8 +241,7 @@ inline T Fpfs(const std::string_view value, bool force_hex) {
 }  // namespace detail
 
 /**
- * Parses a boolean. Config files, the command line, cvar callbacks and the settings UI all parse
- * booleans here, so every source accepts the same strings.
+ * Parses a boolean. Accepts "true", "1" or "yes".
  *
  * @param value Text to parse.
  * @param force_hex Unused.

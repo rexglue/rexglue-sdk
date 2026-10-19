@@ -18,12 +18,12 @@
 namespace rex::runtime {
 
 /**
- * Counts transient pins on an `KernelObject` and decides who destroys it. The destroyer is
+ * Counts transient pins on a `KernelObject` and decides who destroys it. The destroyer is
  * whichever of the final Retire and the last Unpin happens second.
  */
 class PinCount {
  public:
-  /** Adds a pin. Called only while the owner can still be found. */
+  /** Adds a pin. */
   void Pin() noexcept { count_.fetch_add(1, std::memory_order_acquire); }
 
   /**

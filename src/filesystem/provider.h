@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/provider.h
- * @brief       The backing of 1 mount and the factory that builds it from a mount entry
+ * @brief       The backing of a mount and the factory that builds it from a mount entry
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -29,7 +29,7 @@
 namespace rex::filesystem {
 
 /**
- * The backing of 1 mount. Owns the node tree and the mutex its changes take. Open files and walks
+ * The backing of a mount. Owns the node tree and the mutex its changes take. Open files and walks
  * share ownership, so an unmount frees the tree at the last close.
  */
 class Provider : public NonCopyable, public std::enable_shared_from_this<Provider> {

@@ -107,7 +107,6 @@ class CodegenContext : public rex::MoveOnly {
 
   /**
    * Creates a CodegenContext from a pre-loaded binary and config.
-   * Used by tests that load the binary differently.
    *
    * @param binary Pre-loaded BinaryView, moved into the context
    * @param config Pre-loaded RecompilerConfig, moved into the context

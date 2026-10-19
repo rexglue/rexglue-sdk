@@ -26,7 +26,7 @@ using DotFunction = simde__m128 (*)(simde__m128, simde__m128);
  * Checks the broadcast result of a dot product for each case.
  *
  * @param dot The function under test.
- * @param cases The title element words and the expected result.
+ * @param cases The vector elements and the expected result.
  */
 void CheckCases(DotFunction dot, std::span<const DotProductCase> cases) {
   for (const DotProductCase& expected : cases) {

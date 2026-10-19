@@ -38,7 +38,7 @@ class VulkanProvider : public GraphicsProvider {
   /**
    * Returns the UI samplers.
    *
-   * @return The samplers, or nullptr when created without presentation support.
+   * @return The samplers, or null when created without presentation support.
    */
   const UISamplers* GetUISamplers() const { return ui_samplers_.get(); }
 

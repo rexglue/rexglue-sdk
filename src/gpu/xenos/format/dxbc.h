@@ -22,8 +22,6 @@
 #include <rex/math.h>
 #include <rex/memory.h>
 
-namespace rex::gpu::dxbc {
-
 /**
  * Shader model 5_1 byte code generation for Direct3D 12.
  *
@@ -32,7 +30,7 @@ namespace rex::gpu::dxbc {
  * encoding. DXBC restricts operand usage, so no sequence may be added that FXC would not
  * produce, and where FXC follows another pattern the FXC pattern is used.
  *
- * Absolute, negate and saturate are valid only on instructions that explicitly support them.
+ * Absolute, negate and saturate are valid only on instructions that support them.
  * Component selection in ALU instructions is 0 component for operand types with no data such as
  * samplers and labels, 1 component for scalar destinations and for scalar sources when the
  * destination vector has 1 component masked including scalar immediates, mask for vector
@@ -51,7 +49,7 @@ namespace rex::gpu::dxbc {
  * Registers written in "if" and not in "else", then used outside unconditionally or under a
  * different condition, must not have uninitialized components. They crash AMD drivers and limit
  * optimization through false dependencies, so l(0, 0, 0, 0) is moved to such components before
- * branching, and PushSystemTemp accepts a zero mask for this purpose.
+ * branching.
  *
  * Clamping of non negative values is done first to the lower bound with max, then to the upper
  * bound with min, to match the saturate modifier, which results in 0 for NaN.
@@ -60,6 +58,9 @@ namespace rex::gpu::dxbc {
  * and the size, and a 0 pointer is null when applicable. The reflection structures in
  * d3d12shader.h differ from the container layout.
  */
+namespace rex::gpu::dxbc {
+
+/** Fills the alignment padding so equal input gives equal DXBC. */
 constexpr u8 kAlignmentPadding = 0xAB;
 
 constexpr u32 BuildFourCC(u32 ch0, u32 ch1, u32 ch2, u32 ch3) {
@@ -72,7 +73,7 @@ struct alignas(u32) ContainerHeader {
   static constexpr u16 kVersionMajor = 1;
   static constexpr u16 kVersionMinor = 0;
   u32 fourcc;
-  /** Checksum of the entire container including this header, computed with this set to 0. */
+  /** Checksum of the container including this header, computed with this set to 0. */
   u32 hash[4];
   u16 version_major;
   u16 version_minor;
@@ -361,7 +362,7 @@ struct alignas(u32) RdefHeader {
   enum class FourCC : u32 {
     /** RD11 in Shader Model 5_0 shaders. */
     k50 = BuildFourCC('R', 'D', '1', '1'),
-    /** RD11 with reversed nibbles in Shader Model 5_0 shaders. */
+    /** RD11 with reversed nibbles in Shader Model 5_1 shaders. */
     k51 = 0x25441313u,
   };
   u32 cbuffer_count;
@@ -581,7 +582,7 @@ enum class Primitive : u32 {
   k32ControlPointPatch = 39,
 };
 
-/** The STAT blob, with the byte offset of each member in its trailing comment. */
+/** The STAT blob. */
 struct alignas(u32) Statistics {
   /** Not increased by declarations and labels. */
   u32 instruction_count;
@@ -592,7 +593,7 @@ struct alignas(u32) Statistics {
   u32 float_instruction_count;
   u32 int_instruction_count;
   u32 uint_instruction_count;
-  /** Counts endif and ret. */
+  /** Counts ret, call, case and default. */
   u32 static_flow_control_count;
   /** Counts if but not else. */
   u32 dynamic_flow_control_count;

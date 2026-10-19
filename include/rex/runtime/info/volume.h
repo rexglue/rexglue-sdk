@@ -28,7 +28,7 @@ enum X_FILE_FS_INFORMATION_CLASS : u8 {
 // NOLINTNEXTLINE(performance-enum-size): guest memory field width
 enum X_FILE_DEVICE_TYPE : u32 {
   kFileDeviceUnknown = 0x00000022, /**< Device type the volume device query reports. */
-  kFileDeviceEHSTOR = 0x00000046,  /**< Device type 0x46. No code uses it. */
+  kFileDeviceEHSTOR = 0x00000046,  /**< Device type 0x46. */
 };
 
 #pragma pack(push, 1)

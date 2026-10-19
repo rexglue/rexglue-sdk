@@ -522,7 +522,7 @@ bool IsRecordForm(const ppc_insn& insn) {
 
 void EmitRecordFormCompare(BuilderContext& ctx) {
   if (IsRecordForm(ctx.insn)) {
-    ctx.Println("	{}.Compare<i32>({}.s32, 0, {});", ctx.CR(0), ctx.R(ctx.insn.operands[0]),
+    ctx.Println("\t{}.Compare<i32>({}.s32, 0, {});", ctx.CR(0), ctx.R(ctx.insn.operands[0]),
                 ctx.XER());
   }
 }

@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_discover.cpp
- * @brief       Discover phase: iterative function block discovery
+ * @brief       Discover phase that iterates function block discovery
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

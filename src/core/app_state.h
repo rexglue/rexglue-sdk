@@ -24,7 +24,7 @@
 
 namespace rex::detail {
 
-/** Clears every request. App::Init calls it. */
+/** Clears every request. */
 REX_API void ResetAppState();
 
 /**
@@ -72,7 +72,7 @@ REX_API void SetRelaunchForTest(RelaunchFunction relaunch, bool can_relaunch);
 /**
  * Reports whether a relaunch may run.
  *
- * @return platform::CanRelaunch, or the test value while relaunch is replaced.
+ * @return True when a relaunch may run.
  */
 REX_API bool CanRelaunchProcess();
 

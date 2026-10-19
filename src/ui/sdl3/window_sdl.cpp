@@ -382,7 +382,7 @@ void WindowSDL::CenterOnConfiguredDisplay() {
     SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
                           SDL_WINDOWPOS_CENTERED_DISPLAY(display));
   } else {
-    REXLOG_WARN(ui, "monitor cvar is {} but only {} display(s) present; using default",
+    REXLOG_WARN(ui, "monitor cvar is {} but only {} display(s) present, using default",
                 monitor_index, display_count);
   }
   SDL_free(displays);

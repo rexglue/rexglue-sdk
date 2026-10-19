@@ -21,8 +21,10 @@ REXCVAR_BOOL(runtime, protect_zero, true, "Protect the zero page from reads and 
     .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(runtime, protect_on_release, false, "Protect released memory to prevent accesses");
 REXCVAR_BOOL(runtime, scribble_heap, false, "Scribble 0xCD into all allocated heap memory");
-REXCVAR_BOOL(runtime, ignore_thread_priorities, true, "Ignores game-specified thread priorities");
-REXCVAR_BOOL(runtime, ignore_thread_affinities, true, "Ignores game-specified thread affinities");
+REXCVAR_BOOL(runtime, ignore_thread_priorities, true,
+             "Ignores the thread priorities the title specifies");
+REXCVAR_BOOL(runtime, ignore_thread_affinities, true,
+             "Ignores the thread affinities the title specifies");
 REXCVAR_BOOL(runtime, ffmpeg_verbose, false, "Verbose FFmpeg output (debug and above)");
 REXCVAR_TABLE(kRuntimeCvars, writable_code_segments, protect_zero, protect_on_release,
               scribble_heap, ignore_thread_priorities, ignore_thread_affinities, ffmpeg_verbose);

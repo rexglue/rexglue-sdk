@@ -47,7 +47,7 @@ class FunctionGraph : public rex::MoveOnly {
    * @param size Size in bytes
    * @param authority Authority of the registration, the higher authority wins on a repeat
    * @param has_xrefs True when this is a known call target such as a bl target
-   * @return The new node, or the existing node when already present
+   * @return The new node, or the existing node when present
    */
   FunctionNode* AddFunction(u32 base, u32 size, FunctionAuthority authority,
                             bool has_xrefs = false);
@@ -60,7 +60,7 @@ class FunctionGraph : public rex::MoveOnly {
    * @param authority Authority of the registration
    * @param name Function name
    * @param has_xrefs True when this is a known call target
-   * @return The new node, or the existing node when already present
+   * @return The new node, or the existing node when present
    */
   FunctionNode* AddFunction(u32 base, u32 size, FunctionAuthority authority, std::string_view name,
                             bool has_xrefs = false);
@@ -196,7 +196,7 @@ class FunctionGraph : public rex::MoveOnly {
   size_t GetSealedCount() const;
 
   /**
-   * Sets a function name. Called during the Discover phase.
+   * Sets a function name.
    *
    * @param entry Entry point address
    * @param name Function name
@@ -204,7 +204,7 @@ class FunctionGraph : public rex::MoveOnly {
   void SetFunctionName(u32 entry, std::string name);
 
   /**
-   * Sets the exception handler flag. Called during the Discover phase.
+   * Sets the exception handler flag.
    *
    * @param entry Entry point address
    * @param val Flag value
@@ -220,7 +220,7 @@ class FunctionGraph : public rex::MoveOnly {
   void SetFunctionMillicode(u32 entry, MillicodeEntry millicode);
 
   /**
-   * Sets the parsed SEH or C++ EH info. Called during the Discover phase.
+   * Sets the parsed SEH or C++ EH info.
    *
    * @param entry Entry point address
    * @param info Parsed exception info
@@ -228,7 +228,7 @@ class FunctionGraph : public rex::MoveOnly {
   void SetFunctionExceptionInfo(u32 entry, ExceptionInfo info);
 
   /**
-   * Adds a block to a function. Called during the Discover phase.
+   * Adds a block to a function.
    *
    * @param entry Entry point address
    * @param block Block to add
@@ -236,7 +236,7 @@ class FunctionGraph : public rex::MoveOnly {
   void AddBlockToFunction(u32 entry, Block block);
 
   /**
-   * Adds a label, an internal branch target, to a function. Called during the Discover phase.
+   * Adds a label, an internal branch target, to a function.
    *
    * @param entry Entry point address
    * @param label Label address
@@ -244,7 +244,7 @@ class FunctionGraph : public rex::MoveOnly {
   void AddLabelToFunction(u32 entry, u32 label);
 
   /**
-   * Adds a resolved call to a function. Called during the Discover phase.
+   * Adds a resolved call to a function.
    *
    * @param entry Entry point address
    * @param site Call site address
@@ -253,7 +253,7 @@ class FunctionGraph : public rex::MoveOnly {
   void AddCallToFunction(u32 entry, u32 site, CallTarget target);
 
   /**
-   * Adds a resolved tail call to a function. Called during the Discover phase.
+   * Adds a resolved tail call to a function.
    *
    * @param entry Entry point address
    * @param site Call site address
@@ -262,7 +262,7 @@ class FunctionGraph : public rex::MoveOnly {
   void AddTailCallToFunction(u32 entry, u32 site, CallTarget target);
 
   /**
-   * Adds a jump table to a function. Called during the Discover phase.
+   * Adds a jump table to a function.
    *
    * @param entry Entry point address
    * @param jt Jump table to add
@@ -270,7 +270,7 @@ class FunctionGraph : public rex::MoveOnly {
   void AddJumpTableToFunction(u32 entry, JumpTable jt);
 
   /**
-   * Adds an unresolved jump to a function. Called during the Discover phase.
+   * Adds an unresolved jump to a function.
    *
    * @param entry Entry point address
    * @param site Jump site address
@@ -282,7 +282,7 @@ class FunctionGraph : public rex::MoveOnly {
 
   /**
    * Tries to resolve all unresolved jumps of a function against known functions, imports and
-   * internal labels. Called during the Merge phase.
+   * internal labels.
    *
    * @param entry Entry point address
    * @return Number of jumps resolved
@@ -290,7 +290,7 @@ class FunctionGraph : public rex::MoveOnly {
   size_t TryResolveFunction(u32 entry);
 
   /**
-   * Absorbs a region into a function for vacancy expansion. Called during the Merge phase.
+   * Absorbs a region into a function for vacancy expansion.
    *
    * @param entry Entry point address
    * @param region_base Region start address
@@ -299,7 +299,7 @@ class FunctionGraph : public rex::MoveOnly {
   void AbsorbRegionIntoFunction(u32 entry, u32 region_base, u32 region_size);
 
   /**
-   * Seals a function if it can be sealed. Called during the Merge phase.
+   * Seals a function if it can be sealed.
    *
    * @param entry Entry point address
    * @return True when the function was sealed
@@ -307,7 +307,7 @@ class FunctionGraph : public rex::MoveOnly {
   bool TrySealFunction(u32 entry);
 
   /**
-   * Seals all functions that can be sealed. Called during the Merge phase.
+   * Seals all functions that can be sealed.
    *
    * @return Number of functions sealed
    */

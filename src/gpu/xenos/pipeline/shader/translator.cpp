@@ -371,7 +371,7 @@ void Shader::GatherVertexFetchInformation(const VertexFetchInstruction& op,
   if (!attrib) {
     REX_ASSERT(fetch_instr.attributes.stride != 0);
     VertexBinding vertex_binding;
-    vertex_binding.binding_index = int(vertex_bindings_.size());
+    vertex_binding.binding_index = static_cast<int>(vertex_bindings_.size());
     vertex_binding.fetch_constant = op.GetFetchConstantIndex();
     vertex_binding.stride_words = fetch_instr.attributes.stride;
     vertex_binding.attributes.push_back({});
@@ -1179,7 +1179,7 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
   if (is_export) {
     storage_target = InstructionStorageTarget::kNone;
     // Both vector and scalar operation export to vector_dest.
-    ExportRegister export_register = ExportRegister(op.GetVectorDest());
+    ExportRegister export_register = static_cast<ExportRegister>(op.GetVectorDest());
     if (export_register == ExportRegister::kExportAddress) {
       storage_target = InstructionStorageTarget::kExportAddress;
     } else if (export_register >= ExportRegister::kExportData0 &&

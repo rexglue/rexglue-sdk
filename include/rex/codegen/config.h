@@ -234,7 +234,7 @@ struct RecompilerConfig {
 
   /**
    * Adds the entries of a shared layer whose address is inside [base, base + size). An entry
-   * this config already has keeps its own value.
+   * this config has keeps its own value.
    *
    * @param shared The shared layer.
    * @param base First address of the binary image.

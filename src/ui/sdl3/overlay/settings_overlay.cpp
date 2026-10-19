@@ -407,7 +407,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
             lifecycle_label = "Requires restart to take effect";
             break;
           case rex::cvar::Lifecycle::kInitOnly:
-            lifecycle_label = "Read-only - set at initialization only";
+            lifecycle_label = "Read only, set at initialization";
             break;
         }
         if (!description.empty()) {

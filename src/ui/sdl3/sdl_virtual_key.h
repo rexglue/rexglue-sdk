@@ -1,6 +1,6 @@
 /**
  * @file        ui/sdl3/sdl_virtual_key.h
- * @brief       SDL3 scancode to Win32-style hid::VirtualKey translation
+ * @brief       SDL3 scancode to Win32 style hid::VirtualKey translation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -43,6 +43,8 @@ REX_API void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch,
                                               u32* mip_min_level_out, u32* mip_max_level_out);
 
 /**
+ * Returns the first mip level stored in the packed mip tail.
+ *
  * @param width Width in texels.
  * @param height Height in texels.
  * @return The first mip level stored in the packed mip tail.
@@ -228,6 +230,8 @@ REX_API u32 GetTiledAddressUpperBound3D(u32 right, u32 bottom, u32 back, u32 pit
 REX_API u8 SwizzleSigns(const xenos::TextureFetch& fetch);
 
 /**
+ * Reports whether any component is not kSigned.
+ *
  * @param packed_signs Packed signs from SwizzleSigns.
  * @return True when any component is not kSigned.
  */
@@ -236,6 +240,8 @@ constexpr bool IsAnySignNotSigned(u8 packed_signs) {
 }
 
 /**
+ * Reports whether any component is kSigned.
+ *
  * @param packed_signs Packed signs from SwizzleSigns.
  * @return True when any component is kSigned.
  */

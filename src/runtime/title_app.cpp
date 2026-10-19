@@ -233,7 +233,7 @@ Result<void> TitleApp::LaunchTitle() {
   }
   if (!std::filesystem::is_directory(paths.game_data_root)) {
     return LaunchFailure(
-        std::format("--game_data_root does not exist: {}", paths.game_data_root.string()));
+        std::format("--game_data_root {} does not exist", paths.game_data_root.string()));
   }
 
   runtime_ = std::make_unique<Runtime>(GetAPI().GetConfig());
@@ -253,7 +253,7 @@ Result<void> TitleApp::LaunchTitle() {
 
   constexpr std::string_view kImage = "game:\\default.xex";
   if (!runtime_->GetFileSystem()->Stat(kImage)) {
-    return LaunchFailure(std::format("Entrypoint XEX not found: {}", kImage));
+    return LaunchFailure(std::format("Entrypoint XEX {} was not found", kImage));
   }
   if (auto loaded = runtime_->LoadXEXImage(kImage); !loaded) {
     return LaunchFailure(

@@ -113,7 +113,7 @@ struct ProbeResult {
   int status = 0;
   std::string output;
 
-  bool Reported() const { return Has("rex-crash-probe crash report"); }
+  bool Reported() const { return Has("rex-crash-child crash report"); }
   bool Has(std::string_view text) const { return output.find(text) != std::string::npos; }
 };
 
@@ -125,7 +125,7 @@ ProbeResult RunProbe(std::string_view mode) {
   const std::filesystem::path probe = folder / "rex-crash-probe";
 #endif
   const std::filesystem::path out =
-      std::filesystem::temp_directory_path() / std::format("rex-crash-probe-{}.txt", mode);
+      std::filesystem::temp_directory_path() / std::format("rex-crash-child-{}.txt", mode);
   std::filesystem::remove(out);
   ProbeResult result;
   result.status = RunProcess(probe, mode, out);
@@ -157,7 +157,7 @@ REX_TEST_CASE("std::terminate names the exception type and message",
   const auto result = RunProbe("terminate");
   CHECK(result.status != 0);
   CHECK(result.Has("runtime_error"));
-  CHECK(result.Has("probe terminate"));
+  CHECK(result.Has("crash child terminate"));
 }
 
 REX_TEST_CASE("abort is reported", "[core][crash][crash_report]") {
@@ -241,12 +241,12 @@ REX_TEST_CASE("A fault during another thread's report waits for the report to fi
               "[core][crash][crash_report]") {
   const auto result = RunProbe("concurrent");
   CHECK(result.status != 0);
-  CHECK(result.Has("probe concurrent describer"));
+  CHECK(result.Has("crash child concurrent describer"));
   CHECK(result.Has("==== end of crash report ===="));
 }
 
 REX_TEST_CASE("The describer text is part of the report", "[core][crash][crash_report]") {
   const auto result = RunProbe("describer");
   CHECK(result.status != 0);
-  CHECK(result.Has("probe describer 0"));
+  CHECK(result.Has("crash child describer 0"));
 }

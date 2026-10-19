@@ -50,7 +50,7 @@ union XNotificationKey {
   constexpr operator XNotificationID() const { return id; }
 };
 
-/** The host state of a notification listener. */
+/** The host state of a notify listener. */
 struct NotifyListenerObject {
   /**
    * @param mask_in The bit mask of notification areas the listener receives.

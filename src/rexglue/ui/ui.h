@@ -31,7 +31,7 @@ namespace detail {
 class GlobalSinkAccessor;
 }
 
-/** Log sink that also owns direct presentation output for the rexglue CLI. */
+/** Log sink that owns presentation output for the rexglue CLI. */
 class PresentationSink final : public rex::log::ISink {
  public:
   PresentationSink(std::ostream& out, bool tty, bool color);

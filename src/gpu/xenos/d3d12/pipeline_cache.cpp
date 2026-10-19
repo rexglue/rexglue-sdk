@@ -208,7 +208,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     if (!std::filesystem::create_directories(shader_storage_shareable_root)) {
       REXLOG_ERROR(gpu,
                    "Failed to create the shareable shader storage directory, persistent "
-                   "shader storage will be disabled: {}",
+                   "shader storage will be disabled, path {}",
                    rex::PathToUTF8(shader_storage_shareable_root));
       return;
     }
@@ -226,7 +226,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   if (!platform::OpenStorageFile(storage_.pipeline_file, pipeline_storage_file_path)) {
     REXLOG_ERROR(gpu,
                  "Failed to open the Direct3D 12 pipeline description storage file for "
-                 "writing, persistent shader storage will be disabled: {}",
+                 "writing, persistent shader storage will be disabled, path {}",
                  rex::PathToUTF8(pipeline_storage_file_path));
     return;
   }
@@ -294,7 +294,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   if (!platform::OpenStorageFile(storage_.shader_file, shader_storage_file_path)) {
     REXLOG_ERROR(gpu,
                  "Failed to open the title shader storage file for writing, persistent "
-                 "shader storage will be disabled: {}",
+                 "shader storage will be disabled, path {}",
                  rex::PathToUTF8(shader_storage_file_path));
     storage_.pipeline_file.close();
     return;
@@ -959,7 +959,7 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
   D3D12Shader& shader = static_cast<D3D12Shader&>(translation.GetShader());
 
   if (!translator.TranslateAnalyzedShader(translation)) {
-    REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
+    REX_FAIL(gpu, false, "Shader {:016X} translation failed and the shader is marked as ignored",
              shader.GetUcodeDataHash());
   }
 
@@ -968,22 +968,22 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
     DXBCShaderTranslator::Modification modification(translation.GetModification());
     switch (modification.vertex.host_vertex_shader_type) {
       case Shader::HostVertexShaderType::kLineDomainCPIndexed:
-        host_shader_type = "control-point-indexed line domain";
+        host_shader_type = "control point indexed line domain";
         break;
       case Shader::HostVertexShaderType::kLineDomainPatchIndexed:
-        host_shader_type = "patch-indexed line domain";
+        host_shader_type = "patch indexed line domain";
         break;
       case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
-        host_shader_type = "control-point-indexed triangle domain";
+        host_shader_type = "control point indexed triangle domain";
         break;
       case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-        host_shader_type = "patch-indexed triangle domain";
+        host_shader_type = "patch indexed triangle domain";
         break;
       case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
-        host_shader_type = "control-point-indexed quad domain";
+        host_shader_type = "control point indexed quad domain";
         break;
       case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-        host_shader_type = "patch-indexed quad domain";
+        host_shader_type = "patch indexed quad domain";
         break;
       default:
         assert(modification.vertex.host_vertex_shader_type ==
@@ -993,7 +993,7 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
   } else {
     host_shader_type = "pixel";
   }
-  REXLOG_DEV(gpu, "Generated {} shader ({}b) - hash {:016X}:\n{}\n", host_shader_type,
+  REXLOG_DEV(gpu, "Generated {} shader ({}b) with hash {:016X}\n{}\n", host_shader_type,
              shader.GetUcodeDwordCount() * sizeof(u32), shader.GetUcodeDataHash(),
              shader.GetUcodeDisassembly().c_str());
 
@@ -1253,7 +1253,6 @@ bool PipelineCache::GetCurrentStateDescription(
     } else {
       description_out.cull_mode = PipelineCullMode::kNone;
     }
-    // With ROV the depth bias is applied in the pixel shader, as MSAA needs per sample depth.
     if (!cull_front) {
       if (pa_su_sc_mode_cntl.polymode_front_ptype != xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
@@ -1271,6 +1270,7 @@ bool PipelineCache::GetCurrentStateDescription(
     cull_front = false;
     cull_back = false;
   }
+  // With ROV the depth bias is applied in the pixel shader, as MSAA needs per sample depth.
   if (!edram_rov_used) {
     f32 polygon_offset, polygon_offset_scale;
     draw_state::GetPreferredFacePolygonOffset(regs, primitive_polygonal, polygon_offset_scale,
@@ -1324,7 +1324,7 @@ bool PipelineCache::GetCurrentStateDescription(
           description_out.stencil_back_func = description_out.stencil_front_func;
         }
       }
-      // Without a bound DSV the format is left out of the hash.
+      // The format is set only when depth or stencil is used.
       if (description_out.depth_func != xenos::CompareFunction::kAlways ||
           description_out.depth_write || description_out.stencil_enable) {
         description_out.depth_format =

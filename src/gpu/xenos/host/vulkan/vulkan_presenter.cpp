@@ -961,7 +961,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   command_buffer_begin_info.pInheritanceInfo = nullptr;
   if (dfn.vkBeginCommandBuffer(draw_command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
     REX_FAIL(ui, PaintResult::kNotPresented,
-             "VulkanPresenter: Failed to being recording the command buffer for "
+             "VulkanPresenter: Failed to begin recording the command buffer for "
              "drawing to the swapchain");
   }
   // vkResetCommandPool resets a command buffer left open, so early returns are safe.
@@ -1148,7 +1148,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
           if (!logged_swapchain_expand.exchange(true)) {
             REXLOG_WARN(ui,
                         "VulkanPresenter: expanding final guest output rect from "
-                        "{}x{} to swapchain {}x{} to avoid top-left-only output",
+                        "{}x{} to swapchain {}x{} to avoid output only in the top left",
                         effect_rect_size.first, effect_rect_size.second,
                         paint_context_.swapchain_extent.width,
                         paint_context_.swapchain_extent.height);

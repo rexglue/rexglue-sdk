@@ -66,7 +66,7 @@ REX_TEST_CASE("null is picked on every platform and never by any", "[gpu][backen
   CHECK(SelectHostAPI("any", rex::gpu::kPlatformHostAPIs).value() != HostAPI::kNull);
 }
 
-REX_TEST_CASE("A misspelled null fails with the name", "[gpu][backend]") {
+REX_TEST_CASE("A mistyped null fails with the name", "[gpu][backend]") {
   auto selected = SelectHostAPI("nul", rex::gpu::kPlatformHostAPIs);
   REQUIRE_FALSE(selected);
   CHECK(selected.error().message.find("nul") != std::string::npos);

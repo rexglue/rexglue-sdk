@@ -1,6 +1,6 @@
 /**
  * @file        ppc/context.h
- * @brief       PPC thread context, guest function macros, and interrupt handling
+ * @brief       PPC register types and thread context
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -285,8 +285,14 @@ using PPCFPSCRRegister = rex::ppc::FPSCRRegister;
 struct alignas(0x40) PPCContext {
   /** General purpose register 3, the first integer argument and the integer return value. */
   PPCRegister r3;
-  /** @name General purpose registers r0 to r31 except r3, 64 bit, r1 the stack pointer, r4 to r10
-   * the integer arguments after r3, r13 the KPCR pointer, r14 to r31 saved across calls. */
+  /**
+   * @name General purpose registers r0 to r31 except r3, 64 bit
+   *
+   * - r1 is the stack pointer.
+   * - r4 to r10 are the integer arguments after r3.
+   * - r13 is the KPCR pointer.
+   * - r14 to r31 are saved across calls.
+   */
   /** @{ */
   PPCRegister r0;
   PPCRegister r1;
@@ -337,19 +343,19 @@ struct alignas(0x40) PPCContext {
   PPCCRRegister cr6;      /**< Condition register field 6, CR bits 24 to 27. */
   PPCCRRegister cr7;      /**< Condition register field 7, CR bits 28 to 31. */
   PPCFPSCRRegister fpscr; /**< Floating point status and control register. */
-  u8 vscr_sat = 0;        /**< VSCR saturation flag for vector ops */
+  u8 vscr_sat = 0;        /**< VSCR saturation flag for vector ops. */
   u8 vscr_nj = 0;         /**< VSCR non Java mode bit as mtvscr stored it. */
 
-  /**
-   * Last indirect call target address. Set by REX_CALL_INDIRECT_FUNC before
-   * dispatch. Used by the invalid-function trap to report the faulting address.
-   * Unconditional (not guarded by config flags) because ctr may be optimized
-   * to a local variable via REX_CONFIG_CTR_AS_LOCAL.
-   */
+  /** Last indirect call target address. Set by REX_CALL_INDIRECT_FUNC before dispatch. */
   u32 last_indirect_target = 0;
 
-  /** @name Floating point registers f0 to f31, 64 bit, f1 to f13 the float arguments, f1 the float
-   * return value, f14 to f31 saved across calls. */
+  /**
+   * @name Floating point registers f0 to f31, 64 bit
+   *
+   * - f1 to f13 are the float arguments.
+   * - f1 is the float return value.
+   * - f14 to f31 are saved across calls.
+   */
   /** @{ */
   PPCRegister f0;
   PPCRegister f1;
@@ -420,7 +426,7 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v30;
   PPCVRegister v31;
   /** @} */
-  /** @name VMX128 vector registers v32 to v127, 128 bit, present only on the title CPU VMX128
+  /** @name VMX128 vector registers v32 to v127, 128 bit, present only with the PPC VMX128
    * extension, v64 to v127 saved across calls. */
   /** @{ */
   PPCVRegister v32;
@@ -554,8 +560,14 @@ struct alignas(0x40) PPCContext {
   static constexpr size_t kNonVolatileCRCount = 4;
 
   /**
-   * Size in bytes of the non volatile save area. The layout is r14-r31 (144), f14-f31 (144),
-   * v14-v31 (288), v64-v127 (1024), cr2-cr5 (16) and fpscr (4), 1620 bytes in total.
+   * Size in bytes of the non volatile save area, 1620 bytes in total. The layout holds these
+   * parts in order.
+   * - r14-r31 (144)
+   * - f14-f31 (144)
+   * - v14-v31 (288)
+   * - v64-v127 (1024)
+   * - cr2-cr5 (16)
+   * - fpscr (4)
    */
   static constexpr size_t kNonVolatileSaveSize =
       18 * sizeof(PPCRegister) + 18 * sizeof(PPCRegister) + 18 * sizeof(PPCVRegister) +

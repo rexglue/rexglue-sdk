@@ -23,7 +23,14 @@ using namespace rex::codegen;
 
 namespace {
 
-/// Index of the bucket holding `address`, or SIZE_MAX when absent.
+/**
+ * Returns the index of the bucket holding the address, or SIZE_MAX when absent.
+ *
+ * @param buckets The buckets of entry indexes.
+ * @param entries The entries the bucket indexes point into.
+ * @param address The address to look for.
+ * @return The bucket index.
+ */
 size_t BucketOf(const std::vector<std::vector<size_t>>& buckets,
                 std::span<const FunctionSize> entries, u32 address) {
   for (size_t b = 0; b < buckets.size(); ++b) {
@@ -180,7 +187,7 @@ REX_TEST_CASE("Buckets stay sorted by address", "[codegen][output_partition]") {
   CHECK(buckets[0] == std::vector<size_t>{0, 1, 2});
 }
 
-REX_TEST_CASE("Serialize and Load round-trip preserves assignments",
+REX_TEST_CASE("Serialize and Load round trip preserves assignments",
               "[codegen][output_partition]") {
   const rex::test::TempFolder folder("rexglue_partition_test_");
   auto path = ScratchPath(folder, "roundtrip.json");
@@ -224,7 +231,7 @@ REX_TEST_CASE("A malformed sidecar falls back to a fresh partition",
   fs::remove(path);
 }
 
-REX_TEST_CASE("A non-hex assignment key is skipped, not thrown on", "[codegen][output_partition]") {
+REX_TEST_CASE("A nonhex assignment key is skipped, not thrown on", "[codegen][output_partition]") {
   const rex::test::TempFolder folder("rexglue_partition_test_");
   auto path = ScratchPath(folder, "bad_key.json");
   {

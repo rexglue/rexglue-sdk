@@ -28,15 +28,15 @@ function Get-ReXCMakeLang {
     $python = Get-Command python -ErrorAction SilentlyContinue
     if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
     if (-not $python) {
-        throw "Python not found on PATH. Install Python, then: $install"
+        throw "Python not found on PATH. Install Python and run $install"
     }
 
     $reported = & $python.Source -c "import importlib.metadata as m; print(m.version('cmakelang'))" 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $reported) {
-        throw "cmakelang $pinned is not installed. Run: $install"
+        throw "cmakelang $pinned is not installed. Run $install"
     }
     if ($reported -ne $pinned) {
-        throw "cmakelang version mismatch: found $reported, expected $pinned. Run: $install"
+        throw "cmakelang found $reported, expected $pinned. Run $install"
     }
 
     return $python.Source

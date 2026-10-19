@@ -91,7 +91,7 @@ REX_TEST_CASE("An SEH handler reads the frame register the body wrote", "[codege
   CHECK(code.find("ctx.r12.s64 = ctx.r31.s64 + 96;") != std::string::npos);
 }
 
-REX_TEST_CASE("A function without SEH keeps its non-volatile registers local", "[codegen][seh]") {
+REX_TEST_CASE("A function without SEH keeps its nonvolatile registers local", "[codegen][seh]") {
   const std::string code = LoopFunction(false, true, true).Emit();
   CHECK(code.find("PPCRegister r31{}") != std::string::npos);
 }

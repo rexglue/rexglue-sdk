@@ -223,7 +223,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     }
   }
 
-  // Binaries sharing an out_directory_path would clobber each other's sources.cmake on emit.
   std::unordered_map<std::string, std::string> out_dir_owner;
   for (const auto& m : targeted) {
     const auto& out_dir = m.config.out_directory_path;
@@ -233,7 +232,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     if (!inserted) {
       return Err<void>(
           ErrorCategory::kValidation,
-          std::format("out_directory_path '{}' is shared by '{}' and '{}'; each binary "
+          std::format("out_directory_path '{}' is shared by '{}' and '{}'. Each binary "
                       "needs its own output directory",
                       out_dir, it->second, m.target_name));
     }
@@ -549,7 +548,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       stamp_text += fingerprint;
       stamp_text += '\n';
     }
-    // Never WriteIfChanged, as the build rule reruns until this mtime passes its inputs.
     if (!rex::platform::WriteHostFile(build_stamp, stamp_text)) {
       return Err<void>(ErrorCategory::kIO, std::format("Failed to write {}", build_stamp.string()));
     }

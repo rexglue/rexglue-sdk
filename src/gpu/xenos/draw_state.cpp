@@ -588,7 +588,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
       rb_copy_control.copy_sample_select, rb_surface_info.msaa_samples, is_depth);
   if (rb_copy_control.copy_sample_select != sample_select) {
     REXLOG_WARN(gpu,
-                "Incorrect resolve sample selected for {}-sample {}: {}, treating like "
+                "Incorrect resolve sample selected for {}-sample {} ({}), treating like "
                 "{}",
                 1 << u32(rb_surface_info.msaa_samples), is_depth ? "depth" : "color",
                 static_cast<u32>(rb_copy_control.copy_sample_select),
@@ -616,7 +616,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     }
     if (dest_format != dest_closest_format) {
       REXLOG_WARN(gpu,
-                  "Resolving to format {}, which is untested - treating like {}. "
+                  "Resolving to format {}, which is untested, treating like {}. "
                   "Report the title to ReXGlue developers!",
                   xenos::FormatInfo::Get(dest_format)->name,
                   xenos::FormatInfo::Get(dest_closest_format)->name);

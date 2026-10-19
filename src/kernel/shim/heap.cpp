@@ -19,7 +19,7 @@ struct SizeHeader {
   u64 reserved;
 };
 static_assert(sizeof(SizeHeader) == O1HEAP_ALIGNMENT,
-              "SizeHeader must be exactly one O1HEAP_ALIGNMENT unit");
+              "SizeHeader must be exactly 1 O1HEAP_ALIGNMENT unit");
 
 constexpr u32 kHeaderSize = static_cast<u32>(O1HEAP_ALIGNMENT);
 constexpr u32 kMinSegmentSize = 4u * 1024u * 1024u;
@@ -232,7 +232,7 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
   const auto diagnostics = GetDiagnosticsLocked();
   const u64 free_bytes = diagnostics.capacity - diagnostics.allocated;
   REXLOG_WARN(kernel,
-              "rexshim_RtlAllocateHeap: allocation still failed after growth for {} bytes "
+              "rexshim_RtlAllocateHeap: allocation failed after growth for {} bytes "
               "(segments={}, capacity={}MB, allocated={}MB, free={}MB, oom_count={})",
               size, segments_.size(), diagnostics.capacity >> 20, diagnostics.allocated >> 20,
               free_bytes >> 20, diagnostics.oom_count);

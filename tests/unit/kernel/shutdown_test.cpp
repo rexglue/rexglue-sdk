@@ -347,7 +347,7 @@ REX_TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
   });
 }
 
-REX_TEST_CASE("A stop wakes a non-alertable wait on an event nobody sets", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop wakes a nonalertable wait on an event nobody sets", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = CreateEvent(c);
@@ -382,7 +382,7 @@ REX_TEST_CASE("A stop wakes a signal and wait", "[kernel][shutdown]") {
   });
 }
 
-REX_TEST_CASE("A stop wakes a non-alertable delay of 1 hour", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop wakes a nonalertable delay of 1 hour", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 thread = StopsWithin(
@@ -426,7 +426,7 @@ REX_TEST_CASE("A stop requested before the wait still wakes it", "[kernel][shutd
   });
 }
 
-REX_TEST_CASE("A non-alertable wait keeps waiting through a guest APC", "[kernel][shutdown]") {
+REX_TEST_CASE("A nonalertable wait keeps waiting through a guest APC", "[kernel][shutdown]") {
   KernelFixture fixture;
   const u32 routine = fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&MarkAPC, 0);
   REQUIRE(routine != 0);
@@ -658,7 +658,7 @@ REX_TEST_CASE("A stop requested before a thread launches ends it at its first ch
   CHECK_FALSE(ran_on->load());
 }
 
-REX_TEST_CASE("A thread that holds a mutant when the stop lands abandons it",
+REX_TEST_CASE("A thread that holds a mutant when the stop arrives abandons it",
               "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {

@@ -99,7 +99,7 @@ REX_TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_
   runtime.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "A misspelled backend fails Init with its name", "[gpu]") {
+REX_TEST_CASE_METHOD(Fixture, "A mistyped backend name fails Init with its name", "[gpu]") {
   rex::Config config = NullConfig();
   config.gpu.backend = "nul";
   auto api = rex::Init(config);

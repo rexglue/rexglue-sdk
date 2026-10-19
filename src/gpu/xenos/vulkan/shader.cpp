@@ -46,7 +46,7 @@ VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
                                                          &shader_module_create_info, nullptr,
                                                          &shader_module_) != VK_SUCCESS) {
     REXLOG_ERROR(gpu,
-                 "VulkanShader::VulkanTranslation: Failed to create a Vulkan shader "
+                 "VulkanShader::VulkanTranslation failed to create a Vulkan shader "
                  "module for shader {:016X} modification {:016X}",
                  GetShader().GetUcodeDataHash(), GetModification());
     Invalidate();

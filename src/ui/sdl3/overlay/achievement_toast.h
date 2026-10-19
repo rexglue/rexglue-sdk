@@ -1,7 +1,7 @@
 /**
  * @file        ui/sdl3/overlay/achievement_toast.h
- * @brief       Thread-safe achievement unlock toast - bottom-right corner,
- *              auto-dismisses after a few seconds.
+ * @brief       Thread safe achievement unlock toast in the bottom right corner.
+ *              It dismisses itself after a few seconds.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

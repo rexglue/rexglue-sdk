@@ -9,10 +9,10 @@
  *
  * @remarks     Provides cross-platform SEH support for recompiled PPC code.
  *              On Windows, uses native __try/__except (works with MSVC and Clang-cl).
- *              On Linux, uses signal handlers for SIGSEGV/SIGBUS.
+ *              On POSIX, uses signal handlers for SIGSEGV, SIGBUS, SIGFPE and SIGILL.
  *
  * @usage       1. Call rex::InitializeSEH() at startup
- *              2. Generated code wraps SEH scopes with try/catch blocks
+ *              2. Generated code wraps SEH scopes with REX_SEH_TRY blocks
  *              3. Hardware exceptions (null deref, access violation) throw SEHException
  *              4. Catch blocks call finally handlers and rethrow
  */
@@ -104,7 +104,7 @@ inline void InitializeSEHThread() {
   platform::GetSEHThreadState() = {};
 }
 
-/** Installs the process wide SEH handlers. Call once at startup. */
+/** Installs the process wide SEH handlers. */
 inline void InitializeSEH() {
   platform::SEHInitialize();
 }
@@ -141,7 +141,7 @@ inline void InitializeSEH() {
 /** Returns from the function that holds the SEH scope. */
 #define REX_SEH_RETURN return
 
-#else  // !REX_PLATFORM_WIN32
+#else
 
 /**
  * Opens an SEH scope. A fault inside it resumes at the handler through sigsetjmp, so the scope adds

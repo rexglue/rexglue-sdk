@@ -130,7 +130,7 @@ inline void XOverlappedSetExtendedError(void* ptr, u32 value) {
   static_cast<XAM_OVERLAPPED*>(ptr)->extended_error = value;
 }
 
-/** A counted 8-bit string in guest memory. */
+/** A counted 8 bit string in guest memory. */
 struct X_ANSI_STRING {
   be_u16 length;         /**< Used bytes of the string, without a terminator. */
   be_u16 maximum_length; /**< Capacity in bytes of the buffer at pointer. */
@@ -145,7 +145,7 @@ struct X_ANSI_STRING {
 };
 REX_STATIC_ASSERT_SIZE(X_ANSI_STRING, 8);
 
-/** A counted 16-bit string in guest memory. */
+/** A counted 16 bit string in guest memory. */
 struct X_UNICODE_STRING {
   be_u16 length;
   be_u16 maximum_length;

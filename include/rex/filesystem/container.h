@@ -40,14 +40,14 @@ enum class ContainerKind : u8 {
   kGDFX, /**< GDFX disc image. */
 };
 
-/** 1 contiguous run of file bytes inside a container data file. */
+/** A contiguous run of file bytes inside a container data file. */
 struct ContainerExtent {
   u32 file = 0;   /**< Index of the data file. */
   u64 offset = 0; /**< Byte offset in that file. */
   u64 length = 0; /**< Byte count. */
 };
 
-/** 1 file or directory of a container. */
+/** A file or directory of a container. */
 struct ContainerNode {
   /** Name (empty for the root), attributes, sizes and times. The path fields stay empty. */
   FileInfo info;

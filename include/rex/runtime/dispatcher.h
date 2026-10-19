@@ -40,7 +40,7 @@ REX_INTERFACE(IDispatcher, "rex.runtime.dispatcher", 1)
   /**
    * Completes an overlapped operation on the calling thread.
    *
-   * @param overlapped The guest XOVERLAPPED.
+   * @param overlapped The guest address of the XOVERLAPPED.
    * @param options The result, extended error and length to write.
    */
   virtual void Complete(u32 overlapped, const CompletionOptions& options) = 0;
@@ -49,8 +49,8 @@ REX_INTERFACE(IDispatcher, "rex.runtime.dispatcher", 1)
    * Marks an overlapped operation pending and completes it on the dispatch thread after the work
    * ran.
    *
-   * @param overlapped The guest XOVERLAPPED.
-   * @param work The work.
+   * @param overlapped The guest address of the XOVERLAPPED.
+   * @param work The function that does the operation.
    * @param options The result, extended error and length to write.
    * @param pre Runs before the work, may be empty.
    * @param post Runs after the completion, may be empty.
@@ -64,7 +64,7 @@ REX_INTERFACE(IDispatcher, "rex.runtime.dispatcher", 1)
    * Marks an overlapped operation pending and completes it on the dispatch thread with the options
    * the work returns.
    *
-   * @param overlapped The guest XOVERLAPPED.
+   * @param overlapped The guest address of the XOVERLAPPED.
    * @param work The work, returning the result, extended error and length to write.
    * @param pre Runs before the work, may be empty.
    * @param post Runs after the completion, may be empty.

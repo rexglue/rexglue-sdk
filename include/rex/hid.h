@@ -31,7 +31,7 @@
 
 namespace rex::hid {
 
-/** The hid config, read by the hid modules at Connect. */
+/** The HID config, read by the HID modules at Connect. */
 struct HIDConfig {
   /** True maps every pad to user 0. False gives each pad its own user. */
   bool shared_pads = false;
@@ -40,7 +40,8 @@ struct HIDConfig {
   std::filesystem::path mappings_file = "gamecontrollerdb.txt";
 };
 
-/** Pads, keyboard and pointer, served by a hid module. Every method is safe on any thread. */
+/** Pads, keyboard and pointer, served by a HID module. Every method except SetHost and OnEvent is
+ * safe on any thread. */
 REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1)
  public:
   /**
@@ -95,29 +96,29 @@ REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1)
    * Attaches the window, null to detach. UI thread only. The host calls it with null before it
    * is destroyed.
    *
-   * @param host The host.
+   * @param host The window side to attach, or null to detach.
    */
   virtual void SetHost(IInputHost* host) = 0;
 
   /**
    * Receives a window input event. UI thread only.
    *
-   * @param event The event.
+   * @param event The window input event to handle.
    */
   virtual void OnEvent(const InputEvent& event) = 0;
 
   /**
    * Reports whether a key is down.
    *
-   * @param key The key.
-   * @return True while held.
+   * @param key The key to test.
+   * @return True when the key is held.
    */
   virtual bool IsKeyDown(VirtualKey key) const = 0;
 
   /**
    * Reports whether any key is down.
    *
-   * @return True while a key is held.
+   * @return True when any key is held.
    */
   virtual bool IsAnyKeyDown() const = 0;
 
@@ -131,7 +132,7 @@ REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1)
   /**
    * Reports whether the window has focus.
    *
-   * @return True while focused.
+   * @return True when the window has focus.
    */
   virtual bool GetFocused() const = 0;
 
@@ -145,22 +146,22 @@ REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1)
   /**
    * Reports whether a mouse button is down.
    *
-   * @param button The button.
-   * @return True while held.
+   * @param button The mouse button to test.
+   * @return True when the button is held.
    */
   virtual bool IsButtonDown(MouseButton button) const = 0;
 
   /**
    * Reports whether any mouse button is down.
    *
-   * @return True while a button is held.
+   * @return True when any button is held.
    */
   virtual bool IsAnyButtonDown() const = 0;
 
   /**
    * Reports whether the pointer moved since the last call, and clears it.
    *
-   * @return True once per run of motion.
+   * @return True when the pointer moved since the last call.
    */
   virtual bool TakePointerMoved() = 0;
 
@@ -196,7 +197,7 @@ REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1)
    * Sets the pointer mode the consumer wants. Applied on the UI thread, last call wins. Mouse look
    * of the keyboard and mouse pad overrides it with Locked while active.
    *
-   * @param mode The mode.
+   * @param mode The pointer mode the consumer wants.
    */
   virtual void SetPointerMode(PointerMode mode) = 0;
 

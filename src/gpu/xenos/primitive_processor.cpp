@@ -174,7 +174,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   xenos::TessellationMode tessellation_mode = regs.Get<xenos::reg::VGT_HOS_CNTL>().tess_mode;
   Shader::HostVertexShaderType host_vertex_shader_type;
   if (tessellation_enabled) {
-    host_vertex_shader_type = Shader::HostVertexShaderType(-1);
+    host_vertex_shader_type = static_cast<Shader::HostVertexShaderType>(-1);
     switch (guest_primitive_type) {
       case xenos::PrimitiveType::kTriangleList:
         // Triangle strips and fans would need conversion to triangle lists and are unsupported.
@@ -207,7 +207,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       default:
         break;
     }
-    if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
+    if (host_vertex_shader_type == static_cast<Shader::HostVertexShaderType>(-1)) {
       REXLOG_ERROR(gpu,
                    "Primitive processor: Unsupported tessellation mode {} for primitive "
                    "type {}. Report the title to ReXGlue developers!",
@@ -267,7 +267,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       guest_draw_vertex_count > vgt_dma_size.num_words) {
     REXLOG_WARN(gpu,
                 "Primitive processor: {} vertices attempted to be drawn with an index "
-                "buffer only containing {}. Should be fetching zero indices instead of "
+                "buffer only containing {}. Should be fetching 0 indices instead of "
                 "overflowing ones, but this is a rare situation, so not handled yet. "
                 "Report the title to ReXGlue developers!",
                 guest_draw_vertex_count, static_cast<u32>(vgt_dma_size.num_words));
@@ -311,8 +311,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                     "Primitive processor: 32-bit endian swap mode {} is used for "
                     "16-bit indices. This shouldn't normally be happening, but report "
                     "the title to ReXGlue developers for investigation of the intended "
-                    "behavior (ignore or actually swap across adjacent indices)! "
-                    "Currently disabling the swap for 16-and-32 and replacing 8-in-32 "
+                    "behavior (ignore or swap across adjacent indices)! "
+                    "Disabling the swap for 16-and-32 and replacing 8-in-32 "
                     "with 8-in-16.",
                     static_cast<u32>(guest_index_endian));
         guest_index_endian = guest_index_endian == xenos::Endian::k8in32 ? xenos::Endian::k8in16
@@ -320,7 +320,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       }
       cacheable.host_shader_index_endian = guest_index_endian;
       u32 index_size_log2 = guest_index_format == xenos::IndexFormat::kInt16 ? 1 : 2;
-      // The base is already aligned, masked here for safety.
+      // The base is aligned, masked here for safety.
       guest_index_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)] &
                          ~static_cast<u32>((1 << index_size_log2) - 1);
       guest_index_buffer_needed_bytes = guest_draw_vertex_count << index_size_log2;
@@ -397,8 +397,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                   "Primitive processor: 32-bit endian swap mode {} is used for 16-bit "
                   "indices. This shouldn't normally be happening, but report the title "
                   "to ReXGlue developers for investigation of the intended behavior "
-                  "(ignore or actually swap across adjacent indices)! Currently "
-                  "disabling the swap for 16-and-32 and replacing 8-in-32 with "
+                  "(ignore or swap across adjacent indices)! "
+                  "Disabling the swap for 16-and-32 and replacing 8-in-32 with "
                   "8-in-16.",
                   static_cast<u32>(guest_index_endian));
       guest_index_endian = guest_index_endian == xenos::Endian::k8in32 ? xenos::Endian::k8in16
@@ -443,7 +443,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     }
 
     u32 index_size_log2 = guest_index_format == xenos::IndexFormat::kInt16 ? 1 : 2;
-    // The base is already aligned, masked here for safety.
+    // The base is aligned, masked here for safety.
     guest_index_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)] &
                        ~static_cast<u32>((1 << index_size_log2) - 1);
     guest_index_buffer_needed_bytes = guest_draw_vertex_count << index_size_log2;
@@ -846,7 +846,8 @@ PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& proce
     : processor_(processor), key_(key) {
   REX_ASSERT(processor_.cache_currently_processing_size_bytes_ == 0);
   if (REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices) < 0 ||
-      key_.count < u32(REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices))) {
+      key_.count <
+          static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices))) {
     key_.key = 0;
   }
   if (!key_.count) {
@@ -916,7 +917,7 @@ void PrimitiveProcessor::CacheTransaction::Commit() {
         new_entry.buckets_next[link_index] = bucket_first_entry_ref;
         CacheEntry& bucket_first_entry = processor_.cache_entry_pool_[bucket_first_entry_ref];
         // An entry spans at most 2 buckets, so bucket_index is its [0] bucket or its [1].
-        bucket_first_entry.buckets_prev[size_t(
+        bucket_first_entry.buckets_prev[static_cast<size_t>(
             (bucket_first_entry.key.base >> kCacheBucketSizeBytesLog2) != bucket_index)] =
             new_entry_index;
       } else {
@@ -1005,7 +1006,7 @@ std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_
           // An entry spans at most 2 buckets, so bucket_index is its [0] bucket or its [1].
           u32 entry_bucket_index_first = entry_key.base >> kCacheBucketSizeBytesLog2;
           REX_ASSERT((bucket_index - entry_bucket_index_first) <= 1,
-                     "Cache entries only store list links within two buckets");
+                     "Cache entries only store list links within 2 buckets");
           size_t next_entry_index = entry.buckets_next[bucket_index - entry_bucket_index_first];
           // For exact_range, entries outside the range are not invalidated.
           if (entry_key.base < physical_address_end) {
@@ -1020,7 +1021,7 @@ std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_
               u32 entry_link_index_last =
                   ((entry_end - 1) >> kCacheBucketSizeBytesLog2) - entry_bucket_index_first;
               REX_ASSERT(entry_link_index_last <= 1,
-                         "Cache entries only store list links within two buckets");
+                         "Cache entries only store list links within 2 buckets");
               for (u32 entry_link_index = 0; entry_link_index <= entry_link_index_last;
                    ++entry_link_index) {
                 u32 entry_bucket_index = entry_bucket_index_first + entry_link_index;

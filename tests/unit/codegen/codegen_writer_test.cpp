@@ -40,7 +40,7 @@ using rex::test::ReadText;
 constexpr u32 kBaseAddress = 0x82000000;
 constexpr u32 kFunctionCount = 4;
 
-// Big-endian `blr` (0x4E800020), one instruction per test function.
+// Big endian `blr` (0x4E800020), one instruction per test function.
 std::vector<u8> BuildBlrBinary(u32 function_count) {
   std::vector<u8> data;
   data.reserve(size_t{function_count} * 4);
@@ -50,7 +50,7 @@ std::vector<u8> BuildBlrBinary(u32 function_count) {
   return data;
 }
 
-/// Fake module, context with a sealed function per `blr`, scratch output tree.
+/** Holds a fake module, a context with a sealed function per `blr` and a scratch output tree. */
 struct WriterFixture {
   rex::test::TempFolder folder;
   fs::path root;
@@ -194,7 +194,7 @@ REX_TEST_CASE("A changed function rewrites only the files that differ",
                   std::string("sources.cmake")) == second.GetWrittenFiles().end());
 }
 
-REX_TEST_CASE("Recomp files are stable when one function's size changes",
+REX_TEST_CASE("Recomp files are stable when one function name gets longer",
               "[codegen][codegen_writer]") {
   WriterFixture fx("partition", 8);
 

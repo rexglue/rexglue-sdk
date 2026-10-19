@@ -226,10 +226,6 @@ REX_SHIM_FN(CloseHandle, u32, u32 hObject) {
 /**
  * Fills a WIN32_FIND_DATA of 0x140 bytes.
  *
- * Layout is dwFileAttributes at 0x00, ftCreationTime at 0x04, ftLastAccessTime at 0x0C,
- * ftLastWriteTime at 0x14, nFileSizeHigh at 0x1C, nFileSizeLow at 0x20, dwReserved0 and
- * dwReserved1 at 0x24, cFileName[260] at 0x2C and cAlternateFileName[14] at 0x130.
- *
  * @param lpFindFileData The buffer to fill.
  * @param entry The directory entry.
  */

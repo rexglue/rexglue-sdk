@@ -58,7 +58,7 @@ Result<void> NullGPU::SetupGuestGPU(FunctionDispatcher& dispatcher, Runtime& run
     }
     return 0;
   });
-  thread->SetName("GPU VSync");
+  thread->SetName("GPU Vblank");
   auto launched = runtime.GetThreadRegistry().Launch(std::move(thread));
   if (!launched) {
     vsync_running_.store(false, std::memory_order_release);

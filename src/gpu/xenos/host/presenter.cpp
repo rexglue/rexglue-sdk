@@ -503,7 +503,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     if (!logged_top_left_expand.exchange(true)) {
       REXLOG_WARN(ui,
                   "Presenter: expanding guest output from {}x{} to host render target "
-                  "{}x{} to avoid top-left-only presentation",
+                  "{}x{} to avoid top left only presentation",
                   output_width, output_height, host_rt_width, host_rt_height);
     }
     output_width = host_rt_width;

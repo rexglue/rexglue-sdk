@@ -44,7 +44,7 @@ IncludeCategories:
   - Regex: '^<(sys/|unistd|fcntl|poll|pthread|dlfcn|netdb|netinet|arpa|windows|winnt|winbase|winsock|d3d|dxgi|vulkan|vk_)'
     Priority: 3
     SortPriority: 3
-  # 5. Third-party headers
+  # 5. Third party headers
   - Regex: '^<(fmt|SDL|imgui|toml|catch2|CLI|glslang|spirv|renderdoc|simde|date|utfcpp|aes|mspack|xxhash|disruptorplus)/'
     Priority: 4
     SortPriority: 4

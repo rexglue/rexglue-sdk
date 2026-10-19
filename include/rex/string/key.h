@@ -39,8 +39,7 @@ struct StringKeyBase {
 }  // namespace detail
 
 /**
- * Case sensitive string key. It either borrows a view or owns a copy. Borrow for lookups and own
- * for stored keys.
+ * Case sensitive string key. It either borrows a view or owns a copy.
  */
 struct StringKey : detail::StringKeyBase {
  public:

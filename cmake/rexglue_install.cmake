@@ -27,7 +27,7 @@ if (WIN32)
   endforeach ()
 endif ()
 
-# A Debug codegen tool runs an order of magnitude slower, so only Release ships.
+# A Debug codegen tool runs an order of magnitude slower, so only Release is installed.
 install(
   TARGETS rexglue
   EXPORT rexglueTargets
@@ -149,7 +149,7 @@ install(
     string(MD5 _hash "${_reg_key}")
 
     if(CMAKE_HOST_WIN32)
-        # Windows CMake User Package Registry lives in HKCU (not the filesystem)
+        # Windows CMake User Package Registry is stored in HKCU (not the filesystem)
         set(_reg_root "HKCU\\Software\\Kitware\\CMake\\Packages\\rexglue")
         execute_process(
             COMMAND reg add "${_reg_root}" /v "${_hash}" /t REG_SZ /d "${CMAKE_INSTALL_PREFIX}" /f

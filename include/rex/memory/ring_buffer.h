@@ -159,14 +159,14 @@ class REX_API RingBuffer {
 
   /** Bytes at the read offset, split in 2 parts when they wrap. */
   struct ReadRange {
-    const u8* __restrict first;  /**< Bytes from the read offset, or nullptr when empty. */
-    const u8* __restrict second; /**< Bytes from the buffer start, or nullptr without a wrap. */
+    const u8* __restrict first;  /**< Bytes from the read offset, or null when empty. */
+    const u8* __restrict second; /**< Bytes from the buffer start, or null without a wrap. */
     RingSizeT first_length;      /**< Byte count of first. */
     RingSizeT second_length;     /**< Byte count of second. */
   };
 
   /**
-   * Returns the bytes at the read offset without moving it. Pass the result to EndRead.
+   * Returns the bytes at the read offset without moving it.
    *
    * @param count Byte count, clamped to the capacity.
    * @return The bytes in 1 or 2 parts.

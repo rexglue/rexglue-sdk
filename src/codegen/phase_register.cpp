@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_register.cpp
- * @brief       Register phase: imports, helpers, PDATA, config functions
+ * @brief       Register phase for imports, helpers, PDATA and config functions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -81,7 +81,7 @@ struct PrologInfo {
 /**
  * Scans the prologue of a function with handler data for its frame size and calls.
  * Scanning is skipped when the PDATA prolog length is 0. valid may be false for handler
- * functions that receive the frame in r12, so the caller warns only when SEH scopes need it.
+ * functions that receive the frame in r12.
  *
  * @param binary Binary view.
  * @param func_addr Function address.

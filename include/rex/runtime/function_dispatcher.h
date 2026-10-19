@@ -38,7 +38,7 @@ namespace rex::runtime {
 class ThreadState;
 
 /**
- * Narrow registration interface used by generated DLLs.
+ * Registers recompiled functions by guest address.
  */
 REX_INTERFACE(IModuleRegistrar)
  public:
@@ -94,8 +94,8 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   u64 ExecuteInterrupt(ThreadState* thread_state, u32 address, u64 args[], size_t arg_count);
 
   /**
-   * Executes recompiled code on a thread already running recompiled code, then restores
-   * its full register state, matching the console kernel's trap-frame APC delivery.
+   * Executes recompiled code on a thread running recompiled code, then restores
+   * its register state, matching the console kernel's trap frame APC delivery.
    *
    * @param thread_state The thread running recompiled code.
    * @param address The guest address to call.
@@ -131,7 +131,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
    */
   bool SetFunction(u32 guest_address, ::PPCFunc* func) override;
   /**
-   * Looks up the function at a guest address.
+   * Returns the function at a guest address.
    *
    * @param guest_address The guest address.
    * @return The function, null when none is set.

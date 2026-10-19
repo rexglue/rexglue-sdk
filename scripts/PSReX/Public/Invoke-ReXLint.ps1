@@ -23,7 +23,7 @@ function Invoke-ReXLint {
 
     $compileDb = Join-Path $BuildDir "compile_commands.json"
     if (-not (Test-Path $compileDb)) {
-        Write-Error "compile_commands.json not found at $BuildDir`nConfigure first: rex-configure"
+        Write-Error "compile_commands.json not found at $BuildDir`nRun rex-configure first."
         return
     }
 

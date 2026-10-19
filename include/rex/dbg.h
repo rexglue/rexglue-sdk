@@ -21,8 +21,8 @@
 namespace rex::platform {
 
 /**
- * Checks for an attached debugger. The state can change at any time, so do not cache it. The
- * check is expensive, so do not call it often.
+ * Reports whether a debugger is attached to this process. The state can change at any time. The
+ * check is expensive.
  *
  * @return True when a debugger is attached to this process.
  */
@@ -140,7 +140,7 @@ REX_API void Break();
       TracyPlot(name, static_cast<::rex::i64>(value)); \
   } while (0)
 
-#else  // !REXGLUE_ENABLE_PROFILING
+#else
 
 /**
  * Disabled profiling macros without REXGLUE_ENABLE_PROFILING. REX_PROFILE_FIBER_ENTER type checks

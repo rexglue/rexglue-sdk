@@ -47,7 +47,7 @@ REXCVAR_BOOL(xenos, snorm16_render_target_full_range, true,
 REXCVAR_BOOL(xenos, direct_host_resolve, true,
              "Resolve from host render targets directly to shared memory when possible");
 REXCVAR_BOOL(xenos, texture_3d_to_2d, true,
-             "Sample problematic 3D textures through 2D-compatible wrappers");
+             "Sample problematic 3D textures through 2D compatible wrappers");
 
 REXCVAR_TABLE(kPairCvars, anisotropic_override, clear_memory_page_state, occlusion_query_enable,
               readback_resolve_half_pixel_offset, readback_memexport_fast, async_shader_compilation,

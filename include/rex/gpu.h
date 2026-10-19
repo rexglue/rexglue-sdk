@@ -37,7 +37,7 @@ namespace rex::gpu {
 REX_INTERFACE(IGPUBackend, "rex.gpu.backend", 1)
  public:
   /**
-   * Builds the device and the guest output presenter. Runs before SetupGuestGPU.
+   * Builds the device and the guest output presenter.
    *
    * @param ui_thread The thread that creates and destroys the presenter.
    * @return Ok, or the backend failure.
@@ -58,7 +58,7 @@ REX_INTERFACE(IGPUBackend, "rex.gpu.backend", 1)
   /**
    * Reports whether SetupPresentation built the guest output presenter.
    *
-   * @return True once the presenter exists.
+   * @return True when the presenter exists.
    */
   virtual bool HasPresentation() const = 0;
 

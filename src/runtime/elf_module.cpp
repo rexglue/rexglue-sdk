@@ -138,7 +138,7 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
       max_addr = std::max(max_addr, seg_end);
 
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
-        REX_FAIL(system, false, "ELF: Could not allocate memory for section @ address 0x{:08X}",
+        REX_FAIL(system, false, "ELF: Segment address 0x{:08X} is outside the guest address range",
                  static_cast<u32>(phdr[i].p_vaddr));
       }
 

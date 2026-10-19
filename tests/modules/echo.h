@@ -29,6 +29,8 @@ REX_INTERFACE(IEcho, "rex.test.echo", 1)
   virtual int Echo(int value) = 0;
 
   /**
+   * Returns the echoed value cvar.
+   *
    * @return The current value of the echo.value cvar the module registers at Connect.
    */
   virtual int Value() = 0;

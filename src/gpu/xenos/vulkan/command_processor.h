@@ -158,8 +158,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   u64 GetCompletedSubmission() const { return submission_completed_; }
 
   /**
-   * Queues sparse binds. A submission sends them in one vkQueueBindSparse without waiting for a
-   * semaphore, so binds between the completed and current submission and within one submission
+   * Queues sparse binds. A submission sends them in 1 vkQueueBindSparse without waiting for a
+   * semaphore, so binds between the completed and current submission and within 1 submission
    * must not touch overlapping memory.
    *
    * @param buffer Buffer to bind.
@@ -323,7 +323,7 @@ class VulkanCommandProcessor : public CommandProcessor {
    * @param index_buffer_info Index buffer description, or null for auto indexed draws.
    * @param major_mode_explicit Whether the major mode was set explicitly.
    * @return False when a sampler could not be created, or overflowed twice because of too many
-   *         unique samplers in 1 draw or a failed await.
+   *         unique samplers in a draw or a failed await.
    */
   bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count,
                  IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;

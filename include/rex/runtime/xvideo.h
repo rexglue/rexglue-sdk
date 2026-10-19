@@ -7,8 +7,6 @@
  ******************************************************************************
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
- *
- * @changes     - Extracted X_VIDEO_MODE from xbox.h
  */
 
 #pragma once

@@ -44,8 +44,7 @@ REX_TEST_CASE("SetFlushMode leaves the other host control bits alone", "[ppc][fp
   CHECK((fpscr.GetCSR() & rex::ppc::FPSCRRegister::kRoundMaskVal) == rounding);
 }
 
-REX_TEST_CASE("SetFlushMode does not write the host word when the mode already matches",
-              "[ppc][fpscr]") {
+REX_TEST_CASE("SetFlushMode does not write the host word when the mode matches", "[ppc][fpscr]") {
   const RestoreCSR restore;
   rex::ppc::FPSCRRegister fpscr{};
   fpscr.csr = fpscr.GetCSR() & ~static_cast<u32>(rex::ppc::FPSCRRegister::kFlushMask);

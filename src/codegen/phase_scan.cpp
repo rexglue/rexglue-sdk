@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_scan.cpp
- * @brief       Scan phase: segment binary into code/data regions
+ * @brief       Scan phase that segments the binary into code and data regions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

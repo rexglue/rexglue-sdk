@@ -100,7 +100,7 @@ enum class ClampMode : u32 {
  * Reports whether a clamp mode samples the border color.
  *
  * @param clamp_mode Clamp mode to test.
- * @return True for kClampToBorder and kMirrorClampToBorder.
+ * @return True when the clamp mode is kClampToBorder or kMirrorClampToBorder.
  */
 constexpr bool ClampModeUsesBorder(ClampMode clamp_mode) {
   return clamp_mode == ClampMode::kClampToBorder || clamp_mode == ClampMode::kMirrorClampToBorder;
@@ -264,7 +264,7 @@ REX_API const char* GetColorRenderTargetFormatName(ColorRenderTargetFormat forma
  * Reports whether a color render target format uses 64 bits per sample.
  *
  * @param format Color render target format.
- * @return True for k_16_16_16_16, k_16_16_16_16_FLOAT and k_32_32_FLOAT.
+ * @return True when the format is k_16_16_16_16, k_16_16_16_16_FLOAT or k_32_32_FLOAT.
  */
 constexpr bool IsColorRenderTargetFormat64bpp(ColorRenderTargetFormat format) {
   return format == ColorRenderTargetFormat::k_16_16_16_16 ||
@@ -917,7 +917,7 @@ enum class CopyCommand : u32 {
   kRaw = 0,         /**< Raw copy. */
   kConvert = 1,     /**< Copy with format conversion. */
   kConstantOne = 2, /**< Write constant 1. */
-  kNull = 3,        /**< Null copy. Resolve rejects it as unsupported. */
+  kNull = 3,        /**< Null copy. */
 };
 
 /** Samples a resolve reads (a2xx_rb_copy_sample_select). */
@@ -936,7 +936,7 @@ enum class CopySampleSelect : u32 {
  * Reports whether a resolve reads a single sample.
  *
  * @param copy_sample_select Sample selection.
- * @return True for k0 to k3.
+ * @return True when the selection is k0, k1, k2 or k3.
  */
 constexpr bool IsSingleCopySampleSelected(CopySampleSelect copy_sample_select) {
   return copy_sample_select >= CopySampleSelect::k0 && copy_sample_select <= CopySampleSelect::k3;
@@ -1096,7 +1096,7 @@ union alignas(u32) VertexFetch {
 };
 REX_STATIC_ASSERT_SIZE(VertexFetch, sizeof(u32) * 2);
 
-/** Log2 of the byte alignment of texture subresources, also omitted from base and mip addresses. */
+/** Log2 of the byte alignment of texture subresources, omitted from base and mip addresses. */
 constexpr u32 kTextureSubresourceAlignmentBytesLog2 = 12;
 /** Byte alignment of texture subresources. */
 constexpr u32 kTextureSubresourceAlignmentBytes = 1 << kTextureSubresourceAlignmentBytesLog2;

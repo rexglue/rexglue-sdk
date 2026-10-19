@@ -31,7 +31,7 @@ namespace rex::runtime {
 class REX_RUNTIME_API ObjectTable final : public IObjectTable {
  public:
   /**
-   * @param memory The guest memory that owned guest blocks are freed from, null in tests.
+   * @param memory The guest memory that owned object blocks are freed from, null in tests.
    */
   explicit ObjectTable(Memory* memory);
   ~ObjectTable() override;

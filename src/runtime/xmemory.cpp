@@ -249,7 +249,7 @@ bool Memory::Initialize() {
   virtual_membase_ = mapping_base_;
   physical_membase_ = mapping_base_ + 0x100000000ull;
 
-  REXLOG_INFO(system, "guest memory mapped at virtual base 0x{:016X}, physical base 0x{:016X}",
+  REXLOG_INFO(system, "Guest memory mapped at virtual base 0x{:016X}, physical base 0x{:016X}",
               reinterpret_cast<uintptr_t>(virtual_membase_),
               reinterpret_cast<uintptr_t>(physical_membase_));
 
@@ -1574,7 +1574,7 @@ bool PhysicalHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 prote
                          u32* out_address) {
   *out_address = 0;
 
-  // Top-down by default, the parent heap is bottom-up so this avoids collisions.
+  // Always top-down, the parent heap is bottom-up so this avoids collisions.
   top_down = true;
 
   size = rex::RoundUpNonZero(size, page_size_);
@@ -1640,14 +1640,15 @@ bool PhysicalHeap::AllocFixed(u32 base_address, u32 size, u32 alignment, u32 all
   }
   if (!parent_heap_->AllocFixedLocked(parent_base_address, size, alignment, allocation_type,
                                       protect)) {
-    REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
+    REX_FAIL(system, false,
+             "PhysicalHeap::AllocFixed unable to alloc physical memory in parent heap");
   }
 
   u32 address = heap_base_ + parent_base_address - GetPhysicalAddress(heap_base_);
   if (!BaseHeap::AllocFixedLocked(
           address, size, page_size_,
           allocation_type & ~static_cast<u32>(runtime::kMemoryAllocationTitle), protect)) {
-    REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
+    REXLOG_ERROR(system, "PhysicalHeap::AllocFixed unable to pin physical memory in physical heap");
     if (parent_was_free) {
       parent_heap_->ReleaseLocked(parent_base_address, nullptr);
     }
@@ -1678,14 +1679,15 @@ bool PhysicalHeap::AllocRange(u32 low_address, u32 high_address, u32 size, u32 a
   u32 parent_address;
   if (!parent_heap_->AllocRangeLocked(parent_low_address, parent_high_address, size, alignment,
                                       allocation_type, protect, top_down, &parent_address)) {
-    REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
+    REX_FAIL(system, false,
+             "PhysicalHeap::AllocRange unable to alloc physical memory in parent heap");
   }
 
   u32 address = heap_base_ + parent_address - GetPhysicalAddress(heap_base_);
   if (!BaseHeap::AllocFixedLocked(
           address, size, page_size_,
           allocation_type & ~static_cast<u32>(runtime::kMemoryAllocationTitle), protect)) {
-    REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
+    REXLOG_ERROR(system, "PhysicalHeap::AllocRange unable to pin physical memory in physical heap");
     parent_heap_->ReleaseLocked(parent_address, nullptr);
     return false;
   }
@@ -1749,11 +1751,8 @@ bool PhysicalHeap::Protect(u32 address, u32 size, u32 protect, u32* old_protect)
  * Enables write invalidation notifications and data providers for system pages.
  *
  * Protection only tightens, so data provider completion is not awaited. An invalidation
- * notification protects a writable page that is not watched yet. A page that needs only data
- * providers has stricter protection, so only its bits are set. A page the guest cannot
- * write is left alone because real access violations are needed there. A data provider protects
- * an accessible page that had none, otherwise nothing changes. Providers are polled for the last
- * time without releasing the lock.
+ * notification protects a writable page that is not watched yet. A page the guest cannot
+ * write is left alone because real access violations are needed there.
  *
  * @param physical_address Start of the physical range.
  * @param length Size of the range in bytes.
@@ -2003,7 +2002,7 @@ std::unique_lock<rex::platform::RankedMutex> PhysicalHeap::AcquireHostPageReconc
 }
 
 bool PhysicalHeap::IsHostPageWriteWatched(u32 host_page_number) const {
-  // Indices count host pages from membase_ + heap_base_, including host_address_offset().
+  // Indices count host pages from membase_ + heap_base_, including GetHostAddressOffset().
   if (host_page_number >= system_page_count_) {
     return false;
   }

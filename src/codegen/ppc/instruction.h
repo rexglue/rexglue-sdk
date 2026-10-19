@@ -22,9 +22,9 @@
 namespace rex::codegen::detail {
 
 /**
- * PowerPC instruction with decoded fields
+ * Holds a PowerPC instruction with decoded fields.
  *
- * Uses union-based decoding for field access.
+ * Uses a union for field access.
  */
 struct Instruction {
   u32 address = 0;
@@ -33,7 +33,7 @@ struct Instruction {
   InstrFormat format = InstrFormat::kUnknown;
 
   /**
-   * Format I - Unconditional Branch (b, ba, bl, bla)
+   * Format I, unconditional branch (b, ba, bl, bla)
    * Fields LI (24-bit), AA (1-bit), LK (1-bit)
    */
   struct FormatI {
@@ -49,7 +49,7 @@ struct Instruction {
   };
 
   /**
-   * Format B - Conditional Branch (bc, bca, bcl, bcla)
+   * Format B, conditional branch (bc, bca, bcl, bcla)
    * Fields BO (5-bit), BI (5-bit), BD (14-bit), AA (1-bit), LK (1-bit)
    */
   struct FormatB {
@@ -67,7 +67,7 @@ struct Instruction {
   };
 
   /**
-   * Format D - Immediate operations (load, store, addi and others)
+   * Format D, immediate operations (load, store, addi and others)
    * Fields RT/RS (5-bit), RA (5-bit), d/SIMM/UIMM (16-bit)
    */
   struct FormatD {
@@ -84,7 +84,7 @@ struct Instruction {
   };
 
   /**
-   * Format DS - Double-word operations (ld, std)
+   * Format DS, double-word operations (ld, std)
    * Fields RT/RS (5-bit), RA (5-bit), DS (14-bit), XO (2-bit)
    */
   struct FormatDS {
@@ -100,7 +100,7 @@ struct Instruction {
   };
 
   /**
-   * Format X - General register operations (logical, shifts, loads/stores)
+   * Format X, general register operations (logical, shifts, loads/stores)
    * Fields RT/RS (5-bit), RA (5-bit), RB (5-bit), XO (10-bit), Rc (1-bit)
    */
   struct FormatX {
@@ -115,7 +115,7 @@ struct Instruction {
   };
 
   /**
-   * Format XL - Branch to LR/CTR (bclr, bcctr)
+   * Format XL, branch to LR/CTR (bclr, bcctr)
    * Fields BO (5-bit), BI (5-bit), XO (10-bit), LK (1-bit)
    */
   struct FormatXL {
@@ -128,7 +128,7 @@ struct Instruction {
   };
 
   /**
-   * Format XFX - SPR access (mfspr, mtspr)
+   * Format XFX, SPR access (mfspr, mtspr)
    * Fields RT/RS (5-bit), SPR (10-bit), XO (10-bit)
    */
   struct FormatXFX {
@@ -153,7 +153,7 @@ struct Instruction {
   };
 
   /**
-   * Format XO - Arithmetic with overflow (add, sub, mul, div)
+   * Format XO, arithmetic with overflow (add, sub, mul, div)
    * Fields RT (5-bit), RA (5-bit), RB (5-bit), OE (1-bit), XO (9-bit), Rc (1-bit)
    */
   struct FormatXO {
@@ -167,7 +167,7 @@ struct Instruction {
   };
 
   /**
-   * Format M - Rotate and mask (rlwinm, rlwnm)
+   * Format M, rotate and mask (rlwinm, rlwnm)
    * Fields RS (5-bit), RA (5-bit), SH/RB (5-bit), MB (5-bit), ME (5-bit), Rc (1-bit)
    */
   struct FormatM {
@@ -184,12 +184,12 @@ struct Instruction {
   };
 
   /**
-   * Format MD - Rotate double-word (64-bit)
+   * Format MD, rotate double-word (64-bit)
    * Fields RS (5-bit), RA (5-bit), sh (6-bit), mb (6-bit), XO (3-bit), Rc (1-bit)
    */
   struct FormatMD {
     u32 Rc : 1;     /**< Updates CR0. */
-    u32 XO : 3;     /**< Extended opcode (bits 27-30, includes sh bit 5). */
+    u32 XO : 3;     /**< Extended opcode (bits 27-29). */
     u32 mb : 6;     /**< Mask begin (bits 21-26, includes bit 5). */
     u32 sh : 6;     /**< Shift amount (bits 16-20, includes bit 30). */
     u32 RA : 5;     /**< Register A (bits 11-15). */
@@ -198,7 +198,7 @@ struct Instruction {
   };
 
   /**
-   * Format A - Floating-point arithmetic (fmadd, fmul and others)
+   * Format A, floating-point arithmetic (fmadd, fmul and others)
    * Fields FRT (5-bit), FRA (5-bit), FRB (5-bit), FRC (5-bit), XO (5-bit), Rc (1-bit)
    */
   struct FormatA {
@@ -212,7 +212,7 @@ struct Instruction {
   };
 
   /**
-   * Format VA - Vector 4-operand (vperm, vmaddfp and others)
+   * Format VA, vector 4-operand (vperm, vmaddfp and others)
    * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), VRC (5-bit), XO (6-bit)
    */
   struct FormatVA {
@@ -227,7 +227,7 @@ struct Instruction {
   };
 
   /**
-   * Format VX - Vector 3-operand/2-operand (vaddfp, vand and others)
+   * Format VX, vector 3-operand/2-operand (vaddfp, vand and others)
    * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), XO (11-bit)
    */
   struct FormatVX {
@@ -247,7 +247,7 @@ struct Instruction {
    * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), Rc (1-bit), XO (10-bit)
    */
   struct FormatVXR {
-    u32 XO : 10;    /**< Extended opcode (bits 21-30). */
+    u32 XO : 10;    /**< Extended opcode (bits 22-31). */
     u32 Rc : 1;     /**< Sets CR6. */
     u32 VRB : 5;    /**< Vector register B (bits 16-20). */
     u32 VRA : 5;    /**< Vector register A (bits 11-15). */
@@ -258,7 +258,7 @@ struct Instruction {
   };
 
   /**
-   * Format VMX128 - Console extended vector format
+   * Format VMX128, console extended vector format
    * Uses different register encoding for 128 vector registers
    */
   struct FormatVMX128 {
@@ -295,7 +295,7 @@ struct Instruction {
    * Returns the I-form branch offset for b, ba, bl and bla.
    *
    * LI is bits 6-29 with an implicit 00 suffix, so mask 0x3FFFFFC (bits 2-25) yields LI * 4. The
-   * XOR-subtract with sign bit 0x2000000 sign extends from 26 bits.
+   * XOR and subtract with sign bit 0x2000000 sign extend from 26 bits.
    *
    * @param instr Raw instruction word
    * @return Sign extended byte offset
@@ -308,7 +308,7 @@ struct Instruction {
    * Returns the B-form branch offset for bc, bca, bcl and bcla.
    *
    * BD is bits 16-29 with an implicit 00 suffix, so mask 0xFFFC (bits 2-15) yields BD * 4. The
-   * XOR-subtract with sign bit 0x8000 sign extends from 16 bits.
+   * XOR and subtract with sign bit 0x8000 sign extend from 16 bits.
    *
    * @param instr Raw instruction word
    * @return Sign extended byte offset
@@ -317,41 +317,41 @@ struct Instruction {
     return static_cast<i32>(((instr & 0xFFFC) ^ 0x8000) - 0x8000);
   }
 
-  /** Pre-computed branch target, empty for indirect branches. */
+  /** Precomputed branch target, empty for indirect branches. */
   std::optional<u32> branch_target;
 
   /**
    * Reports whether this is a branch instruction.
    *
-   * @return True for a branch
+   * @return True when the instruction is a branch.
    */
   bool IsBranch() const;
 
   /**
    * Reports whether this is a function call (branch with link).
    *
-   * @return True for a call
+   * @return True when the instruction is a call.
    */
   bool IsCall() const;
 
   /**
    * Reports whether this is a return instruction (blr).
    *
-   * @return True for a return
+   * @return True when the instruction is a return.
    */
   bool IsReturn() const;
 
   /**
    * Reports whether this is a conditional branch, false for unconditional branches (BO=20).
    *
-   * @return True for a conditional branch
+   * @return True when the instruction is a conditional branch.
    */
   bool IsConditional() const;
 
   /**
    * Reports whether this is a trap with every condition set.
    *
-   * @return True for tw and twi with a TO field of 31
+   * @return True when the instruction is tw or twi with a TO field of 31.
    */
   bool IsTrapAlways() const;
 
@@ -365,7 +365,7 @@ struct Instruction {
 };
 
 /**
- * Decode instruction from raw code
+ * Decodes an instruction from a raw code word.
  *
  * @param address Guest address of instruction
  * @param code Raw 32-bit instruction code (host byte order)

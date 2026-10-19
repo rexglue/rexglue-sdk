@@ -39,8 +39,10 @@ struct RecompilerConfig;
 struct Limits;
 struct MMIOReportSite;
 
-/** Lightweight context passed to FunctionNode::EmitCpp() and BuilderContext. Holds non owning
- * references, so the caller keeps them alive. */
+/**
+ * Lightweight context passed to FunctionNode::EmitCpp() and BuilderContext. Holds non owning
+ * references, so the caller keeps them alive.
+ */
 struct EmitContext {
   const BinaryView& binary; /**< Binary the function was read from. */
   /** Config consulted for the register and exception handler options. */
@@ -131,7 +133,7 @@ struct MillicodeEntry {
   u32 reg;            /**< Register the entry starts at. */
 };
 
-/** Three state machine of a function. */
+/** 3 state machine of a function. */
 enum class FunctionState : u8 {
   kRegistered, /**< Entry point known, blocks and instructions not assigned */
   kDiscovered, /**< Blocks and instructions assigned, may have unresolved branches */
@@ -143,10 +145,10 @@ constexpr FunctionState kSealed = FunctionState::kSealed;
 
 /** 1 scope table entry of an SEH function. */
 struct SEHScope {
-  u32 try_start; /**< Offset +0, start of the __try block */
-  u32 try_end;   /**< Offset +4, end of the __try block */
-  u32 handler;   /**< Offset +8, __finally or __except body */
-  u32 filter;    /**< Offset +C, 0 for __finally and the address for __except */
+  u32 try_start; /**< Start of the __try block */
+  u32 try_end;   /**< End of the __try block */
+  u32 handler;   /**< __finally or __except body */
+  u32 filter;    /**< 0 for __finally and the address for __except */
 };
 
 /** SEH data of 1 function. */

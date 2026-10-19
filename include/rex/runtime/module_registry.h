@@ -86,8 +86,8 @@ REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1)
   [[nodiscard]] virtual std::vector<X_HANDLE> GetUserModules() = 0;
 
   /**
-   * Loads a user module, or finds it when it is already loaded, and wires its recompiled library.
-   * The caller holds one load reference on the returned module, released by XexUnloadImage.
+   * Loads a user module, or finds it when it is loaded, and wires its recompiled library.
+   * The caller holds 1 load reference on the returned module, released by XexUnloadImage.
    *
    * @param name A path, or a file name relative to the executable.
    * @param call_entry True to call the entry point of a DLL module for the process attach.
@@ -122,7 +122,7 @@ REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1)
   [[nodiscard]] virtual Result<X_HANDLE> LoadKernelModule(X_HANDLE created) = 0;
 
   /**
-   * Registers the recompiled library that serves a title module path. Generated code calls it.
+   * Registers the recompiled library that serves a title module path.
    *
    * @param pe_name The PE name of the module.
    * @param guest_path The guest path of the module.

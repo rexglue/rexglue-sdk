@@ -42,7 +42,7 @@ class REX_API Category : public NonCopyable {
    * Builds the descriptor.
    *
    * @param name Identifier, lowercase, unique across the process.
-   * @param description Shown by the console and by ILogger::Categories.
+   * @param description Shown by the console and by ILogger::GetCategories.
    */
   constexpr Category(std::string_view name, std::string_view description) noexcept
       : name_(name), description_(description) {}
@@ -77,7 +77,7 @@ class REX_API Category : public NonCopyable {
   mutable std::atomic<u16> slot_ = kUnresolved;
 };
 
-/** 1 row of ILogger::Categories. */
+/** 1 row of ILogger::GetCategories. */
 struct CategoryInfo {
   std::string name;           /**< Category name. */
   std::string description;    /**< Category description. */
@@ -90,7 +90,7 @@ struct CategoryInfo {
 namespace detail {
 
 /**
- * Writes a message. The logging macros call it after Category::Enabled.
+ * Writes a message.
  *
  * @param category The category.
  * @param level The message level.
@@ -138,7 +138,7 @@ void WriteFormatted(const Category& category, Level level, std::format_string<Ar
 REX_API void WriteStub(std::atomic_flag& seen, std::string_view name, std::string_view detail);
 
 /**
- * Collects categories for ILogger::Register. REXLOG_TABLE calls it.
+ * Collects categories for ILogger::Register.
  *
  * @tparam Categories Category objects.
  * @param categories The categories.

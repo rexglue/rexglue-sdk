@@ -75,7 +75,7 @@ REX_API i64 GetCounter(CounterId id);
 
 /**
  * Copies every live value into the snapshot and zeroes the live accumulators. Gauges keep their
- * live values. Profiler::Flip calls it once per frame.
+ * live values.
  */
 REX_API void ResetFrameCounters();
 
@@ -108,7 +108,7 @@ REX_API void WriteCSVFrame();
 REX_API void FlushCSV();
 
 /**
- * Static hooks that emit Tracy frame marks and take the per-frame counter snapshot.
+ * Static hooks that emit Tracy frame marks and take the per frame counter snapshot.
  */
 class Profiler {
  public:

@@ -90,15 +90,15 @@ class ModuleRegistry final : public IModuleRegistry {
   /**
    * Marks a path as being loaded.
    *
-   * @param path The path.
-   * @return False when another thread loads the path.
+   * @param path The path of the module being loaded.
+   * @return True when the path was marked, false when another thread already loads it.
    */
   bool BeginLoad(std::string_view path);
 
   /**
    * Clears the loading mark of a path.
    *
-   * @param path The path.
+   * @param path The path whose loading mark is cleared.
    */
   void EndLoad(const std::string& path);
 
@@ -172,7 +172,7 @@ class ModuleRegistry final : public IModuleRegistry {
   /**
    * Adds one load reference to a loaded module.
    *
-   * @param module The module.
+   * @param module The module that gains the reference.
    */
   void AcquireReference(ModuleObject& module);
 
@@ -187,7 +187,7 @@ class ModuleRegistry final : public IModuleRegistry {
   /**
    * Drops the load references a module holds on the modules it imports from.
    *
-   * @param module The module.
+   * @param module The module whose dependency references are dropped.
    * @param call_entry True to call the entry point of a DLL module for the process detach.
    */
   void ReleaseDependencies(ModuleObject& module, bool call_entry);

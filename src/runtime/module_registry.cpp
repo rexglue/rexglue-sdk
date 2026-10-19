@@ -438,7 +438,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       inserted = module_libraries_.emplace(lib_key, rex::platform::DynamicLibrary{}).second;
     }
     if (!inserted) {
-      REXLOG_ERROR(system, "Recompiled module '{}' already loaded; refusing duplicate load",
+      REXLOG_ERROR(system, "Recompiled module '{}' already loaded, refusing duplicate load",
                    lib_key);
       ReleaseDependencies(*module, call_entry);
       CloseOwned(table_, created);
@@ -517,7 +517,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
 
   if (module->user.is_dll_module && module->user.entry_point && call_entry) {
     if (!KernelThread::IsInThread()) {
-      REXLOG_WARN(system, "DllMain(DLL_PROCESS_ATTACH) skipped for '{}': not on a guest thread",
+      REXLOG_WARN(system, "DllMain(DLL_PROCESS_ATTACH) skipped for '{}', not on a kernel thread",
                   module->name);
     } else {
       auto* thread = KernelThread::GetCurrentThread();
@@ -526,7 +526,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
           thread->GetThreadState(), module->user.entry_point, args, 3);
       if (static_cast<u32>(dllmain_ret) == 0) {
         REXLOG_ERROR(system,
-                     "DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}'; rolling back load",
+                     "DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}', rolling back load",
                      module->name);
         UnloadUserModule(loaded, /*call_entry=*/false);
         return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
@@ -546,7 +546,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
 
   if (module->user.is_dll_module && module->user.entry_point && call_entry) {
     if (!KernelThread::IsInThread()) {
-      REXLOG_WARN(system, "DllMain(DLL_PROCESS_DETACH) skipped for '{}': not on a guest thread",
+      REXLOG_WARN(system, "DllMain(DLL_PROCESS_DETACH) skipped for '{}', not on a kernel thread",
                   module->name);
     } else {
       auto* thread = KernelThread::GetCurrentThread();

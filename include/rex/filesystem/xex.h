@@ -28,76 +28,51 @@ namespace rex::filesystem {
 
 /** AES key that decrypts the image key of an XEX. */
 enum class XEXKey : u8 {
-  /** Retail console key. */
-  kRetail,
-  /** Devkit key. */
-  kDevKit,
-  /** Retail key of the XEX1 era. */
-  kRetailXEX1,
-  /** Devkit key of the XEX1 era. */
-  kDevKitXEX1,
+  kRetail,     /**< Retail console key. */
+  kDevKit,     /**< Devkit key. */
+  kRetailXEX1, /**< Retail key of the XEX1 era. */
+  kDevKitXEX1, /**< Devkit key of the XEX1 era. */
 };
 
-/** Section kind and page count of 1 XEX page descriptor. */
+/** Section kind and page count of an XEX page descriptor. */
 struct XEXPageRange {
-  /** Code, data or read only data. */
-  XEXSectionType type = kXEXSectionCode;
-  /** Number of pages the range covers. */
-  u32 page_count = 0;
+  XEXSectionType type = kXEXSectionCode; /**< Code, data or read only data. */
+  u32 page_count = 0;                    /**< Number of pages the range covers. */
 };
 
-/** Security info of an XEX1 or XEX2 image in 1 layout. */
+/** Security info of an XEX1 or XEX2 image in a layout. */
 struct XEXSecurityInfo {
-  /** RSA signature of the image. */
-  std::array<u8, 0x100> rsa_signature{};
-  /** Image key, encrypted with the retail or devkit key. */
-  std::array<u8, 0x10> aes_key{};
-  /** Image size the security info stores. */
-  u32 image_size = 0;
-  /** `XEXImageFlags` bits. */
-  u32 image_flags = 0;
-  /** Guest address of the export table, 0 for none. */
-  u32 export_table = 0;
-  /** Guest address the image loads at. */
-  u32 load_address = 0;
-  /** Page descriptors in image order. */
-  std::vector<XEXPageRange> pages;
+  std::array<u8, 0x100> rsa_signature{}; /**< RSA signature of the image. */
+  std::array<u8, 0x10> aes_key{};        /**< Image key, encrypted with the retail or devkit key. */
+  u32 image_size = 0;                    /**< Image size the security info stores. */
+  u32 image_flags = 0;                   /**< `XEXImageFlags` bits. */
+  u32 export_table = 0;                  /**< Guest address of the export table, 0 for none. */
+  u32 load_address = 0;                  /**< Guest address the image loads at. */
+  std::vector<XEXPageRange> pages;       /**< Page descriptors in image order. */
 };
 
 /** Import library entry of an XEX header. */
 struct XEXImportLibrary {
-  /** Library file name as the header stores it. */
-  std::string name;
-  /** Library ID. */
-  u32 id = 0;
-  /** Library version. */
-  XEXVersion version{};
-  /** Minimum library version. */
-  XEXVersion min_version{};
-  /** Guest addresses of the import records. */
-  std::vector<u32> records;
+  std::string name;         /**< Library file name as the header stores it. */
+  u32 id = 0;               /**< Library ID. */
+  XEXVersion version{};     /**< Library version. */
+  XEXVersion min_version{}; /**< Minimum library version. */
+  std::vector<u32> records; /**< Guest addresses of the import records. */
 };
 
 /** Optional header table entry. */
 struct XEXOptHeaderEntry {
-  /** Index of the entry in the header table. */
-  u32 index = 0;
-  /** Value field of the entry, the value itself or an offset from the header start. */
-  u32 value = 0;
+  u32 index = 0; /**< Index of the entry in the header table. */
+  u32 value = 0; /**< Value itself or an offset from the header start. */
 };
 
 /** Sections, exception directory and timestamp of a decoded PE image. */
 struct PEInfo {
-  /** Sections with `address` holding the RVA. */
-  std::vector<PESection> sections;
-  /** RVA of the exception directory. */
-  u32 exception_directory_rva = 0;
-  /** Size of the exception directory. */
-  u32 exception_directory_size = 0;
-  /** Linker timestamp in Unix seconds. */
-  u32 time_date_stamp = 0;
-  /** Bytes of header at the image base, capped at the lowest section address. */
-  u32 header_size = 0;
+  std::vector<PESection> sections;  /**< Sections with `address` holding the RVA. */
+  u32 exception_directory_rva = 0;  /**< RVA of the exception directory. */
+  u32 exception_directory_size = 0; /**< Size of the exception directory. */
+  u32 time_date_stamp = 0;          /**< Linker timestamp in Unix seconds. */
+  u32 header_size = 0;              /**< Header bytes, capped at the lowest section address. */
 };
 
 /**
@@ -125,7 +100,7 @@ class REX_API XEXImage : public MoveOnly {
   [[nodiscard]] static Result<XEXImage> Parse(std::span<const u8> file);
 
   /**
-   * Returns the XEX header. Valid after Parse.
+   * Returns the XEX header.
    *
    * @return The byte swapped XEX header at the start of the file.
    */
@@ -139,7 +114,7 @@ class REX_API XEXImage : public MoveOnly {
   std::span<const u8> GetHeaderBytes() const;
 
   /**
-   * Returns the data of an optional header whose key low byte is not 0.
+   * Returns the data of an optional header whose key low byte is not 0 or 1.
    *
    * @tparam T The header structure.
    * @param key The header key.
@@ -218,8 +193,7 @@ class REX_API XEXImage : public MoveOnly {
   [[nodiscard]] Result<XEXImage> ApplyHeaderDelta(const XEXImage& patch) const;
 
   /**
-   * Applies the image delta of a patch to a decoded image. Called on the result of
-   * ApplyHeaderDelta.
+   * Applies the image delta of a patch to a decoded image.
    *
    * @param patch The patch image ApplyHeaderDelta used.
    * @param image The decoded image, as large as the larger of the old and new image sizes.

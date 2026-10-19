@@ -163,14 +163,14 @@ Result<std::string> DiscoverManifestInCwd() {
   if (manifests.size() > 1) {
     return Err<std::string>(
         rex::ErrorCategory::kConfig,
-        std::format("Multiple *_manifest.toml files in {}; pass one explicitly", cwd.string()));
+        std::format("Multiple *_manifest.toml files in {}. Pass one explicitly", cwd.string()));
   }
   if (other_tomls.size() == 1)
     return rex::Ok(other_tomls.front().string());
   if (other_tomls.size() > 1) {
     return Err<std::string>(
         rex::ErrorCategory::kConfig,
-        std::format("Multiple .toml files in {}; pass the manifest explicitly", cwd.string()));
+        std::format("Multiple .toml files in {}. Pass the manifest explicitly", cwd.string()));
   }
   return Err<std::string>(rex::ErrorCategory::kConfig,
                           std::format("No manifest .toml found in {}", cwd.string()));
@@ -185,8 +185,8 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
   if (!rex::codegen::ManifestConfig::IsManifest(manifest_path)) {
     return Err<void>(
         rex::ErrorCategory::kConfig,
-        std::format("{} is not a manifest: no [project] section. Pre-manifest single-file "
-                    "configs are no longer converted automatically; see docs for the layout.",
+        std::format("{} has no [project] section and is not a manifest. Pre-manifest single-file "
+                    "configs are no longer converted automatically. See docs for the layout.",
                     config_path));
   }
 
@@ -221,7 +221,7 @@ void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pe
                   "Path to manifest TOML (auto-discovered in cwd if omitted)")
       ->type_name("PATH");
   sub->add_option("--target", args->targets,
-                  "DLL target to build (repeatable; entrypoint always included)")
+                  "DLL target to build, repeatable. The entrypoint is always included.")
       ->type_name("NAME")
       ->take_all();
   sub->add_flag("--ignore-stamp", args->ignore_stamp,

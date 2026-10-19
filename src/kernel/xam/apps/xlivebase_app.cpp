@@ -44,7 +44,7 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buf
       // The buffer holds dwServiceId and a pServiceInfo pointer to XONLINE_SERVICE_INFO.
       REXLOG_DEBUG(kernel, "CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr,
                    buffer_length);
-      // ERROR_CONNECTION_INVALID
+      // XONLINE_E_LOGON_NO_NETWORK_CONNECTION
       return 0x80151802;
     }
     case 0x00058020: {

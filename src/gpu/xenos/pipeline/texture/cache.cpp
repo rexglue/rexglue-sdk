@@ -710,7 +710,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
     default:
       REXLOG_WARN(gpu,
                   "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
-                  "is completely invalid!",
+                  "is invalid!",
                   fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4,
                   fetch.dword_5);
       return;
@@ -728,7 +728,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
     bool is_invalid_1d = false;
     if (width_minus_1 >= xenos::kTexture2DCubeMaxWidthHeight) {
       REXLOG_ERROR(gpu,
-                   "1D texture is too wide ({}) - ignoring! Report the title to ReXGlue "
+                   "1D texture is too wide ({}) and is ignored. Report the title to ReXGlue "
                    "developers",
                    width_minus_1 + 1);
       is_invalid_1d = true;
@@ -737,7 +737,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
     if (fetch.tiled) {
       REXLOG_ERROR(gpu,
                    "1D texture has tiling enabled in the fetch constant, but this "
-                   "appears to be completely wrong - ignoring! Report the title to ReXGlue "
+                   "appears to be wrong and is ignored. Report the title to ReXGlue "
                    "developers");
       is_invalid_1d = true;
     }
@@ -745,7 +745,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
     if (fetch.packed_mips) {
       REXLOG_ERROR(gpu,
                    "1D texture has packed mips enabled in the fetch constant, but this "
-                   "appears to be completely wrong - ignoring! Report the title to ReXGlue "
+                   "appears to be wrong and is ignored. Report the title to ReXGlue "
                    "developers");
       is_invalid_1d = true;
     }

@@ -1,6 +1,6 @@
 /**
  * @file        core/cvar_registry.h
- * @brief       The cvar registry implementation, shared by api.cpp and the tests
+ * @brief       The cvar registry implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -58,15 +58,22 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
   bool IsFinalized() const override;
 
   /**
-   * Applies overrides in ascending source order to the names that are registered. An override
-   * whose scope is reserved with an empty table is kept and applied when Add registers its name.
-   * Returns the overrides whose names are not registered. A rejected value is an error naming the
-   * cvar, the value, the source and the reason.
+   * Applies overrides in ascending source order to the names that are registered.
+   *
+   * An override whose scope is reserved with an empty table is kept and applied when Add registers
+   * its name.
+   *
+   * @param overrides The overrides to apply.
+   * @return The overrides whose names are not registered. A rejected value is an error naming the
+   *         cvar, the value, the source and the reason.
    */
   [[nodiscard]] Result<std::vector<CvarOverride>> ApplyOverrides(
       std::span<const CvarOverride> overrides);
   /**
-   * Locks every name. An unknown name is an error.
+   * Locks every name.
+   *
+   * @param names The names to lock.
+   * @return Ok, or an error when a name is unknown.
    */
   [[nodiscard]] Result<void> ApplyLocks(std::span<const std::string> names);
   /**
@@ -80,7 +87,7 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
    */
   void Reset();
   /**
-   * Returns the names of every var registered, for the Shutdown leak warning.
+   * Returns the names of every registered var.
    *
    * @return The names.
    */
@@ -125,7 +132,7 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
 };
 
 /**
- * Creates a registry. api.cpp holds the process registry, tests hold their own.
+ * Creates a registry.
  *
  * @return The registry.
  */

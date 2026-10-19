@@ -83,7 +83,8 @@ class SVODReader {
     std::span<const u8> first = files_[0];
     if (header_.metadata.volume_descriptor.svod.features.bits.enhanced_gdf_layout) {
       if (!HasMagic(first, 0x2000, kMediaMagic)) {
-        return Err<u64>(Corrupt("SVOD uses the EGDF layout and has no magic block at 0x2000"));
+        return Err<u64>(
+            Corrupt("SVOD uses the enhanced GDF layout and has no magic block at 0x2000"));
       }
       layout_ = Layout::kEnhancedGDF;
       base_offset_ = 0;

@@ -24,7 +24,7 @@ REX_INTERFACE(IInputHost)
   /**
    * Queues work to run on the UI thread later. Safe on any thread.
    *
-   * @param work The work.
+   * @param work The function to run on the UI thread.
    * @return True when the work is queued, false when the UI thread no longer takes work.
    */
   virtual bool Post(rex::MoveOnlyFunction<void()> work) = 0;
@@ -32,7 +32,7 @@ REX_INTERFACE(IInputHost)
   /**
    * Applies a pointer mode. UI thread only.
    *
-   * @param mode The mode.
+   * @param mode The pointer mode to apply.
    * @return True when Locked delivers relative motion, false when it falls back to recentering.
    */
   virtual bool ApplyPointerMode(PointerMode mode) = 0;
@@ -47,7 +47,7 @@ REX_INTERFACE(IInputHost)
   /**
    * Reports whether pad and keyboard input reach the title. Safe on any thread.
    *
-   * @return False while the window is unfocused or an overlay holds the mouse.
+   * @return True when pad and keyboard input reach the title.
    */
   virtual bool GetCaptureActive() const = 0;
 };

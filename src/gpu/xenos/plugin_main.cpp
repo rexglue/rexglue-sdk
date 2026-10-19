@@ -128,7 +128,7 @@ class XenosModule final : public rex::IModule, public IXenosGraphics {
 
   [[nodiscard]] rex::Result<void> SetBackend(std::unique_ptr<GraphicsSystem> backend) override {
     if (backend && backend_) {
-      return rex::Err(rex::ErrorCategory::kConfig, "a graphics system is already set");
+      return rex::Err(rex::ErrorCategory::kConfig, "a backend is already set");
     }
     backend_ = std::move(backend);
     if (backend_) {

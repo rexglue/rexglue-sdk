@@ -156,7 +156,8 @@ REX_TEST_CASE("A host worker starts from the host policy FP control word", "[ker
   });
 }
 
-REX_TEST_CASE("A guest thread starts from the FP control word InitHost sets", "[kernel][fp]") {
+REX_TEST_CASE("A guest thread starts from the FP control word InitHostExceptions sets",
+              "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto csr = std::make_shared<std::atomic<u32>>(0);

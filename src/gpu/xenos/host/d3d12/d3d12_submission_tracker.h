@@ -34,7 +34,7 @@ class D3D12SubmissionTracker : public rex::NonCopyable {
    * Creates the fence and takes a reference to the queue.
    *
    * @param device Device creating the fence.
-   * @param queue Queue signaling the fence, null when set dynamically.
+   * @param queue Queue signaling the fence, must be non null.
    * @return True on success.
    */
   bool Initialize(ID3D12Device* device, ID3D12CommandQueue* queue);

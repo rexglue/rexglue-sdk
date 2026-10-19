@@ -22,18 +22,18 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
-/**
- * Xgi app 0xFB, which serves XGI messages such as user contexts and properties.
- */
+/** XGI app 0xFB, which serves XGI messages such as user contexts and properties. */
 class XgiApp : public runtime::App {
  public:
   /**
+   * Creates the app.
+   *
    * @param runtime The runtime the app serves.
    */
   REX_RUNTIME_API explicit XgiApp(Runtime& runtime);
 
   /**
-   * Handles a message sent to the Xgi app.
+   * Handles a message sent to the XGI app.
    *
    * @param message The message identifier.
    * @param buffer_ptr Guest address of the message buffer.

@@ -23,7 +23,7 @@ using rex::testing::GetTestMemory;
 /**
  * Casts away const so a test can mutate a heap.
  *
- * @param heap The heap.
+ * @param heap The heap to make mutable.
  * @return The same heap without const.
  */
 rex::runtime::BaseHeap* MutableHeap(const rex::runtime::BaseHeap* heap) {
@@ -81,7 +81,7 @@ REX_TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
     heap->Release(addr, nullptr);
   }
 
-  SECTION("Multi-page allocation") {
+  SECTION("Allocation of several pages") {
     u32 addr = 0;
     bool result = heap->Alloc(
         4096 * 4, 4096,
@@ -189,7 +189,7 @@ REX_TEST_CASE("AllocFixed allocates at exact address", "[memory][heap]") {
   heap->Release(target, nullptr);
 }
 
-REX_TEST_CASE("AllocFixed reserve-only fails on already-reserved region", "[memory][heap]") {
+REX_TEST_CASE("AllocFixed reserve only fails on a reserved region", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -336,7 +336,7 @@ REX_TEST_CASE("LookupHeap returns correct heap for address", "[memory][heap]") {
     REQUIRE(heap != nullptr);
   }
 
-  SECTION("Address in stack range returns nullptr") {
+  SECTION("Address in stack range returns null") {
     auto* heap = memory.LookupHeap(0x7F000000);
     CHECK(heap == nullptr);
   }
@@ -422,7 +422,7 @@ REX_TEST_CASE("Decommit partial region", "[memory][heap]") {
   heap->Release(addr, nullptr);
 }
 
-REX_TEST_CASE("Decommit-recommit cycle on 64KB heap (real usage pattern)", "[memory][heap]") {
+REX_TEST_CASE("Decommit and recommit cycle on 64KB heap (real usage pattern)", "[memory][heap]") {
   auto& memory = GetTestMemory();
   // 0x50000000 is served by the v40000000 heap with 64KB pages.
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));

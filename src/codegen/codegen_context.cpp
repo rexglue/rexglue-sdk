@@ -79,12 +79,12 @@ CodegenContext::CodegenContext(CodegenContext&&) noexcept(false) = default;
 CodegenContext& CodegenContext::operator=(CodegenContext&&) noexcept(false) = default;
 
 DecodedBinary& CodegenContext::GetDecoded() {
-  assert(decoded_ && "Call initDecoded() before accessing decoded()");
+  assert(decoded_ && "decoded_ is null until InitDecoded runs");
   return *decoded_;
 }
 
 const DecodedBinary& CodegenContext::GetDecoded() const {
-  assert(decoded_ && "Call initDecoded() before accessing decoded()");
+  assert(decoded_ && "decoded_ is null until InitDecoded runs");
   return *decoded_;
 }
 

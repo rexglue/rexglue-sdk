@@ -60,7 +60,7 @@ KernelThread::KernelThread(Runtime& runtime, u32 stack_size, u32 xapi_thread_sta
   creation_params_.start_address = start_address;
   creation_params_.start_context = start_context;
 
-  // Bits 24..31 hold the processor ID (0 for default) and bit 0 creates suspended.
+  // Bits 24..29 hold the processor mask and bit 0 creates suspended.
   creation_params_.creation_flags = creation_flags;
   creation_params_.title_process = title_process;
 }
@@ -126,7 +126,7 @@ bool KernelThread::IsInThread(const KernelThread* other) {
 KernelThread* KernelThread::GetCurrentThread() {
   KernelThread* thread = GetBoundCurrentThread();
   if (!thread) {
-    REX_ASSERT_ALWAYS("Attempting to use kernel stuff from a non-kernel thread");
+    REX_ASSERT_ALWAYS("Attempting to use kernel APIs from a non-kernel thread");
   }
   return thread;
 }
@@ -382,7 +382,7 @@ X_STATUS KernelThread::Create() {
   GetMemory()->Fill(root_frame, rex::ppc::kLinkageSize, 0);
   thread_state_->GetContext()->r1.u64 = root_frame;
 
-  REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
+  REXLOG_DEV(system, "KernelThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
              stack_limit_, stack_base_);
 
   const u8 processor_mask = static_cast<u8>(creation_params_.creation_flags >> 24) & 0x3F;
@@ -412,7 +412,7 @@ X_STATUS KernelThread::Create() {
 
   // The thread owns itself until it exits.
   if (auto retained = runtime_->GetObjectTable().Retain(handle_); !retained) {
-    REXLOG_ERROR(system, "XThread{:08X}: cannot take the self reference, {}", handle_,
+    REXLOG_ERROR(system, "KernelThread{:08X}: cannot take the self reference, {}", handle_,
                  retained.error().message);
     return ToXStatus(retained);
   }
@@ -530,7 +530,7 @@ void KernelThread::Finish(int exit_code) {
     try {
       CallThreadNotifyRoutines(false);
     } catch (const rex::ThreadStop& stop) {
-      REXLOG_DEBUG(system, "XThread{:08X} exited with code {} inside a thread notify routine",
+      REXLOG_DEBUG(system, "KernelThread{:08X} exited with code {} inside a thread notify routine",
                    GetHandle(), stop.exit_code);
     }
   }

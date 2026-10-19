@@ -39,8 +39,7 @@ enum class InstructionStorageTarget : u8 {
   /** Vertex shader interpolator export, storage_index in [0-15]. */
   kInterpolator,
   kPosition,
-  /** Vertex shader misc export, components described at
-     ucode::ExportRegister::kVSPointSizeEdgeFlagKillVertex. */
+  /** Vertex shader misc export, see ucode::ExportRegister::kVSPointSizeEdgeFlagKillVertex. */
   kPointSizeEdgeFlagKillVertex,
   /** Memexport destination address, see xenos::MemExportStream. */
   kExportAddress,
@@ -547,7 +546,7 @@ void ParseControlFlowAlloc(const xenos::ucode::ControlFlowAllocInstruction& cf, 
  * @param op Instruction to parse.
  * @param previous_full_op Previous full fetch inherited by a mini fetch.
  * @param instr Receives the parsed instruction.
- * @return Whether the fetch is a full one, so the next parsed mini fetch inherits most of its
+ * @return True when the fetch is a full one, so the next parsed mini fetch inherits most of its
  * parameters.
  */
 bool ParseVertexFetchInstruction(const xenos::ucode::VertexFetchInstruction& op,
@@ -580,15 +579,24 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     kQuadDomainPatchIndexed,
     kDomainEnd,
 
-    /** Vertex shader converted to a compute shader that only performs memory export, for
-       implementations without unconditional vertex shader memory writes. */
+    /**
+     * Vertex shader converted to a compute shader that only performs memory export.
+     *
+     * Used for implementations without unconditional vertex shader memory writes.
+     */
     kMemExportCompute,
 
-    /** 4 host vertices per guest vertex, for implementations without unconditional geometry shader
-       support. */
+    /**
+     * 4 host vertices per guest vertex.
+     *
+     * Used for implementations without unconditional geometry shader support.
+     */
     kPointListAsTriangleStrip,
-    /** 3 guest vertices processed per host shader invocation to choose the strip orientation, for
-       implementations without unconditional geometry shader support. */
+    /**
+     * 3 guest vertices processed per host shader invocation to choose the strip orientation.
+     *
+     * Used for implementations without unconditional geometry shader support.
+     */
     kRectangleListAsTriangleStrip,
   };
   /** Bit count for packing HostVertexShaderType in bit fields. */
@@ -625,8 +633,12 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   };
 
   struct ConstantRegisterMap {
-    /** Each shader reads up to 256 of the 512 float constants, based on the shader type and the
-     * SQ_VS/PS_CONST registers. Each bit is a storage index from that base. */
+    /**
+     * Each shader reads up to 256 of the 512 float constants, based on the shader type and the
+     * SQ_VS/PS_CONST registers.
+     *
+     * Each bit is a storage index from that base.
+     */
     u64 float_bitmap[256 / 64];
     /** Each bit is a storage index in [0-31]. */
     u32 loop_bitmap;
@@ -669,12 +681,15 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   };
 
   struct ControlFlowMemExportInfo {
-    /** Which eM elements are potentially written, regardless of conditionals, loop iteration counts
+    /**
+     * Which eM elements are potentially written, regardless of conditionals, loop iteration counts
      * and predication, earlier in the predecessor graph of the instruction since an `alloc export`.
      */
     u8 em_potentially_written_before = 0;
-    /** For exec sequences, which eM elements are potentially written by the instructions,
-     * regardless of predication. 0 for other control flow instructions. */
+    /**
+     * For exec sequences, which eM elements are potentially written by the instructions,
+     * regardless of predication. 0 for other control flow instructions.
+     */
     u8 em_potentially_written_by_exec = 0;
   };
 
@@ -792,8 +807,11 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
 
   const std::set<u32>& GetLabelAddresses() const { return label_addresses_; }
 
-  /** Exclusive upper bound of the indexes of paired control flow instructions, each corresponding
-   * to 3 dwords. */
+  /**
+   * Returns the exclusive upper bound of the indexes of paired control flow instructions.
+   *
+   * Each pair corresponds to 3 dwords.
+   */
   u32 GetCfPairIndexBound() const { return cf_pair_index_bound_; }
 
   /**
@@ -807,8 +825,14 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    */
   u32 GetRegisterStaticAddressBound() const { return register_static_address_bound_; }
 
-  /** Reports whether temporary registers are addressed dynamically, so SQ_PROGRAM_CNTL determines
-   * the register count in addition to register_static_address_bound. */
+  /**
+   * Reports whether temporary registers are addressed dynamically.
+   *
+   * In that case SQ_PROGRAM_CNTL determines the register count in addition to
+   * register_static_address_bound.
+   *
+   * @return True when temporary registers are addressed dynamically.
+   */
   bool UsesRegisterDynamicAddressing() const { return uses_register_dynamic_addressing_; }
 
   /**
@@ -906,8 +930,12 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    */
   void DestroyTranslation(u64 modification);
 
-  /** Externally managed identifier of the shader storage the microcode was last written to or
-   * loaded from, so the microcode is written to the storage once. UINT32_MAX by default. */
+  /**
+   * Returns the externally managed identifier of the shader storage the microcode was last written
+   * to or loaded from.
+   *
+   * Used so the microcode is written to the storage once. UINT32_MAX by default.
+   */
   u32 GetUcodeStorageIndex() const { return ucode_storage_index_; }
   void SetUcodeStorageIndex(u32 storage_index) { ucode_storage_index_ = storage_index; }
 
@@ -957,14 +985,17 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   bool uses_texture_fetch_instruction_results_ = false;
   bool writes_depth_ = false;
 
-  /** Memory export eM write info for each control flow instruction, if the shader has any eM
-   * writes. */
+  /** Per control flow instruction memory export eM write info, if the shader has any eM writes. */
   std::vector<ControlFlowMemExportInfo> cf_memexport_info_;
   /** Which memexport elements (eM#) are written by any memexport in the shader. */
   u8 memexport_em_written_ = 0;
-  /** Equivalent of ControlFlowMemExportInfo::eM_potentially_written_before for the end of the
-   * shader, covering the last memory export or exports if the end has multiple predecessor chains
-   * exporting to memory. */
+  /**
+   * Equivalent of ControlFlowMemExportInfo::em_potentially_written_before for the end of the
+   * shader.
+   *
+   * Covers the last memory export or exports if the end has multiple predecessor chains exporting
+   * to memory.
+   */
   u8 memexport_em_potentially_written_before_end_ = 0;
   std::set<u32> memexport_stream_constants_;
 

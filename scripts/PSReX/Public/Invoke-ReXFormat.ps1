@@ -40,7 +40,7 @@ function Invoke-ReXFormat {
             @(Join-Path $root "CMakeLists.txt")
         Write-Host "=== Formatting all C/C++ and CMake files ==="
     } else {
-        # Default: modified files (staged + unstaged changes)
+        # Default is modified files (staged and unstaged changes)
         $diff = git -C $root diff --name-only HEAD 2>$null
         $untracked = git -C $root ls-files --others --exclude-standard 2>$null
         $candidates = @($diff) + @($untracked) | Where-Object { $_ }

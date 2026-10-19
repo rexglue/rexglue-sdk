@@ -24,7 +24,7 @@ REX_TEST_CASE("stale include scan matches header names without regard to case",
   std::filesystem::create_directories(root.path / "src");
   std::ofstream(root.path / "src" / "main.CPP")
       << "#include \"out/DEMO_funcs.h\"\n#include \"keep.h\"\n#include <Demo_Init.H>\n";
-  std::ofstream(root.path / "src" / "notes.TXT") << "#include \"demo_funcs.h\"\n";
+  std::ofstream(root.path / "src" / "other.TXT") << "#include \"demo_funcs.h\"\n";
   const auto warnings = rexglue::cli::ScanStaleIncludes(
       root.path / "src", std::unordered_set<std::string>{"demo_funcs.h", "demo_init.h"});
   REQUIRE(warnings.size() == 2);

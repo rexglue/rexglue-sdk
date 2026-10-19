@@ -1,7 +1,7 @@
 /**
  * @file        ui/sdl3/overlay/console_commands.cpp
  *
- * @brief       Argument-taking console commands (echo, find) registered through the
+ * @brief       Console commands that take arguments (echo, find), registered through the
  *              console cvar table.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

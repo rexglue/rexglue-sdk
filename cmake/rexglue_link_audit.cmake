@@ -96,7 +96,7 @@ function (rexglue_audit_core_linkage)
   if (violations)
     list(JOIN violations "\n" detail)
     message(FATAL_ERROR "rexcore objects would be duplicated:\n${detail}\n"
-                        "rexruntime already contains them. Drop the direct link."
+                        "rexruntime contains them. Drop the direct link."
     )
   endif ()
 endfunction ()
@@ -161,7 +161,7 @@ ${detail}"
   endif ()
 endfunction ()
 
-# Rejects a target that links rexfilesystem directly.
+# Rejects a target that links rexfilesystem.
 function (rexglue_audit_module_links)
   _rexglue_collect_targets("${CMAKE_CURRENT_SOURCE_DIR}" all_targets)
   set(violations "")
@@ -202,7 +202,8 @@ function (_rexglue_audit_forbidden target_name)
   endforeach ()
 endfunction ()
 
-# Keeps SDL, ImGui and the GPU backends out of core, runtime, ui and gpu.
+# Keeps SDL and ImGui out of core and runtime, SDL, ImGui and the GPU backends out of ui, and SDL
+# out of gpu.
 function (rexglue_audit_ui_links)
   set(sdl_libs SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static)
   set(imgui_libs imgui imgui::imgui reximgui)

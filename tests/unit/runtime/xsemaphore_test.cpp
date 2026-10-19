@@ -15,7 +15,7 @@
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
-REX_TEST_CASE("A title initialized semaphore with a limit above the int range still works",
+REX_TEST_CASE("A title initialized semaphore with a limit above the int range works",
               "[runtime][semaphore]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {

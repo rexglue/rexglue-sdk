@@ -109,7 +109,7 @@ static void FiberEntryPoint(void* raw_arg) {
     REX_PROFILE_FIBER_LEAVE();
     rex::platform::Fiber::SwitchTo(thread->GetMainFiber());
   }
-  REXLOG_WARN(kernel, "FiberEntryPoint: fiber function returned with no main fiber - terminating");
+  REXLOG_WARN(kernel, "FiberEntryPoint: fiber function returned with no main fiber, terminating");
   std::terminate();
 }
 
@@ -264,7 +264,7 @@ REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
   u32 fiber_addr = lpFiber.GetGuestAddress();
 
   if (static_cast<u32>(kthread->fiber_ptr) == fiber_addr) {
-    REXLOG_DEBUG(kernel, "DeleteFiber: self-delete fiber={:#010x}", fiber_addr);
+    REXLOG_DEBUG(kernel, "DeleteFiber: self delete fiber={:#010x}", fiber_addr);
     REX_PROFILE_FIBER_LEAVE();
     ConvertFiberToThreadImpl(thread);
     // Exit does not return

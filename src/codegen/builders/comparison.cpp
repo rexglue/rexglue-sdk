@@ -18,9 +18,9 @@ namespace rex::codegen {
 namespace {
 
 /**
- * Emit register-to-register comparison.
+ * Emits a comparison of 2 registers.
  *
- * Pattern `crD.compare<T>(rA.field, rB.field, XER)`
+ * Pattern `crD.Compare<T>(rA.field, rB.field, XER)`
  * Used by cmpd, cmpld, cmplw, cmpw
  *
  * @param ctx The builder context
@@ -33,9 +33,9 @@ void EmitCompareRegister(BuilderContext& ctx, const char* type_name, const char*
 }
 
 /**
- * Emit register-to-immediate comparison.
+ * Emits a comparison of a register and an immediate.
  *
- * Pattern `crD.compare<T>(rA.field, imm, XER)`
+ * Pattern `crD.Compare<T>(rA.field, imm, XER)`
  * Used by cmpdi, cmpldi, cmplwi, cmpwi
  *
  * @param ctx The builder context

@@ -237,7 +237,7 @@ void D3D12CommandProcessor::PushUAVBarrier(ID3D12Resource* resource) {
 }
 
 void D3D12CommandProcessor::SubmitBarriers() {
-  UINT barrier_count = UINT(barriers_.size());
+  UINT barrier_count = static_cast<UINT>(barriers_.size());
   if (barrier_count != 0) {
     deferred_command_list_.D3DResourceBarrier(barrier_count, barriers_.data());
     barriers_.clear();
@@ -355,7 +355,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DXBCShader* v
     shared_memory_and_edram_ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     shared_memory_and_edram_ranges[1].NumDescriptors = 1;
     shared_memory_and_edram_ranges[1].BaseShaderRegister =
-        UINT(DXBCShaderTranslator::UAVRegister::kSharedMemory);
+        static_cast<UINT>(DXBCShaderTranslator::UAVRegister::kSharedMemory);
     shared_memory_and_edram_ranges[1].RegisterSpace = 0;
     shared_memory_and_edram_ranges[1].OffsetInDescriptorsFromTableStart = 1;
     if (render_target_cache_->GetPath() == RenderTargetCache::Path::kPixelShaderInterlock) {
@@ -363,7 +363,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DXBCShader* v
       shared_memory_and_edram_ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
       shared_memory_and_edram_ranges[2].NumDescriptors = 1;
       shared_memory_and_edram_ranges[2].BaseShaderRegister =
-          UINT(DXBCShaderTranslator::UAVRegister::kEDRAM);
+          static_cast<UINT>(DXBCShaderTranslator::UAVRegister::kEDRAM);
       shared_memory_and_edram_ranges[2].RegisterSpace = 0;
       shared_memory_and_edram_ranges[2].OffsetInDescriptorsFromTableStart = 2;
     }
@@ -844,7 +844,7 @@ bool D3D12CommandProcessor::SetupContext() {
   }
   // Command lists are created open, so close it until a deferred submission.
   command_list_->Close();
-  // Optional - added in Creators Update (SDK 10.0.15063.0).
+  // Optional, added in Creators Update (SDK 10.0.15063.0).
   command_list_->QueryInterface(IID_PPV_ARGS(&command_list_1_));
 
   bindless_resources_used_ = REXCVAR_GET(::rex::gpu::cvars::d3d12_bindless) &&
@@ -998,15 +998,17 @@ bool D3D12CommandProcessor::SetupContext() {
         auto& range = root_shared_memory_view_ranges[0];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = 1;
-        range.BaseShaderRegister = UINT(DXBCShaderTranslator::SRVMainRegister::kSharedMemory);
-        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kMain);
+        range.BaseShaderRegister =
+            static_cast<UINT>(DXBCShaderTranslator::SRVMainRegister::kSharedMemory);
+        range.RegisterSpace = static_cast<UINT>(DXBCShaderTranslator::SRVSpace::kMain);
         range.OffsetInDescriptorsFromTableStart = 0;
       }
       {
         auto& range = root_shared_memory_view_ranges[1];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         range.NumDescriptors = 1;
-        range.BaseShaderRegister = UINT(DXBCShaderTranslator::UAVRegister::kSharedMemory);
+        range.BaseShaderRegister =
+            static_cast<UINT>(DXBCShaderTranslator::UAVRegister::kSharedMemory);
         range.RegisterSpace = 0;
         range.OffsetInDescriptorsFromTableStart = 1;
       }
@@ -1037,9 +1039,10 @@ bool D3D12CommandProcessor::SetupContext() {
         auto& range = root_bindless_view_ranges[parameter.DescriptorTable.NumDescriptorRanges++];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         range.NumDescriptors = 1;
-        range.BaseShaderRegister = UINT(DXBCShaderTranslator::UAVRegister::kEDRAM);
+        range.BaseShaderRegister = static_cast<UINT>(DXBCShaderTranslator::UAVRegister::kEDRAM);
         range.RegisterSpace = 0;
-        range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kEDRAMR32UintUAV);
+        range.OffsetInDescriptorsFromTableStart =
+            static_cast<UINT>(SystemBindlessView::kEDRAMR32UintUAV);
       }
       // Nvidia Fermi forbids overlapping UAV and SRV ranges, so textures follow static ones.
       {
@@ -1049,8 +1052,10 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
         range.BaseShaderRegister = 0;
-        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kBindlessTextures2DArray);
-        range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kUnboundedSRVsStart);
+        range.RegisterSpace =
+            static_cast<UINT>(DXBCShaderTranslator::SRVSpace::kBindlessTextures2DArray);
+        range.OffsetInDescriptorsFromTableStart =
+            static_cast<UINT>(SystemBindlessView::kUnboundedSRVsStart);
       }
       {
         REX_ASSERT(parameter.DescriptorTable.NumDescriptorRanges <
@@ -1059,8 +1064,10 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
         range.BaseShaderRegister = 0;
-        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kBindlessTextures3D);
-        range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kUnboundedSRVsStart);
+        range.RegisterSpace =
+            static_cast<UINT>(DXBCShaderTranslator::SRVSpace::kBindlessTextures3D);
+        range.OffsetInDescriptorsFromTableStart =
+            static_cast<UINT>(SystemBindlessView::kUnboundedSRVsStart);
       }
       {
         REX_ASSERT(parameter.DescriptorTable.NumDescriptorRanges <
@@ -1069,8 +1076,10 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
         range.BaseShaderRegister = 0;
-        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kBindlessTexturesCube);
-        range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kUnboundedSRVsStart);
+        range.RegisterSpace =
+            static_cast<UINT>(DXBCShaderTranslator::SRVSpace::kBindlessTexturesCube);
+        range.OffsetInDescriptorsFromTableStart =
+            static_cast<UINT>(SystemBindlessView::kUnboundedSRVsStart);
       }
     }
     root_signature_bindless_vs_ =
@@ -1141,10 +1150,10 @@ bool D3D12CommandProcessor::SetupContext() {
   }
 
   D3D12_ROOT_PARAMETER
-  apply_gamma_root_parameters[UINT(ApplyGammaRootParameter::kCount)];
+  apply_gamma_root_parameters[static_cast<UINT>(ApplyGammaRootParameter::kCount)];
   {
     D3D12_ROOT_PARAMETER& apply_gamma_root_parameter_constants =
-        apply_gamma_root_parameters[UINT(ApplyGammaRootParameter::kConstants)];
+        apply_gamma_root_parameters[static_cast<UINT>(ApplyGammaRootParameter::kConstants)];
     apply_gamma_root_parameter_constants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     apply_gamma_root_parameter_constants.Constants.ShaderRegister = 0;
     apply_gamma_root_parameter_constants.Constants.RegisterSpace = 0;
@@ -1160,7 +1169,7 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_descriptor_range_dest.OffsetInDescriptorsFromTableStart = 0;
   {
     D3D12_ROOT_PARAMETER& apply_gamma_root_parameter_dest =
-        apply_gamma_root_parameters[UINT(ApplyGammaRootParameter::kDestination)];
+        apply_gamma_root_parameters[static_cast<UINT>(ApplyGammaRootParameter::kDestination)];
     apply_gamma_root_parameter_dest.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     apply_gamma_root_parameter_dest.DescriptorTable.NumDescriptorRanges = 1;
     apply_gamma_root_parameter_dest.DescriptorTable.pDescriptorRanges =
@@ -1175,7 +1184,7 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_descriptor_range_source.OffsetInDescriptorsFromTableStart = 0;
   {
     D3D12_ROOT_PARAMETER& apply_gamma_root_parameter_source =
-        apply_gamma_root_parameters[UINT(ApplyGammaRootParameter::kSource)];
+        apply_gamma_root_parameters[static_cast<UINT>(ApplyGammaRootParameter::kSource)];
     apply_gamma_root_parameter_source.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     apply_gamma_root_parameter_source.DescriptorTable.NumDescriptorRanges = 1;
     apply_gamma_root_parameter_source.DescriptorTable.pDescriptorRanges =
@@ -1190,7 +1199,7 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_descriptor_range_ramp.OffsetInDescriptorsFromTableStart = 0;
   {
     D3D12_ROOT_PARAMETER& apply_gamma_root_parameter_gamma_ramp =
-        apply_gamma_root_parameters[UINT(ApplyGammaRootParameter::kRamp)];
+        apply_gamma_root_parameters[static_cast<UINT>(ApplyGammaRootParameter::kRamp)];
     apply_gamma_root_parameter_gamma_ramp.ParameterType =
         D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     apply_gamma_root_parameter_gamma_ramp.DescriptorTable.NumDescriptorRanges = 1;
@@ -1199,7 +1208,8 @@ bool D3D12CommandProcessor::SetupContext() {
     apply_gamma_root_parameter_gamma_ramp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
   D3D12_ROOT_SIGNATURE_DESC apply_gamma_root_signature_desc;
-  apply_gamma_root_signature_desc.NumParameters = UINT(ApplyGammaRootParameter::kCount);
+  apply_gamma_root_signature_desc.NumParameters =
+      static_cast<UINT>(ApplyGammaRootParameter::kCount);
   apply_gamma_root_signature_desc.pParameters = apply_gamma_root_parameters;
   apply_gamma_root_signature_desc.NumStaticSamplers = 0;
   apply_gamma_root_signature_desc.pStaticSamplers = nullptr;
@@ -1244,10 +1254,10 @@ bool D3D12CommandProcessor::SetupContext() {
              "perceptual luma output");
   }
 
-  D3D12_ROOT_PARAMETER fxaa_root_parameters[UINT(FxaaRootParameter::kCount)];
+  D3D12_ROOT_PARAMETER fxaa_root_parameters[static_cast<UINT>(FxaaRootParameter::kCount)];
   {
     D3D12_ROOT_PARAMETER& fxaa_root_parameter_constants =
-        fxaa_root_parameters[UINT(ApplyGammaRootParameter::kConstants)];
+        fxaa_root_parameters[static_cast<UINT>(ApplyGammaRootParameter::kConstants)];
     fxaa_root_parameter_constants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     fxaa_root_parameter_constants.Constants.ShaderRegister = 0;
     fxaa_root_parameter_constants.Constants.RegisterSpace = 0;
@@ -1262,7 +1272,7 @@ bool D3D12CommandProcessor::SetupContext() {
   fxaa_root_descriptor_range_dest.OffsetInDescriptorsFromTableStart = 0;
   {
     D3D12_ROOT_PARAMETER& fxaa_root_parameter_dest =
-        fxaa_root_parameters[UINT(FxaaRootParameter::kDestination)];
+        fxaa_root_parameters[static_cast<UINT>(FxaaRootParameter::kDestination)];
     fxaa_root_parameter_dest.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     fxaa_root_parameter_dest.DescriptorTable.NumDescriptorRanges = 1;
     fxaa_root_parameter_dest.DescriptorTable.pDescriptorRanges = &fxaa_root_descriptor_range_dest;
@@ -1276,7 +1286,7 @@ bool D3D12CommandProcessor::SetupContext() {
   fxaa_root_descriptor_range_source.OffsetInDescriptorsFromTableStart = 0;
   {
     D3D12_ROOT_PARAMETER& fxaa_root_parameter_source =
-        fxaa_root_parameters[UINT(FxaaRootParameter::kSource)];
+        fxaa_root_parameters[static_cast<UINT>(FxaaRootParameter::kSource)];
     fxaa_root_parameter_source.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     fxaa_root_parameter_source.DescriptorTable.NumDescriptorRanges = 1;
     fxaa_root_parameter_source.DescriptorTable.pDescriptorRanges =
@@ -1298,7 +1308,7 @@ bool D3D12CommandProcessor::SetupContext() {
   fxaa_root_sampler.RegisterSpace = 0;
   fxaa_root_sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   D3D12_ROOT_SIGNATURE_DESC fxaa_root_signature_desc;
-  fxaa_root_signature_desc.NumParameters = UINT(FxaaRootParameter::kCount);
+  fxaa_root_signature_desc.NumParameters = static_cast<UINT>(FxaaRootParameter::kCount);
   fxaa_root_signature_desc.pParameters = fxaa_root_parameters;
   fxaa_root_signature_desc.NumStaticSamplers = 1;
   fxaa_root_signature_desc.pStaticSamplers = &fxaa_root_sampler;
@@ -1316,14 +1326,14 @@ bool D3D12CommandProcessor::SetupContext() {
   *(fxaa_extreme_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::objects::CreateComputePipeline(
       device, shaders::kFXAAExtremeCS, sizeof(shaders::kFXAAExtremeCS), fxaa_root_signature_.Get());
   if (!fxaa_pipeline_) {
-    REX_FAIL(gpu, false, "Failed to create the extreme-quality FXAA compute pipeline");
+    REX_FAIL(gpu, false, "Failed to create the extreme quality FXAA compute pipeline");
   }
 
   D3D12_ROOT_PARAMETER
-  resolve_downscale_root_parameters[UINT(ResolveDownscaleRootParameter::kCount)];
+  resolve_downscale_root_parameters[static_cast<UINT>(ResolveDownscaleRootParameter::kCount)];
   {
-    D3D12_ROOT_PARAMETER& constants_parameter =
-        resolve_downscale_root_parameters[UINT(ResolveDownscaleRootParameter::kConstants)];
+    D3D12_ROOT_PARAMETER& constants_parameter = resolve_downscale_root_parameters[static_cast<UINT>(
+        ResolveDownscaleRootParameter::kConstants)];
     constants_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     constants_parameter.Constants.ShaderRegister = 0;
     constants_parameter.Constants.RegisterSpace = 0;
@@ -1337,8 +1347,8 @@ bool D3D12CommandProcessor::SetupContext() {
   resolve_downscale_source_range.RegisterSpace = 0;
   resolve_downscale_source_range.OffsetInDescriptorsFromTableStart = 0;
   {
-    D3D12_ROOT_PARAMETER& source_parameter =
-        resolve_downscale_root_parameters[UINT(ResolveDownscaleRootParameter::kSource)];
+    D3D12_ROOT_PARAMETER& source_parameter = resolve_downscale_root_parameters[static_cast<UINT>(
+        ResolveDownscaleRootParameter::kSource)];
     source_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     source_parameter.DescriptorTable.NumDescriptorRanges = 1;
     source_parameter.DescriptorTable.pDescriptorRanges = &resolve_downscale_source_range;
@@ -1352,14 +1362,16 @@ bool D3D12CommandProcessor::SetupContext() {
   resolve_downscale_destination_range.OffsetInDescriptorsFromTableStart = 0;
   {
     D3D12_ROOT_PARAMETER& destination_parameter =
-        resolve_downscale_root_parameters[UINT(ResolveDownscaleRootParameter::kDestination)];
+        resolve_downscale_root_parameters[static_cast<UINT>(
+            ResolveDownscaleRootParameter::kDestination)];
     destination_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     destination_parameter.DescriptorTable.NumDescriptorRanges = 1;
     destination_parameter.DescriptorTable.pDescriptorRanges = &resolve_downscale_destination_range;
     destination_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
   D3D12_ROOT_SIGNATURE_DESC resolve_downscale_root_signature_desc;
-  resolve_downscale_root_signature_desc.NumParameters = UINT(ResolveDownscaleRootParameter::kCount);
+  resolve_downscale_root_signature_desc.NumParameters =
+      static_cast<UINT>(ResolveDownscaleRootParameter::kCount);
   resolve_downscale_root_signature_desc.pParameters = resolve_downscale_root_parameters;
   resolve_downscale_root_signature_desc.NumStaticSamplers = 0;
   resolve_downscale_root_signature_desc.pStaticSamplers = nullptr;
@@ -1375,7 +1387,7 @@ bool D3D12CommandProcessor::SetupContext() {
   if (!resolve_downscale_root_signature_ || !resolve_downscale_pipeline_) {
     resolve_downscale_pipeline_.Reset();
     resolve_downscale_root_signature_.Reset();
-    REXLOG_WARN(gpu, "Failed to initialize D3D12 resolve-downscale readback pipeline");
+    REXLOG_WARN(gpu, "Failed to initialize D3D12 resolve downscale readback pipeline");
   }
 
   if (bindless_resources_used_) {
@@ -1799,7 +1811,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
     auto fetch = regs.GetTextureFetch(0);
     REXLOG_ERROR(
         gpu,
-        "IssueSwap: RequestSwapTexture failed - fetch0: {:08X} {:08X} {:08X} {:08X} {:08X} {:08X}",
+        "IssueSwap: RequestSwapTexture failed, fetch0: {:08X} {:08X} {:08X} {:08X} {:08X} {:08X}",
         fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
     return;
   }
@@ -2007,14 +2019,16 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
         apply_gamma_constants.size[0] = guest_output_width;
         apply_gamma_constants.size[1] = guest_output_height;
         deferred_command_list_.D3DSetComputeRoot32BitConstants(
-            UINT(ApplyGammaRootParameter::kConstants), sizeof(apply_gamma_constants) / sizeof(u32),
-            &apply_gamma_constants, 0);
+            static_cast<UINT>(ApplyGammaRootParameter::kConstants),
+            sizeof(apply_gamma_constants) / sizeof(u32), &apply_gamma_constants, 0);
         deferred_command_list_.D3DSetComputeRootDescriptorTable(
-            UINT(ApplyGammaRootParameter::kDestination), apply_gamma_descriptors[0].second);
+            static_cast<UINT>(ApplyGammaRootParameter::kDestination),
+            apply_gamma_descriptors[0].second);
         deferred_command_list_.D3DSetComputeRootDescriptorTable(
-            UINT(ApplyGammaRootParameter::kSource), apply_gamma_descriptors[1].second);
+            static_cast<UINT>(ApplyGammaRootParameter::kSource), apply_gamma_descriptors[1].second);
         deferred_command_list_.D3DSetComputeRootDescriptorTable(
-            UINT(ApplyGammaRootParameter::kRamp), apply_gamma_descriptor_gamma_ramp.second);
+            static_cast<UINT>(ApplyGammaRootParameter::kRamp),
+            apply_gamma_descriptor_gamma_ramp.second);
         ID3D12PipelineState* apply_gamma_pipeline;
         if (use_pwl_gamma_ramp) {
           apply_gamma_pipeline = use_fxaa ? apply_gamma_pwl_fxaa_luma_pipeline_.Get()
@@ -2061,8 +2075,8 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
             fxaa_constants.size_inv[0] = 1.0f / static_cast<f32>(fxaa_constants.size[0]);
             fxaa_constants.size_inv[1] = 1.0f / static_cast<f32>(fxaa_constants.size[1]);
             deferred_command_list_.D3DSetComputeRoot32BitConstants(
-                UINT(FxaaRootParameter::kConstants), sizeof(fxaa_constants) / sizeof(u32),
-                &fxaa_constants, 0);
+                static_cast<UINT>(FxaaRootParameter::kConstants),
+                sizeof(fxaa_constants) / sizeof(u32), &fxaa_constants, 0);
             D3D12_UNORDERED_ACCESS_VIEW_DESC fxaa_dest_uav_desc;
             fxaa_dest_uav_desc.Format = gpu::d3d12::D3D12Presenter::kGuestOutputFormat;
             fxaa_dest_uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
@@ -2071,7 +2085,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
             device->CreateUnorderedAccessView(guest_output_resource, nullptr, &fxaa_dest_uav_desc,
                                               fxaa_descriptors[0].first);
             deferred_command_list_.D3DSetComputeRootDescriptorTable(
-                UINT(FxaaRootParameter::kDestination), fxaa_descriptors[0].second);
+                static_cast<UINT>(FxaaRootParameter::kDestination), fxaa_descriptors[0].second);
             D3D12_SHADER_RESOURCE_VIEW_DESC fxaa_source_srv_desc;
             fxaa_source_srv_desc.Format = kFxaaSourceTextureFormat;
             fxaa_source_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -2083,7 +2097,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
             device->CreateShaderResourceView(fxaa_source_texture_.Get(), &fxaa_source_srv_desc,
                                              fxaa_descriptors[1].first);
             deferred_command_list_.D3DSetComputeRootDescriptorTable(
-                UINT(FxaaRootParameter::kSource), fxaa_descriptors[1].second);
+                static_cast<UINT>(FxaaRootParameter::kSource), fxaa_descriptors[1].second);
             SetExternalPipeline(swap_post_effect == SwapPostEffect::kFxaaExtreme
                                     ? fxaa_extreme_pipeline_.Get()
                                     : fxaa_pipeline_.Get());
@@ -2866,12 +2880,13 @@ bool D3D12CommandProcessor::IssueCopyReadbackResolvePath() {
             ? 1u
             : 0u;
     deferred_command_list_.D3DSetComputeRoot32BitConstants(
-        UINT(ResolveDownscaleRootParameter::kConstants), sizeof(constants) / sizeof(u32),
-        &constants, 0);
+        static_cast<UINT>(ResolveDownscaleRootParameter::kConstants),
+        sizeof(constants) / sizeof(u32), &constants, 0);
     deferred_command_list_.D3DSetComputeRootDescriptorTable(
-        UINT(ResolveDownscaleRootParameter::kSource), downscale_descriptors[0].second);
+        static_cast<UINT>(ResolveDownscaleRootParameter::kSource), downscale_descriptors[0].second);
     deferred_command_list_.D3DSetComputeRootDescriptorTable(
-        UINT(ResolveDownscaleRootParameter::kDestination), downscale_descriptors[1].second);
+        static_cast<UINT>(ResolveDownscaleRootParameter::kDestination),
+        downscale_descriptors[1].second);
     deferred_command_list_.D3DDispatch(tile_count, 1, 1);
 
     PushUAVBarrier(resolve_downscale_buffer_.Get());
@@ -2943,7 +2958,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(u64 await_submission) {
         queue_operations_done_since_submission_signal_ = false;
       } else {
         REXLOG_ERROR(gpu,
-                     "Failed to await an out-of-submission queue operation completion "
+                     "Failed to await a queue operation completion outside a submission "
                      "Direct3D 12 fence");
       }
     }
@@ -3014,7 +3029,7 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
   const char* reason_str = "Unknown";
   switch (reason) {
     case DXGI_ERROR_DEVICE_HUNG:
-      reason_str = "DEVICE_HUNG (TDR - GPU command took too long)";
+      reason_str = "DEVICE_HUNG (TDR, GPU command took too long)";
       break;
     case DXGI_ERROR_DEVICE_REMOVED:
       reason_str = "DEVICE_REMOVED (driver internal error or hot-unplug)";
@@ -3031,7 +3046,7 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
     default:
       break;
   }
-  REXLOG_ERROR(gpu, "D3D12 device removed: HRESULT 0x{:08X} - {}", static_cast<unsigned>(reason),
+  REXLOG_ERROR(gpu, "D3D12 device removed: HRESULT 0x{:08X}, {}", static_cast<unsigned>(reason),
                reason_str);
 
   Microsoft::WRL::ComPtr<ID3D12DeviceRemovedExtendedData> dred;

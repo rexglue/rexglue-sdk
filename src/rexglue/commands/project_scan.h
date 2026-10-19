@@ -1,6 +1,6 @@
 /**
  * @file        rexglue/commands/project_scan.h
- * @brief       Project-tree checks that run on every codegen
+ * @brief       Project tree checks that run on every codegen
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -34,8 +34,8 @@ std::string RenderRexglueCmake(std::string_view project_name, std::string_view s
 /**
  * Rewrites generated/rexglue.cmake when it differs from what the installed SDK renders.
  *
- * @param project_root Project directory.
- * @param project_name Project name.
+ * @param project_root Directory holding generated/rexglue.cmake.
+ * @param project_name Name rendered into rexglue.cmake.
  * @param sdk_version Installed SDK version.
  * @param entrypoint_out_dir Output directory of the entry binary.
  * @return True when the file was rewritten.

@@ -87,7 +87,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
                                                  memory_requirements.memoryTypeBits, false);
     if (memory_type_ == UINT32_MAX) {
       REXLOG_ERROR(ui,
-                   "No host-visible memory types can store an Vulkan upload buffer with "
+                   "No host-visible memory types can store a Vulkan upload buffer with "
                    "{} bytes",
                    page_size_);
       memory_type_ = kMemoryTypeUnavailable;

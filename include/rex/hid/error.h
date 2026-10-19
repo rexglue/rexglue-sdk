@@ -67,7 +67,7 @@ enum class HIDError : u8 {
 }
 
 /**
- * Returns the Win32 code the XamInput exports report for a HID code.
+ * Returns the Win32 code the XAM input exports report for a HID code.
  *
  * @param code The HID code.
  * @return The Win32 code.

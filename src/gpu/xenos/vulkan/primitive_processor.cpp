@@ -141,7 +141,7 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
   const VkDevice device = vulkan_device->GetDevice();
 
-  builtin_index_buffer_size_ = VkDeviceSize(size_bytes);
+  builtin_index_buffer_size_ = static_cast<VkDeviceSize>(size_bytes);
   if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(
           vulkan_device, builtin_index_buffer_size_,
           VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -208,7 +208,7 @@ void* VulkanPrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
   if (coalign_for_simd) {
     ptrdiff_t coalignment_offset = GetSimdCoalignmentOffset(mapping, coalignment_original_address);
     mapping += coalignment_offset;
-    offset = VkDeviceSize(offset + coalignment_offset);
+    offset = static_cast<VkDeviceSize>(offset + coalignment_offset);
   }
   backend_handle_out = frame_index_buffers_.size();
   frame_index_buffers_.emplace_back(buffer, offset);

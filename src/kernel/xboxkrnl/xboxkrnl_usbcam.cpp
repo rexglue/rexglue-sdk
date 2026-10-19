@@ -18,7 +18,7 @@
 namespace rex::kernel::xboxkrnl {
 
 /**
- * Allocates the camera buffer. Must report success, because titles that see a failure skip their
+ * Reports success without creating a camera, because titles that see a failure skip their
  * initialization and then run on uninitialized data.
  *
  * @param buffer Unused.

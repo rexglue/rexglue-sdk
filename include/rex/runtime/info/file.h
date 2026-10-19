@@ -50,7 +50,7 @@ enum X_FILE_INFORMATION_CLASS : u8 {
   XFileObjectIdInformation,        /**< File object ID information class. */
   XFileCompletionInformation,      /**< File completion information class. */
   XFileMoveClusterInformation,     /**< File move cluster information class. */
-  XFileIoPriorityInformation,      /**< File I/O priority information class. */
+  XFileIoPriorityInformation,      /**< File IO priority information class. */
   XFileReparsePointInformation,    /**< File reparse point information class. */
   XFileNetworkOpenInformation,     /**< File network open information class. */
   XFileAttributeTagInformation,    /**< File attribute tag information class. */
@@ -114,9 +114,9 @@ struct X_FILE_XCTD_COMPRESSION_INFORMATION {
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_XCTD_COMPRESSION_INFORMATION, 4);
 
-/** Association of a file with an I/O completion port. */
+/** Association of a file with an IO completion port. */
 struct X_FILE_COMPLETION_INFORMATION {
-  be_u32 handle; /**< I/O completion port handle. */
+  be_u32 handle; /**< IO completion port handle. */
   be_u32 key;    /**< Completion key reported with each completion. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_COMPLETION_INFORMATION, 8);

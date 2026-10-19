@@ -159,7 +159,7 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
     {{kLoadShaderIndex32bpb, VK_FORMAT_B8G8R8G8_422_UNORM, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBB},
-    // k_16_16_EDRAM, not usable as a texture, also has -32...32 range.
+    // k_16_16_EDRAM, not usable as a texture, has -32...32 range.
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_8_8_8_A
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
@@ -187,7 +187,7 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_16_16_16_16_EDRAM, not usable as a texture, also has -32...32 range.
+    // k_16_16_16_16_EDRAM, not usable as a texture, has -32...32 range.
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
     // k_24_8, signed and unsigned share the R32 float descriptor path.
     {{kLoadShaderIndexDepthUnorm, VK_FORMAT_R32_SFLOAT},
@@ -492,7 +492,7 @@ void VulkanTextureCache::EndFrame() {
       continue;
     }
     if (!unsupported_header_written) {
-      REXLOG_ERROR(gpu, "Unsupported texture formats used in the frame:");
+      REXLOG_ERROR(gpu, "Unsupported texture formats used in the frame");
       unsupported_header_written = true;
     }
     REXLOG_ERROR(gpu, "* {}{}{}{}", xenos::FormatInfo::Get(xenos::TextureFormat(i))->name,
@@ -1523,7 +1523,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     u8& float_fallback_log_state = float_fallback_log_mask[static_cast<u32>(texture_key.format)];
     if ((float_fallback_log_state & float_fallback_log_bit) == 0) {
       float_fallback_log_state |= float_fallback_log_bit;
-      REXLOG_INFO(gpu, "VulkanTextureCache: Using two-pass float fallback for format {} ({})",
+      REXLOG_INFO(gpu, "VulkanTextureCache: Using 2 pass float fallback for format {} ({})",
                   xenos::FormatInfo::Get(texture_key.format)->name,
                   host_format_is_signed ? "signed" : "unsigned");
     }
@@ -1882,7 +1882,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
     VmaAllocation allocation_2d;
     if (vmaCreateImage(vulkan_texture_cache.vma_allocator_, &image_create_info,
                        &allocation_create_info, &image_2d, &allocation_2d, nullptr) != VK_SUCCESS) {
-      REX_FAIL(gpu, VK_NULL_HANDLE, "VulkanTextureCache: Failed to create 3D-as-2D wrapper image");
+      REX_FAIL(gpu, VK_NULL_HANDLE, "VulkanTextureCache: Failed to create 3D as 2D wrapper image");
     }
 
     TextureKey key_2d = GetKey();
@@ -1893,7 +1893,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
     texture_3d_as_2d_->SetForceLoad3DTiling(true);
 
     if (!vulkan_texture_cache.LoadTextureData(*texture_3d_as_2d_)) {
-      REXLOG_ERROR(gpu, "VulkanTextureCache: Failed to load 3D-as-2D wrapper data");
+      REXLOG_ERROR(gpu, "VulkanTextureCache: Failed to load 3D as 2D wrapper data");
       texture_3d_as_2d_.reset();
       return VK_NULL_HANDLE;
     }
@@ -1940,7 +1940,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
 
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &cached_view) != VK_SUCCESS) {
     REX_FAIL(gpu, VK_NULL_HANDLE,
-             "VulkanTextureCache: Failed to create 3D-as-2D wrapper image view");
+             "VulkanTextureCache: Failed to create 3D as 2D wrapper image view");
   }
 
   return cached_view;
@@ -2790,7 +2790,7 @@ bool VulkanTextureCache::Initialize() {
             current_load_shader_code_scaled.second);
         if (load_pipelines_scaled_[i] == VK_NULL_HANDLE) {
           REX_FAIL(gpu, false,
-                   "VulkanTextureCache: Failed to create the resolution-scaled "
+                   "VulkanTextureCache: Failed to create the resolution scaled "
                    "texture loading pipeline for shader {}",
                    i);
         }

@@ -205,11 +205,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     /**
      * Creates a host render target. descriptor_load_separate is present when the DXGI formats
      * differ for drawing and bit exact loading, which preserves NaN patterns across EDRAM tile
-     * ownership transfers in floating point formats and tells the two -1 representations in snorm
-     * formats apart.
+     * ownership transfers in floating point formats and distinguishes the 2 -1 representations in
+     * snorm formats.
      *
-     * @param key Render target key.
-     * @param resource Render target resource.
+     * @param key Selects the EDRAM base, pitch, MSAA sample count, depth or color and format.
+     * @param resource Texture resource backing the render target, referenced by it.
      * @param descriptor_draw Descriptor for drawing.
      * @param descriptor_load_separate Descriptor for bit exact loading, if the format differs.
      * @param descriptor_srv Texture SRV descriptor.
@@ -424,7 +424,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       u32 source_pitch : xenos::kEDRAMPitchTilesBits;
       /**
        * Destination base in tiles minus source base in tiles, as this transforms the coordinate
-       * system, not the addresses. 1 extra bit for the signed difference between two EDRAM bases.
+       * system, not the addresses. 1 extra bit for the signed difference between 2 EDRAM bases.
        * 0 for host_depth_source_is_copy, where destination equals source.
        */
       i32 source_to_dest : xenos::kEDRAMBaseTilesBits + 1;
@@ -627,7 +627,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   /**
    * Returns the transfer pipelines for a shader key, creating them on first use. 40 sample columns
    * are swapped when the destination is depth or a stencil bit as opposed to a color source, and
-   * when the source is depth or stencil as opposed to a color destination. A 64bpp sample is two
+   * when the source is depth or stencil as opposed to a color destination. A 64bpp sample is 2
    * 32bpp halves in adjacent samples at 4x, or adjacent pixels at 1x and 2x. The first sample bit
    * at 4x is the horizontal sample and the second the vertical. At 2x, native 2x has the top at 1
    * and the bottom at 0, while 2x as 4x has the top at 0 and the bottom at 3. Registers before the
@@ -637,14 +637,14 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    * index within the source pixel for 2x and 4x. The source loads to r1, or for 32bpp to 64bpp
    * the first dword to r0, as addressing is no longer needed for color, and the second to r1.
    * Depth loads to w before stencil so the stencil coordinates survive, stencil to x and color to
-   * x through w. A single sampled source zeroes r1.z as the LOD. 64bpp color is built from two
+   * x through w. A single sampled source zeroes r1.z as the LOD. 64bpp color is built from 2
    * 32 bit samples in r0 and r1 or 1 64bpp sample in r1, with r2.x as a temp. 64bpp and 16 bit
    * per component formats transfer as integers for safe handling of NaNs and -32768 / -32767.
    * D24S8 depth converts by rescaling 0...0xFFFFFF to 0...0x1000000 as true float division
    * followed by multiplication does on x86-64 MSVC with default SSE rounding, which adds 1 from
    * 0x800000, then biasing the exponent, as multiplying by 1.0 / 0xFFFFFF is wrong for 0xC00000.
    *
-   * @param key Transfer shader key.
+   * @param key Encodes the source and destination formats and sample counts and the transfer mode.
    * @return A pointer to 1 pipeline writing color or depth (or stencil via SV_StencilRef), a
    *         pointer to 8 pipelines writing stencil by discarding samples depending on whether
    *         they have the bit from 1 << 0 to 1 << 7 set, or null if creation failed.
@@ -690,7 +690,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    * unknown, so 64bpp tiles are treated as 40x16 samples rather than 80x16 to simplify texture
    * addressing.
    *
-   * @param key Dump pipeline key.
+   * @param key Encodes the resource format, MSAA sample count and depth or color.
    * @return The pipeline, or null if creation failed.
    */
   ID3D12PipelineState* GetOrCreateDumpPipeline(DumpPipelineKey key);

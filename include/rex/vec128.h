@@ -66,18 +66,24 @@ struct alignas(16) Vec128S {
   };
 
   /**
+   * Reports whether all 128 bits of this equal b.
+   *
    * @param b The value to compare with.
    * @return True when all 128 bits match.
    */
   bool operator==(const Vec128S& b) const { return low == b.low && high == b.high; }
 
   /**
+   * Reports whether any bit of this differs from b.
+   *
    * @param b The value to compare with.
    * @return True when any bit differs.
    */
   bool operator!=(const Vec128S& b) const { return low != b.low || high != b.high; }
 
   /**
+   * Returns the bitwise XOR of this and b.
+   *
    * @param b The right operand.
    * @return The bitwise XOR of this and b.
    */
@@ -89,6 +95,8 @@ struct alignas(16) Vec128S {
   };
 
   /**
+   * Applies a bitwise XOR with b to this value.
+   *
    * @param b The right operand.
    * @return This value after the bitwise XOR with b.
    */
@@ -98,6 +106,8 @@ struct alignas(16) Vec128S {
   };
 
   /**
+   * Returns the bitwise AND of this and b.
+   *
    * @param b The right operand.
    * @return The bitwise AND of this and b.
    */
@@ -109,6 +119,8 @@ struct alignas(16) Vec128S {
   };
 
   /**
+   * Applies a bitwise AND with b to this value.
+   *
    * @param b The right operand.
    * @return This value after the bitwise AND with b.
    */
@@ -118,6 +130,8 @@ struct alignas(16) Vec128S {
   };
 
   /**
+   * Returns the bitwise OR of this and b.
+   *
    * @param b The right operand.
    * @return The bitwise OR of this and b.
    */
@@ -129,6 +143,8 @@ struct alignas(16) Vec128S {
   };
 
   /**
+   * Applies a bitwise OR with b to this value.
+   *
    * @param b The right operand.
    * @return This value after the bitwise OR with b.
    */
@@ -142,6 +158,8 @@ struct alignas(16) Vec128S {
 using Vec128T = Vec128S;
 
 /**
+ * Returns a vector with the same value in all 4 u32 lanes.
+ *
  * @param src The value for every u32 lane.
  * @return A vector with src in all 4 u32 lanes.
  */
@@ -154,6 +172,8 @@ static inline Vec128T vec128i(u32 src) {
 }
 
 /**
+ * Returns a vector with the given values in the 4 u32 lanes.
+ *
  * @param x u32 lane 0.
  * @param y u32 lane 1.
  * @param z u32 lane 2.
@@ -170,6 +190,8 @@ static inline Vec128T vec128i(u32 x, u32 y, u32 z, u32 w) {
 }
 
 /**
+ * Returns a vector with the same value in both 64 bit lanes.
+ *
  * @param src The value for every 64 bit lane.
  * @return A vector with src in both 64 bit lanes.
  */
@@ -182,6 +204,8 @@ static inline Vec128T vec128q(u64 src) {
 }
 
 /**
+ * Returns a vector with the given values in both 64 bit lanes.
+ *
  * @param x 64 bit lane 0.
  * @param y 64 bit lane 1.
  * @return A vector with the given 64 bit lanes.
@@ -194,6 +218,8 @@ static inline Vec128T vec128q(u64 x, u64 y) {
 }
 
 /**
+ * Returns a vector with the same value in both f64 lanes.
+ *
  * @param src The value for every f64 lane.
  * @return A vector with src in both f64 lanes.
  */
@@ -206,6 +232,8 @@ static inline Vec128T vec128d(f64 src) {
 }
 
 /**
+ * Returns a vector with the given values in the 2 f64 lanes.
+ *
  * @param x f64 lane 0.
  * @param y f64 lane 1.
  * @return A vector with the given f64 lanes.
@@ -218,6 +246,8 @@ static inline Vec128T vec128d(f64 x, f64 y) {
 }
 
 /**
+ * Returns a vector with the same value in all 4 f32 lanes.
+ *
  * @param src The value for every f32 lane.
  * @return A vector with src in all 4 f32 lanes.
  */
@@ -230,6 +260,8 @@ static inline Vec128T vec128f(f32 src) {
 }
 
 /**
+ * Returns a vector with the given values in the 4 f32 lanes.
+ *
  * @param x f32 lane 0.
  * @param y f32 lane 1.
  * @param z f32 lane 2.
@@ -246,6 +278,8 @@ static inline Vec128T vec128f(f32 x, f32 y, f32 z, f32 w) {
 }
 
 /**
+ * Returns a vector with the same value in all 8 u16 lanes.
+ *
  * @param src The value for every u16 lane.
  * @return A vector with src in all 8 u16 lanes.
  */
@@ -284,6 +318,8 @@ static inline Vec128T vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u1
 }
 
 /**
+ * Returns a vector with the same value in all 16 u8 lanes.
+ *
  * @param src The value for every u8 lane.
  * @return A vector with src in all 16 u8 lanes.
  */
@@ -339,6 +375,8 @@ static inline Vec128T vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u
 }
 
 /**
+ * Returns the 4 f32 lanes as "(x, y, z, w)".
+ *
  * @param value The vector to format.
  * @return The 4 f32 lanes as "(x, y, z, w)".
  */

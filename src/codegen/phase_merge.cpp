@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_merge.cpp
- * @brief       Merge phase: resolve jumps and seal functions
+ * @brief       Merge phase that resolves jumps and seals functions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

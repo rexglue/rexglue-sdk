@@ -37,7 +37,7 @@ class ThreadPin : public rex::MoveOnly {
   explicit ThreadPin(KernelThread* thread) noexcept : thread_(thread) {}
   ThreadPin(ThreadPin&& other) noexcept : thread_(other.thread_) { other.thread_ = nullptr; }
   /**
-   * Takes over the pin of another slot and releases the pin this pin held.
+   * Takes over the pin of another pin object and releases the pin this pin held.
    *
    * @param other The pin left empty.
    * @return This pin.
@@ -152,7 +152,7 @@ REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1)
   [[nodiscard]] virtual std::optional<FiberInfo> LookupFiber(u32 address) = 0;
 
   /**
-   * Registers a fiber, replacing a `KernelThread` with the same address.
+   * Registers a fiber, replacing the fiber with the same address.
    *
    * @param address The guest address of the fiber context block.
    * @param info The fiber data.
@@ -177,7 +177,7 @@ REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1)
   [[nodiscard]] virtual const char* GetOrCreateFiberName(u32 address, const char* thread_name) = 0;
 
   /**
-   * Registers a thread notification. Every guest thread calls it at start and at exit.
+   * Registers a thread notification.
    *
    * @param notification Address of the title's XTHREAD_NOTIFICATION.
    */

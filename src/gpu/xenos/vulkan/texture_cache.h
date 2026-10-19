@@ -50,8 +50,7 @@ class VulkanTextureCache final : public TextureCache {
       u32 mip_linear : 1;
       xenos::AnisoFilter aniso_filter : 3;
       u32 mip_min_level : 4;
-      /** The texture holds the maximum mip level, so fetching is limited to mip_min_level. */
-      u32 mip_base_map : 1;
+      u32 mip_base_map : 1; /**< True when fetching is limited to mip_min_level. */
     };
 
     SamplerParameters() : value(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(value)); }
@@ -64,7 +63,6 @@ class VulkanTextureCache final : public TextureCache {
     bool operator!=(const SamplerParameters& parameters) const { return value != parameters.value; }
   };
 
-  // Transient descriptor set layouts must be initialized in the command processor first.
   static std::unique_ptr<VulkanTextureCache> Create(
       const xenos::RegisterFile& register_file, VulkanSharedMemory& shared_memory,
       u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
@@ -103,7 +101,7 @@ class VulkanTextureCache final : public TextureCache {
    * Returns the sampler and updates its last usage submission index. Needs an open submission and
    * runs at least once per submission for every used sampler.
    *
-   * @param parameters Sampler parameters.
+   * @param parameters Sampler configuration to look up or create.
    * @param has_overflown_out Receives true on a sampler overflow in a pending submission.
    * @return The sampler, or VK_NULL_HANDLE on overflow or on failure to create it.
    */
@@ -167,7 +165,7 @@ class VulkanTextureCache final : public TextureCache {
    * and the mips would both be on level 0 but stored separately, so the load loop counter then
    * counts the base tail and the mips tail instead of the stored level.
    *
-   * @param texture Texture to load.
+   * @param texture Texture whose host image receives the data.
    * @param load_base Whether to load the base level.
    * @param load_mips Whether to load the mips.
    * @return True when the load was queued.
@@ -186,10 +184,8 @@ class VulkanTextureCache final : public TextureCache {
 
   struct HostFormat {
     LoadShaderIndex load_shader;
-    /** Integer formats are not filterable and only work with ImageFetch, so none belong here. */
-    VkFormat format = VK_FORMAT_UNDEFINED;
-    /** True when block compressed on the host with the guest block size, kept compressed. */
-    bool block_compressed = false;
+    VkFormat format = VK_FORMAT_UNDEFINED; /**< No integer formats, which are not filterable. */
+    bool block_compressed = false; /**< True when kept compressed with the guest block size. */
 
     bool linear_filterable = false;
   };
@@ -197,13 +193,8 @@ class VulkanTextureCache final : public TextureCache {
   struct HostFormatPair {
     HostFormat format_unsigned;
     HostFormat format_signed;
-    /** Maps Xenos swizzle components to Vulkan format components. */
-    u32 swizzle = 0;
-    /**
-     * True when the unsigned and signed formats are compatible for one image and its data,
-     * including imageViewFormatReinterpretation on portability subset devices.
-     */
-    bool unsigned_signed_compatible = false;
+    u32 swizzle = 0; /**< Maps Xenos swizzle components to Vulkan format components. */
+    bool unsigned_signed_compatible = false; /**< True when both formats can share an image. */
   };
 
   class VulkanTexture final : public Texture {
@@ -218,9 +209,9 @@ class VulkanTextureCache final : public TextureCache {
     /**
      * Takes ownership of the image and its memory.
      *
-     * @param texture_cache Owning texture cache.
-     * @param key Texture key.
-     * @param image Image to own.
+     * @param texture_cache Texture cache supplying the allocator and command processor.
+     * @param key Selects the guest texture format and dimensions.
+     * @param image Image destroyed with the texture.
      * @param allocation Allocation backing the image.
      * @param track_usage Whether usage transitions are tracked.
      */
@@ -233,7 +224,7 @@ class VulkanTextureCache final : public TextureCache {
     /**
      * Sets the usage without a transition, the caller inserts the barrier.
      *
-     * @param new_usage Usage to set.
+     * @param new_usage Usage that becomes the current one.
      * @return The previous usage.
      */
     Usage SetUsage(Usage new_usage) {

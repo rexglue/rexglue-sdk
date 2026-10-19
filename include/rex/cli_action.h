@@ -20,7 +20,7 @@ namespace rex {
 /** A one shot request an app takes from the command line, such as --repair. */
 struct CLIAction {
   std::string_view name;        /**< Name without the leading dashes. */
-  std::string_view description; /**< One line that says what the action does. */
+  std::string_view description; /**< 1 line that says what the action does. */
 };
 
 /** An action found on the command line with the option that named it. */
@@ -35,7 +35,7 @@ namespace detail {
  * Reports whether a character can appear in an action name.
  *
  * @param c The character.
- * @return True for a lowercase letter, a digit, an underscore or a hyphen.
+ * @return True when c is a lowercase letter, a digit, an underscore or a hyphen.
  */
 constexpr bool IsActionChar(char c) {
   return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-';
@@ -57,7 +57,7 @@ constexpr bool IsActionName(std::string_view name) {
  * Builds an action and stops the compile on an invalid name.
  *
  * @param name The action name.
- * @param description One line that says what the action does.
+ * @param description 1 line that says what the action does.
  * @return The action.
  */
 consteval CLIAction MakeAction(std::string_view name, std::string_view description) {
@@ -76,7 +76,7 @@ consteval CLIAction MakeAction(std::string_view name, std::string_view descripti
  * An app returns its actions from App::GetActions and handles each in App::OnAction.
  *
  * @param name The action name without quotes, such as repair.
- * @param description One line that says what the action does.
+ * @param description 1 line that says what the action does.
  * @code
  * static constexpr std::array<rex::CLIAction, 1> kActions = {
  *     REX_CLI_ACTION(repair, "Opens the installer wizard in repair mode.")};

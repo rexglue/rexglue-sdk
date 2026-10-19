@@ -38,7 +38,7 @@ class REX_API MappedMemory : public rex::NonCopyable {
    * @param mode Access mode.
    * @param offset Byte offset of the mapped range in the file.
    * @param length Byte count of the range, or 0 to map to the end of the file.
-   * @return The mapping, or nullptr on failure.
+   * @return The mapping, or null on failure.
    */
   static std::unique_ptr<MappedMemory> Open(const std::filesystem::path& path, Mode mode,
                                             size_t offset = 0, size_t length = 0);
@@ -70,7 +70,7 @@ class REX_API MappedMemory : public rex::NonCopyable {
   /**
    * Returns the start of the mapped memory.
    *
-   * @return Pointer to the first byte, or nullptr once closed.
+   * @return Pointer to the first byte, or null once closed.
    */
   u8* GetData() const { return reinterpret_cast<u8*>(data_); }
 
@@ -133,7 +133,7 @@ class REX_API ChunkedMappedMemoryWriter {
    * Reserves space in the current chunk, opening a new chunk when it is full.
    *
    * @param length Byte count, no larger than the chunk size.
-   * @return Pointer to the reserved space, or nullptr on failure.
+   * @return Pointer to the reserved space, or null on failure.
    */
   virtual u8* Allocate(size_t length) = 0;
 

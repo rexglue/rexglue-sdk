@@ -23,7 +23,7 @@
 
 alignas(64) static u8 g_mem[0x10000] = {};
 
-REX_TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "[ppc][stack]") {
+REX_TEST_CASE("stack_push scalar decrements r1 and writes byte swapped value", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -36,7 +36,7 @@ REX_TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "
   CHECK(raw == std::byteswap(u32{0x12345678}));
 }
 
-REX_TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
+REX_TEST_CASE("stack_push float writes byte swapped float", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -51,7 +51,7 @@ REX_TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
   CHECK(raw == std::byteswap(val_bits));
 }
 
-REX_TEST_CASE("stack_push_string writes NUL-terminated string", "[ppc][stack]") {
+REX_TEST_CASE("stack_push_string writes NUL terminated string", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
   std::memset(g_mem + 0x7F00, 0, 0x100);

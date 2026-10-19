@@ -24,7 +24,8 @@ namespace rex::hid {
 
 /**
  * Adds the hid cvars at Connect, picks the assignment from Config::hid and adds the module's pad
- * driver at Init. The hub exists from construction, so rex.hid.backend is served before Init.
+ * driver at Init. The hub exists from construction, so the HID backend interface is served before
+ * Init.
  */
 class HIDModuleBase : public IModule {
  public:

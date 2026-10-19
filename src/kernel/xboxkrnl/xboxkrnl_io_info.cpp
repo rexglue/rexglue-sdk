@@ -223,7 +223,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
       bool delete_on_close = info->delete_file ? true : false;
       file->file->SetDeleteOnClose(delete_on_close);
       out_length = 0;
-      REXLOG_WARN(kernel, "NtSetInformationFile set deleting flag for {} on close to: {}",
+      REXLOG_WARN(kernel, "NtSetInformationFile set the delete on close flag of {} to {}",
                   file->file->GetInfo().name, delete_on_close);
       break;
     }

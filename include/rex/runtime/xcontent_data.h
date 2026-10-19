@@ -7,8 +7,6 @@
  ******************************************************************************
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
- *
- * @changes     - Extracted content types from xbox.h
  */
 
 #pragma once

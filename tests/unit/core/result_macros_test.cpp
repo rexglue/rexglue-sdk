@@ -66,7 +66,7 @@ REX_TEST_CASE("REX_ERROR_IF returns the error when its condition holds", "[core]
   REQUIRE(ErrorWhen(false));
 }
 
-REX_TEST_CASE("Result<void> is the void result", "[core][macros]") {
+REX_TEST_CASE("Ok makes a successful Result<void>", "[core][macros]") {
   rex::Result<void> s = rex::Ok();
   REQUIRE(s);
   static_assert(std::is_same_v<rex::Result<void>, rex::Result<void>>);

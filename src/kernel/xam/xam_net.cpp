@@ -323,7 +323,7 @@ void CompleteReceive(Runtime& runtime, GuestPtrT<XWSAOVERLAPPED> overlapped,
  * Receives a datagram into buffer 0, at once or overlapped.
  *
  * @param caller The caller type.
- * @param socket_handle The socket handle.
+ * @param socket_handle The socket to receive on.
  * @param buffers The buffers, only the first is used.
  * @param buffer_count Ignored.
  * @param num_bytes_recv Receives the byte count of a receive that completes at once.
@@ -332,7 +332,7 @@ void CompleteReceive(Runtime& runtime, GuestPtrT<XWSAOVERLAPPED> overlapped,
  * @param from_len The size of the sender buffer, receives the size of the sender address.
  * @param overlapped Optional overlapped block that receives the result, and whose event is set.
  * @param completion_routine Ignored.
- * @return 0 when the receive completed, -1 with the last error set otherwise, WSA_IO_PENDING for
+ * @return 0 when the receive completed, -1 with the last error set otherwise, kWSAIOPending for
  * a receive that completes later.
  */
 u32 NetDll_WSARecvFrom_entry([[maybe_unused]] u32 caller, u32 socket_handle,
@@ -404,7 +404,7 @@ u32 NetDll_WSARecvFrom_entry([[maybe_unused]] u32 caller, u32 socket_handle,
  * Cancels the pending overlapped receive of a socket, which then reports WSAECANCELLED.
  *
  * @param caller The caller type.
- * @param socket_handle The socket handle.
+ * @param socket_handle The socket to cancel the receive on.
  * @return 0, or -1 with the last error set for a handle that is not a socket.
  */
 u32 NetDll_WSACancelOverlappedIO_entry([[maybe_unused]] u32 caller, u32 socket_handle) {
@@ -422,11 +422,11 @@ u32 NetDll_WSACancelOverlappedIO_entry([[maybe_unused]] u32 caller, u32 socket_h
  * For a VDP socket, buffer 0 holds the title data length and buffer 1 the unencrypted title data.
  *
  * @param caller The caller type.
- * @param socket_handle The socket handle.
+ * @param socket_handle The socket to send on.
  * @param buffers The buffers to send.
- * @param num_buffers The count of buffers.
+ * @param num_buffers The number of entries in buffers.
  * @param num_bytes_sent Receives the byte count.
- * @param flags The send flags.
+ * @param flags The flags passed to the socket send.
  * @param to_ptr The destination address.
  * @param to_len The size of the destination address.
  * @param overlapped Optional overlapped block that receives the result, and whose event is set.
@@ -484,7 +484,7 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
  * Reports the result of an overlapped operation.
  *
  * @param caller The caller type.
- * @param socket_handle The socket handle.
+ * @param socket_handle Ignored.
  * @param overlapped The overlapped block of the operation.
  * @param bytes_transferred Receives the byte count.
  * @param wait Nonzero to wait on the event of a pending operation until it completes.
@@ -628,11 +628,10 @@ void NetDll_XNetInAddrToString_entry([[maybe_unused]] u32 caller, [[maybe_unused
 }
 
 /**
- * Stub for converting an XNet address to an IN_ADDR, which later socket calls use as a handle
- * to the address.
+ * Stub for converting an XNet address to an IN_ADDR.
  *
  * @param caller The caller type.
- * @param xn_addr The XNet address.
+ * @param xn_addr The address to convert.
  * @param xid The key identifier.
  * @param in_addr Receives the IN_ADDR.
  * @return 1.
@@ -648,7 +647,7 @@ u32 NetDll_XNetXnAddrToInAddr_entry([[maybe_unused]] u32 caller,
  * Stub for the reverse conversion of NetDll_XNetXnAddrToInAddr_entry.
  *
  * @param caller The caller type.
- * @param in_addr The IN_ADDR.
+ * @param in_addr The IN_ADDR to convert.
  * @param xn_addr Receives the XNet address.
  * @param xid The key identifier.
  * @return 1.
@@ -664,7 +663,7 @@ u32 NetDll_XNetInAddrToXnAddr_entry([[maybe_unused]] u32 caller,
  * Stub that reserves a port for system link.
  *
  * @param caller The caller type.
- * @param port The port to reserve.
+ * @param port Ignored.
  * @return 1.
  */
 u32 NetDll_XNetSetSystemLinkPort_entry([[maybe_unused]] u32 caller, [[maybe_unused]] u32 port) {

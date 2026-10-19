@@ -45,7 +45,7 @@
 #endif
 #endif
 
-// Function definition macros (same as codegen init header)
+// Function definition macros (same as the codegen pch header)
 #ifndef DECLARE_REX_FUNC
 #define DECLARE_REX_FUNC(name) \
   REX_EXTERN(name);            \
@@ -54,7 +54,7 @@
 
 #ifndef DEFINE_REX_FUNC
 #if defined(__APPLE__)
-// Darwin has no overridable alias (see codegen/pch_h.inja): use a weak
+// Darwin has no overridable alias (see codegen/pch_h.inja), so use a weak
 // musttail thunk so `name` stays overridable by hooks and lowers to a `jmp`.
 #define DEFINE_REX_FUNC(name)                                            \
   extern "C" void __imp__##name(PPCContext& __restrict, u8*);            \
@@ -199,7 +199,7 @@
   do { if (enable) ctx.fpscr.EnableFlushMode(); else ctx.fpscr.DisableFlushMode(); } while (0)
 
 //=============================================================================
-// Misc
+// Timebase and Unimplemented Instructions
 //=============================================================================
 
 #define REX_UNIMPLEMENTED(addr, opcode) ::rex::ppc::UnimplementedInstruction(opcode)

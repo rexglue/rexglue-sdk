@@ -60,7 +60,7 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
   [[nodiscard]] virtual Result<void> Register(std::string_view scope,
                                               std::span<const VarBase* const> vars) = 0;
   /**
-   * Adds vars to scopes that are already reserved, for vars created at runtime such as keybinds.
+   * Adds vars to scopes that are reserved, for vars created at runtime such as keybinds.
    * A value Init received for a name in a scope reserved with an empty table waits here and is
    * applied when the name arrives, so a config file can hold keybinds. Fails with BadName when a
    * var's scope is not reserved, or with DuplicateName.
@@ -71,7 +71,7 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
   [[nodiscard]] virtual Result<void> Add(std::span<const VarBase* const> vars) = 0;
   /**
    * Removes the vars. A scope reserved through Register with vars is released when its last var
-   * leaves. A scope reserved with an empty table stays until Reset.
+   * leaves. A scope reserved with an empty table stays reserved.
    *
    * @param vars The vars to remove.
    */
@@ -100,7 +100,7 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    */
   [[nodiscard]] virtual Result<void> SetDefault(std::string_view name, std::string_view value) = 0;
   /**
-   * Locks a cvar so every later Set fails with Locked. Values already applied stay.
+   * Locks a cvar so every later Set fails with Locked. Values applied stay.
    *
    * @param name Dotted cvar name such as gpu.vsync.
    * @return Ok, or NotFound.

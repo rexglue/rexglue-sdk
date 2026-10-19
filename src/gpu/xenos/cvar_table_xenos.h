@@ -16,14 +16,14 @@ namespace rex::gpu::cvars {
 
 REXCVAR_STRING(
     xenos, readback_resolve, "none",
-    "Controls CPU readback of render-to-texture resolve results.\n none: Disable readback "
-    "(default)\n fast: Read previous frame (delayed, copy every frame)\n some: Read previous frame "
-    "(delayed, copy on cache miss)\n full: Immediate sync readback (accurate but stalls)")
+    "Controls CPU readback of render-to-texture resolve results.\n none (default) disables "
+    "readback\n fast reads the previous frame (delayed, copy every frame)\n some reads the "
+    "previous frame (delayed, copy on cache miss)\n full is an immediate sync readback (accurate "
+    "but stalls)")
     .SetAllowed(REXCVAR_ALLOWED("none", "fast", "some", "full"));
-REXCVAR_BOOL(
-    xenos, readback_memexport, true,
-    "Enable CPU readback of shader memexport writes for guest memory coherency (can reduce "
-    "correctness issues, but may add GPU/CPU sync cost)");
+REXCVAR_BOOL(xenos, readback_memexport, true,
+             "Enable CPU readback of shader memexport writes for guest memory coherency (can "
+             "reduce correctness issues, but may add GPU/CPU sync cost)");
 REXCVAR_INT32(xenos, query_occlusion_fake_sample_count, 1000,
               "Fake sample count for occlusion queries")
     .SetRange(1, 100000);

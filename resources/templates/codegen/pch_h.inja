@@ -67,7 +67,7 @@ extern const PPCFuncMapping kPPCFuncMappings[];
 // Mach-O/ld64 has no overridable alias: __attribute__((alias)) is rejected on
 // Darwin, and an assembler `.set` equate produces a non-weak symbol that a hook
 // could not override (and would collide with). So `name` is a distinct weak
-// symbol whose body is a guaranteed tail call to __imp__##name -- it lowers to a
+// symbol whose body is a guaranteed tail call to __imp__##name. It lowers to a
 // single `jmp` (no stack frame, no call/return), stays weak so hooks can replace
 // it, and keeps __imp__##name as the always-original entry point. This is a thin
 // thunk, not a same-address alias: &name != &__imp__##name by design.
@@ -234,7 +234,7 @@ extern const PPCFuncMapping kPPCFuncMappings[];
   do { if (enable) ctx.fpscr.EnableFlushMode(); else ctx.fpscr.DisableFlushMode(); } while (0)
 
 //=============================================================================
-// Misc
+// Timebase and Unimplemented Instructions
 //=============================================================================
 
 #define REX_UNIMPLEMENTED(addr, opcode) ::rex::ppc::UnimplementedInstruction(opcode)

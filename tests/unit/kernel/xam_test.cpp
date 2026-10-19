@@ -25,7 +25,7 @@
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
-REX_TEST_CASE("xam: a content resolve reports the content as not found", "[kernel][xam]") {
+REX_TEST_CASE("XAM: a content resolve reports the content as not found", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 buffer = c.Alloc(260);
@@ -34,7 +34,7 @@ REX_TEST_CASE("xam: a content resolve reports the content as not found", "[kerne
   });
 }
 
-REX_TEST_CASE("xam: a launch with no name ends the title", "[kernel][xam]") {
+REX_TEST_CASE("XAM: a launch with no name ends the title", "[kernel][xam]") {
   KernelFixture fixture;
   rex::runtime::ThreadState host_state(0, 0, 0, fixture.GetRuntime().GetMemory(),
                                        &fixture.GetRuntime());
@@ -65,7 +65,7 @@ u32 ReadProfile(Caller& c, u32 user_index, u32 xuid_count, u32 xuids, u32 settin
 }
 }  // namespace
 
-REX_TEST_CASE("xam: a profile read writes 1 entry per XUID and setting", "[kernel][xam]") {
+REX_TEST_CASE("XAM: a profile read writes 1 entry per XUID and setting", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u64 own = c.GetRuntime().GetContentManager().GetUserProfile().GetXUID();
@@ -90,7 +90,7 @@ REX_TEST_CASE("xam: a profile read writes 1 entry per XUID and setting", "[kerne
   });
 }
 
-REX_TEST_CASE("xam: an unknown profile setting reads as no value", "[kernel][xam]") {
+REX_TEST_CASE("XAM: an unknown profile setting reads as no value", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 setting_ids = c.Alloc(8);
@@ -118,7 +118,7 @@ bool HandleResolves(Caller& c, u32 handle) {
 }
 }  // namespace
 
-REX_TEST_CASE("xam: a session reference holds the session until its dereference", "[kernel][xam]") {
+REX_TEST_CASE("XAM: a session reference holds the session until its dereference", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 session = CreateSession(c);
@@ -133,7 +133,7 @@ REX_TEST_CASE("xam: a session reference holds the session until its dereference"
   });
 }
 
-REX_TEST_CASE("xam: a session dereference and close release the session", "[kernel][xam]") {
+REX_TEST_CASE("XAM: a session dereference and close release the session", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 session = CreateSession(c);
@@ -146,7 +146,7 @@ REX_TEST_CASE("xam: a session dereference and close release the session", "[kern
   });
 }
 
-REX_TEST_CASE("xam: a session reference refuses a handle that is not a session", "[kernel][xam]") {
+REX_TEST_CASE("XAM: a session reference refuses a handle that is not a session", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 object_ptr = c.Alloc(4);
@@ -160,7 +160,7 @@ REX_TEST_CASE("xam: a session reference refuses a handle that is not a session",
   });
 }
 
-REX_TEST_CASE("xam: a binary profile setting of size 0 is stored with no bytes", "[kernel][xam]") {
+REX_TEST_CASE("XAM: a binary profile setting of size 0 is stored with no bytes", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     constexpr u32 kBinaryType = 6;
@@ -199,7 +199,7 @@ u32 QueryVolumeDeviceType(Caller& c, const char* root, u32 result_ptr) {
 }
 }  // namespace
 
-REX_TEST_CASE("xam: the volume device type of a content root is the type of its device",
+REX_TEST_CASE("XAM: the volume device type of a content root is the type of its device",
               "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {

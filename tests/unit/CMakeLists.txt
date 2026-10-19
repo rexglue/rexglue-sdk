@@ -331,7 +331,7 @@ if (WIN32)
   add_dependencies(unit_tests rexhid-xinput)
 endif ()
 
-#Strip Tracy / profiling instrumentation from test targets
+#Strip Tracy / profiling definitions from test targets
 target_compile_options(
   unit_tests PRIVATE -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING -UREXGLUE_ENABLE_PERF_COUNTERS
 )
@@ -348,7 +348,7 @@ if (REXGLUE_ENABLE_TSAN)
   set(_unit_test_spec TEST_SPEC "~[forced_stop]~[crash_report]")
 
   # TSan defers asynchronous signals to the next interceptor, so the forced stop redirect cannot
-  # land
+  # take effect
   catch_discover_tests(
     unit_tests
     TEST_SPEC

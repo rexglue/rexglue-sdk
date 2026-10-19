@@ -21,7 +21,7 @@ REXCVAR_BOOL(xenos, d3d12_bindless, true, "Use bindless resources where availabl
     .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, d3d12_readback_memexport, false,
              "Read data written by memory export in shaders on the CPU");
-REXCVAR_BOOL(xenos, d3d12_readback_resolve, false, "Read render-to-texture results on the CPU");
+REXCVAR_BOOL(xenos, d3d12_readback_resolve, false, "Read render to texture results on the CPU");
 REXCVAR_BOOL(xenos, d3d12_submit_on_primary_buffer_end, true,
              "Submit command list when PM4 primary buffer ends");
 REXCVAR_BOOL(xenos, d3d12_dxbc_disasm, false, "Dump DXBC disassembly");

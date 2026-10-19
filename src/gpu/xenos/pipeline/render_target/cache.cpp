@@ -376,7 +376,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     u32 max_render_target_width = GetMaxRenderTargetWidth();
     if (pitch_pixels_tile_aligned_scaled > max_render_target_width) {
       REX_FAIL(gpu, false,
-               "Surface pitch aligned to EDRAM tiles and resolution-scaled {} "
+               "Surface pitch aligned to EDRAM tiles and resolution scaled {} "
                "larger than the maximum host render target width {}",
                pitch_pixels_tile_aligned_scaled, max_render_target_width);
     }
@@ -822,7 +822,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   u32 max_render_target_width = GetMaxRenderTargetWidth();
   if (pitch_pixels_scaled > max_render_target_width) {
     REX_FAIL(gpu, false,
-             "Surface pitch aligned to EDRAM tiles and resolution-scaled {} larger "
+             "Surface pitch aligned to EDRAM tiles and resolution scaled {} larger "
              "than the maximum host render target width {} in a resolve",
              pitch_pixels_scaled, max_render_target_width);
   }

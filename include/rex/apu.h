@@ -34,8 +34,10 @@ inline constexpr u32 kFrameRate = 48000;
 /** Samples in a guest audio frame. */
 inline constexpr u32 kFrameSamples = kFrameChannels * kChannelSamples;
 
-/** 1 guest audio frame, 6 sequential channels of 256 big endian samples in the order fl fr fc lf bl
- * br. */
+/**
+ * A guest audio frame of 6 sequential channels of 256 big endian samples in the order fl fr fc lf
+ * bl br.
+ */
 using Frame = std::span<const be_f32, kFrameSamples>;
 
 /**
@@ -53,8 +55,10 @@ struct StereoFold {
   f32 scale = 0.58578644f;
 };
 
-/** Weights applied when a 5.1 frame reaches a device with more than 2 channels. Unity passes
- * through. */
+/**
+ * Weights applied when a 5.1 frame reaches a device with more than 2 channels. Unity passes
+ * through.
+ */
 struct SurroundMix {
   /** Center weight. */
   f32 center = 1.0f;

@@ -47,10 +47,9 @@ class VulkanShader : public SPIRVShader {
   size_t GetSamplerBindingLayoutUserUID() const { return sampler_binding_layout_user_uid_; }
   /**
    * Reports whether the caller won the single time setup of the binding layout identifiers.
-   * Modifications of the same shader can be translated on different threads. The set functions
-   * must only be called when this returned true.
+   * Modifications of the same shader can be translated on different threads.
    *
-   * @return True for the first caller only.
+   * @return True when the caller is the first to enter the setup.
    */
   bool EnterBindingLayoutUserUIDSetup() { return !binding_layout_user_uids_set_up_.test_and_set(); }
   void SetTextureBindingLayoutUserUID(size_t uid) { texture_binding_layout_user_uid_ = uid; }

@@ -40,7 +40,7 @@ class DXBCShader : public Shader {
     bool is_signed;
   };
   /**
-   * Safe to hash and compare with memcmp.
+   * Returns the texture bindings, safe to hash and compare with memcmp.
    *
    * @return Texture bindings collected by the translation.
    */

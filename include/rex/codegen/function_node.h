@@ -19,7 +19,7 @@ namespace rex::codegen {
 
 /**
  * Core object representing a function in the graph. Manages its own state transitions and
- * resolution. Only FunctionGraph mutates it, and the public accessors are read only.
+ * resolution.
  */
 class FunctionNode {
   friend class FunctionGraph;
@@ -191,7 +191,7 @@ class FunctionNode {
 
   /**
    * Reports whether this is an SEH funclet. Its non volatiles stay in ctx so it sees what its
-   * owner left live, and callers sync their localized copies around the call.
+   * owner left live.
    *
    * @return True for a register sharing funclet
    */

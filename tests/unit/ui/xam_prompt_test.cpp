@@ -219,7 +219,7 @@ REX_TEST_CASE("XamShowMessageBoxUI returns the focused button when the prompt is
   });
 }
 
-REX_TEST_CASE("XamShowMessageBoxUI without a ui returns the focused button", "[ui][xam]") {
+REX_TEST_CASE("XamShowMessageBoxUI without a UI returns the focused button", "[ui][xam]") {
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
@@ -256,7 +256,7 @@ REX_TEST_CASE("XamShowMessageBoxUIEx returns the pressed button through the resu
   });
 }
 
-REX_TEST_CASE("XamShowMessageBoxUIEx without a ui returns the focused button", "[ui][xam]") {
+REX_TEST_CASE("XamShowMessageBoxUIEx without a UI returns the focused button", "[ui][xam]") {
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
@@ -276,13 +276,13 @@ REX_TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlap
     const rex::u32 overlapped = caller.Alloc(0x1C);
     const rex::u32 status = caller.XAM(
         "XamShowKeyboardUI",
-        {0, 0, PutWide(caller, fixture.GetRuntime(), u"Seed"), 0, 0, buffer, 16, overlapped});
+        {0, 0, PutWide(caller, fixture.GetRuntime(), u"Default"), 0, 0, buffer, 16, overlapped});
     CHECK(status == 0x3E5);
     CHECK(WaitOverlapped(fixture.GetRuntime(), overlapped) == 0);
     CHECK(caller.Load32(overlapped + 0x18) == 0);
     CHECK(ReadWide(fixture.GetRuntime(), buffer) == u"Tom");
     CHECK(scripted.Desc().title == "Keyboard Input");
-    CHECK(scripted.Desc().default_text == "Seed");
+    CHECK(scripted.Desc().default_text == "Default");
     CHECK(scripted.Desc().text_input);
     CHECK(scripted.Desc().max_length == 16);
   });
@@ -325,10 +325,10 @@ REX_TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[ui][xa
   fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
     const rex::u32 buffer = caller.Alloc(32);
     const rex::u32 overlapped = caller.Alloc(0x1C);
-    caller.XAM("XamShowKeyboardUI", {0, 0, PutWide(caller, fixture.GetRuntime(), u"Seed"), 0, 0,
+    caller.XAM("XamShowKeyboardUI", {0, 0, PutWide(caller, fixture.GetRuntime(), u"Default"), 0, 0,
                                      buffer, 16, overlapped});
     CHECK(WaitOverlapped(fixture.GetRuntime(), overlapped) == 0);
-    CHECK(ReadWide(fixture.GetRuntime(), buffer) == u"Seed");
+    CHECK(ReadWide(fixture.GetRuntime(), buffer) == u"Default");
   });
 }
 
@@ -364,7 +364,7 @@ REX_TEST_CASE("A XAM message box on the module waits until the prompts are cance
   ui->CloseWindow();
 }
 
-REX_TEST_CASE("Teardown stops a prompt still running on the dispatcher", "[ui][xam][shutdown]") {
+REX_TEST_CASE("Teardown stops a prompt running on the dispatcher", "[ui][xam][shutdown]") {
   ScriptedUI scripted;
   scripted.hold = true;
   {
@@ -372,8 +372,9 @@ REX_TEST_CASE("Teardown stops a prompt still running on the dispatcher", "[ui][x
     fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
       const rex::u32 buffer = caller.Alloc(32);
       const rex::u32 overlapped = caller.Alloc(0x1C);
-      CHECK(caller.XAM("XamShowKeyboardUI", {0, 0, PutWide(caller, fixture.GetRuntime(), u"Seed"),
-                                             0, 0, buffer, 16, overlapped}) == kIOPending);
+      CHECK(
+          caller.XAM("XamShowKeyboardUI", {0, 0, PutWide(caller, fixture.GetRuntime(), u"Default"),
+                                           0, 0, buffer, 16, overlapped}) == kIOPending);
     });
     const auto shown_by = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (scripted.prompts == 0 && std::chrono::steady_clock::now() < shown_by) {

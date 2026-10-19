@@ -62,8 +62,7 @@ class VulkanDevice : public rex::NonCopyable {
   /**
    * Highest Vulkan version used, for VkApplicationInfo apiVersion.
    *
-   * Raise when functionality from a higher version is used. The patch version is ignored when
-   * creating an instance.
+   * Holds Vulkan 1.3. The patch version is ignored when creating an instance.
    */
   static constexpr u32 kHighestUsedAPIMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
 

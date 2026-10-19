@@ -35,7 +35,7 @@ class IUserInterface;
 struct OverlayContext {
   /** The user interface that shows the overlay. */
   IUserInterface& ui;
-  /** Cvar registry every module's cvars live in. */
+  /** Cvar registry that holds every module's cvars. */
   cvar::ICvarRegistry& cvars;
   /** The app's configuration. */
   const Config& config;

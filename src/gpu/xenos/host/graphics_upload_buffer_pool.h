@@ -37,12 +37,7 @@ class REX_GPU_XENOS_API GraphicsUploadBufferPool : public rex::NonCopyable {
   void ChangeSubmissionTimeline();
   void ClearCache();
 
-  /**
-   * Flushes pending writes of the current page.
-   *
-   * Required before submitting anything using this pool unless the implementation needs no
-   * explicit flushing.
-   */
+  /** Flushes pending writes of the current page. */
   void FlushWrites();
 
  protected:
@@ -64,7 +59,7 @@ class REX_GPU_XENOS_API GraphicsUploadBufferPool : public rex::NonCopyable {
    * @param size Size in bytes.
    * @param alignment Power of 2 alignment in bytes.
    * @param offset_out Receives the offset within the page.
-   * @return The page, or nullptr on failure.
+   * @return The page, or null on failure.
    */
   Page* Request(u64 submission_index, size_t size, size_t alignment, size_t& offset_out);
 
@@ -76,7 +71,7 @@ class REX_GPU_XENOS_API GraphicsUploadBufferPool : public rex::NonCopyable {
    * @param alignment Power of 2 alignment in bytes.
    * @param offset_out Receives the offset within the page.
    * @param size_out Receives the size granted in bytes.
-   * @return The page, or nullptr on failure.
+   * @return The page, or null on failure.
    */
   Page* RequestPartial(u64 submission_index, size_t size, size_t alignment, size_t& offset_out,
                        size_t& size_out);

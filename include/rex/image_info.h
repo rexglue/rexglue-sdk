@@ -31,7 +31,7 @@ namespace rex {
 using RegisterModulesFunc = void (*)(runtime::IModuleRegistry& modules);
 
 /**
- * Returns the recompiled code that codegen generated for 1 image.
+ * Returns the recompiled code that codegen generated for an image.
  *
  * @return The code range.
  */

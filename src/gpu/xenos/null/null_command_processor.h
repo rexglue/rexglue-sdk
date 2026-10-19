@@ -18,8 +18,7 @@
 
 namespace rex::gpu::null {
 
-/** Runs PM4, fences, memory and register writes and interrupts. Draws, copies and swaps do nothing.
- */
+/** Runs PM4, fences, memory and register writes and interrupts. Skips draws, copies and swaps. */
 class NullCommandProcessor final : public CommandProcessor {
  public:
   /**

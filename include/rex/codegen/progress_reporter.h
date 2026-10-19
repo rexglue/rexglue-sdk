@@ -36,9 +36,9 @@ struct BinaryInfo {
 /**
  * Optional progress callback invoked by the codegen pipeline at module
  * and phase boundaries. CLI consumers implement it to update a progress
- * view. Callers without a view, such as tests, pass nullptr.
+ * view. Callers without a view, such as tests, pass null.
  *
- * All methods are called from the thread that drove the pipeline, and no
+ * All methods are called from the thread that runs the pipeline, and no
  * cross-thread synchronization is implied.
  */
 REX_INTERFACE(IProgressReporter)
@@ -46,14 +46,14 @@ REX_INTERFACE(IProgressReporter)
   /**
    * Reports identifying info for an input binary, emitted right after each XEX is loaded.
    *
-   * @param info The binary info.
+   * @param info Identifying info of the loaded binary.
    */
   virtual void BinaryLoaded(const BinaryInfo& info) = 0;
 
   /**
    * Called when a module's analysis and write cycle starts.
    *
-   * @param name The module name.
+   * @param name Name of the module that started.
    * @param index The 0 based position of the module.
    * @param total The number of modules in the run.
    */
@@ -62,7 +62,7 @@ REX_INTERFACE(IProgressReporter)
   /**
    * Called when a named phase within the current module starts.
    *
-   * @param name The phase name.
+   * @param name Name of the phase that started.
    */
   virtual void PhaseChanged(std::string_view name) = 0;
 
@@ -80,7 +80,7 @@ REX_INTERFACE(IProgressReporter)
    */
   virtual void ProjectPhaseStarted(std::string_view name) = 0;
 
-  /** Project-level emit phase finished. */
+  /** Called when a project level emit phase finishes. */
   virtual void ProjectPhaseFinished() = 0;
 };
 

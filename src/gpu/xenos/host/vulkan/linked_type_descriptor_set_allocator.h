@@ -33,7 +33,7 @@ namespace vulkan {
  * per page descriptor counts per type should roughly match the ratio allocated, for example
  * twice as many images as samplers when sets use 2 images per sampler. Allocations that use
  * independent types belong in separate allocators. Also suits variable length sets of a single
- * type. Descriptors cannot be freed here, so per layout free lists live outside the allocator.
+ * type. Descriptors cannot be freed here, so per layout free lists reside outside the allocator.
  */
 class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
  public:

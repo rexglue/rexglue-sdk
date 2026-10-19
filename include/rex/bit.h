@@ -76,10 +76,18 @@ class REX_API BitMap {
   /** Marks every entry free. */
   void Reset();
 
-  /** @return A copy of the backing words. */
+  /**
+   * Returns a copy of the backing words.
+   *
+   * @return A copy of the backing words.
+   */
   const std::vector<u64> GetData() const { return data_; }
 
-  /** @return The backing words. */
+  /**
+   * Returns the backing words.
+   *
+   * @return The backing words.
+   */
   std::vector<u64>& GetData() { return data_; }
 
  private:
@@ -174,7 +182,7 @@ void SetRange(Block* bits, size_t first, size_t length) {
 }
 
 /**
- * Opts an enum into the flag operators. Specialize to true next to the enum.
+ * Opts an enum into the flag operators.
  *
  * @tparam E The enum type.
  *

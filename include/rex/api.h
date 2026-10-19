@@ -42,7 +42,7 @@ class ModuleLoader;
 
 /**
  * Structural configuration for rex::Init. Filled by the consumer, copied by Init, read through
- * API::config().
+ * API::GetConfig().
  */
 struct Config {
   Config() = default;
@@ -113,8 +113,7 @@ class REX_API API {
   const Config& GetConfig() const;
 
   /**
-   * Replaces the paths of the copied configuration. For hosts that resolve the game data
-   * root after Init, before the Runtime is constructed from GetConfig().
+   * Replaces the paths of the copied configuration.
    *
    * @param paths The new paths.
    */

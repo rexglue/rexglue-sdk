@@ -44,7 +44,7 @@ rex::RuntimeDesc SetupConfig(rex::API& api) {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "Without an apu module the runtime plays to its null backend",
+REX_TEST_CASE_METHOD(Fixture, "Without an APU module the runtime plays to its null backend",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime"};
@@ -58,7 +58,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without an apu module the runtime plays to its nu
   runtime.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "A loaded apu module serves the runtime's backend",
+REX_TEST_CASE_METHOD(Fixture, "A loaded APU module serves the runtime's backend",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime", "rexmod-test-apu"};
@@ -99,7 +99,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects apu.max_queued_frames outside 4 to 6
   }
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Without a hid module the title sees the idle pad",
+REX_TEST_CASE_METHOD(Fixture, "Without a HID module the title sees the idle pad",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime"};
@@ -113,7 +113,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a hid module the title sees the idle pad"
   runtime.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "A loaded hid module serves the runtime's backend",
+REX_TEST_CASE_METHOD(Fixture, "A loaded HID module serves the runtime's backend",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime", "rexmod-test-hid"};
@@ -127,7 +127,7 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded hid module serves the runtime's backend"
   runtime.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[runtime][modules]") {
+REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the HID fallback", "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);

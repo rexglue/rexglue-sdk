@@ -17,8 +17,8 @@
 
 /**
  * Signature of the sink a test installs to observe module events.
- * The first argument is the module name, the second the event
- * ("constructor", "connect", "init", "shutdown", "disconnect").
+ * The first argument is the module name, the second the event, for example "constructor",
+ * "connect", "init", "shutdown" or "disconnect".
  */
 using RexModTestSink = void (*)(const char* module, const char* event);
 

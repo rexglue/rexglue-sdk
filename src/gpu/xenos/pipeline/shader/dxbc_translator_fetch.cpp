@@ -606,8 +606,8 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
   if (instr.opcode == FetchOpcode::kGetTextureComputedLOD &&
       (!use_computed_lod || instr.attributes.use_register_gradients)) {
     REX_ASSERT_ALWAYS();
-    EmitTranslationError("getCompTexLOD used with explicit LOD or gradients - contradicts MSDN",
-                         false);
+    EmitTranslationError(
+        "getCompTexLOD used with explicit LOD or gradients, which contradicts MSDN", false);
     StoreResult(instr.result, dxbc::Src::LF(0.0f));
     return;
   }

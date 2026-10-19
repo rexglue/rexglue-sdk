@@ -20,7 +20,7 @@
 namespace rex::codegen {
 
 /**
- * @brief Lightweight Module for loading raw binary test data
+ * Lightweight Module for loading raw binary test data
  *
  * TestModule provides the Module interface needed by Recompiler without requiring a full
  * Runtime/FunctionDispatcher setup. It accepts raw binary data by reference (caller owns the
@@ -40,7 +40,8 @@ class StubModule : public runtime::Module {
   ~StubModule() override = default;
 
   /**
-   * @brief Load binary data for analysis
+   * Loads binary data for analysis.
+   *
    * @param base_address Guest virtual address where code is loaded
    * @param data Pointer to binary data (caller owns, must outlive StubModule usage)
    * @param size Size of binary data in bytes
@@ -63,7 +64,7 @@ class StubModule : public runtime::Module {
 class CodegenContext;
 
 /**
- * @brief Analyze a test binary using map symbols as function entry points.
+ * Analyzes a test binary using map symbols as function entry points.
  *
  * Filters symbols to test_ prefixed entries, adds them as functions to
  * ctx.graph with single blocks, then scans for bl instructions and
@@ -71,7 +72,7 @@ class CodegenContext;
  *
  * @param ctx         Codegen context whose graph will be populated
  * @param test_name    Stem name used for function naming (e.g. "addi")
- * @param symbols     Address-to-name map from parse_map_file()
+ * @param symbols     Address to name map from parse_map_file()
  * @param base_address Base address the binary was linked at
  * @param data        Pointer to raw binary data
  * @param data_size    Size of binary data in bytes

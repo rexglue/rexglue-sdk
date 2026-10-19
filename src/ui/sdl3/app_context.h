@@ -44,10 +44,9 @@ class WindowedAppContext : public rex::NonCopyable {
 
   /**
    * Enqueues the function regardless of the current thread, to run when the UI thread runs the loop
-   * or ExecutePendingFunctionsFromUIThread. Captured references can outlive their owners, so wait
-   * on a fence, or call ExecutePendingFunctionsFromUIThread in the UI thread, before destroying
-   * them. May be called from queued functions. The platform loop is notified even while pending
-   * functions run, since they may run inner modal loops. Calls nothing virtual during destruction.
+   * or ExecutePendingFunctionsFromUIThread. May be called from queued functions. The platform loop
+   * is notified even while pending functions run, since they may run inner modal loops. Calls
+   * nothing virtual during destruction.
    *
    * @param function Function to run on the UI thread.
    * @return True when enqueued, false when dropped because the loop has exited.
@@ -91,7 +90,7 @@ class WindowedAppContext : public rex::NonCopyable {
    * Reports whether a quit was requested, including during the destructor, when queued functions
    * may be running.
    *
-   * @return True once QuitFromUIThread ran or the destructor started.
+   * @return True when QuitFromUIThread ran or the destructor started.
    */
   bool HasQuitFromUIThread() const {
     REX_ASSERT(IsInUIThread());

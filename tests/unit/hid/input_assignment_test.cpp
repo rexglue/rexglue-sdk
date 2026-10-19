@@ -154,7 +154,7 @@ REX_TEST_CASE("SlotAssignment does not renumber survivors when a pad is unplugge
   REQUIRE(For(slots, 1) == std::vector<DeviceId>{static_cast<DeviceId>(11)});
 }
 
-REX_TEST_CASE("Both controllers reach one title user", "[hid]") {
+REX_TEST_CASE("Both controllers reach title user 0", "[hid]") {
   FakeDriver* driver = nullptr;
   auto system = SharedSystem(&driver);
   driver->Add(1);
@@ -167,7 +167,7 @@ REX_TEST_CASE("Both controllers reach one title user", "[hid]") {
   REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == (kXInputGamepadA | kXInputGamepadB));
 }
 
-REX_TEST_CASE("Unplugging one controller leaves the other working", "[hid]") {
+REX_TEST_CASE("Unplugging 1 controller leaves the other working", "[hid]") {
   FakeDriver* driver = nullptr;
   auto system = SharedSystem(&driver);
   driver->Add(1);

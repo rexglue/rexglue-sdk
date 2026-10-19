@@ -23,7 +23,7 @@ namespace rex::platform {
 /** Options for the process crash reporter. */
 struct CrashReporterOptions {
   /** Name in the report banner and the dialog. Empty names the executable. */
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::string app_name = {};
   /** Shows a message box after the report is written. */
   bool show_dialog = false;
@@ -59,8 +59,7 @@ REX_API void UninstallCrashReporter();
 REX_API void SetCrashAddressDescriber(CrashAddressDescriber describer);
 
 /**
- * Reserves the stack room a report needs on the calling thread. Thread starts in the SDK call it.
- * A thread the SDK did not start calls it to keep stack overflow reports.
+ * Reserves the stack room a report needs on the calling thread, so stack overflow reports work.
  */
 REX_API void PrepareThreadForCrash();
 

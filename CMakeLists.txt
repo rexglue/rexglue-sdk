@@ -1,4 +1,4 @@
-# ReXGlue SDK - Xbox 360 Recompilation Toolkit
+# ReXGlue SDK Recompilation Toolkit
 cmake_minimum_required(VERSION 3.25)
 
 if (APPLE)
@@ -13,7 +13,7 @@ project(
   LANGUAGES ${REXGLUE_LANGUAGES}
   DESCRIPTION "Xbox 360 Recompilation SDK"
 )
-# Floor only: bump MAJOR.MINOR for API changes. Patch is derived from git tags
+# Floor only. Bump MAJOR.MINOR for API changes. Patch is derived from git tags
 # in cmake/rex_version.cmake. See docs/RELEASING.md.
 
 #==========================================================
@@ -81,9 +81,9 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
   endif ()
 endif ()
 
-# Enforce x64 architecture
+# Require a 64 bit architecture
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-  message(FATAL_ERROR "ReXGlue only supports 64‑bit architectures (x86_64 or ARM64)")
+  message(FATAL_ERROR "ReXGlue only supports 64-bit architectures (x86_64 or ARM64)")
 endif ()
 
 # Set C++23 standard
@@ -93,7 +93,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_DEBUG_POSTFIX d)
 set(CMAKE_RELWITHDEBINFO_POSTFIX rd)
 
-# CMAKE_<CONFIG>_POSTFIX seeds libraries only, so without this every config of an
+# CMAKE_<CONFIG>_POSTFIX applies to libraries only, so without this every config of an
 # executable installs over the last one.
 function (rex_config_postfix target)
   set_target_properties(
@@ -103,11 +103,11 @@ function (rex_config_postfix target)
 endfunction ()
 
 if (NOT WIN32)
-  # Use appropriate code model based on architecture
+  # Use the code model for the architecture
   if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64" AND NOT APPLE)
-    # Large code model on Linux x86_64 for linking with very large recompiled executables (35MB+).
+    # Large code model on Linux x86_64 for linking with large recompiled executables (35MB+).
     # macOS uses small: the ld64 linker on macOS 15+ rejects text relocations produced
-    # by -mcmodel=large, and macOS maps binaries in the low address space so ±2GB is sufficient.
+    # by -mcmodel=large, and macOS maps binaries in the low address space so +/-2GB is sufficient.
     add_compile_options(-mcmodel=large)
   else ()
     add_compile_options(-mcmodel=small)
@@ -214,8 +214,8 @@ set(REXGLUE_FLOOR_VERSION
 
 rex_version_channel(REXGLUE_VERSION_CHANNEL VERSION "${REXGLUE_FULL_VERSION}")
 
-# Generate version header -- must run after REX_PLATFORM is set
-# Timestamp is set at configure time -- intentionally not updated on every rebuild
+# Generate version header. Must run after REX_PLATFORM is set.
+# Timestamp is set at configure time and intentionally not updated on every rebuild.
 string(TIMESTAMP REXGLUE_BUILD_TIMESTAMP "%Y%m%d_%H%M")
 string(
   RANDOM
@@ -243,7 +243,7 @@ if (REXGLUE_ENABLE_SANITIZERS)
     STATUS
       "Enabling UndefinedBehaviorSanitizer (UBSan only - ASan conflicts with custom memory mapping)"
   )
-  # Note: ASan doesn't work well with the custom mmap at 0x100000000, so we only use UBSan
+  # ASan does not work with the custom mmap at 0x100000000, so only UBSan is used
   add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer -g)
   add_link_options(-fsanitize=undefined)
 endif ()
@@ -258,7 +258,7 @@ if (REXGLUE_BUILD_TESTS)
   list(APPEND CMAKE_MODULE_PATH "${REXGLUE_ROOT}/thirdparty/catch2/extras")
 endif ()
 
-# Third-party dependencies (vendored sources only)
+# Third party dependencies (vendored sources only)
 add_subdirectory(thirdparty)
 
 # Enable warnings after thirdparty

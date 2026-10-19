@@ -79,23 +79,19 @@ namespace rex::gpu {
 class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
  public:
   enum ProcessedIndexBufferType : u8 {
-    /** Auto-indexed on the host. */
-    kNone,
+    kNone, /**< Auto-indexed on the host. */
     /**
      * GPU DMA from the shared memory. For 32 bit, indirection is needed if the host supports only
      * 24 bit indices, even without endian swapping, as the GPU ignores the upper 8 bits completely.
      */
     kGuestDMA,
     /**
-     * Converted and stored in the primitive converter for the current draw command. For 32 bit
+     * Converted and stored in the primitive processor for the current draw command. For 32 bit
      * indices, if the host lacks full 32 bits, the buffer is always pre masked and pre swapped.
      */
     kHostConverted,
-    /** Auto-indexed on the guest, with an adapter index buffer on the host. */
-    kHostBuiltinForAuto,
-    /** Adapter index buffer on the host for indirect loading of indices via DMA from shared memory.
-     */
-    kHostBuiltinForDMA,
+    kHostBuiltinForAuto, /**< Auto-indexed on the guest, with a host adapter index buffer. */
+    kHostBuiltinForDMA,  /**< Host adapter index buffer for DMA index loads from shared memory. */
   };
 
   struct ProcessingResult {
@@ -105,7 +101,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
     Shader::HostVertexShaderType host_vertex_shader_type;
     /**
      * Only used for non kVertex host_vertex_shader_type. For kAdaptive, the index buffer is always
-     * from the guest, fully 32 bit, and holds the floating point tessellation factors.
+     * from the guest, 32 bit, and holds the floating point tessellation factors.
      */
     xenos::TessellationMode tessellation_mode;
     u32 guest_draw_vertex_count;
@@ -155,7 +151,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
  protected:
   /**
    * For host side index buffer creation, the biggest possibly needed contiguous allocation, in
-   * indices.
+   * bytes.
    *
    * - No conversion needs up to 0xFFFF vertices, as the vertex count in VGT_DRAW_INITIATOR is 16
    * bit.
@@ -182,8 +178,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * Initializes the common state from the backend specific initialization function.
    *
    * Full 32 bit indices are supported when the backend supports 32 bit indices unconditionally and
-   * generates no indirection logic in vertex shaders. Pass false when the host lacks full 32 bit
-   * indices but supports at least 24 bit, or when the host supports 32 bit but the backend can
+   * generates no indirection logic in vertex shaders. The flag is false when the host lacks full 32
+   * bit indices but supports at least 24 bit, or when the host supports 32 bit but the backend can
    * handle both cases. Without full 32 bit indices, the host must use auto indexed draws for 32 bit
    * indices of ProcessedIndexBufferType kGuestDMA, fetching the index data from the shared memory
    * buffer and endian swapping it. Indirection precludes primitive reset, so when reset is needed
@@ -199,8 +195,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * buffer expands point sprites and rectangle lists instead of instancing, as instancing
    * performance varies widely between GPUs, for example with no different instances in the same
    * wavefront at small vertex counts per instance. Triangle strips with primitive restart rather
-   * than lists let the vertex shader run once for the inner edge vertices, which matters for memory
-   * export in guest shaders so 2 invocations do not write the same location. The 16 bit entries
+   * than lists let the vertex shader run once for the inner edge vertices, because memory export
+   * in guest shaders needs it so 2 invocations do not write the same location. The 16 bit entries
    * serve indirection on top of single auto indexed vertices, enough even when the backend has
    * primitive reset always enabled (Metal), as auto indexed draws are limited to UINT16_MAX
    * vertices, not UINT16_MAX + 1.
@@ -212,10 +208,10 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * the fallback paths, which need a different vertex shader structure for the fallback
    * HostVertexShaderTypes.
    *
-   * @param full_32bit_vertex_indices_supported True when full 32 bit indices are supported.
-   * @param triangle_fans_supported True when triangle fans are supported.
-   * @param line_loops_supported True when line loops are supported.
-   * @param quad_lists_supported True when quad lists are supported.
+   * @param full_32bit_vertex_indices_supported True when 32 bit indices need no indirection.
+   * @param triangle_fans_supported True when the host draws triangle fans without list conversion.
+   * @param line_loops_supported True when the host draws line loops without strip conversion.
+   * @param quad_lists_supported True when the host draws quad lists without list conversion.
    * @param point_sprites_supported_without_vs_expansion True when point sprites need no expansion.
    * @param rectangle_lists_supported_without_vs_expansion True when rectangle lists need none.
    * @return True when initialization succeeded.
@@ -258,8 +254,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * @return The offset in bytes.
    */
   static ptrdiff_t GetSimdCoalignmentOffset(const void* host_index_ptr, u32 guest_index_base) {
-    return ptrdiff_t((guest_index_base - reinterpret_cast<uintptr_t>(host_index_ptr)) &
-                     (REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE - 1));
+    return static_cast<ptrdiff_t>((guest_index_base - reinterpret_cast<uintptr_t>(host_index_ptr)) &
+                                  (REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE - 1));
   }
 
   /**
@@ -271,7 +267,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * @param coalign_for_simd True to co-align the source and destination for SIMD.
    * @param coalignment_original_address The source address to co-align with.
    * @param backend_handle_out A handle for the backend command processor to bind the buffer.
-   * @return The mapping of the buffer to write to, or nullptr on failure.
+   * @return The mapping of the buffer to write to, or null on failure.
    */
   virtual void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format,
                                                                u32 index_count,
@@ -456,7 +452,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   bool expand_point_sprites_in_vs_ = false;
   bool expand_rectangle_lists_in_vs_ = false;
 
-  /** Byte offsets, used directly as handles. */
+  /** Byte offsets, used as handles. */
   size_t builtin_ib_offset_two_triangle_strips_ = SIZE_MAX;
   size_t builtin_ib_offset_triangle_fans_to_lists_ = SIZE_MAX;
   size_t builtin_ib_offset_quad_lists_to_triangle_lists_ = SIZE_MAX;
@@ -516,7 +512,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   };
 
   /**
-   * Subset of ConversionResult that can be reused for different primitive types if the same result
+   * Subset of ProcessingResult that can be reused for different primitive types if the same result
    * applies irrespective of one, like when only processing the reset index.
    */
   struct CachedResult {
@@ -544,7 +540,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
     static u32 GetBucketCount(CacheKey key) {
       u32 count = ((key.base + (key.GetSizeBytes() - 1)) >> kCacheBucketSizeBytesLog2) -
                   (key.base >> kCacheBucketSizeBytesLog2) + 1;
-      REX_ASSERT(count <= 2, "Cache entries only store list links within two buckets");
+      REX_ASSERT(count <= 2, "Cache entries only store list links within 2 buckets");
       return count;
     }
     u32 GetBucketCount() const { return GetBucketCount(key); }
@@ -623,7 +619,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    */
   u64 cache_buckets_non_empty_l2_[(kCacheBucketCount + (64 * 64 - 1)) / (64 * 64)] = {};
   /**
-   * Updates the L2 bit of a bucket group. Requires a global critical region.
+   * Updates the L2 bit of a bucket group. Requires cache_mutex_ to be held.
    *
    * @param bucket_index_div_64 The bucket index divided by 64.
    * @param cache_lock The held cache lock.

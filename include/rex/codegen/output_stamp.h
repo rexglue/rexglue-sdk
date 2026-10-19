@@ -1,6 +1,6 @@
 /**
  * @file        codegen/output_stamp.h
- * @brief       Input fingerprinting so unchanged modules skip codegen entirely
+ * @brief       Input fingerprinting so unchanged modules skip codegen
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -46,7 +46,7 @@ struct OutputStamp {
 };
 
 /**
- * Hashes everything that can change emitted output for one module. A missing input contributes a
+ * Hashes everything that can change emitted output for 1 module. A missing input contributes a
  * "missing" marker, so a file appearing later still changes the fingerprint.
  *
  * @param input_files Input files to hash

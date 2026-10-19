@@ -27,7 +27,7 @@ namespace detail {
  * Owning holder for a callable that may be move only, used where the standard library lacks
  * std::move_only_function.
  *
- * @tparam kConst Whether the call operator is const and calls the target as a const lvalue.
+ * @tparam Const Whether the call operator is const and calls the target as a const lvalue.
  * @tparam R The return type.
  * @tparam Args The parameter types.
  */

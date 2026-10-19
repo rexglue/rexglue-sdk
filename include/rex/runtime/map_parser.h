@@ -39,7 +39,7 @@ struct MapParseOptions {
 };
 
 /**
- * Parse an nm-style map file whose lines read "address type name".
+ * Parses a map file in the nm format whose lines read "address type name".
  *
  * This is the format produced by `nm` on Unix systems.
  * @code
@@ -61,7 +61,7 @@ struct MapParseOptions {
     const std::filesystem::path& map_path, const MapParseOptions& options = {});
 
 /**
- * Parse nm-style map data from a string.
+ * Parses map data in the nm format from a string.
  *
  * @param map_data    Map file contents as a string
  * @param options     Parsing options

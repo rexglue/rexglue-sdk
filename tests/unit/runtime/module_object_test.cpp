@@ -168,7 +168,7 @@ REX_TEST_CASE("A user module hands the same thunk to a caller that asks for an o
   spec.export_table = kExportImageBase + kExportTableOffset;
   const auto file = rex::test::BuildXEX(spec);
   auto xex = std::make_unique<rex::runtime::XEXModule>(runtime.GetFunctionDispatcher(), runtime);
-  REQUIRE(xex->Load("exporter", "game:\exporter.xex", file.data(), file.size()));
+  REQUIRE(xex->Load("exporter", "game:\\exporter.xex", file.data(), file.size()));
   REQUIRE(xex->LoadContinue());
   auto* dispatcher = runtime.GetFunctionDispatcher();
   REQUIRE(dispatcher->SetFunction(kExportImageBase + kExportFunctionOffset, &ExportedFunction));
@@ -273,7 +273,7 @@ std::vector<u8> MakeElf(u32 segment_type, u32 offset, u32 file_size, u32 align) 
 
 bool LoadElf(rex::testing::KernelFixture& fixture, const std::vector<u8>& bytes) {
   rex::runtime::ELFModule module(fixture.GetRuntime().GetFunctionDispatcher());
-  return module.Load("test.elf", "game:\test.elf", bytes.data(), bytes.size());
+  return module.Load("test.elf", "game:\\test.elf", bytes.data(), bytes.size());
 }
 
 }  // namespace

@@ -61,7 +61,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
    * Draws a dialog the drawer owns. The drawer destroys it after the frame that drew its close,
    * or in DestroyDialogs.
    *
-   * @param dialog The dialog. A dialog another host already draws is destroyed at once.
+   * @param dialog The dialog. A dialog another host draws is destroyed at once.
    */
   void AddDialog(std::unique_ptr<ImGuiDialog> dialog);
 
@@ -86,8 +86,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
   void DestroyOwnedDialogs();
 
   /**
-   * Reports whether Draw would render anything, so a caller that has to marshal to the UI thread
-   * can skip the round trip.
+   * Reports whether Draw would render anything.
    *
    * @return True while at least 1 dialog is attached.
    */

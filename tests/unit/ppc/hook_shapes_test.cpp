@@ -16,7 +16,7 @@
 
 using namespace rex::ppc;
 
-REX_TEST_CASE("Integers, pointers and be_ values take one register each", "[ppc][hook_shapes]") {
+REX_TEST_CASE("Integers, pointers and be_ values take 1 register each", "[ppc][hook_shapes]") {
   constexpr auto places = PlaceArgs<u32, u32, void*, rex::be_u32>();
   STATIC_REQUIRE(places[0].gpr == 0);
   STATIC_REQUIRE(places[1].gpr == 1);

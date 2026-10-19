@@ -6,7 +6,7 @@
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  *
- * @modified    Joseph Lee; 2026 - Adapted for ReXGlue runtime
+ * @modified    Joseph Lee, 2026 - Adapted for ReXGlue runtime
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */

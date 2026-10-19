@@ -41,10 +41,12 @@ struct DPCSaveArea {
   u8 vscr_nj = 0;
 };
 
-/** The register file and stop flag of 1 guest thread. */
+/** The register file and stop flag of a guest thread. */
 class REX_RUNTIME_API ThreadState {
  public:
   /**
+   * Constructs the state of a guest thread.
+   *
    * @param thread_id The guest thread id, UINT32_MAX for a host thread id.
    * @param stack_base The guest stack pointer.
    * @param pcr_address The guest PCR address, loaded into r13.
@@ -124,7 +126,7 @@ class REX_RUNTIME_API ThreadState {
 
 namespace detail {
 
-/** Logs that Current() ran on a thread with no runtime and aborts, in every build. */
+/** Logs that GetCurrent() ran on a thread with no runtime and aborts, in every build. */
 [[noreturn]] REX_RUNTIME_API void AbortNoRuntime();
 
 }  // namespace detail

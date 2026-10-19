@@ -223,9 +223,9 @@ class D3D12TextureCache final : public TextureCache {
    *
    * @param srv_desc_out Receives the SRV description.
    * @param format_out Receives the texture format.
-   * @param width_unscaled_out Receives the unscaled width, may be nullptr.
-   * @param height_unscaled_out Receives the unscaled height, may be nullptr.
-   * @return The resource, or nullptr on failure.
+   * @param width_unscaled_out Receives the unscaled width, may be null.
+   * @param height_unscaled_out Receives the unscaled height, may be null.
+   * @return The resource, or null on failure.
    */
   ID3D12Resource* RequestSwapTexture(D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
                                      xenos::TextureFormat& format_out,
@@ -561,7 +561,9 @@ class D3D12TextureCache final : public TextureCache {
    * to 1 GB, or up to 2 GB depending on the low bits, at a time. 2 GB is the scaled
    * physical memory size at 2x scale, and older Intel GPUs support only 31 virtual address bits
    * per resource. The index is the first gigabyte. Only buffers containing over 1 GB are kept,
-   * as the rest is contained in another. The size matches GetScaledResolveBufferCount.
+   * as the rest is contained in another. The array is sized with kMaxDrawResolutionScaleAlongAxis
+   * while GetScaledResolveBufferCount uses the current draw resolution scale, so they match only
+   * at the maximum scale.
    */
   std::array<std::unique_ptr<ScaledResolveVirtualBuffer>,
              (static_cast<u64>(SharedMemory::kBufferSize) *
@@ -580,7 +582,7 @@ class D3D12TextureCache final : public TextureCache {
                 "address space is 4.5 GB, but the heap size is 1 GB");
   static_assert(kScaledResolveHeapSizeLog2 <= 30,
                 "Scaled resolve heaps are assumed to only be wholly mappable to up to "
-                "two 2 GB buffers");
+                "2 buffers of 2 GB");
   std::vector<Microsoft::WRL::ComPtr<ID3D12Heap>> scaled_resolve_heaps_;
   u32 scaled_resolve_heap_count_ = 0;
   /** Last owning buffer index for each 1 GB, for aliasing barrier placement. */

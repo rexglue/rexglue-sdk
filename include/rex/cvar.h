@@ -280,7 +280,7 @@ constexpr Type GetType() noexcept {
 }
 
 /**
- * Parses cvar text into a scalar. Bool accepts true, 1, yes, on and false, 0, no, off.
+ * Parses cvar text into a value. Bool accepts true, 1, yes, on and false, 0, no, off.
  *
  * @tparam T The value type.
  * @param text The value as text.
@@ -845,7 +845,7 @@ std::string Var<T>::Render() const {
     return values;                                                                                 \
   }())
 /**
- * Declares a module's cvar table, the pointers Connect passes to ICvarRegistry::Register.
+ * Declares a module's cvar table.
  *
  * @param table Name of the table variable.
  * @param ... The cvars in the table.

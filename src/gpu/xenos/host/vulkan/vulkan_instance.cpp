@@ -281,7 +281,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
             continue;
           }
           REX_ASSERT(requested_extension_it->second != nullptr);
-          // Skip extensions already enabled by the implementation or another layer.
+          // Skip extensions enabled by the implementation or another layer.
           if (!*requested_extension_it->second) {
             enabled_extensions.emplace_back(requested_extension_it->first.c_str());
             enabled_layer_extension_enablement_bools.push_back(requested_layer_it->second);

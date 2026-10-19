@@ -53,7 +53,7 @@ class OutputPartition {
   /**
    * Assigns entries to output files. The file count is derived from `max_file_bytes` and
    * persisted, so growth alone does not reshuffle the emitted set while a new `max_file_bytes`
-   * repartitions from scratch. Serialize() persists the result.
+   * repartitions from scratch. Serialize() emits the result.
    *
    * @param entries Functions to place
    * @param max_file_bytes Size limit of an output file in bytes

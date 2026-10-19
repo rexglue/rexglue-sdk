@@ -148,8 +148,8 @@ bool VulkanPipelineCache::Initialize() {
   }
   if (placeholder_pixel_shader_ == VK_NULL_HANDLE) {
     REXLOG_WARN(gpu,
-                "VulkanPipelineCache: Failed to create placeholder pixel shader - "
-                "async placeholder hot-swap will be unavailable");
+                "VulkanPipelineCache: Failed to create placeholder pixel shader. "
+                "Async placeholder hot swap will be unavailable");
   }
 
   u32 logical_processor_count = rex::platform::LogicalProcessorCount();
@@ -973,7 +973,7 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SPIRVShaderTranslator& transla
   VulkanShader& shader = static_cast<VulkanShader&>(translation.GetShader());
 
   if (!translator.TranslateAnalyzedShader(translation)) {
-    REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
+    REX_FAIL(gpu, false, "Shader {:016X} translation failed, marking as ignored",
              shader.GetUcodeDataHash());
   }
   if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
@@ -1197,7 +1197,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     return true;
   }
   if (primitive_polygonal) {
-    // 1 polygon mode serves both faces, the lowest type (points lowest, triangles highest) wins.
+    // A polygon mode serves both faces, the lowest type (points lowest, triangles highest) wins.
     bool cull_front = pa_su_sc_mode_cntl.cull_front;
     bool cull_back = pa_su_sc_mode_cntl.cull_back;
     description_out.cull_front = cull_front;
@@ -2988,7 +2988,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   dynamic_state.flags = 0;
   dynamic_state.dynamicStateCount = 0;
   dynamic_state.pDynamicStates = dynamic_states.data();
-  // All state is dynamic because binding a pipeline with static state invalidates dynamic state.
+  // Viewport, scissor and, without FSI, depth bias, blend constants and stencil state are dynamic.
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
   if (!edram_fragment_shader_interlock) {

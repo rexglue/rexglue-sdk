@@ -33,13 +33,15 @@ namespace rex::runtime {
 
 class XMADecoder;
 
-/** The APU. Owns 8 render client slots, the "Audio Worker" guest thread and the XMA decoder. */
+/** The APU. Owns 8 render client slots, the "Audio Worker" runtime thread and the XMA decoder. */
 class REX_RUNTIME_API APU : public NonCopyable {
  public:
   /** Render client slots. */
   static constexpr u32 kMaxClients = 8;
 
   /**
+   * Creates the APU.
+   *
    * @param runtime The runtime the worker belongs to.
    * @param backend The audio output the clients play to.
    * @param max_queued_frames Credits each client starts with, 4 to 64.
@@ -95,7 +97,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
   void SetPaused(bool paused);
 
   /**
-   * Reports whether the worker is parked.
+   * Reports whether the APU is paused.
    *
    * @return True while paused.
    */

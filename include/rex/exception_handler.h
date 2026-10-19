@@ -372,6 +372,8 @@ class Exception {
   }
 
   /**
+   * Returns the exception kind.
+   *
    * @return The exception kind.
    */
   Code GetCode() const { return code_; }
@@ -387,6 +389,8 @@ class Exception {
   HostThreadContext* GetThreadContext() const { return thread_context_; }
 
   /**
+   * Returns the program counter.
+   *
    * @return The program counter where the exception was raised.
    */
   u64 GetPC() const {
@@ -429,6 +433,8 @@ class Exception {
   }
 
   /**
+   * Returns the modified general purpose registers.
+   *
    * @return The bit mask of the general purpose registers marked as modified.
    */
   u16 GetModifiedIntRegisters() const { return modified_int_registers_; }
@@ -446,6 +452,8 @@ class Exception {
   }
 
   /**
+   * Returns the modified XMM registers.
+   *
    * @return The bit mask of the XMM registers marked as modified.
    */
   u16 GetModifiedXMMRegisters() const { return modified_xmm_registers_; }
@@ -463,6 +471,8 @@ class Exception {
   }
 
   /**
+   * Returns the modified X registers.
+   *
    * @return The bit mask of the X registers marked as modified.
    */
   u32 GetModifiedXRegisters() const { return modified_x_registers_; }
@@ -480,17 +490,23 @@ class Exception {
   }
 
   /**
+   * Returns the modified V registers.
+   *
    * @return The bit mask of the V registers marked as modified.
    */
   u32 GetModifiedVRegisters() const { return modified_v_registers_; }
 #endif  // REX_ARCH
 
   /**
+   * Returns the fault address.
+   *
    * @return The address that was read or written, for an access violation.
    */
   u64 GetFaultAddress() const { return fault_address_; }
 
   /**
+   * Returns the faulting operation.
+   *
    * @return The operation that faulted, for an access violation.
    */
   AccessViolationOperation GetAccessViolationOperation() const {
@@ -512,7 +528,7 @@ class Exception {
 };
 
 /**
- * Process-wide chain of host exception handlers.
+ * Process wide chain of host exception handlers.
  */
 class REX_API ExceptionHandler {
  public:

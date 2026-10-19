@@ -53,13 +53,13 @@ jobs:
           fi
           echo "prev_nightly_sha=${prev_sha}" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Manual dispatch — forcing build as ${tag_name}."
+            echo "Manual dispatch, forcing build as ${tag_name}."
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           elif [ "${dev_sha}" = "${prev_sha}" ]; then
-            echo "${DEV_BRANCH} unchanged since last nightly (${dev_sha}); skipping build."
+            echo "${DEV_BRANCH} unchanged since last nightly (${dev_sha}), skipping build."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
           else
-            echo "${DEV_BRANCH} advanced (${prev_sha:-<no prior nightly>} -> ${dev_sha}); building as ${tag_name}."
+            echo "${DEV_BRANCH} advanced (${prev_sha:-<no prior nightly>} -> ${dev_sha}), building as ${tag_name}."
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           fi
 

@@ -63,7 +63,7 @@ class NullProvider final : public Provider {
  private:
 };
 
-/** The root or 1 null file. */
+/** The root or a null file. */
 class NullNode final : public Node {
  public:
   /**

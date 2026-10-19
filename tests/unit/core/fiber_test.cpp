@@ -24,7 +24,7 @@ static void CountingFiber(void*) {
   Fiber::SwitchTo(s_main);
 }
 
-REX_TEST_CASE("rex::platform::Fiber - basic context switch", "[core][fiber]") {
+REX_TEST_CASE("rex::platform::Fiber switches context", "[core][fiber]") {
   s_count = 0;
   s_main = Fiber::ConvertCurrentThread();
   auto* f = Fiber::Create(size_t{256} * 1024, CountingFiber, nullptr);

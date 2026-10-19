@@ -44,7 +44,7 @@ std::optional<T> ReadAt(std::span<const u8> bytes, u64 offset) {
 }
 
 /**
- * Reports whether a byte range lies inside a span.
+ * Reports whether a byte range is inside a span.
  *
  * @param bytes The span.
  * @param offset First byte of the range.

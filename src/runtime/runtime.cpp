@@ -161,7 +161,7 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
     const auto queued = static_cast<u32>(REXCVAR_GET(runtime::cvars::max_queued_frames));
     apu_ = std::make_unique<runtime::APU>(*this, *apu_backend, queued);
     if (auto started = apu_->Setup(); !started) {
-      REXLOG_WARN(apu, "the APU failed to start, audio is disabled: {}", started.error().message);
+      REXLOG_WARN(apu, "the APU failed to start, audio is disabled, {}", started.error().message);
       apu_.reset();
     }
   }
@@ -244,7 +244,7 @@ Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeDe
     }
   }
 
-  REXLOG_DEBUG(system, "Runtime setup complete (code: {:08X}-{:08X}, image: {:08X}-{:08X})",
+  REXLOG_DEBUG(system, "Runtime setup complete (code {:08X} to {:08X}, image {:08X} to {:08X})",
                image_info.code_base, image_info.code_base + image_info.code_size,
                image_info.image_base, image_info.image_base + image_info.image_size);
 
@@ -342,7 +342,7 @@ X_HANDLE Runtime::PrepareModuleLaunch() {
   thread->SetName("Main XThread");
   Result<X_HANDLE> launched = thread_registry_->Launch(std::move(thread));
   if (!launched) {
-    REX_FAIL(system, 0, "Could not create launch thread: {:08X}", runtime::ToXStatus(launched));
+    REX_FAIL(system, 0, "Could not create launch thread, {:08X}", runtime::ToXStatus(launched));
   }
   if (auto launch_thread = thread_registry_->FindByHandle(*launched)) {
     REXLOG_DEBUG(system, "  Module prepared on thread '{}'", launch_thread->GetName());

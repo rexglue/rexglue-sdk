@@ -117,7 +117,7 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, u32 address, std::span<c
 
   PPCFunc* fn = GetFunction(address);
   if (!fn) {
-    REX_FAIL(cpu, false, "Execute({:08X}): function not in function table", address);
+    REX_FAIL(cpu, false, "Run({:08X}): function not in function table", address);
   }
 
   auto* ctx = thread_state->GetContext();
@@ -298,7 +298,7 @@ bool FunctionDispatcher::SetFunction(u32 guest_address, ::PPCFunc* func) {
   function_table_[guest_address] = func;
 
   if (!memory_->SetFunction(guest_address, func)) {
-    REXLOG_ERROR(cpu, "SetFunction: dispatcher / Memory module-table state out of sync at {:08X}",
+    REXLOG_ERROR(cpu, "SetFunction: dispatcher / Memory module table state out of sync at {:08X}",
                  guest_address);
     function_table_.erase(guest_address);
     return false;
@@ -354,7 +354,7 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, u32 code_b
                                         std::span<const u8> recompiled_code) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   if (registering_) {
-    REX_FATAL(cpu, "RegisterModule called while already registering (re-entrancy)");
+    REX_FATAL(cpu, "RegisterModule called while already registering (reentrancy)");
     return;
   }
 

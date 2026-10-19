@@ -190,7 +190,7 @@ REX_TEST_CASE("A timed wait never returns before its deadline", "[core][posix_wa
   }
 }
 
-REX_TEST_CASE("A queued callback ends every kind of alertable wait", "[core][posix_wait]") {
+REX_TEST_CASE("A queued callback ends every alertable wait", "[core][posix_wait]") {
   auto never = Event::CreateManualResetEvent(false);
   auto other = Event::CreateManualResetEvent(false);
   auto signal = Event::CreateManualResetEvent(false);

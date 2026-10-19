@@ -42,6 +42,8 @@ REX_STATIC_ASSERT_SIZE(X_KTIMER, 0x28);
 /** The host state of a timer object. */
 struct TimerObject {
   /**
+   * Constructs a timer of a type.
+   *
    * @param timer_type 0 for a notification timer, 1 for a synchronization timer.
    */
   REX_RUNTIME_API explicit TimerObject(u32 timer_type);
@@ -50,7 +52,7 @@ struct TimerObject {
 
   /** Host timer that signals the object when it expires. */
   std::unique_ptr<rex::platform::Timer> timer;
-  /** Pending expiry entry the dispatcher tracks, expired when the timer is cancelled. */
+  /** Pending expiry entry the dispatcher tracks, expired when the timer is canceled. */
   std::weak_ptr<rex::platform::TimerQueueWaitItem> expiry;
   /** Id of the thread that armed the timer, the thread its completion routine runs on. */
   u32 callback_thread_id = 0;

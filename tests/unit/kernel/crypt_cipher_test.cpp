@@ -534,9 +534,8 @@ REX_TEST_CASE("AES schedule CBC matches the reference in both directions and upd
   });
 }
 
-REX_TEST_CASE(
-    "The ECC curve getter returns table pointers for ids 0 to 14 as capture tests 24 and 26",
-    "[kernel][crypt][cipher]") {
+REX_TEST_CASE("The ECC curve getter returns table pointers for ids 0 to 14 as measured",
+              "[kernel][crypt][cipher]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(8);
@@ -553,8 +552,7 @@ REX_TEST_CASE(
   });
 }
 
-REX_TEST_CASE("The ECC curve getter rejects ids from 15 as capture tests 24 and 26",
-              "[kernel][crypt][cipher]") {
+REX_TEST_CASE("The ECC curve getter rejects ids from 15 as measured", "[kernel][crypt][cipher]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(8);

@@ -113,7 +113,7 @@ REX_TEST_CASE("Destroying an attached dialog removes it from its host", "[ui][im
   REQUIRE(host.last == address);
 }
 
-REX_TEST_CASE("Attach with nullptr detaches without touching the host", "[ui][imgui]") {
+REX_TEST_CASE("Attach with null detaches without touching the host", "[ui][imgui]") {
   RecordingHost host;
   {
     ProbeDialog dialog;

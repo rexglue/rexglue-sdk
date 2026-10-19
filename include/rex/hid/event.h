@@ -71,7 +71,7 @@ struct PointerDelta {
   f32 dy = 0.0f;
 };
 
-/** 1 window input event, forwarded by the input host after its overlays had it. */
+/** A window input event, forwarded by the input host after its overlays had it. */
 struct InputEvent {
   /** Event kinds. */
   enum class Kind : u8 {

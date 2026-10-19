@@ -479,7 +479,7 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
     }
     case 0x0007003D: {
       REXLOG_DEBUG(kernel, "XMPCaptureOutput(...)");
-      REX_ASSERT_ALWAYS("XMP output not unimplemented");
+      REX_ASSERT_ALWAYS("XMP output unimplemented");
       return X_E_FAIL;
     }
     default:

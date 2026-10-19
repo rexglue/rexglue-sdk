@@ -38,8 +38,8 @@ endfunction ()
 #==========================================================
 # rexglue_apply_target_settings(<target>) - Common flags
 #
-# Applied to both host apps and title DLL modules. Compile/link flags only;
-# runtime DLL staging is the host's job (see rexglue_configure_target).
+# Applied to both host apps and title DLL modules. Compile/link flags only.
+# Runtime DLL staging is the host's job (see rexglue_configure_target).
 #==========================================================
 function (rexglue_apply_target_settings target_name)
   if (UNIX AND NOT APPLE)
@@ -116,7 +116,7 @@ endfunction ()
 
 #==========================================================
 # macOS and Linux host. $<TARGET_RUNTIME_DLLS> does not resolve imported shared
-# libraries, so stage them explicitly next to the executable (paired with the
+# libraries, so stage them next to the executable (paired with the
 # @executable_path or $ORIGIN rpath). Everything else the runtime links (SDL3,
 # ...) is static. Target names differ between an in-tree build and an installed
 # SDK import.
@@ -224,7 +224,7 @@ function (rexglue_configure_target target_name)
       ${target_name} PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
     )
   elseif (APPLE)
-    # macOS analogue of $ORIGIN: resolve @rpath dylibs (librexruntime,
+    # macOS analogue of $ORIGIN to resolve @rpath dylibs (librexruntime,
     # libTracyClient, ...) next to the executable. Pairs with the runtime
     # dylib staging below so the app is self-contained.
     set_target_properties(

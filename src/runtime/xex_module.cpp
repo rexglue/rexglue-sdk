@@ -107,7 +107,7 @@ int XEXModule::ApplyPatch(XEXModule* module) {
   const u32 original_image_size = module->GetImageSize();
   auto patched = module->image_.ApplyHeaderDelta(image_);
   if (!patched) {
-    REX_FAIL(system, 2, "XEX header patch failed: {}", patched.error().GetDescription());
+    REX_FAIL(system, 2, "XEX header patch failed, {}", patched.error().GetDescription());
   }
   module->image_ = std::move(*patched);
   const u32 new_image_size = module->GetImageSize();
@@ -122,7 +122,7 @@ int XEXModule::ApplyPatch(XEXModule* module) {
                                                    kMemoryAllocationTitle,
                                                kMemoryProtectRead | kMemoryProtectWrite);
     if (!alloc_result) {
-      REX_FAIL(system, 6, "Unable to allocate XEX memory at {:08X}-{:08X}.", addr_new_mem,
+      REX_FAIL(system, 6, "Unable to allocate XEX memory at {:08X} with size {:08X}.", addr_new_mem,
                size_delta);
     }
   }
@@ -133,7 +133,7 @@ int XEXModule::ApplyPatch(XEXModule* module) {
       std::max<size_t>(host_image.size(), std::max(original_image_size, new_image_size)));
   std::span<u8> base_image(host_image.data(), std::max(original_image_size, new_image_size));
   if (auto applied = module->image_.ApplyImageDelta(image_, base_image); !applied) {
-    REX_FAIL(system, 9, "XEX patch application failed: {}", applied.error().GetDescription());
+    REX_FAIL(system, 9, "XEX patch application failed, {}", applied.error().GetDescription());
   }
 
   host_image.resize(new_image_size);
@@ -142,8 +142,8 @@ int XEXModule::ApplyPatch(XEXModule* module) {
     const u32 size_delta = original_image_size - new_image_size;
     const u32 addr_free_mem = module->base_address_ + new_image_size;
     if (!GetMemory()->LookupHeap(addr_free_mem)->Decommit(addr_free_mem, size_delta)) {
-      REXLOG_ERROR(system, "Unable to decommit XEX memory at {:08X}-{:08X}.", addr_free_mem,
-                   size_delta);
+      REXLOG_ERROR(system, "Unable to decommit XEX memory at {:08X} with size {:08X}.",
+                   addr_free_mem, size_delta);
     }
   }
 
@@ -194,20 +194,20 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
   if (!heap->QueryRegionInfo(base_address_, &occupant) || occupant.state != 0 ||
       occupant.region_size < rex::RoundUpPow2(alloc_size, heap->GetPageSize())) {
     REX_FAIL(system, false,
-             "XEX image range {:08X}-{:08X} is already in use, the module holding it must be "
+             "XEX image range {:08X}-{:08X} is in use, the module holding it must be "
              "unloaded first.",
              base_address_, base_address_ + alloc_size);
   }
   if (!heap->AllocFixed(base_address_, alloc_size, 4096,
                         kMemoryAllocationReserve | kMemoryAllocationCommit | kMemoryAllocationTitle,
                         kMemoryProtectRead | kMemoryProtectWrite)) {
-    REX_FAIL(system, false, "Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
-             alloc_size);
+    REX_FAIL(system, false, "Unable to allocate XEX memory at {:08X} with size {:08X}.",
+             base_address_, alloc_size);
   }
   pending_image_.assign(alloc_size, 0);
   std::span<u8> buffer(pending_image_);
   if (auto decoded = image_.Decode(file, buffer); !decoded) {
-    REX_FAIL(system, false, "XEX load failed, tried both encryption keys: {}",
+    REX_FAIL(system, false, "XEX load failed, tried both encryption keys, {}",
              decoded.error().GetDescription());
   }
   if (image_.GetKey() != filesystem::XEXKey::kRetail) {
@@ -232,7 +232,7 @@ bool XEXModule::LoadContinue() {
   const u32 image_end = static_cast<u32>(std::min<size_t>(pending_image_.size(), GetImageSize()));
   auto parsed_pe = filesystem::ParsePE(std::span<const u8>(pending_image_.data(), image_end));
   if (!parsed_pe) {
-    REX_FAIL(system, false, "Failed to load XEX PE headers: {}",
+    REX_FAIL(system, false, "Failed to load XEX PE headers, {}",
              parsed_pe.error().GetDescription());
   }
   pe_ = std::move(*parsed_pe);

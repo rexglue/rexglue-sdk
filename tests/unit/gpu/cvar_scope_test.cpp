@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/gpu/cvar_scope_test.cpp
- * @brief       The GPU backend module registers the gpu, xenos, d3d12 and vulkan scopes
+ * @brief       The host modules register their cvar scopes and tables
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -168,7 +168,7 @@ REX_TEST_CASE_METHOD(Fixture, "An old GPU key is unknown after the move", "[gpu]
 }
 
 REX_TEST_CASE_METHOD(Fixture, "The runtime reserves apu and rexapu-sdl3 adds apu.mute",
-                     "[gpu][cvar]") {
+                     "[apu][cvar]") {
   rex::platform::SetEnvironmentValue("SDL_AUDIO_DRIVER", "dummy");
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime", "rexapu-sdl3"};
@@ -183,7 +183,7 @@ REX_TEST_CASE_METHOD(Fixture, "The runtime reserves apu and rexapu-sdl3 adds apu
 }
 
 REX_TEST_CASE_METHOD(Fixture, "apu.max_queued_frames takes its default from Config::apu",
-                     "[gpu][cvar]") {
+                     "[apu][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime"};
   config.apu.max_queued_frames = 16;
@@ -194,7 +194,7 @@ REX_TEST_CASE_METHOD(Fixture, "apu.max_queued_frames takes its default from Conf
 }
 
 REX_TEST_CASE_METHOD(Fixture, "rexhid-sdl3 adds the 33 hid cvars to the reserved scope",
-                     "[gpu][cvar]") {
+                     "[hid][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime", "rexhid-sdl3"};
   auto api = rex::Init(config);
@@ -208,7 +208,7 @@ REX_TEST_CASE_METHOD(Fixture, "rexhid-sdl3 adds the 33 hid cvars to the reserved
 
 #if REX_PLATFORM_WIN32
 REX_TEST_CASE_METHOD(Fixture, "A second hid module fails Init naming the shared interface",
-                     "[gpu][cvar]") {
+                     "[hid][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime", "rexhid-sdl3", "rexhid-xinput"};
   auto api = rex::Init(config);
@@ -218,7 +218,7 @@ REX_TEST_CASE_METHOD(Fixture, "A second hid module fails Init naming the shared 
 #endif
 
 REX_TEST_CASE_METHOD(Fixture, "Without a hid module the hid scope is reserved and empty",
-                     "[gpu][cvar]") {
+                     "[hid][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);

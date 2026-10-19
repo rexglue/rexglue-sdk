@@ -21,21 +21,15 @@ namespace rex::filesystem {
 
 /** Characteristics bits of a PE section header. */
 enum PESectionFlags : u32 {
-  /** IMAGE_SCN_CNT_CODE. The section holds executable code. */
-  kPESectionContainsCode = 0x00000020,
-  /** IMAGE_SCN_CNT_INITIALIZED_DATA. The section holds initialized data. */
-  kPESectionContainsDataInit = 0x00000040,
-  /** IMAGE_SCN_CNT_UNINITIALIZED_DATA. The section holds zero filled data. */
-  kPESectionContainsDataUninit = 0x00000080,
-  /** IMAGE_SCN_MEM_EXECUTE. XEXModule reads it to mark the section executable. */
-  kPESectionMemoryExecute = 0x20000000,
-  /** IMAGE_SCN_MEM_READ. The section is readable. No code reads it. */
-  kPESectionMemoryRead = 0x40000000,
-  /** IMAGE_SCN_MEM_WRITE. XEXModule reads it to mark the section writable. */
-  kPESectionMemoryWrite = 0x80000000,
+  kPESectionContainsCode = 0x00000020,       /**< IMAGE_SCN_CNT_CODE. The section holds code. */
+  kPESectionContainsDataInit = 0x00000040,   /**< IMAGE_SCN_CNT_INITIALIZED_DATA. */
+  kPESectionContainsDataUninit = 0x00000080, /**< IMAGE_SCN_CNT_UNINITIALIZED_DATA. */
+  kPESectionMemoryExecute = 0x20000000,      /**< IMAGE_SCN_MEM_EXECUTE. */
+  kPESectionMemoryRead = 0x40000000,         /**< IMAGE_SCN_MEM_READ. The section is readable. */
+  kPESectionMemoryWrite = 0x80000000,        /**< IMAGE_SCN_MEM_WRITE. */
 };
 
-/** 1 section of the title PE image. */
+/** A section of the title PE image. */
 class PESection {
  public:
   char name[9];    /**< Section name from the 8 byte PE name plus a terminator. */
@@ -46,12 +40,12 @@ class PESection {
   u32 flags;       /**< kPESection* flag bits. */
 };
 
-/** 1 named export of a PE image. */
+/** A named export of a PE image. */
 struct PEExport {
-  const char* name; /**< Name of the export. No code reads it. */
-  u32 ordinal;      /**< Ordinal of the export. No code reads it. */
+  const char* name; /**< Name of the export. */
+  u32 ordinal;      /**< Ordinal of the export. */
 
-  u64 addr; /**< Address of the export. No code reads it. */
+  u64 addr; /**< Address of the export. */
 };
 
 /** Memory protection class of a run of pages in the image. */
@@ -64,7 +58,7 @@ enum XEXSectionType {
 
 /** Image flag bits of the XEX security info. */
 enum XEXImageFlags : u32 {
-  /** @name Image flag bits of XEXSecurityInfoHeader::image_flags. No code reads them. */
+  /** @name Image flag bits of XEXSecurityInfoHeader::image_flags. */
   /** @{ */
   kXEXImageManufacturingUtility = 0x00000002,
   kXEXImageManufacturingSupportTools = 0x00000004,
@@ -82,7 +76,7 @@ enum XEXImageFlags : u32 {
   kXEXImageOnlineActivationRequired = 0x08000000,
   /** @} */
   kXEXImagePageSize4KB = 0x10000000, /**< Set for 4KB pages, otherwise 64KB. */
-  /** @name Image flag bits of XEXSecurityInfoHeader::image_flags. No code reads them. */
+  /** @name Image flag bits of XEXSecurityInfoHeader::image_flags. */
   /** @{ */
   kXEXImageRegionFree = 0x20000000,
   kXEXImageRevocationCheckOptional = 0x40000000,
@@ -92,7 +86,7 @@ enum XEXImageFlags : u32 {
 
 /** Media types an image may be loaded from. */
 enum XEXMediaFlags : u32 {
-  /** @name Media bits of XEXSecurityInfoHeader::allowed_media_types. No code reads them. */
+  /** @name Media bits of XEXSecurityInfoHeader::allowed_media_types. */
   /** @{ */
   kXEXMediaHardDisk = 0x00000001,
   kXEXMediaDVDX2 = 0x00000002,
@@ -116,36 +110,36 @@ enum XEXMediaFlags : u32 {
 
 /** Regions an image may run in. */
 enum XEXRegionFlags : u32 {
-  /** North America region bits. The title language query tests them to pick English. */
+  /** North America region bits. */
   kXEXRegionNTSCU = 0x000000FF,
-  /** Japan and Asia region bits. The title language query tests them to pick Japanese. */
+  /** Japan and Asia region bits. */
   kXEXRegionNTSCJ = 0x0000FF00,
-  kXEXRegionNTSCJJapan = 0x00000100, /**< Japan subset of the NTSCJ bits. No code reads it. */
-  kXEXRegionNTSCJChina = 0x00000200, /**< China subset of the NTSCJ bits. No code reads it. */
-  kXEXRegionPAL = 0x00FF0000,        /**< Europe region bits. No code reads it. */
-  /** Australia and New Zealand subset of the PAL bits. No code reads it. */
+  kXEXRegionNTSCJJapan = 0x00000100, /**< Japan subset of the NTSCJ bits. */
+  kXEXRegionNTSCJChina = 0x00000200, /**< China subset of the NTSCJ bits. */
+  kXEXRegionPAL = 0x00FF0000,        /**< Europe region bits. */
+  /** Australia and New Zealand subset of the PAL bits. */
   kXEXRegionPALAUNZ = 0x00010000,
-  kXEXRegionOther = 0xFF000000, /**< Rest of world region bits. No code reads it. */
-  kXEXRegionAll = 0xFFFFFFFF,   /**< Every region bit set. No code reads it. */
+  kXEXRegionOther = 0xFF000000, /**< Rest of world region bits. */
+  kXEXRegionAll = 0xFFFFFFFF,   /**< Every region bit set. */
 };
 
 /** Module flag bits of the XEX header. */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXModuleFlags : u32 {
-  kXEXModuleTitle = 0x00000001, /**< The module is a title executable. No code reads it. */
-  /** The module exports functions to the title. No code reads it. */
+  kXEXModuleTitle = 0x00000001, /**< The module is a title executable. */
+  /** The module exports functions to the title. */
   kXEXModuleExportsToTitle = 0x00000002,
-  /** The module is a system debugger. No code reads it. */
+  /** The module is a system debugger. */
   kXEXModuleSystemDebugger = 0x00000004,
-  /** The module is a DLL. UserModule reads it into is_dll_module. */
+  /** The module is a DLL. */
   kXEXModuleDLLModule = 0x00000008,
-  /** The image is a module patch. XEXImage::is_patch tests it. */
+  /** The image is a module patch. */
   kXEXModuleModulePatch = 0x00000010,
-  /** The image is a full patch. XEXImage::is_patch tests it. */
+  /** The image is a full patch. */
   kXEXModulePatchFull = 0x00000020,
-  /** The image is a delta patch. XEXImage::is_patch tests it. */
+  /** The image is a delta patch. */
   kXEXModulePatchDelta = 0x00000040,
-  kXEXModuleUserMode = 0x00000080, /**< The module runs in user mode. No code reads it. */
+  kXEXModuleUserMode = 0x00000080, /**< The module runs in user mode. */
 };
 
 /** System flag bits of the XEX system flags optional header. */
@@ -315,48 +309,48 @@ enum XEXHeaderKey : u32 {
   kXEXHeaderResourceInfo = 0x000002FF,         /**< Selects XEXOptResourceInfo. */
   kXEXHeaderFileFormatInfo = 0x000003FF,       /**< Selects XEXOptFileFormatInfo. */
   kXEXHeaderDeltaPatchDescriptor = 0x000005FF, /**< Selects XEXOptDeltaPatchDescriptor. */
-  /** Header of a base image reference. No code reads it. */
+  /** Header of a base image reference. */
   kXEXHeaderBaseReference = 0x00000405,
-  kXEXHeaderBoundingPath = 0x000080FF, /**< Selects XEXOptBoundPath. No code reads it. */
-  kXEXHeaderDeviceId = 0x00008105,     /**< Header holding a device identifier. No code reads it. */
-  /** Header holding the base address the image was linked at. No code reads it. */
+  kXEXHeaderBoundingPath = 0x000080FF, /**< Selects XEXOptBoundPath. */
+  kXEXHeaderDeviceId = 0x00008105,     /**< Header holding a device identifier. */
+  /** Header holding the base address the image was linked at. */
   kXEXHeaderOriginalBaseAddress = 0x00010001,
   /** Inline value holding the guest address of the entry point. */
   kXEXHeaderEntryPoint = 0x00010100,
   /** Inline value holding the guest address the image loads at. */
   kXEXHeaderImageBaseAddress = 0x00010201,
   kXEXHeaderImportLibraries = 0x000103FF, /**< Selects XEXOptImportLibraries. */
-  /** Header holding the image checksum and timestamp. No code reads it. */
+  /** Header holding the image checksum and timestamp. */
   kXEXHeaderChecksumTimestamp = 0x00018002,
-  /** Header marking the image for call profiling. No code reads it. */
+  /** Header marking the image for call profiling. */
   kXEXHeaderEnabledForCallCap = 0x00018102,
-  /** Header marking the image for fast profiling. No code reads it. */
+  /** Header marking the image for fast profiling. */
   kXEXHeaderEnabledForFastCap = 0x00018200,
-  /** Selects XEXOptOriginalPEName. No code reads it. */
+  /** Selects XEXOptOriginalPEName. */
   kXEXHeaderOriginalPEName = 0x000183FF,
-  /** Selects XEXOptStaticLibraries. No code reads it. */
+  /** Selects XEXOptStaticLibraries. */
   kXEXHeaderStaticLibraries = 0x000200FF,
   kXEXHeaderTLSInfo = 0x00020104, /**< Selects XEXOptTLSInfo. */
   /** Inline value holding the default thread stack size in bytes. */
   kXEXHeaderDefaultStackSize = 0x00020200,
-  /** Inline value holding the default filesystem cache size. No code reads it. */
+  /** Inline value holding the default filesystem cache size. */
   kXEXHeaderDefaultFilesystemCacheSize = 0x00020301,
-  /** Inline value holding the default heap size. No code reads it. */
+  /** Inline value holding the default heap size. */
   kXEXHeaderDefaultHeapSize = 0x00020401,
-  /** Header holding the page heap size and flags. No code reads it. */
+  /** Header holding the page heap size and flags. */
   kXEXHeaderPageHeapSizeAndFlags = 0x00028002,
   kXEXHeaderSystemFlags = 0x00030000,   /**< Inline value holding the XEXSystemFlags bits. */
   kXEXHeaderExecutionInfo = 0x00040006, /**< Selects XEXOptExecutionInfo. */
   /** Inline value holding the title workspace size. */
   kXEXHeaderTitleWorkspaceSize = 0x00040201,
-  kXEXHeaderGameRatings = 0x00040310, /**< Selects XEXGameRatings. No code reads it. */
-  kXEXHeaderLANKey = 0x00040404,      /**< Selects XEXOptLANKey. No code reads it. */
-  kXEXHeaderXbox360Logo = 0x000405FF, /**< Header holding the logo bitmap. No code reads it. */
-  /** Header listing the media ids of a multi disc title. No code reads it. */
+  kXEXHeaderGameRatings = 0x00040310, /**< Selects XEXGameRatings. */
+  kXEXHeaderLANKey = 0x00040404,      /**< Selects XEXOptLANKey. */
+  kXEXHeaderXbox360Logo = 0x000405FF, /**< Header holding the logo bitmap. */
+  /** Header listing the media ids of a multi disc title. */
   kXEXHeaderMultiDiscMediaIds = 0x000406FF,
   /** Selects XEXOptGenericU32 holding alternate title ids. */
   kXEXHeaderAlternateTitleIds = 0x000407FF,
-  /** Header holding the additional title memory request. No code reads it. */
+  /** Header holding the additional title memory request. */
   kXEXHeaderAdditionalTitleMemory = 0x00040801,
   /** Selects XEXOptDataDirectory locating the named export table. */
   kXEXHeaderExportsByName = 0x00E10402,
@@ -382,7 +376,7 @@ enum XEXCompressionType : u16 {
 
 /** Approval state of a static library. */
 enum XEXApprovalType : u8 {
-  /** @name Values of XEXOptStaticLibrary::approval_type. No code reads them. */
+  /** @name Values of XEXOptStaticLibrary::approval_type. */
   /** @{ */
   kXEXApprovalUnapproved = 0,
   kXEXApprovalPossible = 1,
@@ -407,7 +401,7 @@ struct XEXGameRatings {
   BE<XEXRatingFPBValue> fpb;       /**< FPB rating. */
 };
 
-/** 1 run of basic compressed data followed by a run of zeros. */
+/** A run of basic compressed data followed by a run of zeros. */
 struct XEXFileBasicCompressionBlock {
   be_u32 data_size;
   be_u32 zero_size;
@@ -474,7 +468,7 @@ struct XEXOptBoundPath {
 static_assert(offsetof(XEXOptBoundPath, path) == 0x4);
 REX_STATIC_ASSERT_SIZE(XEXOptBoundPath, 0x8);
 
-/** 1 static library linked into the image. */
+/** A static library linked into the image. */
 struct XEXOptStaticLibrary {
   char name[8];
   be_u16 version_major;
@@ -515,7 +509,7 @@ struct XEXOptTLSInfo {
 };
 REX_STATIC_ASSERT_SIZE(XEXOptTLSInfo, 0x10);
 
-/** 1 resource embedded in the image. */
+/** A resource embedded in the image. */
 struct XEXResource {
   char name[8];
   be_u32 address;
@@ -531,7 +525,7 @@ struct XEXOptResourceInfo {
 static_assert(offsetof(XEXOptResourceInfo, resources) == 0x4);
 REX_STATIC_ASSERT_SIZE(XEXOptResourceInfo, 0x14);
 
-/** 1 delta patch entry. */
+/** A delta patch entry. */
 struct XEXDeltaPatch {
   be_u32 old_addr;
   be_u32 new_addr;
@@ -597,13 +591,13 @@ struct XEXOptImportLibraries {
   struct {
     be_u32 size;
     be_u32 count;
-    char data[1]; /**< string_table_size bytes. */
+    char data[1]; /**< string_table.size bytes. */
   } string_table;
 };
 static_assert(offsetof(XEXOptImportLibraries, string_table.data) == 0xC);
 REX_STATIC_ASSERT_SIZE(XEXOptImportLibraries, 0x10);
 
-/** 1 imported library with its version range and import table. */
+/** An imported library with its version range and import table. */
 struct XEXImportLibraryHeader {
   be_u32 size;
   char next_import_digest[0x14];
@@ -628,13 +622,13 @@ REX_STATIC_ASSERT_SIZE(XEXImportLibraryHeader, 0x2C);
 /** SDK shape of an optional header that is a byte size followed by 32 bit words. */
 struct XEXOptGenericU32 {
   be_u32 size;      /**< Size of this header in bytes, the size field included. */
-  be_u32 values[1]; /**< First of the `count()` values. */
+  be_u32 values[1]; /**< First of the `GetCount()` values. */
 
   u32 GetCount() const { return (size - 4) / 4; }
 };
 
 /**
- * 1 entry of the optional header table.
+ * An entry of the optional header table.
  *
  * The low byte of key selects how the second field is used. 0x00 and 0x01 hold the data inline in
  * value, 0xFF holds the offset of a block that starts with its byte size, and any

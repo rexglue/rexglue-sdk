@@ -23,7 +23,7 @@ REX_TEST_CASE("An atomic store on a big endian value keeps the raw bytes big end
   CHECK(field.Load(std::memory_order_acquire) == 0x11223344);
 }
 
-REX_TEST_CASE("compare_exchange on a big endian value stores the desired value when it matches",
+REX_TEST_CASE("CompareExchange on a big endian value stores the desired value when it matches",
               "[core][types]") {
   be_u32 field = 0;
   rex::u32 expected = 0;
@@ -33,7 +33,7 @@ REX_TEST_CASE("compare_exchange on a big endian value stores the desired value w
   CHECK(field == 0x82001000);
 }
 
-REX_TEST_CASE("compare_exchange on a big endian value returns the current value when it differs",
+REX_TEST_CASE("CompareExchange on a big endian value returns the current value when it differs",
               "[core][types]") {
   be_u32 field = 0x82001000;
   rex::u32 expected = 0;

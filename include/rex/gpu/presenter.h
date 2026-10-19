@@ -40,7 +40,7 @@ REX_INTERFACE(IPresenter)
   virtual Surface::TypeFlags GetSupportedSurfaceTypes() const = 0;
 
   /**
-   * Attaches to a host and its surface. Attach(nullptr, nullptr) detaches.
+   * Attaches to a host and its surface. Attach with a null host and surface detaches.
    *
    * @param host The window side, or null.
    * @param surface The surface the host owns, or null.

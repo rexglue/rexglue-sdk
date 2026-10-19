@@ -220,7 +220,7 @@ void ImGuiDrawer::Initialize() {
     io.Fonts->AddFontFromFileTTF(jp_font_path, 12.0f, &jp_font_config,
                                  io.Fonts->GetGlyphRangesJapanese());
   } else {
-    REXLOG_WARN(ui, "Unable to load Japanese font; JP characters will be boxes");
+    REXLOG_WARN(ui, "Unable to load Japanese font, JP characters will be boxes");
   }
 #endif
 

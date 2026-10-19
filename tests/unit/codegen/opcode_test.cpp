@@ -38,7 +38,7 @@ constexpr u32 VMX128Load(u32 xop, u32 vd) {
 }
 
 /**
- * The id the disassembler engine gives a word, or 0 when it decodes nothing.
+ * Returns the id the disassembler engine gives a word, or 0 when it decodes nothing.
  *
  * @param code The instruction word.
  * @return The engine id.
@@ -136,8 +136,7 @@ REX_TEST_CASE("AltiVec instructions the Xenon CPU dropped decode as invalid", "[
   }
 }
 
-REX_TEST_CASE("VMX forms beside the dropped AltiVec instructions still decode",
-              "[codegen][opcode]") {
+REX_TEST_CASE("VMX forms beside the dropped AltiVec instructions decode", "[codegen][opcode]") {
   CHECK(LookupID(0x10611000) == PPC_INST_VADDUBM);
   CHECK(LookupID(0x10611380) == PPC_INST_VADDSWS);
   CHECK(LookupID(0x106111AA) == PPC_INST_VSEL);

@@ -34,7 +34,7 @@ class AnalysisErrors {
                                  function at a millicode entry. */
   };
 
-  /** 1 analysis failure with its addresses and message. */
+  /** An analysis failure with its addresses and message. */
   struct Entry {
     Category category;     /**< Failure class */
     u32 address;           /**< Address where the failure was found */
@@ -63,7 +63,7 @@ class AnalysisErrors {
   bool HasErrors() const { return !entries_.empty(); }
   size_t Count() const { return entries_.size(); }
   /**
-   * Counts the entries of 1 failure class.
+   * Counts the entries of a failure class.
    *
    * @param cat Failure class to count
    * @return Number of entries in cat

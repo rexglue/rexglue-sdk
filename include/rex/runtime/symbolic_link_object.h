@@ -25,6 +25,8 @@ namespace rex::runtime {
 /** The host state of a symbolic link object. */
 struct SymbolicLinkObject {
   /**
+   * Constructs a link from the path it is opened by and the path it resolves to.
+   *
    * @param path_in The path the link is opened by.
    * @param target_in The path the link resolves to.
    */

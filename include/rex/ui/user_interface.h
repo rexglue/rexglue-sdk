@@ -73,15 +73,15 @@ struct PromptDesc {
   /** Prompt title. */
   std::string title;
   /** Prompt text. */
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::string body = {};
   /** Button labels. Empty means a single OK button. */
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::vector<std::string> buttons = {};
   /** True shows a text field. */
   bool text_input = false;
   /** Initial text of the field. */
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::string default_text = {};
   /** Longest text the field accepts in characters. 0 means no limit. */
   u32 max_length = 0;
@@ -94,7 +94,7 @@ struct PromptResult {
   /** Index of the pressed button. */
   u32 button = 0;
   /** Text of the field when the prompt had one. */
-  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
+  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::string text = {};
 };
 
@@ -256,14 +256,14 @@ REX_INTERFACE(IWindow)
   /**
    * Returns the width of the drawable area in physical pixels. Runs on the UI thread.
    *
-   * @return The width, or 0 while the window has no actual state.
+   * @return The width, or 0 while the window has no state.
    */
   virtual u32 GetWidth() const = 0;
 
   /**
    * Returns the height of the drawable area in physical pixels. Runs on the UI thread.
    *
-   * @return The height, or 0 while the window has no actual state.
+   * @return The height, or 0 while the window has no state.
    */
   virtual u32 GetHeight() const = 0;
 
@@ -290,7 +290,7 @@ REX_INTERFACE(IWindow)
   virtual gpu::IPresentationHost& GetPresentation() = 0;
 };
 
-/** The ui service, served as rex.ui by a ui module. */
+/** The user interface a ui module serves. */
 REX_INTERFACE(IUserInterface, "rex.ui", 1)
  public:
   /**
@@ -309,7 +309,7 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
   /**
    * Returns the open window. Runs on the UI thread.
    *
-   * @return The window, or nullptr when none is open.
+   * @return The window, or null when none is open.
    */
   virtual IWindow* GetWindow() = 0;
 
@@ -352,21 +352,21 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
   /**
    * Returns the ImGui font atlas. Runs on the UI thread.
    *
-   * @return The atlas, or nullptr on a provider that runs no ImGui code.
+   * @return The atlas, or null on a provider that runs no ImGui code.
    */
   virtual ImFontAtlas* GetFonts() = 0;
 
   /**
    * Returns the ImGui style. Runs on the UI thread.
    *
-   * @return The style, or nullptr on a provider that runs no ImGui code.
+   * @return The style, or null on a provider that runs no ImGui code.
    */
   virtual ImGuiStyle* GetImGuiStyle() = 0;
 
   /**
    * Returns the ImGui IO of the window, with its context made current. Runs on the UI thread.
    *
-   * @return The IO, or nullptr when no window is open or the provider runs no ImGui code.
+   * @return The IO, or null when no window is open or the provider runs no ImGui code.
    */
   virtual ImGuiIO* GetImGuiIO() = 0;
 
@@ -406,7 +406,7 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
    * Finds an overlay. Runs on the UI thread.
    *
    * @param name Overlay name.
-   * @return The overlay, or nullptr when the name is unknown.
+   * @return The overlay, or null when the name is unknown.
    */
   virtual ImGuiDialog* Overlay(std::string_view name) = 0;
 
@@ -463,7 +463,7 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
   /**
    * Returns the overlay drawer. Runs on the UI thread.
    *
-   * @return The drawer, or nullptr when none was set.
+   * @return The drawer, or null when none was set.
    */
   virtual gpu::IOverlayDrawer* GetOverlayDrawer() = 0;
 
@@ -510,19 +510,19 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
    * Queues a prompt inside the title window. Never blocks. Callable from any thread.
    *
    * @param desc The prompt.
-   * @param done Called on the UI thread when the prompt ends, cancelled at once when no window
+   * @param done Called on the UI thread when the prompt ends, canceled at once when no window
    *             is open.
    */
   virtual void Prompt(PromptDesc desc, rex::MoveOnlyFunction<void(PromptResult)> done) = 0;
 
-  /** Ends every pending prompt as cancelled. Runs on the UI thread. */
+  /** Ends every pending prompt as canceled. Runs on the UI thread. */
   virtual void CancelPrompts() = 0;
 
   /**
    * Shows a native file dialog. Blocks the calling thread. Callable from any thread.
    *
    * @param desc The dialog.
-   * @return The selected paths, empty when the user cancelled.
+   * @return The selected paths, empty when the user canceled.
    */
   [[nodiscard]] virtual Result<std::vector<std::filesystem::path>> ShowFileDialog(
       const FileDialogDesc& desc) = 0;

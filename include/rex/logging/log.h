@@ -20,10 +20,10 @@
  * global scope, in a header that every file writing to the category includes.
  *
  * @param name Category name, a lowercase identifier.
- * @param description Shown by the console and by ILogger::Categories.
+ * @param description Shown by the console and by ILogger::GetCategories.
  *
  * @code
- * REXLOG_CATEGORY(bd, "reblue recompiled code")
+ * REXLOG_CATEGORY(gpu, "GPU emulation")
  * @endcode
  */
 #define REXLOG_CATEGORY(name, description)                        \

@@ -187,8 +187,13 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     u32 GetGuestBaseSize() const { return GetGuestLayout().base.level_data_extent_bytes; }
     u32 GetGuestMipsSize() const { return GetGuestLayout().mips_total_extent_bytes; }
 
-    /** Reports whether guest memory is tiled as 3D although the host texture is 2D (3D as 2D
-     * wrappers). */
+    /**
+     * Reports whether guest memory is tiled as 3D although the host texture is 2D.
+     *
+     * Applies to 3D as 2D wrappers.
+     *
+     * @return True when guest memory is tiled as 3D although the host texture is 2D.
+     */
     bool GetForceLoad3dTiling() const { return force_load_3d_tiling_; }
     void SetForceLoad3DTiling(bool force) { force_load_3d_tiling_ = force; }
 
@@ -210,10 +215,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
 
     void WatchCallback(bool is_mip);
 
-    /**
-     * Updates the last usage and moves the texture to the end of the LRU usage queue. Must be
-     * called whenever GPU work references the texture, so it is not destroyed while in use.
-     */
+    /** Updates the last usage and moves the texture to the end of the LRU usage queue. */
     void MarkAsUsed();
 
     void LogAction(const char* action) const;
@@ -402,8 +404,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   SharedMemory& GetSharedMemory() const { return shared_memory_; }
 
   /**
-   * Destroys all textures. Implementations call this from their destructor when textures reference
-   * the implementation in their own destructors.
+   * Destroys all textures.
    *
    * @param from_destructor True when called from a destructor.
    */
@@ -414,6 +415,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
    * unsigned one, such as a fixed point texture emulated with a larger host pixel format.
    *
    * @param key Key whose format and signedness are examined.
+   * @return True when the signed version has a different host representation.
    */
   virtual bool IsSignedVersionSeparateForFormat(TextureKey /*key*/) const { return false; }
   /**
@@ -421,6 +423,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
    * externally, so implementations consider only format related fields.
    *
    * @param key Key whose format related fields are examined.
+   * @return True when the format supports scaled resolve.
    */
   virtual bool IsScaledResolveSupportedForFormat(TextureKey /*key*/) const { return false; }
   /**
@@ -437,20 +440,20 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   virtual u32 GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const = 0;
 
   /**
-   * Creates a texture with exactly this key, which must not be modified. Returns nullptr when the
+   * Creates a texture with exactly this key, which must not be modified. Returns null when the
    * implementation does not support the key or creation fails at runtime.
    *
    * @param key Key of the texture to create.
-   * @return New texture or nullptr.
+   * @return New texture, or null on failure.
    */
   virtual std::unique_ptr<Texture> CreateTexture(TextureKey key) = 0;
 
   /**
-   * Finds or creates the texture for the key. Returns nullptr when the key is unsupported or
+   * Finds or creates the texture for the key. Returns null when the key is unsupported or
    * creation failed, in which case recreation should be attempted occasionally.
    *
    * @param key Key of the texture, possibly adjusted to fit host limits.
-   * @return Texture or nullptr.
+   * @return Texture, or null on failure.
    */
   Texture* FindOrCreateTexture(TextureKey key);
 
@@ -495,8 +498,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     const TextureBinding& binding = texture_bindings_[fetch_constant_index];
     return binding.key.is_valid ? &binding : nullptr;
   }
-  /** Called when a texture binding changes, for the implementation to update its dependent state.
-   */
+  /** Called when a texture binding changes, for the implementation to update dependent state. */
   virtual void UpdateTextureBindingsImpl(u32 /*fetch_constant_mask*/) {}
 
  private:
@@ -546,18 +548,16 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
 
   static const LoadShaderInfo kLoadShaderInfo[kLoadShaderCount];
 
-  std::unique_ptr<u32[]>
-      /**
-       * Bit per 4 KB physical page holding scaled resolve data, 32 bit words since parts are sent
-       * to shaders.
-       */
-      scaled_resolve_pages_;
-  u64 scaled_resolve_pages_l2_[SharedMemory::kBufferSize >>
-                               /**
-                                * Second level for rejecting non scaled textures, shifted by 12
-                                * for 4 KB pages, 5 for level 1 words and 6 for level 2 words.
-                                */
-                               (12 + 5 + 6)];
+  /**
+   * Bit per 4 KB physical page holding scaled resolve data, 32 bit words since parts are sent to
+   * shaders.
+   */
+  std::unique_ptr<u32[]> scaled_resolve_pages_;
+  /**
+   * Second level for rejecting non scaled textures, shifted by 12 for 4 KB pages, 5 for level 1
+   * words and 6 for level 2 words.
+   */
+  u64 scaled_resolve_pages_l2_[SharedMemory::kBufferSize >> (12 + 5 + 6)];
 
   SharedMemory::GlobalWatchHandle scaled_resolve_global_watch_handle_ = nullptr;
 
@@ -571,11 +571,8 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   Texture* texture_used_first_ = nullptr;
   Texture* texture_used_last_ = nullptr;
 
-  std::atomic<bool> texture_became_outdated_{
-      /**
-       * Set by a memory watch, forcing a recheck of textures regardless of fetch constant changes.
-       */
-      false};
+  /** Set by a memory watch, forcing a recheck of textures regardless of fetch constant changes. */
+  std::atomic<bool> texture_became_outdated_{false};
 
   std::array<TextureBinding, xenos::kTextureFetchConstantCount> texture_bindings_;
   u32 texture_bindings_in_sync_ = 0;

@@ -1,6 +1,6 @@
 /**
  * @file        embedded_metadata.h
- * @brief       Process-wide embedded metadata asset registry.
+ * @brief       Process wide embedded metadata asset registry.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.
@@ -33,7 +33,7 @@ struct EmbeddedMetadataAsset {
 /**
  * Registers a metadata asset embedded into the host executable.
  *
- * An empty path, null data, zero size or a path that normalizes to nothing is rejected.
+ * An empty path, null data, 0 size or a path that normalizes to nothing is rejected.
  *
  * @param relative_path Path relative to the metadata root, such as "icons/custom/67.png".
  * @param data The asset bytes. Must stay valid for the life of the process.

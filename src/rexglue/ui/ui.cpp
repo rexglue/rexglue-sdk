@@ -21,7 +21,7 @@ PresentationSink* g_sink = nullptr;
 
 void RequireGlobalSink() {
   if (!g_sink) {
-    throw std::logic_error("rexglue::ui not initialised; call ui::Init first");
+    throw std::logic_error("rexglue::ui not initialized. Call ui::Init first");
   }
 }
 

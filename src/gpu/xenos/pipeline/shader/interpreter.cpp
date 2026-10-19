@@ -369,7 +369,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       } break;
       case xenos::ucode::AluVectorOpcode::kMad: {
         for (u32 i = 0; i < 4; ++i) {
-          // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
+          // Direct3D 9 0 or denormal * anything is +0, +0 + -0 must be +0, so add is unconditional.
           vector_result[i] = ((vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f) +
@@ -398,7 +398,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDp4: {
         vector_result[0] = 0.0f;
         for (u32 i = 0; i < 4; ++i) {
-          // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
+          // Direct3D 9 0 or denormal * anything is +0, +0 + -0 must be +0, so add is unconditional.
           vector_result[0] += (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
@@ -408,7 +408,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDp3: {
         vector_result[0] = 0.0f;
         for (u32 i = 0; i < 3; ++i) {
-          // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
+          // Direct3D 9 0 or denormal * anything is +0, +0 + -0 must be +0, so add is unconditional.
           vector_result[0] += (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
@@ -849,8 +849,8 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         }
         export_value[i] = export_component;
       }
-      export_sink_->Export(xenos::ucode::ExportRegister(instr.GetVectorDest()), export_value,
-                           export_mask);
+      export_sink_->Export(static_cast<xenos::ucode::ExportRegister>(instr.GetVectorDest()),
+                           export_value, export_mask);
     }
   } else {
     if (vector_result_write_mask) {

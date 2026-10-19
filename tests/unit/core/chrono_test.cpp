@@ -27,7 +27,7 @@ static constexpr u64 kFtLeapDay = 125962560000000000;   /**< 2000-02-29 */
 static constexpr u64 kFtSubDay = 132538032123450000;    /**< 2020-12-30 12:00:12.345 */
 static constexpr u64 kFt2021 = 132539328000000000;      /**< 2021-01-01 */
 
-REX_TEST_CASE("unix_epoch_delta computes correct 1601-to-1970 offset", "[core][chrono]") {
+REX_TEST_CASE("GetUnixEpochDelta computes the offset from 1601 to 1970", "[core][chrono]") {
   // 369 years from 1601 to 1970, with 89 leap days
   constexpr i64 kExpectedSeconds = (369LL * 365 + 89) * 86400LL;
 
@@ -35,7 +35,7 @@ REX_TEST_CASE("unix_epoch_delta computes correct 1601-to-1970 offset", "[core][c
   CHECK(WinSystemClock::GetUnixEpochDelta().count() < 0);
 }
 
-REX_TEST_CASE("from_file_time and to_file_time are exact inverses", "[core][chrono]") {
+REX_TEST_CASE("FromFileTime and ToFileTime are exact inverses", "[core][chrono]") {
   SECTION("zero (NT epoch)") {
     auto tp = WinSystemClock::FromFileTime(kFtNtEpoch);
     CHECK(WinSystemClock::ToFileTime(tp) == kFtNtEpoch);
@@ -52,7 +52,7 @@ REX_TEST_CASE("from_file_time and to_file_time are exact inverses", "[core][chro
   }
 }
 
-REX_TEST_CASE("to_file_time then from_file_time round-trips", "[core][chrono]") {
+REX_TEST_CASE("ToFileTime then FromFileTime round trips", "[core][chrono]") {
   auto tp = WinSystemClock::FromFileTime(kFtSubDay);
   auto ft = WinSystemClock::ToFileTime(tp);
   auto tp2 = WinSystemClock::FromFileTime(ft);
@@ -81,7 +81,7 @@ REX_TEST_CASE("to_sys converts known FILETIMEs to correct system_clock values", 
   }
 }
 
-REX_TEST_CASE("from_sys then to_sys round-trips for whole-second values", "[core][chrono]") {
+REX_TEST_CASE("from_sys then to_sys round trips for whole second values", "[core][chrono]") {
   for (u64 ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFt2021}) {
     auto nt_tp = WinSystemClock::FromFileTime(ft);
     auto sys_tp = WinSystemClock::to_sys(nt_tp);

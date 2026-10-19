@@ -1,6 +1,6 @@
 /**
  * @file        codegen/file_io.h
- * @brief       Content-addressed output writing shared by the codegen writers
+ * @brief       Output writing that skips unchanged files, shared by the codegen writers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

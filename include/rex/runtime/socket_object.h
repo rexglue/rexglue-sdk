@@ -127,7 +127,7 @@ enum SocketProtocol : u8 {
   kXIPProtoVDP = 254,
 };
 
-/** The outcome of 1 receive attempt or of an overlapped receive. */
+/** The outcome of a receive attempt or of an overlapped receive. */
 struct ReceiveResult {
   /** True when CancelReceive ended the receive before a datagram arrived. */
   bool cancelled = false;
@@ -145,6 +145,8 @@ using ReceiveCompletion = rex::MoveOnlyFunction<void(const ReceiveResult&)>;
 /** The host state of a socket object. */
 struct SocketObject {
   /**
+   * Constructs a socket of an address family, a type and a protocol.
+   *
    * @param af_in The address family.
    * @param type_in The socket type.
    * @param proto_in The protocol.
@@ -331,7 +333,7 @@ struct SocketObject {
 
   /**
    * Stops the pending receive and joins its thread. A receive that had not ended gets its
-   * completion called as cancelled before this returns.
+   * completion called as canceled before this returns.
    */
   REX_RUNTIME_API void CancelReceive();
 

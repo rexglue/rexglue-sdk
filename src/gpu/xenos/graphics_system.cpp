@@ -78,9 +78,9 @@ Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
   } else if (!provider_supports_presentation_) {
     // Backends like Vulkan need swapchain support set at provider creation.
     REXLOG_ERROR(gpu,
-                 "SetupPresentation called after headless SetupGuestGPU; call order is reversed");
+                 "SetupPresentation called after headless SetupGuestGPU, call order is reversed");
     return Err(ErrorCategory::kRuntime,
-               "SetupPresentation called after headless SetupGuestGPU; call order is reversed");
+               "SetupPresentation called after headless SetupGuestGPU, call order is reversed");
   }
 
   ui_thread_ = &ui_thread;

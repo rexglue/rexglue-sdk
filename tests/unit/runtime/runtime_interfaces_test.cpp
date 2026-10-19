@@ -146,7 +146,7 @@ REX_TEST_CASE("Setup fails while another runtime is active", "[runtime][interfac
   CheckServed(fixture.GetAPI(), fixture.GetRuntime());
 }
 
-REX_TEST_CASE("process_type reads what set_process_type wrote", "[runtime][interfaces]") {
+REX_TEST_CASE("GetProcessType reads what SetProcessType wrote", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   fixture.GetRuntime().SetProcessType(rex::runtime::kXProcTypeSystem);
   CHECK(fixture.GetRuntime().GetProcessType() == rex::runtime::kXProcTypeSystem);
@@ -190,7 +190,7 @@ REX_TEST_CASE("ResolveHandle finds the newest object at a block after the older 
   });
 }
 
-REX_TEST_CASE("is_setup holds only between a successful Setup and Shutdown",
+REX_TEST_CASE("IsSetup holds only between a successful Setup and Shutdown",
               "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   CHECK(fixture.GetRuntime().IsSetup());

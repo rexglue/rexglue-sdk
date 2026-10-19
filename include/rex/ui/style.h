@@ -305,7 +305,7 @@ struct DebugOverlayStyle {
 struct SettingsStyle {
   /** Key conflict marker. */
   Color warning = detail::kWarning;
-  /** Badge of a live cvar. */
+  /** Badge of a hot reload cvar. */
   Color lifecycle_hot_reload = detail::kSuccess;
   /** Badge of a cvar that needs a restart. */
   Color lifecycle_restart = Color::RGBA(1.00f, 1.00f, 0.40f, 1.00f);
@@ -315,7 +315,7 @@ struct SettingsStyle {
   Color lifecycle_unknown = colors::kWhite;
 };
 
-/** Everything an overlay draws with, owned by the ui service and patched by the consumer. */
+/** Everything an overlay draws with, owned by the ui provider and patched by the consumer. */
 struct Style {
   /** The color roles. */
   Palette palette;

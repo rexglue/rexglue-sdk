@@ -50,8 +50,7 @@ inline constexpr u64 kScalarReciprocalTable[128] = {
     0x3FE0400000000000, 0x3FE0300000000000, 0x3FE0200000000000, 0x3FE0000000000000,
 };
 
-/** Result of the scalar reciprocal square root estimate by exponent parity and the top 3 mantissa
- * bits. */
+/** Scalar reciprocal square root estimate by exponent parity and the top 3 mantissa bits. */
 inline constexpr u64 kScalarReciprocalSqrtTable[16] = {
     0x3FEF100000000000, 0x3FED800000000000, 0x3FEC000000000000, 0x3FEA800000000000,
     0x3FE9800000000000, 0x3FE8800000000000, 0x3FE8000000000000, 0x3FE7000000000000,
@@ -76,8 +75,7 @@ inline constexpr i32 kReciprocalSlope[32] = {
     -1388, -1388, -1292, -1292, -1204, -1204, -1128, -1128, -1056, -1048,
 };
 
-/** Mantissa base of the vector reciprocal square root estimate by exponent parity and the top 4
- * mantissa bits. */
+/** Vector reciprocal square root mantissa base by exponent parity and the top 4 mantissa bits. */
 inline constexpr u32 kReciprocalSqrtBase[32] = {
     0x7FF400, 0x785200, 0x715400, 0x6AE400, 0x64F200, 0x5F6E00, 0x5A4C00, 0x558000,
     0x510200, 0x4CCA00, 0x48D000, 0x450E00, 0x418200, 0x3E2400, 0x3AF200, 0x37E800,
@@ -85,8 +83,7 @@ inline constexpr u32 kReciprocalSqrtBase[32] = {
     0x13CA00, 0x10CE00, 0x0DFE00, 0x0B5700, 0x08D400, 0x067300, 0x043100, 0x020B00,
 };
 
-/** Mantissa slope of the vector reciprocal square root estimate by exponent parity and the top 4
- * mantissa bits. */
+/** Vector reciprocal square root mantissa slope by exponent parity and the top 4 mantissa bits. */
 inline constexpr i32 kReciprocalSqrtSlope[32] = {
     -1956, -1792, -1648, -1522, -1412, -1316, -1228, -1150, -1082, -1018, -962,
     -910,  -862,  -818,  -778,  -742,  -1384, -1267, -1165, -1077, -999,  -930,

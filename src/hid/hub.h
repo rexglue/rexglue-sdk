@@ -47,7 +47,7 @@ class Hub final : public IHIDBackend {
   /**
    * Adds a pad driver ahead of the keyboard and mouse driver.
    *
-   * @param driver The driver.
+   * @param driver Pad driver the hub takes ownership of.
    */
   void AddPadDriver(std::unique_ptr<Driver> driver);
 
@@ -57,7 +57,7 @@ class Hub final : public IHIDBackend {
   /**
    * Replaces the device assignment. Slot assignment is the default.
    *
-   * @param assignment The assignment.
+   * @param assignment Policy that maps devices to title users.
    */
   void SetDeviceAssignment(std::unique_ptr<IDeviceAssignment> assignment);
 

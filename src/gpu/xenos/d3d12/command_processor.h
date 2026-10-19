@@ -104,7 +104,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * Finds or creates the root signature for a pipeline.
    *
    * @param vertex_shader Vertex shader of the pipeline.
-   * @param pixel_shader Pixel shader of the pipeline, may be nullptr.
+   * @param pixel_shader Pixel shader of the pipeline, may be null.
    * @param tessellated True when the pipeline is tessellated.
    * @return The root signature.
    */
@@ -213,10 +213,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ReleaseScratchGPUBuffer(ID3D12Resource* buffer, D3D12_RESOURCE_STATES new_state);
 
   /**
-   * Returns a pipeline with deferred creation by its handle, or nullptr if creation failed.
+   * Returns a pipeline with deferred creation by its handle, or null if creation failed.
    *
    * @param handle Pipeline handle.
-   * @return The pipeline state, or nullptr.
+   * @return The pipeline state, or null.
    */
   ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
     return pipeline_cache_->GetD3D12PipelineByHandle(handle);
@@ -334,7 +334,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * Returns the indices of optional root parameters.
    *
    * @param vertex_shader Vertex shader of the pipeline.
-   * @param pixel_shader Pixel shader of the pipeline, may be nullptr.
+   * @param pixel_shader Pixel shader of the pipeline, may be null.
    * @param indices_out Receives the indices.
    * @return The total parameter count.
    */
@@ -703,8 +703,8 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   /**
    * Bound pipeline, either a graphics pipeline from the pipeline cache, possibly with deferred
-   * creation, where current_external_pipeline_ is nullptr, or a non Xenos graphics or compute
-   * pipeline, where current_guest_pipeline_ is nullptr.
+   * creation, where current_external_pipeline_ is null, or a non Xenos graphics or compute
+   * pipeline, where current_guest_pipeline_ is null.
    */
   void* current_guest_pipeline_;
   ID3D12PipelineState* current_external_pipeline_;

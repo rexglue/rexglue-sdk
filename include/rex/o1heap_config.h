@@ -1,6 +1,6 @@
 /**
  * @file        o1heap_config.h
- * @brief       o1heap build configuration -- provides correct 64-bit CLZ.
+ * @brief       o1heap build configuration that provides correct 64 bit CLZ.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -128,7 +128,7 @@ REX_API std::vector<std::string_view> utf8_split(const std::string_view haystack
                                                  bool remove_empty = false);
 
 /**
- * Compares 2 strings up to the first NUL in each.
+ * Reports whether 2 strings match up to the first NUL in each.
  *
  * @param left First string.
  * @param right Second string.
@@ -137,7 +137,7 @@ REX_API std::vector<std::string_view> utf8_split(const std::string_view haystack
 REX_API bool utf8_equal_z(const std::string_view left, const std::string_view right);
 
 /**
- * Compares 2 strings, ignoring ASCII case.
+ * Reports whether 2 strings match, ignoring ASCII case.
  *
  * @param left First string.
  * @param right Second string.
@@ -146,7 +146,7 @@ REX_API bool utf8_equal_z(const std::string_view left, const std::string_view ri
 REX_API bool utf8_equal_case(const std::string_view left, const std::string_view right);
 
 /**
- * Compares 2 strings up to the first NUL in each, ignoring ASCII case.
+ * Reports whether 2 strings match up to the first NUL in each, ignoring ASCII case.
  *
  * @param left First string.
  * @param right Second string.
@@ -247,7 +247,7 @@ REX_API std::vector<std::string_view> utf8_split_path(const std::string_view pat
 REX_API std::string_view utf8_strip_leading_slashes(const std::string_view path);
 
 /**
- * Joins 2 path segments, adding a separator unless the left segment already ends with 1.
+ * Joins 2 path segments, adding a separator unless the left segment ends with 1.
  *
  * @param left_path First segment. When empty the result is right_path.
  * @param right_path Second segment. When empty the result is left_path.

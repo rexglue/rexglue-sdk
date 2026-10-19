@@ -116,7 +116,7 @@ REX_TEST_CASE_METHOD(Fixture, "Good module loads, serves echo and unwinds in ord
 }
 
 REX_TEST_CASE_METHOD(Fixture,
-                     "The only interface request before Init is the rex.cvar fetch at Connect",
+                     "The only interface request before Init is the cvar registry fetch at Connect",
                      "[core][module_loader]") {
   Pinned pin("rexmod-test-good");
   REQUIRE(rex::Init(With({"rexmod-test-good"})));
@@ -284,7 +284,8 @@ bool Ran(const char* event) {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "Init registers consumer and module tables and serves rex.cvar",
+REX_TEST_CASE_METHOD(Fixture,
+                     "Init registers consumer and module tables and serves the cvar registry",
                      "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});

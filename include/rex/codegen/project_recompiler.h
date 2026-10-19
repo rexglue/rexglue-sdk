@@ -54,21 +54,21 @@ class ProjectRecompiler {
   [[nodiscard]] Result<void> Run(const ProjectRecompilerOptions& opts);
 
   /**
-   * Aggregated basenames of files removed across all modules during the most
-   * recent Run() call. Empty until Run() completes successfully.
+   * Returns the basenames of files removed across all modules in the last Run(). Empty until
+   * Run() completes successfully.
    */
   const std::vector<std::string>& GetDeletedFiles() const { return deleted_files_; }
 
   /**
-   * Aggregated basenames of files written across all modules during the most
-   * recent Run() call. Empty until Run() completes successfully.
+   * Returns the basenames of files written across all modules in the last Run(). Empty until
+   * Run() completes successfully.
    */
   const std::vector<std::string>& GetWrittenFiles() const { return written_files_; }
 
-  /** Returns the basenames already up to date across all modules in the last Run(). */
+  /** Returns the basenames up to date across all modules in the last Run(). */
   const std::vector<std::string>& GetUnchangedFiles() const { return unchanged_files_; }
 
-  /** Returns the targets skipped in the last Run() because their stamp still matched. */
+  /** Returns the targets skipped in the last Run() because their stamp matched. */
   const std::vector<std::string>& GetSkippedModules() const { return skipped_modules_; }
 
  private:

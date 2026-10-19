@@ -1,6 +1,6 @@
 /**
  * @file        tests/temp_folder.h
- * @brief       Host folders that tests create and remove without throwing
+ * @brief       Host folders that tests create, removed without throwing
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

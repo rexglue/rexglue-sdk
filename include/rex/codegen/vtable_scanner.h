@@ -1,6 +1,6 @@
 /**
  * @file        codegen/vtable_scanner.h
- * @brief       VTable scanner - RTTI-based vtable discovery
+ * @brief       VTable scanner using RTTI based vtable discovery
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -90,7 +90,7 @@ struct MMIOFunctionInput {
   std::span<const u32> hook_sites;
   /** Addresses a mid asm hook may jump to. */
   std::span<const u32> hook_targets;
-  /** Loads and stores from the [mmio.gpu] and [mmio.apu] tables, or nullptr. */
+  /** Loads and stores from the [mmio.gpu] and [mmio.apu] tables, or null. */
   const std::unordered_map<u32, MMIODeclaredAccess>* declared = nullptr;
 };
 

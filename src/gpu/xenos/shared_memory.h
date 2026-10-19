@@ -26,7 +26,7 @@ namespace rex::gpu {
 
 /**
  * Manages memory for unconverted textures, resolve targets, vertex and index buffers accessed from
- * shaders with Xenon physical addresses, with system page size granularity.
+ * shaders with guest physical addresses, with system page size granularity.
  */
 class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable {
  public:
@@ -158,7 +158,7 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable {
   /**
    * Allocates a range of sparse host GPU memory. Allocations in the host buffer are aligned the
    * same way as in guest physical memory. A 64 KB allocation can represent 0-64 KB, 64-128 KB and
-   * 128-192 KB of guest memory, but not 16-80 KB. The texture cache data access rules assume this.
+   * 128-192 KB of guest memory, but not 16-80 KB.
    *
    * @param offset_allocations The offset of the range in allocations.
    * @param length_allocations The length of the range in allocations.
@@ -280,7 +280,7 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable {
   void FireWatches(u32 page_first, u32 page_last, bool invalidated_by_gpu);
   void FireWatchesLocked(u32 page_first, u32 page_last, bool invalidated_by_gpu);
   /**
-   * Unlinks and frees the range and its nodes. Requires the global critical region.
+   * Unlinks and frees the range and its nodes. Requires the lock from AcquireLock to be held.
    *
    * @param range The range to unlink.
    */

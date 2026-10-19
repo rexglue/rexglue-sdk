@@ -105,7 +105,7 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
   const char* GetName() const override;
 
   /**
-   * Lists the interfaces Connect fetches.
+   * Lists the interfaces the module requires.
    *
    * @return The cvar registry and the mount table.
    */

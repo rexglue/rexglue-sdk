@@ -32,6 +32,8 @@ struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
   using SteadyClock = std::chrono::steady_clock;
 
   /**
+   * Converts a steady_clock time point.
+   *
    * @tparam Duration The duration of the source time point.
    * @param t The steady_clock time point.
    * @return The same instant on WinSystemClock.
@@ -61,6 +63,8 @@ struct clock_time_conversion<std::chrono::steady_clock, ::rex::WinSystemClock> {
   using SteadyClock = std::chrono::steady_clock;
 
   /**
+   * Converts a WinSystemClock time point.
+   *
    * @tparam Duration The duration of the source time point.
    * @param t The WinSystemClock time point.
    * @return The same instant on steady_clock.

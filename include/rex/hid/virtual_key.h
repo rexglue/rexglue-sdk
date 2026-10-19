@@ -242,7 +242,7 @@ enum class VirtualKey : u16 {
   /**
    * VK_GAMEPAD_* codes added in _WIN32_WINNT 0x0604, reserved in WinUser.h. VK_PAD_*
    * (kXInputPad*) serve HID emulation because XInput is the controller API. The 2 name prefixes
-   * tell VK_GAMEPAD_* and VK_PAD_* apart.
+   * distinguish VK_GAMEPAD_* from VK_PAD_*.
    */
   kXboxOneGamepadA = 0xC3,                     /**< VK_GAMEPAD_A. */
   kXboxOneGamepadB = 0xC4,                     /**< VK_GAMEPAD_B. */
@@ -316,7 +316,7 @@ enum class VirtualKey : u16 {
   kOemClear = 0xFE, /**< Clear key, OEM specific. */
 
   /**
-   * VK_PAD_* from XInput.h for XInputGetKeystroke. The kXInput prefix tells them apart from
+   * VK_PAD_* from XInput.h for XInputGetKeystroke. The kXInput prefix distinguishes them from
    * VK_GAMEPAD_*.
    */
 

@@ -83,8 +83,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   ~VulkanRenderTargetCache();
 
   /**
-   * Creates the render target cache. Transient descriptor set layouts must be initialized in the
-   * command processor first. The fragment shader interlock path needs sample interlock with
+   * Creates the render target cache. The fragment shader interlock path needs sample interlock with
    * common sample coverage (more is acceptable), fragmentStoresAndAtomics, sampleRateShading
    * (some SPIR-V revisions need it to access the sample mask input), standardSampleLocations
    * (to calculate depth at the samples), and enough storage buffer slots for the shared memory
@@ -93,7 +92,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * global dependencies use explicit barriers when EDRAM addressing relative to the fragment
    * coordinates changes.
    *
-   * @param shared_memory_binding_count Number of shared memory bindings.
+   * @param shared_memory_binding_count Count checked against the storage buffer limit.
    * @return True on success.
    */
   bool Initialize(u32 shared_memory_binding_count);
@@ -168,7 +167,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * Returns the render pass object. A render pass managed by the render target cache may be ended
    * and resumed at any time, to allow copying and texture loading.
    *
-   * @param key Render pass key.
+   * @param key Selects the sample count, attachments and formats of the pass.
    * @return The render pass, or VK_NULL_HANDLE if failed to create.
    */
   VkRenderPass GetHostRenderTargetsRenderPass(RenderPassKey key);
@@ -318,7 +317,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     /**
      * Takes ownership of the Vulkan objects passed to the constructor.
      *
-     * @param key Render target key.
+     * @param key Selects the EDRAM base, pitch, sample count and format.
      * @param render_target_cache Owning cache.
      * @param image Image backing the render target.
      * @param memory Memory bound to the image.
@@ -511,12 +510,12 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kDepthToStencilBit,
 
     /**
-     * Two source mode. Uses the host depth when, converted to the guest format, it matches the
+     * 2 source mode. Uses the host depth when, converted to the guest format, it matches the
      * owner source (not modified, keeps host precision), otherwise the guest data (significantly
      * modified, possibly cleared). Stencil for FragStencilRef always comes from the guest source.
      */
     kColorAndHostDepthToDepth,
-    /** Two source mode for different source and destination depth formats. */
+    /** 2 source mode for different source and destination depth formats. */
     kDepthAndHostDepthToDepth,
 
     /**
@@ -611,7 +610,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       /**
        * Destination base minus source base, not vice versa, because this transforms the
        * coordinate system rather than addresses. Has 1 extra bit as a signed difference between
-       * two EDRAM bases. 0 for host_depth_source_is_copy, where it is ignored as destination
+       * 2 EDRAM bases. 0 for host_depth_source_is_copy, where it is ignored as destination
        * equals source.
        */
       i32 source_to_dest : xenos::kEDRAMBaseTilesBits + 1;
@@ -794,10 +793,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   /**
    * Returns the framebuffer object.
    *
-   * @param render_pass_key Render pass key.
+   * @param render_pass_key Selects the render pass the framebuffer is used with.
    * @param pitch_tiles_at_32bpp Pitch in tiles at 32bpp.
    * @param depth_and_color_render_targets Depth render target followed by the color ones.
-   * @return The framebuffer, or nullptr if failed to create.
+   * @return The framebuffer, or null if failed to create.
    */
   const Framebuffer* GetHostRenderTargetsFramebuffer(
       RenderPassKey render_pass_key, u32 pitch_tiles_at_32bpp,
@@ -864,7 +863,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * and stencil it is stencil in bits 0 to 7 and depth in bits 8 to 31, or depth in bits 0 to 23
    * with zeros above when only depth is packed. For a stencil bit it is stencil in bits 0 to 7.
    *
-   * @param key Transfer shader key.
+   * @param key Selects the transfer mode and the sample counts and formats of both sides.
    * @return The shader module, or VK_NULL_HANDLE if failed to create.
    */
   VkShaderModule GetTransferShader(TransferShaderKey key);
@@ -872,8 +871,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * Returns the transfer pipelines. With sample rate shading there is 1 pipeline, without it as
    * many pipelines as there are samples.
    *
-   * @param key Transfer pipeline key.
-   * @return Pointer to the pipelines, or nullptr if failed to create a pipeline.
+   * @param key Selects the render pass and the transfer shader.
+   * @return Pointer to the pipelines, or null if failed to create a pipeline.
    */
   VkPipeline const* GetTransferPipelines(TransferPipelineKey key);
 
@@ -882,8 +881,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * or empty when there is nothing to do. resolve_clear_rectangle is expected from
    * PrepareHostRenderTargetsResolveClear, which does all the needed size bound checks.
    *
-   * @param render_target_count Number of render targets.
-   * @param render_targets Render targets.
+   * @param render_target_count Length of the render_targets and render_target_transfers arrays.
+   * @param render_targets Render target pointers, each of which may be null.
    * @param render_target_transfers Transfers per render target.
    * @param render_target_resolve_clear_values Resolve clear values per render target.
    * @param resolve_clear_rectangle Rectangle to clear.
@@ -904,7 +903,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * even though so many bits are not needed. An OpUnreachable path for position upper bits set is
    * not eliminated when compiling for AMD via RenderDoc on Windows.
    *
-   * @param key Dump pipeline key.
+   * @param key Selects the sample count, format and depth flag of the dumped render target.
    * @return The pipeline, or VK_NULL_HANDLE if failed to create.
    */
   VkPipeline GetDumpPipeline(DumpPipelineKey key);

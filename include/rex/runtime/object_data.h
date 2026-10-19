@@ -69,7 +69,7 @@ REX_RUNTIME_API ObjectBlock AllocObjectBlock(runtime::Memory* memory, u32 size,
 REX_RUNTIME_API void FreeObjectBlock(runtime::Memory* memory, u32 address,
                                      WorkspaceHeap* workspace = nullptr);
 
-/** The data an `KernelObject` owns, 1 alternative per ObjectKind in enumerator order. */
+/** The data a `KernelObject` owns, 1 alternative per ObjectKind in enumerator order. */
 using ObjectData =
     std::variant<EventObject, SemaphoreObject, MutantObject, TimerObject, FileObject, SocketObject,
                  NotifyListenerObject, IOCompletionObject, EnumeratorObject, SymbolicLinkObject,
@@ -78,6 +78,8 @@ using ObjectData =
 /** One kernel object, owned by the table and shared by every handle that names it. */
 struct KernelObject {
   /**
+   * Constructs the object around an alternative of ObjectData.
+   *
    * @tparam T The alternative of ObjectData to construct.
    * @tparam Args The constructor argument types of T.
    * @param tag Selects T.
@@ -96,7 +98,7 @@ struct KernelObject {
    */
   [[nodiscard]] ObjectKind GetKind() const { return static_cast<ObjectKind>(data.index()); }
 
-  ObjectData data;  /**< Host state of the object, the alternative kind() reports. */
+  ObjectData data;  /**< Host state of the object, the alternative GetKind() reports. */
   std::string name; /**< Name the object was created with, empty for an unnamed object. */
   std::vector<X_HANDLE> handles; /**< Handles in the table that name this object. */
   u32 guest_ptr = 0; /**< Guest address of the object body, 0 when the object has no guest block. */
@@ -107,12 +109,12 @@ struct KernelObject {
   PinCount pins; /**< Transient pins that keep the object alive while a caller uses it. */
 };
 
-/** A transient pin on an `KernelObject`. Never stored. Move only. */
+/** A transient pin on a `KernelObject`. Never stored. Move only. */
 class PinnedSlot : public rex::MoveOnly {
  public:
   PinnedSlot() = default;
   /**
-   * Takes a pin already taken on an `KernelObject`.
+   * Takes a pin already taken on a `KernelObject`.
    *
    * @param object The pinned `KernelObject`.
    * @param handle The handle the pin was resolved from.
@@ -145,7 +147,7 @@ class PinnedSlot : public rex::MoveOnly {
   ~PinnedSlot() { Reset(); }
 
   /**
-   * Reports whether the pin holds an `KernelObject`.
+   * Reports whether the pin holds a `KernelObject`.
    *
    * @return True when it does.
    */
@@ -180,7 +182,7 @@ class PinnedSlot : public rex::MoveOnly {
   [[nodiscard]] X_HANDLE GetHandle() const noexcept { return handle_; }
 
   /**
-   * Returns the guest block address of the object.
+   * Returns the guest address of the object body.
    *
    * @return The address, 0 when the object has no guest block.
    */
@@ -241,7 +243,7 @@ class Pinned {
   [[nodiscard]] X_HANDLE GetHandle() const noexcept { return slot_.GetHandle(); }
 
   /**
-   * Returns the guest block address of the object.
+   * Returns the guest address of the object body.
    *
    * @return The address, 0 when the object has no guest block.
    */

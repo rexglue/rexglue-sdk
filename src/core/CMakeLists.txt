@@ -51,7 +51,6 @@ if (APPLE)
   target_compile_options(rexcore PUBLIC -fexperimental-library)
 endif ()
 
-# Platform-specific sources
 if (WIN32)
   target_sources(
     rexcore
@@ -76,7 +75,7 @@ if (WIN32)
   )
   target_compile_definitions(rexcore PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif (UNIX)
-  # Linux and macOS/Darwin share the POSIX sources; Darwin-specific behavior
+  # Linux and macOS/Darwin share the POSIX sources. Darwin only behavior
   # is selected inside them with #if defined(__APPLE__).
   target_sources(
     rexcore

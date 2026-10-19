@@ -15,7 +15,8 @@
 
 namespace rex::cvars {
 
-REXCVAR_BOOL(clock, no_scaling, false, "Disable clock scaling (inverted: false = scaling enabled)");
+REXCVAR_BOOL(clock, no_scaling, false,
+             "Disable clock scaling (inverted, false means scaling enabled)");
 REXCVAR_TABLE(kClockCvars, no_scaling);
 
 REXCVAR_STRING(log, level, "info", "Default log level").SetAllowed(rex::log::kLevelNames);

@@ -30,7 +30,7 @@ REX_TEST_CASE("SetIntegerArgumentValue writes stack args for index > 7", "[ppc][
   CHECK(readback == 0xDEADBEEF);
 }
 
-REX_TEST_CASE("SetIntegerArgumentValue writes multiple stack args at correct offsets",
+REX_TEST_CASE("SetIntegerArgumentValue writes multiple stack arguments at correct offsets",
               "[ppc][arg_translator]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
@@ -45,7 +45,7 @@ REX_TEST_CASE("SetIntegerArgumentValue writes multiple stack args at correct off
   CHECK(ArgTranslator::GetIntegerArgumentValue(ctx, g_test_mem, 10) == 0x33333333);
 }
 
-REX_TEST_CASE("SetIntegerArgumentValue still works for register args 0-7",
+REX_TEST_CASE("SetIntegerArgumentValue works for register arguments 0 to 7",
               "[ppc][arg_translator]") {
   PPCContext ctx{};
   ArgTranslator::SetIntegerArgumentValue(ctx, g_test_mem, 0, 0xAAAA);

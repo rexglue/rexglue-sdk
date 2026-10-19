@@ -29,7 +29,7 @@ struct AchievementEvent {
   AchievementInfo achievement; /**< The achievement. */
 };
 
-/** Selects whether an unlock also raises the notification callbacks. */
+/** Selects whether an unlock raises the notification callbacks. */
 enum class AchievementNotification : u8 {
   kShow,     /**< Raise the notification callbacks. */
   kSuppress, /**< Persist the unlock only. */
@@ -62,7 +62,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
   /**
    * Adds or replaces several achievements, all or none.
    *
-   * @param achievements The achievements.
+   * @param achievements The entries to add or replace.
    * @return Ok, or a Validation error for an id 0 entry, in which case nothing is registered.
    */
   [[nodiscard]] virtual Result<void> RegisterAchievements(
@@ -71,7 +71,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
   /**
    * Replaces the whole catalog.
    *
-   * @param achievements The achievements.
+   * @param achievements The entries that replace the catalog.
    */
   virtual void ReplaceAchievements(std::vector<AchievementInfo> achievements) = 0;
 
@@ -93,7 +93,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
   /**
    * Unlocks an achievement and persists the unlock.
    *
-   * @param id The id.
+   * @param id The achievement id.
    * @param notification kShow to raise the notification callbacks too.
    * @return kUnlocked, kAlreadyUnlocked or kUnknownAchievement.
    */
@@ -103,7 +103,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
   /**
    * Reports whether an achievement is unlocked.
    *
-   * @param id The id.
+   * @param id The achievement id.
    * @return True when it is unlocked.
    */
   [[nodiscard]] virtual bool IsUnlocked(u32 id) const = 0;
@@ -111,7 +111,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
   /**
    * Returns when an achievement was unlocked.
    *
-   * @param id The id.
+   * @param id The achievement id.
    * @return The FILETIME of the unlock, empty when it is locked.
    */
   [[nodiscard]] virtual std::optional<u64> GetUnlockTime(u32 id) const = 0;
@@ -119,7 +119,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
   /**
    * Registers a callback for every notification.
    *
-   * @param callback The callback.
+   * @param callback The function that receives each notification.
    * @return The handle UnregisterCallback takes.
    */
   virtual AchievementListenerHandle RegisterNotificationCallback(AchievementCallback callback) = 0;

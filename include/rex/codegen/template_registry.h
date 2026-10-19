@@ -110,9 +110,7 @@ class TemplateRegistry : public rex::MoveOnly {
 };
 
 /**
- * Hashes every embedded template with SHA256, ordered by ID. Fold it into any cache key built
- * from the SDK version, which is stable across dev builds, so a template edit alone would not
- * otherwise invalidate the key.
+ * Returns the SHA256 hash of every embedded template, ordered by ID.
  *
  * @return Hash of the embedded templates
  */

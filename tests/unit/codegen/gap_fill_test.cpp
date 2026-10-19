@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/codegen/gap_fill_test.cpp
- * @brief       Code that no pdata entry or call reaches still gets a function
+ * @brief       Code that no pdata entry or call reaches gets a function
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

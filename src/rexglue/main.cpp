@@ -34,7 +34,7 @@
 namespace {
 
 std::string TitleString() {
-  return std::format("ReXGlue v{} - Xbox 360 Recompilation Toolkit", REXGLUE_VERSION_STRING);
+  return std::format("ReXGlue v{} Recompilation Toolkit", REXGLUE_VERSION_STRING);
 }
 
 bool IsStderrTty() {

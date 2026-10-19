@@ -44,7 +44,7 @@ class ActiveDeviceTracker {
    *
    * @param user_index  Title user index.
    * @param id          Device that produced the input.
-   * @param gamepad     Gamepad report.
+   * @param gamepad     Gamepad report checked for neutral input.
    */
   void Observe(u32 user_index, DeviceId id, const X_INPUT_GAMEPAD& gamepad);
 

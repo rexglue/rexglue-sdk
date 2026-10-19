@@ -74,7 +74,7 @@ OutputPartition OutputPartition::Load(const std::filesystem::path& path) {
 }
 
 std::string OutputPartition::Serialize() const {
-  // Ordered so the sidecar is byte-stable across runs.
+  // Ordered so the sidecar bytes are stable across runs.
   std::map<std::string, size_t> ordered;
   for (const auto& [address, file] : address_to_file_) {
     ordered.emplace(std::format("{:08X}", address), file);
