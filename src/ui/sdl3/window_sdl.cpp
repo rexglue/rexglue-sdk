@@ -5,7 +5,7 @@
 #include <filesystem>
 
 #include <rex/cvar.h>
-#include <rex/ui/video_mode.h>
+#include <rex/ui/resolution_preset.h>
 #include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/platform.h>
@@ -226,7 +226,7 @@ void* WindowSDL::AcquireMetalLayer() {
 }
 #endif
 
-SDL_Window* WindowSDL::GetSDL() const {
+SDL_Window* WindowSDL::GetSDLWindow() const {
   return sdl_window_;
 }
 
@@ -405,7 +405,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
       width <= 0 || height <= 0) {
     const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
     if (!desktop) {
-      REXLOG_WARN(ui, "No desktop mode for display {}: staying borderless",
+      REXLOG_WARN(ui, "No desktop mode for display {}, staying borderless",
                   static_cast<u32>(display));
       SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
       return;
@@ -416,7 +416,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
 
   SDL_DisplayMode mode = {};
   if (!SDL_GetClosestFullscreenDisplayMode(display, width, height, 0.0f, true, &mode)) {
-    REXLOG_WARN(ui, "Display {} has no mode near {}x{}: staying borderless",
+    REXLOG_WARN(ui, "Display {} has no mode near {}x{}, staying borderless",
                 static_cast<u32>(display), width, height);
     SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
     return;

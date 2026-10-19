@@ -13,7 +13,7 @@
 
 #include <rex/runtime/xmemory.h>
 
-namespace rex::testing {
+namespace rex::test {
 
 /**
  * Returns the guest Memory shared by the test case, creating it on first use. It is destroyed when
@@ -28,4 +28,4 @@ rex::runtime::Memory& GetTestMemory();
  */
 void ReleaseTestMemory();
 
-}  // namespace rex::testing
+}  // namespace rex::test

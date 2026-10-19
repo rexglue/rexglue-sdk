@@ -8,8 +8,8 @@ namespace rex::codegen {
 
 VTableScanner::VTableScanner(const BinaryView& binary) : binary_(binary) {}
 
-std::vector<VTableInfo> VTableScanner::Scan() {
-  std::vector<VTableInfo> vtables;
+std::vector<VTable> VTableScanner::Scan() {
+  std::vector<VTable> vtables;
 
   auto cols = FindCompleteObjectLocators();
   REXLOG_DEBUG(codegen, "VTableScanner: found {} Complete Object Locators", cols.size());
@@ -21,7 +21,7 @@ std::vector<VTableInfo> VTableScanner::Scan() {
       continue;
     }
 
-    VTableInfo info;
+    VTable info;
     info.vtable_address = *vtable_addr;
     info.col_address = col_addr;
     info.class_name = ExtractClassName(col_addr);
@@ -134,7 +134,7 @@ std::vector<u32> VTableScanner::ReadVTableSlots(u32 vtable_start) {
   u32 slot_addr = vtable_start;
 
   while (true) {
-    auto func_addr = ReadDword(slot_addr);
+    auto func_addr = ReadWord(slot_addr);
     if (!func_addr) {
       break;
     }
@@ -168,7 +168,7 @@ std::vector<u32> VTableScanner::ReadVTableSlots(u32 vtable_start) {
  * @return The class name, or the mangled text when it has no known prefix.
  */
 std::string VTableScanner::ExtractClassName(u32 col_addr) {
-  auto type_desc_ptr = ReadDword(col_addr + 12);
+  auto type_desc_ptr = ReadWord(col_addr + 12);
   if (!type_desc_ptr) {
     return "";
   }
@@ -189,7 +189,7 @@ bool VTableScanner::IsExecutableAddress(u32 addr) const {
   return binary_.IsExecutable(addr);
 }
 
-std::optional<u32> VTableScanner::ReadDword(u32 addr) const {
+std::optional<u32> VTableScanner::ReadWord(u32 addr) const {
   const auto* section = binary_.FindSection(addr);
   if (!section || !section->data) {
     return std::nullopt;

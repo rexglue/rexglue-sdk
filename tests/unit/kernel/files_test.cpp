@@ -32,8 +32,8 @@
 
 using rex::X_STATUS;
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
@@ -377,7 +377,7 @@ REX_TEST_CASE("files: content is found under folders whose names differ in case"
     constexpr u32 kTitleId = 0xABCDEF01;
     constexpr u64 kXUID = 0xABCDEF0123456789;
     const auto title_dir = c.GetRuntime().GetUserDataRoot() / "abcdef0123456789" / "abcdef01";
-    std::filesystem::create_directories(title_dir / "00000001" / "RexSave");
+    std::filesystem::create_directories(title_dir / "00000001" / "ReXSave");
     std::filesystem::create_directories(title_dir / "headers" / "00000001");
 
     rex::runtime::XCONTENT_AGGREGATE_DATA data{};

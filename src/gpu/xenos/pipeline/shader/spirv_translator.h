@@ -532,7 +532,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param instr Parsed ALU instruction.
    * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    */
-  void ProcessAluInstruction(const ParsedAluInstruction& instr,
+  void ProcessALUInstruction(const ParsedAluInstruction& instr,
                              u8 memexport_em_potentially_written_before) override;
 
  private:
@@ -581,7 +581,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     return IsPixelShader() &&
            GetSPIRVShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
-           !edram_fragment_shader_interlock_ && GetCurrentShader().GetImplicitEarlyZWriteAllowed();
+           !edram_fragment_shader_interlock_ && GetCurrentShader().IsImplicitEarlyZWriteAllowed();
   }
   bool IsWritingFloat24Depth() const {
     REX_ASSERT(IsPixelShader());
@@ -595,7 +595,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   }
   bool IsSampleRate() const {
     REX_ASSERT(IsPixelShader());
-    return IsWritingFloat24Depth() && !GetCurrentShader().GetWritesDepth();
+    return IsWritingFloat24Depth() && !GetCurrentShader().IsDepthWritten();
   }
 
   u32 GetModificationInterpolatorMask() const {
@@ -609,13 +609,13 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    *
    * @return The interpolator index, or UINT32_MAX when PsParamGen need not be written.
    */
-  u32 GetPsParamGenInterpolator() const;
+  u32 GetPSParamGenInterpolator() const;
 
   /**
    * Starts a new block when the last instruction, such as OpBranch, terminated the current one.
    * Operations that must be in a block are emitted after it.
    */
-  void EnsureBuildPointAvailable();
+  void StartNewBlockIfTerminated();
 
   /**
    * For the memexport fallback each invocation corresponds to one guest vertex processing index.
@@ -797,7 +797,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param predicate_written Set when the operation writes the predicate.
    * @return Id of the vector result.
    */
-  spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+  spv::Id ProcessVectorALUOperation(const ParsedAluInstruction& instr,
                                     u8 memexport_em_potentially_written_before,
                                     bool& predicate_written);
   /**
@@ -814,7 +814,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param predicate_written Set when the operation writes the predicate.
    * @return Id of the scalar result.
    */
-  spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+  spv::Id ProcessScalarALUOperation(const ParsedAluInstruction& instr,
                                     u8 memexport_em_potentially_written_before,
                                     bool& predicate_written);
 
@@ -841,7 +841,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   void StoreUint32ToSharedMemory(spv::Id value, spv::Id address_dwords_int,
                                  spv::Id replace_mask = spv::NoResult);
 
-  bool IsMemoryExportSupported() const {
+  bool IsMemExportSupported() const {
     if (IsPixelShader()) {
       return features_.fragment_stores_and_atomics;
     }
@@ -849,7 +849,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   }
 
   bool IsMemoryExportUsed() const {
-    return GetCurrentShader().GetMemExportEMWritten() && IsMemoryExportSupported();
+    return GetCurrentShader().GetMemExportEMWritten() && IsMemExportSupported();
   }
 
   /**
@@ -946,7 +946,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    */
   bool FSIIsDepthStencilEarly() const {
     REX_ASSERT(edram_fragment_shader_interlock_);
-    return !is_depth_only_fragment_shader_ && !GetCurrentShader().GetWritesDepth() &&
+    return !is_depth_only_fragment_shader_ && !GetCurrentShader().IsDepthWritten() &&
            !GetCurrentShader().GetMemExportEMWritten();
   }
   /**
@@ -988,9 +988,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * and 4x, and for guest 2x the bottom right, for guest 4x the bottom left.
    *
    * @param msaa_samples Uint Id of the MSAA sample count.
-   * @param sample_mask_potentially_narrowed_previouly True when the sample mask may be narrowed.
+   * @param sample_mask_potentially_narrowed_previously True when the sample mask may be narrowed.
    */
-  void FSIDepthStencilTest(spv::Id msaa_samples, bool sample_mask_potentially_narrowed_previouly);
+  void FSIDepthStencilTest(spv::Id msaa_samples, bool sample_mask_potentially_narrowed_previously);
   /**
    * Returns the first and second 32 bits as 2 uints. NaN is flushed to 0 rather than the minimum
    * value, and the extended range Xenos float16 is unsupported.
@@ -1011,8 +1011,8 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param max_value Upper bound.
    * @return Id of the flushed and clamped value.
    */
-  spv::Id FSIFlushNaNClampAndInBlending(spv::Id color_or_alpha, spv::Id is_fixed_point,
-                                        spv::Id min_value, spv::Id max_value);
+  spv::Id FSIFlushNaNAndClampForBlending(spv::Id color_or_alpha, spv::Id is_fixed_point,
+                                         spv::Id min_value, spv::Id max_value);
   /**
    * A zero factor is excluded from the multiplication so infinity and NaN do not take part.
    *
@@ -1091,9 +1091,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   std::unique_ptr<SPIRVBuilder> builder_;
 
   std::vector<spv::Id> id_vector_temp_;
-  std::vector<spv::Id> id_vector_temp_util_;
+  std::vector<spv::Id> id_vector_inner_temp_;
   std::vector<unsigned int> uint_vector_temp_;
-  std::vector<unsigned int> uint_vector_temp_util_;
+  std::vector<unsigned int> uint_vector_inner_temp_;
 
   spv::Id ext_inst_glsl_std_450_;
 
@@ -1171,12 +1171,12 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     kSystemConstantUserClipPlanes,
     kSystemConstantVertexIndexMin,
     kSystemConstantVertexIndexMax,
-    kSystemConstantNdcScale,
+    kSystemConstantNDCScale,
     kSystemConstantPointVertexDiameterMin,
-    kSystemConstantNdcOffset,
+    kSystemConstantNDCOffset,
     kSystemConstantPointVertexDiameterMax,
     kSystemConstantPointConstantDiameter,
-    kSystemConstantPointScreenDiameterToNdcRadius,
+    kSystemConstantPointScreenDiameterToNDCRadius,
     kSystemConstantTexturesResolutionScaled,
     kSystemConstantTextureSwizzledSigns,
     kSystemConstantTextureSwizzles,
@@ -1370,11 +1370,11 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    */
   spv::Block* cf_instruction_predicate_merge_;
   /**
-   * With cf_exec_conditional_merge_ set, the bool constant number or kCfExecBoolConstantPredicate
+   * With cf_exec_conditional_merge_ set, the bool constant number or kCFExecBoolConstantPredicate
    * when based on the predicate value.
    */
   u32 cf_exec_bool_constant_or_predicate_;
-  static constexpr u32 kCfExecBoolConstantPredicate = UINT32_MAX;
+  static constexpr u32 kCFExecBoolConstantPredicate = UINT32_MAX;
   /** With cf_exec_conditional_merge_ set, the expected bool constant or predicate value. */
   bool cf_exec_condition_;
   /** With cf_instruction_predicate_merge_ set, the expected predicate value. */

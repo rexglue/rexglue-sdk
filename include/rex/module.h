@@ -229,17 +229,17 @@ struct InterfaceEntry {
 /**
  * Name of the C export that serves interfaces.
  */
-inline constexpr const char* kCreateInterfaceSymbol = "rex_create_interface";
+inline constexpr const char* kCreateInterfaceSymbol = "ReXCreateInterface";
 
 /**
  * Name of the C export that returns the served interface table.
  */
-inline constexpr const char* kEnumerateInterfacesSymbol = "rex_enumerate_interfaces";
+inline constexpr const char* kEnumerateInterfacesSymbol = "ReXEnumerateInterfaces";
 
 /**
  * Name of the C export that returns the SDK build identity a module was compiled against.
  */
-inline constexpr const char* kBuildIdentitySymbol = "rex_build_identity";
+inline constexpr const char* kBuildIdentitySymbol = "ReXBuildIdentity";
 
 /**
  * Identity of the SDK build these headers belong to. A module loads only when its exported
@@ -248,17 +248,17 @@ inline constexpr const char* kBuildIdentitySymbol = "rex_build_identity";
 inline constexpr const char* kBuildIdentity = REXGLUE_BUILD_IDENTITY;
 
 /**
- * Signature of rex_build_identity.
+ * Signature of ReXBuildIdentity.
  */
 using BuildIdentityFn = const char* (*)();
 
 /**
- * Signature of rex_create_interface.
+ * Signature of ReXCreateInterface.
  */
 using CreateInterfaceFn = void* (*)(const char* name, u32 version, i32* out_status);
 
 /**
- * Signature of rex_enumerate_interfaces.
+ * Signature of ReXEnumerateInterfaces.
  */
 using EnumerateInterfacesFn = void (*)(const InterfaceEntry** out_entries, u32* out_count);
 
@@ -268,9 +268,9 @@ using EnumerateInterfacesFn = void (*)(const InterfaceEntry** out_entries, u32* 
  * Generates the 3 C exports of a module DLL for a class that declares
  * `static constexpr std::array<rex::InterfaceEntry, N> kInterfaces`.
  *
- * Called exactly once per module DLL at namespace scope. `rex_create_interface(name, version,
+ * Called exactly once per module DLL at namespace scope. `ReXCreateInterface(name, version,
  * out_status)` searches the table and reports Ok, NotFound or VersionMismatch,
- * `rex_enumerate_interfaces(out_entries, out_count)` returns the table and `rex_build_identity()`
+ * `ReXEnumerateInterfaces(out_entries, out_count)` returns the table and `ReXBuildIdentity()`
  * returns the identity of the SDK build the module was compiled against. Nothing runs at DLL
  * load, the module instance is created by the table's getters on first request.
  *
@@ -280,37 +280,37 @@ using EnumerateInterfacesFn = void (*)(const InterfaceEntry** out_entries, u32* 
  * REX_DECLARE_MODULE(rex::gpu::XenosModule)
  * @endcode
  */
-#define REX_DECLARE_MODULE(ModuleClass)                                                         \
-  extern "C" REX_DETAIL_EXPORT const char* rex_build_identity() {                               \
-    return ::rex::kBuildIdentity;                                                               \
-  }                                                                                             \
-  extern "C" REX_DETAIL_EXPORT void* rex_create_interface(const char* name, ::rex::u32 version, \
-                                                          ::rex::i32* out_status) {             \
-    if (!name) {                                                                                \
-      if (out_status)                                                                           \
-        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);               \
-      return nullptr;                                                                           \
-    }                                                                                           \
-    for (const ::rex::InterfaceEntry& entry : ModuleClass::kInterfaces) {                       \
-      if (std::strcmp(entry.name, name) != 0)                                                   \
-        continue;                                                                               \
-      if (entry.version != version) {                                                           \
-        if (out_status)                                                                         \
-          *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kVersionMismatch);      \
-        return nullptr;                                                                         \
-      }                                                                                         \
-      if (out_status)                                                                           \
-        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kOk);                     \
-      return entry.get();                                                                       \
-    }                                                                                           \
-    if (out_status)                                                                             \
-      *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);                 \
-    return nullptr;                                                                             \
-  }                                                                                             \
-  extern "C" REX_DETAIL_EXPORT void rex_enumerate_interfaces(                                   \
-      const ::rex::InterfaceEntry** out_entries, ::rex::u32* out_count) {                       \
-    if (out_entries)                                                                            \
-      *out_entries = ModuleClass::kInterfaces.data();                                           \
-    if (out_count)                                                                              \
-      *out_count = static_cast<::rex::u32>(ModuleClass::kInterfaces.size());                    \
+#define REX_DECLARE_MODULE(ModuleClass)                                                       \
+  extern "C" REX_DETAIL_EXPORT const char* ReXBuildIdentity() {                               \
+    return ::rex::kBuildIdentity;                                                             \
+  }                                                                                           \
+  extern "C" REX_DETAIL_EXPORT void* ReXCreateInterface(const char* name, ::rex::u32 version, \
+                                                        ::rex::i32* out_status) {             \
+    if (!name) {                                                                              \
+      if (out_status)                                                                         \
+        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);             \
+      return nullptr;                                                                         \
+    }                                                                                         \
+    for (const ::rex::InterfaceEntry& entry : ModuleClass::kInterfaces) {                     \
+      if (std::strcmp(entry.name, name) != 0)                                                 \
+        continue;                                                                             \
+      if (entry.version != version) {                                                         \
+        if (out_status)                                                                       \
+          *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kVersionMismatch);    \
+        return nullptr;                                                                       \
+      }                                                                                       \
+      if (out_status)                                                                         \
+        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kOk);                   \
+      return entry.get();                                                                     \
+    }                                                                                         \
+    if (out_status)                                                                           \
+      *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);               \
+    return nullptr;                                                                           \
+  }                                                                                           \
+  extern "C" REX_DETAIL_EXPORT void ReXEnumerateInterfaces(                                   \
+      const ::rex::InterfaceEntry** out_entries, ::rex::u32* out_count) {                     \
+    if (out_entries)                                                                          \
+      *out_entries = ModuleClass::kInterfaces.data();                                         \
+    if (out_count)                                                                            \
+      *out_count = static_cast<::rex::u32>(ModuleClass::kInterfaces.size());                  \
   }

@@ -28,8 +28,8 @@
 using rex::u32;
 using rex::u64;
 using rex::u8;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -57,14 +57,14 @@ Caller CallerFor(PPCContext& ctx, u8* base) {
   return Caller(ctx, base, rex::runtime::GetCurrent());
 }
 
-void Record(u32 tag) {
+void AppendTag(u32 tag) {
   std::lock_guard lock(g_mutex);
   g_order.push_back(tag);
 }
 
 void CountingDPC(PPCContext& ctx, u8*) {
   ++g_runs;
-  Record(ctx.r4.u32);
+  AppendTag(ctx.r4.u32);
   ctx.r3.u64 = 0;
 }
 
@@ -91,14 +91,14 @@ void StackDPC(PPCContext& ctx, u8* base) {
 
 void ChainingDPC(PPCContext& ctx, u8* base) {
   Caller caller = CallerFor(ctx, base);
-  Record(1);
+  AppendTag(1);
   caller.Kernel("KeInsertQueueDpc", {g_chained_dpc.load(), 0, 0});
-  Record(2);
+  AppendTag(2);
   ctx.r3.u64 = 0;
 }
 
 void ChainedDPC(PPCContext& ctx, u8*) {
-  Record(3);
+  AppendTag(3);
   ctx.r3.u64 = 0;
 }
 
@@ -110,8 +110,8 @@ void RequeueingDPC(PPCContext& ctx, u8* base) {
   while (now > expected && !g_max_active.compare_exchange_weak(expected, now)) {}
   if (++g_runs == 1) {
     Caller caller = CallerFor(ctx, base);
-    Record(caller.Kernel("KeInsertQueueDpc", {g_self_dpc.load(), 0, 0}));
-    Record(caller.Kernel("KeInsertQueueDpc", {g_self_dpc.load(), 0, 0}));
+    AppendTag(caller.Kernel("KeInsertQueueDpc", {g_self_dpc.load(), 0, 0}));
+    AppendTag(caller.Kernel("KeInsertQueueDpc", {g_self_dpc.load(), 0, 0}));
   }
   --g_active;
   ctx.r3.u64 = 0;

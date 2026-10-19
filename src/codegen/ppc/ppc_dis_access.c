@@ -18,7 +18,7 @@
  * @param dialect The PPC_OPCODE_* bits being decoded for.
  * @return 1 when no extractor flags the word invalid, otherwise 0.
  */
-int ReXOperandsValid(const struct powerpc_opcode* entry, unsigned long code, int dialect) {
+int AreOperandsValid(const struct powerpc_opcode* entry, unsigned long code, int dialect) {
   int invalid = 0;
   const unsigned char* opindex;
   for (opindex = entry->operands; *opindex != 0; opindex++) {

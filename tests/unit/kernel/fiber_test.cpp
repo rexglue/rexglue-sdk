@@ -31,8 +31,8 @@ extern "C" void rexshim_SwitchToFiber(PPCContext& ctx, rex::u8* base);
 using rex::u32;
 using rex::u64;
 using rex::u8;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -77,7 +77,7 @@ void FiberBody(PPCContext& ctx, u8* base) {
   Fill(ctx, 0xBAD, -1.0, 0xEE);
   ctx.SetCR(0x12345678);
   ctx.lr = 0x8200BEEF;
-  ctx.fpscr.StoreFromGuest(rex::ppc::kRoundUp);
+  ctx.fpscr.StoreToHost(rex::ppc::kRoundUp);
   ctx.r3.u64 = g_main_fiber;
   rexshim_SwitchToFiber(ctx, base);
 }
@@ -87,7 +87,7 @@ void FiberBody(PPCContext& ctx, u8* base) {
 REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[kernel][fibers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.GetCtx();
+    PPCContext& ctx = c.GetContext();
     auto* memory = c.GetRuntime().GetMemory();
     u8* base = memory->GetVirtualMembase();
     ctx.r3.u64 = 0;
@@ -118,7 +118,7 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ke
     Fill(ctx, 0x1234, 3.25, 0x5A);
     ctx.SetCR(0x89ABCDEF);
     ctx.lr = 0x82001234;
-    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundDown);
+    ctx.fpscr.StoreToHost(rex::ppc::kRoundDown);
     ctx.r3.u64 = fiber;
     rexshim_SwitchToFiber(ctx, base);
 
@@ -141,7 +141,7 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ke
     rexshim_DeleteFiber(ctx, base);
     CHECK(memory->GetTitlePages() == used);
     rexshim_ConvertFiberToThread(ctx, base);
-    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundNearest);
+    ctx.fpscr.StoreToHost(rex::ppc::kRoundNearest);
   });
 }
 
@@ -165,7 +165,7 @@ REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breakin
           0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
       REQUIRE(context != 0);
       c.GetRuntime().GetThreadRegistry().RegisterFiber(
-          context, rex::runtime::FiberInfo{nullptr, 0, context, 0, true});
+          context, rex::runtime::GuestFiber{nullptr, 0, context, 0, true});
     });
     previous = rex::platform::SetLockOrderHandler(&CountViolation);
   }

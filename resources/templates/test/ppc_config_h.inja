@@ -112,7 +112,7 @@
   do {                                                                                                  \
     u32 _mmio_addr = (addr);                                                                            \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                                          \
-      rex::ppc::MMIONarrowWrite(_mmio_addr, 1);                                                         \
+      rex::ppc::MMIONarrowStore(_mmio_addr, 1);                                                         \
     } else {                                                                                            \
       *reinterpret_cast<volatile u8*>(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = (val);    \
     }                                                                                                   \
@@ -122,7 +122,7 @@
   do {                                                                                                  \
     u32 _mmio_addr = (addr);                                                                            \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                                          \
-      rex::ppc::MMIONarrowWrite(_mmio_addr, 2);                                                         \
+      rex::ppc::MMIONarrowStore(_mmio_addr, 2);                                                         \
     } else {                                                                                            \
       *reinterpret_cast<volatile u16*>(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =          \
           __builtin_bswap16(val);                                                                       \

@@ -37,7 +37,7 @@ REX_TEST_CASE("SetFlushMode turns the host flush mode on and off", "[ppc][fpscr]
 REX_TEST_CASE("SetFlushMode leaves the other host control bits alone", "[ppc][fpscr]") {
   const RestoreCSR restore;
   rex::ppc::FPSCRRegister fpscr{};
-  fpscr.StoreFromGuest(rex::ppc::kRoundUp);
+  fpscr.StoreToHost(rex::ppc::kRoundUp);
   const u32 rounding = fpscr.GetCSR() & rex::ppc::FPSCRRegister::kRoundMaskVal;
   fpscr.SetFlushMode(true);
   fpscr.SetFlushMode(false);

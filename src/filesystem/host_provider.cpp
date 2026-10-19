@@ -102,7 +102,7 @@ Result<std::unique_ptr<Provider>> HostProvider::Create(const MountEntry& entry) 
   return std::unique_ptr<Provider>(std::move(provider));
 }
 
-VolumeInfo HostProvider::GetVolume() const {
+VolumeStat HostProvider::GetVolume() const {
   return {"STFS", 0, 255, kAllocationUnits, kAllocationUnits, 1, kBytesPerSector};
 }
 
@@ -124,7 +124,7 @@ Node* HostProvider::Resolve(std::string_view path) {
       return nullptr;
     }
     const std::filesystem::path host_path = current->GetHostPath();
-    std::optional<HostInfo> info = HostStat(host_path / to_path(part));
+    std::optional<HostFileStat> info = HostStat(host_path / to_path(part));
     if (!info) {
       info = HostStat(platform::ResolveEntryCase(host_path, part));
     }
@@ -150,7 +150,7 @@ std::filesystem::path HostNode::GetHostPath() const {
 }
 
 std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& parent,
-                                           const HostInfo& info) {
+                                           const HostFileStat& info) {
   auto node = std::make_unique<HostNode>(
       provider, &parent, utf8_join_guest_paths(parent.GetPath(), PathToUTF8(info.name)),
       parent.GetHostPath() / info.name);
@@ -172,15 +172,15 @@ std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& par
 
 void HostNode::Populate() {
   std::vector<std::pair<u64, u64>> ancestors;
-  if (const std::optional<HostInfo> self = HostStat(host_path_)) {
+  if (const std::optional<HostFileStat> self = HostStat(host_path_)) {
     ancestors.emplace_back(self->device, self->inode);
   }
   Populate(ancestors);
 }
 
 void HostNode::Populate(std::vector<std::pair<u64, u64>>& ancestors) {
-  for (const HostInfo& info : HostList(host_path_)) {
-    auto* child = static_cast<HostNode*>(AddChild(Create(GetHost(), *this, info)));
+  for (const HostFileStat& info : HostList(host_path_)) {
+    auto* child = static_cast<HostNode*>(AddChild(Create(GetHostProvider(), *this, info)));
     if (!info.directory) {
       continue;
     }
@@ -209,7 +209,7 @@ Result<void> HostNode::Truncate() {
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("cannot truncate '{}'", info_.absolute_path)));
   }
-  if (auto file = HostFile::OpenExisting(host_path_, Access::kGenericWrite)) {
+  if (auto file = HostFile::OpenExisting(host_path_, Access::kWriteAccess)) {
     REX_TRY_VOID((*file)->SetLength(0));
   } else {
     std::ofstream stream(host_path_, std::ios::binary | std::ios::trunc);
@@ -225,7 +225,7 @@ Result<void> HostNode::Truncate() {
 }
 
 void HostNode::Refresh() {
-  const std::optional<HostInfo> info = HostStat(GetHostPath());
+  const std::optional<HostFileStat> info = HostStat(GetHostPath());
   if (!info || info->directory) {
     return;
   }
@@ -285,11 +285,11 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
   } else {
     REX_TRY_VOID(HostCreateNew(full_path));
   }
-  const std::optional<HostInfo> info = HostStat(full_path);
+  const std::optional<HostFileStat> info = HostStat(full_path);
   if (!info) {
     return refuse();
   }
-  return std::unique_ptr<Node>(Create(GetHost(), *this, *info));
+  return std::unique_ptr<Node>(Create(GetHostProvider(), *this, *info));
 }
 
 Result<void> HostNode::DeleteChildImpl(Node& child) {

@@ -198,7 +198,7 @@ class REX_API ByteStream {
    *
    * @return Byte count.
    */
-  size_t GetDataLength() const { return data_length_; }
+  size_t GetSize() const { return data_length_; }
 
   /**
    * Returns the cursor position.

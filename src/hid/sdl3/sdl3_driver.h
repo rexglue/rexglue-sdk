@@ -23,7 +23,7 @@
 #include <SDL3/SDL.h>
 
 inline constexpr i32 kThumbThreshold = 0x4E00;
-inline constexpr i32 kXInputTriggerThreshold = 0x1F;
+inline constexpr i32 kSDLTriggerThreshold = 0x1F;
 inline constexpr i32 kRepeatDelay = 400;
 inline constexpr i32 kRepeatRate = 100;
 
@@ -36,7 +36,7 @@ class SDL3Driver final : public Driver {
 
   [[nodiscard]] Result<void> Setup();
 
-  void EnumerateDevices(std::vector<DeviceInfo>& out) override;
+  void EnumerateDevices(std::vector<Device>& out) override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id, u32 flags) override;
   [[nodiscard]] Result<void> SetDeviceVibration(DeviceId id,
@@ -55,7 +55,7 @@ class SDL3Driver final : public Driver {
   struct KeystrokeState {
     u64 buttons;
     RepeatState repeat_state;
-    u8 repeat_butt_idx;
+    u8 repeat_button_index;
     /** Time in ms of the last down or repeat event for that button. */
     u32 repeat_time;
   };
@@ -130,7 +130,7 @@ class SDL3Driver final : public Driver {
   std::optional<size_t> GetControllerIndexFromInstanceID(SDL_JoystickID instance_id);
   ControllerState* FindController(DeviceId id);
   DeviceId AllocateDeviceId();
-  bool TestSDLVersion() const;
+  bool LogSDLVersion() const;
   /**
    * Refreshes the cached capabilities. The RAWINPUT driver correlates input from several APIs
    * with latency, so the power level is only available once the pad is touched, which can confuse

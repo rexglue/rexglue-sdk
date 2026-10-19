@@ -32,8 +32,8 @@ namespace {
 
 using rex::test::WriteText;
 
-rex::runtime::AchievementInfo BuildAchievement(u32 id, std::string label) {
-  rex::runtime::AchievementInfo info;
+rex::runtime::Achievement BuildAchievement(u32 id, std::string label) {
+  rex::runtime::Achievement info;
   info.id = id;
   info.label = std::move(label);
   info.description = "Unlocked";
@@ -75,7 +75,7 @@ flags = 4
   REQUIRE(manager.LoadMetadataFile(metadata_path).has_value());
 
   const auto achievements = manager.ListAchievements();
-  const auto first = std::ranges::find(achievements, 1u, &rex::runtime::AchievementInfo::id);
+  const auto first = std::ranges::find(achievements, 1u, &rex::runtime::Achievement::id);
   REQUIRE(first != achievements.end());
   CHECK(first->label == "Metadata override");
   CHECK(first->icon_path == "custom/one.png");
@@ -83,7 +83,7 @@ flags = 4
 
   REQUIRE(manager.RegisterAchievement(BuildAchievement(2, "Recomp override")).has_value());
   const auto updated = manager.ListAchievements();
-  const auto second = std::ranges::find(updated, 2u, &rex::runtime::AchievementInfo::id);
+  const auto second = std::ranges::find(updated, 2u, &rex::runtime::Achievement::id);
   REQUIRE(second != updated.end());
   CHECK(second->label == "Recomp override");
 }
@@ -126,7 +126,7 @@ REX_TEST_CASE("achievement notifications follow the unlock request", "[runtime][
         rex::runtime::AchievementUnlockResult::kUnlocked);
   CHECK(notification_count == 1);
 
-  manager.UnregisterCallback(notification_listener);
+  manager.UnregisterNotificationCallback(notification_listener);
   CHECK(manager.UnlockAchievement(3) == rex::runtime::AchievementUnlockResult::kUnknownAchievement);
   CHECK(notification_count == 1);
 }

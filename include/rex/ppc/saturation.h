@@ -28,7 +28,7 @@ namespace rex::ppc::simd {
  * @return True when a lane lies outside the range of the destination word.
  */
 template <bool Signed>
-[[nodiscard]] inline bool ConvertSaturates(simde__m128 scaled) noexcept {
+[[nodiscard]] inline bool IsConvertSaturating(simde__m128 scaled) noexcept {
   const auto above = simde_mm_cmpge_ps(scaled, simde_mm_set1_ps(Signed ? 0x1p31f : 0x1p32f));
   const auto below = Signed ? simde_mm_cmplt_ps(scaled, simde_mm_set1_ps(-0x1p31f))
                             : simde_mm_cmple_ps(scaled, simde_mm_set1_ps(-1.0f));
@@ -60,7 +60,7 @@ inline bool AnyLaneDiffers(simde__m128i wrapped, simde__m128i saturated) {
  * @return True when a lane overflows its element range.
  */
 template <u32 Bits, bool Signed>
-[[nodiscard]] inline bool AddSaturates(simde__m128i a, simde__m128i b) noexcept {
+[[nodiscard]] inline bool IsAddSaturating(simde__m128i a, simde__m128i b) noexcept {
   if constexpr (Bits == 8) {
     return detail::AnyLaneDiffers(simde_mm_add_epi8(a, b),
                                   Signed ? simde_mm_adds_epi8(a, b) : simde_mm_adds_epu8(a, b));
@@ -88,7 +88,7 @@ template <u32 Bits, bool Signed>
  * @return True when a lane overflows its element range.
  */
 template <u32 Bits, bool Signed>
-[[nodiscard]] inline bool SubSaturates(simde__m128i a, simde__m128i b) noexcept {
+[[nodiscard]] inline bool IsSubSaturating(simde__m128i a, simde__m128i b) noexcept {
   if constexpr (Bits == 8) {
     return detail::AnyLaneDiffers(simde_mm_sub_epi8(a, b),
                                   Signed ? simde_mm_subs_epi8(a, b) : simde_mm_subs_epu8(a, b));
@@ -115,7 +115,7 @@ template <u32 Bits, bool Signed>
  * @return True when a source element lies outside the range of the packed element.
  */
 template <u32 SourceBits, bool SignedDest>
-[[nodiscard]] inline bool PackSaturates(simde__m128i a, simde__m128i b) noexcept {
+[[nodiscard]] inline bool IsPackSaturating(simde__m128i a, simde__m128i b) noexcept {
   constexpr u32 kDestBits = SourceBits / 2;
   constexpr u32 kRange = (1u << kDestBits) - 1;
   constexpr u32 kLow = SignedDest ? (0u - (1u << (kDestBits - 1))) : 0u;
@@ -199,7 +199,7 @@ inline constexpr std::array<u32, 4> kPackD3DChecked = [] {
  * @return True when an element lies outside the range of its packed field.
  */
 template <u32 Type>
-[[nodiscard]] inline bool PackD3DSaturates(simde__m128 source) noexcept {
+[[nodiscard]] inline bool IsPackD3DSaturating(simde__m128 source) noexcept {
   const auto low = simde_mm_loadu_ps(detail::kPackD3DBounds<Type, false>.data());
   const auto high = simde_mm_loadu_ps(detail::kPackD3DBounds<Type, true>.data());
   const auto checked =

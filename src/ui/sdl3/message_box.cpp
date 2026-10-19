@@ -86,7 +86,7 @@ Result<u32> SDL3UserInterface::ShowBox(MessageKind kind, std::string_view title,
     REXLOG_WARN(ui, "no usable message box backend, {}", video.GetError());
     return Err<u32>(ErrorCategory::kPlatform, video.GetError());
   }
-  SDL_Window* parent = IsUIThread() && window_ ? window_->GetSDL() : nullptr;
+  SDL_Window* parent = IsUIThread() && window_ ? window_->GetSDLWindow() : nullptr;
   return ShowNativeBox(kind, std::string(title), std::string(body), buttons, parent);
 }
 

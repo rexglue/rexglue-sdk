@@ -77,8 +77,8 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
    *
    * @return True when the memory is allocated.
    */
-  virtual bool EnsureScaledResolveMemoryCommitted(u32 /*start_unscaled*/, u32 /*length_unscaled*/,
-                                                  u32 /*length_scaled_alignment_log2*/ = 0) {
+  virtual bool CommitScaledResolveMemory(u32 /*start_unscaled*/, u32 /*length_unscaled*/,
+                                         u32 /*length_scaled_alignment_log2*/ = 0) {
     return false;
   }
 
@@ -162,7 +162,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     u32 GetHeight() const { return height_minus_1 + 1; }
     u32 GetDepthOrArraySize() const { return depth_or_array_size_minus_1 + 1; }
 
-    xenos::TextureGuestLayout GetGuestLayout() const {
+    xenos::GuestTextureLayout GetGuestLayout() const {
       return xenos::GetGuestTextureLayout(dimension, pitch, GetWidth(), GetHeight(),
                                           GetDepthOrArraySize(), tiled, format, packed_mips,
                                           base_page != 0, mip_max_level);
@@ -183,7 +183,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
 
     const TextureKey& GetKey() const { return key_; }
 
-    const xenos::TextureGuestLayout& GetGuestLayout() const { return guest_layout_; }
+    const xenos::GuestTextureLayout& GetGuestLayout() const { return guest_layout_; }
     u32 GetGuestBaseSize() const { return GetGuestLayout().base.level_data_extent_bytes; }
     u32 GetGuestMipsSize() const { return GetGuestLayout().mips_total_extent_bytes; }
 
@@ -194,7 +194,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
      *
      * @return True when guest memory is tiled as 3D although the host texture is 2D.
      */
-    bool GetForceLoad3dTiling() const { return force_load_3d_tiling_; }
+    bool IsForceLoad3DTiling() const { return force_load_3d_tiling_; }
     void SetForceLoad3DTiling(bool force) { force_load_3d_tiling_ = force; }
 
     u64 GetLastUsageSubmissionIndex() const { return last_usage_submission_index_; }
@@ -203,11 +203,11 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     static constexpr u32 kOutdatedBitMips = UINT32_C(1) << 1;
     u32 GetOutdatedMask() const { return outdated_mask_.load(std::memory_order_acquire); }
 
-    bool GetBaseOutdated(
+    bool IsBaseOutdated(
         [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return base_outdated_;
     }
-    bool GetMipsOutdated(
+    bool IsMipsOutdated(
         [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return mips_outdated_;
     }
@@ -240,7 +240,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
 
     TextureKey key_;
 
-    xenos::TextureGuestLayout guest_layout_;
+    xenos::GuestTextureLayout guest_layout_;
 
     u64 host_memory_usage_ = 0;
 

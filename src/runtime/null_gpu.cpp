@@ -37,7 +37,7 @@ Result<void> NullGPU::SetupPresentation(gpu::IUIThread&) {
   return Ok();
 }
 
-Result<void> NullGPU::SetupGuestGPU(FunctionDispatcher& dispatcher, Runtime& runtime) {
+Result<void> NullGPU::SetupGPU(FunctionDispatcher& dispatcher, Runtime& runtime) {
   dispatcher_ = &dispatcher;
   runtime_ = &runtime;
   AttachMMIO(MMIOBlock::kGPU, {this, ReadRegisterThunk, WriteRegisterThunk});

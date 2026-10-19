@@ -38,7 +38,7 @@ REX_TEST_CASE("The runtime exports every function row of the export tables", "[k
   const auto library = OpenRuntime();
   rex::u32 resolved = 0;
   for (const auto module : kModules) {
-    for (const auto& entry : rex::runtime::Exports(module)) {
+    for (const auto& entry : rex::runtime::GetExports(module)) {
       if (entry.kind != ExportKind::kFunction) {
         continue;
       }
@@ -62,8 +62,8 @@ REX_TEST_CASE("The runtime exports every shim", "[kernel][exports]") {
 
 REX_TEST_CASE("The runtime exports both module entry points", "[kernel][exports]") {
   const auto library = OpenRuntime();
-  CHECK(library.GetRawSymbol("rex_create_interface") != nullptr);
-  CHECK(library.GetRawSymbol("rex_enumerate_interfaces") != nullptr);
+  CHECK(library.GetRawSymbol("ReXCreateInterface") != nullptr);
+  CHECK(library.GetRawSymbol("ReXEnumerateInterfaces") != nullptr);
 }
 
 REX_TEST_CASE("The runtime exports none of its third party code", "[kernel][exports]") {

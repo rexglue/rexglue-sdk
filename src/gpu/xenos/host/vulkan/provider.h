@@ -45,7 +45,7 @@ class VulkanProvider : public GraphicsProvider {
   std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGPULossCallback host_gpu_loss_callback =
                                                  Presenter::FatalErrorHostGPULossCallback) override;
 
-  std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
+  std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() override;
 
  private:
   std::unique_ptr<VulkanInstance> vulkan_instance_;

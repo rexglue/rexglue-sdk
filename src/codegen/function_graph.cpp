@@ -437,7 +437,7 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
     return out;
   }
 
-  const auto& info = GetExceptionData();
+  const auto& info = GetExceptionInfo();
   const SEHExceptionInfo* seh_info = info ? info->AsSEH() : nullptr;
   if (seh_info && !seh_info->scopes.empty()) {
     REXLOG_TRACE(codegen, "Function 0x{:08X} has {} SEH scopes", GetBase(),
@@ -624,16 +624,16 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
       ++data;
     }
 
-    const bool recorded = GetFallThroughs().contains(block_end);
+    const bool has_fall_through = GetFallThroughs().contains(block_end);
     const auto last = block.size > 0 ? rex::codegen::detail::DecodeInstruction(
                                            block_end - 4, memory::load<be_u32>(data - 1))
                                      : rex::codegen::detail::Instruction{};
-    if ((recorded || !IsWithinBounds(block_end)) && block.size > 0 &&
+    if ((has_fall_through || !IsWithinBounds(block_end)) && block.size > 0 &&
         FallsThrough(ctx.graph, last)) {
       BuilderContext builder_ctx{body,      ctx,     *this, insn, block_end, data, local_variables,
                                  csr_state, nullptr, &mmio};
       const FunctionNode* next = ctx.graph.GetFunction(block_end);
-      if (recorded) {
+      if (has_fall_through) {
         builder_ctx.EmitFunctionCall(block_end);
         EmitPrintln(body, "\treturn;");
       } else if (next && !next->IsImport()) {
@@ -858,7 +858,7 @@ class NoReturnSolver {
       const auto it = std::ranges::lower_bound(insns, addr, {}, &Instruction::address);
       return it != insns.end() && (*it)->address == addr ? it - insns.begin() : -1;
     };
-    const auto go = [&](u32 target) {
+    const auto visit_target = [&](u32 target) {
       if (!Returns(target))
         return false;
       if (target != base && graph_.GetFunction(target))
@@ -870,7 +870,7 @@ class NoReturnSolver {
       return false;
     };
 
-    if (go(base))
+    if (visit_target(base))
       return true;
     while (!stack.empty()) {
       const size_t at = stack.back();
@@ -884,7 +884,7 @@ class NoReturnSolver {
       switch (insn.opcode) {
         case Opcode::b:
         case Opcode::ba:
-          if (!insn.branch_target || go(*insn.branch_target))
+          if (!insn.branch_target || visit_target(*insn.branch_target))
             return true;
           break;
         case Opcode::bl:
@@ -893,13 +893,13 @@ class NoReturnSolver {
             break;
           if (find(next) < 0 && !graph_.GetFunction(next))
             break;
-          if (go(next))
+          if (visit_target(next))
             return true;
           break;
         case Opcode::bc:
         case Opcode::bca:
-          if (!insn.branch_target || go(*insn.branch_target) ||
-              (!insn.IsBranchAlways() && go(next))) {
+          if (!insn.branch_target || visit_target(*insn.branch_target) ||
+              (!insn.IsBranchAlways() && visit_target(next))) {
             return true;
           }
           break;
@@ -913,13 +913,13 @@ class NoReturnSolver {
           if (table == tables.end())
             return true;
           for (u32 target : table->targets) {
-            if (go(target))
+            if (visit_target(target))
               return true;
           }
           break;
         }
         default:
-          if (!insn.IsTrapAlways() && go(next))
+          if (!insn.IsTrapAlways() && visit_target(next))
             return true;
           break;
       }
@@ -1068,7 +1068,7 @@ void FunctionGraph::SetFunctionHasExceptionHandler(u32 entry, bool val) {
 
 void FunctionGraph::SetFunctionExceptionInfo(u32 entry, ExceptionInfo info) {
   if (auto* node = GetFunction(entry)) {
-    node->SetExceptionData(std::move(info));
+    node->SetExceptionInfo(std::move(info));
   }
 }
 
@@ -1340,7 +1340,7 @@ size_t FunctionGraph::MarkFuncletRegisterSharing() {
 
   for (auto& entry : tables_->functions) {
     auto& node = entry.second;
-    const auto& info = node->GetExceptionData();
+    const auto& info = node->GetExceptionInfo();
     if (!info || !info->HasInfo())
       continue;
 

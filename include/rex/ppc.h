@@ -23,6 +23,6 @@
 #include <rex/ppc/saturation.h>
 #include <rex/ppc/stack.h>
 
-using rex::ppc::HostToGuestFunction;
+using rex::ppc::HostToGuestCall;
 using rex::ppc::ImportFunction;
-using rex::ppc::GuestToHostFunction;
+using rex::ppc::GuestToHostThunk;

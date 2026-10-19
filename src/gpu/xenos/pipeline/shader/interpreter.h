@@ -54,7 +54,7 @@ class ShaderInterpreter {
    */
   static bool CanInterpretShader(const Shader& shader) {
     REX_ASSERT(shader.IsUcodeAnalyzed());
-    if (shader.UsesTextureFetchInstructionResults()) {
+    if (shader.HasTextureFetchInstructionResults()) {
       return false;
     }
     return true;
@@ -124,7 +124,7 @@ class ShaderInterpreter {
   const std::array<f32, 4> GetFloatConstant(u32 address, bool is_relative,
                                             bool relative_address_is_a0) const;
 
-  void ExecuteAluInstruction(xenos::ucode::AluInstruction instr);
+  void ExecuteALUInstruction(xenos::ucode::AluInstruction instr);
   void StoreFetchResult(u32 dest, bool is_dest_relative, u32 swizzle, const f32* value);
   void ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchInstruction instr);
 

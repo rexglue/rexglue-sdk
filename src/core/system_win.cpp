@@ -12,7 +12,7 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   UINT flags = MB_OK | MB_TOPMOST | MB_SETFOREGROUND;
   const wchar_t* title = L"ReXGlue";
   switch (type) {
-    case SimpleMessageBoxType::kHelp:
+    case SimpleMessageBoxType::kInfo:
       flags |= MB_ICONINFORMATION;
       break;
     case SimpleMessageBoxType::kWarning:

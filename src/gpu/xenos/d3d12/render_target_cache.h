@@ -73,7 +73,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     are_current_command_list_render_targets_valid_ = false;
   }
 
-  bool GetMSAA2xSupported() const { return msaa_2x_supported_; }
+  bool IsMSAA2xSupported() const { return msaa_2x_supported_; }
 
   void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
@@ -99,7 +99,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   bool Resolve(const runtime::Memory& memory, D3D12SharedMemory& shared_memory,
                D3D12TextureCache& texture_cache, u32& written_address_out, u32& written_length_out);
 
-  bool GetGammaRenderTargetAsUnorm16() const { return gamma_render_target_as_unorm16_; }
+  bool IsGammaRenderTargetAsUnorm16() const { return gamma_render_target_as_unorm16_; }
 
   /**
    * Reports whether fixed16 values are truncated to the -1 to 1 range of R16G16[B16A16]_SNORM
@@ -110,8 +110,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    */
   bool IsFixed16TruncatedToMinus1To1() const;
 
-  bool GetDepthFloat24Round() const { return depth_float24_round_; }
-  bool GetDepthFloat24ConvertInPixelShader() const {
+  bool IsDepthFloat24Rounded() const { return depth_float24_round_; }
+  bool IsDepthFloat24ConvertedInPixelShader() const {
     return depth_float24_convert_in_pixel_shader_;
   }
 
@@ -379,12 +379,12 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     /** Uses kTransferCBVRegisterStencilMask. */
     kStencilBit,
   };
-  struct TransferModeInfo {
+  struct TransferModeTraits {
     TransferOutput output;
     TransferRootSignatureIndex root_signature_no_stencil_ref;
-    TransferRootSignatureIndex root_signature_with_stencil_ref;
+    TransferRootSignatureIndex root_signature_with_stencil_reference;
   };
-  static const TransferModeInfo kTransferModes[static_cast<size_t>(TransferMode::kCount)];
+  static const TransferModeTraits kTransferModes[static_cast<size_t>(TransferMode::kCount)];
 
   union TransferShaderKey {
     u32 key;
@@ -695,13 +695,13 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    */
   ID3D12PipelineState* GetOrCreateDumpPipeline(DumpPipelineKey key);
   ID3D12PipelineState* GetOrCreateDirectResolvePipeline(DirectResolvePipelineKey key);
-  bool TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
+  bool TryResolveCopyDirectly(const draw_state::ResolveRequest& resolve_info,
                               draw_state::ResolveCopyShaderIndex copy_shader,
                               bool draw_resolution_scaled);
 
   /**
    * Writes contents of host render targets within rectangles from
-   * ResolveInfo::GetCopyEDRAMTileSpan to edram_buffer_.
+   * ResolveRequest::GetCopyEDRAMTileSpan to edram_buffer_.
    *
    * @param dump_base First EDRAM tile to dump.
    * @param dump_row_length_used Used length of a row in tiles.

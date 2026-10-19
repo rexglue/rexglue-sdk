@@ -63,14 +63,14 @@ struct SEHScopeEntry {
 };
 REX_STATIC_ASSERT_SIZE(SEHScopeEntry, 16);
 
-struct ParsedExceptionInfo {
+struct ParsedException {
   ExceptionInfo info;
   u32 max_address;
   std::vector<u32> discovered_funcs;
 };
 
 /** Frame size and calls read from a function prologue for SEH unwinding. */
-struct PrologInfo {
+struct Prolog {
   /** Frame size from addi r31, r1, -N. */
   u32 frame_size = 0;
   /** Targets of the calls in the prologue, in order. */
@@ -88,8 +88,8 @@ struct PrologInfo {
  * @param prolog_length Prolog length in instructions from PDATA.
  * @return The prologue info.
  */
-PrologInfo ScanProlog(const BinaryView& binary, u32 func_addr, u32 prolog_length) {
-  PrologInfo info;
+Prolog ScanProlog(const BinaryView& binary, u32 func_addr, u32 prolog_length) {
+  Prolog info;
 
   auto* section = binary.FindSection(func_addr);
   if (!section || !section->data) {
@@ -145,11 +145,10 @@ PrologInfo ScanProlog(const BinaryView& binary, u32 func_addr, u32 prolog_length
  * @param discovered_funcs Receives the functions the table names.
  * @return The parsed info, or nullopt when the table is outside .rdata.
  */
-std::optional<ParsedExceptionInfo> ParseSEHScopeTable(u32 handler_thunk, u32 scope_table_addr,
-                                                      u32 count, const u8* rdata_base,
-                                                      u32 rdata_start, u32 rdata_size,
-                                                      u32 function_begin_addr,
-                                                      std::vector<u32>& discovered_funcs) {
+std::optional<ParsedException> ParseSEHScopeTable(u32 handler_thunk, u32 scope_table_addr,
+                                                  u32 count, const u8* rdata_base, u32 rdata_start,
+                                                  u32 rdata_size, u32 function_begin_addr,
+                                                  std::vector<u32>& discovered_funcs) {
   u32 table_offset = scope_table_addr - rdata_start;
   if (table_offset + 4 + count * 16 > rdata_size) {
     return std::nullopt;
@@ -195,18 +194,18 @@ std::optional<ParsedExceptionInfo> ParseSEHScopeTable(u32 handler_thunk, u32 sco
 
   discovered_funcs.push_back(handler_thunk);
 
-  ParsedExceptionInfo result;
+  ParsedException result;
   result.info.data = std::move(seh_info);
   result.max_address = max_addr;
   result.discovered_funcs = std::move(discovered_funcs);
   return result;
 }
 
-std::optional<ParsedExceptionInfo> ParseCxxFuncInfo(const Limits& limits, u32 handler_thunk,
-                                                    u32 func_info_addr, const u8* rdata_base,
-                                                    u32 rdata_start, u32 rdata_size,
-                                                    u32 function_begin_addr,
-                                                    std::vector<u32>& discovered_funcs) {
+std::optional<ParsedException> ParseCxxFuncInfo(const Limits& limits, u32 handler_thunk,
+                                                u32 func_info_addr, const u8* rdata_base,
+                                                u32 rdata_start, u32 rdata_size,
+                                                u32 function_begin_addr,
+                                                std::vector<u32>& discovered_funcs) {
   u32 table_offset = func_info_addr - rdata_start;
   if (table_offset + 28 > rdata_size) {
     return std::nullopt;
@@ -229,7 +228,7 @@ std::optional<ParsedExceptionInfo> ParseCxxFuncInfo(const Limits& limits, u32 ha
   u32 ip_map_entry_count = read_u32(func_info_addr + 20);
   u32 ip_to_state_map = read_u32(func_info_addr + 24);
 
-  if (magic != kCXXEHMagic) {
+  if (magic != kCxxEHMagic) {
     return std::nullopt;
   }
 
@@ -308,16 +307,15 @@ std::optional<ParsedExceptionInfo> ParseCxxFuncInfo(const Limits& limits, u32 ha
     }
   }
 
-  ParsedExceptionInfo result;
+  ParsedException result;
   result.info.data = std::move(cxx_info);
   result.max_address = max_addr;
   result.discovered_funcs = std::move(discovered_funcs);
   return result;
 }
 
-std::optional<ParsedExceptionInfo> ParseExceptionInfo(const BinaryView& binary,
-                                                      const Limits& limits,
-                                                      u32 function_begin_addr) {
+std::optional<ParsedException> ParseExceptionInfo(const BinaryView& binary, const Limits& limits,
+                                                  u32 function_begin_addr) {
   u32 header_addr = function_begin_addr - 8;
 
   auto* text_section = binary.FindSection(header_addr);
@@ -356,7 +354,7 @@ std::optional<ParsedExceptionInfo> ParseExceptionInfo(const BinaryView& binary,
   u32 first_word = memory::load<be_u32>(rdata_base + table_offset);
   std::vector<u32> discovered_funcs;
 
-  if (first_word == kCXXEHMagic) {
+  if (first_word == kCxxEHMagic) {
     return ParseCxxFuncInfo(limits, handler_thunk, table_addr, rdata_base, rdata_start, rdata_size,
                             function_begin_addr, discovered_funcs);
   } else {
@@ -754,8 +752,8 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
     }
   }
 
-  if (config.long_jmp_address != 0) {
-    graph.DeclareNoReturn(config.long_jmp_address);
+  if (config.longjmp_address != 0) {
+    graph.DeclareNoReturn(config.longjmp_address);
   }
 
   size_t config_funcs = 0, config_chunks = 0;
@@ -783,7 +781,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
     REXLOG_DEBUG(codegen, "Analyze: {} CONFIG functions, {} chunks", config_funcs, config_chunks);
   }
 
-  u32 pdata_addr = binary.GetExceptionDirectoryAddr();
+  u32 pdata_addr = binary.GetExceptionDirectoryAddress();
   u32 pdata_size = binary.GetExceptionDirectorySize();
 
   if (pdata_size == 0) {
@@ -809,10 +807,10 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
     const u32 begin_addr = entries[i].begin;
     const auto fn = rex::ppc::DecodeRuntimeFunction(begin_addr, entries[i].word);
 
-    if (fn.type == rex::ppc::RuntimeFunctionType::SaveMillicode ||
-        fn.type == rex::ppc::RuntimeFunctionType::RestoreMillicode) {
+    if (fn.type == rex::ppc::RuntimeFunctionType::kSaveMillicode ||
+        fn.type == rex::ppc::RuntimeFunctionType::kRestoreMillicode) {
       const auto* helper = graph.GetFunction(begin_addr);
-      const bool restore = fn.type == rex::ppc::RuntimeFunctionType::RestoreMillicode;
+      const bool restore = fn.type == rex::ppc::RuntimeFunctionType::kRestoreMillicode;
       if (!helper || !helper->GetMillicode() ||
           IsSaveKind(helper->GetMillicode()->kind) == restore) {
         return Err(ErrorCategory::kValidation,
@@ -831,11 +829,11 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
       continue;
     }
 
-    const bool has_handler = fn.type == rex::ppc::RuntimeFunctionType::Handler;
-    std::optional<ParsedExceptionInfo> ex_info;
-    PrologInfo prolog_info;
+    const bool has_handler = fn.type == rex::ppc::RuntimeFunctionType::kHandler;
+    std::optional<ParsedException> ex_info;
+    Prolog prolog_info;
     if (has_handler) {
-      prolog_info = ScanProlog(binary, begin_addr, fn.prolog);
+      prolog_info = ScanProlog(binary, begin_addr, fn.prologue);
 
       ex_info = ParseExceptionInfo(binary, ctx.GetLimits(), begin_addr);
       if (ex_info) {

@@ -100,9 +100,9 @@ class BinaryView : public rex::MoveOnly {
   u32 GetBaseAddress() const { return base_address_; }
   u32 GetImageSize() const { return image_size_; }
   u32 GetEntryPoint() const { return entry_point_; }
-  u32 GetExceptionDirectoryAddr() const { return exception_directory_addr_; }
+  u32 GetExceptionDirectoryAddress() const { return exception_directory_addr_; }
   u32 GetExceptionDirectorySize() const { return exception_directory_size_; }
-  u32 GetExportTableAddr() const { return export_table_addr_; }
+  u32 GetExportTableAddress() const { return export_table_addr_; }
 
   /**
    * Returns the start of the import thunk table, or 0 when absent.

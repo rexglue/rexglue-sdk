@@ -52,7 +52,7 @@ class RecordingHost final : public rex::ui::IDialogHost {
   rex::ui::ImGuiDialog* last = nullptr;
 };
 
-class ProbeDialog final : public rex::ui::ImGuiDialog {
+class CountingDialog final : public rex::ui::ImGuiDialog {
  public:
   using ImGuiDialog::Close;
 
@@ -69,7 +69,7 @@ class ProbeDialog final : public rex::ui::ImGuiDialog {
 REX_TEST_CASE("A closed dialog is removed from its host by the next Draw", "[ui][imgui]") {
   ImGuiFrame frame;
   RecordingHost host;
-  ProbeDialog dialog;
+  CountingDialog dialog;
   dialog.Attach(&host);
   REQUIRE(dialog.IsAttached());
   REQUIRE_FALSE(dialog.IsClosed());
@@ -90,7 +90,7 @@ REX_TEST_CASE("A closed dialog is removed from its host by the next Draw", "[ui]
 REX_TEST_CASE("A dialog that never closes stays attached across Draw", "[ui][imgui]") {
   ImGuiFrame frame;
   RecordingHost host;
-  ProbeDialog dialog;
+  CountingDialog dialog;
   dialog.Attach(&host);
   dialog.Draw();
   dialog.Draw();
@@ -105,7 +105,7 @@ REX_TEST_CASE("Destroying an attached dialog removes it from its host", "[ui][im
   RecordingHost host;
   const rex::ui::ImGuiDialog* address = nullptr;
   {
-    ProbeDialog dialog;
+    CountingDialog dialog;
     address = &dialog;
     dialog.Attach(&host);
   }
@@ -116,7 +116,7 @@ REX_TEST_CASE("Destroying an attached dialog removes it from its host", "[ui][im
 REX_TEST_CASE("Attach with null detaches without touching the host", "[ui][imgui]") {
   RecordingHost host;
   {
-    ProbeDialog dialog;
+    CountingDialog dialog;
     dialog.Attach(&host);
     dialog.Attach(nullptr);
     REQUIRE_FALSE(dialog.IsAttached());

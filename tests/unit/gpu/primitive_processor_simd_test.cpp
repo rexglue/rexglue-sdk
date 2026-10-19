@@ -55,8 +55,8 @@ std::vector<u32> Indices32(u32 count, bool with_reset) {
 }
 
 template <typename T>
-struct Placed {
-  Placed(const std::vector<T>& values, size_t offset) : storage(values.size() + 64) {
+struct AlignedCopy {
+  AlignedCopy(const std::vector<T>& values, size_t offset) : storage(values.size() + 64) {
     std::copy(values.begin(), values.end(), Begin(offset));
     start = Begin(offset);
   }
@@ -84,9 +84,9 @@ REX_TEST_CASE("16 bit reset scans match a plain loop", "[gpu][primitive_processo
           want_ffff |= value == 0xFFFF;
         }
         for (size_t offset = 0; offset < 8; ++offset) {
-          Placed<u16> placed(values, offset);
+          AlignedCopy<u16> placed(values, offset);
           INFO("count " << count << " offset " << offset);
-          CHECK(rex::gpu::IsResetUsed(placed.start, count, kReset16) == want_reset);
+          CHECK(rex::gpu::IsResetIndexUsed(placed.start, count, kReset16) == want_reset);
           bool used = !want_reset;
           bool ffff = !want_ffff;
           rex::gpu::Get16BitResetIndexUsage(placed.start, count, kReset16, used, ffff);
@@ -107,9 +107,9 @@ REX_TEST_CASE("32 bit reset scan masks before comparing", "[gpu][primitive_proce
         want |= (value & kMask24) == kReset32;
       }
       for (size_t offset = 0; offset < 4; ++offset) {
-        Placed<u32> placed(values, offset);
+        AlignedCopy<u32> placed(values, offset);
         INFO("count " << count << " offset " << offset);
-        CHECK(rex::gpu::IsResetUsed(placed.start, count, kReset32, kMask24) == want);
+        CHECK(rex::gpu::IsResetIndexUsed(placed.start, count, kReset32, kMask24) == want);
       }
     }
   }
@@ -120,9 +120,9 @@ REX_TEST_CASE("16 bit reset replacement matches a plain loop", "[gpu][primitive_
     const auto values = Indices16(count, true, true);
     for (size_t offset = 0; offset < 8; ++offset) {
       for (size_t dest_offset = 0; dest_offset < 8; ++dest_offset) {
-        Placed<u16> source(values, offset);
-        Placed<u16> dest16(std::vector<u16>(count), dest_offset);
-        Placed<u32> dest32(std::vector<u32>(count), dest_offset % 4);
+        AlignedCopy<u16> source(values, offset);
+        AlignedCopy<u16> dest16(std::vector<u16>(count), dest_offset);
+        AlignedCopy<u32> dest32(std::vector<u32>(count), dest_offset % 4);
         rex::gpu::ReplaceResetIndex16To16(dest16.start, source.start, count, kReset16);
         rex::gpu::ReplaceResetIndex16To24(dest32.start, source.start, count, kReset16);
         INFO("count " << count << " source " << offset << " dest " << dest_offset);
@@ -139,13 +139,13 @@ REX_TEST_CASE("16 bit reset replacement matches a plain loop", "[gpu][primitive_
 namespace {
 
 template <rex::xenos::Endian HostSwap>
-void CheckThirtyTwoTo24() {
+void CheckReplaceResetIndex32To24() {
   for (const u32 count : kCounts) {
     const auto values = Indices32(count, true);
     for (size_t offset = 0; offset < 4; ++offset) {
       for (size_t dest_offset = 0; dest_offset < 4; ++dest_offset) {
-        Placed<u32> source(values, offset);
-        Placed<u32> dest(std::vector<u32>(count), dest_offset);
+        AlignedCopy<u32> source(values, offset);
+        AlignedCopy<u32> dest(std::vector<u32>(count), dest_offset);
         rex::gpu::ReplaceResetIndex32To24<HostSwap>(dest.start, source.start, count, kReset32,
                                                     kMask24);
         INFO("count " << count << " source " << offset << " dest " << dest_offset);
@@ -163,8 +163,8 @@ void CheckThirtyTwoTo24() {
 
 REX_TEST_CASE("32 bit reset replacement matches a plain loop for every host swap",
               "[gpu][primitive_processor]") {
-  CheckThirtyTwoTo24<rex::xenos::Endian::kNone>();
-  CheckThirtyTwoTo24<rex::xenos::Endian::k8in16>();
-  CheckThirtyTwoTo24<rex::xenos::Endian::k8in32>();
-  CheckThirtyTwoTo24<rex::xenos::Endian::k16in32>();
+  CheckReplaceResetIndex32To24<rex::xenos::Endian::kNone>();
+  CheckReplaceResetIndex32To24<rex::xenos::Endian::k8in16>();
+  CheckReplaceResetIndex32To24<rex::xenos::Endian::k8in32>();
+  CheckReplaceResetIndex32To24<rex::xenos::Endian::k16in32>();
 }

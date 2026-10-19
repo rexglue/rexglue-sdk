@@ -145,7 +145,7 @@ constexpr bool IsControlFlowOpcodeExec(ControlFlowOpcode opcode) {
  * @param opcode Control flow opcode to classify.
  * @return True when the opcode ends the shader.
  */
-constexpr bool DoesControlFlowOpcodeEndShader(ControlFlowOpcode opcode) {
+constexpr bool IsControlFlowOpcodeEnd(ControlFlowOpcode opcode) {
   return opcode == ControlFlowOpcode::kExecEnd || opcode == ControlFlowOpcode::kCondExecEnd ||
          opcode == ControlFlowOpcode::kCondExecPredEnd ||
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
@@ -158,7 +158,7 @@ constexpr bool DoesControlFlowOpcodeEndShader(ControlFlowOpcode opcode) {
  * @param opcode Control flow opcode to classify.
  * @return True when the opcode has a clean predicate.
  */
-constexpr bool DoesControlFlowCondExecHaveCleanPredicate(ControlFlowOpcode opcode) {
+constexpr bool HasControlFlowCondExecCleanPredicate(ControlFlowOpcode opcode) {
   return opcode == ControlFlowOpcode::kCondExecPredClean ||
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
 }
@@ -558,7 +558,7 @@ enum class FetchOpcode : u32 {
    * themselves.
    *
    * Cube maps are sampled through host cube views, so filtering crosses faces unless the Vulkan
-   * non_seamless_cube_map option is set.
+   * vulkan_cube_map_edge_filtering_off option is set.
    *
    * Offsets are applied in texels of the base level, whatever LOD is sampled.
    */
@@ -683,9 +683,9 @@ struct alignas(u32) VertexFetchInstruction {
    * @return Exponent adjustment.
    */
   int GetExpAdjust() const { return data_.exp_adjust; }
-  bool IsSigned() const { return data_.fomat_comp_all == 1; }
+  bool IsSigned() const { return data_.format_comp_all == 1; }
   bool IsNormalized() const { return data_.num_format_all == 0; }
-  xenos::SignedRepeatingFractionMode GetSignedRfMode() const { return data_.signed_rf_mode_all; }
+  xenos::SignedRepeatingFractionMode GetSignedRFMode() const { return data_.signed_rf_mode_all; }
   /**
    * Reports whether the floating point index is rounded to the nearest integer, as
    * floor(index + 0.5), because rounding to the nearest even makes no sense for addressing (both
@@ -727,7 +727,7 @@ struct alignas(u32) VertexFetchInstruction {
     };
     struct {
       u32 dst_swiz : 12;
-      u32 fomat_comp_all : 1;
+      u32 format_comp_all : 1;
       u32 num_format_all : 1;
       xenos::SignedRepeatingFractionMode signed_rf_mode_all : 1;
       u32 is_index_rounded : 1;
@@ -768,8 +768,8 @@ struct alignas(u32) TextureFetchInstruction {
   bool IsSrcRelative() const { return data_.src_reg_am; }
 
   xenos::FetchOpDimension GetDimension() const { return data_.dimension; }
-  bool GetFetchValidOnly() const { return data_.fetch_valid_only == 1; }
-  bool GetUnnormalizedCoordinates() const { return data_.tx_coord_denorm == 1; }
+  bool IsFetchValidOnly() const { return data_.fetch_valid_only == 1; }
+  bool HasUnnormalizedCoordinates() const { return data_.tx_coord_denorm == 1; }
   bool HasMagFilter() const { return data_.mag_filter != xenos::TextureFilter::kUseFetchConst; }
   xenos::TextureFilter GetMagFilter() const { return data_.mag_filter; }
   bool HasMinFilter() const { return data_.min_filter != xenos::TextureFilter::kUseFetchConst; }
@@ -797,9 +797,9 @@ struct alignas(u32) TextureFetchInstruction {
     return data_.vol_min_filter != xenos::TextureFilter::kUseFetchConst;
   }
   xenos::TextureFilter GetVolMinFilter() const { return data_.vol_min_filter; }
-  bool UsesComputedLOD() const { return data_.use_comp_lod == 1; }
-  bool UsesRegisterLOD() const { return data_.use_reg_lod == 1; }
-  bool UsesRegisterGradients() const { return data_.use_reg_gradients == 1; }
+  bool IsComputedLODUsed() const { return data_.use_comp_lod == 1; }
+  bool IsRegisterLODUsed() const { return data_.use_reg_lod == 1; }
+  bool AreRegisterGradientsUsed() const { return data_.use_reg_gradients == 1; }
   xenos::SampleLocation GetSampleLocation() const { return data_.sample_location; }
   f32 GetLODBias() const { return static_cast<f32>(data_.lod_bias) * (1.0f / 16.0f); }
   f32 GetOffsetX() const { return static_cast<f32>(data_.offset_x) * 0.5f; }
@@ -831,7 +831,7 @@ struct alignas(u32) TextureFetchInstruction {
       xenos::TextureFilter vol_min_filter : 2;
       u32 use_comp_lod : 1;
       u32 use_reg_lod : 1;
-      u32 unk : 1;
+      u32 unknown : 1;
       u32 is_predicated : 1;
     };
     struct {
@@ -1505,7 +1505,7 @@ enum class AluScalarOpcode : u32 {
 };
 
 /** Static description of a scalar ALU opcode. */
-struct AluScalarOpcodeInfo {
+struct AluScalarOpcodeTraits {
   const char* name; /**< Lowercase mnemonic of the opcode. */
   /**
    * 0 means no operands. 1 means 1 single component (W) or 2 component (WX) r# or c#. 2 means c#.w
@@ -1523,7 +1523,7 @@ struct AluScalarOpcodeInfo {
 };
 
 /** Indexed by the 6 bit scalar opcode, 64 entries. */
-extern REX_API const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64];
+extern REX_API const AluScalarOpcodeTraits kAluScalarOpcodeInfos[64];
 
 /**
  * Looks up the description of a scalar ALU opcode.
@@ -1531,7 +1531,7 @@ extern REX_API const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64];
  * @param opcode Scalar opcode.
  * @return Description of the opcode.
  */
-inline const AluScalarOpcodeInfo& GetAluScalarOpcodeInfo(AluScalarOpcode opcode) {
+inline const AluScalarOpcodeTraits& GetAluScalarOpcodeInfo(AluScalarOpcode opcode) {
   REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluScalarOpcodeInfos));
   return kAluScalarOpcodeInfos[static_cast<u32>(opcode)];
 }
@@ -2027,7 +2027,7 @@ enum class AluVectorOpcode : u32 {
 };
 
 /** Static description of a vector ALU opcode. */
-struct AluVectorOpcodeInfo {
+struct AluVectorOpcodeTraits {
   const char* name; /**< Lowercase mnemonic of the opcode. */
   /** Bit mask of the X, Y, Z and W components read from each of the 3 sources, X in bit 0. */
   u32 operand_components_used[3];
@@ -2054,7 +2054,7 @@ struct AluVectorOpcodeInfo {
 };
 
 /** Indexed by the 5 bit vector opcode, 32 entries. */
-extern REX_API const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32];
+extern REX_API const AluVectorOpcodeTraits kAluVectorOpcodeInfos[32];
 
 /**
  * Looks up the description of a vector ALU opcode.
@@ -2062,7 +2062,7 @@ extern REX_API const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32];
  * @param opcode Vector opcode.
  * @return Description of the opcode.
  */
-inline const AluVectorOpcodeInfo& GetAluVectorOpcodeInfo(AluVectorOpcode opcode) {
+inline const AluVectorOpcodeTraits& GetAluVectorOpcodeInfo(AluVectorOpcode opcode) {
   REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluVectorOpcodeInfos));
   return kAluVectorOpcodeInfos[static_cast<u32>(opcode)];
 }
@@ -2207,7 +2207,7 @@ struct alignas(u32) AluInstruction {
   bool IsPredicated() const { return data_.is_predicated; }
   bool GetPredicateCondition() const { return data_.pred_condition == 1; }
 
-  bool GetAbsConstants() const { return data_.abs_constants == 1; }
+  bool HasAbsConstants() const { return data_.abs_constants == 1; }
   bool IsConst0Addressed() const { return data_.const_0_rel_abs == 1; }
   bool IsConst1Addressed() const { return data_.const_1_rel_abs == 1; }
   /**
@@ -2222,13 +2222,13 @@ struct alignas(u32) AluInstruction {
   u32 GetVectorWriteMask() const { return data_.vector_write_mask; }
   u32 GetVectorDest() const { return data_.vector_dest; }
   bool IsVectorDestRelative() const { return data_.vector_dest_rel == 1; }
-  bool GetVectorClamp() const { return data_.vector_clamp == 1; }
+  bool IsVectorClamped() const { return data_.vector_clamp == 1; }
 
   AluScalarOpcode GetScalarOpcode() const { return data_.scalar_opc; }
   u32 GetScalarWriteMask() const { return data_.scalar_write_mask; }
   u32 GetScalarDest() const { return data_.scalar_dest; }
   bool IsScalarDestRelative() const { return data_.scalar_dest_rel == 1; }
-  bool GetScalarClamp() const { return data_.scalar_clamp == 1; }
+  bool IsScalarClamped() const { return data_.scalar_clamp == 1; }
 
   static constexpr u32 GetSrcTempReg(u32 src_reg) { return src_reg & 0x3F; }
   static constexpr bool IsSrcTempRelative(u32 src_reg) { return (src_reg & 0x40) != 0; }

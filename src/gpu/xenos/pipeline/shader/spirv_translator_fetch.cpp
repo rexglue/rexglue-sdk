@@ -36,7 +36,7 @@ void SPIRVShaderTranslator::ProcessVertexFetchInstruction(
     return;
   }
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
 
   u32 fetch_constant_word_0_index = instr.operands[1].storage_index << 1;
 
@@ -409,7 +409,7 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
 
   switch (instr.opcode) {
     case xenos::ucode::FetchOpcode::kSetTextureLOD:

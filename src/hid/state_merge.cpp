@@ -50,7 +50,7 @@ void ActiveDeviceTracker::Observe(u32 user_index, DeviceId id, const X_INPUT_GAM
   active_[user_index] = id;
 }
 
-DeviceId ActiveDeviceTracker::Active(u32 user_index) const {
+DeviceId ActiveDeviceTracker::GetActive(u32 user_index) const {
   if (user_index >= kMaxTitleUsers) {
     return DeviceId::kInvalid;
   }

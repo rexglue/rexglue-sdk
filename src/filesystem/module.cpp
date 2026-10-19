@@ -6,58 +6,58 @@
 #include <rex/module.h>
 #include <rex/result.h>
 
-REXLOG_TABLE(kFilesystemLog, filesystem)
+REXLOG_TABLE(kFileSystemLog, filesystem)
 
 namespace rex::filesystem {
 
 namespace {
 
-FilesystemModule& GetInstance() {
-  static FilesystemModule instance;
+FileSystemModule& GetInstance() {
+  static FileSystemModule instance;
   return instance;
 }
 
 }  // namespace
 
-void* FilesystemModule::GetModule() {
+void* FileSystemModule::GetModule() {
   return static_cast<IModule*>(&GetInstance());
 }
 
-void* FilesystemModule::GetFileSystem() {
+void* FileSystemModule::GetFileSystem() {
   return static_cast<IFileSystem*>(&GetInstance().file_system_);
 }
 
-const char* FilesystemModule::GetName() const {
+const char* FileSystemModule::GetName() const {
   return "rexfilesystem";
 }
 
-std::span<const char* const> FilesystemModule::GetRequiredInterfaces() const {
+std::span<const char* const> FileSystemModule::GetRequiredInterfaces() const {
   return {};
 }
 
-Result<void> FilesystemModule::Connect(IInterfaceFactory* factory, const Config& config) {
+Result<void> FileSystemModule::Connect(IInterfaceFactory* factory, const Config& config) {
   REX_TRY(logger_, factory->Get<ILogger>());
-  REX_TRY_VOID(logger_->Register(log::kFilesystemLog));
+  REX_TRY_VOID(logger_->Register(log::kFileSystemLog));
   file_system_.SetGameMountFlags(config.filesystem.game_mount_flags);
   return Ok();
 }
 
-void FilesystemModule::Disconnect() {
+void FileSystemModule::Disconnect() {
   if (logger_) {
-    logger_->Unregister(log::kFilesystemLog);
+    logger_->Unregister(log::kFileSystemLog);
   }
   logger_ = nullptr;
 }
 
-Result<void> FilesystemModule::Init() {
+Result<void> FileSystemModule::Init() {
   file_system_.Clear();
   return Ok();
 }
 
-void FilesystemModule::Shutdown() {
+void FileSystemModule::Shutdown() {
   file_system_.Clear();
 }
 
 }  // namespace rex::filesystem
 
-REX_DECLARE_MODULE(rex::filesystem::FilesystemModule)
+REX_DECLARE_MODULE(rex::filesystem::FileSystemModule)

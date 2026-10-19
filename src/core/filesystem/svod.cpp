@@ -76,10 +76,10 @@ bool HasMagic(std::span<const u8> bytes, u64 offset, std::string_view magic) {
 
 class SVODReader {
  public:
-  SVODReader(const STFSHeader& header, std::span<const std::span<const u8>> files)
+  SVODReader(const XContentPackageHeader& header, std::span<const std::span<const u8>> files)
       : header_(header), files_(files) {}
 
-  [[nodiscard]] Result<u64> DetectLayout() {
+  [[nodiscard]] Result<u64> FindMagicOffset() {
     std::span<const u8> first = files_[0];
     if (header_.metadata.volume_descriptor.svod.features.bits.enhanced_gdf_layout) {
       if (!HasMagic(first, 0x2000, kMediaMagic)) {
@@ -244,7 +244,7 @@ class SVODReader {
     return Ok();
   }
 
-  const STFSHeader& header_;
+  const XContentPackageHeader& header_;
   std::span<const std::span<const u8>> files_;
   Layout layout_ = Layout::kUnknown;
   u64 base_offset_ = 0;
@@ -253,14 +253,14 @@ class SVODReader {
 
 }  // namespace
 
-[[nodiscard]] Result<void> ParseSVOD(const STFSHeader& header,
+[[nodiscard]] Result<void> ParseSVOD(const XContentPackageHeader& header,
                                      std::span<const std::span<const u8>> files,
                                      std::vector<ContainerNode>& nodes) {
   if (files.empty()) {
     return Err(Corrupt("SVOD has no data file"));
   }
   SVODReader reader(header, files);
-  REX_TRY(const u64 magic_offset, reader.DetectLayout());
+  REX_TRY(const u64 magic_offset, reader.FindMagicOffset());
   auto root = ReadAt<RootData>(files[0], magic_offset + 0x14);
   if (!root) {
     return Err(Corrupt("SVOD root record is outside the data file"));

@@ -140,8 +140,7 @@ class VulkanTextureCache final : public TextureCache {
                              u64& length_scaled_out) const;
   bool CommitScaledResolveRange(u32 start_unscaled, u32 length_unscaled,
                                 u32 length_scaled_alignment_log2 = 0) {
-    return EnsureScaledResolveMemoryCommitted(start_unscaled, length_unscaled,
-                                              length_scaled_alignment_log2);
+    return CommitScaledResolveMemory(start_unscaled, length_unscaled, length_scaled_alignment_log2);
   }
   VkBuffer GetScaledResolveBuffer() const { return scaled_resolve_buffer_; }
   void UseScaledResolveBufferForRead();
@@ -157,8 +156,8 @@ class VulkanTextureCache final : public TextureCache {
 
   std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
 
-  bool EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u32 length_unscaled,
-                                          u32 length_scaled_alignment_log2 = 0) override;
+  bool CommitScaledResolveMemory(u32 start_unscaled, u32 length_unscaled,
+                                 u32 length_scaled_alignment_log2 = 0) override;
 
   /**
    * Loads the texture data from resident memory. When the packed mip tail is level 0, the base
@@ -341,7 +340,7 @@ class VulkanTextureCache final : public TextureCache {
 
   void GetTextureUsageMasks(VulkanTexture::Usage usage, VkPipelineStageFlags& stage_mask,
                             VkAccessFlags& access_mask, VkImageLayout& layout) const;
-  bool EnsureScaledResolveBufferAllocated(u64 start_scaled, u64 length_scaled);
+  bool AllocateScaledResolveBuffer(u64 start_scaled, u64 length_scaled);
   void GetScaledResolveUsageMasks(VkPipelineStageFlags& stage_mask_out,
                                   VkAccessFlags& access_mask_out, bool write) const;
 

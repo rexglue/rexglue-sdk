@@ -55,7 +55,7 @@ REXCVAR_INT32(ui, video_mode_height, 720, "Title video mode height in pixels")
     .SetRange(480, 0x0FFF)
     .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_STRING(ui, resolution, "",
-               "Common resolution preset for both title video mode and window (for example: 720p, "
+               "Common resolution preset for both title video mode and window (for example 720p, "
                "1080p, 1440p, 4k, 1280x720)");
 REXCVAR_DOUBLE(ui, video_mode_refresh_rate, 60.0, "Title video mode refresh rate in Hz")
     .SetRange(24.0, 240.0)

@@ -134,7 +134,7 @@ REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1)
    *
    * @return True when the window has focus.
    */
-  virtual bool GetFocused() const = 0;
+  virtual bool IsFocused() const = 0;
 
   /**
    * Returns the pointer position and the window size.
@@ -304,7 +304,7 @@ class REX_API NullHIDBackend final : public IHIDBackend {
    *
    * @return True.
    */
-  bool GetFocused() const override { return true; }
+  bool IsFocused() const override { return true; }
 
   /**
    * Reports no pointer.

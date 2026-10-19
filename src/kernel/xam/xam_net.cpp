@@ -78,7 +78,7 @@ Pinned<SocketObject> GetSocket(u32 socket_handle) {
 }
 
 u32 CallError(const SocketObject& socket) {
-  return socket.closed ? kWSAEINTR : rex::platform::SocketError();
+  return socket.closed ? kWSAEINTR : rex::platform::GetSocketError();
 }
 
 u32 OptionError(const SocketObject& socket, X_STATUS status) {
@@ -99,7 +99,7 @@ void SetCallError(const SocketObject& socket) {
   KernelThread::GetCurrentThread()->SetLastError(CallError(socket));
 }
 
-bool ValidNameLength(u32 name_len) {
+bool IsValidNameLength(u32 name_len) {
   return name_len >= sizeof(XSOCKADDR_IN) && name_len <= kMaxSocketLength;
 }
 
@@ -119,7 +119,7 @@ void StoreFrom(GuestPtrT<XSOCKADDR_IN> from_ptr, MappedU32 from_len, const Recei
   from.sin_family = result.from.sin_family;
   from.sin_port = result.from.sin_port;
   from.sin_addr = result.from.sin_addr;
-  std::memcpy(from_ptr.GetHostAddress(), &from, std::min<u32>(*from_len, sizeof(from)));
+  std::memcpy(from_ptr.GetHostPtr(), &from, std::min<u32>(*from_len, sizeof(from)));
   *from_len = result.from_len;
 }
 
@@ -152,8 +152,8 @@ struct XNDNS {
 struct XNQOSINFO {
   u8 flags;
   u8 reserved;
-  be_u16 probes_xmit;
-  be_u16 probes_recv;
+  be_u16 xmit_count;
+  be_u16 recv_count;
   be_u16 data_len;
   be_u32 data_ptr;
   be_u16 rtt_min_in_msecs;
@@ -217,12 +217,12 @@ struct XNetStartupParams {
   u8 cfgQosPairWaitTimeInSeconds;
 };
 
-XNetStartupParams xnet_startup_params = {};
+XNetStartupParams g_xnet_startup_params = {};
 
 u32 NetDll_XNetStartup_entry([[maybe_unused]] u32 caller, GuestPtrT<XNetStartupParams> params) {
   if (params) {
     REX_ASSERT(params->cfgSizeOfStruct == sizeof(XNetStartupParams));
-    std::memcpy(&xnet_startup_params, params, sizeof(XNetStartupParams));
+    std::memcpy(&g_xnet_startup_params, params, sizeof(XNetStartupParams));
   }
 
   return 0;
@@ -241,7 +241,7 @@ u32 NetDll_XNetGetOpt_entry(u32 one, u32 option_id, MappedVoid buffer_ptr, Mappe
         // WSAEMSGSIZE
         return 0x2738;
       }
-      std::memcpy(buffer_ptr, &xnet_startup_params, sizeof(XNetStartupParams));
+      std::memcpy(buffer_ptr, &g_xnet_startup_params, sizeof(XNetStartupParams));
       return 0;
     default:
       REX_KERNEL_STUB("NetDll_XNetGetOpt: option {}", option_id);
@@ -299,7 +299,7 @@ void CompleteReceive(Runtime& runtime, GuestPtrT<XWSAOVERLAPPED> overlapped,
                      GuestPtrT<XSOCKADDR_IN> from_ptr, MappedU32 from_len, u32 event_handle,
                      const ReceiveResult& result) {
   u32 status = 0;
-  if (result.cancelled) {
+  if (result.canceled) {
     status = kWSAECANCELLED;
     overlapped->internal_high = 0;
   } else if (result.received == -1) {
@@ -624,7 +624,7 @@ u32 NetDll_XNetXnAddrToMachineId_entry([[maybe_unused]] u32 caller,
 
 void NetDll_XNetInAddrToString_entry([[maybe_unused]] u32 caller, [[maybe_unused]] u32 in_addr,
                                      MappedString string_out, u32 string_size) {
-  rex::copy_truncating(string_out, "666.666.666.666", string_size);
+  rex::CopyTruncating(string_out, "666.666.666.666", string_size);
 }
 
 /**
@@ -702,7 +702,7 @@ u32 NetDll_XNetDnsLookup_entry([[maybe_unused]] u32 caller, [[maybe_unused]] Map
 }
 
 u32 NetDll_XNetDnsRelease_entry([[maybe_unused]] u32 caller, GuestPtrT<XNDNS> dns) {
-  REX_KERNEL_ARG(dns);
+  REX_KERNEL_REQUIRE_NONNULL(dns);
   runtime::GetCurrent().GetMemory()->SystemHeapFree(dns.GetGuestAddress());
   return 0;
 }
@@ -727,7 +727,7 @@ u32 NetDll_XNetQosServiceLookup_entry([[maybe_unused]] u32 caller, [[maybe_unuse
 }
 
 u32 NetDll_XNetQosRelease_entry([[maybe_unused]] u32 caller, GuestPtrT<XNQOS> qos) {
-  REX_KERNEL_ARG(qos);
+  REX_KERNEL_REQUIRE_NONNULL(qos);
   runtime::GetCurrent().GetMemory()->SystemHeapFree(qos.GetGuestAddress());
   return 0;
 }
@@ -777,7 +777,7 @@ u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 proto
     return -1;
   }
   if (XFAILED((*table.Get<SocketObject>(*added)).Initialize())) {
-    const u32 error = rex::platform::SocketError();
+    const u32 error = rex::platform::GetSocketError();
     runtime::CloseOwned(table, *added);
     KernelThread::GetCurrentThread()->SetLastError(error);
     return -1;
@@ -875,8 +875,8 @@ u32 NetDll_bind_entry([[maybe_unused]] u32 caller, u32 socket_handle, GuestPtrT<
   N_XSOCKADDR_IN native_name(name);
   X_STATUS status = socket->Bind(&native_name, namelen);
   if (XFAILED(status)) {
-    KernelThread::GetCurrentThread()->SetLastError(ValidNameLength(namelen) ? CallError(*socket)
-                                                                            : kWSAEFAULT);
+    KernelThread::GetCurrentThread()->SetLastError(IsValidNameLength(namelen) ? CallError(*socket)
+                                                                              : kWSAEFAULT);
     return -1;
   }
 
@@ -917,8 +917,8 @@ u32 NetDll_connect_entry([[maybe_unused]] u32 caller, u32 socket_handle, GuestPt
   N_XSOCKADDR native_name(name);
   X_STATUS status = socket->Connect(&native_name, namelen);
   if (XFAILED(status)) {
-    KernelThread::GetCurrentThread()->SetLastError(ValidNameLength(namelen) ? CallError(*socket)
-                                                                            : kWSAEFAULT);
+    KernelThread::GetCurrentThread()->SetLastError(IsValidNameLength(namelen) ? CallError(*socket)
+                                                                              : kWSAEFAULT);
     return -1;
   }
 
@@ -974,7 +974,7 @@ struct x_fd_set {
   be_u32 fd_count;
 };
 
-std::span<be_u32> SetEntries(GuestPtrT<x_fd_set> set) {
+std::span<be_u32> GetEntries(GuestPtrT<x_fd_set> set) {
   return {runtime::GetCurrent().GetMemory()->TranslateVirtual<be_u32*>(set.GetGuestAddress() +
                                                                        sizeof(x_fd_set)),
           set->fd_count};
@@ -987,7 +987,7 @@ struct HostSet {
     if (!guest_set) {
       return;
     }
-    for (const u32 socket_handle : SetEntries(guest_set)) {
+    for (const u32 socket_handle : GetEntries(guest_set)) {
       auto socket = runtime::GetCurrent().GetObjectTable().Get<SocketObject>(socket_handle);
       if (!socket || socket->closed) {
         return;
@@ -1008,7 +1008,7 @@ struct HostSet {
     if (!guest_set) {
       return;
     }
-    const std::span<be_u32> entries = SetEntries(guest_set);
+    const std::span<be_u32> entries = GetEntries(guest_set);
     u32 count = 0;
     for (size_t i = 0; i < sockets.size(); ++i) {
       if (ready[i] != rex::platform::SocketReady::kNone) {
@@ -1072,7 +1072,7 @@ i32 NetDll_select_entry([[maybe_unused]] i32 caller, [[maybe_unused]] i32 nfds,
   while (true) {
     ret = rex::platform::PollSockets(waits, ready);
     if (ret == -1) {
-      KernelThread::GetCurrentThread()->SetLastError(rex::platform::SocketError());
+      KernelThread::GetCurrentThread()->SetLastError(rex::platform::GetSocketError());
       return -1;
     }
     if (ret != 0 || (!infinite && clock::now() >= deadline)) {
@@ -1085,7 +1085,7 @@ i32 NetDll_select_entry([[maybe_unused]] i32 caller, [[maybe_unused]] i32 nfds,
                           ? std::chrono::milliseconds::max()
                           : std::chrono::ceil<std::chrono::milliseconds>(deadline - clock::now());
     if (runtime::WaitHostSockets(waits, left) == rex::platform::WaitResult::kFailed) {
-      KernelThread::GetCurrentThread()->SetLastError(rex::platform::SocketError());
+      KernelThread::GetCurrentThread()->SetLastError(rex::platform::GetSocketError());
       return -1;
     }
     if (closed()) {
@@ -1200,7 +1200,7 @@ u32 NetDll_sendto_entry([[maybe_unused]] u32 caller, u32 socket_handle, MappedVo
 }
 
 u32 NetDll___WSAFDIsSet_entry(u32 socket_handle, GuestPtrT<x_fd_set> fd_set) {
-  return std::ranges::any_of(SetEntries(fd_set),
+  return std::ranges::any_of(GetEntries(fd_set),
                              [socket_handle](u32 entry) { return entry == socket_handle; })
              ? 1
              : 0;

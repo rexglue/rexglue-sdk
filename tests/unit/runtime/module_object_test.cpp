@@ -58,7 +58,7 @@ class WatchedXEXModule : public rex::runtime::XEXModule {
         loaded_at_destroy_(loaded_at_destroy) {}
   ~WatchedXEXModule() override {
     ++*destroyed_;
-    *loaded_at_destroy_ = GetLoaded();
+    *loaded_at_destroy_ = IsLoaded();
   }
 
  private:
@@ -70,7 +70,7 @@ class WatchedXEXModule : public rex::runtime::XEXModule {
 
 REX_TEST_CASE("A user module object frees its loaded module when it is destroyed",
               "[runtime][module]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::Runtime& runtime = fixture.GetRuntime();
   u32 destroyed = 0;
   const rex::X_HANDLE handle = rex::runtime::CreateModule(runtime, ModuleType::kUser);
@@ -89,7 +89,7 @@ REX_TEST_CASE("A user module object frees its loaded module when it is destroyed
 
 REX_TEST_CASE("A user module object unloads its XEX image before freeing the module",
               "[runtime][module]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::Runtime& runtime = fixture.GetRuntime();
   rex::test::XEXSpec spec;
   spec.image = rex::test::TestImage(0x1000);
@@ -99,7 +99,7 @@ REX_TEST_CASE("A user module object unloads its XEX image before freeing the mod
   auto xex = std::make_unique<WatchedXEXModule>(runtime, &destroyed, &loaded_at_destroy);
   REQUIRE(xex->Load("watched", "game:\\watched.xex", file.data(), file.size()));
   rex::runtime::BaseHeap* heap = runtime.GetMemory()->LookupHeap(spec.load_address);
-  rex::runtime::HeapAllocationInfo info{};
+  rex::runtime::HeapAllocation info{};
   REQUIRE(heap->QueryRegionInfo(spec.load_address, &info));
   REQUIRE(info.state != 0);
 
@@ -156,7 +156,7 @@ std::vector<u8> BuildExportImage() {
 
 REX_TEST_CASE("A user module hands the same thunk to a caller that asks for an ordinal again",
               "[runtime][module]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::Runtime& runtime = fixture.GetRuntime();
   rex::test::XEXSpec spec;
   spec.load_address = kExportImageBase;
@@ -200,7 +200,7 @@ REX_TEST_CASE("The exception directory is read from the cached PE info when the 
               "[runtime][module]") {
   constexpr u32 kDirectoryRva = 0x1800;
   constexpr u32 kDirectorySize = 0x20;
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::Runtime& runtime = fixture.GetRuntime();
   rex::test::XEXSpec spec;
   spec.load_address = kExportImageBase;
@@ -216,7 +216,7 @@ REX_TEST_CASE("The exception directory is read from the cached PE info when the 
   std::memset(runtime.GetMemory()->TranslateVirtual(kExportImageBase), 0, 0x1000);
 
   const rex::runtime::Module& module = xex;
-  CHECK(module.GetExceptionDirectoryRva() == kDirectoryRva);
+  CHECK(module.GetExceptionDirectoryRVA() == kDirectoryRva);
   CHECK(module.GetExceptionDirectorySize() == kDirectorySize);
   CHECK(module.GetExceptionDirectoryAddress() == kExportImageBase + kDirectoryRva);
 }
@@ -271,7 +271,7 @@ std::vector<u8> MakeElf(u32 segment_type, u32 offset, u32 file_size, u32 align) 
   return bytes;
 }
 
-bool LoadElf(rex::testing::KernelFixture& fixture, const std::vector<u8>& bytes) {
+bool LoadElf(rex::test::KernelFixture& fixture, const std::vector<u8>& bytes) {
   rex::runtime::ELFModule module(fixture.GetRuntime().GetFunctionDispatcher());
   return module.Load("test.elf", "game:\\test.elf", bytes.data(), bytes.size());
 }
@@ -280,7 +280,7 @@ bool LoadElf(rex::testing::KernelFixture& fixture, const std::vector<u8>& bytes)
 
 REX_TEST_CASE("An ELF with an unsupported header is refused instead of read out of bounds",
               "[runtime][module][elf]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   CHECK(LoadElf(fixture, MakeElf(4, 0, 0, 0)));
 
   auto elf64 = MakeElf(4, 0, 0, 0);
@@ -305,7 +305,7 @@ REX_TEST_CASE("An ELF with an unsupported header is refused instead of read out 
 }
 
 REX_TEST_CASE("An ELF segment outside the file is refused", "[runtime][module][elf]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   CHECK_FALSE(LoadElf(fixture, MakeElf(1, 0x10000, 0x100, 0x1000)));
   CHECK_FALSE(LoadElf(fixture, MakeElf(1, kElfHeaderSize, 0xFFFFFFF0, 0x1000)));
   CHECK_FALSE(LoadElf(fixture, MakeElf(1, 0, 0x10, 3)));
@@ -313,7 +313,7 @@ REX_TEST_CASE("An ELF segment outside the file is refused", "[runtime][module][e
 
 REX_TEST_CASE("A module that is not an XEX answers its XEX only calls with a failure",
               "[runtime][module]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   ModuleObject module(&fixture.GetRuntime(), ModuleType::kUser);
   module.user.module_format = ModuleFormat::kELF;
   CHECK(module.GetXEX() == nullptr);
@@ -323,7 +323,7 @@ REX_TEST_CASE("A module that is not an XEX answers its XEX only calls with a fai
   u32 section_size = 0;
   CHECK(module.GetSection("section", &section_data, &section_size) == rex::X_STATUS_NOT_FOUND);
   void* header = nullptr;
-  CHECK(module.OptHeader(rex::filesystem::kXEXHeaderExecutionInfo, &header) ==
+  CHECK(module.GetOptHeader(rex::filesystem::kXEXHeaderExecutionInfo, &header) ==
         rex::X_STATUS_UNSUCCESSFUL);
 
   ModuleObject undefined(&fixture.GetRuntime(), ModuleType::kUser);

@@ -28,7 +28,7 @@ struct KeyChord {
   /** The key, VirtualKey::kNone for an unbound chord. */
   VirtualKey key = VirtualKey::kNone;
   /** The modifiers held with the key, no more and no fewer. */
-  KeyModifiers mods = KeyModifiers::kNone;
+  KeyModifiers modifiers = KeyModifiers::kNone;
 
   /**
    * Compares 2 chords.

@@ -291,17 +291,17 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
       } break;
 
       case Command::kVkSetStencilCompareMask: {
-        auto& args = *reinterpret_cast<const ArgsSetStencilMaskReference*>(stream);
+        auto& args = *reinterpret_cast<const ArgsVkSetStencilMaskReference*>(stream);
         dfn.vkCmdSetStencilCompareMask(command_buffer, args.face_mask, args.mask_reference);
       } break;
 
       case Command::kVkSetStencilReference: {
-        auto& args = *reinterpret_cast<const ArgsSetStencilMaskReference*>(stream);
+        auto& args = *reinterpret_cast<const ArgsVkSetStencilMaskReference*>(stream);
         dfn.vkCmdSetStencilReference(command_buffer, args.face_mask, args.mask_reference);
       } break;
 
       case Command::kVkSetStencilWriteMask: {
-        auto& args = *reinterpret_cast<const ArgsSetStencilMaskReference*>(stream);
+        auto& args = *reinterpret_cast<const ArgsVkSetStencilMaskReference*>(stream);
         dfn.vkCmdSetStencilWriteMask(command_buffer, args.face_mask, args.mask_reference);
       } break;
 

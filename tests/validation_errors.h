@@ -26,7 +26,7 @@ namespace rex::test {
  * @param text The text to find.
  * @return True when an error contains the text.
  */
-inline bool AnyError(const codegen::RecompilerConfig::ValidationResult& result,
+inline bool HasError(const codegen::RecompilerConfig::ValidationResult& result,
                      std::string_view text) {
   return std::ranges::any_of(result.errors, [text](const std::string& error) {
     return error.find(text) != std::string::npos;

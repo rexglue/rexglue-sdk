@@ -43,7 +43,7 @@ inline ImU32 ToImU32(Color color) {
  * @return The color with the same 4 channels.
  */
 inline Color FromImVec4(const ImVec4& value) {
-  return Color::RGBA(value.x, value.y, value.z, value.w);
+  return Color::FromRGBA(value.x, value.y, value.z, value.w);
 }
 
 }  // namespace rex::ui

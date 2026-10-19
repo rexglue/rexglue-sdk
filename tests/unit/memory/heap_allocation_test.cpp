@@ -18,7 +18,7 @@
 
 namespace {
 
-using rex::testing::GetTestMemory;
+using rex::test::GetTestMemory;
 
 /**
  * Casts away const so a test can mutate a heap.
@@ -46,7 +46,7 @@ REX_TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
     REQUIRE(result);
     REQUIRE(addr != 0);
 
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(addr, &info));
     CHECK(info.allocation_size == 4096);
 
@@ -60,7 +60,7 @@ REX_TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
     REQUIRE(result);
 
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(addr, &info));
     CHECK(info.allocation_size == 4096);
 
@@ -74,7 +74,7 @@ REX_TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
     REQUIRE(result);
 
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(addr, &info));
     CHECK(info.allocation_size == 4096);
 
@@ -89,7 +89,7 @@ REX_TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
     REQUIRE(result);
 
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(addr, &info));
     CHECK(info.allocation_size == 4096 * 4);
 
@@ -181,7 +181,7 @@ REX_TEST_CASE("AllocFixed allocates at exact address", "[memory][heap]") {
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite);
   REQUIRE(result);
 
-  rex::runtime::HeapAllocationInfo info{};
+  rex::runtime::HeapAllocation info{};
   REQUIRE(heap->QueryRegionInfo(target, &info));
   CHECK(info.base_address == target);
   CHECK(info.state != 0);
@@ -247,7 +247,7 @@ REX_TEST_CASE("Protect changes page protection and returns old value", "[memory]
 
     CHECK(old_protect == (rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite));
 
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(addr, &info));
     CHECK(info.protect == rex::runtime::kMemoryProtectRead);
   }
@@ -268,7 +268,7 @@ REX_TEST_CASE("QueryRegionInfo returns correct allocation info", "[memory][heap]
   REQUIRE(result);
 
   SECTION("Query at allocation base") {
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(addr, &info));
 
     CHECK(info.base_address == addr);
@@ -280,7 +280,7 @@ REX_TEST_CASE("QueryRegionInfo returns correct allocation info", "[memory][heap]
 
   SECTION("Query in middle of allocation") {
     u32 mid = addr + 4096 * 2;
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(mid, &info));
 
     CHECK(info.base_address == mid);
@@ -354,7 +354,7 @@ REX_TEST_CASE("64KB page heap rounds to 64KB boundaries", "[memory][heap]") {
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
     REQUIRE(result);
 
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(heap->QueryRegionInfo(addr, &info));
     // Sizes round up to the 64KB page size.
     CHECK(info.allocation_size == 65536);
@@ -376,7 +376,7 @@ REX_TEST_CASE("Decommit removes commit flag but keeps reservation", "[memory][he
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
   REQUIRE(result);
 
-  rex::runtime::HeapAllocationInfo info_before{};
+  rex::runtime::HeapAllocation info_before{};
   REQUIRE(heap->QueryRegionInfo(addr, &info_before));
   CHECK((info_before.state & rex::runtime::kMemoryAllocationCommit) != 0);
   CHECK((info_before.state & rex::runtime::kMemoryAllocationReserve) != 0);
@@ -384,7 +384,7 @@ REX_TEST_CASE("Decommit removes commit flag but keeps reservation", "[memory][he
   bool decommit = heap->Decommit(addr, 4096);
   REQUIRE(decommit);
 
-  rex::runtime::HeapAllocationInfo info_after{};
+  rex::runtime::HeapAllocation info_after{};
   REQUIRE(heap->QueryRegionInfo(addr, &info_after));
   CHECK((info_after.state & rex::runtime::kMemoryAllocationCommit) == 0);
   CHECK((info_after.state & rex::runtime::kMemoryAllocationReserve) != 0);
@@ -407,15 +407,15 @@ REX_TEST_CASE("Decommit partial region", "[memory][heap]") {
   bool decommit = heap->Decommit(addr + 4096, 4096 * 2);
   REQUIRE(decommit);
 
-  rex::runtime::HeapAllocationInfo info_first{};
+  rex::runtime::HeapAllocation info_first{};
   REQUIRE(heap->QueryRegionInfo(addr, &info_first));
   CHECK((info_first.state & rex::runtime::kMemoryAllocationCommit) != 0);
 
-  rex::runtime::HeapAllocationInfo info_mid{};
+  rex::runtime::HeapAllocation info_mid{};
   REQUIRE(heap->QueryRegionInfo(addr + 4096, &info_mid));
   CHECK((info_mid.state & rex::runtime::kMemoryAllocationCommit) == 0);
 
-  rex::runtime::HeapAllocationInfo info_last{};
+  rex::runtime::HeapAllocation info_last{};
   REQUIRE(heap->QueryRegionInfo(addr + 4096 * 3, &info_last));
   CHECK((info_last.state & rex::runtime::kMemoryAllocationCommit) != 0);
 
@@ -438,7 +438,7 @@ REX_TEST_CASE("Decommit and recommit cycle on 64KB heap (real usage pattern)", "
   bool decommit = heap->Decommit(addr, 65536);
   REQUIRE(decommit);
 
-  rex::runtime::HeapAllocationInfo info{};
+  rex::runtime::HeapAllocation info{};
   REQUIRE(heap->QueryRegionInfo(addr, &info));
   CHECK(info.state == rex::runtime::kMemoryAllocationReserve);
 
@@ -448,7 +448,7 @@ REX_TEST_CASE("Decommit and recommit cycle on 64KB heap (real usage pattern)", "
                        rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite);
   REQUIRE(recommit);
 
-  rex::runtime::HeapAllocationInfo info_after{};
+  rex::runtime::HeapAllocation info_after{};
   REQUIRE(heap->QueryRegionInfo(addr, &info_after));
   CHECK((info_after.state & rex::runtime::kMemoryAllocationCommit) != 0);
 
@@ -494,7 +494,7 @@ REX_TEST_CASE("Decommit on 64KB heap uses 64KB granularity", "[memory][heap]") {
   REQUIRE(decommit);
 
   // Decommit size is rounded to the page size through get_page_count.
-  rex::runtime::HeapAllocationInfo info{};
+  rex::runtime::HeapAllocation info{};
   REQUIRE(heap->QueryRegionInfo(addr, &info));
   CHECK((info.state & rex::runtime::kMemoryAllocationCommit) == 0);
 

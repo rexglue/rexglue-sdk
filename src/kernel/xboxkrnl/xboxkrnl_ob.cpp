@@ -33,7 +33,7 @@ Result<X_HANDLE> OpenPrimaryHandle(runtime::IObjectTable& table,
   if (auto retained = table.RetainPrimary(object); !retained) {
     return Err<X_HANDLE>(retained.error());
   }
-  return table.PrimaryHandle(object).value_or(0);
+  return table.GetPrimaryHandle(object).value_or(0);
 }
 
 Result<u32> ReferencePrimary(runtime::IObjectTable& table, const runtime::PinnedSlot& object,
@@ -68,7 +68,7 @@ using namespace rex::runtime;
 u32 ObOpenObjectByName_entry(MappedVoid obj_attributes_ptr,
                              [[maybe_unused]] MappedVoid object_type_ptr, [[maybe_unused]] u32 unk,
                              MappedU32 handle_ptr) {
-  REX_KERNEL_ARG(obj_attributes_ptr);
+  REX_KERNEL_REQUIRE_NONNULL(obj_attributes_ptr);
 
   auto obj_attributes = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
       obj_attributes_ptr.GetGuestAddress());
@@ -126,7 +126,7 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
     return X_STATUS_INVALID_HANDLE;
   }
 
-  u32 native_ptr = object.GetGuestObject();
+  u32 native_ptr = object.GetGuestAddress();
   if (object.GetKind() == ObjectKind::kThread) {
     auto thread = runtime::GetCurrent().GetThreadRegistry().Find(
         std::get<ThreadRef>(object.GetData()).thread_id);
@@ -273,15 +273,15 @@ u32 NtClose_entry(u32 handle) {
   return result;
 }
 
-u32 NtQueryEvent_entry(u32 handle, MappedU32 out_struc) {
+u32 NtQueryEvent_entry(u32 handle, MappedU32 out_event_info_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto ev = runtime::GetCurrent().GetObjectTable().Get<EventObject>(handle);
   if (ev) {
     u32 type_tmp, state_tmp;
     ev->Query(&type_tmp, &state_tmp);
-    out_struc[0] = type_tmp;
-    out_struc[1] = state_tmp;
+    out_event_info_ptr[0] = type_tmp;
+    out_event_info_ptr[1] = state_tmp;
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }

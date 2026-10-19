@@ -16,7 +16,7 @@
 #include <thread>
 
 #include <rex/runtime/error.h>
-#include <rex/runtime/object_data.h>
+#include <rex/runtime/kernel_object.h>
 
 #include "runtime/object_table.h"
 
@@ -119,14 +119,14 @@ REX_TEST_CASE("ObjectTable RetainPrimary needs a matching Close", "[kernel][obje
   CHECK_FALSE(table.Get(handle));
 }
 
-REX_TEST_CASE("ObjectTable PrimaryHandle returns the first handle", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable GetPrimaryHandle returns the first handle", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   auto duplicated = table.Duplicate(handle);
   REQUIRE(duplicated.has_value());
   const X_HANDLE copy = *duplicated;
   auto pin = table.Get(copy);
-  CHECK(table.PrimaryHandle(pin) == std::optional<X_HANDLE>(handle));
+  CHECK(table.GetPrimaryHandle(pin) == std::optional<X_HANDLE>(handle));
 }
 
 REX_TEST_CASE("ObjectTable ReleasePrimary closes the first handle", "[kernel][object_table]") {
@@ -232,7 +232,7 @@ REX_TEST_CASE("ObjectTable All returns one pin per object of the type", "[kernel
   REQUIRE(table.Emplace<SemaphoreObject>(AddOptions{}, 1, 2).has_value());
   CHECK(table.All<EventObject>().size() == 2);
   CHECK(table.All<SemaphoreObject>().size() == 1);
-  CHECK(table.All().size() == 3);
+  CHECK(table.GetAll().size() == 3);
 }
 
 REX_TEST_CASE("ObjectTable Reset closes everything", "[kernel][object_table]") {

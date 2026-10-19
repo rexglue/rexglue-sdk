@@ -181,7 +181,7 @@ bool Build<PPC_INST_BCTR>(BuilderContext& ctx) {
     ctx.Println("\t\t__builtin_trap(); // Switch case out of range");
     ctx.Println("\t}}");
 
-    ctx.GetResetSwitchTable();
+    ctx.ResetJumpTable();
   } else {
     ctx.Println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
     ctx.Println("\treturn;");

@@ -44,10 +44,10 @@ REX_API void CopySwapBlock(xenos::Endian endian, void* output, const void* input
  * @param endian The swap mode of the source block.
  * @param output Destination for 4 rows of 4 R8G8 texels.
  * @param input Source CTX1 block.
- * @param length Destination row pitch in bytes.
+ * @param output_pitch Destination row pitch in bytes.
  */
 REX_API void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output, const void* input,
-                                    size_t length);
+                                    size_t output_pitch);
 
 /**
  * Expands a DXT3A block into a DXT3 block with the color half zeroed.
@@ -64,7 +64,7 @@ REX_API void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output, const v
 using UntileCopyBlockCallback = std::function<void(void*, const void*, size_t)>;
 
 /** Region and formats for Untile. */
-struct UntileInfo {
+struct UntileRegion {
   u32 offset_x;                          /**< Left edge of the region in blocks. */
   u32 offset_y;                          /**< Top edge of the region in blocks. */
   u32 width;                             /**< Region width in blocks. */
@@ -83,6 +83,6 @@ struct UntileInfo {
  * @param input_buffer Tiled source.
  * @param untile_info The region, pitches, formats and block copy callback.
  */
-REX_API void Untile(u8* output_buffer, const u8* input_buffer, const UntileInfo* untile_info);
+REX_API void Untile(u8* output_buffer, const u8* input_buffer, const UntileRegion* untile_info);
 
 }  // namespace rex::xenos

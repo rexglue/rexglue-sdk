@@ -26,7 +26,7 @@
 #include <rex/runtime/exports.h>
 #include <rex/types.h>
 
-namespace rex::testing {
+namespace rex::test {
 
 /** Calls exports by name the way recompiled code does. */
 class Caller {
@@ -139,11 +139,11 @@ class Caller {
    * @param body The body, called with a Caller bound to the started thread.
    * @return The start context id.
    */
-  static u32 PutBodyForTest(std::function<void(Caller&)> body);
+  static u32 RegisterBody(std::function<void(Caller&)> body);
 
   inline static u32 start_thunk = 0;
 
-  PPCContext& GetCtx() const { return ctx_; }
+  PPCContext& GetContext() const { return ctx_; }
   Runtime& GetRuntime() const { return runtime_; }
 
  private:
@@ -214,7 +214,7 @@ class KernelFixture {
  * @param bytes The bytes.
  * @return The guest address.
  */
-u32 Put(Caller& c, std::span<const u8> bytes);
+u32 CopyToGuest(Caller& c, std::span<const u8> bytes);
 
 /**
  * Fills freshly allocated guest memory with the repeating bytes DE AD BE EF.
@@ -233,7 +233,7 @@ u32 PutFilled(Caller& c, u32 size);
  * @param size The size in bytes.
  * @return The bytes.
  */
-std::vector<u8> Get(Caller& c, u32 address, u32 size);
+std::vector<u8> ReadBytes(Caller& c, u32 address, u32 size);
 
 /**
  * Decodes hexadecimal text into bytes.
@@ -268,4 +268,4 @@ void Join(Caller& c, u32 handle);
  */
 u64 SystemTime(Caller& c);
 
-}  // namespace rex::testing
+}  // namespace rex::test

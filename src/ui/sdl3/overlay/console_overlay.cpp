@@ -7,13 +7,13 @@
 
 namespace rex::ui {
 
-ConsoleDialog::ConsoleDialog(const ModuleOverlayContext& context)
+ConsoleOverlayDialog::ConsoleOverlayDialog(const ModuleOverlayContext& context)
     : ui_(context.base.ui),
       model_(context.console),
       host_(context.console_host),
       view_(model_, host_) {}
 
-bool ConsoleDialog::OnToggle() {
+bool ConsoleOverlayDialog::OnToggle() {
   if (model_.GetDock() != ConsoleDock::kUndocked) {
     return false;
   }
@@ -21,11 +21,11 @@ bool ConsoleDialog::OnToggle() {
   return true;
 }
 
-void ConsoleDialog::OnShow() {
+void ConsoleOverlayDialog::OnShow() {
   view_.FocusInput();
 }
 
-void ConsoleDialog::OnDraw(ImGuiIO& io) {
+void ConsoleOverlayDialog::OnDraw(ImGuiIO& io) {
   if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f) {
     return;
   }

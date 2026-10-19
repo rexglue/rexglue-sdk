@@ -27,7 +27,7 @@
 namespace rex::xenos {
 
 /** Name and value type of a register in the register table. */
-struct RegisterInfo {
+struct RegisterDesc {
   /** How a register value is interpreted. */
   enum class Type : u8 {
     kDword, /**< Raw 32 bit integer value. */
@@ -46,7 +46,7 @@ class REX_API RegisterFile {
    * @param index Dword register index.
    * @return Name and type of the register, or null when the index is not in the table.
    */
-  static const RegisterInfo* GetRegisterInfo(u32 index);
+  static const RegisterDesc* GetRegisterInfo(u32 index);
 
   /** Number of dword registers, 1 past the highest register index. */
   static constexpr size_t kRegisterCount = 0x5003;

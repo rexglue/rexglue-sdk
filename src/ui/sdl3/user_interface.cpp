@@ -77,7 +77,7 @@ Result<IWindow*> SDL3UserInterface::OpenWindow(const UIConfig& config, EventCall
     return Err<IWindow*>(ErrorCategory::kRuntime, std::move(message));
   };
   callback_ = std::move(callback);
-  auto context = std::make_unique<SDLWindowedAppContext>();
+  auto context = std::make_unique<SDL3WindowedAppContext>();
   if (!context->Initialize(config)) {
     return Err<IWindow*>(ErrorCategory::kRuntime, "SDL video initialization failed");
   }
@@ -182,7 +182,7 @@ void SDL3UserInterface::CloseWindow() {
   REX_ASSERT(IsUIThread());
   open_ = false;
   if (context_ && !context_->HasQuitFromUIThread()) {
-    context_->QuitFromUIThread();
+    context_->RequestShutdownFromUIThread();
   }
   ReleaseToast();
   if (drawer_) {
@@ -249,15 +249,15 @@ bool SDL3UserInterface::PumpFrame() {
   return !context_->HasQuitFromUIThread();
 }
 
-void SDL3UserInterface::Quit() {
+void SDL3UserInterface::EndFrameLoop() {
   std::lock_guard lock(post_mutex_);
-  SDLWindowedAppContext* target = post_target_;
+  SDL3WindowedAppContext* target = post_target_;
   if (!target) {
     return;
   }
   target->CallInUIThreadDeferred([target] {
     if (!target->HasQuitFromUIThread()) {
-      target->QuitFromUIThread();
+      target->RequestShutdownFromUIThread();
     }
   });
 }
@@ -276,7 +276,7 @@ void SDL3UserInterface::RunSynchronous(rex::MoveOnlyFunction<void()> work) {
     work();
     return;
   }
-  SDLWindowedAppContext* target = nullptr;
+  SDL3WindowedAppContext* target = nullptr;
   {
     std::lock_guard lock(post_mutex_);
     target = post_target_;
@@ -331,7 +331,7 @@ void SDL3UserInterface::ToggleOverlay(std::string_view name) {
   }
 }
 
-ImGuiDialog* SDL3UserInterface::Overlay(std::string_view name) {
+ImGuiDialog* SDL3UserInterface::GetOverlay(std::string_view name) {
   REX_ASSERT(IsUIThread());
   return overlays_ ? overlays_->Get(name) : nullptr;
 }
@@ -394,7 +394,7 @@ void SDL3UserInterface::SetOverlayDrawer(std::unique_ptr<gpu::IOverlayDrawer> dr
   if (drawer_ && presenter_) {
     drawer_->SetOverlayDrawer(overlay_drawer_.get());
   }
-  EnsureToast();
+  CreateToast();
 }
 
 gpu::IOverlayDrawer* SDL3UserInterface::GetOverlayDrawer() {
@@ -415,11 +415,11 @@ void SDL3UserInterface::SetRuntime(Runtime* runtime) {
   runtime_ = runtime;
   if (runtime) {
     achievements_ = &runtime->GetAchievementManager();
-    EnsureToast();
+    CreateToast();
   }
 }
 
-void SDL3UserInterface::EnsureToast() {
+void SDL3UserInterface::CreateToast() {
   if (!achievements_ || !drawer_ || !overlay_drawer_ || !runtime_ || !overlay_context_) {
     return;
   }
@@ -440,7 +440,7 @@ void SDL3UserInterface::EnsureToast() {
 
 void SDL3UserInterface::ReleaseToast() {
   if (toast_listener_ != 0 && achievements_) {
-    achievements_->UnregisterCallback(toast_listener_);
+    achievements_->UnregisterNotificationCallback(toast_listener_);
   }
   toast_listener_ = 0;
   std::lock_guard lock(toast_mutex_);
@@ -449,7 +449,7 @@ void SDL3UserInterface::ReleaseToast() {
 
 VideoMode SDL3UserInterface::GetVideoMode() const {
   VideoMode mode;
-  detail::ConfiguredVideoMode(mode.width, mode.height);
+  detail::GetConfiguredVideoMode(mode.width, mode.height);
   mode.refresh_rate = detail::GetConfiguredRefreshRate();
   return mode;
 }

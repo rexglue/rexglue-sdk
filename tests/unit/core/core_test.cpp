@@ -76,7 +76,7 @@ REX_TEST_CASE_METHOD(Fixture,
   REQUIRE(api);
   auto* cvars = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE(cvars->Get("perf.profiler").value() == "true");
-  REQUIRE(cvars->Source("perf.profiler") == rex::cvar::CvarSource::kDefault);
+  REQUIRE(cvars->GetSource("perf.profiler") == rex::cvar::CvarSource::kDefault);
   rex::Shutdown();
 
   cfg.cvars.values.push_back({"perf.profiler", "false", rex::cvar::CvarSource::kCommandLine});

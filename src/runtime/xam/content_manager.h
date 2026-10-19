@@ -94,16 +94,16 @@ class ContentManager final : public IContentManager {
   void CloseOpenedFilesFromContent(std::string_view root_name) override;
   [[nodiscard]] Result<runtime::XCONTENT_AGGREGATE_DATA> InstallContent(
       const std::filesystem::path& package_path) override;
-  u32 GetTitleId() const override;
+  u32 GetTitleID() const override;
   Result<u32> GetContentDeviceID(std::string_view root_name) const override;
-  runtime::XDBFGameData GetTitleXDBF() const override;
+  runtime::XDBFTitleData GetTitleXDBF() const override;
   runtime::UserProfile& GetUserProfile() override { return user_profile_; }
   runtime::AppManager& GetAppManager() override { return app_manager_; }
 
  private:
   std::unique_ptr<runtime::ContentPackage> ResolvePackage(
       const std::string_view root_name, u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data);
-  runtime::XDBFGameData GetModuleXDBF(const ModuleObject& exec_module) const;
+  runtime::XDBFTitleData GetModuleXDBF(const ModuleObject& exec_module) const;
   std::filesystem::path ResolvePackageRoot(u64 xuid, XContentType content_type,
                                            u32 title_id = 0xFFFFFFFF);
   std::filesystem::path ResolvePackagePath(u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data);
@@ -124,7 +124,8 @@ class ContentManager final : public IContentManager {
   runtime::UserProfile& user_profile_;
 
   mutable rex::platform::RankedMutex mutex_{rex::platform::LockRank::kLeaf};
-  std::unordered_map<StringKeyCase, std::unique_ptr<runtime::ContentPackage>, StringKeyCase::Hash>
+  std::unordered_map<StringKeyIgnoreCase, std::unique_ptr<runtime::ContentPackage>,
+                     StringKeyIgnoreCase::Hash>
       open_packages_;
 };
 

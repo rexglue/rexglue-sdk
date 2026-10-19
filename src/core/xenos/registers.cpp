@@ -14,14 +14,14 @@
 namespace rex::xenos {
 namespace reg {
 
-const Register RB_COLOR_INFO::kRtRegisterIndices[4] = {
+const Register RB_COLOR_INFO::kRTRegisterIndices[4] = {
     xenos::Register::RB_COLOR_INFO,
     xenos::Register::RB_COLOR1_INFO,
     xenos::Register::RB_COLOR2_INFO,
     xenos::Register::RB_COLOR3_INFO,
 };
 
-const Register RB_BLENDCONTROL::kRtRegisterIndices[4] = {
+const Register RB_BLENDCONTROL::kRTRegisterIndices[4] = {
     xenos::Register::RB_BLENDCONTROL0,
     xenos::Register::RB_BLENDCONTROL1,
     xenos::Register::RB_BLENDCONTROL2,

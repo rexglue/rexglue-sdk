@@ -7,7 +7,7 @@
     Licensed under the BSD 3-Clause License.
     See LICENSE file in the project root for full license text.
 #>
-function Initialize-VsEnvironment {
+function Initialize-VSEnvironment {
     if (-not $IsWindows) { return }
     if ($env:VSCMD_VER) { return }
 

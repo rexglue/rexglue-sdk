@@ -40,7 +40,7 @@ REX_TEST_CASE("Default Metrics hold the former overlay literals", "[ui][style]")
   CHECK(metrics.footer_height == 30.0f);
   CHECK(metrics.side_panel_width == 160.0f);
   CHECK(metrics.button_width == 140.0f);
-  CHECK(metrics.button_width_wide == 160.0f);
+  CHECK(metrics.value_width == 160.0f);
   CHECK(metrics.window_alpha.overlay == 0.92f);
   CHECK(metrics.window_alpha.panel == 0.85f);
   CHECK(metrics.window_alpha.toast == 0.88f);
@@ -61,18 +61,18 @@ REX_TEST_CASE("Default section colors reference the palette roles they equal", "
 
 REX_TEST_CASE("Default section colors keep the former values", "[ui][style]") {
   const Style style;
-  CHECK(style.achievements.unlocked_title == Color::RGBA(0.45f, 1.00f, 0.55f, 1.00f));
-  CHECK(style.achievements.row_unlocked_bg == Color::RGBA(0.16f, 0.30f, 0.18f, 0.55f));
-  CHECK(style.achievements.locked_icon_tint == Color::RGBA(0.45f, 0.45f, 0.45f, 0.80f));
+  CHECK(style.achievements.unlocked_title == Color::FromRGBA(0.45f, 1.00f, 0.55f, 1.00f));
+  CHECK(style.achievements.row_unlocked_bg == Color::FromRGBA(0.16f, 0.30f, 0.18f, 0.55f));
+  CHECK(style.achievements.locked_icon_tint == Color::FromRGBA(0.45f, 0.45f, 0.45f, 0.80f));
   CHECK(style.achievements.window_padding.x == 14.0f);
   CHECK(style.achievements.window_padding.y == 12.0f);
   CHECK(style.achievements.item_spacing.x == 8.0f);
   CHECK(style.achievements.item_spacing.y == 6.0f);
-  CHECK(style.toast.title == Color::RGBA(1.00f, 0.85f, 0.20f, 1.00f));
-  CHECK(style.console.level[0] == Color::RGBA(0.5f, 0.5f, 0.5f, 1.0f));
-  CHECK(style.console.level[6] == Color::RGBA(1.0f, 0.0f, 0.0f, 1.0f));
-  CHECK(style.console.completion_bg == Color::RGBA(0.10f, 0.10f, 0.10f, 0.95f));
-  CHECK(style.console.completion_highlight == Color::RGBA(0.235f, 0.353f, 0.549f, 0.784f));
+  CHECK(style.toast.title == Color::FromRGBA(1.00f, 0.85f, 0.20f, 1.00f));
+  CHECK(style.console.level[0] == Color::FromRGBA(0.5f, 0.5f, 0.5f, 1.0f));
+  CHECK(style.console.level[6] == Color::FromRGBA(1.0f, 0.0f, 0.0f, 1.0f));
+  CHECK(style.console.completion_bg == Color::FromRGBA(0.10f, 0.10f, 0.10f, 0.95f));
+  CHECK(style.console.completion_highlight == Color::FromRGBA(0.235f, 0.353f, 0.549f, 0.784f));
   CHECK(style.palette.button_alpha == 0.60f);
-  CHECK(style.settings.lifecycle_restart == Color::RGBA(1.00f, 1.00f, 0.40f, 1.00f));
+  CHECK(style.settings.lifecycle_restart == Color::FromRGBA(1.00f, 1.00f, 0.40f, 1.00f));
 }

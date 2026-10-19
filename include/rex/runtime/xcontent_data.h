@@ -97,7 +97,7 @@ enum class XContentType : u32 {
 };
 
 /** Placeholder in XCONTENT_AGGREGATE_DATA, substituted with the running title ID. */
-constexpr u32 kCurrentlyRunningTitleId = 0xFFFFFFFF;
+constexpr u32 kRunningTitleId = 0xFFFFFFFF;
 
 /** Metadata of a content package on a storage device, as the title lays it out. */
 struct XCONTENT_DATA {
@@ -105,7 +105,7 @@ struct XCONTENT_DATA {
   BE<XContentType> content_type; /**< Type of the package. */
   union {
     /** Plain u16 because be_u16 would stop the copy constructor being generated. */
-    u16 uint[128];
+    u16 code_units[128];
     /** The same 256 bytes as uint, used to write the name through the swapping copy. */
     char16_t chars[128];
   } display_name_raw; /**< Big endian UTF-16 name shown to the player. */
@@ -135,7 +135,7 @@ struct XCONTENT_DATA {
    * @return The name.
    */
   std::u16string GetDisplayName() const {
-    return memory::load_and_swap<std::u16string>(display_name_raw.uint);
+    return memory::load_and_swap<std::u16string>(display_name_raw.code_units);
   }
 
   /**
@@ -155,7 +155,7 @@ struct XCONTENT_DATA {
    */
   void SetDisplayName(const std::u16string_view value) {
     std::fill_n(display_name_raw.chars, CountOf(display_name_raw.chars), 0);
-    rex::copy_and_swap_truncating(display_name_raw.chars, value, CountOf(display_name_raw.chars));
+    rex::CopyAndSwapTruncating(display_name_raw.chars, value, CountOf(display_name_raw.chars));
   }
 
   /**
@@ -190,7 +190,7 @@ struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
     SetFileName(other.GetFileName());
     padding[0] = padding[1] = 0;
     xuid = 0;
-    title_id = kCurrentlyRunningTitleId;
+    title_id = kRunningTitleId;
   }
 
   /**

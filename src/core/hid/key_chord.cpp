@@ -45,7 +45,7 @@ bool IsModifierKey(VirtualKey key) {
     if (prefix == kModifierPrefixes.end()) {
       break;
     }
-    chord.mods |= prefix->mod;
+    chord.modifiers |= prefix->mod;
     rest.remove_prefix(plus + 1);
   }
   chord.key = ParseVirtualKey(rest);
@@ -84,13 +84,13 @@ std::string KeyChordToString(KeyChord chord) {
     return {};
   }
   std::string text;
-  if (HasFlags(chord.mods, KeyModifiers::kShift)) {
+  if (HasFlags(chord.modifiers, KeyModifiers::kShift)) {
     text += "Shift+";
   }
-  if (HasFlags(chord.mods, KeyModifiers::kCtrl)) {
+  if (HasFlags(chord.modifiers, KeyModifiers::kCtrl)) {
     text += "Ctrl+";
   }
-  if (HasFlags(chord.mods, KeyModifiers::kAlt)) {
+  if (HasFlags(chord.modifiers, KeyModifiers::kAlt)) {
     text += "Alt+";
   }
   text += name;

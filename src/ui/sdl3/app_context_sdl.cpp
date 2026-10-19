@@ -13,7 +13,7 @@
 
 namespace rex::ui {
 
-SDLWindowedAppContext::~SDLWindowedAppContext() {
+SDL3WindowedAppContext::~SDL3WindowedAppContext() {
   if (event_watch_registered_) {
     SDL_RemoveEventWatch(WatchEvent, this);
   }
@@ -23,7 +23,7 @@ SDLWindowedAppContext::~SDLWindowedAppContext() {
   }
 }
 
-bool SDLWindowedAppContext::Initialize(const UIConfig& config) {
+bool SDL3WindowedAppContext::Initialize(const UIConfig& config) {
   std::string requested_driver = config.video_driver;
 #if REX_PLATFORM_MAC
   // macOS presents through a CAMetalLayer surface from the Cocoa driver.
@@ -52,19 +52,19 @@ bool SDLWindowedAppContext::Initialize(const UIConfig& config) {
   return true;
 }
 
-void SDLWindowedAppContext::NotifyUILoopOfPendingFunctions() {
+void SDL3WindowedAppContext::NotifyUILoopOfPendingFunctions() {
   // SDL_PushEvent is thread-safe by SDL contract.
   SDL_Event event{};
   event.type = wakeup_event_type_;
   SDL_PushEvent(&event);
 }
 
-void SDLWindowedAppContext::PlatformQuitFromUIThread() {
+void SDL3WindowedAppContext::PlatformQuitFromUIThread() {
   // A wakeup makes SDL_WaitEvent return so the loop re-checks HasQuitFromUIThread.
   NotifyUILoopOfPendingFunctions();
 }
 
-int SDLWindowedAppContext::RunMainMessageLoop() {
+int SDL3WindowedAppContext::RunMainMessageLoop() {
   while (!HasQuitFromUIThread()) {
     SDL_Event event;
     if (!SDL_WaitEvent(&event)) {
@@ -75,7 +75,7 @@ int SDLWindowedAppContext::RunMainMessageLoop() {
   return EXIT_SUCCESS;
 }
 
-void SDLWindowedAppContext::PumpEvents(std::chrono::milliseconds max_wait) {
+void SDL3WindowedAppContext::PumpEvents(std::chrono::milliseconds max_wait) {
   SDL_Event event;
   if (!SDL_WaitEventTimeout(&event, static_cast<i32>(max_wait.count()))) {
     return;
@@ -86,7 +86,7 @@ void SDLWindowedAppContext::PumpEvents(std::chrono::milliseconds max_wait) {
   }
 }
 
-void SDLWindowedAppContext::ProcessEvent(SDL_Event& event) {
+void SDL3WindowedAppContext::ProcessEvent(SDL_Event& event) {
   if (event.type == wakeup_event_type_) {
     ExecutePendingFunctionsFromUIThread();
     return;
@@ -163,8 +163,8 @@ void SDLWindowedAppContext::ProcessEvent(SDL_Event& event) {
   }
 }
 
-bool SDLCALL SDLWindowedAppContext::WatchEvent(void* userdata, SDL_Event* event) {
-  auto* context = static_cast<SDLWindowedAppContext*>(userdata);
+bool SDLCALL SDL3WindowedAppContext::WatchEvent(void* userdata, SDL_Event* event) {
+  auto* context = static_cast<SDL3WindowedAppContext*>(userdata);
   if (event->type == SDL_EVENT_QUIT && SDL_IsMainThread() && context->IsInUIThread()) {
     // Handled while SDL queues the quit, before rendering blocks in nextDrawable.
     ++context->synchronously_handled_quit_events_;
@@ -173,7 +173,7 @@ bool SDLCALL SDLWindowedAppContext::WatchEvent(void* userdata, SDL_Event* event)
   return true;
 }
 
-void SDLWindowedAppContext::ProcessQuitRequest() {
+void SDL3WindowedAppContext::ProcessQuitRequest() {
   // Goes through the close request path so OnClosing stops the guest, audio and GPU threads.
   std::vector<SDL_WindowID> window_ids;
   window_ids.reserve(windows_.size());

@@ -35,7 +35,7 @@ using namespace rex::runtime;
 
 namespace {
 
-std::atomic<u32> unique_fiber_count;
+std::atomic<u32> g_unique_fiber_count;
 
 struct GuestThreadPtrs {
   X_KTHREAD* kthread;
@@ -131,7 +131,7 @@ u32 ConvertFiberToThreadImpl(KernelThread* thread) {
     return 0;
   }
 
-  auto info = runtime.GetThreadRegistry().LookupFiber(fiber_addr);
+  auto info = runtime.GetThreadRegistry().FindFiber(fiber_addr);
   if (info) {
     info->host_fiber->Destroy();
     runtime.GetThreadRegistry().UnregisterFiber(fiber_addr);
@@ -182,7 +182,7 @@ REX_SHIM_FN(ConvertThreadToFiber, u32, MappedVoid lpParameter) {
   }
 
   runtime.GetThreadRegistry().RegisterFiber(
-      buf_addr, FiberInfo{host_fiber, unique_fiber_count++, buf_addr, 0, true});
+      buf_addr, GuestFiber{host_fiber, g_unique_fiber_count++, buf_addr, 0, true});
 
   REXLOG_DEBUG(kernel, "ConvertThreadToFiber: fiber={:#010x} param={:#010x}", buf_addr,
                lpParameter.GetGuestAddress());
@@ -249,7 +249,7 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, MappedVoid lp
   }
 
   runtime.GetThreadRegistry().RegisterFiber(
-      buf_addr, FiberInfo{host_fiber, unique_fiber_count++, buf_addr, stack->alloc_base, false});
+      buf_addr, GuestFiber{host_fiber, g_unique_fiber_count++, buf_addr, stack->alloc_base, false});
 
   REXLOG_DEBUG(kernel, "CreateFiber: fiber={:#010x} start={:#010x} stack={:#x} param={:#010x}",
                buf_addr, lpStartAddress, guest_stack_size, lpParameter.GetGuestAddress());
@@ -274,7 +274,7 @@ REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
 
   REXLOG_DEBUG(kernel, "DeleteFiber: fiber={:#010x}", fiber_addr);
 
-  auto info = runtime.GetThreadRegistry().LookupFiber(fiber_addr);
+  auto info = runtime.GetThreadRegistry().FindFiber(fiber_addr);
   if (info) {
     if (!info->is_thread_fiber) {
       FreeGuestStack(*mem, info->guest_stack_bottom);
@@ -294,7 +294,7 @@ REX_SHIM_FN(SwitchToFiber, void, MappedVoid lpFiber) {
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
   u32 target_addr = lpFiber.GetGuestAddress();
 
-  auto target_info = runtime.GetThreadRegistry().LookupFiber(target_addr);
+  auto target_info = runtime.GetThreadRegistry().FindFiber(target_addr);
   if (!target_info || !target_info->host_fiber) {
     REXLOG_WARN(kernel, "SwitchToFiber: no valid fiber for {:#010x}, skipping", target_addr);
     return;

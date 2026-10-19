@@ -31,7 +31,7 @@ class Runtime;
 namespace rex::codegen {
 
 class DecodedBinary;
-struct SectionInfo;
+struct Section;
 struct FunctionEntry;
 struct FunctionConfig;
 
@@ -54,7 +54,7 @@ struct AnalysisState {
   u64 entry_point = 0;
   u64 image_size = 0; /**< Image size in bytes, copied from the BinaryView. */
 
-  std::vector<SectionInfo> sections;             /**< No code reads or writes it. */
+  std::vector<Section> sections;                 /**< No code reads or writes it. */
   std::vector<FunctionEntry> analyzed_functions; /**< No code reads or writes it. */
   /** Entry addresses of the chunks of each parent function, keyed by parent address, from the
    * `parent` field of the function configs. */

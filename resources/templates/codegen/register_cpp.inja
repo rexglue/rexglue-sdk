@@ -20,7 +20,7 @@ DEFINE_REX_FUNC({{ fn.name }}) {
 #endif
 
 extern "C" REX_MODULE_EXPORT
-void ReXModule_Register(rex::runtime::IModuleRegistrar* registrar) {
+void ReXRegisterModule(rex::runtime::IModuleRegistrar* registrar) {
 {% else %}
 void {{ project }}_RegisterFunctions(rex::runtime::IModuleRegistrar* registrar) {
 {% endif %}
@@ -31,7 +31,7 @@ void {{ project }}_RegisterFunctions(rex::runtime::IModuleRegistrar* registrar) 
 // The runtime uses this baked layout for the dispatch table. It must match the
 // constants used by this module's REX_LOOKUP_FUNC macro.
 extern "C" REX_MODULE_EXPORT
-const rex::PPCImageInfo* ReXModule_GetImageInfo() {
+const rex::PPCImage* ReXGetModuleImage() {
   return &PPCImageConfig;
 }
 {% endif %}

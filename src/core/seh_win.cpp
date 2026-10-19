@@ -13,10 +13,10 @@ namespace {
 std::atomic<bool> g_seh_initialized{false};
 }  // namespace
 
-static thread_local SEHThreadState tls_seh_state;
+static thread_local SEHThreadState g_seh_state;
 
 SEHThreadState& GetSEHThreadState() {
-  return tls_seh_state;
+  return g_seh_state;
 }
 
 int SEHFilter(u32 code, void* ep) {
@@ -28,10 +28,10 @@ int SEHFilter(u32 code, void* ep) {
     case EXCEPTION_FLT_DIVIDE_BY_ZERO:
     case EXCEPTION_ILLEGAL_INSTRUCTION:
     case EXCEPTION_STACK_OVERFLOW:
-      tls_seh_state.code = code;
+      g_seh_state.code = code;
       if (pointers && pointers->ExceptionRecord) {
-        tls_seh_state.info[0] = pointers->ExceptionRecord->ExceptionInformation[0];
-        tls_seh_state.info[1] = pointers->ExceptionRecord->ExceptionInformation[1];
+        g_seh_state.info[0] = pointers->ExceptionRecord->ExceptionInformation[0];
+        g_seh_state.info[1] = pointers->ExceptionRecord->ExceptionInformation[1];
       }
       return EXCEPTION_EXECUTE_HANDLER;
     default:
@@ -40,8 +40,8 @@ int SEHFilter(u32 code, void* ep) {
 }
 
 [[noreturn]] void SEHRethrow() {
-  u32 code = tls_seh_state.code;
-  ULONG_PTR info[2] = {tls_seh_state.info[0], tls_seh_state.info[1]};
+  u32 code = g_seh_state.code;
+  ULONG_PTR info[2] = {g_seh_state.info[0], g_seh_state.info[1]};
 
   if (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_IN_PAGE_ERROR) {
     RaiseException(code, EXCEPTION_NONCONTINUABLE, 2, info);

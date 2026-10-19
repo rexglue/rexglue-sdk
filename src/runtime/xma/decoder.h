@@ -54,7 +54,7 @@ class REX_RUNTIME_API XMADecoder {
   X_STATUS Setup();
   void Shutdown();
 
-  u32 GetContextArrayPtr() const { return register_file_[XMARegister::kContextArrayAddress]; }
+  u32 GetContextArrayAddress() const { return register_file_[XMARegister::kContextArrayAddress]; }
 
   u32 AllocateContext();
 

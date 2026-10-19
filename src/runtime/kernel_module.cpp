@@ -18,7 +18,7 @@
 
 namespace rex::runtime {
 
-size_t KernelModuleData::ThunkKeyHash::operator()(const ThunkKey& key) const noexcept {
+size_t KernelModuleState::ThunkKeyHash::operator()(const ThunkKey& key) const noexcept {
   return std::hash<u64>{}((static_cast<u64>(key.caller_module_base) << 16) | key.ordinal);
 }
 

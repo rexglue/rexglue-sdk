@@ -20,9 +20,9 @@
 
 using rex::X_STATUS;
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
-using rex::testing::SystemTime;
+using rex::test::Caller;
+using rex::test::KernelFixture;
+using rex::test::SystemTime;
 
 namespace {
 

@@ -329,7 +329,7 @@ enum class VirtualKey : u16 {
   kXInputPadLTrigger = 0x5806,  /**< VK_PAD_LTRIGGER. */
   kXInputPadRTrigger = 0x5807,  /**< VK_PAD_RTRIGGER. */
 
-  kXInputPadDpadUp = 0x5810,      /**< VK_PAD_DPAD_UP. */
+  kXInputPadDPadUp = 0x5810,      /**< VK_PAD_DPAD_UP. */
   kXInputPadDpadDown = 0x5811,    /**< VK_PAD_DPAD_DOWN. */
   kXInputPadDpadLeft = 0x5812,    /**< VK_PAD_DPAD_LEFT. */
   kXInputPadDpadRight = 0x5813,   /**< VK_PAD_DPAD_RIGHT. */

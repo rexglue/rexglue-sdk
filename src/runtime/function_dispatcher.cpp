@@ -269,7 +269,7 @@ bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u
   return true;
 }
 
-FunctionDispatcher::ModuleTableInfo* FunctionDispatcher::FindModuleByAddress(u32 guest_address) {
+FunctionDispatcher::ModuleTable* FunctionDispatcher::FindModuleByAddress(u32 guest_address) {
   for (auto& mod : module_tables_) {
     if (guest_address >= mod.code_base && guest_address < mod.thunk_limit) {
       return &mod;
@@ -359,7 +359,7 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, u32 code_b
   }
 
   if (module_addresses_.find(module_id) != module_addresses_.end()) {
-    REXLOG_WARN(cpu, "RegisterModule: '{}' is already registered; cleaning up prior batch",
+    REXLOG_WARN(cpu, "RegisterModule: '{}' is already registered, cleaning up prior batch",
                 module_id);
     UnregisterModule(module_id);
   }
@@ -383,7 +383,7 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, u32 code_b
   reg.code_base = code_base;
   reg.addresses = std::move(registered_addresses_);
   if (!recompiled_code.empty() && rex::platform::AddRecompiledCode(recompiled_code)) {
-    std::lock_guard host_lock(recompiled_code_mutex_);
+    std::lock_guard recompiled_code_lock(recompiled_code_mutex_);
     recompiled_code_.emplace_back(module_id, recompiled_code);
   }
 
@@ -415,7 +415,7 @@ std::optional<std::pair<u32, u32>> FunctionDispatcher::UnregisterModule(
     return std::nullopt;
   }
   {
-    std::lock_guard host_lock(recompiled_code_mutex_);
+    std::lock_guard recompiled_code_lock(recompiled_code_mutex_);
     std::erase_if(recompiled_code_, [&module_id](const auto& entry) {
       if (entry.first != module_id) {
         return false;
@@ -429,7 +429,7 @@ std::optional<std::pair<u32, u32>> FunctionDispatcher::UnregisterModule(
                it->second.addresses.size());
 
   auto table_it = std::find_if(module_tables_.begin(), module_tables_.end(),
-                               [code_base = it->second.code_base](const ModuleTableInfo& mti) {
+                               [code_base = it->second.code_base](const ModuleTable& mti) {
                                  return mti.code_base == code_base;
                                });
 

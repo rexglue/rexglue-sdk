@@ -21,7 +21,7 @@ namespace rex::ppc::simd {
 namespace detail {
 
 /** The placement and NaN field of a vector element in the 64 bit packed result. */
-struct PackLane {
+struct PackField {
   u8 shift;
   u8 width;
   u32 nan_field;
@@ -29,7 +29,7 @@ struct PackLane {
 
 /** The lanes of a pack format in element order, with the number of lanes the format packs. */
 struct PackLayout {
-  std::array<PackLane, 4> lanes;
+  std::array<PackField, 4> lanes;
   u32 count;
   bool half;
 };
@@ -53,7 +53,7 @@ inline constexpr std::array<PackLayout, 7> kPackLayouts = {{
  * @param saturated Receives 1 when the element lay outside the range.
  * @return The field, clamped to the range, or the NaN field for a NaN.
  */
-inline u64 PackInteger(u32 bits, const PackRange& range, const PackLane& lane, u8& saturated) {
+inline u64 PackInteger(u32 bits, const PackRange& range, const PackField& lane, u8& saturated) {
   const u64 mask = (u64{1} << lane.width) - 1;
   if ((bits & 0x7FFFFFFFu) > 0x7F800000u) {
     return lane.nan_field;
@@ -124,7 +124,7 @@ inline u64 PackElements(const VRegister& source, u8& saturated) {
     u64 packed = 0;
     for (u32 i = 0; i < kLayout.count; ++i) {
       const u32 bits = source.u32[3 - i];
-      const detail::PackLane& lane = kLayout.lanes[i];
+      const detail::PackField& lane = kLayout.lanes[i];
       const u64 field = kLayout.half ? detail::PackHalf(bits)
                                      : detail::PackInteger(bits, detail::kPackD3DRanges[Type][i],
                                                            lane, saturated);

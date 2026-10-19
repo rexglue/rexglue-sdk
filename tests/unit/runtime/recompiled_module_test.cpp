@@ -40,8 +40,8 @@
 #include "pe/pe_image.h"
 #include "kernel/kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -187,7 +187,7 @@ REX_TEST_CASE("modules: a second recompiled module at a held base is refused and
     REQUIRE(first);
     CHECK_FALSE(modules.LoadUserModule(kPathB));
 
-    rex::runtime::HeapAllocationInfo info{};
+    rex::runtime::HeapAllocation info{};
     REQUIRE(runtime.GetMemory()->LookupHeap(kImageBase)->QueryRegionInfo(kImageBase, &info));
     CHECK(info.state != 0);
     CHECK(info.allocation_base == kImageBase);
@@ -237,7 +237,7 @@ REX_TEST_CASE("modules: the PE header pages read as zero once the module is load
     REQUIRE(first);
     auto module = runtime.GetObjectTable().Get<rex::runtime::ModuleObject>(*first);
     REQUIRE(module);
-    const auto& pe = module->GetXEX()->GetPe();
+    const auto& pe = module->GetXEX()->GetPE();
     CHECK(pe.header_size == kHeaderSize);
     REQUIRE(pe.sections.size() == 1);
     CHECK(std::string(pe.sections[0].name) == ".text");
@@ -301,6 +301,30 @@ REX_TEST_CASE("modules: a patch changes the image before the sections are copied
                       [](u8 byte) { return byte == 0; }));
     CHECK(image[kMarkerOffset + 0x10] == 0xCD);
     CHECK(CallFunction(runtime) == kResultA);
+    modules.UnloadUserModule(*first);
+  });
+}
+
+REX_TEST_CASE("modules: a patched module reads its section table from the patched image",
+              "[runtime][module]") {
+  KernelFixture fixture(PopulatePatchedSectionName);
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& runtime = c.GetRuntime();
+    RegisterImages(runtime);
+    auto& modules = runtime.GetModuleRegistry();
+    auto first = modules.LoadUserModule(kPathA);
+    REQUIRE(first);
+    auto module = runtime.GetObjectTable().Get<rex::runtime::ModuleObject>(*first);
+    REQUIRE(module);
+    const auto& pe = module->GetXEX()->GetPE();
+    CHECK(pe.header_size == kHeaderSize);
+    REQUIRE(pe.sections.size() == 1);
+    CHECK(std::string(pe.sections[0].name).empty());
+
+    const u8* image = runtime.GetMemory()->TranslateVirtual(kImageBase);
+    CHECK(std::all_of(image, image + kHeaderSize, [](u8 byte) { return byte == 0; }));
+    CHECK(c.Kernel("RtlImageNtHeader", {kImageBase}) == 0);
+    module = {};
     modules.UnloadUserModule(*first);
   });
 }

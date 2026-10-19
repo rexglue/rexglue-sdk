@@ -27,7 +27,7 @@ class Memory;
 namespace rex::kernel::shim {
 
 /** The heap that serves the shim Rtl heap routines from guest memory. */
-class REX_RUNTIME_API ReXHeap {
+class REX_RUNTIME_API GuestHeap {
  public:
   /**
    * Creates the first heap segment.
@@ -63,7 +63,7 @@ class REX_RUNTIME_API ReXHeap {
    * @param guest_addr The guest address returned by Alloc.
    * @return The size the block was allocated with, or 0 when the address is not a block.
    */
-  u32 Size(u32 guest_addr);
+  u32 GetSize(u32 guest_addr);
 
   /**
    * Resizes a block, moving it when it cannot grow in place.

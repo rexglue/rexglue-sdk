@@ -31,7 +31,7 @@ namespace rex::runtime {
  * @return The host list entry.
  */
 template <typename VirtualTranslator>
-X_LIST_ENTRY* HostList(u32 ptr, VirtualTranslator context) {
+X_LIST_ENTRY* HostListEntry(u32 ptr, VirtualTranslator context) {
   return context->template TranslateVirtual<X_LIST_ENTRY*>(ptr);
 }
 
@@ -44,7 +44,7 @@ X_LIST_ENTRY* HostList(u32 ptr, VirtualTranslator context) {
  * @return The guest address of the entry.
  */
 template <typename VirtualTranslator>
-u32 GuestList(X_LIST_ENTRY* ptr, VirtualTranslator context) {
+u32 GuestListAddress(X_LIST_ENTRY* ptr, VirtualTranslator context) {
   return context->HostToGuestVirtual(ptr);
 }
 
@@ -61,7 +61,7 @@ void InitializeListHead(X_LIST_ENTRY* entry, VirtualTranslator context) {
     entry->blink_ptr = context;
     entry->flink_ptr = context;
   } else {
-    u32 orig_ptr = GuestList(entry, context);
+    u32 orig_ptr = GuestListAddress(entry, context);
     entry->blink_ptr = orig_ptr;
     entry->flink_ptr = orig_ptr;
   }
@@ -77,7 +77,7 @@ void InitializeListHead(X_LIST_ENTRY* entry, VirtualTranslator context) {
  */
 template <typename VirtualTranslator>
 bool IsListEmpty(X_LIST_ENTRY* entry, VirtualTranslator context) {
-  return HostList(entry->flink_ptr, context) == entry;
+  return HostListEntry(entry->flink_ptr, context) == entry;
 }
 
 /**
@@ -91,8 +91,8 @@ template <typename VirtualTranslator>
 void RemoveEntryList(X_LIST_ENTRY* entry, VirtualTranslator context) {
   u32 front = entry->flink_ptr;
   u32 back = entry->blink_ptr;
-  HostList(back, context)->flink_ptr = front;
-  HostList(front, context)->blink_ptr = back;
+  HostListEntry(back, context)->flink_ptr = front;
+  HostListEntry(front, context)->blink_ptr = back;
 }
 
 /**
@@ -104,7 +104,7 @@ void RemoveEntryList(X_LIST_ENTRY* entry, VirtualTranslator context) {
  */
 template <typename VirtualTranslator>
 void RemoveEntryList(u32 entry, VirtualTranslator context) {
-  RemoveEntryList(HostList(entry, context), context);
+  RemoveEntryList(HostListEntry(entry, context), context);
 }
 
 /**
@@ -138,7 +138,7 @@ void InsertTailList(X_LIST_ENTRY* list_head, u32 list_head_guest, X_LIST_ENTRY* 
   u32 old_tail = list_head->blink_ptr;
   host_entry->flink_ptr = list_head_guest;
   host_entry->blink_ptr = old_tail;
-  HostList(old_tail, context)->flink_ptr = entry;
+  HostListEntry(old_tail, context)->flink_ptr = entry;
   list_head->blink_ptr = entry;
 }
 
@@ -152,7 +152,8 @@ void InsertTailList(X_LIST_ENTRY* list_head, u32 list_head_guest, X_LIST_ENTRY* 
  */
 template <typename VirtualTranslator>
 void InsertTailList(u32 list_head, u32 entry, VirtualTranslator context) {
-  InsertTailList(HostList(list_head, context), list_head, HostList(entry, context), entry, context);
+  InsertTailList(HostListEntry(list_head, context), list_head, HostListEntry(entry, context), entry,
+                 context);
 }
 
 /**
@@ -165,8 +166,8 @@ void InsertTailList(u32 list_head, u32 entry, VirtualTranslator context) {
  */
 template <typename VirtualTranslator>
 void InsertTailList(X_LIST_ENTRY* list_head, X_LIST_ENTRY* entry, VirtualTranslator context) {
-  InsertTailList(list_head, GuestList(list_head, context), entry, GuestList(entry, context),
-                 context);
+  InsertTailList(list_head, GuestListAddress(list_head, context), entry,
+                 GuestListAddress(entry, context), context);
 }
 
 /**
@@ -185,7 +186,7 @@ void InsertHeadList(X_LIST_ENTRY* list_head, u32 list_head_guest, X_LIST_ENTRY* 
   u32 old_list_head_flink = list_head->flink_ptr;
   host_entry->flink_ptr = old_list_head_flink;
   host_entry->blink_ptr = list_head_guest;
-  HostList(old_list_head_flink, context)->blink_ptr = entry;
+  HostListEntry(old_list_head_flink, context)->blink_ptr = entry;
   list_head->flink_ptr = entry;
 }
 
@@ -199,8 +200,8 @@ void InsertHeadList(X_LIST_ENTRY* list_head, u32 list_head_guest, X_LIST_ENTRY* 
  */
 template <typename VirtualTranslator>
 void InsertHeadList(u32 list_head, X_LIST_ENTRY* entry, VirtualTranslator context) {
-  InsertHeadList(HostList(list_head, context), list_head, entry, GuestList(entry, context),
-                 context);
+  InsertHeadList(HostListEntry(list_head, context), list_head, entry,
+                 GuestListAddress(entry, context), context);
 }
 
 /**
@@ -213,8 +214,8 @@ void InsertHeadList(u32 list_head, X_LIST_ENTRY* entry, VirtualTranslator contex
  */
 template <typename VirtualTranslator>
 void InsertHeadList(X_LIST_ENTRY* list_head, X_LIST_ENTRY* entry, VirtualTranslator context) {
-  InsertHeadList(list_head, GuestList(list_head, context), entry, GuestList(entry, context),
-                 context);
+  InsertHeadList(list_head, GuestListAddress(list_head, context), entry,
+                 GuestListAddress(entry, context), context);
 }
 
 /**
@@ -295,8 +296,8 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
    */
   template <typename VirtualTranslator>
   struct ForwardIteratorBegin {
-    VirtualTranslator vt; /**< The translator. */
-    ThisType* const thiz; /**< The list head. */
+    VirtualTranslator vt;      /**< The translator. */
+    ThisType* const list_head; /**< The list head. */
 
     /**
      * Returns an iterator at the first object.
@@ -304,7 +305,7 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
      * @return The iterator.
      */
     ForwardIterator<VirtualTranslator> begin() {
-      return ForwardIterator<VirtualTranslator>{vt, thiz->flink_ptr};
+      return ForwardIterator<VirtualTranslator>{vt, list_head->flink_ptr};
     }
 
     /**
@@ -312,7 +313,7 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
      *
      * @return The guest address.
      */
-    u32 end() { return vt->HostToGuestVirtual(thiz); }
+    u32 end() { return vt->HostToGuestVirtual(list_head); }
   };
 
   /**

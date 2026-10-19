@@ -54,7 +54,7 @@ REX_TEST_CASE("A chunked writer spills a full chunk into the next file",
               "[memory][mapped_memory]") {
   const rex::test::TempFolder folder("rex_chunked_writer_test_");
   const auto& dir = folder.path;
-  const size_t chunk_size = rex::memory::AllocationGranularity();
+  const size_t chunk_size = rex::memory::GetAllocationGranularity();
   const size_t head = chunk_size - 16;
   const size_t tail = 64;
   {
@@ -80,8 +80,8 @@ REX_TEST_CASE("A low address chunked writer maps below 4 GiB", "[memory][mapped_
   const rex::test::TempFolder folder("rex_chunked_writer_low_test_");
   const auto& dir = folder.path;
   {
-    auto writer =
-        ChunkedMappedMemoryWriter::Open(dir / "trace", rex::memory::AllocationGranularity(), true);
+    auto writer = ChunkedMappedMemoryWriter::Open(dir / "trace",
+                                                  rex::memory::GetAllocationGranularity(), true);
     REQUIRE(writer != nullptr);
 #if REX_PLATFORM_MAC
     CHECK(writer->Allocate(16) == nullptr);
@@ -98,7 +98,7 @@ REX_TEST_CASE("A low address chunked writer moves past an occupied first address
               "[memory][mapped_memory]") {
   const rex::test::TempFolder folder("rex_chunked_writer_busy_test_");
   const auto& dir = folder.path;
-  const size_t chunk_size = rex::memory::AllocationGranularity();
+  const size_t chunk_size = rex::memory::GetAllocationGranularity();
   // NOLINTNEXTLINE(performance-no-int-to-ptr): VirtualAlloc reserves at this fixed address
   void* first_address = reinterpret_cast<void*>(uintptr_t{0x10000000});
   void* blocker = VirtualAlloc(first_address, chunk_size, MEM_RESERVE, PAGE_NOACCESS);

@@ -25,14 +25,13 @@
 
 namespace {
 
-using rex::testing::GetTestMemory;
+using rex::test::GetTestMemory;
 
 void DummyFn(PPCContext&, u8*) {}
 
 }  // namespace
 
-REX_TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module pool",
-              "[runtime][dispatcher]") {
+REX_TEST_CASE("caller_address routes thunk to caller's module pool", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -57,7 +56,7 @@ REX_TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's modul
   CHECK(dispatcher.GetFunction(thunk_b) == &DummyFn);
 }
 
-REX_TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only when explicit",
+REX_TEST_CASE("AllocateThunk(0) uses the entrypoint pool only when explicit",
               "[runtime][dispatcher]") {
   // caller_address 0 marks host initiated allocations and uses the entrypoint pool.
   auto& memory = GetTestMemory();
@@ -75,8 +74,7 @@ REX_TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool onl
   CHECK(thunk < kModA + kCodeSize + rex::runtime::FunctionDispatcher::kThunkReserveSize);
 }
 
-REX_TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint registered",
-              "[runtime][dispatcher]") {
+REX_TEST_CASE("AllocateThunk(0) rejects when no entrypoint registered", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -89,8 +87,7 @@ REX_TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint r
   CHECK(dispatcher.AllocateThunk(&DummyFn, 0) == 0);
 }
 
-REX_TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any module",
-              "[runtime][dispatcher]") {
+REX_TEST_CASE("AllocateThunk rejects caller_address outside any module", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -105,8 +102,7 @@ REX_TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside 
   CHECK(thunk == 0);
 }
 
-REX_TEST_CASE("FunctionDispatcher: SetFunction rejects image data below code_base",
-              "[runtime][dispatcher]") {
+REX_TEST_CASE("SetFunction rejects image data below code_base", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -127,8 +123,7 @@ void RegisterOne(rex::runtime::IModuleRegistrar* registrar) {
 }
 }  // namespace
 
-REX_TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots",
-              "[runtime][dispatcher]") {
+REX_TEST_CASE("UnregisterModule clears pool and slots", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -157,8 +152,7 @@ REX_TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots",
   CHECK(thunk_after == thunk);
 }
 
-REX_TEST_CASE("FunctionDispatcher: UnregisterModule on unknown id returns nullopt",
-              "[runtime][dispatcher]") {
+REX_TEST_CASE("UnregisterModule on unknown id returns nullopt", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
   CHECK_FALSE(dispatcher.UnregisterModule("nope").has_value());
@@ -180,8 +174,7 @@ void ScribbleFn(PPCContext& ctx, u8*) {
 
 }  // namespace
 
-REX_TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register state",
-              "[runtime][dispatcher]") {
+REX_TEST_CASE("ExecuteTrap restores the interrupted register state", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -226,8 +219,7 @@ REX_TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register
   memory.SystemHeapFree(stack);
 }
 
-REX_TEST_CASE("PPCContext: nonvolatile save area round trips cr2-cr5 and fpscr",
-              "[runtime][context]") {
+REX_TEST_CASE("nonvolatile save area round trips cr2-cr5 and fpscr", "[runtime][context]") {
   PPCContext ctx{};
   ctx.r31.u64 = 0x31313131;
   ctx.cr2.SetRaw(0x5);
@@ -264,7 +256,7 @@ REX_TEST_CASE("PPCContext: nonvolatile save area round trips cr2-cr5 and fpscr",
   CHECK(ctx.fpscr.GetCSR() == saved_csr);
 }
 
-REX_TEST_CASE("PPCContext: restoring a zeroed fpscr leaves host FP exception masks intact",
+REX_TEST_CASE("restoring a zeroed fpscr leaves host FP exception masks intact",
               "[runtime][context]") {
   PPCContext ctx{};
   const u32 host_before = ctx.fpscr.GetCSR();

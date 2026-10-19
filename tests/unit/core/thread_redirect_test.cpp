@@ -224,7 +224,7 @@ REX_TEST_CASE("A thread suspended while it suspends another thread holds no lock
       target->Resume();
     }
   });
-  std::thread probe([&] {
+  std::thread suspender([&] {
     ready.fetch_add(1);
     while (!stop.load()) {
       if (answered.load() < asked.load()) {
@@ -249,7 +249,7 @@ REX_TEST_CASE("A thread suspended while it suspends another thread holds no lock
     sender->Resume();
   }
   stop = true;
-  probe.join();
+  suspender.join();
   CHECK(answered_every_time);
   CHECK(rex::platform::Wait(sender.get(), false, 1s) == rex::platform::WaitResult::kSuccess);
   CHECK(rex::platform::Wait(target.get(), false, 1s) == rex::platform::WaitResult::kSuccess);

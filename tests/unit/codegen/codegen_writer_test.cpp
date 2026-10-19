@@ -111,14 +111,14 @@ REX_TEST_CASE("Unchanged files keep their modification time", "[codegen][codegen
   CodegenWriter first(*fx.ctx);
   REQUIRE(first.Write(false));
 
-  auto probe = fx.GetOutputDir() / "testproj_init.h";
-  REQUIRE(fs::exists(probe));
-  auto before = fs::last_write_time(probe);
+  auto init_header = fx.GetOutputDir() / "testproj_init.h";
+  REQUIRE(fs::exists(init_header));
+  auto before = fs::last_write_time(init_header);
 
   CodegenWriter second(*fx.ctx);
   REQUIRE(second.Write(false));
 
-  const bool unchanged = fs::last_write_time(probe) == before;
+  const bool unchanged = fs::last_write_time(init_header) == before;
   CHECK(unchanged);
 }
 

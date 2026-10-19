@@ -28,7 +28,7 @@ std::unique_ptr<UISamplers> UISamplers::Create(const VulkanDevice* const vulkan_
   const VkDevice device = vulkan_device->GetDevice();
 
   auto sampler_create_info =
-      objects::InitializeStructure<VkSamplerCreateInfo>(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO);
+      objects::BuildStructure<VkSamplerCreateInfo>(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO);
 
   for (int sampler_index = 0; sampler_index < kSamplerCount; ++sampler_index) {
     if (sampler_index == kSamplerIndexLinearRepeat ||

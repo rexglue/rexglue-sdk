@@ -130,7 +130,7 @@ enum SocketProtocol : u8 {
 /** The outcome of a receive attempt or of an overlapped receive. */
 struct ReceiveResult {
   /** True when CancelReceive ended the receive before a datagram arrived. */
-  bool cancelled = false;
+  bool canceled = false;
   /** True when the attempt failed only because no datagram was waiting. */
   bool would_block = false;
   int received = -1;   /**< The byte count, -1 on failure. */

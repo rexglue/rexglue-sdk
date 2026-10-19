@@ -24,7 +24,7 @@ using rex::runtime::XCONTENT_DATA;
 
 REX_TEST_CASE("a full file name stops at the field end before a guard page",
               "[runtime][xcontent]") {
-  const size_t page = rex::memory::PageSize();
+  const size_t page = rex::memory::GetPageSize();
   auto* base = static_cast<u8*>(rex::memory::AllocFixed(
       nullptr, page * 2, AllocationType::kReserveCommit, PageAccess::kReadWrite));
   REQUIRE(base != nullptr);

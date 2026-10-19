@@ -46,18 +46,18 @@ bool IsFunctionType(char c) {
 
 }  // namespace
 
-Result<std::vector<BinarySymbol>> ParseNmMapString(std::string_view map_data,
+Result<std::vector<BinarySymbol>> ParseNmMapString(std::string_view map_text,
                                                    const MapParseOptions& options) {
   std::vector<BinarySymbol> symbols;
 
   size_t pos = 0;
-  while (pos < map_data.size()) {
-    size_t eol = map_data.find('\n', pos);
+  while (pos < map_text.size()) {
+    size_t eol = map_text.find('\n', pos);
     if (eol == std::string_view::npos) {
-      eol = map_data.size();
+      eol = map_text.size();
     }
 
-    std::string_view line = map_data.substr(pos, eol - pos);
+    std::string_view line = map_text.substr(pos, eol - pos);
     pos = eol + 1;
 
     if (line.empty())

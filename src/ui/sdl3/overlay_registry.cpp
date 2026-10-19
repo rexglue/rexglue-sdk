@@ -30,8 +30,8 @@ std::unique_ptr<ImGuiDialog> BuildStandard(const ModuleOverlayContext& context) 
 
 constexpr StandardEntry kStandardFactories[] = {
     {"debug", &BuildStandard<DebugOverlayDialog>},
-    {"console", &BuildStandard<ConsoleDialog>},
-    {"settings", &BuildStandard<SettingsDialog>},
+    {"console", &BuildStandard<ConsoleOverlayDialog>},
+    {"settings", &BuildStandard<SettingsOverlayDialog>},
     {"achievements", &BuildStandard<AchievementsOverlayDialog>},
 };
 

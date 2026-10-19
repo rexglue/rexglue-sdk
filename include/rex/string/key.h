@@ -107,21 +107,21 @@ struct StringKey : detail::StringKeyBase {
  * String key that compares and hashes ignoring ASCII case. It either borrows a view or owns a
  * copy.
  */
-struct StringKeyCase : detail::StringKeyBase {
+struct StringKeyIgnoreCase : detail::StringKeyBase {
  public:
   /**
    * Borrows a string. The string outlives the key.
    *
    * @param value String to borrow.
    */
-  explicit StringKeyCase(const std::string_view value) : StringKeyBase(value) {}
+  explicit StringKeyIgnoreCase(const std::string_view value) : StringKeyBase(value) {}
 
   /**
    * Owns a string.
    *
    * @param value String to own.
    */
-  explicit StringKeyCase(std::string value) : StringKeyBase(std::move(value)) {}
+  explicit StringKeyIgnoreCase(std::string value) : StringKeyBase(std::move(value)) {}
 
   /**
    * Creates a key that owns a copy of a string.
@@ -129,8 +129,8 @@ struct StringKeyCase : detail::StringKeyBase {
    * @param value String to copy.
    * @return The owning key.
    */
-  static StringKeyCase Create(const std::string_view value) {
-    return StringKeyCase(std::string(value));
+  static StringKeyIgnoreCase Create(const std::string_view value) {
+    return StringKeyIgnoreCase(std::string(value));
   }
 
   /**
@@ -139,7 +139,9 @@ struct StringKeyCase : detail::StringKeyBase {
    * @param value String to own.
    * @return The owning key.
    */
-  static StringKeyCase Create(std::string value) { return StringKeyCase(std::move(value)); }
+  static StringKeyIgnoreCase Create(std::string value) {
+    return StringKeyIgnoreCase(std::move(value));
+  }
 
   /**
    * Compares 2 keys, ignoring ASCII case.
@@ -147,7 +149,7 @@ struct StringKeyCase : detail::StringKeyBase {
    * @param other Key to compare with.
    * @return True when the strings match.
    */
-  bool operator==(const StringKeyCase& other) const {
+  bool operator==(const StringKeyIgnoreCase& other) const {
     return rex::utf8_equal_case(other.GetView(), GetView());
   }
 
@@ -166,7 +168,7 @@ struct StringKeyCase : detail::StringKeyBase {
      * @param t Key to hash.
      * @return t.hash().
      */
-    size_t operator()(const StringKeyCase& t) const { return t.hash(); }
+    size_t operator()(const StringKeyIgnoreCase& t) const { return t.hash(); }
   };
 };
 
@@ -185,15 +187,15 @@ struct hash<rex::StringKey> {
   std::size_t operator()(const rex::StringKey& t) const { return t.hash(); }
 };
 
-/** std::hash for rex::StringKeyCase. */
+/** std::hash for rex::StringKeyIgnoreCase. */
 template <>
-struct hash<rex::StringKeyCase> {
+struct hash<rex::StringKeyIgnoreCase> {
   /**
    * Hashes a key.
    *
    * @param t Key to hash.
    * @return t.hash().
    */
-  std::size_t operator()(const rex::StringKeyCase& t) const { return t.hash(); }
+  std::size_t operator()(const rex::StringKeyIgnoreCase& t) const { return t.hash(); }
 };
 }  // namespace std

@@ -29,7 +29,7 @@ namespace xam {
 namespace apps {
 
 /** XMP app 0xFA, which serves the music player state and title playlists. */
-class REX_RUNTIME_API XmpApp : public runtime::App {
+class REX_RUNTIME_API XMPApp : public runtime::App {
  public:
   /** Playback state reported to the title. */
   enum class State : u8 {
@@ -86,7 +86,7 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
    *
    * @param runtime The runtime the app serves.
    */
-  explicit XmpApp(Runtime& runtime);
+  explicit XMPApp(Runtime& runtime);
 
   /**
    * Writes the playback state.
@@ -135,10 +135,10 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
   /**
    * Stops playback and clears the active playlist.
    *
-   * @param unk Must be 0.
+   * @param reserved Must be 0.
    * @return X_E_SUCCESS.
    */
-  X_HRESULT XMPStop(u32 unk);
+  X_HRESULT XMPStop(u32 reserved);
   /**
    * Pauses playback when a song is playing.
    *

@@ -57,7 +57,7 @@ static_assert(offsetof(XMP_SONG_INFO, track_number) == 4 + 572 + 200);
 
 }  // namespace
 
-XmpApp::XmpApp(Runtime& runtime)
+XMPApp::XMPApp(Runtime& runtime)
     : App(runtime, 0xFA),
       state_(State::kIdle),
       playback_client_(PlaybackClient::kTitle),
@@ -70,8 +70,8 @@ XmpApp::XmpApp(Runtime& runtime)
       next_playlist_handle_(1),
       next_song_handle_(1) {}
 
-X_HRESULT XmpApp::XMPGetStatus(u32 state_ptr) {
-  if (!KernelThread::GetCurrentThread()->GetMainThread()) {
+X_HRESULT XMPApp::XMPGetStatus(u32 state_ptr) {
+  if (!KernelThread::GetCurrentThread()->IsMainThread()) {
     // Titles poll this in a loop, the delay keeps them from starving other threads.
     rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(1));
   }
@@ -81,7 +81,7 @@ X_HRESULT XmpApp::XMPGetStatus(u32 state_ptr) {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPCreateTitlePlaylist(u32 songs_ptr, u32 song_count, u32 playlist_name_ptr,
+X_HRESULT XMPApp::XMPCreateTitlePlaylist(u32 songs_ptr, u32 song_count, u32 playlist_name_ptr,
                                          const std::u16string& playlist_name, u32 flags,
                                          u32 out_song_handles, u32 out_playlist_handle) {
   REXLOG_DEBUG(kernel,
@@ -126,7 +126,7 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(u32 songs_ptr, u32 song_count, u32 play
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPDeleteTitlePlaylist(u32 playlist_handle) {
+X_HRESULT XMPApp::XMPDeleteTitlePlaylist(u32 playlist_handle) {
   REXLOG_DEBUG(kernel, "XMPDeleteTitlePlaylist({:08X})", playlist_handle);
   std::unique_ptr<Playlist> playlist;
   {
@@ -144,7 +144,7 @@ X_HRESULT XmpApp::XMPDeleteTitlePlaylist(u32 playlist_handle) {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPPlayTitlePlaylist(u32 playlist_handle, u32 song_handle) {
+X_HRESULT XMPApp::XMPPlayTitlePlaylist(u32 playlist_handle, u32 song_handle) {
   REXLOG_DEBUG(kernel, "XMPPlayTitlePlaylist({:08X}, {:08X})", playlist_handle, song_handle);
   Playlist* playlist = nullptr;
   {
@@ -170,7 +170,7 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(u32 playlist_handle, u32 song_handle) {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPContinue() {
+X_HRESULT XMPApp::XMPContinue() {
   REXLOG_DEBUG(kernel, "XMPContinue()");
   if (state_ == State::kPaused) {
     state_ = State::kPlaying;
@@ -179,7 +179,7 @@ X_HRESULT XmpApp::XMPContinue() {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPStop(u32 unk) {
+X_HRESULT XMPApp::XMPStop(u32 unk) {
   REX_ASSERT(unk == 0);
   REXLOG_DEBUG(kernel, "XMPStop({:08X})", unk);
   active_playlist_ = nullptr;
@@ -189,7 +189,7 @@ X_HRESULT XmpApp::XMPStop(u32 unk) {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPPause() {
+X_HRESULT XMPApp::XMPPause() {
   REXLOG_DEBUG(kernel, "XMPPause()");
   if (state_ == State::kPlaying) {
     state_ = State::kPaused;
@@ -198,7 +198,7 @@ X_HRESULT XmpApp::XMPPause() {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPNext() {
+X_HRESULT XMPApp::XMPNext() {
   REXLOG_DEBUG(kernel, "XMPNext()");
   if (!active_playlist_ || active_playlist_->songs.empty()) {
     return X_E_NOTFOUND;
@@ -209,7 +209,7 @@ X_HRESULT XmpApp::XMPNext() {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPPrevious() {
+X_HRESULT XMPApp::XMPPrevious() {
   REXLOG_DEBUG(kernel, "XMPPrevious()");
   if (!active_playlist_ || active_playlist_->songs.empty()) {
     return X_E_NOTFOUND;
@@ -221,11 +221,11 @@ X_HRESULT XmpApp::XMPPrevious() {
   return X_E_SUCCESS;
 }
 
-void XmpApp::OnStateChanged() {
+void XMPApp::OnStateChanged() {
   runtime_.GetNotifier().BroadcastNotification(kMsgStateChanged, static_cast<u32>(state_));
 }
 
-X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
+X_HRESULT XMPApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
   switch (message) {
     case 0x00070002: {
       REX_ASSERT(!buffer_length || buffer_length == 12);

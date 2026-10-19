@@ -82,7 +82,7 @@ class TestDrawContext final : public rex::gpu::OverlayDrawContext {
 class NullGPUApp : public rex::ui::TitleApp {
  public:
   using TitleApp::GetUI;
-  rex::gpu::IPresenter* TitlePresenter() {
+  rex::gpu::IPresenter* GetTitlePresenter() {
     return GetAPI().Get<rex::gpu::IGPUBackend>()->GetPresenter();
   }
 
@@ -94,8 +94,8 @@ class NullGPUApp : public rex::ui::TitleApp {
     return rex::Ok();
   }
   void OnCreateWindow(rex::ui::TitleUI& title_ui) override {
-    REQUIRE(title_ui.GetOverlays().AddOverlays(kContractOverlays));
-    title_ui.GetOverlays().ShowOverlay("contract", true);
+    REQUIRE(title_ui.GetUI().AddOverlays(kContractOverlays));
+    title_ui.GetUI().ShowOverlay("contract", true);
   }
 };
 
@@ -105,7 +105,7 @@ class NullGPUModule {
     REQUIRE(library_.Load(
         rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexmod-test-null-gpu"),
         rex::platform::SymbolResolution::kImmediate));
-    library_.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink")(&Sink);
+    library_.GetSymbol<void (*)(ReXModTestSink)>("rexmod_test_set_sink")(&Sink);
   }
   void FailTextures(rex::i32 count) {
     library_.GetSymbol<void (*)(rex::i32)>("rexmod_test_null_gpu_fail_textures")(count);
@@ -116,7 +116,7 @@ class NullGPUModule {
 };
 
 bool Open(NullGPUApp& app) {
-  if (!app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{})) {
+  if (!app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImage{})) {
     return false;
   }
   return static_cast<bool>(app.CreateTitleWindow());
@@ -139,10 +139,10 @@ REX_TEST_CASE("The title window draws 1 overlay frame through the backend drawer
     SKIP("SDL dummy video driver unavailable");
   }
   CHECK(std::ranges::count(g_events, std::string("create_drawer")) == 1);
-  REQUIRE(app.TitlePresenter() != nullptr);
-  app.TitlePresenter()->Paint(true);
+  REQUIRE(app.GetTitlePresenter() != nullptr);
+  app.GetTitlePresenter()->Paint(true);
   g_events.clear();
-  app.TitlePresenter()->Paint(true);
+  app.GetTitlePresenter()->Paint(true);
   const auto frame = After("begin");
   REQUIRE(frame.size() >= 5);
   CHECK(frame.front() == "begin");
@@ -178,11 +178,11 @@ REX_TEST_CASE("DrawOverlays draws the shown overlays through the overlay drawer"
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  REQUIRE(app.TitlePresenter() != nullptr);
+  REQUIRE(app.GetTitlePresenter() != nullptr);
   REQUIRE(app.GetUI().GetOverlayDrawer() != nullptr);
-  app.TitlePresenter()->Paint(true);
+  app.GetTitlePresenter()->Paint(true);
   g_events.clear();
-  TestDrawContext context(app.TitlePresenter());
+  TestDrawContext context(app.GetTitlePresenter());
   app.GetUI().DrawOverlays(context);
   const auto begin = std::ranges::find(g_events, std::string("begin_batch"));
   const auto draw = std::ranges::find(g_events, std::string("draw"));
@@ -205,9 +205,9 @@ REX_TEST_CASE("A failed font texture is created again on the next frame", "[gpu]
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  REQUIRE(app.TitlePresenter() != nullptr);
+  REQUIRE(app.GetTitlePresenter() != nullptr);
   CHECK(std::ranges::count(g_events, std::string("create_texture")) == 0);
-  app.TitlePresenter()->Paint(true);
+  app.GetTitlePresenter()->Paint(true);
   CHECK(std::ranges::count(g_events, std::string("create_texture_failed")) == 1);
   CHECK(std::ranges::count(g_events, std::string("create_texture")) == 1);
   REQUIRE(app.Shutdown() == 0);
@@ -222,14 +222,14 @@ REX_TEST_CASE("A dialog closed while its owner holds it survives the frame", "[g
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  REQUIRE(app.TitlePresenter() != nullptr);
+  REQUIRE(app.GetTitlePresenter() != nullptr);
   app.GetUI().ShowOverlay("contract", false);
   REQUIRE_FALSE(app.GetUI().HasDialogs());
   auto dialog = std::make_unique<OwnedDialog>();
   app.GetUI().AddDialog(*dialog);
   REQUIRE(app.GetUI().HasDialogs());
   dialog->Close();
-  app.TitlePresenter()->Paint(true);
+  app.GetTitlePresenter()->Paint(true);
   CHECK(dialog->IsClosed());
   CHECK_FALSE(app.GetUI().HasDialogs());
   CHECK(g_owned_destroyed == 0);

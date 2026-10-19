@@ -23,14 +23,14 @@ namespace xam {
 namespace apps {
 
 /** XGI app 0xFB, which serves XGI messages such as user contexts and properties. */
-class XgiApp : public runtime::App {
+class XGIApp : public runtime::App {
  public:
   /**
    * Creates the app.
    *
    * @param runtime The runtime the app serves.
    */
-  REX_RUNTIME_API explicit XgiApp(Runtime& runtime);
+  REX_RUNTIME_API explicit XGIApp(Runtime& runtime);
 
   /**
    * Handles a message sent to the XGI app.

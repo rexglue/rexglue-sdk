@@ -120,11 +120,11 @@ class PropagateConst : public MoveOnly {
   /**
    * Reports whether the wrapper is empty.
    *
-   * @param wrapper The wrapper to test.
+   * @param value The wrapper to test.
    * @return True when the held pointer is null.
    */
-  friend bool operator==(const PropagateConst& wrapper, std::nullptr_t) noexcept {
-    return wrapper.get() == nullptr;
+  friend bool operator==(const PropagateConst& value, std::nullptr_t) noexcept {
+    return value.get() == nullptr;
   }
 
  private:

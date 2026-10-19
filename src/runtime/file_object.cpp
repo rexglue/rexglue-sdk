@@ -35,7 +35,7 @@ void NotifyIOCompletionPorts(Runtime& runtime, FileObject& file, IONotification&
   for (const auto& port : ports) {
     auto pin = runtime.GetObjectTable().Get<IOCompletionObject>(port.second);
     if (pin) {
-      notification.key_context = port.first;
+      notification.key = port.first;
       pin->Queue(notification);
     }
   }
@@ -141,7 +141,7 @@ X_STATUS FileObject::QueryDirectory(Runtime&, X_FILE_DIRECTORY_INFORMATION* out_
   std::lock_guard<std::mutex> lock(file_lock);
   REX_ASSERT(out_info != nullptr);
 
-  std::optional<filesystem::FileInfo> entry;
+  std::optional<filesystem::FileStat> entry;
 
   if (!file_name.empty()) {
     REX_ASSERT(rex::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
@@ -341,7 +341,7 @@ void FileObject::SetFindPattern(std::string_view pattern) {
   find = listing ? std::move(*listing) : nullptr;
 }
 
-std::optional<filesystem::FileInfo> FileObject::FindNext() {
+std::optional<filesystem::FileStat> FileObject::FindNext() {
   if (!find) {
     return std::nullopt;
   }

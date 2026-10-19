@@ -27,11 +27,11 @@ using rex::hid::X_INPUT_KEYSTROKE;
 using rex::hid::X_INPUT_STATE;
 using rex::hid::X_INPUT_VIBRATION;
 
-rex::hid::IHIDBackend& HID() {
+rex::hid::IHIDBackend& GetHID() {
   return runtime::GetCurrent().GetHID();
 }
 
-X_RESULT Fail(const rex::Error& error) {
+X_RESULT ErrorToXResult(const rex::Error& error) {
   return rex::hid::ToXResult(rex::hid::CodeOf(error));
 }
 
@@ -57,9 +57,9 @@ u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_C
     actual_user_index = 0;
   }
 
-  auto result = HID().GetCapabilities(actual_user_index, flags);
+  auto result = GetHID().GetCapabilities(actual_user_index, flags);
   if (!result) {
-    return Fail(result.error());
+    return ErrorToXResult(result.error());
   }
   X_INPUT_CAPABILITIES* out = caps;
   *out = *result;
@@ -82,9 +82,9 @@ u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
   }
 
   (void)unk;
-  auto result = HID().GetCapabilities(actual_user_index, flags);
+  auto result = GetHID().GetCapabilities(actual_user_index, flags);
   if (!result) {
-    return Fail(result.error());
+    return ErrorToXResult(result.error());
   }
   X_INPUT_CAPABILITIES* out = caps;
   *out = *result;
@@ -107,9 +107,9 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_STATE> i
     actual_user_index = 0;
   }
 
-  auto result = HID().GetState(actual_user_index);
+  auto result = GetHID().GetState(actual_user_index);
   if (!result) {
-    return Fail(result.error());
+    return ErrorToXResult(result.error());
   }
   if (input_state) {
     X_INPUT_STATE* out = input_state;
@@ -129,8 +129,8 @@ u32 XamInputSetState_entry(u32 user_index, u32 unk, GuestPtrT<X_INPUT_VIBRATION>
   }
 
   (void)unk;
-  auto result = HID().SetVibration(actual_user_index, *vibration);
-  return result ? X_ERROR_SUCCESS : Fail(result.error());
+  auto result = GetHID().SetVibration(actual_user_index, *vibration);
+  return result ? X_ERROR_SUCCESS : ErrorToXResult(result.error());
 }
 
 u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_KEYSTROKE> keystroke) {
@@ -147,9 +147,9 @@ u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_KEYS
     actual_user_index = 0;
   }
 
-  auto result = HID().GetKeystroke(actual_user_index, flags);
+  auto result = GetHID().GetKeystroke(actual_user_index, flags);
   if (!result) {
-    return Fail(result.error());
+    return ErrorToXResult(result.error());
   }
   X_INPUT_KEYSTROKE* out = keystroke;
   *out = *result;
@@ -171,9 +171,9 @@ u32 XamInputGetKeystrokeEx_entry(MappedU32 user_index_ptr, u32 flags,
     user_index = 0;
   }
 
-  auto result = HID().GetKeystroke(user_index, flags);
+  auto result = GetHID().GetKeystroke(user_index, flags);
   if (!result) {
-    return Fail(result.error());
+    return ErrorToXResult(result.error());
   }
   X_INPUT_KEYSTROKE* out = keystroke;
   *out = *result;

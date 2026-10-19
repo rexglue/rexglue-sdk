@@ -41,7 +41,7 @@ bool IsBindPressed(const bool (&key_down)[256], const std::vector<KeyChord>& cho
   const KeyModifiers live = HeldModifiers(key_down);
   return std::ranges::any_of(chords, [&](const KeyChord& chord) {
     const u16 index = static_cast<u16>(chord.key);
-    return chord.mods == live && index < 256 && key_down[index];
+    return chord.modifiers == live && index < 256 && key_down[index];
   });
 }
 
@@ -205,7 +205,7 @@ const std::array<BindSpec, KeyboardMouseDriver::kBindCount> kBindSpecs = {{
     {&cvars::keybind_rstick_press, VirtualKey::kXInputPadRThumbPress},
     {&cvars::keybind_back, VirtualKey::kXInputPadBack},
     {&cvars::keybind_start, VirtualKey::kXInputPadStart},
-    {&cvars::keybind_dpad_up, VirtualKey::kXInputPadDpadUp},
+    {&cvars::keybind_dpad_up, VirtualKey::kXInputPadDPadUp},
     {&cvars::keybind_dpad_down, VirtualKey::kXInputPadDpadDown},
     {&cvars::keybind_dpad_left, VirtualKey::kXInputPadDpadLeft},
     {&cvars::keybind_dpad_right, VirtualKey::kXInputPadDpadRight},
@@ -285,11 +285,11 @@ bool KeyboardMouseDriver::IsEnabled() const {
   return REXCVAR_GET(cvars::mnk_mode) || REXCVAR_GET(cvars::mnk_passthrough);
 }
 
-void KeyboardMouseDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
+void KeyboardMouseDriver::EnumerateDevices(std::vector<Device>& out) {
   if (!IsEnabled()) {
     return;
   }
-  DeviceInfo info;
+  Device info;
   info.id = kKeyboardMouseDevice;
   info.name = IsPassthroughEnabled() ? "Keyboard" : "Keyboard and Mouse";
   info.subtype = IsPassthroughEnabled() ? kXInputDevSubtypeUSBKeyboard : kXInputDevSubtypeGamepad;
@@ -336,13 +336,13 @@ Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
   }
 
   // Mouse look is opt in, else keyboard input alone would hide and lock the cursor over ImGui.
-  const bool lock = REXCVAR_GET(cvars::mnk_mouse) && hub_.GetFocused() && IsActive();
+  const bool lock = REXCVAR_GET(cvars::mnk_mouse) && hub_.IsFocused() && IsActive();
   if (pointer_lock_.exchange(lock, std::memory_order_relaxed) != lock) {
     hub_.RefreshPointerMode();
   }
 
   X_INPUT_STATE state{};
-  if (!IsActive() || !hub_.GetFocused()) {
+  if (!IsActive() || !hub_.IsFocused()) {
     state.packet_number = packet_number_;
     return state;
   }
@@ -554,7 +554,7 @@ void KeyboardMouseDriver::SetKeyState(u16 key, bool down) {
 }
 
 void KeyboardMouseDriver::OnKey(const InputEvent& event, bool down) {
-  if (!IsEnabled() || (down && !hub_.GetFocused())) {
+  if (!IsEnabled() || (down && !hub_.IsFocused())) {
     return;
   }
   std::lock_guard lock(state_mutex_);
@@ -585,7 +585,7 @@ void KeyboardMouseDriver::OnChar(const InputEvent& event) {
 }
 
 void KeyboardMouseDriver::OnButton(const InputEvent& event, bool down) {
-  if (!IsEnabled() || (down && !hub_.GetFocused())) {
+  if (!IsEnabled() || (down && !hub_.IsFocused())) {
     return;
   }
   std::lock_guard lock(state_mutex_);
@@ -606,7 +606,7 @@ void KeyboardMouseDriver::OnButton(const InputEvent& event, bool down) {
 }
 
 void KeyboardMouseDriver::OnMotion(const InputEvent& event) {
-  if (!IsEnabled() || !hub_.GetFocused()) {
+  if (!IsEnabled() || !hub_.IsFocused()) {
     return;
   }
   std::lock_guard lock(state_mutex_);

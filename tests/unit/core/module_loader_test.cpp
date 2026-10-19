@@ -47,7 +47,7 @@ class Pinned {
   explicit Pinned(const char* name) {
     auto path = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName(name);
     REQUIRE(library_.Load(path, rex::platform::SymbolResolution::kImmediate));
-    auto set_sink = library_.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink");
+    auto set_sink = library_.GetSymbol<void (*)(ReXModTestSink)>("rexmod_test_set_sink");
     REQUIRE(set_sink != nullptr);
     set_sink(&Sink);
   }
@@ -141,7 +141,7 @@ REX_TEST_CASE_METHOD(Fixture, "The interface factory reports a missing or mismat
   CHECK(wrong.error().code == static_cast<int>(rex::InterfaceStatus::kVersionMismatch));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports NotFound",
+REX_TEST_CASE_METHOD(Fixture, "ReXCreateInterface with a null name reports NotFound",
                      "[core][module_loader]") {
   Pinned pin("rexmod-test-good");
   auto create = pin.Library().GetSymbol<rex::CreateInterfaceFn>(rex::kCreateInterfaceSymbol);
@@ -182,7 +182,7 @@ REX_TEST_CASE_METHOD(Fixture, "A module that exports no build identity is reject
   const auto path =
       rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexmod-test-noidentity");
   REQUIRE(api.error().message ==
-          std::format("module 'rexmod-test-noidentity' at '{}' exports no rex_build_identity, it "
+          std::format("module 'rexmod-test-noidentity' at '{}' exports no ReXBuildIdentity, it "
                       "was not built against this SDK build '{}'",
                       path.string(), rex::kBuildIdentity));
 }
@@ -242,11 +242,12 @@ REX_TEST_CASE_METHOD(Fixture, "Duplicate name and invalid name are rejected befo
 REX_TEST_CASE_METHOD(Fixture, "An interface served by 2 modules is rejected",
                      "[core][module_loader]") {
   Pinned good("rexmod-test-good");
-  Pinned dup("rexmod-test-dupecho");
-  auto api = rex::Init(With({"rexmod-test-good", "rexmod-test-dupecho"}));
+  Pinned dup("rexmod-test-duplicate-echo");
+  auto api = rex::Init(With({"rexmod-test-good", "rexmod-test-duplicate-echo"}));
   REQUIRE_FALSE(api);
   REQUIRE(api.error().message ==
-          "interface rex.test.echo is served by both 'rexmod-test-good' and 'rexmod-test-dupecho'");
+          "interface rex.test.echo is served by both 'rexmod-test-good' and "
+          "'rexmod-test-duplicate-echo'");
   for (const auto& event : g_events) {
     REQUIRE(event.find(":connect") == std::string::npos);
   }
@@ -300,9 +301,9 @@ REX_TEST_CASE_METHOD(Fixture,
   REQUIRE(HasScope(registry->GetScopes(), "app"));
   REQUIRE(HasScope(registry->GetScopes(), "echo"));
   REQUIRE(registry->Get("echo.value").value() == "5");
-  REQUIRE(api.value()->Get<rex::test::IEcho>()->Value() == 5);
+  REQUIRE(api.value()->Get<rex::test::IEcho>()->GetValue() == 5);
   REQUIRE(app_cvars::count.Get() == 7);
-  REQUIRE(registry->Source("app.count") == rex::cvar::CvarSource::kConfig);
+  REQUIRE(registry->GetSource("app.count") == rex::cvar::CvarSource::kConfig);
   REQUIRE(api.value()->GetConfig().modules == std::vector<std::string>{"rexmod-test-good"});
   rex::Shutdown();
   REQUIRE(app_cvars::debug.GetRegistry() == nullptr);
@@ -507,13 +508,13 @@ REX_TEST_CASE("LibraryFileName adds the platform prefix and extension", "[core][
 REX_TEST_CASE("Attach opens a library only while the process has it mapped", "[core][modules]") {
   const auto path = rex::platform::GetExecutableFolder() /
                     rex::detail::ModuleFileName("rexmod-test-recompiled-b");
-  rex::platform::DynamicLibrary probe;
-  CHECK_FALSE(probe.Attach(path));
-  CHECK_FALSE(probe);
+  rex::platform::DynamicLibrary attached;
+  CHECK_FALSE(attached.Attach(path));
+  CHECK_FALSE(attached);
   rex::platform::DynamicLibrary loaded;
   REQUIRE(loaded.Load(path));
-  CHECK(probe.Attach(path));
+  CHECK(attached.Attach(path));
   loaded.Close();
-  probe.Close();
-  CHECK_FALSE(probe.Attach(path));
+  attached.Close();
+  CHECK_FALSE(attached.Attach(path));
 }

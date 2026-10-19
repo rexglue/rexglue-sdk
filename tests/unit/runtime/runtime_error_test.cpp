@@ -28,10 +28,10 @@ REX_TEST_CASE("StatusError round trips through ToXStatus", "[runtime][error]") {
   }
 }
 
-REX_TEST_CASE("ResultError round trips through ToXResult", "[runtime][error]") {
+REX_TEST_CASE("XResultError round trips through ToXResult", "[runtime][error]") {
   for (const X_RESULT result : {rex::X_ERROR_FILE_NOT_FOUND, rex::X_ERROR_ALREADY_EXISTS,
                                 rex::X_ERROR_INVALID_PARAMETER, rex::X_ERROR_FUNCTION_FAILED}) {
-    const rex::Error error = rt::ResultError(result);
+    const rex::Error error = rt::XResultError(result);
     CHECK(error.category == rex::ErrorCategory::kRuntime);
     CHECK(rt::ToXResult(error) == result);
   }

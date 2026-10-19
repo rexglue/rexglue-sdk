@@ -20,9 +20,9 @@ namespace rex::test {
  *
  * @return The folder.
  */
-inline const std::filesystem::path& Fixtures() {
-  static const std::filesystem::path kDir = REXGLUE_FIXTURE_DIR;
-  return kDir;
+inline const std::filesystem::path& GetFixtureFolder() {
+  static const std::filesystem::path kFolder = REXGLUE_FIXTURE_DIR;
+  return kFolder;
 }
 
 }  // namespace rex::test

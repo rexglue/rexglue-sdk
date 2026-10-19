@@ -59,7 +59,7 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
                                      MappedU32 handle_out) {
   REX_ASSERT(handle_out != nullptr);
 
-  auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
+  auto device_info = device_id == 0 ? nullptr : GetPlaceholderDevice(device_id);
   if ((device_id && device_info == nullptr) || !handle_out) {
     if (buffer_size_ptr) {
       *buffer_size_ptr = 0;
@@ -76,9 +76,9 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
   StaticItems items(items_per_enumerate, sizeof(XCONTENT_DATA));
 
   if (!device_info || device_info->device_id == DummyDeviceId::kHDD) {
-    auto content_datas = runtime::GetCurrent().GetContentManager().ListContent(
+    auto contents = runtime::GetCurrent().GetContentManager().ListContent(
         std::to_underlying(DummyDeviceId::kHDD), xuid, static_cast<XContentType>(content_type));
-    for (const auto& content_data : content_datas) {
+    for (const auto& content_data : contents) {
       auto item = items.Append<XCONTENT_DATA>();
       *item = content_data;
     }
@@ -119,9 +119,9 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
 
 enum class DispositionState : u8 { kUnknown = 0, kCreate = 1, kOpen = 2 };
 
-u32 XamContentCreate(MappedString root_name, MappedVoid content_data_ptr, u32 content_data_size,
-                     u32 flags, MappedU32 disposition_ptr, MappedU32 license_mask_ptr,
-                     MappedVoid overlapped_ptr) {
+u32 CreateAndMountContent(MappedString root_name, MappedVoid content_data_ptr,
+                          u32 content_data_size, u32 flags, MappedU32 disposition_ptr,
+                          MappedU32 license_mask_ptr, MappedVoid overlapped_ptr) {
   u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
 
   XCONTENT_AGGREGATE_DATA content_data;
@@ -267,23 +267,23 @@ u32 XamContentCreateEx_entry([[maybe_unused]] u32 user_index, MappedString root_
                              MappedVoid content_data_ptr, u32 flags, MappedU32 disposition_ptr,
                              MappedU32 license_mask_ptr, [[maybe_unused]] u32 cache_size,
                              [[maybe_unused]] u64 content_size, MappedVoid overlapped_ptr) {
-  return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
-                          disposition_ptr, license_mask_ptr, overlapped_ptr);
+  return CreateAndMountContent(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
+                               disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
 u32 XamContentCreate_entry([[maybe_unused]] u32 user_index, MappedString root_name,
                            MappedVoid content_data_ptr, u32 flags, MappedU32 disposition_ptr,
                            MappedU32 license_mask_ptr, MappedVoid overlapped_ptr) {
-  return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
-                          disposition_ptr, license_mask_ptr, overlapped_ptr);
+  return CreateAndMountContent(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
+                               disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
 u32 XamContentCreateInternal_entry(MappedString root_name, MappedVoid content_data_ptr, u32 flags,
                                    MappedU32 disposition_ptr, MappedU32 license_mask_ptr,
                                    [[maybe_unused]] u32 cache_size,
                                    [[maybe_unused]] u64 content_size, MappedVoid overlapped_ptr) {
-  return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_AGGREGATE_DATA), flags,
-                          disposition_ptr, license_mask_ptr, overlapped_ptr);
+  return CreateAndMountContent(root_name, content_data_ptr, sizeof(XCONTENT_AGGREGATE_DATA), flags,
+                               disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
 u32 XamContentOpenFile_entry([[maybe_unused]] u32 user_index,

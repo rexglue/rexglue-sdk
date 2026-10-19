@@ -24,7 +24,7 @@ using namespace rex::codegen;
 
 namespace {
 
-using rex::test::AnyError;
+using rex::test::HasError;
 
 struct Scratch {
   rex::test::TempFolder folder;
@@ -72,8 +72,8 @@ REX_TEST_CASE("A partial heap group is rejected", "[codegen][shim]") {
   config.shim_functions["RtlFreeHeap"] = 0x82000010;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
-  CHECK(AnyError(result, "heap group is incomplete (2/4 specified)"));
-  CHECK(AnyError(result, "RtlSizeHeap"));
+  CHECK(HasError(result, "heap group is incomplete (2/4 specified)"));
+  CHECK(HasError(result, "RtlSizeHeap"));
 }
 
 REX_TEST_CASE("An unknown shim name is rejected with the nearest name", "[codegen][shim]") {
@@ -83,7 +83,7 @@ REX_TEST_CASE("An unknown shim name is rejected with the nearest name", "[codege
   config.shim_functions["memcopy"] = 0x82000000;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
-  CHECK(AnyError(result, "did you mean 'memcpy'"));
+  CHECK(HasError(result, "did you mean 'memcpy'"));
 }
 
 REX_TEST_CASE("An unknown shim name with no near match gets no suggestion", "[codegen][shim]") {
@@ -93,8 +93,8 @@ REX_TEST_CASE("An unknown shim name with no near match gets no suggestion", "[co
   config.shim_functions["CompletelyUnrelatedName"] = 0x82000000;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
-  CHECK(AnyError(result, "is not in the shim registry"));
-  CHECK_FALSE(AnyError(result, "did you mean"));
+  CHECK(HasError(result, "is not in the shim registry"));
+  CHECK_FALSE(HasError(result, "did you mean"));
 }
 
 REX_TEST_CASE("A misaligned shim address is rejected", "[codegen][shim]") {
@@ -104,7 +104,7 @@ REX_TEST_CASE("A misaligned shim address is rejected", "[codegen][shim]") {
   config.shim_functions["memcpy"] = 0x82000002;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
-  CHECK(AnyError(result, "not 4-byte aligned"));
+  CHECK(HasError(result, "not 4-byte aligned"));
 }
 
 REX_TEST_CASE("The retired table is rejected and leaves the shim map empty", "[codegen][shim]") {

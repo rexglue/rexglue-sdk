@@ -27,14 +27,15 @@ bool HIDHost::Post(rex::MoveOnlyFunction<void()> work) {
 }
 
 bool HIDHost::ApplyPointerMode(hid::PointerMode mode) {
-  if (applied_ == hid::PointerMode::kLocked) {
+  if (applied_pointer_mode_ == hid::PointerMode::kLocked) {
     window_.SetRelativeMouseMode(false);
     window_.ReleaseMouse();
   }
-  if (applied_ == hid::PointerMode::kFree) {
-    arrow_ = window_.GetCursorVisibility();
+  if (applied_pointer_mode_ == hid::PointerMode::kFree) {
+    saved_cursor_visibility_ = window_.GetCursorVisibility();
   }
-  window_.SetCursorVisibility(mode == hid::PointerMode::kFree ? arrow_ : CursorVisibility::kHidden);
+  window_.SetCursorVisibility(mode == hid::PointerMode::kFree ? saved_cursor_visibility_
+                                                              : CursorVisibility::kHidden);
   bool relative = false;
   if (mode == hid::PointerMode::kLocked) {
     window_.CaptureMouse();
@@ -43,7 +44,7 @@ bool HIDHost::ApplyPointerMode(hid::PointerMode mode) {
       REXLOG_WARN(hid, "pointer lock is unavailable, mouse look recenters the pointer instead");
     }
   }
-  applied_ = mode;
+  applied_pointer_mode_ = mode;
   return relative;
 }
 
@@ -59,7 +60,7 @@ std::optional<hid::PointerState> HIDHost::WarpPointerToCenter() {
                            .window_height = window_.GetActualPhysicalHeight()};
 }
 
-bool HIDHost::GetCaptureActive() const {
+bool HIDHost::IsCaptureActive() const {
   if (!window_.HasFocus()) {
     return false;
   }
@@ -79,12 +80,12 @@ bool HIDHost::IsOverlayCapturingInput(bool keyboard) const {
 
 void HIDHost::OnKeyDown(KeyEvent& e) {
   if (!IsOverlayCapturingInput(true)) {
-    Key(hid::InputEvent::Kind::kKeyDown, e);
+    ForwardKey(hid::InputEvent::Kind::kKeyDown, e);
   }
 }
 
 void HIDHost::OnKeyUp(KeyEvent& e) {
-  Key(hid::InputEvent::Kind::kKeyUp, e);
+  ForwardKey(hid::InputEvent::Kind::kKeyUp, e);
 }
 
 void HIDHost::OnKeyChar(KeyEvent& e) {
@@ -97,12 +98,12 @@ void HIDHost::OnKeyChar(KeyEvent& e) {
 
 void HIDHost::OnMouseDown(MouseEvent& e) {
   if (!IsOverlayCapturingInput(false)) {
-    Button(hid::InputEvent::Kind::kButtonDown, e);
+    ForwardButton(hid::InputEvent::Kind::kButtonDown, e);
   }
 }
 
 void HIDHost::OnMouseUp(MouseEvent& e) {
-  Button(hid::InputEvent::Kind::kButtonUp, e);
+  ForwardButton(hid::InputEvent::Kind::kButtonUp, e);
 }
 
 void HIDHost::OnMouseMove(MouseEvent& e) {
@@ -140,7 +141,7 @@ void HIDHost::OnResize(UISetupEvent& e) {
                     .height = window_.GetActualPhysicalHeight()});
 }
 
-void HIDHost::Key(hid::InputEvent::Kind kind, const KeyEvent& e) {
+void HIDHost::ForwardKey(hid::InputEvent::Kind kind, const KeyEvent& e) {
   hid::KeyModifiers modifiers = hid::KeyModifiers::kNone;
   if (e.IsShiftPressed()) {
     modifiers |= hid::KeyModifiers::kShift;
@@ -154,10 +155,10 @@ void HIDHost::Key(hid::InputEvent::Kind kind, const KeyEvent& e) {
   backend_.OnEvent({.kind = kind,
                     .key = e.GetVirtualKey(),
                     .modifiers = modifiers,
-                    .repeat = kind == hid::InputEvent::Kind::kKeyDown && e.GetPrevState()});
+                    .repeat = kind == hid::InputEvent::Kind::kKeyDown && e.WasKeyDown()});
 }
 
-void HIDHost::Button(hid::InputEvent::Kind kind, const MouseEvent& e) {
+void HIDHost::ForwardButton(hid::InputEvent::Kind kind, const MouseEvent& e) {
   hid::MouseButton button = hid::MouseButton::kLeft;
   switch (e.GetButton()) {
     case MouseEvent::Button::kLeft:

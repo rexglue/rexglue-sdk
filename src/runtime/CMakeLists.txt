@@ -1,12 +1,12 @@
-set(REXSYSTEM_SOURCES
+set(REXRUNTIME_SOURCES
     runtime.cpp
     error.cpp
     embedded_metadata.cpp
     achievement_manager.cpp
-    xmemory.cpp
+    memory.cpp
     kernel_module.cpp
     user_module.cpp
-    xthread.cpp
+    kernel_thread.cpp
     thread_registry.cpp
     guest_stack.cpp
     workspace_heap.cpp
@@ -49,7 +49,7 @@ set(REXSYSTEM_SOURCES
     title_app.cpp
 )
 
-add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
+add_library(rexruntime SHARED ${REXRUNTIME_SOURCES})
 add_library(rex::runtime ALIAS rexruntime)
 
 set_target_properties(

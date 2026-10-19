@@ -733,7 +733,7 @@ bool Build<PPC_INST_LVX>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_shuffle_epi8(simde_mm_load_si128((simde__m128i*)REX_RAW_ADDR({})), "
-      "simde_mm_load_si128((simde__m128i*)VectorMaskL)));",
+      "simde_mm_load_si128((simde__m128i*)kVectorMaskL)));",
       ctx.V(ctx.insn.operands[0]), ctx.EA());
   return true;
 }
@@ -744,7 +744,7 @@ bool Build<PPC_INST_LVLX>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_shuffle_epi8(simde_mm_load_si128((simde__m128i*)REX_RAW_ADDR({}.u32 & ~0xF)), "
-      "simde_mm_load_si128((simde__m128i*)&VectorMaskL[({}.u32 & 0xF) * 16])));",
+      "simde_mm_load_si128((simde__m128i*)&kVectorMaskL[({}.u32 & 0xF) * 16])));",
       ctx.V(ctx.insn.operands[0]), ctx.Temp(), ctx.Temp());
   return true;
 }
@@ -755,7 +755,7 @@ bool Build<PPC_INST_LVRX>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, {}.u32 & 0xF ? "
       "simde_mm_shuffle_epi8(simde_mm_load_si128((simde__m128i*)REX_RAW_ADDR({}.u32 & ~0xF)), "
-      "simde_mm_load_si128((simde__m128i*)&VectorMaskR[({}.u32 & 0xF) * 16])) : "
+      "simde_mm_load_si128((simde__m128i*)&kVectorMaskR[({}.u32 & 0xF) * 16])) : "
       "simde_mm_setzero_si128());",
       ctx.V(ctx.insn.operands[0]), ctx.Temp(), ctx.Temp(), ctx.Temp());
   return true;
@@ -766,7 +766,7 @@ bool Build<PPC_INST_LVSL>(BuilderContext& ctx) {
   EmitVectorTempEA(ctx);
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_load_si128((simde__m128i*)&VectorShiftTableL[({}.u32 & 0xF) * 16]));",
+      "simde_mm_load_si128((simde__m128i*)&kVectorShiftTableL[({}.u32 & 0xF) * 16]));",
       ctx.V(ctx.insn.operands[0]), ctx.Temp());
   return true;
 }
@@ -776,7 +776,7 @@ bool Build<PPC_INST_LVSR>(BuilderContext& ctx) {
   EmitVectorTempEA(ctx);
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_load_si128((simde__m128i*)&VectorShiftTableR[({}.u32 & 0xF) * 16]));",
+      "simde_mm_load_si128((simde__m128i*)&kVectorShiftTableR[({}.u32 & 0xF) * 16]));",
       ctx.V(ctx.insn.operands[0]), ctx.Temp());
   return true;
 }
@@ -829,7 +829,7 @@ bool Build<PPC_INST_STVX>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*)REX_RAW_ADDR({}), "
       "simde_mm_shuffle_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
-      "simde_mm_load_si128((simde__m128i*)VectorMaskL)));",
+      "simde_mm_load_si128((simde__m128i*)kVectorMaskL)));",
       ctx.EA(), ctx.V(ctx.insn.operands[0]));
   return true;
 }

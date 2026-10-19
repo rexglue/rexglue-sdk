@@ -48,7 +48,7 @@ class ActiveDeviceTracker {
    */
   void Observe(u32 user_index, DeviceId id, const X_INPUT_GAMEPAD& gamepad);
 
-  DeviceId Active(u32 user_index) const;
+  DeviceId GetActive(u32 user_index) const;
   void Forget(DeviceId id);
 
  private:

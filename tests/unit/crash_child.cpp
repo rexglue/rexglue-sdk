@@ -1,5 +1,5 @@
 /**
- * @file        tests/unit/crash_probe.cpp
+ * @file        tests/unit/crash_child.cpp
  * @brief       Child process that crashes in a named way for the crash reporter tests
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -36,8 +36,8 @@
 #include <windows.h>
 #endif
 
-extern "C" int ProbeFaultInScope(volatile int* address);
-extern "C" int ProbeFaultBelowHostFrame(volatile int* address);
+extern "C" int FaultInScope(volatile int* address);
+extern "C" int FaultBelowHostFrame(volatile int* address);
 
 namespace {
 
@@ -63,7 +63,7 @@ namespace {
   Throw();
 }
 
-rex::u32 DescribeForProbe(rex::u64 address, std::span<char> out) {
+rex::u32 DescribeForCrashChild(rex::u64 address, std::span<char> out) {
   return static_cast<rex::u32>(std::format_to_n(out.data(), static_cast<std::ptrdiff_t>(out.size()),
                                                 "crash child describer {}", address)
                                    .size);
@@ -112,7 +112,7 @@ int Run(std::string_view mode) {
       if (!memory.Initialize()) {
         return 2;
       }
-      const auto host_page = static_cast<rex::u32>(rex::memory::PageSize());
+      const auto host_page = static_cast<rex::u32>(rex::memory::GetPageSize());
       const rex::u32 address =
           memory.SystemHeapAlloc(host_page, host_page, rex::runtime::kSystemHeapPhysical);
       auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
@@ -131,13 +131,13 @@ int Run(std::string_view mode) {
   } else if (mode == "seh") {
     rex::InitializeSEH();
     rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
-    const bool caught = ProbeFaultInScope(nullptr) == 1;
+    const bool caught = FaultInScope(nullptr) == 1;
     std::puts(caught ? "seh caught" : "seh missed");
     return caught ? 0 : 3;
   } else if (mode == "seh-host-frame") {
     rex::InitializeSEH();
     rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
-    const bool caught = ProbeFaultBelowHostFrame(nullptr) == 1;
+    const bool caught = FaultBelowHostFrame(nullptr) == 1;
     std::puts(caught ? "seh caught" : "seh missed");
     return caught ? 0 : 3;
   } else if (mode == "watch") {
@@ -157,7 +157,7 @@ int Run(std::string_view mode) {
   } else if (mode == "foreign-thread") {
     std::thread([] { WriteNull(); }).join();
   } else if (mode == "describer") {
-    rex::platform::SetCrashAddressDescriber(DescribeForProbe);
+    rex::platform::SetCrashAddressDescriber(DescribeForCrashChild);
     WriteNull();
   } else if (mode == "concurrent") {
     rex::platform::SetCrashAddressDescriber(DescribeWhileAnotherThreadFaults);

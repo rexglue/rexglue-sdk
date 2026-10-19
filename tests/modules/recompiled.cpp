@@ -25,7 +25,7 @@ void Function(PPCContext& ctx, rex::u8*) {
   ctx.r3.u64 = REX_TEST_RESULT;
 }
 
-const rex::PPCImageInfo kImageInfo = {
+const rex::PPCImage kImageInfo = {
     .code_base = kImageBase,
     .code_size = kImageSize,
     .image_base = kImageBase,
@@ -35,10 +35,10 @@ const rex::PPCImageInfo kImageInfo = {
 
 }  // namespace
 
-extern "C" REX_DETAIL_EXPORT void ReXModule_Register(rex::runtime::IModuleRegistrar* registrar) {
+extern "C" REX_DETAIL_EXPORT void ReXRegisterModule(rex::runtime::IModuleRegistrar* registrar) {
   registrar->SetFunction(kFunctionAddress, Function);
 }
 
-extern "C" REX_DETAIL_EXPORT const rex::PPCImageInfo* ReXModule_GetImageInfo() {
+extern "C" REX_DETAIL_EXPORT const rex::PPCImage* ReXGetModuleImage() {
   return &kImageInfo;
 }

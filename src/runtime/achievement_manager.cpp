@@ -23,16 +23,15 @@ u64 AchievementManager::GetCurrentFileTime() {
   return WinSystemClock::ToFileTime(WinSystemClock::from_sys(std::chrono::system_clock::now()));
 }
 
-Result<void> AchievementManager::RegisterAchievement(AchievementInfo info) {
+Result<void> AchievementManager::RegisterAchievement(Achievement info) {
   if (info.id == 0) {
     REXLOG_WARN(system, "Achievement manager: refusing achievement with ID 0");
     return Err(ErrorCategory::kValidation, "achievement ID 0 is reserved");
   }
 
   std::lock_guard lock(mutex_);
-  auto existing =
-      std::find_if(achievements_.begin(), achievements_.end(),
-                   [&](const AchievementInfo& current) { return current.id == info.id; });
+  auto existing = std::find_if(achievements_.begin(), achievements_.end(),
+                               [&](const Achievement& current) { return current.id == info.id; });
   if (existing != achievements_.end()) {
     *existing = std::move(info);
   } else {
@@ -41,9 +40,8 @@ Result<void> AchievementManager::RegisterAchievement(AchievementInfo info) {
   return Ok();
 }
 
-Result<void> AchievementManager::RegisterAchievements(
-    std::span<const AchievementInfo> achievements) {
-  if (std::ranges::any_of(achievements, [](const AchievementInfo& info) { return info.id == 0; })) {
+Result<void> AchievementManager::RegisterAchievements(std::span<const Achievement> achievements) {
+  if (std::ranges::any_of(achievements, [](const Achievement& info) { return info.id == 0; })) {
     REXLOG_WARN(system, "Achievement manager: refusing a batch with achievement ID 0");
     return Err(ErrorCategory::kValidation, "achievement ID 0 is reserved");
   }
@@ -51,7 +49,7 @@ Result<void> AchievementManager::RegisterAchievements(
   std::lock_guard lock(mutex_);
   for (const auto& info : achievements) {
     auto existing = std::ranges::find(achievements_, info.id,
-                                      [](const AchievementInfo& current) { return current.id; });
+                                      [](const Achievement& current) { return current.id; });
     if (existing != achievements_.end()) {
       *existing = info;
     } else {
@@ -61,7 +59,7 @@ Result<void> AchievementManager::RegisterAchievements(
   return Ok();
 }
 
-void AchievementManager::ReplaceAchievements(std::vector<AchievementInfo> achievements) {
+void AchievementManager::ReplaceAchievements(std::vector<Achievement> achievements) {
   std::lock_guard lock(mutex_);
   achievements_.clear();
   for (auto& achievement : achievements) {
@@ -71,7 +69,7 @@ void AchievementManager::ReplaceAchievements(std::vector<AchievementInfo> achiev
     }
     auto existing =
         std::find_if(achievements_.begin(), achievements_.end(),
-                     [&](const AchievementInfo& current) { return current.id == achievement.id; });
+                     [&](const Achievement& current) { return current.id == achievement.id; });
     if (existing != achievements_.end()) {
       *existing = std::move(achievement);
     } else {
@@ -97,7 +95,7 @@ Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& p
         continue;
       }
 
-      AchievementInfo info;
+      Achievement info;
       info.id = static_cast<u32>((*entry)["id"].value_or<i64>(0));
       info.label = (*entry)["label"].value_or<std::string>("");
       info.description = (*entry)["description"].value_or<std::string>("");
@@ -117,7 +115,7 @@ Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& p
   }
 }
 
-std::vector<AchievementInfo> AchievementManager::ListAchievements() const {
+std::vector<Achievement> AchievementManager::ListAchievements() const {
   std::lock_guard lock(mutex_);
   return achievements_;
 }
@@ -128,7 +126,7 @@ AchievementUnlockResult AchievementManager::UnlockAchievement(
   {
     std::lock_guard lock(mutex_);
     auto info = std::find_if(achievements_.begin(), achievements_.end(),
-                             [&](const AchievementInfo& current) { return current.id == id; });
+                             [&](const Achievement& current) { return current.id == id; });
     if (info == achievements_.end()) {
       REXLOG_WARN(system, "Achievement manager: ignoring unknown achievement {:08X}", id);
       return AchievementUnlockResult::kUnknownAchievement;
@@ -164,18 +162,18 @@ std::optional<u64> AchievementManager::GetUnlockTime(u32 id) const {
   return it->second;
 }
 
-AchievementListenerHandle AchievementManager::RegisterNotificationCallback(
+AchievementCallbackHandle AchievementManager::RegisterNotificationCallback(
     AchievementCallback callback) {
   if (!callback) {
     return 0;
   }
   std::lock_guard lock(mutex_);
-  AchievementListenerHandle handle = next_listener_handle_++;
+  AchievementCallbackHandle handle = next_listener_handle_++;
   notification_callbacks_.emplace(handle, std::move(callback));
   return handle;
 }
 
-void AchievementManager::UnregisterCallback(AchievementListenerHandle handle) {
+void AchievementManager::UnregisterNotificationCallback(AchievementCallbackHandle handle) {
   std::lock_guard lock(mutex_);
   notification_callbacks_.erase(handle);
 }
@@ -263,7 +261,7 @@ void AchievementManager::SaveUnlockState() const {
 }
 
 void AchievementManager::DispatchCallbacks(
-    const std::unordered_map<AchievementListenerHandle, AchievementCallback>& callbacks,
+    const std::unordered_map<AchievementCallbackHandle, AchievementCallback>& callbacks,
     const AchievementEvent& event) const {
   std::vector<AchievementCallback> snapshot;
   {

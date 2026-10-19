@@ -60,7 +60,7 @@ Result<std::unique_ptr<Provider>> NullProvider::Create(const MountEntry& entry) 
   return std::unique_ptr<Provider>(std::move(provider));
 }
 
-VolumeInfo NullProvider::GetVolume() const {
+VolumeStat NullProvider::GetVolume() const {
   return {"NullDevice", 0, 40, 0x10, 0x10, 0x80, 0x200};
 }
 

@@ -21,7 +21,7 @@ NodeFile::~NodeFile() {
   node_->ReleaseOpen();
 }
 
-FileInfo NodeFile::GetInfo() const {
+FileStat NodeFile::GetInfo() const {
   return node_->GetInfo();
 }
 
@@ -29,7 +29,7 @@ void NodeFile::Refresh() {
   node_->Refresh();
 }
 
-VolumeInfo NodeFile::GetVolume() const {
+VolumeStat NodeFile::GetVolume() const {
   return node_->GetProvider().GetVolume();
 }
 
@@ -83,7 +83,7 @@ NodeDirectory::~NodeDirectory() {
   node_->ReleaseOpen();
 }
 
-std::optional<FileInfo> NodeDirectory::Next() {
+std::optional<FileStat> NodeDirectory::Next() {
   Node* child = node_->IterateChildren(matcher_, &index_);
   if (!child) {
     return std::nullopt;

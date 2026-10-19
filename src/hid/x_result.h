@@ -31,7 +31,8 @@ template <typename T>
   if (result == X_ERROR_SUCCESS) {
     return value;
   }
-  return std::unexpected(BuildError(ErrorOf(result), std::format("device result {:08X}", result)));
+  return std::unexpected(
+      BuildError(ToHIDError(result), std::format("device result {:08X}", result)));
 }
 
 /**
@@ -44,7 +45,8 @@ template <typename T>
   if (result == X_ERROR_SUCCESS) {
     return Ok();
   }
-  return std::unexpected(BuildError(ErrorOf(result), std::format("device result {:08X}", result)));
+  return std::unexpected(
+      BuildError(ToHIDError(result), std::format("device result {:08X}", result)));
 }
 
 }  // namespace rex::hid

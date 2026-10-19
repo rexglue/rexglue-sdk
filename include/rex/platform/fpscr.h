@@ -37,7 +37,7 @@ struct FPSCRPlatform {
   static constexpr size_t kGuestToHost[] = {SIMDE_MM_ROUND_NEAREST, SIMDE_MM_ROUND_TOWARD_ZERO,
                                             SIMDE_MM_ROUND_UP, SIMDE_MM_ROUND_DOWN};
   /** PowerPC FPSCR RN values indexed by the MXCSR RC field. */
-  static constexpr u32 kHostToReX[] = {0, 3, 2, 1};
+  static constexpr u32 kHostToGuest[] = {0, 3, 2, 1};
 
   /**
    * Reads MXCSR.
@@ -72,7 +72,7 @@ struct FPSCRPlatform {
   static constexpr size_t kGuestToHost[] = {0 << kRoundShift, 3 << kRoundShift, 1 << kRoundShift,
                                             2 << kRoundShift};
   /** PowerPC FPSCR RN values indexed by the FPCR RMode field. */
-  static constexpr u32 kHostToReX[] = {0, 2, 3, 1};
+  static constexpr u32 kHostToGuest[] = {0, 2, 3, 1};
   /** FPCR IOE, DZE, OFE, UFE, IXE and IDE bits. A clear bit disables the trap. */
   static constexpr u32 kExceptionMask =
       (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12) | (1 << 15);

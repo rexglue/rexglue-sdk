@@ -14,7 +14,7 @@
 #include <optional>
 
 #include <rex/types.h>
-#include <rex/ui/display_mode.h>
+#include <rex/ui/video_mode.h>
 #include <rex/xenos/registers.h>
 
 namespace rex::gpu {

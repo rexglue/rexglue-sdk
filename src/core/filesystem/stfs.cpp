@@ -33,7 +33,8 @@ constexpr u16 kRootDirectoryIndex = 0xFFFF;
 
 class STFSReader {
  public:
-  STFSReader(const STFSHeader& header, std::span<const u8> file) : header_(header), file_(file) {
+  STFSReader(const XContentPackageHeader& header, std::span<const u8> file)
+      : header_(header), file_(file) {
     const auto& descriptor = header_.metadata.volume_descriptor.stfs;
     blocks_per_hash_table_ = descriptor.flags.bits.read_only_format ? 1 : 2;
     block_step_[0] = kSTFSBlocksPerHashLevel[0] + blocks_per_hash_table_;
@@ -71,8 +72,9 @@ class STFSReader {
             }
             const u32 entry_index =
                 (block_index / kSTFSBlocksPerHashLevel[1]) % kSTFSBlocksPerHashLevel[0];
-            secondary =
-                cache_[offset_lv2].entries[entry_index].LevelNActiveIndex() ? kSTFSBlockSize : 0;
+            secondary = cache_[offset_lv2].entries[entry_index].IsLevelNActiveIndexSet()
+                            ? kSTFSBlockSize
+                            : 0;
           }
           if (!Load(offset_lv1, offset_lv1 + secondary)) {
             return nullptr;
@@ -81,7 +83,7 @@ class STFSReader {
         const u32 entry_index =
             (block_index / kSTFSBlocksPerHashLevel[0]) % kSTFSBlocksPerHashLevel[0];
         secondary =
-            cache_[offset_lv1].entries[entry_index].LevelNActiveIndex() ? kSTFSBlockSize : 0;
+            cache_[offset_lv1].entries[entry_index].IsLevelNActiveIndexSet() ? kSTFSBlockSize : 0;
       }
       if (!Load(offset_lv0, offset_lv0 + secondary)) {
         return nullptr;
@@ -130,7 +132,7 @@ class STFSReader {
     return true;
   }
 
-  const STFSHeader& header_;
+  const XContentPackageHeader& header_;
   std::span<const u8> file_;
   u32 blocks_per_hash_table_ = 1;
   std::array<u32, 2> block_step_{};
@@ -150,7 +152,7 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
 
 }  // namespace
 
-[[nodiscard]] Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
+[[nodiscard]] Result<void> ParseSTFS(const XContentPackageHeader& header, std::span<const u8> file,
                                      std::vector<ContainerNode>& nodes) {
   STFSReader reader(header, file);
   const auto& descriptor = header.metadata.volume_descriptor.stfs;

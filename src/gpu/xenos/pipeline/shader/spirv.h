@@ -32,13 +32,13 @@ class SPIRVShader : public Shader {
                        size_t ucode_dword_count,
                        std::endian ucode_source_endian = std::endian::big);
 
-  struct TextureBinding {
+  struct TranslatedTextureBinding {
     u32 fetch_constant : 5;
     xenos::FetchOpDimension dimension : 2;
     u32 is_signed : 1;
   };
   // Safe to hash and compare with memcmp for layout hashing.
-  const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation() const {
+  const std::vector<TranslatedTextureBinding>& GetTextureBindingsAfterTranslation() const {
     return translated_texture_bindings_;
   }
   u32 GetUsedTextureMaskAfterTranslation() const { return used_texture_mask_; }
@@ -61,7 +61,7 @@ class SPIRVShader : public Shader {
   friend class SPIRVShaderTranslator;
 
   std::atomic_flag bindings_setup_entered_;
-  std::vector<TextureBinding> translated_texture_bindings_;
+  std::vector<TranslatedTextureBinding> translated_texture_bindings_;
   std::vector<SamplerBinding> sampler_bindings_;
   u32 used_texture_mask_ = 0;
 };

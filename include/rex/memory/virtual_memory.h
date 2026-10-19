@@ -34,14 +34,14 @@ REX_API void AndroidShutdown();
  *
  * @return Page size in bytes, usually 4 KiB.
  */
-REX_API size_t PageSize();
+REX_API size_t GetPageSize();
 
 /**
  * Returns the host allocation granularity.
  *
  * @return Granularity in bytes. 64 KiB on Windows, the page size on POSIX.
  */
-REX_API size_t AllocationGranularity();
+REX_API size_t GetAllocationGranularity();
 
 /** Access rights of a range of host pages. */
 enum class PageAccess : u8 {
@@ -113,10 +113,10 @@ REX_API bool Protect(void* base_address, size_t length, PageAccess access,
  *
  * @param base_address Address inside the region.
  * @param length Receives the byte count of consecutive pages with the same access rights.
- * @param access_out Receives the access rights.
+ * @param out_access Receives the access rights.
  * @return True on success.
  */
-REX_API bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
+REX_API bool QueryProtect(void* base_address, size_t& length, PageAccess& out_access);
 
 /**
  * Allocates aligned host memory for 1 object.

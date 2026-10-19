@@ -40,7 +40,7 @@ class AchievementsOverlayDialog : public ImGuiDialog {
    * @param achievement Achievement to load the icon for.
    * @return The icon texture, or null when none could be created.
    */
-  gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
+  gpu::OverlayTexture* GetIcon(const rex::runtime::Achievement& achievement);
 
   const ModuleOverlayContext& context_;
   std::optional<AchievementIconCache> icon_cache_;

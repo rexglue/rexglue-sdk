@@ -18,9 +18,9 @@
 
 using rex::u32;
 
-using rex::testing::Caller;
-using rex::testing::Join;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::Join;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -39,9 +39,9 @@ REX_TEST_CASE("A thread entry runs in a call frame under a zeroed root frame",
   fixture.RunOnGuestThread([](Caller& c) {
     auto frame = std::make_shared<EntryFrame>();
     const u32 handle = c.Spawn([frame](Caller& t) {
-      const u32 kthread = t.Load32(t.GetCtx().r13.u32 + 0x100);
+      const u32 kthread = t.Load32(t.GetContext().r13.u32 + 0x100);
       frame->stack_base = t.Load32(kthread + 0x5C);
-      frame->r1 = t.GetCtx().r1.u32;
+      frame->r1 = t.GetContext().r1.u32;
       frame->back_chain = t.Load32(frame->r1);
       const u32 root = frame->stack_base - rex::ppc::kLinkageSize;
       for (u32 offset = 0; offset < rex::ppc::kLinkageSize; offset += 4) {
@@ -62,7 +62,7 @@ REX_TEST_CASE("A write over the root frame leaves the TLS block alone",
   fixture.RunOnGuestThread([](Caller& c) {
     auto words = std::make_shared<u32>();
     const u32 handle = c.Spawn([words](Caller& t) {
-      const u32 kthread = t.Load32(t.GetCtx().r13.u32 + 0x100);
+      const u32 kthread = t.Load32(t.GetContext().r13.u32 + 0x100);
       const u32 stack_base = t.Load32(kthread + 0x5C);
       const u32 root = stack_base - rex::ppc::kLinkageSize;
       t.Store32(stack_base, 0x12345678);

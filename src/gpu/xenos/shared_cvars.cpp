@@ -9,7 +9,7 @@ std::string GetDumpShaders() {
   return REXCVAR_GET(::rex::gpu::cvars::dump_shaders);
 }
 
-bool GetAllowInvalidFetchConstants() {
+bool IsInvalidFetchConstantsAllowed() {
   return REXCVAR_GET(::rex::gpu::cvars::allow_invalid_fetch_constants);
 }
 

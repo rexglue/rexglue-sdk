@@ -48,7 +48,7 @@ namespace {
  * @param addr Address to test.
  * @return True when the data matches.
  */
-bool LooksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 addr) {
+bool IsExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 addr) {
   const u8* data = binary.Translate(addr);
   if (!data)
     return false;
@@ -156,7 +156,7 @@ std::vector<u32> GetRegisterOperands(std::string_view operands) {
  * @param code Pointer to the big endian instruction word.
  * @return True when the word cannot start a function.
  */
-bool UsesNonvolatileFirst(const u8* code) {
+bool HasNonvolatileFirst(const u8* code) {
   constexpr u32 kFirstNonvolatile = 14;
   constexpr u32 kStackPointer = 1;
   constexpr std::array<std::string_view, 6> kSourceFirst = {"st", "cmp", "mt", "tw", "td", "dcb"};
@@ -197,9 +197,9 @@ bool IsDataWord(const CodegenContext& ctx, const BinaryView& binary, const CodeR
   const u8* first = binary.Translate(addr);
   if (!first)
     return true;
-  if (UsesNonvolatileFirst(first))
+  if (HasNonvolatileFirst(first))
     return true;
-  if (LooksLikeExceptionData(binary, ctx.graph, addr))
+  if (IsExceptionData(binary, ctx.graph, addr))
     return true;
 
   for (u32 cursor = addr; cursor < region.end; cursor += 4) {
@@ -248,7 +248,7 @@ void GapFillCodeRegions(CodegenContext& ctx) {
   for (const auto& region : ctx.scan.code_regions) {
     u32 addr = region.start;
     while (addr < region.end) {
-      if (u32 end = coverage.CoveredUntil(addr)) {
+      if (u32 end = coverage.GetCoveredEnd(addr)) {
         addr = end;
         continue;
       }
@@ -269,7 +269,7 @@ void GapFillCodeRegions(CodegenContext& ctx) {
       } else if (const auto* node = graph.GetFunction(addr)) {
         coverage.Add(addr, addr + node->GetSize());
       }
-      addr = std::max(addr + 4, coverage.CoveredUntil(addr));
+      addr = std::max(addr + 4, coverage.GetCoveredEnd(addr));
     }
   }
 

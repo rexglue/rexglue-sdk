@@ -32,7 +32,7 @@ void SPIRVShaderTranslator::ExportToMemory(u8 export_em) {
 
   REX_ASSERT((export_em & ~GetCurrentShader().GetMemExportEMWritten()) == 0);
 
-  if (!IsMemoryExportSupported()) {
+  if (!IsMemExportSupported()) {
     return;
   }
 
@@ -91,10 +91,10 @@ void SPIRVShaderTranslator::ExportToMemory(u8 export_em) {
         builder_->createLoad(var_main_memexport_data_[em_index], spv::NoPrecision);
   });
 
-  spv::Id format_info = builder_->createCompositeExtract(ea_vector, type_uint, 2);
+  spv::Id format_word = builder_->createCompositeExtract(ea_vector, type_uint, 2);
   spv::Id swap_red_blue = builder_->createBinOp(
       spv::OpINotEqual, type_bool,
-      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, format_info,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, format_word,
                             builder_->makeUintConstant(static_cast<u32>(1) << 19)),
       const_uint_0_);
   EMIdArray em_swapped;
@@ -113,12 +113,12 @@ void SPIRVShaderTranslator::ExportToMemory(u8 export_em) {
 
   spv::Id is_signed = builder_->createBinOp(
       spv::OpINotEqual, type_bool,
-      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, format_info,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, format_word,
                             builder_->makeUintConstant(static_cast<u32>(1) << 16)),
       const_uint_0_);
   spv::Id is_norm = builder_->createBinOp(
       spv::OpIEqual, type_bool,
-      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, format_info,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, format_word,
                             builder_->makeUintConstant(static_cast<u32>(1) << 17)),
       const_uint_0_);
 
@@ -303,7 +303,7 @@ void SPIRVShaderTranslator::ExportToMemory(u8 export_em) {
   };
 
   SPIRVBuilder::SwitchBuilder format_switch(
-      builder_->createTriOp(spv::OpBitFieldUExtract, type_uint, format_info,
+      builder_->createTriOp(spv::OpBitFieldUExtract, type_uint, format_word,
                             builder_->makeUintConstant(8), builder_->makeUintConstant(6)),
       spv::SelectionControlDontFlattenMask, *builder_);
 
@@ -597,7 +597,7 @@ void SPIRVShaderTranslator::ExportToMemory(u8 export_em) {
     builder_->getBuildPoint()->addInstruction(std::move(element_bytes_log2_phi));
   }
 
-  spv::Id endian = builder_->createTriOp(spv::OpBitFieldUExtract, type_uint, format_info,
+  spv::Id endian = builder_->createTriOp(spv::OpBitFieldUExtract, type_uint, format_word,
                                          const_uint_0_, builder_->makeUintConstant(3));
   for_each_em(
       [&](u32 em_index) { em_packed[em_index] = EndianSwap128Uint4(em_packed[em_index], endian); });

@@ -42,7 +42,7 @@ REX_SHIM_FN(strtok, char*, char* s, const char* delim) {
 }
 
 REX_SHIM_FN(_stricmp, int, const char* s1, const char* s2) {
-  return rex::CompareCase(s1, s2);
+  return rex::CompareIgnoreCase(s1, s2);
 }
 
 REX_SHIM_FN(strcpy_s, int, char* dst, u32 dstsz, const char* src) {
@@ -62,7 +62,7 @@ REX_SHIM_FN(strcpy_s, int, char* dst, u32 dstsz, const char* src) {
 }
 
 REX_SHIM_FN(lstrcmpiA, int, const char* s1, const char* s2) {
-  return rex::CompareCase(s1, s2);
+  return rex::CompareIgnoreCase(s1, s2);
 }
 
 REX_SHIM_FN(wcslen, u32, const i16* str) {

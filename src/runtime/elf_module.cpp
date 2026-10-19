@@ -37,7 +37,7 @@ struct ELF32Ehdr {
   be_u16 e_phnum;
   be_u16 e_shentsize;
   be_u16 e_shnum;
-  be_u16 e_shtrndx;
+  be_u16 e_shstrndx;
 };
 
 struct ELF32Phdr {

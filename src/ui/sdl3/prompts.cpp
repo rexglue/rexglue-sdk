@@ -27,7 +27,7 @@ PromptDialog::PromptDialog(PromptDesc desc, PromptDone done)
   if (desc_.text_input) {
     buttons_ = {"OK", "Cancel"};
     buffer_.assign((desc_.max_length != 0 ? desc_.max_length : kDefaultTextCapacity) + 1, '\0');
-    copy_truncating(buffer_.data(), desc_.default_text, buffer_.size());
+    CopyTruncating(buffer_.data(), desc_.default_text, buffer_.size());
   } else {
     buttons_ = desc_.buttons.empty() ? std::vector<std::string>{"OK"} : desc_.buttons;
   }
@@ -43,7 +43,7 @@ void PromptDialog::Complete(PromptResult result) {
 }
 
 void PromptDialog::Choose(u32 button, std::string text) {
-  Complete(PromptResult{.cancelled = false, .button = button, .text = std::move(text)});
+  Complete(PromptResult{.canceled = false, .button = button, .text = std::move(text)});
   Close();
 }
 

@@ -83,7 +83,7 @@ void ScanBinary(CodegenContext& ctx) {
   auto& scan = ctx.scan;
   auto& graph = ctx.graph;
 
-  u32 export_table = binary.GetExportTableAddr();
+  u32 export_table = binary.GetExportTableAddress();
 
   std::unordered_set<u32> exception_handler_funcs;
   for (u32 addr : state.exception_handler_funcs) {

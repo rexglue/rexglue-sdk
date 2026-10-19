@@ -60,7 +60,7 @@ const char* JoystickTypeName(SDL_JoystickType t) {
   }
 }
 
-const char* XInputSubTypeName(u8 s) {
+const char* XInputSubtypeName(u8 s) {
   switch (s) {
     case kXInputDevSubtypeGamepad:
       return "GAMEPAD";
@@ -176,7 +176,7 @@ SDL3Driver::SDL3Driver(std::filesystem::path mappings_file)
 SDL3Driver::~SDL3Driver() {}
 
 Result<void> SDL3Driver::Setup() {
-  if (!TestSDLVersion()) {
+  if (!LogSDLVersion()) {
     return Err(ErrorCategory::kPlatform, "SDL3 is older than the gamepad API needs");
   }
 
@@ -260,7 +260,7 @@ bool SDL3Driver::EventWatch(void* userdata, SDL_Event* event) {
   return false;
 }
 
-void SDL3Driver::EnumerateDevices(std::vector<DeviceInfo>& out) {
+void SDL3Driver::EnumerateDevices(std::vector<Device>& out) {
   // Polling can start before the window exists and the subsystems are up.
   if (!sdl_events_initialized_ || !sdl_gamepad_initialized_) {
     return;
@@ -269,7 +269,7 @@ void SDL3Driver::EnumerateDevices(std::vector<DeviceInfo>& out) {
   auto guard = DrainAndLock();
 
   for (const auto& controller : controllers_) {
-    DeviceInfo info;
+    Device info;
     info.id = controller.id;
     const char* name = SDL_GetGamepadName(controller.sdl);
     info.name = name ? name : "";
@@ -383,7 +383,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
 
   static_assert(sizeof(X_INPUT_GAMEPAD::buttons) == 2);
   static constexpr std::array<VirtualKey, 34> kVkLookup = {
-      VirtualKey::kXInputPadDpadUp,
+      VirtualKey::kXInputPadDPadUp,
       VirtualKey::kXInputPadDpadDown,
       VirtualKey::kXInputPadDpadLeft,
       VirtualKey::kXInputPadDpadRight,
@@ -433,13 +433,13 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
   }
 
   // Inactive input reads as unpressed, so UP events are sent and DOWN events return when active.
-  const u64 curr_butts =
+  const u64 current_buttons =
       is_active ? (static_cast<u64>(static_cast<u16>(controller->state.gamepad.buttons)) |
                    AnalogToKeyfield(controller->state.gamepad))
                 : static_cast<u64>(0);
   KeystrokeState& last = controller->keystroke;
 
-  auto guest_now = rex::Clock::QueryGuestUptimeMillis();
+  auto guest_now = rex::Clock::GetGuestUptimeMillis();
   static_assert(kRepeatDelay >= kRepeatRate);
   if (last.repeat_state == RepeatState::kWaiting && (last.repeat_time + kRepeatDelay < guest_now)) {
     last.repeat_state = RepeatState::kRepeating;
@@ -447,7 +447,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
   if (last.repeat_state == RepeatState::kRepeating &&
       (last.repeat_time + kRepeatRate < guest_now)) {
     last.repeat_time = guest_now;
-    VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
+    VirtualKey vk = kVkLookup.at(last.repeat_button_index);
     REX_ASSERT(vk != VirtualKey::kNone);
     out_keystroke->virtual_key = static_cast<u16>(vk);
     out_keystroke->unicode = 0;
@@ -458,8 +458,8 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
     return X_ERROR_SUCCESS;
   }
 
-  auto butts_changed = curr_butts ^ last.buttons;
-  if (!butts_changed) {
+  auto buttons_changed = current_buttons ^ last.buttons;
+  if (!buttons_changed) {
     return X_ERROR_EMPTY;
   }
 
@@ -467,7 +467,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
   for (auto [clear_pass, pass] = std::tuple{true, 0}; pass < 2; clear_pass = false, pass++) {
     for (u8 i = 0; i < static_cast<u8>(std::size(kVkLookup)); i++) {
       auto fbutton = static_cast<u64>(1) << i;
-      if (!(butts_changed & fbutton)) {
+      if (!(buttons_changed & fbutton)) {
         continue;
       }
       VirtualKey vk = kVkLookup.at(i);
@@ -480,7 +480,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
       out_keystroke->user_index = 0;
       out_keystroke->hid_code = 0;
 
-      bool is_pressed = curr_butts & fbutton;
+      bool is_pressed = current_buttons & fbutton;
       if (clear_pass && !is_pressed) {
         out_keystroke->flags = kXInputKeystrokeKeyUp;
         last.buttons &= ~fbutton;
@@ -491,7 +491,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
         out_keystroke->flags = kXInputKeystrokeKeyDown;
         last.buttons |= fbutton;
         last.repeat_state = RepeatState::kWaiting;
-        last.repeat_butt_idx = i;
+        last.repeat_button_index = i;
         last.repeat_time = guest_now;
         return X_ERROR_SUCCESS;
       }
@@ -590,7 +590,7 @@ void SDL3Driver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
                "ProductID(0x{:04X}), "
                "GUID({})",
                SDL_GetGamepadName(controller), JoystickTypeName(joy_type),
-               static_cast<int>(SDL_GetGamepadType(controller)), XInputSubTypeName(subtype),
+               static_cast<int>(SDL_GetGamepadType(controller)), XInputSubtypeName(subtype),
                subtype, SDL_GetGamepadVendor(controller), SDL_GetGamepadProduct(controller),
                guid_text);
 
@@ -670,7 +670,7 @@ void SDL3Driver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
 
 void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
   static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
-      kXbuttonLookup = {
+      kXInputButtonLookup = {
           kXInputGamepadA,
           kXInputGamepadB,
           kXInputGamepadX,
@@ -703,11 +703,11 @@ void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
   auto& controller = controllers_.at(*idx);
 
   u16 xbuttons = controller.state.gamepad.buttons;
-  if (event.gbutton.button >= kXbuttonLookup.size()) {
+  if (event.gbutton.button >= kXInputButtonLookup.size()) {
     REXLOG_DEBUG(hid, "SDL HID: Unknown button was pressed: {}.", event.gbutton.button);
     return;
   }
-  auto xbutton = kXbuttonLookup.at(event.gbutton.button);
+  auto xbutton = kXInputButtonLookup.at(event.gbutton.button);
   if (event.gbutton.down) {
     if (xbutton == kXInputGamepadGuide && !REXCVAR_GET(cvars::guide_button)) {
       return;
@@ -750,7 +750,7 @@ DeviceId SDL3Driver::AllocateDeviceId() {
   return static_cast<DeviceId>(next_device_id_++);
 }
 
-bool SDL3Driver::TestSDLVersion() const {
+bool SDL3Driver::LogSDLVersion() const {
   REXLOG_DEBUG(hid, "SDL: Using version {}.{}.{}", SDL_MAJOR_VERSION, SDL_MINOR_VERSION,
                SDL_MICRO_VERSION);
   return true;
@@ -821,8 +821,8 @@ void SDL3Driver::QueueControllerUpdate() {
 inline u64 SDL3Driver::AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const {
   u64 f = 0;
 
-  f |= static_cast<u64>(gamepad.left_trigger > kXInputTriggerThreshold) << 16;
-  f |= static_cast<u64>(gamepad.right_trigger > kXInputTriggerThreshold) << 17;
+  f |= static_cast<u64>(gamepad.left_trigger > kSDLTriggerThreshold) << 16;
+  f |= static_cast<u64>(gamepad.right_trigger > kSDLTriggerThreshold) << 17;
 
   auto thumb_x = static_cast<i16>(gamepad.thumb_lx);
   auto thumb_y = static_cast<i16>(gamepad.thumb_ly);

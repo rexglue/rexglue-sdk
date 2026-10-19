@@ -20,7 +20,7 @@
 
 namespace rex::ui {
 
-std::vector<DisplayInfo> SDL3UserInterface::GetDisplays() {
+std::vector<Monitor> SDL3UserInterface::GetDisplays() {
   VideoScope video;
   if (!video.IsOk()) {
     return {};
@@ -30,11 +30,11 @@ std::vector<DisplayInfo> SDL3UserInterface::GetDisplays() {
   if (!ids) {
     return {};
   }
-  std::vector<DisplayInfo> displays;
+  std::vector<Monitor> displays;
   i32 index = 1;
   for (const SDL_DisplayID id :
        std::span<const SDL_DisplayID>(ids.get(), static_cast<size_t>(count))) {
-    DisplayInfo info;
+    Monitor info;
     info.index = index++;
     if (const char* name = SDL_GetDisplayName(id)) {
       info.name = name;

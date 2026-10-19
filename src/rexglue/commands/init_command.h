@@ -37,7 +37,7 @@ struct InitOptions {
 };
 
 struct InitModuleOptions {
-  std::string app_root;
+  std::string project_root;
   std::string xex_path;
   std::string guest_path;
   std::string template_dir;

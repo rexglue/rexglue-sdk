@@ -100,7 +100,7 @@ class D3D12CPUDescriptorPool : public std::enable_shared_from_this<D3D12CPUDescr
   std::vector<ID3D12DescriptorHeap*> heaps_;
   std::vector<size_t> next_free_;
   size_t free_head_ = SIZE_MAX;
-  u32 last_heap_allocated_ = 0;
+  u32 last_heap_allocated_count_ = 0;
 };
 
 }  // namespace rex::gpu::d3d12

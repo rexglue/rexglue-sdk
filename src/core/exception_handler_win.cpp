@@ -91,7 +91,7 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
       while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
         modified_xmm_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         std::memcpy(&ex_info->ContextRecord->Xmm0 + modified_register_index,
-                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128T));
+                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128));
       }
       return EXCEPTION_CONTINUE_EXECUTION;
     }

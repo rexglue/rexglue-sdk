@@ -62,7 +62,7 @@ class RecordingBackend final : public rex::apu::IAPUBackend {
     std::lock_guard lock(mutex_);
     callbacks_.at(stream)();
   }
-  size_t Open() const {
+  size_t GetOpenCount() const {
     std::lock_guard lock(mutex_);
     return callbacks_.size();
   }
@@ -79,35 +79,35 @@ class RecordingBackend final : public rex::apu::IAPUBackend {
 }  // namespace
 
 REX_TEST_CASE("APU gives a client its queue depth in credits", "[runtime]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   auto client = apu.RegisterClient(0, 0);
   REQUIRE(client);
-  CHECK(apu.TakeCredits(*client) == 4);
-  CHECK(backend.Open() == 1);
+  CHECK(apu.CountCredits(*client) == 4);
+  CHECK(backend.GetOpenCount() == 1);
   apu.UnregisterClient(*client);
   CHECK(backend.GetClosed() == 1);
-  CHECK(apu.TakeCredits(*client) == 0);
+  CHECK(apu.CountCredits(*client) == 0);
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU gets 1 credit back per played frame", "[runtime]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   auto client = apu.RegisterClient(0, 0);
   REQUIRE(client);
   REQUIRE(apu.TakeCredit(*client));
   REQUIRE(apu.TakeCredit(*client));
-  CHECK(apu.TakeCredits(*client) == 2);
+  CHECK(apu.CountCredits(*client) == 2);
   backend.Play(1);
-  CHECK(apu.TakeCredits(*client) == 3);
+  CHECK(apu.CountCredits(*client) == 3);
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[runtime]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   for (rex::u32 i = 0; i < rex::runtime::APU::kMaxClients; ++i) {
@@ -116,27 +116,27 @@ REX_TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[runtime]") {
   auto ninth = apu.RegisterClient(0, 0);
   REQUIRE_FALSE(ninth);
   CHECK(rex::runtime::ToXStatus(ninth.error()) == rex::X_STATUS_NO_MEMORY);
-  CHECK(backend.Open() == rex::runtime::APU::kMaxClients);
+  CHECK(backend.GetOpenCount() == rex::runtime::APU::kMaxClients);
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU pause is idempotent and resume restores it", "[runtime]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   REQUIRE(apu.Setup());
   apu.SetPaused(true);
   apu.SetPaused(true);
-  CHECK(apu.GetPaused());
+  CHECK(apu.IsPaused());
   CHECK(apu.GetXMADecoder().IsPaused());
   apu.SetPaused(false);
-  CHECK_FALSE(apu.GetPaused());
+  CHECK_FALSE(apu.IsPaused());
   CHECK_FALSE(apu.GetXMADecoder().IsPaused());
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU shutdown releases a paused worker", "[runtime]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   REQUIRE(apu.Setup());
@@ -144,7 +144,7 @@ REX_TEST_CASE("APU shutdown releases a paused worker", "[runtime]") {
   const auto start = std::chrono::steady_clock::now();
   apu.Shutdown();
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(250));
-  CHECK_FALSE(apu.GetPaused());
+  CHECK_FALSE(apu.IsPaused());
 }
 
 namespace {
@@ -154,16 +154,16 @@ std::atomic<bool> g_in_callback{false};
 
 void WaitingClientCallback(PPCContext& ctx, rex::u8* base) {
   g_in_callback.store(true);
-  rex::testing::Caller caller(ctx, base, *rex::runtime::ThreadState::Get()->GetRuntime());
+  rex::test::Caller caller(ctx, base, *rex::runtime::ThreadState::Get()->GetRuntime());
   caller.Kernel("NtWaitForSingleObjectEx", {g_callback_event.load(), 1, 0, 0});
 }
 
 }  // namespace
 
 REX_TEST_CASE("APU shutdown stops a worker blocked in its title callback", "[runtime][shutdown]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   g_in_callback.store(false);
-  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
     const rex::u32 handle_ptr = c.Alloc(4);
     CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
       FAIL_CHECK("the check above failed");

@@ -58,7 +58,7 @@ using namespace rex::runtime;
 
 namespace {
 
-void ShutDownSockets(IObjectTable& table) {
+void ShutdownSockets(IObjectTable& table) {
   for (auto& sock : table.All<SocketObject>()) {
     sock->CancelReceive();
     sock->Shutdown(2);
@@ -108,12 +108,12 @@ void Runtime::CreateSubsystems() {
     globals->ecc_curves[curve] = 0x80000000 + curve;
   }
 
-  u32 oddobject_offset = kernel_guest_globals_ + offsetof(KernelGuestGlobals, OddObj);
-  globals->OddObj.field0 = 0x1000000;
-  globals->OddObj.field4 = 1;
-  globals->OddObj.points_to_self =
+  u32 oddobject_offset = kernel_guest_globals_ + offsetof(KernelGuestGlobals, self_list_object);
+  globals->self_list_object.field0 = 0x1000000;
+  globals->self_list_object.field4 = 1;
+  globals->self_list_object.points_to_self =
       oddobject_offset + offsetof(X_UNKNOWN_TYPE_REFED, points_to_self);
-  globals->OddObj.points_to_prior = globals->OddObj.points_to_self;
+  globals->self_list_object.points_to_prior = globals->self_list_object.points_to_self;
 
   InitializeProcess(&globals->idle_process, kXProcTypeIdle, 0, 0, 0);
   globals->idle_process.quantum = 0x7F;
@@ -135,10 +135,10 @@ void Runtime::DestroySubsystems() {
     std::vector<ThreadPin> threads = thread_registry_->All();
     for (ThreadPin& thread : threads) {
       thread->RequestStop();
-      while (thread->SuspendCount() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
+      while (thread->GetSuspendCount() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
     }
     if (object_table_) {
-      ShutDownSockets(*object_table_);
+      ShutdownSockets(*object_table_);
     }
     const auto interval = config_.runtime.terminate_timeout;
     WaitForThreadsToStop(threads, interval, [interval](const ThreadPin& thread) {
@@ -220,15 +220,15 @@ void Runtime::SetProcessTLSVars(X_KPROCESS* process, u32 num_slots, u32 tls_data
   }
 }
 
-void Runtime::LoadAchievementsData() {
-  std::vector<AchievementInfo> achievements;
+void Runtime::LoadAchievements() {
+  std::vector<Achievement> achievements;
 
-  const runtime::XDBFGameData db = content_manager_->GetTitleXDBF();
+  const runtime::XDBFTitleData db = content_manager_->GetTitleXDBF();
   if (db.IsValid()) {
     const XLanguage language =
-        db.GetExistingLanguage(ToXLanguage(config_.runtime.kernel.user_language));
+        db.GetSupportedLanguage(ToXLanguage(config_.runtime.kernel.user_language));
     for (const auto& entry : db.GetAchievements()) {
-      AchievementInfo info;
+      Achievement info;
       info.id = entry.id;
       info.label = db.GetStringTableEntry(language, entry.label_id);
       info.description = db.GetStringTableEntry(language, entry.description_id);
@@ -251,7 +251,7 @@ void Runtime::LoadAchievementsData() {
   const auto user_root = GetUserDataRoot();
   if (!user_root.empty()) {
     achievement_manager_->SetUnlockSavePath(
-        ResolveUnlockSavePath(user_root, content_manager_->GetTitleId()));
+        ResolveUnlockSavePath(user_root, content_manager_->GetTitleID()));
     achievement_manager_->LoadUnlockState();
   }
 }
@@ -278,7 +278,7 @@ void Runtime::RemoveTitleTerminateNotification(u32 registration) {
   std::erase(terminate_registrations_, registration);
 }
 
-void Runtime::RunTerminateNotifications(std::chrono::milliseconds timeout) {
+void Runtime::RunTitleTerminateNotifications(std::chrono::milliseconds timeout) {
   std::vector<u32> registrations;
   {
     std::lock_guard lock(terminate_mutex_);
@@ -337,22 +337,23 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   }
 
   auto globals = memory_->TranslateVirtual<KernelGuestGlobals*>(kernel_guest_globals_);
-  auto* pib = &globals->title_process;
-  pib->unk_18 = 10;
-  pib->unk_19 = 13;
-  pib->unk_1a = 17;
+  auto* process = &globals->title_process;
+  process->unk_18 = 10;
+  process->unk_19 = 13;
+  process->unk_1a = 17;
 
   u32 default_stack_size = 0;
   module->OptHeader(filesystem::kXEXHeaderDefaultStackSize, &default_stack_size);
   if (default_stack_size) {
-    pib->kernel_stack_size = ResolveGuestStackSize(default_stack_size, 0, kMinimumThreadStackSize);
+    process->kernel_stack_size =
+        ResolveGuestStackSize(default_stack_size, 0, kMinimumThreadStackSize);
   }
 
   filesystem::XEXOptTLSInfo* tls_header = nullptr;
   module->OptHeader(filesystem::kXEXHeaderTLSInfo, &tls_header);
   if (tls_header) {
-    pib->tls_raw_data_size = tls_header->raw_data_size;
-    SetProcessTLSVars(pib, tls_header->slot_count, tls_header->data_size,
+    process->tls_raw_data_size = tls_header->raw_data_size;
+    SetProcessTLSVars(process, tls_header->slot_count, tls_header->data_size,
                       tls_header->raw_data_address);
   }
   u32 workspace_size_address = 0;
@@ -365,29 +366,29 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
     CreateWorkspace(workspace_size);
   }
 
-  REX_ASSERT(module_registry_->IsKernel("xboxkrnl.exe"));
-  auto xboxkrnl =
-      object_table_->Get<ModuleObject>(module_registry_->FindKernel("xboxkrnl.exe").value_or(0));
+  REX_ASSERT(module_registry_->IsKernelModule("xboxkrnl.exe"));
+  auto xboxkrnl = object_table_->Get<ModuleObject>(
+      module_registry_->FindKernelModule("xboxkrnl.exe").value_or(0));
   if (xboxkrnl) {
-    if (const u32 address = xboxkrnl->Variable(0x0193 /* executable module handle */)) {
+    if (const u32 address = xboxkrnl->GetVariable(0x0193 /* executable module handle */)) {
       auto variable_ptr = memory_->TranslateVirtual<be_u32*>(address);
       *variable_ptr = module->hmodule_ptr;
     }
-    if (const u32 address = xboxkrnl->Variable(0x01AF /* ExLoadedImageName */)) {
+    if (const u32 address = xboxkrnl->GetVariable(0x01AF /* ExLoadedImageName */)) {
       char* variable_ptr = memory_->TranslateVirtual<char*>(address);
-      rex::copy_truncating(variable_ptr, module->path, kExLoadedImageNameSize);
+      rex::CopyTruncating(variable_ptr, module->path, kExLoadedImageNameSize);
     }
-    if (const u32 address = xboxkrnl->Variable(0x01AE /* ExLoadedCommandLine */)) {
+    if (const u32 address = xboxkrnl->GetVariable(0x01AE /* ExLoadedCommandLine */)) {
       const std::string& arguments = config_.runtime.kernel.command_line;
-      rex::copy_truncating(memory_->TranslateVirtual<char*>(address),
-                           LoadedCommandLine(module->path, arguments),
-                           LoadedCommandLineCapacity(arguments));
+      rex::CopyTruncating(memory_->TranslateVirtual<char*>(address),
+                          LoadedCommandLine(module->path, arguments),
+                          LoadedCommandLineCapacity(arguments));
     }
   }
 
   dispatcher_->Start();
 
-  LoadAchievementsData();
+  LoadAchievements();
 }
 
 void Runtime::TerminateTitle() {
@@ -397,7 +398,7 @@ void Runtime::TerminateTitle() {
   }
 
   const auto timeout = config_.runtime.terminate_timeout;
-  RunTerminateNotifications(timeout);
+  RunTitleTerminateNotifications(timeout);
   StopGuestThreads(timeout);
 
   if (KernelThread::IsInThread()) {
@@ -420,10 +421,10 @@ void Runtime::StopGuestThreads(std::chrono::milliseconds timeout) {
 
   for (auto& thread : target_threads) {
     thread->RequestStop();
-    while (thread->SuspendCount() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
+    while (thread->GetSuspendCount() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
   }
   if (object_table_) {
-    ShutDownSockets(*object_table_);
+    ShutdownSockets(*object_table_);
   }
 
   WaitForThreadsToStop(target_threads, timeout, [timeout](const ThreadPin& thread) {

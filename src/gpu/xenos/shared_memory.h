@@ -36,7 +36,7 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable {
   virtual ~SharedMemory();
   /** Clears the cache. Implementations call it from their ClearCache. */
   virtual void ClearCache();
-  void SetSystemPageBlocksValidWithGPUDataWritten();
+  void SetSystemPageFlagsValidWithGPUDataWritten();
   void InvalidateAllPages();
 
   using GlobalWatchCallback = void (*)(void* context, u32 address_first, u32 address_last,
@@ -196,7 +196,7 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable {
    */
   u32 page_size_log2_;
 
-  bool EnsureHostGPUMemoryAllocated(u32 start, u32 length);
+  bool AllocateHostGPUMemory(u32 start, u32 length);
   u32 host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
   std::vector<u64> host_gpu_memory_sparse_allocated_;
   u32 host_gpu_memory_sparse_allocations_ = 0;

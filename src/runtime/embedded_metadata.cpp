@@ -15,8 +15,8 @@ struct RegisteredEmbeddedMetadataAsset {
 };
 
 std::string NormalizeMetadataPath(const std::filesystem::path& relative_path) {
-  const std::string generic = relative_path.generic_string();
-  return std::string(utf8_strip_leading_slashes(generic));
+  const std::string forward_slash_path = relative_path.generic_string();
+  return std::string(utf8_strip_leading_slashes(forward_slash_path));
 }
 
 std::mutex& RegistryMutex() {

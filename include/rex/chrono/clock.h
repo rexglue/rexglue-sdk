@@ -31,21 +31,35 @@ class REX_API Clock {
    *
    * @return The clock.no_scaling cvar. When true, guest time follows host time unscaled.
    */
-  static bool GetNoScaling();
+  static bool IsNoScaling();
+
+  /**
+   * Host tick frequency from the platform time source. Prefer GetHostTickFrequency.
+   *
+   * @return Host ticks per second.
+   */
+  static u64 GetHostTickFrequencyPlatform() noexcept;
+
+  /**
+   * Host tick count from the platform time source. Prefer GetHostTickCount.
+   *
+   * @return The current host tick count.
+   */
+  static u64 GetHostTickCountPlatform();
 
   /**
    * Returns the host tick frequency.
    *
    * @return Host ticks per second from the platform time source.
    */
-  static u64 GetHostTickFrequency() noexcept;
+  static u64 GetHostTickFrequency();
 
   /**
    * Returns the current host tick count.
    *
    * @return The current host tick count from the platform time source.
    */
-  static u64 QueryHostTickCount() noexcept;
+  static u64 GetHostTickCount() noexcept;
 
   /**
    * Returns the host system time.
@@ -133,7 +147,7 @@ class REX_API Clock {
    *
    * @return Scaled milliseconds since the guest system time base, clamped to the u32 range.
    */
-  static u32 QueryGuestUptimeMillis();
+  static u32 GetGuestUptimeMillis();
 
   /**
    * Sets the guest system time by moving the time base. Ignored when no_scaling is true.

@@ -20,9 +20,9 @@
 namespace rex {
 namespace gpu {
 
-class REX_GPU_XENOS_API ImmediateDrawer : public gpu::IOverlayDrawer {
+class REX_GPU_XENOS_API OverlayDrawer : public gpu::IOverlayDrawer {
  public:
-  virtual ~ImmediateDrawer() = default;
+  virtual ~OverlayDrawer() = default;
 
   void SetPresenter(Presenter* new_presenter);
 
@@ -30,14 +30,14 @@ class REX_GPU_XENOS_API ImmediateDrawer : public gpu::IOverlayDrawer {
   void End() override;
 
  protected:
-  ImmediateDrawer() = default;
+  OverlayDrawer() = default;
 
   Presenter* GetPresenter() const { return presenter_; }
   virtual void OnLeavePresenter() {}
   virtual void OnEnterPresenter() {}
 
   /** Valid between Begin and End. */
-  gpu::OverlayDrawContext* GetUIDrawContext() const { return ui_draw_context_; }
+  gpu::OverlayDrawContext* GetOverlayDrawContext() const { return ui_draw_context_; }
   f32 GetCoordinateSpaceWidth() const { return coordinate_space_width_; }
   f32 GetCoordinateSpaceHeight() const { return coordinate_space_height_; }
 

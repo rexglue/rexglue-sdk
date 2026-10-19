@@ -32,10 +32,11 @@
 
 namespace rex::gpu {
 
-void RenderTargetCache::GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat format, u32 write_mask,
-                                              f32& clamp_rgb_low, f32& clamp_alpha_low,
-                                              f32& clamp_rgb_high, f32& clamp_alpha_high,
-                                              u32& keep_mask_low, u32& keep_mask_high) {
+void RenderTargetCache::GetPSIColorClampsAndKeepMasks(xenos::ColorRenderTargetFormat format,
+                                                      u32 write_mask, f32& clamp_rgb_low,
+                                                      f32& clamp_alpha_low, f32& clamp_rgb_high,
+                                                      f32& clamp_alpha_high, u32& keep_mask_low,
+                                                      u32& keep_mask_high) {
   keep_mask_low = keep_mask_high = 0;
   switch (format) {
     case xenos::ColorRenderTargetFormat::k_8_8_8_8:
@@ -401,12 +402,12 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         continue;
       }
       auto color_info =
-          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[i]);
+          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRTRegisterIndices[i]);
       u32 rt_bit_index = 1 + i;
       depth_and_color_rts_used_bits |= static_cast<u32>(1) << rt_bit_index;
       edram_bases[rt_bit_index] = color_info.color_base;
       xenos::ColorRenderTargetFormat color_format =
-          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[i])
+          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRTRegisterIndices[i])
               .color_format;
       bool is_64bpp = xenos::IsColorRenderTargetFormat64bpp(color_format);
       if (is_64bpp) {
@@ -668,7 +669,7 @@ u32 RenderTargetCache::GetRenderTargetHeight(u32 pitch_tiles_at_32bpp,
   return tile_rows * (xenos::kEDRAMTileHeightSamples >> msaa_samples_y_log2);
 }
 
-void RenderTargetCache::GetHostDepthStoreRectangleInfo(
+void RenderTargetCache::GetHostDepthStoreRectangleDispatch(
     const Transfer::Rectangle& transfer_rectangle, xenos::MSAASamples msaa_samples,
     HostDepthStoreRectangleConstant& rectangle_constant_out, u32& group_count_x_out,
     u32& group_count_y_out) const {
@@ -779,7 +780,7 @@ void RenderTargetCache::GetResolveCopyDispatchesToDump(
 }
 
 bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
-    const draw_state::ResolveInfo& resolve_info, Transfer::Rectangle& clear_rectangle_out,
+    const draw_state::ResolveRequest& resolve_info, Transfer::Rectangle& clear_rectangle_out,
     RenderTarget*& depth_render_target_out, std::vector<Transfer>& depth_transfers_out,
     RenderTarget*& color_render_target_out, std::vector<Transfer>& color_transfers_out) {
   REX_ASSERT(GetPath() == Path::kHostRenderTargets);

@@ -67,7 +67,7 @@ namespace memory {
  * @param path The path to convert.
  * @return A name starting with '/' and holding no other slash.
  */
-static std::string BuildShmName(const std::filesystem::path& path) {
+static std::string BuildSHMName(const std::filesystem::path& path) {
   std::string name = path.string();
   for (char& c : name) {
     if (c == '/') {
@@ -114,11 +114,11 @@ void AndroidShutdown() {
 }
 #endif
 
-size_t PageSize() {
+size_t GetPageSize() {
   return getpagesize();
 }
-size_t AllocationGranularity() {
-  return PageSize();
+size_t GetAllocationGranularity() {
+  return GetPageSize();
 }
 
 int ToPosixProtectFlags(PageAccess access) {
@@ -223,7 +223,7 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
 #if REX_PLATFORM_MAC
   // Guest heaps reconcile permissions sharing a host page, so sub host page requests stay as given.
   if (base_address != nullptr && allocation_type == AllocationType::kCommit) {
-    const size_t host_page = PageSize();
+    const size_t host_page = GetPageSize();
     const uintptr_t address = reinterpret_cast<uintptr_t>(base_address);
     if ((address % host_page) != 0 || (length % host_page) != 0) {
       return nullptr;
@@ -416,7 +416,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
       return kFileMappingHandleInvalid;
   }
   oflag |= O_CREAT | O_EXCL;
-  auto full_path = BuildShmName(path);
+  auto full_path = BuildSHMName(path);
   int ret = shm_open(full_path.c_str(), oflag, 0777);
   if (ret < 0) {
     return kFileMappingHandleInvalid;
@@ -462,14 +462,14 @@ void RemoveStaleFileMappings([[maybe_unused]] std::string_view prefix) {
 void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path) {
   close(handle);
 #if !REX_PLATFORM_ANDROID
-  auto full_path = BuildShmName(path);
+  auto full_path = BuildSHMName(path);
   shm_unlink(full_path.c_str());
 #endif
 }
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
                   size_t file_offset) {
-  const size_t page = PageSize();
+  const size_t page = GetPageSize();
   if (file_offset % page != 0) {
     return nullptr;
   }

@@ -84,8 +84,8 @@ class VulkanPipelineCache {
       const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
-  bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
-                               VulkanShader::VulkanTranslation* pixel_shader);
+  bool TranslateShaders(VulkanShader::VulkanTranslation* vertex_shader,
+                        VulkanShader::VulkanTranslation* pixel_shader);
   bool ConfigurePipeline(
       VulkanShader::VulkanTranslation* vertex_shader, VulkanShader::VulkanTranslation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
@@ -336,7 +336,7 @@ class VulkanPipelineCache {
    * @param description Pipeline description to check.
    * @return True when the device supports the pipeline.
    */
-  bool ArePipelineRequirementsMet(const PipelineDescription& description) const;
+  bool IsPipelineSupported(const PipelineDescription& description) const;
 
   static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
                                    SPIRVShaderTranslator::Modification vertex_shader_modification,
@@ -362,8 +362,8 @@ class VulkanPipelineCache {
    * @param fragment_shader_override Replacement fragment shader, or VK_NULL_HANDLE for none.
    * @return True when the pipeline was created.
    */
-  bool EnsurePipelineCreated(const PipelineCreationArguments& creation_arguments,
-                             VkShaderModule fragment_shader_override = VK_NULL_HANDLE);
+  bool CreatePipeline(const PipelineCreationArguments& creation_arguments,
+                      VkShaderModule fragment_shader_override = VK_NULL_HANDLE);
   void CreationThread(size_t thread_index);
   void CreateQueuedPipelinesOnProcessorThread();
   void ProcessDeferredPipelineDestructions(bool force_all);
@@ -382,7 +382,7 @@ class VulkanPipelineCache {
     size_t vector_span_length;
   };
   std::mutex layouts_mutex_;
-  std::vector<VulkanShader::TextureBinding> texture_binding_layouts_;
+  std::vector<VulkanShader::TranslatedTextureBinding> texture_binding_layouts_;
   /** Keys are XXH3 hashes of layouts, collisions resolved through texture_binding_layouts_. */
   std::unordered_multimap<u64, LayoutUID, rex::IdentityHasher<u64>> texture_binding_layout_map_;
 

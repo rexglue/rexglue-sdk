@@ -16,10 +16,10 @@ constexpr std::string_view kEraseLine = "\r\033[K";
 constexpr auto kSpinnerInterval = std::chrono::milliseconds(100);
 }  // namespace
 
-ProgressView::ProgressView(std::string_view title) : title_(title) {
+ProgressView::ProgressView(std::string_view title) : heading_(title) {
   {
     detail::GlobalSinkAccessor acc;
-    acc.WriteColored(color::kBold, title_);
+    acc.WriteColored(color::kBold, heading_);
     acc.WriteRaw("\n");
     tty_ = detail::IsSinkTTY();
   }
@@ -74,7 +74,7 @@ void ProgressView::RunSpinner(const std::stop_token& stop) {
   }
 }
 
-void ProgressView::BinaryLoaded(const rex::codegen::BinaryInfo& info) {
+void ProgressView::BinaryLoaded(const rex::codegen::BinaryIdentity& info) {
   std::string filetime;
   if (info.pe_time_date_stamp == 0) {
     filetime = "(none)";
@@ -112,7 +112,7 @@ void ProgressView::ModuleStarted(std::string_view name, std::size_t index, std::
   RenderActiveLine();
 }
 
-void ProgressView::PhaseChanged(std::string_view name) {
+void ProgressView::ModulePhaseStarted(std::string_view name) {
   std::lock_guard lock(state_mutex_);
   if (current_module_ >= modules_.size())
     return;

@@ -20,7 +20,7 @@
 
 #include <rex/chrono/clock.h>
 #include <rex/runtime.h>
-#include <rex/runtime/object_data.h>
+#include <rex/runtime/kernel_object.h>
 #include <rex/runtime/kernel_string.h>
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/thread_registry.h>
@@ -195,7 +195,7 @@ std::string NameFromAttributes(runtime::Memory* memory, u32 obj_attributes_ptr) 
 ObjectBlock AllocObjectBlock(runtime::Memory* memory, u32 size, WorkspaceHeap* workspace) {
   const u32 total_size = size + sizeof(X_OBJECT_HEADER);
   const u32 mem =
-      workspace ? workspace->Alloc(total_size).value_or(0) : memory->SystemHeapAlloc(total_size);
+      workspace ? workspace->Allocate(total_size).value_or(0) : memory->SystemHeapAlloc(total_size);
   if (!mem) {
     return {};
   }

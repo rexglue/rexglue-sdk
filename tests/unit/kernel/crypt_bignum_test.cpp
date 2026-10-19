@@ -20,11 +20,11 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::Hex;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::Hex;
+using rex::test::KernelFixture;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -456,27 +456,27 @@ REX_TEST_CASE("The dword and qword zero and copy exports fill and copy words",
               "[kernel][crypt][bignum]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 dw = Put(c, kBnSource);
+    const u32 dw = CopyToGuest(c, kBnSource);
     c.Kernel("XeCryptBnDw_Zero", {dw, 4});
-    const std::vector<u8> zeroed = Get(c, dw, 32);
+    const std::vector<u8> zeroed = ReadBytes(c, dw, 32);
     CHECK(std::all_of(zeroed.begin(), zeroed.begin() + 16, [](u8 b) { return b == 0; }));
     CHECK(std::vector<u8>(zeroed.begin() + 16, zeroed.end()) ==
           std::vector<u8>(kBnSource + 16, kBnSource + 32));
 
-    const u32 qw = Put(c, kBnSource);
+    const u32 qw = CopyToGuest(c, kBnSource);
     c.Kernel("XeCryptBnQw_Zero", {qw, 3});
-    const std::vector<u8> qzeroed = Get(c, qw, 32);
+    const std::vector<u8> qzeroed = ReadBytes(c, qw, 32);
     CHECK(std::all_of(qzeroed.begin(), qzeroed.begin() + 24, [](u8 b) { return b == 0; }));
     CHECK(std::vector<u8>(qzeroed.begin() + 24, qzeroed.end()) ==
           std::vector<u8>(kBnSource + 24, kBnSource + 32));
 
     const u32 out = c.Alloc(0x40);
-    c.Kernel("XeCryptBnDw_Copy", {Put(c, kBnSource), out, 5});
-    CHECK(Get(c, out, 20) == std::vector<u8>(kBnSource, kBnSource + 20));
+    c.Kernel("XeCryptBnDw_Copy", {CopyToGuest(c, kBnSource), out, 5});
+    CHECK(ReadBytes(c, out, 20) == std::vector<u8>(kBnSource, kBnSource + 20));
     CHECK(c.Load8(out + 20) == 0);
     const u32 qout = c.Alloc(0x40);
-    c.Kernel("XeCryptBnQw_Copy", {Put(c, kBnSource), qout, 3});
-    CHECK(Get(c, qout, 24) == std::vector<u8>(kBnSource, kBnSource + 24));
+    c.Kernel("XeCryptBnQw_Copy", {CopyToGuest(c, kBnSource), qout, 3});
+    CHECK(ReadBytes(c, qout, 24) == std::vector<u8>(kBnSource, kBnSource + 24));
     CHECK(c.Load8(qout + 24) == 0);
   });
 }
@@ -485,20 +485,20 @@ REX_TEST_CASE("The swap exports reorder the bytes of every word", "[kernel][cryp
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 dw_out = c.Alloc(0x40);
-    c.Kernel("XeCryptBnDw_SwapLeBe", {Put(c, kBnSource), dw_out, 8});
-    CHECK(Get(c, dw_out, 32) == Bytes(kBnSwapLeBe));
+    c.Kernel("XeCryptBnDw_SwapLeBe", {CopyToGuest(c, kBnSource), dw_out, 8});
+    CHECK(ReadBytes(c, dw_out, 32) == Bytes(kBnSwapLeBe));
 
     const u32 qw_out = c.Alloc(0x40);
-    c.Kernel("XeCryptBnQw_SwapLeBe", {Put(c, kBnSource), qw_out, 4});
-    CHECK(Get(c, qw_out, 32) == Bytes(kBnSwapLeBe));
+    c.Kernel("XeCryptBnQw_SwapLeBe", {CopyToGuest(c, kBnSource), qw_out, 4});
+    CHECK(ReadBytes(c, qw_out, 32) == Bytes(kBnSwapLeBe));
 
     const u32 swap_out = c.Alloc(0x40);
-    c.Kernel("XeCryptBnQw_SwapDwQw", {Put(c, kBnSource), swap_out, 4});
-    CHECK(Get(c, swap_out, 32) == Bytes(kBnSwapDwQw));
+    c.Kernel("XeCryptBnQw_SwapDwQw", {CopyToGuest(c, kBnSource), swap_out, 4});
+    CHECK(ReadBytes(c, swap_out, 32) == Bytes(kBnSwapDwQw));
 
-    const u32 in_place = Put(c, kBnSource);
+    const u32 in_place = CopyToGuest(c, kBnSource);
     c.Kernel("XeCryptBnDw_SwapLeBe", {in_place, in_place, 8});
-    CHECK(Get(c, in_place, 32) == Bytes(kBnSwapLeBe));
+    CHECK(ReadBytes(c, in_place, 32) == Bytes(kBnSwapLeBe));
   });
 }
 
@@ -509,10 +509,11 @@ REX_TEST_CASE("Montgomery multiplication matches big integer arithmetic",
     for (const ModMulCase& item : kModMulCases) {
       INFO(item.name);
       const u32 size = item.digits * 8;
-      const u32 out = Put(c, std::vector<u8>(size, 0xA5));
-      c.Kernel("XeCryptBnQwNeModMul", {Put(c, Hex(item.first)), Put(c, Hex(item.second)), out,
-                                       item.inverse, Put(c, Hex(item.modulus)), item.digits});
-      CHECK(Get(c, out, size) == Hex(item.product));
+      const u32 out = CopyToGuest(c, std::vector<u8>(size, 0xA5));
+      c.Kernel("XeCryptBnQwNeModMul",
+               {CopyToGuest(c, Hex(item.first)), CopyToGuest(c, Hex(item.second)), out,
+                item.inverse, CopyToGuest(c, Hex(item.modulus)), item.digits});
+      CHECK(ReadBytes(c, out, size) == Hex(item.product));
     }
   });
 }
@@ -525,10 +526,11 @@ REX_TEST_CASE("Montgomery multiplication writes nothing for 0 or more than 64 di
     const std::vector<u8> filled(0x41uz * 8, 0xA5);
     for (const u32 digits : {0u, 0x41u, 0x1000u}) {
       INFO(digits);
-      const u32 out = Put(c, filled);
-      c.Kernel("XeCryptBnQwNeModMul", {Put(c, Hex(item.first)), Put(c, Hex(item.second)), out,
-                                       item.inverse, Put(c, Hex(item.modulus)), digits});
-      CHECK(Get(c, out, static_cast<u32>(filled.size())) == filled);
+      const u32 out = CopyToGuest(c, filled);
+      c.Kernel("XeCryptBnQwNeModMul",
+               {CopyToGuest(c, Hex(item.first)), CopyToGuest(c, Hex(item.second)), out,
+                item.inverse, CopyToGuest(c, Hex(item.modulus)), digits});
+      CHECK(ReadBytes(c, out, static_cast<u32>(filled.size())) == filled);
     }
   });
 }
@@ -540,7 +542,7 @@ REX_TEST_CASE("The Montgomery inverse is the inverse of the low modulus word mod
     for (const ModMulCase& item : kModMulCases) {
       INFO(item.name);
       c.Kernel("XeCryptBnQwNeModInv", {item.low_modulus});
-      CHECK(c.GetCtx().r3.u64 == item.inverse);
+      CHECK(c.GetContext().r3.u64 == item.inverse);
     }
   });
 }
@@ -550,7 +552,8 @@ REX_TEST_CASE("The quadword compare orders numbers from the top quadword down",
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const auto compare = [&c](const std::vector<u8>& a, const std::vector<u8>& b, u32 count) {
-      return static_cast<i32>(c.Kernel("XeCryptBnQwNeCompare", {Put(c, a), Put(c, b), count}));
+      return static_cast<i32>(
+          c.Kernel("XeCryptBnQwNeCompare", {CopyToGuest(c, a), CopyToGuest(c, b), count}));
     };
     for (const u32 count : {1u, 16u, 32u}) {
       std::vector<u8> base(static_cast<size_t>(count) * 8);
@@ -582,9 +585,9 @@ REX_TEST_CASE("The quadword compare lets a higher quadword outweigh every lower 
     small[15] = 1;
     std::vector<u8> large(16, 0);
     large[15] = 2;
-    CHECK(static_cast<i32>(c.Kernel("XeCryptBnQwNeCompare", {Put(c, small), Put(c, large), 2})) ==
-          -1);
-    CHECK(static_cast<i32>(c.Kernel("XeCryptBnQwNeCompare", {Put(c, large), Put(c, small), 2})) ==
-          1);
+    CHECK(static_cast<i32>(c.Kernel("XeCryptBnQwNeCompare",
+                                    {CopyToGuest(c, small), CopyToGuest(c, large), 2})) == -1);
+    CHECK(static_cast<i32>(c.Kernel("XeCryptBnQwNeCompare",
+                                    {CopyToGuest(c, large), CopyToGuest(c, small), 2})) == 1);
   });
 }

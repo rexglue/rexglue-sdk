@@ -74,7 +74,7 @@ enum class ModuleType : u8 { kKernel, kUser };
 enum class ModuleFormat : u8 { kUndefined, kXEX, kELF };
 
 /** The launch request state that the XAM loader exports keep on the XAM module. */
-struct XAMLoaderData {
+struct XAMLoaderState {
   /** True once XamLoaderSetLaunchData stored a non empty block. */
   bool launch_data_present = false;
 
@@ -86,7 +86,7 @@ struct XAMLoaderData {
 };
 
 /** The state only a kernel module has. */
-struct KernelModuleData {
+struct KernelModuleState {
   /** Identifies a thunk by the module that asked for it and the export ordinal. */
   struct ThunkKey {
     /** Base address of the module that called the export, 0 when no module contains the caller. */
@@ -109,13 +109,13 @@ struct KernelModuleData {
 
   /** Guest addresses of the variable exports of the module, bound at module creation. */
   rex::runtime::ExportVariables variables;
-  XAMLoaderData loader_data; /**< Launch request state, used only by the XAM module. */
+  XAMLoaderState loader_data; /**< Launch request state, used only by the XAM module. */
   /** 1 ms timer that refreshes the tick count of KeTimeStampBundle, set only on Xboxkrnl. */
   std::unique_ptr<rex::platform::HighResolutionTimer> timestamp_timer;
 };
 
 /** The state only a user module has. */
-struct UserModuleData {
+struct UserModuleState {
   /** Guest address of the copy of the XEX header, read by XEX header queries. */
   u32 guest_xex_header = 0;
 
@@ -136,7 +136,7 @@ struct UserModuleData {
   std::vector<X_HANDLE> dependencies;
 
   /** Thunk address made for each caller and ordinal, reused by later lookups. */
-  std::unordered_map<KernelModuleData::ThunkKey, u32, KernelModuleData::ThunkKeyHash> thunk_cache;
+  std::unordered_map<KernelModuleState::ThunkKey, u32, KernelModuleState::ThunkKeyHash> thunk_cache;
 };
 
 /** The `KernelObject` data of a module. The kind is always known from type. */
@@ -160,9 +160,9 @@ struct ModuleObject : public rex::NonCopyable {
 
   /** Guest address of the module X_LDR_DATA_TABLE_ENTRY, the HMODULE titles use. */
   u32 hmodule_ptr = 0;
-  Runtime* runtime;        /**< Runtime that owns the module, used to free `hmodule_ptr`. */
-  UserModuleData user;     /**< State of a user module, unused for a kernel module. */
-  KernelModuleData kernel; /**< State of a kernel module, unused for a user module. */
+  Runtime* runtime;         /**< Runtime that owns the module, used to free `hmodule_ptr`. */
+  UserModuleState user;     /**< State of a user module, unused for a kernel module. */
+  KernelModuleState kernel; /**< State of a kernel module, unused for a user module. */
 
   /**
    * Reports whether a module answers to a name.
@@ -170,7 +170,7 @@ struct ModuleObject : public rex::NonCopyable {
    * @param query A path, a file name or a module name, compared case insensitively.
    * @return True when the query matches the path, the file name or the name of the module.
    */
-  REX_RUNTIME_API bool Matches(std::string_view query) const;
+  REX_RUNTIME_API bool IsNamed(std::string_view query) const;
 
   /**
    * Finds a resource section of a module.
@@ -256,7 +256,7 @@ struct ModuleObject : public rex::NonCopyable {
    * @param out_ptr Receives the header value or a pointer to its data.
    * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
    */
-  REX_RUNTIME_API X_STATUS OptHeader(filesystem::XEXHeaderKey key, void** out_ptr);
+  REX_RUNTIME_API X_STATUS GetOptHeader(filesystem::XEXHeaderKey key, void** out_ptr);
 
   /**
    * Finds an optional XEX header. For host use only.
@@ -268,7 +268,7 @@ struct ModuleObject : public rex::NonCopyable {
    */
   template <typename T>
   X_STATUS OptHeader(filesystem::XEXHeaderKey key, T* out_ptr) {
-    return OptHeader(key, reinterpret_cast<void**>(out_ptr));
+    return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
   }
 
   /**
@@ -278,7 +278,8 @@ struct ModuleObject : public rex::NonCopyable {
    * @param out_header_guest_ptr Receives the header value or the guest address of its data.
    * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
    */
-  REX_RUNTIME_API X_STATUS OptHeader(filesystem::XEXHeaderKey key, u32* out_header_guest_ptr);
+  REX_RUNTIME_API X_STATUS GetOptHeader(filesystem::XEXHeaderKey key,
+                                        u32* out_header_guest_ptr) const;
 
   /**
    * Erases the cached thunks whose guest address falls in a range.
@@ -302,7 +303,7 @@ struct ModuleObject : public rex::NonCopyable {
    * @param ordinal The variable ordinal.
    * @return The guest address, or 0 when the module never created the variable.
    */
-  u32 Variable(u16 ordinal) const { return kernel.variables.Get(ordinal); }
+  u32 GetVariable(u16 ordinal) const { return kernel.variables.Get(ordinal); }
 
   /**
    * Reads the handle that the loader data entry of an HMODULE holds.
@@ -348,10 +349,10 @@ struct ModuleObject : public rex::NonCopyable {
    * @param out_header_guest_ptr Receives the header value or the guest address of its data.
    * @return X_STATUS_SUCCESS, or X_STATUS_NOT_FOUND.
    */
-  REX_RUNTIME_API static X_STATUS OptHeader(const runtime::Memory* memory,
-                                            const filesystem::XEXHeader* header,
-                                            filesystem::XEXHeaderKey key,
-                                            u32* out_header_guest_ptr);
+  REX_RUNTIME_API static X_STATUS GetOptHeader(const runtime::Memory* memory,
+                                               const filesystem::XEXHeader* header,
+                                               filesystem::XEXHeaderKey key,
+                                               u32* out_header_guest_ptr);
 };
 
 /**

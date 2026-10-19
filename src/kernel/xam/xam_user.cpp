@@ -26,7 +26,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/enumerator_object.h>
-#include <rex/runtime/object_data.h>
+#include <rex/runtime/kernel_object.h>
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
@@ -98,7 +98,7 @@ i32 XamUserGetSigninInfo_entry(u32 user_index, [[maybe_unused]] u32 flags,
   auto& user_profile = runtime::GetCurrent().GetContentManager().GetUserProfile();
   info->xuid = user_profile.GetXUID();
   info->signin_state = user_profile.GetSigninState();
-  rex::copy_truncating(info->name, user_profile.GetName(), rex::CountOf(info->name));
+  rex::CopyTruncating(info->name, user_profile.GetName(), rex::CountOf(info->name));
   return X_E_SUCCESS;
 }
 
@@ -113,7 +113,7 @@ u32 XamUserGetName_entry(u32 user_index, MappedString buffer, u32 buffer_len) {
 
   auto& user_profile = runtime::GetCurrent().GetContentManager().GetUserProfile();
   const auto& user_name = user_profile.GetName();
-  rex::copy_truncating(buffer, user_name, std::min(buffer_len, static_cast<u32>(16)));
+  rex::CopyTruncating(buffer, user_name, std::min(buffer_len, static_cast<u32>(16)));
   return X_E_SUCCESS;
 }
 
@@ -132,7 +132,7 @@ u32 XamUserGetGamerTag_entry(u32 user_index, MappedWString buffer, u32 buffer_le
 
   auto& user_profile = runtime::GetCurrent().GetContentManager().GetUserProfile();
   auto user_name = rex::ToUTF16(user_profile.GetName());
-  rex::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, static_cast<u32>(16)));
+  rex::CopyAndSwapTruncating(buffer, user_name, std::min(buffer_len, static_cast<u32>(16)));
   return X_E_SUCCESS;
 }
 
@@ -145,7 +145,7 @@ REX_STATIC_ASSERT_SIZE(X_USER_READ_PROFILE_SETTINGS, 8);
 u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, u32 xuid_count,
                                  be_u64* xuids, u32 setting_count, be_u32* setting_ids,
                                  [[maybe_unused]] u32 unk, be_u32* buffer_size_ptr, u8* buffer,
-                                 XAM_OVERLAPPED* overlapped) {
+                                 XOVERLAPPED* overlapped) {
   const bool by_xuid = xuid_count && xuids;
   const u32 xuid_entries = by_xuid ? xuid_count : 1;
 
@@ -169,7 +169,7 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
     UserProfile::Setting::Key setting_key;
     setting_key.value = static_cast<u32>(setting_ids[i]);
     switch (static_cast<UserProfile::Setting::Type>(setting_key.type)) {
-      case UserProfile::Setting::Type::kWString:
+      case UserProfile::Setting::Type::kUnicode:
       case UserProfile::Setting::Type::kBinary:
         needed_data_size += setting_key.size;
         break;
@@ -247,7 +247,7 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
 u32 XamUserReadProfileSettings_entry(u32 title_id, u32 user_index, u32 xuid_count, MappedU64 xuids,
                                      u32 setting_count, MappedU32 setting_ids,
                                      MappedU32 buffer_size_ptr, MappedVoid buffer_ptr,
-                                     GuestPtrT<XAM_OVERLAPPED> overlapped) {
+                                     GuestPtrT<XOVERLAPPED> overlapped) {
   return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids, setting_count,
                                       setting_ids, 0, buffer_size_ptr, buffer_ptr, overlapped);
 }
@@ -255,14 +255,14 @@ u32 XamUserReadProfileSettings_entry(u32 title_id, u32 user_index, u32 xuid_coun
 u32 XamUserReadProfileSettingsEx_entry(u32 title_id, u32 user_index, u32 xuid_count,
                                        MappedU64 xuids, u32 setting_count, MappedU32 setting_ids,
                                        MappedU32 buffer_size_ptr, u32 unk_2, MappedVoid buffer_ptr,
-                                       GuestPtrT<XAM_OVERLAPPED> overlapped) {
+                                       GuestPtrT<XOVERLAPPED> overlapped) {
   return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids, setting_count,
                                       setting_ids, unk_2, buffer_size_ptr, buffer_ptr, overlapped);
 }
 
 u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_index,
                                       u32 setting_count, GuestPtrT<X_USER_PROFILE_SETTING> settings,
-                                      GuestPtrT<XAM_OVERLAPPED> overlapped) {
+                                      GuestPtrT<XOVERLAPPED> overlapped) {
   if (!setting_count || !settings) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -293,7 +293,7 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
                  setting.data.type);
 
     switch (setting_type) {
-      case UserProfile::Setting::Type::kContent:
+      case UserProfile::Setting::Type::kContext:
       case UserProfile::Setting::Type::kBinary: {
         u8* binary_ptr =
             runtime::GetCurrent().GetMemory()->TranslateVirtual(setting.data.binary.ptr);
@@ -305,7 +305,7 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
         user_profile.AddSetting(
             std::make_unique<runtime::UserProfile::BinarySetting>(setting.setting_id, bytes));
       } break;
-      case UserProfile::Setting::Type::kWString:
+      case UserProfile::Setting::Type::kUnicode:
       case UserProfile::Setting::Type::kDouble:
       case UserProfile::Setting::Type::kFloat:
       case UserProfile::Setting::Type::kInt32:
@@ -523,7 +523,7 @@ class AchievementItems {
       return 0;
     }
     auto ptr = sb.ptr;
-    rex::copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data), string, count);
+    rex::CopyAndSwapTruncating(reinterpret_cast<char16_t*>(sb.data), string, count);
     sb.ptr += static_cast<u32>(size);
     sb.data += size;
     sb.remaining_bytes -= size;
@@ -573,9 +573,9 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
 
   auto& runtime = runtime::GetCurrent();
 
-  const auto store = runtime.GetAchievementManager().ListAchievements();
-  if (!store.empty()) {
-    for (const auto& info : store) {
+  const auto achievements = runtime.GetAchievementManager().ListAchievements();
+  if (!achievements.empty()) {
+    for (const auto& info : achievements) {
       auto item = AchievementItems::AchievementDetails{info.id,
                                                        rex::ToUTF16(info.label),
                                                        rex::ToUTF16(info.description),
@@ -588,9 +588,9 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
       items.Append(item);
     }
   } else {
-    const runtime::XDBFGameData db = runtime.GetContentManager().GetTitleXDBF();
+    const runtime::XDBFTitleData db = runtime.GetContentManager().GetTitleXDBF();
     if (db.IsValid()) {
-      const XLanguage language = db.GetExistingLanguage(
+      const XLanguage language = db.GetSupportedLanguage(
           ToXLanguage(runtime::GetCurrent().GetConfig().runtime.kernel.user_language));
       for (const runtime::XDBFAchievementTableEntry& entry : db.GetAchievements()) {
         auto item = AchievementItems::AchievementDetails{
@@ -757,7 +757,7 @@ u32 XamSessionRefObjByHandle_entry(u32 handle, MappedU32 obj_ptr) {
   if (!object || object.GetKind() != ObjectKind::kSession) {
     return X_ERROR_INVALID_HANDLE;
   }
-  auto referenced = kernel::ReferencePrimary(table, object, object.GetGuestObject());
+  auto referenced = kernel::ReferencePrimary(table, object, object.GetGuestAddress());
   if (!referenced) {
     return X_ERROR_INVALID_HANDLE;
   }

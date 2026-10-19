@@ -30,13 +30,13 @@
 using rex::u32;
 using rex::X_STATUS;
 using rex::runtime::BaseHeap;
-using rex::runtime::HeapAllocationInfo;
+using rex::runtime::HeapAllocation;
 using rex::runtime::Memory;
 using rex::runtime::PhysicalHeap;
-using rex::testing::Caller;
-using rex::testing::GetTestMemory;
-using rex::testing::KernelFixture;
-using rex::testing::ReleaseTestMemory;
+using rex::test::Caller;
+using rex::test::GetTestMemory;
+using rex::test::KernelFixture;
+using rex::test::ReleaseTestMemory;
 
 namespace {
 
@@ -194,7 +194,7 @@ REX_TEST_CASE("A failed alias pin returns the parent pages", "[memory][budget]")
   REQUIRE(alias->Alloc(0x10000, 0x10000, reserve, kRW, true, &address));
   const u32 physical = alias->GetPhysicalAddress(address);
   REQUIRE(parent->Release(physical));
-  HeapAllocationInfo info{};
+  HeapAllocation info{};
 
   CHECK_FALSE(alias->AllocFixed(address, 0x10000, 0x10000, reserve, kRW));
   REQUIRE(parent->QueryRegionInfo(physical, &info));
@@ -224,7 +224,7 @@ REX_TEST_CASE("A fixed physical allocation over a partly used range fails", "[me
   const u32 before = memory.GetTitlePages();
 
   CHECK_FALSE(alias->AllocFixed(address, 0x2000, 0x1000, reserve, kRW));
-  HeapAllocationInfo info{};
+  HeapAllocation info{};
   REQUIRE(parent->QueryRegionInfo(physical + 0x1000, &info));
   CHECK(info.state == 0);
   REQUIRE(parent->QueryRegionInfo(physical, &info));
@@ -358,8 +358,8 @@ REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap", "[memory
   BaseHeap* heap = memory.LookupHeap(0x82000000);
   REQUIRE(heap == memory.LookupHeap(0x80000000));
   REQUIRE(heap == memory.LookupHeap(0x8F100000));
-  HeapAllocationInfo startup{};
-  HeapAllocationInfo table{};
+  HeapAllocation startup{};
+  HeapAllocation table{};
   REQUIRE(heap->QueryRegionInfo(0x80000000, &startup));
   REQUIRE(heap->QueryRegionInfo(0x8F100000, &table));
   REQUIRE(startup.state != 0);
@@ -372,7 +372,7 @@ REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap", "[memory
   rex::runtime::XEXModule module(runtime.GetFunctionDispatcher(), runtime);
   REQUIRE(module.Load("budget", "game:\budget.xex", file.data(), file.size()));
 
-  HeapAllocationInfo info{};
+  HeapAllocation info{};
   REQUIRE(heap->QueryRegionInfo(0x80000000, &info));
   CHECK(info.state == startup.state);
   REQUIRE(heap->QueryRegionInfo(0x8F100000, &info));
@@ -397,7 +397,7 @@ u32 DecommitVirtual(Caller& c, u32 address, u32 size, u32* out_address, u32* out
 }
 
 u32 PageState(BaseHeap* heap, u32 address) {
-  HeapAllocationInfo info{};
+  HeapAllocation info{};
   CHECKED_ELSE(heap->QueryRegionInfo(address, &info)) {
     FAIL_CHECK("the check above failed");
     return 0;

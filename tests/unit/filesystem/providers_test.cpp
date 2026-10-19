@@ -21,7 +21,7 @@
 
 namespace {
 
-using rex::test::Fixtures;
+using rex::test::GetFixtureFolder;
 
 using rex::u8;
 using rex::filesystem::Access;
@@ -46,7 +46,7 @@ std::string BigBin() {
 }
 
 std::vector<std::string> Names(Fixture& fixture, std::string_view path, std::string_view pattern) {
-  auto list = fixture.GetFs().List(path, pattern);
+  auto list = fixture.GetFileSystem().List(path, pattern);
   REQUIRE(list);
   std::vector<std::string> names;
   while (auto entry = (*list)->Next()) {
@@ -58,26 +58,26 @@ std::vector<std::string> Names(Fixture& fixture, std::string_view path, std::str
 
 void CheckContainer(Fixture& fixture, ProviderKind kind, const char* image,
                     std::string_view volume) {
-  REQUIRE(
-      fixture.GetFs().Mount({std::string(kRoot), kind, Fixtures() / image, MountFlags::kWritable}));
+  REQUIRE(fixture.GetFileSystem().Mount(
+      {std::string(kRoot), kind, GetFixtureFolder() / image, MountFlags::kWritable}));
   CHECK(Names(fixture, kRoot, "") == std::vector<std::string>{"a.txt", "big.bin", "folder"});
   CHECK(Names(fixture, "\\Device\\Test\\folder", "*.txt") == std::vector<std::string>{"c.txt"});
   CHECK(ReadText(*fixture.Open("\\Device\\Test\\a.txt").file) == "alpha\n");
   CHECK(ReadText(*fixture.Open("\\Device\\Test\\big.bin").file) == BigBin());
   CHECK(ReadText(*fixture.Open("\\Device\\Test\\folder\\c.txt").file) == "charlie in folder\n");
 
-  auto opened = fixture.Open("\\Device\\Test\\a.txt", {.access = Access::kGenericAll});
+  auto opened = fixture.Open("\\Device\\Test\\a.txt", {.access = Access::kAllAccess});
   CHECK_FALSE(rex::HasFlags(opened.file->GetAccess(), Access::kWriteData));
   const std::array<u8, 1> patch{'x'};
   CHECK_FALSE(opened.file->Write(patch, 0));
   CHECK(opened.file->GetVolume().name == volume);
 
-  auto created =
-      fixture.GetFs().Open("\\Device\\Test\\new.txt",
-                           {.disposition = Disposition::kCreate, .access = Access::kGenericWrite});
+  auto created = fixture.GetFileSystem().Open(
+      "\\Device\\Test\\new.txt",
+      {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   REQUIRE_FALSE(created);
   CHECK(CodeOf(created.error()) == FileSystemError::kAccessDenied);
-  auto removed = fixture.GetFs().Remove("\\Device\\Test\\a.txt");
+  auto removed = fixture.GetFileSystem().Remove("\\Device\\Test\\a.txt");
   REQUIRE_FALSE(removed);
   CHECK(CodeOf(removed.error()) == FileSystemError::kAccessDenied);
 }
@@ -89,9 +89,9 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
   WriteHost(GetTemp() / "a.txt", "alpha");
   WriteHost(GetTemp() / "b.bin", "bravo");
   MountTemp(kRoot, MountFlags::kWritable);
-  REQUIRE(GetFs().Link("test:", kRoot));
+  REQUIRE(GetFileSystem().Link("test:", kRoot));
 
-  auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kGenericAll});
+  auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kAllAccess});
   CHECK(ReadText(*opened.file) == "alpha");
   const std::array<u8, 3> patch{'A', 'L', 'P'};
   auto written = opened.file->Write(patch, 0);
@@ -114,16 +114,16 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
   CHECK(Names(*this, kRoot, "*.txt") == std::vector<std::string>{"a.txt"});
   CHECK(Names(*this, kRoot, "") == std::vector<std::string>{"a.txt", "b.bin"});
 
-  auto renamed = Open("\\Device\\Test\\b.bin", {.access = Access::kGenericAll});
-  REQUIRE(GetFs().Rename(*renamed.file, "test:\\c.bin", false));
+  auto renamed = Open("\\Device\\Test\\b.bin", {.access = Access::kAllAccess});
+  REQUIRE(GetFileSystem().Rename(*renamed.file, "test:\\c.bin", false));
   CHECK(renamed.file->GetInfo().name == "c.bin");
   renamed.file.reset();
   CHECK(std::filesystem::exists(GetTemp() / "c.bin"));
   CHECK_FALSE(std::filesystem::exists(GetTemp() / "b.bin"));
 
-  REQUIRE(GetFs().Remove("\\Device\\Test\\a.txt"));
+  REQUIRE(GetFileSystem().Remove("\\Device\\Test\\a.txt"));
   CHECK_FALSE(std::filesystem::exists(GetTemp() / "a.txt"));
-  auto volume = GetFs().Volume(kRoot);
+  auto volume = GetFileSystem().GetVolume(kRoot);
   REQUIRE(volume);
   CHECK(volume->name == "STFS");
 }
@@ -133,8 +133,8 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider finds files created on the host aft
   MountTemp(kRoot);
   WriteHost(GetTemp() / "late.txt", "late");
   WriteHost(GetTemp() / "Mixed.txt", "mixed");
-  REQUIRE(GetFs().Stat("\\Device\\Test\\late.txt"));
-  REQUIRE(GetFs().Stat("\\Device\\Test\\mixed.TXT"));
+  REQUIRE(GetFileSystem().Stat("\\Device\\Test\\late.txt"));
+  REQUIRE(GetFileSystem().Stat("\\Device\\Test\\mixed.TXT"));
   CHECK(ReadText(*Open("\\Device\\Test\\late.txt").file) == "late");
   CHECK(ReadText(*Open("\\Device\\Test\\MIXED.txt").file) == "mixed");
 }
@@ -147,12 +147,12 @@ REX_TEST_CASE_METHOD(Fixture, "Open if keeps a host file added after the mount",
   WriteHost(GetTemp() / "root_late.txt", "root bytes");
 
   auto opened = Open("\\Device\\Test\\sub\\late.txt",
-                     {.disposition = Disposition::kOpenIf, .access = Access::kGenericAll});
+                     {.disposition = Disposition::kOpenIf, .access = Access::kAllAccess});
   CHECK(opened.action == OpenAction::kOpened);
   CHECK(ReadText(*opened.file) == "late bytes");
   opened.file.reset();
   auto at_root = Open("\\Device\\Test\\root_late.txt",
-                      {.disposition = Disposition::kOpenIf, .access = Access::kGenericAll});
+                      {.disposition = Disposition::kOpenIf, .access = Access::kAllAccess});
   CHECK(at_root.action == OpenAction::kOpened);
   at_root.file.reset();
 
@@ -168,8 +168,9 @@ REX_TEST_CASE_METHOD(Fixture, "Create of a name that exists only on the host is 
                      "[filesystem][providers]") {
   MountTemp(kRoot);
   WriteHost(GetTemp() / "late.txt", "late");
-  auto created = GetFs().Open("\\Device\\Test\\late.txt", {.disposition = Disposition::kCreate,
-                                                           .access = Access::kGenericWrite});
+  auto created =
+      GetFileSystem().Open("\\Device\\Test\\late.txt",
+                           {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   REQUIRE_FALSE(created);
   CHECK(CodeOf(created.error()) == FileSystemError::kExists);
   auto host = rex::platform::ReadHostFile(GetTemp() / "late.txt");
@@ -181,8 +182,8 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounte
                      "[filesystem][providers]") {
   WriteHost(GetTemp() / "outside.txt", "outside");
   WriteHost(GetTemp() / "mount" / "a.txt", "alpha");
-  REQUIRE(GetFs().Mount({std::string(kRoot), ProviderKind::kHostDirectory, GetTemp() / "mount",
-                         MountFlags::kWritable}));
+  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderKind::kHostDirectory,
+                                 GetTemp() / "mount", MountFlags::kWritable}));
 
   std::string escape(kRoot);
   escape += '\\';
@@ -192,21 +193,22 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounte
     escape += part.string();
   }
   escape += "\\outside.txt";
-  CHECK_FALSE(GetFs().Stat(escape));
+  CHECK_FALSE(GetFileSystem().Stat(escape));
 
-  auto stream = GetFs().Open("\\Device\\Test\\a.txt:hidden", {.disposition = Disposition::kCreate,
-                                                              .access = Access::kGenericWrite});
+  auto stream =
+      GetFileSystem().Open("\\Device\\Test\\a.txt:hidden",
+                           {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   CHECK_FALSE(stream);
   CHECK_FALSE(std::filesystem::exists(GetTemp() / "mount" / "a.txt:hidden"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesystem][providers]") {
-  REQUIRE(GetFs().Mount({"\\Device\\Null",
-                         ProviderKind::kNull,
-                         {},
-                         MountFlags::kWritable,
-                         {"\\Cache0", "\\Cache1"}}));
-  auto opened = Open("\\Device\\Null\\cache0", {.access = Access::kGenericAll});
+  REQUIRE(GetFileSystem().Mount({"\\Device\\Null",
+                                 ProviderKind::kNull,
+                                 {},
+                                 MountFlags::kWritable,
+                                 {"\\Cache0", "\\Cache1"}}));
+  auto opened = Open("\\Device\\Null\\cache0", {.access = Access::kAllAccess});
   std::array<u8, 8> buffer{};
   auto read = opened.file->Read(buffer, 0);
   REQUIRE(read);
@@ -216,7 +218,7 @@ REX_TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesyst
   CHECK(*written == 0);
   CHECK(opened.file->GetVolume().name == "NullDevice");
 
-  auto missing = GetFs().Open("\\Device\\Null\\Cache2", {});
+  auto missing = GetFileSystem().Open("\\Device\\Null\\Cache2", {});
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }
@@ -233,11 +235,12 @@ REX_TEST_CASE_METHOD(Fixture, "Disc provider mounts the fixture read only",
 
 REX_TEST_CASE_METHOD(Fixture, "A container of the wrong kind is kCorrupt",
                      "[filesystem][providers]") {
-  auto mounted =
-      GetFs().Mount({std::string(kRoot), ProviderKind::kDiscImage, Fixtures() / "stfs_con.bin"});
+  auto mounted = GetFileSystem().Mount(
+      {std::string(kRoot), ProviderKind::kDiscImage, GetFixtureFolder() / "stfs_con.bin"});
   REQUIRE_FALSE(mounted);
   CHECK(CodeOf(mounted.error()) == FileSystemError::kCorrupt);
-  auto missing = GetFs().Mount({std::string(kRoot), ProviderKind::kSTFS, GetTemp() / "none.bin"});
+  auto missing =
+      GetFileSystem().Mount({std::string(kRoot), ProviderKind::kSTFS, GetTemp() / "none.bin"});
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }

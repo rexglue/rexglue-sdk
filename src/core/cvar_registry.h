@@ -47,7 +47,7 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
   [[nodiscard]] Result<void> ResetToDefault(std::string_view name) override;
   [[nodiscard]] std::optional<std::reference_wrapper<const cvar::VarBase>> Find(
       std::string_view name) const override;
-  cvar::CvarSource Source(std::string_view name) const override;
+  cvar::CvarSource GetSource(std::string_view name) const override;
   std::vector<const cvar::VarBase*> Enumerate(std::string_view scope = {}) const override;
   std::vector<std::string_view> GetScopes() const override;
   [[nodiscard]] Result<cvar::CallbackHandle> OnChange(std::string_view name,
@@ -117,7 +117,7 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
                                    Fired& fired);
   void Fire(Fired& fired);
   void ApplyPending(Entry& entry, Fired& fired);
-  std::string_view DefaultOf(const Entry& entry) const;
+  std::string_view GetDefault(const Entry& entry) const;
 
   mutable std::mutex mutex_;
   std::vector<Entry> entries_;

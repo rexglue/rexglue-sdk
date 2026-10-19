@@ -24,7 +24,7 @@ REX_TEST_CASE("ByteStream construction and initial state", "[core][stream][bytes
   ByteStream stream(buffer.data(), buffer.size());
 
   CHECK(stream.GetData() == buffer.data());
-  CHECK(stream.GetDataLength() == 16);
+  CHECK(stream.GetSize() == 16);
   CHECK(stream.GetOffset() == 0);
 }
 

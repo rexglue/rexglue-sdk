@@ -50,7 +50,7 @@ void IndirectFunction(PPCContext& ctx, rex::u8* base) {
 }
 #endif
 
-const rex::PPCImageInfo kImageInfo = {
+const rex::PPCImage kImageInfo = {
     .code_base = kImageBase,
     .code_size = kImageSize,
     .image_base = kImageBase,
@@ -60,7 +60,7 @@ const rex::PPCImageInfo kImageInfo = {
 
 }  // namespace
 
-extern "C" REX_DETAIL_EXPORT void ReXModule_Register(rex::runtime::IModuleRegistrar* registrar) {
+extern "C" REX_DETAIL_EXPORT void ReXRegisterModule(rex::runtime::IModuleRegistrar* registrar) {
 #ifdef REX_TEST_EXPORTER
   registrar->SetFunction(kFunctionAddress, Function);
 #else
@@ -71,6 +71,6 @@ extern "C" REX_DETAIL_EXPORT void ReXModule_Register(rex::runtime::IModuleRegist
 #endif
 }
 
-extern "C" REX_DETAIL_EXPORT const rex::PPCImageInfo* ReXModule_GetImageInfo() {
+extern "C" REX_DETAIL_EXPORT const rex::PPCImage* ReXGetModuleImage() {
   return &kImageInfo;
 }

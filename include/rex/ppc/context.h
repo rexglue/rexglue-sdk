@@ -172,7 +172,7 @@ struct FPSCRRegister {
   static_assert(
       [] {
         for (u32 rn = 0; rn <= kRoundMask; ++rn) {
-          if (Platform::kHostToReX[(Platform::kGuestToHost[rn] & kRoundMaskVal) >> kRoundShift] !=
+          if (Platform::kHostToGuest[(Platform::kGuestToHost[rn] & kRoundMaskVal) >> kRoundShift] !=
               rn) {
             return false;
           }
@@ -205,7 +205,7 @@ struct FPSCRRegister {
    */
   u32 LoadFromHost() noexcept {
     csr = GetCSR();
-    return Platform::kHostToReX[(csr & kRoundMaskVal) >> kRoundShift];
+    return Platform::kHostToGuest[(csr & kRoundMaskVal) >> kRoundShift];
   }
 
   /**
@@ -213,7 +213,7 @@ struct FPSCRRegister {
    *
    * @param value The guest rounding mode, one of the kRound constants.
    */
-  void StoreFromGuest(u32 value) noexcept {
+  void StoreToHost(u32 value) noexcept {
     csr &= ~kRoundMaskVal;
     csr |= Platform::kGuestToHost[value & kRoundMask];
     SetCSR(csr);

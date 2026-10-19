@@ -7,7 +7,7 @@ namespace rex {
 void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   const char* level = "INFO";
   switch (type) {
-    case SimpleMessageBoxType::kHelp:
+    case SimpleMessageBoxType::kInfo:
       level = "INFO";
       break;
     case SimpleMessageBoxType::kWarning:

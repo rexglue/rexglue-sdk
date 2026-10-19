@@ -73,7 +73,7 @@ inline rex::Error Corrupt(std::string message) {
  * @param nodes The node list to fill.
  * @return kCorrupt when a table, a chain or an index is out of range.
  */
-[[nodiscard]] Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
+[[nodiscard]] Result<void> ParseSTFS(const XContentPackageHeader& header, std::span<const u8> file,
                                      std::vector<ContainerNode>& nodes);
 
 /**
@@ -84,7 +84,7 @@ inline rex::Error Corrupt(std::string message) {
  * @param nodes The node list to fill.
  * @return kCorrupt when the magic block is missing or an entry is out of range.
  */
-[[nodiscard]] Result<void> ParseSVOD(const STFSHeader& header,
+[[nodiscard]] Result<void> ParseSVOD(const XContentPackageHeader& header,
                                      std::span<const std::span<const u8>> files,
                                      std::vector<ContainerNode>& nodes);
 

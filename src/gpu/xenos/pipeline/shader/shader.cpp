@@ -26,21 +26,21 @@
 namespace rex::gpu {
 using namespace xenos::ucode;
 
-Shader::Shader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
+Shader::Shader(xenos::ShaderType shader_type, u64 ucode_hash, const u32* ucode_dwords,
                size_t ucode_dword_count, std::endian ucode_source_endian)
-    : shader_type_(shader_type), ucode_data_hash_(ucode_data_hash) {
-  ucode_data_.resize(ucode_dword_count);
+    : shader_type_(shader_type), ucode_data_hash_(ucode_hash) {
+  ucode_dwords_.resize(ucode_dword_count);
   if (std::endian::native != ucode_source_endian) {
-    memory::copy_and_swap(ucode_data_.data(), ucode_dwords, ucode_dword_count);
+    memory::copy_and_swap(ucode_dwords_.data(), ucode_dwords, ucode_dword_count);
   } else {
-    std::memcpy(ucode_data_.data(), ucode_dwords, sizeof(u32) * ucode_dword_count);
+    std::memcpy(ucode_dwords_.data(), ucode_dwords, sizeof(u32) * ucode_dword_count);
   }
 }
 
 Shader::~Shader() = default;
 
 std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dump(
-    const std::filesystem::path& base_path, const char* path_prefix) const {
+    const std::filesystem::path& base_path, const char* path_label) const {
   if (!IsValid()) {
     return std::make_pair(std::filesystem::path(), std::filesystem::path());
   }
@@ -56,7 +56,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
 
   std::filesystem::path binary_path =
       target_path / std::format("shader_{:016X}_{:016X}.{}.bin.{}", GetShader().GetUcodeDataHash(),
-                                GetModification(), path_prefix, type_extension);
+                                GetModification(), path_label, type_extension);
   if (auto written = platform::WriteHostFile(
           binary_path,
           std::span<const u8>(reinterpret_cast<const u8*>(translated_binary_.data()),
@@ -69,7 +69,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   if (!host_disassembly_.empty()) {
     disasm_path =
         target_path / std::format("shader_{:016X}_{:016X}.{}.{}", GetShader().GetUcodeDataHash(),
-                                  GetModification(), path_prefix, type_extension);
+                                  GetModification(), path_label, type_extension);
     if (auto written = platform::WriteHostFile(disasm_path, host_disassembly_); !written) {
       REXLOG_WARN(gpu, "write failed: {}", written.error().GetDescription());
     }

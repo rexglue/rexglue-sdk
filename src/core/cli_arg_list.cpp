@@ -62,7 +62,7 @@ std::span<const std::string> CLIArgList::GetPositionals() const {
   return positionals_;
 }
 
-std::span<const std::string> CLIArgList::All() const {
+std::span<const std::string> CLIArgList::GetAll() const {
   return all_;
 }
 

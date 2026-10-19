@@ -35,26 +35,26 @@ constexpr std::string_view kOriginal = "AAAA";
 class ScopedRoot : public Fixture {
  public:
   ScopedRoot() {
-    WriteHost(HostPath(), kOriginal);
-    REQUIRE(GetFs().Mount(
+    WriteHost(GetHostPath(), kOriginal);
+    REQUIRE(GetFileSystem().Mount(
         {std::string(kMountPath), ProviderKind::kHostDirectory, GetTemp(), MountFlags::kWritable}));
-    REQUIRE(GetFs().Link("test:", kMountPath));
+    REQUIRE(GetFileSystem().Link("test:", kMountPath));
   }
 
-  std::filesystem::path HostPath() const { return GetTemp() / "savegame.dat"; }
+  std::filesystem::path GetHostPath() const { return GetTemp() / "savegame.dat"; }
 };
 
 }  // namespace
 
 REX_TEST_CASE_METHOD(ScopedRoot, "Overwrite truncates in place instead of deleting",
                      "[filesystem][overwrite]") {
-  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
+  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kReadAccess});
   CHECK(reader.action == OpenAction::kOpened);
 
   auto writer =
-      Open(kPath, {.disposition = Disposition::kOverwriteIf, .access = Access::kGenericWrite});
+      Open(kPath, {.disposition = Disposition::kOverwriteIf, .access = Access::kWriteAccess});
   CHECK(writer.action == OpenAction::kOverwritten);
-  CHECK(std::filesystem::file_size(HostPath()) == 0);
+  CHECK(std::filesystem::file_size(GetHostPath()) == 0);
 
   const std::array<u8, 1> payload{'B'};
   auto written = writer.file->Write(payload, 0);
@@ -70,20 +70,20 @@ REX_TEST_CASE_METHOD(ScopedRoot, "Overwrite truncates in place instead of deleti
   writer.file.reset();
   reader.file.reset();
 
-  CHECK(std::filesystem::exists(HostPath()));
-  CHECK(std::filesystem::file_size(HostPath()) == payload.size());
+  CHECK(std::filesystem::exists(GetHostPath()));
+  CHECK(std::filesystem::file_size(GetHostPath()) == payload.size());
 }
 
 REX_TEST_CASE_METHOD(ScopedRoot, "Supersede of a file held open by a reader keeps the file",
                      "[filesystem][overwrite]") {
-  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
+  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kReadAccess});
 
   auto writer =
-      Open(kPath, {.disposition = Disposition::kSupersede, .access = Access::kGenericWrite});
+      Open(kPath, {.disposition = Disposition::kSupersede, .access = Access::kWriteAccess});
   CHECK(writer.action == OpenAction::kSuperseded);
 
   writer.file.reset();
   reader.file.reset();
 
-  CHECK(std::filesystem::exists(HostPath()));
+  CHECK(std::filesystem::exists(GetHostPath()));
 }

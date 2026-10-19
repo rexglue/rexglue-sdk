@@ -72,7 +72,7 @@ REX_INTERFACE(ILogger, "rex.log", 1)
    *
    * @return 1 row per category.
    */
-  virtual std::vector<log::CategoryInfo> GetCategories() const = 0;
+  virtual std::vector<log::CategoryState> GetCategories() const = 0;
 
   /**
    * Adds a sink. The caller keeps ownership and removes the sink before destroying it.

@@ -28,9 +28,9 @@
 
 using rex::X_STATUS;
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
-using rex::testing::SystemTime;
+using rex::test::Caller;
+using rex::test::KernelFixture;
+using rex::test::SystemTime;
 
 namespace {
 constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
@@ -460,10 +460,10 @@ REX_TEST_CASE("interrupts: KeQueryInterruptTime grows in 100 ns units", "[kernel
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     c.Kernel("KeQueryInterruptTime");
-    const u64 first = c.GetCtx().r3.u64;
+    const u64 first = c.GetContext().r3.u64;
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     c.Kernel("KeQueryInterruptTime");
-    const u64 second = c.GetCtx().r3.u64;
+    const u64 second = c.GetContext().r3.u64;
     CHECK(second - first >= 400000);
     CHECK(second - first < 50000000);
   });

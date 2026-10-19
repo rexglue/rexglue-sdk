@@ -29,7 +29,7 @@ namespace {
 
 std::string g_console_args;
 
-void RecordConsoleArgs(std::string_view args) {
+void CaptureConsoleArgs(std::string_view args) {
   g_console_args = std::string(args);
 }
 
@@ -37,7 +37,7 @@ void RecordConsoleArgs(std::string_view args) {
 
 namespace console_test_cvars {
 REXCVAR_STRING(alpha, mode, "low", "Quality mode").SetAllowed(REXCVAR_ALLOWED("low", "high"));
-REXCVAR_COMMAND_ARGS(alpha, run, RecordConsoleArgs, "Records its arguments");
+REXCVAR_COMMAND_ARGS(alpha, run, CaptureConsoleArgs, "Records its arguments");
 REXCVAR_TABLE(kAlphaCvars, mode, run);
 REXCVAR_INT32(zeta, count, 4, "A counted value").SetRange(1, 8);
 REXCVAR_TABLE(kZetaCvars, count);
@@ -205,7 +205,7 @@ REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters"
           std::vector<std::string>{"first", "> zeta.count", "zeta.count = 4"});
   model.SetMinLevel(Level::kTrace);
   model.SetShown("kernel", false);
-  REQUIRE_FALSE(model.GetShown("kernel"));
+  REQUIRE_FALSE(model.IsShown("kernel"));
   REQUIRE(VisibleText(model) ==
           std::vector<std::string>{"> zeta.count", "zeta.count = 4", "second", "third"});
 

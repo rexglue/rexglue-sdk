@@ -229,7 +229,7 @@ REX_SHIM_FN(CloseHandle, u32, u32 hObject) {
  * @param lpFindFileData The buffer to fill.
  * @param entry The directory entry.
  */
-static void FillFindData(MappedVoid lpFindFileData, const filesystem::FileInfo& entry) {
+static void FillFindData(MappedVoid lpFindFileData, const filesystem::FileStat& entry) {
   auto* buf = lpFindFileData.As<u8*>();
   std::memset(buf, 0, 0x140);
 
@@ -245,7 +245,7 @@ static void FillFindData(MappedVoid lpFindFileData, const filesystem::FileInfo& 
   fields[8] = static_cast<u32>(entry.size & 0xFFFFFFFF);
 
   const auto& name = entry.name;
-  rex::copy_truncating(reinterpret_cast<char*>(buf + 0x2C), name, 260);
+  rex::CopyTruncating(reinterpret_cast<char*>(buf + 0x2C), name, 260);
 }
 
 REX_SHIM_FN(FindFirstFileA, u32, MappedString lpFileName, MappedVoid lpFindFileData) {
@@ -442,16 +442,16 @@ u32 GetDiskFreeSpaceExA_entry(MappedString lpDirectoryName, MappedVoid lpFreeByt
                               MappedVoid lpTotalNumberOfFreeBytes) {
   const char* path = static_cast<const char*>(lpDirectoryName);
   auto* fs = runtime::GetCurrent().GetFileSystem();
-  auto volume = fs->Volume(path);
+  auto volume = fs->GetVolume(path);
   if (!fs->Stat(path) || !volume) {
     REXLOG_DEBUG(kernel, "rexshim_GetDiskFreeSpaceExA: path not found '{}'", path);
     return 0;
   }
 
-  u64 bytes_per_au =
+  u64 bytes_per_allocation_unit =
       static_cast<u64>(volume->sectors_per_allocation_unit) * volume->bytes_per_sector;
-  u64 total_bytes = static_cast<u64>(volume->total_allocation_units) * bytes_per_au;
-  u64 free_bytes = static_cast<u64>(volume->available_allocation_units) * bytes_per_au;
+  u64 total_bytes = static_cast<u64>(volume->total_allocation_units) * bytes_per_allocation_unit;
+  u64 free_bytes = static_cast<u64>(volume->available_allocation_units) * bytes_per_allocation_unit;
 
   if (lpFreeBytesAvailableToCaller) {
     auto* out = lpFreeBytesAvailableToCaller.AsArray<u32>();

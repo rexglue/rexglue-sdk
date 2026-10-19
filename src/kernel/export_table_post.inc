@@ -9,5 +9,5 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#undef FLAG
-#undef XE_EXPORT
+#undef REX_EXPORT_FLAG
+#undef REX_EXPORT

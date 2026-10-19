@@ -35,8 +35,8 @@ class NullCommandProcessor final : public CommandProcessor {
   void ShutdownContext() override;
   Shader* LoadShader(xenos::ShaderType shader_type, u32 guest_address, const u32* host_address,
                      u32 dword_count) override;
-  bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count,
-                 IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;
+  bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count, IndexBuffer* index_buffer_info,
+                 bool major_mode_explicit) override;
   bool IssueCopy() override;
 
  private:

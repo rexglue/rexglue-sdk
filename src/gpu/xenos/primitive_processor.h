@@ -253,7 +253,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * @param guest_index_base The guest index base address.
    * @return The offset in bytes.
    */
-  static ptrdiff_t GetSimdCoalignmentOffset(const void* host_index_ptr, u32 guest_index_base) {
+  static ptrdiff_t GetSIMDCoalignmentOffset(const void* host_index_ptr, u32 guest_index_base) {
     return static_cast<ptrdiff_t>((guest_index_base - reinterpret_cast<uintptr_t>(host_index_ptr)) &
                                   (REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE - 1));
   }
@@ -548,7 +548,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
 
   /**
    * A cache transaction performs a few operations in a RAII way, so processing may return an error
-   * for any reason without cleaning up cache_currently_processing_base_ and size_bytes_ explicitly.
+   * for any reason without cleaning up cache_pending_base_ and size_bytes_ explicitly.
    *
    * Initialization looks up previously processed indices in the cache. If not found, it begins
    * adding a new entry by marking the range as being processed and enabling an access callback for
@@ -606,9 +606,9 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * invalidated during the conversion, the entry is not added to the cache. Modified by the
    * processor, read by the invalidation callback.
    */
-  u32 cache_currently_processing_base_ = 0;
+  u32 cache_pending_base_ = 0;
   /** 0 when not in a cache transaction that has not found an existing entry yet. */
-  u32 cache_currently_processing_size_bytes_ = 0;
+  u32 cache_pending_size_bytes_ = 0;
   // Modified by both the processor and the invalidation callback.
   size_t cache_bucket_free_first_entry_ = SIZE_MAX;
   // Modified by both the processor and the invalidation callback.

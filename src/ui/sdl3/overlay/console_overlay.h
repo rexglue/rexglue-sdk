@@ -22,14 +22,14 @@ class IUserInterface;
 struct ModuleOverlayContext;
 
 /** The console docked at the top left of the title window, resizable on its right and bottom. */
-class ConsoleDialog : public ImGuiDialog {
+class ConsoleOverlayDialog : public ImGuiDialog {
  public:
   /**
    * Builds the dialog over the context's console model.
    *
    * @param context What the overlay may use.
    */
-  explicit ConsoleDialog(const ModuleOverlayContext& context);
+  explicit ConsoleOverlayDialog(const ModuleOverlayContext& context);
 
   /**
    * Shows or hides the OS window instead of the dialog while the console is undocked.

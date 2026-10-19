@@ -53,8 +53,8 @@ class REX_GPU_XENOS_API GraphicsSystem : public gpu::IGPUBackend {
   ::rex::gpu::GraphicsProvider* GetProvider() const { return provider_.get(); }
 
   [[nodiscard]] Result<void> SetupPresentation(gpu::IUIThread& ui_thread) override;
-  [[nodiscard]] Result<void> SetupGuestGPU(runtime::FunctionDispatcher& dispatcher,
-                                           Runtime& runtime) override;
+  [[nodiscard]] Result<void> SetupGPU(runtime::FunctionDispatcher& dispatcher,
+                                      Runtime& runtime) override;
   bool HasPresentation() const override { return presenter_ != nullptr; }
   [[nodiscard]] Result<std::unique_ptr<gpu::IPresenter>> CreatePresenter() override;
   [[nodiscard]] Result<std::unique_ptr<gpu::IOverlayDrawer>> CreateOverlayDrawer(

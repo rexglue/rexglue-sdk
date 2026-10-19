@@ -24,7 +24,7 @@
 
 namespace rex::gpu::d3d12 {
 
-class D3D12ImmediateDrawer final : public ImmediateDrawer {
+class D3D12ImmediateDrawer final : public OverlayDrawer {
   struct Key {};
 
  public:
@@ -64,13 +64,12 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
     kInvalid = kCount
   };
 
-  class D3D12ImmediateTexture final : public gpu::OverlayTexture {
+  class D3D12OverlayTexture final : public gpu::OverlayTexture {
    public:
     static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-    D3D12ImmediateTexture(u32 width, u32 height, ID3D12Resource* resource,
-                          SamplerIndex sampler_index, D3D12ImmediateDrawer* immediate_drawer,
-                          size_t immediate_drawer_index);
-    ~D3D12ImmediateTexture() override;
+    D3D12OverlayTexture(u32 width, u32 height, ID3D12Resource* resource, SamplerIndex sampler_index,
+                        D3D12ImmediateDrawer* immediate_drawer, size_t immediate_drawer_index);
+    ~D3D12OverlayTexture() override;
 
     ID3D12Resource* GetResource() const { return resource_.Get(); }
     SamplerIndex GetSamplerIndex() const { return sampler_index_; }
@@ -96,7 +95,7 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
 
   bool Initialize();
 
-  void OnImmediateTextureDestroyed(D3D12ImmediateTexture& texture);
+  void OnImmediateTextureDestroyed(D3D12OverlayTexture& texture);
 
   void UploadTextures();
 
@@ -119,7 +118,7 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
 
   /** Holds only textures with non-null resources. */
-  std::vector<D3D12ImmediateTexture*> textures_;
+  std::vector<D3D12OverlayTexture*> textures_;
 
   struct PendingTextureUpload {
     PendingTextureUpload(ID3D12Resource* texture, ID3D12Resource* buffer)
@@ -140,7 +139,7 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
 
   std::deque<std::pair<Microsoft::WRL::ComPtr<ID3D12Resource>, UINT64>> textures_deleted_;
 
-  std::unique_ptr<D3D12UploadBufferPool> vertex_buffer_pool_;
+  std::unique_ptr<D3D12UploadBufferPool> geometry_buffer_pool_;
   std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_;
 
   /** Submission index within the current Begin, or of the last Begin when outside one. */

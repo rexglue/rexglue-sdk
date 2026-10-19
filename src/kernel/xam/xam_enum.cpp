@@ -33,8 +33,8 @@ namespace kernel {
 namespace xam {
 using namespace rex::runtime;
 
-u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_returned,
-                 u32 overlapped_ptr) {
+u32 EnumerateItems(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_returned,
+                   u32 overlapped_ptr) {
   REX_ASSERT(flags == 0);
 
   auto& runtime = runtime::GetCurrent();
@@ -89,13 +89,13 @@ u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_return
 }
 
 u32 XamEnumerate_entry(u32 handle, u32 flags, MappedVoid buffer, [[maybe_unused]] u32 buffer_length,
-                       MappedU32 items_returned, GuestPtrT<XAM_OVERLAPPED> overlapped) {
-  u32 dummy = 0;
+                       MappedU32 items_returned, GuestPtrT<XOVERLAPPED> overlapped) {
+  u32 item_count = 0;
   auto result =
-      XamEnumerate(handle, flags, buffer, !overlapped.GetGuestAddress() ? &dummy : nullptr,
-                   overlapped.GetGuestAddress());
+      EnumerateItems(handle, flags, buffer, !overlapped.GetGuestAddress() ? &item_count : nullptr,
+                     overlapped.GetGuestAddress());
   if (!overlapped && items_returned) {
-    *items_returned = dummy;
+    *items_returned = item_count;
   }
   return result;
 }
@@ -111,7 +111,7 @@ u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, MappedU32 out_object_
   REX_KERNEL_LOOKUP(e, EnumeratorObject, handle);
 
   auto referenced =
-      ReferencePrimary(runtime::GetCurrent().GetObjectTable(), e.GetSlot(), e.GetGuestObject());
+      ReferencePrimary(runtime::GetCurrent().GetObjectTable(), e.GetSlot(), e.GetGuestAddress());
   if (!referenced) {
     return ToXStatus(referenced);
   }

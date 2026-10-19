@@ -171,7 +171,7 @@ out_directory_path = "generated/entry"
   const auto manifest = codegen::ManifestConfig::Load(manifest_path);
   REQUIRE(manifest);
 
-  testing::ReleaseTestMemory();
+  test::ReleaseTestMemory();
   LogConfig config;
   config.debugger = false;
   if (sink) {

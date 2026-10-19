@@ -26,7 +26,7 @@ struct AppNameParts {
   std::string upper_case;
 };
 
-inline bool ValidateAppName(const std::string& input, std::string& error) {
+inline bool ValidateProjectName(const std::string& input, std::string& error) {
   if (input.empty()) {
     error = "App name must not be empty";
     return false;

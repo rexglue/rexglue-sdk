@@ -152,7 +152,7 @@ constexpr u32 Exp2Cell(u32 i) {
   return 0;
 }
 
-constexpr bool IsExactLine() {
+constexpr bool IsExp2TableExact() {
   for (u32 i = 0; i < 16; ++i) {
     const u32 cell = Exp2Cell(i);
     for (u32 u = 0; u < 128; ++u) {
@@ -165,7 +165,7 @@ constexpr bool IsExactLine() {
   return true;
 }
 
-static_assert(IsExactLine(), "the exp2 table must follow 16 lines");
+static_assert(IsExp2TableExact(), "the exp2 table must follow 16 lines");
 
 template <u32 (*Cell)(u32), u32 Byte>
 inline constexpr Plane32 kPlane32 = [] {

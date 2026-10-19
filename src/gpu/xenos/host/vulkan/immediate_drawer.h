@@ -25,7 +25,7 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-class VulkanImmediateDrawer : public ImmediateDrawer {
+class VulkanImmediateDrawer : public OverlayDrawer {
   struct Key {};
 
  public:
@@ -38,7 +38,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   ~VulkanImmediateDrawer();
 
   [[nodiscard]] Result<std::unique_ptr<gpu::OverlayTexture>> CreateTexture(
-      u32 width, u32 height, gpu::OverlayTextureFilter filter, bool repeat,
+      u32 width, u32 height, gpu::OverlayTextureFilter filter, bool is_repeated,
       std::span<const u8> rgba8) override;
 
   void Begin(gpu::OverlayDrawContext& context, f32 width, f32 height) override;
@@ -57,7 +57,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     } vertex;
   };
 
-  class VulkanImmediateTexture : public gpu::OverlayTexture {
+  class VulkanOverlayTexture : public gpu::OverlayTexture {
    public:
     struct Resource {
       VkImage image;
@@ -66,9 +66,9 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
       u32 descriptor_index;
     };
 
-    VulkanImmediateTexture(u32 width, u32 height)
+    VulkanOverlayTexture(u32 width, u32 height)
         : OverlayTexture(width, height), immediate_drawer(nullptr) {}
-    ~VulkanImmediateTexture() override;
+    ~VulkanOverlayTexture() override;
 
     /** Null for a blank texture or after the immediate drawer has been destroyed. */
     VulkanImmediateDrawer* immediate_drawer;
@@ -93,7 +93,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
 
   bool Initialize();
 
-  bool EnsurePipelinesCreatedForCurrentRenderPass();
+  bool CreatePipelinesForCurrentRenderPass();
 
   /**
    * Allocates a combined image sampler in a pool.
@@ -120,10 +120,10 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
    */
   bool CreateTextureResource(u32 width, u32 height, gpu::OverlayTextureFilter filter,
                              bool is_repeated, const u8* data,
-                             VulkanImmediateTexture::Resource& resource_out,
+                             VulkanOverlayTexture::Resource& resource_out,
                              size_t& pending_upload_index_out);
-  void DestroyTextureResource(VulkanImmediateTexture::Resource& resource);
-  void OnImmediateTextureDestroyed(VulkanImmediateTexture& texture);
+  void DestroyTextureResource(VulkanOverlayTexture::Resource& resource);
+  void OnImmediateTextureDestroyed(VulkanOverlayTexture& texture);
 
   const VulkanDevice* vulkan_device_;
   const UISamplers* ui_samplers_;
@@ -133,11 +133,11 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   TextureDescriptorPool* texture_descriptor_pool_unallocated_first_ = nullptr;
   TextureDescriptorPool* texture_descriptor_pool_recycled_first_ = nullptr;
 
-  VulkanImmediateTexture::Resource white_texture_ = {};
-  std::vector<VulkanImmediateTexture*> textures_;
+  VulkanOverlayTexture::Resource white_texture_ = {};
+  std::vector<VulkanOverlayTexture*> textures_;
   struct PendingTextureUpload {
     /** Null for internal resources such as the white texture. */
-    VulkanImmediateTexture* texture;
+    VulkanOverlayTexture* texture;
     /** VK_NULL_HANDLE when the image is cleared rather than copied. */
     VkBuffer buffer;
     VkDeviceMemory buffer_memory;
@@ -152,7 +152,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     u64 submission_index;
   };
   std::deque<SubmittedTextureUploadBuffer> texture_upload_buffers_submitted_;
-  std::vector<std::pair<VulkanImmediateTexture::Resource, u64>> textures_deleted_;
+  std::vector<std::pair<VulkanOverlayTexture::Resource, u64>> textures_deleted_;
 
   std::unique_ptr<VulkanUploadBufferPool> vertex_buffer_pool_;
 

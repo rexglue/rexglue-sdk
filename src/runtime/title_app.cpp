@@ -108,7 +108,7 @@ IWindow& TitleUI::GetWindow() {
   return *app_.ui_->GetWindow();
 }
 
-IUserInterface& TitleUI::GetOverlays() {
+IUserInterface& TitleUI::GetUI() {
   return *app_.ui_;
 }
 
@@ -124,7 +124,7 @@ TitleApp::TitleApp() = default;
 
 TitleApp::~TitleApp() = default;
 
-Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
+Result<void> TitleApp::Init(const CLIArgList& args, const PPCImage& image) {
   image_ = image;
   const std::filesystem::path exe = platform::GetExecutablePath();
   const std::string name = exe.stem().string();
@@ -144,14 +144,14 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
 }
 
 Result<void> TitleApp::CreateTitleWindow() {
-  if (ShutdownRequested()) {
+  if (IsShutdownRequested()) {
     return Ok();
   }
   if (!ui_) {
     return LaunchFailure("CreateTitleWindow needs Init first");
   }
   com_initialized_ = ::rex::detail::InitializeCOM();
-  ::rex::detail::SetShutdownWake([ui = ui_] { ui->Quit(); });
+  ::rex::detail::SetShutdownWake([ui = ui_] { ui->EndFrameLoop(); });
 
   gpu_ = GetAPI().Get<gpu::IGPUBackend>();
   if (gpu_) {
@@ -168,7 +168,7 @@ Result<void> TitleApp::CreateTitleWindow() {
 
   UIConfig ui_config = GetAPI().GetConfig().ui;
   if (ui_config.title.empty()) {
-    ui_config.title = platform::GetExecutablePath().stem().string() + " " + REXGLUE_BUILD_TITLE;
+    ui_config.title = platform::GetExecutablePath().stem().string() + " " + REXGLUE_BUILD_LABEL;
   }
   auto opened =
       ui_->OpenWindow(ui_config, [this](const UIEvent& event) { return OnWindowEvent(event); });
@@ -198,11 +198,11 @@ bool TitleApp::RunFrame() {
     return false;
   }
   const bool running = ui_->PumpFrame();
-  return running && !ShutdownRequested();
+  return running && !IsShutdownRequested();
 }
 
 void TitleApp::Run() {
-  if (!ui_ || ShutdownRequested()) {
+  if (!ui_ || IsShutdownRequested()) {
     return;
   }
   ui_->Run();
@@ -221,7 +221,7 @@ Result<void> TitleApp::LaunchFailure(std::string_view message) {
 }
 
 Result<void> TitleApp::LaunchTitle() {
-  if (ShutdownRequested()) {
+  if (IsShutdownRequested()) {
     return Ok();
   }
   if (!events_ready_) {
@@ -275,7 +275,7 @@ Result<void> TitleApp::LaunchTitle() {
     return LaunchFailure("the title's main thread could not be created");
   }
   if (gpu_ && !runtime_->GetCacheRoot().empty()) {
-    if (const u32 title_id = runtime_->GetContentManager().GetTitleId(); title_id != 0) {
+    if (const u32 title_id = runtime_->GetContentManager().GetTitleID(); title_id != 0) {
       if (auto storage = gpu_->InitializeShaderStorage(runtime_->GetCacheRoot(), title_id, true);
           !storage) {
         REXLOG_WARN(ui, "{}", storage.error().message);
@@ -309,14 +309,14 @@ Result<void> TitleApp::OnTitleLaunch(Runtime&) {
 }
 
 void TitleApp::OnTitleExit(runtime::TitleExitReason reason) {
-  if (ShutdownRequested() || !ui_ || !ui_->GetWindow()) {
+  if (IsShutdownRequested() || !ui_ || !ui_->GetWindow()) {
     RequestShutdown(0);
     return;
   }
   ui_->Prompt(
       {.title = "Title exited", .body = ExitMessage(reason), .buttons = {"Restart", "Exit"}},
       [](const PromptResult& result) {
-        if (result.cancelled) {
+        if (result.canceled) {
           return;
         }
         if (result.button == 0) {
@@ -368,7 +368,7 @@ void TitleApp::RequireModules(Config& config) {
 
 void TitleApp::Stop() {
   if (ui_) {
-    ui_->Quit();
+    ui_->EndFrameLoop();
     ui_->CancelPrompts();
     ui_->SetRuntime(nullptr);
   }

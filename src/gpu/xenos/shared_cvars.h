@@ -30,7 +30,7 @@ REX_GPU_XENOS_API std::string GetDumpShaders();
  *
  * @return True when invalid fetch constants are tolerated.
  */
-REX_GPU_XENOS_API bool GetAllowInvalidFetchConstants();
+REX_GPU_XENOS_API bool IsInvalidFetchConstantsAllowed();
 
 /**
  * Returns xenos.query_occlusion_fake_sample_count.

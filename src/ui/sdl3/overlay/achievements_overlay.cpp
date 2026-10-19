@@ -15,7 +15,7 @@ AchievementsOverlayDialog::AchievementsOverlayDialog(const ModuleOverlayContext&
 AchievementsOverlayDialog::~AchievementsOverlayDialog() {}
 
 gpu::OverlayTexture* AchievementsOverlayDialog::GetIcon(
-    const rex::runtime::AchievementInfo& achievement) {
+    const rex::runtime::Achievement& achievement) {
   return icon_cache_ ? icon_cache_->GetIcon(achievement) : nullptr;
 }
 

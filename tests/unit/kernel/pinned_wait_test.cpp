@@ -31,8 +31,8 @@ using rex::runtime::AddOptions;
 using rex::runtime::EventObject;
 using rex::runtime::SymbolicLinkObject;
 using rex::runtime::ToXStatus;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 REX_TEST_CASE("Wait returns invalid handle for a missing handle", "[kernel][wait]") {
   KernelFixture fixture;

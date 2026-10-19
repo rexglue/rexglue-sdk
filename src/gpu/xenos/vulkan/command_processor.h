@@ -151,7 +151,7 @@ class VulkanCommandProcessor : public CommandProcessor {
     return deferred_command_buffer_;
   }
 
-  bool GetSubmissionOpen() const { return submission_open_; }
+  bool IsSubmissionOpen() const { return submission_open_; }
   u64 GetCurrentSubmission() const {
     return submission_completed_ + static_cast<u64>(submissions_in_flight_fences_.size()) + 1;
   }
@@ -325,8 +325,8 @@ class VulkanCommandProcessor : public CommandProcessor {
    * @return False when a sampler could not be created, or overflowed twice because of too many
    *         unique samplers in a draw or a failed await.
    */
-  bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count,
-                 IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;
+  bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count, IndexBuffer* index_buffer_info,
+                 bool major_mode_explicit) override;
   bool IssueCopy() override;
 
  private:
@@ -429,12 +429,12 @@ class VulkanCommandProcessor : public CommandProcessor {
     u32 size[2];
   };
   enum SwapFxaaDescriptorSet : u8 {
-    kSwapFxaaDescriptorSetSource,
-    kSwapFxaaDescriptorSetDestination,
+    kSwapFXAADescriptorSetSource,
+    kSwapFXAADescriptorSetDestination,
 
-    kSwapFxaaDescriptorSetCount,
+    kSwapFXAADescriptorSetCount,
   };
-  struct SwapFxaaConstants {
+  struct SwapFXAAConstants {
     u32 size[2];
     f32 size_inv[2];
   };
@@ -520,10 +520,10 @@ class VulkanCommandProcessor : public CommandProcessor {
     u32 source_offset_bytes;
     u32 half_pixel_offset;
   };
-  bool EnsureSwapFxaaSourceImage(u32 width, u32 height);
-  void DestroySwapFxaaSourceImage();
+  bool EnsureSwapFXAASourceImage(u32 width, u32 height);
+  void DestroySwapFXAASourceImage();
 
-  void UpdateDynamicState(const draw_state::ViewportInfo& viewport_info, bool primitive_polygonal,
+  void UpdateDynamicState(const draw_state::HostViewport& viewport_info, bool primitive_polygonal,
                           xenos::reg::RB_DEPTHCONTROL normalized_depth_control);
   /**
    * Updates the system constants. W0 division follows PA_CL_VTE_CNTL. Bit 8 VTX_XY_FMT true
@@ -544,7 +544,7 @@ class VulkanCommandProcessor : public CommandProcessor {
       bool primitive_polygonal,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       bool shader_32bit_index_dma, u32 compute_memexport_vertex_count,
-      const draw_state::ViewportInfo& viewport_info, u32 used_texture_mask,
+      const draw_state::HostViewport& viewport_info, u32 used_texture_mask,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader, const VulkanShader* pixel_shader);
   /**

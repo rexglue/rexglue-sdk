@@ -83,7 +83,7 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   const Config& GetConfig() const { return config_; }
   CvarRegistryImpl& GetCvars() { return *cvars_; }
   void UpdatePaths(const PathsConfig& paths) { config_.paths = paths; }
-  bool GetInitialized() const { return initialized_; }
+  bool IsInitialized() const { return initialized_; }
   u64 GetRequestCount() const { return request_count_; }
 
  private:

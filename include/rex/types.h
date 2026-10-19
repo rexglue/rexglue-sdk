@@ -297,7 +297,7 @@ class MappedPtr {
    * @param host_ptr The host pointer.
    * @return A MappedPtr with guest address 0.
    */
-  static MappedPtr GetFromHost(T* host_ptr) { return MappedPtr(host_ptr, 0); }
+  static MappedPtr FromHost(T* host_ptr) { return MappedPtr(host_ptr, 0); }
 
   /**
    * @return The guest address.
@@ -307,7 +307,7 @@ class MappedPtr {
   /**
    * @return The host pointer.
    */
-  T* GetHostAddress() const { return host_ptr_; }
+  T* GetHostPtr() const { return host_ptr_; }
 
   /**
    * @return The host pointer.
@@ -719,7 +719,7 @@ template <typename T>
 inline constexpr bool is_mapped_ptr_v = IsMappedPtr<T>::value;
 
 template <typename T>
-struct mapped_ptr_inner_type;
+struct MappedPtrInnerType;
 
 /**
  * Pointee type of a MappedPtr.
@@ -727,7 +727,7 @@ struct mapped_ptr_inner_type;
  * @tparam T The pointee type.
  */
 template <typename T>
-struct mapped_ptr_inner_type<MappedPtr<T>> {
+struct MappedPtrInnerType<MappedPtr<T>> {
   /** The pointee type. */
   using type = T;
 };

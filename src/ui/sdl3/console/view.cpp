@@ -120,7 +120,7 @@ void ConsoleView::DrawFilters() {
   }
   if (ImGui::BeginPopup("##categories")) {
     for (const std::string& category : model_.GetCategories()) {
-      bool shown = model_.GetShown(category);
+      bool shown = model_.IsShown(category);
       if (ImGui::Checkbox(category.c_str(), &shown)) {
         model_.SetShown(category, shown);
       }
@@ -276,7 +276,7 @@ int ConsoleView::InputCallback(ImGuiInputTextCallbackData* data) {
       view.dismissed_ = false;
       break;
     case ImGuiInputTextFlags_CallbackCompletion:
-      view.Accept(data);
+      view.CompleteInput(data);
       break;
     case ImGuiInputTextFlags_CallbackHistory:
       view.Navigate(data);
@@ -287,7 +287,7 @@ int ConsoleView::InputCallback(ImGuiInputTextCallbackData* data) {
   return 0;
 }
 
-void ConsoleView::Accept(ImGuiInputTextCallbackData* data) {
+void ConsoleView::CompleteInput(ImGuiInputTextCallbackData* data) {
   if (completions_.empty()) {
     return;
   }

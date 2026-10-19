@@ -77,7 +77,7 @@ struct KernelGuestGlobals {
   /** Object type descriptor exported to titles as ObSymbolicLinkObjectType, pool tag 'ObSl'. */
   X_OBJECT_TYPE ObSymbolicLinkObjectType;
   /** Object whose list head points at itself, set up once and read by no host code. */
-  X_UNKNOWN_TYPE_REFED OddObj;
+  X_UNKNOWN_TYPE_REFED self_list_object;
   /** Process block of type kXProcTypeIdle with the quantum set to 0x7F. */
   X_KPROCESS idle_process;
   /** Process block of type kXProcTypeUser, holds the TLS layout of the title. */

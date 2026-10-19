@@ -39,8 +39,8 @@ class PresentationSink final : public rex::log::ISink {
   void Write(const rex::log::Message& message) override;
   void Flush() override;
 
-  bool GetTty() const { return tty_; }
-  bool GetColor() const { return color_; }
+  bool IsTTY() const { return tty_; }
+  bool IsColorEnabled() const { return color_; }
 
   void SetActiveProgress(bool active);
 

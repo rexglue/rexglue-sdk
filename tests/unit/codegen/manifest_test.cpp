@@ -31,7 +31,7 @@ namespace {
 constexpr std::string_view kProject =
     "[project]\nname = \"demo\"\n[entrypoint]\nfile_path = \"default.xex\"\n\n";
 
-nlohmann::json ModuleData() {
+nlohmann::json ModuleEntry() {
   return {{"guest_path", "game/a.xex"},
           {"file_path", "game/a.xex"},
           {"out_directory_path", "generated/a"}};
@@ -81,7 +81,7 @@ REX_TEST_CASE("The init manifest writes each module's guest path", "[codegen]") 
       {"xex_path", "default.xex"},
       {"game_root", ""},
       {"out_directory_path", "generated"},
-      {"modules", nlohmann::json::array({ModuleData()})},
+      {"modules", nlohmann::json::array({ModuleEntry()})},
   };
   rex::codegen::TemplateRegistry registry;
   const auto text = registry.Render("init/manifest_toml", data.dump());
@@ -95,14 +95,14 @@ REX_TEST_CASE("An init module entry renders from an override directory", "[codeg
                        "override {{ m.guest_path }}\n");
   rex::codegen::TemplateRegistry registry;
   registry.LoadOverrides(folder.path);
-  const nlohmann::json data = {{"m", ModuleData()}};
+  const nlohmann::json data = {{"m", ModuleEntry()}};
   REQUIRE(registry.Render("init/manifest_module", data.dump()) == "override game/a.xex\n");
 }
 
 REX_TEST_CASE("An init module entry loads back with its guest path", "[codegen]") {
   rex::test::TempFolder folder;
   rex::codegen::TemplateRegistry registry;
-  const nlohmann::json data = {{"m", ModuleData()}};
+  const nlohmann::json data = {{"m", ModuleEntry()}};
   const auto manifest = rex::codegen::ManifestConfig::Load(
       WriteProject(folder, registry.Render("init/manifest_module", data.dump())));
   REQUIRE(manifest);
@@ -126,5 +126,5 @@ longjmp_address = 0x82001000
   CHECK(manifest->shared.skip_lr);
   CHECK(manifest->entrypoint.recompiler.skip_lr);
   CHECK(manifest->entrypoint.recompiler.functions.empty());
-  CHECK(manifest->entrypoint.recompiler.long_jmp_address == 0);
+  CHECK(manifest->entrypoint.recompiler.longjmp_address == 0);
 }

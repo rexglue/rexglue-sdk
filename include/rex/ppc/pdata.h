@@ -17,10 +17,10 @@ namespace rex::ppc {
 
 /** Function type held in the 2 high bits of a pdata word. */
 enum class RuntimeFunctionType : u8 {
-  SaveMillicode,    /**< Stores registers and returns. */
-  NoHandler,        /**< A normal function. */
-  RestoreMillicode, /**< Loads registers and returns. */
-  Handler           /**< A function with handler data before it. */
+  kSaveMillicode,    /**< Stores registers and returns. */
+  kNoHandler,        /**< A normal function. */
+  kRestoreMillicode, /**< Loads registers and returns. */
+  kHandler           /**< A function with handler data before it. */
 };
 
 /** One decoded pdata entry. */
@@ -28,7 +28,7 @@ struct RuntimeFunction {
   u32 begin;                /**< Address of the first instruction. */
   RuntimeFunctionType type; /**< Function type. */
   u32 length;               /**< Instruction count including the prologue. */
-  u32 prolog;               /**< Instruction count of the prologue. */
+  u32 prologue;             /**< Instruction count of the prologue. */
 };
 
 /**

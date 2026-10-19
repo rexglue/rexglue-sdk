@@ -59,10 +59,10 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
     return;
   }
 
-  cf_pair_index_bound_ = static_cast<u32>(ucode_data_.size() / 3);
+  cf_pair_index_bound_ = static_cast<u32>(ucode_dwords_.size() / 3);
   for (u32 i = 0; i < cf_pair_index_bound_; ++i) {
     ControlFlowInstruction cf_ab[2];
-    UnpackControlFlowInstructions(ucode_data_.data() + size_t{i} * 3, cf_ab);
+    UnpackControlFlowInstructions(ucode_dwords_.data() + size_t{i} * 3, cf_ab);
     for (u32 j = 0; j < 2; ++j) {
       const ControlFlowInstruction& cf = cf_ab[j];
       if (IsControlFlowOpcodeExec(cf.GetOpcode())) {
@@ -92,7 +92,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
   u32 unique_texture_bindings = 0;
   for (u32 i = 0; i < cf_pair_index_bound_; ++i) {
     ControlFlowInstruction cf_ab[2];
-    UnpackControlFlowInstructions(ucode_data_.data() + size_t{i} * 3, cf_ab);
+    UnpackControlFlowInstructions(ucode_dwords_.data() + size_t{i} * 3, cf_ab);
     for (u32 j = 0; j < 2; ++j) {
       u32 cf_index = i * 2 + j;
       if (label_addresses_.find(cf_index) != label_addresses_.end()) {
@@ -198,7 +198,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
     std::vector<u32> successor_stack;
     for (u32 i = 0; i < cf_pair_index_bound_; ++i) {
       ControlFlowInstruction em_writing_cf_ab[2];
-      UnpackControlFlowInstructions(ucode_data_.data() + size_t{i} * 3, em_writing_cf_ab);
+      UnpackControlFlowInstructions(ucode_dwords_.data() + size_t{i} * 3, em_writing_cf_ab);
       for (u32 j = 0; j < 2; ++j) {
         u32 em_writing_cf_index = i * 2 + j;
         u32 em_written_by_cf_instr =
@@ -216,7 +216,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
           u32 successor_cf_index = successor_stack.back();
           successor_stack.pop_back();
 
-          ControlFlowMemExportInfo& successor_memexport_info =
+          ControlFlowMemExportState& successor_memexport_info =
               cf_memexport_info_[successor_cf_index];
           if ((successor_memexport_info.em_potentially_written_before & em_written_by_cf_instr) ==
               em_written_by_cf_instr) {
@@ -228,7 +228,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
           is_successor_graph_head = false;
 
           ControlFlowInstruction successor_cf_ab[2];
-          UnpackControlFlowInstructions(ucode_data_.data() + size_t{successor_cf_index >> 1} * 3,
+          UnpackControlFlowInstructions(ucode_dwords_.data() + size_t{successor_cf_index >> 1} * 3,
                                         successor_cf_ab);
           const ControlFlowInstruction& successor_cf = successor_cf_ab[successor_cf_index & 1];
 
@@ -317,7 +317,7 @@ void Shader::GatherExecInformation(const ParsedExecInstruction& instr,
     if (sequence & 0b10) {
       ucode_disasm_buffer.Append("         serialize\n             ");
     }
-    const u32* op_ptr = ucode_data_.data() + size_t{instr_offset} * 3;
+    const u32* op_ptr = ucode_dwords_.data() + size_t{instr_offset} * 3;
     if (sequence & 0b01) {
       auto& op = *reinterpret_cast<const FetchInstruction*>(op_ptr);
       if (op.GetOpcode() == FetchOpcode::kVertexFetch) {
@@ -567,7 +567,7 @@ bool ShaderTranslator::TranslateAnalyzedShader(Shader::Translation& translation)
   Reset();
 
   register_count_ = shader.GetRegisterStaticAddressBound();
-  if (shader.UsesRegisterDynamicAddressing()) {
+  if (shader.HasRegisterDynamicAddressing()) {
     // End of r# space registers may be dynamically addressed, so allocate SQ_PROGRAM_CNTL count.
     register_count_ = std::max(register_count_, GetModificationRegisterCount());
   }
@@ -576,7 +576,7 @@ bool ShaderTranslator::TranslateAnalyzedShader(Shader::Translation& translation)
 
   const u32* ucode_dwords = shader.GetUcodeData().data();
 
-  u32 cf_pair_index_bound = shader.GetCfPairIndexBound();
+  u32 cf_pair_index_bound = shader.GetCFPairIndexBound();
   const std::set<u32>& label_addresses = shader.GetLabelAddresses();
   for (u32 i = 0; i < cf_pair_index_bound; ++i) {
     ControlFlowInstruction cf_ab[2];
@@ -673,8 +673,8 @@ void ShaderTranslator::TranslateControlFlowInstruction(const ControlFlowInstruct
     case ControlFlowOpcode::kAlloc: {
       ParsedAllocInstruction instr;
       ParseControlFlowAlloc(cf.alloc, cf_index_, IsVertexShader(), instr);
-      const std::vector<Shader::ControlFlowMemExportInfo>& cf_memexport_info =
-          GetCurrentShader().GetCfMemexportInfo();
+      const std::vector<Shader::ControlFlowMemExportState>& cf_memexport_info =
+          GetCurrentShader().GetControlFlowMemExportState();
       ProcessAllocInstruction(
           instr, instr.dword_index < cf_memexport_info.size()
                      ? cf_memexport_info[instr.dword_index].em_potentially_written_before
@@ -813,8 +813,8 @@ void ParseControlFlowAlloc(const ControlFlowAllocInstruction& cf, u32 cf_index,
 void ShaderTranslator::TranslateExecInstructions(const ParsedExecInstruction& instr) {
   ProcessExecInstructionBegin(instr);
 
-  const std::vector<Shader::ControlFlowMemExportInfo>& cf_memexport_info =
-      GetCurrentShader().GetCfMemexportInfo();
+  const std::vector<Shader::ControlFlowMemExportState>& cf_memexport_info =
+      GetCurrentShader().GetControlFlowMemExportState();
   u8 em_potentially_written_before =
       instr.dword_index < cf_memexport_info.size()
           ? cf_memexport_info[instr.dword_index].em_potentially_written_before
@@ -844,7 +844,7 @@ void ShaderTranslator::TranslateExecInstructions(const ParsedExecInstruction& in
       auto& op = *reinterpret_cast<const AluInstruction*>(op_ptr);
       ParsedAluInstruction alu_instr;
       ParseAluInstruction(op, GetCurrentShader().GetType(), alu_instr);
-      ProcessAluInstruction(alu_instr, em_potentially_written_before);
+      ProcessALUInstruction(alu_instr, em_potentially_written_before);
       if (alu_instr.vector_and_constant_result.storage_target ==
               InstructionStorageTarget::kExportData &&
           alu_instr.vector_and_constant_result.GetUsedWriteMask()) {
@@ -941,7 +941,7 @@ bool ParseVertexFetchInstruction(const VertexFetchInstruction& op,
   instr.attributes.is_index_rounded = full_op.IsIndexRounded();
   instr.attributes.is_signed = op.IsSigned();
   instr.attributes.is_integer = !op.IsNormalized();
-  instr.attributes.signed_rf_mode = op.GetSignedRfMode();
+  instr.attributes.signed_rf_mode = op.GetSignedRFMode();
 
   return !op.IsMiniFetch();
 }
@@ -1027,17 +1027,17 @@ void ParseTextureFetchInstruction(const TextureFetchInstruction& op,
   }
 
   if (opcode_info.has_attributes) {
-    instr.attributes.fetch_valid_only = op.GetFetchValidOnly();
-    instr.attributes.unnormalized_coordinates = op.GetUnnormalizedCoordinates();
+    instr.attributes.fetch_valid_only = op.IsFetchValidOnly();
+    instr.attributes.unnormalized_coordinates = op.HasUnnormalizedCoordinates();
     instr.attributes.mag_filter = op.GetMagFilter();
     instr.attributes.min_filter = op.GetMinFilter();
     instr.attributes.mip_filter = op.GetMipFilter();
     instr.attributes.aniso_filter = op.GetAnisoFilter();
     instr.attributes.vol_mag_filter = op.GetVolMagFilter();
     instr.attributes.vol_min_filter = op.GetVolMinFilter();
-    instr.attributes.use_computed_lod = op.UsesComputedLOD();
-    instr.attributes.use_register_lod = op.UsesRegisterLOD();
-    instr.attributes.use_register_gradients = op.UsesRegisterGradients();
+    instr.attributes.use_computed_lod = op.IsComputedLODUsed();
+    instr.attributes.use_register_lod = op.IsRegisterLODUsed();
+    instr.attributes.use_register_gradients = op.AreRegisterGradientsUsed();
     instr.attributes.lod_bias = op.GetLODBias();
     instr.attributes.offset_x = op.GetOffsetX();
     instr.attributes.offset_y = op.GetOffsetY();
@@ -1109,7 +1109,7 @@ static void ParseAluInstructionOperand(const AluInstruction& op, u32 i, u32 swiz
     } else {
       out_op.storage_addressing_mode = InstructionStorageAddressingMode::kAbsolute;
     }
-    out_op.is_absolute_value = op.GetAbsConstants();
+    out_op.is_absolute_value = op.HasAbsConstants();
   }
   out_op.component_count = swizzle_component_count;
   u32 swizzle = op.GetSrcSwizzle(i);
@@ -1219,7 +1219,7 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
 
   xenos::ucode::AluVectorOpcode vector_opcode = op.GetVectorOpcode();
   instr.vector_opcode = vector_opcode;
-  const xenos::ucode::AluVectorOpcodeInfo& vector_opcode_info =
+  const xenos::ucode::AluVectorOpcodeTraits& vector_opcode_info =
       xenos::ucode::GetAluVectorOpcodeInfo(vector_opcode);
   instr.vector_opcode_name = vector_opcode_info.name;
 
@@ -1235,7 +1235,7 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
           InstructionStorageAddressingMode::kLoopRelative;
     }
   }
-  instr.vector_and_constant_result.is_clamped = op.GetVectorClamp();
+  instr.vector_and_constant_result.is_clamped = op.IsVectorClamped();
   u32 constant_0_mask = op.GetConstant0WriteMask();
   u32 constant_1_mask = op.GetConstant1WriteMask();
   instr.vector_and_constant_result.original_write_mask =
@@ -1258,7 +1258,7 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
 
   xenos::ucode::AluScalarOpcode scalar_opcode = op.GetScalarOpcode();
   instr.scalar_opcode = scalar_opcode;
-  const xenos::ucode::AluScalarOpcodeInfo& scalar_opcode_info =
+  const xenos::ucode::AluScalarOpcodeTraits& scalar_opcode_info =
       xenos::ucode::GetAluScalarOpcodeInfo(scalar_opcode);
   instr.scalar_opcode_name = scalar_opcode_info.name;
 
@@ -1272,7 +1272,7 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
       instr.scalar_result.storage_addressing_mode = InstructionStorageAddressingMode::kLoopRelative;
     }
   }
-  instr.scalar_result.is_clamped = op.GetScalarClamp();
+  instr.scalar_result.is_clamped = op.IsScalarClamped();
   instr.scalar_result.original_write_mask = op.GetScalarOpResultWriteMask();
   for (u32 i = 0; i < 4; ++i) {
     instr.scalar_result.components[i] = GetSwizzleFromComponentIndex(i);
@@ -1290,7 +1290,7 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
       // Left-hand constant operand (`a`, W swizzle).
       InstructionOperand& const_op = instr.scalar_operands[0];
       const_op.is_negated = src3_negate;
-      const_op.is_absolute_value = op.GetAbsConstants();
+      const_op.is_absolute_value = op.HasAbsConstants();
       const_op.storage_source = InstructionStorageSource::kConstantFloat;
       const_op.storage_index = op.GetSrcReg(3);
       if (op.IsSrcConstAddressed(3)) {
@@ -1309,7 +1309,7 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
       // Right-hand temporary register operand (`b`, X swizzle).
       InstructionOperand& temp_op = instr.scalar_operands[1];
       temp_op.is_negated = src3_negate;
-      temp_op.is_absolute_value = op.GetAbsConstants();
+      temp_op.is_absolute_value = op.HasAbsConstants();
       temp_op.storage_source = InstructionStorageSource::kRegister;
       temp_op.storage_index = op.GetScalarConstRegOpSrcTempReg();
       temp_op.storage_addressing_mode = InstructionStorageAddressingMode::kAbsolute;

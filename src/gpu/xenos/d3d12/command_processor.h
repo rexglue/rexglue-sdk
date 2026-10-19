@@ -261,8 +261,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   Shader* LoadShader(xenos::ShaderType shader_type, u32 guest_address, const u32* host_address,
                      u32 dword_count) override;
 
-  bool IssueDraw(xenos::PrimitiveType primitive_type, u32 index_count,
-                 IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;
+  bool IssueDraw(xenos::PrimitiveType primitive_type, u32 index_count, IndexBuffer* index_buffer,
+                 bool major_mode_explicit) override;
   bool IssueCopy() override;
 
  private:
@@ -387,7 +387,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void PushDebugMarker(const char* format, ...);
   void PopDebugMarker();
   void InsertDebugMarker(const char* format, ...);
-  bool GetDebugMarkersEnabled() const { return debug_markers_enabled_; }
+  bool AreDebugMarkersEnabled() const { return debug_markers_enabled_; }
 
   // Submission completion must be awaited before this.
   void ClearCommandAllocatorCache();
@@ -413,12 +413,12 @@ class D3D12CommandProcessor : public CommandProcessor {
                                        D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
                                        D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
 
-  void UpdateFixedFunctionState(const draw_state::ViewportInfo& viewport_info,
+  void UpdateFixedFunctionState(const draw_state::HostViewport& host_viewport,
                                 const draw_state::Scissor& scissor, bool primitive_polygonal,
                                 xenos::reg::RB_DEPTHCONTROL normalized_depth_control);
   void UpdateSystemConstantValues(bool shared_memory_is_uav, bool primitive_polygonal,
                                   u32 line_loop_closing_index, xenos::Endian index_endian,
-                                  const draw_state::ViewportInfo& viewport_info,
+                                  const draw_state::HostViewport& host_viewport,
                                   u32 used_texture_mask,
                                   xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                                   u32 normalized_color_mask);
@@ -499,7 +499,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   bool debug_markers_enabled_ = false;
 
-  /** Caches viewport info to skip GetHostViewportInfo when affecting registers are unchanged. */
+  /** Caches viewport info to skip GetHostViewport when affecting registers are unchanged. */
   struct ViewportCacheKey {
     u32 pa_cl_clip_cntl;
     u32 pa_cl_vte_cntl;
@@ -514,7 +514,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     bool operator==(const ViewportCacheKey&) const = default;
   };
   ViewportCacheKey previous_viewport_key_{};
-  draw_state::ViewportInfo previous_viewport_info_{};
+  draw_state::HostViewport previous_host_viewport_{};
   bool viewport_cache_valid_ = false;
 
   /**
@@ -527,8 +527,8 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<D3D12RenderTargetCache> render_target_cache_;
 
-  static constexpr u32 kTitleStateValid = u32{1} << 31;
-  std::atomic<u32> title_state_{0};
+  static constexpr u32 kWindowTitleStateValid = u32{1} << 31;
+  std::atomic<u32> window_title_state_{0};
 
   std::unique_ptr<gpu::d3d12::D3D12UploadBufferPool> constant_buffer_pool_;
 
@@ -621,11 +621,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   Microsoft::WRL::ComPtr<ID3D12PipelineState> apply_gamma_pwl_pipeline_;
   Microsoft::WRL::ComPtr<ID3D12PipelineState> apply_gamma_pwl_fxaa_luma_pipeline_;
 
-  struct FxaaConstants {
+  struct FXAAConstants {
     u32 size[2];
     f32 size_inv[2];
   };
-  enum class FxaaRootParameter : u8 {
+  enum class FXAARootParameter : u8 {
     kConstants,
     kDestination,
     kSource,
@@ -661,7 +661,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * bits generated with an increment of 2^3 and leaves room for fractional luma weights. That
    * avoids modifying the FXAA shader or adding fetches for a separate alpha texture.
    */
-  static constexpr DXGI_FORMAT kFxaaSourceTextureFormat = DXGI_FORMAT_R16G16B16A16_UNORM;
+  static constexpr DXGI_FORMAT kFXAASourceTextureFormat = DXGI_FORMAT_R16G16B16A16_UNORM;
   /** Kept in NON_PIXEL_SHADER_RESOURCE state. */
   Microsoft::WRL::ComPtr<ID3D12Resource> fxaa_source_texture_;
   u64 fxaa_source_texture_submission_ = 0;

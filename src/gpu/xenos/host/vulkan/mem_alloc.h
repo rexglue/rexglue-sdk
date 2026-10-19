@@ -28,7 +28,7 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-VmaAllocator CreateVmaAllocator(const VulkanDevice* vulkan_device, bool externally_synchronized);
+VmaAllocator CreateVMAAllocator(const VulkanDevice* vulkan_device, bool externally_synchronized);
 
 }  // namespace vulkan
 }  // namespace gpu

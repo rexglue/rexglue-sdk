@@ -24,7 +24,7 @@ namespace rex {
  * Icon and severity of a simple message box.
  */
 enum class SimpleMessageBoxType : u8 {
-  kHelp,    /**< Informational message. */
+  kInfo,    /**< Informational message. */
   kWarning, /**< Warning message. */
   kError,   /**< Error message. */
 };

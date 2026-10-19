@@ -14,28 +14,28 @@
 using rex::platform::Fiber;
 
 // Fiber entry functions cannot capture closures, so these are globals.
-static Fiber* s_main = nullptr;
-static int s_count = 0;
+static Fiber* g_main = nullptr;
+static int g_count = 0;
 
 static void CountingFiber(void*) {
-  ++s_count;
-  Fiber::SwitchTo(s_main);
-  ++s_count;
-  Fiber::SwitchTo(s_main);
+  ++g_count;
+  Fiber::SwitchTo(g_main);
+  ++g_count;
+  Fiber::SwitchTo(g_main);
 }
 
 REX_TEST_CASE("rex::platform::Fiber switches context", "[core][fiber]") {
-  s_count = 0;
-  s_main = Fiber::ConvertCurrentThread();
+  g_count = 0;
+  g_main = Fiber::ConvertCurrentThread();
   auto* f = Fiber::Create(size_t{256} * 1024, CountingFiber, nullptr);
 
-  REQUIRE(s_count == 0);
+  REQUIRE(g_count == 0);
   Fiber::SwitchTo(f);
-  REQUIRE(s_count == 1);
+  REQUIRE(g_count == 1);
   Fiber::SwitchTo(f);
-  REQUIRE(s_count == 2);
+  REQUIRE(g_count == 2);
 
   f->Destroy();
-  s_main->Destroy();
-  s_main = nullptr;
+  g_main->Destroy();
+  g_main = nullptr;
 }

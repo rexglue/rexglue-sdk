@@ -110,7 +110,7 @@ std::vector<TestSpec> ParseTestSpecs(std::istream& in,
 
   std::string line;
   bool in_block_comment = false;
-  auto getline = [&]() -> bool {
+  auto read_line = [&]() -> bool {
     while (std::getline(in, line)) {
       line = rex::TrimString(line);
       if (in_block_comment) {
@@ -147,7 +147,7 @@ std::vector<TestSpec> ParseTestSpecs(std::istream& in,
     spec.reset();
   };
 
-  while (getline()) {
+  while (read_line()) {
     if (line.empty())
       continue;
     if (line[0] == '#') {

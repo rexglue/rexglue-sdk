@@ -140,7 +140,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
   size_t z_order_;
   FontSetupCallback font_setup_;
 
-  ImGuiContext* internal_state_ = nullptr;
+  ImGuiContext* context_ = nullptr;
 
   std::vector<ImGuiDialog*> dialogs_;
   std::atomic<u32>* dialog_counter_ = nullptr;

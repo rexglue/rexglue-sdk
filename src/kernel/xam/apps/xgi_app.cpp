@@ -23,9 +23,9 @@ using namespace rex::runtime;
 namespace apps {
 using namespace rex::runtime;
 
-XgiApp::XgiApp(Runtime& runtime) : App(runtime, 0xFB) {}
+XGIApp::XGIApp(Runtime& runtime) : App(runtime, 0xFB) {}
 
-X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
+X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
   switch (message) {
     case 0x000B0006: {
       REX_ASSERT(!buffer_length || buffer_length == 24);
@@ -251,15 +251,15 @@ X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       struct {
         be_u32 obj_ptr;
         be_u32 flags;
-        be_u32 maxPublicSlots;
-        be_u16 maxPrivateSlots;
+        be_u32 max_public_slots;
+        be_u16 max_private_slots;
         u8 pad_0e[2];
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       REX_STATIC_ASSERT_SIZE(decltype(*args), 16);
       u32 obj_ptr = args->obj_ptr;
       u32 flags = args->flags;
-      u32 max_public_slots = args->maxPublicSlots;
-      u16 max_private_slots = args->maxPrivateSlots;
+      u32 max_public_slots = args->max_public_slots;
+      u16 max_private_slots = args->max_private_slots;
 
       REXLOG_DEBUG(kernel, "XSessionModify({:08X}, {:08X}, {:08X}, {:08X})", obj_ptr, flags,
                    max_public_slots, max_private_slots);
@@ -537,14 +537,14 @@ X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
 
       struct {
         be_u32 user_index;
-        be_u32 AnId_buffer_size;
-        be_u32 AnId_buffer_ptr;
+        be_u32 anid_buffer_size;
+        be_u32 anid_buffer_ptr;
         be_u32 block;
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       REX_STATIC_ASSERT_SIZE(decltype(*args), 16);
       u32 user_index = args->user_index;
-      u32 anid_buffer_size = args->AnId_buffer_size;
-      u32 anid_buffer_ptr = args->AnId_buffer_ptr;
+      u32 anid_buffer_size = args->anid_buffer_size;
+      u32 anid_buffer_ptr = args->anid_buffer_ptr;
       u32 block = args->block;
 
       REXLOG_DEBUG(kernel, "XUserGetANID({:08X}, {:08X}, {:08X}, {:08X})", user_index,

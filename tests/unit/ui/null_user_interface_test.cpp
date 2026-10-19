@@ -49,13 +49,13 @@ REX_TEST_CASE("Prompt completes cancelled at once", "[ui]") {
   NullUserInterface ui;
   bool called = false;
   PromptResult result;
-  result.cancelled = false;
+  result.canceled = false;
   ui.Prompt(PromptDesc{}, [&](PromptResult value) {
     called = true;
     result = std::move(value);
   });
   CHECK(called);
-  CHECK(result.cancelled);
+  CHECK(result.canceled);
 }
 
 REX_TEST_CASE("ShowChoice returns the first button", "[ui]") {
@@ -106,7 +106,7 @@ REX_TEST_CASE("RunSynchronous runs inline on the UI thread and posts from anothe
 REX_TEST_CASE("PumpFrame returns false after Quit and after CloseWindow", "[ui]") {
   NullUserInterface quit_ui;
   CHECK(quit_ui.PumpFrame());
-  quit_ui.Quit();
+  quit_ui.EndFrameLoop();
   CHECK_FALSE(quit_ui.PumpFrame());
 
   NullUserInterface close_ui;
@@ -119,7 +119,7 @@ REX_TEST_CASE("PumpFrame returns false after Quit and after CloseWindow", "[ui]"
 
 REX_TEST_CASE("Post returns false once the loop quit and RunSynchronous does not wait", "[ui]") {
   NullUserInterface quit_ui;
-  quit_ui.Quit();
+  quit_ui.EndFrameLoop();
   CHECK_FALSE(quit_ui.Post([] {}));
 
   NullUserInterface close_ui;
@@ -167,7 +167,7 @@ REX_TEST_CASE("RunSynchronous work abandoned at Quit never runs", "[ui]") {
     (void)local;
   });
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  ui.Quit();
+  ui.EndFrameLoop();
   worker.join();
   ui.PumpFrame();
   CHECK_FALSE(ran);

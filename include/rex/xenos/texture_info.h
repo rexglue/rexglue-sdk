@@ -198,8 +198,8 @@ struct REX_API TextureExtent {
    *
    * @param format_info Block layout of the texture.
    * @param pitch Row pitch in texels.
-   * @param height Height in texels.
-   * @param depth Depth in layers.
+   * @param height_minus_1 Height in texels.
+   * @param depth_or_array_size_minus_1 Depth in layers.
    * @param is_tiled True for a tiled texture, false for a linear one.
    * @param is_guest True to pad to 32x32 block tiles and 256 byte linear rows as guest memory
    *        does, false for a packed host layout.
@@ -228,7 +228,7 @@ struct REX_API TextureExtent {
 };
 
 /** Guest memory ranges of a texture. */
-struct TextureMemoryInfo {
+struct TextureMemoryRanges {
   u32 base_address; /**< Address of the base level, or 0 when absent. */
   u32 base_size;    /**< Size of the base level in bytes. */
   u32 mip_address;  /**< Address of the mip levels, or 0 when absent. */
@@ -240,7 +240,7 @@ struct TextureMemoryInfo {
    * @param other The ranges to compare with.
    * @return True when every field matches.
    */
-  bool operator==(const TextureMemoryInfo& other) const = default;
+  bool operator==(const TextureMemoryRanges& other) const = default;
 };
 
 /** Texture description decoded from a fetch constant or a resolve. */
@@ -248,19 +248,19 @@ struct REX_API TextureInfo {
   xenos::TextureFormat format; /**< Texel format. */
   xenos::Endian endianness;    /**< Swap mode of the texel data. */
 
-  xenos::DataDimension dimension; /**< Dimension, with 1D stored as 2D. */
-  u32 width;                      /**< Width in texels minus 1. */
-  u32 height;                     /**< Height in texels minus 1. */
-  u32 depth;                      /**< Depth or array size minus 1. */
-  u32 pitch;                      /**< Row pitch in texels. */
-  u32 mip_min_level;              /**< First stored mip level. */
-  u32 mip_max_level;              /**< Last stored mip level. */
-  bool is_stacked;                /**< True for a 2D array. */
-  bool is_tiled;                  /**< True for tiled data, false for linear. */
-  bool has_packed_mips;           /**< True when small mips share a packed tile. */
+  xenos::DataDimension dimension;  /**< Dimension, with 1D stored as 2D. */
+  u32 width_minus_1;               /**< Width in texels minus 1. */
+  u32 height_minus_1;              /**< Height in texels minus 1. */
+  u32 depth_or_array_size_minus_1; /**< Depth or array size minus 1. */
+  u32 pitch;                       /**< Row pitch in texels. */
+  u32 mip_min_level;               /**< First stored mip level. */
+  u32 mip_max_level;               /**< Last stored mip level. */
+  bool is_stacked;                 /**< True for a 2D array. */
+  bool is_tiled;                   /**< True for tiled data, false for linear. */
+  bool has_packed_mips;            /**< True when small mips share a packed tile. */
 
-  TextureMemoryInfo memory; /**< Guest memory ranges. */
-  TextureExtent extent;     /**< Base level extent in the guest layout. */
+  TextureMemoryRanges memory; /**< Guest memory ranges. */
+  TextureExtent extent;       /**< Base level extent in the guest layout. */
 
   /**
    * Returns the block layout of format.
@@ -290,7 +290,7 @@ struct REX_API TextureInfo {
    * @param out_info Receives the texture description.
    * @return True on success.
    */
-  static bool Prepare(const xenos::TextureFetch& fetch, TextureInfo* out_info);
+  static bool FromFetchConstant(const xenos::TextureFetch& fetch, TextureInfo* out_info);
 
   /**
    * Describes a tiled 2D resolve destination with a single level.
@@ -299,15 +299,15 @@ struct REX_API TextureInfo {
    * @param texture_format Texel format.
    * @param endian Swap mode of the texel data.
    * @param pitch Row pitch in texels.
-   * @param width Width in texels, at least 1.
-   * @param height Height in texels, at least 1.
-   * @param depth Depth in layers.
+   * @param width_minus_1 Width in texels, at least 1.
+   * @param height_minus_1 Height in texels, at least 1.
+   * @param depth_or_array_size_minus_1 Depth in layers.
    * @param out_info Receives the texture description.
    * @return True on success.
    */
-  static bool PrepareResolve(u32 physical_address, xenos::TextureFormat texture_format,
-                             xenos::Endian endian, u32 pitch, u32 width, u32 height, u32 depth,
-                             TextureInfo* out_info);
+  static bool FromResolve(u32 physical_address, xenos::TextureFormat texture_format,
+                          xenos::Endian endian, u32 pitch, u32 width, u32 height, u32 depth,
+                          TextureInfo* out_info);
 
   /**
    * Returns the mip level count of a full chain for the texture size.
@@ -331,8 +331,9 @@ struct REX_API TextureInfo {
    * Computes the size of a mip level in texels.
    *
    * @param mip The mip level.
-   * @param width Receives the width in texels, rounded to a power of 2 for levels above 0.
-   * @param height Receives the height in texels, rounded to a power of 2 for levels above 0.
+   * @param width_minus_1 Receives the width in texels, rounded to a power of 2 for levels above 0.
+   * @param height_minus_1 Receives the height in texels, rounded to a power of 2 for levels above
+   * 0.
    */
   void GetMipSize(u32 mip, u32* width, u32* height) const;
 
@@ -350,16 +351,16 @@ struct REX_API TextureInfo {
   /**
    * Computes the block offset of a level within a packed tile.
    *
-   * @param width Width of the packed level set in texels.
-   * @param height Height of the packed level set in texels.
+   * @param width_minus_1 Width of the packed level set in texels.
+   * @param height_minus_1 Height of the packed level set in texels.
    * @param format_info Block layout of the texture.
    * @param packed_tile Index of the level within the packed tile.
    * @param offset_x Receives the X offset in blocks.
    * @param offset_y Receives the Y offset in blocks.
    * @return False when the level is too large to be packed, with both offsets set to 0.
    */
-  static bool GetPackedTileOffset(u32 width, u32 height, const FormatInfo* format_info,
-                                  u32 packed_tile, u32* offset_x, u32* offset_y);
+  static bool GetPackedMipOffset(u32 width, u32 height, const FormatInfo* format_info,
+                                 u32 packed_tile, u32* offset_x, u32* offset_y);
 
   /**
    * Computes the block offset of a level of this texture within its packed tile.
@@ -369,7 +370,7 @@ struct REX_API TextureInfo {
    * @param offset_y Receives the Y offset in blocks.
    * @return False when the texture has no packed mips or the level is not packed.
    */
-  bool GetPackedTileOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const;
+  bool GetPackedMipOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const;
 
   /**
    * Returns the 64 bit XXH3 hash of every field.
@@ -387,7 +388,7 @@ struct REX_API TextureInfo {
   bool operator==(const TextureInfo& other) const = default;
 
  private:
-  void SetupMemoryInfo(u32 base_address, u32 mip_address);
+  void SetupMemoryRanges(u32 base_address, u32 mip_address);
 };
 
 }  // namespace rex::xenos

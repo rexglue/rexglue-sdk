@@ -29,9 +29,9 @@ struct FilledStorage {
     info->format = rex::xenos::TextureFormat::k_8_8_8_8;
     info->endianness = rex::xenos::Endian::k8in32;
     info->dimension = rex::xenos::DataDimension::k2DOrStacked;
-    info->width = 63;
-    info->height = 31;
-    info->depth = 0;
+    info->width_minus_1 = 63;
+    info->height_minus_1 = 31;
+    info->depth_or_array_size_minus_1 = 0;
     info->pitch = 64;
     info->mip_min_level = 0;
     info->mip_max_level = 6;

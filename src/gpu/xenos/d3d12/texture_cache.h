@@ -115,9 +115,9 @@ class D3D12TextureCache final : public TextureCache {
    * @param host_shader_binding_count Element count of both arrays.
    * @return True when the keys are up to date.
    */
-  bool AreActiveTextureSRVKeysUpToDate(const TextureSRVKey* keys,
-                                       const D3D12Shader::TextureBinding* host_shader_bindings,
-                                       size_t host_shader_binding_count) const;
+  bool IsActiveTextureSRVKeysUpToDate(const TextureSRVKey* keys,
+                                      const D3D12Shader::TextureBinding* host_shader_bindings,
+                                      size_t host_shader_binding_count) const;
   /**
    * Exports the current binding data to texture SRV keys, for checking whether subsequent draw
    * calls can keep using the same bindings.
@@ -168,8 +168,8 @@ class D3D12TextureCache final : public TextureCache {
    * @param length_scaled_alignment_log2 Log2 of the scaled length alignment.
    * @return True when the tiles are allocated.
    */
-  bool EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u32 length_unscaled,
-                                          u32 length_scaled_alignment_log2 = 0) override;
+  bool CommitScaledResolveMemory(u32 start_unscaled, u32 length_unscaled,
+                                 u32 length_scaled_alignment_log2 = 0) override;
   /**
    * Makes the range of up to 1 to 2 GB accessible on the GPU. A draw call can access only 1
    * range, and the same memory is accessible through different buffers depending on the range,
@@ -199,10 +199,10 @@ class D3D12TextureCache final : public TextureCache {
   void CreateCurrentScaledResolveRangeUintPow2UAV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                                   u32 element_size_bytes_pow2);
   void TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATES new_state);
-  u64 GetCurrentScaledResolveRangeStartScaled() const {
+  u64 GetCurrentScaledResolveRangeStart() const {
     return scaled_resolve_current_range_start_scaled_;
   }
-  u64 GetCurrentScaledResolveRangeLengthScaled() const {
+  u64 GetCurrentScaledResolveRangeLength() const {
     return scaled_resolve_current_range_length_scaled_;
   }
   ID3D12Resource* GetCurrentScaledResolveBufferResource() {

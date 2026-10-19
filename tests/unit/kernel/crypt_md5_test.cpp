@@ -21,13 +21,13 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::Hex;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
-using rex::testing::PutFilled;
-using rex::testing::ToHex;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::Hex;
+using rex::test::KernelFixture;
+using rex::test::PutFilled;
+using rex::test::ReadBytes;
+using rex::test::ToHex;
 
 namespace {
 
@@ -212,11 +212,11 @@ std::string Md5Streaming(Caller& c, const std::vector<u8>& data, u32 chunk) {
   for (u32 offset = 0; offset < data.size(); offset += chunk) {
     const u32 size = std::min<u32>(chunk, static_cast<u32>(data.size()) - offset);
     c.Kernel("XeCryptMd5Update",
-             {state, Put(c, std::span<const u8>(data).subspan(offset, size)), size});
+             {state, CopyToGuest(c, std::span<const u8>(data).subspan(offset, size)), size});
   }
   const u32 output = PutFilled(c, 16);
   c.Kernel("XeCryptMd5Final", {state, output, 16});
-  return ToHex(Get(c, output, 16));
+  return ToHex(ReadBytes(c, output, 16));
 }
 
 }  // namespace
@@ -228,8 +228,8 @@ REX_TEST_CASE("XeCryptMd5 matches hashlib for every size from 0 to 200", "[kerne
       INFO(size);
       const std::vector<u8> data = Pattern(size);
       const u32 output = PutFilled(c, 16);
-      c.Kernel("XeCryptMd5", {Put(c, data), size, 0, 0, 0, 0, output, 16});
-      CHECK(ToHex(Get(c, output, 16)) == kPatternDigests[size]);
+      c.Kernel("XeCryptMd5", {CopyToGuest(c, data), size, 0, 0, 0, 0, output, 16});
+      CHECK(ToHex(ReadBytes(c, output, 16)) == kPatternDigests[size]);
     }
   });
 }
@@ -259,14 +259,15 @@ REX_TEST_CASE("XeCryptMd5 and XeCryptHmacMd5 match the measured results", "[kern
       const std::vector<u8> third = Hex(rest.substr(split + 1));
       const u32 output = PutFilled(c, 16);
       if (std::string_view(item.name).starts_with("hmac")) {
-        c.Kernel("XeCryptHmacMd5",
-                 {Put(c, key), key.size(), Put(c, first), first.size(), 0, 0, 0, 0, output, 16});
+        c.Kernel("XeCryptHmacMd5", {CopyToGuest(c, key), key.size(), CopyToGuest(c, first),
+                                    first.size(), 0, 0, 0, 0, output, 16});
       } else {
-        c.Kernel("XeCryptMd5", {first.empty() ? 0 : Put(c, first), first.size(),
-                                second.empty() ? 0 : Put(c, second), second.size(),
-                                third.empty() ? 0 : Put(c, third), third.size(), output, 16});
+        c.Kernel("XeCryptMd5",
+                 {first.empty() ? 0 : CopyToGuest(c, first), first.size(),
+                  second.empty() ? 0 : CopyToGuest(c, second), second.size(),
+                  third.empty() ? 0 : CopyToGuest(c, third), third.size(), output, 16});
       }
-      CHECK(ToHex(Get(c, output, 16)) == item.output);
+      CHECK(ToHex(ReadBytes(c, output, 16)) == item.output);
     }
   });
 }
@@ -282,13 +283,13 @@ REX_TEST_CASE("XeCryptHmacMd5Final matches the measured RFC 2202 results", "[ker
       const std::vector<u8> key = Hex(item.key);
       const std::vector<u8> data = Hex(item.first);
       const u32 state = PutFilled(c, 0x200);
-      c.Kernel("XeCryptHmacMd5Init", {state, Put(c, key), key.size()});
+      c.Kernel("XeCryptHmacMd5Init", {state, CopyToGuest(c, key), key.size()});
       for (const u8 byte : data) {
-        c.Kernel("XeCryptHmacMd5Update", {state, Put(c, std::span<const u8>(&byte, 1)), 1});
+        c.Kernel("XeCryptHmacMd5Update", {state, CopyToGuest(c, std::span<const u8>(&byte, 1)), 1});
       }
       const u32 output = PutFilled(c, 16);
       c.Kernel("XeCryptHmacMd5Final", {state, output, 16});
-      CHECK(ToHex(Get(c, output, 16)) == item.output);
+      CHECK(ToHex(ReadBytes(c, output, 16)) == item.output);
     }
   });
 }
@@ -300,14 +301,14 @@ REX_TEST_CASE("The MD5 states match the measured layouts", "[kernel][crypt][md5]
     const std::vector<u8> hmac_key(16, 0x0B);
     const u32 md5 = PutFilled(c, 0x200);
     c.Kernel("XeCryptMd5Init", {md5});
-    CHECK(ToHex(Get(c, md5, 0x180)) == kMd5Init);
-    c.Kernel("XeCryptMd5Update", {md5, Put(c, abc), 3});
-    CHECK(ToHex(Get(c, md5, 0x180)) == kMd5Update);
+    CHECK(ToHex(ReadBytes(c, md5, 0x180)) == kMd5Init);
+    c.Kernel("XeCryptMd5Update", {md5, CopyToGuest(c, abc), 3});
+    CHECK(ToHex(ReadBytes(c, md5, 0x180)) == kMd5Update);
 
     const u32 hmac = PutFilled(c, 0x200);
-    c.Kernel("XeCryptHmacMd5Init", {hmac, Put(c, hmac_key), 16});
-    CHECK(ToHex(Get(c, hmac, 0x180)) == kHmacInit);
-    c.Kernel("XeCryptHmacMd5Update", {hmac, Put(c, abc), 3});
-    CHECK(ToHex(Get(c, hmac, 0x180)) == kHmacUpdate);
+    c.Kernel("XeCryptHmacMd5Init", {hmac, CopyToGuest(c, hmac_key), 16});
+    CHECK(ToHex(ReadBytes(c, hmac, 0x180)) == kHmacInit);
+    c.Kernel("XeCryptHmacMd5Update", {hmac, CopyToGuest(c, abc), 3});
+    CHECK(ToHex(ReadBytes(c, hmac, 0x180)) == kHmacUpdate);
   });
 }

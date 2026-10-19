@@ -100,26 +100,26 @@ bool ModuleRegistry::RemoveUser(X_HANDLE handle) {
   return true;
 }
 
-std::optional<X_HANDLE> ModuleRegistry::FindKernel(std::string_view name) {
+std::optional<X_HANDLE> ModuleRegistry::FindKernelModule(std::string_view name) {
   for (X_HANDLE handle : GetKernelModules()) {
-    if (auto module = table_.Get<ModuleObject>(handle); module && module->Matches(name)) {
+    if (auto module = table_.Get<ModuleObject>(handle); module && module->IsNamed(name)) {
       return handle;
     }
   }
   return std::nullopt;
 }
 
-std::optional<X_HANDLE> ModuleRegistry::FindUser(std::string_view name) {
+std::optional<X_HANDLE> ModuleRegistry::FindUserModule(std::string_view name) {
   for (X_HANDLE handle : GetUserModules()) {
-    if (auto module = table_.Get<ModuleObject>(handle); module && module->Matches(name)) {
+    if (auto module = table_.Get<ModuleObject>(handle); module && module->IsNamed(name)) {
       return handle;
     }
   }
   return std::nullopt;
 }
 
-bool ModuleRegistry::IsKernel(std::string_view name) {
-  return !name.empty() && FindKernel(name).has_value();
+bool ModuleRegistry::IsKernelModule(std::string_view name) {
+  return !name.empty() && FindKernelModule(name).has_value();
 }
 
 std::optional<X_HANDLE> ModuleRegistry::GetExecutable() const {
@@ -162,12 +162,12 @@ std::vector<X_HANDLE> ModuleRegistry::GetUserModules() {
 
 bool ModuleRegistry::BeginLoad(std::string_view path) {
   std::lock_guard lock(mutex_);
-  return loading_paths_.emplace(StringKeyCase::Create(path)).second;
+  return loading_paths_.emplace(StringKeyIgnoreCase::Create(path)).second;
 }
 
 void ModuleRegistry::EndLoad(const std::string& path) {
   std::lock_guard lock(mutex_);
-  loading_paths_.erase(StringKeyIgnoreCase(std::string_view(path)));
+  loading_paths_.erase(StringKeyIgnoreCase::Create(path));
 }
 
 void ModuleRegistry::Shutdown() {
@@ -220,7 +220,7 @@ std::optional<X_HANDLE> ModuleRegistry::GetModule(std::string_view name, bool us
   }
 
   if (!user_only) {
-    if (auto kernel_module = FindKernel(name)) {
+    if (auto kernel_module = FindKernelModule(name)) {
       return kernel_module;
     }
   }
@@ -230,10 +230,10 @@ std::optional<X_HANDLE> ModuleRegistry::GetModule(std::string_view name, bool us
     path = entry->absolute_path;
   }
 
-  return FindUser(path);
+  return FindUserModule(path);
 }
 
-Result<X_HANDLE> ModuleRegistry::LoadKernelModule(X_HANDLE created) {
+Result<X_HANDLE> ModuleRegistry::RegisterKernelModule(X_HANDLE created) {
   const X_HANDLE owned = AddKernel(created);
   if (!owned) {
     return Err<X_HANDLE>(StatusError(X_STATUS_INVALID_HANDLE));
@@ -336,7 +336,7 @@ X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view p
     return X_STATUS_UNSUCCESSFUL;
   }
   for (const XEXModule::ImportLibrary& library : xex->GetImportLibraries()) {
-    if (rex::runtime::ModuleFromName(library.name) || IsKernel(library.name)) {
+    if (rex::runtime::ModuleFromName(library.name) || IsKernelModule(library.name)) {
       continue;
     }
     const Result<X_HANDLE> handle = FindImportLibrary(module, path, library, call_entry);
@@ -348,9 +348,10 @@ X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view p
     if (!dependency) {
       return X_STATUS_DLL_NOT_FOUND;
     }
-    for (const XEXModule::ImportLibraryFn& import : library.imports) {
+    for (const XEXModule::LibraryImport& import : library.imports) {
       const XEXModule* exporter = dependency->GetXEX();
-      const u32 address = exporter ? exporter->GetProcAddress(static_cast<u16>(import.ordinal)) : 0;
+      const u32 address =
+          exporter ? exporter->GetExportAddress(static_cast<u16>(import.ordinal)) : 0;
       if (!address) {
         REXLOG_ERROR(system, "Import of ordinal {} from '{}' by '{}' is not exported",
                      import.ordinal, library.file_name, module.name);
@@ -370,7 +371,7 @@ PPCFunc* ModuleRegistry::ResolveExport(std::string_view library, u16 ordinal) {
     if (module &&
         rex::utf8_equal_case(rex::utf8_find_base_name_from_guest_path(module->path), library)) {
       const XEXModule* xex = module->GetXEX();
-      const u32 address = xex ? xex->GetProcAddress(ordinal) : 0;
+      const u32 address = xex ? xex->GetExportAddress(ordinal) : 0;
       return address ? runtime_.GetFunctionDispatcher()->GetFunction(address) : nullptr;
     }
   }
@@ -387,7 +388,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
         rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable_module->path), name);
   }
 
-  if (auto existing = FindUser(path)) {
+  if (auto existing = FindUserModule(path)) {
     AcquireReference(*table_.Get<ModuleObject>(*existing));
     return *existing;
   }
@@ -402,7 +403,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     ~LoadingMarkerGuard() { registry->EndLoad(key); }
   } loading_guard{this, path};
 
-  if (auto existing = FindUser(path)) {
+  if (auto existing = FindUserModule(path)) {
     AcquireReference(*table_.Get<ModuleObject>(*existing));
     return *existing;
   }
@@ -452,22 +453,21 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       REXLOG_ERROR(system, "Failed to load shared library for module '{}'", recomp->pe_name);
     } else {
       auto register_func = reinterpret_cast<runtime::FunctionDispatcher::RegisterFn>(
-          library_local.GetRawSymbol("ReXModule_Register"));
-      using GetImageInfoFn = const rex::PPCImageInfo* (*)();
+          library_local.GetRawSymbol("ReXRegisterModule"));
+      using GetImageInfoFn = const rex::PPCImage* (*)();
       auto get_image_info =
-          reinterpret_cast<GetImageInfoFn>(library_local.GetRawSymbol("ReXModule_GetImageInfo"));
+          reinterpret_cast<GetImageInfoFn>(library_local.GetRawSymbol("ReXGetModuleImage"));
       if (!register_func) {
-        REXLOG_ERROR(system, "ReXModule_Register not found in '{}'", recomp->shared_lib_name);
+        REXLOG_ERROR(system, "ReXRegisterModule not found in '{}'", recomp->shared_lib_name);
       } else if (!get_image_info) {
-        REXLOG_ERROR(system, "ReXModule_GetImageInfo not found in '{}'", recomp->shared_lib_name);
+        REXLOG_ERROR(system, "ReXGetModuleImage not found in '{}'", recomp->shared_lib_name);
       } else {
         auto* xex = module->GetXEX();
         const auto* image_info = get_image_info();
         if (!xex) {
           REXLOG_ERROR(system, "Recompiled module '{}' is not an XEX", recomp->pe_name);
         } else if (!image_info) {
-          REXLOG_ERROR(system, "ReXModule_GetImageInfo returned null for '{}'",
-                       recomp->shared_lib_name);
+          REXLOG_ERROR(system, "ReXGetModuleImage returned null for '{}'", recomp->shared_lib_name);
         } else if (image_info->image_base != xex->GetBaseAddress() ||
                    image_info->image_size != xex->GetImageSize()) {
           REXLOG_ERROR(system,
@@ -507,13 +507,13 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   if (!AddUser(created)) {
     ReleaseDependencies(*module, call_entry);
     CloseOwned(table_, created);
-    if (auto existing = FindUser(path)) {
+    if (auto existing = FindUserModule(path)) {
       AcquireReference(*table_.Get<ModuleObject>(*existing));
       return *existing;
     }
     return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
   }
-  const X_HANDLE loaded = FindUser(module->path).value_or(0);
+  const X_HANDLE loaded = FindUserModule(module->path).value_or(0);
 
   if (module->user.is_dll_module && module->user.entry_point && call_entry) {
     if (!KernelThread::IsInThread()) {
@@ -592,7 +592,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
 void ModuleRegistry::RegisterRecompiledModule(const char* pe_name, const char* guest_path,
                                               const char* shared_lib_name) {
   std::lock_guard lock(recompiled_mutex_);
-  RecompiledModuleInfo info;
+  RecompiledModule info;
   info.pe_name = pe_name ? pe_name : "";
   info.guest_path = guest_path ? rex::NormalizeGuestPath(guest_path) : "";
   info.shared_lib_name = shared_lib_name ? shared_lib_name : "";
@@ -617,7 +617,7 @@ void ModuleRegistry::AddImportCandidate(std::string_view path) {
   import_candidates_.emplace_back(path);
 }
 
-std::optional<ModuleRegistry::RecompiledModuleInfo> ModuleRegistry::FindRecompiledModule(
+std::optional<ModuleRegistry::RecompiledModule> ModuleRegistry::FindRecompiledModule(
     std::string_view guest_path) {
   std::lock_guard lock(recompiled_mutex_);
   auto normalized = rex::NormalizeGuestPath(guest_path);

@@ -391,7 +391,7 @@ void Window::OnAfterClose() {
   if (phase_ != Phase::kClosing) {
     return;
   }
-  phase_ = (innermost_listener_iteration_context_ || input_listeners_.GetPropagating())
+  phase_ = (innermost_listener_iteration_context_ || input_listeners_.IsPropagating())
                ? Phase::kClosedLeavingListeners
                : Phase::kClosedOpenable;
 }
@@ -405,7 +405,7 @@ void Window::OnDPIChanged(UISetupEvent& e, WindowDestructionReceiver& destructio
 
 void Window::OnMonitorUpdate(MonitorUpdateEvent& e) {
   if (presenter_surface_) {
-    presenter_->OnSurfaceMonitorUpdate(e.GetOldMonitorPotentiallyDisconnected());
+    presenter_->OnSurfaceMonitorUpdate(e.IsOldMonitorPotentiallyDisconnected());
   }
 }
 
@@ -615,7 +615,7 @@ void Window::SendEventToListeners(F&& fn, WindowDestructionReceiver& destruction
   REX_ASSERT(innermost_listener_iteration_context_ == &iteration_context);
   innermost_listener_iteration_context_ = innermost_listener_iteration_context_->outer_context;
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
-      !input_listeners_.GetPropagating()) {
+      !input_listeners_.IsPropagating()) {
     phase_ = Phase::kClosedOpenable;
   }
 }
@@ -640,7 +640,7 @@ void Window::PropagateEventThroughInputListeners(F&& fn,
     return;
   }
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
-      !input_listeners_.GetPropagating()) {
+      !input_listeners_.IsPropagating()) {
     phase_ = Phase::kClosedOpenable;
   }
 }

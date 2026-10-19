@@ -109,26 +109,26 @@ int RunProcess(const std::filesystem::path& program, std::string_view mode,
 #endif
 }
 
-struct ProbeResult {
+struct ChildResult {
   int status = 0;
   std::string output;
 
-  bool Reported() const { return Has("rex-crash-child crash report"); }
+  bool WasReported() const { return Has("rex-crash-child crash report"); }
   bool Has(std::string_view text) const { return output.find(text) != std::string::npos; }
 };
 
-ProbeResult RunProbe(std::string_view mode) {
+ChildResult RunChild(std::string_view mode) {
   const std::filesystem::path folder = rex::platform::GetExecutableFolder();
 #if REX_PLATFORM_WIN32
-  const std::filesystem::path probe = folder / "rex-crash-probe.exe";
+  const std::filesystem::path child = folder / "rex-crash-test.exe";
 #else
-  const std::filesystem::path probe = folder / "rex-crash-probe";
+  const std::filesystem::path child = folder / "rex-crash-test";
 #endif
   const std::filesystem::path out =
       std::filesystem::temp_directory_path() / std::format("rex-crash-child-{}.txt", mode);
   std::filesystem::remove(out);
-  ProbeResult result;
-  result.status = RunProcess(probe, mode, out);
+  ChildResult result;
+  result.status = RunProcess(child, mode, out);
   std::ifstream file(out);
   std::stringstream text;
   text << file.rdbuf();
@@ -140,9 +140,9 @@ ProbeResult RunProbe(std::string_view mode) {
 }  // namespace
 
 REX_TEST_CASE("A null write is reported with the fault address", "[core][crash][crash_report]") {
-  const auto result = RunProbe("null-write");
+  const auto result = RunChild("null-write");
   CHECK(result.status != 0);
-  CHECK(result.Reported());
+  CHECK(result.WasReported());
 #if REX_PLATFORM_WIN32
   CHECK(result.Has("ACCESS_VIOLATION"));
 #else
@@ -154,23 +154,23 @@ REX_TEST_CASE("A null write is reported with the fault address", "[core][crash][
 
 REX_TEST_CASE("std::terminate names the exception type and message",
               "[core][crash][crash_report]") {
-  const auto result = RunProbe("terminate");
+  const auto result = RunChild("terminate");
   CHECK(result.status != 0);
   CHECK(result.Has("runtime_error"));
   CHECK(result.Has("crash child terminate"));
 }
 
 REX_TEST_CASE("abort is reported", "[core][crash][crash_report]") {
-  const auto result = RunProbe("abort");
+  const auto result = RunChild("abort");
   CHECK(result.status != 0);
-  CHECK(result.Reported());
+  CHECK(result.WasReported());
   CHECK(result.Has("SIGABRT"));
 }
 
 REX_TEST_CASE("A stack overflow is reported", "[core][crash][crash_report]") {
-  const auto result = RunProbe("stack-overflow");
+  const auto result = RunChild("stack-overflow");
   CHECK(result.status != 0);
-  CHECK(result.Reported());
+  CHECK(result.WasReported());
 #if REX_PLATFORM_WIN32
   CHECK(result.Has("STACK_OVERFLOW"));
 #endif
@@ -180,73 +180,73 @@ REX_TEST_CASE(
     "A GPU register write outside generated code names the block and address from the "
     "faulting thread",
     "[core][crash][crash_report]") {
-  const auto result = RunProbe("mmio");
+  const auto result = RunChild("mmio");
   CHECK(result.status != 0);
   CHECK(result.Has("GPU register write 0x7FC80010"));
-  CHECK(result.Reported());
+  CHECK(result.WasReported());
 }
 
 REX_TEST_CASE("A write to read only guest memory names the address from the faulting thread",
               "[core][crash][crash_report]") {
-  const auto result = RunProbe("read-only-write");
+  const auto result = RunChild("read-only-write");
   CHECK(result.status != 0);
   CHECK(result.Has("unhandled title write of 0x40000010"));
-  CHECK(result.Reported());
+  CHECK(result.WasReported());
 }
 
 REX_TEST_CASE("A write to a page with stale host protection resumes and teardown counts it",
               "[core][crash][crash_report]") {
-  const auto result = RunProbe("stale-protect");
+  const auto result = RunChild("stale-protect");
   CHECK(result.status == 0);
   CHECK(result.Has("stale resumed"));
   CHECK(result.Has("Recovered stale physical page protection 1 times"));
-  CHECK_FALSE(result.Reported());
+  CHECK_FALSE(result.WasReported());
 }
 
 REX_TEST_CASE("An access violation inside REX_SEH_TRY is not reported",
               "[core][crash][crash_report]") {
-  const auto result = RunProbe("seh");
+  const auto result = RunChild("seh");
   CHECK(result.status == 0);
   CHECK(result.Has("seh caught"));
-  CHECK_FALSE(result.Reported());
+  CHECK_FALSE(result.WasReported());
 }
 
 #if !REX_PLATFORM_WIN32
 REX_TEST_CASE("A fault in recompiled code under a host frame is not caught by an outer REX_SEH_TRY",
               "[core][seh][crash_report]") {
-  const auto result = RunProbe("seh-host-frame");
+  const auto result = RunChild("seh-host-frame");
   CHECK(result.status != 0);
   CHECK_FALSE(result.Has("seh caught"));
-  CHECK(result.Reported());
+  CHECK(result.WasReported());
 }
 #endif
 
 #if REX_PLATFORM_WIN32
 REX_TEST_CASE("A write watch fault resumes without a report", "[core][crash][crash_report]") {
-  const auto result = RunProbe("watch");
+  const auto result = RunChild("watch");
   CHECK(result.status == 0);
   CHECK(result.Has("watch resumed"));
-  CHECK_FALSE(result.Reported());
+  CHECK_FALSE(result.WasReported());
 }
 #endif
 
 REX_TEST_CASE("A fault on a thread the SDK did not start is reported",
               "[core][crash][crash_report]") {
-  const auto result = RunProbe("foreign-thread");
+  const auto result = RunChild("foreign-thread");
   CHECK(result.status != 0);
-  CHECK(result.Reported());
+  CHECK(result.WasReported());
 }
 
 REX_TEST_CASE("A fault during another thread's report waits for the report to finish",
               "[core][crash][crash_report]") {
-  const auto result = RunProbe("concurrent");
+  const auto result = RunChild("concurrent");
   CHECK(result.status != 0);
   CHECK(result.Has("crash child concurrent describer"));
   CHECK(result.Has("==== end of crash report ===="));
 }
 
 REX_TEST_CASE("The describer text is part of the report", "[core][crash][crash_report]") {
-  const auto result = RunProbe("describer");
+  const auto result = RunChild("describer");
   CHECK(result.status != 0);
   CHECK(result.Has("crash child describer 0"));
 }

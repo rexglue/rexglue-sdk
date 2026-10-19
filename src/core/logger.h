@@ -50,7 +50,7 @@ class Logger final : public ILogger {
   [[nodiscard]] Result<void> SetLevel(std::string_view category,
                                       std::optional<Level> level) override;
   [[nodiscard]] Result<Level> GetLevel(std::string_view category) const override;
-  std::vector<CategoryInfo> GetCategories() const override;
+  std::vector<CategoryState> GetCategories() const override;
   void AddSink(ISink& sink) override;
   void RemoveSink(ISink& sink) override;
   void SetFormat(const LineFormat& format) override;
@@ -71,7 +71,7 @@ class Logger final : public ILogger {
    * @param slot The index into the level table.
    * @return The level.
    */
-  Level SlotLevel(u16 slot) const { return levels_[slot].load(std::memory_order_relaxed); }
+  Level GetSlotLevel(u16 slot) const { return levels_[slot].load(std::memory_order_relaxed); }
 
   /**
    * Writes a message to every sink.
@@ -108,7 +108,7 @@ class Logger final : public ILogger {
    *
    * @return The descriptor, or -1 when no log file is open.
    */
-  int GetCrashFd() const { return crash_fd_.load(std::memory_order_acquire); }
+  int GetCrashFD() const { return crash_fd_.load(std::memory_order_acquire); }
 
   /**
    * Opens the sinks of a configuration, registers core and consumer categories and attaches the
@@ -179,8 +179,7 @@ class Logger final : public ILogger {
   void RunFlushThread(const std::stop_token& stop, std::chrono::seconds interval);
   void OpenSinks(const LogConfig& config);
   void ApplyConfigLevels(const LogConfig& config);
-  void HookCvars(cvar::ICvarRegistry& cvars);
-  void UnhookCvars();
+  void AttachCvars(cvar::ICvarRegistry& cvars);
   void OpenFile(const LogFileConfig& file, std::chrono::seconds interval);
   [[nodiscard]] Result<void> RegisterStarted(const LogConfig& config);
   void StopAll();

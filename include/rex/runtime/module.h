@@ -64,7 +64,7 @@ class REX_RUNTIME_API Module {
    *
    * @return The RVA, 0 by default.
    */
-  virtual u32 GetExceptionDirectoryRva() const { return 0; }
+  virtual u32 GetExceptionDirectoryRVA() const { return 0; }
   /**
    * Returns the size of the PDATA table from the PE optional header exception data directory.
    *
@@ -85,7 +85,7 @@ class REX_RUNTIME_API Module {
    * @param address The guest address.
    * @return True when the section is executable.
    */
-  bool IsExecutableSection(u32 address) const;
+  bool IsExecutableAddress(u32 address) const;
 
   /**
    * Returns the binary sections, empty by default.

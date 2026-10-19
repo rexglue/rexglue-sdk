@@ -31,7 +31,7 @@ using SetThreadDescriptionFn = HANDLE (*)(HANDLE hThread, PCWSTR lpThreadDescrip
 
 namespace rex::platform {
 
-void EnableAffinityConfiguration() {
+void WidenProcessAffinity() {
   HANDLE process_handle = GetCurrentProcess();
   DWORD_PTR process_affinity_mask;
   DWORD_PTR system_affinity_mask;
@@ -39,7 +39,7 @@ void EnableAffinityConfiguration() {
   SetProcessAffinityMask(process_handle, system_affinity_mask);
 }
 
-u32 CurrentThreadSystemId() {
+u32 GetCallerSystemThreadID() {
   return static_cast<u32>(GetCurrentThreadId());
 }
 
@@ -153,7 +153,7 @@ void Sleep(std::chrono::microseconds duration) {
   }
 }
 
-std::chrono::milliseconds QueryCurrentThreadCPUTime() {
+std::chrono::milliseconds GetCurrentThreadCPUTime() {
   FILETIME creation{};
   FILETIME exit{};
   FILETIME kernel{};
@@ -390,8 +390,8 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
 }
 
 class Win32Timer : public Win32Handle<Timer> {
-  using WClock = Timer::WClock;
-  using GClock = Timer::GClock;
+  using WClock = Timer::WindowsClock;
+  using GClock = Timer::SteadyClock;
 
  public:
   explicit Win32Timer(HANDLE handle) : Win32Handle(handle) {}
@@ -546,17 +546,17 @@ class Win32Thread : public Win32Handle<Thread> {
     SetThreadAffinityMask(handle_, new_affinity_mask);
   }
 
-  struct APCData {
+  struct QueuedCallback {
     rex::MoveOnlyFunction<void()> callback;
   };
   static void NTAPI DispatchAPC(ULONG_PTR parameter) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr): QueueUserAPC delivers its parameter as a ULONG_PTR
-    std::unique_ptr<APCData> apc_data(reinterpret_cast<APCData*>(parameter));
+    std::unique_ptr<QueuedCallback> apc_data(reinterpret_cast<QueuedCallback*>(parameter));
     apc_data->callback();
   }
 
   void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) override {
-    auto apc_data = std::make_unique<ApcData>(std::move(callback));
+    auto apc_data = std::make_unique<QueuedCallback>(std::move(callback));
     auto* const apc = apc_data.release();
     if (!QueueUserAPC(DispatchApc, handle_, reinterpret_cast<ULONG_PTR>(apc))) {
       apc_data.reset(apc);
@@ -650,25 +650,25 @@ class Win32Thread : public Win32Handle<Thread> {
   void AssertCallingThread() { REX_ASSERT(GetCurrentThreadId() == GetThreadId(handle_)); }
 };
 
-thread_local std::unique_ptr<Win32Thread> current_thread = nullptr;
+thread_local std::unique_ptr<Win32Thread> g_current_thread = nullptr;
 
-struct ThreadStartData {
+struct ThreadStartArgs {
   rex::MoveOnlyFunction<void()> start_routine;
 };
 DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
   detail::RegisterCurrentThread();
   PrepareThreadForCrash();
-  current_thread = std::make_unique<Win32Thread>(::GetCurrentThread());
+  g_current_thread = std::make_unique<Win32Thread>(::GetCurrentThread());
 
-  std::unique_ptr<ThreadStartData> start_data(static_cast<ThreadStartData*>(parameter));
+  std::unique_ptr<ThreadStartArgs> start_data(static_cast<ThreadStartArgs*>(parameter));
   start_data->start_routine();
   return 0;
 }
 
 std::unique_ptr<Thread> Thread::Create(CreationParameters params,
                                        rex::MoveOnlyFunction<void()> start_routine) {
-  auto start_data = std::make_unique<ThreadStartData>(std::move(start_routine));
-  ThreadStartData* const start = start_data.release();
+  auto start_data = std::make_unique<ThreadStartArgs>(std::move(start_routine));
+  ThreadStartArgs* const start = start_data.release();
   HANDLE handle = CreateThread(nullptr, params.stack_size, ThreadStartRoutine, start,
                                params.create_suspended ? CREATE_SUSPENDED : 0, nullptr);
   if (handle) {
@@ -680,8 +680,8 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
 }
 
 Thread* Thread::GetCurrentThread() {
-  if (current_thread) {
-    return current_thread.get();
+  if (g_current_thread) {
+    return g_current_thread.get();
   }
 
   HANDLE handle = ::GetCurrentThread();
@@ -689,8 +689,8 @@ Thread* Thread::GetCurrentThread() {
     return nullptr;
   }
 
-  current_thread = std::make_unique<Win32Thread>(handle);
-  return current_thread.get();
+  g_current_thread = std::make_unique<Win32Thread>(handle);
+  return g_current_thread.get();
 }
 
 void Thread::Exit(int exit_code) {

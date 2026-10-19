@@ -30,13 +30,13 @@ using rex::test::BaseConfig;
 
 struct Fixture {
   Fixture() {
-    rex::testing::ReleaseTestMemory();
+    rex::test::ReleaseTestMemory();
     rex::Shutdown();
   }
   ~Fixture() { rex::Shutdown(); }
 };
 
-rex::RuntimeDesc SetupConfig(rex::API& api) {
+rex::RuntimeDesc MakeRuntimeDesc(rex::API& api) {
   rex::RuntimeDesc config;
   config.file_system = api.Get<rex::filesystem::IFileSystem>();
   return config;
@@ -53,7 +53,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without an APU module the runtime plays to its nu
   CHECK((*api)->Get<rex::apu::IAPUBackend>() == nullptr);
   CHECK(rex::runtime::RuntimeModule::GetAPUBackend() == nullptr);
   rex::Runtime runtime((*api)->GetConfig());
-  REQUIRE(runtime.Setup(SetupConfig(**api)));
+  REQUIRE(runtime.Setup(MakeRuntimeDesc(**api)));
   CHECK(runtime.GetAPU() != nullptr);
   runtime.Shutdown();
 }
@@ -67,7 +67,7 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded APU module serves the runtime's backend"
   auto* served = (*api)->Get<rex::apu::IAPUBackend>();
   REQUIRE(served != nullptr);
   rex::Runtime runtime((*api)->GetConfig());
-  REQUIRE(runtime.Setup(SetupConfig(**api)));
+  REQUIRE(runtime.Setup(MakeRuntimeDesc(**api)));
   CHECK(&runtime.GetAPU()->GetBackend() == served);
   runtime.Shutdown();
 }
@@ -78,12 +78,12 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no APU", "[runtime][modules]") {
   auto api = rex::Init(config);
   REQUIRE(api);
   rex::Runtime runtime((*api)->GetConfig());
-  rex::RuntimeDesc setup = SetupConfig(**api);
+  rex::RuntimeDesc setup = MakeRuntimeDesc(**api);
   setup.tool_mode = true;
   REQUIRE(runtime.Setup(setup));
   CHECK(runtime.GetAPU() == nullptr);
   runtime.SetAudioPaused(true);
-  CHECK_FALSE(runtime.GetAudioPaused());
+  CHECK_FALSE(runtime.IsAudioPaused());
   runtime.Shutdown();
 }
 
@@ -107,7 +107,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a HID module the title sees the idle pad"
   REQUIRE(api);
   CHECK((*api)->Get<rex::hid::IHIDBackend>() == nullptr);
   rex::Runtime runtime((*api)->GetConfig());
-  REQUIRE(runtime.Setup(SetupConfig(**api)));
+  REQUIRE(runtime.Setup(MakeRuntimeDesc(**api)));
   CHECK(runtime.GetHID().GetState(0));
   CHECK_FALSE(runtime.GetHID().GetState(1));
   runtime.Shutdown();
@@ -122,7 +122,7 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded HID module serves the runtime's backend"
   auto* served = (*api)->Get<rex::hid::IHIDBackend>();
   REQUIRE(served != nullptr);
   rex::Runtime runtime((*api)->GetConfig());
-  REQUIRE(runtime.Setup(SetupConfig(**api)));
+  REQUIRE(runtime.Setup(MakeRuntimeDesc(**api)));
   CHECK(&runtime.GetHID() == served);
   runtime.Shutdown();
 }
@@ -133,7 +133,7 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the HID fallback", "[runtime][mod
   auto api = rex::Init(config);
   REQUIRE(api);
   rex::Runtime runtime((*api)->GetConfig());
-  rex::RuntimeDesc setup = SetupConfig(**api);
+  rex::RuntimeDesc setup = MakeRuntimeDesc(**api);
   setup.tool_mode = true;
   REQUIRE(runtime.Setup(setup));
   CHECK(runtime.GetHID().GetState(0));
@@ -148,7 +148,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a GPU module the runtime runs on the null
   REQUIRE(api);
   CHECK((*api)->Get<rex::gpu::IGPUBackend>() == nullptr);
   rex::Runtime runtime((*api)->GetConfig());
-  REQUIRE(runtime.Setup(SetupConfig(**api)));
+  REQUIRE(runtime.Setup(MakeRuntimeDesc(**api)));
   REQUIRE(runtime.GetGPU() != nullptr);
   CHECK_FALSE(runtime.GetGPU()->HasPresentation());
   runtime.Shutdown();
@@ -160,7 +160,7 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no GPU", "[runtime][modules]") {
   auto api = rex::Init(config);
   REQUIRE(api);
   rex::Runtime runtime((*api)->GetConfig());
-  rex::RuntimeDesc setup = SetupConfig(**api);
+  rex::RuntimeDesc setup = MakeRuntimeDesc(**api);
   setup.tool_mode = true;
   REQUIRE(runtime.Setup(setup));
   CHECK(runtime.GetGPU() == nullptr);

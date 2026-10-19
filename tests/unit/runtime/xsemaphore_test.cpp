@@ -12,8 +12,8 @@
 
 #include "kernel/kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 REX_TEST_CASE("A title initialized semaphore with a limit above the int range works",
               "[runtime][semaphore]") {

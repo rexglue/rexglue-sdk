@@ -21,10 +21,10 @@ namespace rex::ui {
 class IUserInterface;
 struct ModuleOverlayContext;
 
-class SettingsDialog : public ImGuiDialog {
+class SettingsOverlayDialog : public ImGuiDialog {
  public:
-  explicit SettingsDialog(const ModuleOverlayContext& context);
-  ~SettingsDialog();
+  explicit SettingsOverlayDialog(const ModuleOverlayContext& context);
+  ~SettingsOverlayDialog();
 
  protected:
   void OnDraw(ImGuiIO& io) override;

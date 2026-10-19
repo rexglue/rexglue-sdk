@@ -34,7 +34,7 @@ constexpr std::array<PackFunction, sizeof...(Index)> MakePackTable(std::index_se
 
 constexpr auto kPackTable = MakePackTable(std::make_index_sequence<size_t{7} * 4 * 4>{});
 
-PackFunction FunctionFor(const PackD3DRecord& record) {
+PackFunction FunctionFor(const PackD3DResult& record) {
   return kPackTable[static_cast<size_t>(record.type) * 16 + static_cast<size_t>(record.mask) * 4 +
                     record.shift];
 }
@@ -55,9 +55,9 @@ std::array<u32, 4> WordsOf(const rex::ppc::VRegister& reg) {
   return words;
 }
 
-void CheckRecords(bool (*selected)(const PackD3DRecord&)) {
+void CheckCases(bool (*selected)(const PackD3DResult&)) {
   size_t checked = 0;
-  for (const PackD3DRecord& record : kPackD3DRecords) {
+  for (const PackD3DResult& record : kPackD3DResults) {
     if (!selected(record)) {
       continue;
     }
@@ -108,42 +108,42 @@ REX_TEST_CASE("PackD3D never writes outside the destination for types 4 and 5 at
 
 REX_TEST_CASE("PackD3D matches the captured results of types 4 and 5 at shift 3",
               "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 0; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 0; });
 }
 
 REX_TEST_CASE("PackD3D matches the captured results of the 4_20_20_20 format", "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 1; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 1; });
 }
 
 REX_TEST_CASE("PackD3D writes only the high word for mask 3 at shift 3", "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 2; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 2; });
 }
 
 REX_TEST_CASE("PackD3D zero fills the second word of a 1 word type for masks 2 and 3",
               "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 3; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 3; });
 }
 
 REX_TEST_CASE("PackD3D writes only the low word of a 2 word type for masks 0 and 1",
               "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 4; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 4; });
 }
 
 REX_TEST_CASE("PackD3D packs every NaN as the field minimum", "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 5; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 5; });
 }
 
 REX_TEST_CASE("PackD3D flushes a denormal float16 result to a signed zero", "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 6; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 6; });
 }
 
 REX_TEST_CASE("PackD3D clamps to the hardware range of each field", "[ppc][pack_d3d]") {
-  CheckRecords([](const PackD3DRecord& record) { return record.group == 7; });
+  CheckCases([](const PackD3DResult& record) { return record.group == 7; });
 }
 
 REX_TEST_CASE("PackD3D reads the whole source before it writes the destination",
               "[ppc][pack_d3d]") {
-  for (const PackD3DRecord& record : kPackD3DRecords) {
+  for (const PackD3DResult& record : kPackD3DResults) {
     rex::ppc::VRegister separate = MakeRegister(kPackD3DInitial);
     const rex::ppc::VRegister source = MakeRegister(record.source);
     static_cast<void>(FunctionFor(record)(separate, source));

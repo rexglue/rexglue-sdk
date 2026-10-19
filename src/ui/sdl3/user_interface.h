@@ -68,7 +68,7 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   IWindow* GetWindow() override;
   void Run() override;
   bool PumpFrame() override;
-  void Quit() override;
+  void EndFrameLoop() override;
   bool IsUIThread() const override;
   bool Post(rex::MoveOnlyFunction<void()> work) override;
   void RunSynchronous(rex::MoveOnlyFunction<void()> work) override;
@@ -79,7 +79,7 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   [[nodiscard]] Result<void> AddOverlays(std::span<const OverlayDesc> table) override;
   void ShowOverlay(std::string_view name, bool visible) override;
   void ToggleOverlay(std::string_view name) override;
-  ImGuiDialog* Overlay(std::string_view name) override;
+  ImGuiDialog* GetOverlay(std::string_view name) override;
   bool IsAnyOverlayVisible() const override;
   void AddDialog(ImGuiDialog& dialog) override;
   void RemoveDialog(ImGuiDialog& dialog) override;
@@ -97,14 +97,14 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   void CancelPrompts() override;
   [[nodiscard]] Result<std::vector<std::filesystem::path>> ShowFileDialog(
       const FileDialogDesc& desc) override;
-  std::vector<DisplayInfo> GetDisplays() override;
+  std::vector<Monitor> GetDisplays() override;
   std::vector<HostLocale> GetPreferredLocales() override;
 
  private:
   friend class ConsoleDockHost;
 
   void ApplyWindowCvars();
-  void EnsureToast();
+  void CreateToast();
   void ReleaseToast();
   [[nodiscard]] Result<u32> ShowBox(MessageKind kind, std::string_view title, std::string_view body,
                                     std::span<const std::string> buttons);
@@ -120,7 +120,7 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   std::unique_ptr<log::CaptureSink> log_capture_;
   BindTable binds_;
   EventCallback callback_;
-  std::unique_ptr<SDLWindowedAppContext> context_;
+  std::unique_ptr<SDL3WindowedAppContext> context_;
   std::unique_ptr<Window> window_;
   std::unique_ptr<EventListener> listener_;
   std::unique_ptr<BindListener> bind_listener_;
@@ -138,12 +138,12 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   std::unique_ptr<OverlayRegistry> overlays_;
   std::mutex toast_mutex_;
   std::unique_ptr<AchievementToastDialog> toast_;
-  runtime::AchievementListenerHandle toast_listener_ = 0;
+  runtime::AchievementCallbackHandle toast_listener_ = 0;
   std::vector<cvar::CallbackHandle> window_callbacks_;
   std::mutex post_mutex_;
   std::condition_variable post_idle_;
   u32 sync_calls_ = 0;
-  SDLWindowedAppContext* post_target_ = nullptr;
+  SDL3WindowedAppContext* post_target_ = nullptr;
   std::atomic<bool> open_{false};
   std::atomic<u32> dialog_count_{0};
 };

@@ -121,8 +121,8 @@ class DeferredCommandBuffer {
     std::memcpy(args_ptr + offsets_offset, offsets, sizeof(VkDeviceSize) * binding_count);
   }
 
-  void CmdClearAttachmentsEmplace(u32 attachment_count, VkClearAttachment*& attachments_out,
-                                  u32 rect_count, VkClearRect*& rects_out) {
+  void CmdVkClearAttachmentsEmplace(u32 attachment_count, VkClearAttachment*& attachments_out,
+                                    u32 rect_count, VkClearRect*& rects_out) {
     size_t arguments_size =
         rex::RoundUpPow2(sizeof(ArgsVkClearAttachments), alignof(VkClearAttachment));
     size_t attachments_offset = arguments_size;
@@ -142,14 +142,14 @@ class DeferredCommandBuffer {
                              u32 rect_count, const VkClearRect* rects) {
     VkClearAttachment* attachments_arg;
     VkClearRect* rects_arg;
-    CmdClearAttachmentsEmplace(attachment_count, attachments_arg, rect_count, rects_arg);
+    CmdVkClearAttachmentsEmplace(attachment_count, attachments_arg, rect_count, rects_arg);
     std::memcpy(attachments_arg, attachments, sizeof(VkClearAttachment) * attachment_count);
     std::memcpy(rects_arg, rects, sizeof(VkClearRect) * rect_count);
   }
 
-  VkImageSubresourceRange* CmdClearColorImageEmplace(VkImage image, VkImageLayout image_layout,
-                                                     const VkClearColorValue* color,
-                                                     u32 range_count) {
+  VkImageSubresourceRange* CmdVkClearColorImageEmplace(VkImage image, VkImageLayout image_layout,
+                                                       const VkClearColorValue* color,
+                                                       u32 range_count) {
     const size_t header_size =
         rex::RoundUpPow2(sizeof(ArgsVkClearColorImage), alignof(VkImageSubresourceRange));
     u8* args_ptr = reinterpret_cast<u8*>(WriteCommand(
@@ -164,11 +164,11 @@ class DeferredCommandBuffer {
   void CmdVkClearColorImage(VkImage image, VkImageLayout image_layout,
                             const VkClearColorValue* color, u32 range_count,
                             const VkImageSubresourceRange* ranges) {
-    std::memcpy(CmdClearColorImageEmplace(image, image_layout, color, range_count), ranges,
+    std::memcpy(CmdVkClearColorImageEmplace(image, image_layout, color, range_count), ranges,
                 sizeof(VkImageSubresourceRange) * range_count);
   }
 
-  VkBufferCopy* CmdCopyBufferEmplace(VkBuffer src_buffer, VkBuffer dst_buffer, u32 region_count) {
+  VkBufferCopy* CmdVkCopyBufferEmplace(VkBuffer src_buffer, VkBuffer dst_buffer, u32 region_count) {
     const size_t header_size = rex::RoundUpPow2(sizeof(ArgsVkCopyBuffer), alignof(VkBufferCopy));
     u8* args_ptr = reinterpret_cast<u8*>(
         WriteCommand(Command::kVkCopyBuffer, header_size + sizeof(VkBufferCopy) * region_count));
@@ -180,7 +180,7 @@ class DeferredCommandBuffer {
   }
   void CmdVkCopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, u32 region_count,
                        const VkBufferCopy* regions) {
-    std::memcpy(CmdCopyBufferEmplace(src_buffer, dst_buffer, region_count), regions,
+    std::memcpy(CmdVkCopyBufferEmplace(src_buffer, dst_buffer, region_count), regions,
                 sizeof(VkBufferCopy) * region_count);
   }
 
@@ -192,8 +192,9 @@ class DeferredCommandBuffer {
     args.flags = flags;
   }
 
-  VkBufferImageCopy* CmdCopyBufferToImageEmplace(VkBuffer src_buffer, VkImage dst_image,
-                                                 VkImageLayout dst_image_layout, u32 region_count) {
+  VkBufferImageCopy* CmdVkCopyBufferToImageEmplace(VkBuffer src_buffer, VkImage dst_image,
+                                                   VkImageLayout dst_image_layout,
+                                                   u32 region_count) {
     const size_t header_size =
         rex::RoundUpPow2(sizeof(ArgsVkCopyBufferToImage), alignof(VkBufferImageCopy));
     u8* args_ptr = reinterpret_cast<u8*>(WriteCommand(
@@ -208,8 +209,9 @@ class DeferredCommandBuffer {
   void CmdVkCopyBufferToImage(VkBuffer src_buffer, VkImage dst_image,
                               VkImageLayout dst_image_layout, u32 region_count,
                               const VkBufferImageCopy* regions) {
-    std::memcpy(CmdCopyBufferToImageEmplace(src_buffer, dst_image, dst_image_layout, region_count),
-                regions, sizeof(VkBufferImageCopy) * region_count);
+    std::memcpy(
+        CmdVkCopyBufferToImageEmplace(src_buffer, dst_image, dst_image_layout, region_count),
+        regions, sizeof(VkBufferImageCopy) * region_count);
   }
 
   void CmdVkCopyQueryPoolResults(VkQueryPool query_pool, u32 first_query, u32 query_count,
@@ -321,22 +323,22 @@ class DeferredCommandBuffer {
   }
 
   void CmdVkSetStencilCompareMask(VkStencilFaceFlags face_mask, u32 compare_mask) {
-    auto& args = *reinterpret_cast<ArgsSetStencilMaskReference*>(
-        WriteCommand(Command::kVkSetStencilCompareMask, sizeof(ArgsSetStencilMaskReference)));
+    auto& args = *reinterpret_cast<ArgsVkSetStencilMaskReference*>(
+        WriteCommand(Command::kVkSetStencilCompareMask, sizeof(ArgsVkSetStencilMaskReference)));
     args.face_mask = face_mask;
     args.mask_reference = compare_mask;
   }
 
   void CmdVkSetStencilReference(VkStencilFaceFlags face_mask, u32 reference) {
-    auto& args = *reinterpret_cast<ArgsSetStencilMaskReference*>(
-        WriteCommand(Command::kVkSetStencilReference, sizeof(ArgsSetStencilMaskReference)));
+    auto& args = *reinterpret_cast<ArgsVkSetStencilMaskReference*>(
+        WriteCommand(Command::kVkSetStencilReference, sizeof(ArgsVkSetStencilMaskReference)));
     args.face_mask = face_mask;
     args.mask_reference = reference;
   }
 
   void CmdVkSetStencilWriteMask(VkStencilFaceFlags face_mask, u32 write_mask) {
-    auto& args = *reinterpret_cast<ArgsSetStencilMaskReference*>(
-        WriteCommand(Command::kVkSetStencilWriteMask, sizeof(ArgsSetStencilMaskReference)));
+    auto& args = *reinterpret_cast<ArgsVkSetStencilMaskReference*>(
+        WriteCommand(Command::kVkSetStencilWriteMask, sizeof(ArgsVkSetStencilMaskReference)));
     args.face_mask = face_mask;
     args.mask_reference = write_mask;
   }
@@ -558,7 +560,7 @@ class DeferredCommandBuffer {
     static_assert(alignof(VkRect2D) <= alignof(uintmax_t));
   };
 
-  struct ArgsSetStencilMaskReference {
+  struct ArgsVkSetStencilMaskReference {
     VkStencilFaceFlags face_mask;
     u32 mask_reference;
   };

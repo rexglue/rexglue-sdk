@@ -64,7 +64,7 @@ class NullUserInterface final : public IUserInterface {
   bool PumpFrame() override;
 
   /** Ends the frame loop. Callable from any thread. */
-  void Quit() override;
+  void EndFrameLoop() override;
 
   /**
    * Reports whether the caller is on the thread that constructed the provider.
@@ -146,7 +146,7 @@ class NullUserInterface final : public IUserInterface {
    * @param name Ignored.
    * @return Null.
    */
-  ImGuiDialog* Overlay(std::string_view name) override;
+  ImGuiDialog* GetOverlay(std::string_view name) override;
 
   /**
    * Reports whether any overlay is shown.
@@ -267,7 +267,7 @@ class NullUserInterface final : public IUserInterface {
    *
    * @return An empty list.
    */
-  std::vector<DisplayInfo> GetDisplays() override;
+  std::vector<Monitor> GetDisplays() override;
 
   /**
    * Lists no locales.

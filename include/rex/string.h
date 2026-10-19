@@ -38,7 +38,7 @@ namespace rex {
  * @param string2 Second string.
  * @return Negative, 0 or positive as string1 orders before, equal to or after string2.
  */
-inline i32 CompareCase(const char* string1, const char* string2) {
+inline i32 CompareIgnoreCase(const char* string1, const char* string2) {
 #if REX_PLATFORM_WIN32
   return _stricmp(string1, string2);
 #else
@@ -54,7 +54,7 @@ inline i32 CompareCase(const char* string1, const char* string2) {
  * @param count Maximum number of characters to compare.
  * @return Negative, 0 or positive as string1 orders before, equal to or after string2.
  */
-inline i32 CompareCaseN(const char* string1, const char* string2, size_t count) {
+inline i32 CompareIgnoreCaseN(const char* string1, const char* string2, size_t count) {
 #if REX_PLATFORM_WIN32
   return _strnicmp(string1, string2, count);
 #else
@@ -189,7 +189,7 @@ inline char* Duplicate(const char* source) {
  * @param dest_buffer_count Size of dest in characters, including the terminator.
  * @return Characters copied, not counting the terminator.
  */
-inline size_t copy_truncating(char* dest, const std::string_view source, size_t dest_buffer_count) {
+inline size_t CopyTruncating(char* dest, const std::string_view source, size_t dest_buffer_count) {
   if (!dest_buffer_count) {
     return 0;
   }
@@ -207,8 +207,8 @@ inline size_t copy_truncating(char* dest, const std::string_view source, size_t 
  * @param dest_buffer_count Size of dest in code units, including the terminator.
  * @return Code units copied, not counting the terminator.
  */
-inline size_t copy_truncating(char16_t* dest, const std::u16string_view source,
-                              size_t dest_buffer_count) {
+inline size_t CopyTruncating(char16_t* dest, const std::u16string_view source,
+                             size_t dest_buffer_count) {
   if (!dest_buffer_count) {
     return 0;
   }
@@ -227,8 +227,8 @@ inline size_t copy_truncating(char16_t* dest, const std::u16string_view source,
  * @param dest_buffer_count Size of dest in code units, including the terminator.
  * @return Code units copied, not counting the terminator.
  */
-inline size_t copy_and_swap_truncating(char16_t* dest, const std::u16string_view source,
-                                       size_t dest_buffer_count) {
+inline size_t CopyAndSwapTruncating(char16_t* dest, const std::u16string_view source,
+                                    size_t dest_buffer_count) {
   if (!dest_buffer_count) {
     return 0;
   }

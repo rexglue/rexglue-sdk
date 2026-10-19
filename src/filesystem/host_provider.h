@@ -52,7 +52,7 @@ class HostProvider final : public Provider {
    *
    * @return The name and geometry.
    */
-  [[nodiscard]] VolumeInfo GetVolume() const override;
+  [[nodiscard]] VolumeStat GetVolume() const override;
 
   /**
    * Returns the node at a path, looking it up on the host when the tree lacks it, case
@@ -88,7 +88,7 @@ class HostNode final : public Node {
    * @return The node.
    */
   [[nodiscard]] static std::unique_ptr<HostNode> Create(HostProvider& provider, HostNode& parent,
-                                                        const HostInfo& info);
+                                                        const HostFileStat& info);
 
   /**
    * Returns the host file or folder, read under the provider mutex.
@@ -119,7 +119,9 @@ class HostNode final : public Node {
   void OnMoved() override;
   void Populate(std::vector<std::pair<u64, u64>>& ancestors);
 
-  [[nodiscard]] HostProvider& GetHost() const { return static_cast<HostProvider&>(GetProvider()); }
+  [[nodiscard]] HostProvider& GetHostProvider() const {
+    return static_cast<HostProvider&>(GetProvider());
+  }
 
   std::filesystem::path host_path_;
 };

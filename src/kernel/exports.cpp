@@ -37,7 +37,7 @@ void
 #include "xam/export_table.inc"
 #include "xbdm/export_table.inc"
 #include "export_table_post.inc"
-    RexExportDeclEnd(::PPCContext& __restrict, u8*);
+    ReXExportDeclEnd(::PPCContext& __restrict, u8*);
 }
 
 #undef REX_EXPORT_ROW_kFunction
@@ -125,7 +125,7 @@ constexpr NoReturnRow kNoReturnExports[] = {
 
 }  // namespace
 
-std::span<const ExportEntry> Exports(ExportModule module) {
+std::span<const ExportEntry> GetExports(ExportModule module) {
   switch (module) {
     case ExportModule::kXboxkrnl:
       return kXboxkrnlExports;
@@ -138,7 +138,7 @@ std::span<const ExportEntry> Exports(ExportModule module) {
 }
 
 const ExportEntry* FindByOrdinal(ExportModule module, u16 ordinal) {
-  const auto table = Exports(module);
+  const auto table = GetExports(module);
   const auto it = std::ranges::lower_bound(table, ordinal, {}, &ExportEntry::ordinal);
   return it != table.end() && it->ordinal == ordinal ? &*it : nullptr;
 }

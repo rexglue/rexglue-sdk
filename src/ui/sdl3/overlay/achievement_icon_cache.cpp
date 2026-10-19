@@ -18,8 +18,7 @@ AchievementIconCache::AchievementIconCache(gpu::IOverlayDrawer* overlay_drawer,
                                            rex::Runtime* runtime)
     : overlay_drawer_(overlay_drawer), runtime_(runtime) {}
 
-gpu::OverlayTexture* AchievementIconCache::GetIcon(
-    const rex::runtime::AchievementInfo& achievement) {
+gpu::OverlayTexture* AchievementIconCache::GetIcon(const rex::runtime::Achievement& achievement) {
   const std::string cache_key =
       "path:" + achievement.icon_path + "|image:" + std::to_string(achievement.image_id);
   auto it = cache_.find(cache_key);

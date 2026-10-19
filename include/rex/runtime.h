@@ -29,7 +29,7 @@
 #include <rex/platform/lock_order.h>
 #include <rex/runtime/config.h>
 #include <rex/runtime/process.h>
-#include <rex/ui/display_mode.h>
+#include <rex/ui/video_mode.h>
 #include <rex/types.h>
 #include <rex/move_only_function.h>
 
@@ -167,7 +167,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return True when audio is parked.
    */
-  bool GetAudioPaused() const;
+  bool IsAudioPaused() const;
 
   /**
    * Returns the display mode Setup took from RuntimeDesc.
@@ -254,10 +254,10 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   /**
    * Builds the memory and every other part the runtime owns.
    *
-   * @param config The subsystems to create. tool_mode skips the GPU.
+   * @param desc The subsystems to create. tool_mode skips the GPU.
    * @return Ok, or a Runtime error whose code is the status of the step that failed.
    */
-  [[nodiscard]] Result<void> Setup(const RuntimeDesc& config = {});
+  [[nodiscard]] Result<void> Setup(const RuntimeDesc& desc = {});
 
   /**
    * Builds the runtime and the function dispatch table of a recompiled image.
@@ -266,7 +266,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    * @param config The subsystems to create.
    * @return Ok, or a Runtime error whose code is the status of the step that failed.
    */
-  [[nodiscard]] Result<void> Setup(const PPCImageInfo& image_info, const RuntimeDesc& config = {});
+  [[nodiscard]] Result<void> Setup(const PPCImage& image_info, const RuntimeDesc& config = {});
 
   /**
    * Returns the codegen flags of the recompiled image.
@@ -479,8 +479,8 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
                          u32 tls_raw_data_address);
   void SetExecutableModule(X_HANDLE module);
   void CreateWorkspace(u32 size);
-  void LoadAchievementsData();
-  void RunTerminateNotifications(std::chrono::milliseconds timeout);
+  void LoadAchievements();
+  void RunTitleTerminateNotifications(std::chrono::milliseconds timeout);
 
   std::mutex title_exit_mutex_;
   rex::MoveOnlyFunction<void(runtime::TitleExitReason)> title_exit_callback_;

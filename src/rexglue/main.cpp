@@ -33,7 +33,7 @@
 
 namespace {
 
-std::string TitleString() {
+std::string BannerString() {
   return std::format("ReXGlue v{} Recompilation Toolkit", REXGLUE_VERSION_STRING);
 }
 
@@ -69,7 +69,7 @@ bool ColorEnabled(bool tty) {
 }
 
 int RunCLI(int argc, char** argv) {
-  CLI::App app{TitleString(), "rexglue"};
+  CLI::App app{BannerString(), "rexglue"};
   app.set_version_flag("--version", REXGLUE_VERSION_STRING);
   app.require_subcommand(1);
   app.fallthrough();
@@ -106,7 +106,7 @@ int RunCLI(int argc, char** argv) {
     rexglue::ui::Shutdown();
     return 1;
   }
-  rexglue::ui::Banner(TitleString());
+  rexglue::ui::Banner(BannerString());
 
   auto start = std::chrono::steady_clock::now();
   rex::Result<void> result = pending ? pending() : rex::Ok();

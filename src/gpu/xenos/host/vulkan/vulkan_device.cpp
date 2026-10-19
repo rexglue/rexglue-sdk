@@ -32,8 +32,8 @@ namespace vulkan {
 
 template <typename Structure, VkStructureType StructureType>
 struct VulkanFeatures {
-  Structure supported = objects::InitializeStructure<Structure>(StructureType);
-  Structure enabled = objects::InitializeStructure<Structure>(StructureType);
+  Structure supported = objects::BuildStructure<Structure>(StructureType);
+  Structure enabled = objects::BuildStructure<Structure>(StructureType);
 
   void Link(VkPhysicalDeviceFeatures2& supported_features_2,
             VkDeviceCreateInfo& device_create_info) {
@@ -267,15 +267,15 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   auto device_create_info =
-      objects::InitializeStructure<VkDeviceCreateInfo>(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
+      objects::BuildStructure<VkDeviceCreateInfo>(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
 
   device_create_info.enabledExtensionCount = static_cast<u32>(enabled_extensions.size());
   device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
 
-  auto properties_2 = objects::InitializeStructure<VkPhysicalDeviceProperties2>(
+  auto properties_2 = objects::BuildStructure<VkPhysicalDeviceProperties2>(
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2);
 
-  auto supported_features_2 = objects::InitializeStructure<VkPhysicalDeviceFeatures2>(
+  auto supported_features_2 = objects::BuildStructure<VkPhysicalDeviceFeatures2>(
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
 
   VulkanFeatures<VkPhysicalDeviceVulkan12Features,
@@ -295,7 +295,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       .driverInfo = {},
       .conformanceVersion = {}};
   auto properties_1_2_khr_shader_float_controls =
-      objects::InitializeStructure<VkPhysicalDeviceFloatControlsProperties>(
+      objects::BuildStructure<VkPhysicalDeviceFloatControlsProperties>(
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES);
   VulkanFeatures<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT>
@@ -313,7 +313,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT>
       features_ext_custom_border_color;
   auto properties_ext_custom_border_color =
-      objects::InitializeStructure<VkPhysicalDeviceCustomBorderColorPropertiesEXT>(
+      objects::BuildStructure<VkPhysicalDeviceCustomBorderColorPropertiesEXT>(
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_PROPERTIES_EXT);
   VulkanFeatures<VkPhysicalDeviceRobustness2FeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT>
@@ -488,8 +488,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   device->properties_.driverVersion = properties.driverVersion;
   device->properties_.vendorID = properties.vendorID;
   device->properties_.deviceID = properties.deviceID;
-  rex::copy_truncating(device->properties_.deviceName, properties.deviceName,
-                       sizeof(device->properties_.deviceName));
+  rex::CopyTruncating(device->properties_.deviceName, properties.deviceName,
+                      sizeof(device->properties_.deviceName));
 
   REXLOG_INFO(ui,
               "Vulkan device '{}': API {}.{}.{}, vendor 0x{:04X}, device 0x{:04X}, "

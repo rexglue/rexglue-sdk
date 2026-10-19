@@ -83,7 +83,7 @@ class ThreadPin : public rex::MoveOnly {
 };
 
 /** Host data of a fiber the shim fiber routines manage. */
-struct FiberInfo {
+struct GuestFiber {
   rex::platform::Fiber* host_fiber; /**< The host fiber. */
   u32 uid;                          /**< A unique id for profiler names. */
   u32 guest_context_addr;           /**< The guest fiber context block. */
@@ -149,7 +149,7 @@ REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1)
    * @param address The guest address of the fiber context block.
    * @return A copy of the fiber data, empty when no fiber has the address.
    */
-  [[nodiscard]] virtual std::optional<FiberInfo> LookupFiber(u32 address) = 0;
+  [[nodiscard]] virtual std::optional<GuestFiber> FindFiber(u32 address) = 0;
 
   /**
    * Registers a fiber, replacing the fiber with the same address.
@@ -157,7 +157,7 @@ REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1)
    * @param address The guest address of the fiber context block.
    * @param info The fiber data.
    */
-  virtual void RegisterFiber(u32 address, const FiberInfo& info) = 0;
+  virtual void RegisterFiber(u32 address, const GuestFiber& info) = 0;
 
   /**
    * Forgets a fiber.
@@ -170,11 +170,12 @@ REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1)
    * Returns a fiber name for the profiler. Names are never freed because the profiler keeps the
    * pointers.
    *
-   * @param address The fiber uid the name is keyed by.
+   * @param fiber_uid The fiber uid the name is keyed by.
    * @param thread_name The name of the thread that owns the fiber.
    * @return The name.
    */
-  [[nodiscard]] virtual const char* GetOrCreateFiberName(u32 address, const char* thread_name) = 0;
+  [[nodiscard]] virtual const char* GetOrCreateFiberName(u32 fiber_uid,
+                                                         const char* thread_name) = 0;
 
   /**
    * Registers a thread notification.
@@ -188,7 +189,7 @@ REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1)
    *
    * @param notification Address of the title's XTHREAD_NOTIFICATION.
    */
-  virtual void RemoveThreadNotify(u32 notification) = 0;
+  virtual void UnregisterThreadNotify(u32 notification) = 0;
 };
 
 }  // namespace rex::runtime

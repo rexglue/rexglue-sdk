@@ -169,7 +169,7 @@ class ConsoleModel : public NonCopyable {
    * @param category Category name.
    * @return True when shown.
    */
-  bool GetShown(std::string_view category) const;
+  bool IsShown(std::string_view category) const;
 
   /**
    * Shows or hides a category.

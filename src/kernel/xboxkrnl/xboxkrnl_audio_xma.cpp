@@ -31,7 +31,7 @@ using rex::runtime::XMA_CONTEXT_DATA;
 
 namespace {
 
-runtime::XMADecoder* Decoder(Runtime& runtime) {
+runtime::XMADecoder* GetXMADecoder(Runtime& runtime) {
   runtime::APU* apu = runtime.GetAPU();
   return apu ? &apu->GetXMADecoder() : nullptr;
 }
@@ -46,7 +46,7 @@ runtime::XMADecoder* Decoder(Runtime& runtime) {
  */
 u32 XMACreateContext_entry(MappedU32 context_out_ptr) {
   REXLOG_DEV(kernel, "XMACreateContext called!");
-  auto* xma_decoder = Decoder(runtime::GetCurrent());
+  auto* xma_decoder = GetXMADecoder(runtime::GetCurrent());
   if (!xma_decoder) {
     return X_STATUS_NO_MEMORY;
   }
@@ -59,7 +59,7 @@ u32 XMACreateContext_entry(MappedU32 context_out_ptr) {
 }
 
 u32 XMAReleaseContext_entry(MappedVoid context_ptr) {
-  auto* xma_decoder = Decoder(runtime::GetCurrent());
+  auto* xma_decoder = GetXMADecoder(runtime::GetCurrent());
   if (!xma_decoder) {
     return 0;
   }
@@ -69,7 +69,7 @@ u32 XMAReleaseContext_entry(MappedVoid context_ptr) {
 
 void StoreXMAContextIndexedRegister(Runtime& runtime, u32 base_reg, u32 context_ptr) {
   u32 context_physical_address = runtime.GetMemory()->GetPhysicalAddress(context_ptr);
-  auto* xma_decoder = Decoder(runtime);
+  auto* xma_decoder = GetXMADecoder(runtime);
   if (xma_decoder) {
     xma_decoder->SignalContext(base_reg, context_physical_address);
   }
@@ -92,7 +92,7 @@ struct XMA_CONTEXT_INIT {
   be_u32 input_buffer_read_offset;
   be_u32 output_buffer_ptr;
   be_u32 output_buffer_block_count;
-  be_u32 work_buffer;
+  be_u32 work_buffer_ptr;
   be_u32 subframe_decode_count;
   be_u32 channel_count;
   be_u32 sample_rate;
@@ -301,7 +301,7 @@ u32 XMAEnableContext_entry(MappedVoid context_ptr) {
 u32 XMADisableContext_entry(MappedVoid context_ptr, u32 wait) {
   X_HRESULT result = X_E_SUCCESS;
   StoreXMAContextIndexedRegister(runtime::GetCurrent(), 0x1A40, context_ptr.GetGuestAddress());
-  auto* xma_decoder = Decoder(runtime::GetCurrent());
+  auto* xma_decoder = GetXMADecoder(runtime::GetCurrent());
   if (xma_decoder && !xma_decoder->BlockOnContext(context_ptr.GetGuestAddress(), !wait)) {
     result = X_E_FALSE;
   }

@@ -21,7 +21,9 @@
 
 #include "../kernel/kernel_fixture.h"
 
-alignas(64) static u8 g_mem[0x10000] = {};
+namespace {
+alignas(64) u8 g_mem[0x10000] = {};
+}  // namespace
 
 REX_TEST_CASE("stack_push scalar decrements r1 and writes byte swapped value", "[ppc][stack]") {
   PPCContext ctx{};
@@ -169,7 +171,7 @@ REX_TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
 
 REX_TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page offset",
               "[ppc][stack]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   rex::runtime::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
   u32 block = 0;
@@ -183,7 +185,7 @@ REX_TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page 
   *memory.TranslateVirtual<be_u32*>(block + 0x74) = block;
   PPCContext ctx{};
   ctx.r13.u32 = block;
-  CHECK(rex::ppc::stack_limit_from_pcr(ctx, base) == block);
+  CHECK(rex::ppc::GetStackLimit(ctx, base) == block);
 
   ctx.r1.u32 = block + 0x2000;
   const u32 addr = rex::ppc::stack_push(ctx, base, u32{0x12345678});

@@ -91,7 +91,7 @@ REX_TEST_CASE("A function that runs into the next function ends with a tail call
   REQUIRE(second != nullptr);
 
   BlockDiscoveryResult result = fixture.Discover({kBase, kBase + 8});
-  for (const auto& branch : result.unresolved_branches) {
+  for (const auto& branch : result.unresolved_jumps) {
     graph.AddUnresolvedJumpToFunction(kBase, branch.site, branch.target, branch.is_call,
                                       branch.is_conditional);
   }
@@ -119,7 +119,7 @@ REX_TEST_CASE("A conditional branch to another function keeps its condition",
   REQUIRE(second != nullptr);
 
   BlockDiscoveryResult result = fixture.Discover({kBase, kBase + 24});
-  for (const auto& branch : result.unresolved_branches) {
+  for (const auto& branch : result.unresolved_jumps) {
     graph.AddUnresolvedJumpToFunction(kBase, branch.site, branch.target, branch.is_call,
                                       branch.is_conditional);
   }
@@ -153,7 +153,7 @@ REX_TEST_CASE("A function with 2 fall throughs calls both next functions", "[cod
 
   BlockDiscoveryResult result = fixture.Discover({kBase, kBase + 12, kBase + 24});
   CHECK(result.fall_throughs == std::set<u32>{kBase + 12, kBase + 24});
-  for (const auto& branch : result.unresolved_branches) {
+  for (const auto& branch : result.unresolved_jumps) {
     graph.AddUnresolvedJumpToFunction(kBase, branch.site, branch.target, branch.is_call,
                                       branch.is_conditional);
   }

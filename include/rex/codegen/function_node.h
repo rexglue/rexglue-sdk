@@ -177,7 +177,7 @@ class FunctionNode {
   const std::optional<MillicodeEntry>& GetMillicode() const { return millicode_; }
 
   /** Returns the SEH or C++ EH info. */
-  const std::optional<ExceptionInfo>& GetExceptionData() const { return exception_data_; }
+  const std::optional<ExceptionInfo>& GetExceptionInfo() const { return exception_data_; }
   /**
    * Reports whether the function has SEH or C++ EH info.
    *
@@ -195,7 +195,7 @@ class FunctionNode {
    *
    * @return True for a register sharing funclet
    */
-  bool SharesRegisters() const { return shares_registers_; }
+  bool IsRegisterSharing() const { return shares_registers_; }
   void SetSharesRegisters(bool val) { shares_registers_ = val; }
 
  private:
@@ -203,7 +203,7 @@ class FunctionNode {
   void SetHasExceptionHandler(bool val) { has_exception_handler_ = val; }
   void SetMillicode(MillicodeEntry entry) { millicode_ = entry; }
 
-  void SetExceptionData(ExceptionInfo info) { exception_data_ = std::move(info); }
+  void SetExceptionInfo(ExceptionInfo info) { exception_data_ = std::move(info); }
 
   void AddBlock(Block block);
   void AddLabel(u32 addr);

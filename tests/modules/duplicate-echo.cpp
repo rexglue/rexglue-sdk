@@ -1,5 +1,5 @@
 /**
- * @file        tests/modules/dupecho.cpp
+ * @file        tests/modules/duplicate-echo.cpp
  * @brief       Test module that serves the echo interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -22,9 +22,9 @@ REX_TEST_MODULE_SINK()
 
 namespace {
 
-constexpr const char* kName = "rexmod-test-dupecho";
+constexpr const char* kName = "rexmod-test-duplicate-echo";
 
-class DupEchoModule final : public rex::IModule, public rex::test::IEcho {
+class DuplicateEchoModule final : public rex::IModule, public rex::test::IEcho {
  public:
   static void* GetModule();
   static void* GetEcho();
@@ -33,38 +33,38 @@ class DupEchoModule final : public rex::IModule, public rex::test::IEcho {
       {rex::test::IEcho::kInterfaceName, rex::test::IEcho::kInterfaceVersion, &GetEcho},
   }};
 
-  DupEchoModule() { Record(kName, "constructor"); }
+  DuplicateEchoModule() { ReportEvent(kName, "constructor"); }
 
   const char* GetName() const override { return kName; }
   std::span<const char* const> GetRequiredInterfaces() const override { return {}; }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
-    Record(kName, "connect");
+    ReportEvent(kName, "connect");
     return rex::Ok();
   }
-  void Disconnect() override { Record(kName, "disconnect"); }
+  void Disconnect() override { ReportEvent(kName, "disconnect"); }
   [[nodiscard]] rex::Result<void> Init() override {
-    Record(kName, "init");
+    ReportEvent(kName, "init");
     return rex::Ok();
   }
-  void Shutdown() override { Record(kName, "shutdown"); }
+  void Shutdown() override { ReportEvent(kName, "shutdown"); }
   int Echo(int value) override { return value * 2; }
-  int Value() override { return 0; }
+  int GetValue() override { return 0; }
 
  private:
-  static DupEchoModule& GetInstance() {
-    static DupEchoModule instance;
+  static DuplicateEchoModule& GetInstance() {
+    static DuplicateEchoModule instance;
     return instance;
   }
 };
 
-void* DupEchoModule::GetModule() {
+void* DuplicateEchoModule::GetModule() {
   return static_cast<rex::IModule*>(&GetInstance());
 }
 
-void* DupEchoModule::GetEcho() {
+void* DuplicateEchoModule::GetEcho() {
   return static_cast<rex::test::IEcho*>(&GetInstance());
 }
 
 }  // namespace
 
-REX_DECLARE_MODULE(DupEchoModule)
+REX_DECLARE_MODULE(DuplicateEchoModule)

@@ -115,7 +115,7 @@ struct BuilderContext {
    *
    * @return True when localizing is allowed.
    */
-  bool ShouldLocalizeNonVolatiles() const;
+  bool CanLocalizeNonVolatiles() const;
 
   /**
    * Returns the expression for general purpose register access.
@@ -294,7 +294,7 @@ struct BuilderContext {
   bool HasMidAsmHook() const;
 
   /** Clears the active jump table pointer (used after processing a switch). */
-  void GetResetSwitchTable() { active_jump_table = nullptr; }
+  void ResetJumpTable() { active_jump_table = nullptr; }
 
   /**
    * Emits binary float vector operation `vD = op(vA, vB)`.

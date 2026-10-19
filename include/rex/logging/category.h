@@ -78,7 +78,7 @@ class REX_API Category : public NonCopyable {
 };
 
 /** 1 row of ILogger::GetCategories. */
-struct CategoryInfo {
+struct CategoryState {
   std::string name;           /**< Category name. */
   std::string description;    /**< Category description. */
   Level level = Level::kInfo; /**< Effective level. */

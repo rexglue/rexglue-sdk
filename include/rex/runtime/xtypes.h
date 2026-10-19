@@ -187,7 +187,7 @@ REX_STATIC_ASSERT_SIZE(X_SLIST_HEADER, 8);
 
 /** Guest layout of a spin lock. */
 struct X_KSPINLOCK {
-  be_u32 prcb_of_owner; /**< Address of the owner's PCR, 0 when free. */
+  be_u32 owner_pcr; /**< Address of the owner's PCR, 0 when free. */
 };
 REX_STATIC_ASSERT_SIZE(X_KSPINLOCK, 4);
 

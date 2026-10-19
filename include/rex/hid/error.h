@@ -53,7 +53,7 @@ enum class HIDError : u8 {
  * @param result A failing Win32 code.
  * @return NotConnected, Empty or BadArguments for their codes, Failed for any other.
  */
-[[nodiscard]] inline HIDError ErrorOf(X_RESULT result) {
+[[nodiscard]] inline HIDError ToHIDError(X_RESULT result) {
   switch (result) {
     case X_ERROR_DEVICE_NOT_CONNECTED:
       return HIDError::kNotConnected;

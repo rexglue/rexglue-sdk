@@ -36,7 +36,7 @@ constexpr memory::FourCCT kELFSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F
 class REX_RUNTIME_API XEXModule : public Module {
  public:
   /** An import of an `ImportLibrary`. */
-  struct ImportLibraryFn {
+  struct LibraryImport {
    public:
     u32 ordinal = 0;       /**< Export ordinal the import names. */
     u32 value_address = 0; /**< Guest address of the variable import slot, 0 when none. */
@@ -45,12 +45,12 @@ class REX_RUNTIME_API XEXModule : public Module {
   /** A library the image imports from. */
   struct ImportLibrary {
    public:
-    std::string name;                     /**< Library name without directory and extension. */
-    std::string file_name;                /**< Library name as the image writes it. */
-    u32 id;                               /**< Library id in the image. */
-    filesystem::XEXVersion version;       /**< Version the image was linked against. */
-    filesystem::XEXVersion min_version;   /**< Oldest version the image accepts. */
-    std::vector<ImportLibraryFn> imports; /**< Imports in ordinal order. */
+    std::string name;                   /**< Library name without directory and extension. */
+    std::string file_name;              /**< Library name as the image writes it. */
+    u32 id;                             /**< Library id in the image. */
+    filesystem::XEXVersion version;     /**< Version the image was linked against. */
+    filesystem::XEXVersion min_version; /**< Oldest version the image accepts. */
+    std::vector<LibraryImport> imports; /**< Imports in ordinal order. */
   };
 
   /**
@@ -63,9 +63,9 @@ class REX_RUNTIME_API XEXModule : public Module {
   /** Destroys the module. */
   ~XEXModule() override;
 
-  bool GetLoaded() const { return loaded_; }
+  bool IsLoaded() const { return loaded_; }
   const filesystem::XEXImage& GetImage() const { return image_; }
-  const filesystem::PEInfo& GetPe() const { return pe_; }
+  const filesystem::PEInfo& GetPE() const { return pe_; }
 
   /**
    * Returns the size of the loaded image.
@@ -82,12 +82,12 @@ class REX_RUNTIME_API XEXModule : public Module {
    * @return The guest address, 0 when the image has none.
    */
   u32 GetEntryPoint() const override {
-    return image_.OptHeaderValue(filesystem::kXEXHeaderEntryPoint).value_or(0);
+    return image_.GetOptHeaderValue(filesystem::kXEXHeaderEntryPoint).value_or(0);
   }
 
   u32 GetExportTableAddress() const override { return image_.GetSecurity().export_table; }
 
-  u32 GetExceptionDirectoryRva() const override { return pe_.exception_directory_rva; }
+  u32 GetExceptionDirectoryRVA() const override { return pe_.exception_directory_rva; }
   u32 GetExceptionDirectorySize() const override { return pe_.exception_directory_size; }
   /**
    * Returns the guest address of the exception directory.
@@ -117,7 +117,7 @@ class REX_RUNTIME_API XEXModule : public Module {
    * @param ordinal The export ordinal.
    * @return The guest address, 0 when the module has no such export.
    */
-  u32 GetProcAddress(u16 ordinal) const;
+  u32 GetExportAddress(u16 ordinal) const;
 
   /**
    * Returns the libraries the image imports from.
@@ -131,7 +131,7 @@ class REX_RUNTIME_API XEXModule : public Module {
    * @param name The export name.
    * @return The guest address, 0 when the module has no such export.
    */
-  u32 GetProcAddress(const std::string_view name) const;
+  u32 GetExportAddress(const std::string_view name) const;
 
   /**
    * Applies this patch image to a loaded module.

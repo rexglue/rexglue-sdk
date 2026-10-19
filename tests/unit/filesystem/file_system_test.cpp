@@ -33,7 +33,7 @@ using rex::filesystem::test::WriteHost;
 constexpr std::string_view kRoot = "\\Device\\Test";
 
 FileSystemError OpenError(Fixture& fixture, std::string_view path, const OpenOptions& options) {
-  auto opened = fixture.GetFs().Open(path, options);
+  auto opened = fixture.GetFileSystem().Open(path, options);
   REQUIRE_FALSE(opened);
   return CodeOf(opened.error());
 }
@@ -57,24 +57,24 @@ REX_TEST_CASE_METHOD(Fixture, "Canonical paths name the same file", "[filesystem
 REX_TEST_CASE_METHOD(Fixture, "Links substitute by prefix and repeat", "[filesystem][links]") {
   WriteHost(GetTemp() / "a.txt", "alpha");
   MountTemp(kRoot);
-  REQUIRE(GetFs().Link("inner:", kRoot));
-  REQUIRE(GetFs().Link("outer:", "inner:"));
+  REQUIRE(GetFileSystem().Link("inner:", kRoot));
+  REQUIRE(GetFileSystem().Link("outer:", "inner:"));
 
   CHECK(ReadText(*Open("inner:\\a.txt").file) == "alpha");
   CHECK(ReadText(*Open("outer:\\a.txt").file) == "alpha");
   CHECK(ReadText(*Open("OUTER:\\A.TXT").file) == "alpha");
 
-  CHECK(GetFs().FindLink("Inner:\\a.txt") == std::string(kRoot));
-  CHECK(GetFs().FindLink("elsewhere:\\a.txt") == std::nullopt);
+  CHECK(GetFileSystem().FindLink("Inner:\\a.txt") == std::string(kRoot));
+  CHECK(GetFileSystem().FindLink("elsewhere:\\a.txt") == std::nullopt);
 
-  auto again = GetFs().Link("inner:", "\\Device\\Other");
+  auto again = GetFileSystem().Link("inner:", "\\Device\\Other");
   REQUIRE_FALSE(again);
   CHECK(CodeOf(again.error()) == FileSystemError::kExists);
-  CHECK(GetFs().FindLink("inner:") == std::string(kRoot));
+  CHECK(GetFileSystem().FindLink("inner:") == std::string(kRoot));
 
-  REQUIRE(GetFs().Unlink("INNER:"));
-  CHECK(GetFs().FindLink("inner:") == std::nullopt);
-  auto missing = GetFs().Unlink("inner:");
+  REQUIRE(GetFileSystem().Unlink("INNER:"));
+  CHECK(GetFileSystem().FindLink("inner:") == std::nullopt);
+  auto missing = GetFileSystem().Unlink("inner:");
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
   CHECK(OpenError(*this, "outer:\\a.txt", {}) == FileSystemError::kNoMount);
@@ -84,58 +84,60 @@ REX_TEST_CASE_METHOD(Fixture, "Links and mounts match whole path components",
                      "[filesystem][links]") {
   WriteHost(GetTemp() / "a.txt", "alpha");
   MountTemp("\\Device\\Cdrom0");
-  REQUIRE(GetFs().Link("cd:", "\\Device\\Cdrom0"));
+  REQUIRE(GetFileSystem().Link("cd:", "\\Device\\Cdrom0"));
 
   CHECK(ReadText(*Open("\\Device\\Cdrom0\\a.txt").file) == "alpha");
   CHECK(ReadText(*Open("cd:\\a.txt").file) == "alpha");
   CHECK(OpenError(*this, "\\Device\\Cdrom01\\a.txt", {}) == FileSystemError::kNoMount);
-  CHECK(GetFs().FindLink("cdx:\\a.txt") == std::nullopt);
+  CHECK(GetFileSystem().FindLink("cdx:\\a.txt") == std::nullopt);
 
-  auto again = GetFs().Link("CD:", "\\Device\\Other");
+  auto again = GetFileSystem().Link("CD:", "\\Device\\Other");
   REQUIRE_FALSE(again);
   CHECK(CodeOf(again.error()) == FileSystemError::kExists);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A link that never ends is kInvalidPath", "[filesystem][links]") {
   MountTemp(kRoot);
-  REQUIRE(GetFs().Link("loop:", "loop:\\again"));
+  REQUIRE(GetFileSystem().Link("loop:", "loop:\\again"));
   CHECK(OpenError(*this, "loop:\\a.txt", {}) == FileSystemError::kInvalidPath);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][mounts]") {
   WriteHost(GetTemp() / "outer" / "B" / "x.txt", "from outer");
   WriteHost(GetTemp() / "inner" / "x.txt", "from inner");
-  REQUIRE(GetFs().Mount({"\\Device\\A", ProviderKind::kHostDirectory, GetTemp() / "outer"}));
-  REQUIRE(GetFs().Mount({"\\Device\\A\\B", ProviderKind::kHostDirectory, GetTemp() / "inner"}));
+  REQUIRE(
+      GetFileSystem().Mount({"\\Device\\A", ProviderKind::kHostDirectory, GetTemp() / "outer"}));
+  REQUIRE(
+      GetFileSystem().Mount({"\\Device\\A\\B", ProviderKind::kHostDirectory, GetTemp() / "inner"}));
   CHECK(ReadText(*Open("\\Device\\A\\B\\x.txt").file) == "from outer");
 
   auto duplicate =
-      GetFs().Mount({"\\Device\\A", ProviderKind::kHostDirectory, GetTemp() / "inner"});
+      GetFileSystem().Mount({"\\Device\\A", ProviderKind::kHostDirectory, GetTemp() / "inner"});
   REQUIRE_FALSE(duplicate);
   CHECK(CodeOf(duplicate.error()) == FileSystemError::kMountExists);
 
-  REQUIRE(GetFs().GetMounts().size() == 2);
-  CHECK(GetFs().GetMounts()[0].path == "\\Device\\A");
+  REQUIRE(GetFileSystem().GetMounts().size() == 2);
+  CHECK(GetFileSystem().GetMounts()[0].path == "\\Device\\A");
 
-  REQUIRE(GetFs().Unmount("\\Device\\A"));
+  REQUIRE(GetFileSystem().Unmount("\\Device\\A"));
   CHECK(ReadText(*Open("\\Device\\A\\B\\x.txt").file) == "from inner");
-  auto gone = GetFs().Unmount("\\Device\\A");
+  auto gone = GetFileSystem().Unmount("\\Device\\A");
   REQUIRE_FALSE(gone);
   CHECK(CodeOf(gone.error()) == FileSystemError::kNoMount);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Mount and Unmount compare the mount path without case",
                      "[filesystem][mounts][case]") {
-  REQUIRE(
-      GetFs().Mount({"\\Device\\Harddisk0\\Partition1", ProviderKind::kHostDirectory, GetTemp()}));
-  auto duplicate =
-      GetFs().Mount({"\\DEVICE\\HARDDISK0\\PARTITION1", ProviderKind::kHostDirectory, GetTemp()});
+  REQUIRE(GetFileSystem().Mount(
+      {"\\Device\\Harddisk0\\Partition1", ProviderKind::kHostDirectory, GetTemp()}));
+  auto duplicate = GetFileSystem().Mount(
+      {"\\DEVICE\\HARDDISK0\\PARTITION1", ProviderKind::kHostDirectory, GetTemp()});
   REQUIRE_FALSE(duplicate);
   CHECK(CodeOf(duplicate.error()) == FileSystemError::kMountExists);
-  CHECK(GetFs().GetMounts().size() == 1);
+  CHECK(GetFileSystem().GetMounts().size() == 1);
 
-  REQUIRE(GetFs().Unmount("\\device\\harddisk0\\partition1"));
-  CHECK(GetFs().GetMounts().empty());
+  REQUIRE(GetFileSystem().Unmount("\\device\\harddisk0\\partition1"));
+  CHECK(GetFileSystem().GetMounts().empty());
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files",
@@ -149,7 +151,7 @@ REX_TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files",
     std::filesystem::remove(GetTemp() / "absent.txt");
   };
   auto open = [&](const std::string& path, Disposition disposition) {
-    return GetFs().Open(path, {.disposition = disposition, .access = Access::kGenericAll});
+    return GetFileSystem().Open(path, {.disposition = disposition, .access = Access::kAllAccess});
   };
 
   struct Row {
@@ -198,10 +200,10 @@ REX_TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files",
 REX_TEST_CASE_METHOD(Fixture, "Open creates files and directories in present parents",
                      "[filesystem][open]") {
   MountTemp(kRoot);
-  const OpenOptions create{.disposition = Disposition::kCreate, .access = Access::kGenericWrite};
+  const OpenOptions create{.disposition = Disposition::kCreate, .access = Access::kWriteAccess};
   CHECK(OpenError(*this, "\\Device\\Test\\one\\two\\file.txt", create) ==
         FileSystemError::kNotFound);
-  REQUIRE(GetFs().CreateDirectories("\\Device\\Test\\one\\two"));
+  REQUIRE(GetFileSystem().CreateDirectories("\\Device\\Test\\one\\two"));
   auto file = Open("\\Device\\Test\\one\\two\\file.txt", create);
   CHECK(file.action == OpenAction::kCreated);
   CHECK(std::filesystem::is_regular_file(GetTemp() / "one" / "two" / "file.txt"));
@@ -223,14 +225,14 @@ REX_TEST_CASE_METHOD(Fixture, "require_file refuses a directory", "[filesystem][
 
 REX_TEST_CASE_METHOD(Fixture, "A write on a read only mount opens for read", "[filesystem][open]") {
   WriteHost(GetTemp() / "a.txt", "alpha");
-  REQUIRE(GetFs().Mount({std::string(kRoot), ProviderKind::kHostDirectory, GetTemp()}));
-  auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kGenericAll});
+  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderKind::kHostDirectory, GetTemp()}));
+  auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kAllAccess});
   CHECK_FALSE(rex::HasFlags(opened.file->GetAccess(), Access::kWriteData));
   CHECK(ReadText(*opened.file) == "alpha");
   const std::array<rex::u8, 1> patch{'x'};
   CHECK_FALSE(opened.file->Write(patch, 0));
   CHECK(OpenError(*this, "\\Device\\Test\\new.txt",
-                  {.disposition = Disposition::kCreate, .access = Access::kGenericWrite}) ==
+                  {.disposition = Disposition::kCreate, .access = Access::kWriteAccess}) ==
         FileSystemError::kAccessDenied);
 }
 
@@ -239,12 +241,12 @@ REX_TEST_CASE_METHOD(Fixture, "OpenRelative opens and creates below an open dire
   WriteHost(GetTemp() / "folder" / "c.txt", "charlie");
   MountTemp(kRoot);
   auto root = Open("\\Device\\Test\\folder");
-  auto child = GetFs().OpenRelative(*root.file, "c.txt", {});
+  auto child = GetFileSystem().OpenRelative(*root.file, "c.txt", {});
   REQUIRE(child);
   CHECK(ReadText(*child->file) == "charlie");
 
-  auto created = GetFs().OpenRelative(
-      *root.file, "d.txt", {.disposition = Disposition::kCreate, .access = Access::kGenericWrite});
+  auto created = GetFileSystem().OpenRelative(
+      *root.file, "d.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   REQUIRE(created);
   CHECK(std::filesystem::exists(GetTemp() / "folder" / "d.txt"));
 }
@@ -255,36 +257,36 @@ REX_TEST_CASE_METHOD(Fixture, "Stat, List, CreateDirectories, Rename and Remove"
   WriteHost(GetTemp() / "b.bin", "bravo");
   MountTemp(kRoot);
 
-  auto info = GetFs().Stat("\\Device\\Test\\a.txt");
+  auto info = GetFileSystem().Stat("\\Device\\Test\\a.txt");
   REQUIRE(info);
   CHECK(info->size == 5);
   CHECK(info->name == "a.txt");
-  auto missing = GetFs().Stat("\\Device\\Test\\none.txt");
+  auto missing = GetFileSystem().Stat("\\Device\\Test\\none.txt");
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 
-  auto list = GetFs().List(kRoot, "*.txt");
+  auto list = GetFileSystem().List(kRoot, "*.txt");
   REQUIRE(list);
   std::vector<std::string> names;
   while (auto entry = (*list)->Next()) {
     names.push_back(entry->name);
   }
   CHECK(names == std::vector<std::string>{"a.txt"});
-  auto not_directory = GetFs().List("\\Device\\Test\\a.txt", "");
+  auto not_directory = GetFileSystem().List("\\Device\\Test\\a.txt", "");
   REQUIRE_FALSE(not_directory);
   CHECK(CodeOf(not_directory.error()) == FileSystemError::kNotDirectory);
 
-  REQUIRE(GetFs().CreateDirectories("\\Device\\Test\\x\\y"));
-  REQUIRE(GetFs().CreateDirectories("\\Device\\Test\\x\\y"));
+  REQUIRE(GetFileSystem().CreateDirectories("\\Device\\Test\\x\\y"));
+  REQUIRE(GetFileSystem().CreateDirectories("\\Device\\Test\\x\\y"));
   CHECK(std::filesystem::is_directory(GetTemp() / "x" / "y"));
 
-  REQUIRE(GetFs().Rename("\\Device\\Test\\b.bin", "\\Device\\Test\\x\\moved.bin", false));
+  REQUIRE(GetFileSystem().Rename("\\Device\\Test\\b.bin", "\\Device\\Test\\x\\moved.bin", false));
   CHECK(std::filesystem::exists(GetTemp() / "x" / "moved.bin"));
   CHECK_FALSE(std::filesystem::exists(GetTemp() / "b.bin"));
 
-  REQUIRE(GetFs().Remove("\\Device\\Test\\x"));
+  REQUIRE(GetFileSystem().Remove("\\Device\\Test\\x"));
   CHECK_FALSE(std::filesystem::exists(GetTemp() / "x"));
-  auto root = GetFs().Remove(kRoot);
+  auto root = GetFileSystem().Remove(kRoot);
   REQUIRE_FALSE(root);
   CHECK(CodeOf(root.error()) == FileSystemError::kAccessDenied);
 }
@@ -296,7 +298,7 @@ REX_TEST_CASE("Standard mounts serve game, d, update and the null paths", "[file
   rex::PathsConfig paths;
   paths.game_data_root = fixture.GetTemp() / "game";
   paths.update_data_root = fixture.GetTemp() / "update";
-  REQUIRE(fixture.GetFs().ConfigureStandardMounts(paths));
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(paths));
 
   CHECK(ReadText(*fixture.Open("game:\\default.xex").file) == "xex");
   CHECK(ReadText(*fixture.Open("d:\\default.xex").file) == "xex");
@@ -306,18 +308,18 @@ REX_TEST_CASE("Standard mounts serve game, d, update and the null paths", "[file
     INFO(path);
     CHECK(fixture.Open(path).file->GetInfo().size == 0);
   }
-  CHECK(fixture.GetFs().GetMounts().size() == 3);
+  CHECK(fixture.GetFileSystem().GetMounts().size() == 3);
   CHECK(OpenError(fixture, "game:\\new.txt",
-                  {.disposition = Disposition::kCreate, .access = Access::kGenericWrite}) ==
+                  {.disposition = Disposition::kCreate, .access = Access::kWriteAccess}) ==
         FileSystemError::kAccessDenied);
 
   paths.update_data_root.clear();
-  REQUIRE(fixture.GetFs().ConfigureStandardMounts(paths));
-  CHECK(fixture.GetFs().GetMounts().size() == 2);
-  CHECK(fixture.GetFs().FindLink("update:\\patch.bin") == std::nullopt);
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(paths));
+  CHECK(fixture.GetFileSystem().GetMounts().size() == 2);
+  CHECK(fixture.GetFileSystem().FindLink("update:\\patch.bin") == std::nullopt);
 
   paths.game_data_root = fixture.GetTemp() / "missing";
-  auto missing = fixture.GetFs().ConfigureStandardMounts(paths);
+  auto missing = fixture.GetFileSystem().ConfigureStandardMounts(paths);
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }
@@ -327,9 +329,9 @@ REX_TEST_CASE("game_mount_flags makes the game partition writable", "[filesystem
   std::filesystem::create_directories(fixture.GetTemp() / "game");
   rex::PathsConfig paths;
   paths.game_data_root = fixture.GetTemp() / "game";
-  REQUIRE(fixture.GetFs().ConfigureStandardMounts(paths));
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(paths));
   auto created = fixture.Open(
-      "game:\\new.txt", {.disposition = Disposition::kCreate, .access = Access::kGenericWrite});
+      "game:\\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   CHECK(created.action == OpenAction::kCreated);
   CHECK(std::filesystem::exists(fixture.GetTemp() / "game" / "new.txt"));
 }

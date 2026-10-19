@@ -9,7 +9,7 @@
 
 #include "rex_test.h"
 
-namespace rex::testing {
+namespace rex::test {
 
 namespace {
 std::unique_ptr<rex::runtime::Memory> g_memory;
@@ -31,7 +31,7 @@ void ReleaseTestMemory() {
   g_memory.reset();
 }
 
-}  // namespace rex::testing
+}  // namespace rex::test
 
 namespace {
 
@@ -39,10 +39,10 @@ class TestMemoryListener : public Catch::EventListenerBase {
  public:
   using Catch::EventListenerBase::EventListenerBase;
 
-  void testCaseEnded(const Catch::TestCaseStats&) override { rex::testing::ReleaseTestMemory(); }
+  void testCaseEnded(const Catch::TestCaseStats&) override { rex::test::ReleaseTestMemory(); }
 };
 
 const auto kListenerRegistrar =
-    rex::testing::RegisterListener<TestMemoryListener>("TestMemoryListener"_catch_sr);
+    rex::test::RegisterListener<TestMemoryListener>("TestMemoryListener"_catch_sr);
 
 }  // namespace

@@ -23,7 +23,7 @@ REX_TEST_CASE("Each hid::HIDError maps to its X_ERROR code and back", "[hid]") {
   CHECK(rex::hid::ToXResult(HIDError::kFailed) == rex::X_ERROR_FUNCTION_FAILED);
   for (HIDError code :
        {HIDError::kNotConnected, HIDError::kEmpty, HIDError::kBadArguments, HIDError::kFailed}) {
-    CHECK(rex::hid::ErrorOf(rex::hid::ToXResult(code)) == code);
+    CHECK(rex::hid::ToHIDError(rex::hid::ToXResult(code)) == code);
   }
-  CHECK(rex::hid::ErrorOf(0x1234) == HIDError::kFailed);
+  CHECK(rex::hid::ToHIDError(0x1234) == HIDError::kFailed);
 }

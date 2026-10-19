@@ -97,7 +97,7 @@ static u32 TiledOffset2DColumn(u32 x, u32 y, u32 log2_bpp, u32 base_offset) {
          (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
 }
 
-void Untile(u8* output_buffer, const u8* input_buffer, const UntileInfo* untile_info) {
+void Untile(u8* output_buffer, const u8* input_buffer, const UntileRegion* untile_info) {
   REX_PROFILE_SCOPE("gpu");
   REX_ASSERT(untile_info != nullptr);
   REX_ASSERT(untile_info->input_format_info != nullptr);

@@ -41,7 +41,7 @@ struct StringMaker<std::vector<unsigned char>> {
 
 }  // namespace Catch
 
-namespace rex::testing {
+namespace rex::test {
 
 /**
  * Registers an event listener through a noexcept function, so no throwing constructor runs
@@ -60,7 +60,7 @@ Catch::ListenerRegistrar<ListenerType> RegisterListener(Catch::StringRef name) n
   return Catch::ListenerRegistrar<ListenerType>(name);
 }
 
-}  // namespace rex::testing
+}  // namespace rex::test
 
 /**
  * Defines a test function and registers it through a noexcept function. REX_TEST_CASE expands

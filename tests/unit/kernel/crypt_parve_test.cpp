@@ -18,10 +18,10 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::KernelFixture;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -73,8 +73,9 @@ REX_TEST_CASE("Parve ECB encrypts a block with the key and the substitution box"
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(0x10);
-    c.Kernel("XeCryptParveEcb", {Put(c, kParveKey), Put(c, kParveSbox), Put(c, kParveBlock), out});
-    CHECK(Get(c, out, 8) == Bytes(kParveEcb));
+    c.Kernel("XeCryptParveEcb", {CopyToGuest(c, kParveKey), CopyToGuest(c, kParveSbox),
+                                 CopyToGuest(c, kParveBlock), out});
+    CHECK(ReadBytes(c, out, 8) == Bytes(kParveEcb));
   });
 }
 
@@ -83,13 +84,15 @@ REX_TEST_CASE("Parve CBC MAC chains whole blocks and ignores a partial tail",
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(0x10);
-    c.Kernel("XeCryptParveCbcMac", {Put(c, kParveKey), Put(c, kParveSbox), Put(c, kParveIv),
-                                    Put(c, kParveData), sizeof(kParveData), out});
-    CHECK(Get(c, out, 8) == Bytes(kParveMac));
+    c.Kernel("XeCryptParveCbcMac",
+             {CopyToGuest(c, kParveKey), CopyToGuest(c, kParveSbox), CopyToGuest(c, kParveIv),
+              CopyToGuest(c, kParveData), sizeof(kParveData), out});
+    CHECK(ReadBytes(c, out, 8) == Bytes(kParveMac));
     const u32 short_out = c.Alloc(0x10);
-    c.Kernel("XeCryptParveCbcMac", {Put(c, kParveKey), Put(c, kParveSbox), Put(c, kParveIv),
-                                    Put(c, kParveData), 5, short_out});
-    CHECK(Get(c, short_out, 8) == Bytes(kParveMacShort));
+    c.Kernel("XeCryptParveCbcMac",
+             {CopyToGuest(c, kParveKey), CopyToGuest(c, kParveSbox), CopyToGuest(c, kParveIv),
+              CopyToGuest(c, kParveData), 5, short_out});
+    CHECK(ReadBytes(c, short_out, 8) == Bytes(kParveMacShort));
   });
 }
 
@@ -97,12 +100,12 @@ REX_TEST_CASE("ChainAndSumMac matches the reference sums", "[kernel][crypt][parv
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(0x10);
-    c.Kernel("XeCryptChainAndSumMac",
-             {Put(c, kChainSecond), Put(c, kChainFirst), Put(c, kChainInput), 9, out});
-    CHECK(Get(c, out, 8) == Bytes(kChainOut));
+    c.Kernel("XeCryptChainAndSumMac", {CopyToGuest(c, kChainSecond), CopyToGuest(c, kChainFirst),
+                                       CopyToGuest(c, kChainInput), 9, out});
+    CHECK(ReadBytes(c, out, 8) == Bytes(kChainOut));
     const u32 empty_out = c.Alloc(0x10);
-    c.Kernel("XeCryptChainAndSumMac",
-             {Put(c, kChainSecond), Put(c, kChainFirst), Put(c, kChainInput), 0, empty_out});
-    CHECK(Get(c, empty_out, 8) == Bytes(kChainOutEmpty));
+    c.Kernel("XeCryptChainAndSumMac", {CopyToGuest(c, kChainSecond), CopyToGuest(c, kChainFirst),
+                                       CopyToGuest(c, kChainInput), 0, empty_out});
+    CHECK(ReadBytes(c, empty_out, 8) == Bytes(kChainOutEmpty));
   });
 }

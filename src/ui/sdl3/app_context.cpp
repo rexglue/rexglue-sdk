@@ -80,7 +80,7 @@ bool WindowedAppContext::CallInUIThread(rex::MoveOnlyFunction<void()> function) 
   return CallInUIThreadDeferred(std::move(function));
 }
 
-void WindowedAppContext::QuitFromUIThread() {
+void WindowedAppContext::RequestShutdownFromUIThread() {
   REX_ASSERT(IsInUIThread());
   bool has_quit_previously = has_quit_;
   // PlatformQuitFromUIThread runs once, not from nested executions during the quit.

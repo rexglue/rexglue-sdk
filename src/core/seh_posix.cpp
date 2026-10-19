@@ -31,10 +31,10 @@ struct sigaction* PreviousAction(int signal_number) {
 }
 }  // namespace
 
-static thread_local SEHThreadState tls_seh_state;
+static thread_local SEHThreadState g_seh_state;
 
 SEHThreadState& GetSEHThreadState() {
-  return tls_seh_state;
+  return g_seh_state;
 }
 
 int SEHFilter(u32 /*code*/, void* /*ep*/) {
@@ -42,13 +42,13 @@ int SEHFilter(u32 /*code*/, void* /*ep*/) {
 }
 
 [[noreturn]] static void ResumeScope(SEHScope& scope) {
-  tls_seh_state.top = scope.outer;
+  g_seh_state.top = scope.outer;
   siglongjmp(scope.env, 1);
 }
 
 static void SignalHandler(int sig, siginfo_t* info, void* ucontext) {
-  SEHScope* scope = tls_seh_state.top;
-  if (!scope || scope->host_depth != tls_seh_state.host_depth ||
+  SEHScope* scope = g_seh_state.top;
+  if (!scope || scope->host_depth != g_seh_state.host_depth ||
       !IsRecompiledCode(detail::SignalPC(ucontext))) {
     if (struct sigaction* previous = PreviousAction(sig)) {
       detail::ForwardSignal(*previous, sig, info, ucontext);
@@ -79,18 +79,18 @@ static void SignalHandler(int sig, siginfo_t* info, void* ucontext) {
 
   uintptr_t address = info ? reinterpret_cast<uintptr_t>(info->si_addr) : 0;
 
-  tls_seh_state.code = static_cast<u32>(code);
-  tls_seh_state.info[0] = 0;
-  tls_seh_state.info[1] = address;
+  g_seh_state.code = static_cast<u32>(code);
+  g_seh_state.info[0] = 0;
+  g_seh_state.info[1] = address;
 
   ResumeScope(*scope);
 }
 
 [[noreturn]] void SEHRethrow() {
-  if (SEHScope* scope = tls_seh_state.top; scope && scope->host_depth == tls_seh_state.host_depth) {
+  if (SEHScope* scope = g_seh_state.top; scope && scope->host_depth == g_seh_state.host_depth) {
     ResumeScope(*scope);
   }
-  u32 code = tls_seh_state.code;
+  u32 code = g_seh_state.code;
   int sig;
   switch (code) {
     case SEHException::kAccessViolation:

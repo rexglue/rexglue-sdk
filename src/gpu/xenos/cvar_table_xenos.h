@@ -29,7 +29,7 @@ REXCVAR_INT32(xenos, query_occlusion_fake_sample_count, 1000,
     .SetRange(1, 100000);
 REXCVAR_BOOL(xenos, allow_invalid_fetch_constants, false, "Allow invalid fetch constants");
 REXCVAR_STRING(xenos, dump_shaders, "", "Path to dump shaders to");
-REXCVAR_STRING(xenos, swap_post_effect, "none", "Swap post effect: none, fxaa, fxaa_extreme")
+REXCVAR_STRING(xenos, swap_post_effect, "none", "Swap post effect (none, fxaa, fxaa_extreme)")
     .SetAllowed(REXCVAR_ALLOWED("none", "fxaa", "fxaa_extreme"))
     .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, store_shaders, true,

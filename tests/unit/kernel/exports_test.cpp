@@ -26,14 +26,14 @@ constexpr std::array<ExportModule, 3> kModules = {ExportModule::kXboxkrnl, Expor
 }  // namespace
 
 REX_TEST_CASE("Export tables hold every row of the inc files", "[kernel][exports]") {
-  CHECK(Exports(ExportModule::kXboxkrnl).size() == 922);
-  CHECK(Exports(ExportModule::kXAM).size() == 1735);
-  CHECK(Exports(ExportModule::kXBDM).size() == 255);
+  CHECK(GetExports(ExportModule::kXboxkrnl).size() == 922);
+  CHECK(GetExports(ExportModule::kXAM).size() == 1735);
+  CHECK(GetExports(ExportModule::kXBDM).size() == 255);
 }
 
 REX_TEST_CASE("Export tables are sorted by unique ordinal and unique name", "[kernel][exports]") {
   for (const auto module : kModules) {
-    const auto table = Exports(module);
+    const auto table = GetExports(module);
     std::unordered_set<std::string_view> names;
     for (size_t i = 0; i < table.size(); ++i) {
       if (i > 0) {
@@ -47,7 +47,7 @@ REX_TEST_CASE("Export tables are sorted by unique ordinal and unique name", "[ke
 REX_TEST_CASE("Every function row links to a translation entry and no variable does",
               "[kernel][exports]") {
   for (const auto module : kModules) {
-    for (const auto& entry : Exports(module)) {
+    for (const auto& entry : GetExports(module)) {
       if (entry.kind == ExportKind::kFunction) {
         CHECK(entry.fn != nullptr);
       } else {
@@ -59,7 +59,7 @@ REX_TEST_CASE("Every function row links to a translation entry and no variable d
 
 REX_TEST_CASE("Ordinal lookups round trip every row", "[kernel][exports]") {
   for (const auto module : kModules) {
-    for (const auto& entry : Exports(module)) {
+    for (const auto& entry : GetExports(module)) {
       REQUIRE(FindByOrdinal(module, entry.ordinal) == &entry);
     }
   }
@@ -73,7 +73,7 @@ REX_TEST_CASE("Lookups that miss return null", "[kernel][exports]") {
 
 REX_TEST_CASE("An ordinal in a gap of a table returns null", "[kernel][exports]") {
   for (const auto module : kModules) {
-    const auto table = Exports(module);
+    const auto table = GetExports(module);
     for (size_t i = 1; i < table.size(); ++i) {
       if (table[i].ordinal - table[i - 1].ordinal > 1) {
         const auto gap = static_cast<rex::u16>(table[i - 1].ordinal + 1);
@@ -131,7 +131,7 @@ REX_TEST_CASE("Exports that never return end the thread, the title or the consol
               "[kernel][exports]") {
   std::unordered_set<std::string_view> found;
   for (const auto module : kModules) {
-    for (const auto& entry : Exports(module)) {
+    for (const auto& entry : GetExports(module)) {
       if (IsNoReturnExport(module, entry.ordinal)) {
         found.insert(entry.name);
       }

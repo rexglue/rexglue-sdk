@@ -16,8 +16,8 @@
 
 using rex::X_STATUS;
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;

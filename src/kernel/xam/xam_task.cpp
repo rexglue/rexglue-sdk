@@ -87,7 +87,7 @@ void XRegisterThreadNotifyRoutine_entry(GuestPtrT<runtime::X_THREAD_NOTIFICATION
   if (register_notification) {
     registry.RegisterThreadNotify(notification.GetGuestAddress());
   } else {
-    registry.RemoveThreadNotify(notification.GetGuestAddress());
+    registry.UnregisterThreadNotify(notification.GetGuestAddress());
   }
 }
 

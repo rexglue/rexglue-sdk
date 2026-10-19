@@ -85,7 +85,7 @@ inline std::string to_hex_string(f64 value) {
  * @param value Value to format.
  * @return The lanes as "[XXXXXXXX XXXXXXXX XXXXXXXX XXXXXXXX]".
  */
-inline std::string to_hex_string(const Vec128T& value) {
+inline std::string to_hex_string(const Vec128& value) {
   return std::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
                      value.u32[3]);
 }
@@ -119,7 +119,7 @@ inline T MakeNegative(T value) {
 }
 
 template <typename T>
-inline T Ifs(const std::string_view value, bool force_hex) {
+inline T ParseInteger(const std::string_view value, bool force_hex) {
   i32 base = 10;
   std::string_view range = value;
   bool is_hex = force_hex;
@@ -196,7 +196,7 @@ inline std::from_chars_result portable_float_from_chars(const char* first, const
 #endif
 
 template <typename T, typename PUN>
-inline T Fpfs(const std::string_view value, bool force_hex) {
+inline T ParseFloat(const std::string_view value, bool force_hex) {
   static_assert(sizeof(T) == sizeof(PUN));
   std::string_view range = value;
   bool is_hex = force_hex;
@@ -262,7 +262,7 @@ inline bool from_string<bool>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline i8 from_string<i8>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<i8>(value, force_hex);
+  return detail::ParseInteger<i8>(value, force_hex);
 }
 
 /**
@@ -275,7 +275,7 @@ inline i8 from_string<i8>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline u8 from_string<u8>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<u8>(value, force_hex);
+  return detail::ParseInteger<u8>(value, force_hex);
 }
 
 /**
@@ -288,7 +288,7 @@ inline u8 from_string<u8>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline i16 from_string<i16>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<i16>(value, force_hex);
+  return detail::ParseInteger<i16>(value, force_hex);
 }
 
 /**
@@ -301,7 +301,7 @@ inline i16 from_string<i16>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline u16 from_string<u16>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<u16>(value, force_hex);
+  return detail::ParseInteger<u16>(value, force_hex);
 }
 
 /**
@@ -314,7 +314,7 @@ inline u16 from_string<u16>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline i32 from_string<i32>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<i32>(value, force_hex);
+  return detail::ParseInteger<i32>(value, force_hex);
 }
 
 /**
@@ -327,7 +327,7 @@ inline i32 from_string<i32>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline u32 from_string<u32>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<u32>(value, force_hex);
+  return detail::ParseInteger<u32>(value, force_hex);
 }
 
 /**
@@ -340,7 +340,7 @@ inline u32 from_string<u32>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline i64 from_string<i64>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<i64>(value, force_hex);
+  return detail::ParseInteger<i64>(value, force_hex);
 }
 
 /**
@@ -353,7 +353,7 @@ inline i64 from_string<i64>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline u64 from_string<u64>(const std::string_view value, bool force_hex) {
-  return detail::Ifs<u64>(value, force_hex);
+  return detail::ParseInteger<u64>(value, force_hex);
 }
 
 /**
@@ -365,7 +365,7 @@ inline u64 from_string<u64>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline f32 from_string<f32>(const std::string_view value, bool force_hex) {
-  return detail::Fpfs<f32, u32>(value, force_hex);
+  return detail::ParseFloat<f32, u32>(value, force_hex);
 }
 
 /**
@@ -377,7 +377,7 @@ inline f32 from_string<f32>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline f64 from_string<f64>(const std::string_view value, bool force_hex) {
-  return detail::Fpfs<f64, u64>(value, force_hex);
+  return detail::ParseFloat<f64, u64>(value, force_hex);
 }
 
 /**
@@ -389,11 +389,11 @@ inline f64 from_string<f64>(const std::string_view value, bool force_hex) {
  * @return The vector, or a zero vector when the text does not parse.
  */
 template <>
-inline Vec128T from_string<Vec128T>(const std::string_view value, bool force_hex) {
+inline Vec128 from_string<Vec128>(const std::string_view value, bool force_hex) {
   if (value.empty()) {
-    return Vec128T();
+    return Vec128();
   }
-  Vec128T v;
+  Vec128 v;
   auto p = value.data();
   auto end = value.data() + value.size();
   bool is_hex = force_hex;
@@ -408,7 +408,7 @@ inline Vec128T from_string<Vec128T>(const std::string_view value, bool force_hex
   }
   if (p == end) {
     REX_ASSERT_ALWAYS();
-    return Vec128T();
+    return Vec128();
   }
   if (is_hex) {
     for (size_t i = 0; i < 4; i++) {
@@ -417,12 +417,12 @@ inline Vec128T from_string<Vec128T>(const std::string_view value, bool force_hex
       }
       if (p == end) {
         REX_ASSERT_ALWAYS();
-        return Vec128T();
+        return Vec128();
       }
       auto result = std::from_chars(p, end, v.u32[i], 16);
       if (result.ec != std::errc()) {
         REX_ASSERT_ALWAYS();
-        return Vec128T();
+        return Vec128();
       }
       p = result.ptr;
     }
@@ -433,7 +433,7 @@ inline Vec128T from_string<Vec128T>(const std::string_view value, bool force_hex
       }
       if (p == end) {
         REX_ASSERT_ALWAYS();
-        return Vec128T();
+        return Vec128();
       }
 #if REX_PLATFORM_MAC
       auto result = detail::portable_float_from_chars(p, end, v.f32[i]);
@@ -442,7 +442,7 @@ inline Vec128T from_string<Vec128T>(const std::string_view value, bool force_hex
 #endif
       if (result.ec != std::errc()) {
         REX_ASSERT_ALWAYS();
-        return Vec128T();
+        return Vec128();
       }
       p = result.ptr;
     }

@@ -113,7 +113,7 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
     }
   }
 
-  for (const auto& branch : result.unresolved_branches) {
+  for (const auto& branch : result.unresolved_jumps) {
     graph.AddUnresolvedJumpToFunction(func_addr, branch.site, branch.target, branch.is_call,
                                       branch.is_conditional);
   }

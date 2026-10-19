@@ -65,9 +65,8 @@ endif ()
 
 set(REXGLUE_RECOMP_OPTIMIZATION
     ""
-    CACHE
-      STRING
-      "Optimization level for generated code: empty keeps the build type default, or O0, O1, O2, O3"
+    CACHE STRING
+          "Optimization level for generated code (empty keeps the build type default, or O0 to O3)"
 )
 set_property(CACHE REXGLUE_RECOMP_OPTIMIZATION PROPERTY STRINGS "" O0 O1 O2 O3)
 if (NOT REXGLUE_RECOMP_OPTIMIZATION STREQUAL "")

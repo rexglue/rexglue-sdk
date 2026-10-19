@@ -46,7 +46,7 @@ struct Color {
    * @param a Alpha channel, opaque when omitted.
    * @return The color.
    */
-  static constexpr Color RGBA(f32 r, f32 g, f32 b, f32 a = 1) { return Color{r, g, b, a}; }
+  static constexpr Color FromRGBA(f32 r, f32 g, f32 b, f32 a = 1) { return Color{r, g, b, a}; }
 
   /**
    * Returns a color from a packed 0xRRGGBB value.
@@ -55,7 +55,7 @@ struct Color {
    * @param a Alpha channel.
    * @return The color.
    */
-  static constexpr Color Hex(u32 rrggbb, f32 a = 1) {
+  static constexpr Color FromRGB8(u32 rrggbb, f32 a = 1) {
     return Color{static_cast<f32>((rrggbb >> 16) & 0xFFu) / 255.0f,
                  static_cast<f32>((rrggbb >> 8) & 0xFFu) / 255.0f,
                  static_cast<f32>(rrggbb & 0xFFu) / 255.0f, a};
@@ -148,11 +148,11 @@ struct Color {
 namespace colors {
 
 /** Opaque white. */
-inline constexpr Color kWhite = Color::RGBA(1, 1, 1);
+inline constexpr Color kWhite = Color::FromRGBA(1, 1, 1);
 /** Opaque black. */
-inline constexpr Color kBlack = Color::RGBA(0, 0, 0);
+inline constexpr Color kBlack = Color::FromRGBA(0, 0, 0);
 /** Black with alpha 0. */
-inline constexpr Color kTransparent = Color::RGBA(0, 0, 0, 0);
+inline constexpr Color kTransparent = Color::FromRGBA(0, 0, 0, 0);
 
 }  // namespace colors
 

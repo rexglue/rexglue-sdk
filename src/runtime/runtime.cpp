@@ -114,7 +114,7 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
   Clock::SetGuestSystemTimeBase(Clock::QueryHostSystemTime());
   Clock::SetGuestTimeScalar(1.0);
 
-  platform::EnableAffinityConfiguration();
+  platform::WidenProcessAffinity();
 
   tool_mode_ = config.tool_mode;
   video_mode_ = config.video_mode;
@@ -189,7 +189,7 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
     null_gpu_ = std::make_unique<runtime::NullGPU>();
     gpu_ = null_gpu_.get();
   }
-  if (auto status = gpu_->SetupGuestGPU(*function_dispatcher_, *this); !status) {
+  if (auto status = gpu_->SetupGPU(*function_dispatcher_, *this); !status) {
     return fail(X_STATUS_UNSUCCESSFUL, std::format("GPU setup failed, {}", status.error().message));
   }
   REXLOG_DEBUG(system, "GPU initialized");
@@ -200,7 +200,7 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
   return Ok();
 }
 
-Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeDesc& config) {
+Result<void> Runtime::Setup(const rex::PPCImage& image_info, const RuntimeDesc& config) {
   REX_TRY_VOID(Setup(config));
 
   codegen_flags_ = image_info.codegen_flags;
@@ -250,7 +250,7 @@ Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeDe
 
   const auto& flags = image_info.codegen_flags;
   REXLOG_DEBUG(system,
-               "Codegen config: skip_lr={} skip_msr={} ctr={} xer={} cr={} reserved={} "
+               "Codegen config skip_lr={} skip_msr={} ctr={} xer={} cr={} reserved={} "
                "non_argument={} non_volatile={}",
                flags.skip_lr, flags.skip_msr, flags.ctr_as_local, flags.xer_as_local,
                flags.cr_as_local, flags.reserved_as_local, flags.non_argument_as_local,
@@ -297,8 +297,8 @@ void Runtime::SetAudioPaused(bool paused) {
   }
 }
 
-bool Runtime::GetAudioPaused() const {
-  return apu_ && apu_->GetPaused();
+bool Runtime::IsAudioPaused() const {
+  return apu_ && apu_->IsPaused();
 }
 
 u8* Runtime::GetVirtualMembase() const {
@@ -306,7 +306,7 @@ u8* Runtime::GetVirtualMembase() const {
 }
 
 Result<void> Runtime::LoadXEXImage(const std::string_view module_path) {
-  REXLOG_DEBUG(system, "Loading XEX image: {}", std::string(module_path));
+  REXLOG_DEBUG(system, "Loading XEX image {}", std::string(module_path));
 
   const X_HANDLE handle = runtime::ModuleObject::CreateUserModule(*this);
   if (!handle) {

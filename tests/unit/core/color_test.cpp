@@ -15,8 +15,8 @@
 using rex::Color;
 namespace colors = rex::colors;
 
-static_assert(Color::RGBA(1, 1, 1) == colors::kWhite);
-static_assert(Color::RGBA(0, 0, 0, 0) == colors::kTransparent);
+static_assert(Color::FromRGBA(1, 1, 1) == colors::kWhite);
+static_assert(Color::FromRGBA(0, 0, 0, 0) == colors::kTransparent);
 static_assert(colors::kBlack.ToRGBA8() == 0xFF000000u);
 
 REX_TEST_CASE("Color defaults to opaque black", "[core][color]") {
@@ -28,12 +28,12 @@ REX_TEST_CASE("Color defaults to opaque black", "[core][color]") {
 }
 
 REX_TEST_CASE("Color RGBA fills the channels and defaults to opaque", "[core][color]") {
-  const Color opaque = Color::RGBA(0.25f, 0.5f, 0.75f);
+  const Color opaque = Color::FromRGBA(0.25f, 0.5f, 0.75f);
   CHECK(opaque.r == 0.25f);
   CHECK(opaque.g == 0.5f);
   CHECK(opaque.b == 0.75f);
   CHECK(opaque.a == 1.0f);
-  const Color rgba = Color::RGBA(0.1f, 0.2f, 0.3f, 0.4f);
+  const Color rgba = Color::FromRGBA(0.1f, 0.2f, 0.3f, 0.4f);
   CHECK(rgba.r == 0.1f);
   CHECK(rgba.g == 0.2f);
   CHECK(rgba.b == 0.3f);
@@ -41,13 +41,13 @@ REX_TEST_CASE("Color RGBA fills the channels and defaults to opaque", "[core][co
 }
 
 REX_TEST_CASE("Color Hex reads 0xRRGGBB", "[core][color]") {
-  const Color hex = Color::Hex(0xFF8000);
+  const Color hex = Color::FromRGB8(0xFF8000);
   CHECK(hex.r == 1.0f);
   CHECK(hex.g == 128.0f / 255.0f);
   CHECK(hex.b == 0.0f);
   CHECK(hex.a == 1.0f);
-  CHECK(Color::Hex(0x000000, 0.5f).a == 0.5f);
-  CHECK(Color::Hex(0x336699).ToARGB8() == 0xFF336699u);
+  CHECK(Color::FromRGB8(0x000000, 0.5f).a == 0.5f);
+  CHECK(Color::FromRGB8(0x336699).ToARGB8() == 0xFF336699u);
 }
 
 REX_TEST_CASE("Color FromRGBA8 scales bytes to channels", "[core][color]") {
@@ -71,10 +71,10 @@ REX_TEST_CASE("Color FromARGB8 reads alpha from the high byte", "[core][color]")
 }
 
 REX_TEST_CASE("Color packs red low in ToRGBA8 and alpha high in both", "[core][color]") {
-  CHECK(Color::RGBA(1, 0, 0).ToRGBA8() == 0xFF0000FFu);
-  CHECK(Color::RGBA(1, 0, 0).ToARGB8() == 0xFFFF0000u);
-  CHECK(Color::RGBA(0, 0, 1).ToRGBA8() == 0xFFFF0000u);
-  CHECK(Color::RGBA(0, 0, 1).ToARGB8() == 0xFF0000FFu);
+  CHECK(Color::FromRGBA(1, 0, 0).ToRGBA8() == 0xFF0000FFu);
+  CHECK(Color::FromRGBA(1, 0, 0).ToARGB8() == 0xFFFF0000u);
+  CHECK(Color::FromRGBA(0, 0, 1).ToRGBA8() == 0xFFFF0000u);
+  CHECK(Color::FromRGBA(0, 0, 1).ToARGB8() == 0xFF0000FFu);
 }
 
 REX_TEST_CASE("Named constants round trip through both packed forms", "[core][color]") {
@@ -96,25 +96,25 @@ REX_TEST_CASE("Named constants round trip through both packed forms", "[core][co
 REX_TEST_CASE("Color Lerp blends every channel", "[core][color]") {
   CHECK(Color::Lerp(colors::kBlack, colors::kWhite, 0.0f) == colors::kBlack);
   CHECK(Color::Lerp(colors::kBlack, colors::kWhite, 1.0f) == colors::kWhite);
-  CHECK(Color::Lerp(colors::kBlack, colors::kWhite, 0.5f) == Color::RGBA(0.5f, 0.5f, 0.5f));
+  CHECK(Color::Lerp(colors::kBlack, colors::kWhite, 0.5f) == Color::FromRGBA(0.5f, 0.5f, 0.5f));
   CHECK(Color::Lerp(colors::kBlack, colors::kWhite, 0.5f).ToRGBA8() == 0xFF808080u);
   CHECK(Color::Lerp(colors::kTransparent, colors::kWhite, 0.5f).a == 0.5f);
 }
 
 REX_TEST_CASE("Color WithAlpha replaces only alpha", "[core][color]") {
   const Color faded = colors::kWhite.WithAlpha(0.3f);
-  CHECK(faded == Color::RGBA(1, 1, 1, 0.3f));
+  CHECK(faded == Color::FromRGBA(1, 1, 1, 0.3f));
   CHECK(colors::kWhite.a == 1.0f);
 }
 
 REX_TEST_CASE("Color Scaled multiplies rgb and keeps alpha", "[core][color]") {
-  const Color scaled = Color::RGBA(0.5f, 0.25f, 1.0f, 0.7f).Scaled(0.5f);
-  CHECK(scaled == Color::RGBA(0.25f, 0.125f, 0.5f, 0.7f));
+  const Color scaled = Color::FromRGBA(0.5f, 0.25f, 1.0f, 0.7f).Scaled(0.5f);
+  CHECK(scaled == Color::FromRGBA(0.25f, 0.125f, 0.5f, 0.7f));
 }
 
 REX_TEST_CASE("Color packing clamps and rounds to nearest", "[core][color]") {
-  const Color wild = Color::RGBA(2.0f, -1.0f, 0.5f, 3.0f);
+  const Color wild = Color::FromRGBA(2.0f, -1.0f, 0.5f, 3.0f);
   CHECK(wild.ToRGBA8() == 0xFF8000FFu);
   CHECK(wild.ToARGB8() == 0xFFFF0080u);
-  CHECK((Color::RGBA(2, 0, 0).ToRGBA8() & 0xFFu) == 255u);
+  CHECK((Color::FromRGBA(2, 0, 0).ToRGBA8() & 0xFFu) == 255u);
 }

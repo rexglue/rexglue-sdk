@@ -44,7 +44,7 @@ bool KindMatches(ProviderKind kind, ContainerKind found) {
   return found == ContainerKind::kSTFS || found == ContainerKind::kSVOD;
 }
 
-MountEntry ReadOnly(MountEntry entry) {
+MountEntry MakeReadOnly(MountEntry entry) {
   entry.flags &= ~MountFlags::kWritable;
   return entry;
 }
@@ -52,7 +52,7 @@ MountEntry ReadOnly(MountEntry entry) {
 }  // namespace
 
 ContainerProvider::ContainerProvider(Key, MountEntry entry, Container container)
-    : Provider(ReadOnly(std::move(entry))), container_(std::move(container)) {}
+    : Provider(MakeReadOnly(std::move(entry))), container_(std::move(container)) {}
 
 Result<std::unique_ptr<Provider>> ContainerProvider::Create(const MountEntry& entry) {
   REX_TRY(Container container, Container::Open(entry.source));
@@ -83,13 +83,13 @@ void ContainerProvider::Build(Node& parent, const ContainerNode& source) {
   }
 }
 
-VolumeInfo ContainerProvider::GetVolume() const {
+VolumeStat ContainerProvider::GetVolume() const {
   if (container_.GetKind() == ContainerKind::kGDFX) {
     return {
         "GDFX",         0, 255, static_cast<u32>(container_.GetTotalSize() / kBytesPerSector), 0, 1,
         kBytesPerSector};
   }
-  const STFSHeader& header = *container_.GetHeader();
+  const XContentPackageHeader& header = *container_.GetHeader();
   const auto& metadata = header.metadata;
   u32 total_units = 0;
   u32 available_units = 0;
@@ -104,7 +104,7 @@ VolumeInfo ContainerProvider::GetVolume() const {
     const u64 header_bytes =
         header.header.header_size
             ? RoundUpNonZero(u64{header.header.header_size}, u64{kSTFSBlockSize})
-            : u64{sizeof(STFSHeader)};
+            : u64{sizeof(XContentPackageHeader)};
     const u64 data_size = container_.GetTotalSize() - header_bytes;
     total_units = static_cast<u32>(data_size / kPackageSectorsPerUnit / kBytesPerSector);
   }

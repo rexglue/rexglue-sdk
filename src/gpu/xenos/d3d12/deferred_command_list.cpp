@@ -18,9 +18,9 @@
 namespace rex::gpu::d3d12 {
 
 DeferredCommandList::DeferredCommandList(const D3D12CommandProcessor& command_processor,
-                                         size_t initial_size)
+                                         size_t initial_size_bytes)
     : command_processor_(command_processor) {
-  command_stream_.Reserve(initial_size);
+  command_stream_.Reserve(initial_size_bytes);
 }
 
 void DeferredCommandList::Reset() {

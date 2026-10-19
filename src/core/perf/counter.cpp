@@ -56,7 +56,7 @@ int g_csv_frame_count = 0;
 
 }  // namespace
 
-const char* CounterName(CounterId id) {
+const char* GetCounterName(CounterId id) {
   auto idx = static_cast<size_t>(id);
   if (idx < kNumCounters)
     return kCounterNames[idx];
@@ -109,7 +109,7 @@ void SetCSVLogPath(const std::string& path) {
 
   csv.open(rex::to_path(path), std::ios::out | std::ios::trunc);
   if (!csv) {
-    REXLOG_WARN(core, "perf: failed to open CSV log: {}", path);
+    REXLOG_WARN(core, "perf: failed to open CSV log at {}", path);
     return;
   }
 
@@ -138,7 +138,7 @@ void WriteCSVFrame() {
   }
 }
 
-void FlushCSV() {
+void CloseCSV() {
   if (CSVFile().is_open()) {
     CSVFile().close();
   }

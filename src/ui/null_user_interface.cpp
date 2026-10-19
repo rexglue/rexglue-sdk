@@ -87,7 +87,7 @@ bool NullUserInterface::PumpFrame() {
   return !closed_ && !quit_;
 }
 
-void NullUserInterface::Quit() {
+void NullUserInterface::EndFrameLoop() {
   {
     std::lock_guard lock(mutex_);
     quit_ = true;
@@ -170,7 +170,7 @@ void NullUserInterface::ShowOverlay(std::string_view, bool) {}
 
 void NullUserInterface::ToggleOverlay(std::string_view) {}
 
-ImGuiDialog* NullUserInterface::Overlay(std::string_view) {
+ImGuiDialog* NullUserInterface::GetOverlay(std::string_view) {
   return nullptr;
 }
 
@@ -239,7 +239,7 @@ Result<std::vector<std::filesystem::path>> NullUserInterface::ShowFileDialog(
   return std::vector<std::filesystem::path>{};
 }
 
-std::vector<DisplayInfo> NullUserInterface::GetDisplays() {
+std::vector<Monitor> NullUserInterface::GetDisplays() {
   return {};
 }
 

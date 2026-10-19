@@ -73,8 +73,8 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
  public:
   enum class SwapPostEffect : u8 {
     kNone,
-    kFxaa,
-    kFxaaExtreme,
+    kFXAA,
+    kFXAAExtreme,
   };
 
   CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime);
@@ -201,7 +201,7 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   u32 occlusion_query_cursor_ = 0;
   u64 vertex_buffers_in_sync_[2] = {};
 
-  struct IndexBufferInfo {
+  struct IndexBuffer {
     xenos::IndexFormat format = xenos::IndexFormat::kInt16;
     xenos::Endian endianness = xenos::Endian::kNone;
     u32 count = 0;
@@ -240,17 +240,17 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   void WriteFetchRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
   void WriteBoolRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
   void WriteLoopRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
-  void WriteREGISTERSRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
+  void WriteRegisterBlockRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
   void WriteALURangeFromMem(u32 start_index, u32* base, u32 num_registers);
   void WriteFetchRangeFromMem(u32 start_index, u32* base, u32 num_registers);
   void WriteBoolRangeFromMem(u32 start_index, u32* base, u32 num_registers);
   void WriteLoopRangeFromMem(u32 start_index, u32* base, u32 num_registers);
-  void WriteREGISTERSRangeFromMem(u32 start_index, u32* base, u32 num_registers);
+  void WriteRegisterBlockRangeFromMem(u32 start_index, u32* base, u32 num_registers);
 
   const xenos::reg::DC_LUT_30_COLOR* GetGammaRamp256EntryTable() const {
     return gamma_ramp_256_entry_table_;
   }
-  const xenos::reg::DC_LUT_PWL_DATA* GetGammaRampPwlRgb() const { return gamma_ramp_pwl_rgb_[0]; }
+  const xenos::reg::DC_LUT_PWL_DATA* GetGammaRampPWLRGB() const { return gamma_ramp_pwl_rgb_[0]; }
   virtual void OnGammaRamp256EntryTableValueWritten() {}
   virtual void OnGammaRampPWLValueWritten() {}
 
@@ -382,7 +382,7 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
                              const u32* host_address, u32 dword_count) = 0;
 
   virtual bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count,
-                         IndexBufferInfo* index_buffer_info, bool major_mode_explicit) = 0;
+                         IndexBuffer* index_buffer_info, bool major_mode_explicit) = 0;
   virtual bool IssueCopy() = 0;
 
   /**

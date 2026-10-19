@@ -28,7 +28,7 @@ void GraphicsUploadBufferPool::Reclaim(u64 completed_submission_index) {
                completed_submission_index);
 }
 
-void GraphicsUploadBufferPool::ChangeSubmissionTimeline() {
+void GraphicsUploadBufferPool::ResetSubmissionTimeline() {
   ResetPageTimeline(submitted_first_, submitted_last_, writable_first_, writable_last_);
 }
 

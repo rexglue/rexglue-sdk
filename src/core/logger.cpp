@@ -76,7 +76,7 @@ bool Category::IsEnabled(Level level) const {
   if (slot == kUnresolved) {
     slot = logger.Resolve(*this);
   }
-  return level != Level::kOff && level >= logger.SlotLevel(slot);
+  return level != Level::kOff && level >= logger.GetSlotLevel(slot);
 }
 
 namespace detail {
@@ -344,15 +344,15 @@ Result<Level> Logger::GetLevel(std::string_view category) const {
   return levels_[*slot].load(std::memory_order_relaxed);
 }
 
-std::vector<CategoryInfo> Logger::GetCategories() const {
+std::vector<CategoryState> Logger::GetCategories() const {
   std::lock_guard lock(mutex_);
-  std::vector<CategoryInfo> out;
+  std::vector<CategoryState> out;
   out.reserve(slots_.size());
   for (size_t index = 0; index < slots_.size(); ++index) {
     const auto& slot = slots_[index];
-    out.push_back(CategoryInfo{slot.name, slot.description,
-                               levels_[index].load(std::memory_order_relaxed), slot.explicit_level,
-                               slot.registered});
+    out.push_back(CategoryState{slot.name, slot.description,
+                                levels_[index].load(std::memory_order_relaxed), slot.explicit_level,
+                                slot.registered});
   }
   return out;
 }
@@ -427,7 +427,7 @@ void Logger::Write(const Category& category, Level level, std::string_view text)
                         category.GetName(),
                         text,
                         std::chrono::system_clock::now(),
-                        platform::CurrentThreadSystemId(),
+                        platform::GetCallerSystemThreadID(),
                         sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
   std::lock_guard lock(sinks_mutex_);
   const InSinks in_sinks;
@@ -465,7 +465,7 @@ bool Logger::TryWrite(const Category& category, Level level, std::string_view te
                         category.GetName(),
                         text,
                         std::chrono::system_clock::now(),
-                        platform::CurrentThreadSystemId(),
+                        platform::GetCallerSystemThreadID(),
                         sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
   std::unique_lock lock(sinks_mutex_, std::defer_lock);
   if (!LockSinks(lock, timeout)) {
@@ -523,7 +523,7 @@ void Logger::ApplyConfigLevels(const LogConfig& config) {
   RecomputeAllLocked();
 }
 
-void Logger::HookCvars(cvar::ICvarRegistry& cvars) {
+void Logger::AttachCvars(cvar::ICvarRegistry& cvars) {
   cvars_ = &cvars;
   std::vector<u16> unattached;
   Level level = Level::kInfo;
@@ -549,7 +549,7 @@ void Logger::HookCvars(cvar::ICvarRegistry& cvars) {
   }
 }
 
-void Logger::UnhookCvars() {
+void Logger::DetachCvars() {
   level_callback_.Reset();
   std::vector<Slot> detached;
   {
@@ -613,7 +613,7 @@ Result<void> Logger::RegisterStarted(const LogConfig& config) {
 
 Result<void> Logger::Start(const LogConfig& config, cvar::ICvarRegistry& cvars) {
   if (standalone_) {
-    HookCvars(cvars);
+    AttachCvars(cvars);
     return Ok();
   }
   OpenSinks(config);
@@ -624,7 +624,7 @@ Result<void> Logger::Start(const LogConfig& config, cvar::ICvarRegistry& cvars) 
     Stop();
     return registered;
   }
-  HookCvars(cvars);
+  AttachCvars(cvars);
   return Ok();
 }
 
@@ -641,7 +641,7 @@ void Logger::Finish(cvar::ICvarRegistry& cvars) {
     file.enabled = true;
   }
   std::chrono::seconds interval = flush_interval_;
-  if (cvars.Source("log.flush_interval") != cvar::CvarSource::kDefault) {
+  if (cvars.GetSource("log.flush_interval") != cvar::CvarSource::kDefault) {
     if (auto seconds = cvars.Get("log.flush_interval")) {
       interval = std::chrono::seconds(std::max<i32>(from_string<i32>(*seconds), 0));
     }
@@ -677,19 +677,15 @@ void Logger::RunFlushThread(const std::stop_token& stop, std::chrono::seconds in
 }
 
 void Logger::Stop() {
-  UnhookCvars();
+  DetachCvars();
   if (standalone_) {
     return;
   }
   StopAll();
 }
 
-void Logger::DetachCvars() {
-  UnhookCvars();
-}
-
 void Logger::StopStandalone() {
-  UnhookCvars();
+  DetachCvars();
   standalone_ = false;
   StopAll();
 }

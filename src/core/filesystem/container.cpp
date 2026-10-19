@@ -91,10 +91,10 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
   const std::span<const u8> bytes = BytesOf(*map);
 
   if (IsPackageMagic(bytes)) {
-    REX_TRY(STFSHeader header, ReadSTFSHeader(bytes));
-    container.header_ = std::make_unique<STFSHeader>(header);
+    REX_TRY(XContentPackageHeader header, ReadSTFSHeader(bytes));
+    container.header_ = std::make_unique<XContentPackageHeader>(header);
     container.total_size_ = map->GetSize();
-    const STFSHeader& stored = *container.header_;
+    const XContentPackageHeader& stored = *container.header_;
     if (stored.metadata.volume_type == XContentVolumeType::kSTFS) {
       container.kind_ = ContainerKind::kSTFS;
       container.files_.push_back(std::move(map));
@@ -309,25 +309,25 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
   return Ok();
 }
 
-Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
-  if (bytes.size() < sizeof(STFSHeader)) {
-    return Err<STFSHeader>(BuildError(FileSystemError::kCorrupt,
-                                      std::format("package header needs {:#x} bytes, {:#x} present",
-                                                  sizeof(STFSHeader), bytes.size())));
+Result<XContentPackageHeader> ReadSTFSHeader(std::span<const u8> bytes) {
+  if (bytes.size() < sizeof(XContentPackageHeader)) {
+    return Err<XContentPackageHeader>(BuildError(
+        FileSystemError::kCorrupt, std::format("package header needs {:#x} bytes, {:#x} present",
+                                               sizeof(XContentPackageHeader), bytes.size())));
   }
-  STFSHeader header;
-  std::memcpy(&header, bytes.data(), sizeof(STFSHeader));
+  XContentPackageHeader header;
+  std::memcpy(&header, bytes.data(), sizeof(XContentPackageHeader));
   if (!header.header.IsMagicValid()) {
-    return Err<STFSHeader>(
+    return Err<XContentPackageHeader>(
         BuildError(FileSystemError::kCorrupt, "package magic is not CON, LIVE or PIRS"));
   }
   return header;
 }
 
-Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path) {
+Result<XContentPackageHeader> ReadSTFSHeader(const std::filesystem::path& path) {
   auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead);
   if (!map) {
-    return Err<STFSHeader>(
+    return Err<XContentPackageHeader>(
         BuildError(FileSystemError::kNotFound, std::format("cannot open '{}'", PathToUTF8(path))));
   }
   return ReadSTFSHeader(std::span<const u8>(map->GetData(), map->GetSize()));

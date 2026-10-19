@@ -146,18 +146,18 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * @return True when R16G16B16A16 is truncated to -1 to 1.
    */
   bool IsFixedRGBA16TruncatedToMinus1To1() const;
-  bool GetGammaRenderTargetAsUnorm16() const { return gamma_render_target_as_unorm16_; }
+  bool IsGammaRenderTargetAsUnorm16() const { return gamma_render_target_as_unorm16_; }
 
-  bool GetDepthUnorm24VulkanFormatSupported() const {
+  bool IsDepthUnorm24VulkanFormatSupported() const {
     return depth_unorm24_vulkan_format_supported_;
   }
-  bool GetDepthFloat24Round() const { return depth_float24_round_; }
-  bool GetDepthFloat24ConvertInPixelShader() const {
+  bool IsDepthFloat24Rounded() const { return depth_float24_round_; }
+  bool IsDepthFloat24ConvertedInPixelShader() const {
     return depth_float24_convert_in_pixel_shader_;
   }
 
-  bool GetMSAA2xAttachmentsSupported() const { return msaa_2x_attachments_supported_; }
-  bool GetMSAA2xNoAttachmentsSupported() const { return msaa_2x_no_attachments_supported_; }
+  bool IsMSAA2xAttachmentsSupported() const { return msaa_2x_attachments_supported_; }
+  bool IsMSAA2xNoAttachmentsSupported() const { return msaa_2x_no_attachments_supported_; }
   bool IsMSAA2xSupported(bool subpass_has_attachments) const {
     return subpass_has_attachments ? msaa_2x_attachments_supported_
                                    : msaa_2x_no_attachments_supported_;
@@ -171,7 +171,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * @return The render pass, or VK_NULL_HANDLE if failed to create.
    */
   VkRenderPass GetHostRenderTargetsRenderPass(RenderPassKey key);
-  VkRenderPass GetFragmentShaderInterlockRenderPass() const {
+  VkRenderPass GetPixelShaderInterlockRenderPass() const {
     REX_ASSERT(GetPath() == Path::kPixelShaderInterlock);
     return fsi_render_pass_;
   }
@@ -358,7 +358,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       gpu::vulkan::SingleLayoutDescriptorSetPool& descriptor_set_pool =
           GetKey().is_depth ? *render_target_cache_.descriptor_set_pool_sampled_image_x2_
                             : *render_target_cache_.descriptor_set_pool_sampled_image_;
-      return descriptor_set_pool.Get(descriptor_set_index_transfer_source_);
+      return descriptor_set_pool.GetDescriptorSet(descriptor_set_index_transfer_source_);
     }
 
     static void GetDrawUsage(bool is_depth, VkPipelineStageFlags* stage_mask_out,
@@ -908,13 +908,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    */
   VkPipeline GetDumpPipeline(DumpPipelineKey key);
   VkPipeline GetDirectResolvePipeline(DirectResolvePipelineKey key);
-  bool TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
-                              draw_state::ResolveCopyShaderIndex copy_shader,
-                              bool draw_resolution_scaled);
+  bool TryDirectResolve(const draw_state::ResolveRequest& resolve_info,
+                        draw_state::ResolveCopyShaderIndex copy_shader,
+                        bool draw_resolution_scaled);
 
   /**
    * Writes contents of host render targets within rectangles from
-   * ResolveInfo::GetCopyEDRAMTileSpan to edram_buffer_.
+   * ResolveRequest::GetCopyEDRAMTileSpan to edram_buffer_.
    *
    * @param dump_base First EDRAM tile to dump.
    * @param dump_row_length_used Used row length in tiles.

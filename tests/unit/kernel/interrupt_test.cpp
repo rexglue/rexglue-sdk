@@ -21,15 +21,15 @@
 #include "kernel_fixture.h"
 #include "runtime/dispatcher.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
 std::atomic<int> g_active;
 std::atomic<int> g_max;
 
-void RecordOverlap(PPCContext& ctx, u8*) {
+void TrackOverlap(PPCContext& ctx, u8*) {
   const int now = ++g_active;
   int expected = g_max.load();
   while (now > expected && !g_max.compare_exchange_weak(expected, now)) {}
@@ -44,7 +44,7 @@ u64 g_dpc_r14 = 0;
 u64 g_after_r14 = 0;
 f64 g_after_f14 = 0.0;
 
-void RecordDPCRegisters(PPCContext& ctx, u8*) {
+void CaptureDPCRegisters(PPCContext& ctx, u8*) {
   g_dpc_r14 = ctx.r14.u64;
   ctx.r3.u64 = 0;
 }
@@ -68,7 +68,7 @@ REX_TEST_CASE("interrupt callbacks never overlap and never block guest threads",
   fixture.RunOnGuestThread([](Caller& c) {
     auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
     auto* memory = c.GetRuntime().GetMemory();
-    const u32 callback = dispatcher->AllocateThunk(&RecordOverlap, 0);
+    const u32 callback = dispatcher->AllocateThunk(&TrackOverlap, 0);
     CHECKED_ELSE(callback != 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -101,7 +101,7 @@ REX_TEST_CASE("interrupts leave the guest thread state intact", "[kernel][interr
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
-    const u32 callback = dispatcher->AllocateThunk(&RecordOverlap, 0);
+    const u32 callback = dispatcher->AllocateThunk(&TrackOverlap, 0);
     CHECKED_ELSE(callback != 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -144,7 +144,7 @@ REX_TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind"
   fixture.RunOnGuestThread([](Caller& c) {
     auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
     const u32 isr = dispatcher->AllocateThunk(&ClobberingISR, 0);
-    const u32 dpc_routine = dispatcher->AllocateThunk(&RecordDPCRegisters, 0);
+    const u32 dpc_routine = dispatcher->AllocateThunk(&CaptureDPCRegisters, 0);
     CHECKED_ELSE(isr != 0) {
       FAIL_CHECK("the check above failed");
       return;

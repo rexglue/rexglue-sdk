@@ -171,8 +171,8 @@ void DXBCShaderTranslator::ROVDepthStencilTest() {
   a_.OpAnd(temp_x_dest, LoadFlagsSystemConstant(), dxbc::Src::LU(kSysFlagROVDepthStencil));
   a_.OpIf(true, temp_x_src);
 
-  bool shader_writes_depth = GetCurrentShader().GetWritesDepth();
-  bool depth_stencil_early = ROVIsDepthStencilEarly();
+  bool shader_writes_depth = GetCurrentShader().IsDepthWritten();
+  bool depth_stencil_early = IsROVDepthStencilEarly();
 
   dxbc::Src z_ddx_src(dxbc::Src::LF(0.0f)), z_ddy_src(dxbc::Src::LF(0.0f));
 
@@ -460,7 +460,7 @@ void DXBCShaderTranslator::ROVDepthStencilTest() {
     }
     a_.OpEndIf();
     a_.OpINE(sample_temp_x_dest, sample_depth_stencil_src, sample_temp_x_src);
-    if (depth_stencil_early && !GetCurrentShader().GetImplicitEarlyZWriteAllowed()) {
+    if (depth_stencil_early && !GetCurrentShader().IsImplicitEarlyZWriteAllowed()) {
       // The late write sample bits are bits 4:7 of system_temp_rov_params_.x.
       a_.OpBFI(dxbc::Dest::R(system_temp_rov_params_, 0b0001), dxbc::Src::LU(1),
                dxbc::Src::LU(4 + i), sample_temp_x_src,
@@ -502,7 +502,7 @@ void DXBCShaderTranslator::ROVDepthStencilTest() {
                                     : static_cast<i32>(tile_width)));
   }
 
-  if (ROVIsDepthStencilEarly()) {
+  if (IsROVDepthStencilEarly()) {
     // Rejection must be at 2x2 quad granularity because texture fetches need derivatives.
 
     a_.OpAnd(dxbc::Dest::R(temp, 0b0001), dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
@@ -907,9 +907,9 @@ void DXBCShaderTranslator::CompletePixelShaderWriteToRTVs() {
 }
 
 void DXBCShaderTranslator::CompletePixelShaderDSVDepthTo24Bit() {
-  bool shader_writes_depth = GetCurrentShader().GetWritesDepth();
+  bool shader_writes_depth = GetCurrentShader().IsDepthWritten();
 
-  if (!DSVIsWritingFloat24Depth()) {
+  if (!IsDSVWritingFloat24Depth()) {
     if (shader_writes_depth) {
       // Float24 oDepth is scaled 0...1 to host 0...0.5, viewport scaling skips oDepth.
       a_.OpAnd(dxbc::Dest::R(system_temp_depth_stencil_, 0b0010), LoadFlagsSystemConstant(),
@@ -994,7 +994,7 @@ void DXBCShaderTranslator::CompletePixelShaderAlphaToMaskSample(
 }
 
 void DXBCShaderTranslator::CompletePixelShaderAlphaToMask() {
-  if (!GetCurrentShader().GetWritesColorTarget(0) || IsForceEarlyDepthStencilGlobalFlagEnabled()) {
+  if (!GetCurrentShader().IsColorTargetWritten(0) || IsForceEarlyDepthStencilGlobalFlagEnabled()) {
     return;
   }
 
@@ -1082,7 +1082,7 @@ void DXBCShaderTranslator::CompletePixelShaderWriteToROV() {
 
   u32 tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
 
-  if (ROVIsDepthStencilEarly()) {
+  if (IsROVDepthStencilEarly()) {
     for (u32 i = 0; i < 4; ++i) {
       a_.OpAnd(temp_x_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
                dxbc::Src::LU(1 << (4 + i)));
@@ -1490,7 +1490,7 @@ void DXBCShaderTranslator::CompletePixelShader() {
     return;
   }
 
-  if (GetCurrentShader().GetWritesColorTarget(0) && !IsForceEarlyDepthStencilGlobalFlagEnabled()) {
+  if (GetCurrentShader().IsColorTargetWritten(0) && !IsForceEarlyDepthStencilGlobalFlagEnabled()) {
     if (edram_rov_used_) {
       u32 rt_0_written_temp = PushSystemTemp();
       a_.OpAnd(dxbc::Dest::R(rt_0_written_temp, 0b0001),
@@ -1584,16 +1584,16 @@ void DXBCShaderTranslator::CompletePixelShader() {
 
 void DXBCShaderTranslator::PreClampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp,
                                                   u32 f10_temp_component, u32 f32_temp,
-                                                  u32 f32_temp_component, u32 temp_temp,
+                                                  u32 f32_temp_component, u32 scratch_temp,
                                                   u32 temp_temp_component) {
-  REX_ASSERT(temp_temp != f10_temp || temp_temp_component != f10_temp_component);
-  REX_ASSERT(temp_temp != f32_temp || temp_temp_component != f32_temp_component);
+  REX_ASSERT(scratch_temp != f10_temp || temp_temp_component != f10_temp_component);
+  REX_ASSERT(scratch_temp != f32_temp || temp_temp_component != f32_temp_component);
   // Source and destination may be the same.
   dxbc::Dest f10_dest(dxbc::Dest::R(f10_temp, 1 << f10_temp_component));
   dxbc::Src f10_src(dxbc::Src::R(f10_temp).Select(f10_temp_component));
   dxbc::Src f32_src(dxbc::Src::R(f32_temp).Select(f32_temp_component));
-  dxbc::Dest temp_dest(dxbc::Dest::R(temp_temp, 1 << temp_temp_component));
-  dxbc::Src temp_src(dxbc::Src::R(temp_temp).Select(temp_temp_component));
+  dxbc::Dest temp_dest(dxbc::Dest::R(scratch_temp, 1 << temp_temp_component));
+  dxbc::Src temp_src(dxbc::Src::R(scratch_temp).Select(temp_temp_component));
 
   // The color must be clamped to [0, 31.875].
 

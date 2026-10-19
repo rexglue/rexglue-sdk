@@ -15,8 +15,8 @@
 #include "kernel_fixture.h"
 
 using rex::runtime::TitleExitReason;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 REX_TEST_CASE("KeBugCheckEx never returns and reports a bug check", "[kernel][bugcheck]") {
   static std::atomic<bool> g_returned;

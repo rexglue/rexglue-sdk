@@ -25,7 +25,7 @@ namespace xam {
  *
  * @return True when at least 1 XAM dialog is shown.
  */
-REX_RUNTIME_API bool XamIsUIActive();
+REX_RUNTIME_API bool XAMIsUIActive();
 
 }  // namespace xam
 }  // namespace kernel

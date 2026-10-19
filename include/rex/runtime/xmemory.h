@@ -117,7 +117,7 @@ enum MemoryProtectFlag : u8 {
 };
 
 /** Equivalent to the Win32 MEMORY_BASIC_INFORMATION struct. */
-struct HeapAllocationInfo {
+struct HeapAllocation {
   u32 base_address; /**< Base address of the queried pages. */
   /** Base address of the allocation range that contains base_address. */
   u32 allocation_base;
@@ -305,7 +305,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_info Receives the region information.
    * @return True on success.
    */
-  bool QueryRegionInfo(u32 base_address, HeapAllocationInfo* out_info);
+  bool QueryRegionInfo(u32 base_address, HeapAllocation* out_info);
 
   /**
    * Returns the size of the region containing the given address.
@@ -928,9 +928,9 @@ class REX_RUNTIME_API Memory {
    * @param used_pages Receives the used page count.
    * @param reserved_bytes Receives the reserved size in bytes.
    */
-  void GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, size_t heaps_count,
-                                u32& unreserved_pages, u32& reserved_pages, u32& used_pages,
-                                u32& reserved_bytes);
+  void GetHeapsPageStats(const BaseHeap* const* provided_heaps, size_t heaps_count,
+                         u32& unreserved_pages, u32& reserved_pages, u32& used_pages,
+                         u32& reserved_bytes);
 
   /**
    * Returns the physical base heap.
@@ -1004,7 +1004,7 @@ class REX_RUNTIME_API Memory {
    * @param pages Count in 4 KB units.
    * @return True when the budget had room.
    */
-  bool AllocateTitlePage(u32 pages);
+  bool ReserveBudgetPages(u32 pages);
 
   /**
    * Returns pages to the budget.

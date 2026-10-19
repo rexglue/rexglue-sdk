@@ -20,7 +20,7 @@
  * The first argument is the module name, the second the event, for example "constructor",
  * "connect", "init", "shutdown" or "disconnect".
  */
-using RexModTestSink = void (*)(const char* module, const char* event);
+using ReXModTestSink = void (*)(const char* module, const char* event);
 
 /**
  * Defines the sink storage, the sink setter export and a helper that reports a module event to
@@ -31,11 +31,11 @@ using RexModTestSink = void (*)(const char* module, const char* event);
  * @endcode
  */
 #define REX_TEST_MODULE_SINK()                                                  \
-  static RexModTestSink g_rexmod_sink = nullptr;                                \
-  extern "C" REX_DETAIL_EXPORT void rexmod_test_set_sink(RexModTestSink sink) { \
+  static ReXModTestSink g_rexmod_sink = nullptr;                                \
+  extern "C" REX_DETAIL_EXPORT void rexmod_test_set_sink(ReXModTestSink sink) { \
     g_rexmod_sink = sink;                                                       \
   }                                                                             \
-  static void Record(const char* module, const char* event) {                   \
+  static void ReportEvent(const char* module, const char* event) {              \
     if (g_rexmod_sink)                                                          \
       g_rexmod_sink(module, event);                                             \
   }

@@ -53,7 +53,7 @@ REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1)
    * @param name A module name, a file name or a path.
    * @return The handle, empty when no kernel module matches.
    */
-  [[nodiscard]] virtual std::optional<X_HANDLE> FindKernel(std::string_view name) = 0;
+  [[nodiscard]] virtual std::optional<X_HANDLE> FindKernelModule(std::string_view name) = 0;
 
   /**
    * Finds a loaded user module.
@@ -61,7 +61,7 @@ REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1)
    * @param name A module name, a file name or a path.
    * @return The handle, empty when no user module matches.
    */
-  [[nodiscard]] virtual std::optional<X_HANDLE> FindUser(std::string_view name) = 0;
+  [[nodiscard]] virtual std::optional<X_HANDLE> FindUserModule(std::string_view name) = 0;
 
   /**
    * Reports whether a name belongs to a kernel module.
@@ -69,7 +69,7 @@ REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1)
    * @param name A module name, a file name or a path.
    * @return True when a kernel module matches, false for an empty name.
    */
-  [[nodiscard]] virtual bool IsKernel(std::string_view name) = 0;
+  [[nodiscard]] virtual bool IsKernelModule(std::string_view name) = 0;
 
   /**
    * Lists the kernel modules in load order.
@@ -119,7 +119,7 @@ REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1)
    * @param created A handle of the module that a kernel module creator returned.
    * @return The handle the registry owns, or X_STATUS_INVALID_HANDLE.
    */
-  [[nodiscard]] virtual Result<X_HANDLE> LoadKernelModule(X_HANDLE created) = 0;
+  [[nodiscard]] virtual Result<X_HANDLE> RegisterKernelModule(X_HANDLE created) = 0;
 
   /**
    * Registers the recompiled library that serves a title module path.

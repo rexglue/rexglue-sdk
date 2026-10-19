@@ -20,7 +20,7 @@
 namespace rex {
 namespace gpu {
 
-void ImmediateDrawer::SetPresenter(Presenter* new_presenter) {
+void OverlayDrawer::SetPresenter(Presenter* new_presenter) {
   if (presenter_ == new_presenter) {
     return;
   }
@@ -34,8 +34,8 @@ void ImmediateDrawer::SetPresenter(Presenter* new_presenter) {
   }
 }
 
-void ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 coordinate_space_width,
-                            f32 coordinate_space_height) {
+void OverlayDrawer::Begin(gpu::OverlayDrawContext& context, f32 coordinate_space_width,
+                          f32 coordinate_space_height) {
   REX_ASSERT(context.GetPresenter() == presenter_);
   ui_draw_context_ = &context;
   if (!(coordinate_space_width > 0.0f) || !(coordinate_space_height > 0.0f)) {
@@ -46,14 +46,14 @@ void ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 coordinate_spa
   coordinate_space_height_ = coordinate_space_height;
 }
 
-void ImmediateDrawer::End() {
+void OverlayDrawer::End() {
   ui_draw_context_ = nullptr;
 }
 
-bool ImmediateDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& out_left,
-                                            u32& out_top, u32& out_width, u32& out_height) {
-  u32 render_target_width = GetUIDrawContext()->GetRenderTargetWidth();
-  u32 render_target_height = GetUIDrawContext()->GetRenderTargetHeight();
+bool OverlayDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& out_left, u32& out_top,
+                                          u32& out_width, u32& out_height) {
+  u32 render_target_width = GetOverlayDrawContext()->GetRenderTargetWidth();
+  u32 render_target_height = GetOverlayDrawContext()->GetRenderTargetHeight();
   if (!draw.scissor) {
     out_left = 0;
     out_top = 0;

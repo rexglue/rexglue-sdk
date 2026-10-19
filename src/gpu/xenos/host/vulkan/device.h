@@ -64,7 +64,7 @@ class VulkanDevice : public rex::NonCopyable {
    *
    * Holds Vulkan 1.3. The patch version is ignored when creating an instance.
    */
-  static constexpr u32 kHighestUsedAPIMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
+  static constexpr u32 kHighestUsedAPIVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
 
   struct Properties {
     u32 apiVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
@@ -327,13 +327,13 @@ class VulkanDevice : public rex::NonCopyable {
    *
    * @return True when a geometry shader is required.
    */
-  bool RequiresGeometryShader() const { return requires_geometry_shader_; }
+  bool IsGeometryShaderRequired() const { return requires_geometry_shader_; }
   /**
    * Reports whether vulkan.require_fill_mode_non_solid was set at creation.
    *
    * @return True when non solid fill mode is required.
    */
-  bool RequiresFillModeNonSolid() const { return requires_fill_mode_non_solid_; }
+  bool IsFillModeNonSolidRequired() const { return requires_fill_mode_non_solid_; }
 
  private:
   bool requires_geometry_shader_ = false;

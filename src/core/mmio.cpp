@@ -82,7 +82,7 @@ u16 MMIOLoad16(u32 address) {
   return static_cast<u16>(MMIOLoad32(address & ~3u) >> shift);
 }
 
-void MMIONarrowWrite(u32 address, u32 size) {
+void MMIONarrowStore(u32 address, u32 size) {
   const std::string message = std::format(
       "A {} byte store to the register at 0x{:08X} is narrower than the register", size, address);
   REX_FATAL(core, "{}", message);

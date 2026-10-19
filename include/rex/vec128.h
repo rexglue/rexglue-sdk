@@ -155,7 +155,7 @@ struct alignas(16) Vec128S {
 };
 
 /** 128 bit vector register value. */
-using Vec128T = Vec128S;
+using Vec128 = Vec128S;
 
 /**
  * Returns a vector with the same value in all 4 u32 lanes.
@@ -163,8 +163,8 @@ using Vec128T = Vec128S;
  * @param src The value for every u32 lane.
  * @return A vector with src in all 4 u32 lanes.
  */
-static inline Vec128T vec128i(u32 src) {
-  Vec128T v;
+static inline Vec128 vec128i(u32 src) {
+  Vec128 v;
   for (auto i = 0; i < 4; ++i) {
     v.u32[i] = src;
   }
@@ -180,8 +180,8 @@ static inline Vec128T vec128i(u32 src) {
  * @param w u32 lane 3.
  * @return A vector with the given u32 lanes.
  */
-static inline Vec128T vec128i(u32 x, u32 y, u32 z, u32 w) {
-  Vec128T v;
+static inline Vec128 vec128i(u32 x, u32 y, u32 z, u32 w) {
+  Vec128 v;
   v.u32[0] = x;
   v.u32[1] = y;
   v.u32[2] = z;
@@ -195,8 +195,8 @@ static inline Vec128T vec128i(u32 x, u32 y, u32 z, u32 w) {
  * @param src The value for every 64 bit lane.
  * @return A vector with src in both 64 bit lanes.
  */
-static inline Vec128T vec128q(u64 src) {
-  Vec128T v;
+static inline Vec128 vec128q(u64 src) {
+  Vec128 v;
   for (auto i = 0; i < 2; ++i) {
     v.u64[i] = src;
   }
@@ -210,8 +210,8 @@ static inline Vec128T vec128q(u64 src) {
  * @param y 64 bit lane 1.
  * @return A vector with the given 64 bit lanes.
  */
-static inline Vec128T vec128q(u64 x, u64 y) {
-  Vec128T v;
+static inline Vec128 vec128q(u64 x, u64 y) {
+  Vec128 v;
   v.u64[0] = x;
   v.u64[1] = y;
   return v;
@@ -223,8 +223,8 @@ static inline Vec128T vec128q(u64 x, u64 y) {
  * @param src The value for every f64 lane.
  * @return A vector with src in both f64 lanes.
  */
-static inline Vec128T vec128d(f64 src) {
-  Vec128T v;
+static inline Vec128 vec128d(f64 src) {
+  Vec128 v;
   for (auto i = 0; i < 2; ++i) {
     v.f64[i] = src;
   }
@@ -238,8 +238,8 @@ static inline Vec128T vec128d(f64 src) {
  * @param y f64 lane 1.
  * @return A vector with the given f64 lanes.
  */
-static inline Vec128T vec128d(f64 x, f64 y) {
-  Vec128T v;
+static inline Vec128 vec128d(f64 x, f64 y) {
+  Vec128 v;
   v.f64[0] = x;
   v.f64[1] = y;
   return v;
@@ -251,8 +251,8 @@ static inline Vec128T vec128d(f64 x, f64 y) {
  * @param src The value for every f32 lane.
  * @return A vector with src in all 4 f32 lanes.
  */
-static inline Vec128T vec128f(f32 src) {
-  Vec128T v;
+static inline Vec128 vec128f(f32 src) {
+  Vec128 v;
   for (auto i = 0; i < 4; ++i) {
     v.f32[i] = src;
   }
@@ -268,8 +268,8 @@ static inline Vec128T vec128f(f32 src) {
  * @param w f32 lane 3.
  * @return A vector with the given f32 lanes.
  */
-static inline Vec128T vec128f(f32 x, f32 y, f32 z, f32 w) {
-  Vec128T v;
+static inline Vec128 vec128f(f32 x, f32 y, f32 z, f32 w) {
+  Vec128 v;
   v.f32[0] = x;
   v.f32[1] = y;
   v.f32[2] = z;
@@ -283,8 +283,8 @@ static inline Vec128T vec128f(f32 x, f32 y, f32 z, f32 w) {
  * @param src The value for every u16 lane.
  * @return A vector with src in all 8 u16 lanes.
  */
-static inline Vec128T vec128s(u16 src) {
-  Vec128T v;
+static inline Vec128 vec128s(u16 src) {
+  Vec128 v;
   for (auto i = 0; i < 8; ++i) {
     v.u16[i] = src;
   }
@@ -304,8 +304,8 @@ static inline Vec128T vec128s(u16 src) {
  * @param w1 Low half of 32 bit lane 3.
  * @return A vector with the given u16 values.
  */
-static inline Vec128T vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u16 w0, u16 w1) {
-  Vec128T v;
+static inline Vec128 vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u16 w0, u16 w1) {
+  Vec128 v;
   v.u16[0] = x1;
   v.u16[1] = x0;
   v.u16[2] = y1;
@@ -323,8 +323,8 @@ static inline Vec128T vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u1
  * @param src The value for every u8 lane.
  * @return A vector with src in all 16 u8 lanes.
  */
-static inline Vec128T vec128b(u8 src) {
-  Vec128T v;
+static inline Vec128 vec128b(u8 src) {
+  Vec128 v;
   for (auto i = 0; i < 16; ++i) {
     v.u8[i] = src;
   }
@@ -352,9 +352,9 @@ static inline Vec128T vec128b(u8 src) {
  * @param w3 Byte 3 of 32 bit lane 3.
  * @return A vector with the given u8 values.
  */
-static inline Vec128T vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u8 y3, u8 z0, u8 z1,
-                              u8 z2, u8 z3, u8 w0, u8 w1, u8 w2, u8 w3) {
-  Vec128T v;
+static inline Vec128 vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u8 y3, u8 z0, u8 z1,
+                             u8 z2, u8 z3, u8 w0, u8 w1, u8 w2, u8 w3) {
+  Vec128 v;
   v.u8[0] = x3;
   v.u8[1] = x2;
   v.u8[2] = x1;
@@ -380,7 +380,7 @@ static inline Vec128T vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u
  * @param value The vector to format.
  * @return The 4 f32 lanes as "(x, y, z, w)".
  */
-std::string to_string(const Vec128T& value);
+std::string to_string(const Vec128& value);
 
 /**
  * Writes the 4 u32 lanes as 8 digit uppercase hex, "[X X X X]".
@@ -389,6 +389,6 @@ std::string to_string(const Vec128T& value);
  * @param value The vector to write.
  * @return os.
  */
-std::ostream& operator<<(std::ostream& os, const Vec128T& value);
+std::ostream& operator<<(std::ostream& os, const Vec128& value);
 
 }  // namespace rex

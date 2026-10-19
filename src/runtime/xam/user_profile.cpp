@@ -116,7 +116,7 @@ UserProfile::Setting* UserProfile::GetSetting(u32 setting_id) {
   }
   UserProfile::Setting* setting = it->second;
   if (setting->IsTitleSpecific()) {
-    if (runtime_.GetContentManager().GetTitleId() != setting->loaded_title_id) {
+    if (runtime_.GetContentManager().GetTitleID() != setting->loaded_title_id) {
       LoadSetting(setting);
     }
   }
@@ -130,7 +130,7 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
     auto file_path = content_dir / setting_id;
     if (auto serialized_data = rex::platform::ReadHostFile(file_path)) {
       setting->Deserialize(*serialized_data);
-      setting->loaded_title_id = runtime_.GetContentManager().GetTitleId();
+      setting->loaded_title_id = runtime_.GetContentManager().GetTitleID();
     }
   } else {
     REXLOG_WARN(system, "Attempting to load unsupported profile setting from disk");

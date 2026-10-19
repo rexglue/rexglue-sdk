@@ -144,7 +144,7 @@ std::unique_ptr<Presenter> VulkanProvider::CreatePresenter(
                                  GetUISamplers());
 }
 
-std::unique_ptr<ImmediateDrawer> VulkanProvider::CreateImmediateDrawer() {
+std::unique_ptr<OverlayDrawer> VulkanProvider::CreateImmediateDrawer() {
   return VulkanImmediateDrawer::Create(GetVulkanDevice(), GetUISamplers());
 }
 

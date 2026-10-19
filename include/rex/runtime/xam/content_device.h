@@ -32,7 +32,7 @@ enum class DummyDeviceId : u8 {
 };
 
 /** Description of a placeholder storage device. */
-struct DummyDeviceInfo {
+struct PlaceholderDevice {
   DummyDeviceId device_id;        /**< Id the title refers to the device by. */
   DeviceType device_type;         /**< Device type. */
   u64 total_bytes;                /**< Capacity in bytes. */
@@ -46,7 +46,7 @@ struct DummyDeviceInfo {
  * @param device_id The DummyDeviceId value.
  * @return The device, null when no placeholder has the id.
  */
-REX_RUNTIME_API const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id);
+REX_RUNTIME_API const PlaceholderDevice* GetPlaceholderDevice(u32 device_id);
 
 }  // namespace runtime
 }  // namespace rex

@@ -31,7 +31,7 @@ namespace rex::runtime::detail {
 /** States of the printf format specifier parser. */
 enum FormatState : u8 {
   kFSInvalid = 0,    /**< Invalid state. */
-  kFSUnknown,        /**< Copying literal text outside a specifier. */
+  kFSLiteral,        /**< Copying literal text outside a specifier. */
   kFSStart,          /**< After the percent sign. */
   kFSFlags,          /**< Reading flag characters. */
   kFSWidth,          /**< Reading the field width. */
@@ -313,7 +313,7 @@ class WideStringFormatData {
     return true;
   }
 
-  const std::u16string& GetWstr() const { return output_; }
+  const std::u16string& GetOutput() const { return output_; }
 
  private:
   const u16* input_;
@@ -407,7 +407,7 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
     i32 length;
   } prefix;
 
-  auto state = detail::kFSUnknown;
+  auto state = detail::kFSLiteral;
   u32 flags = 0;
   i32 width = 0;
   i32 precision = -1;
@@ -423,7 +423,7 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
   prefix.length = 0;
 
   for (u16 c = data.get();; c = data.get()) {
-    if (state == detail::kFSUnknown) {
+    if (state == detail::kFSLiteral) {
       if (!c) {
         return count;
       } else if (c != '%') {
@@ -446,7 +446,7 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
   restart:
     switch (state) {
       case detail::kFSInvalid:
-      case detail::kFSUnknown:
+      case detail::kFSLiteral:
       case detail::kFSEnd:
       default: {
         REX_ASSERT_ALWAYS();
@@ -454,7 +454,7 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
 
       case detail::kFSStart: {
         if (c == '%') {
-          state = detail::kFSUnknown;
+          state = detail::kFSLiteral;
           goto output;
         }
 
@@ -714,8 +714,8 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
           case 'A': {
             flags |= detail::kFFIsSigned;
 
-            i64 dummy = args.get64();
-            f64 value = std::bit_cast<f64>(dummy);
+            i64 bits = args.get64();
+            f64 value = std::bit_cast<f64>(bits);
 
             if (value < 0) {
               value = -value;
@@ -902,7 +902,7 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
       }
     }
 
-    state = detail::kFSUnknown;
+    state = detail::kFSLiteral;
   }
 
   return count;

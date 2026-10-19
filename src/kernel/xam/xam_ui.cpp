@@ -42,7 +42,7 @@ namespace kernel {
 namespace xam {
 using namespace rex::runtime;
 
-extern std::atomic<int> xam_dialogs_shown;
+extern std::atomic<int> g_xam_dialogs_shown;
 
 namespace {
 
@@ -69,11 +69,11 @@ struct PromptWait {
 
 class PromptShown : public rex::NonCopyable {
  public:
-  explicit PromptShown(PromptWait& wait) : wait_(wait) { ++xam_dialogs_shown; }
+  explicit PromptShown(PromptWait& wait) : wait_(wait) { ++g_xam_dialogs_shown; }
   ~PromptShown() {
     std::lock_guard lock(wait_.mutex);
     wait_.abandoned = true;
-    --xam_dialogs_shown;
+    --g_xam_dialogs_shown;
   }
 
  private:
@@ -180,7 +180,7 @@ X_RESULT XAMDispatchHeadless(const std::function<X_RESULT()>& run_callback, u32 
 }
 
 u32 XamIsUIActive_entry() {
-  return XamIsUIActive();
+  return XAMIsUIActive();
 }
 
 namespace {
@@ -218,7 +218,7 @@ u32 ShowMessageBox(MappedWString title_ptr, MappedWString text_ptr, u32 button_c
     ui::PromptDesc desc{
         .title = title.empty() ? "Message Box" : title, .body = text_str, .buttons = buttons};
     auto close = [result_ptr, active_button](const ui::PromptResult& prompt) -> X_RESULT {
-      *result_ptr = prompt.cancelled ? static_cast<u32>(active_button) : prompt.button;
+      *result_ptr = prompt.canceled ? static_cast<u32>(active_button) : prompt.button;
       return X_ERROR_SUCCESS;
     };
     result = XAMDispatchPrompt(std::move(desc), close, overlapped.GetGuestAddress());
@@ -279,7 +279,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, MappedWString default_tex
       if (!default_text) {
         std::memset(buffer, 0, buffer_size);
       } else {
-        rex::copy_truncating(buffer, default_text.GetValue(), buffer_length);
+        rex::CopyTruncating(buffer, default_text.GetValue(), buffer_length);
       }
       return X_ERROR_SUCCESS;
     };
@@ -288,14 +288,14 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, MappedWString default_tex
     auto close = [buffer, buffer_length](const ui::PromptResult& prompt, u32& extended_error,
                                          u32& length) -> X_RESULT {
       length = 0;
-      if (prompt.cancelled || prompt.button != 0) {
+      if (prompt.canceled || prompt.button != 0) {
         extended_error = X_ERROR_CANCELLED;
         return X_ERROR_SUCCESS;
       }
       std::string padded = prompt.text;
       padded.resize(static_cast<size_t>(buffer_length) + 1, '\0');
       auto text = rex::ToUTF16(padded);
-      rex::copy_and_swap_truncating(buffer, text, buffer_length);
+      rex::CopyAndSwapTruncating(buffer, text, buffer_length);
       extended_error = X_ERROR_SUCCESS;
       return X_ERROR_SUCCESS;
     };

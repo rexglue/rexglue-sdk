@@ -850,7 +850,7 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
   PopSystemTemp(operand_temps);
 }
 
-void DXBCShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
+void DXBCShaderTranslator::ProcessALUInstruction(const ParsedAluInstruction& instr,
                                                  u8 memexport_em_potentially_written_before) {
   if (instr.IsNop()) {
     return;

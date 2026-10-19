@@ -222,7 +222,7 @@ struct X_KPCR {
   union {
     be_u16 software_interrupt_state;
     struct {
-      u8 generic_software_interrupt;
+      u8 dispatch_software_interrupt;
       u8 apc_software_interrupt_state;
     };
   };
@@ -302,8 +302,8 @@ struct X_KTHREAD {
   u8 was_preempted;
   u8 terminated;
   u8 current_cpu; /**< Index of this processor. */
-  be_ptr<X_KPRCB> a_prcb_ptr;
-  be_ptr<X_KPRCB> another_prcb_ptr;
+  be_ptr<X_KPRCB> prcb;
+  be_ptr<X_KPRCB> prcb_alias;
   u8 unk_c8;
   u8 unk_c9;
   u8 unk_ca;
@@ -547,7 +547,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return True when it is.
    */
-  bool GetMainThread() const { return main_thread_; }
+  bool IsMainThread() const { return main_thread_; }
 
   /**
    * Reports whether the thread is running.
@@ -657,7 +657,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The priority.
    */
-  i32 QueryPriority();
+  i32 GetHostPriority();
 
   /**
    * Sets the priority.
@@ -711,7 +711,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The count.
    */
-  u32 SuspendCount();
+  u32 GetSuspendCount();
 
   /**
    * Resumes the thread.

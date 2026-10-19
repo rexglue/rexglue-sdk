@@ -25,9 +25,9 @@
 using rex::runtime::AccessViolationResult;
 
 REX_TEST_CASE("Memory reserves both register blocks as no access", "[memory][mmio]") {
-  auto& memory = rex::testing::GetTestMemory();
+  auto& memory = rex::test::GetTestMemory();
   for (rex::u32 address : {0x7FC80000u, 0x7FC8FFFCu, 0x7FEA0000u, 0x7FEAFFFCu}) {
-    size_t length = rex::memory::PageSize();
+    size_t length = rex::memory::GetPageSize();
     rex::memory::PageAccess access = rex::memory::PageAccess::kReadWrite;
     REQUIRE(rex::memory::QueryProtect(memory.TranslateVirtual(address), length, access));
     CHECK(access == rex::memory::PageAccess::kNoAccess);
@@ -35,7 +35,7 @@ REX_TEST_CASE("Memory reserves both register blocks as no access", "[memory][mmi
 }
 
 REX_TEST_CASE("A fault in a register block is an MMIO miss", "[memory][mmio]") {
-  auto& memory = rex::testing::GetTestMemory();
+  auto& memory = rex::test::GetTestMemory();
   CHECK(memory.HandleAccessViolation(memory.TranslateVirtual(0x7FC80010), false) ==
         AccessViolationResult::kMMIOMiss);
   CHECK(memory.HandleAccessViolation(memory.TranslateVirtual(0x7FEAFFFC), true) ==
@@ -43,7 +43,7 @@ REX_TEST_CASE("A fault in a register block is an MMIO miss", "[memory][mmio]") {
 }
 
 REX_TEST_CASE("A fault outside guest memory is unhandled", "[memory][mmio]") {
-  auto& memory = rex::testing::GetTestMemory();
+  auto& memory = rex::test::GetTestMemory();
   int local = 0;
   CHECK(memory.HandleAccessViolation(&local, true) == AccessViolationResult::kUnhandled);
 }
@@ -59,29 +59,29 @@ std::pair<rex::u32, rex::u32> CountInvalidation(void*, rex::u32, rex::u32, bool)
   return {0, UINT32_MAX};
 }
 
-struct BlockProbe {
+struct BlockFault {
   rex::u8* page = nullptr;
   size_t page_size = 0;
   bool reached = false;
 };
 
 bool OpenBlockPage(rex::platform::Exception* ex, void* data) {
-  auto* probe = static_cast<BlockProbe*>(data);
+  auto* fault_block = static_cast<BlockFault*>(data);
   const auto fault = static_cast<uintptr_t>(ex->GetFaultAddress());
-  const auto page = reinterpret_cast<uintptr_t>(probe->page);
-  if (fault < page || fault >= page + probe->page_size) {
+  const auto page = reinterpret_cast<uintptr_t>(fault_block->page);
+  if (fault < page || fault >= page + fault_block->page_size) {
     return false;
   }
-  probe->reached = true;
-  return rex::memory::Protect(probe->page, probe->page_size, rex::memory::PageAccess::kReadOnly,
-                              nullptr);
+  fault_block->reached = true;
+  return rex::memory::Protect(fault_block->page, fault_block->page_size,
+                              rex::memory::PageAccess::kReadOnly, nullptr);
 }
 
 }  // namespace
 
 REX_TEST_CASE("A write to a watched physical page runs the invalidation callback and resumes",
               "[memory][mmio]") {
-  auto& memory = rex::testing::GetTestMemory();
+  auto& memory = rex::test::GetTestMemory();
   const rex::u32 address =
       memory.SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
   REQUIRE(address != 0);
@@ -99,15 +99,15 @@ REX_TEST_CASE("A write to a watched physical page runs the invalidation callback
 
 REX_TEST_CASE("A plain read of a register block is refused by Memory and reaches the next handler",
               "[memory][mmio]") {
-  auto& memory = rex::testing::GetTestMemory();
-  BlockProbe probe{memory.TranslateVirtual(0x7FC80000), rex::memory::PageSize()};
-  rex::platform::ExceptionHandler::Install(OpenBlockPage, &probe);
+  auto& memory = rex::test::GetTestMemory();
+  BlockFault fault_block{memory.TranslateVirtual(0x7FC80000), rex::memory::GetPageSize()};
+  rex::platform::ExceptionHandler::Install(OpenBlockPage, &fault_block);
   const rex::u32 value = *memory.TranslateVirtual<volatile rex::u32*>(0x7FC80010);
-  rex::platform::ExceptionHandler::Uninstall(OpenBlockPage, &probe);
+  rex::platform::ExceptionHandler::Uninstall(OpenBlockPage, &fault_block);
   (void)value;
-  CHECK(probe.reached);
-  CHECK(rex::memory::Protect(probe.page, probe.page_size, rex::memory::PageAccess::kNoAccess,
-                             nullptr));
+  CHECK(fault_block.reached);
+  CHECK(rex::memory::Protect(fault_block.page, fault_block.page_size,
+                             rex::memory::PageAccess::kNoAccess, nullptr));
 }
 
 #endif

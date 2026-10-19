@@ -299,7 +299,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @return The SDL window, or null before the window opens.
    */
-  virtual SDL_Window* GetSDL() const { return nullptr; }
+  virtual SDL_Window* GetSDLWindow() const { return nullptr; }
 
   /**
    * Sets the smallest client area the window accepts. Applies now and whenever the window
@@ -475,7 +475,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   };
 
   /** Default auto hide delay, the one Windows Media Player uses. */
-  static constexpr u32 kDefaultCursorAutoHideMilliseconds = 3333;
+  static constexpr u32 kDefaultCursorAutoHideDelayMs = 3333;
 
   /**
    * Creates the common window state.
@@ -791,7 +791,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
 
   CursorVisibility cursor_visibility_ = CursorVisibility::kVisible;
 
-  u32 cursor_auto_hide_delay_ms_ = kDefaultCursorAutoHideMilliseconds;
+  u32 cursor_auto_hide_delay_ms_ = kDefaultCursorAutoHideDelayMs;
 
   bool has_focus_ = false;
 

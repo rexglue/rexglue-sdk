@@ -18,42 +18,42 @@ namespace rex::codegen {
                ctx.GetDecoded().GetInstructionCount(), ctx.GetDecoded().GetCodeRegions().size());
 
   if (reporter)
-    reporter->PhaseChanged("Register");
+    reporter->ModulePhaseStarted("Register");
   auto reg_result = detail::Register(ctx, reporter);
   if (!reg_result) {
     return reg_result;
   }
 
   if (reporter)
-    reporter->PhaseChanged("Scan");
+    reporter->ModulePhaseStarted("Scan");
   auto scan_result = detail::Scan(ctx, reporter);
   if (!scan_result) {
     return scan_result;
   }
 
   if (reporter)
-    reporter->PhaseChanged("Discover");
+    reporter->ModulePhaseStarted("Discover");
   auto discover_result = detail::Discover(ctx, reporter);
   if (!discover_result) {
     return discover_result;
   }
 
   if (reporter)
-    reporter->PhaseChanged("GapFill");
+    reporter->ModulePhaseStarted("GapFill");
   auto gap_fill_result = detail::GapFill(ctx, reporter);
   if (!gap_fill_result) {
     return gap_fill_result;
   }
 
   if (reporter)
-    reporter->PhaseChanged("Merge");
+    reporter->ModulePhaseStarted("Merge");
   auto merge_result = detail::Merge(ctx, reporter);
   if (!merge_result) {
     return merge_result;
   }
 
   if (reporter)
-    reporter->PhaseChanged("Validate");
+    reporter->ModulePhaseStarted("Validate");
   auto validate_result = detail::Validate(ctx, reporter);
   if (!validate_result) {
     return validate_result;

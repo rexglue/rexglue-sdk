@@ -72,8 +72,8 @@ struct Fixture {
   Fixture() { rex::Shutdown(); }
   ~Fixture() {
     if (api) {
-      CHECK(Cvars().ResetToDefault("log.level"));
-      CHECK(Cvars().ResetToDefault("log.file"));
+      CHECK(GetCvars().ResetToDefault("log.level"));
+      CHECK(GetCvars().ResetToDefault("log.file"));
     }
     rex::Shutdown();
   }
@@ -87,7 +87,7 @@ struct Fixture {
     return *logger;
   }
 
-  rex::cvar::ICvarRegistry& Cvars() const { return *api->Get<rex::cvar::ICvarRegistry>(); }
+  rex::cvar::ICvarRegistry& GetCvars() const { return *api->Get<rex::cvar::ICvarRegistry>(); }
 
   rex::API* api = nullptr;
 };
@@ -125,7 +125,7 @@ REX_TEST_CASE_METHOD(Fixture, "A category follows the default until it has its o
   REQUIRE(logger.GetLevel("test_alpha").value() == Level::kInfo);
   REQUIRE(logger.SetLevel("test_alpha", Level::kDebug));
   REQUIRE(logger.GetLevel("test_alpha").value() == Level::kDebug);
-  REQUIRE(Cvars().Set("log.level", "error"));
+  REQUIRE(GetCvars().Set("log.level", "error"));
   REQUIRE(logger.GetLevel("test_alpha").value() == Level::kDebug);
   REQUIRE(logger.GetLevel("test_beta").value() == Level::kError);
   REQUIRE(logger.SetLevel("test_alpha", std::nullopt));
@@ -153,13 +153,13 @@ REX_TEST_CASE_METHOD(Fixture, "Register adds a cvar per category and rejects con
                      "[core][logger]") {
   rex::ILogger& logger = Start();
   REQUIRE(logger.Register(rex::log::kTestLog));
-  REQUIRE(Cvars().Find("log.test_alpha"));
+  REQUIRE(GetCvars().Find("log.test_alpha"));
   REQUIRE_FALSE(logger.Register(rex::log::kTestLog));
   REQUIRE_FALSE(logger.Register(rex::log::kCollidingLog));
-  REQUIRE(Cvars().Set("log.test_beta", "trace"));
+  REQUIRE(GetCvars().Set("log.test_beta", "trace"));
   REQUIRE(logger.GetLevel("test_beta").value() == Level::kTrace);
   logger.Unregister(rex::log::kTestLog);
-  REQUIRE_FALSE(Cvars().Find("log.test_alpha"));
+  REQUIRE_FALSE(GetCvars().Find("log.test_alpha"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A config file value reaches a category registered at start",
@@ -181,7 +181,7 @@ REX_TEST_CASE_METHOD(Fixture, "A category nobody registered is listed and report
   REQUIRE(sink.Contains("orphan line"));
   const auto categories = logger.GetCategories();
   auto orphan =
-      std::ranges::find(categories, std::string("test_orphan"), &rex::log::CategoryInfo::name);
+      std::ranges::find(categories, std::string("test_orphan"), &rex::log::CategoryState::name);
   REQUIRE(orphan != categories.end());
   REQUIRE_FALSE(orphan->registered);
 }
@@ -326,7 +326,7 @@ REX_TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread"
   Start(config);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   CHECK(rex::platform::detail::GetThreadCount() == without_flush);
-  CHECK(Cvars().ResetToDefault("log.flush_interval"));
+  CHECK(GetCvars().ResetToDefault("log.flush_interval"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "The log config sets levels and log.file overrides the path",

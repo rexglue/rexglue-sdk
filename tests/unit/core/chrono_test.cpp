@@ -127,7 +127,7 @@ static TimeFields Decompose(u64 filetime) {
   };
 }
 
-REX_TEST_CASE("calendar decomposition: NT epoch (1601-01-01)", "[core][chrono]") {
+REX_TEST_CASE("calendar decomposition of the NT epoch (1601-01-01)", "[core][chrono]") {
   auto tf = Decompose(kFtNtEpoch);
   CHECK(tf.year == 1601);
   CHECK(tf.month == 1);
@@ -139,7 +139,7 @@ REX_TEST_CASE("calendar decomposition: NT epoch (1601-01-01)", "[core][chrono]")
   CHECK(tf.milliseconds == 0);
 }
 
-REX_TEST_CASE("calendar decomposition: Unix epoch (1970-01-01)", "[core][chrono]") {
+REX_TEST_CASE("calendar decomposition of the Unix epoch (1970-01-01)", "[core][chrono]") {
   auto tf = Decompose(kFtUnixEpoch);
   CHECK(tf.year == 1970);
   CHECK(tf.month == 1);
@@ -151,7 +151,7 @@ REX_TEST_CASE("calendar decomposition: Unix epoch (1970-01-01)", "[core][chrono]
   CHECK(tf.milliseconds == 0);
 }
 
-REX_TEST_CASE("calendar decomposition: Y2K (2000-01-01)", "[core][chrono]") {
+REX_TEST_CASE("calendar decomposition of Y2K (2000-01-01)", "[core][chrono]") {
   auto tf = Decompose(kFtY2k);
   CHECK(tf.year == 2000);
   CHECK(tf.month == 1);
@@ -163,7 +163,7 @@ REX_TEST_CASE("calendar decomposition: Y2K (2000-01-01)", "[core][chrono]") {
   CHECK(tf.milliseconds == 0);
 }
 
-REX_TEST_CASE("calendar decomposition: leap day (2000-02-29)", "[core][chrono]") {
+REX_TEST_CASE("calendar decomposition of a leap day (2000-02-29)", "[core][chrono]") {
   auto tf = Decompose(kFtLeapDay);
   CHECK(tf.year == 2000);
   CHECK(tf.month == 2);
@@ -175,7 +175,8 @@ REX_TEST_CASE("calendar decomposition: leap day (2000-02-29)", "[core][chrono]")
   CHECK(tf.milliseconds == 0);
 }
 
-REX_TEST_CASE("calendar decomposition: sub-day (2020-12-30 12:00:12.345)", "[core][chrono]") {
+REX_TEST_CASE("calendar decomposition of a time within a day (2020-12-30 12:00:12.345)",
+              "[core][chrono]") {
   auto tf = Decompose(kFtSubDay);
   CHECK(tf.year == 2020);
   CHECK(tf.month == 12);
@@ -187,7 +188,7 @@ REX_TEST_CASE("calendar decomposition: sub-day (2020-12-30 12:00:12.345)", "[cor
   CHECK(tf.milliseconds == 345);
 }
 
-REX_TEST_CASE("calendar decomposition: 2021-01-01", "[core][chrono]") {
+REX_TEST_CASE("calendar decomposition of 2021-01-01", "[core][chrono]") {
   auto tf = Decompose(kFt2021);
   CHECK(tf.year == 2021);
   CHECK(tf.month == 1);
@@ -225,7 +226,8 @@ static u64 Recompose(int y, unsigned m, unsigned d, int hour, int min, int sec, 
   return WinSystemClock::ToFileTime(WinSystemClock::from_sys(time));
 }
 
-REX_TEST_CASE("calendar recomposition: known dates produce correct FILETIMEs", "[core][chrono]") {
+REX_TEST_CASE("calendar recomposition of known dates produces correct FILETIMEs",
+              "[core][chrono]") {
   CHECK(Recompose(1601, 1, 1, 0, 0, 0, 0) == kFtNtEpoch);
   CHECK(Recompose(1970, 1, 1, 0, 0, 0, 0) == kFtUnixEpoch);
   CHECK(Recompose(2000, 1, 1, 0, 0, 0, 0) == kFtY2k);
@@ -234,7 +236,7 @@ REX_TEST_CASE("calendar recomposition: known dates produce correct FILETIMEs", "
   CHECK(Recompose(2021, 1, 1, 0, 0, 0, 0) == kFt2021);
 }
 
-REX_TEST_CASE("calendar recomposition: decompose then recompose round-trips", "[core][chrono]") {
+REX_TEST_CASE("calendar recomposition after decomposition round trips", "[core][chrono]") {
   for (u64 ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFtLeapDay, kFtSubDay, kFt2021}) {
     auto tf = Decompose(ft);
     auto result =
@@ -295,12 +297,12 @@ REX_TEST_CASE("weekday c_encoding returns 0=Sunday through 6=Saturday", "[core][
 
 REX_TEST_CASE("The host tick count advances at the rate of steady_clock", "[core][chrono]") {
   const auto start = std::chrono::steady_clock::now();
-  const rex::u64 ticks_start = rex::Clock::QueryHostTickCount();
+  const rex::u64 ticks_start = rex::Clock::GetHostTickCount();
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  const rex::u64 ticks = rex::Clock::QueryHostTickCount() - ticks_start;
+  const rex::u64 ticks = rex::Clock::GetHostTickCount() - ticks_start;
   const auto elapsed = std::chrono::duration<rex::f64>(std::chrono::steady_clock::now() - start);
   const rex::f64 seconds =
-      static_cast<rex::f64>(ticks) / static_cast<rex::f64>(rex::Clock::QueryHostTickFrequency());
+      static_cast<rex::f64>(ticks) / static_cast<rex::f64>(rex::Clock::GetHostTickFrequency());
   CHECK(seconds / elapsed.count() > 0.99);
   CHECK(seconds / elapsed.count() < 1.01);
 }

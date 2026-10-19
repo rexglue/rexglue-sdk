@@ -17,7 +17,7 @@
 /** The pack format, the source element words and the saturation bit 1 pack set. */
 struct PackD3DCase {
   u32 type;
-  std::array<u32, 4> a;
+  std::array<u32, 4> source;
   bool saturated;
 };
 
@@ -143,7 +143,7 @@ inline constexpr PackD3DCase kPackD3DCases[] = {
 };
 
 /** One captured vpkd3d128 result, with the source and destination words in big endian order. */
-struct PackD3DRecord {
+struct PackD3DResult {
   u32 group;
   u32 type;
   u32 mask;
@@ -157,7 +157,7 @@ struct PackD3DRecord {
 inline constexpr std::array<u32, 4> kPackD3DInitial = {0xA0A1A2A3, 0xB0B1B2B3, 0xC0C1C2C3,
                                                        0xD0D1D2D3};
 
-inline constexpr PackD3DRecord kPackD3DRecords[] = {
+inline constexpr PackD3DResult kPackD3DResults[] = {
     {0,
      4,
      0,

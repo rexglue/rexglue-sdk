@@ -33,7 +33,7 @@ class REX_RUNTIME_API ELFModule : public Module {
   /** Destroys the module. */
   virtual ~ELFModule();
 
-  bool GetLoaded() const { return loaded_; }
+  bool IsLoaded() const { return loaded_; }
   const std::string& GetName() const override { return name_; }
   /**
    * Reports whether the image has an entry point.

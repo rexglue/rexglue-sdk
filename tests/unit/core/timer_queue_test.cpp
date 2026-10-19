@@ -126,13 +126,13 @@ REX_TEST_CASE("Timers fire in due order", "[core][timer_queue]") {
   QueueReset reset;
   std::mutex order_mutex;
   std::vector<int> order;
-  auto record = [&](int id) {
+  auto append_order = [&](int id) {
     std::lock_guard lock(order_mutex);
     order.push_back(id);
   };
   const auto now = Clock::now();
-  auto late = rex::platform::QueueTimerOnce([&](void*) { record(2); }, nullptr, now + 60ms);
-  auto early = rex::platform::QueueTimerOnce([&](void*) { record(1); }, nullptr, now + 30ms);
+  auto late = rex::platform::QueueTimerOnce([&](void*) { append_order(2); }, nullptr, now + 60ms);
+  auto early = rex::platform::QueueTimerOnce([&](void*) { append_order(1); }, nullptr, now + 30ms);
   REQUIRE(WaitFor([&] {
     std::lock_guard lock(order_mutex);
     return order.size() == 2;

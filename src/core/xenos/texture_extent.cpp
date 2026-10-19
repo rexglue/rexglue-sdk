@@ -64,8 +64,8 @@ TextureExtent TextureExtent::Calculate(const FormatInfo* format_info, u32 pitch,
 
 TextureExtent TextureExtent::Calculate(const TextureInfo* info, bool is_guest) {
   REX_ASSERT(info != nullptr);
-  return CalculateExtent(info->GetFormatInfo(), info->pitch, info->height + 1, info->depth + 1,
-                         info->is_tiled, is_guest);
+  return CalculateExtent(info->GetFormatInfo(), info->pitch, info->height_minus_1 + 1,
+                         info->depth_or_array_size_minus_1 + 1, info->is_tiled, is_guest);
 }
 
 }  // namespace rex::xenos

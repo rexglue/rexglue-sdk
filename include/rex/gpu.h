@@ -52,8 +52,8 @@ REX_INTERFACE(IGPUBackend, "rex.gpu.backend", 1)
    * @param runtime The runtime the GPU workers belong to.
    * @return Ok, or the backend failure.
    */
-  [[nodiscard]] virtual Result<void> SetupGuestGPU(runtime::FunctionDispatcher& dispatcher,
-                                                   Runtime& runtime) = 0;
+  [[nodiscard]] virtual Result<void> SetupGPU(runtime::FunctionDispatcher& dispatcher,
+                                              Runtime& runtime) = 0;
 
   /**
    * Reports whether SetupPresentation built the guest output presenter.

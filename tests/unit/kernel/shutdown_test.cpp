@@ -86,8 +86,8 @@ void (*volatile g_spin_in_seh_scope)(const volatile rex::u32*) = &SpinInSEHScope
 
 }  // namespace
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -95,7 +95,7 @@ using namespace std::chrono_literals;
 
 constexpr auto kStopBudget = 500ms;
 
-u32 CreateEvent(Caller& c) {
+u32 CreateGuestEvent(Caller& c) {
   const u32 handle_ptr = c.Alloc(4);
   CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
     FAIL_CHECK("the check above failed");
@@ -159,10 +159,10 @@ void FiberWait(PPCContext& ctx, u8* base) {
 }
 
 u32 SpawnFiberWaiter(Caller& c, u32 fiber_entry) {
-  g_fiber_event.store(CreateEvent(c));
+  g_fiber_event.store(CreateGuestEvent(c));
   g_fiber_waiting.store(false);
   return c.Spawn([fiber_entry](Caller& t) {
-    PPCContext& ctx = t.GetCtx();
+    PPCContext& ctx = t.GetContext();
     u8* base = t.GetRuntime().GetMemory()->GetVirtualMembase();
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
@@ -181,7 +181,7 @@ void MarkAPC(PPCContext&, u8*) {
   g_apc_ran.store(true);
 }
 
-u32 StopsWithin(Caller& c, const std::function<void(Caller&)>& body) {
+u32 SpawnAndRequestStop(Caller& c, const std::function<void(Caller&)>& body) {
   auto started = std::make_shared<std::atomic<bool>>(false);
   const u32 thread = c.Spawn([started, body](Caller& t) {
     started->store(true);
@@ -245,29 +245,29 @@ void RegisterThreadNotification(Caller& c, u32 routine) {
 }
 
 #if !REX_PLATFORM_WIN32
-std::atomic<bool> g_scope_probe_armed{false};
-std::atomic<bool> g_scope_probe_ran{false};
+std::atomic<bool> g_scope_check_armed{false};
+std::atomic<bool> g_scope_check_ran{false};
 std::atomic<bool> g_scope_left_open{false};
 
-void ProbeScopeOnExit(PPCContext& ctx, u8*) {
-  if (ctx.r3.u32 == 0 && g_scope_probe_armed.load()) {
-    g_scope_probe_ran.store(true);
+void CheckScopeOnExit(PPCContext& ctx, u8*) {
+  if (ctx.r3.u32 == 0 && g_scope_check_armed.load()) {
+    g_scope_check_ran.store(true);
     g_scope_left_open.store(rex::platform::GetSEHThreadState().top != nullptr);
   }
 }
 
-std::atomic<bool> g_fiber_probed{false};
+std::atomic<bool> g_fiber_checked{false};
 std::atomic<bool> g_fiber_saw_scope{false};
 
-void ProbeScopeOnFiber(PPCContext&, u8*) {
+void CheckScopeOnFiber(PPCContext&, u8*) {
   g_fiber_saw_scope.store(rex::platform::GetSEHThreadState().top != nullptr);
-  g_fiber_probed.store(true);
+  g_fiber_checked.store(true);
 }
 
 bool SwitchToFiberInScope(Caller& t, u32 fiber_entry) {
   bool kept = false;
   REX_SEH_TRY {
-    PPCContext& ctx = t.GetCtx();
+    PPCContext& ctx = t.GetContext();
     u8* base = t.GetRuntime().GetMemory()->GetVirtualMembase();
     rex::platform::SEHScope* const scope = rex::platform::GetSEHThreadState().top;
     ctx.r3.u64 = 0;
@@ -307,7 +307,7 @@ REX_TEST_CASE("A stop crosses a guest SEH scope without running its handler",
               "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     auto handled = std::make_shared<std::atomic<bool>>(false);
     auto waiting = std::make_shared<std::atomic<bool>>(false);
     const u32 thread = c.Spawn(
@@ -350,8 +350,8 @@ REX_TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
 REX_TEST_CASE("A stop wakes a nonalertable wait on an event nobody sets", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 event = CreateEvent(c);
-    const u32 thread = StopsWithin(c, [event](Caller& t) { WaitForever(t, event, 0); });
+    const u32 event = CreateGuestEvent(c);
+    const u32 thread = SpawnAndRequestStop(c, [event](Caller& t) { WaitForever(t, event, 0); });
     CHECK(Joined(c, thread, kStopBudget));
   });
 }
@@ -360,10 +360,10 @@ REX_TEST_CASE("A stop wakes a wait all on events not all set", "[kernel][shutdow
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handles = c.Alloc(8);
-    c.Store32(handles, CreateEvent(c));
-    c.Store32(handles + 4, CreateEvent(c));
+    c.Store32(handles, CreateGuestEvent(c));
+    c.Store32(handles + 4, CreateGuestEvent(c));
     c.Kernel("NtSetEvent", {c.Load32(handles), 0});
-    const u32 thread = StopsWithin(c, [handles](Caller& t) {
+    const u32 thread = SpawnAndRequestStop(c, [handles](Caller& t) {
       t.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, 0});
     });
     CHECK(Joined(c, thread, kStopBudget));
@@ -373,9 +373,9 @@ REX_TEST_CASE("A stop wakes a wait all on events not all set", "[kernel][shutdow
 REX_TEST_CASE("A stop wakes a signal and wait", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 signal = CreateEvent(c);
-    const u32 wait = CreateEvent(c);
-    const u32 thread = StopsWithin(c, [signal, wait](Caller& t) {
+    const u32 signal = CreateGuestEvent(c);
+    const u32 wait = CreateGuestEvent(c);
+    const u32 thread = SpawnAndRequestStop(c, [signal, wait](Caller& t) {
       t.Kernel("NtSignalAndWaitForSingleObjectEx", {signal, wait, 0, 0, 0});
     });
     CHECK(Joined(c, thread, kStopBudget));
@@ -385,7 +385,7 @@ REX_TEST_CASE("A stop wakes a signal and wait", "[kernel][shutdown]") {
 REX_TEST_CASE("A stop wakes a nonalertable delay of 1 hour", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 thread = StopsWithin(
+    const u32 thread = SpawnAndRequestStop(
         c, [](Caller& t) { t.Kernel("KeDelayExecutionThread", {1, 0, t.Quad(-36000000000LL)}); });
     CHECK(Joined(c, thread, kStopBudget));
   });
@@ -394,9 +394,9 @@ REX_TEST_CASE("A stop wakes a nonalertable delay of 1 hour", "[kernel][shutdown]
 REX_TEST_CASE("A stop releases a host lock held across a wait", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     auto mutex = std::make_shared<std::mutex>();
-    const u32 thread = StopsWithin(c, [event, mutex](Caller& t) {
+    const u32 thread = SpawnAndRequestStop(c, [event, mutex](Caller& t) {
       std::lock_guard lock(*mutex);
       WaitForever(t, event, 0);
     });
@@ -409,7 +409,7 @@ REX_TEST_CASE("A stop releases a host lock held across a wait", "[kernel][shutdo
 REX_TEST_CASE("A stop requested before the wait still wakes it", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     auto release = std::make_shared<std::atomic<bool>>(false);
     auto started = std::make_shared<std::atomic<bool>>(false);
     const u32 thread = c.Spawn([event, release, started](Caller& t) {
@@ -432,7 +432,7 @@ REX_TEST_CASE("A nonalertable wait keeps waiting through a guest APC", "[kernel]
   REQUIRE(routine != 0);
   fixture.RunOnGuestThread([routine](Caller& c) {
     g_apc_ran.store(false);
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     auto status = std::make_shared<std::atomic<u32>>(0);
     auto waiting = std::make_shared<std::atomic<bool>>(false);
     auto elapsed = std::make_shared<std::atomic<i64>>(0);
@@ -459,9 +459,9 @@ REX_TEST_CASE("TerminateTitle ends guest threads in every wait kind with no kill
   KernelFixture fixture;
   std::vector<u32> threads;
   fixture.RunOnGuestThread([&threads](Caller& c) {
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     const u32 handles = c.Alloc(8);
-    c.Store32(handles, CreateEvent(c));
+    c.Store32(handles, CreateGuestEvent(c));
     c.Store32(handles + 4, event);
     c.Kernel("NtSetEvent", {c.Load32(handles), 0});
     threads.push_back(c.Spawn([event](Caller& t) { WaitForever(t, event, 0); }));
@@ -469,7 +469,7 @@ REX_TEST_CASE("TerminateTitle ends guest threads in every wait kind with no kill
       t.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, 0});
     }));
     threads.push_back(c.Spawn([event](Caller& t) {
-      t.Kernel("NtSignalAndWaitForSingleObjectEx", {CreateEvent(t), event, 0, 0, 0});
+      t.Kernel("NtSignalAndWaitForSingleObjectEx", {CreateGuestEvent(t), event, 0, 0, 0});
     }));
     threads.push_back(c.Spawn(
         [](Caller& t) { t.Kernel("KeDelayExecutionThread", {1, 0, t.Quad(-36000000000LL)}); }));
@@ -492,12 +492,12 @@ REX_TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kern
   auto spawner = std::make_shared<std::atomic<u32>>(0);
   auto launched = std::make_shared<Launched>();
   fixture.RunOnGuestThread([spawner, launched](Caller& c) {
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     spawner->store(c.Spawn([event, launched](Caller& t) {
       const u32 handle_ptr = t.Alloc(4);
       for (u32 i = 0; i < 2000; ++i) {
         const u32 body =
-            Caller::PutBodyForTest([event](Caller& child) { WaitForever(child, event, 0); });
+            Caller::RegisterBody([event](Caller& child) { WaitForever(child, event, 0); });
         const u32 status = t.Kernel("ExCreateThread",
                                     {handle_ptr, 0x10000, 0, 0, Caller::start_thunk, body, i % 2});
         if (status == 0) {
@@ -537,7 +537,7 @@ REX_TEST_CASE(
   const u32 flink = c.Load32(process + 0x04);
   const u32 blink = c.Load32(process + 0x08);
   const u32 handle_ptr = c.Alloc(4);
-  const u32 body = Caller::PutBodyForTest([](Caller&) {});
+  const u32 body = Caller::RegisterBody([](Caller&) {});
   CHECK(c.Kernel("ExCreateThread", {handle_ptr, 0x10000, 0, 0, Caller::start_thunk, body, 0}) ==
         rex::X_STATUS_PROCESS_IS_TERMINATING);
   CHECK(c.Load32(process + 0x14) == count);
@@ -554,7 +554,7 @@ REX_TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kerne
   auto other_stopped_first = std::make_shared<std::atomic<bool>>(false);
   auto started = std::make_shared<std::atomic<bool>>(false);
   fixture.RunOnGuestThread([terminator, other, other_stopped_first, started](Caller& c) {
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     other->store(c.Spawn([event](Caller& t) { WaitForever(t, event, 0); }));
     terminator->store(c.Spawn([other, other_stopped_first, started](Caller& t) {
       started->store(true);
@@ -583,7 +583,7 @@ REX_TEST_CASE("A terminate notification that waits forever is stopped with no ki
       fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&WaitingTerminateRoutine, 0);
   REQUIRE(routine != 0);
   fixture.RunOnGuestThread([routine](Caller& c) {
-    g_notify_event.store(CreateEvent(c));
+    g_notify_event.store(CreateGuestEvent(c));
     const u32 registration = c.Alloc(0x10);
     c.Store32(registration, routine);
     c.Store32(registration + 4, 1);
@@ -668,7 +668,7 @@ REX_TEST_CASE("A thread that holds a mutant when the stop arrives abandons it",
       return;
     }
     const u32 mutant = c.Load32(handle_ptr);
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     auto owned = std::make_shared<std::atomic<bool>>(false);
     const u32 holder = c.Spawn([mutant, event, owned](Caller& t) {
       CHECKED_ELSE(t.Kernel("NtWaitForSingleObjectEx", {mutant, 1, 0, 0}) == 0) {
@@ -708,7 +708,7 @@ REX_TEST_CASE("A stop wakes an IO completion wait with no timeout", "[kernel][sh
       return;
     }
     const u32 port = c.Load32(port_ptr);
-    const u32 thread = StopsWithin(c, [port](Caller& t) {
+    const u32 thread = SpawnAndRequestStop(c, [port](Caller& t) {
       const u32 out = t.Alloc(16);
       t.Kernel("NtRemoveIoCompletion", {port, out, out + 4, out + 8, 0});
     });
@@ -745,7 +745,7 @@ std::string DescribeThread(rex::Runtime& runtime, u32 handle) {
     return std::format("thread {:08X} is gone", handle);
   }
   return std::format("thread {:08X} '{}' running {} suspend count {} terminated {}", handle,
-                     pin->GetName(), pin->IsRunning(), pin->SuspendCount(),
+                     pin->GetName(), pin->IsRunning(), pin->GetSuspendCount(),
                      pin->GetGuestObject<rex::runtime::X_KTHREAD>()->terminated);
 }
 
@@ -803,7 +803,7 @@ REX_TEST_CASE("Teardown stops a thread whose exit notification waits forever",
       fixture->GetRuntime().GetFunctionDispatcher()->AllocateThunk(&WaitingExitRoutine, 0);
   REQUIRE(routine != 0);
   fixture->RunOnGuestThread([routine](Caller& c) {
-    g_notify_event.store(CreateEvent(c));
+    g_notify_event.store(CreateGuestEvent(c));
     RegisterThreadNotification(c, routine);
     const u32 event = g_notify_event.load();
     c.Spawn([event](Caller& t) { WaitForever(t, event, 0); });
@@ -1058,24 +1058,24 @@ REX_TEST_CASE("A stop that crosses an SEH scope leaves no scope open on the thre
               "[kernel][shutdown][seh]") {
   KernelFixture fixture;
   const u32 routine =
-      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&ProbeScopeOnExit, 0);
+      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&CheckScopeOnExit, 0);
   REQUIRE(routine != 0);
-  g_scope_probe_ran.store(false);
+  g_scope_check_ran.store(false);
   g_scope_left_open.store(false);
   fixture.RunOnGuestThread([routine](Caller& c) {
     RegisterThreadNotification(c, routine);
-    const u32 event = CreateEvent(c);
+    const u32 event = CreateGuestEvent(c);
     auto handled = std::make_shared<std::atomic<bool>>(false);
     auto waiting = std::make_shared<std::atomic<bool>>(false);
-    g_scope_probe_armed.store(true);
+    g_scope_check_armed.store(true);
     const u32 thread = c.Spawn(
         [event, handled, waiting](Caller& t) { GuardedWait(t, event, *handled, *waiting); });
     WaitUntil(*waiting);
     RequestStop(c, thread);
     CHECK(Joined(c, thread, kStopBudget));
-    g_scope_probe_armed.store(false);
+    g_scope_check_armed.store(false);
   });
-  CHECK(g_scope_probe_ran.load());
+  CHECK(g_scope_check_ran.load());
   CHECK_FALSE(g_scope_left_open.load());
 }
 
@@ -1083,9 +1083,9 @@ REX_TEST_CASE("A guest fiber starts with no SEH scope and the switch back restor
               "[kernel][shutdown][seh][fiber]") {
   KernelFixture fixture;
   const u32 fiber_entry =
-      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&ProbeScopeOnFiber, 0);
+      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&CheckScopeOnFiber, 0);
   REQUIRE(fiber_entry != 0);
-  g_fiber_probed.store(false);
+  g_fiber_checked.store(false);
   g_fiber_saw_scope.store(true);
   auto kept = std::make_shared<std::atomic<bool>>(false);
   fixture.RunOnGuestThread([fiber_entry, kept](Caller& c) {
@@ -1093,7 +1093,7 @@ REX_TEST_CASE("A guest fiber starts with no SEH scope and the switch back restor
         [fiber_entry, kept](Caller& t) { kept->store(SwitchToFiberInScope(t, fiber_entry)); });
     CHECK(Joined(c, thread, 1000ms));
   });
-  CHECK(g_fiber_probed.load());
+  CHECK(g_fiber_checked.load());
   CHECK_FALSE(g_fiber_saw_scope.load());
   CHECK(kept->load());
 }

@@ -92,35 +92,35 @@ class Fence {
  *
  * @return Logical processor count.
  */
-REX_API u32 LogicalProcessorCount();
+REX_API u32 GetLogicalProcessorCount();
 
 /**
  * Widens the process affinity to every processor so threads can pin to any of them. Does nothing
  * on POSIX.
  */
-REX_API void EnableAffinityConfiguration();
+REX_API void WidenProcessAffinity();
 
 /**
  * Returns the OS thread ID of the calling thread. For logs and diagnostics only.
  *
  * @return OS thread ID.
  */
-REX_API u32 CurrentThreadSystemId();
+REX_API u32 GetCallerSystemThreadID();
 
 /**
- * Returns the ID of the calling thread. Equals CurrentThreadSystemId() until
- * SetCurrentThreadId overrides it. Guest threads set it to their guest thread handle.
+ * Returns the ID of the calling thread. Equals GetCallerSystemThreadID() until
+ * SetCallerThreadID overrides it. Guest threads set it to their guest thread handle.
  *
  * @return Thread ID.
  */
-REX_API u32 CurrentThreadId();
+REX_API u32 GetCallerThreadID();
 
 /**
  * Overrides the ID CurrentThreadId returns on the calling thread.
  *
  * @param id New thread ID.
  */
-REX_API void SetCurrentThreadId(u32 id);
+REX_API void SetCallerThreadID(u32 id);
 
 /**
  * Names the calling thread for debuggers and OS tools.
@@ -160,7 +160,7 @@ void Sleep(std::chrono::duration<Rep, Period> duration) {
  *
  * @return Kernel plus user time.
  */
-REX_API std::chrono::milliseconds QueryCurrentThreadCPUTime();
+REX_API std::chrono::milliseconds GetCurrentThreadCPUTime();
 
 /** Outcome of AlertableSleep. */
 enum class SleepResult : u8 {
@@ -477,9 +477,9 @@ class REX_API Mutant : public WaitHandle {
 class REX_API Timer : public WaitHandle {
  public:
   /** Clock of Windows kernel sync primitives. */
-  using WClock = rex::WinSystemClock;
+  using WindowsClock = rex::WinSystemClock;
   /** Clock of the SDK timer queue. */
-  using GClock = std::chrono::steady_clock;
+  using SteadyClock = std::chrono::steady_clock;
 
   /**
    * Creates a timer that stays signaled until a Set call gives it a new due time.
@@ -511,7 +511,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called when the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetOnceAt(WClock::time_point due_time,
+  virtual bool SetOnceAt(WindowsClock::time_point due_time,
                          std::function<void()> opt_callback = nullptr) = 0;
   /**
    * Arms the timer to fire once at a steady clock time.
@@ -520,7 +520,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called when the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetOnceAt(GClock::time_point due_time,
+  virtual bool SetOnceAt(SteadyClock::time_point due_time,
                          std::function<void()> opt_callback = nullptr) = 0;
 
   /**
@@ -541,7 +541,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called each time the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetRepeatingAt(WClock::time_point due_time, std::chrono::milliseconds period,
+  virtual bool SetRepeatingAt(WindowsClock::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
   /**
    * Arms the timer to fire at a steady clock time and then each period.
@@ -551,7 +551,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called each time the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetRepeatingAt(GClock::time_point due_time, std::chrono::milliseconds period,
+  virtual bool SetRepeatingAt(SteadyClock::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
 
   /**

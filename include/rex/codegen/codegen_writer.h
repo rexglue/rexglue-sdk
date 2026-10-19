@@ -82,7 +82,7 @@ class CodegenWriter {
     out_ += '\n';
   }
 
-  void SaveCurrentOutData(std::string_view name);
+  void QueueOutput(std::string_view name);
   bool FlushPendingWrites();
 
   FunctionGraph& GetGraph();

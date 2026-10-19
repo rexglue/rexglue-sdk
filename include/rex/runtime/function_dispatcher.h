@@ -186,7 +186,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   bool Run(ThreadState* thread_state, u32 address, std::span<const u64> args);
   u64 RunInterrupt(ThreadState* thread_state, u32 address, u64 args[], size_t arg_count);
 
-  struct ModuleTableInfo {
+  struct ModuleTable {
     u32 code_base;
     u32 code_size;
     u32 image_base;
@@ -195,13 +195,13 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
     u32 thunk_limit;
   };
 
-  ModuleTableInfo* FindModuleByAddress(u32 guest_address);
+  ModuleTable* FindModuleByAddress(u32 guest_address);
 
   runtime::Memory* memory_ = nullptr;
 
   std::unordered_map<u32, ::PPCFunc*> function_table_;
 
-  std::vector<ModuleTableInfo> module_tables_;
+  std::vector<ModuleTable> module_tables_;
 
   /** Code base of the entrypoint module, 0 until registered. */
   u32 entrypoint_code_base_ = 0;

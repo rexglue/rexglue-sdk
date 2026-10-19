@@ -132,7 +132,7 @@ out_directory_path = "generated/b"
   const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   REQUIRE(manifest);
 
-  rex::testing::ReleaseTestMemory();
+  rex::test::ReleaseTestMemory();
   rex::LogConfig config;
   config.debugger = false;
   config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
@@ -198,7 +198,7 @@ out_directory_path = "generated/entry"
   const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   REQUIRE(manifest);
 
-  rex::testing::ReleaseTestMemory();
+  rex::test::ReleaseTestMemory();
   rex::LogConfig config;
   config.debugger = false;
   config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
@@ -394,7 +394,7 @@ out_directory_path = "generated/exporter"
   const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   REQUIRE(manifest);
 
-  rex::testing::ReleaseTestMemory();
+  rex::test::ReleaseTestMemory();
   rex::LogConfig config;
   config.debugger = false;
   config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());

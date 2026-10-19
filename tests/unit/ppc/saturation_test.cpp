@@ -201,87 +201,91 @@ void CheckPack(BinaryFunction check, u32 bits, bool is_signed_source, bool is_si
 
 }  // namespace
 
-REX_TEST_CASE("AddSaturates reports the clamped elements of the byte adds", "[ppc][saturation]") {
-  CheckPairs(rex::ppc::simd::AddSaturates<8, true>, 8, true, false);
-  CheckPairs(rex::ppc::simd::AddSaturates<8, false>, 8, false, false);
-}
-
-REX_TEST_CASE("AddSaturates reports the clamped elements of the halfword adds",
+REX_TEST_CASE("IsAddSaturating reports the clamped elements of the byte adds",
               "[ppc][saturation]") {
-  CheckPairs(rex::ppc::simd::AddSaturates<16, true>, 16, true, false);
-  CheckPairs(rex::ppc::simd::AddSaturates<16, false>, 16, false, false);
+  CheckPairs(rex::ppc::simd::IsAddSaturating<8, true>, 8, true, false);
+  CheckPairs(rex::ppc::simd::IsAddSaturating<8, false>, 8, false, false);
 }
 
-REX_TEST_CASE("AddSaturates reports the clamped elements of the word adds", "[ppc][saturation]") {
-  CheckPairs(rex::ppc::simd::AddSaturates<32, true>, 32, true, false);
-  CheckPairs(rex::ppc::simd::AddSaturates<32, false>, 32, false, false);
-}
-
-REX_TEST_CASE("SubSaturates reports the clamped elements of the byte subtracts",
+REX_TEST_CASE("IsAddSaturating reports the clamped elements of the halfword adds",
               "[ppc][saturation]") {
-  CheckPairs(rex::ppc::simd::SubSaturates<8, true>, 8, true, true);
-  CheckPairs(rex::ppc::simd::SubSaturates<8, false>, 8, false, true);
+  CheckPairs(rex::ppc::simd::IsAddSaturating<16, true>, 16, true, false);
+  CheckPairs(rex::ppc::simd::IsAddSaturating<16, false>, 16, false, false);
 }
 
-REX_TEST_CASE("SubSaturates reports the clamped elements of the halfword subtracts",
+REX_TEST_CASE("IsAddSaturating reports the clamped elements of the word adds",
               "[ppc][saturation]") {
-  CheckPairs(rex::ppc::simd::SubSaturates<16, true>, 16, true, true);
-  CheckPairs(rex::ppc::simd::SubSaturates<16, false>, 16, false, true);
+  CheckPairs(rex::ppc::simd::IsAddSaturating<32, true>, 32, true, false);
+  CheckPairs(rex::ppc::simd::IsAddSaturating<32, false>, 32, false, false);
 }
 
-REX_TEST_CASE("SubSaturates reports the clamped elements of the word subtracts",
+REX_TEST_CASE("IsSubSaturating reports the clamped elements of the byte subtracts",
               "[ppc][saturation]") {
-  CheckPairs(rex::ppc::simd::SubSaturates<32, true>, 32, true, true);
-  CheckPairs(rex::ppc::simd::SubSaturates<32, false>, 32, false, true);
+  CheckPairs(rex::ppc::simd::IsSubSaturating<8, true>, 8, true, true);
+  CheckPairs(rex::ppc::simd::IsSubSaturating<8, false>, 8, false, true);
 }
 
-REX_TEST_CASE("PackSaturates reports the clamped elements of the halfword packs",
+REX_TEST_CASE("IsSubSaturating reports the clamped elements of the halfword subtracts",
               "[ppc][saturation]") {
-  CheckPack(rex::ppc::simd::PackSaturates<16, false>, 16, false, false);
-  CheckPack(rex::ppc::simd::PackSaturates<16, false>, 16, true, false);
-  CheckPack(rex::ppc::simd::PackSaturates<16, true>, 16, true, true);
+  CheckPairs(rex::ppc::simd::IsSubSaturating<16, true>, 16, true, true);
+  CheckPairs(rex::ppc::simd::IsSubSaturating<16, false>, 16, false, true);
 }
 
-REX_TEST_CASE("PackSaturates reports the clamped elements of the word packs", "[ppc][saturation]") {
-  CheckPack(rex::ppc::simd::PackSaturates<32, false>, 32, false, false);
-  CheckPack(rex::ppc::simd::PackSaturates<32, false>, 32, true, false);
-  CheckPack(rex::ppc::simd::PackSaturates<32, true>, 32, true, true);
+REX_TEST_CASE("IsSubSaturating reports the clamped elements of the word subtracts",
+              "[ppc][saturation]") {
+  CheckPairs(rex::ppc::simd::IsSubSaturating<32, true>, 32, true, true);
+  CheckPairs(rex::ppc::simd::IsSubSaturating<32, false>, 32, false, true);
 }
 
-REX_TEST_CASE("PackD3DSaturates matches the captured saturation of every pack format",
+REX_TEST_CASE("IsPackSaturating reports the clamped elements of the halfword packs",
+              "[ppc][saturation]") {
+  CheckPack(rex::ppc::simd::IsPackSaturating<16, false>, 16, false, false);
+  CheckPack(rex::ppc::simd::IsPackSaturating<16, false>, 16, true, false);
+  CheckPack(rex::ppc::simd::IsPackSaturating<16, true>, 16, true, true);
+}
+
+REX_TEST_CASE("IsPackSaturating reports the clamped elements of the word packs",
+              "[ppc][saturation]") {
+  CheckPack(rex::ppc::simd::IsPackSaturating<32, false>, 32, false, false);
+  CheckPack(rex::ppc::simd::IsPackSaturating<32, false>, 32, true, false);
+  CheckPack(rex::ppc::simd::IsPackSaturating<32, true>, 32, true, true);
+}
+
+REX_TEST_CASE("IsPackD3DSaturating matches the captured saturation of every pack format",
               "[ppc][saturation]") {
   for (const PackD3DCase& expected : kPackD3DCases) {
     alignas(16) std::array<u32, 4> words;
     for (size_t i = 0; i < 4; ++i) {
-      words[3 - i] = expected.a[i];
+      words[3 - i] = expected.source[i];
     }
     const simde__m128 source = simde_mm_castsi128_ps(
         simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(words.data())));
     bool got = false;
     switch (expected.type) {
       case 0:
-        got = rex::ppc::simd::PackD3DSaturates<0>(source);
+        got = rex::ppc::simd::IsPackD3DSaturating<0>(source);
         break;
       case 1:
-        got = rex::ppc::simd::PackD3DSaturates<1>(source);
+        got = rex::ppc::simd::IsPackD3DSaturating<1>(source);
         break;
       case 2:
-        got = rex::ppc::simd::PackD3DSaturates<2>(source);
+        got = rex::ppc::simd::IsPackD3DSaturating<2>(source);
         break;
       case 3:
-        got = rex::ppc::simd::PackD3DSaturates<3>(source);
+        got = rex::ppc::simd::IsPackD3DSaturating<3>(source);
         break;
       case 4:
-        got = rex::ppc::simd::PackD3DSaturates<4>(source);
+        got = rex::ppc::simd::IsPackD3DSaturating<4>(source);
         break;
       case 5:
-        got = rex::ppc::simd::PackD3DSaturates<5>(source);
+        got = rex::ppc::simd::IsPackD3DSaturating<5>(source);
         break;
       default:
-        got = rex::ppc::simd::PackD3DSaturates<6>(source);
+        got = rex::ppc::simd::IsPackD3DSaturating<6>(source);
         break;
     }
-    CAPTURE(expected.type, expected.a[0], expected.a[1], expected.a[2], expected.a[3]);
+    CAPTURE(expected.type, expected.source[0], expected.source[1], expected.source[2],
+            expected.source[3]);
     CHECK(got == expected.saturated);
   }
 }

@@ -41,9 +41,9 @@ namespace {
 
 auto GetXAMModule() {
   auto& runtime = runtime::GetCurrent();
-  REX_ASSERT(runtime.GetModuleRegistry().IsKernel("xam.xex"));
+  REX_ASSERT(runtime.GetModuleRegistry().IsKernelModule("xam.xex"));
   return runtime.GetObjectTable().Get<ModuleObject>(
-      runtime.GetModuleRegistry().FindKernel("xam.xex").value_or(0));
+      runtime.GetModuleRegistry().FindKernelModule("xam.xex").value_or(0));
 }
 
 }  // namespace
@@ -52,32 +52,31 @@ u32 XamFeatureEnabled_entry([[maybe_unused]] u32 unk) {
   return 0;
 }
 
-u8 schema_bin[] = {
+u8 g_schema_bin[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x2C, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
     0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18,
 };
 
-struct XAM_SCHEMA_INFO {
+struct XAMSchema {
   be_u32 data_ptr;
   be_u32 size;
 };
-REX_STATIC_ASSERT_SIZE(XAM_SCHEMA_INFO, 8);
+REX_STATIC_ASSERT_SIZE(XAMSchema, 8);
 
 u32 XamGetOnlineSchema_entry() {
-  static u32 schema_guest = 0;
+  static u32 schema_address = 0;
 
-  if (!schema_guest) {
-    schema_guest = runtime::GetCurrent().GetMemory()->SystemHeapAlloc(sizeof(XAM_SCHEMA_INFO) +
-                                                                      sizeof(schema_bin));
-    auto* info =
-        runtime::GetCurrent().GetMemory()->TranslateVirtual<XAM_SCHEMA_INFO*>(schema_guest);
-    std::memcpy(info + 1, schema_bin, sizeof(schema_bin));
-    info->data_ptr = schema_guest + sizeof(XAM_SCHEMA_INFO);
-    info->size = static_cast<u32>(sizeof(schema_bin));
+  if (!schema_address) {
+    schema_address = runtime::GetCurrent().GetMemory()->SystemHeapAlloc(sizeof(XAMSchema) +
+                                                                        sizeof(g_schema_bin));
+    auto* info = runtime::GetCurrent().GetMemory()->TranslateVirtual<XAMSchema*>(schema_address);
+    std::memcpy(info + 1, g_schema_bin, sizeof(g_schema_bin));
+    info->data_ptr = schema_address + sizeof(XAMSchema);
+    info->size = static_cast<u32>(sizeof(g_schema_bin));
   }
 
-  return schema_guest;
+  return schema_address;
 }
 
 struct LocalDateTime {
@@ -122,7 +121,7 @@ void XamFormatDateString_entry([[maybe_unused]] u32 unk, u64 filetime, MappedVoi
 
   const LocalDateTime local = ToLocalDateTime(filetime);
   auto str = rex::ToUTF16(std::format("{:02d}/{:02d}/{}", local.month, local.day, local.year));
-  rex::copy_and_swap_truncating(output_buffer.As<char16_t*>(), str, output_count);
+  rex::CopyAndSwapTruncating(output_buffer.As<char16_t*>(), str, output_count);
 }
 
 void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, MappedVoid output_buffer,
@@ -131,7 +130,7 @@ void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, MappedVoi
 
   const LocalDateTime local = ToLocalDateTime(filetime);
   auto str = rex::ToUTF16(std::format("{:02d}:{:02d}", local.hour, local.minute));
-  rex::copy_and_swap_truncating(output_buffer.As<char16_t*>(), str, output_count);
+  rex::CopyAndSwapTruncating(output_buffer.As<char16_t*>(), str, output_count);
 }
 
 u32 BuildResourceLocator(u64 module, std::u16string_view container, std::u16string_view resource,
@@ -146,7 +145,7 @@ u32 BuildResourceLocator(u64 module, std::u16string_view container, std::u16stri
     path = rex::ToUTF16(std::format("section://{:X},{}#{}", static_cast<u32>(module),
                                     rex::ToUTF8(container), rex::ToUTF8(resource)));
   }
-  rex::copy_and_swap_truncating(buffer_ptr.As<char16_t*>(), path, buffer_count);
+  rex::CopyAndSwapTruncating(buffer_ptr.As<char16_t*>(), path, buffer_count);
   return 0;
 }
 
@@ -191,12 +190,12 @@ u32 XGetAVPack_entry() {
   return 6;
 }
 
-u32 XGetGameRegion() {
+u32 GetGameRegion() {
   return 0xFFFFu;
 }
 
 u32 XGetGameRegion_entry() {
-  return XGetGameRegion();
+  return GetGameRegion();
 }
 
 u32 XGetLanguage_entry() {
@@ -307,13 +306,13 @@ void XamLoaderTerminateTitle_entry() {
   runtime::GetCurrent().TerminateTitle();
 }
 
-u32 XamAlloc_entry(u32 unk, u32 size, MappedU32 out_ptr) {
-  REX_ASSERT(unk == 0);
+u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
+  REX_ASSERT(flags == 0);
 
-  Result<u32> address = runtime::GetCurrent().GetWorkspace().Alloc(size);
+  Result<u32> address = runtime::GetCurrent().GetWorkspace().Allocate(size);
   if (!address) {
     REXLOG_WARN(kernel, "XamAlloc: the title workspace has no room for {:#x} bytes, flags {:#010x}",
-                size, unk);
+                size, flags);
     *out_ptr = 0;
     return X_ERROR_NOT_ENOUGH_MEMORY;
   }

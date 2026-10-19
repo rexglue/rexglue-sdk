@@ -198,8 +198,8 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
   const std::string current_version = REXGLUE_VERSION_FLOOR;
   EmitProjectHeader(manifest_path, summary);
 
-  if (RefreshGeneratedGlue(manifest_path.parent_path(), summary.project_name, current_version,
-                           summary.entrypoint_out_dir)) {
+  if (RefreshGeneratedCMake(manifest_path.parent_path(), summary.project_name, current_version,
+                            summary.entrypoint_out_dir)) {
     REXLOG_INFO(rexglue, "Regenerated generated/rexglue.cmake for SDK v{}", current_version);
   }
 

@@ -65,7 +65,7 @@ inline VkPipelineShaderStageCreateInfo BuildShaderStage(VkShaderStageFlagBits st
 }
 
 template <typename Structure>
-constexpr Structure InitializeStructure(VkStructureType type) {
+constexpr Structure BuildStructure(VkStructureType type) {
   Structure structure = {};
   structure.sType = type;
   return structure;
@@ -173,7 +173,7 @@ inline VkExtent2D GetMax2DFramebufferExtent(const VulkanDevice::Properties& devi
   return max_extent;
 }
 
-inline VkImageSubresourceRange InitializeSubresourceRange(
+inline VkImageSubresourceRange BuildSubresourceRange(
     const VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT, const u32 base_mip_level = 0,
     const u32 level_count = VK_REMAINING_MIP_LEVELS, const u32 base_array_layer = 0,
     const u32 layer_count = VK_REMAINING_ARRAY_LAYERS) {

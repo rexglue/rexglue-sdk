@@ -212,14 +212,14 @@ bool Build<PPC_INST_VRFIZ>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VADDSBS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "AddSaturates<8, true>");
+  EmitSaturation(ctx, "IsAddSaturating<8, true>");
   ctx.EmitVecIntBinary("adds_epi8", "s8");
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VADDSHS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "AddSaturates<16, true>");
+  EmitSaturation(ctx, "IsAddSaturating<16, true>");
   ctx.EmitVecIntBinary("adds_epi16", "s16");
   return true;
 }
@@ -237,7 +237,7 @@ bool Build<PPC_INST_VADDSHS>(BuilderContext& ctx) {
  */
 template <>
 bool Build<PPC_INST_VADDSWS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "AddSaturates<32, true>");
+  EmitSaturation(ctx, "IsAddSaturating<32, true>");
   auto v_d = ctx.V(ctx.insn.operands[0]);
   auto v_a = ctx.V(ctx.insn.operands[1]);
   auto v_b = ctx.V(ctx.insn.operands[2]);
@@ -271,7 +271,7 @@ bool Build<PPC_INST_VADDUBM>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VADDUBS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "AddSaturates<8, false>");
+  EmitSaturation(ctx, "IsAddSaturating<8, false>");
   ctx.EmitVecIntBinary("adds_epu8", "u8");
   return true;
 }
@@ -290,7 +290,7 @@ bool Build<PPC_INST_VADDUWM>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VADDUWS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "AddSaturates<32, false>");
+  EmitSaturation(ctx, "IsAddSaturating<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
       "rex::ppc::simd::AddSaturate<u32>(simde_mm_load_si128((simde__m128i*){}.u32), "
@@ -301,14 +301,14 @@ bool Build<PPC_INST_VADDUWS>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VADDUHS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "AddSaturates<16, false>");
+  EmitSaturation(ctx, "IsAddSaturating<16, false>");
   ctx.EmitVecIntBinary("adds_epu16", "u16");
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VSUBSWS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "SubSaturates<32, true>");
+  EmitSaturation(ctx, "IsSubSaturating<32, true>");
   for (size_t i = 0; i < 4; i++) {
     ctx.Println("\t{}.s64 = i64({}.s32[{}]) - i64({}.s32[{}]);", ctx.Temp(),
                 ctx.V(ctx.insn.operands[1]), i, ctx.V(ctx.insn.operands[2]), i);
@@ -326,14 +326,14 @@ bool Build<PPC_INST_VSUBUBM>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VSUBUBS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "SubSaturates<8, false>");
+  EmitSaturation(ctx, "IsSubSaturating<8, false>");
   ctx.EmitVecIntBinary("subs_epu8", "u8");
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VSUBUWS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "SubSaturates<32, false>");
+  EmitSaturation(ctx, "IsSubSaturating<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
       "simde_mm_sub_epi32(simde_mm_load_si128((simde__m128i*) {}.u32), "
@@ -346,7 +346,7 @@ bool Build<PPC_INST_VSUBUWS>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VSUBUHS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "SubSaturates<16, false>");
+  EmitSaturation(ctx, "IsSubSaturating<16, false>");
   ctx.EmitVecIntBinary("subs_epu16", "u16");
   return true;
 }
@@ -419,7 +419,7 @@ bool Build<PPC_INST_VMINUW>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VSUBSBS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "SubSaturates<8, true>");
+  EmitSaturation(ctx, "IsSubSaturating<8, true>");
   ctx.EmitVecIntBinary("subs_epi8", "s8");
   return true;
 }
@@ -438,7 +438,7 @@ bool Build<PPC_INST_VMINUB>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VSUBSHS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "SubSaturates<16, true>");
+  EmitSaturation(ctx, "IsSubSaturating<16, true>");
   ctx.EmitVecIntBinary("subs_epi16", "s16");
   return true;
 }
@@ -784,7 +784,7 @@ bool Build<PPC_INST_VCTSXS>(BuilderContext& ctx) {
           ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
                         ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
           : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
-  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::ConvertSaturates<true>({}));", scaled);
+  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::IsConvertSaturating<true>({}));", scaled);
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::ppc::simd::ConvertSaturate<i32, "
       "f32>({}));",
@@ -836,7 +836,7 @@ bool Build<PPC_INST_VCTUXS>(BuilderContext& ctx) {
           ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
                         ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
           : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
-  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::ConvertSaturates<false>({}));", scaled);
+  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::IsConvertSaturating<false>({}));", scaled);
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::ppc::simd::ConvertSaturate<u32, "
       "f32>({}));",
@@ -1148,7 +1148,7 @@ bool Build<PPC_INST_VSPLTW>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VPKSHUS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "PackSaturates<16, false>");
+  EmitSaturation(ctx, "IsPackSaturating<16, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_packus_epi16(simde_mm_load_si128((simde__m128i*){}.s16), "
@@ -1194,7 +1194,7 @@ bool Build<PPC_INST_VPKUHUM>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VPKUHUS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "PackSaturates<16, false>");
+  EmitSaturation(ctx, "IsPackSaturating<16, false>");
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 8; i++) {
     ctx.Println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (u8){}.u16[{}];", ctx.VTemp(), 15 - i,
@@ -1220,7 +1220,7 @@ bool Build<PPC_INST_VPKUWUM>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VPKUWUS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "PackSaturates<32, false>");
+  EmitSaturation(ctx, "IsPackSaturating<32, false>");
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 4; i++) {
     ctx.Println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (u16){}.u32[{}];", ctx.VTemp(),
@@ -1234,7 +1234,7 @@ bool Build<PPC_INST_VPKUWUS>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VPKSHSS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "PackSaturates<16, true>");
+  EmitSaturation(ctx, "IsPackSaturating<16, true>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s8, "
       "simde_mm_packs_epi16(simde_mm_load_si128((simde__m128i*){}.s16), "
@@ -1245,7 +1245,7 @@ bool Build<PPC_INST_VPKSHSS>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VPKSWSS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "PackSaturates<32, true>");
+  EmitSaturation(ctx, "IsPackSaturating<32, true>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s16, "
       "simde_mm_packs_epi32(simde_mm_load_si128((simde__m128i*){}.s32), "
@@ -1256,7 +1256,7 @@ bool Build<PPC_INST_VPKSWSS>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VPKSWUS>(BuilderContext& ctx) {
-  EmitSaturation(ctx, "PackSaturates<32, false>");
+  EmitSaturation(ctx, "IsPackSaturating<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
       "simde_mm_packus_epi32(simde_mm_load_si128((simde__m128i*){}.s32), "

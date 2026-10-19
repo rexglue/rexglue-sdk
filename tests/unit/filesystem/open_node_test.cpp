@@ -37,51 +37,50 @@ constexpr std::string_view kPath = "\\OpenRoot\\held.dat";
 class OpenRoot : public Fixture {
  public:
   OpenRoot() {
-    WriteHost(HostPath(), "held");
-    REQUIRE(GetFs().Mount(
+    WriteHost(GetHostPath(), "held");
+    REQUIRE(GetFileSystem().Mount(
         {std::string(kMountPath), ProviderKind::kHostDirectory, GetTemp(), MountFlags::kWritable}));
   }
 
-  std::filesystem::path HostPath() const { return GetTemp() / "held.dat"; }
+  std::filesystem::path GetHostPath() const { return GetTemp() / "held.dat"; }
 };
 
 }  // namespace
 
 REX_TEST_CASE_METHOD(OpenRoot, "A file with an open handle cannot be deleted",
                      "[filesystem][open_node]") {
-  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
+  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kReadAccess});
 
-  auto removed = GetFs().Remove(kPath);
+  auto removed = GetFileSystem().Remove(kPath);
   REQUIRE_FALSE(removed);
   CHECK(CodeOf(removed.error()) == FileSystemError::kAccessDenied);
-  CHECK(std::filesystem::exists(HostPath()));
+  CHECK(std::filesystem::exists(GetHostPath()));
   CHECK(ReadText(*reader.file) == "held");
 
   reader.file.reset();
-  CHECK(GetFs().Remove(kPath));
-  CHECK_FALSE(std::filesystem::exists(HostPath()));
+  CHECK(GetFileSystem().Remove(kPath));
+  CHECK_FALSE(std::filesystem::exists(GetHostPath()));
 }
 
 REX_TEST_CASE_METHOD(OpenRoot, "Delete on close removes the file at its last close",
                      "[filesystem][open_node]") {
-  auto first = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
-  auto second = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
+  auto first = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kReadAccess});
+  auto second = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kReadAccess});
   first.file->SetDeleteOnClose(true);
 
   first.file.reset();
-  CHECK(std::filesystem::exists(HostPath()));
+  CHECK(std::filesystem::exists(GetHostPath()));
   second.file.reset();
-  CHECK_FALSE(std::filesystem::exists(HostPath()));
-  CHECK_FALSE(GetFs().Stat(kPath));
+  CHECK_FALSE(std::filesystem::exists(GetHostPath()));
+  CHECK_FALSE(GetFileSystem().Stat(kPath));
 }
 
 REX_TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable through its open handle",
                      "[filesystem][open_node]") {
-  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
-  std::filesystem::remove(HostPath());
+  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kReadAccess});
+  std::filesystem::remove(GetHostPath());
 
-  auto created =
-      Open(kPath, {.disposition = Disposition::kOpenIf, .access = Access::kGenericWrite});
+  auto created = Open(kPath, {.disposition = Disposition::kOpenIf, .access = Access::kWriteAccess});
   const std::array<u8, 3> payload{'n', 'e', 'w'};
   REQUIRE(created.file->Write(payload, 0));
 
@@ -95,18 +94,18 @@ REX_TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable throug
 
 REX_TEST_CASE_METHOD(OpenRoot, "An open file outlives the unmount of its mount",
                      "[filesystem][open_node]") {
-  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
-  auto list = GetFs().List(kMountPath, "*");
+  auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kReadAccess});
+  auto list = GetFileSystem().List(kMountPath, "*");
   REQUIRE(list);
 
-  REQUIRE(GetFs().Unmount(kMountPath));
-  CHECK_FALSE(GetFs().Stat(kPath));
+  REQUIRE(GetFileSystem().Unmount(kMountPath));
+  CHECK_FALSE(GetFileSystem().Stat(kPath));
 
   CHECK(reader.file->GetInfo().name == "held.dat");
   CHECK(ReadText(*reader.file) == "held");
   auto entry = (*list)->Next();
   CHECK((entry && entry->name == "held.dat"));
 
-  GetFs().Clear();
+  GetFileSystem().Clear();
   CHECK(reader.file->GetInfo().absolute_path == "\\OpenRoot\\held.dat");
 }

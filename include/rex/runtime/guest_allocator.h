@@ -136,7 +136,7 @@ class REX_RUNTIME_API GuestAllocator : public NonCopyable {
    *
    * @return True when they hold.
    */
-  [[nodiscard]] bool InvariantsHold() const;
+  [[nodiscard]] bool IsConsistent() const;
 
  private:
   Memory& memory_;

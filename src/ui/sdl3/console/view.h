@@ -75,7 +75,7 @@ class ConsoleView : public NonCopyable {
   void DrawFilters();
   void DrawOutput(const ConsoleStyle& style);
   void DrawCompletions(const ConsoleStyle& style, ImVec2 input_min, f32 width);
-  void Accept(ImGuiInputTextCallbackData* data);
+  void CompleteInput(ImGuiInputTextCallbackData* data);
   void Navigate(ImGuiInputTextCallbackData* data);
   void AcceptSelected(const std::string& name);
   void CloseCompletions();

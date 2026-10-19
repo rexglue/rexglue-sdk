@@ -16,7 +16,7 @@
 
 namespace rex::gpu {
 
-struct SamplerInfo {
+struct SamplerState {
   xenos::TextureFilter min_filter;
   xenos::TextureFilter mag_filter;
   xenos::TextureFilter mip_filter;
@@ -30,10 +30,10 @@ struct SamplerInfo {
   u32 mip_max_level;
 
   static bool Prepare(const xenos::TextureFetch& fetch,
-                      const ParsedTextureFetchInstruction& fetch_instr, SamplerInfo* out_info);
+                      const ParsedTextureFetchInstruction& fetch_instr, SamplerState* out_info);
 
-  u64 hash() const;
-  bool operator==(const SamplerInfo& other) const {
+  u64 GetHash() const;
+  bool operator==(const SamplerState& other) const {
     return min_filter == other.min_filter && mag_filter == other.mag_filter &&
            mip_filter == other.mip_filter && clamp_u == other.clamp_u && clamp_v == other.clamp_v &&
            clamp_w == other.clamp_w && aniso_filter == other.aniso_filter &&

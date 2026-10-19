@@ -86,7 +86,7 @@ class REX_RUNTIME_API TitleUI {
    *
    * @return The interface the app adds its overlays to.
    */
-  IUserInterface& GetOverlays();
+  IUserInterface& GetUI();
 
   /**
    * Sets the frame time source the debug overlay reads, for apps that present the title
@@ -138,7 +138,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    * @param image The recompiled image descriptor codegen generates.
    * @return Ok when every module is initialized.
    */
-  [[nodiscard]] Result<void> Init(const CLIArgList& args, const PPCImageInfo& image);
+  [[nodiscard]] Result<void> Init(const CLIArgList& args, const PPCImage& image);
 
   /**
    * Creates the title window. Opens the window from Config::ui through the user interface, hands
@@ -266,12 +266,12 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
 
  private:
   friend class TitleUI;
-  friend struct TitleAppProbe;
+  friend struct TitleAppAccess;
 
   bool OnWindowEvent(const UIEvent& event);
   [[nodiscard]] Result<void> LaunchFailure(std::string_view message);
 
-  PPCImageInfo image_{};
+  PPCImage image_{};
   gpu::IGPUBackend* gpu_ = nullptr;
   IUserInterface* ui_ = nullptr;
   NullUserInterface null_ui_;
@@ -311,7 +311,7 @@ REX_RUNTIME_API bool InvokeFunction(rex::MoveOnlyFunction<void()> fn);
  * @endcode
  */
 #define REX_TITLE_APP(Class)                                                 \
-  static int RexTitleEntry(const ::rex::CLIArgList& args) {                  \
+  static int ReXTitleEntry(const ::rex::CLIArgList& args) {                  \
     Class rex_app;                                                           \
     if (rex_app.Init(args, PPCImageConfig) && rex_app.CreateTitleWindow() && \
         rex_app.LaunchTitle()) {                                             \
@@ -319,4 +319,4 @@ REX_RUNTIME_API bool InvokeFunction(rex::MoveOnlyFunction<void()> fn);
     }                                                                        \
     return rex_app.Shutdown();                                               \
   }                                                                          \
-  REX_DETAIL_ENTRY_POINTS(RexTitleEntry)
+  REX_DETAIL_ENTRY_POINTS(ReXTitleEntry)

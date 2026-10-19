@@ -36,7 +36,7 @@ using NativeHandle = int;
 #endif
 
 /** Host view of a file or folder. */
-struct HostInfo {
+struct HostFileStat {
   std::filesystem::path name; /**< Last path component. */
   bool directory = false;     /**< True for a folder. */
   u64 size = 0;               /**< Size in bytes, 0 for a folder. */
@@ -144,7 +144,7 @@ class HostFile : public NonCopyable {
  * @param path A host path.
  * @return The information, or empty when the path does not exist.
  */
-[[nodiscard]] std::optional<HostInfo> HostStat(const std::filesystem::path& path);
+[[nodiscard]] std::optional<HostFileStat> HostStat(const std::filesystem::path& path);
 
 /**
  * Returns the children of a host folder.
@@ -152,6 +152,6 @@ class HostFile : public NonCopyable {
  * @param path A host folder.
  * @return Every child except dot and dot dot, empty when the folder cannot be read.
  */
-[[nodiscard]] std::vector<HostInfo> HostList(const std::filesystem::path& path);
+[[nodiscard]] std::vector<HostFileStat> HostList(const std::filesystem::path& path);
 
 }  // namespace rex::filesystem

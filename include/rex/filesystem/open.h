@@ -30,14 +30,14 @@ class IFile;
 
 /** NT access bits of an open request. */
 enum class Access : u32 {
-  kNone = 0,                    /**< No access. */
-  kReadData = 0x00000001,       /**< Read the file bytes. */
-  kWriteData = 0x00000002,      /**< Write the file bytes. */
-  kAppendData = 0x00000004,     /**< Append to the file. */
-  kGenericAll = 0x10000000,     /**< Read and write. */
-  kGenericExecute = 0x20000000, /**< Execute, no data access. */
-  kGenericWrite = 0x40000000,   /**< Write, implies kWriteData. */
-  kGenericRead = 0x80000000,    /**< Read, implies kReadData. */
+  kNone = 0,                   /**< No access. */
+  kReadData = 0x00000001,      /**< Read the file bytes. */
+  kWriteData = 0x00000002,     /**< Write the file bytes. */
+  kAppendData = 0x00000004,    /**< Append to the file. */
+  kAllAccess = 0x10000000,     /**< Read and write. */
+  kExecuteAccess = 0x20000000, /**< Execute, no data access. */
+  kWriteAccess = 0x40000000,   /**< Write, implies kWriteData. */
+  kReadAccess = 0x80000000,    /**< Read, implies kReadData. */
 };
 
 /** What an open does when the path exists or is absent. NT numbering. */
@@ -63,7 +63,7 @@ enum class OpenAction : u8 {
 /** Options of IFileSystem::Open. */
 struct OpenOptions {
   Disposition disposition = Disposition::kOpen; /**< Present or absent rule. */
-  Access access = Access::kGenericRead;         /**< Requested access. */
+  Access access = Access::kReadAccess;          /**< Requested access. */
   bool create_directory = false;                /**< True when a created entry is a directory. */
   bool require_file = false; /**< True when the path must not name a directory. */
 };

@@ -78,19 +78,19 @@ const FunctionGraph& BuilderContext::GetGraph() const {
   return emit_ctx.graph;
 }
 
-bool BuilderContext::ShouldLocalizeNonVolatiles() const {
-  const auto& info = fn.GetExceptionData();
+bool BuilderContext::CanLocalizeNonVolatiles() const {
+  const auto& info = fn.GetExceptionInfo();
   const auto* seh = info ? info->AsSEH() : nullptr;
   const bool seh_scope = GetConfig().generate_exception_handlers && seh && !seh->scopes.empty();
   return GetConfig().non_volatile_registers_as_local_variables && !fn.GetMillicode() &&
-         !fn.SharesRegisters() && !seh_scope;
+         !fn.IsRegisterSharing() && !seh_scope;
 }
 
 std::string BuilderContext::R(size_t index) {
   const auto& cfg = GetConfig();
   if (!fn.GetMillicode() && ((cfg.non_argument_registers_as_local_variables &&
                               (index == 0 || index == 11 || index == 12)) ||
-                             (ShouldLocalizeNonVolatiles() && index >= 14))) {
+                             (CanLocalizeNonVolatiles() && index >= 14))) {
     locals.r[index] = true;
     return std::format("r{}", index);
   }
@@ -100,7 +100,7 @@ std::string BuilderContext::R(size_t index) {
 std::string BuilderContext::F(size_t index) {
   const auto& cfg = GetConfig();
   if (!fn.GetMillicode() && ((cfg.non_argument_registers_as_local_variables && index == 0) ||
-                             (ShouldLocalizeNonVolatiles() && index >= 14))) {
+                             (CanLocalizeNonVolatiles() && index >= 14))) {
     locals.f[index] = true;
     return std::format("f{}", index);
   }
@@ -111,7 +111,7 @@ std::string BuilderContext::V(size_t index) {
   const auto& cfg = GetConfig();
   if (!fn.GetMillicode() &&
       ((cfg.non_argument_registers_as_local_variables && (index >= 32 && index <= 63)) ||
-       (ShouldLocalizeNonVolatiles() &&
+       (CanLocalizeNonVolatiles() &&
         ((index >= 14 && index <= 31) || (index >= 64 && index <= 127))))) {
     locals.v[index] = true;
     return std::format("v{}", index);
@@ -191,7 +191,7 @@ void BuilderContext::EmitCallToFunction(const FunctionNode& target_fn) {
   const auto& name = target_fn.GetName();
 
   if (target_fn.GetMillicode()) {
-    if (ShouldLocalizeNonVolatiles())
+    if (CanLocalizeNonVolatiles())
       return;
     for (size_t i : {11, 12}) {
       if (locals.r[i])
@@ -199,7 +199,7 @@ void BuilderContext::EmitCallToFunction(const FunctionNode& target_fn) {
     }
   }
 
-  if (target_fn.SharesRegisters()) {
+  if (target_fn.IsRegisterSharing()) {
     Println("\t{}", kSyncToCtx);
     emit_ctx.Reference(name);
     Println("\t{}(ctx, base);", name);
@@ -214,12 +214,12 @@ void BuilderContext::EmitCallToFunction(const FunctionNode& target_fn) {
 void BuilderContext::EmitFunctionCall(u32 address) {
   const auto& cfg = GetConfig();
 
-  if (address == cfg.long_jmp_address) {
+  if (address == cfg.longjmp_address) {
     Println("\tppc_longjmp({}.u32, {}.s32);", R(3), R(4));
     return;
   }
 
-  if (address == cfg.set_jmp_address) {
+  if (address == cfg.setjmp_address) {
     Println("\t{}", kSyncToCtx);
     Println("\t{} = ctx;", Env());
     Println("\t{}.s64 = ppc_setjmp({}.u32);", Temp(), R(3));

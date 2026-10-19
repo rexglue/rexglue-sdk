@@ -59,7 +59,7 @@ enum class Arm64Register : u8 {
   kX28,    /**< General purpose register X28. */
   kX29,    /**< Frame pointer X29. */
   kX30,    /**< Link register X30. */
-  kSp,     /**< Stack pointer. */
+  kSP,     /**< Stack pointer. */
   kPC,     /**< Program counter. */
   kPstate, /**< Processor state. */
   kFpsr,   /**< Floating point status register. */
@@ -187,33 +187,33 @@ class HostThreadContext {
   };
   union {
     struct {
-      Vec128T xmm0;  /**< XMM0. */
-      Vec128T xmm1;  /**< XMM1. */
-      Vec128T xmm2;  /**< XMM2. */
-      Vec128T xmm3;  /**< XMM3. */
-      Vec128T xmm4;  /**< XMM4. */
-      Vec128T xmm5;  /**< XMM5. */
-      Vec128T xmm6;  /**< XMM6. */
-      Vec128T xmm7;  /**< XMM7. */
-      Vec128T xmm8;  /**< XMM8. */
-      Vec128T xmm9;  /**< XMM9. */
-      Vec128T xmm10; /**< XMM10. */
-      Vec128T xmm11; /**< XMM11. */
-      Vec128T xmm12; /**< XMM12. */
-      Vec128T xmm13; /**< XMM13. */
-      Vec128T xmm14; /**< XMM14. */
-      Vec128T xmm15; /**< XMM15. */
+      Vec128 xmm0;  /**< XMM0. */
+      Vec128 xmm1;  /**< XMM1. */
+      Vec128 xmm2;  /**< XMM2. */
+      Vec128 xmm3;  /**< XMM3. */
+      Vec128 xmm4;  /**< XMM4. */
+      Vec128 xmm5;  /**< XMM5. */
+      Vec128 xmm6;  /**< XMM6. */
+      Vec128 xmm7;  /**< XMM7. */
+      Vec128 xmm8;  /**< XMM8. */
+      Vec128 xmm9;  /**< XMM9. */
+      Vec128 xmm10; /**< XMM10. */
+      Vec128 xmm11; /**< XMM11. */
+      Vec128 xmm12; /**< XMM12. */
+      Vec128 xmm13; /**< XMM13. */
+      Vec128 xmm14; /**< XMM14. */
+      Vec128 xmm15; /**< XMM15. */
     };
-    Vec128T xmm_registers[16]; /**< XMM0 to XMM15. */
+    Vec128 xmm_registers[16]; /**< XMM0 to XMM15. */
   };
 #elif REX_ARCH_ARM64
-  u64 x[31];     /**< X0 to X30, with X29 as FP and X30 as LR. */
-  u64 sp;        /**< Stack pointer. */
-  u64 pc;        /**< Program counter. */
-  u64 pstate;    /**< Processor state. */
-  u32 fpsr;      /**< Floating point status register. */
-  u32 fpcr;      /**< Floating point control register. */
-  Vec128T v[32]; /**< V0 to V31. */
+  u64 x[31];    /**< X0 to X30, with X29 as FP and X30 as LR. */
+  u64 sp;       /**< Stack pointer. */
+  u64 pc;       /**< Program counter. */
+  u64 pstate;   /**< Processor state. */
+  u32 fpsr;     /**< Floating point status register. */
+  u32 fpcr;     /**< Floating point control register. */
+  Vec128 v[32]; /**< V0 to V31. */
 #endif  // REX_ARCH
 };
 
@@ -445,7 +445,7 @@ class Exception {
    * @param index The XMM register index, 0 to 15.
    * @return The register in the thread context.
    */
-  Vec128T& ModifyXMMRegister(u32 index) {
+  Vec128& ModifyXMMRegister(u32 index) {
     REX_ASSERT(index <= 15);
     modified_xmm_registers_ |= UINT16_C(1) << index;
     return thread_context_->xmm_registers[index];
@@ -483,7 +483,7 @@ class Exception {
    * @param index The V register index, 0 to 31.
    * @return The register in the thread context.
    */
-  Vec128T& ModifyVRegister(u32 index) {
+  Vec128& ModifyVRegister(u32 index) {
     REX_ASSERT(index <= 31);
     modified_v_registers_ |= UINT32_C(1) << index;
     return thread_context_->v[index];

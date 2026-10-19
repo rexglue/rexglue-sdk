@@ -26,8 +26,8 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 constexpr u32 kDeviceCount = 2;
@@ -109,7 +109,7 @@ REX_TEST_CASE("enumerate: ObDereferenceObject on an enumerator leaves its body a
     auto& table = c.GetRuntime().GetObjectTable();
     auto enumerator = table.Get<rex::runtime::EnumeratorObject>(handle);
     REQUIRE(enumerator);
-    const u32 body = enumerator.GetGuestObject();
+    const u32 body = enumerator.GetGuestAddress();
     REQUIRE(body != 0);
     std::vector<u8> before(sizeof(rex::runtime::X_KENUMERATOR));
     std::memcpy(before.data(), c.GetRuntime().GetMemory()->TranslateVirtual(body), before.size());
@@ -189,21 +189,19 @@ REX_TEST_CASE("enumerate: an overlapped enumeration of an empty enumerator fails
     REQUIRE(c.XAM("XamEnumerate", {handle, 0, buffer, kShortBufferSize, items_ptr, 0}) ==
             rex::X_ERROR_SUCCESS);
 
-    using rex::runtime::XAM_OVERLAPPED;
-    const u32 overlapped = c.Alloc(sizeof(XAM_OVERLAPPED));
+    using rex::runtime::XOVERLAPPED;
+    const u32 overlapped = c.Alloc(sizeof(XOVERLAPPED));
     CHECK(c.XAM("XamEnumerate", {handle, 0, buffer, kShortBufferSize, 0, overlapped}) ==
           rex::X_ERROR_IO_PENDING);
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (c.LoadAcquire32(overlapped + offsetof(XAM_OVERLAPPED, result)) ==
-               rex::X_ERROR_IO_PENDING &&
+    while (c.LoadAcquire32(overlapped + offsetof(XOVERLAPPED, result)) == rex::X_ERROR_IO_PENDING &&
            std::chrono::steady_clock::now() < deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    CHECK(c.LoadAcquire32(overlapped + offsetof(XAM_OVERLAPPED, result)) ==
+    CHECK(c.LoadAcquire32(overlapped + offsetof(XOVERLAPPED, result)) ==
           rex::X_ERROR_FUNCTION_FAILED);
-    CHECK(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, length)) == 0);
-    CHECK(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, extended_error)) ==
-          rex::X_E_NO_MORE_FILES);
+    CHECK(c.Load32(overlapped + offsetof(XOVERLAPPED, length)) == 0);
+    CHECK(c.Load32(overlapped + offsetof(XOVERLAPPED, extended_error)) == rex::X_E_NO_MORE_FILES);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }

@@ -24,7 +24,7 @@ int SocketIoctl(SocketHandle handle, u32 cmd, u8* arg) {
   return ioctl(static_cast<int>(handle), cmd, arg);
 }
 
-bool SocketWouldBlock() {
+bool IsSocketWouldBlock() {
   return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS;
 }
 
@@ -70,7 +70,7 @@ int PollSockets(std::span<const SocketWait> sockets, std::span<SocketReady> read
   return count;
 }
 
-u32 SocketError() {
+u32 GetSocketError() {
   constexpr u32 kWSAEINVAL = 10022;
   constexpr std::pair<int, u32> kCodes[] = {
       {EINTR, 10004},         {EBADF, 10009},           {EACCES, 10013},
@@ -175,7 +175,7 @@ i32 Socket::GetOption(i32 level, i32 name, void* value, i32* len) const {
   return result;
 }
 
-i32 Socket::PeerName(sockaddr* name, i32* name_len) const {
+i32 Socket::GetPeerName(sockaddr* name, i32* name_len) const {
   socklen_t length = static_cast<socklen_t>(*name_len);
   const int result = getpeername(static_cast<int>(handle_), name, &length);
   *name_len = static_cast<i32>(length);

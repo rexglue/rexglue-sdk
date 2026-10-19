@@ -1,6 +1,6 @@
 /**
  * @file        tests/modules/echo.h
- * @brief       Test interface served by the good and dupecho test modules
+ * @brief       Test interface served by the good and duplicate-echo test modules
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -33,7 +33,7 @@ REX_INTERFACE(IEcho, "rex.test.echo", 1)
    *
    * @return The current value of the echo.value cvar the module registers at Connect.
    */
-  virtual int Value() = 0;
+  virtual int GetValue() = 0;
 };
 
 }  // namespace rex::test

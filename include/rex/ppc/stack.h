@@ -136,7 +136,7 @@ class StackGuard : public rex::NonCopyable {
 };
 
 namespace detail {
-inline u8* CurrentBase() {
+inline u8* GetCurrentBase() {
   return rex::runtime::ThreadState::Get()->GetMemory()->GetVirtualMembase();
 }
 }  // namespace detail
@@ -151,7 +151,8 @@ inline u8* CurrentBase() {
 template <typename T>
   requires std::is_arithmetic_v<T>
 inline u32 stack_push(T value) {
-  return stack_push(*rex::runtime::ThreadState::Get()->GetContext(), detail::CurrentBase(), value);
+  return stack_push(*rex::runtime::ThreadState::Get()->GetContext(), detail::GetCurrentBase(),
+                    value);
 }
 
 /**
@@ -161,8 +162,8 @@ inline u32 stack_push(T value) {
  * @return The guest address of the pushed string.
  */
 inline u32 stack_push_string(const char* str) {
-  return stack_push_string(*rex::runtime::ThreadState::Get()->GetContext(), detail::CurrentBase(),
-                           str);
+  return stack_push_string(*rex::runtime::ThreadState::Get()->GetContext(),
+                           detail::GetCurrentBase(), str);
 }
 
 /**
@@ -173,7 +174,7 @@ inline u32 stack_push_string(const char* str) {
  * @return The guest address of the pushed bytes.
  */
 inline u32 stack_push(const void* data, u32 len) {
-  return stack_push(*rex::runtime::ThreadState::Get()->GetContext(), detail::CurrentBase(), data,
+  return stack_push(*rex::runtime::ThreadState::Get()->GetContext(), detail::GetCurrentBase(), data,
                     len);
 }
 

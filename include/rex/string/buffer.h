@@ -47,7 +47,7 @@ class REX_API StringBuffer {
    *
    * @return Byte count, not counting the terminator.
    */
-  size_t GetLength() const { return buffer_offset_; }
+  size_t GetLength() const { return length_; }
 
   /** Empties the buffer and keeps its capacity. */
   void Reset();
@@ -134,7 +134,7 @@ class REX_API StringBuffer {
   void Grow(size_t additional_length);
 
   char* buffer_ = nullptr;
-  size_t buffer_offset_ = 0;
+  size_t length_ = 0;
   size_t buffer_capacity_ = 0;
 };
 

@@ -16,8 +16,8 @@
 #include "kernel_fixture.h"
 
 using rex::u32;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 REX_TEST_CASE(
     "InterlockedPushEntrySList returns the old head and Pop returns entries last in first out",

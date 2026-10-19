@@ -31,9 +31,9 @@ REXCVAR_INT32(xenos, d3d12_pipeline_creation_threads, -1,
     .SetRange(-1, 32)
     .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, d3d12_tessellation_wireframe, false, "Render tessellation as wireframe");
-REXCVAR_BOOL(xenos, native_stencil_value_output_d3d12_intel, false,
+REXCVAR_BOOL(xenos, d3d12_native_stencil_value_output_intel, false,
              "Native stencil value output for Intel D3D12");
-REXCVAR_STRING(xenos, render_target_path_d3d12, "", "D3D12 render target implementation path")
+REXCVAR_STRING(xenos, d3d12_render_target_path, "", "D3D12 render target implementation path")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(xenos, native_stencil_value_output, true, "Enable native stencil value output");
 REXCVAR_BOOL(xenos, d3d12_tiled_shared_memory, true, "Use tiled shared memory on D3D12")
@@ -58,8 +58,8 @@ REXCVAR_TABLE(kD3D12Cvars, allow_tearing, debug, break_on_error, break_on_warnin
 REXCVAR_TABLE(kD3D12XenosCvars, debug_markers, d3d12_bindless, d3d12_readback_memexport,
               d3d12_readback_resolve, d3d12_submit_on_primary_buffer_end, d3d12_dxbc_disasm,
               d3d12_dxbc_disasm_dxilconv, d3d12_pipeline_creation_threads,
-              d3d12_tessellation_wireframe, native_stencil_value_output_d3d12_intel,
-              render_target_path_d3d12, native_stencil_value_output, d3d12_tiled_shared_memory,
+              d3d12_tessellation_wireframe, d3d12_native_stencil_value_output_intel,
+              d3d12_render_target_path, native_stencil_value_output, d3d12_tiled_shared_memory,
               use_fuzzy_alpha_epsilon, dxbc_switch, dxbc_source_map,
               draw_resolution_scaled_texture_offsets);
 

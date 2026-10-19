@@ -45,7 +45,7 @@ inline constexpr bool is_flags_enum<ContainerTestFlags> = true;
 
 namespace {
 
-using rex::test::Fixtures;
+using rex::test::GetFixtureFolder;
 
 namespace fs = rex::filesystem;
 using rex::ContainerTestFlags;
@@ -117,7 +117,7 @@ void CheckTree(const fs::Container& container) {
 }
 
 std::vector<rex::u8> Fixture(const char* name) {
-  auto bytes = rex::platform::ReadHostFile(Fixtures() / name);
+  auto bytes = rex::platform::ReadHostFile(GetFixtureFolder() / name);
   REQUIRE(bytes);
   return *bytes;
 }
@@ -161,8 +161,8 @@ REX_TEST_CASE("ReadHostFile and WriteHostFile round trip and create parents", "[
   CHECK_FALSE(rex::platform::ReadHostFile(temp.path / "missing"));
 }
 
-TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
-  auto header = fs::ReadSTFSHeader(Fixtures() / "stfs_con.bin");
+REX_TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
+  auto header = fs::ReadSTFSHeader(GetFixtureFolder() / "stfs_con.bin");
   REQUIRE(header);
   CHECK(rex::memory::load<rex::BE<fs::XContentPackageType>>(&header->header.magic) ==
         fs::XContentPackageType::kCon);
@@ -174,19 +174,19 @@ TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][co
   auto shorter = fs::ReadSTFSHeader(std::span(bytes).first(0x100));
   REQUIRE_FALSE(shorter);
   CHECK(fs::CodeOf(shorter.error()) == fs::FileSystemError::kCorrupt);
-  CHECK_FALSE(fs::ReadSTFSHeader(Fixtures() / "missing.bin"));
+  CHECK_FALSE(fs::ReadSTFSHeader(GetFixtureFolder() / "missing.bin"));
 }
 
-TEST_CASE("Container opens the STFS fixture", "[core][container]") {
-  auto container = fs::Container::Open(Fixtures() / "stfs_con.bin");
+REX_TEST_CASE("Container opens the STFS fixture", "[core][container]") {
+  auto container = fs::Container::Open(GetFixtureFolder() / "stfs_con.bin");
   REQUIRE(container);
   CHECK(container->GetKind() == fs::ContainerKind::kSTFS);
   REQUIRE(container->GetHeader());
   CheckTree(*container);
 }
 
-TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
-  auto container = fs::Container::Open(Fixtures() / "gdfx.iso");
+REX_TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
+  auto container = fs::Container::Open(GetFixtureFolder() / "gdfx.iso");
   REQUIRE(container);
   CHECK(container->GetKind() == fs::ContainerKind::kGDFX);
   CHECK(container->GetHeader() == nullptr);
@@ -196,7 +196,7 @@ TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
 REX_TEST_CASE("Container extracts byte exact", "[core][container]") {
   for (const char* name : {"stfs_con.bin", "gdfx.iso"}) {
     TempFolder temp;
-    auto container = fs::Container::Open(Fixtures() / name);
+    auto container = fs::Container::Open(GetFixtureFolder() / name);
     REQUIRE(container);
     const auto out = temp.path / "out";
     REQUIRE(container->Extract(out));
@@ -277,7 +277,7 @@ REX_TEST_CASE("Container finds the SVOD data folder without regard to case",
               "[core][container][case]") {
   TempFolder temp;
   auto bytes = Fixture("stfs_con.bin");
-  constexpr size_t kMetadata = offsetof(fs::STFSHeader, metadata);
+  constexpr size_t kMetadata = offsetof(fs::XContentPackageHeader, metadata);
   bytes[kMetadata + offsetof(fs::XContentMetadata, data_file_count) + 3] = 2;
   bytes[kMetadata + offsetof(fs::XContentMetadata, volume_type) + 3] =
       static_cast<rex::u8>(fs::XContentVolumeType::kSVOD);

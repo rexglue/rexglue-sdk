@@ -36,7 +36,7 @@ struct Winsock {
 #endif
 };
 
-bool Open(SocketHandle handle) {
+bool IsOpen(SocketHandle handle) {
   int type = 0;
 #if REX_PLATFORM_WIN32
   int length = sizeof(type);
@@ -56,17 +56,17 @@ REX_TEST_CASE("A moved-from Socket does not close the native socket", "[core][so
   SocketHandle handle = rex::platform::kInvalidSocket;
   {
     Socket source = Socket::Create(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    REQUIRE(source.GetValid());
+    REQUIRE(source.IsValid());
     handle = source.GetHandle();
     target = std::move(source);
   }
-  CHECK(target.GetValid());
+  CHECK(target.IsValid());
   CHECK(target.GetHandle() == handle);
-  CHECK(Open(handle));
+  CHECK(IsOpen(handle));
 }
 
 REX_TEST_CASE("A default Socket holds no native socket", "[core][socket]") {
-  CHECK_FALSE(Socket{}.GetValid());
+  CHECK_FALSE(Socket{}.IsValid());
 }
 
 REX_TEST_CASE("Destroying a Socket closes the native socket", "[core][socket]") {
@@ -74,9 +74,9 @@ REX_TEST_CASE("Destroying a Socket closes the native socket", "[core][socket]") 
   SocketHandle handle = rex::platform::kInvalidSocket;
   {
     Socket socket = Socket::Create(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    REQUIRE(socket.GetValid());
+    REQUIRE(socket.IsValid());
     handle = socket.GetHandle();
-    REQUIRE(Open(handle));
+    REQUIRE(IsOpen(handle));
   }
-  CHECK_FALSE(Open(handle));
+  CHECK_FALSE(IsOpen(handle));
 }

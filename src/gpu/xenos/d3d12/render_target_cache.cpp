@@ -122,7 +122,7 @@ const u32 D3D12RenderTargetCache::kTransferUsedRootParameters[static_cast<size_t
         kTransferUsedRootParameterHostDepthAddressConstantBit,
 };
 
-const D3D12RenderTargetCache::TransferModeInfo
+const D3D12RenderTargetCache::TransferModeTraits
     D3D12RenderTargetCache::kTransferModes[static_cast<size_t>(TransferMode::kCount)] = {
         {TransferOutput::kDepth, TransferRootSignatureIndex::kColor,
          TransferRootSignatureIndex::kColor},
@@ -150,9 +150,9 @@ bool D3D12RenderTargetCache::Initialize() {
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
 
-  if (REXCVAR_GET(::rex::gpu::cvars::render_target_path_d3d12) == "rtv") {
+  if (REXCVAR_GET(::rex::gpu::cvars::d3d12_render_target_path) == "rtv") {
     path_ = Path::kHostRenderTargets;
-  } else if (REXCVAR_GET(::rex::gpu::cvars::render_target_path_d3d12) == "rov") {
+  } else if (REXCVAR_GET(::rex::gpu::cvars::d3d12_render_target_path) == "rov") {
     path_ = Path::kPixelShaderInterlock;
   } else {
 #if 1
@@ -165,7 +165,7 @@ bool D3D12RenderTargetCache::Initialize() {
                 : Path::kPixelShaderInterlock;
 #endif
   }
-  if (path_ == Path::kPixelShaderInterlock && !provider.AreRasterizerOrderedViewsSupported()) {
+  if (path_ == Path::kPixelShaderInterlock && !provider.IsRasterizerOrderedViewSupported()) {
     path_ = Path::kHostRenderTargets;
   }
 
@@ -300,7 +300,7 @@ bool D3D12RenderTargetCache::Initialize() {
   direct_resolve_root_signature_depth_->AddRef();
 
   for (size_t i = 0; i < static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount); ++i) {
-    const draw_state::ResolveCopyShaderInfo& resolve_copy_shader_info =
+    const draw_state::ResolveCopyShaderTraits& resolve_copy_shader_info =
         draw_state::kResolveCopyShaderInfo[i];
     const ResolveCopyShaderCode& resolve_copy_shader_code = kResolveCopyShaders[i];
     REX_ASSERT(resolve_copy_shader_code.unscaled && resolve_copy_shader_code.unscaled_size &&
@@ -327,7 +327,7 @@ bool D3D12RenderTargetCache::Initialize() {
   use_stencil_reference_output_ =
       REXCVAR_GET(::rex::gpu::cvars::native_stencil_value_output) &&
       provider.IsPSSpecifiedStencilReferenceSupported() &&
-      (REXCVAR_GET(::rex::gpu::cvars::native_stencil_value_output_d3d12_intel) ||
+      (REXCVAR_GET(::rex::gpu::cvars::d3d12_native_stencil_value_output_intel) ||
        provider.GetAdapterVendorID() != gpu::GraphicsProvider::GPUVendorID::kIntel);
 
   if (path_ == Path::kHostRenderTargets) {
@@ -1076,7 +1076,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
 
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
-  draw_state::ResolveInfo resolve_info;
+  draw_state::ResolveRequest resolve_info;
   bool fixed_16_truncated_to_minus_1_to_1 = IsFixed16TruncatedToMinus1To1();
   if (!draw_state::GetResolveInfo(GetRegisterFile(), memory, GetDrawResolutionScaleX(),
                                   GetDrawResolutionScaleY(), fixed_16_truncated_to_minus_1_to_1,
@@ -1099,7 +1099,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
                                    copy_shader_constants, copy_group_count_x, copy_group_count_y);
     REX_ASSERT(copy_group_count_x && copy_group_count_y);
     if (copy_shader != draw_state::ResolveCopyShaderIndex::kUnknown) {
-      const draw_state::ResolveCopyShaderInfo& copy_shader_info =
+      const draw_state::ResolveCopyShaderTraits& copy_shader_info =
           draw_state::kResolveCopyShaderInfo[static_cast<size_t>(copy_shader)];
       bool direct_resolved = false;
       if (GetPath() == Path::kHostRenderTargets) {
@@ -1129,8 +1129,8 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
       if (draw_resolution_scaled) {
         // Commits from the extent start, while the bound buffer begins at the base.
         copy_dest_committed =
-            texture_cache.EnsureScaledResolveMemoryCommitted(
-                resolve_info.copy_dest_extent_start, resolve_info.copy_dest_extent_length) &&
+            texture_cache.CommitScaledResolveMemory(resolve_info.copy_dest_extent_start,
+                                                    resolve_info.copy_dest_extent_length) &&
             texture_cache.UpdateScaledResolveRange(resolve_info.copy_dest_base,
                                                    resolve_info.copy_dest_extent_start -
                                                        resolve_info.copy_dest_base +
@@ -1460,7 +1460,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> D3D12RenderTargetCache::CreateR
     REX_FAIL(gpu, nullptr, "D3D12RenderTargetCache: Unknown {} render target format {}",
              key.is_depth ? "depth" : "color", static_cast<u32>(key.resource_format));
   }
-  if (key.msaa_samples == xenos::MSAASamples::k2X && !GetMSAA2xSupported()) {
+  if (key.msaa_samples == xenos::MSAASamples::k2X && !IsMSAA2xSupported()) {
     resource_desc.SampleDesc.Count = 4;
   } else {
     resource_desc.SampleDesc.Count = static_cast<UINT>(1) << static_cast<UINT>(key.msaa_samples);
@@ -1630,7 +1630,7 @@ void D3D12RenderTargetCache::CommitEDRAMBufferUAVWrites(
 
 ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines(
     TransferShaderKey key) {
-  const TransferModeInfo& mode = kTransferModes[static_cast<size_t>(key.mode)];
+  const TransferModeTraits& mode = kTransferModes[static_cast<size_t>(key.mode)];
   bool dest_is_stencil_bit = (mode.output == TransferOutput::kStencilBit);
 
   if (dest_is_stencil_bit) {
@@ -1645,8 +1645,8 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     }
   }
 
-  u32 rs = kTransferUsedRootParameters[static_cast<size_t>(
-      use_stencil_reference_output_ ? mode.root_signature_with_stencil_ref
+  u32 root_parameter_mask = kTransferUsedRootParameters[static_cast<size_t>(
+      use_stencil_reference_output_ ? mode.root_signature_with_stencil_reference
                                     : mode.root_signature_no_stencil_ref)];
 
   bool dest_is_color = (mode.output == TransferOutput::kColor);
@@ -1661,14 +1661,14 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       static_cast<xenos::ColorRenderTargetFormat>(key.source_resource_format);
   xenos::DepthRenderTargetFormat source_depth_format =
       static_cast<xenos::DepthRenderTargetFormat>(key.source_resource_format);
-  bool source_is_color = (rs & kTransferUsedRootParameterColorSRVBit) != 0;
+  bool source_is_color = (root_parameter_mask & kTransferUsedRootParameterColorSRVBit) != 0;
   bool source_is_64bpp;
   u32 source_color_format_component_count;
   u32 source_color_srv_component_mask;
   bool source_color_is_uint;
   if (source_is_color) {
-    REX_ASSERT((rs & kTransferUsedRootParameterDepthSRVBit) == 0);
-    REX_ASSERT((rs & kTransferUsedRootParameterStencilSRVBit) == 0);
+    REX_ASSERT((root_parameter_mask & kTransferUsedRootParameterDepthSRVBit) == 0);
+    REX_ASSERT((root_parameter_mask & kTransferUsedRootParameterStencilSRVBit) == 0);
     source_is_64bpp = xenos::IsColorRenderTargetFormat64bpp(source_color_format);
     source_color_format_component_count =
         xenos::GetColorRenderTargetFormatComponentCount(source_color_format);
@@ -1711,7 +1711,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
   u32 rdef_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
 
-  built_shader_.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(u32));
+  built_shader_.resize(rdef_position_dwords + sizeof(dxbc::RDEFHeader) / sizeof(u32));
   dxbc::AppendAlignedString(built_shader_, "ReXGlue");
 
   // Constant types are uint only, named "dword" when scalar.
@@ -1721,12 +1721,12 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   u32 rdef_type_uint_position_dwords = static_cast<u32>(built_shader_.size());
   u32 rdef_type_uint_ptr =
       static_cast<u32>((rdef_type_uint_position_dwords - rdef_position_dwords) * sizeof(u32));
-  built_shader_.resize(rdef_type_uint_position_dwords + sizeof(dxbc::RdefType) / sizeof(u32));
+  built_shader_.resize(rdef_type_uint_position_dwords + sizeof(dxbc::RDEFType) / sizeof(u32));
   {
     auto& rdef_type_uint =
-        *reinterpret_cast<dxbc::RdefType*>(built_shader_.data() + rdef_type_uint_position_dwords);
-    rdef_type_uint.variable_class = dxbc::RdefVariableClass::kScalar;
-    rdef_type_uint.variable_type = dxbc::RdefVariableType::kUInt;
+        *reinterpret_cast<dxbc::RDEFType*>(built_shader_.data() + rdef_type_uint_position_dwords);
+    rdef_type_uint.variable_class = dxbc::RDEFVariableClass::kScalar;
+    rdef_type_uint.variable_type = dxbc::RDEFVariableType::kUInt;
     rdef_type_uint.row_count = 1;
     rdef_type_uint.column_count = 1;
     rdef_type_uint.name_ptr = rdef_dword_name_ptr;
@@ -1734,14 +1734,18 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
 
   u32 rdef_constant_count = 0;
   u32 rdef_constant_index_stencil_mask =
-      (rs & kTransferUsedRootParameterStencilMaskConstantBit) ? rdef_constant_count++ : UINT32_MAX;
+      (root_parameter_mask & kTransferUsedRootParameterStencilMaskConstantBit)
+          ? rdef_constant_count++
+          : UINT32_MAX;
   REX_ASSERT(!(dest_is_stencil_bit && rdef_constant_index_stencil_mask == UINT32_MAX));
   u32 rdef_constant_index_address =
-      (rs & kTransferUsedRootParameterAddressConstantBit) ? rdef_constant_count++ : UINT32_MAX;
+      (root_parameter_mask & kTransferUsedRootParameterAddressConstantBit) ? rdef_constant_count++
+                                                                           : UINT32_MAX;
   REX_ASSERT(rdef_constant_index_address != UINT32_MAX);
   u32 rdef_constant_index_host_depth_address =
-      (rs & kTransferUsedRootParameterHostDepthAddressConstantBit) ? rdef_constant_count++
-                                                                   : UINT32_MAX;
+      (root_parameter_mask & kTransferUsedRootParameterHostDepthAddressConstantBit)
+          ? rdef_constant_count++
+          : UINT32_MAX;
   name_ptr = static_cast<u32>((built_shader_.size() - rdef_position_dwords) * sizeof(u32));
   u32 rdef_xe_transfer_stencil_mask_name_ptr = name_ptr;
   if (rdef_constant_index_stencil_mask != UINT32_MAX) {
@@ -1759,12 +1763,12 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   u32 rdef_constants_ptr =
       static_cast<u32>((rdef_constants_position_dwords - rdef_position_dwords) * sizeof(u32));
   built_shader_.resize(rdef_constants_position_dwords +
-                       sizeof(dxbc::RdefVariable) / sizeof(u32) * rdef_constant_count);
+                       sizeof(dxbc::RDEFVariable) / sizeof(u32) * rdef_constant_count);
   {
-    auto rdef_constants = reinterpret_cast<dxbc::RdefVariable*>(built_shader_.data() +
+    auto rdef_constants = reinterpret_cast<dxbc::RDEFVariable*>(built_shader_.data() +
                                                                 rdef_constants_position_dwords);
     if (rdef_constant_index_stencil_mask != UINT32_MAX) {
-      dxbc::RdefVariable& rdef_constant_stencil_mask =
+      dxbc::RDEFVariable& rdef_constant_stencil_mask =
           rdef_constants[rdef_constant_index_stencil_mask];
       rdef_constant_stencil_mask.name_ptr = rdef_xe_transfer_stencil_mask_name_ptr;
       rdef_constant_stencil_mask.size_bytes = sizeof(u32);
@@ -1774,7 +1778,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_constant_stencil_mask.start_sampler = UINT32_MAX;
     }
     if (rdef_constant_index_address != UINT32_MAX) {
-      dxbc::RdefVariable& rdef_constant_address = rdef_constants[rdef_constant_index_address];
+      dxbc::RDEFVariable& rdef_constant_address = rdef_constants[rdef_constant_index_address];
       rdef_constant_address.name_ptr = rdef_xe_transfer_address_name_ptr;
       rdef_constant_address.size_bytes = sizeof(u32);
       rdef_constant_address.flags = dxbc::kRdefVariableFlagUsed;
@@ -1783,7 +1787,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_constant_address.start_sampler = UINT32_MAX;
     }
     if (rdef_constant_index_host_depth_address != UINT32_MAX) {
-      dxbc::RdefVariable& rdef_constant_host_depth_address =
+      dxbc::RDEFVariable& rdef_constant_host_depth_address =
           rdef_constants[rdef_constant_index_host_depth_address];
       rdef_constant_host_depth_address.name_ptr = rdef_xe_transfer_host_depth_address_name_ptr;
       rdef_constant_host_depth_address.size_bytes = sizeof(u32);
@@ -1804,46 +1808,48 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_constant_index_host_depth_address != UINT32_MAX ? rdef_cbuffer_count++ : UINT32_MAX;
   u32 rdef_cbuffer_position_dwords = static_cast<u32>(built_shader_.size());
   built_shader_.resize(rdef_cbuffer_position_dwords +
-                       sizeof(dxbc::RdefCbuffer) / sizeof(u32) * rdef_cbuffer_count);
+                       sizeof(dxbc::RDEFCbuffer) / sizeof(u32) * rdef_cbuffer_count);
   {
     auto rdef_cbuffers =
-        reinterpret_cast<dxbc::RdefCbuffer*>(built_shader_.data() + rdef_cbuffer_position_dwords);
+        reinterpret_cast<dxbc::RDEFCbuffer*>(built_shader_.data() + rdef_cbuffer_position_dwords);
     if (cbuffer_index_stencil_mask != UINT32_MAX) {
-      dxbc::RdefCbuffer& rdef_cbuffer_stencil_mask = rdef_cbuffers[cbuffer_index_stencil_mask];
+      dxbc::RDEFCbuffer& rdef_cbuffer_stencil_mask = rdef_cbuffers[cbuffer_index_stencil_mask];
       rdef_cbuffer_stencil_mask.name_ptr = rdef_xe_transfer_stencil_mask_name_ptr;
       rdef_cbuffer_stencil_mask.variable_count = 1;
       rdef_cbuffer_stencil_mask.variables_ptr = static_cast<u32>(
-          rdef_constants_ptr + sizeof(dxbc::RdefVariable) * rdef_constant_index_stencil_mask);
+          rdef_constants_ptr + sizeof(dxbc::RDEFVariable) * rdef_constant_index_stencil_mask);
       rdef_cbuffer_stencil_mask.size_vector_aligned_bytes = sizeof(u32) * 4;
     }
     if (cbuffer_index_address != UINT32_MAX) {
-      dxbc::RdefCbuffer& rdef_cbuffer_address = rdef_cbuffers[cbuffer_index_address];
+      dxbc::RDEFCbuffer& rdef_cbuffer_address = rdef_cbuffers[cbuffer_index_address];
       rdef_cbuffer_address.name_ptr = rdef_xe_transfer_address_name_ptr;
       rdef_cbuffer_address.variable_count = 1;
       rdef_cbuffer_address.variables_ptr = static_cast<u32>(
-          rdef_constants_ptr + sizeof(dxbc::RdefVariable) * rdef_constant_index_address);
+          rdef_constants_ptr + sizeof(dxbc::RDEFVariable) * rdef_constant_index_address);
       rdef_cbuffer_address.size_vector_aligned_bytes = sizeof(u32) * 4;
     }
     if (cbuffer_index_host_depth_address != UINT32_MAX) {
-      dxbc::RdefCbuffer& rdef_cbuffer_host_depth_address =
+      dxbc::RDEFCbuffer& rdef_cbuffer_host_depth_address =
           rdef_cbuffers[cbuffer_index_host_depth_address];
       rdef_cbuffer_host_depth_address.name_ptr = rdef_xe_transfer_host_depth_address_name_ptr;
       rdef_cbuffer_host_depth_address.variable_count = 1;
       rdef_cbuffer_host_depth_address.variables_ptr = static_cast<u32>(
-          rdef_constants_ptr + sizeof(dxbc::RdefVariable) * rdef_constant_index_host_depth_address);
+          rdef_constants_ptr + sizeof(dxbc::RDEFVariable) * rdef_constant_index_host_depth_address);
       rdef_cbuffer_host_depth_address.size_vector_aligned_bytes = sizeof(u32) * 4;
     }
   }
 
   u32 rdef_srv_count = 0;
   u32 srv_index_color =
-      (rs & kTransferUsedRootParameterColorSRVBit) ? rdef_srv_count++ : UINT32_MAX;
+      (root_parameter_mask & kTransferUsedRootParameterColorSRVBit) ? rdef_srv_count++ : UINT32_MAX;
   u32 srv_index_depth =
-      (rs & kTransferUsedRootParameterDepthSRVBit) ? rdef_srv_count++ : UINT32_MAX;
-  u32 srv_index_stencil =
-      (rs & kTransferUsedRootParameterStencilSRVBit) ? rdef_srv_count++ : UINT32_MAX;
-  u32 srv_index_host_depth =
-      (rs & kTransferUsedRootParameterHostDepthSRVBit) ? rdef_srv_count++ : UINT32_MAX;
+      (root_parameter_mask & kTransferUsedRootParameterDepthSRVBit) ? rdef_srv_count++ : UINT32_MAX;
+  u32 srv_index_stencil = (root_parameter_mask & kTransferUsedRootParameterStencilSRVBit)
+                              ? rdef_srv_count++
+                              : UINT32_MAX;
+  u32 srv_index_host_depth = (root_parameter_mask & kTransferUsedRootParameterHostDepthSRVBit)
+                                 ? rdef_srv_count++
+                                 : UINT32_MAX;
   u32 rdef_binding_count = rdef_srv_count + rdef_cbuffer_count;
   name_ptr = static_cast<u32>((built_shader_.size() - rdef_position_dwords) * sizeof(u32));
   u32 rdef_xe_transfer_color_name_ptr = name_ptr;
@@ -1864,39 +1870,39 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
   u32 rdef_binding_position_dwords = static_cast<u32>(built_shader_.size());
   built_shader_.resize(rdef_binding_position_dwords +
-                       sizeof(dxbc::RdefInputBind) / sizeof(u32) * rdef_binding_count);
+                       sizeof(dxbc::RDEFInputBind) / sizeof(u32) * rdef_binding_count);
   {
     auto rdef_bindings =
-        reinterpret_cast<dxbc::RdefInputBind*>(built_shader_.data() + rdef_binding_position_dwords);
+        reinterpret_cast<dxbc::RDEFInputBind*>(built_shader_.data() + rdef_binding_position_dwords);
     u32 rdef_binding_index = 0;
     if (srv_index_color != UINT32_MAX) {
-      dxbc::RdefInputBind& rdef_binding_color = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_color = rdef_bindings[rdef_binding_index++];
       rdef_binding_color.name_ptr = rdef_xe_transfer_color_name_ptr;
-      rdef_binding_color.type = dxbc::RdefInputType::kTexture;
+      rdef_binding_color.type = dxbc::RDEFInputType::kTexture;
       rdef_binding_color.return_type =
           source_color_is_uint ? dxbc::ResourceReturnType::kUInt : dxbc::ResourceReturnType::kFloat;
       if (key.source_msaa_samples != xenos::MSAASamples::k1X) {
-        rdef_binding_color.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
+        rdef_binding_color.dimension = dxbc::RDEFDimension::kSRVTexture2DMS;
       } else {
-        rdef_binding_color.dimension = dxbc::RdefDimension::kSRVTexture2D;
+        rdef_binding_color.dimension = dxbc::RDEFDimension::kSRVTexture2D;
         rdef_binding_color.sample_count = UINT32_MAX;
       }
       rdef_binding_color.bind_point = kTransferSRVRegisterColor;
       rdef_binding_color.bind_count = 1;
       REX_ASSERT(source_color_srv_component_mask != 0);
       rdef_binding_color.flags = (32 - rex::lzcnt(source_color_srv_component_mask) - 1)
-                                 << dxbc::kRdefInputFlagsComponentsShift;
+                                 << dxbc::kRdefInputFlagComponentsShift;
       rdef_binding_color.id = srv_index_color;
     }
     if (srv_index_depth != UINT32_MAX) {
-      dxbc::RdefInputBind& rdef_binding_depth = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_depth = rdef_bindings[rdef_binding_index++];
       rdef_binding_depth.name_ptr = rdef_xe_transfer_depth_name_ptr;
-      rdef_binding_depth.type = dxbc::RdefInputType::kTexture;
+      rdef_binding_depth.type = dxbc::RDEFInputType::kTexture;
       rdef_binding_depth.return_type = dxbc::ResourceReturnType::kFloat;
       if (key.source_msaa_samples != xenos::MSAASamples::k1X) {
-        rdef_binding_depth.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
+        rdef_binding_depth.dimension = dxbc::RDEFDimension::kSRVTexture2DMS;
       } else {
-        rdef_binding_depth.dimension = dxbc::RdefDimension::kSRVTexture2D;
+        rdef_binding_depth.dimension = dxbc::RDEFDimension::kSRVTexture2D;
         rdef_binding_depth.sample_count = UINT32_MAX;
       }
       rdef_binding_depth.bind_point = kTransferSRVRegisterDepth;
@@ -1904,14 +1910,14 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_depth.id = srv_index_depth;
     }
     if (srv_index_stencil != UINT32_MAX) {
-      dxbc::RdefInputBind& rdef_binding_stencil = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_stencil = rdef_bindings[rdef_binding_index++];
       rdef_binding_stencil.name_ptr = rdef_xe_transfer_stencil_name_ptr;
-      rdef_binding_stencil.type = dxbc::RdefInputType::kTexture;
+      rdef_binding_stencil.type = dxbc::RDEFInputType::kTexture;
       rdef_binding_stencil.return_type = dxbc::ResourceReturnType::kUInt;
       if (key.source_msaa_samples != xenos::MSAASamples::k1X) {
-        rdef_binding_stencil.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
+        rdef_binding_stencil.dimension = dxbc::RDEFDimension::kSRVTexture2DMS;
       } else {
-        rdef_binding_stencil.dimension = dxbc::RdefDimension::kSRVTexture2D;
+        rdef_binding_stencil.dimension = dxbc::RDEFDimension::kSRVTexture2D;
         rdef_binding_stencil.sample_count = UINT32_MAX;
       }
       rdef_binding_stencil.bind_point = kTransferSRVRegisterStencil;
@@ -1920,20 +1926,20 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_stencil.id = srv_index_stencil;
     }
     if (srv_index_host_depth != UINT32_MAX) {
-      dxbc::RdefInputBind& rdef_binding_host_depth = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_host_depth = rdef_bindings[rdef_binding_index++];
       rdef_binding_host_depth.name_ptr = rdef_xe_transfer_host_depth_name_ptr;
-      rdef_binding_host_depth.type = dxbc::RdefInputType::kTexture;
+      rdef_binding_host_depth.type = dxbc::RDEFInputType::kTexture;
       if (key.host_depth_source_is_copy) {
         // Float as uint.
         rdef_binding_host_depth.return_type = dxbc::ResourceReturnType::kUInt;
-        rdef_binding_host_depth.dimension = dxbc::RdefDimension::kSRVBuffer;
+        rdef_binding_host_depth.dimension = dxbc::RDEFDimension::kSRVBuffer;
         rdef_binding_host_depth.sample_count = UINT32_MAX;
       } else {
         rdef_binding_host_depth.return_type = dxbc::ResourceReturnType::kFloat;
         if (key.host_depth_source_msaa_samples != xenos::MSAASamples::k1X) {
-          rdef_binding_host_depth.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
+          rdef_binding_host_depth.dimension = dxbc::RDEFDimension::kSRVTexture2DMS;
         } else {
-          rdef_binding_host_depth.dimension = dxbc::RdefDimension::kSRVTexture2D;
+          rdef_binding_host_depth.dimension = dxbc::RDEFDimension::kSRVTexture2D;
           rdef_binding_host_depth.sample_count = UINT32_MAX;
         }
       }
@@ -1942,27 +1948,27 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_host_depth.id = srv_index_host_depth;
     }
     if (cbuffer_index_stencil_mask != UINT32_MAX) {
-      dxbc::RdefInputBind& rdef_binding_stencil_mask = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_stencil_mask = rdef_bindings[rdef_binding_index++];
       rdef_binding_stencil_mask.name_ptr = rdef_xe_transfer_stencil_mask_name_ptr;
-      rdef_binding_stencil_mask.type = dxbc::RdefInputType::kCbuffer;
+      rdef_binding_stencil_mask.type = dxbc::RDEFInputType::kCbuffer;
       rdef_binding_stencil_mask.bind_point = kTransferCBVRegisterStencilMask;
       rdef_binding_stencil_mask.bind_count = 1;
       rdef_binding_stencil_mask.flags = dxbc::kRdefInputFlagUserPacked;
       rdef_binding_stencil_mask.id = cbuffer_index_stencil_mask;
     }
     if (cbuffer_index_address != UINT32_MAX) {
-      dxbc::RdefInputBind& rdef_binding_address = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_address = rdef_bindings[rdef_binding_index++];
       rdef_binding_address.name_ptr = rdef_xe_transfer_address_name_ptr;
-      rdef_binding_address.type = dxbc::RdefInputType::kCbuffer;
+      rdef_binding_address.type = dxbc::RDEFInputType::kCbuffer;
       rdef_binding_address.bind_point = kTransferCBVRegisterAddress;
       rdef_binding_address.bind_count = 1;
       rdef_binding_address.flags = dxbc::kRdefInputFlagUserPacked;
       rdef_binding_address.id = cbuffer_index_address;
     }
     if (cbuffer_index_host_depth_address != UINT32_MAX) {
-      dxbc::RdefInputBind& rdef_binding_host_depth_address = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_host_depth_address = rdef_bindings[rdef_binding_index++];
       rdef_binding_host_depth_address.name_ptr = rdef_xe_transfer_host_depth_address_name_ptr;
-      rdef_binding_host_depth_address.type = dxbc::RdefInputType::kCbuffer;
+      rdef_binding_host_depth_address.type = dxbc::RDEFInputType::kCbuffer;
       rdef_binding_host_depth_address.bind_point = kTransferCBVRegisterHostDepthAddress;
       rdef_binding_host_depth_address.bind_count = 1;
       rdef_binding_host_depth_address.flags = dxbc::kRdefInputFlagUserPacked;
@@ -1972,19 +1978,19 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
 
   {
     auto& rdef_header =
-        *reinterpret_cast<dxbc::RdefHeader*>(built_shader_.data() + rdef_position_dwords);
+        *reinterpret_cast<dxbc::RDEFHeader*>(built_shader_.data() + rdef_position_dwords);
     rdef_header.cbuffer_count = rdef_cbuffer_count;
     rdef_header.cbuffers_ptr =
         static_cast<u32>((rdef_cbuffer_position_dwords - rdef_position_dwords) * sizeof(u32));
     rdef_header.input_bind_count = rdef_binding_count;
     rdef_header.input_binds_ptr =
         static_cast<u32>((rdef_binding_position_dwords - rdef_position_dwords) * sizeof(u32));
-    rdef_header.shader_model = dxbc::RdefShaderModel::kPixelShader51;
+    rdef_header.shader_model = dxbc::RDEFShaderModel::kPixelShader51;
     rdef_header.compile_flags =
         dxbc::kCompileFlagNoPreshader | dxbc::kCompileFlagPreferFlowControl |
-        dxbc::kCompileFlagIeeeStrictness | dxbc::kCompileFlagAllResourcesBound;
-    rdef_header.generator_name_ptr = sizeof(dxbc::RdefHeader);
-    rdef_header.fourcc = dxbc::RdefHeader::FourCC::k51;
+        dxbc::kCompileFlagIEEEStrictness | dxbc::kCompileFlagAllResourcesBound;
+    rdef_header.generator_name_ptr = sizeof(dxbc::RDEFHeader);
+    rdef_header.fourcc = dxbc::RDEFHeader::FourCC::k51;
     rdef_header.InitializeSizes();
   }
 
@@ -2029,7 +2035,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     u32 isgn_parameter_index = 0;
     dxbc::SignatureParameter& isgn_sv_position = isgn_parameters[isgn_parameter_index++];
     isgn_sv_position.semantic_name_ptr = isgn_sv_position_name_ptr;
-    isgn_sv_position.system_value = dxbc::Name::kPosition;
+    isgn_sv_position.system_value = dxbc::SystemValueName::kPosition;
     isgn_sv_position.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
     isgn_sv_position.register_index = kInputRegisterPosition;
     isgn_sv_position.mask = 0b1111;
@@ -2037,7 +2043,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     if (key.dest_msaa_samples != xenos::MSAASamples::k1X) {
       dxbc::SignatureParameter& isgn_sv_sample_index = isgn_parameters[isgn_parameter_index++];
       isgn_sv_sample_index.semantic_name_ptr = isgn_sv_sample_index_name_ptr;
-      isgn_sv_sample_index.system_value = dxbc::Name::kSampleIndex;
+      isgn_sv_sample_index.system_value = dxbc::SystemValueName::kSampleIndex;
       isgn_sv_sample_index.component_type = dxbc::SignatureRegisterComponentType::kUInt32;
       isgn_sv_sample_index.register_index = kInputRegisterSampleIndex;
       isgn_sv_sample_index.mask = 0b0001;
@@ -2197,9 +2203,11 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                                  kTransferSRVRegisterHostDepth, kTransferSRVRegisterHostDepth));
   }
   a.OpDclInputPSSIV(dxbc::InterpolationMode::kLinearNoPerspective,
-                    dxbc::Dest::V1D(kInputRegisterPosition, 0b0011), dxbc::Name::kPosition);
+                    dxbc::Dest::V1D(kInputRegisterPosition, 0b0011),
+                    dxbc::SystemValueName::kPosition);
   if (key.dest_msaa_samples != xenos::MSAASamples::k1X) {
-    a.OpDclInputPSSGV(dxbc::Dest::V1D(kInputRegisterSampleIndex, 0b0001), dxbc::Name::kSampleIndex);
+    a.OpDclInputPSSGV(dxbc::Dest::V1D(kInputRegisterSampleIndex, 0b0001),
+                      dxbc::SystemValueName::kSampleIndex);
   }
   if (osgn_parameter_index_sv_target != UINT32_MAX) {
     a.OpDclOutput(dxbc::Dest::O(0));
@@ -2627,7 +2635,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         } break;
       }
     } else {
-      REX_ASSERT((rs & kTransferUsedRootParameterDepthSRVBit) != 0);
+      REX_ASSERT((root_parameter_mask & kTransferUsedRootParameterDepthSRVBit) != 0);
       color_packed_in_r0x_and_r1x = true;
       for (u32 i = 0; i < 2; ++i) {
         switch (source_depth_format) {
@@ -2642,7 +2650,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
             // Uses r1.y as a temp. Conversion in pixel shaders is exact, so it truncates.
             DXBCShaderTranslator::PreClampedDepthTo20e4(
                 a, i, 3, i, 3, 1, 1,
-                !GetDepthFloat24ConvertInPixelShader() && GetDepthFloat24Round(), true);
+                !IsDepthFloat24ConvertedInPixelShader() && IsDepthFloat24Rounded(), true);
           } break;
         }
         a.OpBFI(dxbc::Dest::R(i, 0b0001), dxbc::Src::LU(24), dxbc::Src::LU(8),
@@ -2796,7 +2804,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           color_packed_in_r1x = true;
         } break;
       }
-    } else if (rs & kTransferUsedRootParameterDepthSRVBit) {
+    } else if (root_parameter_mask & kTransferUsedRootParameterDepthSRVBit) {
       if (dest_is_color || dest_depth_format != source_depth_format) {
         // Reinterprets the depth as color or another depth format, converting it within r1.w.
         depth_loaded_in_guest_format = true;
@@ -2812,7 +2820,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
             // Uses r1.y as a temp. Conversion in pixel shaders is exact, so it truncates.
             DXBCShaderTranslator::PreClampedDepthTo20e4(
                 a, 1, 3, 1, 3, 1, 1,
-                !GetDepthFloat24ConvertInPixelShader() && GetDepthFloat24Round(), true);
+                !IsDepthFloat24ConvertedInPixelShader() && IsDepthFloat24Rounded(), true);
           } break;
         }
         if (dest_is_color) {
@@ -2892,7 +2900,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
             }
           }
           // r1.w = guest depth. `if` suits values uniform across whole waves.
-          if (rs & kTransferUsedRootParameterHostDepthSRVBit) {
+          if (root_parameter_mask & kTransferUsedRootParameterHostDepthSRVBit) {
             // Loads host depth to r0.x and writes it to r1.w when it matches the guest depth.
 
             // r0.xy = destination tile pixel, r0.z = destination tile index, r1.w = guest depth.
@@ -3062,7 +3070,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                 // Conversion in pixel shaders is exact, so it truncates.
                 DXBCShaderTranslator::PreClampedDepthTo20e4(
                     a, 0, 1, 0, 0, 0, 2,
-                    !GetDepthFloat24ConvertInPixelShader() && GetDepthFloat24Round(), true);
+                    !IsDepthFloat24ConvertedInPixelShader() && IsDepthFloat24Rounded(), true);
               } break;
             }
             a.OpIEq(dxbc::Dest::R(0, 0b0010), dxbc::Src::R(0, dxbc::Src::kYYYY),
@@ -3088,7 +3096,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                                                   true);
             } break;
           }
-          if (rs & kTransferUsedRootParameterHostDepthSRVBit) {
+          if (root_parameter_mask & kTransferUsedRootParameterHostDepthSRVBit) {
             a.OpEndIf();
           }
         }
@@ -3182,7 +3190,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   pipeline_input_element_desc.InstanceDataStepRate = 0;
   auto pipeline_desc = objects::BuildGraphicsPipelineStateDesc();
   pipeline_desc.pRootSignature = transfer_root_signatures_[static_cast<size_t>(
-      use_stencil_reference_output_ ? mode.root_signature_with_stencil_ref
+      use_stencil_reference_output_ ? mode.root_signature_with_stencil_reference
                                     : mode.root_signature_no_stencil_ref)];
   pipeline_desc.VS.pShaderBytecode = shaders::kPassthroughPositionXYVS;
   pipeline_desc.VS.BytecodeLength = sizeof(shaders::kPassthroughPositionXYVS);
@@ -3270,7 +3278,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   if (!pipelines) {
     // Stencil bit copying uses only the stencil SRV, so srv_index_depth can't identify the source.
     const char* source_format_name =
-        (rs & kTransferUsedRootParameterColorSRVBit)
+        (root_parameter_mask & kTransferUsedRootParameterColorSRVBit)
             ? xenos::GetColorRenderTargetFormatName(source_color_format)
             : xenos::GetDepthRenderTargetFormatName(source_depth_format);
     const char* dest_format_name = mode.output == TransferOutput::kColor
@@ -3397,9 +3405,9 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       HostDepthStoreRectangleConstant host_depth_store_rectangle_constant;
       for (u32 j = 0; j < transfer_rectangle_count; ++j) {
         u32 group_count_x, group_count_y;
-        GetHostDepthStoreRectangleInfo(transfer_rectangles[j], dest_rt_key.msaa_samples,
-                                       host_depth_store_rectangle_constant, group_count_x,
-                                       group_count_y);
+        GetHostDepthStoreRectangleDispatch(transfer_rectangles[j], dest_rt_key.msaa_samples,
+                                           host_depth_store_rectangle_constant, group_count_x,
+                                           group_count_y);
         command_list.D3DSetComputeRoot32BitConstants(
             kHostDepthStoreRootParameterConstants,
             sizeof(host_depth_store_rectangle_constant) / sizeof(u32),
@@ -3458,16 +3466,16 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       }
     }
     // The destination transitions only if not used as a source earlier.
-    bool dest_used_previously_as_source = false;
+    bool dest_previously_used_as_source = false;
     for (u32 j = 0; j < i; ++j) {
       for (const Transfer& previous_transfer : render_target_transfers[j]) {
         if (previous_transfer.source == dest_rt || previous_transfer.host_depth_source == dest_rt) {
-          dest_used_previously_as_source = true;
+          dest_previously_used_as_source = true;
           break;
         }
       }
     }
-    if (!dest_used_previously_as_source) {
+    if (!dest_previously_used_as_source) {
       D3D12_RESOURCE_STATES dest_state = dest_d3d12_rt.GetKey().is_depth
                                              ? D3D12_RESOURCE_STATE_DEPTH_WRITE
                                              : D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -3758,10 +3766,10 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         auto* host_depth_source_d3d12_rt =
             static_cast<D3D12RenderTarget*>(it->transfer.host_depth_source);
         TransferShaderKey transfer_shader_key = it->shader_key;
-        const TransferModeInfo& transfer_mode_info =
+        const TransferModeTraits& transfer_mode_info =
             kTransferModes[static_cast<size_t>(transfer_shader_key.mode)];
         TransferRootSignatureIndex transfer_root_signature_index =
-            use_stencil_reference_output_ ? transfer_mode_info.root_signature_with_stencil_ref
+            use_stencil_reference_output_ ? transfer_mode_info.root_signature_with_stencil_reference
                                           : transfer_mode_info.root_signature_no_stencil_ref;
         u32 transfer_root_parameters_used =
             kTransferUsedRootParameters[static_cast<size_t>(transfer_root_signature_index)];
@@ -4208,7 +4216,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
   u32 rdef_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
 
-  built_shader_.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(u32));
+  built_shader_.resize(rdef_position_dwords + sizeof(dxbc::RDEFHeader) / sizeof(u32));
   dxbc::AppendAlignedString(built_shader_, "ReXGlue");
 
   // Constant types are uint only, named "dword" when scalar.
@@ -4218,12 +4226,12 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   u32 rdef_type_uint_position_dwords = static_cast<u32>(built_shader_.size());
   u32 rdef_type_uint_ptr =
       static_cast<u32>((rdef_type_uint_position_dwords - rdef_position_dwords) * sizeof(u32));
-  built_shader_.resize(rdef_type_uint_position_dwords + sizeof(dxbc::RdefType) / sizeof(u32));
+  built_shader_.resize(rdef_type_uint_position_dwords + sizeof(dxbc::RDEFType) / sizeof(u32));
   {
     auto& rdef_type_uint =
-        *reinterpret_cast<dxbc::RdefType*>(built_shader_.data() + rdef_type_uint_position_dwords);
-    rdef_type_uint.variable_class = dxbc::RdefVariableClass::kScalar;
-    rdef_type_uint.variable_type = dxbc::RdefVariableType::kUInt;
+        *reinterpret_cast<dxbc::RDEFType*>(built_shader_.data() + rdef_type_uint_position_dwords);
+    rdef_type_uint.variable_class = dxbc::RDEFVariableClass::kScalar;
+    rdef_type_uint.variable_type = dxbc::RDEFVariableType::kUInt;
     rdef_type_uint.row_count = 1;
     rdef_type_uint.column_count = 1;
     rdef_type_uint.name_ptr = rdef_dword_name_ptr;
@@ -4243,18 +4251,18 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   u32 rdef_constants_ptr =
       static_cast<u32>((rdef_constants_position_dwords - rdef_position_dwords) * sizeof(u32));
   built_shader_.resize(rdef_constants_position_dwords +
-                       sizeof(dxbc::RdefVariable) / sizeof(u32) * kConstantCount);
+                       sizeof(dxbc::RDEFVariable) / sizeof(u32) * kConstantCount);
   {
-    auto rdef_constants = reinterpret_cast<dxbc::RdefVariable*>(built_shader_.data() +
+    auto rdef_constants = reinterpret_cast<dxbc::RDEFVariable*>(built_shader_.data() +
                                                                 rdef_constants_position_dwords);
-    dxbc::RdefVariable& rdef_constant_offsets = rdef_constants[kConstantOffsets];
+    dxbc::RDEFVariable& rdef_constant_offsets = rdef_constants[kConstantOffsets];
     rdef_constant_offsets.name_ptr = rdef_xe_edram_dump_offsets_name_ptr;
     rdef_constant_offsets.size_bytes = sizeof(u32);
     rdef_constant_offsets.flags = dxbc::kRdefVariableFlagUsed;
     rdef_constant_offsets.type_ptr = rdef_type_uint_ptr;
     rdef_constant_offsets.start_texture = UINT32_MAX;
     rdef_constant_offsets.start_sampler = UINT32_MAX;
-    dxbc::RdefVariable& rdef_constant_pitches = rdef_constants[kConstantPitches];
+    dxbc::RDEFVariable& rdef_constant_pitches = rdef_constants[kConstantPitches];
     rdef_constant_pitches.name_ptr = rdef_xe_edram_dump_pitches_name_ptr;
     rdef_constant_pitches.size_bytes = sizeof(u32);
     rdef_constant_pitches.flags = dxbc::kRdefVariableFlagUsed;
@@ -4266,21 +4274,21 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // Constant buffers reuse the constant names.
   u32 rdef_cbuffer_position_dwords = static_cast<u32>(built_shader_.size());
   built_shader_.resize(rdef_cbuffer_position_dwords +
-                       sizeof(dxbc::RdefCbuffer) / sizeof(u32) * kDumpCbufferCount);
+                       sizeof(dxbc::RDEFCbuffer) / sizeof(u32) * kDumpCbufferCount);
   {
     auto rdef_cbuffers =
-        reinterpret_cast<dxbc::RdefCbuffer*>(built_shader_.data() + rdef_cbuffer_position_dwords);
-    dxbc::RdefCbuffer& rdef_cbuffer_offsets = rdef_cbuffers[kDumpCbufferOffsets];
+        reinterpret_cast<dxbc::RDEFCbuffer*>(built_shader_.data() + rdef_cbuffer_position_dwords);
+    dxbc::RDEFCbuffer& rdef_cbuffer_offsets = rdef_cbuffers[kDumpCbufferOffsets];
     rdef_cbuffer_offsets.name_ptr = rdef_xe_edram_dump_offsets_name_ptr;
     rdef_cbuffer_offsets.variable_count = 1;
     rdef_cbuffer_offsets.variables_ptr =
-        static_cast<u32>(rdef_constants_ptr + sizeof(dxbc::RdefVariable) * kConstantOffsets);
+        static_cast<u32>(rdef_constants_ptr + sizeof(dxbc::RDEFVariable) * kConstantOffsets);
     rdef_cbuffer_offsets.size_vector_aligned_bytes = sizeof(u32) * 4;
-    dxbc::RdefCbuffer& rdef_cbuffer_pitches = rdef_cbuffers[kDumpCbufferPitches];
+    dxbc::RDEFCbuffer& rdef_cbuffer_pitches = rdef_cbuffers[kDumpCbufferPitches];
     rdef_cbuffer_pitches.name_ptr = rdef_xe_edram_dump_pitches_name_ptr;
     rdef_cbuffer_pitches.variable_count = 1;
     rdef_cbuffer_pitches.variables_ptr =
-        static_cast<u32>(rdef_constants_ptr + sizeof(dxbc::RdefVariable) * kConstantPitches);
+        static_cast<u32>(rdef_constants_ptr + sizeof(dxbc::RDEFVariable) * kConstantPitches);
     rdef_cbuffer_pitches.size_vector_aligned_bytes = sizeof(u32) * 4;
   }
 
@@ -4296,7 +4304,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   name_ptr += dxbc::AppendAlignedString(built_shader_, "xe_edram");
   u32 rdef_binding_position_dwords = static_cast<u32>(built_shader_.size());
   built_shader_.resize(rdef_binding_position_dwords +
-                       sizeof(dxbc::RdefInputBind) / sizeof(u32) * rdef_binding_count);
+                       sizeof(dxbc::RDEFInputBind) / sizeof(u32) * rdef_binding_count);
   bool source_is_uint;
   if (key.is_depth) {
     source_is_uint = false;
@@ -4311,26 +4319,25 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       !key.is_depth && xenos::IsColorRenderTargetFormat64bpp(key.GetColorFormat());
   {
     auto rdef_bindings =
-        reinterpret_cast<dxbc::RdefInputBind*>(built_shader_.data() + rdef_binding_position_dwords);
+        reinterpret_cast<dxbc::RDEFInputBind*>(built_shader_.data() + rdef_binding_position_dwords);
     u32 rdef_binding_index = 0;
-    dxbc::RdefInputBind& rdef_binding_source = rdef_bindings[rdef_binding_index++];
+    dxbc::RDEFInputBind& rdef_binding_source = rdef_bindings[rdef_binding_index++];
     rdef_binding_source.name_ptr = rdef_xe_edram_dump_source_name_ptr;
-    rdef_binding_source.type = dxbc::RdefInputType::kTexture;
+    rdef_binding_source.type = dxbc::RDEFInputType::kTexture;
     rdef_binding_source.return_type = source_return_type;
     if (key.msaa_samples != xenos::MSAASamples::k1X) {
-      rdef_binding_source.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
+      rdef_binding_source.dimension = dxbc::RDEFDimension::kSRVTexture2DMS;
       // Sample count is dynamic on Shader Model 5.
     } else {
-      rdef_binding_source.dimension = dxbc::RdefDimension::kSRVTexture2D;
+      rdef_binding_source.dimension = dxbc::RDEFDimension::kSRVTexture2D;
       rdef_binding_source.sample_count = UINT32_MAX;
     }
     rdef_binding_source.bind_count = 1;
-    rdef_binding_source.flags = (source_component_count - 1)
-                                << dxbc::kRdefInputFlagsComponentsShift;
+    rdef_binding_source.flags = (source_component_count - 1) << dxbc::kRdefInputFlagComponentsShift;
     if (key.is_depth) {
-      dxbc::RdefInputBind& rdef_binding_stencil = rdef_bindings[rdef_binding_index++];
+      dxbc::RDEFInputBind& rdef_binding_stencil = rdef_bindings[rdef_binding_index++];
       rdef_binding_stencil.name_ptr = rdef_xe_edram_dump_stencil_name_ptr;
-      rdef_binding_stencil.type = dxbc::RdefInputType::kTexture;
+      rdef_binding_stencil.type = dxbc::RDEFInputType::kTexture;
       rdef_binding_stencil.return_type = dxbc::ResourceReturnType::kUInt;
       rdef_binding_stencil.dimension = rdef_binding_source.dimension;
       rdef_binding_stencil.sample_count = rdef_binding_source.sample_count;
@@ -4339,24 +4346,24 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       rdef_binding_stencil.flags = dxbc::kRdefInputFlags2Component;
       rdef_binding_stencil.id = 1;
     }
-    dxbc::RdefInputBind& rdef_binding_edram = rdef_bindings[rdef_binding_index++];
+    dxbc::RDEFInputBind& rdef_binding_edram = rdef_bindings[rdef_binding_index++];
     rdef_binding_edram.name_ptr = rdef_xe_edram_name_ptr;
-    rdef_binding_edram.type = dxbc::RdefInputType::kUAVRWTyped;
+    rdef_binding_edram.type = dxbc::RDEFInputType::kUAVRWTyped;
     rdef_binding_edram.return_type = dxbc::ResourceReturnType::kUInt;
-    rdef_binding_edram.dimension = dxbc::RdefDimension::kUAVBuffer;
+    rdef_binding_edram.dimension = dxbc::RDEFDimension::kUAVBuffer;
     rdef_binding_edram.sample_count = UINT32_MAX;
     rdef_binding_edram.bind_count = 1;
     rdef_binding_edram.flags = format_is_64bpp ? dxbc::kRdefInputFlags2Component : 0;
-    dxbc::RdefInputBind& rdef_binding_offsets = rdef_bindings[rdef_binding_index++];
+    dxbc::RDEFInputBind& rdef_binding_offsets = rdef_bindings[rdef_binding_index++];
     rdef_binding_offsets.name_ptr = rdef_xe_edram_dump_offsets_name_ptr;
-    rdef_binding_offsets.type = dxbc::RdefInputType::kCbuffer;
+    rdef_binding_offsets.type = dxbc::RDEFInputType::kCbuffer;
     rdef_binding_offsets.bind_point = kDumpCbufferOffsets;
     rdef_binding_offsets.bind_count = 1;
     rdef_binding_offsets.flags = dxbc::kRdefInputFlagUserPacked;
     rdef_binding_offsets.id = kDumpCbufferOffsets;
-    dxbc::RdefInputBind& rdef_binding_pitches = rdef_bindings[rdef_binding_index++];
+    dxbc::RDEFInputBind& rdef_binding_pitches = rdef_bindings[rdef_binding_index++];
     rdef_binding_pitches.name_ptr = rdef_xe_edram_dump_pitches_name_ptr;
-    rdef_binding_pitches.type = dxbc::RdefInputType::kCbuffer;
+    rdef_binding_pitches.type = dxbc::RDEFInputType::kCbuffer;
     rdef_binding_pitches.bind_point = kDumpCbufferPitches;
     rdef_binding_pitches.bind_count = 1;
     rdef_binding_pitches.flags = dxbc::kRdefInputFlagUserPacked;
@@ -4365,19 +4372,19 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
 
   {
     auto& rdef_header =
-        *reinterpret_cast<dxbc::RdefHeader*>(built_shader_.data() + rdef_position_dwords);
+        *reinterpret_cast<dxbc::RDEFHeader*>(built_shader_.data() + rdef_position_dwords);
     rdef_header.cbuffer_count = kDumpCbufferCount;
     rdef_header.cbuffers_ptr =
         static_cast<u32>((rdef_cbuffer_position_dwords - rdef_position_dwords) * sizeof(u32));
     rdef_header.input_bind_count = rdef_binding_count;
     rdef_header.input_binds_ptr =
         static_cast<u32>((rdef_binding_position_dwords - rdef_position_dwords) * sizeof(u32));
-    rdef_header.shader_model = dxbc::RdefShaderModel::kComputeShader51;
+    rdef_header.shader_model = dxbc::RDEFShaderModel::kComputeShader51;
     rdef_header.compile_flags =
         dxbc::kCompileFlagNoPreshader | dxbc::kCompileFlagPreferFlowControl |
-        dxbc::kCompileFlagIeeeStrictness | dxbc::kCompileFlagAllResourcesBound;
-    rdef_header.generator_name_ptr = sizeof(dxbc::RdefHeader);
-    rdef_header.fourcc = dxbc::RdefHeader::FourCC::k51;
+        dxbc::kCompileFlagIEEEStrictness | dxbc::kCompileFlagAllResourcesBound;
+    rdef_header.generator_name_ptr = sizeof(dxbc::RDEFHeader);
+    rdef_header.fourcc = dxbc::RDEFHeader::FourCC::k51;
     rdef_header.InitializeSizes();
   }
 
@@ -4566,7 +4573,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       case xenos::DepthRenderTargetFormat::kD24FS8:
         // Uses r0.x as a temp. Conversion in pixel shaders is exact, so it truncates.
         DXBCShaderTranslator::PreClampedDepthTo20e4(
-            a, 1, 0, 1, 0, 0, 0, !GetDepthFloat24ConvertInPixelShader() && GetDepthFloat24Round(),
+            a, 1, 0, 1, 0, 0, 0, !IsDepthFloat24ConvertedInPixelShader() && IsDepthFloat24Rounded(),
             true);
         break;
     }
@@ -4723,7 +4730,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDirectResolvePipeline(
   return pipeline;
 }
 
-bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
+bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_state::ResolveRequest& resolve_info,
                                                     draw_state::ResolveCopyShaderIndex copy_shader,
                                                     bool draw_resolution_scaled) {
   ++direct_resolve_attempt_count_;

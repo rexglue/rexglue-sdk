@@ -25,7 +25,7 @@
 namespace rex {
 namespace memory {
 
-size_t PageSize() {
+size_t GetPageSize() {
   static size_t value = 0;
   if (!value) {
     SYSTEM_INFO si;
@@ -35,7 +35,7 @@ size_t PageSize() {
   return value;
 }
 
-size_t AllocationGranularity() {
+size_t GetAllocationGranularity() {
   static size_t value = 0;
   if (!value) {
     SYSTEM_INFO si;

@@ -26,7 +26,7 @@ REX_INTERFACE(IDeviceAssignment)
    *
    * @param devices  Connected devices.
    */
-  virtual void OnDevicesChanged(const std::vector<DeviceInfo>& devices) = 0;
+  virtual void OnDevicesChanged(const std::vector<Device>& devices) = 0;
 
   /**
    * Copies the devices feeding a title user. An empty result means the title sees
@@ -35,7 +35,7 @@ REX_INTERFACE(IDeviceAssignment)
    * @param user_index  Title user index.
    * @param out         Receives the device ids.
    */
-  virtual void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const = 0;
+  virtual void GetDevicesForUser(u32 user_index, std::vector<DeviceId>& out) const = 0;
 };
 
 /**
@@ -44,8 +44,8 @@ REX_INTERFACE(IDeviceAssignment)
  */
 class SlotAssignment final : public IDeviceAssignment {
  public:
-  void OnDevicesChanged(const std::vector<DeviceInfo>& devices) override;
-  void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
+  void OnDevicesChanged(const std::vector<Device>& devices) override;
+  void GetDevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
 
  private:
   std::vector<std::vector<DeviceId>> users_ = std::vector<std::vector<DeviceId>>(kMaxTitleUsers);
@@ -57,8 +57,8 @@ class SlotAssignment final : public IDeviceAssignment {
  */
 class SharedAssignment final : public IDeviceAssignment {
  public:
-  void OnDevicesChanged(const std::vector<DeviceInfo>& devices) override;
-  void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
+  void OnDevicesChanged(const std::vector<Device>& devices) override;
+  void GetDevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
 
  private:
   std::vector<DeviceId> user0_;

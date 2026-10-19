@@ -34,7 +34,7 @@ REX_INTERFACE(IFile)
    *
    * @return The name, paths, attributes, sizes and times.
    */
-  [[nodiscard]] virtual FileInfo GetInfo() const = 0;
+  [[nodiscard]] virtual FileStat GetInfo() const = 0;
 
   /** Reads the size of the node again from its provider. */
   virtual void Refresh() = 0;
@@ -51,7 +51,7 @@ REX_INTERFACE(IFile)
    *
    * @return The volume information of the mount.
    */
-  [[nodiscard]] virtual VolumeInfo GetVolume() const = 0;
+  [[nodiscard]] virtual VolumeStat GetVolume() const = 0;
 
   /**
    * Copies bytes of the file.

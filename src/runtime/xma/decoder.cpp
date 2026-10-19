@@ -37,7 +37,7 @@ XMADecoder::~XMADecoder() {
   Shutdown();
 }
 
-void AvLogCallback([[maybe_unused]] void* avcl, int level, const char* fmt, va_list va) {
+void AVLogCallback([[maybe_unused]] void* avcl, int level, const char* fmt, va_list va) {
   if (!REXCVAR_GET(::rex::runtime::cvars::ffmpeg_verbose) && level > AV_LOG_WARNING) {
     return;
   }
@@ -65,7 +65,7 @@ void AvLogCallback([[maybe_unused]] void* avcl, int level, const char* fmt, va_l
 }
 
 X_STATUS XMADecoder::Setup() {
-  av_log_set_callback(AvLogCallback);
+  av_log_set_callback(AVLogCallback);
 
   rex::AttachMMIO(rex::MMIOBlock::kAPU, {this, MMIOReadRegisterThunk, MMIOWriteRegisterThunk});
 
@@ -164,7 +164,7 @@ u32 XMADecoder::AllocateContext() {
 
   XMAContext& context = contexts_[index];
   REX_ASSERT(!context.IsAllocated());
-  context.SetIsAllocated(true);
+  context.SetAllocated(true);
   return context.GetGuestPtr();
 }
 
@@ -189,11 +189,11 @@ bool XMADecoder::BlockOnContext(u32 context_ptr, bool poll) {
   }
 
   XMAContext& context = contexts_[context_id];
-  return context.Block(poll);
+  return context.WaitIdle(poll);
 }
 
 bool XMADecoder::SignalContext(u32 base_register, u32 context_physical_address) {
-  const u32 array_base = GetContextArrayPtr();
+  const u32 array_base = GetContextArrayAddress();
   if (context_physical_address < array_base) {
     return false;
   }
@@ -273,7 +273,7 @@ void XMADecoder::WriteRegister(u32 addr, u32 value) {
         auto& context = contexts_[context_id];
         context.Disable();
         // Block until an in flight decode finishes before the guest may modify the context.
-        context.Block(false);
+        context.WaitIdle(false);
       }
     }
   } else if (r >= XMARegister::Context0Clear && r <= XMARegister::Context9Clear) {
@@ -289,10 +289,10 @@ void XMADecoder::WriteRegister(u32 addr, u32 value) {
     // Register 0x0601 receives 0x02000000 and 0x03000000 around a lock operation.
     const auto register_info = register_file_.GetRegisterInfo(r);
     if (register_info) {
-      REXLOG_DEBUG(apu, "XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
+      REXLOG_DEBUG(apu, "XMA: Write to unhandled register ({:04X}, {}) value {:08X}", r,
                    register_info->name, value);
     } else {
-      REXLOG_DEBUG(apu, "XMA: Write to unknown register ({:04X}): {:08X}", r, value);
+      REXLOG_DEBUG(apu, "XMA: Write to unknown register ({:04X}) value {:08X}", r, value);
     }
   }
 }

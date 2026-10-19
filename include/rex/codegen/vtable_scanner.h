@@ -42,7 +42,7 @@ struct RTTICompleteObjectLocator {
 REX_STATIC_ASSERT_SIZE(RTTICompleteObjectLocator, 20);
 
 /** Result of vtable scanning. */
-struct VTableInfo {
+struct VTable {
   u32 vtable_address;     /**< Address of vtable[0] */
   u32 col_address;        /**< RTTI Complete Object Locator address */
   std::string class_name; /**< Demangled class name, optional */
@@ -64,7 +64,7 @@ class VTableScanner {
    *
    * @return Vtables found
    */
-  std::vector<VTableInfo> Scan();
+  std::vector<VTable> Scan();
 
  private:
   const BinaryView& binary_;
@@ -91,7 +91,7 @@ class VTableScanner {
 
   bool IsExecutableAddress(u32 addr) const;
 
-  std::optional<u32> ReadDword(u32 addr) const;
+  std::optional<u32> ReadWord(u32 addr) const;
 
   std::string ReadString(u32 addr, size_t max_len = 256) const;
 };

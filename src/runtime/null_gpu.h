@@ -33,8 +33,7 @@ class REX_RUNTIME_API NullGPU final : public gpu::IGPUBackend {
   ~NullGPU() override;
 
   [[nodiscard]] Result<void> SetupPresentation(gpu::IUIThread& ui_thread) override;
-  [[nodiscard]] Result<void> SetupGuestGPU(FunctionDispatcher& dispatcher,
-                                           Runtime& runtime) override;
+  [[nodiscard]] Result<void> SetupGPU(FunctionDispatcher& dispatcher, Runtime& runtime) override;
   bool HasPresentation() const override { return false; }
   gpu::IPresenter* GetPresenter() const override { return nullptr; }
   [[nodiscard]] Result<std::unique_ptr<gpu::IPresenter>> CreatePresenter() override;

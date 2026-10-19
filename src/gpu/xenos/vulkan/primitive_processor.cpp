@@ -102,8 +102,8 @@ void VulkanPrimitiveProcessor::BeginSubmission() {
 
     DeferredCommandBuffer& command_buffer = command_processor_.GetDeferredCommandBuffer();
 
-    VkBufferCopy* copy_region =
-        command_buffer.CmdCopyBufferEmplace(builtin_index_buffer_upload_, builtin_index_buffer_, 1);
+    VkBufferCopy* copy_region = command_buffer.CmdVkCopyBufferEmplace(builtin_index_buffer_upload_,
+                                                                      builtin_index_buffer_, 1);
     copy_region->srcOffset = 0;
     copy_region->dstOffset = 0;
     copy_region->size = builtin_index_buffer_size_;
@@ -206,7 +206,7 @@ void* VulkanPrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
     return nullptr;
   }
   if (coalign_for_simd) {
-    ptrdiff_t coalignment_offset = GetSimdCoalignmentOffset(mapping, coalignment_original_address);
+    ptrdiff_t coalignment_offset = GetSIMDCoalignmentOffset(mapping, coalignment_original_address);
     mapping += coalignment_offset;
     offset = static_cast<VkDeviceSize>(offset + coalignment_offset);
   }

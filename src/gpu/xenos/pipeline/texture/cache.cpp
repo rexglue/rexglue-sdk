@@ -199,10 +199,10 @@ bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pend
   {
     auto watch_lock = GetSharedMemory().AcquireLock();
     if (outdated_mask & Texture::kOutdatedBitBase) {
-      base_outdated = texture.GetBaseOutdated(watch_lock);
+      base_outdated = texture.IsBaseOutdated(watch_lock);
     }
     if (outdated_mask & Texture::kOutdatedBitMips) {
-      mips_outdated = texture.GetMipsOutdated(watch_lock);
+      mips_outdated = texture.IsMipsOutdated(watch_lock);
     }
   }
   if (!base_outdated && !mips_outdated) {
@@ -242,12 +242,12 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
   TextureKey texture_key = texture.GetKey();
   if (texture_key.scaled_resolve) {
     // Padding not yet touched by a resolve counts in the texture size, so it must be resident.
-    if (pending_load.load_base && !EnsureScaledResolveMemoryCommitted(
-                                      texture_key.base_page << 12, texture.GetGuestBaseSize(), 4)) {
+    if (pending_load.load_base &&
+        !CommitScaledResolveMemory(texture_key.base_page << 12, texture.GetGuestBaseSize(), 4)) {
       return false;
     }
-    if (pending_load.load_mips && !EnsureScaledResolveMemoryCommitted(
-                                      texture_key.mip_page << 12, texture.GetGuestMipsSize(), 4)) {
+    if (pending_load.load_mips &&
+        !CommitScaledResolveMemory(texture_key.mip_page << 12, texture.GetGuestMipsSize(), 4)) {
       return false;
     }
   }
@@ -316,10 +316,10 @@ void TextureCache::RequestTextures(u32 used_texture_mask) {
     binding.host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(binding.key));
 
     bool key_changed = binding.key != old_key;
-    bool any_sign_was_not_signed = xenos::IsAnySignNotSigned(old_swizzled_signs);
-    bool any_sign_was_signed = xenos::IsAnySignSigned(old_swizzled_signs);
-    bool any_sign_is_not_signed = xenos::IsAnySignNotSigned(binding.swizzled_signs);
-    bool any_sign_is_signed = xenos::IsAnySignSigned(binding.swizzled_signs);
+    bool any_sign_was_not_signed = xenos::HasNonSignedComponent(old_swizzled_signs);
+    bool any_sign_was_signed = xenos::HasSignedComponent(old_swizzled_signs);
+    bool any_sign_is_not_signed = xenos::HasNonSignedComponent(binding.swizzled_signs);
+    bool any_sign_is_signed = xenos::HasSignedComponent(binding.swizzled_signs);
     if (key_changed || binding.host_swizzle != old_host_swizzle ||
         any_sign_is_not_signed != any_sign_was_not_signed ||
         any_sign_is_signed != any_sign_was_signed) {
@@ -556,7 +556,7 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
 
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   if (IsDrawResolutionScaled() && key.tiled && IsScaledResolveSupportedForFormat(key)) {
-    xenos::TextureGuestLayout scaled_resolve_guest_layout = key.GetGuestLayout();
+    xenos::GuestTextureLayout scaled_resolve_guest_layout = key.GetGuestLayout();
     if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
          IsRangeScaledResolved(key.base_page << 12,
                                scaled_resolve_guest_layout.base.level_data_extent_bytes)) ||

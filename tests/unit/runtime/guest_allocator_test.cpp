@@ -46,7 +46,7 @@ u32 ReserveAndRelease(rex::runtime::Memory& memory, u32 size, bool physical = fa
 }  // namespace
 
 REX_TEST_CASE("A failed o1heapInit releases its range", "[runtime][allocator]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const u32 expected = ReserveAndRelease(memory, 16);
   auto failed = GuestAllocator::Create(memory, 16, kAlignment, false, kPageSize, 0);
@@ -55,7 +55,7 @@ REX_TEST_CASE("A failed o1heapInit releases its range", "[runtime][allocator]") 
 }
 
 REX_TEST_CASE("A destroyed allocator releases its range", "[runtime][allocator]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const u32 expected = ReserveAndRelease(memory, kRangeSize);
   {
@@ -68,7 +68,7 @@ REX_TEST_CASE("A destroyed allocator releases its range", "[runtime][allocator]"
 }
 
 REX_TEST_CASE("Blocks reside inside the range and Free returns them", "[runtime][allocator]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   auto allocator = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0);
   REQUIRE(allocator);
@@ -80,12 +80,12 @@ REX_TEST_CASE("Blocks reside inside the range and Free returns them", "[runtime]
   CHECK((*allocator)->GetDiagnostics().allocated > 0);
   (*allocator)->Free(block);
   CHECK((*allocator)->GetDiagnostics().allocated == 0);
-  CHECK((*allocator)->InvariantsHold());
+  CHECK((*allocator)->IsConsistent());
 }
 
 REX_TEST_CASE("Reallocate keeps the contents and an exhausted range returns null",
               "[runtime][allocator]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   auto allocator = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0);
   REQUIRE(allocator);
@@ -102,7 +102,7 @@ REX_TEST_CASE("Reallocate keeps the contents and an exhausted range returns null
 
 REX_TEST_CASE("A physical 64K allocator falls in the physical range and releases on destroy",
               "[runtime][allocator]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const u32 expected = ReserveAndRelease(memory, kRangeSize, true, kPhysicalPageSize);
   CHECK(expected >= kPhysicalBase);

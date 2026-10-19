@@ -17,9 +17,10 @@
 
 namespace rex::gpu {
 
-bool SamplerInfo::Prepare(const xenos::TextureFetch& fetch,
-                          const ParsedTextureFetchInstruction& fetch_instr, SamplerInfo* out_info) {
-  std::memset(out_info, 0, sizeof(SamplerInfo));
+bool SamplerState::Prepare(const xenos::TextureFetch& fetch,
+                           const ParsedTextureFetchInstruction& fetch_instr,
+                           SamplerState* out_info) {
+  std::memset(out_info, 0, sizeof(SamplerState));
 
   out_info->min_filter = fetch_instr.attributes.min_filter == xenos::TextureFilter::kUseFetchConst
                              ? fetch.min_filter
@@ -45,8 +46,8 @@ bool SamplerInfo::Prepare(const xenos::TextureFetch& fetch,
   return true;
 }
 
-u64 SamplerInfo::hash() const {
-  return XXH3_64bits(this, sizeof(SamplerInfo));
+u64 SamplerState::GetHash() const {
+  return XXH3_64bits(this, sizeof(SamplerState));
 }
 
 }  // namespace rex::gpu

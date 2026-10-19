@@ -492,8 +492,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         if (guest_index_format == xenos::IndexFormat::kInt16) {
           auto guest_indices = reinterpret_cast<const u16*>(guest_indices_ptr);
           if (guest_primitive_reset_enabled &&
-              IsResetUsed(guest_indices, guest_draw_vertex_count,
-                          guest_primitive_reset_index_guest_endian)) {
+              IsResetIndexUsed(guest_indices, guest_draw_vertex_count,
+                               guest_primitive_reset_index_guest_endian)) {
             cacheable.host_draw_vertex_count = GetMultiPrimitiveHostIndexCountAndRanges(
                 host_index_count_getter, guest_indices, guest_draw_vertex_count,
                 guest_primitive_reset_index_guest_endian, single_primitive_ranges_);
@@ -513,9 +513,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
               single_primitive_ranges_.cbegin(), single_primitive_ranges_.cend());
         } else {
           auto guest_indices = reinterpret_cast<const u32*>(guest_indices_ptr);
-          if (guest_primitive_reset_enabled && IsResetUsed(guest_indices, guest_draw_vertex_count,
-                                                           guest_primitive_reset_index_guest_endian,
-                                                           guest_index_mask_guest_endian)) {
+          if (guest_primitive_reset_enabled &&
+              IsResetIndexUsed(guest_indices, guest_draw_vertex_count,
+                               guest_primitive_reset_index_guest_endian,
+                               guest_index_mask_guest_endian)) {
             cacheable.host_draw_vertex_count = GetMultiPrimitiveHostIndexCountAndRanges(
                 host_index_count_getter, guest_indices, guest_draw_vertex_count,
                 guest_primitive_reset_index_guest_endian, guest_index_mask_guest_endian,
@@ -627,9 +628,9 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
             cacheable = *cache_transaction.GetFoundResult();
           } else {
             auto guest_indices = memory_.TranslatePhysical<const u32*>(guest_index_base);
-            if (IsResetUsed(guest_indices, guest_draw_vertex_count,
-                            guest_primitive_reset_index_guest_endian,
-                            guest_index_mask_guest_endian)) {
+            if (IsResetIndexUsed(guest_indices, guest_draw_vertex_count,
+                                 guest_primitive_reset_index_guest_endian,
+                                 guest_index_mask_guest_endian)) {
               cacheable.index_buffer_type = ProcessedIndexBufferType::kHostConverted;
               auto host_indices =
                   reinterpret_cast<u32*>(RequestHostConvertedIndexBufferForCurrentFrame(
@@ -844,7 +845,7 @@ u32 PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
 
 PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& processor, CacheKey key)
     : processor_(processor), key_(key) {
-  REX_ASSERT(processor_.cache_currently_processing_size_bytes_ == 0);
+  REX_ASSERT(processor_.cache_pending_size_bytes_ == 0);
   if (REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices) < 0 ||
       key_.count <
           static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices))) {
@@ -863,8 +864,8 @@ PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& proce
       result_type_ = ResultType::kExisting;
     } else {
       // Inhibits storing the result if the range is modified during processing outside the lock.
-      processor_.cache_currently_processing_base_ = key_.base;
-      processor_.cache_currently_processing_size_bytes_ = size_bytes;
+      processor_.cache_pending_base_ = key_.base;
+      processor_.cache_pending_size_bytes_ = size_bytes;
     }
   }
   if (result_type_ != ResultType::kExisting) {
@@ -885,8 +886,8 @@ void PrimitiveProcessor::CacheTransaction::Commit() {
 
   std::lock_guard<std::mutex> cache_lock(processor_.cache_mutex_);
 
-  processor_.cache_currently_processing_base_ = 0;
-  processor_.cache_currently_processing_size_bytes_ = 0;
+  processor_.cache_pending_base_ = 0;
+  processor_.cache_pending_size_bytes_ = 0;
   committed_ = true;
 
   if (result_type_ == ResultType::kNewSet) {
@@ -938,8 +939,8 @@ PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
     return;
   }
   std::lock_guard<std::mutex> cache_lock(processor_.cache_mutex_);
-  processor_.cache_currently_processing_base_ = 0;
-  processor_.cache_currently_processing_size_bytes_ = 0;
+  processor_.cache_pending_base_ = 0;
+  processor_.cache_pending_size_bytes_ = 0;
 }
 
 std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_address_start,

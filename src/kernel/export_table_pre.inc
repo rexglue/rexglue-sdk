@@ -10,7 +10,7 @@
  */
 
 /**
- * Pre-include file for an export table. Defines XE_EXPORT and FLAG.
+ * Pre-include file for an export table. Defines REX_EXPORT and REX_EXPORT_FLAG.
  */
 
 /**
@@ -22,9 +22,9 @@
  * @param type The export kind, kFunction or kVariable.
  *
  * @code
- * XE_EXPORT(xam, 0x00000001, NetDll_WSAStartup, kFunction)
+ * REX_EXPORT(xam, 0x00000001, NetDll_WSAStartup, kFunction)
  * @endcode
  */
-#define XE_EXPORT(module, ordinal, name, type) REX_EXPORT_ROW_##type(ordinal, #name, __imp__##name)
+#define REX_EXPORT(module, ordinal, name, type) REX_EXPORT_ROW_##type(ordinal, #name, __imp__##name)
 
-#define FLAG(t) kXEKernelExportFlag##t
+#define REX_EXPORT_FLAG(t) kXEKernelExportFlag##t

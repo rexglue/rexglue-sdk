@@ -38,7 +38,7 @@ enum X_FILE_ATTRIBUTES : u16 {
 };
 
 /** The overlapped IO block, known as XOVERLAPPED to the title. */
-struct XAM_OVERLAPPED {
+struct XOVERLAPPED {
   be_u32 result;
   be_u32 length;
   be_u32 context;
@@ -48,7 +48,7 @@ struct XAM_OVERLAPPED {
   be_u32 extended_error;
 };
 
-REX_STATIC_ASSERT_SIZE(XAM_OVERLAPPED, 0x1C);
+REX_STATIC_ASSERT_SIZE(XOVERLAPPED, 0x1C);
 
 /**
  * Publishes the result of an overlapped call with a release store.
@@ -57,7 +57,7 @@ REX_STATIC_ASSERT_SIZE(XAM_OVERLAPPED, 0x1C);
  * @param value The result.
  */
 inline void XOverlappedSetResult(void* ptr, u32 value) {
-  static_cast<XAM_OVERLAPPED*>(ptr)->result.Store(value, std::memory_order_release);
+  static_cast<XOVERLAPPED*>(ptr)->result.Store(value, std::memory_order_release);
 }
 
 /**
@@ -67,7 +67,7 @@ inline void XOverlappedSetResult(void* ptr, u32 value) {
  * @return The result.
  */
 inline u32 XOverlappedGetResult(void* ptr) {
-  return static_cast<XAM_OVERLAPPED*>(ptr)->result.Load(std::memory_order_acquire);
+  return static_cast<XOVERLAPPED*>(ptr)->result.Load(std::memory_order_acquire);
 }
 
 /**
@@ -77,7 +77,7 @@ inline u32 XOverlappedGetResult(void* ptr) {
  * @param value The length.
  */
 inline void XOverlappedSetLength(void* ptr, u32 value) {
-  static_cast<XAM_OVERLAPPED*>(ptr)->length = value;
+  static_cast<XOVERLAPPED*>(ptr)->length = value;
 }
 
 /**
@@ -87,7 +87,7 @@ inline void XOverlappedSetLength(void* ptr, u32 value) {
  * @return The context.
  */
 inline u32 XOverlappedGetContext(void* ptr) {
-  return static_cast<XAM_OVERLAPPED*>(ptr)->context;
+  return static_cast<XOVERLAPPED*>(ptr)->context;
 }
 
 /**
@@ -97,7 +97,7 @@ inline u32 XOverlappedGetContext(void* ptr) {
  * @param value The context.
  */
 inline void XOverlappedSetContext(void* ptr, u32 value) {
-  static_cast<XAM_OVERLAPPED*>(ptr)->context = value;
+  static_cast<XOVERLAPPED*>(ptr)->context = value;
 }
 
 /**
@@ -107,7 +107,7 @@ inline void XOverlappedSetContext(void* ptr, u32 value) {
  * @return The event handle, or 0 when there is none.
  */
 inline X_HANDLE XOverlappedGetEvent(void* ptr) {
-  return static_cast<XAM_OVERLAPPED*>(ptr)->event;
+  return static_cast<XOVERLAPPED*>(ptr)->event;
 }
 
 /**
@@ -117,7 +117,7 @@ inline X_HANDLE XOverlappedGetEvent(void* ptr) {
  * @return The guest address of the routine, or 0 when there is none.
  */
 inline u32 XOverlappedGetCompletionRoutine(void* ptr) {
-  return static_cast<XAM_OVERLAPPED*>(ptr)->completion_routine;
+  return static_cast<XOVERLAPPED*>(ptr)->completion_routine;
 }
 
 /**
@@ -127,7 +127,7 @@ inline u32 XOverlappedGetCompletionRoutine(void* ptr) {
  * @param value The extended error.
  */
 inline void XOverlappedSetExtendedError(void* ptr, u32 value) {
-  static_cast<XAM_OVERLAPPED*>(ptr)->extended_error = value;
+  static_cast<XOVERLAPPED*>(ptr)->extended_error = value;
 }
 
 /** A counted 8 bit string in guest memory. */

@@ -90,7 +90,7 @@ X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
                    static_cast<u32>(data->unk_48));
       const auto device_id = runtime_.GetContentManager().GetContentDeviceID(
           std::string_view(data->unk_00, strnlen(data->unk_00, sizeof(data->unk_00))));
-      const auto* device = device_id ? GetDummyDeviceInfo(*device_id) : nullptr;
+      const auto* device = device_id ? GetPlaceholderDevice(*device_id) : nullptr;
       if (!device) {
         return X_E_INVALIDARG;
       }

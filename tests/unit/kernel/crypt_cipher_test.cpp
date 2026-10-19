@@ -18,10 +18,10 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::KernelFixture;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -122,24 +122,24 @@ constexpr u8 kDes3CbcOut[] = {
 constexpr u8 kDes3CbcLastIv[] = {0x83, 0x85, 0x89, 0x58, 0x50, 0x15, 0x6D, 0x79};
 constexpr u8 kParityIn[] = {0x00, 0x02, 0x04, 0x06, 0xFE, 0x80, 0x7E, 0x10};
 constexpr u8 kParityOut[] = {0x01, 0x02, 0x04, 0x07, 0xFE, 0x80, 0x7F, 0x10};
-constexpr u8 kAesKey[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+constexpr u8 kAESKey[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
                           0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
-constexpr u8 kAesBlock[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+constexpr u8 kAESBlock[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
                             0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-constexpr u8 kAesEcbOut[] = {0x69, 0xC4, 0xE0, 0xD8, 0x6A, 0x7B, 0x04, 0x30,
+constexpr u8 kAESEcbOut[] = {0x69, 0xC4, 0xE0, 0xD8, 0x6A, 0x7B, 0x04, 0x30,
                              0xD8, 0xCD, 0xB7, 0x80, 0x70, 0xB4, 0xC5, 0x5A};
-constexpr u8 kAesIv[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+constexpr u8 kAESIv[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
                          0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
-constexpr u8 kAesCbcOut[] = {
+constexpr u8 kAESCbcOut[] = {
     0xC6, 0xA1, 0x3B, 0x37, 0x87, 0x8F, 0x5B, 0x82, 0x6F, 0x4F, 0x81, 0x62, 0xA1, 0xC8, 0xD8, 0x79,
     0x35, 0xD9, 0xDC, 0xDB, 0x82, 0x9F, 0xEC, 0x33, 0x52, 0xE7, 0xBF, 0x10, 0xB8, 0x4B, 0xE4, 0xA5,
     0x7B, 0x30, 0x46, 0x46, 0x05, 0xF0, 0x2A, 0x09, 0x4C, 0x0A, 0xF7, 0xAD, 0x98, 0x4F, 0x61, 0xFC,
     0xD8, 0x84, 0x34, 0xA5, 0x59, 0x1D, 0xBC, 0x8F, 0xD9, 0x63, 0x08, 0x12, 0xD3, 0xA2, 0x7B, 0x87};
-constexpr u8 kAesCbcLastIv[] = {0xD8, 0x84, 0x34, 0xA5, 0x59, 0x1D, 0xBC, 0x8F,
+constexpr u8 kAESCbcLastIv[] = {0xD8, 0x84, 0x34, 0xA5, 0x59, 0x1D, 0xBC, 0x8F,
                                 0xD9, 0x63, 0x08, 0x12, 0xD3, 0xA2, 0x7B, 0x87};
-constexpr u8 kAes192Out[] = {0xDD, 0xA9, 0x7C, 0xA4, 0x86, 0x4C, 0xDF, 0xE0,
+constexpr u8 kAES192Out[] = {0xDD, 0xA9, 0x7C, 0xA4, 0x86, 0x4C, 0xDF, 0xE0,
                              0x6E, 0xAF, 0x70, 0xA0, 0xEC, 0x0D, 0x71, 0x91};
-constexpr u8 kAes256Out[] = {0x8E, 0xA2, 0xB7, 0xCA, 0x51, 0x67, 0x45, 0xBF,
+constexpr u8 kAES256Out[] = {0x8E, 0xA2, 0xB7, 0xCA, 0x51, 0x67, 0x45, 0xBF,
                              0xEA, 0xFC, 0x49, 0x90, 0x4B, 0x49, 0x60, 0x89};
 constexpr u32 kAESScheduleDwords = 0x1D4 / 4;
 constexpr u32 kAESScheduleRoundsOffset = 0x1D0;
@@ -202,10 +202,10 @@ std::vector<u8> Tripled(std::span<const u8> key) {
 
 std::vector<u8> Rc4Crypt(Caller& c, std::span<const u8> key, std::span<const u8> data) {
   const u32 state = c.Alloc(0x110);
-  const u32 buffer = Put(c, data);
-  c.Kernel("XeCryptRc4Key", {state, Put(c, key), key.size()});
+  const u32 buffer = CopyToGuest(c, data);
+  c.Kernel("XeCryptRc4Key", {state, CopyToGuest(c, key), key.size()});
   c.Kernel("XeCryptRc4Ecb", {state, buffer, data.size()});
-  return Get(c, buffer, static_cast<u32>(data.size()));
+  return ReadBytes(c, buffer, static_cast<u32>(data.size()));
 }
 
 }  // namespace
@@ -235,20 +235,20 @@ REX_TEST_CASE("RC4 keeps its stream position across calls", "[kernel][crypt][cip
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x110);
-    const u32 buffer = Put(c, std::span<const u8>(kPatternPlain, 64));
-    c.Kernel("XeCryptRc4Key", {state, Put(c, kRc4Key16), sizeof(kRc4Key16)});
+    const u32 buffer = CopyToGuest(c, std::span<const u8>(kPatternPlain, 64));
+    c.Kernel("XeCryptRc4Key", {state, CopyToGuest(c, kRc4Key16), sizeof(kRc4Key16)});
     c.Kernel("XeCryptRc4Ecb", {state, buffer, 10});
     c.Kernel("XeCryptRc4Ecb", {state, buffer + 10, 54});
-    CHECK(Get(c, buffer, 64) == std::vector<u8>(kRc4Key16Out, kRc4Key16Out + 64));
+    CHECK(ReadBytes(c, buffer, 64) == std::vector<u8>(kRc4Key16Out, kRc4Key16Out + 64));
   });
 }
 
 REX_TEST_CASE("The RC4 one shot export encrypts in place", "[kernel][crypt][cipher]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 buffer = Put(c, std::span<const u8>(kPatternPlain, 64));
-    c.Kernel("XeCryptRc4", {Put(c, kRc4Key5), sizeof(kRc4Key5), buffer, 64});
-    CHECK(Get(c, buffer, 64) == std::vector<u8>(kRc4Key5Out, kRc4Key5Out + 64));
+    const u32 buffer = CopyToGuest(c, std::span<const u8>(kPatternPlain, 64));
+    c.Kernel("XeCryptRc4", {CopyToGuest(c, kRc4Key5), sizeof(kRc4Key5), buffer, 64});
+    CHECK(ReadBytes(c, buffer, 64) == std::vector<u8>(kRc4Key5Out, kRc4Key5Out + 64));
   });
 }
 
@@ -256,8 +256,8 @@ REX_TEST_CASE("DES parity sets odd parity on every byte", "[kernel][crypt][ciphe
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(0x10);
-    c.Kernel("XeCryptDesParity", {Put(c, kParityIn), sizeof(kParityIn), out});
-    CHECK(Get(c, out, sizeof(kParityIn)) == Bytes(kParityOut));
+    c.Kernel("XeCryptDesParity", {CopyToGuest(c, kParityIn), sizeof(kParityIn), out});
+    CHECK(ReadBytes(c, out, sizeof(kParityIn)) == Bytes(kParityOut));
   });
 }
 
@@ -267,12 +267,12 @@ REX_TEST_CASE("3DES ECB matches the reference ciphertext in both directions",
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x200);
     const u32 out = c.Alloc(0x10);
-    c.Kernel("XeCryptDes3Key", {state, Put(c, kDes3Key)});
-    c.Kernel("XeCryptDes3Ecb", {state, Put(c, kDesBlock), out, 1});
-    CHECK(Get(c, out, 8) == Bytes(kDes3EcbOut));
+    c.Kernel("XeCryptDes3Key", {state, CopyToGuest(c, kDes3Key)});
+    c.Kernel("XeCryptDes3Ecb", {state, CopyToGuest(c, kDesBlock), out, 1});
+    CHECK(ReadBytes(c, out, 8) == Bytes(kDes3EcbOut));
     const u32 back = c.Alloc(0x10);
-    c.Kernel("XeCryptDes3Ecb", {state, Put(c, kDes3EcbOut), back, 0});
-    CHECK(Get(c, back, 8) == Bytes(kDesBlock));
+    c.Kernel("XeCryptDes3Ecb", {state, CopyToGuest(c, kDes3EcbOut), back, 0});
+    CHECK(ReadBytes(c, back, 8) == Bytes(kDesBlock));
   });
 }
 
@@ -280,17 +280,17 @@ REX_TEST_CASE("3DES ECB matches the NIST published example", "[kernel][crypt][ci
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x200);
-    c.Kernel("XeCryptDes3Key", {state, Put(c, kDes3Key)});
-    const u32 plain = Put(c, kNistTdesPlain);
-    const u32 cipher = Put(c, kNistTdesCipher);
+    c.Kernel("XeCryptDes3Key", {state, CopyToGuest(c, kDes3Key)});
+    const u32 plain = CopyToGuest(c, kNistTdesPlain);
+    const u32 cipher = CopyToGuest(c, kNistTdesCipher);
     const u32 out = c.Alloc(0x40);
     const u32 back = c.Alloc(0x40);
     for (u32 block = 0; block < 4; ++block) {
       c.Kernel("XeCryptDes3Ecb", {state, plain + block * 8, out + block * 8, 1});
       c.Kernel("XeCryptDes3Ecb", {state, cipher + block * 8, back + block * 8, 0});
     }
-    CHECK(Get(c, out, 32) == Bytes(kNistTdesCipher));
-    CHECK(Get(c, back, 32) == Bytes(kNistTdesPlain));
+    CHECK(ReadBytes(c, out, 32) == Bytes(kNistTdesCipher));
+    CHECK(ReadBytes(c, back, 32) == Bytes(kNistTdesPlain));
   });
 }
 
@@ -299,9 +299,9 @@ REX_TEST_CASE("3DES with one key repeated matches single DES", "[kernel][crypt][
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x200);
     const u32 out = c.Alloc(0x10);
-    c.Kernel("XeCryptDes3Key", {state, Put(c, Tripled(kDesKey))});
-    c.Kernel("XeCryptDes3Ecb", {state, Put(c, kDesBlock), out, 1});
-    CHECK(Get(c, out, 8) == Bytes(kDesEcbOut));
+    c.Kernel("XeCryptDes3Key", {state, CopyToGuest(c, Tripled(kDesKey))});
+    c.Kernel("XeCryptDes3Ecb", {state, CopyToGuest(c, kDesBlock), out, 1});
+    CHECK(ReadBytes(c, out, 8) == Bytes(kDesEcbOut));
   });
 }
 
@@ -309,13 +309,13 @@ REX_TEST_CASE("3DES CBC with one key repeated matches single DES CBC", "[kernel]
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x200);
-    c.Kernel("XeCryptDes3Key", {state, Put(c, Tripled(kDesKey))});
+    c.Kernel("XeCryptDes3Key", {state, CopyToGuest(c, Tripled(kDesKey))});
     const u32 out = c.Alloc(0x80);
-    const u32 feed = Put(c, kDesIv);
+    const u32 feed = CopyToGuest(c, kDesIv);
     c.Kernel("XeCryptDes3Cbc",
-             {state, Put(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
-    CHECK(Get(c, out, 64) == std::vector<u8>(kDesCbcOut, kDesCbcOut + 64));
-    CHECK(Get(c, feed, 8) == Bytes(kDesCbcLastIv));
+             {state, CopyToGuest(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
+    CHECK(ReadBytes(c, out, 64) == std::vector<u8>(kDesCbcOut, kDesCbcOut + 64));
+    CHECK(ReadBytes(c, feed, 8) == Bytes(kDesCbcLastIv));
   });
 }
 
@@ -324,20 +324,20 @@ REX_TEST_CASE("3DES CBC matches the reference in both directions and updates the
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x200);
-    c.Kernel("XeCryptDes3Key", {state, Put(c, kDes3Key)});
+    c.Kernel("XeCryptDes3Key", {state, CopyToGuest(c, kDes3Key)});
 
     const u32 out = c.Alloc(0x80);
-    const u32 feed = Put(c, kDesIv);
+    const u32 feed = CopyToGuest(c, kDesIv);
     c.Kernel("XeCryptDes3Cbc",
-             {state, Put(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
-    CHECK(Get(c, out, 64) == std::vector<u8>(kDes3CbcOut, kDes3CbcOut + 64));
-    CHECK(Get(c, feed, 8) == Bytes(kDes3CbcLastIv));
+             {state, CopyToGuest(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
+    CHECK(ReadBytes(c, out, 64) == std::vector<u8>(kDes3CbcOut, kDes3CbcOut + 64));
+    CHECK(ReadBytes(c, feed, 8) == Bytes(kDes3CbcLastIv));
 
     const u32 back = c.Alloc(0x80);
-    const u32 feed_back = Put(c, kDesIv);
+    const u32 feed_back = CopyToGuest(c, kDesIv);
     c.Kernel("XeCryptDes3Cbc", {state, out, 64, back, feed_back, 0});
-    CHECK(Get(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
-    CHECK(Get(c, feed_back, 8) == Bytes(kDes3CbcLastIv));
+    CHECK(ReadBytes(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
+    CHECK(ReadBytes(c, feed_back, 8) == Bytes(kDes3CbcLastIv));
   });
 }
 
@@ -347,12 +347,12 @@ REX_TEST_CASE("DES ECB matches the published example in both directions",
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x100);
     const u32 out = c.Alloc(0x10);
-    c.Kernel("XeCryptDesKey", {state, Put(c, kDesKey)});
-    c.Kernel("XeCryptDesEcb", {state, Put(c, kDesBlock), out, 1});
-    CHECK(Get(c, out, 8) == Bytes(kDesEcbOut));
+    c.Kernel("XeCryptDesKey", {state, CopyToGuest(c, kDesKey)});
+    c.Kernel("XeCryptDesEcb", {state, CopyToGuest(c, kDesBlock), out, 1});
+    CHECK(ReadBytes(c, out, 8) == Bytes(kDesEcbOut));
     const u32 back = c.Alloc(0x10);
-    c.Kernel("XeCryptDesEcb", {state, Put(c, kDesEcbOut), back, 0});
-    CHECK(Get(c, back, 8) == Bytes(kDesBlock));
+    c.Kernel("XeCryptDesEcb", {state, CopyToGuest(c, kDesEcbOut), back, 0});
+    CHECK(ReadBytes(c, back, 8) == Bytes(kDesBlock));
   });
 }
 
@@ -361,20 +361,20 @@ REX_TEST_CASE("DES CBC matches the reference in both directions and updates the 
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x100);
-    c.Kernel("XeCryptDesKey", {state, Put(c, kDesKey)});
+    c.Kernel("XeCryptDesKey", {state, CopyToGuest(c, kDesKey)});
 
     const u32 out = c.Alloc(0x80);
-    const u32 feed = Put(c, kDesIv);
+    const u32 feed = CopyToGuest(c, kDesIv);
     c.Kernel("XeCryptDesCbc",
-             {state, Put(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
-    CHECK(Get(c, out, 64) == std::vector<u8>(kDesCbcOut, kDesCbcOut + 64));
-    CHECK(Get(c, feed, 8) == Bytes(kDesCbcLastIv));
+             {state, CopyToGuest(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
+    CHECK(ReadBytes(c, out, 64) == std::vector<u8>(kDesCbcOut, kDesCbcOut + 64));
+    CHECK(ReadBytes(c, feed, 8) == Bytes(kDesCbcLastIv));
 
     const u32 back = c.Alloc(0x80);
-    const u32 feed_back = Put(c, kDesIv);
+    const u32 feed_back = CopyToGuest(c, kDesIv);
     c.Kernel("XeCryptDesCbc", {state, out, 64, back, feed_back, 0});
-    CHECK(Get(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
-    CHECK(Get(c, feed_back, 8) == Bytes(kDesCbcLastIv));
+    CHECK(ReadBytes(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
+    CHECK(ReadBytes(c, feed_back, 8) == Bytes(kDesCbcLastIv));
   });
 }
 
@@ -383,12 +383,12 @@ REX_TEST_CASE("AES ECB matches FIPS 197 in both directions", "[kernel][crypt][ci
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x180);
     const u32 out = c.Alloc(0x20);
-    c.Kernel("XeCryptAesKey", {state, Put(c, kAesKey)});
-    c.Kernel("XeCryptAesEcb", {state, Put(c, kAesBlock), out, 1});
-    CHECK(Get(c, out, 16) == Bytes(kAesEcbOut));
+    c.Kernel("XeCryptAesKey", {state, CopyToGuest(c, kAESKey)});
+    c.Kernel("XeCryptAesEcb", {state, CopyToGuest(c, kAESBlock), out, 1});
+    CHECK(ReadBytes(c, out, 16) == Bytes(kAESEcbOut));
     const u32 back = c.Alloc(0x20);
-    c.Kernel("XeCryptAesEcb", {state, Put(c, kAesEcbOut), back, 0});
-    CHECK(Get(c, back, 16) == Bytes(kAesBlock));
+    c.Kernel("XeCryptAesEcb", {state, CopyToGuest(c, kAESEcbOut), back, 0});
+    CHECK(ReadBytes(c, back, 16) == Bytes(kAESBlock));
   });
 }
 
@@ -397,20 +397,20 @@ REX_TEST_CASE("AES CBC matches the reference in both directions and updates the 
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x180);
-    c.Kernel("XeCryptAesKey", {state, Put(c, kAesKey)});
+    c.Kernel("XeCryptAesKey", {state, CopyToGuest(c, kAESKey)});
 
     const u32 out = c.Alloc(0x80);
-    const u32 feed = Put(c, kAesIv);
+    const u32 feed = CopyToGuest(c, kAESIv);
     c.Kernel("XeCryptAesCbc",
-             {state, Put(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
-    CHECK(Get(c, out, 64) == std::vector<u8>(kAesCbcOut, kAesCbcOut + 64));
-    CHECK(Get(c, feed, 16) == Bytes(kAesCbcLastIv));
+             {state, CopyToGuest(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed, 1});
+    CHECK(ReadBytes(c, out, 64) == std::vector<u8>(kAESCbcOut, kAESCbcOut + 64));
+    CHECK(ReadBytes(c, feed, 16) == Bytes(kAESCbcLastIv));
 
     const u32 back = c.Alloc(0x80);
-    const u32 feed_back = Put(c, kAesIv);
+    const u32 feed_back = CopyToGuest(c, kAESIv);
     c.Kernel("XeCryptAesCbc", {state, out, 64, back, feed_back, 0});
-    CHECK(Get(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
-    CHECK(Get(c, feed_back, 16) == Bytes(kAesCbcLastIv));
+    CHECK(ReadBytes(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
+    CHECK(ReadBytes(c, feed_back, 16) == Bytes(kAESCbcLastIv));
   });
 }
 
@@ -418,10 +418,10 @@ REX_TEST_CASE("AES CBC decrypts in place", "[kernel][crypt][cipher]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 state = c.Alloc(0x180);
-    c.Kernel("XeCryptAesKey", {state, Put(c, kAesKey)});
-    const u32 buffer = Put(c, std::span<const u8>(kAesCbcOut, 64));
-    c.Kernel("XeCryptAesCbc", {state, buffer, 64, buffer, Put(c, kAesIv), 0});
-    CHECK(Get(c, buffer, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
+    c.Kernel("XeCryptAesKey", {state, CopyToGuest(c, kAESKey)});
+    const u32 buffer = CopyToGuest(c, std::span<const u8>(kAESCbcOut, 64));
+    c.Kernel("XeCryptAesCbc", {state, buffer, 64, buffer, CopyToGuest(c, kAESIv), 0});
+    CHECK(ReadBytes(c, buffer, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
   });
 }
 
@@ -430,22 +430,22 @@ REX_TEST_CASE("The key wrappers derive their keys from the obscured key",
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 obscured = c.Alloc(0x20);
-    CHECK(c.Kernel("XeKeysObscureKey", {Put(c, kAesKey), obscured}) == kStatusSuccess);
-    CHECK(Get(c, obscured, 16) == Bytes(kObscured));
+    CHECK(c.Kernel("XeKeysObscureKey", {CopyToGuest(c, kAESKey), obscured}) == kStatusSuccess);
+    CHECK(ReadBytes(c, obscured, 16) == Bytes(kObscured));
 
     const u32 out = c.Alloc(0x80);
-    const u32 feed = Put(c, kAesIv);
-    CHECK(c.Kernel("XeKeysAesCbcUsingKey",
-                   {Put(c, kObscured), Put(c, std::span<const u8>(kPatternPlain, 64)), 64, out,
-                    feed, 1}) == kStatusSuccess);
-    CHECK(Get(c, out, 64) == std::vector<u8>(kAesCbcOut, kAesCbcOut + 64));
-    CHECK(Get(c, feed, 16) == Bytes(kAesCbcLastIv));
+    const u32 feed = CopyToGuest(c, kAESIv);
+    CHECK(c.Kernel("XeKeysAesCbcUsingKey", {CopyToGuest(c, kObscured),
+                                            CopyToGuest(c, std::span<const u8>(kPatternPlain, 64)),
+                                            64, out, feed, 1}) == kStatusSuccess);
+    CHECK(ReadBytes(c, out, 64) == std::vector<u8>(kAESCbcOut, kAESCbcOut + 64));
+    CHECK(ReadBytes(c, feed, 16) == Bytes(kAESCbcLastIv));
 
     const u32 digest = c.Alloc(0x20);
-    const u32 message = Put(c, std::span<const u8>(kPatternPlain, 64));
-    CHECK(c.Kernel("XeKeysHmacShaUsingKey", {Put(c, kObscured), message, 10, message + 10, 20,
-                                             message + 30, 34, digest, 20}) == kStatusSuccess);
-    CHECK(Get(c, digest, 20) == Bytes(kHmacUsingKeyOut));
+    const u32 message = CopyToGuest(c, std::span<const u8>(kPatternPlain, 64));
+    CHECK(c.Kernel("XeKeysHmacShaUsingKey", {CopyToGuest(c, kObscured), message, 10, message + 10,
+                                             20, message + 30, 34, digest, 20}) == kStatusSuccess);
+    CHECK(ReadBytes(c, digest, 20) == Bytes(kHmacUsingKeyOut));
   });
 }
 
@@ -453,11 +453,11 @@ REX_TEST_CASE("The retail key 0x19 signs with HMAC SHA and other keys fail",
               "[kernel][crypt][cipher][keys]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 message = Put(c, std::span<const u8>(kPatternPlain, 64));
+    const u32 message = CopyToGuest(c, std::span<const u8>(kPatternPlain, 64));
     const u32 digest = c.Alloc(0x20);
     CHECK(c.Kernel("XeKeysHmacSha", {0x19, message, 10, message + 10, 20, message + 30, 34, digest,
                                      20}) == kStatusSuccess);
-    CHECK(Get(c, digest, 20) == Bytes(kHmacKey19Out));
+    CHECK(ReadBytes(c, digest, 20) == Bytes(kHmacKey19Out));
     CHECK(c.Kernel("XeKeysHmacSha", {0x18, message, 10, message + 10, 20, message + 30, 34, digest,
                                      20}) == kStatusUnsuccessful);
   });
@@ -475,8 +475,8 @@ REX_TEST_CASE("The AES key schedule keeps the key first and the round count last
     for (const Case& test : {Case{16, 9, 32}, Case{24, 11, 16}, Case{32, 13, 0}}) {
       const u32 schedule = FilledSchedule(c);
       const std::vector<u8> key = Sequence(test.key_size);
-      c.Kernel("XeCryptAesCreateKeySchedule", {Put(c, key), test.key_size, schedule});
-      CHECK(Get(c, schedule, test.key_size) == key);
+      c.Kernel("XeCryptAesCreateKeySchedule", {CopyToGuest(c, key), test.key_size, schedule});
+      CHECK(ReadBytes(c, schedule, test.key_size) == key);
       CHECK(c.Load32(schedule + kAESScheduleRoundsOffset) == test.rounds);
       CHECK(UntouchedDwords(c, schedule) == test.untouched);
     }
@@ -487,7 +487,7 @@ REX_TEST_CASE("The AES key schedule ignores an invalid key size", "[kernel][cryp
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 schedule = FilledSchedule(c);
-    c.Kernel("XeCryptAesCreateKeySchedule", {Put(c, Sequence(20)), 20, schedule});
+    c.Kernel("XeCryptAesCreateKeySchedule", {CopyToGuest(c, Sequence(20)), 20, schedule});
     CHECK(UntouchedDwords(c, schedule) == kAESScheduleDwords);
   });
 }
@@ -500,16 +500,16 @@ REX_TEST_CASE("AES encrypts and decrypts one block with 128, 192 and 256 bit sch
       u32 key_size;
       std::span<const u8> expected;
     };
-    for (const Case& test : {Case{16, kAesEcbOut}, Case{24, kAes192Out}, Case{32, kAes256Out}}) {
+    for (const Case& test : {Case{16, kAESEcbOut}, Case{24, kAES192Out}, Case{32, kAES256Out}}) {
       const u32 schedule = c.Alloc(0x1D4);
       c.Kernel("XeCryptAesCreateKeySchedule",
-               {Put(c, Sequence(test.key_size)), test.key_size, schedule});
+               {CopyToGuest(c, Sequence(test.key_size)), test.key_size, schedule});
       const u32 out = c.Alloc(0x20);
-      c.Kernel("XeCryptAesEncryptOne", {schedule, Put(c, kAesBlock), out});
-      CHECK(Get(c, out, 16) == Bytes(test.expected));
+      c.Kernel("XeCryptAesEncryptOne", {schedule, CopyToGuest(c, kAESBlock), out});
+      CHECK(ReadBytes(c, out, 16) == Bytes(test.expected));
       const u32 back = c.Alloc(0x20);
       c.Kernel("XeCryptAesDecryptOne", {schedule, out, back});
-      CHECK(Get(c, back, 16) == Bytes(kAesBlock));
+      CHECK(ReadBytes(c, back, 16) == Bytes(kAESBlock));
     }
   });
 }
@@ -519,18 +519,18 @@ REX_TEST_CASE("AES schedule CBC matches the reference in both directions and upd
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 schedule = c.Alloc(0x1D4);
-    c.Kernel("XeCryptAesCreateKeySchedule", {Put(c, kAesKey), 16, schedule});
+    c.Kernel("XeCryptAesCreateKeySchedule", {CopyToGuest(c, kAESKey), 16, schedule});
 
     const u32 out = c.Alloc(0x80);
-    const u32 feed = Put(c, kAesIv);
+    const u32 feed = CopyToGuest(c, kAESIv);
     c.Kernel("XeCryptAesCbcEncrypt",
-             {schedule, Put(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed});
-    CHECK(Get(c, out, 64) == std::vector<u8>(kAesCbcOut, kAesCbcOut + 64));
-    CHECK(Get(c, feed, 16) == Bytes(kAesCbcLastIv));
+             {schedule, CopyToGuest(c, std::span<const u8>(kPatternPlain, 64)), 64, out, feed});
+    CHECK(ReadBytes(c, out, 64) == std::vector<u8>(kAESCbcOut, kAESCbcOut + 64));
+    CHECK(ReadBytes(c, feed, 16) == Bytes(kAESCbcLastIv));
 
     const u32 back = c.Alloc(0x80);
-    c.Kernel("XeCryptAesCbcDecrypt", {schedule, out, 64, back, Put(c, kAesIv)});
-    CHECK(Get(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
+    c.Kernel("XeCryptAesCbcDecrypt", {schedule, out, 64, back, CopyToGuest(c, kAESIv)});
+    CHECK(ReadBytes(c, back, 64) == std::vector<u8>(kPatternPlain, kPatternPlain + 64));
   });
 }
 

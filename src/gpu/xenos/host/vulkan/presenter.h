@@ -104,9 +104,9 @@ class VulkanPresenter final : public Presenter {
   /** The refresher callback must use the graphics and compute queue 0 of the device. */
   class VulkanGuestOutputRefreshContext final : public GuestOutputRefreshContext {
    public:
-    VulkanGuestOutputRefreshContext(bool& is_8bpc_out_ref, VkImage image, VkImageView image_view,
+    VulkanGuestOutputRefreshContext(bool& is_8bpc_out, VkImage image, VkImageView image_view,
                                     u64 image_version, bool image_ever_written_previously)
-        : GuestOutputRefreshContext(is_8bpc_out_ref),
+        : GuestOutputRefreshContext(is_8bpc_out),
           image_(image),
           image_view_(image_view),
           image_version_(image_version),
@@ -128,7 +128,7 @@ class VulkanPresenter final : public Presenter {
      *
      * @return True when the image was written before.
      */
-    bool GetImageEverWrittenPreviously() const { return image_ever_written_previously_; }
+    bool HasImageBeenWritten() const { return image_ever_written_previously_; }
 
    private:
     VkImage image_;
@@ -195,7 +195,7 @@ class VulkanPresenter final : public Presenter {
   bool RefreshGuestOutputImpl(
       u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
       rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
-      bool& is_8bpc_out_ref) override;
+      bool& is_8bpc_out) override;
 
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
 

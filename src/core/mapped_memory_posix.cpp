@@ -223,7 +223,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
     void Flush() { msync(data_, offset_, MS_ASYNC); }
 
     void FlushNew() {
-      size_t start = last_flush_offset_ & ~(PageSize() - 1);
+      size_t start = last_flush_offset_ & ~(GetPageSize() - 1);
       msync(data_ + start, offset_ - start, MS_ASYNC);
       last_flush_offset_ = offset_;
     }
@@ -251,7 +251,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
     const std::filesystem::path& path, size_t chunk_size, bool low_address_space) {
   return std::make_unique<PosixChunkedMappedMemoryWriter>(
-      path, rex::RoundUpNonZero(chunk_size, AllocationGranularity()), low_address_space);
+      path, rex::RoundUpNonZero(chunk_size, GetAllocationGranularity()), low_address_space);
 }
 
 }  // namespace rex::memory

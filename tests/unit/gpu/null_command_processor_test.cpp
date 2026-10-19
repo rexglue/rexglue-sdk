@@ -143,6 +143,6 @@ REX_TEST_CASE_METHOD(Fixture, "Shutdown stops vblanks before the command process
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     runtime.Shutdown();
     rex::Shutdown();
-    rex::testing::ReleaseTestMemory();
+    rex::test::ReleaseTestMemory();
   }
 }

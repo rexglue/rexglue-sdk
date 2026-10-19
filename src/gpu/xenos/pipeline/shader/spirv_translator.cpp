@@ -1081,7 +1081,7 @@ std::vector<u8> SPIRVShaderTranslator::CompleteTranslation() {
     builder_->addExecutionMode(function_main_, spv::ExecutionModeOriginUpperLeft);
     if (output_fragment_depth_ != spv::NoResult) {
       builder_->addExecutionMode(function_main_, spv::ExecutionModeDepthReplacing);
-      if (!GetCurrentShader().GetWritesDepth() &&
+      if (!GetCurrentShader().IsDepthWritten() &&
           GetSPIRVShaderModification().pixel.depth_stencil_mode ==
               Modification::DepthStencilMode::kFloat24Truncating) {
         builder_->addExecutionMode(function_main_, spv::ExecutionModeDepthLess);
@@ -1183,7 +1183,7 @@ void SPIRVShaderTranslator::PostTranslation() {
     spirv_shader->translated_texture_bindings_.clear();
     spirv_shader->translated_texture_bindings_.reserve(texture_bindings_.size());
     for (const TextureBinding& translator_binding : texture_bindings_) {
-      SPIRVShader::TextureBinding& shader_binding =
+      SPIRVShader::TranslatedTextureBinding& shader_binding =
           spirv_shader->translated_texture_bindings_.emplace_back();
       std::memset(&shader_binding, 0, sizeof(shader_binding));
       shader_binding.fetch_constant = translator_binding.fetch_constant;
@@ -1244,7 +1244,7 @@ void SPIRVShaderTranslator::ProcessExecInstructionEnd(const ParsedExecInstructio
 void SPIRVShaderTranslator::ProcessLoopStartInstruction(const ParsedLoopStartInstruction& instr) {
   CloseExecConditionals();
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
 
   id_vector_temp_.clear();
   id_vector_temp_.push_back(builder_->makeIntConstant(1));
@@ -1320,7 +1320,7 @@ void SPIRVShaderTranslator::ProcessLoopStartInstruction(const ParsedLoopStartIns
 void SPIRVShaderTranslator::ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) {
   CloseExecConditionals();
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
 
   spv::Id loop_count_stack_old = builder_->createLoad(var_main_loop_count_, spv::NoPrecision);
   spv::Id loop_count = builder_->createBinOp(
@@ -1471,14 +1471,14 @@ spv::Id SPIRVShaderTranslator::SPIRVSmearScalarResultOrConstant(spv::Id scalar,
     return scalar;
   }
   int num_components = builder_->getNumTypeComponents(vector_type);
-  id_vector_temp_util_.clear();
+  id_vector_inner_temp_.clear();
   for (int i = 0; i < num_components; ++i) {
-    id_vector_temp_util_.push_back(scalar);
+    id_vector_inner_temp_.push_back(scalar);
   }
-  return builder_->makeCompositeConstant(vector_type, id_vector_temp_util_, is_spec_constant);
+  return builder_->makeCompositeConstant(vector_type, id_vector_inner_temp_, is_spec_constant);
 }
 
-u32 SPIRVShaderTranslator::GetPsParamGenInterpolator() const {
+u32 SPIRVShaderTranslator::GetPSParamGenInterpolator() const {
   REX_ASSERT(IsPixelShader());
   Modification modification = GetSPIRVShaderModification();
   return (modification.pixel.param_gen_enable &&
@@ -1487,7 +1487,7 @@ u32 SPIRVShaderTranslator::GetPsParamGenInterpolator() const {
              : UINT32_MAX;
 }
 
-void SPIRVShaderTranslator::EnsureBuildPointAvailable() {
+void SPIRVShaderTranslator::StartNewBlockIfTerminated() {
   if (!builder_->getBuildPoint()->isTerminated()) {
     return;
   }
@@ -2335,7 +2335,7 @@ void SPIRVShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
   }
 
   id_vector_temp_.clear();
-  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantNdcScale));
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantNDCScale));
   spv::Id ndc_scale =
       builder_->createLoad(builder_->createAccessChain(spv::StorageClassUniform,
                                                        uniform_system_constants_, id_vector_temp_),
@@ -2343,7 +2343,7 @@ void SPIRVShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
   position_xyz =
       builder_->CreateNoContractionBinOp(spv::OpFMul, type_float3, position_xyz, ndc_scale);
   id_vector_temp_.clear();
-  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantNdcOffset));
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantNDCOffset));
   spv::Id ndc_offset =
       builder_->createLoad(builder_->createAccessChain(spv::StorageClassUniform,
                                                        uniform_system_constants_, id_vector_temp_),
@@ -2448,7 +2448,7 @@ void SPIRVShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
     }
     id_vector_temp_.clear();
     id_vector_temp_.push_back(
-        builder_->makeIntConstant(kSystemConstantPointScreenDiameterToNdcRadius));
+        builder_->makeIntConstant(kSystemConstantPointScreenDiameterToNDCRadius));
     spv::Id point_radius = builder_->CreateNoContractionBinOp(
         spv::OpFMul, type_float2, point_guest_diameter,
         builder_->createLoad(
@@ -2593,7 +2593,7 @@ void SPIRVShaderTranslator::StartFragmentShaderBeforeMain() {
   }
 
   bool param_gen_needed =
-      !is_depth_only_fragment_shader_ && GetPsParamGenInterpolator() != UINT32_MAX;
+      !is_depth_only_fragment_shader_ && GetPSParamGenInterpolator() != UINT32_MAX;
 
   if (!is_depth_only_fragment_shader_) {
     u32 input_location = 0;
@@ -2632,9 +2632,9 @@ void SPIRVShaderTranslator::StartFragmentShaderBeforeMain() {
 
   bool float24_depth_conversion = IsWritingFloat24Depth();
   bool float24_depth_from_fragment_coordinates =
-      float24_depth_conversion && !GetCurrentShader().GetWritesDepth();
+      float24_depth_conversion && !GetCurrentShader().IsDepthWritten();
   bool alpha_to_coverage_possible = !is_depth_only_fragment_shader_ &&
-                                    GetCurrentShader().GetWritesColorTarget(0) &&
+                                    GetCurrentShader().IsColorTargetWritten(0) &&
                                     !IsExecutionModeEarlyFragmentTests();
 
   bool memexport_resolution_scaled = GetCurrentShader().GetMemExportEMWritten() &&
@@ -2703,7 +2703,7 @@ void SPIRVShaderTranslator::StartFragmentShaderBeforeMain() {
     }
     output_fragment_depth_ = spv::NoResult;
     output_fragment_sample_mask_ = spv::NoResult;
-    if (GetCurrentShader().GetWritesDepth() || float24_depth_conversion) {
+    if (GetCurrentShader().IsDepthWritten() || float24_depth_conversion) {
       output_fragment_depth_ = builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
                                                         type_float, "gl_FragDepth");
       builder_->addDecoration(output_fragment_depth_, spv::DecorationBuiltIn,
@@ -2722,7 +2722,7 @@ void SPIRVShaderTranslator::StartFragmentShaderBeforeMain() {
 }
 
 void SPIRVShaderTranslator::StartFragmentShaderInMain() {
-  if (GetCurrentShader().GetKillsPixels()) {
+  if (GetCurrentShader().DoesKillPixels()) {
     if (features_.demote_to_helper_invocation) {
       builder_->addExtension("SPV_EXT_demote_to_helper_invocation");
       builder_->addCapability(spv::CapabilityDemoteToHelperInvocationEXT);
@@ -2738,7 +2738,7 @@ void SPIRVShaderTranslator::StartFragmentShaderInMain() {
               spv::NoResult);
     var_main_fragment_depth_ = spv::NoResult;
     var_main_fsi_color_written_ = spv::NoResult;
-    if (GetCurrentShader().GetWritesDepth()) {
+    if (GetCurrentShader().IsDepthWritten()) {
       var_main_fragment_depth_ =
           builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_float,
                                    "xe_var_fragment_depth", const_float_0);
@@ -2872,7 +2872,7 @@ void SPIRVShaderTranslator::StartFragmentShaderInMain() {
     }
   }
 
-  u32 param_gen_interpolator = GetPsParamGenInterpolator();
+  u32 param_gen_interpolator = GetPSParamGenInterpolator();
 
   u32 interpolator_mask = GetModificationInterpolatorMask();
   for (u32 i = 0; i < GetRegisterCount(); ++i) {
@@ -3007,7 +3007,7 @@ void SPIRVShaderTranslator::UpdateExecConditionals(ParsedExecInstruction::Type t
     }
   } else if (type == ParsedExecInstruction::Type::kPredicated) {
     if (!cf_exec_predicate_written_ && cf_exec_conditional_merge_ &&
-        cf_exec_bool_constant_or_predicate_ == kCfExecBoolConstantPredicate &&
+        cf_exec_bool_constant_or_predicate_ == kCFExecBoolConstantPredicate &&
         cf_exec_condition_ == condition) {
       return;
     }
@@ -3024,7 +3024,7 @@ void SPIRVShaderTranslator::UpdateExecConditionals(ParsedExecInstruction::Type t
     return;
   }
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
   spv::Id condition_id;
   if (type == ParsedExecInstruction::Type::kConditional) {
     id_vector_temp_.clear();
@@ -3046,7 +3046,7 @@ void SPIRVShaderTranslator::UpdateExecConditionals(ParsedExecInstruction::Type t
     cf_exec_bool_constant_or_predicate_ = bool_constant_index;
   } else if (type == ParsedExecInstruction::Type::kPredicated) {
     condition_id = builder_->createLoad(var_main_predicate_, spv::NoPrecision);
-    cf_exec_bool_constant_or_predicate_ = kCfExecBoolConstantPredicate;
+    cf_exec_bool_constant_or_predicate_ = kCFExecBoolConstantPredicate;
   } else {
     REX_UNHANDLED_CASE(type);
     return;
@@ -3076,13 +3076,13 @@ void SPIRVShaderTranslator::UpdateInstructionPredication(bool predicated, bool c
   }
 
   if (!cf_exec_predicate_written_ && cf_exec_conditional_merge_ &&
-      cf_exec_bool_constant_or_predicate_ == kCfExecBoolConstantPredicate &&
+      cf_exec_bool_constant_or_predicate_ == kCFExecBoolConstantPredicate &&
       cf_exec_condition_ == condition) {
     return;
   }
 
   cf_instruction_predicate_condition_ = condition;
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
   spv::Id predicate_id = builder_->createLoad(var_main_predicate_, spv::NoPrecision);
   spv::Block& predicated_block = builder_->makeNewBlock();
   cf_instruction_predicate_merge_ =
@@ -3125,7 +3125,7 @@ spv::Id SPIRVShaderTranslator::GetStorageAddressingIndex(
     InstructionStorageAddressingMode addressing_mode, u32 storage_index, bool is_float_constant) {
   const Shader::ConstantRegisterMap& constant_register_map =
       GetCurrentShader().GetConstantRegisterMap();
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
   spv::Id base_pointer = spv::NoResult;
   switch (addressing_mode) {
     case InstructionStorageAddressingMode::kAbsolute: {
@@ -3143,10 +3143,10 @@ spv::Id SPIRVShaderTranslator::GetStorageAddressingIndex(
       base_pointer = var_main_address_register_;
       break;
     case InstructionStorageAddressingMode::kLoopRelative:
-      id_vector_temp_util_.clear();
-      id_vector_temp_util_.push_back(const_int_0_);
+      id_vector_inner_temp_.clear();
+      id_vector_inner_temp_.push_back(const_int_0_);
       base_pointer = builder_->createAccessChain(spv::StorageClassFunction, var_main_loop_address_,
-                                                 id_vector_temp_util_);
+                                                 id_vector_inner_temp_);
       break;
   }
   REX_ASSERT(!is_float_constant || constant_register_map.float_dynamic_addressing);
@@ -3163,23 +3163,23 @@ spv::Id SPIRVShaderTranslator::LoadOperandStorage(const InstructionOperand& oper
   spv::Id index =
       GetStorageAddressingIndex(operand.storage_addressing_mode, operand.storage_index,
                                 operand.storage_source == InstructionStorageSource::kConstantFloat);
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
   spv::Id vec4_pointer = spv::NoResult;
   switch (operand.storage_source) {
     case InstructionStorageSource::kRegister:
       REX_ASSERT(var_main_registers_ != spv::NoResult);
-      id_vector_temp_util_.clear();
-      id_vector_temp_util_.push_back(index);
+      id_vector_inner_temp_.clear();
+      id_vector_inner_temp_.push_back(index);
       vec4_pointer = builder_->createAccessChain(spv::StorageClassFunction, var_main_registers_,
-                                                 id_vector_temp_util_);
+                                                 id_vector_inner_temp_);
       break;
     case InstructionStorageSource::kConstantFloat:
       REX_ASSERT(uniform_float_constants_ != spv::NoResult);
-      id_vector_temp_util_.clear();
-      id_vector_temp_util_.push_back(const_int_0_);
-      id_vector_temp_util_.push_back(index);
+      id_vector_inner_temp_.clear();
+      id_vector_inner_temp_.push_back(const_int_0_);
+      id_vector_inner_temp_.push_back(index);
       vec4_pointer = builder_->createAccessChain(spv::StorageClassUniform, uniform_float_constants_,
-                                                 id_vector_temp_util_);
+                                                 id_vector_inner_temp_);
       break;
     default:
       REX_UNHANDLED_CASE(operand.storage_source);
@@ -3197,12 +3197,12 @@ spv::Id SPIRVShaderTranslator::ApplyOperandModifiers(spv::Id operand_value,
     return operand_value;
   }
   if (original_operand.is_absolute_value || force_absolute) {
-    EnsureBuildPointAvailable();
+    StartNewBlockIfTerminated();
     operand_value = builder_->CreateUnaryBuiltinCall(type, ext_inst_glsl_std_450_, GLSLstd450FAbs,
                                                      operand_value);
   }
   if (original_operand.is_negated != invert_negate) {
-    EnsureBuildPointAvailable();
+    StartNewBlockIfTerminated();
     operand_value = builder_->CreateNoContractionUnaryOp(spv::OpFNegate, type, operand_value);
   }
   return operand_value;
@@ -3218,7 +3218,7 @@ spv::Id SPIRVShaderTranslator::GetUnmodifiedOperandComponents(
   if (components == 0b1111 && original_operand.IsStandardSwizzle()) {
     return operand_storage;
   }
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
   u32 component_count = rex::BitCount(components);
   if (component_count == 1) {
     u32 scalar_index;
@@ -3228,17 +3228,17 @@ spv::Id SPIRVShaderTranslator::GetUnmodifiedOperandComponents(
         static_cast<unsigned int>(original_operand.GetComponent(scalar_index)) -
             static_cast<unsigned int>(SwizzleSource::kX));
   }
-  uint_vector_temp_util_.clear();
+  uint_vector_inner_temp_.clear();
   u32 components_remaining = components;
   u32 component_index;
   while (rex::bit_scan_forward(components_remaining, &component_index)) {
     components_remaining &= ~(static_cast<u32>(1) << component_index);
-    uint_vector_temp_util_.push_back(
+    uint_vector_inner_temp_.push_back(
         static_cast<unsigned int>(original_operand.GetComponent(component_index)) -
         static_cast<unsigned int>(SwizzleSource::kX));
   }
   return builder_->createRvalueSwizzle(spv::NoPrecision, type_float_vectors[component_count - 1],
-                                       operand_storage, uint_vector_temp_util_);
+                                       operand_storage, uint_vector_inner_temp_);
 }
 
 void SPIRVShaderTranslator::GetOperandScalarXY(spv::Id operand_storage,
@@ -3259,7 +3259,7 @@ spv::Id SPIRVShaderTranslator::GetAbsoluteOperand(spv::Id operand_storage,
   if (original_operand.is_absolute_value && !original_operand.is_negated) {
     return operand_storage;
   }
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
   return builder_->CreateUnaryBuiltinCall(builder_->getTypeId(operand_storage),
                                           ext_inst_glsl_std_450_, GLSLstd450FAbs, operand_storage);
 }
@@ -3272,7 +3272,7 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
   }
   bool is_clamped = result.is_clamped;
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
 
   spv::Id target_pointer = spv::NoResult;
   switch (result.storage_target) {
@@ -3280,13 +3280,13 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
       break;
     case InstructionStorageTarget::kRegister: {
       REX_ASSERT(var_main_registers_ != spv::NoResult);
-      // Call GetStorageAddressingIndex first, as it uses id_vector_temp_util_.
+      // Call GetStorageAddressingIndex first, as it uses id_vector_inner_temp_.
       spv::Id register_index =
           GetStorageAddressingIndex(result.storage_addressing_mode, result.storage_index);
-      id_vector_temp_util_.clear();
-      id_vector_temp_util_.push_back(register_index);
+      id_vector_inner_temp_.clear();
+      id_vector_inner_temp_.push_back(register_index);
       target_pointer = builder_->createAccessChain(spv::StorageClassFunction, var_main_registers_,
-                                                   id_vector_temp_util_);
+                                                   id_vector_inner_temp_);
     } break;
     case InstructionStorageTarget::kInterpolator: {
       REX_ASSERT(IsVertexShader());
@@ -3294,10 +3294,10 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
     } break;
     case InstructionStorageTarget::kPosition: {
       REX_ASSERT(IsVertexShader());
-      id_vector_temp_util_.clear();
-      id_vector_temp_util_.push_back(builder_->makeIntConstant(kOutputPerVertexMemberPosition));
+      id_vector_inner_temp_.clear();
+      id_vector_inner_temp_.push_back(builder_->makeIntConstant(kOutputPerVertexMemberPosition));
       target_pointer = builder_->createAccessChain(spv::StorageClassOutput, output_per_vertex_,
-                                                   id_vector_temp_util_);
+                                                   id_vector_inner_temp_);
     } break;
     case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex: {
       REX_ASSERT(IsVertexShader());
@@ -3307,7 +3307,7 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
     case InstructionStorageTarget::kColor: {
       REX_ASSERT(IsPixelShader());
       REX_ASSERT(used_write_mask != 0);
-      REX_ASSERT(GetCurrentShader().GetWritesColorTarget(result.storage_index));
+      REX_ASSERT(GetCurrentShader().IsColorTargetWritten(result.storage_index));
       target_pointer = output_or_var_fragment_data_[result.storage_index];
       if (edram_fragment_shader_interlock_) {
         REX_ASSERT(var_main_fsi_color_written_ != spv::NoResult);
@@ -3322,7 +3322,7 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
     case InstructionStorageTarget::kDepth: {
       REX_ASSERT(IsPixelShader());
       REX_ASSERT(used_write_mask == 0b0001);
-      REX_ASSERT(GetCurrentShader().GetWritesDepth());
+      REX_ASSERT(GetCurrentShader().IsDepthWritten());
       target_pointer =
           edram_fragment_shader_interlock_ ? var_main_fragment_depth_ : output_fragment_depth_;
       // Guest depth output is expected to be [0, 1].
@@ -3420,12 +3420,12 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
           if (is_identity_swizzle) {
             value_to_store = value;
           } else {
-            uint_vector_temp_util_.clear();
-            uint_vector_temp_util_.insert(uint_vector_temp_util_.cend(),
-                                          result_swizzled_value_components,
-                                          result_swizzled_value_components + target_num_components);
+            uint_vector_inner_temp_.clear();
+            uint_vector_inner_temp_.insert(
+                uint_vector_inner_temp_.cend(), result_swizzled_value_components,
+                result_swizzled_value_components + target_num_components);
             value_to_store = builder_->createRvalueSwizzle(spv::NoPrecision, target_type, value,
-                                                           uint_vector_temp_util_);
+                                                           uint_vector_inner_temp_);
           }
         } else {
           value_to_store = builder_->smearScalar(spv::NoPrecision, value, target_type);
@@ -3440,12 +3440,12 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
       }
     } else if (!non_constant_components) {
       if (target_num_components > 1) {
-        id_vector_temp_util_.clear();
+        id_vector_inner_temp_.clear();
         for (u32 i = 0; i < target_num_components; ++i) {
-          id_vector_temp_util_.push_back((constant_values & (1 << i)) ? const_float_1
-                                                                      : const_float_0);
+          id_vector_inner_temp_.push_back((constant_values & (1 << i)) ? const_float_1
+                                                                       : const_float_0);
         }
-        value_to_store = builder_->makeCompositeConstant(target_type, id_vector_temp_util_);
+        value_to_store = builder_->makeCompositeConstant(target_type, id_vector_inner_temp_);
       } else {
         value_to_store = (constant_values & 0b0001) ? const_float_1 : const_float_0;
       }
@@ -3464,16 +3464,16 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
         value_to_store = shuffle_op->getResultId();
         builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
       } else {
-        id_vector_temp_util_.clear();
+        id_vector_inner_temp_.clear();
         for (u32 i = 0; i < target_num_components; ++i) {
           if (constant_components & (1 << i)) {
-            id_vector_temp_util_.push_back((constant_values & (1 << i)) ? const_float_1
-                                                                        : const_float_0);
+            id_vector_inner_temp_.push_back((constant_values & (1 << i)) ? const_float_1
+                                                                         : const_float_0);
           } else {
-            id_vector_temp_util_.push_back(value);
+            id_vector_inner_temp_.push_back(value);
           }
         }
-        value_to_store = builder_->createCompositeConstruct(target_type, id_vector_temp_util_);
+        value_to_store = builder_->createCompositeConstruct(target_type, id_vector_inner_temp_);
       }
     }
   } else {
@@ -3520,25 +3520,25 @@ void SPIRVShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
       used_write_mask & 0b001) {
     spv::Id point_size = builder_->createUnaryOp(
         spv::OpBitcast, type_int, builder_->createCompositeExtract(value_to_store, type_float, 0));
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.push_back(
+    id_vector_inner_temp_.clear();
+    id_vector_inner_temp_.push_back(
         builder_->makeIntConstant(kSystemConstantPointVertexDiameterMin));
     spv::Id point_vertex_diameter_min = builder_->createUnaryOp(
         spv::OpBitcast, type_int,
         builder_->createLoad(
             builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
-                                        id_vector_temp_util_),
+                                        id_vector_inner_temp_),
             spv::NoPrecision));
     point_size = builder_->CreateBinBuiltinCall(type_int, ext_inst_glsl_std_450_, GLSLstd450SMax,
                                                 point_vertex_diameter_min, point_size);
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.push_back(
+    id_vector_inner_temp_.clear();
+    id_vector_inner_temp_.push_back(
         builder_->makeIntConstant(kSystemConstantPointVertexDiameterMax));
     spv::Id point_vertex_diameter_max = builder_->createUnaryOp(
         spv::OpBitcast, type_int,
         builder_->createLoad(
             builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
-                                        id_vector_temp_util_),
+                                        id_vector_inner_temp_),
             spv::NoPrecision));
     point_size = builder_->CreateBinBuiltinCall(type_int, ext_inst_glsl_std_450_, GLSLstd450SMin,
                                                 point_vertex_diameter_max, point_size);

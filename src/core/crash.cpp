@@ -155,7 +155,7 @@ std::string TypeName(const std::type_info& type) {
 #endif
 }
 
-void DescribeContext(u64 address) {
+void DescribeAddress(u64 address) {
   if (const CrashAddressDescriber describer = g_describer.load(std::memory_order_acquire)) {
     char text[kDescriberTextSize];
     const u32 length = describer(address, text);
@@ -223,7 +223,7 @@ void ReportFault(const FaultReport& fault) {
     Line("fault address: {:#018x} ({})", *fault.fault_address,
          fault.access.empty() ? std::string_view("unknown") : fault.access);
   }
-  DescribeContext(fault.fault_address.value_or(0));
+  DescribeAddress(fault.fault_address.value_or(0));
   if (fault.context) {
     LogRegisters(*fault.context);
     LogStackCodeAddresses(*fault.context);
@@ -238,7 +238,7 @@ void ReportFault(const FaultReport& fault) {
 void ReportMessage(std::string_view message) {
   Banner();
   Line("{}", message);
-  DescribeContext(0);
+  DescribeAddress(0);
   log::GetLoggerInstance().TryFlush(kLogTimeout);
   Line("backtrace:");
   LogBacktrace();

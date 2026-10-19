@@ -49,7 +49,7 @@ REX_INTERFACE(IInputHost)
    *
    * @return True when pad and keyboard input reach the title.
    */
-  virtual bool GetCaptureActive() const = 0;
+  virtual bool IsCaptureActive() const = 0;
 };
 
 }  // namespace rex::hid

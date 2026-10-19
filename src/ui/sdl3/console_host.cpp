@@ -50,7 +50,7 @@ void ConsoleDockHost::ToggleWindow() {
 }
 
 void ConsoleDockHost::Defer(rex::MoveOnlyFunction<void()> action) {
-  SDLWindowedAppContext* context = ui_.context_.get();
+  SDL3WindowedAppContext* context = ui_.context_.get();
   if (!context) {
     return;
   }

@@ -2,7 +2,7 @@
 
 namespace rex::hid {
 
-void SlotAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) {
+void SlotAssignment::OnDevicesChanged(const std::vector<Device>& devices) {
   for (auto& user : users_) {
     user.clear();
   }
@@ -16,7 +16,7 @@ void SlotAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) {
   }
 }
 
-void SlotAssignment::DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const {
+void SlotAssignment::GetDevicesForUser(u32 user_index, std::vector<DeviceId>& out) const {
   out.clear();
   if (user_index >= kMaxTitleUsers) {
     return;
@@ -24,7 +24,7 @@ void SlotAssignment::DevicesForUser(u32 user_index, std::vector<DeviceId>& out) 
   out = users_[user_index];
 }
 
-void SharedAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) {
+void SharedAssignment::OnDevicesChanged(const std::vector<Device>& devices) {
   user0_.clear();
   user0_.reserve(devices.size());
   for (const auto& device : devices) {
@@ -32,7 +32,7 @@ void SharedAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) 
   }
 }
 
-void SharedAssignment::DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const {
+void SharedAssignment::GetDevicesForUser(u32 user_index, std::vector<DeviceId>& out) const {
   out.clear();
   if (user_index != 0) {
     return;

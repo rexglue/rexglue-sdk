@@ -70,20 +70,20 @@ X_HRESULT XMsgStartIORequestEx(u32 app, u32 message, u32 overlapped_ptr, u32 buf
   return result;
 }
 
-u32 XMsgStartIORequestEx_entry(u32 app, u32 message, GuestPtrT<XAM_OVERLAPPED> overlapped_ptr,
+u32 XMsgStartIORequestEx_entry(u32 app, u32 message, GuestPtrT<XOVERLAPPED> overlapped_ptr,
                                u32 buffer_ptr, u32 buffer_length,
                                GuestPtrT<XMSGSTARTIOREQUEST_UNKNOWNARG> unknown_ptr) {
   return XMsgStartIORequestEx(app, message, overlapped_ptr.GetGuestAddress(), buffer_ptr,
                               buffer_length, unknown_ptr);
 }
 
-u32 XMsgStartIORequest_entry(u32 app, u32 message, GuestPtrT<XAM_OVERLAPPED> overlapped_ptr,
+u32 XMsgStartIORequest_entry(u32 app, u32 message, GuestPtrT<XOVERLAPPED> overlapped_ptr,
                              u32 buffer_ptr, u32 buffer_length) {
   return XMsgStartIORequestEx(app, message, overlapped_ptr.GetGuestAddress(), buffer_ptr,
                               buffer_length, nullptr);
 }
 
-u32 XMsgCancelIORequest_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, u32 wait) {
+u32 XMsgCancelIORequest_entry(GuestPtrT<XOVERLAPPED> overlapped_ptr, u32 wait) {
   X_HANDLE event_handle = XOverlappedGetEvent(overlapped_ptr);
   if (event_handle && wait) {
     Wait(runtime::GetCurrent(), event_handle, 0, 0, true, nullptr);
@@ -92,7 +92,7 @@ u32 XMsgCancelIORequest_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, u32 wait
   return 0;
 }
 
-u32 XMsgCompleteIORequest_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, u32 result,
+u32 XMsgCompleteIORequest_entry(GuestPtrT<XOVERLAPPED> overlapped_ptr, u32 result,
                                 u32 extended_error, u32 length) {
   runtime::GetCurrent().GetDispatcher().Complete(
       overlapped_ptr.GetGuestAddress(),
@@ -100,9 +100,9 @@ u32 XMsgCompleteIORequest_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, u32 re
   return X_ERROR_SUCCESS;
 }
 
-u32 XamGetOverlappedResult_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, MappedU32 length_ptr,
+u32 XamGetOverlappedResult_entry(GuestPtrT<XOVERLAPPED> overlapped_ptr, MappedU32 length_ptr,
                                  [[maybe_unused]] u32 unknown) {
-  XAM_OVERLAPPED* overlapped = overlapped_ptr.GetHostAddress();
+  XOVERLAPPED* overlapped = overlapped_ptr.GetHostPtr();
   u32 result = XOverlappedGetResult(overlapped);
   if (result == X_ERROR_IO_PENDING && !overlapped->event) {
     result = X_ERROR_IO_INCOMPLETE;

@@ -49,7 +49,7 @@ class Both final : public INamed, public rex::test::IEcho {
  public:
   int Named() const override { return 1; }
   int Echo(int value) override { return value; }
-  int Value() override { return 2; }
+  int GetValue() override { return 2; }
 };
 
 template <typename T>
@@ -114,5 +114,5 @@ REX_TEST_CASE("a class of 2 interfaces converts to each of them", "[core][module
   rex::test::IEcho* echo = &both;
   CHECK(named->Named() == 1);
   CHECK(echo->Echo(5) == 5);
-  CHECK(echo->Value() == 2);
+  CHECK(echo->GetValue() == 2);
 }

@@ -25,7 +25,7 @@ class D3D12Shader : public DXBCShader {
     D3D12Translation(D3D12Shader& shader, u64 modification)
         : DXBCTranslation(shader, modification) {}
 
-    void DisassembleDXBCAndDxil(const gpu::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
+    void DisassembleDXBCAndDXIL(const gpu::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
                                 IDxbcConverter* dxbc_converter = nullptr,
                                 IDxcUtils* dxc_utils = nullptr,
                                 IDxcCompiler* dxc_compiler = nullptr);

@@ -102,8 +102,8 @@ u32 RtlLowerChar_entry(u32 in) {
 }
 
 u32 RtlCompareString_entry(MappedString string_1, MappedString string_2, u32 case_insensitive) {
-  int ret =
-      case_insensitive ? rex::CompareCase(string_1, string_2) : std::strcmp(string_1, string_2);
+  int ret = case_insensitive ? rex::CompareIgnoreCase(string_1, string_2)
+                             : std::strcmp(string_1, string_2);
 
   return ret;
 }
@@ -121,7 +121,7 @@ u32 RtlCompareStringN_entry(MappedString string_1, u32 string_1_len, MappedStrin
   }
   auto len = std::min(len1, len2);
 
-  int ret = case_insensitive ? rex::CompareCaseN(string_1, string_2, len)
+  int ret = case_insensitive ? rex::CompareIgnoreCaseN(string_1, string_2, len)
                              : std::strncmp(string_1, string_2, len);
 
   return ret;
@@ -323,8 +323,8 @@ u32 RtlImageXexHeaderField_entry(GuestPtrT<filesystem::XEXHeader> xex_header, u3
   u32 field_value = 0;
   u32 field = field_dword;
 
-  ModuleObject::OptHeader(runtime::GetCurrent().GetMemory(), xex_header,
-                          filesystem::XEXHeaderKey(field), &field_value);
+  ModuleObject::GetOptHeader(runtime::GetCurrent().GetMemory(), xex_header,
+                             filesystem::XEXHeaderKey(field), &field_value);
 
   return field_value;
 }
@@ -519,7 +519,7 @@ u32 RtlTimeFieldsToTime_entry(GuestPtrT<X_TIME_FIELDS> time_fields_ptr, MappedU6
   return 1;
 }
 
-static u32 crc32_table[256] = {
+static u32 g_crc32_table[256] = {
     0x00000000u, 0x77073096u, 0xEE0E612Cu, 0x990951BAu, 0x076DC419u, 0x706AF48Fu, 0xE963A535u,
     0x9E6495A3u, 0x0EDB8832u, 0x79DCB8A4u, 0xE0D5E91Eu, 0x97D2D988u, 0x09B64C2Bu, 0x7EB17CBDu,
     0xE7B82D07u, 0x90BF1D91u, 0x1DB71064u, 0x6AB020F2u, 0xF3B97148u, 0x84BE41DEu, 0x1ADAD47Du,
@@ -559,13 +559,13 @@ static u32 crc32_table[256] = {
     0xB40BBE37u, 0xC30C8EA1u, 0x5A05DF1Bu, 0x2D02EF8Du,
 };
 
-u32 RtlComputeCrc32_entry(u32 seed, MappedVoid buffer, u32 length) {
+u32 RtlComputeCrc32_entry(u32 initial_crc, MappedVoid buffer, u32 length) {
   if (!length) {
-    return seed;
+    return initial_crc;
   }
-  u32 hash = ~seed;
+  u32 hash = ~initial_crc;
   for (u32 i = 0; i < length; ++i) {
-    hash = crc32_table[buffer[i] ^ (hash & 0xFF)] ^ (hash >> 8);
+    hash = g_crc32_table[buffer[i] ^ (hash & 0xFF)] ^ (hash >> 8);
   }
   return ~hash;
 }

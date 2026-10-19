@@ -111,9 +111,9 @@ REX_STATIC_ASSERT_SIZE(STFSVolumeDescriptor, 0x24);
 
 /** Allocation state of an STFS data block. */
 enum class STFSHashState : u8 {
-  kFree = 0,  /**< Unallocated and absent from the package. */
-  kFree2 = 1, /**< Unallocated and present in the package. */
-  kInUse = 2, /**< Allocated. */
+  kFree = 0,        /**< Unallocated and absent from the package. */
+  kFreePresent = 1, /**< Unallocated and present in the package. */
+  kInUse = 2,       /**< Allocated. */
 };
 
 /** A hash table entry, the hash and chain information of a block. */
@@ -158,7 +158,7 @@ struct STFSHashEntry {
    *
    * @return The count.
    */
-  [[nodiscard]] u32 LevelNNumBlocksFree() const { return info_raw & 0x7FFF; }
+  [[nodiscard]] u32 GetLevelNFreeBlockCount() const { return info_raw & 0x7FFF; }
 
   /**
    * Replaces the free block count of a higher level entry.
@@ -172,7 +172,7 @@ struct STFSHashEntry {
    *
    * @return The count.
    */
-  [[nodiscard]] u32 LevelNNumBlocksUnk() const { return (info_raw >> 15) & 0x7FFF; }
+  [[nodiscard]] u32 GetLevelNNumBlocksUnk() const { return (info_raw >> 15) & 0x7FFF; }
 
   /**
    * Replaces the second block count of a higher level entry.
@@ -188,7 +188,7 @@ struct STFSHashEntry {
    *
    * @return True when the active index bit is set.
    */
-  [[nodiscard]] bool LevelNActiveIndex() const { return (info_raw & 0x40000000) != 0; }
+  [[nodiscard]] bool IsLevelNActiveIndexSet() const { return (info_raw & 0x40000000) != 0; }
 
   /**
    * Replaces the active index bit of a higher level entry.
@@ -204,7 +204,7 @@ struct STFSHashEntry {
    *
    * @return True when the writable bit is set.
    */
-  [[nodiscard]] bool LevelNWriteable() const { return (info_raw & 0x80000000) != 0; }
+  [[nodiscard]] bool IsLevelNWritable() const { return (info_raw & 0x80000000) != 0; }
 
   /**
    * Replaces the writable bit of a higher level entry.
@@ -220,7 +220,7 @@ REX_STATIC_ASSERT_SIZE(STFSHashEntry, 0x18);
 /** An STFS hash table block. */
 struct STFSHashTable {
   STFSHashEntry entries[170]; /**< Entries for 170 blocks or tables. */
-  be_u32 num_blocks;          /**< Level 0 blocks this table covers. */
+  be_u32 block_count;         /**< Level 0 blocks this table covers. */
   u8 padding[12];             /**< Unused. */
 };
 REX_STATIC_ASSERT_SIZE(STFSHashTable, 0x1000);
@@ -323,7 +323,7 @@ struct SVODDeviceDescriptor {
       u8 zero_for_downlevel_clients : 1;    /**< Reserved. */
     } bits;
   } features;
-  u8 num_data_blocks_raw[3];  /**< Data blocks, 24 bit little endian. */
+  u8 data_block_count_raw[3]; /**< Data blocks, 24 bit little endian. */
   u8 start_data_block_raw[3]; /**< First data block, 24 bit little endian. */
   u8 reserved[5];             /**< Unused. */
 
@@ -332,8 +332,8 @@ struct SVODDeviceDescriptor {
    *
    * @return The count.
    */
-  [[nodiscard]] constexpr u32 GetNumDataBlocks() const {
-    return memory::LoadUint24LE(num_data_blocks_raw);
+  [[nodiscard]] constexpr u32 GetDataBlockCount() const {
+    return memory::LoadUint24LE(data_block_count_raw);
   }
 
   /**
@@ -356,23 +356,23 @@ struct XContentLicense {
 REX_STATIC_ASSERT_SIZE(XContentLicense, 0x10);
 
 /** Media metadata of a video package. */
-struct XContentMediaData {
+struct XContentMedia {
   u8 series_id[0x10];    /**< Series GUID. */
   u8 season_id[0x10];    /**< Season GUID. */
   be_u16 season_number;  /**< Season number. */
   be_u16 episode_number; /**< Episode number. */
 };
-REX_STATIC_ASSERT_SIZE(XContentMediaData, 0x24);
+REX_STATIC_ASSERT_SIZE(XContentMedia, 0x24);
 
 /** Avatar asset metadata of an avatar item package. */
-struct XContentAvatarAssetData {
+struct XContentAvatarAsset {
   be_u32 sub_category;      /**< Asset category. */
   be_u32 colorizable;       /**< Nonzero when the asset takes colors. */
   u8 asset_id[0x10];        /**< Asset GUID. */
   u8 skeleton_version_mask; /**< Skeleton versions the asset supports. */
   u8 reserved[0xB];         /**< Unused. */
 };
-REX_STATIC_ASSERT_SIZE(XContentAvatarAssetData, 0x24);
+REX_STATIC_ASSERT_SIZE(XContentAvatarAsset, 0x24);
 
 /** Package transfer and feature bits. */
 struct XContentAttributes {
@@ -418,8 +418,8 @@ struct XContentMetadata {
   u8 reserved2[0x20];                 /**< Unused. */
   /** Type specific metadata. */
   union {
-    XContentMediaData media_data;              /**< Video packages. */
-    XContentAvatarAssetData avatar_asset_data; /**< Avatar item packages. */
+    XContentMedia media_data;              /**< Video packages. */
+    XContentAvatarAsset avatar_asset_data; /**< Avatar item packages. */
   } metadata_v2;
   u8 device_id[0x14]; /**< Device the package was created on. */
   /** Display names, 1 per version 1 language. */
@@ -550,10 +550,10 @@ REX_STATIC_ASSERT_SIZE(XContentHeader, 0x344);
 #pragma pack(pop)
 
 /** Header and metadata at the start of every package. */
-struct STFSHeader {
+struct XContentPackageHeader {
   XContentHeader header;     /**< Signed header. */
   XContentMetadata metadata; /**< Metadata. */
 };
-REX_STATIC_ASSERT_SIZE(STFSHeader, 0x971A);
+REX_STATIC_ASSERT_SIZE(XContentPackageHeader, 0x971A);
 
 }  // namespace rex::filesystem

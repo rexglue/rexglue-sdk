@@ -61,7 +61,7 @@ class Pinned {
   explicit Pinned(const char* name) {
     auto path = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName(name);
     REQUIRE(library_.Load(path, rex::platform::SymbolResolution::kImmediate));
-    auto set_sink = library_.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink");
+    auto set_sink = library_.GetSymbol<void (*)(ReXModTestSink)>("rexmod_test_set_sink");
     REQUIRE(set_sink != nullptr);
     set_sink(&Sink);
   }
@@ -126,7 +126,7 @@ class TestApp : public rex::App {
 
   rex::i32 OnRun(rex::API&) override {
     g_events.push_back("app:run");
-    while (poll && !rex::ShutdownRequested()) {
+    while (poll && !rex::IsShutdownRequested()) {
       std::this_thread::yield();
     }
     return code;
@@ -465,7 +465,7 @@ REX_TEST_CASE_METHOD(Fixture, "Module libraries close after the timer queue stop
     REQUIRE(library.Load(rex::platform::GetExecutableFolder() /
                          rex::detail::ModuleFileName("rexmod-test-good")));
     code = reinterpret_cast<const void*>(
-        library.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink"));
+        library.GetSymbol<void (*)(ReXModTestSink)>("rexmod_test_set_sink"));
     REQUIRE(code != nullptr);
   }
   REQUIRE(AddressMapped(code));
@@ -502,7 +502,7 @@ REX_TEST_CASE_METHOD(Fixture, "The first shutdown request keeps its exit code", 
   REQUIRE_FALSE(rex::detail::GetRequestedExitCode().has_value());
   rex::RequestShutdown(7);
   rex::RequestShutdown(0);
-  REQUIRE(rex::ShutdownRequested());
+  REQUIRE(rex::IsShutdownRequested());
   REQUIRE(rex::detail::GetRequestedExitCode() == 7);
   rex::RequestShutdown(-3);
   REQUIRE(rex::detail::GetRequestedExitCode() == 7);

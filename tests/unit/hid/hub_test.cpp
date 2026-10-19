@@ -56,7 +56,7 @@ class FakeHost final : public rex::hid::IInputHost {
     ++warps;
     return PointerState{.x = 50.0f, .y = 50.0f, .window_width = 100, .window_height = 100};
   }
-  bool GetCaptureActive() const override { return capture; }
+  bool IsCaptureActive() const override { return capture; }
 
   void RunPosted() {
     auto work = std::move(posted);
@@ -74,10 +74,10 @@ class FakeHost final : public rex::hid::IInputHost {
   int warps = 0;
 };
 
-class FakePad final : public rex::hid::Driver {
+class FakeDriver final : public rex::hid::Driver {
  public:
-  void EnumerateDevices(std::vector<rex::hid::DeviceInfo>& out) override {
-    rex::hid::DeviceInfo info;
+  void EnumerateDevices(std::vector<rex::hid::Device>& out) override {
+    rex::hid::Device info;
     info.id = static_cast<rex::hid::DeviceId>(7);
     info.name = "Fake controller with a name past the small string buffer";
     out.push_back(info);
@@ -231,7 +231,7 @@ REX_TEST_CASE("Hub frees the pointer and drops held input on focus loss", "[hid]
   hub.OnEvent({.kind = Kind::kButtonDown, .button = MouseButton::kLeft});
   hub.OnEvent(Motion(0.0f, 0.0f, 5.0f, 5.0f));
   hub.OnEvent({.kind = Kind::kFocusLost});
-  CHECK_FALSE(hub.GetFocused());
+  CHECK_FALSE(hub.IsFocused());
   CHECK_FALSE(hub.IsKeyDown(VirtualKey::kW));
   CHECK_FALSE(hub.IsAnyButtonDown());
   CHECK(host.applied.back() == PointerMode::kFree);
@@ -262,8 +262,8 @@ REX_TEST_CASE("Hub returns the wheel detents once", "[hid]") {
 
 REX_TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
   Hub hub;
-  auto pad = std::make_unique<FakePad>();
-  FakePad* raw = pad.get();
+  auto pad = std::make_unique<FakeDriver>();
+  FakeDriver* raw = pad.get();
   hub.AddPadDriver(std::move(pad));
   raw->buttons = rex::hid::kXInputGamepadA;
   hub.AcquireUIBlock();
@@ -295,7 +295,7 @@ REX_TEST_CASE("Keyboard pad releases bound keys and drops motion on focus loss",
   Hub hub;
   rex::hid::KeyboardMouseDriver pad(hub);
   pad.Attach(*registry);
-  std::vector<rex::hid::DeviceInfo> devices;
+  std::vector<rex::hid::Device> devices;
   pad.EnumerateDevices(devices);
   REQUIRE(devices.size() == 1);
   const auto id = devices[0].id;
@@ -344,11 +344,11 @@ REX_TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follo
   Hub hub;
   rex::hid::KeyboardMouseDriver pad(hub);
   pad.Attach(*registry);
-  std::vector<rex::hid::DeviceInfo> devices;
+  std::vector<rex::hid::Device> devices;
   pad.EnumerateDevices(devices);
   REQUIRE(devices.size() == 1);
   const auto id = devices[0].id;
-  const auto dpad_up = std::to_underlying(VirtualKey::kXInputPadDpadUp);
+  const auto dpad_up = std::to_underlying(VirtualKey::kXInputPadDPadUp);
   const auto rstick_up = std::to_underlying(VirtualKey::kXInputPadRThumbUp);
   const auto pad_x = std::to_underlying(VirtualKey::kXInputPadX);
 
@@ -399,7 +399,7 @@ REX_TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follo
 
 REX_TEST_CASE("Hub serves polls from 4 threads at once", "[hid]") {
   Hub hub;
-  hub.AddPadDriver(std::make_unique<FakePad>());
+  hub.AddPadDriver(std::make_unique<FakeDriver>());
   constexpr int kThreads = 4;
   constexpr int kIterations = 2000;
   std::atomic<int> answered{0};

@@ -34,7 +34,7 @@ u32 KernelProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordin
   }
 
   if (export_entry->kind == rex::runtime::ExportKind::kVariable) {
-    const u32 address = module.Variable(ordinal);
+    const u32 address = module.GetVariable(ordinal);
     REXLOG_DEBUG(system, "GetProcAddressByOrdinal: {} ({:04X}) -> variable at {:08X}",
                  export_entry->name, ordinal, address);
     return address;
@@ -42,7 +42,7 @@ u32 KernelProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordin
 
   auto* dispatcher = runtime.GetFunctionDispatcher();
   const u32 caller_module_base = dispatcher->FindCallerModuleBase(caller_address);
-  const KernelModuleData::ThunkKey key{caller_module_base, ordinal};
+  const KernelModuleState::ThunkKey key{caller_module_base, ordinal};
 
   auto thunk_it = module.kernel.thunk_cache.find(key);
   if (thunk_it != module.kernel.thunk_cache.end()) {
@@ -67,7 +67,7 @@ u32 KernelProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordin
 u32 UserProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordinal,
                              u32 caller_address) {
   const auto* xex = module.GetXEX();
-  const u32 guest_addr = xex ? xex->GetProcAddress(ordinal) : 0;
+  const u32 guest_addr = xex ? xex->GetExportAddress(ordinal) : 0;
   if (!guest_addr || !caller_address) {
     return guest_addr;
   }
@@ -78,7 +78,7 @@ u32 UserProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordinal
     return guest_addr;
   }
 
-  const KernelModuleData::ThunkKey key{dispatcher->FindCallerModuleBase(caller_address), ordinal};
+  const KernelModuleState::ThunkKey key{dispatcher->FindCallerModuleBase(caller_address), ordinal};
   if (auto cached = module.user.thunk_cache.find(key); cached != module.user.thunk_cache.end()) {
     return cached->second;
   }
@@ -117,7 +117,7 @@ X_HANDLE CreateModule(Runtime& runtime, ModuleType type) {
   return handle;
 }
 
-bool ModuleObject::Matches(std::string_view query) const {
+bool ModuleObject::IsNamed(std::string_view query) const {
   return rex::utf8_equal_case(rex::utf8_find_name_from_guest_path(path), query) ||
          rex::utf8_equal_case(name, query) || rex::utf8_equal_case(path, query);
 }
@@ -133,8 +133,8 @@ X_STATUS ModuleObject::GetSection(std::string_view section_name, u32* out_sectio
     return X_STATUS_NOT_FOUND;
   }
 
-  const auto* resource_header =
-      xex->GetImage().OptHeader<filesystem::XEXOptResourceInfo>(filesystem::kXEXHeaderResourceInfo);
+  const auto* resource_header = xex->GetImage().GetOptHeader<filesystem::XEXOptResourceInfo>(
+      filesystem::kXEXHeaderResourceInfo);
   if (!resource_header) {
     return X_STATUS_NOT_FOUND;
   }
@@ -177,7 +177,7 @@ u32 ModuleObject::GetProcAddress(std::string_view export_name) const {
     REX_FAIL(system, 0, "GetProcAddress by name is not implemented for kernel modules");
   }
   const auto* xex = GetXEX();
-  return xex ? xex->GetProcAddress(export_name) : 0;
+  return xex ? xex->GetExportAddress(export_name) : 0;
 }
 
 }  // namespace rex::runtime

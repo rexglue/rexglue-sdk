@@ -127,25 +127,27 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   module.SetVariable(0x00AD, p_ke_time_stamp_bundle);
   timestamp_bundle->interrupt_time = 0;
   timestamp_bundle->system_time = 0;
-  timestamp_bundle->tick_count = Clock::QueryGuestUptimeMillis();
+  timestamp_bundle->tick_count = Clock::GetGuestUptimeMillis();
   timestamp_bundle->reserved = 0;
   module.kernel.timestamp_timer = rex::platform::HighResolutionTimer::CreateRepeating(
       std::chrono::milliseconds(1),
-      [timestamp_bundle]() { timestamp_bundle->tick_count = Clock::QueryGuestUptimeMillis(); });
+      [timestamp_bundle]() { timestamp_bundle->tick_count = Clock::GetGuestUptimeMillis(); });
 
-  auto kgg = runtime.GetKernelGlobals();
-  REX_ASSERT(kgg != 0);
-  module.SetVariable(0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
-  module.SetVariable(0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));
-  module.SetVariable(0x0012, kgg + offsetof(KernelGuestGlobals, ExMutantObjectType));
-  module.SetVariable(0x0017, kgg + offsetof(KernelGuestGlobals, ExSemaphoreObjectType));
-  module.SetVariable(0x001C, kgg + offsetof(KernelGuestGlobals, ExTimerObjectType));
-  module.SetVariable(0x0036, kgg + offsetof(KernelGuestGlobals, IoCompletionObjectType));
-  module.SetVariable(0x003A, kgg + offsetof(KernelGuestGlobals, IoDeviceObjectType));
-  module.SetVariable(0x003E, kgg + offsetof(KernelGuestGlobals, IoFileObjectType));
-  module.SetVariable(0x0106, kgg + offsetof(KernelGuestGlobals, ObDirectoryObjectType));
-  module.SetVariable(0x0112, kgg + offsetof(KernelGuestGlobals, ObSymbolicLinkObjectType));
-  module.SetVariable(0x02DB, kgg + offsetof(KernelGuestGlobals, UsbdBootEnumerationDoneEvent));
+  auto kernel_globals = runtime.GetKernelGlobals();
+  REX_ASSERT(kernel_globals != 0);
+  module.SetVariable(0x001B, kernel_globals + offsetof(KernelGuestGlobals, ExThreadObjectType));
+  module.SetVariable(0x000E, kernel_globals + offsetof(KernelGuestGlobals, ExEventObjectType));
+  module.SetVariable(0x0012, kernel_globals + offsetof(KernelGuestGlobals, ExMutantObjectType));
+  module.SetVariable(0x0017, kernel_globals + offsetof(KernelGuestGlobals, ExSemaphoreObjectType));
+  module.SetVariable(0x001C, kernel_globals + offsetof(KernelGuestGlobals, ExTimerObjectType));
+  module.SetVariable(0x0036, kernel_globals + offsetof(KernelGuestGlobals, IoCompletionObjectType));
+  module.SetVariable(0x003A, kernel_globals + offsetof(KernelGuestGlobals, IoDeviceObjectType));
+  module.SetVariable(0x003E, kernel_globals + offsetof(KernelGuestGlobals, IoFileObjectType));
+  module.SetVariable(0x0106, kernel_globals + offsetof(KernelGuestGlobals, ObDirectoryObjectType));
+  module.SetVariable(0x0112,
+                     kernel_globals + offsetof(KernelGuestGlobals, ObSymbolicLinkObjectType));
+  module.SetVariable(0x02DB,
+                     kernel_globals + offsetof(KernelGuestGlobals, UsbdBootEnumerationDoneEvent));
 
   return handle;
 }

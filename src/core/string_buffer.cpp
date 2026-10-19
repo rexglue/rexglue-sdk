@@ -32,17 +32,17 @@ StringBuffer::~StringBuffer() {
 }
 
 void StringBuffer::Reset() {
-  buffer_offset_ = 0;
+  length_ = 0;
   buffer_[0] = 0;
 }
 
 void StringBuffer::Grow(size_t additional_length) {
-  if (buffer_offset_ + additional_length <= buffer_capacity_) {
+  if (length_ + additional_length <= buffer_capacity_) {
     return;
   }
   size_t old_capacity = buffer_capacity_;
   size_t new_capacity =
-      std::max(rex::RoundUpNonZero(buffer_offset_ + additional_length, 16_KiB), old_capacity * 2);
+      std::max(rex::RoundUpNonZero(length_ + additional_length, 16_KiB), old_capacity * 2);
   auto new_buffer = std::realloc(buffer_, new_capacity);
   REX_ASSERT(new_buffer != nullptr);
   buffer_ = reinterpret_cast<char*>(new_buffer);
@@ -55,9 +55,9 @@ void StringBuffer::Append(char c) {
 
 void StringBuffer::Append(char c, size_t count) {
   Grow(count + 1);
-  std::memset(buffer_ + buffer_offset_, c, count);
-  buffer_offset_ += count;
-  buffer_[buffer_offset_] = 0;
+  std::memset(buffer_ + length_, c, count);
+  length_ += count;
+  buffer_[length_] = 0;
 }
 
 void StringBuffer::Append(const char* value) {
@@ -78,29 +78,29 @@ void StringBuffer::AppendVarargs(const char* format, va_list args) {
   }
   auto length = static_cast<size_t>(result);
   Grow(length + 1);
-  vsnprintf(buffer_ + buffer_offset_, buffer_capacity_, format, args);
-  buffer_offset_ += length;
-  buffer_[buffer_offset_] = 0;
+  vsnprintf(buffer_ + length_, buffer_capacity_, format, args);
+  length_ += length;
+  buffer_[length_] = 0;
 }
 
 void StringBuffer::AppendBytes(const u8* buffer, size_t length) {
   Grow(length + 1);
-  memcpy(buffer_ + buffer_offset_, buffer, length);
-  buffer_offset_ += length;
-  buffer_[buffer_offset_] = 0;
+  memcpy(buffer_ + length_, buffer, length);
+  length_ += length;
+  buffer_[length_] = 0;
 }
 
 std::string StringBuffer::ToString() {
-  return std::string(buffer_, buffer_offset_);
+  return std::string(buffer_, length_);
 }
 
 std::string_view StringBuffer::ToStringView() const {
-  return std::string_view(buffer_, buffer_offset_);
+  return std::string_view(buffer_, length_);
 }
 
 std::vector<u8> StringBuffer::ToBytes() const {
-  std::vector<u8> bytes(buffer_offset_);
-  std::memcpy(bytes.data(), buffer_, buffer_offset_);
+  std::vector<u8> bytes(length_);
+  std::memcpy(bytes.data(), buffer_, length_);
   return bytes;
 }
 

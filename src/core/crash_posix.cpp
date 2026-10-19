@@ -196,7 +196,7 @@ void ReadModules() {
 #endif
 }
 
-void ReporterSignal(int signal_number, siginfo_t* info, void* signal_context) {
+void ReporterSignalHandler(int signal_number, siginfo_t* info, void* signal_context) {
   detail::ReportFatalSignal(signal_number, info, signal_context);
   detail::DieWithDefaultDisposition(signal_number);
 }
@@ -305,7 +305,7 @@ bool IsReadable(u64 address, u64 size) {
 }
 
 void WriteRaw(std::string_view text) {
-  const int log_fd = log::GetLoggerInstance().GetCrashFd();
+  const int log_fd = log::GetLoggerInstance().GetCrashFD();
   for (const int fd : {STDERR_FILENO, log_fd}) {
     if (fd >= 0) {
       WriteAll(fd, text);
@@ -352,7 +352,7 @@ void LogBacktrace() {
       continue;
     }
     struct sigaction action{};
-    action.sa_sigaction = ReporterSignal;
+    action.sa_sigaction = ReporterSignalHandler;
     action.sa_flags = SA_SIGINFO | SA_ONSTACK;
     sigemptyset(&action.sa_mask);
     if (sigaction(kReporterSignals[i], &action, nullptr) != 0) {
@@ -370,7 +370,7 @@ void UninstallPlatform() {
     }
     struct sigaction current{};
     sigaction(kReporterSignals[i], nullptr, &current);
-    if ((current.sa_flags & SA_SIGINFO) && current.sa_sigaction == ReporterSignal) {
+    if ((current.sa_flags & SA_SIGINFO) && current.sa_sigaction == ReporterSignalHandler) {
       struct sigaction default_action{};
       default_action.sa_handler = SIG_DFL;
       sigemptyset(&default_action.sa_mask);

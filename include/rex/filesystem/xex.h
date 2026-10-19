@@ -121,7 +121,7 @@ class REX_API XEXImage : public MoveOnly {
    * @return The data, or null when absent or out of range.
    */
   template <typename T>
-  const T* OptHeader(XEXHeaderKey key) const {
+  const T* GetOptHeader(XEXHeaderKey key) const {
     return static_cast<const T*>(FindOptHeader(key));
   }
 
@@ -131,7 +131,7 @@ class REX_API XEXImage : public MoveOnly {
    * @param key The header key.
    * @return The value, or nothing when absent.
    */
-  std::optional<u32> OptHeaderValue(XEXHeaderKey key) const;
+  std::optional<u32> GetOptHeaderValue(XEXHeaderKey key) const;
 
   /**
    * Returns the security info.

@@ -45,12 +45,12 @@ class ThreadRegistry final : public IThreadRegistry {
   std::vector<ThreadPin> All() override;
   std::optional<u32> AllocateTLS(PPCContext* context) override;
   void FreeTLS(PPCContext* context, u32 slot) override;
-  std::optional<FiberInfo> LookupFiber(u32 address) override;
-  void RegisterFiber(u32 address, const FiberInfo& info) override;
+  std::optional<GuestFiber> FindFiber(u32 address) override;
+  void RegisterFiber(u32 address, const GuestFiber& info) override;
   void UnregisterFiber(u32 address) override;
   const char* GetOrCreateFiberName(u32 address, const char* thread_name) override;
   void RegisterThreadNotify(u32 notification) override;
-  void RemoveThreadNotify(u32 notification) override;
+  void UnregisterThreadNotify(u32 notification) override;
 
   /**
    * Marks that a thread finished running. The `KernelThread` is destroyed when its last handle is
@@ -89,7 +89,7 @@ class ThreadRegistry final : public IThreadRegistry {
   rex::platform::RankedMutex fiber_mutex_{rex::platform::LockRank::kLeaf};
   rex::platform::RankedMutex notify_mutex_{rex::platform::LockRank::kLeaf};
   std::vector<u32> thread_notifications_;
-  std::unordered_map<u32, FiberInfo> fiber_map_;
+  std::unordered_map<u32, GuestFiber> fiber_map_;
   std::mutex fiber_name_pool_mutex_;
   std::unordered_map<u32, std::unique_ptr<char[]>> fiber_name_pool_;
 };

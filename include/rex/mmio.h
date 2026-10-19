@@ -140,7 +140,7 @@ REX_API u16 MMIOLoad16(u32 address);
  * @param address The guest address of the store.
  * @param size The store size in bytes.
  */
-[[noreturn]] REX_API void MMIONarrowWrite(u32 address, u32 size);
+[[noreturn]] REX_API void MMIONarrowStore(u32 address, u32 size);
 
 }  // namespace ppc
 

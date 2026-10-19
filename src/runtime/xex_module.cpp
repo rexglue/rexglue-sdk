@@ -49,7 +49,7 @@ u32 XEXModule::GetImageSize() const {
   return total;
 }
 
-u32 XEXModule::GetProcAddress(u16 ordinal) const {
+u32 XEXModule::GetExportAddress(u16 ordinal) const {
   if (const u32 table_address = image_.GetSecurity().export_table) {
     auto export_table =
         GetMemory()->TranslateVirtual<const filesystem::XEXExportTable*>(table_address);
@@ -57,14 +57,14 @@ u32 XEXModule::GetProcAddress(u16 ordinal) const {
     if (ordinal >= export_table->count) {
       REX_FAIL(system, 0, "GetProcAddress({:03X}): ordinal out of bounds", ordinal);
     }
-    u32 ordinal_offset = export_table->ordOffset[ordinal];
-    ordinal_offset += export_table->imagebaseaddr << 16;
+    u32 ordinal_offset = export_table->ordinal_offset[ordinal];
+    ordinal_offset += export_table->image_base_address << 16;
     return ordinal_offset;
   }
 
   REX_ASSERT(base_address_ != 0);
-  if (const auto* directory =
-          image_.OptHeader<filesystem::XEXOptDataDirectory>(filesystem::kXEXHeaderExportsByName)) {
+  if (const auto* directory = image_.GetOptHeader<filesystem::XEXOptDataDirectory>(
+          filesystem::kXEXHeaderExportsByName)) {
     auto e = GetMemory()->TranslateVirtual<const filesystem::X_IMAGE_EXPORT_DIRECTORY*>(
         base_address_ + directory->offset);
     REX_ASSERT(e != nullptr);
@@ -77,10 +77,10 @@ u32 XEXModule::GetProcAddress(u16 ordinal) const {
   return 0;
 }
 
-u32 XEXModule::GetProcAddress(const std::string_view name) const {
+u32 XEXModule::GetExportAddress(const std::string_view name) const {
   REX_ASSERT(base_address_ != 0);
   const auto* directory =
-      image_.OptHeader<filesystem::XEXOptDataDirectory>(filesystem::kXEXHeaderExportsByName);
+      image_.GetOptHeader<filesystem::XEXOptDataDirectory>(filesystem::kXEXHeaderExportsByName);
   if (!directory) {
     return 0;
   }
@@ -147,12 +147,12 @@ int XEXModule::ApplyPatch(XEXModule* module) {
     }
   }
 
-  const auto* descriptor = image_.OptHeader<filesystem::XEXOptDeltaPatchDescriptor>(
+  const auto* descriptor = image_.GetOptHeader<filesystem::XEXOptDeltaPatchDescriptor>(
       filesystem::kXEXHeaderDeltaPatchDescriptor);
   const auto source = descriptor->GetSourceVersion();
   const auto target = descriptor->GetTargetVersion();
   REXLOG_INFO(system,
-              "XEX patch applied successfully: base version: {}.{}.{}.{}, new version: "
+              "XEX patch applied successfully, base version {}.{}.{}.{}, new version "
               "{}.{}.{}.{}",
               u32{source.major}, u32{source.minor}, u32{source.build}, u32{source.qfe},
               u32{target.major}, u32{target.minor}, u32{target.build}, u32{target.qfe});
@@ -170,7 +170,7 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
   loaded_ = true;
   image_ = std::move(*parsed);
 
-  base_address_ = image_.OptHeaderValue(filesystem::kXEXHeaderImageBaseAddress)
+  base_address_ = image_.GetOptHeaderValue(filesystem::kXEXHeaderImageBaseAddress)
                       .value_or(image_.GetSecurity().load_address);
   name_ = name;
   path_ = path;
@@ -180,7 +180,7 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
   }
 
   const auto* format =
-      image_.OptHeader<filesystem::XEXOptFileFormatInfo>(filesystem::kXEXHeaderFileFormatInfo);
+      image_.GetOptHeader<filesystem::XEXOptFileFormatInfo>(filesystem::kXEXHeaderFileFormatInfo);
   if (!format) {
     REX_FAIL(system, false, "XEX has no file format header");
   }
@@ -190,7 +190,7 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
           : GetImageSize();
 
   auto* heap = GetMemory()->LookupHeap(base_address_);
-  HeapAllocationInfo occupant{};
+  HeapAllocation occupant{};
   if (!heap->QueryRegionInfo(base_address_, &occupant) || occupant.state != 0 ||
       occupant.region_size < rex::RoundUpPow2(alloc_size, heap->GetPageSize())) {
     REX_FAIL(system, false,
@@ -296,21 +296,21 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
   };
   std::optional<KernelModule> kernel;
   if (const auto exports = rex::runtime::ModuleFromName(base_name);
-      exports && runtime_->GetModuleRegistry().IsKernel(base_name)) {
+      exports && runtime_->GetModuleRegistry().IsKernelModule(base_name)) {
     if (auto object = runtime_->GetObjectTable().Get<ModuleObject>(
-            runtime_->GetModuleRegistry().FindKernel(base_name).value_or(0))) {
+            runtime_->GetModuleRegistry().FindKernelModule(base_name).value_or(0))) {
       kernel.emplace(*exports, std::move(object));
     }
   }
 
-  ImportLibrary library_info;
-  library_info.name = base_name;
-  library_info.file_name = std::string(name);
-  library_info.id = library.id;
-  library_info.version = library.version;
-  library_info.min_version = library.min_version;
+  ImportLibrary import_library;
+  import_library.name = base_name;
+  import_library.file_name = std::string(name);
+  import_library.id = library.id;
+  import_library.version = library.version;
+  import_library.min_version = library.min_version;
 
-  std::unordered_map<u16, ImportLibraryFn> import_map;
+  std::unordered_map<u16, LibraryImport> import_map;
   for (const u32 record_addr : library.records) {
     if (!record_addr) {
       continue;
@@ -320,14 +320,14 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
     const u16 record_type = (record_value & 0xFF000000) >> 24;
     const u16 ordinal = record_value & 0xFFFF;
 
-    auto& import_info = import_map[ordinal];
-    import_info.ordinal = ordinal;
+    auto& import_entry = import_map[ordinal];
+    import_entry.ordinal = ordinal;
     if (record_type == 0) {
-      import_info.value_address = record_addr;
+      import_entry.value_address = record_addr;
       if (kernel) {
         const auto* kernel_export = rex::runtime::FindByOrdinal(kernel->exports, ordinal);
         if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::kVariable) {
-          const u32 variable_ptr = kernel->object->Variable(ordinal);
+          const u32 variable_ptr = kernel->object->GetVariable(ordinal);
           if (variable_ptr) {
             *record_slot = variable_ptr;
             REXLOG_DEBUG(system, "Patched variable import {}:{:#x} ({}) -> {:#x}", base_name,
@@ -340,7 +340,7 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
         }
       }
     } else if (record_type == 1) {
-      import_info.thunk_address = record_addr;
+      import_entry.thunk_address = record_addr;
     }
   }
 
@@ -361,12 +361,12 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
   }
   std::ranges::sort(ordinals);
   for (const u16 ordinal : ordinals) {
-    library_info.imports.push_back(import_map[ordinal]);
+    import_library.imports.push_back(import_map[ordinal]);
   }
 
-  import_libs_.push_back(library_info);
+  import_libs_.push_back(import_library);
   REXLOG_DEBUG(system, "created symbols for import library {} with {} imports", base_name,
-               library_info.imports.size());
+               import_library.imports.size());
   return true;
 }
 

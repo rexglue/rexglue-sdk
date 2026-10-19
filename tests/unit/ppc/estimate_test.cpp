@@ -167,11 +167,11 @@ void CheckScalar(std::span<const EstimateCase64> cases) {
 }  // namespace
 
 REX_TEST_CASE("scalar ReciprocalEstimate matches the sampled results", "[ppc][estimate]") {
-  CheckScalar<rex::ppc::ReciprocalEstimate>(kScalarReciprocalCases);
+  CheckScalar<rex::ppc::ReciprocalEstimate>(kScalarReciprocalEstimateCases);
 }
 
 REX_TEST_CASE("scalar ReciprocalSqrtEstimate matches the sampled results", "[ppc][estimate]") {
-  CheckScalar<rex::ppc::ReciprocalSqrtEstimate>(kScalarReciprocalSqrtCases);
+  CheckScalar<rex::ppc::ReciprocalSqrtEstimate>(kScalarReciprocalSqrtEstimateCases);
 }
 
 REX_TEST_CASE("simd ReciprocalEstimate matches the sampled results", "[ppc][estimate]") {

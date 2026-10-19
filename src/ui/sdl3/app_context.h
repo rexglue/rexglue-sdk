@@ -90,7 +90,7 @@ class WindowedAppContext : public rex::NonCopyable {
    * Reports whether a quit was requested, including during the destructor, when queued functions
    * may be running.
    *
-   * @return True when QuitFromUIThread ran or the destructor started.
+   * @return True when RequestShutdownFromUIThread ran or the destructor started.
    */
   bool HasQuitFromUIThread() const {
     REX_ASSERT(IsInUIThread());
@@ -102,7 +102,7 @@ class WindowedAppContext : public rex::NonCopyable {
    * not destroy the context. May call virtual functions, so the destructor runs
    * ExecutePendingFunctionsFromUIThread(true) instead. Safe to call from pending functions.
    */
-  void QuitFromUIThread();
+  void RequestShutdownFromUIThread();
 
  protected:
   WindowedAppContext() : ui_thread_id_(std::this_thread::get_id()) {}

@@ -26,10 +26,10 @@ namespace rex::ui {
 
 class WindowSDL;
 
-class SDLWindowedAppContext final : public WindowedAppContext {
+class SDL3WindowedAppContext final : public WindowedAppContext {
  public:
-  SDLWindowedAppContext() = default;
-  ~SDLWindowedAppContext() override;
+  SDL3WindowedAppContext() = default;
+  ~SDL3WindowedAppContext() override;
 
   /**
    * Initializes the SDL video subsystem and registers the custom event types.
@@ -92,7 +92,7 @@ class SDLWindowedAppContext final : public WindowedAppContext {
    * SDL event watch. On the main thread a quit event is handled synchronously while SDL queues it,
    * before rendering can block in nextDrawable.
    *
-   * @param userdata The SDLWindowedAppContext.
+   * @param userdata The SDL3WindowedAppContext.
    * @param event Event being queued.
    * @return Always true.
    */

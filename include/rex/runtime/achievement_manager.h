@@ -26,7 +26,7 @@ namespace rex::runtime {
 
 /** An unlock or notification event of an achievement. */
 struct AchievementEvent {
-  AchievementInfo achievement; /**< The achievement. */
+  Achievement achievement; /**< The achievement. */
 };
 
 /** Selects whether an unlock raises the notification callbacks. */
@@ -43,7 +43,7 @@ enum class AchievementUnlockResult : u8 {
 };
 
 /** The handle of a registered callback. */
-using AchievementListenerHandle = u64;
+using AchievementCallbackHandle = u64;
 
 /** A callback that receives achievement events. */
 using AchievementCallback = std::function<void(const AchievementEvent&)>;
@@ -57,7 +57,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
    * @param info The achievement.
    * @return Ok, or a Validation error for id 0.
    */
-  [[nodiscard]] virtual Result<void> RegisterAchievement(AchievementInfo info) = 0;
+  [[nodiscard]] virtual Result<void> RegisterAchievement(Achievement info) = 0;
 
   /**
    * Adds or replaces several achievements, all or none.
@@ -66,14 +66,14 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
    * @return Ok, or a Validation error for an id 0 entry, in which case nothing is registered.
    */
   [[nodiscard]] virtual Result<void> RegisterAchievements(
-      std::span<const AchievementInfo> achievements) = 0;
+      std::span<const Achievement> achievements) = 0;
 
   /**
    * Replaces the whole catalog.
    *
    * @param achievements The entries that replace the catalog.
    */
-  virtual void ReplaceAchievements(std::vector<AchievementInfo> achievements) = 0;
+  virtual void ReplaceAchievements(std::vector<Achievement> achievements) = 0;
 
   /**
    * Loads and merges the achievements entries of an editable TOML file.
@@ -88,7 +88,7 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
    *
    * @return The achievements in registration order.
    */
-  [[nodiscard]] virtual std::vector<AchievementInfo> ListAchievements() const = 0;
+  [[nodiscard]] virtual std::vector<Achievement> ListAchievements() const = 0;
 
   /**
    * Unlocks an achievement and persists the unlock.
@@ -122,14 +122,14 @@ REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
    * @param callback The function that receives each notification.
    * @return The handle UnregisterCallback takes.
    */
-  virtual AchievementListenerHandle RegisterNotificationCallback(AchievementCallback callback) = 0;
+  virtual AchievementCallbackHandle RegisterNotificationCallback(AchievementCallback callback) = 0;
 
   /**
    * Removes a callback.
    *
    * @param handle The handle a Register call returned.
    */
-  virtual void UnregisterCallback(AchievementListenerHandle handle) = 0;
+  virtual void UnregisterNotificationCallback(AchievementCallbackHandle handle) = 0;
 
   /**
    * Sets the file unlocks persist to.

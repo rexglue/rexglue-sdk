@@ -31,9 +31,9 @@ class ProgressView final : public rex::codegen::IProgressReporter {
   explicit ProgressView(std::string_view title);
   ~ProgressView() override;
 
-  void BinaryLoaded(const rex::codegen::BinaryInfo& info) override;
+  void BinaryLoaded(const rex::codegen::BinaryIdentity& info) override;
   void ModuleStarted(std::string_view name, std::size_t index, std::size_t total) override;
-  void PhaseChanged(std::string_view name) override;
+  void ModulePhaseStarted(std::string_view name) override;
   void ModuleFinished(std::chrono::milliseconds elapsed) override;
   void ProjectPhaseStarted(std::string_view name) override;
   void ProjectPhaseFinished() override;
@@ -52,7 +52,7 @@ class ProgressView final : public rex::codegen::IProgressReporter {
   void RunSpinner(const std::stop_token& stop);
 
   std::mutex state_mutex_;
-  std::string title_;
+  std::string heading_;
   std::vector<ModuleEntry> modules_;
   std::size_t current_module_ = 0;
   std::string current_phase_;

@@ -614,7 +614,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param instr Parsed texture fetch instruction.
    */
   void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& instr) override;
-  void ProcessAluInstruction(const ParsedAluInstruction& instr,
+  void ProcessALUInstruction(const ParsedAluInstruction& instr,
                              u8 memexport_em_potentially_written_before) override;
 
  private:
@@ -677,7 +677,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
     return IsPixelShader() &&
            GetDXBCShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
-           !edram_rov_used_ && GetCurrentShader().GetImplicitEarlyZWriteAllowed();
+           !edram_rov_used_ && GetCurrentShader().IsImplicitEarlyZWriteAllowed();
   }
 
   u32 GetModificationInterpolatorMask() const {
@@ -691,7 +691,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * @return True when control flow uses switch-case.
    */
-  bool UseSwitchForControlFlow() const;
+  bool IsSwitchControlFlowUsed() const;
 
   /**
    * Allocates consecutive internal r# registers.
@@ -717,13 +717,13 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
   bool IsSampleRate() const {
     REX_ASSERT(IsPixelShader());
-    return DSVIsWritingFloat24Depth() && !GetCurrentShader().GetWritesDepth();
+    return IsDSVWritingFloat24Depth() && !GetCurrentShader().IsDepthWritten();
   }
   bool IsDepthStencilSystemTempUsed() const {
     if (edram_rov_used_) {
       return true;
     }
-    if (GetCurrentShader().GetWritesDepth()) {
+    if (GetCurrentShader().IsDepthWritten()) {
       return true;
     }
     return false;
@@ -733,7 +733,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * @return True when the non ROV pixel shader converts depth to 20e4.
    */
-  bool DSVIsWritingFloat24Depth() const {
+  bool IsDSVWritingFloat24Depth() const {
     if (edram_rov_used_) {
       return false;
     }
@@ -747,9 +747,9 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * @return True when skipping the shader for 2x2 quads is possible and worthwhile.
    */
-  bool ROVIsDepthStencilEarly() const {
+  bool IsROVDepthStencilEarly() const {
     REX_ASSERT(edram_rov_used_);
-    return !is_depth_only_pixel_shader_ && !GetCurrentShader().GetWritesDepth() &&
+    return !is_depth_only_pixel_shader_ && !GetCurrentShader().IsDepthWritten() &&
            !GetCurrentShader().GetMemExportEMWritten();
   }
   /**
@@ -1054,7 +1054,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
   bool is_depth_only_pixel_shader_ = false;
 
-  enum class ShaderRdefTypeIndex : u8 {
+  enum class ShaderRDEFTypeIndex : u8 {
     kFloat,
     kFloat2,
     kFloat3,
@@ -1074,17 +1074,17 @@ class DXBCShaderTranslator : public ShaderTranslator {
     kUnknown = kCount
   };
 
-  struct ShaderRdefType {
+  struct ShaderRDEFType {
     /** Ignored for arrays. */
     const char* name;
-    dxbc::RdefVariableClass variable_class;
-    dxbc::RdefVariableType variable_type;
+    dxbc::RDEFVariableClass variable_class;
+    dxbc::RDEFVariableType variable_type;
     u16 row_count;
     u16 column_count;
     u16 element_count;
-    ShaderRdefTypeIndex array_element_type;
+    ShaderRDEFTypeIndex array_element_type;
   };
-  static const ShaderRdefType kRDEFTypes[std::to_underlying(ShaderRdefTypeIndex::kCount)];
+  static const ShaderRDEFType kRDEFTypes[std::to_underlying(ShaderRDEFTypeIndex::kCount)];
 
   static constexpr u32 kBindingIndexUnallocated = UINT32_MAX;
 
@@ -1095,13 +1095,13 @@ class DXBCShaderTranslator : public ShaderTranslator {
   u32 cbuffer_index_fetch_constants_;
   u32 cbuffer_index_descriptor_indices_;
 
-  struct SystemConstantRdef {
+  struct SystemConstantRDEF {
     const char* name;
-    ShaderRdefTypeIndex type;
+    ShaderRDEFTypeIndex type;
     u32 size;
     u32 padding_after = 0;
   };
-  static const SystemConstantRdef
+  static const SystemConstantRDEF
       kSystemConstantRDEF[std::to_underlying(SystemConstants::Index::kCount)];
   /**
    * Mask of system constants (1 << SystemConstants::Index) used, so the rest are marked unused in
@@ -1157,8 +1157,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * remapped from 0...1 to 0...0.5 and converted to float24 precision, and for ROV is written at
    * the end of the shader.
    *
-   * Without oDepth and with ROV and ROVIsDepthStencilEarly it holds the new per sample depth and
-   * stencil from the early test. Without ROVIsDepthStencilEarly, .xy hold the Z gradients taken
+   * Without oDepth and with ROV and IsROVDepthStencilEarly it holds the new per sample depth and
+   * stencil from the early test. Without IsROVDepthStencilEarly, .xy hold the Z gradients taken
    * before any return.
    */
   u32 system_temp_depth_stencil_;

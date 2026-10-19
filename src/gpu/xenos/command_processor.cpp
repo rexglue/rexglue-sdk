@@ -508,8 +508,8 @@ void CommandProcessor::WriteLoopRangeFromRing(memory::RingBuffer* ring, u32 base
   WriteRegisterRangeFromRing(ring, base + 0x4908, num_registers);
 }
 
-void CommandProcessor::WriteREGISTERSRangeFromRing(memory::RingBuffer* ring, u32 base,
-                                                   u32 num_registers) {
+void CommandProcessor::WriteRegisterBlockRangeFromRing(memory::RingBuffer* ring, u32 base,
+                                                       u32 num_registers) {
   WriteRegisterRangeFromRing(ring, base + 0x2000, num_registers);
 }
 
@@ -529,7 +529,8 @@ void CommandProcessor::WriteLoopRangeFromMem(u32 start_index, u32* base, u32 num
   WriteRegistersFromMem(start_index + 0x4908, base, num_registers);
 }
 
-void CommandProcessor::WriteREGISTERSRangeFromMem(u32 start_index, u32* base, u32 num_registers) {
+void CommandProcessor::WriteRegisterBlockRangeFromMem(u32 start_index, u32* base,
+                                                      u32 num_registers) {
   WriteRegistersFromMem(start_index + 0x2000, base, num_registers);
 }
 
@@ -815,7 +816,7 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, u32 packet
     }
 
     default:
-      REXLOG_DEV(gpu, "Unimplemented GPU OPCODE: 0x{:02X}\t\tCOUNT: {}\n", opcode, count);
+      REXLOG_DEV(gpu, "Unimplemented GPU opcode 0x{:02X} with count {}\n", opcode, count);
       REX_ASSERT_ALWAYS();
       reader->AdvanceRead(count * sizeof(u32));
       break;
@@ -865,9 +866,9 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
   {
     static u64 last_frame_tick = 0;
-    u64 now = rex::Clock::QueryHostTickCount();
+    u64 now = rex::Clock::GetHostTickCount();
     if (last_frame_tick) {
-      u64 freq = rex::Clock::QueryHostTickFrequency();
+      u64 freq = rex::Clock::GetHostTickFrequency();
       i64 dt_us = static_cast<i64>((now - last_frame_tick) * 1000000 / freq);
       REX_PERF_SET(kFrameTimeUs, dt_us);
       REX_PERF_SET(kFps, freq / (now - last_frame_tick));
@@ -1205,7 +1206,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
 
   bool draw_succeeded = true;
   bool is_indexed = false;
-  IndexBufferInfo index_buffer_info;
+  IndexBuffer index_buffer_info;
   switch (vgt_draw_initiator.source_select) {
     case xenos::SourceSelect::kDMA: {
       is_indexed = true;
@@ -1323,7 +1324,7 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(memory::RingBuffer* reade
       WriteLoopRangeFromRing(reader, index, count_registers);
       break;
     case 4:
-      WriteREGISTERSRangeFromRing(reader, index, count_registers);
+      WriteRegisterBlockRangeFromRing(reader, index, count_registers);
       break;
     default:
       REX_ASSERT_ALWAYS();
@@ -1366,7 +1367,7 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(memory::RingBuffer* 
       WriteLoopRangeFromMem(index, xlat_address, size_dwords);
       break;
     case 4:
-      WriteREGISTERSRangeFromMem(index, xlat_address, size_dwords);
+      WriteRegisterBlockRangeFromMem(index, xlat_address, size_dwords);
       break;
     default:
       REX_ASSERT_ALWAYS();

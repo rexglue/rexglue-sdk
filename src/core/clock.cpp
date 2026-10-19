@@ -21,7 +21,7 @@
 
 namespace rex {
 
-bool Clock::GetNoScaling() {
+bool Clock::IsNoScaling() {
   return REXCVAR_GET(::rex::cvars::no_scaling);
 }
 
@@ -35,11 +35,11 @@ u64 g_guest_system_time_base = Clock::QueryHostSystemTime();
 constinit std::pair<u64, u64> g_guest_tick_ratio{1, 1};
 
 u64 g_last_guest_tick_count = 0;
-u64 g_last_host_tick_count = Clock::QueryHostTickCount();
+u64 g_last_host_tick_count = Clock::GetHostTickCount();
 std::mutex g_tick_mutex;
 
-void RecomputeGuestTickScalarLocked() {
-  auto frac = std::make_pair(g_guest_tick_frequency, Clock::QueryHostTickFrequency());
+void RecomputeGuestTickRatioLocked() {
+  auto frac = std::make_pair(g_guest_tick_frequency, Clock::GetHostTickFrequency());
   if (g_guest_time_scalar > 1.0) {
     frac.first *= static_cast<u64>(g_guest_time_scalar * 10.0);
     frac.second *= 10;
@@ -52,7 +52,7 @@ void RecomputeGuestTickScalarLocked() {
 }
 
 std::unique_lock<std::mutex> LockAndUpdateGuestClock() {
-  const u64 host_tick_count = Clock::QueryHostTickCount();
+  const u64 host_tick_count = Clock::GetHostTickCount();
   std::unique_lock<std::mutex> lock(g_tick_mutex, std::try_to_lock);
   if (!lock.owns_lock()) {
     lock.lock();
@@ -85,6 +85,13 @@ u64 QueryGuestSystemTimeOffset() {
 }
 }  // namespace
 
+u64 Clock::GetHostTickFrequency() {
+  return GetHostTickFrequencyPlatform();
+}
+u64 Clock::GetHostTickCount() noexcept {
+  return GetHostTickCountPlatform();
+}
+
 f64 Clock::GetGuestTimeScalar() {
   std::lock_guard<std::mutex> lock(g_tick_mutex);
   return g_guest_time_scalar;
@@ -97,7 +104,7 @@ void Clock::SetGuestTimeScalar(f64 scalar) {
 
   std::lock_guard<std::mutex> lock(g_tick_mutex);
   g_guest_time_scalar = scalar;
-  RecomputeGuestTickScalarLocked();
+  RecomputeGuestTickRatioLocked();
 }
 
 std::pair<u64, u64> Clock::GetGuestTickRatio() {
@@ -113,7 +120,7 @@ u64 Clock::GetGuestTickFrequency() {
 void Clock::SetGuestTickFrequency(u64 frequency) {
   std::lock_guard<std::mutex> lock(g_tick_mutex);
   g_guest_tick_frequency = frequency;
-  RecomputeGuestTickScalarLocked();
+  RecomputeGuestTickRatioLocked();
 }
 
 u64 Clock::GetGuestSystemTimeBase() {
@@ -128,7 +135,7 @@ void Clock::SetGuestSystemTimeBase(u64 time_base) {
 
 u64 Clock::QueryGuestTickCount() {
   if (REXCVAR_GET(::rex::cvars::no_scaling)) {
-    const u64 host_tick_count = QueryHostTickCount();
+    const u64 host_tick_count = GetHostTickCount();
     std::lock_guard<std::mutex> lock(g_tick_mutex);
     return mul_div(host_tick_count, g_guest_tick_ratio.first, g_guest_tick_ratio.second);
   }
@@ -146,7 +153,7 @@ u64 Clock::QueryGuestSystemTime() {
   return g_guest_system_time_base + GuestSystemTimeOffsetLocked();
 }
 
-u32 Clock::QueryGuestUptimeMillis() {
+u32 Clock::GetGuestUptimeMillis() {
   return static_cast<u32>(
       std::min<u64>(QueryGuestSystemTimeOffset() / 10000, std::numeric_limits<u32>::max()));
 }

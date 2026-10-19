@@ -25,8 +25,9 @@ D3D12CPUDescriptorPool::Descriptor D3D12CPUDescriptorPool::AllocateDescriptor() 
     return Descriptor(shared_from_this(), index);
   }
   u32 heap_size = static_cast<u32>(1) << heap_size_log2_;
-  if (!heaps_.empty() && last_heap_allocated_ < heap_size) {
-    return Descriptor(shared_from_this(), (heaps_.size() - 1) * heap_size + last_heap_allocated_++);
+  if (!heaps_.empty() && last_heap_allocated_count_ < heap_size) {
+    return Descriptor(shared_from_this(),
+                      (heaps_.size() - 1) * heap_size + last_heap_allocated_count_++);
   }
   heaps_.reserve(heaps_.size() + 1);
   next_free_.resize((heaps_.size() + 1) * size_t{heap_size});
@@ -44,7 +45,7 @@ D3D12CPUDescriptorPool::Descriptor D3D12CPUDescriptorPool::AllocateDescriptor() 
              heap_size);
   }
   heaps_.push_back(descriptor_heap);
-  last_heap_allocated_ = 1;
+  last_heap_allocated_count_ = 1;
   return Descriptor(shared_from_this(), (heaps_.size() - 1) * heap_size);
 }
 

@@ -20,10 +20,10 @@ namespace kernel {
 namespace xam {
 using namespace rex::runtime;
 
-std::atomic<int> xam_dialogs_shown = {0};
+std::atomic<int> g_xam_dialogs_shown = {0};
 
-bool XamIsUIActive() {
-  return xam_dialogs_shown > 0;
+bool XAMIsUIActive() {
+  return g_xam_dialogs_shown > 0;
 }
 
 X_HANDLE CreateXAMModule(Runtime& runtime) {

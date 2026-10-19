@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include <rex/cvar.h>
-#include <rex/ui/video_mode.h>
+#include <rex/ui/resolution_preset.h>
 
 #include "ui/sdl3/cvar_table.h"
 
@@ -25,7 +25,7 @@ bool ResolveConfiguredSize(i32& width_out, i32& height_out) {
   return width_out > 0 && height_out > 0;
 }
 
-void ConfiguredVideoMode(u32& width, u32& height) {
+void GetConfiguredVideoMode(u32& width, u32& height) {
   i32 configured_width = REXCVAR_GET(cvars::video_mode_width);
   i32 configured_height = REXCVAR_GET(cvars::video_mode_height);
   if (!cvar::IsSet(cvars::video_mode_width) && !cvar::IsSet(cvars::video_mode_height)) {

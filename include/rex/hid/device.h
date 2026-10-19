@@ -27,7 +27,7 @@ constexpr u32 kMaxTitleUsers = 4;
 enum class DeviceId : u64 { kInvalid = 0 };
 
 /** A device a driver reports. */
-struct DeviceInfo {
+struct Device {
   /** The driver scoped handle. */
   DeviceId id = DeviceId::kInvalid;
   /** Connection order, assigned by the backend. */

@@ -34,12 +34,12 @@ void AppendModules(Config& config, std::string_view list) {
   }
 }
 
-struct APIVar {
+struct CommandLineField {
   std::string_view flag;
   void (*apply)(Config&, std::string_view);
 };
 
-constexpr std::array<APIVar, 8> kRequiredVars = {{
+constexpr std::array<CommandLineField, 8> kCommandLineFields = {{
     {"--modules", [](Config& c, std::string_view v) { AppendModules(c, v); }},
     {"--game_data_root", [](Config& c, std::string_view v) { c.paths.game_data_root = v; }},
     {"--user_data_root", [](Config& c, std::string_view v) { c.paths.user_data_root = v; }},
@@ -112,9 +112,9 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
     const std::string text =
         option.value ? std::format("--{}={}", option.name, *option.value) : "--" + option.name;
     if (auto field = std::ranges::find_if(
-            kRequiredVars,
-            [&](const APIVar& entry) { return entry.flag.substr(2) == option.name; });
-        field != std::ranges::end(kRequiredVars)) {
+            kCommandLineFields,
+            [&](const CommandLineField& entry) { return entry.flag.substr(2) == option.name; });
+        field != std::ranges::end(kCommandLineFields)) {
       if (!option.value) {
         unknown.push_back(text);
         continue;
@@ -144,9 +144,9 @@ Result<void> ValidateCLIActions(std::span<const CLIAction> actions) {
       return Err(ErrorCategory::kConfig,
                  std::format("action '{}' is not a valid action name", name));
     }
-    if (std::ranges::find_if(kRequiredVars, [&](const APIVar& entry) {
+    if (std::ranges::find_if(kCommandLineFields, [&](const CommandLineField& entry) {
           return entry.flag.substr(2) == name;
-        }) != std::ranges::end(kRequiredVars)) {
+        }) != std::ranges::end(kCommandLineFields)) {
       return Err(ErrorCategory::kConfig,
                  std::format("action '{}' shares its name with a command line field", name));
     }

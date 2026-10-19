@@ -90,7 +90,7 @@ class REX_API CLIArgList {
    *
    * @return The arguments in their original order, without the program name.
    */
-  std::span<const std::string> All() const;
+  std::span<const std::string> GetAll() const;
 
  private:
   std::vector<std::string> all_;

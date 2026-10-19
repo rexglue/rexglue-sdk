@@ -56,7 +56,7 @@ class REX_GPU_XENOS_API GraphicsProvider : public rex::NonCopyable {
       Presenter::HostGPULossCallback host_gpu_loss_callback =
           Presenter::FatalErrorHostGPULossCallback) = 0;
 
-  virtual std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() = 0;
+  virtual std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() = 0;
 
  protected:
   GraphicsProvider() = default;

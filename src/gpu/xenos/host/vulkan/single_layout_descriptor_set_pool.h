@@ -52,7 +52,7 @@ class SingleLayoutDescriptorSetPool {
     next_free_[index] = free_head_;
     free_head_ = index;
   }
-  VkDescriptorSet Get(size_t index) const { return descriptor_sets_[index]; }
+  VkDescriptorSet GetDescriptorSet(size_t index) const { return descriptor_sets_[index]; }
 
  private:
   const VulkanDevice* vulkan_device_;

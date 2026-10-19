@@ -46,7 +46,7 @@ class FileSystem final : public IFileSystem {
   [[nodiscard]] Result<Opened> Open(std::string_view path, const OpenOptions& options) override;
   [[nodiscard]] Result<Opened> OpenRelative(IFile& root, std::string_view path,
                                             const OpenOptions& options) override;
-  [[nodiscard]] Result<FileInfo> Stat(std::string_view path) override;
+  [[nodiscard]] Result<FileStat> Stat(std::string_view path) override;
   [[nodiscard]] Result<std::unique_ptr<IDirectory>> List(std::string_view path,
                                                          std::string_view pattern) override;
   [[nodiscard]] Result<void> CreateDirectories(std::string_view path) override;
@@ -55,7 +55,7 @@ class FileSystem final : public IFileSystem {
                                     bool replace_existing) override;
   [[nodiscard]] Result<void> Rename(IFile& file, std::string_view to, bool replace_existing,
                                     IFile* root = nullptr) override;
-  [[nodiscard]] Result<VolumeInfo> Volume(std::string_view path) override;
+  [[nodiscard]] Result<VolumeStat> GetVolume(std::string_view path) override;
 
  private:
   [[nodiscard]] Result<void> Move(Node& node, std::string_view to, bool replace_existing,

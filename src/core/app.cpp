@@ -184,7 +184,7 @@ void RequestRestart(std::vector<std::string> args) {
   RequestShutdown(0);
 }
 
-bool ShutdownRequested() {
+bool IsShutdownRequested() {
   return g_request.load() != 0;
 }
 
@@ -433,7 +433,7 @@ i32 App::Shutdown() {
   if (auto restart = detail::TakeRestartArgs(); restart && detail::CanRelaunchProcess()) {
     std::vector<std::string> relaunch_args = *restart;
     if (relaunch_args.empty()) {
-      relaunch_args.assign(args_.All().begin(), args_.All().end());
+      relaunch_args.assign(args_.GetAll().begin(), args_.GetAll().end());
     }
     if (auto relaunched = detail::RelaunchProcess(relaunch_args); !relaunched) {
       REXLOG_ERROR(core, "relaunch failed: {}", relaunched.error().GetDescription());

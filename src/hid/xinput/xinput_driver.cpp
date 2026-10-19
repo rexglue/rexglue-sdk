@@ -50,23 +50,23 @@ bool SlotForDevice(rex::hid::DeviceId id, u32* out_slot) {
 
 /** Milliseconds to skip an empty slot after a miss, since querying one is slow. */
 constexpr u64 kSkipInvalidControllerTime = 1100;
-u64 last_invalid_time[kXInputSlotCount];
+u64 g_last_invalid_time[kXInputSlotCount];
 
-DWORD ShouldSkip(u32 user_index) {
-  u64 time = last_invalid_time[user_index];
+DWORD SkipError(u32 user_index) {
+  u64 time = g_last_invalid_time[user_index];
   if (time) {
     u64 deltatime = rex::Clock::QueryHostUptimeMillis() - time;
 
     if (deltatime < kSkipInvalidControllerTime) {
       return ERROR_DEVICE_NOT_CONNECTED;
     }
-    last_invalid_time[user_index] = 0;
+    g_last_invalid_time[user_index] = 0;
   }
   return 0;
 }
 
 void SetSkip(u32 user_index) {
-  last_invalid_time[user_index] = rex::Clock::QueryHostUptimeMillis();
+  g_last_invalid_time[user_index] = rex::Clock::QueryHostUptimeMillis();
 }
 
 }  // namespace
@@ -92,24 +92,24 @@ Result<void> XInputDriver::Setup() {
   return Ok();
 }
 
-void XInputDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
-  auto xigc = get_capabilities_;
-  if (!xigc) {
+void XInputDriver::EnumerateDevices(std::vector<Device>& out) {
+  auto get_capabilities = get_capabilities_;
+  if (!get_capabilities) {
     return;
   }
   for (u32 slot = 0; slot < kXInputSlotCount; slot++) {
-    if (ShouldSkip(slot)) {
+    if (SkipError(slot)) {
       continue;
     }
     XINPUT_CAPABILITIES native_caps;
-    DWORD result = xigc(slot, 0, &native_caps);
+    DWORD result = get_capabilities(slot, 0, &native_caps);
     if (result) {
       if (result == ERROR_DEVICE_NOT_CONNECTED) {
         SetSkip(slot);
       }
       continue;
     }
-    DeviceInfo info;
+    Device info;
     info.id = DeviceForSlot(slot);
     info.name = "XInput Controller";
     info.subtype = static_cast<u8>(native_caps.SubType);
@@ -145,7 +145,7 @@ X_RESULT XInputDriver::ReadDeviceCapabilities(DeviceId id, u32 flags,
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-  DWORD skipper = ShouldSkip(user_index);
+  DWORD skipper = SkipError(user_index);
   if (skipper) {
     return skipper;
   }
@@ -180,7 +180,7 @@ X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-  DWORD skipper = ShouldSkip(user_index);
+  DWORD skipper = SkipError(user_index);
   if (skipper) {
     return skipper;
   }
@@ -191,9 +191,9 @@ X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
     unsigned int dwPaddingReserved;
   } native_state;
 
-  auto xigs = REXCVAR_GET(cvars::guide_button) ? get_state_ex_ : get_state_;
+  auto get_state_fn = REXCVAR_GET(cvars::guide_button) ? get_state_ex_ : get_state_;
 
-  DWORD result = xigs(user_index, &native_state.state);
+  DWORD result = get_state_fn(user_index, &native_state.state);
   if (result) {
     if (result == ERROR_DEVICE_NOT_CONNECTED) {
       SetSkip(user_index);
@@ -218,15 +218,15 @@ X_RESULT XInputDriver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibr
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-  DWORD skipper = ShouldSkip(user_index);
+  DWORD skipper = SkipError(user_index);
   if (skipper) {
     return skipper;
   }
   XINPUT_VIBRATION native_vibration;
   native_vibration.wLeftMotorSpeed = vibration->left_motor_speed;
   native_vibration.wRightMotorSpeed = vibration->right_motor_speed;
-  auto xiss = set_state_;
-  DWORD result = xiss(user_index, &native_vibration);
+  auto set_state_fn = set_state_;
+  DWORD result = set_state_fn(user_index, &native_vibration);
   if (result == ERROR_DEVICE_NOT_CONNECTED) {
     SetSkip(user_index);
   }
@@ -248,8 +248,8 @@ X_RESULT XInputDriver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_k
   }
 
   XINPUT_KEYSTROKE native_keystroke;
-  auto xigk = get_keystroke_;
-  result = xigk(user_index, 0, &native_keystroke);
+  auto get_keystroke_fn = get_keystroke_;
+  result = get_keystroke_fn(user_index, 0, &native_keystroke);
   if (result) {
     return result;
   }

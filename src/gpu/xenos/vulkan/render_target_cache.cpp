@@ -188,7 +188,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
       device_properties.fragmentStoresAndAtomics && device_properties.sampleRateShading &&
       device_properties.standardSampleLocations &&
       shared_memory_binding_count < device_properties.maxPerStageDescriptorStorageBuffers;
-  if (REXCVAR_GET(::rex::gpu::cvars::render_target_path_vulkan) == "fsi") {
+  if (REXCVAR_GET(::rex::gpu::cvars::vulkan_render_target_path) == "fsi") {
     path_ = Path::kPixelShaderInterlock;
   } else {
     path_ = Path::kHostRenderTargets;
@@ -241,7 +241,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
     if (color_rg16_sfloat_supported) {
       color_rg16_draw_format_fallback_to_float_ = true;
       REXLOG_WARN(gpu,
-                  "VulkanRenderTargetCache: R16G16_SNORM render target support is unavailable; "
+                  "VulkanRenderTargetCache: R16G16_SNORM render target support is unavailable, "
                   "falling back to R16G16_SFLOAT for k_16_16");
     } else {
       color_rg16_draw_format_supported = false;
@@ -253,7 +253,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
       color_rgba16_draw_format_fallback_to_float_ = true;
       REXLOG_WARN(
           gpu,
-          "VulkanRenderTargetCache: R16G16B16A16_SNORM render target support is unavailable; "
+          "VulkanRenderTargetCache: R16G16B16A16_SNORM render target support is unavailable, "
           "falling back to R16G16B16A16_SFLOAT for k_16_16_16_16");
     } else {
       color_rgba16_draw_format_supported = false;
@@ -264,7 +264,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
     if (fsi_path_supported) {
       REXLOG_WARN(gpu,
                   "VulkanRenderTargetCache: Host render target 16-bit formats are unsupported "
-                  "(R16G16: {}, R16G16B16A16: {}); switching to fragment shader interlock "
+                  "(R16G16: {}, R16G16B16A16: {}), switching to fragment shader interlock "
                   "path for D3D12 parity",
                   color_rg16_draw_format_supported ? "available" : "unavailable",
                   color_rgba16_draw_format_supported ? "available" : "unavailable");
@@ -565,7 +565,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
                                         &direct_resolve_pipeline_layout_depth_);
 
   for (size_t i = 0; i < static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount); ++i) {
-    const draw_state::ResolveCopyShaderInfo& resolve_copy_shader_info =
+    const draw_state::ResolveCopyShaderTraits& resolve_copy_shader_info =
         draw_state::kResolveCopyShaderInfo[i];
     const ResolveCopyShaderCode& resolve_copy_shader_code = kResolveCopyShaders[i];
     REX_ASSERT(resolve_copy_shader_code.unscaled && resolve_copy_shader_code.unscaled_size_bytes &&
@@ -1057,7 +1057,7 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
 
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
-  draw_state::ResolveInfo resolve_info;
+  draw_state::ResolveRequest resolve_info;
   if (!draw_state::GetResolveInfo(GetRegisterFile(), memory, GetDrawResolutionScaleX(),
                                   GetDrawResolutionScaleY(), IsFixedRG16TruncatedToMinus1To1(),
                                   IsFixedRGBA16TruncatedToMinus1To1(), resolve_info)) {
@@ -1082,13 +1082,12 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
                                    copy_shader_constants, copy_group_count_x, copy_group_count_y);
     REX_ASSERT(copy_group_count_x && copy_group_count_y);
     if (copy_shader != draw_state::ResolveCopyShaderIndex::kUnknown) {
-      const draw_state::ResolveCopyShaderInfo& copy_shader_info =
+      const draw_state::ResolveCopyShaderTraits& copy_shader_info =
           draw_state::kResolveCopyShaderInfo[static_cast<size_t>(copy_shader)];
       bool direct_resolved = false;
       if (GetPath() == Path::kHostRenderTargets) {
         if (REXCVAR_GET(::rex::gpu::cvars::direct_host_resolve)) {
-          direct_resolved =
-              TryResolveCopyDirectly(resolve_info, copy_shader, draw_resolution_scaled);
+          direct_resolved = TryDirectResolve(resolve_info, copy_shader, draw_resolution_scaled);
           if (direct_resolved) {
             ++direct_resolve_success_count_;
           } else {
@@ -1378,7 +1377,7 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
                                          &rt_new_layout);
         command_processor_.PushImageMemoryBarrier(
             vulkan_rt.GetImage(),
-            gpu::vulkan::objects::InitializeSubresourceRange(
+            gpu::vulkan::objects::BuildSubresourceRange(
                 i ? VK_IMAGE_ASPECT_COLOR_BIT
                   : (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)),
             vulkan_rt.GetCurrentStageMask(), rt_dst_stage_mask, vulkan_rt.GetCurrentAccessMask(),
@@ -1592,7 +1591,7 @@ VkRenderPass VulkanRenderTargetCache::GetHostRenderTargetsRenderPass(RenderPassK
 
 VkFormat VulkanRenderTargetCache::GetDepthVulkanFormat(
     xenos::DepthRenderTargetFormat format) const {
-  if (format == xenos::DepthRenderTargetFormat::kD24S8 && GetDepthUnorm24VulkanFormatSupported()) {
+  if (format == xenos::DepthRenderTargetFormat::kD24S8 && IsDepthUnorm24VulkanFormatSupported()) {
     return VK_FORMAT_D24_UNORM_S8_UINT;
   }
   return VK_FORMAT_D32_SFLOAT_S8_UINT;
@@ -1817,7 +1816,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> VulkanRenderTargetCache::Create
   view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
   view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
   view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-  view_create_info.subresourceRange = gpu::vulkan::objects::InitializeSubresourceRange(
+  view_create_info.subresourceRange = gpu::vulkan::objects::BuildSubresourceRange(
       key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
   VkImageView view_depth_color;
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view_depth_color) != VK_SUCCESS) {
@@ -1922,7 +1921,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> VulkanRenderTargetCache::Create
     return nullptr;
   }
   VkDescriptorSet descriptor_set_transfer_source =
-      descriptor_set_pool.Get(descriptor_set_index_transfer_source);
+      descriptor_set_pool.GetDescriptorSet(descriptor_set_index_transfer_source);
   VkWriteDescriptorSet descriptor_set_write[2];
   VkDescriptorImageInfo descriptor_set_write_depth_color;
   descriptor_set_write_depth_color.sampler = VK_NULL_HANDLE;
@@ -1967,7 +1966,7 @@ bool VulkanRenderTargetCache::IsHostDepthEncodingDifferent(
     xenos::DepthRenderTargetFormat format) const {
   switch (format) {
     case xenos::DepthRenderTargetFormat::kD24S8:
-      return !GetDepthUnorm24VulkanFormatSupported();
+      return !IsDepthUnorm24VulkanFormatSupported();
     case xenos::DepthRenderTargetFormat::kD24FS8:
       return !depth_float24_convert_in_pixel_shader_;
   }
@@ -3164,7 +3163,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             depth24 = SPIRVShaderTranslator::PreClampedDepthTo20e4(builder, source_depth_float[i],
-                                                                   GetDepthFloat24Round(), true,
+                                                                   IsDepthFloat24Rounded(), true,
                                                                    ext_inst_glsl_std_450);
           } break;
         }
@@ -3423,7 +3422,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             packed = SPIRVShaderTranslator::PreClampedDepthTo20e4(builder, source_depth_float[0],
-                                                                  GetDepthFloat24Round(), true,
+                                                                  IsDepthFloat24Rounded(), true,
                                                                   ext_inst_glsl_std_450);
           } break;
         }
@@ -3774,7 +3773,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
               } break;
               case xenos::DepthRenderTargetFormat::kD24FS8: {
                 host_depth24 = SPIRVShaderTranslator::PreClampedDepthTo20e4(
-                    builder, host_depth32, GetDepthFloat24Round(), true, ext_inst_glsl_std_450);
+                    builder, host_depth32, IsDepthFloat24Rounded(), true, ext_inst_glsl_std_450);
               } break;
             }
             REX_ASSERT(host_depth24 != spv::NoResult);
@@ -4225,8 +4224,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
         // Depth and stencil always transition together, as usage flags are not stored separately.
         command_processor_.PushImageMemoryBarrier(
             dest_vulkan_rt.GetImage(),
-            gpu::vulkan::objects::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
-                                                             VK_IMAGE_ASPECT_STENCIL_BIT),
+            gpu::vulkan::objects::BuildSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
+                                                        VK_IMAGE_ASPECT_STENCIL_BIT),
             dest_vulkan_rt.GetCurrentStageMask(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             dest_vulkan_rt.GetCurrentAccessMask(), VK_ACCESS_SHADER_READ_BIT,
             dest_vulkan_rt.GetCurrentLayout(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -4242,9 +4241,9 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       HostDepthStoreRectangleConstant host_depth_store_rectangle_constant;
       for (u32 j = 0; j < transfer_rectangle_count; ++j) {
         u32 group_count_x, group_count_y;
-        GetHostDepthStoreRectangleInfo(transfer_rectangles[j], dest_rt_key.msaa_samples,
-                                       host_depth_store_rectangle_constant, group_count_x,
-                                       group_count_y);
+        GetHostDepthStoreRectangleDispatch(transfer_rectangles[j], dest_rt_key.msaa_samples,
+                                           host_depth_store_rectangle_constant, group_count_x,
+                                           group_count_y);
         command_buffer.CmdVkPushConstants(
             host_depth_store_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT,
             static_cast<u32>(offsetof(HostDepthStoreConstants, rectangle)),
@@ -4288,7 +4287,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       dest_vulkan_rt.GetDrawUsage(&dest_dst_stage_mask, &dest_dst_access_mask, &dest_new_layout);
       command_processor_.PushImageMemoryBarrier(
           dest_vulkan_rt.GetImage(),
-          gpu::vulkan::objects::InitializeSubresourceRange(
+          gpu::vulkan::objects::BuildSubresourceRange(
               dest_vulkan_rt.GetKey().is_depth
                   ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                   : VK_IMAGE_ASPECT_COLOR_BIT),
@@ -4316,7 +4315,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
         auto& source_vulkan_rt = *static_cast<VulkanRenderTarget*>(transfer.source);
         command_processor_.PushImageMemoryBarrier(
             source_vulkan_rt.GetImage(),
-            gpu::vulkan::objects::InitializeSubresourceRange(
+            gpu::vulkan::objects::BuildSubresourceRange(
                 source_vulkan_rt.GetKey().is_depth
                     ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                     : VK_IMAGE_ASPECT_COLOR_BIT),
@@ -4332,8 +4331,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
             *static_cast<VulkanRenderTarget*>(transfer.host_depth_source);
         command_processor_.PushImageMemoryBarrier(
             host_depth_source_vulkan_rt.GetImage(),
-            gpu::vulkan::objects::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
-                                                             VK_IMAGE_ASPECT_STENCIL_BIT),
+            gpu::vulkan::objects::BuildSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
+                                                        VK_IMAGE_ASPECT_STENCIL_BIT),
             host_depth_source_vulkan_rt.GetCurrentStageMask(), kSourceStageMask,
             host_depth_source_vulkan_rt.GetCurrentAccessMask(), kSourceAccessMask,
             host_depth_source_vulkan_rt.GetCurrentLayout(), kSourceLayout);
@@ -4377,7 +4376,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       dest_vulkan_rt.GetDrawUsage(&dest_dst_stage_mask, &dest_dst_access_mask, &dest_new_layout);
       command_processor_.PushImageMemoryBarrier(
           dest_vulkan_rt.GetImage(),
-          gpu::vulkan::objects::InitializeSubresourceRange(
+          gpu::vulkan::objects::BuildSubresourceRange(
               dest_rt_key.is_depth ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                                    : VK_IMAGE_ASPECT_COLOR_BIT),
           dest_vulkan_rt.GetCurrentStageMask(), dest_dst_stage_mask,
@@ -4501,7 +4500,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
         auto& source_vulkan_rt = *static_cast<VulkanRenderTarget*>(it->transfer.source);
         command_processor_.PushImageMemoryBarrier(
             source_vulkan_rt.GetImage(),
-            gpu::vulkan::objects::InitializeSubresourceRange(
+            gpu::vulkan::objects::BuildSubresourceRange(
                 source_vulkan_rt.GetKey().is_depth
                     ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                     : VK_IMAGE_ASPECT_COLOR_BIT),
@@ -4519,8 +4518,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
           } else {
             command_processor_.PushImageMemoryBarrier(
                 host_depth_source_vulkan_rt->GetImage(),
-                gpu::vulkan::objects::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
-                                                                 VK_IMAGE_ASPECT_STENCIL_BIT),
+                gpu::vulkan::objects::BuildSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
+                                                            VK_IMAGE_ASPECT_STENCIL_BIT),
                 host_depth_source_vulkan_rt->GetCurrentStageMask(), kSourceStageMask,
                 host_depth_source_vulkan_rt->GetCurrentAccessMask(), kSourceAccessMask,
                 host_depth_source_vulkan_rt->GetCurrentLayout(), kSourceLayout);
@@ -4536,9 +4535,9 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       if (stencil_clear_rectangle_count) {
         VkClearAttachment* stencil_clear_attachment;
         VkClearRect* stencil_clear_rect_write_ptr;
-        command_buffer.CmdClearAttachmentsEmplace(1, stencil_clear_attachment,
-                                                  stencil_clear_rectangle_count,
-                                                  stencil_clear_rect_write_ptr);
+        command_buffer.CmdVkClearAttachmentsEmplace(1, stencil_clear_attachment,
+                                                    stencil_clear_rectangle_count,
+                                                    stencil_clear_rect_write_ptr);
         stencil_clear_attachment->aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
         stencil_clear_attachment->colorAttachment = 0;
         stencil_clear_attachment->clearValue.depthStencil.depth = 0.0f;
@@ -5276,7 +5275,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       } break;
       case xenos::DepthRenderTargetFormat::kD24FS8: {
         packed[0] = SPIRVShaderTranslator::PreClampedDepthTo20e4(
-            builder, source_depth32, GetDepthFloat24Round(), true, ext_inst_glsl_std_450);
+            builder, source_depth32, IsDepthFloat24Rounded(), true, ext_inst_glsl_std_450);
       } break;
     }
     packed[0] = builder.CreateQuadOp(spv::OpBitFieldInsert, type_uint, source_stencil, packed[0],
@@ -5468,9 +5467,9 @@ VkPipeline VulkanRenderTargetCache::GetDirectResolvePipeline(DirectResolvePipeli
   return pipeline;
 }
 
-bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
-                                                     draw_state::ResolveCopyShaderIndex copy_shader,
-                                                     bool draw_resolution_scaled) {
+bool VulkanRenderTargetCache::TryDirectResolve(const draw_state::ResolveRequest& resolve_info,
+                                               draw_state::ResolveCopyShaderIndex copy_shader,
+                                               bool draw_resolution_scaled) {
   ++direct_resolve_attempt_count_;
   if (direct_resolve_pipeline_layout_color_ == VK_NULL_HANDLE ||
       direct_resolve_pipeline_layout_depth_ == VK_NULL_HANDLE) {
@@ -5535,7 +5534,7 @@ bool VulkanRenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_leng
     RenderTargetKey rt_key = vulkan_rt.GetKey();
     command_processor_.PushImageMemoryBarrier(
         vulkan_rt.GetImage(),
-        gpu::vulkan::objects::InitializeSubresourceRange(
+        gpu::vulkan::objects::BuildSubresourceRange(
             rt_key.is_depth ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                             : VK_IMAGE_ASPECT_COLOR_BIT),
         vulkan_rt.GetCurrentStageMask(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,

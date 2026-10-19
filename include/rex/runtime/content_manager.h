@@ -177,14 +177,14 @@ REX_INTERFACE(IContentManager, "rex.runtime.content_manager", 1)
    *
    * @return The title id, 0 when the executable has no execution info.
    */
-  [[nodiscard]] virtual u32 GetTitleId() const = 0;
+  [[nodiscard]] virtual u32 GetTitleID() const = 0;
 
   /**
    * Returns the XDBF data of the executable.
    *
    * @return The data, invalid when the executable has no XDBF section.
    */
-  [[nodiscard]] virtual runtime::XDBFGameData GetTitleXDBF() const = 0;
+  [[nodiscard]] virtual runtime::XDBFTitleData GetTitleXDBF() const = 0;
 
   /**
    * Returns the signed in profile.

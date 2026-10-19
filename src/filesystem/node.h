@@ -185,7 +185,7 @@ class Node : public NonCopyable {
    *
    * @return The name, paths, attributes, sizes and times.
    */
-  [[nodiscard]] FileInfo GetInfo() const;
+  [[nodiscard]] FileStat GetInfo() const;
 
   /**
    * Returns the children in insertion order.
@@ -356,7 +356,7 @@ class Node : public NonCopyable {
   /** Updates provider state that follows the path, after the node or an ancestor moved. */
   virtual void OnMoved();
 
-  FileInfo info_;                               /**< Name, paths, attributes, sizes and times. */
+  FileStat info_;                               /**< Name, paths, attributes, sizes and times. */
   std::vector<std::unique_ptr<Node>> children_; /**< Children in insertion order. */
 
  private:

@@ -126,9 +126,9 @@ void DecodedBinary::ComputeCodeRegions() {
 
     for (size_t i = 0; i < sec.instructions.size(); i++) {
       const auto& insn = sec.instructions[i];
-      bool is_null = IsInvalid(insn);
+      bool is_invalid = IsInvalid(insn);
 
-      if (is_null) {
+      if (is_invalid) {
         null_run++;
         if (in_code && null_run >= kMinNullRun) {
           current.end = sec.base + static_cast<u32>((i - null_run + 1) * 4);

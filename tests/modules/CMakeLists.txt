@@ -1,7 +1,7 @@
 # Test modules for the module loader tests. Most link only the header only SDK targets, the apu
 # and hid modules link rexcore and the cross modules link rexruntime.
 
-foreach (name good missing badversion failinit dupecho)
+foreach (name good missing badversion failinit duplicate-echo)
   set(_target rexmod-test-${name})
   add_library(${_target} SHARED ${name}.cpp)
   target_include_directories(

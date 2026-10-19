@@ -49,7 +49,7 @@ enum class CounterId : u8 {
  * @param id The counter.
  * @return The counter name in snake case, for example "frame_time_us", or "unknown".
  */
-REX_API const char* CounterName(CounterId id);
+REX_API const char* GetCounterName(CounterId id);
 
 /**
  * Sets the live value of a counter.
@@ -105,7 +105,7 @@ REX_API void WriteCSVFrame();
 /**
  * Flushes and closes the CSV log.
  */
-REX_API void FlushCSV();
+REX_API void CloseCSV();
 
 /**
  * Static hooks that emit Tracy frame marks and take the per frame counter snapshot.
@@ -142,18 +142,6 @@ class Profiler {
   static void OnThreadExit() {}
 
   /**
-   * Same as OnThreadEnter.
-   *
-   * @param name The thread name. Null leaves the name unchanged.
-   */
-  static void ThreadEnter(const char* name = nullptr) { OnThreadEnter(name); }
-
-  /**
-   * Thread exit hook. It does nothing.
-   */
-  static void ThreadExit() {}
-
-  /**
    * Ends a frame. It emits a Tracy frame mark and, with perf counters compiled in, snapshots the
    * counters and writes a CSV row.
    */
@@ -183,7 +171,7 @@ class Profiler {
       tracy::ShutdownProfiler();
 #endif
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
-    FlushCSV();
+    CloseCSV();
 #endif
   }
 

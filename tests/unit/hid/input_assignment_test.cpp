@@ -20,8 +20,8 @@
 #include "hid/hub.h"
 
 using rex::hid::CodeOf;
+using rex::hid::Device;
 using rex::hid::DeviceId;
-using rex::hid::DeviceInfo;
 using rex::hid::Driver;
 using rex::hid::HIDError;
 using rex::hid::Hub;
@@ -37,16 +37,16 @@ using rex::hid::X_INPUT_VIBRATION;
 
 namespace {
 
-DeviceInfo Pad(rex::u64 id, rex::u32 ordinal) {
-  DeviceInfo info;
+Device Pad(rex::u64 id, rex::u32 ordinal) {
+  Device info;
   info.id = static_cast<DeviceId>(id);
   info.ordinal = ordinal;
   return info;
 }
 
-std::vector<DeviceId> For(const IDeviceAssignment& a, rex::u32 user) {
+std::vector<DeviceId> GetDevicesForUser(const IDeviceAssignment& a, rex::u32 user) {
   std::vector<DeviceId> out;
-  a.DevicesForUser(user, out);
+  a.GetDevicesForUser(user, out);
   return out;
 }
 
@@ -54,7 +54,7 @@ std::vector<DeviceId> For(const IDeviceAssignment& a, rex::u32 user) {
 class FakeDriver final : public Driver {
  public:
   void Add(rex::u64 id, bool synthetic = false) {
-    DeviceInfo info;
+    Device info;
     info.id = static_cast<DeviceId>(id);
     info.synthetic = synthetic;
     devices_.push_back(info);
@@ -62,7 +62,7 @@ class FakeDriver final : public Driver {
   }
 
   void Remove(rex::u64 id) {
-    std::erase_if(devices_, [&](const DeviceInfo& d) { return d.id == static_cast<DeviceId>(id); });
+    std::erase_if(devices_, [&](const Device& d) { return d.id == static_cast<DeviceId>(id); });
     states_.erase(static_cast<DeviceId>(id));
   }
 
@@ -76,7 +76,7 @@ class FakeDriver final : public Driver {
     keystrokes_[static_cast<DeviceId>(id)] = ks;
   }
 
-  void EnumerateDevices(std::vector<DeviceInfo>& out) override { out = devices_; }
+  void EnumerateDevices(std::vector<Device>& out) override { out = devices_; }
 
   [[nodiscard]] rex::Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override {
     auto it = states_.find(id);
@@ -120,12 +120,12 @@ class FakeDriver final : public Driver {
     return rex::hid::BuildError(HIDError::kNotConnected, "unplugged");
   }
 
-  std::vector<DeviceInfo> devices_;
+  std::vector<Device> devices_;
   std::map<DeviceId, X_INPUT_STATE> states_;
   std::map<DeviceId, X_INPUT_KEYSTROKE> keystrokes_;
 };
 
-std::unique_ptr<Hub> SharedSystem(FakeDriver** out_driver) {
+std::unique_ptr<Hub> MakeSharedHub(FakeDriver** out_driver) {
   auto driver = std::make_unique<FakeDriver>();
   *out_driver = driver.get();
   auto system = std::make_unique<Hub>();
@@ -140,9 +140,9 @@ REX_TEST_CASE("SharedAssignment puts every device on user 0", "[hid]") {
   SharedAssignment shared;
   shared.OnDevicesChanged({Pad(10, 0), Pad(11, 1)});
 
-  REQUIRE(For(shared, 0) ==
+  REQUIRE(GetDevicesForUser(shared, 0) ==
           std::vector<DeviceId>{static_cast<DeviceId>(10), static_cast<DeviceId>(11)});
-  REQUIRE(For(shared, 1).empty());
+  REQUIRE(GetDevicesForUser(shared, 1).empty());
 }
 
 REX_TEST_CASE("SlotAssignment does not renumber survivors when a pad is unplugged", "[hid]") {
@@ -150,13 +150,13 @@ REX_TEST_CASE("SlotAssignment does not renumber survivors when a pad is unplugge
   slots.OnDevicesChanged({Pad(10, 0), Pad(11, 1)});
   slots.OnDevicesChanged({Pad(11, 1)});
 
-  REQUIRE(For(slots, 0).empty());
-  REQUIRE(For(slots, 1) == std::vector<DeviceId>{static_cast<DeviceId>(11)});
+  REQUIRE(GetDevicesForUser(slots, 0).empty());
+  REQUIRE(GetDevicesForUser(slots, 1) == std::vector<DeviceId>{static_cast<DeviceId>(11)});
 }
 
 REX_TEST_CASE("Both controllers reach title user 0", "[hid]") {
   FakeDriver* driver = nullptr;
-  auto system = SharedSystem(&driver);
+  auto system = MakeSharedHub(&driver);
   driver->Add(1);
   driver->Add(2);
   driver->SetButtons(1, kXInputGamepadA);
@@ -169,7 +169,7 @@ REX_TEST_CASE("Both controllers reach title user 0", "[hid]") {
 
 REX_TEST_CASE("Unplugging 1 controller leaves the other working", "[hid]") {
   FakeDriver* driver = nullptr;
-  auto system = SharedSystem(&driver);
+  auto system = MakeSharedHub(&driver);
   driver->Add(1);
   driver->Add(2);
 
@@ -184,7 +184,7 @@ REX_TEST_CASE("Unplugging 1 controller leaves the other working", "[hid]") {
 
 REX_TEST_CASE("Capabilities follow the controller in hand", "[hid]") {
   FakeDriver* driver = nullptr;
-  auto system = SharedSystem(&driver);
+  auto system = MakeSharedHub(&driver);
   driver->Add(1);
   driver->Add(2);
 
@@ -198,7 +198,7 @@ REX_TEST_CASE("Capabilities follow the controller in hand", "[hid]") {
 
 REX_TEST_CASE("A keystroke from the second controller reaches the title", "[hid]") {
   FakeDriver* driver = nullptr;
-  auto system = SharedSystem(&driver);
+  auto system = MakeSharedHub(&driver);
   driver->Add(1);
   driver->Add(2);
   driver->QueueKeystroke(2, 0x5800);

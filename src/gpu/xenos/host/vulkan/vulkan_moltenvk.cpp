@@ -26,7 +26,7 @@ constexpr std::array<std::string_view, 4> kLoaderFiles = {
     "lib/libMoltenVK.dylib"};
 constexpr std::array<std::string_view, 2> kSPIRVToolsFiles = {
     "lib/libSPIRV-Tools-shared.dylib", "Frameworks/libSPIRV-Tools-shared.dylib"};
-constexpr std::array<std::string_view, 3> kIcdFiles = {"share/vulkan/icd.d/MoltenVK_icd.json",
+constexpr std::array<std::string_view, 3> kICDFiles = {"share/vulkan/icd.d/MoltenVK_icd.json",
                                                        "Resources/vulkan/icd.d/MoltenVK_icd.json",
                                                        "vulkan/icd.d/MoltenVK_icd.json"};
 constexpr std::array<std::string_view, 2> kSDKEnvironmentVariables = {"REX_VULKAN_SDK",
@@ -176,7 +176,7 @@ MacOSVulkanRuntimePaths DetectMacOSVulkanRuntimePaths() {
     }
 
     AssignIfExists(paths.spirv_tools_library, root, kSPIRVToolsFiles);
-    AssignIfExists(paths.moltenvk_icd, root, kIcdFiles);
+    AssignIfExists(paths.moltenvk_icd, root, kICDFiles);
   }
 
   return paths;

@@ -26,7 +26,7 @@
 
 /**
  * Hooks a recompiled function with a native C++ function. The native function uses plain types
- * (u32, MappedU32, PPCVRegister, ByValue structures and others) and HostToGuestFunction translates
+ * (u32, MappedU32, PPCVRegister, ByValue structures and others) and GuestToHostThunk translates
  * the registers.
  *
  * @param subroutine The recompiled function symbol.
@@ -41,12 +41,12 @@
 #define REX_HOOK(subroutine, function)                           \
   extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {      \
     ZoneNamedN(___tracy_hook_zone, #subroutine, TracyIsStarted); \
-    rex::ppc::HostToGuestFunction<function>(ctx, base);          \
+    rex::ppc::GuestToHostThunk<function>(ctx, base);             \
   }
 #else
 #define REX_HOOK(subroutine, function)                      \
   extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) { \
-    rex::ppc::HostToGuestFunction<function>(ctx, base);     \
+    rex::ppc::GuestToHostThunk<function>(ctx, base);        \
   }
 #endif
 
@@ -143,13 +143,13 @@
  * Defines a stub that returns a fixed value and whose symbol a kernel export table links against.
  *
  * @param name The hook symbol.
- * @param retval The value returned in r3.
+ * @param value The value returned in r3.
  *
  * @code
  * REX_EXPORT_STUB_RETURN(__imp__DmRegisterCommandProcessorEx, 0);
  * @endcode
  */
-#define REX_EXPORT_STUB_RETURN(name, retval) REX_STUB_RETURN(name, retval)
+#define REX_EXPORT_STUB_RETURN(name, value) REX_STUB_RETURN(name, value)
 
 namespace rex::ppc {
 

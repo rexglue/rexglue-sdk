@@ -745,8 +745,8 @@ u32 XeCryptBnQwBeSigCreate_entry(MappedVoid sig, MappedVoid hash, MappedVoid sal
   }
   EXCRYPT_SIG block;
   ExCryptBnQwBeSigFormat(&block, hash.As<const u8*>(), salt.As<const u8*>());
-  return XeCryptBnQwNeRsaPrvCrypt_entry(MappedU64::GetFromHost(reinterpret_cast<be_u64*>(&block)),
-                                        MappedU64::GetFromHost(sig.As<be_u64*>()), rsa);
+  return XeCryptBnQwNeRsaPrvCrypt_entry(MappedU64::FromHost(reinterpret_cast<be_u64*>(&block)),
+                                        MappedU64::FromHost(sig.As<be_u64*>()), rsa);
 }
 
 /**
@@ -766,8 +766,8 @@ u32 XeCryptBnQwBeSigVerify_entry(MappedVoid sig, MappedVoid hash, MappedVoid sal
     return 0;
   }
   EXCRYPT_SIG recovered;
-  if (!XeCryptBnQwNeRsaPubCrypt_entry(MappedU64::GetFromHost(sig.As<be_u64*>()),
-                                      MappedU64::GetFromHost(reinterpret_cast<be_u64*>(&recovered)),
+  if (!XeCryptBnQwNeRsaPubCrypt_entry(MappedU64::FromHost(sig.As<be_u64*>()),
+                                      MappedU64::FromHost(reinterpret_cast<be_u64*>(&recovered)),
                                       rsa)) {
     return 0;
   }
@@ -1316,7 +1316,7 @@ u32 XeKeysObscureKey_entry(MappedVoid input, MappedVoid output) {
 u32 XeKeysHmacShaUsingKey_entry(MappedVoid obscured_key, MappedVoid inp_1, u32 inp_1_size,
                                 MappedVoid inp_2, u32 inp_2_size, MappedVoid inp_3, u32 inp_3_size,
                                 MappedVoid out, u32 out_size) {
-  REX_KERNEL_ARG(obscured_key);
+  REX_KERNEL_REQUIRE_NONNULL(obscured_key);
 
   u8 key[16];
   UnobscureKey(obscured_key.As<const u8*>(), key);

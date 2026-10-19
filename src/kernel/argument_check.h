@@ -17,10 +17,10 @@
  * @param PTR The pointer argument.
  *
  * @code
- * REX_KERNEL_ARG(stats_ptr);
+ * REX_KERNEL_REQUIRE_NONNULL(stats_ptr);
  * @endcode
  */
-#define REX_KERNEL_ARG(PTR)            \
-  if (!(PTR)) {                        \
-    return X_STATUS_INVALID_PARAMETER; \
+#define REX_KERNEL_REQUIRE_NONNULL(PTR) \
+  if (!(PTR)) {                         \
+    return X_STATUS_INVALID_PARAMETER;  \
   }

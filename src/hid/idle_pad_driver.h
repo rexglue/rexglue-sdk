@@ -18,7 +18,7 @@ namespace rex::hid {
 /** 1 synthetic idle pad. It answers on user 0 behind every physical pad. */
 class IdlePadDriver final : public Driver {
  public:
-  void EnumerateDevices(std::vector<DeviceInfo>& out) override;
+  void EnumerateDevices(std::vector<Device>& out) override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id, u32 flags) override;
   [[nodiscard]] Result<void> SetDeviceVibration(DeviceId id,

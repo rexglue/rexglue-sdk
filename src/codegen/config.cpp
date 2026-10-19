@@ -100,8 +100,8 @@ std::string_view NearestShimName(std::string_view name) {
   return best;
 }
 
-bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string& file_path) {
-  if (auto* retired = toml["rexcrt"].as_table()) {
+bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string& description) {
+  if (auto* retired = root["rexcrt"].as_table()) {
     std::string converted = "[shim]";
     for (const auto& [name, val] : *retired) {
       if (auto addr = val.value<i64>()) {
@@ -110,56 +110,56 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       }
     }
     REXLOG_ERROR(codegen, "config {}: the [rexcrt] table was renamed, replace it with\n{}",
-                 file_path, converted);
+                 description, converted);
     return false;
   }
 
-  if (auto v = toml["project_name"].value<std::string>()) {
+  if (auto v = root["project_name"].value<std::string>()) {
     MergeScalar(cfg.project_name, *v, "project_name");
   }
-  if (auto v = toml["file_path"].value<std::string>()) {
+  if (auto v = root["file_path"].value<std::string>()) {
     MergeScalar(cfg.file_path, *v, "file_path");
   }
-  if (auto v = toml["out_directory_path"].value<std::string>()) {
+  if (auto v = root["out_directory_path"].value<std::string>()) {
     MergeScalar(cfg.out_directory_path, *v, "out_directory_path");
   }
-  if (auto v = toml["template_dir"].value<std::string>()) {
+  if (auto v = root["template_dir"].value<std::string>()) {
     MergeScalar(cfg.template_dir, *v, "template_dir");
   }
 
-  auto has_bool = [&](const char* key) -> bool { return toml[key].is_boolean(); };
-  MergeBool(cfg.skip_lr, toml["skip_lr"].value_or(false), has_bool("skip_lr"), "skip_lr");
-  MergeBool(cfg.skip_msr, toml["skip_msr"].value_or(false), has_bool("skip_msr"), "skip_msr");
-  MergeBool(cfg.ctr_as_local_variable, toml["ctr_as_local"].value_or(false),
+  auto has_bool = [&](const char* key) -> bool { return root[key].is_boolean(); };
+  MergeBool(cfg.skip_lr, root["skip_lr"].value_or(false), has_bool("skip_lr"), "skip_lr");
+  MergeBool(cfg.skip_msr, root["skip_msr"].value_or(false), has_bool("skip_msr"), "skip_msr");
+  MergeBool(cfg.ctr_as_local_variable, root["ctr_as_local"].value_or(false),
             has_bool("ctr_as_local"), "ctr_as_local");
-  MergeBool(cfg.xer_as_local_variable, toml["xer_as_local"].value_or(false),
+  MergeBool(cfg.xer_as_local_variable, root["xer_as_local"].value_or(false),
             has_bool("xer_as_local"), "xer_as_local");
-  MergeBool(cfg.reserved_register_as_local_variable, toml["reserved_as_local"].value_or(false),
+  MergeBool(cfg.reserved_register_as_local_variable, root["reserved_as_local"].value_or(false),
             has_bool("reserved_as_local"), "reserved_as_local");
-  MergeBool(cfg.cr_registers_as_local_variables, toml["cr_as_local"].value_or(false),
+  MergeBool(cfg.cr_registers_as_local_variables, root["cr_as_local"].value_or(false),
             has_bool("cr_as_local"), "cr_as_local");
   MergeBool(cfg.non_argument_registers_as_local_variables,
-            toml["non_argument_as_local"].value_or(false), has_bool("non_argument_as_local"),
+            root["non_argument_as_local"].value_or(false), has_bool("non_argument_as_local"),
             "non_argument_as_local");
   MergeBool(cfg.non_volatile_registers_as_local_variables,
-            toml["non_volatile_as_local"].value_or(false), has_bool("non_volatile_as_local"),
+            root["non_volatile_as_local"].value_or(false), has_bool("non_volatile_as_local"),
             "non_volatile_as_local");
-  MergeBool(cfg.generate_exception_handlers, toml["generate_exception_handlers"].value_or(false),
+  MergeBool(cfg.generate_exception_handlers, root["generate_exception_handlers"].value_or(false),
             has_bool("generate_exception_handlers"), "generate_exception_handlers");
   if (has_bool("is_dll")) {
-    cfg.is_dll = toml["is_dll"].value_or(false);
+    cfg.is_dll = root["is_dll"].value_or(false);
   }
 
-  if (auto v = toml["longjmp_address"].value<i64>()) {
+  if (auto v = root["longjmp_address"].value<i64>()) {
     u32 addr = static_cast<u32>(*v);
-    MergeScalar(cfg.long_jmp_address, addr, "longjmp_address");
+    MergeScalar(cfg.longjmp_address, addr, "longjmp_address");
   }
-  if (auto v = toml["setjmp_address"].value<i64>()) {
+  if (auto v = root["setjmp_address"].value<i64>()) {
     u32 addr = static_cast<u32>(*v);
-    MergeScalar(cfg.set_jmp_address, addr, "setjmp_address");
+    MergeScalar(cfg.setjmp_address, addr, "setjmp_address");
   }
 
-  if (auto* analysis_table = toml["analysis"].as_table()) {
+  if (auto* analysis_table = root["analysis"].as_table()) {
     if (auto v = (*analysis_table)["max_jump_extension"].value<u32>()) {
       MergeScalar(cfg.max_jump_extension, *v, "analysis.max_jump_extension");
     }
@@ -179,7 +179,7 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  if (auto* shim_table = toml["shim"].as_table()) {
+  if (auto* shim_table = root["shim"].as_table()) {
     size_t added = 0;
     for (const auto& [name, val] : *shim_table) {
       if (auto addr = val.value<i64>()) {
@@ -194,11 +194,11 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       }
     }
     if (added > 0) {
-      REXLOG_DEBUG(codegen, "config   [shim] added/updated {} entries from {}", added, file_path);
+      REXLOG_DEBUG(codegen, "config   [shim] added/updated {} entries from {}", added, description);
     }
   }
 
-  if (auto functions_table = toml["functions"].as_table()) {
+  if (auto functions_table = root["functions"].as_table()) {
     size_t added = 0;
     for (auto& [key, value] : *functions_table) {
       std::string key_str(key.str());
@@ -235,18 +235,18 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto it = cfg.functions.find(address);
       if (it != cfg.functions.end()) {
         REXLOG_DEBUG(codegen, "config   [functions] 0x{:08X} overridden from {}", address,
-                     file_path);
+                     description);
       }
       cfg.functions.insert_or_assign(address, std::move(fcfg));
       ++added;
     }
     if (added > 0) {
       REXLOG_DEBUG(codegen, "config   [functions] added/updated {} entries from {}", added,
-                   file_path);
+                   description);
     }
   }
 
-  if (auto invalid_array = toml["invalid_instructions"].as_array()) {
+  if (auto invalid_array = root["invalid_instructions"].as_array()) {
     for (auto& entry : *invalid_array) {
       auto* table = entry.as_table();
       if (!table) {
@@ -269,13 +269,13 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto it = cfg.invalid_instruction_hints.find(*data_opt);
       if (it != cfg.invalid_instruction_hints.end()) {
         REXLOG_DEBUG(codegen, "config   [[invalid_instructions]] 0x{:08X} overridden from {}",
-                     *data_opt, file_path);
+                     *data_opt, description);
       }
       cfg.invalid_instruction_hints.insert_or_assign(*data_opt, *size_opt);
     }
   }
 
-  if (auto switch_table_array = toml["switch_tables"].as_array()) {
+  if (auto switch_table_array = root["switch_tables"].as_array()) {
     for (auto& entry : *switch_table_array) {
       auto* table = entry.as_table();
       if (!table) {
@@ -320,7 +320,7 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto it = cfg.switch_tables.find(*address_opt);
       if (it != cfg.switch_tables.end()) {
         REXLOG_DEBUG(codegen, "config   [[switch_tables]] 0x{:08X} overridden from {}",
-                     *address_opt, file_path);
+                     *address_opt, description);
       }
       size_t label_count = jt.targets.size();
       cfg.switch_tables.insert_or_assign(*address_opt, std::move(jt));
@@ -329,7 +329,7 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  if (auto mid_asm_hook_array = toml["midasm_hook"].as_array()) {
+  if (auto mid_asm_hook_array = root["midasm_hook"].as_array()) {
     for (auto& entry : *mid_asm_hook_array) {
       auto* table = entry.as_table();
       if (!table) {
@@ -386,13 +386,13 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto it = cfg.mid_asm_hooks.find(*address_opt);
       if (it != cfg.mid_asm_hooks.end()) {
         REXLOG_DEBUG(codegen, "config   [[midasm_hook]] 0x{:08X} overridden from {}", *address_opt,
-                     file_path);
+                     description);
       }
       cfg.mid_asm_hooks.insert_or_assign(*address_opt, std::move(mid_asm_hook));
     }
   }
 
-  if (auto indirect_call_array = toml["indirect_calls"].as_array()) {
+  if (auto indirect_call_array = root["indirect_calls"].as_array()) {
     for (auto& entry : *indirect_call_array) {
       if (auto addr = entry.value<i64>()) {
         cfg.known_indirect_call_hints.insert(static_cast<u32>(*addr));
@@ -404,7 +404,7 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
     const std::string_view block_name = block == MMIOBlock::kGPU ? "gpu" : "apu";
     for (const bool write : {false, true}) {
       const std::string_view list_name = write ? "write" : "read";
-      const auto* list = toml["mmio"][block_name][list_name].as_array();
+      const auto* list = root["mmio"][block_name][list_name].as_array();
       if (!list) {
         continue;
       }
@@ -450,14 +450,14 @@ bool LoadRecursive(const std::filesystem::path& file_path, RecompilerConfig& cfg
   visited.insert(canonical_str);
   cfg.loaded_files.push_back(canonical_str);
 
-  toml::table toml;
+  toml::table table;
   try {
-    toml = toml::parse_file(canonical_str);
+    table = toml::parse_file(canonical_str);
   } catch (const toml::parse_error& e) {
     REX_FAIL(codegen, false, "Failed to parse config file '{}': {}", canonical_str, e.what());
   }
   REXLOG_DEBUG(codegen, "config loaded: {}", file_path.filename().string());
-  return ApplyTableWithIncludes(toml, canonical.parent_path(), cfg, visited, depth,
+  return ApplyTableWithIncludes(table, canonical.parent_path(), cfg, visited, depth,
                                 file_path.filename().string());
 }
 
@@ -551,8 +551,8 @@ void RecompilerConfig::ClearAddressEntries() {
   functions.clear();
   switch_tables.clear();
   mid_asm_hooks.clear();
-  long_jmp_address = 0;
-  set_jmp_address = 0;
+  longjmp_address = 0;
+  setjmp_address = 0;
   shim_functions.clear();
   invalid_instruction_hints.clear();
   known_indirect_call_hints.clear();
@@ -583,13 +583,13 @@ void RecompilerConfig::MergeSharedEntriesIn(const RecompilerConfig& shared, u32 
   MergeKeyedIn(mid_asm_hooks, shared.mid_asm_hooks, base, size);
   MergeKeyedIn(invalid_instruction_hints, shared.invalid_instruction_hints, base, size);
   MergeKeyedIn(declared_mmio_accesses, shared.declared_mmio_accesses, base, size);
-  if (long_jmp_address == 0 && InImage(shared.long_jmp_address, base, size) &&
-      shared.long_jmp_address != 0) {
-    long_jmp_address = shared.long_jmp_address;
+  if (longjmp_address == 0 && InImage(shared.longjmp_address, base, size) &&
+      shared.longjmp_address != 0) {
+    longjmp_address = shared.longjmp_address;
   }
-  if (set_jmp_address == 0 && InImage(shared.set_jmp_address, base, size) &&
-      shared.set_jmp_address != 0) {
-    set_jmp_address = shared.set_jmp_address;
+  if (setjmp_address == 0 && InImage(shared.setjmp_address, base, size) &&
+      shared.setjmp_address != 0) {
+    setjmp_address = shared.setjmp_address;
   }
   for (const auto& [name, address] : shared.shim_functions) {
     if (InImage(address, base, size)) {
@@ -646,11 +646,11 @@ std::vector<std::string> RecompilerConfig::ListEntriesOutside(
   for (u32 address : exception_handler_func_hints) {
     check("analysis.exception_handler_funcs", address);
   }
-  if (long_jmp_address != 0) {
-    check("longjmp_address", long_jmp_address);
+  if (longjmp_address != 0) {
+    check("longjmp_address", longjmp_address);
   }
-  if (set_jmp_address != 0) {
-    check("setjmp_address", set_jmp_address);
+  if (setjmp_address != 0) {
+    check("setjmp_address", setjmp_address);
   }
   std::sort(outside.begin(), outside.end());
   return outside;
@@ -666,8 +666,8 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   };
 
-  check_alignment(long_jmp_address, "longjmp");
-  check_alignment(set_jmp_address, "setjmp");
+  check_alignment(longjmp_address, "longjmp");
+  check_alignment(setjmp_address, "setjmp");
   for (const auto& entry : declared_mmio_accesses) {
     check_alignment(entry.first, "mmio");
   }

@@ -23,8 +23,8 @@ bool IsAligned16(const void* address) {
 }  // namespace
 
 REX_TEST_CASE("The vector mask and shift tables are 16 byte aligned", "[ppc][simd]") {
-  CHECK(IsAligned16(rex::ppc::simd::VectorMaskL));
-  CHECK(IsAligned16(rex::ppc::simd::VectorMaskR));
-  CHECK(IsAligned16(rex::ppc::simd::VectorShiftTableL));
-  CHECK(IsAligned16(rex::ppc::simd::VectorShiftTableR));
+  CHECK(IsAligned16(rex::ppc::simd::kVectorMaskL));
+  CHECK(IsAligned16(rex::ppc::simd::kVectorMaskR));
+  CHECK(IsAligned16(rex::ppc::simd::kVectorShiftTableL));
+  CHECK(IsAligned16(rex::ppc::simd::kVectorShiftTableR));
 }

@@ -342,7 +342,7 @@ void SPIRVShaderTranslator::CompleteFragmentShaderInMain() {
 
   bool fsi_pixel_potentially_killed = false;
 
-  if (GetCurrentShader().GetKillsPixels()) {
+  if (GetCurrentShader().DoesKillPixels()) {
     if (edram_fragment_shader_interlock_) {
       fsi_pixel_potentially_killed = true;
       if (!features_.demote_to_helper_invocation) {
@@ -960,10 +960,10 @@ void SPIRVShaderTranslator::CompleteFragmentShaderInMain() {
           uint_vector_temp_.push_back(2);
           spv::Id blend_constant_color_unclamped = builder_->createRvalueSwizzle(
               spv::NoPrecision, type_float3, blend_constant_unclamped, uint_vector_temp_);
-          spv::Id blend_constant_color_clamped =
-              FSIFlushNaNClampAndInBlending(blend_constant_color_unclamped, rt_color_is_fixed_point,
-                                            rt_clamp_color_min, rt_clamp_color_max);
-          spv::Id blend_constant_alpha_clamped = FSIFlushNaNClampAndInBlending(
+          spv::Id blend_constant_color_clamped = FSIFlushNaNAndClampForBlending(
+              blend_constant_color_unclamped, rt_color_is_fixed_point, rt_clamp_color_min,
+              rt_clamp_color_max);
+          spv::Id blend_constant_alpha_clamped = FSIFlushNaNAndClampForBlending(
               builder_->createCompositeExtract(blend_constant_unclamped, type_float, 3),
               rt_alpha_is_fixed_point, rt_clamp_alpha_min, rt_clamp_alpha_max);
 
@@ -974,9 +974,9 @@ void SPIRVShaderTranslator::CompleteFragmentShaderInMain() {
           spv::Id source_color_unclamped = builder_->createRvalueSwizzle(
               spv::NoPrecision, type_float3, color, uint_vector_temp_);
           spv::Id source_color_clamped =
-              FSIFlushNaNClampAndInBlending(source_color_unclamped, rt_color_is_fixed_point,
-                                            rt_clamp_color_min, rt_clamp_color_max);
-          spv::Id source_alpha_clamped = FSIFlushNaNClampAndInBlending(
+              FSIFlushNaNAndClampForBlending(source_color_unclamped, rt_color_is_fixed_point,
+                                             rt_clamp_color_min, rt_clamp_color_max);
+          spv::Id source_alpha_clamped = FSIFlushNaNAndClampForBlending(
               builder_->createCompositeExtract(color, type_float, 3), rt_alpha_is_fixed_point,
               rt_clamp_alpha_min, rt_clamp_alpha_max);
 
@@ -1208,7 +1208,7 @@ void SPIRVShaderTranslator::CompleteFragmentShaderInMain() {
     if (depth_stencil_mode == Modification::DepthStencilMode::kFloat24Truncating ||
         depth_stencil_mode == Modification::DepthStencilMode::kFloat24Rounding) {
       spv::Id depth;
-      if (GetCurrentShader().GetWritesDepth()) {
+      if (GetCurrentShader().IsDepthWritten()) {
         depth = builder_->createLoad(output_fragment_depth_, spv::NoPrecision);
       } else {
         REX_ASSERT(input_fragment_coordinates_ != spv::NoResult);
@@ -1473,10 +1473,10 @@ spv::Id SPIRVShaderTranslator::FSIAddSampleOffset(spv::Id sample_0_address, u32 
 }
 
 void SPIRVShaderTranslator::FSIDepthStencilTest(spv::Id msaa_samples,
-                                                bool sample_mask_potentially_narrowed_previouly) {
+                                                bool sample_mask_potentially_narrowed_previously) {
   bool is_early = FSIIsDepthStencilEarly();
-  bool shader_writes_depth = GetCurrentShader().GetWritesDepth();
-  bool implicit_early_z_write_allowed = GetCurrentShader().GetImplicitEarlyZWriteAllowed();
+  bool shader_writes_depth = GetCurrentShader().IsDepthWritten();
+  bool implicit_early_z_write_allowed = GetCurrentShader().IsImplicitEarlyZWriteAllowed();
   spv::Id const_uint_1 = builder_->makeUintConstant(1);
   spv::Id const_uint_8 = builder_->makeUintConstant(8);
 
@@ -1509,7 +1509,7 @@ void SPIRVShaderTranslator::FSIDepthStencilTest(spv::Id msaa_samples,
   spv::Block* block_any_sample_covered_head = nullptr;
   spv::Block* block_any_sample_covered = nullptr;
   spv::Block* block_any_sample_covered_merge = nullptr;
-  if (sample_mask_potentially_narrowed_previouly) {
+  if (sample_mask_potentially_narrowed_previously) {
     spv::Id any_sample_covered =
         builder_->createBinOp(spv::OpINotEqual, type_bool, main_fsi_sample_mask_, const_uint_0_);
     block_any_sample_covered_head = builder_->getBuildPoint();
@@ -2573,9 +2573,10 @@ std::array<spv::Id, 4> SPIRVShaderTranslator::FSIUnpackColor(std::array<spv::Id,
   return unpacked;
 }
 
-spv::Id SPIRVShaderTranslator::FSIFlushNaNClampAndInBlending(spv::Id color_or_alpha,
-                                                             spv::Id is_fixed_point,
-                                                             spv::Id min_value, spv::Id max_value) {
+spv::Id SPIRVShaderTranslator::FSIFlushNaNAndClampForBlending(spv::Id color_or_alpha,
+                                                              spv::Id is_fixed_point,
+                                                              spv::Id min_value,
+                                                              spv::Id max_value) {
   spv::Id color_or_alpha_type = builder_->getTypeId(color_or_alpha);
   u32 component_count = static_cast<u32>(builder_->getNumTypeConstituents(color_or_alpha_type));
   REX_ASSERT(builder_->isScalarType(color_or_alpha_type) ||
@@ -2761,8 +2762,8 @@ spv::Id SPIRVShaderTranslator::FSIApplyColorBlendFactor(
   id_vector_temp_.push_back(result_source_alpha_saturate);
   id_vector_temp_.push_back(block_factor_source_alpha_saturate.getId());
   spv::Id result_unclamped = builder_->createOp(spv::OpPhi, type_float3, id_vector_temp_);
-  spv::Id result = FSIFlushNaNClampAndInBlending(result_unclamped, is_fixed_point, clamp_min_value,
-                                                 clamp_max_value);
+  spv::Id result = FSIFlushNaNAndClampForBlending(result_unclamped, is_fixed_point, clamp_min_value,
+                                                  clamp_max_value);
 
   factor_not_zero_if.MakeEndIf();
 
@@ -2891,8 +2892,8 @@ spv::Id SPIRVShaderTranslator::FSIApplyAlphaBlendFactor(spv::Id value, spv::Id i
   id_vector_temp_.push_back(result_source_alpha_saturate);
   id_vector_temp_.push_back(block_factor_source_alpha_saturate.getId());
   spv::Id result_unclamped = builder_->createOp(spv::OpPhi, type_float, id_vector_temp_);
-  spv::Id result = FSIFlushNaNClampAndInBlending(result_unclamped, is_fixed_point, clamp_min_value,
-                                                 clamp_max_value);
+  spv::Id result = FSIFlushNaNAndClampForBlending(result_unclamped, is_fixed_point, clamp_min_value,
+                                                  clamp_max_value);
 
   factor_not_zero_if.MakeEndIf();
 

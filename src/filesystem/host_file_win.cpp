@@ -13,7 +13,7 @@ namespace rex::filesystem {
 
 namespace {
 
-u64 Combine(FILETIME time) {
+u64 JoinHighLow(FILETIME time) {
   return (static_cast<u64>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
 }
 
@@ -21,7 +21,7 @@ u64 Combine(DWORD high, DWORD low) {
   return (static_cast<u64>(high) << 32) | low;
 }
 
-OVERLAPPED At(u64 offset) {
+OVERLAPPED OverlappedAt(u64 offset) {
   OVERLAPPED overlapped{};
   overlapped.Offset = static_cast<DWORD>(offset);
   overlapped.OffsetHigh = static_cast<DWORD>(offset >> 32);
@@ -45,16 +45,16 @@ HostFile::~HostFile() {
 Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::path& path,
                                                          Access access) {
   DWORD open_access = 0;
-  if (HasFlags(access, Access::kGenericRead)) {
+  if (HasFlags(access, Access::kReadAccess)) {
     open_access |= GENERIC_READ;
   }
-  if (HasFlags(access, Access::kGenericWrite)) {
+  if (HasFlags(access, Access::kWriteAccess)) {
     open_access |= GENERIC_WRITE;
   }
-  if (HasFlags(access, Access::kGenericExecute)) {
+  if (HasFlags(access, Access::kExecuteAccess)) {
     open_access |= GENERIC_EXECUTE;
   }
-  if (HasFlags(access, Access::kGenericAll)) {
+  if (HasFlags(access, Access::kAllAccess)) {
     open_access |= GENERIC_READ | GENERIC_WRITE;
   }
   if (HasFlags(access, Access::kReadData)) {
@@ -86,7 +86,7 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
 }
 
 Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
-  OVERLAPPED overlapped = At(offset);
+  OVERLAPPED overlapped = OverlappedAt(offset);
   DWORD bytes_read = 0;
   if (!ReadFile(native_, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read,
                 &overlapped)) {
@@ -103,7 +103,7 @@ Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
 }
 
 Result<size_t> HostFile::Write(u64 offset, std::span<const u8> buffer) {
-  OVERLAPPED overlapped = At(offset);
+  OVERLAPPED overlapped = OverlappedAt(offset);
   DWORD bytes_written = 0;
   if (!WriteFile(native_, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_written,
                  &overlapped)) {
@@ -166,12 +166,12 @@ Result<void> HostFile::Flush() const {
                                           PathToUTF8(to), error)));
 }
 
-std::optional<HostInfo> HostStat(const std::filesystem::path& path) {
+std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
   WIN32_FILE_ATTRIBUTE_DATA data{};
   if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
     return std::nullopt;
   }
-  HostInfo info;
+  HostFileStat info;
   info.name = path.filename();
   if (info.name.native().find_first_of(L"*?") == std::wstring::npos) {
     WIN32_FIND_DATAW found{};
@@ -184,14 +184,14 @@ std::optional<HostInfo> HostStat(const std::filesystem::path& path) {
   }
   info.directory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
   info.size = info.directory ? 0 : Combine(data.nFileSizeHigh, data.nFileSizeLow);
-  info.create_time = Combine(data.ftCreationTime);
-  info.access_time = Combine(data.ftLastAccessTime);
-  info.write_time = Combine(data.ftLastWriteTime);
+  info.create_time = JoinHighLow(data.ftCreationTime);
+  info.access_time = JoinHighLow(data.ftLastAccessTime);
+  info.write_time = JoinHighLow(data.ftLastWriteTime);
   return info;
 }
 
-std::vector<HostInfo> HostList(const std::filesystem::path& path) {
-  std::vector<HostInfo> result;
+std::vector<HostFileStat> HostList(const std::filesystem::path& path) {
+  std::vector<HostFileStat> result;
   WIN32_FIND_DATAW data{};
   HANDLE handle = FindFirstFileW((path / "*").c_str(), &data);
   if (handle == INVALID_HANDLE_VALUE) {
@@ -201,13 +201,13 @@ std::vector<HostInfo> HostList(const std::filesystem::path& path) {
     if (std::wcscmp(data.cFileName, L".") == 0 || std::wcscmp(data.cFileName, L"..") == 0) {
       continue;
     }
-    HostInfo info;
+    HostFileStat info;
     info.name = data.cFileName;
     info.directory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
     info.size = info.directory ? 0 : Combine(data.nFileSizeHigh, data.nFileSizeLow);
-    info.create_time = Combine(data.ftCreationTime);
-    info.access_time = Combine(data.ftLastAccessTime);
-    info.write_time = Combine(data.ftLastWriteTime);
+    info.create_time = JoinHighLow(data.ftCreationTime);
+    info.access_time = JoinHighLow(data.ftLastAccessTime);
+    info.write_time = JoinHighLow(data.ftLastWriteTime);
     result.push_back(std::move(info));
   } while (FindNextFileW(handle, &data) != 0);
   FindClose(handle);

@@ -53,7 +53,7 @@ class DrawExtentEstimator {
    * reaches 8192 on both axes, the Direct3D 9 default, since 8192 alone may be a normal render
    * target height (80x8192 is within the EDRAM size). With clipping, the viewport bounds the
    * extent because hosts usually have a viewport scissor that cannot be disabled, although Xenos
-   * has no implicit one. The viewport bottom is truncated as in draw_state::GetHostViewportInfo.
+   * has no implicit one. The viewport bottom is truncated as in draw_state::GetHostViewport.
    * Taking max(0, bottom) drops NaN and negative values since max picks its first argument for
    * NaN, and min is done as float since max_y is well below 2^24.
    *

@@ -30,7 +30,7 @@ class MissingModule final : public rex::IModule {
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
   }};
 
-  MissingModule() { Record(kName, "constructor"); }
+  MissingModule() { ReportEvent(kName, "constructor"); }
 
   const char* GetName() const override { return kName; }
   std::span<const char* const> GetRequiredInterfaces() const override {
@@ -38,15 +38,15 @@ class MissingModule final : public rex::IModule {
     return kRequired;
   }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
-    Record(kName, "connect");
+    ReportEvent(kName, "connect");
     return rex::Ok();
   }
-  void Disconnect() override { Record(kName, "disconnect"); }
+  void Disconnect() override { ReportEvent(kName, "disconnect"); }
   [[nodiscard]] rex::Result<void> Init() override {
-    Record(kName, "init");
+    ReportEvent(kName, "init");
     return rex::Ok();
   }
-  void Shutdown() override { Record(kName, "shutdown"); }
+  void Shutdown() override { ReportEvent(kName, "shutdown"); }
 
  private:
   static MissingModule& GetInstance() {

@@ -28,12 +28,12 @@ namespace {
  * @param to       5-bit TO field
  * @param a_signed  First operand, signed (e.g., "ctx.r3.s32")
  * @param a_unsigned First operand, unsigned (e.g., "ctx.r3.u32")
- * @param bSigned  Second operand, signed (e.g., "ctx.r4.s32" or "-1")
- * @param bUnsigned Second operand, unsigned (e.g., "ctx.r4.u32" or "4294967295u")
+ * @param b_signed  Second operand, signed (e.g., "ctx.r4.s32" or "-1")
+ * @param b_unsigned Second operand, unsigned (e.g., "ctx.r4.u32" or "4294967295u")
  */
 void EmitTrap(BuilderContext& ctx, u32 to, const std::string& a_signed,
-              const std::string& a_unsigned, const std::string& bSigned,
-              const std::string& bUnsigned) {
+              const std::string& a_unsigned, const std::string& b_signed,
+              const std::string& b_unsigned) {
   if (to == 0)
     return;
   if (to == 0x1F) {
@@ -48,15 +48,15 @@ void EmitTrap(BuilderContext& ctx, u32 to, const std::string& a_signed,
     cond += c;
   };
   if (to & 0x10)
-    add(std::format("{} < {}", a_signed, bSigned));
+    add(std::format("{} < {}", a_signed, b_signed));
   if (to & 0x08)
-    add(std::format("{} > {}", a_signed, bSigned));
+    add(std::format("{} > {}", a_signed, b_signed));
   if (to & 0x04)
-    add(std::format("{} == {}", a_signed, bSigned));
+    add(std::format("{} == {}", a_signed, b_signed));
   if (to & 0x02)
-    add(std::format("{} < {}", a_unsigned, bUnsigned));
+    add(std::format("{} < {}", a_unsigned, b_unsigned));
   if (to & 0x01)
-    add(std::format("{} > {}", a_unsigned, bUnsigned));
+    add(std::format("{} > {}", a_unsigned, b_unsigned));
 
   ctx.Println("\tif ({}) ppc_trap(ctx, base, 0);", cond);
 }
@@ -370,10 +370,10 @@ bool Build<PPC_INST_MTFSF>(BuilderContext& ctx) {
       mask |= 0xF << (4 * j);
   }
   if (mask == 0xFFFFFFFF) {
-    ctx.Println("\tctx.fpscr.StoreFromGuest({}.u32);", ctx.F(ctx.insn.operands[1]));
+    ctx.Println("\tctx.fpscr.StoreToHost({}.u32);", ctx.F(ctx.insn.operands[1]));
   } else {
     ctx.Println(
-        "\tctx.fpscr.StoreFromGuest((ctx.fpscr.LoadFromHost() & 0x{:08X}) | ({}.u32 & 0x{:08X}));",
+        "\tctx.fpscr.StoreToHost((ctx.fpscr.LoadFromHost() & 0x{:08X}) | ({}.u32 & 0x{:08X}));",
         ~mask, ctx.F(ctx.insn.operands[1]), mask);
   }
   return true;

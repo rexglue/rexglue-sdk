@@ -27,7 +27,7 @@
 #include "../test_memory.h"
 #include "runtime/dispatcher.h"
 
-namespace rex::testing {
+namespace rex::test {
 
 namespace {
 
@@ -74,7 +74,7 @@ codegen::ToolRuntime BuildTool(const std::filesystem::path& root,
 }
 
 const runtime::ExportEntry* FindExport(runtime::ExportModule module, std::string_view name) {
-  const auto table = runtime::Exports(module);
+  const auto table = runtime::GetExports(module);
   const auto it = std::ranges::find(table, name, &runtime::ExportEntry::name);
   return it == table.end() ? nullptr : &*it;
 }
@@ -82,7 +82,7 @@ const runtime::ExportEntry* FindExport(runtime::ExportModule module, std::string
 std::mutex g_failure_mutex;
 std::vector<std::string> g_failures;
 
-void RecordFailure(std::string failure) {
+void AddFailure(std::string failure) {
   std::lock_guard lock(g_failure_mutex);
   g_failures.push_back(std::move(failure));
 }
@@ -104,7 +104,7 @@ u32 Caller::Call(runtime::ExportModule module, std::string_view name,
                  std::initializer_list<u64> args) {
   const auto* entry = FindExport(module, name);
   if (!entry || !entry->fn) {
-    RecordFailure("no export named " + std::string(name));
+    AddFailure("no export named " + std::string(name));
     return 0xFFFFFFFF;
   }
   PPCRegister* registers[] = {&ctx_.r3, &ctx_.r4, &ctx_.r5, &ctx_.r6,
@@ -185,7 +185,7 @@ u32 Caller::Attributes(std::string_view name) {
   return attributes;
 }
 
-u32 Caller::PutBodyForTest(std::function<void(Caller&)> body) {
+u32 Caller::RegisterBody(std::function<void(Caller&)> body) {
   return PutBody(std::move(body));
 }
 
@@ -195,7 +195,7 @@ u32 Caller::Spawn(std::function<void(Caller&)> body, u32 creation_flags) {
   const u32 status =
       Kernel("ExCreateThread", {handle_ptr, 0x10000, 0, 0, start_thunk, id, creation_flags});
   if (status != 0) {
-    RecordFailure("ExCreateThread returned " + std::to_string(status));
+    AddFailure("ExCreateThread returned " + std::to_string(status));
     return 0;
   }
   return Load32(handle_ptr);
@@ -227,7 +227,7 @@ KernelFixture::~KernelFixture() {
   try {
     CheckNoFailures();
   } catch (const std::exception& error) {
-    std::fprintf(stderr, "KernelFixture teardown failed: %s\n", error.what());
+    std::fprintf(stderr, "KernelFixture teardown failed with %s\n", error.what());
   }
 }
 
@@ -276,7 +276,7 @@ void KernelFixture::RunUntilGuestThreadEnds(const std::function<void(Caller&)>& 
   runtime::ThreadState::Bind(previous);
 }
 
-u32 Put(Caller& c, std::span<const u8> bytes) {
+u32 CopyToGuest(Caller& c, std::span<const u8> bytes) {
   const u32 address = c.Alloc(static_cast<u32>(bytes.size()) + 8);
   for (u32 offset = 0; offset < bytes.size(); offset += 4) {
     u8 word[4]{};
@@ -292,10 +292,10 @@ u32 PutFilled(Caller& c, u32 size) {
   for (u32 i = 0; i < size; ++i) {
     bytes[i] = std::array<u8, 4>{0xDE, 0xAD, 0xBE, 0xEF}[i % 4];
   }
-  return Put(c, bytes);
+  return CopyToGuest(c, bytes);
 }
 
-std::vector<u8> Get(Caller& c, u32 address, u32 size) {
+std::vector<u8> ReadBytes(Caller& c, u32 address, u32 size) {
   std::vector<u8> bytes(size);
   for (u32 i = 0; i < size; ++i) {
     bytes[i] = c.Load8(address + i);
@@ -332,4 +332,4 @@ u64 SystemTime(Caller& c) {
   return (static_cast<u64>(c.Load32(time)) << 32) | c.Load32(time + 4);
 }
 
-}  // namespace rex::testing
+}  // namespace rex::test

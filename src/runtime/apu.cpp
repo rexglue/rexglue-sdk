@@ -225,7 +225,7 @@ void APU::SetPaused(bool paused) {
   }
 }
 
-u32 APU::TakeCredits(u32 index) {
+u32 APU::CountCredits(u32 index) {
   platform::Semaphore* semaphore = semaphores_[index].get();
   u32 count = 0;
   while (platform::Wait(semaphore, false, std::chrono::milliseconds(0)) ==

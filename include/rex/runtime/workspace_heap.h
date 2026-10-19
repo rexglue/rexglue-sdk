@@ -68,7 +68,7 @@ class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
    * @param size Bytes.
    * @return The guest address, or an error when the workspace is exhausted.
    */
-  [[nodiscard]] Result<u32> Alloc(u32 size);
+  [[nodiscard]] Result<u32> Allocate(u32 size);
 
   /**
    * Frees an address from Alloc. An address outside the workspace is logged and ignored.

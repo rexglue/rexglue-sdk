@@ -73,7 +73,7 @@ inline DotTerm MakeDotTerm(u32 a, u32 b, bool flush) {
 template <u32 Terms>
 inline u32 DotProductReference(const std::array<u32, Terms>& a, const std::array<u32, Terms>& b,
                                bool flush = true) {
-  bool any_na_n = false;
+  bool any_nan = false;
   bool any_invalid = false;
   u32 infinities = 0;
   u32 negative_infinities = 0;
@@ -87,7 +87,7 @@ inline u32 DotProductReference(const std::array<u32, Terms>& a, const std::array
     const bool inf_y = (y & 0x7FFFFFFFu) == kInfinity32;
     const bool zero_x = (x & 0x7FFFFFFFu) == 0;
     const bool zero_y = (y & 0x7FFFFFFFu) == 0;
-    any_na_n |= nan_x || nan_y;
+    any_nan |= nan_x || nan_y;
     any_invalid |= (inf_x && zero_y) || (inf_y && zero_x);
     if ((inf_x || inf_y) && !zero_x && !zero_y) {
       ++infinities;
@@ -95,7 +95,7 @@ inline u32 DotProductReference(const std::array<u32, Terms>& a, const std::array
     }
     terms[i] = MakeDotTerm(x, y, flush);
   }
-  if (any_na_n || any_invalid) {
+  if (any_nan || any_invalid) {
     return kQNaN32;
   }
   if (infinities != 0) {

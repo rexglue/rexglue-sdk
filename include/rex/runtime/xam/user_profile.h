@@ -63,14 +63,14 @@ REX_STATIC_ASSERT_SIZE(X_USER_PROFILE_SETTING_DATA, 16);
 
 /** Guest ABI entry of a profile settings read result, laid out as XUSER_PROFILE_SETTING. */
 struct X_USER_PROFILE_SETTING {
-  be_u32 from;  /**< Source of the value, an XUSER_PROFILE_SOURCE value. */
-  be_u32 unk04; /**< Padding before the 8 byte aligned union. */
+  be_u32 from;   /**< Source of the value, an XUSER_PROFILE_SOURCE value. */
+  be_u32 unk_04; /**< Padding before the 8 byte aligned union. */
   union {
     be_u32 user_index; /**< User index when the read named a user index. */
     be_u64 xuid;       /**< XUID when the read named XUIDs. */
   };
   be_u32 setting_id; /**< Setting id. */
-  be_u32 unk14;      /**< Padding before the 8 byte aligned data. */
+  be_u32 unk_14;     /**< Padding before the 8 byte aligned data. */
   union {
     u8 data_bytes[sizeof(X_USER_PROFILE_SETTING_DATA)]; /**< Raw bytes. */
     X_USER_PROFILE_SETTING_DATA data;                   /**< Value. */
@@ -109,11 +109,11 @@ class UserProfile {
   struct Setting {
     /** Value type of a setting, matching the XUSER_DATA type byte. */
     enum class Type : u8 {
-      kContent = 0,  /**< Context value. */
+      kContext = 0,  /**< Context value. */
       kInt32 = 1,    /**< 32 bit integer. */
       kInt64 = 2,    /**< 64 bit integer. */
       kDouble = 3,   /**< 64 bit floating point. */
-      kWString = 4,  /**< UTF-16 string. */
+      kUnicode = 4,  /**< UTF-16 string. */
       kFloat = 5,    /**< 32 bit floating point. */
       kBinary = 6,   /**< Binary data. */
       kDateTime = 7, /**< Date and time. */
@@ -243,7 +243,7 @@ class UserProfile {
      * @param value The text.
      */
     UnicodeSetting(u32 id, const std::u16string& value)
-        : Setting(id, Type::kWString, 8, true), value(value) {}
+        : Setting(id, Type::kUnicode, 8, true), value(value) {}
     std::u16string value; /**< The text. */
     /**
      * Writes the text after the stream offset and points the guest value at it.

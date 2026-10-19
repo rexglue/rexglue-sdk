@@ -27,7 +27,7 @@ REX_TEST_CASE("The tool runtime opens under the log categories the rexglue tool 
               "[codegen][tool]") {
   const rex::test::TempFolder folder("rex_tool_runtime_log_test_");
   const std::filesystem::path& root = folder.path;
-  rex::testing::ReleaseTestMemory();
+  rex::test::ReleaseTestMemory();
   rex::LogConfig config;
   config.debugger = false;
   config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());

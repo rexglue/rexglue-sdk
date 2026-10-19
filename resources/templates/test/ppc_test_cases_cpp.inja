@@ -11,7 +11,7 @@
 #include "ppc_test_decls.h"
 
 // Global memory instance - same class used by real runtime
-static rex::runtime::Memory& get_memory() {
+static rex::runtime::Memory& GetMemory() {
     static rex::runtime::Memory memory;
     static bool initialized = false;
     if (!initialized) {
@@ -44,7 +44,7 @@ static rex::runtime::Memory& get_memory() {
 ## endfor
 ## for test in tests
 TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
-    auto& mem = get_memory();
+    auto& mem = GetMemory();
     register_functions_{{ test.stem }}(mem);
     u8* memory = mem.GetVirtualMembase();
     PPCContext ctx{};

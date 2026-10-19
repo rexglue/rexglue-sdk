@@ -28,7 +28,7 @@ struct SourceWarning {
   std::string hint;
 };
 
-std::string RenderRexglueCmake(std::string_view project_name, std::string_view sdk_version,
+std::string RenderReXGlueCMake(std::string_view project_name, std::string_view sdk_version,
                                std::string_view entrypoint_out_dir);
 
 /**
@@ -40,8 +40,8 @@ std::string RenderRexglueCmake(std::string_view project_name, std::string_view s
  * @param entrypoint_out_dir Output directory of the entry binary.
  * @return True when the file was rewritten.
  */
-bool RefreshGeneratedGlue(const std::filesystem::path& project_root, std::string_view project_name,
-                          std::string_view sdk_version, std::string_view entrypoint_out_dir);
+bool RefreshGeneratedCMake(const std::filesystem::path& project_root, std::string_view project_name,
+                           std::string_view sdk_version, std::string_view entrypoint_out_dir);
 
 /**
  * Finds source files that include headers the run no longer emits.

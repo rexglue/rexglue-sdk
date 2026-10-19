@@ -18,7 +18,7 @@
 namespace rex::runtime {
 
 /** 1 achievement a title can unlock. */
-struct AchievementInfo {
+struct Achievement {
   u32 id = 0;                         /**< Achievement id the title unlocks by. */
   std::string label;                  /**< Short name shown to the player. */
   std::string description;            /**< Text shown once the achievement is unlocked. */

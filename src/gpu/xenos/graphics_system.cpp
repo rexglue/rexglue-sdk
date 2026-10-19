@@ -46,10 +46,10 @@ rex::gpu::CommandProcessor::SwapPostEffect ParseSwapPostEffect(const std::string
   std::string lowered = rex::utf8_lower_ascii(effect_name);
   std::ranges::replace(lowered, '-', '_');
   if (lowered == "fxaa") {
-    return rex::gpu::CommandProcessor::SwapPostEffect::kFxaa;
+    return rex::gpu::CommandProcessor::SwapPostEffect::kFXAA;
   }
   if (lowered == "fxaa_extreme" || lowered == "extreme") {
-    return rex::gpu::CommandProcessor::SwapPostEffect::kFxaaExtreme;
+    return rex::gpu::CommandProcessor::SwapPostEffect::kFXAAExtreme;
   }
   return rex::gpu::CommandProcessor::SwapPostEffect::kNone;
 }
@@ -96,8 +96,7 @@ Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
   return Ok();
 }
 
-Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatcher,
-                                           Runtime& runtime) {
+Result<void> GraphicsSystem::SetupGPU(runtime::FunctionDispatcher& dispatcher, Runtime& runtime) {
   memory_ = dispatcher.GetMemory();
   function_dispatcher_ = &dispatcher;
   runtime_ = &runtime;
@@ -163,7 +162,7 @@ Result<std::unique_ptr<gpu::IOverlayDrawer>> GraphicsSystem::CreateOverlayDrawer
     return Err<std::unique_ptr<gpu::IOverlayDrawer>>(
         ErrorCategory::kRuntime, "CreateOverlayDrawer needs SetupPresentation first");
   }
-  std::unique_ptr<gpu::ImmediateDrawer> drawer = provider_->CreateImmediateDrawer();
+  std::unique_ptr<gpu::OverlayDrawer> drawer = provider_->CreateImmediateDrawer();
   if (!drawer) {
     return Err<std::unique_ptr<gpu::IOverlayDrawer>>(
         ErrorCategory::kRuntime, "the graphics provider could not create a drawer");

@@ -30,14 +30,6 @@ struct CodeRegion;
 class BinaryView;
 class DecodedBinary;
 
-/** Branch whose target the function graph must still resolve. */
-struct UnresolvedBranch {
-  u32 site;            /**< Address of the branch instruction */
-  u32 target;          /**< Branch target address */
-  bool is_call;        /**< True for bl, false for b */
-  bool is_conditional; /**< True for bc, beq and other conditional branches */
-};
-
 /** Blocks, branches and instructions found by DiscoverBlocks() for 1 function. */
 struct BlockDiscoveryResult {
   BlockDiscoveryResult() = default;
@@ -47,10 +39,10 @@ struct BlockDiscoveryResult {
   BlockDiscoveryResult& operator=(BlockDiscoveryResult&&) noexcept(false) = default;
   ~BlockDiscoveryResult() = default;
 
-  std::vector<Block> blocks;                         /**< Discovered blocks */
-  std::vector<UnresolvedBranch> unresolved_branches; /**< Branches left for the graph to resolve */
-  std::vector<JumpTable> jump_tables;                /**< Detected jump tables */
-  std::set<u32> labels;                              /**< Internal branch target addresses */
+  std::vector<Block> blocks;                    /**< Discovered blocks */
+  std::vector<UnresolvedJump> unresolved_jumps; /**< Jumps left for the graph to resolve */
+  std::vector<JumpTable> jump_tables;           /**< Detected jump tables */
+  std::set<u32> labels;                         /**< Internal branch target addresses */
 
   std::vector<rex::codegen::detail::Instruction*> instructions; /**< Handed to FunctionNode */
 

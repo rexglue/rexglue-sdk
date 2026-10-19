@@ -43,14 +43,14 @@ class ModuleRegistry final : public IModuleRegistry {
 
   std::optional<X_HANDLE> GetModule(std::string_view name, bool user_only = false) override;
   std::optional<X_HANDLE> GetExecutable() const override;
-  std::optional<X_HANDLE> FindKernel(std::string_view name) override;
-  std::optional<X_HANDLE> FindUser(std::string_view name) override;
-  bool IsKernel(std::string_view name) override;
+  std::optional<X_HANDLE> FindKernelModule(std::string_view name) override;
+  std::optional<X_HANDLE> FindUserModule(std::string_view name) override;
+  bool IsKernelModule(std::string_view name) override;
   std::vector<X_HANDLE> GetKernelModules() override;
   std::vector<X_HANDLE> GetUserModules() override;
   Result<X_HANDLE> LoadUserModule(std::string_view name, bool call_entry = true) override;
   void UnloadUserModule(X_HANDLE module, bool call_entry = true) override;
-  [[nodiscard]] Result<X_HANDLE> LoadKernelModule(X_HANDLE created) override;
+  [[nodiscard]] Result<X_HANDLE> RegisterKernelModule(X_HANDLE created) override;
   void RegisterRecompiledModule(const char* pe_name, const char* guest_path,
                                 const char* shared_lib_name) override;
   void AddImportCandidate(std::string_view path) override;
@@ -128,13 +128,13 @@ class ModuleRegistry final : public IModuleRegistry {
   void DrainLibraries();
 
  private:
-  struct RecompiledModuleInfo {
+  struct RecompiledModule {
     std::string pe_name;
     std::string guest_path;
     std::string shared_lib_name;
   };
 
-  std::optional<RecompiledModuleInfo> FindRecompiledModule(std::string_view guest_path);
+  std::optional<RecompiledModule> FindRecompiledModule(std::string_view guest_path);
 
   /**
    * Finds or loads the module that serves an import library of another module.
@@ -201,8 +201,8 @@ class ModuleRegistry final : public IModuleRegistry {
   std::vector<X_HANDLE> kernel_modules_;
   std::vector<X_HANDLE> user_modules_;
   std::atomic<u64> generation_{1};
-  std::unordered_set<StringKeyCase> loading_paths_;
-  std::vector<RecompiledModuleInfo> recompiled_modules_;
+  std::unordered_set<StringKeyIgnoreCase> loading_paths_;
+  std::vector<RecompiledModule> recompiled_modules_;
   std::vector<std::string> import_candidates_;
   std::unordered_map<std::string, rex::platform::DynamicLibrary> module_libraries_;
   std::vector<rex::platform::DynamicLibrary> deferred_unload_libraries_;

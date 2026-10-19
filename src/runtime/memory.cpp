@@ -47,7 +47,7 @@ u32 GetPageCount(u32 value, u32 page_size, u32 page_size_shift) {
   return rex::RoundUpNonZero(value, page_size) >> page_size_shift;
 }
 
-static std::atomic<runtime::Memory*> active_memory{nullptr};
+static std::atomic<runtime::Memory*> g_active_memory{nullptr};
 
 namespace {
 
@@ -114,17 +114,17 @@ u32 DescribeCrashAddress(u64 host_address, std::span<char> out) {
                fault->address);
         break;
       case GuestFaultKind::kUnhandled:
-        append("unhandled guest {} of 0x{:08X}", access, fault->address);
+        append("unhandled title {} of 0x{:08X}", access, fault->address);
         break;
       case GuestFaultKind::kPhysicalWrite:
         append(
-            "unhandled guest physical write of 0x{:08X}, physical 0x{:08X}, guest protect "
+            "unhandled guest physical write of 0x{:08X}, physical 0x{:08X}, title protect "
             "0x{:08X}, physical protect 0x{:08X}",
             fault->address, fault->physical_address, fault->guest_protect, fault->physical_protect);
         break;
     }
   }
-  const Memory* memory = active_memory.load(std::memory_order_acquire);
+  const Memory* memory = g_active_memory.load(std::memory_order_acquire);
   if (memory && host_address) {
     const u64 base = reinterpret_cast<u64>(memory->GetVirtualMembase());
     if (host_address >= base && host_address - base < kGuestAddressSpace) {
@@ -169,19 +169,19 @@ bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
 }  // namespace
 
 Memory::Memory() {
-  system_page_size_ = static_cast<u32>(rex::memory::PageSize());
-  system_allocation_granularity_ = static_cast<u32>(rex::memory::AllocationGranularity());
-  REX_ASSERT(active_memory.load() == nullptr);
-  active_memory.store(this, std::memory_order_release);
+  system_page_size_ = static_cast<u32>(rex::memory::GetPageSize());
+  system_allocation_granularity_ = static_cast<u32>(rex::memory::GetAllocationGranularity());
+  REX_ASSERT(g_active_memory.load() == nullptr);
+  g_active_memory.store(this, std::memory_order_release);
   platform::SetCrashAddressDescriber(DescribeCrashAddress);
 }
 
 Memory::~Memory() {
-  REX_ASSERT(active_memory.load() == this);
+  REX_ASSERT(g_active_memory.load() == this);
   platform::SetCrashAddressDescriber(nullptr);
-  active_memory.store(nullptr, std::memory_order_release);
+  g_active_memory.store(nullptr, std::memory_order_release);
   if (const u32 count = g_recovered_protect_count.exchange(0, std::memory_order_relaxed)) {
-    REXLOG_WARN(system, "Recovered stale physical page protection {} times, last at guest {:08X}",
+    REXLOG_WARN(system, "Recovered stale physical page protection {} times, last at title {:08X}",
                 count, g_recovered_protect_address.load(std::memory_order_relaxed));
   }
 
@@ -296,15 +296,15 @@ bool Memory::Initialize() {
   }
   rex::platform::ExceptionHandler::Install(OnAccessViolation, this);
 
-  u32 unk_phys_alloc;
+  u32 reserved_physical_address;
   heaps_.va0000000.Alloc(0x340000, kPageSize64KiB, runtime::kMemoryAllocationReserve,
-                         runtime::kMemoryProtectNoAccess, true, &unk_phys_alloc);
+                         runtime::kMemoryProtectNoAccess, true, &reserved_physical_address);
 
-  // A guest reads a constant at 0x8000001C in the XEX range.
-  u32 unknown_xex_range;
+  // A title reads a constant at 0x8000001C in the XEX range.
+  u32 xex_constant_address;
   heaps_.v80000000.Alloc(0x40000, kPageSize4KiB, runtime::kMemoryAllocationCommit,
                          runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
-                         &unknown_xex_range);
+                         &xex_constant_address);
 
   *TranslateVirtual<be_u32*>(0x80000000 + 0x1C) = 0x2a6e3f38;
 
@@ -330,7 +330,7 @@ static const struct {
   u64 virtual_address_start;
   u64 virtual_address_end;
   u64 target_address;
-} kMapInfo[] = {
+} kViewRanges[] = {
     {
         0x00000000,
         0x3FFFFFFF,
@@ -379,12 +379,12 @@ static const struct {
 };
 #if REX_PLATFORM_MAC
 int Memory::MapViewsMac() {
-  REX_ASSERT(rex::CountOf(kMapInfo) == rex::CountOf(views_.all_views));
+  REX_ASSERT(rex::CountOf(kViewRanges) == rex::CountOf(views_.all_views));
 
   // mmap without MAP_FIXED can ignore the requested address, so reserve 1 range first.
   const size_t total_size =
-      static_cast<size_t>(kMapInfo[rex::CountOf(kMapInfo) - 1].virtual_address_end -
-                          kMapInfo[0].virtual_address_start + 1);
+      static_cast<size_t>(kViewRanges[rex::CountOf(kViewRanges) - 1].virtual_address_end -
+                          kViewRanges[0].virtual_address_start + 1);
 
   void* reserved_base = mmap(nullptr, total_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (reserved_base == MAP_FAILED) {
@@ -394,11 +394,11 @@ int Memory::MapViewsMac() {
   u8* mapping_base = reinterpret_cast<u8*>(reserved_base);
   u64 granularity_mask = ~static_cast<u64>(system_allocation_granularity_ - 1);
 
-  for (size_t n = 0; n < rex::CountOf(kMapInfo); n++) {
-    size_t view_size = static_cast<size_t>(kMapInfo[n].virtual_address_end -
-                                           kMapInfo[n].virtual_address_start + 1);
-    size_t file_offset = static_cast<size_t>(kMapInfo[n].target_address & granularity_mask);
-    void* target_address = mapping_base + kMapInfo[n].virtual_address_start;
+  for (size_t n = 0; n < rex::CountOf(kViewRanges); n++) {
+    size_t view_size = static_cast<size_t>(kViewRanges[n].virtual_address_end -
+                                           kViewRanges[n].virtual_address_start + 1);
+    size_t file_offset = static_cast<size_t>(kViewRanges[n].target_address & granularity_mask);
+    void* target_address = mapping_base + kViewRanges[n].virtual_address_start;
     void* result = mmap(target_address, view_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED,
                         mapping_, file_offset);
     if (result == MAP_FAILED || result != target_address) {
@@ -422,13 +422,13 @@ int Memory::MapViewsMac() {
 #endif  // REX_PLATFORM_MAC
 
 int Memory::MapViews(u8* mapping_base) {
-  REX_ASSERT(rex::CountOf(kMapInfo) == rex::CountOf(views_.all_views));
+  REX_ASSERT(rex::CountOf(kViewRanges) == rex::CountOf(views_.all_views));
   u64 granularity_mask = ~static_cast<u64>(system_allocation_granularity_ - 1);
-  for (size_t n = 0; n < rex::CountOf(kMapInfo); n++) {
+  for (size_t n = 0; n < rex::CountOf(kViewRanges); n++) {
     views_.all_views[n] = reinterpret_cast<u8*>(rex::memory::MapFileView(
-        mapping_, mapping_base + kMapInfo[n].virtual_address_start,
-        kMapInfo[n].virtual_address_end - kMapInfo[n].virtual_address_start + 1,
-        rex::memory::PageAccess::kReadWrite, kMapInfo[n].target_address & granularity_mask));
+        mapping_, mapping_base + kViewRanges[n].virtual_address_start,
+        kViewRanges[n].virtual_address_end - kViewRanges[n].virtual_address_start + 1,
+        rex::memory::PageAccess::kReadWrite, kViewRanges[n].target_address & granularity_mask));
     if (!views_.all_views[n]) {
       UnmapViews();
       return 1;
@@ -440,7 +440,7 @@ int Memory::MapViews(u8* mapping_base) {
 void Memory::UnmapViews() {
   for (size_t n = 0; n < rex::CountOf(views_.all_views); n++) {
     if (views_.all_views[n]) {
-      size_t length = kMapInfo[n].virtual_address_end - kMapInfo[n].virtual_address_start + 1;
+      size_t length = kViewRanges[n].virtual_address_end - kViewRanges[n].virtual_address_start + 1;
       rex::memory::UnmapFileView(mapping_, views_.all_views[n], length);
     }
   }
@@ -521,7 +521,7 @@ void Memory::Copy(u32 dest, u32 src, u32 size) const {
 }
 
 bool Memory::ReserveMMIOBlocks() const {
-  const size_t host_page_size = rex::memory::PageSize();
+  const size_t host_page_size = rex::memory::GetPageSize();
   return std::ranges::all_of(std::array{MMIOBlock::kGPU, MMIOBlock::kAPU}, [&](MMIOBlock block) {
     u8* const start = TranslateVirtual(MMIOBlockBase(block));
     u8* const aligned_start = start - (reinterpret_cast<uintptr_t>(start) & (host_page_size - 1));
@@ -551,7 +551,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   std::unique_lock lock(watch_mutex_);
   {
     rex::memory::PageAccess cur_access;
-    size_t page_length = rex::memory::PageSize();
+    size_t page_length = rex::memory::GetPageSize();
     rex::memory::QueryProtect(host_address, page_length, cur_access);
     if (cur_access != rex::memory::PageAccess::kNoAccess &&
         (!is_write || cur_access != rex::memory::PageAccess::kReadOnly)) {
@@ -578,7 +578,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   }
   lock.unlock();
 
-  // Restore write access when guest metadata says writable but host protection is stale.
+  // Restore write access when title metadata says writable but host protection is stale.
   if (is_write) {
     constexpr u32 kWriteProtectMask =
         runtime::kMemoryProtectWrite | runtime::kMemoryProtectWriteCombine;
@@ -588,7 +588,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
         (guest_protect & kWriteProtectMask)) {
       allow_write = true;
     } else {
-      HeapAllocationInfo guest_info{};
+      HeapAllocation guest_info{};
       if (heap->QueryRegionInfo(virtual_address, &guest_info) &&
           (guest_info.state & runtime::kMemoryAllocationCommit) &&
           (guest_info.allocation_protect & kWriteProtectMask)) {
@@ -603,7 +603,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
             guest_protect = physical_protect;
             allow_write = true;
           } else {
-            HeapAllocationInfo physical_info{};
+            HeapAllocation physical_info{};
             if (heaps_.physical.QueryRegionInfo(physical_address, &physical_info) &&
                 (physical_info.state & runtime::kMemoryAllocationCommit) &&
                 (physical_info.allocation_protect & kWriteProtectMask)) {
@@ -615,7 +615,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
       }
     }
     if (allow_write) {
-      const size_t host_page_size = rex::memory::PageSize();
+      const size_t host_page_size = rex::memory::GetPageSize();
       u8* const page = static_cast<u8*>(host_address) -
                        (reinterpret_cast<uintptr_t>(host_address) & (host_page_size - 1));
       if (rex::memory::Protect(page, host_page_size, rex::memory::PageAccess::kReadWrite,
@@ -702,9 +702,9 @@ void Memory::SystemHeapFree(u32 address, u32* out_region_size) {
   heap->Release(address, out_region_size);
 }
 
-void Memory::GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, size_t heaps_count,
-                                      u32& unreserved_pages, u32& reserved_pages, u32& used_pages,
-                                      u32& reserved_bytes) {
+void Memory::GetHeapsPageStats(const BaseHeap* const* provided_heaps, size_t heaps_count,
+                               u32& unreserved_pages, u32& reserved_pages, u32& used_pages,
+                               u32& reserved_bytes) {
   // The heap array is fixed after init and page counts are approximate.
   for (size_t i = 0; i < heaps_count; i++) {
     const BaseHeap* heap = provided_heaps[i];
@@ -731,7 +731,7 @@ u32 Memory::GetBudgetPages() const {
   return budget_pages_.load(std::memory_order_relaxed);
 }
 
-bool Memory::AllocateTitlePage(u32 pages) {
+bool Memory::ReserveBudgetPages(u32 pages) {
   const u32 budget = budget_pages_.load(std::memory_order_relaxed);
   u32 used = title_pages_.load(std::memory_order_relaxed);
   do {
@@ -1090,7 +1090,7 @@ bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 a
       return (page_entry.state & runtime::kMemoryAllocationCommit) == 0;
     });
     title_pages = static_cast<u32>(uncommitted) * (page_size_ >> 12);
-    if (title_pages && !memory_->AllocateTitlePage(title_pages)) {
+    if (title_pages && !memory_->ReserveBudgetPages(title_pages)) {
       REXLOG_WARN(system, "BaseHeap::AllocFixed over the title memory budget");
       return false;
     }
@@ -1242,7 +1242,7 @@ bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32
   const u32 title_pages = title_memory && (allocation_type & runtime::kMemoryAllocationCommit)
                               ? page_count * (page_size_ >> 12)
                               : 0;
-  if (title_pages && !memory_->AllocateTitlePage(title_pages)) {
+  if (title_pages && !memory_->ReserveBudgetPages(title_pages)) {
     REXLOG_WARN(system, "BaseHeap::Alloc over the title memory budget");
     return false;
   }
@@ -1338,9 +1338,9 @@ bool BaseHeap::ReleaseLocked(u32 base_address, u32* out_region_size) {
   }
 
   // Releasing from the host is not needed, the mapping reserves the range.
-  if (page_size_ == rex::memory::PageSize() ||
-      ((base_page_entry.region_page_count << page_size_shift_) % rex::memory::PageSize() == 0 &&
-       ((base_page_number << page_size_shift_) % rex::memory::PageSize() == 0))) {
+  if (page_size_ == rex::memory::GetPageSize() ||
+      ((base_page_entry.region_page_count << page_size_shift_) % rex::memory::GetPageSize() == 0 &&
+       ((base_page_number << page_size_shift_) % rex::memory::GetPageSize() == 0))) {
     if (REXCVAR_GET(::rex::runtime::cvars::protect_on_release)) {
       if (!rex::memory::Protect(TranslateRelative(base_page_number << page_size_shift_),
                                 base_page_entry.region_page_count << page_size_shift_,
@@ -1439,7 +1439,7 @@ bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protec
   return true;
 }
 
-bool BaseHeap::QueryRegionInfo(u32 base_address, HeapAllocationInfo* out_info) {
+bool BaseHeap::QueryRegionInfo(u32 base_address, HeapAllocation* out_info) {
   u32 start_page_number = (base_address - heap_base_) >> page_size_shift_;
   if (start_page_number > page_table_.size()) {
     REX_FAIL(system, false, "BaseHeap::QueryRegionInfo base page out of range");
@@ -1562,7 +1562,7 @@ void PhysicalHeap::Initialize(runtime::Memory* memory, u8* membase, HeapType hea
   BaseHeap::Initialize(memory, membase, heap_type, heap_base, heap_size, page_size,
                        host_address_offset);
   parent_heap_ = parent_heap;
-  system_page_size_ = static_cast<u32>(rex::memory::PageSize());
+  system_page_size_ = static_cast<u32>(rex::memory::GetPageSize());
 
   system_page_count_ =
       (static_cast<size_t>(heap_size_) + host_address_offset + (system_page_size_ - 1)) /
@@ -1751,12 +1751,12 @@ bool PhysicalHeap::Protect(u32 address, u32 size, u32 protect, u32* old_protect)
  * Enables write invalidation notifications and data providers for system pages.
  *
  * Protection only tightens, so data provider completion is not awaited. An invalidation
- * notification protects a writable page that is not watched yet. A page the guest cannot
+ * notification protects a writable page that is not watched yet. A page the title cannot
  * write is left alone because real access violations are needed there.
  *
  * @param physical_address Start of the physical range.
  * @param length Size of the range in bytes.
- * @param enable_invalidation_notifications True to notify when the guest writes the range.
+ * @param enable_invalidation_notifications True to notify when the title writes the range.
  * @param enable_data_providers True to enable data providers, unsupported.
  */
 void PhysicalHeap::EnableAccessCallbacks(u32 physical_address, u32 length,

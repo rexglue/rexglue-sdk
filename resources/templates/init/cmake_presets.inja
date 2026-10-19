@@ -3,7 +3,7 @@
     "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
     "configurePresets": [
         {
-            "name": "windows-base",
+            "name": "win-base",
             "hidden": true,
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -49,9 +49,9 @@
             }
         },
         {
-            "name": "windows-arm64-base",
+            "name": "win-arm64-base",
             "hidden": true,
-            "inherits": "windows-base",
+            "inherits": "win-base",
             "cacheVariables": {
                 "CMAKE_C_FLAGS": "-march=armv8-a",
                 "CMAKE_CXX_FLAGS": "-march=armv8-a"
@@ -79,13 +79,13 @@
         {
             "name": "win-amd64-debug",
             "displayName": "Windows AMD64 Debug",
-            "inherits": "windows-base",
+            "inherits": "win-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "win-amd64-release",
             "displayName": "Windows AMD64 Release",
-            "inherits": "windows-base",
+            "inherits": "win-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
         },
         {
@@ -103,7 +103,7 @@
         {
             "name": "win-amd64-relwithdebinfo",
             "displayName": "Windows AMD64 RelWithDebInfo",
-            "inherits": "windows-base",
+            "inherits": "win-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
         },
         {
@@ -115,19 +115,19 @@
         {
             "name": "win-arm64-debug",
             "displayName": "Windows ARM64 Debug",
-            "inherits": "windows-arm64-base",
+            "inherits": "win-arm64-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "win-arm64-release",
             "displayName": "Windows ARM64 Release",
-            "inherits": "windows-arm64-base",
+            "inherits": "win-arm64-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
         },
         {
             "name": "win-arm64-relwithdebinfo",
             "displayName": "Windows ARM64 RelWithDebInfo",
-            "inherits": "windows-arm64-base",
+            "inherits": "win-arm64-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
         },
         {

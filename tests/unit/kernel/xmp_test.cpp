@@ -16,12 +16,12 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
-u32 PlayEmptyPlaylist(Caller& c, rex::kernel::xam::apps::XmpApp& app) {
+u32 PlayEmptyPlaylist(Caller& c, rex::kernel::xam::apps::XMPApp& app) {
   const u32 handle = c.Alloc(4);
   REQUIRE(app.XMPCreateTitlePlaylist(0, 0, 0, u"", 0, 0, handle) == rex::X_E_SUCCESS);
   REQUIRE(app.XMPPlayTitlePlaylist(c.Load32(handle), 0) == rex::X_E_SUCCESS);
@@ -33,7 +33,7 @@ u32 PlayEmptyPlaylist(Caller& c, rex::kernel::xam::apps::XmpApp& app) {
 REX_TEST_CASE("xmp: next and previous on an empty playlist find no song", "[kernel][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XmpApp app(c.GetRuntime());
+    rex::kernel::xam::apps::XMPApp app(c.GetRuntime());
     PlayEmptyPlaylist(c, app);
     CHECK(app.XMPNext() == rex::X_E_NOTFOUND);
     CHECK(app.XMPPrevious() == rex::X_E_NOTFOUND);
@@ -43,7 +43,7 @@ REX_TEST_CASE("xmp: next and previous on an empty playlist find no song", "[kern
 REX_TEST_CASE("xmp: song info on an empty playlist fails", "[kernel][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XmpApp app(c.GetRuntime());
+    rex::kernel::xam::apps::XMPApp app(c.GetRuntime());
     PlayEmptyPlaylist(c, app);
     const u32 args = c.Alloc(12);
     c.Store32(args, 2);
@@ -56,7 +56,7 @@ REX_TEST_CASE("xmp: song info on an empty playlist fails", "[kernel][xmp]") {
 REX_TEST_CASE("xmp: the playback controller query returns without sleeping", "[kernel][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XmpApp app(c.GetRuntime());
+    rex::kernel::xam::apps::XMPApp app(c.GetRuntime());
     const u32 args = c.Alloc(12);
     c.Store32(args, 2);
     c.Store32(args + 4, c.Alloc(4));

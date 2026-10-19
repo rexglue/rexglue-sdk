@@ -26,7 +26,7 @@
 using rex::X_STATUS;
 
 REX_TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[runtime][xma]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   auto decoder =
       std::make_unique<rex::runtime::XMADecoder>(fixture.GetRuntime().GetFunctionDispatcher());
   REQUIRE(decoder->Setup() == rex::X_STATUS_SUCCESS);
@@ -40,7 +40,7 @@ REX_TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[ru
 }
 
 REX_TEST_CASE("An XMA decoder serves the APU block until it is destroyed", "[runtime][xma][mmio]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   auto decoder =
       std::make_unique<rex::runtime::XMADecoder>(fixture.GetRuntime().GetFunctionDispatcher());
   REQUIRE(decoder->Setup() == rex::X_STATUS_SUCCESS);
@@ -51,7 +51,7 @@ REX_TEST_CASE("An XMA decoder serves the APU block until it is destroyed", "[run
 
 namespace {
 
-std::unique_ptr<rex::runtime::XMADecoder> MakeDecoder(rex::testing::KernelFixture& fixture) {
+std::unique_ptr<rex::runtime::XMADecoder> MakeDecoder(rex::test::KernelFixture& fixture) {
   auto decoder =
       std::make_unique<rex::runtime::XMADecoder>(fixture.GetRuntime().GetFunctionDispatcher());
   REQUIRE(decoder->Setup() == rex::X_STATUS_SUCCESS);
@@ -61,7 +61,7 @@ std::unique_ptr<rex::runtime::XMADecoder> MakeDecoder(rex::testing::KernelFixtur
 }  // namespace
 
 REX_TEST_CASE("Releasing an XMA context twice leaves the released memory alone", "[runtime][xma]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   auto decoder = MakeDecoder(fixture);
   const rex::u32 context = decoder->AllocateContext();
   REQUIRE(context != 0);
@@ -74,7 +74,7 @@ REX_TEST_CASE("Releasing an XMA context twice leaves the released memory alone",
 
 REX_TEST_CASE("An XMA context call with a pointer outside the context array does nothing",
               "[runtime][xma]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   auto decoder = MakeDecoder(fixture);
   decoder->ReleaseContext(0x1234);
   CHECK(decoder->BlockOnContext(0x1234, true));
@@ -83,10 +83,10 @@ REX_TEST_CASE("An XMA context call with a pointer outside the context array does
 
 REX_TEST_CASE("Signaling an XMA context outside the context array writes no register",
               "[runtime][xma]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   auto decoder = MakeDecoder(fixture);
   constexpr rex::u32 kEnableBase = 0x1940;
-  const rex::u32 array = decoder->GetContextArrayPtr();
+  const rex::u32 array = decoder->GetContextArrayAddress();
   std::array<rex::u32, 10> before{};
   for (rex::u32 i = 0; i < before.size(); ++i) {
     before[i] = decoder->ReadRegister(kEnableBase + i * 4);

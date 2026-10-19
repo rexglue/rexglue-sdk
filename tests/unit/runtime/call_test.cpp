@@ -73,7 +73,7 @@ void GuestOpen(PPCContext& ctx, u8* base) {
   g_frames[depth] = frame;
   rex::memory::store<be_u32>(base + frame, kSentinel + depth);
   ctx.r3.u64 = depth;
-  rex::ppc::HostToGuestFunction<&HookNext>(ctx, base);
+  rex::ppc::GuestToHostThunk<&HookNext>(ctx, base);
   if (rex::memory::load<be_u32>(base + frame) != kSentinel + depth || ctx.r1.u32 != frame) {
     ++g_failures;
   }
@@ -91,7 +91,7 @@ void HookNext(u32 depth) {
       g_guest(depth + 1);
       break;
     case Mode::kGuestToHost:
-      rex::ppc::GuestToHostFunction<void>(GuestOpen, depth + 1);
+      rex::ppc::HostToGuestCall<void>(GuestOpen, depth + 1);
       break;
     case Mode::kExecute: {
       u64 args[] = {depth + 1};
@@ -110,7 +110,7 @@ u32 AllocPCR(rex::runtime::Memory& memory, u32 stack) {
 }
 
 struct GuestThread {
-  rex::runtime::Memory& memory = rex::testing::GetTestMemory();
+  rex::runtime::Memory& memory = rex::test::GetTestMemory();
   u32 stack = memory.SystemHeapAlloc(kStackSize);
   u32 pcr = AllocPCR(memory, stack);
   ThreadState state{1, stack + kStackSize, pcr, &memory, nullptr};
@@ -147,7 +147,7 @@ REX_TEST_CASE("Nested calls keep every title frame", "[runtime][call]") {
   CheckNested(thread);
 }
 
-REX_TEST_CASE("GuestToHostFunction nests under the running frame", "[runtime][call]") {
+REX_TEST_CASE("HostToGuestCall nests under the running frame", "[runtime][call]") {
   GuestThread thread;
   g_mode = Mode::kGuestToHost;
   g_guest(1);
@@ -172,7 +172,7 @@ REX_TEST_CASE("FunctionDispatcher::Execute inside a call runs under the live fra
 namespace {
 
 constexpr u32 kLeafScratch = 576;
-constexpr u32 kRedZoneProbe = rex::ppc::kRedZone - 4;
+constexpr u32 kRedZoneDeepestOffset = rex::ppc::kRedZone - 4;
 
 void Clobber(PPCContext& ctx, u8* base) {
   ctx.r0.u64 = ctx.r4.u64 = ctx.r11.u64 = ctx.r12.u64 = 0xDEAD;
@@ -223,7 +223,7 @@ REX_TEST_CASE("A call from a mid function hook keeps the caller's registers and 
   ctx.v0.u64[0] = 0x1111;
   ctx.v63.u64[0] = 0x6363;
   const u32 scratch = ctx.r1.u32 - kLeafScratch;
-  const u32 deepest = ctx.r1.u32 - kRedZoneProbe;
+  const u32 deepest = ctx.r1.u32 - kRedZoneDeepestOffset;
   rex::memory::store<be_u32>(base + scratch, kSentinel);
   rex::memory::store<be_u32>(base + deepest, kSentinel + 1);
 
@@ -323,20 +323,20 @@ void SaveLinkRegister(PPCContext& ctx, u8* base) {
   g_saved_link_word = rex::memory::load<be_u32>(base + ctx.r1.u32 - 8);
 }
 
-void RecordFrame(PPCContext& ctx, u8*) {
+void CaptureFrame(PPCContext& ctx, u8*) {
   g_frame_r1 = ctx.r1.u32;
 }
 
-void RecordReservedRegisters(PPCContext& ctx, u8*) {
+void CaptureReservedRegisters(PPCContext& ctx, u8*) {
   g_seen_r2 = ctx.r2.u64;
   g_seen_r13 = ctx.r13.u64;
 }
 
 rex::ppc::ImportFunction<void()> g_link_saver{SaveLinkRegister};
-rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32)> g_eight_slots{RecordFrame};
+rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32)> g_eight_slots{CaptureFrame};
 rex::ppc::ImportFunction<void(u32, u32, u32, u32, u32, u32, u32, u32, u32)> g_nine_slots{
-    RecordFrame};
-rex::ppc::ImportFunction<void()> g_reserved_reader{RecordReservedRegisters};
+    CaptureFrame};
+rex::ppc::ImportFunction<void()> g_reserved_reader{CaptureReservedRegisters};
 
 }  // namespace
 
@@ -409,7 +409,7 @@ REX_TEST_CASE("An export reads an integer after a float from the next slot", "[r
   ctx.f1.f64 = 0.5;
   ctx.r5.u64 = 2;
   ctx.r6.u64 = 3;
-  rex::ppc::HostToGuestFunction<&MixedExport>(ctx, thread.state.GetMemory()->GetVirtualMembase());
+  rex::ppc::GuestToHostThunk<&MixedExport>(ctx, thread.state.GetMemory()->GetVirtualMembase());
   CHECK(g_export_ints[0] == 1);
   CHECK(g_export_float == 0.5);
   CHECK(g_export_ints[1] == 2);
@@ -426,14 +426,13 @@ REX_TEST_CASE("A call frame is aligned, chained and returns to the host", "[runt
   CHECK(g_callee_lr == rex::ppc::kHostReturnAddress);
 }
 
-REX_TEST_CASE("Call and GuestToHostFunction return guest pointers and integers",
-              "[runtime][call]") {
+REX_TEST_CASE("Call and HostToGuestCall return guest pointers and integers", "[runtime][call]") {
   GuestThread thread;
   u8* base = thread.memory.GetVirtualMembase();
   rex::ppc::ImportFunction<u8*(u32)> pointer{ReturnPointer};
   CHECK(pointer(thread.stack) == base + thread.stack + 0x10);
   CHECK(pointer(0) == base + 0x10);
-  CHECK(rex::ppc::GuestToHostFunction<u32>(ReturnPointer, u32{5}) == 0x15);
+  CHECK(rex::ppc::HostToGuestCall<u32>(ReturnPointer, u32{5}) == 0x15);
 }
 
 REX_TEST_CASE("FunctionDispatcher::Execute places register and stack arguments",
@@ -538,10 +537,10 @@ PPCVRegister g_thirteenth_vector{};
 PPCVRegister g_stack_vector{};
 u64 g_vector_ints[2]{};
 
-PPCVRegister MakeVector(u32 seed) {
+PPCVRegister MakeVector(u32 base) {
   PPCVRegister value{};
   for (u32 lane = 0; lane < 4; ++lane) {
-    value.u32[lane] = seed * 16 + lane;
+    value.u32[lane] = base * 16 + lane;
   }
   return value;
 }
@@ -610,7 +609,7 @@ REX_TEST_CASE("A hook reads a vector from v1 and returns it in v1", "[runtime][c
   PPCContext& ctx = *thread.state.GetContext();
   ctx.v1 = MakeVector(2);
   ctx.r3.u64 = 0xFF;
-  rex::ppc::HostToGuestFunction<&EchoVector>(ctx, thread.state.GetMemory()->GetVirtualMembase());
+  rex::ppc::GuestToHostThunk<&EchoVector>(ctx, thread.state.GetMemory()->GetVirtualMembase());
   PPCVRegister expected = MakeVector(2);
   expected.u32[0] ^= 0xFF;
   CHECK(SameVector(ctx.v1, expected));
@@ -633,8 +632,8 @@ u32 g_structure_stack_word = 0;
 u32 g_hidden_pointer = 0;
 u64 g_hidden_first_argument = 0;
 
-Twelve MakeTwelve(u32 seed) {
-  return Twelve{seed, seed + 1, seed + 2};
+Twelve MakeTwelve(u32 first) {
+  return Twelve{first, first + 1, first + 2};
 }
 
 void ReadSplitStructure(PPCContext& ctx, u8* base) {
@@ -723,7 +722,7 @@ REX_TEST_CASE("A hook returning a structure over 8 bytes fills the caller's poin
   const u32 destination = thread.stack + 0x100;
   ctx.r3.u64 = destination;
   ctx.r4.u64 = 0x40;
-  rex::ppc::HostToGuestFunction<&HookTwelve>(ctx, base);
+  rex::ppc::GuestToHostThunk<&HookTwelve>(ctx, base);
   CHECK(g_hidden_first_argument == 0x40);
   CHECK(ctx.r3.u32 == destination);
   CHECK(rex::memory::load<be_u32>(base + destination) == 0x40);
@@ -748,7 +747,7 @@ void GuestDPC(PPCContext& ctx, u8* base) {
   const u32 frame = ctx.r1.u32;
   rex::memory::store<be_u32>(base + frame, kSentinel);
   ctx.r31.u64 = 0x3131;
-  rex::testing::Caller caller(ctx, base, rex::runtime::GetCurrent());
+  rex::test::Caller caller(ctx, base, rex::runtime::GetCurrent());
   caller.Kernel("KeInsertQueueDpc", {dpc, 0, 0});
   if (rex::memory::load<be_u32>(base + frame) != kSentinel || ctx.r1.u32 != frame ||
       ctx.r31.u64 != 0x3131) {
@@ -765,8 +764,8 @@ REX_TEST_CASE("A DPC drained inside a call runs on the thread's register file", 
   g_call_ctx = nullptr;
   g_dpc_ctx = nullptr;
   g_drain_failures = 0;
-  rex::testing::KernelFixture fixture;
-  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
     auto* state = ThreadState::Get();
     const u32 r1 = state->GetContext()->r1.u32;
     const u32 thunk = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&RecordingDPC, 0);
@@ -830,8 +829,8 @@ REX_TEST_CASE("A fiber switch inside a call returns to the calling frame", "[run
   g_main_fiber = 0;
   g_fiber_runs = 0;
   g_fiber_failures = 0;
-  rex::testing::KernelFixture fixture;
-  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
     auto* state = ThreadState::Get();
     const u32 r1 = state->GetContext()->r1.u32;
     const u32 body = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&SwitchBackBody, 0);

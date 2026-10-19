@@ -35,7 +35,7 @@
 #include "ui/sdl3/prompts.h"
 #include "ui/sdl3/video_scope.h"
 
-extern "C" void* rex_create_interface(const char* name, rex::u32 version, rex::i32* out_status);
+extern "C" void* ReXCreateInterface(const char* name, rex::u32 version, rex::i32* out_status);
 
 namespace {
 
@@ -64,8 +64,8 @@ class ModuleFixture {
     config.paths.user_data_root = user_root_.path;
     factory_.registry = registry_.get();
     rex::i32 status = 0;
-    module = static_cast<rex::IModule*>(rex_create_interface("rex.module", 1, &status));
-    ui = static_cast<rex::ui::IUserInterface*>(rex_create_interface("rex.ui", 1, &status));
+    module = static_cast<rex::IModule*>(ReXCreateInterface("rex.module", 1, &status));
+    ui = static_cast<rex::ui::IUserInterface*>(ReXCreateInterface("rex.ui", 1, &status));
     REQUIRE(module != nullptr);
     REQUIRE(ui != nullptr);
     REQUIRE(module->Connect(&factory_, config));
@@ -98,7 +98,7 @@ REX_TEST_CASE("Prompt without a window completes cancelled at once", "[ui][promp
     got = std::move(result);
   });
   CHECK(calls == 1);
-  CHECK(got.cancelled);
+  CHECK(got.canceled);
 }
 
 REX_TEST_CASE("Prompt on an open window completes cancelled when the prompts are cancelled",
@@ -123,7 +123,7 @@ REX_TEST_CASE("Prompt on an open window completes cancelled when the prompts are
   CHECK(calls == 0);
   fixture.ui->CancelPrompts();
   CHECK(calls == 1);
-  CHECK(got.cancelled);
+  CHECK(got.canceled);
   CHECK_FALSE(fixture.ui->HasDialogs());
   fixture.ui->CloseWindow();
 }
@@ -144,7 +144,7 @@ REX_TEST_CASE("A prompt queued when the window closes completes cancelled", "[ui
   CHECK(calls == 0);
   fixture.ui->CloseWindow();
   CHECK(calls == 1);
-  CHECK(got.cancelled);
+  CHECK(got.canceled);
 }
 
 REX_TEST_CASE("A prompt completes once with the pressed button", "[ui][prompt]") {
@@ -158,7 +158,7 @@ REX_TEST_CASE("A prompt completes once with the pressed button", "[ui][prompt]")
                                  });
     dialog.Choose(1, "");
     CHECK(calls == 1);
-    CHECK_FALSE(got.cancelled);
+    CHECK_FALSE(got.canceled);
     CHECK(got.button == 1);
   }
   CHECK(calls == 1);
@@ -171,7 +171,7 @@ REX_TEST_CASE("A text prompt returns the accepted text", "[ui][prompt]") {
                                  [&](PromptResult result) { got = std::move(result); });
     dialog.Choose(0, "abc");
   }
-  CHECK_FALSE(got.cancelled);
+  CHECK_FALSE(got.canceled);
   CHECK(got.button == 0);
   CHECK(got.text == "abc");
 }
@@ -201,7 +201,7 @@ REX_TEST_CASE("A prompt destroyed without a button completes cancelled", "[ui][p
     });
   }
   CHECK(calls == 1);
-  CHECK(got.cancelled);
+  CHECK(got.canceled);
 }
 
 REX_TEST_CASE("ShowMessage from a worker thread without a window returns", "[ui][prompt]") {
@@ -264,7 +264,7 @@ void PushMouse(SDL_WindowID window, SDL_EventType type) {
   SDL_PushEvent(&event);
 }
 
-void DriveDrawerWithCaller(ImGuiContext* caller) {
+void RunWindowWithCallerContext(ImGuiContext* caller) {
   ImGui::SetCurrentContext(caller);
   {
     ModuleFixture fixture;
@@ -306,11 +306,11 @@ void DriveDrawerWithCaller(ImGuiContext* caller) {
 
 REX_TEST_CASE("With no ImGui context current the window opens, takes input and closes",
               "[ui][imgui]") {
-  DriveDrawerWithCaller(nullptr);
+  RunWindowWithCallerContext(nullptr);
 }
 
 REX_TEST_CASE("With another ImGui context current the window leaves it current", "[ui][imgui]") {
   ImGuiContext* caller = ImGui::CreateContext();
-  DriveDrawerWithCaller(caller);
+  RunWindowWithCallerContext(caller);
   ImGui::DestroyContext(caller);
 }

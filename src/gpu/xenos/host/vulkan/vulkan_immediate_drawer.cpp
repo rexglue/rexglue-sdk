@@ -46,7 +46,7 @@ std::unique_ptr<VulkanImmediateDrawer> VulkanImmediateDrawer::Create(
   return immediate_drawer;
 }
 
-VulkanImmediateDrawer::VulkanImmediateTexture::~VulkanImmediateTexture() {
+VulkanImmediateDrawer::VulkanOverlayTexture::~VulkanOverlayTexture() {
   if (immediate_drawer) {
     log::NoThrow(log::gpu, [this] { immediate_drawer->OnImmediateTextureDestroyed(*this); });
   }
@@ -78,7 +78,7 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
     dfn.vkDestroyBuffer(device, pending_texture_upload.buffer, nullptr);
     dfn.vkFreeMemory(device, pending_texture_upload.buffer_memory, nullptr);
   }
-  for (VulkanImmediateTexture* texture : textures_) {
+  for (VulkanOverlayTexture* texture : textures_) {
     if (texture->immediate_drawer != this) {
       continue;
     }
@@ -161,13 +161,13 @@ bool VulkanImmediateDrawer::Initialize() {
 }
 
 Result<std::unique_ptr<gpu::OverlayTexture>> VulkanImmediateDrawer::CreateTexture(
-    u32 width, u32 height, gpu::OverlayTextureFilter filter, bool repeat,
+    u32 width, u32 height, gpu::OverlayTextureFilter filter, bool is_repeated,
     std::span<const u8> rgba8) {
   const u8* data = rgba8.data();
   REX_ASSERT(data != nullptr);
-  auto texture = std::make_unique<VulkanImmediateTexture>(width, height);
+  auto texture = std::make_unique<VulkanOverlayTexture>(width, height);
   size_t pending_upload_index;
-  if (!CreateTextureResource(width, height, filter, repeat, data, texture->resource,
+  if (!CreateTextureResource(width, height, filter, is_repeated, data, texture->resource,
                              pending_upload_index)) {
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
         ErrorCategory::kRuntime, std::format("Failed to create a {}x{} texture", width, height));
@@ -181,15 +181,15 @@ Result<std::unique_ptr<gpu::OverlayTexture>> VulkanImmediateDrawer::CreateTextur
 }
 
 void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f32 height) {
-  ImmediateDrawer::Begin(context, width, height);
+  OverlayDrawer::Begin(context, width, height);
 
   REX_ASSERT(!batch_open_);
 
-  const VulkanOverlayDrawContext& vulkan_ui_draw_context =
+  const VulkanOverlayDrawContext& vulkan_overlay_draw_context =
       static_cast<const VulkanOverlayDrawContext&>(context);
 
-  last_paint_submission_index_ = vulkan_ui_draw_context.GetSubmissionIndexCurrent();
-  last_completed_submission_index_ = vulkan_ui_draw_context.GetSubmissionIndexCompleted();
+  last_paint_submission_index_ = vulkan_overlay_draw_context.GetSubmissionIndexCurrent();
+  last_completed_submission_index_ = vulkan_overlay_draw_context.GetSubmissionIndexCompleted();
 
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
   const VkDevice device = vulkan_device_->GetDevice();
@@ -220,17 +220,17 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
 
   vertex_buffer_pool_->Reclaim(last_completed_submission_index_);
 
-  if (!EnsurePipelinesCreatedForCurrentRenderPass()) {
+  if (!CreatePipelinesForCurrentRenderPass()) {
     return;
   }
 
-  VkCommandBuffer draw_command_buffer = vulkan_ui_draw_context.GetDrawCommandBuffer();
+  VkCommandBuffer draw_command_buffer = vulkan_overlay_draw_context.GetDrawCommandBuffer();
 
   VkViewport viewport;
   viewport.x = 0.0f;
   viewport.y = 0.0f;
-  viewport.width = static_cast<f32>(vulkan_ui_draw_context.GetRenderTargetWidth());
-  viewport.height = static_cast<f32>(vulkan_ui_draw_context.GetRenderTargetHeight());
+  viewport.width = static_cast<f32>(vulkan_overlay_draw_context.GetRenderTargetWidth());
+  viewport.height = static_cast<f32>(vulkan_overlay_draw_context.GetRenderTargetHeight());
   viewport.minDepth = 0.0f;
   viewport.maxDepth = 1.0f;
   dfn.vkCmdSetViewport(draw_command_buffer, 0, 1, &viewport);
@@ -252,9 +252,9 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
 void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   REX_ASSERT(!batch_open_);
 
-  const VulkanOverlayDrawContext& vulkan_ui_draw_context =
-      *static_cast<const VulkanOverlayDrawContext*>(GetUIDrawContext());
-  VkCommandBuffer draw_command_buffer = vulkan_ui_draw_context.GetDrawCommandBuffer();
+  const VulkanOverlayDrawContext& vulkan_overlay_draw_context =
+      *static_cast<const VulkanOverlayDrawContext*>(GetOverlayDrawContext());
+  VkCommandBuffer draw_command_buffer = vulkan_overlay_draw_context.GetDrawCommandBuffer();
 
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
 
@@ -299,9 +299,9 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   }
 
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
-  const VulkanOverlayDrawContext& vulkan_ui_draw_context =
-      *static_cast<const VulkanOverlayDrawContext*>(GetUIDrawContext());
-  VkCommandBuffer draw_command_buffer = vulkan_ui_draw_context.GetDrawCommandBuffer();
+  const VulkanOverlayDrawContext& vulkan_overlay_draw_context =
+      *static_cast<const VulkanOverlayDrawContext*>(GetOverlayDrawContext());
+  VkCommandBuffer draw_command_buffer = vulkan_overlay_draw_context.GetDrawCommandBuffer();
 
   VkPipeline pipeline;
   switch (draw.primitive) {
@@ -342,7 +342,7 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   }
 
   u32 texture_descriptor_index;
-  VulkanImmediateTexture* texture = static_cast<VulkanImmediateTexture*>(draw.texture);
+  VulkanOverlayTexture* texture = static_cast<VulkanOverlayTexture*>(draw.texture);
   if (texture && texture->immediate_drawer == this) {
     texture_descriptor_index = texture->resource.descriptor_index;
     texture->last_usage_submission = last_paint_submission_index_;
@@ -390,7 +390,7 @@ void VulkanImmediateDrawer::End() {
       image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
       image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      image_memory_barrier.subresourceRange = objects::InitializeSubresourceRange();
+      image_memory_barrier.subresourceRange = objects::BuildSubresourceRange();
       for (const PendingTextureUpload& pending_texture_upload : texture_uploads_pending_) {
         image_memory_barriers.emplace_back(image_memory_barrier).image =
             pending_texture_upload.image;
@@ -459,14 +459,14 @@ void VulkanImmediateDrawer::End() {
 
   vertex_buffer_pool_->FlushWrites();
 
-  ImmediateDrawer::End();
+  OverlayDrawer::End();
 }
 
 void VulkanImmediateDrawer::OnLeavePresenter() {
   VulkanPresenter& vulkan_presenter = *static_cast<VulkanPresenter*>(GetPresenter());
   vulkan_presenter.AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
 
-  for (VulkanImmediateTexture* texture : textures_) {
+  for (VulkanOverlayTexture* texture : textures_) {
     texture->last_usage_submission = 0;
   }
 
@@ -479,16 +479,16 @@ void VulkanImmediateDrawer::OnLeavePresenter() {
     dfn.vkFreeMemory(device, submitted_texture_upload_buffer.buffer_memory, nullptr);
   }
 
-  vertex_buffer_pool_->ChangeSubmissionTimeline();
+  vertex_buffer_pool_->ResetSubmissionTimeline();
 
   last_paint_submission_index_ = 0;
   last_completed_submission_index_ = 0;
 }
 
-bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
-  const VulkanOverlayDrawContext& vulkan_ui_draw_context =
-      *static_cast<const VulkanOverlayDrawContext*>(GetUIDrawContext());
-  VkFormat render_pass_format = vulkan_ui_draw_context.GetRenderPassFormat();
+bool VulkanImmediateDrawer::CreatePipelinesForCurrentRenderPass() {
+  const VulkanOverlayDrawContext& vulkan_overlay_draw_context =
+      *static_cast<const VulkanOverlayDrawContext*>(GetOverlayDrawContext());
+  VkFormat render_pass_format = vulkan_overlay_draw_context.GetRenderPassFormat();
 
   if (render_pass_format == pipeline_framebuffer_format_) {
     // Created, or failed once and not retried every frame.
@@ -622,7 +622,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   pipeline_create_info.pColorBlendState = &color_blend_state;
   pipeline_create_info.pDynamicState = &dynamic_state;
   pipeline_create_info.layout = pipeline_layout_;
-  pipeline_create_info.renderPass = vulkan_ui_draw_context.GetRenderPass();
+  pipeline_create_info.renderPass = vulkan_overlay_draw_context.GetRenderPass();
   pipeline_create_info.subpass = 0;
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_create_info.basePipelineIndex = -1;
@@ -763,7 +763,7 @@ void VulkanImmediateDrawer::FreeTextureDescriptor(u32 descriptor_index) {
 bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
                                                   gpu::OverlayTextureFilter filter,
                                                   bool is_repeated, const u8* data,
-                                                  VulkanImmediateTexture::Resource& resource_out,
+                                                  VulkanOverlayTexture::Resource& resource_out,
                                                   size_t& pending_upload_index_out) {
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
   const VkDevice device = vulkan_device_->GetDevice();
@@ -811,7 +811,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
   image_view_create_info.components.g = swizzle;
   image_view_create_info.components.b = swizzle;
   image_view_create_info.components.a = swizzle;
-  image_view_create_info.subresourceRange = objects::InitializeSubresourceRange();
+  image_view_create_info.subresourceRange = objects::BuildSubresourceRange();
   VkImageView image_view;
   if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &image_view) != VK_SUCCESS) {
     REXLOG_ERROR(ui,
@@ -913,7 +913,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
   return true;
 }
 
-void VulkanImmediateDrawer::DestroyTextureResource(VulkanImmediateTexture::Resource& resource) {
+void VulkanImmediateDrawer::DestroyTextureResource(VulkanOverlayTexture::Resource& resource) {
   FreeTextureDescriptor(resource.descriptor_index);
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
   const VkDevice device = vulkan_device_->GetDevice();
@@ -922,7 +922,7 @@ void VulkanImmediateDrawer::DestroyTextureResource(VulkanImmediateTexture::Resou
   dfn.vkFreeMemory(device, resource.memory, nullptr);
 }
 
-void VulkanImmediateDrawer::OnImmediateTextureDestroyed(VulkanImmediateTexture& texture) {
+void VulkanImmediateDrawer::OnImmediateTextureDestroyed(VulkanOverlayTexture& texture) {
   size_t pending_upload_index = texture.pending_upload_index;
   if (pending_upload_index != SIZE_MAX) {
     if (pending_upload_index + 1 < texture_uploads_pending_.size()) {
@@ -935,7 +935,7 @@ void VulkanImmediateDrawer::OnImmediateTextureDestroyed(VulkanImmediateTexture& 
     texture_uploads_pending_.pop_back();
   }
 
-  VulkanImmediateTexture*& texture_at_index = textures_[texture.immediate_drawer_index];
+  VulkanOverlayTexture*& texture_at_index = textures_[texture.immediate_drawer_index];
   texture_at_index = textures_.back();
   texture_at_index->immediate_drawer_index = texture.immediate_drawer_index;
   textures_.pop_back();

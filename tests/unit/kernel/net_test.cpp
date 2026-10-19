@@ -32,8 +32,8 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 constexpr u32 kSocketError = 0xFFFFFFFF;

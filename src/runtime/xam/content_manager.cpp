@@ -128,8 +128,8 @@ ContentManager::~ContentManager() = default;
 
 std::filesystem::path ContentManager::ResolvePackageRoot(u64 xuid, XContentType content_type,
                                                          u32 title_id) {
-  if (title_id == kCurrentlyRunningTitleId) {
-    title_id = this->GetTitleId();
+  if (title_id == kRunningTitleId) {
+    title_id = this->GetTitleID();
   }
   auto xuid_str = std::format("{:016X}", xuid);
   auto title_id_str = std::format("{:08X}", title_id);
@@ -155,8 +155,8 @@ std::filesystem::path ContentManager::ResolvePackagePath(u64 xuid,
 std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string_view file_name,
                                                                u64 xuid, u32 title_id,
                                                                XContentType content_type) const {
-  if (title_id == kCurrentlyRunningTitleId) {
-    title_id = this->GetTitleId();
+  if (title_id == kRunningTitleId) {
+    title_id = this->GetTitleID();
   }
 
   if (content_type == XContentType::kMarketplaceContent) {
@@ -178,8 +178,8 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(u32 device_id, 
                                                                  u32 title_id) {
   std::vector<XCONTENT_AGGREGATE_DATA> result;
 
-  if (title_id == kCurrentlyRunningTitleId) {
-    title_id = this->GetTitleId();
+  if (title_id == kRunningTitleId) {
+    title_id = this->GetTitleID();
   }
 
   auto package_root = ResolvePackageRoot(xuid, content_type, title_id);
@@ -225,7 +225,7 @@ bool ContentManager::ContentExists(u64 xuid, const XCONTENT_AGGREGATE_DATA& data
 Result<void> ContentManager::WriteContentHeaderFile(u64 xuid, XCONTENT_AGGREGATE_DATA data,
                                                     u32 license_mask) {
   if (data.title_id == static_cast<u32>(-1)) {
-    data.title_id = this->GetTitleId();
+    data.title_id = this->GetTitleID();
   }
   if (data.xuid == static_cast<u64>(-1)) {
     data.xuid = xuid;
@@ -239,7 +239,7 @@ Result<void> ContentManager::WriteContentHeaderFile(u64 xuid, XCONTENT_AGGREGATE
 
   if (!std::filesystem::exists(parent_path)) {
     if (!std::filesystem::create_directories(parent_path)) {
-      return Err(ResultError(X_ERROR_ACCESS_DENIED));
+      return Err(XResultError(X_ERROR_ACCESS_DENIED));
     }
   }
 
@@ -251,7 +251,7 @@ Result<void> ContentManager::WriteContentHeaderFile(u64 xuid, XCONTENT_AGGREGATE
                 sizeof(license_mask));
   }
   if (!platform::WriteHostFile(header_path, header)) {
-    return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
   return Ok();
 }
@@ -262,17 +262,17 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::ReadContentHeaderFile(
   constexpr u32 kHeaderSize = sizeof(XCONTENT_AGGREGATE_DATA);
 
   if (!std::filesystem::exists(header_file_path)) {
-    return Err<XCONTENT_AGGREGATE_DATA>(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err<XCONTENT_AGGREGATE_DATA>(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
 
   std::ifstream file(header_file_path, std::ios::binary);
   if (!file) {
-    return Err<XCONTENT_AGGREGATE_DATA>(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err<XCONTENT_AGGREGATE_DATA>(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
 
   std::array<u8, kHeaderSize> buffer;
   if (!file.read(reinterpret_cast<char*>(buffer.data()), kHeaderSize)) {
-    return Err<XCONTENT_AGGREGATE_DATA>(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err<XCONTENT_AGGREGATE_DATA>(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
 
   XCONTENT_AGGREGATE_DATA data;
@@ -284,27 +284,27 @@ Result<void> ContentManager::CreateContent(const std::string_view root_name, u64
                                            const XCONTENT_AGGREGATE_DATA& data) {
   {
     std::lock_guard lock(mutex_);
-    if (open_packages_.count(StringKeyCase(root_name))) {
-      return Err(ResultError(X_ERROR_ALREADY_EXISTS));
+    if (open_packages_.count(StringKeyIgnoreCase(root_name))) {
+      return Err(XResultError(X_ERROR_ALREADY_EXISTS));
     }
   }
 
   auto package_path = ResolvePackagePath(xuid, data);
   if (std::filesystem::exists(package_path)) {
-    return Err(ResultError(X_ERROR_ALREADY_EXISTS));
+    return Err(XResultError(X_ERROR_ALREADY_EXISTS));
   }
   if (!std::filesystem::create_directories(package_path)) {
-    return Err(ResultError(X_ERROR_ACCESS_DENIED));
+    return Err(XResultError(X_ERROR_ACCESS_DENIED));
   }
   auto package = ResolvePackage(root_name, xuid, data);
   REX_ASSERT(package != nullptr);
 
   {
     std::lock_guard lock(mutex_);
-    if (open_packages_.count(StringKeyCase(root_name))) {
-      return Err(ResultError(X_ERROR_ALREADY_EXISTS));
+    if (open_packages_.count(StringKeyIgnoreCase(root_name))) {
+      return Err(XResultError(X_ERROR_ALREADY_EXISTS));
     }
-    open_packages_.emplace(StringKeyCase::Create(root_name), std::move(package));
+    open_packages_.emplace(StringKeyIgnoreCase::Create(root_name), std::move(package));
   }
   return Ok();
 }
@@ -313,27 +313,27 @@ Result<u32> ContentManager::OpenContent(const std::string_view root_name, u64 xu
                                         const XCONTENT_AGGREGATE_DATA& data) {
   {
     std::lock_guard lock(mutex_);
-    if (open_packages_.count(StringKeyCase(root_name))) {
-      return Err<u32>(ResultError(X_ERROR_ALREADY_EXISTS));
+    if (open_packages_.count(StringKeyIgnoreCase(root_name))) {
+      return Err<u32>(XResultError(X_ERROR_ALREADY_EXISTS));
     }
   }
 
   auto package_path = ResolvePackagePath(xuid, data);
   if (!std::filesystem::exists(package_path)) {
-    return Err<u32>(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err<u32>(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
   auto package = ResolvePackage(root_name, xuid, data);
   REX_ASSERT(package != nullptr);
   package->LoadPackageLicenseMask(
-      ResolvePackageHeaderPath(data.GetFileName(), xuid, this->GetTitleId(), data.content_type));
+      ResolvePackageHeaderPath(data.GetFileName(), xuid, this->GetTitleID(), data.content_type));
   const u32 license = package->GetPackageLicense();
 
   {
     std::lock_guard lock(mutex_);
-    if (open_packages_.count(StringKeyCase(root_name))) {
-      return Err<u32>(ResultError(X_ERROR_ALREADY_EXISTS));
+    if (open_packages_.count(StringKeyIgnoreCase(root_name))) {
+      return Err<u32>(XResultError(X_ERROR_ALREADY_EXISTS));
     }
-    open_packages_.emplace(StringKeyCase::Create(root_name), std::move(package));
+    open_packages_.emplace(StringKeyIgnoreCase::Create(root_name), std::move(package));
   }
   return license;
 }
@@ -342,9 +342,9 @@ Result<void> ContentManager::CloseContent(const std::string_view root_name) {
   std::string open_root_name;
   {
     std::lock_guard lock(mutex_);
-    auto it = open_packages_.find(StringKeyCase(root_name));
+    auto it = open_packages_.find(StringKeyIgnoreCase(root_name));
     if (it == open_packages_.end()) {
-      return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
+      return Err(XResultError(X_ERROR_FILE_NOT_FOUND));
     }
     open_root_name = it->first.GetView();
   }
@@ -361,7 +361,7 @@ Result<std::vector<u8>> ContentManager::GetContentThumbnail(u64 xuid,
   if (std::filesystem::exists(thumb_path)) {
     return platform::ReadHostFile(thumb_path);
   } else {
-    return Err<std::vector<u8>>(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err<std::vector<u8>>(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
 }
 
@@ -373,11 +373,11 @@ Result<void> ContentManager::SetContentThumbnail(u64 xuid, const XCONTENT_AGGREG
   if (std::filesystem::exists(package_path)) {
     auto thumb_path = package_path / kThumbnailFileName;
     if (!platform::WriteHostFile(thumb_path, buffer)) {
-      return Err(ResultError(X_ERROR_ACCESS_DENIED));
+      return Err(XResultError(X_ERROR_ACCESS_DENIED));
     }
     return Ok();
   } else {
-    return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
 }
 
@@ -391,14 +391,14 @@ Result<void> ContentManager::DeleteContent(u64 xuid, const XCONTENT_AGGREGATE_DA
   std::lock_guard lock(mutex_);
 
   if (IsContentOpen(data)) {
-    return Err(ResultError(X_ERROR_ACCESS_DENIED));
+    return Err(XResultError(X_ERROR_ACCESS_DENIED));
   }
 
   std::error_code ec;
   auto dir_removed = std::filesystem::remove_all(package_path, ec);
   if (ec ||
       std::filesystem::status(package_path, ec).type() != std::filesystem::file_type::not_found) {
-    return Err(ResultError(X_ERROR_ACCESS_DENIED));
+    return Err(XResultError(X_ERROR_ACCESS_DENIED));
   }
 
   std::error_code ec2;
@@ -407,11 +407,11 @@ Result<void> ContentManager::DeleteContent(u64 xuid, const XCONTENT_AGGREGATE_DA
   if (dir_removed > 0 || header_removed) {
     return Ok();
   }
-  return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
+  return Err(XResultError(X_ERROR_FILE_NOT_FOUND));
 }
 
 std::filesystem::path ContentManager::ResolveGameUserContentPath() {
-  auto title_id = std::format("{:08X}", this->GetTitleId());
+  auto title_id = std::format("{:08X}", this->GetTitleID());
   auto user_name = rex::to_path(user_profile_.GetName());
 
   return root_path_ / title_id / kGameUserContentDirName / user_name;
@@ -419,7 +419,7 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
 
 std::unique_ptr<ContentPackage> ContentManager::DetachPackage(const std::string_view root_name) {
   std::lock_guard lock(mutex_);
-  auto it = open_packages_.find(StringKeyCase(root_name));
+  auto it = open_packages_.find(StringKeyIgnoreCase(root_name));
   if (it == open_packages_.end()) {
     return nullptr;
   }
@@ -460,7 +460,7 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
 Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
     const std::filesystem::path& package_path) {
   REX_TRY(filesystem::Container container, filesystem::Container::Open(package_path));
-  const filesystem::STFSHeader* header = container.GetHeader();
+  const filesystem::XContentPackageHeader* header = container.GetHeader();
   if (!header) {
     return Err<XCONTENT_AGGREGATE_DATA>(filesystem::BuildError(
         filesystem::FileSystemError::kCorrupt,
@@ -508,7 +508,7 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
             platform::WriteHostFile(install_path / kThumbnailFileName,
                                     std::span<const u8>(metadata.thumbnail, thumbnail_size));
         !written) {
-      REXLOG_WARN(system, "write failed: {}", written.error().GetDescription());
+      REXLOG_WARN(system, "the thumbnail write failed, {}", written.error().GetDescription());
     }
   }
 
@@ -528,14 +528,14 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
 
 Result<u32> ContentManager::GetContentDeviceID(const std::string_view root_name) const {
   std::lock_guard lock(mutex_);
-  auto it = open_packages_.find(StringKeyCase(root_name));
+  auto it = open_packages_.find(StringKeyIgnoreCase(root_name));
   if (it == open_packages_.end()) {
-    return Err<u32>(ResultError(X_ERROR_FILE_NOT_FOUND));
+    return Err<u32>(XResultError(X_ERROR_FILE_NOT_FOUND));
   }
   return it->second->GetPackageContentData().device_id;
 }
 
-u32 ContentManager::GetTitleId() const {
+u32 ContentManager::GetTitleID() const {
   auto module = runtime_.GetObjectTable().Get<ModuleObject>(
       runtime_.GetModuleRegistry().GetExecutable().value_or(0));
   REX_ASSERT(module);
@@ -550,22 +550,22 @@ u32 ContentManager::GetTitleId() const {
   return 0;
 }
 
-runtime::XDBFGameData ContentManager::GetTitleXDBF() const {
+runtime::XDBFTitleData ContentManager::GetTitleXDBF() const {
   auto module = runtime_.GetObjectTable().Get<ModuleObject>(
       runtime_.GetModuleRegistry().GetExecutable().value_or(0));
   REX_ASSERT(module);
   return GetModuleXDBF(*module);
 }
 
-runtime::XDBFGameData ContentManager::GetModuleXDBF(const ModuleObject& exec_module) const {
+runtime::XDBFTitleData ContentManager::GetModuleXDBF(const ModuleObject& exec_module) const {
   u32 resource_data = 0;
   u32 resource_size = 0;
   if (XSUCCEEDED(exec_module.GetSection(std::format("{:08X}", exec_module.GetTitleId()),
                                         &resource_data, &resource_size))) {
-    runtime::XDBFGameData db(runtime_.GetMemory()->TranslateVirtual(resource_data), resource_size);
+    runtime::XDBFTitleData db(runtime_.GetMemory()->TranslateVirtual(resource_data), resource_size);
     return db;
   }
-  return runtime::XDBFGameData(nullptr, resource_size);
+  return runtime::XDBFTitleData(nullptr, resource_size);
 }
 
 }  // namespace rex::runtime

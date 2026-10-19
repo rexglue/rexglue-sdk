@@ -66,7 +66,7 @@ struct Error {
    * @param errno_value The errno or platform error code.
    * @return The error.
    */
-  static Error GetFromErrno(ErrorCategory cat, std::string msg, int errno_value) {
+  static Error FromErrno(ErrorCategory cat, std::string msg, int errno_value) {
     return Error(cat, std::move(msg), errno_value);
   }
 

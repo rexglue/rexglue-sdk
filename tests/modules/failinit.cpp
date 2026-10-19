@@ -30,20 +30,20 @@ class FailInitModule final : public rex::IModule {
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
   }};
 
-  FailInitModule() { Record(kName, "constructor"); }
+  FailInitModule() { ReportEvent(kName, "constructor"); }
 
   const char* GetName() const override { return kName; }
   std::span<const char* const> GetRequiredInterfaces() const override { return {}; }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
-    Record(kName, "connect");
+    ReportEvent(kName, "connect");
     return rex::Ok();
   }
-  void Disconnect() override { Record(kName, "disconnect"); }
+  void Disconnect() override { ReportEvent(kName, "disconnect"); }
   [[nodiscard]] rex::Result<void> Init() override {
-    Record(kName, "init");
+    ReportEvent(kName, "init");
     return rex::Err(rex::ErrorCategory::kValidation, "failinit refuses");
   }
-  void Shutdown() override { Record(kName, "shutdown"); }
+  void Shutdown() override { ReportEvent(kName, "shutdown"); }
 
  private:
   static FailInitModule& GetInstance() {

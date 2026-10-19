@@ -308,7 +308,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   application_info.pEngineName = nullptr;
   application_info.engineVersion = 0;
   application_info.apiVersion = vulkan_instance->api_version_ >= VK_MAKE_API_VERSION(0, 1, 1, 0)
-                                    ? VulkanDevice::kHighestUsedAPIMinorVersion
+                                    ? VulkanDevice::kHighestUsedAPIVersion
                                     : VK_MAKE_API_VERSION(0, 1, 0, 0);
 
   VkInstanceCreateInfo instance_create_info;
@@ -436,7 +436,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   if (vulkan_instance->extensions_.ext_EXT_debug_utils &&
       REXCVAR_GET(::rex::gpu::cvars::log_debug_messages)) {
     auto debug_utils_messenger_create_info =
-        objects::InitializeStructure<VkDebugUtilsMessengerCreateInfoEXT>(
+        objects::BuildStructure<VkDebugUtilsMessengerCreateInfoEXT>(
             VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
     if (rex::log::gpu.IsEnabled(rex::log::Level::kDebug)) {
       debug_utils_messenger_create_info.messageSeverity |=

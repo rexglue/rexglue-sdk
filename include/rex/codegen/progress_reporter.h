@@ -21,7 +21,7 @@
 namespace rex::codegen {
 
 /** Identifying fields from a loaded XEX, surfaced before recompilation work starts. */
-struct BinaryInfo {
+struct BinaryIdentity {
   std::string_view name; /**< Filename of the input XEX */
   u32 title_id = 0;      /**< XEXOptExecutionInfo.title_id */
   u32 media_id = 0;      /**< XEXOptExecutionInfo.media_id */
@@ -48,7 +48,7 @@ REX_INTERFACE(IProgressReporter)
    *
    * @param info Identifying info of the loaded binary.
    */
-  virtual void BinaryLoaded(const BinaryInfo& info) = 0;
+  virtual void BinaryLoaded(const BinaryIdentity& info) = 0;
 
   /**
    * Called when a module's analysis and write cycle starts.
@@ -64,7 +64,7 @@ REX_INTERFACE(IProgressReporter)
    *
    * @param name Name of the phase that started.
    */
-  virtual void PhaseChanged(std::string_view name) = 0;
+  virtual void ModulePhaseStarted(std::string_view name) = 0;
 
   /**
    * Called when the current module finishes successfully.

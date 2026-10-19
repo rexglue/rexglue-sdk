@@ -24,8 +24,8 @@ u64 ToFileTime(time_t seconds) {
       WinSystemClock::from_sys(std::chrono::sys_seconds{std::chrono::seconds{seconds}}));
 }
 
-HostInfo FromStat(std::filesystem::path name, const struct stat& st) {
-  HostInfo info;
+HostFileStat FromStat(std::filesystem::path name, const struct stat& st) {
+  HostFileStat info;
   info.name = std::move(name);
   info.directory = S_ISDIR(st.st_mode);
   info.size = info.directory ? 0 : static_cast<u64>(st.st_size);
@@ -46,7 +46,7 @@ bool NoNativeExclusiveMove(int error) {
   return error == EINVAL || error == ENOSYS || error == ENOTSUP;
 }
 
-int MoveReplacing(const std::filesystem::path& from, const std::filesystem::path& to) {
+int MoveReplace(const std::filesystem::path& from, const std::filesystem::path& to) {
   return rename(from.c_str(), to.c_str()) == 0 ? 0 : errno;
 }
 
@@ -86,7 +86,7 @@ int MoveNoReplace(const std::filesystem::path& from, const std::filesystem::path
   if (lstat(to.c_str(), &st) == 0) {
     return EEXIST;
   }
-  return MoveReplacing(from, to);
+  return MoveReplace(from, to);
 }
 
 }  // namespace
@@ -100,9 +100,9 @@ HostFile::~HostFile() {
 
 Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::path& path,
                                                          Access access) {
-  constexpr Access kReadRights = Access::kGenericRead | Access::kGenericAll | Access::kReadData;
+  constexpr Access kReadRights = Access::kReadAccess | Access::kAllAccess | Access::kReadData;
   constexpr Access kWriteRights =
-      Access::kGenericWrite | Access::kGenericAll | Access::kWriteData | Access::kAppendData;
+      Access::kWriteAccess | Access::kAllAccess | Access::kWriteData | Access::kAppendData;
   const bool want_read = (access & kReadRights) != Access::kNone;
   const bool want_write = (access & kWriteRights) != Access::kNone;
   int mode = O_RDONLY;
@@ -178,7 +178,7 @@ Result<void> HostFile::Flush() const {
 
 [[nodiscard]] Result<void> HostMove(const std::filesystem::path& from,
                                     const std::filesystem::path& to, bool replace_existing) {
-  const int error = replace_existing ? MoveReplacing(from, to) : MoveNoReplace(from, to);
+  const int error = replace_existing ? MoveReplace(from, to) : MoveNoReplace(from, to);
   if (error == 0) {
     return Ok();
   }
@@ -194,7 +194,7 @@ Result<void> HostFile::Flush() const {
                                           PathToUTF8(to), std::strerror(error))));
 }
 
-std::optional<HostInfo> HostStat(const std::filesystem::path& path) {
+std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
   struct stat st{};
   if (stat(path.c_str(), &st) != 0) {
     return std::nullopt;
@@ -202,8 +202,8 @@ std::optional<HostInfo> HostStat(const std::filesystem::path& path) {
   return FromStat(path.filename(), st);
 }
 
-std::vector<HostInfo> HostList(const std::filesystem::path& path) {
-  std::vector<HostInfo> result;
+std::vector<HostFileStat> HostList(const std::filesystem::path& path) {
+  std::vector<HostFileStat> result;
   DIR* dir = opendir(path.c_str());
   if (!dir) {
     return result;

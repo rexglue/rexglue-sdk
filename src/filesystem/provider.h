@@ -62,7 +62,7 @@ class Provider : public NonCopyable, public std::enable_shared_from_this<Provide
    *
    * @return The name and geometry.
    */
-  [[nodiscard]] virtual VolumeInfo GetVolume() const = 0;
+  [[nodiscard]] virtual VolumeStat GetVolume() const = 0;
 
   /**
    * Returns the node at a path relative to the mount.

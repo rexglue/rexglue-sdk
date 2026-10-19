@@ -246,7 +246,7 @@ struct FileObject {
    *
    * @return The entry, empty when the listing is exhausted or absent.
    */
-  REX_RUNTIME_API std::optional<filesystem::FileInfo> FindNext();
+  REX_RUNTIME_API std::optional<filesystem::FileStat> FindNext();
 
   /**
    * Associates an IO completion port with the file. The file owns a duplicate of the port handle.

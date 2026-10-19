@@ -87,7 +87,7 @@ class Hub final : public IHIDBackend {
   bool IsKeyDown(VirtualKey key) const override;
   bool IsAnyKeyDown() const override;
   KeyModifiers GetModifiers() const override;
-  bool GetFocused() const override;
+  bool IsFocused() const override;
   PointerState GetPointer() const override;
   bool IsButtonDown(MouseButton button) const override;
   bool IsAnyButtonDown() const override;
@@ -104,7 +104,7 @@ class Hub final : public IHIDBackend {
 
   void RefreshDevicesLocked();
   Driver* DriverForDeviceLocked(DeviceId id);
-  const DeviceInfo* DeviceInfoForLocked(DeviceId id) const;
+  const Device* FindDeviceLocked(DeviceId id) const;
   DeviceId ChooseDeviceForUserLocked(u32 user) const;
   [[nodiscard]] Result<X_INPUT_STATE> ReadStateLocked(u32 user);
   void UpdateConnectedUserLocked(u32 user, bool connected);
@@ -123,7 +123,7 @@ class Hub final : public IHIDBackend {
   KeyboardMouseDriver* keyboard_mouse_ = nullptr;
   std::unique_ptr<IDeviceAssignment> assignment_;
   ActiveDeviceTracker active_devices_;
-  std::vector<DeviceInfo> devices_;
+  std::vector<Device> devices_;
   std::vector<Driver*> device_owners_;
   std::bitset<kMaxTitleUsers> connected_users_;
   std::array<std::pair<JoystickValue, JoystickValue>, kMaxTitleUsers> user_max_joystick_value_{};

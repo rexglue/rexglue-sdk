@@ -111,7 +111,7 @@ inline bool OpenStorageFile(std::fstream& file, const std::filesystem::path& pat
  * @param path Host path of the storage file.
  * @return Size in bytes.
  */
-inline u64 StorageFileSize(const std::filesystem::path& path) {
+inline u64 GetStorageFileSize(const std::filesystem::path& path) {
   std::error_code error;
   const auto size = std::filesystem::file_size(path, error);
   return error ? 0 : static_cast<u64>(size);
@@ -125,7 +125,7 @@ inline u64 StorageFileSize(const std::filesystem::path& path) {
  * @param size Number of bytes to read.
  * @return Number of bytes read.
  */
-inline size_t ReadStorage(std::fstream& file, void* data, size_t size) {
+inline size_t ReadStorageFile(std::fstream& file, void* data, size_t size) {
   file.read(static_cast<char*>(data), static_cast<std::streamsize>(size));
   return static_cast<size_t>(file.gcount());
 }
@@ -137,7 +137,7 @@ inline size_t ReadStorage(std::fstream& file, void* data, size_t size) {
  * @param data Source buffer.
  * @param size Number of bytes to write.
  */
-inline void AppendStorage(std::fstream& file, const void* data, size_t size) {
+inline void AppendStorageFile(std::fstream& file, const void* data, size_t size) {
   file.seekp(0, std::ios::end);
   file.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
 }

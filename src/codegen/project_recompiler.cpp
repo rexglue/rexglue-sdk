@@ -99,10 +99,10 @@ void ReportBinaryInfo(IProgressReporter* reporter, std::string_view display_name
                       const rex::runtime::XEXModule& xex) {
   if (!reporter)
     return;
-  BinaryInfo info{};
+  BinaryIdentity info{};
   info.name = display_name;
-  info.pe_time_date_stamp = xex.GetPe().time_date_stamp;
-  if (auto* exec = xex.GetImage().OptHeader<filesystem::XEXOptExecutionInfo>(
+  info.pe_time_date_stamp = xex.GetPE().time_date_stamp;
+  if (auto* exec = xex.GetImage().GetOptHeader<filesystem::XEXOptExecutionInfo>(
           filesystem::kXEXHeaderExecutionInfo)) {
     info.title_id = exec->title_id;
     info.media_id = exec->media_id;
@@ -136,7 +136,7 @@ Result<std::pair<u32, u32>> ReadImageRange(const std::filesystem::path& path) {
   if (!image) {
     return Err<std::pair<u32, u32>>(image.error());
   }
-  const u32 base = image->OptHeaderValue(rex::filesystem::kXEXHeaderImageBaseAddress)
+  const u32 base = image->GetOptHeaderValue(rex::filesystem::kXEXHeaderImageBaseAddress)
                        .value_or(image->GetSecurity().load_address);
   return std::pair<u32, u32>{base, image->GetImageSize()};
 }
@@ -496,7 +496,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     auto& entry = contexts[i];
     if (opts.reporter) {
       opts.reporter->ModuleStarted(entry.display_name, i, contexts.size());
-      opts.reporter->PhaseChanged("Write");
+      opts.reporter->ModulePhaseStarted("Write");
     }
     REXLOG_TRACE(codegen, "Writing output for '{}'...", entry.module->target_name);
     CodegenWriter writer(entry.ctx);

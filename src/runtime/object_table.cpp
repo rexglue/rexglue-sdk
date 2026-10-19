@@ -172,7 +172,7 @@ KernelObject* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
   }
   if (!object->name.empty()) {
     std::lock_guard name_lock(name_mutex_);
-    auto it = names_.find(StringKeyCase(object->name));
+    auto it = names_.find(StringKeyIgnoreCase(object->name));
     if (it != names_.end() && it->second == handle) {
       if (object->handles.empty()) {
         names_.erase(it);
@@ -264,11 +264,11 @@ Result<void> ObjectTable::RetainPrimary(const PinnedSlot& slot) {
 }
 
 Result<void> ObjectTable::ReleasePrimary(const PinnedSlot& slot) {
-  const std::optional<X_HANDLE> primary = PrimaryHandle(slot);
+  const std::optional<X_HANDLE> primary = GetPrimaryHandle(slot);
   return primary ? Close(*primary) : Err(StatusError(X_STATUS_INVALID_HANDLE));
 }
 
-std::optional<X_HANDLE> ObjectTable::PrimaryHandle(const PinnedSlot& slot) {
+std::optional<X_HANDLE> ObjectTable::GetPrimaryHandle(const PinnedSlot& slot) {
   std::shared_lock lock(mutex_);
   const std::vector<X_HANDLE>& handles = slot.GetKernelObject().handles;
   if (handles.empty()) {
@@ -291,7 +291,7 @@ PinnedSlot ObjectTable::Get(X_HANDLE handle) {
   return PinnedSlot(slot->object, handle);
 }
 
-std::vector<PinnedSlot> ObjectTable::All() {
+std::vector<PinnedSlot> ObjectTable::GetAll() {
   std::vector<PinnedSlot> results;
   std::shared_lock lock(mutex_);
   results.reserve(objects_.size());
@@ -304,10 +304,10 @@ std::vector<PinnedSlot> ObjectTable::All() {
 
 Result<void> ObjectTable::AddName(std::string_view name, X_HANDLE handle) {
   std::lock_guard lock(name_mutex_);
-  if (names_.count(StringKeyCase(name))) {
+  if (names_.count(StringKeyIgnoreCase(name))) {
     return Err(StatusError(X_STATUS_OBJECT_NAME_COLLISION));
   }
-  names_.insert({StringKeyCase::Create(name), handle});
+  names_.insert({StringKeyIgnoreCase::Create(name), handle});
   return Ok();
 }
 
@@ -316,7 +316,7 @@ Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
   X_HANDLE handle = kXInvalidHandleValue;
   {
     std::lock_guard name_lock(name_mutex_);
-    auto it = names_.find(StringKeyCase(name));
+    auto it = names_.find(StringKeyIgnoreCase(name));
     if (it != names_.end()) {
       handle = it->second;
     }

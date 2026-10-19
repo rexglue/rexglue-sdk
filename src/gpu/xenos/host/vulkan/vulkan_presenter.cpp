@@ -524,8 +524,7 @@ void VulkanPresenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
 
 bool VulkanPresenter::RefreshGuestOutputImpl(
     u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
-    rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
-    bool& is_8bpc_out_ref) {
+    rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher, bool& is_8bpc_out) {
   REX_ASSERT(frontbuffer_width != 0);
   REX_ASSERT(frontbuffer_height != 0);
   VkExtent2D max_framebuffer_extent =
@@ -552,7 +551,7 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
     image_instance.SetToNewImage(std::move(new_image), guest_output_image_next_version_++);
   }
 
-  VulkanGuestOutputRefreshContext context(is_8bpc_out_ref, image_instance.image->GetImage(),
+  VulkanGuestOutputRefreshContext context(is_8bpc_out, image_instance.image->GetImage(),
                                           image_instance.image->GetView(), image_instance.version,
                                           image_instance.ever_successfully_refreshed);
   bool refresher_succeeded = refresher(context);
@@ -565,13 +564,13 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   // The fence is signaled here, as a vkQueueSubmit fence signal covers all earlier commands.
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
   {
-    VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
+    VulkanSubmissionTracker::FenceAcquisition fence_acquisition(
         guest_output_image_refresher_submission_tracker_.AcquireFenceToAdvanceSubmission());
     const VulkanDevice::Queue::Acquisition queue_acquisition =
         vulkan_device_->AcquireQueue(vulkan_device_->GetQueueFamilyGraphicsCompute(), 0);
-    if (dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 0, nullptr, fence_acqusition.GetFence()) !=
+    if (dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 0, nullptr, fence_acquisition.GetFence()) !=
         VK_SUCCESS) {
-      fence_acqusition.SubmissionSucceededSignalFailed();
+      fence_acquisition.SubmissionSucceededSignalFailed();
     }
   }
 
@@ -1285,7 +1284,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
         draw_command_buffer, ui_submission_tracker_.GetCurrentSubmission(),
         ui_submission_tracker_.UpdateAndGetCompletedSubmission(),
         paint_context_.swapchain_render_pass, paint_context_.swapchain_render_pass_format);
-    ExecuteUIDrawersFromUIThread(ui_draw_context);
+    ExecuteOverlayLayersFromUIThread(ui_draw_context);
   }
 
   dfn.vkCmdEndRenderPass(draw_command_buffer);
@@ -1319,7 +1318,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   submit_info.signalSemaphoreCount = 1;
   submit_info.pSignalSemaphores = &present_semaphore;
   {
-    VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
+    VulkanSubmissionTracker::FenceAcquisition fence_acquisition(
         paint_context_.submission_tracker.AcquireFenceToAdvanceSubmission());
     VulkanSubmissionTracker::FenceAcquisition ui_fence_acquisition;
     if (execute_ui_drawers) {
@@ -1330,7 +1329,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       const VulkanDevice::Queue::Acquisition queue_acquisition =
           vulkan_device_->AcquireQueue(vulkan_device_->GetQueueFamilyGraphicsCompute(), 0);
       submit_result = dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 1, &submit_info,
-                                        fence_acqusition.GetFence());
+                                        fence_acquisition.GetFence());
       if (ui_fence_acquisition.GetFence() != VK_NULL_HANDLE && submit_result == VK_SUCCESS) {
         if (dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 0, nullptr,
                               ui_fence_acquisition.GetFence()) != VK_SUCCESS) {
@@ -1340,7 +1339,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     }
     if (submit_result != VK_SUCCESS) {
       REXLOG_ERROR(ui, "VulkanPresenter: Failed to submit command buffers");
-      fence_acqusition.SubmissionFailedOrDropped();
+      fence_acquisition.SubmissionFailedOrDropped();
       ui_fence_acquisition.SubmissionFailedOrDropped();
       if (ui_setup_command_buffer_index != SIZE_MAX) {
         // Reusable at once, as the completed index stays behind and would never recycle it.

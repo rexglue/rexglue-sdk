@@ -18,10 +18,10 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::KernelFixture;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -126,9 +126,9 @@ constexpr u8 kPkcs1F2S256[] = {
 
 void CheckPkcs1(Caller& c, u32 format, std::span<const u8> expected) {
   const u32 size = static_cast<u32>(expected.size());
-  const u32 output = Put(c, std::vector<u8>(size, 0x55));
-  c.Kernel("XeCryptBnDwLePkcs1Format", {Put(c, kSigHash), format, output, size});
-  CHECK(Get(c, output, size) == std::vector<u8>(expected.begin(), expected.end()));
+  const u32 output = CopyToGuest(c, std::vector<u8>(size, 0x55));
+  c.Kernel("XeCryptBnDwLePkcs1Format", {CopyToGuest(c, kSigHash), format, output, size});
+  CHECK(ReadBytes(c, output, size) == std::vector<u8>(expected.begin(), expected.end()));
 }
 
 }  // namespace
@@ -152,9 +152,9 @@ REX_TEST_CASE("XeCryptBnDwLePkcs1Format writes nothing for a size outside 39 to 
   fixture.RunOnGuestThread([](Caller& c) {
     for (const u32 size : {u32{0}, u32{38}, u32{513}}) {
       const std::vector<u8> filler(size + 8, 0x55);
-      const u32 output = Put(c, filler);
-      c.Kernel("XeCryptBnDwLePkcs1Format", {Put(c, kSigHash), 0, output, size});
-      CHECK(Get(c, output, size + 8) == filler);
+      const u32 output = CopyToGuest(c, filler);
+      c.Kernel("XeCryptBnDwLePkcs1Format", {CopyToGuest(c, kSigHash), 0, output, size});
+      CHECK(ReadBytes(c, output, size + 8) == filler);
     }
   });
 }
@@ -166,16 +166,16 @@ REX_TEST_CASE("XeCryptBnDwLePkcs1Verify accepts the block each format writes and
     for (const u32 format : {0u, 1u, 2u}) {
       for (const u32 size : {128u, 256u}) {
         INFO("format " << format << " size " << size);
-        const u32 block = Put(c, std::vector<u8>(size, 0x55));
-        c.Kernel("XeCryptBnDwLePkcs1Format", {Put(c, kSigHash), format, block, size});
-        CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {Put(c, kSigHash), block, size}) == 1);
+        const u32 block = CopyToGuest(c, std::vector<u8>(size, 0x55));
+        c.Kernel("XeCryptBnDwLePkcs1Format", {CopyToGuest(c, kSigHash), format, block, size});
+        CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {CopyToGuest(c, kSigHash), block, size}) == 1);
 
         std::vector<u8> wrong_hash(std::begin(kSigHash), std::end(kSigHash));
         wrong_hash[0] ^= 1;
-        CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {Put(c, wrong_hash), block, size}) == 0);
+        CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {CopyToGuest(c, wrong_hash), block, size}) == 0);
 
         c.Store32(block + size - 4, c.Load32(block + size - 4) ^ 1);
-        CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {Put(c, kSigHash), block, size}) == 0);
+        CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {CopyToGuest(c, kSigHash), block, size}) == 0);
       }
     }
   });
@@ -185,8 +185,8 @@ REX_TEST_CASE("XeCryptBnDwLePkcs1Verify rejects a size outside 39 to 512", "[ker
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     for (const u32 size : {0u, 38u, 513u}) {
-      const u32 block = Put(c, std::vector<u8>(size + 8, 0xFF));
-      CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {Put(c, kSigHash), block, size}) == 0);
+      const u32 block = CopyToGuest(c, std::vector<u8>(size + 8, 0xFF));
+      CHECK(c.Kernel("XeCryptBnDwLePkcs1Verify", {CopyToGuest(c, kSigHash), block, size}) == 0);
     }
   });
 }
@@ -195,9 +195,10 @@ REX_TEST_CASE("XeCryptBnQwBeSigFormat builds the masked and swapped signature bl
               "[kernel][crypt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 output = Put(c, std::vector<u8>(256, 0x55));
-    c.Kernel("XeCryptBnQwBeSigFormat", {output, Put(c, kSigHash), Put(c, kSigSalt)});
-    CHECK(Get(c, output, 256) ==
+    const u32 output = CopyToGuest(c, std::vector<u8>(256, 0x55));
+    c.Kernel("XeCryptBnQwBeSigFormat",
+             {output, CopyToGuest(c, kSigHash), CopyToGuest(c, kSigSalt)});
+    CHECK(ReadBytes(c, output, 256) ==
           std::vector<u8>(std::begin(kSigFormatted), std::end(kSigFormatted)));
   });
 }

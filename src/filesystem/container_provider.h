@@ -51,7 +51,7 @@ class ContainerProvider final : public Provider {
    *
    * @return The name and geometry.
    */
-  [[nodiscard]] VolumeInfo GetVolume() const override;
+  [[nodiscard]] VolumeStat GetVolume() const override;
 
   /**
    * Returns the parsed image.

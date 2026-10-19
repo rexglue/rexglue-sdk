@@ -26,7 +26,7 @@ D3D12Shader::D3D12Shader(xenos::ShaderType shader_type, u64 ucode_data_hash,
     : DXBCShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
                  ucode_source_endian) {}
 
-void D3D12Shader::D3D12Translation::DisassembleDXBCAndDxil(
+void D3D12Shader::D3D12Translation::DisassembleDXBCAndDXIL(
     const gpu::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
     IDxbcConverter* dxbc_converter, IDxcUtils* dxc_utils, IDxcCompiler* dxc_compiler) {
   std::string disassembly;

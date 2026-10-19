@@ -80,21 +80,21 @@ REX_API int SocketPrepare(SocketHandle handle, WaitHandle* event);
  *
  * @return True when the error is a would block error or a connect in progress.
  */
-REX_API bool SocketWouldBlock();
+REX_API bool IsSocketWouldBlock();
 
 /**
  * Returns the last socket error of the calling thread.
  *
  * @return The error as a WSA code, WSAEINVAL when the host error has no WSA equivalent.
  */
-REX_API u32 SocketError();
+REX_API u32 GetSocketError();
 
 /**
  * Reports the readiness of each socket without waiting.
  *
  * @param sockets The sockets to check.
  * @param ready Receives, for each socket, the readiness it asked for that holds now.
- * @return The count of ready sockets, or -1 with SocketError set.
+ * @return The count of ready sockets, or -1 with GetSocketError set.
  */
 REX_API int PollSockets(std::span<const SocketWait> sockets, std::span<SocketReady> ready);
 
@@ -155,7 +155,7 @@ class Socket : public MoveOnly {
    * @param family The address family.
    * @param type The socket type.
    * @param protocol The protocol.
-   * @return The socket, empty with SocketError set on failure.
+   * @return The socket, empty with GetSocketError set on failure.
    */
   REX_API static Socket Create(i32 family, i32 type, i32 protocol);
 
@@ -164,7 +164,7 @@ class Socket : public MoveOnly {
    *
    * @return True when a native socket is held.
    */
-  bool GetValid() const { return handle_ != kInvalidSocket; }
+  bool IsValid() const { return handle_ != kInvalidSocket; }
 
   /**
    * Returns the native socket.
@@ -178,7 +178,7 @@ class Socket : public MoveOnly {
    *
    * @param name The host address.
    * @param name_len The size of the address.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
   REX_API i32 Connect(const sockaddr* name, i32 name_len) const;
 
@@ -187,7 +187,7 @@ class Socket : public MoveOnly {
    *
    * @param name The host address.
    * @param name_len The size of the address.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
   REX_API i32 Bind(const sockaddr* name, i32 name_len) const;
 
@@ -196,7 +196,7 @@ class Socket : public MoveOnly {
    *
    * @param name Receives the local address.
    * @param name_len The size of the address buffer, then the size of the local address.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
   REX_API i32 GetName(sockaddr* name, i32* name_len) const;
 
@@ -204,7 +204,7 @@ class Socket : public MoveOnly {
    * Starts listening for connections.
    *
    * @param backlog The length of the pending connection queue.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
   REX_API i32 Listen(i32 backlog) const;
 
@@ -213,7 +213,7 @@ class Socket : public MoveOnly {
    *
    * @param name Receives the peer address.
    * @param name_len The size of the address buffer, then the size of the peer address.
-   * @return The connected socket, empty with SocketError set on failure.
+   * @return The connected socket, empty with GetSocketError set on failure.
    */
   REX_API Socket Accept(sockaddr* name, i32* name_len) const;
 
@@ -221,7 +221,7 @@ class Socket : public MoveOnly {
    * Shuts a connection down.
    *
    * @param how Which directions to shut down.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
   REX_API i32 Shutdown(i32 how) const;
 
@@ -231,7 +231,7 @@ class Socket : public MoveOnly {
    * @param buf The buffer.
    * @param len The size of the buffer.
    * @param flags The host flags.
-   * @return The byte count, or -1 with SocketError set.
+   * @return The byte count, or -1 with GetSocketError set.
    */
   REX_API i32 Recv(void* buf, i32 len, i32 flags) const;
 
@@ -243,7 +243,7 @@ class Socket : public MoveOnly {
    * @param flags The host flags.
    * @param from Receives the sender address.
    * @param from_len The size of the address buffer, then the size of the sender address.
-   * @return The byte count, or -1 with SocketError set.
+   * @return The byte count, or -1 with GetSocketError set.
    */
   REX_API i32 RecvFrom(void* buf, i32 len, i32 flags, sockaddr* from, i32* from_len) const;
 
@@ -253,7 +253,7 @@ class Socket : public MoveOnly {
    * @param buf The data.
    * @param len The size of the data.
    * @param flags The host flags.
-   * @return The byte count, or -1 with SocketError set.
+   * @return The byte count, or -1 with GetSocketError set.
    */
   REX_API i32 Send(const void* buf, i32 len, i32 flags) const;
 
@@ -265,7 +265,7 @@ class Socket : public MoveOnly {
    * @param flags The host flags.
    * @param to The destination, null for the connected peer.
    * @param to_len The size of the destination address.
-   * @return The byte count, or -1 with SocketError set.
+   * @return The byte count, or -1 with GetSocketError set.
    */
   REX_API i32 SendTo(const void* buf, i32 len, i32 flags, const sockaddr* to, i32 to_len) const;
 
@@ -276,7 +276,7 @@ class Socket : public MoveOnly {
    * @param name The option name.
    * @param value The option value.
    * @param len The size of the value.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
   REX_API i32 SetOption(i32 level, i32 name, const void* value, i32 len) const;
 
@@ -287,7 +287,7 @@ class Socket : public MoveOnly {
    * @param name The option name.
    * @param value Receives the option value.
    * @param len The size of the value buffer, then the size of the value.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
   REX_API i32 GetOption(i32 level, i32 name, void* value, i32* len) const;
 
@@ -296,9 +296,9 @@ class Socket : public MoveOnly {
    *
    * @param name Receives the peer address.
    * @param name_len The size of the address buffer, then the size of the peer address.
-   * @return 0 on success, -1 with SocketError set.
+   * @return 0 on success, -1 with GetSocketError set.
    */
-  REX_API i32 PeerName(sockaddr* name, i32* name_len) const;
+  REX_API i32 GetPeerName(sockaddr* name, i32* name_len) const;
 
   /**
    * Runs an ioctl request through SocketIoctl.
@@ -319,7 +319,7 @@ class Socket : public MoveOnly {
 
  private:
   void Reset() {
-    if (GetValid()) {
+    if (IsValid()) {
       SocketClose(std::exchange(handle_, kInvalidSocket));
     }
   }

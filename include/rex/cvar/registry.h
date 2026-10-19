@@ -128,7 +128,7 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    * @param name Dotted cvar name such as gpu.vsync.
    * @return Where the value came from. Default for an unknown name.
    */
-  virtual CvarSource Source(std::string_view name) const = 0;
+  virtual CvarSource GetSource(std::string_view name) const = 0;
   /**
    * Lists registered vars.
    *

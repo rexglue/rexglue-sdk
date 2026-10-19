@@ -77,7 +77,7 @@ class REX_RUNTIME_API ThreadState {
    * @return The context.
    */
   ::PPCContext* GetContext() const { return context_; }
-  u32 GetThreadId() const { return thread_id_; }
+  u32 GetThreadID() const { return thread_id_; }
 
   /**
    * Returns the runtime the thread belongs to.
@@ -110,7 +110,7 @@ class REX_RUNTIME_API ThreadState {
    *
    * @return The id, 0xFFFFFFFF when none is bound.
    */
-  static u32 GetThreadID();
+  static u32 GetBoundThreadID();
 
  private:
   Memory* memory_;

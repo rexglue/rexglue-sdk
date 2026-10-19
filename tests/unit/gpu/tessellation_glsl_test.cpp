@@ -30,12 +30,12 @@ std::string ConstantsLayout() {
 }
 }  // namespace
 
-REX_TEST_CASE("tessellation: the system constants block binds the constants descriptor set",
+REX_TEST_CASE("the tessellation system constants block binds the constants descriptor set",
               "[gpu][tessellation]") {
   CHECK(GetTessellationSystemConstantsBlockGLSL().find(ConstantsLayout()) != std::string::npos);
 }
 
-REX_TEST_CASE("tessellation: every helper shader declares the system constants block",
+REX_TEST_CASE("every tessellation helper shader declares the system constants block",
               "[gpu][tessellation]") {
   const std::string block = GetTessellationSystemConstantsBlockGLSL();
   CHECK(GetTessellationIndexedVertexShaderGLSL().find(block) != std::string::npos);

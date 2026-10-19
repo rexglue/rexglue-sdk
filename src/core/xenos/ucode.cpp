@@ -13,7 +13,7 @@
 
 namespace rex::xenos::ucode {
 
-const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64] = {
+const AluScalarOpcodeTraits kAluScalarOpcodeInfos[64] = {
     {"adds", 1, true, kAluOpChangedStateNone},
     {"adds_prev", 1, false, kAluOpChangedStateNone},
     {"muls", 1, true, kAluOpChangedStateNone},
@@ -80,7 +80,7 @@ const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64] = {
     {"opcode_63", 0, false, kAluOpChangedStateNone},
 };
 
-const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32] = {
+const AluVectorOpcodeTraits kAluVectorOpcodeInfos[32] = {
     {"add", {0b1111, 0b1111}, kAluOpChangedStateNone},
     {"mul", {0b1111, 0b1111}, kAluOpChangedStateNone},
     {"max", {0b1111, 0b1111}, kAluOpChangedStateNone},

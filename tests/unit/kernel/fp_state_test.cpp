@@ -27,13 +27,13 @@ using rex::u32;
 using rex::u64;
 using rex::u8;
 using rex::platform::FPSCRPlatform;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
 void ScrambleFPDPC(PPCContext& ctx, u8*) {
-  ctx.fpscr.StoreFromGuest(rex::ppc::kRoundTowardZero);
+  ctx.fpscr.StoreToHost(rex::ppc::kRoundTowardZero);
   ctx.fpscr.EnableFlushModeUnconditional();
   ctx.fpscr.SetCSR(ctx.fpscr.csr ^ FPSCRPlatform::kExceptionMask);
   ctx.f1.f64 = 99.0;
@@ -53,12 +53,12 @@ REX_TEST_CASE("A DPC that changes the FP control word leaves the draining thread
     }
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, thunk, 0});
-    c.GetCtx().f1.f64 = 1.0;
+    c.GetContext().f1.f64 = 1.0;
     const u32 before = FPSCRPlatform::GetCSR();
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 1);
     CHECK(FPSCRPlatform::GetCSR() == before);
-    CHECK(c.GetCtx().fpscr.csr == before);
-    CHECK(c.GetCtx().f1.f64 == 1.0);
+    CHECK(c.GetContext().fpscr.csr == before);
+    CHECK(c.GetContext().f1.f64 == 1.0);
   });
 }
 
@@ -67,39 +67,39 @@ REX_TEST_CASE(
     "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.GetCtx();
+    PPCContext& ctx = c.GetContext();
     PPCRegister* fpr = &ctx.f0;
     for (u32 i = 0; i < 32; ++i) {
       fpr[i].f64 = 0.5 + i;
     }
-    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundUp);
+    ctx.fpscr.StoreToHost(rex::ppc::kRoundUp);
     const u32 csr = FPSCRPlatform::GetCSR();
     c.Kernel("KeSaveFloatingPointState");
     for (u32 i = 0; i < 32; ++i) {
       fpr[i].f64 = -1.0;
     }
-    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundDown);
+    ctx.fpscr.StoreToHost(rex::ppc::kRoundDown);
     c.Kernel("KeRestoreFloatingPointState");
     for (u32 i = 0; i < 32; ++i) {
       CHECK(fpr[i].f64 == 0.5 + i);
     }
     CHECK(FPSCRPlatform::GetCSR() == csr);
     CHECK(ctx.fpscr.csr == csr);
-    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundNearest);
+    ctx.fpscr.StoreToHost(rex::ppc::kRoundNearest);
   });
 }
 
 REX_TEST_CASE("Every guest rounding mode reads back from the host control word", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.GetCtx();
+    PPCContext& ctx = c.GetContext();
     for (const u32 mode : {rex::ppc::kRoundNearest, rex::ppc::kRoundTowardZero, rex::ppc::kRoundUp,
                            rex::ppc::kRoundDown}) {
       INFO("rounding mode " << mode);
-      ctx.fpscr.StoreFromGuest(mode);
+      ctx.fpscr.StoreToHost(mode);
       CHECK(ctx.fpscr.LoadFromHost() == mode);
     }
-    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundNearest);
+    ctx.fpscr.StoreToHost(rex::ppc::kRoundNearest);
   });
 }
 
@@ -107,7 +107,7 @@ REX_TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 
               "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.GetCtx();
+    PPCContext& ctx = c.GetContext();
     PPCVRegister* vr = &ctx.v0;
     for (u32 i = 0; i < 128; ++i) {
       std::memset(&vr[i], static_cast<int>(i), sizeof(PPCVRegister));
@@ -164,7 +164,7 @@ REX_TEST_CASE("A guest thread starts from the FP control word InitHostExceptions
     auto host = std::make_shared<std::atomic<u32>>(0);
     auto done = std::make_shared<std::atomic<bool>>(false);
     const u32 thread = c.Spawn([csr, host, done](Caller& t) {
-      csr->store(t.GetCtx().fpscr.csr);
+      csr->store(t.GetContext().fpscr.csr);
       host->store(FPSCRPlatform::GetCSR());
       done->store(true);
     });
@@ -190,8 +190,8 @@ REX_TEST_CASE("A thread's FP save area starts with every FP exception masked", "
 REX_TEST_CASE("A new thread starts with VSCR NJ set", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    CHECK(c.GetCtx().vscr_nj == 1);
-    CHECK(c.GetCtx().vscr_sat == 0);
+    CHECK(c.GetContext().vscr_nj == 1);
+    CHECK(c.GetContext().vscr_sat == 0);
     auto nj = std::make_shared<std::atomic<u32>>(0);
     auto thread = std::make_unique<rex::runtime::KernelThread>(c.GetRuntime(), 0x20000, 0, [nj]() {
       nj->store(rex::runtime::ThreadState::Get()->GetContext()->vscr_nj);

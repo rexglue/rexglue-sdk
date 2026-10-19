@@ -19,10 +19,10 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::KernelFixture;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -171,11 +171,11 @@ std::vector<u8> RunIncremental(Caller& c, const Algorithm& algorithm,
   for (size_t cut : cuts) {
     const size_t end = std::min(message.size(), offset + cut);
     const std::span<const u8> part(message.data() + offset, end - offset);
-    c.Kernel(algorithm.update, {state, Put(c, part), part.size()});
+    c.Kernel(algorithm.update, {state, CopyToGuest(c, part), part.size()});
     offset = end;
   }
   c.Kernel(algorithm.final, {state, out, out_size});
-  return Get(c, out, out_size);
+  return ReadBytes(c, out, out_size);
 }
 
 struct HmacCase {
@@ -224,16 +224,16 @@ REX_TEST_CASE("One shot hashing concatenates up to 3 inputs", "[kernel][crypt][h
     for (const Algorithm& algorithm : Algorithms()) {
       INFO(algorithm.name);
       const u32 out = c.Alloc(0x80);
-      const u32 a = Put(c, std::span<const u8>(pattern.data(), 100));
-      const u32 b = Put(c, std::span<const u8>(pattern.data() + 100, 300));
-      const u32 d = Put(c, std::span<const u8>(pattern.data() + 400, 600));
+      const u32 a = CopyToGuest(c, std::span<const u8>(pattern.data(), 100));
+      const u32 b = CopyToGuest(c, std::span<const u8>(pattern.data() + 100, 300));
+      const u32 d = CopyToGuest(c, std::span<const u8>(pattern.data() + 400, 600));
       c.Kernel(algorithm.one_shot, {a, 100, b, 300, d, 600, out, algorithm.digest_size});
-      CHECK(Get(c, out, algorithm.digest_size) == Expected(algorithm.digests[2]));
+      CHECK(ReadBytes(c, out, algorithm.digest_size) == Expected(algorithm.digests[2]));
 
       const u32 out_two = c.Alloc(0x80);
       c.Kernel(algorithm.one_shot,
-               {Put(c, Text("abc")), 3, 0, 0, 0, 0, out_two, algorithm.digest_size});
-      CHECK(Get(c, out_two, algorithm.digest_size) == Expected(algorithm.digests[0]));
+               {CopyToGuest(c, Text("abc")), 3, 0, 0, 0, 0, out_two, algorithm.digest_size});
+      CHECK(ReadBytes(c, out_two, algorithm.digest_size) == Expected(algorithm.digests[0]));
     }
   });
 }
@@ -248,19 +248,20 @@ REX_TEST_CASE("A hash state copied in the middle of a message continues independ
       const u32 state = c.Alloc(0x100);
       const u32 copy = c.Alloc(0x100);
       c.Kernel(algorithm.init, {state});
-      c.Kernel(algorithm.update, {state, Put(c, std::span<const u8>(pattern.data(), 500)), 500});
+      c.Kernel(algorithm.update,
+               {state, CopyToGuest(c, std::span<const u8>(pattern.data(), 500)), 500});
       for (u32 offset = 0; offset < 0x100; offset += 4) {
         c.Store32(copy + offset, c.Load32(state + offset));
       }
-      const u32 rest = Put(c, std::span<const u8>(pattern.data() + 500, 500));
+      const u32 rest = CopyToGuest(c, std::span<const u8>(pattern.data() + 500, 500));
       const u32 out_a = c.Alloc(0x80);
       const u32 out_b = c.Alloc(0x80);
       c.Kernel(algorithm.update, {state, rest, 500});
       c.Kernel(algorithm.final, {state, out_a, algorithm.digest_size});
       c.Kernel(algorithm.update, {copy, rest, 500});
       c.Kernel(algorithm.final, {copy, out_b, algorithm.digest_size});
-      CHECK(Get(c, out_a, algorithm.digest_size) == Expected(algorithm.digests[2]));
-      CHECK(Get(c, out_b, algorithm.digest_size) == Expected(algorithm.digests[2]));
+      CHECK(ReadBytes(c, out_a, algorithm.digest_size) == Expected(algorithm.digests[2]));
+      CHECK(ReadBytes(c, out_b, algorithm.digest_size) == Expected(algorithm.digests[2]));
     }
   });
 }
@@ -273,24 +274,25 @@ REX_TEST_CASE("HMAC exports match the RFC 2202 digests", "[kernel][crypt][hash][
       {
         INFO("key size " << item.key.size());
         const auto expected = Expected(item.sha);
-        const u32 key = Put(c, item.key);
-        const u32 message = Put(c, item.message);
+        const u32 key = CopyToGuest(c, item.key);
+        const u32 message = CopyToGuest(c, item.message);
         const u32 out = c.Alloc(0x40);
         c.Kernel("XeCryptHmacSha", {key, item.key.size(), message, item.message.size(), 0, 0, 0, 0,
                                     out, kDigestSize});
-        CHECK(Get(c, out, kDigestSize) == expected);
+        CHECK(ReadBytes(c, out, kDigestSize) == expected);
 
         const u32 state = c.Alloc(0x100);
         const u32 out_inc = c.Alloc(0x40);
         c.Kernel("XeCryptHmacShaInit", {state, key, item.key.size()});
         const size_t half = item.message.size() / 2;
         c.Kernel("XeCryptHmacShaUpdate",
-                 {state, Put(c, std::span<const u8>(item.message.data(), half)), half});
+                 {state, CopyToGuest(c, std::span<const u8>(item.message.data(), half)), half});
         const size_t rest = item.message.size() - half;
-        c.Kernel("XeCryptHmacShaUpdate",
-                 {state, Put(c, std::span<const u8>(item.message.data() + half, rest)), rest});
+        c.Kernel(
+            "XeCryptHmacShaUpdate",
+            {state, CopyToGuest(c, std::span<const u8>(item.message.data() + half, rest)), rest});
         c.Kernel("XeCryptHmacShaFinal", {state, out_inc, kDigestSize});
-        CHECK(Get(c, out_inc, kDigestSize) == expected);
+        CHECK(ReadBytes(c, out_inc, kDigestSize) == expected);
       }
     }
   });
@@ -301,24 +303,24 @@ REX_TEST_CASE("HMAC SHA cuts a key past 64 bytes to 64 bytes", "[kernel][crypt][
   fixture.RunOnGuestThread([](Caller& c) {
     const std::vector<u8> key(80, 0xAA);
     const std::vector<u8> message = Text("Test Using Larger Than Block-Size Key - Hash Key First");
-    const u32 message_address = Put(c, message);
+    const u32 message_address = CopyToGuest(c, message);
     const u32 out_long = c.Alloc(0x40);
     const u32 out_cut = c.Alloc(0x40);
     c.Kernel("XeCryptHmacSha",
-             {Put(c, key), 80, message_address, message.size(), 0, 0, 0, 0, out_long, 20});
+             {CopyToGuest(c, key), 80, message_address, message.size(), 0, 0, 0, 0, out_long, 20});
     c.Kernel("XeCryptHmacSha",
-             {Put(c, key), 64, message_address, message.size(), 0, 0, 0, 0, out_cut, 20});
-    CHECK(Get(c, out_long, 20) == Get(c, out_cut, 20));
+             {CopyToGuest(c, key), 64, message_address, message.size(), 0, 0, 0, 0, out_cut, 20});
+    CHECK(ReadBytes(c, out_long, 20) == ReadBytes(c, out_cut, 20));
     constexpr u8 kCutDigest[] = {0x07, 0x0A, 0x98, 0x99, 0x2C, 0x4C, 0x1A, 0x83, 0x47, 0x4C,
                                  0xB7, 0x80, 0xFC, 0x56, 0x46, 0x08, 0xDF, 0x3C, 0xF5, 0x03};
-    CHECK(Get(c, out_long, 20) == Expected(kCutDigest));
+    CHECK(ReadBytes(c, out_long, 20) == Expected(kCutDigest));
 
     const u32 state = c.Alloc(0x100);
     const u32 out_inc = c.Alloc(0x40);
-    c.Kernel("XeCryptHmacShaInit", {state, Put(c, key), 80});
+    c.Kernel("XeCryptHmacShaInit", {state, CopyToGuest(c, key), 80});
     c.Kernel("XeCryptHmacShaUpdate", {state, message_address, message.size()});
     c.Kernel("XeCryptHmacShaFinal", {state, out_inc, 20});
-    CHECK(Get(c, out_inc, 20) == Get(c, out_cut, 20));
+    CHECK(ReadBytes(c, out_inc, 20) == ReadBytes(c, out_cut, 20));
   });
 }
 
@@ -327,12 +329,12 @@ REX_TEST_CASE("HMAC SHA verify reports a match with 1 and a mismatch with 0",
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const HmacCase item = HmacCases()[0];
-    const u32 key = Put(c, item.key);
-    const u32 message = Put(c, item.message);
-    const u32 good = Put(c, item.sha);
+    const u32 key = CopyToGuest(c, item.key);
+    const u32 message = CopyToGuest(c, item.message);
+    const u32 good = CopyToGuest(c, item.sha);
     std::vector<u8> bad_bytes(item.sha.begin(), item.sha.end());
     bad_bytes[19] ^= 1;
-    const u32 bad = Put(c, bad_bytes);
+    const u32 bad = CopyToGuest(c, bad_bytes);
     const u32 size = static_cast<u32>(item.message.size());
     CHECK(c.Kernel("XeCryptHmacShaVerify", {key, 4, message, size, 0, 0, 0, 0, good, 20}) == 1);
     CHECK(c.Kernel("XeCryptHmacShaVerify", {key, 4, message, size, 0, 0, 0, 0, bad, 20}) == 0);

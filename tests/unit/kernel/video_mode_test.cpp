@@ -21,13 +21,13 @@
 
 REX_TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") {
   const std::string modules[] = {"rexui-sdl3"};
-  rex::testing::KernelFixture fixture({}, modules);
+  rex::test::KernelFixture fixture({}, modules);
   auto* cvars = fixture.GetAPI().Get<rex::cvar::ICvarRegistry>();
   REQUIRE(cvars != nullptr);
   REQUIRE(cvars->Set("ui.video_mode_width", "1920"));
   REQUIRE(cvars->Set("ui.video_mode_height", "1080"));
   const rex::runtime::VideoMode expected = fixture.GetRuntime().GetVideoMode();
-  fixture.RunOnGuestThread([expected](rex::testing::Caller&) {
+  fixture.RunOnGuestThread([expected](rex::test::Caller&) {
     rex::runtime::X_VIDEO_MODE mode{};
     rex::kernel::xboxkrnl::VdQueryVideoMode(&mode);
     CHECK(static_cast<rex::u32>(mode.display_width) == expected.width);

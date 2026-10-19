@@ -125,7 +125,7 @@ REX_INTERFACE(IFileSystem, "rex.filesystem", 1)
    * @param path A guest path.
    * @return The information, kNoMount or kNotFound.
    */
-  [[nodiscard]] virtual Result<FileInfo> Stat(std::string_view path) = 0;
+  [[nodiscard]] virtual Result<FileStat> Stat(std::string_view path) = 0;
 
   /**
    * Starts a walk of the children of a directory.
@@ -182,7 +182,7 @@ REX_INTERFACE(IFileSystem, "rex.filesystem", 1)
    * @param path A guest path.
    * @return The information, or kNoMount.
    */
-  [[nodiscard]] virtual Result<VolumeInfo> Volume(std::string_view path) = 0;
+  [[nodiscard]] virtual Result<VolumeStat> GetVolume(std::string_view path) = 0;
 };
 
 }  // namespace rex::filesystem

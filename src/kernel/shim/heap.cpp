@@ -31,16 +31,16 @@ constexpr u32 kHeapZeroMemory = 0x00000008;
 
 namespace rex::kernel::shim {
 
-void* ReXHeap::GuestToHost(u32 guest_addr) const {
+void* GuestHeap::GuestToHost(u32 guest_addr) const {
   return rex::runtime::GuestPtr<void*>(membase_, guest_addr);
 }
 
-u32 ReXHeap::HostToGuest(void* host_ptr) const {
+u32 GuestHeap::HostToGuest(void* host_ptr) const {
   return rex::runtime::detail::RemovePhysicalHostOffset(
       static_cast<std::size_t>(static_cast<u8*>(host_ptr) - membase_));
 }
 
-bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
+bool GuestHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
   memory_ = memory;
   auto* mem = memory_;
   if (!mem) {
@@ -67,17 +67,17 @@ bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
   return true;
 }
 
-void ReXHeap::Shutdown() {
+void GuestHeap::Shutdown() {
   std::lock_guard lock(mutex_);
   segments_.clear();
 }
 
-u32 ReXHeap::Alloc(u32 size, bool zero) {
+u32 GuestHeap::Alloc(u32 size, bool zero) {
   std::lock_guard lock(mutex_);
   return AllocLocked(size, zero);
 }
 
-void ReXHeap::Free(u32 guest_addr) {
+void GuestHeap::Free(u32 guest_addr) {
   if (!guest_addr)
     return;
   std::lock_guard lock(mutex_);
@@ -90,7 +90,7 @@ void ReXHeap::Free(u32 guest_addr) {
   segment->Free(GuestToHost(guest_addr - kHeaderSize));
 }
 
-u32 ReXHeap::Size(u32 guest_addr) {
+u32 GuestHeap::GetSize(u32 guest_addr) {
   if (!guest_addr)
     return ~0u;
 
@@ -104,7 +104,7 @@ u32 ReXHeap::Size(u32 guest_addr) {
   return static_cast<u32>(hdr->requested_size);
 }
 
-u32 ReXHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
+u32 GuestHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
   std::lock_guard lock(mutex_);
   if (!guest_addr) {
     return AllocLocked(new_size, zero_new);
@@ -154,7 +154,7 @@ u32 ReXHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
   return HostToGuest(user_ptr);
 }
 
-bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
+bool GuestHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
   auto* mem = memory_;
   if (!mem) {
     REX_FAIL(kernel, false, "shim_heap: kernel memory is null during segment allocation");
@@ -177,7 +177,7 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
   return true;
 }
 
-u32 ReXHeap::AllocLocked(u32 size, bool zero) {
+u32 GuestHeap::AllocLocked(u32 size, bool zero) {
   if (size == 0) {
     size = 1;
   }
@@ -214,7 +214,7 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
     const auto diagnostics = GetDiagnosticsLocked();
     bool invariants_ok = true;
     for (const auto& segment : segments_) {
-      invariants_ok = invariants_ok && segment->InvariantsHold();
+      invariants_ok = invariants_ok && segment->IsConsistent();
     }
     const u64 free_bytes = diagnostics.capacity - diagnostics.allocated;
     REXLOG_WARN(kernel,
@@ -239,13 +239,13 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
   return 0;
 }
 
-runtime::GuestAllocator* ReXHeap::FindSegmentByGuestLocked(u32 guest_addr) {
+runtime::GuestAllocator* GuestHeap::FindSegmentByGuestLocked(u32 guest_addr) {
   auto it = std::ranges::find_if(
       segments_, [&](const auto& segment) { return segment->Contains(guest_addr); });
   return it != segments_.end() ? it->get() : nullptr;
 }
 
-runtime::GuestAllocator::Diagnostics ReXHeap::GetDiagnosticsLocked() const {
+runtime::GuestAllocator::Diagnostics GuestHeap::GetDiagnosticsLocked() const {
   runtime::GuestAllocator::Diagnostics diagnostics{};
   for (const auto& segment : segments_) {
     const auto d = segment->GetDiagnostics();
@@ -258,7 +258,7 @@ runtime::GuestAllocator::Diagnostics ReXHeap::GetDiagnosticsLocked() const {
   return diagnostics;
 }
 
-ReXHeap g_heap;
+GuestHeap g_heap;
 
 REX_SHIM_FN(RtlAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 dwBytes) {
   return g_heap.Alloc(dwBytes, dwFlags & kHeapZeroMemory);
@@ -270,7 +270,7 @@ REX_SHIM_FN(RtlFreeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 d
 }
 
 REX_SHIM_FN(RtlSizeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
-  return g_heap.Size(ptr);
+  return g_heap.GetSize(ptr);
 }
 
 REX_SHIM_FN(RtlReAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes) {

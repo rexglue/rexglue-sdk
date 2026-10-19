@@ -33,7 +33,7 @@ class XInputDriver final : public Driver {
 
   [[nodiscard]] Result<void> Setup();
 
-  void EnumerateDevices(std::vector<DeviceInfo>& out) override;
+  void EnumerateDevices(std::vector<Device>& out) override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id, u32 flags) override;
   [[nodiscard]] Result<void> SetDeviceVibration(DeviceId id,

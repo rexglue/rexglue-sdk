@@ -250,13 +250,13 @@ void ThreadRegistry::FreeTLS(PPCContext* context, u32 slot) {
   kernel::xboxkrnl::KeKfReleaseSpinLock(*runtime_.GetMemory(), context, tls_lock, old_irql);
 }
 
-std::optional<FiberInfo> ThreadRegistry::LookupFiber(u32 address) {
+std::optional<GuestFiber> ThreadRegistry::FindFiber(u32 address) {
   std::lock_guard lock(fiber_mutex_);
   auto it = fiber_map_.find(address);
-  return it != fiber_map_.end() ? std::optional<FiberInfo>(it->second) : std::nullopt;
+  return it != fiber_map_.end() ? std::optional<GuestFiber>(it->second) : std::nullopt;
 }
 
-void ThreadRegistry::RegisterFiber(u32 address, const FiberInfo& info) {
+void ThreadRegistry::RegisterFiber(u32 address, const GuestFiber& info) {
   std::lock_guard lock(fiber_mutex_);
   fiber_map_[address] = info;
 }
@@ -306,7 +306,7 @@ void ThreadRegistry::RegisterThreadNotify(u32 notification) {
   }
 }
 
-void ThreadRegistry::RemoveThreadNotify(u32 notification) {
+void ThreadRegistry::UnregisterThreadNotify(u32 notification) {
   std::lock_guard lock(notify_mutex_);
   std::erase(thread_notifications_, notification);
 }

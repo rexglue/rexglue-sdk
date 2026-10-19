@@ -26,7 +26,7 @@
 namespace rex::gpu {
 
 SharedMemory::SharedMemory(runtime::Memory& memory) : memory_(memory) {
-  page_size_log2_ = rex::log2_ceil(static_cast<u32>(rex::memory::PageSize()));
+  page_size_log2_ = rex::log2_ceil(static_cast<u32>(rex::memory::GetPageSize()));
 }
 
 SharedMemory::~SharedMemory() {
@@ -94,7 +94,7 @@ void SharedMemory::InvalidateAllPages() {
             system_page_flags_valid_and_gpu_written_.end(), static_cast<u64>(0));
 }
 
-void SharedMemory::SetSystemPageBlocksValidWithGPUDataWritten() {
+void SharedMemory::SetSystemPageFlagsValidWithGPUDataWritten() {
   auto lock = AcquireLock();
 
   system_page_flags_valid_ = system_page_flags_valid_and_gpu_written_;
@@ -110,7 +110,7 @@ void SharedMemory::ClearCache() {
   watch_range_first_free_ = nullptr;
   watch_range_current_pool_allocated_ = 0;
   watch_range_pools_.clear();
-  SetSystemPageBlocksValidWithGPUDataWritten();
+  SetSystemPageFlagsValidWithGPUDataWritten();
 }
 
 SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(GlobalWatchCallback callback,
@@ -366,7 +366,7 @@ bool SharedMemory::RequestRanges(const std::pair<u32, u32>* ranges, size_t count
   merged_ranges.resize(merged_write + 1);
 
   for (const std::pair<u32, u32>& range : merged_ranges) {
-    if (!EnsureHostGPUMemoryAllocated(range.first, range.second)) {
+    if (!AllocateHostGPUMemory(range.first, range.second)) {
       return false;
     }
   }
@@ -501,7 +501,7 @@ std::pair<u32, u32> SharedMemory::MemoryInvalidationCallback(u32 physical_addres
                                                            << page_size_log2_);
 }
 
-bool SharedMemory::EnsureHostGPUMemoryAllocated(u32 start, u32 length) {
+bool SharedMemory::AllocateHostGPUMemory(u32 start, u32 length) {
   if (host_gpu_memory_sparse_granularity_log2_ == UINT32_MAX) {
     return true;
   }

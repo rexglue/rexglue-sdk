@@ -273,23 +273,23 @@ target_compile_definitions(
           REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem"
 )
 
-add_executable(rex-crash-probe crash_probe.cpp crash_probe_recompiled_code.cpp)
+add_executable(rex-crash-test crash_child.cpp crash_child_recompiled_code.cpp)
 if (WIN32)
   set_source_files_properties(
-    crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasync-exceptions
+    crash_child_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasync-exceptions
   )
 else ()
   set_source_files_properties(
-    crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasynchronous-unwind-tables
+    crash_child_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasynchronous-unwind-tables
   )
 endif ()
-target_link_libraries(rex-crash-probe PRIVATE rexruntime)
+target_link_libraries(rex-crash-test PRIVATE rexruntime)
 set_target_properties(
-  rex-crash-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+  rex-crash-test PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
 )
 if (UNIX AND NOT APPLE)
   set_target_properties(
-    rex-crash-probe PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
+    rex-crash-test PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
   )
 endif ()
 
@@ -300,7 +300,7 @@ add_dependencies(
   rexgpu-xenos-vulkan
   rex-sample-console
   rex-sample-title
-  rex-crash-probe
+  rex-crash-test
 )
 if (TARGET rexgpu-xenos-d3d12)
   add_dependencies(unit_tests rexgpu-xenos-d3d12)
@@ -313,7 +313,7 @@ add_dependencies(
   rexmod-test-missing
   rexmod-test-badversion
   rexmod-test-failinit
-  rexmod-test-dupecho
+  rexmod-test-duplicate-echo
   rexmod-test-null-gpu
   rexmod-test-noidentity
   rexmod-test-otheridentity

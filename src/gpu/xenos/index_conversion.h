@@ -24,34 +24,34 @@
 
 namespace rex::gpu {
 
-using SimdVectorU16 = simde__m128i;
-using SimdVectorU32 = simde__m128i;
-inline SimdVectorU16 ReplicateU16(u16 value) {
+using SIMDVectorU16 = simde__m128i;
+using SIMDVectorU32 = simde__m128i;
+inline SIMDVectorU16 ReplicateU16(u16 value) {
   return simde_mm_set1_epi16(static_cast<i16>(value));
 }
-inline SimdVectorU32 ReplicateU32(u32 value) {
+inline SIMDVectorU32 ReplicateU32(u32 value) {
   return simde_mm_set1_epi32(static_cast<i32>(value));
 }
-inline SimdVectorU16 LoadAlignedVectorU16(const u16* source) {
+inline SIMDVectorU16 LoadAlignedVectorU16(const u16* source) {
   return simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(source));
 }
-inline SimdVectorU32 LoadAlignedVectorU32(const u32* source) {
+inline SIMDVectorU32 LoadAlignedVectorU32(const u32* source) {
   return simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(source));
 }
-inline void StoreUnalignedVectorU16(u16* dest, SimdVectorU16 source) {
+inline void StoreUnalignedVectorU16(u16* dest, SIMDVectorU16 source) {
   simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(dest), source);
 }
-inline void StoreUnalignedVectorU32(u32* dest, SimdVectorU32 source) {
+inline void StoreUnalignedVectorU32(u32* dest, SIMDVectorU32 source) {
   simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(dest), source);
 }
-static_assert(sizeof(SimdVectorU16) == REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE,
+static_assert(sizeof(SIMDVectorU16) == REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE,
               "REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE must reflect the vector size "
               "used");
-static_assert(sizeof(SimdVectorU32) == REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE,
+static_assert(sizeof(SIMDVectorU32) == REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE,
               "REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE must reflect the vector size "
               "used");
-inline constexpr u32 kSimdVectorU16Elements = sizeof(SimdVectorU16) / sizeof(u16);
-inline constexpr u32 kSimdVectorU32Elements = sizeof(SimdVectorU32) / sizeof(u32);
+inline constexpr u32 kSIMDVectorU16Elements = sizeof(SIMDVectorU16) / sizeof(u16);
+inline constexpr u32 kSIMDVectorU32Elements = sizeof(SIMDVectorU32) / sizeof(u32);
 
 /**
  * Reports whether any 16 bit index equals the reset index.
@@ -61,7 +61,7 @@ inline constexpr u32 kSimdVectorU32Elements = sizeof(SimdVectorU32) / sizeof(u32
  * @param reset_index_guest_endian The reset index in guest endian.
  * @return True when the reset index occurs.
  */
-bool IsResetUsed(const u16* source, u32 count, u16 reset_index_guest_endian);
+bool IsResetIndexUsed(const u16* source, u32 count, u16 reset_index_guest_endian);
 /**
  * Reports whether the reset index and 0xFFFF occur in 16 bit indices.
  *
@@ -82,8 +82,8 @@ void Get16BitResetIndexUsage(const u16* source, u32 count, u16 reset_index_guest
  * @param low_bits_mask_guest_endian The low 24 bits mask in guest endian.
  * @return True when the reset index occurs.
  */
-bool IsResetUsed(const u32* source, u32 count, u32 reset_index_guest_endian,
-                 u32 low_bits_mask_guest_endian);
+bool IsResetIndexUsed(const u32* source, u32 count, u32 reset_index_guest_endian,
+                      u32 low_bits_mask_guest_endian);
 /**
  * Copies 16 bit indices, replacing the reset index with 0xFFFF.
  *
@@ -135,9 +135,9 @@ void ReplaceResetIndex32To24(u32* dest, const u32* source, u32 count, u32 reset_
     u32 index = *(source++) & low_bits_mask_guest_endian;
     *(dest++) = index != reset_index_guest_endian ? xenos::GPUSwap(index, HostSwap) : UINT32_MAX;
   }
-  if (count >= kSimdVectorU32Elements) {
-    SimdVectorU32 reset_index_guest_endian_simd = ReplicateU32(reset_index_guest_endian);
-    SimdVectorU32 low_bits_mask_guest_endian_simd = ReplicateU32(low_bits_mask_guest_endian);
+  if (count >= kSIMDVectorU32Elements) {
+    SIMDVectorU32 reset_index_guest_endian_simd = ReplicateU32(reset_index_guest_endian);
+    SIMDVectorU32 low_bits_mask_guest_endian_simd = ReplicateU32(low_bits_mask_guest_endian);
     simde__m128i host_swap_shuffle;
     if constexpr (HostSwap != xenos::Endian::kNone) {
       host_swap_shuffle = simde_mm_set_epi32(
@@ -146,12 +146,12 @@ void ReplaceResetIndex32To24(u32* dest, const u32* source, u32 count, u32 reset_
           static_cast<i32>(xenos::GPUSwap(static_cast<u32>(0x07060504), HostSwap)),
           static_cast<i32>(xenos::GPUSwap(static_cast<u32>(0x03020100), HostSwap)));
     }
-    while (count >= kSimdVectorU32Elements) {
-      count -= kSimdVectorU32Elements;
+    while (count >= kSIMDVectorU32Elements) {
+      count -= kSIMDVectorU32Elements;
       // The comparison gives 0 or all ones, so the result is index | (index == reset_index).
-      SimdVectorU32 source_simd = LoadAlignedVectorU32(source);
-      source += kSimdVectorU32Elements;
-      SimdVectorU32 result_simd;
+      SIMDVectorU32 source_simd = LoadAlignedVectorU32(source);
+      source += kSIMDVectorU32Elements;
+      SIMDVectorU32 result_simd;
       source_simd = simde_mm_and_si128(source_simd, low_bits_mask_guest_endian_simd);
       result_simd = simde_mm_or_si128(
           source_simd, simde_mm_cmpeq_epi32(source_simd, reset_index_guest_endian_simd));
@@ -159,7 +159,7 @@ void ReplaceResetIndex32To24(u32* dest, const u32* source, u32 count, u32 reset_
         result_simd = simde_mm_shuffle_epi8(result_simd, host_swap_shuffle);
       }
       StoreUnalignedVectorU32(dest, result_simd);
-      dest += kSimdVectorU32Elements;
+      dest += kSIMDVectorU32Elements;
     }
   }
   while (count--) {

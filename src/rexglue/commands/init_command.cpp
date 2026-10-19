@@ -84,7 +84,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
     return Err<void>(ErrorCategory::kConfig, "--xex_path is required (path to entrypoint XEX)");
 
   std::string validation_error;
-  if (!ValidateAppName(opts.project_name, validation_error))
+  if (!ValidateProjectName(opts.project_name, validation_error))
     return Err<void>(ErrorCategory::kConfig, validation_error);
   auto names = ParseAppName(opts.project_name);
 
@@ -258,7 +258,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
 Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
   (void)ctx;
 
-  fs::path root = fs::absolute(opts.app_root);
+  fs::path root = fs::absolute(opts.project_root);
   std::error_code dir_ec;
   fs::path manifest_path;
   for (const auto& entry : fs::directory_iterator(root, dir_ec)) {
@@ -367,15 +367,15 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
                                                      loaded.error().message));
   }
 
-  const rex::runtime::XDBFGameData db = runtime->GetContentManager().GetTitleXDBF();
+  const rex::runtime::XDBFTitleData db = runtime->GetContentManager().GetTitleXDBF();
   if (!db.IsValid()) {
     return Err<void>(ErrorCategory::kIO, "No XDBF resource found in XEX (title_id section absent)");
   }
 
   const rex::runtime::XLanguage lang =
-      db.GetExistingLanguage(rex::runtime::ToXLanguage(opts.language));
+      db.GetSupportedLanguage(rex::runtime::ToXLanguage(opts.language));
   const auto achievements = db.GetAchievements();
-  const u32 title_id = runtime->GetContentManager().GetTitleId();
+  const u32 title_id = runtime->GetContentManager().GetTitleID();
 
   auto escape_toml = [](const std::string& s) -> std::string {
     std::string out;
@@ -495,11 +495,11 @@ struct InitArgs {
   std::string xex_path;
   std::string game_root;
   std::string template_dir;
-  bool scan_dll = false;
+  bool scan_dlls = false;
 };
 
 struct InitModuleArgs {
-  std::string app_root;
+  std::string project_root;
   std::string xex_path;
   std::string guest_path;
 };
@@ -525,7 +525,7 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
   init->add_option("--project-root", args->project_root,
                    "Where to create the project (defaults to current directory)")
       ->type_name("PATH");
-  init->add_flag("--scan-dll", args->scan_dll,
+  init->add_flag("--scan-dll", args->scan_dlls,
                  "Scan --game-root for .dll files and add each as a [[modules]] entry");
   init->add_option("--template-dir", args->template_dir, "Custom template directory for overrides")
       ->type_name("PATH");
@@ -533,7 +533,7 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
   auto* mod =
       init->add_subcommand("module", "Add a DLL module to an existing project")->fallthrough();
   auto mod_args = std::make_shared<InitModuleArgs>();
-  mod->add_option("--project-root", mod_args->app_root, "Project root containing the manifest")
+  mod->add_option("--project-root", mod_args->project_root, "Project root containing the manifest")
       ->type_name("PATH")
       ->required();
   mod->add_option("--xex-path", mod_args->xex_path, "Path to the DLL XEX")
@@ -556,7 +556,7 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
       opts.project_root = args->project_root;
       opts.xex_path = args->xex_path;
       opts.game_root = args->game_root;
-      opts.scan_dlls = args->scan_dll;
+      opts.scan_dlls = args->scan_dlls;
       opts.template_dir = args->template_dir;
       opts.force = ctx.overwrite_existing;
       return InitProject(opts, ctx);
@@ -565,7 +565,7 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
   mod->callback([args, mod_args, &ctx, &pending]() {
     pending = [args, mod_args, &ctx]() -> Result<void> {
       InitModuleOptions opts;
-      opts.app_root = mod_args->app_root;
+      opts.project_root = mod_args->project_root;
       opts.xex_path = mod_args->xex_path;
       opts.guest_path = mod_args->guest_path;
       opts.template_dir = args->template_dir;

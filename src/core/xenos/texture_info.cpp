@@ -21,7 +21,7 @@
 
 namespace rex::xenos {
 
-bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
+bool TextureInfo::FromFetchConstant(const TextureFetch& fetch, TextureInfo* out_info) {
   std::memset(out_info, 0, sizeof(TextureInfo));
 
   auto& info = *out_info;
@@ -30,33 +30,33 @@ bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
   info.endianness = fetch.endianness;
 
   info.dimension = fetch.dimension;
-  info.width = info.height = info.depth = 0;
+  info.width_minus_1 = info.height_minus_1 = info.depth_or_array_size_minus_1 = 0;
   info.is_stacked = false;
   switch (info.dimension) {
     case xenos::DataDimension::k1D:
       info.dimension = DataDimension::k2DOrStacked;
-      info.width = fetch.size_1d.width;
+      info.width_minus_1 = fetch.size_1d.width;
       REX_ASSERT(!fetch.stacked);
       break;
     case xenos::DataDimension::k2DOrStacked:
-      info.width = fetch.size_2d.width;
-      info.height = fetch.size_2d.height;
+      info.width_minus_1 = fetch.size_2d.width;
+      info.height_minus_1 = fetch.size_2d.height;
       if (fetch.stacked) {
-        info.depth = fetch.size_2d.stack_depth;
+        info.depth_or_array_size_minus_1 = fetch.size_2d.stack_depth;
         info.is_stacked = true;
       }
       break;
     case xenos::DataDimension::k3D:
-      info.width = fetch.size_3d.width;
-      info.height = fetch.size_3d.height;
-      info.depth = fetch.size_3d.depth;
+      info.width_minus_1 = fetch.size_3d.width;
+      info.height_minus_1 = fetch.size_3d.height;
+      info.depth_or_array_size_minus_1 = fetch.size_3d.depth;
       REX_ASSERT(!fetch.stacked);
       break;
     case xenos::DataDimension::kCube:
-      info.width = fetch.size_2d.width;
-      info.height = fetch.size_2d.height;
+      info.width_minus_1 = fetch.size_2d.width;
+      info.height_minus_1 = fetch.size_2d.height;
       REX_ASSERT(fetch.size_2d.stack_depth == 5);
-      info.depth = fetch.size_2d.stack_depth;
+      info.depth_or_array_size_minus_1 = fetch.size_2d.stack_depth;
       REX_ASSERT(!fetch.stacked);
       break;
     default:
@@ -73,7 +73,7 @@ bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
   info.has_packed_mips = fetch.packed_mips;
 
   info.extent = TextureExtent::Calculate(out_info, true);
-  info.SetupMemoryInfo(fetch.base_address << 12, fetch.mip_address << 12);
+  info.SetupMemoryRanges(fetch.base_address << 12, fetch.mip_address << 12);
 
   if (info.mip_max_level > 0 && !info.memory.mip_address) {
     info.mip_max_level = 0;
@@ -84,9 +84,9 @@ bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
   return true;
 }
 
-bool TextureInfo::PrepareResolve(u32 physical_address, xenos::TextureFormat format,
-                                 xenos::Endian endian, u32 pitch, u32 width, u32 height, u32 depth,
-                                 TextureInfo* out_info) {
+bool TextureInfo::FromResolve(u32 physical_address, xenos::TextureFormat format,
+                              xenos::Endian endian, u32 pitch, u32 width, u32 height, u32 depth,
+                              TextureInfo* out_info) {
   REX_ASSERT(width > 0);
   REX_ASSERT(height > 0);
 
@@ -97,9 +97,9 @@ bool TextureInfo::PrepareResolve(u32 physical_address, xenos::TextureFormat form
   info.endianness = endian;
 
   info.dimension = xenos::DataDimension::k2DOrStacked;
-  info.width = width - 1;
-  info.height = height - 1;
-  info.depth = depth - 1;
+  info.width_minus_1 = width - 1;
+  info.height_minus_1 = height - 1;
+  info.depth_or_array_size_minus_1 = depth - 1;
 
   info.pitch = pitch;
   info.mip_min_level = 0;
@@ -109,12 +109,13 @@ bool TextureInfo::PrepareResolve(u32 physical_address, xenos::TextureFormat form
   info.has_packed_mips = false;
 
   info.extent = TextureExtent::Calculate(out_info, true);
-  info.SetupMemoryInfo(physical_address, 0);
+  info.SetupMemoryRanges(physical_address, 0);
   return true;
 }
 
 u32 TextureInfo::GetMaxMipLevels() const {
-  return 1 + rex::log2_floor(std::max({width + 1, height + 1, depth + 1}));
+  return 1 + rex::log2_floor(std::max(
+                 {width_minus_1 + 1, height_minus_1 + 1, depth_or_array_size_minus_1 + 1}));
 }
 
 const TextureExtent TextureInfo::GetMipExtent(u32 mip, bool is_guest) const {
@@ -123,26 +124,26 @@ const TextureExtent TextureInfo::GetMipExtent(u32 mip, bool is_guest) const {
   }
   u32 mip_width, mip_height;
   if (is_guest) {
-    mip_width = rex::next_pow2(width + 1) >> mip;
-    mip_height = rex::next_pow2(height + 1) >> mip;
+    mip_width = rex::next_pow2(width_minus_1 + 1) >> mip;
+    mip_height = rex::next_pow2(height_minus_1 + 1) >> mip;
   } else {
-    mip_width = std::max(1u, (width + 1) >> mip);
-    mip_height = std::max(1u, (height + 1) >> mip);
+    mip_width = std::max(1u, (width_minus_1 + 1) >> mip);
+    mip_height = std::max(1u, (height_minus_1 + 1) >> mip);
   }
-  return TextureExtent::Calculate(GetFormatInfo(), mip_width, mip_height, depth + 1, is_tiled,
-                                  is_guest);
+  return TextureExtent::Calculate(GetFormatInfo(), mip_width, mip_height,
+                                  depth_or_array_size_minus_1 + 1, is_tiled, is_guest);
 }
 
 void TextureInfo::GetMipSize(u32 mip, u32* out_width, u32* out_height) const {
   REX_ASSERT(out_width != nullptr);
   REX_ASSERT(out_height != nullptr);
   if (mip == 0) {
-    *out_width = width + 1;
-    *out_height = height + 1;
+    *out_width = width_minus_1 + 1;
+    *out_height = height_minus_1 + 1;
     return;
   }
-  u32 width_pow2 = rex::next_pow2(width + 1);
-  u32 height_pow2 = rex::next_pow2(height + 1);
+  u32 width_pow2 = rex::next_pow2(width_minus_1 + 1);
+  u32 height_pow2 = rex::next_pow2(height_minus_1 + 1);
   *out_width = std::max(width_pow2 >> mip, 1u);
   *out_height = std::max(height_pow2 >> mip, 1u);
 }
@@ -153,7 +154,7 @@ u32 TextureInfo::GetMipLocation(u32 mip, u32* offset_x, u32* offset_y, bool is_g
       *offset_x = 0;
       *offset_y = 0;
     } else {
-      GetPackedTileOffset(0, offset_x, offset_y);
+      GetPackedMipOffset(0, offset_x, offset_y);
     }
     return memory.base_address;
   }
@@ -179,8 +180,8 @@ u32 TextureInfo::GetMipLocation(u32 mip, u32* offset_x, u32* offset_y, bool is_g
     return address_base + address_offset;
   }
 
-  u32 width_pow2 = rex::next_pow2(width + 1);
-  u32 height_pow2 = rex::next_pow2(height + 1);
+  u32 width_pow2 = rex::next_pow2(width_minus_1 + 1);
+  u32 height_pow2 = rex::next_pow2(height_minus_1 + 1);
 
   u32 packed_mip_base = 1;
   for (u32 i = packed_mip_base; i < mip; i++, packed_mip_base++) {
@@ -192,13 +193,13 @@ u32 TextureInfo::GetMipLocation(u32 mip, u32* offset_x, u32* offset_y, bool is_g
     address_offset += GetMipExtent(i, is_guest).GetAllBlocks() * bytes_per_block;
   }
 
-  GetPackedTileOffset(width_pow2 >> mip, height_pow2 >> mip, GetFormatInfo(), mip - packed_mip_base,
-                      offset_x, offset_y);
+  GetPackedMipOffset(width_pow2 >> mip, height_pow2 >> mip, GetFormatInfo(), mip - packed_mip_base,
+                     offset_x, offset_y);
   return address_base + address_offset;
 }
 
-bool TextureInfo::GetPackedTileOffset(u32 width, u32 height, const FormatInfo* format_info,
-                                      u32 packed_tile, u32* offset_x, u32* offset_y) {
+bool TextureInfo::GetPackedMipOffset(u32 width, u32 height, const FormatInfo* format_info,
+                                     u32 packed_tile, u32* offset_x, u32* offset_y) {
   // Levels of 16 texels or less share 1 32x32 tile, placed by their logical size.
 
   u32 log2_width = rex::log2_ceil(width);
@@ -232,14 +233,14 @@ bool TextureInfo::GetPackedTileOffset(u32 width, u32 height, const FormatInfo* f
   return true;
 }
 
-bool TextureInfo::GetPackedTileOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const {
+bool TextureInfo::GetPackedMipOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const {
   if (!has_packed_mips) {
     *offset_x = 0;
     *offset_y = 0;
     return false;
   }
-  return GetPackedTileOffset(rex::next_pow2(width + 1), rex::next_pow2(height + 1), GetFormatInfo(),
-                             packed_tile, offset_x, offset_y);
+  return GetPackedMipOffset(rex::next_pow2(width_minus_1 + 1), rex::next_pow2(height_minus_1 + 1),
+                            GetFormatInfo(), packed_tile, offset_x, offset_y);
 }
 
 u64 TextureInfo::Hash() const {
@@ -248,14 +249,15 @@ u64 TextureInfo::Hash() const {
   const auto add = [&state](const auto&... fields) {
     (XXH3_64bits_update(&state, &fields, sizeof(fields)), ...);
   };
-  add(format, endianness, dimension, width, height, depth, pitch, mip_min_level, mip_max_level,
-      is_stacked, is_tiled, has_packed_mips, memory.base_address, memory.base_size,
-      memory.mip_address, memory.mip_size, extent.pitch, extent.height, extent.block_width,
-      extent.block_height, extent.block_pitch_h, extent.block_pitch_v, extent.depth);
+  add(format, endianness, dimension, width_minus_1, height_minus_1, depth_or_array_size_minus_1,
+      pitch, mip_min_level, mip_max_level, is_stacked, is_tiled, has_packed_mips,
+      memory.base_address, memory.base_size, memory.mip_address, memory.mip_size, extent.pitch,
+      extent.height, extent.block_width, extent.block_height, extent.block_pitch_h,
+      extent.block_pitch_v, extent.depth);
   return XXH3_64bits_digest(&state);
 }
 
-void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {
+void TextureInfo::SetupMemoryRanges(u32 base_address, u32 mip_address) {
   u32 bytes_per_block = GetFormatInfo()->GetBytesPerBlock();
 
   memory.base_address = 0;
@@ -295,8 +297,8 @@ void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {
     return;
   }
 
-  u32 width_pow2 = rex::next_pow2(width + 1);
-  u32 height_pow2 = rex::next_pow2(height + 1);
+  u32 width_pow2 = rex::next_pow2(width_minus_1 + 1);
+  u32 height_pow2 = rex::next_pow2(height_minus_1 + 1);
 
   u32 packed_mip_base = std::max(1u, mip_min_level);
   for (u32 mip = packed_mip_base; mip < mip_max_level; mip++, packed_mip_base++) {

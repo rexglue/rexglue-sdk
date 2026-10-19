@@ -722,7 +722,7 @@ union alignas(u32) RB_COLOR_INFO {
   /** Dword index of this register. */
   static constexpr Register kRegisterIndex = xenos::Register::RB_COLOR_INFO;
   /** Dword indices of render targets 0 to 3 in order. */
-  REX_API static const Register kRtRegisterIndices[4];
+  REX_API static const Register kRTRegisterIndices[4];
 };
 REX_STATIC_ASSERT_SIZE(RB_COLOR_INFO, sizeof(u32));
 
@@ -779,7 +779,7 @@ union alignas(u32) RB_BLENDCONTROL {
   /** Dword index of this register. */
   static constexpr Register kRegisterIndex = xenos::Register::RB_BLENDCONTROL0;
   /** Dword indices of render targets 0 to 3 in order. */
-  REX_API static const Register kRtRegisterIndices[4];
+  REX_API static const Register kRTRegisterIndices[4];
 };
 REX_STATIC_ASSERT_SIZE(RB_BLENDCONTROL, sizeof(u32));
 

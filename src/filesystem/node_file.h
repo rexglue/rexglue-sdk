@@ -47,10 +47,10 @@ class NodeFile final : public IFile {
    */
   [[nodiscard]] Node& GetNode() const { return *node_; }
 
-  [[nodiscard]] FileInfo GetInfo() const override;
+  [[nodiscard]] FileStat GetInfo() const override;
   void Refresh() override;
   [[nodiscard]] Access GetAccess() const override { return access_; }
-  [[nodiscard]] VolumeInfo GetVolume() const override;
+  [[nodiscard]] VolumeStat GetVolume() const override;
   [[nodiscard]] Result<size_t> Read(std::span<u8> buffer, u64 offset) override;
   [[nodiscard]] Result<size_t> Write(std::span<const u8> buffer, u64 offset) override;
   [[nodiscard]] Result<void> SetLength(u64 length) override;
@@ -82,7 +82,7 @@ class NodeDirectory final : public IDirectory {
   /** Releases the node. */
   ~NodeDirectory() override;
 
-  [[nodiscard]] std::optional<FileInfo> Next() override;
+  [[nodiscard]] std::optional<FileStat> Next() override;
   void Restart() override { index_ = 0; }
   [[nodiscard]] u64 GetPosition() const override { return index_; }
 

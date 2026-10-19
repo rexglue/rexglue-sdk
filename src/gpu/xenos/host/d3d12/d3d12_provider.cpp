@@ -432,7 +432,7 @@ std::unique_ptr<Presenter> D3D12Provider::CreatePresenter(
   return D3D12Presenter::Create(std::move(host_gpu_loss_callback), *this);
 }
 
-std::unique_ptr<ImmediateDrawer> D3D12Provider::CreateImmediateDrawer() {
+std::unique_ptr<OverlayDrawer> D3D12Provider::CreateImmediateDrawer() {
   return D3D12ImmediateDrawer::Create(*this);
 }
 

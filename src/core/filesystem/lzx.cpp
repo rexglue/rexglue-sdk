@@ -46,31 +46,31 @@ MemoryFile* OpenMemoryFile(void* buffer, size_t buffer_size) {
   return file;
 }
 
-int ReadMemoryFile(mspack_file* handle, void* buffer, int chars) {
+int ReadMemoryFile(mspack_file* handle, void* buffer, int bytes) {
   auto* file = reinterpret_cast<MemoryFile*>(handle);
-  const off_t total = std::min(static_cast<off_t>(chars), file->buffer_size - file->offset);
+  const off_t total = std::min(static_cast<off_t>(bytes), file->buffer_size - file->offset);
   std::memcpy(buffer, file->buffer + file->offset, total);
   file->offset += total;
   return static_cast<int>(total);
 }
 
-int WriteMemoryFile(mspack_file* handle, void* buffer, int chars) {
+int WriteMemoryFile(mspack_file* handle, void* buffer, int bytes) {
   auto* file = reinterpret_cast<MemoryFile*>(handle);
-  const off_t total = std::min(static_cast<off_t>(chars), file->buffer_size - file->offset);
+  const off_t total = std::min(static_cast<off_t>(bytes), file->buffer_size - file->offset);
   std::memcpy(file->buffer + file->offset, buffer, total);
   file->offset += total;
   return static_cast<int>(total);
 }
 
-void* AllocMemory(mspack_system*, size_t chars) {
-  return std::calloc(chars, 1);
+void* AllocMemory(mspack_system*, size_t bytes) {
+  return std::calloc(bytes, 1);
 }
 
 void FreeMemory(void* ptr) {
   std::free(ptr);
 }
 
-void CopyMemory(void* src, void* dest, size_t chars) {
+void CopyBytes(void* src, void* dest, size_t chars) {
   std::memcpy(dest, src, chars);
 }
 
@@ -88,7 +88,7 @@ int LZXDecompress(std::span<const u8> input, std::span<u8> output, u32 window_si
   sys.write = WriteMemoryFile;
   sys.alloc = AllocMemory;
   sys.free = FreeMemory;
-  sys.copy = CopyMemory;
+  sys.copy = CopyBytes;
 
   MemoryFile* source = OpenMemoryFile(const_cast<u8*>(input.data()), input.size());
   MemoryFile* dest = OpenMemoryFile(output.data(), output.size());

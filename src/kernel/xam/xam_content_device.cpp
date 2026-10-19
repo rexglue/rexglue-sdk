@@ -28,20 +28,20 @@ using namespace rex::runtime;
 
 constexpr u64 kOneGB = 1024ull * 1024ull * 1024ull;
 
-static const DummyDeviceInfo kDummyHDDDeviceInfo = {
+static const PlaceholderDevice kDummyHDDDeviceInfo = {
     DummyDeviceId::kHDD, DeviceType::kHDD, 20ull * kOneGB, 3ull * kOneGB, u"Dummy HDD",
 };
-static const DummyDeviceInfo kDummyODDDeviceInfo = {
+static const PlaceholderDevice kDummyODDDeviceInfo = {
     DummyDeviceId::kODD, DeviceType::kODD, 7ull * kOneGB, 0ull * kOneGB, u"Dummy ODD",
 };
-static const DummyDeviceInfo* dummy_device_infos[] = {
+static const PlaceholderDevice* g_dummy_device_infos[] = {
     &kDummyHDDDeviceInfo,
     &kDummyODDDeviceInfo,
 };
 
-const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id) {
-  const auto& begin = std::begin(dummy_device_infos);
-  const auto& end = std::end(dummy_device_infos);
+const PlaceholderDevice* GetDummyDeviceInfo(u32 device_id) {
+  const auto& begin = std::begin(g_dummy_device_infos);
+  const auto& end = std::end(g_dummy_device_infos);
   auto it = std::find_if(begin, end, [device_id](const auto& item) {
     return static_cast<u32>(item->device_id) == device_id;
   });
@@ -57,7 +57,7 @@ u32 XamContentGetDeviceName_entry(u32 device_id, MappedWString name_buffer, u32 
   if (name_capacity < name.size() + 1) {
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
-  rex::copy_and_swap_truncating(name_buffer, name, name_capacity);
+  rex::CopyAndSwapTruncating(name_buffer, name, name_capacity);
   return X_ERROR_SUCCESS;
 }
 
@@ -105,8 +105,8 @@ u32 XamContentGetDeviceData_entry(u32 device_id, GuestPtrT<X_CONTENT_DEVICE_DATA
   device_data->device_type = static_cast<u32>(device_info->device_type);
   device_data->total_bytes = device_info->total_bytes;
   device_data->free_bytes = device_info->free_bytes;
-  rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
-                                rex::CountOf(device_data->name_chars));
+  rex::CopyAndSwapTruncating(device_data->name_chars, device_info->name,
+                             rex::CountOf(device_data->name_chars));
   return X_ERROR_SUCCESS;
 }
 
@@ -121,7 +121,7 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
 
   StaticItems items(max_count, sizeof(X_CONTENT_DEVICE_DATA));
 
-  for (const auto& device_info : dummy_device_infos) {
+  for (const auto& device_info : g_dummy_device_infos) {
     auto device_data = items.Append<X_CONTENT_DEVICE_DATA>();
     REX_ASSERT(device_data != nullptr);
     if (device_data) {
@@ -129,8 +129,8 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
       device_data->device_type = static_cast<u32>(device_info->device_type);
       device_data->total_bytes = device_info->total_bytes;
       device_data->free_bytes = device_info->free_bytes;
-      rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
-                                    rex::CountOf(device_data->name_chars));
+      rex::CopyAndSwapTruncating(device_data->name_chars, device_info->name,
+                                 rex::CountOf(device_data->name_chars));
     }
   }
 
@@ -160,7 +160,7 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
 namespace rex {
 namespace runtime {
 
-const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id) {
+const PlaceholderDevice* GetPlaceholderDevice(u32 device_id) {
   return rex::kernel::xam::GetDummyDeviceInfo(device_id);
 }
 

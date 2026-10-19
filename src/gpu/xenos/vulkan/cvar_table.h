@@ -43,11 +43,11 @@ REXCVAR_BOOL(xenos, vulkan_force_convert_quad_lists_to_triangle_lists, false,
              "Force Vulkan quad list conversion to triangle lists in primitive processing, even "
              "when geometry shaders are available")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_STRING(xenos, render_target_path_vulkan, "", "Vulkan render target implementation path")
+REXCVAR_STRING(xenos, vulkan_render_target_path, "", "Vulkan render target implementation path")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(xenos, vulkan_sparse_shared_memory, true, "Use sparse shared memory on Vulkan")
     .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_BOOL(xenos, non_seamless_cube_map, false,
+REXCVAR_BOOL(xenos, vulkan_cube_map_edge_filtering_off, false,
              "Sample cube maps without edge filtering across faces");
 REXCVAR_BOOL(vulkan, require_geometry_shader, !REX_PLATFORM_MAC,
              "Require geometryShader support for Vulkan GPU emulation (disable to allow fallback "
@@ -90,7 +90,7 @@ REXCVAR_TABLE(kVulkanXenosCvars, vulkan_readback_resolve, vulkan_readback_memexp
               vulkan_dynamic_rendering, vulkan_pipeline_creation_threads,
               vulkan_tessellation_wireframe, vulkan_force_expand_point_sprites_in_vs,
               vulkan_force_expand_rectangle_lists_in_vs,
-              vulkan_force_convert_quad_lists_to_triangle_lists, render_target_path_vulkan,
-              vulkan_sparse_shared_memory, non_seamless_cube_map);
+              vulkan_force_convert_quad_lists_to_triangle_lists, vulkan_render_target_path,
+              vulkan_sparse_shared_memory, vulkan_cube_map_edge_filtering_off);
 
 }  // namespace rex::gpu::cvars

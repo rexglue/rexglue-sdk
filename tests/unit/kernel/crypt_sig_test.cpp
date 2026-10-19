@@ -19,10 +19,10 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::KernelFixture;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -222,7 +222,8 @@ std::vector<u8> Bytes(std::span<const u8> data) {
 
 u32 Verify(Caller& c, const std::vector<u8>& sig, std::span<const u8> hash,
            std::span<const u8> salt, const std::vector<u8>& key) {
-  return c.Kernel("XeCryptBnQwBeSigVerify", {Put(c, sig), Put(c, hash), Put(c, salt), Put(c, key)});
+  return c.Kernel("XeCryptBnQwBeSigVerify", {CopyToGuest(c, sig), CopyToGuest(c, hash),
+                                             CopyToGuest(c, salt), CopyToGuest(c, key)});
 }
 
 }  // namespace
@@ -232,9 +233,10 @@ REX_TEST_CASE("XeCryptBnQwBeSigCreate signs the formatted block with the private
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 sig = c.Alloc(0x100);
-    CHECK(c.Kernel("XeCryptBnQwBeSigCreate",
-                   {sig, Put(c, kSigHash), Put(c, kSigSalt), Put(c, kSigPrvKey)}) == 1);
-    CHECK(Get(c, sig, 0x100) == Bytes(kSigExpected));
+    CHECK(
+        c.Kernel("XeCryptBnQwBeSigCreate", {sig, CopyToGuest(c, kSigHash), CopyToGuest(c, kSigSalt),
+                                            CopyToGuest(c, kSigPrvKey)}) == 1);
+    CHECK(ReadBytes(c, sig, 0x100) == Bytes(kSigExpected));
   });
 }
 
@@ -243,9 +245,10 @@ REX_TEST_CASE("XeCryptBnQwBeSigVerify accepts what XeCryptBnQwBeSigCreate produc
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 sig = c.Alloc(0x100);
-    REQUIRE(c.Kernel("XeCryptBnQwBeSigCreate",
-                     {sig, Put(c, kSigHash), Put(c, kSigSalt), Put(c, kSigPrvKey)}) == 1);
-    const std::vector<u8> signature = Get(c, sig, 0x100);
+    REQUIRE(
+        c.Kernel("XeCryptBnQwBeSigCreate", {sig, CopyToGuest(c, kSigHash), CopyToGuest(c, kSigSalt),
+                                            CopyToGuest(c, kSigPrvKey)}) == 1);
+    const std::vector<u8> signature = ReadBytes(c, sig, 0x100);
     const std::vector<u8> pub = Bytes(kSigPubKey);
     CHECK(Verify(c, signature, kSigHash, kSigSalt, pub) == 1);
   });
@@ -256,9 +259,10 @@ REX_TEST_CASE("XeCryptBnQwBeSigCreate and XeCryptBnQwBeSigVerify work with an ex
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 sig = c.Alloc(0x100);
-    REQUIRE(c.Kernel("XeCryptBnQwBeSigCreate",
-                     {sig, Put(c, kSigHash), Put(c, kSigSalt), Put(c, kSigPrvKeyExp3)}) == 1);
-    const std::vector<u8> signature = Get(c, sig, 0x100);
+    REQUIRE(
+        c.Kernel("XeCryptBnQwBeSigCreate", {sig, CopyToGuest(c, kSigHash), CopyToGuest(c, kSigSalt),
+                                            CopyToGuest(c, kSigPrvKeyExp3)}) == 1);
+    const std::vector<u8> signature = ReadBytes(c, sig, 0x100);
     CHECK(signature == Bytes(kSigExpectedExp3));
     const std::vector<u8> pub = Bytes(kSigPubKeyExp3);
     CHECK(Verify(c, signature, kSigHash, kSigSalt, pub) == 1);
@@ -304,8 +308,8 @@ REX_TEST_CASE("XeCryptBnQwBeSigVerify and XeCryptBnQwBeSigCreate reject unsuppor
     std::vector<u8> prv = Bytes(kSigPrvKey);
     prv[3] = 0x10;
     const u32 sig = c.Alloc(0x100);
-    CHECK(c.Kernel("XeCryptBnQwBeSigCreate",
-                   {sig, Put(c, kSigHash), Put(c, kSigSalt), Put(c, prv)}) == 0);
-    CHECK(Get(c, sig, 0x100) == std::vector<u8>(0x100, 0));
+    CHECK(c.Kernel("XeCryptBnQwBeSigCreate", {sig, CopyToGuest(c, kSigHash),
+                                              CopyToGuest(c, kSigSalt), CopyToGuest(c, prv)}) == 0);
+    CHECK(ReadBytes(c, sig, 0x100) == std::vector<u8>(0x100, 0));
   });
 }

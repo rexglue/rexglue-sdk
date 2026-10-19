@@ -108,11 +108,11 @@ void ShaderInterpreter::Execute() {
             if (alu_instr.IsPredicated() && alu_instr.GetPredicateCondition() != state_.predicate) {
               continue;
             }
-            ExecuteAluInstruction(alu_instr);
+            ExecuteALUInstruction(alu_instr);
           }
         }
 
-        if (xenos::ucode::DoesControlFlowOpcodeEndShader(cf_opcode)) {
+        if (xenos::ucode::IsControlFlowOpcodeEnd(cf_opcode)) {
           exec_ended = true;
         }
       } break;
@@ -259,10 +259,10 @@ const std::array<f32, 4> ShaderInterpreter::GetFloatConstant(u32 address, bool i
   return value;
 }
 
-void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr) {
+void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr) {
   f32 vector_result[4] = {};
   xenos::ucode::AluVectorOpcode vector_opcode = instr.GetVectorOpcode();
-  const xenos::ucode::AluVectorOpcodeInfo& vector_opcode_info =
+  const xenos::ucode::AluVectorOpcodeTraits& vector_opcode_info =
       xenos::ucode::GetAluVectorOpcodeInfo(vector_opcode);
   u32 vector_result_write_mask = instr.GetVectorOpResultWriteMask();
   if (vector_result_write_mask || vector_opcode_info.changed_state) {
@@ -562,7 +562,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
   }
 
   xenos::ucode::AluScalarOpcode scalar_opcode = instr.GetScalarOpcode();
-  const xenos::ucode::AluScalarOpcodeInfo& scalar_opcode_info =
+  const xenos::ucode::AluScalarOpcodeTraits& scalar_opcode_info =
       xenos::ucode::GetAluScalarOpcodeInfo(scalar_opcode);
   f32 scalar_operands[2];
   u32 scalar_operand_component_count = 0;
@@ -594,7 +594,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     } break;
     case 2: {
       scalar_operand_component_count = 2;
-      scalar_src_absolute = instr.GetAbsConstants();
+      scalar_src_absolute = instr.HasAbsConstants();
       u32 scalar_src_swizzle = instr.GetSrcSwizzle(3);
       // c#.w.
       scalar_operands[0] = GetFloatConstant(instr.GetSrcReg(3), instr.IsSrcConstAddressed(3),
@@ -820,13 +820,13 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     }
   }
 
-  if (instr.GetVectorClamp()) {
+  if (instr.IsVectorClamped()) {
     for (u32 i = 0; i < 4; ++i) {
       vector_result[i] = rex::saturate(vector_result[i]);
     }
   }
   f32 scalar_result =
-      instr.GetScalarClamp() ? rex::saturate(state_.previous_scalar) : state_.previous_scalar;
+      instr.IsScalarClamped() ? rex::saturate(state_.previous_scalar) : state_.previous_scalar;
 
   u32 scalar_result_write_mask = instr.GetScalarOpResultWriteMask();
   if (instr.IsExport()) {
@@ -1019,7 +1019,7 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
             result[i] = static_cast<f32>(static_cast<i32>(data[i]));
           }
           if (instr.IsNormalized()) {
-            if (instr.GetSignedRfMode() == xenos::SignedRepeatingFractionMode::kNoZero) {
+            if (instr.GetSignedRFMode() == xenos::SignedRepeatingFractionMode::kNoZero) {
               for (u32 i = 0; i < 4; ++i) {
                 result[i] = (result[i] + 0.5f) / 2147483647.5f;
               }
@@ -1067,7 +1067,7 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
                                        (32 - packed_width));
         }
         if (instr.IsNormalized()) {
-          if (instr.GetSignedRfMode() == xenos::SignedRepeatingFractionMode::kNoZero) {
+          if (instr.GetSignedRFMode() == xenos::SignedRepeatingFractionMode::kNoZero) {
             for (u32 i = 0; i < 4; ++i) {
               if (!(packed_components & (UINT32_C(1) << i))) {
                 continue;

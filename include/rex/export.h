@@ -37,7 +37,7 @@
  * generates.
  *
  * @code
- * extern "C" REX_DETAIL_EXPORT void rexmod_test_set_sink(RexModTestSink sink);
+ * extern "C" REX_DETAIL_EXPORT void rexmod_test_set_sink(ReXModTestSink sink);
  * @endcode
  */
 #if REX_PLATFORM_WIN32

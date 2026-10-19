@@ -86,7 +86,7 @@ struct FunctionConfig {
 };
 
 /** Section info for analysis output. */
-struct SectionInfo {
+struct Section {
   std::string name;  /**< Section name written to the analysis output. */
   u64 address = 0;   /**< Guest address of the first byte of the section. */
   u64 size = 0;      /**< Section size in bytes. */
@@ -174,10 +174,10 @@ struct RecompilerConfig {
   std::unordered_map<u32, MidAsmHook> mid_asm_hooks;
   /** TOML key `longjmp_address`, default 0. Function address whose calls are emitted as
    * `ppc_longjmp`. */
-  u32 long_jmp_address = 0;
+  u32 longjmp_address = 0;
   /** TOML key `setjmp_address`, default 0. Function address whose calls are emitted as
    * `ppc_setjmp`. */
-  u32 set_jmp_address = 0;
+  u32 setjmp_address = 0;
 
   /** Shim function addresses keyed by registry name, read from the [shim] toml table. */
   std::unordered_map<std::string, u32> shim_functions;

@@ -66,7 +66,7 @@ namespace {
 /** A deterministic generator whose sequence is fixed by its initial state. */
 class SplitMix {
  public:
-  explicit SplitMix(u64 seed) : state_(seed) {}
+  explicit SplitMix(u64 initial_state) : state_(initial_state) {}
 
   /**
    * Draws the next word.

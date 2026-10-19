@@ -249,24 +249,24 @@ bool CodegenWriter::Write(bool force) {
 
   REXLOG_TRACE(codegen, "Recompile: generating {}_pch.h", project_name);
   out_ = RenderWithJSON(registry, "codegen/pch_h", tmpl_data);
-  SaveCurrentOutData(std::format("{}_pch.h", project_name));
+  QueueOutput(std::format("{}_pch.h", project_name));
 
   REXLOG_TRACE(codegen, "Recompile: generating {}_funcs.h", project_name);
   out_ = RenderWithJSON(registry, "codegen/funcs_h", tmpl_data);
-  SaveCurrentOutData(std::format("{}_funcs.h", project_name));
+  QueueOutput(std::format("{}_funcs.h", project_name));
 
   REXLOG_TRACE(codegen, "Recompile: generating {}_init.h", project_name);
   out_ = RenderWithJSON(registry, "codegen/init_h", tmpl_data);
-  SaveCurrentOutData(std::format("{}_init.h", project_name));
+  QueueOutput(std::format("{}_init.h", project_name));
 
   REXLOG_TRACE(codegen, "Recompile: generating {}_init.cpp", project_name);
   out_ = RenderWithJSON(registry, "codegen/init_cpp", tmpl_data);
-  SaveCurrentOutData(std::format("{}_init.cpp", project_name));
+  QueueOutput(std::format("{}_init.cpp", project_name));
 
   REXLOG_TRACE(codegen, "Recompile: generating {}_register.cpp", project_name);
   tmpl_data["is_dll"] = ctx_.IsDLLModule();
   out_ = RenderWithJSON(registry, "codegen/register_cpp", tmpl_data);
-  SaveCurrentOutData(std::format("{}_register.cpp", project_name));
+  QueueOutput(std::format("{}_register.cpp", project_name));
 
   std::erase_if(functions, [](const FunctionNode* fn) {
     return fn->GetAuthority() == FunctionAuthority::kImport;
@@ -345,20 +345,20 @@ bool CodegenWriter::Write(bool force) {
     for (const auto& name : ordered) {
       Println("DECLARE_REX_FUNC({});", name);
     }
-    SaveCurrentOutData(std::format("{}_funcs.{}.h", project_name, index));
+    QueueOutput(std::format("{}_funcs.{}.h", project_name, index));
 
     Println("#include \"{}_funcs.{}.h\"\n", project_name, index);
     for (size_t entry : buckets[index]) {
       out_ += bodies[entry];
     }
-    SaveCurrentOutData(std::format("{}_recomp.{}.cpp", project_name, index));
+    QueueOutput(std::format("{}_recomp.{}.cpp", project_name, index));
   }
 
   out_ = partition.Serialize();
-  SaveCurrentOutData(kPartitionFileName);
+  QueueOutput(kPartitionFileName);
 
   out_ = BuildMMIOReport(mmio_sites).dump(2);
-  SaveCurrentOutData(kMMIOReportFileName);
+  QueueOutput(kMMIOReportFileName);
 
   REXLOG_TRACE(codegen, "Recompilation complete.");
 
@@ -370,13 +370,13 @@ bool CodegenWriter::Write(bool force) {
       recomp_files.push_back(std::format("{}_recomp.{}.cpp", project_name, i));
     }
     out_ = RenderWithJSON(registry, "codegen/sources_cmake", tmpl_data);
-    SaveCurrentOutData("sources.cmake");
+    QueueOutput("sources.cmake");
   }
 
   return FlushPendingWrites();
 }
 
-void CodegenWriter::SaveCurrentOutData(const std::string_view name) {
+void CodegenWriter::QueueOutput(const std::string_view name) {
   if (!out_.empty()) {
     pending_writes_.emplace_back(std::string(name), std::move(out_));
     out_.clear();

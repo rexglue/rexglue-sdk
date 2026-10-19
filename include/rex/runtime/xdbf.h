@@ -32,31 +32,31 @@ enum class XDBFSection : u8 {
 
 #pragma pack(push, 1)
 /** Header of an XDBF database. */
-struct XbdfHeader {
+struct XDBFHeader {
   be_u32 magic; /**< Signature. */
   be_u32 version;
-  be_u32 entry_count; /**< Capacity of the entry table. */
-  be_u32 entry_used;  /**< Entries in use. */
-  be_u32 free_count;  /**< Rows in the table after the entry table. */
+  be_u32 entry_capacity; /**< Capacity of the entry table. */
+  be_u32 entry_used;     /**< Entries in use. */
+  be_u32 free_count;     /**< Rows in the table after the entry table. */
   be_u32 free_used;
 };
-REX_STATIC_ASSERT_SIZE(XbdfHeader, 24);
+REX_STATIC_ASSERT_SIZE(XDBFHeader, 24);
 
 /** Entry table row locating the data of an XDBF entry. */
-struct XbdfEntry {
+struct XDBFEntry {
   be_u16 section; /**< XDBFSection value. */
   be_u64 id;      /**< Entry id within the section. */
   be_u32 offset;  /**< Offset of the data from the content area. */
   be_u32 size;    /**< Size in bytes. */
 };
-REX_STATIC_ASSERT_SIZE(XbdfEntry, 18);
+REX_STATIC_ASSERT_SIZE(XDBFEntry, 18);
 
 /** Row of the table between the entry table and the content area. */
-struct XbdfFileLoc {
+struct XDBFFileLocation {
   be_u32 offset;
   be_u32 size;
 };
-REX_STATIC_ASSERT_SIZE(XbdfFileLoc, 8);
+REX_STATIC_ASSERT_SIZE(XDBFFileLocation, 8);
 
 /** Metadata entry holding the default language of the title. */
 struct XDBFXstc {

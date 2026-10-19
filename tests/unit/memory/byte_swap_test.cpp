@@ -29,7 +29,7 @@ constexpr std::array<size_t, 6> kCounts = {0, 1, 15, 16, 17, 70};
 
 using CopyFn = void (*)(void*, const void*, size_t);
 
-std::vector<u8> Reference(const std::vector<u8>& source, size_t width, size_t unit) {
+std::vector<u8> ReferenceSwap(const std::vector<u8>& source, size_t width, size_t unit) {
   std::vector<u8> out(source.size());
   for (size_t i = 0; i + width <= source.size(); i += width) {
     for (size_t j = 0; j < width; j += unit) {
@@ -54,7 +54,7 @@ void CheckUnaligned(CopyFn copy, size_t width, size_t unit) {
   for (const size_t count : kCounts) {
     const size_t size = count * width;
     const std::vector<u8> source_data = RandomBytes(size);
-    const std::vector<u8> expected = Reference(source_data, width, unit);
+    const std::vector<u8> expected = ReferenceSwap(source_data, width, unit);
     for (size_t source_offset = 0; source_offset < 16; ++source_offset) {
       for (size_t dest_offset = 0; dest_offset < 16; ++dest_offset) {
         std::vector<u8> source(kGuard + size + kGuard, 0);
@@ -75,7 +75,7 @@ void CheckAligned(CopyFn copy, size_t width, size_t unit) {
   for (const size_t count : kCounts) {
     const size_t size = count * width;
     const std::vector<u8> source_data = RandomBytes(size);
-    const std::vector<u8> expected = Reference(source_data, width, unit);
+    const std::vector<u8> expected = ReferenceSwap(source_data, width, unit);
     alignas(16) std::array<u8, kAlignedBytes> source{};
     alignas(16) std::array<u8, kAlignedBytes> dest{};
     dest.fill(kFill);

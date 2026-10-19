@@ -92,7 +92,7 @@ Result<std::vector<std::filesystem::path>> SDL3UserInterface::ShowFileDialog(
                             static_cast<Sint64>(filters.size()));
     }
     if (window_) {
-      SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, window_->GetSDL());
+      SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, window_->GetSDLWindow());
     }
     SDL_ShowFileDialogWithProperties(DialogType(desc.mode), &OnDialogDone, &state, props);
     SDL_DestroyProperties(props);

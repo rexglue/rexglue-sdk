@@ -11,7 +11,7 @@ rex::Error StatusError(X_STATUS status) {
           static_cast<int>(status)};
 }
 
-rex::Error ResultError(X_RESULT result) {
+rex::Error XResultError(X_RESULT result) {
   return {ErrorCategory::kRuntime, std::format("result {:#010x}", result),
           static_cast<int>(result)};
 }

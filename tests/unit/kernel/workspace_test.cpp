@@ -20,8 +20,8 @@
 
 using rex::u32;
 using rex::runtime::WorkspaceHeap;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 

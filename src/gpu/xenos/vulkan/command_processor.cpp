@@ -164,11 +164,11 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
     },
 };
 
-const char* GetSwapFxaaComputeSource(bool extreme_quality) {
+const char* GetSwapFXAAComputeSource(bool extreme_quality) {
   return extreme_quality ? R"(#version 450
 layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
 
-layout(push_constant) uniform XeApplyGammaRampConstants {
+layout(push_constant) uniform XeFXAAConstants {
   uvec2 xe_fxaa_size;
   vec2 xe_fxaa_size_inv;
 };
@@ -238,7 +238,7 @@ void main() {
                          : R"(#version 450
 layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
 
-layout(push_constant) uniform XeApplyGammaRampConstants {
+layout(push_constant) uniform XeFXAAConstants {
   uvec2 xe_fxaa_size;
   vec2 xe_fxaa_size_inv;
 };
@@ -307,7 +307,7 @@ void main() {
 )";
 }
 
-const char* GetSwapApplyGammaTablePixelRbSwapSource() {
+const char* GetSwapApplyGammaTablePixelRBSwapSource() {
   return R"(#version 450
 layout(set = 0, binding = 0) uniform textureBuffer xe_apply_gamma_ramp;
 layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
@@ -326,7 +326,7 @@ void main() {
 )";
 }
 
-const char* GetSwapApplyGammaPwlPixelRbSwapSource() {
+const char* GetSwapApplyGammaPWLPixelRBSwapSource() {
   return R"(#version 450
 layout(set = 0, binding = 0) uniform utextureBuffer xe_apply_gamma_ramp;
 layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
@@ -352,11 +352,11 @@ void main() {
 )";
 }
 
-const char* GetSwapApplyGammaTableComputeRbSwapSource() {
+const char* GetSwapApplyGammaTableComputeRBSwapSource() {
   return R"(#version 450
 layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
 
-layout(push_constant) uniform XeApplyGammaRampConstants {
+layout(push_constant) uniform XeFXAAConstants {
   uvec2 xe_apply_gamma_size;
 };
 
@@ -380,11 +380,11 @@ void main() {
 )";
 }
 
-const char* GetSwapApplyGammaPwlComputeRbSwapSource() {
+const char* GetSwapApplyGammaPWLComputeRBSwapSource() {
   return R"(#version 450
 layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
 
-layout(push_constant) uniform XeApplyGammaRampConstants {
+layout(push_constant) uniform XeFXAAConstants {
   uvec2 xe_apply_gamma_size;
 };
 
@@ -413,11 +413,11 @@ void main() {
 )";
 }
 
-const char* GetSwapApplyGammaTableFxaaLumaComputeRbSwapSource() {
+const char* GetSwapApplyGammaTableFXAALumaComputeRBSwapSource() {
   return R"(#version 450
 layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
 
-layout(push_constant) uniform XeApplyGammaRampConstants {
+layout(push_constant) uniform XeFXAAConstants {
   uvec2 xe_apply_gamma_size;
 };
 
@@ -442,11 +442,11 @@ void main() {
 )";
 }
 
-const char* GetSwapApplyGammaPwlFxaaLumaComputeRbSwapSource() {
+const char* GetSwapApplyGammaPWLFXAALumaComputeRBSwapSource() {
   return R"(#version 450
 layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
 
-layout(push_constant) uniform XeApplyGammaRampConstants {
+layout(push_constant) uniform XeFXAAConstants {
   uvec2 xe_apply_gamma_size;
 };
 
@@ -842,7 +842,7 @@ bool VulkanCommandProcessor::SetupContext() {
              "D3D12 parity, but unsupported by the selected device");
   }
   if (!device_properties.geometryShader) {
-    if (vulkan_device->RequiresGeometryShader()) {
+    if (vulkan_device->IsGeometryShaderRequired()) {
       REX_FAIL(gpu, false,
                "Vulkan geometryShader is required for GPU emulation "
                "(vulkan.require_geometry_shader=true), but unsupported by the "
@@ -853,7 +853,7 @@ bool VulkanCommandProcessor::SetupContext() {
                 "fallback conversion/expansion paths will be used");
   }
   if (!device_properties.fillModeNonSolid) {
-    if (vulkan_device->RequiresFillModeNonSolid()) {
+    if (vulkan_device->IsFillModeNonSolidRequired()) {
       REX_FAIL(gpu, false,
                "Vulkan fillModeNonSolid is required for GPU emulation "
                "(vulkan.require_fill_mode_non_solid=true), but unsupported by the "
@@ -1338,15 +1338,15 @@ bool VulkanCommandProcessor::SetupContext() {
     REX_FAIL(gpu, false, "Failed to create the gamma ramp application compute pipeline layout");
   }
 
-  std::array<VkDescriptorSetLayout, kSwapFxaaDescriptorSetCount> swap_fxaa_descriptor_set_layouts{};
-  swap_fxaa_descriptor_set_layouts[kSwapFxaaDescriptorSetSource] =
+  std::array<VkDescriptorSetLayout, kSwapFXAADescriptorSetCount> swap_fxaa_descriptor_set_layouts{};
+  swap_fxaa_descriptor_set_layouts[kSwapFXAADescriptorSetSource] =
       swap_descriptor_set_layout_combined_image_sampler_;
-  swap_fxaa_descriptor_set_layouts[kSwapFxaaDescriptorSetDestination] =
+  swap_fxaa_descriptor_set_layouts[kSwapFXAADescriptorSetDestination] =
       swap_descriptor_set_layout_storage_image_;
   VkPushConstantRange swap_fxaa_push_constant_range;
   swap_fxaa_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   swap_fxaa_push_constant_range.offset = 0;
-  swap_fxaa_push_constant_range.size = sizeof(SwapFxaaConstants);
+  swap_fxaa_push_constant_range.size = sizeof(SwapFXAAConstants);
   swap_apply_gamma_pipeline_layout_create_info.setLayoutCount =
       static_cast<u32>(swap_fxaa_descriptor_set_layouts.size());
   swap_apply_gamma_pipeline_layout_create_info.pSetLayouts =
@@ -1413,8 +1413,8 @@ bool VulkanCommandProcessor::SetupContext() {
   enum SwapApplyGammaPixelShader : u8 {
     kSwapApplyGammaPixelShader256EntryTable,
     kSwapApplyGammaPixelShaderPWL,
-    kSwapApplyGammaPixelShader256EntryTableFxaaLuma,
-    kSwapApplyGammaPixelShaderPWLFxaaLuma,
+    kSwapApplyGammaPixelShader256EntryTableFXAALuma,
+    kSwapApplyGammaPixelShaderPWLFXAALuma,
 
     kSwapApplyGammaPixelShaderCount,
   };
@@ -1428,11 +1428,11 @@ bool VulkanCommandProcessor::SetupContext() {
            gpu::vulkan::objects::CreateShaderModule(vulkan_device, shaders::kApplyGammaPWLPS,
                                                     sizeof(shaders::kApplyGammaPWLPS))) !=
           VK_NULL_HANDLE &&
-      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTableFxaaLuma] =
+      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTableFXAALuma] =
            gpu::vulkan::objects::CreateShaderModule(
                vulkan_device, shaders::kApplyGammaTableFXAALumaPS,
                sizeof(shaders::kApplyGammaTableFXAALumaPS))) != VK_NULL_HANDLE &&
-      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWLFxaaLuma] =
+      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWLFXAALuma] =
            gpu::vulkan::objects::CreateShaderModule(
                vulkan_device, shaders::kApplyGammaPWLFXAALumaPS,
                sizeof(shaders::kApplyGammaPWLFXAALumaPS))) != VK_NULL_HANDLE;
@@ -1557,8 +1557,8 @@ bool VulkanCommandProcessor::SetupContext() {
   std::array<VkShaderModule, 4> swap_apply_gamma_pipeline_pixel_shaders = {
       swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTable],
       swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWL],
-      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTableFxaaLuma],
-      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWLFxaaLuma],
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTableFXAALuma],
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWLFXAALuma],
   };
   std::array<VkPipeline*, 4> swap_apply_gamma_pipelines = {
       &swap_apply_gamma_256_entry_table_pipeline_,
@@ -1579,7 +1579,8 @@ bool VulkanCommandProcessor::SetupContext() {
       std::vector<u32> pixel_spirv;
       std::string compile_error;
       if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_FRAGMENT_BIT, source, pixel_spirv, compile_error)) {
-        REXLOG_WARN(gpu, "Failed to compile {} shader to SPIR-V: {}", pipeline_name, compile_error);
+        REXLOG_WARN(gpu, "Failed to compile {} shader to SPIR-V ({})", pipeline_name,
+                    compile_error);
         return;
       }
       VkShaderModule pixel_shader_module = gpu::vulkan::objects::CreateShaderModule(
@@ -1597,10 +1598,10 @@ bool VulkanCommandProcessor::SetupContext() {
       }
       dfn.vkDestroyShaderModule(device, pixel_shader_module, nullptr);
     };
-    create_rb_swap_pipeline(GetSwapApplyGammaTablePixelRbSwapSource(),
+    create_rb_swap_pipeline(GetSwapApplyGammaTablePixelRBSwapSource(),
                             swap_apply_gamma_256_entry_table_rb_swap_pipeline_,
                             "swap gamma table red/blue fallback");
-    create_rb_swap_pipeline(GetSwapApplyGammaPwlPixelRbSwapSource(),
+    create_rb_swap_pipeline(GetSwapApplyGammaPWLPixelRBSwapSource(),
                             swap_apply_gamma_pwl_rb_swap_pipeline_,
                             "swap gamma PWL red/blue fallback");
   }
@@ -1652,7 +1653,8 @@ bool VulkanCommandProcessor::SetupContext() {
       std::vector<u32> compute_spirv;
       std::string compile_error;
       if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, source, compute_spirv, compile_error)) {
-        REXLOG_WARN(gpu, "Failed to compile {} shader to SPIR-V: {}", pipeline_name, compile_error);
+        REXLOG_WARN(gpu, "Failed to compile {} shader to SPIR-V ({})", pipeline_name,
+                    compile_error);
         return;
       }
       pipeline_out = gpu::vulkan::objects::CreateComputePipeline(
@@ -1662,24 +1664,24 @@ bool VulkanCommandProcessor::SetupContext() {
         REXLOG_WARN(gpu, "Failed to create {} pipeline", pipeline_name);
       }
     };
-    create_rb_swap_compute_pipeline(GetSwapApplyGammaTableComputeRbSwapSource(),
+    create_rb_swap_compute_pipeline(GetSwapApplyGammaTableComputeRBSwapSource(),
                                     swap_apply_gamma_compute_256_entry_table_rb_swap_pipeline_,
                                     "swap gamma table compute red/blue fallback");
-    create_rb_swap_compute_pipeline(GetSwapApplyGammaPwlComputeRbSwapSource(),
+    create_rb_swap_compute_pipeline(GetSwapApplyGammaPWLComputeRBSwapSource(),
                                     swap_apply_gamma_compute_pwl_rb_swap_pipeline_,
                                     "swap gamma PWL compute red/blue fallback");
     create_rb_swap_compute_pipeline(
-        GetSwapApplyGammaTableFxaaLumaComputeRbSwapSource(),
+        GetSwapApplyGammaTableFXAALumaComputeRBSwapSource(),
         swap_apply_gamma_compute_256_entry_table_fxaa_luma_rb_swap_pipeline_,
         "swap gamma table FXAA luma compute red/blue fallback");
-    create_rb_swap_compute_pipeline(GetSwapApplyGammaPwlFxaaLumaComputeRbSwapSource(),
+    create_rb_swap_compute_pipeline(GetSwapApplyGammaPWLFXAALumaComputeRBSwapSource(),
                                     swap_apply_gamma_compute_pwl_fxaa_luma_rb_swap_pipeline_,
                                     "swap gamma PWL FXAA luma compute red/blue fallback");
   }
 
   std::vector<u32> swap_fxaa_spirv;
   std::string swap_fxaa_compile_error;
-  if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFxaaComputeSource(false),
+  if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFXAAComputeSource(false),
                           swap_fxaa_spirv, swap_fxaa_compile_error)) {
     REXLOG_WARN(gpu, "Failed to compile FXAA compute shader to SPIR-V ({})",
                 swap_fxaa_compile_error);
@@ -1694,7 +1696,7 @@ bool VulkanCommandProcessor::SetupContext() {
 
   std::vector<u32> swap_fxaa_extreme_spirv;
   std::string swap_fxaa_extreme_compile_error;
-  if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFxaaComputeSource(true),
+  if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFXAAComputeSource(true),
                           swap_fxaa_extreme_spirv, swap_fxaa_extreme_compile_error)) {
     REXLOG_WARN(gpu, "Failed to compile extreme FXAA compute shader to SPIR-V ({})",
                 swap_fxaa_extreme_compile_error);
@@ -1798,7 +1800,7 @@ void VulkanCommandProcessor::ShutdownContext() {
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
                                                swap_framebuffer.framebuffer);
   }
-  DestroySwapFxaaSourceImage();
+  DestroySwapFXAASourceImage();
 
   gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                              swap_fxaa_extreme_pipeline_);
@@ -2222,7 +2224,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
         (texture_scale_x != rt_scale_x || texture_scale_y != rt_scale_y)) {
       draw_scale_cache_mismatch_logged = true;
       REXLOG_WARN(gpu,
-                  "Vulkan draw scale mismatch: texture cache is {}x{}, render target "
+                  "Vulkan draw scale mismatch, texture cache is {}x{}, render target "
                   "cache is {}x{}",
                   texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
     }
@@ -2230,7 +2232,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
     if (!draw_scale_swap_sizes_logged) {
       draw_scale_swap_sizes_logged = true;
       REXLOG_WARN(gpu,
-                  "Vulkan draw scale swap sizing: packet={}x{}, src_scaled={}x{}, "
+                  "Vulkan draw scale swap sizing with packet={}x{}, src_scaled={}x{}, "
                   "src_unscaled={}x{}, active={}x{}",
                   frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
                   frontbuffer_height_scaled, frontbuffer_width_unscaled,
@@ -2280,8 +2282,8 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
         const VkDevice device = vulkan_device->GetDevice();
 
         u32 swap_frame_index = static_cast<u32>(frame_current_ % kMaxFramesInFlight);
-        bool use_fxaa = swap_post_effect == SwapPostEffect::kFxaa ||
-                        swap_post_effect == SwapPostEffect::kFxaaExtreme;
+        bool use_fxaa = swap_post_effect == SwapPostEffect::kFXAA ||
+                        swap_post_effect == SwapPostEffect::kFXAAExtreme;
 
         // The guest initializes the 256 entry table for 8_8_8_8 output and PWL for 2_10_10_10.
         bool use_pwl_gamma_ramp =
@@ -2332,7 +2334,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
               fxaa_pipelines_unavailable_logged = true;
             }
             use_fxaa = false;
-          } else if (!EnsureSwapFxaaSourceImage(guest_output_width, guest_output_height)) {
+          } else if (!EnsureSwapFXAASourceImage(guest_output_width, guest_output_height)) {
             static bool fxaa_source_image_failed_logged = false;
             if (!fxaa_source_image_failed_logged) {
               REXLOG_WARN(gpu,
@@ -2381,7 +2383,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
             // R16G16 expects base then delta, the registers are 32 bit, so swap 16 bits in each 32.
             auto gamma_ramp_pwl_upload =
                 reinterpret_cast<xenos::reg::DC_LUT_PWL_DATA*>(gamma_ramp_frame_upload);
-            const xenos::reg::DC_LUT_PWL_DATA* gamma_ramp_pwl = GetGammaRampPwlRgb();
+            const xenos::reg::DC_LUT_PWL_DATA* gamma_ramp_pwl = GetGammaRampPWLRGB();
             for (size_t i = 0; i < size_t{128} * 3; ++i) {
               xenos::reg::DC_LUT_PWL_DATA& gamma_ramp_pwl_upload_entry = gamma_ramp_pwl_upload[i];
               xenos::reg::DC_LUT_PWL_DATA gamma_ramp_pwl_entry = gamma_ramp_pwl[i];
@@ -2390,7 +2392,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
             }
           } else {
             std::memcpy(gamma_ramp_frame_upload,
-                        use_pwl_gamma_ramp ? static_cast<const void*>(GetGammaRampPwlRgb())
+                        use_pwl_gamma_ramp ? static_cast<const void*>(GetGammaRampPWLRGB())
                                            : static_cast<const void*>(GetGammaRamp256EntryTable()),
                         gamma_ramp_size);
           }
@@ -2443,15 +2445,15 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
         dfn.vkUpdateDescriptorSets(device, 1, &swap_descriptor_source_write, 0, nullptr);
 
         VkImageSubresourceRange guest_output_subresource_range =
-            gpu::vulkan::objects::InitializeSubresourceRange();
+            gpu::vulkan::objects::BuildSubresourceRange();
         if (use_compute_gamma) {
           // Contents are overwritten, so the old layout is always UNDEFINED.
           PushImageMemoryBarrier(vulkan_context.GetImage(), guest_output_subresource_range,
-                                 vulkan_context.GetImageEverWrittenPreviously()
+                                 vulkan_context.HasImageBeenWritten()
                                      ? gpu::vulkan::VulkanPresenter::kGuestOutputInternalStageMask
                                      : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                  VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 vulkan_context.GetImageEverWrittenPreviously()
+                                 vulkan_context.HasImageBeenWritten()
                                      ? gpu::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask
                                      : 0,
                                  VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
@@ -2569,22 +2571,22 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
             dfn.vkUpdateDescriptorSets(device, 1, &swap_descriptor_fxaa_destination_storage_write,
                                        0, nullptr);
 
-            std::array<VkDescriptorSet, kSwapFxaaDescriptorSetCount> swap_fxaa_descriptor_sets{};
-            swap_fxaa_descriptor_sets[kSwapFxaaDescriptorSetSource] = swap_descriptor_fxaa_source;
-            swap_fxaa_descriptor_sets[kSwapFxaaDescriptorSetDestination] =
+            std::array<VkDescriptorSet, kSwapFXAADescriptorSetCount> swap_fxaa_descriptor_sets{};
+            swap_fxaa_descriptor_sets[kSwapFXAADescriptorSetSource] = swap_descriptor_fxaa_source;
+            swap_fxaa_descriptor_sets[kSwapFXAADescriptorSetDestination] =
                 swap_descriptor_fxaa_destination_storage;
             deferred_command_buffer_.CmdVkBindDescriptorSets(
                 VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
                 static_cast<u32>(swap_fxaa_descriptor_sets.size()),
                 swap_fxaa_descriptor_sets.data(), 0, nullptr);
-            SwapFxaaConstants swap_fxaa_constants = {
+            SwapFXAAConstants swap_fxaa_constants = {
                 {guest_output_width, guest_output_height},
                 {1.0f / static_cast<f32>(guest_output_width),
                  1.0f / static_cast<f32>(guest_output_height)}};
             deferred_command_buffer_.CmdVkPushConstants(
                 swap_fxaa_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                 sizeof(swap_fxaa_constants), &swap_fxaa_constants);
-            BindExternalComputePipeline(swap_post_effect == SwapPostEffect::kFxaaExtreme
+            BindExternalComputePipeline(swap_post_effect == SwapPostEffect::kFXAAExtreme
                                             ? swap_fxaa_extreme_pipeline_
                                             : swap_fxaa_pipeline_);
             deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
@@ -2653,7 +2655,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
             new_swap_framebuffer.last_submission = 0;
           }
 
-          if (vulkan_context.GetImageEverWrittenPreviously()) {
+          if (vulkan_context.HasImageBeenWritten()) {
             // oldLayout is UNDEFINED since contents are overwritten, but newLayout cannot be.
             PushImageMemoryBarrier(vulkan_context.GetImage(), guest_output_subresource_range,
                                    gpu::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
@@ -3397,8 +3399,7 @@ Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type,
 }
 
 bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index_count,
-                                       IndexBufferInfo* index_buffer_info,
-                                       bool major_mode_explicit) {
+                                       IndexBuffer* index_buffer_info, bool major_mode_explicit) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
@@ -3550,8 +3551,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
         pixel_shader ? static_cast<VulkanShader::VulkanTranslation*>(
                            pixel_shader->GetOrCreateTranslation(pixel_shader_modification.value))
                      : nullptr;
-    if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader_translation,
-                                                  pixel_shader_translation)) {
+    if (!pipeline_cache_->TranslateShaders(vertex_shader_translation, pixel_shader_translation)) {
       return draw_fail("shader_translation");
     }
 
@@ -3676,14 +3676,14 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
   u32 draw_resolution_scale_x = texture_cache_->GetDrawResolutionScaleX();
   u32 draw_resolution_scale_y = texture_cache_->GetDrawResolutionScaleY();
 
-  draw_state::ViewportInfo viewport_info;
+  draw_state::HostViewport viewport_info;
   // maxViewportDimensions alone suffices since viewportBoundsRange[1] is at least twice as large.
-  draw_state::GetHostViewportInfo(
+  draw_state::GetHostViewport(
       regs, draw_resolution_scale_x, draw_resolution_scale_y, false,
       device_properties.maxViewportDimensions[0], device_properties.maxViewportDimensions[1], true,
       normalized_depth_control,
-      host_render_targets_used && render_target_cache_->GetDepthFloat24ConvertInPixelShader(),
-      host_render_targets_used, pixel_shader && pixel_shader->GetWritesDepth(), viewport_info);
+      host_render_targets_used && render_target_cache_->IsDepthFloat24ConvertedInPixelShader(),
+      host_render_targets_used, pixel_shader && pixel_shader->IsDepthWritten(), viewport_info);
 
   UpdateDynamicState(viewport_info, primitive_polygonal, normalized_depth_control);
 
@@ -3739,7 +3739,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
         case xenos::FetchConstantType::kVertex:
           break;
         case xenos::FetchConstantType::kInvalidVertex:
-          if (GetAllowInvalidFetchConstants()) {
+          if (IsInvalidFetchConstantsAllowed()) {
             break;
           }
           REXLOG_WARN(gpu,
@@ -3994,7 +3994,7 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFastPath(u32 total_size) 
   ReadbackBuffer& readback = memexport_readback_buffers_[readback_key];
   readback.last_used_frame = frame_current_;
 
-  auto ensure_readback_slot = [&](u32 index, u32 size) -> bool {
+  auto acquire_readback_slot = [&](u32 index, u32 size) -> bool {
     if (readback.buffers[index] != VK_NULL_HANDLE && readback.memories[index] != VK_NULL_HANDLE &&
         readback.mapped_data[index] != nullptr && size <= readback.sizes[index]) {
       return true;
@@ -4045,7 +4045,7 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFastPath(u32 total_size) 
   const u32 write_index = readback.current_index;
   const u32 read_index = 1 - write_index;
   const u32 readback_size = AlignReadbackBufferSize(total_size);
-  if (!ensure_readback_slot(write_index, readback_size)) {
+  if (!acquire_readback_slot(write_index, readback_size)) {
     return IssueDrawMemexportReadbackFullPath(total_size);
   }
 
@@ -4144,7 +4144,7 @@ bool VulkanCommandProcessor::IssueCopyReadbackResolvePath() {
     return true;
   }
 
-  auto ensure_readback_slot = [&](ReadbackBuffer& readback, u32 index, u32 size) -> bool {
+  auto acquire_readback_slot = [&](ReadbackBuffer& readback, u32 index, u32 size) -> bool {
     if (readback.buffers[index] != VK_NULL_HANDLE && size <= readback.sizes[index] &&
         readback.mapped_data[index] != nullptr) {
       return true;
@@ -4197,7 +4197,7 @@ bool VulkanCommandProcessor::IssueCopyReadbackResolvePath() {
   readback.last_used_frame = frame_current_;
   u32 write_index = readback.current_index;
   u32 readback_size = AlignReadbackBufferSize(written_length);
-  if (!ensure_readback_slot(readback, write_index, readback_size)) {
+  if (!acquire_readback_slot(readback, write_index, readback_size)) {
     return true;
   }
 
@@ -5117,7 +5117,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
   if (is_closing_frame) {
     if (REXCVAR_GET(::rex::gpu::cvars::clear_memory_page_state) && shared_memory_) {
-      shared_memory_->SetSystemPageBlocksValidWithGPUDataWritten();
+      shared_memory_->SetSystemPageFlagsValidWithGPUDataWritten();
     }
     frame_open_ = false;
     // Submission closed now, so minus 1.
@@ -5205,7 +5205,7 @@ void VulkanCommandProcessor::DestroyScratchBuffer() {
   gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device, scratch_buffer_memory_);
 }
 
-bool VulkanCommandProcessor::EnsureSwapFxaaSourceImage(u32 width, u32 height) {
+bool VulkanCommandProcessor::EnsureSwapFXAASourceImage(u32 width, u32 height) {
   REX_ASSERT(submission_open_);
   if (!width || !height) {
     return false;
@@ -5287,7 +5287,7 @@ bool VulkanCommandProcessor::EnsureSwapFxaaSourceImage(u32 width, u32 height) {
   image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
   image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
   image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-  image_view_create_info.subresourceRange = gpu::vulkan::objects::InitializeSubresourceRange();
+  image_view_create_info.subresourceRange = gpu::vulkan::objects::BuildSubresourceRange();
   if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr,
                             &swap_fxaa_source_image_view_) != VK_SUCCESS) {
     REXLOG_ERROR(gpu, "Failed to create the FXAA source image view");
@@ -5306,7 +5306,7 @@ bool VulkanCommandProcessor::EnsureSwapFxaaSourceImage(u32 width, u32 height) {
   return true;
 }
 
-void VulkanCommandProcessor::DestroySwapFxaaSourceImage() {
+void VulkanCommandProcessor::DestroySwapFXAASourceImage() {
   const gpu::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
   const VkDevice device = vulkan_device->GetDevice();
@@ -5324,7 +5324,7 @@ void VulkanCommandProcessor::DestroySwapFxaaSourceImage() {
 }
 
 void VulkanCommandProcessor::UpdateDynamicState(
-    const draw_state::ViewportInfo& viewport_info, bool primitive_polygonal,
+    const draw_state::HostViewport& viewport_info, bool primitive_polygonal,
     xenos::reg::RB_DEPTHCONTROL normalized_depth_control) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
@@ -5508,7 +5508,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     bool primitive_polygonal,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
     bool shader_32bit_index_dma, u32 compute_memexport_vertex_count,
-    const draw_state::ViewportInfo& viewport_info, u32 used_texture_mask,
+    const draw_state::HostViewport& viewport_info, u32 used_texture_mask,
     xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
@@ -5543,10 +5543,10 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   u32 rt_keep_masks[4][2];
   for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
     auto color_info =
-        regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[i]);
+        regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRTRegisterIndices[i]);
     color_infos[i] = color_info;
     if (edram_fragment_shader_interlock) {
-      RenderTargetCache::GetPSIColorFormatInfo(
+      RenderTargetCache::GetPSIColorClampsAndKeepMasks(
           color_info.color_format, (normalized_color_mask >> (i * 4)) & 0b1111, rt_clamp[i][0],
           rt_clamp[i][1], rt_clamp[i][2], rt_clamp[i][3], rt_keep_masks[i][0], rt_keep_masks[i][1]);
     }
@@ -5635,7 +5635,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
                                                    : xenos::CompareFunction::kAlways;
   flags |= static_cast<u32>(alpha_test_function)
            << SPIRVShaderTranslator::kSysFlagAlphaPassIfLessShift;
-  if (!render_target_cache_->GetGammaRenderTargetAsUnorm16()) {
+  if (!render_target_cache_->IsGammaRenderTargetAsUnorm16()) {
     // Gamma targets convert through Xenos PWL gamma logic in shaders, not host sRGB conversion.
     for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
       if (color_infos[i].color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
@@ -5868,7 +5868,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
         dirty |= system_constants_.edram_rt_format_flags[i] != format_flags;
         system_constants_.edram_rt_format_flags[i] = format_flags;
         u32 blend_factors_ops =
-            regs[xenos::reg::RB_BLENDCONTROL::kRtRegisterIndices[i]] & 0x1FFF1FFF;
+            regs[xenos::reg::RB_BLENDCONTROL::kRTRegisterIndices[i]] & 0x1FFF1FFF;
         dirty |= system_constants_.edram_rt_blend_factors_ops[i] != blend_factors_ops;
         system_constants_.edram_rt_blend_factors_ops[i] = blend_factors_ops;
         // Float comparisons are avoided because NaN would always set the dirty flag.
@@ -6129,12 +6129,12 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
 
   const std::vector<VulkanShader::SamplerBinding>& samplers_vertex =
       vertex_shader->GetSamplerBindingsAfterTranslation();
-  const std::vector<VulkanShader::TextureBinding>& textures_vertex =
+  const std::vector<VulkanShader::TranslatedTextureBinding>& textures_vertex =
       vertex_shader->GetTextureBindingsAfterTranslation();
   u32 sampler_count_vertex = static_cast<u32>(samplers_vertex.size());
   u32 texture_count_vertex = static_cast<u32>(textures_vertex.size());
   const std::vector<VulkanShader::SamplerBinding>* samplers_pixel;
-  const std::vector<VulkanShader::TextureBinding>* textures_pixel;
+  const std::vector<VulkanShader::TranslatedTextureBinding>* textures_pixel;
   u32 sampler_count_pixel, texture_count_pixel;
   if (pixel_shader) {
     samplers_pixel = &pixel_shader->GetSamplerBindingsAfterTranslation();
@@ -6168,7 +6168,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       (write_pixel_textures ? texture_count_pixel + sampler_count_pixel : 0));
   size_t vertex_texture_image_info_offset = descriptor_write_image_info_.size();
   if (write_vertex_textures && texture_count_vertex) {
-    for (const VulkanShader::TextureBinding& texture_binding : textures_vertex) {
+    for (const VulkanShader::TranslatedTextureBinding& texture_binding : textures_vertex) {
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
           texture_binding.fetch_constant, texture_binding.dimension,
@@ -6188,7 +6188,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   }
   size_t pixel_texture_image_info_offset = descriptor_write_image_info_.size();
   if (write_pixel_textures && texture_count_pixel) {
-    for (const VulkanShader::TextureBinding& texture_binding : *textures_pixel) {
+    for (const VulkanShader::TranslatedTextureBinding& texture_binding : *textures_pixel) {
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
           texture_binding.fetch_constant, texture_binding.dimension,

@@ -37,7 +37,7 @@ class KeyboardMouseDriver final : public Driver {
    */
   explicit KeyboardMouseDriver(Hub& hub);
 
-  void EnumerateDevices(std::vector<DeviceInfo>& out) override;
+  void EnumerateDevices(std::vector<Device>& out) override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id, u32 flags) override;
   [[nodiscard]] Result<void> SetDeviceVibration(DeviceId id,
@@ -50,7 +50,7 @@ class KeyboardMouseDriver final : public Driver {
    *
    * @return True when hid.mnk_mouse emulation is active, focused and captured.
    */
-  bool WantsPointerLock() const { return pointer_lock_.load(std::memory_order_relaxed); }
+  bool IsPointerLockWanted() const { return pointer_lock_.load(std::memory_order_relaxed); }
 
   /** Number of hid.keybind_* cvars the driver follows. */
   static constexpr size_t kBindCount = 25;

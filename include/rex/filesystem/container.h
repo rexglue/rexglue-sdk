@@ -50,7 +50,7 @@ struct ContainerExtent {
 /** A file or directory of a container. */
 struct ContainerNode {
   /** Name (empty for the root), attributes, sizes and times. The path fields stay empty. */
-  FileInfo info;
+  FileStat info;
   u32 parent = 0;                       /**< Index of the parent, 0 for the root. */
   std::vector<u32> children;            /**< Indices of the children in order. */
   std::vector<ContainerExtent> extents; /**< File bytes in order, empty for a directory. */
@@ -98,7 +98,7 @@ class REX_API Container : public MoveOnly {
    *
    * @return The header of an STFS or SVOD package, null for a GDFX image.
    */
-  [[nodiscard]] const STFSHeader* GetHeader() const { return header_.get(); }
+  [[nodiscard]] const XContentPackageHeader* GetHeader() const { return header_.get(); }
 
   /**
    * Returns the host file that was opened.
@@ -177,7 +177,7 @@ class REX_API Container : public MoveOnly {
 
   ContainerKind kind_ = ContainerKind::kSTFS;
   std::filesystem::path path_;
-  std::unique_ptr<STFSHeader> header_;
+  std::unique_ptr<XContentPackageHeader> header_;
   std::vector<std::unique_ptr<memory::MappedMemory>> files_;
   std::vector<ContainerNode> nodes_;
   u64 total_size_ = 0;
@@ -186,10 +186,10 @@ class REX_API Container : public MoveOnly {
 /**
  * Reads the package header from the first bytes of a package.
  *
- * @param bytes At least sizeof(STFSHeader) bytes from the start of the package.
+ * @param bytes At least sizeof(XContentPackageHeader) bytes from the start of the package.
  * @return The header, or kCorrupt when the bytes are short or the magic is not a package.
  */
-[[nodiscard]] REX_API Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes);
+[[nodiscard]] REX_API Result<XContentPackageHeader> ReadSTFSHeader(std::span<const u8> bytes);
 
 /**
  * Reads the package header of a host file.
@@ -197,6 +197,7 @@ class REX_API Container : public MoveOnly {
  * @param path The package file.
  * @return The header, kNotFound when the file cannot be opened, or kCorrupt as the span form.
  */
-[[nodiscard]] REX_API Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path);
+[[nodiscard]] REX_API Result<XContentPackageHeader> ReadSTFSHeader(
+    const std::filesystem::path& path);
 
 }  // namespace rex::filesystem

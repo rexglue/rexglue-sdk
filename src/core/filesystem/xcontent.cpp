@@ -66,7 +66,7 @@ bool XContentMetadata::SetDisplayName(XLanguage language, std::u16string_view va
   if (!destination) {
     return false;
   }
-  copy_and_swap_truncating(destination, value, CountOf(display_name_raw.chars[0]));
+  CopyAndSwapTruncating(destination, value, CountOf(display_name_raw.chars[0]));
   return true;
 }
 
@@ -81,16 +81,16 @@ bool XContentMetadata::SetDescription(XLanguage language, std::u16string_view va
   if (!destination) {
     return false;
   }
-  copy_and_swap_truncating(destination, value, CountOf(description_raw.chars[0]));
+  CopyAndSwapTruncating(destination, value, CountOf(description_raw.chars[0]));
   return true;
 }
 
 void XContentMetadata::SetPublisher(std::u16string_view value) {
-  copy_and_swap_truncating(publisher_raw.chars, value, CountOf(publisher_raw.chars));
+  CopyAndSwapTruncating(publisher_raw.chars, value, CountOf(publisher_raw.chars));
 }
 
 void XContentMetadata::SetTitleName(std::u16string_view value) {
-  copy_and_swap_truncating(title_name_raw.chars, value, CountOf(title_name_raw.chars));
+  CopyAndSwapTruncating(title_name_raw.chars, value, CountOf(title_name_raw.chars));
 }
 
 }  // namespace rex::filesystem

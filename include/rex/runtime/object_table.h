@@ -19,7 +19,7 @@
 #include <rex/platform.h>
 #include <rex/export.h>
 #include <rex/result.h>
-#include <rex/runtime/object_data.h>
+#include <rex/runtime/kernel_object.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
 #include <rex/module.h>
@@ -114,7 +114,7 @@ REX_INTERFACE(IObjectTable, "rex.runtime.object_table", 1)
    * @param slot A pin on the object.
    * @return The first handle, empty when the object has no handle.
    */
-  [[nodiscard]] virtual std::optional<X_HANDLE> PrimaryHandle(const PinnedSlot& slot) = 0;
+  [[nodiscard]] virtual std::optional<X_HANDLE> GetPrimaryHandle(const PinnedSlot& slot) = 0;
 
   /**
    * Looks a handle up and pins its `KernelObject`.
@@ -129,7 +129,7 @@ REX_INTERFACE(IObjectTable, "rex.runtime.object_table", 1)
    *
    * @return The pins.
    */
-  [[nodiscard]] virtual std::vector<PinnedSlot> All() = 0;
+  [[nodiscard]] virtual std::vector<PinnedSlot> GetAll() = 0;
 
   /**
    * Registers a name for a handle.
@@ -211,7 +211,7 @@ REX_INTERFACE(IObjectTable, "rex.runtime.object_table", 1)
   template <typename T>
   [[nodiscard]] std::vector<Pinned<T>> All() {
     std::vector<Pinned<T>> results;
-    for (PinnedSlot& slot : All()) {
+    for (PinnedSlot& slot : GetAll()) {
       Pinned<T> pin(std::move(slot));
       if (pin) {
         results.push_back(std::move(pin));

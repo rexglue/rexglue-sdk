@@ -335,8 +335,8 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
         modified_xmm_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         std::memcpy(reinterpret_cast<char*>(&mcontext->__fs.__fpu_xmm0) +
-                        modified_register_index * sizeof(Vec128T),
-                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128T));
+                        modified_register_index * sizeof(Vec128),
+                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128));
       }
 #else
       mcontext.gregs[REG_RIP] = static_cast<greg_t>(thread_context.rip);
@@ -357,7 +357,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
         modified_xmm_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         std::memcpy(&mcontext.fpregs->_xmm[modified_register_index],
-                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128T));
+                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128));
       }
 #endif
 #elif REX_ARCH_ARM64
@@ -397,7 +397,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
         while (rex::bit_scan_forward(modified_v_registers_remaining, &modified_register_index)) {
           modified_v_registers_remaining &= ~(UINT32_C(1) << modified_register_index);
           std::memcpy(&mcontext->__ns.__v[modified_register_index],
-                      &thread_context.v[modified_register_index], sizeof(Vec128T));
+                      &thread_context.v[modified_register_index], sizeof(Vec128));
         }
       }
 #else
@@ -415,7 +415,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
         while (rex::bit_scan_forward(modified_v_registers_remaining, &modified_register_index)) {
           modified_v_registers_remaining &= ~(UINT32_C(1) << modified_register_index);
           std::memcpy(&mcontext_fpsimd->vregs[modified_register_index],
-                      &thread_context.v[modified_register_index], sizeof(Vec128T));
+                      &thread_context.v[modified_register_index], sizeof(Vec128));
           mcontext.regs[modified_register_index] = thread_context.x[modified_register_index];
         }
       }

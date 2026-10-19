@@ -117,7 +117,7 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
    * @param memexport_em_potentially_written_before Must be handled by `kill` so exports of eM#
    * written in earlier execs and the current exec are done before the invocation becomes inactive.
    */
-  virtual void ProcessAluInstruction(const ParsedAluInstruction& /*instr*/,
+  virtual void ProcessALUInstruction(const ParsedAluInstruction& /*instr*/,
                                      u8 /*memexport_em_potentially_written_before*/) {}
 
  private:

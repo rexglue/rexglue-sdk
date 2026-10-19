@@ -680,7 +680,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     }
   };
 
-  struct ControlFlowMemExportInfo {
+  struct ControlFlowMemExportState {
     /**
      * Which eM elements are potentially written, regardless of conditionals, loop iteration counts
      * and predication, earlier in the predecessor graph of the instruction since an `alloc export`.
@@ -761,10 +761,10 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   xenos::ShaderType GetType() const { return shader_type_; }
 
   /** Microcode dwords in host endianness. */
-  const std::vector<u32>& GetUcodeData() const { return ucode_data_; }
+  const std::vector<u32>& GetUcodeData() const { return ucode_dwords_; }
   u64 GetUcodeDataHash() const { return ucode_data_hash_; }
-  const u32* GetUcodeDwords() const { return ucode_data_.data(); }
-  size_t GetUcodeDwordCount() const { return ucode_data_.size(); }
+  const u32* GetUcodeDwords() const { return ucode_dwords_.data(); }
+  size_t GetUcodeDwordCount() const { return ucode_dwords_.size(); }
 
   bool IsUcodeAnalyzed() const { return is_ucode_analyzed_; }
   /**
@@ -789,7 +789,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    *
    * @return Memory export state per control flow instruction.
    */
-  const std::vector<ControlFlowMemExportInfo>& GetCfMemexportInfo() const {
+  const std::vector<ControlFlowMemExportState>& GetControlFlowMemExportState() const {
     return cf_memexport_info_;
   }
 
@@ -803,7 +803,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    *
    * @return Set of c# register indices.
    */
-  const std::set<u32>& GetMemexportStreamConstants() const { return memexport_stream_constants_; }
+  const std::set<u32>& GetMemExportStreamConstants() const { return memexport_stream_constants_; }
 
   const std::set<u32>& GetLabelAddresses() const { return label_addresses_; }
 
@@ -812,7 +812,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    *
    * Each pair corresponds to 3 dwords.
    */
-  u32 GetCfPairIndexBound() const { return cf_pair_index_bound_; }
+  u32 GetCFPairIndexBound() const { return cf_pair_index_bound_; }
 
   /**
    * Returns the upper bound of temporary registers addressed statically, the highest static
@@ -833,7 +833,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    *
    * @return True when temporary registers are addressed dynamically.
    */
-  bool UsesRegisterDynamicAddressing() const { return uses_register_dynamic_addressing_; }
+  bool HasRegisterDynamicAddressing() const { return uses_register_dynamic_addressing_; }
 
   /**
    * Returns the number of temporary registers to allocate, for building and normalizing shader
@@ -846,22 +846,20 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    * @return Number of dynamically addressable registers.
    */
   u32 GetDynamicAddressableRegisterCount(u32 program_cntl_num_reg) const {
-    if (!UsesRegisterDynamicAddressing()) {
+    if (!HasRegisterDynamicAddressing()) {
       return 0;
     }
     return std::max(program_cntl_num_reg + static_cast<u32>(1), GetRegisterStaticAddressBound());
   }
 
-  bool GetKillsPixels() const { return kills_pixels_; }
+  bool DoesKillPixels() const { return kills_pixels_; }
 
   /**
    * Reports whether any fetch instruction other than vertex fetch writes non constant components.
    *
    * @return True when such a fetch instruction exists.
    */
-  bool UsesTextureFetchInstructionResults() const {
-    return uses_texture_fetch_instruction_results_;
-  }
+  bool HasTextureFetchInstructionResults() const { return uses_texture_fetch_instruction_results_; }
 
   /** Mask of interpolators written on any execution path. */
   u32 GetWritesInterpolators() const { return writes_interpolators_; }
@@ -887,7 +885,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
                                xenos::reg::SQ_CONTEXT_MISC sq_context_misc,
                                u32& param_gen_pos_out) const;
 
-  bool GetWritesDepth() const { return writes_depth_; }
+  bool IsDepthWritten() const { return writes_depth_; }
 
   /**
    * Reports whether the shader can have early depth and stencil writing enabled, unless alpha test
@@ -895,13 +893,13 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    *
    * @return True when early depth and stencil writing is allowed.
    */
-  bool GetImplicitEarlyZWriteAllowed() const {
-    return !GetKillsPixels() && !GetWritesDepth() && !GetMemExportEMWritten();
+  bool IsImplicitEarlyZWriteAllowed() const {
+    return !DoesKillPixels() && !IsDepthWritten() && !GetMemExportEMWritten();
   }
 
   /** Mask of color render targets written on any execution path. */
   u32 GetWritesColorTargets() const { return writes_color_targets_; }
-  bool GetWritesColorTarget(u32 i) const {
+  bool IsColorTargetWritten(u32 i) const {
     return (GetWritesColorTargets() & (static_cast<u32>(1) << i)) != 0;
   }
 
@@ -955,7 +953,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   virtual std::unique_ptr<Translation> CreateTranslationInstance(u64 modification);
 
   xenos::ShaderType shader_type_;
-  std::vector<u32> ucode_data_;
+  std::vector<u32> ucode_dwords_;
   u64 ucode_data_hash_;
 
   /**
@@ -986,11 +984,11 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   bool writes_depth_ = false;
 
   /** Per control flow instruction memory export eM write info, if the shader has any eM writes. */
-  std::vector<ControlFlowMemExportInfo> cf_memexport_info_;
+  std::vector<ControlFlowMemExportState> cf_memexport_info_;
   /** Which memexport elements (eM#) are written by any memexport in the shader. */
   u8 memexport_em_written_ = 0;
   /**
-   * Equivalent of ControlFlowMemExportInfo::em_potentially_written_before for the end of the
+   * Equivalent of ControlFlowMemExportState::em_potentially_written_before for the end of the
    * shader.
    *
    * Covers the last memory export or exports if the end has multiple predecessor chains exporting

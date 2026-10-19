@@ -209,7 +209,7 @@ struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
     auto delta = (t - x_now);
-    if (!rex::Clock::GetNoScaling()) {
+    if (!rex::Clock::IsNoScaling()) {
       delta = std::chrono::floor<WClock::duration>(delta * rex::Clock::GetGuestTimeScalar());
     }
     return w_now + delta;
@@ -242,7 +242,7 @@ struct clock_time_conversion<::rex::XSystemClock, ::rex::WinSystemClock> {
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
     rex::HundredNanoseconds delta = (t - w_now);
-    if (!rex::Clock::GetNoScaling()) {
+    if (!rex::Clock::IsNoScaling()) {
       delta = std::chrono::floor<WClock::duration>(delta / rex::Clock::GetGuestTimeScalar());
     }
     return x_now + delta;

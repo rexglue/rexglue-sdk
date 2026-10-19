@@ -20,9 +20,9 @@
 
 using rex::runtime::ArrayArgList;
 using rex::runtime::FormatCore;
-using rex::runtime::GuestPtr;
 using rex::runtime::StackArgList;
 using rex::runtime::StringFormatData;
+using rex::runtime::GuestPtr;
 using rex::runtime::WideCountFormatData;
 using rex::runtime::WideStringFormatData;
 
@@ -149,7 +149,8 @@ REX_HOOK_RAW(__imp__swprintf) {
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetWstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetOutput().c_str()),
+                               count);
     buffer[count] = '\0';
   }
   ctx.r3.u64 = count;
@@ -177,12 +178,13 @@ REX_HOOK_RAW(__imp___snwprintf) {
       buffer[0] = '\0';
     }
   } else if (count <= buffer_count) {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetWstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetOutput().c_str()),
+                               count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetWstr().c_str()),
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetOutput().c_str()),
                                buffer_count);
     count = -1;
   }
@@ -268,7 +270,8 @@ REX_HOOK_RAW(__imp__vswprintf) {
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetWstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetOutput().c_str()),
+                               count);
     buffer[count] = '\0';
   }
   ctx.r3.u64 = count;
@@ -297,12 +300,13 @@ REX_HOOK_RAW(__imp___vsnwprintf) {
       buffer[0] = '\0';
     }
   } else if (count <= buffer_count) {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetWstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetOutput().c_str()),
+                               count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetWstr().c_str()),
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.GetOutput().c_str()),
                                buffer_count);
   }
   ctx.r3.u64 = count;

@@ -37,7 +37,7 @@ std::span<const BinarySymbol> Module::GetBinarySymbols() const {
   return binary_symbols_;
 }
 
-bool Module::IsExecutableSection(u32 address) const {
+bool Module::IsExecutableAddress(u32 address) const {
   for (const auto& sec : binary_sections_) {
     if (address >= sec.virtual_address && address < sec.virtual_address + sec.virtual_size) {
       return sec.executable;

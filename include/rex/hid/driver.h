@@ -28,11 +28,11 @@ class Driver {
   virtual ~Driver() = default;
 
   /**
-   * Lists the open devices in arrival order. DeviceInfo::ordinal stays 0, the backend assigns it.
+   * Lists the open devices in arrival order. Device::ordinal stays 0, the backend assigns it.
    *
    * @param out Receives the devices.
    */
-  virtual void EnumerateDevices(std::vector<DeviceInfo>& out) = 0;
+  virtual void EnumerateDevices(std::vector<Device>& out) = 0;
 
   /**
    * Reads a device.
@@ -110,7 +110,7 @@ class Driver {
    */
   bool IsActive() const {
     IInputHost* current = GetHost();
-    return !current || current->GetCaptureActive();
+    return !current || current->IsCaptureActive();
   }
 
  private:

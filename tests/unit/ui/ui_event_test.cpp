@@ -29,7 +29,7 @@ REX_TEST_CASE("ResizeEvent and FocusEvent are setup events with their data", "[u
   REQUIRE(event.As<rex::ui::ResizeEvent>()->GetSize().width_px == 1280);
   REQUIRE(event.As<rex::ui::UISetupEvent>() != nullptr);
   rex::ui::FocusEvent focus(nullptr, false);
-  REQUIRE(static_cast<const UIEvent&>(focus).As<rex::ui::FocusEvent>()->GetFocused() == false);
+  REQUIRE(static_cast<const UIEvent&>(focus).As<rex::ui::FocusEvent>()->IsFocused() == false);
 }
 
 REX_TEST_CASE("A plain event carries no subclass", "[ui][ui_event]") {

@@ -82,11 +82,11 @@ void GlobalSinkAccessor::Flush() {
 }
 
 bool GlobalSinkAccessor::GetColor() const {
-  return g_sink->GetColor();
+  return g_sink->IsColorEnabled();
 }
 
 void GlobalSinkAccessor::WriteColored(std::string_view code, std::string_view text) {
-  if (g_sink->GetColor()) {
+  if (g_sink->IsColorEnabled()) {
     WriteRaw(code);
     WriteRaw(text);
     WriteRaw(color::kReset);
@@ -103,7 +103,7 @@ void SetGlobalSinkForTesting(std::unique_ptr<PresentationSink> sink) {
 
 bool IsSinkTTY() {
   RequireGlobalSink();
-  return g_sink->GetTty();
+  return g_sink->IsTTY();
 }
 
 void SetSinkActiveProgress(bool active) {

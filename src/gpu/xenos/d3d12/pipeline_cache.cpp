@@ -88,8 +88,8 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
 
   shader_translator_ = std::make_unique<DXBCShaderTranslator>(
       provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
-      !render_target_cache_.GetGammaRenderTargetAsUnorm16(),
-      render_target_cache_.GetMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
+      !render_target_cache_.IsGammaRenderTargetAsUnorm16(),
+      render_target_cache_.IsMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
       render_target_cache_.GetDrawResolutionScaleY(), provider.GetGraphicsAnalysis() != nullptr);
 
   if (edram_rov_used) {
@@ -126,7 +126,7 @@ bool PipelineCache::Initialize() {
     }
   }
 
-  u32 logical_processor_count = rex::platform::LogicalProcessorCount();
+  u32 logical_processor_count = rex::platform::GetLogicalProcessorCount();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
@@ -242,23 +242,24 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     u32 magic_api;
     be_u32 version;
   } pipeline_storage_file_header;
-  if (platform::ReadStorage(storage_.pipeline_file, &pipeline_storage_file_header,
-                            sizeof(pipeline_storage_file_header)) ==
+  if (platform::ReadStorageFile(storage_.pipeline_file, &pipeline_storage_file_header,
+                                sizeof(pipeline_storage_file_header)) ==
           sizeof(pipeline_storage_file_header) &&
       pipeline_storage_file_header.magic == pipeline_storage_magic &&
       pipeline_storage_file_header.magic_api == pipeline_storage_magic_api &&
       pipeline_storage_file_header.version == pipeline_storage_version) {
-    const u64 pipeline_storage_told_end = platform::StorageFileSize(pipeline_storage_file_path);
-    size_t pipeline_storage_told_count = static_cast<size_t>(
-        pipeline_storage_told_end >= sizeof(pipeline_storage_file_header)
-            ? (pipeline_storage_told_end - sizeof(pipeline_storage_file_header)) /
+    const u64 pipeline_storage_file_size = platform::GetStorageFileSize(pipeline_storage_file_path);
+    size_t pipeline_storage_description_count = static_cast<size_t>(
+        pipeline_storage_file_size >= sizeof(pipeline_storage_file_header)
+            ? (pipeline_storage_file_size - sizeof(pipeline_storage_file_header)) /
                   sizeof(PipelineStoredDescription)
             : 0);
-    if (pipeline_storage_told_count) {
-      pipeline_stored_descriptions.resize(pipeline_storage_told_count);
+    if (pipeline_storage_description_count) {
+      pipeline_stored_descriptions.resize(pipeline_storage_description_count);
       pipeline_stored_descriptions.resize(
-          platform::ReadStorage(storage_.pipeline_file, pipeline_stored_descriptions.data(),
-                                pipeline_storage_told_count * sizeof(PipelineStoredDescription)) /
+          platform::ReadStorageFile(
+              storage_.pipeline_file, pipeline_stored_descriptions.data(),
+              pipeline_storage_description_count * sizeof(PipelineStoredDescription)) /
           sizeof(PipelineStoredDescription));
       size_t pipeline_storage_read_count = pipeline_stored_descriptions.size();
       for (size_t i = 0; i < pipeline_storage_read_count; ++i) {
@@ -282,12 +283,12 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     }
   }
 
-  size_t logical_processor_count = rex::platform::LogicalProcessorCount();
+  size_t logical_processor_count = rex::platform::GetLogicalProcessorCount();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
 
-  u64 shader_storage_initialization_start = rex::Clock::QueryHostTickCount();
+  u64 shader_storage_initialization_start = rex::Clock::GetHostTickCount();
   auto shader_storage_file_path =
       shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
   storage_.shader_file_path = shader_storage_file_path;
@@ -307,8 +308,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   } shader_storage_file_header;
   // 'XESH'.
   const u32 shader_storage_magic = 0x48534558;
-  if (platform::ReadStorage(storage_.shader_file, &shader_storage_file_header,
-                            sizeof(shader_storage_file_header)) ==
+  if (platform::ReadStorageFile(storage_.shader_file, &shader_storage_file_header,
+                                sizeof(shader_storage_file_header)) ==
           sizeof(shader_storage_file_header) &&
       shader_storage_file_header.magic == shader_storage_magic &&
       shader_storage_file_header.version == ShaderStoredHeader::kVersion) {
@@ -330,8 +331,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       StringBuffer ucode_disasm_buffer;
       DXBCShaderTranslator translator(
           provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
-          !render_target_cache_.GetGammaRenderTargetAsUnorm16(),
-          render_target_cache_.GetMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
+          !render_target_cache_.IsGammaRenderTargetAsUnorm16(),
+          render_target_cache_.IsMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
           render_target_cache_.GetDrawResolutionScaleY(),
           provider.GetGraphicsAnalysis() != nullptr);
       IDxbcConverter* dxbc_converter = nullptr;
@@ -394,14 +395,14 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     std::vector<std::unique_ptr<rex::platform::Thread>> shader_translation_threads;
 
     while (true) {
-      if (platform::ReadStorage(storage_.shader_file, &shader_header, sizeof(shader_header)) !=
+      if (platform::ReadStorageFile(storage_.shader_file, &shader_header, sizeof(shader_header)) !=
           sizeof(shader_header)) {
         break;
       }
       size_t ucode_byte_count = shader_header.ucode_dword_count * sizeof(u32);
       ucode_dwords.resize(shader_header.ucode_dword_count);
       if (shader_header.ucode_dword_count &&
-          platform::ReadStorage(storage_.shader_file, ucode_dwords.data(), ucode_byte_count) !=
+          platform::ReadStorageFile(storage_.shader_file, ucode_dwords.data(), ucode_byte_count) !=
               ucode_byte_count) {
         break;
       }
@@ -457,20 +458,20 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     }
     REXLOG_INFO(gpu, "Translated {} shaders from the storage in {} milliseconds",
                 shaders_translated,
-                (rex::Clock::QueryHostTickCount() - shader_storage_initialization_start) * 1000 /
-                    rex::Clock::QueryHostTickFrequency());
+                (rex::Clock::GetHostTickCount() - shader_storage_initialization_start) * 1000 /
+                    rex::Clock::GetHostTickFrequency());
     platform::ResetStorageFile(storage_.shader_file, storage_.shader_file_path,
                                shader_storage_valid_bytes);
   } else {
     platform::ResetStorageFile(storage_.shader_file, storage_.shader_file_path, 0);
     shader_storage_file_header.magic = shader_storage_magic;
     shader_storage_file_header.version = ShaderStoredHeader::kVersion;
-    platform::AppendStorage(storage_.shader_file, &shader_storage_file_header,
-                            sizeof(shader_storage_file_header));
+    platform::AppendStorageFile(storage_.shader_file, &shader_storage_file_header,
+                                sizeof(shader_storage_file_header));
   }
 
   if (!pipeline_stored_descriptions.empty()) {
-    u64 pipeline_creation_start = rex::Clock::QueryHostTickCount();
+    u64 pipeline_creation_start = rex::Clock::GetHostTickCount();
 
     size_t creation_thread_original_count = creation_threads_.size();
     size_t creation_thread_needed_count =
@@ -572,7 +573,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
               : 0;
       bool shader_writes_depth =
           pipeline_runtime_description.pixel_shader
-              ? pipeline_runtime_description.pixel_shader->GetShader().GetWritesDepth()
+              ? pipeline_runtime_description.pixel_shader->GetShader().IsDepthWritten()
               : pipeline_runtime_description.description.depth_write != 0;
       new_pipeline->priority = pipeline_priority::CalculatePipelinePriority(
           bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -626,8 +627,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                 "Created {} graphics pipelines (not including reading the "
                 "descriptions) from the storage in {} milliseconds",
                 pipelines_created,
-                (rex::Clock::QueryHostTickCount() - pipeline_creation_start) * 1000 /
-                    rex::Clock::QueryHostTickFrequency());
+                (rex::Clock::GetHostTickCount() - pipeline_creation_start) * 1000 /
+                    rex::Clock::GetHostTickFrequency());
     platform::ResetStorageFile(
         storage_.pipeline_file, storage_.pipeline_file_path,
         static_cast<u64>(sizeof(pipeline_storage_file_header) +
@@ -637,8 +638,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     pipeline_storage_file_header.magic = pipeline_storage_magic;
     pipeline_storage_file_header.magic_api = pipeline_storage_magic_api;
     pipeline_storage_file_header.version = pipeline_storage_version;
-    platform::AppendStorage(storage_.pipeline_file, &pipeline_storage_file_header,
-                            sizeof(pipeline_storage_file_header));
+    platform::AppendStorageFile(storage_.pipeline_file, &pipeline_storage_file_header,
+                                sizeof(pipeline_storage_file_header));
   }
 
   storage_.cache_root = cache_root;
@@ -780,17 +781,17 @@ DXBCShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModificat
 
   if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
     using DepthStencilMode = DXBCShaderTranslator::Modification::DepthStencilMode;
-    if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
+    if (render_target_cache_.IsDepthFloat24ConvertedInPixelShader() &&
         normalized_depth_control.z_enable &&
         regs.Get<xenos::reg::RB_DEPTH_INFO>().depth_format ==
             xenos::DepthRenderTargetFormat::kD24FS8) {
-      modification.pixel.depth_stencil_mode = render_target_cache_.GetDepthFloat24Round()
+      modification.pixel.depth_stencil_mode = render_target_cache_.IsDepthFloat24Rounded()
                                                   ? DepthStencilMode::kFloat24Rounding
                                                   : DepthStencilMode::kFloat24Truncating;
     } else {
-      if (shader.GetImplicitEarlyZWriteAllowed() &&
-          (!shader.GetWritesColorTarget(0) ||
-           !draw_state::DoesCoverageDependOnAlpha(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
+      if (shader.IsImplicitEarlyZWriteAllowed() &&
+          (!shader.IsColorTargetWritten(0) ||
+           !draw_state::IsCoverageAlphaDependent(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
       } else {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
@@ -918,7 +919,7 @@ bool PipelineCache::ConfigurePipeline(
     u32 bound_rts = pipeline_priority::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
     u32 shader_writes_color_targets =
         pixel_shader ? pixel_shader->GetShader().GetWritesColorTargets() : 0;
-    bool shader_writes_depth = pixel_shader ? pixel_shader->GetShader().GetWritesDepth()
+    bool shader_writes_depth = pixel_shader ? pixel_shader->GetShader().IsDepthWritten()
                                             : normalized_depth_control.z_write_enable != 0;
     new_pipeline->priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -1102,10 +1103,10 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
 
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   if (REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm_dxilconv)) {
-    translation.DisassembleDXBCAndDxil(provider, REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm),
+    translation.DisassembleDXBCAndDXIL(provider, REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm),
                                        dxbc_converter, dxc_utils, dxc_compiler);
   } else {
-    translation.DisassembleDXBCAndDxil(provider, REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm));
+    translation.DisassembleDXBCAndDXIL(provider, REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm));
   }
 
   if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
@@ -1386,7 +1387,7 @@ bool PipelineCache::GetCurrentStateDescription(
       rt.write_mask = (normalized_color_mask >> (i * 4)) & 0xF;
       if (rt.write_mask) {
         auto blendcontrol = regs.Get<xenos::reg::RB_BLENDCONTROL>(
-            xenos::reg::RB_BLENDCONTROL::kRtRegisterIndices[i]);
+            xenos::reg::RB_BLENDCONTROL::kRTRegisterIndices[i]);
         rt.src_blend = kBlendFactorMap[static_cast<u32>(blendcontrol.color_srcblend)];
         rt.dest_blend = kBlendFactorMap[static_cast<u32>(blendcontrol.color_destblend)];
         rt.blend_op = blendcontrol.color_comb_fcn;
@@ -1465,17 +1466,17 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
   shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
   u32 rdef_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
 
-  shader_out.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(u32));
+  shader_out.resize(rdef_position_dwords + sizeof(dxbc::RDEFHeader) / sizeof(u32));
   dxbc::AppendAlignedString(shader_out, "ReXGlue");
   {
     auto& rdef_header =
-        *reinterpret_cast<dxbc::RdefHeader*>(shader_out.data() + rdef_position_dwords);
-    rdef_header.shader_model = dxbc::RdefShaderModel::kGeometryShader51;
+        *reinterpret_cast<dxbc::RDEFHeader*>(shader_out.data() + rdef_position_dwords);
+    rdef_header.shader_model = dxbc::RDEFShaderModel::kGeometryShader51;
     rdef_header.compile_flags =
         dxbc::kCompileFlagNoPreshader | dxbc::kCompileFlagPreferFlowControl |
-        dxbc::kCompileFlagIeeeStrictness | dxbc::kCompileFlagAllResourcesBound;
-    rdef_header.generator_name_ptr = sizeof(dxbc::RdefHeader);
-    rdef_header.fourcc = dxbc::RdefHeader::FourCC::k51;
+        dxbc::kCompileFlagIEEEStrictness | dxbc::kCompileFlagAllResourcesBound;
+    rdef_header.generator_name_ptr = sizeof(dxbc::RDEFHeader);
+    rdef_header.fourcc = dxbc::RDEFHeader::FourCC::k51;
     rdef_header.InitializeSizes();
   }
 
@@ -1488,12 +1489,12 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     u32 rdef_type_float2_position_dwords = static_cast<u32>(shader_out.size());
     u32 rdef_type_float2_ptr =
         static_cast<u32>((rdef_type_float2_position_dwords - rdef_position_dwords) * sizeof(u32));
-    shader_out.resize(rdef_type_float2_position_dwords + sizeof(dxbc::RdefType) / sizeof(u32));
+    shader_out.resize(rdef_type_float2_position_dwords + sizeof(dxbc::RDEFType) / sizeof(u32));
     {
       auto& rdef_type_float2 =
-          *reinterpret_cast<dxbc::RdefType*>(shader_out.data() + rdef_type_float2_position_dwords);
-      rdef_type_float2.variable_class = dxbc::RdefVariableClass::kVector;
-      rdef_type_float2.variable_type = dxbc::RdefVariableType::kFloat;
+          *reinterpret_cast<dxbc::RDEFType*>(shader_out.data() + rdef_type_float2_position_dwords);
+      rdef_type_float2.variable_class = dxbc::RDEFVariableClass::kVector;
+      rdef_type_float2.variable_type = dxbc::RDEFVariableType::kFloat;
       rdef_type_float2.row_count = 1;
       rdef_type_float2.column_count = 2;
       rdef_type_float2.name_ptr = rdef_name_ptr_float2;
@@ -1513,10 +1514,10 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     u32 rdef_constants_ptr =
         static_cast<u32>((rdef_constants_position_dwords - rdef_position_dwords) * sizeof(u32));
     shader_out.resize(rdef_constants_position_dwords +
-                      sizeof(dxbc::RdefVariable) / sizeof(u32) * kPointConstantCount);
+                      sizeof(dxbc::RDEFVariable) / sizeof(u32) * kPointConstantCount);
     {
       auto rdef_constants =
-          reinterpret_cast<dxbc::RdefVariable*>(shader_out.data() + rdef_constants_position_dwords);
+          reinterpret_cast<dxbc::RDEFVariable*>(shader_out.data() + rdef_constants_position_dwords);
       static_assert(sizeof(DXBCShaderTranslator::SystemConstants ::point_constant_diameter) ==
                         sizeof(f32) * 2,
                     "DXBCShaderTranslator point_constant_diameter system constant size "
@@ -1524,7 +1525,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
                     "generation");
       REX_STATIC_ASSERT_SIZE(DXBCShaderTranslator::SystemConstants::point_constant_diameter,
                              sizeof(f32) * 2);
-      dxbc::RdefVariable& rdef_constant_point_constant_diameter =
+      dxbc::RDEFVariable& rdef_constant_point_constant_diameter =
           rdef_constants[kPointConstantConstantDiameter];
       rdef_constant_point_constant_diameter.name_ptr = rdef_name_ptr_xe_point_constant_diameter;
       rdef_constant_point_constant_diameter.start_offset_bytes =
@@ -1540,7 +1541,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
           "DXBCShaderTranslator point_screen_diameter_to_ndc_radius system "
           "constant size differs between the shader translator and geometry "
           "shader generation");
-      dxbc::RdefVariable& rdef_constant_point_screen_diameter_to_ndc_radius =
+      dxbc::RDEFVariable& rdef_constant_point_screen_diameter_to_ndc_radius =
           rdef_constants[kPointConstantScreenDiameterToNDCRadius];
       rdef_constant_point_screen_diameter_to_ndc_radius.name_ptr =
           rdef_name_ptr_xe_point_screen_diameter_to_ndc_radius;
@@ -1557,14 +1558,14 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     u32 rdef_name_ptr_xe_system_cbuffer = name_ptr;
     name_ptr += dxbc::AppendAlignedString(shader_out, "xe_system_cbuffer");
     u32 rdef_cbuffer_position_dwords = static_cast<u32>(shader_out.size());
-    shader_out.resize(rdef_cbuffer_position_dwords + sizeof(dxbc::RdefCbuffer) / sizeof(u32));
+    shader_out.resize(rdef_cbuffer_position_dwords + sizeof(dxbc::RDEFCbuffer) / sizeof(u32));
     {
       auto& rdef_cbuffer_system =
-          *reinterpret_cast<dxbc::RdefCbuffer*>(shader_out.data() + rdef_cbuffer_position_dwords);
+          *reinterpret_cast<dxbc::RDEFCbuffer*>(shader_out.data() + rdef_cbuffer_position_dwords);
       rdef_cbuffer_system.name_ptr = rdef_name_ptr_xe_system_cbuffer;
       rdef_cbuffer_system.variable_count = kPointConstantCount;
       rdef_cbuffer_system.variables_ptr = rdef_constants_ptr;
-      auto rdef_constants = reinterpret_cast<const dxbc::RdefVariable*>(
+      auto rdef_constants = reinterpret_cast<const dxbc::RDEFVariable*>(
           shader_out.data() + rdef_constants_position_dwords);
       for (u32 i = 0; i < kPointConstantCount; ++i) {
         system_cbuffer_size_vector_aligned_bytes =
@@ -1591,12 +1592,12 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     }
 
     u32 rdef_binding_position_dwords = static_cast<u32>(shader_out.size());
-    shader_out.resize(rdef_binding_position_dwords + sizeof(dxbc::RdefInputBind) / sizeof(u32));
+    shader_out.resize(rdef_binding_position_dwords + sizeof(dxbc::RDEFInputBind) / sizeof(u32));
     {
       auto& rdef_binding_cbuffer_system =
-          *reinterpret_cast<dxbc::RdefInputBind*>(shader_out.data() + rdef_binding_position_dwords);
+          *reinterpret_cast<dxbc::RDEFInputBind*>(shader_out.data() + rdef_binding_position_dwords);
       rdef_binding_cbuffer_system.name_ptr = rdef_name_ptr_xe_system_cbuffer;
-      rdef_binding_cbuffer_system.type = dxbc::RdefInputType::kCbuffer;
+      rdef_binding_cbuffer_system.type = dxbc::RDEFInputType::kCbuffer;
       rdef_binding_cbuffer_system.bind_point =
           std::to_underlying(DXBCShaderTranslator::CbufferRegister::kSystemConstants);
       rdef_binding_cbuffer_system.bind_count = 1;
@@ -1605,7 +1606,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
 
     {
       auto& rdef_header =
-          *reinterpret_cast<dxbc::RdefHeader*>(shader_out.data() + rdef_position_dwords);
+          *reinterpret_cast<dxbc::RDEFHeader*>(shader_out.data() + rdef_position_dwords);
       rdef_header.cbuffer_count = 1;
       rdef_header.cbuffers_ptr =
           static_cast<u32>((rdef_cbuffer_position_dwords - rdef_position_dwords) * sizeof(u32));
@@ -1692,7 +1693,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     REX_ASSERT(isgn_parameter_index < isgn_parameter_count);
     dxbc::SignatureParameter& isgn_sv_position = isgn_parameters[isgn_parameter_index++];
     isgn_sv_position.semantic_name_ptr = isgn_name_ptr_sv_position;
-    isgn_sv_position.system_value = dxbc::Name::kPosition;
+    isgn_sv_position.system_value = dxbc::SystemValueName::kPosition;
     isgn_sv_position.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
     isgn_sv_position.register_index = input_register_index++;
     isgn_sv_position.mask = 0b1111;
@@ -1706,7 +1707,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
           dxbc::SignatureParameter& isgn_sv_clip_distance = isgn_parameters[isgn_parameter_index++];
           isgn_sv_clip_distance.semantic_name_ptr = isgn_name_ptr_sv_clip_distance;
           isgn_sv_clip_distance.semantic_index = i / 4;
-          isgn_sv_clip_distance.system_value = dxbc::Name::kClipDistance;
+          isgn_sv_clip_distance.system_value = dxbc::SystemValueName::kClipDistance;
           isgn_sv_clip_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
           isgn_sv_clip_distance.register_index = input_register_index;
           u8 isgn_sv_clip_distance_mask =
@@ -1718,7 +1719,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
           dxbc::SignatureParameter& isgn_sv_cull_distance = isgn_parameters[isgn_parameter_index++];
           isgn_sv_cull_distance.semantic_name_ptr = isgn_name_ptr_sv_cull_distance;
           isgn_sv_cull_distance.semantic_index = isgn_cull_distance_semantic_index++;
-          isgn_sv_cull_distance.system_value = dxbc::Name::kCullDistance;
+          isgn_sv_cull_distance.system_value = dxbc::SystemValueName::kCullDistance;
           isgn_sv_cull_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
           isgn_sv_cull_distance.register_index = input_register_index;
           u8 isgn_sv_cull_distance_mask =
@@ -1825,7 +1826,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     REX_ASSERT(osgn_parameter_index < osgn_parameter_count);
     dxbc::SignatureParameterForGS& osgn_sv_position = osgn_parameters[osgn_parameter_index++];
     osgn_sv_position.semantic_name_ptr = osgn_name_ptr_sv_position;
-    osgn_sv_position.system_value = dxbc::Name::kPosition;
+    osgn_sv_position.system_value = dxbc::SystemValueName::kPosition;
     osgn_sv_position.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
     osgn_sv_position.register_index = output_register_index++;
     osgn_sv_position.mask = 0b1111;
@@ -1837,7 +1838,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
             osgn_parameters[osgn_parameter_index++];
         osgn_sv_clip_distance.semantic_name_ptr = osgn_name_ptr_sv_clip_distance;
         osgn_sv_clip_distance.semantic_index = i / 4;
-        osgn_sv_clip_distance.system_value = dxbc::Name::kClipDistance;
+        osgn_sv_clip_distance.system_value = dxbc::SystemValueName::kClipDistance;
         osgn_sv_clip_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
         osgn_sv_clip_distance.register_index = output_register_index++;
         u8 osgn_sv_clip_distance_mask =
@@ -1911,7 +1912,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     a.OpDclInput(dxbc::Dest::V2D(input_primitive_vertex_count, input_register_interpolators + i));
   }
   a.OpDclInputSIV(dxbc::Dest::V2D(input_primitive_vertex_count, input_register_position),
-                  dxbc::Name::kPosition);
+                  dxbc::SystemValueName::kPosition);
   REX_ASSERT(!(input_clip_and_cull_distance_count &&
                input_register_clip_and_cull_distances == UINT32_MAX));
   for (u32 i = 0; i < input_clip_and_cull_distance_count; i += 4) {
@@ -1952,13 +1953,13 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     REX_ASSERT(output_register_point_coordinates != UINT32_MAX);
     a.OpDclOutput(dxbc::Dest::O(output_register_point_coordinates, 0b0011));
   }
-  a.OpDclOutputSIV(dxbc::Dest::O(output_register_position), dxbc::Name::kPosition);
+  a.OpDclOutputSIV(dxbc::Dest::O(output_register_position), dxbc::SystemValueName::kPosition);
   REX_ASSERT(!(input_clip_distance_count && output_register_clip_distances == UINT32_MAX));
   for (u32 i = 0; i < input_clip_distance_count; i += 4) {
     a.OpDclOutputSIV(
         dxbc::Dest::O(output_register_clip_distances + (i >> 2),
                       (UINT32_C(1) << std::min(input_clip_distance_count - i, UINT32_C(4))) - 1),
-        dxbc::Name::kClipDistance);
+        dxbc::SystemValueName::kClipDistance);
   }
 
   a.OpDclMaxOutputVertexCount(max_output_vertex_count);
@@ -2492,10 +2493,10 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     state_desc.PS.pShaderBytecode = depth_only_pixel_shader_.data();
     state_desc.PS.BytecodeLength = depth_only_pixel_shader_.size();
   } else {
-    if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
+    if (render_target_cache_.IsDepthFloat24ConvertedInPixelShader() &&
         (description.depth_func != xenos::CompareFunction::kAlways || description.depth_write) &&
         description.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
-      if (render_target_cache_.GetDepthFloat24Round()) {
+      if (render_target_cache_.IsDepthFloat24Rounded()) {
         state_desc.PS.pShaderBytecode = shaders::kFloat24RoundPS;
         state_desc.PS.BytecodeLength = sizeof(shaders::kFloat24RoundPS);
       } else {
@@ -2554,7 +2555,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     if (msaa_sample_count > 4) {
       return nullptr;
     }
-    if (msaa_sample_count == 2 && !render_target_cache_.GetMSAA2xSupported()) {
+    if (msaa_sample_count == 2 && !render_target_cache_.IsMSAA2xSupported()) {
       state_desc.SampleMask = 0b1001;
       state_desc.SampleDesc.Count = 4;
     } else {
@@ -2744,21 +2745,21 @@ void PipelineCache::StorageWriteThread() {
       shader_header.ucode_dword_count = shader->GetUcodeDwordCount();
       shader_header.type = shader->GetType();
       REX_ASSERT(storage_.shader_file.is_open());
-      platform::AppendStorage(storage_.shader_file, &shader_header, sizeof(shader_header));
+      platform::AppendStorageFile(storage_.shader_file, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
         // Swap back, as the hash is calculated over the guest endian ucode.
         memory::copy_and_swap(ucode_guest_endian.data(), shader->GetUcodeDwords(),
                               shader_header.ucode_dword_count);
-        platform::AppendStorage(storage_.shader_file, ucode_guest_endian.data(),
-                                shader_header.ucode_dword_count * sizeof(u32));
+        platform::AppendStorageFile(storage_.shader_file, ucode_guest_endian.data(),
+                                    shader_header.ucode_dword_count * sizeof(u32));
       }
     }
 
     if (write_pipeline) {
       REX_ASSERT(storage_.pipeline_file.is_open());
-      platform::AppendStorage(storage_.pipeline_file, &pipeline_description,
-                              sizeof(pipeline_description));
+      platform::AppendStorageFile(storage_.pipeline_file, &pipeline_description,
+                                  sizeof(pipeline_description));
     }
   }
 }

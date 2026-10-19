@@ -114,7 +114,7 @@ REX_TEST_CASE("ApplyDefaultStyle on the default metrics keeps the ImGui sizes", 
 REX_TEST_CASE("ApplyDefaultStyle re-themes the slots from an overridden palette", "[ui][style]") {
   ImGuiStyle style;
   rex::ui::Style custom;
-  custom.palette.accent = rex::Color::RGBA(0.2f, 0.3f, 0.4f);
+  custom.palette.accent = rex::Color::FromRGBA(0.2f, 0.3f, 0.4f);
   rex::ui::ApplyDefaultStyle(style, custom.palette, custom.metrics);
   CHECK(style.Colors[ImGuiCol_Button].x == 0.2f);
   CHECK(style.Colors[ImGuiCol_Button].w == 0.60f);
@@ -123,7 +123,7 @@ REX_TEST_CASE("ApplyDefaultStyle re-themes the slots from an overridden palette"
 REX_TEST_CASE("ApplyDefaultStyle takes the button alpha from the palette", "[ui][style]") {
   ImGuiStyle style;
   rex::ui::Style custom;
-  custom.palette.accent = rex::Color::RGBA(0.2f, 0.3f, 0.4f);
+  custom.palette.accent = rex::Color::FromRGBA(0.2f, 0.3f, 0.4f);
   custom.palette.button_alpha = 1.0f;
   rex::ui::ApplyDefaultStyle(style, custom.palette, custom.metrics);
   CHECK(style.Colors[ImGuiCol_Button].x == 0.2f);
@@ -135,7 +135,7 @@ REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[ui][sty
   rex::ui::Style custom;
   rex::ui::ControlPalette& controls = custom.palette.controls;
   const auto role = [](rex::i32 n) {
-    return rex::Color::RGBA(static_cast<rex::f32>(n) / 32.0f, 0.5f, 0.25f, 1.0f);
+    return rex::Color::FromRGBA(static_cast<rex::f32>(n) / 32.0f, 0.5f, 0.25f, 1.0f);
   };
   controls.menu_bar = role(1);
   controls.separator = role(2);
@@ -169,7 +169,7 @@ REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[ui][sty
 REX_TEST_CASE("a changed palette reaches ImGuiStyle through ApplyDefaultStyle", "[ui][style]") {
   ImGuiStyle imgui_style;
   rex::ui::Style style;
-  style.palette.accent = rex::Color::RGBA(0.7f, 0.1f, 0.3f);
+  style.palette.accent = rex::Color::FromRGBA(0.7f, 0.1f, 0.3f);
   rex::ui::ApplyDefaultStyle(imgui_style, style.palette, style.metrics);
   const ImVec4 expected = rex::ui::ToImVec4(style.palette.accent.WithAlpha(0.60f));
   CHECK(imgui_style.Colors[ImGuiCol_Button].x == expected.x);

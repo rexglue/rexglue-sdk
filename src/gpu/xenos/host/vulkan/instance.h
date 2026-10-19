@@ -49,7 +49,7 @@ class VulkanInstance : public rex::NonCopyable {
    *
    * @return The API, or null when RenderDoc is not connected.
    */
-  RenderDocAPI* GetRenderdocAPI() const { return renderdoc_api_.get(); }
+  RenderDocAPI* GetRenderDocAPI() const { return renderdoc_api_.get(); }
 
   struct Functions {
     // From the loader module.

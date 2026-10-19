@@ -181,7 +181,7 @@ class FocusEvent : public UISetupEvent {
    *
    * @return True when the window gained focus, false when it lost it.
    */
-  bool GetFocused() const { return focused_; }
+  bool IsFocused() const { return focused_; }
 
  private:
   bool focused_;
@@ -215,9 +215,7 @@ class MonitorUpdateEvent : public UISetupEvent {
    *
    * @return True when the previous monitor may be gone.
    */
-  bool GetOldMonitorPotentiallyDisconnected() const {
-    return old_monitor_potentially_disconnected_;
-  }
+  bool IsOldMonitorPotentiallyDisconnected() const { return old_monitor_potentially_disconnected_; }
 
  private:
   bool old_monitor_potentially_disconnected_;
@@ -323,7 +321,7 @@ class KeyEvent : public UIEvent {
    *
    * @return True when the key was already down.
    */
-  bool GetPrevState() const { return prev_state_; }
+  bool WasKeyDown() const { return prev_state_; }
 
   /**
    * Reports whether Shift was held.
@@ -537,7 +535,7 @@ class TouchEvent : public UIEvent {
    *
    * @return Id of the touch point.
    */
-  u32 GetPointerId() const { return pointer_id_; }
+  u32 GetPointerID() const { return pointer_id_; }
 
   /**
    * Returns what the point did.

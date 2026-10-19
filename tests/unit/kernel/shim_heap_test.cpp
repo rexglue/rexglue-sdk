@@ -16,7 +16,7 @@
 
 #include "kernel_fixture.h"
 
-using rex::kernel::shim::ReXHeap;
+using rex::kernel::shim::GuestHeap;
 
 namespace {
 
@@ -26,9 +26,9 @@ constexpr u32 kHeapBytes = 4 * 1024 * 1024;
 
 REX_TEST_CASE("A heap rebuilt over the same memory reuses the range it released",
               "[kernel][shim_heap]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory* memory = fixture.GetRuntime().GetMemory();
-  ReXHeap heap;
+  GuestHeap heap;
   REQUIRE(heap.Init(kHeapBytes, memory));
   const u32 first = heap.Alloc(16);
   REQUIRE(first != 0);
@@ -37,16 +37,16 @@ REX_TEST_CASE("A heap rebuilt over the same memory reuses the range it released"
 }
 
 REX_TEST_CASE("A heap rebuilt across 2 runtimes holds no stale pointers", "[kernel][shim_heap]") {
-  ReXHeap heap;
+  GuestHeap heap;
   u32 first = 0;
   {
-    rex::testing::KernelFixture fixture;
+    rex::test::KernelFixture fixture;
     REQUIRE(heap.Init(kHeapBytes, fixture.GetRuntime().GetMemory()));
     first = heap.Alloc(16);
     REQUIRE(first != 0);
     heap.Shutdown();
   }
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   REQUIRE(heap.Init(kHeapBytes, fixture.GetRuntime().GetMemory()));
   CHECK(heap.Alloc(16) == first);
   heap.Shutdown();
@@ -54,17 +54,17 @@ REX_TEST_CASE("A heap rebuilt across 2 runtimes holds no stale pointers", "[kern
 
 REX_TEST_CASE("A block keeps its contents through Realloc and reports its size",
               "[kernel][shim_heap]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::runtime::Memory* memory = fixture.GetRuntime().GetMemory();
-  ReXHeap heap;
+  GuestHeap heap;
   REQUIRE(heap.Init(kHeapBytes, memory));
   const u32 block = heap.Alloc(32, true);
   REQUIRE(block != 0);
-  CHECK(heap.Size(block) == 32);
+  CHECK(heap.GetSize(block) == 32);
   *memory->TranslateVirtual<u8*>(block) = 0x5A;
   const u32 grown = heap.Realloc(block, 4096, true);
   REQUIRE(grown != 0);
-  CHECK(heap.Size(grown) == 4096);
+  CHECK(heap.GetSize(grown) == 4096);
   CHECK(*memory->TranslateVirtual<u8*>(grown) == 0x5A);
   heap.Free(grown);
 }

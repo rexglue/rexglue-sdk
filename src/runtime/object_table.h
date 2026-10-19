@@ -39,8 +39,8 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   /** Closes every handle and destroys every object. */
   void Reset();
 
-  using IObjectTable::All;
   using IObjectTable::Get;
+  using IObjectTable::GetAll;
 
   [[nodiscard]] Result<X_HANDLE> Add(std::unique_ptr<KernelObject> object,
                                      const AddOptions& options) override;
@@ -52,9 +52,9 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   [[nodiscard]] Result<void> Remove(X_HANDLE handle) override;
   [[nodiscard]] Result<void> RetainPrimary(const PinnedSlot& slot) override;
   [[nodiscard]] Result<void> ReleasePrimary(const PinnedSlot& slot) override;
-  std::optional<X_HANDLE> PrimaryHandle(const PinnedSlot& slot) override;
+  std::optional<X_HANDLE> GetPrimaryHandle(const PinnedSlot& slot) override;
   PinnedSlot Get(X_HANDLE handle) override;
-  std::vector<PinnedSlot> All() override;
+  std::vector<PinnedSlot> GetAll() override;
   [[nodiscard]] Result<void> AddName(std::string_view name, X_HANDLE handle) override;
   [[nodiscard]] Result<X_HANDLE> OpenByName(std::string_view name) override;
   std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) override;
@@ -80,7 +80,7 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   std::vector<Slot> slots_;
   u32 last_free_slot_ = 0;
   std::unordered_map<KernelObject*, std::unique_ptr<KernelObject>> objects_;
-  std::unordered_map<StringKeyCase, X_HANDLE> names_;
+  std::unordered_map<StringKeyIgnoreCase, X_HANDLE> names_;
   std::unordered_map<u32, KernelObject*> block_objects_;
 };
 

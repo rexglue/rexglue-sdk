@@ -30,7 +30,7 @@ int g_fail_textures = 0;
 class NullTexture final : public rex::gpu::OverlayTexture {
  public:
   NullTexture(rex::u32 width, rex::u32 height) : OverlayTexture(width, height) {}
-  ~NullTexture() override { Record(kName, "texture_freed"); }
+  ~NullTexture() override { ReportEvent(kName, "texture_freed"); }
 };
 
 class NullContext final : public rex::gpu::OverlayDrawContext {
@@ -45,18 +45,20 @@ class NullDrawer final : public rex::gpu::IOverlayDrawer {
       std::span<const rex::u8>) override {
     if (g_fail_textures > 0) {
       --g_fail_textures;
-      Record(kName, "create_texture_failed");
+      ReportEvent(kName, "create_texture_failed");
       return rex::Err<std::unique_ptr<rex::gpu::OverlayTexture>>(rex::ErrorCategory::kRuntime,
                                                                  "null device not ready");
     }
-    Record(kName, "create_texture");
+    ReportEvent(kName, "create_texture");
     return std::unique_ptr<rex::gpu::OverlayTexture>(std::make_unique<NullTexture>(width, height));
   }
-  void Begin(rex::gpu::OverlayDrawContext&, rex::f32, rex::f32) override { Record(kName, "begin"); }
-  void BeginBatch(const rex::gpu::OverlayBatch&) override { Record(kName, "begin_batch"); }
-  void Draw(const rex::gpu::OverlayDraw&) override { Record(kName, "draw"); }
-  void EndBatch() override { Record(kName, "end_batch"); }
-  void End() override { Record(kName, "end"); }
+  void Begin(rex::gpu::OverlayDrawContext&, rex::f32, rex::f32) override {
+    ReportEvent(kName, "begin");
+  }
+  void BeginBatch(const rex::gpu::OverlayBatch&) override { ReportEvent(kName, "begin_batch"); }
+  void Draw(const rex::gpu::OverlayDraw&) override { ReportEvent(kName, "draw"); }
+  void EndBatch() override { ReportEvent(kName, "end_batch"); }
+  void End() override { ReportEvent(kName, "end"); }
 };
 
 class NullPresenter final : public rex::gpu::IPresenter {
@@ -69,7 +71,7 @@ class NullPresenter final : public rex::gpu::IPresenter {
       old_host->OnPresenterDetached();
     }
     host_ = host;
-    Record(kName, host ? "attach" : "detach");
+    ReportEvent(kName, host ? "attach" : "detach");
     return false;
   }
   void OnSurfaceMonitorUpdate(bool) override {}
@@ -118,19 +120,19 @@ class NullGPUModule final : public rex::IModule, public rex::gpu::IGPUBackend {
     ui_thread.RunSynchronous([this] { presenter_ = std::make_unique<NullPresenter>(); });
     return rex::Ok();
   }
-  [[nodiscard]] rex::Result<void> SetupGuestGPU(rex::runtime::FunctionDispatcher&,
-                                                rex::Runtime&) override {
+  [[nodiscard]] rex::Result<void> SetupGPU(rex::runtime::FunctionDispatcher&,
+                                           rex::Runtime&) override {
     return rex::Ok();
   }
   bool HasPresentation() const override { return presenter_ != nullptr; }
   rex::gpu::IPresenter* GetPresenter() const override { return presenter_.get(); }
   [[nodiscard]] rex::Result<std::unique_ptr<rex::gpu::IPresenter>> CreatePresenter() override {
-    Record(kName, "create_presenter");
+    ReportEvent(kName, "create_presenter");
     return std::unique_ptr<rex::gpu::IPresenter>(std::make_unique<NullPresenter>());
   }
   [[nodiscard]] rex::Result<std::unique_ptr<rex::gpu::IOverlayDrawer>> CreateOverlayDrawer(
       rex::gpu::IPresenter&) override {
-    Record(kName, "create_drawer");
+    ReportEvent(kName, "create_drawer");
     return std::unique_ptr<rex::gpu::IOverlayDrawer>(std::make_unique<NullDrawer>());
   }
   void SetInterruptCallback(rex::u32, rex::u32) override {}

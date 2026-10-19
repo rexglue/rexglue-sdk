@@ -72,9 +72,9 @@ void Hub::SetDeviceAssignment(std::unique_ptr<IDeviceAssignment> assignment) {
 }
 
 void Hub::RefreshDevicesLocked() {
-  std::vector<DeviceInfo> seen;
+  std::vector<Device> seen;
   std::vector<Driver*> owners;
-  std::vector<DeviceInfo> enumerated;
+  std::vector<Device> enumerated;
   for (auto& driver : drivers_) {
     enumerated.clear();
     driver->EnumerateDevices(enumerated);
@@ -88,7 +88,7 @@ void Hub::RefreshDevicesLocked() {
   std::vector<bool> fresh(seen.size(), false);
   for (size_t i = 0; i < seen.size(); i++) {
     auto existing = std::find_if(devices_.begin(), devices_.end(),
-                                 [&](const DeviceInfo& d) { return d.id == seen[i].id; });
+                                 [&](const Device& d) { return d.id == seen[i].id; });
     if (existing != devices_.end()) {
       seen[i].ordinal = existing->ordinal;
       continue;
@@ -125,8 +125,7 @@ void Hub::RefreshDevicesLocked() {
   }
 
   for (const auto& old : devices_) {
-    if (std::none_of(seen.begin(), seen.end(),
-                     [&](const DeviceInfo& d) { return d.id == old.id; })) {
+    if (std::none_of(seen.begin(), seen.end(), [&](const Device& d) { return d.id == old.id; })) {
       active_devices_.Forget(old.id);
       changed = true;
     }
@@ -161,7 +160,7 @@ Driver* Hub::DriverForDeviceLocked(DeviceId id) {
   return nullptr;
 }
 
-const DeviceInfo* Hub::DeviceInfoForLocked(DeviceId id) const {
+const Device* Hub::FindDeviceLocked(DeviceId id) const {
   for (const auto& device : devices_) {
     if (device.id == id) {
       return &device;
@@ -175,11 +174,11 @@ DeviceId Hub::ChooseDeviceForUserLocked(u32 user) const {
     return DeviceId::kInvalid;
   }
   std::vector<DeviceId> ids;
-  assignment_->DevicesForUser(user, ids);
+  assignment_->GetDevicesForUser(user, ids);
   if (ids.empty()) {
     return DeviceId::kInvalid;
   }
-  DeviceId chosen = active_devices_.Active(user);
+  DeviceId chosen = active_devices_.GetActive(user);
   if (std::find(ids.begin(), ids.end(), chosen) == ids.end()) {
     chosen = ids.front();
   }
@@ -261,7 +260,7 @@ Result<X_INPUT_STATE> Hub::ReadStateLocked(u32 user) {
 
   RefreshDevicesLocked();
   std::vector<DeviceId> ids;
-  assignment_->DevicesForUser(user, ids);
+  assignment_->GetDevicesForUser(user, ids);
 
   X_INPUT_STATE merged = {};
   bool any = false;
@@ -353,7 +352,7 @@ Result<void> Hub::SetVibration(u32 user, const X_INPUT_VIBRATION& vibration) {
 
   RefreshDevicesLocked();
   std::vector<DeviceId> ids;
-  assignment_->DevicesForUser(user, ids);
+  assignment_->GetDevicesForUser(user, ids);
 
   X_INPUT_VIBRATION modified = vibration;
   if (!REXCVAR_GET(cvars::vibration)) {
@@ -368,7 +367,7 @@ Result<void> Hub::SetVibration(u32 user, const X_INPUT_VIBRATION& vibration) {
   rex::Error pad_error = NotConnected();
   for (DeviceId id : ids) {
     Driver* driver = DriverForDeviceLocked(id);
-    const DeviceInfo* info = DeviceInfoForLocked(id);
+    const Device* info = FindDeviceLocked(id);
     if (!driver || !info) {
       continue;
     }
@@ -405,7 +404,7 @@ Result<X_INPUT_KEYSTROKE> Hub::GetKeystroke(u32 user, u32 flags) {
 
   RefreshDevicesLocked();
   std::vector<DeviceId> ids;
-  assignment_->DevicesForUser(user, ids);
+  assignment_->GetDevicesForUser(user, ids);
 
   bool any_connected = false;
   for (DeviceId id : ids) {
@@ -439,7 +438,7 @@ void Hub::SetHost(IInputHost* host) {
   applied_mode_ = PointerMode::kFree;
   relative_ = false;
   host_.store(host, std::memory_order_release);
-  capture_.store(!host || host->GetCaptureActive(), std::memory_order_relaxed);
+  capture_.store(!host || host->IsCaptureActive(), std::memory_order_relaxed);
   {
     std::lock_guard lock(mutex_);
     for (auto& driver : drivers_) {
@@ -567,7 +566,7 @@ PointerMode Hub::GetEffectiveMode() const {
   if (!focused_.load(std::memory_order_relaxed) || !capture_.load(std::memory_order_relaxed)) {
     return PointerMode::kFree;
   }
-  if (keyboard_mouse_->WantsPointerLock()) {
+  if (keyboard_mouse_->IsPointerLockWanted()) {
     return PointerMode::kLocked;
   }
   return requested_mode_.load(std::memory_order_relaxed);
@@ -608,7 +607,7 @@ void Hub::RefreshPointerMode() {
 
 void Hub::TrackCapture() {
   IInputHost* host = host_.load(std::memory_order_acquire);
-  const bool capture = !host || host->GetCaptureActive();
+  const bool capture = !host || host->IsCaptureActive();
   if (capture_.exchange(capture, std::memory_order_relaxed) != capture) {
     RefreshPointerMode();
   }
@@ -650,7 +649,7 @@ KeyModifiers Hub::GetModifiers() const {
   return mods;
 }
 
-bool Hub::GetFocused() const {
+bool Hub::IsFocused() const {
   return focused_.load(std::memory_order_relaxed);
 }
 

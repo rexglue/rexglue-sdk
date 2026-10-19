@@ -34,7 +34,7 @@ class REX_GPU_XENOS_API GraphicsUploadBufferPool : public rex::NonCopyable {
   virtual ~GraphicsUploadBufferPool();
 
   void Reclaim(u64 completed_submission_index);
-  void ChangeSubmissionTimeline();
+  void ResetSubmissionTimeline();
   void ClearCache();
 
   /** Flushes pending writes of the current page. */

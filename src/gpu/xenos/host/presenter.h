@@ -408,7 +408,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    *
    * @param ui_draw_context Context the drawers draw into.
    */
-  void ExecuteUIDrawersFromUIThread(gpu::OverlayDrawContext& ui_draw_context);
+  void ExecuteOverlayLayersFromUIThread(gpu::OverlayDrawContext& ui_draw_context);
 
  private:
   enum class PaintMode : u8 {
@@ -464,11 +464,11 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
            connection_state == SurfacePaintConnectionState::kConnectedOutdated;
   }
 
-  struct UIDrawerReference {
+  struct OverlayLayerReference {
     gpu::IOverlayLayer* layer;
     u64 last_draw;
 
-    explicit UIDrawerReference(gpu::IOverlayLayer* layer, u64 last_draw = UINT64_MAX)
+    explicit OverlayLayerReference(gpu::IOverlayLayer* layer, u64 last_draw = UINT64_MAX)
         : layer(layer), last_draw(last_draw) {}
   };
 
@@ -564,8 +564,8 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    *
    * @return True when UI ticks are needed.
    */
-  bool AreUITicksNeededFromUIThread() const {
-    return !ui_drawers_.empty() && paint_mode_ != PaintMode::kNone &&
+  bool IsUITickNeededFromUIThread() const {
+    return !overlay_layers_.empty() && paint_mode_ != PaintMode::kNone &&
            !surface_paint_connection_has_implicit_vsync_;
   }
   void UpdateUITicksNeededFromUIThread();
@@ -670,11 +670,11 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    * Iteration logic over this order must match input handling in the Window input listeners, in
    * reverse.
    */
-  std::multimap<size_t, UIDrawerReference> ui_drawers_;
+  std::multimap<size_t, OverlayLayerReference> overlay_layers_;
 
   size_t ui_draw_current_ = 0;
   size_t ui_draw_current_z_order_;
-  std::multimap<size_t, UIDrawerReference>::iterator ui_draw_next_iterator_;
+  std::multimap<size_t, OverlayLayerReference>::iterator ui_draw_next_iterator_;
   bool is_executing_ui_drawers_ = false;
 
   /** True inside PaintFromUIThread, so paint mode changes and redraw requests defer to its tail. */
@@ -686,7 +686,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
 #if REX_PLATFORM_WIN32
   static Microsoft::WRL::ComPtr<IDXGIOutput> GetDXGIOutputForMonitor(IDXGIFactory1* factory,
                                                                      HMONITOR monitor);
-  bool AreDXGIUITicksWaitable(
+  bool IsDXGIUITickWaitable(
       [[maybe_unused]] const std::unique_lock<std::mutex>& dxgi_ui_tick_lock) {
     return dxgi_ui_ticks_needed_ && !dxgi_ui_tick_thread_shutdown_ && dxgi_ui_tick_output_;
   }

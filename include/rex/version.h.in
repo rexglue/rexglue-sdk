@@ -14,7 +14,7 @@
 #define REXGLUE_BUILD_IDENTITY "@REXGLUE_BUILD_IDENTITY@"
 
 /** Build title such as "[rexglue-v0.7.5.38-dev.gb27f3f74-Release]". Needs REXGLUE_BUILD_CONFIG. */
-#define REXGLUE_BUILD_TITLE \
+#define REXGLUE_BUILD_LABEL \
   "[rexglue-v" REXGLUE_VERSION_STRING "-" REXGLUE_BUILD_CONFIG "]"
 
 /**

@@ -10,12 +10,12 @@
 
 #include "rex_test.h"
 
-#include <rex/runtime/object_data.h>
+#include <rex/runtime/kernel_object.h>
 #include <rex/runtime/object.h>
 
 #include "kernel/kernel_fixture.h"
 
-using rex::testing::KernelFixture;
+using rex::test::KernelFixture;
 
 REX_TEST_CASE("An object block keeps its type 8 bytes before the body", "[runtime][object]") {
   KernelFixture fixture;

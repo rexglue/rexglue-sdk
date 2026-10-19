@@ -63,14 +63,14 @@ REX_TEST_CASE("XEX optional headers that end past the header are not returned", 
   MoveOptHeader(fixed, filesystem::kXEXHeaderExecutionInfo, header_size - 4);
   auto fixed_image = XEXImage::Parse(fixed);
   REQUIRE(fixed_image);
-  CHECK_FALSE(
-      fixed_image->OptHeader<filesystem::XEXOptExecutionInfo>(filesystem::kXEXHeaderExecutionInfo));
+  CHECK_FALSE(fixed_image->GetOptHeader<filesystem::XEXOptExecutionInfo>(
+      filesystem::kXEXHeaderExecutionInfo));
 
   auto variable = file;
   MoveOptHeader(variable, filesystem::kXEXHeaderAlternateTitleIds, header_size - 2);
   auto variable_image = XEXImage::Parse(variable);
   REQUIRE(variable_image);
-  CHECK_FALSE(variable_image->OptHeader<filesystem::XEXOptGenericU32>(
+  CHECK_FALSE(variable_image->GetOptHeader<filesystem::XEXOptU32Words>(
       filesystem::kXEXHeaderAlternateTitleIds));
 
   auto long_length = file;
@@ -78,8 +78,8 @@ REX_TEST_CASE("XEX optional headers that end past the header are not returned", 
   test::PutBE32(long_length, header_size - 8, 0x100);
   auto long_image = XEXImage::Parse(long_length);
   REQUIRE(long_image);
-  CHECK_FALSE(
-      long_image->OptHeader<filesystem::XEXOptGenericU32>(filesystem::kXEXHeaderAlternateTitleIds));
+  CHECK_FALSE(long_image->GetOptHeader<filesystem::XEXOptU32Words>(
+      filesystem::kXEXHeaderAlternateTitleIds));
   CHECK(long_image->GetAlternateTitleIds().empty());
 }
 
@@ -90,13 +90,13 @@ REX_TEST_CASE("XEX header and optional headers parse", "[core][xex]") {
   const auto file = BuildXEX(spec);
   auto image = XEXImage::Parse(file);
   REQUIRE(image);
-  CHECK(image->OptHeaderValue(filesystem::kXEXHeaderEntryPoint) == 0x82000100u);
+  CHECK(image->GetOptHeaderValue(filesystem::kXEXHeaderEntryPoint) == 0x82000100u);
   const auto* exec =
-      image->OptHeader<filesystem::XEXOptExecutionInfo>(filesystem::kXEXHeaderExecutionInfo);
+      image->GetOptHeader<filesystem::XEXOptExecutionInfo>(filesystem::kXEXHeaderExecutionInfo);
   REQUIRE(exec);
   CHECK(static_cast<u32>(exec->title_id) == 0x4D5307E6u);
   CHECK(image->GetAlternateTitleIds() == std::vector<u32>{0x11111111, 0x22222222});
-  CHECK_FALSE(image->OptHeaderValue(filesystem::kXEXHeaderDefaultStackSize));
+  CHECK_FALSE(image->GetOptHeaderValue(filesystem::kXEXHeaderDefaultStackSize));
   CHECK(image->GetSecurity().load_address == 0x82000000u);
   REQUIRE(image->GetSecurity().pages.size() == 1);
   CHECK(image->GetSecurity().pages[0].type == filesystem::kXEXSectionCode);

@@ -564,7 +564,7 @@ class Command final : public VarBase {
  */
 inline bool IsSet(const VarBase& var) {
   auto* registry = var.GetRegistry();
-  return registry && registry->Source(var.GetDesc().name) != CvarSource::kDefault;
+  return registry && registry->GetSource(var.GetDesc().name) != CvarSource::kDefault;
 }
 
 /**

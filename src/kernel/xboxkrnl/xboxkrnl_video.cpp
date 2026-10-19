@@ -190,7 +190,7 @@ void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->refresh_rate = refresh_rate_hz;
   // video_standard 1 is NTSC.
   video_mode->video_standard = 1;
-  video_mode->unknown_0x8a = 0x4A;
+  video_mode->reserved_0 = 0x4A;
   video_mode->unknown_0x01 = 0x01;
 }
 

@@ -142,10 +142,10 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
 }
 
 u32 NtOpenFile_entry(MappedU32 handle_out, u32 desired_access,
-                     GuestPtrT<X_OBJECT_ATTRIBUTES> object_attributes,
+                     GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
                      GuestPtrT<X_IO_STATUS_BLOCK> io_status_block, u32 open_options) {
-  return NtCreateFile_entry(handle_out, desired_access, object_attributes, io_status_block, nullptr,
-                            0, 0, std::to_underlying(filesystem::Disposition::kOpen), open_options);
+  return NtCreateFile_entry(handle_out, desired_access, object_attrs, io_status_block, nullptr, 0,
+                            0, std::to_underlying(filesystem::Disposition::kOpen), open_options);
 }
 
 /**
@@ -393,8 +393,8 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
   return result;
 }
 
-u32 NtCreateIoCompletion_entry(MappedU32 out_handle, [[maybe_unused]] u32 desired_access,
-                               [[maybe_unused]] MappedVoid object_attribs,
+u32 NtCreateIoCompletion_entry(MappedU32 handle_out, [[maybe_unused]] u32 desired_access,
+                               [[maybe_unused]] MappedVoid object_attrs,
                                [[maybe_unused]] u32 num_concurrent_threads) {
   X_HANDLE handle = 0;
   auto added = runtime::GetCurrent().GetObjectTable().Emplace<IOCompletionObject>(AddOptions{});
@@ -402,8 +402,8 @@ u32 NtCreateIoCompletion_entry(MappedU32 out_handle, [[maybe_unused]] u32 desire
     handle = *added;
   }
   X_STATUS status = ToXStatus(added);
-  if (XSUCCEEDED(status) && out_handle) {
-    *out_handle = handle;
+  if (XSUCCEEDED(status) && handle_out) {
+    *handle_out = handle;
   }
 
   return status;
@@ -414,7 +414,7 @@ u32 NtSetIoCompletion_entry(u32 handle, u32 key_context, u32 apc_context, u32 co
   REX_KERNEL_LOOKUP(port, IOCompletionObject, handle);
 
   IONotification notification;
-  notification.key_context = key_context;
+  notification.key = key_context;
   notification.apc_context = apc_context;
   notification.num_bytes = num_bytes;
   notification.status = completion_status;
@@ -427,7 +427,7 @@ u32 NtSetIoCompletion_entry(u32 handle, u32 key_context, u32 apc_context, u32 co
  * Dequeues a packet from the completion port.
  *
  * @param handle The completion port handle.
- * @param key_context Receives the key context.
+ * @param key Receives the key context.
  * @param apc_context Receives the APC context.
  * @param io_status_block Receives the status and byte count.
  * @param timeout The wait timeout.
@@ -444,7 +444,7 @@ u32 NtRemoveIoCompletion_entry(u32 handle, MappedU32 key_context, MappedU32 apc_
   IONotification notification;
   if (port->Wait(timeout_ticks, &notification)) {
     if (key_context) {
-      *key_context = notification.key_context;
+      *key_context = notification.key;
     }
     if (apc_context) {
       *apc_context = notification.apc_context;
@@ -461,16 +461,16 @@ u32 NtRemoveIoCompletion_entry(u32 handle, MappedU32 key_context, MappedU32 apc_
   return status;
 }
 
-static Result<filesystem::FileInfo> StatRelative(filesystem::IFile& root, std::string_view path) {
+static Result<filesystem::FileStat> StatRelative(filesystem::IFile& root, std::string_view path) {
   REX_TRY(filesystem::Opened opened, runtime::GetCurrent().GetFileSystem()->OpenRelative(
                                          root, path, filesystem::OpenOptions{}));
   return opened.file->GetInfo();
 }
 
-u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> obj_attribs,
+u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
                                     GuestPtrT<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
   auto object_name =
-      runtime::GetCurrent().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(obj_attribs->name_ptr);
+      runtime::GetCurrent().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
   auto path_str = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name);
   REXLOG_TRACE(kernel,
                "NtQueryFullAttributesFile "
@@ -479,8 +479,9 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> obj_attribs,
 
   Pinned<FileObject> root_file;
   // 0xFFFFFFFD is ObDosDevices.
-  if (obj_attribs->root_directory != 0xFFFFFFFD && obj_attribs->root_directory != 0) {
-    root_file = runtime::GetCurrent().GetObjectTable().Get<FileObject>(obj_attribs->root_directory);
+  if (object_attrs->root_directory != 0xFFFFFFFD && object_attrs->root_directory != 0) {
+    root_file =
+        runtime::GetCurrent().GetObjectTable().Get<FileObject>(object_attrs->root_directory);
     if (!root_file) {
       return X_STATUS_INVALID_HANDLE;
     }
@@ -563,16 +564,16 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routin
   return result;
 }
 
-u32 NtFlushBuffersFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block_ptr) {
+u32 NtFlushBuffersFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block) {
   X_STATUS result = X_STATUS_INVALID_HANDLE;
   if (auto file = runtime::GetCurrent().GetObjectTable().Get<FileObject>(file_handle)) {
     auto flushed = file->file->Flush();
     result = flushed ? X_STATUS_SUCCESS : ToXStatus(flushed.error());
   }
 
-  if (io_status_block_ptr) {
-    io_status_block_ptr->status = result;
-    io_status_block_ptr->information = 0;
+  if (io_status_block) {
+    io_status_block->status = result;
+    io_status_block->information = 0;
   }
 
   return result;
@@ -580,7 +581,7 @@ u32 NtFlushBuffersFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_st
 
 u32 NtOpenSymbolicLinkObject_entry(MappedU32 handle_out,
                                    GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs) {
-  REX_KERNEL_ARG(object_attrs);
+  REX_KERNEL_REQUIRE_NONNULL(object_attrs);
   REX_ASSERT(handle_out != nullptr);
 
   // 64 is OBJ_CASE_INSENSITIVE.

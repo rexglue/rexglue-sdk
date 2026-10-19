@@ -242,7 +242,7 @@ std::vector<const ConsoleLine*> ConsoleModel::GetVisibleLines() const {
     if (line.level < min_level_ && line.category != "console") {
       continue;
     }
-    if (line.category != "console" && !GetShown(line.category)) {
+    if (line.category != "console" && !IsShown(line.category)) {
       continue;
     }
     out.push_back(&line);
@@ -250,7 +250,7 @@ std::vector<const ConsoleLine*> ConsoleModel::GetVisibleLines() const {
   return out;
 }
 
-bool ConsoleModel::GetShown(std::string_view category) const {
+bool ConsoleModel::IsShown(std::string_view category) const {
   return !hidden_.contains(category);
 }
 

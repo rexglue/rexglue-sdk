@@ -23,13 +23,13 @@ constexpr std::string_view kHarddisk = "\\Device\\Harddisk0";
 constexpr size_t kMaxLinkDepth = 64;
 
 Access ExpandAccess(Access access) {
-  if (HasFlags(access, Access::kGenericRead)) {
+  if (HasFlags(access, Access::kReadAccess)) {
     access |= Access::kReadData;
   }
-  if (HasFlags(access, Access::kGenericWrite)) {
+  if (HasFlags(access, Access::kWriteAccess)) {
     access |= Access::kWriteData;
   }
-  if (HasFlags(access, Access::kGenericAll)) {
+  if (HasFlags(access, Access::kAllAccess)) {
     access |= Access::kReadData | Access::kWriteData;
   }
   return access;
@@ -182,7 +182,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
       HasFlags(access, Access::kWriteData) || HasFlags(access, Access::kAppendData);
   if (wants_write && ((parent && parent->IsReadOnly()) || (node && node->IsReadOnly()))) {
     REXLOG_WARN(filesystem, "'{}' is read only, opening it for read", path);
-    access = Access::kGenericRead | Access::kReadData;
+    access = Access::kReadAccess | Access::kReadData;
   }
 
   auto replace = [&](OpenAction replaced) -> Result<OpenAction> {
@@ -360,7 +360,7 @@ Result<Opened> FileSystem::OpenRelative(IFile& root, std::string_view path,
   return OpenFrom(&file->GetNode(), path, options);
 }
 
-Result<FileInfo> FileSystem::Stat(std::string_view path) {
+Result<FileStat> FileSystem::Stat(std::string_view path) {
   std::lock_guard lock(mutex_);
   const auto mount_lock = LockMount(path);
   REX_TRY(Node * node, ResolveNode(path));
@@ -450,7 +450,7 @@ Result<void> FileSystem::Move(Node& node, std::string_view to, bool replace_exis
   return node.MoveTo(*parent, name, replace_existing);
 }
 
-Result<VolumeInfo> FileSystem::Volume(std::string_view path) {
+Result<VolumeStat> FileSystem::GetVolume(std::string_view path) {
   std::lock_guard lock(mutex_);
   REX_TRY(Resolved resolved, ResolveMount(path));
   return resolved.provider->GetVolume();

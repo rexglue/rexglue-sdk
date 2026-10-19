@@ -16,16 +16,16 @@
 namespace rex::filesystem {
 
 bool CanRead(Access access) {
-  return (access & (Access::kGenericRead | Access::kReadData)) != Access::kNone;
+  return (access & (Access::kReadAccess | Access::kReadData)) != Access::kNone;
 }
 
 bool CanWrite(Access access) {
-  return (access & (Access::kGenericWrite | Access::kWriteData | Access::kAppendData)) !=
+  return (access & (Access::kWriteAccess | Access::kWriteData | Access::kAppendData)) !=
          Access::kNone;
 }
 
 bool CanSetLength(Access access) {
-  return (access & (Access::kGenericWrite | Access::kWriteData)) != Access::kNone;
+  return (access & (Access::kWriteAccess | Access::kWriteData)) != Access::kNone;
 }
 
 Result<size_t> NodeStream::Write(std::span<const u8> buffer, u64 offset) {
@@ -66,7 +66,7 @@ void Node::SetDeleteOnClose(bool delete_on_close) {
   delete_on_close_ = delete_on_close;
 }
 
-FileInfo Node::GetInfo() const {
+FileStat Node::GetInfo() const {
   std::lock_guard lock(provider_->GetMutex());
   return info_;
 }

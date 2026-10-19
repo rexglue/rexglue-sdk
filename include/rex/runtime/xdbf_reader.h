@@ -73,13 +73,13 @@ class REX_RUNTIME_API XDBFReader {
   size_t data_size_ = 0;
   const u8* content_offset_ = nullptr;
 
-  const XbdfHeader* header_ = nullptr;
-  const XbdfEntry* entries_ = nullptr;
-  const XbdfFileLoc* files_ = nullptr;
+  const XDBFHeader* header_ = nullptr;
+  const XDBFEntry* entries_ = nullptr;
+  const XDBFFileLocation* files_ = nullptr;
 };
 
 /** Typed access to the title metadata of an XDBF database. */
-class REX_RUNTIME_API XDBFGameData : public XDBFReader {
+class REX_RUNTIME_API XDBFTitleData : public XDBFReader {
  public:
   /**
    * Constructs the accessor over a database.
@@ -87,7 +87,7 @@ class REX_RUNTIME_API XDBFGameData : public XDBFReader {
    * @param data The database bytes, which must outlive the accessor.
    * @param data_size Size in bytes.
    */
-  XDBFGameData(const u8* data, size_t data_size) : XDBFReader(data, data_size) {}
+  XDBFTitleData(const u8* data, size_t data_size) : XDBFReader(data, data_size) {}
 
   /**
    * Returns the given language when the database has it, else the default title language.
@@ -95,7 +95,7 @@ class REX_RUNTIME_API XDBFGameData : public XDBFReader {
    * @param language_to_check The language to look up.
    * @return The language to use.
    */
-  XLanguage GetExistingLanguage(XLanguage language_to_check) const;
+  XLanguage GetSupportedLanguage(XLanguage language_to_check) const;
 
   /**
    * Returns the title icon image.

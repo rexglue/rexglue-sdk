@@ -19,12 +19,12 @@
 
 namespace rex::ui {
 
-SettingsDialog::SettingsDialog(const ModuleOverlayContext& context)
+SettingsOverlayDialog::SettingsOverlayDialog(const ModuleOverlayContext& context)
     : ui_(context.base.ui),
       registry_(context.base.cvars),
       config_path_(context.base.config.paths.config_file) {}
 
-SettingsDialog::~SettingsDialog() {}
+SettingsOverlayDialog::~SettingsOverlayDialog() {}
 
 static void WarnIfFailed(std::string_view name, const Result<void>& status) {
   if (!status) {
@@ -161,7 +161,7 @@ static rex::hid::KeyModifiers HeldModifiers(const ImGuiIO& io) {
   return mods;
 }
 
-void SettingsDialog::OnDraw(ImGuiIO& io) {
+void SettingsOverlayDialog::OnDraw(ImGuiIO& io) {
   const std::vector<const rex::cvar::VarBase*> vars = registry_.Enumerate();
 
   std::set<std::string> category_set;
@@ -418,7 +418,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
       }
       ImGui::SameLine(240.0f);
 
-      ImGui::SetNextItemWidth(metrics.button_width_wide);
+      ImGui::SetNextItemWidth(metrics.value_width);
       if (desc.type == rex::cvar::Type::kBool) {
         bool v = rex::from_string<bool>(current_val, false);
         if (ImGui::Checkbox("##v", &v)) {
@@ -476,7 +476,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         }
       } else {
         char buf[256];
-        rex::copy_truncating(buf, current_val, sizeof(buf));
+        rex::CopyTruncating(buf, current_val, sizeof(buf));
         if (ImGui::InputText("##v", buf, sizeof(buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
           WarnIfFailed(desc.name, registry_.Set(desc.name, buf));
         }

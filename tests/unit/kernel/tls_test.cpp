@@ -20,9 +20,9 @@
 #include "runtime/guest_stack.h"
 
 using rex::u32;
-using rex::testing::Caller;
-using rex::testing::Join;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::Join;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -123,8 +123,8 @@ REX_TEST_CASE("The TLS data block is copied with a slot count of 0", "[kernel][t
     c.Store32(process + 0x28, 8);
     auto words = std::make_shared<std::vector<u32>>();
     Join(c, c.Spawn([words](Caller& t) {
-      const u32 data = t.Load32(t.GetCtx().r13.u32);
-      const u32 kthread = t.Load32(t.GetCtx().r13.u32 + 0x100);
+      const u32 data = t.Load32(t.GetContext().r13.u32);
+      const u32 kthread = t.Load32(t.GetContext().r13.u32 + 0x100);
       for (u32 offset = 0; offset < 16; offset += 4) {
         words->push_back(t.Load32(data + offset));
       }

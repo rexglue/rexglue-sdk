@@ -40,7 +40,7 @@ namespace {
 
 std::atomic<rex::Runtime*> g_seen_runtime{nullptr};
 
-void RecordCurrent(PPCContext& ctx, u8*) {
+void CaptureCurrent(PPCContext& ctx, u8*) {
   g_seen_runtime = &rex::runtime::GetCurrent();
   ctx.r3.u64 = 0;
 }
@@ -48,18 +48,18 @@ void RecordCurrent(PPCContext& ctx, u8*) {
 }  // namespace
 
 REX_TEST_CASE("Current returns the runtime on a guest thread", "[runtime][current]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::Runtime* seen = nullptr;
-  fixture.RunOnGuestThread([&](rex::testing::Caller&) { seen = &rex::runtime::GetCurrent(); });
+  fixture.RunOnGuestThread([&](rex::test::Caller&) { seen = &rex::runtime::GetCurrent(); });
   CHECK(seen == &fixture.GetRuntime());
 }
 
 REX_TEST_CASE("Current returns the runtime inside an interrupt callback", "[runtime][current]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   g_seen_runtime = nullptr;
-  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
     auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
-    const u32 callback = dispatcher->AllocateThunk(&RecordCurrent, 0);
+    const u32 callback = dispatcher->AllocateThunk(&CaptureCurrent, 0);
     CHECKED_ELSE(callback != 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -76,7 +76,7 @@ REX_TEST_CASE("Current returns the runtime inside an interrupt callback", "[runt
 }
 
 REX_TEST_CASE("A host thread with no thread state launches a worker thread", "[runtime][current]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   std::atomic<bool> ran{false};
   bool launched = false;
   std::jthread host([&] {
@@ -121,24 +121,24 @@ void CheckNoneServed(rex::API& api) {
 }  // namespace
 
 REX_TEST_CASE("The module serves the 7 interfaces of the active runtime", "[runtime][interfaces]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   CheckServed(fixture.GetAPI(), fixture.GetRuntime());
 }
 
 REX_TEST_CASE("The module serves no interface after Shutdown", "[runtime][interfaces]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   fixture.GetRuntime().Shutdown();
   CheckNoneServed(fixture.GetAPI());
 }
 
 REX_TEST_CASE("A second runtime in the same process is served", "[runtime][interfaces]") {
-  { rex::testing::KernelFixture first; }
-  rex::testing::KernelFixture second;
+  { rex::test::KernelFixture first; }
+  rex::test::KernelFixture second;
   CheckServed(second.GetAPI(), second.GetRuntime());
 }
 
 REX_TEST_CASE("Setup fails while another runtime is active", "[runtime][interfaces]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   rex::Runtime other(fixture.GetAPI().GetConfig());
   rex::RuntimeDesc config;
   config.tool_mode = true;
@@ -147,7 +147,7 @@ REX_TEST_CASE("Setup fails while another runtime is active", "[runtime][interfac
 }
 
 REX_TEST_CASE("GetProcessType reads what SetProcessType wrote", "[runtime][interfaces]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   fixture.GetRuntime().SetProcessType(rex::runtime::kXProcTypeSystem);
   CHECK(fixture.GetRuntime().GetProcessType() == rex::runtime::kXProcTypeSystem);
   fixture.GetRuntime().SetProcessType(rex::runtime::kXProcTypeUser);
@@ -156,8 +156,8 @@ REX_TEST_CASE("GetProcessType reads what SetProcessType wrote", "[runtime][inter
 
 REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
               "[runtime][interfaces]") {
-  rex::testing::KernelFixture fixture;
-  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
     const u32 address = c.Alloc(sizeof(rex::runtime::X_KEVENT));
     auto* event = c.GetRuntime().GetMemory()->TranslateVirtual<rex::runtime::X_KEVENT*>(address);
     std::memset(event, 0, sizeof(rex::runtime::X_KEVENT));
@@ -174,8 +174,8 @@ REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
 
 REX_TEST_CASE("ResolveHandle finds the newest object at a block after the older one is released",
               "[runtime][interfaces]") {
-  rex::testing::KernelFixture fixture;
-  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
     const u32 address = c.Alloc(sizeof(rex::runtime::X_KEVENT));
     auto& table = c.GetRuntime().GetObjectTable();
     auto older = table.Emplace<rex::runtime::EventObject>(
@@ -192,7 +192,7 @@ REX_TEST_CASE("ResolveHandle finds the newest object at a block after the older 
 
 REX_TEST_CASE("IsSetup holds only between a successful Setup and Shutdown",
               "[runtime][interfaces]") {
-  rex::testing::KernelFixture fixture;
+  rex::test::KernelFixture fixture;
   CHECK(fixture.GetRuntime().IsSetup());
   rex::Runtime other(fixture.GetAPI().GetConfig());
   rex::RuntimeDesc config;

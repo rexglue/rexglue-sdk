@@ -40,7 +40,7 @@ class AchievementIconCache {
    * @param achievement Achievement to load the icon for.
    * @return The icon texture, or null when none could be created.
    */
-  gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
+  gpu::OverlayTexture* GetIcon(const rex::runtime::Achievement& achievement);
 
  private:
   std::unique_ptr<gpu::OverlayTexture> CreateTextureFromBytes(const u8* data, size_t size);

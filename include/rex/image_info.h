@@ -59,7 +59,7 @@ struct PPCCodegenFlags {
 };
 
 /** PPC image layout passed from the generated config header into TitleApp::Init. */
-struct PPCImageInfo {
+struct PPCImage {
   u32 code_base;  /**< First guest address of the generated code, given to the function table. */
   u32 code_size;  /**< Size of the generated code in bytes. */
   u32 image_base; /**< Guest address the image loads at. */

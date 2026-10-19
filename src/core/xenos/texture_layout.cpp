@@ -159,12 +159,12 @@ bool GetPackedMipOffset(u32 width, u32 height, u32 depth, xenos::TextureFormat f
   return true;
 }
 
-TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
+GuestTextureLayout GetGuestTextureLayout(xenos::DataDimension dimension,
                                          u32 base_pitch_texels_div_32, u32 width_texels,
                                          u32 height_texels, u32 depth_or_array_size, bool is_tiled,
                                          xenos::TextureFormat format, bool has_packed_levels,
                                          bool has_base, u32 max_level) {
-  TextureGuestLayout layout;
+  GuestTextureLayout layout;
 
   if (dimension == xenos::DataDimension::k1D) {
     REX_ASSERT(!is_tiled);
@@ -232,7 +232,7 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
   for (u32 loop_level = has_base ? 0 : 1; loop_level <= loop_level_last; ++loop_level) {
     bool is_base = loop_level == 0;
     u32 level = (layout.packed_level == 0) ? 0 : loop_level;
-    TextureGuestLayout::Level& level_layout = is_base ? layout.base : layout.mips[level];
+    GuestTextureLayout::Level& level_layout = is_base ? layout.base : layout.mips[level];
 
     // Mip strides use power of 2 sizes aligned to 32x32x4 blocks, linear rows align to 256 bytes.
     u32 row_pitch_texels_unaligned;

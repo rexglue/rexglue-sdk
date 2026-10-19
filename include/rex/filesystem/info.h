@@ -43,7 +43,7 @@ enum class FileAttributes : u16 {
 };
 
 /** Information about a file or directory. */
-struct FileInfo {
+struct FileStat {
   std::string name;                                  /**< Last path component. */
   std::string path;                                  /**< Path relative to the mount. */
   std::string absolute_path;                         /**< Mount path joined with path. */
@@ -68,7 +68,7 @@ struct FileTimes {
 };
 
 /** Information about the volume a file resides on. */
-struct VolumeInfo {
+struct VolumeStat {
   std::string name;                    /**< Filesystem name titles see, such as STFS. */
   u32 attributes = 0;                  /**< NT filesystem attribute bits. */
   u32 component_name_max_length = 0;   /**< Longest path component the volume accepts. */

@@ -1,5 +1,5 @@
 /**
- * @file        tests/unit/crash_probe_recompiled_code.cpp
+ * @file        tests/unit/crash_child_recompiled_code.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -16,15 +16,15 @@
 #include <windows.h>
 #endif
 
-REX_RECOMPILED_CODE_SECTION extern "C" void ProbeFaultInRecompiledCode(volatile int* address) {
+REX_RECOMPILED_CODE_SECTION extern "C" void FaultInRecompiledCode(volatile int* address) {
   *address = 1;
 }
 
 namespace {
-void (*volatile g_fault_in_recompiled_code)(volatile int*) = &ProbeFaultInRecompiledCode;
+void (*volatile g_fault_in_recompiled_code)(volatile int*) = &FaultInRecompiledCode;
 }  // namespace
 
-REX_RECOMPILED_CODE_SECTION extern "C" int ProbeFaultInScope(volatile int* address) {
+REX_RECOMPILED_CODE_SECTION extern "C" int FaultInScope(volatile int* address) {
   int caught = 0;
   REX_SEH_TRY {
     *address = 1;
@@ -38,18 +38,18 @@ REX_RECOMPILED_CODE_SECTION extern "C" int ProbeFaultInScope(volatile int* addre
 
 namespace {
 
-void ProbeHostFrame(volatile int* address) {
+void CallFaultFromHostFrame(volatile int* address) {
 #if !REX_PLATFORM_WIN32
   const rex::platform::HostCallDepth depth;
 #endif
   g_fault_in_recompiled_code(address);
 }
 
-void (*volatile g_host_frame)(volatile int*) = &ProbeHostFrame;
+void (*volatile g_host_frame)(volatile int*) = &CallFaultFromHostFrame;
 
 }  // namespace
 
-REX_RECOMPILED_CODE_SECTION extern "C" int ProbeFaultBelowHostFrame(volatile int* address) {
+REX_RECOMPILED_CODE_SECTION extern "C" int FaultBelowHostFrame(volatile int* address) {
   int caught = 0;
   REX_SEH_TRY {
     g_host_frame(address);

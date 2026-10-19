@@ -35,8 +35,8 @@
 #include "pe/pe_image.h"
 #include "runtime/module_registry.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -180,7 +180,7 @@ void UnloadBoth(rex::Runtime& runtime, rex::X_HANDLE importer) {
 
 }  // namespace
 
-REX_TEST_CASE("imports: loading a module loads its exporter and patches the import slots",
+REX_TEST_CASE("loading a module loads its exporter and patches the import slots",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -206,7 +206,7 @@ REX_TEST_CASE("imports: loading a module loads its exporter and patches the impo
   });
 }
 
-REX_TEST_CASE("imports: the generated style call reaches the exporter function",
+REX_TEST_CASE("the generated style call reaches the exporter function",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -219,7 +219,7 @@ REX_TEST_CASE("imports: the generated style call reaches the exporter function",
   });
 }
 
-REX_TEST_CASE("imports: an indirect call through a function slot reaches the exporter function",
+REX_TEST_CASE("an indirect call through a function slot reaches the exporter function",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -232,8 +232,7 @@ REX_TEST_CASE("imports: an indirect call through a function slot reaches the exp
   });
 }
 
-REX_TEST_CASE("imports: a missing exporter fails the load with DLL not found",
-              "[runtime][module][import]") {
+REX_TEST_CASE("a missing exporter fails the load with DLL not found", "[runtime][module][import]") {
   KernelFixture fixture(PopulateWithoutExporter);
   fixture.RunOnGuestThread([](Caller& c) {
     auto& runtime = c.GetRuntime();
@@ -245,7 +244,7 @@ REX_TEST_CASE("imports: a missing exporter fails the load with DLL not found",
   });
 }
 
-REX_TEST_CASE("imports: an ordinal the exporter lacks fails the load with ordinal not found",
+REX_TEST_CASE("an ordinal the exporter lacks fails the load with ordinal not found",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateMissingOrdinal);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -262,7 +261,7 @@ REX_TEST_CASE("imports: an ordinal the exporter lacks fails the load with ordina
   });
 }
 
-REX_TEST_CASE("imports: the registry generation changes when a module loads or unloads",
+REX_TEST_CASE("the registry generation changes when a module loads or unloads",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -283,8 +282,7 @@ REX_TEST_CASE("imports: the registry generation changes when a module loads or u
   });
 }
 
-REX_TEST_CASE("imports: a failed load releases the exporter it loaded",
-              "[runtime][module][import]") {
+REX_TEST_CASE("a failed load releases the exporter it loaded", "[runtime][module][import]") {
   KernelFixture fixture(PopulateSecondLibraryMissing);
   fixture.RunOnGuestThread([](Caller& c) {
     auto& runtime = c.GetRuntime();
@@ -298,7 +296,7 @@ REX_TEST_CASE("imports: a failed load releases the exporter it loaded",
   });
 }
 
-REX_TEST_CASE("imports: unloading the importer unloads an exporter loaded for it",
+REX_TEST_CASE("unloading the importer unloads an exporter loaded for it",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -314,7 +312,7 @@ REX_TEST_CASE("imports: unloading the importer unloads an exporter loaded for it
   });
 }
 
-REX_TEST_CASE("imports: a codegen unload of the importer attempts no detach on its exporter",
+REX_TEST_CASE("a codegen unload of the importer attempts no detach on its exporter",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateDLLExporter);
   auto* logger = fixture.GetAPI().Get<rex::ILogger>();
@@ -339,7 +337,7 @@ REX_TEST_CASE("imports: a codegen unload of the importer attempts no detach on i
   }));
 }
 
-REX_TEST_CASE("imports: an exporter the title loaded stays loaded after the importer unloads",
+REX_TEST_CASE("an exporter the title loaded stays loaded after the importer unloads",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -357,9 +355,8 @@ REX_TEST_CASE("imports: an exporter the title loaded stays loaded after the impo
   });
 }
 
-REX_TEST_CASE(
-    "imports: a kernel function slot holds the thunk address and an indirect call reaches it",
-    "[runtime][module][import]") {
+REX_TEST_CASE("a kernel function slot holds the thunk address and an indirect call reaches it",
+              "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {
     auto& runtime = c.GetRuntime();
@@ -372,7 +369,7 @@ REX_TEST_CASE(
   });
 }
 
-REX_TEST_CASE("imports: a kernel import record patches the thunk address into its slot",
+REX_TEST_CASE("a kernel import record patches the thunk address into its slot",
               "[runtime][module][import]") {
   KernelFixture fixture(PopulateAll);
   fixture.RunOnGuestThread([](Caller& c) {

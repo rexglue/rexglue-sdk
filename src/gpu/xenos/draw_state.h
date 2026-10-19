@@ -229,7 +229,7 @@ REX_GPU_XENOS_API void GetPreferredFacePolygonOffset(const xenos::RegisterFile& 
                                                      bool primitive_polygonal, f32& scale_out,
                                                      f32& offset_out);
 
-inline bool DoesCoverageDependOnAlpha(xenos::reg::RB_COLORCONTROL rb_colorcontrol) {
+inline bool IsCoverageAlphaDependent(xenos::reg::RB_COLORCONTROL rb_colorcontrol) {
   return (rb_colorcontrol.alpha_test_enable &&
           rb_colorcontrol.alpha_func != xenos::CompareFunction::kAlways) ||
          rb_colorcontrol.alpha_to_mask_enable;
@@ -255,7 +255,7 @@ REX_GPU_XENOS_API bool IsPixelShaderNeededWithRasterization(const Shader& shader
                                                             const xenos::RegisterFile& regs,
                                                             bool include_memory_export = true);
 
-struct REX_GPU_XENOS_API ViewportInfo {
+struct REX_GPU_XENOS_API HostViewport {
   /**
    * Offset from render target UV = 0 to +UV.
    *
@@ -331,11 +331,13 @@ struct REX_GPU_XENOS_API ViewportInfo {
  * @param pixel_shader_writes_depth True when the pixel shader writes depth.
  * @param viewport_info_out Receives the host viewport.
  */
-REX_GPU_XENOS_API void GetHostViewportInfo(
-    const xenos::RegisterFile& regs, u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
-    bool origin_bottom_left, u32 x_max, u32 y_max, bool allow_reverse_z,
-    xenos::reg::RB_DEPTHCONTROL normalized_depth_control, bool convert_z_to_float24,
-    bool full_float24_in_0_to_1, bool pixel_shader_writes_depth, ViewportInfo& viewport_info_out);
+REX_GPU_XENOS_API void GetHostViewport(const xenos::RegisterFile& regs, u32 draw_resolution_scale_x,
+                                       u32 draw_resolution_scale_y, bool origin_bottom_left,
+                                       u32 x_max, u32 y_max, bool allow_reverse_z,
+                                       xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
+                                       bool convert_z_to_float24, bool full_float24_in_0_to_1,
+                                       bool pixel_shader_writes_depth,
+                                       HostViewport& viewport_info_out);
 
 struct REX_GPU_XENOS_API Scissor {
   /** Offset from render target UV = 0 to +UV. */
@@ -437,7 +439,7 @@ REX_GPU_XENOS_API xenos::CopySampleSelect SanitizeCopySampleSelect(
     xenos::CopySampleSelect copy_sample_select, xenos::MSAASamples msaa_samples, bool is_depth);
 
 /** Packed, small enough to be passed to the shaders in root and push constants. */
-union ResolveEDRAMInfo {
+union ResolveEDRAMLayout {
   u32 packed;
   struct {
     /** With 32bpp and 64bpp taken into account. */
@@ -454,11 +456,11 @@ union ResolveEDRAMInfo {
      */
     u32 fill_half_pixel_offset : 1;
   };
-  ResolveEDRAMInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
+  ResolveEDRAMLayout() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
 
 /** Packed, small enough to be passed to the shaders in root and push constants. */
-union ResolveCoordinateInfo {
+union ResolveCoordinates {
   u32 packed;
   struct {
     /** In pixels relative to the origin of the EDRAM base tile, 0...9 for 0...72. */
@@ -473,7 +475,7 @@ union ResolveCoordinateInfo {
     u32 draw_resolution_scale_x : 3;
     u32 draw_resolution_scale_y : 3;
   };
-  ResolveCoordinateInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
+  ResolveCoordinates() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
 
 /**
@@ -490,12 +492,12 @@ union ResolveCoordinateInfo {
  * @param row_length_used_out Receives the width of the area in tiles.
  * @param rows_out Receives the height of the area in tiles.
  */
-REX_GPU_XENOS_API void GetResolveEDRAMTileSpan(ResolveEDRAMInfo edram_info,
-                                               ResolveCoordinateInfo coordinate_info,
-                                               u32 height_div_8, u32& base_out,
-                                               u32& row_length_used_out, u32& rows_out);
+REX_GPU_XENOS_API void GetResolveEDRAMTileSpan(ResolveEDRAMLayout edram_info,
+                                               ResolveCoordinates coordinate_info, u32 height_div_8,
+                                               u32& base_out, u32& row_length_used_out,
+                                               u32& rows_out);
 
-union ResolveCopyDestCoordinateInfo {
+union ResolveCopyDestCoordinates {
   u32 packed;
   struct {
     /** 0...16384/32. */
@@ -510,7 +512,7 @@ union ResolveCopyDestCoordinateInfo {
 
     xenos::CopySampleSelect copy_sample_select : 3;
   };
-  ResolveCopyDestCoordinateInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
+  ResolveCopyDestCoordinates() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
 
 /** Host shaders for copying in resolve operations on backends with Shader Model 5 like compute. */
@@ -530,7 +532,7 @@ enum class ResolveCopyShaderIndex : u8 {
   kUnknown = kCount,
 };
 
-struct REX_GPU_XENOS_API ResolveCopyShaderInfo {
+struct REX_GPU_XENOS_API ResolveCopyShaderTraits {
   /** Debug name of the pipeline state object with this shader. */
   const char* debug_name;
   /**
@@ -551,7 +553,7 @@ struct REX_GPU_XENOS_API ResolveCopyShaderInfo {
   u32 group_size_x_log2, group_size_y_log2;
 };
 
-REX_GPU_XENOS_API extern const ResolveCopyShaderInfo
+REX_GPU_XENOS_API extern const ResolveCopyShaderTraits
     kResolveCopyShaderInfo[static_cast<size_t>(ResolveCopyShaderIndex::kCount)];
 
 struct REX_GPU_XENOS_API ResolveCopyShaderConstants {
@@ -560,10 +562,10 @@ struct REX_GPU_XENOS_API ResolveCopyShaderConstants {
    * only this part may be passed to the shader to use fewer constants.
    */
   struct DestRelative {
-    ResolveEDRAMInfo edram_info;
-    ResolveCoordinateInfo coordinate_info;
+    ResolveEDRAMLayout edram_info;
+    ResolveCoordinates coordinate_info;
     xenos::reg::RB_COPY_DEST_INFO dest_info;
-    ResolveCopyDestCoordinateInfo dest_coordinate_info;
+    ResolveCopyDestCoordinates dest_coordinate_info;
   };
   DestRelative dest_relative;
   u32 dest_base;
@@ -576,25 +578,25 @@ struct REX_GPU_XENOS_API ResolveClearShaderConstants {
    */
   struct RenderTargetSpecific {
     u32 clear_value[2];
-    ResolveEDRAMInfo edram_info;
+    ResolveEDRAMLayout edram_info;
   };
   RenderTargetSpecific rt_specific;
-  ResolveCoordinateInfo coordinate_info;
+  ResolveCoordinates coordinate_info;
 };
 
-struct REX_GPU_XENOS_API ResolveInfo {
+struct REX_GPU_XENOS_API ResolveRequest {
   xenos::reg::RB_COPY_CONTROL rb_copy_control;
 
   /**
    * Set up when copying or clearing depth, along with depth_original_base, according to
    * RB_COPY_CONTROL.
    */
-  ResolveEDRAMInfo depth_edram_info;
+  ResolveEDRAMLayout depth_edram_info;
   /**
    * Set up when copying or clearing color, along with color_original_base, according to
    * RB_COPY_CONTROL.
    */
-  ResolveEDRAMInfo color_edram_info;
+  ResolveEDRAMLayout color_edram_info;
   /**
    * Original bases, without adjustment to a 160x32 region for packed offsets, used to locate host
    * render targets for clears when they emulate EDRAM. They equal the base the render target
@@ -604,7 +606,7 @@ struct REX_GPU_XENOS_API ResolveInfo {
   u32 depth_original_base;
   u32 color_original_base;
 
-  ResolveCoordinateInfo coordinate_info;
+  ResolveCoordinates coordinate_info;
   /**
    * Like coordinate_info.width_div_8 but not needed for shaders. In pixels. May be 0 for a
    * malformed original rectangle, and the resolve must be dropped.
@@ -612,7 +614,7 @@ struct REX_GPU_XENOS_API ResolveInfo {
   u32 height_div_8;
 
   xenos::reg::RB_COPY_DEST_INFO copy_dest_info;
-  ResolveCopyDestCoordinateInfo copy_dest_coordinate_info;
+  ResolveCopyDestCoordinates copy_dest_coordinate_info;
 
   /**
    * Address of the texture or the location within it that the offset_x/y_div_8 of
@@ -645,7 +647,7 @@ struct REX_GPU_XENOS_API ResolveInfo {
    */
   void GetCopyEDRAMTileSpan(u32& base_out, u32& row_length_used_out, u32& rows_out,
                             u32& pitch_out) const {
-    ResolveEDRAMInfo edram_info = IsCopyingDepth() ? depth_edram_info : color_edram_info;
+    ResolveEDRAMLayout edram_info = IsCopyingDepth() ? depth_edram_info : color_edram_info;
     GetResolveEDRAMTileSpan(edram_info, coordinate_info, height_div_8, base_out,
                             row_length_used_out, rows_out);
     pitch_out = edram_info.pitch_tiles;
@@ -742,6 +744,6 @@ REX_GPU_XENOS_API bool GetResolveInfo(const xenos::RegisterFile& regs,
                                       u32 draw_resolution_scale_y,
                                       bool fixed_rg16_truncated_to_minus_1_to_1,
                                       bool fixed_rgba16_truncated_to_minus_1_to_1,
-                                      ResolveInfo& info_out);
+                                      ResolveRequest& info_out);
 
 }  // namespace rex::gpu::draw_state

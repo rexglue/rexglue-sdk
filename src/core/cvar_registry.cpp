@@ -25,7 +25,7 @@ using cvar::CvarSource;
 using cvar::VarBase;
 using E = cvar::CvarError;
 
-bool ValidName(std::string_view name, std::string_view scope) {
+bool IsValidName(std::string_view name, std::string_view scope) {
   return cvar::IsName(name) && name.substr(0, name.find('.')) == scope;
 }
 
@@ -88,7 +88,7 @@ const CvarRegistryImpl::Entry* CvarRegistryImpl::FindEntry(std::string_view name
   return it == index_.end() ? nullptr : &entries_[it->second];
 }
 
-std::string_view CvarRegistryImpl::DefaultOf(const Entry& entry) const {
+std::string_view CvarRegistryImpl::GetDefault(const Entry& entry) const {
   return entry.has_default_override ? std::string_view(entry.default_override)
                                     : entry.var->GetDefaultText();
 }
@@ -106,7 +106,7 @@ Result<void> CvarRegistryImpl::Register(std::string_view scope,
   }
   for (size_t i = 0; i < vars.size(); ++i) {
     const auto& d = vars[i]->GetDesc();
-    if (!ValidName(d.name, scope)) {
+    if (!IsValidName(d.name, scope)) {
       return Err(BuildError(
           E::kBadName,
           std::format("cvar '{}' is not '{}.leaf' in lowercase [a-z0-9_]", d.name, scope)));
@@ -145,7 +145,7 @@ Result<void> CvarRegistryImpl::Add(std::span<const VarBase* const> vars) {
         return Err(BuildError(E::kBadName,
                               std::format("cvar '{}' names a scope that is not reserved", d.name)));
       }
-      if (!ValidName(d.name, d.scope)) {
+      if (!IsValidName(d.name, d.scope)) {
         return Err(
             BuildError(E::kBadName,
                        std::format("cvar '{}' is not scope.leaf in lowercase [a-z0-9_]", d.name)));
@@ -367,7 +367,7 @@ Result<void> CvarRegistryImpl::ResetToDefault(std::string_view name) {
     Entry* entry = FindEntry(name);
     if (!entry)
       return Err(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
-    std::string value(DefaultOf(*entry));
+    std::string value(GetDefault(*entry));
     REX_TRY_VOID(Apply(*entry, value, CvarSource::kDefault, fired));
   }
   Fire(fired);
@@ -384,7 +384,7 @@ std::optional<std::reference_wrapper<const VarBase>> CvarRegistryImpl::Find(
   return std::cref(*entry->var);
 }
 
-CvarSource CvarRegistryImpl::Source(std::string_view name) const {
+CvarSource CvarRegistryImpl::GetSource(std::string_view name) const {
   std::lock_guard lock(mutex_);
   const Entry* entry = FindEntry(name);
   return entry ? entry->source : CvarSource::kDefault;
@@ -453,7 +453,7 @@ std::string CvarRegistryImpl::Serialize() const {
     if (d.no_save)
       continue;
     std::string value = e.var->Render();
-    if (value == DefaultOf(e))
+    if (value == GetDefault(e))
       continue;
     std::string_view leaf = d.name.substr(d.name.find('.') + 1);
     std::string rendered = d.type == cvar::Type::kString ? EscapeTOML(value) : value;

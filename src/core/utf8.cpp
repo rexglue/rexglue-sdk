@@ -143,7 +143,7 @@ void EncodeUTF16(char32_t code_point, std::u16string& out) {
   out.push_back(static_cast<char16_t>(0xDC00 + (code_point & 0x3FF)));
 }
 
-class CodepointIterator {
+class CodePointIterator {
  public:
   using iterator_category = std::bidirectional_iterator_tag;
   using value_type = u32;
@@ -151,8 +151,8 @@ class CodepointIterator {
   using pointer = void;
   using reference = u32;
 
-  CodepointIterator() = default;
-  CodepointIterator(const char* position, const char* range_begin, const char* range_end)
+  CodePointIterator() = default;
+  CodePointIterator(const char* position, const char* range_begin, const char* range_end)
       : position_(position), range_begin_(range_begin), range_end_(range_end) {}
 
   [[nodiscard]] const char* Base() const { return position_; }
@@ -162,35 +162,35 @@ class CodepointIterator {
     return DecodeUTF8(it, range_end_);
   }
 
-  CodepointIterator& operator++() {
+  CodePointIterator& operator++() {
     DecodeUTF8(position_, range_end_);
     return *this;
   }
 
-  CodepointIterator operator++(int) {
-    CodepointIterator previous = *this;
+  CodePointIterator operator++(int) {
+    CodePointIterator previous = *this;
     ++*this;
     return previous;
   }
 
-  CodepointIterator& operator--() {
+  CodePointIterator& operator--() {
     const char* start = position_ - 1;
     for (u32 i = 0; i < 3 && start > range_begin_ && IsContinuation(*start); ++i) {
       --start;
     }
-    const char* probe = start;
-    DecodeUTF8(probe, range_end_);
-    position_ = probe == position_ ? start : position_ - 1;
+    const char* decoded_end = start;
+    DecodeUTF8(decoded_end, range_end_);
+    position_ = decoded_end == position_ ? start : position_ - 1;
     return *this;
   }
 
-  CodepointIterator operator--(int) {
-    CodepointIterator previous = *this;
+  CodePointIterator operator--(int) {
+    CodePointIterator previous = *this;
     --*this;
     return previous;
   }
 
-  bool operator==(const CodepointIterator& other) const { return position_ == other.position_; }
+  bool operator==(const CodePointIterator& other) const { return position_ == other.position_; }
 
  private:
   const char* position_ = nullptr;
@@ -279,19 +279,19 @@ bool EqualASCIICase(const u32 l, const u32 r) {
   return l == r || LowerASCII(l) == LowerASCII(r);
 }
 
-std::pair<CodepointIterator, CodepointIterator> BuildIterators(const std::string_view view) {
+std::pair<CodePointIterator, CodePointIterator> BuildIterators(const std::string_view view) {
   const char* first = view.data();
   const char* last = first + view.size();
-  return {CodepointIterator(first, first, last), CodepointIterator(last, first, last)};
+  return {CodePointIterator(first, first, last), CodePointIterator(last, first, last)};
 }
 
-std::pair<CodepointIterator, CodepointIterator> BuildIterators(const CodepointIterator begin,
-                                                               const CodepointIterator end) {
-  return {CodepointIterator(begin.Base(), begin.Base(), end.Base()),
-          CodepointIterator(end.Base(), begin.Base(), end.Base())};
+std::pair<CodePointIterator, CodePointIterator> BuildIterators(const CodePointIterator begin,
+                                                               const CodePointIterator end) {
+  return {CodePointIterator(begin.Base(), begin.Base(), end.Base()),
+          CodePointIterator(end.Base(), begin.Base(), end.Base())};
 }
 
-size_t ByteLength(CodepointIterator begin, CodepointIterator end) {
+size_t ByteLength(CodePointIterator begin, CodePointIterator end) {
   return static_cast<size_t>(std::distance(begin.Base(), end.Base()));
 }
 }  // namespace
@@ -356,8 +356,8 @@ size_t utf8_hash_fnv1a_case(const std::string_view view) {
 }
 
 namespace {
-inline CodepointIterator FindNeedle(CodepointIterator haystack_it, CodepointIterator haystack_end,
-                                    CodepointIterator needle_begin, CodepointIterator needle_end) {
+inline CodePointIterator FindNeedle(CodePointIterator haystack_it, CodePointIterator haystack_end,
+                                    CodePointIterator needle_begin, CodePointIterator needle_end) {
   return std::find_if(haystack_it, haystack_end, [&](const auto& c) {
     for (auto needle = needle_begin; needle != needle_end; ++needle) {
       if (c == *needle) {
@@ -368,10 +368,10 @@ inline CodepointIterator FindNeedle(CodepointIterator haystack_it, CodepointIter
   });
 }
 
-inline CodepointIterator FindNeedleCase(CodepointIterator haystack_it,
-                                        CodepointIterator haystack_end,
-                                        CodepointIterator needle_begin,
-                                        CodepointIterator needle_end) {
+inline CodePointIterator FindNeedleCase(CodePointIterator haystack_it,
+                                        CodePointIterator haystack_end,
+                                        CodePointIterator needle_begin,
+                                        CodePointIterator needle_end) {
   return std::find_if(haystack_it, haystack_end, [&](const auto& c) {
     for (auto needle = needle_begin; needle != needle_end; ++needle) {
       if (EqualASCIICase(c, *needle)) {
@@ -700,7 +700,7 @@ std::string utf8_join_paths(const std::string_view left_path, const std::string_
     return std::string(left_path);
   }
 
-  CodepointIterator it;
+  CodePointIterator it;
   std::tie(std::ignore, it) = BuildIterators(left_path);
   --it;
 

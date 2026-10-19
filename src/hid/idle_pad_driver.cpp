@@ -12,8 +12,8 @@ rex::Error NotTheIdlePad() {
 
 }  // namespace
 
-void IdlePadDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
-  DeviceInfo info;
+void IdlePadDriver::EnumerateDevices(std::vector<Device>& out) {
+  Device info;
   info.id = kIdleDevice;
   info.name = "None";
   info.synthetic = true;

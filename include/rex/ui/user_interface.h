@@ -26,7 +26,7 @@
 #include <rex/ui/overlay.h>
 #include <rex/ui/style.h>
 #include <rex/ui/ui_event.h>
-#include <rex/ui/display_mode.h>
+#include <rex/ui/video_mode.h>
 #include <rex/move_only_function.h>
 #include <rex/module.h>
 
@@ -90,7 +90,7 @@ struct PromptDesc {
 /** How a prompt ended. */
 struct PromptResult {
   /** True when no button completed the prompt. */
-  bool cancelled = true;
+  bool canceled = true;
   /** Index of the pressed button. */
   u32 button = 0;
   /** Text of the field when the prompt had one. */
@@ -126,7 +126,7 @@ struct FileDialogDesc {
 };
 
 /** One connected display. */
-struct DisplayInfo {
+struct Monitor {
   /** Index to pass to IWindow::SetMonitor. */
   i32 index = 0;
   /** Name the system gives the display. */
@@ -232,7 +232,7 @@ REX_INTERFACE(IWindow)
   /**
    * Moves the window to a display. Runs on the UI thread.
    *
-   * @param monitor Display index from DisplayInfo.
+   * @param monitor Display index from Monitor.
    */
   virtual void SetMonitor(i32 monitor) = 0;
 
@@ -324,7 +324,7 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
   virtual bool PumpFrame() = 0;
 
   /** Ends the frame loop. Callable from any thread. */
-  virtual void Quit() = 0;
+  virtual void EndFrameLoop() = 0;
 
   /**
    * Reports whether the caller is on the UI thread. Callable from any thread.
@@ -408,7 +408,7 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
    * @param name Overlay name.
    * @return The overlay, or null when the name is unknown.
    */
-  virtual ImGuiDialog* Overlay(std::string_view name) = 0;
+  virtual ImGuiDialog* GetOverlay(std::string_view name) = 0;
 
   /**
    * Reports whether any overlay is shown. Runs on the UI thread.
@@ -532,7 +532,7 @@ REX_INTERFACE(IUserInterface, "rex.ui", 1)
    *
    * @return The displays, empty when the provider has none.
    */
-  virtual std::vector<DisplayInfo> GetDisplays() = 0;
+  virtual std::vector<Monitor> GetDisplays() = 0;
 
   /**
    * Lists the preferred locales of the user, most preferred first. Callable from any thread.

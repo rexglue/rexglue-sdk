@@ -42,7 +42,7 @@ u32 WorkspaceHeap::GetSize() const {
   return allocator_->GetSize();
 }
 
-Result<u32> WorkspaceHeap::Alloc(u32 size) {
+Result<u32> WorkspaceHeap::Allocate(u32 size) {
   size = std::max(size, 1u);
   void* block = allocator_->Allocate(size);
   if (!block) {

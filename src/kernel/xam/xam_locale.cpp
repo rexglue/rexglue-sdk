@@ -26,7 +26,7 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-u32 XGetGameRegion();
+u32 GetGameRegion();
 }  // namespace xam
 }  // namespace kernel
 }  // namespace rex
@@ -179,7 +179,7 @@ u8 XamGetLocaleEx(u8 max_country_id, u8 max_locale_id) {
   }
 
   // Locale ids are 20 JP, 21 KR, 35 GB and 36 US.
-  auto game_region = XGetGameRegion();
+  auto game_region = GetGameRegion();
   auto region = static_cast<u8>((game_region & 0xFF00u) >> 8);
   if (region == 1) {
     return game_region == 0x101 ? 20 : 21;

@@ -153,7 +153,7 @@ const void* XEXImage::FindOptHeader(XEXHeaderKey key) const {
   }
 }
 
-std::optional<u32> XEXImage::OptHeaderValue(XEXHeaderKey key) const {
+std::optional<u32> XEXImage::GetOptHeaderValue(XEXHeaderKey key) const {
   if ((key & 0xFF) > 0x01) {
     return std::nullopt;
   }
@@ -174,7 +174,7 @@ std::span<const XEXImportLibrary> XEXImage::GetImports() const {
 
 std::vector<u32> XEXImage::GetAlternateTitleIds() const {
   std::vector<u32> ids;
-  const auto* list = OptHeader<XEXOptGenericU32>(kXEXHeaderAlternateTitleIds);
+  const auto* list = GetOptHeader<XEXOptU32Words>(kXEXHeaderAlternateTitleIds);
   if (!list) {
     return ids;
   }
@@ -249,7 +249,7 @@ Result<void> XEXImage::ReadSecurityInfo() {
 
 Result<void> XEXImage::ReadImports() {
   imports_.clear();
-  const auto* libraries = OptHeader<XEXOptImportLibraries>(kXEXHeaderImportLibraries);
+  const auto* libraries = GetOptHeader<XEXOptImportLibraries>(kXEXHeaderImportLibraries);
   if (!libraries) {
     return Ok();
   }
@@ -311,7 +311,7 @@ Result<void> XEXImage::Decode(std::span<const u8> file, std::span<u8> image) {
   if (IsPatch()) {
     return FormatError<void>("An XEX patch has no image to decode");
   }
-  const auto* format = OptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
+  const auto* format = GetOptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
   if (!format) {
     return FormatError<void>("XEX has no file format header");
   }
@@ -455,8 +455,8 @@ Result<XEXImage> XEXImage::ApplyHeaderDelta(const XEXImage& patch) const {
     return FormatError<XEXImage>("XEX is not a patch");
   }
   const auto* descriptor =
-      patch.OptHeader<XEXOptDeltaPatchDescriptor>(kXEXHeaderDeltaPatchDescriptor);
-  const auto* format = patch.OptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
+      patch.GetOptHeader<XEXOptDeltaPatchDescriptor>(kXEXHeaderDeltaPatchDescriptor);
+  const auto* format = patch.GetOptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
   if (!descriptor || !format) {
     return FormatError<XEXImage>("XEX patch has no delta descriptor");
   }
@@ -513,8 +513,8 @@ Result<XEXImage> XEXImage::ApplyHeaderDelta(const XEXImage& patch) const {
 
 Result<void> XEXImage::ApplyImageDelta(const XEXImage& patch, std::span<u8> image) const {
   const auto* descriptor =
-      patch.OptHeader<XEXOptDeltaPatchDescriptor>(kXEXHeaderDeltaPatchDescriptor);
-  const auto* format = patch.OptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
+      patch.GetOptHeader<XEXOptDeltaPatchDescriptor>(kXEXHeaderDeltaPatchDescriptor);
+  const auto* format = patch.GetOptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
   if (!descriptor || !format) {
     return FormatError<void>("XEX patch has no delta descriptor");
   }

@@ -115,27 +115,27 @@ __asm__(
 namespace rex::platform {
 
 #if REX_PLATFORM_ANDROID
-static void* android_libc_;
+static void* g_android_libc;
 // API 26+.
-static int (*android_pthread_getname_np_)(pthread_t pthread, char* buf, size_t n);
+static int (*g_android_pthread_getname_np)(pthread_t pthread, char* buf, size_t n);
 
 void AndroidInitialize() {
   if (rex::GetAndroidAPILevel() >= 26) {
-    android_libc_ = dlopen("libc.so", RTLD_NOW);
-    REX_ASSERT(android_libc_ != nullptr);
-    if (android_libc_) {
-      android_pthread_getname_np_ = reinterpret_cast<decltype(android_pthread_getname_np_)>(
-          dlsym(android_libc_, "pthread_getname_np"));
-      REX_ASSERT(android_pthread_getname_np_ != nullptr);
+    g_android_libc = dlopen("libc.so", RTLD_NOW);
+    REX_ASSERT(g_android_libc != nullptr);
+    if (g_android_libc) {
+      g_android_pthread_getname_np = reinterpret_cast<decltype(g_android_pthread_getname_np)>(
+          dlsym(g_android_libc, "pthread_getname_np"));
+      REX_ASSERT(g_android_pthread_getname_np != nullptr);
     }
   }
 }
 
 void AndroidShutdown() {
-  android_pthread_getname_np_ = nullptr;
-  if (android_libc_) {
-    dlclose(android_libc_);
-    android_libc_ = nullptr;
+  g_android_pthread_getname_np = nullptr;
+  if (g_android_libc) {
+    dlclose(g_android_libc);
+    g_android_libc = nullptr;
   }
 }
 #endif
@@ -225,15 +225,15 @@ SignalType GetSystemSignalType(int num) {
 #endif
 }
 
-std::array<std::atomic<bool>, static_cast<size_t>(SignalType::kCount)> signal_handler_installed =
+std::array<std::atomic<bool>, static_cast<size_t>(SignalType::kCount)> g_signal_handler_installed =
     {};
 
 static void SignalHandler(int signal, siginfo_t* info, void* context);
 
 void InstallSignalHandler(SignalType type) {
   bool expected = false;
-  if (!signal_handler_installed[static_cast<size_t>(type)].compare_exchange_strong(expected,
-                                                                                   true)) {
+  if (!g_signal_handler_installed[static_cast<size_t>(type)].compare_exchange_strong(expected,
+                                                                                     true)) {
     return;
   }
   struct sigaction action{};
@@ -241,13 +241,13 @@ void InstallSignalHandler(SignalType type) {
   action.sa_sigaction = SignalHandler;
   sigemptyset(&action.sa_mask);
   if (sigaction(GetSystemSignal(type), &action, nullptr) != 0) {
-    signal_handler_installed[static_cast<size_t>(type)] = false;
+    g_signal_handler_installed[static_cast<size_t>(type)] = false;
   }
 }
 
-void EnableAffinityConfiguration() {}
+void WidenProcessAffinity() {}
 
-u32 CurrentThreadSystemId() {
+u32 GetCallerSystemThreadID() {
 #if defined(__APPLE__)
   return static_cast<u32>(pthread_mach_thread_np(pthread_self()));
 #else
@@ -276,7 +276,7 @@ void Sleep(std::chrono::microseconds duration) {
   } while (ret == -1 && errno == EINTR);
 }
 
-std::chrono::milliseconds QueryCurrentThreadCPUTime() {
+std::chrono::milliseconds GetCurrentThreadCPUTime() {
 #if REX_PLATFORM_MAC
   thread_basic_info_data_t info{};
   mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -335,7 +335,7 @@ class Waiter {
    *
    * @return The change count.
    */
-  u64 Sequence() {
+  u64 GetSequence() {
     std::lock_guard<std::mutex> lock(mutex_);
     return sequence_;
   }
@@ -363,20 +363,20 @@ class Waiter {
 };
 
 Waiter& CurrentWaiter(bool alertable);
-thread_local bool alertable_state = false;
+thread_local bool g_alertable_state = false;
 bool DispatchCurrentThreadUserCallback();
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
-  alertable_state = true;
+  g_alertable_state = true;
   const auto deadline = std::chrono::steady_clock::now() + duration;
   Waiter& waiter = CurrentWaiter(true);
   while (true) {
-    const u64 seen = waiter.Sequence();
+    const u64 seen = waiter.GetSequence();
     if (DispatchCurrentThreadUserCallback()) {
-      alertable_state = false;
+      g_alertable_state = false;
       return SleepResult::kAlerted;
     }
     if (DeadlinePassed(deadline)) {
-      alertable_state = false;
+      g_alertable_state = false;
       return SleepResult::kSuccess;
     }
     waiter.WaitChange(seen, deadline);
@@ -414,7 +414,7 @@ bool SetTLSValue(TLSHandle handle, uintptr_t value) {
  *
  * @return The semaphore, or SEM_FAILED.
  */
-static sem_t* RexCreateAnonymousSemaphore() {
+static sem_t* CreateAnonymousSemaphore() {
   static std::atomic<u64> counter{0};
   char name[64];
   std::snprintf(name, sizeof(name), "/rexsusp_%d_%llu", static_cast<int>(getpid()),
@@ -510,7 +510,7 @@ class PosixConditionBase {
     order.erase(std::ranges::unique(order).begin(), order.end());
     WaitRegistration registration(waiter, order);
     while (true) {
-      const u64 seen = waiter.Sequence();
+      const u64 seen = waiter.GetSequence();
       if (alertable && CurrentThreadHasUserCallback()) {
         registration.Release();
         DispatchCurrentThreadUserCallback();
@@ -683,7 +683,7 @@ class PosixCondition<Event> : public PosixConditionBase {
    *
    * @return The descriptor, or -1 when it cannot be created.
    */
-  int PollFD() {
+  int GetPollFD() {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     if (poll_read_ != -1) {
       return poll_read_;
@@ -959,7 +959,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
   const bool manual_reset_;
 };
 
-struct ThreadStartData {
+struct ThreadStartArgs {
   rex::MoveOnlyFunction<void()> start_routine;
   bool create_suspended;
   Thread* thread_obj;
@@ -982,7 +982,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         state_(State::kUninitialized),
         suspend_count_(0) {
 #if defined(__APPLE__)
-    suspend_sem_ = RexCreateAnonymousSemaphore();
+    suspend_sem_ = CreateAnonymousSemaphore();
 #else
     sem_init(&suspend_sem_, 0, 0);
 #endif
@@ -990,7 +990,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     android_pre_api_26_name_[0] = '\0';
 #endif
   }
-  bool Initialize(Thread::CreationParameters params, std::unique_ptr<ThreadStartData> start_data) {
+  bool Initialize(Thread::CreationParameters params, std::unique_ptr<ThreadStartArgs> start_data) {
     start_data->create_suspended = params.create_suspended;
     pthread_attr_t attr;
     if (pthread_attr_init(&attr) != 0)
@@ -1011,7 +1011,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         return false;
       }
     }
-    ThreadStartData* const start = start_data.release();
+    ThreadStartArgs* const start = start_data.release();
     if (pthread_create(&thread_, &attr, ThreadStartRoutine, start) != 0) {
       start_data.reset(start);
       pthread_attr_destroy(&attr);
@@ -1034,7 +1034,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         state_(State::kRunning),
         suspend_count_(0) {
 #if defined(__APPLE__)
-    suspend_sem_ = RexCreateAnonymousSemaphore();
+    suspend_sem_ = CreateAnonymousSemaphore();
 #else
     sem_init(&suspend_sem_, 0, 0);
 #endif
@@ -1069,8 +1069,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
 #if REX_PLATFORM_ANDROID
       // Below API 26 pthread_getname_np is absent, so the name is stored in this object.
-      if (android_pthread_getname_np_) {
-        if (android_pthread_getname_np_(thread_, result.data(), result.size() - 1) != 0) {
+      if (g_android_pthread_getname_np) {
+        if (g_android_pthread_getname_np(thread_, result.data(), result.size() - 1) != 0) {
           REX_ASSERT_ALWAYS();
         }
       } else {
@@ -1106,7 +1106,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
 #if REX_PLATFORM_ANDROID
   void SetAndroidPreAPI26Name(const std::string_view name) {
-    if (android_pthread_getname_np_) {
+    if (g_android_pthread_getname_np) {
       return;
     }
     std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
@@ -1124,7 +1124,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS has no pthread affinity masks, so every logical processor is reported.
-    auto cpu_count = std::min<u32>(LogicalProcessorCount(), 64);
+    auto cpu_count = std::min<u32>(GetLogicalProcessorCount(), 64);
     if (cpu_count == 64) {
       return std::numeric_limits<u64>::max();
     }
@@ -1226,7 +1226,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     // Alertable waits drain the queue on the current thread, so no self signal is sent.
     if (pthread_equal(thread_, pthread_self())) {
       lock.unlock();
-      if (alertable_state) {
+      if (g_alertable_state) {
         DispatchQueuedUserCallbacks();
       }
       return;
@@ -1590,13 +1590,13 @@ class PosixWaitHandle {
 
 PosixWaitHandle::~PosixWaitHandle() = default;
 
-thread_local PosixCondition<Thread>* current_thread_condition = nullptr;
+thread_local PosixCondition<Thread>* g_current_thread_condition = nullptr;
 
 bool DispatchCurrentThreadUserCallback() {
-  if (!current_thread_condition) {
+  if (!g_current_thread_condition) {
     Thread::GetCurrentThread();
   }
-  return current_thread_condition && current_thread_condition->DispatchQueuedUserCallbacks();
+  return g_current_thread_condition && g_current_thread_condition->DispatchQueuedUserCallbacks();
 }
 
 namespace {
@@ -1605,12 +1605,12 @@ class ScopedAlertableState {
  public:
   explicit ScopedAlertableState(bool alertable) : alertable_(alertable) {
     if (alertable_) {
-      alertable_state = true;
+      g_alertable_state = true;
     }
   }
   ~ScopedAlertableState() {
     if (alertable_) {
-      alertable_state = false;
+      g_alertable_state = false;
     }
   }
 
@@ -1619,10 +1619,10 @@ class ScopedAlertableState {
 };
 
 PosixCondition<Thread>* CurrentThreadCondition() {
-  if (!current_thread_condition) {
+  if (!g_current_thread_condition) {
     Thread::GetCurrentThread();
   }
-  return current_thread_condition;
+  return g_current_thread_condition;
 }
 
 }  // namespace
@@ -1633,7 +1633,7 @@ bool CurrentThreadHasUserCallback() {
 }
 
 Waiter& CurrentWaiter(bool alertable) {
-  auto* thread = alertable ? CurrentThreadCondition() : current_thread_condition;
+  auto* thread = alertable ? CurrentThreadCondition() : g_current_thread_condition;
   if (thread) {
     return thread->GetWaiter();
   }
@@ -1715,7 +1715,7 @@ namespace {
 
 int EventPollFD(WaitHandle* event) {
   auto* condition = dynamic_cast<PosixConditionHandle<Event>*>(event);
-  return condition ? condition->GetCondition().PollFD() : -1;
+  return condition ? condition->GetCondition().GetPollFD() : -1;
 }
 
 }  // namespace
@@ -1926,8 +1926,8 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
 }
 
 class PosixTimer : public PosixConditionHandle<Timer> {
-  using WClock = Timer::WClock;
-  using GClock = Timer::GClock;
+  using WClock = Timer::WindowsClock;
+  using GClock = Timer::SteadyClock;
 
  public:
   explicit PosixTimer(bool manual_reset) : PosixConditionHandle(manual_reset) {}
@@ -1986,7 +1986,7 @@ class PosixThread : public PosixConditionHandle<Thread> {
   ~PosixThread() override = default;
 
   bool Initialize(CreationParameters params, rex::MoveOnlyFunction<void()> start_routine) {
-    auto start_data = std::make_unique<ThreadStartData>(std::move(start_routine), false, this);
+    auto start_data = std::make_unique<ThreadStartArgs>(std::move(start_routine), false, this);
     return handle_.Initialize(params, std::move(start_data));
   }
 
@@ -2038,8 +2038,8 @@ class PosixThread : public PosixConditionHandle<Thread> {
   }
 };
 
-thread_local PosixThread* current_thread = nullptr;
-thread_local std::unique_ptr<PosixThread> owned_current_thread;
+thread_local PosixThread* g_current_thread = nullptr;
+thread_local std::unique_ptr<PosixThread> g_owned_current_thread;
 
 void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 #if !REX_PLATFORM_ANDROID
@@ -2051,7 +2051,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   detail::RegisterCurrentThread();
   PrepareThreadForCrash();
 
-  std::unique_ptr<ThreadStartData> start_data(static_cast<ThreadStartData*>(parameter));
+  std::unique_ptr<ThreadStartArgs> start_data(static_cast<ThreadStartArgs*>(parameter));
   REX_ASSERT(start_data != nullptr);
   REX_ASSERT(start_data->thread_obj != nullptr);
 
@@ -2060,8 +2060,8 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   auto create_suspended = start_data->create_suspended;
   start_data.reset();
 
-  current_thread = thread;
-  current_thread_condition = &thread->handle_;
+  g_current_thread = thread;
+  g_current_thread_condition = &thread->handle_;
   {
     std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.state_ = create_suspended ? State::kSuspended : State::kRunning;
@@ -2088,8 +2088,8 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 
   thread->handle_.SignalExit(0);
 
-  current_thread = nullptr;
-  current_thread_condition = nullptr;
+  g_current_thread = nullptr;
+  g_current_thread_condition = nullptr;
   return nullptr;
 }
 
@@ -2105,8 +2105,8 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
 }
 
 Thread* Thread::GetCurrentThread() {
-  if (current_thread) {
-    return current_thread;
+  if (g_current_thread) {
+    return g_current_thread;
   }
 
   // Threads not created by Thread::Create need the process wide handlers for suspend and APC.
@@ -2115,16 +2115,16 @@ Thread* Thread::GetCurrentThread() {
 
   pthread_t handle = pthread_self();
 
-  owned_current_thread = std::make_unique<PosixThread>(handle);
-  current_thread = owned_current_thread.get();
-  current_thread_condition = &current_thread->GetCondition();
+  g_owned_current_thread = std::make_unique<PosixThread>(handle);
+  g_current_thread = g_owned_current_thread.get();
+  g_current_thread_condition = &g_current_thread->GetCondition();
 
-  return current_thread;
+  return g_current_thread;
 }
 
 void Thread::Exit(int exit_code) {
-  if (current_thread) {
-    current_thread->ExitCurrent(exit_code);
+  if (g_current_thread) {
+    g_current_thread->ExitCurrent(exit_code);
   } else {
     // No current_thread means the thread was not created by Thread::Create.
     // NOLINTNEXTLINE(performance-no-int-to-ptr): pthread passes the value as a void pointer
@@ -2140,7 +2140,7 @@ void SetCurrentThreadName(const std::string_view name) {
   pthread_setname_np(pthread_self(), std::string(name).c_str());
 #endif
 #if REX_PLATFORM_ANDROID
-  if (!android_pthread_getname_np_ && current_thread) {
+  if (!g_android_pthread_getname_np && current_thread) {
     current_thread->GetCondition().SetAndroidPreAPI26Name(name);
   }
 #endif
@@ -2149,14 +2149,14 @@ void SetCurrentThreadName(const std::string_view name) {
 static void SignalHandler(int signal, siginfo_t* /*info*/, void* context) {
   switch (GetSystemSignalType(signal)) {
     case SignalType::kThreadSuspend: {
-      if (!current_thread) {
+      if (!g_current_thread) {
         return;
       }
-      current_thread->HandleSuspend(context);
+      g_current_thread->HandleSuspend(context);
     } break;
     case SignalType::kThreadUserCallback: {
-      if (current_thread) {
-        current_thread->HandleRedirect(signal, context);
+      if (g_current_thread) {
+        g_current_thread->HandleRedirect(signal, context);
       }
     } break;
     default:

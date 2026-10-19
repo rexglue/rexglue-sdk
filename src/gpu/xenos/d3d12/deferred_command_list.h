@@ -279,13 +279,13 @@ class DeferredCommandList {
     std::memcpy(args + header_size, barriers, num_barriers * sizeof(D3D12_RESOURCE_BARRIER));
   }
 
-  void RSSetScissorRect(const D3D12_RECT& rect) {
+  void D3DRSSetScissorRect(const D3D12_RECT& rect) {
     auto& arg = *reinterpret_cast<D3D12_RECT*>(
         WriteCommand(Command::kRSSetScissorRect, sizeof(D3D12_RECT)));
     arg = rect;
   }
 
-  void RSSetViewport(const D3D12_VIEWPORT& viewport) {
+  void D3DRSSetViewport(const D3D12_VIEWPORT& viewport) {
     auto& arg = *reinterpret_cast<D3D12_VIEWPORT*>(
         WriteCommand(Command::kRSSetViewport, sizeof(D3D12_VIEWPORT)));
     arg = viewport;

@@ -89,7 +89,7 @@ class Fixture : public NonCopyable {
    *
    * @return The interface.
    */
-  IFileSystem& GetFs() { return *file_system_; }
+  IFileSystem& GetFileSystem() { return *file_system_; }
 
   /**
    * Returns the temp folder of the case.
@@ -105,7 +105,8 @@ class Fixture : public NonCopyable {
    * @param flags The mount flags.
    */
   void MountTemp(std::string_view path, MountFlags flags = MountFlags::kWritable) {
-    REQUIRE(GetFs().Mount({std::string(path), ProviderKind::kHostDirectory, GetTemp(), flags}));
+    REQUIRE(
+        GetFileSystem().Mount({std::string(path), ProviderKind::kHostDirectory, GetTemp(), flags}));
   }
 
   /**
@@ -116,7 +117,7 @@ class Fixture : public NonCopyable {
    * @return The opened file and action.
    */
   Opened Open(std::string_view path, const OpenOptions& options = {}) {
-    auto opened = GetFs().Open(path, options);
+    auto opened = GetFileSystem().Open(path, options);
     REQUIRE(opened);
     return std::move(*opened);
   }

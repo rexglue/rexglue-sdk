@@ -26,7 +26,7 @@ namespace rex::runtime {
 
 /** A completed request queued on an IO completion port. */
 struct IONotification {
-  u32 key_context; /**< Completion key of the port registration the file was bound with. */
+  u32 key;         /**< Completion key of the port registration the file was bound with. */
   u32 apc_context; /**< APC context the title passed to the IO call. */
   u32 status;      /**< X_STATUS result of the IO call. */
   u32 num_bytes;   /**< Bytes the IO call transferred. */
@@ -57,10 +57,10 @@ struct IOCompletionObject {
    * Waits for a notification and dequeues it.
    *
    * @param wait_ticks The timeout in 100 nanosecond ticks, negative for relative.
-   * @param notify Receives the notification when one arrived.
+   * @param out_notification Receives the notification when one arrived.
    * @return True when the wait ended because a notification was received.
    */
-  REX_RUNTIME_API bool Wait(u64 wait_ticks, IONotification* notify);
+  REX_RUNTIME_API bool Wait(u64 wait_ticks, IONotification* out_notification);
 };
 
 }  // namespace rex::runtime

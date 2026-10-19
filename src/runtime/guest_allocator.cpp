@@ -77,7 +77,7 @@ GuestAllocator::Diagnostics GuestAllocator::GetDiagnostics() const {
   return {d.capacity, d.allocated, d.peak_allocated, d.peak_request_size, d.oom_count};
 }
 
-bool GuestAllocator::InvariantsHold() const {
+bool GuestAllocator::IsConsistent() const {
   std::lock_guard lock(mutex_);
   return o1heapDoInvariantsHold(heap_);
 }

@@ -142,7 +142,7 @@ void* D3D12PrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
     return nullptr;
   }
   if (coalign_for_simd) {
-    ptrdiff_t coalignment_offset = GetSimdCoalignmentOffset(mapping, coalignment_original_address);
+    ptrdiff_t coalignment_offset = GetSIMDCoalignmentOffset(mapping, coalignment_original_address);
     mapping += coalignment_offset;
     gpu_address = static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(gpu_address + coalignment_offset);
   }

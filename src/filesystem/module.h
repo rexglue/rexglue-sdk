@@ -23,7 +23,7 @@
 namespace rex::filesystem {
 
 /** The module rexfilesystem.dll serves. It owns the mount table. */
-class FilesystemModule final : public IModule {
+class FileSystemModule final : public IModule {
  public:
   /**
    * Returns the module instance for its interface table entry.

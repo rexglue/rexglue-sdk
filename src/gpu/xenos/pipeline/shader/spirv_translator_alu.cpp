@@ -24,7 +24,7 @@ namespace rex::gpu {
 
 spv::Id SPIRVShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
                                                       spv::Id operand_1_abs) {
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
   int num_components = builder_->getNumComponents(value);
   REX_ASSERT(builder_->getNumComponents(operand_0_abs) == num_components);
   REX_ASSERT(builder_->getNumComponents(operand_1_abs) == num_components);
@@ -53,7 +53,7 @@ void SPIRVShaderTranslator::KillPixel(spv::Id condition,
   kill_if.MakeEndIf();
 }
 
-void SPIRVShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
+void SPIRVShaderTranslator::ProcessALUInstruction(const ParsedAluInstruction& instr,
                                                   u8 memexport_em_potentially_written_before) {
   if (instr.IsNop()) {
     return;
@@ -62,18 +62,18 @@ void SPIRVShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& in
   UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
 
   bool predicate_written_vector = false;
-  spv::Id vector_result = ProcessVectorAluOperation(instr, memexport_em_potentially_written_before,
+  spv::Id vector_result = ProcessVectorALUOperation(instr, memexport_em_potentially_written_before,
                                                     predicate_written_vector);
 
   bool predicate_written_scalar = false;
-  spv::Id scalar_result = ProcessScalarAluOperation(instr, memexport_em_potentially_written_before,
+  spv::Id scalar_result = ProcessScalarALUOperation(instr, memexport_em_potentially_written_before,
                                                     predicate_written_scalar);
   if (scalar_result != spv::NoResult) {
-    EnsureBuildPointAvailable();
+    StartNewBlockIfTerminated();
     builder_->createStore(scalar_result, var_main_previous_scalar_);
   } else {
     if (instr.scalar_result.GetUsedWriteMask()) {
-      EnsureBuildPointAvailable();
+      StartNewBlockIfTerminated();
       scalar_result = builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision);
     }
   }
@@ -88,7 +88,7 @@ void SPIRVShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& in
   }
 }
 
-spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+spv::Id SPIRVShaderTranslator::ProcessVectorALUOperation(const ParsedAluInstruction& instr,
                                                          u8 memexport_em_potentially_written_before,
                                                          bool& predicate_written) {
   predicate_written = false;
@@ -114,7 +114,7 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
                             ? type_float_vectors[used_result_component_count - 1]
                             : spv::NoType;
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
 
   static const unsigned int kOps[] = {
       static_cast<unsigned int>(spv::OpNop),
@@ -695,7 +695,7 @@ spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
   return spv::NoResult;
 }
 
-spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedAluInstruction& instr,
                                                          u8 memexport_em_potentially_written_before,
                                                          bool& predicate_written) {
   predicate_written = false;
@@ -705,7 +705,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
     operand_storage[i] = LoadOperandStorage(instr.scalar_operands[i]);
   }
 
-  EnsureBuildPointAvailable();
+  StartNewBlockIfTerminated();
 
   static const unsigned int kOps[] = {
       static_cast<unsigned int>(spv::OpFAdd),

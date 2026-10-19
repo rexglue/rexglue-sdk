@@ -14,12 +14,12 @@
 
 namespace rex::xenos {
 
-const RegisterInfo* RegisterFile::GetRegisterInfo(u32 index) {
+const RegisterDesc* RegisterFile::GetRegisterInfo(u32 index) {
   switch (index) {
 #define REXGPU_REGISTER(index, type, name) \
   case index: {                            \
-    static const RegisterInfo reg_info = { \
-        RegisterInfo::Type::type,          \
+    static const RegisterDesc reg_info = { \
+        RegisterDesc::Type::type,          \
         #name,                             \
     };                                     \
     return &reg_info;                      \

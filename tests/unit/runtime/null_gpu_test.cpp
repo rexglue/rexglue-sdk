@@ -24,7 +24,7 @@
 #include "kernel/kernel_fixture.h"
 #include "runtime/null_gpu.h"
 
-using rex::testing::KernelFixture;
+using rex::test::KernelFixture;
 
 namespace {
 
@@ -51,7 +51,7 @@ REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[runti
   REQUIRE(callback != 0);
   rex::runtime::NullGPU gpu;
   gpu.SetInterruptCallback(callback, 0x1234);
-  REQUIRE(gpu.SetupGuestGPU(*runtime.GetFunctionDispatcher(), runtime));
+  REQUIRE(gpu.SetupGPU(*runtime.GetFunctionDispatcher(), runtime));
   const auto start = std::chrono::steady_clock::now();
   std::this_thread::sleep_for(std::chrono::seconds(1));
   const std::chrono::duration<rex::f64> elapsed = std::chrono::steady_clock::now() - start;
@@ -69,7 +69,7 @@ REX_TEST_CASE("NullGPU without a callback raises nothing", "[runtime]") {
   KernelFixture fixture;
   auto& runtime = fixture.GetRuntime();
   rex::runtime::NullGPU gpu;
-  REQUIRE(gpu.SetupGuestGPU(*runtime.GetFunctionDispatcher(), runtime));
+  REQUIRE(gpu.SetupGPU(*runtime.GetFunctionDispatcher(), runtime));
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   gpu.Shutdown();
   CHECK(g_vblanks == 0);
@@ -84,7 +84,7 @@ REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[run
   const rex::u32 physical = memory->GetPhysicalAddress(ring);
   const rex::u32 writeback = physical + 0x800;
   rex::runtime::NullGPU gpu;
-  REQUIRE(gpu.SetupGuestGPU(*runtime.GetFunctionDispatcher(), runtime));
+  REQUIRE(gpu.SetupGPU(*runtime.GetFunctionDispatcher(), runtime));
   gpu.InitializeRingBuffer(physical, 9);
   gpu.EnableReadPointerWriteBack(writeback, 6);
   const rex::u32 register_address =

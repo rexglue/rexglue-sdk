@@ -15,18 +15,18 @@ namespace rex {
 namespace runtime {
 
 constexpr memory::FourCCT kXDBFSignatureXDBF = memory::make_fourcc("XDBF");
-constexpr memory::FourCCT kXDBFSignatureXstc = memory::make_fourcc("XSTC");
-constexpr memory::FourCCT kXDBFSignatureXstr = memory::make_fourcc("XSTR");
-constexpr memory::FourCCT kXDBFSignatureXach = memory::make_fourcc("XACH");
+constexpr memory::FourCCT kXDBFSignatureXSTC = memory::make_fourcc("XSTC");
+constexpr memory::FourCCT kXDBFSignatureXSTR = memory::make_fourcc("XSTR");
+constexpr memory::FourCCT kXDBFSignatureXACH = memory::make_fourcc("XACH");
 
 constexpr u64 kXDBFIdTitle = 0x8000;
-constexpr u64 kXDBFIdXstc = 0x58535443;
-constexpr u64 kXDBFIdXach = 0x58414348;
+constexpr u64 kXDBFIdXSTC = 0x58535443;
+constexpr u64 kXDBFIdXACH = 0x58414348;
 
 namespace {
 
 template <typename T>
-const T* RecordAt(const XDBFBlock& block, size_t offset) {
+const T* StructAt(const XDBFBlock& block, size_t offset) {
   if (!block || offset > block.size || sizeof(T) > block.size - offset) {
     return nullptr;
   }
@@ -36,26 +36,26 @@ const T* RecordAt(const XDBFBlock& block, size_t offset) {
 }  // namespace
 
 XDBFReader::XDBFReader(const u8* data, size_t data_size) : data_(data), data_size_(data_size) {
-  if (!data || data_size <= sizeof(XbdfHeader)) {
+  if (!data || data_size <= sizeof(XDBFHeader)) {
     data_ = nullptr;
     return;
   }
 
-  const auto* header = reinterpret_cast<const XbdfHeader*>(data);
-  const u64 tables_size =
-      u64{sizeof(XbdfEntry)} * header->entry_count + u64{sizeof(XbdfFileLoc)} * header->free_count;
-  if (header->magic != kXDBFSignatureXDBF || header->entry_used > header->entry_count ||
-      tables_size > data_size - sizeof(XbdfHeader)) {
+  const auto* header = reinterpret_cast<const XDBFHeader*>(data);
+  const u64 tables_size = u64{sizeof(XDBFEntry)} * header->entry_capacity +
+                          u64{sizeof(XDBFFileLocation)} * header->free_count;
+  if (header->magic != kXDBFSignatureXDBF || header->entry_used > header->entry_capacity ||
+      tables_size > data_size - sizeof(XDBFHeader)) {
     data_ = nullptr;
     return;
   }
 
-  const u8* ptr = data + sizeof(XbdfHeader);
+  const u8* ptr = data + sizeof(XDBFHeader);
   header_ = header;
-  entries_ = reinterpret_cast<const XbdfEntry*>(ptr);
-  ptr += sizeof(XbdfEntry) * header->entry_count;
-  files_ = reinterpret_cast<const XbdfFileLoc*>(ptr);
-  ptr += sizeof(XbdfFileLoc) * header->free_count;
+  entries_ = reinterpret_cast<const XDBFEntry*>(ptr);
+  ptr += sizeof(XDBFEntry) * header->entry_capacity;
+  files_ = reinterpret_cast<const XDBFFileLocation*>(ptr);
+  ptr += sizeof(XDBFFileLocation) * header->free_count;
   content_offset_ = ptr;
 }
 
@@ -81,14 +81,14 @@ XDBFBlock XDBFReader::GetEntry(XDBFSection section, u64 id) const {
 
 std::string XDBFReader::GetStringTableEntry(XLanguage language, u16 string_id) const {
   auto language_block = GetEntry(XDBFSection::kStringTable, static_cast<u64>(language));
-  const auto* xstr_head = RecordAt<XDBFSectionHeader>(language_block, 0);
-  if (!xstr_head || xstr_head->magic != kXDBFSignatureXstr || xstr_head->version != 1) {
+  const auto* xstr_head = StructAt<XDBFSectionHeader>(language_block, 0);
+  if (!xstr_head || xstr_head->magic != kXDBFSignatureXSTR || xstr_head->version != 1) {
     return "";
   }
 
   size_t offset = sizeof(XDBFSectionHeader);
   for (u16 i = 0; i < xstr_head->count; ++i) {
-    const auto* entry = RecordAt<XDBFStringTableEntry>(language_block, offset);
+    const auto* entry = StructAt<XDBFStringTableEntry>(language_block, offset);
     if (!entry) {
       return "";
     }
@@ -108,15 +108,15 @@ std::string XDBFReader::GetStringTableEntry(XLanguage language, u16 string_id) c
 std::vector<XDBFAchievementTableEntry> XDBFReader::GetAchievements() const {
   std::vector<XDBFAchievementTableEntry> achievements;
 
-  auto achievement_table = GetEntry(XDBFSection::kMetadata, kXDBFIdXach);
-  const auto* xach_head = RecordAt<XDBFSectionHeader>(achievement_table, 0);
-  if (!xach_head || xach_head->magic != kXDBFSignatureXach || xach_head->version != 1) {
+  auto achievement_table = GetEntry(XDBFSection::kMetadata, kXDBFIdXACH);
+  const auto* xach_head = StructAt<XDBFSectionHeader>(achievement_table, 0);
+  if (!xach_head || xach_head->magic != kXDBFSignatureXACH || xach_head->version != 1) {
     return achievements;
   }
 
   size_t offset = sizeof(XDBFSectionHeader);
   for (u16 i = 0; i < xach_head->count; ++i) {
-    const auto* entry = RecordAt<XDBFAchievementTableEntry>(achievement_table, offset);
+    const auto* entry = StructAt<XDBFAchievementTableEntry>(achievement_table, offset);
     if (!entry) {
       break;
     }
@@ -126,27 +126,27 @@ std::vector<XDBFAchievementTableEntry> XDBFReader::GetAchievements() const {
   return achievements;
 }
 
-XLanguage XDBFGameData::GetExistingLanguage(XLanguage language_to_check) const {
+XLanguage XDBFTitleData::GetSupportedLanguage(XLanguage language_to_check) const {
   return GetTitle(language_to_check).empty() ? GetDefaultLanguage() : language_to_check;
 }
 
-XDBFBlock XDBFGameData::GetIcon() const {
+XDBFBlock XDBFTitleData::GetIcon() const {
   return GetEntry(XDBFSection::kImage, kXDBFIdTitle);
 }
 
-XLanguage XDBFGameData::GetDefaultLanguage() const {
-  const auto* xstc = RecordAt<XDBFXstc>(GetEntry(XDBFSection::kMetadata, kXDBFIdXstc), 0);
-  if (!xstc || xstc->magic != kXDBFSignatureXstc) {
+XLanguage XDBFTitleData::GetDefaultLanguage() const {
+  const auto* xstc = StructAt<XDBFXstc>(GetEntry(XDBFSection::kMetadata, kXDBFIdXSTC), 0);
+  if (!xstc || xstc->magic != kXDBFSignatureXSTC) {
     return XLanguage::kEnglish;
   }
   return ToXLanguage(xstc->default_language);
 }
 
-std::string XDBFGameData::GetTitle() const {
+std::string XDBFTitleData::GetTitle() const {
   return GetStringTableEntry(GetDefaultLanguage(), kXDBFIdTitle);
 }
 
-std::string XDBFGameData::GetTitle(XLanguage language) const {
+std::string XDBFTitleData::GetTitle(XLanguage language) const {
   return GetStringTableEntry(language, kXDBFIdTitle);
 }
 

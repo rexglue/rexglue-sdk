@@ -77,7 +77,7 @@ class ExportVariables {
  * @param module The kernel module whose table is returned.
  * @return The table rows.
  */
-REX_RUNTIME_API std::span<const ExportEntry> Exports(ExportModule module);
+REX_RUNTIME_API std::span<const ExportEntry> GetExports(ExportModule module);
 
 /**
  * Finds a row by ordinal.

@@ -9,7 +9,7 @@
 extern "C" {
 extern const powerpc_opcode powerpc_opcodes[];
 extern const int powerpc_num_opcodes;
-int ReXOperandsValid(const powerpc_opcode* entry, unsigned long code, int dialect);
+int AreOperandsValid(const powerpc_opcode* entry, unsigned long code, int dialect);
 }
 
 namespace rex::codegen::detail {
@@ -40,7 +40,7 @@ class OpcodeIndex {
       if ((code & entry.mask) != entry.opcode || (entry.flags & kXenonDialect) == 0) {
         continue;
       }
-      if (ReXOperandsValid(&entry, code, static_cast<int>(kXenonDialect)) != 0) {
+      if (AreOperandsValid(&entry, code, static_cast<int>(kXenonDialect)) != 0) {
         return &entry;
       }
     }

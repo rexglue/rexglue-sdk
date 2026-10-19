@@ -140,7 +140,6 @@ enum class FunctionState : u8 {
   kSealed,     /**< All branches resolved, ready for code generation */
 };
 
-constexpr FunctionState kPending = FunctionState::kRegistered;
 constexpr FunctionState kSealed = FunctionState::kSealed;
 
 /** 1 scope table entry of an SEH function. */
@@ -161,7 +160,7 @@ struct SEHExceptionInfo {
 };
 
 /** FuncInfo magic of C++ EH. */
-constexpr u32 kCXXEHMagic = 0x19930522;
+constexpr u32 kCxxEHMagic = 0x19930522;
 
 /** 1 entry of the C++ EH unwind map. */
 struct CxxUnwindEntry {

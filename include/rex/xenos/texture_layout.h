@@ -85,7 +85,7 @@ REX_API bool GetPackedMipOffset(u32 width, u32 height, u32 depth, xenos::Texture
  * mip_address hold separate tails. Padding counts for strides but is not always backed by
  * memory, so the data extents exclude it where the layout allows.
  */
-struct TextureGuestLayout {
+struct GuestTextureLayout {
   /** Layout of 1 stored level. */
   struct Level {
     u32 row_pitch_bytes;               /**< Block row stride with mip and linear alignment. */
@@ -124,7 +124,7 @@ struct TextureGuestLayout {
  * @param max_level Last mip level.
  * @return The layout.
  */
-REX_API TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
+REX_API GuestTextureLayout GetGuestTextureLayout(xenos::DataDimension dimension,
                                                  u32 base_pitch_texels_div_32, u32 width_texels,
                                                  u32 height_texels, u32 depth_or_array_size,
                                                  bool is_tiled, xenos::TextureFormat format,
@@ -235,7 +235,7 @@ REX_API u8 SwizzleSigns(const xenos::TextureFetch& fetch);
  * @param packed_signs Packed signs from SwizzleSigns.
  * @return True when any component is not kSigned.
  */
-constexpr bool IsAnySignNotSigned(u8 packed_signs) {
+constexpr bool HasNonSignedComponent(u8 packed_signs) {
   return packed_signs != std::to_underlying(xenos::TextureSign::kSigned) * 0b01010101;
 }
 
@@ -245,7 +245,7 @@ constexpr bool IsAnySignNotSigned(u8 packed_signs) {
  * @param packed_signs Packed signs from SwizzleSigns.
  * @return True when any component is kSigned.
  */
-constexpr bool IsAnySignSigned(u8 packed_signs) {
+constexpr bool HasSignedComponent(u8 packed_signs) {
   u32 xor_signed = packed_signs ^ (std::to_underlying(xenos::TextureSign::kSigned) * 0b01010101);
   return ((xor_signed | (xor_signed >> 1)) & 0b01010101) != 0b01010101;
 }

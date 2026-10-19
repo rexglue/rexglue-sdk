@@ -216,7 +216,7 @@ REX_API void RequestRestart(std::vector<std::string> args = {});
  *
  * @return True once rex::RequestShutdown or rex::RequestRestart has been called.
  */
-REX_API bool ShutdownRequested();
+REX_API bool IsShutdownRequested();
 
 namespace detail {
 
@@ -327,8 +327,8 @@ REX_API CLIArgList GetWindowsCommandLine();
  * @endcode
  */
 #define REX_APP_MAIN(Class, Function)                     \
-  static int RexAppEntry(const ::rex::CLIArgList& args) { \
+  static int ReXAppEntry(const ::rex::CLIArgList& args) { \
     Class rex_app;                                        \
     return Function(rex_app, args);                       \
   }                                                       \
-  REX_DETAIL_ENTRY_POINTS(RexAppEntry)
+  REX_DETAIL_ENTRY_POINTS(ReXAppEntry)

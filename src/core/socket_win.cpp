@@ -65,11 +65,11 @@ int PollSockets(std::span<const SocketWait> sockets, std::span<SocketReady> read
   return count;
 }
 
-bool SocketWouldBlock() {
+bool IsSocketWouldBlock() {
   return WSAGetLastError() == WSAEWOULDBLOCK;
 }
 
-u32 SocketError() {
+u32 GetSocketError() {
   return static_cast<u32>(WSAGetLastError());
 }
 
@@ -150,7 +150,7 @@ i32 Socket::GetOption(i32 level, i32 name, void* value, i32* len) const {
   return getsockopt(static_cast<SOCKET>(handle_), level, name, static_cast<char*>(value), len);
 }
 
-i32 Socket::PeerName(sockaddr* name, i32* name_len) const {
+i32 Socket::GetPeerName(sockaddr* name, i32* name_len) const {
   return getpeername(static_cast<SOCKET>(handle_), name, name_len);
 }
 

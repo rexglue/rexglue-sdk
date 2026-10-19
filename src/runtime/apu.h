@@ -101,7 +101,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
    *
    * @return True while paused.
    */
-  bool GetPaused() const { return paused_.load(); }
+  bool IsPaused() const { return paused_.load(); }
 
   /**
    * Returns the XMA decoder.
@@ -123,7 +123,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
    * @param index A slot index.
    * @return The semaphore count.
    */
-  u32 TakeCredits(u32 index);
+  u32 CountCredits(u32 index);
 
   /**
    * Takes a credit without waiting. Test seam.

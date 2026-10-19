@@ -90,8 +90,8 @@ bool VulkanPipelineCache::Initialize() {
 
   shader_translator_ = std::make_unique<SPIRVShaderTranslator>(
       SPIRVShaderTranslator::Features(vulkan_device),
-      render_target_cache_.GetMSAA2xAttachmentsSupported(),
-      render_target_cache_.GetMSAA2xNoAttachmentsSupported(), edram_fragment_shader_interlock,
+      render_target_cache_.IsMSAA2xAttachmentsSupported(),
+      render_target_cache_.IsMSAA2xNoAttachmentsSupported(), edram_fragment_shader_interlock,
       render_target_cache_.GetDrawResolutionScaleX(),
       render_target_cache_.GetDrawResolutionScaleY());
 
@@ -152,7 +152,7 @@ bool VulkanPipelineCache::Initialize() {
                 "Async placeholder hot swap will be unavailable");
   }
 
-  u32 logical_processor_count = rex::platform::LogicalProcessorCount();
+  u32 logical_processor_count = rex::platform::GetLogicalProcessorCount();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
@@ -230,23 +230,24 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     u32 magic_api;
     be_u32 version;
   } pipeline_storage_file_header;
-  if (platform::ReadStorage(storage_.pipeline_file, &pipeline_storage_file_header,
-                            sizeof(pipeline_storage_file_header)) ==
+  if (platform::ReadStorageFile(storage_.pipeline_file, &pipeline_storage_file_header,
+                                sizeof(pipeline_storage_file_header)) ==
           sizeof(pipeline_storage_file_header) &&
       pipeline_storage_file_header.magic == pipeline_storage_magic &&
       pipeline_storage_file_header.magic_api == pipeline_storage_magic_api &&
       pipeline_storage_file_header.version == pipeline_storage_version) {
-    const u64 pipeline_storage_told_end = platform::StorageFileSize(pipeline_storage_file_path);
-    size_t pipeline_storage_told_count = static_cast<size_t>(
-        pipeline_storage_told_end >= sizeof(pipeline_storage_file_header)
-            ? (pipeline_storage_told_end - sizeof(pipeline_storage_file_header)) /
+    const u64 pipeline_storage_file_end = platform::GetStorageFileSize(pipeline_storage_file_path);
+    size_t pipeline_storage_expected_count = static_cast<size_t>(
+        pipeline_storage_file_end >= sizeof(pipeline_storage_file_header)
+            ? (pipeline_storage_file_end - sizeof(pipeline_storage_file_header)) /
                   sizeof(PipelineStoredDescription)
             : 0);
-    if (pipeline_storage_told_count) {
-      pipeline_stored_descriptions.resize(pipeline_storage_told_count);
+    if (pipeline_storage_expected_count) {
+      pipeline_stored_descriptions.resize(pipeline_storage_expected_count);
       pipeline_stored_descriptions.resize(
-          platform::ReadStorage(storage_.pipeline_file, pipeline_stored_descriptions.data(),
-                                pipeline_storage_told_count * sizeof(PipelineStoredDescription)) /
+          platform::ReadStorageFile(
+              storage_.pipeline_file, pipeline_stored_descriptions.data(),
+              pipeline_storage_expected_count * sizeof(PipelineStoredDescription)) /
           sizeof(PipelineStoredDescription));
       size_t pipeline_storage_read_count = pipeline_stored_descriptions.size();
       size_t pipeline_storage_kept_count = 0;
@@ -262,7 +263,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
           pipeline_storage_read_count = i;
           break;
         }
-        if (!ArePipelineRequirementsMet(pipeline_stored_description.description)) {
+        if (!IsPipelineSupported(pipeline_stored_description.description)) {
           ++pipeline_storage_skipped_unsupported_count;
           continue;
         }
@@ -307,8 +308,8 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   } shader_storage_file_header;
   // 'XESH'.
   const u32 shader_storage_magic = 0x48534558;
-  if (platform::ReadStorage(storage_.shader_file, &shader_storage_file_header,
-                            sizeof(shader_storage_file_header)) ==
+  if (platform::ReadStorageFile(storage_.shader_file, &shader_storage_file_header,
+                                sizeof(shader_storage_file_header)) ==
           sizeof(shader_storage_file_header) &&
       shader_storage_file_header.magic == shader_storage_magic &&
       shader_storage_file_header.version == ShaderStoredHeader::kVersion) {
@@ -317,14 +318,14 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     std::vector<u32> ucode_dwords;
     ucode_dwords.reserve(0xFFFF);
     while (true) {
-      if (platform::ReadStorage(storage_.shader_file, &shader_header, sizeof(shader_header)) !=
+      if (platform::ReadStorageFile(storage_.shader_file, &shader_header, sizeof(shader_header)) !=
           sizeof(shader_header)) {
         break;
       }
       size_t ucode_byte_count = shader_header.ucode_dword_count * sizeof(u32);
       ucode_dwords.resize(shader_header.ucode_dword_count);
       if (shader_header.ucode_dword_count &&
-          platform::ReadStorage(storage_.shader_file, ucode_dwords.data(), ucode_byte_count) !=
+          platform::ReadStorageFile(storage_.shader_file, ucode_dwords.data(), ucode_byte_count) !=
               ucode_byte_count) {
         break;
       }
@@ -346,8 +347,8 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     platform::ResetStorageFile(storage_.shader_file, storage_.shader_file_path, 0);
     shader_storage_file_header.magic = shader_storage_magic;
     shader_storage_file_header.version = ShaderStoredHeader::kVersion;
-    platform::AppendStorage(storage_.shader_file, &shader_storage_file_header,
-                            sizeof(shader_storage_file_header));
+    platform::AppendStorageFile(storage_.shader_file, &shader_storage_file_header,
+                                sizeof(shader_storage_file_header));
   }
 
   for (const std::pair<u64, u64>& translation_needed : shader_translations_needed) {
@@ -398,7 +399,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
             ? creation_arguments.pixel_shader->GetShader().GetWritesColorTargets()
             : 0;
     bool shader_writes_depth = creation_arguments.pixel_shader
-                                   ? creation_arguments.pixel_shader->GetShader().GetWritesDepth()
+                                   ? creation_arguments.pixel_shader->GetShader().IsDepthWritten()
                                    : pipeline_description.depth_write_enable != 0;
     creation_arguments.priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -410,7 +411,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       std::lock_guard<std::mutex> lock(creation_request_lock_);
       startup_loading_ = true;
     }
-    u32 logical_processor_count = rex::platform::LogicalProcessorCount();
+    u32 logical_processor_count = rex::platform::GetLogicalProcessorCount();
     if (!logical_processor_count) {
       logical_processor_count = 6;
     }
@@ -439,7 +440,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
         if (creation_index >= pipeline_creations.size()) {
           break;
         }
-        if (EnsurePipelineCreated(pipeline_creations[creation_index])) {
+        if (CreatePipeline(pipeline_creations[creation_index])) {
           created_pipeline_count.fetch_add(1);
         }
       }
@@ -479,8 +480,8 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     pipeline_storage_file_header.magic = pipeline_storage_magic;
     pipeline_storage_file_header.magic_api = pipeline_storage_magic_api;
     pipeline_storage_file_header.version = pipeline_storage_version;
-    platform::AppendStorage(storage_.pipeline_file, &pipeline_storage_file_header,
-                            sizeof(pipeline_storage_file_header));
+    platform::AppendStorageFile(storage_.pipeline_file, &pipeline_storage_file_header,
+                                sizeof(pipeline_storage_file_header));
   }
 
   storage_.cache_root = cache_root;
@@ -731,17 +732,17 @@ SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
 
   if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
     using DepthStencilMode = SPIRVShaderTranslator::Modification::DepthStencilMode;
-    if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
+    if (render_target_cache_.IsDepthFloat24ConvertedInPixelShader() &&
         normalized_depth_control.z_enable &&
         regs.Get<xenos::reg::RB_DEPTH_INFO>().depth_format ==
             xenos::DepthRenderTargetFormat::kD24FS8) {
-      modification.pixel.depth_stencil_mode = render_target_cache_.GetDepthFloat24Round()
+      modification.pixel.depth_stencil_mode = render_target_cache_.IsDepthFloat24Rounded()
                                                   ? DepthStencilMode::kFloat24Rounding
                                                   : DepthStencilMode::kFloat24Truncating;
     } else {
-      if (shader.GetImplicitEarlyZWriteAllowed() &&
-          (!shader.GetWritesColorTarget(0) ||
-           !draw_state::DoesCoverageDependOnAlpha(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
+      if (shader.IsImplicitEarlyZWriteAllowed() &&
+          (!shader.IsColorTargetWritten(0) ||
+           !draw_state::IsCoverageAlphaDependent(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
       } else {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
@@ -752,8 +753,8 @@ SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
   return modification;
 }
 
-bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
-                                                  VulkanShader::VulkanTranslation* pixel_shader) {
+bool VulkanPipelineCache::TranslateShaders(VulkanShader::VulkanTranslation* vertex_shader,
+                                           VulkanShader::VulkanTranslation* pixel_shader) {
   // Edge flags are unsupported because polygon primitives are.
   REX_ASSERT(register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
@@ -793,7 +794,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
 
-  if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
+  if (!TranslateShaders(vertex_shader, pixel_shader)) {
     return false;
   }
   if (storage_.shader_file.is_open() &&
@@ -856,7 +857,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     u32 bound_rts = pipeline_priority::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
     u32 shader_writes_color_targets =
         pixel_shader ? pixel_shader->GetShader().GetWritesColorTargets() : 0;
-    bool shader_writes_depth = pixel_shader ? pixel_shader->GetShader().GetWritesDepth()
+    bool shader_writes_depth = pixel_shader ? pixel_shader->GetShader().IsDepthWritten()
                                             : normalized_depth_control.z_write_enable != 0;
     async_priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -868,7 +869,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     if (found_pipeline == VK_NULL_HANDLE) {
       PipelineCreationArguments creation_arguments;
       if (!TryGetPipelineCreationArgumentsForDescription(description, &*it, creation_arguments) ||
-          !EnsurePipelineCreated(creation_arguments)) {
+          !CreatePipeline(creation_arguments)) {
         return false;
       }
       found_pipeline = it->second.pipeline.load(std::memory_order_acquire);
@@ -899,7 +900,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     if (TryGetPipelineCreationArgumentsForDescription(description, &pipeline,
                                                       creation_arguments_placeholder, true)) {
       pipeline.second.is_placeholder.store(true, std::memory_order_release);
-      if (EnsurePipelineCreated(creation_arguments_placeholder, placeholder_pixel_shader_)) {
+      if (CreatePipeline(creation_arguments_placeholder, placeholder_pixel_shader_)) {
         {
           std::lock_guard<std::mutex> lock(creation_request_lock_);
           creation_queue_.push(creation_arguments_real);
@@ -912,7 +913,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     }
   }
 
-  if (!queued_async_creation && !EnsurePipelineCreated(creation_arguments_real)) {
+  if (!queued_async_creation && !CreatePipeline(creation_arguments_real)) {
     pipelines_.erase(description);
     return false;
   }
@@ -985,7 +986,7 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SPIRVShaderTranslator& transla
 
   if (shader.EnterBindingLayoutUserUIDSetup()) {
     size_t texture_binding_layout_uid = kLayoutUIDEmpty;
-    const std::vector<VulkanShader::TextureBinding>& texture_bindings =
+    const std::vector<VulkanShader::TranslatedTextureBinding>& texture_bindings =
         shader.GetTextureBindingsAfterTranslation();
     size_t texture_binding_count = texture_bindings.size();
     if (texture_binding_count) {
@@ -1115,7 +1116,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
         description_out.pixel_shader_modification);
     using DepthStencilMode = SPIRVShaderTranslator::Modification::DepthStencilMode;
     description_out.sample_rate_shading =
-        !pixel_shader->GetShader().GetWritesDepth() &&
+        !pixel_shader->GetShader().IsDepthWritten() &&
         (pixel_shader_modification.pixel.depth_stencil_mode ==
              DepthStencilMode::kFloat24Truncating ||
          pixel_shader_modification.pixel.depth_stencil_mode == DepthStencilMode::kFloat24Rounding);
@@ -1273,7 +1274,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       render_pass_color_rts_remaining &= ~(static_cast<u32>(1) << color_rt_index);
       WritePipelineRenderTargetDescription(
           regs.Get<xenos::reg::RB_BLENDCONTROL>(
-              xenos::reg::RB_BLENDCONTROL::kRtRegisterIndices[color_rt_index]),
+              xenos::reg::RB_BLENDCONTROL::kRTRegisterIndices[color_rt_index]),
           (normalized_color_mask >> (color_rt_index * 4)) & 0b1111,
           description_out.render_targets[color_rt_index]);
     }
@@ -1282,7 +1283,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   return true;
 }
 
-bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& description) const {
+bool VulkanPipelineCache::IsPipelineSupported(const PipelineDescription& description) const {
   VkShaderStageFlags vertex_shader_stage =
       Shader::IsHostVertexShaderTypeDomain(
           SPIRVShaderTranslator::Modification(description.vertex_shader_modification)
@@ -2495,7 +2496,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   if (!pipeline) {
     return fail("null_pipeline_storage");
   }
-  if (!ArePipelineRequirementsMet(description)) {
+  if (!IsPipelineSupported(description)) {
     return fail("pipeline_requirements_not_met");
   }
 
@@ -2568,7 +2569,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   if (!use_dynamic_rendering) {
     render_pass =
         render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock
-            ? render_target_cache_.GetFragmentShaderInterlockRenderPass()
+            ? render_target_cache_.GetPixelShaderInterlockRenderPass()
             : render_target_cache_.GetHostRenderTargetsRenderPass(description.render_pass_key);
     if (render_pass == VK_NULL_HANDLE) {
       return fail("render_pass_unavailable");
@@ -2608,8 +2609,8 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   return true;
 }
 
-bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments& creation_arguments,
-                                                VkShaderModule fragment_shader_override) {
+bool VulkanPipelineCache::CreatePipeline(const PipelineCreationArguments& creation_arguments,
+                                         VkShaderModule fragment_shader_override) {
   VkPipeline existing_pipeline =
       creation_arguments.pipeline->second.pipeline.load(std::memory_order_acquire);
   bool is_placeholder =
@@ -2631,7 +2632,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   }
 
   const PipelineDescription& description = creation_arguments.pipeline->first;
-  if (!ArePipelineRequirementsMet(description)) {
+  if (!IsPipelineSupported(description)) {
     REX_ASSERT_ALWAYS(
         "When creating a new pipeline, the description must not require "
         "unsupported features, and when loading the pipeline storage, "
@@ -2732,13 +2733,13 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   } else {
     if (edram_fragment_shader_interlock) {
       shader_stage_fragment.module = depth_only_fragment_shader_;
-    } else if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
+    } else if (render_target_cache_.IsDepthFloat24ConvertedInPixelShader() &&
                (description.render_pass_key.depth_and_color_used & 1) &&
                (description.depth_compare_op != xenos::CompareFunction::kAlways ||
                 description.depth_write_enable) &&
                description.render_pass_key.depth_format ==
                    xenos::DepthRenderTargetFormat::kD24FS8) {
-      shader_stage_fragment.module = render_target_cache_.GetDepthFloat24Round()
+      shader_stage_fragment.module = render_target_cache_.IsDepthFloat24Rounded()
                                          ? depth_float24_round_fragment_shader_
                                          : depth_float24_truncate_fragment_shader_;
       if (shader_stage_fragment.module == VK_NULL_HANDLE) {
@@ -3129,7 +3130,7 @@ void VulkanPipelineCache::CreationThread(size_t thread_index) {
       ++creation_threads_busy_;
     }
 
-    bool created = EnsurePipelineCreated(creation_arguments);
+    bool created = CreatePipeline(creation_arguments);
     if (!created) {
       bool has_placeholder =
           creation_arguments.pipeline->second.is_placeholder.load(std::memory_order_acquire);
@@ -3162,7 +3163,7 @@ void VulkanPipelineCache::CreateQueuedPipelinesOnProcessorThread() {
       creation_arguments = creation_queue_.top();
       creation_queue_.pop();
     }
-    bool created = EnsurePipelineCreated(creation_arguments);
+    bool created = CreatePipeline(creation_arguments);
     if (!created) {
       bool has_placeholder =
           creation_arguments.pipeline->second.is_placeholder.load(std::memory_order_acquire);
@@ -3269,21 +3270,21 @@ void VulkanPipelineCache::StorageWriteThread() {
       shader_header.ucode_dword_count = shader->GetUcodeDwordCount();
       shader_header.type = shader->GetType();
       REX_ASSERT(storage_.shader_file.is_open());
-      platform::AppendStorage(storage_.shader_file, &shader_header, sizeof(shader_header));
+      platform::AppendStorageFile(storage_.shader_file, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
         // The hash is calculated over guest endianness, so swap back.
         memory::copy_and_swap(ucode_guest_endian.data(), shader->GetUcodeDwords(),
                               shader_header.ucode_dword_count);
-        platform::AppendStorage(storage_.shader_file, ucode_guest_endian.data(),
-                                shader_header.ucode_dword_count * sizeof(u32));
+        platform::AppendStorageFile(storage_.shader_file, ucode_guest_endian.data(),
+                                    shader_header.ucode_dword_count * sizeof(u32));
       }
     }
 
     if (write_pipeline) {
       REX_ASSERT(storage_.pipeline_file.is_open());
-      platform::AppendStorage(storage_.pipeline_file, &pipeline_description,
-                              sizeof(pipeline_description));
+      platform::AppendStorageFile(storage_.pipeline_file, &pipeline_description,
+                                  sizeof(pipeline_description));
     }
   }
 }

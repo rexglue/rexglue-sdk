@@ -58,7 +58,7 @@ struct JumpTableMatch {
   GuestAddrT GetBaseAddress() const { return base_high + static_cast<i16>(base_low); }
 };
 
-struct BoundsInfo {
+struct Bounds {
   u32 max_entries = 0;
   u8 index_reg = 0;
   u32 default_target = 0;
@@ -124,9 +124,9 @@ bool IsBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
  * @param func_start Function start address.
  * @return The bounds, with found set when one was seen.
  */
-BoundsInfo ScanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctr_addr,
-                         const CodeRegion& region, u8 expected_reg, u32 func_start) {
-  BoundsInfo result;
+Bounds ScanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctr_addr,
+                     const CodeRegion& region, u8 expected_reg, u32 func_start) {
+  Bounds result;
   const int backward_scan_limit = static_cast<int>(limits.backward_scan_limit);
 
   u32 scan_lower_bound = std::max(region.start, func_start);
@@ -685,7 +685,7 @@ BlockDiscoveryResult DiscoverBlocks(
 
         if (IsCall(*insn)) {
           if (target) {
-            result.unresolved_branches.push_back({addr, *target, true, false});
+            result.unresolved_jumps.push_back({addr, *target, true, false});
 
             if (!is_internal_target(*target)) {
               result.external_calls.push_back(*target);
@@ -768,7 +768,7 @@ BlockDiscoveryResult DiscoverBlocks(
               worklist.push(*target);
             }
           } else if (target) {
-            result.unresolved_branches.push_back({addr, *target, false, true});
+            result.unresolved_jumps.push_back({addr, *target, false, true});
           }
           // The fall-through needs a label too.
           u32 fallthrough = addr + 4;
@@ -789,7 +789,7 @@ BlockDiscoveryResult DiscoverBlocks(
               }
             } else {
               result.tail_calls.push_back(*target);
-              result.unresolved_branches.push_back({addr, *target, false, false});
+              result.unresolved_jumps.push_back({addr, *target, false, false});
             }
           }
           block.size = addr - block_start + 4;
@@ -809,7 +809,7 @@ BlockDiscoveryResult DiscoverBlocks(
         block.size = addr - block_start;
         result.fall_throughs.insert(addr);
         result.tail_calls.push_back(addr);
-        result.unresolved_branches.push_back({addr, addr, false, false});
+        result.unresolved_jumps.push_back({addr, addr, false, false});
         break;
       }
     }

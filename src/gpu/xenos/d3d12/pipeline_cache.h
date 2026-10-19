@@ -97,7 +97,7 @@ class PipelineCache {
    * @param normalized_depth_control Normalized RB_DEPTHCONTROL.
    * @param normalized_color_mask Normalized color write mask.
    * @param bound_depth_and_color_render_target_bits Bits of the bound render targets.
-   * @param bound_depth_and_color_render_targets_formats Formats of the bound render targets.
+   * @param bound_depth_and_color_render_target_formats Formats of the bound render targets.
    * @param pipeline_handle_out Receives the pipeline handle.
    * @param root_signature_out Receives the root signature.
    * @return True when the pipeline was configured.
@@ -107,7 +107,7 @@ class PipelineCache {
                          const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
                          xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                          u32 normalized_color_mask, u32 bound_depth_and_color_render_target_bits,
-                         const u32* bound_depth_and_color_render_targets_formats,
+                         const u32* bound_depth_and_color_render_target_formats,
                          void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
   /**

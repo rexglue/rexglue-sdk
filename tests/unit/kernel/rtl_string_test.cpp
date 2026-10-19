@@ -20,11 +20,11 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
-using rex::testing::PutFilled;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::KernelFixture;
+using rex::test::PutFilled;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -93,7 +93,7 @@ void RunConversion(const char* name, const std::vector<ConvertCase>& cases) {
     for (size_t index = 0; index < cases.size(); ++index) {
       const ConvertCase& item = cases[index];
       CAPTURE(name, index);
-      const u32 source = MakeString(c, item.length, item.maximum, Put(c, item.text));
+      const u32 source = MakeString(c, item.length, item.maximum, CopyToGuest(c, item.text));
       const u32 buffer = PutFilled(c, kWindowBytes + kGuardBytes);
       const u32 dest = MakeString(c, kStringPoisonLength, item.capacity, buffer);
       CHECK(c.Kernel(name, {dest, source, 0}) == item.status);
@@ -102,7 +102,7 @@ void RunConversion(const char* name, const std::vector<ConvertCase>& cases) {
       CHECK(Pointer(c, dest) == buffer);
       CHECK(Length(c, source) == item.length);
       CHECK(Maximum(c, source) == item.maximum);
-      CheckWindow(Get(c, buffer, kWindowBytes + kGuardBytes), item.expected);
+      CheckWindow(ReadBytes(c, buffer, kWindowBytes + kGuardBytes), item.expected);
     }
   });
 }
@@ -114,7 +114,7 @@ void RunAllocatedConversion(const char* name, const char* free_name,
     for (size_t index = 0; index < cases.size(); ++index) {
       const ConvertCase& item = cases[index];
       CAPTURE(name, index);
-      const u32 source = MakeString(c, item.length, item.maximum, Put(c, item.text));
+      const u32 source = MakeString(c, item.length, item.maximum, CopyToGuest(c, item.text));
       const u32 dest = MakeString(c, kStringPoisonLength, kStringPoisonLength, kStringPoison);
       CHECK(c.Kernel(name, {dest, source, 1}) == item.status);
       CHECK(Length(c, dest) == item.result_length);
@@ -122,7 +122,7 @@ void RunAllocatedConversion(const char* name, const char* free_name,
       const u32 buffer = Pointer(c, dest);
       REQUIRE(buffer != 0);
       REQUIRE(buffer != kStringPoison);
-      CHECK(Get(c, buffer, static_cast<u32>(item.expected.size())) == item.expected);
+      CHECK(ReadBytes(c, buffer, static_cast<u32>(item.expected.size())) == item.expected);
       CHECK(Length(c, source) == item.length);
       c.Kernel(free_name, {dest});
       CHECK(Pointer(c, dest) == 0);
@@ -149,11 +149,11 @@ void RunConversionN(const char* name, const std::vector<ConvertNCase>& cases) {
       const u32 written = c.Alloc(4);
       c.Store32(written, kStringPoison);
       CHECK(c.Kernel(name, {buffer, item.destination_length, item.report ? written : 0,
-                            Put(c, item.text), item.length}) == 0);
+                            CopyToGuest(c, item.text), item.length}) == 0);
       if (item.report) {
         CHECK(c.Load32(written) == item.written);
       }
-      CheckWindow(Get(c, buffer, kWindowBytes + kGuardBytes), item.expected);
+      CheckWindow(ReadBytes(c, buffer, kWindowBytes + kGuardBytes), item.expected);
     }
   });
 }
@@ -165,13 +165,13 @@ REX_TEST_CASE("rtl strings: RtlCopyUnicodeString copies the byte length and noth
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const std::vector<u8> text = {0x00, 0x41, 0x00, 0x42, 0x00, 0x43, 0x00, 0x44};
-    const u32 source_buffer = Put(c, text);
+    const u32 source_buffer = CopyToGuest(c, text);
     const u32 source = MakeString(c, 8, 8, source_buffer);
     const u32 dest_buffer = PutFilled(c, 8 + kGuardBytes);
     const u32 dest = MakeString(c, 0, 8, dest_buffer);
     c.Kernel("RtlCopyUnicodeString", {dest, source});
     CHECK(Length(c, dest) == 8);
-    const std::vector<u8> copied = Get(c, dest_buffer, 8 + kGuardBytes);
+    const std::vector<u8> copied = ReadBytes(c, dest_buffer, 8 + kGuardBytes);
     CHECK(std::vector<u8>(copied.begin(), copied.begin() + 8) == text);
     CheckPoison(copied, 8);
   });
@@ -182,12 +182,12 @@ REX_TEST_CASE("rtl strings: RtlCopyUnicodeString stops at the capacity of the de
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const std::vector<u8> text = {0x00, 0x41, 0x00, 0x42, 0x00, 0x43, 0x00, 0x44};
-    const u32 source = MakeString(c, 8, 8, Put(c, text));
+    const u32 source = MakeString(c, 8, 8, CopyToGuest(c, text));
     const u32 dest_buffer = PutFilled(c, 4 + kGuardBytes);
     const u32 dest = MakeString(c, 0, 4, dest_buffer);
     c.Kernel("RtlCopyUnicodeString", {dest, source});
     CHECK(Length(c, dest) == 4);
-    const std::vector<u8> copied = Get(c, dest_buffer, 4 + kGuardBytes);
+    const std::vector<u8> copied = ReadBytes(c, dest_buffer, 4 + kGuardBytes);
     CHECK(std::vector<u8>(copied.begin(), copied.begin() + 4) ==
           std::vector<u8>(text.begin(), text.begin() + 4));
     CheckPoison(copied, 4);
@@ -199,11 +199,11 @@ REX_TEST_CASE(
     "[kernel][rtl]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 source = MakeString(c, 2, 2, Put(c, std::vector<u8>{0x00, 0x41}));
+    const u32 source = MakeString(c, 2, 2, CopyToGuest(c, std::vector<u8>{0x00, 0x41}));
     const u32 dest_buffer = PutFilled(c, kGuardBytes);
     const u32 dest = MakeString(c, 0, 0, dest_buffer);
     CHECK(c.Kernel("RtlUnicodeStringToAnsiString", {dest, source, 0}) == kBufferOverflow);
-    CheckPoison(Get(c, dest_buffer, kGuardBytes), 0);
+    CheckPoison(ReadBytes(c, dest_buffer, kGuardBytes), 0);
   });
 }
 
@@ -211,11 +211,12 @@ REX_TEST_CASE("rtl strings: RtlUnicodeStringToAnsiString keeps a short buffer te
               "[kernel][rtl]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 source = MakeString(c, 6, 6, Put(c, std::vector<u8>{0, 0x41, 0, 0x42, 0, 0x43}));
+    const u32 source =
+        MakeString(c, 6, 6, CopyToGuest(c, std::vector<u8>{0, 0x41, 0, 0x42, 0, 0x43}));
     const u32 dest_buffer = PutFilled(c, 2 + kGuardBytes);
     const u32 dest = MakeString(c, 0, 2, dest_buffer);
     CHECK(c.Kernel("RtlUnicodeStringToAnsiString", {dest, source, 0}) == kBufferOverflow);
-    const std::vector<u8> bytes = Get(c, dest_buffer, 2 + kGuardBytes);
+    const std::vector<u8> bytes = ReadBytes(c, dest_buffer, 2 + kGuardBytes);
     CHECK(bytes[0] == 'A');
     CHECK(bytes[1] == 0);
     CheckPoison(bytes, 2);
@@ -225,10 +226,10 @@ REX_TEST_CASE("rtl strings: RtlUnicodeStringToAnsiString keeps a short buffer te
 REX_TEST_CASE("rtl strings: RtlMultiByteToUnicodeN accepts a null result size", "[kernel][rtl]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 source = Put(c, std::vector<u8>{'A', 'b'});
+    const u32 source = CopyToGuest(c, std::vector<u8>{'A', 'b'});
     const u32 dest = PutFilled(c, 4 + kGuardBytes);
     CHECK(c.Kernel("RtlMultiByteToUnicodeN", {dest, 4, 0, source, 2}) == 0);
-    const std::vector<u8> bytes = Get(c, dest, 4 + kGuardBytes);
+    const std::vector<u8> bytes = ReadBytes(c, dest, 4 + kGuardBytes);
     CHECK(std::vector<u8>(bytes.begin(), bytes.begin() + 4) == std::vector<u8>{0, 'A', 0, 'b'});
     CheckPoison(bytes, 4);
   });
@@ -340,7 +341,7 @@ REX_TEST_CASE("rtl strings: RtlMultiByteToUnicodeSize reports twice the byte cou
       CAPTURE(text.size());
       c.Store32(size, kStringPoison);
       CHECK(c.Kernel("RtlMultiByteToUnicodeSize",
-                     {size, Put(c, text), static_cast<u32>(text.size())}) == 0);
+                     {size, CopyToGuest(c, text), static_cast<u32>(text.size())}) == 0);
       CHECK(c.Load32(size) == expected);
     }
   });
@@ -364,7 +365,7 @@ REX_TEST_CASE("rtl strings: RtlUnicodeToMultiByteSize reports half the byte coun
     for (const auto& [text, length, expected] : cases) {
       CAPTURE(length);
       c.Store32(size, kStringPoison);
-      CHECK(c.Kernel("RtlUnicodeToMultiByteSize", {size, Put(c, text), length}) == 0);
+      CHECK(c.Kernel("RtlUnicodeToMultiByteSize", {size, CopyToGuest(c, text), length}) == 0);
       CHECK(c.Load32(size) == expected);
     }
   });

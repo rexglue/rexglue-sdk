@@ -148,14 +148,14 @@ enum CompileFlags : u32 {
   /** NoPreshader and PreferFlowControl are set by default for shader model 5_1. */
   kCompileFlagNoPreshader = 1 << 8,
   kCompileFlagPreferFlowControl = 1 << 10,
-  kCompileFlagIeeeStrictness = 1 << 13,
+  kCompileFlagIEEEStrictness = 1 << 13,
   kCompileFlagEnableUnboundedDescriptorTables = 1 << 20,
   kCompileFlagAllResourcesBound = 1 << 21,
 };
 
 // D3D_SHADER_VARIABLE_CLASS
 // NOLINTNEXTLINE(performance-enum-size): DXBC container field width
-enum class RdefVariableClass : u16 {
+enum class RDEFVariableClass : u16 {
   kScalar,
   kVector,
   kMatrixRows,
@@ -168,14 +168,14 @@ enum class RdefVariableClass : u16 {
 
 // D3D_SHADER_VARIABLE_TYPE subset
 // NOLINTNEXTLINE(performance-enum-size): DXBC container field width
-enum class RdefVariableType : u16 {
+enum class RDEFVariableType : u16 {
   kInt = 2,
   kFloat = 3,
   kUInt = 19,
 };
 
 // D3D_SHADER_VARIABLE_FLAGS
-enum RdefVariableFlags : u8 {
+enum RDEFVariableFlags : u8 {
   kRdefVariableFlagUserPacked = 1 << 0,
   kRdefVariableFlagUsed = 1 << 1,
   kRdefVariableFlagInterfacePointer = 1 << 2,
@@ -183,13 +183,13 @@ enum RdefVariableFlags : u8 {
 };
 
 // D3D_SHADER_CBUFFER_FLAGS
-enum RdefCbufferFlags : u8 {
+enum RDEFCbufferFlags : u8 {
   kRdefCbufferFlagUserPacked = 1 << 0,
 };
 
 // D3D_CBUFFER_TYPE
 // NOLINTNEXTLINE(performance-enum-size): DXBC container field width
-enum class RdefCbufferType : u32 {
+enum class RDEFCbufferType : u32 {
   kCbuffer,
   kTbuffer,
   kInterfacePointers,
@@ -198,7 +198,7 @@ enum class RdefCbufferType : u32 {
 
 // D3D_SHADER_INPUT_TYPE
 // NOLINTNEXTLINE(performance-enum-size): DXBC container field width
-enum class RdefInputType : u32 {
+enum class RDEFInputType : u32 {
   kCbuffer,
   kTbuffer,
   kTexture,
@@ -229,7 +229,7 @@ enum class ResourceReturnType : u32 {
 
 // D3D12_SRV_DIMENSION / D3D12_UAV_DIMENSION
 // NOLINTNEXTLINE(performance-enum-size): DXBC container field width
-enum class RdefDimension : u32 {
+enum class RDEFDimension : u32 {
   kUnknown = 0,
 
   kSRVBuffer = 1,
@@ -252,7 +252,7 @@ enum class RdefDimension : u32 {
 };
 
 // D3D_SHADER_INPUT_FLAGS
-enum RdefInputFlags : u8 {
+enum RDEFInputFlags : u8 {
   /**
    * For constant buffers, set when declared as `cbuffer` rather than `ConstantBuffer<T>`, which
    * is not dynamically indexable. Differs from kRdefCbufferFlagUserPacked, set in another case.
@@ -260,14 +260,14 @@ enum RdefInputFlags : u8 {
   kRdefInputFlagUserPacked = 1 << 0,
   kRdefInputFlagComparisonSampler = 1 << 1,
   /** Texture and typed buffer component count minus 1. */
-  kRdefInputFlagsComponentsShift = 2,
-  kRdefInputFlags2Component = 1 << kRdefInputFlagsComponentsShift,
-  kRdefInputFlags3Component = 2 << kRdefInputFlagsComponentsShift,
-  kRdefInputFlags4Component = 3 << kRdefInputFlagsComponentsShift,
+  kRdefInputFlagComponentsShift = 2,
+  kRdefInputFlags2Component = 1 << kRdefInputFlagComponentsShift,
+  kRdefInputFlags3Component = 2 << kRdefInputFlagComponentsShift,
+  kRdefInputFlags4Component = 3 << kRdefInputFlagComponentsShift,
   kRdefInputFlagUnused = 1 << 4,
 };
 
-enum class RdefShaderModel : u32 {
+enum class RDEFShaderModel : u32 {
   kPixelShader51 = 0xFFFF0501u,
   kVertexShader51 = 0xFFFE0501u,
   kGeometryShader51 = 0x47530501u,
@@ -276,9 +276,9 @@ enum class RdefShaderModel : u32 {
 };
 
 // D3D12_SHADER_TYPE_DESC with some differences.
-struct alignas(u32) RdefType {
-  RdefVariableClass variable_class;
-  RdefVariableType variable_type;
+struct alignas(u32) RDEFType {
+  RDEFVariableClass variable_class;
+  RDEFVariableType variable_type;
   /** Matrix rows, 1 for other numeric, 0 if not applicable. */
   u16 row_count;
   /** Vector and matrix columns, 1 for other numerics, 0 if not applicable. */
@@ -294,21 +294,21 @@ struct alignas(u32) RdefType {
   /** A scalar uint is named dword, while uint vectors are named uintN. */
   u32 name_ptr;
 };
-REX_STATIC_ASSERT_SIZE(RdefType, sizeof(u32) * 9);
+REX_STATIC_ASSERT_SIZE(RDEFType, sizeof(u32) * 9);
 
-struct alignas(u32) RdefStructureMember {
+struct alignas(u32) RDEFStructureMember {
   u32 name_ptr;
   u32 type_ptr;
   u32 offset_bytes;
 };
-REX_STATIC_ASSERT_SIZE(RdefStructureMember, sizeof(u32) * 3);
+REX_STATIC_ASSERT_SIZE(RDEFStructureMember, sizeof(u32) * 3);
 
 /** D3D12_SHADER_VARIABLE_DESC variant, used primarily for constants in constant buffers. */
-struct alignas(u32) RdefVariable {
+struct alignas(u32) RDEFVariable {
   u32 name_ptr;
   u32 start_offset_bytes;
   u32 size_bytes;
-  /** RdefVariableFlags. */
+  /** RDEFVariableFlags. */
   u32 flags;
   u32 type_ptr;
   u32 default_value_ptr;
@@ -321,27 +321,27 @@ struct alignas(u32) RdefVariable {
   /** Number of sampler slots possibly used, 0 if no textures used. */
   u32 sampler_size;
 };
-REX_STATIC_ASSERT_SIZE(RdefVariable, sizeof(u32) * 10);
+REX_STATIC_ASSERT_SIZE(RDEFVariable, sizeof(u32) * 10);
 
 /** Sorted by ID. */
-struct alignas(u32) RdefCbuffer {
+struct alignas(u32) RDEFCbuffer {
   u32 name_ptr;
   u32 variable_count;
   u32 variables_ptr;
   /** 16 byte aligned. */
   u32 size_vector_aligned_bytes;
-  RdefCbufferType type;
-  /** RdefCbufferFlags. */
+  RDEFCbufferType type;
+  /** RDEFCbufferFlags. */
   u32 flags;
 };
-REX_STATIC_ASSERT_SIZE(RdefCbuffer, sizeof(u32) * 6);
+REX_STATIC_ASSERT_SIZE(RDEFCbuffer, sizeof(u32) * 6);
 
 /** D3D12_SHADER_INPUT_BIND_DESC variant, placed in samplers, SRVs, UAVs, CBVs order by ID. */
-struct alignas(u32) RdefInputBind {
+struct alignas(u32) RDEFInputBind {
   u32 name_ptr;
-  RdefInputType type;
+  RDEFInputType type;
   ResourceReturnType return_type;
-  RdefDimension dimension;
+  RDEFDimension dimension;
   /**
    * 0 for multisampled textures, whose sample count is in the SRV descriptor, constant buffers,
    * ByteAddressBuffers and samplers. UINT32_MAX for single sampled textures and typed buffers.
@@ -350,15 +350,15 @@ struct alignas(u32) RdefInputBind {
   u32 bind_point;
   /** 0 for unbounded. */
   u32 bind_count;
-  /** RdefInputFlags. */
+  /** RDEFInputFlags. */
   u32 flags;
   /** Bind point space and ID added in shader model 5_1. */
   u32 bind_point_space;
   u32 id;
 };
-REX_STATIC_ASSERT_SIZE(RdefInputBind, sizeof(u32) * 10);
+REX_STATIC_ASSERT_SIZE(RDEFInputBind, sizeof(u32) * 10);
 
-struct alignas(u32) RdefHeader {
+struct alignas(u32) RDEFHeader {
   enum class FourCC : u32 {
     /** RD11 in Shader Model 5_0 shaders. */
     k50 = BuildFourCC('R', 'D', '1', '1'),
@@ -369,7 +369,7 @@ struct alignas(u32) RdefHeader {
   u32 cbuffers_ptr;
   u32 input_bind_count;
   u32 input_binds_ptr;
-  RdefShaderModel shader_model;
+  RDEFShaderModel shader_model;
   /** CompileFlags. */
   u32 compile_flags;
   u32 generator_name_ptr;
@@ -384,18 +384,18 @@ struct alignas(u32) RdefHeader {
   u32 unknown_0;
   void InitializeSizes() {
     sizeof_header_bytes = sizeof(*this);
-    sizeof_cbuffer_bytes = sizeof(RdefCbuffer);
-    sizeof_input_bind_bytes = sizeof(RdefInputBind);
-    sizeof_variable_bytes = sizeof(RdefVariable);
-    sizeof_type_bytes = sizeof(RdefType);
-    sizeof_structure_member_bytes = sizeof(RdefStructureMember);
+    sizeof_cbuffer_bytes = sizeof(RDEFCbuffer);
+    sizeof_input_bind_bytes = sizeof(RDEFInputBind);
+    sizeof_variable_bytes = sizeof(RDEFVariable);
+    sizeof_type_bytes = sizeof(RDEFType);
+    sizeof_structure_member_bytes = sizeof(RDEFStructureMember);
   }
 };
-REX_STATIC_ASSERT_SIZE(RdefHeader, sizeof(u32) * 15);
+REX_STATIC_ASSERT_SIZE(RDEFHeader, sizeof(u32) * 15);
 
 // D3D_NAME subset
 // NOLINTNEXTLINE(performance-enum-size): DXBC container field width
-enum class Name : u32 {
+enum class SystemValueName : u32 {
   kUndefined = 0,
   kPosition = 1,
   kClipDistance = 2,
@@ -435,7 +435,7 @@ struct alignas(u32) SignatureParameter {
   u32 semantic_name_ptr;
   u32 semantic_index;
   /** kUndefined for pixel shader outputs, inferred from the component type and shader usage. */
-  Name system_value;
+  SystemValueName system_value;
   SignatureRegisterComponentType component_type;
   /** o#/v# when there is linkage, SV_Target index or UINT32_MAX in pixel shader output. */
   u32 register_index;
@@ -455,7 +455,7 @@ struct alignas(u32) SignatureParameterForGS {
   u32 stream;
   u32 semantic_name_ptr;
   u32 semantic_index;
-  Name system_value;
+  SystemValueName system_value;
   SignatureRegisterComponentType component_type;
   u32 register_index;
   u8 mask;
@@ -471,7 +471,7 @@ struct alignas(u32) SignatureParameter111 {
   u32 stream;
   u32 semantic_name_ptr;
   u32 semantic_index;
-  Name system_value;
+  SystemValueName system_value;
   SignatureRegisterComponentType component_type;
   u32 register_index;
   u8 mask;
@@ -602,7 +602,7 @@ struct alignas(u32) Statistics {
   u32 array_instruction_count;
   u32 cut_instruction_count;
   u32 emit_instruction_count;
-  u32 texture_normal_instructions;
+  u32 texture_normal_instruction_count;
   u32 texture_load_instructions;
   u32 texture_comp_instructions;
   u32 texture_bias_instructions;
@@ -616,14 +616,14 @@ struct alignas(u32) Statistics {
   PrimitiveTopology gs_output_topology;
   u32 gs_max_output_vertex_count;
   u32 unknown_26;
-  u32 lod_instructions;
+  u32 lod_instruction_count;
   u32 unknown_28;
   u32 unknown_29;
-  u32 c_control_points;
+  u32 control_point_count;
   u32 hs_output_primitive;
   u32 hs_partitioning;
   TessellatorDomain tessellator_domain;
-  u32 c_barrier_instructions;
+  u32 barrier_instruction_count;
   u32 c_interlocked_instructions;
   u32 c_texture_store_instructions;
 };
@@ -1778,7 +1778,7 @@ class Assembler {
     sampler.Write(code_, false, 0b0000);
     lod.Write(code_, false, 0b0000);
     ++stat_.instruction_count;
-    ++stat_.texture_normal_instructions;
+    ++stat_.texture_normal_instruction_count;
   }
   /**
    * Emits a sample with explicit derivatives.
@@ -1967,7 +1967,7 @@ class Assembler {
     operand.Write(code_, true);
     ++stat_.dcl_count;
   }
-  void OpDclInputSGV(const Dest& operand, Name name) {
+  void OpDclInputSGV(const Dest& operand, SystemValueName name) {
     u32 operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputSGV, 1 + operands_length));
@@ -1975,7 +1975,7 @@ class Assembler {
     code_.push_back(static_cast<u32>(name));
     ++stat_.dcl_count;
   }
-  void OpDclInputSIV(const Dest& operand, Name name) {
+  void OpDclInputSIV(const Dest& operand, SystemValueName name) {
     u32 operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputSIV, 1 + operands_length));
@@ -2000,7 +2000,7 @@ class Assembler {
    * @param operand Input operand.
    * @param name System value name.
    */
-  void OpDclInputPSSGV(const Dest& operand, Name name) {
+  void OpDclInputPSSGV(const Dest& operand, SystemValueName name) {
     u32 operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputPSSGV, 1 + operands_length) |
@@ -2009,7 +2009,8 @@ class Assembler {
     code_.push_back(static_cast<u32>(name));
     ++stat_.dcl_count;
   }
-  void OpDclInputPSSIV(InterpolationMode interpolation_mode, const Dest& operand, Name name) {
+  void OpDclInputPSSIV(InterpolationMode interpolation_mode, const Dest& operand,
+                       SystemValueName name) {
     u32 operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputPSSIV, 1 + operands_length) |
@@ -2025,7 +2026,7 @@ class Assembler {
     operand.Write(code_, true);
     ++stat_.dcl_count;
   }
-  void OpDclOutputSIV(const Dest& operand, Name name) {
+  void OpDclOutputSIV(const Dest& operand, SystemValueName name) {
     u32 operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclOutputSIV, 1 + operands_length));
@@ -2075,7 +2076,7 @@ class Assembler {
     resource.Write(code_, false, dest_write_mask);
     sampler.Write(code_, false, 0b0000);
     ++stat_.instruction_count;
-    ++stat_.lod_instructions;
+    ++stat_.lod_instruction_count;
   }
   void OpEmitStream(const Dest& stream) {
     u32 operands_length = stream.GetLength();
@@ -2171,7 +2172,7 @@ class Assembler {
   }
   void OpDclInputControlPointCount(u32 count) {
     code_.push_back(OpcodeToken(Opcode::kDclInputControlPointCount, 0) | (count << 11));
-    stat_.c_control_points = count;
+    stat_.control_point_count = count;
   }
   void OpDclTessDomain(TessellatorDomain domain) {
     code_.push_back(OpcodeToken(Opcode::kDclTessDomain, 0) | (static_cast<u32>(domain) << 11));

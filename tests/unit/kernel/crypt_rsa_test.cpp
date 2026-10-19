@@ -20,12 +20,12 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::Get;
-using rex::testing::Hex;
-using rex::testing::KernelFixture;
-using rex::testing::Put;
-using rex::testing::PutFilled;
+using rex::test::Caller;
+using rex::test::CopyToGuest;
+using rex::test::Hex;
+using rex::test::KernelFixture;
+using rex::test::PutFilled;
+using rex::test::ReadBytes;
 
 namespace {
 
@@ -619,9 +619,9 @@ REX_TEST_CASE("The RSA exports match the standard algorithm and the console resu
       const u32 output = PutFilled(c, static_cast<u32>(expected.size()));
       const u32 result =
           c.Kernel(item.prv ? "XeCryptBnQwNeRsaPrvCrypt" : "XeCryptBnQwNeRsaPubCrypt",
-                   {Put(c, Hex(item.input)), output, Put(c, Hex(item.key))});
+                   {CopyToGuest(c, Hex(item.input)), output, CopyToGuest(c, Hex(item.key))});
       CHECK(result == item.r3);
-      CHECK(Get(c, output, static_cast<u32>(expected.size())) == expected);
+      CHECK(ReadBytes(c, output, static_cast<u32>(expected.size())) == expected);
     }
   });
 }
@@ -641,10 +641,11 @@ REX_TEST_CASE("The RSA private operation undoes the public operation", "[kernel]
       const u32 size = modulus_digits * 8;
       const u32 signature = c.Alloc(size);
       const u32 recovered = c.Alloc(size);
-      REQUIRE(c.Kernel("XeCryptBnQwNeRsaPrvCrypt", {Put(c, input), signature, Put(c, key)}) == 1);
-      REQUIRE(c.Kernel("XeCryptBnQwNeRsaPubCrypt", {signature, recovered, Put(c, public_key)}) ==
-              1);
-      CHECK(Get(c, recovered, size) == std::vector<u8>(input.begin(), input.begin() + size));
+      REQUIRE(c.Kernel("XeCryptBnQwNeRsaPrvCrypt",
+                       {CopyToGuest(c, input), signature, CopyToGuest(c, key)}) == 1);
+      REQUIRE(c.Kernel("XeCryptBnQwNeRsaPubCrypt",
+                       {signature, recovered, CopyToGuest(c, public_key)}) == 1);
+      CHECK(ReadBytes(c, recovered, size) == std::vector<u8>(input.begin(), input.begin() + size));
     }
   });
 }
@@ -662,9 +663,9 @@ REX_TEST_CASE("The RSA exports reject modulus sizes outside 2 to 64 quadwords an
       key[3] = static_cast<u8>(digits);
       for (const char* name : {"XeCryptBnQwNeRsaPubCrypt", "XeCryptBnQwNeRsaPrvCrypt"}) {
         const std::vector<u8> filled(0x41uz * 8, 0xA5);
-        const u32 output = Put(c, filled);
-        CHECK(c.Kernel(name, {Put(c, filled), output, Put(c, key)}) == 0);
-        CHECK(Get(c, output, static_cast<u32>(filled.size())) == filled);
+        const u32 output = CopyToGuest(c, filled);
+        CHECK(c.Kernel(name, {CopyToGuest(c, filled), output, CopyToGuest(c, key)}) == 0);
+        CHECK(ReadBytes(c, output, static_cast<u32>(filled.size())) == filled);
       }
     }
     const RsaCase* item = FindCase("pub1024.lt");
@@ -672,9 +673,9 @@ REX_TEST_CASE("The RSA exports reject modulus sizes outside 2 to 64 quadwords an
     std::vector<u8> even_key = Hex(item->key);
     even_key[16 + 7] &= 0xFE;
     const std::vector<u8> filled(128, 0xA5);
-    const u32 output = Put(c, filled);
+    const u32 output = CopyToGuest(c, filled);
     CHECK(c.Kernel("XeCryptBnQwNeRsaPubCrypt",
-                   {Put(c, Hex(item->input)), output, Put(c, even_key)}) == 0);
-    CHECK(Get(c, output, 128) == filled);
+                   {CopyToGuest(c, Hex(item->input)), output, CopyToGuest(c, even_key)}) == 0);
+    CHECK(ReadBytes(c, output, 128) == filled);
   });
 }

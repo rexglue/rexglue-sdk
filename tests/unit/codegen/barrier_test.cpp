@@ -65,22 +65,23 @@ std::string EmitFunction(std::string_view name, u32 barrier) {
   return code;
 }
 
-bool Has(const std::string& text, std::string_view needle) {
+bool Contains(const std::string& text, std::string_view needle) {
   return text.find(needle) != std::string::npos;
 }
 
 }  // namespace
 
 REX_TEST_CASE("sync emits a sequentially consistent fence", "[codegen][barrier]") {
-  CHECK(Has(EmitFunction("sync", kSync), "std::atomic_thread_fence(std::memory_order_seq_cst);"));
+  CHECK(Contains(EmitFunction("sync", kSync),
+                 "std::atomic_thread_fence(std::memory_order_seq_cst);"));
 }
 
 REX_TEST_CASE("lwsync emits an acquire release fence", "[codegen][barrier]") {
-  CHECK(
-      Has(EmitFunction("lwsync", kLwsync), "std::atomic_thread_fence(std::memory_order_acq_rel);"));
+  CHECK(Contains(EmitFunction("lwsync", kLwsync),
+                 "std::atomic_thread_fence(std::memory_order_acq_rel);"));
 }
 
 REX_TEST_CASE("eieio emits a sequentially consistent fence", "[codegen][barrier]") {
-  CHECK(Has(EmitFunction("eieio", kEieio),
-            "std::atomic_thread_fence(std::memory_order_seq_cst);"));
+  CHECK(Contains(EmitFunction("eieio", kEieio),
+                 "std::atomic_thread_fence(std::memory_order_seq_cst);"));
 }

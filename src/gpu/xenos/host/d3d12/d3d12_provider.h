@@ -33,7 +33,7 @@ class D3D12Provider : public GraphicsProvider {
   std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGPULossCallback host_gpu_loss_callback =
                                                  Presenter::FatalErrorHostGPULossCallback) override;
 
-  std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
+  std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() override;
 
   IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
   /** Returns null when PIX is not attached. */
@@ -79,10 +79,10 @@ class D3D12Provider : public GraphicsProvider {
   bool IsPSSpecifiedStencilReferenceSupported() const {
     return ps_specified_stencil_reference_supported_;
   }
-  bool AreRasterizerOrderedViewsSupported() const { return rasterizer_ordered_views_supported_; }
+  bool IsRasterizerOrderedViewSupported() const { return rasterizer_ordered_views_supported_; }
   D3D12_RESOURCE_BINDING_TIER GetResourceBindingTier() const { return resource_binding_tier_; }
   D3D12_TILED_RESOURCES_TIER GetTiledResourcesTier() const { return tiled_resources_tier_; }
-  bool AreUnalignedBlockTexturesSupported() const { return unaligned_block_textures_supported_; }
+  bool IsUnalignedBlockTextureSupported() const { return unaligned_block_textures_supported_; }
   u32 GetVirtualAddressBitsPerResource() const { return virtual_address_bits_per_resource_; }
 
   HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,

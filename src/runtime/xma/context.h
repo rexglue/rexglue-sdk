@@ -129,7 +129,7 @@ struct XMA_CONTEXT_DATA {
 };
 REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_DATA, 64);
 
-struct PacketInfo {
+struct PacketFrame {
   u8 frame_count = 0;
   u8 current_frame = 0;
   u32 current_frame_size = 0;
@@ -160,7 +160,7 @@ class XMAContext {
 
   static const u32 kOutputBytesPerBlock = 256;
   static const u32 kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
-  static const u32 kMaxFrameSizeinBits = 0x4000 - kBitsPerPacketHeader;
+  static const u32 kMaxFrameSizeInBits = 0x4000 - kBitsPerPacketHeader;
 
   /**
    * Start padding the bitstream declares, which FFmpeg's xmaframes decoder emits as output.
@@ -178,7 +178,7 @@ class XMAContext {
   bool Work();
 
   void Enable();
-  bool Block(bool poll);
+  bool WaitIdle(bool poll);
   void Clear();
   void Disable();
   void Release();
@@ -190,10 +190,10 @@ class XMAContext {
   bool IsAllocated() { return is_allocated_.load(std::memory_order_acquire); }
   bool IsEnabled() { return is_enabled_.load(std::memory_order_acquire); }
 
-  void SetIsAllocated(bool is_allocated) {
+  void SetAllocated(bool is_allocated) {
     is_allocated_.store(is_allocated, std::memory_order_release);
   }
-  void SetIsEnabled(bool is_enabled) { is_enabled_.store(is_enabled, std::memory_order_release); }
+  void SetEnabled(bool is_enabled) { is_enabled_.store(is_enabled, std::memory_order_release); }
 
   void SignalWorkDone() {
     if (work_completion_event_) {
@@ -207,7 +207,7 @@ class XMAContext {
   static i16 GetPacketNumber(size_t size, size_t bit_offset);
   static u32 GetCurrentInputBufferSize(XMA_CONTEXT_DATA* data);
 
-  PacketInfo GetPacketInfo(u8* packet, u32 frame_offset);
+  PacketFrame GetPacketInfo(u8* packet, u32 frame_offset);
   u32 GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size);
   const u8* GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_index,
                           u32 current_input_packet_count) const;

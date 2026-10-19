@@ -33,7 +33,7 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
-u32 GetQueryFileInfoMinimumLength(u32 info_class) {
+u32 GetQueryFileMinimumLength(u32 info_class) {
   switch (info_class) {
     case XFileInternalInformation:
       return sizeof(X_FILE_INTERNAL_INFORMATION);
@@ -58,9 +58,9 @@ u32 GetQueryFileInfoMinimumLength(u32 info_class) {
   }
 }
 
-u32 NtQueryInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block_ptr,
+u32 NtQueryInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block,
                                  MappedVoid info_ptr, u32 info_length, u32 info_class) {
-  u32 minimum_length = GetQueryFileInfoMinimumLength(info_class);
+  u32 minimum_length = GetQueryFileMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
   }
@@ -108,7 +108,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> i
       // The size can change outside NtSetInformationFile, as NtWriteFile can extend the file.
       file->file->Refresh();
 
-      const filesystem::FileInfo entry = file->file->GetInfo();
+      const filesystem::FileStat entry = file->file->GetInfo();
       auto info = info_ptr.As<X_FILE_NETWORK_OPEN_INFORMATION*>();
       info->creation_time = entry.create_time;
       info->last_access_time = entry.access_time;
@@ -134,15 +134,15 @@ u32 NtQueryInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> i
     }
   }
 
-  if (io_status_block_ptr) {
-    io_status_block_ptr->status = status;
-    io_status_block_ptr->information = out_length;
+  if (io_status_block) {
+    io_status_block->status = status;
+    io_status_block->information = out_length;
   }
 
   return status;
 }
 
-u32 GetSetFileInfoMinimumLength(u32 info_class) {
+u32 GetSetFileMinimumLength(u32 info_class) {
   switch (info_class) {
     case XFileRenameInformation:
       return sizeof(X_FILE_RENAME_INFORMATION);
@@ -174,7 +174,7 @@ u32 GetSetFileInfoMinimumLength(u32 info_class) {
 
 u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block,
                                MappedVoid info_ptr, u32 info_length, u32 info_class) {
-  u32 minimum_length = GetSetFileInfoMinimumLength(info_class);
+  u32 minimum_length = GetSetFileMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
   }
@@ -301,7 +301,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
   return result;
 }
 
-u32 GetQueryVolumeInfoMinimumLength(u32 info_class) {
+u32 GetQueryVolumeMinimumLength(u32 info_class) {
   switch (info_class) {
     case XFileFsVolumeInformation:
       return sizeof(X_FILE_FS_VOLUME_INFORMATION);
@@ -318,9 +318,9 @@ u32 GetQueryVolumeInfoMinimumLength(u32 info_class) {
 }
 
 u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
-                                       GuestPtrT<X_IO_STATUS_BLOCK> io_status_block_ptr,
+                                       GuestPtrT<X_IO_STATUS_BLOCK> io_status_block,
                                        MappedVoid info_ptr, u32 info_length, u32 info_class) {
-  u32 minimum_length = GetQueryVolumeInfoMinimumLength(info_class);
+  u32 minimum_length = GetQueryVolumeMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
   }
@@ -347,7 +347,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsSizeInformation: {
-      const filesystem::VolumeInfo volume = file->file->GetVolume();
+      const filesystem::VolumeStat volume = file->file->GetVolume();
       auto info = info_ptr.As<X_FILE_FS_SIZE_INFORMATION*>();
       info->total_allocation_units = volume.total_allocation_units;
       info->available_allocation_units = volume.available_allocation_units;
@@ -358,7 +358,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsAttributeInformation: {
-      const filesystem::VolumeInfo volume = file->file->GetVolume();
+      const filesystem::VolumeStat volume = file->file->GetVolume();
       const auto& name = volume.name;
       auto info = info_ptr.As<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
       info->attributes = volume.attributes;
@@ -387,9 +387,9 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
     }
   }
 
-  if (io_status_block_ptr) {
-    io_status_block_ptr->status = status;
-    io_status_block_ptr->information = out_length;
+  if (io_status_block) {
+    io_status_block->status = status;
+    io_status_block->information = out_length;
   }
 
   return status;

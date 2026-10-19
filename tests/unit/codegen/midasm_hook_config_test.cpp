@@ -21,7 +21,7 @@ using namespace rex::codegen;
 
 namespace {
 
-using rex::test::AnyError;
+using rex::test::HasError;
 
 RecompilerConfig HookConfig(std::vector<std::string> registers) {
   RecompilerConfig config;
@@ -39,8 +39,8 @@ RecompilerConfig HookConfig(std::vector<std::string> registers) {
 REX_TEST_CASE("A mid function hook cannot take r1", "[codegen][midasm]") {
   auto result = HookConfig({"r3", "r1"}).Validate();
   CHECK_FALSE(result.valid);
-  CHECK(AnyError(result, "TestHook"));
-  CHECK(AnyError(result, "r1"));
+  CHECK(HasError(result, "TestHook"));
+  CHECK(HasError(result, "r1"));
 }
 
 REX_TEST_CASE("A mid function hook may take other registers", "[codegen][midasm]") {

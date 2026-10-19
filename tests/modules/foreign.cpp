@@ -14,19 +14,19 @@
 extern "C" {
 
 #ifdef REX_TEST_FOREIGN_IDENTITY
-REX_DETAIL_EXPORT const char* rex_build_identity() {
+REX_DETAIL_EXPORT const char* ReXBuildIdentity() {
   return REX_TEST_FOREIGN_IDENTITY;
 }
 #endif
 
-REX_DETAIL_EXPORT void* rex_create_interface(const char*, rex::u32, rex::i32* out_status) {
+REX_DETAIL_EXPORT void* ReXCreateInterface(const char*, rex::u32, rex::i32* out_status) {
   if (out_status)
     *out_status = static_cast<rex::i32>(rex::InterfaceStatus::kNotFound);
   return nullptr;
 }
 
-REX_DETAIL_EXPORT void rex_enumerate_interfaces(const rex::InterfaceEntry** out_entries,
-                                                rex::u32* out_count) {
+REX_DETAIL_EXPORT void ReXEnumerateInterfaces(const rex::InterfaceEntry** out_entries,
+                                              rex::u32* out_count) {
   if (out_entries)
     *out_entries = nullptr;
   if (out_count)

@@ -311,8 +311,8 @@ enum XEXHeaderKey : u32 {
   kXEXHeaderDeltaPatchDescriptor = 0x000005FF, /**< Selects XEXOptDeltaPatchDescriptor. */
   /** Header of a base image reference. */
   kXEXHeaderBaseReference = 0x00000405,
-  kXEXHeaderBoundingPath = 0x000080FF, /**< Selects XEXOptBoundPath. */
-  kXEXHeaderDeviceId = 0x00008105,     /**< Header holding a device identifier. */
+  kXEXHeaderBoundPath = 0x000080FF, /**< Selects XEXOptBoundPath. */
+  kXEXHeaderDeviceId = 0x00008105,  /**< Header holding a device identifier. */
   /** Header holding the base address the image was linked at. */
   kXEXHeaderOriginalBaseAddress = 0x00010001,
   /** Inline value holding the guest address of the entry point. */
@@ -348,7 +348,7 @@ enum XEXHeaderKey : u32 {
   kXEXHeaderXbox360Logo = 0x000405FF, /**< Header holding the logo bitmap. */
   /** Header listing the media ids of a multi disc title. */
   kXEXHeaderMultiDiscMediaIds = 0x000406FF,
-  /** Selects XEXOptGenericU32 holding alternate title ids. */
+  /** Selects XEXOptU32Words holding alternate title ids. */
   kXEXHeaderAlternateTitleIds = 0x000407FF,
   /** Header holding the additional title memory request. */
   kXEXHeaderAdditionalTitleMemory = 0x00040801,
@@ -620,7 +620,7 @@ static_assert(offsetof(XEXImportLibraryHeader, import_table) == 0x28);
 REX_STATIC_ASSERT_SIZE(XEXImportLibraryHeader, 0x2C);
 
 /** SDK shape of an optional header that is a byte size followed by 32 bit words. */
-struct XEXOptGenericU32 {
+struct XEXOptU32Words {
   be_u32 size;      /**< Size of this header in bytes, the size field included. */
   be_u32 values[1]; /**< First of the `GetCount()` values. */
 
@@ -662,7 +662,7 @@ struct XEXPageDescriptor {
   union {
     be_u32 value;
     struct {
-      XEXSectionType info : 4; /**< Bits 0 to 3 of value. Section type of the pages. */
+      XEXSectionType type : 4; /**< Bits 0 to 3 of value. Section type of the pages. */
       u32 page_count : 28;     /**< Bits 4 to 31 of value. Number of pages in the run. */
     };
   };
@@ -675,7 +675,7 @@ struct XEXSecurityInfoHeader {
   be_u32 header_size;
   be_u32 image_size;
   char rsa_signature[0x100];
-  be_u32 unk_108;
+  be_u32 info_size;
   be_u32 image_flags;
   be_u32 load_address;
   char section_digest[0x14];
@@ -716,15 +716,15 @@ REX_STATIC_ASSERT_SIZE(XEX1SecurityInfo, 0x180);
 /** Export table of an image, indexed by ordinal. */
 struct XEXExportTable {
   be_u32 magic[3];
-  be_u32 modulenumber[2];
+  be_u32 module_number[2];
   be_u32 version[3];
-  be_u32 imagebaseaddr; /**< Shifted left 16 for the true address. */
+  be_u32 image_base_address; /**< Shifted left 16 for the true address. */
   be_u32 count;
   be_u32 base;
-  /** ordOffset[0] + (imagebaseaddr << 16) is the function address. */
-  be_u32 ordOffset[1];
+  /** ordinal_offset[0] + (imagebaseaddr << 16) is the function address. */
+  be_u32 ordinal_offset[1];
 };
-static_assert(offsetof(XEXExportTable, ordOffset) == 0x2C);
+static_assert(offsetof(XEXExportTable, ordinal_offset) == 0x2C);
 REX_STATIC_ASSERT_SIZE(XEXExportTable, 0x30);
 
 /** Little endian PE export directory from winnt.h. */

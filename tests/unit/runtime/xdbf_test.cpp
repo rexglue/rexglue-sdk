@@ -22,9 +22,9 @@ using rex::u16;
 using rex::u32;
 using rex::u64;
 using rex::u8;
-using rex::runtime::XDBFGameData;
 using rex::runtime::XDBFReader;
 using rex::runtime::XDBFSection;
+using rex::runtime::XDBFTitleData;
 using rex::runtime::XLanguage;
 
 constexpr u64 kTitleId = 0x8000;
@@ -124,7 +124,7 @@ REX_TEST_CASE("An XDBF string table header past its block reads no string", "[ru
   const std::vector<u8> content = TitleStrings(1, "Name");
   const std::vector<u8> data =
       Database({XDBFSection::kStringTable, static_cast<u64>(XLanguage::kEnglish), 0, 10}, content);
-  const XDBFGameData db(data.data(), data.size());
+  const XDBFTitleData db(data.data(), data.size());
   REQUIRE(db.IsValid());
   CHECK(db.GetTitle(XLanguage::kEnglish).empty());
 }
@@ -135,7 +135,7 @@ REX_TEST_CASE("An XDBF string table entry past its block reads no string", "[run
       Database({XDBFSection::kStringTable, static_cast<u64>(XLanguage::kEnglish), 0,
                 static_cast<u32>(kSectionHeaderSize)},
                content);
-  const XDBFGameData db(data.data(), data.size());
+  const XDBFTitleData db(data.data(), data.size());
   REQUIRE(db.IsValid());
   CHECK(db.GetTitle(XLanguage::kEnglish).empty());
 }
@@ -146,7 +146,7 @@ REX_TEST_CASE("An XDBF string past its block reads no string", "[runtime][xdbf]"
       Database({XDBFSection::kStringTable, static_cast<u64>(XLanguage::kEnglish), 0,
                 static_cast<u32>(kSectionHeaderSize + kStringEntrySize + 2)},
                content);
-  const XDBFGameData db(data.data(), data.size());
+  const XDBFTitleData db(data.data(), data.size());
   REQUIRE(db.IsValid());
   CHECK(db.GetTitle(XLanguage::kEnglish).empty());
 }
@@ -167,7 +167,7 @@ REX_TEST_CASE("An XDBF language block smaller than the XSTC structure keeps the 
   Bytes content;
   content.Text("XSTC").Put(1, 4).Put(4, 4).Put(static_cast<u32>(XLanguage::kJapanese), 4);
   const std::vector<u8> data = Database({XDBFSection::kMetadata, kXstcId, 0, 8}, content.data);
-  const XDBFGameData db(data.data(), data.size());
+  const XDBFTitleData db(data.data(), data.size());
   REQUIRE(db.IsValid());
   CHECK(db.GetDefaultLanguage() == XLanguage::kEnglish);
 }
@@ -179,7 +179,7 @@ REX_TEST_CASE("An XDBF string table with another magic or version reads no strin
                     static_cast<u32>(good.size())};
   {
     const std::vector<u8> data = Database(entry, good);
-    const XDBFGameData db(data.data(), data.size());
+    const XDBFTitleData db(data.data(), data.size());
     REQUIRE(db.IsValid());
     CHECK(db.GetTitle(XLanguage::kEnglish) == "Name");
   }
@@ -189,7 +189,7 @@ REX_TEST_CASE("An XDBF string table with another magic or version reads no strin
   bad_version[7] = 2;
   for (const auto& content : {bad_magic, bad_version}) {
     const std::vector<u8> data = Database(entry, content);
-    const XDBFGameData db(data.data(), data.size());
+    const XDBFTitleData db(data.data(), data.size());
     REQUIRE(db.IsValid());
     CHECK(db.GetTitle(XLanguage::kEnglish).empty());
   }
@@ -217,7 +217,7 @@ REX_TEST_CASE("An XDBF language block with another magic keeps the default langu
     Bytes content;
     content.Text(magic).Put(1, 4).Put(4, 4).Put(static_cast<u32>(XLanguage::kJapanese), 4);
     const std::vector<u8> data = Database({XDBFSection::kMetadata, kXstcId, 0, 16}, content.data);
-    const XDBFGameData db(data.data(), data.size());
+    const XDBFTitleData db(data.data(), data.size());
     REQUIRE(db.IsValid());
     CHECK(db.GetDefaultLanguage() ==
           (magic == "XSTC" ? XLanguage::kJapanese : XLanguage::kEnglish));

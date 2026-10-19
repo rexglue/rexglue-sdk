@@ -125,9 +125,10 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
    * @param keep_mask_low Receives the keep mask of the low 32 bits.
    * @param keep_mask_high Receives the keep mask of the high 32 bits.
    */
-  static void GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat format, u32 write_mask,
-                                    f32& clamp_rgb_low, f32& clamp_alpha_low, f32& clamp_rgb_high,
-                                    f32& clamp_alpha_high, u32& keep_mask_low, u32& keep_mask_high);
+  static void GetPSIColorClampsAndKeepMasks(xenos::ColorRenderTargetFormat format, u32 write_mask,
+                                            f32& clamp_rgb_low, f32& clamp_alpha_low,
+                                            f32& clamp_rgb_high, f32& clamp_alpha_high,
+                                            u32& keep_mask_low, u32& keep_mask_high);
 
   virtual ~RenderTargetCache();
 
@@ -508,14 +509,14 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
     constant.msaa_2x_supported = static_cast<u32>(msaa_2x_supported);
     return constant;
   }
-  void GetHostDepthStoreRectangleInfo(const Transfer::Rectangle& transfer_rectangle,
-                                      xenos::MSAASamples msaa_samples,
-                                      HostDepthStoreRectangleConstant& rectangle_constant_out,
-                                      u32& group_count_x_out, u32& group_count_y_out) const;
+  void GetHostDepthStoreRectangleDispatch(const Transfer::Rectangle& transfer_rectangle,
+                                          xenos::MSAASamples msaa_samples,
+                                          HostDepthStoreRectangleConstant& rectangle_constant_out,
+                                          u32& group_count_x_out, u32& group_count_y_out) const;
 
   /**
    * Returns mappings between ranges within the tile rectangle (not the render target texture
-   * rectangle, as textures may have any pitch) from ResolveInfo::GetCopyEDRAMTileSpan and the
+   * rectangle, as textures may have any pitch) from ResolveRequest::GetCopyEDRAMTileSpan and the
    * render targets owning them.
    *
    * @param base First tile.
@@ -542,7 +543,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
    * @param color_transfers_out Receives the transfers needed for the color render target.
    * @return True when any clears need to be done (false when there are none and on error).
    */
-  bool PrepareHostRenderTargetsResolveClear(const draw_state::ResolveInfo& resolve_info,
+  bool PrepareHostRenderTargetsResolveClear(const draw_state::ResolveRequest& resolve_info,
                                             Transfer::Rectangle& clear_rectangle_out,
                                             RenderTarget*& depth_render_target_out,
                                             std::vector<Transfer>& depth_transfers_out,

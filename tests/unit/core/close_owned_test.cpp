@@ -27,8 +27,8 @@
 using rex::runtime::AddOptions;
 using rex::runtime::CloseOwned;
 using rex::runtime::SymbolicLinkObject;
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 REX_TEST_CASE("CloseOwned closes the handle it is given", "[core][close_owned]") {
   KernelFixture fixture;

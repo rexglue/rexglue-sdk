@@ -33,7 +33,7 @@ REX_TEST_CASE("CLIArgList splits options, values and positionals", "[core][cli]"
   REQUIRE(args.Get("d") == "last");
   REQUIRE(args.GetPositionals().size() == 1);
   REQUIRE(args.GetPositionals()[0] == "first");
-  REQUIRE(args.All().size() == 7);
+  REQUIRE(args.GetAll().size() == 7);
   REQUIRE(args.GetOptions().size() == 4);
   REQUIRE(args.GetOptions()[1].name == "b");
 }
@@ -43,7 +43,7 @@ REX_TEST_CASE("CLIArgList skips argv[0]", "[core][cli]") {
   char option[] = "--x=1";
   char* argv[] = {program, option};
   auto args = rex::CLIArgList::Parse(2, argv);
-  REQUIRE(args.All().size() == 1);
+  REQUIRE(args.GetAll().size() == 1);
   REQUIRE(args.Get("x") == "1");
 }
 

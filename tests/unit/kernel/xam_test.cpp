@@ -22,8 +22,8 @@
 
 #include "kernel_fixture.h"
 
-using rex::testing::Caller;
-using rex::testing::KernelFixture;
+using rex::test::Caller;
+using rex::test::KernelFixture;
 
 REX_TEST_CASE("XAM: a content resolve reports the content as not found", "[kernel][xam]") {
   KernelFixture fixture;

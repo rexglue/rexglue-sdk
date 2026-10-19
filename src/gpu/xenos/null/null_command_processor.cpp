@@ -29,7 +29,7 @@ Shader* NullCommandProcessor::LoadShader(xenos::ShaderType shader_type, u32,
   return it->second.get();
 }
 
-bool NullCommandProcessor::IssueDraw(xenos::PrimitiveType, u32, IndexBufferInfo*, bool) {
+bool NullCommandProcessor::IssueDraw(xenos::PrimitiveType, u32, IndexBuffer*, bool) {
   return true;
 }
 

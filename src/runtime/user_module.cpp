@@ -50,9 +50,9 @@ X_STATUS LoadXEXContinue(Runtime& runtime, ModuleObject& module) {
   std::memcpy(xex_header_ptr, header.data(), header.size());
 
   module.user.entry_point =
-      image.OptHeaderValue(filesystem::kXEXHeaderEntryPoint).value_or(module.user.entry_point);
-  module.user.stack_size =
-      image.OptHeaderValue(filesystem::kXEXHeaderDefaultStackSize).value_or(module.user.stack_size);
+      image.GetOptHeaderValue(filesystem::kXEXHeaderEntryPoint).value_or(module.user.entry_point);
+  module.user.stack_size = image.GetOptHeaderValue(filesystem::kXEXHeaderDefaultStackSize)
+                               .value_or(module.user.stack_size);
   module.user.is_dll_module = !!(image.GetHeader().module_flags & filesystem::kXEXModuleDLLModule);
 
   auto ldr_data = memory->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module.hmodule_ptr);
@@ -90,7 +90,7 @@ u32 ModuleObject::GetTitleId() const {
   if (user.module_format != ModuleFormat::kXEX) {
     return 0;
   }
-  const auto* info = GetXEX()->GetImage().OptHeader<filesystem::XEXOptExecutionInfo>(
+  const auto* info = GetXEX()->GetImage().GetOptHeader<filesystem::XEXOptExecutionInfo>(
       filesystem::kXEXHeaderExecutionInfo);
   return info ? static_cast<u32>(info->title_id) : 0;
 }
@@ -108,7 +108,7 @@ X_STATUS ModuleObject::LoadFromFile(Runtime& owning_runtime, std::string_view gu
   name = rex::utf8_find_base_name_from_guest_path(path);
 
   filesystem::OpenOptions options;
-  options.access = filesystem::Access::kGenericRead;
+  options.access = filesystem::Access::kReadAccess;
   auto opened = fs->Open(path, options);
   if (!opened) {
     return ToXStatus(opened.error());
@@ -196,7 +196,7 @@ X_STATUS ModuleObject::LoadFromMemory(Runtime& owning_runtime, const void* addr,
 }
 
 X_STATUS ModuleObject::Unload() {
-  if (user.module_format == ModuleFormat::kXEX && (!processor_module || !GetXEX()->GetLoaded())) {
+  if (user.module_format == ModuleFormat::kXEX && (!processor_module || !GetXEX()->IsLoaded())) {
     return X_STATUS_SUCCESS;
   }
 
@@ -207,7 +207,7 @@ X_STATUS ModuleObject::Unload() {
   return X_STATUS_UNSUCCESSFUL;
 }
 
-X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, void** out_ptr) {
+X_STATUS ModuleObject::GetOptHeader(filesystem::XEXHeaderKey key, void** out_ptr) {
   REX_ASSERT(out_ptr != nullptr);
 
   if (!GetXEX()) {
@@ -216,14 +216,14 @@ X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, void** out_ptr) {
 
   const auto& image = GetXEX()->GetImage();
   if ((key & 0xFF) == 0x00) {
-    const auto value = image.OptHeaderValue(key);
+    const auto value = image.GetOptHeaderValue(key);
     if (!value) {
       return X_STATUS_NOT_FOUND;
     }
     *reinterpret_cast<u32*>(out_ptr) = *value;
     return X_STATUS_SUCCESS;
   }
-  const void* data = image.OptHeader<void>(key);
+  const void* data = image.GetOptHeader<void>(key);
   if (!data) {
     return X_STATUS_NOT_FOUND;
   }
@@ -231,7 +231,7 @@ X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, void** out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) const {
+X_STATUS ModuleObject::GetOptHeader(filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) const {
   if (user.module_format == ModuleFormat::kELF) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -241,11 +241,12 @@ X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, u32* out_header_g
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  return OptHeader(memory, header, key, out_header_guest_ptr);
+  return GetOptHeader(memory, header, key, out_header_guest_ptr);
 }
 
-X_STATUS ModuleObject::OptHeader(const runtime::Memory* memory, const filesystem::XEXHeader* header,
-                                 filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) {
+X_STATUS ModuleObject::GetOptHeader(const runtime::Memory* memory,
+                                    const filesystem::XEXHeader* header,
+                                    filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) {
   REX_ASSERT(out_header_guest_ptr != nullptr);
   const auto entry = filesystem::FindOptHeaderEntry(
       std::span(reinterpret_cast<const u8*>(header), header->header_size), key);

@@ -32,7 +32,7 @@ namespace rex::runtime {
  * @param result The Win32 code the frozen export returns.
  * @return The error, in category Runtime, with the code as its code.
  */
-[[nodiscard]] REX_RUNTIME_API rex::Error ResultError(X_RESULT result);
+[[nodiscard]] REX_RUNTIME_API rex::Error XResultError(X_RESULT result);
 
 /**
  * Maps an error to the NT status the kernel reports.
@@ -47,7 +47,7 @@ namespace rex::runtime {
 /**
  * Maps an error to the Win32 code XAM reports.
  *
- * @param error An error built by ResultError.
+ * @param error An error built by XResultError.
  * @param unsupported The code for an error of another category.
  * @return The code of a Runtime error, otherwise unsupported.
  */

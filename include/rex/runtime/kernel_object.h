@@ -1,5 +1,5 @@
 /**
- * @file        runtime/object_data.h
+ * @file        runtime/kernel_object.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -186,7 +186,7 @@ class PinnedSlot : public rex::MoveOnly {
    *
    * @return The address, 0 when the object has no guest block.
    */
-  [[nodiscard]] u32 GetGuestObject() const { return object_->guest_ptr; }
+  [[nodiscard]] u32 GetGuestAddress() const { return object_->guest_ptr; }
 
   /** Drops the pin. */
   void Reset() noexcept {
@@ -247,7 +247,7 @@ class Pinned {
    *
    * @return The address, 0 when the object has no guest block.
    */
-  [[nodiscard]] u32 GetGuestObject() const { return slot_.GetGuestObject(); }
+  [[nodiscard]] u32 GetGuestAddress() const { return slot_.GetGuestAddress(); }
 
   /**
    * Returns the underlying pin.

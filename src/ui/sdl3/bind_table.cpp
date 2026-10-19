@@ -139,7 +139,7 @@ bool BindTable::Process(const KeyEvent& e) {
     std::lock_guard lock(mutex_);
     for (const Entry& entry : entries_) {
       if (entry.callback && entry.chord.key != hid::VirtualKey::kNone &&
-          entry.chord.key == e.GetVirtualKey() && entry.chord.mods == mods) {
+          entry.chord.key == e.GetVirtualKey() && entry.chord.modifiers == mods) {
         callback = entry.callback;
         break;
       }

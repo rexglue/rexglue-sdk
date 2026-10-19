@@ -38,7 +38,7 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
       {rex::test::IEcho::kInterfaceName, rex::test::IEcho::kInterfaceVersion, &GetEcho},
   }};
 
-  GoodModule() { Record(kName, "constructor"); }
+  GoodModule() { ReportEvent(kName, "constructor"); }
 
   const char* GetName() const override { return kName; }
   std::span<const char* const> GetRequiredInterfaces() const override {
@@ -47,23 +47,23 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
   }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory* factory,
                                           const rex::Config&) override {
-    Record(kName, "connect");
+    ReportEvent(kName, "connect");
     REX_TRY(cvars_, factory->Get<rex::cvar::ICvarRegistry>());
     return cvars_->Register("echo", kEchoCvars);
   }
   void Disconnect() override {
-    Record(kName, "disconnect");
+    ReportEvent(kName, "disconnect");
     if (cvars_)
       cvars_->Unregister(kEchoCvars);
     cvars_ = nullptr;
   }
   [[nodiscard]] rex::Result<void> Init() override {
-    Record(kName, "init");
+    ReportEvent(kName, "init");
     return rex::Ok();
   }
-  void Shutdown() override { Record(kName, "shutdown"); }
+  void Shutdown() override { ReportEvent(kName, "shutdown"); }
   int Echo(int input) override { return input; }
-  int Value() override { return value.Get(); }
+  int GetValue() override { return value.Get(); }
 
  private:
   rex::cvar::ICvarRegistry* cvars_ = nullptr;

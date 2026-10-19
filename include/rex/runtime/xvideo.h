@@ -26,7 +26,7 @@ struct X_VIDEO_MODE {
   be_u32 is_hi_def;      /**< Nonzero for a high definition mode. */
   be_f32 refresh_rate;   /**< Refresh rate in hertz. */
   be_u32 video_standard; /**< Video standard of the display. The query writes 1. */
-  be_u32 unknown_0x8a;   /**< Inside the XDK Reserved array. The query writes 0x4A. */
+  be_u32 reserved_0;     /**< Inside the XDK Reserved array. The query writes 0x4A. */
   be_u32 unknown_0x01;   /**< Inside the XDK Reserved array. The query writes 0x01. */
   be_u32 reserved[3];    /**< Reserved. */
 };

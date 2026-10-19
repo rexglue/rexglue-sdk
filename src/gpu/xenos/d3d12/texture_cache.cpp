@@ -392,26 +392,26 @@ bool D3D12TextureCache::Initialize() {
   root_parameters[0].Constants.Num32BitValues = sizeof(LoadConstants) / sizeof(u32);
   root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   // Parameter 1 is the source, changed multiple times for the same destination.
-  D3D12_DESCRIPTOR_RANGE root_dest_range;
-  root_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-  root_dest_range.NumDescriptors = 1;
-  root_dest_range.BaseShaderRegister = 0;
-  root_dest_range.RegisterSpace = 0;
-  root_dest_range.OffsetInDescriptorsFromTableStart = 0;
-  root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-  root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
-  root_parameters[1].DescriptorTable.pDescriptorRanges = &root_dest_range;
-  root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  // Parameter 2 is the destination.
   D3D12_DESCRIPTOR_RANGE root_source_range;
-  root_source_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+  root_source_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   root_source_range.NumDescriptors = 1;
   root_source_range.BaseShaderRegister = 0;
   root_source_range.RegisterSpace = 0;
   root_source_range.OffsetInDescriptorsFromTableStart = 0;
+  root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
+  root_parameters[1].DescriptorTable.pDescriptorRanges = &root_source_range;
+  root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  // Parameter 2 is the destination.
+  D3D12_DESCRIPTOR_RANGE root_dest_range;
+  root_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+  root_dest_range.NumDescriptors = 1;
+  root_dest_range.BaseShaderRegister = 0;
+  root_dest_range.RegisterSpace = 0;
+  root_dest_range.OffsetInDescriptorsFromTableStart = 0;
   root_parameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   root_parameters[2].DescriptorTable.NumDescriptorRanges = 1;
-  root_parameters[2].DescriptorTable.pDescriptorRanges = &root_source_range;
+  root_parameters[2].DescriptorTable.pDescriptorRanges = &root_dest_range;
   root_parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   D3D12_ROOT_SIGNATURE_DESC root_signature_desc;
   root_signature_desc.NumParameters = static_cast<UINT>(rex::CountOf(root_parameters));
@@ -723,7 +723,7 @@ void D3D12TextureCache::RequestTextures(u32 used_texture_mask) {
   }
 }
 
-bool D3D12TextureCache::AreActiveTextureSRVKeysUpToDate(
+bool D3D12TextureCache::IsActiveTextureSRVKeysUpToDate(
     const TextureSRVKey* keys, const D3D12Shader::TextureBinding* host_shader_bindings,
     size_t host_shader_binding_count) const {
   for (size_t i = 0; i < host_shader_binding_count; ++i) {
@@ -775,7 +775,7 @@ void D3D12TextureCache::WriteActiveTextureBindfulSRV(
     const D3D12TextureBinding& d3d12_binding = d3d12_texture_bindings_[fetch_constant_index];
     if (host_shader_binding.is_signed) {
       // Signed compressed textures (DXN and DXT5A) are not supported.
-      if (xenos::IsAnySignSigned(binding->swizzled_signs)) {
+      if (xenos::HasSignedComponent(binding->swizzled_signs)) {
         texture = IsSignedVersionSeparateForFormat(binding->key) ? binding->texture_signed
                                                                  : binding->texture;
         if (force_special_view && texture) {
@@ -787,7 +787,7 @@ void D3D12TextureCache::WriteActiveTextureBindfulSRV(
         }
       }
     } else {
-      if (xenos::IsAnySignNotSigned(binding->swizzled_signs)) {
+      if (xenos::HasNonSignedComponent(binding->swizzled_signs)) {
         texture = binding->texture;
         if (force_special_view && texture) {
           descriptor_index = FindOrCreateTextureDescriptor(*static_cast<D3D12Texture*>(texture),
@@ -847,7 +847,7 @@ u32 D3D12TextureCache::GetActiveTextureBindlessSRVIndex(
     if (force_special_view) {
       Texture* texture = nullptr;
       bool use_signed =
-          host_shader_binding.is_signed && xenos::IsAnySignSigned(binding->swizzled_signs);
+          host_shader_binding.is_signed && xenos::HasSignedComponent(binding->swizzled_signs);
       if (use_signed) {
         texture = IsSignedVersionSeparateForFormat(binding->key) ? binding->texture_signed
                                                                  : binding->texture;
@@ -1054,8 +1054,8 @@ bool D3D12TextureCache::ClampDrawResolutionScaleToMaxSupported(
   return !was_clamped;
 }
 
-bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u32 length_unscaled,
-                                                           u32 length_scaled_alignment_log2) {
+bool D3D12TextureCache::CommitScaledResolveMemory(u32 start_unscaled, u32 length_unscaled,
+                                                  u32 length_scaled_alignment_log2) {
   REX_ASSERT(IsDrawResolutionScaled());
 
   if (length_unscaled == 0) {
@@ -1366,7 +1366,7 @@ bool D3D12TextureCache::IsDecompressionNeeded(xenos::TextureFormat format, u32 w
   }
   // UnalignedBlockTexturesSupported covers 4x4 block compressed textures, not 2x1 subsampled ones.
   if (format_info->block_width == 4 && format_info->block_height == 4 &&
-      command_processor_.GetD3D12Provider().AreUnalignedBlockTexturesSupported()) {
+      command_processor_.GetD3D12Provider().IsUnalignedBlockTextureSupported()) {
     return false;
   }
   return true;
@@ -1498,10 +1498,10 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   }
   const LoadShaderInfo& load_shader_info = GetLoadShaderInfo(load_shader);
 
-  const xenos::TextureGuestLayout& guest_layout = d3d12_texture.GetGuestLayout();
+  const xenos::GuestTextureLayout& guest_layout = d3d12_texture.GetGuestLayout();
   xenos::DataDimension dimension = texture_key.dimension;
   bool is_3d = dimension == xenos::DataDimension::k3D;
-  bool is_3d_tiling = is_3d || d3d12_texture.GetForceLoad3dTiling();
+  bool is_3d_tiling = is_3d || d3d12_texture.IsForceLoad3DTiling();
   u32 width = texture_key.GetWidth();
   u32 height = texture_key.GetHeight();
   u32 depth_or_array_size = texture_key.GetDepthOrArraySize();
@@ -1556,7 +1556,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     level_host_layer_layout.Footprint.Format = host_copy_format;
     if (level == level_packed) {
       // Load the whole packed tail to copy regions out of it.
-      const xenos::TextureGuestLayout::Level& guest_layout_packed =
+      const xenos::GuestTextureLayout::Level& guest_layout_packed =
           is_base ? guest_layout.base : guest_layout.mips[level];
       level_host_layer_layout.Footprint.Width = guest_layout_packed.x_extent_blocks * block_width;
       level_host_layer_layout.Footprint.Height = guest_layout_packed.y_extent_blocks * block_height;
@@ -1682,7 +1682,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
       load_constants.guest_offset += guest_layout.mip_offsets_bytes[level] *
                                      (texture_resolution_scale_x * texture_resolution_scale_y);
     }
-    const xenos::TextureGuestLayout::Level& level_guest_layout =
+    const xenos::GuestTextureLayout::Level& level_guest_layout =
         is_base ? guest_layout.base : guest_layout.mips[level];
     u32 level_guest_pitch = level_guest_layout.row_pitch_bytes;
     if (texture_key.tiled) {
@@ -1817,12 +1817,12 @@ void D3D12TextureCache::UpdateTextureBindingsImpl(u32 fetch_constant_mask) {
       continue;
     }
     if (IsSignedVersionSeparateForFormat(binding->key)) {
-      if (binding->texture && xenos::IsAnySignNotSigned(binding->swizzled_signs)) {
+      if (binding->texture && xenos::HasNonSignedComponent(binding->swizzled_signs)) {
         d3d12_binding.descriptor_index =
             FindOrCreateTextureDescriptor(*static_cast<D3D12Texture*>(binding->texture),
                                           binding->key.dimension, false, binding->host_swizzle);
       }
-      if (binding->texture_signed && xenos::IsAnySignSigned(binding->swizzled_signs)) {
+      if (binding->texture_signed && xenos::HasSignedComponent(binding->swizzled_signs)) {
         d3d12_binding.descriptor_index_signed =
             FindOrCreateTextureDescriptor(*static_cast<D3D12Texture*>(binding->texture_signed),
                                           binding->key.dimension, true, binding->host_swizzle);
@@ -1830,11 +1830,11 @@ void D3D12TextureCache::UpdateTextureBindingsImpl(u32 fetch_constant_mask) {
     } else {
       D3D12Texture* texture = static_cast<D3D12Texture*>(binding->texture);
       if (texture) {
-        if (xenos::IsAnySignNotSigned(binding->swizzled_signs)) {
+        if (xenos::HasNonSignedComponent(binding->swizzled_signs)) {
           d3d12_binding.descriptor_index = FindOrCreateTextureDescriptor(
               *texture, binding->key.dimension, false, binding->host_swizzle);
         }
-        if (xenos::IsAnySignSigned(binding->swizzled_signs)) {
+        if (xenos::HasSignedComponent(binding->swizzled_signs)) {
           d3d12_binding.descriptor_index_signed = FindOrCreateTextureDescriptor(
               *texture, binding->key.dimension, true, binding->host_swizzle);
         }

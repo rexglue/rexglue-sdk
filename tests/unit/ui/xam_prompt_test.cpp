@@ -64,7 +64,7 @@ class ScriptedUI final : public rex::ui::IUserInterface {
     ++prompts;
     done(answer);
   }
-  rex::ui::PromptDesc Desc() {
+  rex::ui::PromptDesc GetDesc() {
     std::lock_guard lock(desc_mutex_);
     return desc_;
   }
@@ -78,7 +78,7 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   void CloseWindow() override { null_.CloseWindow(); }
   void Run() override { null_.Run(); }
   bool PumpFrame() override { return null_.PumpFrame(); }
-  void Quit() override { null_.Quit(); }
+  void EndFrameLoop() override { null_.EndFrameLoop(); }
   bool IsUIThread() const override { return null_.IsUIThread(); }
   bool Post(rex::MoveOnlyFunction<void()> work) override { return null_.Post(std::move(work)); }
   void RunSynchronous(rex::MoveOnlyFunction<void()> work) override {
@@ -96,7 +96,9 @@ class ScriptedUI final : public rex::ui::IUserInterface {
     null_.ShowOverlay(name, visible);
   }
   void ToggleOverlay(std::string_view name) override { null_.ToggleOverlay(name); }
-  rex::ui::ImGuiDialog* Overlay(std::string_view name) override { return null_.Overlay(name); }
+  rex::ui::ImGuiDialog* GetOverlay(std::string_view name) override {
+    return null_.GetOverlay(name);
+  }
   bool IsAnyOverlayVisible() const override { return null_.IsAnyOverlayVisible(); }
   void AddDialog(rex::ui::ImGuiDialog& dialog) override { null_.AddDialog(dialog); }
   void RemoveDialog(rex::ui::ImGuiDialog& dialog) override { null_.RemoveDialog(dialog); }
@@ -124,7 +126,7 @@ class ScriptedUI final : public rex::ui::IUserInterface {
       const rex::ui::FileDialogDesc& file_desc) override {
     return null_.ShowFileDialog(file_desc);
   }
-  std::vector<rex::ui::DisplayInfo> GetDisplays() override { return null_.GetDisplays(); }
+  std::vector<rex::ui::Monitor> GetDisplays() override { return null_.GetDisplays(); }
   std::vector<rex::ui::HostLocale> GetPreferredLocales() override {
     return null_.GetPreferredLocales();
   }
@@ -136,11 +138,11 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   rex::ui::PromptDesc desc_;
 };
 
-rex::u32 PutWide(rex::testing::Caller& caller, rex::Runtime& runtime, std::u16string_view text) {
+rex::u32 PutWide(rex::test::Caller& caller, rex::Runtime& runtime, std::u16string_view text) {
   const rex::u32 address =
       caller.Alloc(static_cast<rex::u32>((text.size() + 1) * sizeof(char16_t)));
-  rex::copy_and_swap_truncating(runtime.GetMemory()->TranslateVirtual<char16_t*>(address), text,
-                                text.size() + 1);
+  rex::CopyAndSwapTruncating(runtime.GetMemory()->TranslateVirtual<char16_t*>(address), text,
+                             text.size() + 1);
   return address;
 }
 
@@ -148,9 +150,9 @@ std::u16string ReadWide(rex::Runtime& runtime, rex::u32 address) {
   return rex::memory::load_and_swap<std::u16string>(runtime.GetMemory()->TranslateVirtual(address));
 }
 
-rex::u32 MessageBox(rex::testing::Caller& caller, rex::Runtime& runtime, std::u16string_view title,
-                    std::u16string_view text, rex::u32 active_button, rex::u32 result_ptr,
-                    rex::u32* status) {
+rex::u32 CallMessageBox(rex::test::Caller& caller, rex::Runtime& runtime, std::u16string_view title,
+                        std::u16string_view text, rex::u32 active_button, rex::u32 result_ptr,
+                        rex::u32* status) {
   const rex::u32 no = PutWide(caller, runtime, u"No");
   const rex::u32 yes = PutWide(caller, runtime, u"Yes");
   const rex::u32 buttons = caller.Alloc(8);
@@ -163,8 +165,9 @@ rex::u32 MessageBox(rex::testing::Caller& caller, rex::Runtime& runtime, std::u1
   return caller.Load32(result_ptr);
 }
 
-rex::u32 MessageBoxEx(rex::testing::Caller& caller, rex::Runtime& runtime, std::u16string_view text,
-                      rex::u32 active_button, rex::u32 result_ptr, rex::u32* status) {
+rex::u32 CallMessageBoxEx(rex::test::Caller& caller, rex::Runtime& runtime,
+                          std::u16string_view text, rex::u32 active_button, rex::u32 result_ptr,
+                          rex::u32* status) {
   const rex::u32 no = PutWide(caller, runtime, u"No");
   const rex::u32 yes = PutWide(caller, runtime, u"Yes");
   const rex::u32 buttons = caller.Alloc(8);
@@ -176,7 +179,7 @@ rex::u32 MessageBoxEx(rex::testing::Caller& caller, rex::Runtime& runtime, std::
 }
 
 rex::u32 WaitOverlapped(rex::Runtime& runtime, rex::u32 overlapped) {
-  auto* host = runtime.GetMemory()->TranslateVirtual<XAM_OVERLAPPED*>(overlapped);
+  auto* host = runtime.GetMemory()->TranslateVirtual<XOVERLAPPED*>(overlapped);
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
   while (XOverlappedGetResult(host) == kIOPending && std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -188,19 +191,19 @@ rex::u32 WaitOverlapped(rex::Runtime& runtime, rex::u32 overlapped) {
 
 REX_TEST_CASE("XamShowMessageBoxUI returns the pressed button and sends the buttons", "[ui][xam]") {
   ScriptedUI scripted;
-  scripted.answer = {.cancelled = false, .button = 1};
-  rex::testing::KernelFixture fixture({}, {}, &scripted);
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  scripted.answer = {.canceled = false, .button = 1};
+  rex::test::KernelFixture fixture({}, {}, &scripted);
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
     rex::u32 status = 0xFFFFFFFF;
     const rex::u32 chosen =
-        MessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 0, result_ptr, &status);
+        CallMessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 0, result_ptr, &status);
     CHECK(status == 0);
     CHECK(chosen == 1);
-    CHECK(scripted.Desc().title == "Pick");
-    CHECK(scripted.Desc().body == "Body");
-    CHECK(scripted.Desc().buttons == std::vector<std::string>{"No", "Yes"});
-    CHECK_FALSE(scripted.Desc().text_input);
+    CHECK(scripted.GetDesc().title == "Pick");
+    CHECK(scripted.GetDesc().body == "Body");
+    CHECK(scripted.GetDesc().buttons == std::vector<std::string>{"No", "Yes"});
+    CHECK_FALSE(scripted.GetDesc().text_input);
   });
   CHECK(scripted.prompts == 1);
 }
@@ -208,23 +211,24 @@ REX_TEST_CASE("XamShowMessageBoxUI returns the pressed button and sends the butt
 REX_TEST_CASE("XamShowMessageBoxUI returns the focused button when the prompt is cancelled",
               "[ui][xam]") {
   ScriptedUI scripted;
-  scripted.answer = {.cancelled = true};
-  rex::testing::KernelFixture fixture({}, {}, &scripted);
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  scripted.answer = {.canceled = true};
+  rex::test::KernelFixture fixture({}, {}, &scripted);
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
     rex::u32 status = 0xFFFFFFFF;
-    CHECK(MessageBox(caller, fixture.GetRuntime(), u"", u"Body", 1, result_ptr, &status) == 1);
+    CHECK(CallMessageBox(caller, fixture.GetRuntime(), u"", u"Body", 1, result_ptr, &status) == 1);
     CHECK(status == 0);
-    CHECK(scripted.Desc().title == "Message Box");
+    CHECK(scripted.GetDesc().title == "Message Box");
   });
 }
 
 REX_TEST_CASE("XamShowMessageBoxUI without a UI returns the focused button", "[ui][xam]") {
-  rex::testing::KernelFixture fixture;
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
     rex::u32 status = 0xFFFFFFFF;
-    CHECK(MessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 1, result_ptr, &status) == 1);
+    CHECK(CallMessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 1, result_ptr, &status) ==
+          1);
     CHECK(status == 0);
   });
 }
@@ -232,11 +236,12 @@ REX_TEST_CASE("XamShowMessageBoxUI without a UI returns the focused button", "[u
 REX_TEST_CASE("XamShowMessageBoxUI over a NullUserInterface returns the focused button",
               "[ui][xam]") {
   rex::ui::NullUserInterface null_ui;
-  rex::testing::KernelFixture fixture({}, {}, &null_ui);
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  rex::test::KernelFixture fixture({}, {}, &null_ui);
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
     rex::u32 status = 0xFFFFFFFF;
-    CHECK(MessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 1, result_ptr, &status) == 1);
+    CHECK(CallMessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 1, result_ptr, &status) ==
+          1);
     CHECK(status == 0);
   });
 }
@@ -244,34 +249,34 @@ REX_TEST_CASE("XamShowMessageBoxUI over a NullUserInterface returns the focused 
 REX_TEST_CASE("XamShowMessageBoxUIEx returns the pressed button through the result pointer",
               "[ui][xam]") {
   ScriptedUI scripted;
-  scripted.answer = {.cancelled = false, .button = 1};
-  rex::testing::KernelFixture fixture({}, {}, &scripted);
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  scripted.answer = {.canceled = false, .button = 1};
+  rex::test::KernelFixture fixture({}, {}, &scripted);
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
     rex::u32 status = 0xFFFFFFFF;
-    CHECK(MessageBoxEx(caller, fixture.GetRuntime(), u"Body", 0, result_ptr, &status) == 1);
+    CHECK(CallMessageBoxEx(caller, fixture.GetRuntime(), u"Body", 0, result_ptr, &status) == 1);
     CHECK(status == 0);
-    CHECK(scripted.Desc().body == "Body");
-    CHECK(scripted.Desc().buttons == std::vector<std::string>{"No", "Yes"});
+    CHECK(scripted.GetDesc().body == "Body");
+    CHECK(scripted.GetDesc().buttons == std::vector<std::string>{"No", "Yes"});
   });
 }
 
 REX_TEST_CASE("XamShowMessageBoxUIEx without a UI returns the focused button", "[ui][xam]") {
-  rex::testing::KernelFixture fixture;
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
     caller.Store32(result_ptr, 0xDEADBEEF);
     rex::u32 status = 0xFFFFFFFF;
-    CHECK(MessageBoxEx(caller, fixture.GetRuntime(), u"Body", 1, result_ptr, &status) == 1);
+    CHECK(CallMessageBoxEx(caller, fixture.GetRuntime(), u"Body", 1, result_ptr, &status) == 1);
     CHECK(status == 0);
   });
 }
 
 REX_TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlapped", "[ui][xam]") {
   ScriptedUI scripted;
-  scripted.answer = {.cancelled = false, .button = 0, .text = "Tom"};
-  rex::testing::KernelFixture fixture({}, {}, &scripted);
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  scripted.answer = {.canceled = false, .button = 0, .text = "Tom"};
+  rex::test::KernelFixture fixture({}, {}, &scripted);
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 buffer = caller.Alloc(32);
     const rex::u32 overlapped = caller.Alloc(0x1C);
     const rex::u32 status = caller.XAM(
@@ -281,36 +286,36 @@ REX_TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlap
     CHECK(WaitOverlapped(fixture.GetRuntime(), overlapped) == 0);
     CHECK(caller.Load32(overlapped + 0x18) == 0);
     CHECK(ReadWide(fixture.GetRuntime(), buffer) == u"Tom");
-    CHECK(scripted.Desc().title == "Keyboard Input");
-    CHECK(scripted.Desc().default_text == "Default");
-    CHECK(scripted.Desc().text_input);
-    CHECK(scripted.Desc().max_length == 16);
+    CHECK(scripted.GetDesc().title == "Keyboard Input");
+    CHECK(scripted.GetDesc().default_text == "Default");
+    CHECK(scripted.GetDesc().text_input);
+    CHECK(scripted.GetDesc().max_length == 16);
   });
 }
 
 REX_TEST_CASE("XamShowKeyboardUI uses the description as the title when no title is given",
               "[ui][xam]") {
   ScriptedUI scripted;
-  scripted.answer = {.cancelled = false, .button = 0, .text = "x"};
-  rex::testing::KernelFixture fixture({}, {}, &scripted);
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  scripted.answer = {.canceled = false, .button = 0, .text = "x"};
+  rex::test::KernelFixture fixture({}, {}, &scripted);
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 buffer = caller.Alloc(32);
     const rex::u32 overlapped = caller.Alloc(0x1C);
     caller.XAM("XamShowKeyboardUI",
                {0, 0, 0, 0, PutWide(caller, fixture.GetRuntime(), u"Enter a name"), buffer, 16,
                 overlapped});
     WaitOverlapped(fixture.GetRuntime(), overlapped);
-    CHECK(scripted.Desc().title == "Enter a name");
-    CHECK(scripted.Desc().body.empty());
+    CHECK(scripted.GetDesc().title == "Enter a name");
+    CHECK(scripted.GetDesc().body.empty());
   });
 }
 
 REX_TEST_CASE("XamShowKeyboardUI reports a cancelled prompt as cancelled and leaves the buffer",
               "[ui][xam]") {
   ScriptedUI scripted;
-  scripted.answer = {.cancelled = true};
-  rex::testing::KernelFixture fixture({}, {}, &scripted);
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  scripted.answer = {.canceled = true};
+  rex::test::KernelFixture fixture({}, {}, &scripted);
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 buffer = caller.Alloc(32);
     const rex::u32 overlapped = caller.Alloc(0x1C);
     caller.XAM("XamShowKeyboardUI", {0, 0, 0, 0, 0, buffer, 16, overlapped});
@@ -321,8 +326,8 @@ REX_TEST_CASE("XamShowKeyboardUI reports a cancelled prompt as cancelled and lea
 }
 
 REX_TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[ui][xam]") {
-  rex::testing::KernelFixture fixture;
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
     const rex::u32 buffer = caller.Alloc(32);
     const rex::u32 overlapped = caller.Alloc(0x1C);
     caller.XAM("XamShowKeyboardUI", {0, 0, PutWide(caller, fixture.GetRuntime(), u"Default"), 0, 0,
@@ -335,7 +340,7 @@ REX_TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[ui][xa
 REX_TEST_CASE("A XAM message box on the module waits until the prompts are cancelled",
               "[ui][xam]") {
   const std::vector<std::string> modules{"rexui-sdl3"};
-  rex::testing::KernelFixture fixture({}, modules);
+  rex::test::KernelFixture fixture({}, modules);
   auto* ui = fixture.GetAPI().Get<rex::ui::IUserInterface>();
   REQUIRE(ui != nullptr);
   auto opened = ui->OpenWindow(fixture.GetAPI().GetConfig().ui,
@@ -346,10 +351,11 @@ REX_TEST_CASE("A XAM message box on the module waits until the prompts are cance
   std::atomic<rex::u32> status{0xFFFFFFFF};
   std::atomic<rex::u32> chosen{0xFFFFFFFF};
   std::jthread app_thread([&] {
-    fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+    fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
       const rex::u32 result_ptr = caller.Alloc(4);
       rex::u32 value = 0;
-      chosen = MessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 1, result_ptr, &value);
+      chosen =
+          CallMessageBox(caller, fixture.GetRuntime(), u"Pick", u"Body", 1, result_ptr, &value);
       status = value;
     });
   });
@@ -368,8 +374,8 @@ REX_TEST_CASE("Teardown stops a prompt running on the dispatcher", "[ui][xam][sh
   ScriptedUI scripted;
   scripted.hold = true;
   {
-    rex::testing::KernelFixture fixture({}, {}, &scripted);
-    fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+    rex::test::KernelFixture fixture({}, {}, &scripted);
+    fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
       const rex::u32 buffer = caller.Alloc(32);
       const rex::u32 overlapped = caller.Alloc(0x1C);
       CHECK(
@@ -388,13 +394,13 @@ REX_TEST_CASE("Teardown stops a prompt running on the dispatcher", "[ui][xam][sh
 REX_TEST_CASE("A stop ends a guest thread waiting on a prompt", "[ui][xam][shutdown]") {
   ScriptedUI scripted;
   scripted.hold = true;
-  rex::testing::KernelFixture fixture({}, {}, &scripted);
+  rex::test::KernelFixture fixture({}, {}, &scripted);
   rex::u32 thread = 0;
-  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
-    thread = caller.Spawn([&fixture](rex::testing::Caller& title) {
+  fixture.RunOnGuestThread([&](rex::test::Caller& caller) {
+    thread = caller.Spawn([&fixture](rex::test::Caller& title) {
       const rex::u32 result_ptr = title.Alloc(4);
       rex::u32 status = 0;
-      MessageBox(title, fixture.GetRuntime(), u"Pick", u"Body", 0, result_ptr, &status);
+      CallMessageBox(title, fixture.GetRuntime(), u"Pick", u"Body", 0, result_ptr, &status);
     });
   });
   const auto shown_by = std::chrono::steady_clock::now() + std::chrono::seconds(2);

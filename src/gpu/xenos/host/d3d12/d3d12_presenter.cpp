@@ -508,7 +508,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
                                             paint_context_.swap_chain_height, command_list,
                                             ui_submission_tracker_.GetCurrentSubmission(),
                                             ui_submission_tracker_.GetCompletedSubmission());
-    ExecuteUIDrawersFromUIThread(ui_draw_context);
+    ExecuteOverlayLayersFromUIThread(ui_draw_context);
   }
 
   D3D12_RESOURCE_BARRIER barrier_rtv_to_present;

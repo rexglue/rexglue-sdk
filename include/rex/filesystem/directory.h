@@ -29,7 +29,7 @@ REX_INTERFACE(IDirectory)
    *
    * @return The child, or empty when no child is left.
    */
-  [[nodiscard]] virtual std::optional<FileInfo> Next() = 0;
+  [[nodiscard]] virtual std::optional<FileStat> Next() = 0;
 
   /** Starts the walk again from the first child. */
   virtual void Restart() = 0;

@@ -35,7 +35,7 @@ bool IsSourceExtension(const fs::path& p) {
 
 }  // namespace
 
-std::string RenderRexglueCmake(std::string_view project_name, std::string_view sdk_version,
+std::string RenderReXGlueCMake(std::string_view project_name, std::string_view sdk_version,
                                std::string_view entrypoint_out_dir) {
   rex::codegen::TemplateRegistry registry;
   auto names = ParseAppName(std::string(project_name));
@@ -47,10 +47,10 @@ std::string RenderRexglueCmake(std::string_view project_name, std::string_view s
   return registry.Render("init/rexglue_cmake", data.dump());
 }
 
-bool RefreshGeneratedGlue(const fs::path& project_root, std::string_view project_name,
-                          std::string_view sdk_version, std::string_view entrypoint_out_dir) {
+bool RefreshGeneratedCMake(const fs::path& project_root, std::string_view project_name,
+                           std::string_view sdk_version, std::string_view entrypoint_out_dir) {
   fs::path target = project_root / "generated" / "rexglue.cmake";
-  std::string rendered = RenderRexglueCmake(project_name, sdk_version, entrypoint_out_dir);
+  std::string rendered = RenderReXGlueCMake(project_name, sdk_version, entrypoint_out_dir);
 
   if (auto existing = rex::platform::ReadHostFile(target);
       existing && std::string_view(reinterpret_cast<const char*>(existing->data()),
@@ -71,10 +71,10 @@ std::vector<SourceWarning> ScanStaleIncludes(
   if (!fs::is_directory(src_dir))
     return matches;
 
-  std::unordered_set<rex::StringKeyCase> removed;
+  std::unordered_set<rex::StringKeyIgnoreCase> removed;
   removed.reserve(removed_basenames.size());
   for (const auto& name : removed_basenames)
-    removed.insert(rex::StringKeyCase::Create(name));
+    removed.insert(rex::StringKeyIgnoreCase::Create(name));
 
   static const std::regex kIncludeRe(R"(^\s*#\s*include\s*[<"]([^>"]+)[>"])");
 
@@ -94,7 +94,7 @@ std::vector<SourceWarning> ScanStaleIncludes(
       std::string target = m[1].str();
       auto pos = target.find_last_of("/\\");
       std::string basename = pos == std::string::npos ? target : target.substr(pos + 1);
-      if (!removed.contains(rex::StringKeyCase::Create(basename)))
+      if (!removed.contains(rex::StringKeyIgnoreCase::Create(basename)))
         continue;
       matches.push_back({entry.path(), line_number, std::format("stale include: {}", target),
                          "Header no longer emitted by codegen. Update or remove the include."});

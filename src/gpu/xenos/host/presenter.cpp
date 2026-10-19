@@ -154,7 +154,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
   request_guest_output_paint_after_current_ui_thread_paint_ = false;
   request_ui_paint_after_current_ui_thread_paint_ = false;
 
-  bool draw_ui = !ui_drawers_.empty();
+  bool draw_ui = !overlay_layers_.empty();
   bool do_paint = force_paint || draw_ui;
   if (ui_thread_paint_requested_.exchange(false, std::memory_order_relaxed)) {
     do_paint = true;
@@ -202,10 +202,10 @@ void Presenter::PaintFromUIThread(bool force_paint) {
 
   if (paint_mode_ != PaintMode::kNone) {
     if (request_guest_output_paint_after_current_ui_thread_paint_ ||
-        (draw_ui && ui_drawers_.empty())) {
+        (draw_ui && overlay_layers_.empty())) {
       request_repaint_immediately = true;
     }
-    if (request_ui_paint_after_current_ui_thread_paint_ && !ui_drawers_.empty()) {
+    if (request_ui_paint_after_current_ui_thread_paint_ && !overlay_layers_.empty()) {
       request_repaint_at_tick = true;
     }
   }
@@ -288,9 +288,10 @@ bool Presenter::RefreshGuestOutput(
 
 void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
   REX_ASSERT(layer != nullptr);
-  bool drawers_were_empty = ui_drawers_.empty();
+  bool drawers_were_empty = overlay_layers_.empty();
   u64 drawer_last_draw = UINT64_MAX;
-  for (auto it_existing = ui_drawers_.begin(); it_existing != ui_drawers_.end(); ++it_existing) {
+  for (auto it_existing = overlay_layers_.begin(); it_existing != overlay_layers_.end();
+       ++it_existing) {
     if (it_existing->second.layer != layer) {
       continue;
     }
@@ -303,13 +304,14 @@ void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
     if (is_executing_ui_drawers_ && ui_draw_next_iterator_ == it_existing) {
       ++ui_draw_next_iterator_;
     }
-    ui_drawers_.erase(it_existing);
+    overlay_layers_.erase(it_existing);
     break;
   }
-  auto it_new = ui_drawers_.emplace(z_order, UIDrawerReference(layer, drawer_last_draw));
+  auto it_new = overlay_layers_.emplace(z_order, OverlayLayerReference(layer, drawer_last_draw));
   // Run a drawer added at or above the current Z layer, up to the previously next one.
   if (is_executing_ui_drawers_ && z_order >= ui_draw_current_z_order_ &&
-      (ui_draw_next_iterator_ == ui_drawers_.end() || z_order < ui_draw_next_iterator_->first)) {
+      (ui_draw_next_iterator_ == overlay_layers_.end() ||
+       z_order < ui_draw_next_iterator_->first)) {
     ui_draw_next_iterator_ = it_new;
   }
   HandleUIDrawersChangeFromUIThread(drawers_were_empty);
@@ -317,7 +319,8 @@ void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
 
 void Presenter::RemoveOverlayLayer(gpu::IOverlayLayer* layer) {
   REX_ASSERT(layer != nullptr);
-  for (auto it_existing = ui_drawers_.begin(); it_existing != ui_drawers_.end(); ++it_existing) {
+  for (auto it_existing = overlay_layers_.begin(); it_existing != overlay_layers_.end();
+       ++it_existing) {
     if (it_existing->second.layer != layer) {
       continue;
     }
@@ -325,7 +328,7 @@ void Presenter::RemoveOverlayLayer(gpu::IOverlayLayer* layer) {
     if (is_executing_ui_drawers_ && ui_draw_next_iterator_ == it_existing) {
       ++ui_draw_next_iterator_;
     }
-    ui_drawers_.erase(it_existing);
+    overlay_layers_.erase(it_existing);
     HandleUIDrawersChangeFromUIThread(false);
     return;
   }
@@ -337,7 +340,7 @@ void Presenter::RequestOverlayPaint() {
     return;
   }
   // The guest output thread may own the connection state, so check coarsely via paint_mode_.
-  if (!ui_drawers_.empty() && paint_mode_ != PaintMode::kNone) {
+  if (!overlay_layers_.empty() && paint_mode_ != PaintMode::kNone) {
     host_->RequestPaint();
   }
 }
@@ -574,12 +577,12 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   return flow;
 }
 
-void Presenter::ExecuteUIDrawersFromUIThread(gpu::OverlayDrawContext& ui_draw_context) {
+void Presenter::ExecuteOverlayLayersFromUIThread(gpu::OverlayDrawContext& ui_draw_context) {
   REX_ASSERT(is_in_ui_thread_paint_);
   REX_ASSERT(!is_executing_ui_drawers_);
-  ui_draw_next_iterator_ = ui_drawers_.begin();
+  ui_draw_next_iterator_ = overlay_layers_.begin();
   is_executing_ui_drawers_ = true;
-  while (ui_draw_next_iterator_ != ui_drawers_.end()) {
+  while (ui_draw_next_iterator_ != overlay_layers_.end()) {
     // A drawer may modify the list, so ui_draw_next_iterator_ is not std::next of its prior value.
     auto it_current = ui_draw_next_iterator_++;
     if (it_current->second.last_draw != ui_draw_current_) {
@@ -615,7 +618,7 @@ Presenter::PaintMode Presenter::GetDesiredPaintModeFromUIThread(bool is_paintabl
     // Avoids host vertical sync CPU waits in the thread generating the guest output.
     return PaintMode::kUIThreadOnRequest;
   }
-  if (!ui_drawers_.empty()) {
+  if (!overlay_layers_.empty()) {
     return PaintMode::kUIThreadOnRequest;
   }
   return PaintMode::kGuestOutputThreadImmediately;
@@ -743,8 +746,7 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(
       std::unique_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
       bool dxgi_output_was_null = (dxgi_ui_tick_output_ == nullptr);
       dxgi_ui_tick_output_ = new_dxgi_output;
-      signal_dxgi_ui_tick_control =
-          dxgi_output_was_null && AreDXGIUITicksWaitable(dxgi_ui_tick_lock);
+      signal_dxgi_ui_tick_control = dxgi_output_was_null && IsDXGIUITickWaitable(dxgi_ui_tick_lock);
     }
     if (signal_dxgi_ui_tick_control) {
       dxgi_ui_tick_control_condition_.notify_all();
@@ -789,7 +791,7 @@ Presenter::PaintResult Presenter::PaintAndPresent(bool execute_ui_drawers) {
 void Presenter::HandleUIDrawersChangeFromUIThread(bool drawers_were_empty) {
   if (is_in_ui_thread_paint_) {
     // Defer so lifecycle changes do not happen during drawing.
-    if (!ui_drawers_.empty()) {
+    if (!overlay_layers_.empty()) {
       request_ui_paint_after_current_ui_thread_paint_ = true;
     }
     return;
@@ -799,7 +801,7 @@ void Presenter::HandleUIDrawersChangeFromUIThread(bool drawers_were_empty) {
     return;
   }
 
-  if (ui_drawers_.empty() != drawers_were_empty) {
+  if (overlay_layers_.empty() != drawers_were_empty) {
     SetPaintModeFromUIThread(GetDesiredPaintModeFromUIThread(true));
     UpdateUITicksNeededFromUIThread();
   }
@@ -811,7 +813,7 @@ void Presenter::HandleUIDrawersChangeFromUIThread(bool drawers_were_empty) {
 
 void Presenter::UpdateUITicksNeededFromUIThread() {
 #if REX_PLATFORM_WIN32
-  bool new_needed = AreUITicksNeededFromUIThread();
+  bool new_needed = IsUITickNeededFromUIThread();
   if (dxgi_ui_ticks_needed_ == new_needed) {
     return;
   }
@@ -819,7 +821,7 @@ void Presenter::UpdateUITicksNeededFromUIThread() {
   {
     std::unique_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
     dxgi_ui_ticks_needed_ = new_needed;
-    signal_dxgi_ui_tick_control = AreDXGIUITicksWaitable(dxgi_ui_tick_lock);
+    signal_dxgi_ui_tick_control = IsDXGIUITickWaitable(dxgi_ui_tick_lock);
   }
   if (signal_dxgi_ui_tick_control) {
     dxgi_ui_tick_control_condition_.notify_all();
@@ -829,7 +831,7 @@ void Presenter::UpdateUITicksNeededFromUIThread() {
 
 void Presenter::WaitForUITickFromUIThread() {
 #if REX_PLATFORM_WIN32
-  if (!AreUITicksNeededFromUIThread()) {
+  if (!IsUITickNeededFromUIThread()) {
     return;
   }
   std::unique_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
@@ -839,7 +841,7 @@ void Presenter::WaitForUITickFromUIThread() {
       dxgi_ui_tick_force_requested_ = false;
       return;
     }
-    if (!AreDXGIUITicksWaitable(dxgi_ui_tick_lock)) {
+    if (!IsDXGIUITickWaitable(dxgi_ui_tick_lock)) {
       return;
     }
     if (dxgi_ui_tick_last_vblank_ > dxgi_ui_tick_last_draw_) {
@@ -884,7 +886,7 @@ void Presenter::DXGIUITickThread() {
     if (dxgi_ui_tick_thread_shutdown_) {
       return;
     }
-    if (!AreDXGIUITicksWaitable(dxgi_ui_tick_lock)) {
+    if (!IsDXGIUITickWaitable(dxgi_ui_tick_lock)) {
       dxgi_ui_tick_control_condition_.wait(dxgi_ui_tick_lock);
       continue;
     }
