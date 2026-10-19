@@ -1326,7 +1326,7 @@ bool D3D12CommandProcessor::SetupContext() {
   }
   *(fxaa_extreme_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::objects::CreateComputePipeline(
       device, shaders::kFXAAExtremeCS, sizeof(shaders::kFXAAExtremeCS), fxaa_root_signature_.Get());
-  if (!fxaa_pipeline_) {
+  if (!fxaa_extreme_pipeline_) {
     REX_FAIL(gpu, false, "Failed to create the extreme quality FXAA compute pipeline");
   }
 

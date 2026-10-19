@@ -168,7 +168,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * padding for co-alignment of the source and the destination for SIMD.
    */
   static constexpr u32 kMinRequiredConvertedIndexBufferSize =
-      sizeof(u32) * (UINT16_MAX - 2) * 3 * +REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE;
+      sizeof(u32) * (UINT16_MAX - 2) * 3 + REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE;
 
   PrimitiveProcessor(const xenos::RegisterFile& register_file, runtime::Memory& memory,
                      SharedMemory& shared_memory)

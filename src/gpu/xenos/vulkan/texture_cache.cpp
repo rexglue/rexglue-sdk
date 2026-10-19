@@ -2612,7 +2612,7 @@ bool VulkanTextureCache::Initialize() {
   load_pipeline_layout_create_info.pPushConstantRanges = &load_pipeline_layout_push_constant_range;
   if (dfn.vkCreatePipelineLayout(device, &load_pipeline_layout_create_info, nullptr,
                                  &load_pipeline_layout_)) {
-    REX_FAIL(gpu, false, "VulkanTexture: Failed to create the texture load pipeline layout");
+    REX_FAIL(gpu, false, "VulkanTextureCache: Failed to create the texture load pipeline layout");
   }
 
   bool load_shaders_needed[kLoadShaderCount] = {};

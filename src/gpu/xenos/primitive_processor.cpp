@@ -1012,7 +1012,7 @@ std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_
           // For exact_range, entries outside the range are not invalidated.
           if (entry_key.base < physical_address_end) {
             u32 entry_end = entry_key.base + entry_key.GetSizeBytes();
-            if (entry_end > physical_address_end) {
+            if (entry_end > physical_address_start) {
               any_invalidated = true;
               auto entry_map_it = cache_map_.find(entry_key);
               REX_ASSERT(entry_map_it != cache_map_.end());

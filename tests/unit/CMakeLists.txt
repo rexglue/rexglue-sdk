@@ -21,7 +21,9 @@ add_executable(
   gpu/null_command_processor_test.cpp
   gpu/packet_header_test.cpp
   gpu/texture_info_test.cpp
+  gpu/texture_layout_test.cpp
   gpu/primitive_processor_simd_test.cpp
+  gpu/primitive_processor_test.cpp
   gpu/cvar_scope_test.cpp
   gpu/xenos_module_test.cpp
   gpu/draw_state_test.cpp

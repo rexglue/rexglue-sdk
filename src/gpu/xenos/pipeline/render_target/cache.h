@@ -609,7 +609,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
       if (render_target != key) {
         return false;
       }
-      if (host_depth_encoding_different && !key.is_depth &&
+      if (host_depth_encoding_different && key.is_depth &&
           GetHostDepthRenderTarget(key.GetDepthFormat()) != key) {
         return false;
       }

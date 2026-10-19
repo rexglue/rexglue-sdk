@@ -1059,7 +1059,7 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
         }
       }
       if (bindless_sampler_count) {
-        auto found_range = bindless_sampler_layout_map_.equal_range(sampler_binding_layout_uid);
+        auto found_range = bindless_sampler_layout_map_.equal_range(bindless_sampler_layout_hash);
         for (auto it = found_range.first; it != found_range.second; ++it) {
           if (it->second.vector_span_length != bindless_sampler_count) {
             continue;
@@ -1079,12 +1079,12 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
           }
         }
         if (sampler_binding_layout_uid == kLayoutUIDEmpty) {
-          sampler_binding_layout_uid = bindless_sampler_layout_map_.size();
+          sampler_binding_layout_uid = bindless_sampler_layout_map_.size() + 1;
           LayoutUID new_uid;
           static_assert(kLayoutUIDEmpty == 0,
                         "Layout UID is size + 1 because it's assumed that 0 is the UID "
                         "for an empty layout");
-          new_uid.uid = sampler_binding_layout_uid + 1;
+          new_uid.uid = sampler_binding_layout_uid;
           new_uid.vector_span_offset = bindless_sampler_layouts_.size();
           new_uid.vector_span_length = sampler_binding_count;
           bindless_sampler_layouts_.resize(new_uid.vector_span_offset + sampler_binding_count);

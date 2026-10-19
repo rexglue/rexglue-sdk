@@ -3312,8 +3312,8 @@ VulkanCommandProcessor::ScratchBufferAcquisition VulkanCommandProcessor::Acquire
   scratch_buffer_ = new_scratch_buffer;
   scratch_buffer_size_ = size;
   // Not used yet, no need for a barrier.
-  scratch_buffer_last_stage_mask_ = initial_access_mask;
-  scratch_buffer_last_access_mask_ = initial_stage_mask;
+  scratch_buffer_last_stage_mask_ = initial_stage_mask;
+  scratch_buffer_last_access_mask_ = initial_access_mask;
   scratch_buffer_last_usage_submission_ = submission_current;
   scratch_buffer_used_ = true;
   return ScratchBufferAcquisition(*this, new_scratch_buffer, initial_stage_mask,
@@ -3664,6 +3664,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
             std::min(descriptor_sets_kept,
                      static_cast<u32>(SPIRVShaderTranslator::kDescriptorSetTexturesPixel));
       }
+      current_graphics_descriptor_sets_bound_up_to_date_ &=
+          (UINT32_C(1) << descriptor_sets_kept) - 1;
     } else {
       // With no previous pipeline layout all bindings are indeterminate.
       current_graphics_descriptor_sets_bound_up_to_date_ = 0;
