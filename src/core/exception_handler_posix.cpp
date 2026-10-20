@@ -30,6 +30,7 @@
 #include <rex/platform.h>
 
 #include <ucontext.h>
+#include <unistd.h>
 
 namespace rex::arch {
 
@@ -417,6 +418,48 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       return;
     }
   }
+
+  // No handler claimed the fault (it isn't a guest memory watch): a real
+  // crash, such as a null pointer in a graphics driver or a bug. Returning
+  // would run the faulting instruction again, fault again, and so on for ever:
+  // the thread spins at a full core and nothing is logged, so the crash looks
+  // like a hang. Hand the signal to what was installed before this handler
+  // (normally the default action: the process ends, with a core dump) by
+  // restoring it; the instruction then faults once more under it. A line goes
+  // to stderr first (write() is safe in a signal handler).
+  {
+    char line[160];
+    size_t n = 0;
+    auto put = [&](const char* s) {
+      while (*s && n < sizeof(line) - 1) line[n++] = *s++;
+    };
+    auto put_hex = [&](uint64_t v) {
+      put("0x");
+      bool started = false;
+      for (int shift = 60; shift >= 0; shift -= 4) {
+        const unsigned digit = unsigned(v >> shift) & 0xF;
+        if (!digit && !started && shift) continue;
+        started = true;
+        if (n < sizeof(line) - 1) line[n++] = "0123456789abcdef"[digit];
+      }
+    };
+    put(signal_number == SIGSEGV ? "rex: unhandled SIGSEGV at address "
+        : signal_number == SIGBUS ? "rex: unhandled SIGBUS at address "
+                                  : "rex: unhandled SIGILL at address ");
+    put_hex(reinterpret_cast<uint64_t>(signal_info->si_addr));
+    put("; passing it on, the process will end\n");
+    [[maybe_unused]] ssize_t written = write(STDERR_FILENO, line, n);
+  }
+#if REX_PLATFORM_MAC
+  const struct sigaction* original = signal_number == SIGSEGV  ? &original_sigsegv_handler_
+                                     : signal_number == SIGBUS ? &original_sigbus_handler_
+                                                               : &original_sigill_handler_;
+#else
+  // Only SIGILL and SIGSEGV are taken here off macOS.
+  const struct sigaction* original =
+      signal_number == SIGSEGV ? &original_sigsegv_handler_ : &original_sigill_handler_;
+#endif
+  sigaction(signal_number, original, nullptr);
 }
 
 void ExceptionHandler::Install(Handler fn, void* data) {
