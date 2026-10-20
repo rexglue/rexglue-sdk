@@ -199,6 +199,8 @@ class VulkanDevice {
     bool ext_1_3_KHR_maintenance4 = false;  // #414
     // Has optional features not implied by this being true.
     bool ext_1_3_KHR_dynamic_rendering = false;  // #55
+    // HDR10 output: the brightness metadata sent with an HDR10 swapchain.
+    bool ext_EXT_hdr_metadata = false;  // #106
   };
 
   const Extensions& extensions() const { return extensions_; }

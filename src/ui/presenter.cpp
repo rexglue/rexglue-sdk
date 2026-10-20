@@ -21,6 +21,7 @@
 #include <rex/graphics/gpu_stats.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
+#include <rex/ui/hdr_output.h>
 #include <rex/ui/present_mode.h>
 #include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
@@ -92,6 +93,32 @@ REXCVAR_DEFINE_BOOL(present_dither, false, "UI/Presenter",
 REXCVAR_DEFINE_BOOL(present_allow_overscan_cutoff, false, "UI/Presenter",
                     "Allow overscan cutoff based on safe area settings")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+// HDR10 output (rex/ui/hdr_output.h). Vulkan only; a change takes effect at
+// once (the window's swapchain is made again).
+REXCVAR_DEFINE_BOOL(display_hdr, false, "UI/Presenter",
+                    "Send the window an HDR10 picture (BT.2020 colors, PQ brightness) when the "
+                    "display and the desktop offer HDR: the picture keeps its look at "
+                    "display_hdr_paper_white and only its brightest highlights go up to "
+                    "display_hdr_peak. Vulkan only");
+REXCVAR_DEFINE_DOUBLE(display_hdr_paper_white, 203.0, "UI/Presenter",
+                      "HDR10 output: how bright white is, in nits (cd/m2); 203 is the "
+                      "ITU-R BT.2408 reference. Match the desktop's SDR brightness")
+    .range(80.0, 500.0);
+REXCVAR_DEFINE_DOUBLE(display_hdr_peak, 600.0, "UI/Presenter",
+                      "HDR10 output: the brightest the picture's highlights get, in nits; at or "
+                      "below the display's peak brightness")
+    .range(100.0, 10000.0);
+
+namespace rex::ui {
+namespace {
+std::atomic<int32_t> g_hdr_output{int32_t(HdrOutput::kOff)};
+}  // namespace
+HdrOutput GetHdrOutput() { return HdrOutput(g_hdr_output.load(std::memory_order_relaxed)); }
+void SetHdrOutput(HdrOutput state) {
+  g_hdr_output.store(int32_t(state), std::memory_order_relaxed);
+}
+}  // namespace rex::ui
 
 namespace {
 using GuestOutputPaintConfig = rex::ui::Presenter::GuestOutputPaintConfig;

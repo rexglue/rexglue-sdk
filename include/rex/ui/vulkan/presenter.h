@@ -316,8 +316,11 @@ class VulkanPresenter final : public Presenter {
       kGuestOutputDescriptorSetIntermediate0Sampled =
           kGuestOutputDescriptorSetGuestOutput0Sampled + kGuestOutputMailboxSize,
 
-      kGuestOutputDescriptorSetCount =
+      // HDR10 output: the SDR canvas the last pass encodes.
+      kGuestOutputDescriptorSetHdr10Canvas =
           kGuestOutputDescriptorSetIntermediate0Sampled + kMaxGuestOutputPaintEffects - 1,
+
+      kGuestOutputDescriptorSetCount = kGuestOutputDescriptorSetHdr10Canvas + 1,
     };
 
     struct UISetupCommandBuffer {
@@ -353,7 +356,7 @@ class VulkanPresenter final : public Presenter {
         const VulkanDevice* vulkan_device, VkSurfaceKHR surface, uint32_t width, uint32_t height,
         VkSwapchainKHR old_swapchain, uint32_t& present_queue_family_out,
         VkFormat& image_format_out, VkExtent2D& image_extent_out, bool& is_fifo_out,
-        bool& ui_surface_unusable_out);
+        bool& ui_surface_unusable_out, uint32_t hdr10_format_mask, bool& hdr10_out);
 
     // Destroys the swapchain and its derivatives, nulls `swapchain` and returns
     // the original swapchain object, if it existed, for use as oldSwapchain if
@@ -416,6 +419,22 @@ class VulkanPresenter final : public Presenter {
     bool swapchain_is_fifo = false;
     std::vector<VkImage> swapchain_images;
     std::vector<SwapchainFramebuffer> swapchain_framebuffers;
+
+    // HDR10 output (rex/ui/hdr_output.h). With an HDR10 swapchain, the
+    // painting render pass (swapchain_render_pass) draws into the SDR canvas
+    // (its alpha is the UI's coverage), and a last pass encodes the canvas
+    // into the swapchain image (hdr10_framebuffers, one per swapchain image).
+    bool swapchain_render_pass_is_canvas = false;
+    bool swapchain_hdr_requested = false;  // display_hdr when the swapchain was made
+    bool swapchain_hdr10 = false;
+    VkFormat swapchain_image_format = VK_FORMAT_UNDEFINED;
+    VkImage hdr10_canvas_image = VK_NULL_HANDLE;
+    VkDeviceMemory hdr10_canvas_memory = VK_NULL_HANDLE;
+    VkImageView hdr10_canvas_view = VK_NULL_HANDLE;
+    std::vector<VkFramebuffer> hdr10_framebuffers;
+    // The values last sent with vkSetHdrMetadataEXT.
+    float hdr10_metadata_peak = 0.0f;
+    float hdr10_metadata_paper_white = 0.0f;
   };
 
   explicit VulkanPresenter(HostGpuLossCallback host_gpu_loss_callback,
@@ -434,6 +453,24 @@ class VulkanPresenter final : public Presenter {
 
   [[nodiscard]] VkPipeline CreateGuestOutputPaintPipeline(GuestOutputPaintEffect effect,
                                                           VkRenderPass render_pass);
+
+  // HDR10 output (rex/ui/hdr_output.h).
+  static constexpr VkFormat kHdr10CanvasFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+  // The swapchain formats taken with VK_COLOR_SPACE_HDR10_ST2084_EXT.
+  static constexpr VkFormat kHdr10SwapchainFormats[] = {VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+                                                        VK_FORMAT_A2R10G10B10_UNORM_PACK32};
+  static constexpr size_t kHdr10SwapchainFormatCount = 2;
+  static size_t GetHdr10SwapchainFormatIndex(VkFormat format);
+  // display_hdr_paper_white and display_hdr_peak as used: white 80-500 nits,
+  // the highlights at least as bright as white.
+  static void GetHdr10Levels(float& paper_white, float& peak);
+  // Connection-independent objects of the encoding pass; false (logged) if
+  // they can't be made, then the window gets SDR.
+  bool InitializeHdr10();
+  void DestroyHdr10();
+  void SendHdr10Metadata(float paper_white, float peak);
+  void PaintHdr10(VkCommandBuffer command_buffer, uint32_t swapchain_image_index);
+  void UpdateHdrOutputState(bool requested, bool hdr10, bool offered_by_instance);
 
 #if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
   bool EnsureTemporalUpscalerContext(uint32_t render_width, uint32_t render_height,
@@ -460,6 +497,21 @@ class VulkanPresenter final : public Presenter {
   // same due to different dependencies (this is shader read > color
   // attachment > shader read).
   VkRenderPass guest_output_intermediate_render_pass_ = VK_NULL_HANDLE;
+
+  // HDR10 output (connection-independent).
+  bool hdr10_available_ = false;
+  // Bit i: kHdr10SwapchainFormats[i] has its render pass and pipeline (the
+  // device can draw into it).
+  uint32_t hdr10_format_mask_ = 0;
+  // An HDR10-only step of the connection failed: SDR until display_hdr is
+  // turned off and on again.
+  bool hdr10_failed_ = false;
+  VkShaderModule hdr10_encode_fs_ = VK_NULL_HANDLE;
+  VkPipelineLayout hdr10_pipeline_layout_ = VK_NULL_HANDLE;
+  std::array<VkRenderPass, kHdr10SwapchainFormatCount> hdr10_render_passes_ = {};
+  std::array<VkPipeline, kHdr10SwapchainFormatCount> hdr10_pipelines_ = {};
+  PFN_vkSetHdrMetadataEXT hdr10_set_metadata_ = nullptr;
+  int32_t hdr_output_logged_ = -1;
 
   // Value monotonically increased every time a new guest output image is
   // initialized, for recreation of dependent objects such as framebuffers in

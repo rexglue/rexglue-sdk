@@ -201,6 +201,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   if (with_swapchain) {
     // #2.
     XE_UI_VULKAN_STRUCT_EXTENSION(KHR_swapchain)
+    // #106. HDR10 output: brightness metadata for an HDR10 swapchain. Optional.
+    XE_UI_VULKAN_STRUCT_EXTENSION(EXT_hdr_metadata)
   }
 
   bool ext_1_2_KHR_sampler_mirror_clamp_to_edge = false;

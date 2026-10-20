@@ -19,6 +19,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/ui/hdr_output.h>
 #include <rex/ui/present_mode.h>
 #include <rex/ui/d3d12/d3d12_presenter.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
@@ -33,6 +34,8 @@
 
 REXCVAR_DEFINE_BOOL(d3d12_allow_variable_refresh_rate_and_tearing, true, "UI/D3D12",
                     "Allow variable refresh rate and tearing");
+// HDR10 output (rex/ui/hdr_output.h): made by the Vulkan presenter only.
+REXCVAR_DECLARE(bool, display_hdr);
 
 namespace rex::ui::d3d12 {
 
@@ -340,6 +343,16 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
                                                                 uint32_t new_surface_height,
                                                                 bool was_paintable,
                                                                 bool& is_vsync_implicit_out) {
+  // HDR10 output is made by the Vulkan presenter only: this window gets SDR.
+  {
+    const bool hdr_requested = REXCVAR_GET(display_hdr);
+    SetHdrOutput(hdr_requested ? HdrOutput::kNotSupported : HdrOutput::kOff);
+    static bool hdr_logged = false;
+    if (hdr_requested && !hdr_logged) {
+      hdr_logged = true;
+      REXLOG_WARN("D3D12Presenter: HDR10 output needs the Vulkan graphics API; SDR");
+    }
+  }
   uint32_t new_swap_chain_width =
       std::min(new_surface_width, uint32_t(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
   uint32_t new_swap_chain_height =
@@ -566,6 +579,9 @@ void D3D12Presenter::PaintContext::DestroySwapChain() {
 }
 
 Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawers) {
+  // HDR10 output is made by the Vulkan presenter only (kept current for a
+  // display_hdr change while painting).
+  SetHdrOutput(REXCVAR_GET(display_hdr) ? HdrOutput::kNotSupported : HdrOutput::kOff);
   // Begin the command list with the command allocator not currently potentially
   // used on the GPU.
   UINT64 current_paint_submission = paint_context_.paint_submission_tracker.GetCurrentSubmission();
