@@ -2397,13 +2397,25 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
           frontbuffer_width_scaled, frontbuffer_height_scaled);
     }
   }
-  REXGPU_DEBUG(
-      "XELOG_GPU PRESENT: swap_texture_view={:p} packet_size={}x{} src_size={}x{} "
-      "src_unscaled={}x{} guest_output_size={}x{} format={}",
-      static_cast<void*>(swap_texture_view), frontbuffer_width, frontbuffer_height,
-      frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_width_unscaled,
-      frontbuffer_height_unscaled, guest_output_width, guest_output_height,
-      static_cast<uint32_t>(frontbuffer_format));
+  // Once per change of sizes or format, not once per presented frame (at the
+  // debug log level that was a line and a disk write every frame).
+  {
+    static uint64_t last_present_shape = UINT64_MAX;
+    const uint64_t shape = (uint64_t(frontbuffer_width) << 48) ^ (uint64_t(frontbuffer_height) << 32) ^
+                           (uint64_t(frontbuffer_width_scaled) << 24) ^
+                           (uint64_t(frontbuffer_height_scaled) << 12) ^ uint64_t(guest_output_width) ^
+                           (uint64_t(guest_output_height) << 16) ^ (uint64_t(frontbuffer_format) << 56);
+    if (shape != last_present_shape) {
+      last_present_shape = shape;
+      REXGPU_DEBUG(
+          "XELOG_GPU PRESENT: swap_texture_view={:p} packet_size={}x{} src_size={}x{} "
+          "src_unscaled={}x{} guest_output_size={}x{} format={} (logged again when this changes)",
+          static_cast<void*>(swap_texture_view), frontbuffer_width, frontbuffer_height,
+          frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_width_unscaled,
+          frontbuffer_height_unscaled, guest_output_width, guest_output_height,
+          static_cast<uint32_t>(frontbuffer_format));
+    }
+  }
 
   system::X_VIDEO_MODE video_mode;
   kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
