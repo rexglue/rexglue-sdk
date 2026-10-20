@@ -42,6 +42,8 @@
 #include <rex/platform.h>
 #include <rex/string.h>
 
+#include "core/memory_posix.h"
+
 #if REX_PLATFORM_LINUX
 #include "core/proc_maps.h"
 #endif
@@ -253,7 +255,8 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
   }
 #endif
 
-  void* result = mmap(base_address, length, prot_initial, flags, -1, 0);
+  void* result = detail::AcceptFixedMapping(base_address, length,
+                                            mmap(base_address, length, prot_initial, flags, -1, 0));
   if (result != MAP_FAILED) {
     return result;
   }

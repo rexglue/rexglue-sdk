@@ -115,6 +115,7 @@ add_executable(
   core/cli_arg_list_test.cpp
   core/cvar_test.cpp
   core/proc_maps_test.cpp
+  core/fixed_mapping_test.cpp
   core/endian_atomic_test.cpp
   core/config_test.cpp
   core/crash_reporter_test.cpp
