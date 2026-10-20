@@ -631,6 +631,36 @@ class VulkanCommandProcessor : public CommandProcessor {
                      TextureDescriptorSetLayoutKey::Hasher>
       texture_transient_descriptor_sets_free_;
 
+  // Texture descriptor sets written in the current submission and frame, by
+  // their contents (layout, image views and layouts, samplers), so a draw
+  // binding the same textures and samplers as an earlier one reuses its set
+  // instead of allocating and writing another (vulkan_reuse_texture_descriptors).
+  // Cleared when the submission or the frame changes: a texture or sampler
+  // used in the current submission isn't destroyed before that completes, so a
+  // handle in a set here still names the same object, and the set itself is
+  // only recycled once its frame is done.
+  struct TextureDescriptorSetReuse {
+    uint32_t contents_offset;  // in texture_descriptor_reuse_contents_
+    uint32_t contents_count;
+    VkDescriptorSet set;
+  };
+  std::unordered_multimap<uint64_t, TextureDescriptorSetReuse,
+                          rex::IdentityHasher<uint64_t>>
+      texture_descriptor_reuse_;
+  std::vector<uint64_t> texture_descriptor_reuse_contents_;
+  // The contents of the set looked up last (FindTextureDescriptorSet).
+  std::vector<uint64_t> texture_descriptor_reuse_key_;
+  uint64_t texture_descriptor_reuse_key_hash_ = 0;
+  uint64_t texture_descriptor_reuse_submission_ = UINT64_MAX;
+  uint64_t texture_descriptor_reuse_frame_ = UINT64_MAX;
+  // A set written earlier in this submission with these contents, or
+  // VK_NULL_HANDLE (then RememberTextureDescriptorSet stores the new one).
+  VkDescriptorSet FindTextureDescriptorSet(bool is_vertex, uint32_t texture_count,
+                                           uint32_t sampler_count,
+                                           const VkDescriptorImageInfo* texture_image_info,
+                                           const VkDescriptorImageInfo* sampler_image_info);
+  void RememberTextureDescriptorSet(VkDescriptorSet set);
+
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
   // Number of the bindings the shared memory is split into, for the render
   // target cache (also when reinitializing it for a different scale).

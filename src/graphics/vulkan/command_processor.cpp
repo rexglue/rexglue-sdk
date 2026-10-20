@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -18,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -48,6 +50,12 @@
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
 
+REXCVAR_DEFINE_BOOL(vulkan_reuse_texture_descriptors, true, "GPU/Vulkan",
+                    "Vulkan: a draw that binds the same textures and samplers as an earlier one "
+                    "in the same submission reuses its descriptor set instead of writing a new "
+                    "one (off: a new set for every draw, as before)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 // Legacy backend compatibility aliases for shared readback controls.
 REXCVAR_DEFINE_BOOL(vulkan_readback_resolve, false, "GPU/Vulkan",
                     "Read render-to-texture results on the CPU")
@@ -74,6 +82,20 @@ REXCVAR_DEFINE_BOOL(vulkan_dynamic_rendering, true, "GPU/Vulkan",
 namespace rex::graphics::vulkan {
 
 namespace {
+
+// rex::bit_scan_forward is out of line in the runtime library, so every set
+// bit in the draw path's loops (each used shader constant, texture, vertex
+// fetch) cost a call into another library: 2.7% of the GPU emulation thread
+// on the owner's PC (2026-10-16). The same, inline, for those loops.
+template <typename T>
+inline bool FindFirstSetBit(T value, uint32_t* index_out) {
+  static_assert(std::is_unsigned_v<T>);
+  if (!value) {
+    return false;
+  }
+  *index_out = uint32_t(std::countr_zero(value));
+  return true;
+}
 
 // glslang default built-in resource limits.
 constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
@@ -3999,7 +4021,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   for (uint32_t i = 0; i < rex::countof(constant_map_vertex.vertex_fetch_bitmap); ++i) {
     uint32_t vfetch_bits_remaining = constant_map_vertex.vertex_fetch_bitmap[i];
     uint32_t j;
-    while (rex::bit_scan_forward(vfetch_bits_remaining, &j)) {
+    while (FindFirstSetBit(vfetch_bits_remaining, &j)) {
       vfetch_bits_remaining &= ~(uint32_t(1) << j);
       uint32_t vfetch_index = i * 32 + j;
       uint64_t vfetch_bit = uint64_t(1) << (vfetch_index & 63);
@@ -6394,7 +6416,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     float* user_clip_plane_write_ptr = system_constants_.user_clip_planes[0];
     uint32_t user_clip_planes_remaining = pa_cl_clip_cntl.ucp_ena;
     uint32_t user_clip_plane_index;
-    while (rex::bit_scan_forward(user_clip_planes_remaining, &user_clip_plane_index)) {
+    while (FindFirstSetBit(user_clip_planes_remaining, &user_clip_plane_index)) {
       user_clip_planes_remaining &= ~(UINT32_C(1) << user_clip_plane_index);
       const void* user_clip_plane_regs =
           &regs[XE_GPU_REG_PA_CL_UCP_0_X + user_clip_plane_index * 4];
@@ -6463,7 +6485,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   {
     uint32_t textures_remaining = used_texture_mask;
     uint32_t texture_index;
-    while (rex::bit_scan_forward(textures_remaining, &texture_index)) {
+    while (FindFirstSetBit(textures_remaining, &texture_index)) {
       textures_remaining &= ~(UINT32_C(1) << texture_index);
       uint32_t& texture_signs_uint = system_constants_.texture_swizzled_signs[texture_index >> 2];
       uint32_t texture_signs_shift = 8 * (texture_index & 3);
@@ -6483,7 +6505,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   if (!GetVulkanDevice()->properties().imageViewFormatSwizzle) {
     uint32_t textures_remaining = used_texture_mask;
     uint32_t texture_index;
-    while (rex::bit_scan_forward(textures_remaining, &texture_index)) {
+    while (FindFirstSetBit(textures_remaining, &texture_index)) {
       textures_remaining &= ~(UINT32_C(1) << texture_index);
       uint32_t& texture_swizzles_uint = system_constants_.texture_swizzles[texture_index >> 1];
       uint32_t texture_swizzle_shift = 12 * (texture_index & 1);
@@ -6754,7 +6776,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       for (uint32_t i = 0; i < 4; ++i) {
         uint64_t float_constant_map_entry = current_float_constant_map_vertex_[i];
         uint32_t float_constant_index;
-        while (rex::bit_scan_forward(float_constant_map_entry, &float_constant_index)) {
+        while (FindFirstSetBit(float_constant_map_entry, &float_constant_index)) {
           float_constant_map_entry &= ~(1ull << float_constant_index);
           std::memcpy(
               mapping,
@@ -6783,7 +6805,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       for (uint32_t i = 0; i < 4; ++i) {
         uint64_t float_constant_map_entry = current_float_constant_map_pixel_[i];
         uint32_t float_constant_index;
-        while (rex::bit_scan_forward(float_constant_map_entry, &float_constant_index)) {
+        while (FindFirstSetBit(float_constant_map_entry, &float_constant_index)) {
           float_constant_map_entry &= ~(1ull << float_constant_index);
           std::memcpy(
               mapping,
@@ -6852,7 +6874,8 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     sampler_count_pixel = 0;
     texture_count_pixel = 0;
   }
-  // TODO(Triang3l): Reuse texture and sampler bindings if not changed.
+  // Written again for every draw; one with the same contents as an earlier
+  // set in this submission reuses that set (FindTextureDescriptorSet).
   current_graphics_descriptor_set_values_up_to_date_ &=
       ~((UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex) |
         (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel));
@@ -6966,7 +6989,18 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         constants_descriptor_set;
   }
   // Vertex shader textures and samplers.
-  if (write_vertex_textures) {
+  VkDescriptorSet reused_vertex_textures =
+      write_vertex_textures
+          ? FindTextureDescriptorSet(
+                true, texture_count_vertex, sampler_count_vertex,
+                descriptor_write_image_info_.data() + vertex_texture_image_info_offset,
+                descriptor_write_image_info_.data() + vertex_sampler_image_info_offset)
+          : VK_NULL_HANDLE;
+  if (reused_vertex_textures != VK_NULL_HANDLE) {
+    write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex;
+    current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetTexturesVertex] =
+        reused_vertex_textures;
+  } else if (write_vertex_textures) {
     VkWriteDescriptorSet* write_textures =
         write_descriptor_sets.data() + write_descriptor_set_count;
     uint32_t texture_descriptor_set_write_count = WriteTransientTextureBindings(
@@ -6981,9 +7015,21 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex;
     current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetTexturesVertex] =
         write_textures[0].dstSet;
+    RememberTextureDescriptorSet(write_textures[0].dstSet);
   }
   // Pixel shader textures and samplers.
-  if (write_pixel_textures) {
+  VkDescriptorSet reused_pixel_textures =
+      write_pixel_textures
+          ? FindTextureDescriptorSet(
+                false, texture_count_pixel, sampler_count_pixel,
+                descriptor_write_image_info_.data() + pixel_texture_image_info_offset,
+                descriptor_write_image_info_.data() + pixel_sampler_image_info_offset)
+          : VK_NULL_HANDLE;
+  if (reused_pixel_textures != VK_NULL_HANDLE) {
+    write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel;
+    current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetTexturesPixel] =
+        reused_pixel_textures;
+  } else if (write_pixel_textures) {
     VkWriteDescriptorSet* write_textures =
         write_descriptor_sets.data() + write_descriptor_set_count;
     uint32_t texture_descriptor_set_write_count = WriteTransientTextureBindings(
@@ -6998,6 +7044,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel;
     current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetTexturesPixel] =
         write_textures[0].dstSet;
+    RememberTextureDescriptorSet(write_textures[0].dstSet);
   }
   // Write.
   if (write_descriptor_set_count) {
@@ -7019,7 +7066,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   uint32_t descriptor_sets_remaining =
       descriptor_sets_needed & ~current_graphics_descriptor_sets_bound_up_to_date_;
   uint32_t descriptor_set_index;
-  while (rex::bit_scan_forward(descriptor_sets_remaining, &descriptor_set_index)) {
+  while (FindFirstSetBit(descriptor_sets_remaining, &descriptor_set_index)) {
     uint32_t descriptor_set_mask_tzcnt =
         rex::tzcnt(~(descriptor_sets_remaining | ((UINT32_C(1) << descriptor_set_index) - 1)));
     deferred_command_buffer_.CmdVkBindDescriptorSets(
@@ -7035,6 +7082,67 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   current_graphics_descriptor_sets_bound_up_to_date_ |= descriptor_sets_needed;
 
   return true;
+}
+
+VkDescriptorSet VulkanCommandProcessor::FindTextureDescriptorSet(
+    bool is_vertex, uint32_t texture_count, uint32_t sampler_count,
+    const VkDescriptorImageInfo* texture_image_info,
+    const VkDescriptorImageInfo* sampler_image_info) {
+  texture_descriptor_reuse_key_.clear();
+  if (!REXCVAR_GET(vulkan_reuse_texture_descriptors)) {
+    return VK_NULL_HANDLE;
+  }
+  const uint64_t submission = GetCurrentSubmission();
+  if (submission != texture_descriptor_reuse_submission_ ||
+      frame_current_ != texture_descriptor_reuse_frame_) {
+    texture_descriptor_reuse_.clear();
+    texture_descriptor_reuse_contents_.clear();
+    texture_descriptor_reuse_submission_ = submission;
+    texture_descriptor_reuse_frame_ = frame_current_;
+  }
+  // The contents: the layout, then each texture's view and layout, then each
+  // sampler.
+  auto handle_bits = [](auto handle) {
+    uint64_t bits = 0;
+    std::memcpy(&bits, &handle, std::min(sizeof(bits), sizeof(handle)));
+    return bits;
+  };
+  std::vector<uint64_t>& key = texture_descriptor_reuse_key_;
+  key.push_back(uint64_t(is_vertex) | (uint64_t(texture_count) << 1) |
+                (uint64_t(sampler_count) << 32));
+  for (uint32_t i = 0; i < texture_count; ++i) {
+    key.push_back(handle_bits(texture_image_info[i].imageView));
+    key.push_back(uint64_t(texture_image_info[i].imageLayout));
+  }
+  for (uint32_t i = 0; i < sampler_count; ++i) {
+    key.push_back(handle_bits(sampler_image_info[i].sampler));
+  }
+  texture_descriptor_reuse_key_hash_ = XXH3_64bits(key.data(), key.size() * sizeof(uint64_t));
+  auto range = texture_descriptor_reuse_.equal_range(texture_descriptor_reuse_key_hash_);
+  for (auto it = range.first; it != range.second; ++it) {
+    const TextureDescriptorSetReuse& reuse = it->second;
+    if (reuse.contents_count == key.size() &&
+        std::memcmp(texture_descriptor_reuse_contents_.data() + reuse.contents_offset, key.data(),
+                    key.size() * sizeof(uint64_t)) == 0) {
+      return reuse.set;
+    }
+  }
+  return VK_NULL_HANDLE;
+}
+
+void VulkanCommandProcessor::RememberTextureDescriptorSet(VkDescriptorSet set) {
+  if (texture_descriptor_reuse_key_.empty() || set == VK_NULL_HANDLE) {
+    return;
+  }
+  TextureDescriptorSetReuse reuse;
+  reuse.contents_offset = uint32_t(texture_descriptor_reuse_contents_.size());
+  reuse.contents_count = uint32_t(texture_descriptor_reuse_key_.size());
+  reuse.set = set;
+  texture_descriptor_reuse_contents_.insert(texture_descriptor_reuse_contents_.end(),
+                                            texture_descriptor_reuse_key_.begin(),
+                                            texture_descriptor_reuse_key_.end());
+  texture_descriptor_reuse_.emplace(texture_descriptor_reuse_key_hash_, reuse);
+  texture_descriptor_reuse_key_.clear();
 }
 
 uint32_t VulkanCommandProcessor::WriteTransientTextureBindings(
