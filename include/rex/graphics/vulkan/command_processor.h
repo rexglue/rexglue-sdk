@@ -530,6 +530,9 @@ class VulkanCommandProcessor : public CommandProcessor {
       const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
       reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader, const VulkanShader* pixel_shader);
+  // The descriptor set naming the five constant buffers in one uniform buffer
+  // pool page, as dynamic uniform buffers; written the first time it's asked.
+  VkDescriptorSet GetConstantsDynamicDescriptorSet(VkBuffer buffer);
   // Allocates a descriptor set and fills one or two VkWriteDescriptorSet
   // structure instances (for images and samplers).
   // The descriptor set layout must be the one for the given is_vertex,
@@ -635,6 +638,20 @@ class VulkanCommandProcessor : public CommandProcessor {
   // <Usage frame, set>.
   std::deque<std::pair<uint64_t, VkDescriptorSet>> constants_transient_descriptors_used_;
   std::vector<VkDescriptorSet> constants_transient_descriptors_free_;
+
+  // Guest draw constants as dynamic uniform buffers (vulkan_dynamic_constant_offsets,
+  // read at start): one set for each uniform buffer pool page, kept until the
+  // pages are destroyed (ClearTransientDescriptorPools), and each draw's
+  // offsets in the page given when binding.
+  bool constants_dynamic_offsets_ = false;
+  // The largest a constant buffer can be: 256 float4 constants.
+  static constexpr size_t kConstantBufferMaxRange = sizeof(float) * 4 * 256;
+  static constexpr uint32_t kConstantsDynamicDescriptorPoolSetCount = 64;
+  static const VkDescriptorPoolSize kDescriptorPoolSizeUniformBufferDynamic;
+  ui::vulkan::LinkedTypeDescriptorSetAllocator constants_dynamic_descriptor_allocator_;
+  // <Page buffer, set>.
+  std::vector<std::pair<VkBuffer, VkDescriptorSet>> constants_dynamic_descriptor_sets_;
+  uint32_t constants_dynamic_offset_values_[SpirvShaderTranslator::kConstantBufferCount] = {};
 
   ui::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_textures_;
   std::deque<UsedTextureTransientDescriptorSet> texture_transient_descriptor_sets_used_;
