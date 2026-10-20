@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
@@ -37,6 +38,8 @@
 #include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
+#include <rex/system/xmemory_read_watch.h>
+#include <rex/thread.h>
 
 REXCVAR_DEFINE_BOOL(vsync, true, "GPU", "Enable vertical sync");
 
@@ -53,6 +56,17 @@ REXCVAR_DEFINE_BOOL(readback_resolve_log, false, "GPU",
 REXCVAR_DEFINE_BOOL(readback_resolve_skip_frontbuffer, true, "GPU",
                     "readback_resolve: don't copy back resolves into a buffer the game has "
                     "presented (its CPU doesn't read the picture on screen)");
+REXCVAR_DEFINE_BOOL(readback_resolve_cpu_reads_only, true, "GPU",
+                    "readback_resolve: copy back only resolves the game's CPU accesses. The "
+                    "others are watched instead: the first access waits while that one is "
+                    "copied back, and it is copied back after every resolve from then on")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+REXCVAR_DEFINE_INT32(readback_resolve_cpu_wait_limit_ms, 10000, "GPU",
+                     "readback_resolve_cpu_reads_only: how long the CPU's first access to a "
+                     "resolve waits for its copy (which waits for the host GPU) before going "
+                     "ahead with the older contents; raise it for a software GPU")
+    .range(100, 600000)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_STRING(readback_resolve, "none", "GPU",
                       "Controls CPU readback of render-to-texture resolve results.\n"
                       " none: Disable readback (default)\n"
@@ -192,6 +206,11 @@ bool CommandProcessor::Initialize() {
     });
   }
 
+  // readback_resolve_cpu_reads_only: the guest's accesses to resolve
+  // destinations that aren't copied back.
+  resolve_read_callback_handle_ =
+      memory::RegisterPhysicalMemoryReadCallback(ResolveReadCallbackThunk, this);
+
   worker_running_ = true;
   worker_thread_ = system::object_ref<system::XHostThread>(
       new system::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
@@ -216,6 +235,31 @@ void CommandProcessor::Shutdown() {
   write_ptr_index_event_->Set();
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_.reset();
+
+  // Nothing can copy back resolves anymore: release the threads waiting for
+  // one, and leave no guest memory inaccessible.
+  if (resolve_read_callback_handle_) {
+    memory::UnregisterPhysicalMemoryReadCallback(resolve_read_callback_handle_);
+    resolve_read_callback_handle_ = nullptr;
+    {
+      std::lock_guard<std::mutex> fetch_lock(resolve_fetch_mutex_);
+      resolve_fetches_.clear();
+    }
+    resolve_fetch_cv_.notify_all();
+    while (resolve_read_callbacks_running_.load(std::memory_order_acquire)) {
+      rex::thread::Sleep(std::chrono::milliseconds(1));
+    }
+    std::vector<ResolveDestination> destinations;
+    {
+      auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+      destinations.swap(resolve_destinations_);
+    }
+    for (const ResolveDestination& destination : destinations) {
+      if (!destination.cpu_reads) {
+        memory::DisablePhysicalMemoryReadWatch(*memory_, destination.address, destination.length);
+      }
+    }
+  }
 }
 
 void CommandProcessor::RequestDrawResolutionScale(uint32_t x, uint32_t y, bool force_rebuild) {
@@ -295,6 +339,7 @@ void CommandProcessor::SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect)
 }
 
 void CommandProcessor::WorkerThreadMain() {
+  worker_thread_id_.store(rex::thread::current_thread_system_id(), std::memory_order_release);
   if (!SetupContext()) {
     rex::FatalError("Unable to setup command processor internal state");
     return;
@@ -326,6 +371,7 @@ void CommandProcessor::WorkerThreadMain() {
 
         rex::thread::MaybeYield();
         PollWhileWaiting();
+        ProcessResolveFetches();
         loop_count++;
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
@@ -722,6 +768,254 @@ bool CommandProcessor::IsPresentedFrontbuffer(uint32_t physical_address) const {
   return false;
 }
 
+bool CommandProcessor::ShouldReadbackResolve(uint32_t physical_address, uint32_t length,
+                                             uint32_t format) {
+  if (!REXCVAR_GET(readback_resolve_cpu_reads_only) || !resolve_read_callback_handle_ ||
+      !CanReadBackResolvesNow()) {
+    return true;
+  }
+  physical_address &= 0x1FFFFFFF;
+  auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+  ResolveDestination* destination = nullptr;
+  for (ResolveDestination& existing : resolve_destinations_) {
+    if (existing.address == physical_address && existing.length == length) {
+      destination = &existing;
+      break;
+    }
+  }
+  if (!destination) {
+    if (resolve_destinations_.size() >= kMaxResolveDestinations) {
+      // Something resolves to ever new places: copy those back as before.
+      return true;
+    }
+    destination = &resolve_destinations_.emplace_back();
+    *destination = {};
+    destination->address = physical_address;
+    destination->length = length;
+    if (REXCVAR_GET(readback_resolve_log)) {
+      REXGPU_INFO(
+          "Resolve readback: {:08X} ({} bytes) is copied back once the CPU accesses it",
+          physical_address, length);
+    }
+  }
+  destination->format = format;
+  if (destination->cpu_reads) {
+    if (!destination->cpu_reads_logged) {
+      destination->cpu_reads_logged = true;
+      if (REXCVAR_GET(readback_resolve_log)) {
+        REXGPU_INFO("Resolve readback: the CPU accesses {:08X} ({} bytes), copying it back",
+                    physical_address, length);
+      }
+    }
+    return true;
+  }
+  // Watch it again for the new data: a write past the guest's views, a
+  // release or a protection change may have dropped parts of the watch since
+  // the last resolve. Pages still watched cost a quick check.
+  memory::EnablePhysicalMemoryReadWatch(*memory_, physical_address, length);
+  return false;
+}
+
+std::pair<uint32_t, uint32_t> CommandProcessor::ResolveReadCallbackThunk(
+    void* context, std::unique_lock<std::recursive_mutex>& global_lock,
+    uint32_t physical_address_start, uint32_t length) {
+  return reinterpret_cast<CommandProcessor*>(context)->ResolveReadCallback(
+      global_lock, physical_address_start, length);
+}
+
+std::pair<uint32_t, uint32_t> CommandProcessor::ResolveReadCallback(
+    std::unique_lock<std::recursive_mutex>& global_lock, uint32_t physical_address_start,
+    uint32_t length) {
+  resolve_read_callbacks_running_.fetch_add(1, std::memory_order_acq_rel);
+  // The command processor thread can't wait for itself (guest interrupt
+  // callbacks run on it): the access sees the old contents then. Nor can a
+  // thread whose lock this can't release for the wait.
+  const bool can_wait =
+      worker_running_ && CanReadBackResolvesNow() && global_lock.owns_lock() &&
+      rex::thread::current_thread_system_id() != worker_thread_id_.load(std::memory_order_acquire);
+  const uint64_t touched_end = uint64_t(physical_address_start) + length;
+  uint64_t unwatch_start = physical_address_start, unwatch_end = touched_end;
+  // Destinations overlapping one page are few.
+  uint64_t wait_serials[8];
+  size_t wait_count = 0;
+  {
+    std::lock_guard<std::mutex> fetch_lock(resolve_fetch_mutex_);
+    for (ResolveDestination& destination : resolve_destinations_) {
+      const uint64_t destination_end = uint64_t(destination.address) + destination.length;
+      if (destination.address >= touched_end || destination_end <= physical_address_start) {
+        continue;
+      }
+      // Unwatch all of it: one fault per destination, not per page.
+      unwatch_start = std::min(unwatch_start, uint64_t(destination.address));
+      unwatch_end = std::max(unwatch_end, destination_end);
+      if (!destination.cpu_reads) {
+        // The first access since it was resolved to: copy it back now, and
+        // after every resolve from now on.
+        destination.cpu_reads = true;
+        if (can_wait) {
+          destination.fetch_serial = resolve_fetch_next_serial_++;
+          ResolveFetch& fetch = resolve_fetches_.emplace_back();
+          fetch.address = destination.address;
+          fetch.length = destination.length;
+          fetch.format = destination.format;
+          fetch.serial = destination.fetch_serial;
+          fetch.in_progress = false;
+          fetch.cancelled = false;
+        } else if (REXCVAR_GET(readback_resolve_log)) {
+          REXGPU_INFO(
+              "Resolve readback: {:08X} accessed where it can't wait for its copy (the GPU "
+              "thread); this access sees the older contents",
+              destination.address);
+        }
+      }
+      // Also wait for a copy another thread asked for and is waiting for.
+      if (can_wait && destination.fetch_serial && wait_count < rex::countof(wait_serials)) {
+        for (const ResolveFetch& fetch : resolve_fetches_) {
+          if (fetch.serial == destination.fetch_serial) {
+            wait_serials[wait_count++] = destination.fetch_serial;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  if (wait_count) {
+    resolve_fetch_requested_.store(true, std::memory_order_release);
+    write_ptr_index_event_->Set();
+    const auto wait_start = std::chrono::steady_clock::now();
+    bool timed_out = false;
+    // The command processor thread may need the global critical region
+    // before it gets to the copy.
+    global_lock.unlock();
+    {
+      std::unique_lock<std::mutex> fetch_lock(resolve_fetch_mutex_);
+      auto waiting = [&]() {
+        for (const ResolveFetch& fetch : resolve_fetches_) {
+          for (size_t i = 0; i < wait_count; ++i) {
+            if (fetch.serial == wait_serials[i]) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      const auto wait_limit =
+          std::chrono::milliseconds(REXCVAR_GET(readback_resolve_cpu_wait_limit_ms));
+      if (!resolve_fetch_cv_.wait_for(fetch_lock, wait_limit, [&]() { return !waiting(); })) {
+        // Go ahead with the old contents: a queued copy is dropped, one in
+        // progress won't be written to guest memory.
+        timed_out = true;
+        for (auto it = resolve_fetches_.begin(); it != resolve_fetches_.end();) {
+          bool mine = false;
+          for (size_t i = 0; i < wait_count; ++i) {
+            mine |= it->serial == wait_serials[i];
+          }
+          if (mine && !it->in_progress) {
+            it = resolve_fetches_.erase(it);
+            continue;
+          }
+          if (mine) {
+            it->cancelled = true;
+          }
+          ++it;
+        }
+      }
+    }
+    global_lock.lock();
+    if (timed_out) {
+      REXGPU_WARN(
+          "Resolve readback: the CPU accessed {:08X} before it was copied back, and the copy "
+          "took over {} ms (readback_resolve_cpu_wait_limit_ms); it sees the older contents",
+          physical_address_start, REXCVAR_GET(readback_resolve_cpu_wait_limit_ms));
+    } else if (REXCVAR_GET(readback_resolve_log)) {
+      REXGPU_INFO("Resolve readback: the CPU's first access to {:08X} waited {} ms for its copy",
+                  physical_address_start,
+                  std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::steady_clock::now() - wait_start)
+                      .count());
+    }
+  }
+
+  resolve_read_callbacks_running_.fetch_sub(1, std::memory_order_acq_rel);
+  return {uint32_t(unwatch_start), uint32_t(unwatch_end - unwatch_start)};
+}
+
+void CommandProcessor::ProcessResolveFetchesNow() {
+  resolve_fetch_requested_.store(false, std::memory_order_relaxed);
+  resolve_fetch_batch_.clear();
+  {
+    std::lock_guard<std::mutex> fetch_lock(resolve_fetch_mutex_);
+    for (ResolveFetch& fetch : resolve_fetches_) {
+      if (!fetch.in_progress && !fetch.cancelled) {
+        fetch.in_progress = true;
+        resolve_fetch_batch_.push_back(fetch);
+      }
+    }
+  }
+  if (resolve_fetch_batch_.empty()) {
+    return;
+  }
+
+  // Waits for the host GPU.
+  ReadBackResolvesNow(resolve_fetch_batch_.data(), resolve_fetch_batch_.size(),
+                      resolve_fetch_data_);
+
+  {
+    // The global critical region guards the read watch state the copy checks.
+    auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+    std::lock_guard<std::mutex> fetch_lock(resolve_fetch_mutex_);
+    for (size_t i = 0; i < resolve_fetch_batch_.size(); ++i) {
+      const ResolveFetch& done = resolve_fetch_batch_[i];
+      auto it = std::find_if(resolve_fetches_.begin(), resolve_fetches_.end(),
+                             [&](const ResolveFetch& fetch) { return fetch.serial == done.serial; });
+      if (it == resolve_fetches_.end()) {
+        continue;
+      }
+      if (!it->cancelled && i < resolve_fetch_data_.size() && resolve_fetch_data_[i]) {
+        CopyResolveFetchToGuest(done, resolve_fetch_data_[i]);
+      }
+      resolve_fetches_.erase(it);
+    }
+  }
+  resolve_fetch_cv_.notify_all();
+}
+
+void CommandProcessor::CopyResolveFetchToGuest(const ResolveFetch& fetch, const uint8_t* data) {
+  // 4 KB is the smallest guest page; a host page is never smaller.
+  constexpr uint32_t kChunk = 4096;
+  const uint64_t end = uint64_t(fetch.address) + fetch.length;
+  uint64_t run_start = UINT64_MAX;
+  uint64_t copied = 0;
+  auto copy_run = [&](uint64_t run_end) {
+    if (run_start != UINT64_MAX && run_end > run_start) {
+      std::memcpy(memory_->TranslatePhysical(uint32_t(run_start)),
+                  data + (run_start - fetch.address), size_t(run_end - run_start));
+      copied += run_end - run_start;
+    }
+    run_start = UINT64_MAX;
+  };
+  for (uint64_t chunk = fetch.address & ~uint64_t(kChunk - 1); chunk < end; chunk += kChunk) {
+    const uint64_t part_start = std::max(chunk, uint64_t(fetch.address));
+    if (memory::IsPhysicalMemoryReadWatched(*memory_, uint32_t(chunk))) {
+      if (run_start == UINT64_MAX) {
+        run_start = part_start;
+      }
+    } else {
+      copy_run(part_start);
+    }
+  }
+  copy_run(end);
+  if (copied) {
+    stats::Add(stats::Counter::kReadbacks);
+    stats::Add(stats::Counter::kReadbackBytes, copied);
+  }
+  if (REXCVAR_GET(readback_resolve_log)) {
+    REXGPU_INFO("Resolve readback: copied back {:08X} ({} of {} bytes) for the CPU's first access",
+                fetch.address, copied, fetch.length);
+  }
+}
+
 void CommandProcessor::ReturnFromWait() {}
 
 uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t write_index) {
@@ -732,6 +1026,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t wr
   reader.set_read_offset(read_index * sizeof(uint32_t));
   reader.set_write_offset(write_index * sizeof(uint32_t));
   do {
+    ProcessResolveFetches();
     if (!ExecutePacket(&reader)) {
       // This probably should be fatal - but we're going to continue anyways.
       REXGPU_ERROR("**** PRIMARY RINGBUFFER: Failed to execute packet.");
@@ -752,6 +1047,7 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
   memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
   reader.set_write_offset(count * sizeof(uint32_t));
   do {
+    ProcessResolveFetches();
     if (!ExecutePacket(&reader)) {
       // Return up a level if we encounter a bad packet.
       REXGPU_ERROR("**** INDIRECT RINGBUFFER: Failed to execute packet.");
@@ -1159,6 +1455,9 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
         }
         rex::thread::SyncMemory();
         ReturnFromWait();
+        // The memory may be written by a guest thread that is waiting for a
+        // resolve to be copied back.
+        ProcessResolveFetches();
 
         if (!worker_running_) {
           // Short-circuited exit.
@@ -1166,6 +1465,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
         }
       } else {
         rex::thread::MaybeYield();
+        ProcessResolveFetches();
       }
     }
   } while (!matched);

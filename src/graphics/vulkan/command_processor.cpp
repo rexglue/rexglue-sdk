@@ -4406,135 +4406,108 @@ bool VulkanCommandProcessor::IssueCopy() {
   return IssueCopy_ReadbackResolvePath();
 }
 
-bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
+bool VulkanCommandProcessor::EnsureReadbackBufferSlot(ReadbackBuffer& readback, uint32_t index,
+                                                      uint32_t size) {
+  if (readback.buffers[index] != VK_NULL_HANDLE && size <= readback.sizes[index] &&
+      readback.mapped_data[index] != nullptr) {
+    return true;
+  }
+
   const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
-  uint32_t written_address, written_length;
-  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_, written_address,
-                                     written_length)) {
+  VkBuffer new_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory new_memory = VK_NULL_HANDLE;
+  if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+          vulkan_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+          ui::vulkan::util::MemoryPurpose::kReadback, new_buffer, new_memory)) {
+    REXGPU_ERROR("Failed to create a {} MB Vulkan resolve readback buffer", size >> 20);
     return false;
   }
 
-  if (!written_length) {
-    return true;
+  void* new_mapping = nullptr;
+  if (dfn.vkMapMemory(device, new_memory, 0, VK_WHOLE_SIZE, 0, &new_mapping) != VK_SUCCESS) {
+    REXGPU_ERROR("Failed to map a Vulkan resolve readback buffer");
+    dfn.vkDestroyBuffer(device, new_buffer, nullptr);
+    dfn.vkFreeMemory(device, new_memory, nullptr);
+    return false;
   }
 
-  if (!memory_->TranslatePhysical(written_address)) {
-    return true;
-  }
-
-  if (IsPresentedFrontbuffer(written_address)) {
-    return true;
-  }
-
-  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
-  if (readback_mode == ReadbackResolveMode::kDisabled) {
-    return true;
-  }
-
-  auto ensure_readback_slot = [&](ReadbackBuffer& readback, uint32_t index, uint32_t size) -> bool {
-    if (readback.buffers[index] != VK_NULL_HANDLE && size <= readback.sizes[index] &&
-        readback.mapped_data[index] != nullptr) {
-      return true;
-    }
-
-    VkBuffer new_buffer = VK_NULL_HANDLE;
-    VkDeviceMemory new_memory = VK_NULL_HANDLE;
-    if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
-            vulkan_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            ui::vulkan::util::MemoryPurpose::kReadback, new_buffer, new_memory)) {
-      REXGPU_ERROR("Failed to create a {} MB Vulkan resolve readback buffer", size >> 20);
-      return false;
-    }
-
-    void* new_mapping = nullptr;
-    if (dfn.vkMapMemory(device, new_memory, 0, VK_WHOLE_SIZE, 0, &new_mapping) != VK_SUCCESS) {
-      REXGPU_ERROR("Failed to map a Vulkan resolve readback buffer");
+  if (readback.buffers[index] != VK_NULL_HANDLE || readback.memories[index] != VK_NULL_HANDLE) {
+    if (!AwaitAllQueueOperationsCompletion()) {
+      dfn.vkUnmapMemory(device, new_memory);
       dfn.vkDestroyBuffer(device, new_buffer, nullptr);
       dfn.vkFreeMemory(device, new_memory, nullptr);
       return false;
     }
-
-    if (readback.buffers[index] != VK_NULL_HANDLE || readback.memories[index] != VK_NULL_HANDLE) {
-      if (!AwaitAllQueueOperationsCompletion()) {
-        dfn.vkUnmapMemory(device, new_memory);
-        dfn.vkDestroyBuffer(device, new_buffer, nullptr);
-        dfn.vkFreeMemory(device, new_memory, nullptr);
-        return false;
-      }
-      if (readback.mapped_data[index] != nullptr && readback.memories[index] != VK_NULL_HANDLE) {
-        dfn.vkUnmapMemory(device, readback.memories[index]);
-      }
-      if (readback.buffers[index] != VK_NULL_HANDLE) {
-        dfn.vkDestroyBuffer(device, readback.buffers[index], nullptr);
-      }
-      if (readback.memories[index] != VK_NULL_HANDLE) {
-        dfn.vkFreeMemory(device, readback.memories[index], nullptr);
-      }
+    if (readback.mapped_data[index] != nullptr && readback.memories[index] != VK_NULL_HANDLE) {
+      dfn.vkUnmapMemory(device, readback.memories[index]);
     }
-
-    readback.buffers[index] = new_buffer;
-    readback.memories[index] = new_memory;
-    readback.mapped_data[index] = new_mapping;
-    readback.sizes[index] = size;
-    return true;
-  };
-
-  bool is_scaled = texture_cache_->IsDrawResolutionScaled();
-  uint64_t resolve_key = MakeReadbackResolveKey(written_address, written_length);
-  if (REXCVAR_GET(readback_resolve_log) && !readback_buffers_.count(resolve_key)) {
-    REXGPU_INFO("Resolve readback: new destination {:08X}, {} bytes, format {}", written_address,
-                written_length,
-                uint32_t(register_file_->Get<reg::RB_COPY_DEST_INFO>().copy_dest_format));
-  }
-  ReadbackBuffer& readback = readback_buffers_[resolve_key];
-  readback.last_used_frame = frame_current_;
-  uint32_t write_index = readback.current_index;
-  uint32_t readback_size = AlignReadbackBufferSize(written_length);
-  if (!ensure_readback_slot(readback, write_index, readback_size)) {
-    return true;
+    if (readback.buffers[index] != VK_NULL_HANDLE) {
+      dfn.vkDestroyBuffer(device, readback.buffers[index], nullptr);
+    }
+    if (readback.memories[index] != VK_NULL_HANDLE) {
+      dfn.vkFreeMemory(device, readback.memories[index], nullptr);
+    }
   }
 
-  if (is_scaled) {
+  readback.buffers[index] = new_buffer;
+  readback.memories[index] = new_memory;
+  readback.mapped_data[index] = new_mapping;
+  readback.sizes[index] = size;
+  return true;
+}
+
+bool VulkanCommandProcessor::RecordResolveReadbackCopy(uint32_t address, uint32_t length,
+                                                       uint32_t format, VkBuffer target) {
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  // Making the readback buffer may have waited for the GPU, which closes the
+  // submission.
+  if (!BeginSubmission(false)) {
+    return false;
+  }
+
+  if (texture_cache_->IsDrawResolutionScaled()) {
     if (!resolve_downscale_pipeline_ || !resolve_downscale_pipeline_layout_) {
-      return true;
+      return false;
     }
 
-    reg::RB_COPY_DEST_INFO copy_dest_info = register_file_->Get<reg::RB_COPY_DEST_INFO>();
-    const FormatInfo* format_info = FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
+    const FormatInfo* format_info = FormatInfo::Get(format);
     uint32_t bits_per_pixel = format_info->bits_per_pixel;
     if (bits_per_pixel != 8 && bits_per_pixel != 16 && bits_per_pixel != 32 &&
         bits_per_pixel != 64) {
-      return true;
+      return false;
     }
 
     uint32_t pixel_size_log2;
     if (!rex::bit_scan_forward(bits_per_pixel >> 3, &pixel_size_log2)) {
-      return true;
+      return false;
     }
     uint32_t tile_size_1x = 32 * 32 * (uint32_t(1) << pixel_size_log2);
-    uint32_t tile_count = written_length / tile_size_1x;
+    uint32_t tile_count = length / tile_size_1x;
     if (!tile_count) {
-      return true;
+      return false;
     }
 
     uint64_t scaled_start = 0, scaled_length = 0;
-    if (!texture_cache_->GetScaledResolveRange(written_address, written_length, 0, scaled_start,
+    if (!texture_cache_->GetScaledResolveRange(address, length, 0, scaled_start,
                                                scaled_length)) {
-      return true;
+      return false;
     }
     if (!scaled_length) {
-      return true;
+      return false;
     }
 
     VkBuffer scaled_resolve_buffer = texture_cache_->scaled_resolve_buffer();
     if (scaled_resolve_buffer == VK_NULL_HANDLE || scaled_start > uint64_t(UINT32_MAX)) {
-      return true;
+      return false;
     }
 
-    uint32_t downscale_buffer_size = AlignReadbackBufferSize(written_length);
+    uint32_t downscale_buffer_size = AlignReadbackBufferSize(length);
     if (downscale_buffer_size > resolve_downscale_buffer_size_) {
       VkBuffer new_buffer = VK_NULL_HANDLE;
       VkDeviceMemory new_memory = VK_NULL_HANDLE;
@@ -4544,14 +4517,14 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
               ui::vulkan::util::MemoryPurpose::kDeviceLocal, new_buffer, new_memory)) {
         REXGPU_ERROR("Failed to create a {} MB Vulkan resolve downscale buffer",
                      downscale_buffer_size >> 20);
-        return true;
+        return false;
       }
       if (resolve_downscale_buffer_ != VK_NULL_HANDLE ||
           resolve_downscale_buffer_memory_ != VK_NULL_HANDLE) {
         if (!AwaitAllQueueOperationsCompletion()) {
           dfn.vkDestroyBuffer(device, new_buffer, nullptr);
           dfn.vkFreeMemory(device, new_memory, nullptr);
-          return true;
+          return false;
         }
         if (resolve_downscale_buffer_ != VK_NULL_HANDLE) {
           dfn.vkDestroyBuffer(device, resolve_downscale_buffer_, nullptr);
@@ -4565,13 +4538,17 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
       resolve_downscale_buffer_size_ = downscale_buffer_size;
     }
     if (resolve_downscale_buffer_ == VK_NULL_HANDLE) {
-      return true;
+      return false;
+    }
+    // Awaiting the GPU above closes the submission.
+    if (!BeginSubmission(false)) {
+      return false;
     }
 
     VkDescriptorSet descriptor_set = AllocateSingleTransientDescriptor(
         SingleTransientDescriptorLayout::kStorageBufferPairCompute);
     if (descriptor_set == VK_NULL_HANDLE) {
-      return true;
+      return false;
     }
 
     VkDescriptorBufferInfo buffer_infos[2] = {};
@@ -4580,7 +4557,7 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     buffer_infos[0].range = VK_WHOLE_SIZE;
     buffer_infos[1].buffer = resolve_downscale_buffer_;
     buffer_infos[1].offset = 0;
-    buffer_infos[1].range = written_length;
+    buffer_infos[1].range = length;
 
     VkWriteDescriptorSet descriptor_writes[2] = {};
     for (uint32_t i = 0; i < 2; ++i) {
@@ -4604,7 +4581,7 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     pre_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     pre_barrier.buffer = resolve_downscale_buffer_;
     pre_barrier.offset = 0;
-    pre_barrier.size = written_length;
+    pre_barrier.size = length;
     deferred_command_buffer_.CmdVkPipelineBarrier(
         VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &pre_barrier, 0, nullptr);
@@ -4637,7 +4614,7 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     downscale_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     downscale_barrier.buffer = resolve_downscale_buffer_;
     downscale_barrier.offset = 0;
-    downscale_barrier.size = written_length;
+    downscale_barrier.size = length;
     deferred_command_buffer_.CmdVkPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1,
                                                   &downscale_barrier, 0, nullptr);
@@ -4645,24 +4622,78 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     VkBufferCopy readback_region = {};
     readback_region.srcOffset = 0;
     readback_region.dstOffset = 0;
-    readback_region.size = written_length;
-    deferred_command_buffer_.CmdVkCopyBuffer(resolve_downscale_buffer_,
-                                             readback.buffers[write_index], 1, &readback_region);
+    readback_region.size = length;
+    deferred_command_buffer_.CmdVkCopyBuffer(resolve_downscale_buffer_, target, 1,
+                                             &readback_region);
   } else {
     shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
     SubmitBarriers(true);
 
     VkBufferCopy readback_region = {};
-    readback_region.srcOffset = written_address;
+    readback_region.srcOffset = address;
     readback_region.dstOffset = 0;
-    readback_region.size = written_length;
-    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(),
-                                             readback.buffers[write_index], 1, &readback_region);
+    readback_region.size = length;
+    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(), target, 1,
+                                             &readback_region);
   }
 
-  PushBufferMemoryBarrier(readback.buffers[write_index], 0, written_length,
-                          VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
-                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+  PushBufferMemoryBarrier(target, 0, length, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                          VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                          VK_ACCESS_HOST_READ_BIT);
+  return true;
+}
+
+bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  uint32_t written_address, written_length;
+  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_, written_address,
+                                     written_length)) {
+    return false;
+  }
+
+  if (!written_length) {
+    return true;
+  }
+
+  if (!memory_->TranslatePhysical(written_address)) {
+    return true;
+  }
+
+  if (IsPresentedFrontbuffer(written_address)) {
+    return true;
+  }
+
+  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
+  if (readback_mode == ReadbackResolveMode::kDisabled) {
+    return true;
+  }
+
+  uint32_t copy_dest_format =
+      uint32_t(register_file_->Get<reg::RB_COPY_DEST_INFO>().copy_dest_format);
+  // Only what the guest's CPU accesses (readback_resolve_cpu_reads_only): each
+  // copy costs a transfer from the GPU and a copy into guest memory.
+  if (!ShouldReadbackResolve(written_address, written_length, copy_dest_format)) {
+    return true;
+  }
+
+  uint64_t resolve_key = MakeReadbackResolveKey(written_address, written_length);
+  if (REXCVAR_GET(readback_resolve_log) && !readback_buffers_.count(resolve_key)) {
+    REXGPU_INFO("Resolve readback: new destination {:08X}, {} bytes, format {}", written_address,
+                written_length, copy_dest_format);
+  }
+  ReadbackBuffer& readback = readback_buffers_[resolve_key];
+  readback.last_used_frame = frame_current_;
+  uint32_t write_index = readback.current_index;
+  if (!EnsureReadbackBufferSlot(readback, write_index, AlignReadbackBufferSize(written_length))) {
+    return true;
+  }
+  if (!RecordResolveReadbackCopy(written_address, written_length, copy_dest_format,
+                                 readback.buffers[write_index])) {
+    return true;
+  }
 
   bool use_delayed_sync =
       readback_mode == ReadbackResolveMode::kFast || readback_mode == ReadbackResolveMode::kSome;
@@ -4704,6 +4735,51 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
 
   readback.current_index = 1 - readback.current_index;
   return true;
+}
+
+void VulkanCommandProcessor::ReadBackResolvesNow(const ResolveFetch* fetches, size_t count,
+                                                 std::vector<const uint8_t*>& data_out) {
+  data_out.assign(count, nullptr);
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  // Each into its destination's own readback buffer, in the slot its next
+  // resolve writes, so the double buffering of readback_resolve stays as it is.
+  std::vector<std::pair<ReadbackBuffer*, uint32_t>> slots(count, {nullptr, 0});
+  bool any_recorded = false;
+  for (size_t i = 0; i < count; ++i) {
+    const ResolveFetch& fetch = fetches[i];
+    ReadbackBuffer& readback = readback_buffers_[MakeReadbackResolveKey(fetch.address, fetch.length)];
+    readback.last_used_frame = frame_current_;
+    uint32_t index = readback.current_index;
+    if (!EnsureReadbackBufferSlot(readback, index, AlignReadbackBufferSize(fetch.length))) {
+      continue;
+    }
+    if (!RecordResolveReadbackCopy(fetch.address, fetch.length, fetch.format,
+                                   readback.buffers[index])) {
+      continue;
+    }
+    slots[i] = {&readback, index};
+    any_recorded = true;
+  }
+  if (!any_recorded || !AwaitAllQueueOperationsCompletion()) {
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    ReadbackBuffer* readback = slots[i].first;
+    if (!readback) {
+      continue;
+    }
+    uint32_t index = slots[i].second;
+    VkMappedMemoryRange readback_memory_range = {};
+    readback_memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    readback_memory_range.memory = readback->memories[index];
+    readback_memory_range.offset = 0;
+    readback_memory_range.size = VK_WHOLE_SIZE;
+    dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
+    data_out[i] = static_cast<const uint8_t*>(readback->mapped_data[index]);
+  }
 }
 
 void VulkanCommandProcessor::EvictOldReadbackBuffers(

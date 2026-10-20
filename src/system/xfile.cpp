@@ -262,6 +262,14 @@ X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length, uin
     byte_offset = position_;
   }
 
+  // The host writes the buffer with a system call, which a read watch on
+  // physical memory (rex/system/xmemory_read_watch.h) would fail instead of
+  // being triggered: trigger it first, so the data is there.
+  if (buffer_length && UINT32_MAX - buffer_guest_address >= buffer_length - 1) {
+    memory()->TriggerPhysicalMemoryCallbacks(rex::thread::global_critical_region::AcquireDirect(),
+                                             buffer_guest_address, buffer_length, false, true);
+  }
+
   size_t bytes_written = 0;
   X_STATUS result = file_->WriteSync(
       std::span<const uint8_t>(memory()->TranslateVirtual(buffer_guest_address), buffer_length),

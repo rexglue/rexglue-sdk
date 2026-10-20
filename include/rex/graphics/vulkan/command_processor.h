@@ -259,6 +259,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   void PrepareForWait() override;
   void PollWhileWaiting() override;
 
+  bool CanReadBackResolvesNow() const override { return true; }
+  void ReadBackResolvesNow(const ResolveFetch* fetches, size_t count,
+                           std::vector<const uint8_t*>& data_out) override;
+
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height) override;
 
@@ -468,6 +472,14 @@ class VulkanCommandProcessor : public CommandProcessor {
     uint64_t last_used_frame = 0;
   };
   void EvictOldReadbackBuffers(std::unordered_map<uint64_t, ReadbackBuffer>& buffer_map);
+  // Makes sure a slot of a resolve readback buffer exists, mapped, with at
+  // least `size` bytes.
+  bool EnsureReadbackBufferSlot(ReadbackBuffer& readback, uint32_t index, uint32_t size);
+  // Records the copy of a resolve destination from the GPU's memory (through
+  // a downscale at a draw resolution scale) into a readback buffer, ready for
+  // the host to read once the submission completes.
+  bool RecordResolveReadbackCopy(uint32_t address, uint32_t length, uint32_t format,
+                                 VkBuffer target);
   static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   static constexpr size_t kMaxReadbackBuffers = 256;
   static constexpr uint64_t kReadbackBufferEvictionAgeFrames = 60;

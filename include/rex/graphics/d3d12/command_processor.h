@@ -214,6 +214,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   void PrepareForWait() override;
   void PollWhileWaiting() override;
 
+  bool CanReadBackResolvesNow() const override { return true; }
+  void ReadBackResolvesNow(const ResolveFetch* fetches, size_t count,
+                           std::vector<const uint8_t*>& data_out) override;
+
   Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address, uint32_t dword_count) override;
 
@@ -396,6 +400,15 @@ class D3D12CommandProcessor : public CommandProcessor {
     uint64_t last_used_frame = 0;
   };
   void EvictOldReadbackBuffers(std::unordered_map<uint64_t, ReadbackBuffer>& buffer_map);
+  // Makes sure a slot of a resolve readback buffer exists with at least `size`
+  // bytes (mapped if possible).
+  bool EnsureReadbackBufferSlot(ReadbackBuffer& rb, uint32_t index, uint32_t size);
+  // Records the copy of a resolve destination from the GPU's memory into a
+  // readback buffer, ready for the host to read once the submission
+  // completes. At a draw resolution scale, through a downscale of the current
+  // range of the scaled resolve buffer (a resolve makes its range current).
+  bool RecordResolveReadbackCopy(uint32_t address, uint32_t length, uint32_t format,
+                                 ID3D12Resource* target);
   static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   static constexpr size_t kMaxReadbackBuffers = 256;
   static constexpr uint64_t kReadbackBufferEvictionAgeFrames = 60;

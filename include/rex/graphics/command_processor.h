@@ -13,6 +13,7 @@
 
 #include <array>
 #include <atomic>
+#include <condition_variable>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -20,6 +21,7 @@
 #include <queue>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <rex/graphics/register_file.h>
@@ -278,6 +280,44 @@ class CommandProcessor {
   std::array<uint32_t, 4> presented_frontbuffers_ = {};
   uint32_t presented_frontbuffer_next_ = 0;
 
+  // readback_resolve_cpu_reads_only: for the implementations, on the command
+  // processor thread, after a resolve readback_resolve would copy back:
+  // whether to copy it back now. Only destinations the guest has accessed
+  // since they were first resolved to are. Any other one is read-watched
+  // (rex/system/xmemory_read_watch.h): its first access waits while it is
+  // copied back on the spot (ReadBackResolvesNow), and from then on it is
+  // copied back after each resolve like before. format is the resolve's
+  // xenos::ColorFormat, for the downscale at a draw resolution scale.
+  bool ShouldReadbackResolve(uint32_t physical_address, uint32_t length, uint32_t format);
+
+  // A resolve destination a guest thread is waiting for.
+  struct ResolveFetch {
+    uint32_t address;  // Physical.
+    uint32_t length;
+    uint32_t format;
+    uint64_t serial;
+    bool in_progress;  // Being copied back by the command processor thread.
+    bool cancelled;    // The waiting thread gave up: don't write guest memory.
+  };
+  // For the implementations, on the command processor thread: copies resolve
+  // destinations from the GPU's memory to host memory now, waiting for the
+  // GPU. data_out gets a pointer to each one's bytes (nullptr where that
+  // failed), valid until the next submission. Implementations that can't do
+  // this return false from CanReadBackResolvesNow; every resolve is copied
+  // back then.
+  virtual bool CanReadBackResolvesNow() const { return false; }
+  virtual void ReadBackResolvesNow(const ResolveFetch* /* fetches */, size_t count,
+                                   std::vector<const uint8_t*>& data_out) {
+    data_out.assign(count, nullptr);
+  }
+  // Copies back the resolves guest threads are waiting for. On the command
+  // processor thread between packets and while it waits; cheap when none.
+  void ProcessResolveFetches() {
+    if (resolve_fetch_requested_.load(std::memory_order_acquire)) {
+      ProcessResolveFetchesNow();
+    }
+  }
+
   uint32_t primary_buffer_ptr_ = 0;
   uint32_t primary_buffer_size_ = 0;
 
@@ -314,6 +354,50 @@ class CommandProcessor {
   // The pending draw resolution scale request seen at the previous end of a
   // frame (in the packed form, 0 if none).
   uint32_t draw_resolution_scale_request_seen_ = 0;
+
+  // readback_resolve_cpu_reads_only (see ShouldReadbackResolve).
+  struct ResolveDestination {
+    uint32_t address;  // Physical.
+    uint32_t length;
+    uint32_t format;
+    // Its copy for the guest's first access, 0 if none.
+    uint64_t fetch_serial;
+    // The guest has accessed it: copied back after each resolve.
+    bool cpu_reads;
+    bool cpu_reads_logged;
+  };
+  // Called by the memory system on the thread that touched a read-watched
+  // page, with the global critical region locked once.
+  static std::pair<uint32_t, uint32_t> ResolveReadCallbackThunk(
+      void* context, std::unique_lock<std::recursive_mutex>& global_lock,
+      uint32_t physical_address_start, uint32_t length);
+  std::pair<uint32_t, uint32_t> ResolveReadCallback(
+      std::unique_lock<std::recursive_mutex>& global_lock, uint32_t physical_address_start,
+      uint32_t length);
+  void ProcessResolveFetchesNow();
+  // Writes a fetched destination into guest memory, the pages still
+  // read-watched only (the others were written or freed since its resolve).
+  void CopyResolveFetchToGuest(const ResolveFetch& fetch, const uint8_t* data);
+  // A destination is remembered while the guest may still access it; past
+  // this many, new ones are copied back after every resolve like before.
+  static constexpr size_t kMaxResolveDestinations = 256;
+  // Guarded by the global critical region.
+  std::vector<ResolveDestination> resolve_destinations_;
+  void* resolve_read_callback_handle_ = nullptr;
+  // Host thread ID of the command processor thread, which can't wait for
+  // itself.
+  std::atomic<uint32_t> worker_thread_id_{0};
+  std::mutex resolve_fetch_mutex_;
+  std::condition_variable resolve_fetch_cv_;
+  // Queued and in progress; guarded by resolve_fetch_mutex_ (taken after the
+  // global critical region, never before).
+  std::vector<ResolveFetch> resolve_fetches_;
+  uint64_t resolve_fetch_next_serial_ = 1;
+  std::atomic<bool> resolve_fetch_requested_{false};
+  std::atomic<uint32_t> resolve_read_callbacks_running_{0};
+  // Command processor thread only.
+  std::vector<ResolveFetch> resolve_fetch_batch_;
+  std::vector<const uint8_t*> resolve_fetch_data_;
 
   reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
   reg::DC_LUT_PWL_DATA gamma_ramp_pwl_rgb_[128][3] = {};

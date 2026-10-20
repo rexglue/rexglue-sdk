@@ -2895,34 +2895,9 @@ bool D3D12CommandProcessor::IssueCopy() {
   return IssueCopy_ReadbackResolvePath();
 }
 
-bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
-  uint32_t written_address, written_length;
-  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_, written_address,
-                                     written_length)) {
-    return false;
-  }
-
-  if (!written_length) {
-    return true;
-  }
-
-  if (!memory_->TranslatePhysical(written_address)) {
-    return true;
-  }
-
-  if (IsPresentedFrontbuffer(written_address)) {
-    return true;
-  }
-
-  bool is_scaled = texture_cache_->IsDrawResolutionScaled();
-  uint64_t resolve_key = MakeReadbackResolveKey(written_address, written_length);
-  ReadbackBuffer& rb = readback_buffers_[resolve_key];
-  rb.last_used_frame = frame_current_;
-
-  uint32_t write_index = rb.current_index;
-  uint32_t size = AlignReadbackBufferSize(written_length);
-
-  if (size > rb.sizes[write_index]) {
+bool D3D12CommandProcessor::EnsureReadbackBufferSlot(ReadbackBuffer& rb, uint32_t index,
+                                                     uint32_t size) {
+  if (size > rb.sizes[index]) {
     const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
     ID3D12Device* device = provider.GetDevice();
     D3D12_RESOURCE_DESC buffer_desc;
@@ -2932,58 +2907,61 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
             &ui::d3d12::util::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)))) {
       REXGPU_ERROR("Failed to create a {} MB readback buffer", size >> 20);
-      return true;
+      return false;
     }
-    if (rb.buffers[write_index]) {
-      if (rb.mapped_data[write_index]) {
-        rb.buffers[write_index]->Unmap(0, nullptr);
-        rb.mapped_data[write_index] = nullptr;
+    if (rb.buffers[index]) {
+      if (rb.mapped_data[index]) {
+        rb.buffers[index]->Unmap(0, nullptr);
+        rb.mapped_data[index] = nullptr;
       }
-      rb.buffers[write_index]->Release();
+      rb.buffers[index]->Release();
     }
-    rb.buffers[write_index] = buffer;
-    rb.sizes[write_index] = size;
+    rb.buffers[index] = buffer;
+    rb.sizes[index] = size;
     D3D12_RANGE read_range = {0, size};
-    if (FAILED(buffer->Map(0, &read_range, &rb.mapped_data[write_index]))) {
+    if (FAILED(buffer->Map(0, &read_range, &rb.mapped_data[index]))) {
       REXGPU_ERROR("Failed to persistently map resolve readback buffer");
-      rb.mapped_data[write_index] = nullptr;
+      rb.mapped_data[index] = nullptr;
     }
   }
+  return rb.buffers[index] != nullptr;
+}
 
-  if (!rb.buffers[write_index]) {
-    return true;
+bool D3D12CommandProcessor::RecordResolveReadbackCopy(uint32_t address, uint32_t length,
+                                                      uint32_t format, ID3D12Resource* target) {
+  if (!BeginSubmission(false)) {
+    return false;
   }
 
-  if (is_scaled) {
+  if (texture_cache_->IsDrawResolutionScaled()) {
     if (!resolve_downscale_pipeline_ || !resolve_downscale_root_signature_) {
-      return true;
+      return false;
     }
 
-    reg::RB_COPY_DEST_INFO copy_dest_info = register_file_->Get<reg::RB_COPY_DEST_INFO>();
-    const FormatInfo* format_info = FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
+    const FormatInfo* format_info = FormatInfo::Get(format);
     uint32_t bits_per_pixel = format_info->bits_per_pixel;
     if (bits_per_pixel != 8 && bits_per_pixel != 16 && bits_per_pixel != 32 &&
         bits_per_pixel != 64) {
-      return true;
+      return false;
     }
 
     uint32_t pixel_size_log2;
     if (!rex::bit_scan_forward(bits_per_pixel >> 3, &pixel_size_log2)) {
-      return true;
+      return false;
     }
     uint32_t tile_size_1x = 32 * 32 * (uint32_t(1) << pixel_size_log2);
-    uint32_t tile_count = written_length / tile_size_1x;
+    uint32_t tile_count = length / tile_size_1x;
     if (!tile_count) {
-      return true;
+      return false;
     }
 
     uint32_t scaled_length = uint32_t(texture_cache_->GetCurrentScaledResolveRangeLengthScaled());
     uint64_t scaled_address = texture_cache_->GetCurrentScaledResolveRangeStartScaled();
     if (!scaled_length) {
-      return true;
+      return false;
     }
 
-    uint32_t downscale_buffer_size = AlignReadbackBufferSize(written_length);
+    uint32_t downscale_buffer_size = AlignReadbackBufferSize(length);
     if (downscale_buffer_size > resolve_downscale_buffer_size_) {
       const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
       ID3D12Device* device = provider.GetDevice();
@@ -2997,7 +2975,7 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
               IID_PPV_ARGS(&buffer)))) {
         REXGPU_ERROR("Failed to create a {} MB resolve downscale buffer",
                      downscale_buffer_size >> 20);
-        return true;
+        return false;
       }
       if (resolve_downscale_buffer_) {
         resources_for_deletion_.emplace_back(GetCurrentSubmission(),
@@ -3008,23 +2986,23 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     }
 
     if (!resolve_downscale_buffer_) {
-      return true;
+      return false;
     }
 
     ID3D12Resource* scaled_resolve_buffer = texture_cache_->GetCurrentScaledResolveBufferResource();
     size_t scaled_resolve_buffer_index = texture_cache_->GetCurrentScaledResolveBufferIndexPublic();
     if (!scaled_resolve_buffer) {
-      return true;
+      return false;
     }
     uint64_t scaled_buffer_base = uint64_t(scaled_resolve_buffer_index) << 30;
     if (scaled_address < scaled_buffer_base) {
-      return true;
+      return false;
     }
     uint64_t source_offset = scaled_address - scaled_buffer_base;
 
     ui::d3d12::util::DescriptorCpuGpuHandlePair downscale_descriptors[2];
     if (!RequestOneUseSingleViewDescriptors(2, downscale_descriptors)) {
-      return true;
+      return false;
     }
 
     const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
@@ -3035,7 +3013,7 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
                                         scaled_resolve_buffer, aligned_scaled_length,
                                         source_offset);
     uint32_t aligned_written_length =
-        rex::align(written_length, uint32_t(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
+        rex::align(length, uint32_t(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
     ui::d3d12::util::CreateBufferRawUAV(device, downscale_descriptors[1].first,
                                         resolve_downscale_buffer_.Get(), aligned_written_length, 0);
 
@@ -3068,8 +3046,8 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     PushTransitionBarrier(resolve_downscale_buffer_.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                           D3D12_RESOURCE_STATE_COPY_SOURCE);
     SubmitBarriers();
-    deferred_command_list_.D3DCopyBufferRegion(rb.buffers[write_index], 0,
-                                               resolve_downscale_buffer_.Get(), 0, written_length);
+    deferred_command_list_.D3DCopyBufferRegion(target, 0, resolve_downscale_buffer_.Get(), 0,
+                                               length);
     PushTransitionBarrier(resolve_downscale_buffer_.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
                           D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     texture_cache_->TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -3078,8 +3056,53 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     shared_memory_->UseAsCopySource();
     SubmitBarriers();
     ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
-    deferred_command_list_.D3DCopyBufferRegion(rb.buffers[write_index], 0, shared_memory_buffer,
-                                               written_address, written_length);
+    deferred_command_list_.D3DCopyBufferRegion(target, 0, shared_memory_buffer, address, length);
+  }
+  return true;
+}
+
+bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
+  uint32_t written_address, written_length;
+  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_, written_address,
+                                     written_length)) {
+    return false;
+  }
+
+  if (!written_length) {
+    return true;
+  }
+
+  if (!memory_->TranslatePhysical(written_address)) {
+    return true;
+  }
+
+  if (IsPresentedFrontbuffer(written_address)) {
+    return true;
+  }
+
+  uint32_t copy_dest_format =
+      uint32_t(register_file_->Get<reg::RB_COPY_DEST_INFO>().copy_dest_format);
+  // Only what the guest's CPU accesses (readback_resolve_cpu_reads_only): each
+  // copy costs a transfer from the GPU and a copy into guest memory.
+  if (!ShouldReadbackResolve(written_address, written_length, copy_dest_format)) {
+    return true;
+  }
+
+  uint64_t resolve_key = MakeReadbackResolveKey(written_address, written_length);
+  if (REXCVAR_GET(readback_resolve_log) && !readback_buffers_.count(resolve_key)) {
+    REXGPU_INFO("Resolve readback: new destination {:08X}, {} bytes, format {}", written_address,
+                written_length, copy_dest_format);
+  }
+  ReadbackBuffer& rb = readback_buffers_[resolve_key];
+  rb.last_used_frame = frame_current_;
+
+  uint32_t write_index = rb.current_index;
+  if (!EnsureReadbackBufferSlot(rb, write_index, AlignReadbackBufferSize(written_length))) {
+    return true;
+  }
+  if (!RecordResolveReadbackCopy(written_address, written_length, copy_dest_format,
+                                 rb.buffers[write_index])) {
+    return true;
   }
 
   ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(d3d12_readback_resolve));
@@ -3115,6 +3138,48 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
 
   rb.current_index = 1 - rb.current_index;
   return true;
+}
+
+void D3D12CommandProcessor::ReadBackResolvesNow(const ResolveFetch* fetches, size_t count,
+                                                std::vector<const uint8_t*>& data_out) {
+  data_out.assign(count, nullptr);
+  // Each into its destination's own readback buffer, in the slot its next
+  // resolve writes, so the double buffering of readback_resolve stays as it is.
+  std::vector<std::pair<ReadbackBuffer*, uint32_t>> slots(count, {nullptr, 0});
+  bool any_recorded = false;
+  for (size_t i = 0; i < count; ++i) {
+    // Open a submission before the scaled resolve range below records barriers.
+    if (!BeginSubmission(false)) {
+      break;
+    }
+    const ResolveFetch& fetch = fetches[i];
+    ReadbackBuffer& rb = readback_buffers_[MakeReadbackResolveKey(fetch.address, fetch.length)];
+    rb.last_used_frame = frame_current_;
+    uint32_t index = rb.current_index;
+    if (!EnsureReadbackBufferSlot(rb, index, AlignReadbackBufferSize(fetch.length)) ||
+        !rb.mapped_data[index]) {
+      continue;
+    }
+    // The resolve made the range of the scaled resolve buffer current; make it
+    // current again.
+    if (texture_cache_->IsDrawResolutionScaled() &&
+        !texture_cache_->MakeScaledResolveRangeCurrent(fetch.address, fetch.length)) {
+      continue;
+    }
+    if (!RecordResolveReadbackCopy(fetch.address, fetch.length, fetch.format, rb.buffers[index])) {
+      continue;
+    }
+    slots[i] = {&rb, index};
+    any_recorded = true;
+  }
+  if (!any_recorded || !AwaitAllQueueOperationsCompletion()) {
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (slots[i].first) {
+      data_out[i] = static_cast<const uint8_t*>(slots[i].first->mapped_data[slots[i].second]);
+    }
+  }
 }
 
 void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
