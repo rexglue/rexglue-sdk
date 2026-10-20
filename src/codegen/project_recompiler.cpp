@@ -261,7 +261,12 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   ReportBinaryInfo(opts.reporter, entry_display_name,
                    *runtime->kernel_state()->GetExecutableModule()->xex_module());
 
-  std::vector<rex::system::object_ref<rex::system::UserModule>> dllModules;
+  // DLL images are snapshotted into BinaryViews (which own a copy of every
+  // section) and unloaded again before the next DLL is mapped. Many titles
+  // link every level DLL at the same base address because only one is ever
+  // resident; loading them all at once would let later DLLs overwrite the
+  // bytes of earlier ones before analysis.
+  std::vector<BinaryView> dllViews;
   for (size_t i = 1; i < targeted.size(); ++i) {
     const auto& dllConfig = targeted[i].config;
     fs::path dllXexPath = configDir / dllConfig.filePath;
@@ -289,7 +294,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
                      userMod->xex_module()->base_address());
     auto dll_display_name = std::filesystem::path(targeted[i].config.filePath).filename().string();
     ReportBinaryInfo(opts.reporter, dll_display_name, *userMod->xex_module());
-    dllModules.push_back(std::move(userMod));
+    dllViews.push_back(BinaryView::fromModule(*userMod->xex_module()));
+    runtime->kernel_state()->UnloadUserModule(userMod, /*call_entry=*/false);
   }
 
   struct ContextEntry {
@@ -328,9 +334,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     contexts.push_back({std::move(ctx), &targeted[0], std::move(entry_display)});
   }
 
-  for (size_t i = 0; i < dllModules.size(); ++i) {
-    auto& userMod = dllModules[i];
-    auto bv = BinaryView::fromModule(*userMod->xex_module());
+  for (size_t i = 0; i < dllViews.size(); ++i) {
+    auto bv = std::move(dllViews[i]);
 
     auto dll_display = make_display_name(targeted[i + 1].config.filePath);
     RecompilerConfig cfg = std::move(targeted[i + 1].config);
@@ -400,6 +405,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     uint32_t a_base = contexts[i].ctx.binary().baseAddress();
     uint32_t a_end = a_base + contexts[i].ctx.binary().imageSize();
     for (size_t j = i + 1; j < contexts.size(); ++j) {
+      if (i != 0)
+        continue;  // DLL vs DLL overlap is fine: they are never resident together
       uint32_t b_base = contexts[j].ctx.binary().baseAddress();
       uint32_t b_end = b_base + contexts[j].ctx.binary().imageSize();
       if (a_base < b_end && b_base < a_end) {
@@ -528,7 +535,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     dllTargetsData["project"] = manifest_.projectName;
     auto& dllTargetsArray = dllTargetsData["dll_modules"];
     dllTargetsArray = nlohmann::json::array();
-    for (size_t i = 0; i < dllModules.size(); ++i) {
+    for (size_t i = 0; i + 1 < contexts.size(); ++i) {
       auto& mod = targeted[i + 1];
       auto& dllCtx = contexts[i + 1].ctx;
       nlohmann::json entry;
