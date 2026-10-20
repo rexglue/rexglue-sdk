@@ -54,3 +54,16 @@ REX_TEST_CASE("SetFlushMode does not write the host word when the mode matches",
   fpscr.SetFlushMode(false);
   CHECK(fpscr.csr == stale);
 }
+
+REX_TEST_CASE("SetFlushMode does not write the host word when the mode is already on",
+              "[ppc][fpscr]") {
+  const RestoreCSR restore;
+  rex::ppc::FPSCRRegister fpscr{};
+  fpscr.csr = fpscr.GetCSR();
+  fpscr.SetFlushMode(true);
+  fpscr.csr = fpscr.GetCSR();
+  const u32 stale = fpscr.csr ^ rex::ppc::FPSCRRegister::Platform::kExceptionMask;
+  fpscr.csr = stale;
+  fpscr.SetFlushMode(true);
+  CHECK(fpscr.csr == stale);
+}

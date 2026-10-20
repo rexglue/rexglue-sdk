@@ -65,9 +65,9 @@ struct FPSCRPlatform {
 
 /** Host floating point control register access for ARM64 FPCR. */
 struct FPSCRPlatform {
-  static constexpr size_t kRoundShift = 22;                   /**< FPCR RMode field shift. */
-  static constexpr size_t kRoundMaskVal = 3 << kRoundShift;   /**< FPCR RMode field mask. */
-  static constexpr size_t kFlushMask = (1 << 19) | (1 << 24); /**< FPCR FZ16 and FZ bits. */
+  static constexpr size_t kRoundShift = 22;                 /**< FPCR RMode field shift. */
+  static constexpr size_t kRoundMaskVal = 3 << kRoundShift; /**< FPCR RMode field mask. */
+  static constexpr size_t kFlushMask = 1 << 24;             /**< FPCR FZ bit. */
   /** FPCR rounding bits indexed by the PowerPC FPSCR RN field. */
   static constexpr size_t kGuestToHost[] = {0 << kRoundShift, 3 << kRoundShift, 1 << kRoundShift,
                                             2 << kRoundShift};
