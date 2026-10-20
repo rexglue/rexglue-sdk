@@ -12,6 +12,7 @@
 
 // TOML config file loading
 
+#include <cctype>
 #include <algorithm>
 #include <map>
 #include <set>
@@ -218,6 +219,31 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
     if (added > 0) {
       REXCODEGEN_DEBUG("[config]   [functions] added/updated {} entries from {}", added, filePath);
+    }
+  }
+
+  // [names]
+  if (auto namesTable = toml["names"].as_table()) {
+    size_t added = 0;
+    for (auto& [key, value] : *namesTable) {
+      std::string keyStr(key.str());
+      auto addrOpt = ParseHexAddress(keyStr);
+      auto name = value.value<std::string>();
+      auto isIdentifier = [](const std::string& n) {
+        if (n.empty() || std::isdigit(static_cast<unsigned char>(n[0]))) return false;
+        for (char c : n)
+          if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') return false;
+        return true;
+      };
+      if (!addrOpt || !name || !isIdentifier(*name)) {
+        REXCODEGEN_ERROR("Invalid [names] entry: {} (expected 0xADDRESS = \"CIdentifier\")", keyStr);
+        continue;
+      }
+      cfg.functionNames.insert_or_assign(*addrOpt, *name);
+      ++added;
+    }
+    if (added > 0) {
+      REXCODEGEN_DEBUG("[config]   [names] added/updated {} entries from {}", added, filePath);
     }
   }
 

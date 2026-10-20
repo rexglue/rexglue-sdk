@@ -109,6 +109,11 @@ struct RecompilerConfig {
 
   // === Manual overrides ===
   std::unordered_map<uint32_t, FunctionConfig> functions;  ///< Function/chunk configuration
+  /// [names]: readable names for functions the analysis finds by itself
+  /// (0x82536DD0 = "Com_Frame"). Unlike [functions] they add or change no
+  /// function; a name for an address that isn't a function start is reported
+  /// and skipped.
+  std::unordered_map<uint32_t, std::string> functionNames;
   std::unordered_map<uint32_t, JumpTable> switchTables;
   std::unordered_map<uint32_t, MidAsmHook> midAsmHooks;
   uint32_t longJmpAddress = 0;

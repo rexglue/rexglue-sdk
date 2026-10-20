@@ -17,6 +17,9 @@
 #include <rex/codegen/analysis_errors.h>
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/phases.h>
+#include <string>
+#include <unordered_map>
+
 #include <rex/logging.h>
 
 #include "codegen_logging.h"
@@ -80,6 +83,31 @@ Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter) {
   auto validateResult = phases::Validate(ctx, reporter);
   if (!validateResult) {
     return validateResult;
+  }
+
+  // 7. Readable names ([names]): only for functions the analysis found.
+  {
+    size_t named = 0, missing = 0;
+    std::unordered_map<std::string, uint32_t> used;
+    for (const auto& [address, name] : ctx.Config().functionNames) {
+      if (!ctx.graph.getFunction(address)) {
+        ++missing;
+        REXCODEGEN_DEBUG("[names] 0x{:08X} ({}) is not a function start; skipped", address, name);
+        continue;
+      }
+      auto [it, inserted] = used.emplace(name, address);
+      if (!inserted) {
+        REXCODEGEN_ERROR("[names] {} is given to both 0x{:08X} and 0x{:08X}", name, it->second,
+                         address);
+        return Err(ErrorCategory::Config, "duplicate name in [names]: " + name);
+      }
+      ctx.graph.setFunctionName(address, name);
+      ++named;
+    }
+    if (named || missing) {
+      REXCODEGEN_INFO("[names] {} functions named, {} skipped (not function starts)", named,
+                      missing);
+    }
   }
 
   REXCODEGEN_TRACE("Analyze: complete - {} functions ready for code generation",
