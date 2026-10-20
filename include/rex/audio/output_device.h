@@ -19,7 +19,11 @@ namespace rex::audio {
 /// " #3" ... Setting `audio_device` to one of these plays the sound there; an
 /// empty `audio_device` follows the system's default device. The setting is
 /// live, kept in the settings file like any other, and when its device is
-/// unplugged the sound moves to the system default until it is back.
+/// unplugged the sound moves to the system default until it is back. When
+/// the system's default output is switched while the sound plays on a
+/// chosen device, the sound moves to the new default and `audio_device`
+/// takes its name (the newest choice wins; not when the switch came with a
+/// device plugged in or back).
 /// Empty before audio starts. Safe to call from any thread.
 std::vector<std::string> ListOutputDevices();
 

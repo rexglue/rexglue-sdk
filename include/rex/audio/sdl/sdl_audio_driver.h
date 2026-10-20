@@ -16,6 +16,8 @@
 #include <mutex>
 #include <queue>
 #include <stack>
+#include <string>
+#include <unordered_map>
 
 #include <rex/audio/audio_driver.h>
 #include <rex/thread.h>
@@ -55,6 +57,14 @@ class SDLAudioDriver : public AudioDriver {
   std::atomic<bool> have_stream_{false};
   SDL_AudioDeviceID opened_on_ = 0;  // the device decided on; 0 = the system default
   uint64_t next_device_check_ = 0;   // SDL_GetTicks() milliseconds
+  // The system's default output at the last check (its listed name): a
+  // default switched while playing is a new choice (the sound follows it).
+  std::string last_default_;
+  // When each connected device was first listed (SDL_GetTicks(); 0: before
+  // the sound started), so a default that moves with a device plugged in
+  // isn't taken for a choice.
+  std::unordered_map<std::string, uint64_t> first_listed_;
+  static constexpr uint64_t kSettledMs = 10000;
 
   static const uint32_t frame_frequency_ = 48000;
   static const uint32_t frame_channels_ = 6;

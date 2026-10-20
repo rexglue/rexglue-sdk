@@ -74,14 +74,29 @@ std::vector<PlaybackDevice> PlaybackDevices() {
   return list;
 }
 
-// The device named `wanted`, or 0 (the system default) when the name is empty
-// or no such device is connected now.
-SDL_AudioDeviceID FindPlaybackDevice(const std::string& wanted) {
+// The device named `wanted` in `devices`, or 0 (the system default) when the
+// name is empty or no such device is connected now.
+SDL_AudioDeviceID FindPlaybackDevice(const std::vector<PlaybackDevice>& devices,
+                                     const std::string& wanted) {
   if (wanted.empty()) return 0;
-  for (const auto& device : PlaybackDevices()) {
+  for (const auto& device : devices) {
     if (device.name == wanted) return device.id;
   }
   return 0;
+}
+
+// The system's default output by its name in `devices` ("" when there is
+// none, or when two devices share its name: then which one isn't known).
+std::string DefaultDeviceName(const std::vector<PlaybackDevice>& devices) {
+  const char* raw = SDL_GetAudioDeviceName(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK);
+  if (!raw || !*raw) return {};
+  const PlaybackDevice* found = nullptr;
+  for (const auto& device : devices) {
+    if (device.base != raw) continue;
+    if (found) return {};
+    found = &device;
+  }
+  return found ? found->name : std::string();
 }
 
 // The setting's value (read under the settings' own lock, so any thread may
@@ -138,19 +153,25 @@ bool SDLAudioDriver::Initialize() {
   }
   g_device_setting_changed = false;
 
+  const auto devices = PlaybackDevices();
   std::string outputs;
-  for (const auto& device : PlaybackDevices()) {
+  for (const auto& device : devices) {
     outputs += outputs.empty() ? "" : " | ";
     outputs += device.name;
   }
-  REXAPU_INFO("audio outputs: {}", outputs.empty() ? "(none listed)" : outputs);
+  const char* sdl_driver = SDL_GetCurrentAudioDriver();
+  REXAPU_INFO("audio outputs ({}): {}; the system's default: '{}'", sdl_driver ? sdl_driver : "?",
+              outputs.empty() ? "(none listed)" : outputs, DefaultDeviceName(devices));
 
   const std::string wanted = WantedDevice();
-  const SDL_AudioDeviceID device = FindPlaybackDevice(wanted);
+  const SDL_AudioDeviceID device = FindPlaybackDevice(devices, wanted);
   if (!wanted.empty() && !device) {
     REXAPU_WARN("audio_device '{}' isn't connected; using the system's default output", wanted);
   }
   std::lock_guard lock(stream_mutex_);
+  last_default_ = DefaultDeviceName(devices);
+  first_listed_.clear();
+  for (const auto& listed : devices) first_listed_[listed.name] = 0;
   opened_on_ = device;
   if (OpenStream(device)) return true;
   return device && OpenStream(0);
@@ -242,35 +263,83 @@ void SDLAudioDriver::UpdateCurrentDevice() {
 
 // Runs on the audio thread for every frame, so it is a clock read unless the
 // setting changed or its time comes (every 2 s: a device chosen being
-// unplugged and plugged back in, or the setting reset; SDL itself follows the
-// system default).
+// unplugged and plugged back in, the setting reset, or the system's default
+// output switched; SDL itself moves a stream on the system default).
 void SDLAudioDriver::CheckDevice() {
   const bool changed = g_device_setting_changed.exchange(false);
   const uint64_t now = SDL_GetTicks();
   if (!changed && now < next_device_check_) return;
   next_device_check_ = now + kDeviceCheckIntervalMs;
 
-  std::lock_guard lock(stream_mutex_);
-  const std::string wanted = WantedDevice();
-  if (!changed && wanted.empty() && opened_on_ == 0) {
-    UpdateCurrentDevice();  // the default may have moved
-    return;
+  std::string follow;  // a new audio_device value, set after the lock
+  {
+    std::lock_guard lock(stream_mutex_);
+    std::string wanted = WantedDevice();
+    const auto devices = PlaybackDevices();
+    SDL_AudioDeviceID device = FindPlaybackDevice(devices, wanted);
+
+    // Which devices are new (first listed at this check).
+    {
+      std::unordered_map<std::string, uint64_t> listed;
+      for (const auto& d : devices) {
+        const auto it = first_listed_.find(d.name);
+        listed[d.name] = it != first_listed_.end() ? it->second : now;
+      }
+      first_listed_ = std::move(listed);
+    }
+    const auto settled = [&](const std::string& name) {
+      const auto it = first_listed_.find(name);
+      return it != first_listed_.end() && now - it->second >= kSettledMs;
+    };
+
+    // The system's default output switched while playing (its sound
+    // settings, a mixer's default, a desktop shortcut): the newest choice.
+    // On the system default SDL moves the sound itself. With a device chosen
+    // in audio_device the sound moves too and the setting takes the new
+    // device, so the next start (a mission change restarts the game) keeps
+    // it. Not when the switch came with a device plugged in or back (the
+    // chosen device or the new default listed for under 10 s): the system
+    // picking a new device isn't the player's choice.
+    const std::string system_default = DefaultDeviceName(devices);
+    if (!system_default.empty() && !last_default_.empty() && system_default != last_default_) {
+      if (wanted.empty()) {
+        REXAPU_INFO("audio: the system's default output is now '{}' (was '{}'); the sound follows it",
+                    system_default, last_default_);
+      } else if (device && system_default != wanted && settled(wanted) && settled(system_default)) {
+        REXAPU_INFO(
+            "audio: the system's default output was switched to '{}' (was '{}') while playing; the sound "
+            "moves there and audio_device becomes '{}' (was '{}')",
+            system_default, last_default_, system_default, wanted);
+        follow = system_default;
+        wanted = system_default;
+        device = FindPlaybackDevice(devices, wanted);
+      } else {
+        REXAPU_INFO("audio: the system's default output is now '{}' (was '{}'); audio_device stays '{}'",
+                    system_default, last_default_, wanted);
+      }
+    }
+    if (!system_default.empty()) last_default_ = system_default;
+
+    if (!changed && follow.empty() && wanted.empty() && opened_on_ == 0) {
+      UpdateCurrentDevice();  // the default may have moved
+    } else if (device == opened_on_ && (sdl_stream_ || (!changed && follow.empty()))) {
+      // The device decided on last time: nothing to do (also when it failed
+      // to open, so a broken device or a missing sound server isn't retried
+      // and logged every 2 s; a changed setting tries again).
+      UpdateCurrentDevice();
+    } else {
+      if (!wanted.empty() && !device) {
+        REXAPU_WARN("audio_device '{}' isn't connected; using the system's default output", wanted);
+      }
+      opened_on_ = device;
+      CloseStream();
+      if (!OpenStream(device) && device) OpenStream(0);
+      if (!sdl_stream_) UpdateCurrentDevice();
+    }
   }
-  const SDL_AudioDeviceID device = FindPlaybackDevice(wanted);
-  // The device decided on last time: nothing to do (also when it failed to
-  // open, so a broken device or a missing sound server isn't retried and
-  // logged every 2 s; a changed setting tries again).
-  if (device == opened_on_ && (sdl_stream_ || !changed)) {
-    UpdateCurrentDevice();
-    return;
-  }
-  if (!wanted.empty() && !device) {
-    REXAPU_WARN("audio_device '{}' isn't connected; using the system's default output", wanted);
-  }
-  opened_on_ = device;
-  CloseStream();
-  if (!OpenStream(device) && device) OpenStream(0);
-  if (!sdl_stream_) UpdateCurrentDevice();
+  // The settings' own lock is taken here, not under the stream's (its change
+  // callbacks may ask which device plays).
+  if (!follow.empty()) rex::cvar::SetFlagByName("audio_device", follow);
 }
 
 void SDLAudioDriver::SubmitFrame(uint32_t frame_ptr) {
