@@ -19,6 +19,7 @@
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/deferred_command_buffer.h>
 #include <rex/graphics/vulkan/shared_memory.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/ui/vulkan/util.h>
@@ -273,6 +274,8 @@ bool VulkanSharedMemory::UploadRanges(
   if (upload_page_ranges.empty()) {
     return true;
   }
+  for (const auto& range : upload_page_ranges)
+    stats::Add(stats::Counter::kUploadBytes, uint64_t(range.second) << page_size_log2());
   // upload_page_ranges are sorted, use them to determine the range for the
   // ordering barrier.
   Use(Usage::kTransferDestination,

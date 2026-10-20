@@ -19,6 +19,8 @@
 
 #include <fmt/format.h>
 
+#include <rex/graphics/gpu_stats.h>
+
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
@@ -558,6 +560,7 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
   auto physical_heap = static_cast<PhysicalHeap*>(heap);
   if (physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address, 1,
                                       is_write, false)) {
+    rex::graphics::stats::Add(rex::graphics::stats::Counter::kWatchFaults);
     return true;
   }
 

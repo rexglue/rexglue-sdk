@@ -256,6 +256,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;
   void OnPrimaryBufferEnd() override;
+  void PrepareForWait() override;
+  void PollWhileWaiting() override;
 
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height) override;
@@ -440,6 +442,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   void DisableHostOcclusionQueries();
   uint64_t NormalizeOcclusionSamples(uint64_t samples) const;
   void WriteGuestOcclusionResult(uint32_t sample_count_address, uint64_t samples);
+  // Writes the results of ended queries whose submission has completed;
+  // with `wait`, submits and waits for all of them first.
+  void ProcessPendingOcclusionQueries(bool wait);
   void InvalidateAllVertexBufferResidency();
   void InvalidateVertexBufferResidency(uint32_t vfetch_index);
   void InvalidateVertexBufferResidencyRange(uint32_t first_vfetch, uint32_t last_vfetch);
@@ -741,6 +746,16 @@ class VulkanCommandProcessor : public CommandProcessor {
     uint32_t host_index = UINT32_MAX;
     bool valid = false;
   } active_occlusion_query_;
+  // Ended queries waiting for their submission to complete on the host GPU.
+  // The guest polls the sample count memory until the GPU has written it, as
+  // on the console, so the results are written when they're ready instead of
+  // stalling the GPU emulation at every query.
+  struct PendingOcclusionQuery {
+    uint32_t sample_count_address;
+    uint32_t host_index;
+    uint64_t submission;
+  };
+  std::deque<PendingOcclusionQuery> pending_occlusion_queries_;
   struct VertexBufferState {
     uint32_t address = UINT32_MAX;
     uint32_t size = UINT32_MAX;

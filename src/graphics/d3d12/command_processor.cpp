@@ -20,6 +20,7 @@
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
 #include <rex/graphics/d3d12/command_processor.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/d3d12/graphics_system.h>
 #include <rex/graphics/d3d12/shader.h>
 #include <rex/graphics/flags.h>
@@ -2281,8 +2282,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
   if (edram_mode == xenos::EdramMode::kCopy) {
     // Special copy handling.
+    stats::Add(stats::Counter::kResolves);
     return IssueCopy();
   }
+  stats::Add(stats::Counter::kDraws);
 
   bool surface_pitch_is_zero = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch == 0;
 
@@ -2901,6 +2904,10 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     return true;
   }
 
+  if (IsPresentedFrontbuffer(written_address)) {
+    return true;
+  }
+
   bool is_scaled = texture_cache_->IsDrawResolutionScaled();
   uint64_t resolve_key = MakeReadbackResolveKey(written_address, written_length);
   ReadbackBuffer& rb = readback_buffers_[resolve_key];
@@ -3095,6 +3102,8 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     uint8_t* destination = memory_->TranslatePhysical(written_address);
     if (destination) {
       std::memcpy(destination, static_cast<uint8_t*>(rb.mapped_data[read_index]), written_length);
+      stats::Add(stats::Counter::kReadbacks);
+      stats::Add(stats::Counter::kReadbackBytes, written_length);
     }
   }
 
@@ -3118,6 +3127,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
                     SUCCEEDED(queue_operations_since_submission_fence_->SetEventOnCompletion(
                         fence_value, fence_completion_event_)))) {
         PROFILE_CMD_BUFFER_STALL();
+        stats::ScopedGpuWait wait_stat;
         WaitForSingleObject(fence_completion_event_, INFINITE);
         queue_operations_done_since_submission_signal_ = false;
       } else {
@@ -3137,6 +3147,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
     if (SUCCEEDED(
             submission_fence_->SetEventOnCompletion(await_submission, fence_completion_event_))) {
       PROFILE_CMD_BUFFER_STALL();
+      stats::ScopedGpuWait wait_stat;
       WaitForSingleObject(fence_completion_event_, INFINITE);
       submission_completed_ = submission_fence_->GetCompletedValue();
     }
@@ -3148,6 +3159,8 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
     // Not updated - no need to reclaim or download things.
     return;
   }
+
+  ProcessPendingOcclusionQueries(false);
 
   // Reclaim command allocators.
   while (command_allocator_submitted_first_) {
@@ -3429,6 +3442,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
     command_list_->Close();
     ID3D12CommandList* execute_command_lists[] = {command_list_};
     direct_queue->ExecuteCommandLists(1, execute_command_lists);
+    stats::Add(stats::Counter::kSubmissions);
     command_allocator_writable_first_->last_usage_submission = submission_current_;
     if (command_allocator_submitted_last_) {
       command_allocator_submitted_last_->next = command_allocator_writable_first_;
@@ -4857,6 +4871,7 @@ bool D3D12CommandProcessor::InitializeOcclusionQueryResources() {
 
 void D3D12CommandProcessor::ShutdownOcclusionQueryResources() {
   DisableHostOcclusionQueries();
+  pending_occlusion_queries_.clear();  // only left if the device was lost
 
   if (occlusion_query_readback_ && occlusion_query_readback_mapping_) {
     occlusion_query_readback_->Unmap(0, nullptr);
@@ -4875,6 +4890,7 @@ bool D3D12CommandProcessor::AcquireOcclusionQueryIndex(uint32_t& host_index_out)
 }
 
 void D3D12CommandProcessor::DisableHostOcclusionQueries() {
+  ProcessPendingOcclusionQueries(true);
   if (active_occlusion_query_.valid && occlusion_query_heap_) {
     uint32_t host_index = active_occlusion_query_.host_index;
     // Clear before EndSubmission to prevent the EndSubmission safety net from issuing a second
@@ -4921,6 +4937,7 @@ bool D3D12CommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_addre
 
 bool D3D12CommandProcessor::EndGuestOcclusionQuery(
     uint32_t sample_count_address, xenos::xe_gpu_depth_sample_counts* sample_counts) {
+  (void)sample_counts;
   if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
       !active_occlusion_query_.valid || !occlusion_query_heap_ || !occlusion_query_readback_) {
     return false;
@@ -4939,23 +4956,51 @@ bool D3D12CommandProcessor::EndGuestOcclusionQuery(
       occlusion_query_heap_.Get(), D3D12_QUERY_TYPE_OCCLUSION, host_index, 1,
       occlusion_query_readback_.Get(), sizeof(uint64_t) * host_index);
 
-  if (!EndSubmission(false)) {
-    return false;
-  }
+  // The result is written to guest memory once this submission completes
+  // (ProcessPendingOcclusionQueries) instead of stalling here at every query.
+  pending_occlusion_queries_.push_back(
+      PendingOcclusionQuery{sample_count_address, host_index, submission_current_});
+  return true;
+}
 
-  uint64_t query_submission = submission_current_ ? submission_current_ - 1 : 0;
-  CheckSubmissionFence(query_submission);
-  if (submission_completed_ < query_submission) {
-    return false;
+void D3D12CommandProcessor::ProcessPendingOcclusionQueries(bool wait) {
+  if (pending_occlusion_queries_.empty()) {
+    return;
+  }
+  if (wait) {
+    // Submits the open submission if a pending query is in it, then waits.
+    // (The fence check itself delivers the results it can.)
+    CheckSubmissionFence(pending_occlusion_queries_.back().submission);
   }
   if (!occlusion_query_readback_mapping_) {
-    return false;
+    return;
   }
+  while (!pending_occlusion_queries_.empty() &&
+         pending_occlusion_queries_.front().submission <= submission_completed_) {
+    const PendingOcclusionQuery& query = pending_occlusion_queries_.front();
+    WriteGuestOcclusionResult(
+        memory_->TranslatePhysical<xenos::xe_gpu_depth_sample_counts*>(
+            query.sample_count_address),
+        NormalizeOcclusionSamples(occlusion_query_readback_mapping_[query.host_index]));
+    stats::Add(stats::Counter::kOcclusionQueries);
+    pending_occlusion_queries_.pop_front();
+  }
+}
 
-  uint64_t samples = occlusion_query_readback_mapping_[host_index];
-  samples = NormalizeOcclusionSamples(samples);
-  WriteGuestOcclusionResult(sample_counts, samples);
-  return true;
+void D3D12CommandProcessor::PrepareForWait() {
+  // Out of guest commands: the guest may be polling for a query result, so
+  // send the queries' commands to the host GPU now.
+  if (!pending_occlusion_queries_.empty() && submission_open_ &&
+      pending_occlusion_queries_.back().submission >= submission_current_) {
+    EndSubmission(false);
+  }
+  CommandProcessor::PrepareForWait();
+}
+
+void D3D12CommandProcessor::PollWhileWaiting() {
+  if (!pending_occlusion_queries_.empty()) {
+    CheckSubmissionFence(0);  // non-blocking; delivers finished results
+  }
 }
 
 uint64_t D3D12CommandProcessor::NormalizeOcclusionSamples(uint64_t samples) const {

@@ -22,6 +22,7 @@
 #include <rex/perf/counter.h>
 #include <rex/chrono/clock.h>
 #include <rex/graphics/command_processor.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/graphics_system.h>
 #include <rex/graphics/pipeline/texture/info.h>
@@ -45,6 +46,11 @@ REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
 REXCVAR_DEFINE_BOOL(occlusion_query_enable, true, "GPU", "Enable host occlusion query handling")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_BOOL(readback_resolve_log, false, "GPU",
+                    "readback_resolve: log each new resolve destination that is copied back");
+REXCVAR_DEFINE_BOOL(readback_resolve_skip_frontbuffer, true, "GPU",
+                    "readback_resolve: don't copy back resolves into a buffer the game has "
+                    "presented (its CPU doesn't read the picture on screen)");
 REXCVAR_DEFINE_STRING(readback_resolve, "none", "GPU",
                       "Controls CPU readback of render-to-texture resolve results.\n"
                       " none: Disable readback (default)\n"
@@ -227,6 +233,7 @@ void CommandProcessor::WorkerThreadMain() {
         }
 
         rex::thread::MaybeYield();
+        PollWhileWaiting();
         loop_count++;
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
@@ -610,6 +617,19 @@ void CommandProcessor::MakeCoherent() {
 
 void CommandProcessor::PrepareForWait() {}
 
+bool CommandProcessor::IsPresentedFrontbuffer(uint32_t physical_address) const {
+  if (!physical_address || !REXCVAR_GET(readback_resolve_skip_frontbuffer)) {
+    return false;
+  }
+  physical_address &= 0x1FFFFFFF;
+  for (uint32_t address : presented_frontbuffers_) {
+    if (address == physical_address) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void CommandProcessor::ReturnFromWait() {}
 
 uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t write_index) {
@@ -958,6 +978,12 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
   uint32_t frontbuffer_height = reader->ReadAndSwap<uint32_t>();
   reader->AdvanceRead((count - 4) * sizeof(uint32_t));
 
+  stats::Add(stats::Counter::kFrames);
+  if (const uint32_t physical = frontbuffer_ptr & 0x1FFFFFFF; !IsPresentedFrontbuffer(physical)) {
+    presented_frontbuffers_[presented_frontbuffer_next_] = physical;
+    presented_frontbuffer_next_ =
+        (presented_frontbuffer_next_ + 1) % uint32_t(presented_frontbuffers_.size());
+  }
   IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
 
   ++counter_;

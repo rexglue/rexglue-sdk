@@ -28,6 +28,7 @@
 #include <rex/graphics/d3d12/render_target_cache.h>
 #include <rex/graphics/d3d12/texture_cache.h>
 #include <rex/graphics/flags.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/format/dxbc.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/util/draw.h>
@@ -3798,6 +3799,10 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
     const std::vector<Transfer>* render_target_transfers,
     const uint64_t* render_target_resolve_clear_values,
     const Transfer::Rectangle* resolve_clear_rectangle) {
+  if (render_target_transfers) {
+    for (uint32_t i = 0; i < render_target_count; ++i)
+      stats::Add(stats::Counter::kRenderTargetTransfers, render_target_transfers[i].size());
+  }
   assert_true(GetPath() == Path::kHostRenderTargets);
 
   const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();

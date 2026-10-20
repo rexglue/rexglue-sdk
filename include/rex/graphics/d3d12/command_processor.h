@@ -211,6 +211,8 @@ class D3D12CommandProcessor : public CommandProcessor {
                  uint32_t frontbuffer_height) override;
 
   void OnPrimaryBufferEnd() override;
+  void PrepareForWait() override;
+  void PollWhileWaiting() override;
 
   Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address, uint32_t dword_count) override;
@@ -412,6 +414,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint64_t NormalizeOcclusionSamples(uint64_t samples) const;
   void WriteGuestOcclusionResult(xenos::xe_gpu_depth_sample_counts* sample_counts,
                                  uint64_t samples);
+  // Writes the results of ended queries whose submission has completed;
+  // with `wait`, submits and waits for all of them first.
+  void ProcessPendingOcclusionQueries(bool wait);
   void InvalidateAllVertexBufferResidency();
   void InvalidateVertexBufferResidency(uint32_t vfetch_index);
   void InvalidateVertexBufferResidencyRange(uint32_t first_vfetch, uint32_t last_vfetch);
@@ -659,6 +664,14 @@ class D3D12CommandProcessor : public CommandProcessor {
     uint32_t host_index = UINT32_MAX;
     bool valid = false;
   } active_occlusion_query_;
+  // Ended queries waiting for their submission to complete on the host GPU
+  // (see the Vulkan command processor).
+  struct PendingOcclusionQuery {
+    uint32_t sample_count_address;
+    uint32_t host_index;
+    uint64_t submission;
+  };
+  std::deque<PendingOcclusionQuery> pending_occlusion_queries_;
   struct VertexBufferState {
     uint32_t address = UINT32_MAX;
     uint32_t size = UINT32_MAX;

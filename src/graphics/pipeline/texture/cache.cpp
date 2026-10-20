@@ -19,6 +19,7 @@
 #include <rex/dbg.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/texture/cache.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/register_file.h>
@@ -887,6 +888,7 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   if (!PrepareTextureLoad(texture, pending_load, pending_ranges, pending_range_count)) {
     return true;
   }
+  stats::Add(stats::Counter::kTextureLoads);
 
   std::pair<uint32_t, uint32_t> pending_range_pairs[2];
   for (size_t i = 0; i < pending_range_count; ++i) {

@@ -34,6 +34,7 @@
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/vulkan/command_processor.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/vulkan/pipeline_cache.h>
 #include <rex/graphics/vulkan/render_target_cache.h>
 #include <rex/graphics/vulkan/shader.h>
@@ -3613,8 +3614,10 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
   if (edram_mode == xenos::EdramMode::kCopy) {
     // Special copy handling.
+    stats::Add(stats::Counter::kResolves);
     return IssueCopy();
   }
+  stats::Add(stats::Counter::kDraws);
 
   bool surface_pitch_is_zero = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch == 0;
 
@@ -4419,6 +4422,10 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     return true;
   }
 
+  if (IsPresentedFrontbuffer(written_address)) {
+    return true;
+  }
+
   ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
   if (readback_mode == ReadbackResolveMode::kDisabled) {
     return true;
@@ -4474,6 +4481,11 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
 
   bool is_scaled = texture_cache_->IsDrawResolutionScaled();
   uint64_t resolve_key = MakeReadbackResolveKey(written_address, written_length);
+  if (REXCVAR_GET(readback_resolve_log) && !readback_buffers_.count(resolve_key)) {
+    REXGPU_INFO("Resolve readback: new destination {:08X}, {} bytes, format {}", written_address,
+                written_length,
+                uint32_t(register_file_->Get<reg::RB_COPY_DEST_INFO>().copy_dest_format));
+  }
   ReadbackBuffer& readback = readback_buffers_[resolve_key];
   readback.last_used_frame = frame_current_;
   uint32_t write_index = readback.current_index;
@@ -4682,6 +4694,8 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     uint8_t* destination = memory_->TranslatePhysical(written_address);
     if (destination) {
       std::memcpy(destination, readback.mapped_data[read_index], written_length);
+      stats::Add(stats::Counter::kReadbacks);
+      stats::Add(stats::Counter::kReadbackBytes, written_length);
     }
   }
 
@@ -4782,6 +4796,7 @@ bool VulkanCommandProcessor::InitializeOcclusionQueryResources() {
 
 void VulkanCommandProcessor::ShutdownOcclusionQueryResources() {
   DisableHostOcclusionQueries();
+  pending_occlusion_queries_.clear();  // only left if the device was lost
 
   const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
@@ -4817,6 +4832,7 @@ bool VulkanCommandProcessor::AcquireOcclusionQueryIndex(uint32_t& host_index_out
 }
 
 void VulkanCommandProcessor::DisableHostOcclusionQueries() {
+  ProcessPendingOcclusionQueries(true);
   if (active_occlusion_query_.valid && occlusion_query_pool_ != VK_NULL_HANDLE) {
     if (BeginSubmission(true)) {
       deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
@@ -4883,16 +4899,30 @@ bool VulkanCommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_addres
                                            sizeof(uint64_t) * host_index, sizeof(uint64_t),
                                            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
 
-  if (!EndSubmission(false)) {
-    return false;
+  // The result is written to guest memory once this submission completes
+  // (ProcessPendingOcclusionQueries). Waiting for it here emptied the host
+  // GPU's queue at every query: one full stall per light flare per frame.
+  pending_occlusion_queries_.push_back(
+      PendingOcclusionQuery{sample_count_address, host_index, GetCurrentSubmission()});
+  return true;
+}
+
+void VulkanCommandProcessor::ProcessPendingOcclusionQueries(bool wait) {
+  if (pending_occlusion_queries_.empty()) {
+    return;
   }
-  if (!AwaitAllQueueOperationsCompletion()) {
-    return false;
+  if (wait) {
+    // Submits the open submission if a pending query is in it, then waits.
+    // (The fence check itself delivers the results it can.)
+    CheckSubmissionFenceAndDeviceLoss(pending_occlusion_queries_.back().submission);
+  }
+  if (pending_occlusion_queries_.empty() ||
+      pending_occlusion_queries_.front().submission > submission_completed_ ||
+      occlusion_query_readback_mapping_ == nullptr) {
+    return;
   }
 
   const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
-  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
   if (!(vulkan_device->memory_types().host_coherent &
         (uint32_t(1) << occlusion_query_readback_memory_type_))) {
     VkMappedMemoryRange memory_range = {};
@@ -4903,13 +4933,36 @@ bool VulkanCommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_addres
         std::min(rex::round_up(VkDeviceSize(sizeof(uint64_t) * kMaxOcclusionQueries),
                                vulkan_device->properties().nonCoherentAtomSize),
                  occlusion_query_readback_memory_size_);
-    dfn.vkInvalidateMappedMemoryRanges(device, 1, &memory_range);
+    vulkan_device->functions().vkInvalidateMappedMemoryRanges(vulkan_device->device(), 1,
+                                                              &memory_range);
   }
 
   const uint64_t* results = reinterpret_cast<const uint64_t*>(occlusion_query_readback_mapping_);
-  uint64_t samples = NormalizeOcclusionSamples(results[host_index]);
-  WriteGuestOcclusionResult(sample_count_address, samples);
-  return true;
+  while (!pending_occlusion_queries_.empty() &&
+         pending_occlusion_queries_.front().submission <= submission_completed_) {
+    const PendingOcclusionQuery& query = pending_occlusion_queries_.front();
+    WriteGuestOcclusionResult(query.sample_count_address,
+                              NormalizeOcclusionSamples(results[query.host_index]));
+    stats::Add(stats::Counter::kOcclusionQueries);
+    pending_occlusion_queries_.pop_front();
+  }
+}
+
+void VulkanCommandProcessor::PrepareForWait() {
+  // Out of guest commands: the guest may be polling for a query result, so
+  // send the queries' commands to the host GPU now.
+  if (!pending_occlusion_queries_.empty() && submission_open_ &&
+      pending_occlusion_queries_.back().submission >= GetCurrentSubmission()) {
+    EndSubmission(false);
+  }
+  CommandProcessor::PrepareForWait();
+}
+
+void VulkanCommandProcessor::PollWhileWaiting() {
+  if (!pending_occlusion_queries_.empty()) {
+    // Non-blocking: updates submission_completed_, then writes what's done.
+    CheckSubmissionFenceAndDeviceLoss(0);
+  }
 }
 
 uint64_t VulkanCommandProcessor::NormalizeOcclusionSamples(uint64_t samples) const {
@@ -4970,6 +5023,7 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
     // defined by vkQueueSubmit additionally include in the first
     // synchronization scope all commands that occur earlier in submission
     // order."
+    stats::ScopedGpuWait wait_stat;
     VkResult wait_result =
         dfn.vkWaitForFences(device, uint32_t(await_submission - submission_completed_),
                             submissions_in_flight_fences_.data(), VK_TRUE, UINT64_MAX);
@@ -5037,6 +5091,8 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
   }
 
   shared_memory_->CompletedSubmissionUpdated();
+
+  ProcessPendingOcclusionQueries(false);
 
   primitive_processor_->CompletedSubmissionUpdated();
 
@@ -5419,6 +5475,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
           vulkan_device->AcquireQueue(vulkan_device->queue_family_graphics_compute(), 0);
       submit_result = dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info, fence);
     }
+    stats::Add(stats::Counter::kSubmissions);
     if (submit_result != VK_SUCCESS) {
       REXGPU_ERROR("Failed to submit a Vulkan command buffer");
       if (submit_result == VK_ERROR_DEVICE_LOST && !device_lost_) {

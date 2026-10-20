@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -167,6 +168,9 @@ class CommandProcessor {
 
   virtual void MakeCoherent();
   virtual void PrepareForWait();
+  // Called over and over while waiting for the guest to write more commands
+  // (results of work already sent to the host GPU can be delivered here).
+  virtual void PollWhileWaiting() {}
   virtual void ReturnFromWait();
 
   uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
@@ -244,6 +248,13 @@ class CommandProcessor {
   std::vector<uint32_t> me_bin_;
 
   uint32_t counter_ = 0;
+
+  // Resolves into a buffer the guest has presented with a swap: the guest's
+  // CPU doesn't read those, so readback_resolve skips them (a full-screen
+  // copy to host memory and into guest memory every frame otherwise).
+  bool IsPresentedFrontbuffer(uint32_t physical_address) const;
+  std::array<uint32_t, 4> presented_frontbuffers_ = {};
+  uint32_t presented_frontbuffer_next_ = 0;
 
   uint32_t primary_buffer_ptr_ = 0;
   uint32_t primary_buffer_size_ = 0;

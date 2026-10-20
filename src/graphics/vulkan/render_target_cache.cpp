@@ -24,6 +24,7 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/graphics/flags.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/pipeline/shader/spirv_builder.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/pipeline/texture/cache.h>
@@ -4551,6 +4552,10 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
     const std::vector<Transfer>* render_target_transfers,
     const uint64_t* render_target_resolve_clear_values,
     const Transfer::Rectangle* resolve_clear_rectangle) {
+  if (render_target_transfers) {
+    for (uint32_t i = 0; i < render_target_count; ++i)
+      stats::Add(stats::Counter::kRenderTargetTransfers, render_target_transfers[i].size());
+  }
   assert_true(GetPath() == Path::kHostRenderTargets);
 
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();

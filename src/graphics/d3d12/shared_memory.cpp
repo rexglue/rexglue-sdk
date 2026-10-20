@@ -17,6 +17,7 @@
 #include <rex/cvar.h>
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/shared_memory.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/ui/d3d12/d3d12_util.h>
@@ -306,6 +307,8 @@ bool D3D12SharedMemory::UploadRanges(
   if (upload_page_ranges.empty()) {
     return true;
   }
+  for (const auto& range : upload_page_ranges)
+    stats::Add(stats::Counter::kUploadBytes, uint64_t(range.second) << page_size_log2());
   CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
   command_processor_.SubmitBarriers();
   auto& command_list = command_processor_.GetDeferredCommandList();
