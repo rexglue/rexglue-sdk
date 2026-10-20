@@ -30,7 +30,8 @@
 
 // A game built against SDKs with and without these totals can test this.
 // 2: who held the global lock while a thread waited for it (ReadLockHolders).
-#define REX_THREAD_STATS_VERSION 2
+// 3: how many global lock waits ended while spinning (ReadLockSpins).
+#define REX_THREAD_STATS_VERSION 3
 
 namespace rex::thread_stats {
 
@@ -81,6 +82,15 @@ void AddLockHolderWait(uint32_t holder_id, uint64_t micros);
 // Copies every (waiter, holder) total so far into `out`, up to `max_pairs`;
 // returns how many were written.
 size_t ReadLockHolders(LockHolderTotals* out, size_t max_pairs);
+
+// Global lock waits, all threads: how many ended while the waiter was still
+// spinning (`global_lock_spin_us`) and how many had to sleep.
+struct LockSpinTotals {
+  uint64_t won = 0;    // got the lock while spinning
+  uint64_t slept = 0;  // spun without it (or didn't spin) and slept
+};
+void AddLockSpin(bool won);
+LockSpinTotals ReadLockSpins();
 
 // Steady clock in microseconds (the clock these totals use).
 uint64_t NowMicros();

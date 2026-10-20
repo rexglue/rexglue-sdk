@@ -37,6 +37,8 @@ struct Slot {
 
 Slot g_slots[kMaxThreads];
 std::atomic<size_t> g_slots_used{0};
+std::atomic<uint64_t> g_lock_spins_won{0};
+std::atomic<uint64_t> g_lock_spins_slept{0};
 
 // The calling thread's slot; nullptr until it first waits, and stays
 // nullptr (with t_full set) if every slot was taken.
@@ -97,6 +99,17 @@ void AddLockHolderWait(uint32_t holder_id, uint64_t micros) {
   }
   entry->wait_us.fetch_add(micros, std::memory_order_relaxed);
   entry->waits.fetch_add(1, std::memory_order_relaxed);
+}
+
+void AddLockSpin(bool won) {
+  (won ? g_lock_spins_won : g_lock_spins_slept).fetch_add(1, std::memory_order_relaxed);
+}
+
+LockSpinTotals ReadLockSpins() {
+  LockSpinTotals t;
+  t.won = g_lock_spins_won.load(std::memory_order_relaxed);
+  t.slept = g_lock_spins_slept.load(std::memory_order_relaxed);
+  return t;
 }
 
 size_t ReadLockHolders(LockHolderTotals* out, size_t max_pairs) {
