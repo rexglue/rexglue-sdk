@@ -8,6 +8,7 @@ add_executable(unit_tests
     core/fiber_test.cpp
     core/filesystem_test.cpp
     core/hash_test.cpp
+    core/net_socket_test.cpp
     core/stream_test.cpp
     core/chrono_test.cpp
     ppc/import_function_test.cpp
@@ -37,6 +38,10 @@ target_link_libraries(unit_tests PRIVATE
     rexruntime
     Catch2::Catch2WithMain
 )
+if(WIN32)
+    # core/net_socket_test.cpp calls Winsock directly.
+    target_link_libraries(unit_tests PRIVATE ws2_32)
+endif()
 
 # ReXApp is shipped as source for recomp projects, rather than compiled into
 # rexui. Keep its SDK-consumer compilation path covered by the test build.

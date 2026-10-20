@@ -9,7 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <cstring>
+
 #include <rex/kernel/xam/apps/xgi_app.h>
+#include <rex/kernel/xam/xnet.h>
 #include <rex/logging.h>
 #include <rex/thread.h>
 
@@ -113,6 +116,31 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
           "{:08X})",
           session_ptr, flags, num_slots_public, num_slots_private, user_xuid, session_info_ptr,
           nonce_ptr);
+
+      // System link: a hosted session gets a new key and this PC's address
+      // in its XSESSION_INFO, as on the console; a joined session's info
+      // comes from the host. Either way its key is registered with XNet.
+      constexpr uint32_t kSessionCreateHost = 0x00000001;
+      bool host = (flags & kSessionCreateHost) != 0;
+      if (session_info_ptr &&
+          xnet::GuestRangeValid(session_info_ptr, sizeof(X_XSESSION_INFO), host)) {
+        auto info = memory_->TranslateVirtual<X_XSESSION_INFO*>(session_info_ptr);
+        if (host) {
+          X_XNKID kid;
+          X_XNKEY key;
+          X_XNADDR address;
+          xnet::CreateKey(&kid, &key);
+          xnet::GetTitleXnAddr(&address);
+          std::memcpy(&info->session_id, &kid, sizeof(kid));
+          std::memcpy(&info->host_address, &address, sizeof(address));
+          std::memcpy(&info->key_exchange_key, &key, sizeof(key));
+        }
+        X_XNKID kid;
+        X_XNKEY key;
+        std::memcpy(&kid, &info->session_id, sizeof(kid));
+        std::memcpy(&key, &info->key_exchange_key, sizeof(key));
+        xnet::RegisterKey(kid, key);
+      }
       return X_E_SUCCESS;
     }
     case 0x000B0011: {

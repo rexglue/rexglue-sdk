@@ -14,6 +14,7 @@
 #include <queue>
 
 #include <rex/math.h>
+#include <rex/net/socket.h>
 #include <rex/system/xobject.h>
 #include <rex/types.h>
 
@@ -95,25 +96,40 @@ class XSocket : public XObject {
 
   uint64_t native_handle() const { return native_handle_; }
   uint16_t bound_port() const { return bound_port_; }
+  Type type() const { return type_; }
+  Protocol protocol() const { return proto_; }
+  // VDP sockets carry a 2-byte game data length before the data. The guest
+  // writes and reads it itself; on PCs VDP is sent as plain UDP.
+  bool is_vdp() const { return proto_ == X_IPPROTO_VDP; }
+  bool is_broadcast() const { return broadcast_socket_; }
 
-  X_STATUS Initialize(AddressFamily af, Type type, Protocol proto);
+  // The methods below return 0 or a Winsock error code (WSAE*), which the
+  // caller passes to the guest through WSAGetLastError. Addresses are IPv4
+  // in host byte order.
+  uint32_t Initialize(AddressFamily af, Type type, Protocol proto);
   X_STATUS Close();
 
-  X_STATUS SetOption(uint32_t level, uint32_t optname, void* optval_ptr, uint32_t optlen);
-  X_STATUS IOControl(uint32_t cmd, uint8_t* arg_ptr);
+  // `optval` points at the guest's value (big-endian), `optlen` bytes long.
+  uint32_t SetOption(uint32_t level, uint32_t optname, const uint8_t* optval, uint32_t optlen);
+  // `value` is in and out, in host byte order.
+  uint32_t IOControl(uint32_t cmd, uint32_t* value);
 
-  X_STATUS Connect(N_XSOCKADDR* name, int name_len);
-  X_STATUS Bind(N_XSOCKADDR_IN* name, int name_len);
-  X_STATUS Listen(int backlog);
-  object_ref<XSocket> Accept(N_XSOCKADDR* name, int* name_len);
-  int Shutdown(int how);
+  uint32_t Connect(const rex::net::SockAddrV4& to);
+  uint32_t Bind(const rex::net::SockAddrV4& name);
+  uint32_t Listen(int backlog);
+  object_ref<XSocket> Accept(rex::net::SockAddrV4* from, uint32_t* error);
+  int Shutdown(int how, uint32_t* error);
 
-  int Recv(uint8_t* buf, uint32_t buf_len, uint32_t flags);
-  int Send(const uint8_t* buf, uint32_t buf_len, uint32_t flags);
-
-  int RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADDR_IN* from,
-               uint32_t* from_len);
-  int SendTo(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADDR_IN* to, uint32_t to_len);
+  // These return the byte count, or -1 with `*error` set.
+  int Recv(uint8_t* buf, uint32_t buf_len, uint32_t flags, uint32_t* error);
+  int Send(const uint8_t* buf, uint32_t buf_len, uint32_t flags, uint32_t* error);
+  // A datagram longer than `buf_len` fills the buffer and fails with
+  // WSAEMSGSIZE, as on Windows and the console; `*full_len` (if given)
+  // receives its real length.
+  int RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags, rex::net::SockAddrV4* from,
+               uint32_t* error, uint32_t* full_len = nullptr);
+  int SendTo(const uint8_t* buf, uint32_t buf_len, uint32_t flags,
+             const rex::net::SockAddrV4* to, uint32_t* error);
 
   struct packet {
     // These values are in network byte order.
