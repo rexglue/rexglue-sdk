@@ -49,6 +49,8 @@ const char* Name(Counter counter) {
     case Counter::kUploadBytes: return "upload_bytes";
     case Counter::kTextureLoads: return "texture_loads";
     case Counter::kWatchFaults: return "watch_faults";
+    case Counter::kTexturesReplaced: return "textures_replaced";
+    case Counter::kTexturesNotInPack: return "textures_not_in_pack";
     case Counter::kCount: break;
   }
   return "?";

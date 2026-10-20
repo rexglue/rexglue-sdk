@@ -15,7 +15,10 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <rex/assert.h>
@@ -27,6 +30,12 @@
 #include <rex/thread/mutex.h>
 
 namespace rex::graphics {
+
+namespace texture_replacement {
+class Index;
+struct Image;
+struct Policy;
+}  // namespace texture_replacement
 
 // Manages host copies of guest textures, performing untiling, format and endian
 // conversion of textures stored in the shared memory, and also handling
@@ -243,6 +252,43 @@ class TextureCache {
     // referenced by any GPU work in the implementation to make sure it's not
     // destroyed while still in use.
     void MarkAsUsed();
+    // Takes the texture out of the usage list, for a texture that the cache
+    // stops looking up but can't destroy yet (a retired replacement texture,
+    // see TextureCache::RetireTexture): the list is how the cache
+    // finds textures to destroy in its map.
+    void RemoveFromUsageList();
+
+    // Texture replacement (rex/graphics/pipeline/texture/replacement.h): a
+    // replacement texture is created from a pack's image instead of the guest
+    // data (TextureCache::CreateReplacementTexture). Guest data is never loaded
+    // into it, but its guest ranges are requested and watched like a normal
+    // texture's, so the cache notices when the game rewrites them.
+    bool is_replacement() const { return replacement_level_count_ != 0; }
+    // The key of the guest data it stands for (the hash of the base level).
+    // Also set for a texture the pack has but the policy didn't allow
+    // (replacement_denied), so a policy change can tell whether it may be
+    // replaced now.
+    uint64_t replacement_key() const { return replacement_key_; }
+    void SetReplacement(uint64_t replacement_key, uint32_t level_count) {
+      replacement_key_ = replacement_key;
+      replacement_level_count_ = level_count;
+    }
+    bool replacement_denied() const { return replacement_denied_; }
+    void SetReplacementDenied(uint64_t replacement_key) {
+      replacement_key_ = replacement_key;
+      replacement_denied_ = true;
+    }
+    // The policy generation the decision to replace (or not) was made under.
+    uint32_t replacement_policy_generation() const { return replacement_policy_generation_; }
+    void set_replacement_policy_generation(uint32_t generation) {
+      replacement_policy_generation_ = generation;
+    }
+    uint64_t host_memory_usage() const { return host_memory_usage_; }
+    // The number of mip levels of the host texture: the guest texture's, or
+    // the replacement image's (which may have more, being larger).
+    uint32_t GetHostLevelCount() const {
+      return is_replacement() ? replacement_level_count_ : key_.mip_max_level + 1;
+    }
 
     void LogAction(const char* action) const;
 
@@ -252,6 +298,9 @@ class TextureCache {
 
     void SetHostMemoryUsage(uint64_t new_host_memory_usage) {
       texture_cache_.UpdateTexturesTotalHostMemoryUsage(new_host_memory_usage, host_memory_usage_);
+      if (is_replacement()) {
+        texture_cache_.UpdateReplacementHostMemoryUsage(new_host_memory_usage, host_memory_usage_);
+      }
       host_memory_usage_ = new_host_memory_usage;
     }
 
@@ -270,6 +319,12 @@ class TextureCache {
     Texture* used_next_;
     bool in_usage_list_;
     bool force_load_3d_tiling_ = false;
+
+    uint64_t replacement_key_ = 0;
+    // 0 for a normal texture.
+    uint32_t replacement_level_count_ = 0;
+    bool replacement_denied_ = false;
+    uint32_t replacement_policy_generation_ = 0;
 
     // These are to be accessed within the global critical region to synchronize
     // with shared memory.
@@ -519,6 +574,22 @@ class TextureCache {
   // failure, it should return nullptr), modifying it is not allowed.
   virtual std::unique_ptr<Texture> CreateTexture(TextureKey key) = 0;
 
+  // Texture replacement (rex/graphics/pipeline/texture/replacement.h).
+  // Whether the implementation can create a replacement texture for the key:
+  // the host format it would use for the key in CreateTexture must be the
+  // native one for the replacement image's data (BC1, BC2, BC3 or BC5 blocks
+  // for k_DXT1, k_DXT2_3, k_DXT4_5 and k_DXN, R8G8B8A8 texels for k_8_8_8_8),
+  // which is uploaded as it is, not converted.
+  virtual bool CanCreateReplacementTexture(TextureKey /*key*/) const { return false; }
+  // Creates a host texture for the key with the image's size and levels
+  // instead of the key's, but otherwise like CreateTexture (the same format
+  // choice for unsigned and signed views), and uploads the image's levels to
+  // it. Returns nullptr on failure (the normal texture is created then).
+  virtual std::unique_ptr<Texture> CreateReplacementTexture(
+      TextureKey /*key*/, const texture_replacement::Image& /*image*/) {
+    return nullptr;
+  }
+
   // Returns nullptr not only if the key is not supported, but also if couldn't
   // create the texture - if it's nullptr, occasionally a recreation attempt
   // should be made.
@@ -571,6 +642,45 @@ class TextureCache {
   bool CommitPreparedTextureLoad(const PendingTextureLoad& pending_load);
 
   void UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract);
+  void UpdateReplacementHostMemoryUsage(uint64_t add, uint64_t subtract) {
+    replacement_host_memory_usage_ = replacement_host_memory_usage_ - subtract + add;
+  }
+
+  // Texture replacement (rex/graphics/pipeline/texture/replacement.h).
+  // Whether a texture with the key may be replaced: 2D, one layer, not a
+  // scaled resolve, with a base level, in one of the pack formats, and not so
+  // small that its base level is in a packed mip tail (the pack has no such
+  // textures).
+  static bool IsReplacementCandidate(const TextureKey& key);
+  // Computes the replacement key of the key's base level from the guest
+  // memory. False if it can't be done: the base level holds data written by
+  // the GPU (a resolve, which the guest memory may not have), or doesn't fit
+  // in the memory the texture is known to use.
+  bool ComputeReplacementKey(const TextureKey& key, uint64_t& replacement_key_out);
+  // Whether a replacement texture's guest data is still the data it stands
+  // for (checked when the guest memory has changed).
+  bool IsReplacementUpToDate(Texture& texture);
+  // Creates the replacement texture for the key if the pack has its guest
+  // data and the policy allows it, logging the outcome with
+  // texture_replacement_log. nullptr if not; then `denied_key_out` is set to
+  // the key when only the policy stood in the way (the normal texture made
+  // instead remembers it, see Texture::SetReplacementDenied).
+  std::unique_ptr<Texture> TryCreateReplacementTexture(const TextureKey& key,
+                                                       const texture_replacement::Policy& policy,
+                                                       std::optional<uint64_t>& denied_key_out);
+  // Whether a texture's replacement decision no longer holds under the
+  // current policy: a replaced texture the policy now refuses, or a texture
+  // the policy refused that it now allows. Brings the texture's generation up
+  // to date when the decision holds.
+  bool ReplacementDecisionChanged(Texture& texture);
+  // A replacement texture whose guest data has changed, or any texture whose
+  // replacement decision no longer holds: removes it from the map (so the next
+  // lookup creates a new texture for its key) and keeps it until the GPU is
+  // done with it, then CompletedSubmissionUpdated destroys it.
+  void RetireTexture(
+      std::unordered_map<TextureKey, std::unique_ptr<Texture>, TextureKey::Hasher>::iterator
+          texture_it,
+      const char* why);
 
   // Shared memory callback for texture data invalidation.
   static void WatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock,
@@ -627,6 +737,27 @@ class TextureCache {
   // Bit vector with bits reset on fetch constant writes to avoid parsing fetch
   // constants again and again.
   uint32_t texture_bindings_in_sync_ = 0;
+
+  // Texture replacement: the pack's index (nullptr when it's off), the buffer
+  // keys are computed in, DDS files that couldn't be used (not tried again,
+  // and logged once), and retired replacement textures with the submission
+  // after which they can be destroyed.
+  const texture_replacement::Index* replacement_index_ = nullptr;
+  std::vector<uint8_t> replacement_key_scratch_;
+  std::unordered_set<std::string> replacement_failed_files_;
+  // Host memory of the replacement textures alive (kept by
+  // UpdateTexturesTotalHostMemoryUsage), checked against
+  // texture_replacement_memory_limit; the number of textures the limit kept
+  // from being replaced (logged once).
+  uint64_t replacement_host_memory_usage_ = 0;
+  size_t replacement_over_limit_count_ = 0;
+  // The policy generation RequestTextures last saw.
+  uint32_t replacement_policy_generation_seen_ = 0;
+  struct RetiredTexture {
+    std::unique_ptr<Texture> texture;
+    uint64_t last_usage_submission_index;
+  };
+  std::vector<RetiredTexture> retired_textures_;
 };
 
 }  // namespace rex::graphics

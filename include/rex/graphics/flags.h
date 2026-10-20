@@ -55,6 +55,8 @@ REXCVAR_DECLARE(int32_t, texture_cache_memory_limit_soft);
 REXCVAR_DECLARE(int32_t, texture_cache_memory_limit_hard);
 REXCVAR_DECLARE(int32_t, texture_cache_memory_limit_soft_lifetime);
 REXCVAR_DECLARE(bool, non_seamless_cube_map);
+REXCVAR_DECLARE(std::string, texture_replacement_path);
+REXCVAR_DECLARE(bool, texture_replacement_log);
 
 // GPU Primitive Processing
 REXCVAR_DECLARE(bool, execute_unclipped_draw_vs_on_cpu);

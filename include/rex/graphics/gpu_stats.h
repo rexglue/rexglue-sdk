@@ -34,6 +34,8 @@ enum class Counter : uint32_t {
   kUploadBytes,          // guest memory uploaded to the GPU's copy
   kTextureLoads,         // textures (re)loaded from guest memory
   kWatchFaults,          // CPU writes caught by the GPU memory write watch
+  kTexturesReplaced,     // host textures created from a texture replacement pack
+  kTexturesNotInPack,    // textures that could have been replaced, but aren't in the pack
   kCount
 };
 

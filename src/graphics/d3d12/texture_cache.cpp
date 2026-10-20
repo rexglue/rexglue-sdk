@@ -16,6 +16,7 @@
 #include <cstring>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include <rex/assert.h>
 #include <rex/dbg.h>
@@ -24,6 +25,7 @@
 #include <rex/graphics/d3d12/texture_cache.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/texture/info.h>
+#include <rex/graphics/pipeline/texture/replacement.h>
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
 #include <rex/logging.h>
@@ -652,6 +654,20 @@ void D3D12TextureCache::ClearCache() {
   srv_descriptor_cache_free_.clear();
   srv_descriptor_cache_allocated_ = 0;
   srv_descriptor_cache_.clear();
+}
+
+void D3D12TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
+  TextureCache::CompletedSubmissionUpdated(completed_submission_index);
+
+  // Staging buffers of replacement textures whose copies are done.
+  auto staging_it = replacement_staging_buffers_.begin();
+  while (staging_it != replacement_staging_buffers_.end()) {
+    if (staging_it->first > completed_submission_index) {
+      ++staging_it;
+      continue;
+    }
+    staging_it = replacement_staging_buffers_.erase(staging_it);
+  }
 }
 
 void D3D12TextureCache::BeginSubmission(uint64_t new_submission_index) {
@@ -1557,6 +1573,134 @@ std::unique_ptr<TextureCache::Texture> D3D12TextureCache::CreateTexture(TextureK
   return std::unique_ptr<Texture>(new D3D12Texture(*this, key, resource.Get(), resource_state));
 }
 
+bool D3D12TextureCache::CanCreateReplacementTexture(TextureKey key) const {
+  // The image's data is uploaded as it is, so the texture must be in the
+  // format that data is in, which is the resource format of these guest
+  // formats unless the texture's size needs decompression on load.
+  DXGI_FORMAT native_format;
+  switch (key.format) {
+    case xenos::TextureFormat::k_DXT1:
+      native_format = DXGI_FORMAT_BC1_UNORM;
+      break;
+    case xenos::TextureFormat::k_DXT2_3:
+      native_format = DXGI_FORMAT_BC2_UNORM;
+      break;
+    case xenos::TextureFormat::k_DXT4_5:
+      native_format = DXGI_FORMAT_BC3_UNORM;
+      break;
+    case xenos::TextureFormat::k_DXN:
+      native_format = DXGI_FORMAT_BC5_UNORM;
+      break;
+    case xenos::TextureFormat::k_8_8_8_8:
+      // Typeless for unsigned and signed views of the same resource.
+      native_format = DXGI_FORMAT_R8G8B8A8_TYPELESS;
+      break;
+    default:
+      return false;
+  }
+  return !key.signed_separate && GetDXGIResourceFormat(key) == native_format;
+}
+
+std::unique_ptr<TextureCache::Texture> D3D12TextureCache::CreateReplacementTexture(
+    TextureKey key, const texture_replacement::Image& image) {
+  if (image.levels.empty() || IsDecompressionNeeded(key.format, image.width, image.height)) {
+    return nullptr;
+  }
+  const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
+
+  // As in CreateTexture, but with the image's size and levels.
+  D3D12_RESOURCE_DESC desc;
+  desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  desc.Alignment = 0;
+  desc.Width = image.width;
+  desc.Height = image.height;
+  desc.DepthOrArraySize = 1;
+  desc.MipLevels = UINT16(image.levels.size());
+  desc.Format = GetDXGIResourceFormat(key);
+  desc.SampleDesc.Count = 1;
+  desc.SampleDesc.Quality = 0;
+  desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+  desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+  D3D12_RESOURCE_STATES resource_state = D3D12_RESOURCE_STATE_COPY_DEST;
+  Microsoft::WRL::ComPtr<ID3D12Resource> resource;
+  if (FAILED(device->CreateCommittedResource(&ui::d3d12::util::kHeapPropertiesDefault,
+                                             provider.GetHeapFlagCreateNotZeroed(), &desc,
+                                             resource_state, nullptr, IID_PPV_ARGS(&resource)))) {
+    return nullptr;
+  }
+
+  // A staging buffer for this texture alone, released once the copies are
+  // done (CompletedSubmissionUpdated): a pool would keep the memory of the
+  // largest burst of uploads (a level's first frame) for good. Each level is
+  // placed and its rows are padded as copies need.
+  const uint32_t level_count = uint32_t(image.levels.size());
+  std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(level_count);
+  const uint32_t bytes_per_block = texture_replacement::GetBytesPerBlock(image.format);
+  UINT64 staging_size = 0;
+  for (uint32_t i = 0; i < level_count; ++i) {
+    const texture_replacement::Image::Level& level = image.levels[i];
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint = footprints[i];
+    staging_size = rex::align(staging_size, UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+    footprint.Offset = staging_size;
+    footprint.Footprint.Format = desc.Format;
+    // Whole blocks (for a level smaller than a block, as when loading from
+    // guest memory, the copy covers the whole block).
+    footprint.Footprint.Width = level.row_bytes / bytes_per_block * image.block_size;
+    footprint.Footprint.Height = level.row_count * image.block_size;
+    footprint.Footprint.Depth = 1;
+    footprint.Footprint.RowPitch =
+        rex::align(level.row_bytes, uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+    staging_size += UINT64(footprint.Footprint.RowPitch) * level.row_count;
+  }
+  D3D12_RESOURCE_DESC staging_desc;
+  ui::d3d12::util::FillBufferResourceDesc(staging_desc, staging_size, D3D12_RESOURCE_FLAG_NONE);
+  Microsoft::WRL::ComPtr<ID3D12Resource> staging;
+  if (FAILED(device->CreateCommittedResource(&ui::d3d12::util::kHeapPropertiesUpload,
+                                             provider.GetHeapFlagCreateNotZeroed(), &staging_desc,
+                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                             IID_PPV_ARGS(&staging)))) {
+    REXGPU_ERROR("D3D12TextureCache: Failed to create a staging buffer for a replacement texture");
+    return nullptr;
+  }
+  D3D12_RANGE staging_read_range = {};
+  void* staging_mapping;
+  if (FAILED(staging->Map(0, &staging_read_range, &staging_mapping))) {
+    return nullptr;
+  }
+  for (uint32_t i = 0; i < level_count; ++i) {
+    const texture_replacement::Image::Level& level = image.levels[i];
+    uint8_t* level_mapping = static_cast<uint8_t*>(staging_mapping) + footprints[i].Offset;
+    const uint8_t* level_data = image.level_data(i);
+    for (uint32_t row = 0; row < level.row_count; ++row) {
+      std::memcpy(level_mapping + size_t(footprints[i].Footprint.RowPitch) * row,
+                  level_data + size_t(level.row_bytes) * row, level.row_bytes);
+    }
+  }
+  staging->Unmap(0, nullptr);
+
+  auto texture = std::unique_ptr<D3D12Texture>(
+      new D3D12Texture(*this, key, resource.Get(), resource_state));
+  // Created in the copy destination state; RequestTextures transitions it to
+  // the shader resource state like a texture loaded from guest memory.
+  texture->MarkAsUsed();
+  command_processor_.SubmitBarriers();
+  DeferredCommandList& command_list = command_processor_.GetDeferredCommandList();
+  D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
+  location_source.pResource = staging.Get();
+  location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+  location_dest.pResource = texture->resource();
+  location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  for (uint32_t i = 0; i < level_count; ++i) {
+    location_source.PlacedFootprint = footprints[i];
+    location_dest.SubresourceIndex = i;
+    command_list.D3DCopyTextureRegion(&location_dest, 0, 0, 0, &location_source, nullptr);
+  }
+  replacement_staging_buffers_.emplace_back(command_processor_.GetCurrentSubmission(),
+                                            std::move(staging));
+  return texture;
+}
+
 bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                                               bool load_mips) {
   D3D12Texture& d3d12_texture = static_cast<D3D12Texture&>(texture);
@@ -2074,7 +2218,8 @@ uint32_t D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
     return UINT32_MAX;
   }
 
-  uint32_t mip_levels = texture_key.mip_max_level + 1;
+  // A replacement texture may have more levels than the guest texture.
+  uint32_t mip_levels = texture.GetHostLevelCount();
   ID3D12Resource* resource_for_view = texture.resource();
   switch (dimension) {
     case xenos::DataDimension::k3D:

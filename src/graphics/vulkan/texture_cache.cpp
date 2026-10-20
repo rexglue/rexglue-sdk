@@ -23,6 +23,7 @@
 #include <rex/dbg.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/texture/info.h>
+#include <rex/graphics/pipeline/texture/replacement.h>
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/deferred_command_buffer.h>
@@ -485,9 +486,28 @@ VulkanTextureCache::~VulkanTextureCache() {
   // Textures memory is allocated using the Vulkan Memory Allocator, destroy all
   // textures before destroying VMA.
   DestroyAllTextures(true);
+  for (const ReplacementStagingBuffer& staging : replacement_staging_buffers_) {
+    vmaDestroyBuffer(vma_allocator_, staging.buffer, staging.allocation);
+  }
+  replacement_staging_buffers_.clear();
 
   if (vma_allocator_ != VK_NULL_HANDLE) {
     vmaDestroyAllocator(vma_allocator_);
+  }
+}
+
+void VulkanTextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
+  TextureCache::CompletedSubmissionUpdated(completed_submission_index);
+
+  // Staging buffers of replacement textures whose copies are done.
+  auto staging_it = replacement_staging_buffers_.begin();
+  while (staging_it != replacement_staging_buffers_.end()) {
+    if (staging_it->submission_index > completed_submission_index) {
+      ++staging_it;
+      continue;
+    }
+    vmaDestroyBuffer(vma_allocator_, staging_it->buffer, staging_it->allocation);
+    staging_it = replacement_staging_buffers_.erase(staging_it);
   }
 }
 
@@ -1115,6 +1135,17 @@ uint32_t VulkanTextureCache::GetMaxHostTextureDepthOrArraySize(
 }
 
 std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(TextureKey key) {
+  uint32_t width = key.GetWidth();
+  uint32_t height = key.GetHeight();
+  if (key.scaled_resolve) {
+    width *= draw_resolution_scale_x();
+    height *= draw_resolution_scale_y();
+  }
+  return CreateVulkanTexture(key, width, height, key.mip_max_level + 1);
+}
+
+std::unique_ptr<VulkanTextureCache::VulkanTexture> VulkanTextureCache::CreateVulkanTexture(
+    TextureKey key, uint32_t width, uint32_t height, uint32_t mip_levels) {
   VkFormat formats[] = {VK_FORMAT_UNDEFINED, VK_FORMAT_UNDEFINED};
   const HostFormatPair& host_format = GetHostFormatPair(key);
   if (host_format.format_signed.format == VK_FORMAT_UNDEFINED) {
@@ -1162,14 +1193,10 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
   }
   image_create_info.imageType = is_3d ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D;
   image_create_info.format = formats[0];
-  image_create_info.extent.width = key.GetWidth();
-  image_create_info.extent.height = key.GetHeight();
-  if (key.scaled_resolve) {
-    image_create_info.extent.width *= draw_resolution_scale_x();
-    image_create_info.extent.height *= draw_resolution_scale_y();
-  }
+  image_create_info.extent.width = width;
+  image_create_info.extent.height = height;
   image_create_info.extent.depth = is_3d ? depth_or_array_size : 1;
-  image_create_info.mipLevels = key.mip_max_level + 1;
+  image_create_info.mipLevels = mip_levels;
   image_create_info.arrayLayers = is_3d ? 1 : depth_or_array_size;
   image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -1199,7 +1226,121 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
     return nullptr;
   }
 
-  return std::unique_ptr<Texture>(new VulkanTexture(*this, key, image, allocation));
+  return std::unique_ptr<VulkanTexture>(new VulkanTexture(*this, key, image, allocation));
+}
+
+bool VulkanTextureCache::CanCreateReplacementTexture(TextureKey key) const {
+  // The image's data is uploaded as it is, so the texture must be in the
+  // format that data is in, which is the host format of these guest formats
+  // unless the device lacks it or the texture's size isn't a multiple of the
+  // block size (then the guest data is decompressed on load instead).
+  VkFormat native_format;
+  switch (key.format) {
+    case xenos::TextureFormat::k_DXT1:
+      native_format = VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+      break;
+    case xenos::TextureFormat::k_DXT2_3:
+      native_format = VK_FORMAT_BC2_UNORM_BLOCK;
+      break;
+    case xenos::TextureFormat::k_DXT4_5:
+      native_format = VK_FORMAT_BC3_UNORM_BLOCK;
+      break;
+    case xenos::TextureFormat::k_DXN:
+      native_format = VK_FORMAT_BC5_UNORM_BLOCK;
+      break;
+    case xenos::TextureFormat::k_8_8_8_8:
+      native_format = VK_FORMAT_R8G8B8A8_UNORM;
+      break;
+    default:
+      return false;
+  }
+  return !key.signed_separate && GetHostFormatPair(key).format_unsigned.format == native_format;
+}
+
+std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateReplacementTexture(
+    TextureKey key, const texture_replacement::Image& image) {
+  if (image.levels.empty() || image.data.empty()) {
+    return nullptr;
+  }
+
+  // A staging buffer for this texture alone, destroyed once the copies are
+  // done (CompletedSubmissionUpdated): a pool would keep the memory of the
+  // largest burst of uploads (a level's first frame) for good. The image's
+  // levels go in as they are, one after another: every level is a whole
+  // number of blocks, so each starts at a multiple of the block size, as
+  // copies need.
+  VkBufferCreateInfo staging_buffer_create_info = {};
+  staging_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  staging_buffer_create_info.size = VkDeviceSize(image.data.size());
+  staging_buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+  staging_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  VmaAllocationCreateInfo staging_allocation_create_info = {};
+  staging_allocation_create_info.flags =
+      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+  staging_allocation_create_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+  ReplacementStagingBuffer staging;
+  VmaAllocationInfo staging_allocation_info;
+  if (vmaCreateBuffer(vma_allocator_, &staging_buffer_create_info,
+                      &staging_allocation_create_info, &staging.buffer, &staging.allocation,
+                      &staging_allocation_info) != VK_SUCCESS) {
+    REXGPU_ERROR("VulkanTextureCache: Failed to create a staging buffer for a replacement texture");
+    return nullptr;
+  }
+  if (!staging_allocation_info.pMappedData) {
+    vmaDestroyBuffer(vma_allocator_, staging.buffer, staging.allocation);
+    return nullptr;
+  }
+  std::memcpy(staging_allocation_info.pMappedData, image.data.data(), image.data.size());
+  vmaFlushAllocation(vma_allocator_, staging.allocation, 0, VK_WHOLE_SIZE);
+
+  std::unique_ptr<VulkanTexture> texture =
+      CreateVulkanTexture(key, image.width, image.height, uint32_t(image.levels.size()));
+  if (!texture) {
+    vmaDestroyBuffer(vma_allocator_, staging.buffer, staging.allocation);
+    return nullptr;
+  }
+
+  // Like a texture loaded from guest memory: all levels to the transfer
+  // destination layout, copied to, and RequestTextures moves it to the sampled
+  // usage.
+  texture->MarkAsUsed();
+  VulkanTexture::Usage old_usage = texture->SetUsage(VulkanTexture::Usage::kTransferDestination);
+  VkPipelineStageFlags src_stage_mask, dst_stage_mask;
+  VkAccessFlags src_access_mask, dst_access_mask;
+  VkImageLayout old_layout, new_layout;
+  GetTextureUsageMasks(old_usage, src_stage_mask, src_access_mask, old_layout);
+  GetTextureUsageMasks(VulkanTexture::Usage::kTransferDestination, dst_stage_mask,
+                       dst_access_mask, new_layout);
+  command_processor_.PushImageMemoryBarrier(texture->image(),
+                                            ui::vulkan::util::InitializeSubresourceRange(),
+                                            src_stage_mask, dst_stage_mask, src_access_mask,
+                                            dst_access_mask, old_layout, new_layout);
+  command_processor_.SubmitBarriers(true);
+  VkBufferImageCopy* copy_regions =
+      command_processor_.deferred_command_buffer().CmdCopyBufferToImageEmplace(
+          staging.buffer, texture->image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+          uint32_t(image.levels.size()));
+  for (uint32_t level_index = 0; level_index < uint32_t(image.levels.size()); ++level_index) {
+    const texture_replacement::Image::Level& level = image.levels[level_index];
+    VkBufferImageCopy& copy_region = copy_regions[level_index];
+    copy_region.bufferOffset = VkDeviceSize(level.offset);
+    // Rows of blocks without padding.
+    copy_region.bufferRowLength = 0;
+    copy_region.bufferImageHeight = 0;
+    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copy_region.imageSubresource.mipLevel = level_index;
+    copy_region.imageSubresource.baseArrayLayer = 0;
+    copy_region.imageSubresource.layerCount = 1;
+    copy_region.imageOffset.x = 0;
+    copy_region.imageOffset.y = 0;
+    copy_region.imageOffset.z = 0;
+    copy_region.imageExtent.width = level.width;
+    copy_region.imageExtent.height = level.height;
+    copy_region.imageExtent.depth = 1;
+  }
+  staging.submission_index = command_processor_.GetCurrentSubmission();
+  replacement_staging_buffers_.push_back(staging);
+  return texture;
 }
 
 bool VulkanTextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,

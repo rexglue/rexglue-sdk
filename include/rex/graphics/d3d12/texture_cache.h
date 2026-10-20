@@ -86,6 +86,7 @@ class D3D12TextureCache final : public TextureCache {
 
   void ClearCache() override;
 
+  void CompletedSubmissionUpdated(uint64_t completed_submission_index) override;
   void BeginSubmission(uint64_t new_submission_index) override;
   void BeginFrame() override;
   void EndFrame();
@@ -171,6 +172,10 @@ class D3D12TextureCache final : public TextureCache {
   uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const override;
 
   std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
+
+  bool CanCreateReplacementTexture(TextureKey key) const override;
+  std::unique_ptr<Texture> CreateReplacementTexture(
+      TextureKey key, const texture_replacement::Image& image) override;
 
   // This binds pipelines, allocates descriptors, and copies!
   bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
@@ -539,6 +544,11 @@ class D3D12TextureCache final : public TextureCache {
   // Range used in the last successful MakeScaledResolveRangeCurrent call.
   uint64_t scaled_resolve_current_range_start_scaled_;
   uint64_t scaled_resolve_current_range_length_scaled_;
+
+  // Staging buffers of replacement images (CreateReplacementTexture) with the
+  // submission copying from them, each released once that has completed.
+  std::vector<std::pair<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>>>
+      replacement_staging_buffers_;
 };
 
 }  // namespace rex::graphics::d3d12

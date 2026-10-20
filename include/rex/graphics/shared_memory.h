@@ -95,6 +95,15 @@ class SharedMemory {
   // regions in those pages.
   void RangeWrittenByGpu(uint32_t start, uint32_t length);
 
+  // For looking at guest data on the CPU (texture replacement computes keys of
+  // textures from it): the guest's own physical memory (as the CPU wrote it,
+  // big-endian), not the GPU's copy.
+  const uint8_t* TranslatePhysical(uint32_t address) const;
+  // Whether any page of the range holds data written by the GPU (such as a
+  // resolve) that the CPU hasn't overwritten since: the guest memory may not
+  // have that data.
+  bool IsRangeWrittenByGpu(uint32_t start, uint32_t length);
+
  protected:
   SharedMemory(memory::Memory& memory);
   // Call in implementation-specific initialization.
