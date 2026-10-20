@@ -552,6 +552,12 @@ void MnkInputDriver::OnMouseDown(rex::ui::MouseEvent& e) {
     case rex::ui::MouseEvent::Button::kMiddle:
       SetKeyState(static_cast<uint16_t>(VirtualKey::kMButton), true);
       break;
+    case rex::ui::MouseEvent::Button::kX1:
+      SetKeyState(static_cast<uint16_t>(VirtualKey::kXButton1), true);
+      break;
+    case rex::ui::MouseEvent::Button::kX2:
+      SetKeyState(static_cast<uint16_t>(VirtualKey::kXButton2), true);
+      break;
     default:
       break;
   }
@@ -570,6 +576,12 @@ void MnkInputDriver::OnMouseUp(rex::ui::MouseEvent& e) {
       break;
     case rex::ui::MouseEvent::Button::kMiddle:
       SetKeyState(static_cast<uint16_t>(VirtualKey::kMButton), false);
+      break;
+    case rex::ui::MouseEvent::Button::kX1:
+      SetKeyState(static_cast<uint16_t>(VirtualKey::kXButton1), false);
+      break;
+    case rex::ui::MouseEvent::Button::kX2:
+      SetKeyState(static_cast<uint16_t>(VirtualKey::kXButton2), false);
       break;
     default:
       break;

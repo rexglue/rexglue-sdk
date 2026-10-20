@@ -141,6 +141,14 @@ static const std::unordered_map<std::string, VirtualKey> kKeyNames = {
     {"LMB", VirtualKey::kLButton},
     {"RMB", VirtualKey::kRButton},
     {"MMB", VirtualKey::kMButton},
+    // Side buttons ("back" / "forward"). MOUSE4 / MOUSE5 are the names the
+    // PC Call of Duty games use in their configs.
+    {"MB4", VirtualKey::kXButton1},
+    {"MB5", VirtualKey::kXButton2},
+    {"MOUSE4", VirtualKey::kXButton1},
+    {"MOUSE5", VirtualKey::kXButton2},
+    {"MM4", VirtualKey::kXButton1},
+    {"MM5", VirtualKey::kXButton2},
 };
 
 VirtualKey ParseVirtualKey(std::string_view name) {
@@ -149,6 +157,9 @@ VirtualKey ParseVirtualKey(std::string_view name) {
 }
 
 std::string VirtualKeyToString(VirtualKey vk) {
+  // Always the short names, whatever order the aliases come out of the table in.
+  if (vk == VirtualKey::kXButton1) return "MB4";
+  if (vk == VirtualKey::kXButton2) return "MB5";
   for (const auto& [name, key] : kKeyNames) {
     if (key == vk) {
       return name;
