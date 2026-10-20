@@ -19,6 +19,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/ui/present_mode.h>
 #include <rex/ui/d3d12/d3d12_presenter.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
 #include <rex/ui/d3d12/d3d12_util.h>
@@ -450,6 +451,16 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
     paint_context_.swap_chain_height = new_swap_chain_height;
     paint_context_.swap_chain_allows_tearing =
         (swap_chain_desc.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) != 0;
+    // Frames are presented with sync interval 0 (PaintAndPresentImpl), so
+    // the swap chain never waits for the display; for the game's log
+    // (rex/ui/present_mode.h).
+    SetPresentModeDescription(
+        paint_context_.swap_chain_allows_tearing
+            ? "Direct3D 12 flip, sync interval 0, tearing allowed (no V-Sync, may tear)"
+            : "Direct3D 12 flip, sync interval 0, no tearing (the newest frame at each refresh)");
+    REXLOG_INFO("D3D12Presenter: Created {}x{} swap chain, {} buffers, tearing {}",
+                new_swap_chain_width, new_swap_chain_height, PaintContext::kSwapChainBufferCount,
+                paint_context_.swap_chain_allows_tearing ? "allowed" : "not allowed");
     for (uint32_t i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
       if (FAILED(paint_context_.swap_chain->GetBuffer(
               i, IID_PPV_ARGS(&paint_context_.swap_chain_buffers[i])))) {

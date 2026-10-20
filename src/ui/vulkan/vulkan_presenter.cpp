@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -24,6 +25,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/platform.h>
+#include <rex/ui/present_mode.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
 
@@ -1416,6 +1418,22 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
       swapchain_create_info.imageExtent.width, swapchain_create_info.imageExtent.height,
       uint32_t(swapchain_create_info.imageFormat), uint32_t(swapchain_create_info.imageColorSpace),
       uint32_t(swapchain_create_info.presentMode));
+  // The mode in words for the game's log (rex/ui/present_mode.h).
+  const char* present_mode_text = "FIFO (V-Sync)";
+  switch (swapchain_create_info.presentMode) {
+    case VK_PRESENT_MODE_IMMEDIATE_KHR:
+      present_mode_text = "immediate (no V-Sync, may tear)";
+      break;
+    case VK_PRESENT_MODE_MAILBOX_KHR:
+      present_mode_text = "mailbox (no tearing, the newest frame at each refresh)";
+      break;
+    case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
+      present_mode_text = "FIFO relaxed (V-Sync, tears when a frame is late)";
+      break;
+    default:
+      break;
+  }
+  SetPresentModeDescription(std::string("Vulkan ") + present_mode_text);
 
   present_queue_family_out = queue_family_index_present;
   image_format_out = swapchain_create_info.imageFormat;

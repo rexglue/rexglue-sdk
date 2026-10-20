@@ -20,6 +20,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
+#include <rex/ui/present_mode.h>
 #include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
 
@@ -282,6 +283,22 @@ GuestOutputPaintConfig BuildGuestOutputPaintConfigFromCVar() {
 
 namespace rex {
 namespace ui {
+
+// rex/ui/present_mode.h
+namespace {
+std::mutex present_mode_mutex;
+std::string present_mode_description;
+}  // namespace
+
+std::string GetPresentModeDescription() {
+  std::lock_guard<std::mutex> lock(present_mode_mutex);
+  return present_mode_description;
+}
+
+void SetPresentModeDescription(std::string_view description) {
+  std::lock_guard<std::mutex> lock(present_mode_mutex);
+  present_mode_description.assign(description);
+}
 
 void Presenter::FatalErrorHostGpuLossCallback([[maybe_unused]] bool is_responsible,
                                               [[maybe_unused]] bool statically_from_ui_thread) {
@@ -1640,8 +1657,13 @@ void Presenter::WaitForUITickFromUIThread() {
 
 void Presenter::ForceUIThreadPaintTick() {
 #if REX_PLATFORM_WIN32
-  std::scoped_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
-  dxgi_ui_tick_force_requested_ = true;
+  {
+    std::scoped_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
+    dxgi_ui_tick_force_requested_ = true;
+  }
+  // A UI thread already waiting for the next vblank (WaitForUITickFromUIThread)
+  // shows the new frame now, not up to a refresh later.
+  dxgi_ui_tick_signal_condition_.notify_all();
 #else
   ui_tick_force_requested_.store(true, std::memory_order_release);
 #endif  // XE_PLATFORM

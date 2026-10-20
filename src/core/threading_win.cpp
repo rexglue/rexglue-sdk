@@ -93,15 +93,69 @@ void SyncMemory() {
   MemoryBarrier();
 }
 
+// ::Sleep wakes on the system timer's tick: a 1 ms sleep takes 1 to 2 ms
+// with timeBeginPeriod(1), and 15.6 ms when Windows doesn't apply a
+// program's timer request (Windows 11 may drop it while it thinks the window
+// is hidden). The GPU's vblank thread and its command thread wait in 1 ms
+// sleeps every frame, so on Windows those set the frame rate's ceiling
+// (32 fps at 15.6 ms). A high-resolution waitable timer (Windows 10 1803 and
+// later) wakes within a fraction of a millisecond whatever the tick is, like
+// nanosleep on Linux. One per thread, made on its first sleep and kept for
+// the thread's life (closed when the thread ends); nullptr where Windows has
+// none (then ::Sleep as before).
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002  // Windows 10 1803 SDK and later
+#endif
+static HANDLE ThreadSleepTimer() {
+  struct Holder {
+    HANDLE timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                                          TIMER_MODIFY_STATE | SYNCHRONIZE);
+    ~Holder() {
+      if (timer) {
+        CloseHandle(timer);
+      }
+    }
+  };
+  thread_local Holder holder;
+  return holder.timer;
+}
+
+// Arms the thread's timer `duration` from now; false if there is no timer.
+static bool ArmThreadSleepTimer(HANDLE timer, std::chrono::microseconds duration) {
+  if (!timer) {
+    return false;
+  }
+  LARGE_INTEGER due;
+  due.QuadPart = -int64_t(duration.count()) * 10;  // relative, in 100 ns units
+  return SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE) != FALSE;
+}
+
 void Sleep(std::chrono::microseconds duration) {
   if (duration.count() < 100) {
     MaybeYield();
-  } else {
-    ::Sleep(static_cast<DWORD>(duration.count() / 1000));
+    return;
   }
+  HANDLE timer = ThreadSleepTimer();
+  if (ArmThreadSleepTimer(timer, duration) &&
+      WaitForSingleObject(timer, INFINITE) == WAIT_OBJECT_0) {
+    return;
+  }
+  ::Sleep(static_cast<DWORD>(duration.count() / 1000));
 }
 
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
+  HANDLE timer = ThreadSleepTimer();
+  if (duration.count() >= 100 && ArmThreadSleepTimer(timer, duration)) {
+    // Alertable: a queued APC ends the wait early, as SleepEx does.
+    const DWORD result = WaitForSingleObjectEx(timer, INFINITE, TRUE);
+    if (result == WAIT_IO_COMPLETION) {
+      CancelWaitableTimer(timer);
+      return SleepResult::kAlerted;
+    }
+    if (result == WAIT_OBJECT_0) {
+      return SleepResult::kSuccess;
+    }
+  }
   if (SleepEx(static_cast<DWORD>(duration.count() / 1000), TRUE) == WAIT_IO_COMPLETION) {
     return SleepResult::kAlerted;
   }
