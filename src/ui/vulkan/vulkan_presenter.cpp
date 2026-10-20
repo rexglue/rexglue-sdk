@@ -2069,6 +2069,12 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
                 swapchain_effect, paint_context_.swapchain_render_pass);
             if (swapchain_effect_pipeline.swapchain_pipeline == VK_NULL_HANDLE) {
               guest_output_flow.effect_count = 0;
+            } else {
+              // The format the pipeline is for. Without this the check above
+              // found it outdated at every paint, so every paint waited for the
+              // previous one on the GPU and built the pipeline again (the
+              // driver compiling its shaders: most of the window thread's time).
+              swapchain_effect_pipeline.swapchain_format = paint_context_.swapchain_render_pass_format;
             }
           }
         }
