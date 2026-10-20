@@ -305,17 +305,21 @@ class PosixConditionBase {
     if (predicate()) {
       executed = true;
     } else {
+      // Counted while blocked, so that a pulse knows who it has to release.
+      ++waiters_;
       if (timeout == std::chrono::milliseconds::max()) {
         cond_.wait(lock, predicate);
         executed = true;  // Did not time out;
       } else {
         executed = cond_.wait_for(lock, timeout, predicate);
       }
+      --waiters_;
     }
     if (executed) {
       post_execution();
       return WaitResult::kSuccess;
     } else {
+      waiter_left();
       return WaitResult::kTimeout;
     }
   }
@@ -334,6 +338,25 @@ class PosixConditionBase {
     auto end_time = (timeout == std::chrono::milliseconds::max())
                         ? std::chrono::steady_clock::time_point::max()
                         : start_time + timeout;
+
+    // This thread polls rather than blocks; count it as a waiter on every
+    // handle meanwhile, so that a pulse is kept until it has looked.
+    struct PollRegistration {
+      std::vector<PosixConditionBase*>& handles;
+      explicit PollRegistration(std::vector<PosixConditionBase*>& h) : handles(h) {
+        for (auto* c : handles) {
+          std::lock_guard<std::mutex> l(c->mutex_);
+          ++c->waiters_;
+        }
+      }
+      ~PollRegistration() {
+        for (auto* c : handles) {
+          std::lock_guard<std::mutex> l(c->mutex_);
+          --c->waiters_;
+          c->waiter_left();
+        }
+      }
+    } registration(handles);
 
     while (true) {
       size_t first_signaled = std::numeric_limits<size_t>::max();
@@ -428,8 +451,12 @@ class PosixConditionBase {
  protected:
   inline virtual bool signaled() const = 0;
   inline virtual void post_execution() = 0;
+  // A waiter gave up (timeout, or another handle of a WaitMultiple fired).
+  // Called with mutex_ held.
+  virtual void waiter_left() {}
   std::condition_variable cond_;
   std::mutex mutex_;
+  uint32_t waiters_ = 0;  // threads in Wait()/WaitMultiple() on this object; mutex_
 };
 
 // There really is no native POSIX handle for a single wait/signal construct
@@ -458,15 +485,40 @@ class PosixCondition<Event> : public PosixConditionBase {
     signal_ = false;
   }
 
+  // PulseEvent: release the threads waiting right now (one for an auto-reset
+  // event, all of them for a manual-reset one) and leave the event reset.
+  // The release is kept as a count of wake-ups owed to those waiters until
+  // they have run, never as signal_ for a moment: a woken waiter that doesn't
+  // get a CPU in time would see the event reset again and go back to sleep,
+  // and the wake-up would be lost (Windows releases them atomically).
+  // Pulses of an auto-reset event add up (two pulses release two waiters,
+  // even if the first one hasn't run yet), up to the number of waiters.
+  void Pulse() {
+    auto lock = std::unique_lock<std::mutex>(mutex_);
+    signal_ = false;
+    if (waiters_ == 0) return;  // nobody waiting: a pulse does nothing
+    pulses_ = manual_reset_ ? waiters_ : std::min(pulses_ + 1, waiters_);
+    cond_.notify_all();
+  }
+
  private:
-  inline bool signaled() const override { return signal_; }
+  inline bool signaled() const override { return signal_ || pulses_ > 0; }
   inline void post_execution() override {
-    if (!manual_reset_) {
-      signal_ = false;
+    if (signal_) {
+      if (!manual_reset_) {
+        signal_ = false;
+      }
+    } else if (pulses_ > 0) {
+      --pulses_;
     }
+  }
+  void waiter_left() override {
+    // Don't keep wake-ups for waiters that are gone.
+    if (pulses_ > waiters_) pulses_ = waiters_;
   }
   bool signal_;
   const bool manual_reset_;
+  uint32_t pulses_ = 0;  // wake-ups owed by Pulse() to current waiters; mutex_
 };
 
 template <>
@@ -1252,13 +1304,7 @@ class PosixEvent : public PosixConditionHandle<Event> {
   ~PosixEvent() override = default;
   void Set() override { handle_.Signal(); }
   void Reset() override { handle_.Reset(); }
-  void Pulse() override {
-    using namespace std::chrono_literals;
-    handle_.Signal();
-    MaybeYield();
-    Sleep(10us);
-    handle_.Reset();
-  }
+  void Pulse() override { handle_.Pulse(); }
 };
 
 std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
