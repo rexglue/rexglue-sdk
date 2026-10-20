@@ -364,6 +364,13 @@ void BuilderContext::emit_mid_asm_hook() {
     if (out.back() != '(')
       out += ", ";
 
+    // "ctx" and "base" hand the hook the whole guest context and the guest
+    // memory base, for hooks that switch stacks or call guest functions.
+    if (reg == "ctx" || reg == "base") {
+      out += reg;
+      continue;
+    }
+
     switch (reg[0]) {
       case 'c':
         if (reg == "ctr")

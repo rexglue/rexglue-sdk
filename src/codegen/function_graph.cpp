@@ -424,6 +424,15 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
           if (out.back() != '(')
             out += ", ";
 
+          if (reg == "ctx") {
+            emit_print(out, "PPCContext& ctx");
+            continue;
+          }
+          if (reg == "base") {
+            emit_print(out, "uint8_t* base");
+            continue;
+          }
+
           switch (reg[0]) {
             case 'c':
               if (reg == "ctr")
