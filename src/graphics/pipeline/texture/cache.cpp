@@ -64,19 +64,22 @@ REXCVAR_DEFINE_INT32(anisotropic_override, 3, "GPU",
     .range(-1, 5)
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+// The draw resolution scale cvars can be changed while running: the command
+// processor rebuilds everything that depends on the scale between two frames
+// (see CommandProcessor::RequestDrawResolutionScale).
 REXCVAR_DEFINE_INT32(draw_resolution_scale_x, 1, "GPU", "Draw resolution scale X (1 = no scaling)")
     .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1, "GPU", "Draw resolution scale Y (1 = no scaling)")
     .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_INT32(resolution_scale, 1, "GPU",
                      "Draw resolution scale for both X and Y axes (same as setting "
                      "draw_resolution_scale_x and draw_resolution_scale_y)")
     .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_BOOL(pre_mask_resolve_l2_block, true, "GPU",
                     "Pre-mask scaled resolve L2 blocks to the write range before iterating");
@@ -348,6 +351,53 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
   // Invalidate textures. Toggling individual textures between scaled and
   // unscaled also relies on invalidation through shared memory.
   shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
+}
+
+void TextureCache::InvalidateScaledResolveRangesInSharedMemory() {
+  if (!IsDrawResolutionScaled()) {
+    return;
+  }
+  // Collect the ranges of consecutive scaled resolve pages first: invalidating
+  // them fires ScaledResolveGlobalWatchCallback, which modifies the bit vector.
+  std::vector<std::pair<uint32_t, uint32_t>> ranges;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    constexpr uint32_t kL2BlockCount = SharedMemory::kBufferSize >> (12 + 5 + 6);
+    static_assert(kL2BlockCount == sizeof(scaled_resolve_pages_l2_) / sizeof(uint64_t));
+    uint32_t run_page_first = UINT32_MAX;
+    uint32_t run_page_end = 0;
+    for (uint32_t i = 0; i < kL2BlockCount; ++i) {
+      uint64_t l2_block = scaled_resolve_pages_l2_[i];
+      uint32_t block_relative_index;
+      while (rex::bit_scan_forward(l2_block, &block_relative_index)) {
+        l2_block &= ~(UINT64_C(1) << block_relative_index);
+        uint32_t block_index = (i << 6) + block_relative_index;
+        uint32_t block = scaled_resolve_pages_[block_index];
+        uint32_t page_relative_index;
+        while (rex::bit_scan_forward(block, &page_relative_index)) {
+          block &= ~(UINT32_C(1) << page_relative_index);
+          uint32_t page = (block_index << 5) + page_relative_index;
+          if (run_page_first != UINT32_MAX && page == run_page_end) {
+            ++run_page_end;
+            continue;
+          }
+          if (run_page_first != UINT32_MAX) {
+            ranges.emplace_back(run_page_first << 12, (run_page_end - run_page_first) << 12);
+          }
+          run_page_first = page;
+          run_page_end = page + 1;
+        }
+      }
+    }
+    if (run_page_first != UINT32_MAX) {
+      ranges.emplace_back(run_page_first << 12, (run_page_end - run_page_first) << 12);
+    }
+  }
+  for (const std::pair<uint32_t, uint32_t>& range : ranges) {
+    // Exact range: not widening to the neighboring pages, which may contain
+    // valid data written by the GPU without scaling.
+    shared_memory().MemoryInvalidationCallback(range.first, range.second, true);
+  }
 }
 
 uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle) {

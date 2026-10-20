@@ -193,7 +193,8 @@ VulkanRenderTargetCache::~VulkanRenderTargetCache() {
   Shutdown(true);
 }
 
-bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
+bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count,
+                                         std::optional<Path> required_path) {
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const ui::vulkan::VulkanInstance::Functions& ifn = vulkan_device->vulkan_instance()->functions();
   const VkPhysicalDevice physical_device = vulkan_device->physical_device();
@@ -207,7 +208,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       device_properties.fragmentStoresAndAtomics && device_properties.sampleRateShading &&
       device_properties.standardSampleLocations &&
       shared_memory_binding_count < device_properties.maxPerStageDescriptorStorageBuffers;
-  if (REXCVAR_GET(render_target_path_vulkan) == "fsi") {
+  if (required_path) {
+    path_ = *required_path;
+  } else if (REXCVAR_GET(render_target_path_vulkan) == "fsi") {
     path_ = Path::kPixelShaderInterlock;
   } else {
     path_ = Path::kHostRenderTargets;

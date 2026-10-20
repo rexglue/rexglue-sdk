@@ -81,6 +81,14 @@ class TextureCache {
   virtual void BeginFrame();
 
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
+  // For changing the draw resolution scale at runtime, before this texture
+  // cache (and its scaled resolve buffer) is destroyed: resolves with scaling
+  // write only to the scaled resolve buffer, so the 1x copy in the shared
+  // memory of the ranges they wrote is stale, though marked as valid. Makes the
+  // shared memory reload those ranges from the guest memory when they're used
+  // next (with resolve readback, the guest memory has downscaled copies of the
+  // resolve results).
+  void InvalidateScaledResolveRangesInSharedMemory();
   // Ensures the memory backing the range in the scaled resolve address space is
   // allocated and returns whether it is.
   virtual bool EnsureScaledResolveMemoryCommitted(uint32_t /*start_unscaled*/,

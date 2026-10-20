@@ -63,6 +63,15 @@ class PipelineCache {
                                bool blocking);
   void ShutdownShaderStorage();
 
+  // For changing the draw resolution scale at runtime, with the GPU idle and no
+  // pipeline in use. Destroy releases all pipelines, all shader translations
+  // and the translator, which have the scale baked in. Create, called once the
+  // render target cache has been reinitialized with the new scale, recreates
+  // the translator for its scale - translations and pipelines are then
+  // recreated on demand.
+  void DestroyDrawResolutionScaleDependentObjects();
+  void CreateDrawResolutionScaleDependentObjects();
+
   void EndSubmission();
   bool IsCreatingPipelines();
 
@@ -264,6 +273,13 @@ class PipelineCache {
 
   D3D12Shader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
                           uint32_t dword_count, uint64_t data_hash);
+
+  // Creates the shader translator for the render target cache's draw
+  // resolution scale and the internal shaders it generates.
+  void CreateTranslatorAndInternalShaders();
+  void StartCreationThreads();
+  void StopCreationThreads();
+  void DestroyAllPipelines();
 
   // Can be called from multiple threads.
   bool TranslateAnalyzedShader(DxbcShaderTranslator& translator,

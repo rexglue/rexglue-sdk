@@ -288,6 +288,36 @@ VulkanPipelineCache::~VulkanPipelineCache() {
 bool VulkanPipelineCache::Initialize() {
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
 
+  if (!CreateTranslatorAndInternalShaders()) {
+    return false;
+  }
+
+  std::vector<uint32_t> placeholder_pixel_shader_spirv;
+  std::string placeholder_pixel_shader_compile_error;
+  if (command_processor_.CompileGlslToSpirv(
+          VK_SHADER_STAGE_FRAGMENT_BIT, kPlaceholderPixelShaderSource,
+          placeholder_pixel_shader_spirv, placeholder_pixel_shader_compile_error)) {
+    placeholder_pixel_shader_ = ui::vulkan::util::CreateShaderModule(
+        vulkan_device, placeholder_pixel_shader_spirv.data(),
+        placeholder_pixel_shader_spirv.size() * sizeof(uint32_t));
+  } else {
+    REXGPU_WARN("VulkanPipelineCache: Failed to compile placeholder pixel shader: {}",
+                placeholder_pixel_shader_compile_error);
+  }
+  if (placeholder_pixel_shader_ == VK_NULL_HANDLE) {
+    REXGPU_WARN(
+        "VulkanPipelineCache: Failed to create placeholder pixel shader - "
+        "async placeholder hot-swap will be unavailable");
+  }
+
+  StartCreationThreads();
+
+  return true;
+}
+
+bool VulkanPipelineCache::CreateTranslatorAndInternalShaders() {
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
+
   bool edram_fragment_shader_interlock =
       render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
@@ -340,24 +370,10 @@ bool VulkanPipelineCache::Initialize() {
     }
   }
 
-  std::vector<uint32_t> placeholder_pixel_shader_spirv;
-  std::string placeholder_pixel_shader_compile_error;
-  if (command_processor_.CompileGlslToSpirv(
-          VK_SHADER_STAGE_FRAGMENT_BIT, kPlaceholderPixelShaderSource,
-          placeholder_pixel_shader_spirv, placeholder_pixel_shader_compile_error)) {
-    placeholder_pixel_shader_ = ui::vulkan::util::CreateShaderModule(
-        vulkan_device, placeholder_pixel_shader_spirv.data(),
-        placeholder_pixel_shader_spirv.size() * sizeof(uint32_t));
-  } else {
-    REXGPU_WARN("VulkanPipelineCache: Failed to compile placeholder pixel shader: {}",
-                placeholder_pixel_shader_compile_error);
-  }
-  if (placeholder_pixel_shader_ == VK_NULL_HANDLE) {
-    REXGPU_WARN(
-        "VulkanPipelineCache: Failed to create placeholder pixel shader - "
-        "async placeholder hot-swap will be unavailable");
-  }
+  return true;
+}
 
+void VulkanPipelineCache::StartCreationThreads() {
   uint32_t logical_processor_count = rex::thread::logical_processor_count();
   if (!logical_processor_count) {
     logical_processor_count = 6;
@@ -384,8 +400,6 @@ bool VulkanPipelineCache::Initialize() {
       creation_threads_.push_back(std::move(creation_thread));
     }
   }
-
-  return true;
 }
 
 void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_root,
@@ -791,7 +805,7 @@ void VulkanPipelineCache::EndSubmission() {
   ProcessDeferredPipelineDestructions(false);
 }
 
-void VulkanPipelineCache::Shutdown() {
+void VulkanPipelineCache::StopCreationThreads() {
   // Shut down creation threads before destroying any pipelines they may touch.
   if (!creation_threads_.empty()) {
     {
@@ -815,16 +829,15 @@ void VulkanPipelineCache::Shutdown() {
     creation_threads_shutdown_from_ = SIZE_MAX;
   }
   creation_completion_event_.reset();
+}
 
-  ShutdownShaderStorage();
-
+void VulkanPipelineCache::DestroyAllPipelines() {
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
   ProcessDeferredPipelineDestructions(true);
 
-  // Destroy all pipelines.
   last_pipeline_ = nullptr;
   for (const auto& pipeline_pair : pipelines_) {
     VkPipeline pipeline = pipeline_pair.second.pipeline.load(std::memory_order_acquire);
@@ -833,6 +846,63 @@ void VulkanPipelineCache::Shutdown() {
     }
   }
   pipelines_.clear();
+}
+
+void VulkanPipelineCache::DestroyDrawResolutionScaleDependentObjects() {
+  // The draw resolution scale is baked into the translated shaders (pixel
+  // position and resolved texture coordinate scaling, fragment shader interlock
+  // EDRAM addressing) and thus into the pipelines, and neither is keyed by the
+  // scale, so all of them are destroyed and recreated on demand.
+  StopCreationThreads();
+  DestroyAllPipelines();
+
+  // The guest shaders themselves (microcode, its analysis and the binding
+  // layouts, which don't depend on the scale) are kept, only their
+  // translations are destroyed.
+  std::vector<uint64_t> modifications;
+  for (const auto& shader_pair : shaders_) {
+    VulkanShader* shader = shader_pair.second;
+    modifications.clear();
+    for (const auto& translation_pair : shader->translations()) {
+      modifications.push_back(translation_pair.first);
+    }
+    for (uint64_t modification : modifications) {
+      shader->DestroyTranslation(modification);
+    }
+  }
+
+  // Internal shaders generated by the translator.
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                         depth_only_fragment_shader_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                         depth_float24_truncate_fragment_shader_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                         depth_float24_round_fragment_shader_);
+
+  shader_translator_.reset();
+}
+
+bool VulkanPipelineCache::CreateDrawResolutionScaleDependentObjects() {
+  if (!CreateTranslatorAndInternalShaders()) {
+    return false;
+  }
+  StartCreationThreads();
+  return true;
+}
+
+void VulkanPipelineCache::Shutdown() {
+  StopCreationThreads();
+
+  ShutdownShaderStorage();
+
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  DestroyAllPipelines();
 
   // Destroy all internal shaders.
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,

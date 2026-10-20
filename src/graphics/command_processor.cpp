@@ -10,6 +10,7 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
@@ -25,6 +26,7 @@
 #include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/graphics_system.h>
+#include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/sampler_info.h>
 #include <rex/graphics/xenos.h>
@@ -105,6 +107,22 @@ ReadbackResolveMode ParseReadbackResolveMode(std::string_view value) {
   return ReadbackResolveMode::kDisabled;
 }
 
+// The pending RequestDrawResolutionScale request, packed as
+// x | y << 8 | force_rebuild << 16 | kDrawResolutionScaleRequestValid, 0 if
+// none. Static rather than a member so the cvar change callbacks don't need to
+// reference the command processor (they may run on any thread at any time).
+constexpr uint32_t kDrawResolutionScaleRequestForceRebuild = UINT32_C(1) << 16;
+constexpr uint32_t kDrawResolutionScaleRequestValid = UINT32_C(1) << 17;
+std::atomic<uint32_t> pending_draw_resolution_scale_request{0};
+
+// Cvars that configure the draw resolution scale (combined by
+// TextureCache::GetConfigDrawResolutionScale).
+constexpr const char* kDrawResolutionScaleCvars[] = {
+    "draw_resolution_scale_x",
+    "draw_resolution_scale_y",
+    "resolution_scale",
+};
+
 }  // namespace
 
 CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
@@ -141,6 +159,18 @@ bool CommandProcessor::Initialize() {
     }
   }
 
+  // Let the draw resolution scale cvars be changed while running. The
+  // callbacks run on the thread changing the cvar while the cvar registry is
+  // locked (recursively, so reading the cvars is fine), thus they only record
+  // the request for the command processor thread.
+  for (const char* cvar_name : kDrawResolutionScaleCvars) {
+    rex::cvar::RegisterChangeCallback(cvar_name, [](std::string_view, std::string_view) {
+      uint32_t x, y;
+      TextureCache::GetConfigDrawResolutionScale(x, y);
+      RequestDrawResolutionScale(x, y);
+    });
+  }
+
   worker_running_ = true;
   worker_thread_ = system::object_ref<system::XHostThread>(
       new system::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
@@ -154,10 +184,50 @@ bool CommandProcessor::Initialize() {
 }
 
 void CommandProcessor::Shutdown() {
+  // The callbacks are code of the GPU plugin, which may be unloaded after the
+  // shutdown, while the cvar registry may outlive it. This removes all
+  // callbacks of these cvars, but they're defined by the GPU emulation.
+  for (const char* cvar_name : kDrawResolutionScaleCvars) {
+    rex::cvar::UnregisterChangeCallbacks(cvar_name);
+  }
+
   worker_running_ = false;
   write_ptr_index_event_->Set();
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_.reset();
+}
+
+void CommandProcessor::RequestDrawResolutionScale(uint32_t x, uint32_t y, bool force_rebuild) {
+  x = std::clamp(x, UINT32_C(1), TextureCache::kMaxDrawResolutionScaleAlongAxis);
+  y = std::clamp(y, UINT32_C(1), TextureCache::kMaxDrawResolutionScaleAlongAxis);
+  pending_draw_resolution_scale_request.store(
+      x | (y << 8) | (force_rebuild ? kDrawResolutionScaleRequestForceRebuild : 0) |
+          kDrawResolutionScaleRequestValid,
+      std::memory_order_release);
+}
+
+bool CommandProcessor::TakeDrawResolutionScaleRequest(uint32_t& x_out, uint32_t& y_out,
+                                                      bool& force_rebuild_out) {
+  uint32_t request = pending_draw_resolution_scale_request.load(std::memory_order_acquire);
+  if (request != draw_resolution_scale_request_seen_) {
+    // New (or no) request - wait until the end of the next frame to see if
+    // it's final.
+    draw_resolution_scale_request_seen_ = request;
+    return false;
+  }
+  if (!request) {
+    return false;
+  }
+  draw_resolution_scale_request_seen_ = 0;
+  if (!pending_draw_resolution_scale_request.compare_exchange_strong(
+          request, 0, std::memory_order_acq_rel, std::memory_order_acquire)) {
+    // Replaced by a newer request just now.
+    return false;
+  }
+  x_out = request & 0xFF;
+  y_out = (request >> 8) & 0xFF;
+  force_rebuild_out = (request & kDrawResolutionScaleRequestForceRebuild) != 0;
+  return true;
 }
 
 void CommandProcessor::InitializeShaderStorage(const std::filesystem::path& cache_root,

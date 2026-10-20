@@ -360,6 +360,18 @@ void RenderTargetCache::ShutdownCommon() {
   DestroyAllRenderTargets(true);
 }
 
+void RenderTargetCache::SetDrawResolutionScale(uint32_t draw_resolution_scale_x,
+                                               uint32_t draw_resolution_scale_y) {
+  assert_not_zero(draw_resolution_scale_x);
+  assert_not_zero(draw_resolution_scale_y);
+  assert_true(render_targets_.empty());
+  draw_resolution_scale_x_ = draw_resolution_scale_x;
+  draw_resolution_scale_y_ = draw_resolution_scale_y;
+  // The render targets the last draws were using have been destroyed with the
+  // old scale - don't keep pointers to them.
+  ResetAccumulatedRenderTargets();
+}
+
 void RenderTargetCache::ClearCache() {
   // Keep only render targets currently owning any EDRAM data.
   if (!render_targets_.empty()) {

@@ -70,6 +70,15 @@ class VulkanPipelineCache {
   void ShutdownShaderStorage();
   void EndSubmission();
 
+  // For changing the draw resolution scale at runtime, with the GPU idle and no
+  // pipeline in use. Destroy releases all pipelines, all shader translations
+  // and the translator, which have the scale baked in. Create, called once the
+  // render target cache has been reinitialized with the new scale, recreates
+  // the translator for its scale - translations and pipelines are then
+  // recreated on demand.
+  void DestroyDrawResolutionScaleDependentObjects();
+  bool CreateDrawResolutionScaleDependentObjects();
+
   VulkanShader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
                            uint32_t dword_count);
   // Analyze shader microcode on the translator thread.
@@ -360,6 +369,13 @@ class VulkanPipelineCache {
       const PipelineDescription& description,
       std::pair<const PipelineDescription, Pipeline>* pipeline,
       PipelineCreationArguments& creation_arguments, bool for_placeholder = false);
+
+  // Creates the shader translator for the render target cache's draw
+  // resolution scale and the internal shaders it generates.
+  bool CreateTranslatorAndInternalShaders();
+  void StartCreationThreads();
+  void StopCreationThreads();
+  void DestroyAllPipelines();
 
   // Can be called from creation threads - all needed data must be fully set up
   // at the point of the call: shaders must be translated, and the pipeline

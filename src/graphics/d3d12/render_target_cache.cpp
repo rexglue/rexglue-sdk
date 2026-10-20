@@ -170,11 +170,13 @@ D3D12RenderTargetCache::~D3D12RenderTargetCache() {
   Shutdown(true);
 }
 
-bool D3D12RenderTargetCache::Initialize() {
+bool D3D12RenderTargetCache::Initialize(std::optional<Path> required_path) {
   const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
 
-  if (REXCVAR_GET(render_target_path_d3d12) == "rtv") {
+  if (required_path) {
+    path_ = *required_path;
+  } else if (REXCVAR_GET(render_target_path_d3d12) == "rtv") {
     path_ = Path::kHostRenderTargets;
   } else if (REXCVAR_GET(render_target_path_d3d12) == "rov") {
     path_ = Path::kPixelShaderInterlock;

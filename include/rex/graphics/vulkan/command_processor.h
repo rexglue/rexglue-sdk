@@ -427,6 +427,15 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool CanEndSubmissionImmediately() const;
 
   void ClearTransientDescriptorPools();
+  // At the end of a frame, applies a pending RequestDrawResolutionScale
+  // request, recreating everything that depends on the draw resolution scale.
+  void ApplyDrawResolutionScaleRequest();
+  // Creates the texture cache and initializes the render target cache
+  // (previously shut down) for the draw resolution scale, cleaning up if
+  // failed.
+  bool CreateDrawResolutionScaleDependentCaches(uint32_t draw_resolution_scale_x,
+                                                uint32_t draw_resolution_scale_y,
+                                                RenderTargetCache::Path render_target_path);
   bool IssueCopy_ReadbackResolvePath();
   bool IssueDraw_MemexportReadbackFullPath(uint32_t total_size);
   bool IssueDraw_MemexportReadbackFastPath(uint32_t total_size);
@@ -611,6 +620,9 @@ class VulkanCommandProcessor : public CommandProcessor {
       texture_transient_descriptor_sets_free_;
 
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
+  // Number of the bindings the shared memory is split into, for the render
+  // target cache (also when reinitializing it for a different scale).
+  uint32_t shared_memory_binding_count_ = 0;
 
   std::unique_ptr<VulkanPrimitiveProcessor> primitive_processor_;
 

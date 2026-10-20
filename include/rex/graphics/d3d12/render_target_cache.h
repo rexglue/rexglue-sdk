@@ -18,6 +18,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -48,7 +49,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
         bindless_resources_used_(bindless_resources_used) {}
   ~D3D12RenderTargetCache() override;
 
-  bool Initialize();
+  // The path is chosen from the configuration unless required_path is
+  // specified - when reinitializing for a different draw resolution scale, the
+  // path must stay the same as other subsystems depend on it, even if the cvar
+  // choosing it has been changed since startup.
+  bool Initialize(std::optional<Path> required_path = std::nullopt);
   void Shutdown(bool from_destructor = false);
 
   void CompletedSubmissionUpdated();

@@ -909,6 +909,7 @@ bool VulkanCommandProcessor::SetupContext() {
       SpirvShaderTranslator::GetSharedMemoryStorageBufferCountLog2(
           device_properties.maxStorageBufferRange);
   uint32_t shared_memory_binding_count = UINT32_C(1) << shared_memory_binding_count_log2;
+  shared_memory_binding_count_ = shared_memory_binding_count;
 
   uint32_t draw_resolution_scale_x, draw_resolution_scale_y;
   bool draw_resolution_scale_not_clamped =
@@ -5540,8 +5541,146 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
       shared_memory_->ClearCache();
     }
+
+    // Between frames, with the submission closed: nothing recorded refers to
+    // the objects that may be recreated for a different scale.
+    ApplyDrawResolutionScaleRequest();
   }
 
+  return true;
+}
+
+void VulkanCommandProcessor::ApplyDrawResolutionScaleRequest() {
+  uint32_t requested_scale_x, requested_scale_y;
+  bool force_rebuild;
+  if (!TakeDrawResolutionScaleRequest(requested_scale_x, requested_scale_y, force_rebuild)) {
+    return;
+  }
+  uint32_t old_scale_x = texture_cache_->draw_resolution_scale_x();
+  uint32_t old_scale_y = texture_cache_->draw_resolution_scale_y();
+  if (!force_rebuild && requested_scale_x == old_scale_x && requested_scale_y == old_scale_y) {
+    return;
+  }
+  // The objects being destroyed may still be used by the GPU.
+  if (!AwaitAllQueueOperationsCompletion()) {
+    if (!device_lost_) {
+      // Retry at the end of one of the next frames.
+      RequestDrawResolutionScale(requested_scale_x, requested_scale_y, force_rebuild);
+    }
+    return;
+  }
+  // Nothing must have been queued after the submission.
+  assert_true(sparse_memory_binds_.empty());
+  assert_true(command_buffers_submitted_.empty());
+
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  // The pipeline layouts and the shared memory and EDRAM descriptor set layout
+  // depend on the render target path, so it must stay the same.
+  RenderTargetCache::Path render_target_path = render_target_cache_->GetPath();
+
+  // Destroy everything that has the old scale baked in before creating
+  // anything for the new one, not to need memory for both at once (without
+  // sparse binding, the scaled resolve buffer is 512 MB per unit of the scale
+  // area, 2 GB at 2x).
+  pipeline_cache_->DestroyDrawResolutionScaleDependentObjects();
+  texture_cache_->InvalidateScaledResolveRangesInSharedMemory();
+  texture_cache_.reset();
+  render_target_cache_->Shutdown();
+
+  // Recreate for the new scale, or for 1x if not enough memory for it, for
+  // instance.
+  uint32_t new_scale_x = requested_scale_x;
+  uint32_t new_scale_y = requested_scale_y;
+  bool caches_created =
+      CreateDrawResolutionScaleDependentCaches(new_scale_x, new_scale_y, render_target_path);
+  if (!caches_created && (new_scale_x > 1 || new_scale_y > 1)) {
+    new_scale_x = 1;
+    new_scale_y = 1;
+    caches_created =
+        CreateDrawResolutionScaleDependentCaches(new_scale_x, new_scale_y, render_target_path);
+  }
+  if (!caches_created || !pipeline_cache_->CreateDrawResolutionScaleDependentObjects()) {
+    // Not able to continue - this has also succeeded at startup, though.
+    rex::FatalError("Failed to recreate the GPU emulation state for a draw resolution scale");
+  }
+
+  // The descriptor set for the fragment shader interlock path references the
+  // EDRAM buffer, which has been recreated.
+  if (render_target_path == RenderTargetCache::Path::kPixelShaderInterlock) {
+    VkDescriptorBufferInfo edram_descriptor_buffer_info;
+    edram_descriptor_buffer_info.buffer = render_target_cache_->edram_buffer();
+    edram_descriptor_buffer_info.offset = 0;
+    edram_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+    VkWriteDescriptorSet write_descriptor_set_edram;
+    write_descriptor_set_edram.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set_edram.pNext = nullptr;
+    write_descriptor_set_edram.dstSet = shared_memory_and_edram_descriptor_set_;
+    write_descriptor_set_edram.dstBinding = 1;
+    write_descriptor_set_edram.dstArrayElement = 0;
+    write_descriptor_set_edram.descriptorCount = 1;
+    write_descriptor_set_edram.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_descriptor_set_edram.pImageInfo = nullptr;
+    write_descriptor_set_edram.pBufferInfo = &edram_descriptor_buffer_info;
+    write_descriptor_set_edram.pTexelBufferView = nullptr;
+    dfn.vkUpdateDescriptorSets(device, 1, &write_descriptor_set_edram, 0, nullptr);
+  }
+
+  // Drop the state referring to the destroyed objects (most of the rest is
+  // reset when the next submission and frame begin).
+  current_samplers_vertex_.clear();
+  current_samplers_pixel_.clear();
+  current_render_pass_ = VK_NULL_HANDLE;
+  current_framebuffer_ = nullptr;
+  current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
+  current_guest_graphics_pipeline_layout_ = nullptr;
+  // Ranges written by scaled resolves have been invalidated in the shared
+  // memory, request vertex buffers again.
+  InvalidateAllVertexBufferResidency();
+  // Only used for downscaling scaled resolves for readback, recreated when
+  // needed. The resolve readback buffers themselves contain unscaled data, and
+  // are kept.
+  if (new_scale_x <= 1 && new_scale_y <= 1) {
+    resolve_downscale_buffer_size_ = 0;
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, resolve_downscale_buffer_);
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                           resolve_downscale_buffer_memory_);
+  }
+
+  if (new_scale_x != requested_scale_x || new_scale_y != requested_scale_y) {
+    REXGPU_WARN(
+        "GPU: draw resolution scale changed to {}x{} - failed to set up {}x{} (not enough GPU "
+        "memory?)",
+        new_scale_x, new_scale_y, requested_scale_x, requested_scale_y);
+  } else {
+    REXGPU_INFO("GPU: draw resolution scale changed to {}x{}", new_scale_x, new_scale_y);
+  }
+}
+
+bool VulkanCommandProcessor::CreateDrawResolutionScaleDependentCaches(
+    uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
+    RenderTargetCache::Path render_target_path) {
+  // The texture cache first, as its scaled resolve buffer is the largest
+  // allocation.
+  texture_cache_ =
+      VulkanTextureCache::Create(*register_file_, *shared_memory_, draw_resolution_scale_x,
+                                 draw_resolution_scale_y, *this, guest_shader_pipeline_stages_);
+  if (!texture_cache_) {
+    REXGPU_WARN("Failed to create the texture cache for {}x{} draw resolution scale",
+                draw_resolution_scale_x, draw_resolution_scale_y);
+    return false;
+  }
+  render_target_cache_->SetDrawResolutionScale(draw_resolution_scale_x, draw_resolution_scale_y);
+  if (!render_target_cache_->Initialize(shared_memory_binding_count_, render_target_path) ||
+      render_target_cache_->GetPath() != render_target_path) {
+    REXGPU_WARN("Failed to initialize the render target cache for {}x{} draw resolution scale",
+                draw_resolution_scale_x, draw_resolution_scale_y);
+    render_target_cache_->Shutdown();
+    texture_cache_.reset();
+    return false;
+  }
   return true;
 }
 

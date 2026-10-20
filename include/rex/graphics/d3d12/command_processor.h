@@ -342,6 +342,18 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Need to await submission completion before calling.
   void ClearCommandAllocatorCache();
 
+  // At the end of a frame, applies a pending RequestDrawResolutionScale
+  // request, recreating everything that depends on the draw resolution scale.
+  void ApplyDrawResolutionScaleRequest();
+  // Creates the texture cache and initializes the render target cache
+  // (previously shut down) for the draw resolution scale, cleaning up if
+  // failed.
+  bool CreateDrawResolutionScaleDependentCaches(uint32_t draw_resolution_scale_x,
+                                                uint32_t draw_resolution_scale_y,
+                                                RenderTargetCache::Path render_target_path);
+  // Writes the bindless descriptors of the render target cache's EDRAM buffer.
+  void WriteEdramBindlessDescriptors();
+
   // Request descriptors and automatically rebind the descriptor heap on the
   // draw command list. Refer to D3D12DescriptorHeapPool::Request for partial /
   // full update explanation. Doesn't work when bindless descriptors are used.
