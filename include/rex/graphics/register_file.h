@@ -36,6 +36,10 @@ class RegisterFile {
   RegisterFile();
 
   static const RegisterInfo* GetRegisterInfo(uint32_t index);
+  // Whether `index` is a register the table knows: the same answer as
+  // GetRegisterInfo(index) != nullptr, from a bit per register instead of a
+  // search, for the command processor's check at every register write.
+  static bool IsKnownRegister(uint32_t index);
 
   static constexpr size_t kRegisterCount = 0x5003;
   uint32_t values[kRegisterCount];
