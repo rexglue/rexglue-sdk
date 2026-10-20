@@ -9,8 +9,10 @@
  * @modified    Tom Clay & Rien Gupta, 2026 - Adapted for ReXGlue runtime (POSIX + macOS)
  */
 
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -25,6 +27,7 @@
 #include <mach/vm_region.h>
 #endif  // REX_PLATFORM_MAC
 
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -170,8 +173,113 @@ static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
   return out.start < out.end;
 }
 
+// Asking the kernel which mapping holds an address, instead of reading
+// /proc/self/maps as text. The GPU write watches split guest memory into
+// thousands of mappings, so the text is long, and the write-watch fault
+// handler (system/mmio_handler.cpp) asks on every watch fault while holding
+// the global lock: reading the text there kept the GPU emulation thread
+// waiting for that lock a third of the time. The PROCMAP_QUERY ioctl on
+// /proc/self/maps (Linux 6.11 and newer) answers one address directly; on
+// older kernels the text is read as before.
+//
+// The layout of struct procmap_query in <linux/fs.h>, which older kernel
+// headers don't have.
+struct ProcMapQuery {
+  uint64_t size;
+  uint64_t query_flags;
+  uint64_t query_addr;
+  uint64_t vma_start;
+  uint64_t vma_end;
+  uint64_t vma_flags;
+  uint64_t vma_page_size;
+  uint64_t vma_offset;
+  uint64_t inode;
+  uint32_t dev_major;
+  uint32_t dev_minor;
+  uint32_t vma_name_size;
+  uint32_t build_id_size;
+  uint64_t vma_name_addr;
+  uint64_t build_id_addr;
+};
+static_assert(sizeof(ProcMapQuery) == 104, "must match the kernel's struct procmap_query");
+constexpr unsigned long kProcMapQuery = _IOWR('f', 17, ProcMapQuery);
+constexpr uint64_t kProcMapReadable = 0x01;
+constexpr uint64_t kProcMapWritable = 0x02;
+constexpr uint64_t kProcMapExecutable = 0x04;
+constexpr uint64_t kProcMapShared = 0x08;
+
+// /proc/self/maps opened for queries: kNotTried, kCannotAsk, or the file.
+constexpr int kNotTried = -1;
+constexpr int kCannotAsk = -2;
+std::atomic<int> maps_query_file{kNotTried};
+
+// The file to ask, or -1 when this kernel can't answer. Opens it the first
+// time and checks the kernel understands the question. Uses only calls that
+// are safe in a signal handler (the fault handler calls it).
+int MapsQueryFile() {
+  int file = maps_query_file.load(std::memory_order_acquire);
+  if (file >= 0) {
+    return file;
+  }
+  if (file == kCannotAsk) {
+    return -1;
+  }
+  int opened = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
+  int result = kCannotAsk;
+  if (opened >= 0) {
+    ProcMapQuery query = {};
+    query.size = sizeof(query);
+    query.query_addr = reinterpret_cast<uintptr_t>(&maps_query_file);  // surely mapped
+    if (ioctl(opened, kProcMapQuery, &query) == 0) {
+      result = opened;
+    } else {
+      close(opened);
+    }
+  }
+  int expected = kNotTried;
+  if (!maps_query_file.compare_exchange_strong(expected, result, std::memory_order_acq_rel)) {
+    // Another thread decided first; use its answer.
+    if (result >= 0) {
+      close(result);
+    }
+    return expected >= 0 ? expected : -1;
+  }
+  return result >= 0 ? result : -1;
+}
+
+// Asks the kernel for the mapping that holds `address`: 1 found, 0 no mapping
+// holds it, -1 this kernel can't answer (read the text instead). Keeps errno.
+int AskForEntry(void* address, LinuxMapEntry& out_entry) {
+  const int saved_errno = errno;
+  int found = -1;
+  const int file = MapsQueryFile();
+  if (file >= 0) {
+    ProcMapQuery query = {};
+    query.size = sizeof(query);
+    query.query_addr = reinterpret_cast<uintptr_t>(address);
+    if (ioctl(file, kProcMapQuery, &query) == 0) {
+      out_entry = LinuxMapEntry{};
+      out_entry.start = static_cast<uintptr_t>(query.vma_start);
+      out_entry.end = static_cast<uintptr_t>(query.vma_end);
+      out_entry.perms[0] = (query.vma_flags & kProcMapReadable) ? 'r' : '-';
+      out_entry.perms[1] = (query.vma_flags & kProcMapWritable) ? 'w' : '-';
+      out_entry.perms[2] = (query.vma_flags & kProcMapExecutable) ? 'x' : '-';
+      out_entry.perms[3] = (query.vma_flags & kProcMapShared) ? 's' : 'p';
+      found = 1;
+    } else if (errno == ENOENT) {
+      found = 0;
+    }
+  }
+  errno = saved_errno;
+  return found;
+}
+
 // Find the mapping entry in /proc/self/maps that contains the given address
 static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
+  const int asked = AskForEntry(address, out_entry);
+  if (asked >= 0) {
+    return asked == 1;
+  }
   const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
   std::ifstream maps("/proc/self/maps");
   if (!maps.is_open())
@@ -198,6 +306,22 @@ static bool IsRangeFullyMapped(void* base_address, size_t length) {
   const uintptr_t end = begin + length;
   if (end < begin) {  // overflow check
     return false;
+  }
+
+  // msync with MS_ASYNC alone writes nothing back; it fails with ENOMEM when
+  // part of the range isn't mapped, which is the question. EINVAL (a base not
+  // on a page boundary) falls through to reading the text.
+  {
+    const int saved_errno = errno;
+    const int synced = msync(base_address, length, MS_ASYNC);
+    const int sync_error = errno;
+    errno = saved_errno;
+    if (synced == 0) {
+      return true;
+    }
+    if (sync_error == ENOMEM) {
+      return false;
+    }
   }
 
   std::ifstream maps("/proc/self/maps");
