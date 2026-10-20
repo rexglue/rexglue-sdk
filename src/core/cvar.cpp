@@ -535,13 +535,41 @@ std::vector<std::string> ListModifiedFlags() {
   return result;
 }
 
+// A TOML basic string: quotes, backslashes and control characters escaped,
+// so a value (a Windows path, text typed in a setting) can't break the file
+// or add lines of its own to it.
+static std::string TomlString(std::string_view value) {
+  std::string out = "\"";
+  for (char c : value) {
+    switch (c) {
+      case '"':
+        out += "\\\"";
+        break;
+      case '\\':
+        out += "\\\\";
+        break;
+      default:
+        if (static_cast<unsigned char>(c) < 0x20 || c == 0x7F) {
+          constexpr char kHex[] = "0123456789ABCDEF";
+          const auto u = static_cast<unsigned char>(c);
+          out += "\\u00";
+          out += kHex[u >> 4];
+          out += kHex[u & 0xF];
+        } else {
+          out += c;
+        }
+    }
+  }
+  return out + "\"";
+}
+
 std::string SerializeToTOML() {
   std::lock_guard lock(GetRegistryMutex());
   std::string result;
   for (const auto& entry : GetRegistryStorage()) {
     if (entry.getter() != entry.default_value) {
       if (entry.type == FlagType::String) {
-        result += entry.name + " = \"" + entry.getter() + "\"\n";
+        result += entry.name + " = " + TomlString(entry.getter()) + "\n";
       } else {
         result += entry.name + " = " + entry.getter() + "\n";
       }
@@ -556,7 +584,7 @@ std::string SerializeToTOML(std::string_view category) {
   for (const auto& entry : GetRegistryStorage()) {
     if (entry.category == category && entry.getter() != entry.default_value) {
       if (entry.type == FlagType::String) {
-        result += entry.name + " = \"" + entry.getter() + "\"\n";
+        result += entry.name + " = " + TomlString(entry.getter()) + "\n";
       } else {
         result += entry.name + " = " + entry.getter() + "\n";
       }

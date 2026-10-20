@@ -19,6 +19,7 @@
 #include <rex/filesystem.h>
 #include <rex/filesystem/devices/host_path_device.h>
 #include <rex/filesystem/devices/stfs_container_device.h>
+#include <rex/filesystem/guest_name.h>
 #include <rex/string.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xam/content_device.h>
@@ -111,7 +112,8 @@ std::filesystem::path ContentManager::ResolvePackagePath(uint64_t xuid,
   // Content path:
   // content_root/xuid/title_id/content_type/data_file_name/
   auto package_root = ResolvePackageRoot(used_xuid, data.content_type, data.title_id);
-  return package_root / rex::to_path(data.file_name());
+  // The guest's name is one folder inside the package root.
+  return package_root / rex::to_path(rex::filesystem::PlainGuestName(data.file_name()));
 }
 
 std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string_view file_name,
@@ -128,7 +130,7 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
   auto xuid_str = fmt::format("{:016X}", xuid);
   auto title_id_str = fmt::format("{:08X}", title_id);
   auto content_type_str = fmt::format("{:08X}", uint32_t(content_type));
-  std::string final_name = std::string(file_name) + ".header";
+  std::string final_name = rex::filesystem::PlainGuestName(file_name) + ".header";
 
   // Header root path:
   // content_root/xuid/title_id/Headers/content_type/filename.header
@@ -520,6 +522,13 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
 
 static X_RESULT ExtractEntry(rex::filesystem::Entry* entry,
                              const std::filesystem::path& base_path) {
+  // A package's own paths stay inside the folder it is installed to.
+  const std::string entry_path(entry->path());
+  for (std::string_view part : rex::string::utf8_split_path(entry_path)) {
+    if (!rex::filesystem::IsPlainGuestName(part)) {
+      return X_ERROR_ACCESS_DENIED;
+    }
+  }
   auto dest_path = base_path / rex::to_path(rex::string::utf8_fix_path_separators(entry->path()));
 
   if (entry->attributes() & rex::filesystem::kFileAttributeDirectory) {

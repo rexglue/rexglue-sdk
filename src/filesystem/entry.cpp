@@ -14,6 +14,7 @@
 #include <rex/filesystem.h>
 #include <rex/filesystem/device.h>
 #include <rex/filesystem/entry.h>
+#include <rex/filesystem/guest_name.h>
 #include <rex/string.h>
 
 namespace rex::filesystem {
@@ -142,6 +143,20 @@ X_STATUS Entry::Rename(const std::filesystem::path& file_path) {
   if (!path_parts.empty()) {
     // Drop root path (for example, "game:").
     path_parts.erase(path_parts.begin());
+  }
+  // A read-only device (the game's own files) keeps its names.
+  if (is_read_only()) {
+    return X_STATUS_ACCESS_DENIED;
+  }
+  // The new name stays on this device: no "..", drive or other part that
+  // could lead the host path out of its folder.
+  if (path_parts.empty()) {
+    return X_STATUS_OBJECT_NAME_INVALID;
+  }
+  for (std::string_view part : path_parts) {
+    if (!IsPlainGuestName(part)) {
+      return X_STATUS_OBJECT_NAME_INVALID;
+    }
   }
 
   X_STATUS status = RenameEntryInternal(path_parts);

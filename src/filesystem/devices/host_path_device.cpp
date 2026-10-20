@@ -15,6 +15,7 @@
 
 #include <rex/filesystem.h>
 #include <rex/filesystem/devices/host_path_device.h>
+#include <rex/filesystem/guest_name.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/string/utf8.h>
@@ -75,6 +76,11 @@ Entry* HostPathDevice::ResolvePath(const std::string_view path) {
 
     auto* child = current_entry->GetChild(part);
     if (!child) {
+      // Only a plain name is looked up on the host: a part like "D:" would
+      // name another drive's folder on Windows, outside this device.
+      if (!IsPlainGuestName(part)) {
+        return nullptr;
+      }
       // Stat the exact name first: enumerating a directory of hundreds of
       // archives costs milliseconds a walk. Only casing mismatch reaches
       // the scan below.

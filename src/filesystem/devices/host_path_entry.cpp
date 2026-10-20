@@ -15,6 +15,7 @@
 #include <rex/filesystem.h>
 #include <rex/filesystem/device.h>
 #include <rex/filesystem/devices/host_path_device.h>
+#include <rex/filesystem/guest_name.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/mapped_memory.h>
@@ -87,6 +88,12 @@ bool HostPathEntry::Truncate() {
 
 std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(const std::string_view name,
                                                           uint32_t attributes) {
+  // The guest's name is one part of the host path, inside this folder.
+  if (!IsPlainGuestName(name)) {
+    REXFS_WARN("Refused to create '{}' in {}: not a plain file name", name,
+               rex::path_to_utf8(host_path_));
+    return nullptr;
+  }
   auto full_path = host_path_ / rex::to_path(name);
   if (attributes & kFileAttributeDirectory) {
     if (!std::filesystem::create_directories(full_path)) {
