@@ -88,11 +88,32 @@ REXCVAR_DEFINE_BOOL(async_shader_compilation, true, "GPU",
                     "pipelines are being prepared.")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_INT32(gpu_idle_spin_count, -1, "GPU",
+                     "How many times the GPU command thread looks for new commands, yielding "
+                     "its CPU core in between, before it sleeps until the game sends more. "
+                     "-1 = auto: 501 with 6 or more logical CPUs, 0 (sleep at once) with fewer")
+    .range(-1, 100000)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 namespace rex::graphics {
 
 using namespace rex::graphics::xenos;
 
 namespace {
+
+// How many times the idle GPU command thread checks for new commands before
+// it sleeps. Spinning sees them a little sooner, but only pays off with CPU
+// cores to spare. On a 2-4 core PC the game's main thread, its render job and
+// this thread already want every core: the spinning steals time from them, and
+// a yield can leave this thread waiting for another thread's time slice to
+// end, while a sleeping thread is normally run as soon as its event is set.
+uint32_t GetIdleSpinLimit() {
+  const int32_t setting = REXCVAR_GET(gpu_idle_spin_count);
+  if (setting >= 0) {
+    return uint32_t(setting);
+  }
+  return rex::thread::logical_processor_count() >= 6 ? 501 : 0;  // 501: the old fixed count
+}
 
 ReadbackResolveMode ParseReadbackResolveMode(std::string_view value) {
   if (value == "fast") {
@@ -293,10 +314,11 @@ void CommandProcessor::WorkerThreadMain() {
       // We spin here waiting for new ones, as the overhead of waiting on our
       // event is too high.
       PrepareForWait();
+      const uint32_t spin_limit = GetIdleSpinLimit();
       uint32_t loop_count = 0;
       do {
         // If we spin around too much, revert to a "low-power" state.
-        if (loop_count > 500) {
+        if (loop_count >= spin_limit) {
           const int wait_time_ms = 5;
           rex::thread::Wait(write_ptr_index_event_.get(), true,
                             std::chrono::milliseconds(wait_time_ms));
