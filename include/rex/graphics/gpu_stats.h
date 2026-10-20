@@ -19,9 +19,9 @@
 #include <cstdint>
 
 // 2: kGpuThreadMicros, kSubmitMicros, kShaderTranslations,
-// kShaderTranslateMicros and ScopedMicros. A game built against either
-// version can test this to know which counters exist.
-#define REX_GRAPHICS_STATS_VERSION 2
+// kShaderTranslateMicros and ScopedMicros. 3: kPresents. A game built against
+// any version can test this to know which counters exist.
+#define REX_GRAPHICS_STATS_VERSION 3
 
 namespace rex::graphics::stats {
 
@@ -50,6 +50,11 @@ enum class Counter : uint32_t {
                          //   host command buffer and submitting it
   kShaderTranslations,   // guest shaders translated while a draw waited for them
   kShaderTranslateMicros,//   time spent (the draw, and the frame, wait)
+  // Pictures the window presented: the game's frames plus repaints for the
+  // UI alone (an open settings window, an animation). Well above the game's
+  // frame rate means the window repaints on its own, which costs a CPU core
+  // and graphics card time.
+  kPresents,
   kCount
 };
 

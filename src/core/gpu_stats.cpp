@@ -55,6 +55,7 @@ const char* Name(Counter counter) {
     case Counter::kSubmitMicros: return "submit_us";
     case Counter::kShaderTranslations: return "shader_translations";
     case Counter::kShaderTranslateMicros: return "shader_translate_us";
+    case Counter::kPresents: return "presents";
     case Counter::kCount: break;
   }
   return "?";

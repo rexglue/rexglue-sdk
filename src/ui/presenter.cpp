@@ -18,6 +18,7 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
 #include <rex/ui/present_mode.h>
@@ -1521,6 +1522,9 @@ Presenter::PaintResult Presenter::PaintAndPresent(bool execute_ui_drawers) {
   assert_false(execute_ui_drawers && !is_in_ui_thread_paint_);
   assert_true(surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedPaintable);
   PaintResult result = PaintAndPresentImpl(execute_ui_drawers);
+  if (result == PaintResult::kPresented || result == PaintResult::kPresentedSuboptimal) {
+    graphics::stats::Add(graphics::stats::Counter::kPresents);
+  }
   switch (result) {
     case PaintResult::kPresented:
       surface_paint_connection_was_optimal_at_successful_paint_ = true;
