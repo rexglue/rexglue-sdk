@@ -266,18 +266,28 @@ extern PPCFuncMapping PPCFuncMappings[];
 // Setjmp/Longjmp
 //=============================================================================
 
-inline std::unordered_map<u32, jmp_buf>& get_jmp_buf_map() {
-  static thread_local std::unordered_map<u32, jmp_buf> map;
+// A host jmp_buf in a 16-byte aligned slot. On x64 Windows the C runtime's
+// setjmp and longjmp save and load xmm6-xmm15 with aligned SSE moves, so the
+// buffer must be 16-byte aligned. jmp_buf's own 16-byte alignment is an
+// attribute of the typedef, which is lost when it is a template argument:
+// in a std::unordered_map<u32, jmp_buf> node it sat 8 bytes off, and the first
+// setjmp crashed the process (CoD3: the first script thread of a level).
+struct alignas(16) ppc_jmp_buf_slot {
+  jmp_buf buf;
+};
+
+inline std::unordered_map<u32, ppc_jmp_buf_slot>& get_jmp_buf_map() {
+  static thread_local std::unordered_map<u32, ppc_jmp_buf_slot> map;
   return map;
 }
 
-#define ppc_setjmp(guest_buf_addr) (setjmp(::get_jmp_buf_map()[(guest_buf_addr)]))
+#define ppc_setjmp(guest_buf_addr) (setjmp(::get_jmp_buf_map()[(guest_buf_addr)].buf))
 
 [[noreturn]] inline void ppc_longjmp(u32 guest_buf_addr, int val) {
   auto& map = get_jmp_buf_map();
   auto it = map.find(guest_buf_addr);
   if (it != map.end()) {
-    longjmp(it->second, val);
+    longjmp(it->second.buf, val);
   }
   std::abort();
 }
