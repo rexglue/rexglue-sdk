@@ -20,6 +20,7 @@
 #include <CLI/CLI.hpp>
 
 #include <rex/cvar.h>
+#include <rex/cvar_file.h>
 #include <rex/logging.h>
 #include <rex/platform/env.h>
 
@@ -67,6 +68,35 @@ std::unordered_map<std::string, PendingValues>& GetPendingValuesStorage() {
   return pending;
 }
 
+// The settings file's own lines (name -> value as the file has it), from the
+// last LoadConfig or SaveConfig. A value from the command line or the
+// environment is a one-off for that run, so the save writes the file's value
+// for that flag instead; lines for names nobody registered in this run (a
+// plugin not loaded, another program's settings) are written back as they
+// were instead of being dropped.
+struct ConfigLine {
+  std::string value;
+  bool is_string = false;  // a TOML string (quoted) in the file
+};
+
+std::unordered_map<std::string, ConfigLine>& GetConfigLinesStorage() {
+  static std::unordered_map<std::string, ConfigLine> lines;
+  return lines;
+}
+
+// The value each flag got from the command line or the environment (in the
+// flag's own form). While the flag still has it, the save writes the file's
+// line instead; a different value means the app changed it since (also
+// through REXCVAR_SET, which leaves the source as it was), and that is saved.
+std::unordered_map<std::string, std::string>& GetOneOffValuesStorage() {
+  static std::unordered_map<std::string, std::string> values;
+  return values;
+}
+
+bool IsOneOffSource(Source source) {
+  return source == Source::kCommandLine || source == Source::kEnvironment;
+}
+
 // Convert flag name to environment variable: gpu_vsync -> REX_GPU_VSYNC
 std::string FlagNameToEnvVar(std::string_view name) {
   std::string result = "REX_";
@@ -90,6 +120,9 @@ bool ApplyFromSource(FlagEntry& entry, std::string_view value, Source source) {
     return false;
   }
   entry.source = source;
+  if (IsOneOffSource(source)) {
+    GetOneOffValuesStorage()[entry.name] = entry.getter();
+  }
   return true;
 }
 
@@ -113,6 +146,11 @@ void ApplyTomlTable(const toml::table& table, const std::string& prefix) {
       } else {
         REXLOG_WARN("Config: unsupported type for key '{}'", full_key);
         continue;
+      }
+
+      {
+        std::lock_guard lock(GetRegistryMutex());
+        GetConfigLinesStorage()[full_key] = ConfigLine{value_str, value.is_string()};
       }
 
       if (GetFlagInfo(full_key) == nullptr) {
@@ -321,6 +359,9 @@ ApplyResult SetFlagFromSource(std::string_view name, std::string_view value, Sou
     return ApplyResult::kRejected;
   }
   entry.source = source;
+  if (IsOneOffSource(source)) {
+    GetOneOffValuesStorage()[entry.name] = entry.getter();
+  }
 
   if (entry.lifecycle == Lifecycle::kRequiresRestart) {
     MarkPendingRestart(name);
@@ -563,34 +604,114 @@ static std::string TomlString(std::string_view value) {
   return out + "\"";
 }
 
-std::string SerializeToTOML() {
-  std::lock_guard lock(GetRegistryMutex());
+namespace {
+
+// The settings file's lines: each registered flag that differs from its
+// default (a command-line or environment value replaced by the file's own,
+// see GetConfigLinesStorage), then, for the whole file only, the file's lines
+// for names nobody registered. `written` receives what was serialized.
+// Called with the registry lock held.
+std::string SerializeLines(const std::string_view* category,
+                           std::unordered_map<std::string, ConfigLine>* written) {
+  const auto& lines = GetConfigLinesStorage();
   std::string result;
+  auto add = [&](const std::string& name, const std::string& value, bool is_string) {
+    result += name + " = " + (is_string ? TomlString(value) : value) + "\n";
+    if (written) {
+      (*written)[name] = ConfigLine{value, is_string};
+    }
+  };
   for (const auto& entry : GetRegistryStorage()) {
-    if (entry.getter() != entry.default_value) {
-      if (entry.type == FlagType::String) {
-        result += entry.name + " = " + TomlString(entry.getter()) + "\n";
-      } else {
-        result += entry.name + " = " + entry.getter() + "\n";
+    if (category && entry.category != *category) {
+      continue;
+    }
+    const bool is_string = entry.type == FlagType::String;
+    std::string value = entry.getter();
+    if (IsOneOffSource(entry.source)) {
+      auto one_off = GetOneOffValuesStorage().find(entry.name);
+      if (one_off == GetOneOffValuesStorage().end() || one_off->second == value) {
+        // Still the run's one-off value (a launcher's flag, a test switch):
+        // the file keeps what it had.
+        auto it = lines.find(entry.name);
+        if (it != lines.end() && it->second.value != entry.default_value) {
+          add(entry.name, it->second.value, is_string);
+        }
+        continue;
       }
+      // Changed in the app since: saved like any change.
+    }
+    if (value != entry.default_value) {
+      add(entry.name, value, is_string);
+    }
+  }
+  if (!category) {
+    std::vector<std::pair<std::string, ConfigLine>> unknown;
+    for (const auto& [name, line] : lines) {
+      if (GetRegistryIndex().find(name) == GetRegistryIndex().end()) {
+        unknown.emplace_back(name, line);
+      }
+    }
+    std::sort(unknown.begin(), unknown.end(),
+              [](const auto& x, const auto& y) { return x.first < y.first; });
+    for (const auto& [name, line] : unknown) {
+      add(name, line.value, line.is_string);
     }
   }
   return result;
 }
 
+}  // namespace
+
+std::string SerializeToTOML() {
+  std::lock_guard lock(GetRegistryMutex());
+  return SerializeLines(nullptr, nullptr);
+}
+
 std::string SerializeToTOML(std::string_view category) {
   std::lock_guard lock(GetRegistryMutex());
-  std::string result;
-  for (const auto& entry : GetRegistryStorage()) {
-    if (entry.category == category && entry.getter() != entry.default_value) {
-      if (entry.type == FlagType::String) {
-        result += entry.name + " = " + TomlString(entry.getter()) + "\n";
-      } else {
-        result += entry.name + " = " + entry.getter() + "\n";
+  return SerializeLines(&category, nullptr);
+}
+
+bool SetDefaultValue(std::string_view name, std::string_view value) {
+  std::lock_guard lock(GetRegistryMutex());
+  auto it = GetRegistryIndex().find(std::string(name));
+  if (it == GetRegistryIndex().end()) {
+    return false;
+  }
+  auto& entry = GetRegistryStorage()[it->second];
+  if (entry.type == FlagType::Command || !ValidateConstraints(entry, value)) {
+    return false;
+  }
+  // The setter turns the text into the flag's own form ("1000" -> "1000.000000"
+  // for a double), which is what the default is compared with.
+  const std::string current = entry.getter();
+  if (!entry.setter(value)) {
+    return false;
+  }
+  std::string normalized = entry.getter();
+  if (entry.source != Source::kDefault) {
+    entry.setter(current);  // something else set it: that value stays
+  }
+  entry.default_value = std::move(normalized);
+  if (entry.source == Source::kDefault && entry.default_value != current) {
+    auto& callbacks = GetCallbackStorage();
+    if (auto callback_it = callbacks.find(entry.name); callback_it != callbacks.end()) {
+      for (const auto& callback : callback_it->second) {
+        callback(entry.name, entry.default_value);
       }
     }
   }
-  return result;
+  return true;
+}
+
+std::optional<std::string> GetConfigFileValue(std::string_view name) {
+  std::lock_guard lock(GetRegistryMutex());
+  const auto& lines = GetConfigLinesStorage();
+  auto it = lines.find(std::string(name));
+  if (it == lines.end()) {
+    return std::nullopt;
+  }
+  return it->second.value;
 }
 
 void RegisterChangeCallback(std::string_view name, ChangeCallback callback) {
@@ -672,6 +793,10 @@ void LoadConfig(const std::filesystem::path& config_path) {
 
   try {
     auto config = toml::parse_file(config_path.string());
+    {
+      std::lock_guard lock(GetRegistryMutex());
+      GetConfigLinesStorage().clear();  // this file's lines from now on
+    }
     ApplyTomlTable(config, "");
     REXLOG_DEBUG("Loaded config from {}", config_path.string());
   } catch (const toml::parse_error& err) {
@@ -719,7 +844,12 @@ bool IsFinalized() {
 }
 
 void SaveConfig(const std::filesystem::path& config_path) {
-  std::string content = SerializeToTOML();
+  std::string content;
+  std::unordered_map<std::string, ConfigLine> written;
+  {
+    std::lock_guard lock(GetRegistryMutex());
+    content = SerializeLines(nullptr, &written);
+  }
   if (content.empty()) {
     REXLOG_DEBUG("SaveConfig: no modified flags to save");
     return;
@@ -733,6 +863,16 @@ void SaveConfig(const std::filesystem::path& config_path) {
     }
     file << "# Auto-generated cvar configuration\n";
     file << content;
+    file.flush();
+    if (!file) {
+      REXLOG_ERROR("SaveConfig: failed to write {}", config_path.string());
+      return;
+    }
+    {
+      // The file now has these lines; a later save in this run starts from them.
+      std::lock_guard lock(GetRegistryMutex());
+      GetConfigLinesStorage() = std::move(written);
+    }
     REXLOG_INFO("Saved config to {}", config_path.string());
   } catch (const std::exception& e) {
     REXLOG_ERROR("SaveConfig: {}", e.what());
@@ -753,6 +893,8 @@ void ResetAllForTesting() {
   ResetAllToDefaults();
   ClearPendingRestartFlags();
   GetPendingValuesStorage().clear();
+  GetConfigLinesStorage().clear();
+  GetOneOffValuesStorage().clear();
   g_init_done = false;
   g_finalized = false;
 }
