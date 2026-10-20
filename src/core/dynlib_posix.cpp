@@ -5,6 +5,9 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 #include <dlfcn.h>
 
+#include <cstdio>
+#include <string>
+
 namespace rex::platform {
 
 DynamicLibrary::~DynamicLibrary() {
@@ -28,6 +31,23 @@ bool DynamicLibrary::Load(const std::filesystem::path& path, SymbolResolution mo
   Close();
   int flags = (mode == SymbolResolution::kImmediate) ? RTLD_NOW : RTLD_LAZY;
   handle_ = dlopen(path.c_str(), flags);
+  if (!handle_ && !path.has_parent_path() && !path.has_extension()) {
+    // Codegen registers recompiled guest DLLs by their bare CMake target name
+    // ("game_level"). LoadLibrary on Windows appends ".dll" by itself; here
+    // the file is "libgame_level.so" / ".dylib", so try that name too. It is
+    // looked up through the caller's RUNPATH ($ORIGIN), next to the runtime.
+#if REX_PLATFORM_MAC
+    const std::string alt = "lib" + path.string() + ".dylib";
+#else
+    const std::string alt = "lib" + path.string() + ".so";
+#endif
+    handle_ = dlopen(alt.c_str(), flags);
+  }
+  if (!handle_) {
+    if (const char* err = dlerror()) {
+      std::fprintf(stderr, "dlopen(%s) failed: %s\n", path.c_str(), err);
+    }
+  }
   return handle_ != nullptr;
 }
 
