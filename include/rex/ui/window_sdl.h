@@ -54,6 +54,9 @@ class WindowSDL final : public Window {
   void ApplyNewFullscreen() override;
   // SDL_SetWindowFullscreenMode for GetFullscreenRefreshRate().
   void ApplyFullscreenDisplayMode();
+  // start_in_background: goes fullscreen the first time the window gets the
+  // focus, if it's meant to be fullscreen.
+  void ApplyFullscreenWaitingForFocus();
   void ApplyNewTitle() override;
   void ApplyNewMouseCapture() override;
   void ApplyNewMouseRelease() override;
@@ -88,6 +91,9 @@ class WindowSDL final : public Window {
   std::atomic<bool> paint_pending_{false};
   // Auto-hide cursor bookkeeping (CursorVisibility::kAutoHidden).
   SDL_TimerID cursor_hide_timer_ = 0;
+  // start_in_background: fullscreen waits until the window first gets the
+  // focus (UI thread only).
+  bool fullscreen_waits_for_focus_ = false;
 };
 
 }  // namespace rex::ui

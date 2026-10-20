@@ -38,12 +38,61 @@
 #include <rex/ui/surface_mac.h>
 #else
 #include <X11/Xlib-xcb.h>
+#include <X11/Xatom.h>
 #include <rex/ui/surface_gnulinux.h>
 #endif
+
+// For people who start the game and keep working in another window (a test
+// run, a game started from a script): the window opens behind the window in
+// use and doesn't take the keyboard. A fullscreen window goes fullscreen when
+// it's first clicked. A one-off on the command line
+// (--start_in_background=true) or kept in the settings file.
+REXCVAR_DEFINE_BOOL(start_in_background, false, "UI/Window",
+                    "Open the window behind the window in use, without taking the keyboard; "
+                    "click it or its taskbar button to play (fullscreen starts then). Wayland: "
+                    "the desktop decides where a new window goes")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace rex::ui {
 
 namespace {
+
+#if REX_PLATFORM_WIN32
+// start_in_background: puts the (still hidden) window at the bottom of the
+// stacking order; SDL then shows it there without activating it.
+void SendBehindOtherWindows(SDL_Window* window) {
+  HWND hwnd = static_cast<HWND>(SDL_GetPointerProperty(
+      SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+  if (hwnd) {
+    SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+  }
+}
+#elif !REX_PLATFORM_MAC
+// start_in_background on X11: a _NET_WM_USER_TIME of 0 on a window that isn't
+// mapped yet asks the window manager not to focus it when it's mapped (EWMH);
+// window managers that honor it (Muffin/Mutter, KWin, Xfwm, Openbox) then also
+// stack it below the focused window. False when the window isn't an X11 one.
+bool AskX11NotToFocusOnMap(SDL_Window* window) {
+  SDL_PropertiesID props = SDL_GetWindowProperties(window);
+  auto* display = static_cast<Display*>(
+      SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr));
+  auto x11_window = static_cast<::Window>(
+      SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
+  if (!display || !x11_window) {
+    return false;
+  }
+  const Atom user_time = XInternAtom(display, "_NET_WM_USER_TIME", False);
+  if (user_time == None) {
+    return false;
+  }
+  long zero = 0;
+  XChangeProperty(display, x11_window, user_time, XA_CARDINAL, 32, PropModeReplace,
+                  reinterpret_cast<unsigned char*>(&zero), 1);
+  XFlush(display);
+  return true;
+}
+#endif
 
 uint32_t ResolveWindowWidth(uint32_t requested_width) {
   if (REXCVAR_GET(window_width) > 0) {
@@ -171,7 +220,12 @@ bool WindowSDL::OpenImpl() {
     }
   }
 
-  if (IsFullscreen()) {
+  // start_in_background: a fullscreen window would cover the screen (and
+  // fullscreen raises it on most systems), so it opens as a window and goes
+  // fullscreen when it first gets the focus (ApplyFullscreenWaitingForFocus).
+  const bool background = REXCVAR_GET(start_in_background);
+  fullscreen_waits_for_focus_ = background;
+  if (IsFullscreen() && !background) {
     // Borderless desktop fullscreen (a NULL display mode is SDL3's default),
     // or an exclusive mode when a refresh rate was chosen.
     ApplyFullscreenDisplayMode();
@@ -186,7 +240,26 @@ bool WindowSDL::OpenImpl() {
   // desired state so a reopened window comes back with the state it had.
   ApplyTextInputActiveNow();
   ApplyCursorVisibilityNow();
+  if (background) {
+    // Windows / macOS: shown without activating. Wayland: the launcher's
+    // activation token would let the compositor focus the window, so it's
+    // dropped (children such as a relaunch don't get it either).
+    SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+    if (SDL_getenv("XDG_ACTIVATION_TOKEN")) {
+      SDL_unsetenv_unsafe("XDG_ACTIVATION_TOKEN");
+    }
+#if REX_PLATFORM_WIN32
+    SendBehindOtherWindows(sdl_window_);
+#elif !REX_PLATFORM_MAC
+    AskX11NotToFocusOnMap(sdl_window_);
+#endif
+  }
   SDL_ShowWindow(sdl_window_);
+  if (background) {
+    SDL_ResetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN);
+    REXLOG_INFO("window: opened in the background (start_in_background){}",
+                IsFullscreen() ? "; fullscreen when it's first clicked" : "");
+  }
 
   // Actualize state for the common Window code. Listener dispatch is handled
   // by Window::Open after OpenImpl returns; these only record initial state.
@@ -199,9 +272,22 @@ bool WindowSDL::OpenImpl() {
     return true;
   }
   if (SDL_GetWindowFlags(sdl_window_) & SDL_WINDOW_INPUT_FOCUS) {
+    ApplyFullscreenWaitingForFocus();
     OnFocusUpdate(true, destruction_receiver);
   }
   return true;
+}
+
+void WindowSDL::ApplyFullscreenWaitingForFocus() {
+  if (!fullscreen_waits_for_focus_ || !sdl_window_) {
+    return;
+  }
+  fullscreen_waits_for_focus_ = false;
+  if (IsFullscreen()) {
+    ApplyFullscreenDisplayMode();
+    SDL_SetWindowFullscreen(sdl_window_, true);
+    REXLOG_INFO("window: fullscreen now that it has the focus (start_in_background)");
+  }
 }
 
 void WindowSDL::RequestCloseImpl() {
@@ -297,6 +383,14 @@ uint32_t WindowSDL::GetLatestDpiImpl() const {
 void WindowSDL::ApplyNewFullscreen() {
   if (!sdl_window_) {
     return;
+  }
+  if (fullscreen_waits_for_focus_) {
+    // start_in_background: fullscreen still waits for the first focus; a
+    // switch to windowed meanwhile just ends the wait.
+    if (IsFullscreen() && !HasFocus()) {
+      return;
+    }
+    fullscreen_waits_for_focus_ = false;
   }
   if (IsFullscreen()) {
     ApplyFullscreenDisplayMode();
@@ -540,6 +634,7 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
       break;
     }
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
+      ApplyFullscreenWaitingForFocus();
       OnFocusUpdate(true, destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
