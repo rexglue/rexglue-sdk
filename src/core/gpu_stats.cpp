@@ -64,6 +64,7 @@ const char* Name(Counter counter) {
     case Counter::kHostGpuUploadMicros: return "host_gpu_upload_us";
     case Counter::kHostGpuSwapMicros: return "host_gpu_swap_us";
     case Counter::kHostGpuOtherMicros: return "host_gpu_other_us";
+    case Counter::kTextureLoadBytes: return "texture_load_bytes";
     case Counter::kCount: break;
   }
   return "?";

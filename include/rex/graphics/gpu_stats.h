@@ -20,9 +20,10 @@
 
 // 2: kGpuThreadMicros, kSubmitMicros, kShaderTranslations,
 // kShaderTranslateMicros and ScopedMicros. 3: kPresents. 4: kHostGpuMicros.
-// 5: kHostGpuDrawMicros ... kHostGpuOtherMicros.
+// 5: kHostGpuDrawMicros ... kHostGpuOtherMicros. 6: kTextureLoadBytes, and
+// kTextureLoads counts every load (before 6 it missed RequestTextures' batch).
 // A game built against any version can test this to know which counters exist.
-#define REX_GRAPHICS_STATS_VERSION 5
+#define REX_GRAPHICS_STATS_VERSION 6
 
 namespace rex::graphics::stats {
 
@@ -71,6 +72,9 @@ enum class Counter : uint32_t {
   kHostGpuUploadMicros,    // guest memory copied to the card's copy of it
   kHostGpuSwapMicros,      // the picture shown: gamma, post-processing
   kHostGpuOtherMicros,     // anything else
+  // Guest memory read by those texture loads (kTextureLoads): resolved
+  // surfaces sampled afterwards are loaded again after every resolve.
+  kTextureLoadBytes,
   kCount
 };
 

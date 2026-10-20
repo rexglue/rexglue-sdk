@@ -532,6 +532,12 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
                                              pending_load.load_mips)) {
     return false;
   }
+  // Counted here, where every load from guest memory passes (RequestTextures
+  // loads its batch through this without LoadTextureData).
+  stats::Add(stats::Counter::kTextureLoads);
+  stats::Add(stats::Counter::kTextureLoadBytes,
+             (pending_load.load_base ? texture.GetGuestBaseSize() : 0) +
+                 (pending_load.load_mips ? texture.GetGuestMipsSize() : 0));
 
   // Mark the ranges as uploaded and watch them. This is needed for scaled
   // resolves as well to detect when the CPU wants to reuse the memory for a
@@ -1045,7 +1051,6 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   if (!PrepareTextureLoad(texture, pending_load, pending_ranges, pending_range_count)) {
     return true;
   }
-  stats::Add(stats::Counter::kTextureLoads);
 
   std::pair<uint32_t, uint32_t> pending_range_pairs[2];
   for (size_t i = 0; i < pending_range_count; ++i) {
