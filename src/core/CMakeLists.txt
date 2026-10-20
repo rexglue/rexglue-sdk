@@ -10,6 +10,7 @@ add_library(rexcore OBJECT
     cvar.cpp
     exception_handler.cpp
     gpu_stats.cpp
+    gpu_progress.cpp
     filesystem.cpp
     filesystem_wildcard.cpp
     hash.cpp

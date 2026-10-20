@@ -21,6 +21,7 @@
 
 #include <rex/cvar.h>
 #include <rex/graphics/command_processor.h>
+#include <rex/graphics/gpu_progress.h>
 #include <rex/graphics/flags.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
@@ -330,6 +331,9 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   uint64_t args[] = {source, interrupt_callback_data_};
   function_dispatcher_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_, args,
                                          rex::countof(args));
+  // The game's interrupt handler may have written what a thread waits for
+  // (a frame counter, an event); rex/graphics/gpu_progress.h.
+  progress::Signal();
 }
 
 void GraphicsSystem::MarkVblank() {

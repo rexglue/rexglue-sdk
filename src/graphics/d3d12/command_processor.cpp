@@ -20,6 +20,7 @@
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
 #include <rex/graphics/d3d12/command_processor.h>
+#include <rex/graphics/gpu_progress.h>
 #include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/d3d12/graphics_system.h>
 #include <rex/graphics/d3d12/shader.h>
@@ -5174,6 +5175,7 @@ void D3D12CommandProcessor::ProcessPendingOcclusionQueries(bool wait) {
         NormalizeOcclusionSamples(occlusion_query_readback_mapping_[query.host_index]));
     stats::Add(stats::Counter::kOcclusionQueries);
     pending_occlusion_queries_.pop_front();
+    progress::Signal();  // the game may be waiting for the result
   }
 }
 
