@@ -19,9 +19,9 @@
 #include <cstdint>
 
 // 2: kGpuThreadMicros, kSubmitMicros, kShaderTranslations,
-// kShaderTranslateMicros and ScopedMicros. 3: kPresents. A game built against
-// any version can test this to know which counters exist.
-#define REX_GRAPHICS_STATS_VERSION 3
+// kShaderTranslateMicros and ScopedMicros. 3: kPresents. 4: kHostGpuMicros.
+// A game built against any version can test this to know which counters exist.
+#define REX_GRAPHICS_STATS_VERSION 4
 
 namespace rex::graphics::stats {
 
@@ -55,6 +55,12 @@ enum class Counter : uint32_t {
   // frame rate means the window repaints on its own, which costs a CPU core
   // and graphics card time.
   kPresents,
+  // How long the graphics card worked on the GPU emulation's command buffers
+  // (Vulkan timestamps at each one's start and end, added when it completes;
+  // 0 where the device can't time them). Per frame next to the frame time,
+  // it says how much room the card has: a card a tenth as fast takes ten
+  // times as long.
+  kHostGpuMicros,
   kCount
 };
 

@@ -56,6 +56,11 @@ REXCVAR_DEFINE_BOOL(vulkan_reuse_texture_descriptors, true, "GPU/Vulkan",
                     "one (off: a new set for every draw, as before)")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_BOOL(vulkan_gpu_time, true, "GPU/Vulkan",
+                    "Vulkan: time each command buffer on the graphics card (two timestamps) for "
+                    "the performance readout's graphics card time a frame. Read at start")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
 REXCVAR_DEFINE_BOOL(vulkan_dynamic_constant_offsets, true, "GPU/Vulkan",
                     "Vulkan: the guest draw constants are dynamic uniform buffers: one descriptor "
                     "set for each upload page, written once, and a draw whose constants changed "
@@ -1941,6 +1946,8 @@ bool VulkanCommandProcessor::SetupContext() {
 
   occlusion_query_resources_available_ = InitializeOcclusionQueryResources();
 
+  InitializeGpuTime();
+
   // Just not to expose uninitialized memory.
   std::memset(&system_constants_, 0, sizeof(system_constants_));
 
@@ -1951,6 +1958,7 @@ void VulkanCommandProcessor::ShutdownContext() {
   AwaitAllQueueOperationsCompletion();
   InvalidateAllVertexBufferResidency();
   ShutdownOcclusionQueryResources();
+  ShutdownGpuTime();
 
   const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
@@ -4988,6 +4996,79 @@ void VulkanCommandProcessor::EvictOldReadbackBuffers(
   }
 }
 
+void VulkanCommandProcessor::InitializeGpuTime() {
+  gpu_time_slot_submissions_.fill(0);
+  if (!REXCVAR_GET(vulkan_gpu_time)) {
+    return;
+  }
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanInstance::Functions& ifn = vulkan_device->vulkan_instance()->functions();
+  const VkPhysicalDevice physical_device = vulkan_device->physical_device();
+  VkPhysicalDeviceProperties properties;
+  ifn.vkGetPhysicalDeviceProperties(physical_device, &properties);
+  uint32_t queue_family_count = 0;
+  ifn.vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, nullptr);
+  std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
+  ifn.vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
+                                               queue_families.data());
+  const uint32_t queue_family = vulkan_device->queue_family_graphics_compute();
+  const uint32_t valid_bits =
+      queue_family < queue_family_count ? queue_families[queue_family].timestampValidBits : 0;
+  if (!valid_bits || properties.limits.timestampPeriod <= 0.0f) {
+    REXGPU_INFO("Vulkan: this device can't time command buffers; no graphics card time");
+    return;
+  }
+  gpu_time_ns_per_tick_ = double(properties.limits.timestampPeriod);
+  gpu_time_valid_mask_ = valid_bits >= 64 ? ~uint64_t(0) : (uint64_t(1) << valid_bits) - 1;
+  VkQueryPoolCreateInfo pool_info = {};
+  pool_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+  pool_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+  pool_info.queryCount = kGpuTimeSlots * 2;
+  if (vulkan_device->functions().vkCreateQueryPool(vulkan_device->device(), &pool_info, nullptr,
+                                                   &gpu_time_query_pool_) != VK_SUCCESS) {
+    gpu_time_query_pool_ = VK_NULL_HANDLE;
+    REXGPU_WARN("Vulkan: failed to create a timestamp query pool; no graphics card time");
+  }
+}
+
+void VulkanCommandProcessor::ShutdownGpuTime() {
+  if (gpu_time_query_pool_ != VK_NULL_HANDLE) {
+    const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+    vulkan_device->functions().vkDestroyQueryPool(vulkan_device->device(), gpu_time_query_pool_,
+                                                  nullptr);
+    gpu_time_query_pool_ = VK_NULL_HANDLE;
+  }
+  gpu_time_slot_submissions_.fill(0);
+}
+
+void VulkanCommandProcessor::ReadGpuTimes() {
+  if (gpu_time_query_pool_ == VK_NULL_HANDLE) {
+    return;
+  }
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  uint64_t ticks = 0;
+  for (uint32_t slot = 0; slot < kGpuTimeSlots; ++slot) {
+    const uint64_t submission = gpu_time_slot_submissions_[slot];
+    if (!submission || submission > submission_completed_) {
+      continue;
+    }
+    uint64_t stamps[2];
+    // Its fence has signaled, so both timestamps are written.
+    if (dfn.vkGetQueryPoolResults(device, gpu_time_query_pool_, slot * 2, 2, sizeof(stamps),
+                                  stamps, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
+      ticks += ((stamps[1] & gpu_time_valid_mask_) - (stamps[0] & gpu_time_valid_mask_)) &
+               gpu_time_valid_mask_;
+    }
+    gpu_time_slot_submissions_[slot] = 0;
+  }
+  if (ticks) {
+    stats::Add(stats::Counter::kHostGpuMicros,
+               uint64_t(double(ticks) * gpu_time_ns_per_tick_ / 1000.0));
+  }
+}
+
 bool VulkanCommandProcessor::InitializeOcclusionQueryResources() {
   active_occlusion_query_ = {};
   occlusion_query_cursor_ = 0;
@@ -5314,6 +5395,8 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
   submissions_in_flight_fences_.erase(submissions_in_flight_fences_.cbegin(),
                                       submissions_in_flight_fences_awaited_end);
   submission_completed_ += fences_awaited;
+
+  ReadGpuTimes();
 
   // Reclaim semaphores.
   while (!submissions_in_flight_semaphores_.empty()) {
@@ -5691,7 +5774,25 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       REXGPU_ERROR("Failed to begin a Vulkan command buffer");
       return false;
     }
+    // The graphics card's time for this command buffer: a timestamp at its
+    // start and one at its end, read when it completes (ReadGpuTimes). A
+    // slot still waiting to be read (more submissions in flight than slots)
+    // leaves this one untimed.
+    uint32_t gpu_time_slot = UINT32_MAX;
+    if (gpu_time_query_pool_ != VK_NULL_HANDLE) {
+      const uint32_t slot = uint32_t(GetCurrentSubmission() % kGpuTimeSlots);
+      if (!gpu_time_slot_submissions_[slot]) {
+        gpu_time_slot = slot;
+        dfn.vkCmdResetQueryPool(command_buffer.buffer, gpu_time_query_pool_, slot * 2, 2);
+        dfn.vkCmdWriteTimestamp(command_buffer.buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                gpu_time_query_pool_, slot * 2);
+      }
+    }
     deferred_command_buffer_.Execute(command_buffer.buffer);
+    if (gpu_time_slot != UINT32_MAX) {
+      dfn.vkCmdWriteTimestamp(command_buffer.buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                              gpu_time_query_pool_, gpu_time_slot * 2 + 1);
+    }
     if (dfn.vkEndCommandBuffer(command_buffer.buffer) != VK_SUCCESS) {
       REXGPU_ERROR("Failed to end a Vulkan command buffer");
       return false;
@@ -5737,6 +5838,9 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       return false;
     }
     uint64_t submission_current = GetCurrentSubmission();
+    if (gpu_time_slot != UINT32_MAX) {
+      gpu_time_slot_submissions_[gpu_time_slot] = submission_current;
+    }
     current_submission_wait_stage_masks_.clear();
     for (VkSemaphore semaphore : current_submission_wait_semaphores_) {
       submissions_in_flight_semaphores_.emplace_back(submission_current, semaphore);

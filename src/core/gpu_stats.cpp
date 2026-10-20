@@ -56,6 +56,7 @@ const char* Name(Counter counter) {
     case Counter::kShaderTranslations: return "shader_translations";
     case Counter::kShaderTranslateMicros: return "shader_translate_us";
     case Counter::kPresents: return "presents";
+    case Counter::kHostGpuMicros: return "host_gpu_us";
     case Counter::kCount: break;
   }
   return "?";

@@ -452,6 +452,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   void DestroyScratchBuffer();
   bool InitializeOcclusionQueryResources();
   void ShutdownOcclusionQueryResources();
+  // The graphics card's time for each command buffer (vulkan_gpu_time),
+  // added to stats::Counter::kHostGpuMicros when it completes.
+  void InitializeGpuTime();
+  void ShutdownGpuTime();
+  void ReadGpuTimes();
   bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
   bool EndGuestOcclusionQuery(uint32_t sample_count_address);
   bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
@@ -816,6 +821,13 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   static constexpr uint32_t kMaxOcclusionQueries = 8192;
   VkQueryPool occlusion_query_pool_ = VK_NULL_HANDLE;
+  // Two timestamps (start, end) for each slot; a slot is the submission
+  // number modulo kGpuTimeSlots, free again once read.
+  static constexpr uint32_t kGpuTimeSlots = 64;
+  VkQueryPool gpu_time_query_pool_ = VK_NULL_HANDLE;
+  std::array<uint64_t, kGpuTimeSlots> gpu_time_slot_submissions_{};  // 0 = free
+  double gpu_time_ns_per_tick_ = 0.0;
+  uint64_t gpu_time_valid_mask_ = 0;
   VkBuffer occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
   VkDeviceMemory occlusion_query_readback_memory_ = VK_NULL_HANDLE;
   uint32_t occlusion_query_readback_memory_type_ = UINT32_MAX;
