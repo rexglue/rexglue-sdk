@@ -478,9 +478,14 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   if (ret < 0) {
     return kFileMappingHandleInvalid;
   }
+  // Remove the name at once: the descriptor keeps the memory alive for as
+  // long as the process has it open or mapped, and the system frees it when
+  // the process ends, even if it crashes or is killed. Removed only at a
+  // clean shutdown (CloseFileMappingHandle), every crash left a file of the
+  // guest's size in /dev/shm, using RAM until the next reboot.
+  shm_unlink(full_path.c_str());
   if (rex_ftruncate64(ret, static_cast<off_t>(length)) != 0) {
     close(ret);
-    shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
   }
   return static_cast<FileMappingHandle>(ret);
@@ -490,6 +495,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
 void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path) {
   close(static_cast<int>(handle));
 #if !REX_PLATFORM_ANDROID
+  // Normally already unlinked when it was created; harmless if so.
   auto full_path = MakeShmName(path);
   shm_unlink(full_path.c_str());
 #endif
