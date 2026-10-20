@@ -50,10 +50,18 @@ REXCVAR_DEFINE_INT32(present_safe_area_y, 90, "UI/Presenter",
     .range(0, 100);
 
 #if defined(REX_HAS_FIDELITYFX_SDK)
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
 REXCVAR_DEFINE_STRING(present_effect, "bilinear", "UI/Presenter",
                       "Guest output effect: bilinear, cas, fsr, fsr2, fsr3")
     .allowed({"bilinear", "cas", "fsr", "fsr2", "fsr3"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+#else
+// FSR 2 / 3 need the FidelityFX runtime (REXGLUE_ENABLE_FIDELITYFX).
+REXCVAR_DEFINE_STRING(present_effect, "bilinear", "UI/Presenter",
+                      "Guest output effect: bilinear, cas, fsr")
+    .allowed({"bilinear", "cas", "fsr"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+#endif
 
 REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
                       rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessDefault,
@@ -134,12 +142,20 @@ GuestOutputPaintConfig::Effect ParsePresentEffect(const std::string& effect_name
   if (lowered == "fsr") {
     return GuestOutputPaintConfig::Effect::kFsr;
   }
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
   if (lowered == "fsr2") {
     return GuestOutputPaintConfig::Effect::kFsr2;
   }
   if (lowered == "fsr3") {
     return GuestOutputPaintConfig::Effect::kFsr3;
   }
+#else
+  // Without the FidelityFX runtime (e.g. a value from an environment
+  // variable, which skips the allowed values): the spatial FSR.
+  if (lowered == "fsr2" || lowered == "fsr3") {
+    return GuestOutputPaintConfig::Effect::kFsr;
+  }
+#endif
 #endif
   return GuestOutputPaintConfig::Effect::kBilinear;
 }

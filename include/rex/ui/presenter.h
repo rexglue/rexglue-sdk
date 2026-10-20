@@ -48,6 +48,16 @@
 #include <wrl/client.h>
 #endif  // XE_PLATFORM
 
+// The spatial AMD FidelityFX effects, CAS and FSR 1 (present_effect cas / fsr),
+// only need the shaders already in src/ui/shaders, so every build has them; the
+// FidelityFX SDK download (REXGLUE_ENABLE_FIDELITYFX) only adds the temporal
+// FSR 2 / 3 path (REX_HAS_FIDELITYFX_RUNTIME). Defined here rather than on the
+// rexui target alone so the SDK and the programs built on it see the same
+// classes.
+#ifndef REX_HAS_FIDELITYFX_SDK
+#define REX_HAS_FIDELITYFX_SDK 1
+#endif
+
 namespace rex {
 namespace ui {
 
