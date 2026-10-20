@@ -113,6 +113,18 @@ bool Protect(void* base_address, size_t length, PageAccess access,
 // rights. The length will start from the first byte of the first page of
 // the region.
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
+// Whether an access to `address` would succeed now, without reading
+// /proc/self/maps: 1 yes, 0 no, -1 can't tell this way (use QueryProtect).
+// Linux 5.14 and newer answer with madvise(MADV_POPULATE_READ/_WRITE), which
+// faults the page in as that access would (call it only for an access about
+// to happen). Safe in a signal handler; keeps errno.
+#if REX_PLATFORM_LINUX
+int ProbeAccess(void* address, bool for_write);
+#else
+inline int ProbeAccess(void*, bool) {
+  return -1;
+}
+#endif
 
 // Allocates a block of memory for a type with the given alignment.
 // The memory must be freed with AlignedFree.

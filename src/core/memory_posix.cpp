@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/utils.h>
@@ -59,6 +60,15 @@
 // TODO(tomc): Android or maybe na. idk
 // #include "xenia/base/main_android.h"
 #endif
+
+#if REX_PLATFORM_LINUX
+REXCVAR_DEFINE_INT32(memory_page_query, 0, "Memory",
+                     "Linux: how the SDK finds whether a page is accessible (the write-watch "
+                     "fault handler asks on every watch fault): 0 the fastest way this kernel "
+                     "has; 1 the PROCMAP_QUERY ioctl (Linux 6.11+); 2 a madvise access probe "
+                     "(Linux 5.14+); 3 reading /proc/self/maps, as before patches 0052 and 0053 "
+                     "(slow; for comparisons). A way the kernel lacks falls back to reading the file.");
+#endif  // REX_PLATFORM_LINUX
 
 namespace rex {
 namespace memory {
@@ -250,6 +260,9 @@ int MapsQueryFile() {
 // Asks the kernel for the mapping that holds `address`: 1 found, 0 no mapping
 // holds it, -1 this kernel can't answer (read the text instead). Keeps errno.
 int AskForEntry(void* address, LinuxMapEntry& out_entry) {
+  if (REXCVAR_GET(memory_page_query) == 3) {
+    return -1;  // memory_page_query 3: read the text, as before
+  }
   const int saved_errno = errno;
   int found = -1;
   const int file = MapsQueryFile();
@@ -272,6 +285,38 @@ int AskForEntry(void* address, LinuxMapEntry& out_entry) {
   }
   errno = saved_errno;
   return found;
+}
+
+// The access probe (Linux 5.14+): madvise(MADV_POPULATE_READ / _WRITE)
+// faults a page in as a read or a write would, and fails (EINVAL, EFAULT;
+// ENOMEM when nothing is mapped there) when that access would fault. Older
+// headers don't name them.
+#ifndef MADV_POPULATE_READ
+#define MADV_POPULATE_READ 22
+#endif
+#ifndef MADV_POPULATE_WRITE
+#define MADV_POPULATE_WRITE 23
+#endif
+constexpr int kProbeNotTried = -1;
+constexpr int kProbeUnsupported = 0;
+constexpr int kProbeWorks = 1;
+std::atomic<int> access_probe_state{kProbeNotTried};
+
+// Whether this kernel knows the probe: asked once, on a page that is surely
+// readable (an older kernel rejects the advice with EINVAL).
+bool AccessProbeWorks() {
+  int state = access_probe_state.load(std::memory_order_acquire);
+  if (state == kProbeNotTried) {
+    const int saved_errno = errno;
+    const uintptr_t page =
+        reinterpret_cast<uintptr_t>(&access_probe_state) & ~(uintptr_t(getpagesize()) - 1);
+    state = madvise(reinterpret_cast<void*>(page), size_t(getpagesize()), MADV_POPULATE_READ) == 0
+                ? kProbeWorks
+                : kProbeUnsupported;
+    errno = saved_errno;
+    access_probe_state.store(state, std::memory_order_release);
+  }
+  return state == kProbeWorks;
 }
 
 // Find the mapping entry in /proc/self/maps that contains the given address
@@ -552,6 +597,34 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
   return true;
 #endif
 }
+
+#if REX_PLATFORM_LINUX
+int ProbeAccess(void* address, bool for_write) {
+  const int method = REXCVAR_GET(memory_page_query);
+  if (method == 1 || method == 3) {
+    return -1;
+  }
+  if (method == 0 && MapsQueryFile() >= 0) {
+    return -1;  // the ioctl answers exactly, and as fast
+  }
+  if (!AccessProbeWorks()) {
+    return -1;
+  }
+  const int saved_errno = errno;
+  const uintptr_t page = reinterpret_cast<uintptr_t>(address) & ~(uintptr_t(getpagesize()) - 1);
+  const int result = madvise(reinterpret_cast<void*>(page), size_t(getpagesize()),
+                             for_write ? MADV_POPULATE_WRITE : MADV_POPULATE_READ);
+  const int error = errno;
+  errno = saved_errno;
+  if (result == 0) {
+    return 1;
+  }
+  if (error == EINVAL || error == EFAULT || error == ENOMEM) {
+    return 0;
+  }
+  return -1;  // interrupted, or a poisoned page: ask the slow way
+}
+#endif  // REX_PLATFORM_LINUX
 
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
                                           PageAccess access, bool commit) {

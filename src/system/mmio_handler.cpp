@@ -406,11 +406,20 @@ bool MMIOHandler::ExceptionCallback(arch::Exception* ex) {
     // clears the watch we just hit).
     // Do this under the lock so we don't introduce another race condition.
     auto lock = global_critical_region_.Acquire();
-    memory::PageAccess cur_access;
-    size_t page_length = memory::page_size();
-    memory::QueryProtect(fault_host_address, page_length, cur_access);
-    if (cur_access != memory::PageAccess::kNoAccess &&
-        (!is_write || cur_access != memory::PageAccess::kReadOnly)) {
+    // A probe of this one access where the kernel has one (Linux 5.14+), else
+    // the page's protection (QueryProtect: one ioctl on Linux 6.11+).
+    bool accessible;
+    const int probed = memory::ProbeAccess(fault_host_address, is_write);
+    if (probed >= 0) {
+      accessible = probed == 1;
+    } else {
+      memory::PageAccess cur_access;
+      size_t page_length = memory::page_size();
+      memory::QueryProtect(fault_host_address, page_length, cur_access);
+      accessible = cur_access != memory::PageAccess::kNoAccess &&
+                   (!is_write || cur_access != memory::PageAccess::kReadOnly);
+    }
+    if (accessible) {
       // Another thread has cleared this watch. Abort.
       return true;
     }
