@@ -575,7 +575,8 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
   bool scalar_src_absolute = false;
   switch (scalar_opcode_info.operand_count) {
     case 1: {
-      // r#/c#.w or r#/c#.wx.
+      // r#/c#.w, or r#/c#.wx unless the paired vector opcode has three
+      // operands, in which case r#/c#.wz (see translator.cpp).
       const float* scalar_src_ptr;
       uint32_t scalar_src_register = instr.src_reg(3);
       std::array<float, 4> scalar_src_float_constant;
@@ -594,8 +595,10 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       uint32_t scalar_src_swizzle = instr.src_swizzle(3);
       scalar_operand_component_count = scalar_opcode_info.single_operand_is_two_component ? 2 : 1;
       for (uint32_t i = 0; i < scalar_operand_component_count; ++i) {
+        uint32_t source_component =
+            i == 0 ? 3 : (vector_opcode_info.GetOperandCount() == 3 ? 2 : 0);
         scalar_operands[i] = scalar_src_ptr[ucode::AluInstruction::GetSwizzledComponentIndex(
-            scalar_src_swizzle, (3 + i) & 3)];
+            scalar_src_swizzle, source_component)];
       }
     } break;
     case 2: {

@@ -1156,7 +1156,8 @@ uint32_t ParsedTextureFetchInstruction::GetNonZeroResultComponents() const {
 
 static void ParseAluInstructionOperand(const AluInstruction& op, uint32_t i,
                                        uint32_t swizzle_component_count,
-                                       InstructionOperand& out_op) {
+                                       InstructionOperand& out_op,
+                                       uint32_t scalar_second_component = 0) {
   out_op.is_negated = op.src_negate(i);
   uint32_t reg = op.src_reg(i);
   if (op.src_is_temp(i)) {
@@ -1186,9 +1187,10 @@ static void ParseAluInstructionOperand(const AluInstruction& op, uint32_t i,
     // Scalar `a` (W).
     out_op.components[0] = GetSwizzledAluSourceComponent(swizzle, 3);
   } else if (swizzle_component_count == 2) {
-    // Scalar left-hand `a` (W) and right-hand `b` (X).
+    // Scalar left-hand `a` (W) and right-hand `b` (X, or Z when the paired
+    // vector operation also reads source 3).
     out_op.components[0] = GetSwizzledAluSourceComponent(swizzle, 3);
-    out_op.components[1] = GetSwizzledAluSourceComponent(swizzle, 0);
+    out_op.components[1] = GetSwizzledAluSourceComponent(swizzle, scalar_second_component);
   } else if (swizzle_component_count == 3) {
     assert_always();
   } else if (swizzle_component_count == 4) {
@@ -1348,8 +1350,13 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
   instr.scalar_operand_count = scalar_opcode_info.operand_count;
   if (instr.scalar_operand_count) {
     if (instr.scalar_operand_count == 1) {
+      // The scalar operation shares source 3 with the vector operation. If the
+      // vector operation uses source 3 (three operands), the scalar `b`
+      // component is Z; otherwise it is X. (Xenia Canary PR #1149; fixes the
+      // stretched grass in Call of Duty 3, vertex shader 4B4E6FDA02FB39C3.)
       ParseAluInstructionOperand(op, 3, scalar_opcode_info.single_operand_is_two_component ? 2 : 1,
-                                 instr.scalar_operands[0]);
+                                 instr.scalar_operands[0],
+                                 vector_opcode_info.GetOperandCount() == 3 ? 2 : 0);
     } else {
       // Constant and temporary register.
 
