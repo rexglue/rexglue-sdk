@@ -6913,6 +6913,29 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   }
 }
 
+namespace {
+// The float constants a shader uses, packed in register order into the
+// uniform buffer: each run of consecutive constants in one copy instead of a
+// copy for each 16-byte constant (most shaders use long runs, and the
+// destination is write-combined upload memory, where wide sequential stores
+// are what it's fast at).
+uint8_t* CopyFloatConstantRuns(uint8_t* mapping, const uint32_t* first_constant,
+                               const uint64_t used_bitmap[4]) {
+  for (uint32_t i = 0; i < 4; ++i) {
+    uint64_t bits = used_bitmap[i];
+    while (bits) {
+      const uint32_t start = uint32_t(std::countr_zero(bits));
+      const uint32_t length = uint32_t(std::countr_one(bits >> start));
+      const size_t bytes = sizeof(float) * 4 * length;
+      std::memcpy(mapping, first_constant + ((i * 64 + start) << 2), bytes);
+      mapping += bytes;
+      bits = start + length >= 64 ? 0 : bits & (~uint64_t(0) << (start + length));
+    }
+  }
+  return mapping;
+}
+}  // namespace
+
 bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
                                             const VulkanShader* pixel_shader) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
@@ -7016,18 +7039,8 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         return false;
       }
       buffer_info.range = VkDeviceSize(float_constants_size);
-      for (uint32_t i = 0; i < 4; ++i) {
-        uint64_t float_constant_map_entry = current_float_constant_map_vertex_[i];
-        uint32_t float_constant_index;
-        while (FindFirstSetBit(float_constant_map_entry, &float_constant_index)) {
-          float_constant_map_entry &= ~(1ull << float_constant_index);
-          std::memcpy(
-              mapping,
-              &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) + (float_constant_index << 2)],
-              sizeof(float) * 4);
-          mapping += sizeof(float) * 4;
-        }
-      }
+      mapping = CopyFloatConstantRuns(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_000_X],
+                                      current_float_constant_map_vertex_);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferFloatVertex;
     }
@@ -7045,18 +7058,8 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         return false;
       }
       buffer_info.range = VkDeviceSize(float_constants_size);
-      for (uint32_t i = 0; i < 4; ++i) {
-        uint64_t float_constant_map_entry = current_float_constant_map_pixel_[i];
-        uint32_t float_constant_index;
-        while (FindFirstSetBit(float_constant_map_entry, &float_constant_index)) {
-          float_constant_map_entry &= ~(1ull << float_constant_index);
-          std::memcpy(
-              mapping,
-              &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) + (float_constant_index << 2)],
-              sizeof(float) * 4);
-          mapping += sizeof(float) * 4;
-        }
-      }
+      mapping = CopyFloatConstantRuns(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_256_X],
+                                      current_float_constant_map_pixel_);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferFloatPixel;
     }
