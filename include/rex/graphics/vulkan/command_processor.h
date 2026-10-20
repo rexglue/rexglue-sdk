@@ -47,6 +47,37 @@ namespace rex::graphics::vulkan {
 
 class VulkanCommandProcessor : public CommandProcessor {
  public:
+
+  // What the graphics card is doing, for its time by kind (vulkan_gpu_time;
+  // stats kHostGpuDrawMicros ...). A timestamp is written where the kind
+  // changes after commands were recorded, so changing it with nothing
+  // recorded in between costs nothing.
+  enum class GpuSection : uint32_t {
+    kDraws,
+    kTransfers,
+    kResolves,
+    kTextureLoads,
+    kUploads,
+    kSwap,
+    kOther,
+    kCount,
+  };
+  // Returns the section it replaced.
+  GpuSection SetGpuSection(GpuSection section);
+  // A section for the lifetime of the object, then back to the one before.
+  class ScopedGpuSection {
+   public:
+    ScopedGpuSection(VulkanCommandProcessor& command_processor, GpuSection section)
+        : command_processor_(command_processor),
+          previous_(command_processor.SetGpuSection(section)) {}
+    ~ScopedGpuSection() { command_processor_.SetGpuSection(previous_); }
+    ScopedGpuSection(const ScopedGpuSection&) = delete;
+    ScopedGpuSection& operator=(const ScopedGpuSection&) = delete;
+
+   private:
+    VulkanCommandProcessor& command_processor_;
+    GpuSection previous_;
+  };
   // Single-descriptor layouts for use within a single frame.
   enum class SingleTransientDescriptorLayout {
     kStorageBufferCompute,
@@ -457,6 +488,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   void InitializeGpuTime();
   void ShutdownGpuTime();
   void ReadGpuTimes();
+  bool AllocateGpuSectionQuery(uint32_t& query_out);
+  void ReadGpuSectionTimes();
   bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
   bool EndGuestOcclusionQuery(uint32_t sample_count_address);
   bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
@@ -828,6 +861,32 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::array<uint64_t, kGpuTimeSlots> gpu_time_slot_submissions_{};  // 0 = free
   double gpu_time_ns_per_tick_ = 0.0;
   uint64_t gpu_time_valid_mask_ = 0;
+  // The time by kind: a ring of timestamp queries, used in submission order
+  // and freed in completion order. Each submission has a start and an end
+  // timestamp and one where the section changed after commands of the old
+  // one were recorded; the time up to each belongs to the section it ended.
+  static constexpr uint32_t kGpuSectionQueries = 4096;
+  VkQueryPool gpu_section_query_pool_ = VK_NULL_HANDLE;
+  GpuSection gpu_section_ = GpuSection::kOther;
+  size_t gpu_section_stream_mark_ = 0;  // deferred_command_buffer_ size at the last timestamp
+  uint32_t gpu_section_ring_next_ = 0;
+  uint32_t gpu_section_ring_used_ = 0;
+  struct GpuSectionMark {
+    uint32_t query;
+    GpuSection ended;
+  };
+  struct GpuSectionSubmission {
+    uint64_t submission = 0;
+    uint32_t first_query = 0;  // the ring range this submission took
+    uint32_t query_count = 0;
+    uint32_t start_query = 0, end_query = 0;
+    GpuSection last = GpuSection::kOther;  // the section the end timestamp ends
+    std::vector<GpuSectionMark> marks;
+  };
+  bool gpu_section_recording_ = false;  // gpu_section_current_ belongs to the open submission
+  GpuSectionSubmission gpu_section_current_;
+  std::deque<GpuSectionSubmission> gpu_section_submitted_;
+  std::vector<uint64_t> gpu_section_stamps_;  // reused by ReadGpuSectionTimes
   VkBuffer occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
   VkDeviceMemory occlusion_query_readback_memory_ = VK_NULL_HANDLE;
   uint32_t occlusion_query_readback_memory_type_ = UINT32_MAX;

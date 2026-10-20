@@ -57,6 +57,13 @@ const char* Name(Counter counter) {
     case Counter::kShaderTranslateMicros: return "shader_translate_us";
     case Counter::kPresents: return "presents";
     case Counter::kHostGpuMicros: return "host_gpu_us";
+    case Counter::kHostGpuDrawMicros: return "host_gpu_draw_us";
+    case Counter::kHostGpuTransferMicros: return "host_gpu_transfer_us";
+    case Counter::kHostGpuResolveMicros: return "host_gpu_resolve_us";
+    case Counter::kHostGpuTextureMicros: return "host_gpu_texture_us";
+    case Counter::kHostGpuUploadMicros: return "host_gpu_upload_us";
+    case Counter::kHostGpuSwapMicros: return "host_gpu_swap_us";
+    case Counter::kHostGpuOtherMicros: return "host_gpu_other_us";
     case Counter::kCount: break;
   }
   return "?";

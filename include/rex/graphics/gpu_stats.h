@@ -20,8 +20,9 @@
 
 // 2: kGpuThreadMicros, kSubmitMicros, kShaderTranslations,
 // kShaderTranslateMicros and ScopedMicros. 3: kPresents. 4: kHostGpuMicros.
+// 5: kHostGpuDrawMicros ... kHostGpuOtherMicros.
 // A game built against any version can test this to know which counters exist.
-#define REX_GRAPHICS_STATS_VERSION 4
+#define REX_GRAPHICS_STATS_VERSION 5
 
 namespace rex::graphics::stats {
 
@@ -61,6 +62,15 @@ enum class Counter : uint32_t {
   // it says how much room the card has: a card a tenth as fast takes ten
   // times as long.
   kHostGpuMicros,
+  // The same time by what the card was doing (Vulkan timestamps where the
+  // GPU emulation's work changes kind, attributed to the kind that ended):
+  kHostGpuDrawMicros,      // the game's draws
+  kHostGpuTransferMicros,  // EDRAM copies between render targets
+  kHostGpuResolveMicros,   // resolves (EDRAM -> textures and memory)
+  kHostGpuTextureMicros,   // texture loads and conversions
+  kHostGpuUploadMicros,    // guest memory copied to the card's copy of it
+  kHostGpuSwapMicros,      // the picture shown: gamma, post-processing
+  kHostGpuOtherMicros,     // anything else
   kCount
 };
 

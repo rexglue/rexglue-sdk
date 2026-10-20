@@ -1356,6 +1356,9 @@ bool VulkanTextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unsca
 
 bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                                                bool load_mips) {
+  // The graphics card's time for the load counts as texture loads.
+  VulkanCommandProcessor::ScopedGpuSection texture_section(
+      command_processor_, VulkanCommandProcessor::GpuSection::kTextureLoads);
   VulkanTexture& vulkan_texture = static_cast<VulkanTexture&>(texture);
   TextureKey texture_key = vulkan_texture.key();
 

@@ -276,6 +276,9 @@ bool VulkanSharedMemory::UploadRanges(
   }
   for (const auto& range : upload_page_ranges)
     stats::Add(stats::Counter::kUploadBytes, uint64_t(range.second) << page_size_log2());
+  // The graphics card's time for these copies counts as uploads.
+  VulkanCommandProcessor::ScopedGpuSection upload_section(
+      command_processor_, VulkanCommandProcessor::GpuSection::kUploads);
   // upload_page_ranges are sorted, use them to determine the range for the
   // ordering barrier.
   Use(Usage::kTransferDestination,

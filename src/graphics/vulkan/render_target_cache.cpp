@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -4560,6 +4561,20 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       stats::Add(stats::Counter::kRenderTargetTransfers, render_target_transfers[i].size());
   }
   assert_true(GetPath() == Path::kHostRenderTargets);
+
+  // The graphics card's time for these copies counts as transfers. This runs
+  // for every draw: the section (and its timestamp) only when there's
+  // something to copy or clear.
+  bool any_transfer_or_clear = render_target_resolve_clear_values && resolve_clear_rectangle;
+  if (render_target_transfers) {
+    for (uint32_t i = 0; i < render_target_count && !any_transfer_or_clear; ++i) {
+      any_transfer_or_clear = !render_target_transfers[i].empty();
+    }
+  }
+  std::optional<VulkanCommandProcessor::ScopedGpuSection> transfer_section;
+  if (any_transfer_or_clear) {
+    transfer_section.emplace(command_processor_, VulkanCommandProcessor::GpuSection::kTransfers);
+  }
 
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   uint64_t current_submission = command_processor_.GetCurrentSubmission();

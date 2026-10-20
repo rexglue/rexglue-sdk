@@ -31,6 +31,9 @@ class DeferredCommandBuffer {
   void Reset();
   void Execute(VkCommandBuffer command_buffer);
 
+  // How much has been recorded since Reset (grows with every command).
+  size_t stream_size() const { return command_stream_.size(); }
+
   // render_pass_begin->pNext of all barriers must be null.
   void CmdVkBeginRenderPass(const VkRenderPassBeginInfo* render_pass_begin,
                             VkSubpassContents contents) {
@@ -265,6 +268,15 @@ class DeferredCommandBuffer {
   void CmdVkBeginRendering(const VkRenderingInfo* rendering_info);
   void CmdVkEndRendering() { WriteCommand(Command::kVkEndRendering, 0); }
 
+  void CmdVkWriteTimestamp(VkPipelineStageFlagBits pipeline_stage, VkQueryPool query_pool,
+                           uint32_t query) {
+    auto& args = *reinterpret_cast<ArgsVkWriteTimestamp*>(
+        WriteCommand(Command::kVkWriteTimestamp, sizeof(ArgsVkWriteTimestamp)));
+    args.pipeline_stage = pipeline_stage;
+    args.query_pool = query_pool;
+    args.query = query;
+  }
+
   void CmdVkResetQueryPool(VkQueryPool query_pool, uint32_t first_query, uint32_t query_count) {
     auto& args = *reinterpret_cast<ArgsVkResetQueryPool*>(
         WriteCommand(Command::kVkResetQueryPool, sizeof(ArgsVkResetQueryPool)));
@@ -381,6 +393,7 @@ class DeferredCommandBuffer {
     kVkSetStencilReference,
     kVkSetStencilWriteMask,
     kVkSetViewport,
+    kVkWriteTimestamp,
   };
 
   struct CommandHeader {
@@ -516,6 +529,12 @@ class DeferredCommandBuffer {
   };
 
   struct ArgsVkEndQuery {
+    VkQueryPool query_pool;
+    uint32_t query;
+  };
+
+  struct ArgsVkWriteTimestamp {
+    VkPipelineStageFlagBits pipeline_stage;
     VkQueryPool query_pool;
     uint32_t query;
   };
