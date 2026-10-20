@@ -16,6 +16,12 @@ namespace rex::thread_stats {
 
 namespace {
 
+struct HolderEntry {
+  std::atomic<uint32_t> holder_id{0};
+  std::atomic<uint64_t> wait_us{0};
+  std::atomic<uint64_t> waits{0};
+};
+
 // One per thread. Only its own thread writes it (relaxed adds); readers may
 // see a wait's time a moment before its count, which a once-a-second reader
 // doesn't notice.
@@ -23,6 +29,10 @@ struct Slot {
   std::atomic<uint32_t> system_id{0};
   std::atomic<uint64_t> wait_us[size_t(Wait::kCount)] = {};
   std::atomic<uint64_t> waits[size_t(Wait::kCount)] = {};
+  // Global lock waits by holder. Only the slot's own thread writes; an entry
+  // is published by raising holders_used after its id is set.
+  HolderEntry holders[kMaxHoldersPerThread];
+  std::atomic<uint32_t> holders_used{0};
 };
 
 Slot g_slots[kMaxThreads];
@@ -59,6 +69,54 @@ void AddWait(Wait kind, uint64_t micros) {
   if (!slot) return;
   slot->wait_us[size_t(kind)].fetch_add(micros, std::memory_order_relaxed);
   slot->waits[size_t(kind)].fetch_add(1, std::memory_order_relaxed);
+}
+
+void AddLockHolderWait(uint32_t holder_id, uint64_t micros) {
+  Slot* slot = ThisThreadSlot();
+  if (!slot) return;
+  const uint32_t used = slot->holders_used.load(std::memory_order_relaxed);
+  HolderEntry* entry = nullptr;
+  for (uint32_t i = 0; i < used; ++i) {
+    if (slot->holders[i].holder_id.load(std::memory_order_relaxed) == holder_id) {
+      entry = &slot->holders[i];
+      break;
+    }
+  }
+  if (!entry) {
+    if (used < kMaxHoldersPerThread) {
+      entry = &slot->holders[used];
+      entry->holder_id.store(holder_id, std::memory_order_relaxed);
+      slot->holders_used.store(used + 1, std::memory_order_release);
+    } else {
+      // Full: counted as "not known" (the first entry with id 0, if any).
+      for (uint32_t i = 0; i < used && !entry; ++i)
+        if (slot->holders[i].holder_id.load(std::memory_order_relaxed) == 0)
+          entry = &slot->holders[i];
+      if (!entry) return;
+    }
+  }
+  entry->wait_us.fetch_add(micros, std::memory_order_relaxed);
+  entry->waits.fetch_add(1, std::memory_order_relaxed);
+}
+
+size_t ReadLockHolders(LockHolderTotals* out, size_t max_pairs) {
+  size_t used = g_slots_used.load(std::memory_order_relaxed);
+  if (used > kMaxThreads) used = kMaxThreads;
+  size_t written = 0;
+  for (size_t i = 0; i < used && written < max_pairs; ++i) {
+    const Slot& slot = g_slots[i];
+    const uint32_t id = slot.system_id.load(std::memory_order_acquire);
+    if (!id) continue;
+    const uint32_t holders = slot.holders_used.load(std::memory_order_acquire);
+    for (uint32_t h = 0; h < holders && written < max_pairs; ++h) {
+      LockHolderTotals& t = out[written++];
+      t.waiter_id = id;
+      t.holder_id = slot.holders[h].holder_id.load(std::memory_order_relaxed);
+      t.wait_us = slot.holders[h].wait_us.load(std::memory_order_relaxed);
+      t.waits = slot.holders[h].waits.load(std::memory_order_relaxed);
+    }
+  }
+  return written;
 }
 
 size_t Read(ThreadTotals* out, size_t max_threads) {

@@ -29,7 +29,8 @@
 #include <cstdint>
 
 // A game built against SDKs with and without these totals can test this.
-#define REX_THREAD_STATS_VERSION 1
+// 2: who held the global lock while a thread waited for it (ReadLockHolders).
+#define REX_THREAD_STATS_VERSION 2
 
 namespace rex::thread_stats {
 
@@ -59,6 +60,27 @@ size_t Read(ThreadTotals* out, size_t max_threads);
 
 // "guest wait", "guest sleep", "spinlock", "global lock".
 const char* Name(Wait kind);
+
+// The global lock waits of one thread, by the thread that held the lock when
+// the wait began: a thread that waits a lot says who to look at. The holder
+// is read from the lock itself, which only Linux (glibc) shows; elsewhere,
+// and past kMaxHoldersPerThread holders, it is 0 (not known).
+struct LockHolderTotals {
+  uint32_t waiter_id = 0;  // OS thread id of the thread that waited
+  uint32_t holder_id = 0;  // OS thread id of the thread holding the lock, 0 = not known
+  uint64_t wait_us = 0;
+  uint64_t waits = 0;
+};
+
+inline constexpr size_t kMaxHoldersPerThread = 12;
+
+// Adds a finished global lock wait of the calling thread (the time is also
+// added with AddWait(Wait::kGlobalLock, ...) by the caller).
+void AddLockHolderWait(uint32_t holder_id, uint64_t micros);
+
+// Copies every (waiter, holder) total so far into `out`, up to `max_pairs`;
+// returns how many were written.
+size_t ReadLockHolders(LockHolderTotals* out, size_t max_pairs);
 
 // Steady clock in microseconds (the clock these totals use).
 uint64_t NowMicros();
