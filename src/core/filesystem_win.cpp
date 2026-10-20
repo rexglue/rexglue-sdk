@@ -43,9 +43,24 @@ std::filesystem::path to_path(const std::u16string_view source) {
 namespace filesystem {
 
 std::filesystem::path GetExecutablePath() {
-  wchar_t* path;
-  auto error = _get_wpgmptr(&path);
-  return !error ? std::filesystem::path(path) : std::filesystem::path();
+  // Ask Windows itself: the C runtime's _get_wpgmptr only knows the path
+  // when the program started through the wide entry point, which depends on
+  // the compiler (MSVC, MinGW) and its options.
+  std::wstring path(MAX_PATH, L'\0');
+  for (;;) {
+    DWORD length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    if (length == 0) {
+      break;
+    }
+    if (length < path.size()) {
+      path.resize(length);
+      return std::filesystem::path(path);
+    }
+    path.resize(path.size() * 2);  // longer than MAX_PATH: try a bigger buffer
+  }
+  wchar_t* crt_path;
+  auto error = _get_wpgmptr(&crt_path);
+  return !error ? std::filesystem::path(crt_path) : std::filesystem::path();
 }
 
 std::filesystem::path GetExecutableFolder() {
