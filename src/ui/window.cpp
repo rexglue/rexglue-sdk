@@ -62,7 +62,7 @@ REXCVAR_DEFINE_STRING(resolution, "", "Display",
 
 REXCVAR_DEFINE_DOUBLE(video_mode_refresh_rate, 60.0, "Display",
                       "Guest video mode refresh rate in Hz")
-    .range(24.0, 240.0)
+    .range(24.0, 1000.0)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace rex {
