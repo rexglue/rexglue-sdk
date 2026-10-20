@@ -287,7 +287,10 @@ class PosixConditionBase {
   virtual ~PosixConditionBase() = default;
   virtual bool Signal() = 0;
 
-  WaitResult Wait(std::chrono::milliseconds timeout) {
+  // The time-out is in milliseconds (max() = none) or, for the short slices
+  // of an alertable wait, in microseconds.
+  template <typename Rep, typename Period>
+  WaitResult Wait(std::chrono::duration<Rep, Period> timeout) {
     bool executed;
     auto predicate = [this] { return this->signaled(); };
 #if REX_PLATFORM_LINUX
@@ -307,7 +310,7 @@ class PosixConditionBase {
     } else {
       // Counted while blocked, so that a pulse knows who it has to release.
       ++waiters_;
-      if (timeout == std::chrono::milliseconds::max()) {
+      if (timeout == std::chrono::duration<Rep, Period>::max()) {
         cond_.wait(lock, predicate);
         executed = true;  // Did not time out;
       } else {
@@ -324,9 +327,10 @@ class PosixConditionBase {
     }
   }
 
+  template <typename Rep, typename Period>
   static std::pair<WaitResult, size_t> WaitMultiple(std::vector<PosixConditionBase*>&& handles,
                                                     bool wait_all,
-                                                    std::chrono::milliseconds timeout) {
+                                                    std::chrono::duration<Rep, Period> timeout) {
     assert_true(!handles.empty());
 
     if (handles.size() == 1) {
@@ -335,7 +339,7 @@ class PosixConditionBase {
     }
 
     auto start_time = std::chrono::steady_clock::now();
-    auto end_time = (timeout == std::chrono::milliseconds::max())
+    auto end_time = (timeout == std::chrono::duration<Rep, Period>::max())
                         ? std::chrono::steady_clock::time_point::max()
                         : start_time + timeout;
 
@@ -434,13 +438,13 @@ class PosixConditionBase {
         return std::make_pair<WaitResult, size_t>(WaitResult::kTimeout, 0);
       }
 
-      if (timeout == std::chrono::milliseconds::max()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      } else {
-        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - now);
-        auto sleep_time = std::min(remaining, std::chrono::milliseconds(1));
-        std::this_thread::sleep_for(sleep_time);
-      }
+      // Look again in at most 1 ms, but don't sleep past the time-out. What
+      // was left used to be rounded down to whole milliseconds, which made
+      // this sleep 0 in the last millisecond, so this loop spun there. An
+      // alertable wait only ever waits here in slices of 1 ms or less, so it
+      // spun all the time (the Audio Worker used a whole CPU core for that).
+      std::this_thread::sleep_for(std::min<std::chrono::steady_clock::duration>(
+          end_time - now, std::chrono::milliseconds(1)));
     }
   }
 
@@ -1153,17 +1157,19 @@ bool HasAlertableTimeoutElapsed(std::chrono::steady_clock::time_point deadline) 
          std::chrono::steady_clock::now() >= deadline;
 }
 
-std::chrono::milliseconds ComputeAlertableWaitTimeout(
+// In microseconds: rounded down to whole milliseconds, the last slice before
+// the deadline came out as 0, and the wait spun through that millisecond.
+std::chrono::microseconds ComputeAlertableWaitTimeout(
     std::chrono::steady_clock::time_point deadline) {
   if (deadline == std::chrono::steady_clock::time_point::max()) {
     return kAlertablePollSlice;
   }
-  auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+  auto remaining = std::chrono::duration_cast<std::chrono::microseconds>(
       deadline - std::chrono::steady_clock::now());
-  if (remaining <= std::chrono::milliseconds::zero()) {
-    return std::chrono::milliseconds::zero();
+  if (remaining <= std::chrono::microseconds::zero()) {
+    return std::chrono::microseconds::zero();
   }
-  return std::min(remaining, kAlertablePollSlice);
+  return std::min<std::chrono::microseconds>(remaining, kAlertablePollSlice);
 }
 
 }  // namespace
