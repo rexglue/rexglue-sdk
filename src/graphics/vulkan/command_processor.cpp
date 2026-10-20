@@ -4760,6 +4760,19 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
   }
   readback.partial[write_index] = !all_pieces;
 
+  // readback_resolve_full_deferred: the guest gets this copy at its next
+  // access to the destination (CompleteDeferredReadbacks waits for it then,
+  // usually long done), so this thread doesn't wait for the GPU here.
+  if (!use_delayed_sync &&
+      DeferResolveReadback(written_address, written_length, all_pieces, readback_pieces_)) {
+    readback.submission_written[write_index] = GetCurrentSubmission();
+    readback.written_size[write_index] = written_length;
+    deferred_readback_slots_[MakeReadbackResolveKey(written_address & 0x1FFFFFFF,
+                                                    written_length)] = {resolve_key, write_index};
+    readback.current_index = 1 - readback.current_index;
+    return true;
+  }
+
   uint32_t read_index = write_index;
   if (use_delayed_sync) {
     read_index = 1 - write_index;
@@ -4849,6 +4862,62 @@ void VulkanCommandProcessor::ReadBackResolvesNow(const ResolveFetch* fetches, si
     readback_memory_range.size = VK_WHOLE_SIZE;
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
     data_out[i] = static_cast<const uint8_t*>(readback->mapped_data[index]);
+  }
+}
+
+void VulkanCommandProcessor::CompleteDeferredReadbacks(const ResolveFetch* fetches, size_t count,
+                                                       std::vector<const uint8_t*>& data_out) {
+  data_out.assign(count, nullptr);
+  // The latest of the copies, waited for once (a submission's fence covers
+  // everything submitted before it).
+  uint64_t await_submission = 0;
+  for (size_t i = 0; i < count; ++i) {
+    auto slot = deferred_readback_slots_.find(MakeReadbackResolveKey(fetches[i].address,
+                                                                    fetches[i].length));
+    if (slot == deferred_readback_slots_.end()) {
+      continue;
+    }
+    auto buffer = readback_buffers_.find(slot->second.buffer_key);
+    if (buffer == readback_buffers_.end()) {
+      continue;
+    }
+    await_submission =
+        std::max(await_submission, buffer->second.submission_written[slot->second.index]);
+  }
+  if (!await_submission) {
+    return;
+  }
+  CheckSubmissionFenceAndDeviceLoss(await_submission);
+  if (await_submission > submission_completed_) {
+    return;
+  }
+
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  for (size_t i = 0; i < count; ++i) {
+    auto slot = deferred_readback_slots_.find(MakeReadbackResolveKey(fetches[i].address,
+                                                                    fetches[i].length));
+    if (slot == deferred_readback_slots_.end()) {
+      continue;
+    }
+    auto buffer = readback_buffers_.find(slot->second.buffer_key);
+    if (buffer == readback_buffers_.end()) {
+      continue;
+    }
+    const ReadbackBuffer& readback = buffer->second;
+    const uint32_t index = slot->second.index;
+    if (readback.buffers[index] == VK_NULL_HANDLE || readback.mapped_data[index] == nullptr ||
+        !readback.submission_written[index] || readback.written_size[index] < fetches[i].length) {
+      continue;
+    }
+    VkMappedMemoryRange readback_memory_range = {};
+    readback_memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    readback_memory_range.memory = readback.memories[index];
+    readback_memory_range.offset = 0;
+    readback_memory_range.size = VK_WHOLE_SIZE;
+    dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
+    data_out[i] = static_cast<const uint8_t*>(readback.mapped_data[index]);
   }
 }
 

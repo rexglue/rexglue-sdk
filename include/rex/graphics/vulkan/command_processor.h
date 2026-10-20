@@ -262,6 +262,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool CanReadBackResolvesNow() const override { return true; }
   void ReadBackResolvesNow(const ResolveFetch* fetches, size_t count,
                            std::vector<const uint8_t*>& data_out) override;
+  bool CanDeferResolveReadbacks() const override { return true; }
+  void CompleteDeferredReadbacks(const ResolveFetch* fetches, size_t count,
+                                 std::vector<const uint8_t*>& data_out) override;
 
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height) override;
@@ -825,6 +828,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::array<VertexBufferState, 96> vertex_buffer_states_{};
   uint64_t vertex_buffers_in_sync_[2] = {};
   std::unordered_map<uint64_t, ReadbackBuffer> readback_buffers_;
+  // readback_resolve_full_deferred: where each destination's last deferred
+  // copy back went, by MakeReadbackResolveKey of its physical address: its
+  // readback_buffers_ key and slot.
+  struct DeferredReadbackSlot {
+    uint64_t buffer_key;
+    uint32_t index;
+  };
+  std::unordered_map<uint64_t, DeferredReadbackSlot> deferred_readback_slots_;
   std::unordered_map<uint64_t, ReadbackBuffer> memexport_readback_buffers_;
 
   // The current dynamic state of the graphics pipeline bind point. Note that

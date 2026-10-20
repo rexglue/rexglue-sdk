@@ -304,6 +304,9 @@ class CommandProcessor {
     uint64_t serial;
     bool in_progress;  // Being copied back by the command processor thread.
     bool cancelled;    // The waiting thread gave up: don't write guest memory.
+    // readback_resolve_full_deferred: the copy recorded at the destination's
+    // last resolve has what the access needs; it is only waited for.
+    bool deferred;
   };
   // For the implementations, on the command processor thread: copies resolve
   // destinations from the GPU's memory to host memory now, waiting for the
@@ -314,6 +317,23 @@ class CommandProcessor {
   virtual bool CanReadBackResolvesNow() const { return false; }
   virtual void ReadBackResolvesNow(const ResolveFetch* /* fetches */, size_t count,
                                    std::vector<const uint8_t*>& data_out) {
+    data_out.assign(count, nullptr);
+  }
+  // readback_resolve full with readback_resolve_full_deferred: for the
+  // implementations, on the command processor thread, once a resolve's copy
+  // back (all of it, or `pieces` of it) is recorded but not waited for:
+  // whether the guest gets it at its next access to the destination instead
+  // of now. The command processor thread then doesn't wait for the GPU at
+  // the resolve; the access waits for the copy (CompleteDeferredReadbacks),
+  // which has usually finished by then. False: copy it back now, as before.
+  bool DeferResolveReadback(uint32_t physical_address, uint32_t length, bool all,
+                            const std::vector<std::pair<uint32_t, uint32_t>>& pieces);
+  // For the implementations that defer: waits for the copies recorded at
+  // each fetched destination's last resolve and gives each one's bytes
+  // (nullptr where it has none: that one is copied back the usual way).
+  virtual bool CanDeferResolveReadbacks() const { return false; }
+  virtual void CompleteDeferredReadbacks(const ResolveFetch* /* fetches */, size_t count,
+                                         std::vector<const uint8_t*>& data_out) {
     data_out.assign(count, nullptr);
   }
   // For the implementations, after a resolve ShouldReadbackResolve said to
@@ -399,6 +419,13 @@ class CommandProcessor {
     // Copied back whole after each resolve: pages-only is off, or the guest
     // has touched too much of it for pieces to pay.
     bool whole;
+    // readback_resolve_full_deferred: the last resolve's copy back is
+    // recorded but not in guest memory yet (all of it, or deferred_pieces as
+    // (offset, length)); those pieces are watched, and the guest's next access
+    // brings it in.
+    bool deferred_pending;
+    bool deferred_all;
+    std::vector<std::pair<uint32_t, uint32_t>> deferred_pieces;
   };
   // The 4 KB pieces readback_resolve_cpu_pages_only works in.
   static constexpr uint32_t kResolveChunkShift = 12;
@@ -421,6 +448,18 @@ class CommandProcessor {
   // Writes a fetched destination into guest memory, the pages still
   // read-watched only (the others were written or freed since its resolve).
   void CopyResolveFetchToGuest(const ResolveFetch& fetch, const uint8_t* data);
+  // The same for a deferred copy back: only the pieces it holds, which are
+  // then no longer watched.
+  void CopyDeferredReadbackToGuest(ResolveDestination& destination, const ResolveFetch& fetch,
+                                   const uint8_t* data);
+  // Stops a destination's deferred copy back that the guest never asked for
+  // (a new resolve replaces it): its pieces are no longer watched for it.
+  void DropDeferredReadback(ResolveDestination& destination);
+  // Stops watching a range without counting it as the guest's access:
+  // DisablePhysicalMemoryReadWatch calls the read callbacks first, this one
+  // among them, which would mark its pieces read and, under
+  // resolve_fetch_mutex_, wait on itself. The caller holds the global lock.
+  void UnwatchResolveRangeQuietly(uint32_t physical_address, uint32_t length);
   // A destination is remembered while the guest may still access it; past
   // this many, new ones are copied back after every resolve like before.
   static constexpr size_t kMaxResolveDestinations = 256;
@@ -440,9 +479,15 @@ class CommandProcessor {
   uint64_t resolve_fetch_next_serial_ = 1;
   std::atomic<bool> resolve_fetch_requested_{false};
   std::atomic<uint32_t> resolve_read_callbacks_running_{0};
+  // Set while UnwatchResolveRangeQuietly runs (under the global lock, which
+  // every read callback runs under too): ResolveReadCallback returns at once.
+  bool resolve_unwatching_quietly_ = false;
   // Command processor thread only.
   std::vector<ResolveFetch> resolve_fetch_batch_;
   std::vector<const uint8_t*> resolve_fetch_data_;
+  std::vector<ResolveFetch> resolve_fetch_deferred_batch_;
+  std::vector<const uint8_t*> resolve_fetch_deferred_data_;
+  std::vector<const uint8_t*> resolve_fetch_all_data_;
 
   reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
   reg::DC_LUT_PWL_DATA gamma_ramp_pwl_rgb_[128][3] = {};
