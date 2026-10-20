@@ -25,6 +25,19 @@ namespace rex::input::mnk {
 void SetMouseLookActive(bool active);
 bool IsMouseLookActive();
 
+// The controller button a keyboard bind row presses, as the program wants it.
+// The rows are named for buttons (keybind_right_shoulder ...), and a game may
+// give the row's action to another button than the one the row is named for
+// (a different controller layout). SetButtonRemap(from, to) makes the keys
+// bound to button `from` press button `to` instead; `to` = `from` or 0 puts the
+// row back. Both are single X_INPUT_GAMEPAD_* bits. Only the keyboard's own
+// presses change, never a real controller's. Any thread; read at every state
+// poll.
+void SetButtonRemap(uint16_t from, uint16_t to);
+void ClearButtonRemaps();
+// The button the row of `from` presses now (`from` when not remapped).
+uint16_t RemappedButton(uint16_t from);
+
 class MnkInputDriver final : public InputDriver,
                              public rex::ui::WindowInputListener,
                              public rex::ui::WindowListener {

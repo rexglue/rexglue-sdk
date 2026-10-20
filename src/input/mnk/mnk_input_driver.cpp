@@ -167,6 +167,38 @@ bool TokenPressed(const bool (&key_down)[256], std::string_view token, uint8_t l
 
 std::atomic<bool> mouse_look_active{true};
 
+// SetButtonRemap: per button bit, the bit its bind row presses (0 = itself).
+// Each slot is independent, so writers on any threads need no lock.
+std::atomic<uint16_t> button_remap[16] = {};
+
+int ButtonBitIndex(uint16_t button) {
+  // A single bit only; anything else is not a button.
+  if (button == 0 || (button & (button - 1)) != 0) {
+    return -1;
+  }
+  int index = 0;
+  while ((button >> index) != 1) {
+    ++index;
+  }
+  return index;
+}
+
+uint16_t ApplyButtonRemaps(uint16_t buttons) {
+  if (buttons == 0) {
+    return 0;
+  }
+  uint16_t out = 0;
+  for (int i = 0; i < 16; ++i) {
+    const uint16_t bit = static_cast<uint16_t>(1u << i);
+    if (!(buttons & bit)) {
+      continue;
+    }
+    const uint16_t to = button_remap[i].load(std::memory_order_relaxed);
+    out |= to ? to : bit;
+  }
+  return out;
+}
+
 }  // namespace
 
 void SetMouseLookActive(bool active) {
@@ -175,6 +207,30 @@ void SetMouseLookActive(bool active) {
 
 bool IsMouseLookActive() {
   return mouse_look_active.load(std::memory_order_relaxed);
+}
+
+void SetButtonRemap(uint16_t from, uint16_t to) {
+  const int index = ButtonBitIndex(from);
+  if (index < 0 || (to != 0 && ButtonBitIndex(to) < 0)) {
+    REXLOG_WARN("mnk: button remap {:#06x} -> {:#06x} ignored (not single buttons)", from, to);
+    return;
+  }
+  button_remap[index].store(to == from ? 0 : to, std::memory_order_relaxed);
+}
+
+void ClearButtonRemaps() {
+  for (auto& remap : button_remap) {
+    remap.store(0, std::memory_order_relaxed);
+  }
+}
+
+uint16_t RemappedButton(uint16_t from) {
+  const int index = ButtonBitIndex(from);
+  if (index < 0) {
+    return from;
+  }
+  const uint16_t to = button_remap[index].load(std::memory_order_relaxed);
+  return to ? to : from;
 }
 
 using rex::ui::VirtualKey;
@@ -347,6 +403,8 @@ X_RESULT MnkInputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
     buttons |= X_INPUT_GAMEPAD_DPAD_LEFT;
   if (IsBindPressed(key_down_, REXCVAR_GET(keybind_dpad_right), exact_keys))
     buttons |= X_INPUT_GAMEPAD_DPAD_RIGHT;
+  // The program's remaps (SetButtonRemap): the keyboard's presses only.
+  buttons = ApplyButtonRemaps(buttons);
 
   uint8_t lt = IsBindPressed(key_down_, REXCVAR_GET(keybind_left_trigger), exact_keys) ? 0xFF : 0;
   uint8_t rt = IsBindPressed(key_down_, REXCVAR_GET(keybind_right_trigger), exact_keys) ? 0xFF : 0;
