@@ -175,12 +175,18 @@ class CommandProcessor {
   void WriteLoopRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
   void WriteREGISTERSRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
 
-  const reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table() const {
-    return gamma_ramp_256_entry_table_;
-  }
-  const reg::DC_LUT_PWL_DATA* gamma_ramp_pwl_rgb() const { return gamma_ramp_pwl_rgb_[0]; }
+  // The gamma ramps the presenter applies: the guest's own, composed with the
+  // display output transfer (display_output_transfer, command_processor.cpp).
+  const reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table() const;
+  const reg::DC_LUT_PWL_DATA* gamma_ramp_pwl_rgb() const;
   virtual void OnGammaRamp256EntryTableValueWritten() {}
   virtual void OnGammaRampPWLValueWritten() {}
+  // The guest wrote a ramp value: the composed ramp is made again, then the
+  // backend is told (the virtuals above).
+  void GammaRamp256EntryTableValueWritten();
+  void GammaRampPWLValueWritten();
+  // At a swap: takes a changed display_output_transfer.
+  void UpdateDisplayOutputTransfer();
 
   virtual void MakeCoherent();
   virtual void PrepareForWait();
@@ -402,6 +408,14 @@ class CommandProcessor {
   reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
   reg::DC_LUT_PWL_DATA gamma_ramp_pwl_rgb_[128][3] = {};
   uint32_t gamma_ramp_rw_component_ = 0;
+  // The ramps as presented (the guest's composed with the display output
+  // transfer), made again from the guest's when one of them is out of date.
+  // Command processor thread only.
+  mutable reg::DC_LUT_30_COLOR display_gamma_ramp_256_entry_table_[256] = {};
+  mutable reg::DC_LUT_PWL_DATA display_gamma_ramp_pwl_rgb_[128][3] = {};
+  mutable bool display_gamma_ramp_256_entry_table_stale_ = true;
+  mutable bool display_gamma_ramp_pwl_stale_ = true;
+  bool display_output_bt1886_ = false;
 };
 
 }  // namespace rex::graphics

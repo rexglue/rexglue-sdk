@@ -33,11 +33,23 @@
 #include <rex/system/xtypes.h>
 #include <rex/ui/flags.h>
 
+// The display the game is told it draws for (VdGetCurrentDisplayGamma). The
+// console's Direct3D builds the hardware gamma ramp from the game's ramp for
+// this display: sRGB (1) leaves the game's own ramp as it is, BT.709 (2) puts
+// BT.709's transfer curve on top (the picture an HDTV expects), 3 a plain power
+// curve, anything else nothing (linear). It is read whenever the game sets its
+// ramp, so a change shows from the game's next ramp. Same names as Xenia's.
+REXCVAR_DEFINE_INT32(kernel_display_gamma_type, 2, "Kernel",
+                     "Display the game is told it draws for: 0 linear, 1 sRGB (a PC display), 2 BT.709 "
+                     "(an HDTV, as the console's dashboard reports), 3 the power in kernel_display_gamma_power")
+    .range(0, 3)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+REXCVAR_DEFINE_DOUBLE(kernel_display_gamma_power, 2.22222233, "Kernel",
+                      "Display gamma power for kernel_display_gamma_type 3")
+    .range(1.0, 3.0)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 namespace {
-// Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 (HDTV), 3 - power
-constexpr uint32_t kDisplayGammaType = 2;
-// Display gamma power (used with gamma type 3)
-constexpr double kDisplayGammaPower = 2.22222233;
 
 uint32_t GetConfiguredVideoModeWidth() {
   int32_t configured_width = REXCVAR_GET(video_mode_width);
@@ -153,8 +165,8 @@ void VdGetCurrentDisplayGamma_entry(mapped_u32 type_ptr, mapped_f32 power_ptr) {
   // 3 - use the power written to *power_ptr.
   // Anything else - linear.
   // Used in D3D SetGammaRamp/SetPWLGamma to adjust the ramp for the display.
-  *type_ptr = kDisplayGammaType;
-  *power_ptr = float(kDisplayGammaPower);
+  *type_ptr = uint32_t(REXCVAR_GET(kernel_display_gamma_type));
+  *power_ptr = float(REXCVAR_GET(kernel_display_gamma_power));
 }
 
 struct X_D3DPRIVATE_RECT {
