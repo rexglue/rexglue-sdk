@@ -7593,6 +7593,8 @@ VkDescriptorSet VulkanCommandProcessor::FindTextureDescriptorSet(
       frame_current_ != texture_descriptor_reuse_frame_) {
     texture_descriptor_reuse_.clear();
     texture_descriptor_reuse_contents_.clear();
+    texture_descriptor_last_set_[0] = VK_NULL_HANDLE;
+    texture_descriptor_last_set_[1] = VK_NULL_HANDLE;
     texture_descriptor_reuse_submission_ = submission;
     texture_descriptor_reuse_frame_ = frame_current_;
   }
@@ -7613,6 +7615,13 @@ VkDescriptorSet VulkanCommandProcessor::FindTextureDescriptorSet(
   for (uint32_t i = 0; i < sampler_count; ++i) {
     key.push_back(handle_bits(sampler_image_info[i].sampler));
   }
+  texture_descriptor_reuse_key_is_vertex_ = is_vertex;
+  // The same as this stage's last set: no hashing.
+  std::vector<uint64_t>& last = texture_descriptor_last_contents_[is_vertex];
+  if (texture_descriptor_last_set_[is_vertex] != VK_NULL_HANDLE && last.size() == key.size() &&
+      std::memcmp(last.data(), key.data(), key.size() * sizeof(uint64_t)) == 0) {
+    return texture_descriptor_last_set_[is_vertex];
+  }
   texture_descriptor_reuse_key_hash_ = XXH3_64bits(key.data(), key.size() * sizeof(uint64_t));
   auto range = texture_descriptor_reuse_.equal_range(texture_descriptor_reuse_key_hash_);
   for (auto it = range.first; it != range.second; ++it) {
@@ -7620,6 +7629,8 @@ VkDescriptorSet VulkanCommandProcessor::FindTextureDescriptorSet(
     if (reuse.contents_count == key.size() &&
         std::memcmp(texture_descriptor_reuse_contents_.data() + reuse.contents_offset, key.data(),
                     key.size() * sizeof(uint64_t)) == 0) {
+      last.assign(key.begin(), key.end());
+      texture_descriptor_last_set_[is_vertex] = reuse.set;
       return reuse.set;
     }
   }
@@ -7638,6 +7649,9 @@ void VulkanCommandProcessor::RememberTextureDescriptorSet(VkDescriptorSet set) {
                                             texture_descriptor_reuse_key_.begin(),
                                             texture_descriptor_reuse_key_.end());
   texture_descriptor_reuse_.emplace(texture_descriptor_reuse_key_hash_, reuse);
+  texture_descriptor_last_contents_[texture_descriptor_reuse_key_is_vertex_].assign(
+      texture_descriptor_reuse_key_.begin(), texture_descriptor_reuse_key_.end());
+  texture_descriptor_last_set_[texture_descriptor_reuse_key_is_vertex_] = set;
   texture_descriptor_reuse_key_.clear();
 }
 

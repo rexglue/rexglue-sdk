@@ -717,6 +717,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   // The contents of the set looked up last (FindTextureDescriptorSet).
   std::vector<uint64_t> texture_descriptor_reuse_key_;
   uint64_t texture_descriptor_reuse_key_hash_ = 0;
+  bool texture_descriptor_reuse_key_is_vertex_ = false;
+  // The set each stage got last (index: is_vertex) and its contents: most
+  // draws bind what the draw before them bound, found without hashing.
+  std::vector<uint64_t> texture_descriptor_last_contents_[2];
+  VkDescriptorSet texture_descriptor_last_set_[2] = {};
   uint64_t texture_descriptor_reuse_submission_ = UINT64_MAX;
   uint64_t texture_descriptor_reuse_frame_ = UINT64_MAX;
   // A set written earlier in this submission with these contents, or
