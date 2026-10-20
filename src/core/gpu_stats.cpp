@@ -51,6 +51,10 @@ const char* Name(Counter counter) {
     case Counter::kWatchFaults: return "watch_faults";
     case Counter::kTexturesReplaced: return "textures_replaced";
     case Counter::kTexturesNotInPack: return "textures_not_in_pack";
+    case Counter::kGpuThreadMicros: return "gpu_thread_us";
+    case Counter::kSubmitMicros: return "submit_us";
+    case Counter::kShaderTranslations: return "shader_translations";
+    case Counter::kShaderTranslateMicros: return "shader_translate_us";
     case Counter::kCount: break;
   }
   return "?";
@@ -61,6 +65,12 @@ ScopedGpuWait::ScopedGpuWait() : start_us_(NowMicros()) {}
 ScopedGpuWait::~ScopedGpuWait() {
   Add(Counter::kGpuWaits);
   Add(Counter::kGpuWaitMicros, NowMicros() - start_us_);
+}
+
+ScopedMicros::ScopedMicros(Counter counter) : counter_(counter), start_us_(NowMicros()) {}
+
+ScopedMicros::~ScopedMicros() {
+  Add(counter_, NowMicros() - start_us_);
 }
 
 }  // namespace rex::graphics::stats

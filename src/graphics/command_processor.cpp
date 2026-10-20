@@ -384,7 +384,13 @@ void CommandProcessor::WorkerThreadMain() {
     assert_true(read_ptr_index_ != write_ptr_index);
 
     // Execute. Note that we handle wraparound transparently.
-    read_ptr_index_ = ExecutePrimaryBuffer(read_ptr_index_, write_ptr_index);
+    {
+      // Busy time for the performance readout. Everything below runs on this
+      // one thread, so when it is close to the frame time this thread is what
+      // limits the frame rate, however idle the other cores are.
+      stats::ScopedMicros busy_time(stats::Counter::kGpuThreadMicros);
+      read_ptr_index_ = ExecutePrimaryBuffer(read_ptr_index_, write_ptr_index);
+    }
 
     // TODO(benvanik): use reader->Read_update_freq_ and only issue after moving
     //     that many indices.

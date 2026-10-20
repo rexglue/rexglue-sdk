@@ -30,6 +30,7 @@
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
 #include <rex/filesystem.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/pipeline_cache.h>
 #include <rex/graphics/d3d12/render_target_cache.h>
@@ -987,6 +988,10 @@ bool PipelineCache::ConfigurePipeline(
   if (!vertex_shader->is_translated() && !use_async) {
     std::lock_guard<std::mutex> lock(translation_request_lock_);
     if (!vertex_shader->is_translated()) {
+      // Done here, on the GPU thread, while the draw (and the frame) waits:
+      // counted for the performance readout, a cause of hitches.
+      stats::ScopedMicros translate_time(stats::Counter::kShaderTranslateMicros);
+      stats::Add(stats::Counter::kShaderTranslations);
       if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader, dxbc_converter_, dxc_utils_,
                                    dxc_compiler_)) {
         REXGPU_ERROR("Failed to translate the vertex shader!");
@@ -1013,6 +1018,8 @@ bool PipelineCache::ConfigurePipeline(
     if (!pixel_shader->is_translated() && !use_async) {
       std::lock_guard<std::mutex> lock(translation_request_lock_);
       if (!pixel_shader->is_translated()) {
+        stats::ScopedMicros translate_time(stats::Counter::kShaderTranslateMicros);
+        stats::Add(stats::Counter::kShaderTranslations);
         pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
         if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader, dxbc_converter_,
                                      dxc_utils_, dxc_compiler_)) {

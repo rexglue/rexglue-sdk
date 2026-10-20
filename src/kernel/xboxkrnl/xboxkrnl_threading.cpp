@@ -38,6 +38,7 @@
 #include <rex/system/xtypes.h>
 #include <rex/thread/atomic.h>
 #include <rex/thread/mutex.h>
+#include <rex/thread/thread_stats.h>
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -969,8 +970,13 @@ uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, bool change_i
   uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
   const uint32_t self = rex::byte_swap(pcr_addr);
   assert_true(lock->prcb_of_owner.value != self);  // self-deadlock detection
-  while (!rex::thread::atomic_cas(0u, self, &lock->prcb_of_owner.value)) {
-    rex::thread::MaybeYield();
+  if (!rex::thread::atomic_cas(0u, self, &lock->prcb_of_owner.value)) {
+    // Contended: another thread holds it. Spinning keeps this thread busy, so
+    // the in-engine profiler counts the time here as waiting, not work.
+    rex::thread_stats::ScopedWait spun(rex::thread_stats::Wait::kSpinLock);
+    do {
+      rex::thread::MaybeYield();
+    } while (!rex::thread::atomic_cas(0u, self, &lock->prcb_of_owner.value));
   }
   return old_irql;
 }

@@ -3505,6 +3505,10 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
     // ExecuteCommandLists - the boundaries of ExecuteCommandLists are a full
     // UAV and aliasing barrier, and subsystems of the emulator assume it
     // happens between Xenia submissions.
+    // Time spent replaying the recorded commands into the command list and
+    // submitting it: the part of the GPU thread's work that another thread
+    // could take over (see gpu_stats.h).
+    stats::ScopedMicros submit_time(stats::Counter::kSubmitMicros);
     ID3D12CommandAllocator* command_allocator =
         command_allocator_writable_first_->command_allocator;
     command_allocator->Reset();

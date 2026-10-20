@@ -25,6 +25,7 @@
 #include <rex/system/xnotifylistener.h>
 #include <rex/system/xsemaphore.h>
 #include <rex/system/xsymboliclink.h>
+#include <rex/thread/thread_stats.h>
 #include <rex/system/xthread.h>
 
 namespace rex::system {
@@ -213,7 +214,13 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode, uint32_t a
                                 : std::chrono::milliseconds::max();
 
   XThread::CheckTitleTermination();
-  auto result = rex::thread::Wait(wait_handle, alertable ? true : false, timeout_ms);
+  auto result = [&] {
+    // Time blocked, for the in-engine profiler (a zero time-out is a poll).
+    if (timeout_ms.count() == 0)
+      return rex::thread::Wait(wait_handle, alertable ? true : false, timeout_ms);
+    thread_stats::ScopedWait waited(thread_stats::Wait::kGuestObject);
+    return rex::thread::Wait(wait_handle, alertable ? true : false, timeout_ms);
+  }();
   XThread::CheckTitleTermination();
   switch (result) {
     case rex::thread::WaitResult::kSuccess:
@@ -239,9 +246,12 @@ X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object, ui
                                       TimeoutTicksToMs(*opt_timeout)))
                                 : std::chrono::milliseconds::max();
 
-  auto result =
-      rex::thread::SignalAndWait(signal_object->GetWaitHandle(), wait_object->GetWaitHandle(),
-                                 alertable ? true : false, timeout_ms);
+  auto result = [&] {
+    thread_stats::ScopedWait waited(thread_stats::Wait::kGuestObject);
+    return rex::thread::SignalAndWait(signal_object->GetWaitHandle(),
+                                      wait_object->GetWaitHandle(), alertable ? true : false,
+                                      timeout_ms);
+  }();
   switch (result) {
     case rex::thread::WaitResult::kSuccess:
       wait_object->WaitCallback();
@@ -274,8 +284,10 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects, uint32_t wait_
 
   XThread::CheckTitleTermination();
   if (wait_type) {
-    auto result =
-        rex::thread::WaitAny(std::move(wait_handles), alertable ? true : false, timeout_ms);
+    auto result = [&] {
+      thread_stats::ScopedWait waited(thread_stats::Wait::kGuestObject);
+      return rex::thread::WaitAny(std::move(wait_handles), alertable ? true : false, timeout_ms);
+    }();
     XThread::CheckTitleTermination();
     switch (result.first) {
       case rex::thread::WaitResult::kSuccess:
@@ -295,8 +307,10 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects, uint32_t wait_
         return X_STATUS_UNSUCCESSFUL;
     }
   } else {
-    auto result =
-        rex::thread::WaitAll(std::move(wait_handles), alertable ? true : false, timeout_ms);
+    auto result = [&] {
+      thread_stats::ScopedWait waited(thread_stats::Wait::kGuestObject);
+      return rex::thread::WaitAll(std::move(wait_handles), alertable ? true : false, timeout_ms);
+    }();
     XThread::CheckTitleTermination();
     switch (result) {
       case rex::thread::WaitResult::kSuccess:

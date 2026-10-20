@@ -793,7 +793,9 @@ class PosixCondition<Thread> : public PosixConditionBase {
         pthread_setname_np(std::string(name).c_str());
       }
 #else
-      pthread_setname_np(thread_, std::string(name).c_str());
+      // Linux refuses names over 15 characters outright ("Vulkan Pipelines"
+      // would stay unnamed), so keep the first 15.
+      pthread_setname_np(thread_, std::string(name).substr(0, 15).c_str());
 #endif
 #if REX_PLATFORM_ANDROID
       SetAndroidPreApi26Name(name);
@@ -1564,7 +1566,8 @@ void set_current_thread_name(const std::string_view name) {
 #if defined(__APPLE__)
   pthread_setname_np(std::string(name).c_str());
 #else
-  pthread_setname_np(pthread_self(), std::string(name).c_str());
+  // Linux refuses names over 15 characters (see PosixThread::set_name).
+  pthread_setname_np(pthread_self(), std::string(name.substr(0, 15)).c_str());
 #endif
 #if REX_PLATFORM_ANDROID
   if (!android_pthread_getname_np_ && current_thread_) {

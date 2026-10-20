@@ -10,12 +10,18 @@
  */
 
 #include <rex/thread/mutex.h>
+#include <rex/thread/thread_stats.h>
 
 namespace rex::thread {
 
 std::recursive_mutex& global_critical_region::mutex() {
   static std::recursive_mutex global_mutex;
   return global_mutex;
+}
+
+void global_critical_region::LockContended(std::unique_lock<std::recursive_mutex>& lock) {
+  thread_stats::ScopedWait waited(thread_stats::Wait::kGlobalLock);
+  lock.lock();
 }
 
 }  // namespace rex::thread

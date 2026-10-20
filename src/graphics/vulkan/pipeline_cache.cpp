@@ -31,6 +31,7 @@
 #include <rex/math.h>
 #include <rex/thread.h>
 #include <rex/memory.h>
+#include <rex/graphics/gpu_stats.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline_util.h>
@@ -1089,6 +1090,10 @@ bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslatio
                   xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
   assert_false(register_file_.Get<reg::SQ_PROGRAM_CNTL>().gen_index_vtx);
   if (!vertex_shader->is_translated()) {
+    // Done here, on the GPU thread, while the draw (and the frame) waits:
+    // counted for the performance readout, a cause of hitches.
+    stats::ScopedMicros translate_time(stats::Counter::kShaderTranslateMicros);
+    stats::Add(stats::Counter::kShaderTranslations);
     vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
     if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader)) {
       REXGPU_ERROR("Failed to translate the vertex shader!");
@@ -1101,6 +1106,8 @@ bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslatio
   }
   if (pixel_shader != nullptr) {
     if (!pixel_shader->is_translated()) {
+      stats::ScopedMicros translate_time(stats::Counter::kShaderTranslateMicros);
+      stats::Add(stats::Counter::kShaderTranslations);
       pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
       if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader)) {
         REXGPU_ERROR("Failed to translate the pixel shader!");

@@ -5517,6 +5517,11 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
     SubmitBarriers(true);
 
+    // Time spent replaying the recorded commands into a Vulkan command buffer
+    // and submitting it: the part of the GPU thread's work that another
+    // thread could take over (see gpu_stats.h).
+    stats::ScopedMicros submit_time(stats::Counter::kSubmitMicros);
+
     assert_false(command_buffers_writable_.empty());
     CommandBuffer command_buffer = command_buffers_writable_.back();
     if (dfn.vkResetCommandPool(device, command_buffer.pool, 0) != VK_SUCCESS) {

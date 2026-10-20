@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <optional>
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -35,6 +36,7 @@
 #include <rex/system/xmutant.h>
 #include <rex/system/xthread.h>
 #include <rex/thread.h>
+#include <rex/thread/thread_stats.h>
 #include <rex/vec128.h>
 
 REXCVAR_DEFINE_BOOL(ignore_thread_priorities, true, "Kernel",
@@ -465,9 +467,12 @@ X_STATUS XThread::Create() {
     return X_STATUS_NO_MEMORY;
   }
 
-  // Set the thread name based on host ID (for easier debugging).
+  // Without a name of its own, a thread is named after the guest function it
+  // starts in, so it can be told apart in the OS's thread list, a debugger
+  // and the game's in-engine profiler (several threads running the same
+  // function are one kind of worker). 15 characters: Linux's limit.
   if (thread_name_.empty()) {
-    set_name(fmt::format("XThread{:04X}", thread_->system_id()));
+    set_name(fmt::format("XThread{:08X}", creation_params_.start_address));
   }
 
   if (creation_params_.creation_flags & 0x60) {
@@ -1019,6 +1024,9 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t in
   }
   timeout_ms = chrono::Clock::ScaleGuestDurationMillis(timeout_ms);
   CheckTitleTermination();
+  // Time asleep, for the in-engine profiler (a zero delay is a yield).
+  std::optional<thread_stats::ScopedWait> slept;
+  if (timeout_ms) slept.emplace(thread_stats::Wait::kGuestSleep);
   if (alertable) {
     auto result = rex::thread::AlertableSleep(std::chrono::milliseconds(timeout_ms));
     CheckTitleTermination();

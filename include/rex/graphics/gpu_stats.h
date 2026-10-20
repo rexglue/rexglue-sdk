@@ -18,6 +18,11 @@
 #include <cstddef>
 #include <cstdint>
 
+// 2: kGpuThreadMicros, kSubmitMicros, kShaderTranslations,
+// kShaderTranslateMicros and ScopedMicros. A game built against either
+// version can test this to know which counters exist.
+#define REX_GRAPHICS_STATS_VERSION 2
+
 namespace rex::graphics::stats {
 
 enum class Counter : uint32_t {
@@ -36,6 +41,15 @@ enum class Counter : uint32_t {
   kWatchFaults,          // CPU writes caught by the GPU memory write watch
   kTexturesReplaced,     // host textures created from a texture replacement pack
   kTexturesNotInPack,    // textures that could have been replaced, but aren't in the pack
+  // The GPU emulation runs every guest command on one host thread. Its busy
+  // time per frame next to the frame time says whether that thread is what
+  // limits the frame rate (busy ~= frame time) or something else is.
+  kGpuThreadMicros,      // time the GPU thread spent executing guest commands
+                         //   (includes kGpuWaitMicros and the two below)
+  kSubmitMicros,         //   of which: turning the recorded commands into a
+                         //   host command buffer and submitting it
+  kShaderTranslations,   // guest shaders translated while a draw waited for them
+  kShaderTranslateMicros,//   time spent (the draw, and the frame, wait)
   kCount
 };
 
@@ -63,6 +77,21 @@ class ScopedGpuWait {
   ScopedGpuWait& operator=(const ScopedGpuWait&) = delete;
 
  private:
+  uint64_t start_us_;
+};
+
+// Adds the lifetime of the object, in microseconds, to a time counter
+// (kGpuThreadMicros, kSubmitMicros, kShaderTranslateMicros). Two clock reads
+// per object, so meant for whole batches of work, not for every draw.
+class ScopedMicros {
+ public:
+  explicit ScopedMicros(Counter counter);
+  ~ScopedMicros();
+  ScopedMicros(const ScopedMicros&) = delete;
+  ScopedMicros& operator=(const ScopedMicros&) = delete;
+
+ private:
+  Counter counter_;
   uint64_t start_us_;
 };
 
