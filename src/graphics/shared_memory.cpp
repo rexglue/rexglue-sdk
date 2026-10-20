@@ -371,9 +371,11 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
     return true;
   }
 
+  // A member, reused: called from the GPU command thread only, never
+  // re-entered (upload_ranges_ below works the same way).
+  std::vector<std::pair<uint32_t, uint32_t>>& merged_ranges = merged_ranges_;
+  merged_ranges.clear();
   // Some texture or buffer is empty, for example - safe to draw in this case.
-  std::vector<std::pair<uint32_t, uint32_t>> merged_ranges;
-  merged_ranges.reserve(count);
   for (size_t i = 0; i < count; ++i) {
     uint32_t start = ranges[i].first;
     uint32_t length = ranges[i].second;
