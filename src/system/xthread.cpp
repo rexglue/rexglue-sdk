@@ -899,7 +899,13 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
       thread_->set_affinity_mask(uint64_t(1) << cpu_index);
     }
   } else {
-    REXSYS_WARN("Too few processor cores - scheduling will be wonky");
+    // This runs for every GPU interrupt (about 1000 times a second with a
+    // 1000 Hz vblank), so on a PC with fewer than 6 logical CPUs it filled
+    // the log with the same line, each one written to disk. Say it once.
+    static std::atomic_flag warned;  // Starts clear (C++20).
+    if (!warned.test_and_set(std::memory_order_relaxed)) {
+      REXSYS_WARN("Too few processor cores - scheduling will be wonky");
+    }
   }
 }
 
