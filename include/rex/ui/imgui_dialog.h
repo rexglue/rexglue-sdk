@@ -39,6 +39,13 @@ class ImGuiDialog {
 
   void Draw();
 
+  // Whether the window must be repainted over and over while this dialog is
+  // shown (to animate or follow input). A dialog that only draws on top of
+  // the game's frames (a HUD) returns false: each new guest frame repaints
+  // anyway, and repainting in between only burns GPU time - on platforms
+  // without a vblank wait for the UI (Linux) as fast as the GPU can present.
+  virtual bool WantsContinuousRepaint() const { return true; }
+
  protected:
   ImGuiDialog(ImGuiDrawer* imgui_drawer);
 

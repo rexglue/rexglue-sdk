@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
+#include <thread>
 #include <utility>
 
 #include <rex/assert.h>
@@ -26,6 +28,10 @@
 #include <ffx_api/ffx_upscale.h>
 #endif
 
+REXCVAR_DEFINE_DOUBLE(ui_refresh_rate, 0.0, "UI/Presenter",
+                      "Linux / macOS: how often the window repaints for the UI alone, e.g. while "
+                      "a settings window is open (0 = the display's refresh rate). Game frames "
+                      "are shown as soon as they're ready either way.");
 REXCVAR_DEFINE_BOOL(host_present_from_non_ui_thread, true, "UI/Presenter",
                     "Allow presentation from non-UI thread");
 
@@ -1602,6 +1608,33 @@ void Presenter::WaitForUITickFromUIThread() {
     }
     dxgi_ui_tick_signal_condition_.wait(dxgi_ui_tick_lock);
   }
+#else
+  // No vblank wait here: the UI asking for repaints (an open settings window)
+  // would otherwise paint and present as fast as the GPU can, taking GPU time
+  // from the game. Pace those repaints at the display's refresh rate
+  // (ui_refresh_rate overrides it); a new guest frame doesn't wait.
+  using Clock = std::chrono::steady_clock;
+  if (ui_tick_force_requested_.exchange(false, std::memory_order_acq_rel) ||
+      !AreUITicksNeededFromUIThread()) {
+    ui_tick_last_paint_ = Clock::now();
+    return;
+  }
+  double rate = REXCVAR_GET(ui_refresh_rate);
+  if (rate <= 0.0 && window_) {
+    rate = window_->GetDisplayRefreshRate();
+  }
+  if (rate <= 0.0) {
+    rate = 60.0;
+  }
+  const auto period =
+      std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / rate));
+  const auto next = ui_tick_last_paint_ + period;
+  auto now = Clock::now();
+  if (now < next && next - now < std::chrono::seconds(1)) {
+    std::this_thread::sleep_until(next);
+    now = Clock::now();
+  }
+  ui_tick_last_paint_ = now;
 #endif  // XE_PLATFORM
 }
 
@@ -1609,6 +1642,8 @@ void Presenter::ForceUIThreadPaintTick() {
 #if REX_PLATFORM_WIN32
   std::scoped_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
   dxgi_ui_tick_force_requested_ = true;
+#else
+  ui_tick_force_requested_.store(true, std::memory_order_release);
 #endif  // XE_PLATFORM
 }
 

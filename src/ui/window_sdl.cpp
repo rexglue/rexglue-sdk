@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <cstring>
 #include <filesystem>
 
@@ -171,7 +172,9 @@ bool WindowSDL::OpenImpl() {
   }
 
   if (IsFullscreen()) {
-    // Borderless desktop fullscreen (a NULL display mode is SDL3's default).
+    // Borderless desktop fullscreen (a NULL display mode is SDL3's default),
+    // or an exclusive mode when a refresh rate was chosen.
+    ApplyFullscreenDisplayMode();
     SDL_SetWindowFullscreen(sdl_window_, true);
   }
 #if REX_PLATFORM_MAC
@@ -295,7 +298,70 @@ void WindowSDL::ApplyNewFullscreen() {
   if (!sdl_window_) {
     return;
   }
+  if (IsFullscreen()) {
+    ApplyFullscreenDisplayMode();
+  }
   SDL_SetWindowFullscreen(sdl_window_, IsFullscreen());
+}
+
+void WindowSDL::ApplyFullscreenDisplayMode() {
+  const double hz = GetFullscreenRefreshRate();
+  if (hz <= 0.0) {
+    SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
+    return;
+  }
+  const SDL_DisplayID display = SDL_GetDisplayForWindow(sdl_window_);
+  const SDL_DisplayMode* desktop = display ? SDL_GetDesktopDisplayMode(display) : nullptr;
+  SDL_DisplayMode mode;
+  if (!desktop ||
+      !SDL_GetClosestFullscreenDisplayMode(display, desktop->w, desktop->h, float(hz), true,
+                                           &mode)) {
+    REXLOG_WARN("No {} Hz fullscreen mode on this display; using the desktop's", hz);
+    SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
+    return;
+  }
+  if (!SDL_SetWindowFullscreenMode(sdl_window_, &mode)) {
+    REXLOG_WARN("Couldn't use the {}x{} {} Hz fullscreen mode: {}", mode.w, mode.h,
+                mode.refresh_rate, SDL_GetError());
+    return;
+  }
+  REXLOG_INFO("Fullscreen mode {}x{} at {} Hz", mode.w, mode.h, mode.refresh_rate);
+}
+
+double WindowSDL::GetDisplayRefreshRate() const {
+  const SDL_DisplayID display =
+      sdl_window_ ? SDL_GetDisplayForWindow(sdl_window_) : SDL_GetPrimaryDisplay();
+  const SDL_DisplayMode* mode = display ? SDL_GetCurrentDisplayMode(display) : nullptr;
+  return mode ? double(mode->refresh_rate) : 0.0;
+}
+
+std::vector<double> WindowSDL::GetDisplayRefreshRates() const {
+  std::vector<double> rates;
+  const SDL_DisplayID display =
+      sdl_window_ ? SDL_GetDisplayForWindow(sdl_window_) : SDL_GetPrimaryDisplay();
+  const SDL_DisplayMode* desktop = display ? SDL_GetDesktopDisplayMode(display) : nullptr;
+  if (!desktop) {
+    return rates;
+  }
+  int count = 0;
+  SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(display, &count);
+  if (!modes) {
+    return rates;
+  }
+  for (int i = 0; i < count; ++i) {
+    const SDL_DisplayMode* m = modes[i];
+    if (m->w != desktop->w || m->h != desktop->h || m->refresh_rate <= 0.0f) {
+      continue;
+    }
+    // Rates such as 59.94 and 60 both appear; keep them apart by 0.01 Hz.
+    const double hz = double(m->refresh_rate);
+    bool known = false;
+    for (double r : rates) known |= std::abs(r - hz) < 0.01;
+    if (!known) rates.push_back(hz);
+  }
+  SDL_free(modes);
+  std::sort(rates.begin(), rates.end(), std::greater<double>());
+  return rates;
 }
 
 void WindowSDL::ApplyNewTitle() {

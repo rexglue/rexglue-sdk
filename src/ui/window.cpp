@@ -287,6 +287,19 @@ void Window::SetFullscreen(bool new_fullscreen) {
   }
 }
 
+void Window::SetFullscreenRefreshRate(double hz) {
+  hz = hz > 0.0 ? hz : 0.0;
+  if (fullscreen_refresh_rate_ == hz) {
+    return;
+  }
+  fullscreen_refresh_rate_ = hz;
+  if (!fullscreen_ || !CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewFullscreen();
+}
+
 void Window::SetTitle(const std::string_view new_title) {
   if (title_ == new_title) {
     return;

@@ -34,6 +34,8 @@ class WindowSDL final : public Window {
   void* GetNativeWindowHandle() const override;
   bool SetRelativeMouseMode(bool enable) override;
   bool WarpMouseToCenter(int32_t& x_out, int32_t& y_out) override;
+  double GetDisplayRefreshRate() const override;
+  std::vector<double> GetDisplayRefreshRates() const override;
 
   // Called by SDLWindowedAppContext on the UI thread.
   void HandleWindowEvent(SDL_Event& event);
@@ -50,6 +52,8 @@ class WindowSDL final : public Window {
   void RequestCloseImpl() override;
 
   void ApplyNewFullscreen() override;
+  // SDL_SetWindowFullscreenMode for GetFullscreenRefreshRate().
+  void ApplyFullscreenDisplayMode();
   void ApplyNewTitle() override;
   void ApplyNewMouseCapture() override;
   void ApplyNewMouseRelease() override;

@@ -16,6 +16,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <rex/platform.h>
 #include <rex/ui/menu_item.h>
@@ -273,6 +274,16 @@ class Window {
   // by the implementation (including from SetFullscreen itself).
   bool IsFullscreen() const { return fullscreen_; }
   void SetFullscreen(bool new_fullscreen);
+
+  // Fullscreen at this refresh rate, in an exclusive display mode at the
+  // desktop's resolution (the closest rate the display offers); 0 = borderless
+  // at the desktop's own mode. Applies at once when already fullscreen.
+  double GetFullscreenRefreshRate() const { return fullscreen_refresh_rate_; }
+  void SetFullscreenRefreshRate(double hz);
+  // The refresh rate of the display the window is on (0 if unknown), and the
+  // rates it offers at its current resolution, highest first.
+  virtual double GetDisplayRefreshRate() const { return 0.0; }
+  virtual std::vector<double> GetDisplayRefreshRates() const { return {}; }
 
   // Desired state stored by the common Window, externally modifiable, read-only
   // in the implementation.
@@ -712,6 +723,7 @@ class Window {
   uint32_t actual_physical_height_ = 0;
 
   bool fullscreen_ = false;
+  double fullscreen_refresh_rate_ = 0.0;
 
   std::string title_;
 

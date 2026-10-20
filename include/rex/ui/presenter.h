@@ -18,6 +18,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <functional>
 #include <map>
 #include <memory>
@@ -861,6 +862,12 @@ class Presenter {
   void WaitForUITickFromUIThread();
   // May be called from any thread.
   void ForceUIThreadPaintTick();
+#if !REX_PLATFORM_WIN32
+  // Without DXGI's vblank wait, repaints only the UI asked for are paced by
+  // time (WaitForUITickFromUIThread); a new guest frame skips the wait.
+  std::atomic<bool> ui_tick_force_requested_{false};
+  std::chrono::steady_clock::time_point ui_tick_last_paint_{};
+#endif
 
   // Must be called only in the end of entry points - reinitialization of the
   // presenter may be done by the handler if it was called from the UI thread
