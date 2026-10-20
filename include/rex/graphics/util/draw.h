@@ -353,8 +353,18 @@ union ResolveEdramInfo {
     // of the resolve region with the contents of the first surely covered
     // column / row with resolution scaling.
     uint32_t fill_half_pixel_offset : 1;
+    uint32_t : 1;
+    // Bit 11 of the base, for resolves starting past tile 2047 in the
+    // 4096-tile emulated EDRAM (read by the edited Vulkan resolve shaders).
+    uint32_t base_tiles_bit_11 : 1;
   };
   ResolveEdramInfo() : packed(0) { static_assert_size(*this, sizeof(packed)); }
+  uint32_t GetBaseTiles() const { return base_tiles | (base_tiles_bit_11 << 11); }
+  void SetBaseTiles(uint32_t tiles) {
+    tiles &= xenos::kEdramTileCount - 1;
+    base_tiles = tiles & ((1u << 11) - 1);
+    base_tiles_bit_11 = (tiles >> 11) & 1;
+  }
 };
 
 union ResolveCoordinateInfo {

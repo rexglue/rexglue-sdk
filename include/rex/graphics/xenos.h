@@ -410,7 +410,14 @@ constexpr uint32_t kRenderTargetFormatBits =
 
 constexpr uint32_t kEdramTileWidthSamples = 80;
 constexpr uint32_t kEdramTileHeightSamples = 16;
-constexpr uint32_t kEdramTileCount = 2048;
+// The Xbox 360 has 2048 tiles (10 MiB) and wraps around them. The emulated
+// EDRAM has 4096 so a title may draw at a resolution whose color and depth
+// together don't fit in 10 MiB (Call of Duty 3 at 1920x1080: 3264 tiles).
+// Surfaces and resolves that stay within 2048 tiles behave as on the console.
+// The precompiled Vulkan resolve shaders get the same size from the setup
+// tool (c3w/sdk_shaders.py); the D3D12 ones still wrap at 2048, so on D3D12
+// a title must stay within 2048 tiles.
+constexpr uint32_t kEdramTileCount = 4096;
 constexpr uint32_t kEdramSizeBytes =
     kEdramTileCount * kEdramTileHeightSamples * kEdramTileWidthSamples * sizeof(uint32_t);
 

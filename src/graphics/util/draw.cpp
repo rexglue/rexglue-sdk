@@ -745,7 +745,7 @@ void GetResolveEdramTileSpan(ResolveEdramInfo edram_info, ResolveCoordinateInfo 
   uint32_t y1 = (((coordinate_info.edram_offset_y_div_8 + height_div_8) << y_scale_log2) +
                  (xenos::kEdramTileHeightSamples - 1)) /
                 xenos::kEdramTileHeightSamples;
-  base_out = edram_info.base_tiles + y0 * edram_info.pitch_tiles + x0;
+  base_out = edram_info.GetBaseTiles() + y0 * edram_info.pitch_tiles + x0;
   row_length_used_out = x1 - x0;
   rows_out = y1 - y0;
 }
@@ -1040,7 +1040,7 @@ bool GetResolveInfo(const RegisterFile& regs, const memory::Memory& memory,
     depth_edram_info.is_depth = 1;
     // If wrapping happens, it's fine, it doesn't matter how many times and
     // where modulo xenos::kEdramTileCount is applied in this context.
-    depth_edram_info.base_tiles = rb_depth_info.depth_base + edram_base_offset_tiles;
+    depth_edram_info.SetBaseTiles(rb_depth_info.depth_base + edram_base_offset_tiles);
     depth_edram_info.format = uint32_t(rb_depth_info.depth_format);
     depth_edram_info.format_is_64bpp = 0;
     depth_edram_info.fill_half_pixel_offset = uint32_t(fill_half_pixel_offset);
@@ -1061,7 +1061,7 @@ bool GetResolveInfo(const RegisterFile& regs, const memory::Memory& memory,
     color_edram_info.is_depth = 0;
     // If wrapping happens, it's fine, it doesn't matter how many times and
     // where modulo xenos::kEdramTileCount is applied in this context.
-    color_edram_info.base_tiles = color_info.color_base + (edram_base_offset_tiles << is_64bpp);
+    color_edram_info.SetBaseTiles(color_info.color_base + (edram_base_offset_tiles << is_64bpp));
     color_edram_info.format = uint32_t(color_info.color_format);
     color_edram_info.format_is_64bpp = is_64bpp;
     color_edram_info.fill_half_pixel_offset = uint32_t(fill_half_pixel_offset);

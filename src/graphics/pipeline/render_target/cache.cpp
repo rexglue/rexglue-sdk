@@ -946,12 +946,12 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   if (resolve_info.IsClearingDepth()) {
     pitch_tiles_at_32bpp = resolve_info.depth_edram_info.pitch_tiles;
     base_offset_tiles_at_32bpp =
-        resolve_info.depth_edram_info.base_tiles - resolve_info.depth_original_base;
+        resolve_info.depth_edram_info.GetBaseTiles() - resolve_info.depth_original_base;
     msaa_samples = resolve_info.depth_edram_info.msaa_samples;
   } else if (resolve_info.IsClearingColor()) {
     pitch_tiles_at_32bpp = resolve_info.color_edram_info.pitch_tiles;
     base_offset_tiles_at_32bpp =
-        resolve_info.color_edram_info.base_tiles - resolve_info.color_original_base;
+        resolve_info.color_edram_info.GetBaseTiles() - resolve_info.color_original_base;
     if (resolve_info.color_edram_info.format_is_64bpp) {
       assert_zero(pitch_tiles_at_32bpp & 1);
       pitch_tiles_at_32bpp >>= 1;
