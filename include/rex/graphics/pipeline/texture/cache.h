@@ -594,6 +594,33 @@ class TextureCache {
   // create the texture - if it's nullptr, occasionally a recreation attempt
   // should be made.
   Texture* FindOrCreateTexture(TextureKey key);
+  // The texture made for exactly this key, or nullptr (none is created).
+  Texture* FindExistingTexture(const TextureKey& key) const {
+    auto it = textures_.find(key);
+    return it != textures_.end() ? it->second.get() : nullptr;
+  }
+  // How many textures have been created so far (a search that found none can
+  // tell whether trying again could find one).
+  uint64_t textures_created() const { return textures_created_; }
+  // Any texture whose base level starts at this 4 KB page (a linear search,
+  // for diagnostics), or nullptr.
+  const Texture* FindAnyTextureAtBasePage(uint32_t base_page) const {
+    for (const auto& [key, texture] : textures_) {
+      if (key.base_page == base_page) {
+        return texture.get();
+      }
+    }
+    return nullptr;
+  }
+  // Bindings looked up again at the next RequestTextures (a texture's views
+  // have to change).
+  void RecheckTextureBindings() { texture_became_outdated_.store(true, std::memory_order_release); }
+  // The texture's data was written another way than by loading it, and is
+  // what loading its guest memory would give: up to date (and watched again)
+  // until that memory changes.
+  void MarkTextureUpToDate(Texture& texture) {
+    texture.MakeUpToDateAndWatch(global_critical_region_.Acquire());
+  }
 
   static const LoadShaderInfo& GetLoadShaderInfo(LoadShaderIndex load_shader_index) {
     assert_true(load_shader_index < kLoadShaderCount);
@@ -722,6 +749,7 @@ class TextureCache {
   uint64_t current_submission_time_ = 0;
 
   std::unordered_map<TextureKey, std::unique_ptr<Texture>, TextureKey::Hasher> textures_;
+  uint64_t textures_created_ = 0;
 
   uint64_t textures_total_host_memory_usage_ = 0;
 

@@ -1038,6 +1038,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     new_texture->set_replacement_policy_generation(policy_generation);
     assert_true(new_texture->key() == key);
     texture = textures_.emplace(key, std::move(new_texture)).first->second.get();
+    ++textures_created_;
   }
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   texture->LogAction("Created");

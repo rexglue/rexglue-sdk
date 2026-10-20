@@ -816,6 +816,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   bool DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used, uint32_t dump_rows,
                          uint32_t dump_pitch);
 
+  // After a resolve copied (and dumped, so dump_rectangles_ are its render
+  // targets): a 32bpp 1x color surface copied without conversion out of one
+  // render target is also copied straight into the texture the game samples
+  // it as, if that texture exists (vulkan_resolve_into_textures), instead of
+  // the texture being loaded again from the resolved memory.
+  void CopyResolveIntoTexture(const draw_util::ResolveInfo& resolve_info,
+                              draw_util::ResolveCopyShaderIndex copy_shader,
+                              VulkanTextureCache& texture_cache);
+
   bool gamma_render_target_as_unorm16_ = false;
 
   bool depth_unorm24_vulkan_format_supported_ = false;

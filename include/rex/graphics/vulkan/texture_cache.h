@@ -134,6 +134,24 @@ class VulkanTextureCache final : public TextureCache {
   void UseScaledResolveBufferForWrite(uint64_t written_start_scaled,
                                       uint64_t written_length_scaled);
 
+  // A surface just resolved without conversion, still in a render target
+  // image: if a texture already exists for that surface (2D, one level,
+  // tiled; games usually sample what they resolve, every frame), of the
+  // resolve's size or up to 7 texels narrower or shorter (a resolve covers
+  // whole 8x8 blocks, so a 960x540 surface is resolved as 960x544), copies
+  // the texture's part of the image at (source_x, source_y) into it and
+  // marks it up to date, so it isn't loaded again from the resolved memory. red_blue_swap:
+  // the resolve swapped red and blue in memory (the texture's views swap them
+  // back). The source image is transitioned from the given usage to
+  // TRANSFER_SRC_OPTIMAL (transfer read) only if it's copied from. Returns
+  // whether it was.
+  bool CopyResolveIntoTexture(uint32_t dest_base, uint32_t dest_pitch_texels, uint32_t width,
+                              uint32_t height, xenos::TextureFormat format,
+                              xenos::Endian endianness, bool red_blue_swap, VkImage source_image,
+                              VkPipelineStageFlags source_stage_mask,
+                              VkAccessFlags source_access_mask, VkImageLayout source_layout,
+                              uint32_t source_x, uint32_t source_y);
+
  protected:
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
   bool IsScaledResolveSupportedForFormat(TextureKey key) const override;
@@ -207,6 +225,15 @@ class VulkanTextureCache final : public TextureCache {
 
     VkImage image() const { return image_; }
 
+    // Red and blue are stored the other way around than the guest memory
+    // has them (copied from a render target for a resolve that swapped
+    // them, vulkan_resolve_into_textures): views swap them back.
+    bool red_blue_swapped() const { return red_blue_swapped_; }
+    void set_red_blue_swapped(bool swapped) { red_blue_swapped_ = swapped; }
+    uint32_t ViewSwizzle(uint32_t host_swizzle) const {
+      return red_blue_swapped_ ? SwapRedAndBlueSources(host_swizzle) : host_swizzle;
+    }
+
     // Doesn't transition (the caller must insert the barrier).
     Usage SetUsage(Usage new_usage) {
       Usage old_usage = usage_;
@@ -265,10 +292,26 @@ class VulkanTextureCache final : public TextureCache {
       }
     }
 
+    // A host swizzle reading blue where it read red and red where it read blue.
+    static constexpr uint32_t SwapRedAndBlueSources(uint32_t host_swizzle) {
+      uint32_t swapped = 0;
+      for (uint32_t i = 0; i < 4; ++i) {
+        uint32_t source = (host_swizzle >> (3 * i)) & 0b111;
+        if (source == xenos::XE_GPU_TEXTURE_SWIZZLE_R) {
+          source = xenos::XE_GPU_TEXTURE_SWIZZLE_B;
+        } else if (source == xenos::XE_GPU_TEXTURE_SWIZZLE_B) {
+          source = xenos::XE_GPU_TEXTURE_SWIZZLE_R;
+        }
+        swapped |= source << (3 * i);
+      }
+      return swapped;
+    }
+
     VkImage image_;
     VmaAllocation allocation_;
 
     Usage usage_ = Usage::kUndefined;
+    bool red_blue_swapped_ = false;
 
     std::unordered_map<ViewKey, VkImageView, ViewKey::Hasher> views_;
     std::unique_ptr<VulkanTexture> texture_3d_as_2d_;
@@ -409,6 +452,19 @@ class VulkanTextureCache final : public TextureCache {
     VmaAllocation allocation;
   };
   std::vector<ReplacementStagingBuffer> replacement_staging_buffers_;
+
+  // The texture size each resolved surface was last found with
+  // (CopyResolveIntoTexture). Its texture may be up to 7 texels narrower and
+  // shorter than the resolve, and trying all those sizes for every resolve of
+  // every frame would cost more than the copy saves; a resolve with no texture
+  // at any of them is tried again only once another texture has been created.
+  struct ResolvedSurfaceSize {
+    uint64_t resolve = 0;           // what CopyResolveIntoTexture identifies it by; 0: unused
+    uint64_t textures_created = 0;  // when none was found: textures_created() then
+    uint32_t width = 0;             // the texture's size; 0: none was found
+    uint32_t height = 0;
+  };
+  std::array<ResolvedSurfaceSize, 64> resolved_surface_sizes_{};
 };
 
 }  // namespace rex::graphics::vulkan

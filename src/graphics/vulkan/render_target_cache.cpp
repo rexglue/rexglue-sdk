@@ -43,6 +43,12 @@ REXCVAR_DEFINE_STRING(render_target_path_vulkan, "", "GPU/Vulkan",
                       "Vulkan render target implementation path")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
+REXCVAR_DEFINE_BOOL(vulkan_resolve_into_textures, true, "GPU/Vulkan",
+                    "A resolved color surface the game samples afterwards is copied straight from "
+                    "the render target into its texture, instead of the texture being loaded "
+                    "again from the resolved memory (32bpp, no MSAA, no conversion, no resolution "
+                    "scaling): less graphics-card work. Applies at once");
+
 // DEFINE_string(
 //     render_target_path_vulkan, "",
 //     "Render target emulation path to use on Vulkan.\n"
@@ -1293,6 +1299,11 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
           // Invalidate textures and mark the range as scaled if needed.
           texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_extent_start,
                                             resolve_info.copy_dest_extent_length);
+          // Before any clear of the render target that follows.
+          if (REXCVAR_GET(vulkan_resolve_into_textures) && !draw_resolution_scaled &&
+              GetPath() == Path::kHostRenderTargets) {
+            CopyResolveIntoTexture(resolve_info, copy_shader, texture_cache);
+          }
           written_address_out = resolve_info.copy_dest_extent_start;
           written_length_out = resolve_info.copy_dest_extent_length;
           copied = true;
@@ -1904,7 +1915,9 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
     if (image_create_info.format != transfer_format || is_srgb_view_needed) {
       image_create_info.flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
     }
-    image_create_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    // A source of copies too (vulkan_resolve_into_textures; set for all, so
+    // the setting can change while the game runs).
+    image_create_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
   }
   if (image_create_info.format == VK_FORMAT_UNDEFINED) {
     REXGPU_ERROR("VulkanRenderTargetCache: Unknown {} render target format {}",
@@ -6040,6 +6053,133 @@ bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInf
   // Dedicated direct resolve dispatches are staged behind the same preflight;
   // keep using the existing dump path until source-image direct shaders land.
   return DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+}
+
+void VulkanRenderTargetCache::CopyResolveIntoTexture(const draw_util::ResolveInfo& resolve_info,
+                                                     draw_util::ResolveCopyShaderIndex copy_shader,
+                                                     VulkanTextureCache& texture_cache) {
+  // Why a resolve isn't copied, logged once for each reason (the first time
+  // it happens), so a game whose surfaces never take this path says why. The
+  // message is only put together that first time (this runs for every resolve).
+  static uint32_t reasons_logged = 0;
+  auto first_time = [](uint32_t reason) {
+    if (reasons_logged & (uint32_t(1) << reason)) {
+      return false;
+    }
+    reasons_logged |= uint32_t(1) << reason;
+    return true;
+  };
+  auto log_skip = [](const std::string& why) {
+    REXGPU_INFO("vulkan_resolve_into_textures: a resolve not copied into its texture: {}", why);
+  };
+  const draw_util::ResolveEdramInfo edram_info = resolve_info.color_edram_info;
+  const reg::RB_COPY_DEST_INFO dest_info = resolve_info.copy_dest_info;
+  const draw_util::ResolveCopyDestCoordinateInfo dest_coordinates =
+      resolve_info.copy_dest_coordinate_info;
+  if (resolve_info.IsCopyingDepth()) {
+    return;
+  }
+  // The texels are copied as they are: one sample (with one sample a "both
+  // samples" or "all samples" select takes that one too, through the full
+  // copy shader, which then repacks 8-bit values exactly), no exponent bias,
+  // a destination format bitwise equal to the render target's.
+  if (edram_info.msaa_samples != xenos::MsaaSamples::k1X || edram_info.format_is_64bpp ||
+      (copy_shader != draw_util::ResolveCopyShaderIndex::kFast32bpp1x2xMSAA &&
+       copy_shader != draw_util::ResolveCopyShaderIndex::kFull32bpp)) {
+    if (first_time(0)) {
+      log_skip(fmt::format("MSAA {}x, 64bpp {}, copy shader {}",
+                           1u << uint32_t(edram_info.msaa_samples),
+                           uint32_t(edram_info.format_is_64bpp), uint32_t(copy_shader)));
+    }
+    return;
+  }
+  if (xenos::ColorRenderTargetFormat(edram_info.format) !=
+          xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
+      dest_info.copy_dest_format != xenos::ColorFormat::k_8_8_8_8 || dest_info.copy_dest_exp_bias ||
+      dest_info.copy_dest_array ||
+      uint32_t(dest_info.copy_dest_endian) > uint32_t(xenos::Endian128::k16in32) ||
+      dest_coordinates.offset_x_div_8 || dest_coordinates.offset_y_div_8) {
+    if (first_time(1)) {
+      log_skip(
+          fmt::format("render target format {}, destination format {}, red/blue swap {}, "
+                      "exponent bias {}, array {}, endian {}, destination offset {},{}",
+                      uint32_t(edram_info.format), uint32_t(dest_info.copy_dest_format),
+                      uint32_t(dest_info.copy_dest_swap), int32_t(dest_info.copy_dest_exp_bias),
+                      uint32_t(dest_info.copy_dest_array), uint32_t(dest_info.copy_dest_endian),
+                      uint32_t(dest_coordinates.offset_x_div_8) * 8,
+                      uint32_t(dest_coordinates.offset_y_div_8) * 8));
+    }
+    return;
+  }
+
+  // One render target owns the whole area (the dump just made of it).
+  uint32_t dump_base, dump_row_length_used, dump_rows, dump_pitch;
+  resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+  if (dump_rectangles_.size() != 1) {
+    if (first_time(2)) {
+      log_skip(fmt::format("{} render targets own the area", dump_rectangles_.size()));
+    }
+    return;
+  }
+  const ResolveCopyDumpRectangle& rectangle = dump_rectangles_.front();
+  if (rectangle.row_first || rectangle.rows != dump_rows || rectangle.row_first_start ||
+      rectangle.row_last_end != dump_row_length_used || !rectangle.render_target) {
+    if (first_time(3)) {
+      log_skip(
+          fmt::format("the render target owns part of the area (rows {}+{} of {}, tiles {}..{} "
+                      "of {})",
+                      rectangle.row_first, rectangle.rows, dump_rows, rectangle.row_first_start,
+                      rectangle.row_last_end, dump_row_length_used));
+    }
+    return;
+  }
+  auto& vulkan_rt = *static_cast<VulkanRenderTarget*>(rectangle.render_target);
+  const RenderTargetKey rt_key = vulkan_rt.key();
+  if (rt_key.is_depth || rt_key.msaa_samples != xenos::MsaaSamples::k1X ||
+      rt_key.GetColorFormat() != xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
+      rt_key.GetPitchTiles() != edram_info.pitch_tiles || !rt_key.GetPitchTiles()) {
+    if (first_time(4)) {
+      log_skip(fmt::format("the owner is {} (the resolve's pitch {} tiles)", rt_key.GetDebugName(),
+                           uint32_t(edram_info.pitch_tiles)));
+    }
+    return;
+  }
+
+  // Where the area is in the render target's image: its tiles, rows of the
+  // pitch from the render target's base, 80x16 pixels each.
+  const uint32_t pitch_tiles = rt_key.GetPitchTiles();
+  const uint32_t tile_offset =
+      (edram_info.GetBaseTiles() - rt_key.base_tiles) & (xenos::kEdramTileCount - 1);
+  const uint32_t source_x =
+      (tile_offset % pitch_tiles) * xenos::kEdramTileWidthSamples +
+      (resolve_info.coordinate_info.edram_offset_x_div_8 << xenos::kResolveAlignmentPixelsLog2);
+  const uint32_t source_y =
+      (tile_offset / pitch_tiles) * xenos::kEdramTileHeightSamples +
+      (resolve_info.coordinate_info.edram_offset_y_div_8 << xenos::kResolveAlignmentPixelsLog2);
+  const uint32_t width = resolve_info.coordinate_info.width_div_8
+                         << xenos::kResolveAlignmentPixelsLog2;
+  const uint32_t height = resolve_info.height_div_8 << xenos::kResolveAlignmentPixelsLog2;
+  const uint32_t rt_height =
+      GetRenderTargetHeight(rt_key.pitch_tiles_at_32bpp, rt_key.msaa_samples);
+  if (source_x + width > pitch_tiles * xenos::kEdramTileWidthSamples ||
+      source_y + height > rt_height) {
+    if (first_time(5)) {
+      log_skip(fmt::format("{}x{} at {},{} is outside the render target ({}x{})", width, height,
+                           source_x, source_y, pitch_tiles * xenos::kEdramTileWidthSamples,
+                           rt_height));
+    }
+    return;
+  }
+
+  if (texture_cache.CopyResolveIntoTexture(
+          resolve_info.copy_dest_base,
+          dest_coordinates.pitch_aligned_div_32 << xenos::kTextureTileWidthHeightLog2, width,
+          height, xenos::TextureFormat::k_8_8_8_8, xenos::Endian(dest_info.copy_dest_endian),
+          dest_info.copy_dest_swap != 0, vulkan_rt.image(), vulkan_rt.current_stage_mask(),
+          vulkan_rt.current_access_mask(), vulkan_rt.current_layout(), source_x, source_y)) {
+    vulkan_rt.SetUsage(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  }
 }
 
 bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used,
