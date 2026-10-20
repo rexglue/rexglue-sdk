@@ -35,6 +35,13 @@ REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU", "Swap post effect: none, 
     .allowed({"none", "fxaa", "fxaa_extreme"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
+REXCVAR_DEFINE_DOUBLE(guest_vblank_rate, 0.0, "GPU",
+                      "Rate of the guest's vblank interrupts in Hz while vsync is on; 0 uses "
+                      "the video mode's refresh rate. A title with its own frame limiter can "
+                      "run this high so waiting for vblank never caps or rounds its frame rate. "
+                      "Applies immediately.")
+    .range(0.0, 1000.0);
+
 REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
                     "Store shaders persistently and load them when loading games to avoid "
                     "runtime spikes and freezes when playing the game not for the first time.");
@@ -152,13 +159,22 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
       new system::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
         system::X_VIDEO_MODE video_mode;
         kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
-        double refresh_rate_hz = std::max(1.0, double(float(video_mode.refresh_rate)));
+        const double mode_refresh_rate_hz = std::max(1.0, double(float(video_mode.refresh_rate)));
         uint64_t guest_tick_frequency = chrono::Clock::guest_tick_frequency();
-        uint64_t vsync_interval_ticks =
-            std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
+        // guest_vblank_rate can change while the title runs, so the interval
+        // is worked out again whenever it does.
+        double applied_rate_hz = 0.0;
+        uint64_t vsync_interval_ticks = 1;
         uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
+          double rate_hz = std::clamp(REXCVAR_GET(guest_vblank_rate), 0.0, 1000.0);
+          if (rate_hz <= 0.0) rate_hz = mode_refresh_rate_hz;
+          if (rate_hz != applied_rate_hz) {
+            applied_rate_hz = rate_hz;
+            vsync_interval_ticks =
+                std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / rate_hz));
+          }
           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
           uint64_t interval_ticks =
               REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
