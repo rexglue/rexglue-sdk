@@ -12,6 +12,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <queue>
 
 #include <rex/kernel.h>
@@ -89,6 +90,12 @@ class AudioSystem : public system::IAudioSystem {
   int FindFreeClient();
 
   std::unique_ptr<rex::thread::Semaphore> client_semaphores_[kMaximumClientCount];
+  // Frames each client may have queued (its semaphore's permits in all), and
+  // when its callback may run next (the worker paces them, WorkerThreadMain).
+  // Both kept by the worker and the registration under the global lock.
+  uint32_t permits_[kMaximumClientCount] = {};
+  std::chrono::steady_clock::time_point next_callback_[kMaximumClientCount] = {};
+  static constexpr std::chrono::nanoseconds kFramePeriod{5333333};  // 256 samples at 48 kHz
   // Event is always there in case we have no clients.
   std::unique_ptr<rex::thread::Event> shutdown_event_;
   rex::thread::WaitHandle* wait_handles_[kMaximumClientCount + 1];

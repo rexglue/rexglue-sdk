@@ -9,6 +9,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
+#include <chrono>
+
 #include <rex/assert.h>
 #include <rex/audio/audio_driver.h>
 #include <rex/audio/audio_system.h>
@@ -27,6 +30,12 @@
 REXCVAR_DEFINE_INT32(
     audio_maxqframes, 8, "Audio",
     "Max buffered audio frames (range 4-64). Lower reduces latency but may cause stuttering.");
+REXCVAR_DEFINE_BOOL(
+    audio_pace_callbacks, true, "Audio",
+    "Run the game's audio callback one frame (256 samples, 5.3 ms) apart, as the console's audio "
+    "hardware does, instead of as fast as the output device takes frames. A device that takes "
+    "several frames at once otherwise gets the game asked for them within a millisecond, faster "
+    "than its mixer runs, and the game hands over a block it mixed before again.");
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -57,7 +66,10 @@ AudioSystem::AudioSystem(runtime::FunctionDispatcher* function_dispatcher)
       std::max(static_cast<uint32_t>(REXCVAR_GET(audio_maxqframes)), static_cast<uint32_t>(4)));
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    client_semaphores_[i] = rex::thread::Semaphore::Create(0, queued_frames_);
+    // Room for more than audio_maxqframes: the queue grows to two device
+    // periods when the device takes more frames at once (WorkerThreadMain).
+    client_semaphores_[i] = rex::thread::Semaphore::Create(0, kMaximumQueuedFrames);
+    permits_[i] = 0;
     assert_not_null(client_semaphores_[i]);
     wait_handles_[i] = client_semaphores_[i].get();
   }
@@ -137,7 +149,35 @@ void AudioSystem::WorkerThreadMain() {
       auto global_lock = global_critical_region_.Acquire();
       uint32_t client_callback = clients_[index].callback;
       uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
+      const AudioDriver* driver = clients_[index].driver;
+      const uint32_t queued = driver ? driver->queued_frame_count() : 0;
+      const uint32_t burst = driver ? driver->device_burst_frames() : 0;
+      // A device that takes more frames at once than half the queue holds
+      // would always find it short of its next period: two periods, at most
+      // kMaximumQueuedFrames.
+      if (client_callback && burst && permits_[index] < 2 * burst &&
+          permits_[index] < kMaximumQueuedFrames) {
+        const uint32_t target = std::min<uint32_t>(2 * burst, kMaximumQueuedFrames);
+        client_semaphores_[index]->Release(target - permits_[index], nullptr);
+        REXAPU_INFO("audio: the output takes {} frames at once; {} frames queued for it (was {})",
+                    burst, target, permits_[index]);
+        permits_[index] = target;
+      }
       global_lock.unlock();
+
+      // The console's audio hardware asks for a frame every 5.33 ms. While
+      // the device already has its next period queued, the callbacks keep
+      // that spacing; when the queue is short of it, they run at once to
+      // catch up (a stall, the start of a sound).
+      const auto now = std::chrono::steady_clock::now();
+      if (client_callback && REXCVAR_GET(audio_pace_callbacks) && burst && queued > burst &&
+          now < next_callback_[index]) {
+        const auto wait = std::min(next_callback_[index] - now, 2 * kFramePeriod);
+        rex::thread::Sleep(std::chrono::duration_cast<std::chrono::microseconds>(wait));
+      }
+      // One period from this callback: a callback run to catch up doesn't
+      // move the next one further away.
+      next_callback_[index] = std::chrono::steady_clock::now() + kFramePeriod;
 
       if (client_callback) {
         if (diag_pump_count < 10) {
@@ -240,6 +280,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg, s
   auto client_semaphore = client_semaphores_[index].get();
   auto ret = client_semaphore->Release(queued_frames_, nullptr);
   assert_true(ret);
+  permits_[index] = queued_frames_;
 
   AudioDriver* driver;
   auto result = CreateDriver(index, client_semaphore, &driver);
@@ -292,6 +333,7 @@ void AudioSystem::UnregisterClient(size_t index) {
     wait_result = rex::thread::Wait(client_semaphore, false, std::chrono::milliseconds(0));
   } while (wait_result == rex::thread::WaitResult::kSuccess);
   assert_true(wait_result == rex::thread::WaitResult::kTimeout);
+  permits_[index] = 0;
 }
 
 bool AudioSystem::Save(stream::ByteStream* stream) {
@@ -349,6 +391,7 @@ bool AudioSystem::Restore(stream::ByteStream* stream) {
     auto client_semaphore = client_semaphores_[id].get();
     auto ret = client_semaphore->Release(queued_frames_, nullptr);
     assert_true(ret);
+    permits_[id] = queued_frames_;
 
     AudioDriver* driver = nullptr;
     auto status = CreateDriver(id, client_semaphore, &driver);

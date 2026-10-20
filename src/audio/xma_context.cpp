@@ -109,6 +109,7 @@ bool XmaContext::Work() {
   }
 
   memory::RingBuffer output_rb = PrepareOutputRingBuffer(&data);
+  wrote_output_ = false;
 
   // Consume-only context: no input, just drain remaining subframes.
   if (data.IsConsumeOnlyContext()) {
@@ -117,6 +118,9 @@ bool XmaContext::Work() {
     }
     Consume(&output_rb, &data);
     data.output_buffer_write_offset = output_rb.write_offset() / kOutputBytesPerBlock;
+    if (wrote_output_ && output_rb.empty()) {
+      data.output_buffer_valid = 0;  // full (see below)
+    }
     StoreContextMerged(data, initial_data, context_ptr);
     return true;
   }
@@ -143,7 +147,17 @@ bool XmaContext::Work() {
 
   data.output_buffer_write_offset = output_rb.write_offset() / kOutputBytesPerBlock;
 
-  if (output_rb.empty()) {
+  // The hardware clears output_buffer_valid when the output ring is full:
+  // its write offset has come round to the read offset. Equal offsets mean
+  // "empty" while the bit is set, and the game's reader goes by that (FMOD's
+  // XMA codec, CodecXMA_pumpBuffers in Call of Duty 3, reads equal offsets
+  // with the bit clear as a full ring and plays the whole ring again; equal
+  // offsets with the bit set and no input left is the end of the sound). So
+  // the bit is cleared only when this pass wrote output and filled the ring,
+  // never after a pass that wrote nothing into an empty ring (a sound whose
+  // input has run out): that replayed the end of short sounds, heard as
+  // sounds playing twice.
+  if (wrote_output_ && output_rb.empty()) {
     data.output_buffer_valid = 0;
   }
 
@@ -459,6 +473,9 @@ void XmaContext::Consume(memory::RingBuffer* output_rb, const XMA_CONTEXT_DATA* 
 
   output_rb->Write(raw_frame_.data() + (kOutputBytesPerBlock * raw_frame_read_offset),
                    subframes_to_write * kOutputBytesPerBlock);
+  if (subframes_to_write > 0) {
+    wrote_output_ = true;
+  }
 
   const int8_t headroom = (current_frame_remaining_subframes_ - subframes_to_write == 0)
                               ? data->output_buffer_padding

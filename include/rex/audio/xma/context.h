@@ -294,6 +294,9 @@ class XmaContext {
 
   // Output buffer tracking
   int32_t remaining_subframe_blocks_in_output_buffer_ = 0;
+  // Consume() wrote output in this Work() pass (the output ring can only
+  // have become full then; see Work()).
+  bool wrote_output_ = false;
   uint8_t current_frame_remaining_subframes_ = 0;
 
   // Loop subframe precision state

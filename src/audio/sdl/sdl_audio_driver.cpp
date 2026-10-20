@@ -184,6 +184,7 @@ bool SDLAudioDriver::Initialize() {
 // setting changes or the device is plugged in again (a new id).
 bool SDLAudioDriver::OpenStream(SDL_AudioDeviceID device) {
   const SDL_AudioDeviceID target = device ? device : SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+  burst_frames_.store(0, std::memory_order_relaxed);  // a new device: its period is learned again
   SDL_AudioSpec desired_spec = {};
   SDL_AudioSpec obtained_spec = {};
   desired_spec.freq = frame_frequency_;
@@ -379,6 +380,7 @@ void SDLAudioDriver::SubmitFrame(uint32_t frame_ptr) {
   {
     std::unique_lock<std::mutex> guard(frames_mutex_);
     frames_queued_.push(output_frame);
+    queued_count_.store(static_cast<uint32_t>(frames_queued_.size()), std::memory_order_relaxed);
     PROFILE_BUFFER_QUEUE_DEPTH(static_cast<int64_t>(frames_queued_.size()));
   }
 }
@@ -405,6 +407,7 @@ void SDLAudioDriver::Shutdown() {
     delete[] frames_queued_.front();
     frames_queued_.pop();
   }
+  queued_count_.store(0, std::memory_order_relaxed);
 }
 
 void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int additional_amount,
@@ -427,6 +430,7 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
   const StereoFold fold = GetStereoFold();
   const SurroundMix mix = GetSurroundMix();
   const float gain = GetOutputGain();
+  uint32_t taken = 0;  // frames taken in this callback (the device's period)
   while (additional_amount > 0) {
     static uint32_t sdl_callback_count = 0;
     std::unique_lock<std::mutex> guard(driver->frames_mutex_);
@@ -444,6 +448,11 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
     } else {
       auto buffer = driver->frames_queued_.front();
       driver->frames_queued_.pop();
+      driver->queued_count_.store(static_cast<uint32_t>(driver->frames_queued_.size()),
+                                  std::memory_order_relaxed);
+      if (++taken > driver->burst_frames_.load(std::memory_order_relaxed)) {
+        driver->burst_frames_.store(taken, std::memory_order_relaxed);
+      }
       if (REXCVAR_GET(audio_mute)) {
         std::memset(data, 0, len);
       } else {

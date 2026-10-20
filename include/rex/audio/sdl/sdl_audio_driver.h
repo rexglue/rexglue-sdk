@@ -33,6 +33,8 @@ class SDLAudioDriver : public AudioDriver {
 
   bool Initialize();
   void SubmitFrame(uint32_t frame_ptr) override;
+  uint32_t queued_frame_count() const override { return queued_count_.load(std::memory_order_relaxed); }
+  uint32_t device_burst_frames() const override { return burst_frames_.load(std::memory_order_relaxed); }
   void Shutdown();
 
  protected:
@@ -74,6 +76,10 @@ class SDLAudioDriver : public AudioDriver {
   std::queue<float*> frames_queued_ = {};
   std::stack<float*> frames_unused_ = {};
   std::mutex frames_mutex_ = {};
+  // frames_queued_.size(), and the most frames one device callback has taken
+  // since the stream was opened (both kept under frames_mutex_, read freely).
+  std::atomic<uint32_t> queued_count_{0};
+  std::atomic<uint32_t> burst_frames_{0};
 };
 
 }  // namespace rex::audio::sdl
