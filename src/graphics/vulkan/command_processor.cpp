@@ -4494,8 +4494,9 @@ bool VulkanCommandProcessor::EnsureReadbackBufferSlot(ReadbackBuffer& readback, 
   return true;
 }
 
-bool VulkanCommandProcessor::RecordResolveReadbackCopy(uint32_t address, uint32_t length,
-                                                       uint32_t format, VkBuffer target) {
+bool VulkanCommandProcessor::RecordResolveReadbackCopy(
+    uint32_t address, uint32_t length, uint32_t format, VkBuffer target,
+    const std::vector<std::pair<uint32_t, uint32_t>>* pieces) {
   const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
@@ -4664,12 +4665,29 @@ bool VulkanCommandProcessor::RecordResolveReadbackCopy(uint32_t address, uint32_
     shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
     SubmitBarriers(true);
 
-    VkBufferCopy readback_region = {};
-    readback_region.srcOffset = address;
-    readback_region.dstOffset = 0;
-    readback_region.size = length;
-    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(), target, 1,
-                                             &readback_region);
+    if (pieces) {
+      // Only the pieces the guest reads, each where the whole copy would put
+      // it.
+      std::vector<VkBufferCopy> regions;
+      regions.reserve(pieces->size());
+      for (const auto& [offset, piece_length] : *pieces) {
+        VkBufferCopy& region = regions.emplace_back();
+        region.srcOffset = VkDeviceSize(address) + offset;
+        region.dstOffset = offset;
+        region.size = piece_length;
+      }
+      if (!regions.empty()) {
+        deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(), target,
+                                                 uint32_t(regions.size()), regions.data());
+      }
+    } else {
+      VkBufferCopy readback_region = {};
+      readback_region.srcOffset = address;
+      readback_region.dstOffset = 0;
+      readback_region.size = length;
+      deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(), target, 1,
+                                               &readback_region);
+    }
   }
 
   PushBufferMemoryBarrier(target, 0, length, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -4725,13 +4743,23 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
   if (!EnsureReadbackBufferSlot(readback, write_index, AlignReadbackBufferSize(written_length))) {
     return true;
   }
-  if (!RecordResolveReadbackCopy(written_address, written_length, copy_dest_format,
-                                 readback.buffers[write_index])) {
-    return true;
-  }
-
   bool use_delayed_sync =
       readback_mode == ReadbackResolveMode::kFast || readback_mode == ReadbackResolveMode::kSome;
+  // A full readback of a destination the guest reads in pieces
+  // (readback_resolve_cpu_pages_only): only those cross from the GPU, too.
+  // Delayed readbacks read the slot the previous resolve wrote, which must
+  // then hold all of it.
+  bool all_pieces = true;
+  if (!use_delayed_sync && !texture_cache_->IsDrawResolutionScaled()) {
+    all_pieces = GetResolveCopyPieces(written_address, written_length, readback_pieces_);
+  }
+  if (!RecordResolveReadbackCopy(written_address, written_length, copy_dest_format,
+                                 readback.buffers[write_index],
+                                 all_pieces ? nullptr : &readback_pieces_)) {
+    return true;
+  }
+  readback.partial[write_index] = !all_pieces;
+
   uint32_t read_index = write_index;
   if (use_delayed_sync) {
     read_index = 1 - write_index;
@@ -4742,7 +4770,8 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
   bool is_cache_miss = false;
   if (use_delayed_sync && (readback.buffers[read_index] == VK_NULL_HANDLE ||
                            written_length > readback.sizes[read_index] ||
-                           readback.mapped_data[read_index] == nullptr)) {
+                           readback.mapped_data[read_index] == nullptr ||
+                           readback.partial[read_index])) {
     is_cache_miss = true;
     read_index = write_index;
     if (!AwaitAllQueueOperationsCompletion()) {
@@ -4760,11 +4789,16 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     readback_memory_range.size = VK_WHOLE_SIZE;
     dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
 
-    uint8_t* destination = memory_->TranslatePhysical(written_address);
-    if (destination) {
-      std::memcpy(destination, readback.mapped_data[read_index], written_length);
+    // All of it, or the pieces the guest reads (readback_resolve_cpu_pages_only):
+    // the ones copied from the GPU above for a full readback.
+    const uint8_t* data = static_cast<const uint8_t*>(readback.mapped_data[read_index]);
+    const uint64_t copied =
+        all_pieces ? CopyResolveToGuest(written_address, written_length, data)
+                   : CopyResolvePiecesToGuest(written_address, written_length, data, false,
+                                              readback_pieces_);
+    if (copied) {
       stats::Add(stats::Counter::kReadbacks);
-      stats::Add(stats::Counter::kReadbackBytes, written_length);
+      stats::Add(stats::Counter::kReadbackBytes, copied);
     }
   }
 
@@ -4795,6 +4829,7 @@ void VulkanCommandProcessor::ReadBackResolvesNow(const ResolveFetch* fetches, si
                                    readback.buffers[index])) {
       continue;
     }
+    readback.partial[index] = false;
     slots[i] = {&readback, index};
     any_recorded = true;
   }

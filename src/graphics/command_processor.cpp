@@ -62,6 +62,12 @@ REXCVAR_DEFINE_BOOL(readback_resolve_cpu_reads_only, true, "GPU",
                     "others are watched instead: the first access waits while that one is "
                     "copied back, and it is copied back after every resolve from then on")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+REXCVAR_DEFINE_BOOL(readback_resolve_cpu_pages_only, true, "GPU",
+                    "readback_resolve_cpu_reads_only: of a destination the game's CPU reads, copy "
+                    "back after each resolve only the 4 KB pieces it has touched. The rest stay "
+                    "watched, and touching one brings in its data then (off: all of it after "
+                    "every resolve, as before)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_INT32(readback_resolve_cpu_wait_limit_ms, 10000, "GPU",
                      "readback_resolve_cpu_reads_only: how long the CPU's first access to a "
                      "resolve waits for its copy (which waits for the host GPU) before going "
@@ -285,8 +291,9 @@ void CommandProcessor::Shutdown() {
       auto global_lock = rex::thread::global_critical_region::AcquireDirect();
       destinations.swap(resolve_destinations_);
     }
+    // Destinations copied back in pieces are partly watched too.
     for (const ResolveDestination& destination : destinations) {
-      if (!destination.cpu_reads) {
+      if (!destination.cpu_reads || !destination.whole) {
         memory::DisablePhysicalMemoryReadWatch(*memory_, destination.address, destination.length);
       }
     }
@@ -847,6 +854,15 @@ bool CommandProcessor::ShouldReadbackResolve(uint32_t physical_address, uint32_t
                     physical_address, length);
       }
     }
+    if (!REXCVAR_GET(readback_resolve_cpu_pages_only)) {
+      destination->whole = true;
+    }
+    if (!destination->whole) {
+      // In pieces: the ones the guest has touched are copied back now
+      // (CopyResolveToGuest); the others are watched for this data.
+      destination->current = false;
+      WatchUnreadResolveChunks(*destination);
+    }
     return true;
   }
   // Watch it again for the new data: a write past the guest's views, a
@@ -885,14 +901,37 @@ std::pair<uint32_t, uint32_t> CommandProcessor::ResolveReadCallback(
       if (destination.address >= touched_end || destination_end <= physical_address_start) {
         continue;
       }
-      // Unwatch all of it: one fault per destination, not per page.
-      unwatch_start = std::min(unwatch_start, uint64_t(destination.address));
-      unwatch_end = std::max(unwatch_end, destination_end);
-      if (!destination.cpu_reads) {
-        // The first access since it was resolved to: copy it back now, and
-        // after every resolve from now on.
-        destination.cpu_reads = true;
-        if (can_wait) {
+      // In pieces (readback_resolve_cpu_pages_only): only the touched piece is
+      // unwatched, and only it is copied back after each resolve from now on.
+      // Once the guest has touched too much of it, all of it again.
+      if (!destination.whole && REXCVAR_GET(readback_resolve_cpu_pages_only)) {
+        MarkResolveChunksRead(destination, physical_address_start, length);
+        const uint32_t chunk_count =
+            uint32_t(((destination_end - 1) >> kResolveChunkShift) -
+                     (destination.address >> kResolveChunkShift) + 1);
+        if (destination.read_chunk_count > std::max<uint32_t>(16, chunk_count / 8)) {
+          destination.whole = true;
+        }
+      } else {
+        destination.whole = true;
+      }
+      if (destination.whole) {
+        // Unwatch all of it: one fault per destination, not per page.
+        unwatch_start = std::min(unwatch_start, uint64_t(destination.address));
+        unwatch_end = std::max(unwatch_end, destination_end);
+      }
+      // The first access since it was resolved to, or a piece whose data the
+      // last resolve hasn't brought in yet: copy it back now (the copy fills
+      // every piece still watched).
+      const bool first_access = !destination.cpu_reads;
+      const bool needs_data = first_access || !destination.current;
+      destination.cpu_reads = true;
+      if (needs_data) {
+        bool pending = false;
+        for (const ResolveFetch& fetch : resolve_fetches_) {
+          pending |= destination.fetch_serial && fetch.serial == destination.fetch_serial;
+        }
+        if (can_wait && !pending) {
           destination.fetch_serial = resolve_fetch_next_serial_++;
           ResolveFetch& fetch = resolve_fetches_.emplace_back();
           fetch.address = destination.address;
@@ -901,7 +940,7 @@ std::pair<uint32_t, uint32_t> CommandProcessor::ResolveReadCallback(
           fetch.serial = destination.fetch_serial;
           fetch.in_progress = false;
           fetch.cancelled = false;
-        } else if (REXCVAR_GET(readback_resolve_log)) {
+        } else if (!can_wait && REXCVAR_GET(readback_resolve_log)) {
           REXGPU_INFO(
               "Resolve readback: {:08X} accessed where it can't wait for its copy (the GPU "
               "thread); this access sees the older contents",
@@ -1014,6 +1053,12 @@ void CommandProcessor::ProcessResolveFetchesNow() {
       }
       if (!it->cancelled && i < resolve_fetch_data_.size() && resolve_fetch_data_[i]) {
         CopyResolveFetchToGuest(done, resolve_fetch_data_[i]);
+        // Every piece still watched now has the last resolve's data.
+        for (ResolveDestination& destination : resolve_destinations_) {
+          if (destination.address == done.address && destination.length == done.length) {
+            destination.current = true;
+          }
+        }
       }
       resolve_fetches_.erase(it);
     }
@@ -1054,6 +1099,129 @@ void CommandProcessor::CopyResolveFetchToGuest(const ResolveFetch& fetch, const 
     REXGPU_INFO("Resolve readback: copied back {:08X} ({} of {} bytes) for the CPU's first access",
                 fetch.address, copied, fetch.length);
   }
+}
+
+bool CommandProcessor::MarkResolveChunksRead(ResolveDestination& destination,
+                                             uint32_t physical_address, uint32_t length) {
+  const uint64_t destination_end = uint64_t(destination.address) + destination.length;
+  const uint64_t first = std::max(uint64_t(physical_address), uint64_t(destination.address));
+  const uint64_t end = std::min(uint64_t(physical_address) + length, destination_end);
+  if (first >= end) {
+    return false;
+  }
+  const uint32_t base_chunk = destination.address >> kResolveChunkShift;
+  const uint32_t chunk_count =
+      uint32_t(((destination_end - 1) >> kResolveChunkShift) - base_chunk + 1);
+  destination.read_chunks.resize((chunk_count + 63) / 64);
+  bool any_new = false;
+  for (uint64_t chunk = first >> kResolveChunkShift; chunk <= (end - 1) >> kResolveChunkShift;
+       ++chunk) {
+    const uint32_t index = uint32_t(chunk) - base_chunk;
+    uint64_t& bits = destination.read_chunks[index >> 6];
+    const uint64_t bit = uint64_t(1) << (index & 63);
+    if (!(bits & bit)) {
+      bits |= bit;
+      ++destination.read_chunk_count;
+      any_new = true;
+    }
+  }
+  return any_new;
+}
+
+void CommandProcessor::WatchUnreadResolveChunks(const ResolveDestination& destination) {
+  const uint64_t destination_end = uint64_t(destination.address) + destination.length;
+  const uint32_t base_chunk = destination.address >> kResolveChunkShift;
+  const uint32_t chunk_count =
+      uint32_t(((destination_end - 1) >> kResolveChunkShift) - base_chunk + 1);
+  uint32_t run_first = UINT32_MAX;
+  auto watch_run = [&](uint32_t run_end) {
+    if (run_first == UINT32_MAX) {
+      return;
+    }
+    const uint64_t start = std::max(uint64_t(base_chunk + run_first) << kResolveChunkShift,
+                                    uint64_t(destination.address));
+    const uint64_t end = std::min(uint64_t(base_chunk + run_end) << kResolveChunkShift,
+                                  destination_end);
+    if (end > start) {
+      memory::EnablePhysicalMemoryReadWatch(*memory_, uint32_t(start), uint32_t(end - start));
+    }
+    run_first = UINT32_MAX;
+  };
+  for (uint32_t i = 0; i < chunk_count; ++i) {
+    const bool read = (i >> 6) < destination.read_chunks.size() &&
+                      (destination.read_chunks[i >> 6] & (uint64_t(1) << (i & 63)));
+    if (read) {
+      watch_run(i);
+    } else if (run_first == UINT32_MAX) {
+      run_first = i;
+    }
+  }
+  watch_run(chunk_count);
+}
+
+bool CommandProcessor::GetResolveCopyPieces(uint32_t physical_address, uint32_t length,
+                                            std::vector<std::pair<uint32_t, uint32_t>>& pieces) {
+  pieces.clear();
+  const uint32_t address = physical_address & 0x1FFFFFFF;
+  auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+  for (ResolveDestination& destination : resolve_destinations_) {
+    if (destination.address != address || destination.length != length) {
+      continue;
+    }
+    if (!destination.cpu_reads || destination.whole) {
+      destination.current = true;
+      return true;
+    }
+    const uint64_t destination_end = uint64_t(address) + length;
+    const uint32_t base_chunk = address >> kResolveChunkShift;
+    const uint32_t chunk_count =
+        uint32_t(((destination_end - 1) >> kResolveChunkShift) - base_chunk + 1);
+    for (uint32_t i = 0; i < chunk_count; ++i) {
+      if ((i >> 6) >= destination.read_chunks.size() ||
+          !(destination.read_chunks[i >> 6] & (uint64_t(1) << (i & 63)))) {
+        continue;
+      }
+      const uint64_t start =
+          std::max(uint64_t(base_chunk + i) << kResolveChunkShift, uint64_t(address));
+      const uint64_t end =
+          std::min(uint64_t(base_chunk + i + 1) << kResolveChunkShift, destination_end);
+      const uint32_t offset = uint32_t(start - address);
+      if (!pieces.empty() && pieces.back().first + pieces.back().second == offset) {
+        pieces.back().second += uint32_t(end - start);
+      } else {
+        pieces.emplace_back(offset, uint32_t(end - start));
+      }
+    }
+    return false;
+  }
+  return true;
+}
+
+uint64_t CommandProcessor::CopyResolvePiecesToGuest(
+    uint32_t physical_address, uint32_t length, const uint8_t* data, bool all,
+    const std::vector<std::pair<uint32_t, uint32_t>>& pieces) {
+  uint8_t* guest = memory_->TranslatePhysical(physical_address);
+  if (!guest || !length) {
+    return 0;
+  }
+  if (all) {
+    std::memcpy(guest, data, length);
+    return length;
+  }
+  uint64_t copied = 0;
+  for (const auto& [offset, piece_length] : pieces) {
+    std::memcpy(guest + offset, data + offset, piece_length);
+    copied += piece_length;
+  }
+  return copied;
+}
+
+uint64_t CommandProcessor::CopyResolveToGuest(uint32_t physical_address, uint32_t length,
+                                              const uint8_t* data) {
+  // The pieces are worked out under the lock that guards the destinations,
+  // and copied outside it (all of it may be megabytes).
+  const bool all = GetResolveCopyPieces(physical_address, length, resolve_copy_runs_);
+  return CopyResolvePiecesToGuest(physical_address, length, data, all, resolve_copy_runs_);
 }
 
 void CommandProcessor::ReturnFromWait() {}

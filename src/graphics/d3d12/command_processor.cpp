@@ -3129,11 +3129,12 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
   bool should_copy = (readback_mode == ReadbackResolveMode::kSome) ? is_cache_miss : true;
   if (should_copy && rb.buffers[read_index] && written_length <= rb.sizes[read_index] &&
       rb.mapped_data[read_index]) {
-    uint8_t* destination = memory_->TranslatePhysical(written_address);
-    if (destination) {
-      std::memcpy(destination, static_cast<uint8_t*>(rb.mapped_data[read_index]), written_length);
+    // All of it, or the pieces the guest reads (readback_resolve_cpu_pages_only).
+    const uint64_t copied = CopyResolveToGuest(
+        written_address, written_length, static_cast<const uint8_t*>(rb.mapped_data[read_index]));
+    if (copied) {
       stats::Add(stats::Counter::kReadbacks);
-      stats::Add(stats::Counter::kReadbackBytes, written_length);
+      stats::Add(stats::Counter::kReadbackBytes, copied);
     }
   }
 

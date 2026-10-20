@@ -316,6 +316,21 @@ class CommandProcessor {
                                    std::vector<const uint8_t*>& data_out) {
     data_out.assign(count, nullptr);
   }
+  // For the implementations, after a resolve ShouldReadbackResolve said to
+  // copy back: copies the resolve's bytes (`data`, `length` of them) into
+  // guest memory at `physical_address`, all of them or, for a destination in
+  // pieces (readback_resolve_cpu_pages_only), the pieces the guest reads.
+  // Returns how many bytes were copied.
+  uint64_t CopyResolveToGuest(uint32_t physical_address, uint32_t length, const uint8_t* data);
+  // The same in two steps, for an implementation that also copies only the
+  // pieces from the GPU: which pieces (offset, length) a resolve's copy back
+  // is, or true for all of it; then the copy of those.
+  bool GetResolveCopyPieces(uint32_t physical_address, uint32_t length,
+                            std::vector<std::pair<uint32_t, uint32_t>>& pieces);
+  uint64_t CopyResolvePiecesToGuest(uint32_t physical_address, uint32_t length,
+                                    const uint8_t* data, bool all,
+                                    const std::vector<std::pair<uint32_t, uint32_t>>& pieces);
+
   // Copies back the resolves guest threads are waiting for. On the command
   // processor thread between packets and while it waits; cheap when none.
   void ProcessResolveFetches() {
@@ -371,7 +386,29 @@ class CommandProcessor {
     // The guest has accessed it: copied back after each resolve.
     bool cpu_reads;
     bool cpu_reads_logged;
+    // readback_resolve_cpu_pages_only: the 4 KB pieces of it the guest has
+    // touched, a bit each from the one holding `address`. After each resolve
+    // only these are copied back; the others stay watched, and touching one
+    // brings in this resolve's data (one fetch per resolve) and adds it here.
+    std::vector<uint64_t> read_chunks;
+    uint32_t read_chunk_count;
+    // The guest's copy of all of it holds the last resolve's data (a whole
+    // copy or a fetch since that resolve): touching a watched piece then only
+    // needs it unwatched.
+    bool current;
+    // Copied back whole after each resolve: pages-only is off, or the guest
+    // has touched too much of it for pieces to pay.
+    bool whole;
   };
+  // The 4 KB pieces readback_resolve_cpu_pages_only works in.
+  static constexpr uint32_t kResolveChunkShift = 12;
+  // Marks the pieces of a destination that a touched physical range covers
+  // as read; returns whether any was new.
+  static bool MarkResolveChunksRead(ResolveDestination& destination, uint32_t physical_address,
+                                    uint32_t length);
+  // Watches the pieces of a destination the guest hasn't touched (for the
+  // data of the resolve just made).
+  void WatchUnreadResolveChunks(const ResolveDestination& destination);
   // Called by the memory system on the thread that touched a read-watched
   // page, with the global critical region locked once.
   static std::pair<uint32_t, uint32_t> ResolveReadCallbackThunk(
@@ -389,6 +426,8 @@ class CommandProcessor {
   static constexpr size_t kMaxResolveDestinations = 256;
   // Guarded by the global critical region.
   std::vector<ResolveDestination> resolve_destinations_;
+  // CopyResolveToGuest's pieces (offset, length), kept for their storage.
+  std::vector<std::pair<uint32_t, uint32_t>> resolve_copy_runs_;
   void* resolve_read_callback_handle_ = nullptr;
   // Host thread ID of the command processor thread, which can't wait for
   // itself.

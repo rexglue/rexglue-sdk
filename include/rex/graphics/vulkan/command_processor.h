@@ -470,6 +470,9 @@ class VulkanCommandProcessor : public CommandProcessor {
     uint32_t written_size[2] = {0, 0};
     uint32_t current_index = 0;
     uint64_t last_used_frame = 0;
+    // The slot holds only some pieces of the destination (a full readback
+    // copied in pieces): never read as a whole by a delayed readback.
+    bool partial[2] = {false, false};
   };
   void EvictOldReadbackBuffers(std::unordered_map<uint64_t, ReadbackBuffer>& buffer_map);
   // Makes sure a slot of a resolve readback buffer exists, mapped, with at
@@ -478,8 +481,13 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Records the copy of a resolve destination from the GPU's memory (through
   // a downscale at a draw resolution scale) into a readback buffer, ready for
   // the host to read once the submission completes.
+  // `pieces` (offset, length within the destination), when not null and
+  // the copy is unscaled: copy only those, each to its own offset.
   bool RecordResolveReadbackCopy(uint32_t address, uint32_t length, uint32_t format,
-                                 VkBuffer target);
+                                 VkBuffer target,
+                                 const std::vector<std::pair<uint32_t, uint32_t>>* pieces = nullptr);
+  // The pieces of the current full readback (IssueCopy_ReadbackResolvePath).
+  std::vector<std::pair<uint32_t, uint32_t>> readback_pieces_;
   static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   static constexpr size_t kMaxReadbackBuffers = 256;
   static constexpr uint64_t kReadbackBufferEvictionAgeFrames = 60;
