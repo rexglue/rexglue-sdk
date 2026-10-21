@@ -87,7 +87,7 @@ void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr, size_t coun
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 8 == 0);
   for (; i < count; ++i) {
-    dest[i] = byte_swap(src[i]);
+    store(&dest[i], byte_swap(load<u16>(&src[i])));
   }
 }
 
@@ -126,7 +126,7 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr, size_t coun
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {
-    dest[i] = byte_swap(src[i]);
+    store(&dest[i], byte_swap(load<u32>(&src[i])));
   }
 }
 
@@ -165,7 +165,7 @@ void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr, size_t coun
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 2 == 0);
   for (; i < count; ++i) {
-    dest[i] = byte_swap(src[i]);
+    store(&dest[i], byte_swap(load<u64>(&src[i])));
   }
 }
 
@@ -197,7 +197,8 @@ void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr, size_
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {
-    dest[i] = (src[i] >> 16) | (src[i] << 16);
+    const u32 value = load<u32>(&src[i]);
+    store(&dest[i], (value >> 16) | (value << 16));
   }
 }
 

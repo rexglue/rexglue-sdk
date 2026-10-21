@@ -73,9 +73,8 @@ class REX_RUNTIME_API XDBFReader {
   size_t data_size_ = 0;
   const u8* content_offset_ = nullptr;
 
-  const XDBFHeader* header_ = nullptr;
-  const XDBFEntry* entries_ = nullptr;
-  const XDBFFileLocation* files_ = nullptr;
+  u32 entry_used_ = 0;
+  const u8* entries_ = nullptr;
 };
 
 /** Typed access to the title metadata of an XDBF database. */

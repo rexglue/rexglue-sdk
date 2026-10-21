@@ -95,16 +95,16 @@ VolumeStat ContainerProvider::GetVolume() const {
   u32 available_units = 0;
   if (container_.GetKind() == ContainerKind::kSTFS) {
     const auto& descriptor = metadata.volume_descriptor.stfs;
-    total_units = descriptor.total_block_count;
+    const u32 total_blocks = memory::load<be_u32>(&descriptor.total_block_count);
+    const u32 free_blocks = memory::load<be_u32>(&descriptor.free_block_count);
+    total_units = total_blocks;
     if (!descriptor.flags.bits.read_only_format) {
-      available_units =
-          kSTFSMaxBlocks - (descriptor.total_block_count - descriptor.free_block_count);
+      available_units = kSTFSMaxBlocks - (total_blocks - free_blocks);
     }
   } else {
-    const u64 header_bytes =
-        header.header.header_size
-            ? RoundUpNonZero(u64{header.header.header_size}, u64{kSTFSBlockSize})
-            : u64{sizeof(XContentPackageHeader)};
+    const u32 header_size = memory::load<be_u32>(&header.header.header_size);
+    const u64 header_bytes = header_size ? RoundUpNonZero(u64{header_size}, u64{kSTFSBlockSize})
+                                         : u64{sizeof(XContentPackageHeader)};
     const u64 data_size = container_.GetTotalSize() - header_bytes;
     total_units = static_cast<u32>(data_size / kPackageSectorsPerUnit / kBytesPerSector);
   }

@@ -34,6 +34,9 @@ u64 BitStream::Peek(size_t num_bits) {
   // At most 57 bits fit since 57 = 7 * 8 + 1 spans at most 8 bytes, the widest load.
   REX_ASSERT(!(num_bits > 57));
   REX_ASSERT(!(offset_bits_ + num_bits > size_bits_));
+  if (num_bits == 0) {
+    return 0;
+  }
 
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);

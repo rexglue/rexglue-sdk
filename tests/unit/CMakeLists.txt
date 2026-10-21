@@ -365,6 +365,23 @@ if (REXGLUE_ENABLE_TSAN)
     ENVIRONMENT
     "TSAN_OPTIONS=handle_segv=0" # TSan takes SIGSEGV for its own report unless handle_segv is 0
   )
+elseif (REXGLUE_ENABLE_SANITIZERS)
+  set(_unit_test_spec TEST_SPEC "~[crash_report]")
+
+  # UBSan installs its own fault handlers unless they are turned off
+  catch_discover_tests(
+    unit_tests
+    TEST_SPEC
+    "[crash_report]"
+    TEST_PREFIX
+    "unit."
+    ADD_TAGS_AS_LABELS
+    PROPERTIES
+    TIMEOUT
+    60
+    ENVIRONMENT
+    "UBSAN_OPTIONS=handle_segv=0:handle_sigbus=0:handle_abort=0:handle_sigfpe=0:handle_sigill=0"
+  )
 endif ()
 catch_discover_tests(
   unit_tests

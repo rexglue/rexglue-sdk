@@ -95,13 +95,16 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
     container.header_ = std::make_unique<XContentPackageHeader>(header);
     container.total_size_ = map->GetSize();
     const XContentPackageHeader& stored = *container.header_;
-    if (stored.metadata.volume_type == XContentVolumeType::kSTFS) {
+    const XContentVolumeType volume_type =
+        memory::load<BE<XContentVolumeType>>(&stored.metadata.volume_type);
+    const u32 data_file_count = memory::load<be_u32>(&stored.metadata.data_file_count);
+    if (volume_type == XContentVolumeType::kSTFS) {
       container.kind_ = ContainerKind::kSTFS;
       container.files_.push_back(std::move(map));
       REX_TRY_VOID(detail::ParseSTFS(stored, BytesOf(*container.files_[0]), container.nodes_));
-    } else if (stored.metadata.volume_type == XContentVolumeType::kSVOD) {
+    } else if (volume_type == XContentVolumeType::kSVOD) {
       container.kind_ = ContainerKind::kSVOD;
-      if (stored.metadata.data_file_count <= 1) {
+      if (data_file_count <= 1) {
         container.files_.push_back(std::move(map));
       } else {
         const std::filesystem::path fragments =
@@ -114,11 +117,10 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
         }
         std::ranges::sort(names, {}, [](const std::filesystem::path& p) { return p.filename(); });
         container.total_size_ = 0;
-        if (names.size() != stored.metadata.data_file_count) {
+        if (names.size() != data_file_count) {
           return Err<Container>(
               BuildError(FileSystemError::kCorrupt,
-                         std::format("SVOD lists {} data fragments, '{}' holds {}",
-                                     static_cast<u32>(stored.metadata.data_file_count),
+                         std::format("SVOD lists {} data fragments, '{}' holds {}", data_file_count,
                                      PathToUTF8(fragments), names.size())));
         }
         for (const auto& name : names) {
@@ -139,9 +141,8 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
       REX_TRY_VOID(detail::ParseSVOD(stored, spans, container.nodes_));
     } else {
       return Err<Container>(BuildError(
-          FileSystemError::kCorrupt, std::format("volume type {} is not STFS or SVOD",
-                                                 std::to_underlying(static_cast<XContentVolumeType>(
-                                                     stored.metadata.volume_type)))));
+          FileSystemError::kCorrupt,
+          std::format("volume type {} is not STFS or SVOD", std::to_underlying(volume_type))));
     }
   } else if (detail::IsGDFX(bytes)) {
     container.kind_ = ContainerKind::kGDFX;

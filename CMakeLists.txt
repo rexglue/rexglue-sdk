@@ -244,8 +244,8 @@ if (REXGLUE_ENABLE_SANITIZERS)
       "Enabling UndefinedBehaviorSanitizer (UBSan only - ASan conflicts with custom memory mapping)"
   )
   # ASan does not work with the custom mmap at 0x100000000, so only UBSan is used
-  add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer -g)
-  add_link_options(-fsanitize=undefined)
+  add_compile_options(-fsanitize=undefined -fno-sanitize=vptr -fno-omit-frame-pointer -g)
+  add_link_options(-fsanitize=undefined -fno-sanitize=vptr)
 endif ()
 
 if (REXGLUE_ENABLE_TSAN)
