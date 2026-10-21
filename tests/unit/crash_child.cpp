@@ -10,12 +10,14 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -31,7 +33,9 @@
 #include <rex/platform.h>
 #include <rex/platform/crash.h>
 #include <rex/platform/exceptions.h>
+#include <rex/ppc/detour.h>
 #include <rex/ppc/recompiled_code.h>
+#include <rex/ppc/stack.h>
 #include <rex/runtime/xmemory.h>
 
 #if REX_PLATFORM_WIN32
@@ -40,6 +44,26 @@
 
 extern "C" int FaultInScope(volatile int* address);
 extern "C" int FaultBelowHostFrame(volatile int* address);
+
+alignas(64) static rex::u8 g_detour_memory[0x1000] = {};
+
+extern "C" void __imp__CrashChildDetourSkip(PPCContext& ctx, rex::u8*) {
+  ctx.r3.u64 = 1;
+}
+
+REX_DETOUR(CrashChildDetourSkip, void, (rex::u32 value)) {
+  (void)value;
+}
+
+extern "C" void __imp__CrashChildDetourOpen(PPCContext& ctx, rex::u8*) {
+  ctx.r3.u64 = 1;
+}
+
+REX_DETOUR(CrashChildDetourOpen, void, (PPCContext & ctx)) {
+  auto* frame = new rex::ppc::StackFrame(ctx, g_detour_memory);
+  frame->Push<rex::u32>(1);
+  original();
+}
 
 namespace {
 
@@ -194,6 +218,69 @@ int RunWatchRace() {
   return 0;
 }
 
+int RunStackFramesOutOfOrder() {
+  alignas(64) static rex::u8 memory[0x1000] = {};
+  PPCContext ctx{};
+  ctx.r1.u32 = 0x800;
+  auto outer = std::make_unique<rex::ppc::StackFrame>(ctx, memory);
+  auto inner = std::make_unique<rex::ppc::StackFrame>(ctx, memory);
+  outer.reset();
+  inner.reset();
+  std::puts("stack frames closed out of order");
+  return 0;
+}
+
+int RunStackPushEmptyBytes() {
+  alignas(64) static rex::u8 memory[0x1000] = {};
+  PPCContext ctx{};
+  ctx.r1.u32 = 0x800;
+  rex::ppc::StackFrame frame(ctx, memory);
+  frame.PushBytes({});
+  std::puts("stack pushed empty bytes");
+  return 0;
+}
+
+int RunDetourSkipsOriginal() {
+  PPCContext ctx{};
+  ctx.r1.u32 = 0x800;
+  try {
+    CrashChildDetourSkip(ctx, g_detour_memory);
+  } catch (...) {
+    return 3;
+  }
+  std::puts("detour returned without its original");
+  return 0;
+}
+
+int RunDetourLeavesFrameOpen() {
+  PPCContext ctx{};
+  ctx.r1.u32 = 0x800;
+  try {
+    CrashChildDetourOpen(ctx, g_detour_memory);
+  } catch (...) {
+    return 3;
+  }
+  std::puts("detour returned with a frame open");
+  return 0;
+}
+
+int RunStackPushPastLimit() {
+  alignas(64) static rex::u8 memory[0x1000] = {};
+  PPCContext ctx{};
+  ctx.r13.u32 = 0x100;
+  *rex::runtime::GuestPtr<be_u32*>(memory, 0x170) = 0x800;
+  *rex::runtime::GuestPtr<be_u32*>(memory, 0x174) = 0x400;
+  ctx.r1.u32 = 0x800;
+  rex::ppc::StackFrame frame(ctx, memory);
+  frame.Push<u32>(1);
+  std::puts("pushed above the limit");
+  std::fflush(stdout);
+  const std::array<rex::u8, 0x500> bytes{};
+  frame.PushBytes(bytes);
+  std::puts("pushed below the limit");
+  return 0;
+}
+
 int Run(std::string_view mode) {
   if (mode == "null-write") {
     WriteNull();
@@ -269,6 +356,16 @@ int Run(std::string_view mode) {
     return RunWatchBurst();
   } else if (mode == "watch-race") {
     return RunWatchRace();
+  } else if (mode == "stack-frames-out-of-order") {
+    return RunStackFramesOutOfOrder();
+  } else if (mode == "stack-push-past-limit") {
+    return RunStackPushPastLimit();
+  } else if (mode == "stack-push-empty-bytes") {
+    return RunStackPushEmptyBytes();
+  } else if (mode == "detour-skips-original") {
+    return RunDetourSkipsOriginal();
+  } else if (mode == "detour-leaves-frame-open") {
+    return RunDetourLeavesFrameOpen();
   } else if (mode == "foreign-thread") {
     std::thread([] { WriteNull(); }).join();
   } else if (mode == "describer") {

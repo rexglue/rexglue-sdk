@@ -3,6 +3,7 @@
 add_executable(
   unit_tests
   test_memory.cpp
+  crash_child_runner.cpp
   apu/null_backend_test.cpp
   hid/null_backend_test.cpp
   hid/xam_input_error_test.cpp
@@ -137,6 +138,7 @@ add_executable(
   ppc/dot_product_test.cpp
   ppc/estimate_test.cpp
   ppc/fpscr_flush_test.cpp
+  ppc/detour_test.cpp
   ppc/hook_shapes_test.cpp
   ppc/multiply_add_test.cpp
   ppc/pack_d3d_test.cpp
@@ -343,6 +345,31 @@ set_target_properties(unit_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FI
 if (UNIX AND NOT APPLE)
   set_target_properties(unit_tests PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
 endif ()
+
+add_library(stack-frame-push-value OBJECT EXCLUDE_FROM_ALL ppc/stack_frame_fail/push_value.cpp)
+target_link_libraries(stack-frame-push-value PRIVATE rexruntime)
+add_test(NAME "unit.compile: StackFrame accepts a push of a value"
+         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG> --target
+                 stack-frame-push-value
+)
+set_tests_properties(
+  "unit.compile: StackFrame accepts a push of a value" PROPERTIES RESOURCE_LOCK nested_build
+)
+foreach (_case IN ITEMS pointer mapped_ptr pointer_array mapped_ptr_array)
+  string(REPLACE "_" "-" _target "stack-frame-push-${_case}")
+  add_library(${_target} OBJECT EXCLUDE_FROM_ALL ppc/stack_frame_fail/push_${_case}.cpp)
+  target_link_libraries(${_target} PRIVATE rexruntime)
+  set_target_properties(${_target} PROPERTIES EXPORT_COMPILE_COMMANDS OFF)
+  add_test(NAME "unit.compile: StackFrame rejects a push of a ${_case}"
+           COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG> --target
+                   ${_target}
+  )
+  set_tests_properties(
+    "unit.compile: StackFrame rejects a push of a ${_case}"
+    PROPERTIES PASS_REGULAR_EXPRESSION "StackFrame cannot push a pointer or a MappedPtr"
+               RESOURCE_LOCK nested_build
+  )
+endforeach ()
 
 #Discover tests
 include(Catch)

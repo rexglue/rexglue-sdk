@@ -9,6 +9,8 @@ set(REXRUNTIME_SOURCES
     kernel_thread.cpp
     thread_registry.cpp
     guest_stack.cpp
+    ppc_stack.cpp
+    ppc_detour.cpp
     workspace_heap.cpp
     guest_allocator.cpp
     event_object.cpp

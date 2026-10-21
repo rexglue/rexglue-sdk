@@ -555,6 +555,8 @@ struct ArgTranslator {
       SetVectorArgumentValue(ctx, base, arg, value);
     } else if constexpr (ByValueType<T>) {
       SetByValueArgumentValue(ctx, base, arg, value);
+    } else if constexpr (MappedPtrType<T>) {
+      SetIntegerArgumentValue(ctx, base, arg.slot, value.GetGuestAddress());
     } else if constexpr (std::is_null_pointer_v<T>) {
       SetIntegerArgumentValue(ctx, base, arg.slot, 0);
     } else if constexpr (std::is_pointer_v<T>) {
@@ -841,6 +843,60 @@ T LoadByValue(u8* base, u32 address) {
 }
 
 /**
+ * Writes the result of a native C++ function to the registers a guest caller reads.
+ *
+ * @tparam RetT The result type.
+ * @param ctx The register file.
+ * @param base The guest memory base.
+ * @param hidden_pointer The result pointer the caller passed in r3, used by a hidden return.
+ * @param value The result.
+ */
+template <typename RetT>
+void StoreHostResult(PPCContext& ctx, u8* base, u32 hidden_pointer, const RetT& value) {
+  if constexpr (std::is_pointer<RetT>()) {
+    if (value != nullptr) {
+      ctx.r3.u64 =
+          static_cast<u32>(reinterpret_cast<size_t>(value) - reinterpret_cast<size_t>(base));
+    } else {
+      ctx.r3.u64 = 0;
+    }
+  } else if constexpr (is_float_v<RetT>) {
+    ctx.f1.f64 = value;
+  } else if constexpr (VectorType<RetT>) {
+    ctx.v1 = value;
+  } else if constexpr (HiddenReturnType<RetT>) {
+    StoreByValue(base, hidden_pointer, value);
+    ctx.r3.u64 = hidden_pointer;
+  } else if constexpr (ByValueType<RetT>) {
+    ctx.r3.u64 = ByValueToWord(value);
+  } else {
+    ctx.r3.u64 = static_cast<u64>(value);
+  }
+}
+
+namespace detail {
+
+/**
+ * Checks in Debug builds that a hook runs on the register file of its thread.
+ *
+ * @param ctx The register file the hook was given.
+ * @param name The hook, for the log.
+ */
+inline void CheckHookContext([[maybe_unused]] const PPCContext& ctx,
+                             [[maybe_unused]] const char* name) {
+#ifndef NDEBUG
+  const auto* thread_state = rex::runtime::ThreadState::Get();
+  if (thread_state && &ctx != thread_state->GetContext()) {
+    REXLOG_ERROR(cpu, "Hook {} runs on a register file that is not its thread's", name);
+  }
+  REX_ASSERT(!thread_state || &ctx == thread_state->GetContext(),
+             "A hook runs on a register file that is not its thread's");
+#endif
+}
+
+}  // namespace detail
+
+/**
  * Calls a native C++ function with arguments extracted from the PPC context. A compiler barrier
  * follows the call so the compiler does not reorder it.
  *
@@ -852,6 +908,7 @@ template <auto Func>
 __attribute__((noinline)) void GuestToHostThunk(PPCContext& ctx, u8* base) {
   using RetT = decltype(std::apply(Func, FunctionArgs(Func)));
 
+  detail::CheckHookContext(ctx, __PRETTY_FUNCTION__);
   auto* thread_state = rex::runtime::ThreadState::Get();
   if (thread_state && thread_state->IsStopRequested()) {
     throw rex::ThreadStop{};
@@ -870,24 +927,7 @@ __attribute__((noinline)) void GuestToHostThunk(PPCContext& ctx, u8* base) {
 
     asm volatile("" ::: "memory");
 
-    if constexpr (std::is_pointer<RetT>()) {
-      if (v != nullptr) {
-        ctx.r3.u64 = static_cast<u32>(reinterpret_cast<size_t>(v) - reinterpret_cast<size_t>(base));
-      } else {
-        ctx.r3.u64 = 0;
-      }
-    } else if constexpr (is_float_v<RetT>) {
-      ctx.f1.f64 = v;
-    } else if constexpr (VectorType<RetT>) {
-      ctx.v1 = v;
-    } else if constexpr (HiddenReturnType<RetT>) {
-      StoreByValue(base, hidden_pointer, v);
-      ctx.r3.u64 = hidden_pointer;
-    } else if constexpr (ByValueType<RetT>) {
-      ctx.r3.u64 = ByValueToWord(v);
-    } else {
-      ctx.r3.u64 = static_cast<u64>(v);
-    }
+    StoreHostResult(ctx, base, hidden_pointer, v);
   }
   if (thread_state && thread_state->IsStopRequested()) {
     throw rex::ThreadStop{};
@@ -1004,6 +1044,38 @@ constexpr u32 HiddenReturnBytes() {
 }
 
 /**
+ * Reads the result a guest function left in its result registers.
+ *
+ * @tparam R The result type.
+ * @param base The guest memory base.
+ * @param r3 The integer result register.
+ * @param f1 The floating point result register.
+ * @param v1 The vector result register.
+ * @param result_storage The guest address of the hidden return storage, used by a hidden return.
+ * @return The result.
+ */
+template <typename R>
+R LoadGuestResult([[maybe_unused]] u8* base, [[maybe_unused]] const PPCRegister& r3,
+                  [[maybe_unused]] const PPCRegister& f1, [[maybe_unused]] const PPCVRegister& v1,
+                  [[maybe_unused]] u32 result_storage) {
+  if constexpr (std::is_void_v<R>) {
+    return;
+  } else if constexpr (std::is_pointer_v<R>) {
+    return r3.u32 ? rex::runtime::GuestPtr<R>(base, r3.u32) : nullptr;
+  } else if constexpr (is_float_v<R>) {
+    return static_cast<R>(f1.f64);
+  } else if constexpr (VectorType<R>) {
+    return v1;
+  } else if constexpr (HiddenReturnType<R>) {
+    return LoadByValue<R>(base, result_storage);
+  } else if constexpr (ByValueType<R>) {
+    return ByValueFromWord<R>(r3.u64);
+  } else {
+    return static_cast<R>(r3.u64);
+  }
+}
+
+/**
  * Calls recompiled code on the thread's register file by the guest calling convention.
  *
  * @tparam R The return type, read from r3 or f1.
@@ -1043,21 +1115,7 @@ R Call(PPCContext& ctx, u8* base, PPCFunc& fn, Args... args) {
   const PPCFPSCRRegister fpscr = ctx.fpscr;
   ctx = saved;
   ctx.fpscr = fpscr;
-  if constexpr (std::is_void_v<R>) {
-    return;
-  } else if constexpr (std::is_pointer_v<R>) {
-    return r3.u32 ? rex::runtime::GuestPtr<R>(base, r3.u32) : nullptr;
-  } else if constexpr (is_float_v<R>) {
-    return static_cast<R>(f1.f64);
-  } else if constexpr (VectorType<R>) {
-    return v1;
-  } else if constexpr (HiddenReturnType<R>) {
-    return LoadByValue<R>(base, result_storage);
-  } else if constexpr (ByValueType<R>) {
-    return ByValueFromWord<R>(r3.u64);
-  } else {
-    return static_cast<R>(r3.u64);
-  }
+  return LoadGuestResult<R>(base, r3, f1, v1, result_storage);
 }
 
 /**
