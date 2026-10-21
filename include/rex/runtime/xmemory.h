@@ -334,6 +334,32 @@ class REX_RUNTIME_API BaseHeap {
    */
   rex::memory::PageAccess QueryRangeAccess(u32 low_address, u32 high_address);
 
+  /**
+   * Returns the host access that a host page should have.
+   *
+   * The access is the union of the committed title protection of the guest pages the host page
+   * covers. A write watched page stays read only. The caller holds the heap mutex and, when title
+   * pages are smaller than host pages, the memory watch lock.
+   *
+   * @param host_page_number Host page number counted from the host base of the heap, including
+   * GetHostAddressOffset().
+   * @return The page access.
+   */
+  rex::memory::PageAccess GetHostPageAccess(u32 host_page_number) const;
+
+  /**
+   * Re-applies the host access that the heap grants to a faulting host page.
+   *
+   * Reads the page state and changes the host protection with the heap mutex held, so a
+   * concurrent protect or release of the heap cannot interleave. The caller holds the memory watch
+   * lock.
+   *
+   * @param host_address Host address of the fault.
+   * @param is_write True for a write, false for a read.
+   * @return True when the heap allows the access and the host page now permits it.
+   */
+  bool ReapplyHostPageAccess(void* host_address, bool is_write);
+
  protected:
   friend class PhysicalHeap;
 

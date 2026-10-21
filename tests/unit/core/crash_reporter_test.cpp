@@ -230,6 +230,25 @@ REX_TEST_CASE("A write watch fault resumes without a report", "[core][crash][cra
 }
 #endif
 
+REX_TEST_CASE("A burst of write watch faults reads no process files",
+              "[core][crash][crash_report]") {
+  const auto result = RunChild("watch-burst");
+  if (result.Has("watch burst skipped")) {
+    SKIP("the process I/O counters cannot be read");
+  }
+  CHECK(result.status == 0);
+  CHECK(result.Has("watch burst ok"));
+  CHECK_FALSE(result.WasReported());
+}
+
+REX_TEST_CASE("Two threads writing one watched page both resume and the watch fires once",
+              "[core][crash][crash_report]") {
+  const auto result = RunChild("watch-race");
+  CHECK(result.status == 0);
+  CHECK(result.Has("watch race ok"));
+  CHECK_FALSE(result.WasReported());
+}
+
 REX_TEST_CASE("A fault on a thread the SDK did not start is reported",
               "[core][crash][crash_report]") {
   const auto result = RunChild("foreign-thread");

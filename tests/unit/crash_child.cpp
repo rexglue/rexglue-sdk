@@ -15,6 +15,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <format>
+#include <fstream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -81,6 +83,115 @@ rex::u32 DescribeWhileAnotherThreadFaults(rex::u64, std::span<char> out) {
 
 std::pair<rex::u32, rex::u32> IgnoreInvalidation(void*, rex::u32, rex::u32, bool) {
   return {0, UINT32_MAX};
+}
+
+std::atomic<int> g_invalidations{0};
+
+std::pair<rex::u32, rex::u32> CountInvalidation(void*, rex::u32 address, rex::u32 length, bool) {
+  g_invalidations.fetch_add(1);
+  return {address, length};
+}
+
+std::optional<unsigned long long> ReadSyscallCount() {
+  std::ifstream io("/proc/self/io");
+  std::string key;
+  unsigned long long value = 0;
+  while (io >> key >> value) {
+    if (key == "syscr:") {
+      return value;
+    }
+  }
+  return std::nullopt;
+}
+
+int RunWatchBurst() {
+  rex::runtime::Memory memory;
+  if (!memory.Initialize()) {
+    return 2;
+  }
+  constexpr rex::u32 kPages = 100;
+  const auto host_page = static_cast<rex::u32>(rex::memory::GetPageSize());
+  const rex::u32 address =
+      memory.SystemHeapAlloc(host_page * kPages, host_page, rex::runtime::kSystemHeapPhysical);
+  if (!address) {
+    return 2;
+  }
+  void* handle = memory.RegisterPhysicalMemoryInvalidationCallback(CountInvalidation, nullptr);
+  memory.EnablePhysicalMemoryAccessCallbacks(memory.GetPhysicalAddress(address), host_page * kPages,
+                                             true, false);
+  g_invalidations = 0;
+  const auto before = ReadSyscallCount();
+  for (rex::u32 page = 0; page < kPages; ++page) {
+    *memory.TranslateVirtual<volatile rex::u32*>(address + page * host_page) = page;
+  }
+  const auto after = ReadSyscallCount();
+  memory.UnregisterPhysicalMemoryInvalidationCallback(handle);
+  if (g_invalidations.load() != static_cast<int>(kPages)) {
+    std::printf("watch burst fired %d times\n", g_invalidations.load());
+    return 3;
+  }
+  if (!before || !after) {
+    std::puts("watch burst skipped");
+  } else if (*after - *before >= 20) {
+    std::printf("watch burst read %llu times\n", *after - *before);
+    return 3;
+  } else {
+    std::puts("watch burst ok");
+  }
+  return 0;
+}
+
+int RunWatchRace() {
+  rex::runtime::Memory memory;
+  if (!memory.Initialize()) {
+    return 2;
+  }
+  const auto host_page = static_cast<rex::u32>(rex::memory::GetPageSize());
+  const rex::u32 address =
+      memory.SystemHeapAlloc(host_page, host_page, rex::runtime::kSystemHeapPhysical);
+  if (!address) {
+    return 2;
+  }
+  void* handle = memory.RegisterPhysicalMemoryInvalidationCallback(CountInvalidation, nullptr);
+  g_invalidations = 0;
+  constexpr int kRounds = 300;
+  std::atomic<int> round{0};
+  std::atomic<int> finished{0};
+  auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
+  const auto writer = [&](rex::u32 value) {
+    for (int next = 1; next <= kRounds; ++next) {
+      while (round.load(std::memory_order_acquire) < next) {
+        std::this_thread::yield();
+      }
+      *host = value;
+      finished.fetch_add(1);
+    }
+  };
+  std::thread first(writer, 1);
+  std::thread second(writer, 2);
+  const rex::u32 physical = memory.GetPhysicalAddress(address);
+  for (int next = 1; next <= kRounds; ++next) {
+    memory.EnablePhysicalMemoryAccessCallbacks(physical, host_page, true, false);
+    round.store(next, std::memory_order_release);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (finished.load() < next * 2) {
+      if (std::chrono::steady_clock::now() > deadline) {
+        std::puts("watch race hang");
+        std::fflush(stdout);
+        std::_Exit(3);
+      }
+      std::this_thread::yield();
+    }
+  }
+  first.join();
+  second.join();
+  memory.UnregisterPhysicalMemoryInvalidationCallback(handle);
+  if (g_invalidations.load() != kRounds) {
+    std::printf("watch race fired %d times\n", g_invalidations.load());
+    return 3;
+  }
+  std::puts("watch race ok");
+  return 0;
 }
 
 int Run(std::string_view mode) {
@@ -154,6 +265,10 @@ int Run(std::string_view mode) {
     memory.UnregisterPhysicalMemoryInvalidationCallback(handle);
     std::puts("watch resumed");
     return 0;
+  } else if (mode == "watch-burst") {
+    return RunWatchBurst();
+  } else if (mode == "watch-race") {
+    return RunWatchRace();
   } else if (mode == "foreign-thread") {
     std::thread([] { WriteNull(); }).join();
   } else if (mode == "describer") {

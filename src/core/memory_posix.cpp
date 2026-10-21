@@ -154,28 +154,7 @@ bool IsWritableExecutableMemorySupported() {
 namespace {
 
 bool IsRangeFullyMapped(void* base_address, size_t length) {
-  if (!base_address || length == 0) {
-    return false;
-  }
-  const u64 begin = reinterpret_cast<u64>(base_address);
-  const u64 end = begin + length;
-  if (end < begin) {
-    return false;
-  }
-  u64 cursor = begin;
-  bool gap = false;
-  ForEachMapping([&](const ProcMapping& mapping) {
-    if (mapping.end <= cursor) {
-      return true;
-    }
-    if (mapping.start > cursor) {
-      gap = true;
-      return false;
-    }
-    cursor = mapping.end;
-    return cursor < end;
-  });
-  return !gap && cursor >= end;
+  return base_address && length != 0 && msync(base_address, length, MS_ASYNC) == 0;
 }
 
 PageAccess PermsToPageAccess(const std::array<char, 4>& perms) {
@@ -255,24 +234,15 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
   }
 #endif
 
-  void* result = detail::AcceptFixedMapping(base_address, length,
-                                            mmap(base_address, length, prot_initial, flags, -1, 0));
-  if (result != MAP_FAILED) {
-    return result;
-  }
-#if defined(MAP_FIXED_NOREPLACE) && REX_PLATFORM_LINUX
-  if (errno == EEXIST && base_address &&
-      (allocation_type == AllocationType::kCommit ||
-       allocation_type == AllocationType::kReserveCommit)) {
-    if (IsRangeFullyMapped(base_address, length)) {
-      if (mprotect(base_address, length, prot_requested) == 0) {
-        return base_address;
-      }
-    }
+#if REX_PLATFORM_LINUX
+  if (allocation_type != AllocationType::kReserve && IsRangeFullyMapped(base_address, length)) {
+    return mprotect(base_address, length, prot_requested) == 0 ? base_address : nullptr;
   }
 #endif
 
-  return nullptr;
+  void* result = detail::AcceptFixedMapping(base_address, length,
+                                            mmap(base_address, length, prot_initial, flags, -1, 0));
+  return result != MAP_FAILED ? result : nullptr;
 }
 
 bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocation_type) {

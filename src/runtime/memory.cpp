@@ -548,24 +548,28 @@ AccessViolationResult Memory::HandleAccessViolation(void* host_address, bool is_
 }
 
 bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
-  std::unique_lock lock(watch_mutex_);
-  {
-    rex::memory::PageAccess cur_access;
-    size_t page_length = rex::memory::GetPageSize();
-    rex::memory::QueryProtect(host_address, page_length, cur_access);
-    if (cur_access != rex::memory::PageAccess::kNoAccess &&
-        (!is_write || cur_access != rex::memory::PageAccess::kReadOnly)) {
-      return true;
-    }
-  }
   // Accesses through physical_membase_ bypass callbacks, which fire only on virtual regions.
   if (reinterpret_cast<size_t>(host_address) < reinterpret_cast<size_t>(virtual_membase_) ||
       reinterpret_cast<size_t>(host_address) >= reinterpret_cast<size_t>(physical_membase_)) {
     return false;
   }
+  std::unique_lock lock(watch_mutex_);
   u32 virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
-  if (!heap || heap->GetHeapType() != runtime::HeapType::kGuestPhysical) {
+  if (!heap) {
+    t_guest_fault = GuestFault{
+        .kind = GuestFaultKind::kUnhandled, .address = virtual_address, .is_write = is_write};
+    return false;
+  }
+
+  // The heap decides the host access, a page it already allows only has stale host protection.
+  if (heap->ReapplyHostPageAccess(host_address, is_write)) {
+    g_recovered_protect_count.fetch_add(1, std::memory_order_relaxed);
+    g_recovered_protect_address.store(virtual_address, std::memory_order_relaxed);
+    return true;
+  }
+
+  if (heap->GetHeapType() != runtime::HeapType::kGuestPhysical) {
     t_guest_fault = GuestFault{
         .kind = GuestFaultKind::kUnhandled, .address = virtual_address, .is_write = is_write};
     return false;
@@ -578,54 +582,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   }
   lock.unlock();
 
-  // Restore write access when title metadata says writable but host protection is stale.
   if (is_write) {
-    constexpr u32 kWriteProtectMask =
-        runtime::kMemoryProtectWrite | runtime::kMemoryProtectWriteCombine;
-    u32 guest_protect = 0;
-    bool allow_write = false;
-    if (heap->QueryProtect(virtual_address, &guest_protect) &&
-        (guest_protect & kWriteProtectMask)) {
-      allow_write = true;
-    } else {
-      HeapAllocation guest_info{};
-      if (heap->QueryRegionInfo(virtual_address, &guest_info) &&
-          (guest_info.state & runtime::kMemoryAllocationCommit) &&
-          (guest_info.allocation_protect & kWriteProtectMask)) {
-        guest_protect = guest_info.protect;
-        allow_write = true;
-      } else {
-        u32 physical_address = GetPhysicalAddress(virtual_address);
-        if (physical_address != UINT32_MAX) {
-          u32 physical_protect = 0;
-          if (heaps_.physical.QueryProtect(physical_address, &physical_protect) &&
-              (physical_protect & kWriteProtectMask)) {
-            guest_protect = physical_protect;
-            allow_write = true;
-          } else {
-            HeapAllocation physical_info{};
-            if (heaps_.physical.QueryRegionInfo(physical_address, &physical_info) &&
-                (physical_info.state & runtime::kMemoryAllocationCommit) &&
-                (physical_info.allocation_protect & kWriteProtectMask)) {
-              guest_protect = physical_info.protect;
-              allow_write = true;
-            }
-          }
-        }
-      }
-    }
-    if (allow_write) {
-      const size_t host_page_size = rex::memory::GetPageSize();
-      u8* const page = static_cast<u8*>(host_address) -
-                       (reinterpret_cast<uintptr_t>(host_address) & (host_page_size - 1));
-      if (rex::memory::Protect(page, host_page_size, rex::memory::PageAccess::kReadWrite,
-                               nullptr)) {
-        g_recovered_protect_count.fetch_add(1, std::memory_order_relaxed);
-        g_recovered_protect_address.store(virtual_address, std::memory_order_relaxed);
-        return true;
-      }
-    }
-
     u32 current_guest_protect = 0;
     heap->QueryProtect(virtual_address, &current_guest_protect);
     u32 physical_address = GetPhysicalAddress(virtual_address);
@@ -867,66 +824,80 @@ std::unique_lock<rex::platform::RankedMutex> BaseHeap::AcquireHostPageReconcileL
   return std::unique_lock(memory_->watch_mutex_);
 }
 
+rex::memory::PageAccess BaseHeap::GetHostPageAccess(u32 host_page_number) const {
+  const u32 host_page_size = memory_->system_page_size_;
+  // A host page spans several guest pages, so it gets the union of their committed access.
+  const u64 host_page_start = static_cast<u64>(host_page_number) * host_page_size;
+  const u64 host_page_end = host_page_start + host_page_size;
+  const u64 heap_host_start = host_address_offset_;
+  const u64 heap_host_end = heap_host_start + heap_size_;
+  const u64 overlap_start = std::max(host_page_start, heap_host_start);
+  const u64 overlap_end = std::min(host_page_end, heap_host_end);
+  if (overlap_start >= overlap_end) {
+    return rex::memory::PageAccess::kNoAccess;
+  }
+
+  const u32 guest_page_start =
+      static_cast<u32>(overlap_start - heap_host_start) >> page_size_shift_;
+  const u32 guest_page_end =
+      static_cast<u32>(overlap_end - heap_host_start - 1) >> page_size_shift_;
+
+  bool has_read = false;
+  bool has_write = false;
+  bool has_committed = false;
+  for (u32 page_number = guest_page_start; page_number <= guest_page_end; ++page_number) {
+    const auto& page_entry = page_table_[page_number];
+    if (!(page_entry.state & runtime::kMemoryAllocationCommit)) {
+      continue;
+    }
+    has_committed = true;
+    const rex::memory::PageAccess page_access = ToPageAccess(page_entry.current_protect);
+    if (page_access == rex::memory::PageAccess::kReadWrite) {
+      has_read = true;
+      has_write = true;
+      break;
+    }
+    if (page_access == rex::memory::PageAccess::kReadOnly) {
+      has_read = true;
+    }
+  }
+
+  rex::memory::PageAccess access;
+  // Released physical aliases stay accessible unless protect_on_release, the GPU may use them.
+  if (!has_committed && heap_type_ == runtime::HeapType::kGuestPhysical &&
+      !REXCVAR_GET(::rex::runtime::cvars::protect_on_release)) {
+    access = rex::memory::PageAccess::kReadWrite;
+  } else if (!has_read) {
+    access = rex::memory::PageAccess::kNoAccess;
+  } else {
+    access = has_write ? rex::memory::PageAccess::kReadWrite : rex::memory::PageAccess::kReadOnly;
+  }
+
+  // A write watched page stays read-only, write access would stop the watch from firing.
+  if (access == rex::memory::PageAccess::kReadWrite && IsHostPageWriteWatched(host_page_number)) {
+    access = rex::memory::PageAccess::kReadOnly;
+  }
+  return access;
+}
+
+bool BaseHeap::ReapplyHostPageAccess(void* host_address, bool is_write) {
+  const u32 host_page_size = memory_->system_page_size_;
+  u8* const page = static_cast<u8*>(host_address) -
+                   (reinterpret_cast<uintptr_t>(host_address) & (host_page_size - 1));
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
+  const u8* const host_origin = TranslateRelative(0) - host_address_offset_;
+  const rex::memory::PageAccess expected =
+      GetHostPageAccess(static_cast<u32>((page - host_origin) / host_page_size));
+  const bool allowed = is_write ? expected == rex::memory::PageAccess::kReadWrite
+                                : expected != rex::memory::PageAccess::kNoAccess;
+  return allowed && rex::memory::Protect(page, host_page_size, expected, nullptr);
+}
+
 bool BaseHeap::SyncHostPageAccess(u32 start_page_number, u32 end_page_number) {
   const u32 host_page_size = memory_->system_page_size_;
   if (page_size_ >= host_page_size) {
     return true;
   }
-
-  // A host page spans several guest pages, so it gets the union of their committed access.
-  const auto get_host_page_access = [&](u32 host_page_number) {
-    const u64 host_page_start = static_cast<u64>(host_page_number) * host_page_size;
-    const u64 host_page_end = host_page_start + host_page_size;
-    const u64 heap_host_start = host_address_offset_;
-    const u64 heap_host_end = heap_host_start + heap_size_;
-    const u64 overlap_start = std::max(host_page_start, heap_host_start);
-    const u64 overlap_end = std::min(host_page_end, heap_host_end);
-    if (overlap_start >= overlap_end) {
-      return rex::memory::PageAccess::kNoAccess;
-    }
-
-    const u32 guest_page_start =
-        static_cast<u32>(overlap_start - heap_host_start) >> page_size_shift_;
-    const u32 guest_page_end =
-        static_cast<u32>(overlap_end - heap_host_start - 1) >> page_size_shift_;
-
-    bool has_read = false;
-    bool has_write = false;
-    bool has_committed = false;
-    for (u32 page_number = guest_page_start; page_number <= guest_page_end; ++page_number) {
-      const auto& page_entry = page_table_[page_number];
-      if (!(page_entry.state & runtime::kMemoryAllocationCommit)) {
-        continue;
-      }
-      has_committed = true;
-      const rex::memory::PageAccess page_access = ToPageAccess(page_entry.current_protect);
-      if (page_access == rex::memory::PageAccess::kReadWrite) {
-        has_read = true;
-        has_write = true;
-        break;
-      }
-      if (page_access == rex::memory::PageAccess::kReadOnly) {
-        has_read = true;
-      }
-    }
-
-    rex::memory::PageAccess access;
-    // Released physical aliases stay accessible unless protect_on_release, the GPU may use them.
-    if (!has_committed && heap_type_ == runtime::HeapType::kGuestPhysical &&
-        !REXCVAR_GET(::rex::runtime::cvars::protect_on_release)) {
-      access = rex::memory::PageAccess::kReadWrite;
-    } else if (!has_read) {
-      access = rex::memory::PageAccess::kNoAccess;
-    } else {
-      access = has_write ? rex::memory::PageAccess::kReadWrite : rex::memory::PageAccess::kReadOnly;
-    }
-
-    // A write watched page stays read-only, write access would stop the watch from firing.
-    if (access == rex::memory::PageAccess::kReadWrite && IsHostPageWriteWatched(host_page_number)) {
-      access = rex::memory::PageAccess::kReadOnly;
-    }
-    return access;
-  };
 
   const u64 guest_byte_start = static_cast<u64>(start_page_number) << page_size_shift_;
   const u64 guest_byte_end = ((static_cast<u64>(end_page_number) + 1) << page_size_shift_) - 1;
@@ -938,7 +909,7 @@ bool BaseHeap::SyncHostPageAccess(u32 start_page_number, u32 end_page_number) {
   // Coalesce host pages with equal access into 1 Protect call, bulk commits span thousands.
   u8* const heap_host_base = membase_ + heap_base_;
   u32 run_first_page = host_page_first;
-  rex::memory::PageAccess run_access = get_host_page_access(host_page_first);
+  rex::memory::PageAccess run_access = GetHostPageAccess(host_page_first);
   const auto flush_run = [&](u32 run_last_page) {
     const size_t run_length =
         (static_cast<size_t>(run_last_page - run_first_page) + 1) * host_page_size;
@@ -952,7 +923,7 @@ bool BaseHeap::SyncHostPageAccess(u32 start_page_number, u32 end_page_number) {
   };
 
   for (u32 host_page = host_page_first + 1; host_page <= host_page_last; ++host_page) {
-    const rex::memory::PageAccess access = get_host_page_access(host_page);
+    const rex::memory::PageAccess access = GetHostPageAccess(host_page);
     if (access == run_access) {
       continue;
     }

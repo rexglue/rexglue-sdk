@@ -16,6 +16,9 @@
 #if REX_PLATFORM_LINUX
 
 #include <cerrno>
+#include <fstream>
+#include <optional>
+#include <string>
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -44,6 +47,18 @@ bool IsMapped(void* address) {
   size_t length = 0;
   rex::memory::PageAccess access;
   return rex::memory::QueryProtect(address, length, access);
+}
+
+std::optional<unsigned long long> ReadSyscallCount() {
+  std::ifstream io("/proc/self/io");
+  std::string key;
+  unsigned long long value = 0;
+  while (io >> key >> value) {
+    if (key == "syscr:") {
+      return value;
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -88,6 +103,51 @@ REX_TEST_CASE("A failed mapping keeps its error", "[core][memory]") {
   CHECK(rex::memory::detail::AcceptFixedMapping(requested.address, requested.size, MAP_FAILED) ==
         MAP_FAILED);
   CHECK(errno == ENOMEM);
+}
+
+REX_TEST_CASE("Committing single pages of a reserved range reads no process files",
+              "[core][memory]") {
+  constexpr size_t kPages = 200;
+  const size_t page = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+  if (!ReadSyscallCount()) {
+    SKIP("the process I/O counters cannot be read");
+  }
+  void* const base =
+      rex::memory::AllocFixed(nullptr, kPages * page, rex::memory::AllocationType::kReserve,
+                              rex::memory::PageAccess::kNoAccess);
+  REQUIRE(base != nullptr);
+  const auto before = ReadSyscallCount();
+  size_t committed = 0;
+  for (size_t i = 0; i < kPages; ++i) {
+    void* const address = static_cast<u8*>(base) + i * page;
+    committed += rex::memory::AllocFixed(address, page, rex::memory::AllocationType::kCommit,
+                                         rex::memory::PageAccess::kReadWrite) == address;
+  }
+  const auto after = ReadSyscallCount();
+  CHECK(committed == kPages);
+  REQUIRE((before && after));
+  CHECK(*after - *before < 20);
+  CHECK(rex::memory::DeallocFixed(base, kPages * page, rex::memory::DeallocationType::kRelease));
+}
+
+REX_TEST_CASE("A commit over a range with an unmapped page fails and leaves the mapped pages alone",
+              "[core][memory]") {
+  const size_t page = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+  u8* const base = static_cast<u8*>(rex::memory::AllocFixed(nullptr, 3 * page,
+                                                            rex::memory::AllocationType::kReserve,
+                                                            rex::memory::PageAccess::kNoAccess));
+  REQUIRE(base != nullptr);
+  REQUIRE(munmap(base + page, page) == 0);
+  CHECK(rex::memory::AllocFixed(base, 3 * page, rex::memory::AllocationType::kCommit,
+                                rex::memory::PageAccess::kReadWrite) == nullptr);
+  for (u8* const address : {base, base + 2 * page}) {
+    size_t length = 0;
+    rex::memory::PageAccess access = rex::memory::PageAccess::kReadWrite;
+    CHECK(rex::memory::QueryProtect(address, length, access));
+    CHECK(access == rex::memory::PageAccess::kNoAccess);
+  }
+  CHECK(rex::memory::DeallocFixed(base, page, rex::memory::DeallocationType::kRelease));
+  CHECK(rex::memory::DeallocFixed(base + 2 * page, page, rex::memory::DeallocationType::kRelease));
 }
 
 #endif
