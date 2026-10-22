@@ -471,47 +471,57 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
 
       auto hook_it = ctx.config.mid_asm_hooks.find(static_cast<u32>(addr));
       if (hook_it != ctx.config.mid_asm_hooks.end()) {
-        if (hook_it->second.return_on_false || hook_it->second.return_on_true ||
-            hook_it->second.jump_address_on_false != 0 ||
-            hook_it->second.jump_address_on_true != 0) {
-          EmitPrint(out, "extern bool ");
-        } else {
-          EmitPrint(out, "extern void ");
-        }
-
-        EmitPrint(out, "{}(", hook_it->second.name);
-        for (auto& reg : hook_it->second.registers) {
-          if (out.back() != '(')
-            out += ", ";
-
-          switch (reg[0]) {
-            case 'c':
-              if (reg == "ctr")
-                EmitPrint(out, "PPCRegister& ctr");
-              else
-                EmitPrint(out, "PPCCRRegister& {}", reg);
-              break;
-            case 'x':
-              EmitPrint(out, "PPCXERRegister& xer");
-              break;
-            case 'r':
-              EmitPrint(out, "PPCRegister& {}", reg);
-              break;
-            case 'f':
-              if (reg == "fpscr")
-                EmitPrint(out, "PPCFPSCRRegister& fpscr");
-              else
-                EmitPrint(out, "PPCRegister& {}", reg);
-              break;
-            case 'v':
-              EmitPrint(out, "PPCVRegister& {}", reg);
-              break;
-            default:
-              break;
+        const bool returns_bool =
+            hook_it->second.return_on_false || hook_it->second.return_on_true ||
+            hook_it->second.jump_address_on_false != 0 || hook_it->second.jump_address_on_true != 0;
+        if (hook_it->second.from_source) {
+          EmitPrint(out, "extern \"C\" {} {}(", returns_bool ? "bool" : "void",
+                    hook_it->second.name);
+          for (size_t index = 0; index < hook_it->second.parameters.size(); ++index) {
+            EmitPrint(out, "{}{}", index == 0 ? "" : ", ", hook_it->second.parameters[index]);
           }
-        }
+          EmitPrintln(out, ");\n");
+        } else {
+          if (returns_bool) {
+            EmitPrint(out, "extern bool ");
+          } else {
+            EmitPrint(out, "extern void ");
+          }
 
-        EmitPrintln(out, ");\n");
+          EmitPrint(out, "{}(", hook_it->second.name);
+          for (auto& reg : hook_it->second.registers) {
+            if (out.back() != '(')
+              out += ", ";
+
+            switch (reg[0]) {
+              case 'c':
+                if (reg == "ctr")
+                  EmitPrint(out, "PPCRegister& ctr");
+                else
+                  EmitPrint(out, "PPCCRRegister& {}", reg);
+                break;
+              case 'x':
+                EmitPrint(out, "PPCXERRegister& xer");
+                break;
+              case 'r':
+                EmitPrint(out, "PPCRegister& {}", reg);
+                break;
+              case 'f':
+                if (reg == "fpscr")
+                  EmitPrint(out, "PPCFPSCRRegister& fpscr");
+                else
+                  EmitPrint(out, "PPCRegister& {}", reg);
+                break;
+              case 'v':
+                EmitPrint(out, "PPCVRegister& {}", reg);
+                break;
+              default:
+                break;
+            }
+          }
+
+          EmitPrintln(out, ");\n");
+        }
 
         if (hook_it->second.jump_address != 0)
           labels.emplace(hook_it->second.jump_address);

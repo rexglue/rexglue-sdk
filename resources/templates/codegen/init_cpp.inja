@@ -28,9 +28,15 @@ const rex::PPCImage PPCImageConfig = {
         .non_volatile_as_local = {{ config_flags.non_volatile_as_local }},
     },
     .recompiled_code = [] { return REX_RECOMPILED_CODE(); },
+    .call_usage = kPPCCallUsage,
 };
 
 const PPCFuncMapping kPPCFuncMappings[] = {
 {% for fn in functions %}{% if not fn.below_code_base or fn.is_import %}	{ {{ fn.address }}, {{ fn.name }} },
 {% endif %}{% endfor %}	{ 0, nullptr }
+};
+
+const rex::PPCCallUsage kPPCCallUsage[] = {
+{% for entry in call_usage %}	{ {{ entry.address }}, {{ entry.gpr_mask }}, {{ entry.fpr_mask }} },
+{% endfor %}	{ 0, 0, 0 }
 };

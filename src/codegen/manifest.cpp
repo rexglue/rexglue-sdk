@@ -103,6 +103,20 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   if (auto root = (*project)["game_root"].value<std::string>(); root && !root->empty()) {
     manifest.game_root = *root;
   }
+  if (auto* sources = (*project)["hook_sources"].as_array()) {
+    for (const auto& source : *sources) {
+      auto folder = source.value<std::string>();
+      if (!folder || folder->empty()) {
+        REX_FAIL(codegen, std::nullopt,
+                 "Manifest [project].hook_sources must hold non empty folder strings: {}",
+                 path.string());
+      }
+      manifest.hook_sources.push_back(*folder);
+    }
+  } else if ((*project).contains("hook_sources")) {
+    REX_FAIL(codegen, std::nullopt, "Manifest [project].hook_sources must be an array: {}",
+             path.string());
+  }
 
   auto* entrypoint = tbl["entrypoint"].as_table();
   if (!entrypoint) {

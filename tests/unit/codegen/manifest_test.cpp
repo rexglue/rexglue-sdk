@@ -131,3 +131,59 @@ longjmp_address = 0x82001000
   CHECK(manifest->entrypoint.recompiler.functions.empty());
   CHECK(manifest->entrypoint.recompiler.longjmp_address == 0);
 }
+
+REX_TEST_CASE("A manifest reads the hook source folders", "[codegen]") {
+  rex::test::TempFolder folder;
+  Touch(folder.path / "default.xex");
+  const auto path = folder.path / "demo_manifest.toml";
+  std::ofstream(path) << "[project]\nname = \"demo\"\nhook_sources = [\"src\", \"hooks/extra\"]\n"
+                         "[entrypoint]\nfile_path = \"default.xex\"\n";
+  const auto manifest = rex::codegen::ManifestConfig::Load(path);
+  REQUIRE(manifest);
+  CHECK(manifest.value_or(rex::codegen::ManifestConfig{}).hook_sources ==
+        std::vector<std::string>{"src", "hooks/extra"});
+}
+
+REX_TEST_CASE("A manifest without hook source folders has none", "[codegen]") {
+  rex::test::TempFolder folder;
+  const auto manifest = rex::codegen::ManifestConfig::Load(WriteProject(folder, ""));
+  REQUIRE(manifest);
+  CHECK(manifest.value_or(rex::codegen::ManifestConfig{}).hook_sources.empty());
+}
+
+REX_TEST_CASE("A manifest rejects a hook source entry that is not a folder string", "[codegen]") {
+  const char* const bad[] = {"hook_sources = \"src\"\n", "hook_sources = [1]\n",
+                             "hook_sources = [\"\"]\n"};
+  for (const char* line : bad) {
+    rex::test::TempFolder folder;
+    Touch(folder.path / "default.xex");
+    const auto path = folder.path / "demo_manifest.toml";
+    std::ofstream(path) << "[project]\nname = \"demo\"\n"
+                        << line << "[entrypoint]\nfile_path = \"default.xex\"\n";
+    INFO(line);
+    CHECK_FALSE(rex::codegen::ManifestConfig::Load(path));
+  }
+}
+
+REX_TEST_CASE("The init manifest scans the src folder for hooks", "[codegen]") {
+  rex::test::TempFolder folder;
+  Touch(folder.path / "default.xex");
+  const nlohmann::json data = {
+      {"names", {{"original", "demo"}}},
+      {"sdk_version", "1.0"},
+      {"sdk_version_full", "1.0.0"},
+      {"generated_on", "2026-10-11"},
+      {"include_stamp", true},
+      {"xex_path", "default.xex"},
+      {"game_root", ""},
+      {"out_directory_path", "generated"},
+      {"modules", nlohmann::json::array()},
+  };
+  rex::codegen::TemplateRegistry registry;
+  const auto path = folder.path / "demo_manifest.toml";
+  std::ofstream(path) << registry.Render("init/manifest_toml", data.dump());
+  const auto manifest = rex::codegen::ManifestConfig::Load(path);
+  REQUIRE(manifest);
+  CHECK(manifest.value_or(rex::codegen::ManifestConfig{}).hook_sources ==
+        std::vector<std::string>{"src"});
+}

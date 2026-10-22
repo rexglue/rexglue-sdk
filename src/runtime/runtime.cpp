@@ -200,10 +200,30 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
   return Ok();
 }
 
+std::optional<PPCCallUsage> Runtime::GetCallUsage(PPCFunc* host) const {
+  if (func_mappings_ == nullptr || call_usage_ == nullptr || host == nullptr) {
+    return std::nullopt;
+  }
+  for (const PPCFuncMapping* mapping = func_mappings_; mapping->address != 0; ++mapping) {
+    if (mapping->host != host) {
+      continue;
+    }
+    for (const PPCCallUsage* usage = call_usage_; usage->address != 0; ++usage) {
+      if (usage->address == mapping->address) {
+        return *usage;
+      }
+    }
+    return std::nullopt;
+  }
+  return std::nullopt;
+}
+
 Result<void> Runtime::Setup(const rex::PPCImage& image_info, const RuntimeDesc& config) {
   REX_TRY_VOID(Setup(config));
 
   codegen_flags_ = image_info.codegen_flags;
+  func_mappings_ = image_info.func_mappings;
+  call_usage_ = image_info.call_usage;
   if (image_info.recompiled_code) {
     function_dispatcher_->AddRecompiledCode(image_info.recompiled_code());
   }

@@ -10,6 +10,7 @@
 #include <format>
 #include <inja/inja.hpp>
 
+#include <rex/codegen/call_usage.h>
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/output_partition.h>
 #include <rex/codegen/template_registry.h>
@@ -67,6 +68,32 @@ nlohmann::json BuildTemplateData(const rex::codegen::CodegenContext& ctx,
     });
   }
 
+  std::unordered_set<u32> millicode_entries;
+  for (const auto* fn : functions) {
+    if (fn->GetMillicode()) {
+      millicode_entries.insert(fn->GetBase());
+    }
+  }
+
+  std::vector<const rex::codegen::FunctionNode*> analysed;
+  for (const auto* fn : functions) {
+    if (fn->GetAuthority() != rex::codegen::FunctionAuthority::kImport &&
+        fn->GetBase() >= code_min) {
+      analysed.push_back(fn);
+    }
+  }
+  const auto usages = rex::codegen::ComputeCallUsages(analysed, millicode_entries);
+  std::vector<std::pair<u32, rex::codegen::CallUsage>> usage_entries(usages.begin(), usages.end());
+  std::ranges::sort(usage_entries, {}, &decltype(usage_entries)::value_type::first);
+  nlohmann::json call_usage_json = nlohmann::json::array();
+  for (const auto& [address, usage] : usage_entries) {
+    call_usage_json.push_back({
+        {"address", std::format("0x{:X}", address)},
+        {"gpr_mask", std::format("0x{:X}", usage.gpr_mask)},
+        {"fpr_mask", std::format("0x{:X}", usage.fpr_mask)},
+    });
+  }
+
   nlohmann::json config_flags = {
       {"skip_lr", cfg.skip_lr},
       {"ctr_as_local", cfg.ctr_as_local_variable},
@@ -90,6 +117,7 @@ nlohmann::json BuildTemplateData(const rex::codegen::CodegenContext& ctx,
       {"is_dll", ctx.IsDLLModule()},
       {"config_flags", config_flags},
       {"functions", functions_json},
+      {"call_usage", call_usage_json},
       {"recomp_files", nlohmann::json::array()},
   };
 }

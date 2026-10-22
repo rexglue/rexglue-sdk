@@ -362,9 +362,32 @@ void BuilderContext::EmitMidAsmHook() {
     Print("if (");
 
   Print("{}(", mid_asm_hook->second.name);
+  size_t parameter_index = 0;
   for (auto& reg : mid_asm_hook->second.registers) {
     if (out.back() != '(')
       out += ", ";
+
+    std::string_view value_suffix;
+    if (mid_asm_hook->second.from_source) {
+      const std::string& parameter = mid_asm_hook->second.parameters[parameter_index++];
+      if (parameter == "void*" || parameter == "rex::MappedPtr<u8>") {
+        const bool mapped = parameter != "void*";
+        out +=
+            std::format("rex::ppc::ArgTranslator::Get{}Value<{}>({}.u64, base)",
+                        mapped ? "MappedPointer" : "Pointer", parameter, R(RegisterIndex(reg, 1)));
+        continue;
+      }
+      if (parameter == "u32")
+        value_suffix = ".u32";
+      else if (parameter == "u64")
+        value_suffix = ".u64";
+      else if (parameter == "f64")
+        value_suffix = ".f64";
+      if (reg == "ctx") {
+        out += "ctx";
+        continue;
+      }
+    }
 
     switch (reg[0]) {
       case 'c':
@@ -394,6 +417,7 @@ void BuilderContext::EmitMidAsmHook() {
       default:
         break;
     }
+    out += value_suffix;
   }
 
   if (returns_bool) {

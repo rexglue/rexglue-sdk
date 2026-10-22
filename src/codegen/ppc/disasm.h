@@ -15,6 +15,18 @@
 
 #include <rex/types.h>
 
+extern "C" {
+/**
+ * Classifies the register an operand of a table entry names.
+ *
+ * @param entry The opcode table entry.
+ * @param position The operand position, as in the operands array of a decoded instruction.
+ * @return 1 for a GPR, 2 for a GPR where 0 means no register, 3 for an FPR, 4 for a vector
+ * register and 0 for any other operand.
+ */
+int OperandRegisterClass(const powerpc_opcode* entry, unsigned position);
+}
+
 namespace rex::codegen::detail {
 
 /**

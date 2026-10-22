@@ -1,6 +1,8 @@
 #include <cstddef>
 #include <format>
 #include <iterator>
+#include <optional>
+#include <string>
 #include <utility>
 
 #include <rex/logging/log.h>
@@ -142,6 +144,40 @@ void CheckBoundDetourLocalWrites(const char* name, const PPCContext& at_entry,
     return;
   }
   CheckDetourLocalWrites(name, state->GetRuntime()->GetCodegenFlags(), at_entry, at_exit, warned);
+}
+
+bool CheckDetourArguments(const char* name, const PPCCallUsage& usage, u8 declared_gpr,
+                          u16 declared_fpr) {
+  const u32 missing_gpr = usage.gpr_mask & ~u32{declared_gpr};
+  const u32 missing_fpr = usage.fpr_mask & ~u32{declared_fpr};
+  if (missing_gpr == 0 && missing_fpr == 0) {
+    return false;
+  }
+  std::string registers;
+  for (u32 bit = 0; bit < 8; ++bit) {
+    if ((missing_gpr >> bit) & 1) {
+      registers += std::format("{}r{}", registers.empty() ? "" : ", ", 3 + bit);
+    }
+  }
+  for (u32 bit = 0; bit < 13; ++bit) {
+    if ((missing_fpr >> bit) & 1) {
+      registers += std::format("{}f{}", registers.empty() ? "" : ", ", 1 + bit);
+    }
+  }
+  REXLOG_WARN(cpu, "REX_DETOUR {} does not declare {}, which the function reads at entry", name,
+              registers);
+  return true;
+}
+
+void CheckBoundDetourArguments(const char* name, PPCFunc* host, u8 declared_gpr, u16 declared_fpr) {
+  const rex::runtime::ThreadState* state = rex::runtime::ThreadState::Get();
+  if (state == nullptr || state->GetRuntime() == nullptr) {
+    return;
+  }
+  const std::optional<PPCCallUsage> usage = state->GetRuntime()->GetCallUsage(host);
+  if (usage) {
+    CheckDetourArguments(name, *usage, declared_gpr, declared_fpr);
+  }
 }
 
 }  // namespace rex::ppc::detail

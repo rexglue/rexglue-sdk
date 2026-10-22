@@ -79,6 +79,58 @@ REX_RUNTIME_API void CheckBoundDetourLocalWrites(const char* name, const PPCCont
                                                  std::atomic_flag& warned);
 
 /**
+ * Warns when a function reads an argument register that a detour did not declare.
+ *
+ * @param name The hooked function.
+ * @param usage The argument registers the function reads at its entry.
+ * @param declared_gpr The integer argument registers the detour declares, bit 0 is r3.
+ * @param declared_fpr The float argument registers the detour declares, bit 0 is f1.
+ * @return True when a register was missing and the warning was logged.
+ */
+REX_RUNTIME_API bool CheckDetourArguments(const char* name, const PPCCallUsage& usage,
+                                          u8 declared_gpr, u16 declared_fpr);
+
+/**
+ * Runs CheckDetourArguments with the usage the runtime bound to the calling thread holds for the
+ * hooked function. Does nothing when no runtime is bound or the image lists none.
+ *
+ * @param name The hooked function.
+ * @param host The hook, as the image maps it.
+ * @param declared_gpr The integer argument registers the detour declares, bit 0 is r3.
+ * @param declared_fpr The float argument registers the detour declares, bit 0 is f1.
+ */
+REX_RUNTIME_API void CheckBoundDetourArguments(const char* name, PPCFunc* host, u8 declared_gpr,
+                                               u16 declared_fpr);
+
+/** The argument registers the parameters of a detour cover. */
+struct DeclaredArguments {
+  u8 gpr_mask;  /**< Bit n is set for r(3 + n). */
+  u16 fpr_mask; /**< Bit n is set for f(1 + n). */
+};
+
+/**
+ * Returns the argument registers the parameters of a detour cover. A float also covers the
+ * integer register of its slot.
+ *
+ * @tparam Guest The signature the original has.
+ * @return The registers covered.
+ */
+template <typename Guest>
+constexpr DeclaredArguments GetDeclaredArguments() {
+  DeclaredArguments declared{};
+  for (const ArgPlace& place : PlaceSignatureArgs(static_cast<Guest*>(nullptr))) {
+    for (u32 slot = place.slot;
+         slot < place.slot + place.slots && slot < ArgTranslator::kIntegerRegisters; ++slot) {
+      declared.gpr_mask = static_cast<u8>(declared.gpr_mask | (1u << slot));
+    }
+    if (place.fpr >= 0) {
+      declared.fpr_mask = static_cast<u16>(declared.fpr_mask | (1u << place.fpr));
+    }
+  }
+  return declared;
+}
+
+/**
  * Splits the signature of a detour body into its guest signature and its context parameter.
  *
  * @tparam F The body function pointer type.
@@ -262,9 +314,11 @@ struct DetourOriginal<R(PPCContext&, Args...)> : DetourOriginal<R(Args...)> {
  * @param ctx The register file.
  * @param base The guest memory base.
  * @param name The hooked function.
+ * @param host The hook, as the image maps it.
  */
 template <auto Body>
-__attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* name) {
+__attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* name,
+                                         [[maybe_unused]] PPCFunc* host) {
   using Traits = detail::DetourBody<decltype(Body)>;
   using R = Traits::Result;
   static_assert(!HiddenReturnType<R>, "A detour cannot return a structure by value");
@@ -283,7 +337,13 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
 
 #ifndef NDEBUG
   static constinit std::atomic_flag warned;
+  static constinit std::atomic_flag arguments_checked;
   const PPCContext at_entry = ctx;
+  if (!arguments_checked.test_and_set()) {
+    constexpr detail::DeclaredArguments kDeclared =
+        detail::GetDeclaredArguments<typename Traits::Guest>();
+    detail::CheckBoundDetourArguments(name, host, kDeclared.gpr_mask, kDeclared.fpr_mask);
+  }
 #endif
   detail::DetourScope scope(ctx, base);
 
@@ -379,7 +439,7 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
   };                                                                                  \
   REX_HOOK_RAW(name) {                                                                \
     REX_DETAIL_DETOUR_ZONE(name)                                                      \
-    rex::ppc::RunDetour<&name##_rex_detour::Body>(ctx, base, #name);                  \
+    rex::ppc::RunDetour<&name##_rex_detour::Body>(ctx, base, #name, name);            \
   }                                                                                   \
   Ret name##_rex_detour::Body params
 // NOLINTEND(bugprone-macro-parentheses)

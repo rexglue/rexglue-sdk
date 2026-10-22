@@ -58,6 +58,13 @@ struct PPCCodegenFlags {
   bool non_volatile_as_local = false;
 };
 
+/** The argument registers a recompiled function reads at its entry. */
+struct PPCCallUsage {
+  u32 address;  /**< Guest address of the function. */
+  u8 gpr_mask;  /**< Bit n is set when the function reads r(3 + n), r3 to r10. */
+  u16 fpr_mask; /**< Bit n is set when the function reads f(1 + n), f1 to f13. */
+};
+
 /** PPC image layout passed from the generated config header into TitleApp::Init. */
 struct PPCImage {
   u32 code_base;  /**< First guest address of the generated code, given to the function table. */
@@ -71,6 +78,8 @@ struct PPCImage {
   PPCCodegenFlags codegen_flags{};                /**< Set by codegen from the config flags. */
   RecompiledCodeFunc recompiled_code =
       nullptr; /**< Set by codegen to the generated recompiled code. */
+  /** Set by codegen to the argument registers each function reads, ended by address 0. */
+  const PPCCallUsage* call_usage = nullptr;
 };
 
 }  // namespace rex

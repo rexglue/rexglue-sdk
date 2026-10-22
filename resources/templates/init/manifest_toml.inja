@@ -7,7 +7,9 @@ sdk_version = "{{ sdk_version }}"
 {% endif -%}
 {% if game_root -%}
 game_root = "{{ game_root }}"
-{% endif %}
+{% endif -%}
+hook_sources = ["src"]
+
 [entrypoint]
 file_path = "{{ xex_path }}"
 out_directory_path = "{{ out_directory_path }}"

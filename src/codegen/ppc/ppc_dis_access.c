@@ -28,3 +28,34 @@ int AreOperandsValid(const struct powerpc_opcode* entry, unsigned long code, int
   }
   return invalid == 0;
 }
+
+/**
+ * Classifies the register an operand of a table entry names.
+ *
+ * @param entry The opcode table entry.
+ * @param position The operand position, as in the operands array of a decoded instruction.
+ * @return 1 for a GPR, 2 for a GPR where 0 means no register, 3 for an FPR, 4 for a vector
+ * register and 0 for any other operand.
+ */
+int OperandRegisterClass(const struct powerpc_opcode* entry, unsigned position) {
+  unsigned index;
+  unsigned long flags;
+  if (position >= sizeof(entry->operands))
+    return 0;
+  for (index = 0; index <= position; index++) {
+    if (entry->operands[index] == 0)
+      return 0;
+  }
+  flags = powerpc_operands[entry->operands[position]].flags;
+  if ((flags & PPC_OPERAND_FAKE) != 0)
+    return 0;
+  if ((flags & PPC_OPERAND_GPR) != 0)
+    return 1;
+  if ((flags & PPC_OPERAND_GPR_0) != 0)
+    return 2;
+  if ((flags & PPC_OPERAND_FPR) != 0)
+    return 3;
+  if ((flags & PPC_OPERAND_VR) != 0)
+    return 4;
+  return 0;
+}

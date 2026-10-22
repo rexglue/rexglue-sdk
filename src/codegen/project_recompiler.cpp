@@ -15,6 +15,7 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/codegen_writer.h>
 #include <rex/codegen/config.h>
+#include <rex/codegen/hook_scan.h>
 #include <rex/codegen/output_stamp.h>
 #include <rex/codegen/progress_reporter.h>
 #include <rex/codegen/template_registry.h>
@@ -91,6 +92,28 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
       std::format("max_jump_table_entries={}", limits.max_jump_table_entries),
       std::format("max_blocks_per_function={}", limits.max_blocks_per_function),
   };
+
+  std::vector<u32> hook_addresses;
+  for (const auto& [address, hook] : cfg.mid_asm_hooks) {
+    if (hook.from_source) {
+      hook_addresses.push_back(address);
+    }
+  }
+  std::sort(hook_addresses.begin(), hook_addresses.end());
+  for (u32 address : hook_addresses) {
+    const MidAsmHook& hook = cfg.mid_asm_hooks.at(address);
+    std::string registers;
+    for (const auto& reg : hook.registers) {
+      registers += reg + ",";
+    }
+    std::string parameters;
+    for (const auto& parameter : hook.parameters) {
+      parameters += parameter + ",";
+    }
+    flags.push_back(std::format("source_hook={:08X}:{}:{}:{}:{}:{}:{:08X}", address, hook.name,
+                                registers, parameters, hook.after_instruction, hook.return_on_true,
+                                hook.jump_address_on_true));
+  }
 
   return ComputeInputFingerprint(inputs, sdk_version, flags);
 }
@@ -240,6 +263,33 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
   const auto& entry_config = targeted[0].config;
   auto config_dir = manifest_.manifest_dir;
+
+  std::vector<fs::path> hook_files;
+  std::erase_if(manifest_.shared.mid_asm_hooks,
+                [](const auto& entry) { return entry.second.from_source; });
+  if (!manifest_.hook_sources.empty()) {
+    std::vector<fs::path> roots;
+    roots.reserve(manifest_.hook_sources.size());
+    for (const auto& folder : manifest_.hook_sources) {
+      roots.push_back(config_dir / folder);
+    }
+    auto scanned = ScanHookSources(roots, hook_files);
+    if (!scanned) {
+      return Err<void>(scanned.error());
+    }
+    for (const auto& hook : *scanned) {
+      const bool claimed = manifest_.shared.mid_asm_hooks.contains(hook.address) ||
+                           std::ranges::any_of(targeted, [&](const ModuleEntry& module) {
+                             return module.config.mid_asm_hooks.contains(hook.address);
+                           });
+      if (claimed) {
+        return Err<void>(ErrorCategory::kValidation,
+                         std::format("{}:{}: 0x{:08X} already has a [[midasm_hook]] in the config",
+                                     hook.file.string(), hook.line, hook.address));
+      }
+      manifest_.shared.mid_asm_hooks.emplace(hook.address, ToMidAsmHook(hook));
+    }
+  }
   fs::path entry_xex_path = config_dir / entry_config.file_path;
   if (!fs::exists(entry_xex_path)) {
     return Err<void>(ErrorCategory::kIO,
@@ -448,6 +498,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   std::vector<std::string> fingerprints(contexts.size());
   std::vector<bool> skip(contexts.size(), false);
   std::vector<fs::path> all_inputs;
+  all_inputs.insert(all_inputs.end(), hook_files.begin(), hook_files.end());
 
   for (size_t i = 0; i < contexts.size(); ++i) {
     auto& entry = contexts[i];

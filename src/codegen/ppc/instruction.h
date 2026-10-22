@@ -364,6 +364,14 @@ struct Instruction {
   bool IsBranchAlways() const;
 };
 
+/** The general purpose and floating point registers an instruction reads and writes. */
+struct RegisterEffects {
+  u32 gpr_use = 0; /**< Bit n is set when the instruction reads rn. */
+  u32 gpr_def = 0; /**< Bit n is set when the instruction writes rn. */
+  u32 fpr_use = 0; /**< Bit n is set when the instruction reads fn. */
+  u32 fpr_def = 0; /**< Bit n is set when the instruction writes fn. */
+};
+
 /**
  * Decodes an instruction from a raw code word.
  *
@@ -372,5 +380,37 @@ struct Instruction {
  * @return Decoded instruction structure
  */
 Instruction DecodeInstruction(u32 address, u32 code);
+
+/**
+ * Returns the general purpose and floating point registers an instruction reads and writes.
+ *
+ * The first register operand is the destination, except for stores, compares, traps, moves to a
+ * special register and the cache and stream hints, where every register operand is read. Insert
+ * rotates read their destination, update forms read and write rA, and the multiple word forms
+ * cover their whole range. A call writes r3 to r12 and f0 to f13 and reads nothing. Vector
+ * registers are not tracked.
+ *
+ * @param instr The decoded instruction.
+ * @return The registers read and written, empty for an undecodable word.
+ */
+RegisterEffects GetRegisterEffects(const Instruction& instr);
+
+/**
+ * Reports whether an instruction allocates the stack frame, a store with update of r1.
+ *
+ * @param instr The decoded instruction.
+ * @return True for stwu and stdu with r1 as the base.
+ */
+bool IsFrameAllocation(const Instruction& instr);
+
+/**
+ * Reports whether an instruction stores to the caller's frame, a store of a byte, half word, word,
+ * double word or float whose base is r1 and whose displacement is positive. Before the frame is
+ * allocated such a store spills an argument register into the caller's parameter area.
+ *
+ * @param instr The decoded instruction.
+ * @return True for a store to a positive displacement from r1.
+ */
+bool IsCallerFrameSpill(const Instruction& instr);
 
 }  // namespace rex::codegen::detail

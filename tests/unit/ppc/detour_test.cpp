@@ -22,6 +22,7 @@
 #include <rex/logging/log.h>
 #include <rex/logging/logger.h>
 #include <rex/logging/sink.h>
+#include <rex/image_info.h>
 #include <rex/platform/exceptions.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/detour.h>
@@ -392,4 +393,61 @@ REX_TEST_CASE("The detour register check ignores lr and registers outside the fl
 
   CHECK(rex::ppc::detail::CheckDetourLocalWrites("DetourFn", flags, at_entry, at_exit, warned)
             .empty());
+}
+
+REX_TEST_CASE("The detour covers the argument registers its parameters take", "[ppc][detour]") {
+  constexpr auto kTwo = rex::ppc::detail::GetDeclaredArguments<void(u32, u32)>();
+  STATIC_REQUIRE(kTwo.gpr_mask == 0x3);
+  STATIC_REQUIRE(kTwo.fpr_mask == 0);
+
+  constexpr auto kMixed = rex::ppc::detail::GetDeclaredArguments<void(u32, f64, u32)>();
+  STATIC_REQUIRE(kMixed.gpr_mask == 0x7);
+  STATIC_REQUIRE(kMixed.fpr_mask == 0x1);
+
+  constexpr auto kFloat32First = rex::ppc::detail::GetDeclaredArguments<void(f32, u32)>();
+  STATIC_REQUIRE(kFloat32First.gpr_mask == 0x3);
+  STATIC_REQUIRE(kFloat32First.fpr_mask == 0x1);
+
+  constexpr auto kFloat64First = rex::ppc::detail::GetDeclaredArguments<void(f64, u32)>();
+  STATIC_REQUIRE(kFloat64First.gpr_mask == 0x3);
+  STATIC_REQUIRE(kFloat64First.fpr_mask == 0x1);
+
+  constexpr auto kNone = rex::ppc::detail::GetDeclaredArguments<void()>();
+  STATIC_REQUIRE(kNone.gpr_mask == 0);
+  STATIC_REQUIRE(kNone.fpr_mask == 0);
+}
+
+REX_TEST_CASE("A detour declaring fewer arguments than the function reads warns", "[ppc][detour]") {
+  rex::Shutdown();
+  auto api = rex::Init(rex::Config{});
+  REQUIRE(api);
+  auto* logger = api.value()->Get<rex::ILogger>();
+  REQUIRE(logger);
+  rex::log::CaptureSink sink;
+  logger->AddSink(sink);
+
+  const rex::PPCCallUsage usage{0x82000100, 0x3, 0x1};
+  const bool covered = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x3, 0x1);
+  const bool short_gpr = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x1, 0x1);
+  const bool short_fpr = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x3, 0);
+
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
+  logger->RemoveSink(sink);
+  rex::Shutdown();
+  CHECK_FALSE(covered);
+  CHECK(short_gpr);
+  CHECK(short_fpr);
+  const auto count = [&](std::string_view text) {
+    return std::ranges::count_if(messages, [&](const rex::log::CapturedMessage& message) {
+      return message.text.contains(text);
+    });
+  };
+  CHECK(count("does not declare r4, which") == 1);
+  CHECK(count("does not declare f1, which") == 1);
+}
+
+REX_TEST_CASE("A detour with no bound runtime skips the argument check", "[ppc][detour]") {
+  rex::ppc::detail::CheckBoundDetourArguments("DetourFn", DetourFnVoid, 0, 0);
+  SUCCEED();
 }

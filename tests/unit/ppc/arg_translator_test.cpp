@@ -84,3 +84,93 @@ REX_TEST_CASE("A bool argument reads only the low word of its register", "[ppc][
   CHECK_FALSE(
       ArgTranslator::GetValue<bool>(ctx, g_test_memory, ArgPlace{.slot = 0, .slots = 1, .gpr = 0}));
 }
+
+namespace {
+
+u32* g_returned_pointer = nullptr;
+
+u32* ReturnPointer() {
+  return g_returned_pointer;
+}
+
+u32* AtGuest(u32 guest_address) {
+  const uintptr_t host_offset =
+      static_cast<uintptr_t>(guest_address) + (guest_address >= 0xE0000000u ? 0x1000u : 0u);
+  return reinterpret_cast<u32*>(reinterpret_cast<uintptr_t>(g_test_memory) + host_offset);
+}
+
+}  // namespace
+
+REX_TEST_CASE("A host pointer argument is written as its guest address", "[ppc][arg_translator]") {
+  const ArgPlace arg{.slot = 0, .slots = 1, .gpr = 0};
+  for (const u32 guest :
+       {0x00010000u, 0x7FFFFFF0u, 0xDFFFFFFCu, 0xE0000000u, 0xE0000010u, 0xFFFFFFFCu}) {
+    INFO(guest);
+    PPCContext ctx{};
+    ArgTranslator::SetValue(ctx, g_test_memory, arg, AtGuest(guest));
+    CHECK(ctx.r3.u32 == guest);
+    CHECK(ArgTranslator::GetValue<u32*>(ctx, g_test_memory, arg) == AtGuest(guest));
+  }
+}
+
+REX_TEST_CASE("A null host pointer argument is written as 0", "[ppc][arg_translator]") {
+  const ArgPlace arg{.slot = 0, .slots = 1, .gpr = 0};
+  PPCContext ctx{};
+  ctx.r3.u64 = 0x1234;
+  ArgTranslator::SetValue(ctx, g_test_memory, arg, static_cast<u32*>(nullptr));
+  CHECK(ctx.r3.u64 == 0);
+  ctx.r3.u64 = 0x1234;
+  ArgTranslator::SetValue(ctx, g_test_memory, arg, nullptr);
+  CHECK(ctx.r3.u64 == 0);
+}
+
+REX_TEST_CASE("A pointer result is returned as its guest address", "[ppc][arg_translator]") {
+  for (const u32 guest : {0x00010000u, 0xDFFFFFFCu, 0xE0000000u, 0xE0000010u, 0xFFFFFFFCu}) {
+    INFO(guest);
+    PPCContext ctx{};
+    g_returned_pointer = AtGuest(guest);
+    GuestToHostThunk<&ReturnPointer>(ctx, g_test_memory);
+    CHECK(ctx.r3.u32 == guest);
+  }
+  PPCContext ctx{};
+  ctx.r3.u64 = 0x1234;
+  g_returned_pointer = nullptr;
+  GuestToHostThunk<&ReturnPointer>(ctx, g_test_memory);
+  CHECK(ctx.r3.u64 == 0);
+}
+
+REX_TEST_CASE("A register value converts to a host pointer by its low word",
+              "[ppc][arg_translator]") {
+  for (const u32 guest : {0x00010000u, 0x7FFFFFF0u, 0xDFFFFFFCu, 0xE0000000u, 0xE0000010u}) {
+    INFO(guest);
+    CHECK(ArgTranslator::GetPointerValue<u32*>(guest, g_test_memory) == AtGuest(guest));
+    CHECK(ArgTranslator::GetPointerValue<u32*>(0xABCD000000000000ull | guest, g_test_memory) ==
+          AtGuest(guest));
+    CHECK(ArgTranslator::GetPointerValue<void*>(guest, g_test_memory) ==
+          static_cast<void*>(AtGuest(guest)));
+  }
+  CHECK(ArgTranslator::GetPointerValue<u32*>(0, g_test_memory) == nullptr);
+  CHECK(ArgTranslator::GetPointerValue<u32*>(0x1234000000000000ull, g_test_memory) == nullptr);
+}
+
+REX_TEST_CASE("A register value converts to a mapped pointer with its guest address",
+              "[ppc][arg_translator]") {
+  for (const u32 guest : {0x00010000u, 0xDFFFFFFCu, 0xE0000000u, 0xE0000010u}) {
+    INFO(guest);
+    const auto mapped =
+        ArgTranslator::GetMappedPointerValue<rex::MappedPtr<u32>>(guest, g_test_memory);
+    CHECK(mapped.GetGuestAddress() == guest);
+    CHECK(mapped.GetHostPtr() == AtGuest(guest));
+  }
+  const auto null = ArgTranslator::GetMappedPointerValue<rex::MappedPtr<u32>>(0, g_test_memory);
+  CHECK(null.GetGuestAddress() == 0);
+  CHECK(null.GetHostPtr() == nullptr);
+}
+
+REX_TEST_CASE("A pointer argument equals the converted register value", "[ppc][arg_translator]") {
+  const ArgPlace arg{.slot = 0, .slots = 1, .gpr = 0};
+  PPCContext ctx{};
+  ctx.r3.u64 = 0x00020040;
+  CHECK(ArgTranslator::GetValue<u32*>(ctx, g_test_memory, arg) ==
+        ArgTranslator::GetPointerValue<u32*>(ctx.r3.u64, g_test_memory));
+}

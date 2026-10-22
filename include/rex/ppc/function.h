@@ -476,14 +476,25 @@ struct ArgTranslator {
    */
   template <MappedPtrType T>
   static T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
+    return GetMappedPointerValue<T>(GetIntegerArgumentValue(ctx, base, arg.slot), base);
+  }
+
+  /**
+   * Converts the value of an integer register to a mapped pointer.
+   *
+   * @tparam T The mapped pointer type.
+   * @param value The register value, its low word is the guest address.
+   * @param base The guest memory base.
+   * @return The mapped pointer, null when the address is 0.
+   */
+  template <MappedPtrType T>
+  static T GetMappedPointerValue(u64 value, u8* base) noexcept {
     using InnerT = MappedPtrInnerType<T>::type;
-    const auto v = GetIntegerArgumentValue(ctx, base, arg.slot);
-    if (!v) {
+    const u32 guest_addr = static_cast<u32>(value);
+    if (guest_addr == 0) {
       return T(nullptr);
     }
-    u32 guest_addr = static_cast<u32>(v);
-    InnerT* host_ptr = rex::runtime::GuestPtr<InnerT*>(base, guest_addr);
-    return T(host_ptr, guest_addr);
+    return T(rex::runtime::GuestPtr<InnerT*>(base, guest_addr), guest_addr);
   }
 
   /**
@@ -530,11 +541,24 @@ struct ArgTranslator {
   template <typename T>
     requires std::is_pointer_v<T>
   static constexpr T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
-    const auto v = GetIntegerArgumentValue(ctx, base, arg.slot);
-    if (!v) {
+    return GetPointerValue<T>(GetIntegerArgumentValue(ctx, base, arg.slot), base);
+  }
+
+  /**
+   * Converts the value of an integer register to a host pointer.
+   *
+   * @tparam T The pointer type.
+   * @param value The register value, its low word is the guest address.
+   * @param base The guest memory base.
+   * @return The host pointer, null when the address is 0.
+   */
+  template <typename T>
+    requires std::is_pointer_v<T>
+  static constexpr T GetPointerValue(u64 value, u8* base) noexcept {
+    const u32 guest_addr = static_cast<u32>(value);
+    if (guest_addr == 0) {
       return nullptr;
     }
-    u32 guest_addr = static_cast<u32>(v);
     return rex::runtime::GuestPtr<T>(base, guest_addr);
   }
 

@@ -27,6 +27,7 @@
 #include <rex/image_info.h>
 #include <rex/export.h>
 #include <rex/platform/lock_order.h>
+#include <rex/ppc/func.h>
 #include <rex/runtime/config.h>
 #include <rex/runtime/process.h>
 #include <rex/ui/video_mode.h>
@@ -276,6 +277,14 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   const PPCCodegenFlags& GetCodegenFlags() const { return codegen_flags_; }
 
   /**
+   * Finds the argument registers a recompiled function of the image reads at its entry.
+   *
+   * @param host The recompiled function, as the image maps it.
+   * @return The registers read, or no value when the image maps no such function or lists none.
+   */
+  std::optional<PPCCallUsage> GetCallUsage(PPCFunc* host) const;
+
+  /**
    * Stops the subsystems and destroys the memory and every other part the runtime owns.
    */
   void Shutdown();
@@ -497,6 +506,8 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   bool tool_mode_ = false;
   runtime::VideoMode video_mode_;
   PPCCodegenFlags codegen_flags_{};
+  const PPCFuncMapping* func_mappings_ = nullptr;
+  const PPCCallUsage* call_usage_ = nullptr;
   bool setup_complete_ = false;
 
   std::unique_ptr<runtime::Memory> memory_;

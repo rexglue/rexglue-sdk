@@ -51,6 +51,7 @@
 
 extern const rex::PPCImage PPCImageConfig;
 extern const PPCFuncMapping kPPCFuncMappings[];
+extern const rex::PPCCallUsage kPPCCallUsage[];
 
 //=============================================================================
 // Function Definition Macros

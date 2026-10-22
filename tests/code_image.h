@@ -146,12 +146,14 @@ inline std::string ReadGeneratedTree(const std::filesystem::path& root) {
  * @param force True to continue past validation errors, as the force option does.
  * @param imports The import libraries of the image and the thunk addresses of each.
  * @param sink A sink that receives the log messages of the run, or null for none.
+ * @param project_keys Lines added to the [project] table.
  * @return The result of the run, with the output under folder/generated/entry.
  */
 inline Result<void> GenerateFromImage(const TempFolder& folder, std::vector<u8> image,
                                       std::string_view extra_manifest = {}, bool force = true,
                                       std::vector<XEXImportSpec> imports = {},
-                                      log::ISink* sink = nullptr) {
+                                      log::ISink* sink = nullptr,
+                                      std::string_view project_keys = {}) {
   XEXSpec spec;
   spec.load_address = kCodeImageBase;
   spec.entry_point = kCodeImageBase + kCodeImageCodeOffset;
@@ -162,8 +164,8 @@ inline Result<void> GenerateFromImage(const TempFolder& folder, std::vector<u8> 
   std::ofstream(folder.path / "entry.xex", std::ios::binary)
       .write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
   const auto manifest_path = folder.path / "demo_manifest.toml";
-  std::ofstream(manifest_path) << R"([project]
-name = "demo"
+  std::ofstream(manifest_path) << "[project]\nname = \"demo\"\n"
+                               << project_keys << R"(
 [entrypoint]
 file_path = "entry.xex"
 out_directory_path = "generated/entry"

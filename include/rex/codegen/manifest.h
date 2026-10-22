@@ -69,6 +69,9 @@ struct ManifestConfig {
   std::filesystem::path manifest_path;    /**< Path the manifest was loaded from. */
   /** Game asset root relative to manifest_dir. */
   std::optional<std::string> game_root;
+  /** Source folders `[project].hook_sources`, relative to manifest_dir, scanned for mid asm hooks.
+   */
+  std::vector<std::string> hook_sources;
   /** Directory of the manifest, which relative paths in it resolve against. */
   std::filesystem::path manifest_dir;
   /**

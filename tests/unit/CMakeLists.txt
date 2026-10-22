@@ -140,6 +140,7 @@ add_executable(
   ppc/fpscr_flush_test.cpp
   ppc/detour_test.cpp
   ppc/hook_shapes_test.cpp
+  ppc/midasm_macro_test.cpp
   ppc/multiply_add_test.cpp
   ppc/pack_d3d_test.cpp
   ppc/pdata_test.cpp
@@ -162,6 +163,7 @@ add_executable(
   runtime/xtypes_test.cpp
   runtime/function_dispatcher_test.cpp
   runtime/call_test.cpp
+  runtime/call_usage_lookup_test.cpp
   runtime/thread_wait_test.cpp
   runtime/runtime_error_test.cpp
   runtime/runtime_interfaces_test.cpp
@@ -194,7 +196,9 @@ add_executable(
   codegen/reserved_register_test.cpp
   codegen/setjmp_test.cpp
   codegen/skip_lr_test.cpp
+  codegen/call_usage_test.cpp
   codegen/function_scanner_test.cpp
+  codegen/hook_scan_test.cpp
   codegen/manifest_test.cpp
   codegen/midasm_hook_config_test.cpp
   codegen/midasm_hook_emit_test.cpp
@@ -368,6 +372,76 @@ foreach (_case IN ITEMS pointer mapped_ptr pointer_array mapped_ptr_array)
     "unit.compile: StackFrame rejects a push of a ${_case}"
     PROPERTIES PASS_REGULAR_EXPRESSION "StackFrame cannot push a pointer or a MappedPtr"
                RESOURCE_LOCK nested_build
+  )
+endforeach ()
+
+add_library(
+  midasm-macro-accepts-attachment OBJECT EXCLUDE_FROM_ALL
+                                         ppc/midasm_macro_fail/accepts_attachment.cpp
+)
+target_link_libraries(midasm-macro-accepts-attachment PRIVATE rexruntime)
+add_test(NAME "unit.compile: midasm accepts an attachment that fits"
+         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG> --target
+                 midasm-macro-accepts-attachment
+)
+set_tests_properties(
+  "unit.compile: midasm accepts an attachment that fits" PROPERTIES RESOURCE_LOCK nested_build
+)
+add_executable(midasm-generated-hooks EXCLUDE_FROM_ALL ppc/midasm_generated/generated_hooks.cpp)
+target_include_directories(
+  midasm-generated-hooks PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/midasm_generated
+)
+target_link_libraries(midasm-generated-hooks PRIVATE rexruntime)
+set_target_properties(
+  midasm-generated-hooks PROPERTIES EXPORT_COMPILE_COMMANDS OFF RUNTIME_OUTPUT_DIRECTORY
+                                                                $<TARGET_FILE_DIR:rexruntime>
+)
+if (UNIX AND NOT APPLE)
+  set_target_properties(
+    midasm-generated-hooks PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
+  )
+endif ()
+add_test(
+  NAME "unit.compile: midasm generated hooks run against their bodies"
+  COMMAND
+    ${CMAKE_COMMAND} -DUNIT_TESTS=$<TARGET_FILE:unit_tests>
+    -DUNIT_TESTS_DIR=$<TARGET_FILE_DIR:unit_tests>
+    -DGENERATED_DIR=${CMAKE_CURRENT_BINARY_DIR}/midasm_generated -DBUILD_DIR=${CMAKE_BINARY_DIR}
+    -DCONFIG=$<CONFIG> -DHOOKS=$<TARGET_FILE:midasm-generated-hooks> -P
+    ${CMAKE_CURRENT_SOURCE_DIR}/ppc/midasm_generated/build_generated_hooks.cmake
+)
+set_tests_properties(
+  "unit.compile: midasm generated hooks run against their bodies" PROPERTIES RESOURCE_LOCK
+                                                                             nested_build
+)
+set(_midasm_fail_cases
+    "kind_mismatch|register kind does not fit its parameter"
+    "pointer_float_register|register kind does not fit its parameter"
+    "unknown_register|register must be r0 to r31 except r1"
+    "stack_pointer|register must be r0 to r31 except r1"
+    "count_mismatch|register count must equal the body parameters"
+    "hook_target|takes a target only for a branch body"
+    "branch_without_target|needs the target of a branch body first"
+    "bad_target|target must be a nonzero multiple of 4"
+    "bad_placement|placement must be before or after"
+    "bad_address|address must be a nonzero multiple of 4"
+    "bad_parameter|A mid asm body takes u32"
+)
+foreach (_entry IN LISTS _midasm_fail_cases)
+  string(REPLACE "|" ";" _parts "${_entry}")
+  list(GET _parts 0 _case)
+  list(GET _parts 1 _message)
+  string(REPLACE "_" "-" _target "midasm-macro-${_case}")
+  add_library(${_target} OBJECT EXCLUDE_FROM_ALL ppc/midasm_macro_fail/${_case}.cpp)
+  target_link_libraries(${_target} PRIVATE rexruntime)
+  set_target_properties(${_target} PROPERTIES EXPORT_COMPILE_COMMANDS OFF)
+  add_test(NAME "unit.compile: midasm rejects ${_case}"
+           COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG> --target
+                   ${_target}
+  )
+  set_tests_properties(
+    "unit.compile: midasm rejects ${_case}" PROPERTIES PASS_REGULAR_EXPRESSION "${_message}"
+                                                       RESOURCE_LOCK nested_build
   )
 endforeach ()
 

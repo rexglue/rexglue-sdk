@@ -43,6 +43,10 @@ struct MidAsmHook {
 
   bool after_instruction =
       false; /**< Runs after the instruction at the address instead of before */
+
+  /** Parameter types of a body declared in C++, in order. Empty for a hook from the TOML. */
+  std::vector<std::string> parameters;
+  bool from_source = false; /**< True for a body declared in C++ and found by the source scan */
 };
 
 /** A load or store the [mmio.gpu] or [mmio.apu] table routes to a register block. */

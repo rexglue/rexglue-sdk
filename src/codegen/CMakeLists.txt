@@ -23,7 +23,9 @@ set(CODEGEN_CORE_SOURCES
     phase_gapfill.cpp
     phase_merge.cpp
     phase_validate.cpp
+    call_usage.cpp
     template_registry.cpp
+    hook_scan.cpp
     manifest.cpp
     project_recompiler.cpp
     tool_runtime.cpp
