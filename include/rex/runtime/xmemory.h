@@ -18,6 +18,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -54,6 +55,27 @@ constexpr u32 RemovePhysicalHostOffset(std::size_t host_offset) noexcept {
   return static_cast<u32>(shifted ? host_offset - kOffset : host_offset);
 }
 
+/**
+ * The alignment a guest pointer to T must have, 1 for void and function types.
+ *
+ * @tparam T The pointee type.
+ * @tparam IsOpaque True when T has no alignment.
+ */
+template <typename T, bool IsOpaque = std::is_void_v<T> || std::is_function_v<T>>
+struct PointeeAlignment {
+  static constexpr u32 kValue = 1; /**< The alignment in bytes. */
+};
+
+/**
+ * The alignment a guest pointer to T must have.
+ *
+ * @tparam T The pointee type.
+ */
+template <typename T>
+struct PointeeAlignment<T, false> {
+  static constexpr u32 kValue = static_cast<u32>(alignof(T)); /**< The alignment in bytes. */
+};
+
 }  // namespace rex::runtime::detail
 
 namespace rex::runtime {
@@ -79,6 +101,21 @@ inline constexpr u32 kPageSize16MiB = 16 * 1024 * 1024;
 template <typename T = u8*>
 inline T GuestPtr(u8* base, u32 guest_address) noexcept {
   return reinterpret_cast<T>(base + guest_address + detail::PhysicalHostOffset(guest_address));
+}
+
+/**
+ * Translates a host pointer into guest memory back to its guest address. Inverts GuestPtr.
+ *
+ * @param base The host base of guest memory.
+ * @param host_address The host pointer, null for no address.
+ * @return The guest address, 0 for a null pointer.
+ */
+inline u32 HostPtrToGuest(const u8* base, const void* host_address) noexcept {
+  if (host_address == nullptr) {
+    return 0;
+  }
+  return detail::RemovePhysicalHostOffset(reinterpret_cast<std::size_t>(host_address) -
+                                          reinterpret_cast<std::size_t>(base));
 }
 
 class Memory;
@@ -341,8 +378,7 @@ class REX_RUNTIME_API BaseHeap {
    * covers. A write watched page stays read only. The caller holds the heap mutex and, when title
    * pages are smaller than host pages, the memory watch lock.
    *
-   * @param host_page_number Host page number counted from the host base of the heap, including
-   * GetHostAddressOffset().
+   * @param host_page_number Host page number from the heap host base, with GetHostAddressOffset().
    * @return The page access.
    */
   rex::memory::PageAccess GetHostPageAccess(u32 host_page_number) const;
@@ -755,6 +791,31 @@ class REX_RUNTIME_API Memory {
   T TranslateVirtual(u32 guest_address) const {
     assert(!LookupHeap(guest_address) || LookupHeap(guest_address)->GetHostAddressOffset() ==
                                              detail::PhysicalHostOffset(guest_address));
+    return GuestPtr<T>(virtual_membase_, guest_address);
+  }
+
+  /**
+   * Translates a guest virtual address to a host pointer only when the title could access it.
+   *
+   * @tparam T The pointer type to return.
+   * @param guest_address The guest virtual address.
+   * @param required The kMemoryProtect bits the page must grant, the read bit by default.
+   * @return The host pointer, null when the address is 0, is not aligned for the pointee, is in
+   * no heap, or its page does not grant every required bit.
+   */
+  template <typename T = u8*>
+  T TryTranslateVirtual(u32 guest_address, u32 required = kMemoryProtectRead) const {
+    static_assert(std::is_pointer_v<T>, "TryTranslateVirtual returns a pointer type");
+    constexpr u32 kAlignment = detail::PointeeAlignment<std::remove_pointer_t<T>>::kValue;
+    if (guest_address == 0 || guest_address % kAlignment != 0) {
+      return nullptr;
+    }
+    const BaseHeap* heap = LookupHeap(guest_address);
+    u32 protect = 0;
+    if (heap == nullptr || !const_cast<BaseHeap*>(heap)->QueryProtect(guest_address, &protect) ||
+        (protect & required) != required) {
+      return nullptr;
+    }
     return GuestPtr<T>(virtual_membase_, guest_address);
   }
 

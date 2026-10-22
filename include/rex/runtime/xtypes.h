@@ -11,9 +11,14 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 #include <rex/assert.h>
+#include <rex/runtime/memory_view.h>
+#include <rex/runtime/thread_state.h>
+#include <rex/runtime/xmemory.h>
 #include <rex/types.h>
 
 namespace rex {
@@ -191,16 +196,104 @@ struct X_KSPINLOCK {
 };
 REX_STATIC_ASSERT_SIZE(X_KSPINLOCK, 4);
 
+namespace detail {
+
 /**
- * Typed guest pointer. Holds a guest address and converts to and from uint32_t.
+ * True when P is a pointer type or nullptr_t that converts to const T*.
  *
- * @tparam T The pointee type, for documentation only.
+ * @tparam P The candidate host pointer type.
+ * @tparam T The pointee type.
+ */
+template <typename P, typename T>
+inline constexpr bool kIsHostPointerFor =
+    (std::is_pointer_v<P> || std::is_null_pointer_v<P>) && std::is_convertible_v<P, const T*>;
+
+}  // namespace detail
+
+/**
+ * Typed guest pointer. Holds a guest address, converts to and from uint32_t and resolves to a
+ * host pointer.
+ *
+ * @tparam T The pointee type.
  */
 template <typename T>
 struct be_ptr {
   be_u32 value; /**< Guest address. */
 
   operator u32() const { return value; }
+
+  /**
+   * Returns the guest address.
+   *
+   * @return The guest address, 0 for a null pointer.
+   */
+  u32 GetAddress() const { return value; }
+
+  /**
+   * Reports whether the pointer is not null.
+   *
+   * @return True when the guest address is not 0.
+   */
+  explicit operator bool() const { return value != 0; }
+
+  /**
+   * Resolves the pointer through the guest memory of the calling thread.
+   *
+   * @return The host pointer, null when the guest address is 0.
+   */
+  T* get() const {
+    if (value == 0) {
+      return nullptr;
+    }
+    auto* thread_state = rex::runtime::ThreadState::Get();
+    REX_ASSERT(thread_state != nullptr);
+    return rex::runtime::GuestPtr<T*>(thread_state->GetMemory()->GetVirtualMembase(), value);
+  }
+
+  /**
+   * Resolves the pointer through the guest memory of the calling thread only when the title could
+   * read it.
+   *
+   * @return The host pointer, null when the address is 0, is misaligned for T, is in no heap,
+   * has an unreadable page, or the calling thread has no runtime.
+   */
+  T* TryGet() const {
+    auto* thread_state = rex::runtime::ThreadState::Get();
+    if (thread_state == nullptr || thread_state->GetMemory() == nullptr) {
+      return nullptr;
+    }
+    return thread_state->GetMemory()->TryTranslateVirtual<T*>(value);
+  }
+
+  /**
+   * Resolves the pointer through a memory view, for a host thread with no bound runtime.
+   *
+   * @param view The memory view that holds the guest memory.
+   * @return The host pointer, null when the guest address is 0.
+   */
+  T* get(const rex::runtime::MemoryView& view) const {
+    return value == 0 ? nullptr : view.TranslateVirtual<T*>(value);
+  }
+
+  /**
+   * Resolves the pointer through a memory view only when the title could read it, for a host
+   * thread with no bound runtime.
+   *
+   * @param view The memory view that holds the guest memory.
+   * @return The host pointer, null when the address is 0, is misaligned for T, is in no heap, or
+   * has an unreadable page.
+   */
+  T* TryGet(const rex::runtime::MemoryView& view) const {
+    return view.TryTranslateVirtual<T*>(value);
+  }
+
+  /**
+   * Resolves the pointer through the guest memory of the calling thread.
+   *
+   * @return The host pointer.
+   */
+  T* operator->() const { return get(); }
+
   /**
    * Sets the guest address.
    *
@@ -211,6 +304,152 @@ struct be_ptr {
     value = v;
     return *this;
   }
+
+  /**
+   * Sets the pointer to a host pointer into the guest memory of the calling thread.
+   *
+   * @tparam P The host pointer type, convertible to const T*, or std::nullptr_t.
+   * @param host_pointer The host pointer, null for a null pointer.
+   * @return This pointer.
+   */
+  template <typename P>
+    requires(detail::kIsHostPointerFor<P, T>)
+  be_ptr& operator=(P host_pointer) {
+    if constexpr (std::is_null_pointer_v<P>) {
+      value = 0;
+    } else if (host_pointer == nullptr) {
+      value = 0;
+    } else {
+      auto* thread_state = rex::runtime::ThreadState::Get();
+      REX_ASSERT(thread_state != nullptr);
+      value = rex::runtime::HostPtrToGuest(thread_state->GetMemory()->GetVirtualMembase(),
+                                           reinterpret_cast<const void*>(host_pointer));
+    }
+    return *this;
+  }
 };
+
+/**
+ * Read only view of a guest std::vector, three guest pointers to its storage. The title owns the
+ * storage, so the view never grows, shrinks or allocates it. It describes the three pointer layout
+ * of a release build. A vector that carries an allocator or a debug member has another layout and
+ * is not supported.
+ *
+ * @tparam T The element type, laid out as the title stores it.
+ */
+template <typename T>
+struct be_vector {
+  be_ptr<T> first; /**< Guest address of the first element. */
+  be_ptr<T> last;  /**< Guest address one past the last element. */
+  be_ptr<T> limit; /**< Guest address one past the allocated storage. */
+
+  /**
+   * Returns the element count.
+   *
+   * @return The number of elements, 0 when the pointers are null or out of order.
+   */
+  size_t size() const {
+    const u32 begin_address = first.GetAddress();
+    const u32 end_address = last.GetAddress();
+    return end_address > begin_address ? (end_address - begin_address) / sizeof(T) : 0;
+  }
+
+  /**
+   * Reports whether the vector has no elements.
+   *
+   * @return True when size() is 0.
+   */
+  bool empty() const { return size() == 0; }
+
+  /**
+   * Resolves the first element through the guest memory of the calling thread.
+   *
+   * @return The host pointer to the first element, null when the vector has no storage.
+   */
+  const T* begin() const { return first.get(); }
+
+  /**
+   * Resolves one past the last element through the guest memory of the calling thread.
+   *
+   * @return The host pointer past the last element, null when the vector has no storage.
+   */
+  const T* end() const { return last.get(); }
+
+  /**
+   * Resolves the first element through a memory view, for a host thread with no bound runtime.
+   *
+   * @param view The memory view that holds the guest memory.
+   * @return The host pointer to the first element, null when the vector has no storage.
+   */
+  const T* begin(const rex::runtime::MemoryView& view) const { return first.get(view); }
+
+  /**
+   * Resolves one past the last element through a memory view, for a host thread with no bound
+   * runtime.
+   *
+   * @param view The memory view that holds the guest memory.
+   * @return The host pointer past the last element, null when the vector has no storage.
+   */
+  const T* end(const rex::runtime::MemoryView& view) const { return last.get(view); }
+
+  /**
+   * Returns an element through the guest memory of the calling thread without checking the index.
+   *
+   * @param index The element index, below size().
+   * @return The element.
+   */
+  const T& operator[](size_t index) const { return begin()[index]; }
+
+  /**
+   * Returns the guest address of an element.
+   *
+   * @param index The element index.
+   * @return The guest address, 0 when the index is not below size().
+   */
+  u32 GetAddress(size_t index) const {
+    return index < size() ? first.GetAddress() + static_cast<u32>(index * sizeof(T)) : 0;
+  }
+
+  /**
+   * Resolves an element through a memory view only when the title could read all of it, for a host
+   * thread with no bound runtime.
+   *
+   * @param index The element index.
+   * @param view The memory view that holds the guest memory.
+   * @return The host pointer to the element, null when the index is not below size(), the element
+   * is misaligned, wraps the address space, is in no heap, or has an unreadable page.
+   */
+  const T* TryAt(size_t index, const rex::runtime::MemoryView& view) const {
+    const u32 address = GetAddress(index);
+    const u64 last_byte = static_cast<u64>(address) + sizeof(T) - 1;
+    if (address == 0 || last_byte > 0xFFFFFFFFull) {
+      return nullptr;
+    }
+    const T* element = view.TryTranslateVirtual<const T*>(address);
+    if (element == nullptr ||
+        view.TryTranslateVirtual<const u8*>(static_cast<u32>(last_byte)) == nullptr) {
+      return nullptr;
+    }
+    return element;
+  }
+
+  /**
+   * Resolves an element through the guest memory of the calling thread only when the title could
+   * read all of it.
+   *
+   * @param index The element index.
+   * @return The host pointer to the element, null when the index is not below size(), the element
+   * is misaligned, wraps the address space, is in no heap, has an unreadable page, or the calling
+   * thread has no runtime.
+   */
+  const T* TryAt(size_t index) const {
+    auto* thread_state = rex::runtime::ThreadState::Get();
+    if (thread_state == nullptr || thread_state->GetMemory() == nullptr) {
+      return nullptr;
+    }
+    return TryAt(index, rex::runtime::MemoryView(*thread_state->GetMemory()));
+  }
+};
+REX_STATIC_ASSERT_SIZE(be_vector<u8>, 12);
 
 }  // namespace rex

@@ -494,8 +494,7 @@ VirtualHeap* Memory::GetPhysicalHeap() {
 }
 
 u32 Memory::HostToGuestVirtual(const void* host_address) const {
-  return detail::RemovePhysicalHostOffset(reinterpret_cast<size_t>(host_address) -
-                                          reinterpret_cast<size_t>(virtual_membase_));
+  return HostPtrToGuest(virtual_membase_, host_address);
 }
 
 u32 Memory::GetPhysicalAddress(u32 address) const {

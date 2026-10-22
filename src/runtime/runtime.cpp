@@ -311,6 +311,10 @@ void Runtime::Shutdown() {
   setup_complete_ = false;
 }
 
+Runtime* GetProcessRuntime() {
+  return runtime::RuntimeModule::GetActive();
+}
+
 void Runtime::SetAudioPaused(bool paused) {
   if (apu_) {
     apu_->SetPaused(paused);

@@ -536,4 +536,15 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   hid::IHIDBackend* hid_ = nullptr;
 };
 
+/**
+ * Returns the runtime of the process, from any thread.
+ *
+ * The pointer is valid only until Shutdown starts. A host thread must stop using it before the
+ * runtime shuts down, because the call does not keep the runtime alive. Unlike GetCurrent(), it
+ * needs no title or worker thread and never aborts.
+ *
+ * @return The runtime that finished Setup, null before Setup completes and after Shutdown starts.
+ */
+[[nodiscard]] REX_RUNTIME_API Runtime* GetProcessRuntime();
+
 }  // namespace rex

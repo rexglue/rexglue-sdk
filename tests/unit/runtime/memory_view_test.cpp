@@ -12,6 +12,7 @@
 #include "rex_test.h"
 
 #include <array>
+#include <cstring>
 
 #include <rex/runtime.h>
 #include <rex/runtime/memory_view.h>
@@ -126,4 +127,208 @@ REX_TEST_CASE("The top guest page wraps to physical 0 as the hardware does", "[r
   CHECK(memory.TranslateVirtual(0xFFFFF000) == memory.TranslatePhysical(0));
   CHECK(memory.TranslateVirtual(0xFFFFFFFF) == memory.TranslatePhysical(0xFFF));
   CHECK(memory.TranslateVirtual(0xE0000000) == memory.GetVirtualMembase() + 0xE0001000u);
+}
+
+REX_TEST_CASE("TryTranslateVirtual rejects null, misaligned and unmapped addresses", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+    const u32 block = c.Alloc(64);
+    CHECK(memory.TryTranslateVirtual<u32*>(0) == nullptr);
+    CHECK(memory.TryTranslateVirtual<u32*>(block + 1) == nullptr);
+    CHECK(memory.TryTranslateVirtual<u64*>(block + 4) == nullptr);
+    CHECK(memory.TryTranslateVirtual<u8*>(block + 1) == memory.TranslateVirtual<u8*>(block + 1));
+    CHECK(memory.TryTranslateVirtual<u32*>(block) == memory.TranslateVirtual<u32*>(block));
+    CHECK(memory.TryTranslateVirtual<void*>(block + 3) ==
+          memory.TranslateVirtual<void*>(block + 3));
+    CHECK(memory.TryTranslateVirtual<u32*>(0x00000004) == nullptr);
+    CHECK(memory.TryTranslateVirtual<u32*>(0xFFFFFFFC) == nullptr);
+  });
+}
+
+REX_TEST_CASE("TryTranslateVirtual rejects a page that is not readable", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+    const u32 base_ptr = c.Alloc(4);
+    const u32 size_ptr = c.Alloc(4);
+    const u32 old_ptr = c.Alloc(4);
+    c.Store32(base_ptr, 0);
+    c.Store32(size_ptr, 0x10000);
+    REQUIRE(c.Kernel("NtAllocateVirtualMemory", {base_ptr, size_ptr, 0x3000, 0x04, 0}) == 0);
+    const u32 block = c.Load32(base_ptr);
+    CHECK(memory.TryTranslateVirtual<u32*>(block) == memory.TranslateVirtual<u32*>(block));
+    REQUIRE(c.Kernel("NtProtectVirtualMemory", {base_ptr, size_ptr, 0x01, old_ptr, 0}) == 0);
+    CHECK(memory.TryTranslateVirtual<u32*>(block) == nullptr);
+    c.Store32(base_ptr, block);
+    c.Store32(size_ptr, 0);
+    CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) == 0);
+    CHECK(memory.TryTranslateVirtual<u32*>(block) == nullptr);
+  });
+}
+
+REX_TEST_CASE("MemoryView Load reads big endian values at any alignment", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::MemoryView view(*fixture.GetRuntime().GetMemory());
+    const u32 block = c.Alloc(32);
+    u8* bytes = view.TranslateVirtual<u8*>(block);
+    const u8 pattern[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09};
+    std::memcpy(bytes, pattern, sizeof(pattern));
+    CHECK(view.Load<u8>(block) == 0x01);
+    CHECK(view.Load<i8>(block) == 0x01);
+    CHECK(view.Load<u16>(block) == 0x0102);
+    CHECK(view.Load<u32>(block) == 0x01020304);
+    CHECK(view.Load<u64>(block) == 0x0102030405060708);
+    CHECK(view.Load<u32>(block + 1) == 0x02030405);
+    CHECK(view.Load<u16>(block + 3) == 0x0405);
+    const u8 negative[] = {0xFF, 0xFE};
+    std::memcpy(bytes + 16, negative, sizeof(negative));
+    CHECK(view.Load<i16>(block + 16) == -2);
+    const u8 one[] = {0x3F, 0x80, 0x00, 0x00};
+    std::memcpy(bytes + 20, one, sizeof(one));
+    CHECK(view.Load<f32>(block + 20) == 1.0f);
+    const u8 two[] = {0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    std::memcpy(bytes + 24, two, sizeof(two));
+    CHECK(view.Load<f64>(block + 24) == 2.0);
+  });
+}
+
+REX_TEST_CASE("MemoryView Store writes big endian values at any alignment", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::MemoryView view(*fixture.GetRuntime().GetMemory());
+    const u32 block = c.Alloc(32);
+    const u8* bytes = view.TranslateVirtual<const u8*>(block);
+    view.Store<u32>(block, 0x01020304);
+    CHECK(bytes[0] == 0x01);
+    CHECK(bytes[1] == 0x02);
+    CHECK(bytes[2] == 0x03);
+    CHECK(bytes[3] == 0x04);
+    view.Store<u16>(block + 5, 0xA1B2);
+    CHECK(bytes[5] == 0xA1);
+    CHECK(bytes[6] == 0xB2);
+    view.Store<u64>(block + 8, 0x1122334455667788);
+    CHECK(bytes[8] == 0x11);
+    CHECK(bytes[15] == 0x88);
+    view.Store<f32>(block + 16, 1.0f);
+    CHECK(bytes[16] == 0x3F);
+    CHECK(bytes[17] == 0x80);
+    view.Store<i16>(block + 20, -2);
+    CHECK(bytes[20] == 0xFF);
+    CHECK(bytes[21] == 0xFE);
+    view.Store<u8>(block + 24, 0x7E);
+    CHECK(bytes[24] == 0x7E);
+    view.Store<f64>(block + 26, 2.0);
+    CHECK(view.Load<f64>(block + 26) == 2.0);
+    CHECK(view.Load<u32>(block) == 0x01020304);
+  });
+}
+
+REX_TEST_CASE("MemoryView TryLoad and TryStore reject addresses the title cannot use",
+              "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::MemoryView view(*fixture.GetRuntime().GetMemory());
+    const u32 block = c.Alloc(16);
+    CHECK(view.TryStore<u32>(block, 0xCAFEBABE));
+    REQUIRE(view.TryLoad<u32>(block).has_value());
+    CHECK(*view.TryLoad<u32>(block) == 0xCAFEBABE);
+    CHECK(view.TryStore<u32>(block + 1, 0x01020304));
+    CHECK(*view.TryLoad<u32>(block + 1) == 0x01020304);
+    CHECK_FALSE(view.TryLoad<u32>(0).has_value());
+    CHECK_FALSE(view.TryStore<u32>(0, 1));
+    CHECK_FALSE(view.TryLoad<u32>(0x00000004).has_value());
+    CHECK_FALSE(view.TryStore<u32>(0x00000004, 1));
+    CHECK_FALSE(view.TryLoad<u32>(0xFFFFFFFE).has_value());
+    CHECK_FALSE(view.TryStore<u64>(0xFFFFFFFC, 1));
+  });
+}
+
+REX_TEST_CASE("MemoryView TryLoad and TryStore check every byte and the write bit", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::MemoryView view(*fixture.GetRuntime().GetMemory());
+    const u32 base_ptr = c.Alloc(4);
+    const u32 size_ptr = c.Alloc(4);
+    const u32 old_ptr = c.Alloc(4);
+    c.Store32(base_ptr, 0);
+    c.Store32(size_ptr, 0x20000);
+    REQUIRE(c.Kernel("NtAllocateVirtualMemory", {base_ptr, size_ptr, 0x3000, 0x04, 0}) == 0);
+    const u32 block = c.Load32(base_ptr);
+    const u32 edge = block + 0x10000;
+    c.Store32(base_ptr, edge);
+    c.Store32(size_ptr, 0x10000);
+    REQUIRE(c.Kernel("NtProtectVirtualMemory", {base_ptr, size_ptr, 0x01, old_ptr, 0}) == 0);
+    CHECK(view.TryLoad<u32>(edge - 4).has_value());
+    CHECK_FALSE(view.TryLoad<u32>(edge - 3).has_value());
+    CHECK_FALSE(view.TryStore<u32>(edge - 2, 1));
+    CHECK_FALSE(view.TryLoad<u8>(edge).has_value());
+    c.Store32(base_ptr, block);
+    c.Store32(size_ptr, 0x10000);
+    REQUIRE(c.Kernel("NtProtectVirtualMemory", {base_ptr, size_ptr, 0x02, old_ptr, 0}) == 0);
+    CHECK(view.TryLoad<u32>(block).has_value());
+    CHECK_FALSE(view.TryStore<u32>(block, 1));
+  });
+}
+
+REX_TEST_CASE("MemoryView GetCString reads a null terminated string", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::MemoryView view(*fixture.GetRuntime().GetMemory());
+    const u32 block = c.Alloc(32);
+    std::memcpy(view.TranslateVirtual<char*>(block), "hello\0world", 12);
+    CHECK(view.GetCString(block) == "hello");
+    CHECK(view.GetCString(block + 6) == "world");
+    CHECK(view.GetCString(block + 5).empty());
+    CHECK(view.GetCString(0).empty());
+    CHECK(view.GetCString(block).data() == view.TranslateVirtual<const char*>(block));
+  });
+}
+
+REX_TEST_CASE("MemoryView TryGetCString stops where the title cannot read", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::MemoryView view(*fixture.GetRuntime().GetMemory());
+    const u32 base_ptr = c.Alloc(4);
+    const u32 size_ptr = c.Alloc(4);
+    const u32 old_ptr = c.Alloc(4);
+    c.Store32(base_ptr, 0);
+    c.Store32(size_ptr, 0x20000);
+    REQUIRE(c.Kernel("NtAllocateVirtualMemory", {base_ptr, size_ptr, 0x3000, 0x04, 0}) == 0);
+    const u32 block = c.Load32(base_ptr);
+    const u32 edge = block + 0x10000;
+    std::memset(view.TranslateVirtual<char*>(block), 'x', 0x10000);
+    std::memcpy(view.TranslateVirtual<char*>(edge), "tail", 5);
+    char* longer = view.TranslateVirtual<char*>(edge + 0x100);
+    std::memset(longer, 'y', 5000);
+    longer[5000] = '\0';
+    CHECK(view.TryGetCString(edge).value() == "tail");
+    CHECK(view.TryGetCString(edge + 0x100).value().size() == 5000);
+    CHECK(view.TryGetCString(block, 10).value() == "xxxxxxxxxx");
+    CHECK(view.TryGetCString(edge - 3, 100).value() == "xxxtail");
+    CHECK_FALSE(view.TryGetCString(0).has_value());
+    CHECK_FALSE(view.TryGetCString(0x00000004).has_value());
+
+    c.Store32(base_ptr, edge);
+    c.Store32(size_ptr, 0x10000);
+    REQUIRE(c.Kernel("NtProtectVirtualMemory", {base_ptr, size_ptr, 0x01, old_ptr, 0}) == 0);
+    CHECK(view.TryGetCString(edge - 3).value() == "xxx");
+    CHECK(view.TryGetCString(block + 0x0FFFF).value() == "x");
+    CHECK_FALSE(view.TryGetCString(edge).has_value());
+  });
+}
+
+REX_TEST_CASE("MemoryView TryTranslateVirtual returns what Memory returns", "[runtime]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
+    const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+    const rex::runtime::MemoryView view(memory);
+    const u32 block = c.Alloc(16);
+    CHECK(view.TryTranslateVirtual<u32*>(block) == memory.TryTranslateVirtual<u32*>(block));
+    CHECK(view.TryTranslateVirtual<u32*>(block + 1) == nullptr);
+    CHECK(view.TryTranslateVirtual<u32*>(0) == nullptr);
+    CHECK(view.TryTranslateVirtual<u32*>(block, rex::runtime::kMemoryProtectWrite) ==
+          memory.TryTranslateVirtual<u32*>(block, rex::runtime::kMemoryProtectWrite));
+  });
 }

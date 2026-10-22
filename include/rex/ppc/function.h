@@ -586,7 +586,7 @@ struct ArgTranslator {
     } else if constexpr (std::is_pointer_v<T>) {
       SetIntegerArgumentValue(
           ctx, base, arg.slot,
-          static_cast<u32>(reinterpret_cast<uintptr_t>(value) - reinterpret_cast<uintptr_t>(base)));
+          rex::runtime::HostPtrToGuest(base, reinterpret_cast<const void*>(value)));
     } else {
       SetIntegerArgumentValue<(sizeof(T) > sizeof(u32)) ? sizeof(u64) : sizeof(u32)>(
           ctx, base, arg.slot, value);
@@ -878,12 +878,7 @@ T LoadByValue(u8* base, u32 address) {
 template <typename RetT>
 void StoreHostResult(PPCContext& ctx, u8* base, u32 hidden_pointer, const RetT& value) {
   if constexpr (std::is_pointer<RetT>()) {
-    if (value != nullptr) {
-      ctx.r3.u64 =
-          static_cast<u32>(reinterpret_cast<size_t>(value) - reinterpret_cast<size_t>(base));
-    } else {
-      ctx.r3.u64 = 0;
-    }
+    ctx.r3.u64 = rex::runtime::HostPtrToGuest(base, reinterpret_cast<const void*>(value));
   } else if constexpr (is_float_v<RetT>) {
     ctx.f1.f64 = value;
   } else if constexpr (VectorType<RetT>) {

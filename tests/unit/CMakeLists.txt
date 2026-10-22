@@ -33,6 +33,7 @@ add_executable(
   gpu/shader_interpreter_test.cpp
   gpu/shader_translation_test.cpp
   gpu/tessellation_glsl_test.cpp
+  kernel/be_ptr_test.cpp
   kernel/xekeys_test.cpp
   kernel/bugcheck_test.cpp
   kernel/exit_title_test.cpp
@@ -168,6 +169,8 @@ add_executable(
   runtime/runtime_error_test.cpp
   runtime/runtime_interfaces_test.cpp
   runtime/memory_view_test.cpp
+  runtime/process_runtime_test.cpp
+  runtime/guest_global_test.cpp
   runtime/apu_test.cpp
   runtime/xma_decoder_test.cpp
   runtime/host_service_modules_test.cpp

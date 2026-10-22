@@ -36,8 +36,7 @@ void* GuestHeap::GuestToHost(u32 guest_addr) const {
 }
 
 u32 GuestHeap::HostToGuest(void* host_ptr) const {
-  return rex::runtime::detail::RemovePhysicalHostOffset(
-      static_cast<std::size_t>(static_cast<u8*>(host_ptr) - membase_));
+  return rex::runtime::HostPtrToGuest(membase_, host_ptr);
 }
 
 bool GuestHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
