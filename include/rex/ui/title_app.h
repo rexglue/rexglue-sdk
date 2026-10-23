@@ -251,10 +251,10 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   /**
    * Returns the title window.
    *
-   * @return The window. Valid from OnCreateWindow until Stop closes it. The headless
-   *         provider opens no window.
+   * @return The window, or null before CreateTitleWindow and with the headless provider. Valid
+   *         until Stop closes it.
    */
-  IWindow& GetWindow();
+  IWindow* GetWindow();
 
   /**
    * Returns the user interface.

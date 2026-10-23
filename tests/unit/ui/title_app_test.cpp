@@ -421,6 +421,7 @@ REX_TEST_CASE("A title app with no ui module runs headless and Shutdown returns 
   REQUIRE(Open(app));
   REQUIRE(app.GetAPI().Get<rex::ui::IUserInterface>() == nullptr);
   REQUIRE(app.GetUI().GetWindow() == nullptr);
+  REQUIRE(app.GetWindow() == nullptr);
   REQUIRE_FALSE(app.created);
   bool cancelled = false;
   app.GetUI().Prompt(TestPrompt(),

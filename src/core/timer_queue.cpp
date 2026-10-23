@@ -21,6 +21,8 @@
 #include <rex/platform/thread.h>
 #include <rex/platform/timer_queue.h>
 
+#include "core/timer_queue_state.h"
+
 namespace rex::platform {
 
 using WaitItem = TimerQueueWaitItem;
@@ -135,6 +137,11 @@ void detail::ShutdownTimerQueue() {
     std::lock_guard lock(g_timer_queue_mutex);
     queue = std::move(g_timer_queue);
   }
+}
+
+bool detail::IsTimerQueueRunning() {
+  std::lock_guard lock(g_timer_queue_mutex);
+  return g_timer_queue != nullptr;
 }
 
 void TimerQueueWaitItem::Disarm() {

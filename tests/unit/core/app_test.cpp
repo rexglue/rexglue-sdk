@@ -44,6 +44,7 @@
 #include "core/app_state.h"
 #include "core/cvar_registry.h"
 #include "core/module_loader.h"
+#include "core/timer_queue_state.h"
 #include "modules/echo.h"
 #include "modules/test_module_sink.h"
 #include "temp_folder.h"
@@ -204,15 +205,47 @@ REX_TEST_CASE_METHOD(Fixture, "App runs its steps in lifecycle order", "[core][a
                                                "rexmod-test-good:disconnect"});
 }
 
-REX_TEST_CASE_METHOD(Fixture, "App Shutdown turns the unregistered read report off",
-                     "[core][app]") {
+REX_TEST_CASE_METHOD(Fixture, "App Shutdown unwinds the loader completely", "[core][app]") {
   Pinned pin("rexmod-test-good");
   TestApp app;
   REQUIRE(app.Init(Args()));
+  rex::platform::QueueTimerOnce(
+      [](void*) {}, nullptr,
+      rex::platform::TimerQueueWaitItem::clock::now() + std::chrono::hours(1));
   CHECK(rex::detail::IsUnregisteredReadReportEnabled());
+  CHECK(rex::platform::detail::IsTimerQueueRunning());
+  CHECK(rex::detail::ModuleLoader::GetInstance().IsLoaded("rexmod-test-good"));
   app.Run();
   app.Shutdown();
   CHECK_FALSE(rex::detail::IsUnregisteredReadReportEnabled());
+  CHECK_FALSE(rex::platform::detail::IsTimerQueueRunning());
+  CHECK_FALSE(rex::detail::ModuleLoader::GetInstance().IsLoaded("rexmod-test-good"));
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "A failed Init and an App that loaded nothing still stop the timer queue",
+                     "[core][app]") {
+  const auto queue_timer = [] {
+    rex::platform::QueueTimerOnce(
+        [](void*) {}, nullptr,
+        rex::platform::TimerQueueWaitItem::clock::now() + std::chrono::hours(1));
+  };
+  {
+    TestApp app;
+    app.modules = {"rexmod-no-such-module"};
+    queue_timer();
+    REQUIRE_FALSE(app.Init(Args()));
+    CHECK_FALSE(rex::platform::detail::IsTimerQueueRunning());
+    app.Shutdown();
+  }
+  {
+    TestApp app;
+    app.fail_configure = true;
+    queue_timer();
+    REQUIRE_FALSE(app.Init(Args()));
+    REQUIRE(app.Shutdown() == 1);
+    CHECK_FALSE(rex::platform::detail::IsTimerQueueRunning());
+  }
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A failing OnConfigure loads nothing", "[core][app]") {

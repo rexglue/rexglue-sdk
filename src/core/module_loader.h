@@ -21,6 +21,7 @@
 
 #include <rex/platform.h>
 #include <rex/export.h>
+#include <rex/move_only_function.h>
 #include <rex/api.h>
 #include <rex/module.h>
 #include <rex/platform/dynlib.h>
@@ -83,11 +84,14 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   Config& GetMutableConfig() { return config_; }
   void Shutdown();
 
-  /** Shuts down and disconnects every module in reverse load order and resets the cvar tables. */
-  void ShutdownModules();
-
-  /** Closes every module library in reverse load order. */
-  void CloseLibraries();
+  /**
+   * Unwinds everything Connect and InitModules built except the logger. Shuts down and
+   * disconnects every module in reverse load order and resets the cvar tables, runs the callback,
+   * then stops the timer queue and closes every module library.
+   *
+   * @param after_modules Runs once the modules are down and their libraries are still loaded.
+   */
+  void Unwind(MoveOnlyFunction<void()> after_modules = {});
 
   [[nodiscard]] Result<void*> Get(std::string_view name, u32 version) override;
   void* GetForAPI(const char* name, u32 version) const;
@@ -122,6 +126,8 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   [[nodiscard]] Result<void> ConnectAll();
   [[nodiscard]] Result<void> InitAll();
   void UnwindAll();
+  void ShutdownModules();
+  void CloseLibraries();
   [[nodiscard]] Result<void> RegisterConsumerTables();
   std::vector<std::string> ReportUnknownCvars(std::span<const CvarOverride> unknown);
   [[nodiscard]] Result<void> ApplyCvarValues();

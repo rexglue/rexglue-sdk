@@ -288,6 +288,7 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_->OnTitleExit([this](runtime::TitleExitReason reason) {
     InvokeFunction([this, reason] { OnTitleExit(reason); });
   });
+  runtime_->ReportTitleLaunched();
   runtime_->GetThreadRegistry().FindByHandle(main_thread)->Resume();
   title_monitor_ = platform::Spawn("Title Monitor", [this, main_thread](const std::stop_token&) {
     runtime::Wait(*runtime_, main_thread, 0, 0, 0, nullptr);
@@ -404,8 +405,8 @@ Runtime* TitleApp::GetRuntime() {
   return runtime_.get();
 }
 
-IWindow& TitleApp::GetWindow() {
-  return *ui_->GetWindow();
+IWindow* TitleApp::GetWindow() {
+  return ui_ ? ui_->GetWindow() : nullptr;
 }
 
 IUserInterface& TitleApp::GetUI() {

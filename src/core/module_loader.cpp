@@ -357,9 +357,17 @@ Result<void> ModuleLoader::InitAll() {
   return Ok();
 }
 
-void ModuleLoader::UnwindAll() {
+void ModuleLoader::Unwind(MoveOnlyFunction<void()> after_modules) {
   ShutdownModules();
+  if (after_modules) {
+    after_modules();
+  }
+  platform::detail::ShutdownTimerQueue();
   CloseLibraries();
+}
+
+void ModuleLoader::UnwindAll() {
+  Unwind();
   StopLogger();
 }
 

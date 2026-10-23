@@ -409,17 +409,18 @@ i32 App::Shutdown() {
   Release();
   const bool loaded = stage_ == Stage::kConnected || stage_ == Stage::kInitialized;
   auto& loader = detail::ModuleLoader::GetInstance();
+  auto release_host = [this] {
+    api_ = nullptr;
+    platform::Profiler::Shutdown();
+    if (timer_resolution_) {
+      EndTimerResolution();
+    }
+  };
   if (loaded) {
-    loader.ShutdownModules();
-  }
-  api_ = nullptr;
-  platform::Profiler::Shutdown();
-  if (timer_resolution_) {
-    EndTimerResolution();
-  }
-  platform::detail::ShutdownTimerQueue();
-  if (loaded) {
-    loader.CloseLibraries();
+    loader.Unwind(release_host);
+  } else {
+    release_host();
+    platform::detail::ShutdownTimerQueue();
   }
   lock_.reset();
 

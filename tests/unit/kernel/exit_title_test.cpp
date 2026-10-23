@@ -28,3 +28,31 @@ REX_TEST_CASE("ReportTitleExit calls the callback once with the first reason",
   runtime.ReportTitleExit(TitleExitReason::kNormalExit);
   REQUIRE(seen == std::vector<TitleExitReason>{TitleExitReason::kHardExit});
 }
+
+REX_TEST_CASE("IsTitleLaunched follows the launch and exit reports", "[kernel][title_exit]") {
+  rex::Config config;
+  rex::Runtime runtime(config);
+  CHECK_FALSE(runtime.IsTitleLaunched());
+  runtime.ReportTitleLaunched();
+  CHECK(runtime.IsTitleLaunched());
+  runtime.ReportTitleExit(TitleExitReason::kNormalExit);
+  CHECK_FALSE(runtime.IsTitleLaunched());
+}
+
+REX_TEST_CASE("IsTitleLaunched is false inside the exit callback", "[kernel][title_exit]") {
+  rex::Config config;
+  rex::Runtime runtime(config);
+  bool seen_launched = true;
+  runtime.OnTitleExit([&](TitleExitReason) { seen_launched = runtime.IsTitleLaunched(); });
+  runtime.ReportTitleLaunched();
+  runtime.ReportTitleExit(TitleExitReason::kHardExit);
+  CHECK_FALSE(seen_launched);
+}
+
+REX_TEST_CASE("Shutdown clears IsTitleLaunched", "[kernel][title_exit]") {
+  rex::Config config;
+  rex::Runtime runtime(config);
+  runtime.ReportTitleLaunched();
+  runtime.Shutdown();
+  CHECK_FALSE(runtime.IsTitleLaunched());
+}

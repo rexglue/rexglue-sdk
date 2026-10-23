@@ -316,6 +316,21 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   X_HANDLE PrepareModuleLaunch();
 
   /**
+   * Reports that the title is about to run. TitleApp::LaunchTitle calls it after OnTitleLaunch
+   * returns, right before it resumes the main thread. A caller that uses PrepareModuleLaunch and
+   * resumes the main thread itself must call it before the resume.
+   */
+  void ReportTitleLaunched();
+
+  /**
+   * Returns whether the title is running. It becomes true in ReportTitleLaunched and false when
+   * ReportTitleExit starts, before the OnTitleExit callback runs, and in Shutdown.
+   *
+   * @return True between the launch and the exit of the title. Safe from any thread.
+   */
+  [[nodiscard]] bool IsTitleLaunched() const;
+
+  /**
    * Returns the host base of guest virtual memory for recompiled code.
    *
    * @return The host address of guest address 0.
@@ -504,6 +519,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   std::mutex title_exit_mutex_;
   rex::MoveOnlyFunction<void(runtime::TitleExitReason)> title_exit_callback_;
   bool title_exit_reported_ = false;
+  std::atomic<bool> title_launched_{false};
 
   const Config& config_;
   std::filesystem::path game_data_root_;

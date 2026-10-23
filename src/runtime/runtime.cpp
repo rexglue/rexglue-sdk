@@ -294,6 +294,7 @@ Result<void> Runtime::Setup(const rex::PPCImage& image_info, const RuntimeDesc& 
 }
 
 void Runtime::Shutdown() {
+  title_launched_.store(false, std::memory_order_release);
   if (!setup_complete_ && !memory_) {
     return;
   }
@@ -425,12 +426,21 @@ void Runtime::OnTitleExit(rex::MoveOnlyFunction<void(runtime::TitleExitReason)> 
   title_exit_callback_ = std::move(callback);
 }
 
+void Runtime::ReportTitleLaunched() {
+  title_launched_.store(true, std::memory_order_release);
+}
+
+bool Runtime::IsTitleLaunched() const {
+  return title_launched_.load(std::memory_order_acquire);
+}
+
 void Runtime::ReportTitleExit(runtime::TitleExitReason reason) {
   std::lock_guard lock(title_exit_mutex_);
   if (title_exit_reported_) {
     return;
   }
   title_exit_reported_ = true;
+  title_launched_.store(false, std::memory_order_release);
   if (title_exit_callback_) {
     title_exit_callback_(reason);
   }
