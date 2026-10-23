@@ -590,8 +590,7 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
   } else {
     const runtime::XDBFTitleData db = runtime.GetContentManager().GetTitleXDBF();
     if (db.IsValid()) {
-      const XLanguage language = db.GetSupportedLanguage(
-          ToXLanguage(runtime::GetCurrent().GetConfig().runtime.kernel.user_language));
+      const XLanguage language = db.GetSupportedLanguage(runtime::GetCurrent().GetUserLanguage());
       for (const runtime::XDBFAchievementTableEntry& entry : db.GetAchievements()) {
         auto item = AchievementItems::AchievementDetails{
             entry.id,

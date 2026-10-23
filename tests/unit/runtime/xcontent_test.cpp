@@ -73,6 +73,9 @@ REX_TEST_CASE("a language id outside the language range converts to no language"
   using rex::runtime::XLanguage;
   STATIC_REQUIRE(ToXLanguage(1) == XLanguage::kEnglish);
   STATIC_REQUIRE(ToXLanguage(12) == XLanguage::kRussian);
-  STATIC_REQUIRE(ToXLanguage(13) == XLanguage::kInvalid);
+  STATIC_REQUIRE(ToXLanguage(13) == XLanguage::kSwedish);
+  STATIC_REQUIRE(ToXLanguage(16) == XLanguage::kDutch);
+  STATIC_REQUIRE(ToXLanguage(17) == XLanguage::kSChinese);
+  STATIC_REQUIRE(ToXLanguage(18) == XLanguage::kInvalid);
   STATIC_REQUIRE(ToXLanguage(0x101) == XLanguage::kInvalid);
 }

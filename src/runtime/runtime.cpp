@@ -12,6 +12,7 @@
 #include <rex/platform/exceptions.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/language.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/workspace_heap.h>
 #include <rex/runtime/xam/app_manager.h>
@@ -45,6 +46,18 @@ constexpr u32 kXNotificationSystemInputDevicesChanged = 0x00000012;
 
 rex::Error SetupError(X_STATUS status, std::string message) {
   return {ErrorCategory::kRuntime, std::move(message), static_cast<int>(status)};
+}
+
+runtime::XLanguage ResolveUserLanguage(u32 value, ui::IUserInterface* ui) {
+  if (value == 0) {
+    return ui ? runtime::DetectHostLanguage(*ui) : runtime::XLanguage::kEnglish;
+  }
+  const runtime::XLanguage language = runtime::ToXLanguage(value);
+  if (language == runtime::XLanguage::kInvalid) {
+    REXLOG_WARN(system, "kernel.user_language {} is not a title language, using English", value);
+    return runtime::XLanguage::kEnglish;
+  }
+  return language;
 }
 
 }  // namespace
@@ -119,6 +132,7 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
   tool_mode_ = config.tool_mode;
   video_mode_ = config.video_mode;
   ui_ = config.ui;
+  user_language_ = ResolveUserLanguage(config_.runtime.kernel.user_language, ui_);
 
   memory_ = std::make_unique<runtime::Memory>();
   if (!memory_->Initialize()) {

@@ -1,5 +1,6 @@
 set(REXRUNTIME_SOURCES
     runtime.cpp
+    language.cpp
     error.cpp
     embedded_metadata.cpp
     achievement_manager.cpp

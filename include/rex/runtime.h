@@ -30,6 +30,7 @@
 #include <rex/ppc/func.h>
 #include <rex/runtime/config.h>
 #include <rex/runtime/process.h>
+#include <rex/runtime/xcontent_data.h>
 #include <rex/ui/video_mode.h>
 #include <rex/types.h>
 #include <rex/move_only_function.h>
@@ -251,6 +252,15 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    * @return The interface, or null for a runtime built without one.
    */
   ui::IUserInterface* GetUI() const { return ui_; }
+
+  /**
+   * Returns the language the title sees. Setup resolves KernelConfig::user_language, which follows
+   * the host language for 0 and falls back to English with a warning for a value that is no
+   * XLanguage.
+   *
+   * @return The language, English before Setup.
+   */
+  runtime::XLanguage GetUserLanguage() const { return user_language_; }
 
   /**
    * Builds the memory and every other part the runtime owns.
@@ -503,6 +513,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   std::filesystem::path metadata_root_;
 
   ui::IUserInterface* ui_ = nullptr;
+  runtime::XLanguage user_language_ = runtime::XLanguage::kEnglish;
   bool tool_mode_ = false;
   runtime::VideoMode video_mode_;
   PPCCodegenFlags codegen_flags_{};

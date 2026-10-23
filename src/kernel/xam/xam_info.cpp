@@ -199,16 +199,7 @@ u32 XGetGameRegion_entry() {
 }
 
 u32 XGetLanguage_entry() {
-  auto desired_language = XLanguage::kEnglish;
-
-  u32 game_region = filesystem::kXEXRegionNTSCU;
-  if (game_region & filesystem::kXEXRegionNTSCU) {
-    desired_language = XLanguage::kEnglish;
-  } else if (game_region & filesystem::kXEXRegionNTSCJ) {
-    desired_language = XLanguage::kJapanese;
-  }
-
-  return static_cast<u32>(desired_language);
+  return static_cast<u32>(runtime::GetCurrent().GetUserLanguage());
 }
 
 u32 XamGetCurrentTitleId_entry() {

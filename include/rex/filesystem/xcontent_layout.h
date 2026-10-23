@@ -463,17 +463,19 @@ struct XContentMetadata {
   } description_ex_raw;
 
   /**
-   * Returns the display name in a language.
+   * Returns the display name in a language. Both Simplified Chinese ids read the Simplified
+   * Chinese slot, and a language without a slot reads the English slot.
    *
-   * @param language The language. A language without a slot reads the English slot.
+   * @param language The language.
    * @return The name, empty when the metadata version has no slot for the language.
    */
   [[nodiscard]] REX_API std::u16string GetDisplayName(XLanguage language) const;
 
   /**
-   * Returns the description in a language.
+   * Returns the description in a language. Both Simplified Chinese ids read the Simplified
+   * Chinese slot, and a language without a slot reads the English slot.
    *
-   * @param language The language. A language without a slot reads the English slot.
+   * @param language The language.
    * @return The description, empty when the metadata version has no slot for the language.
    */
   [[nodiscard]] REX_API std::u16string GetDescription(XLanguage language) const;
@@ -493,20 +495,24 @@ struct XContentMetadata {
   [[nodiscard]] REX_API std::u16string GetTitleName() const;
 
   /**
-   * Replaces the display name in a language, truncated to 128 code units.
+   * Replaces the display name in a language, truncated to 128 code units. Both Simplified Chinese
+   * ids write the Simplified Chinese slot.
    *
-   * @param language The language. A language without a slot writes the English slot.
+   * @param language The language.
    * @param value The new name.
-   * @return True when the metadata version has a slot for the language.
+   * @return True when the language and the metadata version have a slot, false and nothing written
+   *         otherwise.
    */
   REX_API bool SetDisplayName(XLanguage language, std::u16string_view value);
 
   /**
-   * Replaces the description in a language, truncated to 128 code units.
+   * Replaces the description in a language, truncated to 128 code units. Both Simplified Chinese
+   * ids write the Simplified Chinese slot.
    *
-   * @param language The language. A language without a slot writes the English slot.
+   * @param language The language.
    * @param value The new description.
-   * @return True when the metadata version has a slot for the language.
+   * @return True when the language and the metadata version have a slot, false and nothing written
+   *         otherwise.
    */
   REX_API bool SetDescription(XLanguage language, std::u16string_view value);
 

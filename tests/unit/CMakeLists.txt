@@ -119,6 +119,7 @@ add_executable(
   core/fat_timestamp_test.cpp
   core/storage_file_test.cpp
   core/host_paths_test.cpp
+  core/xcontent_language_test.cpp
   core/host_file_io_test.cpp
   core/cli_action_test.cpp
   core/cli_arg_list_test.cpp
@@ -173,6 +174,7 @@ add_executable(
   runtime/function_dispatcher_test.cpp
   runtime/call_test.cpp
   runtime/call_usage_lookup_test.cpp
+  runtime/language_test.cpp
   runtime/thread_wait_test.cpp
   runtime/runtime_error_test.cpp
   runtime/runtime_interfaces_test.cpp

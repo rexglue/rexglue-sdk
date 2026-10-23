@@ -21,7 +21,7 @@ namespace rex::runtime {
 struct KernelConfig {
   /** XAM UI exports answer without a dialog. */
   bool headless = false;
-  /** XCONFIG_USER_LANGUAGE. */
+  /** XCONFIG_USER_LANGUAGE as an XLanguage id, 0 follows the host language. */
   u32 user_language = 1;
   /** XCONFIG_USER_COUNTRY. */
   u32 user_country = 103;

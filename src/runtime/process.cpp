@@ -225,8 +225,7 @@ void Runtime::LoadAchievements() {
 
   const runtime::XDBFTitleData db = content_manager_->GetTitleXDBF();
   if (db.IsValid()) {
-    const XLanguage language =
-        db.GetSupportedLanguage(ToXLanguage(config_.runtime.kernel.user_language));
+    const XLanguage language = db.GetSupportedLanguage(user_language_);
     for (const auto& entry : db.GetAchievements()) {
       Achievement info;
       info.id = entry.id;

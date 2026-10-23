@@ -29,22 +29,29 @@ namespace rex::runtime {
 /** Notification id, whose bit fields `XNotificationKey` splits. */
 using XNotificationID = u32;
 
-/** Title language ids. */
+/**
+ * Title language ids, the XC_LANGUAGE_ values of the XDK header xconfig.h.
+ */
 enum class XLanguage : u8 {
-  kInvalid = 0,      /**< No language. */
-  kEnglish = 1,      /**< English. */
-  kJapanese = 2,     /**< Japanese. */
-  kGerman = 3,       /**< German. */
-  kFrench = 4,       /**< French. */
-  kSpanish = 5,      /**< Spanish. */
-  kItalian = 6,      /**< Italian. */
-  kKorean = 7,       /**< Korean. */
-  kTChinese = 8,     /**< Traditional Chinese. */
-  kPortuguese = 9,   /**< Portuguese. */
-  kSChinese = 10,    /**< Simplified Chinese. */
-  kPolish = 11,      /**< Polish. */
-  kRussian = 12,     /**< Russian. */
-  kMaxLanguages = 13 /**< Number of language ids, not a language. */
+  kInvalid = 0,             /**< No language. */
+  kEnglish = 1,             /**< English. */
+  kJapanese = 2,            /**< Japanese. */
+  kGerman = 3,              /**< German. */
+  kFrench = 4,              /**< French. */
+  kSpanish = 5,             /**< Spanish. */
+  kItalian = 6,             /**< Italian. */
+  kKorean = 7,              /**< Korean. */
+  kTChinese = 8,            /**< Traditional Chinese. */
+  kPortuguese = 9,          /**< Portuguese. */
+  kSChineseDeprecated = 10, /**< Placeholder the SDK keeps for backward compatibility. */
+  kPolish = 11,             /**< Polish. */
+  kRussian = 12,            /**< Russian. */
+  kSwedish = 13,            /**< Swedish. */
+  kTurkish = 14,            /**< Turkish. */
+  kNorwegian = 15,          /**< Norwegian Bokmal. */
+  kDutch = 16,              /**< Dutch. */
+  kSChinese = 17,           /**< Simplified Chinese. */
+  kMaxLanguages = 18        /**< Number of language ids, not a language. */
 };
 
 /**

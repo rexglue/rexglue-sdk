@@ -1,4 +1,16 @@
+/**
+ * @file        core/filesystem/xcontent.cpp
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
 #include <rex/filesystem/xcontent_layout.h>
+
+#include <optional>
 
 #include <rex/math.h>
 #include <rex/string.h>
@@ -15,12 +27,19 @@ std::u16string ReadBigEndian(const be_u16* units, size_t count) {
   return result;
 }
 
-u32 LanguageSlot(XLanguage language) {
+std::optional<u32> FindLanguageSlot(XLanguage language) {
+  if (language == XLanguage::kSChinese) {
+    language = XLanguage::kSChineseDeprecated;
+  }
   const u32 slot = static_cast<u32>(language) - 1;
-  if (slot >= XContentMetadata::kNumLanguagesV2) {
-    return std::to_underlying(XLanguage::kEnglish) - 1;
+  if (language == XLanguage::kInvalid || slot >= XContentMetadata::kNumLanguagesV2) {
+    return std::nullopt;
   }
   return slot;
+}
+
+u32 LanguageSlot(XLanguage language) {
+  return FindLanguageSlot(language).value_or(std::to_underlying(XLanguage::kEnglish) - 1);
 }
 
 }  // namespace
@@ -56,7 +75,11 @@ std::u16string XContentMetadata::GetTitleName() const {
 }
 
 bool XContentMetadata::SetDisplayName(XLanguage language, std::u16string_view value) {
-  const u32 slot = LanguageSlot(language);
+  const std::optional<u32> found = FindLanguageSlot(language);
+  if (!found) {
+    return false;
+  }
+  const u32 slot = *found;
   char16_t* destination = nullptr;
   if (slot < kNumLanguagesV1) {
     destination = display_name_raw.chars[slot];
@@ -71,7 +94,11 @@ bool XContentMetadata::SetDisplayName(XLanguage language, std::u16string_view va
 }
 
 bool XContentMetadata::SetDescription(XLanguage language, std::u16string_view value) {
-  const u32 slot = LanguageSlot(language);
+  const std::optional<u32> found = FindLanguageSlot(language);
+  if (!found) {
+    return false;
+  }
+  const u32 slot = *found;
   char16_t* destination = nullptr;
   if (slot < kNumLanguagesV1) {
     destination = description_raw.chars[slot];

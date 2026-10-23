@@ -582,7 +582,8 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
   ach->add_option("--language", ach_args->language,
                   "Language ID to extract strings for (1=English, 2=Japanese, 3=German, "
                   "4=French, 5=Spanish, 6=Italian, 7=Korean, 8=TChinese, 9=Portuguese, "
-                  "10=SChinese, 11=Polish, 12=Russian. Default is English)");
+                  "11=Polish, 12=Russian, 13=Swedish, 14=Turkish, 15=Norwegian, 16=Dutch, "
+                  "17=SChinese. Default is English)");
   ach->callback([ach_args, &ctx, &pending]() {
     pending = [ach_args, &ctx]() -> Result<void> {
       InitAchievementsOptions opts;

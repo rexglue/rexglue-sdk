@@ -72,8 +72,7 @@ X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer
           break;
         case 0x0009:
           setting_size = 4;
-          memory::store<be_u32>(value,
-                                runtime::GetCurrent().GetConfig().runtime.kernel.user_language);
+          memory::store<be_u32>(value, static_cast<u32>(runtime::GetCurrent().GetUserLanguage()));
           break;
         case 0x000A:
           setting_size = 4;
