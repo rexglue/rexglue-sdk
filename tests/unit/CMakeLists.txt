@@ -133,6 +133,7 @@ add_executable(
   core/mmio_test.cpp
   core/module_loader_test.cpp
   core/move_only_function_test.cpp
+  core/profile_macros_test.cpp
   core/relaunch_test.cpp
   core/posix_wait_test.cpp
   core/thread_redirect_test.cpp
@@ -353,6 +354,19 @@ set_target_properties(unit_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FI
 if (UNIX AND NOT APPLE)
   set_target_properties(unit_tests PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
 endif ()
+
+add_library(
+  profile-macros-enabled OBJECT EXCLUDE_FROM_ALL core/profile_macros_on/profiling_enabled.cpp
+)
+target_link_libraries(profile-macros-enabled PRIVATE rexcore)
+add_test(NAME "unit.compile: profiling macros compile with profiling enabled"
+         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG> --target
+                 profile-macros-enabled
+)
+set_tests_properties(
+  "unit.compile: profiling macros compile with profiling enabled" PROPERTIES RESOURCE_LOCK
+                                                                             nested_build
+)
 
 add_library(stack-frame-push-value OBJECT EXCLUDE_FROM_ALL ppc/stack_frame_fail/push_value.cpp)
 target_link_libraries(stack-frame-push-value PRIVATE rexruntime)
