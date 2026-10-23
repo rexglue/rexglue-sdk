@@ -3100,7 +3100,9 @@ void PipelineCache::StorageWriteThread() {
         storage_write_flush_pipelines_ = false;
         flush_pipelines = true;
       }
-      if (!shader && !write_pipeline) {
+      // A flush taken from the request flags runs at the top of the loop; waiting first would
+      // leave the written data in the stdio buffer until the next storage request.
+      if (!shader && !write_pipeline && !flush_shaders && !flush_pipelines) {
         storage_write_request_cond_.wait(lock);
         continue;
       }
