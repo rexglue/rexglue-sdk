@@ -108,6 +108,18 @@ REX_API void Write(const Category& category, Level level, std::string_view text)
 REX_API void WriteFailure(const Category& category, const char* what) noexcept;
 
 /**
+ * Formats the arguments and writes the message. A throw while formatting or writing becomes a
+ * WriteFailure line.
+ *
+ * @param category The category.
+ * @param level The message level.
+ * @param fmt The format string.
+ * @param args The type erased format arguments.
+ */
+REX_API void WriteArgs(const Category& category, Level level, std::string_view fmt,
+                       std::format_args args) noexcept;
+
+/**
  * Formats and writes a message. A throw while formatting or writing becomes a WriteFailure line.
  *
  * @tparam Args Format argument types.
@@ -119,13 +131,7 @@ REX_API void WriteFailure(const Category& category, const char* what) noexcept;
 template <typename... Args>
 void WriteFormatted(const Category& category, Level level, std::format_string<Args...> fmt,
                     Args&&... args) noexcept {
-  try {
-    Write(category, level, std::format(fmt, std::forward<Args>(args)...));
-  } catch (const std::exception& error) {
-    WriteFailure(category, error.what());
-  } catch (...) {
-    WriteFailure(category, "unknown exception");
-  }
+  WriteArgs(category, level, fmt.get(), std::make_format_args(args...));
 }
 
 /**

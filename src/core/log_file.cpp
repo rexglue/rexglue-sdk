@@ -112,10 +112,11 @@ std::filesystem::path ResolveLogFile(const LogFileConfig& config) {
       config.name.empty() ? platform::GetExecutablePath().stem().string() : config.name;
   std::error_code ec;
   std::filesystem::create_directories(folder, ec);
+  const std::filesystem::path next = NextRun(folder, name);
   if (config.folder_budget > 0) {
     PruneFolder(folder, std::format("{}_", name), config.folder_budget);
   }
-  return NextRun(folder, name);
+  return next;
 }
 
 }  // namespace rex::log

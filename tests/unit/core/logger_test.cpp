@@ -253,12 +253,17 @@ REX_TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pr
   REQUIRE(first.GetFilePath().filename() == "run_001.log");
   REXLOG_ERROR(core, "{}", std::string(4096, 'x'));
   rex::Shutdown();
+  REQUIRE(ReadText(temp.path / "run_001.log").find(std::string(4096, 'x')) != std::string::npos);
   rex::ILogger& second = Start(config);
   REQUIRE(second.GetFilePath().filename() == "run_002.log");
+  REXLOG_ERROR(core, "second run");
   rex::Shutdown();
   config.log.file.folder_budget = 1;
-  Start(config);
+  rex::ILogger& third = Start(config);
+  REQUIRE(third.GetFilePath().filename() == "run_003.log");
+  REXLOG_ERROR(core, "third run");
   REQUIRE_FALSE(std::filesystem::exists(temp.path / "run_001.log"));
+  REQUIRE_FALSE(std::filesystem::exists(temp.path / "run_002.log"));
 }
 
 REX_TEST_CASE("A capture sink returns only newer messages and keeps its capacity",

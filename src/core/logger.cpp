@@ -85,6 +85,17 @@ void Write(const Category& category, Level level, std::string_view text) {
   GetLoggerInstance().Write(category, level, text);
 }
 
+void WriteArgs(const Category& category, Level level, std::string_view fmt,
+               std::format_args args) noexcept {
+  try {
+    Write(category, level, std::vformat(fmt, args));
+  } catch (const std::exception& error) {
+    WriteFailure(category, error.what());
+  } catch (...) {
+    WriteFailure(category, "unknown exception");
+  }
+}
+
 void WriteFailure(const Category& category, const char* what) noexcept {
   try {
     Write(category, Level::kError, std::format("log message dropped, {}", what));
