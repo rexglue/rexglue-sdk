@@ -112,6 +112,7 @@ add_executable(
   core/no_throw_test.cpp
   core/fat_timestamp_test.cpp
   core/storage_file_test.cpp
+  core/host_paths_test.cpp
   core/host_file_io_test.cpp
   core/cli_action_test.cpp
   core/cli_arg_list_test.cpp

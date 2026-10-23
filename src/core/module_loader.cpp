@@ -6,6 +6,8 @@
 #include <array>
 #include <charconv>
 #include <cstring>
+#include <limits>
+#include <string>
 
 #include <format>
 
@@ -14,6 +16,7 @@
 #include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/platform.h>
+#include <rex/platform/process.h>
 #include <rex/platform/thread.h>
 
 namespace rex::detail {
@@ -40,6 +43,29 @@ bool SplitRequirement(std::string_view text, std::string& name, u32& version) {
   auto digits = text.substr(at + 1);
   auto [ptr, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), version);
   return ec == std::errc() && ptr == digits.data() + digits.size();
+}
+
+std::string DescribeLimit(u64 value) {
+  return value == std::numeric_limits<u64>::max() ? "unlimited" : std::to_string(value);
+}
+
+void LogOpenFileLimit() {
+  const auto raised = platform::RaiseOpenFileLimit();
+  if (!raised) {
+    REXLOG_WARN(core, "cannot raise the open file limit, {}", raised.error().message);
+    return;
+  }
+  if (raised->hard == 0) {
+    return;
+  }
+  if (raised->after > raised->before) {
+    REXLOG_INFO(core, "open file limit raised from {} to {}, hard limit {}",
+                DescribeLimit(raised->before), DescribeLimit(raised->after),
+                DescribeLimit(raised->hard));
+  } else {
+    REXLOG_INFO(core, "open file limit is {}, hard limit {}", DescribeLimit(raised->after),
+                DescribeLimit(raised->hard));
+  }
 }
 
 }  // namespace
@@ -136,6 +162,7 @@ Result<API*> ModuleLoader::Connect(const Config& config) {
     UnregisterTables();
     return Err<API*>(status.error());
   }
+  LogOpenFileLimit();
   if (auto status = LoadAll(); !status) {
     UnwindAll();
     return Err<API*>(status.error());

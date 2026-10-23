@@ -330,7 +330,7 @@ Result<void> App::Init(const CLIArgList& args) {
     config_.log.file.name = platform::GetExecutablePath().stem().string();
   }
   if (config_.log.file.folder.empty()) {
-    config_.log.file.folder = platform::GetExecutableFolder() / "logs";
+    config_.log.file.folder = log::DefaultLogFolder();
   }
   const std::span<const CLIAction> actions = GetActions();
   if (auto valid = ValidateCLIActions(actions); !valid) {

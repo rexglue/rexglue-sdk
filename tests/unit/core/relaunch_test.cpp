@@ -9,8 +9,19 @@
  */
 
 #include "rex_test.h"
+#include "temp_folder.h"
+
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <thread>
+#include <vector>
 
 #include <rex/platform.h>
+#include <rex/platform/env.h>
+#include <rex/platform/file.h>
+#include <rex/platform/process.h>
 
 #if REX_PLATFORM_WIN32
 
@@ -43,3 +54,44 @@ REX_TEST_CASE("BuildCommandLine round trips through CommandLineToArgvW", "[core]
 }
 
 #endif
+
+REX_TEST_CASE("A relaunched process reports its directory", "[.][relaunch_child]") {
+  const auto report = rex::platform::GetEnvironmentValue("REX_RELAUNCH_REPORT");
+  if (!report) {
+    return;
+  }
+  std::ofstream(*report) << std::filesystem::current_path().string();
+}
+
+REX_TEST_CASE("Relaunch starts the given executable in the given directory", "[core][relaunch]") {
+  rex::test::TempFolder folder;
+  const std::filesystem::path directory = folder.path / "work";
+  std::filesystem::create_directories(directory);
+  const std::filesystem::path report = folder.path / "report.txt";
+  REQUIRE(rex::platform::SetEnvironmentValue("REX_RELAUNCH_REPORT", report.string()));
+  const std::vector<std::string> args{"A relaunched process reports its directory"};
+  const auto launched =
+      rex::platform::Relaunch(rex::platform::GetExecutablePath(), args, directory);
+  rex::platform::UnsetEnvironmentValue("REX_RELAUNCH_REPORT");
+  REQUIRE(launched);
+  std::string reported;
+  for (int attempt = 0; attempt < 600 && reported.empty(); ++attempt) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::ifstream in(report);
+    std::getline(in, reported);
+  }
+  REQUIRE_FALSE(reported.empty());
+  CHECK(std::filesystem::equivalent(reported, directory));
+}
+
+REX_TEST_CASE("Relaunch of a missing executable or directory fails", "[core][relaunch]") {
+  rex::test::TempFolder folder;
+  const std::vector<std::string> args;
+  const auto missing_exe = rex::platform::Relaunch(folder.path / "missing", args);
+  REQUIRE_FALSE(missing_exe);
+  CHECK(missing_exe.error().category == rex::ErrorCategory::kPlatform);
+  const auto missing_directory =
+      rex::platform::Relaunch(rex::platform::GetExecutablePath(), args, folder.path / "missing");
+  REQUIRE_FALSE(missing_directory);
+  CHECK(missing_directory.error().category == rex::ErrorCategory::kPlatform);
+}

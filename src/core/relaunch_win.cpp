@@ -44,6 +44,24 @@ void AppendQuoted(std::wstring& command, std::wstring_view arg) {
   command += L'"';
 }
 
+Result<void> Spawn(const std::filesystem::path& exe, std::span<const std::string> args,
+                   const std::filesystem::path& working_directory) {
+  std::wstring command = detail::BuildCommandLine(exe.wstring(), args);
+  STARTUPINFOW startup{};
+  startup.cb = sizeof(startup);
+  PROCESS_INFORMATION process{};
+  if (!CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr,
+                      working_directory.empty() ? nullptr : working_directory.c_str(), &startup,
+                      &process)) {
+    return Err<void>(ErrorCategory::kPlatform,
+                     std::format("CreateProcessW failed ({})", GetLastError()));
+  }
+  AllowSetForegroundWindow(process.dwProcessId);
+  CloseHandle(process.hThread);
+  CloseHandle(process.hProcess);
+  return Ok();
+}
+
 }  // namespace
 
 std::wstring detail::BuildCommandLine(std::wstring_view exe, std::span<const std::string> args) {
@@ -55,20 +73,13 @@ std::wstring detail::BuildCommandLine(std::wstring_view exe, std::span<const std
 }
 
 [[nodiscard]] Result<void> Relaunch(std::span<const std::string> args) {
-  const std::wstring exe = platform::GetExecutablePath().wstring();
-  std::wstring command = detail::BuildCommandLine(exe, args);
-  STARTUPINFOW startup{};
-  startup.cb = sizeof(startup);
-  PROCESS_INFORMATION process{};
-  if (!CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr,
-                      &startup, &process)) {
-    return Err<void>(ErrorCategory::kPlatform,
-                     std::format("CreateProcessW failed ({})", GetLastError()));
-  }
-  AllowSetForegroundWindow(process.dwProcessId);
-  CloseHandle(process.hThread);
-  CloseHandle(process.hProcess);
-  return Ok();
+  return Spawn(platform::GetExecutablePath(), args, {});
+}
+
+[[nodiscard]] Result<void> Relaunch(const std::filesystem::path& exe,
+                                    std::span<const std::string> args,
+                                    const std::filesystem::path& working_directory) {
+  return Spawn(exe, args, working_directory);
 }
 
 bool CanRelaunch() {

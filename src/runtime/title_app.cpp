@@ -18,6 +18,7 @@
 #include <rex/kernel/init.h>
 #include <rex/kernel/shim/heap.h>
 #include <rex/logging/log.h>
+#include <rex/paths.h>
 #include <rex/platform.h>
 #include <rex/platform/file.h>
 #include <rex/platform/thread.h>
@@ -130,9 +131,11 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImage& image) {
   const std::string name = exe.stem().string();
   Config& cfg = GetConfig();
   cfg.modules = {"rexapu-sdl3", "rexhid-sdl3", "rexgpu-xenos", "rexui-sdl3"};
-  cfg.paths.user_data_root = platform::GetUserFolder() / name;
-  cfg.paths.cache_root = cfg.paths.user_data_root / "cache";
-  cfg.paths.config_file = exe.parent_path() / (name + ".toml");
+  auto resolved = ResolvePaths(cfg.paths, name);
+  if (!resolved) {
+    return std::unexpected(std::move(resolved.error()));
+  }
+  cfg.paths = std::move(*resolved);
   REX_TRY_VOID(App::Init(args));
   ui_ = GetAPI().Get<IUserInterface>();
   if (!ui_) {

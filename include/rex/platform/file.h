@@ -14,6 +14,7 @@
 #include <fstream>
 #include <ios>
 #include <span>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <vector>
@@ -45,6 +46,56 @@ REX_API std::filesystem::path GetExecutableFolder();
  * @return Documents on Windows, the XDG data home on Linux and macOS.
  */
 REX_API std::filesystem::path GetUserFolder();
+
+/**
+ * Reports whether the application runs from a package that cannot be written, an AppImage or a
+ * macOS app bundle.
+ *
+ * @return True for an AppImage run or a macOS app bundle, false on Windows and for a loose build.
+ */
+[[nodiscard]] REX_API bool IsPackagedApp();
+
+/**
+ * Returns the host folder for per user configuration of an application.
+ *
+ * @param app_name The application name, made safe for a folder name by SanitizeFolderName.
+ * @return The name joined onto the roaming application data folder on Windows, Application Support
+ *         on macOS, or XDG_CONFIG_HOME falling back to .config in the home folder elsewhere. Empty
+ *         when the host reports no folder or nothing is left of the name.
+ */
+[[nodiscard]] REX_API std::filesystem::path GetUserConfigFolder(std::string_view app_name);
+
+/**
+ * Returns the folder an application keeps its own writable files in, such as logs.
+ *
+ * @param app_name The application name, used when the executable folder cannot be used.
+ * @return The executable folder, or GetUserConfigFolder when IsPackagedApp is true or the
+ *         executable folder is not writable. Empty when that fallback gives no folder. Creates
+ *         nothing.
+ */
+[[nodiscard]] REX_API std::filesystem::path GetAppRoot(std::string_view app_name);
+
+/**
+ * Reports whether a file can be created in a folder.
+ *
+ * @param dir The host folder.
+ * @return True when a temporary file was created and removed, false for a missing folder, a path
+ * that is not a folder, or a folder the process cannot write to.
+ */
+[[nodiscard]] REX_API bool IsDirectoryWritable(const std::filesystem::path& dir);
+
+/**
+ * Turns a name into a folder name that is safe on every host. Removes control characters, path
+ * separators, colons, angle brackets, quotes, pipes, question marks and asterisks, trims spaces and
+ * dots from both ends, and appends an underscore to the base name of a Windows device name such as
+ * CON or COM1.
+ *
+ * @param name The raw name.
+ * @param fallback The result when nothing is left of the name.
+ * @return The safe name, or the fallback.
+ */
+[[nodiscard]] REX_API std::string SanitizeFolderName(std::string_view name,
+                                                     std::string_view fallback = "default");
 
 /**
  * Reads a host file into memory.

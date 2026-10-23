@@ -1,10 +1,15 @@
 #include <rex/platform/file.h>
 
+#include <atomic>
+#include <format>
 #include <string>
+#include <system_error>
 
 #include "../platform_win.h"
 
 #include <shlobj.h>
+
+#include <rex/string.h>
 
 namespace rex::platform {
 
@@ -33,6 +38,41 @@ std::filesystem::path GetUserFolder() {
   }
   CoTaskMemFree(path);
   return result;
+}
+
+bool IsPackagedApp() {
+  return false;
+}
+
+std::filesystem::path GetUserConfigFolder(std::string_view app_name) {
+  const std::string name = SanitizeFolderName(app_name, {});
+  if (name.empty()) {
+    return {};
+  }
+  std::filesystem::path result;
+  PWSTR path = nullptr;
+  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, nullptr, &path))) {
+    result.assign(path);
+  }
+  CoTaskMemFree(path);
+  return result.empty() ? result : result / to_path(name);
+}
+
+bool IsDirectoryWritable(const std::filesystem::path& dir) {
+  std::error_code ec;
+  if (!std::filesystem::is_directory(dir, ec)) {
+    return false;
+  }
+  static std::atomic<u32> counter{0};
+  const std::filesystem::path temp_file =
+      dir / std::format(L".rex_write_check_{}_{}", GetCurrentProcessId(), counter.fetch_add(1));
+  const HANDLE file = CreateFileW(temp_file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
+                                  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
+  if (file == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+  CloseHandle(file);
+  return true;
 }
 
 }  // namespace rex::platform

@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <span>
 #include <string>
@@ -77,10 +78,48 @@ class REX_API InstanceLock : public MoveOnly {
 [[nodiscard]] REX_API Result<void> Relaunch(std::span<const std::string> args);
 
 /**
+ * Starts an executable as a new process and returns without waiting. It fails when the executable
+ * cannot be started or the directory does not exist.
+ *
+ * @param exe The executable to launch.
+ * @param args Arguments after the executable.
+ * @param working_directory The start directory of the new process, the current one when empty.
+ * @return Ok, or ErrorCategory::kPlatform with the OS error.
+ */
+[[nodiscard]] REX_API Result<void> Relaunch(const std::filesystem::path& exe,
+                                            std::span<const std::string> args,
+                                            const std::filesystem::path& working_directory = {});
+
+/**
  * Reports whether this process may start a new one.
  *
  * @return True when the platform allows starting a new process.
  */
 REX_API bool CanRelaunch();
+
+/** The open file limit of the process. */
+struct OpenFileLimit {
+  u64 before = 0; /**< The soft limit before the call, 0 where the host has no such limit. */
+  u64 after = 0;  /**< The soft limit after the call, 0 where the host has no such limit. */
+  u64 hard = 0;   /**< The hard limit, the largest u64 when unlimited, 0 where there is no limit. */
+};
+
+/**
+ * Raises the soft open file limit of the process to its hard limit, or to 10240 when the hard limit
+ * is unlimited or the host refuses the hard limit. Child processes inherit the new limit. A host
+ * without a per process limit, Windows, gives zeros and changes nothing.
+ *
+ * @return The limits, or ErrorCategory::kPlatform with the OS error when the limit cannot be read
+ *         or raised.
+ */
+[[nodiscard]] REX_API Result<OpenFileLimit> RaiseOpenFileLimit();
+
+/**
+ * Describes how much of the host resources this process uses, for logging when something runs out.
+ *
+ * @return On Linux the open descriptors and memory maps with their limits, on macOS the open
+ *         descriptors and memory regions, on Windows the handle count.
+ */
+[[nodiscard]] REX_API std::string DescribeResourceUse();
 
 }  // namespace rex::platform

@@ -235,6 +235,13 @@ Logger& GetLoggerInstance();
 void* GetLoggerInterface();
 
 /**
+ * Returns the log folder a policy without one uses, the logs folder of the application root.
+ *
+ * @return The folder, which is not created.
+ */
+std::filesystem::path DefaultLogFolder();
+
+/**
  * Picks the log file of a policy, creating its folder and pruning older runs.
  *
  * @param config The file policy.

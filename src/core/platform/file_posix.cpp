@@ -1,9 +1,12 @@
 #include <rex/platform/file.h>
 
 #include <array>
+#include <atomic>
+#include <format>
 #include <string>
 #include <system_error>
 
+#include <fcntl.h>
 #include <pwd.h>
 #include <unistd.h>
 
@@ -40,12 +43,11 @@ std::filesystem::path GetExecutablePath() {
 #endif
 }
 
-std::filesystem::path GetUserFolder() {
-  if (auto xdg = GetEnvironmentValue("XDG_DATA_HOME")) {
-    return {*xdg};
-  }
-  if (auto home = GetEnvironmentValue("HOME")) {
-    return std::filesystem::path(*home) / ".local" / "share";
+namespace {
+
+std::filesystem::path GetHomeFolder() {
+  if (auto home = GetEnvironmentValue("HOME"); home && !home->empty()) {
+    return {*home};
   }
   passwd entry{};
   passwd* found = nullptr;
@@ -53,7 +55,73 @@ std::filesystem::path GetUserFolder() {
   if (getpwuid_r(getuid(), &entry, buffer.data(), buffer.size(), &found) != 0 || !found) {
     return {};
   }
-  return std::filesystem::path(found->pw_dir) / ".local" / "share";
+  return {found->pw_dir};
+}
+
+#if defined(__APPLE__)
+bool IsMacAppBundle() {
+  const std::filesystem::path executable_dir = GetExecutableFolder();
+  if (executable_dir.filename() != "MacOS") {
+    return false;
+  }
+  const std::filesystem::path contents_dir = executable_dir.parent_path();
+  return contents_dir.filename() == "Contents" && contents_dir.parent_path().extension() == ".app";
+}
+#endif
+
+}  // namespace
+
+std::filesystem::path GetUserFolder() {
+  if (auto xdg = GetEnvironmentValue("XDG_DATA_HOME"); xdg && !xdg->empty()) {
+    return {*xdg};
+  }
+  const std::filesystem::path home = GetHomeFolder();
+  return home.empty() ? home : home / ".local" / "share";
+}
+
+bool IsPackagedApp() {
+  if (GetEnvironmentValue("APPIMAGE")) {
+    return true;
+  }
+#if defined(__APPLE__)
+  return IsMacAppBundle();
+#else
+  return false;
+#endif
+}
+
+std::filesystem::path GetUserConfigFolder(std::string_view app_name) {
+  const std::string name = SanitizeFolderName(app_name, {});
+  if (name.empty()) {
+    return {};
+  }
+#if defined(__APPLE__)
+  const std::filesystem::path home = GetHomeFolder();
+  return home.empty() ? home : home / "Library" / "Application Support" / name;
+#else
+  if (auto xdg = GetEnvironmentValue("XDG_CONFIG_HOME"); xdg && !xdg->empty()) {
+    return std::filesystem::path(*xdg) / name;
+  }
+  const std::filesystem::path home = GetHomeFolder();
+  return home.empty() ? home : home / ".config" / name;
+#endif
+}
+
+bool IsDirectoryWritable(const std::filesystem::path& dir) {
+  std::error_code ec;
+  if (!std::filesystem::is_directory(dir, ec)) {
+    return false;
+  }
+  static std::atomic<u32> counter{0};
+  const std::filesystem::path temp_file =
+      dir / std::format(".rex_write_check_{}_{}", getpid(), counter.fetch_add(1));
+  const int fd = ::open(temp_file.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+  if (fd < 0) {
+    return false;
+  }
+  ::close(fd);
+  ::unlink(temp_file.c_str());
+  return true;
 }
 
 }  // namespace rex::platform

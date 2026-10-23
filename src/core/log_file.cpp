@@ -94,6 +94,12 @@ std::filesystem::path NextRun(const std::filesystem::path& folder, std::string_v
 
 }  // namespace
 
+std::filesystem::path DefaultLogFolder() {
+  const std::filesystem::path root =
+      platform::GetAppRoot(platform::GetExecutablePath().stem().string());
+  return (root.empty() ? platform::GetExecutableFolder() : root) / "logs";
+}
+
 std::filesystem::path ResolveLogFile(const LogFileConfig& config) {
   if (!config.enabled) {
     return {};
@@ -101,8 +107,7 @@ std::filesystem::path ResolveLogFile(const LogFileConfig& config) {
   if (!config.path.empty()) {
     return config.path;
   }
-  const std::filesystem::path folder =
-      config.folder.empty() ? platform::GetExecutableFolder() / "logs" : config.folder;
+  const std::filesystem::path folder = config.folder.empty() ? DefaultLogFolder() : config.folder;
   const std::string name =
       config.name.empty() ? platform::GetExecutablePath().stem().string() : config.name;
   std::error_code ec;
