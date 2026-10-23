@@ -54,6 +54,15 @@ REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1)
   [[nodiscard]] virtual Result<X_INPUT_CAPABILITIES> GetCapabilities(u32 user, u32 flags) = 0;
 
   /**
+   * Reads the identity of the pad a user holds.
+   *
+   * @param user Title user 0 to 3.
+   * @return The pad type, vendor and product, or a HID error. NotConnected when the user holds no
+   *         pad, a keyboard and mouse is not a pad.
+   */
+  [[nodiscard]] virtual Result<PadInfo> GetPadInfo(u32 user) = 0;
+
+  /**
    * Reads the merged pad state of a user. Neutral while a UI block is held.
    *
    * @param user Title user 0 to 3.
@@ -220,6 +229,14 @@ class REX_API NullHIDBackend final : public IHIDBackend {
    * @return The capabilities on user 0, NotConnected on any other.
    */
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetCapabilities(u32 user, u32 flags) override;
+
+  /**
+   * Reports that the idle pad is not a pad.
+   *
+   * @param user Title user 0 to 3.
+   * @return NotConnected.
+   */
+  [[nodiscard]] Result<PadInfo> GetPadInfo(u32 user) override;
 
   /**
    * Reads the idle pad. The first read on user 0 reports it connected.

@@ -52,6 +52,9 @@ bool SlotForDevice(rex::hid::DeviceId id, u32* out_slot) {
 constexpr u64 kSkipInvalidControllerTime = 1100;
 u64 g_last_invalid_time[kXInputSlotCount];
 
+/** Milliseconds between checks for a pad that was plugged in or removed. */
+constexpr u64 kPollIntervalMillis = 500;
+
 DWORD SkipError(u32 user_index) {
   u64 time = g_last_invalid_time[user_index];
   if (time) {
@@ -92,6 +95,32 @@ Result<void> XInputDriver::Setup() {
   return Ok();
 }
 
+u64 XInputDriver::GetDeviceRevision() {
+  auto get_capabilities = get_capabilities_;
+  const u64 now = rex::Clock::QueryHostUptimeMillis();
+  if (get_capabilities && (last_poll_ == 0 || now - last_poll_ >= kPollIntervalMillis)) {
+    last_poll_ = now;
+    u32 connected = 0;
+    for (u32 slot = 0; slot < kXInputSlotCount; slot++) {
+      if (SkipError(slot)) {
+        continue;
+      }
+      XINPUT_CAPABILITIES native_caps;
+      DWORD result = get_capabilities(slot, 0, &native_caps);
+      if (result == ERROR_DEVICE_NOT_CONNECTED) {
+        SetSkip(slot);
+      } else if (!result) {
+        connected |= 1u << slot;
+      }
+    }
+    if (connected != connected_slots_) {
+      connected_slots_ = connected;
+      NotifyDevicesChanged();
+    }
+  }
+  return Driver::GetDeviceRevision();
+}
+
 void XInputDriver::EnumerateDevices(std::vector<Device>& out) {
   auto get_capabilities = get_capabilities_;
   if (!get_capabilities) {
@@ -113,6 +142,7 @@ void XInputDriver::EnumerateDevices(std::vector<Device>& out) {
     info.id = DeviceForSlot(slot);
     info.name = "XInput Controller";
     info.subtype = static_cast<u8>(native_caps.SubType);
+    info.pad.type = PadType::kX360;
     info.synthetic = false;
     out.push_back(info);
   }
@@ -201,7 +231,16 @@ X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
     return result;
   }
 
-  out_state->packet_number = native_state.state.dwPacketNumber;
+  const bool active = IsActive();
+  if (active != was_active_[user_index]) {
+    was_active_[user_index] = active;
+    ++packet_bias_[user_index];
+  }
+  out_state->packet_number = native_state.state.dwPacketNumber + packet_bias_[user_index];
+  if (!active) {
+    out_state->gamepad = {};
+    return result;
+  }
   out_state->gamepad.buttons = native_state.state.Gamepad.wButtons;
   out_state->gamepad.left_trigger = native_state.state.Gamepad.bLeftTrigger;
   out_state->gamepad.right_trigger = native_state.state.Gamepad.bRightTrigger;
@@ -254,6 +293,9 @@ X_RESULT XInputDriver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_k
     return result;
   }
 
+  if (!IsActive()) {
+    return X_ERROR_EMPTY;
+  }
   out_keystroke->virtual_key = native_keystroke.VirtualKey;
   out_keystroke->unicode = native_keystroke.Unicode;
   out_keystroke->flags = native_keystroke.Flags;

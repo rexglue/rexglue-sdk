@@ -9,6 +9,9 @@ add_executable(
   hid/xam_input_error_test.cpp
   hid/input_assignment_test.cpp
   hid/hub_test.cpp
+  hid/bindings_test.cpp
+  hid/input_source_test.cpp
+  hid/key_capture_test.cpp
   hid/key_chord_test.cpp
   hid/virtual_key_test.cpp
   memory/heap_allocation_test.cpp
@@ -184,6 +187,7 @@ add_executable(
   runtime/cross_module_import_test.cpp
   ui/bind_test.cpp
   ui/console_model_test.cpp
+  ui/hid_attach_test.cpp
   ui/imgui_dialog_test.cpp
   ui/null_user_interface_test.cpp
   ui/prompt_test.cpp

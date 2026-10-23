@@ -59,11 +59,13 @@ class FakeDriver final : public Driver {
     info.synthetic = synthetic;
     devices_.push_back(info);
     states_[static_cast<DeviceId>(id)] = {};
+    NotifyDevicesChanged();
   }
 
   void Remove(rex::u64 id) {
     std::erase_if(devices_, [&](const Device& d) { return d.id == static_cast<DeviceId>(id); });
     states_.erase(static_cast<DeviceId>(id));
+    NotifyDevicesChanged();
   }
 
   void SetButtons(rex::u64 id, rex::u16 buttons) {

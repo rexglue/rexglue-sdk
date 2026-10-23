@@ -76,6 +76,7 @@ class Hub final : public IHIDBackend {
   void RefreshPointerMode();
 
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetCapabilities(u32 user, u32 flags) override;
+  [[nodiscard]] Result<PadInfo> GetPadInfo(u32 user) override;
   [[nodiscard]] Result<X_INPUT_STATE> GetState(u32 user) override;
   [[nodiscard]] Result<void> SetVibration(u32 user, const X_INPUT_VIBRATION& vibration) override;
   [[nodiscard]] Result<X_INPUT_KEYSTROKE> GetKeystroke(u32 user, u32 flags) override;
@@ -106,6 +107,7 @@ class Hub final : public IHIDBackend {
   Driver* DriverForDeviceLocked(DeviceId id);
   const Device* FindDeviceLocked(DeviceId id) const;
   DeviceId ChooseDeviceForUserLocked(u32 user) const;
+  bool HasDeviceLocked(u32 user);
   [[nodiscard]] Result<X_INPUT_STATE> ReadStateLocked(u32 user);
   void UpdateConnectedUserLocked(u32 user, bool connected);
   void AdjustDeadzoneLevels(u32 user, X_INPUT_GAMEPAD& gamepad) const;
@@ -125,6 +127,8 @@ class Hub final : public IHIDBackend {
   ActiveDeviceTracker active_devices_;
   std::vector<Device> devices_;
   std::vector<Driver*> device_owners_;
+  std::vector<u64> revisions_;
+  bool devices_stale_ = true;
   std::bitset<kMaxTitleUsers> connected_users_;
   std::array<std::pair<JoystickValue, JoystickValue>, kMaxTitleUsers> user_max_joystick_value_{};
   std::array<u16, kMaxTitleUsers> consumed_buttons_{};

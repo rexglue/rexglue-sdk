@@ -19,6 +19,10 @@ add_library(
   filesystem/xcontent.cpp
   filesystem/xex.cpp
   hash.cpp
+  hid/bindings.cpp
+  hid/idle_pad_caps.cpp
+  hid/input_source.cpp
+  hid/key_capture.cpp
   hid/key_chord.cpp
   hid/null_backend.cpp
   hid/virtual_key.cpp

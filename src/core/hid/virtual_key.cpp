@@ -127,6 +127,8 @@ constexpr auto kKeyNames = std::to_array<KeyName>({
     {"LMB", VirtualKey::kLButton},
     {"RMB", VirtualKey::kRButton},
     {"MMB", VirtualKey::kMButton},
+    {"Mouse4", VirtualKey::kXButton1},
+    {"Mouse5", VirtualKey::kXButton2},
     {"WheelUp", VirtualKey::kWheelUp},
     {"WheelDown", VirtualKey::kWheelDown},
 });

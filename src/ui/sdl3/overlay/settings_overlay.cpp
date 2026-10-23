@@ -344,10 +344,11 @@ void SettingsOverlayDialog::OnDraw(ImGuiIO& io) {
               break;
             }
           }
-          constexpr rex::hid::VirtualKey kMouseKeys[] = {rex::hid::VirtualKey::kLButton,
-                                                         rex::hid::VirtualKey::kRButton,
-                                                         rex::hid::VirtualKey::kMButton};
-          for (rex::i32 mb = 0; mb < 3; ++mb) {
+          constexpr rex::hid::VirtualKey kMouseKeys[] = {
+              rex::hid::VirtualKey::kLButton, rex::hid::VirtualKey::kRButton,
+              rex::hid::VirtualKey::kMButton, rex::hid::VirtualKey::kXButton1,
+              rex::hid::VirtualKey::kXButton2};
+          for (rex::i32 mb = 0; mb < 5; ++mb) {
             if (ImGui::IsMouseClicked(mb)) {
               WarnIfFailed(
                   desc.name,

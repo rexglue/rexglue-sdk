@@ -164,6 +164,31 @@ u8 GamepadSubType(SDL_Gamepad* gamepad) {
                                 SDL_GetGamepadName(gamepad));
 }
 
+PadType ToPadType(SDL_GamepadType type) {
+  switch (type) {
+    case SDL_GAMEPAD_TYPE_STANDARD:
+      return PadType::kStandard;
+    case SDL_GAMEPAD_TYPE_XBOX360:
+      return PadType::kX360;
+    case SDL_GAMEPAD_TYPE_XBOXONE:
+      return PadType::kXOne;
+    case SDL_GAMEPAD_TYPE_PS3:
+      return PadType::kPS3;
+    case SDL_GAMEPAD_TYPE_PS4:
+      return PadType::kPS4;
+    case SDL_GAMEPAD_TYPE_PS5:
+      return PadType::kPS5;
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+      return PadType::kSwitchPro;
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
+      return PadType::kSwitchJoyCon;
+    default:
+      return PadType::kUnknown;
+  }
+}
+
 }  // namespace
 
 SDL3Driver::SDL3Driver(std::filesystem::path mappings_file)
@@ -205,6 +230,7 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
         return;
       }
       sdl_gamepad_initialized_ = true;
+      NotifyDevicesChanged();
 
       if (!mappings_file_.empty()) {
         auto mappings_path = mappings_file_.is_relative()
@@ -232,6 +258,7 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
       SDL_CloseGamepad(controller.sdl);
     }
     controllers_.clear();
+    NotifyDevicesChanged();
     if (sdl_gamepad_initialized_) {
       SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
       sdl_gamepad_initialized_ = false;
@@ -278,6 +305,9 @@ void SDL3Driver::EnumerateDevices(std::vector<Device>& out) {
                      static_cast<int>(sizeof(guid_text)));
     info.guid = guid_text;
     info.subtype = GamepadSubType(controller.sdl);
+    info.pad.type = ToPadType(SDL_GetGamepadType(controller.sdl));
+    info.pad.vendor = SDL_GetGamepadVendor(controller.sdl);
+    info.pad.product = SDL_GetGamepadProduct(controller.sdl);
     info.synthetic = false;
     out.push_back(info);
   }
@@ -507,6 +537,10 @@ void SDL3Driver::HandleEvent(const SDL_Event& event) {
   if (++sdl_events_unflushed_ > 64) {
     SDL_FlushEvents(SDL_EVENT_JOYSTICK_AXIS_MOTION, SDL_EVENT_FINGER_DOWN - 1);
     sdl_events_unflushed_ = 0;
+  }
+
+  if (event.type == SDL_EVENT_GAMEPAD_ADDED || event.type == SDL_EVENT_GAMEPAD_REMOVED) {
+    NotifyDevicesChanged();
   }
 
   std::lock_guard<std::mutex> guard(event_queue_mutex_);

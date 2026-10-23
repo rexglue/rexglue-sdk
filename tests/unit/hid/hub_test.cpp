@@ -80,8 +80,11 @@ class FakeDriver final : public rex::hid::Driver {
     rex::hid::Device info;
     info.id = static_cast<rex::hid::DeviceId>(7);
     info.name = "Fake controller with a name past the small string buffer";
+    info.pad = pad;
     out.push_back(info);
+    ++enumerations;
   }
+  void Change() { NotifyDevicesChanged(); }
   [[nodiscard]] rex::Result<rex::hid::X_INPUT_STATE> GetDeviceState(rex::hid::DeviceId) override {
     rex::hid::X_INPUT_STATE state{};
     state.gamepad.buttons = buttons;
@@ -99,6 +102,8 @@ class FakeDriver final : public rex::hid::Driver {
                                                                             rex::u32) override {
     return std::unexpected(rex::hid::BuildError(rex::hid::HIDError::kEmpty, "none"));
   }
+  rex::hid::PadInfo pad;
+  int enumerations = 0;
   rex::u16 buttons = 0;
 };
 
@@ -176,6 +181,57 @@ REX_TEST_CASE("Hub frees the pointer while the host holds no capture", "[hid]") 
   CHECK(hub.GetState(0));
   host.RunPosted();
   CHECK(host.applied.back() == PointerMode::kHidden);
+  hub.SetHost(nullptr);
+}
+
+REX_TEST_CASE("Hub hides the pointer for a focused window and forwards pointer input", "[hid]") {
+  Hub hub;
+  FakeHost host;
+  hub.SetHost(&host);
+  hub.OnEvent({.kind = Kind::kResize, .width = 100, .height = 100});
+  hub.OnEvent({.kind = Kind::kFocusGained});
+  hub.SetPointerMode(PointerMode::kHidden);
+  host.RunPosted();
+  REQUIRE(host.applied.back() == PointerMode::kHidden);
+  hub.OnEvent(Motion(10.0f, 20.0f));
+  hub.OnEvent({.kind = Kind::kButtonDown, .button = MouseButton::kLeft, .x = 10.0f, .y = 20.0f});
+  CHECK(hub.TakePointerMoved());
+  CHECK(hub.IsButtonDown(MouseButton::kLeft));
+  hub.OnEvent({.kind = Kind::kButtonUp, .button = MouseButton::kLeft, .x = 10.0f, .y = 20.0f});
+  CHECK_FALSE(hub.IsButtonDown(MouseButton::kLeft));
+  host.RunPosted();
+  CHECK(host.applied.back() == PointerMode::kHidden);
+  hub.SetHost(nullptr);
+}
+
+REX_TEST_CASE("Hub hides a pointer requested while capture was stale on the next poll", "[hid]") {
+  Hub hub;
+  FakeHost host;
+  host.capture = false;
+  hub.SetHost(&host);
+  hub.SetPointerMode(PointerMode::kHidden);
+  host.RunPosted();
+  CHECK(host.applied.empty());
+  host.capture = true;
+  host.RunPosted();
+  CHECK(host.applied.empty());
+  CHECK(hub.GetState(0));
+  host.RunPosted();
+  CHECK(host.applied == std::vector<PointerMode>{PointerMode::kHidden});
+  hub.SetHost(nullptr);
+}
+
+REX_TEST_CASE("Hub hides a pointer requested while capture was stale on the next motion", "[hid]") {
+  Hub hub;
+  FakeHost host;
+  host.capture = false;
+  hub.SetHost(&host);
+  hub.SetPointerMode(PointerMode::kHidden);
+  host.RunPosted();
+  host.capture = true;
+  hub.OnEvent(Motion(10.0f, 20.0f));
+  host.RunPosted();
+  CHECK(host.applied == std::vector<PointerMode>{PointerMode::kHidden});
   hub.SetHost(nullptr);
 }
 
@@ -276,6 +332,18 @@ REX_TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
   CHECK(hub.GetState(0));
   raw->buttons = rex::hid::kXInputGamepadA;
   CHECK(static_cast<rex::u16>(hub.GetState(0)->gamepad.buttons) == rex::hid::kXInputGamepadA);
+}
+
+REX_TEST_CASE("Hub reports a user without a device as not connected while the UI holds input",
+              "[hid]") {
+  Hub hub;
+  hub.AddPadDriver(std::make_unique<FakeDriver>());
+  CHECK(hub.GetState(0));
+  CHECK_FALSE(hub.GetState(1));
+  hub.AcquireUIBlock();
+  CHECK(hub.GetState(0));
+  CHECK_FALSE(hub.GetState(1));
+  hub.ReleaseUIBlock();
 }
 
 REX_TEST_CASE("Hub tells the listener when user 0 connects", "[hid]") {
@@ -397,6 +465,37 @@ REX_TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follo
   registry->Unregister(rex::hid::cvars::kHIDCvars);
 }
 
+REX_TEST_CASE("Keyboard pad binds the extra mouse buttons", "[hid][key_chord]") {
+  auto registry = rex::detail::CreateCvarRegistry();
+  REQUIRE(registry->Register("hid", rex::hid::cvars::kHIDCvars));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, true));
+  Hub hub;
+  rex::hid::KeyboardMouseDriver pad(hub);
+  pad.Attach(*registry);
+  std::vector<rex::hid::Device> devices;
+  pad.EnumerateDevices(devices);
+  REQUIRE(devices.size() == 1);
+  const auto id = devices[0].id;
+  const auto pad_x = std::to_underlying(VirtualKey::kXInputPadX);
+  const auto pad_y = std::to_underlying(VirtualKey::kXInputPadY);
+
+  REQUIRE(registry->Set("hid.keybind_x", "Mouse4"));
+  REQUIRE(registry->Set("hid.keybind_y", "Mouse5"));
+  pad.OnEvent({.kind = Kind::kButtonDown, .button = MouseButton::kX1});
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
+  pad.OnEvent({.kind = Kind::kButtonUp, .button = MouseButton::kX1});
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
+  pad.OnEvent({.kind = Kind::kButtonDown, .button = MouseButton::kX2});
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_y});
+  pad.OnEvent({.kind = Kind::kButtonUp, .button = MouseButton::kX2});
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_y});
+
+  REQUIRE(registry->ResetToDefault("hid.keybind_x"));
+  REQUIRE(registry->ResetToDefault("hid.keybind_y"));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, false));
+  registry->Unregister(rex::hid::cvars::kHIDCvars);
+}
+
 REX_TEST_CASE("Hub serves polls from 4 threads at once", "[hid]") {
   Hub hub;
   hub.AddPadDriver(std::make_unique<FakeDriver>());
@@ -422,4 +521,69 @@ REX_TEST_CASE("Hub serves polls from 4 threads at once", "[hid]") {
   }
   CHECK(answered.load() >= kThreads * kIterations * 3);
   CHECK(hub.GetState(0));
+}
+
+REX_TEST_CASE("Hub lists the devices again only after a driver reports a change", "[hid]") {
+  Hub hub;
+  auto pad = std::make_unique<FakeDriver>();
+  FakeDriver* raw = pad.get();
+  hub.AddPadDriver(std::move(pad));
+  CHECK(hub.GetState(0));
+  const int after_first = raw->enumerations;
+  CHECK(after_first >= 1);
+  for (int i = 0; i < 100; ++i) {
+    CHECK(hub.GetState(0));
+    CHECK(hub.GetCapabilities(0, 0));
+    CHECK(hub.SetVibration(0, rex::hid::X_INPUT_VIBRATION{}));
+    CHECK(hub.GetPadInfo(0));
+  }
+  CHECK(raw->enumerations == after_first);
+  raw->Change();
+  CHECK(hub.GetState(0));
+  CHECK(raw->enumerations == after_first + 1);
+  CHECK(hub.GetState(0));
+  CHECK(raw->enumerations == after_first + 1);
+}
+
+REX_TEST_CASE("Hub reports the type, vendor and product of the pad a user holds", "[hid]") {
+  Hub hub;
+  auto pad = std::make_unique<FakeDriver>();
+  FakeDriver* raw = pad.get();
+  raw->pad = {.type = rex::hid::PadType::kPS5, .vendor = 0x054C, .product = 0x0CE6};
+  hub.AddPadDriver(std::move(pad));
+  const auto info = hub.GetPadInfo(0);
+  REQUIRE(info);
+  CHECK(info->type == rex::hid::PadType::kPS5);
+  CHECK(info->vendor == 0x054C);
+  CHECK(info->product == 0x0CE6);
+  CHECK_FALSE(hub.GetPadInfo(1));
+}
+
+REX_TEST_CASE("Hub reports no pad for a user that holds only a synthetic device", "[hid]") {
+  Hub hub;
+  const auto info = hub.GetPadInfo(0);
+  REQUIRE_FALSE(info);
+  CHECK(rex::hid::CodeOf(info.error()) == rex::hid::HIDError::kNotConnected);
+}
+
+REX_TEST_CASE("Keyboard pad changes its device revision when emulation or passthrough switches",
+              "[hid]") {
+  auto registry = rex::detail::CreateCvarRegistry();
+  REQUIRE(registry->Register("hid", rex::hid::cvars::kHIDCvars));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, false));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_passthrough, false));
+  Hub hub;
+  rex::hid::KeyboardMouseDriver pad(hub);
+  const auto off = pad.GetDeviceRevision();
+  CHECK(pad.GetDeviceRevision() == off);
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, true));
+  const auto on = pad.GetDeviceRevision();
+  CHECK(on != off);
+  CHECK(pad.GetDeviceRevision() == on);
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_passthrough, true));
+  const auto passthrough = pad.GetDeviceRevision();
+  CHECK(passthrough != on);
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_passthrough, false));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, false));
+  registry->Unregister(rex::hid::cvars::kHIDCvars);
 }

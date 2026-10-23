@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string_view>
 
 #include <rex/cvar.h>
 #include <rex/dbg.h>
@@ -24,6 +25,18 @@ rex::Error NotConnected() {
 
 u32 ButtonBit(MouseButton button) {
   return 1u << static_cast<u32>(button);
+}
+
+std::string_view GetPointerModeName(PointerMode mode) {
+  switch (mode) {
+    case PointerMode::kFree:
+      return "free";
+    case PointerMode::kHidden:
+      return "hidden";
+    case PointerMode::kLocked:
+      return "locked";
+  }
+  return "unknown";
 }
 
 }  // namespace
@@ -50,6 +63,7 @@ void Hub::AddPadDriver(std::unique_ptr<Driver> driver) {
   driver->AttachHost(host_.load(std::memory_order_acquire));
   drivers_.insert(drivers_.begin() + static_cast<std::ptrdiff_t>(pad_drivers_), std::move(driver));
   ++pad_drivers_;
+  devices_stale_ = true;
 }
 
 void Hub::ClearPadDrivers() {
@@ -58,6 +72,7 @@ void Hub::ClearPadDrivers() {
   device_owners_.clear();
   drivers_.erase(drivers_.begin(), drivers_.begin() + static_cast<std::ptrdiff_t>(pad_drivers_));
   pad_drivers_ = 0;
+  devices_stale_ = true;
   if (assignment_) {
     assignment_->OnDevicesChanged(devices_);
   }
@@ -72,6 +87,19 @@ void Hub::SetDeviceAssignment(std::unique_ptr<IDeviceAssignment> assignment) {
 }
 
 void Hub::RefreshDevicesLocked() {
+  bool current = !devices_stale_ && revisions_.size() == drivers_.size();
+  for (size_t i = 0; current && i < drivers_.size(); i++) {
+    current = revisions_[i] == drivers_[i]->GetDeviceRevision();
+  }
+  if (current) {
+    return;
+  }
+  revisions_.resize(drivers_.size());
+  for (size_t i = 0; i < drivers_.size(); i++) {
+    revisions_[i] = drivers_[i]->GetDeviceRevision();
+  }
+  devices_stale_ = false;
+
   std::vector<Device> seen;
   std::vector<Driver*> owners;
   std::vector<Device> enumerated;
@@ -185,6 +213,35 @@ DeviceId Hub::ChooseDeviceForUserLocked(u32 user) const {
   return chosen;
 }
 
+Result<PadInfo> Hub::GetPadInfo(u32 user) {
+  REX_PROFILE_SCOPE("hid");
+  std::lock_guard lock(mutex_);
+  if (!assignment_) {
+    return std::unexpected(NotConnected());
+  }
+  RefreshDevicesLocked();
+  std::vector<DeviceId> ids;
+  assignment_->GetDevicesForUser(user, ids);
+  const DeviceId chosen = ChooseDeviceForUserLocked(user);
+  const Device* first_pad = nullptr;
+  for (DeviceId id : ids) {
+    const Device* device = FindDeviceLocked(id);
+    if (!device || device->synthetic) {
+      continue;
+    }
+    if (id == chosen) {
+      return device->pad;
+    }
+    if (!first_pad) {
+      first_pad = device;
+    }
+  }
+  if (first_pad) {
+    return first_pad->pad;
+  }
+  return std::unexpected(NotConnected());
+}
+
 Result<X_INPUT_CAPABILITIES> Hub::GetCapabilities(u32 user, u32 flags) {
   REX_PROFILE_SCOPE("hid");
   std::lock_guard lock(mutex_);
@@ -241,6 +298,9 @@ Result<X_INPUT_STATE> Hub::GetState(u32 user) {
   TrackCapture();
   std::lock_guard lock(mutex_);
   if (ui_blocks_.load() > 0) {
+    if (!HasDeviceLocked(user)) {
+      return std::unexpected(NotConnected());
+    }
     return X_INPUT_STATE{};
   }
   auto state = ReadStateLocked(user);
@@ -250,6 +310,17 @@ Result<X_INPUT_STATE> Hub::GetState(u32 user) {
     state->gamepad.buttons = static_cast<u16>(buttons & ~consumed_buttons_[user]);
   }
   return state;
+}
+
+bool Hub::HasDeviceLocked(u32 user) {
+  if (!assignment_) {
+    return false;
+  }
+  RefreshDevicesLocked();
+  std::vector<DeviceId> ids;
+  assignment_->GetDevicesForUser(user, ids);
+  return std::ranges::any_of(ids,
+                             [this](DeviceId id) { return DriverForDeviceLocked(id) != nullptr; });
 }
 
 Result<X_INPUT_STATE> Hub::ReadStateLocked(u32 user) {
@@ -582,6 +653,13 @@ void Hub::ApplyPointerModeFromUIThread() {
     return;
   }
   relative_ = host->ApplyPointerMode(want);
+  REXLOG_INFO(hid,
+              "pointer mode {} to {}, requested {}, focused {}, capture {}, mouse look {}, "
+              "relative {}",
+              GetPointerModeName(applied_mode_), GetPointerModeName(want),
+              GetPointerModeName(requested_mode_.load(std::memory_order_relaxed)),
+              focused_.load(std::memory_order_relaxed), capture_.load(std::memory_order_relaxed),
+              keyboard_mouse_->IsPointerLockWanted(), relative_);
   if (want == PointerMode::kLocked) {
     lock_x_ = x_.load(std::memory_order_relaxed);
     lock_y_ = y_.load(std::memory_order_relaxed);

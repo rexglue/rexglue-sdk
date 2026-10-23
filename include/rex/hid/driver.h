@@ -35,6 +35,14 @@ class Driver {
   virtual void EnumerateDevices(std::vector<Device>& out) = 0;
 
   /**
+   * Returns a number that differs from the last call whenever the device list changed. The backend
+   * lists the devices again only then. A driver without change events checks its devices here.
+   *
+   * @return The revision of the device list.
+   */
+  virtual u64 GetDeviceRevision() { return revision_.load(std::memory_order_acquire); }
+
+  /**
    * Reads a device.
    *
    * @param id A device of this driver.
@@ -89,6 +97,9 @@ class Driver {
   }
 
  protected:
+  /** Marks the device list as changed. Safe on any thread. */
+  void NotifyDevicesChanged() { revision_.fetch_add(1, std::memory_order_release); }
+
   /**
    * Runs UI thread setup or teardown when the host changes.
    *
@@ -115,6 +126,7 @@ class Driver {
 
  private:
   std::atomic<IInputHost*> host_{nullptr};
+  std::atomic<u64> revision_{1};
 };
 
 }  // namespace rex::hid

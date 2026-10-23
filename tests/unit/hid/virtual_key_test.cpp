@@ -34,6 +34,14 @@ REX_TEST_CASE("Key names round trip", "[hid]") {
   }
 }
 
+REX_TEST_CASE("The extra mouse buttons are named Mouse4 and Mouse5", "[hid]") {
+  CHECK(VirtualKeyToString(VirtualKey::kXButton1) == "Mouse4");
+  CHECK(VirtualKeyToString(VirtualKey::kXButton2) == "Mouse5");
+  CHECK(ParseVirtualKey("Mouse4") == VirtualKey::kXButton1);
+  CHECK(ParseVirtualKey("Mouse5") == VirtualKey::kXButton2);
+  CHECK(ParseVirtualKey("Mouse6") == VirtualKey::kNone);
+}
+
 REX_TEST_CASE("Unknown names and keys map to nothing", "[hid]") {
   CHECK(ParseVirtualKey("") == VirtualKey::kNone);
   CHECK(ParseVirtualKey("NoSuchKey") == VirtualKey::kNone);

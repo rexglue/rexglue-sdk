@@ -119,6 +119,7 @@ Result<IWindow*> SDL3UserInterface::OpenWindow(const UIConfig& config, EventCall
     hid_host_ = std::make_unique<HIDHost>(*this, *window_, *drawer_, *overlays_, *hid_);
     window_->AddListener(hid_host_.get());
     window_->AddInputListener(hid_host_.get(), 0);
+    hid_host_->Attach();
   }
   open_ = true;
   return window_.get();
@@ -379,9 +380,6 @@ void SDL3UserInterface::SetPresenter(gpu::IPresenter* presenter) {
   drawer_->SetPresenterAndOverlayDrawer(presenter, overlay_drawer_.get());
   if (presenter) {
     window_->SetPresenter(presenter);
-    if (hid_host_) {
-      hid_host_->Attach();
-    }
   }
 }
 

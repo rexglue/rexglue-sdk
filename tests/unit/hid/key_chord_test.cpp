@@ -60,6 +60,10 @@ REX_TEST_CASE("Mouse button names parse with and without modifiers", "[hid][key_
   CHECK(*ParseKeyChord("RMB") == KeyChord{VirtualKey::kRButton});
   CHECK(*ParseKeyChord("MMB") == KeyChord{VirtualKey::kMButton});
   CHECK(*ParseKeyChord("Shift+LMB") == KeyChord{VirtualKey::kLButton, KeyModifiers::kShift});
+  CHECK(*ParseKeyChord("Mouse4") == KeyChord{VirtualKey::kXButton1});
+  CHECK(*ParseKeyChord("Mouse5") == KeyChord{VirtualKey::kXButton2});
+  CHECK(*ParseKeyChord("Ctrl+Mouse4") == KeyChord{VirtualKey::kXButton1, KeyModifiers::kCtrl});
+  CHECK(KeyChordToString(KeyChord{VirtualKey::kXButton2, KeyModifiers::kShift}) == "Shift+Mouse5");
 }
 
 REX_TEST_CASE("Wheel names parse with modifiers and round trip", "[hid][key_chord]") {

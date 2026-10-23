@@ -285,6 +285,14 @@ bool KeyboardMouseDriver::IsEnabled() const {
   return REXCVAR_GET(cvars::mnk_mode) || REXCVAR_GET(cvars::mnk_passthrough);
 }
 
+u64 KeyboardMouseDriver::GetDeviceRevision() {
+  const u32 mode = (IsEnabled() ? 1u : 0u) | (IsPassthroughEnabled() ? 2u : 0u);
+  if (listed_mode_.exchange(mode, std::memory_order_relaxed) != mode) {
+    NotifyDevicesChanged();
+  }
+  return Driver::GetDeviceRevision();
+}
+
 void KeyboardMouseDriver::EnumerateDevices(std::vector<Device>& out) {
   if (!IsEnabled()) {
     return;
@@ -598,6 +606,12 @@ void KeyboardMouseDriver::OnButton(const InputEvent& event, bool down) {
       break;
     case MouseButton::kMiddle:
       SetKeyState(std::to_underlying(VirtualKey::kMButton), down);
+      break;
+    case MouseButton::kX1:
+      SetKeyState(std::to_underlying(VirtualKey::kXButton1), down);
+      break;
+    case MouseButton::kX2:
+      SetKeyState(std::to_underlying(VirtualKey::kXButton2), down);
       break;
     default:
       break;

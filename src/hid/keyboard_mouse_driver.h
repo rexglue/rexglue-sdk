@@ -38,6 +38,7 @@ class KeyboardMouseDriver final : public Driver {
   explicit KeyboardMouseDriver(Hub& hub);
 
   void EnumerateDevices(std::vector<Device>& out) override;
+  u64 GetDeviceRevision() override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id, u32 flags) override;
   [[nodiscard]] Result<void> SetDeviceVibration(DeviceId id,
@@ -82,6 +83,7 @@ class KeyboardMouseDriver final : public Driver {
 
   Hub& hub_;
   std::atomic<bool> pointer_lock_{false};
+  std::atomic<u32> listed_mode_{UINT32_MAX};
   std::mutex state_mutex_;
   bool key_down_[256] = {};
   f32 mouse_dx_ = 0.0f;

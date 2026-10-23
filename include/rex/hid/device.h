@@ -26,6 +26,29 @@ constexpr u32 kMaxTitleUsers = 4;
 // NOLINTNEXTLINE(performance-enum-size): u64 counter, ids never reused
 enum class DeviceId : u64 { kInvalid = 0 };
 
+/** Layout family of a pad, which decides the button glyphs a title shows. */
+enum class PadType : u8 {
+  kUnknown,     /**< The pad reports no known family. */
+  kStandard,    /**< A pad without a vendor family. */
+  kX360,        /**< The 360 family. */
+  kXOne,        /**< The One and Series family. */
+  kPS3,         /**< The PS3 family. */
+  kPS4,         /**< The PS4 family. */
+  kPS5,         /**< The PS5 family. */
+  kSwitchPro,   /**< The Switch Pro family. */
+  kSwitchJoyCon /**< A Switch Joy-Con or a Joy-Con pair. */
+};
+
+/** Identity of a pad. */
+struct PadInfo {
+  /** The layout family. */
+  PadType type = PadType::kUnknown;
+  /** The USB vendor ID, 0 when unknown. */
+  u16 vendor = 0;
+  /** The USB product ID, 0 when unknown. */
+  u16 product = 0;
+};
+
 /** A device a driver reports. */
 struct Device {
   /** The driver scoped handle. */
@@ -38,6 +61,8 @@ struct Device {
   std::string guid;
   /** XINPUT_DEVSUBTYPE_*. */
   u8 subtype = 0x01;
+  /** The pad identity, empty for a synthetic device. */
+  PadInfo pad;
   /** Keyboard/mouse emulation or the null backend pad. */
   bool synthetic = false;
 };

@@ -34,6 +34,7 @@ class XInputDriver final : public Driver {
   [[nodiscard]] Result<void> Setup();
 
   void EnumerateDevices(std::vector<Device>& out) override;
+  u64 GetDeviceRevision() override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;
   [[nodiscard]] Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id, u32 flags) override;
   [[nodiscard]] Result<void> SetDeviceVibration(DeviceId id,
@@ -62,6 +63,10 @@ class XInputDriver final : public Driver {
   decltype(&XInputGetState) get_state_ex_ = nullptr;
   decltype(&XInputGetKeystroke) get_keystroke_ = nullptr;
   decltype(&XInputSetState) set_state_ = nullptr;
+  std::array<u32, 4> packet_bias_{};
+  u64 last_poll_ = 0;
+  u32 connected_slots_ = 0;
+  std::array<bool, 4> was_active_{true, true, true, true};
 };
 
 }  // namespace rex::hid::xinput
