@@ -237,19 +237,9 @@ target_sources(
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/host/fixed_point.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/index_conversion.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
-          ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
-          ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
-          ${PROJECT_SOURCE_DIR}/src/rexglue/commands/init_command.cpp
-          ${PROJECT_SOURCE_DIR}/src/rexglue/commands/project_scan.cpp
-          ${PROJECT_SOURCE_DIR}/src/rexglue/commands/test_spec.cpp
-          ${PROJECT_SOURCE_DIR}/src/filesystem/wildcard.cpp
+          $<TARGET_OBJECTS:rexglue-objects>
+          $<TARGET_OBJECTS:rexfilesystem-host-objects>
 )
-
-if (WIN32)
-  target_sources(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/filesystem/host_file_win.cpp)
-elseif (UNIX)
-  target_sources(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/filesystem/host_file_posix.cpp)
-endif ()
 
 target_include_directories(
   unit_tests
@@ -285,6 +275,8 @@ target_include_directories(
           $<TARGET_PROPERTY:GPUOpen::VulkanMemoryAllocator,INTERFACE_INCLUDE_DIRECTORIES>
           $<TARGET_PROPERTY:spirv-tools-headers,INTERFACE_INCLUDE_DIRECTORIES>
 )
+
+rex_target_pch(unit_tests <chrono> <filesystem> <format> <rex_test.h>)
 
 target_compile_definitions(
   unit_tests

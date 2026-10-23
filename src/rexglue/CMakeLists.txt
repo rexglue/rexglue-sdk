@@ -1,17 +1,19 @@
 # ReXGlue
 
+add_library(
+  rexglue-objects OBJECT ui/ui.cpp ui/progress.cpp commands/init_command.cpp commands/test_spec.cpp
+                         commands/project_scan.cpp
+)
+target_include_directories(
+  rexglue-objects PRIVATE ${REXGLUE_ROOT}/src ${REXGLUE_ROOT}/thirdparty/disasm
+)
+target_include_directories(rexglue-objects SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/cli11/include)
+target_link_libraries(rexglue-objects PRIVATE rexcodegen)
+rex_target_pch(rexglue-objects <CLI/CLI.hpp>)
+
 add_executable(
-  rexglue
-  main.cpp
-  ui/ui.cpp
-  ui/progress.cpp
-  commands/codegen_command.cpp
-  commands/init_command.cpp
-  commands/vfs_command.cpp
-  commands/list_command.cpp
-  commands/test_recompiler.cpp
-  commands/test_spec.cpp
-  commands/project_scan.cpp
+  rexglue main.cpp commands/codegen_command.cpp commands/vfs_command.cpp commands/list_command.cpp
+          commands/test_recompiler.cpp $<TARGET_OBJECTS:rexglue-objects>
 )
 
 rex_config_postfix(rexglue)
