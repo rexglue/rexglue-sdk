@@ -222,6 +222,30 @@ std::u16string ToUTF16(const std::string_view source) {
   return result;
 }
 
+#if !REX_PLATFORM_WIN32
+std::wstring ToWideString(const std::string_view source) {
+  std::wstring result;
+  result.reserve(source.size());
+  const char* it = source.data();
+  const char* end = it + source.size();
+  while (it != end) {
+    const char32_t code_point = DecodeUTF8(it, end);
+    result.push_back(static_cast<wchar_t>(IsInvalidByte(code_point) ? kReplacement : code_point));
+  }
+  return result;
+}
+
+std::string ToUTF8(const std::wstring_view source) {
+  std::string result;
+  result.reserve(source.size());
+  for (const wchar_t unit : source) {
+    const auto code_point = static_cast<char32_t>(unit);
+    EncodeUTF8(IsInvalidByte(code_point) ? kReplacement : code_point, result);
+  }
+  return result;
+}
+#endif
+
 namespace {
 
 constexpr bool kWidePaths = std::is_same_v<std::filesystem::path::value_type, wchar_t>;

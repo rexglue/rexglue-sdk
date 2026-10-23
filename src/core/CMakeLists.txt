@@ -74,6 +74,7 @@ if (WIN32)
             socket_win.cpp
             system_win.cpp
             threading_win.cpp
+            utf8_win.cpp
   )
   target_compile_definitions(rexcore PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif (UNIX)
@@ -100,6 +101,7 @@ elseif (UNIX)
             socket_posix.cpp
             system_posix.cpp
             threading_posix.cpp
+            utf8_posix.cpp
   )
 endif ()
 
@@ -141,6 +143,9 @@ target_link_libraries(
 
 if (WIN32)
   target_link_libraries(rexcore PRIVATE winmm ws2_32)
+else ()
+  find_package(Iconv REQUIRED)
+  target_link_libraries(rexcore PUBLIC Iconv::Iconv)
 endif ()
 
 if (REXGLUE_ENABLE_TRACY)

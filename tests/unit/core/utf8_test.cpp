@@ -174,3 +174,88 @@ REX_TEST_CASE("Valid text is unchanged by the UTF-16 round trip", "[core][utf8][
   const std::string text = "a\xC3\xA9\xE2\x82\xAC\xF0\x9F\x98\x80";
   CHECK(rex::ToUTF8(rex::ToUTF16(text)) == text);
 }
+
+REX_TEST_CASE("utf8_upper_ascii uppercases ASCII letters", "[core][string]") {
+  REQUIRE(rex::utf8_upper_ascii("abc XYZ 1") == "ABC XYZ 1");
+}
+
+REX_TEST_CASE("utf8_ends_with_case ignores ASCII case", "[core][string]") {
+  REQUIRE(rex::utf8_ends_with_case("Default.XEX", ".xex"));
+  REQUIRE(rex::utf8_ends_with_case("a", "A"));
+  REQUIRE_FALSE(rex::utf8_ends_with_case("default.xex", ".xexp"));
+  REQUIRE_FALSE(rex::utf8_ends_with_case("x", "xx"));
+  REQUIRE(rex::utf8_ends_with_case("abc", ""));
+}
+
+REX_TEST_CASE("Wide strings convert to and from UTF-8", "[core][utf8][wide]") {
+  const std::string text = "a\xC3\xA9\xE2\x82\xAC\xF0\x9F\x98\x80";
+  const std::wstring wide = rex::ToWideString(text);
+  CHECK(wide.size() == (sizeof(wchar_t) == 2 ? 5u : 4u));
+  CHECK(wide.front() == L'a');
+  CHECK(wide[1] == wchar_t{0x00E9});
+  CHECK(rex::ToUTF8(wide) == text);
+  CHECK(rex::ToWideString("").empty());
+  CHECK(rex::ToUTF8(std::wstring_view{}).empty());
+}
+
+REX_TEST_CASE("Wide conversion replaces invalid input", "[core][utf8][wide]") {
+  const std::wstring wide =
+      rex::ToWideString(std::string_view("a\xFF"
+                                         "b",
+                                         3));
+  REQUIRE(wide.size() == 3);
+  CHECK(wide[0] == L'a');
+  CHECK(wide[1] == wchar_t{0xFFFD});
+  CHECK(wide[2] == L'b');
+  const std::wstring lone_surrogate = {L'a', wchar_t{0xD800}, L'b'};
+  CHECK(rex::ToUTF8(lone_surrogate) == std::string("a") + std::string(kReplacementUTF8) + "b");
+}
+
+REX_TEST_CASE("Shift-JIS converts ASCII and Japanese text", "[core][utf8][shiftjis]") {
+  CHECK(rex::ShiftJISToUTF8("Hello 123") == "Hello 123");
+  CHECK(rex::UTF8ToShiftJIS("Hello 123") == "Hello 123");
+  const std::string sjis = "\x93\xFA\x96\x7B\x8C\xEA";
+  const std::string utf8 = "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E";
+  CHECK(rex::ShiftJISToUTF8(sjis) == utf8);
+  CHECK(rex::UTF8ToShiftJIS(utf8) == sjis);
+  const std::string katakana_sjis = "\x83\x65\x83\x58\x83\x67";
+  const std::string katakana_utf8 = "\xE3\x83\x86\xE3\x82\xB9\xE3\x83\x88";
+  CHECK(rex::ShiftJISToUTF8(katakana_sjis) == katakana_utf8);
+  CHECK(rex::UTF8ToShiftJIS(katakana_utf8) == katakana_sjis);
+}
+
+REX_TEST_CASE("Shift-JIS uses the code page 932 mappings", "[core][utf8][shiftjis]") {
+  const std::string circled_one_sjis = "\x87\x40";
+  const std::string circled_one_utf8 = "\xE2\x91\xA0";
+  CHECK(rex::ShiftJISToUTF8(circled_one_sjis) == circled_one_utf8);
+  CHECK(rex::UTF8ToShiftJIS(circled_one_utf8) == circled_one_sjis);
+  const std::string wave_dash_sjis = "\x81\x60";
+  const std::string fullwidth_tilde_utf8 = "\xEF\xBD\x9E";
+  CHECK(rex::ShiftJISToUTF8(wave_dash_sjis) == fullwidth_tilde_utf8);
+  CHECK(rex::UTF8ToShiftJIS(fullwidth_tilde_utf8) == wave_dash_sjis);
+}
+
+REX_TEST_CASE("Shift-JIS conversion survives invalid input", "[core][utf8][shiftjis]") {
+  const std::string decoded =
+      rex::ShiftJISToUTF8(std::string_view("ab\xFF"
+                                           "cd",
+                                           5));
+  CHECK(decoded.starts_with("ab"));
+  CHECK(decoded.ends_with("cd"));
+  const std::string encoded =
+      rex::UTF8ToShiftJIS(std::string_view("ab\xFF"
+                                           "cd",
+                                           5));
+  CHECK(encoded.starts_with("ab"));
+  CHECK(encoded.ends_with("cd"));
+  const std::string unmappable = rex::UTF8ToShiftJIS(
+      "a\xF0\x9F\x98\x80"
+      "b");
+  CHECK(unmappable.starts_with("a?"));
+  CHECK(unmappable.ends_with("b"));
+}
+
+REX_TEST_CASE("Shift-JIS conversion of empty input is empty", "[core][utf8][shiftjis]") {
+  CHECK(rex::ShiftJISToUTF8("").empty());
+  CHECK(rex::UTF8ToShiftJIS("").empty());
+}

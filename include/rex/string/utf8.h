@@ -44,6 +44,44 @@ REX_API std::string ToUTF8(const std::u16string_view source);
 REX_API std::u16string ToUTF16(const std::string_view source);
 
 /**
+ * Converts UTF-8 to the host wide string. The result is UTF-16 where wchar_t is 16 bits and UTF-32
+ * where it is 32 bits. Invalid UTF-8 becomes U+FFFD.
+ *
+ * @param source UTF-8 text.
+ * @return The wide text.
+ */
+REX_API std::wstring ToWideString(const std::string_view source);
+
+/**
+ * Converts the host wide string to UTF-8. The input is UTF-16 where wchar_t is 16 bits and UTF-32
+ * where it is 32 bits. Invalid code units become U+FFFD.
+ *
+ * @param source Wide text.
+ * @return The UTF-8 text.
+ */
+REX_API std::string ToUTF8(const std::wstring_view source);
+
+/**
+ * Converts Shift-JIS text (code page 932) to UTF-8. Bytes that are not valid Shift-JIS are
+ * replaced or skipped by the platform converter and the text around them converts normally. When
+ * the platform converter is unavailable the input is returned unchanged.
+ *
+ * @param source Shift-JIS text.
+ * @return The UTF-8 text.
+ */
+REX_API std::string ShiftJISToUTF8(const std::string_view source);
+
+/**
+ * Converts UTF-8 text to Shift-JIS (code page 932). Characters that Shift-JIS cannot represent
+ * and invalid UTF-8 become '?'. When the platform converter is unavailable the input is returned
+ * unchanged.
+ *
+ * @param source UTF-8 text.
+ * @return The Shift-JIS text.
+ */
+REX_API std::string UTF8ToShiftJIS(const std::string_view source);
+
+/**
  * Converts a host path to UTF-8.
  *
  * @param path Host path.
