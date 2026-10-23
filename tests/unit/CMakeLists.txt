@@ -40,6 +40,9 @@ add_executable(
   kernel/interlocked_test.cpp
   kernel/video_mode_test.cpp
   kernel/object_table_test.cpp
+  kernel/shim_crt_test.cpp
+  kernel/shim_debug_test.cpp
+  kernel/shim_math_test.cpp
   kernel/shim_registry_test.cpp
   kernel/exports_test.cpp
   kernel/exports_visibility_test.cpp

@@ -24,6 +24,8 @@ enum class Group : u8 {
   kHeap,      /**< The o1heap backed heap, all 4 entries are required together. */
   kMemory,    /**< Memory copy and fill routines. */
   kString,    /**< C, Win32 and UTF-16 string routines. */
+  kMath,      /**< Floating point math and text conversion routines. */
+  kDebug,     /**< Debug output routines. */
   kThreading, /**< Fiber routines. */
 };
 
@@ -57,15 +59,17 @@ struct Entry {
   std::string_view description; /**< One line description. */
 };
 
-inline constexpr std::array<GroupTraits, 5> kGroups = {{
+inline constexpr std::array<GroupTraits, 7> kGroups = {{
     {Group::kFile, "file", false, "File I/O backed by the filesystem module"},
     {Group::kHeap, "heap", true, "The o1heap backed heap, all 4 routines are required together"},
     {Group::kMemory, "memory", false, "Memory copy and fill routines"},
     {Group::kString, "string", false, "C, Win32 and UTF-16 string routines"},
+    {Group::kMath, "math", false, "Floating point math and text conversion routines"},
+    {Group::kDebug, "debug", false, "Debug output routines"},
     {Group::kThreading, "threading", false, "Fiber routines"},
 }};
 
-inline constexpr std::array<Entry, 66> kRegistry = {{
+inline constexpr std::array<Entry, 69> kRegistry = {{
     {"CreateFileA", Group::kFile, Flag::kNone, "Opens or creates a file"},
     {"ReadFile", Group::kFile, Flag::kNone, "Reads from an open file handle"},
     {"WriteFile", Group::kFile, Flag::kNone, "Writes to an open file handle"},
@@ -131,6 +135,11 @@ inline constexpr std::array<Entry, 66> kRegistry = {{
     {"wcsncpy", Group::kString, Flag::kNone, "Copies a UTF-16 string up to a length"},
     {"wcsncpy_s", Group::kString, Flag::kNone, "Copies a UTF-16 string with a size check"},
     {"wcsstr", Group::kString, Flag::kNone, "Finds a UTF-16 substring"},
+    {"atan2", Group::kMath, Flag::kNone, "Returns the arc tangent of y over x"},
+    {"atof", Group::kMath, Flag::kNone,
+     "Parses a floating point number, independent of the locale"},
+    {"DebugPrint", Group::kDebug, Flag::kNone,
+     "Logs a formatted debug message at Debug level, Shift-JIS converted to UTF-8"},
     {"ConvertThreadToFiber", Group::kThreading, Flag::kNone,
      "Turns the calling thread into a fiber"},
     {"ConvertFiberToThread", Group::kThreading, Flag::kNone,

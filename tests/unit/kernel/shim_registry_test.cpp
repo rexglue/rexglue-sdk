@@ -27,11 +27,13 @@ size_t CountInGroup(Group group) {
 }  // namespace
 
 REX_TEST_CASE("Shim registry holds every hook name", "[kernel][shim]") {
-  CHECK(kRegistry.size() == 66);
+  CHECK(kRegistry.size() == 69);
   CHECK(CountInGroup(Group::kFile) == 24);
   CHECK(CountInGroup(Group::kHeap) == 4);
   CHECK(CountInGroup(Group::kMemory) == 10);
   CHECK(CountInGroup(Group::kString) == 23);
+  CHECK(CountInGroup(Group::kMath) == 2);
+  CHECK(CountInGroup(Group::kDebug) == 1);
   CHECK(CountInGroup(Group::kThreading) == 5);
 }
 

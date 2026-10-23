@@ -56,7 +56,9 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_audio.cpp
     xboxkrnl/xboxkrnl_audio_xma.cpp
     shim/heap.cpp
+    shim/debug.cpp
     shim/file.cpp
+    shim/math.cpp
     shim/memory.cpp
     shim/string.cpp
     shim/threading.cpp
