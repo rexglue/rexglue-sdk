@@ -124,7 +124,14 @@ std::filesystem::path GetUserFolder() {
 }
 
 FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode) {
-  return fopen(path.c_str(), std::string(mode).c_str());
+  FILE* file = fopen(path.c_str(), std::string(mode).c_str());
+  // Callers of "a+" read existing contents first (as on Windows and glibc), but BSD libc
+  // (macOS) starts an "a+" stream at the end of the file. Writes still append either way.
+  if (file && mode.find('a') != std::string_view::npos &&
+      mode.find('+') != std::string_view::npos) {
+    rewind(file);
+  }
+  return file;
 }
 
 bool Seek(FILE* file, int64_t offset, int origin) {
