@@ -1,6 +1,6 @@
 #include "ui/sdl3/overlay/debug_overlay.h"
 #include "ui/sdl3/overlay_context.h"
-#include <rex/version.h>
+#include <rex/build_stamp.h>
 #include <imgui.h>
 #include <rex/ui/color.h>
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
@@ -72,7 +72,7 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
   }
   ImGui::End();
 
-  auto text_size = ImGui::CalcTextSize(REXGLUE_BUILD_STAMP);
+  auto text_size = ImGui::CalcTextSize(rex::GetBuildStamp());
   f32 padding = ImGui::GetStyle().WindowPadding.x * 2.0f;
   f32 bottom_offset = io.DisplaySize.y * 0.03f;
   ImGui::SetNextWindowPos(ImVec2((io.DisplaySize.x - text_size.x - padding) * 0.5f,
@@ -83,7 +83,7 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
                        ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::TextUnformatted(REXGLUE_BUILD_STAMP);
+    ImGui::TextUnformatted(rex::GetBuildStamp());
   }
   ImGui::End();
   ImGui::PopStyleColor();

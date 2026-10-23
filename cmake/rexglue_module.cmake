@@ -42,9 +42,7 @@ function (rexglue_configure_module_target target_name)
   endif ()
 
   if (UNIX AND NOT APPLE)
-    set_target_properties(
-      ${target_name} PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
-    )
+    rexglue_set_rpath(${target_name} "$ORIGIN")
   endif ()
 
   rexglue_apply_target_settings(${target_name})

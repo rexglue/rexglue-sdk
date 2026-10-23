@@ -108,6 +108,16 @@ std::filesystem::path ModuleFileName(std::string_view name) {
   return LibraryFileName(std::format("{}{}", name, BuildPostfix()));
 }
 
+std::vector<std::filesystem::path> GetModuleSearchPaths(const std::filesystem::path& folder,
+                                                        std::string_view name,
+                                                        std::string_view libdir) {
+  std::vector<std::filesystem::path> paths{folder / ModuleFileName(name)};
+  if (!libdir.empty()) {
+    paths.push_back((folder / libdir / ModuleFileName(name)).lexically_normal());
+  }
+  return paths;
+}
+
 u64 GetInterfaceRequestCount() {
   return ModuleLoader::GetInstance().GetRequestCount();
 }
@@ -210,10 +220,18 @@ Result<void> ModuleLoader::LoadAll() {
   for (const auto& name : config_.modules) {
     Loaded entry;
     entry.name = name;
-    const auto path = folder / ModuleFileName(name);
-    if (!std::filesystem::exists(path)) {
-      return Err(ModuleError(std::format("module '{}' not found at '{}'", name, path.string())));
+    const auto candidates = GetModuleSearchPaths(folder, name, REX_INSTALL_LIBDIR_FROM_BINDIR);
+    const auto found = std::ranges::find_if(candidates, [](const std::filesystem::path& file) {
+      return std::filesystem::exists(file);
+    });
+    if (found == candidates.end()) {
+      std::string searched;
+      for (const auto& candidate : candidates) {
+        searched += std::format("{}'{}'", searched.empty() ? "" : ", ", candidate.string());
+      }
+      return Err(ModuleError(std::format("module '{}' not found at {}", name, searched)));
     }
+    const auto& path = *found;
     if (!entry.library.Load(path, platform::SymbolResolution::kImmediate)) {
       return Err(ModuleError(std::format("module '{}' failed to load from '{}', {}", name,
                                          path.string(), entry.library.GetLastError())));

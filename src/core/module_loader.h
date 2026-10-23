@@ -55,6 +55,18 @@ REX_API std::filesystem::path LibraryFileName(std::string_view name);
 REX_API std::filesystem::path ModuleFileName(std::string_view name);
 
 /**
+ * Lists the places a module file is looked for, in search order.
+ *
+ * @param folder The executable folder.
+ * @param name The module name without the build postfix or the extension.
+ * @param libdir The library folder relative to the executable folder, empty for none.
+ * @return The file in the executable folder, then the file in the library folder when one is given.
+ */
+REX_API std::vector<std::filesystem::path> GetModuleSearchPaths(const std::filesystem::path& folder,
+                                                                std::string_view name,
+                                                                std::string_view libdir);
+
+/**
  * Returns the number of IInterfaceFactory::Get calls answered since the last Init.
  *
  * @return The request count.

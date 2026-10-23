@@ -44,6 +44,9 @@ set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # SDK install support
 include(GNUInstallDirs)
+file(RELATIVE_PATH REXGLUE_LIBDIR_FROM_BINDIR "${CMAKE_INSTALL_FULL_BINDIR}"
+     "${CMAKE_INSTALL_FULL_LIBDIR}"
+)
 include(CMakePackageConfigHelpers)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake)
@@ -53,12 +56,12 @@ if (UNIX AND NOT APPLE)
   # Keep installed binaries self-contained by resolving shared libs relative
   # to the install prefix (for example, bin -> ../lib).
   set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
-  list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN" "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN" "$ORIGIN/${REXGLUE_LIBDIR_FROM_BINDIR}")
   set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 elseif (APPLE)
   # Use loader-relative install names on macOS so installed binaries remain
   # self-contained within the install prefix.
-  list(APPEND CMAKE_INSTALL_RPATH "@loader_path" "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+  list(APPEND CMAKE_INSTALL_RPATH "@loader_path" "@loader_path/${REXGLUE_LIBDIR_FROM_BINDIR}")
   set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 endif ()
 
@@ -214,18 +217,21 @@ set(REXGLUE_FLOOR_VERSION
 
 rex_version_channel(REXGLUE_VERSION_CHANNEL VERSION "${REXGLUE_FULL_VERSION}")
 
-# Generate version header. Must run after REX_PLATFORM is set.
-# Timestamp is set at configure time and intentionally not updated on every rebuild.
-string(TIMESTAMP REXGLUE_BUILD_TIMESTAMP "%Y%m%d_%H%M")
-string(
-  RANDOM
-  LENGTH 12
-  ALPHABET "0123456789abcdef" REXGLUE_BUILD_NONCE
-)
+# Generate version header. Must run after REX_PLATFORM is set. The nonce stays the same across
+# reconfigures of one build tree, so the header only changes when the version does.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_build_nonce.cmake)
+rexglue_get_build_nonce(REXGLUE_BUILD_NONCE)
 set(REXGLUE_BUILD_IDENTITY "${REXGLUE_FULL_VERSION}-${REXGLUE_BUILD_NONCE}")
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/rex/version.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h @ONLY
+)
+
+# The timestamp lives in one source of rexcore, so a reconfigure recompiles that file only.
+string(TIMESTAMP REXGLUE_BUILD_TIMESTAMP "%Y%m%d_%H%M")
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core/build_stamp.cpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/core/build_stamp.cpp @ONLY
 )
 
 # Output directories (multi-config appends /<Config>/ automatically)

@@ -43,11 +43,21 @@ add_library(
   timer_queue.cpp
   utf8.cpp
   vec128.cpp
+  ${PROJECT_BINARY_DIR}/generated/core/build_stamp.cpp
 )
 
 add_library(rex::core ALIAS rexcore)
 set_target_properties(rexcore PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 target_compile_definitions(rexcore PRIVATE REX_BUILDING_CORE)
+
+# Installed modules sit in the library folder, so the loader also looks there from the executable.
+if (UNIX)
+  target_compile_definitions(
+    rexcore PRIVATE REX_INSTALL_LIBDIR_FROM_BINDIR="${REXGLUE_LIBDIR_FROM_BINDIR}"
+  )
+else ()
+  target_compile_definitions(rexcore PRIVATE REX_INSTALL_LIBDIR_FROM_BINDIR="")
+endif ()
 rexglue_add_version_resource(rexcore DESCRIPTION "ReXGlue core")
 
 if (APPLE)

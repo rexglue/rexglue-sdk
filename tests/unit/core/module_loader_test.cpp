@@ -205,7 +205,8 @@ REX_TEST_CASE_METHOD(Fixture, "Unknown module reports the composed path", "[core
   auto expected =
       (rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexmod-test-nowhere"))
           .string();
-  REQUIRE(api.error().message == "module 'rexmod-test-nowhere' not found at '" + expected + "'");
+  REQUIRE(api.error().message.starts_with("module 'rexmod-test-nowhere' not found at '" + expected +
+                                          "'"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Init failure unwinds the modules before it",
@@ -517,4 +518,21 @@ REX_TEST_CASE("Attach opens a library only while the process has it mapped", "[c
   loaded.Close();
   attached.Close();
   CHECK_FALSE(attached.Attach(path));
+}
+
+REX_TEST_CASE("A module is searched in the executable folder, then the library folder",
+              "[core][module_loader]") {
+  const std::filesystem::path root = "install";
+  const auto file = rex::detail::ModuleFileName("rexfilesystem");
+  const auto paths = rex::detail::GetModuleSearchPaths(root / "bin", "rexfilesystem", "../lib64");
+  REQUIRE(paths.size() == 2);
+  CHECK(paths[0] == root / "bin" / file);
+  CHECK(paths[1] == root / "lib64" / file);
+}
+
+REX_TEST_CASE("A module has one search path when no library folder is given",
+              "[core][module_loader]") {
+  const auto paths = rex::detail::GetModuleSearchPaths("bin", "rexfilesystem", "");
+  REQUIRE(paths.size() == 1);
+  CHECK(paths[0] == std::filesystem::path("bin") / rex::detail::ModuleFileName("rexfilesystem"));
 }
