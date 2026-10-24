@@ -101,8 +101,6 @@ class Hub final : public IHIDBackend {
   PointerMode GetPointerMode() const override;
 
  private:
-  using JoystickValue = std::pair<u16, u16>;
-
   void RefreshDevicesLocked();
   Driver* DriverForDeviceLocked(DeviceId id);
   const Device* FindDeviceLocked(DeviceId id) const;
@@ -130,7 +128,6 @@ class Hub final : public IHIDBackend {
   std::vector<u64> revisions_;
   bool devices_stale_ = true;
   std::bitset<kMaxTitleUsers> connected_users_;
-  std::array<std::pair<JoystickValue, JoystickValue>, kMaxTitleUsers> user_max_joystick_value_{};
   std::array<u16, kMaxTitleUsers> consumed_buttons_{};
   std::atomic<i32> ui_blocks_{0};
   rex::MoveOnlyFunction<void(u32, bool)> connection_listener_;

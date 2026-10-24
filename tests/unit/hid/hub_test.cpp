@@ -88,11 +88,15 @@ class FakeDriver final : public rex::hid::Driver {
   [[nodiscard]] rex::Result<rex::hid::X_INPUT_STATE> GetDeviceState(rex::hid::DeviceId) override {
     rex::hid::X_INPUT_STATE state{};
     state.gamepad.buttons = buttons;
+    state.gamepad.thumb_lx = thumb_lx;
     return state;
   }
   [[nodiscard]] rex::Result<rex::hid::X_INPUT_CAPABILITIES> GetDeviceCapabilities(
       rex::hid::DeviceId, rex::u32) override {
-    return rex::hid::X_INPUT_CAPABILITIES{};
+    rex::hid::X_INPUT_CAPABILITIES caps{};
+    caps.gamepad.thumb_lx = static_cast<rex::i16>(thumb_caps);
+    caps.gamepad.thumb_ly = static_cast<rex::i16>(thumb_caps);
+    return caps;
   }
   [[nodiscard]] rex::Result<void> SetDeviceVibration(rex::hid::DeviceId,
                                                      const rex::hid::X_INPUT_VIBRATION&) override {
@@ -105,6 +109,8 @@ class FakeDriver final : public rex::hid::Driver {
   rex::hid::PadInfo pad;
   int enumerations = 0;
   rex::u16 buttons = 0;
+  rex::i16 thumb_lx = 0;
+  rex::u16 thumb_caps = 0;
 };
 
 InputEvent Key(Kind kind, VirtualKey key) {
@@ -344,6 +350,25 @@ REX_TEST_CASE("Hub reports a user without a device as not connected while the UI
   CHECK(hub.GetState(0));
   CHECK_FALSE(hub.GetState(1));
   hub.ReleaseUIBlock();
+}
+
+REX_TEST_CASE("Hub scales a stick deadzone against the axis range whatever the device reports",
+              "[hid]") {
+  auto registry = rex::detail::CreateCvarRegistry();
+  REQUIRE(registry->Register("hid", rex::hid::cvars::kHIDCvars));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::left_stick_deadzone, 0.2));
+  for (const rex::u16 reported : {0xFFFFu, 0xFFC0u, 0x7FFFu}) {
+    Hub hub;
+    auto pad = std::make_unique<FakeDriver>();
+    FakeDriver* raw = pad.get();
+    raw->thumb_caps = static_cast<rex::u16>(reported);
+    hub.AddPadDriver(std::move(pad));
+    raw->thumb_lx = 5000;
+    CHECK(static_cast<rex::i16>(hub.GetState(0)->gamepad.thumb_lx) == 0);
+    raw->thumb_lx = 8000;
+    CHECK(static_cast<rex::i16>(hub.GetState(0)->gamepad.thumb_lx) == 8000);
+  }
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::left_stick_deadzone, 0.0));
 }
 
 REX_TEST_CASE("Hub tells the listener when user 0 connects", "[hid]") {

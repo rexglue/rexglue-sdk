@@ -18,6 +18,7 @@ namespace rex::hid {
 namespace {
 
 constexpr u32 kSyntheticOrdinal = UINT32_MAX;
+constexpr f64 kThumbstickMax = 32767.0;
 
 rex::Error NotConnected() {
   return BuildError(HIDError::kNotConnected, "no device answers for the user");
@@ -274,23 +275,8 @@ void Hub::UpdateConnectedUserLocked(u32 user, bool connected) {
   }
 
   if (!connected) {
-    user_max_joystick_value_[user] = {};
     consumed_buttons_[user] = 0;
-    return;
   }
-
-  // Deadzone percentages scale against the device's own range.
-  const DeviceId chosen = ChooseDeviceForUserLocked(user);
-  Driver* driver = DriverForDeviceLocked(chosen);
-  if (!driver) {
-    return;
-  }
-  auto caps = driver->GetDeviceCapabilities(chosen, 0);
-  if (!caps) {
-    return;
-  }
-  user_max_joystick_value_[user] = {{caps->gamepad.thumb_lx, caps->gamepad.thumb_ly},
-                                    {caps->gamepad.thumb_rx, caps->gamepad.thumb_ry}};
 }
 
 Result<X_INPUT_STATE> Hub::GetState(u32 user) {
@@ -383,15 +369,14 @@ void Hub::AdjustDeadzoneLevels(u32 user, X_INPUT_GAMEPAD& gamepad) const {
   }
 
   // Radial cutoff follows the stick angle, so diagonals are not held to a larger displacement.
-  auto apply = [](f64 percentage, const JoystickValue& max, i16& axis_x, i16& axis_y) {
+  auto apply = [](f64 percentage, i16& axis_x, i16& axis_y) {
     if (percentage <= 0.0 || percentage >= 1.0) {
       return;
     }
-    const f64 deadzone_x = max.first * percentage;
-    const f64 deadzone_y = max.second * percentage;
+    const f64 deadzone = kThumbstickMax * percentage;
     const f64 theta = std::atan2(static_cast<f64>(axis_y), static_cast<f64>(axis_x));
-    const f64 cutoff_x = std::cos(theta) * deadzone_x;
-    const f64 cutoff_y = std::sin(theta) * deadzone_y;
+    const f64 cutoff_x = std::cos(theta) * deadzone;
+    const f64 cutoff_y = std::sin(theta) * deadzone;
     if (axis_x > -cutoff_x && axis_x < cutoff_x) {
       axis_x = 0;
     }
@@ -400,16 +385,15 @@ void Hub::AdjustDeadzoneLevels(u32 user, X_INPUT_GAMEPAD& gamepad) const {
     }
   };
 
-  const auto& maxima = user_max_joystick_value_[user];
   i16 lx = gamepad.thumb_lx;
   i16 ly = gamepad.thumb_ly;
-  apply(REXCVAR_GET(cvars::left_stick_deadzone), maxima.first, lx, ly);
+  apply(REXCVAR_GET(cvars::left_stick_deadzone), lx, ly);
   gamepad.thumb_lx = lx;
   gamepad.thumb_ly = ly;
 
   i16 rx = gamepad.thumb_rx;
   i16 ry = gamepad.thumb_ry;
-  apply(REXCVAR_GET(cvars::right_stick_deadzone), maxima.second, rx, ry);
+  apply(REXCVAR_GET(cvars::right_stick_deadzone), rx, ry);
   gamepad.thumb_rx = rx;
   gamepad.thumb_ry = ry;
 }
