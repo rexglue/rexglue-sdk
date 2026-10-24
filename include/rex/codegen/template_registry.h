@@ -34,7 +34,9 @@ class TemplateError : public std::runtime_error {
   TemplateError(const std::string& template_id, const std::string& message,
                 const std::string& source = "embedded");
 
+  /** Returns the canonical ID of the failing template. */
   const std::string& GetTemplateId() const { return template_id_; }
+  /** Returns where the template came from. */
   const std::string& GetSource() const { return source_; }
 
  private:
@@ -59,13 +61,11 @@ class TemplateRegistry : public rex::MoveOnly {
   /**
    * Takes ownership of the templates of another registry.
    *
-   * @param other Registry to take from, left empty.
    */
   TemplateRegistry(TemplateRegistry&&) noexcept;
   /**
    * Releases the owned templates, then takes those of another registry.
    *
-   * @param other Registry to take from, left empty.
    * @return This registry
    */
   TemplateRegistry& operator=(TemplateRegistry&&) noexcept;

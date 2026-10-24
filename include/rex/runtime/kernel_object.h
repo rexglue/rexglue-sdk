@@ -232,7 +232,19 @@ class Pinned {
    * @return True when it does.
    */
   explicit operator bool() const noexcept { return value_ != nullptr; }
+
+  /**
+   * Returns the viewed object.
+   *
+   * @return The object, null when the view is empty.
+   */
   T* operator->() const noexcept { return value_; }
+
+  /**
+   * Returns the viewed object.
+   *
+   * @return The object, which must exist.
+   */
   T& operator*() const noexcept { return *value_; }
 
   /**

@@ -51,7 +51,6 @@ class REX_RUNTIME_API GuestAllocator : public NonCopyable {
   /**
    * Wraps a committed range. Only Create can make the key.
    *
-   * @param key The private construction key.
    * @param memory The guest memory.
    * @param base The guest address of the range.
    * @param size The byte count.

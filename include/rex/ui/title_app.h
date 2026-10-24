@@ -140,9 +140,9 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   [[nodiscard]] Result<void> Init(const CLIArgList& args, const PPCImage& image);
 
   /**
-   * Creates the title window. Opens the window from Config::ui through the user interface, hands
-   * the GPU backend its presentation, creates the overlay drawer, calls OnCreateWindow, then lets
-   * the ui module build the fonts. Opens no window and skips OnCreateWindow on the headless
+   * Creates the title window. Hands the GPU backend its presentation, opens the window from
+   * Config::ui through the user interface, creates the overlay drawer, calls OnCreateWindow, then
+   * lets the ui module build the fonts. Opens no window and skips OnCreateWindow on the headless
    * provider. Returns Ok without doing anything once shutdown has been requested.
    *
    * @return Ok when the window is open, or when shutdown has been requested.

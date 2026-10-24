@@ -20,8 +20,11 @@
 
 namespace rex::codegen {
 
+/** Name of the file that holds the output stamp. */
 inline constexpr std::string_view kStampFileName = "codegen.stamp";
+/** Name of the file the build touches after a successful run. */
 inline constexpr std::string_view kBuildStampFileName = "codegen.build.stamp";
+/** Name of the Make syntax dependency file. */
 inline constexpr std::string_view kDepfileName = "codegen.d";
 
 /** What a module output was generated from, and what it produced. */

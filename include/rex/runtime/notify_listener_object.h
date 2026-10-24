@@ -47,6 +47,7 @@ union XNotificationKey {
     REX_STATIC_ASSERT_SIZE(*this, sizeof(id));
   }
 
+  /** Converts to the notification id. */
   constexpr operator XNotificationID() const { return id; }
 };
 

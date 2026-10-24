@@ -57,6 +57,11 @@ class REX_RUNTIME_API ThreadState {
   /** Unbinds the state from the calling host thread when it is the bound one. */
   ~ThreadState();
 
+  /**
+   * Returns the guest memory.
+   *
+   * @return The memory the thread runs in.
+   */
   Memory* GetMemory() const { return memory_; }
 
   /** Asks the thread to stop at its next kernel boundary. */
@@ -77,6 +82,12 @@ class REX_RUNTIME_API ThreadState {
    * @return The context.
    */
   ::PPCContext* GetContext() const { return context_; }
+
+  /**
+   * Returns the guest thread id.
+   *
+   * @return The id given at construction.
+   */
   u32 GetThreadID() const { return thread_id_; }
 
   /**

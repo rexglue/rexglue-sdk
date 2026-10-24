@@ -198,8 +198,8 @@ struct REX_API TextureExtent {
    *
    * @param format_info Block layout of the texture.
    * @param pitch Row pitch in texels.
-   * @param height_minus_1 Height in texels.
-   * @param depth_or_array_size_minus_1 Depth in layers.
+   * @param height Height in texels.
+   * @param depth Depth in layers.
    * @param is_tiled True for a tiled texture, false for a linear one.
    * @param is_guest True to pad to 32x32 block tiles and 256 byte linear rows as guest memory
    *        does, false for a packed host layout.
@@ -299,9 +299,9 @@ struct REX_API TextureInfo {
    * @param texture_format Texel format.
    * @param endian Swap mode of the texel data.
    * @param pitch Row pitch in texels.
-   * @param width_minus_1 Width in texels, at least 1.
-   * @param height_minus_1 Height in texels, at least 1.
-   * @param depth_or_array_size_minus_1 Depth in layers.
+   * @param width Width in texels, at least 1.
+   * @param height Height in texels, at least 1.
+   * @param depth Depth in layers.
    * @param out_info Receives the texture description.
    * @return True on success.
    */
@@ -331,9 +331,8 @@ struct REX_API TextureInfo {
    * Computes the size of a mip level in texels.
    *
    * @param mip The mip level.
-   * @param width_minus_1 Receives the width in texels, rounded to a power of 2 for levels above 0.
-   * @param height_minus_1 Receives the height in texels, rounded to a power of 2 for levels above
-   * 0.
+   * @param width Receives the width in texels, rounded to a power of 2 for levels above 0.
+   * @param height Receives the height in texels, rounded to a power of 2 for levels above 0.
    */
   void GetMipSize(u32 mip, u32* width, u32* height) const;
 
@@ -351,8 +350,8 @@ struct REX_API TextureInfo {
   /**
    * Computes the block offset of a level within a packed tile.
    *
-   * @param width_minus_1 Width of the packed level set in texels.
-   * @param height_minus_1 Height of the packed level set in texels.
+   * @param width Width of the packed level set in texels.
+   * @param height Height of the packed level set in texels.
    * @param format_info Block layout of the texture.
    * @param packed_tile Index of the level within the packed tile.
    * @param offset_x Receives the X offset in blocks.

@@ -147,7 +147,8 @@ class REX_API App : public NonCopyable {
   /**
    * Runs after every module is connected and before any module is initialized.
    *
-   * @param config The configuration the modules read during their Init.
+   * @param config The configuration. A module that copied its section at Connect, such as the hid
+   *        and filesystem modules, does not see a change made here.
    * @param api The connected modules and the core interfaces.
    * @return Ok to continue. An error makes Init return it.
    */

@@ -23,7 +23,7 @@ namespace rex {
  * ResolvePaths fills the ones it documents.
  */
 struct PathsConfig {
-  /** Folder holding default.xex. REQUIRED before the Runtime is constructed. */
+  /** Folder holding default.xex. TitleApp::LaunchTitle fails when it is empty. */
   std::filesystem::path game_data_root;
   /**
    * Saves and profiles. Empty means game_data_root. ResolvePaths fills the platform user folder

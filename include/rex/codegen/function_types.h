@@ -140,6 +140,7 @@ enum class FunctionState : u8 {
   kSealed,     /**< All branches resolved, ready for code generation */
 };
 
+/** Shorthand for FunctionState::kSealed. */
 constexpr FunctionState kSealed = FunctionState::kSealed;
 
 /** 1 scope table entry of an SEH function. */
@@ -205,11 +206,28 @@ struct ExceptionInfo {
   /** Held info, SEH or C++ EH. `std::monostate` when the function has none. */
   std::variant<std::monostate, SEHExceptionInfo, CxxExceptionInfo> data;
 
+  /**
+   * Reports whether SEH or C++ EH info is held.
+   *
+   * @return True when the variant holds SEH or C++ EH info.
+   */
   bool HasInfo() const { return !std::holds_alternative<std::monostate>(data); }
+  /**
+   * Reports whether SEH info is held.
+   *
+   * @return True when the variant holds SEH info.
+   */
   bool IsSEH() const { return std::holds_alternative<SEHExceptionInfo>(data); }
+  /**
+   * Reports whether C++ EH info is held.
+   *
+   * @return True when the variant holds C++ EH info.
+   */
   bool IsCxx() const { return std::holds_alternative<CxxExceptionInfo>(data); }
 
+  /** Returns the SEH info, or null when the variant holds another kind. */
   const SEHExceptionInfo* AsSEH() const { return std::get_if<SEHExceptionInfo>(&data); }
+  /** Returns the C++ EH info, or null when the variant holds another kind. */
   const CxxExceptionInfo* AsCxx() const { return std::get_if<CxxExceptionInfo>(&data); }
 
   /**
@@ -245,8 +263,23 @@ struct CallTarget {
   /** Resolved destination, a function, an import thunk or an unresolved address. */
   std::variant<ToFunction, ToImport, Unresolved> value;
 
+  /**
+   * Reports whether the destination is resolved.
+   *
+   * @return True when the destination is a function or an import.
+   */
   bool IsResolved() const { return !std::holds_alternative<Unresolved>(value); }
+  /**
+   * Reports whether the destination is a function.
+   *
+   * @return True when the destination is a function in the graph.
+   */
   bool IsFunction() const { return std::holds_alternative<ToFunction>(value); }
+  /**
+   * Reports whether the destination is an import.
+   *
+   * @return True when the destination is an import thunk.
+   */
   bool IsImport() const { return std::holds_alternative<ToImport>(value); }
 
   /**
@@ -260,6 +293,12 @@ struct CallTarget {
     return nullptr;
   }
 
+  /**
+   * Creates a target for a function.
+   *
+   * @param fn Destination function.
+   * @return The function target.
+   */
   static CallTarget MakeFunction(FunctionNode* fn) { return {ToFunction{fn}}; }
   /**
    * Creates a target for an import.
@@ -271,6 +310,12 @@ struct CallTarget {
   static CallTarget MakeImport(u32 addr, std::string name) {
     return {ToImport{addr, std::move(name)}};
   }
+  /**
+   * Creates a target for an unresolved address.
+   *
+   * @param addr Branch target address.
+   * @return The unresolved target.
+   */
   static CallTarget MakeUnresolved(u32 addr) { return {Unresolved{addr}}; }
 };
 
@@ -285,7 +330,14 @@ struct Block {
   u32 base; /**< Start address */
   u32 size; /**< Size in bytes */
 
+  /** Returns the address 1 past the block. */
   u32 GetEnd() const { return base + size; }
+  /**
+   * Reports whether an address is inside the block.
+   *
+   * @param addr Address to test.
+   * @return True when addr is within the block.
+   */
   bool Contains(u32 addr) const { return addr >= base && addr < GetEnd(); }
 };
 

@@ -33,12 +33,12 @@ enum class XDBFSection : u8 {
 #pragma pack(push, 1)
 /** Header of an XDBF database. */
 struct XDBFHeader {
-  be_u32 magic; /**< Signature. */
-  be_u32 version;
+  be_u32 magic;          /**< Signature. */
+  be_u32 version;        /**< Format version of the database. */
   be_u32 entry_capacity; /**< Capacity of the entry table. */
   be_u32 entry_used;     /**< Entries in use. */
   be_u32 free_count;     /**< Rows in the table after the entry table. */
-  be_u32 free_used;
+  be_u32 free_used;      /**< Rows of the table after the entry table in use. */
 };
 REX_STATIC_ASSERT_SIZE(XDBFHeader, 24);
 
@@ -53,26 +53,26 @@ REX_STATIC_ASSERT_SIZE(XDBFEntry, 18);
 
 /** Row of the table between the entry table and the content area. */
 struct XDBFFileLocation {
-  be_u32 offset;
-  be_u32 size;
+  be_u32 offset; /**< Offset of the area, in bytes. */
+  be_u32 size;   /**< Size of the area in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(XDBFFileLocation, 8);
 
 /** Metadata entry holding the default language of the title. */
 struct XDBFXstc {
-  be_u32 magic; /**< Signature. */
-  be_u32 version;
-  be_u32 size;
+  be_u32 magic;            /**< Signature. */
+  be_u32 version;          /**< Format version of the entry. */
+  be_u32 size;             /**< Size field of the entry. */
   be_u32 default_language; /**< XLanguage value. */
 };
 REX_STATIC_ASSERT_SIZE(XDBFXstc, 16);
 
 /** Header of an XSTR string table or an XACH achievement table. */
 struct XDBFSectionHeader {
-  be_u32 magic; /**< Signature. */
-  be_u32 version;
-  be_u32 size;
-  be_u16 count; /**< Number of table entries. */
+  be_u32 magic;   /**< Signature. */
+  be_u32 version; /**< Format version of the table. */
+  be_u32 size;    /**< Size field of the header. */
+  be_u16 count;   /**< Number of table entries. */
 };
 REX_STATIC_ASSERT_SIZE(XDBFSectionHeader, 14);
 
@@ -91,12 +91,12 @@ struct XDBFAchievementTableEntry {
   be_u16 unachieved_id;  /**< String id of the description shown while locked. */
   be_u32 image_id;       /**< Image entry id of the icon. */
   be_u16 gamerscore;     /**< Gamerscore awarded. */
-  be_u16 unke;
-  be_u32 flags; /**< Achievement flag bits. */
-  be_u32 unk14;
-  be_u32 unk18;
-  be_u32 unk1c;
-  be_u32 unk20;
+  be_u16 unke;           /**< Unknown. */
+  be_u32 flags;          /**< Achievement flag bits. */
+  be_u32 unk14;          /**< Unknown. */
+  be_u32 unk18;          /**< Unknown. */
+  be_u32 unk1c;          /**< Unknown. */
+  be_u32 unk20;          /**< Unknown. */
 };
 REX_STATIC_ASSERT_SIZE(XDBFAchievementTableEntry, 0x24);
 #pragma pack(pop)

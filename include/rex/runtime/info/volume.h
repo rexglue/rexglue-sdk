@@ -36,20 +36,20 @@ enum X_FILE_DEVICE_TYPE : u32 {
 /** Label and serial number of a volume. */
 struct X_FILE_FS_VOLUME_INFORMATION {
   be_u64 creation_time; /**< Creation time. */
-  be_u32 serial_number;
-  be_u32 label_length; /**< Label length in bytes. */
-  u8 supports_objects; /**< Nonzero when the volume supports objects. */
-  char label[1];       /**< First character of the label. */
+  be_u32 serial_number; /**< Serial number of the volume. */
+  be_u32 label_length;  /**< Label length in bytes. */
+  u8 supports_objects;  /**< Nonzero when the volume supports objects. */
+  char label[1];        /**< First character of the label. */
   u8 pad[6];
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_VOLUME_INFORMATION, 24);
 
 /** Size and allocation unit geometry of a volume. */
 struct X_FILE_FS_SIZE_INFORMATION {
-  be_u64 total_allocation_units;
-  be_u64 available_allocation_units;
-  be_u32 sectors_per_allocation_unit;
-  be_u32 bytes_per_sector;
+  be_u64 total_allocation_units;      /**< Total allocation units of the volume. */
+  be_u64 available_allocation_units;  /**< Allocation units available to the caller. */
+  be_u32 sectors_per_allocation_unit; /**< Sectors in each allocation unit. */
+  be_u32 bytes_per_sector;            /**< Bytes in each sector. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_SIZE_INFORMATION, 24);
 
@@ -65,8 +65,8 @@ REX_STATIC_ASSERT_SIZE(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
 /** Device type and characteristics of a volume. */
 struct X_FILE_FS_DEVICE_INFORMATION {
-  BE<X_FILE_DEVICE_TYPE> device_type;
-  be_u32 characteristics;
+  BE<X_FILE_DEVICE_TYPE> device_type; /**< Device type of the volume. */
+  be_u32 characteristics;             /**< Device characteristics flags. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_DEVICE_INFORMATION, 8);
 

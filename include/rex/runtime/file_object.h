@@ -51,17 +51,17 @@ enum class SeekOrigin : u8 {
 /** Guest layout of 1 entry of a directory listing, chained through next_entry_offset. */
 class X_FILE_DIRECTORY_INFORMATION {
  public:
-  be_u32 next_entry_offset;
-  be_u32 file_index;
-  be_u64 creation_time;
-  be_u64 last_access_time;
-  be_u64 last_write_time;
-  be_u64 change_time;
-  be_u64 end_of_file; /**< Size in bytes. */
-  be_u64 allocation_size;
-  be_u32 attributes; /**< X_FILE_ATTRIBUTES. */
-  be_u32 file_name_length;
-  char file_name[1];
+  be_u32 next_entry_offset; /**< Offset in bytes from this entry to the next, 0 for the last. */
+  be_u32 file_index;        /**< Index of the file in the listing. */
+  be_u64 creation_time;     /**< Creation time of the file. */
+  be_u64 last_access_time;  /**< Last access time of the file. */
+  be_u64 last_write_time;   /**< Last write time of the file. */
+  be_u64 change_time;       /**< Last change time of the file. */
+  be_u64 end_of_file;       /**< Size in bytes. */
+  be_u64 allocation_size;   /**< Size in bytes the file occupies on disk. */
+  be_u32 attributes;        /**< X_FILE_ATTRIBUTES. */
+  be_u32 file_name_length;  /**< Length of file_name in bytes. */
+  char file_name[1];        /**< First character of the name, which continues past the struct. */
 
   /**
    * Copies this entry and the entries chained after it into guest memory.

@@ -78,7 +78,7 @@ class REX_API Container : public MoveOnly {
   /**
    * Maps and parses a container. A folder is searched breadth first for the first file whose
    * magic is a package. The kind comes from the magic, the SVOD data fragments from the
-   * <name>.data folder beside the header file.
+   * \<name\>.data folder beside the header file.
    *
    * @param path The container file or a folder that holds 1.
    * @return The container, kNotFound when nothing can be opened, kCorrupt when the image fails

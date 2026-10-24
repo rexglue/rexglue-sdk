@@ -403,40 +403,41 @@ struct XEXGameRatings {
 
 /** A run of basic compressed data followed by a run of zeros. */
 struct XEXFileBasicCompressionBlock {
-  be_u32 data_size;
-  be_u32 zero_size;
+  be_u32 data_size; /**< Number of image data bytes in the run. */
+  be_u32 zero_size; /**< Number of zero bytes that follow the run in the loaded image. */
 };
 REX_STATIC_ASSERT_SIZE(XEXFileBasicCompressionBlock, 0x8);
 
 /** Compression info of a basic compressed image. */
 struct XEXFileBasicCompressionInfo {
+  /** Data and zero runs, counted as (info_size - 8) / 8. */
   XEXFileBasicCompressionBlock blocks[1];
 };
 REX_STATIC_ASSERT_SIZE(XEXFileBasicCompressionInfo, 0x8);
 
 /** Size and hash of the next compressed block. */
 struct XEXCompressedBlockInfo {
-  be_u32 block_size;
-  u8 block_hash[20];
+  be_u32 block_size; /**< Size in bytes of the block this info describes, this info included. */
+  u8 block_hash[20]; /**< SHA1 digest of the block this info describes. */
 };
 REX_STATIC_ASSERT_SIZE(XEXCompressedBlockInfo, 0x18);
 
 /** Compression info of a normal compressed image. */
 struct XEXFileNormalCompressionInfo {
-  be_u32 window_size;
-  XEXCompressedBlockInfo first_block;
+  be_u32 window_size;                 /**< Size of the LZX window in bytes. */
+  XEXCompressedBlockInfo first_block; /**< Size and digest of the first compressed block. */
 };
 REX_STATIC_ASSERT_SIZE(XEXFileNormalCompressionInfo, 0x1C);
 
 /** Optional header describing the encryption and compression of the image. */
 struct XEXOptFileFormatInfo {
-  be_u32 info_size;
-  BE<XEXEncryptionType> encryption_type;
-  BE<XEXCompressionType> compression_type;
+  be_u32 info_size;                        /**< Size of this header in bytes. */
+  BE<XEXEncryptionType> encryption_type;   /**< Encryption applied to the image data. */
+  BE<XEXCompressionType> compression_type; /**< Compression applied to the image data. */
   union {
     XEXFileBasicCompressionInfo basic;   /**< Valid when compression_type is basic. */
     XEXFileNormalCompressionInfo normal; /**< Valid when compression_type is normal. */
-  } compression_info;
+  } compression_info;                    /**< Compression details selected by compression_type. */
 };
 REX_STATIC_ASSERT_SIZE(XEXOptFileFormatInfo, 0x24);
 
@@ -462,20 +463,20 @@ struct XEXOptLANKey {
 
 /** Optional header holding the path the image is bound to. */
 struct XEXOptBoundPath {
-  be_u32 size;
-  char path[1];
+  be_u32 size;  /**< Size of this header in bytes, the size field included. */
+  char path[1]; /**< First character of the bound path. */
 };
 static_assert(offsetof(XEXOptBoundPath, path) == 0x4);
 REX_STATIC_ASSERT_SIZE(XEXOptBoundPath, 0x8);
 
 /** A static library linked into the image. */
 struct XEXOptStaticLibrary {
-  char name[8];
-  be_u16 version_major;
-  be_u16 version_minor;
-  be_u16 version_build;
-  u8 approval_type;
-  u8 version_qfe;
+  char name[8];         /**< Name of the library. */
+  be_u16 version_major; /**< Major version of the library. */
+  be_u16 version_minor; /**< Minor version of the library. */
+  be_u16 version_build; /**< Build number of the library. */
+  u8 approval_type;     /**< XEXApprovalType value of the library. */
+  u8 version_qfe;       /**< QFE number of the library version. */
 };
 REX_STATIC_ASSERT_SIZE(XEXOptStaticLibrary, 0x10);
 
@@ -487,77 +488,101 @@ struct XEXOptStaticLibraries {
 
 /** Optional header holding the original PE file name. */
 struct XEXOptOriginalPEName {
-  be_u32 size;
-  char name[1];
+  be_u32 size;  /**< Size of this header in bytes, the size field included. */
+  char name[1]; /**< First character of the original file name. */
 };
 static_assert(offsetof(XEXOptOriginalPEName, name) == 0x4);
 REX_STATIC_ASSERT_SIZE(XEXOptOriginalPEName, 0x8);
 
 /** Optional header locating a PE data directory in the image. */
 struct XEXOptDataDirectory {
-  be_u32 offset;
-  be_u32 size;
+  be_u32 offset; /**< Offset of the directory in the loaded image. */
+  be_u32 size;   /**< Size of the directory in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(XEXOptDataDirectory, 0x8);
 
 /** Optional header describing the thread local storage of the image. */
 struct XEXOptTLSInfo {
-  be_u32 slot_count;
-  be_u32 raw_data_address;
-  be_u32 data_size;
-  be_u32 raw_data_size;
+  be_u32 slot_count;       /**< Number of TLS slots the image requests. */
+  be_u32 raw_data_address; /**< Guest address of the initial TLS data. */
+  be_u32 data_size;        /**< Size of the TLS data of each thread in bytes. */
+  be_u32 raw_data_size;    /**< Size of the initial TLS data in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(XEXOptTLSInfo, 0x10);
 
 /** A resource embedded in the image. */
 struct XEXResource {
-  char name[8];
-  be_u32 address;
-  be_u32 size;
+  char name[8];   /**< Name of the resource. */
+  be_u32 address; /**< Guest address of the resource. */
+  be_u32 size;    /**< Size of the resource in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(XEXResource, 0x10);
 
 /** Optional header listing the resources embedded in the image. */
 struct XEXOptResourceInfo {
-  be_u32 size; /**< Resource count is (size - 4) / 16. */
-  XEXResource resources[1];
+  be_u32 size;              /**< Resource count is (size - 4) / 16. */
+  XEXResource resources[1]; /**< First of the resource entries. */
 };
 static_assert(offsetof(XEXOptResourceInfo, resources) == 0x4);
 REX_STATIC_ASSERT_SIZE(XEXOptResourceInfo, 0x14);
 
 /** A delta patch entry. */
 struct XEXDeltaPatch {
-  be_u32 old_addr;
-  be_u32 new_addr;
-  be_u16 uncompressed_len;
-  be_u16 compressed_len;
-  char patch_data[1];
+  be_u32 old_addr;         /**< Old address. */
+  be_u32 new_addr;         /**< New address. */
+  be_u16 uncompressed_len; /**< Size of the patch data once decompressed, in bytes. */
+  be_u16 compressed_len;   /**< Size of patch_data in bytes. */
+  char patch_data[1];      /**< First byte of the compressed delta data. */
 };
 static_assert(offsetof(XEXDeltaPatch, patch_data) == 0xC);
 REX_STATIC_ASSERT_SIZE(XEXDeltaPatch, 0x10);
 
 /** Optional header describing a delta patch against a base image. */
 struct XEXOptDeltaPatchDescriptor {
-  be_u32 size;
-  be_u32 target_version_value;
-  be_u32 source_version_value;
-  u8 digest_source[0x14];
-  u8 image_key_source[0x10];
-  be_u32 size_of_target_headers;
+  be_u32 size;                   /**< Size of this header in bytes. */
+  be_u32 target_version_value;   /**< Version word of the patched image, as XEXVersion::value. */
+  be_u32 source_version_value;   /**< Version word of the base image, as XEXVersion::value. */
+  u8 digest_source[0x14];        /**< SHA1 digest of the RSA signature of the base XEX. */
+  u8 image_key_source[0x10];     /**< Encrypted image key of the base XEX. */
+  be_u32 size_of_target_headers; /**< Size in bytes of the headers of the patched image. */
+  /** Offset in the base headers of the header bytes kept by the patch. */
   be_u32 delta_headers_source_offset;
-  be_u32 delta_headers_source_size;
+  be_u32 delta_headers_source_size; /**< Size in bytes of the header bytes kept by the patch. */
+  /** Offset in the patched headers where the kept header bytes are placed. */
   be_u32 delta_headers_target_offset;
+  /** Offset in the base image of the image bytes kept by the patch. */
   be_u32 delta_image_source_offset;
-  be_u32 delta_image_source_size;
+  be_u32 delta_image_source_size; /**< Size in bytes of the image bytes kept by the patch. */
+  /** Offset in the patched image where the kept image bytes are placed. */
   be_u32 delta_image_target_offset;
-  XEXDeltaPatch info;
+  XEXDeltaPatch info; /**< Delta patch applied to the headers. */
 
+  /**
+   * Returns the version of the patched image.
+   *
+   * @return The target version.
+   */
   XEXVersion GetTargetVersion() const { return XEXVersion{target_version_value}; }
 
+  /**
+   * Sets the version of the patched image.
+   *
+   * @param version The target version.
+   */
   void SetTargetVersion(XEXVersion version) { target_version_value = version.value; }
 
+  /**
+   * Returns the version of the base image.
+   *
+   * @return The source version.
+   */
   XEXVersion GetSourceVersion() const { return XEXVersion{source_version_value}; }
 
+  /**
+   * Sets the version of the base image.
+   *
+   * @param version The source version.
+   */
   void SetSourceVersion(XEXVersion version) { source_version_value = version.value; }
 };
 static_assert(offsetof(XEXOptDeltaPatchDescriptor, info) == 0x4C);
@@ -565,55 +590,96 @@ REX_STATIC_ASSERT_SIZE(XEXOptDeltaPatchDescriptor, 0x5C);
 
 /** Optional header holding the identity and version of the title. */
 struct XEXOptExecutionInfo {
-  be_u32 media_id;
-  be_u32 version_value;
-  be_u32 base_version_value;
-  be_u32 title_id;
-  u8 platform;
-  u8 executable_table;
-  u8 disc_number;
-  u8 disc_count;
-  be_u32 savegame_id;
+  be_u32 media_id;           /**< Media id of the title. */
+  be_u32 version_value;      /**< Version word of the title, as XEXVersion::value. */
+  be_u32 base_version_value; /**< Version word of the base title, as XEXVersion::value. */
+  be_u32 title_id;           /**< Title id. */
+  u8 platform;               /**< Platform byte of the execution info. */
+  u8 executable_table;       /**< Executable table byte of the execution info. */
+  u8 disc_number;            /**< Number of this disc in a multi disc title. */
+  u8 disc_count;             /**< Number of discs of the title. */
+  be_u32 savegame_id;        /**< Save game id of the title. */
 
+  /**
+   * Returns the title version.
+   *
+   * @return The version.
+   */
   XEXVersion GetVersion() const { return XEXVersion{version_value}; }
 
+  /**
+   * Sets the title version.
+   *
+   * @param version The version.
+   */
   void SetVersion(XEXVersion version) { version_value = version.value; }
 
+  /**
+   * Returns the base title version.
+   *
+   * @return The base version.
+   */
   XEXVersion GetBaseVersion() const { return XEXVersion{base_version_value}; }
 
+  /**
+   * Sets the base title version.
+   *
+   * @param version The base version.
+   */
   void SetBaseVersion(XEXVersion version) { base_version_value = version.value; }
 };
 REX_STATIC_ASSERT_SIZE(XEXOptExecutionInfo, 0x18);
 
 /** Optional header listing the libraries the image imports from. */
 struct XEXOptImportLibraries {
-  be_u32 size;
+  be_u32 size; /**< Size of this header in bytes, the size field included. */
   struct {
-    be_u32 size;
-    be_u32 count;
+    be_u32 size;  /**< Size of the string table data in bytes. */
+    be_u32 count; /**< Number of imported libraries. */
     char data[1]; /**< string_table.size bytes. */
-  } string_table;
+  } string_table; /**< Names of the imported libraries. */
 };
 static_assert(offsetof(XEXOptImportLibraries, string_table.data) == 0xC);
 REX_STATIC_ASSERT_SIZE(XEXOptImportLibraries, 0x10);
 
 /** An imported library with its version range and import table. */
 struct XEXImportLibraryHeader {
-  be_u32 size;
-  char next_import_digest[0x14];
-  be_u32 id;
-  be_u32 version_value;
+  be_u32 size;                   /**< Size of this header in bytes, the import table included. */
+  char next_import_digest[0x14]; /**< Digest of the next import library header. */
+  be_u32 id;                     /**< Id of the library. */
+  be_u32 version_value;          /**< Version word of the library, as XEXVersion::value. */
+  /** Lowest version word of the library the image accepts, as XEXVersion::value. */
   be_u32 version_min_value;
-  be_u16 name_index;
-  be_u16 count;
-  be_u32 import_table[1];
+  be_u16 name_index;      /**< Index of the library name in the string table. */
+  be_u16 count;           /**< Number of entries in import_table. */
+  be_u32 import_table[1]; /**< First of the import records. */
 
+  /**
+   * Returns the library version.
+   *
+   * @return The version of the library.
+   */
   XEXVersion GetVersion() const { return XEXVersion{version_value}; }
 
+  /**
+   * Sets the library version.
+   *
+   * @param version The version to store.
+   */
   void SetVersion(XEXVersion version) { version_value = version.value; }
 
+  /**
+   * Returns the lowest library version the image accepts.
+   *
+   * @return The minimum version.
+   */
   XEXVersion GetVersionMin() const { return XEXVersion{version_min_value}; }
 
+  /**
+   * Sets the lowest library version the image accepts.
+   *
+   * @param version The minimum version.
+   */
   void SetVersionMin(XEXVersion version) { version_min_value = version.value; }
 };
 static_assert(offsetof(XEXImportLibraryHeader, import_table) == 0x28);
@@ -624,6 +690,11 @@ struct XEXOptU32Words {
   be_u32 size;      /**< Size of this header in bytes, the size field included. */
   be_u32 values[1]; /**< First of the `GetCount()` values. */
 
+  /**
+   * Returns the number of values.
+   *
+   * @return The number of 32 bit values.
+   */
   u32 GetCount() const { return (size - 4) / 4; }
 };
 
@@ -645,14 +716,14 @@ struct XEXOptHeader {
 
 /** Fixed header at the start of an XEX2 file. */
 struct XEXHeader {
-  be_u32 magic; /**< Value 'XEX2'. */
-  BE<XEXModuleFlags> module_flags;
-  be_u32 header_size;
-  be_u32 reserved;
-  be_u32 security_offset;
-  be_u32 header_count;
+  be_u32 magic;                    /**< Value 'XEX2'. */
+  BE<XEXModuleFlags> module_flags; /**< XEXModuleFlags bits of the module. */
+  be_u32 header_size;     /**< Size of the headers in bytes, also the offset of the image data. */
+  be_u32 reserved;        /**< Reserved. */
+  be_u32 security_offset; /**< Offset of the security info from the start of the file. */
+  be_u32 header_count;    /**< Number of entries in the optional header table. */
 
-  XEXOptHeader headers[1];
+  XEXOptHeader headers[1]; /**< First of the optional header table entries. */
 };
 static_assert(offsetof(XEXHeader, headers) == 0x18);
 REX_STATIC_ASSERT_SIZE(XEXHeader, 0x20);
@@ -660,67 +731,67 @@ REX_STATIC_ASSERT_SIZE(XEXHeader, 0x20);
 /** Section type, page count and digest of a run of image pages. */
 struct XEXPageDescriptor {
   union {
-    be_u32 value;
+    be_u32 value; /**< Packed section type and page count. */
     struct {
       XEXSectionType type : 4; /**< Bits 0 to 3 of value. Section type of the pages. */
       u32 page_count : 28;     /**< Bits 4 to 31 of value. Number of pages in the run. */
     };
   };
-  char data_digest[0x14];
+  char data_digest[0x14]; /**< Digest of the pages. */
 };
 REX_STATIC_ASSERT_SIZE(XEXPageDescriptor, 0x18);
 
 /** Security info of an XEX2 image. */
 struct XEXSecurityInfoHeader {
-  be_u32 header_size;
-  be_u32 image_size;
-  char rsa_signature[0x100];
-  be_u32 info_size;
-  be_u32 image_flags;
-  be_u32 load_address;
-  char section_digest[0x14];
-  be_u32 import_table_count;
-  char import_table_digest[0x14];
-  char xgd2_media_id[0x10];
-  char aes_key[0x10];
-  be_u32 export_table;
-  char header_digest[0x14];
-  be_u32 region;
-  be_u32 allowed_media_types;
-  be_u32 page_descriptor_count;
-  XEXPageDescriptor page_descriptors[1];
+  be_u32 header_size;                    /**< Size field of the security info. */
+  be_u32 image_size;                     /**< Size of the image in bytes. */
+  char rsa_signature[0x100];             /**< RSA signature of the image. */
+  be_u32 info_size;                      /**< Size field of the security info. */
+  be_u32 image_flags;                    /**< XEXImageFlags bits. */
+  be_u32 load_address;                   /**< Guest address the image loads at. */
+  char section_digest[0x14];             /**< Digest of the image sections. */
+  be_u32 import_table_count;             /**< Number of import tables. */
+  char import_table_digest[0x14];        /**< Digest of the import tables. */
+  char xgd2_media_id[0x10];              /**< Media id for XGD2 media. */
+  char aes_key[0x10];                    /**< Encrypted AES key of the image. */
+  be_u32 export_table;                   /**< Guest address of the export table. */
+  char header_digest[0x14];              /**< Digest of the XEX headers. */
+  be_u32 region;                         /**< XEXRegionFlags bits the image may run in. */
+  be_u32 allowed_media_types;            /**< XEXMediaFlags bits the image may load from. */
+  be_u32 page_descriptor_count;          /**< Number of page descriptors. */
+  XEXPageDescriptor page_descriptors[1]; /**< First of the page descriptors. */
 };
 static_assert(offsetof(XEXSecurityInfoHeader, page_descriptors) == 0x184);
 REX_STATIC_ASSERT_SIZE(XEXSecurityInfoHeader, 0x19C);
 
 /** Security info of an XEX1 image. */
 struct XEX1SecurityInfo {
-  be_u32 header_size;
-  be_u32 image_size;
-  char rsa_signature[0x100];
-  char image_digest[0x14];
-  char import_table_digest[0x14];
-  be_u32 load_address;
-  char aes_key[0x10];
-  char xgd2_media_id[0x10];
-  be_u32 region;
-  be_u32 image_flags;
-  be_u32 export_table;
-  be_u32 allowed_media_types;
-  be_u32 page_descriptor_count;
-  XEXPageDescriptor page_descriptors[1];
+  be_u32 header_size;                    /**< Size field of the security info. */
+  be_u32 image_size;                     /**< Size of the image in bytes. */
+  char rsa_signature[0x100];             /**< RSA signature of the image. */
+  char image_digest[0x14];               /**< Digest of the image. */
+  char import_table_digest[0x14];        /**< Digest of the import tables. */
+  be_u32 load_address;                   /**< Guest address the image loads at. */
+  char aes_key[0x10];                    /**< Encrypted AES key of the image. */
+  char xgd2_media_id[0x10];              /**< Media id for XGD2 media. */
+  be_u32 region;                         /**< XEXRegionFlags bits the image may run in. */
+  be_u32 image_flags;                    /**< XEXImageFlags bits. */
+  be_u32 export_table;                   /**< Guest address of the export table. */
+  be_u32 allowed_media_types;            /**< XEXMediaFlags bits the image may load from. */
+  be_u32 page_descriptor_count;          /**< Number of page descriptors. */
+  XEXPageDescriptor page_descriptors[1]; /**< First of the page descriptors. */
 };
 static_assert(offsetof(XEX1SecurityInfo, page_descriptors) == 0x168);
 REX_STATIC_ASSERT_SIZE(XEX1SecurityInfo, 0x180);
 
 /** Export table of an image, indexed by ordinal. */
 struct XEXExportTable {
-  be_u32 magic[3];
-  be_u32 module_number[2];
-  be_u32 version[3];
+  be_u32 magic[3];           /**< Magic words of the export table. */
+  be_u32 module_number[2];   /**< Module number words of the export table. */
+  be_u32 version[3];         /**< Version words of the export table. */
   be_u32 image_base_address; /**< Shifted left 16 for the true address. */
-  be_u32 count;
-  be_u32 base;
+  be_u32 count;              /**< Number of entries in ordinal_offset. */
+  be_u32 base;               /**< Ordinal of the first entry. */
   /** ordinal_offset[0] + (imagebaseaddr << 16) is the function address. */
   be_u32 ordinal_offset[1];
 };

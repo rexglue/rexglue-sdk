@@ -72,7 +72,7 @@ REX_STATIC_ASSERT_SIZE(X_FILE_BASIC_INFORMATION, 0x28);
 
 /** Unique index of a file on its volume. */
 struct X_FILE_INTERNAL_INFORMATION {
-  be_u64 index_number;
+  be_u64 index_number; /**< Unique index of the file, a hash of its path. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_INTERNAL_INFORMATION, 8);
 
@@ -92,7 +92,7 @@ REX_STATIC_ASSERT_SIZE(X_FILE_DISPOSITION_INFORMATION, 1);
 
 /** Current byte position of a file. */
 struct X_FILE_POSITION_INFORMATION {
-  be_u64 current_byte_offset;
+  be_u64 current_byte_offset; /**< Current position in bytes from the start of the file. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_POSITION_INFORMATION, 8);
 
@@ -110,7 +110,7 @@ REX_STATIC_ASSERT_SIZE(X_FILE_ALLOCATION_INFORMATION, 8);
 
 /** Result of the XFileXctdCompressionInformation query. */
 struct X_FILE_XCTD_COMPRESSION_INFORMATION {
-  be_u32 unknown;
+  be_u32 unknown; /**< Unknown. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_XCTD_COMPRESSION_INFORMATION, 4);
 

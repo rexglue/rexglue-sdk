@@ -35,7 +35,8 @@
 #error Unsupported target OS.
 #endif
 
-/** Each REX_PLATFORM_ flag not set above is 0, so it works in #if and static_assert. */
+/** Each REX_PLATFORM_ flag not set above is 0, so it works in preprocessor conditions and
+ * static_assert. */
 #ifndef REX_PLATFORM_MAC
 #define REX_PLATFORM_MAC 0
 #endif
@@ -43,12 +44,15 @@
 #define REX_PLATFORM_WIN32 0
 #endif
 #ifndef REX_PLATFORM_ANDROID
+/** 0 when the target is not Android. */
 #define REX_PLATFORM_ANDROID 0
 #endif
 #ifndef REX_PLATFORM_GNU_LINUX
+/** 0 when the target is not GNU Linux. */
 #define REX_PLATFORM_GNU_LINUX 0
 #endif
 #ifndef REX_PLATFORM_LINUX
+/** 0 when the target is not Linux. */
 #define REX_PLATFORM_LINUX 0
 #endif
 

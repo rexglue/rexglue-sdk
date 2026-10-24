@@ -78,7 +78,8 @@ struct MMIORecipient {
 
 /**
  * Routes the loads and stores of a block to a recipient. A recipient with no read or no write
- * handler is refused with an error.
+ * handler is refused with an error. Call it only while no guest thread runs, which the runtime
+ * guarantees by attaching during Setup and detaching after it stops the guest threads.
  *
  * @param block The register block.
  * @param recipient The handler and its context.

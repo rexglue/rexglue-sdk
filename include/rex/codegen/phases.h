@@ -46,22 +46,23 @@ namespace rex::codegen::detail {
 [[nodiscard]] Result<void> Discover(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 /**
- * Expands and seals functions by vacancy.
- *
- * @param ctx CodegenContext with binary and config loaded
- * @param reporter Optional progress sink, may be null
- * @return Success, or the failing phase error
- */
-[[nodiscard]] Result<void> Merge(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
-
-/**
- * Finds uncovered code regions and registers them as functions.
+ * Finds uncovered code regions and registers them as functions. Runs before Merge.
  *
  * @param ctx CodegenContext with binary and config loaded
  * @param reporter Optional progress sink, may be null
  * @return Success, or the failing phase error
  */
 [[nodiscard]] Result<void> GapFill(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
+
+/**
+ * Resolves every jump to a label, call or import, marks funclets that share registers, and
+ * seals the functions that are ready. Runs after GapFill.
+ *
+ * @param ctx CodegenContext with binary and config loaded
+ * @param reporter Optional progress sink, may be null
+ * @return Success, or the failing phase error
+ */
+[[nodiscard]] Result<void> Merge(CodegenContext& ctx, IProgressReporter* reporter = nullptr);
 
 /**
  * Validates that all call targets resolve.

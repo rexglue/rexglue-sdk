@@ -34,7 +34,7 @@ namespace rex {
 REX_INTERFACE(ILogger, "rex.log", 1)
  public:
   /**
-   * Registers categories and adds a log.<name> cvar for each.
+   * Registers categories and adds a log.\<name\> cvar for each.
    *
    * @param categories Descriptors that outlive the registration.
    * @return Ok, or an error naming a duplicate name, a name that collides with a log cvar, or a

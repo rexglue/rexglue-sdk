@@ -33,7 +33,7 @@
 #endif
 
 /**
- * Marks a C symbol that a module binary exports, such as the 2 entry points REX_DECLARE_MODULE
+ * Marks a C symbol that a module binary exports, such as the 3 entry points REX_DECLARE_MODULE
  * generates.
  *
  * @code

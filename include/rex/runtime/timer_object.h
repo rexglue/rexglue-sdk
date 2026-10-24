@@ -31,11 +31,11 @@ struct X_KDPC;
 
 /** Guest layout of a kernel timer. */
 struct X_KTIMER {
-  X_DISPATCH_HEADER header;
-  be_u64 due_time;
-  X_LIST_ENTRY table_bucket_entry;
-  be_ptr<X_KDPC> dpc;
-  be_u32 period;
+  X_DISPATCH_HEADER header;        /**< Dispatch header of the timer. */
+  be_u64 due_time;                 /**< Due time in 100 nanosecond ticks. */
+  X_LIST_ENTRY table_bucket_entry; /**< Reserved. */
+  be_ptr<X_KDPC> dpc;              /**< The DPC queued when the timer fires, null for none. */
+  be_u32 period;                   /**< Repeat period in milliseconds, 0 for a one shot timer. */
 };
 REX_STATIC_ASSERT_SIZE(X_KTIMER, 0x28);
 

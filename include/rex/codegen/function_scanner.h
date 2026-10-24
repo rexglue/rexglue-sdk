@@ -33,10 +33,12 @@ class DecodedBinary;
 /** Blocks, branches and instructions found by DiscoverBlocks() for 1 function. */
 struct BlockDiscoveryResult {
   BlockDiscoveryResult() = default;
+  /** Copy and move construction and assignment. @{ */
   BlockDiscoveryResult(const BlockDiscoveryResult&) = default;
   BlockDiscoveryResult& operator=(const BlockDiscoveryResult&) = default;
   BlockDiscoveryResult(BlockDiscoveryResult&&) noexcept(false) = default;
   BlockDiscoveryResult& operator=(BlockDiscoveryResult&&) noexcept(false) = default;
+  /** @} */
   ~BlockDiscoveryResult() = default;
 
   std::vector<Block> blocks;                    /**< Discovered blocks */

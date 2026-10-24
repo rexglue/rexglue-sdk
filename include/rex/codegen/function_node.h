@@ -34,20 +34,46 @@ class FunctionNode {
    */
   FunctionNode(u32 base, u32 size, FunctionAuthority authority);
 
+  /** Returns the entry point address. */
   u32 GetBase() const { return base_; }
+  /** Returns the size in bytes. */
   u32 GetSize() const { return size_; }
+  /** Returns the address 1 past the function. */
   u32 GetEnd() const { return base_ + size_; }
+  /** Returns the function name. */
   const std::string& GetName() const { return name_; }
 
   /** Returns the cached pointer to the instruction bytes. */
   const u8* GetCode() const { return code_; }
+  /**
+   * Reports whether the instruction bytes pointer is set.
+   *
+   * @return True when GetCode() is not null.
+   */
   bool HasCode() const { return code_ != nullptr; }
 
+  /** Returns the authority of the function. */
   FunctionAuthority GetAuthority() const { return authority_; }
+  /** Returns the state of the function. */
   FunctionState GetState() const { return state_; }
 
+  /**
+   * Reports whether the function is registered.
+   *
+   * @return True when state is kRegistered.
+   */
   bool IsRegistered() const { return state_ == FunctionState::kRegistered; }
+  /**
+   * Reports whether the function is discovered.
+   *
+   * @return True when state is kDiscovered.
+   */
   bool IsDiscovered() const { return state_ == FunctionState::kDiscovered; }
+  /**
+   * Reports whether the function is sealed.
+   *
+   * @return True when state is kSealed.
+   */
   bool IsSealed() const { return state_ == FunctionState::kSealed; }
 
   /**
@@ -57,7 +83,17 @@ class FunctionNode {
    */
   bool IsPending() const { return state_ != FunctionState::kSealed; }
 
+  /**
+   * Reports whether the function is an import thunk.
+   *
+   * @return True when authority is kImport.
+   */
   bool IsImport() const { return authority_ == FunctionAuthority::kImport; }
+  /**
+   * Reports whether the function is a save or restore helper.
+   *
+   * @return True when authority is kHelper.
+   */
   bool IsHelper() const { return authority_ == FunctionAuthority::kHelper; }
 
   /**
@@ -117,6 +153,7 @@ class FunctionNode {
     return instructions_;
   }
 
+  /** Returns the blocks of the function. */
   const std::vector<Block>& GetBlocks() const { return blocks_; }
   /**
    * Reports whether an address belongs to the function. Gaps between blocks match only for CONFIG
@@ -138,6 +175,12 @@ class FunctionNode {
 
   /** Returns the internal branch targets of this function. */
   const std::set<u32>& GetLabels() const { return labels_; }
+  /**
+   * Reports whether an address is an internal branch target.
+   *
+   * @param addr Address to test.
+   * @return True when addr is in the label set.
+   */
   bool IsLabel(u32 addr) const { return labels_.contains(addr); }
 
   /** Returns the resolved calls, the bl instructions. */
@@ -161,12 +204,24 @@ class FunctionNode {
    */
   void SetFallThroughs(std::set<u32> targets) { fall_throughs_ = std::move(targets); }
 
+  /** Returns the jump tables of the function. */
   const std::vector<JumpTable>& GetJumpTables() const { return jump_tables_; }
 
+  /** Returns the jumps still awaiting resolution. */
   const std::vector<UnresolvedJump>& GetUnresolvedJumps() const { return unresolved_jumps_; }
 
+  /**
+   * Reports whether any jump awaits resolution.
+   *
+   * @return True when GetUnresolvedJumps() is not empty.
+   */
   bool HasUnresolvedJumps() const { return !unresolved_jumps_.empty(); }
 
+  /**
+   * Reports whether the .pdata entry of the function is of the exception handler type.
+   *
+   * @return True for a function with an exception handler.
+   */
   bool HasExceptionHandler() const { return has_exception_handler_; }
 
   /**
@@ -187,6 +242,11 @@ class FunctionNode {
     return exception_data_.has_value() && exception_data_->HasInfo();
   }
 
+  /**
+   * Sets the function name.
+   *
+   * @param name New name.
+   */
   void SetName(std::string name) { name_ = std::move(name); }
 
   /**
@@ -196,6 +256,11 @@ class FunctionNode {
    * @return True for a register sharing funclet
    */
   bool IsRegisterSharing() const { return shares_registers_; }
+  /**
+   * Sets whether this is an SEH funclet sharing registers with its owner.
+   *
+   * @param val True for a register sharing funclet.
+   */
   void SetSharesRegisters(bool val) { shares_registers_ = val; }
 
  private:

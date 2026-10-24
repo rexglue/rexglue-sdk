@@ -33,6 +33,12 @@ struct SectionView {
   /** True for sections the image marks executable, which the scanners treat as code. */
   bool executable;
 
+  /**
+   * Reports whether an address is inside the section.
+   *
+   * @param addr Guest address to test.
+   * @return True when addr is within the section.
+   */
   bool Contains(u32 addr) const { return addr >= base_address && addr < base_address + size; }
 
   /**
@@ -47,13 +53,14 @@ struct SectionView {
     return data + (addr - base_address);
   }
 
+  /** Returns the guest address 1 past the section. */
   u32 GetEnd() const { return base_address + size; }
 };
 
 /** Import symbol with its thunk address and name. */
 struct ImportSymbol {
   u32 address;      /**< Thunk address, the bl target */
-  std::string name; /**< Name in libname@ordinal format */
+  std::string name; /**< Name in libname\@ordinal format */
 };
 
 /** Binary view that owns all section data. */
@@ -95,13 +102,20 @@ class BinaryView : public rex::MoveOnly {
    * @return The first section with that name, or null when none matches
    */
   const SectionView* FindSectionByName(std::string_view name) const;
+  /** Returns all sections of the image. */
   std::span<const SectionView> GetSections() const { return sections_; }
 
+  /** Returns the guest address the image is loaded at. */
   u32 GetBaseAddress() const { return base_address_; }
+  /** Returns the image size in bytes. */
   u32 GetImageSize() const { return image_size_; }
+  /** Returns the guest address of the image entry point. */
   u32 GetEntryPoint() const { return entry_point_; }
+  /** Returns the guest address of the exception directory. */
   u32 GetExceptionDirectoryAddress() const { return exception_directory_addr_; }
+  /** Returns the size of the exception directory in bytes. */
   u32 GetExceptionDirectorySize() const { return exception_directory_size_; }
+  /** Returns the guest address of the export table. */
   u32 GetExportTableAddress() const { return export_table_addr_; }
 
   /**

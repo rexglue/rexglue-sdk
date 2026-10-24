@@ -36,6 +36,7 @@ class Runtime;
 
 namespace rex::runtime {
 
+/** Value StashHandle writes to wait_list_flink to mark a dispatch header that holds a handle. */
 constexpr memory::FourCCT kStashSignature = memory::make_fourcc('R', 'E', 'X', '\0');
 
 /** Header at the start of every waitable kernel object. */
@@ -85,13 +86,13 @@ REX_STATIC_ASSERT_SIZE(X_OBJECT_HEADER, 0x10);
 
 /** Guest object type descriptor. */
 struct X_OBJECT_TYPE {
-  be_u32 constructor;
-  be_u32 destructor;
-  be_u32 unk_08;
-  be_u32 unk_0c;
-  be_u32 unk_10;
-  be_u32 unk_14;
-  be_u32 pool_tag;
+  be_u32 constructor; /**< Reserved. */
+  be_u32 destructor;  /**< Reserved. */
+  be_u32 unk_08;      /**< Reserved. */
+  be_u32 unk_0c;      /**< Reserved. */
+  be_u32 unk_10;      /**< Reserved. */
+  be_u32 unk_14;      /**< Reserved. */
+  be_u32 pool_tag;    /**< Four character pool tag of the object type. */
 };
 REX_STATIC_ASSERT_SIZE(X_OBJECT_TYPE, 0x1C);
 

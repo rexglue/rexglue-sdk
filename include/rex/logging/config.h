@@ -47,9 +47,13 @@ struct LogFileConfig {
 /** Logger configuration, read once when the modules connect. */
 struct LogConfig {
   LogConfig() = default;
+  /** Copies the configuration. */
   LogConfig(const LogConfig&) = default;
+  /** Copy assigns the configuration. */
   LogConfig& operator=(const LogConfig&) = default;
+  /** Moves the configuration. */
   LogConfig(LogConfig&&) noexcept(false) = default;
+  /** Move assigns the configuration. */
   LogConfig& operator=(LogConfig&&) noexcept(false) = default;
   ~LogConfig() = default;
 

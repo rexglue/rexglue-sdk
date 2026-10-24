@@ -17,6 +17,7 @@
 #include <simde/x86/sse.h>
 
 #ifndef _MM_DENORMALS_ZERO_MASK
+/** MXCSR denormals are zero bit mask. */
 #define _MM_DENORMALS_ZERO_MASK 0x0040
 #endif
 

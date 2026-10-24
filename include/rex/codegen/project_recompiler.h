@@ -24,7 +24,8 @@ namespace rex::codegen {
 struct ProjectRecompilerOptions {
   std::vector<std::string> targets; /**< Empty selects all */
   bool force = false;               /**< Skip the stamp check and continue past validation errors */
-  IProgressReporter* reporter = nullptr; /**< Receives progress events, null for none */
+  bool enable_exception_handlers = false; /**< Generate SEH exception handler wrappers */
+  IProgressReporter* reporter = nullptr;  /**< Receives progress events, null for none */
 
   /** Bypasses the stamp gate and regenerates every targeted module. */
   bool ignore_stamp = false;
@@ -50,6 +51,13 @@ class ProjectRecompiler {
    * @param manifest Manifest to process, moved into the recompiler
    */
   explicit ProjectRecompiler(ManifestConfig manifest);
+
+  /**
+   * Generates code for the targeted modules.
+   *
+   * @param opts Targets, force flag and progress reporter for this run.
+   * @return Ok on success, or the error that stopped the run.
+   */
   [[nodiscard]] Result<void> Run(const ProjectRecompilerOptions& opts);
 
   /**

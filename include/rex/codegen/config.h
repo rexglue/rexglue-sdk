@@ -109,10 +109,12 @@ struct FunctionEntry {
  */
 struct RecompilerConfig {
   RecompilerConfig() = default;
+  /** Copy and move construction and assignment. @{ */
   RecompilerConfig(const RecompilerConfig&) = default;
   RecompilerConfig& operator=(const RecompilerConfig&) = default;
   RecompilerConfig(RecompilerConfig&&) noexcept(false) = default;
   RecompilerConfig& operator=(RecompilerConfig&&) noexcept(false) = default;
+  /** @} */
   ~RecompilerConfig() = default;
 
   /** TOML key `project_name`, default `rex`. Prefix of the generated `<name>_*.h` and `.cpp` files
@@ -275,6 +277,11 @@ struct RecompilerConfig {
     std::vector<std::string> warnings;
     std::vector<std::string> errors; /**< Fatal issues that block codegen */
 
+    /**
+     * Reports whether validation found no errors.
+     *
+     * @return True when there are no errors.
+     */
     explicit operator bool() const { return valid; }
   };
 

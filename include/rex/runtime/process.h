@@ -17,31 +17,31 @@ namespace rex::runtime {
 
 /** Process types KeGetCurrentProcessType reports. */
 constexpr u32 kXProcTypeIdle = 0;
-constexpr u32 kXProcTypeUser = 1;
-constexpr u32 kXProcTypeSystem = 2;
+constexpr u32 kXProcTypeUser = 1;   /**< Process type of the title process. */
+constexpr u32 kXProcTypeSystem = 2; /**< Process type of the system process. */
 
 /** The guest KPROCESS block. */
 struct X_KPROCESS {
-  X_KSPINLOCK thread_list_spinlock;
-  X_LIST_ENTRY thread_list;
-  be_i32 quantum;
-  be_u32 clrdataa_masked_ptr;
-  be_u32 thread_count;
-  u8 unk_18;
-  u8 unk_19;
-  u8 unk_1a;
-  u8 unk_1b;
-  be_u32 kernel_stack_size;
-  be_u32 tls_static_data_address;
-  be_u32 tls_data_size;
-  be_u32 tls_raw_data_size;
-  be_u16 tls_slot_size;
-  u8 is_terminating;
-  u8 process_type;
-  be_u32 tls_slot_bitmap[8];
-  be_u32 unk_50;
-  X_LIST_ENTRY unk_54;
-  be_u32 unk_5c;
+  X_KSPINLOCK thread_list_spinlock; /**< Guards thread_list and thread_count. */
+  X_LIST_ENTRY thread_list;         /**< List of the threads of the process. */
+  be_i32 quantum;                   /**< Scheduling quantum of the process. */
+  be_u32 clrdataa_masked_ptr;       /**< Zeroed at setup. */
+  be_u32 thread_count;              /**< Number of threads added to thread_list. */
+  u8 unk_18;                        /**< Set at setup. */
+  u8 unk_19;                        /**< Set at setup. */
+  u8 unk_1a;                        /**< Set at setup. */
+  u8 unk_1b;                        /**< Set to 6 at setup. */
+  be_u32 kernel_stack_size;         /**< Default stack size of a new thread. */
+  be_u32 tls_static_data_address;   /**< Guest address of the static TLS data. */
+  be_u32 tls_data_size;             /**< Size of the TLS data a thread receives. */
+  be_u32 tls_raw_data_size;         /**< Reserved. */
+  be_u16 tls_slot_size;             /**< Size in bytes of the dynamic TLS slots, 4 per slot. */
+  u8 is_terminating;                /**< Reserved. */
+  u8 process_type;                  /**< One of the kXProcType values. */
+  be_u32 tls_slot_bitmap[8];        /**< Set bits mark free TLS slots, slot 0 is the top bit. */
+  be_u32 unk_50;                    /**< Reserved. */
+  X_LIST_ENTRY unk_54;              /**< List head initialized at setup. */
+  be_u32 unk_5c;                    /**< Reserved. */
 };
 REX_STATIC_ASSERT_SIZE(X_KPROCESS, 0x60);
 

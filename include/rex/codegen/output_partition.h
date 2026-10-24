@@ -24,6 +24,7 @@
 
 namespace rex::codegen {
 
+/** Name of the sidecar file that holds the partition. */
 inline constexpr std::string_view kPartitionFileName = "codegen.partition.json";
 
 /** Function to place in an output file. */
@@ -36,10 +37,12 @@ struct FunctionSize {
 class OutputPartition {
  public:
   OutputPartition() = default;
+  /** Copy and move construction and assignment. @{ */
   OutputPartition(const OutputPartition&) = default;
   OutputPartition& operator=(const OutputPartition&) = default;
   OutputPartition(OutputPartition&&) noexcept(false) = default;
   OutputPartition& operator=(OutputPartition&&) noexcept(false) = default;
+  /** @} */
   ~OutputPartition() = default;
 
   /**

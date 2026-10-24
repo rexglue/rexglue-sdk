@@ -353,6 +353,7 @@ class Var final : public VarBase {
     desc_.type = detail::GetType<T>();
     desc_.description = description;
   }
+  /** Copies the var. */
   constexpr Var(const Var&) noexcept = default;
 
   /**

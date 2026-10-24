@@ -109,4 +109,5 @@ struct PPCFuncMapping {
   PPCFunc* host;  /**< Recompiled function. */
 };
 
+/** Guest to host function mappings, defined by the generated code. */
 extern const PPCFuncMapping kPPCFuncMappings[];

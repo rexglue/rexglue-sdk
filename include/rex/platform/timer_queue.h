@@ -58,6 +58,7 @@ struct REX_API TimerQueueWaitItem {
    */
   void Disarm();
 
+  /** Lets the queue manage the item state. */
   friend TimerQueue;
 
  private:

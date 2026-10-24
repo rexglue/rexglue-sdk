@@ -62,6 +62,11 @@ struct CRRegister {
     u8 un; /**< CR field bit 3, 1 when a float compare had a NaN operand. */
   };
 
+  /**
+   * Returns the 4 bit CR field value.
+   *
+   * @return lt in bit 3 down to so in bit 0.
+   */
   u32 GetRaw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
 
   /**
@@ -150,11 +155,11 @@ union alignas(0x10) VRegister {
   double f64[2];   /**< 2 64 bit float lanes. */
 };
 
-constexpr u32 kRoundNearest = 0x00;
-constexpr u32 kRoundTowardZero = 0x01;
-constexpr u32 kRoundUp = 0x02;
-constexpr u32 kRoundDown = 0x03;
-constexpr u32 kRoundMask = 0x03;
+constexpr u32 kRoundNearest = 0x00;    /**< Rounding mode: to nearest even. */
+constexpr u32 kRoundTowardZero = 0x01; /**< Rounding mode: toward zero. */
+constexpr u32 kRoundUp = 0x02;         /**< Rounding mode: toward positive infinity. */
+constexpr u32 kRoundDown = 0x03;       /**< Rounding mode: toward negative infinity. */
+constexpr u32 kRoundMask = 0x03;       /**< Mask of the rounding mode bits. */
 
 /** Floating point status and control register (FPSCR). */
 struct FPSCRRegister {
@@ -184,7 +189,18 @@ struct FPSCRRegister {
   /** Bits the guest owns, the rest is host policy set by InitHost. */
   static constexpr u32 kGuestMask = static_cast<u32>(kRoundMaskVal) | static_cast<u32>(kFlushMask);
 
+  /**
+   * Returns the host floating point control register.
+   *
+   * @return The MXCSR on x86 and the FPCR on ARM.
+   */
   u32 GetCSR() noexcept { return Platform::GetCSR(); }
+
+  /**
+   * Writes the host floating point control register.
+   *
+   * @param value The MXCSR on x86 and the FPCR on ARM.
+   */
   void SetCSR(u32 value) noexcept { Platform::SetCSR(value); }
 
   /**
@@ -286,14 +302,10 @@ struct alignas(0x40) PPCContext {
   /** General purpose register 3, the first integer argument and the integer return value. */
   PPCRegister r3;
   /**
-   * @name General purpose registers r0 to r31 except r3, 64 bit
-   *
-   * - r1 is the stack pointer.
-   * - r4 to r10 are the integer arguments after r3.
-   * - r13 is the KPCR pointer.
-   * - r14 to r31 are saved across calls.
+   * General purpose registers r0 to r31 except r3, 64 bit. r1 is the stack pointer, r4 to r10 are
+   * the integer arguments after r3, r13 is the KPCR pointer and r14 to r31 are saved across calls.
+   * @{
    */
-  /** @{ */
   PPCRegister r0;
   PPCRegister r1;
   PPCRegister r2;
@@ -350,13 +362,10 @@ struct alignas(0x40) PPCContext {
   u32 last_indirect_target = 0;
 
   /**
-   * @name Floating point registers f0 to f31, 64 bit
-   *
-   * - f1 to f13 are the float arguments.
-   * - f1 is the float return value.
-   * - f14 to f31 are saved across calls.
+   * Floating point registers f0 to f31, 64 bit. f1 to f13 are the float arguments, f1 is the float
+   * return value and f14 to f31 are saved across calls.
+   * @{
    */
-  /** @{ */
   PPCRegister f0;
   PPCRegister f1;
   PPCRegister f2;
@@ -391,8 +400,7 @@ struct alignas(0x40) PPCContext {
   PPCRegister f31;
   /** @} */
 
-  /** @name Vector registers v0 to v31, 128 bit, v14 to v31 saved across calls. */
-  /** @{ */
+  /** Vector registers v0 to v31, 128 bit, v14 to v31 saved across calls. @{ */
   PPCVRegister v0;
   PPCVRegister v1;
   PPCVRegister v2;
@@ -426,9 +434,8 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v30;
   PPCVRegister v31;
   /** @} */
-  /** @name VMX128 vector registers v32 to v127, 128 bit, present only with the PPC VMX128
-   * extension, v64 to v127 saved across calls. */
-  /** @{ */
+  /** VMX128 vector registers v32 to v127, 128 bit, present only with the PPC VMX128 extension, v64
+   * to v127 saved across calls. @{ */
   PPCVRegister v32;
   PPCVRegister v33;
   PPCVRegister v34;

@@ -33,6 +33,11 @@ class REX_RUNTIME_API ELFModule : public Module {
   /** Destroys the module. */
   virtual ~ELFModule();
 
+  /**
+   * Reports whether the image is loaded.
+   *
+   * @return True when the image is loaded.
+   */
   bool IsLoaded() const { return loaded_; }
   const std::string& GetName() const override { return name_; }
   /**
@@ -41,10 +46,30 @@ class REX_RUNTIME_API ELFModule : public Module {
    * @return True when it does.
    */
   bool IsExecutable() const override;
+  /**
+   * Returns the path the image came from.
+   *
+   * @return The path.
+   */
   const std::string& GetPath() const { return path_; }
 
+  /**
+   * Returns the lowest guest address of the loaded segments.
+   *
+   * @return The guest address, 0 before the image is loaded.
+   */
   u32 GetBaseAddress() const override { return base_address_; }
+  /**
+   * Returns the size of the loaded segments.
+   *
+   * @return The size in bytes.
+   */
   u32 GetImageSize() const override { return image_size_; }
+  /**
+   * Returns the entry point of the image.
+   *
+   * @return The guest address.
+   */
   u32 GetEntryPoint() const override { return entry_point_; }
 
   /**

@@ -38,7 +38,17 @@ class REX_RUNTIME_API Module {
   /** Destroys the module. */
   virtual ~Module();
 
+  /**
+   * Returns the memory the module loads into.
+   *
+   * @return The memory, null when the module has no dispatcher.
+   */
   runtime::Memory* GetMemory() const { return memory_; }
+  /**
+   * Returns the function dispatcher of the module.
+   *
+   * @return The dispatcher, null when none was given.
+   */
   FunctionDispatcher* GetFunctionDispatcher() const { return function_dispatcher_; }
 
   /**
@@ -54,9 +64,29 @@ class REX_RUNTIME_API Module {
    */
   virtual bool IsExecutable() const = 0;
 
+  /**
+   * Returns the guest address the image is loaded at.
+   *
+   * @return The guest address, 0 by default.
+   */
   virtual u32 GetBaseAddress() const { return 0; }
+  /**
+   * Returns the size of the loaded image.
+   *
+   * @return The size in bytes, 0 by default.
+   */
   virtual u32 GetImageSize() const { return 0; }
+  /**
+   * Returns the entry point of the image.
+   *
+   * @return The guest address, 0 by default.
+   */
   virtual u32 GetEntryPoint() const { return 0; }
+  /**
+   * Returns the guest address of the export table.
+   *
+   * @return The guest address, 0 by default.
+   */
   virtual u32 GetExportTableAddress() const { return 0; }
 
   /**

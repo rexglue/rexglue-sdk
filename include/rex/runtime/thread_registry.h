@@ -35,6 +35,11 @@ class ThreadPin : public rex::MoveOnly {
    * @param thread The pinned `KernelThread`.
    */
   explicit ThreadPin(KernelThread* thread) noexcept : thread_(thread) {}
+  /**
+   * Takes over the pin of another pin object.
+   *
+   * @param other The pin left empty.
+   */
   ThreadPin(ThreadPin&& other) noexcept : thread_(other.thread_) { other.thread_ = nullptr; }
   /**
    * Takes over the pin of another pin object and releases the pin this pin held.
@@ -58,7 +63,19 @@ class ThreadPin : public rex::MoveOnly {
    * @return True when it does.
    */
   explicit operator bool() const noexcept { return thread_ != nullptr; }
+
+  /**
+   * Returns the pinned `KernelThread`.
+   *
+   * @return The `KernelThread`, null when empty.
+   */
   KernelThread* operator->() const noexcept { return thread_; }
+
+  /**
+   * Returns the pinned `KernelThread`.
+   *
+   * @return The `KernelThread`, which must exist.
+   */
   KernelThread& operator*() const noexcept { return *thread_; }
 
   /**

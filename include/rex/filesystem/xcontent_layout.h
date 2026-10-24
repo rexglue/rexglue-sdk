@@ -61,22 +61,20 @@ inline constexpr std::array<u32, 3> kSTFSBlocksPerHashLevel = {170, 28900, kSTFS
 struct STFSVolumeDescriptor {
   u8 descriptor_length; /**< Size of this descriptor, 0x24 when valid. */
   u8 version;           /**< Descriptor version. */
-  /** Volume flags. */
   union {
     u8 as_byte; /**< The flags as 1 byte. */
-    /** The flags as bits. */
     struct {
       u8 read_only_format : 1;             /**< 1 backing block per hash table instead of 2. */
       u8 root_active_index : 1;            /**< Top hash table uses the secondary block. */
       u8 directory_overallocated : 1;      /**< Directory blocks exceed the entries. */
       u8 directory_index_bounds_valid : 1; /**< Directory indices were bounds checked. */
-    } bits;
-  } flags;
-  u16 file_table_block_count;        /**< Number of directory blocks, little endian. */
-  u8 file_table_block_number_raw[3]; /**< First directory block, 24 bit little endian. */
-  u8 top_hash_table_hash[0x14];      /**< SHA1 of the top hash table. */
-  be_u32 total_block_count;          /**< Data blocks in the volume. */
-  be_u32 free_block_count;           /**< Unallocated data blocks. */
+    } bits;                                /**< The flags as bits. */
+  } flags;                                 /**< Volume flags. */
+  u16 file_table_block_count;              /**< Number of directory blocks, little endian. */
+  u8 file_table_block_number_raw[3];       /**< First directory block, 24 bit little endian. */
+  u8 top_hash_table_hash[0x14];            /**< SHA1 of the top hash table. */
+  be_u32 total_block_count;                /**< Data blocks in the volume. */
+  be_u32 free_block_count;                 /**< Unallocated data blocks. */
 
   /**
    * Returns the first directory block.
@@ -228,12 +226,11 @@ REX_STATIC_ASSERT_SIZE(STFSHashTable, 0x1000);
 /** An STFS directory entry. */
 struct STFSDirectoryEntry {
   char name[40]; /**< Entry name, not NUL terminated when 40 characters long. */
-  /** Name length and entry kind. */
   struct {
-    u8 name_length : 6; /**< Characters of name in use. */
-    u8 contiguous : 1;  /**< Data blocks are consecutive. */
-    u8 directory : 1;   /**< The entry is a directory. */
-  } flags;
+    u8 name_length : 6;            /**< Characters of name in use. */
+    u8 contiguous : 1;             /**< Data blocks are consecutive. */
+    u8 directory : 1;              /**< The entry is a directory. */
+  } flags;                         /**< Name length and entry kind. */
   u8 valid_data_blocks_raw[3];     /**< Blocks holding data, 24 bit little endian. */
   u8 allocated_data_blocks_raw[3]; /**< Blocks allocated, 24 bit little endian. */
   u8 start_block_number_raw[3];    /**< First data block, 24 bit little endian. */
@@ -313,19 +310,17 @@ struct SVODDeviceDescriptor {
   u8 worker_thread_processor;         /**< Console worker thread processor. */
   u8 worker_thread_priority;          /**< Console worker thread priority. */
   u8 first_fragment_hash_entry[0x14]; /**< SHA1 of the first data fragment. */
-  /** Layout features. */
   union {
     u8 as_byte; /**< The features as 1 byte. */
-    /** The features as bits. */
     struct {
       u8 must_be_zero_for_future_usage : 6; /**< Reserved. */
       u8 enhanced_gdf_layout : 1;           /**< The EGDF layout with a 0x2000 byte offset. */
       u8 zero_for_downlevel_clients : 1;    /**< Reserved. */
-    } bits;
-  } features;
-  u8 data_block_count_raw[3]; /**< Data blocks, 24 bit little endian. */
-  u8 start_data_block_raw[3]; /**< First data block, 24 bit little endian. */
-  u8 reserved[5];             /**< Unused. */
+    } bits;                                 /**< The features as bits. */
+  } features;                               /**< Layout features. */
+  u8 data_block_count_raw[3];               /**< Data blocks, 24 bit little endian. */
+  u8 start_data_block_raw[3];               /**< First data block, 24 bit little endian. */
+  u8 reserved[5];                           /**< Unused. */
 
   /**
    * Returns the data block count.
@@ -405,62 +400,53 @@ struct XContentMetadata {
   XEXOptExecutionInfo execution_info; /**< Title and media the package is for. */
   u8 console_id[5];                   /**< Console that created the package. */
   be_u64 profile_id;                  /**< Profile that created the package. */
-  /** Volume descriptor, chosen by volume_type. */
   union {
-    STFSVolumeDescriptor stfs; /**< STFS layout. */
-    SVODDeviceDescriptor svod; /**< SVOD layout. */
-  } volume_descriptor;
+    STFSVolumeDescriptor stfs;        /**< STFS layout. */
+    SVODDeviceDescriptor svod;        /**< SVOD layout. */
+  } volume_descriptor;                /**< Volume descriptor, chosen by volume_type. */
   be_u32 data_file_count;             /**< SVOD data fragments. */
   be_u64 data_file_size;              /**< SVOD data bytes. */
   BE<XContentVolumeType> volume_type; /**< Layout of the volume. */
   be_u64 online_creator;              /**< Live creator XUID. */
   be_u32 category;                    /**< Content category. */
   u8 reserved2[0x20];                 /**< Unused. */
-  /** Type specific metadata. */
   union {
     XContentMedia media_data;              /**< Video packages. */
     XContentAvatarAsset avatar_asset_data; /**< Avatar item packages. */
-  } metadata_v2;
-  u8 device_id[0x14]; /**< Device the package was created on. */
-  /** Display names, 1 per version 1 language. */
+  } metadata_v2;                           /**< Type specific metadata. */
+  u8 device_id[0x14];                      /**< Device the package was created on. */
   union {
     be_u16 uint[kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV1][128]; /**< The same storage as characters. */
-  } display_name_raw;
-  /** Descriptions, 1 per version 1 language. */
+  } display_name_raw;                     /**< Display names, 1 per version 1 language. */
   union {
     be_u16 uint[kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV1][128]; /**< The same storage as characters. */
-  } description_raw;
-  /** Publisher name. */
+  } description_raw;                      /**< Descriptions, 1 per version 1 language. */
   union {
     be_u16 uint[64];    /**< Big endian code units. */
     char16_t chars[64]; /**< The same storage as characters. */
-  } publisher_raw;
-  /** Title name. */
+  } publisher_raw;      /**< Publisher name. */
   union {
     be_u16 uint[64];    /**< Big endian code units. */
     char16_t chars[64]; /**< The same storage as characters. */
-  } title_name_raw;
-  /** Transfer and feature bits. */
+  } title_name_raw;     /**< Title name. */
   union {
-    u8 as_byte;              /**< The bits as 1 byte. */
-    XContentAttributes bits; /**< The bits by name. */
-  } flags;
+    u8 as_byte;                 /**< The bits as 1 byte. */
+    XContentAttributes bits;    /**< The bits by name. */
+  } flags;                      /**< Transfer and feature bits. */
   be_u32 thumbnail_size;        /**< Bytes of thumbnail in use. */
   be_u32 title_thumbnail_size;  /**< Bytes of title_thumbnail in use. */
   u8 thumbnail[kThumbLengthV2]; /**< Package thumbnail, a PNG. */
-  /** Display names of the 3 version 2 languages. */
   union {
     be_u16 uint[kNumLanguagesV2 - kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV2 - kNumLanguagesV1][128]; /**< The same storage as characters. */
-  } display_name_ex_raw;
+  } display_name_ex_raw;              /**< Display names of the 3 version 2 languages. */
   u8 title_thumbnail[kThumbLengthV2]; /**< Title thumbnail, a PNG. */
-  /** Descriptions of the 3 version 2 languages. */
   union {
     be_u16 uint[kNumLanguagesV2 - kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV2 - kNumLanguagesV1][128]; /**< The same storage as characters. */
-  } description_ex_raw;
+  } description_ex_raw; /**< Descriptions of the 3 version 2 languages. */
 
   /**
    * Returns the display name in a language. Both Simplified Chinese ids read the Simplified

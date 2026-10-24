@@ -239,7 +239,6 @@ class HighResolutionTimer {
   /**
    * Starts the timer.
    *
-   * @param key The private construction key.
    * @param interval Period.
    * @param callback Function called each period.
    */

@@ -34,7 +34,9 @@ class XCBWindowSurface final : public Surface {
   explicit XCBWindowSurface(xcb_connection_t* connection, xcb_window_t window)
       : connection_(connection), window_(window) {}
   TypeIndex GetType() const override { return kTypeIndexXCBWindow; }
+  /** Returns the XCB connection. */
   xcb_connection_t* GetConnection() const { return connection_; }
+  /** Returns the XCB window. */
   xcb_window_t GetWindow() const { return window_; }
 
  protected:
@@ -65,7 +67,9 @@ class WaylandSurface final : public Surface {
   explicit WaylandSurface(::wl_display* display, ::wl_surface* surface, SDL_Window* sdl_window)
       : display_(display), surface_(surface), sdl_window_(sdl_window) {}
   TypeIndex GetType() const override { return kTypeIndexWaylandSurface; }
+  /** Returns the Wayland display connection. */
   ::wl_display* GetDisplay() const { return display_; }
+  /** Returns the Wayland surface. */
   ::wl_surface* GetSurface() const { return surface_; }
 
  protected:

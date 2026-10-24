@@ -21,7 +21,14 @@ struct CodeRegion {
   u32 start; /**< First address of the range */
   u32 end;   /**< Address 1 past the range */
 
+  /**
+   * Reports whether an address is inside the range.
+   *
+   * @param addr Address to test.
+   * @return True when addr is at or after start and before end.
+   */
   bool Contains(u32 addr) const { return addr >= start && addr < end; }
+  /** Returns the size of the range in bytes. */
   u32 GetSize() const { return end - start; }
 };
 

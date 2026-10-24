@@ -59,10 +59,10 @@ union alignas(u32) COHER_STATUS_HOST {
     u32 matching_contexts : 8;     /**< Bits 0 to 7. No code reads it. */
     u32 rb_copy_dest_base_ena : 1; /**< No code reads it. */
     /**
-     * @name Bits 9 to 16. Destination base enables dest_base_0_ena to dest_base_7_ena, 1 bit per
+     * Bits 9 to 16. Destination base enables dest_base_0_ena to dest_base_7_ena, 1 bit per
      * destination base register. No code reads them.
+     * @{
      */
-    /** @{ */
     u32 dest_base_0_ena : 1;
     u32 dest_base_1_ena : 1;
     u32 dest_base_2_ena : 1;
@@ -486,10 +486,10 @@ union alignas(u32) PA_CL_CLIP_CNTL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     /**
-     * @name Bits 0 to 5. User clip plane enables ucp_ena_0 to ucp_ena_5, 1 bit per plane, read
-     * through the ucp_ena mask.
+     * Bits 0 to 5. User clip plane enables ucp_ena_0 to ucp_ena_5, 1 bit per plane, read through
+     * the ucp_ena mask.
+     * @{
      */
-    /** @{ */
     u32 ucp_ena_0 : 1;
     u32 ucp_ena_1 : 1;
     u32 ucp_ena_2 : 1;
@@ -731,10 +731,10 @@ union alignas(u32) RB_COLOR_MASK {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     /**
-     * @name Bits 0 to 15. Channel write enables, 4 bits per render target 0 to 3 in red, green,
-     * blue, alpha order.
+     * Bits 0 to 15. Channel write enables, 4 bits per render target 0 to 3 in red, green, blue,
+     * alpha order.
+     * @{
      */
-    /** @{ */
     u32 write_red0 : 1;
     u32 write_green0 : 1;
     u32 write_blue0 : 1;

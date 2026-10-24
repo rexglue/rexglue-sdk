@@ -11,7 +11,8 @@
  *              On Windows, uses native __try/__except (works with MSVC and Clang-cl).
  *              On POSIX, uses signal handlers for SIGSEGV, SIGBUS, SIGFPE and SIGILL.
  *
- * @usage       1. Call rex::InitializeSEH() at startup
+ * @par Usage
+ *              1. Call rex::InitializeSEH() at startup
  *              2. Generated code wraps SEH scopes with REX_SEH_TRY blocks
  *              3. Hardware exceptions (null deref, access violation) throw SEHException
  *              4. Catch blocks call finally handlers and rethrow

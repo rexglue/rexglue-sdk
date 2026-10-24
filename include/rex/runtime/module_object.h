@@ -40,30 +40,33 @@ class Memory;
 
 /** HMODULE points to this struct. */
 struct X_LDR_DATA_TABLE_ENTRY {
+  /** Link in the loader list in load order. */
   X_LIST_ENTRY in_load_order_links;
+  /** Link in the loader list in memory order. */
   X_LIST_ENTRY in_memory_order_links;
+  /** Link in the loader list in initialization order. */
   X_LIST_ENTRY in_initialization_order_links;
 
-  be_u32 dll_base;
-  be_u32 image_base;
-  be_u32 image_size;
+  be_u32 dll_base;   /**< Set to 0 when a user module loads. */
+  be_u32 image_base; /**< Guest address the image is loaded at. */
+  be_u32 image_size; /**< Image size. */
 
-  X_UNICODE_STRING full_dll_name;
-  X_UNICODE_STRING base_dll_name;
+  X_UNICODE_STRING full_dll_name; /**< Full name of the module. */
+  X_UNICODE_STRING base_dll_name; /**< Base name of the module. */
 
-  be_u32 flags;
-  be_u32 full_image_size;
-  be_u32 entry_point;
-  be_u16 load_count;
-  be_u16 module_index;
-  be_u32 dll_base_original;
-  be_u32 checksum; /**< Holds the kernel handle. */
-  be_u32 load_flags;
-  be_u32 time_date_stamp;
-  be_u32 loaded_imports;
-  be_u32 xex_header_base;
-  be_u32 closure_root;
-  be_u32 traversal_parent;
+  be_u32 flags;             /**< Module flags. */
+  be_u32 full_image_size;   /**< Size of the image in bytes from the XEX security info. */
+  be_u32 entry_point;       /**< Guest address of the entry point. */
+  be_u16 load_count;        /**< Number of load references, 1 when a user module loads. */
+  be_u16 module_index;      /**< Module index. */
+  be_u32 dll_base_original; /**< Original image base. */
+  be_u32 checksum;          /**< Holds the kernel handle. */
+  be_u32 load_flags;        /**< Load flags. */
+  be_u32 time_date_stamp;   /**< Time stamp. */
+  be_u32 loaded_imports;    /**< Loaded imports. */
+  be_u32 xex_header_base;   /**< Guest address of the copy of the XEX header. */
+  be_u32 closure_root;      /**< Closure root. */
+  be_u32 traversal_parent;  /**< Traversal parent. */
 };
 REX_STATIC_ASSERT_SIZE(X_LDR_DATA_TABLE_ENTRY, 0x64);
 
@@ -92,6 +95,7 @@ struct KernelModuleState {
     /** Base address of the module that called the export, 0 when no module contains the caller. */
     u32 caller_module_base;
     u16 ordinal; /**< Ordinal of the exported function. */
+    /** Reports whether the caller module base and the ordinal of both keys match. */
     bool operator==(const ThunkKey&) const = default;
   };
 

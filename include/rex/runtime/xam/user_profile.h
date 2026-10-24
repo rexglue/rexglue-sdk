@@ -372,9 +372,32 @@ class UserProfile {
    */
   REX_RUNTIME_API explicit UserProfile(Runtime& runtime);
 
+  /**
+   * Returns the XUID of the profile.
+   *
+   * @return The XUID.
+   */
   u64 GetXUID() const { return xuid_; }
+
+  /**
+   * Returns the gamertag of the profile.
+   *
+   * @return The name.
+   */
   std::string GetName() const { return name_; }
+
+  /**
+   * Returns the sign in state of the profile.
+   *
+   * @return Always 1.
+   */
   u32 GetSigninState() const { return 1; }
+
+  /**
+   * Returns the profile type bits that the XUID query matches against its type mask.
+   *
+   * @return Always 3.
+   */
   u32 GetType() const { return 1 | 2; /* local | online profile? */ }
 
   /**

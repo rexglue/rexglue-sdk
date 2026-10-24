@@ -122,6 +122,13 @@ REX_API void Break();
  * @endcode
  */
 #define REX_PROFILE_FIBER_ENTER(name) ((void)sizeof(decltype(name)))
+/**
+ * Expands to nothing.
+ *
+ * @code
+ * REX_PROFILE_FIBER_LEAVE();
+ * @endcode
+ */
 #define REX_PROFILE_FIBER_LEAVE()
 #endif
 

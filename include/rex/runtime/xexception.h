@@ -22,7 +22,7 @@ namespace rex::runtime {
 struct X_EX_TITLE_TERMINATE_REGISTRATION {
   be_u32 notification_routine; /**< Guest address of the routine. */
   be_u32 priority;             /**< Signed, higher values run first. */
-  X_LIST_ENTRY list_entry;
+  X_LIST_ENTRY list_entry;     /**< Links the registration into the list of registrations. */
 };
 REX_STATIC_ASSERT_SIZE(X_EX_TITLE_TERMINATE_REGISTRATION, 16);
 

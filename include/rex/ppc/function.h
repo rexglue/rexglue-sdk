@@ -38,6 +38,13 @@
 
 namespace rex::ppc {
 
+/**
+ * Returns a default constructed tuple of the argument types of a function pointer.
+ *
+ * @tparam R The return type.
+ * @tparam T The argument types.
+ * @return The tuple of argument types.
+ */
 template <typename R, typename... T>
 constexpr std::tuple<T...> FunctionArgs(R (*)(T...)) noexcept {
   return std::tuple<T...>();
@@ -729,7 +736,6 @@ struct ArgPlaceT {
  * @tparam TArgs The argument types.
  * @param ctx The register file.
  * @param base The guest memory base.
- * @param tpl The argument tuple.
  */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
@@ -761,7 +767,6 @@ void TranslateArgsToHost(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) n
  * @tparam TArgs The argument types.
  * @param ctx The register file.
  * @param base The guest memory base.
- * @param tpl The argument tuple.
  */
 template <int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))

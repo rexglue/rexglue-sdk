@@ -41,10 +41,12 @@ struct FunctionConfig;
  */
 struct AnalysisState {
   AnalysisState() = default;
+  /** Copy and move construction and assignment. @{ */
   AnalysisState(const AnalysisState&) = default;
   AnalysisState& operator=(const AnalysisState&) = default;
   AnalysisState(AnalysisState&&) noexcept(false) = default;
   AnalysisState& operator=(AnalysisState&&) noexcept(false) = default;
+  /** @} */
   ~AnalysisState() = default;
 
   std::string format; /**< "xex" or "elf" */
@@ -116,13 +118,11 @@ class CodegenContext : public rex::MoveOnly {
   /**
    * Takes ownership of the state of another context.
    *
-   * @param other Context to take from, left empty.
    */
   CodegenContext(CodegenContext&&) noexcept(false);
   /**
    * Releases the owned state, then takes that of another context.
    *
-   * @param other Context to take from, left empty.
    * @return This context
    */
   CodegenContext& operator=(CodegenContext&&) noexcept(false);
@@ -136,10 +136,12 @@ class CodegenContext : public rex::MoveOnly {
   /** Scan phase artifacts passed to Discover for scanner setup. */
   struct ScanArtifacts {
     ScanArtifacts() = default;
+    /** Copy and move construction and assignment. @{ */
     ScanArtifacts(const ScanArtifacts&) = default;
     ScanArtifacts& operator=(const ScanArtifacts&) = default;
     ScanArtifacts(ScanArtifacts&&) noexcept(false) = default;
     ScanArtifacts& operator=(ScanArtifacts&&) noexcept(false) = default;
+    /** @} */
     ~ScanArtifacts() = default;
 
     std::vector<CodeRegion> code_regions; /**< Null delimited code regions */
@@ -147,9 +149,11 @@ class CodegenContext : public rex::MoveOnly {
      * 0 or 0xFFFFFFFF. */
     std::vector<std::pair<u32, u32>> data_regions;
     std::unordered_map<u32, u32> pdata_sizes; /**< Maps address to size */
-  } scan;
+  } scan;                                     /**< Scan phase artifacts of the analysis. */
 
+  /** Returns the binary. */
   const BinaryView& GetBinary() const { return binary_; }
+  /** Returns the binary. */
   BinaryView& GetBinary() { return binary_; }
 
   /**
@@ -169,25 +173,65 @@ class CodegenContext : public rex::MoveOnly {
    * Create() and before GetDecoded(). */
   void InitDecoded();
 
+  /**
+   * Reports whether InitDecoded() has run.
+   *
+   * @return True when the decoded binary exists.
+   */
   bool HasDecoded() const { return decoded_ != nullptr; }
 
+  /** Returns the config. */
   RecompilerConfig& GetConfig() { return config_; }
+  /** Returns the config. */
   const RecompilerConfig& GetConfig() const { return config_; }
 
+  /** Returns the analysis state. */
   AnalysisState& GetAnalysisState() { return analysis_state_; }
+  /** Returns the analysis state. */
   const AnalysisState& GetAnalysisState() const { return analysis_state_; }
 
   /** Analysis limits for every phase run against this context. */
   const Limits& GetLimits() const { return limits_; }
+  /**
+   * Sets the analysis limits.
+   *
+   * @param limits Limits to use.
+   */
   void SetLimits(const Limits& limits) { limits_ = limits; }
 
+  /** Returns the directory of the config file. */
   const std::filesystem::path& GetConfigDir() const { return config_dir_; }
+  /**
+   * Sets the directory of the config file.
+   *
+   * @param dir Directory of the config file.
+   */
   void SetConfigDir(const std::filesystem::path& dir) { config_dir_ = dir; }
 
+  /**
+   * Sets whether the module being generated is a DLL.
+   *
+   * @param is_dll True when the module is a DLL.
+   */
   void SetDLLModule(bool is_dll) { is_dll_module_ = is_dll; }
+  /**
+   * Reports whether the module being generated is a DLL.
+   *
+   * @return True when the module is a DLL.
+   */
   bool IsDLLModule() const { return is_dll_module_; }
 
+  /**
+   * Sets whether the project has DLL modules.
+   *
+   * @param has True when the project has DLL modules.
+   */
   void SetHasDLLModules(bool has) { has_dll_modules_ = has; }
+  /**
+   * Reports whether the project has DLL modules.
+   *
+   * @return True when the project has DLL modules.
+   */
   bool HasDLLModules() const { return has_dll_modules_; }
 
  private:

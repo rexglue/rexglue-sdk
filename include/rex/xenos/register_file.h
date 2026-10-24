@@ -53,10 +53,12 @@ class REX_API RegisterFile {
   /** Register values indexed by dword register index. */
   u32 values[kRegisterCount]{};
 
+  /** Returns a register value by dword register index or by register. @{ */
   const u32& operator[](u32 reg) const { return values[reg]; }
   u32& operator[](u32 reg) { return values[reg]; }
   const u32& operator[](Register reg) const { return values[std::to_underlying(reg)]; }
   u32& operator[](Register reg) { return values[std::to_underlying(reg)]; }
+  /** @} */
 
   /**
    * Reinterprets a register value as a register layout or other 32 bit type.

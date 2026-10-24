@@ -18,8 +18,8 @@ namespace rex::hid {
 
 /** XInput's published thresholds. */
 constexpr i32 kXInputGamepadLeftThumbDeadzone = 7849;
-constexpr i32 kXInputGamepadRightThumbDeadzone = 8689;
-constexpr u8 kXInputGamepadTriggerThreshold = 30;
+constexpr i32 kXInputGamepadRightThumbDeadzone = 8689; /**< Right thumbstick deadzone. */
+constexpr u8 kXInputGamepadTriggerThreshold = 30;      /**< Trigger press threshold. */
 
 /** XInput capability flags. */
 enum X_INPUT_CAPS : u8 {

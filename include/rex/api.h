@@ -46,9 +46,13 @@ class ModuleLoader;
  */
 struct Config {
   Config() = default;
+  /** Copies the configuration. */
   Config(const Config&) = default;
+  /** Copy assigns the configuration. */
   Config& operator=(const Config&) = default;
+  /** Moves the configuration. */
   Config(Config&&) noexcept(false) = default;
+  /** Move assigns the configuration. */
   Config& operator=(Config&&) noexcept(false) = default;
   ~Config() = default;
 

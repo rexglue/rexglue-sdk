@@ -29,8 +29,9 @@
 
 namespace rex::ppc::simd {
 
-/** Mask tables for the lvlx, lvrx, stvlx and stvrx vector load and store instructions. */
-alignas(16) inline u8 kVectorMaskL[] = {
+/** Tables for the lvlx, lvrx, stvlx and stvrx vector load and store instructions, 16 rows of 16
+ * bytes indexed by the low 4 address bits. @{ */
+alignas(16) inline constexpr u8 kVectorMaskL[] = {
     0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00,
     0xFF, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
     0xFF, 0xFF, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02,
@@ -525,10 +526,13 @@ inline simde__m128i ShiftLeftLanes<u8>(simde__m128i a, simde__m128i count) {
   return simde_mm_packus_epi16(r_lo, r_hi);
 }
 
+/** @} */
+
 }  // namespace rex::ppc::simd
 
-/** Vector mask tables at global scope for generated code. */
+/** Vector tables at global scope for generated code. @{ */
 using rex::ppc::simd::kVectorMaskL;
 using rex::ppc::simd::kVectorMaskR;
 using rex::ppc::simd::kVectorShiftTableL;
 using rex::ppc::simd::kVectorShiftTableR;
+/** @} */

@@ -76,9 +76,9 @@ enum X_KTHREAD_STATE_FLAGS : u8 {
   kKThreadStateUnknown = 6,     /**< Never written or compared. */
 };
 
-constexpr u32 kXCreateSuspended = 0x00000001;
+constexpr u32 kXCreateSuspended = 0x00000001; /**< Creation flag, starts suspended. */
 
-constexpr u32 kXTLSOutOfIndexes = UINT32_MAX;
+constexpr u32 kXTLSOutOfIndexes = UINT32_MAX; /**< Index returned when no TLS slot is free. */
 
 /** Guest layout of a deferred procedure call. */
 struct X_KDPC {
@@ -134,17 +134,17 @@ struct XAPC {
   /** Rundown routine address stored beside kDummyKernelRoutine in an APC the host queued itself. */
   static constexpr u32 kDummyRundownRoutine = 0xF00DFF01;
 
-  u16 type;
-  u8 apc_mode;
-  u8 enqueued;
-  be_u32 thread_ptr;
-  X_LIST_ENTRY list_entry;
-  be_u32 kernel_routine;
-  be_u32 rundown_routine;
-  be_u32 normal_routine;
-  be_u32 normal_context;
-  be_u32 arg1;
-  be_u32 arg2;
+  u16 type;                /**< Object type, 18 for an APC. */
+  u8 apc_mode;             /**< Index into `X_KTHREAD::apc_lists`, 0 for kernel and 1 for user. */
+  u8 enqueued;             /**< 1 while the APC is in a list of the thread. */
+  be_u32 thread_ptr;       /**< Guest address of the target `X_KTHREAD`. */
+  X_LIST_ENTRY list_entry; /**< Links the APC in a list of the thread. */
+  be_u32 kernel_routine;   /**< Guest address of the kernel routine. */
+  be_u32 rundown_routine;  /**< Guest address of the rundown routine. */
+  be_u32 normal_routine;   /**< Guest address of the normal routine, 0 for a kernel only APC. */
+  be_u32 normal_context;   /**< First argument of the normal routine. */
+  be_u32 arg1;             /**< Second argument of the normal routine, set when queued. */
+  be_u32 arg2;             /**< Third argument of the normal routine, set when queued. */
 };
 REX_STATIC_ASSERT_SIZE(XAPC, 40);
 
@@ -173,12 +173,12 @@ struct X_KPROCESS;
 
 /** Guest layout of a wait block, which ties a thread to an object it waits on. */
 struct X_KWAIT_BLOCK {
-  X_LIST_ENTRY wait_list_entry;
-  be_ptr<X_KTHREAD> thread;
-  be_ptr<X_DISPATCH_HEADER> object;
-  be_ptr<X_KWAIT_BLOCK> next_wait_block;
-  be_u16 wait_result_xstatus;
-  be_u16 wait_type;
+  X_LIST_ENTRY wait_list_entry;          /**< Links the block in the wait list of the object. */
+  be_ptr<X_KTHREAD> thread;              /**< The thread that waits. */
+  be_ptr<X_DISPATCH_HEADER> object;      /**< Dispatch header of the object waited on. */
+  be_ptr<X_KWAIT_BLOCK> next_wait_block; /**< Next block of the same wait. */
+  be_u16 wait_result_xstatus;            /**< Wait result value, 0x0100 in the timeout block. */
+  be_u16 wait_type;                      /**< Wait type, 0x0201 in the timeout block. */
 };
 REX_STATIC_ASSERT_SIZE(X_KWAIT_BLOCK, 0x18);
 
@@ -217,122 +217,150 @@ REX_STATIC_ASSERT_SIZE(X_KPRCB, 0x1A8);
 
 /** Processor Control Region. */
 struct X_KPCR {
-  be_u32 tls_ptr;
+  be_u32 tls_ptr; /**< Guest address of the static TLS data of the running thread. */
+  /** Reserved. @{ */
   be_u32 msr_mask;
   union {
-    be_u16 software_interrupt_state;
+    be_u16 software_interrupt_state; /**< Reserved. */
     struct {
-      u8 dispatch_software_interrupt;
-      u8 apc_software_interrupt_state;
+      u8 dispatch_software_interrupt;  /**< Reserved. */
+      u8 apc_software_interrupt_state; /**< Reserved. */
     };
   };
   be_u16 unk_0a;
-  u8 processtype_value_in_dpc;
+  /** @} */
+  u8 processtype_value_in_dpc; /**< Process type reported while a DPC runs. */
+  /** Reserved. @{ */
   u8 timeslice_ended;
   u8 timer_pending;
   u8 unk_0f;
   be_u32 thread_fpu_related;
   be_u32 thread_vmx_related;
-  u8 current_irql;
+  /** @} */
+  u8 current_irql; /**< Current interrupt request level, one of the `IRQL_FLAGS` values. */
+  /** Reserved. @{ */
   u8 background_scheduling_active;
   u8 background_scheduling_1a;
   u8 background_scheduling_1b;
   be_u32 timer_related;
   u8 unk_20[0x10];
-  be_u64 pcr_ptr;
+  /** @} */
+  be_u64 pcr_ptr; /**< Guest address of this region. */
   union {
-    u8 unk_38[8];
-    u64 host_stash;
+    u8 unk_38[8];   /**< Reserved, shares its bytes with host_stash. */
+    u64 host_stash; /**< Host address of the register file of the running thread. */
   };
+  /** Reserved. @{ */
   u8 unk_40[28];
   be_u32 unk_stack_5c;
   u8 unk_60[12];
   be_u32 use_alternative_stack;
+  /** @} */
   be_u32 stack_base_ptr; /**< Stack base address (high addr). */
   be_u32 stack_end_ptr;  /**< Stack end (low addr). */
+  /** Reserved. @{ */
   be_u32 alt_stack_base_ptr;
   be_u32 alt_stack_end_ptr;
   be_u32 interrupt_handlers[32];
-  X_KPRCB prcb_data;
-  be_ptr<X_KPRCB> prcb;
-  u8 unk_2ac[0x2C];
+  /** @} */
+  X_KPRCB prcb_data;    /**< Processor control block of this processor. */
+  be_ptr<X_KPRCB> prcb; /**< Guest address of prcb_data. */
+  u8 unk_2ac[0x2C];     /**< Reserved. */
 };
 static_assert(offsetof(X_KPCR, prcb_data) == 0x100);
 REX_STATIC_ASSERT_SIZE(X_KPCR, 0x2D8);
 
 /** Guest layout of a kernel thread object. */
 struct X_KTHREAD {
-  X_DISPATCH_HEADER header;
+  X_DISPATCH_HEADER header; /**< Dispatch header of the thread. */
+  /** Part of an empty list head that points at itself. @{ */
   be_u32 unk_10;
   be_u32 unk_14;
-  X_KTIMER wait_timeout_timer;
-  X_KWAIT_BLOCK wait_timeout_block;
-  rex::be_u32 kernel_time;
-  be_u32 stack_base;
-  be_u32 stack_limit;
-  be_u32 stack_kernel;
-  be_u32 tls_address;
-  u8 thread_state;
+  /** @} */
+  X_KTIMER wait_timeout_timer;      /**< Reserved. */
+  X_KWAIT_BLOCK wait_timeout_block; /**< Wait block set at creation for the timeout of a wait. */
+  rex::be_u32 kernel_time;          /**< CPU time in milliseconds when last written. */
+  be_u32 stack_base;                /**< Guest address of the high end of the stack. */
+  be_u32 stack_limit;               /**< Guest address of the low end of the stack. */
+  be_u32 stack_kernel;              /**< 240 bytes below stack_base, set at creation. */
+  be_u32 tls_address;               /**< Guest address of the dynamic TLS block of the thread. */
+  u8 thread_state;                  /**< One of the `X_KTHREAD_STATE_FLAGS` values. */
+  /** Reserved. @{ */
   u8 alerted[2];
   u8 alertable;
-  u8 priority;
-  u8 fpu_exceptions_on;
-  u8 process_type_dup; /**< Same as process_type. */
-  u8 process_type;
+  /** @} */
+  u8 priority;          /**< Priority of the thread, clamped to 0 through 31. */
+  u8 fpu_exceptions_on; /**< Reserved. */
+  u8 process_type_dup;  /**< Same as process_type. */
+  u8 process_type;      /**< Process type of the thread, copied from its process. */
   runtime::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; /**< Per mode. */
-  be_ptr<X_KPROCESS> process;
+  be_ptr<X_KPROCESS> process; /**< Guest address of the process that owns the thread. */
+  /** Reserved. @{ */
   u8 executing_kernel_apc;
   u8 deferred_apc_software_interrupt_state;
   u8 user_apc_pending;
-  u8 may_queue_apcs;
-  X_KSPINLOCK apc_lock;
+  /** @} */
+  u8 may_queue_apcs;    /**< Nonzero while APCs can be queued to the thread. */
+  X_KSPINLOCK apc_lock; /**< Guards the APC lists and the enqueued state of their APCs. */
+  /** Reserved. @{ */
   be_u32 num_context_switches_to;
   X_LIST_ENTRY ready_prcb_entry;
-  be_u32 msr_mask;
+  /** @} */
+  be_u32 msr_mask; /**< Set to 0xFDFFD7FF at creation. */
+  /** Reserved. @{ */
   rex::BE<X_STATUS> wait_result;
   u8 wait_irql;
   u8 unk_a5[0xB];
-  i32 apc_disable_count;
+  /** @} */
+  i32 apc_disable_count; /**< Counts entered critical regions as 0 or below, APCs wait until 0. */
+  /** Reserved. @{ */
   be_i32 quantum;
   u8 unk_b8;
   u8 unk_b9;
   u8 unk_ba;
-  u8 boost_disabled;
-  u8 suspend_count;
-  u8 was_preempted;
-  u8 terminated;
-  u8 current_cpu; /**< Index of this processor. */
-  be_ptr<X_KPRCB> prcb;
-  be_ptr<X_KPRCB> prcb_alias;
+  /** @} */
+  u8 boost_disabled;    /**< Nonzero while priority boosts are disabled for the thread. */
+  u8 suspend_count;     /**< Number of pending suspends, the thread is suspended while nonzero. */
+  u8 was_preempted;     /**< Reserved. */
+  u8 terminated;        /**< 1 once the thread has exited. */
+  u8 current_cpu;       /**< Index of this processor. */
+  be_ptr<X_KPRCB> prcb; /**< Guest address of the processor control block in the `X_KPCR`. */
+  be_ptr<X_KPRCB> prcb_alias; /**< Same as prcb. */
+  /** Reserved. @{ */
   u8 unk_c8;
   u8 unk_c9;
   u8 unk_ca;
   u8 unk_cb;
   X_KSPINLOCK timer_list_lock;
-  be_u32 stack_alloc_base;
+  /** @} */
+  be_u32 stack_alloc_base; /**< Guest address of the base of the stack allocation. */
+  /** Reserved. @{ */
   XAPC on_suspend;
   X_KSEMAPHORE suspend_sema;
-  X_LIST_ENTRY process_threads;
+  /** @} */
+  X_LIST_ENTRY process_threads; /**< Links the thread in the thread list of its process. */
+  /** Reserved. @{ */
   be_u32 unk_118;
   X_LIST_ENTRY queue_related;
   be_u32 unk_124;
   be_u32 unk_128;
   be_u32 unk_12c;
-  be_u64 create_time;
-  be_u64 exit_time;
-  be_u32 exit_status;
-  X_LIST_ENTRY timer_list;
-  be_u32 thread_id;
-  be_u32 start_address;
-  X_LIST_ENTRY unk_154;
-  u8 unk_15c[0x4];
-  be_u32 last_error;
-  be_u32 fiber_ptr;
-  u8 unk_168[0x4];
-  be_u32 creation_flags;
-  u8 unk_170[0xC];
-  be_u32 unk_17c;
-  u8 unk_180[0x930];
+  /** @} */
+  be_u64 create_time;      /**< Guest system time at creation. */
+  be_u64 exit_time;        /**< Guest system time at exit. */
+  be_u32 exit_status;      /**< Exit code the thread ended with. */
+  X_LIST_ENTRY timer_list; /**< List head set empty at creation. */
+  be_u32 thread_id;        /**< Guest thread id. */
+  be_u32 start_address;    /**< Guest address of the start routine. */
+  X_LIST_ENTRY unk_154;    /**< List head set empty at creation. */
+  u8 unk_15c[0x4];         /**< Reserved. */
+  be_u32 last_error;       /**< Last error code of the thread, 0 at creation. */
+  be_u32 fiber_ptr;        /**< Guest address of the `X_FIBER_CONTEXT` in use, 0 for none. */
+  u8 unk_168[0x4];         /**< Reserved. */
+  be_u32 creation_flags;   /**< Creation flags the thread was created with. */
+  u8 unk_170[0xC];         /**< Reserved. */
+  be_u32 unk_17c;          /**< Set to 1 at creation. */
+  u8 unk_180[0x930];       /**< Reserved. */
 };
 REX_STATIC_ASSERT_SIZE(X_KTHREAD, 0xAB0);
 

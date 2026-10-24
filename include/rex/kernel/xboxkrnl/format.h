@@ -185,6 +185,7 @@ class ArrayArgList {
    */
   ArrayArgList(u8* base, u32 arg_ptr) : base_(base), arg_ptr_(arg_ptr), index_(0) {}
 
+  /** Returns the next argument as a 32 bit value and advances the index. */
   u32 get32() { return static_cast<u32>(get64()); }
 
   /**
@@ -228,6 +229,12 @@ class StringFormatData {
     return result;
   }
 
+  /**
+   * Returns a character without advancing.
+   *
+   * @param offset Offset from the current position in characters.
+   * @return The character.
+   */
   u16 peek(i32 offset) { return input_[offset]; }
 
   /**
@@ -257,6 +264,7 @@ class StringFormatData {
     return true;
   }
 
+  /** Returns the output built so far. */
   const std::string& GetOutput() const { return output_; }
 
  private:
@@ -287,6 +295,12 @@ class WideStringFormatData {
     return result;
   }
 
+  /**
+   * Returns a character without advancing.
+   *
+   * @param offset Offset from the current position in characters.
+   * @return The character.
+   */
   u16 peek(i32 offset) { return memory::load<be_u16>(input_ + offset); }
 
   /**
@@ -313,6 +327,7 @@ class WideStringFormatData {
     return true;
   }
 
+  /** Returns the output built so far. */
   const std::u16string& GetOutput() const { return output_; }
 
  private:
@@ -343,6 +358,12 @@ class WideCountFormatData {
     return result;
   }
 
+  /**
+   * Returns a character without advancing.
+   *
+   * @param offset Offset from the current position in characters.
+   * @return The character.
+   */
   u16 peek(i32 offset) { return memory::load<be_u16>(input_ + offset); }
 
   /**
@@ -369,6 +390,7 @@ class WideCountFormatData {
     return true;
   }
 
+  /** Returns the number of characters counted. */
   i32 GetCount() const { return count_; }
 
  private:

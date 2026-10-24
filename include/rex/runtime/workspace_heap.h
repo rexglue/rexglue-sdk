@@ -32,7 +32,6 @@ class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
   /**
    * Wraps a committed workspace. Only Create can make the key.
    *
-   * @param key The private construction key.
    * @param memory The guest memory.
    * @param allocator The allocator over the workspace.
    */

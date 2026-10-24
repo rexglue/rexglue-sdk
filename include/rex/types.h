@@ -48,7 +48,9 @@ struct EndianValue {
    */
   EndianValue(const T& src) { Set(src); }
 
+  /** Copies the value. */
   EndianValue(const EndianValue&) = default;
+  /** Copy assigns the value. */
   EndianValue& operator=(const EndianValue&) = default;
 
   /**
@@ -372,7 +374,7 @@ class MappedPtr {
 
   /**
    * @tparam U The element value type.
-   * @return The host pointer as an array of rex::BE<U>.
+   * @return The host pointer as an array of big endian U values.
    */
   template <typename U>
   rex::BE<U>* AsArray() const {
@@ -495,7 +497,7 @@ class MappedPtr<void> {
 
   /**
    * @tparam U The element value type.
-   * @return The host pointer as an array of rex::BE<U>.
+   * @return The host pointer as an array of big endian U values.
    */
   template <typename U>
   rex::BE<U>* AsArray() const {
@@ -738,7 +740,9 @@ struct MappedPtrInnerType<MappedPtr<T>> {
 class MoveOnly {
  protected:
   MoveOnly() = default;
+  /** Moves from another instance. */
   MoveOnly(MoveOnly&&) = default;
+  /** Move assigns from another instance. */
   MoveOnly& operator=(MoveOnly&&) = default;
   MoveOnly(const MoveOnly&) = delete;
   MoveOnly& operator=(const MoveOnly&) = delete;

@@ -69,6 +69,11 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   /** Removes the recompiled code of every registered module. */
   virtual ~FunctionDispatcher();
 
+  /**
+   * Returns the guest memory.
+   *
+   * @return The memory given at construction.
+   */
   runtime::Memory* GetMemory() const { return memory_; }
 
   /**

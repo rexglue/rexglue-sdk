@@ -173,9 +173,9 @@ struct HeapAllocation {
 union PageEntry {
   u64 qword; /**< The whole entry read or written as 1 64 bit value. */
   struct {
-    /** Base page of the allocated region in 4 KB pages. */
+    /** Base page of the allocated region in pages of the heap's page size. */
     u32 base_address : 20;
-    /** Page count of the allocated region in 4 KB pages. */
+    /** Page count of the allocated region in pages of the heap's page size. */
     u32 region_page_count : 20;
     /** MemoryProtectFlag bits given at allocation. */
     u32 allocation_protect : 4;
@@ -216,6 +216,11 @@ class REX_RUNTIME_API BaseHeap {
    */
   u32 GetPageSize() const { return page_size_; }
 
+  /**
+   * Returns the type of the heap.
+   *
+   * @return The heap type.
+   */
   HeapType GetHeapType() const { return heap_type_; }
 
   /**
@@ -241,8 +246,25 @@ class REX_RUNTIME_API BaseHeap {
   /** Disposes and decommits all memory and clears the page table. */
   virtual void Dispose();
 
+  /**
+   * Returns the number of pages in the heap.
+   *
+   * @return The page count.
+   */
   u32 GetTotalPageCount() const { return static_cast<u32>(page_table_.size()); }
+
+  /**
+   * Returns the number of pages that are not reserved.
+   *
+   * @return The page count.
+   */
   u32 GetUnreservedPageCount() const { return unreserved_page_count_; }
+
+  /**
+   * Returns the number of pages that are reserved.
+   *
+   * @return The page count.
+   */
   u32 GetReservedPageCount() const { return GetTotalPageCount() - GetUnreservedPageCount(); }
 
   /**

@@ -31,10 +31,12 @@ inline constexpr std::string_view kModuleGuestPathKey = "guest_path";
  */
 struct BinaryConfig {
   BinaryConfig() = default;
+  /** Copy and move construction and assignment. @{ */
   BinaryConfig(const BinaryConfig&) = default;
   BinaryConfig& operator=(const BinaryConfig&) = default;
   BinaryConfig(BinaryConfig&&) noexcept(false) = default;
   BinaryConfig& operator=(BinaryConfig&&) noexcept(false) = default;
+  /** @} */
   ~BinaryConfig() = default;
 
   RecompilerConfig recompiler; /**< Codegen settings of the binary, loaded from its TOML table. */
@@ -58,10 +60,12 @@ std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view 
  */
 struct ManifestConfig {
   ManifestConfig() = default;
+  /** Copy and move construction and assignment. @{ */
   ManifestConfig(const ManifestConfig&) = default;
   ManifestConfig& operator=(const ManifestConfig&) = default;
   ManifestConfig(ManifestConfig&&) noexcept(false) = default;
   ManifestConfig& operator=(ManifestConfig&&) noexcept(false) = default;
+  /** @} */
   ~ManifestConfig() = default;
 
   std::string project_name;               /**< Value of `[project].name`, a valid identifier. */

@@ -36,6 +36,11 @@ namespace runtime {
 /** Base class of an XAM app, which receives messages dispatched by app id. */
 class REX_RUNTIME_API App {
  public:
+  /**
+   * Returns the id the app is registered under.
+   *
+   * @return The app id.
+   */
   u32 GetAppId() const { return app_id_; }
 
   /**

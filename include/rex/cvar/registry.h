@@ -182,7 +182,8 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
   virtual bool IsFinalized() const = 0;
 
  protected:
-  friend class CallbackHandle;
+  /** Lets the handle remove its own registration. */
+  friend CallbackHandle;
   /**
    * Removes a change callback registration by id.
    *

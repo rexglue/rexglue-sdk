@@ -59,8 +59,8 @@ enum X_PAGE : u16 {
       0x00000400 /**< Pages are not cached and writes are combined into larger batches. */
 };
 
-inline constexpr u32 kXInvalidSocket = ~u32{0};
-inline constexpr u32 kXSocketError = static_cast<u32>(-1);
+inline constexpr u32 kXInvalidSocket = ~u32{0};            /**< Value of an invalid socket. */
+inline constexpr u32 kXSocketError = static_cast<u32>(-1); /**< Value of a socket call error. */
 
 /** Guest layout of an entry of a doubly linked list. */
 struct X_LIST_ENTRY {
@@ -77,9 +77,9 @@ REX_STATIC_ASSERT_SIZE(X_SINGLE_LIST_ENTRY, 4);
 
 /** Guest layout of the head of an interlocked singly linked list. */
 struct X_SLIST_HEADER {
-  X_SINGLE_LIST_ENTRY next;
-  be_u16 depth;
-  be_u16 sequence;
+  X_SINGLE_LIST_ENTRY next; /**< First entry of the list, 0 when empty. */
+  be_u16 depth;             /**< Number of entries in the list. */
+  be_u16 sequence;          /**< Counter that changes on every push and pop. */
 };
 REX_STATIC_ASSERT_SIZE(X_SLIST_HEADER, 8);
 
@@ -113,6 +113,7 @@ template <typename T>
 struct be_ptr {
   be_u32 value; /**< Guest address. */
 
+  /** Converts to the guest address. */
   operator u32() const { return value; }
 
   /**

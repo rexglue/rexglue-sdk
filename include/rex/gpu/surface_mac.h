@@ -32,6 +32,7 @@ class CAMetalLayerSurface final : public Surface {
   CAMetalLayerSurface(SDL_Window* window, const void* layer) : window_(window), layer_(layer) {}
 
   TypeIndex GetType() const override { return kTypeIndexCAMetalLayer; }
+  /** Returns the CAMetalLayer. */
   const void* GetLayer() const { return layer_; }
 
  protected:

@@ -49,10 +49,14 @@ class StubModule : public runtime::Module {
   void Load(u32 base_address, const u8* data, size_t size);
 
   const std::string& GetName() const override { return name_; }
+  /** Sets the module name. */
   void SetName(const std::string& name) { name_ = name; }
   bool IsExecutable() const override { return true; }
+  /** Returns the base address passed to Load(). */
   u32 GetBaseAddress() const override { return base_address_; }
+  /** Returns the size passed to Load(). */
   u32 GetImageSize() const override { return size_; }
+  /** Returns the base address, which is the entry point of the stub. */
   u32 GetEntryPoint() const override { return base_address_; }
 
  private:

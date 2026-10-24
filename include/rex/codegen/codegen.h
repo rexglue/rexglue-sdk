@@ -42,13 +42,11 @@ class CodegenPipeline : public rex::MoveOnly {
   /**
    * Takes ownership of the runtime and context of another pipeline.
    *
-   * @param other Pipeline to take from, left empty.
    */
   CodegenPipeline(CodegenPipeline&&) noexcept;
   /**
    * Releases the owned runtime and context, then takes those of another pipeline.
    *
-   * @param other Pipeline to take from, left empty.
    * @return This pipeline
    */
   CodegenPipeline& operator=(CodegenPipeline&&) noexcept;
@@ -62,11 +60,26 @@ class CodegenPipeline : public rex::MoveOnly {
    */
   [[nodiscard]] static Result<CodegenPipeline> Create(const std::filesystem::path& config_path);
 
+  /**
+   * Runs analysis, then writes the generated code.
+   *
+   * @param force Write even when the analysis collected errors.
+   * @return Success, or the first failure.
+   */
   [[nodiscard]] Result<void> Run(bool force = false);
+  /** Runs the analysis phases. */
   [[nodiscard]] Result<void> RunAnalyze();
+  /**
+   * Writes the generated code.
+   *
+   * @param force Write even when the analysis collected errors.
+   * @return Success, or an error when writing failed.
+   */
   [[nodiscard]] Result<void> RunWrite(bool force = false);
 
+  /** Returns the context. */
   CodegenContext& GetContext() { return *ctx_; }
+  /** Returns the context. */
   const CodegenContext& GetContext() const { return *ctx_; }
 
  private:

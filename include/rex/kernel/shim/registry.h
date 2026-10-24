@@ -59,6 +59,7 @@ struct Entry {
   std::string_view description; /**< One line description. */
 };
 
+/** Traits of every group. */
 inline constexpr std::array<GroupTraits, 7> kGroups = {{
     {Group::kFile, "file", false, "File I/O backed by the filesystem module"},
     {Group::kHeap, "heap", true, "The o1heap backed heap, all 4 routines are required together"},
@@ -69,6 +70,7 @@ inline constexpr std::array<GroupTraits, 7> kGroups = {{
     {Group::kThreading, "threading", false, "Fiber routines"},
 }};
 
+/** Every shim entry. */
 inline constexpr std::array<Entry, 69> kRegistry = {{
     {"CreateFileA", Group::kFile, Flag::kNone, "Opens or creates a file"},
     {"ReadFile", Group::kFile, Flag::kNone, "Reads from an open file handle"},

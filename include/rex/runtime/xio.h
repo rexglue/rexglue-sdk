@@ -39,13 +39,13 @@ enum X_FILE_ATTRIBUTES : u16 {
 
 /** The overlapped IO block, known as XOVERLAPPED to the title. */
 struct XOVERLAPPED {
-  be_u32 result;
-  be_u32 length;
-  be_u32 context;
-  be_u32 event;
-  be_u32 completion_routine;
-  be_u32 completion_context;
-  be_u32 extended_error;
+  be_u32 result;             /**< Result of the overlapped call. */
+  be_u32 length;             /**< Number of bytes transferred. */
+  be_u32 context;            /**< Reserved for system use. */
+  be_u32 event;              /**< Guest handle of the event signaled on completion. */
+  be_u32 completion_routine; /**< Guest address of the completion routine, 0 for none. */
+  be_u32 completion_context; /**< Value passed to the completion routine. */
+  be_u32 extended_error;     /**< Extended error code of the operation. */
 };
 
 REX_STATIC_ASSERT_SIZE(XOVERLAPPED, 0x1C);
@@ -147,9 +147,9 @@ REX_STATIC_ASSERT_SIZE(X_ANSI_STRING, 8);
 
 /** A counted 16 bit string in guest memory. */
 struct X_UNICODE_STRING {
-  be_u16 length;
-  be_u16 maximum_length;
-  be_u32 pointer;
+  be_u16 length;         /**< Length of the text in bytes. */
+  be_u16 maximum_length; /**< Capacity of the buffer in bytes. */
+  be_u32 pointer;        /**< Guest address of the text buffer. */
 
   /** Clears the length, capacity and pointer. */
   void Reset() {
@@ -172,9 +172,9 @@ struct X_IO_STATUS_BLOCK {
 
 /** The root directory, name and attributes of an object to open. */
 struct X_OBJECT_ATTRIBUTES {
-  be_u32 root_directory;
-  be_u32 name_ptr; /**< PANSI_STRING. */
-  be_u32 attributes;
+  be_u32 root_directory; /**< Handle of the directory the name is relative to, 0 for none. */
+  be_u32 name_ptr;       /**< PANSI_STRING. */
+  be_u32 attributes;     /**< Object attribute flags. */
 };
 REX_STATIC_ASSERT_SIZE(X_OBJECT_ATTRIBUTES, 0xC);
 

@@ -28,8 +28,11 @@ class Runtime;
 
 namespace rex::runtime {
 
+/** Signature of an XEX1 file. */
 constexpr memory::FourCCT kXEX1Signature = memory::make_fourcc("XEX1");
+/** Signature of an XEX2 file. */
 constexpr memory::FourCCT kXEX2Signature = memory::make_fourcc("XEX2");
+/** Signature of an ELF file. */
 constexpr memory::FourCCT kELFSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F');
 
 /** A module loaded from an XEX image, or from an XEX patch image. */
@@ -63,8 +66,23 @@ class REX_RUNTIME_API XEXModule : public Module {
   /** Destroys the module. */
   ~XEXModule() override;
 
+  /**
+   * Reports whether the image is loaded.
+   *
+   * @return True when the image is loaded.
+   */
   bool IsLoaded() const { return loaded_; }
+  /**
+   * Returns the XEX image.
+   *
+   * @return The image.
+   */
   const filesystem::XEXImage& GetImage() const { return image_; }
+  /**
+   * Returns the PE information of the image.
+   *
+   * @return The PE information.
+   */
   const filesystem::PEInfo& GetPE() const { return pe_; }
 
   /**
@@ -74,6 +92,11 @@ class REX_RUNTIME_API XEXModule : public Module {
    */
   u32 GetImageSize() const override;
 
+  /**
+   * Returns the guest address the image is loaded at.
+   *
+   * @return The guest address, 0 before the image is loaded.
+   */
   u32 GetBaseAddress() const override { return base_address_; }
 
   /**
@@ -85,6 +108,11 @@ class REX_RUNTIME_API XEXModule : public Module {
     return image_.GetOptHeaderValue(filesystem::kXEXHeaderEntryPoint).value_or(0);
   }
 
+  /**
+   * Returns the guest address of the export table.
+   *
+   * @return The guest address, 0 when the image has none.
+   */
   u32 GetExportTableAddress() const override { return image_.GetSecurity().export_table; }
 
   u32 GetExceptionDirectoryRVA() const override { return pe_.exception_directory_rva; }

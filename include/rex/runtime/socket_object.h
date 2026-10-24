@@ -50,6 +50,11 @@ struct XSOCKADDR {
 struct N_XSOCKADDR {
   /** Builds an uninitialized address. */
   N_XSOCKADDR() {}
+  /**
+   * Builds an address from a guest address.
+   *
+   * @param other The guest address.
+   */
   N_XSOCKADDR(const XSOCKADDR* other) { *this = *other; }
   /**
    * Copies a guest address, converting the family to host byte order.
@@ -81,6 +86,11 @@ struct XSOCKADDR_IN {
 struct N_XSOCKADDR_IN {
   /** Builds an uninitialized address. */
   N_XSOCKADDR_IN() {}
+  /**
+   * Builds an address from a guest address.
+   *
+   * @param other The guest address.
+   */
   N_XSOCKADDR_IN(const XSOCKADDR_IN* other) { *this = *other; }
   /**
    * Copies a guest address, converting the family to host byte order and zeroing the padding.

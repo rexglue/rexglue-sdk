@@ -43,7 +43,7 @@ struct OverlayContext {
 
 /** 1 overlay table entry. REX_OVERLAY builds it. */
 struct OverlayDesc {
-  /** Unique overlay name, also the keybind name bind.<name>. */
+  /** Unique overlay name, also the keybind name bind.\<name\>. */
   std::string_view name;
   /** Default chord of the toggle bind. A chord whose key is VirtualKey::kNone registers no bind. */
   hid::KeyChord default_key;

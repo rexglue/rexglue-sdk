@@ -60,7 +60,13 @@ class AnalysisErrors {
    */
   void Add(Category cat, u32 addr, u32 secondary, const std::string& msg);
 
+  /**
+   * Reports whether any entry was added.
+   *
+   * @return True when at least 1 entry exists.
+   */
   bool HasErrors() const { return !entries_.empty(); }
+  /** Returns the number of entries. */
   size_t Count() const { return entries_.size(); }
   /**
    * Counts the entries of a failure class.
@@ -70,12 +76,14 @@ class AnalysisErrors {
    */
   size_t Count(Category cat) const;
 
+  /** Returns all entries in the order they were added. */
   const std::vector<Entry>& GetEntries() const { return entries_; }
 
   /**
    * Logs every entry grouped by failure class, then the total. Logs nothing when empty.
    */
   void PrintReport() const;
+  /** Removes every entry. */
   void Clear() { entries_.clear(); }
 
   /**

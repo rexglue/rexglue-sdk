@@ -237,7 +237,7 @@ enum class VirtualKey : u16 {
   kOemMinus = 0xBD,  /**< '-' for any country. */
   kOemPeriod = 0xBE, /**< '.' for any country. */
   kOem2 = 0xBF,      /**< '/?' for the US. */
-  kOem3 = 0xC0,      /**< '`~' for the US. */
+  kOem3 = 0xC0,      /**< The grave accent and tilde key for the US. */
 
   /**
    * VK_GAMEPAD_* codes added in _WIN32_WINNT 0x0604, reserved in WinUser.h. VK_PAD_*
