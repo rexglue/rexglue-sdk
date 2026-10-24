@@ -68,8 +68,21 @@ std::string EscapeTOML(std::string_view s) {
       case '\t':
         out += "\\t";
         break;
+      case '\r':
+        out += "\\r";
+        break;
+      case '\b':
+        out += "\\b";
+        break;
+      case '\f':
+        out += "\\f";
+        break;
       default:
-        out += c;
+        if (static_cast<unsigned char>(c) < 0x20 || c == 0x7F) {
+          out += std::format("\\u{:04X}", static_cast<unsigned>(static_cast<unsigned char>(c)));
+        } else {
+          out += c;
+        }
     }
   }
   return out + "\"";

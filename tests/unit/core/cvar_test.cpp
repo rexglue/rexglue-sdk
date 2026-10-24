@@ -18,6 +18,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <toml++/toml.hpp>
+
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/logging/category.h>
@@ -371,6 +373,17 @@ REX_TEST_CASE_METHOD(Fixture, "Commands invoke and refuse Set", "[core][cvar]") 
   auto set_cmd = GetRegistry().Set("test.run", "x");
   REQUIRE_FALSE(set_cmd);
   REQUIRE(set_cmd.error().code == static_cast<int>(rex::cvar::CvarError::kNotAVar));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "Serialize escapes control characters so the text parses back",
+                     "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  const std::string value = "a\r\nb\x01 \b\f\x7f end";
+  REQUIRE(GetRegistry().Set("test.word", value));
+  const std::string text = GetRegistry().Serialize();
+  const toml::table parsed = toml::parse(text);
+  CHECK(parsed["test"]["word"].value<std::string>().value_or("") == value);
+  REQUIRE(test_cvars::word.Parse("abc"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Serialize writes scoped tables of non default values",
