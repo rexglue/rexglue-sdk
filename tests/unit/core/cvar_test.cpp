@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 
+#include <array>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -17,8 +18,11 @@
 #include <type_traits>
 #include <vector>
 
+#include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/logging/category.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/sink.h>
 
 #include "core/cvar_registry.h"
 
@@ -445,6 +449,23 @@ REX_TEST_CASE_METHOD(Fixture, "Values for a reserved scope wait for Add", "[core
   GetRegistry().Unregister(both);
 }
 
+REX_TEST_CASE_METHOD(Fixture, "TakePending removes the waiting values except the kept scopes",
+                     "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("bind", {}));
+  REQUIRE(GetRegistry().Register("hid", {}));
+  std::vector<rex::CvarOverride> cfg = {{"bind.late", "F9", rex::cvar::CvarSource::kConfig},
+                                        {"hid.typo", "1", rex::cvar::CvarSource::kConfig}};
+  REQUIRE(GetRegistry().ApplyOverrides(cfg));
+  const std::array<std::string_view, 1> keep = {"bind"};
+  auto taken = GetRegistry().TakePending(keep);
+  REQUIRE(taken.size() == 1);
+  CHECK(taken.front().name == "hid.typo");
+  CHECK(GetRegistry().TakePending(keep).empty());
+  taken = GetRegistry().TakePending();
+  REQUIRE(taken.size() == 1);
+  CHECK(taken.front().name == "bind.late");
+}
+
 REX_TEST_CASE_METHOD(Fixture, "Reset clears registrations and the finalized flag", "[core][cvar]") {
   REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
   GetRegistry().Finalize();
@@ -509,3 +530,63 @@ REX_TEST_CASE("an integer cvar clamps to its constraints", "[core][cvar]") {
   CHECK(rex::cvar::ClampIntegerCvarText(desc, "9") == "8");
   CHECK(rex::cvar::ClampIntegerCvarText(desc, "5") == "5");
 }
+
+#ifndef NDEBUG
+namespace report_cvars {
+REXCVAR_INT32(report, unregistered, 5, "A cvar no table holds");
+REXCVAR_INT32(report, silenced, 5, "A second cvar no table holds");
+}  // namespace report_cvars
+
+namespace {
+
+class LineSink final : public rex::log::ISink {
+ public:
+  void Write(const rex::log::Message& message) override {
+    levels.push_back(message.level);
+    lines.emplace_back(message.text);
+  }
+  void Flush() override {}
+
+  std::vector<rex::log::Level> levels;
+  std::vector<std::string> lines;
+};
+
+struct InitScope {
+  InitScope() {
+    rex::Shutdown();
+    auto started = rex::Init({});
+    REQUIRE(started);
+    logger = (*started)->Get<rex::ILogger>();
+    REQUIRE(logger);
+  }
+  ~InitScope() { rex::Shutdown(); }
+
+  rex::ILogger* logger = nullptr;
+};
+
+}  // namespace
+
+REX_TEST_CASE("An unregistered cvar read logs one error once the modules connect", "[core][cvar]") {
+  rex::Shutdown();
+  CHECK(report_cvars::unregistered.Get() == 5);
+  InitScope scope;
+  LineSink sink;
+  scope.logger->AddSink(sink);
+  CHECK(report_cvars::unregistered.Get() == 5);
+  CHECK(report_cvars::unregistered.Get() == 5);
+  scope.logger->RemoveSink(sink);
+  REQUIRE(sink.lines.size() == 1);
+  CHECK(sink.levels[0] == rex::log::Level::kError);
+  CHECK(sink.lines[0].find("report.unregistered") != std::string::npos);
+}
+
+REX_TEST_CASE("An unregistered cvar read logs nothing while the report is off", "[core][cvar]") {
+  InitScope scope;
+  LineSink sink;
+  scope.logger->AddSink(sink);
+  rex::detail::SetUnregisteredReadReport(false);
+  CHECK(report_cvars::silenced.Get() == 5);
+  scope.logger->RemoveSink(sink);
+  CHECK(sink.lines.empty());
+}
+#endif

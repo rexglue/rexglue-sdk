@@ -1,6 +1,7 @@
 #include "core/cvar_registry.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <charconv>
 #include <format>
@@ -14,6 +15,12 @@
 #include <rex/logging/log.h>
 #include <rex/platform/env.h>
 #include <rex/string/numeric.h>
+
+namespace {
+
+std::atomic<bool> g_report_unregistered_reads{false};
+
+}  // namespace
 
 namespace rex::detail {
 
@@ -69,6 +76,14 @@ std::string EscapeTOML(std::string_view s) {
 }
 
 }  // namespace
+
+void SetUnregisteredReadReport(bool enabled) {
+  g_report_unregistered_reads.store(enabled, std::memory_order_relaxed);
+}
+
+bool IsUnregisteredReadReportEnabled() {
+  return g_report_unregistered_reads.load(std::memory_order_relaxed);
+}
 
 CvarRegistryImpl::~CvarRegistryImpl() {
   Reset();
@@ -527,6 +542,20 @@ void CvarRegistryImpl::Finalize() {
   finalized_ = true;
 }
 
+std::vector<CvarOverride> CvarRegistryImpl::TakePending(std::span<const std::string_view> keep) {
+  std::lock_guard lock(mutex_);
+  std::vector<CvarOverride> taken;
+  std::erase_if(pending_, [&](const CvarOverride& o) {
+    const std::string_view scope = std::string_view(o.name).substr(0, o.name.find('.'));
+    if (std::ranges::find(keep, scope) != keep.end()) {
+      return false;
+    }
+    taken.push_back(o);
+    return true;
+  });
+  return taken;
+}
+
 void CvarRegistryImpl::Reset() {
   std::lock_guard lock(mutex_);
   for (Entry& e : entries_)
@@ -615,5 +644,20 @@ void ApplyEnvironment(rex::Config& config) {
     config.cvars.values.push_back({cvar_name, value, CvarSource::kEnvironment});
   }
 }
+
+namespace detail {
+
+void ReportUnregistered(const VarBase& var) {
+  if (!g_report_unregistered_reads.load(std::memory_order_relaxed)) {
+    return;
+  }
+  if (!DetailAccess::MarkReported(var)) {
+    return;
+  }
+  REXLOG_ERROR(core, "cvar '{}' was read but no module registered it, add it to a REXCVAR_TABLE",
+               var.GetDesc().name);
+}
+
+}  // namespace detail
 
 }  // namespace rex::cvar

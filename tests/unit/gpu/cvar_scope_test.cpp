@@ -15,9 +15,11 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <rex/api.h>
 #include <rex/cvar/registry.h>
+#include <rex/logging/sink.h>
 #include <rex/platform.h>
 #include <rex/platform/env.h>
 
@@ -259,4 +261,51 @@ REX_TEST_CASE_METHOD(Fixture,
   REQUIRE_FALSE(api);
   CHECK(api.error().message.find("module 'rexhid-sdl3' requires rex.runtime.module_registry") !=
         std::string::npos);
+}
+
+namespace {
+
+bool Warned(rex::log::CaptureSink& sink, std::string_view text) {
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  return std::ranges::any_of(
+      entries, [&](const auto& entry) { return entry.text.find(text) != std::string::npos; });
+}
+
+}  // namespace
+
+REX_TEST_CASE_METHOD(Fixture, "An unknown hid key from the config file warns at Init",
+                     "[hid][cvar]") {
+  rex::Config config = BaseConfig();
+  config.modules = {"rexfilesystem", "rexruntime", "rexhid-sdl3"};
+  config.cvars.values.push_back({"hid.guide_buttn", "true", rex::cvar::CvarSource::kConfig});
+  rex::log::CaptureSink sink;
+  config.log.sinks.push_back(&sink);
+  auto api = rex::Init(config);
+  REQUIRE(api);
+  const bool warned = Warned(sink, "unknown cvar 'hid.guide_buttn' from Config");
+  rex::Shutdown();
+  CHECK(warned);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "An unknown hid key on the command line fails Init", "[hid][cvar]") {
+  rex::Config config = BaseConfig();
+  config.modules = {"rexfilesystem", "rexruntime", "rexhid-sdl3"};
+  config.cvars.Set("hid.guide_buttn", "true");
+  auto api = rex::Init(config);
+  REQUIRE_FALSE(api);
+  CHECK(api.error().message.find("unknown cvar 'hid.guide_buttn' from CommandLine") !=
+        std::string::npos);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "An unknown bind key warns at Shutdown", "[ui][cvar]") {
+  rex::Config config = BaseConfig();
+  config.modules = {"rexfilesystem", "rexruntime", "rexui-sdl3"};
+  config.cvars.values.push_back({"bind.no_such_action", "F9", rex::cvar::CvarSource::kConfig});
+  rex::log::CaptureSink sink;
+  config.log.sinks.push_back(&sink);
+  REQUIRE(rex::Init(config));
+  CHECK_FALSE(Warned(sink, "unknown cvar 'bind.no_such_action'"));
+  rex::Shutdown();
+  CHECK(Warned(sink, "unknown cvar 'bind.no_such_action' from Config"));
 }

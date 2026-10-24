@@ -42,6 +42,7 @@
 #endif
 
 #include "core/app_state.h"
+#include "core/cvar_registry.h"
 #include "core/module_loader.h"
 #include "modules/echo.h"
 #include "modules/test_module_sink.h"
@@ -201,6 +202,17 @@ REX_TEST_CASE_METHOD(Fixture, "App runs its steps in lifecycle order", "[core][a
                                                "rexmod-test-good:init", "app:run", "app:shutdown",
                                                "rexmod-test-good:shutdown",
                                                "rexmod-test-good:disconnect"});
+}
+
+REX_TEST_CASE_METHOD(Fixture, "App Shutdown turns the unregistered read report off",
+                     "[core][app]") {
+  Pinned pin("rexmod-test-good");
+  TestApp app;
+  REQUIRE(app.Init(Args()));
+  CHECK(rex::detail::IsUnregisteredReadReportEnabled());
+  app.Run();
+  app.Shutdown();
+  CHECK_FALSE(rex::detail::IsUnregisteredReadReportEnabled());
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A failing OnConfigure loads nothing", "[core][app]") {

@@ -123,6 +123,7 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   [[nodiscard]] Result<void> InitAll();
   void UnwindAll();
   [[nodiscard]] Result<void> RegisterConsumerTables();
+  std::vector<std::string> ReportUnknownCvars(std::span<const CvarOverride> unknown);
   [[nodiscard]] Result<void> ApplyCvarValues();
   void UnregisterTables();
   static Error ModuleError(std::string message);

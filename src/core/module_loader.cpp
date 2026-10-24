@@ -195,11 +195,21 @@ Result<API*> ModuleLoader::Connect(const Config& config) {
   }
   FinishLoggerStart(*cvars_);
   connected_ = true;
+  SetUnregisteredReadReport(true);
   return &api_;
 }
 
 Result<void> ModuleLoader::InitModules() {
   cvars_->Finalize();
+  constexpr std::array<std::string_view, 1> kLateScopes = {"bind"};
+  if (auto hard = ReportUnknownCvars(cvars_->TakePending(kLateScopes)); !hard.empty()) {
+    std::string message;
+    for (size_t i = 0; i < hard.size(); ++i)
+      message += (i ? ", " : "") + hard[i];
+    UnwindAll();
+    connected_ = false;
+    return Err(Error(ErrorCategory::kConfig, std::move(message)));
+  }
   if (auto status = InitAll(); !status) {
     UnwindAll();
     connected_ = false;
@@ -354,6 +364,8 @@ void ModuleLoader::UnwindAll() {
 }
 
 void ModuleLoader::ShutdownModules() {
+  SetUnregisteredReadReport(false);
+  ReportUnknownCvars(cvars_->TakePending());
   for (auto it = loaded_.rbegin(); it != loaded_.rend(); ++it) {
     if (it->initialized) {
       it->module->Shutdown();
@@ -399,13 +411,9 @@ Result<void> ModuleLoader::RegisterConsumerTables() {
   return Ok();
 }
 
-Result<void> ModuleLoader::ApplyCvarValues() {
-  auto unknown = cvars_->ApplyOverrides(config_.cvars.values);
-  if (!unknown) {
-    REX_FAIL(core, Err(unknown.error()), "{}", unknown.error().message);
-  }
+std::vector<std::string> ModuleLoader::ReportUnknownCvars(std::span<const CvarOverride> unknown) {
   std::vector<std::string> hard;
-  for (const CvarOverride& o : *unknown) {
+  for (const CvarOverride& o : unknown) {
     const char* source = o.source == cvar::CvarSource::kDefault       ? "Default"
                          : o.source == cvar::CvarSource::kConfig      ? "Config"
                          : o.source == cvar::CvarSource::kEnvironment ? "Environment"
@@ -416,6 +424,15 @@ Result<void> ModuleLoader::ApplyCvarValues() {
       hard.push_back(std::format("unknown cvar '{}' from {}", o.name, source));
     }
   }
+  return hard;
+}
+
+Result<void> ModuleLoader::ApplyCvarValues() {
+  auto unknown = cvars_->ApplyOverrides(config_.cvars.values);
+  if (!unknown) {
+    REX_FAIL(core, Err(unknown.error()), "{}", unknown.error().message);
+  }
+  std::vector<std::string> hard = ReportUnknownCvars(*unknown);
   for (const std::string& name : config_.cvars.locked) {
     if (!cvars_->Find(name))
       hard.push_back(std::format("unknown cvar '{}' in locked", name));

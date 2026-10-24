@@ -29,6 +29,21 @@
 namespace rex::detail {
 
 /**
+ * Turns the unregistered read report on or off. The loader turns it on once every module has
+ * connected and off before the modules unwind.
+ *
+ * @param enabled True to report reads of vars no registry holds.
+ */
+REX_API void SetUnregisteredReadReport(bool enabled);
+
+/**
+ * Reports whether reads of vars no registry holds are logged.
+ *
+ * @return True while the unregistered read report is on.
+ */
+REX_API bool IsUnregisteredReadReportEnabled();
+
+/**
  * ICvarRegistry with the Init side entry points the loader uses.
  */
 class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
@@ -81,6 +96,13 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
    * here.
    */
   void Finalize();
+  /**
+   * Removes the values still waiting for a reserved scope to receive the var.
+   *
+   * @param keep Scopes whose values keep waiting.
+   * @return The removed values.
+   */
+  [[nodiscard]] std::vector<CvarOverride> TakePending(std::span<const std::string_view> keep = {});
   /**
    * Unregisters everything, clears callbacks, locks and the finalized flag. Values stay in their
    * cells.

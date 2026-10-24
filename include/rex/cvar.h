@@ -167,6 +167,7 @@ class VarBase {
  private:
   friend class DetailAccess;
   mutable std::atomic<ICvarRegistry*> registry_ = nullptr;
+  mutable std::atomic<bool> reported_ = false;
 };
 
 /**
@@ -183,9 +184,26 @@ class DetailAccess {
   static void SetRegistry(const VarBase& var, ICvarRegistry* registry) {
     var.registry_.store(registry, std::memory_order_release);
   }
+  /**
+   * Marks a var as reported once.
+   *
+   * @param var The var.
+   * @return True for the first call on the var, false after.
+   */
+  static bool MarkReported(const VarBase& var) {
+    return !var.reported_.exchange(true, std::memory_order_relaxed);
+  }
 };
 
 namespace detail {
+
+/**
+ * Logs an error the first time a var is read while no registry holds it, once every module has
+ * connected. Debug builds call it from Var::Get.
+ *
+ * @param var The var that was read.
+ */
+REX_API void ReportUnregistered(const VarBase& var);
 
 /** Renders a scalar default at compile time into a fixed buffer. */
 struct DefaultText {
@@ -642,6 +660,11 @@ std::optional<T> ParseValue(std::string_view text) {
 
 template <typename T>
 T Var<T>::Get() const {
+#ifndef NDEBUG
+  if (!GetRegistry()) {
+    detail::ReportUnregistered(*this);
+  }
+#endif
   if constexpr (kIsString) {
     std::atomic_ref<u8> lock(lock_);
     while (lock.exchange(1, std::memory_order_acquire)) {}

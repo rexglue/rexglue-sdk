@@ -23,6 +23,8 @@ foreach (name good missing badversion failinit duplicate-echo)
   endif ()
 endforeach ()
 
+target_link_libraries(rexmod-test-good PRIVATE rexcore)
+
 add_library(rexmod-test-null-gpu SHARED null_gpu/null_gpu_module.cpp)
 target_include_directories(
   rexmod-test-null-gpu PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
