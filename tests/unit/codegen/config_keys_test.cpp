@@ -84,15 +84,25 @@ REX_TEST_CASE("An unknown key in an array entry warns with the entry number",
   CHECK(Mentions(loaded.config.load_warnings, "midasm_hook[0].adress"));
 }
 
+REX_TEST_CASE("Keys of removed settings warn as unknown", "[codegen][config][keys]") {
+  const auto loaded = LoadBody(
+      "indirect_calls = [0x82000010]\n[analysis]\nmax_jump_extension = 1\n"
+      "large_function_threshold = 1\n");
+  CHECK(loaded.ok);
+  CHECK(Mentions(loaded.config.load_warnings, "indirect_calls"));
+  CHECK(Mentions(loaded.config.load_warnings, "analysis.max_jump_extension"));
+  CHECK(Mentions(loaded.config.load_warnings, "analysis.large_function_threshold"));
+}
+
 REX_TEST_CASE("A table that uses only known keys has no warnings", "[codegen][config][keys]") {
   const auto loaded = LoadBody(
       "project_name = \"demo\"\ntemplate_dir = \"t\"\nlongjmp_address = 0x82000000\n"
       "setjmp_address = 0x82000004\nskip_lr = true\nskip_msr = true\nctr_as_local = true\n"
       "xer_as_local = true\nreserved_as_local = true\ncr_as_local = true\n"
       "non_argument_as_local = true\nnon_volatile_as_local = true\n"
-      "generate_exception_handlers = true\nis_dll = false\nindirect_calls = [0x82000010]\n"
-      "[analysis]\nmax_jump_extension = 1\ndata_region_threshold = 1\n"
-      "large_function_threshold = 1\nexception_handler_funcs = [0x82000020]\n"
+      "generate_exception_handlers = true\nis_dll = false\n"
+      "[analysis]\ndata_region_threshold = 1\n"
+      "exception_handler_funcs = [0x82000020]\n"
       "[functions]\n0x82000030 = { size = 8, name = \"f\", share_registers = true }\n"
       "[[invalid_instructions]]\ndata = 0x82000040\nsize = 4\n"
       "[[switch_tables]]\naddress = 0x82000050\nregister = 11\nlabels = [0x82000054]\n"

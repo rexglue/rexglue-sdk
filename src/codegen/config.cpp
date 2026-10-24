@@ -169,14 +169,8 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
   }
 
   if (auto* analysis_table = root["analysis"].as_table()) {
-    if (auto v = (*analysis_table)["max_jump_extension"].value<u32>()) {
-      MergeScalar(cfg.max_jump_extension, *v, "analysis.max_jump_extension");
-    }
     if (auto v = (*analysis_table)["data_region_threshold"].value<u32>()) {
       MergeScalar(cfg.data_region_threshold, *v, "analysis.data_region_threshold");
-    }
-    if (auto v = (*analysis_table)["large_function_threshold"].value<u32>()) {
-      MergeScalar(cfg.large_function_threshold, *v, "analysis.large_function_threshold");
     }
 
     if (auto handlers = (*analysis_table)["exception_handler_funcs"].as_array()) {
@@ -388,14 +382,6 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
     }
   }
 
-  if (auto indirect_call_array = root["indirect_calls"].as_array()) {
-    for (auto& entry : *indirect_call_array) {
-      if (auto addr = entry.value<i64>()) {
-        cfg.known_indirect_call_hints.insert(static_cast<u32>(*addr));
-        REXLOG_DEBUG(codegen, "Loaded known indirect call hint at 0x{:08X}", *addr);
-      }
-    }
-  }
   for (const MMIOBlock block : {MMIOBlock::kGPU, MMIOBlock::kAPU}) {
     const std::string_view block_name = block == MMIOBlock::kGPU ? "gpu" : "apu";
     for (const bool write : {false, true}) {
@@ -556,7 +542,6 @@ void RecompilerConfig::ClearAddressEntries() {
   setjmp_address = 0;
   shim_functions.clear();
   invalid_instruction_hints.clear();
-  known_indirect_call_hints.clear();
   declared_mmio_accesses.clear();
   exception_handler_func_hints.clear();
 }
@@ -597,11 +582,6 @@ void RecompilerConfig::MergeSharedEntriesIn(const RecompilerConfig& shared, u32 
       shim_functions.try_emplace(name, address);
     }
   }
-  for (u32 address : shared.known_indirect_call_hints) {
-    if (InImage(address, base, size)) {
-      known_indirect_call_hints.insert(address);
-    }
-  }
   for (u32 address : shared.exception_handler_func_hints) {
     if (InImage(address, base, size) &&
         std::find(exception_handler_func_hints.begin(), exception_handler_func_hints.end(),
@@ -640,9 +620,6 @@ std::vector<std::string> RecompilerConfig::ListEntriesOutside(
   }
   for (const auto& [name, address] : shim_functions) {
     check("[shim]", address);
-  }
-  for (u32 address : known_indirect_call_hints) {
-    check("indirect_calls", address);
   }
   for (u32 address : exception_handler_func_hints) {
     check("analysis.exception_handler_funcs", address);

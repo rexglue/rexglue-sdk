@@ -163,9 +163,7 @@ struct RecompilerConfig {
   bool non_volatile_registers_as_local_variables = false;
   bool generate_exception_handlers = false; /**< Generates SEH exception handler wrappers */
 
-  u32 max_jump_extension = 65536; /**< Max bytes to extend a function for jump table targets */
   u32 data_region_threshold = 16; /**< Invalid instructions in a row that mark a data region */
-  u32 large_function_threshold = 1048576; /**< Size in bytes that triggers a warning */
 
   /**
    * Overrides the DLL module flag. When unset the orchestrator infers it from the module
@@ -193,8 +191,6 @@ struct RecompilerConfig {
   std::unordered_map<std::string, u32> shim_functions;
 
   std::unordered_map<u32, u32> invalid_instruction_hints; /**< Maps address to size */
-  /** Addresses of bctr instructions that are vtable or computed calls. */
-  std::unordered_set<u32> known_indirect_call_hints;
   /** Loads and stores the [mmio.gpu] and [mmio.apu] tables route to a register block. */
   std::unordered_map<u32, MMIODeclaredAccess> declared_mmio_accesses;
   /** TOML array `analysis.exception_handler_funcs`. Entry addresses analysis treats as exception

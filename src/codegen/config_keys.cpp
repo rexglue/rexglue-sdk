@@ -49,14 +49,11 @@ constexpr std::array kBinaryKeys = {
     KeySpec{"invalid_instructions", Kind::kArray},
     KeySpec{"switch_tables", Kind::kArray},
     KeySpec{"midasm_hook", Kind::kArray},
-    KeySpec{"indirect_calls", Kind::kArray},
     KeySpec{"mmio", Kind::kTable},
 };
 
 constexpr std::array kAnalysisKeys = {
-    KeySpec{"max_jump_extension", Kind::kInteger},
     KeySpec{"data_region_threshold", Kind::kInteger},
-    KeySpec{"large_function_threshold", Kind::kInteger},
     KeySpec{"exception_handler_funcs", Kind::kArray},
 };
 

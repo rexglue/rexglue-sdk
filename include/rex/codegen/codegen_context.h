@@ -72,7 +72,6 @@ struct AnalysisState {
   std::unordered_map<u32, ModuleImportRef> module_imports;
 
   std::unordered_map<u32, u32> invalid_instructions; /**< Maps address to size */
-  std::unordered_set<u32> known_indirect_calls;      /**< bctr addresses */
   /** Entry addresses of exception handler functions, copied from `analysis.exception_handler_funcs`
    * in the TOML. */
   std::vector<u32> exception_handler_funcs;

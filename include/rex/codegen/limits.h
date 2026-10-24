@@ -38,8 +38,6 @@ struct Limits {
   u32 backward_scan_limit = 64;
   /** Jump table entries accepted. */
   u32 max_jump_table_entries = 512;
-  /** Basic blocks a function may have before it is skipped. */
-  u32 max_blocks_per_function = 10000;
 };
 
 }  // namespace rex::codegen

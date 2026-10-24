@@ -22,10 +22,9 @@ namespace rex::codegen {
 
 /** Settings for 1 ProjectRecompiler run. */
 struct ProjectRecompilerOptions {
-  std::vector<std::string> targets;       /**< Empty selects all */
-  bool force = false;                     /**< Rewrite outputs whose content is unchanged */
-  bool enable_exception_handlers = false; /**< Generate SEH exception handler wrappers */
-  IProgressReporter* reporter = nullptr;  /**< Receives progress events, null for none */
+  std::vector<std::string> targets; /**< Empty selects all */
+  bool force = false;               /**< Skip the stamp check and continue past validation errors */
+  IProgressReporter* reporter = nullptr; /**< Receives progress events, null for none */
 
   /** Bypasses the stamp gate and regenerates every targeted module. */
   bool ignore_stamp = false;

@@ -660,9 +660,6 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
   for (const auto& [addr, size] : config.invalid_instruction_hints) {
     state.invalid_instructions[addr] = size;
   }
-  for (u32 addr : config.known_indirect_call_hints) {
-    state.known_indirect_calls.insert(addr);
-  }
   for (u32 addr : config.exception_handler_func_hints) {
     state.exception_handler_funcs.push_back(addr);
   }

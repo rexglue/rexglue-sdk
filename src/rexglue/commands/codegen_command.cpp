@@ -256,9 +256,6 @@ void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pe
   sub->add_option("--max_jump_table_entries", args->limits.max_jump_table_entries,
                   "Jump table entries accepted")
       ->check(CLI::Range(1u, 100000u));
-  sub->add_option("--max_blocks_per_function", args->limits.max_blocks_per_function,
-                  "Basic blocks per function")
-      ->check(CLI::Range(1u, 1000000u));
 
   sub->callback([args, &ctx, &pending]() {
     pending = [args, &ctx]() -> Result<void> {

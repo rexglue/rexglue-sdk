@@ -87,7 +87,6 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
                   static_cast<u32>(vm.vmsum4fp128), static_cast<u32>(vm.vrefp),
                   static_cast<u32>(vm.vrsqrtefp), static_cast<u32>(vm.vexptefp)),
       std::format("generate_exception_handlers={}", cfg.generate_exception_handlers),
-      std::format("max_jump_extension={}", cfg.max_jump_extension),
       std::format("data_region_threshold={}", cfg.data_region_threshold),
       std::format("max_file_size_bytes={}", limits.max_file_size_bytes),
       std::format("max_discovery_iterations={}", limits.max_discovery_iterations),
@@ -99,7 +98,6 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
       std::format("max_seh_scope_entries={}", limits.max_seh_scope_entries),
       std::format("backward_scan_limit={}", limits.backward_scan_limit),
       std::format("max_jump_table_entries={}", limits.max_jump_table_entries),
-      std::format("max_blocks_per_function={}", limits.max_blocks_per_function),
   };
 
   std::vector<u32> hook_addresses;
@@ -462,8 +460,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     if (auto merged = merge_shared(cfg, bv); !merged) {
       return merged;
     }
-    if (opts.enable_exception_handlers)
-      cfg.generate_exception_handlers = true;
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
     ctx.SetLimits(opts.limits);
@@ -487,8 +483,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     if (auto merged = merge_shared(cfg, bv); !merged) {
       return merged;
     }
-    if (opts.enable_exception_handlers)
-      cfg.generate_exception_handlers = true;
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
     ctx.SetLimits(opts.limits);
