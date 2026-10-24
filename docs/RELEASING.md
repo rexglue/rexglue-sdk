@@ -2,25 +2,25 @@
 
 ## Branches
 
-`main` always sits at the most recent stable tag. `development` is the working canary; all feature work merges here first. `release/X.Y.Z` is short-lived: branched from dev tip when a release is cut, merged into both dev and main when the release is published, then deleted.
+`main` always sits at the most recent stable tag. `development` is the working canary. All feature work merges here first. `release/X.Y.Z` is short-lived: branched from dev tip when a release is cut, merged into both dev and main when the release is published, then deleted.
 
 ## Versioning
 
 The build version is computed automatically. Do not edit `CMakeLists.txt` to bump the version on a routine release.
 
-`CMakeLists.txt` carries only the API floor as `PROJECT VERSION MAJOR.MINOR.0`. The patch field there is a placeholder CMake requires; only major and minor mean anything. Edit the floor only when you are introducing a public API change.
+`CMakeLists.txt` carries only the API floor as `PROJECT VERSION MAJOR.MINOR.0`. The patch field there is a placeholder CMake requires. Only major and minor mean anything. Edit the floor only when you are introducing a public API change.
 
 Version format follows [CMake's `CMAKE_VERSION`](https://cmake.org/cmake/help/latest/variable/CMAKE_VERSION.html) convention: `MAJOR.MINOR[.PATCH[.TWEAK]][-id]`.
 
 The full version is derived at configure time:
 
-- On a tagged commit: version is the tag verbatim (minus the leading `v`). Tags may be 2, 3, or 4 components (`v0.7`, `v0.7.5`, `v0.7.5.1`). Whatever you tag is what ships.
-- On a `release/*` branch: version is `MAJOR.<floor-minor>.<tag-patch>.<commit-count>-rc.g<sha>`.
-- On `development` or anywhere else: version is `MAJOR.<floor-minor>.<tag-patch>.<commit-count>-dev.g<sha>`.
+- On a tagged commit the version is the tag verbatim (minus the leading `v`). Tags may have two, three or four components (`v0.7`, `v0.7.5`, `v0.7.5.1`). Whatever you tag is the released version.
+- On a `release/*` branch the version is `MAJOR.<floor-minor>.<tag-patch>.<commit-count>-rc.g<sha>`.
+- On `development` or anywhere else the version is `MAJOR.<floor-minor>.<tag-patch>.<commit-count>-dev.g<sha>`.
 
-When the floor major.minor is ahead of the most recent tag (a floor bump not yet released), the version instead holds at `MAJOR.<floor-minor>.0-<id>` with no commit-count tweak, and stays there until a release on that floor lands and `main` catches up.
+When the floor major.minor is ahead of the most recent tag (a floor bump not yet released), the version instead holds at `MAJOR.<floor-minor>.0-<id>` with no commit-count tweak, and stays there until a release on that floor is published and `main` catches up.
 
-`<tag-patch>` is the patch of the most recent tag; it is not pre-incremented, so the build tracks the released base plus commits and the next release tag lands on the very next number. `<commit-count>` is the number of commits since that tag (the TWEAK slot). The `-id` trailer identifies the build channel (`dev` or `rc`) and the short commit SHA.
+`<tag-patch>` is the patch of the most recent tag. It is not pre-incremented, so the build tracks the released base plus commits and the next release tag is the next number. `<commit-count>` is the number of commits since that tag (the TWEAK slot). The `-id` trailer identifies the build channel (`dev` or `rc`) and the short commit SHA.
 
 Examples:
 
@@ -52,7 +52,7 @@ Open a PR `release/X.Y.Z -> main`.
 
 ### While the release is open
 
-Feature work keeps merging into `development` as normal. Review fixes for the open release land on `release/X.Y.Z` directly. Do not cherry-pick review fixes into dev; they flow back when the release is published.
+Feature work keeps merging into `development` as normal. Review fixes for the open release go straight to `release/X.Y.Z`. Do not cherry-pick review fixes into dev. They flow back when the release is published.
 
 ### Merging and tagging
 
@@ -65,7 +65,7 @@ git merge --no-ff release/X.Y.Z -m "Merge release/X.Y.Z into development"
 git push origin development
 ```
 
-Then merge into main. Use a real merge commit; do not squash, do not rebase:
+Then merge into main. Use a real merge commit. Do not squash, do not rebase:
 
 ```
 git checkout main
@@ -101,14 +101,14 @@ git checkout -b release/X.Y.Z origin/main
 
 Apply the fix on the branch, open the PR into main, then merge into dev first and into main with a merge commit, exactly like a normal release. Tag and push.
 
-If a regular release branch is already open, close it without merging before cutting the hotfix; only one release branch may exist at a time. Re-cut the regular release from dev tip after the hotfix is released; its version will be the next patch off the hotfix tag.
+If a regular release branch is already open, close it without merging before cutting the hotfix. Only one release branch may exist at a time. Re-cut the regular release from dev tip after the hotfix is released. Its version is the next patch off the hotfix tag.
 
 ## Bumping the floor
 
 Only when the public API is changing. Single commit on `development`:
 
-1. Edit the `VERSION` line of the `project()` call in `CMakeLists.txt`: change `0.<old>.0` to `0.<new>.0`.
-2. Commit message: `chore: bump API floor to 0.<new>`.
+1. Edit the `VERSION` line of the `project()` call in `CMakeLists.txt`. Change `0.<old>.0` to `0.<new>.0`.
+2. Use the commit message `chore: bump API floor to 0.<new>`.
 3. The next release branch is `release/0.<new>.0` and the tag is `v0.<new>.0`.
 
 ## Nightly builds
@@ -117,10 +117,10 @@ Scheduled workflow that builds dev tip when its SHA has advanced since the last 
 
 ## When something goes wrong
 
-CI fails on a tag push: do not delete the tag. Investigate, fix on `development`, cut the next patch release when ready. Do not retag.
+When CI fails on a tag push, do not delete the tag. Investigate, fix on `development`, cut the next patch release when ready. Do not retag.
 
-A bad release went out: cut a fix release. Do not delete the bad release.
+When a bad release went out, cut a fix release. Do not delete the bad release.
 
-Conflicts merging `release/X.Y.Z` into `development`: resolve in favor of dev for feature changes, in favor of the release branch for release fixes. Do not cherry-pick.
+When conflicts arise merging `release/X.Y.Z` into `development`, resolve in favor of dev for feature changes, in favor of the release branch for release fixes. Do not cherry-pick.
 
-Two release branches accidentally open: close the older one without merging. Only one release branch at a time.
+When two release branches are open, close the older one without merging.
