@@ -26,6 +26,7 @@ PLAIN_VALUES = {
     "project": "rexproj",
     "sdk_version": "1.0.0",
     "entrypoint_out_dir": "rexgen",
+    "mod.project": "rexmodproject",
     "mod.target_name": "rexmodtarget",
     "mod.lib_name": "rexmodlib",
     "mod.output_dir": "rexmoddir",

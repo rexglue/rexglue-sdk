@@ -677,6 +677,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       auto& mod = targeted[i + 1];
       auto& dll_ctx = contexts[i + 1].ctx;
       nlohmann::json entry;
+      entry["project"] = dll_ctx.GetConfig().project_name;
       entry["target_name"] = mod.target_name;
       entry["lib_name"] = manifest_.project_name + "_" + mod.target_name;
       entry["output_dir"] = dll_ctx.GetConfig().out_directory_path;

@@ -7,6 +7,7 @@
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_codegen.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/rexglue_recomp_options.cmake)
 
 # Adds the commands that stage the pinned Vulkan loader and MoltenVK with their ICD file next to
 # the host to the list named by out_var.

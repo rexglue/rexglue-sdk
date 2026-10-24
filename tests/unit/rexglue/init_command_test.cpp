@@ -12,8 +12,10 @@
 #include "temp_folder.h"
 
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -153,50 +155,55 @@ REX_TEST_CASE("init writes the recompiled library macros", "[rexglue][init]") {
   CHECK(text.find("macro (rexglue_setup_host_library") != std::string::npos);
   CHECK(text.find("NOT TARGET demo_recompiled") != std::string::npos);
   CHECK(text.find("add_library(demo_recompiled OBJECT") != std::string::npos);
-  CHECK(text.find("set(REXGLUE_RECOMP_OPTIMIZATION") != std::string::npos);
-  CHECK(text.find("Optimization level for generated code") != std::string::npos);
+  CHECK(text.find("rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)") !=
+        std::string::npos);
   CHECK(text.find("MSVC_RUNTIME_CHECKS") != std::string::npos);
   CHECK(text.find("demo_recomp ") == std::string::npos);
 }
 
-REX_TEST_CASE("init maps the optimization level per MSVC style driver", "[rexglue][init]") {
+REX_TEST_CASE("init leaves the recompiled option logic to the SDK", "[rexglue][init]") {
   rex::test::TempFolder root("rexglue_init_map_");
   WriteText(root.path / "default.xex", "");
   REQUIRE(RunInit(root.path, false));
   const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(text.find("/clang:-${REXGLUE_RECOMP_OPTIMIZATION}") != std::string::npos);
-  CHECK(text.find("list(APPEND REXGLUE_RECOMP_OPTIONS /Od)") != std::string::npos);
-  CHECK(text.find("list(APPEND REXGLUE_RECOMP_OPTIONS /O2 /Ob1)") != std::string::npos);
-  CHECK(text.find("list(APPEND REXGLUE_RECOMP_OPTIONS /O2 /Ob2)") != std::string::npos);
-  CHECK(text.find("/O1") == std::string::npos);
+  CHECK(text.find("if (MSVC AND REXGLUE_RECOMP_OPTIMIZED)") != std::string::npos);
+  CHECK(text.find("/clang:-") == std::string::npos);
+  CHECK(text.find("REXGLUE_RECOMP_DEBUG_INFO") == std::string::npos);
 }
 
-REX_TEST_CASE("init sets the recompiled optimization only in Debug presets", "[rexglue][init]") {
+REX_TEST_CASE("init writes one multi config preset per platform", "[rexglue][init]") {
   rex::test::TempFolder root("rexglue_init_presets_");
   WriteText(root.path / "default.xex", "");
   REQUIRE(RunInit(root.path, false));
   const auto presets = nlohmann::json::parse(ReadText(root.path / "CMakePresets.json"));
-  size_t debug = 0;
+  std::set<std::string> configure;
   for (const auto& preset : presets.at("configurePresets")) {
+    if (!preset.contains("inherits")) {
+      CHECK(preset.value("generator", "") == "Ninja Multi-Config");
+    }
     const auto vars = preset.value("cacheVariables", nlohmann::json::object());
-    const std::string type = vars.value("CMAKE_BUILD_TYPE", "");
-    if (type == "Debug") {
-      ++debug;
-      CHECK(vars.value("REXGLUE_RECOMP_OPTIMIZATION", "") == "O1");
-    } else {
-      CHECK_FALSE(vars.contains("REXGLUE_RECOMP_OPTIMIZATION"));
+    CHECK_FALSE(vars.contains("CMAKE_BUILD_TYPE"));
+    CHECK_FALSE(vars.contains("REXGLUE_RECOMP_OPTIMIZATION"));
+    if (!preset.value("hidden", false)) {
+      configure.insert(preset.at("name").get<std::string>());
     }
   }
-  CHECK(debug == 6);
-}
-
-REX_TEST_CASE("init checks the optimization value", "[rexglue][init]") {
-  rex::test::TempFolder root("rexglue_init_opt_");
-  WriteText(root.path / "default.xex", "");
-  REQUIRE(RunInit(root.path, false));
-  const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(text.find("REXGLUE_RECOMP_OPTIMIZATION MATCHES \"^O[0-3]$\"") != std::string::npos);
-  CHECK(text.find("must be empty or one of O0, O1, O2, O3") != std::string::npos);
+  CHECK(configure == std::set<std::string>{"win-amd64", "win-arm64", "linux-amd64", "linux-arm64",
+                                           "mac-amd64", "mac-arm64"});
+  size_t builds = 0;
+  for (const auto& preset : presets.at("buildPresets")) {
+    ++builds;
+    const std::string configuration = preset.at("configuration");
+    CHECK(configure.contains(preset.at("configurePreset").get<std::string>()));
+    CHECK(preset.at("name").get<std::string>() ==
+          preset.at("configurePreset").get<std::string>() + "-" + [&] {
+            std::string lower = configuration;
+            std::ranges::transform(lower, lower.begin(),
+                                   [](unsigned char c) { return std::tolower(c); });
+            return lower;
+          }());
+  }
+  CHECK(builds == 18);
 }
 
 REX_TEST_CASE("init applies the recompiled options to the library target only", "[rexglue][init]") {
@@ -233,7 +240,9 @@ REX_TEST_CASE("init renders codegen with the file size setting and the sources a
   const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
   const size_t call = text.find("rexglue_add_codegen(\n  demo_codegen");
   REQUIRE(call != std::string::npos);
-  CHECK(text.find("MAX_FILE_SIZE \"${REXGLUE_RECOMP_MAX_FILE_SIZE}\"", call) != std::string::npos);
+  CHECK(text.find("${_rexglue_codegen_max_file_size}", call) != std::string::npos);
+  CHECK(text.find("MAX_FILE_SIZE \"${REXGLUE_RECOMP_MAX_FILE_SIZE}\"") < call);
+  CHECK(text.find("MAX_FILE_SIZE", call) == std::string::npos);
   CHECK(text.find("SOURCES ${REXGLUE_ENTRYPOINT_GENERATED_SOURCES}", call) != std::string::npos);
   CHECK(text.find("set(REXGLUE_RECOMP_MAX_FILE_SIZE") != std::string::npos);
 }

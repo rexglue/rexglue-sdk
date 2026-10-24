@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.25)
+if (PROBE_POLICY AND POLICY CMP0184)
+  cmake_policy(SET CMP0184 NEW)
+endif ()
+project(probe LANGUAGES CXX)
+
+include(${REXGLUE_ROOT}/cmake/rexglue_recomp_options.cmake)
+
+if (PROBE_MSVC)
+  set(MSVC TRUE)
+  set(WIN32 TRUE)
+  set(CMAKE_CXX_COMPILER_ID MSVC)
+endif ()
+rexglue_recomp_options(OPTIONS OPTIMIZED)
+message(STATUS "RECOMP_OPTIONS=${OPTIONS}")
+message(STATUS "RECOMP_OPTIMIZED=${OPTIMIZED}")
+
+if (NOT PROBE_MSVC)
+  add_library(probe OBJECT probe.cpp)
+  target_compile_options(probe PRIVATE ${OPTIONS})
+endif ()

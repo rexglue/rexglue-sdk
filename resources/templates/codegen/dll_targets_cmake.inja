@@ -23,7 +23,9 @@ if (EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/sou
     {{ mod.lib_name }} PRIVATE {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }} {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}
   )
   target_link_libraries({{ mod.lib_name }} PRIVATE rex::sdk)
-  rexglue_apply_recomp_settings({{ mod.lib_name }} "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/{{ project }}_pch.h")
+  rexglue_apply_recomp_settings(
+    {{ mod.lib_name }} "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/{{ mod.project }}_pch.h"
+  )
   add_dependencies({{ mod.lib_name }} {{ project }}_codegen)
   set_target_properties({{ mod.lib_name }} PROPERTIES CXX_VISIBILITY_PRESET hidden)
   rexglue_configure_module_target({{ mod.lib_name }} HOST {{ cmake_var("REXGLUE_HOST_TARGET") }})

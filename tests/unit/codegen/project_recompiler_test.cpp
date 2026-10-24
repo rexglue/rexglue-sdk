@@ -109,7 +109,8 @@ std::string ReadTree(const fs::path& root) {
 rex::Result<void> RunProject(const rex::test::TempFolder& folder, u32 entry_base, u32 first_base,
                              u32 second_base, std::string_view shared_text = {},
                              std::string_view extra_text = {},
-                             std::vector<std::string> targets = {}) {
+                             std::vector<std::string> targets = {},
+                             std::string_view first_module_text = {}) {
   WriteImage(folder.path / "entry.xex", entry_base, kLoadFirst);
   WriteImage(folder.path / "a.xex", first_base, kLoadFirst);
   WriteImage(folder.path / "b.xex", second_base, kLoadSecond);
@@ -124,6 +125,7 @@ out_directory_path = "generated/entry"
 file_path = "a.xex"
 guest_path = "a.xex"
 out_directory_path = "generated/a"
+)" << first_module_text << R"(
 [[modules]]
 file_path = "b.xex"
 guest_path = "b.xex"
@@ -414,4 +416,31 @@ out_directory_path = "generated/exporter"
   rex::log::Stop();
   INFO((result ? std::string() : result.error().message));
   REQUIRE(result);
+}
+
+REX_TEST_CASE("A DLL module with its own project name includes its own precompiled header",
+              "[codegen][project]") {
+  rex::test::TempFolder folder;
+  REQUIRE(RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase, {}, {}, {},
+                     "project_name = \"alpha\"\n"));
+  std::ifstream in(folder.path / "generated" / "entry" / "dll_targets.cmake");
+  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  CHECK(text.find("/generated/a/alpha_pch.h") != std::string::npos);
+  CHECK(text.find("/generated/b/demo_pch.h") != std::string::npos);
+  CHECK(text.find("/generated/a/demo_pch.h") == std::string::npos);
+}
+
+REX_TEST_CASE("A relative template_dir resolves against the manifest folder",
+              "[codegen][project]") {
+  rex::test::TempFolder folder;
+  fs::create_directories(folder.path / "tpl" / "codegen");
+  std::ofstream(folder.path / "tpl" / "codegen" / "pch_h.inja") << "// override marker\n";
+  rex::test::TempFolder elsewhere;
+  const fs::path previous = fs::current_path();
+  fs::current_path(elsewhere.path);
+  const auto result =
+      RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase, "template_dir = \"tpl\"\n");
+  fs::current_path(previous);
+  REQUIRE(result);
+  CHECK(ReadTree(folder.path / "generated" / "entry").find("override marker") != std::string::npos);
 }

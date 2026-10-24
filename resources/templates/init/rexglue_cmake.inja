@@ -50,67 +50,7 @@ if (NOT "${REXGLUE_RECOMP_MAX_FILE_SIZE}" MATCHES "^([0-9]+)?$")
   )
 endif ()
 
-set(REXGLUE_RECOMP_DEBUG_INFO
-    "line-tables-only"
-    CACHE STRING "Debug info level for generated code (line-tables-only, full or none)"
-)
-
-# Guest SEH scopes emit __try/__except, which traps hardware faults only under
-# asynchronous EH. clang++ takes that flag in the GNU form.
-set(REXGLUE_RECOMP_OPTIONS "")
-if (WIN32)
-  if (MSVC)
-    list(APPEND REXGLUE_RECOMP_OPTIONS /EHa)
-  elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    list(APPEND REXGLUE_RECOMP_OPTIONS -fasync-exceptions)
-  endif ()
-else ()
-  list(APPEND REXGLUE_RECOMP_OPTIONS -fasynchronous-unwind-tables)
-endif ()
-if (REXGLUE_RECOMP_DEBUG_INFO STREQUAL "none")
-  list(APPEND REXGLUE_RECOMP_OPTIONS $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:-g0>)
-elseif (REXGLUE_RECOMP_DEBUG_INFO STREQUAL "line-tables-only")
-  list(APPEND REXGLUE_RECOMP_OPTIONS $<$<CXX_COMPILER_ID:Clang,AppleClang>:-gline-tables-only>)
-endif ()
-
-set(REXGLUE_RECOMP_OPTIMIZATION
-    ""
-    CACHE STRING
-          "Optimization level for generated code (empty keeps the build type default, or O0 to O3)"
-)
-set_property(CACHE REXGLUE_RECOMP_OPTIMIZATION PROPERTY STRINGS "" O0 O1 O2 O3)
-if (NOT REXGLUE_RECOMP_OPTIMIZATION STREQUAL "")
-  if (NOT REXGLUE_RECOMP_OPTIMIZATION MATCHES "^O[0-3]$")
-    message(FATAL_ERROR "REXGLUE_RECOMP_OPTIMIZATION must be empty or one of O0, O1, O2, O3 "
-                        "(got '{{ cmake_var("REXGLUE_RECOMP_OPTIMIZATION") }}')"
-    )
-  endif ()
-  if (MSVC)
-    set(_rexglue_rtc_policy "")
-    if (POLICY CMP0184)
-      cmake_policy(GET CMP0184 _rexglue_rtc_policy)
-    endif ()
-    if (NOT _rexglue_rtc_policy STREQUAL "NEW")
-      message(
-        FATAL_ERROR
-          "REXGLUE_RECOMP_OPTIMIZATION with cl or clang-cl needs CMake 4.0 or later and "
-          "cmake_policy(SET CMP0184 NEW) before project(). Otherwise configure with the "
-          "GNU style clang driver the presets pin."
-      )
-    endif ()
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-      list(APPEND REXGLUE_RECOMP_OPTIONS /clang:-{{ cmake_var("REXGLUE_RECOMP_OPTIMIZATION") }})
-    elseif (REXGLUE_RECOMP_OPTIMIZATION STREQUAL "O0")
-      list(APPEND REXGLUE_RECOMP_OPTIONS /Od)
-    elseif (REXGLUE_RECOMP_OPTIMIZATION STREQUAL "O1")
-      list(APPEND REXGLUE_RECOMP_OPTIONS /O2 /Ob1)
-    else ()
-      list(APPEND REXGLUE_RECOMP_OPTIONS /O2 /Ob2)
-    endif ()
-  else ()
-    list(APPEND REXGLUE_RECOMP_OPTIONS -{{ cmake_var("REXGLUE_RECOMP_OPTIMIZATION") }})
-  endif ()
-endif ()
+rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)
 
 # Include entrypoint generated code if codegen has been run.
 if (EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/sources.cmake")
@@ -131,7 +71,7 @@ endif ()
 function (rexglue_apply_recomp_settings target_name pch_header)
   target_precompile_headers({{ cmake_var("target_name") }} PRIVATE "{{ cmake_var("pch_header") }}")
   target_compile_options({{ cmake_var("target_name") }} PRIVATE {{ cmake_var("REXGLUE_RECOMP_OPTIONS") }})
-  if (MSVC AND NOT REXGLUE_RECOMP_OPTIMIZATION STREQUAL "")
+  if (MSVC AND REXGLUE_RECOMP_OPTIMIZED)
     set_target_properties({{ cmake_var("target_name") }} PROPERTIES MSVC_RUNTIME_CHECKS "")
   endif ()
 endfunction ()
@@ -189,13 +129,16 @@ endmacro ()
 # Listing the sources as outputs orders any target that compiles them after
 # codegen, including one a project assembles itself rather than taking the
 # library rexglue_setup_target() builds.
+set(_rexglue_codegen_max_file_size)
+if (REXGLUE_RECOMP_MAX_FILE_SIZE)
+  set(_rexglue_codegen_max_file_size MAX_FILE_SIZE "{{ cmake_var("REXGLUE_RECOMP_MAX_FILE_SIZE") }}")
+endif ()
 rexglue_add_codegen(
   {{ names.original }}_codegen
   MANIFEST "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ names.original }}_manifest.toml"
   OUTPUT_DIR "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}"
   WORKING_DIRECTORY "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}"
-  TOOL $<TARGET_FILE:rex::rexglue>
-  MAX_FILE_SIZE "{{ cmake_var("REXGLUE_RECOMP_MAX_FILE_SIZE") }}"
+  TOOL $<TARGET_FILE:rex::rexglue> {{ cmake_var("_rexglue_codegen_max_file_size") }}
   SOURCES {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }}
 )
 
