@@ -40,6 +40,16 @@ if (NOT DEFINED REXGLUE_HOST_TARGET)
   set(REXGLUE_HOST_TARGET {{ cmake_var("PROJECT_NAME") }})
 endif ()
 
+set(REXGLUE_RECOMP_MAX_FILE_SIZE
+    ""
+    CACHE STRING "Largest generated source file in bytes (empty keeps the tool default)"
+)
+if (NOT "${REXGLUE_RECOMP_MAX_FILE_SIZE}" MATCHES "^([0-9]+)?$")
+  message(FATAL_ERROR "REXGLUE_RECOMP_MAX_FILE_SIZE must be empty or a byte count "
+                      "(got '{{ cmake_var("REXGLUE_RECOMP_MAX_FILE_SIZE") }}')"
+  )
+endif ()
+
 set(REXGLUE_RECOMP_DEBUG_INFO
     "line-tables-only"
     CACHE STRING "Debug info level for generated code (line-tables-only, full or none)"
@@ -174,24 +184,19 @@ macro (rexglue_setup_target target_name)
 endmacro ()
 
 # Codegen runs as part of the build, re-running only when an input in codegen.d
-# changes.
+# or REXGLUE_RECOMP_MAX_FILE_SIZE changes. A run that changes the list of sources
+# regenerates the build files before anything compiles them.
 # Listing the sources as outputs orders any target that compiles them after
 # codegen, including one a project assembles itself rather than taking the
-# library rexglue_setup_target() builds. The stamp comes first because the DEPFILE
-# names it.
-add_custom_command(
-  OUTPUT "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.build.stamp"
-         {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }}
-  COMMAND $<TARGET_FILE:rex::rexglue> codegen {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ names.original }}_manifest.toml
-  DEPFILE "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.d"
-  WORKING_DIRECTORY {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
-  COMMENT "Generating recompiled code for {{ names.original }}"
-  VERBATIM
-)
-add_custom_target(
+# library rexglue_setup_target() builds.
+rexglue_add_codegen(
   {{ names.original }}_codegen
-  COMMENT "Checking recompiled code for {{ names.original }}"
-  DEPENDS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.build.stamp"
+  MANIFEST "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ names.original }}_manifest.toml"
+  OUTPUT_DIR "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}"
+  WORKING_DIRECTORY "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}"
+  TOOL $<TARGET_FILE:rex::rexglue>
+  MAX_FILE_SIZE "{{ cmake_var("REXGLUE_RECOMP_MAX_FILE_SIZE") }}"
+  SOURCES {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }}
 )
 
 # Include DLL module shared library targets if codegen has generated them

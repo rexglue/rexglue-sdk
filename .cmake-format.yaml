@@ -22,3 +22,15 @@ lint:
   local_var_pattern: '_?[a-z][a-z0-9_]+'
   argument_var_pattern: '_?[a-z][a-z0-9_]+'
   macro_pattern: '[0-9a-z_]+'
+
+parse:
+  additional_commands:
+    rexglue_add_codegen:
+      pargs: 1
+      kwargs:
+        MANIFEST: 1
+        OUTPUT_DIR: 1
+        WORKING_DIRECTORY: 1
+        TOOL: 1
+        MAX_FILE_SIZE: 1
+        SOURCES: "*"

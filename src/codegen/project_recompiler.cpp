@@ -42,6 +42,9 @@ namespace rex::codegen {
 
 namespace {
 
+/** Bumped whenever a builder changes the code it emits, so existing projects regenerate. */
+constexpr u32 kEmitterRevision = 1;
+
 std::string DeriveTargetNameFromFilePath(const std::string& file_path) {
   std::filesystem::path p(file_path);
   std::string name = p.stem().string();
@@ -75,8 +78,14 @@ std::vector<std::filesystem::path> CollectModuleInputs(const RecompilerConfig& c
 std::string FingerprintModule(const RecompilerConfig& cfg,
                               std::span<const std::filesystem::path> inputs, const Limits& limits,
                               std::string_view sdk_version) {
+  const auto& vm = cfg.vector_math;
   std::vector<std::string> flags{
+      std::format("emitter={}", kEmitterRevision),
       std::format("templates={}", GetEmbeddedTemplatesHash()),
+      std::format("vector_math={}{}{}{}{}{}{}", static_cast<u32>(vm.vmaddfp),
+                  static_cast<u32>(vm.vnmsubfp), static_cast<u32>(vm.vmsum3fp128),
+                  static_cast<u32>(vm.vmsum4fp128), static_cast<u32>(vm.vrefp),
+                  static_cast<u32>(vm.vrsqrtefp), static_cast<u32>(vm.vexptefp)),
       std::format("generate_exception_handlers={}", cfg.generate_exception_handlers),
       std::format("max_jump_extension={}", cfg.max_jump_extension),
       std::format("data_region_threshold={}", cfg.data_region_threshold),

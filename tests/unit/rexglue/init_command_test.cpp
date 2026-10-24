@@ -224,3 +224,16 @@ REX_TEST_CASE("init keeps the separators of the project name", "[rexglue][init][
   const std::string glue = ReadText(root.path / "generated" / "rexglue.cmake");
   CHECK(glue.find("my_game-2_codegen") != std::string::npos);
 }
+
+REX_TEST_CASE("init renders codegen with the file size setting and the sources as outputs",
+              "[rexglue][init]") {
+  rex::test::TempFolder root("rexglue_init_codegen_");
+  WriteText(root.path / "default.xex", "");
+  REQUIRE(RunInit(root.path, false));
+  const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
+  const size_t call = text.find("rexglue_add_codegen(\n  demo_codegen");
+  REQUIRE(call != std::string::npos);
+  CHECK(text.find("MAX_FILE_SIZE \"${REXGLUE_RECOMP_MAX_FILE_SIZE}\"", call) != std::string::npos);
+  CHECK(text.find("SOURCES ${REXGLUE_ENTRYPOINT_GENERATED_SOURCES}", call) != std::string::npos);
+  CHECK(text.find("set(REXGLUE_RECOMP_MAX_FILE_SIZE") != std::string::npos);
+}

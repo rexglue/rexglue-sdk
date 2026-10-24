@@ -117,6 +117,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rexglueConfig.cmake
 
 install(
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_codegen.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stage_pdbs.cmake

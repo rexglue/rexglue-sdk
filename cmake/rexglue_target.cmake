@@ -6,8 +6,11 @@
 #==========================================================
 include_guard(GLOBAL)
 
-# Stages the pinned Vulkan loader and MoltenVK with their ICD file next to the host.
-function (_rexglue_stage_macos_vulkan_runtime target_name)
+include(${CMAKE_CURRENT_LIST_DIR}/rexglue_codegen.cmake)
+
+# Adds the commands that stage the pinned Vulkan loader and MoltenVK with their ICD file next to
+# the host to the list named by out_var.
+function (_rexglue_stage_macos_vulkan_runtime out_var target_name)
   if (TARGET Vulkan::Loader AND TARGET MoltenVK::MoltenVK)
     set(vulkan_loader Vulkan::Loader)
     set(moltenvk MoltenVK::MoltenVK)
