@@ -107,6 +107,8 @@ class ContentManager final : public IContentManager {
   std::filesystem::path ResolvePackageRoot(u64 xuid, XContentType content_type,
                                            u32 title_id = 0xFFFFFFFF);
   std::filesystem::path ResolvePackagePath(u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data);
+  std::filesystem::path ResolveHeaderPathFor(u64 xuid,
+                                             const runtime::XCONTENT_AGGREGATE_DATA& data) const;
   std::filesystem::path ResolvePackageHeaderPath(const std::string_view file_name, u64 xuid,
                                                  u32 title_id, XContentType content_type) const;
 

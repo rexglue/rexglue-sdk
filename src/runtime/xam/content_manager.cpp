@@ -173,6 +173,13 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
                       content_type_str, final_name);
 }
 
+std::filesystem::path ContentManager::ResolveHeaderPathFor(
+    u64 xuid, const XCONTENT_AGGREGATE_DATA& data) const {
+  const u64 used_xuid =
+      (data.xuid != static_cast<u64>(-1) && data.xuid != 0) ? static_cast<u64>(data.xuid) : xuid;
+  return ResolvePackageHeaderPath(data.GetFileName(), used_xuid, data.title_id, data.content_type);
+}
+
 std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(u32 device_id, u64 xuid,
                                                                  XContentType content_type,
                                                                  u32 title_id) {
@@ -230,11 +237,7 @@ Result<void> ContentManager::WriteContentHeaderFile(u64 xuid, XCONTENT_AGGREGATE
   if (data.xuid == static_cast<u64>(-1)) {
     data.xuid = xuid;
   }
-  u64 used_xuid =
-      (data.xuid != static_cast<u64>(-1) && data.xuid != 0) ? static_cast<u64>(data.xuid) : xuid;
-
-  auto header_path =
-      ResolvePackageHeaderPath(data.GetFileName(), used_xuid, data.title_id, data.content_type);
+  auto header_path = ResolveHeaderPathFor(xuid, data);
   auto parent_path = header_path.parent_path();
 
   if (!std::filesystem::exists(parent_path)) {
@@ -324,8 +327,7 @@ Result<u32> ContentManager::OpenContent(const std::string_view root_name, u64 xu
   }
   auto package = ResolvePackage(root_name, xuid, data);
   REX_ASSERT(package != nullptr);
-  package->LoadPackageLicenseMask(
-      ResolvePackageHeaderPath(data.GetFileName(), xuid, this->GetTitleID(), data.content_type));
+  package->LoadPackageLicenseMask(ResolveHeaderPathFor(xuid, data));
   const u32 license = package->GetPackageLicense();
 
   {

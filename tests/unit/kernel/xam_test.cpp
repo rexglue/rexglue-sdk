@@ -199,6 +199,30 @@ u32 QueryVolumeDeviceType(Caller& c, const char* root, u32 result_ptr) {
 }
 }  // namespace
 
+REX_TEST_CASE("XAM: opening content reads the license from the header of the package owner",
+              "[kernel][xam]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    constexpr u32 kHDD = 1;
+    constexpr u32 kOtherTitleId = 0x52455831;
+    constexpr u32 kLicense = 5;
+    auto& manager = c.GetRuntime().GetContentManager();
+    const u64 xuid = manager.GetUserProfile().GetXUID();
+    rex::runtime::XCONTENT_AGGREGATE_DATA data{};
+    data.device_id = kHDD;
+    data.content_type = rex::runtime::XContentType::kSavedGame;
+    std::memcpy(data.file_name_raw, "rexsave", 7);
+    data.xuid = xuid;
+    data.title_id = kOtherTitleId;
+    REQUIRE(manager.CreateContent("save", xuid, data));
+    REQUIRE(manager.WriteContentHeaderFile(xuid, data, kLicense));
+    REQUIRE(manager.CloseContent("save"));
+    auto opened = manager.OpenContent("again", xuid, data);
+    REQUIRE(opened);
+    CHECK(*opened == kLicense);
+  });
+}
+
 REX_TEST_CASE("XAM: the volume device type of a content root is the type of its device",
               "[kernel][xam]") {
   KernelFixture fixture;
