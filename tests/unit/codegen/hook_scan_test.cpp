@@ -165,6 +165,33 @@ REX_MIDASM_AT(Pointers, 0x82000100, before, r27, r28, r29, r30, r31, r26, r25);
                                                         "rex::MappedPtr<u8>"});
 }
 
+REX_TEST_CASE("hook_scan: the spellings the macros accept are read", "[codegen][hook_scan]") {
+  rex::test::TempFolder folder;
+  Write(folder.path / "src" / "hooks.cpp",
+        R"(REX_MIDASM_HOOK(Spelled,
+                (rex::u32 a, const u32 b, ::rex::u64 c, double d, MappedU32 m, rex::MappedU8 n,
+                 uint32_t e, GuestPtrT<u16> g)) {}
+REX_MIDASM_AT(Spelled, 0x8200'0100u, after, r3, r4, r5, f1, r6, r7, r8, r9);
+REX_MIDASM_BRANCH(Jump, (u32 a)) { return a == 0; }
+REX_MIDASM_AT(Jump, 2181038592, before, 0x8200'0210ul, r3);
+)");
+  const auto hooks = Hooks(Scan(folder));
+  REQUIRE(hooks.size() == 2);
+  CHECK(hooks[0].address == 0x82000100);
+  CHECK(hooks[0].parameters == std::vector<std::string>{"u32", "u32", "u64", "f64",
+                                                        "rex::MappedPtr<u8>", "rex::MappedPtr<u8>",
+                                                        "u32", "rex::MappedPtr<u8>"});
+  CHECK(hooks[1].address == 0x82000200);
+  CHECK(hooks[1].target == 0x82000210);
+}
+
+REX_TEST_CASE("hook_scan: a const reference parameter is refused", "[codegen][hook_scan]") {
+  rex::test::TempFolder folder;
+  Write(folder.path / "src" / "hooks.cpp",
+        "REX_MIDASM_HOOK(Constant, (const PPCRegister& value)) {}\n");
+  CHECK_FALSE(Scan(folder));
+}
+
 REX_TEST_CASE("hook_scan: a pointer parameter needs an integer register", "[codegen][hook_scan]") {
   rex::test::TempFolder folder;
   Write(folder.path / "src" / "hooks.cpp",

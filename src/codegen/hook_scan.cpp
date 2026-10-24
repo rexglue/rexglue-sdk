@@ -237,8 +237,29 @@ struct Attachment {
   u32 line;
 };
 
+std::string_view StripQualifiers(std::string_view type) {
+  if (type.starts_with("const ")) {
+    type.remove_prefix(6);
+  }
+  if (type.starts_with("::")) {
+    type.remove_prefix(2);
+  }
+  for (const std::string_view prefix : {"rex::", "std::"}) {
+    if (type.starts_with(prefix)) {
+      type.remove_prefix(prefix.size());
+    }
+  }
+  return type;
+}
+
 bool IsMappedPtrType(std::string_view type) {
-  for (const std::string_view prefix : {"MappedPtr<", "rex::MappedPtr<"}) {
+  static constexpr std::string_view kAliases[] = {"MappedVoid", "MappedU8",     "MappedU16",
+                                                  "MappedU32",  "MappedU64",    "MappedF32",
+                                                  "MappedF64",  "MappedString", "MappedWString"};
+  if (std::ranges::find(kAliases, type) != std::end(kAliases)) {
+    return true;
+  }
+  for (const std::string_view prefix : {"MappedPtr<", "GuestPtrT<"}) {
     if (type.starts_with(prefix) && type.ends_with('>') && type.size() > prefix.size() + 1) {
       return true;
     }
@@ -247,6 +268,10 @@ bool IsMappedPtrType(std::string_view type) {
 }
 
 midasm::MidAsmParam ClassifyType(std::string_view type) {
+  if (type.ends_with('&') && type.starts_with("const ")) {
+    return midasm::MidAsmParam::kInvalid;
+  }
+  type = StripQualifiers(type);
   if (IsMappedPtrType(type)) {
     return midasm::MidAsmParam::kMappedPointer;
   }
@@ -255,8 +280,11 @@ midasm::MidAsmParam ClassifyType(std::string_view type) {
   }
   static const std::map<std::string_view, midasm::MidAsmParam> kTypes = {
       {"u32", midasm::MidAsmParam::kU32},
+      {"uint32_t", midasm::MidAsmParam::kU32},
       {"u64", midasm::MidAsmParam::kU64},
+      {"uint64_t", midasm::MidAsmParam::kU64},
       {"f64", midasm::MidAsmParam::kF64},
+      {"double", midasm::MidAsmParam::kF64},
       {"PPCVRegister", midasm::MidAsmParam::kVector},
       {"PPCRegister&", midasm::MidAsmParam::kRegister},
       {"PPCVRegister&", midasm::MidAsmParam::kVectorRef},
@@ -271,8 +299,16 @@ midasm::MidAsmParam ClassifyType(std::string_view type) {
 
 std::string JoinTokens(std::span<const Token> tokens) {
   std::string text;
+  const Token* previous = nullptr;
   for (const Token& token : tokens) {
+    const auto is_word = [](const Token& t) {
+      return t.kind == TokenKind::kIdentifier || t.kind == TokenKind::kNumber;
+    };
+    if (previous && is_word(*previous) && is_word(token)) {
+      text += ' ';
+    }
     text += token.text;
+    previous = &token;
   }
   return text;
 }
@@ -400,6 +436,14 @@ std::optional<std::string> ReadBody(const fs::path& file, const Token& macro,
       type = "void*";
     } else if (kind_of == midasm::MidAsmParam::kMappedPointer) {
       type = "rex::MappedPtr<u8>";
+    } else if (kind_of == midasm::MidAsmParam::kU32) {
+      type = "u32";
+    } else if (kind_of == midasm::MidAsmParam::kU64) {
+      type = "u64";
+    } else if (kind_of == midasm::MidAsmParam::kF64) {
+      type = "f64";
+    } else {
+      type = std::string(StripQualifiers(type));
     }
     body.descriptor.params[body.types.size()] = kind_of;
     body.types.push_back(type);

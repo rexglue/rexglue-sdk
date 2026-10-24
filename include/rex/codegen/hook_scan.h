@@ -41,7 +41,8 @@ struct SourceMidAsmHook {
 
 /**
  * Reads every REX_MIDASM_AT line under the given folders. A body macro and its attachments may sit
- * in different files. Register tokens are checked with the same parser the macros use.
+ * in different files. Register tokens are checked with the same parser the macros use. A macro
+ * inside a preprocessor conditional is refused, because the scan cannot tell which branch builds.
  *
  * @param roots The folders to scan, searched recursively for .cpp, .cc, .h and .hpp files.
  * @param scanned_files Receives every folder searched and every file read, in the order read.

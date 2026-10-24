@@ -280,13 +280,18 @@ constexpr bool ParseMidAsmIndex(std::string_view text, u32 limit, u32& value) {
 }
 
 /**
- * Parses an address written as a decimal or 0x prefixed hexadecimal literal.
+ * Parses an address written as a C++ integer literal, decimal, octal, 0b binary or 0x hexadecimal,
+ * with ' digit separators and u or l suffixes.
  *
  * @param text The literal.
  * @param value Receives the number.
  * @return True when the text is a literal that fits 32 bits.
  */
 constexpr bool ParseMidAsmAddress(std::string_view text, u32& value) {
+  while (!text.empty() &&
+         (text.back() == 'u' || text.back() == 'U' || text.back() == 'l' || text.back() == 'L')) {
+    text.remove_suffix(1);
+  }
   if (text.empty()) {
     return false;
   }
@@ -296,10 +301,20 @@ constexpr bool ParseMidAsmAddress(std::string_view text, u32& value) {
   if (text.size() > 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
     radix = 16;
     index = 2;
+  } else if (text.size() > 2 && text[0] == '0' && (text[1] == 'b' || text[1] == 'B')) {
+    radix = 2;
+    index = 2;
+  } else if (text.size() > 1 && text[0] == '0') {
+    radix = 8;
+    index = 1;
   }
+  bool digits = false;
   for (; index < text.size(); ++index) {
     const char digit = text[index];
     u32 digit_value = 0;
+    if (digit == '\'' && digits && index + 1 < text.size()) {
+      continue;
+    }
     if (digit >= '0' && digit <= '9') {
       digit_value = static_cast<u32>(digit - '0');
     } else if (radix == 16 && digit >= 'a' && digit <= 'f') {
@@ -309,10 +324,17 @@ constexpr bool ParseMidAsmAddress(std::string_view text, u32& value) {
     } else {
       return false;
     }
+    if (digit_value >= radix) {
+      return false;
+    }
+    digits = true;
     result = result * radix + digit_value;
     if (result > 0xFFFFFFFFull) {
       return false;
     }
+  }
+  if (!digits) {
+    return false;
   }
   value = static_cast<u32>(result);
   return true;

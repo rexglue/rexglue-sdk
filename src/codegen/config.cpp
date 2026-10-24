@@ -377,19 +377,6 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
       mid_asm_hook.jump_address_on_true = (*table)["jump_address_on_true"].value_or(0u);
       mid_asm_hook.jump_address_on_false = (*table)["jump_address_on_false"].value_or(0u);
 
-      if ((mid_asm_hook.ret && mid_asm_hook.jump_address != 0) ||
-          (mid_asm_hook.return_on_true && mid_asm_hook.jump_address_on_true != 0) ||
-          (mid_asm_hook.return_on_false && mid_asm_hook.jump_address_on_false != 0)) {
-        REXLOG_ERROR(codegen, "{}: can't return and jump at the same time", mid_asm_hook.name);
-      }
-
-      if ((mid_asm_hook.ret || mid_asm_hook.jump_address != 0) &&
-          (mid_asm_hook.return_on_false || mid_asm_hook.return_on_true ||
-           mid_asm_hook.jump_address_on_false != 0 || mid_asm_hook.jump_address_on_true != 0)) {
-        REXLOG_ERROR(codegen, "{}: can't mix direct and conditional return/jump",
-                     mid_asm_hook.name);
-      }
-
       mid_asm_hook.after_instruction = (*table)["after_instruction"].value_or(false);
 
       auto it = cfg.mid_asm_hooks.find(*address_opt);
@@ -708,6 +695,38 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
       result.errors.push_back(std::format(
           "midasm hook '{}' at 0x{:08X} takes r1, which the hook call moves under the red zone",
           hook.name, addr));
+      result.valid = false;
+    }
+  }
+
+  for (const auto& [addr, hook] : mid_asm_hooks) {
+    const std::pair<const char*, const char*> pairs[] = {
+        {"return", "jump_address"},
+        {"return_on_true", "jump_address_on_true"},
+        {"return_on_false", "jump_address_on_false"}};
+    const bool returns[] = {hook.ret, hook.return_on_true, hook.return_on_false};
+    const u32 jumps[] = {hook.jump_address, hook.jump_address_on_true, hook.jump_address_on_false};
+    std::vector<std::string_view> direct;
+    std::vector<std::string_view> conditional;
+    for (size_t i = 0; i < 3; ++i) {
+      if (returns[i] && jumps[i] != 0) {
+        result.errors.push_back(std::format("midasm hook '{}' at 0x{:08X} sets both '{}' and '{}'",
+                                            hook.name, addr, pairs[i].first, pairs[i].second));
+        result.valid = false;
+      }
+      auto& group = i == 0 ? direct : conditional;
+      if (returns[i]) {
+        group.push_back(pairs[i].first);
+      }
+      if (jumps[i] != 0) {
+        group.push_back(pairs[i].second);
+      }
+    }
+    if (!direct.empty() && !conditional.empty()) {
+      result.errors.push_back(
+          std::format("midasm hook '{}' at 0x{:08X} mixes the direct form '{}' with the "
+                      "conditional form '{}'",
+                      hook.name, addr, direct.front(), conditional.front()));
       result.valid = false;
     }
   }
