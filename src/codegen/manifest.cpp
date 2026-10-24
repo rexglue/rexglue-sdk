@@ -1,7 +1,10 @@
 #include <rex/codegen/manifest.h>
 
+#include "config_keys.h"
+
 #include <algorithm>
 #include <cctype>
+#include <format>
 #include <fstream>
 #include <iterator>
 #include <optional>
@@ -55,15 +58,17 @@ bool IsValidProjectName(std::string_view name) {
  * @param project_name The project name stored on the recompiler config.
  * @param shared The shared layer whose defaults the binary starts from.
  * @param out The binary config to fill.
+ * @param source The manifest file and section, the start of key warnings.
  * @return True when the table loaded, false on failure.
  */
 bool LoadBinaryConfig(const toml::table& tbl, const std::filesystem::path& base_dir,
                       std::string_view project_name, const RecompilerConfig& shared,
-                      BinaryConfig& out) {
+                      BinaryConfig& out, const std::string& source) {
   out.recompiler = shared;
   out.recompiler.ClearAddressEntries();
+  out.recompiler.load_warnings.clear();
   out.recompiler.project_name = std::string(project_name);
-  if (!out.recompiler.LoadFromTable(tbl, base_dir)) {
+  if (!out.recompiler.LoadFromTable(tbl, base_dir, source)) {
     return false;
   }
   return true;
@@ -86,6 +91,10 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   auto* project = tbl["project"].as_table();
   if (!project) {
     REX_FAIL(codegen, std::nullopt, "Manifest missing [project] section: {}", path.string());
+  }
+  CheckProjectKeys(*project, path.string() + " [project]", manifest.warnings);
+  for (const auto& warning : manifest.warnings) {
+    REXLOG_WARN(codegen, "manifest {}", warning);
   }
   manifest.project_name = (*project)["name"].value_or<std::string>("");
   if (manifest.project_name.empty()) {
@@ -126,12 +135,12 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   for (const char* key : {"project", "entrypoint", "modules"}) {
     shared_table.erase(key);
   }
-  if (!manifest.shared.LoadShared(shared_table, manifest.manifest_dir)) {
+  if (!manifest.shared.LoadShared(shared_table, manifest.manifest_dir, path.string())) {
     return std::nullopt;
   }
 
   if (!LoadBinaryConfig(*entrypoint, manifest.manifest_dir, manifest.project_name, manifest.shared,
-                        manifest.entrypoint)) {
+                        manifest.entrypoint, path.string() + " [entrypoint]")) {
     return std::nullopt;
   }
 
@@ -144,7 +153,7 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
       }
       BinaryConfig binary;
       if (!LoadBinaryConfig(*mod_tbl, manifest.manifest_dir, manifest.project_name, manifest.shared,
-                            binary)) {
+                            binary, std::format("{} [[modules]] #{}", path.string(), index))) {
         return std::nullopt;
       }
       auto guest_path = (*mod_tbl)[kModuleGuestPathKey].value_or<std::string>("");

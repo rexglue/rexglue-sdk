@@ -74,6 +74,8 @@ struct ManifestConfig {
   std::vector<std::string> hook_sources;
   /** Directory of the manifest, which relative paths in it resolve against. */
   std::filesystem::path manifest_dir;
+  /** Warnings about unread or mistyped keys in `[project]`, which never fail the load. */
+  std::vector<std::string> warnings;
   /**
    * The top level keys other than `project`, `entrypoint` and `modules`, shared by every binary.
    * Scalars and flags are copied into each binary as defaults. Entries keyed by an address are

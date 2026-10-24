@@ -9,6 +9,7 @@ set(CODEGEN_CORE_SOURCES
     output_partition.cpp
     output_stamp.cpp
     config.cpp
+    config_keys.cpp
     function_graph.cpp
     function_scanner.cpp
     vtable_scanner.cpp

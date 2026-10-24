@@ -7,6 +7,8 @@
 
 #include <format>
 
+#include "config_keys.h"
+
 #include <rex/codegen/config.h>
 #include <rex/kernel/shim/registry.h>
 #include <rex/fail.h>
@@ -112,6 +114,13 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
     REXLOG_ERROR(codegen, "config {}: the [rexcrt] table was renamed, replace it with\n{}",
                  description, converted);
     return false;
+  }
+
+  std::vector<std::string> key_warnings;
+  CheckConfigKeys(root, description, key_warnings);
+  for (auto& warning : key_warnings) {
+    REXLOG_WARN(codegen, "config {}", warning);
+    cfg.load_warnings.push_back(std::move(warning));
   }
 
   if (auto v = root["project_name"].value<std::string>()) {
@@ -448,7 +457,9 @@ bool LoadRecursive(const std::filesystem::path& file_path, RecompilerConfig& cfg
     REX_FAIL(codegen, false, "config circular include detected: {}", canonical_str);
   }
   visited.insert(canonical_str);
-  cfg.loaded_files.push_back(canonical_str);
+  if (std::ranges::find(cfg.loaded_files, canonical_str) == cfg.loaded_files.end()) {
+    cfg.loaded_files.push_back(canonical_str);
+  }
 
   toml::table table;
   try {
@@ -457,8 +468,10 @@ bool LoadRecursive(const std::filesystem::path& file_path, RecompilerConfig& cfg
     REX_FAIL(codegen, false, "Failed to parse config file '{}': {}", canonical_str, e.what());
   }
   REXLOG_DEBUG(codegen, "config loaded: {}", file_path.filename().string());
-  return ApplyTableWithIncludes(table, canonical.parent_path(), cfg, visited, depth,
-                                file_path.filename().string());
+  const bool loaded =
+      ApplyTableWithIncludes(table, canonical.parent_path(), cfg, visited, depth, canonical_str);
+  visited.erase(canonical_str);
+  return loaded;
 }
 
 bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path& base_dir,
@@ -533,18 +546,19 @@ bool RecompilerConfig::Load(const std::string_view& config_file_path) {
   return FinalizeConfig(*this);
 }
 
-bool RecompilerConfig::LoadFromTable(const toml::table& tbl,
-                                     const std::filesystem::path& base_dir) {
+bool RecompilerConfig::LoadFromTable(const toml::table& tbl, const std::filesystem::path& base_dir,
+                                     const std::string& source) {
   std::set<std::string> visited;
-  if (!ApplyTableWithIncludes(tbl, base_dir, *this, visited, 0, "<inline>")) {
+  if (!ApplyTableWithIncludes(tbl, base_dir, *this, visited, 0, source)) {
     return false;
   }
   return FinalizeConfig(*this);
 }
 
-bool RecompilerConfig::LoadShared(const toml::table& tbl, const std::filesystem::path& base_dir) {
+bool RecompilerConfig::LoadShared(const toml::table& tbl, const std::filesystem::path& base_dir,
+                                  const std::string& source) {
   std::set<std::string> visited;
-  return ApplyTableWithIncludes(tbl, base_dir, *this, visited, 0, "<shared>");
+  return ApplyTableWithIncludes(tbl, base_dir, *this, visited, 0, source);
 }
 
 void RecompilerConfig::ClearAddressEntries() {

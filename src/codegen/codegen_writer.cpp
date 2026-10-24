@@ -271,7 +271,7 @@ bool CodegenWriter::Write(bool force) {
 
   TemplateRegistry registry;
   if (!GetConfig().template_dir.empty())
-    registry.LoadOverrides(GetConfig().template_dir);
+    registry.LoadOverrides(ctx_.GetConfigDir() / GetConfig().template_dir);
 
   auto tmpl_data = BuildTemplateData(ctx_, functions, shim_by_addr);
 

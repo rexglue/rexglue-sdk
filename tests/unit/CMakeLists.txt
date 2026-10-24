@@ -204,6 +204,8 @@ add_executable(
   ui/ui_event_test.cpp
   codegen/barrier_test.cpp
   codegen/codegen_writer_test.cpp
+  codegen/config_include_test.cpp
+  codegen/config_keys_test.cpp
   codegen/disasm_test.cpp
   codegen/flush_mode_test.cpp
   codegen/funclet_sync_test.cpp

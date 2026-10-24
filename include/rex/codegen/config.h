@@ -130,6 +130,12 @@ struct RecompilerConfig {
    */
   std::vector<std::string> loaded_files;
 
+  /**
+   * Warnings about keys the loader does not read or reads with the wrong type, in load order. Each
+   * names the file and the key path. They never fail the load.
+   */
+  std::vector<std::string> load_warnings;
+
   /** TOML key `skip_lr`, default false. When true, omits the `ctx.lr` store at calls between title
    * functions and the `mflr` read. Calls to imports always store `ctx.lr`. */
   bool skip_lr = false;
@@ -215,9 +221,11 @@ struct RecompilerConfig {
    *
    * @param tbl Parsed TOML table
    * @param base_dir Directory that includes resolve against
+   * @param source The file and section the table came from, the start of key warnings
    * @return True on success, false on error
    */
-  bool LoadFromTable(const toml::table& tbl, const std::filesystem::path& base_dir);
+  bool LoadFromTable(const toml::table& tbl, const std::filesystem::path& base_dir,
+                     const std::string& source = "<inline>");
 
   /**
    * Loads a table that several binaries share, such as the top level keys of a manifest. Applies
@@ -226,9 +234,11 @@ struct RecompilerConfig {
    *
    * @param tbl Parsed TOML table
    * @param base_dir Directory that includes resolve against
+   * @param source The file and section the table came from, the start of key warnings
    * @return True on success, false on error
    */
-  bool LoadShared(const toml::table& tbl, const std::filesystem::path& base_dir);
+  bool LoadShared(const toml::table& tbl, const std::filesystem::path& base_dir,
+                  const std::string& source = "<shared>");
 
   /**
    * Removes every entry that belongs to the binary containing its address, so a copy of a shared

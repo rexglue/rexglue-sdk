@@ -12,6 +12,7 @@
 #include "file_text.h"
 #include "temp_folder.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -186,4 +187,81 @@ REX_TEST_CASE("The init manifest scans the src folder for hooks", "[codegen]") {
   REQUIRE(manifest);
   CHECK(manifest.value_or(rex::codegen::ManifestConfig{}).hook_sources ==
         std::vector<std::string>{"src"});
+}
+
+namespace {
+
+bool Mentions(const std::vector<std::string>& warnings, std::string_view text) {
+  return std::ranges::any_of(warnings, [text](const std::string& warning) {
+    return warning.find(text) != std::string::npos;
+  });
+}
+
+fs::path WriteKeyed(const rex::test::TempFolder& folder, std::string_view project_keys,
+                    std::string_view entrypoint_keys, std::string_view module_keys,
+                    std::string_view shared_keys) {
+  Touch(folder.path / "default.xex");
+  fs::create_directories(folder.path / "game");
+  Touch(folder.path / "game" / "a.xex");
+  const auto path = folder.path / "demo_manifest.toml";
+  std::ofstream(path) << shared_keys << "\n[project]\nname = \"demo\"\n"
+                      << project_keys << "\n[entrypoint]\nfile_path = \"default.xex\"\n"
+                      << entrypoint_keys
+                      << "\n[[modules]]\nguest_path = \"game/a.xex\"\nfile_path = \"game/a.xex\"\n"
+                      << module_keys;
+  return path;
+}
+
+}  // namespace
+
+REX_TEST_CASE("An unknown project key warns with the file", "[codegen][keys]") {
+  rex::test::TempFolder folder;
+  const auto manifest =
+      rex::codegen::ManifestConfig::Load(WriteKeyed(folder, "game_rooot = \"x\"\n", "", "", ""));
+  REQUIRE(manifest);
+  CHECK(Mentions(manifest->warnings, "game_rooot"));
+  CHECK(Mentions(manifest->warnings, "demo_manifest.toml"));
+}
+
+REX_TEST_CASE("A mistyped project key warns", "[codegen][keys]") {
+  rex::test::TempFolder folder;
+  const auto manifest =
+      rex::codegen::ManifestConfig::Load(WriteKeyed(folder, "sdk_version = 5\n", "", "", ""));
+  REQUIRE(manifest);
+  CHECK(Mentions(manifest->warnings, "sdk_version"));
+  CHECK(Mentions(manifest->warnings, "string"));
+}
+
+REX_TEST_CASE("An unknown entrypoint or module key warns on that binary", "[codegen][keys]") {
+  rex::test::TempFolder folder;
+  const auto manifest = rex::codegen::ManifestConfig::Load(
+      WriteKeyed(folder, "", "skip_lrr = true\n", "ctr_as_locall = true\n", ""));
+  REQUIRE(manifest);
+  CHECK(Mentions(manifest->entrypoint.recompiler.load_warnings, "skip_lrr"));
+  CHECK(Mentions(manifest->entrypoint.recompiler.load_warnings, "[entrypoint]"));
+  CHECK_FALSE(Mentions(manifest->entrypoint.recompiler.load_warnings, "ctr_as_locall"));
+  REQUIRE(manifest->modules.size() == 1);
+  CHECK(Mentions(manifest->modules[0].recompiler.load_warnings, "ctr_as_locall"));
+  CHECK(Mentions(manifest->modules[0].recompiler.load_warnings, "[[modules]]"));
+}
+
+REX_TEST_CASE("A shared layer warning is reported once", "[codegen][keys]") {
+  rex::test::TempFolder folder;
+  const auto manifest =
+      rex::codegen::ManifestConfig::Load(WriteKeyed(folder, "", "", "", "skip_msrr = true\n"));
+  REQUIRE(manifest);
+  CHECK(Mentions(manifest->shared.load_warnings, "skip_msrr"));
+  CHECK_FALSE(Mentions(manifest->entrypoint.recompiler.load_warnings, "skip_msrr"));
+  CHECK_FALSE(Mentions(manifest->modules[0].recompiler.load_warnings, "skip_msrr"));
+}
+
+REX_TEST_CASE("A manifest with only known keys has no warnings", "[codegen][keys]") {
+  rex::test::TempFolder folder;
+  const auto manifest = rex::codegen::ManifestConfig::Load(
+      WriteKeyed(folder, "sdk_version = \"1.0.0\"\nhook_sources = []\n", "", "", ""));
+  REQUIRE(manifest);
+  CHECK(manifest->warnings.empty());
+  CHECK(manifest->shared.load_warnings.empty());
+  CHECK(manifest->entrypoint.recompiler.load_warnings.empty());
+  CHECK(manifest->modules[0].recompiler.load_warnings.empty());
 }
