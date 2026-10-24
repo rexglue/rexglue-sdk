@@ -30,7 +30,7 @@
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include "kernel/stub_log.h"
 #include "kernel/object_reference.h"
 

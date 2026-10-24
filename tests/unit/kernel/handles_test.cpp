@@ -16,7 +16,7 @@
 #include <rex/runtime/error.h>
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 #include "kernel/object_reference.h"
 #include "kernel_fixture.h"

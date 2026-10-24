@@ -25,7 +25,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/file_object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 using rex::X_STATUS;
 

@@ -13,7 +13,7 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex::kernel::xboxkrnl {
 

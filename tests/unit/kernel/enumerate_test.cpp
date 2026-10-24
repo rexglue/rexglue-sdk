@@ -22,7 +22,7 @@
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 #include "kernel_fixture.h"
 

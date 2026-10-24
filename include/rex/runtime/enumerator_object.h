@@ -19,7 +19,7 @@
 #include <rex/types.h>
 #include <rex/export.h>
 #include <rex/runtime/object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/move_only_function.h>
 
 namespace rex {

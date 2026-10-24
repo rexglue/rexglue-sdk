@@ -26,7 +26,7 @@
 #include <rex/runtime.h>
 #include <rex/string/buffer.h>
 #include <rex/runtime/module_object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace {
 /** Display gamma type, 0 linear, 1 sRGB (CRT), 2 BT.709 (HDTV) or 3 power. */

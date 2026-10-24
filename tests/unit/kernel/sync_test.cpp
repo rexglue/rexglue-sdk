@@ -21,7 +21,7 @@
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/timer_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 #include "kernel_fixture.h"
 #include "runtime/dispatcher.h"

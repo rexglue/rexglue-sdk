@@ -23,7 +23,7 @@
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include "kernel/stub_log.h"
 
 #if REX_PLATFORM_WIN32

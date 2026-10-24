@@ -18,7 +18,7 @@
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/xmemory.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 #include "kernel_fixture.h"
 

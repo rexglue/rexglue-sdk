@@ -18,7 +18,7 @@
 #include <rex/export.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex::runtime {
 

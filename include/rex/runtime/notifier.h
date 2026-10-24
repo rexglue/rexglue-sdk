@@ -12,7 +12,7 @@
 
 #include <rex/platform.h>
 #include <rex/runtime/xcontent_data.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/types.h>
 #include <rex/module.h>
 

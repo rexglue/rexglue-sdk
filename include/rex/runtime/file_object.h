@@ -31,7 +31,7 @@
 #include <rex/runtime/xio.h>
 #include <rex/runtime/io_completion_object.h>
 #include <rex/runtime/object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex {
 class Runtime;

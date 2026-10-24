@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 #include <rex/runtime/xio.h>
 

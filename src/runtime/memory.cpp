@@ -39,7 +39,7 @@
 #include <rex/platform/thread.h>
 #include "runtime/cvar_table.h"
 
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex::runtime {
 

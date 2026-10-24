@@ -13,7 +13,7 @@
 
 #include <chrono>
 
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 #include "kernel_fixture.h"
 #include "elapsed.h"

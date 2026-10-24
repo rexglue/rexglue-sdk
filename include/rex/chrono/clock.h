@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <chrono>
 #include <utility>
 
 #include <rex/export.h>

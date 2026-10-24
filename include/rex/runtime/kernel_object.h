@@ -33,7 +33,7 @@
 #include <rex/runtime/symbolic_link_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/timer_object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/types.h>
 
 namespace rex::runtime {

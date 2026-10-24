@@ -18,7 +18,7 @@
 #include <rex/gpu.h>
 #include <rex/export.h>
 #include <rex/mmio.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/types.h>
 
 namespace rex::runtime {

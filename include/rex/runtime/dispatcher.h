@@ -14,7 +14,7 @@
 
 #include <rex/platform.h>
 #include <rex/move_only_function.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/types.h>
 #include <rex/module.h>
 

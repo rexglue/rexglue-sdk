@@ -31,7 +31,7 @@
 #include <rex/hook.h>
 #include <rex/hid.h>
 #include <rex/types.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/user_interface.h>
 #include "kernel/stub_log.h"

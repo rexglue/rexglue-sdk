@@ -7,7 +7,7 @@
 #include <rex/runtime/error.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex::runtime {
 

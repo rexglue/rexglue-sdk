@@ -25,7 +25,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/runtime/process.h>
 #include <rex/platform/fiber.h>
 #include "runtime/guest_stack.h"

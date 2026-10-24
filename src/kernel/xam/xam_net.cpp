@@ -34,7 +34,7 @@
 #include <rex/runtime/object.h>
 #include <rex/runtime/socket_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include "kernel/argument_check.h"
 #include "kernel/stub_log.h"
 #include "runtime/overlapped.h"

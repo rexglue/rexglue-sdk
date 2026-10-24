@@ -17,7 +17,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/xexception.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;

@@ -23,7 +23,7 @@
 #include <rex/runtime/io_completion_object.h>
 #include <rex/runtime/symbolic_link_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include "kernel/argument_check.h"
 #include "kernel/object_lookup.h"
 #include "kernel/path_check.h"

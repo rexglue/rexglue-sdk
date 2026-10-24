@@ -22,7 +22,7 @@
 #include <rex/runtime/object.h>
 #include <rex/runtime/semaphore_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include "kernel/argument_check.h"
 #include "kernel/object_reference.h"
 

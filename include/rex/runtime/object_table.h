@@ -20,7 +20,7 @@
 #include <rex/export.h>
 #include <rex/result.h>
 #include <rex/runtime/kernel_object.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/types.h>
 #include <rex/module.h>
 

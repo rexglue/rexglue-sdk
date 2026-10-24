@@ -14,7 +14,7 @@
 #include <rex/types.h>
 #include <rex/platform.h>
 #include <rex/export.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/runtime/xvideo.h>
 
 namespace rex {

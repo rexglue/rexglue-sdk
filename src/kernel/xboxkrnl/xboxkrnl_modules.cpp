@@ -18,7 +18,7 @@
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/xexception.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include "kernel/stub_log.h"
 
 namespace rex::kernel::xboxkrnl {

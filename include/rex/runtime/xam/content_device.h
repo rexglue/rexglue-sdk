@@ -14,7 +14,7 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/export.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex {
 namespace runtime {

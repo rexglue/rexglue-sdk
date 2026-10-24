@@ -20,7 +20,7 @@
 #include <rex/runtime/event_object.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include "runtime/overlapped.h"
 
 namespace rex {

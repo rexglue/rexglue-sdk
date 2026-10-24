@@ -12,7 +12,7 @@
 #include <rex/logging/log.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 REX_EXPORT_STUB(__imp__ExSetBetaFeaturesEnabled);
 REX_EXPORT_STUB(__imp__ExIsBetaFeatureEnabled);

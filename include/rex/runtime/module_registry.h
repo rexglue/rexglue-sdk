@@ -17,7 +17,7 @@
 #include <rex/platform.h>
 #include <rex/platform/lock_order.h>
 #include <rex/result.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 #include <rex/types.h>
 #include <rex/module.h>
 

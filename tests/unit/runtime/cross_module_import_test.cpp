@@ -28,7 +28,7 @@
 #include <rex/runtime/module_registry.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/xmemory.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 #include "core/xex_builder.h"
 #include "kernel/kernel_fixture.h"

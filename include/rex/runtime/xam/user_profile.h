@@ -23,7 +23,7 @@
 #include <rex/export.h>
 #include <rex/memory.h>
 #include <rex/stream.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex {
 class Runtime;

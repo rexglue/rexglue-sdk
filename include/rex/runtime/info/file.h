@@ -12,7 +12,7 @@
 #pragma once
 
 #include <rex/runtime/xio.h>
-#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xstatus.h>
 
 namespace rex {
 namespace runtime {

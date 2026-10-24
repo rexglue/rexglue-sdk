@@ -171,6 +171,7 @@ add_executable(
   runtime/xsemaphore_test.cpp
   runtime/user_profile_test.cpp
   runtime/xdbf_test.cpp
+  runtime/xstatus_test.cpp
   runtime/xtypes_test.cpp
   runtime/function_dispatcher_test.cpp
   runtime/call_test.cpp
