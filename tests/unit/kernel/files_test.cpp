@@ -537,6 +537,45 @@ REX_TEST_CASE("files: a symbolic link open ignores its root directory", "[kernel
   });
 }
 
+REX_TEST_CASE("files: a symbolic link open takes any attributes", "[kernel][files]") {
+  KernelFixture fixture;
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    for (const u32 flags : {0u, 0x240u}) {
+      const u32 attributes = c.Attributes("scratch:");
+      c.Store32(attributes + 8, flags);
+      CHECK(c.Kernel("NtOpenSymbolicLinkObject", {handle_ptr, attributes}) == 0);
+      CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
+    }
+  });
+}
+
+REX_TEST_CASE("files: a file path with the device prefix resolves like the bare path",
+              "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "s.bin", 12); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.Attributes("\\??\\scratch:\\s.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
+    const u32 info = c.Alloc(56);
+    CHECK(c.Kernel("NtQueryFullAttributesFile", {c.Attributes("\\??\\scratch:\\s.bin"), info}) ==
+          0);
+    CHECK(c.Load32(info + 44) == 12);
+    const u32 link = c.Attributes("\\??\\scratch:");
+    c.Store32(link + 8, 0x40);
+    CHECK(c.Kernel("NtOpenSymbolicLinkObject", {handle_ptr, link}) == 0);
+    CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
+  });
+}
+
 REX_TEST_CASE("files: unsupported information classes keep their results", "[kernel][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "m.bin", 4); });
   MountScratch(fixture);

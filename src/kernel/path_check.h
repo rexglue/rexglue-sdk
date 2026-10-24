@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <string>
 #include <string_view>
 
 #include <rex/types.h>
@@ -77,6 +78,19 @@ inline bool IsValidPath(std::string_view path, PathUse use) {
     }
   }
   return true;
+}
+
+/**
+ * Removes the DOS device prefix from a path.
+ *
+ * @param path The path a title passed to an export.
+ * @return The path without a leading \\??\\ prefix.
+ */
+inline std::string StripDosDevicePrefix(std::string path) {
+  if (path.starts_with("\\??\\")) {
+    path.erase(0, 4);
+  }
+  return path;
 }
 
 }  // namespace rex::kernel

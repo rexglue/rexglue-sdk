@@ -68,7 +68,8 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
   auto object_name =
       runtime::GetCurrent().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  auto target_path = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name);
+  auto target_path = StripDosDevicePrefix(
+      runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name));
   REXLOG_TRACE(kernel,
                "NtCreateFile "
                "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
@@ -487,7 +488,8 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
     }
   }
 
-  auto target_path = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name);
+  auto target_path = StripDosDevicePrefix(
+      runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name));
 
   if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
@@ -584,20 +586,14 @@ u32 NtOpenSymbolicLinkObject_entry(MappedU32 handle_out,
   REX_KERNEL_REQUIRE_NONNULL(object_attrs);
   REX_ASSERT(handle_out != nullptr);
 
-  // 64 is OBJ_CASE_INSENSITIVE.
-  REX_ASSERT(object_attrs->attributes == 64);
-
   auto object_name =
       runtime::GetCurrent().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  auto target_path = runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name);
+  auto target_path = StripDosDevicePrefix(
+      runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), object_name));
 
   if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
-  }
-
-  if (rex::utf8_starts_with(target_path, "\\??\\")) {
-    target_path = target_path.substr(4);
   }
 
   std::optional<std::string> link_path =
