@@ -149,6 +149,12 @@ REX_TEST_CASE("fibers: ResolveGuestStackSize allows 12 KB fiber stacks", "[kerne
   CHECK(rex::runtime::ResolveGuestStackSize(0x2000, 0x10000, 12 * 1024) == 0x3000);
   CHECK(rex::runtime::ResolveGuestStackSize(0, 0x10000, 12 * 1024) == 0x10000);
   CHECK(rex::runtime::ResolveGuestStackSize(0x3001, 0x10000, 12 * 1024) == 0x4000);
+  CHECK(rex::runtime::ResolveGuestStackSize(0x2FFF, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::runtime::ResolveGuestStackSize(0x3000, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::runtime::ResolveGuestStackSize(0x4000, 0x10000, 12 * 1024) == 0x4000);
+  CHECK(rex::runtime::ResolveGuestStackSize(1, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::runtime::ResolveGuestStackSize(0, 0x1000, 12 * 1024) == 0x3000);
+  CHECK(rex::runtime::ResolveGuestStackSize(0, 0, 12 * 1024) == 0x10000);
 }
 
 REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breaking the lock order",

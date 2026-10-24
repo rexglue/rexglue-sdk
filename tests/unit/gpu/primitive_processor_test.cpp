@@ -20,7 +20,7 @@
 
 namespace {
 
-struct SizeProbe : rex::gpu::PrimitiveProcessor {
+struct SizeAccess : rex::gpu::PrimitiveProcessor {
   static constexpr rex::u32 kMinRequiredSize = kMinRequiredConvertedIndexBufferSize;
 };
 
@@ -29,6 +29,6 @@ struct SizeProbe : rex::gpu::PrimitiveProcessor {
 REX_TEST_CASE("The minimum converted index buffer adds the SIMD padding to the triangle fan size",
               "[gpu][primitive_processor]") {
   constexpr rex::u32 kTriangleFanListBytes = sizeof(rex::u32) * (UINT16_MAX - 2) * 3;
-  CHECK(SizeProbe::kMinRequiredSize ==
+  CHECK(SizeAccess::kMinRequiredSize ==
         kTriangleFanListBytes + REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE);
 }

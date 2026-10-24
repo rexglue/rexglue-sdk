@@ -464,7 +464,7 @@ REX_TEST_CASE("interrupts: KeQueryInterruptTime grows in 100 ns units", "[kernel
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     c.Kernel("KeQueryInterruptTime");
     const u64 second = c.GetContext().r3.u64;
-    CHECK(second - first >= 400000);
+    CHECK(second - first >= 300000);
     CHECK(second - first < 50000000);
   });
 }

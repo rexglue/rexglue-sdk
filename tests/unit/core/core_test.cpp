@@ -18,7 +18,6 @@
 #include <vector>
 
 #include <rex/api.h>
-#include <rex/cli_arg_list.h>
 #include <rex/cvar/registry.h>
 #include <rex/logging/logger.h>
 #include <rex/memory/host.h>
@@ -34,15 +33,6 @@ struct Fixture {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "Init with an empty module list succeeds and Shutdown returns",
-                     "[core]") {
-  auto api = rex::Init(rex::Config{});
-  REQUIRE(api);
-  REQUIRE(api.value()->GetConfig().modules.empty());
-  rex::Shutdown();
-  REQUIRE(rex::Init(rex::Config{}));
-}
-
 REX_TEST_CASE_METHOD(Fixture,
                      "The log, clock and perf scopes are registered and no module scope is",
                      "[core]") {
@@ -51,21 +41,6 @@ REX_TEST_CASE_METHOD(Fixture,
   auto scopes = api.value()->Get<rex::cvar::ICvarRegistry>()->GetScopes();
   std::ranges::sort(scopes);
   REQUIRE(scopes == std::vector<std::string_view>{"clock", "log", "perf"});
-}
-
-REX_TEST_CASE_METHOD(Fixture, "ParseCommandLine fills Config and cvar values without a module",
-                     "[core]") {
-  rex::Config cfg;
-  char a0[] = "app";
-  char a1[] = "--game_data_root=C:/core";
-  char a2[] = "--log.level=debug";
-  char* argv[] = {a0, a1, a2};
-  auto rest = rex::ParseCommandLine(cfg, rex::CLIArgList::Parse(3, argv));
-  REQUIRE(rest.empty());
-  REQUIRE(cfg.paths.game_data_root == "C:/core");
-  auto api = rex::Init(cfg);
-  REQUIRE(api);
-  REQUIRE(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("log.level").value() == "debug");
 }
 
 REX_TEST_CASE_METHOD(Fixture,

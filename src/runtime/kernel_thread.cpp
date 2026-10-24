@@ -40,6 +40,7 @@
 #include <rex/vec128.h>
 #include <rex/move_only_function.h>
 #include "runtime/cvar_table.h"
+#include "runtime/delay_observer.h"
 #include "runtime/thread_registry.h"
 #include "runtime/guest_stack.h"
 
@@ -985,12 +986,29 @@ void KernelThread::TakeDeferredSuspend() {
   suspend_cv_.wait(lock, [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
 }
 
+namespace {
+
+std::atomic<DelayObserver> g_delay_observer{nullptr};
+
+void ObserveDelay(std::chrono::microseconds duration, bool alertable) {
+  if (const auto observer = g_delay_observer.load(std::memory_order_acquire)) {
+    observer(duration, alertable);
+  }
+}
+
+}  // namespace
+
+void SetDelayObserverForTest(DelayObserver observer) {
+  g_delay_observer.store(observer, std::memory_order_release);
+}
+
 X_STATUS KernelThread::Delay([[maybe_unused]] u32 processor_mode, u32 alertable,
                              u64 interval) const {
   const auto duration = DelayFromTicks(static_cast<i64>(interval));
   CheckStop();
   WriteKernelTime();
   if (alertable) {
+    ObserveDelay(duration, true);
     auto result = rex::platform::AlertableSleep(duration);
     CheckStop();
     switch (result) {
@@ -1009,6 +1027,7 @@ X_STATUS KernelThread::Delay([[maybe_unused]] u32 processor_mode, u32 alertable,
       }
     } else {
       rex::platform::MaybeYield();
+      ObserveDelay(duration, false);
       Sleep(duration);
     }
     CheckStop();

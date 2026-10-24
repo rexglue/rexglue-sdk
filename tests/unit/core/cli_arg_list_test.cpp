@@ -53,19 +53,6 @@ REX_TEST_CASE("A trailing option without a value has none", "[core][cli]") {
   REQUIRE_FALSE(args.Get("last").has_value());
 }
 
-REX_TEST_CASE("ParseCommandLine fills fields and cvars and returns unknown options",
-              "[core][cli]") {
-  rex::Config config;
-  auto unknown = rex::ParseCommandLine(
-      config, Args({"--game_data_root=C:/g", "--gpu.vsync", "--no-ui.fullscreen", "--foo",
-                    "--Bad.Name=1", "--modules", "a,b", "pos"}));
-  REQUIRE(config.paths.game_data_root == "C:/g");
-  REQUIRE(config.modules == std::vector<std::string>{"a", "b"});
-  REQUIRE(config.cvars.Get("gpu.vsync") == "true");
-  REQUIRE(config.cvars.Get("ui.fullscreen") == "false");
-  REQUIRE(unknown == std::vector<std::string>{"--foo", "--Bad.Name=1"});
-}
-
 REX_TEST_CASE("A structural option without a value is unknown", "[core][cli]") {
   rex::Config config;
   auto unknown = rex::ParseCommandLine(config, Args({"--game_data_root"}));

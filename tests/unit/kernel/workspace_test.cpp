@@ -52,7 +52,12 @@ REX_TEST_CASE("ResolveSize keeps 384 KB by default, at least 256 KB, in 16 KB st
               "[kernel][workspace]") {
   CHECK(WorkspaceHeap::ResolveSize(0) == 0x60000);
   CHECK(WorkspaceHeap::ResolveSize(0x10000) == 0x40000);
+  CHECK(WorkspaceHeap::ResolveSize(0x3FFFF) == 0x40000);
+  CHECK(WorkspaceHeap::ResolveSize(0x40000) == 0x40000);
   CHECK(WorkspaceHeap::ResolveSize(0x40001) == 0x44000);
+  CHECK(WorkspaceHeap::ResolveSize(0x43FFF) == 0x44000);
+  CHECK(WorkspaceHeap::ResolveSize(0x44000) == 0x44000);
+  CHECK(WorkspaceHeap::ResolveSize(0x44001) == 0x48000);
   CHECK(WorkspaceHeap::ResolveSize(0x80000) == 0x80000);
 }
 

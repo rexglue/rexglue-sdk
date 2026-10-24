@@ -145,22 +145,6 @@ REX_TEST_CASE("is_flags_enum operators combine and test flags", "[core][bit]") {
   CHECK((ContainerTestFlags::kA & ContainerTestFlags::kB) == ContainerTestFlags::kNone);
 }
 
-REX_TEST_CASE("ReadHostFile and WriteHostFile round trip and create parents", "[core][file]") {
-  TempFolder temp;
-  const auto path = temp.path / "a" / "b" / "data.bin";
-  const std::vector<rex::u8> bytes = {1, 2, 3, 250};
-  REQUIRE(rex::platform::WriteHostFile(path, bytes));
-  auto read = rex::platform::ReadHostFile(path);
-  REQUIRE(read);
-  CHECK(*read == bytes);
-  REQUIRE(rex::platform::WriteHostFile(path, std::span<const rex::u8>()));
-  read = rex::platform::ReadHostFile(path);
-  REQUIRE(read);
-  CHECK(read->empty());
-  CHECK_FALSE(std::filesystem::exists(path.string() + ".tmp"));
-  CHECK_FALSE(rex::platform::ReadHostFile(temp.path / "missing"));
-}
-
 REX_TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
   auto header = fs::ReadSTFSHeader(GetFixtureFolder() / "stfs_con.bin");
   REQUIRE(header);

@@ -147,30 +147,6 @@ REX_TEST_CASE("init splits the host code into an object library", "[rexglue][ini
   CHECK(text.find("cmake_policy(SET CMP0184 NEW)") < text.find("project(demo"));
 }
 
-REX_TEST_CASE("init writes the recompiled library macros", "[rexglue][init]") {
-  rex::test::TempFolder root("rexglue_init_macros_");
-  WriteText(root.path / "default.xex", "");
-  REQUIRE(RunInit(root.path, false));
-  const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(text.find("macro (rexglue_setup_host_library") != std::string::npos);
-  CHECK(text.find("NOT TARGET demo_recompiled") != std::string::npos);
-  CHECK(text.find("add_library(demo_recompiled OBJECT") != std::string::npos);
-  CHECK(text.find("rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)") !=
-        std::string::npos);
-  CHECK(text.find("MSVC_RUNTIME_CHECKS") != std::string::npos);
-  CHECK(text.find("demo_recomp ") == std::string::npos);
-}
-
-REX_TEST_CASE("init leaves the recompiled option logic to the SDK", "[rexglue][init]") {
-  rex::test::TempFolder root("rexglue_init_map_");
-  WriteText(root.path / "default.xex", "");
-  REQUIRE(RunInit(root.path, false));
-  const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(text.find("if (MSVC AND REXGLUE_RECOMP_OPTIMIZED)") != std::string::npos);
-  CHECK(text.find("/clang:-") == std::string::npos);
-  CHECK(text.find("REXGLUE_RECOMP_DEBUG_INFO") == std::string::npos);
-}
-
 REX_TEST_CASE("init writes one multi config preset per platform", "[rexglue][init]") {
   rex::test::TempFolder root("rexglue_init_presets_");
   WriteText(root.path / "default.xex", "");
@@ -206,11 +182,20 @@ REX_TEST_CASE("init writes one multi config preset per platform", "[rexglue][ini
   CHECK(builds == 18);
 }
 
-REX_TEST_CASE("init applies the recompiled options to the library target only", "[rexglue][init]") {
+REX_TEST_CASE(
+    "init writes the recompiled library macros and applies the options to the library only",
+    "[rexglue][init]") {
   rex::test::TempFolder root("rexglue_init_once_");
   WriteText(root.path / "default.xex", "");
   REQUIRE(RunInit(root.path, false));
   const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
+  CHECK(text.find("macro (rexglue_setup_host_library") != std::string::npos);
+  CHECK(text.find("NOT TARGET demo_recompiled") != std::string::npos);
+  CHECK(text.find("rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)") !=
+        std::string::npos);
+  CHECK(text.find("MSVC_RUNTIME_CHECKS") != std::string::npos);
+  CHECK(text.find("if (MSVC AND REXGLUE_RECOMP_OPTIMIZED)") != std::string::npos);
+  CHECK(text.find("demo_recomp ") == std::string::npos);
   const size_t library = text.find("add_library(demo_recompiled OBJECT");
   REQUIRE(library != std::string::npos);
   const size_t clear = text.find("PROPERTIES COMPILE_OPTIONS \"\"", library);

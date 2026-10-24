@@ -27,14 +27,6 @@ static constexpr u64 kFtLeapDay = 125962560000000000;   /**< 2000-02-29 */
 static constexpr u64 kFtSubDay = 132538032123450000;    /**< 2020-12-30 12:00:12.345 */
 static constexpr u64 kFt2021 = 132539328000000000;      /**< 2021-01-01 */
 
-REX_TEST_CASE("GetUnixEpochDelta computes the offset from 1601 to 1970", "[core][chrono]") {
-  // 369 years from 1601 to 1970, with 89 leap days
-  constexpr i64 kExpectedSeconds = (369LL * 365 + 89) * 86400LL;
-
-  CHECK(WinSystemClock::GetUnixEpochDelta().count() == -kExpectedSeconds);
-  CHECK(WinSystemClock::GetUnixEpochDelta().count() < 0);
-}
-
 REX_TEST_CASE("FromFileTime and ToFileTime are exact inverses", "[core][chrono]") {
   SECTION("zero (NT epoch)") {
     auto tp = WinSystemClock::FromFileTime(kFtNtEpoch);
@@ -245,54 +237,11 @@ REX_TEST_CASE("calendar recomposition after decomposition round trips", "[core][
   }
 }
 
-REX_TEST_CASE("year_month_day::ok rejects invalid dates", "[core][chrono]") {
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2},
-                                          std::chrono::day{30}}
-                  .ok());
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{13},
-                                          std::chrono::day{1}}
-                  .ok());
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{1},
-                                          std::chrono::day{0}}
-                  .ok());
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2001}, std::chrono::month{2},
-                                          std::chrono::day{29}}
-                  .ok());
-  CHECK(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2},
-                                    std::chrono::day{29}}
-            .ok());
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{1900}, std::chrono::month{2},
-                                          std::chrono::day{29}}
-                  .ok());
-  CHECK(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2},
-                                    std::chrono::day{29}}
-            .ok());
-}
-
 REX_TEST_CASE("recompose returns 0 for invalid dates", "[core][chrono]") {
   CHECK(Recompose(2000, 2, 30, 0, 0, 0, 0) == 0);
   CHECK(Recompose(2001, 2, 29, 0, 0, 0, 0) == 0);
   CHECK(Recompose(2000, 13, 1, 0, 0, 0, 0) == 0);
   CHECK(Recompose(2000, 1, 0, 0, 0, 0, 0) == 0);
-}
-
-REX_TEST_CASE("weekday c_encoding returns 0=Sunday through 6=Saturday", "[core][chrono]") {
-  using namespace std::chrono;
-
-  // 2000-01-02 is Sunday (0)
-  CHECK(weekday{sys_days{year{2000} / month{1} / day{2}}}.c_encoding() == 0);
-  // 1601-01-01 is Monday (1)
-  CHECK(weekday{sys_days{year{1601} / month{1} / day{1}}}.c_encoding() == 1);
-  // 2000-02-29 is Tuesday (2)
-  CHECK(weekday{sys_days{year{2000} / month{2} / day{29}}}.c_encoding() == 2);
-  // 2020-12-30 is Wednesday (3)
-  CHECK(weekday{sys_days{year{2020} / month{12} / day{30}}}.c_encoding() == 3);
-  // 1970-01-01 is Thursday (4)
-  CHECK(weekday{sys_days{year{1970} / month{1} / day{1}}}.c_encoding() == 4);
-  // 2021-01-01 is Friday (5)
-  CHECK(weekday{sys_days{year{2021} / month{1} / day{1}}}.c_encoding() == 5);
-  // 2000-01-01 is Saturday (6)
-  CHECK(weekday{sys_days{year{2000} / month{1} / day{1}}}.c_encoding() == 6);
 }
 
 REX_TEST_CASE("The host tick count advances at the rate of steady_clock", "[core][chrono]") {

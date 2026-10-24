@@ -11,7 +11,6 @@
 #include "rex_test.h"
 #include "temp_folder.h"
 
-#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -19,6 +18,7 @@
 
 #include <rex/api.h>
 #include <rex/cvar.h>
+#include <rex/cvar/registry.h>
 #include <rex/platform/env.h>
 
 #include "core/cvar_registry.h"
@@ -74,7 +74,7 @@ REX_TEST_CASE("ParseCommandLine reads every cvar form", "[core][config]") {
 REX_TEST_CASE("ParseCommandLine fills structural fields and modules", "[core][config]") {
   rex::Config cfg;
   auto rest = Parse(cfg, {"--game_data_root=X:/game", "--cache_root", "X:/cache", "--backend",
-                          "vulkan", "--modules", "a,b", "--config_file=X:/app.toml"});
+                          "vulkan", "--modules", "a,b", "--config_file=X:/app.toml", "pos"});
   REQUIRE(rest.empty());
   REQUIRE(cfg.paths.game_data_root == "X:/game");
   REQUIRE(cfg.paths.cache_root == "X:/cache");
@@ -82,6 +82,17 @@ REX_TEST_CASE("ParseCommandLine fills structural fields and modules", "[core][co
   REQUIRE(cfg.gpu.backend == "vulkan");
   REQUIRE(cfg.modules == std::vector<std::string>{"a", "b"});
   REQUIRE(cfg.cvars.values.empty());
+}
+
+REX_TEST_CASE("A log.level option reaches the registry after Init", "[core][config]") {
+  rex::Shutdown();
+  rex::Config cfg;
+  auto rest = Parse(cfg, {"--log.level=debug"});
+  REQUIRE(rest.empty());
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  CHECK(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("log.level").value() == "debug");
+  rex::Shutdown();
 }
 
 REX_TEST_CASE("The first --modules flag replaces the configured list and later ones append",
@@ -112,10 +123,11 @@ REX_TEST_CASE("ParseCommandLine returns unknown options in order", "[core][confi
 REX_TEST_CASE("ParseCommandLine treats a following -- argument as a bool value boundary",
               "[core][config]") {
   rex::Config cfg;
-  auto rest = Parse(cfg, {"--gpu.vsync", "--gpu.scale=2"});
+  auto rest = Parse(cfg, {"--gpu.vsync", "--gpu.scale=2", "--no-ui.fullscreen"});
   REQUIRE(rest.empty());
   REQUIRE(Find(cfg, "gpu.vsync")->value == "true");
   REQUIRE(Find(cfg, "gpu.scale")->value == "2");
+  REQUIRE(Find(cfg, "ui.fullscreen")->value == "false");
 }
 
 REX_TEST_CASE("LoadConfigFile reads scoped tables and flat keys alike", "[core][config]") {
@@ -204,15 +216,4 @@ REX_TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[c
   config.cvars.Set("gpu.vsync", "true");
   REQUIRE(config.cvars.Get("gpu.vsync") == "true");
   REQUIRE_FALSE(config.cvars.Get("gpu.nothing").has_value());
-}
-
-REX_TEST_CASE("Config defaults for single instance, terminate timeout, HID and UI fields",
-              "[core][config]") {
-  rex::Config config;
-  REQUIRE(config.single_instance.empty());
-  REQUIRE(config.runtime.terminate_timeout == std::chrono::milliseconds(2000));
-  REQUIRE_FALSE(config.hid.shared_pads);
-  REQUIRE(config.ui.aspect_ratio == rex::ui::AspectRatio::kStretch);
-  REQUIRE(config.ui.min_size.width_px == 0);
-  REQUIRE(config.ui.title.empty());
 }

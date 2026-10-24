@@ -54,36 +54,51 @@ u8* HeapLookup(const rex::runtime::Memory& memory, u32 address) {
 REX_TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[runtime]") {
   rex::test::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+  const rex::runtime::MemoryView view(memory);
+  CHECK(view.GetVirtualMembase() == memory.GetVirtualMembase());
   for (const u32 address : kHeapEdges) {
     CHECK(memory.TranslateVirtual(address) == HeapLookup(memory, address));
+    CHECK(view.TranslateVirtual(address) == HeapLookup(memory, address));
   }
 }
 
 REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge", "[runtime]") {
   rex::test::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+  const rex::runtime::MemoryView view(memory);
   for (const u32 address : kHeapEdges) {
     CHECK(memory.HostToGuestVirtual(memory.TranslateVirtual(address)) == address);
+    CHECK(view.HostToGuestVirtual(view.TranslateVirtual(address)) == address);
   }
 }
 
-REX_TEST_CASE("MemoryView returns what Memory returns", "[runtime]") {
+REX_TEST_CASE("An allocated virtual page is writable through TranslateVirtual", "[runtime]") {
   rex::test::KernelFixture fixture;
-  const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+  rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const rex::runtime::MemoryView view(memory);
-  CHECK(view.GetVirtualMembase() == memory.GetVirtualMembase());
-  for (const u32 address : kHeapEdges) {
-    u8* host = memory.TranslateVirtual(address);
-    CHECK(view.TranslateVirtual(address) == host);
-    CHECK(view.HostToGuestVirtual(host) == memory.HostToGuestVirtual(host));
-  }
+  rex::runtime::BaseHeap* heap = memory.LookupHeap(0x10000000);
+  REQUIRE(heap != nullptr);
+  u32 address = 0;
+  REQUIRE(heap->Alloc(
+      4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
+      rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &address));
+  u8* host = memory.TranslateVirtual(address);
+  REQUIRE(host != nullptr);
+  host[0] = 0xAB;
+  CHECK(view.Load<u8>(address) == 0xAB);
+  CHECK(memory.HostToGuestVirtual(host) == address);
+  CHECK(view.HostToGuestVirtual(host) == address);
+  CHECK(heap->Release(address));
 }
 
 REX_TEST_CASE("TranslateVirtual above the 0xE0 heap matches recompiled code", "[runtime]") {
   rex::test::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+  const rex::runtime::MemoryView view(memory);
   for (const u32 address : {0xFFD00000u, 0xFFFFFFFFu}) {
     CHECK(memory.TranslateVirtual(address) ==
+          rex::runtime::GuestPtr(memory.GetVirtualMembase(), address));
+    CHECK(view.TranslateVirtual(address) ==
           rex::runtime::GuestPtr(memory.GetVirtualMembase(), address));
   }
 }
@@ -133,7 +148,13 @@ REX_TEST_CASE("TryTranslateVirtual rejects null, misaligned and unmapped address
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
     const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
+    const rex::runtime::MemoryView view(memory);
     const u32 block = c.Alloc(64);
+    CHECK(view.TryTranslateVirtual<u32*>(block) == memory.TranslateVirtual<u32*>(block));
+    CHECK(view.TryTranslateVirtual<u32*>(block, rex::runtime::kMemoryProtectWrite) ==
+          memory.TranslateVirtual<u32*>(block));
+    CHECK(view.TryTranslateVirtual<u32*>(block + 1) == nullptr);
+    CHECK(view.TryTranslateVirtual<u32*>(0) == nullptr);
     CHECK(memory.TryTranslateVirtual<u32*>(0) == nullptr);
     CHECK(memory.TryTranslateVirtual<u32*>(block + 1) == nullptr);
     CHECK(memory.TryTranslateVirtual<u64*>(block + 4) == nullptr);
@@ -316,19 +337,5 @@ REX_TEST_CASE("MemoryView TryGetCString stops where the title cannot read", "[ru
     CHECK(view.TryGetCString(edge - 3).value() == "xxx");
     CHECK(view.TryGetCString(block + 0x0FFFF).value() == "x");
     CHECK_FALSE(view.TryGetCString(edge).has_value());
-  });
-}
-
-REX_TEST_CASE("MemoryView TryTranslateVirtual returns what Memory returns", "[runtime]") {
-  rex::test::KernelFixture fixture;
-  fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
-    const rex::runtime::MemoryView view(memory);
-    const u32 block = c.Alloc(16);
-    CHECK(view.TryTranslateVirtual<u32*>(block) == memory.TryTranslateVirtual<u32*>(block));
-    CHECK(view.TryTranslateVirtual<u32*>(block + 1) == nullptr);
-    CHECK(view.TryTranslateVirtual<u32*>(0) == nullptr);
-    CHECK(view.TryTranslateVirtual<u32*>(block, rex::runtime::kMemoryProtectWrite) ==
-          memory.TryTranslateVirtual<u32*>(block, rex::runtime::kMemoryProtectWrite));
   });
 }

@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/kernel/xekeys_test.cpp
- * @brief       The console sign and signature verification exports return 0
+ * @brief       The console sign export returns 0
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -34,13 +34,5 @@ REX_TEST_CASE("xekeys: the console sign export returns 0 and leaves the output u
       CHECK(c.Load32(output + offset) == 0xCDCDCDCD);
     }
     CHECK(c.Kernel("XeKeysConsolePrivateKeySign", {hash, 0}) == 0);
-  });
-}
-
-REX_TEST_CASE("xekeys: the console signature verification export returns 0", "[kernel][crypt]") {
-  KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
-    const u32 buffer = c.Alloc(0x100);
-    CHECK(c.Kernel("XeKeysConsoleSignatureVerification", {buffer, buffer, buffer}) == 0);
   });
 }

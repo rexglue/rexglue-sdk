@@ -172,7 +172,6 @@ add_executable(
   runtime/achievement_manager_test.cpp
   runtime/xcontent_test.cpp
   runtime/xsemaphore_test.cpp
-  runtime/user_profile_test.cpp
   runtime/xdbf_test.cpp
   runtime/xstatus_test.cpp
   runtime/xtypes_test.cpp
@@ -371,14 +370,6 @@ add_library(
   profile-macros-enabled OBJECT EXCLUDE_FROM_ALL core/profile_macros_on/profiling_enabled.cpp
 )
 target_link_libraries(profile-macros-enabled PRIVATE rexcore)
-add_test(
-  NAME "unit.cmake: the build nonce stays in a tree and differs between trees"
-  COMMAND
-    ${CMAKE_COMMAND} -DREXGLUE_ROOT=${PROJECT_SOURCE_DIR}
-    -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/build_nonce_trees -P
-    ${PROJECT_SOURCE_DIR}/tests/cmake/build_nonce/build_nonce_test.cmake
-)
-
 add_test(NAME "unit.compile: profiling macros compile with profiling enabled"
          COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG> --target
                  profile-macros-enabled

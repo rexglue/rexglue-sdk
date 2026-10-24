@@ -59,10 +59,16 @@ REX_TEST_CASE("xmp: the playback controller query returns without sleeping", "[k
     rex::kernel::xam::apps::XMPApp app(c.GetRuntime());
     const u32 args = c.Alloc(12);
     c.Store32(args, 2);
-    c.Store32(args + 4, c.Alloc(4));
-    c.Store32(args + 8, c.Alloc(4));
+    const u32 controller = c.Alloc(4);
+    const u32 locked = c.Alloc(4);
+    c.Store32(controller, 0xFFFFFFFF);
+    c.Store32(locked, 0xFFFFFFFF);
+    c.Store32(args + 4, controller);
+    c.Store32(args + 8, locked);
     const auto begin = std::chrono::steady_clock::now();
     CHECK(app.DispatchMessageSync(0x0007001B, args, 12) == rex::X_E_SUCCESS);
-    CHECK(std::chrono::steady_clock::now() - begin < std::chrono::milliseconds(5));
+    CHECK(std::chrono::steady_clock::now() - begin < std::chrono::milliseconds(200));
+    CHECK(c.Load32(controller) == 0);
+    CHECK(c.Load32(locked) == 0);
   });
 }

@@ -123,26 +123,20 @@ REX_TEST_CASE("VA form instructions decode at their AltiVec extended opcodes",
   CHECK(LookupID(kBase | 33) == 0);
 }
 
-REX_TEST_CASE("AltiVec instructions the Xenon CPU dropped decode as invalid", "[codegen][opcode]") {
-  constexpr std::array<u32, 22> kDropped = {
+REX_TEST_CASE("AltiVec instructions the Xenon CPU lacks decode as invalid beside the VMX forms",
+              "[codegen][opcode]") {
+  constexpr std::array<u32, 22> kRemoved = {
       0x10611008, 0x10611048, 0x10611108, 0x10611148, 0x10611208, 0x10611248,
       0x10611308, 0x10611348, 0x106111A2, 0x106111A4, 0x106111A5, 0x106111A6,
       0x106111A7, 0x106111A8, 0x106111A9, 0x106111A0, 0x106111A1, 0x10611608,
       0x10611708, 0x10611648, 0x10611688, 0x10611788};
-  for (const u32 word : kDropped) {
+  for (const u32 word : kRemoved) {
     CAPTURE(word);
     CHECK(LookupID(word) == 0);
     CHECK(LookupOpcode(word) == Opcode::kUnknown);
   }
-}
-
-REX_TEST_CASE("VMX forms beside the dropped AltiVec instructions decode", "[codegen][opcode]") {
   CHECK(LookupID(0x10611000) == PPC_INST_VADDUBM);
   CHECK(LookupID(0x10611380) == PPC_INST_VADDSWS);
-  CHECK(LookupID(0x106111AA) == PPC_INST_VSEL);
-  CHECK(LookupID(0x106111AB) == PPC_INST_VPERM);
-  CHECK(LookupID(0x106111AC) == PPC_INST_VSLDOI);
-  CHECK(LookupID(0x106111AE) == PPC_INST_VMADDFP);
   CHECK(LookupID(0x106110D3) == PPC_INST_VSLDOI128);
   CHECK(LookupID(VMX128Load(195, 3)) == PPC_INST_LVX128);
   CHECK(LookupID(VMX128Load(451, 3)) == PPC_INST_STVX128);

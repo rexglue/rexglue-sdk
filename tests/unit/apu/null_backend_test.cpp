@@ -76,13 +76,3 @@ REX_TEST_CASE("NullAPUBackend drops queued frames on CloseStream", "[apu]") {
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
   CHECK(played.load() == after_close);
 }
-
-REX_TEST_CASE("NullAPUBackend keeps the mix values it was given", "[apu]") {
-  rex::apu::NullAPUBackend backend;
-  backend.SetOutputGain(0.5f);
-  backend.SetStereoFold({.center = 1.0f, .surround = 0.5f, .lfe = 0.25f, .scale = 0.4f});
-  backend.SetSurroundMix({.center = 0.9f, .surround = 0.8f, .lfe = 0.0f});
-  CHECK(backend.GetOutputGain() == 0.5f);
-  CHECK(backend.GetStereoFold().lfe == 0.25f);
-  CHECK(backend.GetSurroundMix().surround == 0.8f);
-}

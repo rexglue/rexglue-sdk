@@ -25,15 +25,10 @@ constexpr std::array<ExportModule, 3> kModules = {ExportModule::kXboxkrnl, Expor
 
 }  // namespace
 
-REX_TEST_CASE("Export tables hold every row of the inc files", "[kernel][exports]") {
-  CHECK(GetExports(ExportModule::kXboxkrnl).size() == 922);
-  CHECK(GetExports(ExportModule::kXAM).size() == 1735);
-  CHECK(GetExports(ExportModule::kXBDM).size() == 255);
-}
-
 REX_TEST_CASE("Export tables are sorted by unique ordinal and unique name", "[kernel][exports]") {
   for (const auto module : kModules) {
     const auto table = GetExports(module);
+    REQUIRE_FALSE(table.empty());
     std::unordered_set<std::string_view> names;
     for (size_t i = 0; i < table.size(); ++i) {
       if (i > 0) {

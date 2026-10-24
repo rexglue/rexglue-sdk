@@ -10,20 +10,7 @@
 
 #include "rex_test.h"
 
-#include <string>
-#include <string_view>
-
 #include <rex/dbg.h>
-
-REX_TEST_CASE("Profiling macros compile in every mode", "[core][profiling]") {
-  const std::string zone_name = "ProfilingMacrosTest";
-  REX_PROFILE_SCOPE("ProfilingMacrosTest");
-  REX_PROFILE_SCOPE_DYNAMIC(zone_name);
-  REX_PROFILE_PLOT("ProfilingMacrosTest Integer", 3);
-  REX_PROFILE_PLOT_F64("ProfilingMacrosTest Float", 0.5f);
-  REX_PROFILE_FRAME();
-  CHECK_FALSE(REX_PROFILE_IS_CONNECTED());
-}
 
 REX_TEST_CASE("Memory profiling macros compile in every mode and skip their arguments",
               "[core][profiling]") {

@@ -49,16 +49,6 @@ REX_TEST_CASE("An unknown backend name fails with the name", "[gpu][backend]") {
   CHECK(selected.error().message.find("metal") != std::string::npos);
 }
 
-REX_TEST_CASE("The platform list matches the platform rule", "[gpu][backend]") {
-#if REX_PLATFORM_WIN32
-  CHECK(rex::gpu::kPlatformHostAPIs.size() == 2);
-  CHECK(rex::gpu::kPlatformHostAPIs[0] == HostAPI::kD3D12);
-#else
-  CHECK(rex::gpu::kPlatformHostAPIs.size() == 1);
-  CHECK(rex::gpu::kPlatformHostAPIs[0] == HostAPI::kVulkan);
-#endif
-}
-
 REX_TEST_CASE("null is picked on every platform and never by any", "[gpu][backend]") {
   CHECK(SelectHostAPI("null", kWindows).value() == HostAPI::kNull);
   CHECK(SelectHostAPI("null", kVulkanOnly).value() == HostAPI::kNull);

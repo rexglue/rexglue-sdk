@@ -103,21 +103,6 @@ REX_TEST_CASE("be_ptr: the physical view round trips through the host pointer",
   });
 }
 
-REX_TEST_CASE("be_ptr: the memory view overload resolves without a bound thread",
-              "[kernel][be_ptr]") {
-  KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
-    const u32 address = c.Alloc(sizeof(Pair));
-    c.Store32(address, 0x77);
-    const rex::runtime::MemoryView view(*rex::runtime::ThreadState::Get()->GetMemory());
-    be_ptr<Pair> pointer;
-    pointer = address;
-    REQUIRE(pointer.get(view) != nullptr);
-    CHECK(pointer.get(view)->first == 0x77);
-    CHECK(pointer.get(view) == pointer.get());
-  });
-}
-
 REX_TEST_CASE("be_ptr: TryGet returns null for an address the title cannot read",
               "[kernel][be_ptr]") {
   KernelFixture fixture;
@@ -230,6 +215,10 @@ REX_TEST_CASE("be_ptr: TryGet through a memory view needs no bound thread", "[ke
     const u32 address = c.Alloc(sizeof(Pair));
     be_ptr<Pair> pointer;
     pointer = address;
+    c.Store32(address, 0x77);
+    REQUIRE(pointer.get(view) != nullptr);
+    CHECK(pointer.get(view)->first == 0x77);
+    CHECK(pointer.get(view) == pointer.get());
     CHECK(pointer.TryGet(view) == pointer.get(view));
     const Pair* seen = nullptr;
     std::thread host([&] { seen = pointer.TryGet(view); });

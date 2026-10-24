@@ -72,23 +72,6 @@ REX_TEST_CASE("A manifest module reads its guest path", "[codegen]") {
   REQUIRE(modules[0].guest_path == "game/a.xex");
 }
 
-REX_TEST_CASE("The init manifest writes each module's guest path", "[codegen]") {
-  const nlohmann::json data = {
-      {"names", {{"original", "demo"}}},
-      {"sdk_version", "1.0"},
-      {"sdk_version_full", "1.0.0"},
-      {"generated_on", "2026-10-11"},
-      {"include_stamp", false},
-      {"xex_path", "default.xex"},
-      {"game_root", ""},
-      {"out_directory_path", "generated"},
-      {"modules", nlohmann::json::array({ModuleEntry()})},
-  };
-  rex::codegen::TemplateRegistry registry;
-  const auto text = registry.Render("init/manifest_toml", data.dump());
-  REQUIRE(text.find("guest_path = \"game/a.xex\"") != std::string::npos);
-}
-
 REX_TEST_CASE("An init module entry renders from an override directory", "[codegen]") {
   rex::test::TempFolder folder;
   fs::create_directories(folder.path / "init");
@@ -110,6 +93,29 @@ REX_TEST_CASE("An init module entry loads back with its guest path", "[codegen]"
   const auto modules = ModulesOf(manifest);
   REQUIRE(modules.size() == 1);
   REQUIRE(modules[0].guest_path == "game/a.xex");
+
+  rex::test::TempFolder full_folder;
+  Touch(full_folder.path / "default.xex");
+  fs::create_directories(full_folder.path / "game");
+  Touch(full_folder.path / "game" / "a.xex");
+  const nlohmann::json full = {
+      {"names", {{"original", "demo"}}},
+      {"sdk_version", "1.0"},
+      {"sdk_version_full", "1.0.0"},
+      {"generated_on", "2026-10-11"},
+      {"include_stamp", false},
+      {"xex_path", "default.xex"},
+      {"game_root", ""},
+      {"out_directory_path", "generated"},
+      {"modules", nlohmann::json::array({ModuleEntry()})},
+  };
+  const auto full_path = full_folder.path / "demo_manifest.toml";
+  std::ofstream(full_path) << registry.Render("init/manifest_toml", full.dump());
+  const auto full_manifest = rex::codegen::ManifestConfig::Load(full_path);
+  REQUIRE(full_manifest);
+  const auto full_modules = ModulesOf(full_manifest);
+  REQUIRE(full_modules.size() == 1);
+  REQUIRE(full_modules[0].guest_path == "game/a.xex");
 }
 
 REX_TEST_CASE("A manifest keeps the top level keys as a shared layer", "[codegen]") {

@@ -20,6 +20,18 @@ using ThreadState = int;
 }
 
 TEST_CASE("the status headers do not include the guest thread state", "[xstatus]") {
-  CHECK(rex::hid::ToXResult(rex::hid::HIDError::kEmpty) == rex::X_ERROR_EMPTY);
-  CHECK(rex::hid::ToHIDError(rex::X_ERROR_BAD_ARGUMENTS) == rex::hid::HIDError::kBadArguments);
+  SUCCEED();
+}
+
+TEST_CASE("HID errors map to Win32 codes and back for every kind", "[xstatus]") {
+  using rex::hid::HIDError;
+  CHECK(rex::hid::ToXResult(HIDError::kNotConnected) == rex::X_ERROR_DEVICE_NOT_CONNECTED);
+  CHECK(rex::hid::ToXResult(HIDError::kEmpty) == rex::X_ERROR_EMPTY);
+  CHECK(rex::hid::ToXResult(HIDError::kBadArguments) == rex::X_ERROR_BAD_ARGUMENTS);
+  CHECK(rex::hid::ToXResult(HIDError::kFailed) == rex::X_ERROR_FUNCTION_FAILED);
+  CHECK(rex::hid::ToHIDError(rex::X_ERROR_DEVICE_NOT_CONNECTED) == HIDError::kNotConnected);
+  CHECK(rex::hid::ToHIDError(rex::X_ERROR_EMPTY) == HIDError::kEmpty);
+  CHECK(rex::hid::ToHIDError(rex::X_ERROR_BAD_ARGUMENTS) == HIDError::kBadArguments);
+  CHECK(rex::hid::ToHIDError(rex::X_ERROR_FUNCTION_FAILED) == HIDError::kFailed);
+  CHECK(rex::hid::ToHIDError(rex::X_ERROR_ACCESS_DENIED) == HIDError::kFailed);
 }

@@ -12,20 +12,21 @@
 #include "rex_test.h"
 
 #include <atomic>
-#include <chrono>
+#include <latch>
 #include <memory>
-#include <thread>
 
 #include <rex/platform/thread.h>
 
 namespace {
 
-using namespace std::chrono_literals;
-
 struct Token {
-  explicit Token(std::atomic<int>& freed_in) : freed(freed_in) {}
-  ~Token() { ++freed; }
+  Token(std::atomic<int>& freed_in, std::latch& done_in) : freed(freed_in), done(done_in) {}
+  ~Token() {
+    ++freed;
+    done.count_down();
+  }
   std::atomic<int>& freed;
+  std::latch& done;
 };
 
 }  // namespace
@@ -33,17 +34,15 @@ struct Token {
 REX_TEST_CASE("Thread start data runs once and is freed once", "[core][thread]") {
   std::atomic<int> ran{0};
   std::atomic<int> freed{0};
+  std::latch done(1);
   {
-    auto token = std::make_shared<Token>(freed);
+    auto token = std::make_shared<Token>(freed, done);
     auto thread = rex::platform::Thread::Create({}, [token, &ran] { ++ran; });
     REQUIRE(thread != nullptr);
     token.reset();
     REQUIRE(rex::platform::Wait(thread.get(), false) == rex::platform::WaitResult::kSuccess);
-    for (int i = 0; i < 500 && freed.load() == 0; ++i) {
-      std::this_thread::sleep_for(2ms);
-    }
+    done.wait();
   }
-  std::this_thread::sleep_for(20ms);
   CHECK(ran.load() == 1);
   CHECK(freed.load() == 1);
 }

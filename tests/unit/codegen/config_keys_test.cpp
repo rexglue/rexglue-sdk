@@ -116,27 +116,32 @@ REX_TEST_CASE("A table that uses only known keys has no warnings", "[codegen][co
   CHECK(loaded.config.load_warnings.empty());
 }
 
-REX_TEST_CASE("Vector math instructions default to fast", "[codegen][config][keys]") {
-  const auto loaded = LoadBody("");
+REX_TEST_CASE("A vector math key set to exact applies only to its instruction",
+              "[codegen][config][keys]") {
+  const auto defaults = LoadBody("");
+  const auto& dm = defaults.config.vector_math;
+  CHECK(dm.vmaddfp == VectorMath::kFast);
+  CHECK(dm.vnmsubfp == VectorMath::kFast);
+  CHECK(dm.vmsum3fp128 == VectorMath::kFast);
+  CHECK(dm.vmsum4fp128 == VectorMath::kFast);
+  CHECK(dm.vrefp == VectorMath::kFast);
+  CHECK(dm.vrsqrtefp == VectorMath::kFast);
+  CHECK(dm.vexptefp == VectorMath::kFast);
+  CHECK(dm.fres == VectorMath::kFast);
+  CHECK(dm.frsqrte == VectorMath::kFast);
+
+  const auto loaded = LoadBody("[vector_math]\nvmsum4fp128 = \"exact\"\nvrefp = \"fast\"\n");
+  CHECK(loaded.config.load_warnings.empty());
   const auto& vm = loaded.config.vector_math;
   CHECK(vm.vmaddfp == VectorMath::kFast);
   CHECK(vm.vnmsubfp == VectorMath::kFast);
   CHECK(vm.vmsum3fp128 == VectorMath::kFast);
-  CHECK(vm.vmsum4fp128 == VectorMath::kFast);
+  CHECK(vm.vmsum4fp128 == VectorMath::kExact);
   CHECK(vm.vrefp == VectorMath::kFast);
   CHECK(vm.vrsqrtefp == VectorMath::kFast);
   CHECK(vm.vexptefp == VectorMath::kFast);
   CHECK(vm.fres == VectorMath::kFast);
   CHECK(vm.frsqrte == VectorMath::kFast);
-}
-
-REX_TEST_CASE("A vector math key set to exact applies only to its instruction",
-              "[codegen][config][keys]") {
-  const auto loaded = LoadBody("[vector_math]\nvmsum4fp128 = \"exact\"\nvrefp = \"fast\"\n");
-  CHECK(loaded.config.load_warnings.empty());
-  CHECK(loaded.config.vector_math.vmsum4fp128 == VectorMath::kExact);
-  CHECK(loaded.config.vector_math.vmsum3fp128 == VectorMath::kFast);
-  CHECK(loaded.config.vector_math.vrefp == VectorMath::kFast);
 }
 
 REX_TEST_CASE("A vector math value other than fast or exact warns and keeps fast",

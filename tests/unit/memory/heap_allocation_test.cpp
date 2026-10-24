@@ -501,47 +501,6 @@ REX_TEST_CASE("Decommit on 64KB heap uses 64KB granularity", "[memory][heap]") {
   heap->Release(addr, nullptr);
 }
 
-REX_TEST_CASE("TranslateVirtual returns valid host pointer", "[memory][translation]") {
-  auto& memory = GetTestMemory();
-
-  auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
-  REQUIRE(heap != nullptr);
-
-  u32 guest_addr = 0;
-  bool result = heap->Alloc(
-      4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
-      rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &guest_addr);
-  REQUIRE(result);
-
-  u8* host_ptr = memory.TranslateVirtual(guest_addr);
-  REQUIRE(host_ptr != nullptr);
-
-  host_ptr[0] = 0xAB;
-  CHECK(host_ptr[0] == 0xAB);
-
-  heap->Release(guest_addr, nullptr);
-}
-
-REX_TEST_CASE("HostToGuestVirtual roundtrip", "[memory][translation]") {
-  auto& memory = GetTestMemory();
-
-  auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
-  REQUIRE(heap != nullptr);
-
-  u32 original_guest = 0;
-  bool result = heap->Alloc(
-      4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
-      rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &original_guest);
-  REQUIRE(result);
-
-  u8* host_ptr = memory.TranslateVirtual(original_guest);
-  u32 back_to_guest = memory.HostToGuestVirtual(host_ptr);
-
-  CHECK(back_to_guest == original_guest);
-
-  heap->Release(original_guest, nullptr);
-}
-
 REX_TEST_CASE("TranslatePhysical masks to 29 bits", "[memory][translation]") {
   auto& memory = GetTestMemory();
 

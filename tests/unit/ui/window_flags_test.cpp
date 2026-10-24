@@ -18,20 +18,19 @@
 using rex::gpu::HostAPI;
 using rex::ui::GetWindowFlags;
 
-REX_TEST_CASE("A window for the Vulkan host API is created with the Vulkan flag", "[ui]") {
+REX_TEST_CASE(
+    "A Vulkan window has the Vulkan flag and every window is resizable, hidden and scaled",
+    "[ui]") {
   CHECK((GetWindowFlags(HostAPI::kVulkan) & SDL_WINDOW_VULKAN) != 0);
-}
-
-REX_TEST_CASE("A window for another host API is created without the Vulkan flag", "[ui]") {
-  CHECK((GetWindowFlags(HostAPI::kD3D12) & SDL_WINDOW_VULKAN) == 0);
-  CHECK((GetWindowFlags(HostAPI::kNull) & SDL_WINDOW_VULKAN) == 0);
-}
-
-REX_TEST_CASE("Every window is resizable, hidden at first and scaled to the display", "[ui]") {
   for (const HostAPI api : {HostAPI::kD3D12, HostAPI::kVulkan, HostAPI::kNull}) {
     const SDL_WindowFlags flags = GetWindowFlags(api);
     CHECK((flags & SDL_WINDOW_RESIZABLE) != 0);
     CHECK((flags & SDL_WINDOW_HIDDEN) != 0);
     CHECK((flags & SDL_WINDOW_HIGH_PIXEL_DENSITY) != 0);
   }
+}
+
+REX_TEST_CASE("A window for another host API is created without the Vulkan flag", "[ui]") {
+  CHECK((GetWindowFlags(HostAPI::kD3D12) & SDL_WINDOW_VULKAN) == 0);
+  CHECK((GetWindowFlags(HostAPI::kNull) & SDL_WINDOW_VULKAN) == 0);
 }

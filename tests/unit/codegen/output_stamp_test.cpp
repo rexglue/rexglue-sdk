@@ -107,10 +107,17 @@ REX_TEST_CASE("An unreadable input is not fingerprinted as empty content",
 
 REX_TEST_CASE("A missing input file still yields a usable fingerprint", "[codegen][output_stamp]") {
   Scratch scratch("missing");
+  fs::create_directories(scratch.root / "present");
+  const auto empty_file = scratch.root / "present" / "absent.xex";
+  std::ofstream(empty_file, std::ios::binary).close();
   std::vector<fs::path> inputs{scratch.root / "absent.xex"};
+  std::vector<fs::path> present{empty_file};
   std::vector<std::string> flags;
 
-  CHECK_FALSE(ComputeInputFingerprint(inputs, "1.2.3", flags).empty());
+  const auto first = ComputeInputFingerprint(inputs, "1.2.3", flags);
+  CHECK_FALSE(first.empty());
+  CHECK(first == ComputeInputFingerprint(inputs, "1.2.3", flags));
+  CHECK(first != ComputeInputFingerprint(present, "1.2.3", flags));
 }
 
 REX_TEST_CASE("Stamp round trips through Serialize and Load", "[codegen][output_stamp]") {

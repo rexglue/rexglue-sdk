@@ -24,10 +24,7 @@ REX_TEST_CASE("HashBytes is stable and 128 bits wide", "[core][hash]") {
   CHECK(digest.size() == 32);
   CHECK(digest == rex::HashBytes("hello world"));
   CHECK(digest != rex::HashBytes("hello worlds"));
-}
-
-REX_TEST_CASE("HashBytes handles empty input", "[core][hash]") {
-  CHECK(rex::HashBytes("").size() == 32);
+  CHECK(rex::HashBytes("") == "99aa06d3014798d86001c324468d497f");
 }
 
 REX_TEST_CASE("HashFile matches HashBytes over the same content", "[core][hash]") {

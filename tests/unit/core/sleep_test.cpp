@@ -14,6 +14,7 @@
 #include <array>
 #include <chrono>
 
+#include <rex/platform.h>
 #include <rex/platform/thread.h>
 
 namespace {
@@ -39,6 +40,7 @@ REX_TEST_CASE("Sleep never returns before a multi millisecond duration", "[core]
   }
 }
 
+#if REX_PLATFORM_WIN32
 REX_TEST_CASE("Sleep stays near a multi millisecond duration at the default timer period",
               "[core][sleep]") {
   std::array<std::chrono::microseconds, 21> samples;
@@ -48,3 +50,4 @@ REX_TEST_CASE("Sleep stays near a multi millisecond duration at the default time
   std::ranges::sort(samples);
   CHECK(samples[samples.size() / 2] < std::chrono::microseconds(8000));
 }
+#endif

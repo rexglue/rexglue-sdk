@@ -18,6 +18,8 @@
 #include <future>
 #include <memory>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include <rex/platform/thread.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -28,6 +30,7 @@
 #include <rex/runtime/xstatus.h>
 
 #include "kernel_fixture.h"
+#include "runtime/delay_observer.h"
 
 using rex::u32;
 using rex::u64;
@@ -267,20 +270,45 @@ REX_TEST_CASE("threads: KeDelayExecutionThread holds a sub millisecond interval 
       for (const rex::i64 ticks : {1, 5000, 15000}) {
         const u32 interval = c.Quad(-ticks);
         const auto requested = std::chrono::nanoseconds(ticks * 100);
-        std::array<std::chrono::nanoseconds, 21> samples;
-        for (auto& sample : samples) {
+        for (int run = 0; run < 21; ++run) {
           const auto start = Clock::now();
           c.Kernel("KeDelayExecutionThread", {1, alertable, interval});
-          sample = Clock::now() - start;
-          CAPTURE(alertable, ticks, requested.count(), sample.count());
-          CHECK(sample >= requested);
+          const auto elapsed = Clock::now() - start;
+          CAPTURE(alertable, ticks, requested.count(), elapsed.count());
+          CHECK(elapsed >= requested);
         }
-        std::ranges::sort(samples);
-        if (ticks == 1) {
-          const auto median = samples[samples.size() / 2];
-          CAPTURE(alertable, requested.count(), median.count());
-          CHECK(median < std::chrono::microseconds(500));
-        }
+      }
+    }
+  });
+}
+
+namespace {
+
+std::vector<std::pair<std::chrono::microseconds, bool>> g_delays;
+
+struct DelayObserverReset {
+  ~DelayObserverReset() { rex::runtime::SetDelayObserverForTest(nullptr); }
+};
+
+}  // namespace
+
+REX_TEST_CASE("threads: KeDelayExecutionThread hands the converted interval to the sleep",
+              "[kernel][threads][delay]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const DelayObserverReset reset;
+    rex::runtime::SetDelayObserverForTest([](std::chrono::microseconds duration, bool alertable) {
+      g_delays.emplace_back(duration, alertable);
+    });
+    for (const u32 alertable : {0u, 1u}) {
+      for (const auto& [ticks, expected] :
+           std::initializer_list<std::pair<rex::i64, int>>{{1, 1}, {10, 1}, {11, 2}, {5000, 500}}) {
+        g_delays.clear();
+        c.Kernel("KeDelayExecutionThread", {1, alertable, c.Quad(-ticks)});
+        CAPTURE(alertable, ticks);
+        REQUIRE(g_delays.size() == 1);
+        CHECK(g_delays[0].first == std::chrono::microseconds(expected));
+        CHECK(g_delays[0].second == (alertable != 0));
       }
     }
   });

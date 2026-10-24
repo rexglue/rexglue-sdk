@@ -33,7 +33,13 @@ constexpr u32 kOutOfIndexes = 0xFFFFFFFF;
 REX_TEST_CASE("ResolveTLSSlotCount keeps 32 to 256 slots", "[kernel][tls]") {
   CHECK(rex::runtime::ResolveTLSSlotCount(0) == 32);
   CHECK(rex::runtime::ResolveTLSSlotCount(10) == 32);
+  CHECK(rex::runtime::ResolveTLSSlotCount(31) == 32);
+  CHECK(rex::runtime::ResolveTLSSlotCount(32) == 32);
+  CHECK(rex::runtime::ResolveTLSSlotCount(33) == 33);
   CHECK(rex::runtime::ResolveTLSSlotCount(64) == 64);
+  CHECK(rex::runtime::ResolveTLSSlotCount(255) == 255);
+  CHECK(rex::runtime::ResolveTLSSlotCount(256) == 256);
+  CHECK(rex::runtime::ResolveTLSSlotCount(257) == 256);
   CHECK(rex::runtime::ResolveTLSSlotCount(300) == 256);
 }
 

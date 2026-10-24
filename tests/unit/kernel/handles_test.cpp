@@ -258,26 +258,20 @@ REX_TEST_CASE("waits: a handle with nothing to wait on counts as signaled", "[ke
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 idle = AddNonWaitable(c);
     const u32 event = NewEvent(c, 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {idle, 1, 0, Poll(c)}) == 0);
-    CHECK(WaitHandles(c, {event, idle}, 1) == 1);
-    CHECK(WaitHandles(c, {idle, event}, 1) == 0);
-    CHECK(WaitHandles(c, {event, idle}, 0) == kTimeout);
-    CHECK(WaitHandles(c, {idle, idle}, 0) == 0);
-    c.Kernel("NtSetEvent", {event, 0});
-    CHECK(WaitHandles(c, {event, idle}, 0) == 0);
-    c.Kernel("NtClose", {event});
-  });
-}
-
-REX_TEST_CASE("waits: signal and wait treat a handle with nothing to wait on as signaled",
-              "[kernel][waits]") {
-  KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
-    const u32 idle = AddNonWaitable(c);
-    const u32 event = NewEvent(c, 0);
-    CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {event, idle, 0, 0, Poll(c)}) == 0);
-    c.Kernel("NtSetEvent", {event, 0});
-    CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {idle, event, 0, 0, Poll(c)}) == 0);
+    SECTION("wait") {
+      CHECK(c.Kernel("NtWaitForSingleObjectEx", {idle, 1, 0, Poll(c)}) == 0);
+      CHECK(WaitHandles(c, {event, idle}, 1) == 1);
+      CHECK(WaitHandles(c, {idle, event}, 1) == 0);
+      CHECK(WaitHandles(c, {event, idle}, 0) == kTimeout);
+      CHECK(WaitHandles(c, {idle, idle}, 0) == 0);
+      c.Kernel("NtSetEvent", {event, 0});
+      CHECK(WaitHandles(c, {event, idle}, 0) == 0);
+    }
+    SECTION("signal and wait") {
+      CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {event, idle, 0, 0, Poll(c)}) == 0);
+      c.Kernel("NtSetEvent", {event, 0});
+      CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {idle, event, 0, 0, Poll(c)}) == 0);
+    }
     c.Kernel("NtClose", {event});
   });
 }

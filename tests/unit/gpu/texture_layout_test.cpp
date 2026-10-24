@@ -38,5 +38,13 @@ REX_TEST_CASE("The 3D lower bound moves to the next tile at the tile depth", "[g
       rex::xenos::GetTiledAddressLowerBound3D(0, 0, 0, kPitch, kHeight, kBytesPerBlockLog2);
   const rex::u32 next = rex::xenos::GetTiledAddressLowerBound3D(
       0, 0, rex::xenos::kTextureTileDepth, kPitch, kHeight, kBytesPerBlockLog2);
-  CHECK(next > first);
+  constexpr rex::u32 kTileBlocks = rex::xenos::kTextureTileWidthHeight *
+                                   rex::xenos::kTextureTileWidthHeight *
+                                   rex::xenos::kTextureTileDepth;
+  constexpr rex::u32 kTilesPerSlab = (kPitch / rex::xenos::kTextureTileWidthHeight) *
+                                     (kHeight / rex::xenos::kTextureTileWidthHeight);
+  constexpr rex::u32 kSlabBytes = kTilesPerSlab * (kTileBlocks << kBytesPerBlockLog2);
+  constexpr rex::u32 kBankSwizzleBytes = 0x880;
+  CHECK(first == 0);
+  CHECK(next == kSlabBytes + kBankSwizzleBytes);
 }

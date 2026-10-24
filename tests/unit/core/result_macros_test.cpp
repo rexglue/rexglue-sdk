@@ -10,8 +10,6 @@
 
 #include "rex_test.h"
 
-#include <type_traits>
-
 #include <rex/result.h>
 
 namespace {
@@ -64,10 +62,4 @@ REX_TEST_CASE("REX_ERROR_IF returns the error when its condition holds", "[core]
   REQUIRE_FALSE(failed);
   REQUIRE(failed.error().message == "condition held");
   REQUIRE(ErrorWhen(false));
-}
-
-REX_TEST_CASE("Ok makes a successful Result<void>", "[core][macros]") {
-  rex::Result<void> s = rex::Ok();
-  REQUIRE(s);
-  static_assert(std::is_same_v<rex::Result<void>, rex::Result<void>>);
 }

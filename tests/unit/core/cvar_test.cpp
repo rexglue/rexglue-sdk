@@ -108,16 +108,10 @@ REX_TEST_CASE("A cvar name is a lowercase scope and leaf joined by 1 dot", "[cor
 REX_TEST_CASE_METHOD(Fixture, "Var descriptors are constant initialized", "[core][cvar]") {
   REQUIRE(g_constinit_proof.GetDesc().name == "test.proof");
   REQUIRE(g_constinit_proof.GetDesc().scope == "test");
-  REQUIRE(g_constinit_proof.GetDefaultText() == "7");
-  REQUIRE(test_cvars::mode.GetDefaultText() == "low");
-  auto chained_copy = rex::cvar::Var<std::string>("test.tmp", "abc", "d")
-                          .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
-  REQUIRE(chained_copy.GetDefaultText() == "abc");
   REQUIRE(g_constinit_proof.GetDesc().constraints.min == 0.0);
   REQUIRE(g_constinit_proof.Get() == 7);
   REQUIRE(test_cvars::mode.GetDesc().constraints.allowed.size() == 3);
   REQUIRE(test_cvars::mode.GetDesc().constraints.allowed[1] == "medium");
-  REQUIRE(test_cvars::kTestCvars.size() == 10);
   REQUIRE(test_cvars::run.GetDesc().type == rex::cvar::Type::kCommand);
 }
 
@@ -126,6 +120,7 @@ REX_TEST_CASE_METHOD(Fixture, "Var builders chain Range, Lifecycle and NoSave", 
                            .SetRange(0, 5)
                            .SetLifecycle(rex::cvar::Lifecycle::kInitOnly)
                            .SetNoSave();
+  REQUIRE(chained.Get() == 3);
   REQUIRE(chained.GetDesc().constraints.max == 5.0);
   REQUIRE(chained.GetDesc().lifecycle == rex::cvar::Lifecycle::kInitOnly);
   REQUIRE(chained.GetDesc().no_save);

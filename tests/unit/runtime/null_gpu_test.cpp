@@ -64,11 +64,15 @@ REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[runti
   CHECK(g_user_data == 0x1234);
 }
 
-REX_TEST_CASE("NullGPU without a callback raises nothing", "[runtime]") {
+REX_TEST_CASE("NullGPU without a callback raises nothing and has no presentation", "[runtime]") {
   g_vblanks = 0;
   KernelFixture fixture;
   auto& runtime = fixture.GetRuntime();
   rex::runtime::NullGPU gpu;
+  CHECK_FALSE(gpu.HasPresentation());
+  CHECK(gpu.GetPresenter() == nullptr);
+  CHECK_FALSE(gpu.CreatePresenter());
+  CHECK(gpu.InitializeShaderStorage({}, 0, true));
   REQUIRE(gpu.SetupGPU(*runtime.GetFunctionDispatcher(), runtime));
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   gpu.Shutdown();
@@ -95,14 +99,6 @@ REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[run
   gpu.Shutdown();
   rex::ppc::MMIOStore32(register_address, 0x30);
   CHECK(*memory->TranslatePhysical<const be_u32*>(writeback) == 0x20);
-}
-
-REX_TEST_CASE("NullGPU has no presentation", "[runtime]") {
-  rex::runtime::NullGPU gpu;
-  CHECK_FALSE(gpu.HasPresentation());
-  CHECK(gpu.GetPresenter() == nullptr);
-  CHECK_FALSE(gpu.CreatePresenter());
-  CHECK(gpu.InitializeShaderStorage({}, 0, true));
 }
 
 REX_TEST_CASE("The fixed registers report the display mode and canned values", "[runtime][gpu]") {
