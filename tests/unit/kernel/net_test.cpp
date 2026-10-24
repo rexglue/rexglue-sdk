@@ -1031,7 +1031,7 @@ REX_TEST_CASE("net: a WSARecvFrom without an overlapped waits for a datagram",
     CHECK(c.Load32(r.flags) == 0);
     CheckPayload(c, r);
     CheckLoopbackFrom(c, r);
-    c.Kernel("NtClose", {sender});
+    Join(c, sender);
     Finish(c, r);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });

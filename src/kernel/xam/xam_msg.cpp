@@ -21,6 +21,7 @@
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
+#include "runtime/overlapped.h"
 
 namespace rex {
 namespace kernel {
@@ -103,13 +104,15 @@ u32 XMsgCompleteIORequest_entry(GuestPtrT<XOVERLAPPED> overlapped_ptr, u32 resul
 u32 XamGetOverlappedResult_entry(GuestPtrT<XOVERLAPPED> overlapped_ptr, MappedU32 length_ptr,
                                  [[maybe_unused]] u32 unknown) {
   XOVERLAPPED* overlapped = overlapped_ptr.GetHostPtr();
-  u32 result = XOverlappedGetResult(overlapped);
+  auto read_result = [overlapped] {
+    return runtime::ObserveOverlapped([&] { return XOverlappedGetResult(overlapped); });
+  };
+  u32 result = read_result();
   if (result == X_ERROR_IO_PENDING && !overlapped->event) {
     result = X_ERROR_IO_INCOMPLETE;
   } else if (result == X_ERROR_IO_PENDING) {
     result = Wait(runtime::GetCurrent(), overlapped->event, 3, 1, 0, nullptr);
-    result = XSUCCEEDED(result) ? XOverlappedGetResult(overlapped)
-                                : xboxkrnl::RtlNtStatusToDosError(result);
+    result = XSUCCEEDED(result) ? read_result() : xboxkrnl::RtlNtStatusToDosError(result);
   }
   if (XSUCCEEDED(result) && length_ptr) {
     *length_ptr = overlapped->length;

@@ -10,6 +10,7 @@
  */
 
 #include "runtime/dispatcher.h"
+#include "runtime/overlapped.h"
 #include "runtime/thread_wait.h"
 #include "runtime/guest_stack.h"
 
@@ -86,17 +87,19 @@ Dispatcher::~Dispatcher() {
 void Dispatcher::CompleteOverlappedEx(u32 overlapped, X_RESULT result, u32 extended_error,
                                       u32 length) {
   auto ptr = runtime_.GetMemory()->TranslateVirtual(overlapped);
-  XOverlappedSetExtendedError(ptr, extended_error);
-  XOverlappedSetLength(ptr, length);
-  XOverlappedSetResult(ptr, result);
-  X_HANDLE event_handle = XOverlappedGetEvent(ptr);
-  if (event_handle) {
-    auto ev = runtime_.GetObjectTable().Get<EventObject>(event_handle);
-    REX_ASSERT(static_cast<bool>(ev));
-    if (ev) {
-      ev->Set();
+  PublishOverlapped([&] {
+    XOverlappedSetExtendedError(ptr, extended_error);
+    XOverlappedSetLength(ptr, length);
+    XOverlappedSetResult(ptr, result);
+    X_HANDLE event_handle = XOverlappedGetEvent(ptr);
+    if (event_handle) {
+      auto ev = runtime_.GetObjectTable().Get<EventObject>(event_handle);
+      REX_ASSERT(static_cast<bool>(ev));
+      if (ev) {
+        ev->Set();
+      }
     }
-  }
+  });
   if (XOverlappedGetCompletionRoutine(ptr)) {
     X_HANDLE thread_handle = XOverlappedGetContext(ptr);
     auto thread = runtime_.GetThreadRegistry().FindByHandle(thread_handle);

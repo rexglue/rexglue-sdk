@@ -30,6 +30,7 @@ set(REXRUNTIME_SOURCES
     module_registry.cpp
     notifier.cpp
     dispatcher.cpp
+    overlapped.cpp
     process.cpp
     object_table.cpp
     xdbf.cpp

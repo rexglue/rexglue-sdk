@@ -37,6 +37,7 @@
 #include <rex/runtime/xtypes.h>
 #include "kernel/argument_check.h"
 #include "kernel/stub_log.h"
+#include "runtime/overlapped.h"
 #include "runtime/thread_wait.h"
 
 #if REX_PLATFORM_WIN32
@@ -309,12 +310,14 @@ void CompleteReceive(Runtime& runtime, GuestPtrT<XWSAOVERLAPPED> overlapped,
     overlapped->internal_high = static_cast<u32>(result.received);
     StoreFrom(from_ptr, from_len, result);
   }
-  overlapped->internal.Store(status, std::memory_order_release);
-  if (event_handle) {
-    if (auto event = runtime.GetObjectTable().Get<EventObject>(event_handle)) {
-      event->Set();
+  runtime::PublishOverlapped([&] {
+    overlapped->internal.Store(status, std::memory_order_release);
+    if (event_handle) {
+      if (auto event = runtime.GetObjectTable().Get<EventObject>(event_handle)) {
+        event->Set();
+      }
     }
-  }
+  });
 }
 
 }  // namespace
@@ -468,10 +471,12 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
   }
   if (overlapped) {
     overlapped->internal_high = bytes;
-    overlapped->internal.Store(error, std::memory_order_release);
-    if (overlapped->event_handle) {
-      xboxkrnl::NtSetEvent(overlapped->event_handle, nullptr);
-    }
+    runtime::PublishOverlapped([&] {
+      overlapped->internal.Store(error, std::memory_order_release);
+      if (overlapped->event_handle) {
+        xboxkrnl::NtSetEvent(overlapped->event_handle, nullptr);
+      }
+    });
   }
   if (sent == -1) {
     KernelThread::GetCurrentThread()->SetLastError(error);
@@ -496,14 +501,18 @@ u32 NetDll_WSAGetOverlappedResult_entry([[maybe_unused]] u32 caller,
                                         GuestPtrT<XWSAOVERLAPPED> overlapped,
                                         MappedU32 bytes_transferred, u32 wait,
                                         MappedU32 flags_ptr) {
-  u32 status = overlapped->internal.Load(std::memory_order_acquire);
+  auto load_status = [&overlapped] {
+    return runtime::ObserveOverlapped(
+        [&] { return overlapped->internal.Load(std::memory_order_acquire); });
+  };
+  u32 status = load_status();
   while (status == kWSAIOIncomplete) {
     if (!wait || !overlapped->event_handle ||
         XFAILED(runtime::Wait(runtime::GetCurrent(), overlapped->event_handle, 0, 1, 0, nullptr))) {
       KernelThread::GetCurrentThread()->SetLastError(kWSAIOIncomplete);
       return 0;
     }
-    status = overlapped->internal.Load(std::memory_order_acquire);
+    status = load_status();
   }
   if (bytes_transferred) {
     *bytes_transferred = overlapped->internal_high;
