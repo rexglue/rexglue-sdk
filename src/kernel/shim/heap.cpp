@@ -163,8 +163,9 @@ bool GuestHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
       rex::RoundUpPow2<u32>(std::max(segment_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
 
   // The system heap range is shared with kernel bookkeeping allocations and cannot hold a segment.
-  auto segment = runtime::GuestAllocator::Create(*mem, segment_size_bytes, O1HEAP_ALIGNMENT, false,
-                                                 runtime::kPageSize4KiB, 0);
+  auto segment =
+      runtime::GuestAllocator::Create(*mem, segment_size_bytes, O1HEAP_ALIGNMENT, false,
+                                      runtime::kPageSize4KiB, 0, runtime::GuestPool::kHeap);
   if (!segment) {
     REX_FAIL(kernel, false, "shim_heap: segment allocation of {} bytes failed", segment_size_bytes);
   }

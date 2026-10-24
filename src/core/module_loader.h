@@ -143,6 +143,7 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   bool connected_ = false;
   std::unique_ptr<CvarRegistryImpl> cvars_ = CreateCvarRegistry();
   bool builtin_registered_ = false;
+  cvar::CallbackHandle alloc_stack_depth_callback_; /**< Applies perf.alloc_stack_depth. */
   size_t consumer_tables_registered_ = 0;
 };
 

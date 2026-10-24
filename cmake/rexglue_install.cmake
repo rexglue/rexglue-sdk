@@ -123,6 +123,7 @@ install(
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stage_pdbs.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_optimus.cpp.in
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_host_alloc_stub.cpp
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
 )
 

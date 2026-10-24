@@ -24,7 +24,7 @@ WorkspaceHeap::WorkspaceHeap(Key, Memory& memory, std::unique_ptr<GuestAllocator
 
 Result<std::unique_ptr<WorkspaceHeap>> WorkspaceHeap::Create(Memory& memory, u32 size) {
   auto allocator = GuestAllocator::Create(memory, size, kPageSize4KiB, false, kPageSize4KiB,
-                                          kMemoryAllocationTitle);
+                                          kMemoryAllocationTitle, GuestPool::kWorkspace);
   if (!allocator) {
     return Err<std::unique_ptr<WorkspaceHeap>>(allocator.error());
   }

@@ -26,6 +26,7 @@ add_library(
   $<TARGET_OBJECTS:rexfilesystem-host-objects>
 )
 add_library(rex::filesystem ALIAS rexfilesystem)
+rexglue_link_host_allocator(rexfilesystem)
 set_target_properties(
   rexfilesystem PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON
 )

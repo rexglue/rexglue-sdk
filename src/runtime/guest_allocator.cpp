@@ -2,6 +2,7 @@
 
 #include <o1heap.h>
 
+#include <rex/dbg.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xstatus.h>
@@ -10,8 +11,8 @@ namespace rex::runtime {
 
 namespace {
 
-[[maybe_unused]] constexpr const char* kPoolNames[] = {"Guest heap", "Guest workspace", "Title"};
-constexpr const char* kPoolPlotNames[] = {"Guest heap in use", "Guest workspace in use", "Title"};
+[[maybe_unused]] constexpr const char* kPoolNames[] = {"Guest heap", "Guest workspace"};
+constexpr const char* kPoolPlotNames[] = {"Guest heap in use", "Guest workspace in use"};
 
 }  // namespace
 
@@ -23,12 +24,21 @@ GuestAllocator::GuestAllocator(Key, Memory& memory, u32 base, u32 size, O1HeapIn
 }
 
 GuestAllocator::~GuestAllocator() {
+  {
+    std::lock_guard lock(memory_.allocators_mutex_);
+    std::erase(memory_.allocators_, this);
+  }
   memory_.LookupHeap(base_)->Release(base_);
+}
+
+const char* GuestAllocator::GetPoolPlotName(GuestPool pool) {
+  return kPoolPlotNames[static_cast<size_t>(pool)];
 }
 
 Result<std::unique_ptr<GuestAllocator>> GuestAllocator::Create(Memory& memory, u32 size,
                                                                u32 alignment, bool physical,
-                                                               u32 page_size, u32 flags) {
+                                                               u32 page_size, u32 flags,
+                                                               GuestPool pool) {
   BaseHeap* heap = memory.LookupHeapByType(physical, page_size);
   u32 base = 0;
   if (!heap ||
@@ -41,7 +51,7 @@ Result<std::unique_ptr<GuestAllocator>> GuestAllocator::Create(Memory& memory, u
     heap->Release(base);
     return Err<std::unique_ptr<GuestAllocator>>(StatusError(X_STATUS_NO_MEMORY));
   }
-  return std::make_unique<GuestAllocator>(Key{}, memory, base, size, instance);
+  return std::make_unique<GuestAllocator>(Key{}, memory, base, size, instance, pool);
 }
 
 u32 GuestAllocator::GetBase() const {
@@ -52,22 +62,40 @@ u32 GuestAllocator::GetSize() const {
   return size_;
 }
 
+GuestPool GuestAllocator::GetPool() const {
+  return pool_;
+}
+
 bool GuestAllocator::Contains(u32 address) const {
   return address >= base_ && address - base_ < size_;
 }
 
 void* GuestAllocator::Allocate(u32 size) {
   std::lock_guard lock(mutex_);
-  return o1heapAllocate(heap_, size);
+  void* block = o1heapAllocate(heap_, size);
+  if (block) {
+    REX_PROFILE_ALLOC_NAMED(block, size, kPoolNames[static_cast<size_t>(pool_)]);
+  }
+  return block;
 }
 
 void* GuestAllocator::Reallocate(void* block, u32 size) {
   std::lock_guard lock(mutex_);
-  return o1heapReallocate(heap_, block, size);
+  void* resized = o1heapReallocate(heap_, block, size);
+  if (resized) {
+    if (block) {
+      REX_PROFILE_FREE_NAMED(block, kPoolNames[static_cast<size_t>(pool_)]);
+    }
+    REX_PROFILE_ALLOC_NAMED(resized, size, kPoolNames[static_cast<size_t>(pool_)]);
+  }
+  return resized;
 }
 
 void GuestAllocator::Free(void* block) {
   std::lock_guard lock(mutex_);
+  if (block) {
+    REX_PROFILE_FREE_NAMED(block, kPoolNames[static_cast<size_t>(pool_)]);
+  }
   o1heapFree(heap_, block);
 }
 

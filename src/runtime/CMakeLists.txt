@@ -55,6 +55,7 @@ set(REXRUNTIME_SOURCES
 
 add_library(rexruntime SHARED ${REXRUNTIME_SOURCES})
 add_library(rex::runtime ALIAS rexruntime)
+rexglue_link_host_allocator(rexruntime)
 
 set_target_properties(
   rexruntime PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON

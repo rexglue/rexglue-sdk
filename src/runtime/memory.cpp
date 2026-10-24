@@ -27,11 +27,13 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
+#include <rex/dbg.h>
 #include <rex/exception_handler.h>
 #include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/guest_allocator.h>
 #include <rex/mmio.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
@@ -702,6 +704,33 @@ void Memory::ReleaseTitlePage(u32 pages) {
   title_pages_.fetch_sub(pages, std::memory_order_relaxed);
 }
 
+void Memory::PlotProfile() {
+#ifdef REXGLUE_ENABLE_PROFILING
+  if (!TracyIsStarted) {
+    return;
+  }
+  heaps_.v00000000.PlotProfile();
+  heaps_.v40000000.PlotProfile();
+  heaps_.v80000000.PlotProfile();
+  heaps_.v90000000.PlotProfile();
+  heaps_.physical.PlotProfile();
+
+  std::array<u64, static_cast<size_t>(GuestPool::kCount)> in_use{};
+  {
+    std::lock_guard lock(allocators_mutex_);
+    for (const GuestAllocator* allocator : allocators_) {
+      in_use[static_cast<size_t>(allocator->GetPool())] += allocator->GetDiagnostics().allocated;
+    }
+  }
+  for (size_t i = 0; i < in_use.size(); ++i) {
+    REX_PROFILE_PLOT(GuestAllocator::GetPoolPlotName(static_cast<GuestPool>(i)), in_use[i]);
+  }
+
+  REX_PROFILE_PLOT("Title memory in use", u64{GetTitlePages()} * 4096);
+  REX_PROFILE_PLOT("Title memory budget", u64{GetBudgetPages()} * 4096);
+#endif
+}
+
 bool Memory::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size) {
   constexpr u32 kThunkReserveSize = runtime::FunctionDispatcher::kThunkReserveSize;
   u32 table_base = image_base + image_size;
@@ -948,6 +977,48 @@ void BaseHeap::Initialize(runtime::Memory* memory, u8* membase, HeapType heap_ty
   host_address_offset_ = host_address_offset;
   page_table_.resize(heap_size / page_size);
   unreserved_page_count_ = static_cast<u32>(page_table_.size());
+  switch (heap_base) {
+    case 0x00000000:
+      profile_pool_ = heap_type == HeapType::kGuestPhysical ? "Guest physical" : "Guest v00000000";
+      profile_plot_ = heap_type == HeapType::kGuestPhysical ? "Guest physical committed"
+                                                            : "Guest v00000000 committed";
+      break;
+    case 0x40000000:
+      profile_pool_ = "Guest v40000000";
+      profile_plot_ = "Guest v40000000 committed";
+      break;
+    case 0x80000000:
+      profile_pool_ = "Guest v80000000";
+      profile_plot_ = "Guest v80000000 committed";
+      break;
+    case 0x90000000:
+      profile_pool_ = "Guest v90000000";
+      profile_plot_ = "Guest v90000000 committed";
+      break;
+    default:
+      break;
+  }
+}
+
+void BaseHeap::OnPageCommitted([[maybe_unused]] u32 page_number) {
+  committed_pages_.fetch_add(1, std::memory_order_relaxed);
+  if (profile_pool_) {
+    REX_PROFILE_ALLOC_NAMED(TranslateRelative(page_number << page_size_shift_), page_size_,
+                            profile_pool_);
+  }
+}
+
+void BaseHeap::OnPageDecommitted([[maybe_unused]] u32 page_number) {
+  committed_pages_.fetch_sub(1, std::memory_order_relaxed);
+  if (profile_pool_) {
+    REX_PROFILE_FREE_NAMED(TranslateRelative(page_number << page_size_shift_), profile_pool_);
+  }
+}
+
+void BaseHeap::PlotProfile() const {
+  if (profile_plot_) {
+    REX_PROFILE_PLOT(profile_plot_, u64{GetCommittedPages()} * page_size_);
+  }
 }
 
 void BaseHeap::Dispose() {
@@ -1083,6 +1154,10 @@ bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 a
     auto& page_entry = page_table_[page_number];
     if (title_pages && (page_entry.state & runtime::kMemoryAllocationCommit) == 0) {
       page_entry.title = 1;
+    }
+    if ((allocation_type & runtime::kMemoryAllocationCommit) &&
+        !(page_entry.state & runtime::kMemoryAllocationCommit)) {
+      OnPageCommitted(page_number);
     }
     if (allocation_type & runtime::kMemoryAllocationReserve) {
       if (!page_entry.state) {
@@ -1235,6 +1310,10 @@ bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32
     if (!page_entry.state) {
       unreserved_page_count_--;
     }
+    if ((allocation_type & runtime::kMemoryAllocationCommit) &&
+        !(page_entry.state & runtime::kMemoryAllocationCommit)) {
+      OnPageCommitted(page_number);
+    }
     page_entry.base_address = start_page_number;
     page_entry.region_page_count = page_count;
     page_entry.allocation_protect = protect;
@@ -1272,6 +1351,9 @@ bool BaseHeap::DecommitLocked(u32 address, u32 size) {
     auto& page_entry = page_table_[page_number];
     released += page_entry.title;
     page_entry.title = 0;
+    if (page_entry.state & runtime::kMemoryAllocationCommit) {
+      OnPageDecommitted(page_number);
+    }
     page_entry.state &= ~runtime::kMemoryAllocationCommit;
   }
   memory_->ReleaseTitlePage(released * (page_size_ >> 12));
@@ -1324,6 +1406,9 @@ bool BaseHeap::ReleaseLocked(u32 base_address, u32* out_region_size) {
   for (u32 page_number = base_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
     released += page_entry.title;
+    if (page_entry.state & runtime::kMemoryAllocationCommit) {
+      OnPageDecommitted(page_number);
+    }
     page_entry.qword = 0;
     unreserved_page_count_++;
   }
@@ -1530,6 +1615,8 @@ void PhysicalHeap::Initialize(runtime::Memory* memory, u8* membase, HeapType hea
 
   BaseHeap::Initialize(memory, membase, heap_type, heap_base, heap_size, page_size,
                        host_address_offset);
+  profile_pool_ = nullptr;
+  profile_plot_ = nullptr;
   parent_heap_ = parent_heap;
   system_page_size_ = static_cast<u32>(rex::memory::GetPageSize());
 

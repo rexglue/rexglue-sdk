@@ -877,6 +877,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
   }
 #endif
   rex::platform::Profiler::Flip();
+  memory_->PlotProfile();
 
   u32 magic = reader->ReadAndSwap<memory::FourCCT>();
   REX_ASSERT(magic == kSwapSignature);

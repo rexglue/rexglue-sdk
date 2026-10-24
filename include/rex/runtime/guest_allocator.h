@@ -29,7 +29,6 @@ class Memory;
 enum class GuestPool : u8 {
   kHeap,      /**< The shim Rtl heap. */
   kWorkspace, /**< The title workspace. */
-  kTitle,     /**< The heap of the title. */
   kCount,     /**< Number of pools, not a pool. */
 };
 
@@ -55,8 +54,9 @@ class REX_RUNTIME_API GuestAllocator : public NonCopyable {
    * @param base The guest address of the range.
    * @param size The byte count.
    * @param heap The o1heap instance over the range.
+   * @param pool The pool the blocks are reported to.
    */
-  GuestAllocator(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap);
+  GuestAllocator(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap, GuestPool pool);
 
   /**
    * Reserves and commits a range and starts the allocator over it.
@@ -67,11 +67,21 @@ class REX_RUNTIME_API GuestAllocator : public NonCopyable {
    * @param physical True to take the range from the physical heap, false for the virtual heap.
    * @param page_size The page size that selects the heap, in bytes.
    * @param flags Allocation type flags added to reserve and commit.
+   * @param pool The pool the blocks are reported to.
    * @return An error when the range cannot be committed or the allocator cannot start.
    */
   [[nodiscard]] static Result<std::unique_ptr<GuestAllocator>> Create(Memory& memory, u32 size,
                                                                       u32 alignment, bool physical,
-                                                                      u32 page_size, u32 flags);
+                                                                      u32 page_size, u32 flags,
+                                                                      GuestPool pool);
+
+  /**
+   * Returns the profiler graph name of the bytes in use of a pool.
+   *
+   * @param pool The pool.
+   * @return The name, a string with static storage.
+   */
+  [[nodiscard]] static const char* GetPoolPlotName(GuestPool pool);
 
   /** Releases the range. */
   ~GuestAllocator();
@@ -89,6 +99,13 @@ class REX_RUNTIME_API GuestAllocator : public NonCopyable {
    * @return The size in bytes.
    */
   [[nodiscard]] u32 GetSize() const;
+
+  /**
+   * Returns the pool the blocks are reported to.
+   *
+   * @return The pool.
+   */
+  [[nodiscard]] GuestPool GetPool() const;
 
   /**
    * Reports whether an address is in the range.
@@ -142,6 +159,7 @@ class REX_RUNTIME_API GuestAllocator : public NonCopyable {
   u32 base_;
   u32 size_;
   O1HeapInstance* heap_;
+  GuestPool pool_;
   mutable std::mutex mutex_;
 };
 

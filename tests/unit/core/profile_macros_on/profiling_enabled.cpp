@@ -16,7 +16,8 @@
 #error Profiling is enabled without Tracy
 #endif
 
-void ProfilingEnabledMemory(void* block, unsigned long long size) {
+void ProfilingEnabledMemory([[maybe_unused]] void* block,
+                            [[maybe_unused]] unsigned long long size) {
   REX_PROFILE_ALLOC(block, size);
   REX_PROFILE_FREE(block);
   REX_PROFILE_ALLOC_NAMED(block, size, "ProfilingEnabledMemory");
@@ -27,7 +28,7 @@ void ProfilingEnabledMemory(void* block, unsigned long long size) {
   REX_PROFILE_FREE_NAMED_STACK(block, 8, "ProfilingEnabledMemory");
 }
 
-bool ProfilingEnabledZones(const std::string& name) {
+bool ProfilingEnabledZones([[maybe_unused]] const std::string& name) {
   REX_PROFILE_SCOPE("ProfilingEnabledZones");
   REX_PROFILE_SCOPE_TEXT("ProfilingEnabledZones Text", "detail");
   REX_PROFILE_SCOPE_DYNAMIC(name);

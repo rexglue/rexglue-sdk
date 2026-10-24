@@ -16,6 +16,7 @@ add_executable(
           $<TARGET_OBJECTS:rexglue-objects>
 )
 
+rexglue_link_host_allocator(rexglue)
 rex_config_postfix(rexglue)
 rexglue_add_version_resource(rexglue DESCRIPTION "ReXGlue recompiler")
 

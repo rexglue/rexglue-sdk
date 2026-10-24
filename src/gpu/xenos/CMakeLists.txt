@@ -136,6 +136,7 @@ set(REXGPU_XENOS_PCH_HEADERS
 # Adds a Xenos backend library exported as rex::<export_name>.
 function (rexgpu_xenos_library target export_name description)
   add_library(${target} SHARED ${ARGN})
+  rexglue_link_host_allocator(${target})
   add_library(rex::${export_name} ALIAS ${target})
   set_target_properties(
     ${target}

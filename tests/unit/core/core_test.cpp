@@ -21,6 +21,7 @@
 #include <rex/cli_arg_list.h>
 #include <rex/cvar/registry.h>
 #include <rex/logging/logger.h>
+#include <rex/memory/host.h>
 #include <rex/logging/log.h>
 #include <rex/logging/sink.h>
 
@@ -83,6 +84,22 @@ REX_TEST_CASE_METHOD(Fixture,
   api = rex::Init(cfg);
   REQUIRE(api);
   REQUIRE(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("perf.profiler").value() == "false");
+}
+
+REX_TEST_CASE_METHOD(Fixture, "The perf.alloc_stack_depth cvar goes through the allocator setter",
+                     "[core][memory]") {
+  rex::Config cfg;
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  auto* cvars = api.value()->Get<rex::cvar::ICvarRegistry>();
+  rex::memory::SetAllocStackDepth(0);
+  REQUIRE(cvars->Set("perf.alloc_stack_depth", "7"));
+  CHECK(rex::memory::GetAllocStackDepth() == 7);
+  REQUIRE(cvars->Set("perf.alloc_stack_depth", "0"));
+  CHECK(rex::memory::GetAllocStackDepth() == 0);
+  rex::memory::SetAllocStackDepth(5);
+  CHECK(rex::memory::GetAllocStackDepth() == 5);
+  rex::memory::SetAllocStackDepth(0);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Logging writes through a capture sink with no module loaded",

@@ -5,6 +5,7 @@ set(REXIMGUI_THIRDPARTY_SOURCES ${REXIMGUI_DIR}/imgui.cpp ${REXIMGUI_DIR}/imgui_
 
 add_library(reximgui SHARED ${REXIMGUI_THIRDPARTY_SOURCES} imgui_dialog.cpp style.cpp)
 add_library(rex::imgui ALIAS reximgui)
+rexglue_link_host_allocator(reximgui)
 set_target_properties(
   reximgui
   PROPERTIES EXPORT_NAME imgui

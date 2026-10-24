@@ -118,6 +118,7 @@ inline u32 HostPtrToGuest(const u8* base, const void* host_address) noexcept {
                                           reinterpret_cast<std::size_t>(base));
 }
 
+class GuestAllocator;
 class Memory;
 
 /** Selects the heap that SystemHeapAlloc takes memory from. */
@@ -266,6 +267,19 @@ class REX_RUNTIME_API BaseHeap {
    * @return The page count.
    */
   u32 GetReservedPageCount() const { return GetTotalPageCount() - GetUnreservedPageCount(); }
+
+  /**
+   * Returns the number of committed pages.
+   *
+   * @return The page count.
+   */
+  u32 GetCommittedPages() const { return committed_pages_.load(std::memory_order_relaxed); }
+
+  /**
+   * Plots the committed bytes of the heap on the profiler graph of the heap. Does nothing for a
+   * heap that only views the memory of another heap.
+   */
+  void PlotProfile() const;
 
   /**
    * Allocates pages with the given properties and allocation strategy. Can reserve and commit the
@@ -521,6 +535,20 @@ class REX_RUNTIME_API BaseHeap {
   virtual bool IsHostPageWriteWatched([[maybe_unused]] u32 host_page_number) const { return false; }
 
   /**
+   * Counts a page as committed and reports it to the profiler memory pool of the heap.
+   *
+   * @param page_number The page.
+   */
+  void OnPageCommitted(u32 page_number);
+
+  /**
+   * Counts a page as decommitted and reports it to the profiler memory pool of the heap.
+   *
+   * @param page_number The page.
+   */
+  void OnPageDecommitted(u32 page_number);
+
+  /**
    * Initializes the heap properties and allocates the page table.
    *
    * @param memory The owning memory system.
@@ -546,8 +574,13 @@ class REX_RUNTIME_API BaseHeap {
   u32 host_address_offset_;
   /** Number of pages not reserved, falls when pages are reserved and rises when released. */
   u32 unreserved_page_count_ = 0;
-  std::recursive_mutex heap_mutex_;   /**< Guards the page table and the counters of the heap. */
-  std::vector<PageEntry> page_table_; /**< 1 entry for each heap page. */
+  /** Number of committed pages, changed with the heap mutex held. */
+  std::atomic<u32> committed_pages_{0};
+  /** Profiler memory pool of the heap, null for a heap that views the memory of another heap. */
+  const char* profile_pool_ = nullptr;
+  const char* profile_plot_ = nullptr; /**< Profiler graph of the committed bytes. */
+  std::recursive_mutex heap_mutex_;    /**< Guards the page table and the counters of the heap. */
+  std::vector<PageEntry> page_table_;  /**< 1 entry for each heap page. */
 };
 
 /** Normal heap allowing allocations from guest virtual address ranges. */
@@ -1078,6 +1111,12 @@ class REX_RUNTIME_API Memory {
   [[nodiscard]] u32 GetBudgetPages() const;
 
   /**
+   * Plots the committed bytes of each heap, the bytes in use of each guest allocator pool and the
+   * title memory use on the profiler graphs. Call it once per frame.
+   */
+  void PlotProfile();
+
+  /**
    * Initializes the per module function dispatch table at IMAGE_BASE + IMAGE_SIZE, indexed by
    * (guest_addr - code_base) * 2. The function table calls are internally locked and may be made
    * from any thread.
@@ -1175,6 +1214,7 @@ class REX_RUNTIME_API Memory {
   } heaps_;
 
   friend class BaseHeap;
+  friend class GuestAllocator;
 
   friend class PhysicalHeap;
   rex::platform::RankedMutex watch_mutex_{rex::platform::LockRank::kLeaf};
@@ -1182,6 +1222,8 @@ class REX_RUNTIME_API Memory {
       physical_memory_invalidation_callbacks_;
   std::atomic<u32> title_pages_{0};
   std::atomic<u32> budget_pages_{0};
+  std::mutex allocators_mutex_;
+  std::vector<GuestAllocator*> allocators_; /**< Every live guest allocator, for the plots. */
 };
 
 }  // namespace rex::runtime

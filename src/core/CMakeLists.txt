@@ -19,6 +19,7 @@ add_library(
   filesystem/xcontent.cpp
   filesystem/xex.cpp
   hash.cpp
+  host_alloc.cpp
   hid/bindings.cpp
   hid/idle_pad_caps.cpp
   hid/input_source.cpp
@@ -47,6 +48,7 @@ add_library(
 )
 
 add_library(rex::core ALIAS rexcore)
+rexglue_link_host_allocator(rexcore)
 set_target_properties(rexcore PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 target_compile_definitions(rexcore PRIVATE REX_BUILDING_CORE)
 

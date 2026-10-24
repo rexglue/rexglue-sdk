@@ -153,7 +153,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a GPU module the GPU scopes are absent an
   for (std::string_view scope : {"gpu", "xenos", "d3d12", "vulkan"}) {
     CHECK_FALSE(HasScope(cvars, scope));
   }
-  CHECK(cvars.Enumerate().size() == 35);
+  CHECK(cvars.Enumerate().size() == 36);
   CHECK(cvars.Enumerate("ui").size() == 10);
   CHECK(cvars.Get("ui.window_width"));
 }
@@ -230,14 +230,14 @@ REX_TEST_CASE_METHOD(Fixture, "Without a hid module the hid scope is reserved an
   CHECK(cvars.Enumerate("hid").empty());
 }
 
-REX_TEST_CASE_METHOD(Fixture, "The default host modules bring the SDK to 69 cvars", "[gpu][cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "The default host modules bring the SDK to 70 cvars", "[gpu][cvar]") {
   rex::platform::SetEnvironmentValue("SDL_AUDIO_DRIVER", "dummy");
   rex::Config config = BaseConfig();
   config.modules = {"rexfilesystem", "rexruntime", "rexapu-sdl3", "rexhid-sdl3", "rexui-sdl3"};
   auto api = rex::Init(config);
   REQUIRE(api);
   auto& cvars = *api.value()->Get<rex::cvar::ICvarRegistry>();
-  CHECK(cvars.Enumerate().size() == 69);
+  CHECK(cvars.Enumerate().size() == 70);
 }
 
 REX_TEST_CASE_METHOD(Fixture,

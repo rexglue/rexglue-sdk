@@ -1,5 +1,6 @@
 add_library(rexhid-sdl3 SHARED module.cpp sdl3_driver.cpp)
 add_library(rex::hid-sdl3 ALIAS rexhid-sdl3)
+rexglue_link_host_allocator(rexhid-sdl3)
 set_target_properties(
   rexhid-sdl3
   PROPERTIES EXPORT_NAME hid-sdl3

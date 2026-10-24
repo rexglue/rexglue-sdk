@@ -29,6 +29,9 @@ REXCVAR_TABLE(kLogCvars, level, file, flush_interval);
 
 REXCVAR_BOOL(perf, profiler, false, "Start the Tracy profiler at startup when the build has it")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_TABLE(kPerfCvars, profiler);
+REXCVAR_INT32(perf, alloc_stack_depth, 0,
+              "Call stack frames Tracy records for each memory allocation, 0 for none")
+    .SetRange(0, 32);
+REXCVAR_TABLE(kPerfCvars, profiler, alloc_stack_depth);
 
 }  // namespace rex::cvars

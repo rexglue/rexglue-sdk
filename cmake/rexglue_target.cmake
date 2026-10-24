@@ -418,6 +418,7 @@ function (rexglue_configure_target target_name)
   endif ()
 
   rexglue_apply_target_settings(${target_name})
+  rexglue_link_host_allocator(${target_name})
 
   set(stage_commands "")
   if (NOT WIN32)

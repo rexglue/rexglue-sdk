@@ -478,7 +478,7 @@ REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a known scop
   }
   REQUIRE(count >= 70);
   if (cfg.modules.size() > 3)
-    REQUIRE(count == 106);
+    REQUIRE(count == 107);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",

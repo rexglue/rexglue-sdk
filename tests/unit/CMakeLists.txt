@@ -92,6 +92,9 @@ add_executable(
   core/container_test.cpp
   core/core_test.cpp
   core/high_resolution_timer_test.cpp
+  core/host_alloc_test.cpp
+  core/host_alloc_module_test.cpp
+  core/host_alloc_forms_test.cpp
   core/interface_test.cpp
   core/logger_test.cpp
   core/math_test.cpp
@@ -296,6 +299,7 @@ target_compile_definitions(
 )
 
 add_executable(rex-crash-test crash_child.cpp crash_child_recompiled_code.cpp)
+rexglue_link_host_allocator(rex-crash-test)
 if (WIN32)
   set_source_files_properties(
     crash_child_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasync-exceptions
@@ -359,6 +363,7 @@ target_compile_options(
 )
 
 set_target_properties(unit_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>)
+rexglue_link_host_allocator(unit_tests)
 if (UNIX AND NOT APPLE)
   set_target_properties(unit_tests PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
 endif ()
@@ -422,6 +427,7 @@ set_tests_properties(
   "unit.compile: midasm accepts an attachment that fits" PROPERTIES RESOURCE_LOCK nested_build
 )
 add_executable(midasm-generated-hooks EXCLUDE_FROM_ALL ppc/midasm_generated/generated_hooks.cpp)
+rexglue_link_host_allocator(midasm-generated-hooks)
 target_include_directories(
   midasm-generated-hooks PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/midasm_generated
 )

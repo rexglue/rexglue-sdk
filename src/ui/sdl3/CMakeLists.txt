@@ -54,6 +54,7 @@ endfunction ()
 
 add_library(rexui-sdl3 SHARED module.cpp ${REX_UI_SDL3_SOURCES})
 add_library(rex::ui-sdl3 ALIAS rexui-sdl3)
+rexglue_link_host_allocator(rexui-sdl3)
 set_target_properties(rexui-sdl3 PROPERTIES EXPORT_NAME ui-sdl3)
 rexglue_add_version_resource(rexui-sdl3 DESCRIPTION "ReXGlue SDL3 user interface")
 rex_ui_sdl3_configure(rexui-sdl3)

@@ -4,11 +4,12 @@
 foreach (name good missing badversion failinit duplicate-echo)
   set(_target rexmod-test-${name})
   add_library(${_target} SHARED ${name}.cpp)
+  rexglue_link_host_allocator(${_target})
   target_include_directories(
     ${_target} PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
   )
   target_compile_definitions(${_target} PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
-  target_link_libraries(${_target} PRIVATE simde)
+  target_link_libraries(${_target} PRIVATE simde rexcore)
   set_target_properties(
     ${_target}
     PROPERTIES CXX_VISIBILITY_PRESET hidden
@@ -26,11 +27,12 @@ endforeach ()
 target_link_libraries(rexmod-test-good PRIVATE rexcore)
 
 add_library(rexmod-test-null-gpu SHARED null_gpu/null_gpu_module.cpp)
+rexglue_link_host_allocator(rexmod-test-null-gpu)
 target_include_directories(
   rexmod-test-null-gpu PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
 )
 target_compile_definitions(rexmod-test-null-gpu PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
-target_link_libraries(rexmod-test-null-gpu PRIVATE simde)
+target_link_libraries(rexmod-test-null-gpu PRIVATE simde rexcore)
 set_target_properties(
   rexmod-test-null-gpu
   PROPERTIES CXX_VISIBILITY_PRESET hidden
@@ -47,6 +49,7 @@ endif ()
 foreach (name apu hid)
   set(_target rexmod-test-${name})
   add_library(${_target} SHARED ${name}/${name}_module.cpp)
+  rexglue_link_host_allocator(${_target})
   target_include_directories(
     ${_target} PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
   )
@@ -69,6 +72,7 @@ endforeach ()
 foreach (variant a b)
   set(_target rexmod-test-recompiled-${variant})
   add_library(${_target} SHARED recompiled.cpp)
+  rexglue_link_host_allocator(${_target})
   target_include_directories(
     ${_target} PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
   )
@@ -76,7 +80,7 @@ foreach (variant a b)
     ${_target} PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>" REX_TEST_IMAGE_BASE=0x8E000000
                        $<IF:$<STREQUAL:${variant},a>,REX_TEST_RESULT=0xA1,REX_TEST_RESULT=0xB2>
   )
-  target_link_libraries(${_target} PRIVATE simde)
+  target_link_libraries(${_target} PRIVATE simde rexcore)
   set_target_properties(
     ${_target}
     PROPERTIES CXX_VISIBILITY_PRESET hidden
@@ -94,6 +98,7 @@ endforeach ()
 foreach (role exporter importer)
   set(_target rexmod-test-cross-${role})
   add_library(${_target} SHARED crossmodule.cpp)
+  rexglue_link_host_allocator(${_target})
   target_include_directories(
     ${_target} PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
   )
@@ -143,3 +148,23 @@ foreach (variant noidentity otheridentity)
     set_target_properties(${_target} PROPERTIES PREFIX "lib")
   endif ()
 endforeach ()
+
+add_library(rexmod-test-alloc SHARED alloc/alloc_module.cpp)
+target_include_directories(
+  rexmod-test-alloc PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
+)
+target_compile_definitions(rexmod-test-alloc PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
+target_link_libraries(rexmod-test-alloc PRIVATE rexcore)
+rexglue_link_host_allocator(rexmod-test-alloc)
+set_target_properties(
+  rexmod-test-alloc
+  PROPERTIES CXX_VISIBILITY_PRESET hidden
+             VISIBILITY_INLINES_HIDDEN ON
+             PREFIX ""
+             RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+             LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+)
+rex_config_postfix(rexmod-test-alloc)
+if (NOT WIN32)
+  set_target_properties(rexmod-test-alloc PROPERTIES PREFIX "lib")
+endif ()

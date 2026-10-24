@@ -21,6 +21,7 @@
 #include "../kernel/kernel_fixture.h"
 
 using rex::runtime::GuestAllocator;
+using rex::runtime::GuestPool;
 
 namespace {
 
@@ -49,7 +50,8 @@ REX_TEST_CASE("A failed o1heapInit releases its range", "[runtime][allocator]") 
   rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const u32 expected = ReserveAndRelease(memory, 16);
-  auto failed = GuestAllocator::Create(memory, 16, kAlignment, false, kPageSize, 0);
+  auto failed =
+      GuestAllocator::Create(memory, 16, kAlignment, false, kPageSize, 0, GuestPool::kHeap);
   CHECK_FALSE(failed);
   CHECK(ReserveAndRelease(memory, 16) == expected);
 }
@@ -59,7 +61,8 @@ REX_TEST_CASE("A destroyed allocator releases its range", "[runtime][allocator]"
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const u32 expected = ReserveAndRelease(memory, kRangeSize);
   {
-    auto allocator = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0);
+    auto allocator = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0,
+                                            GuestPool::kHeap);
     REQUIRE(allocator);
     CHECK((*allocator)->GetBase() == expected);
     CHECK((*allocator)->GetSize() == kRangeSize);
@@ -70,7 +73,8 @@ REX_TEST_CASE("A destroyed allocator releases its range", "[runtime][allocator]"
 REX_TEST_CASE("Blocks reside inside the range and Free returns them", "[runtime][allocator]") {
   rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
-  auto allocator = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0);
+  auto allocator =
+      GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0, GuestPool::kHeap);
   REQUIRE(allocator);
   void* block = (*allocator)->Allocate(100);
   REQUIRE(block != nullptr);
@@ -87,7 +91,8 @@ REX_TEST_CASE("Reallocate keeps the contents and an exhausted range returns null
               "[runtime][allocator]") {
   rex::test::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
-  auto allocator = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0);
+  auto allocator =
+      GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0, GuestPool::kHeap);
   REQUIRE(allocator);
   auto* block = static_cast<u8*>((*allocator)->Allocate(64));
   REQUIRE(block != nullptr);
@@ -108,8 +113,8 @@ REX_TEST_CASE("A physical 64K allocator falls in the physical range and releases
   CHECK(expected >= kPhysicalBase);
   CHECK(expected < kPhysicalEnd);
   {
-    auto allocator =
-        GuestAllocator::Create(memory, kRangeSize, kPhysicalPageSize, true, kPhysicalPageSize, 0);
+    auto allocator = GuestAllocator::Create(memory, kRangeSize, kPhysicalPageSize, true,
+                                            kPhysicalPageSize, 0, GuestPool::kHeap);
     REQUIRE(allocator);
     CHECK((*allocator)->GetBase() == expected);
     void* block = (*allocator)->Allocate(100);
@@ -170,25 +175,4 @@ REX_TEST_CASE("Plotting the memory profile works without a profiler", "[runtime]
   memory.PlotProfile();
   (*allocator)->Free(block);
   CHECK((*allocator)->GetPool() == GuestPool::kWorkspace);
-}
-
-REX_TEST_CASE("A title allocator reports its blocks to the title pool only",
-              "[runtime][allocator]") {
-  rex::test::KernelFixture fixture;
-  rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
-  auto title = GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0,
-                                      GuestPool::kTitle);
-  auto heap =
-      GuestAllocator::Create(memory, kRangeSize, kAlignment, false, kPageSize, 0, GuestPool::kHeap);
-  REQUIRE(title);
-  REQUIRE(heap);
-  CHECK((*title)->GetPool() == GuestPool::kTitle);
-  CHECK((*heap)->GetPool() == GuestPool::kHeap);
-  CHECK(std::string_view(GuestAllocator::GetPoolPlotName(GuestPool::kTitle)) == "Title");
-  void* block = (*title)->Allocate(64);
-  REQUIRE(block);
-  CHECK((*title)->GetDiagnostics().allocated > 0);
-  CHECK((*heap)->GetDiagnostics().allocated == 0);
-  memory.PlotProfile();
-  (*title)->Free(block);
 }

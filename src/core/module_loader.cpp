@@ -12,6 +12,7 @@
 #include <format>
 
 #include <rex/logging/logger.h>
+#include <rex/memory/host.h>
 #include <rex/platform/file.h>
 #include <rex/fail.h>
 #include <rex/logging/log.h>
@@ -163,6 +164,19 @@ Result<API*> ModuleLoader::Connect(const Config& config) {
     return Err<API*>(status.error());
   }
   builtin_registered_ = true;
+  if (auto handle =
+          cvars_->OnChange("perf.alloc_stack_depth", [](std::string_view, std::string_view value) {
+            i32 depth = 0;
+            std::from_chars(value.data(), value.data() + value.size(), depth);
+            memory::SetAllocStackDepth(depth);
+          })) {
+    alloc_stack_depth_callback_ = std::move(*handle);
+  }
+  if (auto depth = cvars_->Get("perf.alloc_stack_depth")) {
+    i32 value = 0;
+    std::from_chars(depth->data(), depth->data() + depth->size(), value);
+    memory::SetAllocStackDepth(value);
+  }
   if (auto status = cvars_->SetDefault("perf.profiler", config_.profiler ? "true" : "false");
       !status) {
     UnregisterTables();
@@ -458,6 +472,7 @@ Result<void> ModuleLoader::ApplyCvarValues() {
 }
 
 void ModuleLoader::UnregisterTables() {
+  alloc_stack_depth_callback_.Reset();
   if (builtin_registered_) {
     UnregisterBuiltinCvars(*cvars_);
     builtin_registered_ = false;
