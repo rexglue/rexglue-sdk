@@ -231,6 +231,7 @@ add_executable(
   codegen/mmio_analysis_test.cpp
   rexglue/init_command_test.cpp
   rexglue/project_scan_test.cpp
+  rexglue/test_recompiler_test.cpp
   rexglue/test_spec_test.cpp
 )
 

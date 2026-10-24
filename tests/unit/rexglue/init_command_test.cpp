@@ -220,16 +220,37 @@ REX_TEST_CASE("init applies the recompiled options to the library target only", 
   CHECK(clear < apply);
 }
 
-REX_TEST_CASE("init keeps the separators of the project name", "[rexglue][init][case]") {
+REX_TEST_CASE("init keeps the underscores of the project name", "[rexglue][init][case]") {
   rex::test::TempFolder root("rexglue_init_name_");
   WriteText(root.path / "default.xex", "");
-  REQUIRE(RunInit(root.path, false, "my_game-2"));
-  CHECK(std::filesystem::exists(root.path / "src" / "my_game-2_hooks.cpp"));
+  REQUIRE(RunInit(root.path, false, "my_game_2"));
+  CHECK(std::filesystem::exists(root.path / "src" / "my_game_2_hooks.cpp"));
   const std::string text = ReadText(root.path / "CMakeLists.txt");
-  CHECK(text.find("project(my_game-2 ") != std::string::npos);
-  CHECK(text.find("add_library(my_game-2_common OBJECT") != std::string::npos);
+  CHECK(text.find("project(my_game_2 ") != std::string::npos);
+  CHECK(text.find("add_library(my_game_2_common OBJECT") != std::string::npos);
   const std::string glue = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(glue.find("my_game-2_codegen") != std::string::npos);
+  CHECK(glue.find("my_game_2_codegen") != std::string::npos);
+}
+
+REX_TEST_CASE("init rejects a project name the manifest loader would refuse",
+              "[rexglue][init][case]") {
+  for (const char* name : {"my-game", "my game", "9lives", "_game"}) {
+    rex::test::TempFolder root("rexglue_init_bad_name_");
+    WriteText(root.path / "default.xex", "");
+    const auto result = RunInit(root.path, false, name);
+    CHECK_FALSE(result);
+    CHECK_FALSE(std::filesystem::exists(root.path / "CMakeLists.txt"));
+  }
+}
+
+REX_TEST_CASE("init names the character it rejects in the project name", "[rexglue][init][case]") {
+  rex::test::TempFolder root("rexglue_init_bad_char_");
+  WriteText(root.path / "default.xex", "");
+  const auto result = RunInit(root.path, false, "my-game");
+  REQUIRE_FALSE(result);
+  const std::string text = result.error().GetDescription();
+  CHECK(text.find("'-'") != std::string::npos);
+  CHECK(text.find("letters, digits and underscore") != std::string::npos);
 }
 
 REX_TEST_CASE("init renders codegen with the file size setting and the sources as outputs",

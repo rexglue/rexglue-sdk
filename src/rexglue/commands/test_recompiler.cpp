@@ -111,6 +111,8 @@ std::string CategoryFromStem(std::string_view stem) {
   return "misc";
 }
 
+}  // namespace
+
 bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::string_view out_dir) {
   std::array<ui::KeyValueRow, 3> header_rows = {{
       {"Bin dir", std::string(bin_dir)},
@@ -119,8 +121,19 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   }};
   ui::KeyValueBlock("Recompiling PPC tests:", header_rows);
 
-  fs::create_directories(out_dir);
+  std::error_code ec;
+  if (!fs::is_directory(bin_dir, ec)) {
+    REXLOG_ERROR(rexglue, "Binary folder not found: {}", bin_dir);
+    return false;
+  }
+  fs::create_directories(out_dir, ec);
+  if (ec) {
+    REXLOG_ERROR(rexglue, "Cannot create output folder {}: {}", out_dir, ec.message());
+    return false;
+  }
 
+  bool succeeded = true;
+  size_t binary_count = 0;
   std::map<std::string, std::unordered_set<size_t>> functions_by_file;
   std::vector<std::string> all_function_names;
   std::stringstream functions_out;
@@ -128,22 +141,28 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   for (const auto& entry : fs::directory_iterator(bin_dir)) {
     if (entry.path().extension() != ".bin")
       continue;
+    ++binary_count;
     auto stem = entry.path().stem().string();
     REXLOG_DEBUG(rexglue, "Processing binary file: {}", stem);
 
     auto loaded = rex::platform::ReadHostFile(entry.path());
     if (!loaded) {
-      REXLOG_WARN(rexglue, "Failed to load binary file: {}", entry.path().string());
+      REXLOG_ERROR(rexglue, "Failed to load binary file: {}", entry.path().string());
+      succeeded = false;
       continue;
     }
     std::vector<u8> file_data = std::move(*loaded);
-    if (file_data.empty())
+    if (file_data.empty()) {
+      REXLOG_ERROR(rexglue, "Binary file is empty: {}", entry.path().string());
+      succeeded = false;
       continue;
+    }
 
     auto map_path = std::format("{}/{}.map", bin_dir, stem);
     auto symbols = ParseMapFile(map_path);
     if (symbols.empty()) {
       REXLOG_ERROR(rexglue, "No symbols found in map file: {}", map_path);
+      succeeded = false;
       continue;
     }
 
@@ -180,6 +199,11 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
       recompiled_code += code;
     }
     functions_out << recompiled_code << '\n';
+  }
+
+  if (binary_count == 0) {
+    REXLOG_ERROR(rexglue, "No .bin files found in {}", bin_dir);
+    return false;
   }
 
   std::unordered_map<std::string, std::string> all_symbols;
@@ -266,7 +290,8 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
     if (auto written =
             rex::platform::WriteHostFile(std::format("{}/{}", out_dir, filename), rendered);
         !written) {
-      REXLOG_WARN(rexglue, "write failed: {}", written.error().GetDescription());
+      REXLOG_ERROR(rexglue, "write failed: {}", written.error().GetDescription());
+      succeeded = false;
     }
   };
   write_rendered("test/ppc_config_h", "ppc_config.h");
@@ -275,8 +300,10 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   write_rendered("test/ppc_test_cases_cpp", "ppc_test_cases.cpp");
 
   REXLOG_TRACE(rexglue, "Generated {} test cases", total_tests);
-  return true;
+  return succeeded;
 }
+
+namespace {
 
 struct RecompileTestsArgs {
   std::string bin_dir;

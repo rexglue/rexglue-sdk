@@ -28,17 +28,18 @@ struct AppNameParts {
 
 inline bool ValidateProjectName(const std::string& input, std::string& error) {
   if (input.empty()) {
-    error = "App name must not be empty";
+    error = "Project name must not be empty";
     return false;
   }
   if (!std::isalpha(static_cast<unsigned char>(input[0]))) {
-    error = "App name must start with a letter";
+    error = "Project name must start with a letter";
     return false;
   }
   for (char c : input) {
-    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-' && c != ' ') {
-      error = "App name contains invalid character '" + std::string(1, c) +
-              "'. Only alphanumeric, space, underscore, and dash are allowed";
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
+      error = "Project name contains invalid character '" + std::string(1, c) +
+              "'. Only letters, digits and underscore are allowed, because the name starts the "
+              "names of the generated C++ files and functions";
       return false;
     }
   }

@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <string_view>
+
 #include "../cli_context.h"
 
 namespace CLI {
@@ -17,6 +19,16 @@ class App;
 }
 
 namespace rexglue::cli {
+
+/**
+ * Generates Catch2 test sources from linked PPC test binaries.
+ *
+ * @param bin_dir The folder of linked `.bin` files with a `.map` file of the same name.
+ * @param asm_dir The folder of `.s` sources that hold the test directives.
+ * @param out_dir The folder to write the generated files into.
+ * @return True when every binary was processed and every file was written.
+ */
+bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::string_view out_dir);
 
 void RegisterRecompileTests(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending);
 
