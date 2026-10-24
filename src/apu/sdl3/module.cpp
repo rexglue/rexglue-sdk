@@ -24,7 +24,8 @@ class SDL3Module final : public IModule {
 
   const char* GetName() const override { return "rexapu-sdl3"; }
   std::span<const char* const> GetRequiredInterfaces() const override {
-    static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
+    static constexpr std::array<const char*, 2> kRequired = {"rex.cvar@1",
+                                                             "rex.runtime.module_registry@1"};
     return kRequired;
   }
 

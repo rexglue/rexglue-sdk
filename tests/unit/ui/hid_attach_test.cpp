@@ -19,6 +19,7 @@
 
 #include <rex/api.h>
 #include <rex/cvar/registry.h>
+#include <rex/gpu.h>
 #include <rex/hid.h>
 #include <rex/module.h>
 #include <rex/ui/user_interface.h>
@@ -34,6 +35,9 @@ class HubFactory final : public rex::IInterfaceFactory {
  public:
   [[nodiscard]] rex::Result<void*> Get(std::string_view name, rex::u32 version) override {
     (void)version;
+    if (name == rex::gpu::IGPUBackend::kInterfaceName) {
+      ++gpu_requests;
+    }
     if (name == rex::cvar::ICvarRegistry::kInterfaceName) {
       return static_cast<void*>(registry);
     }
@@ -45,6 +49,7 @@ class HubFactory final : public rex::IInterfaceFactory {
 
   rex::cvar::ICvarRegistry* registry = nullptr;
   rex::hid::Hub* hub = nullptr;
+  int gpu_requests = 0;
 };
 
 }  // namespace
@@ -80,6 +85,25 @@ REX_TEST_CASE("An open window applies the pointer mode without a presenter", "[u
   CHECK_FALSE(SDL_CursorVisible());
   CHECK(hub.GetPointer().window_width > 0);
   ui->CloseWindow();
+  module->Shutdown();
+  module->Disconnect();
+}
+REX_TEST_CASE("The UI module requests the GPU backend in Init", "[ui][gpu]") {
+  rex::test::TempFolder user_root{"rex_gpu_fetch_test_"};
+  auto registry = rex::detail::CreateCvarRegistry();
+  rex::hid::Hub hub;
+  HubFactory factory;
+  factory.registry = registry.get();
+  factory.hub = &hub;
+  rex::Config config;
+  config.paths.user_data_root = user_root.path;
+  rex::i32 status = 0;
+  auto* module = static_cast<rex::IModule*>(ReXCreateInterface("rex.module", 1, &status));
+  REQUIRE(module != nullptr);
+  REQUIRE(module->Connect(&factory, config));
+  CHECK(factory.gpu_requests == 0);
+  REQUIRE(module->Init());
+  CHECK(factory.gpu_requests == 1);
   module->Shutdown();
   module->Disconnect();
 }

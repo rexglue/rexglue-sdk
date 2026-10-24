@@ -43,6 +43,15 @@ class XenosD3D12Module final : public rex::IModule {
 
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory* factory,
                                           const rex::Config& config) override {
+    if (auto status = ConnectModule(factory, config); !status) {
+      Disconnect();
+      return status;
+    }
+    return rex::Ok();
+  }
+
+  [[nodiscard]] rex::Result<void> ConnectModule(rex::IInterfaceFactory* factory,
+                                                const rex::Config& config) {
     REX_TRY(gpu::IXenosGraphics * xenos_service, factory->Get<gpu::IXenosGraphics>());
     REX_TRY_VOID(xenos_service->AttachAPI(GetName()));
     attached_ = true;

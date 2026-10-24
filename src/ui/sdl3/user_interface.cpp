@@ -28,13 +28,12 @@ SDL3UserInterface::~SDL3UserInterface() {
 }
 
 void SDL3UserInterface::Connect(const Config& config, cvar::ICvarRegistry& cvars,
-                                hid::IHIDBackend* hid, gpu::IGPUBackend* gpu,
-                                runtime::IAchievementManager* achievements, ILogger* logger) {
+                                hid::IHIDBackend* hid, runtime::IAchievementManager* achievements,
+                                ILogger* logger) {
   ui_thread_ = std::this_thread::get_id();
   config_ = &config;
   cvars_ = &cvars;
   hid_ = hid;
-  gpu_ = gpu;
   achievements_ = achievements;
   logger_ = logger;
   log_capture_ = std::make_unique<log::CaptureSink>();
@@ -42,6 +41,10 @@ void SDL3UserInterface::Connect(const Config& config, cvar::ICvarRegistry& cvars
     logger_->AddSink(*log_capture_);
   }
   binds_.Attach(cvars_);
+}
+
+void SDL3UserInterface::SetGPU(gpu::IGPUBackend* gpu) {
+  gpu_ = gpu;
 }
 
 void SDL3UserInterface::Disconnect() {

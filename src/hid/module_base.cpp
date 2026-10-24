@@ -9,7 +9,8 @@
 namespace rex::hid {
 
 std::span<const char* const> HIDModuleBase::GetRequiredInterfaces() const {
-  static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
+  static constexpr std::array<const char*, 2> kRequired = {"rex.cvar@1",
+                                                           "rex.runtime.module_registry@1"};
   return kRequired;
 }
 

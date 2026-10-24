@@ -56,6 +56,15 @@ class XenosModule final : public rex::IModule, public IXenosGraphics {
 
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory* factory,
                                           const rex::Config& config) override {
+    if (auto status = ConnectModule(factory, config); !status) {
+      Disconnect();
+      return status;
+    }
+    return rex::Ok();
+  }
+
+  [[nodiscard]] rex::Result<void> ConnectModule(rex::IInterfaceFactory* factory,
+                                                const rex::Config& config) {
     const gpu::GPUConfig& gpu = config.gpu;
     if (gpu.resolution_scale_x < 1 || gpu.resolution_scale_x > 8) {
       return rex::Err(rex::ErrorCategory::kConfig,

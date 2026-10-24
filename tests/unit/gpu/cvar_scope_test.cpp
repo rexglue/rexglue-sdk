@@ -237,3 +237,26 @@ REX_TEST_CASE_METHOD(Fixture, "The default host modules bring the SDK to 69 cvar
   auto& cvars = *api.value()->Get<rex::cvar::ICvarRegistry>();
   CHECK(cvars.Enumerate().size() == 69);
 }
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "rexapu-sdl3 listed before rexruntime fails Init naming the requirement",
+                     "[apu][cvar]") {
+  rex::platform::SetEnvironmentValue("SDL_AUDIO_DRIVER", "dummy");
+  rex::Config config = BaseConfig();
+  config.modules = {"rexfilesystem", "rexapu-sdl3", "rexruntime"};
+  auto api = rex::Init(config);
+  REQUIRE_FALSE(api);
+  CHECK(api.error().message.find("module 'rexapu-sdl3' requires rex.runtime.module_registry") !=
+        std::string::npos);
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "rexhid-sdl3 listed before rexruntime fails Init naming the requirement",
+                     "[hid][cvar]") {
+  rex::Config config = BaseConfig();
+  config.modules = {"rexfilesystem", "rexhid-sdl3", "rexruntime"};
+  auto api = rex::Init(config);
+  REQUIRE_FALSE(api);
+  CHECK(api.error().message.find("module 'rexhid-sdl3' requires rex.runtime.module_registry") !=
+        std::string::npos);
+}

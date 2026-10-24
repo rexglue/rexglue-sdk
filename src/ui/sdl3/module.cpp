@@ -80,10 +80,6 @@ class UIModule final : public IModule {
     if (auto backend = factory->Get<hid::IHIDBackend>(); backend) {
       hid = *backend;
     }
-    gpu::IGPUBackend* gpu = nullptr;
-    if (auto backend = factory->Get<gpu::IGPUBackend>(); backend) {
-      gpu = *backend;
-    }
     runtime::IAchievementManager* achievements = nullptr;
     if (auto manager = factory->Get<runtime::IAchievementManager>(); manager) {
       achievements = *manager;
@@ -92,7 +88,8 @@ class UIModule final : public IModule {
     if (auto found = factory->Get<ILogger>(); found) {
       logger = *found;
     }
-    ui_.Connect(config, *cvars_, hid, gpu, achievements, logger);
+    factory_ = factory;
+    ui_.Connect(config, *cvars_, hid, achievements, logger);
     return Ok();
   }
 
@@ -105,9 +102,15 @@ class UIModule final : public IModule {
     }
     registered_ = 0;
     cvars_ = nullptr;
+    factory_ = nullptr;
   }
 
-  [[nodiscard]] Result<void> Init() override { return Ok(); }
+  [[nodiscard]] Result<void> Init() override {
+    if (auto backend = factory_->Get<gpu::IGPUBackend>(); backend) {
+      ui_.SetGPU(*backend);
+    }
+    return Ok();
+  }
 
   void Shutdown() override { ui_.CloseWindow(); }
 
@@ -117,6 +120,7 @@ class UIModule final : public IModule {
     return instance;
   }
 
+  IInterfaceFactory* factory_ = nullptr;
   cvar::ICvarRegistry* cvars_ = nullptr;
   size_t registered_ = 0;
   SDL3UserInterface ui_;
