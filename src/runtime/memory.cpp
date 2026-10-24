@@ -961,23 +961,22 @@ void BaseHeap::Dispose() {
   }
 }
 
+u32 BaseHeap::GetSystemRangeBase() const {
+  u32 reserved = 0;
+  if (heap_type_ == runtime::HeapType::kGuestVirtual) {
+    reserved = page_size_ == 0x10000 ? 0x0F000000 : 0x10000000;
+  }
+  return heap_base_ + heap_size_ - reserved;
+}
+
 bool BaseHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 protect, bool top_down,
                      u32* out_address) {
   *out_address = 0;
   size = rex::RoundUpNonZero(size, page_size_);
   alignment = rex::RoundUpNonZero(alignment, page_size_);
 
-  // The top is reserved for thread stacks, 0x3XXXXXXX system and 0x7XXXXXXX title.
-  u32 heap_virtual_guest_offset = 0;
-  if (heap_type_ == runtime::HeapType::kGuestVirtual) {
-    heap_virtual_guest_offset = 0x10000000;
-    if (page_size_ == 0x10000) {
-      heap_virtual_guest_offset = 0x0F000000;
-    }
-  }
-
   u32 low_address = heap_base_;
-  u32 high_address = heap_base_ + (heap_size_ - 1) - heap_virtual_guest_offset;
+  u32 high_address = GetSystemRangeBase() - 1;
   return AllocRange(low_address, high_address, size, alignment, allocation_type, protect, top_down,
                     out_address);
 }
@@ -990,7 +989,7 @@ bool BaseHeap::AllocSystemHeap(u32 size, u32 alignment, u32 allocation_type, u32
 
   u32 low_address = heap_base_;
   if (heap_type_ == runtime::HeapType::kGuestVirtual) {
-    low_address = heap_base_ + heap_size_ - 0x10000000;
+    low_address = GetSystemRangeBase();
   }
   u32 high_address = heap_base_ + (heap_size_ - 1);
   return AllocRange(low_address, high_address, size, alignment, allocation_type, protect, top_down,

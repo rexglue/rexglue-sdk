@@ -659,3 +659,21 @@ REX_TEST_CASE("Heap queries reject the page past the heap end", "[memory][heap]"
   rex::runtime::HeapAllocation info{};
   CHECK_FALSE(heap->QueryRegionInfo(past_end, &info));
 }
+
+REX_TEST_CASE("The title range of a virtual heap ends below its system range", "[memory][heap]") {
+  auto& memory = GetTestMemory();
+  constexpr u32 kFlags =
+      rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit;
+  constexpr u32 kProtect = rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite;
+  for (const u32 inside : {0x10000000u, 0x40000000u}) {
+    auto* heap = MutableHeap(memory.LookupHeap(inside));
+    REQUIRE(heap != nullptr);
+    u32 title = 0;
+    u32 system = 0;
+    REQUIRE(heap->Alloc(0x10000, 0x10000, kFlags, kProtect, true, &title));
+    REQUIRE(heap->AllocSystemHeap(0x10000, 0x10000, kFlags, kProtect, false, &system));
+    CHECK(system >= title + 0x10000);
+    heap->Release(title, nullptr);
+    heap->Release(system, nullptr);
+  }
+}

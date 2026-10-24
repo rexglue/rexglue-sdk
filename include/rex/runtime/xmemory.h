@@ -420,6 +420,14 @@ class REX_RUNTIME_API BaseHeap {
   virtual std::unique_lock<rex::platform::RankedMutex> AcquireHostPageReconcileLock() const;
 
   /**
+   * Returns the first address of the range reserved for system allocations. Title allocations end
+   * one byte below it.
+   *
+   * @return The guest address, the end of the heap for a heap without a reserved range.
+   */
+  u32 GetSystemRangeBase() const;
+
+  /**
    * Allocates at a fixed address with the reconcile lock held.
    *
    * @param base_address Guest address to allocate at.
