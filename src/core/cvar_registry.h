@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -97,6 +98,12 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
    */
   void Finalize();
   /**
+   * Makes the cvars reject every change from here, because their value was already read.
+   *
+   * @param names The names to seal. Unknown names are skipped.
+   */
+  void Seal(std::span<const std::string_view> names);
+  /**
    * Removes the values still waiting for a reserved scope to receive the var.
    *
    * @param keep Scopes whose values keep waiting.
@@ -121,7 +128,9 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
     std::string default_override;
     bool has_default_override = false;
     cvar::CvarSource source = cvar::CvarSource::kDefault;
+    std::optional<std::string> saved;
     bool locked = false;
+    bool sealed = false;
   };
   struct Callback {
     u64 id;
@@ -133,6 +142,8 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
   void RemoveCallback(u64 id) override;
   Entry* FindEntry(std::string_view name);
   const Entry* FindEntry(std::string_view name) const;
+  [[nodiscard]] Result<void> CheckNegation(const Entry& entry, const CvarOverride& o) const;
+  [[nodiscard]] Result<void> CheckChangeable(const Entry& entry) const;
   [[nodiscard]] Result<void> Validate(const Entry& entry, std::string_view value,
                                       cvar::CvarSource source) const;
   [[nodiscard]] Result<void> Apply(Entry& entry, std::string_view value, cvar::CvarSource source,

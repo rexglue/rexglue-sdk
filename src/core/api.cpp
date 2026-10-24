@@ -101,6 +101,7 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
                                           std::span<const CLIAction> actions,
                                           std::vector<CLIActionHit>* hits) {
   std::vector<std::string> unknown;
+  bool modules_replaced = false;
   for (const CLIOption& option : args.GetOptions()) {
     if (auto action = std::ranges::find(actions, option.name, &CLIAction::name);
         action != actions.end()) {
@@ -119,6 +120,10 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
         unknown.push_back(text);
         continue;
       }
+      if (field->flag == "--modules" && !modules_replaced) {
+        config.modules.clear();
+        modules_replaced = true;
+      }
       field->apply(config, *option.value);
       continue;
     }
@@ -131,8 +136,11 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
       unknown.push_back(text);
       continue;
     }
-    const std::string value = negated ? "false" : option.value.value_or("true");
-    config.cvars.Set(name, value);
+    if (negated) {
+      config.cvars.SetNegated(name);
+    } else {
+      config.cvars.Set(name, option.value.value_or("true"));
+    }
   }
   return unknown;
 }

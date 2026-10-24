@@ -28,6 +28,8 @@ struct CvarOverride {
   std::string value;
   /** Source the registry stores for the value. */
   cvar::CvarSource source = cvar::CvarSource::kCommandLine;
+  /** True when the command line gave --no-name, which only a bool cvar accepts. */
+  bool negated = false;
 };
 
 /** A consumer table, registered before any module. */
@@ -70,6 +72,14 @@ struct CvarConfig {
    * @param name Dotted cvar name.
    */
   void Lock(std::string_view name) { locked.emplace_back(name); }
+  /**
+   * Appends a false value that came from --no-name.
+   *
+   * @param name Dotted cvar name.
+   */
+  void SetNegated(std::string_view name) {
+    values.push_back({std::string(name), "false", cvar::CvarSource::kCommandLine, true});
+  }
 
   /**
    * Looks up the value Init would apply to a cvar, before Init runs.

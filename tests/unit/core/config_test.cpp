@@ -84,12 +84,21 @@ REX_TEST_CASE("ParseCommandLine fills structural fields and modules", "[core][co
   REQUIRE(cfg.cvars.values.empty());
 }
 
-REX_TEST_CASE("The --modules flag appends to the configured list", "[core][config]") {
+REX_TEST_CASE("The first --modules flag replaces the configured list and later ones append",
+              "[core][config]") {
   rex::Config cfg;
   cfg.modules = {"x"};
   auto rest = Parse(cfg, {"--modules=a", "--modules", "b,c"});
   REQUIRE(rest.empty());
-  REQUIRE(cfg.modules == std::vector<std::string>{"x", "a", "b", "c"});
+  REQUIRE(cfg.modules == std::vector<std::string>{"a", "b", "c"});
+}
+
+REX_TEST_CASE("ParseCommandLine marks a --no- option as negated", "[core][config]") {
+  rex::Config cfg;
+  auto rest = Parse(cfg, {"--no-gpu.markers", "--gpu.vsync=false"});
+  REQUIRE(rest.empty());
+  REQUIRE(Find(cfg, "gpu.markers")->negated);
+  REQUIRE_FALSE(Find(cfg, "gpu.vsync")->negated);
 }
 
 REX_TEST_CASE("ParseCommandLine returns unknown options in order", "[core][config]") {

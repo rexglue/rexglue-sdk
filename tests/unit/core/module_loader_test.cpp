@@ -360,6 +360,27 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects an unparsable command line value",
   REQUIRE_FALSE(Ran("rexmod-test-good:init"));
 }
 
+REX_TEST_CASE_METHOD(Fixture, "Init rejects --no- on a cvar that is not a bool",
+                     "[core][module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.SetNegated("echo.value");
+  auto api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("cvar 'echo.value' is not a bool, so --no-echo.value cannot "
+                                   "set it") != std::string::npos);
+  REQUIRE_FALSE(Ran("rexmod-test-good:init"));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "Init accepts --no- on a bool cvar", "[core][module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.SetNegated("echo.ready");
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  rex::Shutdown();
+}
+
 REX_TEST_CASE_METHOD(Fixture, "Init rejects an unparsable environment value",
                      "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");

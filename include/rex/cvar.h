@@ -52,7 +52,7 @@ enum class Type : u8 {
 /** When a cvar may change. */
 enum class Lifecycle : u8 {
   kHotReload,       /**< Changes take effect at once. */
-  kInitOnly,        /**< Rejects Runtime sets after Init completes. */
+  kInitOnly,        /**< Rejects every change after Init completes. */
   kRequiresRestart, /**< Changes after Init completes mark a restart pending. */
 };
 
@@ -60,7 +60,7 @@ enum class Lifecycle : u8 {
 enum class CvarError : u8 {
   kNotFound = 1,   /**< No cvar or command of that name is registered. */
   kInvalid,        /**< The value does not parse or breaks a constraint. */
-  kInitOnly,       /**< A Runtime set of an InitOnly cvar after Init completes. */
+  kInitOnly,       /**< A change of an InitOnly cvar after Init completes. */
   kLocked,         /**< The cvar is locked. */
   kDuplicateName,  /**< A cvar of that name is already registered or appears twice. */
   kDuplicateScope, /**< A table for that scope is already registered. */
@@ -628,9 +628,14 @@ constexpr std::array<const VarBase*, sizeof...(Vars)> BuildTable(const Vars&... 
 
 template <>
 inline std::optional<bool> ParseValue<bool>(std::string_view text) {
-  if (text == "true" || text == "1" || text == "yes" || text == "on")
+  std::string lower(text);
+  for (char& c : lower) {
+    if (c >= 'A' && c <= 'Z')
+      c = static_cast<char>(c - 'A' + 'a');
+  }
+  if (lower == "true" || lower == "1" || lower == "yes" || lower == "on")
     return true;
-  if (text == "false" || text == "0" || text == "no" || text == "off")
+  if (lower == "false" || lower == "0" || lower == "no" || lower == "off")
     return false;
   return std::nullopt;
 }

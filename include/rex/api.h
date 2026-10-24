@@ -143,8 +143,9 @@ REX_API void Shutdown();
 
 /**
  * Applies command line options to a configuration. Options with a structural field (such as
- * --game_data_root, --modules, --backend) fill that field. --scope.name=value and --scope.name
- * set a cvar, --no-scope.name sets it false.
+ * --game_data_root, --modules, --backend) fill that field. The first --modules replaces the module
+ * list of the configuration and later ones append to it. --scope.name=value and --scope.name set a
+ * cvar, --no-scope.name sets it false and is accepted only for a bool cvar.
  *
  * An option named like a declared action goes to hits and never to the cvars. An action is
  * matched before a structural field and before a cvar, and --no-name is not an action.

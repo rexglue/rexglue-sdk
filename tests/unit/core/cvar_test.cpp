@@ -287,6 +287,64 @@ REX_TEST_CASE_METHOD(Fixture, "Lock rejects Set and keeps applied values", "[cor
   REQUIRE(test_cvars::count.Parse("42"));
 }
 
+REX_TEST_CASE_METHOD(Fixture, "Lock rejects every path that changes the value", "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  std::vector<std::string> locks = {"test.count"};
+  REQUIRE(GetRegistry().ApplyLocks(locks));
+  const auto locked = static_cast<int>(rex::cvar::CvarError::kLocked);
+  auto set = GetRegistry().Set("test.count", "13");
+  REQUIRE_FALSE(set);
+  CHECK(set.error().code == locked);
+  auto set_default = GetRegistry().SetDefault("test.count", "13");
+  REQUIRE_FALSE(set_default);
+  CHECK(set_default.error().code == locked);
+  auto reset = GetRegistry().ResetToDefault("test.count");
+  REQUIRE_FALSE(reset);
+  CHECK(reset.error().code == locked);
+  CHECK(test_cvars::count.Get() == 42);
+  CHECK(Var("test.count").GetDefaultText() == "42");
+  REQUIRE(test_cvars::count.Parse("42"));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "InitOnly rejects every path that changes the value once finalized",
+                     "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  REQUIRE(GetRegistry().SetDefault("test.once", "5"));
+  std::vector<rex::CvarOverride> cfg = {{"test.once", "6", rex::cvar::CvarSource::kConfig}};
+  REQUIRE(GetRegistry().ApplyOverrides(cfg));
+  CHECK(test_cvars::once.Get() == 6);
+  GetRegistry().Finalize();
+  const auto init_only = static_cast<int>(rex::cvar::CvarError::kInitOnly);
+  auto set = GetRegistry().Set("test.once", "7");
+  REQUIRE_FALSE(set);
+  CHECK(set.error().code == init_only);
+  auto set_default = GetRegistry().SetDefault("test.once", "7");
+  REQUIRE_FALSE(set_default);
+  CHECK(set_default.error().code == init_only);
+  auto reset = GetRegistry().ResetToDefault("test.once");
+  REQUIRE_FALSE(reset);
+  CHECK(reset.error().code == init_only);
+  CHECK(test_cvars::once.Get() == 6);
+  REQUIRE(test_cvars::once.Parse("1"));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "Seal rejects changes before Finalize", "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  REQUIRE(GetRegistry().Set("test.count", "3"));
+  const std::array<std::string_view, 2> names = {"test.count", "test.nope"};
+  GetRegistry().Seal(names);
+  const auto init_only = static_cast<int>(rex::cvar::CvarError::kInitOnly);
+  auto set = GetRegistry().Set("test.count", "4");
+  REQUIRE_FALSE(set);
+  CHECK(set.error().code == init_only);
+  CHECK_FALSE(GetRegistry().SetDefault("test.count", "4"));
+  CHECK_FALSE(GetRegistry().ResetToDefault("test.count"));
+  CHECK(test_cvars::count.Get() == 3);
+  REQUIRE(GetRegistry().Set("test.flag", "false"));
+  REQUIRE(test_cvars::count.Parse("42"));
+  REQUIRE(test_cvars::flag.Parse("true"));
+}
+
 REX_TEST_CASE_METHOD(Fixture, "Constraints reject with Invalid and keep the value",
                      "[core][cvar]") {
   REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
@@ -404,6 +462,63 @@ REX_TEST_CASE_METHOD(Fixture, "Serialize writes scoped tables of non default val
   REQUIRE(test_cvars::count.Parse("42"));
   REQUIRE(test_cvars::word.Parse("abc"));
   REQUIRE(test_cvars::flag2.Parse("false"));
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "Serialize skips values that came from the environment or command line",
+                     "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  std::vector<rex::CvarOverride> env = {{"test.count", "11", rex::cvar::CvarSource::kEnvironment}};
+  std::vector<rex::CvarOverride> cli = {
+      {"test.ratio", "0.25", rex::cvar::CvarSource::kCommandLine}};
+  REQUIRE(GetRegistry().ApplyOverrides(env));
+  REQUIRE(GetRegistry().ApplyOverrides(cli));
+  REQUIRE(test_cvars::count.Get() == 11);
+  REQUIRE(GetRegistry().Serialize().empty());
+  REQUIRE(test_cvars::count.Parse("42"));
+  REQUIRE(test_cvars::ratio.Parse("0.5"));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "Serialize writes a value that came from the config file",
+                     "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  std::vector<rex::CvarOverride> cfg = {{"test.count", "7", rex::cvar::CvarSource::kConfig}};
+  REQUIRE(GetRegistry().ApplyOverrides(cfg));
+  REQUIRE(GetRegistry().Serialize().find("count = 7\n") != std::string::npos);
+  REQUIRE(test_cvars::count.Parse("42"));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "Serialize keeps the config value that a stronger source overrode",
+                     "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  std::vector<rex::CvarOverride> both = {
+      {"test.count", "9", rex::cvar::CvarSource::kCommandLine},
+      {"test.count", "7", rex::cvar::CvarSource::kConfig},
+  };
+  REQUIRE(GetRegistry().ApplyOverrides(both));
+  REQUIRE(test_cvars::count.Get() == 9);
+  REQUIRE(GetRegistry().Serialize().find("count = 7\n") != std::string::npos);
+  REQUIRE(test_cvars::count.Parse("42"));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "Serialize forgets a value after ResetToDefault", "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  REQUIRE(GetRegistry().Set("test.count", "7"));
+  REQUIRE(GetRegistry().ResetToDefault("test.count"));
+  REQUIRE(GetRegistry().Serialize().empty());
+}
+
+REX_TEST_CASE_METHOD(Fixture, "A bool accepts its words in any case", "[core][cvar]") {
+  REQUIRE(GetRegistry().Register("test", test_cvars::kTestCvars));
+  REQUIRE(GetRegistry().Set("test.flag", "oFf"));
+  REQUIRE_FALSE(test_cvars::flag.Get());
+  REQUIRE(GetRegistry().Set("test.flag", "Yes"));
+  REQUIRE(test_cvars::flag.Get());
+  REQUIRE(GetRegistry().Set("test.flag", "FALSE"));
+  REQUIRE_FALSE(test_cvars::flag.Get());
+  REQUIRE(GetRegistry().Set("test.flag", "TRUE"));
+  REQUIRE(test_cvars::flag.Get());
+  REQUIRE_FALSE(GetRegistry().Set("test.flag", "maybe"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes survive",

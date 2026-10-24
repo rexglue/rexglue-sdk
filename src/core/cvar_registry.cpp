@@ -209,8 +209,8 @@ void CvarRegistryImpl::ApplyPending(Entry& entry, Fired& fired) {
     for (const CvarOverride& o : pending_) {
       if (o.source != source || o.name != name)
         continue;
-      Result<void> status = Ok();
-      if (source == CvarSource::kDefault) {
+      Result<void> status = CheckNegation(entry, o);
+      if (status && source == CvarSource::kDefault) {
         status = Validate(entry, o.value, source);
         if (status) {
           entry.default_override = o.value;
@@ -254,6 +254,16 @@ void CvarRegistryImpl::Unregister(std::span<const VarBase* const> vars) {
   });
 }
 
+Result<void> CvarRegistryImpl::CheckNegation(const Entry& entry, const CvarOverride& o) const {
+  const CvarDesc& d = entry.var->GetDesc();
+  if (o.negated && d.type != cvar::Type::kBool) {
+    return Err(BuildError(
+        E::kInvalid,
+        std::format("cvar '{}' is not a bool, so --no-{} cannot set it", d.name, d.name)));
+  }
+  return Ok();
+}
+
 Result<void> CvarRegistryImpl::Validate(const Entry& entry, std::string_view value,
                                         CvarSource source) const {
   const CvarDesc& d = entry.var->GetDesc();
@@ -282,18 +292,33 @@ Result<void> CvarRegistryImpl::Validate(const Entry& entry, std::string_view val
   return Ok();
 }
 
+Result<void> CvarRegistryImpl::CheckChangeable(const Entry& entry) const {
+  const CvarDesc& d = entry.var->GetDesc();
+  if (entry.locked) {
+    return Err(BuildError(E::kLocked, std::format("cvar '{}' is locked", d.name)));
+  }
+  if (entry.sealed) {
+    return Err(BuildError(
+        E::kInitOnly,
+        std::format("cvar '{}' was read when the modules connected, so it can only be set "
+                    "before that",
+                    d.name)));
+  }
+  if (finalized_ && d.lifecycle == cvar::Lifecycle::kInitOnly) {
+    return Err(BuildError(E::kInitOnly,
+                          std::format("cvar '{}' can only be set before Init completes", d.name)));
+  }
+  return Ok();
+}
+
 Result<void> CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarSource source,
                                      Fired& fired) {
   const CvarDesc& d = entry.var->GetDesc();
   if (d.type == cvar::Type::kCommand) {
     return Err(BuildError(E::kNotAVar, std::format("'{}' is a command", d.name)));
   }
-  if (entry.locked && source == CvarSource::kRuntime) {
-    return Err(BuildError(E::kLocked, std::format("cvar '{}' is locked", d.name)));
-  }
-  if (finalized_ && d.lifecycle == cvar::Lifecycle::kInitOnly && source == CvarSource::kRuntime) {
-    return Err(BuildError(E::kInitOnly,
-                          std::format("cvar '{}' can only be set before Init completes", d.name)));
+  if (source == CvarSource::kRuntime) {
+    REX_TRY_VOID(CheckChangeable(entry));
   }
   REX_TRY_VOID(Validate(entry, value, source));
   std::string before = entry.var->Render();
@@ -304,6 +329,11 @@ Result<void> CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarS
                                             value, SourceName(source), status.error().message)));
   }
   entry.source = source;
+  if (source == CvarSource::kConfig || source == CvarSource::kRuntime) {
+    entry.saved = entry.var->Render();
+  } else if (source == CvarSource::kDefault) {
+    entry.saved.reset();
+  }
   if (finalized_ && source == CvarSource::kRuntime &&
       d.lifecycle == cvar::Lifecycle::kRequiresRestart &&
       std::ranges::find(pending_restart_, d.name) == pending_restart_.end()) {
@@ -368,6 +398,7 @@ Result<void> CvarRegistryImpl::SetDefault(std::string_view name, std::string_vie
     Entry* entry = FindEntry(name);
     if (!entry)
       return Err(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
+    REX_TRY_VOID(CheckChangeable(*entry));
     REX_TRY_VOID(Validate(*entry, value, CvarSource::kDefault));
     entry->default_override = std::string(value);
     entry->has_default_override = true;
@@ -395,6 +426,7 @@ Result<void> CvarRegistryImpl::ResetToDefault(std::string_view name) {
     Entry* entry = FindEntry(name);
     if (!entry)
       return Err(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
+    REX_TRY_VOID(CheckChangeable(*entry));
     std::string value(GetDefault(*entry));
     REX_TRY_VOID(Apply(*entry, value, CvarSource::kDefault, fired));
   }
@@ -480,7 +512,9 @@ std::string CvarRegistryImpl::Serialize() const {
       continue;
     if (d.no_save)
       continue;
-    std::string value = e.var->Render();
+    if (!e.saved)
+      continue;
+    const std::string& value = *e.saved;
     if (value == GetDefault(e))
       continue;
     std::string_view leaf = d.name.substr(d.name.find('.') + 1);
@@ -523,6 +557,7 @@ Result<std::vector<CvarOverride>> CvarRegistryImpl::ApplyOverrides(
           }
           continue;
         }
+        REX_TRY_VOID(CheckNegation(*entry, o));
         if (source == CvarSource::kDefault) {
           REX_TRY_VOID(Validate(*entry, o.value, source));
           entry->default_override = o.value;
@@ -553,6 +588,15 @@ Result<void> CvarRegistryImpl::ApplyLocks(std::span<const std::string> names) {
 void CvarRegistryImpl::Finalize() {
   std::lock_guard lock(mutex_);
   finalized_ = true;
+}
+
+void CvarRegistryImpl::Seal(std::span<const std::string_view> names) {
+  std::lock_guard lock(mutex_);
+  for (std::string_view name : names) {
+    if (Entry* entry = FindEntry(name)) {
+      entry->sealed = true;
+    }
+  }
 }
 
 std::vector<CvarOverride> CvarRegistryImpl::TakePending(std::span<const std::string_view> keep) {

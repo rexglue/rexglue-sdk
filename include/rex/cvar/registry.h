@@ -92,7 +92,8 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    */
   [[nodiscard]] virtual Result<std::string> Get(std::string_view name) const = 0;
   /**
-   * Changes the default and applies it when the current source is Default.
+   * Changes the default and applies it when the current source is Default. Fails like Set for a
+   * locked cvar and for an InitOnly cvar after finalize.
    *
    * @param name Dotted cvar name such as gpu.vsync.
    * @param value The new default as text.
@@ -100,17 +101,19 @@ REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
    */
   [[nodiscard]] virtual Result<void> SetDefault(std::string_view name, std::string_view value) = 0;
   /**
-   * Locks a cvar so every later Set fails with Locked. Values applied stay.
+   * Locks a cvar so every later Set, SetDefault and ResetToDefault fails with Locked. Values
+   * applied stay.
    *
    * @param name Dotted cvar name such as gpu.vsync.
    * @return Ok, or NotFound.
    */
   [[nodiscard]] virtual Result<void> Lock(std::string_view name) = 0;
   /**
-   * Restores the default, the source becomes Default, callbacks fire.
+   * Restores the default, the source becomes Default, callbacks fire. Fails like Set for a locked
+   * cvar and for an InitOnly cvar after finalize.
    *
    * @param name Dotted cvar name such as gpu.vsync.
-   * @return Ok, or NotFound.
+   * @return Ok, or NotFound, InitOnly or Locked.
    */
   [[nodiscard]] virtual Result<void> ResetToDefault(std::string_view name) = 0;
   /**
