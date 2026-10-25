@@ -47,6 +47,9 @@ class AllocModule {
 }  // namespace
 
 REX_TEST_CASE("A vector made in a module is freed by the executable", "[core][memory][module]") {
+  if (rex::test::kThreadSanitizer) {
+    SKIP("ThreadSanitizer owns operator new and delete");
+  }
   AllocModule module;
   std::vector<int>* made = module->make_vector(1000);
   REQUIRE(made != nullptr);
@@ -57,6 +60,9 @@ REX_TEST_CASE("A vector made in a module is freed by the executable", "[core][me
 }
 
 REX_TEST_CASE("A string grown in a module is freed by the executable", "[core][memory][module]") {
+  if (rex::test::kThreadSanitizer) {
+    SKIP("ThreadSanitizer owns operator new and delete");
+  }
   AllocModule module;
   std::string text;
   module->fill_string(text, 4096);
@@ -67,12 +73,18 @@ REX_TEST_CASE("A string grown in a module is freed by the executable", "[core][m
 }
 
 REX_TEST_CASE("An object made by the executable is deleted in a module", "[core][memory][module]") {
+  if (rex::test::kThreadSanitizer) {
+    SKIP("ThreadSanitizer owns operator new and delete");
+  }
   AllocModule module;
   module->delete_int(new int(5));
   module->delete_array(new int[64]);
 }
 
 REX_TEST_CASE("An array made in a module is deleted by the executable", "[core][memory][module]") {
+  if (rex::test::kThreadSanitizer) {
+    SKIP("ThreadSanitizer owns operator new and delete");
+  }
   AllocModule module;
   int* made = module->make_array(64);
   REQUIRE(made != nullptr);
@@ -82,6 +94,9 @@ REX_TEST_CASE("An array made in a module is deleted by the executable", "[core][
 
 REX_TEST_CASE("An over aligned object crosses the module boundary both ways",
               "[core][memory][module]") {
+  if (rex::test::kThreadSanitizer) {
+    SKIP("ThreadSanitizer owns operator new and delete");
+  }
   AllocModule module;
   rex::test::OverAligned* from_module = module->make_over_aligned();
   REQUIRE(from_module != nullptr);

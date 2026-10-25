@@ -237,11 +237,6 @@ if (REXGLUE_ENABLE_SANITIZERS)
   add_link_options(-fsanitize=undefined -fno-sanitize=vptr)
 endif ()
 
-if (REXGLUE_ENABLE_TSAN)
-  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer -g)
-  add_link_options(-fsanitize=thread)
-endif ()
-
 if (REXGLUE_BUILD_TESTS)
   list(APPEND CMAKE_MODULE_PATH "${REXGLUE_ROOT}/cmake")
   list(APPEND CMAKE_MODULE_PATH "${REXGLUE_ROOT}/thirdparty/catch2/extras")
@@ -249,6 +244,12 @@ endif ()
 
 # Third party dependencies (vendored sources only)
 add_subdirectory(thirdparty)
+
+# ThreadSanitizer covers SDK targets only, vendored shared libraries do not link its runtime
+if (REXGLUE_ENABLE_TSAN)
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer -g)
+  add_link_options(-fsanitize=thread)
+endif ()
 
 # Enable warnings after thirdparty
 add_compile_options(

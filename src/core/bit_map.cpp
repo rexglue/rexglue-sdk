@@ -38,7 +38,7 @@ size_t BitMap::Acquire() {
     i64 acquired_idx = -1;
 
     do {
-      entry = data_[i];
+      entry = std::atomic_ref<u64>(data_[i]).load(std::memory_order_relaxed);
       u8 index = lzcnt(entry);
       if (index == kDataSizeBits) {
         acquired_idx = -1;

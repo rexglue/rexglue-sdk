@@ -1,3 +1,11 @@
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define REX_HOST_ALLOC_SANITIZED 1
+#endif
+#endif
+
+#ifndef REX_HOST_ALLOC_SANITIZED
+
 #include <cstddef>
 #include <new>
 
@@ -86,3 +94,5 @@ void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcep
 void operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
   DeleteBlock(ptr, 0, Kind::kArray);
 }
+
+#endif

@@ -10,6 +10,7 @@
 
 #include <rex/net/socket.h>
 #include <rex/platform.h>
+#include <rex/platform/exceptions.h>
 #include <rex/platform/thread.h>
 
 static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only");
@@ -54,6 +55,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <unistd.h>
 
 #include <rex/assert.h>
+#include <rex/fail.h>
 #include <rex/chrono/chrono_steady_cast.h>
 #include <rex/logging/log.h>
 #include <rex/platform/timer_queue.h>
@@ -1480,17 +1482,6 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
-  [[noreturn]] void ExitCurrent(int exit_code) {
-    {
-      std::unique_lock lock(state_mutex_);
-      state_ = State::kFinished;
-    }
-    PosixCondition<Mutant>::AbandonOwnedBy(thread_);
-    SignalExit(exit_code);
-    // NOLINTNEXTLINE(performance-no-int-to-ptr): pthread passes the value as a void pointer
-    pthread_exit(reinterpret_cast<void*>(exit_code));
-  }
-
   void WaitStarted() const {
     std::unique_lock lock(state_mutex_);
     state_mutex_.Wait(state_signal_, [this] { return state_ != State::kUninitialized; });
@@ -2023,8 +2014,6 @@ class PosixThread : public PosixConditionHandle<Thread> {
     return handle_.Redirect(filter, context, target);
   }
 
-  [[noreturn]] void ExitCurrent(int exit_code) { handle_.ExitCurrent(exit_code); }
-
   void WaitSuspended() { handle_.WaitSuspended(); }
 
   bool SuspendIf(RedirectFilter filter, void* context) override {
@@ -2040,6 +2029,7 @@ class PosixThread : public PosixConditionHandle<Thread> {
 
 thread_local PosixThread* g_current_thread = nullptr;
 thread_local std::unique_ptr<PosixThread> g_owned_current_thread;
+thread_local bool g_catches_exit = false;
 
 void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 #if !REX_PLATFORM_ANDROID
@@ -2078,7 +2068,14 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
                                       [thread] { return thread->handle_.suspend_count_ == 0; });
   }
 
-  start_routine();
+  i32 exit_code = 0;
+  g_catches_exit = true;
+  try {
+    start_routine();
+  } catch (const ThreadStop& stop) {
+    exit_code = stop.exit_code;
+  }
+  g_catches_exit = false;
 
   PosixCondition<Mutant>::AbandonOwnedBy(pthread_self());
   {
@@ -2086,7 +2083,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
     thread->handle_.state_ = State::kFinished;
   }
 
-  thread->handle_.SignalExit(0);
+  thread->handle_.SignalExit(exit_code);
 
   g_current_thread = nullptr;
   g_current_thread_condition = nullptr;
@@ -2123,14 +2120,10 @@ Thread* Thread::GetCurrentThread() {
 }
 
 void Thread::Exit(int exit_code) {
-  if (g_current_thread) {
-    g_current_thread->ExitCurrent(exit_code);
-  } else {
-    // No current_thread means the thread was not created by Thread::Create.
-    // NOLINTNEXTLINE(performance-no-int-to-ptr): pthread passes the value as a void pointer
-    pthread_exit(reinterpret_cast<void*>(exit_code));
+  if (!g_catches_exit) {
+    REX_FATAL(system, "Thread::Exit called on a thread that Thread::Create did not start");
   }
-  REX_ASSERT_ALWAYS();
+  throw ThreadStop{exit_code};
 }
 
 void SetCurrentThreadName(const std::string_view name) {

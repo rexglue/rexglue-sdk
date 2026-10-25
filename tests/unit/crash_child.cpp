@@ -181,13 +181,13 @@ int RunWatchRace() {
   constexpr int kRounds = 300;
   std::atomic<int> round{0};
   std::atomic<int> finished{0};
-  auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
+  auto* host = memory.TranslateVirtual<rex::u32*>(address);
   const auto writer = [&](rex::u32 value) {
     for (int next = 1; next <= kRounds; ++next) {
       while (round.load(std::memory_order_acquire) < next) {
         std::this_thread::yield();
       }
-      *host = value;
+      std::atomic_ref<rex::u32>(*host).store(value, std::memory_order_relaxed);
       finished.fetch_add(1);
     }
   };

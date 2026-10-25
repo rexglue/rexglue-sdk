@@ -121,6 +121,9 @@ constexpr Form kForms[] = {
 
 REX_TEST_CASE("Every replaceable operator new and delete form reaches the host allocator",
               "[core][memory]") {
+  if (rex::test::kThreadSanitizer) {
+    SKIP("ThreadSanitizer owns operator new and delete");
+  }
   for (const Form& form : kForms) {
     DYNAMIC_SECTION(form.name) {
       const auto before = rex::memory::GetHostStats();

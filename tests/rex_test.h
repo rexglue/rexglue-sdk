@@ -44,6 +44,19 @@ struct StringMaker<std::vector<unsigned char>> {
 namespace rex::test {
 
 /**
+ * True when the test binary is built with ThreadSanitizer.
+ */
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+inline constexpr bool kThreadSanitizer = true;
+#else
+inline constexpr bool kThreadSanitizer = false;
+#endif
+#else
+inline constexpr bool kThreadSanitizer = false;
+#endif
+
+/**
  * Registers an event listener through a noexcept function, so no throwing constructor runs
  * during static initialization.
  *
