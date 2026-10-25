@@ -619,6 +619,19 @@ class TextureCache {
                           PendingSharedMemoryRange* pending_ranges_out,
                           size_t& pending_range_count_out);
   bool CommitPreparedTextureLoad(const PendingTextureLoad& pending_load);
+  // Where a failed texture load was detected, for the optional failure log.
+  enum class LoadFailureSite : uint8_t {
+    kPrepare,       // Residency or backend failure while committing a prepared load.
+    kBatchRequest,  // The batched shared memory request in RequestTextures failed.
+    kRetry,         // The individual shared memory retry after a batch failure also failed.
+    kDirect,        // LoadTextureData's own shared memory request failed.
+  };
+  bool LoadTextureDataForSite(Texture& texture, LoadFailureSite site);
+  // Logs a bounded receipt when texture_load_failure_log is enabled and, with
+  // texture_load_failure_retry, schedules binding reconsideration (both sampled
+  // once per frame). Called after the outdated bits have been restored.
+  void OnTextureLoadFailure(LoadFailureSite site, const Texture& texture, bool load_base,
+                            bool load_mips);
 
   void UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract);
 

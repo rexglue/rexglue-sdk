@@ -19,6 +19,9 @@
 #include <rex/graphics/shared_memory.h>
 #include <rex/math.h>
 #include <rex/memory.h>
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../tests/internal_d3d12_texture_fixture/fixture.h"
+#endif
 
 namespace rex::graphics {
 
@@ -48,6 +51,9 @@ void SharedMemory::InitializeSparseHostGpuMemory(uint32_t granularity_log2) {
 }
 
 void SharedMemory::ShutdownCommon() {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  d3d12::fixture::TraceLifecycle(this, 1);
+#endif
   FireWatches(0, (kBufferSize - 1) >> page_size_log2_, false);
   assert_true(global_watches_.empty());
   // No watches now, so no references to the pools accessible by guest threads -
@@ -106,6 +112,9 @@ void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
 }
 
 void SharedMemory::ClearCache() {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  d3d12::fixture::TraceLifecycle(this, 2);
+#endif
   // Keeping GPU-written data, so "invalidated by GPU".
   FireWatches(0, (kBufferSize - 1) >> page_size_log2_, true);
   // No watches now, so no references to the pools accessible by guest threads -
@@ -230,6 +239,9 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last, bool inv
   uint32_t bucket_last = address_last >> kWatchBucketSizeLog2;
 
   auto global_lock = global_critical_region_.Acquire();
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  d3d12::fixture::TraceInvalidation(this, address_first, address_last, invalidated_by_gpu);
+#endif
 
   // Fire global watches.
   for (const auto global_watch : global_watches_) {
@@ -420,7 +432,8 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
   }
 
   // Validity is changed under the global lock, so every decision based on it
-  // must hold that lock: https://github.com/birabittoh/rexglue-sdk/commit/f8bb00010bd3ec08b0be5b3c8342ef967984d73a
+  // must hold that lock:
+  // https://github.com/birabittoh/rexglue-sdk/commit/f8bb00010bd3ec08b0be5b3c8342ef967984d73a
   upload_ranges_.clear();
   auto append_upload_range = [this](uint32_t page_start, uint32_t page_count) {
     if (!page_count) {

@@ -204,6 +204,9 @@ class OriginalObservation final : public DrawCaptureFrameInputObserver {
   }
 
   bool OnDraw(const DrawCaptureFrameInputDrawView& draw) override {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE_CALLER)
+    test_fixture::ObserveDraw(draw);
+#endif
     {
       std::lock_guard lock(mutex_);
       DrawRecord record;
@@ -230,6 +233,9 @@ class OriginalObservation final : public DrawCaptureFrameInputObserver {
   }
 
   bool OnCopy(const DrawCaptureFrameInputCopyView& copy) override {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE_CALLER)
+    test_fixture::ObserveCopy(copy);
+#endif
     {
       std::lock_guard lock(mutex_);
       copies_.push_back({copy.id, copy.frame, copy.submission, std::string(copy.copy_mode),
@@ -251,6 +257,9 @@ class OriginalObservation final : public DrawCaptureFrameInputObserver {
   }
 
   bool OnFrameEnd(uint64_t frame, uint64_t submission, bool original_succeeded) override {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE_CALLER)
+    test_fixture::ObserveEnd(frame, submission, original_succeeded);
+#endif
     {
       std::lock_guard lock(mutex_);
       ++end_count_;

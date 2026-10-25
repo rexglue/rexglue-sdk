@@ -101,6 +101,10 @@ static auto frame_input_costs_registrar = rex::cvar::FlagRegistrar(
      .default_value = "false",
      .is_debug_only = false},
     rex::cvar::Audience::kAdvanced, rex::cvar::Persistence::kSessionOnly);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../tests/internal_d3d12_texture_fixture/receipt.h"
+#endif
+
 namespace rex::graphics::d3d12 {
 
 namespace {
@@ -2208,6 +2212,9 @@ bool D3D12CommandProcessor::SetupContext() {
 }
 
 void D3D12CommandProcessor::ShutdownContext() {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture::TraceLifecycle(this, 3);
+#endif
   // Retire CPU watches even if draining the GPU queue fails below.
   frame_input_buffer_versions_.reset();
   // The native sideband holds references to both owners. Retire it at the
@@ -2658,6 +2665,11 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
   const auto& regs = *register_file_;
   auto fetch = regs.GetTextureFetch(0);
   SwapContentKey swap_content_key;
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture::TraceBind(this, texture_cache_.get(), shared_memory_.get());
+  fixture::TraceContext(this, 0, frame_current_, submission_current_);
+  fixture::DrawContext(this, 0, frame_current_, submission_current_);
+#endif
   ID3D12Resource* swap_texture_resource = texture_cache_->RequestSwapTexture(
       swap_texture_srv_desc, frontbuffer_format, &frontbuffer_width_unscaled,
       &frontbuffer_height_unscaled, &swap_content_key);
@@ -3711,9 +3723,8 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
             break;
           }
         }
-        // Keep one canonical copy per frame. The identity includes the cache
-        // instance and its watched-data generation, so a recreated or mutated
-        // resource can never reuse stale bytes.
+        // Keep one canonical copy per frame for each cache instance and watched-data generation
+        // that is stable and clean after the texture load attempt.
         capture.textures.emplace_back();
         LiveFrameTextureReadback& texture_readback = capture.textures.back();
         texture_readback.use = use;
@@ -3733,9 +3744,23 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
                 ? kLiveFrameMaxReadbackBytes - frame.readback_bytes
                 : 0;
         D3D12TextureCache::TextureCaptureIdentity identity;
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+        const size_t fixture_map_size = frame.texture_capture_indices.size();
+        const size_t fixture_capture_count = frame.texture_captures.size();
+        const uint64_t fixture_readback_bytes = frame.readback_bytes;
+#endif
         const D3D12TextureCache::TextureCaptureResult identity_result =
             texture_cache_->GetActiveTextureCaptureIdentity(binding, identity);
         if (identity_result == D3D12TextureCache::TextureCaptureResult::kUnresolved) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+          if (identity.texture_instance_id || identity.content_generation ||
+              fixture_map_size != frame.texture_capture_indices.size() ||
+              fixture_capture_count != frame.texture_captures.size() ||
+              fixture_readback_bytes != frame.readback_bytes)
+            fixture::Error(25);
+          fixture::Rejected(event_id, frame.texture_capture_indices.size(),
+                            frame.texture_captures.size(), frame.readback_bytes);
+#endif
           texture_readback.use.availability = diagnostic::DrawCaptureAvailability::kUnavailable;
           texture_readback.use.unavailable_reason =
               diagnostic::DrawCaptureReason::kTextureUnresolved;
@@ -3767,22 +3792,38 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
           }
           continue;
         }
-        const auto existing = frame.texture_capture_indices.find(identity);
-        if (existing != frame.texture_capture_indices.end()) {
-          texture_readback.capture_index = existing->second;
-          texture_readback.use.data_available = true;
-          texture_readback.use.availability = diagnostic::DrawCaptureAvailability::kComplete;
-          continue;
+        bool independent = false;
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+        independent = fixture::Select(this, event_id, stage, uint32_t(binding_index),
+                                      binding.fetch_constant, binding.is_signed,
+                                      identity.texture_instance_id, identity.content_generation);
+#endif
+        if (!independent) {
+          const auto existing = frame.texture_capture_indices.find(identity);
+          if (existing != frame.texture_capture_indices.end()) {
+            texture_readback.capture_index = existing->second;
+            texture_readback.use.data_available = true;
+            texture_readback.use.availability = diagnostic::DrawCaptureAvailability::kComplete;
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+            fixture::Use(event_id, existing->second,
+                         reinterpret_cast<uint64_t>(
+                             frame.texture_captures[existing->second].capture.buffer.Get()),
+                         0, true);
+#endif
+            continue;
+          }
         }
         const uint32_t capture_index = uint32_t(frame.texture_captures.size());
-        frame.texture_capture_indices.emplace(identity, capture_index);
+        if (!independent)
+          frame.texture_capture_indices.emplace(identity, capture_index);
         frame.texture_captures.emplace_back();
         const D3D12TextureCache::TextureCaptureResult result =
             texture_cache_->ScheduleActiveTextureCapture(
                 binding, frame.texture_captures.back().capture, remaining_readback_bytes);
-        if (result == D3D12TextureCache::TextureCaptureResult::kCaptured &&
+        if (!independent && result == D3D12TextureCache::TextureCaptureResult::kCaptured &&
             frame.texture_captures.back().capture.identity != identity) {
-          frame.texture_capture_indices.erase(identity);
+          if (!independent)
+            frame.texture_capture_indices.erase(identity);
           frame.texture_capture_indices.emplace(frame.texture_captures.back().capture.identity,
                                                 capture_index);
         }
@@ -3793,7 +3834,8 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
           capture.texture_bindings_complete = false;
           capture.acquisition = diagnostic::DrawCaptureAvailability::kPartial;
           capture.acquisition_reason = texture_readback.use.unavailable_reason;
-          frame.texture_capture_indices.erase(identity);
+          if (!independent)
+            frame.texture_capture_indices.erase(identity);
           frame.texture_captures.pop_back();
           continue;
         }
@@ -3804,7 +3846,8 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
           capture.texture_bindings_complete = false;
           capture.acquisition = diagnostic::DrawCaptureAvailability::kPartial;
           capture.acquisition_reason = texture_readback.use.unavailable_reason;
-          frame.texture_capture_indices.erase(identity);
+          if (!independent)
+            frame.texture_capture_indices.erase(identity);
           frame.texture_captures.pop_back();
           continue;
         }
@@ -3814,7 +3857,8 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
           capture.texture_bindings_complete = false;
           capture.acquisition = diagnostic::DrawCaptureAvailability::kPartial;
           capture.acquisition_reason = texture_readback.use.unavailable_reason;
-          frame.texture_capture_indices.erase(identity);
+          if (!independent)
+            frame.texture_capture_indices.erase(identity);
           frame.texture_captures.pop_back();
           continue;
         }
@@ -3824,7 +3868,8 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
           capture.texture_bindings_complete = false;
           capture.acquisition = diagnostic::DrawCaptureAvailability::kPartial;
           capture.acquisition_reason = texture_readback.use.unavailable_reason;
-          frame.texture_capture_indices.erase(identity);
+          if (!independent)
+            frame.texture_capture_indices.erase(identity);
           frame.texture_captures.pop_back();
           continue;
         }
@@ -3839,6 +3884,13 @@ D3D12CommandProcessor::LiveFrameDrawScheduleResult D3D12CommandProcessor::Schedu
         texture_readback.capture_index = capture_index;
         texture_readback.use.data_available = true;
         texture_readback.use.availability = diagnostic::DrawCaptureAvailability::kComplete;
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+        if (independent && frame.texture_captures.back().capture.identity != identity)
+          fixture::Error(22);
+        fixture::Use(event_id, capture_index,
+                     reinterpret_cast<uint64_t>(frame.texture_captures.back().capture.buffer.Get()),
+                     frame.texture_captures.back().capture.buffer_size, false);
+#endif
       }
       return true;
     };
@@ -4118,7 +4170,12 @@ void D3D12CommandProcessor::FinalizeLiveFrameCapture(uint64_t completed_frame,
   std::shared_ptr<diagnostic::DrawCaptureFrameSnapshot> snapshot =
       frame_capture_->TakeOwnedFrame(completed_frame, completed_submission);
   if (!snapshot) {
-    FailLiveFrameCapture("owned_frame_journal_failed");
+    const std::string reason = fmt::format(
+        "owned_frame_journal_failed: {} after {} events, {} bytes",
+        frame_capture_->failure_reason().empty() ? "snapshot_build_failed"
+                                                 : frame_capture_->failure_reason(),
+        frame_capture_->event_count(), frame_capture_->bytes_used());
+    FailLiveFrameCapture(reason.c_str());
     return;
   }
 
@@ -4778,6 +4835,10 @@ diagnostic::DrawCaptureGuestMemoryVersion D3D12CommandProcessor::GetFrameInputBu
 void D3D12CommandProcessor::RefreshFrameInputObserver() {
   const auto mailbox = diagnostic::GetDrawCaptureMailbox();
   if (!mailbox->HasFrameInputObserver()) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    if (frame_input_observer_token_)
+      fixture::TraceLifecycle(this, 4);
+#endif
     frame_input_buffer_versions_.reset();
     frame_input_native_sources_.reset();
     frame_input_native_source_address_ = frame_input_native_source_length_ = 0;
@@ -4795,6 +4856,10 @@ void D3D12CommandProcessor::RefreshFrameInputObserver() {
   LogFrameInputCosts(
       frame_input_costs.Bind(REXCVAR_GET(d3d12_frame_input_costs), this, token.value));
   if (token != frame_input_observer_token_) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    if (frame_input_observer_token_)
+      fixture::TraceLifecycle(this, 5);
+#endif
     frame_input_buffer_versions_.reset();
     frame_input_native_sources_.reset();
     frame_input_native_source_address_ = frame_input_native_source_length_ = 0;
@@ -4901,10 +4966,16 @@ void D3D12CommandProcessor::DispatchFrameInputDraw(
                           : static_cast<uint32_t>(index_buffer_info->length);
   }
   auto dispatch_draw = [&] {
-    return ObserveFrameInputCallback(costs, FrameInputCosts::Stage::kDrawCallback, [&] {
-      return prepared ? mailbox->DispatchFrameInputPreparedDraw(token, draw)
-                      : mailbox->DispatchFrameInputDraw(token, draw);
-    });
+    const bool accepted =
+        ObserveFrameInputCallback(costs, FrameInputCosts::Stage::kDrawCallback, [&] {
+          return prepared ? mailbox->DispatchFrameInputPreparedDraw(token, draw)
+                          : mailbox->DispatchFrameInputDraw(token, draw);
+        });
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    fixture::TraceObserver(this, false, prepared, draw.id, token.value, draw.frame, draw.submission,
+                           accepted, original_host_issued);
+#endif
+    return accepted;
   };
   if (!prepared && execution_status != diagnostic::DrawCaptureExecutionStatus::kIssued) {
     (void)dispatch_draw();
@@ -5339,6 +5410,19 @@ void D3D12CommandProcessor::DispatchFrameInputCopy(std::string_view copy_mode,
                                                    bool original_succeeded,
                                                    uint32_t written_address,
                                                    uint32_t written_length, bool prepared) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture::ObserverTraceScope fixture_observer{this,
+                                               true,
+                                               prepared,
+                                               original_succeeded,
+                                               false,
+                                               0,
+                                               0,
+                                               frame_current_,
+                                               submission_current_,
+                                               written_address,
+                                               written_length};
+#endif
   try {
     RefreshFrameInputObserver();
   } catch (...) {
@@ -5369,6 +5453,12 @@ void D3D12CommandProcessor::DispatchFrameInputCopy(std::string_view copy_mode,
   }
   copy.frame = frame_current_;
   copy.submission = submission_current_;
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture_observer.observer = copy.id;
+  fixture_observer.token = token.value;
+  fixture_observer.frame = copy.frame;
+  fixture_observer.submission = copy.submission;
+#endif
   copy.copy_mode = copy_mode;
   copy.original_succeeded = original_succeeded;
   copy.written_address = written_address;
@@ -5458,10 +5548,16 @@ void D3D12CommandProcessor::DispatchFrameInputCopy(std::string_view copy_mode,
     frame_input_native_source_address_ = frame_input_native_source_length_ = 0;
     frame_input_native_source_generation_ = 0;
   }
-  (void)ObserveFrameInputCallback(costs, FrameInputCosts::Stage::kCopyCallback, [&] {
-    return prepared ? mailbox->DispatchFrameInputPreparedCopy(token, copy)
-                    : mailbox->DispatchFrameInputCopy(token, copy);
-  });
+  const bool accepted =
+      ObserveFrameInputCallback(costs, FrameInputCosts::Stage::kCopyCallback, [&] {
+        return prepared ? mailbox->DispatchFrameInputPreparedCopy(token, copy)
+                        : mailbox->DispatchFrameInputCopy(token, copy);
+      });
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture_observer.accepted = accepted;
+#else
+  (void)accepted;
+#endif
 }
 
 void D3D12CommandProcessor::DispatchFrameInputSwap(
@@ -5826,6 +5922,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   uint32_t used_texture_mask =
       vertex_shader->GetUsedTextureMaskAfterTranslation() |
       (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMaskAfterTranslation() : 0);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture::TraceBind(this, texture_cache_.get(), shared_memory_.get());
+  fixture::TraceContext(this, draw_frame_capture.event_id(), frame_current_, submission_current_);
+  fixture::DrawContext(this, draw_frame_capture.event_id(), frame_current_, submission_current_);
+#endif
   texture_cache_->RequestTextures(used_texture_mask);
 
   // Bind the pipeline after configuring it and doing everything that may bind
@@ -5892,6 +5993,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature, memexport_used)) {
     return finish_frame_capture_draw(false);
   }
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture::Bindings(this);
+#endif
   // Must not call anything that can change the descriptor heap from now on!
 
   // Ensure vertex buffers are resident.
@@ -6269,12 +6373,19 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
     // Invalidate textures in memexported memory and watch for changes.
     if (!memexport_ranges_.empty()) {
       for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+        fixture::TraceInterference(this, memexport_range.base_address_dwords << 2,
+                                   memexport_range.size_bytes, false);
+#endif
         shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
                                           memexport_range.size_bytes);
       }
     } else {
       // Stream constants can be invalid or dynamic, so exact destinations may
       // be unknown. Keep invalidation conservative in this case.
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+      fixture::TraceInterference(this, 0, SharedMemory::kBufferSize, true);
+#endif
       shared_memory_->RangeWrittenByGpu(0, SharedMemory::kBufferSize);
     }
     if (IsReadbackMemexportEnabled(REXCVAR_GET(d3d12_readback_memexport)) &&
@@ -6445,12 +6556,21 @@ bool D3D12CommandProcessor::IssueCopy() {
     frame_capture_copy = frame_capture_->BeginCopy(
         frame_current_, submission_current_, register_file_->values, RegisterFile::kRegisterCount);
   }
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture::TraceBind(this, texture_cache_.get(), shared_memory_.get());
+  fixture::CopyTraceScope fixture_copy(this, frame_capture_copy.event_id(), frame_current_,
+                                       submission_current_);
+#endif
   const ReadbackResolveMode readback_mode =
       GetReadbackResolveMode(REXCVAR_GET(d3d12_readback_resolve));
   const char* copy_mode =
       readback_mode == ReadbackResolveMode::kDisabled ? "resolve" : "resolve_readback";
   DispatchFrameInputCopy(copy_mode, false, 0, 0, true);
   if (!BeginSubmission(true)) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    fixture_copy.frame = frame_current_;
+    fixture_copy.submission = submission_current_;
+#endif
     frame_capture_->Abort(GetD3D12Provider().GetDevice(), "begin_submission_failure");
     FailLiveFrameCapture("begin_submission_failure");
     frame_capture_copy.SetResult(false, "submission_failure");
@@ -6485,6 +6605,9 @@ bool D3D12CommandProcessor::IssueCopy() {
   bool copy_result;
   uint32_t written_address = 0;
   uint32_t written_length = 0;
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture::TraceCopyResolve(this, frame_current_, submission_current_);
+#endif
   if (readback_mode == ReadbackResolveMode::kDisabled) {
     copy_result = render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
                                                 written_address, written_length);
@@ -6499,6 +6622,13 @@ bool D3D12CommandProcessor::IssueCopy() {
   }
   frame_capture_copy.SetResult(copy_result, copy_mode);
   DispatchFrameInputCopy(copy_mode, copy_result, written_address, written_length);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture_copy.result = copy_result;
+  fixture_copy.frame = frame_current_;
+  fixture_copy.submission = submission_current_;
+  fixture_copy.address = written_address;
+  fixture_copy.length = written_length;
+#endif
   return copy_result;
 }
 

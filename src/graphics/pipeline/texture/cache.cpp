@@ -36,6 +36,10 @@
 #include <rex/math.h>
 
 #include "prepared_cube.h"
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../../tests/internal_d3d12_texture_fixture/receipt.h"
+namespace texture_fixture = rex::graphics::d3d12::fixture;
+#endif
 
 REXCVAR_DEFINE_INT32(texture_cache_memory_limit_render_to_texture, 24, "GPU",
                      "Texture cache memory limit for render-to-texture (MB)")
@@ -59,6 +63,16 @@ REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft_lifetime, 30, "GPU",
 REXCVAR_DEFINE_BOOL(gpu_3d_to_2d_texture, true, "GPU",
                     "Sample problematic 3D textures through 2D-compatible wrappers")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(texture_load_failure_log, false, "GPU",
+                    "Log bounded receipts for failed texture loads (frame, key, site)")
+    .audience(rex::cvar::Audience::kAdvanced)
+    .persistence(rex::cvar::Persistence::kSessionOnly);
+
+REXCVAR_DEFINE_BOOL(texture_load_failure_retry, false, "GPU",
+                    "Retry a failed texture load on the next draw instead of the next frame")
+    .audience(rex::cvar::Audience::kAdvanced)
+    .persistence(rex::cvar::Persistence::kSessionOnly);
 
 REXCVAR_DEFINE_INT32(anisotropic_override, 3, "GPU",
                      "Forces anisotropic filtering for eligible textures.\n"
@@ -179,6 +193,21 @@ bool IsPreparedCubeFetch(const xenos::xe_gpu_texture_fetch_t& fetch) {
 }
 
 namespace {
+
+// Limit detailed texture_load_failure_log lines per frame and summarize the rest.
+constexpr uint32_t kMaxLoadFailureLogsPerFrame = 8;
+
+// A cache's loads and BeginFrame share its command processor thread, so thread-local
+// state belongs to that cache without changing the installed layout.
+struct LoadFailureState {
+  uint64_t frame_index = 0;
+  uint64_t total = 0;
+  uint64_t last_submission = 0;
+  uint32_t frame_count = 0;
+  bool log = false;
+  bool retry = false;
+};
+thread_local LoadFailureState load_failure_state;
 
 std::atomic<uint64_t> next_texture_instance_id{1};
 
@@ -746,6 +775,9 @@ void TextureCache::LogDisplayScale(const DisplayGeometry& display,
 }
 
 void TextureCache::ClearCache() {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  texture_fixture::TraceLifecycle(this, 6);
+#endif
   DestroyAllTextures();
 }
 
@@ -808,6 +840,16 @@ void TextureCache::BeginSubmission(uint64_t new_submission_index) {
 }
 
 void TextureCache::BeginFrame() {
+  LoadFailureState& failures = load_failure_state;
+  if (failures.frame_count > kMaxLoadFailureLogsPerFrame) {
+    REXGPU_WARN("Texture load failures: frame={} last_submission={} total={} suppressed={}",
+                failures.frame_index, failures.last_submission, failures.total,
+                failures.frame_count - kMaxLoadFailureLogsPerFrame);
+  }
+  failures.frame_count = 0;
+  ++failures.frame_index;
+  failures.log = REXCVAR_GET(texture_load_failure_log);
+  failures.retry = REXCVAR_GET(texture_load_failure_retry);
   // In case there was a failure to create something in the previous frame, make
   // sure bindings are reset so a new attempt will surely be made if the texture
   // is requested again.
@@ -842,6 +884,10 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
 
   // Invalidate textures. Toggling individual textures between scaled and
   // unscaled also relies on invalidation through shared memory.
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  texture_fixture::TraceDeclaration(this, start_unscaled, length_unscaled,
+                                    IsDrawResolutionScaled());
+#endif
   shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
 }
 
@@ -867,6 +913,9 @@ bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pend
                                       size_t& pending_range_count_out) {
   uint32_t outdated_mask = texture.outdated_mask();
   if (!outdated_mask) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kNoop, texture);
+#endif
     return false;
   }
 
@@ -882,6 +931,9 @@ bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pend
     }
   }
   if (!base_outdated && !mips_outdated) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kNoop, texture);
+#endif
     return false;
   }
 
@@ -892,7 +944,15 @@ bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pend
 
   // Watch before requesting shared memory so a guest write after the request
   // has inspected or uploaded the range still marks this texture outdated.
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kPrepareBegin, texture,
+                                base_outdated, mips_outdated);
+#endif
   texture.MakeUpToDateAndWatch(global_critical_region_.Acquire(), base_outdated, mips_outdated);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kPrepare, texture, base_outdated,
+                                mips_outdated);
+#endif
 
   TextureKey texture_key = texture.key();
   if (base_outdated) {
@@ -920,9 +980,22 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
 
   Texture& texture = *pending_load.texture;
   TextureKey texture_key = texture.key();
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  const uint64_t fixture_entry_generation = texture.content_generation();
+  bool fixture_backend_attempted = false;
+#endif
   auto restore_outdated = [&]() {
     texture.RestoreOutdatedAfterLoadFailure(global_critical_region_.Acquire(),
                                             pending_load.load_base, pending_load.load_mips);
+    OnTextureLoadFailure(LoadFailureSite::kPrepare, texture, pending_load.load_base,
+                         pending_load.load_mips);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    texture_fixture::TraceTexture(
+        this,
+        fixture_backend_attempted ? texture_fixture::TraceKind::kBackendFailure
+                                  : texture_fixture::TraceKind::kResidencyFailure,
+        texture, pending_load.load_base, pending_load.load_mips, fixture_entry_generation);
+#endif
     return false;
   };
   if (texture_key.scaled_resolve) {
@@ -940,10 +1013,22 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
     }
   }
 
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  fixture_backend_attempted = true;
+  texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kBackendAttempt, texture,
+                                pending_load.load_base, pending_load.load_mips,
+                                fixture_entry_generation);
+#endif
   if (!LoadTextureDataFromResidentMemoryImpl(texture, pending_load.load_base,
                                              pending_load.load_mips)) {
     return restore_outdated();
   }
+
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kLoadSuccess, texture,
+                                pending_load.load_base, pending_load.load_mips,
+                                fixture_entry_generation);
+#endif
 
   if (texture_load_dump_config_.enabled && !texture_load_dump_attempted_ &&
       pending_load.load_base && !texture_key.scaled_resolve &&
@@ -976,6 +1061,46 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
   texture.LogAction("Loaded");
 
   return true;
+}
+
+void TextureCache::OnTextureLoadFailure(LoadFailureSite site, const Texture& texture,
+                                        bool load_base, bool load_mips) {
+  LoadFailureState& failures = load_failure_state;
+  if (failures.retry) {
+    // Unchanged fetch registers keep the failed binding marked in sync, so
+    // without this the following draws sample stale contents until BeginFrame.
+    texture_became_outdated_.store(true, std::memory_order_release);
+  }
+  if (!failures.log) {
+    return;
+  }
+  ++failures.total;
+  failures.last_submission = current_submission_index_;
+  if (++failures.frame_count > kMaxLoadFailureLogsPerFrame) {
+    return;
+  }
+  const TextureKey& key = texture.key();
+  const char* site_name = "unknown";
+  switch (site) {
+    case LoadFailureSite::kPrepare:
+      site_name = "prepare";
+      break;
+    case LoadFailureSite::kBatchRequest:
+      site_name = "batch_request";
+      break;
+    case LoadFailureSite::kRetry:
+      site_name = "retry";
+      break;
+    case LoadFailureSite::kDirect:
+      site_name = "direct";
+      break;
+  }
+  REXGPU_WARN(
+      "Texture load failed: frame={} submission={} site={} base=0x{:08X} mip=0x{:08X} format={} "
+      "size={}x{}x{} load_base={} load_mips={} outdated=0x{:X}",
+      failures.frame_index, current_submission_index_, site_name, uint32_t(key.base_page) << 12,
+      uint32_t(key.mip_page) << 12, int(key.format), key.GetWidth(), key.GetHeight(),
+      key.GetDepthOrArraySize(), load_base ? 1 : 0, load_mips ? 1 : 0, texture.outdated_mask());
 }
 
 void TextureCache::RequestTextures(uint32_t used_texture_mask) {
@@ -1112,13 +1237,23 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   } else {
     for (const PendingTextureLoad& pending_load : pending_texture_loads) {
       if (pending_load.texture != nullptr) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+        const uint64_t fixture_entry_generation = pending_load.texture->content_generation();
+#endif
         pending_load.texture->RestoreOutdatedAfterLoadFailure(
             global_critical_region_.Acquire(), pending_load.load_base, pending_load.load_mips);
+        OnTextureLoadFailure(LoadFailureSite::kBatchRequest, *pending_load.texture,
+                             pending_load.load_base, pending_load.load_mips);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+        texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kBatchRequestFailure,
+                                      *pending_load.texture, pending_load.load_base,
+                                      pending_load.load_mips, fixture_entry_generation);
+#endif
       }
     }
     for (const PendingTextureLoad& pending_load : pending_texture_loads) {
       if (pending_load.texture != nullptr) {
-        LoadTextureData(*pending_load.texture);
+        LoadTextureDataForSite(*pending_load.texture, LoadFailureSite::kRetry);
       }
     }
   }
@@ -1486,6 +1621,10 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
 }
 
 bool TextureCache::LoadTextureData(Texture& texture) {
+  return LoadTextureDataForSite(texture, LoadFailureSite::kDirect);
+}
+
+bool TextureCache::LoadTextureDataForSite(Texture& texture, LoadFailureSite site) {
   PendingTextureLoad pending_load;
   PendingSharedMemoryRange pending_ranges[2];
   size_t pending_range_count = 0;
@@ -1498,8 +1637,17 @@ bool TextureCache::LoadTextureData(Texture& texture) {
     pending_range_pairs[i] = std::make_pair(pending_ranges[i].start, pending_ranges[i].length);
   }
   if (!shared_memory().RequestRanges(pending_range_pairs, pending_range_count)) {
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    const uint64_t fixture_entry_generation = texture.content_generation();
+#endif
     texture.RestoreOutdatedAfterLoadFailure(global_critical_region_.Acquire(),
                                             pending_load.load_base, pending_load.load_mips);
+    OnTextureLoadFailure(site, texture, pending_load.load_base, pending_load.load_mips);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+    texture_fixture::TraceTexture(this, texture_fixture::TraceKind::kDirectRequestFailure, texture,
+                                  pending_load.load_base, pending_load.load_mips,
+                                  fixture_entry_generation);
+#endif
     return false;
   }
 

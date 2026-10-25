@@ -18,8 +18,9 @@ namespace rex::graphics::d3d12 {
 // The policy is kept free of D3D12 and RenderDoc types so its frame-boundary
 // and bounded-journal contract can be tested without a graphics device.
 struct FrameCapturePolicy {
-  static constexpr size_t kMaxEvents = 4096;
-  static constexpr size_t kMaxBytes = size_t(512) * 1024 * 1024;
+  // Late-game frames exceed 4096 events. Each event holds an ~80 KiB register file.
+  static constexpr size_t kMaxEvents = 16384;
+  static constexpr size_t kMaxBytes = size_t(2) * 1024 * 1024 * 1024;
 
   static bool CanAppend(size_t event_count, size_t bytes_used, size_t additional_bytes) noexcept {
     return event_count < kMaxEvents && bytes_used <= kMaxBytes &&
@@ -181,6 +182,9 @@ class FrameCapture {
   std::shared_ptr<diagnostic::DrawCaptureFrameSnapshot> TakeOwnedFrame(uint64_t end_frame,
                                                                        uint64_t end_submission);
   bool IsOwnedActive() const { return owned_active_; }
+  const std::string& failure_reason() const { return failure_reason_; }
+  size_t event_count() const { return events_.size(); }
+  size_t bytes_used() const { return bytes_used_; }
 
   // A successful IssueSwap/EndSubmission starts the next frame capture when
   // idle, or closes the currently captured guest frame when active.

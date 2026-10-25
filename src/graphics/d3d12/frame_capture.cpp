@@ -638,6 +638,9 @@ std::shared_ptr<diagnostic::DrawCaptureFrameSnapshot> FrameCapture::TakeOwnedFra
     }
     owned_active_ = false;
     failure_reason_.clear();
+    // The snapshot owns copies, so the journal can be released before the next capture.
+    std::vector<Event>().swap(events_);
+    bytes_used_ = 0;
     return snapshot;
   } catch (const std::bad_alloc&) {
     MarkFailure("owned_snapshot_allocation_failed");

@@ -36,6 +36,10 @@
 
 #include "frame_input_sampler.h"
 
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../tests/internal_d3d12_texture_fixture/fixture.h"
+#endif
+
 namespace rex::graphics::d3d12 {
 
 // Generated with `xb buildshaders`.
@@ -818,8 +822,24 @@ D3D12TextureCache::TextureCaptureResult D3D12TextureCache::GetActiveTextureCaptu
       source_desc.Width > UINT32_MAX || source_desc.Height > UINT32_MAX) {
     return TextureCaptureResult::kUnsupported;
   }
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../tests/internal_d3d12_texture_fixture/texture_value.inl"
+#endif
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  if (const auto v = fixture_value(*texture); v.instance)
+    fixture::TextureAudit(fixture::Kind::kIdentity, v);
+#endif
+  // Capture runs on the GPU thread after the load attempt returns and requires a stable, clean
+  // state. Preparation temporarily marks the texture clean without proving load success,
+  // so this state must not be sampled during a load.
+  const uint64_t generation = texture->content_generation();
+  const uint32_t outdated_mask = texture->outdated_mask();
+  const uint64_t generation_after = texture->content_generation();
+  if (outdated_mask || generation != generation_after) {
+    return TextureCaptureResult::kUnresolved;
+  }
   identity_out.texture_instance_id = texture->instance_id();
-  identity_out.content_generation = texture->content_generation();
+  identity_out.content_generation = generation;
   return TextureCaptureResult::kCaptured;
 }
 
@@ -940,6 +960,13 @@ D3D12TextureCache::TextureCaptureResult D3D12TextureCache::ScheduleActiveTexture
     return TextureCaptureResult::kFailed;
   }
 
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../tests/internal_d3d12_texture_fixture/texture_value.inl"
+#endif
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  if (const auto v = fixture_value(*texture); v.instance)
+    fixture::TextureAudit(fixture::Kind::kSchedule, v);
+#endif
   texture->MarkAsUsed();
   capture_out.identity = identity;
   capture_out.source_resource = source;
@@ -1070,6 +1097,15 @@ void D3D12TextureCache::WriteActiveTextureBindfulSRV(
     source_handle = provider.OffsetViewDescriptor(null_srv_descriptor_heap_start_,
                                                   uint32_t(null_descriptor_index));
   }
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../tests/internal_d3d12_texture_fixture/texture_value.inl"
+#endif
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  const auto fixture_view = binding && binding->texture ? fixture_value(*binding->texture, false)
+                                                        : fixture::TextureValue{};
+  fixture::View(fixture_view, fetch_constant_index, host_shader_binding.is_signed,
+                descriptor_index != UINT32_MAX, descriptor_index, handle.ptr);
+#endif
   auto device = provider.GetDevice();
   {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
@@ -1112,6 +1148,15 @@ uint32_t D3D12TextureCache::GetActiveTextureBindlessSRVIndex(
                                                        : d3d12_binding.descriptor_index;
     }
   }
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../tests/internal_d3d12_texture_fixture/texture_value.inl"
+#endif
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  const auto fixture_view = binding && binding->texture ? fixture_value(*binding->texture, false)
+                                                        : fixture::TextureValue{};
+  fixture::View(fixture_view, fetch_constant_index, host_shader_binding.is_signed,
+                descriptor_index != UINT32_MAX, descriptor_index, descriptor_index);
+#endif
   if (descriptor_index == UINT32_MAX) {
     switch (host_shader_binding.dimension) {
       case xenos::FetchOpDimension::k3DOrStacked:
@@ -1714,6 +1759,14 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
                                                               bool load_mips) {
   D3D12Texture& d3d12_texture = static_cast<D3D12Texture&>(texture);
   TextureKey texture_key = d3d12_texture.key();
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+#include "../../../tests/internal_d3d12_texture_fixture/texture_value.inl"
+#endif
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  const auto fixture_entry = fixture_value(texture);
+  if (fixture_entry.instance)
+    fixture::TextureAudit(fixture::Kind::kEntry, fixture_entry, load_base, load_mips);
+#endif
 
   DeferredCommandList& command_list = command_processor_.GetDeferredCommandList();
   ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
@@ -1841,6 +1894,10 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     (is_base ? host_slice_size_base : host_slice_sizes_mips[level]) = level_host_slice_size;
     copy_buffer_size += level_host_slice_size * array_size;
   }
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  if (const auto v = fixture_value(texture); v.instance && fixture::Fail(v, load_base, load_mips))
+    return false;
+#endif
   D3D12_RESOURCE_STATES copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   ID3D12Resource* copy_buffer =
       command_processor_.RequestScratchGPUBuffer(uint32_t(copy_buffer_size), copy_buffer_state);
@@ -2085,6 +2142,10 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   }
 
   command_processor_.ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
+#if defined(REX_INTERNAL_D3D12_TEXTURE_FIXTURE)
+  if (const auto v = fixture_value(texture); v.instance)
+    fixture::TextureAudit(fixture::Kind::kSuccess, v, load_base, load_mips);
+#endif
 
   return true;
 }

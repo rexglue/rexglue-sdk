@@ -85,6 +85,26 @@ TEST_CASE("owned frame journal preserves ordered state and guest shaders",
   CHECK(snapshot->events[2].copy_mode == "resolve");
   CHECK(snapshot->events[3].kind == diagnostic::DrawCaptureFrameEvent::Kind::kSwap);
   CHECK(capture.IsIdle());
+  CHECK(capture.event_count() == 0);
+  CHECK(capture.bytes_used() == 0);
+}
+
+TEST_CASE("failed owned frame keeps its failure reason and journal size",
+          "[graphics][diagnostic_frame_capture]") {
+  std::vector<uint32_t> registers(RegisterFile::kRegisterCount, 0);
+  FrameCapture capture;
+  REQUIRE(capture.BeginOwnedFrame(1, 2, 0x1000, 1280, 720, registers.data(), registers.size()));
+  {
+    auto draw =
+        capture.BeginDraw(1, 3, 4, 3, false, {}, registers.data(), registers.size(), {}, {});
+    REQUIRE(draw.event_id());
+    draw.SetResult(true);
+  }
+  capture.Abort(nullptr, "journal_bounds");
+  CHECK_FALSE(capture.TakeOwnedFrame(1, 4));
+  CHECK(capture.failure_reason() == "journal_bounds");
+  CHECK(capture.event_count() == 2);
+  CHECK(capture.bytes_used() > 0);
 }
 
 TEST_CASE("owned frame keeps execution and acquisition status separate",
