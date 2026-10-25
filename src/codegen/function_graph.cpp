@@ -667,11 +667,11 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
         u32 consumed = 1;
         if (insn.opcode == nullptr) {
           forwarding.Invalidate();
-          EmitPrintln(body, "\t// {}", insn.op_str);
+          EmitPrintln(body, "\t// {}", std::string_view{insn.op_str});
           if (*data != 0)
             REXLOG_WARN(codegen, "Unable to decode instruction {:X} at {:X}", *data, block_base);
         } else {
-          EmitPrintln(body, "\t// {} {}", insn.opcode->name, insn.op_str);
+          EmitPrintln(body, "\t// {} {}", insn.opcode->name, std::string_view{insn.op_str});
 
           auto hook_it = ctx.config.mid_asm_hooks.find(block_base);
           bool has_hook_before =

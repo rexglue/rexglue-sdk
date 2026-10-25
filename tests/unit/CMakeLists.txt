@@ -214,6 +214,7 @@ add_executable(
   codegen/flush_mode_test.cpp
   codegen/funclet_sync_test.cpp
   codegen/gap_fill_test.cpp
+  codegen/instruction_comment_test.cpp
   codegen/millicode_test.cpp
   codegen/noreturn_test.cpp
   codegen/reserved_register_test.cpp

@@ -425,7 +425,7 @@ void BuilderContext::EmitSetFlushMode(bool enable) {
 }
 
 void BuilderContext::ConsumeNext() {
-  Println("\t// {} {}", next->opcode->name, next->op_str);
+  Println("\t// {} {}", next->opcode->name, std::string_view{next->op_str});
   consumed = 2;
 }
 

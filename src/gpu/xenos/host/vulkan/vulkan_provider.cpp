@@ -53,7 +53,8 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
     VkPhysicalDeviceProperties physical_device_properties;
     ifn.vkGetPhysicalDeviceProperties(physical_devices[physical_device_index],
                                       &physical_device_properties);
-    REXLOG_WARN(ui, "* {}: {}", physical_device_index, physical_device_properties.deviceName);
+    REXLOG_WARN(ui, "* {}: {}", physical_device_index,
+                std::string_view{physical_device_properties.deviceName});
   }
 
   if (device_index >= 0 && static_cast<u32>(device_index) < physical_devices.size()) {
