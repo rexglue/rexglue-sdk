@@ -10,6 +10,9 @@
 
 #include "rex_test.h"
 
+#include <atomic>
+#include <thread>
+
 #include <rex/cvar.h>
 #include <rex/logging/log.h>
 #include <rex/runtime/xmemory.h>
@@ -635,4 +638,39 @@ REX_TEST_CASE("The title range of a virtual heap ends below its system range", "
     heap->Release(title, nullptr);
     heap->Release(system, nullptr);
   }
+}
+
+REX_TEST_CASE("QueryProtect reads a whole entry while Protect changes it", "[memory][heap]") {
+  constexpr u32 kToggles = 100000;
+  constexpr u32 kReadOnly = rex::runtime::kMemoryProtectRead;
+  constexpr u32 kReadWrite = rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite;
+
+  auto& memory = GetTestMemory();
+  auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
+  REQUIRE(heap != nullptr);
+
+  u32 addr = 0;
+  REQUIRE(heap->Alloc(
+      4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
+      kReadWrite, false, &addr));
+
+  std::atomic<bool> done{false};
+  std::atomic<u32> unexpected{0};
+  std::thread reader([&] {
+    while (!done.load(std::memory_order_acquire)) {
+      u32 protect = 0;
+      if (!heap->QueryProtect(addr, &protect) || (protect != kReadOnly && protect != kReadWrite)) {
+        unexpected.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+  });
+
+  for (u32 i = 0; i < kToggles; ++i) {
+    heap->Protect(addr, 4096, (i & 1) ? kReadWrite : kReadOnly, nullptr);
+  }
+  done.store(true, std::memory_order_release);
+  reader.join();
+
+  CHECK(unexpected.load() == 0);
+  heap->Release(addr, nullptr);
 }

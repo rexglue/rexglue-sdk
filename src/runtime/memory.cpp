@@ -168,6 +168,16 @@ bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
   return false;
 }
 
+PageEntry LoadPageEntry(PageEntry& slot) {
+  PageEntry entry;
+  entry.qword = std::atomic_ref<u64>(slot.qword).load(std::memory_order_acquire);
+  return entry;
+}
+
+void StorePageEntry(PageEntry& slot, PageEntry entry) {
+  std::atomic_ref<u64>(slot.qword).store(entry.qword, std::memory_order_release);
+}
+
 }  // namespace
 
 Memory::Memory() {
@@ -1151,7 +1161,7 @@ bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 a
   }
 
   for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
-    auto& page_entry = page_table_[page_number];
+    PageEntry page_entry = page_table_[page_number];
     if (title_pages && (page_entry.state & runtime::kMemoryAllocationCommit) == 0) {
       page_entry.title = 1;
     }
@@ -1169,6 +1179,7 @@ bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 a
     page_entry.allocation_protect = protect;
     page_entry.current_protect = protect;
     page_entry.state = runtime::kMemoryAllocationReserve | allocation_type;
+    StorePageEntry(page_table_[page_number], page_entry);
   }
 
   if (!SyncHostPageAccess(start_page_number, end_page_number)) {
@@ -1306,7 +1317,7 @@ bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32
   }
 
   for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
-    auto& page_entry = page_table_[page_number];
+    PageEntry page_entry = page_table_[page_number];
     if (!page_entry.state) {
       unreserved_page_count_--;
     }
@@ -1320,6 +1331,7 @@ bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32
     page_entry.current_protect = protect;
     page_entry.state = runtime::kMemoryAllocationReserve | allocation_type;
     page_entry.title = title_pages != 0;
+    StorePageEntry(page_table_[page_number], page_entry);
   }
 
   if (!SyncHostPageAccess(start_page_number, end_page_number)) {
@@ -1348,13 +1360,14 @@ bool BaseHeap::DecommitLocked(u32 address, u32 size) {
 
   u32 released = 0;
   for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
-    auto& page_entry = page_table_[page_number];
+    PageEntry page_entry = page_table_[page_number];
     released += page_entry.title;
     page_entry.title = 0;
     if (page_entry.state & runtime::kMemoryAllocationCommit) {
       OnPageDecommitted(page_number);
     }
     page_entry.state &= ~runtime::kMemoryAllocationCommit;
+    StorePageEntry(page_table_[page_number], page_entry);
   }
   memory_->ReleaseTitlePage(released * (page_size_ >> 12));
 
@@ -1404,12 +1417,12 @@ bool BaseHeap::ReleaseLocked(u32 base_address, u32* out_region_size) {
   u32 end_page_number = base_page_number + base_page_entry.region_page_count - 1;
   u32 released = 0;
   for (u32 page_number = base_page_number; page_number <= end_page_number; ++page_number) {
-    auto& page_entry = page_table_[page_number];
+    const PageEntry page_entry = page_table_[page_number];
     released += page_entry.title;
     if (page_entry.state & runtime::kMemoryAllocationCommit) {
       OnPageDecommitted(page_number);
     }
-    page_entry.qword = 0;
+    StorePageEntry(page_table_[page_number], PageEntry{});
     unreserved_page_count_++;
   }
   memory_->ReleaseTitlePage(released * (page_size_ >> 12));
@@ -1482,8 +1495,9 @@ bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protec
   }
 
   for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
-    auto& page_entry = page_table_[page_number];
+    PageEntry page_entry = page_table_[page_number];
     page_entry.current_protect = protect;
+    StorePageEntry(page_table_[page_number], page_entry);
   }
 
   if (!SyncHostPageAccess(start_page_number, end_page_number)) {
@@ -1558,8 +1572,7 @@ bool BaseHeap::QueryProtect(u32 address, u32* out_protect) {
     *out_protect = 0;
     return false;
   }
-  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
-  auto page_entry = page_table_[page_number];
+  const PageEntry page_entry = LoadPageEntry(page_table_[page_number]);
   *out_protect = page_entry.current_protect;
   return true;
 }
