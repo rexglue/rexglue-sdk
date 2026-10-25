@@ -68,6 +68,14 @@ bool Build<PPC_INST_VMULFP128>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VMADDFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (ctx.GetConfig().vector_math.vmaddfp == VectorMath::kFast) {
+    ctx.Println(
+        "\tsimde_mm_store_ps({}.f32, simde_mm_add_ps(simde_mm_mul_ps(simde_mm_load_ps({}.f32), "
+        "simde_mm_load_ps({}.f32)), simde_mm_load_ps({}.f32)));",
+        ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
+        ctx.V(ctx.insn.operands[3]));
+    return true;
+  }
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::MultiplyAdd(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32), ctx.vscr_nj));",
@@ -85,6 +93,16 @@ bool Build<PPC_INST_VMADDFP>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VNMSUBFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (ctx.GetConfig().vector_math.vnmsubfp == VectorMath::kFast) {
+    ctx.Println(
+        "\tsimde_mm_store_ps({}.f32, "
+        "simde_mm_xor_ps(simde_mm_sub_ps(simde_mm_mul_ps(simde_mm_load_ps({}.f32), "
+        "simde_mm_load_ps({}.f32)), simde_mm_load_ps({}.f32)), "
+        "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x80000000)))));",
+        ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
+        ctx.V(ctx.insn.operands[3]));
+    return true;
+  }
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, "
       "rex::ppc::simd::NegativeMultiplySubtract(simde_mm_load_ps({}.f32), "
@@ -111,6 +129,10 @@ bool Build<PPC_INST_VMINFP>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VREFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (ctx.GetConfig().vector_math.vrefp == VectorMath::kFast) {
+    ctx.EmitVecFPUnaryExpr("simde_mm_div_ps(simde_mm_set1_ps(1), simde_mm_load_ps({vA}.f32))");
+    return true;
+  }
   ctx.EmitVecFPUnaryExpr(
       "rex::ppc::simd::ReciprocalEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
@@ -119,6 +141,11 @@ bool Build<PPC_INST_VREFP>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VRSQRTEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (ctx.GetConfig().vector_math.vrsqrtefp == VectorMath::kFast) {
+    ctx.EmitVecFPUnaryExpr(
+        "simde_mm_div_ps(simde_mm_set1_ps(1), simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32)))");
+    return true;
+  }
   ctx.EmitVecFPUnaryExpr(
       "rex::ppc::simd::ReciprocalSqrtEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
@@ -127,6 +154,27 @@ bool Build<PPC_INST_VRSQRTEFP>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VEXPTEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (ctx.GetConfig().vector_math.vexptefp == VectorMath::kFast) {
+    ctx.Println("\t{{");
+    ctx.Println("\t\tsimde__m128 x = simde_mm_load_ps({}.f32);", ctx.V(ctx.insn.operands[1]));
+    ctx.Println(
+        "\t\tsimde__m128 n = simde_mm_round_ps(x, "
+        "SIMDE_MM_FROUND_TO_NEG_INF | SIMDE_MM_FROUND_NO_EXC);");
+    ctx.Println("\t\tsimde__m128 f = simde_mm_sub_ps(x, n);");
+    ctx.Println("\t\tsimde__m128 p = simde_mm_set1_ps(1.8775767e-3f);");
+    for (std::string_view coefficient :
+         {"8.9893397e-3f", "5.5826318e-2f", "2.4015361e-1f", "6.9315308e-1f", "1.0f"}) {
+      ctx.Println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps({}));",
+                  coefficient);
+    }
+    ctx.Println(
+        "\t\tsimde__m128i e = simde_mm_slli_epi32(simde_mm_add_epi32(simde_mm_cvttps_epi32(n), "
+        "simde_mm_set1_epi32(127)), 23);");
+    ctx.Println("\t\tsimde_mm_store_ps({}.f32, simde_mm_mul_ps(p, simde_mm_castsi128_ps(e)));",
+                ctx.V(ctx.insn.operands[0]));
+    ctx.Println("\t}}");
+    return true;
+  }
   ctx.EmitVecFPUnaryExpr("rex::ppc::simd::Exp2Estimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
@@ -149,6 +197,13 @@ bool Build<PPC_INST_VLOGEFP>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VMSUM3FP128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (ctx.GetConfig().vector_math.vmsum3fp128 == VectorMath::kFast) {
+    ctx.Println(
+        "\tsimde_mm_store_ps({}.f32, simde_mm_dp_ps(simde_mm_load_ps({}.f32), "
+        "simde_mm_load_ps({}.f32), 0xEF));",
+        ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
+    return true;
+  }
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::DotProduct3(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32), ctx.vscr_nj));",
@@ -167,6 +222,13 @@ bool Build<PPC_INST_VMSUM3FP128>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VMSUM4FP128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (ctx.GetConfig().vector_math.vmsum4fp128 == VectorMath::kFast) {
+    ctx.Println(
+        "\tsimde_mm_store_ps({}.f32, simde_mm_dp_ps(simde_mm_load_ps({}.f32), "
+        "simde_mm_load_ps({}.f32), 0xFF));",
+        ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
+    return true;
+  }
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::DotProduct4(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32), ctx.vscr_nj));",

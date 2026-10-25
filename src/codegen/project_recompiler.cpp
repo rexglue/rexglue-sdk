@@ -43,7 +43,7 @@ namespace rex::codegen {
 namespace {
 
 /** Bumped whenever a builder changes the code it emits, so existing projects regenerate. */
-constexpr u32 kEmitterRevision = 1;
+constexpr u32 kEmitterRevision = 2;
 
 std::string DeriveTargetNameFromFilePath(const std::string& file_path) {
   std::filesystem::path p(file_path);
@@ -82,10 +82,11 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
   std::vector<std::string> flags{
       std::format("emitter={}", kEmitterRevision),
       std::format("templates={}", GetEmbeddedTemplatesHash()),
-      std::format("vector_math={}{}{}{}{}{}{}", static_cast<u32>(vm.vmaddfp),
+      std::format("vector_math={}{}{}{}{}{}{}{}{}", static_cast<u32>(vm.vmaddfp),
                   static_cast<u32>(vm.vnmsubfp), static_cast<u32>(vm.vmsum3fp128),
                   static_cast<u32>(vm.vmsum4fp128), static_cast<u32>(vm.vrefp),
-                  static_cast<u32>(vm.vrsqrtefp), static_cast<u32>(vm.vexptefp)),
+                  static_cast<u32>(vm.vrsqrtefp), static_cast<u32>(vm.vexptefp),
+                  static_cast<u32>(vm.fres), static_cast<u32>(vm.frsqrte)),
       std::format("generate_exception_handlers={}", cfg.generate_exception_handlers),
       std::format("data_region_threshold={}", cfg.data_region_threshold),
       std::format("max_file_size_bytes={}", limits.max_file_size_bytes),

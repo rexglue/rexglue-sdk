@@ -258,6 +258,11 @@ bool Build<PPC_INST_FNMSUBS>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_FRES>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
+  if (ctx.GetConfig().vector_math.fres == VectorMath::kFast) {
+    ctx.Println("	{}.f64 = f64(f32(1.0 / {}.f64));", ctx.F(ctx.insn.operands[0]),
+                ctx.F(ctx.insn.operands[1]));
+    return true;
+  }
   ctx.Println("\t{}.f64 = rex::ppc::ReciprocalEstimate({}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
@@ -266,6 +271,11 @@ bool Build<PPC_INST_FRES>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_FRSQRTE>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
+  if (ctx.GetConfig().vector_math.frsqrte == VectorMath::kFast) {
+    ctx.Println("	{}.f64 = f64(f32(1.0 / std::sqrt({}.f64)));", ctx.F(ctx.insn.operands[0]),
+                ctx.F(ctx.insn.operands[1]));
+    return true;
+  }
   ctx.Println("\t{}.f64 = rex::ppc::ReciprocalSqrtEstimate({}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;

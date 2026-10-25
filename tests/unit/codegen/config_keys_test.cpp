@@ -20,6 +20,7 @@
 #include <rex/codegen/config.h>
 
 using rex::codegen::RecompilerConfig;
+using rex::codegen::VectorMath;
 using rex::test::WriteText;
 
 namespace {
@@ -108,6 +109,46 @@ REX_TEST_CASE("A table that uses only known keys has no warnings", "[codegen][co
       "[[switch_tables]]\naddress = 0x82000050\nregister = 11\nlabels = [0x82000054]\n"
       "[[midasm_hook]]\naddress = 0x82000060\nname = \"h\"\nregisters = [\"r3\"]\nreturn = true\n"
       "[mmio.gpu]\nread = [0x82000070]\nwrite = [0x82000074]\n"
-      "[mmio.apu]\nread = [0x82000078]\nwrite = [0x8200007c]\n");
+      "[mmio.apu]\nread = [0x82000078]\nwrite = [0x8200007c]\n"
+      "[vector_math]\nvmaddfp = \"exact\"\nvnmsubfp = \"fast\"\nvmsum3fp128 = \"exact\"\n"
+      "vmsum4fp128 = \"exact\"\nvrefp = \"fast\"\nvrsqrtefp = \"fast\"\nvexptefp = \"exact\"\n"
+      "fres = \"fast\"\nfrsqrte = \"exact\"\n");
   CHECK(loaded.config.load_warnings.empty());
+}
+
+REX_TEST_CASE("Vector math instructions default to fast", "[codegen][config][keys]") {
+  const auto loaded = LoadBody("");
+  const auto& vm = loaded.config.vector_math;
+  CHECK(vm.vmaddfp == VectorMath::kFast);
+  CHECK(vm.vnmsubfp == VectorMath::kFast);
+  CHECK(vm.vmsum3fp128 == VectorMath::kFast);
+  CHECK(vm.vmsum4fp128 == VectorMath::kFast);
+  CHECK(vm.vrefp == VectorMath::kFast);
+  CHECK(vm.vrsqrtefp == VectorMath::kFast);
+  CHECK(vm.vexptefp == VectorMath::kFast);
+  CHECK(vm.fres == VectorMath::kFast);
+  CHECK(vm.frsqrte == VectorMath::kFast);
+}
+
+REX_TEST_CASE("A vector math key set to exact applies only to its instruction",
+              "[codegen][config][keys]") {
+  const auto loaded = LoadBody("[vector_math]\nvmsum4fp128 = \"exact\"\nvrefp = \"fast\"\n");
+  CHECK(loaded.config.load_warnings.empty());
+  CHECK(loaded.config.vector_math.vmsum4fp128 == VectorMath::kExact);
+  CHECK(loaded.config.vector_math.vmsum3fp128 == VectorMath::kFast);
+  CHECK(loaded.config.vector_math.vrefp == VectorMath::kFast);
+}
+
+REX_TEST_CASE("A vector math value other than fast or exact warns and keeps fast",
+              "[codegen][config][keys]") {
+  const auto loaded = LoadBody("[vector_math]\nvexptefp = \"precise\"\n");
+  CHECK(loaded.ok);
+  CHECK(Mentions(loaded.config.load_warnings, "vector_math.vexptefp"));
+  CHECK(loaded.config.vector_math.vexptefp == VectorMath::kFast);
+}
+
+REX_TEST_CASE("A vector math key for an instruction without a fast form warns",
+              "[codegen][config][keys]") {
+  const auto loaded = LoadBody("[vector_math]\nvlogefp = \"fast\"\n");
+  CHECK(Mentions(loaded.config.load_warnings, "vector_math.vlogefp"));
 }

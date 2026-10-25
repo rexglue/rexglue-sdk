@@ -172,6 +172,10 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
 
     codegen::RecompilerConfig config;
     config.out_directory_path = std::string(out_dir);
+    config.vector_math = {
+        codegen::VectorMath::kExact, codegen::VectorMath::kExact, codegen::VectorMath::kExact,
+        codegen::VectorMath::kExact, codegen::VectorMath::kExact, codegen::VectorMath::kExact,
+        codegen::VectorMath::kExact, codegen::VectorMath::kExact, codegen::VectorMath::kExact};
     auto ctx =
         codegen::CodegenContext::Create(codegen::BinaryView::FromModule(module), std::move(config));
 

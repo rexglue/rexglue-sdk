@@ -15,6 +15,9 @@
 #include <cmath>
 
 #include <simde/x86/sse4.1.h>
+#if defined(__AVX2__)
+#include <simde/x86/avx2.h>
+#endif
 
 #include <rex/ppc/estimate.h>
 #include <rex/types.h>
@@ -57,6 +60,39 @@ inline DotTerm MakeDotTerm(u32 a, u32 b, bool flush) {
   split(a, mantissa_a, exponent_a);
   split(b, mantissa_b, exponent_b);
   return {((a ^ b) & kSign32) != 0, u64{mantissa_a} * mantissa_b, exponent_a + exponent_b - 46};
+}
+
+/**
+ * Normalizes the fixed point sum of a dot product to the result bits.
+ *
+ * @param sum The sum of the aligned terms.
+ * @param majority_negative True when the majority sign is negative.
+ * @param lowest The exponent of the lowest fixed point bit.
+ * @return The result bits.
+ */
+inline u32 FinishDot(i64 sum, bool majority_negative, i32 lowest) {
+  const i64 flip = sum >> 63;
+  const u32 sign = (majority_negative ? kSign32 : 0u) ^ (static_cast<u32>(flip) & kSign32);
+  const u64 magnitude = static_cast<u64>(sum ^ flip);
+  if (magnitude == 0) {
+    return 0;
+  }
+  const u32 width = std::bit_width(magnitude);
+  const i32 exponent = lowest + static_cast<i32>(width) - 1;
+  const u32 top = static_cast<u32>((magnitude << (64 - width)) >> 40);
+  if (static_cast<u32>(exponent + 126) < 254u) [[likely]] {
+    return sign | (static_cast<u32>(exponent + 127) << 23) | (top & 0x7FFFFFu);
+  }
+  if (exponent < -127) {
+    return sign;
+  }
+  if (exponent == -127) {
+    return sign | (top & 0x7FFFFFu);
+  }
+  if (exponent > 128) {
+    return sign | kQNaN32;
+  }
+  return sign | (static_cast<u32>(exponent + 127) << 23) | (top & 0x7FFFFFu);
 }
 
 /**
@@ -129,30 +165,81 @@ inline u32 DotProductReference(const std::array<u32, Terms>& a, const std::array
     const i64 value = static_cast<i64>(aligned);
     sum += term.negative == majority_negative ? value : ~value;
   }
-  bool negative = majority_negative;
-  if (sum < 0) {
-    negative = !majority_negative;
-    sum = ~sum;
+  return FinishDot(sum, majority_negative, lowest);
+}
+
+/**
+ * Computes the dot product of host lanes that hold no NaN or infinity, with the same result as
+ * DotProductReference. The mantissa products and the alignment shifts are exact in f64.
+ *
+ * @tparam Terms The number of terms, 3 or 4, taken from the highest host lanes.
+ * @param words_a The first operand bits.
+ * @param words_b The second operand bits.
+ * @param biased_a The biased exponent fields of the first operand.
+ * @param biased_b The biased exponent fields of the second operand.
+ * @return The result bits.
+ */
+template <u32 Terms>
+inline u32 DotProductFinite(simde__m128i words_a, simde__m128i words_b, simde__m128i biased_a,
+                            simde__m128i biased_b) {
+  constexpr i32 kNone = -0x40000000;
+  const auto used = simde_mm_set_epi32(-1, -1, -1, Terms == 4 ? -1 : 0);
+  const auto zero = simde_mm_setzero_si128();
+  const auto live_a = simde_mm_and_si128(simde_mm_cmpgt_epi32(biased_a, zero), used);
+  const auto live_b = simde_mm_and_si128(simde_mm_cmpgt_epi32(biased_b, zero), used);
+  const auto mantissa_a = simde_mm_and_si128(
+      simde_mm_or_si128(simde_mm_and_si128(words_a, Set(0x7FFFFFu)), Set(0x800000u)), live_a);
+  const auto mantissa_b = simde_mm_and_si128(
+      simde_mm_or_si128(simde_mm_and_si128(words_b, Set(0x7FFFFFu)), Set(0x800000u)), live_b);
+  const auto exponent = simde_mm_sub_epi32(simde_mm_add_epi32(biased_a, biased_b), Set(300));
+  const auto live = simde_mm_and_si128(live_a, live_b);
+  const auto candidate = Select(live, exponent, Set(static_cast<u32>(kNone)));
+  auto highest_lanes = simde_mm_max_epi32(candidate, simde_mm_shuffle_epi32(candidate, 0x4E));
+  highest_lanes = simde_mm_max_epi32(highest_lanes, simde_mm_shuffle_epi32(highest_lanes, 0xB1));
+  const i32 highest = simde_mm_cvtsi128_si32(highest_lanes);
+  const auto negative = simde_mm_srai_epi32(simde_mm_xor_si128(words_a, words_b), 31);
+  const u32 negative_bits = static_cast<u32>(
+      simde_mm_movemask_ps(simde_mm_castsi128_ps(simde_mm_and_si128(negative, used))));
+  const u32 negatives = static_cast<u32>((0x4332322132212110ull >> (negative_bits * 4)) & 0xFu);
+  if (highest == kNone) {
+    return negatives == Terms ? kSign32 : 0u;
   }
-  if (sum == 0) {
-    return 0;
-  }
-  const u32 width = std::bit_width(static_cast<u64>(sum));
-  const i32 exponent = lowest + static_cast<i32>(width) - 1;
-  const u32 sign = negative ? kSign32 : 0u;
-  const u64 magnitude = static_cast<u64>(sum);
-  const u32 top =
-      static_cast<u32>(width > 24 ? magnitude >> (width - 24) : magnitude << (24 - width));
-  if (exponent < -127) {
-    return sign;
-  }
-  if (exponent == -127) {
-    return sign | (top & 0x7FFFFFu);
-  }
-  if (exponent > 128) {
-    return sign | kQNaN32;
-  }
-  return sign | (static_cast<u32>(exponent + 127) << 23) | (top & 0x7FFFFFu);
+  const bool majority = 2 * negatives > Terms;
+  const auto minority = simde_mm_and_si128(
+      simde_mm_xor_si128(negative, simde_mm_set1_epi32(-static_cast<i32>(majority))), used);
+  const i32 lowest = highest + 47 - 29;
+#if defined(__AVX2__)
+  const auto product = simde_mm256_mul_epu32(simde_mm256_cvtepu32_epi64(mantissa_a),
+                                             simde_mm256_cvtepu32_epi64(mantissa_b));
+  const auto shift =
+      simde_mm256_cvtepi32_epi64(simde_mm_sub_epi32(simde_mm_set1_epi32(lowest), exponent));
+  const auto aligned = simde_mm256_srlv_epi64(product, shift);
+  const auto terms = simde_mm256_xor_si256(aligned, simde_mm256_cvtepi32_epi64(minority));
+  const auto pair = simde_mm_add_epi64(simde_mm256_castsi256_si128(terms),
+                                       simde_mm256_extracti128_si256(terms, 1));
+  const i64 total = simde_mm_cvtsi128_si64(pair) + simde_mm_extract_epi64(pair, 1);
+  return FinishDot(total, majority, lowest);
+#else
+  const auto field = simde_mm_add_epi32(simde_mm_sub_epi32(exponent, simde_mm_set1_epi32(lowest)),
+                                        simde_mm_set1_epi32(1023));
+  const auto upper = [](simde__m128i v) { return simde_mm_shuffle_epi32(v, 0xEE); };
+  const auto scale_low =
+      simde_mm_castsi128_pd(simde_mm_slli_epi64(simde_mm_cvtepu32_epi64(field), 52));
+  const auto scale_high =
+      simde_mm_castsi128_pd(simde_mm_slli_epi64(simde_mm_cvtepu32_epi64(upper(field)), 52));
+  const auto product_low =
+      simde_mm_mul_pd(simde_mm_cvtepi32_pd(mantissa_a), simde_mm_cvtepi32_pd(mantissa_b));
+  const auto product_high = simde_mm_mul_pd(simde_mm_cvtepi32_pd(upper(mantissa_a)),
+                                            simde_mm_cvtepi32_pd(upper(mantissa_b)));
+  const auto aligned =
+      simde_mm_unpacklo_epi64(simde_mm_cvttpd_epi32(simde_mm_mul_pd(product_low, scale_low)),
+                              simde_mm_cvttpd_epi32(simde_mm_mul_pd(product_high, scale_high)));
+  const auto terms = simde_mm_xor_si128(aligned, minority);
+  const auto pair =
+      simde_mm_add_epi64(simde_mm_cvtepi32_epi64(terms), simde_mm_cvtepi32_epi64(upper(terms)));
+  const i64 total = simde_mm_cvtsi128_si64(pair) + simde_mm_extract_epi64(pair, 1);
+  return FinishDot(total, majority, lowest);
+#endif
 }
 
 /**
@@ -169,9 +256,11 @@ inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b, bool flush) {
   const auto words_a = simde_mm_castps_si128(a);
   const auto words_b = simde_mm_castps_si128(b);
   const auto used = simde_mm_set_epi32(-1, -1, -1, Terms == 4 ? -1 : 0);
-  auto special =
-      simde_mm_or_si128(Equal(simde_mm_and_si128(words_a, Set(kInfinity32)), kInfinity32),
-                        Equal(simde_mm_and_si128(words_b, Set(kInfinity32)), kInfinity32));
+  const auto biased_a = simde_mm_srli_epi32(simde_mm_and_si128(words_a, Set(kInfinity32)), 23);
+  const auto biased_b = simde_mm_srli_epi32(simde_mm_and_si128(words_b, Set(kInfinity32)), 23);
+  const auto infinite = simde_mm_set1_epi32(0xFF);
+  auto special = simde_mm_or_si128(simde_mm_cmpeq_epi32(biased_a, infinite),
+                                   simde_mm_cmpeq_epi32(biased_b, infinite));
   if (!flush) [[unlikely]] {
     const auto zero = simde_mm_setzero_si128();
     const auto denormal_a = simde_mm_andnot_si128(
@@ -185,7 +274,7 @@ inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b, bool flush) {
   special = simde_mm_and_si128(special, used);
   u32 result;
   if (simde_mm_movemask_epi8(special) == 0) {
-    result = DotProductFinite<Terms>(words_a, words_b);
+    result = DotProductFinite<Terms>(words_a, words_b, biased_a, biased_b);
   } else {
     alignas(16) std::array<u32, 4> host_a;
     alignas(16) std::array<u32, 4> host_b;

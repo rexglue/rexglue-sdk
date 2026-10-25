@@ -104,6 +104,29 @@ struct FunctionEntry {
   std::string name; /**< Empty defaults to sub_XXXXXXXX */
 };
 
+/** How a vector float instruction is emitted. */
+enum class VectorMath : u8 {
+  kFast,  /**< Host SSE arithmetic, rounding and denormal results differ from the guest. */
+  kExact, /**< Bit exact guest results. */
+};
+
+/**
+ * TOML table `[vector_math]`, each key `"fast"` or `"exact"`, default fast. A key covers the
+ * 128 forms of its instruction. vlogefp is always exact. The fres and frsqrte keys cover the
+ * scalar estimates.
+ */
+struct VectorMathConfig {
+  VectorMath vmaddfp = VectorMath::kFast;     /**< vmaddfp, vmaddfp128 and vmaddcfp128. */
+  VectorMath vnmsubfp = VectorMath::kFast;    /**< vnmsubfp and vnmsubfp128. */
+  VectorMath vmsum3fp128 = VectorMath::kFast; /**< vmsum3fp128. */
+  VectorMath vmsum4fp128 = VectorMath::kFast; /**< vmsum4fp128. */
+  VectorMath vrefp = VectorMath::kFast;       /**< vrefp and vrefp128. */
+  VectorMath vrsqrtefp = VectorMath::kFast;   /**< vrsqrtefp and vrsqrtefp128. */
+  VectorMath vexptefp = VectorMath::kFast;    /**< vexptefp and vexptefp128. */
+  VectorMath fres = VectorMath::kFast;        /**< fres. */
+  VectorMath frsqrte = VectorMath::kFast;     /**< frsqrte. */
+};
+
 /**
  * Settings that control how a binary is analyzed and emitted, loaded from TOML.
  */
@@ -166,6 +189,8 @@ struct RecompilerConfig {
   bool generate_exception_handlers = false; /**< Generates SEH exception handler wrappers */
 
   u32 data_region_threshold = 16; /**< Invalid instructions in a row that mark a data region */
+
+  VectorMathConfig vector_math; /**< TOML table `[vector_math]`. */
 
   /**
    * Overrides the DLL module flag. When unset the orchestrator infers it from the module

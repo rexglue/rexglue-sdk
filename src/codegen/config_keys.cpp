@@ -50,6 +50,15 @@ constexpr std::array kBinaryKeys = {
     KeySpec{"switch_tables", Kind::kArray},
     KeySpec{"midasm_hook", Kind::kArray},
     KeySpec{"mmio", Kind::kTable},
+    KeySpec{"vector_math", Kind::kTable},
+};
+
+constexpr std::array kVectorMathKeys = {
+    KeySpec{"vmaddfp", Kind::kString},     KeySpec{"vnmsubfp", Kind::kString},
+    KeySpec{"vmsum3fp128", Kind::kString}, KeySpec{"vmsum4fp128", Kind::kString},
+    KeySpec{"vrefp", Kind::kString},       KeySpec{"vrsqrtefp", Kind::kString},
+    KeySpec{"vexptefp", Kind::kString},    KeySpec{"fres", Kind::kString},
+    KeySpec{"frsqrte", Kind::kString},
 };
 
 constexpr std::array kAnalysisKeys = {
@@ -181,6 +190,9 @@ void CheckConfigKeys(const toml::table& root, std::string_view source,
 
   if (const auto* analysis = root["analysis"].as_table()) {
     CheckTable(*analysis, kAnalysisKeys, "analysis", source, warnings);
+  }
+  if (const auto* vector_math = root["vector_math"].as_table()) {
+    CheckTable(*vector_math, kVectorMathKeys, "vector_math", source, warnings);
   }
   if (const auto* shim = root["shim"].as_table()) {
     for (const auto& [name, node] : *shim) {

@@ -182,6 +182,37 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
     }
   }
 
+  if (auto* vector_math_table = root["vector_math"].as_table()) {
+    auto& vm = cfg.vector_math;
+    const std::pair<const char*, VectorMath*> keys[] = {
+        {"vmaddfp", &vm.vmaddfp},
+        {"vnmsubfp", &vm.vnmsubfp},
+        {"vmsum3fp128", &vm.vmsum3fp128},
+        {"vmsum4fp128", &vm.vmsum4fp128},
+        {"vrefp", &vm.vrefp},
+        {"vrsqrtefp", &vm.vrsqrtefp},
+        {"vexptefp", &vm.vexptefp},
+        {"fres", &vm.fres},
+        {"frsqrte", &vm.frsqrte},
+    };
+    for (const auto& [key, mode] : keys) {
+      auto v = (*vector_math_table)[key].value<std::string>();
+      if (!v) {
+        continue;
+      }
+      if (*v == "fast") {
+        *mode = VectorMath::kFast;
+      } else if (*v == "exact") {
+        *mode = VectorMath::kExact;
+      } else {
+        auto warning = std::format("{}: key 'vector_math.{}' should be \"fast\" or \"exact\"",
+                                   description, key);
+        REXLOG_WARN(codegen, "config {}", warning);
+        cfg.load_warnings.push_back(std::move(warning));
+      }
+    }
+  }
+
   if (auto* shim_table = root["shim"].as_table()) {
     size_t added = 0;
     for (const auto& [name, val] : *shim_table) {
