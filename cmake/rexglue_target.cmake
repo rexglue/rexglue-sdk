@@ -203,9 +203,8 @@ endfunction ()
 #==========================================================
 # macOS and Linux host. $<TARGET_RUNTIME_DLLS> does not resolve imported shared
 # libraries, so stage them next to the executable (paired with the
-# @executable_path or $ORIGIN rpath). Everything else the runtime links (SDL3,
-# ...) is static. Target names differ between an in-tree build and an installed
-# SDK import.
+# @executable_path or $ORIGIN rpath). SDL3 is staged by _rexglue_stage_sdl. Target names differ
+# between an in-tree build and an installed SDK import.
 #==========================================================
 function (_rexglue_stage_unix_runtime out_var target_name)
   set(commands ${${out_var}})
@@ -441,6 +440,7 @@ function (rexglue_configure_target target_name)
   endif ()
 
   _rexglue_stage_modules(stage_commands ${target_name})
+  _rexglue_stage_sdl(stage_commands ${target_name})
 
   if (APPLE)
     _rexglue_stage_macos_vulkan_runtime(stage_commands ${target_name})
