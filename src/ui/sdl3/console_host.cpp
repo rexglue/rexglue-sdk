@@ -63,7 +63,7 @@ void ConsoleDockHost::Defer(rex::MoveOnlyFunction<void()> action) {
 
 void ConsoleDockHost::OpenWindow() {
   auto window = ConsoleWindow::Create(*ui_.context_, *ui_.gpu_, *ui_.GetImGuiStyle(), ui_.style_,
-                                      *ui_.console_, *this);
+                                      *ui_.console_, *this, ui_.GetHostAPI());
   if (!window) {
     REXLOG_ERROR(ui, "{}", window.error().message);
     ui_.console_->SetDock(ConsoleDock::kDocked);

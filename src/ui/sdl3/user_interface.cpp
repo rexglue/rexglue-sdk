@@ -6,6 +6,7 @@
 
 #include <rex/assert.h>
 #include <rex/gpu.h>
+#include <rex/gpu/backend_select.h>
 #include <rex/logging/logger.h>
 #include <rex/platform.h>
 #include <rex/runtime.h>
@@ -90,7 +91,7 @@ Result<IWindow*> SDL3UserInterface::OpenWindow(const UIConfig& config, EventCall
     post_target_ = context_.get();
   }
 
-  window_ = Window::Create(*context_, config.title);
+  window_ = Window::Create(*context_, config.title, GetHostAPI());
   if (!window_) {
     return fail("window creation failed");
   }
@@ -126,6 +127,11 @@ Result<IWindow*> SDL3UserInterface::OpenWindow(const UIConfig& config, EventCall
   }
   open_ = true;
   return window_.get();
+}
+
+gpu::HostAPI SDL3UserInterface::GetHostAPI() const {
+  const Result<gpu::HostAPI> api = gpu::SelectHostAPI(config_->gpu.backend, gpu::kPlatformHostAPIs);
+  return api ? *api : gpu::HostAPI::kNull;
 }
 
 void SDL3UserInterface::ApplyWindowCvars() {
@@ -298,11 +304,11 @@ void SDL3UserInterface::RunSynchronous(rex::MoveOnlyFunction<void()> work) {
 }
 
 ImFontAtlas* SDL3UserInterface::GetFonts() {
-  return drawer_ ? drawer_->GetIO().Fonts : nullptr;
+  return drawer_ && drawer_->HasContext() ? drawer_->GetIO().Fonts : nullptr;
 }
 
 ImGuiIO* SDL3UserInterface::GetImGuiIO() {
-  return drawer_ ? &drawer_->GetIO() : nullptr;
+  return drawer_ && drawer_->HasContext() ? &drawer_->GetIO() : nullptr;
 }
 
 ImGuiStyle* SDL3UserInterface::GetImGuiStyle() {

@@ -27,6 +27,7 @@
 #include <rex/gpu/presenter.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/move_only_function.h>
+#include "ui/sdl3/input_capture.h"
 #include "ui/sdl3/window.h"
 #include "ui/sdl3/window_listener.h"
 
@@ -42,6 +43,20 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
   ~ImGuiDrawer();
 
   ImGuiIO& GetIO();
+
+  /**
+   * Reports whether the drawer has an ImGui context.
+   *
+   * @return True when GetIO can be called.
+   */
+  [[nodiscard]] bool HasContext() const { return context_ != nullptr; }
+
+  /**
+   * Returns the capture flags of the last frame, which any thread may read.
+   *
+   * @return The flags.
+   */
+  [[nodiscard]] const InputCapture& GetInputCapture() const { return capture_; }
 
   /**
    * Returns the style of this drawer's ImGui context.
@@ -141,6 +156,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
   FontSetupCallback font_setup_;
 
   ImGuiContext* context_ = nullptr;
+  InputCapture capture_;
 
   std::vector<ImGuiDialog*> dialogs_;
   std::atomic<u32>* dialog_counter_ = nullptr;

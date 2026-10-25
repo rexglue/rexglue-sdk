@@ -10,6 +10,7 @@
 #include <rex/logging/log.h>
 #include <rex/platform.h>
 #include "ui/sdl3/sdl_virtual_key.h"
+#include "ui/sdl3/window_flags.h"
 
 #include "ui/sdl3/cvar_table.h"
 
@@ -71,16 +72,17 @@ MouseEvent::Button TranslateSDLMouseButton(Uint8 button) {
 }  // namespace
 
 std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
-                                       const std::string_view title) {
+                                       const std::string_view title, gpu::HostAPI host_api) {
   u32 width = 0;
   u32 height = 0;
   ResolveConfiguredLogicalSize(width, height);
-  return std::make_unique<WindowSDL>(app_context, title, width, height);
+  return std::make_unique<WindowSDL>(app_context, title, width, height, host_api);
 }
 
 WindowSDL::WindowSDL(WindowedAppContext& app_context, const std::string_view title,
-                     u32 desired_logical_width, u32 desired_logical_height)
-    : Window(app_context, title, desired_logical_width, desired_logical_height) {}
+                     u32 desired_logical_width, u32 desired_logical_height, gpu::HostAPI host_api)
+    : Window(app_context, title, desired_logical_width, desired_logical_height),
+      host_api_(host_api) {}
 
 WindowSDL::~WindowSDL() {
   EnterDestructor();
@@ -89,7 +91,7 @@ WindowSDL::~WindowSDL() {
 
 bool WindowSDL::OpenImpl() {
   // SDL window coordinates are physical pixels on Windows and X11, logical points on Cocoa.
-  SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
+  const SDL_WindowFlags flags = GetWindowFlags(host_api_);
 #if REX_PLATFORM_MAC
   int initial_width = static_cast<int>(GetDesiredLogicalWidth());
   int initial_height = static_cast<int>(GetDesiredLogicalHeight());

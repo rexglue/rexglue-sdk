@@ -30,7 +30,7 @@ namespace rex::ui {
 class WindowSDL final : public Window {
  public:
   WindowSDL(WindowedAppContext& app_context, const std::string_view title,
-            u32 desired_logical_width, u32 desired_logical_height);
+            u32 desired_logical_width, u32 desired_logical_height, gpu::HostAPI host_api);
   ~WindowSDL() override;
 
   void Raise() override;
@@ -76,6 +76,8 @@ class WindowSDL final : public Window {
   SDL3WindowedAppContext& GetSDLAppContext() const {
     return static_cast<SDL3WindowedAppContext&>(GetAppContext());
   }
+
+  gpu::HostAPI host_api_;
 
   /** Performs the common close sequence for RequestCloseImpl and the close request handler. */
   void PerformClose();

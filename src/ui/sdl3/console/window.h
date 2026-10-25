@@ -14,6 +14,7 @@
 
 #include <rex/platform.h>
 #include <rex/gpu.h>
+#include <rex/gpu/backend_select.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -42,11 +43,12 @@ class ConsoleWindow : public NonCopyable {
    * @param style The overlay style the window copies.
    * @param model The console model shown. Outlives the window.
    * @param host Receives dock changes. Outlives the window.
+   * @param host_api The host API the window presents with.
    * @return The window, or ErrorCategory::kRuntime when the window or its presenter fails.
    */
   [[nodiscard]] static Result<std::unique_ptr<ConsoleWindow>> Create(
       WindowedAppContext& context, gpu::IGPUBackend& backend, const ImGuiStyle& imgui_style,
-      const Style& style, ConsoleModel& model, IConsoleHost& host);
+      const Style& style, ConsoleModel& model, IConsoleHost& host, gpu::HostAPI host_api);
 
   /**
    * Builds an empty window. Only Create can make the key.

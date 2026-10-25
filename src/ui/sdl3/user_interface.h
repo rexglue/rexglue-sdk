@@ -104,6 +104,7 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
  private:
   friend class ConsoleDockHost;
 
+  [[nodiscard]] gpu::HostAPI GetHostAPI() const;
   void ApplyWindowCvars();
   void CreateToast();
   void ReleaseToast();

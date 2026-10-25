@@ -430,6 +430,7 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
   io.DisplaySize.y = static_cast<f32>(window_->GetActualPhysicalHeight()) * physical_to_logical;
 
   ImGui::NewFrame();
+  capture_.Update(io);
 
   dialog_loop_next_index_ = 0;
   while (dialog_loop_next_index_ < dialogs_.size()) {
@@ -629,6 +630,7 @@ void ImGuiDrawer::ClearInput() {
   io.ClearInputKeys();
   touch_pointer_id_ = TouchEvent::kPointerIDNone;
   reset_mouse_position_after_next_frame_ = false;
+  capture_.Clear();
 }
 
 void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {

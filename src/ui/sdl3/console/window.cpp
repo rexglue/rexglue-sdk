@@ -67,10 +67,10 @@ ConsoleWindow::~ConsoleWindow() {
 
 Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(
     WindowedAppContext& context, gpu::IGPUBackend& backend, const ImGuiStyle& imgui_style,
-    const Style& style, ConsoleModel& model, IConsoleHost& host) {
+    const Style& style, ConsoleModel& model, IConsoleHost& host, gpu::HostAPI host_api) {
   using Created = std::unique_ptr<ConsoleWindow>;
   Created console = std::make_unique<ConsoleWindow>(Key{});
-  console->window_ = Window::Create(context, "Console");
+  console->window_ = Window::Create(context, "Console", host_api);
   if (!console->window_) {
     return Err<Created>(ErrorCategory::kRuntime, "console window creation failed");
   }

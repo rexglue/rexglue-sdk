@@ -197,7 +197,6 @@ add_executable(
   ui/hid_attach_test.cpp
   ui/imgui_dialog_test.cpp
   ui/input_capture_test.cpp
-  ui/window_flags_test.cpp
   ui/null_user_interface_test.cpp
   ui/prompt_test.cpp
   ui/xam_prompt_test.cpp

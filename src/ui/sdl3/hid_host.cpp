@@ -67,15 +67,15 @@ bool HIDHost::IsCaptureActive() const {
   if (!overlays_.IsAnyVisible()) {
     return true;
   }
-  return !drawer_.GetIO().WantCaptureMouse;
+  return !drawer_.GetInputCapture().WantsMouse();
 }
 
 bool HIDHost::IsOverlayCapturingInput(bool keyboard) const {
   if (!overlays_.IsAnyVisible()) {
     return false;
   }
-  const ImGuiIO& io = drawer_.GetIO();
-  return keyboard ? io.WantCaptureKeyboard : io.WantCaptureMouse;
+  const InputCapture& capture = drawer_.GetInputCapture();
+  return keyboard ? capture.WantsKeyboard() : capture.WantsMouse();
 }
 
 void HIDHost::OnKeyDown(KeyEvent& e) {

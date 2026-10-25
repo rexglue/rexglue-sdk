@@ -22,6 +22,7 @@
 
 #include <rex/platform.h>
 #include <rex/types.h>
+#include <rex/gpu/backend_select.h>
 #include <rex/ui.h>
 #include <rex/ui/user_interface.h>
 #include <rex/gpu/presenter.h>
@@ -59,10 +60,11 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @param app_context The app context that owns the UI thread.
    * @param title The window title.
+   * @param host_api The host API the window presents with.
    * @return The window.
    */
   static std::unique_ptr<Window> Create(WindowedAppContext& app_context,
-                                        const std::string_view title);
+                                        const std::string_view title, gpu::HostAPI host_api);
 
   virtual ~Window();
 
