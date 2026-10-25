@@ -49,6 +49,11 @@ class VulkanSharedMemory : public SharedMemory {
 
   VkBuffer buffer() const { return buffer_; }
 
+  // Call right before recording a draw: the ranges requested for it are now
+  // read inside the open render pass, so uploads to them can no longer be
+  // moved ahead of that pass.
+  void NoteDrawReadsInOpenPass();
+
  protected:
   bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                         uint32_t length_allocations) override;
@@ -72,6 +77,13 @@ class VulkanSharedMemory : public SharedMemory {
 
   std::unique_ptr<ui::vulkan::VulkanUploadBufferPool> upload_buffer_pool_;
   std::vector<VkBufferCopy> upload_regions_;
+
+  bool OpenPassReadsAnyOf(
+      const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) const;
+
+  // Byte ranges read by the draws already recorded in the open render pass.
+  uint64_t open_pass_reads_serial_ = 0;
+  std::vector<std::pair<uint32_t, uint32_t>> open_pass_reads_;
 };
 
 }  // namespace rex::graphics::vulkan

@@ -27,6 +27,11 @@ REXCVAR_DEFINE_BOOL(vulkan_sparse_shared_memory, true, "GPU/Vulkan",
                     "Use sparse shared memory on Vulkan")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
+REXCVAR_DEFINE_BOOL(vulkan_hoist_uploads, true, "GPU/Vulkan",
+                    "Record guest memory uploads ahead of the open render pass when no draw in "
+                    "it reads the uploaded pages, instead of ending and restarting the pass")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 namespace rex::graphics::vulkan {
 
 VulkanSharedMemory::VulkanSharedMemory(VulkanCommandProcessor& command_processor,
@@ -268,20 +273,68 @@ bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_alloca
   return true;
 }
 
+void VulkanSharedMemory::NoteDrawReadsInOpenPass() {
+  uint64_t serial = command_processor_.deferred_command_buffer().open_pass_serial();
+  if (serial != open_pass_reads_serial_) {
+    open_pass_reads_.clear();
+    open_pass_reads_serial_ = serial;
+  }
+  if (serial) {
+    open_pass_reads_.insert(open_pass_reads_.end(), requested_ranges_.begin(),
+                            requested_ranges_.end());
+  }
+  requested_ranges_.clear();
+}
+
+bool VulkanSharedMemory::OpenPassReadsAnyOf(
+    const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) const {
+  if (open_pass_reads_serial_ != command_processor_.deferred_command_buffer().open_pass_serial()) {
+    return false;
+  }
+  for (const std::pair<uint32_t, uint32_t>& pages : upload_page_ranges) {
+    uint64_t upload_start = uint64_t(pages.first) << page_size_log2();
+    uint64_t upload_end = upload_start + (uint64_t(pages.second) << page_size_log2());
+    for (const std::pair<uint32_t, uint32_t>& read : open_pass_reads_) {
+      if (read.first < upload_end && uint64_t(read.first) + read.second > upload_start) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool VulkanSharedMemory::UploadRanges(
     const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) {
   if (upload_page_ranges.empty()) {
     return true;
   }
-  // upload_page_ranges are sorted, use them to determine the range for the
-  // ordering barrier.
-  Use(Usage::kTransferDestination,
-      std::make_pair(upload_page_ranges.front().first << page_size_log2(),
-                     (upload_page_ranges.back().first + upload_page_ranges.back().second -
-                      upload_page_ranges.front().first)
-                         << page_size_log2()));
-  command_processor_.SubmitBarriers(true);
+  // Breaking the render pass for an upload costs a full store and reload of
+  // its attachments on a tile-based GPU, so when nothing in the open pass reads
+  // the pages, the copy goes ahead of the pass instead. Only while the buffer
+  // is plain-read (no GPU writes to order against).
   DeferredCommandBuffer& command_buffer = command_processor_.deferred_command_buffer();
+  const bool hoist = REXCVAR_GET(vulkan_hoist_uploads) && command_buffer.open_pass_serial() &&
+                     last_usage_ == Usage::kRead && !last_written_range_.second &&
+                     !OpenPassReadsAnyOf(upload_page_ranges);
+  if (!hoist) {
+    // upload_page_ranges are sorted, use them to determine the range for the
+    // ordering barrier.
+    Use(Usage::kTransferDestination,
+        std::make_pair(upload_page_ranges.front().first << page_size_log2(),
+                       (upload_page_ranges.back().first + upload_page_ranges.back().second -
+                        upload_page_ranges.front().first)
+                           << page_size_log2()));
+    command_processor_.SubmitBarriers(true);
+  }
+  auto record_copy = [&](VkBuffer source) {
+    if (hoist) {
+      command_buffer.HoistCopyBufferBeforeOpenPass(source, buffer_, uint32_t(upload_regions_.size()),
+                                                   upload_regions_.data());
+    } else {
+      command_buffer.CmdVkCopyBuffer(source, buffer_, uint32_t(upload_regions_.size()),
+                                     upload_regions_.data());
+    }
+  };
   uint64_t submission_current = command_processor_.GetCurrentSubmission();
   bool successful = true;
   upload_regions_.clear();
@@ -306,8 +359,7 @@ bool VulkanSharedMemory::UploadRanges(
                   upload_buffer_size);
       if (upload_buffer_previous != upload_buffer && !upload_regions_.empty()) {
         assert_true(upload_buffer_previous != VK_NULL_HANDLE);
-        command_buffer.CmdVkCopyBuffer(upload_buffer_previous, buffer_,
-                                       uint32_t(upload_regions_.size()), upload_regions_.data());
+        record_copy(upload_buffer_previous);
         upload_regions_.clear();
       }
       upload_buffer_previous = upload_buffer;
@@ -325,8 +377,7 @@ bool VulkanSharedMemory::UploadRanges(
   }
   if (!upload_regions_.empty()) {
     assert_true(upload_buffer_previous != VK_NULL_HANDLE);
-    command_buffer.CmdVkCopyBuffer(upload_buffer_previous, buffer_,
-                                   uint32_t(upload_regions_.size()), upload_regions_.data());
+    record_copy(upload_buffer_previous);
     upload_regions_.clear();
   }
   return successful;

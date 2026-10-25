@@ -30,6 +30,66 @@ DeferredCommandBuffer::DeferredCommandBuffer(const VulkanCommandProcessor& comma
 
 void DeferredCommandBuffer::Reset() {
   command_stream_.clear();
+  pass_open_ = false;
+  upload_slots_.clear();
+  hoisted_regions_.clear();
+}
+
+void DeferredCommandBuffer::WriteUploadSlot() {
+  auto& args =
+      *reinterpret_cast<ArgsUploadSlot*>(WriteCommand(Command::kUploadSlot, sizeof(ArgsUploadSlot)));
+  args.slot = uint32_t(upload_slots_.size());
+  upload_slots_.emplace_back();
+  pass_open_ = true;
+  ++pass_serial_;
+}
+
+void DeferredCommandBuffer::HoistCopyBufferBeforeOpenPass(VkBuffer src_buffer, VkBuffer dst_buffer,
+                                                          uint32_t region_count,
+                                                          const VkBufferCopy* regions) {
+  assert_true(pass_open_ && !upload_slots_.empty());
+  HoistedCopy& copy = upload_slots_.back().copies.emplace_back();
+  copy.src_buffer = src_buffer;
+  copy.dst_buffer = dst_buffer;
+  copy.first_region = uint32_t(hoisted_regions_.size());
+  copy.region_count = region_count;
+  hoisted_regions_.insert(hoisted_regions_.end(), regions, regions + region_count);
+}
+
+void DeferredCommandBuffer::ExecuteUploadSlot(VkCommandBuffer command_buffer,
+                                              uint32_t slot) const {
+  const UploadSlot& upload_slot = upload_slots_[slot];
+  if (upload_slot.copies.empty()) {
+    return;
+  }
+  const ui::vulkan::VulkanDevice::Functions& dfn =
+      command_processor_.GetVulkanDevice()->functions();
+  // The same conservative ordering the upload would have had in place: after
+  // every earlier read and write of the destination, before every later one.
+  VkBufferMemoryBarrier barrier = {};
+  barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.offset = 0;
+  barrier.size = VK_WHOLE_SIZE;
+  for (const HoistedCopy& copy : upload_slot.copies) {
+    barrier.buffer = copy.dst_buffer;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &barrier, 0,
+                             nullptr);
+    dfn.vkCmdCopyBuffer(command_buffer, copy.src_buffer, copy.dst_buffer, copy.region_count,
+                        hoisted_regions_.data() + copy.first_region);
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+                            VK_ACCESS_UNIFORM_READ_BIT | VK_ACCESS_SHADER_READ_BIT |
+                            VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT |
+                            VK_ACCESS_TRANSFER_WRITE_BIT;
+    dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1, &barrier, 0,
+                             nullptr);
+  }
 }
 
 void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
@@ -306,6 +366,10 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
         dfn.vkCmdSetStencilWriteMask(command_buffer, args.face_mask, args.mask_reference);
       } break;
 
+      case Command::kUploadSlot: {
+        ExecuteUploadSlot(command_buffer, reinterpret_cast<const ArgsUploadSlot*>(stream)->slot);
+      } break;
+
       case Command::kVkSetViewport: {
         auto& args = *reinterpret_cast<const ArgsVkSetViewport*>(stream);
         dfn.vkCmdSetViewport(command_buffer, args.first_viewport, args.viewport_count,
@@ -374,6 +438,7 @@ void DeferredCommandBuffer::CmdVkPipelineBarrier(
 
 void DeferredCommandBuffer::CmdVkBeginRendering(const VkRenderingInfo* rendering_info) {
   assert_null(rendering_info->pNext);
+  WriteUploadSlot();
 
   size_t arguments_size =
       rex::align(sizeof(ArgsVkBeginRendering), alignof(VkRenderingAttachmentInfo));

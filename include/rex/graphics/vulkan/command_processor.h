@@ -793,6 +793,13 @@ class VulkanCommandProcessor : public CommandProcessor {
   // but in_render_pass_ is true.
   VkRenderPass current_render_pass_;
   const VulkanRenderTargetCache::Framebuffer* current_framebuffer_;
+  // With dynamic rendering, a transfer pass and a draw pass into the same
+  // framebuffer differ only in their attachments (the transfer binds just the
+  // destination, through an ownership transfer view whose format may be an
+  // integer one), so the framebuffer alone can't tell whether the open pass is
+  // the one needed. The transfer destination view, VK_NULL_HANDLE for a draw
+  // pass.
+  VkImageView current_transfer_dest_view_ = VK_NULL_HANDLE;
   bool in_render_pass_ = false;
 
   // Currently bound graphics pipeline, either from the pipeline cache (with

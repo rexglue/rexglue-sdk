@@ -140,6 +140,10 @@ class SharedMemory {
   virtual bool UploadRanges(
       const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) = 0;
 
+  // Every range requested since the implementation last took them (the ranges
+  // the next draw reads), in bytes.
+  std::vector<std::pair<uint32_t, uint32_t>> requested_ranges_;
+
  private:
   memory::Memory& memory_;
 

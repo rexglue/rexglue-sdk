@@ -31,6 +31,15 @@ class DeferredCommandBuffer {
   void Reset();
   void Execute(VkCommandBuffer command_buffer);
 
+  // Nonzero while a render pass is open: identifies that pass.
+  uint64_t open_pass_serial() const { return pass_open_ ? pass_serial_ : 0; }
+  // Records a buffer copy that executes before the open render pass begins,
+  // with barriers ordering it after everything earlier in the stream and before
+  // everything in and after the pass. Only valid while a pass is open, and only
+  // for data that no draw already recorded in the pass reads.
+  void HoistCopyBufferBeforeOpenPass(VkBuffer src_buffer, VkBuffer dst_buffer,
+                                     uint32_t region_count, const VkBufferCopy* regions);
+
   // render_pass_begin->pNext of all barriers must be null.
   void CmdVkBeginRenderPass(const VkRenderPassBeginInfo* render_pass_begin,
                             VkSubpassContents contents) {
@@ -43,6 +52,7 @@ class DeferredCommandBuffer {
       clear_values_offset = arguments_size;
       arguments_size += sizeof(VkClearValue) * clear_value_count;
     }
+    WriteUploadSlot();
     uint8_t* args_ptr =
         reinterpret_cast<uint8_t*>(WriteCommand(Command::kVkBeginRenderPass, arguments_size));
     auto& args = *reinterpret_cast<ArgsVkBeginRenderPass*>(args_ptr);
@@ -259,11 +269,17 @@ class DeferredCommandBuffer {
     args.query = query;
   }
 
-  void CmdVkEndRenderPass() { WriteCommand(Command::kVkEndRenderPass, 0); }
+  void CmdVkEndRenderPass() {
+    pass_open_ = false;
+    WriteCommand(Command::kVkEndRenderPass, 0);
+  }
 
   // Dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
   void CmdVkBeginRendering(const VkRenderingInfo* rendering_info);
-  void CmdVkEndRendering() { WriteCommand(Command::kVkEndRendering, 0); }
+  void CmdVkEndRendering() {
+    pass_open_ = false;
+    WriteCommand(Command::kVkEndRendering, 0);
+  }
 
   void CmdVkResetQueryPool(VkQueryPool query_pool, uint32_t first_query, uint32_t query_count) {
     auto& args = *reinterpret_cast<ArgsVkResetQueryPool*>(
@@ -381,6 +397,7 @@ class DeferredCommandBuffer {
     kVkSetStencilReference,
     kVkSetStencilWriteMask,
     kVkSetViewport,
+    kUploadSlot,
   };
 
   struct CommandHeader {
@@ -570,6 +587,10 @@ class DeferredCommandBuffer {
     uint32_t mask_reference;
   };
 
+  struct ArgsUploadSlot {
+    uint32_t slot;
+  };
+
   struct ArgsVkSetViewport {
     uint32_t first_viewport;
     uint32_t viewport_count;
@@ -579,10 +600,32 @@ class DeferredCommandBuffer {
 
   void* WriteCommand(Command command, size_t arguments_size_bytes);
 
+  // Every render pass is preceded by an upload slot: copies that would
+  // otherwise end the pass are recorded there instead (see
+  // HoistCopyBufferBeforeOpenPass). Breaking a pass costs a full store and
+  // reload of its attachments on a tile-based GPU.
+  void WriteUploadSlot();
+  void ExecuteUploadSlot(VkCommandBuffer command_buffer, uint32_t slot) const;
+
   const VulkanCommandProcessor& command_processor_;
 
   // uintmax_t to ensure uint64_t and pointer alignment of all structures.
   std::vector<uintmax_t> command_stream_;
+
+  bool pass_open_ = false;
+  uint64_t pass_serial_ = 0;
+
+  struct HoistedCopy {
+    VkBuffer src_buffer;
+    VkBuffer dst_buffer;
+    uint32_t first_region;
+    uint32_t region_count;
+  };
+  struct UploadSlot {
+    std::vector<HoistedCopy> copies;
+  };
+  std::vector<UploadSlot> upload_slots_;
+  std::vector<VkBufferCopy> hoisted_regions_;
 };
 
 }  // namespace rex::graphics::vulkan

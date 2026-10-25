@@ -382,6 +382,7 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
     }
   }
   merged_ranges.resize(merged_write + 1);
+  requested_ranges_.insert(requested_ranges_.end(), merged_ranges.begin(), merged_ranges.end());
 
   for (const std::pair<uint32_t, uint32_t>& range : merged_ranges) {
     if (!EnsureHostGpuMemoryAllocated(range.first, range.second)) {
