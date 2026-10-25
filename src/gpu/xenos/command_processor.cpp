@@ -11,6 +11,7 @@
 
 #include <bit>
 #include <algorithm>
+#include <chrono>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
@@ -253,18 +254,11 @@ void CommandProcessor::WorkerThreadMain() {
     u32 write_ptr_index = write_ptr_index_.load();
     if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
       REX_PROFILE_SCOPE_TEXT("gpu", "rex::gpu::CommandProcessor::Stall");
-      // Spin for new commands, as waiting on the event costs too much.
       PrepareForWait();
-      u32 loop_count = 0;
       do {
-        if (loop_count > 500) {
-          const int wait_time_ms = 5;
-          rex::platform::Wait(write_ptr_index_event_.get(), true,
-                              std::chrono::milliseconds(wait_time_ms));
-        }
-
-        rex::platform::MaybeYield();
-        loop_count++;
+        const int wait_time_ms = 5;
+        rex::platform::Wait(write_ptr_index_event_.get(), true,
+                            std::chrono::milliseconds(wait_time_ms));
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && !HasPendingFns() &&
                (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index));
@@ -918,6 +912,19 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
   bool is_memory = (wait_info & 0x10) != 0;
 
   bool matched = false;
+  u32 attempts = 0;
+  const auto back_off = [&attempts] {
+    constexpr u32 kYields = 16;
+    constexpr u32 kLongestSleepMicroseconds = 1000;
+    if (attempts < kYields) {
+      rex::platform::MaybeYield();
+    } else {
+      const u32 doublings = std::min<u32>(attempts - kYields, 5);
+      rex::platform::Sleep(
+          std::chrono::microseconds(std::min<u32>(kLongestSleepMicroseconds, 50u << doublings)));
+    }
+    ++attempts;
+  };
   do {
     u32 value = 0;
     if (is_memory) {
@@ -964,7 +971,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
       if (wait >= 0x100) {
         PrepareForWait();
         if (!REXCVAR_GET(::rex::gpu::cvars::vsync)) {
-          rex::platform::MaybeYield();
+          back_off();
         } else {
           rex::platform::Sleep(std::chrono::milliseconds(wait / 0x100));
         }
@@ -975,7 +982,10 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
           return false;
         }
       } else {
-        rex::platform::MaybeYield();
+        back_off();
+        if (!worker_running_) {
+          return false;
+        }
       }
     }
   } while (!matched);

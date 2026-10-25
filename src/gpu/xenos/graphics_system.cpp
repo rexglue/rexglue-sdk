@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -124,6 +125,8 @@ Result<void> GraphicsSystem::SetupGPU(runtime::FunctionDispatcher& dispatcher, R
         std::max(static_cast<u64>(1),
                  static_cast<u64>(static_cast<f64>(guest_tick_frequency) / refresh_rate_hz));
     u64 no_vsync_interval_ticks = std::max(static_cast<u64>(1), guest_tick_frequency / 1000);
+    const f64 nanoseconds_per_tick = 1e9 / static_cast<f64>(guest_tick_frequency);
+    constexpr std::chrono::milliseconds kLongestSleep{50};
     u64 last_frame_time = Clock::QueryGuestTickCount();
     while (vsync_worker_running_) {
       u64 current_time = Clock::QueryGuestTickCount();
@@ -132,8 +135,13 @@ Result<void> GraphicsSystem::SetupGPU(runtime::FunctionDispatcher& dispatcher, R
       while (current_time - last_frame_time >= interval_ticks) {
         MarkVblank();
         last_frame_time += interval_ticks;
+        current_time = Clock::QueryGuestTickCount();
       }
-      rex::platform::Sleep(std::chrono::milliseconds(1));
+      const u64 remaining_ticks = last_frame_time + interval_ticks - current_time;
+      rex::platform::Sleep(std::min<std::chrono::nanoseconds>(
+          std::chrono::nanoseconds(
+              static_cast<i64>(static_cast<f64>(remaining_ticks) * nanoseconds_per_tick)),
+          kLongestSleep));
     }
     return 0;
   });

@@ -146,3 +146,24 @@ REX_TEST_CASE_METHOD(Fixture, "Shutdown stops vblanks before the command process
     rex::test::ReleaseTestMemory();
   }
 }
+
+REX_TEST_CASE_METHOD(Fixture, "The command processor shuts down promptly while it waits idle",
+                     "[gpu]") {
+  constexpr auto kIdleTime = std::chrono::milliseconds(200);
+  constexpr auto kShutdownBound = std::chrono::seconds(2);
+
+  auto api = rex::Init(NullConfig());
+  REQUIRE(api);
+  auto* backend = (*api)->Get<rex::gpu::IGPUBackend>();
+  REQUIRE(backend != nullptr);
+  rex::Runtime runtime((*api)->GetConfig());
+  rex::RuntimeDesc setup;
+  setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
+  setup.gpu = backend;
+  REQUIRE(runtime.Setup(setup));
+
+  std::this_thread::sleep_for(kIdleTime);
+  const auto start = std::chrono::steady_clock::now();
+  runtime.Shutdown();
+  CHECK(std::chrono::steady_clock::now() - start < kShutdownBound);
+}

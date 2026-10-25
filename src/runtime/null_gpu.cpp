@@ -47,14 +47,18 @@ Result<void> NullGPU::SetupGPU(FunctionDispatcher& dispatcher, Runtime& runtime)
     const f64 refresh_hz = std::max(1.0, static_cast<f64>(runtime_->GetVideoMode().refresh_rate));
     const u64 interval = std::max<u64>(
         1, static_cast<u64>(static_cast<f64>(Clock::GetGuestTickFrequency()) / refresh_hz));
+    const f64 nanoseconds_per_tick = 1e9 / static_cast<f64>(Clock::GetGuestTickFrequency());
     u64 last = Clock::QueryGuestTickCount();
     while (vsync_running_.load(std::memory_order_acquire)) {
-      const u64 now = Clock::QueryGuestTickCount();
+      u64 now = Clock::QueryGuestTickCount();
       while (now - last >= interval) {
         RaiseVblank();
         last += interval;
+        now = Clock::QueryGuestTickCount();
       }
-      platform::Sleep(std::chrono::milliseconds(1));
+      const u64 remaining = last + interval - now;
+      platform::Sleep(std::chrono::nanoseconds(
+          static_cast<i64>(static_cast<f64>(remaining) * nanoseconds_per_tick)));
     }
     return 0;
   });
