@@ -16,6 +16,7 @@ set(CODEGEN_CORE_SOURCES
     binary_view.cpp
     instruction_dispatch.cpp
     mmio_analysis.cpp
+    stack_forwarding.cpp
     module_stub.cpp
     codegen_context.cpp
     phase_register.cpp

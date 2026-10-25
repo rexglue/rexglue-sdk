@@ -37,6 +37,11 @@ constexpr u32 kVsubfp = 0x1040184A;
 constexpr u32 kMtvscr = 0x10001644;
 constexpr u32 kFadd = 0xFC22182A;
 constexpr u32 kBlr = 0x4E800020;
+constexpr u32 kNop = 0x60000000;
+constexpr u32 kBeqSkipOne = 0x41820008;
+constexpr u32 kBeqSkipTwo = 0x4182000C;
+constexpr u32 kBneBackTwo = 0x4082FFF8;
+constexpr std::string_view kDisable = "DisableFlushMode();";
 constexpr std::string_view kSet = "ctx.fpscr.SetFlushMode(ctx.vscr_nj);";
 
 std::string EmitFunction(std::string_view name, std::initializer_list<u32> words) {
@@ -121,4 +126,24 @@ REX_TEST_CASE("mtvscr between scalar operations leaves the host flush mode alone
   const std::string code = EmitFunction("mtvscr_scalar", {kFadd, kMtvscr, kFadd, kBlr});
   CHECK(Count(code, kSet) == 0);
   CHECK(Count(code, "EnableFlushMode") == 0);
+}
+
+REX_TEST_CASE("a label reached only from vector paths keeps the host flush mode",
+              "[codegen][flush]") {
+  const std::string code =
+      EmitFunction("join_vector", {kVaddfp, kBeqSkipOne, kVsubfp, kVaddfp, kBlr});
+  CHECK(Count(code, kSet) == 1);
+}
+
+REX_TEST_CASE("a label reached from a scalar path and a vector path checks the host flush mode",
+              "[codegen][flush]") {
+  const std::string code =
+      EmitFunction("join_mixed", {kFadd, kBeqSkipTwo, kVaddfp, kNop, kVsubfp, kBlr});
+  CHECK(Count(code, kSet) == 2);
+}
+
+REX_TEST_CASE("a label reached by a back edge in another mode is not assumed to match",
+              "[codegen][flush]") {
+  const std::string code = EmitFunction("join_loop", {kFadd, kFadd, kVaddfp, kBneBackTwo, kBlr});
+  CHECK(Count(code, kDisable) == 2);
 }

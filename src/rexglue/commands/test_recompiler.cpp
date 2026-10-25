@@ -176,6 +176,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
         codegen::VectorMath::kExact, codegen::VectorMath::kExact, codegen::VectorMath::kExact,
         codegen::VectorMath::kExact, codegen::VectorMath::kExact, codegen::VectorMath::kExact,
         codegen::VectorMath::kExact, codegen::VectorMath::kExact, codegen::VectorMath::kExact};
+    config.forward_stack_stores = true;
     auto ctx =
         codegen::CodegenContext::Create(codegen::BinaryView::FromModule(module), std::move(config));
 

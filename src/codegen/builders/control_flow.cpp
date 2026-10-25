@@ -58,6 +58,9 @@ bool BuildB(BuilderContext& ctx) {
 
     case TargetKind::kFunction:
     case TargetKind::kImport:
+      if (ctx.EmitTailCall(target)) {
+        break;
+      }
       ctx.EmitFunctionCall(target);
       ctx.Println("\treturn;");
       break;
@@ -155,6 +158,10 @@ bool Build<PPC_INST_BCTR>(BuilderContext& ctx) {
         case TargetKind::kImport:
           if (auto* target_fn = ctx.GetGraph().GetFunction(label)) {
             ctx.emit_ctx.Reference(target_fn->GetName());
+            if (ctx.CanTailCall()) {
+              ctx.Println("\t\t[[clang::musttail]] return {}(ctx, base);", target_fn->GetName());
+              break;
+            }
             ctx.Println("\t\t{}(ctx, base);", target_fn->GetName());
           } else {
             REXLOG_ERROR(
@@ -183,8 +190,12 @@ bool Build<PPC_INST_BCTR>(BuilderContext& ctx) {
 
     ctx.ResetJumpTable();
   } else {
-    ctx.Println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
-    ctx.Println("\treturn;");
+    if (ctx.CanTailCall()) {
+      ctx.Println("\tREX_TAIL_INDIRECT_FUNC({}.u32);", ctx.CTR());
+    } else {
+      ctx.Println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
+      ctx.Println("\treturn;");
+    }
   }
   return true;
 }

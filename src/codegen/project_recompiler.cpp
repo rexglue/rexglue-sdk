@@ -43,7 +43,7 @@ namespace rex::codegen {
 namespace {
 
 /** Bumped whenever a builder changes the code it emits, so existing projects regenerate. */
-constexpr u32 kEmitterRevision = 2;
+constexpr u32 kEmitterRevision = 5;
 
 std::string DeriveTargetNameFromFilePath(const std::string& file_path) {
   std::filesystem::path p(file_path);

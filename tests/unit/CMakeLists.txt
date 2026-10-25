@@ -162,10 +162,12 @@ add_executable(
   ppc/arg_translator_test.cpp
   ppc/stack_test.cpp
   ppc/vector_tables_test.cpp
+  ppc/vector_unaligned_write_test.cpp
   runtime/timeout_test.cpp
   runtime/guest_path_test.cpp
   runtime/map_parser_test.cpp
   runtime/guest_allocator_test.cpp
+  runtime/guest_stack_range_test.cpp
   kernel/shim_heap_test.cpp
   runtime/object_block_test.cpp
   runtime/module_object_test.cpp
@@ -215,6 +217,11 @@ add_executable(
   codegen/millicode_test.cpp
   codegen/noreturn_test.cpp
   codegen/reserved_register_test.cpp
+  codegen/restore_exit_test.cpp
+  codegen/stack_access_test.cpp
+  codegen/stack_slot_forwarding_test.cpp
+  codegen/tail_call_test.cpp
+  codegen/vector_pair_write_test.cpp
   codegen/setjmp_test.cpp
   codegen/skip_lr_test.cpp
   codegen/call_usage_test.cpp

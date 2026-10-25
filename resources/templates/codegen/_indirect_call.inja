@@ -38,3 +38,21 @@
     }                                                                                      \
     rex_indirect_func_(ctx, base);                                                         \
   } while (0)
+
+#define REX_TAIL_INDIRECT_FUNC(x)                                                          \
+  do {                                                                                     \
+    REX_PROFILE_INDIRECT_DISPATCH();                                                       \
+    u32 rex_indirect_target_ = static_cast<u32>(x);                                        \
+    PPCFunc* rex_indirect_func_;                                                           \
+    if (static_cast<u32>(rex_indirect_target_ - REX_CODE_BASE) <                           \
+        REX_CODE_SIZE + REX_THUNK_RESERVE_SIZE) [[likely]] {                               \
+      rex_indirect_func_ = REX_LOOKUP_FUNC(base, rex_indirect_target_);                    \
+    } else {                                                                               \
+      rex_indirect_func_ = nullptr;                                                        \
+    }                                                                                      \
+    if (!rex_indirect_func_) [[unlikely]] {                                                \
+      ctx.last_indirect_target = rex_indirect_target_;                                     \
+      rex_indirect_func_ = rex::ppc::ResolveFunction(rex_indirect_target_);                \
+    }                                                                                      \
+    [[clang::musttail]] return rex_indirect_func_(ctx, base);                              \
+  } while (0)

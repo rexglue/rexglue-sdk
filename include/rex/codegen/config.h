@@ -186,6 +186,10 @@ struct RecompilerConfig {
    * and the high vector registers in local variables, except in register sharing functions and SEH
    * scopes. */
   bool non_volatile_registers_as_local_variables = false;
+  /** TOML key `forward_stack_stores`, default false. When true, a load through r1 reads the value
+   * an earlier store through r1 of the same offset and width left in the same basic block, instead
+   * of reading guest memory. */
+  bool forward_stack_stores = false;
   bool generate_exception_handlers = false; /**< Generates SEH exception handler wrappers */
 
   u32 data_region_threshold = 16; /**< Invalid instructions in a row that mark a data region */

@@ -103,6 +103,7 @@ nlohmann::json BuildTemplateData(const rex::codegen::CodegenContext& ctx,
       {"cr_as_local", cfg.cr_registers_as_local_variables},
       {"non_argument_as_local", cfg.non_argument_registers_as_local_variables},
       {"non_volatile_as_local", cfg.non_volatile_registers_as_local_variables},
+      {"forward_stack_stores", cfg.forward_stack_stores},
   };
 
   return {

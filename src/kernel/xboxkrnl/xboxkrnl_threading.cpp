@@ -215,6 +215,10 @@ void KeSetCurrentStackPointers_entry(MappedVoid stack_ptr, GuestPtrT<X_KTHREAD> 
   auto pcr = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_KPCR*>(
       static_cast<u32>(context->r13.u64));
 
+  if (stack_ptr.GetGuestAddress() >= 0xE0000000u) {
+    REXLOG_ERROR(kernel, "KeSetCurrentStackPointers stack pointer {:#x} is in the physical range",
+                 stack_ptr.GetGuestAddress());
+  }
   UpdateGuestStackPointers(thread, pcr, context, stack_ptr.GetGuestAddress(),
                            stack_alloc_base.GetValue(), stack_base.GetValue(),
                            stack_limit.GetValue());

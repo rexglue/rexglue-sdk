@@ -526,6 +526,91 @@ inline simde__m128i ShiftLeftLanes<u8>(simde__m128i a, simde__m128i count) {
   return simde_mm_packus_epi16(r_lo, r_hi);
 }
 
+/**
+ * Reverses the 16 bytes of a vector register into guest byte order.
+ *
+ * @param v The register value.
+ * @return The bytes in guest memory order.
+ */
+inline simde__m128i ToGuestByteOrder(simde__m128i v) {
+  return simde_mm_shuffle_epi8(
+      v, simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(kVectorMaskL)));
+}
+
+/**
+ * Writes the first count bytes of a 16 byte buffer to host memory with at most two overlapping
+ * stores and no byte outside the destination.
+ *
+ * @param host The destination.
+ * @param bytes The 16 byte source in guest memory order.
+ * @param count The number of bytes to write, 0 to 16.
+ */
+inline void StoreVectorBytes(u8* host, const u8* bytes, u32 count) {
+  if (count == 16) {
+    simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(host),
+                          simde_mm_loadu_si128(reinterpret_cast<const simde__m128i*>(bytes)));
+  } else if (count >= 8) {
+    std::memcpy(host, bytes, 8);
+    std::memcpy(host + count - 8, bytes + count - 8, 8);
+  } else if (count >= 4) {
+    std::memcpy(host, bytes, 4);
+    std::memcpy(host + count - 4, bytes + count - 4, 4);
+  } else if (count >= 2) {
+    std::memcpy(host, bytes, 2);
+    std::memcpy(host + count - 2, bytes + count - 2, 2);
+  } else if (count == 1) {
+    host[0] = bytes[0];
+  }
+}
+
+/**
+ * Stores the first 16 - (ea & 0xF) guest order bytes of a vector, the stvlx operation.
+ *
+ * @param host The host address of ea.
+ * @param ea The guest effective address.
+ * @param v The register value.
+ */
+inline void StoreVectorLeft(u8* host, u32 ea, simde__m128i v) {
+  alignas(16) u8 bytes[16];
+  simde_mm_store_si128(reinterpret_cast<simde__m128i*>(bytes), ToGuestByteOrder(v));
+  StoreVectorBytes(host, bytes, 16 - (ea & 0xF));
+}
+
+/**
+ * Stores the last ea & 0xF guest order bytes of a vector at the start of the quadword that holds
+ * ea, the stvrx operation. Writes nothing when ea is aligned.
+ *
+ * @param host The host address of the start of that quadword.
+ * @param ea The guest effective address.
+ * @param v The register value.
+ */
+inline void StoreVectorRight(u8* host, u32 ea, simde__m128i v) {
+  alignas(16) u8 bytes[16];
+  simde_mm_store_si128(reinterpret_cast<simde__m128i*>(bytes), ToGuestByteOrder(v));
+  const u32 count = ea & 0xF;
+  StoreVectorBytes(host, bytes + 16 - count, count);
+}
+
+/**
+ * Stores a vector through the stvlx and stvrx pair of the unaligned store idiom. One 16 byte store
+ * when the two quadwords are adjacent in guest and host memory, two stores otherwise.
+ *
+ * @param left_host The host address of the stvlx address.
+ * @param left_ea The stvlx guest effective address.
+ * @param right_host The host address of the start of the quadword that holds the stvrx address.
+ * @param right_ea The stvrx guest effective address.
+ * @param v The register value.
+ */
+inline void StoreVectorPair(u8* left_host, u32 left_ea, u8* right_host, u32 right_ea,
+                            simde__m128i v) {
+  if (right_ea == left_ea + 16 && right_host == left_host + (16 - (left_ea & 0xF))) {
+    simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(left_host), ToGuestByteOrder(v));
+    return;
+  }
+  StoreVectorLeft(left_host, left_ea, v);
+  StoreVectorRight(right_host, right_ea, v);
+}
+
 /** @} */
 
 }  // namespace rex::ppc::simd

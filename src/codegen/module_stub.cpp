@@ -71,7 +71,10 @@ void AnalyzeTestBinary(CodegenContext& ctx, std::string_view test_name,
       u32 raw = memory::load<be_u32>(data + (fn_addr - base_address) + offset);
       auto decoded = DecodeInstruction(pc, raw);
 
-      if (decoded.IsCall() && decoded.branch_target.has_value()) {
+      const bool is_tail_branch =
+          decoded.opcode == detail::Opcode::b && decoded.branch_target.has_value() &&
+          (*decoded.branch_target < fn_addr || *decoded.branch_target >= fn_addr + fn_size);
+      if ((decoded.IsCall() || is_tail_branch) && decoded.branch_target.has_value()) {
         u32 target = decoded.branch_target.value();
         auto* target_node = ctx.graph.GetFunction(target);
         if (target_node) {

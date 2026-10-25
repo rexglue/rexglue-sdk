@@ -4,10 +4,13 @@
 #include "builders/builder_context.h"
 #include "builders.h"
 #include "mmio_analysis.h"
+#include "stack_forwarding.h"
 
 #include <algorithm>
 #include <cassert>
+#include <charconv>
 #include <iterator>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <unordered_map>
@@ -446,6 +449,7 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
 
   std::unordered_set<size_t> labels;
   labels.reserve(64);
+  std::unordered_set<u32> unknown_labels;
 
   for (const auto& block : GetBlocks()) {
     auto* block_data = reinterpret_cast<const u32*>(ctx.binary.Translate(block.base));
@@ -457,16 +461,21 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
           memory::load<be_u32>(reinterpret_cast<const u8*>(block_data) + addr - block.base);
       if (!PPC_BL(instruction)) {
         const size_t op = PPC_OP(instruction);
-        if (op == PPC_OP_B)
-          labels.emplace(addr + PPC_BI(instruction));
-        else if (op == PPC_OP_BC)
-          labels.emplace(addr + PPC_BD(instruction));
+        if (op == PPC_OP_B || op == PPC_OP_BC) {
+          const size_t target = addr + (op == PPC_OP_B ? PPC_BI(instruction) : PPC_BD(instruction));
+          labels.emplace(target);
+          if (target <= addr) {
+            unknown_labels.insert(static_cast<u32>(target));
+          }
+        }
       }
 
       auto st_it = ctx.config.switch_tables.find(static_cast<u32>(addr));
       if (st_it != ctx.config.switch_tables.end()) {
-        for (auto label : st_it->second.targets)
+        for (auto label : st_it->second.targets) {
           labels.emplace(label);
+          unknown_labels.insert(label);
+        }
       }
 
       auto hook_it = ctx.config.mid_asm_hooks.find(static_cast<u32>(addr));
@@ -523,12 +532,13 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
           EmitPrintln(out, ");\n");
         }
 
-        if (hook_it->second.jump_address != 0)
-          labels.emplace(hook_it->second.jump_address);
-        if (hook_it->second.jump_address_on_true != 0)
-          labels.emplace(hook_it->second.jump_address_on_true);
-        if (hook_it->second.jump_address_on_false != 0)
-          labels.emplace(hook_it->second.jump_address_on_false);
+        for (const u32 jump : {hook_it->second.jump_address, hook_it->second.jump_address_on_true,
+                               hook_it->second.jump_address_on_false}) {
+          if (jump != 0) {
+            labels.emplace(jump);
+            unknown_labels.insert(jump);
+          }
+        }
       }
     }
   }
@@ -536,6 +546,7 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
   for (const auto& jt : GetJumpTables()) {
     for (auto label : jt.targets) {
       labels.emplace(label);
+      unknown_labels.insert(label);
     }
   }
 
@@ -576,86 +587,186 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
 
   ppc_insn insn;
   std::unordered_set<size_t> emitted_labels;
+  StackForwarding forwarding;
+  std::unordered_map<u32, CSRState> pending_entries;
+  std::unordered_map<u32, CSRState> label_entries;
+  bool restart = false;
 
-  for (const auto& block : GetBlocks()) {
-    auto block_base = block.base;
-    auto block_end = block.GetEnd();
-    auto* data = reinterpret_cast<const u32*>(ctx.binary.Translate(block.base));
-    if (!data) {
-      REXLOG_WARN(codegen, "Block 0x{:08X} in function 0x{:08X} has no mapped data, skipping",
-                  block.base, GetBase());
-      continue;
-    }
+  do {
+    restart = false;
+    body.clear();
+    local_variables = RecompilerLocalVariables{};
+    emitted_labels.clear();
+    pending_entries.clear();
+    label_entries.clear();
+    csr_state = CSRState::kUnknown;
+    bool prev_falls_through = false;
+    u32 prev_end = 0;
 
-    while (block_base < block_end) {
-      if (labels.find(block_base) != labels.end() && emitted_labels.insert(block_base).second) {
-        EmitPrintln(body, "loc_{:X}:", block_base);
-        csr_state = CSRState::kUnknown;
+    for (const auto& block : GetBlocks()) {
+      if (restart) {
+        break;
+      }
+      auto block_base = block.base;
+      prev_falls_through = prev_falls_through && block.base == prev_end;
+      forwarding.Invalidate();
+      auto block_end = block.GetEnd();
+      auto* data = reinterpret_cast<const u32*>(ctx.binary.Translate(block.base));
+      if (!data) {
+        REXLOG_WARN(codegen, "Block 0x{:08X} in function 0x{:08X} has no mapped data, skipping",
+                    block.base, GetBase());
+        prev_falls_through = false;
+        continue;
       }
 
-      active_jt = nullptr;
-      auto st_it = ctx.config.switch_tables.find(block_base);
-      if (st_it != ctx.config.switch_tables.end()) {
-        active_jt = &st_it->second;
+      while (block_base < block_end && !restart) {
+        if (labels.find(block_base) != labels.end() && emitted_labels.insert(block_base).second) {
+          EmitPrintln(body, "loc_{:X}:", block_base);
+          CSRState entry = CSRState::kUnknown;
+          if (!unknown_labels.contains(block_base)) {
+            std::optional<CSRState> joined;
+            const auto add = [&joined](CSRState state) {
+              joined = joined && *joined != state ? CSRState::kUnknown : state;
+            };
+            if (prev_falls_through) {
+              add(csr_state);
+            }
+            if (const auto pending = pending_entries.find(block_base);
+                pending != pending_entries.end()) {
+              add(pending->second);
+            }
+            if (joined) {
+              entry = *joined;
+            }
+          }
+          csr_state = entry;
+          label_entries[block_base] = entry;
+          forwarding.Invalidate();
+        }
+        const size_t text_mark = body.size();
+
+        active_jt = nullptr;
+        auto st_it = ctx.config.switch_tables.find(block_base);
+        if (st_it != ctx.config.switch_tables.end()) {
+          active_jt = &st_it->second;
+        }
+
+        Disassemble(data, 4, block_base, insn);
+
+        ppc_insn next_insn;
+        const u32 next_address = block_base + 4;
+        const bool can_peek = next_address < block_end && !generate_seh &&
+                              !labels.contains(next_address) &&
+                              !ctx.config.mid_asm_hooks.contains(block_base) &&
+                              !ctx.config.mid_asm_hooks.contains(next_address) &&
+                              !ctx.config.switch_tables.contains(next_address);
+        if (can_peek) {
+          Disassemble(data + 1, 4, next_address, next_insn);
+        }
+
+        u32 consumed = 1;
+        if (insn.opcode == nullptr) {
+          forwarding.Invalidate();
+          EmitPrintln(body, "\t// {}", insn.op_str);
+          if (*data != 0)
+            REXLOG_WARN(codegen, "Unable to decode instruction {:X} at {:X}", *data, block_base);
+        } else {
+          EmitPrintln(body, "\t// {} {}", insn.opcode->name, insn.op_str);
+
+          auto hook_it = ctx.config.mid_asm_hooks.find(block_base);
+          bool has_hook_before =
+              (hook_it != ctx.config.mid_asm_hooks.end() && !hook_it->second.after_instruction);
+
+          int id = ResolveID(insn);
+          BuilderContext builder_ctx{body,       ctx,  *this,           insn,
+                                     block_base, data, local_variables, csr_state,
+                                     active_jt,  &mmio};
+
+          builder_ctx.next = can_peek && next_insn.opcode ? &next_insn : nullptr;
+          builder_ctx.forwarding = ctx.config.forward_stack_stores ? &forwarding : nullptr;
+          builder_ctx.seh_scoped = generate_seh;
+
+          if (has_hook_before) {
+            forwarding.Invalidate();
+            builder_ctx.EmitMidAsmHook();
+          }
+
+          forwarding.OnInstruction(insn, id);
+
+          if (!DispatchInstruction(id, builder_ctx)) {
+            REXLOG_WARN(codegen, "Unrecognized instruction at 0x{:X}: {}", block_base,
+                        insn.opcode->name);
+          }
+
+          if (hook_it != ctx.config.mid_asm_hooks.end() && hook_it->second.after_instruction) {
+            builder_ctx.EmitMidAsmHook();
+            forwarding.Invalidate();
+          }
+
+          consumed = builder_ctx.consumed;
+          if (consumed == 2) {
+            forwarding.OnInstruction(next_insn, ResolveID(next_insn));
+          }
+        }
+
+        const std::string_view emitted = std::string_view(body).substr(text_mark);
+        for (size_t at = emitted.find("goto loc_"); at != std::string_view::npos;
+             at = emitted.find("goto loc_", at + 1)) {
+          u32 target = 0;
+          const char* digits = emitted.data() + at + 9;
+          std::from_chars(digits, emitted.data() + emitted.size(), target, 16);
+          if (const auto entry = label_entries.find(target); entry != label_entries.end()) {
+            if (entry->second != CSRState::kUnknown && entry->second != csr_state) {
+              unknown_labels.insert(target);
+              restart = true;
+            }
+          } else if (const auto pending = pending_entries.find(target);
+                     pending != pending_entries.end()) {
+            if (pending->second != csr_state) {
+              pending->second = CSRState::kUnknown;
+            }
+          } else {
+            pending_entries.emplace(target, csr_state);
+          }
+        }
+
+        prev_falls_through =
+            insn.opcode == nullptr ||
+            FallsThrough(ctx.graph, rex::codegen::detail::DecodeInstruction(
+                                        block_base + 4 * (consumed - 1),
+                                        memory::load<be_u32>(data + consumed - 1)));
+        block_base += 4 * consumed;
+        data += consumed;
       }
+      if (restart) {
+        break;
+      }
+      prev_end = block_end;
 
-      Disassemble(data, 4, block_base, insn);
-
-      if (insn.opcode == nullptr) {
-        EmitPrintln(body, "\t// {}", insn.op_str);
-        if (*data != 0)
-          REXLOG_WARN(codegen, "Unable to decode instruction {:X} at {:X}", *data, block_base);
-      } else {
-        EmitPrintln(body, "\t// {} {}", insn.opcode->name, insn.op_str);
-
-        auto hook_it = ctx.config.mid_asm_hooks.find(block_base);
-        bool has_hook_before =
-            (hook_it != ctx.config.mid_asm_hooks.end() && !hook_it->second.after_instruction);
-
-        int id = ResolveID(insn);
+      const bool has_fall_through = GetFallThroughs().contains(block_end);
+      const auto last = block.size > 0 ? rex::codegen::detail::DecodeInstruction(
+                                             block_end - 4, memory::load<be_u32>(data - 1))
+                                       : rex::codegen::detail::Instruction{};
+      if ((has_fall_through || !IsWithinBounds(block_end)) && block.size > 0 &&
+          FallsThrough(ctx.graph, last)) {
         BuilderContext builder_ctx{
-            body, ctx, *this, insn, block_base, data, local_variables, csr_state, active_jt, &mmio};
-
-        if (has_hook_before) {
-          builder_ctx.EmitMidAsmHook();
+            body, ctx, *this, insn, block_end, data, local_variables, csr_state, nullptr, &mmio};
+        const FunctionNode* next = ctx.graph.GetFunction(block_end);
+        if (has_fall_through) {
+          builder_ctx.EmitFunctionCall(block_end);
+          EmitPrintln(body, "\treturn;");
+        } else if (next && !next->IsImport()) {
+          builder_ctx.EmitCallToFunction(*next);
+          EmitPrintln(body, "\treturn;");
+        } else if (last.opcode != rex::codegen::detail::Opcode::bl &&
+                   last.opcode != rex::codegen::detail::Opcode::bla) {
+          REXLOG_WARN(codegen, "0x{:08X} runs off its end into 0x{:08X}, which is not a function",
+                      GetBase(), block_end);
         }
-
-        if (!DispatchInstruction(id, builder_ctx)) {
-          REXLOG_WARN(codegen, "Unrecognized instruction at 0x{:X}: {}", block_base,
-                      insn.opcode->name);
-        }
-
-        if (hook_it != ctx.config.mid_asm_hooks.end() && hook_it->second.after_instruction) {
-          builder_ctx.EmitMidAsmHook();
-        }
-      }
-
-      block_base += 4;
-      ++data;
-    }
-
-    const bool has_fall_through = GetFallThroughs().contains(block_end);
-    const auto last = block.size > 0 ? rex::codegen::detail::DecodeInstruction(
-                                           block_end - 4, memory::load<be_u32>(data - 1))
-                                     : rex::codegen::detail::Instruction{};
-    if ((has_fall_through || !IsWithinBounds(block_end)) && block.size > 0 &&
-        FallsThrough(ctx.graph, last)) {
-      BuilderContext builder_ctx{body,      ctx,     *this, insn, block_end, data, local_variables,
-                                 csr_state, nullptr, &mmio};
-      const FunctionNode* next = ctx.graph.GetFunction(block_end);
-      if (has_fall_through) {
-        builder_ctx.EmitFunctionCall(block_end);
-        EmitPrintln(body, "\treturn;");
-      } else if (next && !next->IsImport()) {
-        builder_ctx.EmitCallToFunction(*next);
-        EmitPrintln(body, "\treturn;");
-      } else if (last.opcode != rex::codegen::detail::Opcode::bl &&
-                 last.opcode != rex::codegen::detail::Opcode::bla) {
-        REXLOG_WARN(codegen, "0x{:08X} runs off its end into 0x{:08X}, which is not a function",
-                    GetBase(), block_end);
+        prev_falls_through = false;
       }
     }
-  }
+  } while (restart);
 
   if (generate_seh) {
     EmitPrintln(body, "\t\t}} REX_SEH_CATCH_ALL {{");
@@ -727,6 +838,10 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
     EmitPrintln(out, "\tPPCVRegister vTemp{{}};");
   if (local_variables.ea)
     EmitPrintln(out, "\tu32 ea{{}};");
+
+  for (u8 i = 0; i < local_variables.fwd; ++i) {
+    EmitPrintln(out, "\tPPCRegister fwd{}{{}};", i);
+  }
 
   if (generate_seh) {
     EmitPrintln(out, "\tREX_SEH_TRY {{");

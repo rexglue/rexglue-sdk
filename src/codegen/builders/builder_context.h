@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <format>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -19,6 +20,7 @@
 #include <rex/codegen/function_graph.h>
 
 #include "mmio_analysis.h"
+#include "stack_forwarding.h"
 
 struct ppc_insn;
 
@@ -38,6 +40,7 @@ struct RecompilerLocalVariables {
   bool temp{};
   bool v_temp{};
   bool ea{};
+  u8 fwd{};
 };
 
 /**
@@ -91,6 +94,25 @@ struct BuilderContext {
 
   /** MMIO classification of the current function, or null. */
   const MMIOClassification* mmio = nullptr;
+
+  /** The decoded instruction that follows in the same block, or null when it may not be fused. */
+  const ppc_insn* next = nullptr;
+
+  /** How many instruction words the builder emitted code for. */
+  u32 consumed = 1;
+
+  /** True when the function wraps its body in an SEH scope. */
+  bool seh_scoped = false;
+
+  /** The stack slots stored in this basic block, or null when forwarding is off. */
+  StackForwarding* forwarding = nullptr;
+
+  /**
+   * Marks the next instruction as emitted together with the current one.
+   *
+   * Prints its comment line and sets consumed to 2. Requires next to be non null.
+   */
+  void ConsumeNext();
 
   /**
    * Returns the recompiler configuration.
@@ -233,6 +255,22 @@ struct BuilderContext {
   std::string_view MMIOMacro(std::string_view plain) const;
 
   /**
+   * Picks the direct stack form of an access macro for an instruction that addresses through r1.
+   * It never routes to a register block, for accesses that are not classified.
+   *
+   * @param plain The REX_LOAD_* or REX_STORE_* macro.
+   * @return The REX_STACK_* macro for an access through r1, otherwise plain.
+   */
+  std::string_view StackMacro(std::string_view plain) const;
+
+  /**
+   * Tells whether the memory instruction addresses through r1.
+   *
+   * @return True when the base register of the instruction is r1.
+   */
+  bool IsStackAccess() const;
+
+  /**
    * Returns the pre resolved call target of an instruction site.
    *
    * Searches the FunctionNode's calls and tailCalls for a matching site.
@@ -264,6 +302,22 @@ struct BuilderContext {
    * @param target_fn The function to call.
    */
   void EmitCallToFunction(const FunctionNode& target_fn);
+
+  /**
+   * Tells whether a jump out of the function can be a tail call. SEH scopes, a hook after the
+   * instruction, register sharing and millicode targets keep the call and return form.
+   *
+   * @return True when no state of the current function outlives the jump.
+   */
+  bool CanTailCall() const;
+
+  /**
+   * Emits the tail call to the function a branch at the current address reaches.
+   *
+   * @param address The branch target.
+   * @return True when a tail call was emitted, false when the call and return form is needed.
+   */
+  bool EmitTailCall(u32 address);
 
   /**
    * Emits C++ code for a conditional branch.
@@ -349,6 +403,23 @@ struct BuilderContext {
    * @param mask_value Shift amount mask (e.g., 0xF for 16-bit)
    */
   void EmitVecVarShift(const char* function, const char* element_type, u32 mask_value);
+
+  /**
+   * Holds the write of the current instruction as a forwardable stack slot.
+   *
+   * @param width The width of the store in bytes.
+   * @return The local that holds the stored value, empty when the store is not a plain access
+   *         through r1 or forwarding is off.
+   */
+  std::optional<std::string> HoldStackWrite(u8 width);
+
+  /**
+   * Finds the local that holds the value a load of the current instruction would read.
+   *
+   * @param width The width of the load in bytes.
+   * @return The local, empty when no earlier store of the same slot is live.
+   */
+  std::optional<std::string> FindStackWrite(u8 width) const;
 
   /**
    * Emits load with D-form addressing `rD = LOAD(rA + offset)`.

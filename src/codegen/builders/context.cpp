@@ -33,18 +33,32 @@ struct MMIOMacroRow {
   std::string_view gpu;
   std::string_view apu;
   std::string_view guarded;
+  std::string_view stack;
 };
 
 constexpr MMIOMacroRow kMMIOMacros[] = {
-    {"REX_LOAD_U8", "REX_MM_LOAD_U8", "REX_MM_LOAD_U8", "REX_MM_LOAD_U8"},
-    {"REX_LOAD_U16", "REX_MM_LOAD_U16", "REX_MM_LOAD_U16", "REX_MM_LOAD_U16"},
-    {"REX_LOAD_U32", "REX_GPU_LOAD32", "REX_APU_LOAD32", "REX_MM_LOAD_U32"},
-    {"REX_LOAD_U64", "REX_MM_LOAD_U64", "REX_MM_LOAD_U64", "REX_MM_LOAD_U64"},
-    {"REX_STORE_U8", "REX_MM_STORE_U8", "REX_MM_STORE_U8", "REX_MM_STORE_U8"},
-    {"REX_STORE_U16", "REX_MM_STORE_U16", "REX_MM_STORE_U16", "REX_MM_STORE_U16"},
-    {"REX_STORE_U32", "REX_GPU_STORE32", "REX_APU_STORE32", "REX_MM_STORE_U32"},
-    {"REX_STORE_U64", "REX_MM_STORE_U64", "REX_MM_STORE_U64", "REX_MM_STORE_U64"},
+    {"REX_LOAD_U8", "REX_MM_LOAD_U8", "REX_MM_LOAD_U8", "REX_MM_LOAD_U8", "REX_STACK_LOAD_U8"},
+    {"REX_LOAD_U16", "REX_MM_LOAD_U16", "REX_MM_LOAD_U16", "REX_MM_LOAD_U16", "REX_STACK_LOAD_U16"},
+    {"REX_LOAD_U32", "REX_GPU_LOAD32", "REX_APU_LOAD32", "REX_MM_LOAD_U32", "REX_STACK_LOAD_U32"},
+    {"REX_LOAD_U64", "REX_MM_LOAD_U64", "REX_MM_LOAD_U64", "REX_MM_LOAD_U64", "REX_STACK_LOAD_U64"},
+    {"REX_STORE_U8", "REX_MM_STORE_U8", "REX_MM_STORE_U8", "REX_MM_STORE_U8", "REX_STACK_STORE_U8"},
+    {"REX_STORE_U16", "REX_MM_STORE_U16", "REX_MM_STORE_U16", "REX_MM_STORE_U16",
+     "REX_STACK_STORE_U16"},
+    {"REX_STORE_U32", "REX_GPU_STORE32", "REX_APU_STORE32", "REX_MM_STORE_U32",
+     "REX_STACK_STORE_U32"},
+    {"REX_STORE_U64", "REX_MM_STORE_U64", "REX_MM_STORE_U64", "REX_MM_STORE_U64",
+     "REX_STACK_STORE_U64"},
 };
+
+u8 AccessWidth(std::string_view macro) {
+  if (macro.ends_with("U8"))
+    return 1;
+  if (macro.ends_with("U16"))
+    return 2;
+  if (macro.ends_with("U32"))
+    return 4;
+  return 8;
+}
 
 size_t RegisterIndex(std::string_view name, size_t prefix) {
   size_t index = 0;
@@ -57,8 +71,11 @@ size_t RegisterIndex(std::string_view name, size_t prefix) {
 std::string_view BuilderContext::MMIOMacro(std::string_view plain) const {
   const MMIOAccess access = mmio ? mmio->At(base) : MMIOAccess::kPlain;
   const auto* row = std::ranges::find(kMMIOMacros, plain, &MMIOMacroRow::plain);
-  if (access == MMIOAccess::kPlain || row == std::end(kMMIOMacros)) {
+  if (row == std::end(kMMIOMacros)) {
     return plain;
+  }
+  if (access == MMIOAccess::kPlain) {
+    return IsStackAccess() ? row->stack : plain;
   }
   switch (access) {
     case MMIOAccess::kGPU:
@@ -70,12 +87,52 @@ std::string_view BuilderContext::MMIOMacro(std::string_view plain) const {
   }
 }
 
+std::string_view BuilderContext::StackMacro(std::string_view plain) const {
+  const auto* row = std::ranges::find(kMMIOMacros, plain, &MMIOMacroRow::plain);
+  if (row == std::end(kMMIOMacros) || !IsStackAccess()) {
+    return plain;
+  }
+  return row->stack;
+}
+
+bool BuilderContext::IsStackAccess() const {
+  const std::string_view name = insn.opcode->name;
+  const bool indexed = name.ends_with('x') || name.ends_with("x.");
+  return insn.operands[indexed ? 1 : 2] == 1;
+}
+
 const RecompilerConfig& BuilderContext::GetConfig() const {
   return emit_ctx.config;
 }
 
 const FunctionGraph& BuilderContext::GetGraph() const {
   return emit_ctx.graph;
+}
+
+std::optional<std::string> BuilderContext::HoldStackWrite(u8 width) {
+  if (forwarding == nullptr || insn.operands[2] != 1) {
+    return std::nullopt;
+  }
+  if (mmio && mmio->At(base) != MMIOAccess::kPlain) {
+    forwarding->Invalidate();
+    return std::nullopt;
+  }
+  const u8 slot = forwarding->Hold(static_cast<i32>(insn.operands[1]), width);
+  locals.fwd = std::max<u8>(locals.fwd, static_cast<u8>(slot + 1));
+  return std::format("fwd{}", slot);
+}
+
+std::optional<std::string> BuilderContext::FindStackWrite(u8 width) const {
+  if (forwarding == nullptr || insn.operands[2] != 1) {
+    return std::nullopt;
+  }
+  if (mmio && mmio->At(base) != MMIOAccess::kPlain) {
+    return std::nullopt;
+  }
+  if (const auto slot = forwarding->Find(static_cast<i32>(insn.operands[1]), width)) {
+    return std::format("fwd{}", *slot);
+  }
+  return std::nullopt;
 }
 
 bool BuilderContext::CanLocalizeNonVolatiles() const {
@@ -211,6 +268,32 @@ void BuilderContext::EmitCallToFunction(const FunctionNode& target_fn) {
   Println("\t{}(ctx, base);", name);
 }
 
+bool BuilderContext::CanTailCall() const {
+  if (seh_scoped) {
+    return false;
+  }
+  const auto hook = emit_ctx.config.mid_asm_hooks.find(base);
+  return hook == emit_ctx.config.mid_asm_hooks.end() || !hook->second.after_instruction;
+}
+
+bool BuilderContext::EmitTailCall(u32 address) {
+  const auto& cfg = GetConfig();
+  if (!CanTailCall() || address == cfg.longjmp_address || address == cfg.setjmp_address) {
+    return false;
+  }
+  const auto* target = FindCallTarget(base);
+  if (!target || !target->IsFunction()) {
+    return false;
+  }
+  const FunctionNode& target_fn = *target->AsFunction();
+  if (target_fn.GetMillicode() || target_fn.IsRegisterSharing()) {
+    return false;
+  }
+  emit_ctx.Reference(target_fn.GetName());
+  Println("\t[[clang::musttail]] return {}(ctx, base);", target_fn.GetName());
+  return true;
+}
+
 void BuilderContext::EmitFunctionCall(u32 address) {
   const auto& cfg = GetConfig();
 
@@ -339,6 +422,11 @@ void BuilderContext::EmitSetFlushMode(bool enable) {
 
     csr_state = new_state;
   }
+}
+
+void BuilderContext::ConsumeNext() {
+  Println("\t// {} {}", next->opcode->name, next->op_str);
+  consumed = 2;
 }
 
 bool BuilderContext::HasMidAsmHook() const {
@@ -508,6 +596,11 @@ void BuilderContext::EmitVecVarShift(const char* function, const char* element_t
 }
 
 void BuilderContext::EmitLoadDForm(const char* load_macro, const char* dest_type) {
+  if (const auto held = FindStackWrite(AccessWidth(load_macro))) {
+    Println("\t{}.{} = {}.u{};", R(insn.operands[0]), dest_type, *held,
+            AccessWidth(load_macro) * 8);
+    return;
+  }
   Print("\t{}.{} = {}(", R(insn.operands[0]), dest_type, MMIOMacro(load_macro));
   if (insn.operands[2] != 0)
     Print("{}.u32 + ", R(insn.operands[2]));
@@ -522,6 +615,12 @@ void BuilderContext::EmitLoadXForm(const char* load_macro, const char* dest_type
 }
 
 void BuilderContext::EmitStoreDForm(const char* store_macro, const char* src_type) {
+  if (const auto held = HoldStackWrite(AccessWidth(store_macro))) {
+    Println("\t{}.{} = {}.{};", *held, src_type, R(insn.operands[0]), src_type);
+    Println("\t{}({}.u32 + {}, {}.{});", MMIOMacro(store_macro), R(1),
+            static_cast<i32>(insn.operands[1]), *held, src_type);
+    return;
+  }
   Print("\t{}(", MMIOMacro(store_macro));
   if (insn.operands[2] != 0)
     Print("{}.u32 + ", R(insn.operands[2]));

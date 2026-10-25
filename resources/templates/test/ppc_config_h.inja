@@ -95,6 +95,8 @@
 #define REX_STORE_U64(x, y) \
   (*reinterpret_cast<volatile u64*>(base + static_cast<u32>(x) + REX_PHYS_HOST_OFFSET(x)) = __builtin_bswap64(y))
 
+{% include "codegen/_stack_access.inja" %}
+
 //=============================================================================
 // MMIO
 //=============================================================================

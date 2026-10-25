@@ -100,7 +100,7 @@ REX_TEST_CASE("A table that uses only known keys has no warnings", "[codegen][co
       "project_name = \"demo\"\ntemplate_dir = \"t\"\nlongjmp_address = 0x82000000\n"
       "setjmp_address = 0x82000004\nskip_lr = true\nskip_msr = true\nctr_as_local = true\n"
       "xer_as_local = true\nreserved_as_local = true\ncr_as_local = true\n"
-      "non_argument_as_local = true\nnon_volatile_as_local = true\n"
+      "non_argument_as_local = true\nnon_volatile_as_local = true\nforward_stack_stores = true\n"
       "generate_exception_handlers = true\nis_dll = false\n"
       "[analysis]\ndata_region_threshold = 1\n"
       "exception_handler_funcs = [0x82000020]\n"
