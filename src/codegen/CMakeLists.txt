@@ -52,17 +52,16 @@ set(CODEGEN_BUILDER_SOURCES
 set(TEMPLATE_SOURCE_DIR "${REXGLUE_ROOT}/resources/templates")
 set(TEMPLATE_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/templates")
 
+include(${REXGLUE_ROOT}/cmake/embed_template_names.cmake)
+
 file(GLOB_RECURSE INJA_TEMPLATE_FILES CONFIGURE_DEPENDS "${TEMPLATE_SOURCE_DIR}/*.inja")
 
 # Build output header paths
 set(EMBEDDED_HEADERS "")
 foreach (template_file ${INJA_TEMPLATE_FILES})
   file(RELATIVE_PATH REL_PATH "${TEMPLATE_SOURCE_DIR}" "${template_file}")
-  string(REGEX REPLACE "\\.inja$" "" CANONICAL_ID "${REL_PATH}")
-  string(REPLACE "/" "_" VAR_NAME "${CANONICAL_ID}")
-  string(REPLACE "-" "_" VAR_NAME "${VAR_NAME}")
-  string(REGEX REPLACE "_+" "_" VAR_NAME "${VAR_NAME}")
-  list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
+  embed_template_names("${REL_PATH}" CANONICAL_ID HEADER_NAME)
+  list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/${HEADER_NAME}")
 endforeach ()
 list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/embedded_templates.h")
 
@@ -72,6 +71,7 @@ add_custom_command(
     ${CMAKE_COMMAND} -DTEMPLATE_SOURCE_DIR=${TEMPLATE_SOURCE_DIR}
     -DTEMPLATE_OUTPUT_DIR=${TEMPLATE_OUTPUT_DIR} -P ${REXGLUE_ROOT}/cmake/embed_templates.cmake
   DEPENDS ${INJA_TEMPLATE_FILES} ${REXGLUE_ROOT}/cmake/embed_templates.cmake
+          ${REXGLUE_ROOT}/cmake/embed_template_names.cmake
   COMMENT "Embedding inja templates"
   VERBATIM
 )

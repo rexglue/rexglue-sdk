@@ -1,10 +1,9 @@
 # Third-party vendored dependencies for ReXGlue
 include(${PROJECT_SOURCE_DIR}/cmake/rexglue_vulkan_stack.cmake)
 
-set(BUILD_SHARED_LIBS
-    OFF
-    CACHE BOOL "" FORCE
-)
+# Vendored projects older than CMake 3.13 would otherwise let option() replace the settings below.
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+set(BUILD_SHARED_LIBS OFF)
 
 #=============================================================================
 # Architecture detection
@@ -170,10 +169,7 @@ target_compile_definitions(
 target_compile_options(o1heap PRIVATE -w)
 
 # xxHash - extremely fast non-cryptographic hash (git submodule)
-set(XXHASH_BUILD_XXHSUM
-    OFF
-    CACHE BOOL "" FORCE
-)
+set(XXHASH_BUILD_XXHSUM OFF)
 add_subdirectory(xxHash/cmake_unofficial)
 target_compile_options(xxhash PRIVATE -w)
 
@@ -188,25 +184,13 @@ target_compile_options(disasm PRIVATE -w)
 message(STATUS "Vulkan stack: SDK ${REXGLUE_VULKAN_SDK_VERSION}")
 
 # Vulkan-Headers
-set(VULKAN_HEADERS_ENABLE_TESTS
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(VULKAN_HEADERS_ENABLE_INSTALL
-    ON
-    CACHE BOOL "" FORCE
-)
-set(VULKAN_HEADERS_ENABLE_MODULE
-    OFF
-    CACHE BOOL "" FORCE
-)
+set(VULKAN_HEADERS_ENABLE_TESTS OFF)
+set(VULKAN_HEADERS_ENABLE_INSTALL ON)
+set(VULKAN_HEADERS_ENABLE_MODULE OFF)
 add_subdirectory(vulkan-headers)
 
 # VulkanMemoryAllocator
-set(VMA_ENABLE_INSTALL
-    ON
-    CACHE BOOL "" FORCE
-)
+set(VMA_ENABLE_INSTALL ON)
 add_subdirectory(vulkan-memory-allocator)
 set_target_properties(VulkanMemoryAllocator PROPERTIES SYSTEM ON)
 
@@ -214,196 +198,76 @@ if (APPLE)
   # Build the loader and MoltenVK revisions shipped by the pinned SDK.
   # They remain runtime-loaded; no Vulkan implementation is linked into
   # rexglue itself.
-  set(BUILD_TESTS
-      OFF
-      CACHE BOOL "" FORCE
-  )
-  set(BUILD_WERROR
-      OFF
-      CACHE BOOL "" FORCE
-  )
-  set(LOADER_CODEGEN
-      OFF
-      CACHE BOOL "" FORCE
-  )
+  set(BUILD_TESTS OFF)
+  set(BUILD_WERROR OFF)
+  set(LOADER_CODEGEN OFF)
   string(REGEX REPLACE "\\.[0-9]+$" "" VulkanHeaders_VERSION "${REXGLUE_VULKAN_SDK_VERSION}")
   add_subdirectory(vulkan-loader EXCLUDE_FROM_ALL)
   set_target_properties(vulkan PROPERTIES EXCLUDE_FROM_ALL FALSE)
 
-  set(MVK_BUILD_SHADER_CONVERTER_TOOL
-      OFF
-      CACHE BOOL "" FORCE
-  )
-  set(MVK_EXCLUDE_SPIRV_TOOLS
-      ON
-      CACHE BOOL "" FORCE
-  )
+  set(MVK_BUILD_SHADER_CONVERTER_TOOL OFF)
+  set(MVK_EXCLUDE_SPIRV_TOOLS ON)
   add_subdirectory(moltenvk)
 endif ()
 
 #=============================================================================
 # SDL3 - Cross-platform media layer
 #=============================================================================
-set(SDL_INSTALL
-    ON
-    CACHE BOOL "" FORCE
-)
-set(SDL_SHARED
-    ON
-    CACHE BOOL "" FORCE
-)
-set(SDL_STATIC
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_TEST
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_UNIX_CONSOLE_BUILD
-    ON
-    CACHE BOOL "" FORCE
-)
+set(SDL_INSTALL ON)
+set(SDL_SHARED ON)
+set(SDL_STATIC OFF)
+set(SDL_TEST OFF)
+set(SDL_UNIX_CONSOLE_BUILD ON)
 
 # Video provides the windowing/event layer; presenters create their own
 # D3D12/Vulkan surfaces from native handles, so SDL_RENDER stays off.
-set(SDL_VIDEO
-    ON
-    CACHE BOOL "" FORCE
-)
+set(SDL_VIDEO ON)
 if (APPLE)
   # macOS uses SDL for windowing + Metal/Vulkan surface creation.
-  set(SDL_METAL
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_VULKAN
-      ON
-      CACHE BOOL "" FORCE
-  )
+  set(SDL_METAL ON)
+  set(SDL_VULKAN ON)
 else ()
-  set(SDL_METAL
-      OFF
-      CACHE BOOL "" FORCE
-  )
+  set(SDL_METAL OFF)
   # Linux picks X11 or Wayland at runtime, so the surface has to come from
   # whichever driver SDL chose. Windows presenters go straight from the HWND.
   if (UNIX)
-    set(SDL_VULKAN
-        ON
-        CACHE BOOL "" FORCE
-    )
+    set(SDL_VULKAN ON)
   else ()
-    set(SDL_VULKAN
-        OFF
-        CACHE BOOL "" FORCE
-    )
+    set(SDL_VULKAN OFF)
   endif ()
 endif ()
-set(SDL_RENDER
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_HAPTIC
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_SENSOR
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_POWER
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_FILESYSTEM
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_LOCALE
-    ON
-    CACHE BOOL "" FORCE
-)
-set(SDL_FILE
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_MISC
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_DIALOG
-    ON
-    CACHE BOOL "" FORCE
-)
-set(SDL_TRAY
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_CAMERA
-    OFF
-    CACHE BOOL "" FORCE
-)
+set(SDL_RENDER OFF)
+set(SDL_HAPTIC OFF)
+set(SDL_SENSOR OFF)
+set(SDL_POWER OFF)
+set(SDL_FILESYSTEM OFF)
+set(SDL_LOCALE ON)
+set(SDL_FILE OFF)
+set(SDL_MISC OFF)
+set(SDL_DIALOG ON)
+set(SDL_TRAY OFF)
+set(SDL_CAMERA OFF)
 
 # Disable graphics APIs (unused without video) — only on non-Apple
-set(SDL_OPENGL
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_OPENGLES
-    OFF
-    CACHE BOOL "" FORCE
-)
+set(SDL_OPENGL OFF)
+set(SDL_OPENGLES OFF)
 
 # The dummy video and audio drivers run TitleApp and rex-apu-sdl3 headless in tests.
-set(SDL_DISKAUDIO
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SDL_DUMMYAUDIO
-    ON
-    CACHE BOOL "" FORCE
-)
-set(SDL_DUMMYVIDEO
-    ON
-    CACHE BOOL "" FORCE
-)
+set(SDL_DISKAUDIO OFF)
+set(SDL_DUMMYAUDIO ON)
+set(SDL_DUMMYVIDEO ON)
 
 # Linux video and audio backends. Both video drivers are always built so the
 # one in use stays a runtime choice.
 if (UNIX AND NOT APPLE)
-  set(SDL_X11
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_WAYLAND
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_ALSA
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_ALSA_SHARED
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_PULSEAUDIO
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_PULSEAUDIO_SHARED
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_PIPEWIRE
-      ON
-      CACHE BOOL "" FORCE
-  )
-  set(SDL_PIPEWIRE_SHARED
-      ON
-      CACHE BOOL "" FORCE
-  )
+  set(SDL_X11 ON)
+  set(SDL_WAYLAND ON)
+  set(SDL_ALSA ON)
+  set(SDL_ALSA_SHARED ON)
+  set(SDL_PULSEAUDIO ON)
+  set(SDL_PULSEAUDIO_SHARED ON)
+  set(SDL_PIPEWIRE ON)
+  set(SDL_PIPEWIRE_SHARED ON)
 endif ()
 
 add_subdirectory(sdl3)
@@ -428,14 +292,8 @@ endif ()
 # SPIR-V toolchain (only when Vulkan backend is enabled)
 #=============================================================================
 # SPIRV-Headers
-set(SPIRV_HEADERS_ENABLE_TESTS
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SPIRV_HEADERS_ENABLE_INSTALL
-    OFF
-    CACHE BOOL "" FORCE
-)
+set(SPIRV_HEADERS_ENABLE_TESTS OFF)
+set(SPIRV_HEADERS_ENABLE_INSTALL OFF)
 add_subdirectory(spirv-headers)
 
 add_library(spirv-tools-headers INTERFACE)
@@ -446,42 +304,20 @@ target_include_directories(
 )
 
 # glslang/SPIRV - SPIR-V code generation for shader translation
-set(ENABLE_GLSLANG_BINARIES
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(ENABLE_SPVREMAPPER
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(ENABLE_HLSL
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(ENABLE_OPT
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(BUILD_TESTING
-    OFF
-    CACHE BOOL "" FORCE
-)
-set(SKIP_GLSLANG_INSTALL
-    ON
-    CACHE BOOL "" FORCE
-)
+set(ENABLE_GLSLANG_BINARIES OFF)
+set(ENABLE_SPVREMAPPER OFF)
+set(ENABLE_HLSL OFF)
+set(ENABLE_OPT OFF)
+set(BUILD_TESTING OFF)
+set(SKIP_GLSLANG_INSTALL ON)
 # Enable RTTI for spv::Builder inheritance in SpirvBuilder
-set(ENABLE_RTTI
-    ON
-    CACHE BOOL "" FORCE
-)
+set(ENABLE_RTTI ON)
 
-# Set policy minimum for older glslang versions with outdated cmake_minimum_required
-set(CMAKE_POLICY_VERSION_MINIMUM
-    3.5
-    CACHE STRING "" FORCE
-)
+# Older glslang versions declare an outdated cmake_minimum_required
+block()
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 add_subdirectory(glslang)
+endblock()
 foreach (glslang_target glslang MachineIndependent GenericCodeGen OSDependent SPIRV)
   if (TARGET ${glslang_target})
     target_compile_options(${glslang_target} PRIVATE -w)
@@ -497,10 +333,7 @@ endif ()
 # Catch2 - Test framework (only when tests are enabled, not part of SDK install)
 #=============================================================================
 if (REXGLUE_BUILD_TESTS)
-  set(CATCH_CONFIG_THREAD_SAFE_ASSERTIONS
-      ON
-      CACHE BOOL "Catch2 assertions from any thread" FORCE
-  )
+  set(CATCH_CONFIG_THREAD_SAFE_ASSERTIONS ON)
   add_subdirectory(catch2)
 endif ()
 

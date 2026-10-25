@@ -49,21 +49,18 @@ set_source_files_properties(
   ${PPC_GEN_DIR}/ppc_test_decls.h PROPERTIES GENERATED TRUE
 )
 
-target_include_directories(ppc_tests PRIVATE ${PROJECT_SOURCE_DIR}/include ${PPC_GEN_DIR})
+target_include_directories(ppc_tests PRIVATE ${PPC_GEN_DIR})
 
 target_link_libraries(ppc_tests PRIVATE simde rexruntime Catch2::Catch2WithMain)
 
 set_target_properties(ppc_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>)
 if (UNIX AND NOT APPLE)
-  set_target_properties(ppc_tests PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
+  rexglue_set_rpath(ppc_tests "$ORIGIN")
 endif ()
 
 target_compile_options(
   ppc_tests PRIVATE -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING -UREXGLUE_ENABLE_PERF_COUNTERS
 )
-if (REX_TARGET_PROCESSOR MATCHES "AMD64|x86_64")
-  target_compile_options(ppc_tests PRIVATE -msse4.1 -mssse3)
-endif ()
 
 include(Catch)
 catch_discover_tests(

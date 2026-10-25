@@ -9,7 +9,6 @@ include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_codegen.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_recomp_options.cmake)
-include(GNUInstallDirs)
 
 #==========================================================
 # rexglue_set_rpath(<target> <origin>)
@@ -84,26 +83,48 @@ function (_rexglue_stage_macos_vulkan_runtime out_var target_name)
 endfunction ()
 
 #==========================================================
+# rexglue_cpu_flags(<out_var>)
+#
+# The CPU floor flags of every ReXGlue binary, the only place they are defined. The SDK applies
+# them to its own targets with add_compile_options. Projects that use the SDK get them through
+# rexglue_apply_target_settings, since their presets carry no -march.
+#
+# Large code model on Linux x86_64 for linking with large recompiled executables (35MB+). macOS
+# uses the small model: the ld64 linker on macOS 15+ rejects text relocations produced by
+# -mcmodel=large, and macOS maps binaries in the low address space so +/-2GB is sufficient.
+#==========================================================
+function (rexglue_cpu_flags out_var)
+  set(flags "")
+  if (UNIX AND NOT APPLE)
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+      list(APPEND flags -mcmodel=large)
+    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
+      list(APPEND flags -march=armv8-a)
+    endif ()
+  endif ()
+  if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    list(APPEND flags -msse4.1)
+  endif ()
+  set(${out_var}
+      "${flags}"
+      PARENT_SCOPE
+  )
+endfunction ()
+
+#==========================================================
 # rexglue_apply_target_settings(<target>) - Common flags
 #
 # Applied to both host apps and title DLL modules. Compile/link flags only.
 # Runtime DLL staging is the host's job (see rexglue_configure_target).
 #==========================================================
 function (rexglue_apply_target_settings target_name)
-  if (UNIX AND NOT APPLE)
-    # Large executable support
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-      target_link_options(${target_name} PRIVATE -Wl,--no-relax)
-      target_compile_options(${target_name} PRIVATE -mcmodel=large)
-    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
-      target_compile_options(${target_name} PRIVATE -march=armv8-a)
-    endif ()
-  endif ()
-
-  if (NOT MSVC)
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-      target_compile_options(${target_name} PRIVATE -msse4.1)
-    endif ()
+  rexglue_cpu_flags(flags)
+  target_compile_options(${target_name} PRIVATE ${flags})
+  if (UNIX
+      AND NOT APPLE
+      AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64"
+  )
+    target_link_options(${target_name} PRIVATE -Wl,--no-relax)
   endif ()
 endfunction ()
 
@@ -400,12 +421,6 @@ function (rexglue_configure_target target_name)
   cmake_parse_arguments(ARG "" "" "GPU_PLUGINS" ${ARGN})
 
   target_compile_definitions(${target_name} PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
-
-  if (MSVC)
-    target_compile_options(
-      ${target_name} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/EHs> $<$<COMPILE_LANGUAGE:CXX>:/EHc->
-    )
-  endif ()
 
   if (UNIX AND NOT APPLE)
     rexglue_set_rpath(${target_name} "$ORIGIN")

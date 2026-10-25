@@ -1,7 +1,14 @@
-set(REXGLUE_RECOMP_CONFIGS DEBUG RELEASE RELWITHDEBINFO)
+# Returns the build configurations that have their own generated code settings.
+function (_rexglue_recomp_configs out_var)
+  set(${out_var}
+      DEBUG RELEASE RELWITHDEBINFO
+      PARENT_SCOPE
+  )
+endfunction ()
 
 # Declares the cache variables of the plain and the per configuration settings.
 function (rexglue_recomp_declare_settings)
+  _rexglue_recomp_configs(recomp_configs)
   set(REXGLUE_RECOMP_OPTIMIZATION
       ""
       CACHE STRING "Optimization level for generated code in every configuration (empty keeps the \
@@ -14,7 +21,7 @@ per configuration defaults, or O0 to O3)"
 per configuration defaults, line-tables-only, full or none)"
   )
   set_property(CACHE REXGLUE_RECOMP_DEBUG_INFO PROPERTY STRINGS "" line-tables-only full none)
-  foreach (config IN LISTS REXGLUE_RECOMP_CONFIGS)
+  foreach (config IN LISTS recomp_configs)
     set(REXGLUE_RECOMP_OPTIMIZATION_${config}
         ""
         CACHE STRING "Optimization level for generated code in the ${config} configuration (empty \
@@ -34,15 +41,12 @@ endfunction ()
 
 # Resolves the optimization and the debug info level of one configuration from the settings and
 # the defaults.
-function (rexglue_recomp_resolve config policy_ready optimization_var debug_info_var)
+function (rexglue_recomp_resolve config optimization_var debug_info_var)
   set(optimization "${REXGLUE_RECOMP_OPTIMIZATION_${config}}")
   if (optimization STREQUAL "")
     set(optimization "${REXGLUE_RECOMP_OPTIMIZATION}")
   endif ()
-  if (optimization STREQUAL ""
-      AND config STREQUAL "DEBUG"
-      AND policy_ready
-  )
+  if (optimization STREQUAL "" AND config STREQUAL "DEBUG")
     set(optimization O1)
   endif ()
   if (NOT optimization MATCHES "^(O[0-3])?$")
@@ -89,16 +93,8 @@ function (rexglue_recomp_flags flags_var optimization debug_info)
 
   if (optimization STREQUAL "")
     # The build type flags apply.
-  elseif (NOT MSVC)
-    list(APPEND flags -${optimization})
-  elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    list(APPEND flags /clang:-${optimization})
-  elseif (optimization STREQUAL "O0")
-    list(APPEND flags /Od)
-  elseif (optimization STREQUAL "O1")
-    list(APPEND flags /O2 /Ob1)
   else ()
-    list(APPEND flags /O2 /Ob2)
+    list(APPEND flags -${optimization})
   endif ()
   set(${flags_var}
       "${flags}"
@@ -122,50 +118,25 @@ endfunction ()
 #   Release         build type flags     none
 #   RelWithDebInfo  build type flags     line-tables-only
 #
-# The Debug default is skipped under cl and clang-cl without CMP0184 set to NEW. An explicit
-# optimization there is an error.
-#
 # <options_var> receives the options. <optimized_var> receives ON when any configuration sets an
 # optimization level.
 #==========================================================
 function (rexglue_recomp_options options_var optimized_var)
+  _rexglue_recomp_configs(recomp_configs)
   # Guest SEH scopes emit __try/__except, which traps hardware faults only under asynchronous EH.
   # clang++ takes that flag in the GNU form.
   set(options "")
   if (WIN32)
-    if (MSVC)
-      list(APPEND options /EHa)
-    elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-      list(APPEND options -fasync-exceptions)
-    endif ()
+    list(APPEND options -fasync-exceptions)
   else ()
     list(APPEND options -fasynchronous-unwind-tables)
   endif ()
 
   rexglue_recomp_declare_settings()
 
-  set(policy_ready TRUE)
-  if (MSVC)
-    set(rtc_policy "")
-    if (POLICY CMP0184)
-      cmake_policy(GET CMP0184 rtc_policy)
-    endif ()
-    if (NOT rtc_policy STREQUAL "NEW")
-      set(policy_ready FALSE)
-    endif ()
-  endif ()
-
   set(optimized OFF)
-  foreach (config IN LISTS REXGLUE_RECOMP_CONFIGS)
-    rexglue_recomp_resolve(${config} ${policy_ready} optimization debug_info)
-    if (NOT optimization STREQUAL "" AND NOT policy_ready)
-      message(
-        FATAL_ERROR
-          "REXGLUE_RECOMP_OPTIMIZATION with cl or clang-cl needs CMake 4.0 or later and "
-          "cmake_policy(SET CMP0184 NEW) before project(). Otherwise configure with the "
-          "GNU style clang driver the presets pin."
-      )
-    endif ()
+  foreach (config IN LISTS recomp_configs)
+    rexglue_recomp_resolve(${config} optimization debug_info)
     if (NOT optimization STREQUAL "")
       set(optimized ON)
     endif ()

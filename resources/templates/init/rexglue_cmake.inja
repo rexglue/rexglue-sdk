@@ -71,9 +71,6 @@ endif ()
 function (rexglue_apply_recomp_settings target_name pch_header)
   target_precompile_headers({{ cmake_var("target_name") }} PRIVATE "{{ cmake_var("pch_header") }}")
   target_compile_options({{ cmake_var("target_name") }} PRIVATE {{ cmake_var("REXGLUE_RECOMP_OPTIONS") }})
-  if (MSVC AND REXGLUE_RECOMP_OPTIMIZED)
-    set_target_properties({{ cmake_var("target_name") }} PROPERTIES MSVC_RUNTIME_CHECKS "")
-  endif ()
 endfunction ()
 
 # Applies the SDK settings, include paths and codegen dependency to a host library.

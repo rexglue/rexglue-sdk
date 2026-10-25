@@ -19,19 +19,15 @@ project(
 #==========================================================
 # Build Options
 #==========================================================
-option(REXGLUE_BUILD_TESTS "Build unit tests" ON)
+option(REXGLUE_BUILD_TESTS "Build unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(REXGLUE_BUILD_PPC_TESTS "Build PPC instruction tests" OFF)
+option(REXGLUE_REGISTER_PACKAGE "Register the install prefix in the CMake user package registry"
+       OFF
+)
 option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
 option(REXGLUE_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 option(REXGLUE_ENABLE_TRACY "Enable Tracy profiler integration" ON)
 option(REXGLUE_ENABLE_PERF_COUNTERS "Enable lightweight perf counter registry and overlay" ON)
-# Propagate profiling defines globally (compiled out in Release)
-if (REXGLUE_ENABLE_TRACY)
-  add_compile_definitions($<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PROFILING>)
-endif ()
-if (REXGLUE_ENABLE_PERF_COUNTERS)
-  add_compile_definitions($<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
-endif ()
 
 if (WIN32)
   set(REXGLUE_GPU_D3D12 ON)
@@ -106,15 +102,6 @@ function (rex_config_postfix target)
 endfunction ()
 
 if (NOT WIN32)
-  # Use the code model for the architecture
-  if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64" AND NOT APPLE)
-    # Large code model on Linux x86_64 for linking with large recompiled executables (35MB+).
-    # macOS uses small: the ld64 linker on macOS 15+ rejects text relocations produced
-    # by -mcmodel=large, and macOS maps binaries in the low address space so +/-2GB is sufficient.
-    add_compile_options(-mcmodel=large)
-  else ()
-    add_compile_options(-mcmodel=small)
-  endif ()
   # Position-independent code for all targets
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif ()
@@ -130,9 +117,8 @@ add_compile_options(
   -fno-char8_t
 )
 
-if (NOT MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-  add_compile_options(-msse4.1)
-endif ()
+rexglue_cpu_flags(REXGLUE_CPU_FLAGS)
+add_compile_options(${REXGLUE_CPU_FLAGS})
 
 # Platform detection (supports AMD64 and ARM64)
 set(REX_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
@@ -152,7 +138,6 @@ if (WIN32)
   else ()
     message(FATAL_ERROR "Unsupported Windows architecture: ${REX_TARGET_PROCESSOR}")
   endif ()
-  add_compile_definitions(REX_PLATFORM_WINDOWS=1)
 elseif (UNIX AND NOT APPLE)
   if (REX_TARGET_PROCESSOR MATCHES "AMD64|x86_64")
     set(REX_PLATFORM "linux-amd64")
@@ -161,7 +146,6 @@ elseif (UNIX AND NOT APPLE)
   else ()
     set(REX_PLATFORM "linux-${REX_TARGET_PROCESSOR}")
   endif ()
-  add_compile_definitions(REX_PLATFORM_LINUX=1)
 elseif (APPLE)
   if (REX_TARGET_PROCESSOR MATCHES "AMD64|x86_64")
     set(REX_PLATFORM "mac-amd64")
@@ -170,7 +154,6 @@ elseif (APPLE)
   else ()
     set(REX_PLATFORM "mac-${REX_TARGET_PROCESSOR}")
   endif ()
-  add_compile_definitions(REX_PLATFORM_MAC=1)
 else ()
   message(FATAL_ERROR "Unsupported platform. ReXGlue supports Windows, Linux, and macOS only.")
 endif ()
@@ -271,12 +254,6 @@ add_subdirectory(thirdparty)
 add_compile_options(
   -Wall -Wextra -Wshadow -Wshadow-field -Wshadow-field-in-constructor-modified -Werror
 )
-
-if (MSVC)
-  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EHs> $<$<COMPILE_LANGUAGE:CXX>:/EHc->)
-endif ()
-
-include_directories(${REXGLUE_ROOT}/include)
 
 add_subdirectory(src/core)
 add_subdirectory(src/filesystem)

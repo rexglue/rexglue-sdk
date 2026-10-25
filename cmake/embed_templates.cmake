@@ -4,6 +4,8 @@ if (NOT DEFINED TEMPLATE_SOURCE_DIR OR NOT DEFINED TEMPLATE_OUTPUT_DIR)
   )
 endif ()
 
+include("${CMAKE_CURRENT_LIST_DIR}/embed_template_names.cmake")
+
 file(GLOB_RECURSE INJA_TEMPLATE_FILES "${TEMPLATE_SOURCE_DIR}/*.inja")
 
 # Names the embedded string constant of a template id, such as kInitCMakeLists.
@@ -52,15 +54,11 @@ foreach (template_file ${INJA_TEMPLATE_FILES})
   endif ()
 
   file(RELATIVE_PATH REL_PATH "${TEMPLATE_SOURCE_DIR}" "${template_file}")
-  string(REGEX REPLACE "\\.inja$" "" CANONICAL_ID "${REL_PATH}")
-
-  string(REPLACE "/" "_" VAR_NAME "${CANONICAL_ID}")
-  string(REPLACE "-" "_" VAR_NAME "${VAR_NAME}")
-  string(REGEX REPLACE "_+" "_" VAR_NAME "${VAR_NAME}")
+  embed_template_names("${REL_PATH}" CANONICAL_ID HEADER_NAME)
 
   template_constant_name("${CANONICAL_ID}" CONSTANT_NAME)
 
-  set(HEADER_FILE "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
+  set(HEADER_FILE "${TEMPLATE_OUTPUT_DIR}/${HEADER_NAME}")
   file(
     WRITE "${HEADER_FILE}"
     "// Auto-generated from resources/templates/${REL_PATH}. DO NOT EDIT\n"
@@ -72,7 +70,7 @@ foreach (template_file ${INJA_TEMPLATE_FILES})
     "}  // namespace rex::codegen::embedded\n"
   )
 
-  string(APPEND EMBEDDED_INCLUDES "#include \"${VAR_NAME}.inja.h\"\n")
+  string(APPEND EMBEDDED_INCLUDES "#include \"${HEADER_NAME}\"\n")
   string(APPEND EMBEDDED_MAP_ENTRIES "    {\"${CANONICAL_ID}\", embedded::${CONSTANT_NAME}},\n")
 endforeach ()
 

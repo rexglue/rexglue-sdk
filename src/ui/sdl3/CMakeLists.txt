@@ -38,29 +38,28 @@ elseif (NOT WIN32)
   list(APPEND REX_UI_SDL3_SOURCES surface_gnulinux.cpp)
 endif ()
 
-# Applies the visibility, include and link settings of the SDL3 UI module.
-function (rex_ui_sdl3_configure target_name)
-  set_target_properties(
-    ${target_name} PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON
-  )
-  rex_target_pch(${target_name} <rex/math.h>)
-  target_include_directories(${target_name} PRIVATE ${REXGLUE_ROOT}/src)
-  target_include_directories(${target_name} SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/stb)
-  target_link_libraries(${target_name} PRIVATE rexcore rexui rexgpu reximgui rexruntime SDL3::SDL3)
-  if (APPLE)
-    target_link_libraries(${target_name} PRIVATE "-framework CoreFoundation")
-  endif ()
-endfunction ()
+add_library(rexui-sdl3-objects OBJECT module.cpp ${REX_UI_SDL3_SOURCES})
+set_target_properties(
+  rexui-sdl3-objects PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON
+)
+rex_target_pch(rexui-sdl3-objects <rex/math.h>)
+target_include_directories(rexui-sdl3-objects PRIVATE ${REXGLUE_ROOT}/src)
+target_include_directories(rexui-sdl3-objects SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/stb)
+set(REX_UI_SDL3_LIBS rexcore rexui rexgpu reximgui rexruntime SDL3::SDL3)
+if (APPLE)
+  list(APPEND REX_UI_SDL3_LIBS "-framework CoreFoundation")
+endif ()
+target_link_libraries(rexui-sdl3-objects PRIVATE ${REX_UI_SDL3_LIBS})
 
-add_library(rexui-sdl3 SHARED module.cpp ${REX_UI_SDL3_SOURCES})
+add_library(rexui-sdl3 SHARED $<TARGET_OBJECTS:rexui-sdl3-objects>)
 add_library(rex::ui-sdl3 ALIAS rexui-sdl3)
 rexglue_link_host_allocator(rexui-sdl3)
-set_target_properties(rexui-sdl3 PROPERTIES EXPORT_NAME ui-sdl3)
+set_target_properties(
+  rexui-sdl3
+  PROPERTIES EXPORT_NAME ui-sdl3
+             LINKER_LANGUAGE CXX
+             CXX_VISIBILITY_PRESET hidden
+             VISIBILITY_INLINES_HIDDEN ON
+)
 rexglue_add_version_resource(rexui-sdl3 DESCRIPTION "ReXGlue SDL3 user interface")
-rex_ui_sdl3_configure(rexui-sdl3)
-
-if (REXGLUE_BUILD_TESTS)
-  add_library(rexui-sdl3-static STATIC module.cpp ${REX_UI_SDL3_SOURCES})
-  set_target_properties(rexui-sdl3-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  rex_ui_sdl3_configure(rexui-sdl3-static)
-endif ()
+target_link_libraries(rexui-sdl3 PRIVATE ${REX_UI_SDL3_LIBS})

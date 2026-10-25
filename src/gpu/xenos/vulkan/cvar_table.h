@@ -11,6 +11,7 @@
 #pragma once
 
 #include <rex/cvar.h>
+#include <rex/platform.h>
 
 namespace rex::gpu::cvars {
 

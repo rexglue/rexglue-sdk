@@ -10,6 +10,7 @@
  */
 
 #include <rex/logging/log.h>
+#include <rex/platform.h>
 #include "gpu/xenos/host/library_names.h"
 #include "gpu/xenos/host/renderdoc_api.h"
 

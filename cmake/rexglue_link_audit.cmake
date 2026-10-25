@@ -16,7 +16,6 @@ set(REXGLUE_ABOVE_CORE_TARGETS
     rexhid-sdl3
     rexhid-xinput
 )
-set(REXGLUE_REGISTRAR_REGEX "REXCVAR_DEFINE_|REXLOG_DEFINE_CATEGORY|REXLOG_DEFINE_SUBCATEGORY")
 
 # Collects every build system target under a directory, subdirectories included.
 function (_rexglue_collect_targets dir out_var)
@@ -101,46 +100,6 @@ function (rexglue_audit_core_linkage)
   endif ()
 endfunction ()
 
-# Rejects static registrars in the sources of module libraries.
-function (rexglue_audit_module_registrars)
-  _rexglue_collect_targets("${CMAKE_CURRENT_SOURCE_DIR}" all_targets)
-  set(violations "")
-  foreach (target_name IN LISTS all_targets)
-    get_target_property(type ${target_name} TYPE)
-    if (NOT type MATCHES "^(SHARED_LIBRARY|MODULE_LIBRARY|OBJECT_LIBRARY)$")
-      continue()
-    endif ()
-    get_target_property(sources ${target_name} SOURCES)
-    get_target_property(source_dir ${target_name} SOURCE_DIR)
-    foreach (source IN LISTS sources)
-      if (NOT source MATCHES "\\.(cpp|cc|cxx|h|inc)$")
-        continue()
-      endif ()
-      if (IS_ABSOLUTE "${source}")
-        set(full "${source}")
-      else ()
-        set(full "${source_dir}/${source}")
-      endif ()
-      if (NOT EXISTS "${full}")
-        continue()
-      endif ()
-      file(STRINGS "${full}" hits REGEX "${REXGLUE_REGISTRAR_REGEX}")
-      if (NOT hits)
-        continue()
-      endif ()
-      file(RELATIVE_PATH rel "${PROJECT_SOURCE_DIR}" "${full}")
-      list(APPEND violations "  ${target_name}:${rel}")
-    endforeach ()
-  endforeach ()
-
-  if (violations)
-    list(JOIN violations "\n" detail)
-    message(FATAL_ERROR "static registrars in module DLLs:\n${detail}\n"
-                        "Register at Connect instead."
-    )
-  endif ()
-endfunction ()
-
 # Rejects an SDK target above rexcore in the rexcore link list.
 function (rexglue_audit_core_tier)
   get_target_property(links rexcore LINK_LIBRARIES)
@@ -200,8 +159,8 @@ function (_rexglue_audit_forbidden target_name)
   endforeach ()
 endfunction ()
 
-# Keeps SDL and ImGui out of core and runtime, SDL, ImGui and the GPU backends out of ui, and SDL
-# out of gpu.
+# Keeps SDL and ImGui out of core and runtime, and SDL, ImGui and the GPU backends out of ui.
+# rexglue_audit_host_service_links covers rexgpu.
 function (rexglue_audit_ui_links)
   set(sdl_libs SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static)
   set(imgui_libs imgui imgui::imgui reximgui)
@@ -220,12 +179,10 @@ function (rexglue_audit_ui_links)
   _rexglue_audit_forbidden(rexcore ${sdl_libs} ${imgui_libs})
   _rexglue_audit_forbidden(rexruntime ${sdl_libs} ${imgui_libs})
   _rexglue_audit_forbidden(rexui ${sdl_libs} ${imgui_libs} ${backend_libs})
-  _rexglue_audit_forbidden(rexgpu ${sdl_libs})
 endfunction ()
 
 rexglue_audit_core_linkage()
 rexglue_audit_core_tier()
-rexglue_audit_module_registrars()
 rexglue_audit_module_links()
 rexglue_audit_ui_links()
 

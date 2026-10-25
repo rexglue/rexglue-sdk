@@ -245,15 +245,15 @@ target_sources(
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/host/fixed_point.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/index_conversion.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
+          $<TARGET_OBJECTS:rexui-sdl3-objects>
           $<TARGET_OBJECTS:rexglue-objects>
           $<TARGET_OBJECTS:rexfilesystem-host-objects>
 )
 
 target_include_directories(
   unit_tests
-  PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/tests
-          ${PROJECT_SOURCE_DIR}/thirdparty ${PROJECT_SOURCE_DIR}/thirdparty/disasm
-          ${CMAKE_CURRENT_SOURCE_DIR}
+  PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/tests ${PROJECT_SOURCE_DIR}/thirdparty
+          ${PROJECT_SOURCE_DIR}/thirdparty/disasm ${CMAKE_CURRENT_SOURCE_DIR}
 )
 #CLI11 instantiates std::wstring_convert, which libc++ marks deprecated
 target_include_directories(unit_tests SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include)
@@ -266,13 +266,18 @@ target_link_libraries(
           reximgui
           rexui
           rexhid
-          rexui-sdl3-static
+          rexgpu
+          rexcore
+          SDL3::SDL3
           xxHash::xxhash
           Catch2::Catch2WithMain
           SDL3::Headers
 )
 if (WIN32)
   target_link_libraries(unit_tests PRIVATE ws2_32)
+endif ()
+if (APPLE)
+  target_link_libraries(unit_tests PRIVATE "-framework CoreFoundation")
 endif ()
 
 target_include_directories(
@@ -312,9 +317,7 @@ set_target_properties(
   rex-crash-test PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
 )
 if (UNIX AND NOT APPLE)
-  set_target_properties(
-    rex-crash-test PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
-  )
+  rexglue_set_rpath(rex-crash-test "$ORIGIN")
 endif ()
 
 add_dependencies(
@@ -363,7 +366,7 @@ target_compile_options(
 set_target_properties(unit_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>)
 rexglue_link_host_allocator(unit_tests)
 if (UNIX AND NOT APPLE)
-  set_target_properties(unit_tests PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
+  rexglue_set_rpath(unit_tests "$ORIGIN")
 endif ()
 
 add_library(
@@ -427,9 +430,7 @@ set_target_properties(
                                                                 $<TARGET_FILE_DIR:rexruntime>
 )
 if (UNIX AND NOT APPLE)
-  set_target_properties(
-    midasm-generated-hooks PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON
-  )
+  rexglue_set_rpath(midasm-generated-hooks "$ORIGIN")
 endif ()
 add_test(
   NAME "unit.compile: midasm generated hooks run against their bodies"

@@ -143,8 +143,6 @@ REX_TEST_CASE("init splits the host code into an object library", "[rexglue][ini
   CHECK(text.find("add_executable(demo src/main.cpp)") != std::string::npos);
   CHECK(text.find("rexglue_setup_host_library(demo_common)") != std::string::npos);
   CHECK(text.find("target_link_libraries(demo PRIVATE demo_common)") != std::string::npos);
-  CHECK(text.find("cmake_policy(SET CMP0184 NEW)") != std::string::npos);
-  CHECK(text.find("cmake_policy(SET CMP0184 NEW)") < text.find("project(demo"));
 }
 
 REX_TEST_CASE("init writes one multi config preset per platform", "[rexglue][init]") {
@@ -193,8 +191,6 @@ REX_TEST_CASE(
   CHECK(text.find("NOT TARGET demo_recompiled") != std::string::npos);
   CHECK(text.find("rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)") !=
         std::string::npos);
-  CHECK(text.find("MSVC_RUNTIME_CHECKS") != std::string::npos);
-  CHECK(text.find("if (MSVC AND REXGLUE_RECOMP_OPTIMIZED)") != std::string::npos);
   CHECK(text.find("demo_recomp ") == std::string::npos);
   const size_t library = text.find("add_library(demo_recompiled OBJECT");
   REQUIRE(library != std::string::npos);
