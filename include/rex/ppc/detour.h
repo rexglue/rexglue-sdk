@@ -224,17 +224,28 @@ class DetourScope : public rex::NonCopyable {
    *
    * @param ctx The register file.
    * @param base The guest memory base.
+   * @param chained True when the body calls the original without the context, which needs the
+   *        frame on the thread chain.
    */
-  DetourScope(PPCContext& ctx, u8* base)
-      : frame_{&ctx, base, ctx.r1.u32, ctx.lr, false, GetInnermostDetourFrame()} {
-    GetInnermostDetourFrame() = &frame_;
+  DetourScope(PPCContext& ctx, u8* base, bool chained)
+      : frame_{&ctx,   base,  ctx.r1.u32,
+               ctx.lr, false, chained ? GetInnermostDetourFrame() : nullptr},
+        context_previous_(ctx.detour_frame),
+        chained_(chained) {
+    if (chained_) {
+      GetInnermostDetourFrame() = &frame_;
+    }
+    ctx.detour_frame = &frame_;
   }
 
   /** Restores r1 and lr and unlinks the frame. */
   ~DetourScope() {
     frame_.ctx->r1.u32 = frame_.entry_r1;
     frame_.ctx->lr = frame_.entry_lr;
-    GetInnermostDetourFrame() = frame_.previous;
+    frame_.ctx->detour_frame = context_previous_;
+    if (chained_) {
+      GetInnermostDetourFrame() = frame_.previous;
+    }
   }
 
   /**
@@ -246,6 +257,8 @@ class DetourScope : public rex::NonCopyable {
 
  private:
   DetourFrame frame_;
+  DetourFrame* context_previous_;
+  bool chained_;
 };
 
 }  // namespace detail
@@ -297,13 +310,29 @@ struct DetourOriginal<R(Args...)> {
  * @tparam Args The parameter types after the context.
  */
 template <typename R, typename... Args>
-struct DetourOriginal<R(PPCContext&, Args...)> : DetourOriginal<R(Args...)> {
+struct DetourOriginal<R(PPCContext&, Args...)> {
+  PPCFunc& fn; /**< The recompiled original. */
+
   /**
    * Binds the original.
    *
    * @param original The recompiled original.
    */
-  constexpr explicit DetourOriginal(PPCFunc& original) : DetourOriginal<R(Args...)>(original) {}
+  constexpr explicit DetourOriginal(PPCFunc& original) : fn(original) {}
+
+  /**
+   * Writes the arguments, runs the original on the register file of the running detour and returns
+   * what it left in its result register. Reads the frame from the register file.
+   *
+   * @param ctx The register file the detour runs on.
+   * @param args The arguments.
+   * @return The value of the result register.
+   */
+  R operator()(PPCContext& ctx, Args... args) const {
+    detail::DetourFrame* frame = ctx.detour_frame;
+    REX_ASSERT(frame != nullptr, "A detour original was called outside a detour body");
+    return detail::CallOriginal<R>(*frame, this->fn, args...);
+  }
 };
 
 /**
@@ -324,7 +353,7 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
   static_assert(!HiddenReturnType<R>, "A detour cannot return a structure by value");
 
   detail::CheckHookContext(ctx, name);
-  auto* thread_state = rex::runtime::ThreadState::Get();
+  auto* thread_state = ctx.thread_state;
   if (thread_state && thread_state->IsStopRequested()) {
     throw rex::ThreadStop{};
   }
@@ -345,7 +374,7 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
     detail::CheckBoundDetourArguments(name, host, kDeclared.gpr_mask, kDeclared.fpr_mask);
   }
 #endif
-  detail::DetourScope scope(ctx, base);
+  detail::DetourScope scope(ctx, base, !Traits::kContext);
 
   auto invoke = [&]() -> R {
     if constexpr (Traits::kContext) {
@@ -417,8 +446,8 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
  * arguments as parameters and calls original(args...) on every path. original writes the declared
  * arguments, runs the recompiled function on the live context and returns what it left in r3 or
  * f1, so a void detour passes the original's results through. A parameter list that starts with
- * PPCContext& ctx gives the body the register file. No detour stays running across a guest
- * SwitchToFiber, since the detour chain is thread local.
+ * PPCContext& ctx gives the body the register file and the call becomes original(ctx, args...). No
+ * detour stays running across a guest SwitchToFiber, since the detour chain is thread local.
  *
  * @param name The recompiled function symbol.
  * @param Ret The return type, written to r3 or f1 for the caller.

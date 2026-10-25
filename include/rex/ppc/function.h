@@ -915,6 +915,8 @@ inline void CheckHookContext([[maybe_unused]] const PPCContext& ctx,
   }
   REX_ASSERT(!thread_state || &ctx == thread_state->GetContext(),
              "A hook runs on a register file that is not its thread's");
+  REX_ASSERT(!thread_state || ctx.thread_state == thread_state,
+             "A hook runs on a register file another thread state owns");
 #endif
 }
 
@@ -933,7 +935,7 @@ __attribute__((noinline)) void GuestToHostThunk(PPCContext& ctx, u8* base) {
   using RetT = decltype(std::apply(Func, FunctionArgs(Func)));
 
   detail::CheckHookContext(ctx, __PRETTY_FUNCTION__);
-  auto* thread_state = rex::runtime::ThreadState::Get();
+  auto* thread_state = ctx.thread_state;
   if (thread_state && thread_state->IsStopRequested()) {
     throw rex::ThreadStop{};
   }

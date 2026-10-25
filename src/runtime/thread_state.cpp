@@ -41,6 +41,7 @@ ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory*
   // r1 is the stack pointer and r13 holds the PCR address.
   context_->r1.u64 = stack_base;
   context_->r13.u64 = pcr_address;
+  context_->thread_state = this;
   context_->vscr_nj = 1;
   rex::platform::FPSCRPlatform::InitHostExceptions(dpc_save_area_.csr);
 }

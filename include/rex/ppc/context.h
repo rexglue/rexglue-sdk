@@ -29,6 +29,14 @@
 #include <simde/x86/sse.h>
 #include <simde/x86/sse4.1.h>
 
+namespace rex::runtime {
+class ThreadState;
+}  // namespace rex::runtime
+
+namespace rex::ppc::detail {
+struct DetourFrame;
+}  // namespace rex::ppc::detail
+
 namespace rex::ppc {
 
 /** General purpose register. */
@@ -360,6 +368,12 @@ struct alignas(0x40) PPCContext {
 
   /** Last indirect call target address. Set by REX_CALL_INDIRECT_FUNC before dispatch. */
   u32 last_indirect_target = 0;
+
+  /** The thread state that owns this register file, null for one a host built. */
+  rex::runtime::ThreadState* thread_state = nullptr;
+
+  /** The innermost detour running on this register file. */
+  rex::ppc::detail::DetourFrame* detour_frame = nullptr;
 
   /**
    * Floating point registers f0 to f31, 64 bit. f1 to f13 are the float arguments, f1 is the float

@@ -62,7 +62,7 @@ extern "C" void __imp__CrashChildDetourOpen(PPCContext& ctx, rex::u8*) {
 REX_DETOUR(CrashChildDetourOpen, void, (PPCContext & ctx)) {
   auto* frame = new rex::ppc::StackFrame(ctx, g_detour_memory);
   frame->Push<rex::u32>(1);
-  original();
+  original(ctx);
 }
 
 namespace {

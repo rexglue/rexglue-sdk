@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include "rex_test.h"
@@ -28,6 +29,7 @@
 #include <rex/ppc/detour.h>
 #include <rex/ppc/function.h>
 #include <rex/ppc/stack.h>
+#include <rex/runtime/thread_state.h>
 
 #include "crash_child_runner.h"
 
@@ -40,6 +42,12 @@ constexpr u32 kEntryLR = 0x1234;
 
 std::array<u32, 10> g_seen_by_body{};
 std::array<u32, 10> g_seen_by_original{};
+
+using ContextOriginal = rex::ppc::DetourOriginal<u32(PPCContext&, u32)>;
+using PlainOriginal = rex::ppc::DetourOriginal<u32(u32)>;
+static_assert(std::is_invocable_v<const ContextOriginal&, PPCContext&, u32>);
+static_assert(!std::is_invocable_v<const ContextOriginal&, u32>);
+static_assert(std::is_invocable_v<const PlainOriginal&, u32>);
 
 PPCContext MakeContext() {
   PPCContext ctx{};
@@ -91,8 +99,8 @@ REX_DETOUR(DetourFnTen, void,
   rex::ppc::StackFrame frame(ctx, g_mem);
   const std::array<u8, 64> filler{};
   frame.PushBytes(filler);
-  original(a0 + 100, a1 + 100, a2 + 100, a3 + 100, a4 + 100, a5 + 100, a6 + 100, a7 + 100, a8 + 100,
-           a9 + 100);
+  original(ctx, a0 + 100, a1 + 100, a2 + 100, a3 + 100, a4 + 100, a5 + 100, a6 + 100, a7 + 100,
+           a8 + 100, a9 + 100);
 }
 
 extern "C" void __imp__DetourFnTenPlain(PPCContext& ctx, u8* base) {
@@ -131,7 +139,7 @@ extern "C" void __imp__DetourFnPoke(PPCContext& ctx, u8*) {
 }
 
 REX_DETOUR(DetourFnPoke, void, (PPCContext & ctx)) {
-  original();
+  original(ctx);
   ctx.r11.u64 = 0x1234;
 }
 
@@ -150,6 +158,39 @@ REX_DETOUR(DetourFnThrow, void, (u32 value)) {
     throw std::runtime_error("detour body failed");
   }
   original(value);
+}
+
+bool g_frame_seen = false;
+bool g_hook_ran = false;
+
+u32 HookTarget(u32 value) {
+  g_hook_ran = true;
+  return value;
+}
+
+extern "C" void __imp__DetourFnFrame(PPCContext& ctx, u8*) {
+  ctx.r3.u64 = 5;
+}
+
+REX_DETOUR(DetourFnFrame, u32, (PPCContext & ctx, u32 value)) {
+  g_frame_seen = ctx.detour_frame != nullptr;
+  return original(ctx, value) + 1;
+}
+
+extern "C" void __imp__DetourFnStopLate(PPCContext&, u8*) {}
+
+REX_DETOUR(DetourFnStopLate, void, (PPCContext & ctx)) {
+  original(ctx);
+  ctx.thread_state->RequestStop();
+}
+
+extern "C" void __imp__DetourFnMixedOuter(PPCContext& ctx, u8* base) {
+  DetourFnInner(ctx, base);
+  ctx.r3.u64 += 10;
+}
+
+REX_DETOUR(DetourFnMixedOuter, u32, (PPCContext & ctx, u32 value)) {
+  return original(ctx, value) + 1000;
 }
 
 REX_TEST_CASE("A void detour passes the original's results through", "[ppc][detour]") {
@@ -233,6 +274,7 @@ REX_TEST_CASE("Nested detours restore their frames", "[ppc][detour]") {
   CHECK(result == 1112);
   CHECK(ctx.r1.u32 == kStackTop);
   CHECK(ctx.lr == kEntryLR);
+  CHECK(ctx.detour_frame == nullptr);
   CHECK(rex::ppc::detail::GetInnermostDetourFrame() == nullptr);
 }
 
@@ -450,4 +492,68 @@ REX_TEST_CASE("A detour declaring fewer arguments than the function reads warns"
 REX_TEST_CASE("A detour with no bound runtime skips the argument check", "[ppc][detour]") {
   rex::ppc::detail::CheckBoundDetourArguments("DetourFn", DetourFnVoid, 0, 0);
   SUCCEED();
+}
+
+REX_TEST_CASE("A thread state publishes itself in its register file", "[ppc][detour]") {
+  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+
+  CHECK(state.GetContext()->thread_state == &state);
+  CHECK(state.GetContext()->detour_frame == nullptr);
+}
+
+REX_TEST_CASE("A detour on a stopped thread state throws before its body runs", "[ppc][detour]") {
+  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  state.RequestStop();
+  PPCContext& ctx = *state.GetContext();
+  ctx.lr = kEntryLR;
+  ctx.r3.u64 = 3;
+
+  CHECK_THROWS_AS(DetourFnVoid(ctx, g_mem), rex::ThreadStop);
+
+  CHECK(ctx.r3.u32 == 3);
+  CHECK(ctx.detour_frame == nullptr);
+}
+
+REX_TEST_CASE("A stop requested inside the body throws after the original ran", "[ppc][detour]") {
+  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  PPCContext& ctx = *state.GetContext();
+  ctx.lr = kEntryLR;
+
+  CHECK_THROWS_AS(DetourFnStopLate(ctx, g_mem), rex::ThreadStop);
+
+  CHECK(ctx.lr == kEntryLR);
+  CHECK(ctx.detour_frame == nullptr);
+}
+
+REX_TEST_CASE("A hook thunk on a stopped thread state throws", "[ppc][detour]") {
+  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  state.RequestStop();
+  g_hook_ran = false;
+
+  CHECK_THROWS_AS(rex::ppc::GuestToHostThunk<&HookTarget>(*state.GetContext(), g_mem),
+                  rex::ThreadStop);
+
+  CHECK_FALSE(g_hook_ran);
+}
+
+REX_TEST_CASE("A ctx detour links its frame in the register file and unlinks it", "[ppc][detour]") {
+  PPCContext ctx = MakeContext();
+  g_frame_seen = false;
+
+  const u32 result = rex::ppc::Call<u32>(ctx, g_mem, DetourFnFrame, u32{1});
+
+  CHECK(result == 6);
+  CHECK(g_frame_seen);
+  CHECK(ctx.detour_frame == nullptr);
+  CHECK(rex::ppc::detail::GetInnermostDetourFrame() == nullptr);
+}
+
+REX_TEST_CASE("Mixed ctx and plain nesting restores both frame chains", "[ppc][detour]") {
+  PPCContext ctx = MakeContext();
+
+  const u32 result = rex::ppc::Call<u32>(ctx, g_mem, DetourFnMixedOuter, u32{1});
+
+  CHECK(result == 1112);
+  CHECK(ctx.detour_frame == nullptr);
+  CHECK(rex::ppc::detail::GetInnermostDetourFrame() == nullptr);
 }
