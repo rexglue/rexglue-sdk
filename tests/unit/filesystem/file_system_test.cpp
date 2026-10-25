@@ -14,6 +14,7 @@
 
 #include "rex_test.h"
 
+#include "core/module_loader.h"
 #include "filesystem/fixture.h"
 
 namespace {
@@ -334,4 +335,29 @@ REX_TEST_CASE("game_mount_flags makes the game partition writable", "[filesystem
       "game:\\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   CHECK(created.action == OpenAction::kCreated);
   CHECK(std::filesystem::exists(fixture.GetTemp() / "game" / "new.txt"));
+}
+
+REX_TEST_CASE("game_mount_flags set after Connect still apply when the standard mounts are made",
+              "[filesystem][mounts]") {
+  rex::test::TempFolder temp{"rex_mount_flags_test_"};
+  std::filesystem::create_directories(temp.path / "game");
+  rex::Config config;
+  config.modules = {"rexfilesystem"};
+  auto api = rex::Init(config);
+  REQUIRE(api);
+  rex::detail::ModuleLoader::GetInstance().GetMutableConfig().filesystem.game_mount_flags =
+      MountFlags::kWritable;
+  auto* file_system = (*api)->Get<rex::filesystem::IFileSystem>();
+  REQUIRE(file_system != nullptr);
+  rex::PathsConfig paths;
+  paths.game_data_root = temp.path / "game";
+  REQUIRE(file_system->ConfigureStandardMounts(paths));
+  {
+    auto created = file_system->Open(
+        "game:\\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
+    REQUIRE(created);
+    CHECK(created->action == OpenAction::kCreated);
+  }
+  CHECK(std::filesystem::exists(temp.path / "game" / "new.txt"));
+  rex::Shutdown();
 }

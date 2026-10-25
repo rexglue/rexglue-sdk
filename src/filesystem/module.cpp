@@ -38,11 +38,12 @@ std::span<const char* const> FileSystemModule::GetRequiredInterfaces() const {
 Result<void> FileSystemModule::Connect(IInterfaceFactory* factory, const Config& config) {
   REX_TRY(logger_, factory->Get<ILogger>());
   REX_TRY_VOID(logger_->Register(log::kFileSystemLog));
-  file_system_.SetGameMountFlags(config.filesystem.game_mount_flags);
+  file_system_.SetConfig(&config.filesystem);
   return Ok();
 }
 
 void FileSystemModule::Disconnect() {
+  file_system_.SetConfig(nullptr);
   if (logger_) {
     logger_->Unregister(log::kFileSystemLog);
   }

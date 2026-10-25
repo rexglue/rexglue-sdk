@@ -316,8 +316,9 @@ Result<void> FileSystem::ConfigureStandardMounts(const PathsConfig& paths) {
         FileSystemError::kNotFound,
         std::format("game_data_root '{}' is not a folder", PathToUTF8(paths.game_data_root))));
   }
+  const MountFlags game_mount_flags = config_ ? config_->game_mount_flags : MountFlags::kNone;
   REX_TRY_VOID(Mount(
-      {std::string(kGamePartition), ProviderKind::kHostDirectory, game_root, game_mount_flags_}));
+      {std::string(kGamePartition), ProviderKind::kHostDirectory, game_root, game_mount_flags}));
   REX_TRY_VOID(Link("game:", kGamePartition));
   REX_TRY_VOID(Link("d:", kGamePartition));
 

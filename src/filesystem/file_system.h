@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/filesystem.h>
 #include <rex/filesystem/file_system.h>
 
 #include "filesystem/provider.h"
@@ -29,11 +30,12 @@ namespace rex::filesystem {
 class FileSystem final : public IFileSystem {
  public:
   /**
-   * Sets the flags ConfigureStandardMounts gives the game mount.
+   * Sets the configuration section ConfigureStandardMounts reads the game mount flags from when
+   * it mounts.
    *
-   * @param flags The game mount flags from FilesystemConfig.
+   * @param config The section, which must outlive the file system or be cleared with null.
    */
-  void SetGameMountFlags(MountFlags flags) { game_mount_flags_ = flags; }
+  void SetConfig(const FilesystemConfig* config) { config_ = config; }
 
   [[nodiscard]] Result<void> Mount(const MountEntry& entry) override;
   [[nodiscard]] Result<void> Unmount(std::string_view path) override;
@@ -76,7 +78,7 @@ class FileSystem final : public IFileSystem {
   mutable std::recursive_mutex mutex_;
   std::vector<std::shared_ptr<Provider>> providers_;
   std::vector<std::pair<std::string, std::string>> links_;
-  MountFlags game_mount_flags_ = MountFlags::kNone;
+  const FilesystemConfig* config_ = nullptr;
 };
 
 }  // namespace rex::filesystem
