@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 
 #include <rex/chrono/chrono.h>
@@ -66,6 +67,12 @@ struct clock_time_conversion<std::chrono::steady_clock, ::rex::chrono::WinSystem
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
     auto delta = t - nt_now;
+    // Clamp before adding: steady_clock counts nanoseconds, so a delta of more
+    // than ~292 years overflows. NT absolute times near the FileTime epoch
+    // (1601) are legal "already due" times; unclamped they wrapped to a point
+    // ~150 years ahead and the timer never fired.
+    constexpr auto kMaxDelta = std::chrono::duration_cast<decltype(delta)>(std::chrono::years(100));
+    delta = std::clamp(delta, -kMaxDelta, kMaxDelta);
     return steady_now + delta;
   }
 };
