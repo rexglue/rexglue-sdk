@@ -312,7 +312,7 @@ Result<void> App::Fail(std::string_view step, Error error) {
 
 Result<void> App::Init(const CLIArgList& args) {
   if (stage_ != Stage::kNone) {
-    return Err<void>(ErrorCategory::kRuntime, "App::Init called twice");
+    return Fail("Init", Error(ErrorCategory::kRuntime, "App::Init called twice"));
   }
   args_ = args;
   stage_ = Stage::kConfigured;
@@ -400,6 +400,9 @@ i32 App::Shutdown() {
   }
   if (stage_ == Stage::kNone) {
     stage_ = Stage::kShutdown;
+    if (failed_) {
+      final_code_ = 1;
+    }
     return final_code_;
   }
   Stop();

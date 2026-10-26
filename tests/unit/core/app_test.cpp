@@ -137,6 +137,13 @@ class TestApp : public rex::App {
   void OnShutdown() override { g_events.push_back("app:shutdown"); }
 };
 
+class EarlyFailApp : public TestApp {
+ public:
+  [[nodiscard]] rex::Result<void> FailBeforeInit() {
+    return Fail("paths", rex::Error(rex::ErrorCategory::kConfig, "no user folder"));
+  }
+};
+
 class ActionApp : public TestApp {
  public:
   std::vector<std::string> actions_seen;
@@ -555,4 +562,17 @@ REX_TEST_CASE_METHOD(Fixture, "The first shutdown request keeps its exit code", 
   rex::RequestShutdown(-3);
   REQUIRE(rex::detail::GetRequestedExitCode() == -3);
   rex::detail::ResetAppState();
+}
+
+REX_TEST_CASE_METHOD(Fixture, "A failure before Init makes Shutdown return 1", "[core][app]") {
+  EarlyFailApp app;
+  CHECK_FALSE(app.FailBeforeInit());
+  CHECK(app.Shutdown() == 1);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "A second Init fails the app and Shutdown returns 1", "[core][app]") {
+  TestApp app;
+  REQUIRE(app.Init(Args()));
+  CHECK_FALSE(app.Init(Args()));
+  CHECK(app.Shutdown() == 1);
 }

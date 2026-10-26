@@ -133,7 +133,7 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImage& image) {
   cfg.modules = {"rexapu-sdl3", "rexhid-sdl3", "rexgpu-xenos", "rexui-sdl3"};
   auto resolved = ResolvePaths(cfg.paths, name);
   if (!resolved) {
-    return std::unexpected(std::move(resolved.error()));
+    return Fail("paths", std::move(resolved.error()));
   }
   cfg.paths = std::move(*resolved);
   REX_TRY_VOID(App::Init(args));

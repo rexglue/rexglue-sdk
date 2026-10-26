@@ -295,6 +295,9 @@ Result<void> Runtime::Setup(const rex::PPCImage& image_info, const RuntimeDesc& 
 
 void Runtime::Shutdown() {
   title_launched_.store(false, std::memory_order_release);
+  if (runtime::RuntimeModule::GetActive() == this) {
+    runtime::RuntimeModule::SetActive(nullptr);
+  }
   if (!setup_complete_ && !memory_) {
     return;
   }
@@ -313,9 +316,6 @@ void Runtime::Shutdown() {
     hid_ = nullptr;
   }
   null_hid_.reset();
-  if (runtime::RuntimeModule::GetActive() == this) {
-    runtime::RuntimeModule::SetActive(nullptr);
-  }
   DestroySubsystems();
   function_dispatcher_.reset();
   if (file_system_) {
