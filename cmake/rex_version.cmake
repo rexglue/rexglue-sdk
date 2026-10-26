@@ -4,7 +4,8 @@
 #     FLOOR_MINOR <int>
 #     GIT_DESCRIBE_LONG  <string>   # output of git describe --tags --long ...
 #     GIT_DESCRIBE_EXACT <string>   # output of git describe --tags --exact-match
-#     BRANCH_NAME        <string>)  # output of git symbolic-ref --short HEAD
+#     BRANCH_NAME        <string>   # output of git symbolic-ref --short HEAD
+#     [NO_GIT])                     # the source is not a git work tree, no tag is expected
 #
 # Emits a CMake style version string of the form MAJOR.MINOR[.PATCH[.TWEAK]][-id].
 # See https://cmake.org/cmake/help/latest/variable/CMAKE_VERSION.html
@@ -19,7 +20,7 @@
 #==========================================================
 function (rex_compute_version out_var)
   set(one_value FLOOR_MAJOR FLOOR_MINOR GIT_DESCRIBE_LONG GIT_DESCRIBE_EXACT BRANCH_NAME)
-  cmake_parse_arguments(ARG "" "${one_value}" "" ${ARGN})
+  cmake_parse_arguments(ARG "NO_GIT" "${one_value}" "" ${ARGN})
 
   if (NOT "${ARG_GIT_DESCRIBE_EXACT}" STREQUAL "")
     if (ARG_GIT_DESCRIBE_EXACT MATCHES "^v([0-9]+\\.[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?)$")
@@ -33,12 +34,14 @@ function (rex_compute_version out_var)
   endif ()
 
   if ("${ARG_GIT_DESCRIBE_LONG}" STREQUAL "")
-    message(
-      WARNING "rex_compute_version: no v* tag reachable from HEAD. "
-              "Falling back to ${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.0.0-dev.unknown. "
-              "If this is a CI build, fetch tags with fetch-depth: 0 and fetch-tags: true. "
-              "If this is a fork, push tags with: git push <fork-remote> --tags"
-    )
+    if (NOT ARG_NO_GIT)
+      message(
+        WARNING "rex_compute_version: no v* tag reachable from HEAD. "
+                "Falling back to ${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.0.0-dev.unknown. "
+                "If this is a CI build, fetch tags with fetch-depth: 0 and fetch-tags: true. "
+                "If this is a fork, push tags with: git push <fork-remote> --tags"
+      )
+    endif ()
     set(${out_var}
         "${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.0.0-dev.unknown"
         PARENT_SCOPE
@@ -132,7 +135,8 @@ endfunction ()
 #     FLOOR_MINOR <int>
 #     [SOURCE_DIR <path>])    # defaults to CMAKE_CURRENT_SOURCE_DIR
 #
-# Runs git in the working tree, then delegates to rex_compute_version.
+# Runs git in the working tree, then delegates to rex_compute_version. A source folder with no
+# .git entry (an archive or a copied tree) takes the floor version without a warning.
 #==========================================================
 function (rex_resolve_version out_var)
   set(one_value FLOOR_MAJOR FLOOR_MINOR SOURCE_DIR)
@@ -144,7 +148,11 @@ function (rex_resolve_version out_var)
   endif ()
 
   find_program(GIT_EXECUTABLE git)
-  if (NOT GIT_EXECUTABLE)
+  set(no_git_flag)
+  if (NOT EXISTS "${source_dir}/.git")
+    set(no_git_flag NO_GIT)
+  endif ()
+  if (NOT GIT_EXECUTABLE OR no_git_flag)
     rex_compute_version(
       result
       FLOOR_MAJOR
@@ -157,6 +165,7 @@ function (rex_resolve_version out_var)
       ""
       BRANCH_NAME
       ""
+      ${no_git_flag}
     )
     set(${out_var}
         "${result}"
