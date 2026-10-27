@@ -30,16 +30,27 @@ namespace {
 constexpr u64 kFileTimeTicksPerSecond = 10000000;
 
 f64 g_guest_time_scalar = 1.0;
-u64 g_guest_tick_frequency = Clock::GetHostTickFrequency();
-u64 g_guest_system_time_base = Clock::QueryHostSystemTime();
+constinit u64 g_guest_tick_frequency = 0;
+constinit u64 g_guest_system_time_base = 0;
 constinit std::pair<u64, u64> g_guest_tick_ratio{1, 1};
 
 u64 g_last_guest_tick_count = 0;
-u64 g_last_host_tick_count = Clock::GetHostTickCount();
+constinit u64 g_last_host_tick_count = 0;
 std::mutex g_tick_mutex;
 
+u64 GuestSystemTimeBaseLocked() {
+  if (g_guest_system_time_base == 0) {
+    g_guest_system_time_base = Clock::QueryHostSystemTime();
+  }
+  return g_guest_system_time_base;
+}
+
+u64 GuestTickFrequencyLocked() {
+  return g_guest_tick_frequency ? g_guest_tick_frequency : Clock::GetHostTickFrequency();
+}
+
 void RecomputeGuestTickRatioLocked() {
-  auto frac = std::make_pair(g_guest_tick_frequency, Clock::GetHostTickFrequency());
+  auto frac = std::make_pair(GuestTickFrequencyLocked(), Clock::GetHostTickFrequency());
   if (g_guest_time_scalar > 1.0) {
     frac.first *= static_cast<u64>(g_guest_time_scalar * 10.0);
     frac.second *= 10;
@@ -58,6 +69,9 @@ std::unique_lock<std::mutex> LockAndUpdateGuestClock() {
     lock.lock();
     return lock;
   }
+  if (g_last_host_tick_count == 0) {
+    g_last_host_tick_count = host_tick_count;
+  }
   const u64 host_tick_delta =
       host_tick_count > g_last_host_tick_count ? host_tick_count - g_last_host_tick_count : 0;
   g_last_host_tick_count = host_tick_count;
@@ -68,7 +82,7 @@ std::unique_lock<std::mutex> LockAndUpdateGuestClock() {
 
 u64 GuestSystemTimeOffsetLocked() {
   u64 numerator = kFileTimeTicksPerSecond;
-  u64 denominator = g_guest_tick_frequency;
+  u64 denominator = GuestTickFrequencyLocked();
   reduce_fraction(numerator, denominator);
   return mul_div(g_last_guest_tick_count, numerator, denominator);
 }
@@ -77,7 +91,7 @@ u64 QueryGuestSystemTimeOffset() {
   if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     const u64 host_system_time = Clock::QueryHostSystemTime();
     std::lock_guard<std::mutex> lock(g_tick_mutex);
-    return host_system_time - g_guest_system_time_base;
+    return host_system_time - GuestSystemTimeBaseLocked();
   }
 
   const auto lock = LockAndUpdateGuestClock();
@@ -114,7 +128,7 @@ std::pair<u64, u64> Clock::GetGuestTickRatio() {
 
 u64 Clock::GetGuestTickFrequency() {
   std::lock_guard<std::mutex> lock(g_tick_mutex);
-  return g_guest_tick_frequency;
+  return GuestTickFrequencyLocked();
 }
 
 void Clock::SetGuestTickFrequency(u64 frequency) {
@@ -125,7 +139,7 @@ void Clock::SetGuestTickFrequency(u64 frequency) {
 
 u64 Clock::GetGuestSystemTimeBase() {
   std::lock_guard<std::mutex> lock(g_tick_mutex);
-  return g_guest_system_time_base;
+  return GuestSystemTimeBaseLocked();
 }
 
 void Clock::SetGuestSystemTimeBase(u64 time_base) {
@@ -150,7 +164,7 @@ u64 Clock::QueryGuestSystemTime() {
   }
 
   const auto lock = LockAndUpdateGuestClock();
-  return g_guest_system_time_base + GuestSystemTimeOffsetLocked();
+  return GuestSystemTimeBaseLocked() + GuestSystemTimeOffsetLocked();
 }
 
 u32 Clock::GetGuestUptimeMillis() {
@@ -192,7 +206,7 @@ i64 Clock::ScaleGuestDurationFileTime(i64 guest_file_time) {
     return 0;
   } else if (guest_file_time > 0) {
     const auto lock = LockAndUpdateGuestClock();
-    const u64 guest_time = g_guest_system_time_base + GuestSystemTimeOffsetLocked();
+    const u64 guest_time = GuestSystemTimeBaseLocked() + GuestSystemTimeOffsetLocked();
     i64 relative_time = guest_file_time - static_cast<i64>(guest_time);
     i64 scaled_time = static_cast<i64>(static_cast<f64>(relative_time) * g_guest_time_scalar);
     return static_cast<i64>(guest_time) + scaled_time;

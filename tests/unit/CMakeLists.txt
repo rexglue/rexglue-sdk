@@ -139,6 +139,7 @@ add_executable(
   core/string_buffer_test.cpp
   core/stream_test.cpp
   core/chrono_test.cpp
+  core/clock_test.cpp
   core/color_test.cpp
   core/result_macros_test.cpp
   core/mmio_test.cpp
