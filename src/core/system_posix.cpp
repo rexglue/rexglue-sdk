@@ -7,10 +7,12 @@
  */
 
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <system_error>
 
 #include <SDL3/SDL_error.h>
+#include <SDL3/SDL_messagebox.h>
 #include <SDL3/SDL_misc.h>
 
 #include <rex/logging.h>
@@ -50,22 +52,39 @@ void LaunchFileExplorer(const std::filesystem::path& path) {
   LaunchWebBrowser(url);
 }
 
-// TODO(tomc): add linux support for showing a native message box
 void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   const char* level = "INFO";
+  const char* title = "Information";
+  SDL_MessageBoxFlags flags = SDL_MESSAGEBOX_INFORMATION;
   switch (type) {
     case SimpleMessageBoxType::Help:
-      level = "INFO";
       break;
     case SimpleMessageBoxType::Warning:
       level = "WARNING";
+      title = "Warning";
+      flags = SDL_MESSAGEBOX_WARNING;
       break;
     case SimpleMessageBoxType::Error:
       level = "ERROR";
+      title = "Error";
+      flags = SDL_MESSAGEBOX_ERROR;
       break;
   }
+  // Keep the stderr line so headless runs still log it.
   std::fprintf(stderr, "[%s] %.*s\n", level, static_cast<int>(message.size()), message.data());
   std::fflush(stderr);
+#if !defined(__APPLE__)
+  // Skip the dialog without a display to avoid SDL's X11 fallback crash.
+  // stderr already has the text.
+  const char* display = std::getenv("DISPLAY");
+  if (display == nullptr || *display == '\0')
+    return;
+#endif
+  // Callable before SDL_Init.
+  const std::string text(message);
+  const std::string configured = GetMessageBoxTitle();
+  SDL_ShowSimpleMessageBox(flags, configured.empty() ? title : configured.c_str(), text.c_str(),
+                           nullptr);
 }
 
 }  // namespace rex

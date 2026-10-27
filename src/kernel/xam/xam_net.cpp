@@ -452,10 +452,6 @@ XNetStartupParams xnet_startup_params = {};
 u32 NetDll_XNetStartup_entry(u32 caller, ppc_ptr_t<XNetStartupParams> params) {
   std::lock_guard lifecycle(xnet_lifecycle);
   const auto config = system_link::CurrentConfig();
-  if (!config.error.empty()) {
-    REXKRNL_ERROR("XNetStartup: {}", config.error);
-    return X_ERROR_INVALID_PARAMETER;
-  }
   if (params) {
     assert_true(params->cfgSizeOfStruct == sizeof(XNetStartupParams));
     std::memcpy(&xnet_startup_params, params, sizeof(XNetStartupParams));
@@ -467,6 +463,10 @@ u32 NetDll_XNetStartup_entry(u32 caller, ppc_ptr_t<XNetStartupParams> params) {
     const auto result = relay_startup.Start(config, client, LanState());
     if (result)
       return result;
+  } else if (!config.error.empty()) {
+    // Like a failed relay: the title runs without a network and status gives the reason.
+    REXKRNL_ERROR("XNetStartup: {}; continuing without a network", config.error);
+    LanState().Reset();
   } else if (config.mode == system_link::Mode::kLan) {
     if (!LanState().Configure(config.local_address, config.xuid)) {
       REXKRNL_ERROR(

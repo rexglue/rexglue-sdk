@@ -64,7 +64,10 @@ void LaunchFileExplorer(const std::filesystem::path& path) {
 
 void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   UINT flags = MB_OK | MB_TOPMOST | MB_SETFOREGROUND;
-  const wchar_t* title = L"ReXGlue";
+  std::wstring title = L"ReXGlue";
+  if (const auto configured = rex::string::to_utf16(GetMessageBoxTitle()); !configured.empty()) {
+    title.assign(reinterpret_cast<const wchar_t*>(configured.c_str()), configured.size());
+  }
   switch (type) {
     case SimpleMessageBoxType::Help:
       flags |= MB_ICONINFORMATION;
@@ -77,7 +80,7 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
       break;
   }
   auto wide = rex::string::to_utf16(message);
-  ::MessageBoxW(nullptr, reinterpret_cast<const wchar_t*>(wide.c_str()), title, flags);
+  ::MessageBoxW(nullptr, reinterpret_cast<const wchar_t*>(wide.c_str()), title.c_str(), flags);
 }
 
 }  // namespace rex

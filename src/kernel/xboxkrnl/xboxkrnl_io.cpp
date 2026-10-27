@@ -29,6 +29,8 @@
 #include <rex/system/xtypes.h>
 #include <rex/thread/mutex.h>
 
+#include "../../core/first_seen.h"
+
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
@@ -169,7 +171,13 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
   *handle_out = handle;
   if (XFAILED(result)) {
-    REXKRNL_IMPORT_FAIL("NtCreateFile", "path='{}' -> {:#x}", target_path, result);
+    // Titles often retry a failing open, so warn once per path and status.
+    static FirstSeen failed_opens;
+    if (failed_opens.First(fmt::format("{:#x}:{}", static_cast<uint32_t>(result), target_path))) {
+      REXKRNL_IMPORT_FAIL("NtCreateFile", "path='{}' -> {:#x}", target_path, result);
+    } else {
+      REXKRNL_TRACE("[NtCreateFile] FAILED: path='{}' -> {:#x}", target_path, result);
+    }
   } else {
     REXKRNL_IMPORT_RESULT("NtCreateFile", "{:#x} handle={:#x}", result, handle);
   }

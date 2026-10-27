@@ -450,6 +450,18 @@ std::string Status() {
 }
 uint32_t RelayStartup::Start(const Config& config, relay_link::Client& client,
                              lan::LanSystemLinkState& lan) {
+  auto disconnected = [&](std::string reason, std::string_view detail) {
+    REXKRNL_ERROR("XNetStartup: {}; continuing without a network, relay references={}", detail,
+                  references_);
+    SetStartupFailure(reason);
+    client.MarkFailed(std::move(reason));
+    return 0u;
+  };
+  // A rejected config, such as a damaged invite, cannot start until the next launch.
+  if (!config.error.empty()) {
+    ++references_;
+    return disconnected(config.error, config.error);
+  }
   if (config.lan_enabled || !config.xuid) {
     REXKRNL_ERROR(
         "XNetStartup: relay requires a nonzero system_link_xuid and "
@@ -461,13 +473,6 @@ uint32_t RelayStartup::Start(const Config& config, relay_link::Client& client,
     REXKRNL_DEBUG("XNetStartup: relay references={}", references_);
     return 0;
   }
-  auto disconnected = [&](std::string reason, std::string_view detail) {
-    REXKRNL_ERROR("XNetStartup: {}; continuing without a network, relay references={}", detail,
-                  references_);
-    SetStartupFailure(reason);
-    client.MarkFailed(std::move(reason));
-    return 0u;
-  };
   auto server = relay_link::Resolve(config.address);
   auto token = CopyJoinToken(config);
   auto secret = token ? Result<relay_link::Secret>(relay_link::Secret()) : ReadSecret(config);

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
 #include <string_view>
 
 #include <rex/platform.h>
@@ -37,6 +38,10 @@ enum class SimpleMessageBoxType {
   Warning,
   Error,
 };
+
+// Thread-safe window title for ShowSimpleMessageBox. Empty restores the platform default.
+void SetMessageBoxTitle(std::string_view title);
+std::string GetMessageBoxTitle();
 
 // This is expected to block the caller until the message box is closed.
 void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message);

@@ -48,7 +48,9 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <string_view>
 
 // This consumer-compiled source links rexruntime; internal headers are not installed.
@@ -138,6 +140,31 @@ const char* ProfileCopyResultName(rex::system::ProfileCopyResult result) {
       return "verification failed";
   }
   return "unknown error";
+}
+
+// Create the folder and a unique probe file to check writability.
+// Return an empty string on success, otherwise the reason.
+std::string ProbeWritableDirectory(const std::filesystem::path& dir) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) {
+    return ec.message();
+  }
+  const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+  const auto probe = dir / fmt::format(".rex_write_probe_{:x}", stamp);
+  {
+    std::ofstream out(probe, std::ios::binary);
+    if (!out) {
+      return "the folder is not writable";
+    }
+    out << 'x';
+    out.flush();
+    if (!out) {
+      return "the folder is not writable";
+    }
+  }
+  std::filesystem::remove(probe, ec);
+  return {};
 }
 
 }  // namespace
@@ -294,6 +321,16 @@ bool ReXApp::SetupEnvironment() {
       rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
       return false;
     }
+  }
+
+  // Report an unwritable logging and config root before the log sink can fail silently.
+  if (const auto reason = ProbeWritableDirectory(path_config.user_data_root); !reason.empty()) {
+    auto msg = fmt::format(
+        "Cannot write to the user data folder '{}': {}. Choose a writable folder with "
+        "--user_data_root, or fix the folder permissions.",
+        path_config.user_data_root.string(), reason);
+    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
+    return false;
   }
 
   game_data_root_ = path_config.game_data_root;

@@ -60,9 +60,9 @@ inline constexpr std::string_view kInviteExpired = "invite expired; ask for a ne
 // XNetStartup and XNetCleanup references in relay mode. Callers serialize.
 class RelayStartup {
  public:
-  // Return 0, or X_ERROR_INVALID_PARAMETER for LAN plus relay or zero XUID. An
-  // unreachable relay succeeds disconnected like XNet on a no-link console;
-  // status gives the reason, and a later startup retries.
+  // Return 0, or X_ERROR_INVALID_PARAMETER for LAN plus relay or zero XUID.
+  // Config errors and unreachable relays succeed disconnected, like XNet on a no-link console.
+  // Status gives the reason. Later startup retries the relay. Config errors last until restart.
   uint32_t Start(const Config& config, relay_link::Client& client, lan::LanSystemLinkState& lan);
   // XNetCleanup: releases one reference. The last one stops the client and
   // returns its final stats.

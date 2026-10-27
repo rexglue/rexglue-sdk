@@ -266,6 +266,33 @@ TEST_CASE("system_link snapshot refuses conflicting and incomplete settings",
   CHECK(Status().find(*invite) == std::string::npos);
 }
 
+TEST_CASE("system_link config error starts disconnected", "[system_link][invite]") {
+  Fixture f;
+  f.Set("system_link_invite", "True");
+  f.Freeze();
+  const auto config = CurrentConfig();
+  CHECK(config.error == "not an invite code");
+  CHECK(RelayRequested());
+  relay_link::Client client;
+  lan::LanSystemLinkState lan;
+  RelayStartup startup;
+  // A title may not survive a failed XNetStartup, so each attempt succeeds offline.
+  for (uint32_t references = 1; references <= 2; ++references) {
+    CHECK(startup.Start(config, client, lan) == 0);
+    CHECK(startup.references() == references);
+    CHECK(client.stats().state == relay_link::Association::kFailed);
+    CHECK(RelayStatus(client.stats()) == "Relay failed: not an invite code");
+  }
+  CHECK(Status() == "Relay failed: not an invite code");
+  CHECK_FALSE(lan.enabled());
+  lan::XnAddrSnapshot address{};
+  CHECK(RelayTitleXnAddr(client, lan, &address) == kXnAddrNone);
+  CHECK(address.ipv4 == 0);
+  CHECK_FALSE(startup.Cleanup(client));
+  CHECK(startup.Cleanup(client));
+  CHECK(startup.references() == 0);
+}
+
 TEST_CASE("system_link off snapshot ignores later settings", "[system_link]") {
   Fixture f;
   f.Freeze();

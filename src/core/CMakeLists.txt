@@ -23,6 +23,7 @@ add_library(rexcore OBJECT
     live_invite.cpp
     sha256.cpp
     string_buffer.cpp
+    system.cpp
     threading.cpp
     timer_queue.cpp
     utf8.cpp

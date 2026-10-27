@@ -15,6 +15,8 @@
 
 #include <rex/filesystem/devices/host_path_entry.h>
 
+#include "../core/first_seen.h"
+
 REXCVAR_DEFINE_BOOL(allow_game_relative_writes, false, "Filesystem",
                     "Not useful to non-developers. Allows code to write to paths "
                     "relative to game://. Used for "
@@ -121,8 +123,14 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
   });
   if (it == devices_.cend()) {
     // Titles probe optional devices such as UPDATE:\ and fall back when one is
-    // missing, so this is not an error.
-    REXFS_WARN("VFS: '{}' -> [no device]", path);
+    // missing, so this is not an error. They often repeat the same probe, so
+    // only the first miss per path is a warning.
+    static FirstSeen missing_device_paths;
+    if (missing_device_paths.First(path)) {
+      REXFS_WARN("VFS: '{}' -> [no device]", path);
+    } else {
+      REXFS_TRACE("VFS: '{}' -> [no device]", path);
+    }
     return nullptr;
   }
 
