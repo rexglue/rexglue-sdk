@@ -100,6 +100,7 @@ bool AchievementManager::LoadMetadataFile(const std::filesystem::path& path) {
       info.image_id = static_cast<uint32_t>((*entry)["image_id"].value_or<int64_t>(0));
       info.gamerscore = static_cast<uint32_t>((*entry)["gamerscore"].value_or<int64_t>(0));
       info.flags = static_cast<uint32_t>((*entry)["flags"].value_or<int64_t>(0));
+      info.custom = (*entry)["custom"].value_or(false);
       if (RegisterAchievement(std::move(info))) {
         ++loaded;
       }

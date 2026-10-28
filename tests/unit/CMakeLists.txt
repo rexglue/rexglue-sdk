@@ -2,6 +2,7 @@
 
 add_executable(unit_tests
     audio/output_state_test.cpp
+    ui/achievement_groups_test.cpp
     ui/bar_fill_test.cpp
     ui/detached_presentation_test.cpp
     ui/frame_rate_meter_test.cpp

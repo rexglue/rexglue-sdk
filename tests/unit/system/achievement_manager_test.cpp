@@ -230,3 +230,26 @@ TEST_CASE("embedded metadata assets resolve by metadata-relative path", "[achiev
   CHECK(asset->bytes[2] == 0x4E);
   CHECK(asset->bytes[3] == 0x47);
 }
+
+TEST_CASE("achievement custom marker is separate from flags", "[achievements]") {
+  TempDirectory temp("rex_achievement_custom");
+  auto metadata_path = temp.path() / "achievements.toml";
+  WriteFile(metadata_path, R"(
+[[achievements]]
+id = 7
+label = "Extra"
+gamerscore = 5
+flags = 3
+custom = true
+)");
+
+  rex::system::AchievementManager manager;
+  manager.ReplaceAchievements({MakeAchievement(1, "Embedded")});
+  REQUIRE(manager.LoadMetadataFile(metadata_path));
+
+  CHECK_FALSE(manager.FindAchievement(1)->custom);
+  const auto extra = manager.FindAchievement(7);
+  REQUIRE(extra);
+  CHECK(extra->custom);
+  CHECK(extra->flags == 3);
+}

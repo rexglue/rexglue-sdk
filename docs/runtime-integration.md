@@ -270,6 +270,13 @@ to `SetGuestFrameStats`. Without one they read the presenter's
 image. Detached titles have no presenter and show `--` until they set a
 provider.
 
+The achievements overlay lists achievements with `AchievementInfo::custom` set
+(or `custom = true` in `achievements.toml`) on a Custom tab beside Original.
+The tabs appear only when a custom achievement exists. Custom sorts by
+gamerscore from lowest to highest, then label. It has its own count and
+gamerscore totals. The marker is separate from `flags`, the XDBF value the guest
+reads.
+
 These features use the public C++ layouts of `ui::Style`, `ImGuiDrawer`,
 `Presenter`, `ReXApp` and the settings and achievements dialogs. Build the SDK
 and its consumers with matching headers.
@@ -281,7 +288,7 @@ category; Discord activity belongs to Online. Config files key by cvar name.
 [`rex/session_data.h`](../include/rex/session_data.h) lets a host share opaque
 title bytes with players who join its System Link or Live session.
 `SetHostDataProvider` registers a cheap callback that may run on any calling
-thread. Host session creation captures lobby bytes; `Current()` reports
+thread. Host session creation captures lobby bytes. `Current()` reports
 `kHost` with `game_ready == false`. A non-host create requests lobby data from
 the host address in its `XSESSION_INFO`, enters `kPending`, then reports
 `kReceived` on a valid reply. A missing route or System Link disabled on a
@@ -300,20 +307,19 @@ A ready host reports `kHost`, and a joiner with an accepted game reply reports
 `kReceived`, both with `game_ready == true`. Before applying game policy, the
 title must call `WaitForHostData` as needed and require readiness as well as an
 appropriate state. Lobby data and bytes retained after game end do not establish
-readiness. The SDK transports bytes; the title owns decoding, compatibility,
+readiness. The SDK transports bytes. The title owns decoding, compatibility,
 admission decisions, and applying settings or mods to gameplay.
 
-The provider runs outside the session-data lock and may read Current or replace
-itself. Its output is limited to `kMaxBytes` (1,024), with oversized output
-truncated and warned. A null or throwing provider freezes empty bytes; an
-exception is logged and does not escape into guest dispatch. A result superseded
-by session deletion, creation, or game end is discarded. `XSessionDelete` and
-the last `XNetCleanup` return to `kNone`.
+The provider runs outside the session data lock and may read Current or replace
+itself. Output above `kMaxBytes` (1,024) is truncated with a warning. A null or
+throwing provider freezes empty bytes. Exceptions are logged and do not escape
+into guest dispatch. A result superseded by session deletion, creation, or game
+end is discarded. `XSessionDelete` and the last `XNetCleanup` return to `kNone`.
 
 Each lobby or game request retries after 250 ms, doubling to 2 s, and becomes
 `kUnavailable` after 15 seconds without an accepted reply. `WaitForHostData`
 blocks only while `kPending`, up to its timeout. If the waited generation ends
-or is replaced, it returns `kNone` without bytes; call Current for the newer
+or is replaced, it returns `kNone` without bytes. Call Current for the newer
 state. Session bytes remain local SDK state and are not guest network payloads.
 
 ### Wire framing and freshness
@@ -321,7 +327,7 @@ state. Session bytes remain local SDK state and are not guest network payloads.
 The codec and state machine in
 [`host_session_data.h`](../src/kernel/xam/host_session_data.h) and
 [`host_session_data.cpp`](../src/kernel/xam/host_session_data.cpp) own the wire
-contract. All messages retain ASCII `RXSD`, version 1, and this 32-byte prefix:
+contract. All messages use ASCII `RXSD`, version 1, and this 32-byte prefix:
 
 | Offset | Field |
 |---|---|
@@ -344,12 +350,12 @@ types 3 (request) and 4 (reply) extend the header to 64 bytes:
 
 Requests carry no title data. The final 32 bytes of every message are
 `HMAC-SHA256(XNKEY, "RXSD-HOSTDATA-v1" || preceding bytes)`, including all game
-framing when present. Lobby requests are 64 bytes and game requests are 96;
-replies reach 1,088 and 1,120 bytes respectively. Older peers that only accept
+framing when present. Lobby requests are 64 bytes and game requests are 96.
+Replies reach 1,088 and 1,120 bytes respectively. Older peers that only accept
 types 1/2 cannot satisfy a game-only request. Generation and attempt must be
 nonzero, and the requester ID must contain a nonzero byte.
 
-A game request carries the joiner's minimum acceptable generation; a game reply
+A game request carries the joiner's minimum acceptable generation. A game reply
 carries the actual prepared host generation. The host serves game data only
 when ready and at or above that floor. A joiner accepts only the current
 session ID, a nonce it issued for this request, the current requester ID and
@@ -369,10 +375,10 @@ host never saw, require session recreation rather than guessing a generation.
 Malformed, oversized, unauthenticated, unexpected, or stale messages are
 dropped with a debug log. The host answers each nonce at most three times,
 remembers 64 reply nonces, and rate-limits replies to 20 per second with a burst
-of 20. That nonce cache may evict its oldest entry; the requester/generation
+of 20. That nonce cache may evict its oldest entry. The requester/generation
 cache does not. Joiners rotate request nonces after three sends. These limits
-bound reply traffic; they do not make title bytes trustworthy beyond possession
-of the shared session key. The HMAC authenticates session-key holders and does
+bound reply traffic. They do not make title bytes trustworthy beyond possession
+of the shared session key. The HMAC authenticates holders of that key and does
 not encrypt the data or validate its title-specific meaning.
 
 ### Transports
@@ -385,10 +391,10 @@ than a direct path. The relay protocol is unchanged.
 
 In direct-LAN mode each instance binds a native UDP side socket to its selected
 `system_link_local_address` on port 30110 when it creates a session. Requests go
-to the host's address on that port; replies return to the sending route.
+to the host's address on that port, and replies return to the sending route.
 Separate instances on one machine require distinct local addresses. A firewall
 must allow UDP 30110 between LAN players. These transports authenticate the
-session-data envelope with the session key; the title must still validate the
+session data envelope with the session key. The title must still validate the
 received settings. An exit handler stops the retry timer and LAN worker before
 the relay client is destroyed.
 

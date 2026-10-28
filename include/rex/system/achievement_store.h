@@ -23,6 +23,9 @@ struct AchievementInfo {
   uint32_t image_id = 0;
   uint32_t gamerscore = 0;
   uint32_t flags = 0;
+  // Extra achievement registered by the app, shown on a separate overlay tab.
+  // Separate from `flags`, the XDBF/metadata value the guest reads.
+  bool custom = false;
 };
 
 }  // namespace rex::system

@@ -12,6 +12,8 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <string>
 
 #include <rex/ui/immediate_drawer.h>
 
@@ -61,36 +63,51 @@ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
   alpha = std::max(0.0f, std::min(1.0f, alpha));
 
   const ToastStyle& s = imgui_drawer()->style().toast;
-  const float pad = 16.0f;
-  const float w = 320.0f;
+  // Scale the frame with fonts and padding to avoid clipping at larger outputs.
+  // Let the height fit the content.
+  const float scale = imgui_drawer()->overlay_scale();
+  const float pad = 16.0f * scale;
+  const float w = 320.0f * scale;
+  const float icon_size = s.icon_size * scale;
   const float inset = io.DisplaySize.y * std::clamp(s.bottom_inset, 0.0f, 0.5f);
-  ImGui::SetNextWindowPos(
-      ImVec2(io.DisplaySize.x - w - pad, io.DisplaySize.y - inset - 80.0f - pad), ImGuiCond_Always);
-  ImGui::SetNextWindowSize(ImVec2(w, 70.0f), ImGuiCond_Always);
+  ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - pad, io.DisplaySize.y - inset - pad),
+                          ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+  ImGui::SetNextWindowSizeConstraints(ImVec2(w, 0.0f), ImVec2(w, io.DisplaySize.y * 0.5f));
   ImGui::SetNextWindowBgAlpha(s.background_alpha * alpha);
 
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav |
                            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                           ImGuiWindowFlags_NoInputs;
+                           ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize;
   // Colors carry the fade envelope; the style holds them at full opacity.
   auto faded = [alpha](ImVec4 c) { return ImVec4(c.x, c.y, c.z, c.w * alpha); };
 
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, s.rounding);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, s.rounding * scale);
   ImGui::PushStyleColor(ImGuiCol_Text, faded(s.text));
   if (ImGui::Begin("##ach_toast", nullptr, flags)) {
     ImmediateTexture* icon = icon_cache_.GetIcon(toast.event.achievement);
     if (icon) {
-      ImGui::Image(reinterpret_cast<ImTextureID>(icon), ImVec2(s.icon_size, s.icon_size));
+      ImGui::Image(reinterpret_cast<ImTextureID>(icon), ImVec2(icon_size, icon_size));
       ImGui::SameLine();
     }
 
     ImGui::BeginGroup();
+    // Long labels wrap inside the fixed width. The score follows the label when
+    // both fit and otherwise takes its own line.
+    ImGui::PushTextWrapPos(0.0f);
     ImGui::PushStyleColor(ImGuiCol_Text, faded(s.title));
     ImGui::TextUnformatted("Achievement Unlocked");
     ImGui::PopStyleColor();
-    ImGui::TextUnformatted(toast.event.achievement.label.c_str());
-    ImGui::SameLine();
-    ImGui::TextDisabled(" (%dG)", static_cast<int>(toast.event.achievement.gamerscore));
+    const std::string& label = toast.event.achievement.label;
+    char score[32];
+    std::snprintf(score, sizeof(score), " (%dG)",
+                  static_cast<int>(toast.event.achievement.gamerscore));
+    ImGui::TextUnformatted(label.c_str());
+    if (ImGui::CalcTextSize(label.c_str()).x + ImGui::CalcTextSize(score).x <=
+        ImGui::GetContentRegionAvail().x) {
+      ImGui::SameLine(0.0f, 0.0f);
+    }
+    ImGui::TextDisabled("%s", score);
+    ImGui::PopTextWrapPos();
     ImGui::EndGroup();
   }
   ImGui::End();

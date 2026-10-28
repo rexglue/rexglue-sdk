@@ -9,6 +9,7 @@
 #include <algorithm>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include "../notification_queue.h"
 
@@ -39,9 +40,15 @@ void NotificationToastDialog::OnDraw(ImGuiIO& io) {
   const float scale = imgui_drawer()->overlay_scale();
   const float pad = 16.0f * scale;
   const float width = 360.0f * scale;
-  // Sit above the achievement toast's 70-pixel slot so both can show at once.
+  // Leave room for the achievement toast's height, including wrapped labels,
+  // so both toasts can show at once.
+  float achievement_slot = 80.0f * scale;
+  if (const ImGuiWindow* achievement = ImGui::FindWindowByName("##ach_toast");
+      achievement && achievement->WasActive) {
+    achievement_slot = std::max(achievement_slot, achievement->Size.y);
+  }
   const float inset = io.DisplaySize.y * std::clamp(s.bottom_inset, 0.0f, 0.5f);
-  const float bottom = io.DisplaySize.y - inset - pad - 80.0f * scale - pad * 0.5f;
+  const float bottom = io.DisplaySize.y - inset - pad - achievement_slot - pad * 0.5f;
   ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - pad, bottom), ImGuiCond_Always,
                           ImVec2(1.0f, 1.0f));
   // Never taller than the space above the anchor, so the inset cannot push the top off screen.
