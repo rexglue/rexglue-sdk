@@ -9,12 +9,16 @@
  * @modified    Tom Clay & Rien Gupta, 2026 - Adapted for ReXGlue runtime (POSIX + macOS)
  */
 
+#include <charconv>
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <functional>
+#include <iterator>
+#include <map>
+#include <mutex>
 #include <string>
 
 #include <fcntl.h>
@@ -150,83 +154,28 @@ bool IsWritableExecutableMemorySupported() {
 #if REX_PLATFORM_LINUX
 namespace {
 
-struct LinuxMapEntry {
+struct MapsRange {
   uintptr_t start = 0;
   uintptr_t end = 0;
-  char perms[5] = {};
+  PageAccess access = PageAccess::kNoAccess;
 };
 
-// Parse a line from /proc/self/maps into a LinuxMapEntry
-static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
-  out = LinuxMapEntry{};
-  unsigned long long start = 0, end = 0;
-  char perms[5] = {};
-  const int matched = std::sscanf(line.c_str(), "%llx-%llx %4s", &start, &end, perms);
-  if (matched < 3)
-    return false;
-  out.start = static_cast<uintptr_t>(start);
-  out.end = static_cast<uintptr_t>(end);
-  std::memcpy(out.perms, perms, sizeof(out.perms));
-  return out.start < out.end;
+using MapsRanges = std::map<uintptr_t, MapsRange>;
+
+struct MapsCache {
+  std::mutex mtx;
+  MapsRanges ranges;
+  std::string scratch;
+};
+
+static MapsCache& Cache() {
+  static MapsCache* cache = new MapsCache;
+  return *cache;
 }
 
-// Find the mapping entry in /proc/self/maps that contains the given address
-static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
-  const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open())
-    return false;
-  std::string line;
-  while (std::getline(maps, line)) {
-    LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e))
-      continue;
-    if (addr >= e.start && addr < e.end) {
-      out_entry = e;
-      return true;
-    }
-  }
-  return false;
-}
+constexpr size_t kPermsLen = 3;
 
-// Check if [base, base+length) is fully covered by existing mappings (no gaps)
-static bool IsRangeFullyMapped(void* base_address, size_t length) {
-  if (!base_address || length == 0)
-    return false;
-
-  const uintptr_t begin = reinterpret_cast<uintptr_t>(base_address);
-  const uintptr_t end = begin + length;
-  if (end < begin) {  // overflow check
-    return false;
-  }
-
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open())
-    return false;
-
-  uintptr_t cursor = begin;
-  std::string line;
-  while (std::getline(maps, line)) {
-    LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e))
-      continue;
-    if (e.end <= cursor)
-      continue;
-    if (e.start > cursor)
-      return false;  // gap found
-    cursor = e.end;
-    if (cursor >= end)
-      return true;
-  }
-  return cursor >= end;
-}
-
-// Convert /proc/self/maps permission chars to PageAccess
-static PageAccess PermsToPageAccess(const char perms[5]) {
-  const bool r = perms[0] == 'r';
-  const bool w = perms[1] == 'w';
-  const bool x = perms[2] == 'x';
-
+static PageAccess RWXToPageAccess(bool r, bool w, bool x) {
   if (!r && !w && !x)
     return PageAccess::kNoAccess;
   if (x)
@@ -234,6 +183,286 @@ static PageAccess PermsToPageAccess(const char perms[5]) {
   return w ? PageAccess::kReadWrite : PageAccess::kReadOnly;
 }
 
+static PageAccess PermsToPageAccess(const char perms[kPermsLen]) {
+  return RWXToPageAccess(perms[0] == 'r', perms[1] == 'w', perms[2] == 'x');
+}
+
+static PageAccess ProtToPageAccess(int prot) {
+  return RWXToPageAccess((prot & PROT_READ) != 0, (prot & PROT_WRITE) != 0,
+                         (prot & PROT_EXEC) != 0);
+}
+
+static void ClearCacheLocked() {
+  auto& cache = Cache();
+  cache.ranges.clear();
+  cache.scratch.clear();
+}
+
+static void ReadMaps() {
+  ClearCacheLocked();
+
+  const int fd = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
+
+  if (fd < 0) {
+    return;
+  }
+
+  char buffer[8192];
+  ssize_t got;
+
+  while ((got = read(fd, buffer, sizeof(buffer))) > 0) {
+    Cache().scratch.append(buffer, size_t(got));
+  }
+
+  close(fd);
+
+  if (got < 0) {
+    return;
+  }
+
+  const char* p = Cache().scratch.data();
+  const char* end = p + Cache().scratch.size();
+
+  while (p < end) {
+    const char* nl = static_cast<const char*>(memchr(p, '\n', size_t(end - p)));
+    const char* line_end = nl ? nl : end;
+    MapsRange range;
+    const auto start = std::from_chars(p, line_end, range.start, 16);
+    if (start.ec == std::errc{} && start.ptr < line_end && *start.ptr == '-') {
+      const auto stop = std::from_chars(start.ptr + 1, line_end, range.end, 16);
+      if (stop.ec == std::errc{} && stop.ptr < line_end && *stop.ptr == ' ' &&
+          stop.ptr + kPermsLen <= line_end && range.start < range.end) {
+        range.access = PermsToPageAccess(stop.ptr + 1);
+        Cache().ranges.insert(Cache().ranges.end(), {range.start, range});
+      }
+    }
+    p = line_end + 1;
+  }
+}
+
+static void EnsureMapsCacheLocked() {
+  if (Cache().ranges.empty()) {
+    ReadMaps();
+  }
+}
+
+static MapsRanges::iterator FindLocked(uintptr_t addr) {
+  auto& ranges = Cache().ranges;
+  const auto it = ranges.upper_bound(addr);
+
+  if (it == ranges.begin()) {
+    return ranges.end();
+  }
+
+  const auto prev = std::prev(it);
+  return prev->second.end > addr ? prev : ranges.end();
+}
+
+static MapsRanges::iterator SplitAtLocked(uintptr_t pos) {
+  auto& ranges = Cache().ranges;
+  const auto it = ranges.upper_bound(pos);
+
+  if (it == ranges.begin()) {
+    return it;
+  }
+
+  const auto prev = std::prev(it);
+
+  if (prev->second.end <= pos) {
+    return it;
+  }
+
+  if (prev->first == pos) {
+    return prev;
+  }
+
+  const MapsRange right{pos, prev->second.end, prev->second.access};
+  prev->second.end = pos;
+  return ranges.insert(it, {pos, right});
+}
+
+static void MergeLocked(MapsRanges::iterator it) {
+  auto& ranges = Cache().ranges;
+
+  if (it == ranges.end()) {
+    return;
+  }
+
+  if (it != ranges.begin()) {
+    const auto prev = std::prev(it);
+    if (prev->second.end == it->second.start && prev->second.access == it->second.access) {
+      prev->second.end = it->second.end;
+      ranges.erase(it);
+      it = prev;
+    }
+  }
+
+  auto next = std::next(it);
+  while (next != ranges.end() && next->first == it->second.end &&
+         next->second.access == it->second.access) {
+    it->second.end = next->second.end;
+    ranges.erase(next);
+    next = std::next(it);
+  }
+}
+
+static void ApplyAccessLocked(uintptr_t start, uintptr_t end, PageAccess access) {
+  auto& ranges = Cache().ranges;
+
+  if (ranges.empty()) {
+    ranges[start] = {start, end, access};
+    return;
+  }
+
+  const auto after = SplitAtLocked(end);
+  auto earliest = SplitAtLocked(start);
+  auto pos = earliest;
+
+  uintptr_t cursor = start;
+  while (cursor < end) {
+    if (pos == ranges.end()) {
+      const auto ins = ranges.insert(pos, {cursor, {cursor, end, access}});
+
+      if (earliest == pos) {
+        earliest = ins;
+      }
+
+      break;
+    }
+    if (pos == after || pos->first > cursor) {
+      const uintptr_t hole_end = (pos == after || pos->first > end) ? end : pos->first;
+      const auto ins = ranges.insert(pos, {cursor, {cursor, hole_end, access}});
+
+      if (earliest == pos) {
+        earliest = ins;
+      }
+
+      pos = ins;
+      cursor = hole_end;
+      ++pos;
+
+      continue;
+    }
+
+    pos->second.access = access;
+    cursor = pos->second.end;
+    ++pos;
+  }
+
+  MergeLocked(earliest);
+}
+
+static bool PageBounds(void* base_address, size_t length, uintptr_t& start, uintptr_t& end) {
+  const size_t page = page_size();
+  start = reinterpret_cast<uintptr_t>(base_address) & ~(page - 1);
+
+  if (length > SIZE_MAX - (page - 1)) {
+    return false;
+  }
+
+  const size_t rounded = (length + page - 1) & ~(page - 1);
+  end = start + rounded;
+
+  return end >= start;
+}
+
+static void ApplyAccess(void* base_address, size_t length, PageAccess access) {
+  uintptr_t start, end;
+  std::lock_guard<std::mutex> lock(Cache().mtx);
+
+  if (!PageBounds(base_address, length, start, end)) {
+    ClearCacheLocked();
+    return;
+  }
+
+  ApplyAccessLocked(start, end, access);
+}
+
+static void RemoveRange(void* base_address, size_t length) {
+  uintptr_t start, end;
+  std::lock_guard<std::mutex> lock(Cache().mtx);
+
+  if (!PageBounds(base_address, length, start, end)) {
+    ClearCacheLocked();
+    return;
+  }
+
+  if (Cache().ranges.empty()) {
+    return;
+  }
+
+  const auto first = SplitAtLocked(start);
+  const auto after = SplitAtLocked(end);
+
+  Cache().ranges.erase(first, after);
+}
+
+static void InvalidateCache() {
+  std::lock_guard<std::mutex> lock(Cache().mtx);
+  ClearCacheLocked();
+}
+
+static bool LookupMapsProtect(uintptr_t addr, size_t& length, PageAccess& access_out) {
+  auto& cache = Cache();
+  std::lock_guard<std::mutex> lock(cache.mtx);
+  auto it = FindLocked(addr);
+
+  if (it == cache.ranges.end()) {
+    ReadMaps();
+    it = FindLocked(addr);
+    if (it == cache.ranges.end()) {
+      length = 0;
+      access_out = PageAccess::kNoAccess;
+      return false;
+    }
+  }
+
+  length = size_t(it->second.end - addr);
+  access_out = it->second.access;
+  return true;
+}
+
+static bool IsRangeFullyMapped(void* base_address, size_t length) {
+  if (!base_address || length == 0)
+    return false;
+
+  const uintptr_t begin = reinterpret_cast<uintptr_t>(base_address);
+  const uintptr_t end = begin + length;
+
+  if (end < begin) {
+    return false;
+  }
+
+  auto& cache = Cache();
+  std::lock_guard<std::mutex> lock(cache.mtx);
+  EnsureMapsCacheLocked();
+
+  auto p = FindLocked(begin);
+  uintptr_t cursor = begin;
+
+  while (cursor < end) {
+    if (p == cache.ranges.end() || p->first > cursor) {
+      return false;
+    }
+    cursor = p->second.end;
+    ++p;
+  }
+
+  return true;
+}
+
+}  // namespace
+#else
+namespace {
+inline void ApplyAccess(void* /*base*/, size_t /*len*/, PageAccess /*access*/) {}
+inline void RemoveRange(void* /*base*/, size_t /*len*/) {}
+inline void InvalidateCache() {}
+inline PageAccess ProtToPageAccess(int /*prot*/) {
+  return PageAccess::kNoAccess;
+}
+inline bool LookupMapsProtect(uintptr_t /*addr*/, size_t& /*length*/, PageAccess& /*out*/) {
+  return false;
+}
 }  // namespace
 #endif  // REX_PLATFORM_LINUX
 
@@ -296,6 +525,7 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
 
   void* result = mmap(base_address, length, prot_initial, flags, -1, 0);
   if (result != MAP_FAILED) {
+    ApplyAccess(result, length, ProtToPageAccess(prot_initial));
     return result;
   }
 #if defined(MAP_FIXED_NOREPLACE) && REX_PLATFORM_LINUX
@@ -307,6 +537,7 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
     // Verify the entire range is mapped before using mprotect
     if (IsRangeFullyMapped(base_address, length)) {
       if (mprotect(base_address, length, static_cast<int>(prot_requested)) == 0) {
+        ApplyAccess(base_address, length, access);
         return base_address;
       }
     }
@@ -321,15 +552,32 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
     case DeallocationType::kDecommit: {
       // Decommit: remove access first, then release physical pages
       if (mprotect(base_address, length, PROT_NONE) != 0) {
+        InvalidateCache();
         return false;
       }
+      ApplyAccess(base_address, length, PageAccess::kNoAccess);
 #if defined(MADV_DONTNEED)
       (void)madvise(base_address, length, MADV_DONTNEED);
 #endif
       return true;
     }
     case DeallocationType::kRelease: {
-      return munmap(base_address, length) == 0;
+      size_t release_length = length;
+      if (release_length == 0) {
+        size_t region = 0;
+        PageAccess region_access;
+        if (!LookupMapsProtect(reinterpret_cast<uintptr_t>(base_address), region, region_access)) {
+          return false;
+        }
+        release_length = region;
+      }
+      const bool ok = munmap(base_address, release_length) == 0;
+      if (ok) {
+        RemoveRange(base_address, release_length);
+      } else {
+        InvalidateCache();
+      }
+      return ok;
     }
     default:
       // how we get here? :(
@@ -357,10 +605,9 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   //             atomic in a mutli-threaded process either, but it's something to be aware of.
   // Query old access before changing, if the caller needs it
   if (out_old_access) {
-    LinuxMapEntry e;
-    if (FindEntryForAddress(base_address, e)) {
-      *out_old_access = PermsToPageAccess(e.perms);
-    }
+    size_t old_region_length = 0;
+    LookupMapsProtect(reinterpret_cast<uintptr_t>(base_address), old_region_length,
+                      *out_old_access);
   }
 #endif
 
@@ -369,6 +616,9 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   if (ret != 0) {
     REXSYS_ERROR("mprotect({}, 0x{:X}, {}) failed: {} ({})", base_address, length, prot,
                  strerror(errno), errno);
+    InvalidateCache();
+  } else {
+    ApplyAccess(base_address, length, access);
   }
   return ret == 0;
 }
@@ -416,16 +666,7 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
   access_out = PageAccess::kNoAccess;
   length = 0;
 
-  LinuxMapEntry e;
-  if (!FindEntryForAddress(base_address, e)) {
-    return false;
-  }
-
-  const uintptr_t addr = reinterpret_cast<uintptr_t>(base_address);
-  length = static_cast<size_t>(e.end - addr);
-  access_out = PermsToPageAccess(e.perms);
-
-  return true;
+  return LookupMapsProtect(reinterpret_cast<uintptr_t>(base_address), length, access_out);
 #endif
 }
 
@@ -521,15 +762,26 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
 
   // Verify we got the address we asked for
   if (base_address && result != base_address) {
-    munmap(result, length);
+    if (munmap(result, length) == 0) {
+      RemoveRange(result, length);
+    } else {
+      InvalidateCache();
+    }
     return nullptr;
   }
 
+  ApplyAccess(result, length, access);
   return result;
 }
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length) {
-  return munmap(base_address, length) == 0;
+  const bool ok = munmap(base_address, length) == 0;
+  if (ok) {
+    RemoveRange(base_address, length);
+  } else {
+    InvalidateCache();
+  }
+  return ok;
 }
 
 }  // namespace memory
