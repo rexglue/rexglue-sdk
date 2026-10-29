@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include <rex/chrono/chrono.h>
+#include <rex/platform.h>
 #include <rex/filesystem/error.h>
 #include <rex/string.h>
 
@@ -199,6 +200,14 @@ std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
   if (stat(path.c_str(), &st) != 0) {
     return std::nullopt;
   }
+#if REX_PLATFORM_MAC
+  // TODO(Graine25): canonical returns the name as the folder stores it,
+  // since mac doesn't play ball with path.filename(). Needs optimization
+  std::error_code ec;
+  if (const std::filesystem::path stored = std::filesystem::canonical(path, ec); !ec) {
+    return FromStat(stored.filename(), st);
+  }
+#endif
   return FromStat(path.filename(), st);
 }
 
