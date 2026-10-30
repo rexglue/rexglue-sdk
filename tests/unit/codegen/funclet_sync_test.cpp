@@ -27,7 +27,9 @@ constexpr u32 kMrR3R31 = 0x7FE3FB78;
 constexpr u32 kFmrF31F1 = 0xFFE00890;
 constexpr u32 kCmpwiCR5R3 = 0x2E830000;
 constexpr u32 kStvx128V64 = 0x100B61CB;
-constexpr u32 kOwnerWords = 7;
+constexpr u32 kVorV14 = 0x11CE7484;
+constexpr u32 kVorV31 = 0x13FFFC84;
+constexpr u32 kOwnerWords = 9;
 constexpr u32 kFuncletIndex = kOwnerWords;
 
 constexpr u32 Address(u32 index) {
@@ -47,7 +49,7 @@ std::string Body(const std::string& tree, std::string_view name) {
 
 std::string GenerateOwner(std::string_view flags) {
   const std::vector<u32> words = {
-      kMrR31R3, kFmrF31F1, kCmpwiCR5R3, kStvx128V64, BranchLink(4, kFuncletIndex),
+      kMrR31R3, kFmrF31F1, kCmpwiCR5R3, kStvx128V64, kVorV14, kVorV31, BranchLink(6, kFuncletIndex),
       kMrR3R31, kBlr,      kLiR3One,    kBlr};
   const rex::test::PDataEntry pdata[] = {{Address(0), kOwnerWords}};
   rex::test::TempFolder folder;
@@ -80,6 +82,14 @@ REX_TEST_CASE("An owner copies f31 through ctx around a funclet call", "[codegen
 
 REX_TEST_CASE("An owner copies v64 through ctx around a funclet call", "[codegen][funclet]") {
   CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "v64"));
+}
+
+REX_TEST_CASE("An owner copies v14 through ctx around a funclet call", "[codegen][funclet]") {
+  CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "v14"));
+}
+
+REX_TEST_CASE("An owner copies v31 through ctx around a funclet call", "[codegen][funclet]") {
+  CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "v31"));
 }
 
 REX_TEST_CASE("An owner copies cr5 through ctx around a funclet call", "[codegen][funclet]") {

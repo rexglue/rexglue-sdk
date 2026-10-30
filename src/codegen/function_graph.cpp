@@ -321,8 +321,8 @@ std::string RegisterSyncLines(const RecompilerLocalVariables& locals, bool to_ct
     if (locals.f[i])
       copy(std::format("f{}", i));
   }
-  for (size_t i = 64; i < 128; ++i) {
-    if (locals.v[i])
+  for (size_t i = 14; i < 128; ++i) {
+    if ((i < 32 || i >= 64) && locals.v[i])
       copy(std::format("v{}", i));
   }
   for (size_t i = 2; i < 6; ++i) {
