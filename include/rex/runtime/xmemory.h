@@ -361,6 +361,20 @@ class REX_RUNTIME_API BaseHeap {
   virtual bool Release(u32 address, u32* out_region_size = nullptr);
 
   /**
+   * Decommits and releases the pages of a range inside one region. A range at the start or the end
+   * of the region trims it, and one in the middle splits it in two. A range that covers the whole
+   * region releases it. Partially overlapped pages are released. Only for a heap whose regions
+   * need no parent heap.
+   *
+   * @param address Guest address in the range.
+   * @param size Size of the range in bytes, not 0.
+   * @param out_address Receives the guest address of the first released page.
+   * @param out_size Receives the size of the released pages in bytes.
+   * @return True on success, false when the range is not all inside one allocated region.
+   */
+  bool ReleaseRange(u32 address, u32 size, u32* out_address, u32* out_size);
+
+  /**
    * Modifies the protection mode of pages within the given range.
    *
    * @param address Guest address of the range.
@@ -509,6 +523,17 @@ class REX_RUNTIME_API BaseHeap {
    * @return True on success.
    */
   bool ReleaseLocked(u32 address, u32* out_region_size);
+
+  /**
+   * Releases a range of a region with the reconcile lock held.
+   *
+   * @param address Guest address in the range.
+   * @param size Size of the range in bytes.
+   * @param out_address Receives the guest address of the first released page.
+   * @param out_size Receives the size of the released pages in bytes.
+   * @return True on success.
+   */
+  bool ReleaseRangeLocked(u32 address, u32 size, u32* out_address, u32* out_size);
 
   /**
    * Changes protection with the reconcile lock held.

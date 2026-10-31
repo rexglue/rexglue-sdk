@@ -311,23 +311,22 @@ u32 NtFreeVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr
   if (free_type == kXMemDecommit) {
     const u32 page_size = heap->GetPageSize();
     if (region_size_value == 0) {
-      runtime::HeapAllocation info{};
-      if (!heap->QueryRegionInfo(base_addr_value, &info) || !info.state ||
-          info.allocation_base != base_addr_value) {
-        return X_STATUS_UNSUCCESSFUL;
-      }
-      region_size_value = info.allocation_size;
-    } else {
-      const u64 end = rex::RoundUpNonZero(u64{base_addr_value} + region_size_value, page_size);
-      base_addr_value -= base_addr_value % page_size;
-      region_size_value = static_cast<u32>(end - base_addr_value);
+      return X_STATUS_SUCCESS;
     }
+    const u64 end = rex::RoundUpNonZero(u64{base_addr_value} + region_size_value, page_size);
+    base_addr_value -= base_addr_value % page_size;
+    region_size_value = static_cast<u32>(end - base_addr_value);
     result = heap->Decommit(base_addr_value, region_size_value);
   } else {
     if (region_size_value != 0) {
-      return X_STATUS_INVALID_PARAMETER;
+      u32 freed_base = 0;
+      u32 freed_size = 0;
+      result = heap->ReleaseRange(base_addr_value, region_size_value, &freed_base, &freed_size);
+      base_addr_value = freed_base;
+      region_size_value = freed_size;
+    } else {
+      result = heap->Release(base_addr_value, &region_size_value);
     }
-    result = heap->Release(base_addr_value, &region_size_value);
   }
   if (!result) {
     return X_STATUS_UNSUCCESSFUL;
@@ -544,13 +543,14 @@ u32 MmQueryStatistics_entry(GuestPtrT<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
 
   const u32 size = sizeof(X_MM_QUERY_STATISTICS_RESULT);
 
-  if (stats_ptr->size != size) {
+  const u32 requested_size = stats_ptr->size;
+  if (requested_size < size) {
     return X_STATUS_BUFFER_TOO_SMALL;
   }
 
   stats_ptr.Zero();
 
-  stats_ptr->size = size;
+  stats_ptr->size = requested_size;
 
   // 512 MB of 4 KB pages.
   stats_ptr->total_physical_pages = 0x00020000;

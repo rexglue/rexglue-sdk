@@ -1434,6 +1434,92 @@ bool BaseHeap::ReleaseLocked(u32 base_address, u32* out_region_size) {
   return true;
 }
 
+bool BaseHeap::ReleaseRange(u32 address, u32 size, u32* out_address, u32* out_size) {
+  auto reconcile_lock = AcquireHostPageReconcileLock();
+  return ReleaseRangeLocked(address, size, out_address, out_size);
+}
+
+bool BaseHeap::ReleaseRangeLocked(u32 address, u32 size, u32* out_address, u32* out_size) {
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
+
+  if (!size || address < heap_base_) {
+    return false;
+  }
+  const u32 first_page = (address - heap_base_) >> page_size_shift_;
+  const u64 last_byte = u64{address} + size - 1 - heap_base_;
+  const u64 last_page_wide = last_byte >> page_size_shift_;
+  if (last_page_wide >= page_table_.size()) {
+    return false;
+  }
+  const u32 last_page = static_cast<u32>(last_page_wide);
+  const PageEntry first_entry = page_table_[first_page];
+  if (!first_entry.state) {
+    return false;
+  }
+  const u32 region_first = first_entry.base_address;
+  const u32 region_last = region_first + first_entry.region_page_count - 1;
+  if (last_page > region_last) {
+    return false;
+  }
+  for (u32 page_number = first_page; page_number <= last_page; ++page_number) {
+    if (!page_table_[page_number].state) {
+      return false;
+    }
+  }
+  if (heap_base_ == 0x00000000 && region_first == 0 && first_page == 0) {
+    REX_FAIL(system, false, "BaseHeap::ReleaseRange: Attempt to free 0!");
+  }
+
+  const u32 range_bytes = (last_page - first_page + 1) << page_size_shift_;
+  if (page_size_ == rex::memory::GetPageSize() ||
+      (range_bytes % rex::memory::GetPageSize() == 0 &&
+       ((first_page << page_size_shift_) % rex::memory::GetPageSize() == 0))) {
+    if (GetRuntimeSettings().protect_on_release.Get()) {
+      if (!rex::memory::Protect(TranslateRelative(first_page << page_size_shift_), range_bytes,
+                                rex::memory::PageAccess::kNoAccess, nullptr)) {
+        REXLOG_WARN(system, "BaseHeap::ReleaseRange failed due to host VirtualProtect failure");
+      }
+    }
+  }
+
+  u32 released = 0;
+  for (u32 page_number = first_page; page_number <= last_page; ++page_number) {
+    const PageEntry page_entry = page_table_[page_number];
+    released += page_entry.title;
+    if (page_entry.state & runtime::kMemoryAllocationCommit) {
+      OnPageDecommitted(page_number);
+    }
+    StorePageEntry(page_table_[page_number], PageEntry{});
+    unreserved_page_count_++;
+  }
+  memory_->ReleaseTitlePage(released * (page_size_ >> 12));
+
+  if (first_page > region_first) {
+    for (u32 page_number = region_first; page_number < first_page; ++page_number) {
+      PageEntry page_entry = page_table_[page_number];
+      page_entry.region_page_count = first_page - region_first;
+      StorePageEntry(page_table_[page_number], page_entry);
+    }
+  }
+  if (last_page < region_last) {
+    const u32 new_first = last_page + 1;
+    for (u32 page_number = new_first; page_number <= region_last; ++page_number) {
+      PageEntry page_entry = page_table_[page_number];
+      page_entry.base_address = new_first;
+      page_entry.region_page_count = region_last - last_page;
+      StorePageEntry(page_table_[page_number], page_entry);
+    }
+  }
+
+  if (out_address) {
+    *out_address = heap_base_ + (first_page << page_size_shift_);
+  }
+  if (out_size) {
+    *out_size = range_bytes;
+  }
+  return SyncHostPageAccess(first_page, last_page);
+}
+
 bool BaseHeap::Protect(u32 address, u32 size, u32 protect, u32* old_protect) {
   auto reconcile_lock = AcquireHostPageReconcileLock();
   return ProtectLocked(address, size, protect, old_protect);

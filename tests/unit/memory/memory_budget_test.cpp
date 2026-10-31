@@ -407,7 +407,7 @@ u32 PageState(BaseHeap* heap, u32 address) {
 
 }  // namespace
 
-REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region",
+REX_TEST_CASE("A decommit of size 0 at a region base succeeds and changes nothing",
               "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -435,11 +435,11 @@ REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region"
     u32 size = 0;
     CHECK(DecommitVirtual(c, 0x40000000, 0, &address, &size) == 0);
     CHECK(address == 0x40000000);
-    CHECK(size == 0x20000);
-    CHECK(PageState(heap, 0x40000000) == rex::runtime::kMemoryAllocationReserve);
-    CHECK(PageState(heap, 0x40010000) == rex::runtime::kMemoryAllocationReserve);
+    CHECK(size == 0);
+    CHECK(PageState(heap, 0x40000000) == kCommit);
+    CHECK(PageState(heap, 0x40010000) == kCommit);
     CHECK(PageState(heap, 0x40100000) == kCommit);
-    CHECK(memory.GetTitlePages() == before - 32);
+    CHECK(memory.GetTitlePages() == before);
 
     CHECKED_ELSE(heap->Release(0x40000000)) {
       FAIL_CHECK("the check above failed");
@@ -452,7 +452,7 @@ REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region"
   });
 }
 
-REX_TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
+REX_TEST_CASE("A decommit of size 0 inside a region succeeds and changes nothing",
               "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -467,7 +467,7 @@ REX_TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
 
     u32 address = 0;
     u32 size = 0;
-    CHECK(DecommitVirtual(c, region + 0x1000, 0, &address, &size) != 0);
+    CHECK(DecommitVirtual(c, region + 0x1000, 0, &address, &size) == 0);
     CHECK(PageState(heap, region) == kCommit);
     CHECK(PageState(heap, region + 0x1000) == kCommit);
     CHECK(PageState(heap, region + 0x2000) == kCommit);
@@ -567,7 +567,7 @@ REX_TEST_CASE("A release of the free first page of a heap fails and changes noth
   });
 }
 
-REX_TEST_CASE("A release with a nonzero size fails and changes nothing", "[memory][budget]") {
+REX_TEST_CASE("A release with a nonzero size frees that range", "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -581,13 +581,21 @@ REX_TEST_CASE("A release with a nonzero size fails and changes nothing", "[memor
 
     const u32 base_ptr = c.Alloc(4);
     const u32 size_ptr = c.Alloc(4);
-    c.Store32(base_ptr, region);
-    c.Store32(size_ptr, 0x3000);
-    CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) == 0xC000000D);
+    c.Store32(base_ptr, region + 0x1000);
+    c.Store32(size_ptr, 0x1000);
+    CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) == 0);
+    CHECK(c.Load32(base_ptr) == region + 0x1000);
+    CHECK(c.Load32(size_ptr) == 0x1000);
     CHECK(PageState(heap, region) == kCommit);
-    CHECK(memory.GetTitlePages() == before);
+    CHECK(PageState(heap, region + 0x1000) == 0);
+    CHECK(PageState(heap, region + 0x2000) == kCommit);
+    CHECK(memory.GetTitlePages() == before - 1);
 
     CHECKED_ELSE(heap->Release(region)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(heap->Release(region + 0x2000)) {
       FAIL_CHECK("the check above failed");
       return;
     }

@@ -43,6 +43,8 @@ constexpr u8 kLatin1Division = 0xF7;
 constexpr u8 kCaseBit = 0x20;
 constexpr u8 kUnmappableChar = '?';
 constexpr u32 kMaxStringBytes = 0xFFFF;
+constexpr u32 kDosNewHeaderOffset = 0x3C;
+constexpr u32 kMaxNtHeaderOffset = 0x10000000;
 
 }  // namespace
 
@@ -321,8 +323,30 @@ u32 RtlUnicodeToMultiByteSize_entry(MappedU32 size_ptr, [[maybe_unused]] MappedV
   return X_STATUS_SUCCESS;
 }
 
-u32 RtlImageNtHeader_entry([[maybe_unused]] MappedVoid module) {
-  return 0;
+u32 RtlImageNtHeader_entry(MappedVoid module) {
+  if (!module) {
+    return 0;
+  }
+
+  const auto* dos = static_cast<const u8*>(module.GetHostPtr());
+  if (dos[0] != 'M' || dos[1] != 'Z') {
+    return 0;
+  }
+
+  const u32 offset = static_cast<u32>(dos[kDosNewHeaderOffset]) |
+                     (static_cast<u32>(dos[kDosNewHeaderOffset + 1]) << 8) |
+                     (static_cast<u32>(dos[kDosNewHeaderOffset + 2]) << 16) |
+                     (static_cast<u32>(dos[kDosNewHeaderOffset + 3]) << 24);
+  if (offset >= kMaxNtHeaderOffset) {
+    return 0;
+  }
+
+  const u8* nt = dos + offset;
+  if (nt[0] != 'P' || nt[1] != 'E' || nt[2] != 0 || nt[3] != 0) {
+    return 0;
+  }
+
+  return module.GetGuestAddress() + offset;
 }
 
 u32 RtlImageXexHeaderField_entry(GuestPtrT<filesystem::XEXHeader> xex_header, u32 field_dword) {
