@@ -76,12 +76,12 @@ REX_TEST_CASE("strings: RtlCompareStringN resolves the strlen length before it c
   });
 }
 
-REX_TEST_CASE("strings: RtlUpperChar maps a Latin 1 letter and RtlLowerChar keeps one above 0x7F",
-              "[kernel][strings]") {
+REX_TEST_CASE("strings: RtlUpperChar and RtlLowerChar map Latin 1 letters", "[kernel][strings]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(c.Kernel("RtlUpperChar", {0xE9}) == 0xC9);
-    CHECK(c.Kernel("RtlLowerChar", {0xC9}) == 0xC9);
+    CHECK(c.Kernel("RtlLowerChar", {0xC9}) == 0xE9);
+    CHECK(c.Kernel("RtlLowerChar", {0xD7}) == 0xD7);
     CHECK(c.Kernel("RtlUpperChar", {'a'}) == 'A');
     CHECK(c.Kernel("RtlLowerChar", {'A'}) == 'a');
   });

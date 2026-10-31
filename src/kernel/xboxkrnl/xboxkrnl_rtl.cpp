@@ -35,6 +35,9 @@ using namespace rex::runtime;
 namespace {
 
 constexpr u16 kLastLatin1 = 0xFF;
+constexpr u8 kFirstLatin1Upper = 0xC0;
+constexpr u8 kLastLatin1Upper = 0xDE;
+constexpr u8 kLatin1Multiply = 0xD7;
 constexpr u8 kFirstLatin1Lower = 0xE0;
 constexpr u8 kLatin1Division = 0xF7;
 constexpr u8 kCaseBit = 0x20;
@@ -96,6 +99,9 @@ u32 RtlLowerChar_entry(u32 in) {
   const u8 c = static_cast<u8>(in & 0xFF);
   if (c >= 'A' && c <= 'Z') {
     return c ^ 0x20;
+  }
+  if (c >= kFirstLatin1Upper && c <= kLastLatin1Upper && c != kLatin1Multiply) {
+    return c ^ kCaseBit;
   }
 
   return c;
