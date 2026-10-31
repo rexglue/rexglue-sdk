@@ -231,7 +231,7 @@ void KeSetCurrentStackPointers_entry(MappedVoid stack_ptr, GuestPtrT<X_KTHREAD> 
  * @param thread_ptr The thread object.
  * @param affinity The new affinity mask.
  * @param previous_affinity_ptr Receives the previous affinity, may be null.
- * @return X_STATUS_SUCCESS or X_STATUS_INVALID_HANDLE.
+ * @return X_STATUS_SUCCESS, X_STATUS_INVALID_HANDLE or X_STATUS_INVALID_PARAMETER.
  */
 u32 KeSetAffinityThread_entry(MappedVoid thread_ptr, u32 affinity,
                               MappedU32 previous_affinity_ptr) {
@@ -248,10 +248,13 @@ u32 KeSetAffinityThread_entry(MappedVoid thread_ptr, u32 affinity,
                thread_ptr.GetGuestAddress());
     return X_STATUS_INVALID_HANDLE;
   }
-  if (previous_affinity_ptr) {
-    *previous_affinity_ptr = static_cast<u32>(1) << thread->GetActiveCPU();
+  const u32 previous = static_cast<u32>(1) << thread->GetActiveCPU();
+  if (!thread->SetAffinity(affinity)) {
+    return X_STATUS_INVALID_PARAMETER;
   }
-  thread->SetAffinity(affinity);
+  if (previous_affinity_ptr) {
+    *previous_affinity_ptr = previous;
+  }
   REXLOG_TRACE(kernel,
                "KeSetAffinityThread -> "
                "0x0");

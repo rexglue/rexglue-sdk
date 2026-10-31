@@ -18,13 +18,12 @@ u32 ResolveGuestStackSize(u32 requested, u32 guest_default, u32 minimum) {
 }
 
 u32 ResolveTLSSlotCount(u32 xex_slot_count) {
-  constexpr u32 kMinimumSlots = 32;
   constexpr u32 kMaximumSlots = 256;
   if (xex_slot_count > kMaximumSlots) {
     REXLOG_ERROR(system, "TLS slot count {} exceeds the {} slot process bitmap", xex_slot_count,
                  kMaximumSlots);
   }
-  return std::clamp(xex_slot_count, kMinimumSlots, kMaximumSlots);
+  return std::min(rex::RoundUp(xex_slot_count, 4u), kMaximumSlots);
 }
 
 Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size, bool title_memory) {

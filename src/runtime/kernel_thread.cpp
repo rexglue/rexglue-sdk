@@ -847,11 +847,12 @@ void KernelThread::SetPriority(i32 increment) {
   }
 }
 
-void KernelThread::SetAffinity(u32 affinity) {
-  const u8 mask = static_cast<u8>(affinity) & 0x3F;
-  if (mask) {
-    SetActiveCPU(ProcessorFromMask(mask, GetActiveCPU()));
+bool KernelThread::SetAffinity(u32 affinity) {
+  if (!affinity || (affinity & ~0x3Fu)) {
+    return false;
   }
+  SetActiveCPU(static_cast<u8>(std::bit_width(affinity) - 1));
+  return true;
 }
 
 u8 KernelThread::GetActiveCPU() const {

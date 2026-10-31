@@ -669,8 +669,9 @@ REX_TEST_CASE("A creation mask with several bits picks a processor from the mask
   });
 }
 
-REX_TEST_CASE("KeSetAffinityThread keeps the processor inside the 6 hardware threads",
-              "[kernel][threads][affinity]") {
+REX_TEST_CASE(
+    "KeSetAffinityThread picks the highest set bit and rejects masks past the 6 hardware threads",
+    "[kernel][threads][affinity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(CPUAfterSetAffinity(c, 0x04) == 2);
@@ -678,11 +679,11 @@ REX_TEST_CASE("KeSetAffinityThread keeps the processor inside the 6 hardware thr
     CHECK(CPUAfterSetAffinity(c, 0x00) == 2);
     CHECK(c.Kernel("KeSetAffinityThread",
                    {rex::runtime::KernelThread::GetCurrentThread()->GetGuestObject(), 0xC0, 0}) ==
-          0);
-    CHECK(CPUAfterSetAffinity(c, 0x3F) == 2);
-    CHECK(CPUAfterSetAffinity(c, 0x30) == 4);
-    CHECK(CPUAfterSetAffinity(c, 0xFF) == 4);
-    CHECK(CPUAfterSetAffinity(c, 0x40) == 4);
+          0xC000000D);
+    CHECK(CPUAfterSetAffinity(c, 0x3F) == 5);
+    CHECK(CPUAfterSetAffinity(c, 0x0A) == 3);
+    CHECK(CPUAfterSetAffinity(c, 0xFF) == 3);
+    CHECK(CPUAfterSetAffinity(c, 0x40) == 3);
   });
 }
 

@@ -698,9 +698,10 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    * Sets the affinity. Logical processors are 0 core 0 thread 0, 1 core 0 thread 1, 2 core 1
    * thread 0, 3 core 1 thread 1, 4 core 2 thread 0 and 5 core 2 thread 1.
    *
-   * @param affinity The processor mask.
+   * @param affinity The processor mask, the highest set bit picks the processor.
+   * @return False and no change when the mask is 0 or has a bit past the six processors.
    */
-  void SetAffinity(u32 affinity);
+  bool SetAffinity(u32 affinity);
 
   /**
    * Returns the logical processor.
