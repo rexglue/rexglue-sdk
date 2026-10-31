@@ -23,19 +23,19 @@ inline constexpr X_HANDLE kXInvalidHandleValue =
 /** NT status code type, holding STATUS_* values. */
 using X_STATUS = u32;
 /**
- * Reports whether a status code is a success or informational code.
+ * Reports whether a status code is a success or informational code, like NT_SUCCESS.
  *
  * @param s Status code to test.
- * @return True when the severity bits of the status are success or informational.
+ * @return True when bit 31 of the status is clear.
  */
 [[nodiscard]] constexpr bool XSUCCEEDED(X_STATUS s) {
-  return (s & 0xC0000000) == 0;
+  return (s & 0x80000000) == 0;
 }
 /**
  * Reports whether a status code is a warning or error code.
  *
  * @param s Status code to test.
- * @return True when the severity bits of the status are warning or error.
+ * @return True when bit 31 of the status is set.
  */
 [[nodiscard]] constexpr bool XFAILED(X_STATUS s) {
   return !XSUCCEEDED(s);

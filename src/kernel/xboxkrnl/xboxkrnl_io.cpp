@@ -675,11 +675,19 @@ REX_STATIC_ASSERT_SIZE(X_DISK_CACHE_PARTITION, 0x10);
  * @param output_buffer_len The size of output_buffer in bytes.
  * @return X_STATUS_SUCCESS, X_STATUS_BUFFER_TOO_SMALL or X_STATUS_INVALID_PARAMETER.
  */
-u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, u32 event_handle, u32 apc_routine,
-                                u32 apc_context, u32 io_status_block, u32 io_control_code,
+u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u32 apc_context,
+                                u32 io_status_block, u32 io_control_code,
                                 [[maybe_unused]] MappedVoid input_buffer,
                                 [[maybe_unused]] u32 input_buffer_len, MappedVoid output_buffer,
                                 u32 output_buffer_len) {
+  const auto file = runtime::GetCurrent().GetObjectTable().Get(handle);
+  if (!file) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  if (file.GetKind() != ObjectKind::kFile) {
+    return X_STATUS_OBJECT_TYPE_MISMATCH;
+  }
+
   const u32 cache_size = 0xFF000;
 
   constexpr u32 kXIOCTLDiskGetDriveGeometry = 0x70000;

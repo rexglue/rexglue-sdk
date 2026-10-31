@@ -588,32 +588,33 @@ REX_TEST_CASE("net: select counts a socket once for each set it is ready in",
 
 namespace {
 
-void CheckSetEndsAt(u32 marker) {
+void CheckBadEntryFails(u32 marker) {
   KernelFixture fixture;
   fixture.RunOnGuestThread([marker](Caller& c) {
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const u32 first = c.XAM("NetDll_socket", {0, 2, 2, 17});
-    const u32 second = c.XAM("NetDll_socket", {0, 2, 2, 17});
-    REQUIRE(first != kSocketError);
-    REQUIRE(second != kSocketError);
-    const u32 set = SocketSet(c, {first, marker, second});
-    CHECK(c.XAM("NetDll_select", {0, 0, 0, set, 0, Timeval(c, 0, 0)}) == 1);
-    CHECK(c.Load32(set) == 1);
-    CHECK(c.Load32(set + 4) == first);
-    CHECK(c.XAM("NetDll_closesocket", {0, second}) == 0);
-    CHECK(c.XAM("NetDll_closesocket", {0, first}) == 0);
+    const u32 socket = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(socket != kSocketError);
+    for (const u32 set : {SocketSet(c, {socket, marker}), SocketSet(c, {marker, socket})}) {
+      c.XAM("NetDll_WSASetLastError", {0});
+      CHECK(c.XAM("NetDll_select", {0, 0, 0, set, 0, Timeval(c, 0, 0)}) == kSocketError);
+      CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAENOTSOCK);
+      CHECK(c.Load32(set) == 2);
+    }
+    CHECK(c.XAM("NetDll_closesocket", {0, socket}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
 
 }  // namespace
 
-REX_TEST_CASE("net: select ends a set at the invalid socket marker", "[kernel][net][select]") {
-  CheckSetEndsAt(0xFFFFFFFF);
+REX_TEST_CASE("net: select fails with WSAENOTSOCK on the invalid socket marker",
+              "[kernel][net][select]") {
+  CheckBadEntryFails(0xFFFFFFFF);
 }
 
-REX_TEST_CASE("net: select ends a set at an entry that is not a socket", "[kernel][net][select]") {
-  CheckSetEndsAt(0x12345678);
+REX_TEST_CASE("net: select fails with WSAENOTSOCK on an entry that is not a socket",
+              "[kernel][net][select]") {
+  CheckBadEntryFails(0x12345678);
 }
 
 REX_TEST_CASE("net: select with no socket in any set fails with WSAEINVAL",

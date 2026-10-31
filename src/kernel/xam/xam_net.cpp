@@ -992,17 +992,18 @@ std::span<be_u32> GetEntries(GuestPtrT<x_fd_set> set) {
 struct HostSet {
   std::vector<Pinned<SocketObject>> sockets;
 
-  void Load(GuestPtrT<x_fd_set> guest_set) {
+  bool Load(GuestPtrT<x_fd_set> guest_set) {
     if (!guest_set) {
-      return;
+      return true;
     }
     for (const u32 socket_handle : GetEntries(guest_set)) {
       auto socket = runtime::GetCurrent().GetObjectTable().Get<SocketObject>(socket_handle);
       if (!socket || socket->closed) {
-        return;
+        return false;
       }
       sockets.push_back(std::move(socket));
     }
+    return true;
   }
 
   void Watch(std::vector<rex::platform::SocketWait>& waits,
@@ -1034,9 +1035,11 @@ i32 NetDll_select_entry([[maybe_unused]] i32 caller, [[maybe_unused]] i32 nfds,
   HostSet host_readfds;
   HostSet host_writefds;
   HostSet host_exceptfds;
-  host_readfds.Load(readfds);
-  host_writefds.Load(writefds);
-  host_exceptfds.Load(exceptfds);
+  if (!host_readfds.Load(readfds) || !host_writefds.Load(writefds) ||
+      !host_exceptfds.Load(exceptfds)) {
+    KernelThread::GetCurrentThread()->SetLastError(kWSAENOTSOCK);
+    return -1;
+  }
   std::vector<rex::platform::SocketWait> waits;
   host_readfds.Watch(waits, rex::platform::SocketReady::kRead);
   host_writefds.Watch(waits, rex::platform::SocketReady::kWrite);

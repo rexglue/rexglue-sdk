@@ -12,10 +12,10 @@
 
 #include <rex/runtime/xtypes.h>
 
-REX_TEST_CASE("XSUCCEEDED accepts codes whose top 2 bits are clear", "[runtime][xtypes]") {
+REX_TEST_CASE("XSUCCEEDED accepts codes whose top bit is clear", "[runtime][xtypes]") {
   CHECK(rex::XSUCCEEDED(rex::X_STATUS_SUCCESS));
   CHECK(rex::XSUCCEEDED(rex::X_STATUS_PENDING));
-  CHECK_FALSE(rex::XSUCCEEDED(rex::X_STATUS_OBJECT_NAME_EXISTS));
+  CHECK(rex::XSUCCEEDED(rex::X_STATUS_OBJECT_NAME_EXISTS));
   CHECK_FALSE(rex::XSUCCEEDED(rex::X_STATUS_BUFFER_OVERFLOW));
   CHECK_FALSE(rex::XSUCCEEDED(rex::X_STATUS_UNSUCCESSFUL));
   CHECK(rex::XFAILED(rex::X_STATUS_INVALID_PARAMETER));

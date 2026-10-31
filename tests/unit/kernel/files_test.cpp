@@ -705,7 +705,10 @@ REX_TEST_CASE(
     "files: a device control writes its status block, signals its event and queues its "
     "APC",
     "[kernel][files][apc]") {
-  KernelFixture fixture;
+  KernelFixture fixture([](const std::filesystem::path& root) {
+    std::ofstream out(root / "data.bin", std::ios::binary);
+    out.write("0123456789ABCDEF", 16);
+  });
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 routine = RecordingAPC(c);
     const u32 status_block = c.Alloc(8);
@@ -713,8 +716,17 @@ REX_TEST_CASE(
     c.Store32(status_block + 4, 0xFFFFFFFF);
     const u32 event = NewEvent(c);
     const u32 geometry = c.Alloc(8);
+    CHECK(c.Kernel("NtDeviceIoControlFile", {0, event, routine, 0, status_block, 0x70000, 0, 0,
+                                             geometry, 8}) == kInvalidHandle);
+    const u32 handle_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\data.bin"),
+                                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 device = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtDeviceIoControlFile",
-                   {0, event, routine, 0, status_block, 0x70000, 0, 0, geometry, 8}) == 0);
+                   {device, event, routine, 0, status_block, 0x70000, 0, 0, geometry, 8}) == 0);
     CHECK(c.Load32(status_block) == 0);
     CHECK(c.Load32(status_block + 4) == 8);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(0)}) == 0);
@@ -722,5 +734,6 @@ REX_TEST_CASE(
     CHECK(g_apc_calls == 1);
     CHECK(g_apc_status_block == status_block);
     CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {device}) == 0);
   });
 }
