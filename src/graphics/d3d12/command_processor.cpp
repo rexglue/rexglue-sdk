@@ -2398,8 +2398,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
           bound_depth_and_color_render_target_formats, &pipeline_handle, &root_signature)) {
     return false;
   }
-  if (REXCVAR_GET(async_shader_compilation) &&
-      pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
+  // Skip the draw while its pipeline is not created yet. Not gated on async_shader_compilation:
+  // the cvar can change at runtime, a pipeline queued before that may still be pending, and
+  // EndSubmission only waits for pending pipelines while the cvar is off.
+  if (pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
     return true;
   }
 
@@ -3497,7 +3499,10 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 }
 
 bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
-  return !submission_open_ || !pipeline_cache_->IsCreatingPipelines();
+  // With async_shader_compilation EndSubmission does not wait for pipeline creation, so
+  // pipelines still being created do not hold back ending the submission.
+  return !submission_open_ || REXCVAR_GET(async_shader_compilation) ||
+         !pipeline_cache_->IsCreatingPipelines();
 }
 
 void D3D12CommandProcessor::ClearCommandAllocatorCache() {
