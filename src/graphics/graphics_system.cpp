@@ -24,12 +24,23 @@
 #include <rex/graphics/flags.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
+#include <rex/platform.h>
 #include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
+
+#if REX_PLATFORM_WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU", "Swap post effect: none, fxaa, fxaa_extreme")
     .allowed({"none", "fxaa", "fxaa_extreme"})
@@ -158,16 +169,57 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
             std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
         uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
+#if REX_PLATFORM_WIN32
+        // Wait for each vblank deadline on a high-resolution waitable timer and spin the last
+        // stretch. Polling with Sleep(1) fires every vblank 1-2 ms late at 1 ms timer resolution,
+        // and on 15.6 ms steps at the default resolution (vblanks then arrive 15.6 / 31 ms apart).
+        HANDLE vblank_timer = CreateWaitableTimerExW(
+            nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+        constexpr uint64_t kSpinUs = 500;
+        if (!vblank_timer) {
+          REXGPU_WARN("GPU VSync: no high-resolution timer ({}), polling with Sleep(1)",
+                      GetLastError());
+        }
+#endif
         while (vsync_worker_running_) {
           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
-          uint64_t interval_ticks =
-              REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
+          bool vsync = REXCVAR_GET(vsync);
+          uint64_t interval_ticks = vsync ? vsync_interval_ticks : no_vsync_interval_ticks;
           while (current_time - last_frame_time >= interval_ticks) {
             MarkVblank();
             last_frame_time += interval_ticks;
           }
+#if REX_PLATFORM_WIN32
+          if (vblank_timer) {
+            uint64_t remaining_ticks =
+                last_frame_time + interval_ticks - chrono::Clock::QueryGuestTickCount();
+            if (int64_t(remaining_ticks) <= 0) {
+              continue;
+            }
+            uint64_t remaining_us = remaining_ticks * 1000000 / guest_tick_frequency;
+            // Spin only before a vsync vblank; the 1 ms no-vsync tick is not worth a core.
+            uint64_t spin_us = vsync ? kSpinUs : 0;
+            if (remaining_us > spin_us) {
+              LARGE_INTEGER due;
+              // Relative due time, in 100 ns units.
+              due.QuadPart = -int64_t((remaining_us - spin_us) * 10);
+              if (SetWaitableTimerEx(vblank_timer, &due, 0, nullptr, nullptr, nullptr, 0)) {
+                WaitForSingleObject(vblank_timer, INFINITE);
+                continue;
+              }
+            } else {
+              YieldProcessor();
+              continue;
+            }
+          }
+#endif
           rex::thread::Sleep(std::chrono::milliseconds(1));
         }
+#if REX_PLATFORM_WIN32
+        if (vblank_timer) {
+          CloseHandle(vblank_timer);
+        }
+#endif
         return 0;
       }));
   // TODO: set_can_debugger_suspend not yet ported
