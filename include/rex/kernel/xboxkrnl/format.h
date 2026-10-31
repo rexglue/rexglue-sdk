@@ -839,7 +839,8 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
           }
 
           default: {
-            return -1;
+            state = kFSLiteral;
+            goto output;
           }
         }
       }

@@ -113,12 +113,11 @@ REX_TEST_CASE("format: %Z prints the counted string and consumes its argument",
   });
 }
 
-REX_TEST_CASE("format: an unknown conversion fails the format", "[kernel][format]") {
+REX_TEST_CASE("format: an unknown conversion prints its character", "[kernel][format]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(64);
-    Store8(c, out, 'x');
-    CHECK(static_cast<i32>(c.Kernel("sprintf", {out, PutText(c, "a%yb"), 1})) == -1);
-    CHECK(c.Load8(out) == 0);
+    CHECK(static_cast<i32>(c.Kernel("sprintf", {out, PutText(c, "a%yb"), 1})) == 3);
+    CHECK(ReadText(c, out) == "ayb");
   });
 }
