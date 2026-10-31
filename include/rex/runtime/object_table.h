@@ -159,6 +159,15 @@ REX_INTERFACE(IObjectTable, "rex.runtime.object_table", 1)
   [[nodiscard]] virtual std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) = 0;
 
   /**
+   * Finds the handle of an object registered by guest address, such as a timer, without creating
+   * one.
+   *
+   * @param address The guest address of the dispatch header.
+   * @return The handle, empty when no object is registered at the address.
+   */
+  [[nodiscard]] virtual std::optional<X_HANDLE> FindHandle(u32 address) = 0;
+
+  /**
    * Constructs an object in place and gives it its first handle with a count of 1.
    *
    * @tparam T The object struct to construct.

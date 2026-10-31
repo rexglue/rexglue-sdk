@@ -325,9 +325,13 @@ REX_TEST_CASE("events: KeInitializeEvent on an initialized event reuses its slot
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {event, 0, 1});
-    const u32 stash = c.Load32(event + 0xC);
+    auto& table = c.GetRuntime().GetObjectTable();
+    const auto registered = table.FindHandle(event);
+    REQUIRE(registered);
     c.Kernel("KeInitializeEvent", {event, 0, 0});
-    CHECK(c.Load32(event + 0xC) == stash);
+    CHECK(table.FindHandle(event) == registered);
+    CHECK(c.Load32(event + 8) == event + 8);
+    CHECK(c.Load32(event + 0xC) == event + 8);
     CHECK(WaitObject(c, event, 0) == kTimeout);
   });
 }

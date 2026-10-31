@@ -43,7 +43,7 @@ struct CreateOptions {
 
 static bool QueueCompletionAPC(u32 apc_routine, u32 apc_context, u32 io_status_block,
                                X_STATUS result) {
-  const u32 routine = apc_routine & ~1u;
+  const u32 routine = apc_routine & ~3u;
   if (!routine || (result != X_STATUS_SUCCESS && result != X_STATUS_PENDING)) {
     return false;
   }

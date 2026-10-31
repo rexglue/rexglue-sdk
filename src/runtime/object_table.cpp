@@ -29,6 +29,25 @@
 
 namespace rex::runtime {
 
+namespace {
+
+bool KindMatchesHeader(ObjectKind kind, u32 type) {
+  switch (kind) {
+    case ObjectKind::kEvent:
+      return type == kDispatcherManualResetEvent || type == kDispatcherAutoResetEvent;
+    case ObjectKind::kSemaphore:
+      return type == kDispatcherSemaphore;
+    case ObjectKind::kMutant:
+      return type == kDispatcherMutant;
+    case ObjectKind::kTimer:
+      return type == kDispatcherManualResetTimer || type == kDispatcherAutoResetTimer;
+    default:
+      return true;
+  }
+}
+
+}  // namespace
+
 KernelObject::~KernelObject() {
   if (owns_guest_block && memory != nullptr) {
     FreeObjectBlock(memory, guest_ptr, workspace);
@@ -330,58 +349,73 @@ Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
   return handle;
 }
 
+std::optional<X_HANDLE> ObjectTable::FindHandle(u32 address) {
+  std::lock_guard lock(identity_mutex_);
+  std::shared_lock table_lock(mutex_);
+  if (auto block = block_objects_.find(address); block != block_objects_.end()) {
+    return block->second->handles.front();
+  }
+  return std::nullopt;
+}
+
 std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
   REX_ASSERT(memory_ != nullptr);
   if (address == 0) {
     return std::nullopt;
   }
   std::lock_guard lock(identity_mutex_);
+  void* native_ptr = memory_->TranslateVirtual(address);
+  auto* header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
+  std::optional<X_HANDLE> stale;
   {
     std::shared_lock table_lock(mutex_);
     if (auto block = block_objects_.find(address); block != block_objects_.end()) {
-      return block->second->handles.front();
+      if (block->second->owns_guest_block ||
+          KindMatchesHeader(block->second->GetKind(), header->type)) {
+        return block->second->handles.front();
+      }
+      stale = block->second->handles.front();
     }
   }
-  void* native_ptr = memory_->TranslateVirtual(address);
-  auto* header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
+  if (stale) {
+    (void)Close(*stale);
+  }
   if (as_type == -1) {
     as_type = header->type;
   }
   if (header->wait_list_flink == kStashSignature) {
     return static_cast<X_HANDLE>(header->wait_list_blink);
   }
-  Result<X_HANDLE> added = Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
   switch (as_type) {
     case 0:
     case 1:
-      added = Emplace<EventObject>(AddOptions{}, *header);
-      break;
+      return Emplace<EventObject>(AddOptions{{}, ObjectBlock{address}}, *header).value_or(0);
     case kDispatcherMutant: {
       const auto* mutant = reinterpret_cast<const X_KMUTANT*>(native_ptr);
       const bool owned_here = static_cast<i32>(static_cast<u32>(header->signal_state)) <= 0 &&
                               KernelThread::IsInThread() &&
                               KernelThread::GetCurrentThread()->GetGuestObject() ==
                                   static_cast<u32>(mutant->owner_thread);
-      added = Emplace<MutantObject>(AddOptions{}, owned_here, address);
-      break;
+      return Emplace<MutantObject>(AddOptions{{}, ObjectBlock{address}}, owned_here, address)
+          .value_or(0);
     }
     case 5: {
-      added = Emplace<SemaphoreObject>(AddOptions{}, *reinterpret_cast<X_KSEMAPHORE*>(native_ptr));
-      [[maybe_unused]] auto semaphore = Get<SemaphoreObject>(added.value_or(0));
+      const X_HANDLE added = Emplace<SemaphoreObject>(AddOptions{{}, ObjectBlock{address}},
+                                                      *reinterpret_cast<X_KSEMAPHORE*>(native_ptr))
+                                 .value_or(0);
+      [[maybe_unused]] auto semaphore = Get<SemaphoreObject>(added);
       REX_ASSERT(semaphore && semaphore->semaphore);
-      break;
+      return added;
     }
     case kDispatcherManualResetTimer:
     case kDispatcherAutoResetTimer:
-      added = Emplace<TimerObject>(AddOptions{}, static_cast<u32>(as_type - 8));
-      break;
+      return Emplace<TimerObject>(AddOptions{{}, ObjectBlock{address}},
+                                  static_cast<u32>(as_type - 8))
+          .value_or(0);
     default:
       REXLOG_WARN(system, "Guest object at {:08X} has the unsupported type {}", address, as_type);
       return std::nullopt;
   }
-  const X_HANDLE handle = added.value_or(0);
-  StashHandle(header, handle);
-  return handle;
 }
 
 void CloseOwned(IObjectTable& table, X_HANDLE handle) noexcept {

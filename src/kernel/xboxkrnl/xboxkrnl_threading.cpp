@@ -61,12 +61,19 @@ void DrainDPCsBelowDispatch(Runtime& runtime) {
   }
 }
 
-void DropStash(X_DISPATCH_HEADER& header) {
+void DropStash(X_DISPATCH_HEADER& header, u32 address) {
+  auto& table = runtime::GetCurrent().GetObjectTable();
   if (header.wait_list_flink == kStashSignature) {
-    runtime::CloseOwned(runtime::GetCurrent().GetObjectTable(), header.wait_list_blink);
+    runtime::CloseOwned(table, header.wait_list_blink);
   }
   header.wait_list_flink = 0;
   header.wait_list_blink = 0;
+  if (const auto registered = table.FindHandle(address)) {
+    if (auto timer = table.Get<TimerObject>(*registered)) {
+      timer->Cancel();
+    }
+    runtime::CloseOwned(table, *registered);
+  }
 }
 
 }  // namespace
@@ -216,8 +223,8 @@ void KeSetCurrentStackPointers_entry(MappedVoid stack_ptr, GuestPtrT<X_KTHREAD> 
       static_cast<u32>(context->r13.u64));
 
   if (stack_ptr.GetGuestAddress() >= 0xE0000000u) {
-    REXLOG_ERROR(kernel, "KeSetCurrentStackPointers stack pointer {:#x} is in the physical range",
-                 stack_ptr.GetGuestAddress());
+    REX_FATAL(kernel, "KeSetCurrentStackPointers stack pointer {:#x} is in the physical range",
+              stack_ptr.GetGuestAddress());
   }
   UpdateGuestStackPointers(thread, pcr, context, stack_ptr.GetGuestAddress(),
                            stack_alloc_base.GetValue(), stack_base.GetValue(),
@@ -450,19 +457,22 @@ u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
 
 void KeInitializeEvent_entry(GuestPtrT<X_KEVENT> event_ptr, u32 event_type, u32 initial_state) {
   auto& table = runtime::GetCurrent().GetObjectTable();
-  if (event_ptr->header.wait_list_flink == kStashSignature) {
-    if (auto existing = table.Get<EventObject>(event_ptr->header.wait_list_blink);
+  if (const auto registered = table.FindHandle(event_ptr.GetGuestAddress())) {
+    if (auto existing = table.Get<EventObject>(*registered);
         existing && existing->manual_reset == (event_type == 0)) {
       event_ptr->header.type = static_cast<u8>(event_type);
       event_ptr->header.signal_state = initial_state;
       initial_state ? existing->Set() : existing->Reset();
       return;
     }
-    DropStash(event_ptr->header);
   }
+  DropStash(event_ptr->header, event_ptr.GetGuestAddress());
   event_ptr.Zero();
   event_ptr->header.type = static_cast<u8>(event_type);
   event_ptr->header.signal_state = initial_state;
+  const u32 wait_list = event_ptr.GetGuestAddress() + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+  event_ptr->header.wait_list_flink = wait_list;
+  event_ptr->header.wait_list_blink = wait_list;
   if (!table.Resolve<EventObject>(event_ptr.GetGuestAddress(), static_cast<i32>(event_type))) {
     REXLOG_WARN(kernel, "KeInitializeEvent({:08X}) could not create the event",
                 event_ptr.GetGuestAddress());
@@ -580,6 +590,7 @@ u32 NtClearEvent_entry(u32 handle) {
 }
 
 void KeInitializeSemaphore_entry(GuestPtrT<X_KSEMAPHORE> semaphore_ptr, u32 count, u32 limit) {
+  DropStash(semaphore_ptr->header, semaphore_ptr.GetGuestAddress());
   // Type 5 is SemaphoreObject.
   semaphore_ptr->header.type = 5;
   semaphore_ptr->header.signal_state = count;
@@ -710,7 +721,7 @@ u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
 }
 
 void KeInitializeMutant_entry(GuestPtrT<X_KMUTANT> mutant, u32 initial_owner) {
-  DropStash(mutant->header);
+  DropStash(mutant->header, mutant.GetGuestAddress());
   KernelThread* thread = KernelThread::GetCurrentThread();
   mutant->header.type = kDispatcherMutant;
   const bool owned = initial_owner && thread;
@@ -781,14 +792,18 @@ u32 NtCreateTimer_entry(MappedU32 handle_ptr, MappedVoid obj_attributes_ptr, u32
 }
 
 void KeInitializeTimerEx_entry(GuestPtrT<X_KTIMER> timer_ptr, u32 timer_type, u32 proc_type) {
-  DropStash(timer_ptr->header);
+  DropStash(timer_ptr->header, timer_ptr.GetGuestAddress());
+  const u32 wait_list = timer_ptr.GetGuestAddress() + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+  timer_ptr->header.wait_list_flink = wait_list;
+  timer_ptr->header.wait_list_blink = wait_list;
   timer_ptr->header.type = static_cast<u8>(timer_type + kDispatcherManualResetTimer);
   timer_ptr->header.process_type = static_cast<u8>(proc_type);
   timer_ptr->header.inserted = 0;
   timer_ptr->header.signal_state = 0;
   timer_ptr->due_time = 0;
   timer_ptr->period = 0;
-  timer_ptr->dpc = 0u;
+  timer_ptr->table_bucket_entry.flink_ptr = 0;
+  timer_ptr->table_bucket_entry.blink_ptr = 0;
   if (!runtime::GetCurrent().GetObjectTable().Resolve<TimerObject>(timer_ptr.GetGuestAddress())) {
     REXLOG_WARN(kernel, "KeInitializeTimerEx({:08X}) could not create the timer",
                 timer_ptr.GetGuestAddress());

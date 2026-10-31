@@ -58,6 +58,7 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   [[nodiscard]] Result<void> AddName(std::string_view name, X_HANDLE handle) override;
   [[nodiscard]] Result<X_HANDLE> OpenByName(std::string_view name) override;
   std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) override;
+  std::optional<X_HANDLE> FindHandle(u32 address) override;
 
  private:
   struct Slot {

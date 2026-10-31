@@ -120,7 +120,8 @@ REX_TEST_CASE("events: guest KEVENT initialized and lazily created", "[kernel][e
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 initialized = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {initialized, 1, 1});
-    CHECK(c.Load32(initialized + 8) != 0);
+    CHECK(c.Load32(initialized + 8) == initialized + 8);
+    CHECK(c.Load32(initialized + 12) == initialized + 8);
     CHECK(c.Kernel("KeWaitForSingleObject", {initialized, 0, 0, 0, Poll(c)}) == 0);
     CHECK(c.Kernel("KeWaitForSingleObject", {initialized, 0, 0, 0, Poll(c)}) == kTimeout);
     CHECK(c.Kernel("KeSetEvent", {initialized, 0, 0}) == 1);
@@ -131,28 +132,19 @@ REX_TEST_CASE("events: guest KEVENT initialized and lazily created", "[kernel][e
     c.Store32(inlined, 0x01000000);
     c.Store32(inlined + 4, 1);
     CHECK(c.Kernel("KeWaitForSingleObject", {inlined, 0, 0, 0, Poll(c)}) == 0);
-    CHECK(c.Load32(inlined + 12) != 0);
-    CHECK(c.Kernel("NtSetEvent", {c.Load32(inlined + 12), 0}) == 0);
+    c.Kernel("KeSetEvent", {inlined, 0, 0});
     CHECK(c.Kernel("KeWaitForSingleObject", {inlined, 0, 0, 0, Poll(c)}) == 0);
   });
 }
 
-REX_TEST_CASE("events: Ke calls on an object that does not resolve keep their results",
+REX_TEST_CASE("events: a block re-initialized as a semaphore can be waited on",
               "[kernel][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 unsupported = c.Alloc(32);
-    c.Store32(unsupported, 0x7F000000);
-    CHECK(c.Kernel("KeSetEvent", {unsupported, 0, 0}) == 0);
-    CHECK(c.Kernel("KePulseEvent", {unsupported, 0, 0}) == 0);
-    CHECK(c.Kernel("KeResetEvent", {unsupported}) == 0);
-    CHECK(c.Kernel("KeReleaseSemaphore", {unsupported, 0, 1, 0}) == 0);
-    CHECK(c.Kernel("KeWaitForSingleObject", {unsupported, 0, 0, 0, Poll(c)}) ==
-          rex::X_STATUS_ABANDONED_WAIT_0);
-
     const u32 reused = c.Alloc(32);
     c.Kernel("KeInitializeEvent", {reused, 0, 0});
     c.Kernel("KeInitializeSemaphore", {reused, 1, 1});
-    CHECK(c.Kernel("KeReleaseSemaphore", {reused, 0, 1, 0}) == 0);
+    CHECK(c.Kernel("KeWaitForSingleObject", {reused, 0, 0, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("KeWaitForSingleObject", {reused, 0, 0, 0, Poll(c)}) == kTimeout);
   });
 }

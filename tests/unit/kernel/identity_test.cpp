@@ -26,17 +26,19 @@ u32 Poll(Caller& c) {
 }
 }  // namespace
 
-REX_TEST_CASE("identity: the stash survives and survives repeated resolution",
+REX_TEST_CASE("identity: the registered handle survives repeated resolution",
               "[kernel][identity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {event, 0, 0});
-    const u32 stashed = c.Load32(event + 12);
-    CHECK(stashed >= 0xF8000004);
+    auto& table = c.GetRuntime().GetObjectTable();
+    const auto registered = table.FindHandle(event);
+    REQUIRE(registered);
+    CHECK(*registered >= 0xF8000004);
     CHECK(c.Kernel("KeSetEvent", {event, 0, 0}) == 1);
-    CHECK(c.Load32(event + 12) == stashed);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {stashed, 1, 0, Poll(c)}) == 0);
+    CHECK(table.FindHandle(event) == registered);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {*registered, 1, 0, Poll(c)}) == 0);
   });
 }
 

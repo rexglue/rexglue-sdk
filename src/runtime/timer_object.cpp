@@ -26,20 +26,6 @@ namespace rex::runtime {
 
 namespace {
 
-rex::WinSystemClock::time_point DueTimePoint(i64 due_time) {
-  if (due_time < 0) {
-    return std::chrono::clock_cast<rex::WinSystemClock>(rex::XSystemClock::now() +
-                                                        rex::HundredNanoseconds(-due_time));
-  }
-  return std::chrono::clock_cast<rex::WinSystemClock>(rex::XSystemClock::FromFileTime(due_time));
-}
-
-bool Arm(TimerObject& timer, i64 due_time, u32 period_ms) {
-  const auto due = DueTimePoint(due_time);
-  return period_ms ? timer.timer->SetRepeatingAt(due, std::chrono::milliseconds(period_ms), nullptr)
-                   : timer.timer->SetOnceAt(due, nullptr);
-}
-
 void Disarm(TimerObject& timer) {
   if (auto item = timer.expiry.lock()) {
     item->Disarm();
@@ -96,15 +82,16 @@ X_STATUS TimerObject::Set(Runtime& runtime, i64 due_time, u32 period_ms, u32 rou
   callback_routine = routine;
   callback_routine_arg = routine_arg;
   Disarm(*this);
-  const u32 scaled_period = Clock::ScaleGuestDurationMillis(period_ms);
-  if (!Arm(*this, due_time, scaled_period)) {
+  if (!timer->Reset()) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  if (!routine) {
-    return X_STATUS_SUCCESS;
-  }
-  auto callback = [runtime = &runtime, thread_id = callback_thread_id, routine,
+  const u32 scaled_period = Clock::ScaleGuestDurationMillis(period_ms);
+  auto callback = [runtime = &runtime, host = timer.get(), thread_id = callback_thread_id, routine,
                    routine_arg](void*) {
+    host->SetOnceAfter(rex::HundredNanoseconds(0));
+    if (!routine) {
+      return;
+    }
     const u64 time = rex::Clock::QueryGuestSystemTime();
     const u32 time_low = static_cast<u32>(time);
     const u32 time_high = static_cast<u32>(time >> 32);
@@ -123,7 +110,6 @@ X_STATUS TimerObject::Set(Runtime& runtime, i64 due_time, u32 period_ms, u32 rou
     });
   };
   if (!QueueExpiry(*this, runtime, due_time, scaled_period, std::move(callback))) {
-    timer->Cancel();
     return X_STATUS_UNSUCCESSFUL;
   }
   return X_STATUS_SUCCESS;
