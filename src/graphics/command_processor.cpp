@@ -109,8 +109,10 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
       register_file_(graphics_system_->register_file()),
       worker_running_(true),
       write_ptr_index_event_(rex::thread::Event::CreateAutoResetEvent(false)),
+      register_wait_wake_event_(rex::thread::Event::CreateAutoResetEvent(false)),
       write_ptr_index_(0) {
   assert_not_null(write_ptr_index_event_);
+  assert_not_null(register_wait_wake_event_);
 }
 
 CommandProcessor::~CommandProcessor() = default;
@@ -150,6 +152,9 @@ bool CommandProcessor::Initialize() {
 void CommandProcessor::Shutdown() {
   worker_running_ = false;
   write_ptr_index_event_->Set();
+  // Vblanks have stopped by now (GraphicsSystem::Shutdown stops them first), so wake a
+  // WAIT_REG_MEM poll instead of letting it sleep out its interval.
+  register_wait_wake_event_->Set();
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_.reset();
 }
@@ -1037,7 +1042,10 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
           // User wants it fast and dangerous.
           rex::thread::MaybeYield();
         } else {
-          rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
+          // Woken early by the guest vblank (WakeRegisterWaits): the polled value is often
+          // written by the vblank interrupt, and a plain Sleep wakes 0.5-3 ms after it.
+          rex::thread::Wait(register_wait_wake_event_.get(), false,
+                            std::chrono::milliseconds(wait / 0x100));
         }
         rex::thread::SyncMemory();
         ReturnFromWait();
@@ -1048,6 +1056,10 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
         }
       } else {
         rex::thread::MaybeYield();
+        if (!worker_running_) {
+          // A value the vblank interrupt writes never changes once vblanks stop at shutdown.
+          return false;
+        }
       }
     }
   } while (!matched);

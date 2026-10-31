@@ -87,6 +87,10 @@ class CommandProcessor {
   uint32_t counter() const { return counter_; }
   void increment_counter() { counter_++; }
 
+  // Wakes a WAIT_REG_MEM poll sleeping on the command processor thread, so it re-checks its
+  // condition now instead of at the end of its poll interval. Called after each guest vblank.
+  void WakeRegisterWaits() { register_wait_wake_event_->Set(); }
+
   Shader* active_vertex_shader() const { return active_vertex_shader_; }
   Shader* active_pixel_shader() const { return active_pixel_shader_; }
 
@@ -253,6 +257,7 @@ class CommandProcessor {
   uint32_t read_ptr_writeback_ptr_ = 0;
 
   std::unique_ptr<rex::thread::Event> write_ptr_index_event_;
+  std::unique_ptr<rex::thread::Event> register_wait_wake_event_;
   std::atomic<uint32_t> write_ptr_index_;
 
   // Some titles submit writes beyond the emulated register file range in PM4
