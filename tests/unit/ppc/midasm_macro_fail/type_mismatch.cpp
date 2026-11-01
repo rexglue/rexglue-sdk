@@ -1,5 +1,5 @@
 /**
- * @file        tests/unit/ppc/midasm_macro_fail/kind_mismatch.cpp
+ * @file        tests/unit/ppc/midasm_macro_fail/type_mismatch.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,7 +10,7 @@
 
 #include <rex/ppc/midasm.h>
 
-REX_MIDASM_HOOK(KindBody, (u32 value)) {
+REX_MIDASM_HOOK(TypeBody, (u32 value)) {
   (void)value;
 }
-REX_MIDASM_AT(KindBody, 0x82000100, after, f10);
+REX_MIDASM_AT(TypeBody, 0x82000100, after, f10);

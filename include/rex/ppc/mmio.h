@@ -1,6 +1,6 @@
 /**
- * @file        mmio.h
- * @brief       Recipients of title loads and stores to the GPU and APU register blocks
+ * @file        ppc/mmio.h
+ * @brief       Handlers for GPU and APU register block access
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,12 +14,10 @@
 #include <optional>
 
 #include <rex/platform.h>
-#include <rex/export.h>
 #include <rex/types.h>
 
-namespace rex {
+namespace rex::ppc {
 
-/** Guest register blocks that MMIO accesses reach. */
 enum class MMIOBlock : u8 {
   /** 0x7FC80000 to 0x7FC8FFFF. */
   kGPU,
@@ -27,15 +25,8 @@ enum class MMIOBlock : u8 {
   kAPU,
 };
 
-/** Size of each register block in bytes. */
 inline constexpr u32 kMMIOBlockSize = 0x10000;
 
-/**
- * Returns the first guest address of a register block.
- *
- * @param block The register block.
- * @return The block base address.
- */
 constexpr u32 MMIOBlockBase(MMIOBlock block) {
   return block == MMIOBlock::kGPU ? 0x7FC80000u : 0x7FEA0000u;
 }
@@ -43,7 +34,6 @@ constexpr u32 MMIOBlockBase(MMIOBlock block) {
 /**
  * Finds the register block that holds an address.
  *
- * @param address The guest address.
  * @return The block, or std::nullopt when the address is outside both blocks.
  */
 constexpr std::optional<MMIOBlock> MMIOBlockOf(u32 address) {
@@ -59,14 +49,12 @@ constexpr std::optional<MMIOBlock> MMIOBlockOf(u32 address) {
 /**
  * Reports whether an address is in a register block.
  *
- * @param address The guest address.
  * @return True when the address is in the GPU or APU block.
  */
 constexpr bool IsMMIOBlockAddress(u32 address) {
   return MMIOBlockOf(address).has_value();
 }
 
-/** A register block handler and its context. */
 struct MMIORecipient {
   /** Passed back to read and write. */
   void* context;
@@ -77,72 +65,53 @@ struct MMIORecipient {
 };
 
 /**
- * Routes the loads and stores of a block to a recipient. A recipient with no read or no write
- * handler is refused with an error. Call it only while no guest thread runs, which the runtime
- * guarantees by attaching during Setup and detaching after it stops the guest threads.
+ * Routes the loads and stores of a block to a recipient. A recipient with no read or write handler
+ * is refused. Call it only while no guest thread runs.
  *
- * @param block The register block.
  * @param recipient The handler and its context.
  */
-REX_API void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient);
+REX_PPC_API void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient);
 
 /**
- * Restores the null recipient when the block still routes to the context.
+ * Restores the null recipient when the block routes to the context.
  *
- * @param block The register block.
  * @param context The context the owner attached.
  */
-REX_API void DetachMMIO(MMIOBlock block, const void* context);
+REX_PPC_API void DetachMMIO(MMIOBlock block, const void* context);
 
 namespace detail {
 
 /** Recipient of each block, indexed by MMIOBlock. */
-REX_API extern MMIORecipient mmio_slots[2];
+REX_PPC_API extern MMIORecipient mmio_slots[2];
 
 }  // namespace detail
 
-namespace ppc {
-
 /**
- * Loads a register for a guarded access.
+ * Loads a register value.
  *
- * @param address The guest address.
  * @return The register value, or 0 when the address is outside both blocks.
  */
-REX_API u32 MMIOLoad32(u32 address);
+REX_PPC_API u32 MMIOLoad32(u32 address);
+
+/** Stores a register value. A store outside both blocks is ignored. */
+REX_PPC_API void MMIOStore32(u32 address, u32 value);
 
 /**
- * Stores a register for a guarded access. A store outside both blocks is dropped.
- *
- * @param address The guest address.
- * @param value The register value.
- */
-REX_API void MMIOStore32(u32 address, u32 value);
-
-/**
- * Loads 1 byte of a register for a guarded access, from the big endian lane the address names.
+ * Loads one byte of a register, addressed as in big endian order.
  *
  * @param address The guest address of the byte.
  * @return The byte, or 0 when the address is outside both blocks.
  */
-REX_API u8 MMIOLoad8(u32 address);
+REX_PPC_API u8 MMIOLoad8(u32 address);
 
 /**
- * Loads 2 bytes of a register for a guarded access, from the big endian half the address names.
+ * Loads two bytes of a register, addressed as in big endian order.
  *
- * @param address The guest address of the halfword.
  * @return The halfword, or 0 when the address is outside both blocks.
  */
-REX_API u16 MMIOLoad16(u32 address);
+REX_PPC_API u16 MMIOLoad16(u32 address);
 
-/**
- * Ends the process with an error naming a store narrower than a register.
- *
- * @param address The guest address of the store.
- * @param size The store size in bytes.
- */
-[[noreturn]] REX_API void MMIONarrowStore(u32 address, u32 size);
+/** Ends the process with an error naming a store narrower than a register. */
+[[noreturn]] REX_PPC_API void MMIONarrowStore(u32 address, u32 size);
 
-}  // namespace ppc
-
-}  // namespace rex
+}  // namespace rex::ppc

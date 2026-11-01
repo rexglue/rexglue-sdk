@@ -15,7 +15,7 @@
 #include "rex_test.h"
 
 #include <rex/ppc/context.h>
-#include <rex/ppc/pack_d3d.h>
+#include <rex/ppc/vmx.h>
 
 #include "pack_d3d_cases.h"
 

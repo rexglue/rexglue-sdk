@@ -1,11 +1,18 @@
 #include <utility>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#include <windows.h>
+
 #include <rex/platform.h>
-#include <rex/platform/seh.h>
+#include <rex/ppc/seh.h>
 
 static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
-
-#include "platform_win.h"
 
 namespace rex::platform {
 

@@ -1,5 +1,5 @@
 /**
- * @file        vec128.h
+ * @file        ppc/vec128.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,81 +12,67 @@
 
 #pragma once
 
+#include <charconv>
 #include <cstddef>
+#include <format>
 #include <iosfwd>
 #include <string>
+#include <string_view>
 
-#include <rex/math.h>
+#include <rex/assert.h>
 #include <rex/platform.h>
+#include <rex/string/numeric.h>
 #include <rex/types.h>
 
-namespace rex {
+#include <simde/x86/sse2.h>
+
+namespace rex::ppc {
 
 /**
  * 128 bit vector register value.
  *
- * Lanes are stored in AVX little endian order, the reverse of the Altivec big endian order.
- * Big endian element i is stored at u32[i ^ 0x3], u16[i ^ 0x7] and u8[i ^ 0xF]. Code should avoid
- * fixed lane offsets where a loop over the lanes works.
+ * Big endian element i is stored at u32[i ^ 0x3], u16[i ^ 0x7] and u8[i ^ 0xF].
  */
 struct alignas(16) Vec128S {
   union {
     struct {
-      rex::f32 x; /**< f32 lane 0. */
-      rex::f32 y; /**< f32 lane 1. */
-      rex::f32 z; /**< f32 lane 2. */
-      rex::f32 w; /**< f32 lane 3. */
+      rex::f32 x;
+      rex::f32 y;
+      rex::f32 z;
+      rex::f32 w;
     };
     struct {
-      rex::i32 ix; /**< i32 lane 0. */
-      rex::i32 iy; /**< i32 lane 1. */
-      rex::i32 iz; /**< i32 lane 2. */
-      rex::i32 iw; /**< i32 lane 3. */
+      rex::i32 ix;
+      rex::i32 iy;
+      rex::i32 iz;
+      rex::i32 iw;
     };
     struct {
-      rex::u32 ux; /**< u32 lane 0. */
-      rex::u32 uy; /**< u32 lane 1. */
-      rex::u32 uz; /**< u32 lane 2. */
-      rex::u32 uw; /**< u32 lane 3. */
+      rex::u32 ux;
+      rex::u32 uy;
+      rex::u32 uz;
+      rex::u32 uw;
     };
-    rex::f32 f32[4]; /**< 4 f32 lanes. */
-    rex::f64 f64[2]; /**< 2 f64 lanes. */
-    rex::i8 i8[16];  /**< 16 i8 lanes. */
-    rex::u8 u8[16];  /**< 16 u8 lanes. */
-    rex::i16 i16[8]; /**< 8 i16 lanes. */
-    rex::u16 u16[8]; /**< 8 u16 lanes. */
-    rex::i32 i32[4]; /**< 4 i32 lanes. */
-    rex::u32 u32[4]; /**< 4 u32 lanes. */
-    rex::i64 i64[2]; /**< 2 i64 lanes. */
-    rex::u64 u64[2]; /**< 2 u64 lanes. */
+    rex::f32 f32[4];
+    rex::f64 f64[2];
+    rex::i8 i8[16];
+    rex::u8 u8[16];
+    rex::i16 i16[8];
+    rex::u16 u16[8];
+    rex::i32 i32[4];
+    rex::u32 u32[4];
+    rex::i64 i64[2];
+    rex::u64 u64[2];
     struct {
-      rex::u64 low;  /**< Low 64 bits. */
-      rex::u64 high; /**< High 64 bits. */
+      rex::u64 low;
+      rex::u64 high;
     };
   };
 
-  /**
-   * Reports whether all 128 bits of this equal b.
-   *
-   * @param b The value to compare with.
-   * @return True when all 128 bits match.
-   */
   bool operator==(const Vec128S& b) const { return low == b.low && high == b.high; }
 
-  /**
-   * Reports whether any bit of this differs from b.
-   *
-   * @param b The value to compare with.
-   * @return True when any bit differs.
-   */
   bool operator!=(const Vec128S& b) const { return low != b.low || high != b.high; }
 
-  /**
-   * Returns the bitwise XOR of this and b.
-   *
-   * @param b The right operand.
-   * @return The bitwise XOR of this and b.
-   */
   Vec128S operator^(const Vec128S& b) const {
     Vec128S a = *this;
     a.high ^= b.high;
@@ -97,7 +83,6 @@ struct alignas(16) Vec128S {
   /**
    * Applies a bitwise XOR with b to this value.
    *
-   * @param b The right operand.
    * @return This value after the bitwise XOR with b.
    */
   Vec128S& operator^=(const Vec128S& b) {
@@ -105,12 +90,6 @@ struct alignas(16) Vec128S {
     return *this;
   };
 
-  /**
-   * Returns the bitwise AND of this and b.
-   *
-   * @param b The right operand.
-   * @return The bitwise AND of this and b.
-   */
   Vec128S operator&(const Vec128S& b) const {
     Vec128S a = *this;
     a.high &= b.high;
@@ -121,7 +100,6 @@ struct alignas(16) Vec128S {
   /**
    * Applies a bitwise AND with b to this value.
    *
-   * @param b The right operand.
    * @return This value after the bitwise AND with b.
    */
   Vec128S& operator&=(const Vec128S& b) {
@@ -129,12 +107,6 @@ struct alignas(16) Vec128S {
     return *this;
   };
 
-  /**
-   * Returns the bitwise OR of this and b.
-   *
-   * @param b The right operand.
-   * @return The bitwise OR of this and b.
-   */
   Vec128S operator|(const Vec128S& b) const {
     Vec128S a = *this;
     a.high |= b.high;
@@ -145,7 +117,6 @@ struct alignas(16) Vec128S {
   /**
    * Applies a bitwise OR with b to this value.
    *
-   * @param b The right operand.
    * @return This value after the bitwise OR with b.
    */
   Vec128S& operator|=(const Vec128S& b) {
@@ -154,15 +125,9 @@ struct alignas(16) Vec128S {
   };
 };
 
-/** 128 bit vector register value. */
 using Vec128 = Vec128S;
 
-/**
- * Returns a vector with the same value in all 4 u32 lanes.
- *
- * @param src The value for every u32 lane.
- * @return A vector with src in all 4 u32 lanes.
- */
+/** Returns a vector with the same value in all four u32 lanes. */
 static inline Vec128 vec128i(u32 src) {
   Vec128 v;
   for (auto i = 0; i < 4; ++i) {
@@ -172,13 +137,12 @@ static inline Vec128 vec128i(u32 src) {
 }
 
 /**
- * Returns a vector with the given values in the 4 u32 lanes.
+ * Returns a vector with the given values in the four u32 lanes.
  *
  * @param x u32 lane 0.
  * @param y u32 lane 1.
  * @param z u32 lane 2.
  * @param w u32 lane 3.
- * @return A vector with the given u32 lanes.
  */
 static inline Vec128 vec128i(u32 x, u32 y, u32 z, u32 w) {
   Vec128 v;
@@ -189,12 +153,7 @@ static inline Vec128 vec128i(u32 x, u32 y, u32 z, u32 w) {
   return v;
 }
 
-/**
- * Returns a vector with the same value in both 64 bit lanes.
- *
- * @param src The value for every 64 bit lane.
- * @return A vector with src in both 64 bit lanes.
- */
+/** Returns a vector with the same value in both 64 bit lanes. */
 static inline Vec128 vec128q(u64 src) {
   Vec128 v;
   for (auto i = 0; i < 2; ++i) {
@@ -208,7 +167,6 @@ static inline Vec128 vec128q(u64 src) {
  *
  * @param x 64 bit lane 0.
  * @param y 64 bit lane 1.
- * @return A vector with the given 64 bit lanes.
  */
 static inline Vec128 vec128q(u64 x, u64 y) {
   Vec128 v;
@@ -217,12 +175,7 @@ static inline Vec128 vec128q(u64 x, u64 y) {
   return v;
 }
 
-/**
- * Returns a vector with the same value in both f64 lanes.
- *
- * @param src The value for every f64 lane.
- * @return A vector with src in both f64 lanes.
- */
+/** Returns a vector with the same value in both f64 lanes. */
 static inline Vec128 vec128d(f64 src) {
   Vec128 v;
   for (auto i = 0; i < 2; ++i) {
@@ -232,11 +185,10 @@ static inline Vec128 vec128d(f64 src) {
 }
 
 /**
- * Returns a vector with the given values in the 2 f64 lanes.
+ * Returns a vector with the given values in the two f64 lanes.
  *
  * @param x f64 lane 0.
  * @param y f64 lane 1.
- * @return A vector with the given f64 lanes.
  */
 static inline Vec128 vec128d(f64 x, f64 y) {
   Vec128 v;
@@ -245,12 +197,7 @@ static inline Vec128 vec128d(f64 x, f64 y) {
   return v;
 }
 
-/**
- * Returns a vector with the same value in all 4 f32 lanes.
- *
- * @param src The value for every f32 lane.
- * @return A vector with src in all 4 f32 lanes.
- */
+/** Returns a vector with the same value in all four f32 lanes. */
 static inline Vec128 vec128f(f32 src) {
   Vec128 v;
   for (auto i = 0; i < 4; ++i) {
@@ -260,13 +207,12 @@ static inline Vec128 vec128f(f32 src) {
 }
 
 /**
- * Returns a vector with the given values in the 4 f32 lanes.
+ * Returns a vector with the given values in the four f32 lanes.
  *
  * @param x f32 lane 0.
  * @param y f32 lane 1.
  * @param z f32 lane 2.
  * @param w f32 lane 3.
- * @return A vector with the given f32 lanes.
  */
 static inline Vec128 vec128f(f32 x, f32 y, f32 z, f32 w) {
   Vec128 v;
@@ -277,12 +223,7 @@ static inline Vec128 vec128f(f32 x, f32 y, f32 z, f32 w) {
   return v;
 }
 
-/**
- * Returns a vector with the same value in all 8 u16 lanes.
- *
- * @param src The value for every u16 lane.
- * @return A vector with src in all 8 u16 lanes.
- */
+/** Returns a vector with the same value in all eight u16 lanes. */
 static inline Vec128 vec128s(u16 src) {
   Vec128 v;
   for (auto i = 0; i < 8; ++i) {
@@ -317,12 +258,7 @@ static inline Vec128 vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u16
   return v;
 }
 
-/**
- * Returns a vector with the same value in all 16 u8 lanes.
- *
- * @param src The value for every u8 lane.
- * @return A vector with src in all 16 u8 lanes.
- */
+/** Returns a vector with the same value in all 16 u8 lanes. */
 static inline Vec128 vec128b(u8 src) {
   Vec128 v;
   for (auto i = 0; i < 16; ++i) {
@@ -374,21 +310,166 @@ static inline Vec128 vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u8
   return v;
 }
 
-/**
- * Returns the 4 f32 lanes as "(x, y, z, w)".
- *
- * @param value The vector to format.
- * @return The 4 f32 lanes as "(x, y, z, w)".
- */
+/** Returns the four f32 lanes as "(x, y, z, w)". */
 std::string to_string(const Vec128& value);
 
-/**
- * Writes the 4 u32 lanes as 8 digit uppercase hex, "[X X X X]".
- *
- * @param os The stream to write to.
- * @param value The vector to write.
- * @return os.
- */
+/** Writes the four u32 lanes as 8 digit uppercase hex, "[X X X X]". */
 std::ostream& operator<<(std::ostream& os, const Vec128& value);
 
-}  // namespace rex
+/**
+ * Formats the four u32 lanes of a vector as hex.
+ *
+ * @return The lanes as "[XXXXXXXX XXXXXXXX XXXXXXXX XXXXXXXX]".
+ */
+inline std::string to_hex_string(const Vec128& value) {
+  return std::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
+                     value.u32[3]);
+}
+
+}  // namespace rex::ppc
+
+namespace rex::string {
+
+/**
+ * Parses "[a b c d]" or bare text as four hex u32 lanes, and "(a, b, c, d)" as four f32 lanes.
+ *
+ * @param force_hex Unused, the opening bracket picks the format.
+ * @return The vector, or a zero vector when the text does not parse.
+ */
+template <>
+inline ppc::Vec128 from_string<ppc::Vec128>(const std::string_view value, bool force_hex) {
+  if (value.empty()) {
+    return ppc::Vec128();
+  }
+  ppc::Vec128 v;
+  auto p = value.data();
+  auto end = value.data() + value.size();
+  bool is_hex = force_hex;
+  if (p != end && *p == '[') {
+    is_hex = true;
+    ++p;
+  } else if (p != end && *p == '(') {
+    is_hex = false;
+    ++p;
+  } else {
+    is_hex = true;
+  }
+  if (p == end) {
+    REX_ASSERT_ALWAYS();
+    return ppc::Vec128();
+  }
+  if (is_hex) {
+    for (size_t i = 0; i < 4; i++) {
+      while (p != end && (*p == ' ' || *p == ',')) {
+        ++p;
+      }
+      if (p == end) {
+        REX_ASSERT_ALWAYS();
+        return ppc::Vec128();
+      }
+      auto result = std::from_chars(p, end, v.u32[i], 16);
+      if (result.ec != std::errc()) {
+        REX_ASSERT_ALWAYS();
+        return ppc::Vec128();
+      }
+      p = result.ptr;
+    }
+  } else {
+    for (size_t i = 0; i < 4; i++) {
+      while (p != end && (*p == ' ' || *p == ',')) {
+        ++p;
+      }
+      if (p == end) {
+        REX_ASSERT_ALWAYS();
+        return ppc::Vec128();
+      }
+#if REX_PLATFORM_MAC
+      auto result = detail::portable_float_from_chars(p, end, v.f32[i]);
+#else
+      auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);
+#endif
+      if (result.ec != std::errc()) {
+        REX_ASSERT_ALWAYS();
+        return ppc::Vec128();
+      }
+      p = result.ptr;
+    }
+  }
+  return v;
+}
+
+}  // namespace rex::string
+
+namespace rex::ppc {
+
+/**
+ * Returns a lane of an SSE register as f32.
+ *
+ * @tparam N Lane index, 0 to 3.
+ */
+template <int N>
+f32 m128_f32(const simde__m128& v) {
+  f32 ret;
+  simde_mm_store_ss(&ret, simde_mm_shuffle_ps(v, v, SIMDE_MM_SHUFFLE(N, N, N, N)));
+  return ret;
+}
+
+/**
+ * Returns the bits of a lane of an SSE register as i32.
+ *
+ * @tparam N Lane index, 0 to 3.
+ */
+template <int N>
+i32 m128_i32(const simde__m128& v) {
+  f32 f;
+  simde_mm_store_ss(&f, simde_mm_shuffle_ps(v, v, SIMDE_MM_SHUFFLE(N, N, N, N)));
+  return std::bit_cast<i32>(f);
+}
+
+/**
+ * Returns a lane of an SSE register as f64.
+ *
+ * @tparam N Lane index, 0 or 1.
+ */
+template <int N>
+f64 m128_f64(const simde__m128d& v) {
+  f64 ret;
+  simde_mm_store_sd(&ret, simde_mm_shuffle_pd(v, v, SIMDE_MM_SHUFFLE2(N, N)));
+  return ret;
+}
+
+/**
+ * Returns a lane of an SSE register as f64.
+ *
+ * @tparam N Lane index, 0 or 1.
+ * @param v The SSE register, read as two f64 lanes.
+ */
+template <int N>
+f64 m128_f64(const simde__m128& v) {
+  return m128_f64<N>(simde_mm_castps_pd(v));
+}
+
+/**
+ * Returns the bits of a lane of an SSE register as i64.
+ *
+ * @tparam N Lane index, 0 or 1.
+ */
+template <int N>
+i64 m128_i64(const simde__m128d& v) {
+  f64 f;
+  simde_mm_store_sd(&f, simde_mm_shuffle_pd(v, v, SIMDE_MM_SHUFFLE2(N, N)));
+  return std::bit_cast<i64>(f);
+}
+
+/**
+ * Returns the bits of a lane of an SSE register as i64.
+ *
+ * @tparam N Lane index, 0 or 1.
+ * @param v The SSE register, read as two 64 bit lanes.
+ */
+template <int N>
+i64 m128_i64(const simde__m128& v) {
+  return m128_i64<N>(simde_mm_castps_pd(v));
+}
+
+}  // namespace rex::ppc

@@ -1,5 +1,5 @@
-#include <rex/logging/flush.h>
-#include <rex/mmio.h>
+#include <rex/logging/log.h>
+#include <rex/ppc/mmio.h>
 
 #include <atomic>
 #include <cstddef>
@@ -8,10 +8,8 @@
 #include <string_view>
 
 #include <rex/assert.h>
-#include <rex/fail.h>
-#include <rex/logging/log.h>
 
-namespace rex {
+namespace rex::ppc {
 
 namespace {
 
@@ -52,8 +50,6 @@ MMIORecipient mmio_slots[2]{kNullRecipient, kNullRecipient};
 
 }  // namespace detail
 
-namespace ppc {
-
 u32 MMIOLoad32(u32 address) {
   const auto block = MMIOBlockOf(address);
   if (!block) {
@@ -88,8 +84,6 @@ void MMIONarrowStore(u32 address, u32 size) {
   REX_FATAL(core, "{}", message);
 }
 
-}  // namespace ppc
-
 void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient) {
   if (!recipient.read || !recipient.write) {
     REXLOG_ERROR(core, "Refused a {} recipient with no read or no write handler", BlockName(block));
@@ -105,4 +99,4 @@ void DetachMMIO(MMIOBlock block, const void* context) {
   }
 }
 
-}  // namespace rex
+}  // namespace rex::ppc

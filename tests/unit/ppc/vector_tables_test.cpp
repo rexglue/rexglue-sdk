@@ -12,7 +12,7 @@
 
 #include "rex_test.h"
 
-#include <rex/ppc/intrinsics.h>
+#include <rex/ppc/vmx.h>
 
 namespace {
 

@@ -1,5 +1,5 @@
 /**
- * @file        ppc/function.h
+ * @file        ppc/call.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -27,34 +27,21 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/logging/flush.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
-#include <rex/platform/exceptions.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/ppc/seh.h>
 #include <rex/ppc/context.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xmemory.h>
 #include <rex/types.h>
+#include <rex/ppc/recompiled_code.h>
 
 namespace rex::ppc {
 
-/**
- * Returns a default constructed tuple of the argument types of a function pointer.
- *
- * @tparam R The return type.
- * @tparam T The argument types.
- * @return The tuple of argument types.
- */
+/** Returns a tuple of the argument types of a function pointer. */
 template <typename R, typename... T>
 constexpr std::tuple<T...> FunctionArgs(R (*)(T...)) noexcept {
   return std::tuple<T...>();
 }
 
-/**
- * The value V as a constexpr variable.
- *
- * @tparam V The value.
- */
 template <auto V>
 static constexpr decltype(V) constant_v = V;
 
@@ -65,7 +52,7 @@ template <typename T>
 concept BigEndianType = is_be_type_v<T>;
 
 template <typename T>
-concept MappedPtrType = is_mapped_ptr_v<T>;
+concept MappedPtrType = memory::is_mapped_ptr_v<T>;
 
 template <typename T>
 concept FloatType = is_float_v<T>;
@@ -81,33 +68,20 @@ concept VectorType = std::is_same_v<std::remove_cvref_t<T>, PPCVRegister>;
  */
 template <typename T>
 struct ByValue {
-  T value; /**< The structure. */
+  T value;
 };
 
-/**
- * Reports whether a type is a ByValue structure.
- *
- * @tparam T The type.
- */
 template <typename T>
 struct IsByValue : std::false_type {};
 
-/**
- * A ByValue structure.
- *
- * @tparam T The structure a ByValue holds.
- */
 template <typename T>
 struct IsByValue<ByValue<T>> : std::true_type {};
 
-/** A ByValue structure. */
 template <typename T>
 concept ByValueType = IsByValue<std::remove_cvref_t<T>>::value;
 
 /**
  * Size in bytes of the structure a ByValue holds.
- *
- * @tparam T The ByValue type.
  */
 template <ByValueType T>
 inline constexpr size_t kByValueSize = sizeof(std::declval<std::remove_cvref_t<T>>().value);
@@ -116,12 +90,7 @@ inline constexpr size_t kByValueSize = sizeof(std::declval<std::remove_cvref_t<T
 template <typename T>
 concept HiddenReturnType = ByValueType<T> && kByValueSize<T> > sizeof(u64);
 
-/**
- * Returns the number of 8 byte image slots a structure takes.
- *
- * @param size The structure size in bytes.
- * @return The size rounded up to whole slots.
- */
+/** Returns the number of 8 byte image slots a structure takes. */
 constexpr u32 ByValueSlots(size_t size) {
   return static_cast<u32>((size + sizeof(u64) - 1) / sizeof(u64));
 }
@@ -129,7 +98,6 @@ constexpr u32 ByValueSlots(size_t size) {
 /**
  * Reports whether a structure sits at the low end of its slot instead of the start.
  *
- * @param size The structure size in bytes.
  * @return True when the size is a power of 2 under 8.
  */
 constexpr bool IsRightJustified(size_t size) {
@@ -141,21 +109,15 @@ template <typename T>
 concept PlainType = !std::is_pointer_v<T> && !BigEndianType<T> && !MappedPtrType<T> &&
                     !VectorType<T> && !ByValueType<T>;
 
-/**
- * Number of parameters of a function.
- *
- * @tparam Func The function.
- */
 template <auto Func>
 struct ArgCountT {
-  /** Number of parameters. */
   static constexpr size_t value = std::tuple_size_v<decltype(FunctionArgs(Func))>;
 };
 
-/** Where 1 argument travels in the guest calling convention. */
+/** Where one argument travels in the guest calling convention. */
 struct ArgPlace {
-  u32 slot{};   /**< First 8 byte image slot the argument takes. */
-  u32 slots{};  /**< Number of slots the argument takes. */
+  u32 slot{}; /**< First 8 byte image slot the argument takes. */
+  u32 slots{};
   i32 gpr{-1};  /**< First integer register index, 0 for r3, or -1 when it is not in one. */
   i32 fpr{-1};  /**< Float register index, 0 for f1, or -1. */
   i32 vr{-1};   /**< Vector register index, 0 for v1, or -1. */
@@ -172,11 +134,10 @@ struct ArgTranslator {
   static constexpr size_t kVectorRegisters = 13;
 
   /**
-   * Returns the integer argument register for an argument image slot.
+   * Returns the integer argument register for an argument image slot. The register is r3 for slot 0
+   * through r10 for slot 7.
    *
-   * @param ctx The register file.
    * @param slot The slot, under kIntegerRegisters.
-   * @return r3 for slot 0 through r10 for slot 7.
    */
   static constexpr PPCRegister& GetIntegerRegister(PPCContext& ctx, size_t slot) noexcept {
     switch (slot) {
@@ -200,9 +161,6 @@ struct ArgTranslator {
   }
 
   /**
-   * Returns a float argument register.
-   *
-   * @param ctx The register file.
    * @param ordinal The float argument index, under kFloatRegisters.
    * @return f1 for index 0 through f13 for index 12.
    */
@@ -238,9 +196,6 @@ struct ArgTranslator {
   }
 
   /**
-   * Returns a vector argument register.
-   *
-   * @param ctx The register file.
    * @param ordinal The vector argument index, under kVectorRegisters.
    * @return v1 for index 0 through v13 for index 12.
    */
@@ -255,7 +210,6 @@ struct ArgTranslator {
    *
    * @param ctx The register file at the callee's entry.
    * @param slot The slot, at least kIntegerRegisters.
-   * @return The address of the slot's double word.
    */
   static constexpr u32 GetStackSlotAddress(const PPCContext& ctx, size_t slot) noexcept {
     return ctx.r1.u32 + 0x50 + static_cast<u32>((slot - kIntegerRegisters) * 8);
@@ -265,9 +219,6 @@ struct ArgTranslator {
    * Reads an integer argument from its register or its stack slot.
    *
    * @tparam Bytes The argument width in bytes, 4 or 8.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param slot The argument image slot.
    * @return The argument, zero extended.
    */
   template <size_t Bytes = sizeof(u32)>
@@ -277,21 +228,18 @@ struct ArgTranslator {
       if (slot < kIntegerRegisters) {
         return GetIntegerRegister(const_cast<PPCContext&>(ctx), slot).u64;
       }
-      return *rex::runtime::GuestPtr<be_u64*>(base, GetStackSlotAddress(ctx, slot));
+      return *rex::memory::GuestPtr<be_u64*>(base, GetStackSlotAddress(ctx, slot));
     } else {
       if (slot < kIntegerRegisters) {
         return GetIntegerRegister(const_cast<PPCContext&>(ctx), slot).u32;
       }
-      return *rex::runtime::GuestPtr<be_u32*>(base, GetStackSlotAddress(ctx, slot) + 4);
+      return *rex::memory::GuestPtr<be_u32*>(base, GetStackSlotAddress(ctx, slot) + 4);
     }
   }
 
   /**
    * Reads a float argument from its register or its stack slot.
    *
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
    * @param single True when the argument is a 4 byte float.
    * @return The argument widened to a double.
    */
@@ -303,18 +251,15 @@ struct ArgTranslator {
     const u32 address = GetStackSlotAddress(ctx, arg.slot);
     if (single) {
       return std::bit_cast<f32>(
-          static_cast<u32>(*rex::runtime::GuestPtr<be_u32*>(base, address + 4)));
+          static_cast<u32>(*rex::memory::GuestPtr<be_u32*>(base, address + 4)));
     }
-    return std::bit_cast<f64>(static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base, address)));
+    return std::bit_cast<f64>(static_cast<u64>(*rex::memory::GuestPtr<be_u64*>(base, address)));
   }
 
   /**
    * Writes an integer argument to its register or its stack slot.
    *
-   * @param ctx The register file.
-   * @param base The guest memory base.
    * @tparam Bytes The argument width in bytes, 4 or 8.
-   * @param slot The argument image slot.
    * @param value The value to write, a 4 byte value goes to the low word of a stack slot.
    */
   template <size_t Bytes = sizeof(u32)>
@@ -325,9 +270,9 @@ struct ArgTranslator {
       return;
     }
     if constexpr (Bytes == sizeof(u64)) {
-      *rex::runtime::GuestPtr<be_u64*>(base, GetStackSlotAddress(ctx, slot)) = value;
+      *rex::memory::GuestPtr<be_u64*>(base, GetStackSlotAddress(ctx, slot)) = value;
     } else {
-      *rex::runtime::GuestPtr<be_u32*>(base, GetStackSlotAddress(ctx, slot) + 4) =
+      *rex::memory::GuestPtr<be_u32*>(base, GetStackSlotAddress(ctx, slot) + 4) =
           static_cast<u32>(value);
     }
   }
@@ -335,10 +280,6 @@ struct ArgTranslator {
   /**
    * Writes a float argument to its register, and to its stack slot when its slot is past r10.
    *
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
-   * @param value The value to write.
    * @param single True when the argument is a 4 byte float.
    */
   static void SetFloatArgumentValue(PPCContext& ctx, u8* base, const ArgPlace& arg, f64 value,
@@ -351,19 +292,16 @@ struct ArgTranslator {
     }
     const u32 address = GetStackSlotAddress(ctx, arg.slot);
     if (single) {
-      *rex::runtime::GuestPtr<be_u32*>(base, address + 4) =
+      *rex::memory::GuestPtr<be_u32*>(base, address + 4) =
           std::bit_cast<u32>(static_cast<f32>(value));
     } else {
-      *rex::runtime::GuestPtr<be_u64*>(base, address) = std::bit_cast<u64>(value);
+      *rex::memory::GuestPtr<be_u64*>(base, address) = std::bit_cast<u64>(value);
     }
   }
 
   /**
    * Reads a vector argument from its register or its 16 byte stack slot pair.
    *
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
    * @return The vector, whose stack image is the byte reversed register.
    */
   static PPCVRegister GetVectorArgumentValue(const PPCContext& ctx, u8* base,
@@ -372,7 +310,7 @@ struct ArgTranslator {
       return GetVectorRegister(const_cast<PPCContext&>(ctx), static_cast<size_t>(arg.vr));
     }
     PPCVRegister result{};
-    const u8* image = rex::runtime::GuestPtr<const u8*>(base, GetStackSlotAddress(ctx, arg.slot));
+    const u8* image = rex::memory::GuestPtr<const u8*>(base, GetStackSlotAddress(ctx, arg.slot));
     for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
       result.u8[i] = image[sizeof(PPCVRegister) - 1 - i];
     }
@@ -382,9 +320,6 @@ struct ArgTranslator {
   /**
    * Writes a vector argument to its register or its 16 byte stack slot pair.
    *
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
    * @param value The vector, stored byte reversed in the stack image.
    */
   static void SetVectorArgumentValue(PPCContext& ctx, u8* base, const ArgPlace& arg,
@@ -393,21 +328,13 @@ struct ArgTranslator {
       GetVectorRegister(ctx, static_cast<size_t>(arg.vr)) = value;
       return;
     }
-    u8* image = rex::runtime::GuestPtr<u8*>(base, GetStackSlotAddress(ctx, arg.slot));
+    u8* image = rex::memory::GuestPtr<u8*>(base, GetStackSlotAddress(ctx, arg.slot));
     for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
       image[sizeof(PPCVRegister) - 1 - i] = value.u8[i];
     }
   }
 
-  /**
-   * Reads a structure argument from its registers and stack slots.
-   *
-   * @tparam T The ByValue type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
-   * @return The structure.
-   */
+  /** Reads a structure argument from its registers and stack slots. */
   template <ByValueType T>
   static T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     constexpr size_t kSize = kByValueSize<T>;
@@ -415,7 +342,7 @@ struct ArgTranslator {
     for (u32 k = 0; k < arg.slots; ++k) {
       const size_t slot = arg.slot + k;
       const u64 word = slot < kIntegerRegisters ? GetIntegerRegister(ctx, slot).u64
-                                                : static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(
+                                                : static_cast<u64>(*rex::memory::GuestPtr<be_u64*>(
                                                       base, GetStackSlotAddress(ctx, slot)));
       for (size_t b = 0; b < sizeof(u64); ++b) {
         image[k * sizeof(u64) + b] = static_cast<u8>(word >> (56 - 8 * b));
@@ -426,15 +353,7 @@ struct ArgTranslator {
     return result;
   }
 
-  /**
-   * Writes a structure argument to its registers and stack slots.
-   *
-   * @tparam T The ByValue type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
-   * @param value The structure.
-   */
+  /** Writes a structure argument to its registers and stack slots. */
   template <ByValueType T>
   static void SetByValueArgumentValue(PPCContext& ctx, u8* base, const ArgPlace& arg,
                                       const T& value) noexcept {
@@ -450,20 +369,12 @@ struct ArgTranslator {
       if (slot < kIntegerRegisters) {
         GetIntegerRegister(ctx, slot).u64 = word;
       } else {
-        *rex::runtime::GuestPtr<be_u64*>(base, GetStackSlotAddress(ctx, slot)) = word;
+        *rex::memory::GuestPtr<be_u64*>(base, GetStackSlotAddress(ctx, slot)) = word;
       }
     }
   }
 
-  /**
-   * Reads a big endian argument.
-   *
-   * @tparam T The big endian type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
-   * @return The argument.
-   */
+  /** Reads a big endian argument. */
   template <BigEndianType T>
   static constexpr T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     T result;
@@ -475,10 +386,6 @@ struct ArgTranslator {
   /**
    * Reads a mapped pointer argument.
    *
-   * @tparam T The mapped pointer type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
    * @return The mapped pointer, null when the argument is 0.
    */
   template <MappedPtrType T>
@@ -489,44 +396,25 @@ struct ArgTranslator {
   /**
    * Converts the value of an integer register to a mapped pointer.
    *
-   * @tparam T The mapped pointer type.
    * @param value The register value, its low word is the guest address.
-   * @param base The guest memory base.
    * @return The mapped pointer, null when the address is 0.
    */
   template <MappedPtrType T>
   static T GetMappedPointerValue(u64 value, u8* base) noexcept {
-    using InnerT = MappedPtrInnerType<T>::type;
+    using InnerT = memory::MappedPtrInnerType<T>::type;
     const u32 guest_addr = static_cast<u32>(value);
     if (guest_addr == 0) {
       return T(nullptr);
     }
-    return T(rex::runtime::GuestPtr<InnerT*>(base, guest_addr), guest_addr);
+    return T(rex::memory::GuestPtr<InnerT*>(base, guest_addr), guest_addr);
   }
 
-  /**
-   * Reads a vector argument.
-   *
-   * @tparam T The vector type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
-   * @return The vector.
-   */
   template <VectorType T>
   static T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     return GetVectorArgumentValue(ctx, base, arg);
   }
 
-  /**
-   * Reads an integer or float argument.
-   *
-   * @tparam T The argument type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
-   * @return The argument.
-   */
+  /** Reads an integer or float argument. */
   template <PlainType T>
   static constexpr T GetValue(PPCContext& ctx, u8* base, const ArgPlace& arg) noexcept {
     if constexpr (is_float_v<T>) {
@@ -539,10 +427,6 @@ struct ArgTranslator {
   /**
    * Reads a pointer argument.
    *
-   * @tparam T The pointer type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
    * @return The host pointer, null when the argument is 0.
    */
   template <typename T>
@@ -554,9 +438,7 @@ struct ArgTranslator {
   /**
    * Converts the value of an integer register to a host pointer.
    *
-   * @tparam T The pointer type.
    * @param value The register value, its low word is the guest address.
-   * @param base The guest memory base.
    * @return The host pointer, null when the address is 0.
    */
   template <typename T>
@@ -566,18 +448,10 @@ struct ArgTranslator {
     if (guest_addr == 0) {
       return nullptr;
     }
-    return rex::runtime::GuestPtr<T>(base, guest_addr);
+    return rex::memory::GuestPtr<T>(base, guest_addr);
   }
 
-  /**
-   * Writes an argument of any supported type.
-   *
-   * @tparam T The argument type.
-   * @param ctx The register file.
-   * @param base The guest memory base.
-   * @param arg The argument places.
-   * @param value The value to write.
-   */
+  /** Writes an argument of any supported type. */
   template <typename T>
   static constexpr void SetValue(PPCContext& ctx, u8* base, const ArgPlace& arg, T value) noexcept {
     if constexpr (is_float_v<T>) {
@@ -593,7 +467,7 @@ struct ArgTranslator {
     } else if constexpr (std::is_pointer_v<T>) {
       SetIntegerArgumentValue(
           ctx, base, arg.slot,
-          rex::runtime::HostPtrToGuest(base, reinterpret_cast<const void*>(value)));
+          rex::memory::HostPtrToGuest(base, reinterpret_cast<const void*>(value)));
     } else {
       SetIntegerArgumentValue<(sizeof(T) > sizeof(u32)) ? sizeof(u64) : sizeof(u32)>(
           ctx, base, arg.slot, value);
@@ -601,26 +475,15 @@ struct ArgTranslator {
   }
 };
 
-/**
- * Reports whether a type is float or double.
- *
- * @tparam T The type.
- * @return True when T is float or double.
- */
+/** Reports whether a type is float or double. */
 template <typename T>
 constexpr bool IsFloatType() {
   return is_float_v<T>;
 }
 
 /**
- * Places an argument list by the guest calling convention.
- *
- * An integer, pointer or big endian value takes the next slot and the next of r3 to r10. A float
- * takes the next slot and the next of f1 to f13, and leaves its slot in r3 to r10 unused. A float
- * whose slot is past r10 is written to that slot. A vector takes the next of v1 to v13 and
- * no slot. A vector without a register takes 2 slots from the first even slot at or past the first
- * stack slot. A structure takes whole slots from the next slot, split between r3 to r10 and the
- * stack when it crosses the 8th slot.
+ * Places an argument list by the guest calling convention, where a float takes the slot of an
+ * integer register and a vector in a register takes no slot.
  *
  * @tparam Args The argument types in order.
  * @return A placement per argument.
@@ -684,13 +547,7 @@ constexpr std::array<ArgPlace, sizeof...(Args)> PlaceArgs() {
   return places;
 }
 
-/**
- * Places each argument of a function signature by the guest calling convention.
- *
- * @tparam R The return type.
- * @tparam Args The argument types.
- * @return The places of each argument.
- */
+/** Places each argument of a function signature by the guest calling convention. */
 template <typename R, typename... Args>
 constexpr auto PlaceSignatureArgs(R (*)(Args...)) {
   if constexpr (HiddenReturnType<R>) {
@@ -705,53 +562,25 @@ constexpr auto PlaceSignatureArgs(R (*)(Args...)) {
   }
 }
 
-/**
- * Places each argument of a function by the guest calling convention.
- *
- * @tparam Func The function.
- * @return The places of each argument.
- */
+/** Places each argument of a function by the guest calling convention. */
 template <auto Func>
 constexpr auto PlaceFunctionArgs() {
   return PlaceSignatureArgs(Func);
 }
 
-/**
- * Places of 1 argument of a function.
- *
- * @tparam Func The function.
- * @tparam I The argument index.
- */
+/** Holds the place of one argument of a function. */
 template <auto Func, size_t I>
 struct ArgPlaceT {
-  /** Places of argument I. */
   static constexpr ArgPlace value = PlaceFunctionArgs<Func>()[I];
 };
 
-/**
- * Ends the translation of arguments to host values.
- *
- * @tparam Func The native function.
- * @tparam I The argument index.
- * @tparam TArgs The argument types.
- * @param ctx The register file.
- * @param base The guest memory base.
- */
+/** Ends the translation of arguments to host values. */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
 void TranslateArgsToHost([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
                          [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
 
-/**
- * Reads argument I and every later one from the register file into a tuple.
- *
- * @tparam Func The native function.
- * @tparam I The argument index.
- * @tparam TArgs The argument types.
- * @param ctx The register file.
- * @param base The guest memory base.
- * @param tpl The argument tuple to fill.
- */
+/** Reads argument I and every later one from the register file into a tuple. */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
 void TranslateArgsToHost(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
@@ -760,28 +589,13 @@ void TranslateArgsToHost(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) n
   TranslateArgsToHost<Func, I + 1>(ctx, base, tpl);
 }
 
-/**
- * Ends the translation of arguments to guest values.
- *
- * @tparam I The argument index.
- * @tparam TArgs The argument types.
- * @param ctx The register file.
- * @param base The guest memory base.
- */
+/** Ends the translation of arguments to guest values. */
 template <int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
 void TranslateArgsToGuest([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
                           [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
 
-/**
- * Writes argument I and every later one from a tuple into the register file and stack image.
- *
- * @tparam I The argument index.
- * @tparam TArgs The argument types.
- * @param ctx The register file.
- * @param base The guest memory base.
- * @param tpl The argument tuple.
- */
+/** Writes argument I and every later one from a tuple into the register file and stack image. */
 template <int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
 void TranslateArgsToGuest(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
@@ -790,17 +604,10 @@ void TranslateArgsToGuest(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) 
   TranslateArgsToGuest<I + 1>(ctx, base, tpl);
 }
 
-/**
- * Writes a structure to guest memory in guest layout, a vector byte reversed.
- *
- * @tparam T The ByValue type.
- * @param base The guest memory base.
- * @param address The guest address.
- * @param value The structure.
- */
+/** Writes a structure to guest memory in guest layout, a vector byte reversed. */
 template <ByValueType T>
 void StoreByValue(u8* base, u32 address, const T& value) {
-  u8* destination = rex::runtime::GuestPtr<u8*>(base, address);
+  u8* destination = rex::memory::GuestPtr<u8*>(base, address);
   if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value.value)>, PPCVRegister>) {
     for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
       destination[sizeof(PPCVRegister) - 1 - i] = value.value.u8[i];
@@ -813,9 +620,7 @@ void StoreByValue(u8* base, u32 address, const T& value) {
 /**
  * Packs a structure of at most 8 bytes into the register image a function returns in r3.
  *
- * @tparam T The ByValue type.
- * @param value The structure.
- * @return The register value, a power of 2 size under 8 right justified and any other size left
+ * @return The register value, right justified when the size is a power of 2 under 8, else left
  *         justified.
  */
 template <ByValueType T>
@@ -830,13 +635,7 @@ u64 ByValueToWord(const T& value) {
   return word;
 }
 
-/**
- * Unpacks a structure of at most 8 bytes from the register image a function returns in r3.
- *
- * @tparam T The ByValue type.
- * @param word The register value.
- * @return The structure.
- */
+/** Unpacks a structure of at most 8 bytes from the register image a function returns in r3. */
 template <ByValueType T>
 T ByValueFromWord(u64 word) {
   constexpr size_t kSize = kByValueSize<T>;
@@ -849,17 +648,10 @@ T ByValueFromWord(u64 word) {
   return result;
 }
 
-/**
- * Reads a structure from guest memory in guest layout, a vector byte reversed.
- *
- * @tparam T The ByValue type.
- * @param base The guest memory base.
- * @param address The guest address.
- * @return The structure.
- */
+/** Reads a structure from guest memory in guest layout, a vector byte reversed. */
 template <ByValueType T>
 T LoadByValue(u8* base, u32 address) {
-  const u8* source = rex::runtime::GuestPtr<const u8*>(base, address);
+  const u8* source = rex::memory::GuestPtr<const u8*>(base, address);
   T result{};
   if constexpr (std::is_same_v<std::remove_cvref_t<decltype(result.value)>, PPCVRegister>) {
     for (size_t i = 0; i < sizeof(PPCVRegister); ++i) {
@@ -874,16 +666,12 @@ T LoadByValue(u8* base, u32 address) {
 /**
  * Writes the result of a native C++ function to the registers a guest caller reads.
  *
- * @tparam RetT The result type.
- * @param ctx The register file.
- * @param base The guest memory base.
  * @param hidden_pointer The result pointer the caller passed in r3, used by a hidden return.
- * @param value The result.
  */
 template <typename RetT>
 void StoreHostResult(PPCContext& ctx, u8* base, u32 hidden_pointer, const RetT& value) {
   if constexpr (std::is_pointer<RetT>()) {
-    ctx.r3.u64 = rex::runtime::HostPtrToGuest(base, reinterpret_cast<const void*>(value));
+    ctx.r3.u64 = rex::memory::HostPtrToGuest(base, reinterpret_cast<const void*>(value));
   } else if constexpr (is_float_v<RetT>) {
     ctx.f1.f64 = value;
   } else if constexpr (VectorType<RetT>) {
@@ -898,45 +686,15 @@ void StoreHostResult(PPCContext& ctx, u8* base, u32 hidden_pointer, const RetT& 
   }
 }
 
-namespace detail {
-
 /**
- * Checks in Debug builds that a hook runs on the register file of its thread.
- *
- * @param ctx The register file the hook was given.
- * @param name The hook, for the log.
- */
-inline void CheckHookContext([[maybe_unused]] const PPCContext& ctx,
-                             [[maybe_unused]] const char* name) {
-#ifndef NDEBUG
-  const auto* thread_state = rex::runtime::ThreadState::Get();
-  if (thread_state && &ctx != thread_state->GetContext()) {
-    REXLOG_ERROR(cpu, "Hook {} runs on a register file that is not its thread's", name);
-  }
-  REX_ASSERT(!thread_state || &ctx == thread_state->GetContext(),
-             "A hook runs on a register file that is not its thread's");
-  REX_ASSERT(!thread_state || ctx.thread_state == thread_state,
-             "A hook runs on a register file another thread state owns");
-#endif
-}
-
-}  // namespace detail
-
-/**
- * Calls a native C++ function with arguments extracted from the PPC context. A compiler barrier
- * follows the call so the compiler does not reorder it.
- *
- * @tparam Func The native function.
- * @param ctx The register file.
- * @param base The guest memory base.
+ * Calls a native function with arguments read from the register file.
  */
 template <auto Func>
 __attribute__((noinline)) void GuestToHostThunk(PPCContext& ctx, u8* base) {
   using RetT = decltype(std::apply(Func, FunctionArgs(Func)));
 
   detail::CheckHookContext(ctx, __PRETTY_FUNCTION__);
-  auto* thread_state = ctx.thread_state;
-  if (thread_state && thread_state->IsStopRequested()) {
+  if (ctx.stop_requested && ctx.stop_requested->load(std::memory_order_acquire)) {
     throw rex::ThreadStop{};
   }
 #if !REX_PLATFORM_WIN32
@@ -955,7 +713,7 @@ __attribute__((noinline)) void GuestToHostThunk(PPCContext& ctx, u8* base) {
 
     StoreHostResult(ctx, base, hidden_pointer, v);
   }
-  if (thread_state && thread_state->IsStopRequested()) {
+  if (ctx.stop_requested && ctx.stop_requested->load(std::memory_order_acquire)) {
     throw rex::ThreadStop{};
   }
 }
@@ -969,18 +727,12 @@ inline constexpr u32 kLinkageSize = 0x50;
 /** Return address a call from host code leaves in lr. */
 inline constexpr u32 kHostReturnAddress = 0xBCBCBCBC;
 
-/**
- * Reads stack_end_ptr from the KPCR at r13 + 0x74.
- *
- * @param ctx The register file.
- * @param base The guest memory base.
- * @return The stack limit, 0 when r13 is not set as in unit tests without a live thread.
- */
+/** Returns the stack limit of the running thread, 0 when r13 is unset. */
 inline u32 GetStackLimit(PPCContext& ctx, u8* base) {
   if (ctx.r13.u32 == 0)
     return 0;
   u32 raw;
-  std::memcpy(&raw, rex::runtime::GuestPtr(base, ctx.r13.u32 + 0x74), sizeof(raw));
+  std::memcpy(&raw, rex::memory::GuestPtr(base, ctx.r13.u32 + 0x74), sizeof(raw));
   return std::byteswap(raw);
 }
 
@@ -988,7 +740,6 @@ inline u32 GetStackLimit(PPCContext& ctx, u8* base) {
  * Aborts when lowering r1 to a new value leaves the thread stack it is on.
  *
  * @param ctx The register file, r1 still at its current value.
- * @param base The guest memory base.
  * @param new_r1 The r1 the caller is about to set.
  */
 inline void stack_bounds_check(PPCContext& ctx, u8* base, u32 new_r1) {
@@ -996,7 +747,7 @@ inline void stack_bounds_check(PPCContext& ctx, u8* base, u32 new_r1) {
   if (limit == 0) {
     return;
   }
-  const u32 stack_base = *rex::runtime::GuestPtr<be_u32*>(base, ctx.r13.u32 + 0x70);
+  const u32 stack_base = *rex::memory::GuestPtr<be_u32*>(base, ctx.r13.u32 + 0x70);
   if (ctx.r1.u32 > limit && ctx.r1.u32 <= stack_base) {
     REX_CHECK(cpu, new_r1 > limit, "PPC stack overflow, r1 ({:#x}) below stack_end_ptr ({:#x})",
               new_r1, limit);
@@ -1004,14 +755,10 @@ inline void stack_bounds_check(PPCContext& ctx, u8* base, u32 new_r1) {
 }
 
 /**
- * Returns a 16 byte aligned r1 a given number of bytes under the current one.
+ * Returns a 16 byte aligned r1 under the current one, aborting on a wrap or a stack limit crossing.
  *
- * Aborts when the frame would wrap below address 0 or cross the thread's stack limit.
- *
- * @param ctx The register file.
  * @param base The guest memory base, null when no thread state is bound.
  * @param size The bytes the frame needs.
- * @return The new r1.
  */
 inline u32 FrameBelow(PPCContext& ctx, u8* base, u32 size) {
   const u32 r1 = ctx.r1.u32;
@@ -1026,24 +773,20 @@ inline u32 FrameBelow(PPCContext& ctx, u8* base, u32 size) {
 /**
  * Opens a call frame under r1 for a call from host code into recompiled code.
  *
- * @param ctx The register file.
- * @param base The guest memory base.
  * @param stack_bytes The stack argument bytes the call needs.
  * @return The caller's r1.
  */
 inline u32 OpenCallFrame(PPCContext& ctx, u8* base, u32 stack_bytes) {
   const u32 caller_r1 = ctx.r1.u32;
   ctx.r1.u64 = FrameBelow(ctx, base, kLinkageSize + stack_bytes);
-  *rex::runtime::GuestPtr<be_u32*>(base, ctx.r1.u32) = caller_r1;
+  *rex::memory::GuestPtr<be_u32*>(base, ctx.r1.u32) = caller_r1;
   ctx.lr = kHostReturnAddress;
   return caller_r1;
 }
 
 /**
- * Returns the stack argument bytes a call with these argument types needs.
- *
- * @tparam Args The argument types.
- * @return 8 bytes per argument slot past slot 8.
+ * Returns the stack argument bytes a call with these argument types needs. The count is 8 bytes per
+ * argument slot past slot 8.
  */
 template <typename... Args>
 constexpr u32 GetStackArgumentBytes() {
@@ -1055,10 +798,8 @@ constexpr u32 GetStackArgumentBytes() {
 }
 
 /**
- * Returns the call frame bytes the result of a hidden return call needs.
- *
- * @tparam R The return type.
- * @return The structure size rounded up to 16 bytes, 0 when R is not returned through a pointer.
+ * Returns the call frame bytes the result of a hidden return call needs, 0 when R is not returned
+ * through a pointer.
  */
 template <typename R>
 constexpr u32 HiddenReturnBytes() {
@@ -1072,13 +813,7 @@ constexpr u32 HiddenReturnBytes() {
 /**
  * Reads the result a guest function left in its result registers.
  *
- * @tparam R The result type.
- * @param base The guest memory base.
- * @param r3 The integer result register.
- * @param f1 The floating point result register.
- * @param v1 The vector result register.
  * @param result_storage The guest address of the hidden return storage, used by a hidden return.
- * @return The result.
  */
 template <typename R>
 R LoadGuestResult([[maybe_unused]] u8* base, [[maybe_unused]] const PPCRegister& r3,
@@ -1087,7 +822,7 @@ R LoadGuestResult([[maybe_unused]] u8* base, [[maybe_unused]] const PPCRegister&
   if constexpr (std::is_void_v<R>) {
     return;
   } else if constexpr (std::is_pointer_v<R>) {
-    return r3.u32 ? rex::runtime::GuestPtr<R>(base, r3.u32) : nullptr;
+    return r3.u32 ? rex::memory::GuestPtr<R>(base, r3.u32) : nullptr;
   } else if constexpr (is_float_v<R>) {
     return static_cast<R>(f1.f64);
   } else if constexpr (VectorType<R>) {
@@ -1105,12 +840,7 @@ R LoadGuestResult([[maybe_unused]] u8* base, [[maybe_unused]] const PPCRegister&
  * Calls recompiled code on the thread's register file by the guest calling convention.
  *
  * @tparam R The return type, read from r3 or f1.
- * @tparam Args The argument types.
  * @param ctx The register file of the calling thread.
- * @param base The guest memory base.
- * @param fn The guest function.
- * @param args The arguments.
- * @return The value the guest function returned.
  */
 template <typename R, typename... Args>
 R Call(PPCContext& ctx, u8* base, PPCFunc& fn, Args... args) {
@@ -1147,21 +877,41 @@ R Call(PPCContext& ctx, u8* base, PPCFunc& fn, Args... args) {
 /**
  * Calls recompiled code on the calling thread's register file.
  *
- * @tparam T The return type.
  * @tparam TArgs The argument types, deduced from argv.
- * @param func The guest function.
- * @param argv The arguments.
- * @return The value the guest function returned.
  */
 template <typename T, typename... TArgs>
 T HostToGuestCall(PPCFunc* func, TArgs&&... argv) {
-  auto* ts = rex::runtime::ThreadState::Get();
-  REX_ASSERT(ts && func, "HostToGuestCall needs a bound thread state and a function");
-  return Call<T>(*ts->GetContext(), ts->GetMemory()->GetVirtualMembase(), *func,
-                 std::forward<TArgs>(argv)...);
+  const BoundThread bound = GetBoundThread();
+  REX_ASSERT(bound.ctx && func, "HostToGuestCall needs a bound thread state and a function");
+  return Call<T>(*bound.ctx, bound.base, *func, std::forward<TArgs>(argv)...);
 }
 
 }  // namespace rex::ppc
 
 /** Size of the loaded image name buffer, 255 characters plus NUL. */
 constexpr size_t kExLoadedImageNameSize = 255 + 1;
+
+namespace rex::ppc {
+
+/** Typed callable for a recompiled function. */
+template <typename S>
+struct ImportFunction;
+
+/** Typed callable for the signature R(Args...). */
+template <typename R, typename... Args>
+struct ImportFunction<R(Args...)> {
+  PPCFunc& fn;
+
+  /** Calls the function on a given context. */
+  R operator()(PPCContext& ctx, u8* base, Args... args) const {
+    return Call<R>(ctx, base, fn, args...);
+  }
+
+  /** Calls the function on the current thread's context. */
+  R operator()(Args... args) const {
+    const BoundThread bound = GetBoundThread();
+    return Call<R>(*bound.ctx, bound.base, fn, args...);
+  }
+};
+
+}  // namespace rex::ppc

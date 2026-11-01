@@ -14,7 +14,7 @@
 
 #include <rex/types.h>
 
-/** The pack format, the source element words and the saturation bit 1 pack set. */
+/** The pack format, the source words and whether the pack sets saturation bit 1. */
 struct PackD3DCase {
   u32 type;
   std::array<u32, 4> source;
@@ -142,7 +142,7 @@ inline constexpr PackD3DCase kPackD3DCases[] = {
     {6, {0x40400000, 0x40400000, 0x40480000, 0x40400000}, true},
 };
 
-/** One captured vpkd3d128 result, with the source and destination words in big endian order. */
+/** One captured vpkd3d128 result, with words in big endian order. */
 struct PackD3DResult {
   u32 group;
   u32 type;
@@ -153,7 +153,7 @@ struct PackD3DResult {
   u32 saturated;
 };
 
-/** The destination words every capture starts from, in big endian order. */
+/** The destination words every capture starts from. */
 inline constexpr std::array<u32, 4> kPackD3DInitial = {0xA0A1A2A3, 0xB0B1B2B3, 0xC0C1C2C3,
                                                        0xD0D1D2D3};
 

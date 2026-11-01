@@ -1,6 +1,6 @@
 /**
- * @file        image_info.h
- * @brief       Image layout descriptor for recompiled binaries
+ * @file        ppc/image.h
+ * @brief       PPC image layout, embedded metadata assets and pdata decoding
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,35 +12,36 @@
 #pragma once
 
 #include <span>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <optional>
+#include <string_view>
 
 #include <rex/types.h>
+#include <rex/platform.h>
 
 struct PPCFuncMapping;
 
-namespace rex::runtime {
+namespace rex::kernel {
 class IModuleRegistry;
-}  // namespace rex::runtime
+}  // namespace rex::kernel
 
-namespace rex {
+namespace rex::ppc {
 
 /**
  * Registers the recompiled libraries of a project with several binaries.
  *
  * @param modules The module registry of the runtime being launched.
  */
-using RegisterModulesFunc = void (*)(runtime::IModuleRegistry& modules);
+using RegisterModulesFunc = void (*)(kernel::IModuleRegistry& modules);
 
-/**
- * Returns the recompiled code that codegen generated for an image.
- *
- * @return The code range.
- */
+/** Returns the recompiled code that codegen generated for an image. */
 using RecompiledCodeFunc = std::span<const u8> (*)();
 
 /** Codegen options that change how the generated code treats registers and state. */
 struct PPCCodegenFlags {
-  /** Omits the `ctx.lr` store at calls between guest functions and the `mflr` read. Calls to
-   * imports always store `ctx.lr`. */
+  /** Omits the `ctx.lr` store and `mflr` read between guest functions. Imports store it. */
   bool skip_lr = false;
   /** Keeps CTR in a local variable instead of `ctx.ctr`. Config key `ctr_as_local`. */
   bool ctr_as_local = false;
@@ -60,17 +61,17 @@ struct PPCCodegenFlags {
 
 /** The argument registers a recompiled function reads at its entry. */
 struct PPCCallUsage {
-  u32 address;  /**< Guest address of the function. */
+  u32 address;
   u8 gpr_mask;  /**< Bit n is set when the function reads r(3 + n), r3 to r10. */
   u16 fpr_mask; /**< Bit n is set when the function reads f(1 + n), f1 to f13. */
 };
 
 /** PPC image layout passed from the generated config header into TitleApp::Init. */
 struct PPCImage {
-  u32 code_base;  /**< First guest address of the generated code, given to the function table. */
-  u32 code_size;  /**< Size of the generated code in bytes. */
-  u32 image_base; /**< Guest address the image loads at. */
-  u32 image_size; /**< Size of the image in bytes. */
+  u32 code_base; /**< First guest address of the generated code, given to the function table. */
+  u32 code_size;
+  u32 image_base;
+  u32 image_size;
   /** Guest address and host function pairs registered at startup, ended by guest address 0. */
   const PPCFuncMapping* func_mappings;
   bool shim_heap = false; /**< Set by codegen when [shim] holds the heap functions. */
@@ -82,4 +83,54 @@ struct PPCImage {
   const PPCCallUsage* call_usage = nullptr;
 };
 
-}  // namespace rex
+/** An embedded metadata asset found by path. */
+struct EmbeddedMetadataAsset {
+  std::span<const u8> bytes;
+};
+
+/**
+ * Registers a metadata asset embedded into the host executable.
+ *
+ * An empty path, null data, 0 size or a path that normalizes to nothing is rejected.
+ *
+ * @param relative_path Path relative to the metadata root, such as "icons/custom/67.png".
+ * @param data Must stay valid for the whole process.
+ */
+REX_PPC_API bool RegisterEmbeddedMetadataAsset(std::string_view relative_path, const u8* data,
+                                               std::size_t size);
+
+/**
+ * Looks up an embedded metadata asset by normalized path.
+ *
+ * @return The asset, or an empty optional when none is registered at the path.
+ */
+REX_PPC_API std::optional<EmbeddedMetadataAsset> FindEmbeddedMetadataAsset(
+    const std::filesystem::path& relative_path);
+
+/** Function type held in the 2 high bits of a pdata word. */
+enum class RuntimeFunctionType : u8 {
+  kSaveMillicode,    /**< Stores registers and returns. */
+  kNoHandler,        /**< A normal function. */
+  kRestoreMillicode, /**< Loads registers and returns. */
+  kHandler           /**< A function with handler data before it. */
+};
+
+struct RuntimeFunction {
+  u32 begin; /**< Address of the first instruction. */
+  RuntimeFunctionType type;
+  u32 length;   /**< Instruction count including the prologue. */
+  u32 prologue; /**< Instruction count of the prologue. */
+};
+
+/**
+ * Decodes a pdata entry.
+ *
+ * @param begin The begin address word.
+ * @param word The type, length and prologue word.
+ */
+constexpr RuntimeFunction DecodeRuntimeFunction(u32 begin, u32 word) {
+  return RuntimeFunction{begin, static_cast<RuntimeFunctionType>(word >> 30),
+                         (word >> 8) & 0x3FFFFFu, word & 0xFFu};
+}
+
+}  // namespace rex::ppc

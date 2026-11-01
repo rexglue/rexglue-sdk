@@ -10,9 +10,10 @@
 
 #include <array>
 
+#include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/stack.h>
 
 void PushMappedPtrArray(rex::ppc::StackFrame& frame,
-                        const std::array<rex::MappedPtr<u32>, 2>& value) {
+                        const std::array<rex::memory::MappedPtr<u32>, 2>& value) {
   frame.Push(value);
 }

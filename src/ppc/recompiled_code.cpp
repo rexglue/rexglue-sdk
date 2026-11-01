@@ -5,7 +5,7 @@
 #include <atomic>
 #include <mutex>
 
-namespace rex::platform {
+namespace rex::ppc {
 
 namespace {
 
@@ -72,4 +72,4 @@ bool IsRecompiledCode(u64 address) {
   });
 }
 
-}  // namespace rex::platform
+}  // namespace rex::ppc

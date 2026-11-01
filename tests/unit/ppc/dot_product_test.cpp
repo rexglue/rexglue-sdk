@@ -13,7 +13,7 @@
 
 #include "rex_test.h"
 
-#include <rex/ppc/dot_product.h>
+#include <rex/ppc/fpu.h>
 
 #include "dot_product_cases.h"
 #include "dot_product_nj0_cases.h"
@@ -22,12 +22,6 @@ namespace {
 
 using DotFunction = simde__m128 (*)(simde__m128, simde__m128);
 
-/**
- * Checks the broadcast result of a dot product for each case.
- *
- * @param dot The function under test.
- * @param cases The vector elements and the expected result.
- */
 void CheckCases(DotFunction dot, std::span<const DotProductCase> cases) {
   for (const DotProductCase& expected : cases) {
     alignas(16) std::array<u32, 4> a;
@@ -63,16 +57,10 @@ REX_TEST_CASE("DotProduct4 matches the sampled results", "[ppc][dot_product]") {
 
 namespace {
 
-/** A deterministic generator whose sequence is fixed by its initial state. */
 class SplitMix {
  public:
   explicit SplitMix(u64 initial_state) : state_(initial_state) {}
 
-  /**
-   * Draws the next word.
-   *
-   * @return The word.
-   */
   u64 operator()() {
     u64 z = (state_ += 0x9E3779B97F4A7C15ull);
     z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
@@ -84,12 +72,7 @@ class SplitMix {
   u64 state_;
 };
 
-/**
- * Draws an operand word from a mix of ordinary values, zeros, denormals, infinities and NaNs.
- *
- * @param rng The random source.
- * @return The operand bits.
- */
+/** Draws ordinary values, zeros, denormals, infinities and NaNs. */
 u32 RandomOperand(SplitMix& rng) {
   const u32 sign = static_cast<u32>(rng() & 1) << 31;
   const u32 mantissa = static_cast<u32>(rng()) & 0x7FFFFFu;
@@ -110,12 +93,6 @@ u32 RandomOperand(SplitMix& rng) {
   }
 }
 
-/**
- * Compares a vector dot product with the reference over random operands.
- *
- * @tparam Terms The number of terms, 3 or 4.
- * @param dot The function under test.
- */
 template <u32 Terms>
 void CheckAgainstReference(DotFunction dot) {
   SplitMix rng(2024);

@@ -16,7 +16,7 @@
 
 #include "rex_test.h"
 
-#include <rex/ppc/saturation.h>
+#include <rex/ppc/vmx.h>
 
 #include "pack_d3d_cases.h"
 
@@ -36,15 +36,7 @@ inline constexpr bool kThreadSanitized = false;
 inline constexpr bool kThreadSanitized = false;
 #endif
 
-/**
- * Returns every value of a range, or under ThreadSanitizer the edge values, the values next to
- * them and a coprime stride through the rest.
- *
- * @param count The number of values in the range.
- * @param stride The coprime stride used under ThreadSanitizer.
- * @param edges The values whose neighbours matter under ThreadSanitizer.
- * @return The values, ascending.
- */
+/** Returns every value below count, or a strided sample plus the edges under ThreadSanitizer. */
 std::vector<u32> SweptValues(u32 count, u32 stride, const std::vector<u32>& edges) {
   std::set<u32> picked;
   if (!kThreadSanitized) {
@@ -67,13 +59,6 @@ std::vector<u32> SweptValues(u32 count, u32 stride, const std::vector<u32>& edge
   return {picked.begin(), picked.end()};
 }
 
-/**
- * Returns the operand values to try for an element width. 8 bit elements get every value, or a
- * strided subset under ThreadSanitizer.
- *
- * @param bits The element width.
- * @return The values, as unsigned element patterns.
- */
 std::vector<u32> OperandValues(u32 bits) {
   std::vector<u32> values;
   if (bits == 8) {
@@ -92,14 +77,6 @@ std::vector<u32> OperandValues(u32 bits) {
   return values;
 }
 
-/**
- * Widens an element pattern to a 64 bit value.
- *
- * @param pattern The element bits.
- * @param bits The element width.
- * @param is_signed True to sign extend.
- * @return The element value.
- */
 i64 Widen(u32 pattern, u32 bits, bool is_signed) {
   if (is_signed && (pattern >> (bits - 1)) != 0) {
     return static_cast<i64>(pattern) - (i64{1} << bits);
@@ -107,7 +84,6 @@ i64 Widen(u32 pattern, u32 bits, bool is_signed) {
   return static_cast<i64>(pattern);
 }
 
-/** The first case a sweep got wrong. */
 struct Mismatch {
   bool found = false;
   u32 x = 0;
@@ -116,14 +92,6 @@ struct Mismatch {
   size_t operand = 0;
 };
 
-/**
- * Runs a saturation check over every operand pair in every element position.
- *
- * @param check The function under test.
- * @param bits The element width.
- * @param is_signed True for the signed forms.
- * @param is_subtract True when the operation subtracts.
- */
 void CheckPairs(BinaryFunction check, u32 bits, bool is_signed, bool is_subtract) {
   const std::vector<u32> values = OperandValues(bits);
   const size_t elements = 128 / bits;
@@ -154,14 +122,6 @@ void CheckPairs(BinaryFunction check, u32 bits, bool is_signed, bool is_subtract
   REQUIRE_FALSE(mismatch.found);
 }
 
-/**
- * Runs a pack saturation check over source values in every element position of both operands.
- *
- * @param check The function under test.
- * @param bits The source element width.
- * @param is_signed_source True when the source elements are signed.
- * @param is_signed_dest True when the packed elements are signed.
- */
 void CheckPack(BinaryFunction check, u32 bits, bool is_signed_source, bool is_signed_dest) {
   std::vector<u32> values = OperandValues(bits);
   if (bits == 16) {

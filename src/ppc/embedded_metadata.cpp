@@ -1,12 +1,13 @@
-#include <rex/embedded_metadata.h>
-#include <rex/string/utf8.h>
+#include <rex/ppc/image.h>
+#include <rex/string/text.h>
+#include <rex/filesystem/path.h>
 
 #include <algorithm>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 
-namespace rex {
+namespace rex::ppc {
 namespace {
 
 struct RegisteredEmbeddedMetadataAsset {
@@ -16,7 +17,7 @@ struct RegisteredEmbeddedMetadataAsset {
 
 std::string NormalizeMetadataPath(const std::filesystem::path& relative_path) {
   const std::string forward_slash_path = relative_path.generic_string();
-  return std::string(utf8_strip_leading_slashes(forward_slash_path));
+  return std::string(rex::filesystem::utf8_strip_leading_slashes(forward_slash_path));
 }
 
 std::mutex& RegistryMutex() {
@@ -65,4 +66,4 @@ std::optional<EmbeddedMetadataAsset> FindEmbeddedMetadataAsset(
   };
 }
 
-}  // namespace rex
+}  // namespace rex::ppc

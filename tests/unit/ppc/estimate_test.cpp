@@ -16,19 +16,14 @@
 
 #include "rex_test.h"
 
-#include <rex/ppc/estimate.h>
+#include <rex/ppc/fpu.h>
 
 #include "estimate_cases.h"
 #include "estimate_nj0_cases.h"
 
 namespace {
 
-/**
- * Checks the lane results of a vector estimate. Special lanes expect the result of the IEEE mode.
- *
- * @tparam Estimate The vector estimate.
- * @param cases The operand and expected result of each lane.
- */
+/** Special lanes expect the result of the IEEE mode. */
 template <simde__m128 (*Estimate)(simde__m128)>
 void CheckVector(std::span<const EstimateCase32> cases) {
   for (size_t first = 0; first < cases.size(); first += 4) {
@@ -48,13 +43,7 @@ void CheckVector(std::span<const EstimateCase32> cases) {
   }
 }
 
-/**
- * Checks the lane results of a vector estimate when the 4 lanes of each vector come from unrelated
- * cases, so that every special and normal combination shares a vector.
- *
- * @tparam Estimate The vector estimate.
- * @param cases The operand and expected result of each lane.
- */
+/** Takes the four lanes of each vector from unrelated cases. */
 template <simde__m128 (*Estimate)(simde__m128)>
 void CheckMixed(std::span<const EstimateCase32> cases) {
   for (size_t first = 0; first < cases.size(); first += 4) {
@@ -75,22 +64,11 @@ void CheckMixed(std::span<const EstimateCase32> cases) {
   }
 }
 
-/**
- * Reports whether an operand takes the fast path of every vector estimate.
- *
- * @param in The operand bits.
- * @return True when the operand is positive with a magnitude from 2^-126 up to the vexptefp bound.
- */
+/** True for positive operands from 2^-126 up to the vexptefp bound, which take the fast path. */
 bool IsRegular(u32 in) {
   return in >= 0x00800000u && in <= 0x42FBFFFFu;
 }
 
-/**
- * Runs a vector estimate on 4 cases and checks each lane.
- *
- * @tparam Estimate The vector estimate.
- * @param picked The case of each lane.
- */
 template <simde__m128 (*Estimate)(simde__m128)>
 void CheckLanes(const EstimateCase32* const (&picked)[4]) {
   alignas(16) u32 in[4];
@@ -107,12 +85,6 @@ void CheckLanes(const EstimateCase32* const (&picked)[4]) {
   }
 }
 
-/**
- * Checks a vector estimate on vectors whose 4 lanes all take the fast path.
- *
- * @tparam Estimate The vector estimate.
- * @param cases The operand and expected result of each lane.
- */
 template <simde__m128 (*Estimate)(simde__m128)>
 void CheckRegular(std::span<const EstimateCase32> cases) {
   std::vector<const EstimateCase32*> regular;
@@ -130,12 +102,7 @@ void CheckRegular(std::span<const EstimateCase32> cases) {
   }
 }
 
-/**
- * Checks each case in each lane position of a vector whose other lanes take the fast path.
- *
- * @tparam Estimate The vector estimate.
- * @param cases The operand and expected result of each lane.
- */
+/** Puts each case in each lane position, the other lanes taking the fast path. */
 template <simde__m128 (*Estimate)(simde__m128)>
 void CheckEachLane(std::span<const EstimateCase32> cases) {
   const auto filler =
@@ -150,12 +117,6 @@ void CheckEachLane(std::span<const EstimateCase32> cases) {
   }
 }
 
-/**
- * Checks the results of a scalar estimate.
- *
- * @tparam Estimate The scalar estimate.
- * @param cases The operand and expected result bits.
- */
 template <f64 (*Estimate)(f64)>
 void CheckScalar(std::span<const EstimateCase64> cases) {
   for (const EstimateCase64& expected : cases) {

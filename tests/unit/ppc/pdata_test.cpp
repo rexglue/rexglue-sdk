@@ -10,7 +10,7 @@
 
 #include "rex_test.h"
 
-#include <rex/ppc/pdata.h>
+#include <rex/ppc/image.h>
 
 using rex::u32;
 using rex::ppc::DecodeRuntimeFunction;

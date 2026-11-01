@@ -8,8 +8,9 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/stack.h>
 
-void PushMappedPtr(rex::ppc::StackFrame& frame, rex::MappedPtr<u32> value) {
+void PushMappedPtr(rex::ppc::StackFrame& frame, rex::memory::MappedPtr<u32> value) {
   frame.Push(value);
 }

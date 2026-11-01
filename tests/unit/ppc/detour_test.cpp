@@ -14,23 +14,23 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
 #include "rex_test.h"
 
-#include <rex/api.h>
 #include <rex/logging/log.h>
 #include <rex/logging/logger.h>
-#include <rex/logging/sink.h>
-#include <rex/image_info.h>
-#include <rex/platform/exceptions.h>
+#include <rex/ppc/image.h>
+#include <rex/ppc/seh.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/detour.h>
-#include <rex/ppc/function.h>
+#include <rex/ppc/hook.h>
+#include <rex/ppc/call.h>
 #include <rex/ppc/stack.h>
-#include <rex/runtime/thread_state.h>
+#include <rex/kernel/thread_state.h>
 
+#include "base/app_harness.h"
 #include "crash_child_runner.h"
 
 namespace {
@@ -326,30 +326,27 @@ REX_TEST_CASE("A detour body that leaves a StackFrame open asserts in Debug",
 #endif
 
 REX_TEST_CASE("A detour ctx write to a register kept in a local warns once", "[ppc][detour]") {
-  rex::Shutdown();
-  auto api = rex::Init(rex::Config{});
-  REQUIRE(api);
-  auto* logger = api.value()->Get<rex::ILogger>();
-  REQUIRE(logger);
-  rex::log::CaptureSink sink;
-  logger->AddSink(sink);
-
-  const PPCContext at_entry = MakeContext();
-  PPCContext at_exit = at_entry;
-  at_exit.r20.u64 = 5;
-  rex::PPCCodegenFlags flags{};
-  flags.non_volatile_as_local = true;
-  std::atomic_flag warned;
-
-  const std::string first =
-      rex::ppc::detail::CheckDetourLocalWrites("DetourFn", flags, at_entry, at_exit, warned);
-  const std::string second =
-      rex::ppc::detail::CheckDetourLocalWrites("DetourFn", flags, at_entry, at_exit, warned);
-
+  std::string first;
+  std::string second;
   std::vector<rex::log::CapturedMessage> messages;
-  sink.CopySince(0, messages);
-  logger->RemoveSink(sink);
-  rex::Shutdown();
+  rex::test::RunInInit([&] {
+    rex::Logger& logger = REX_LOGGER();
+    rex::log::CaptureSink sink;
+    auto sink_guard = logger.AddSink(sink);
+
+    const PPCContext at_entry = MakeContext();
+    PPCContext at_exit = at_entry;
+    at_exit.r20.u64 = 5;
+    rex::ppc::PPCCodegenFlags flags{};
+    flags.non_volatile_as_local = true;
+    std::atomic_flag warned;
+
+    first = rex::ppc::detail::CheckDetourLocalWrites("DetourFn", flags, at_entry, at_exit, warned);
+    second = rex::ppc::detail::CheckDetourLocalWrites("DetourFn", flags, at_entry, at_exit, warned);
+
+    sink.CopySince(0, messages);
+    sink_guard.Reset();
+  });
   CHECK(first == "r20");
   CHECK(second == "r20");
   CHECK(std::ranges::count_if(messages, [](const rex::log::CapturedMessage& message) {
@@ -361,7 +358,7 @@ namespace {
 
 struct LocalWriteCase {
   void (*mutate)(PPCContext&);
-  bool rex::PPCCodegenFlags::* flag;
+  bool rex::ppc::PPCCodegenFlags::* flag;
   const char* expected;
 };
 
@@ -369,30 +366,32 @@ struct LocalWriteCase {
 
 REX_TEST_CASE("The detour register check follows the codegen flags", "[ppc][detour]") {
   const LocalWriteCase cases[] = {
-      {[](PPCContext& ctx) { ctx.r20.u64 = 1; }, &rex::PPCCodegenFlags::non_volatile_as_local,
+      {[](PPCContext& ctx) { ctx.r20.u64 = 1; }, &rex::ppc::PPCCodegenFlags::non_volatile_as_local,
        "r20"},
-      {[](PPCContext& ctx) { ctx.r31.u64 = 1; }, &rex::PPCCodegenFlags::non_volatile_as_local,
+      {[](PPCContext& ctx) { ctx.r31.u64 = 1; }, &rex::ppc::PPCCodegenFlags::non_volatile_as_local,
        "r31"},
-      {[](PPCContext& ctx) { ctx.f14.u64 = 1; }, &rex::PPCCodegenFlags::non_volatile_as_local,
+      {[](PPCContext& ctx) { ctx.f14.u64 = 1; }, &rex::ppc::PPCCodegenFlags::non_volatile_as_local,
        "f14"},
-      {[](PPCContext& ctx) { ctx.v14.u8[3] = 1; }, &rex::PPCCodegenFlags::non_volatile_as_local,
-       "v14"},
-      {[](PPCContext& ctx) { ctx.v127.u8[15] = 1; }, &rex::PPCCodegenFlags::non_volatile_as_local,
-       "v127"},
-      {[](PPCContext& ctx) { ctx.r0.u64 = 1; }, &rex::PPCCodegenFlags::non_argument_as_local, "r0"},
-      {[](PPCContext& ctx) { ctx.r11.u64 = 1; }, &rex::PPCCodegenFlags::non_argument_as_local,
+      {[](PPCContext& ctx) { ctx.v14.u8[3] = 1; },
+       &rex::ppc::PPCCodegenFlags::non_volatile_as_local, "v14"},
+      {[](PPCContext& ctx) { ctx.v127.u8[15] = 1; },
+       &rex::ppc::PPCCodegenFlags::non_volatile_as_local, "v127"},
+      {[](PPCContext& ctx) { ctx.r0.u64 = 1; }, &rex::ppc::PPCCodegenFlags::non_argument_as_local,
+       "r0"},
+      {[](PPCContext& ctx) { ctx.r11.u64 = 1; }, &rex::ppc::PPCCodegenFlags::non_argument_as_local,
        "r11"},
-      {[](PPCContext& ctx) { ctx.r12.u64 = 1; }, &rex::PPCCodegenFlags::non_argument_as_local,
+      {[](PPCContext& ctx) { ctx.r12.u64 = 1; }, &rex::ppc::PPCCodegenFlags::non_argument_as_local,
        "r12"},
-      {[](PPCContext& ctx) { ctx.f0.u64 = 1; }, &rex::PPCCodegenFlags::non_argument_as_local, "f0"},
-      {[](PPCContext& ctx) { ctx.v32.u8[0] = 1; }, &rex::PPCCodegenFlags::non_argument_as_local,
-       "v32"},
-      {[](PPCContext& ctx) { ctx.v63.u8[0] = 1; }, &rex::PPCCodegenFlags::non_argument_as_local,
-       "v63"},
-      {[](PPCContext& ctx) { ctx.cr3.lt = 1; }, &rex::PPCCodegenFlags::cr_as_local, "cr3"},
-      {[](PPCContext& ctx) { ctx.ctr.u64 = 9; }, &rex::PPCCodegenFlags::ctr_as_local, "ctr"},
-      {[](PPCContext& ctx) { ctx.xer.ca = 1; }, &rex::PPCCodegenFlags::xer_as_local, "xer"},
-      {[](PPCContext& ctx) { ctx.reserved.u64 = 9; }, &rex::PPCCodegenFlags::reserved_as_local,
+      {[](PPCContext& ctx) { ctx.f0.u64 = 1; }, &rex::ppc::PPCCodegenFlags::non_argument_as_local,
+       "f0"},
+      {[](PPCContext& ctx) { ctx.v32.u8[0] = 1; },
+       &rex::ppc::PPCCodegenFlags::non_argument_as_local, "v32"},
+      {[](PPCContext& ctx) { ctx.v63.u8[0] = 1; },
+       &rex::ppc::PPCCodegenFlags::non_argument_as_local, "v63"},
+      {[](PPCContext& ctx) { ctx.cr3.lt = 1; }, &rex::ppc::PPCCodegenFlags::cr_as_local, "cr3"},
+      {[](PPCContext& ctx) { ctx.ctr.u64 = 9; }, &rex::ppc::PPCCodegenFlags::ctr_as_local, "ctr"},
+      {[](PPCContext& ctx) { ctx.xer.ca = 1; }, &rex::ppc::PPCCodegenFlags::xer_as_local, "xer"},
+      {[](PPCContext& ctx) { ctx.reserved.u64 = 9; }, &rex::ppc::PPCCodegenFlags::reserved_as_local,
        "reserved"},
   };
   const PPCContext at_entry = MakeContext();
@@ -403,11 +402,11 @@ REX_TEST_CASE("The detour register check follows the codegen flags", "[ppc][deto
     std::atomic_flag warned;
     warned.test_and_set();
 
-    rex::PPCCodegenFlags other{};
+    rex::ppc::PPCCodegenFlags other{};
     CHECK(rex::ppc::detail::CheckDetourLocalWrites("DetourFn", other, at_entry, at_exit, warned)
               .empty());
 
-    rex::PPCCodegenFlags flags{};
+    rex::ppc::PPCCodegenFlags flags{};
     flags.*test.flag = true;
     CHECK(rex::ppc::detail::CheckDetourLocalWrites("DetourFn", flags, at_entry, at_exit, warned) ==
           test.expected);
@@ -425,7 +424,7 @@ REX_TEST_CASE("The detour register check ignores lr and registers outside the fl
   at_exit.v1.u8[0] = 1;
   std::atomic_flag warned;
   warned.test_and_set();
-  rex::PPCCodegenFlags flags{};
+  rex::ppc::PPCCodegenFlags flags{};
   flags.non_volatile_as_local = true;
   flags.cr_as_local = true;
   flags.ctr_as_local = true;
@@ -460,23 +459,23 @@ REX_TEST_CASE("The detour covers the argument registers its parameters take", "[
 }
 
 REX_TEST_CASE("A detour declaring fewer arguments than the function reads warns", "[ppc][detour]") {
-  rex::Shutdown();
-  auto api = rex::Init(rex::Config{});
-  REQUIRE(api);
-  auto* logger = api.value()->Get<rex::ILogger>();
-  REQUIRE(logger);
-  rex::log::CaptureSink sink;
-  logger->AddSink(sink);
-
-  const rex::PPCCallUsage usage{0x82000100, 0x3, 0x1};
-  const bool covered = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x3, 0x1);
-  const bool short_gpr = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x1, 0x1);
-  const bool short_fpr = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x3, 0);
-
+  bool covered = true;
+  bool short_gpr = false;
+  bool short_fpr = false;
   std::vector<rex::log::CapturedMessage> messages;
-  sink.CopySince(0, messages);
-  logger->RemoveSink(sink);
-  rex::Shutdown();
+  rex::test::RunInInit([&] {
+    rex::Logger& logger = REX_LOGGER();
+    rex::log::CaptureSink sink;
+    auto sink_guard = logger.AddSink(sink);
+
+    const rex::ppc::PPCCallUsage usage{0x82000100, 0x3, 0x1};
+    covered = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x3, 0x1);
+    short_gpr = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x1, 0x1);
+    short_fpr = rex::ppc::detail::CheckDetourArguments("DetourFn", usage, 0x3, 0);
+
+    sink.CopySince(0, messages);
+    sink_guard.Reset();
+  });
   CHECK_FALSE(covered);
   CHECK(short_gpr);
   CHECK(short_fpr);
@@ -495,14 +494,65 @@ REX_TEST_CASE("A detour with no bound runtime skips the argument check", "[ppc][
 }
 
 REX_TEST_CASE("A thread state publishes itself in its register file", "[ppc][detour]") {
-  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  rex::kernel::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
 
   CHECK(state.GetContext()->thread_state == &state);
   CHECK(state.GetContext()->detour_frame == nullptr);
 }
 
+REX_TEST_CASE("A register file copy on a second thread sees the stop flag of its own thread state",
+              "[ppc][detour]") {
+  rex::kernel::ThreadState stopped(1, kStackTop, 0, nullptr, nullptr);
+  rex::kernel::ThreadState running(2, kStackTop, 0, nullptr, nullptr);
+  stopped.RequestStop();
+  PPCContext stopped_copy = *stopped.GetContext();
+  PPCContext running_copy = *running.GetContext();
+  stopped_copy.lr = kEntryLR;
+  running_copy.lr = kEntryLR;
+
+  bool stopped_threw = false;
+  bool running_threw = false;
+  std::thread worker([&] {
+    try {
+      DetourFnVoid(stopped_copy, g_mem);
+    } catch (const rex::ThreadStop&) {
+      stopped_threw = true;
+    }
+    try {
+      DetourFnVoid(running_copy, g_mem);
+    } catch (const rex::ThreadStop&) {
+      running_threw = true;
+    }
+  });
+  worker.join();
+
+  CHECK(stopped_copy.stop_requested == stopped.GetContext()->stop_requested);
+  CHECK(running_copy.stop_requested == running.GetContext()->stop_requested);
+  CHECK(stopped_copy.stop_requested != running_copy.stop_requested);
+  CHECK(stopped_threw);
+  CHECK_FALSE(running_threw);
+}
+
+REX_TEST_CASE("A register file restored from a saved copy keeps the stop flag", "[ppc][detour]") {
+  rex::kernel::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  PPCContext& ctx = *state.GetContext();
+  const PPCContext saved = ctx;
+  ctx.stop_requested = nullptr;
+  ctx = saved;
+
+  CHECK(ctx.stop_requested != nullptr);
+  state.RequestStop();
+  CHECK(ctx.stop_requested->load());
+}
+
+REX_TEST_CASE("A register file a host built has no stop flag", "[ppc][detour]") {
+  PPCContext ctx = MakeContext();
+
+  CHECK(ctx.stop_requested == nullptr);
+}
+
 REX_TEST_CASE("A detour on a stopped thread state throws before its body runs", "[ppc][detour]") {
-  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  rex::kernel::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
   state.RequestStop();
   PPCContext& ctx = *state.GetContext();
   ctx.lr = kEntryLR;
@@ -515,7 +565,7 @@ REX_TEST_CASE("A detour on a stopped thread state throws before its body runs", 
 }
 
 REX_TEST_CASE("A stop requested inside the body throws after the original ran", "[ppc][detour]") {
-  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  rex::kernel::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
   PPCContext& ctx = *state.GetContext();
   ctx.lr = kEntryLR;
 
@@ -526,7 +576,7 @@ REX_TEST_CASE("A stop requested inside the body throws after the original ran", 
 }
 
 REX_TEST_CASE("A hook thunk on a stopped thread state throws", "[ppc][detour]") {
-  rex::runtime::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
+  rex::kernel::ThreadState state(1, kStackTop, 0, nullptr, nullptr);
   state.RequestStop();
   g_hook_ran = false;
 

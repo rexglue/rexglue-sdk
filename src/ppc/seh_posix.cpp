@@ -1,5 +1,6 @@
 #include <rex/platform.h>
-#include <rex/platform/seh.h>
+#include <rex/platform/exception_handler.h>
+#include <rex/ppc/seh.h>
 
 static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only");
 
@@ -7,11 +8,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <array>
 #include <cstdlib>
 
-#include <rex/platform/exceptions.h>
 #include <rex/ppc/recompiled_code.h>
-
-#include "core/crash_report.h"
-#include "core/signal_context.h"
 
 namespace rex::platform {
 
@@ -49,13 +46,13 @@ int SEHFilter(u32 /*code*/, void* /*ep*/) {
 static void SignalHandler(int sig, siginfo_t* info, void* ucontext) {
   SEHScope* scope = g_seh_state.top;
   if (!scope || scope->host_depth != g_seh_state.host_depth ||
-      !IsRecompiledCode(detail::SignalPC(ucontext))) {
+      !rex::ppc::IsRecompiledCode(SignalPC(ucontext))) {
     if (struct sigaction* previous = PreviousAction(sig)) {
-      detail::ForwardSignal(*previous, sig, info, ucontext);
+      ForwardSignal(*previous, sig, info, ucontext);
       return;
     }
-    detail::ReportFatalSignal(sig, info, ucontext);
-    detail::DieWithDefaultDisposition(sig);
+    ReportFatalSignal(sig, info, ucontext);
+    DieWithDefaultDisposition(sig);
   }
 
   SEHException::Code code;
@@ -109,8 +106,8 @@ static void SignalHandler(int sig, siginfo_t* info, void* ucontext) {
     default:
       abort();
   }
-  detail::ReportFatalSignal(sig, nullptr, nullptr);
-  detail::DieWithDefaultDisposition(sig);
+  ReportFatalSignal(sig, nullptr, nullptr);
+  DieWithDefaultDisposition(sig);
 }
 
 void SEHInitialize() {

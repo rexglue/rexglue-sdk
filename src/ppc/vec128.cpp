@@ -15,9 +15,9 @@
 
 #include <format>
 
-#include <rex/vec128.h>
+#include <rex/ppc/vec128.h>
 
-namespace rex {
+namespace rex::ppc {
 
 std::string to_string(const Vec128& value) {
   return std::format("({}, {}, {}, {})", value.x, value.y, value.z, value.w);
@@ -29,4 +29,4 @@ std::ostream& operator<<(std::ostream& os, const Vec128& value) {
   return os;
 }
 
-}  // namespace rex
+}  // namespace rex::ppc

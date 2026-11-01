@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ppc/midasm_macro_test.cpp
- * @brief       Mid asm bodies declared in C++ and the checks on how they attach
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,6 +13,7 @@
 #include <cstddef>
 #include <type_traits>
 
+#include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/midasm.h>
 
@@ -36,7 +36,7 @@ REX_MIDASM_RETURN_IF(MidAsmTestSkipAll, (u32 count)) {
 }
 REX_MIDASM_AT(MidAsmTestSkipAll, 0x82000400, before, r3);
 
-REX_MIDASM_HOOK(MidAsmTestEveryKind,
+REX_MIDASM_HOOK(MidAsmTestEveryType,
                 (PPCContext & ctx, u32 a, u64 b, f64 c, PPCRegister& d, PPCVRegister e,
                  PPCVRegister& f, PPCCRRegister& g, PPCRegister& h, PPCXERRegister& i,
                  PPCFPSCRRegister& j, PPCRegister& k)) {
@@ -49,7 +49,7 @@ REX_MIDASM_HOOK(MidAsmTestEveryKind,
   j.csr = 0;
   k.u64 = 9;
 }
-REX_MIDASM_AT(MidAsmTestEveryKind, 0x82000480, after, ctx, r3, r4, f1, r5, v1, v2, cr6, ctr, xer,
+REX_MIDASM_AT(MidAsmTestEveryType, 0x82000480, after, ctx, r3, r4, f1, r5, v1, v2, cr6, ctr, xer,
               fpscr, reserved);
 
 REX_MIDASM_RETURN_IF(MidAsmTestNoRegisters, ()) {
@@ -62,7 +62,7 @@ struct MidAsmTestWidget {
 };
 
 REX_MIDASM_HOOK(MidAsmTestPointers, (MidAsmTestWidget * widget, const MidAsmTestWidget* other,
-                                     rex::MappedPtr<MidAsmTestWidget> mapped)) {
+                                     rex::memory::MappedPtr<MidAsmTestWidget> mapped)) {
   widget->value = other->value + mapped->value + mapped.GetGuestAddress();
 }
 REX_MIDASM_AT(MidAsmTestPointers, 0x82000700, before, r27, r28, r29);
@@ -96,7 +96,7 @@ REX_TEST_CASE("midasm: a body with no parameters and no registers is attached", 
   CHECK(MidAsmTestNoRegisters());
 }
 
-REX_TEST_CASE("midasm: a body takes every register kind", "[ppc][midasm]") {
+REX_TEST_CASE("midasm: a body takes every register type", "[ppc][midasm]") {
   PPCContext ctx{};
   PPCRegister d{};
   PPCRegister h{};
@@ -107,7 +107,7 @@ REX_TEST_CASE("midasm: a body takes every register kind", "[ppc][midasm]") {
   PPCCRRegister cr{};
   PPCXERRegister xer{};
   PPCFPSCRRegister fpscr{};
-  MidAsmTestEveryKind(ctx, 2, 3, 4.5, d, source, target, cr, h, xer, fpscr, k);
+  MidAsmTestEveryType(ctx, 2, 3, 4.5, d, source, target, cr, h, xer, fpscr, k);
   CHECK(ctx.r3.u64 == 5);
   CHECK(d.f64 == 4.5);
   CHECK(target.u8[3] == 5);
@@ -123,19 +123,19 @@ REX_TEST_CASE("midasm: a body inside a namespace links by its plain name", "[ppc
   CHECK(value.u64 == 42);
 }
 
-REX_TEST_CASE("midasm: the descriptor of a body holds its kind and parameters", "[ppc][midasm]") {
-  STATIC_REQUIRE(MidAsmTestScale_rex_midasm.kind == detail::MidAsmKind::kHook);
+REX_TEST_CASE("midasm: the descriptor of a body holds its type and parameters", "[ppc][midasm]") {
+  STATIC_REQUIRE(MidAsmTestScale_rex_midasm.type == detail::MidAsmType::kHook);
   STATIC_REQUIRE(MidAsmTestScale_rex_midasm.count == 1);
   STATIC_REQUIRE(MidAsmTestScale_rex_midasm.params[0] == detail::MidAsmParam::kRegister);
-  STATIC_REQUIRE(MidAsmTestSkip_rex_midasm.kind == detail::MidAsmKind::kBranch);
+  STATIC_REQUIRE(MidAsmTestSkip_rex_midasm.type == detail::MidAsmType::kBranch);
   STATIC_REQUIRE(MidAsmTestSkip_rex_midasm.count == 2);
   STATIC_REQUIRE(MidAsmTestSkip_rex_midasm.params[0] == detail::MidAsmParam::kU32);
   STATIC_REQUIRE(MidAsmTestSkip_rex_midasm.params[1] == detail::MidAsmParam::kU64);
-  STATIC_REQUIRE(MidAsmTestSkipAll_rex_midasm.kind == detail::MidAsmKind::kReturnIf);
-  STATIC_REQUIRE(MidAsmTestEveryKind_rex_midasm.count == 12);
-  STATIC_REQUIRE(MidAsmTestEveryKind_rex_midasm.params[0] == detail::MidAsmParam::kContext);
-  STATIC_REQUIRE(MidAsmTestEveryKind_rex_midasm.params[5] == detail::MidAsmParam::kVector);
-  STATIC_REQUIRE(MidAsmTestEveryKind_rex_midasm.params[6] == detail::MidAsmParam::kVectorRef);
+  STATIC_REQUIRE(MidAsmTestSkipAll_rex_midasm.type == detail::MidAsmType::kReturnIf);
+  STATIC_REQUIRE(MidAsmTestEveryType_rex_midasm.count == 12);
+  STATIC_REQUIRE(MidAsmTestEveryType_rex_midasm.params[0] == detail::MidAsmParam::kContext);
+  STATIC_REQUIRE(MidAsmTestEveryType_rex_midasm.params[5] == detail::MidAsmParam::kVector);
+  STATIC_REQUIRE(MidAsmTestEveryType_rex_midasm.params[6] == detail::MidAsmParam::kVectorRef);
 }
 
 REX_TEST_CASE("midasm: a parameter type no register fills is invalid", "[ppc][midasm]") {
@@ -159,36 +159,36 @@ REX_TEST_CASE("midasm: the register parser accepts exactly the registers the con
   STATIC_REQUIRE(std::is_object_v<decltype(PPCContext::fpscr)>);
   STATIC_REQUIRE(std::is_object_v<decltype(PPCContext::reserved)>);
 
-  using Kind = detail::MidAsmRegisterKind;
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("r0") == Kind::kGPR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("r31") == Kind::kGPR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("r32") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("r1") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("r01") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("f0") == Kind::kFPR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("f31") == Kind::kFPR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("f32") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("v0") == Kind::kVR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("v127") == Kind::kVR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("v128") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("cr0") == Kind::kCR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("cr7") == Kind::kCR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("cr8") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("ctr") == Kind::kCTR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("xer") == Kind::kXER);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("fpscr") == Kind::kFPSCR);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("reserved") == Kind::kReserved);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("ctx") == Kind::kContext);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("lr") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("R3") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("r") == Kind::kInvalid);
-  STATIC_REQUIRE(detail::ParseMidAsmRegister("r3x") == Kind::kInvalid);
+  using Type = detail::MidAsmRegisterType;
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("r0") == Type::kGPR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("r31") == Type::kGPR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("r32") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("r1") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("r01") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("f0") == Type::kFPR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("f31") == Type::kFPR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("f32") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("v0") == Type::kVR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("v127") == Type::kVR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("v128") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("cr0") == Type::kCR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("cr7") == Type::kCR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("cr8") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("ctr") == Type::kCTR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("xer") == Type::kXER);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("fpscr") == Type::kFPSCR);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("reserved") == Type::kReserved);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("ctx") == Type::kContext);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("lr") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("R3") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("r") == Type::kInvalid);
+  STATIC_REQUIRE(detail::ParseMidAsmRegister("r3x") == Type::kInvalid);
 }
 
-REX_TEST_CASE("midasm: the stringified inputs of every register kind are checked",
+REX_TEST_CASE("midasm: the stringified inputs of every register type are checked",
               "[ppc][midasm]") {
-  constexpr auto& kEvery = MidAsmTestEveryKind_rex_midasm;
+  constexpr auto& kEvery = MidAsmTestEveryType_rex_midasm;
   using Result = detail::MidAsmAtResult;
   STATIC_REQUIRE(detail::CheckMidAsmAt(kEvery, "after",
                                        "ctx, r3, r4, f1, r5, v1, v2, cr6, ctr, xer, fpscr, "
@@ -198,13 +198,13 @@ REX_TEST_CASE("midasm: the stringified inputs of every register kind are checked
                                        "reserved") == Result::kOk);
   STATIC_REQUIRE(detail::CheckMidAsmAt(kEvery, "after",
                                        "r3, r3, r4, f1, r5, v1, v2, cr6, ctr, xer, fpscr, "
-                                       "reserved") == Result::kKindMismatch);
+                                       "reserved") == Result::kTypeMismatch);
   STATIC_REQUIRE(detail::CheckMidAsmAt(kEvery, "after",
                                        "ctx, r3, r4, f1, r5, v1, v2, cr6, ctr, xer, fpscr, "
                                        "ctr") == Result::kOk);
   STATIC_REQUIRE(detail::CheckMidAsmAt(kEvery, "after",
                                        "ctx, r3, r4, f1, r5, v1, v2, cr6, ctr, fpscr, xer, "
-                                       "reserved") == Result::kKindMismatch);
+                                       "reserved") == Result::kTypeMismatch);
 }
 
 REX_TEST_CASE("midasm: an argument list parses with any spacing", "[ppc][midasm]") {
@@ -237,20 +237,21 @@ REX_TEST_CASE("midasm: an attachment that does not fit its body is reported", "[
   STATIC_REQUIRE(detail::CheckMidAsmAt(kScale, "after", "f10, f11") == Result::kCountMismatch);
   STATIC_REQUIRE(detail::CheckMidAsmAt(kScale, "after", "") == Result::kCountMismatch);
   STATIC_REQUIRE(detail::CheckMidAsmAt(kSkip, "before", "0x8200030C, r5, f1") ==
-                 Result::kKindMismatch);
-  STATIC_REQUIRE(detail::CheckMidAsmAt(kScale, "after", "v1") == Result::kKindMismatch);
+                 Result::kTypeMismatch);
+  STATIC_REQUIRE(detail::CheckMidAsmAt(kScale, "after", "v1") == Result::kTypeMismatch);
 }
 
 REX_TEST_CASE("midasm: a body takes pointers and mapped pointers", "[ppc][midasm]") {
   MidAsmTestWidget widget{1};
   MidAsmTestWidget other{10};
   MidAsmTestWidget third{100};
-  MidAsmTestPointers(&widget, &other, rex::MappedPtr<u8>(reinterpret_cast<u8*>(&third), 1000));
+  MidAsmTestPointers(&widget, &other,
+                     rex::memory::MappedPtr<u8>(reinterpret_cast<u8*>(&third), 1000));
   CHECK(widget.value == 10 + 100 + 1000);
-  MidAsmTestPointers_rex_body(&widget, &other, rex::MappedPtr<MidAsmTestWidget>(&third, 7));
+  MidAsmTestPointers_rex_body(&widget, &other, rex::memory::MappedPtr<MidAsmTestWidget>(&third, 7));
   CHECK(widget.value == 10 + 100 + 7);
-  STATIC_REQUIRE(
-      std::is_same_v<decltype(&MidAsmTestPointers), void (*)(void*, void*, rex::MappedPtr<u8>)>);
+  STATIC_REQUIRE(std::is_same_v<decltype(&MidAsmTestPointers),
+                                void (*)(void*, void*, rex::memory::MappedPtr<u8>)>);
   STATIC_REQUIRE(MidAsmTestPointers_rex_midasm.count == 3);
   STATIC_REQUIRE(MidAsmTestPointers_rex_midasm.params[0] == detail::MidAsmParam::kPointer);
   STATIC_REQUIRE(MidAsmTestPointers_rex_midasm.params[1] == detail::MidAsmParam::kPointer);
@@ -260,13 +261,13 @@ REX_TEST_CASE("midasm: a body takes pointers and mapped pointers", "[ppc][midasm
 REX_TEST_CASE("midasm: only integer registers fill a pointer", "[ppc][midasm]") {
   using detail::IsMidAsmRegisterFit;
   using detail::MidAsmParam;
-  using detail::MidAsmRegisterKind;
+  using detail::MidAsmRegisterType;
   for (const MidAsmParam param : {MidAsmParam::kPointer, MidAsmParam::kMappedPointer}) {
-    CHECK(IsMidAsmRegisterFit(MidAsmRegisterKind::kGPR, param));
-    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterKind::kFPR, param));
-    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterKind::kVR, param));
-    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterKind::kCTR, param));
-    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterKind::kContext, param));
+    CHECK(IsMidAsmRegisterFit(MidAsmRegisterType::kGPR, param));
+    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterType::kFPR, param));
+    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterType::kVR, param));
+    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterType::kCTR, param));
+    CHECK_FALSE(IsMidAsmRegisterFit(MidAsmRegisterType::kContext, param));
   }
 }
 
@@ -275,10 +276,10 @@ REX_TEST_CASE("midasm: pointer parameter types are classified", "[ppc][midasm]")
   STATIC_REQUIRE(detail::ClassifyMidAsmParam<const u8*>() == detail::MidAsmParam::kPointer);
   STATIC_REQUIRE(detail::ClassifyMidAsmParam<void*>() == detail::MidAsmParam::kPointer);
   STATIC_REQUIRE(detail::ClassifyMidAsmParam<u32**>() == detail::MidAsmParam::kPointer);
-  STATIC_REQUIRE(detail::ClassifyMidAsmParam<rex::MappedPtr<u32>>() ==
+  STATIC_REQUIRE(detail::ClassifyMidAsmParam<rex::memory::MappedPtr<u32>>() ==
                  detail::MidAsmParam::kMappedPointer);
   STATIC_REQUIRE(detail::ClassifyMidAsmParam<void (*)()>() == detail::MidAsmParam::kInvalid);
   STATIC_REQUIRE(detail::ClassifyMidAsmParam<u32*&>() == detail::MidAsmParam::kInvalid);
-  STATIC_REQUIRE(detail::ClassifyMidAsmParam<const rex::MappedPtr<u32>&>() ==
+  STATIC_REQUIRE(detail::ClassifyMidAsmParam<const rex::memory::MappedPtr<u32>&>() ==
                  detail::MidAsmParam::kInvalid);
 }

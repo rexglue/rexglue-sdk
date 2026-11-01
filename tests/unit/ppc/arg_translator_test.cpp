@@ -13,8 +13,9 @@
 
 #include "rex_test.h"
 
+#include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
+#include <rex/ppc/call.h>
 
 using namespace rex::ppc;
 
@@ -158,11 +159,12 @@ REX_TEST_CASE("A register value converts to a mapped pointer with its guest addr
   for (const u32 guest : {0x00010000u, 0xDFFFFFFCu, 0xE0000000u, 0xE0000010u}) {
     INFO(guest);
     const auto mapped =
-        ArgTranslator::GetMappedPointerValue<rex::MappedPtr<u32>>(guest, g_test_memory);
+        ArgTranslator::GetMappedPointerValue<rex::memory::MappedPtr<u32>>(guest, g_test_memory);
     CHECK(mapped.GetGuestAddress() == guest);
     CHECK(mapped.GetHostPtr() == AtGuest(guest));
   }
-  const auto null = ArgTranslator::GetMappedPointerValue<rex::MappedPtr<u32>>(0, g_test_memory);
+  const auto null =
+      ArgTranslator::GetMappedPointerValue<rex::memory::MappedPtr<u32>>(0, g_test_memory);
   CHECK(null.GetGuestAddress() == 0);
   CHECK(null.GetHostPtr() == nullptr);
 }

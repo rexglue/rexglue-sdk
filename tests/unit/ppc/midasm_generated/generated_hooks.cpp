@@ -10,7 +10,14 @@
 
 #include <cstdio>
 
-#include <rex/ppc.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/ppc/hook.h>
+#include <rex/ppc/call.h>
+#include <rex/ppc/context.h>
+#include <rex/ppc/fpu.h>
+#include <rex/ppc/stack.h>
+#include <rex/ppc/vmx.h>
+#include <rex/types.h>
 #include <rex/ppc/midasm.h>
 
 struct GeneratedWidget {
@@ -24,7 +31,7 @@ REX_MIDASM_HOOK(GeneratedPlain, (u32 size, PPCRegister& held)) {
 }
 
 REX_MIDASM_HOOK(GeneratedPointers,
-                (GeneratedWidget * widget, rex::MappedPtr<GeneratedWidget> mapped)) {
+                (GeneratedWidget * widget, rex::memory::MappedPtr<GeneratedWidget> mapped)) {
   widget->value = mapped->value;
 }
 

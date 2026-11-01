@@ -12,7 +12,7 @@
 
 #include <rex/types.h>
 
-/** The 2 multipliers, the addend and the expected result bits of 1 lane. */
+/** The two multipliers, the addend and the expected result bits of one lane. */
 struct MultiplyAddCase {
   u32 a;
   u32 b;

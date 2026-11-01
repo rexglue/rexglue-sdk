@@ -14,7 +14,7 @@
 
 #include "rex_test.h"
 
-#include <rex/ppc/multiply_add.h>
+#include <rex/ppc/fpu.h>
 
 #include "multiply_add_cases.h"
 #include "multiply_add_nj0_cases.h"
@@ -23,14 +23,7 @@ namespace {
 
 using MultiplyAddFunction = simde__m128 (*)(simde__m128, simde__m128, simde__m128);
 
-/**
- * Checks the lane results of a vector multiply add, with the cases of each vector taken from the
- * cases at the given stride.
- *
- * @tparam MultiplyAdd The vector multiply add.
- * @param cases The operands and expected result of each lane.
- * @param stride The distance between the cases that share a vector.
- */
+/** Takes the cases of each vector at the given stride. */
 template <MultiplyAddFunction MultiplyAdd>
 void CheckLanes(std::span<const MultiplyAddCase> cases, size_t stride) {
   for (size_t first = 0; first < cases.size(); ++first) {
@@ -58,12 +51,7 @@ void CheckLanes(std::span<const MultiplyAddCase> cases, size_t stride) {
   }
 }
 
-/**
- * Advances a splitmix64 state.
- *
- * @param state The state.
- * @return The next 64 random bits.
- */
+/** Returns the next splitmix64 output. */
 u64 Next(u64& state) {
   u64 z = (state += 0x9E3779B97F4A7C15ull);
   z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
@@ -71,28 +59,12 @@ u64 Next(u64& state) {
   return z ^ (z >> 31);
 }
 
-/**
- * Builds an f32 bit pattern from a random draw and a chosen biased exponent.
- *
- * @param draw The random bits for the sign and the mantissa.
- * @param exponent The biased exponent, 0 through 255.
- * @return The bit pattern.
- */
+/** Builds an f32 from a random draw and a biased exponent of 0 through 255. */
 u32 Compose(u64 draw, u32 exponent) {
   return (static_cast<u32>(draw >> 40) & 0x80000000u) | (exponent << 23) |
          (static_cast<u32>(draw) & 0x7FFFFFu);
 }
 
-/**
- * Compares the fast multiply add to the full one over one vector.
- *
- * @tparam Negate True for the negated subtract form.
- * @param a The first multiplier words.
- * @param b The second multiplier words.
- * @param c The addend words.
- * @param flush The VSCR NJ state.
- * @return True when all 4 lanes are bit equal.
- */
 template <bool Negate>
 bool SameAsFull(const std::array<u32, 4>& a, const std::array<u32, 4>& b,
                 const std::array<u32, 4>& c, bool flush) {
@@ -111,13 +83,7 @@ bool SameAsFull(const std::array<u32, 4>& a, const std::array<u32, 4>& b,
   return fast == full;
 }
 
-/**
- * Checks the fast multiply add against the full one over random operands whose exponents sit
- * around the boundaries of the exact range.
- *
- * @tparam Negate True for the negated subtract form.
- * @param flush The VSCR NJ state.
- */
+/** Uses random operands where the addend exponent is near the product exponent. */
 template <bool Negate>
 void CheckAgainstFull(bool flush) {
   u64 state = 0x1234ABCDull + (Negate ? 1 : 0) + (flush ? 2 : 0);
@@ -155,13 +121,7 @@ void CheckAgainstFull(bool flush) {
   }
 }
 
-/**
- * Checks the fast multiply add against the full one over operands whose product, sum or result sits
- * at the smallest normal or below it, with mantissas that often make the product land exactly on a
- * boundary.
- *
- * @tparam Negate True for the negated subtract form.
- */
+/** Uses operands at or below the smallest normal. */
 template <bool Negate>
 void CheckTinyAgainstFull() {
   u64 state = 0x7157AB1Eull + (Negate ? 1 : 0);
@@ -212,10 +172,9 @@ void CheckTinyAgainstFull() {
   }
 }
 
-/** Host flush to zero and denormals are zero bits of the x86 control word. */
+/** The x86 control word bits for flush to zero and denormals are zero. */
 constexpr unsigned int kHostFlushBits = 0x8040;
 
-/** Sets the host control word flush bits for its lifetime. */
 class HostFlushScope {
  public:
   explicit HostFlushScope(bool on) : saved_(simde_mm_getcsr()) {

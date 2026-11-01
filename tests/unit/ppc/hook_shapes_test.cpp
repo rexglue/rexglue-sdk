@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/ppc/hook_shapes_test.cpp
- * @brief       The argument shapes the existing hooks use keep their placement
+ * @brief       Argument register and stack placement
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,7 +11,7 @@
 
 #include "rex_test.h"
 
-#include <rex/ppc/function.h>
+#include <rex/ppc/call.h>
 #include <rex/types.h>
 
 using namespace rex::ppc;

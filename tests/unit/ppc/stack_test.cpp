@@ -15,15 +15,17 @@
 
 #include "rex_test.h"
 
+#include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
+#include <rex/ppc/call.h>
 #include <rex/ppc/stack.h>
-#include <rex/runtime.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/heap.h>
 
 #include "../kernel/kernel_fixture.h"
 #include "crash_child_runner.h"
+#include "kernel/title_state.h"
 
 namespace {
 
@@ -179,8 +181,8 @@ REX_TEST_CASE("Pushes get distinct addresses", "[ppc][stack]") {
   auto second = frame.PushString("second");
 
   CHECK(first.GetGuestAddress() != second.GetGuestAddress());
-  CHECK(std::strcmp(first.GetHostAddress(), "first") == 0);
-  CHECK(std::strcmp(second.GetHostAddress(), "second") == 0);
+  CHECK(std::strcmp(first.GetHostPtr(), "first") == 0);
+  CHECK(std::strcmp(second.GetHostPtr(), "second") == 0);
 }
 
 REX_TEST_CASE("Nested frames restore in order", "[ppc][stack]") {
@@ -240,16 +242,15 @@ REX_TEST_CASE("A MappedPtr import argument passes the guest address", "[ppc][sta
 
 REX_TEST_CASE("A default StackFrame binds the context of the calling thread", "[ppc][stack]") {
   rex::test::KernelFixture fixture;
-  rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
-  rex::runtime::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
+  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
   u32 block = 0;
   REQUIRE(heap->Alloc(
-      0x2000, 0x1000,
-      rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
-      rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &block));
-  rex::runtime::ThreadState state(0, block + 0x2000, 0, &memory, &fixture.GetRuntime());
-  rex::runtime::ThreadState* previous = rex::runtime::ThreadState::Get();
-  rex::runtime::ThreadState::Bind(&state);
+      0x2000, 0x1000, rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+      rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite, false, &block));
+  rex::kernel::ThreadState state(0, block + 0x2000, 0, &memory, &fixture.GetRuntime());
+  rex::kernel::ThreadState* previous = rex::kernel::ThreadState::Get();
+  rex::kernel::ThreadState::Bind(&state);
 
   {
     rex::ppc::StackFrame frame;
@@ -260,20 +261,19 @@ REX_TEST_CASE("A default StackFrame binds the context of the calling thread", "[
   }
 
   CHECK(state.GetContext()->r1.u32 == block + 0x2000);
-  rex::runtime::ThreadState::Bind(previous);
+  rex::kernel::ThreadState::Bind(previous);
   CHECK(heap->Release(block));
 }
 
 REX_TEST_CASE("StackFrame pushes and the PCR read reach the 0xE0 heap through its page offset",
               "[ppc][stack]") {
   rex::test::KernelFixture fixture;
-  rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
-  rex::runtime::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
+  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
   u32 block = 0;
   REQUIRE(heap->Alloc(
-      0x2000, 0x1000,
-      rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
-      rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &block));
+      0x2000, 0x1000, rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+      rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite, false, &block));
   REQUIRE(block >= 0xE0000000);
   u8* base = memory.GetVirtualMembase();
 

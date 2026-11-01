@@ -14,7 +14,7 @@
 
 #include <rex/types.h>
 
-/** The 4 vector elements of both operands and the expected result bits of a dot product. */
+/** The four vector elements of both operands and the expected result bits of a dot product. */
 struct DotProductCase {
   std::array<u32, 4> a;
   std::array<u32, 4> b;

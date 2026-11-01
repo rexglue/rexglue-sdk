@@ -14,7 +14,7 @@
 
 #include <rex/types.h>
 
-/** Operands and results of 4 estimate lanes with VSCR NJ clear, in element order. */
+/** Operands and results of four estimate lanes with VSCR NJ clear, in element order. */
 struct EstimateNJ0Case {
   u32 family;
   std::array<u32, 4> in;

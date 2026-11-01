@@ -14,7 +14,7 @@
 
 #include <rex/types.h>
 
-/** Operands and results of 4 vector lanes with VSCR NJ clear, in element order. */
+/** Operands and results of four vector lanes with VSCR NJ clear, in element order. */
 struct MultiplyAddNJ0Case {
   bool negate;
   std::array<u32, 4> a;

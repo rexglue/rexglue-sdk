@@ -1,6 +1,6 @@
 /**
- * @file        ppc/detour.h
- * @brief       Typed hooks that wrap a recompiled function and run its original
+ * @file        ppc/hook.h
+ * @brief       Hook macros and typed hooks that wrap a recompiled function
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,95 +12,233 @@
 #pragma once
 
 #include <atomic>
-#include <cstddef>
-#include <string>
+#include <cstring>
+#include <format>
 #include <tuple>
 #include <type_traits>
+#include <cstddef>
+#include <string>
 #include <utility>
 
-#include <rex/assert.h>
-#include <rex/export.h>
-#include <rex/hook.h>
-#include <rex/image_info.h>
+#include <rex/memory/mapped_ptr.h>
 #include <rex/platform.h>
+#include <rex/logging/log.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
-#include <rex/runtime/thread_state.h>
+#include <rex/ppc/recompiled_code.h>
+#include <rex/ppc/call.h>
 #include <rex/types.h>
+#include <rex/assert.h>
+#include <rex/ppc/image.h>
+#include <rex/utility.h>
+
+/**
+ * Hooks a recompiled function with a native C++ function that takes plain types.
+ *
+ * @param subroutine The recompiled function symbol.
+ * @param function The native function the hook calls.
+ *
+ * @code
+ * REX_HOOK(ExampleFunction, ExampleHook);
+ * @endcode
+ */
+#ifdef REXGLUE_ENABLE_PROFILING
+#include <tracy/Tracy.hpp>
+#define REX_HOOK(subroutine, function)                           \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {      \
+    ZoneNamedN(___tracy_hook_zone, #subroutine, TracyIsStarted); \
+    rex::ppc::GuestToHostThunk<function>(ctx, base);             \
+  }
+#else
+#define REX_HOOK(subroutine, function)                      \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) { \
+    rex::ppc::GuestToHostThunk<function>(ctx, base);        \
+  }
+#endif
+
+/**
+ * Defines a raw hook with access to ctx and base.
+ *
+ * @param name The recompiled function symbol.
+ *
+ * @code
+ * REX_HOOK_RAW(ExampleFunction) {
+ *   ctx.r3.u64 = 0;
+ * }
+ * @endcode
+ */
+#define REX_HOOK_RAW(name) extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(name)
+
+/**
+ * Defines a stub that logs a warning on the first call and at Dev level on later calls.
+ *
+ * @param subroutine The recompiled function symbol.
+ *
+ * @code
+ * REX_STUB(ExampleFunction);
+ * @endcode
+ */
+#define REX_STUB(subroutine)                                                         \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                          \
+    static constinit ::std::atomic_flag rex_stub_seen_;                              \
+    ::rex::log::detail::WriteStub(::rex::log::cpu, rex_stub_seen_, #subroutine, {}); \
+  }
+
+/**
+ * Defines a stub that logs a message on the first call and at Dev level on later calls.
+ *
+ * @param subroutine The recompiled function symbol.
+ * @param msg The message logged with the stub.
+ *
+ * @code
+ * REX_STUB_LOG(ExampleFunction, "skips the save");
+ * @endcode
+ */
+#define REX_STUB_LOG(subroutine, msg)                                                 \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                           \
+    static constinit ::std::atomic_flag rex_stub_seen_;                               \
+    ::rex::log::detail::WriteStub(::rex::log::cpu, rex_stub_seen_, #subroutine, msg); \
+  }
+
+/**
+ * Defines a stub that returns a fixed value in r3 and logs it like REX_STUB.
+ *
+ * @param subroutine The recompiled function symbol.
+ * @param value The value returned in r3.
+ *
+ * @code
+ * REX_STUB_RETURN(ExampleFunction, 0);
+ * @endcode
+ */
+#define REX_STUB_RETURN(subroutine, value)                                 \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                \
+    static constinit ::std::atomic_flag rex_stub_seen_;                    \
+    ::rex::log::detail::WriteStub(                                         \
+        ::rex::log::cpu, rex_stub_seen_, #subroutine,                      \
+        ::std::format("returning {:#x}", static_cast<::rex::u32>(value))); \
+    ctx.r3.u64 = (value);                                                  \
+  }
+
+/**
+ * Defines a hook whose symbol a kernel export table links against.
+ *
+ * @param name The hook symbol.
+ * @param function The host function the hook wraps.
+ *
+ * @code
+ * REX_EXPORT(__imp__CloseHandle, rex::xam::CloseHandle_shim)
+ * @endcode
+ */
+#define REX_EXPORT(name, function) REX_HOOK(name, function)
+
+/**
+ * Defines a stub whose symbol a kernel export table links against.
+ *
+ * @param name The hook symbol.
+ *
+ * @code
+ * REX_EXPORT_STUB(__imp__AniBlockOnAnimation);
+ * @endcode
+ */
+#define REX_EXPORT_STUB(name) REX_STUB(name)
+
+/**
+ * Defines a stub that returns a fixed value and whose symbol a kernel export table links against.
+ *
+ * @param name The hook symbol.
+ * @param value The value returned in r3.
+ *
+ * @code
+ * REX_EXPORT_STUB_RETURN(__imp__DmRegisterCommandProcessorEx, 0);
+ * @endcode
+ */
+#define REX_EXPORT_STUB_RETURN(name, value) REX_STUB_RETURN(name, value)
+
+/**
+ * Declares a typed callable import of a recompiled function, with internal linkage so it cannot
+ * collide with the generated weak alias on ELF.
+ *
+ * @param symbol The exact linker symbol to reference.
+ * @param callable The name of the typed callable variable.
+ * @param sig The function signature, such as u32(u32, u32).
+ *
+ * @code
+ * REX_IMPORT(ExampleFunction, example_function, u32(u32, u32));
+ * @endcode
+ */
+// NOLINTBEGIN(bugprone-macro-parentheses): callable is a declared name
+#define REX_IMPORT(symbol, callable, sig)                          \
+  REX_EXTERN(symbol);                                              \
+  [[maybe_unused]] static rex::ppc::ImportFunction<sig> callable { \
+    symbol                                                         \
+  }
+// NOLINTEND(bugprone-macro-parentheses)
 
 namespace rex::ppc {
 
 namespace detail {
 
-/** The state of 1 running detour, linked to the detour it interrupted on the same thread. */
+/** The state of one running detour, linked to the detour it interrupted on the same thread. */
 struct DetourFrame {
-  PPCContext* ctx;       /**< The register file the detour runs on. */
-  u8* base;              /**< The guest memory base. */
-  u32 entry_r1;          /**< The stack pointer at entry. */
-  u64 entry_lr;          /**< The link register at entry. */
+  PPCContext* ctx;
+  u8* base;
+  u32 entry_r1;
+  u64 entry_lr;
   bool ran_original;     /**< Set once the body has run the original. */
   DetourFrame* previous; /**< The detour this one interrupted, null for the outermost. */
 };
 
 /**
- * Returns the innermost running detour of the calling thread, shared by every module.
- *
- * @return The slot holding the innermost detour frame, null when no detour is running.
+ * Returns the innermost running detour of the calling thread, shared by every module, null when no
+ * detour is running.
  */
-REX_RUNTIME_API DetourFrame*& GetInnermostDetourFrame();
+REX_PPC_API DetourFrame*& GetInnermostDetourFrame();
 
 /**
- * Reports a register the image keeps in a local that a detour body changed through its context.
- * Warns once per flag.
+ * Reports the first register a detour body changed that the image keeps in a local. Warns once per
+ * flag.
  *
- * @param name The hooked function.
  * @param flags The codegen flags of the running image.
  * @param at_entry The context at detour entry.
  * @param at_exit The context at detour exit.
  * @param warned The flag that limits the warning to once.
  * @return The name of the first changed register, empty when none changed.
  */
-REX_RUNTIME_API std::string CheckDetourLocalWrites(const char* name, const PPCCodegenFlags& flags,
-                                                   const PPCContext& at_entry,
-                                                   const PPCContext& at_exit,
-                                                   std::atomic_flag& warned);
+REX_PPC_API std::string CheckDetourLocalWrites(const char* name, const PPCCodegenFlags& flags,
+                                               const PPCContext& at_entry,
+                                               const PPCContext& at_exit, std::atomic_flag& warned);
 
 /**
  * Runs CheckDetourLocalWrites with the codegen flags of the runtime bound to the calling thread.
  * Does nothing when no runtime is bound.
  *
- * @param name The hooked function.
  * @param at_entry The context at detour entry.
  * @param at_exit The context at detour exit.
  * @param warned The flag that limits the warning to once.
  */
-REX_RUNTIME_API void CheckBoundDetourLocalWrites(const char* name, const PPCContext& at_entry,
-                                                 const PPCContext& at_exit,
-                                                 std::atomic_flag& warned);
+REX_PPC_API void CheckBoundDetourLocalWrites(const char* name, const PPCContext& at_entry,
+                                             const PPCContext& at_exit, std::atomic_flag& warned);
 
 /**
  * Warns when a function reads an argument register that a detour did not declare.
  *
- * @param name The hooked function.
  * @param usage The argument registers the function reads at its entry.
  * @param declared_gpr The integer argument registers the detour declares, bit 0 is r3.
  * @param declared_fpr The float argument registers the detour declares, bit 0 is f1.
  * @return True when a register was missing and the warning was logged.
  */
-REX_RUNTIME_API bool CheckDetourArguments(const char* name, const PPCCallUsage& usage,
-                                          u8 declared_gpr, u16 declared_fpr);
+REX_PPC_API bool CheckDetourArguments(const char* name, const PPCCallUsage& usage, u8 declared_gpr,
+                                      u16 declared_fpr);
 
 /**
- * Runs CheckDetourArguments with the usage the runtime bound to the calling thread holds for the
- * hooked function. Does nothing when no runtime is bound or the image lists none.
+ * Runs CheckDetourArguments with the usage of the runtime bound to the calling thread. Does nothing
+ * when no runtime is bound or the image lists none.
  *
- * @param name The hooked function.
  * @param host The hook, as the image maps it.
  * @param declared_gpr The integer argument registers the detour declares, bit 0 is r3.
  * @param declared_fpr The float argument registers the detour declares, bit 0 is f1.
  */
-REX_RUNTIME_API void CheckBoundDetourArguments(const char* name, PPCFunc* host, u8 declared_gpr,
-                                               u16 declared_fpr);
+REX_PPC_API void CheckBoundDetourArguments(const char* name, PPCFunc* host, u8 declared_gpr,
+                                           u16 declared_fpr);
 
 /** The argument registers the parameters of a detour cover. */
 struct DeclaredArguments {
@@ -109,11 +247,8 @@ struct DeclaredArguments {
 };
 
 /**
- * Returns the argument registers the parameters of a detour cover. A float also covers the
+ * Returns the argument registers the parameters of a detour cover. A float covers the
  * integer register of its slot.
- *
- * @tparam Guest The signature the original has.
- * @return The registers covered.
  */
 template <typename Guest>
 constexpr DeclaredArguments GetDeclaredArguments() {
@@ -130,50 +265,31 @@ constexpr DeclaredArguments GetDeclaredArguments() {
   return declared;
 }
 
-/**
- * Splits the signature of a detour body into its guest signature and its context parameter.
- *
- * @tparam F The body function pointer type.
- */
+/** Splits the signature of a detour body into its guest signature and its context parameter. */
 template <typename F>
 struct DetourBody;
 
-/**
- * A body without a context parameter.
- *
- * @tparam R The return type.
- * @tparam A The parameter types.
- */
+/** A body without a context parameter. */
 template <typename R, typename... A>
 struct DetourBody<R (*)(A...)> {
-  static constexpr bool kContext = false; /**< True when the body takes the context. */
-  using Result = R;                       /**< The return type. */
-  using Guest = R(A...);                  /**< The signature the original has. */
-  using Args = std::tuple<A...>;          /**< The parameters the registers are read into. */
+  static constexpr bool kContext = false;
+  using Result = R;
+  using Guest = R(A...);         /**< The signature the original has. */
+  using Args = std::tuple<A...>; /**< The parameters the registers are read into. */
 };
 
-/**
- * A body whose first parameter is the context.
- *
- * @tparam R The return type.
- * @tparam A The parameter types after the context.
- */
+/** A body whose first parameter is the context. */
 template <typename R, typename... A>
 struct DetourBody<R (*)(PPCContext&, A...)> {
-  static constexpr bool kContext = true; /**< True when the body takes the context. */
-  using Result = R;                      /**< The return type. */
-  using Guest = R(A...);                 /**< The signature the original has. */
-  using Args = std::tuple<A...>;         /**< The parameters the registers are read into. */
+  static constexpr bool kContext = true;
+  using Result = R;
+  using Guest = R(A...);         /**< The signature the original has. */
+  using Args = std::tuple<A...>; /**< The parameters the registers are read into. */
 };
 
 /**
  * Runs the original on the context of the innermost detour.
  *
- * @tparam R The return type.
- * @tparam Args The argument types.
- * @param frame The innermost detour frame.
- * @param fn The original.
- * @param args The arguments.
  * @return The value the original left in its result register.
  */
 template <typename R, typename... Args>
@@ -198,16 +314,7 @@ R CallOriginal(DetourFrame& frame, PPCFunc& fn, Args... args) {
   return LoadGuestResult<R>(base, ctx.r3, ctx.f1, ctx.v1, 0);
 }
 
-/**
- * Reads the arguments of a detour from the register file and stack image.
- *
- * @tparam Guest The signature the original has.
- * @tparam Args The argument tuple type.
- * @tparam I The argument indices.
- * @param ctx The register file.
- * @param base The guest memory base.
- * @param args The tuple to fill.
- */
+/** Reads the arguments of a detour from the register file and stack image. */
 template <typename Guest, typename Args, size_t... I>
 void ReadDetourArgs(PPCContext& ctx, u8* base, Args& args, std::index_sequence<I...>) noexcept {
   constexpr auto kPlaces = PlaceSignatureArgs(static_cast<Guest*>(nullptr));
@@ -216,14 +323,13 @@ void ReadDetourArgs(PPCContext& ctx, u8* base, Args& args, std::index_sequence<I
    ...);
 }
 
-/** Holds the frame of 1 running detour and restores the state the caller expects at scope exit. */
+/** Holds the frame of one running detour and restores the state the caller expects at scope exit.
+ */
 class DetourScope : public rex::NonCopyable {
  public:
   /**
    * Links a frame for the detour.
    *
-   * @param ctx The register file.
-   * @param base The guest memory base.
    * @param chained True when the body calls the original without the context, which needs the
    *        frame on the thread chain.
    */
@@ -248,11 +354,6 @@ class DetourScope : public rex::NonCopyable {
     }
   }
 
-  /**
-   * Returns the frame of the running detour.
-   *
-   * @return The frame.
-   */
   const DetourFrame& GetFrame() const { return frame_; }
 
  private:
@@ -263,38 +364,20 @@ class DetourScope : public rex::NonCopyable {
 
 }  // namespace detail
 
-/**
- * Typed callable for the original of a detoured function. Declared by REX_DETOUR.
- *
- * @tparam Sig The signature of the detour body.
- */
+/** Typed callable for the original of a detoured function. Declared by REX_DETOUR. */
 template <typename Sig>
 struct DetourOriginal;
 
-/**
- * The original of a detoured function of signature R(Args...).
- *
- * @tparam R The return type.
- * @tparam Args The parameter types.
- */
+/** The original of a detoured function of signature R(Args...). */
 template <typename R, typename... Args>
 struct DetourOriginal<R(Args...)> {
-  PPCFunc& fn; /**< The recompiled original. */
+  PPCFunc& fn;
 
-  /**
-   * Binds the original.
-   *
-   * @param original The recompiled original.
-   */
   constexpr explicit DetourOriginal(PPCFunc& original) : fn(original) {}
 
   /**
-   * Writes the arguments, runs the original on the live context of the running detour and returns
-   * what it left in its result register. The context is not copied or restored, so the original's
-   * other results stay in the registers.
-   *
-   * @param args The arguments.
-   * @return The value of the result register.
+   * Runs the original on the live context of the running detour, so its other results stay in the
+   * registers.
    */
   R operator()(Args... args) const {
     detail::DetourFrame* frame = detail::GetInnermostDetourFrame();
@@ -303,31 +386,14 @@ struct DetourOriginal<R(Args...)> {
   }
 };
 
-/**
- * The original of a detoured function whose body takes the context first.
- *
- * @tparam R The return type.
- * @tparam Args The parameter types after the context.
- */
+/** The original of a detoured function whose body takes the context first. */
 template <typename R, typename... Args>
 struct DetourOriginal<R(PPCContext&, Args...)> {
-  PPCFunc& fn; /**< The recompiled original. */
+  PPCFunc& fn;
 
-  /**
-   * Binds the original.
-   *
-   * @param original The recompiled original.
-   */
   constexpr explicit DetourOriginal(PPCFunc& original) : fn(original) {}
 
-  /**
-   * Writes the arguments, runs the original on the register file of the running detour and returns
-   * what it left in its result register. Reads the frame from the register file.
-   *
-   * @param ctx The register file the detour runs on.
-   * @param args The arguments.
-   * @return The value of the result register.
-   */
+  /** Runs the original on the register file of the running detour. */
   R operator()(PPCContext& ctx, Args... args) const {
     detail::DetourFrame* frame = ctx.detour_frame;
     REX_ASSERT(frame != nullptr, "A detour original was called outside a detour body");
@@ -336,13 +402,9 @@ struct DetourOriginal<R(PPCContext&, Args...)> {
 };
 
 /**
- * Runs a detour body for a recompiled function. Reads the arguments, links a detour frame and
- * writes the result, with the stop checks and call depth of a hook.
+ * Runs a detour body for a recompiled function.
  *
  * @tparam Body The detour body, optionally taking the context first.
- * @param ctx The register file.
- * @param base The guest memory base.
- * @param name The hooked function.
  * @param host The hook, as the image maps it.
  */
 template <auto Body>
@@ -353,8 +415,7 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
   static_assert(!HiddenReturnType<R>, "A detour cannot return a structure by value");
 
   detail::CheckHookContext(ctx, name);
-  auto* thread_state = ctx.thread_state;
-  if (thread_state && thread_state->IsStopRequested()) {
+  if (ctx.stop_requested && ctx.stop_requested->load(std::memory_order_acquire)) {
     throw rex::ThreadStop{};
   }
 #if !REX_PLATFORM_WIN32
@@ -418,7 +479,7 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
     check_exit();
     StoreHostResult(ctx, base, 0, result);
   }
-  if (thread_state && thread_state->IsStopRequested()) {
+  if (ctx.stop_requested && ctx.stop_requested->load(std::memory_order_acquire)) {
     throw rex::ThreadStop{};
   }
 }
@@ -426,8 +487,7 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
 }  // namespace rex::ppc
 
 /**
- * Opens a profiling zone named after a detoured function. It expands to nothing unless profiling
- * is enabled.
+ * Opens a profiling zone for a detoured function when profiling is enabled.
  *
  * @param name The recompiled function symbol.
  *
@@ -442,12 +502,9 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
 #endif
 
 /**
- * Defines a typed hook that wraps a recompiled function and runs its original. The body reads the
- * arguments as parameters and calls original(args...) on every path. original writes the declared
- * arguments, runs the recompiled function on the live context and returns what it left in r3 or
- * f1, so a void detour passes the original's results through. A parameter list that starts with
- * PPCContext& ctx gives the body the register file and the call becomes original(ctx, args...). No
- * detour stays running across a guest SwitchToFiber, since the detour chain is thread local.
+ * Defines a typed hook whose body reads the arguments as parameters and calls original(args...) on
+ * every path, or original(ctx, args...) when the first parameter is PPCContext& ctx. No detour
+ * stays running across a guest SwitchToFiber, since the detour chain is thread local.
  *
  * @param name The recompiled function symbol.
  * @param Ret The return type, written to r3 or f1 for the caller.
