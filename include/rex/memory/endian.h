@@ -1,5 +1,5 @@
 /**
- * @file        memory/byte_swap.h
+ * @file        memory/endian.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,46 +15,20 @@
 #include <bit>
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
 
 #include <rex/platform.h>
 #include <rex/assert.h>
-#include <rex/export.h>
-#include <rex/scalar_types.h>
-
-namespace rex {
-
-/**
- * Reverses the byte order of a trivially copyable value of 1, 2, 4 or 8 bytes.
- *
- * @tparam T The value type.
- * @param value The value to swap.
- * @return The value with its bytes reversed.
- */
-template <class T>
-constexpr T byte_swap(T value) noexcept {
-  static_assert(sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1,
-                "byte_swap(T value): Type T has illegal size");
-  if constexpr (sizeof(T) == 1) {
-    return value;
-  } else {
-    using UintT =
-        std::conditional_t<sizeof(T) == 8, u64, std::conditional_t<sizeof(T) == 4, u32, u16>>;
-    return std::bit_cast<T>(std::byteswap(std::bit_cast<UintT>(value)));
-  }
-}
-
-}  // namespace rex
+#include <rex/types.h>
 
 namespace rex::memory {
 
 /**
  * Copies 16 byte blocks between 16 byte aligned buffers.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 16 byte blocks.
  */
 REX_API void Copy128Aligned(void* dest, const void* src, size_t count);
@@ -62,8 +36,6 @@ REX_API void Copy128Aligned(void* dest, const void* src, size_t count);
 /**
  * Copies 16 bit values and swaps the byte order of each. Both buffers are 16 byte aligned.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 16 bit values.
  */
 REX_API void copy_and_swap_16_aligned(void* dest, const void* src, size_t count);
@@ -71,8 +43,6 @@ REX_API void copy_and_swap_16_aligned(void* dest, const void* src, size_t count)
 /**
  * Copies 16 bit values and swaps the byte order of each.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 16 bit values.
  */
 REX_API void copy_and_swap_16_unaligned(void* dest, const void* src, size_t count);
@@ -80,8 +50,6 @@ REX_API void copy_and_swap_16_unaligned(void* dest, const void* src, size_t coun
 /**
  * Copies 32 bit values and swaps the byte order of each. Both buffers are 16 byte aligned.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 32 bit values.
  */
 REX_API void copy_and_swap_32_aligned(void* dest, const void* src, size_t count);
@@ -89,8 +57,6 @@ REX_API void copy_and_swap_32_aligned(void* dest, const void* src, size_t count)
 /**
  * Copies 32 bit values and swaps the byte order of each.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 32 bit values.
  */
 REX_API void copy_and_swap_32_unaligned(void* dest, const void* src, size_t count);
@@ -98,8 +64,6 @@ REX_API void copy_and_swap_32_unaligned(void* dest, const void* src, size_t coun
 /**
  * Copies 64 bit values and swaps the byte order of each. Both buffers are 16 byte aligned.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 64 bit values.
  */
 REX_API void copy_and_swap_64_aligned(void* dest, const void* src, size_t count);
@@ -107,38 +71,28 @@ REX_API void copy_and_swap_64_aligned(void* dest, const void* src, size_t count)
 /**
  * Copies 64 bit values and swaps the byte order of each.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 64 bit values.
  */
 REX_API void copy_and_swap_64_unaligned(void* dest, const void* src, size_t count);
 
 /**
- * Copies 32 bit values and swaps the 2 16 bit halves of each. Both buffers are 16 byte aligned.
+ * Copies 32 bit values and swaps the two 16 bit halves of each. Both buffers are 16 byte aligned.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 32 bit values.
  */
 REX_API void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count);
 
 /**
- * Copies 32 bit values and swaps the 2 16 bit halves of each.
+ * Copies 32 bit values and swaps the two 16 bit halves of each.
  *
- * @param dest Destination buffer.
- * @param src Source buffer.
  * @param count Number of 32 bit values.
  */
 REX_API void copy_and_swap_16_in_32_unaligned(void* dest, const void* src, size_t count);
 
 /**
- * Copies values and swaps the byte order of each. Takes the aligned path when both buffers are
- * 32 byte aligned.
+ * Copies values and swaps the byte order of each.
  *
  * @tparam T Element type, 1, 2, 4 or 8 bytes.
- * @param dest Destination buffer.
- * @param src Source buffer.
- * @param count Number of elements.
  */
 template <typename T>
 void copy_and_swap(T* dest, const T* src, size_t count) {
@@ -175,13 +129,7 @@ void copy_and_swap(T* dest, const T* src, size_t count) {
   }
 }
 
-/**
- * Loads a value from memory of any alignment.
- *
- * @tparam T Trivially copyable value type.
- * @param mem Address to read.
- * @return The value at mem.
- */
+/** Loads a value from memory of any alignment. */
 template <typename T>
 inline T load(const void* mem) {
   static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
@@ -194,7 +142,6 @@ inline T load(const void* mem) {
  * Loads a value from memory and swaps its byte order.
  *
  * @tparam T Value type, 1, 2, 4 or 8 bytes.
- * @param mem Address to read.
  * @return The byte swapped value at mem.
  */
 template <typename T>
@@ -205,7 +152,6 @@ inline T load_and_swap(const void* mem) {
 /**
  * Loads a NUL terminated 8 bit string.
  *
- * @param mem Address of the first character.
  * @return The characters before the terminator.
  */
 template <>
@@ -224,7 +170,6 @@ inline std::string load_and_swap<std::string>(const void* mem) {
 /**
  * Loads a NUL terminated big endian UTF-16 string.
  *
- * @param mem Address of the first code unit.
  * @return The code units before the terminator in host byte order.
  */
 template <>
@@ -240,13 +185,7 @@ inline std::u16string load_and_swap<std::u16string>(const void* mem) {
   return value;
 }
 
-/**
- * Stores a value to memory of any alignment.
- *
- * @tparam T Trivially copyable value type.
- * @param mem Address to write.
- * @param value Value to write.
- */
+/** Stores a value to memory of any alignment. */
 template <typename T>
 inline void store(void* mem, const T& value) {
   static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
@@ -257,20 +196,13 @@ inline void store(void* mem, const T& value) {
  * Swaps the byte order of a value and stores it to memory.
  *
  * @tparam T Value type, 1, 2, 4 or 8 bytes.
- * @param mem Address to write.
- * @param value Value to write.
  */
 template <typename T>
 inline void store_and_swap(void* mem, const T& value) {
   store(mem, byte_swap(value));
 }
 
-/**
- * Stores the characters of an 8 bit string without a terminator.
- *
- * @param mem Address of the first character.
- * @param value Characters to write.
- */
+/** Stores the characters of an 8 bit string without a terminator. */
 template <>
 inline void store_and_swap<std::string_view>(void* mem, const std::string_view& value) {
   for (size_t i = 0; i < value.size(); ++i) {
@@ -278,23 +210,13 @@ inline void store_and_swap<std::string_view>(void* mem, const std::string_view& 
   }
 }
 
-/**
- * Stores the characters of an 8 bit string without a terminator.
- *
- * @param mem Address of the first character.
- * @param value Characters to write.
- */
+/** Stores the characters of an 8 bit string without a terminator. */
 template <>
 inline void store_and_swap<std::string>(void* mem, const std::string& value) {
   return store_and_swap<std::string_view>(mem, value);
 }
 
-/**
- * Stores a UTF-16 string as big endian code units without a terminator.
- *
- * @param mem Address of the first code unit.
- * @param value Code units to write.
- */
+/** Stores a UTF-16 string as big endian code units without a terminator. */
 template <>
 inline void store_and_swap<std::u16string_view>(void* mem, const std::u16string_view& value) {
   for (size_t i = 0; i < value.size(); ++i) {
@@ -302,12 +224,7 @@ inline void store_and_swap<std::u16string_view>(void* mem, const std::u16string_
   }
 }
 
-/**
- * Stores a UTF-16 string as big endian code units without a terminator.
- *
- * @param mem Address of the first code unit.
- * @param value Code units to write.
- */
+/** Stores a UTF-16 string as big endian code units without a terminator. */
 template <>
 inline void store_and_swap<std::u16string>(void* mem, const std::u16string& value) {
   return store_and_swap<std::u16string_view>(mem, value);
@@ -317,7 +234,6 @@ inline void store_and_swap<std::u16string>(void* mem, const std::u16string& valu
  * Reads a 24 bit big endian value.
  *
  * @param p The 3 source bytes.
- * @return The value.
  */
 constexpr u32 LoadUint24BE(const u8* p) {
   return (static_cast<u32>(p[0]) << 16) | (static_cast<u32>(p[1]) << 8) | static_cast<u32>(p[2]);
@@ -327,7 +243,6 @@ constexpr u32 LoadUint24BE(const u8* p) {
  * Reads a 24 bit little endian value.
  *
  * @param p The 3 source bytes.
- * @return The value.
  */
 constexpr u32 LoadUint24LE(const u8* p) {
   return (static_cast<u32>(p[2]) << 16) | (static_cast<u32>(p[1]) << 8) | static_cast<u32>(p[0]);
@@ -337,12 +252,40 @@ constexpr u32 LoadUint24LE(const u8* p) {
  * Writes a 24 bit little endian value.
  *
  * @param p The 3 destination bytes.
- * @param value The value, the top 8 bits are dropped.
+ * @param value The value, the top 8 bits are discarded.
  */
 constexpr void StoreUint24LE(u8* p, u32 value) {
   p[2] = static_cast<u8>((value >> 16) & 0xFF);
   p[1] = static_cast<u8>((value >> 8) & 0xFF);
   p[0] = static_cast<u8>(value & 0xFF);
+}
+
+/** 4 character code packed into 32 bits. */
+using FourCCT = u32;
+
+/**
+ * Packs 4 characters into a FourCC in host byte order.
+ *
+ * @param a First character, the most significant byte.
+ * @param d Fourth character, the least significant byte.
+ * @return The packed code. make_fourcc('a', 'b', 'c', 'd') is 0x61626364.
+ */
+constexpr FourCCT make_fourcc(char a, char b, char c, char d) {
+  return ((static_cast<FourCCT>(a) << 24) | (static_cast<FourCCT>(b) << 16) |
+          (static_cast<FourCCT>(c) << 8) | static_cast<FourCCT>(d));
+}
+
+/**
+ * Packs a 4 character string into a FourCC in host byte order.
+ *
+ * @param fourcc String of exactly 4 characters. Any other length throws std::runtime_error.
+ * @return The packed code. make_fourcc("abcd") is 0x61626364.
+ */
+constexpr FourCCT make_fourcc(const std::string_view fourcc) {
+  if (fourcc.length() != 4) {
+    throw std::runtime_error("Invalid fourcc length");
+  }
+  return make_fourcc(fourcc[0], fourcc[1], fourcc[2], fourcc[3]);
 }
 
 }  // namespace rex::memory

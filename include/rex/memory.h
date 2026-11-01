@@ -10,8 +10,8 @@
 
 #pragma once
 
+#include <rex/memory/endian.h>
+#include <rex/memory/host.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/memory/stream.h>
 #include <rex/memory/virtual_memory.h>
-#include <rex/memory/byte_swap.h>
-#include <rex/memory/fourcc.h>
-#include <rex/memory/mapped_memory.h>
-#include <rex/memory/ring_buffer.h>
