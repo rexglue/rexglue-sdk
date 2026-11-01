@@ -25,16 +25,259 @@
 #include <vector>
 
 #include <rex/platform.h>
-#include <rex/export.h>
-#include <rex/math.h>
 #include <rex/types.h>
 
 namespace rex {
 
+/** Reports whether a value is a power of 2 or 0. */
+template <typename T>
+constexpr bool is_pow2(T value) {
+  return (value & (value - 1)) == 0;
+}
+
+/**
+ * Returns the smallest power of 2 greater than or equal to a value.
+ *
+ * @tparam T Unsigned integer type up to 32 bits.
+ */
+template <typename T>
+T next_pow2(T value) {
+  value--;
+  value |= value >> 1;
+  value |= value >> 2;
+  value |= value >> 4;
+  value |= value >> 8;
+  value |= value >> 16;
+  value++;
+  return value;
+}
+
+/**
+ * Returns a mask with a contiguous range of bits set.
+ *
+ * @param a Index of the lowest set bit.
+ * @param b Index of the highest set bit.
+ */
+constexpr u32 MakeBitmask(u32 a, u32 b) {
+  return (static_cast<u32>(-1) >> (31 - b)) & ~((1u << a) - 1);
+}
+
+/**
+ * Returns a range of bits of a value, shifted down to bit 0.
+ *
+ * @param a Index of the lowest bit to extract.
+ * @param b Index of the highest bit to extract.
+ */
+constexpr u32 select_bits(u32 value, u32 a, u32 b) {
+  return (value & MakeBitmask(a, b)) >> a;
+}
+
+/**
+ * Returns the number of set bits in a value.
+ *
+ * @tparam T Unsigned integer type.
+ */
+template <class T>
+constexpr u32 BitCount(T v) {
+  return static_cast<u32>(std::popcount(v));
+}
+
+/** Returns the number of leading zero bits in an 8 bit value, or 8 when v is 0. */
+inline u8 lzcnt(u8 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
+
+/** Returns the number of leading zero bits in a 16 bit value, or 16 when v is 0. */
+inline u8 lzcnt(u16 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
+
+/** Returns the number of leading zero bits in a 32 bit value, or 32 when v is 0. */
+inline u8 lzcnt(u32 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
+
+/** Returns the number of leading zero bits in a 64 bit value, or 64 when v is 0. */
+inline u8 lzcnt(u64 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
+
+/** Returns the number of trailing zero bits in an 8 bit value, or 8 when v is 0. */
+inline u8 tzcnt(u8 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
+
+/** Returns the number of trailing zero bits in a 16 bit value, or 16 when v is 0. */
+inline u8 tzcnt(u16 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
+
+/** Returns the number of trailing zero bits in a 32 bit value, or 32 when v is 0. */
+inline u8 tzcnt(u32 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
+
+/** Returns the number of trailing zero bits in a 64 bit value, or 64 when v is 0. */
+inline u8 tzcnt(u64 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
+
+/**
+ * Returns the number of leading zero bits in a signed 8 bit value, or 8 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 lzcnt(i8 v) {
+  return lzcnt(static_cast<u8>(v));
+}
+
+/**
+ * Returns the number of leading zero bits in a signed 16 bit value, or 16 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 lzcnt(i16 v) {
+  return lzcnt(static_cast<u16>(v));
+}
+
+/**
+ * Returns the number of leading zero bits in a signed 32 bit value, or 32 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 lzcnt(i32 v) {
+  return lzcnt(static_cast<u32>(v));
+}
+
+/**
+ * Returns the number of leading zero bits in a signed 64 bit value, or 64 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 lzcnt(i64 v) {
+  return lzcnt(static_cast<u64>(v));
+}
+
+/**
+ * Returns the number of trailing zero bits in a signed 8 bit value, or 8 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 tzcnt(i8 v) {
+  return tzcnt(static_cast<u8>(v));
+}
+
+/**
+ * Returns the number of trailing zero bits in a signed 16 bit value, or 16 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 tzcnt(i16 v) {
+  return tzcnt(static_cast<u16>(v));
+}
+
+/**
+ * Returns the number of trailing zero bits in a signed 32 bit value, or 32 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 tzcnt(i32 v) {
+  return tzcnt(static_cast<u32>(v));
+}
+
+/**
+ * Returns the number of trailing zero bits in a signed 64 bit value, or 64 when v is 0.
+ *
+ * @param v The value to scan, read as unsigned.
+ */
+inline u8 tzcnt(i64 v) {
+  return tzcnt(static_cast<u64>(v));
+}
+
+/**
+ * Finds the lowest set bit, like the x86 BSF instruction.
+ *
+ * @param out_first_set_index Receives the index of the lowest set bit.
+ * @return False when v is 0, leaving out_first_set_index invalid.
+ */
+inline bool bit_scan_forward(u32 v, u32* out_first_set_index) {
+  if (v == 0) {
+    return false;
+  }
+  *out_first_set_index = static_cast<u32>(std::countr_zero(v));
+  return true;
+}
+
+/**
+ * Finds the lowest set bit, like the x86 BSF instruction.
+ *
+ * @param out_first_set_index Receives the index of the lowest set bit.
+ * @return False when v is 0, leaving out_first_set_index invalid.
+ */
+inline bool bit_scan_forward(u64 v, u32* out_first_set_index) {
+  if (v == 0) {
+    return false;
+  }
+  *out_first_set_index = static_cast<u32>(std::countr_zero(v));
+  return true;
+}
+
+/**
+ * Finds the lowest set bit, like the x86 BSF instruction.
+ *
+ * @param v The value to scan, read as unsigned.
+ * @param out_first_set_index Receives the index of the lowest set bit.
+ * @return False when v is 0, leaving out_first_set_index invalid.
+ */
+inline bool bit_scan_forward(i32 v, u32* out_first_set_index) {
+  return bit_scan_forward(static_cast<u32>(v), out_first_set_index);
+}
+
+/**
+ * Finds the lowest set bit, like the x86 BSF instruction.
+ *
+ * @param v The value to scan, read as unsigned.
+ * @param out_first_set_index Receives the index of the lowest set bit.
+ * @return False when v is 0, leaving out_first_set_index invalid.
+ */
+inline bool bit_scan_forward(i64 v, u32* out_first_set_index) {
+  return bit_scan_forward(static_cast<u64>(v), out_first_set_index);
+}
+
+/**
+ * Returns the base 2 logarithm of a value rounded down.
+ *
+ * @param v A value greater than 0.
+ */
+template <typename T>
+inline T log2_floor(T v) {
+  return sizeof(T) * 8 - 1 - lzcnt(v);
+}
+
+/**
+ * Returns the base 2 logarithm of a value rounded up.
+ *
+ * @param v A value greater than 0.
+ */
+template <typename T>
+inline T log2_ceil(T v) {
+  return sizeof(T) * 8 - lzcnt(v - 1);
+}
+
+/**
+ * Rotates a value left.
+ *
+ * @tparam T Unsigned integer type.
+ * @param sh Rotation amount in bits, between 1 and the bit width of T minus 1.
+ */
+template <typename T>
+inline T RotateLeft(T v, u8 sh) {
+  return (v << sh) | (v >> ((sizeof(T) * 8) - sh));
+}
+
 /** Bitmap of free and used entries where a set bit marks a free entry. */
 class REX_API BitMap {
  public:
-  /** Creates an empty bitmap. */
   BitMap();
 
   /**
@@ -57,14 +300,10 @@ class REX_API BitMap {
    *
    * @return The index of the acquired entry, or size_t(-1) when no entry is free.
    */
-  size_t Acquire();
+  size_t AcquireEntry();
 
-  /**
-   * Atomically marks an entry as free. Thread safe.
-   *
-   * @param index The entry to release.
-   */
-  void Release(size_t index);
+  /** Atomically marks an entry as free. Thread safe. */
+  void ReleaseEntry(size_t index);
 
   /**
    * Resizes the bitmap. New entries start free.
@@ -73,22 +312,12 @@ class REX_API BitMap {
    */
   void Resize(size_t new_size_bits);
 
-  /** Marks every entry free. */
   void Reset();
 
-  /**
-   * Returns a copy of the backing words.
-   *
-   * @return A copy of the backing words.
-   */
-  const std::vector<u64> GetData() const { return data_; }
+  /** Returns a copy of the backing words. */
+  const std::vector<u64> GetWords() const { return data_; }
 
-  /**
-   * Returns the backing words.
-   *
-   * @return The backing words.
-   */
-  std::vector<u64>& GetData() { return data_; }
+  std::vector<u64>& GetWords() { return data_; }
 
  private:
   const static size_t kDataSize = 8;
@@ -184,8 +413,6 @@ void SetRange(Block* bits, size_t first, size_t length) {
 /**
  * Opts an enum into the flag operators.
  *
- * @tparam E The enum type.
- *
  * @code
  * template <>
  * inline constexpr bool rex::is_flags_enum<rex::filesystem::MountFlags> = true;
@@ -194,60 +421,25 @@ void SetRange(Block* bits, size_t first, size_t length) {
 template <typename E>
 inline constexpr bool is_flags_enum = false;
 
-/**
- * An enum that opted into the flag operators through is_flags_enum.
- *
- * @tparam E The enum type.
- */
+/** An enum that opted into the flag operators through is_flags_enum. */
 template <typename E>
 concept FlagsEnum = std::is_enum_v<E> && is_flags_enum<E>;
 
-/**
- * Combines 2 flag sets.
- *
- * @tparam E The flag enum.
- * @param lhs The first set.
- * @param rhs The second set.
- * @return The bitwise or of both sets.
- */
 template <FlagsEnum E>
 [[nodiscard]] constexpr E operator|(E lhs, E rhs) {
   return static_cast<E>(std::to_underlying(lhs) | std::to_underlying(rhs));
 }
 
-/**
- * Intersects 2 flag sets.
- *
- * @tparam E The flag enum.
- * @param lhs The first set.
- * @param rhs The second set.
- * @return The bitwise and of both sets.
- */
 template <FlagsEnum E>
 [[nodiscard]] constexpr E operator&(E lhs, E rhs) {
   return static_cast<E>(std::to_underlying(lhs) & std::to_underlying(rhs));
 }
 
-/**
- * Toggles the flags of 1 set by another.
- *
- * @tparam E The flag enum.
- * @param lhs The first set.
- * @param rhs The second set.
- * @return The bitwise exclusive or of both sets.
- */
 template <FlagsEnum E>
 [[nodiscard]] constexpr E operator^(E lhs, E rhs) {
   return static_cast<E>(std::to_underlying(lhs) ^ std::to_underlying(rhs));
 }
 
-/**
- * Inverts a flag set.
- *
- * @tparam E The flag enum.
- * @param value The set.
- * @return The bitwise complement of the set.
- */
 template <FlagsEnum E>
 [[nodiscard]] constexpr E operator~(E value) {
   return static_cast<E>(~std::to_underlying(value));
@@ -256,9 +448,6 @@ template <FlagsEnum E>
 /**
  * Adds flags to a set in place.
  *
- * @tparam E The flag enum.
- * @param lhs The set to change.
- * @param rhs The flags to add.
  * @return lhs.
  */
 template <FlagsEnum E>
@@ -270,9 +459,6 @@ constexpr E& operator|=(E& lhs, E rhs) {
 /**
  * Keeps only the flags of a set that another set holds, in place.
  *
- * @tparam E The flag enum.
- * @param lhs The set to change.
- * @param rhs The flags to keep.
  * @return lhs.
  */
 template <FlagsEnum E>
@@ -284,9 +470,6 @@ constexpr E& operator&=(E& lhs, E rhs) {
 /**
  * Toggles flags of a set in place.
  *
- * @tparam E The flag enum.
- * @param lhs The set to change.
- * @param rhs The flags to toggle.
  * @return lhs.
  */
 template <FlagsEnum E>
@@ -295,14 +478,7 @@ constexpr E& operator^=(E& lhs, E rhs) {
   return lhs;
 }
 
-/**
- * Reports whether a set holds every flag of another set.
- *
- * @tparam E The flag enum.
- * @param value The set to test.
- * @param flags The flags that must be present.
- * @return True when every flag of flags is set in value.
- */
+/** Reports whether a set holds every flag of another set. */
 template <FlagsEnum E>
 [[nodiscard]] constexpr bool HasFlags(E value, E flags) {
   return (value & flags) == flags;
@@ -317,14 +493,7 @@ template <FlagsEnum E>
  */
 #define REX_RESTRICT_VAR __restrict
 
-/**
- * Copies the bits of 1 trivially copyable object into another of the same size.
- *
- * @tparam Dst Destination type.
- * @tparam Src Source type, the same size as Dst.
- * @param dst Object that receives the bits.
- * @param src Object the bits come from.
- */
+/** Copies the bits of one trivially copyable object into another of the same size. */
 template <typename Dst, typename Src>
 void Reinterpret(Dst& REX_RESTRICT_VAR dst, const Src& REX_RESTRICT_VAR src) {
   static_assert(sizeof(Dst) == sizeof(Src));
@@ -333,14 +502,7 @@ void Reinterpret(Dst& REX_RESTRICT_VAR dst, const Src& REX_RESTRICT_VAR src) {
   dst = std::bit_cast<Dst>(src);
 }
 
-/**
- * Returns the bits of a trivially copyable object as another type of the same size.
- *
- * @tparam Dst Result type.
- * @tparam Src Source type, the same size as Dst.
- * @param src Object the bits come from.
- * @return A Dst holding the bits of src.
- */
+/** Returns the bits of a trivially copyable object as another type of the same size. */
 template <typename Dst, typename Src>
 Dst Reinterpret(const Src& REX_RESTRICT_VAR src) {
   Dst dst;
@@ -349,10 +511,8 @@ Dst Reinterpret(const Src& REX_RESTRICT_VAR src) {
 }
 
 /**
- * Compares 2 runs of floats by bit pattern, so a NaN equals itself.
+ * Compares two runs of floats by bit pattern, so a NaN equals itself.
  *
- * @param a The first run.
- * @param b The second run.
  * @return True when both runs have the same length and the same bits.
  */
 inline bool AreBitsEqual(std::span<const f32> a, std::span<const f32> b) {

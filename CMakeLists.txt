@@ -16,9 +16,14 @@ project(
 # Floor only. Bump MAJOR.MINOR for API changes. Patch is derived from git tags
 # in cmake/rex_version.cmake. See docs/RELEASING.md.
 
-#==========================================================
 # Build Options
-#==========================================================
+# Group targets into folders in IDEs. A consumer that adds the SDK as a subdirectory keeps its own
+# setting.
+if (PROJECT_IS_TOP_LEVEL)
+  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+endif ()
+set(CMAKE_FOLDER "sdk")
+
 option(REXGLUE_BUILD_TESTS "Build unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(REXGLUE_BUILD_PPC_TESTS "Build PPC instruction tests" OFF)
 option(REXGLUE_REGISTER_PACKAGE "Register the install prefix in the CMake user package registry"
@@ -47,6 +52,7 @@ include(CMakePackageConfigHelpers)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_init_audit.cmake)
 
 if (UNIX AND NOT APPLE)
   # Keep installed binaries self-contained by resolving shared libs relative
@@ -210,11 +216,11 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h @ONLY
 )
 
-# The timestamp lives in one source of rexcore, so a reconfigure recompiles that file only.
+# The timestamp is set in one source of rexbase, so a reconfigure recompiles that file only.
 string(TIMESTAMP REXGLUE_BUILD_TIMESTAMP "%Y%m%d_%H%M")
 configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/core/build_stamp.cpp.in
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/core/build_stamp.cpp @ONLY
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/base/build_stamp.cpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/base/build_stamp.cpp @ONLY
 )
 
 # Output directories (multi-config appends /<Config>/ automatically)
@@ -256,17 +262,18 @@ add_compile_options(
   -Wall -Wextra -Wshadow -Wshadow-field -Wshadow-field-in-constructor-modified -Werror
 )
 
-add_subdirectory(src/core)
+add_subdirectory(src/base)
+add_subdirectory(src/xenos)
+add_subdirectory(src/ppc)
 add_subdirectory(src/filesystem)
-add_subdirectory(src/imgui)
 add_subdirectory(src/gpu)
 add_subdirectory(src/gpu/xenos)
 add_subdirectory(src/apu)
 add_subdirectory(src/hid)
 add_subdirectory(src/ui)
-add_subdirectory(src/runtime)
-add_subdirectory(src/ui/sdl3)
 add_subdirectory(src/kernel)
+add_subdirectory(src/xam)
+add_subdirectory(src/app)
 add_subdirectory(src/codegen)
 add_subdirectory(src/rexglue)
 include(cmake/rexglue_sdk.cmake)

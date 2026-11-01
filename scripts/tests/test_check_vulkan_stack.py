@@ -5,7 +5,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from check_vulkan_stack import STACK_FILE, StackConfig, evaluate, parse_stack_config
+from check_vulkan_stack import (
+    FIND_FILE,
+    STACK_FILE,
+    StackConfig,
+    evaluate,
+    find_package_version,
+    parse_stack_config,
+)
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -39,3 +46,13 @@ def test_evaluate_flags_every_pinned_submodule():
 
 def test_config_has_no_exemptions():
     assert not hasattr(StackConfig(), "exemptions")
+
+
+def test_find_package_version_matches_the_stack_file():
+    found = find_package_version((REPO_ROOT / FIND_FILE).read_text(encoding="utf-8"))
+    assert found == real_config().sdk_version
+
+
+def test_find_package_version_ignores_comments():
+    text = "# find_package(Vulkan 1.0)" + chr(10) + "find_package(Vulkan 1.4.313 REQUIRED)"
+    assert find_package_version(text) == "1.4.313"

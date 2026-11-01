@@ -1,23 +1,18 @@
-#==========================================================
 # rexglue_target.cmake
-#
 #   rexglue_apply_target_settings(<target>)  - common compile/platform flags
 #   rexglue_configure_target(<target>)       - host application
 #   rexglue_get_runtime_files(<target> <out>) - files staged next to the host
-#==========================================================
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_codegen.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_recomp_options.cmake)
+include(GNUInstallDirs)
 
-#==========================================================
 # rexglue_set_rpath(<target> <origin>)
-#
 # Sets the run path of a target to its own folder and to the library folder of the install
 # layout, so a target installed in the bin folder finds the SDK libraries in the lib folder.
 # <origin> is $ORIGIN or @executable_path. The library folder is left out when it is the bin
 # folder.
-#==========================================================
 function (rexglue_set_rpath target_name origin)
   include(GNUInstallDirs)
   file(RELATIVE_PATH libdir_from_bindir "${CMAKE_INSTALL_FULL_BINDIR}"
@@ -82,17 +77,13 @@ function (_rexglue_stage_macos_vulkan_runtime out_var target_name)
   )
 endfunction ()
 
-#==========================================================
 # rexglue_cpu_flags(<out_var>)
-#
 # The CPU floor flags of every ReXGlue binary, the only place they are defined. The SDK applies
 # them to its own targets with add_compile_options. Projects that use the SDK get them through
 # rexglue_apply_target_settings, since their presets carry no -march.
-#
 # Large code model on Linux x86_64 for linking with large recompiled executables (35MB+). macOS
-# uses the small model: the ld64 linker on macOS 15+ rejects text relocations produced by
+# uses the small model because the ld64 linker on macOS 15+ rejects text relocations produced by
 # -mcmodel=large, and macOS maps binaries in the low address space so +/-2GB is sufficient.
-#==========================================================
 function (rexglue_cpu_flags out_var)
   set(flags "")
   if (UNIX AND NOT APPLE)
@@ -111,12 +102,9 @@ function (rexglue_cpu_flags out_var)
   )
 endfunction ()
 
-#==========================================================
 # rexglue_apply_target_settings(<target>) - Common flags
-#
 # Applied to both host apps and title DLL modules. Compile/link flags only.
 # Runtime DLL staging is the host's job (see rexglue_configure_target).
-#==========================================================
 function (rexglue_apply_target_settings target_name)
   rexglue_cpu_flags(flags)
   target_compile_options(${target_name} PRIVATE ${flags})
@@ -128,13 +116,10 @@ function (rexglue_apply_target_settings target_name)
   endif ()
 endfunction ()
 
-#==========================================================
 # rexglue_link_host_allocator(<target>)
-#
 # Adds the operator new and delete forwarders to an executable or a shared library, so memory
 # allocated in one binary can be freed in another. Static libraries are skipped because they link
 # into a binary that has the forwarders.
-#==========================================================
 function (rexglue_link_host_allocator target_name)
   get_target_property(target_type ${target_name} TYPE)
   if (target_type STREQUAL "EXECUTABLE"
@@ -147,10 +132,8 @@ function (rexglue_link_host_allocator target_name)
   endif ()
 endfunction ()
 
-#==========================================================
-# Records a file staged next to the host in the REXGLUE_RUNTIME_FILES property of the host, as the
+# Adds a file staged next to the host to the REXGLUE_RUNTIME_FILES property of the host, as the
 # path it has in the host folder. rexglue_get_runtime_files reads the property.
-#==========================================================
 function (_rexglue_add_runtime_file target_name file_name)
   set_property(
     TARGET ${target_name}
@@ -159,10 +142,8 @@ function (_rexglue_add_runtime_file target_name file_name)
   )
 endfunction ()
 
-#==========================================================
 # Adds the commands that copy a library next to the host to the list named by out_var, and keeps
 # the host relinking when it changes.
-#==========================================================
 function (_rexglue_stage_library out_var target_name library)
   _rexglue_add_runtime_file(${target_name} "$<TARGET_FILE_NAME:${library}>")
   set(commands ${${out_var}})
@@ -199,12 +180,10 @@ function (_rexglue_stage_library out_var target_name library)
   )
 endfunction ()
 
-#==========================================================
 # Lists the SDK libraries a host links, the in-tree target or the installed import of each.
-#==========================================================
 function (_rexglue_get_runtime_libs out_var)
   set(libs "")
-  foreach (pair "rex::core|rexcore" "rex::imgui|reximgui" "rex::runtime|rexruntime"
+  foreach (pair "rex::base|rexbase" "rex::ppc|rexppc" "rex::kernel|rexkernel" "rex::app|rexapp"
                 "rex::TracyClient|TracyClient"
   )
     string(REPLACE "|" ";" candidates "${pair}")
@@ -221,12 +200,10 @@ function (_rexglue_get_runtime_libs out_var)
   )
 endfunction ()
 
-#==========================================================
 # macOS and Linux host. $<TARGET_RUNTIME_DLLS> does not resolve imported shared
 # libraries, so stage them next to the executable (paired with the
 # @executable_path or $ORIGIN rpath). SDL3 is staged by _rexglue_stage_sdl. Target names differ
 # between an in-tree build and an installed SDK import.
-#==========================================================
 function (_rexglue_stage_unix_runtime out_var target_name)
   set(commands ${${out_var}})
   _rexglue_get_runtime_libs(runtime_libs)
@@ -249,12 +226,10 @@ function (_rexglue_stage_unix_runtime out_var target_name)
   )
 endfunction ()
 
-#==========================================================
 # Adds the one POST_BUILD step that stages every runtime file next to the host, so the build
 # prints a single line for the target. On Windows it starts with the runtime DLLs and their PDBs,
 # and the host relinks when a staged DLL changes, since an unchanged import library skips the link
 # otherwise.
-#==========================================================
 function (_rexglue_add_stage_step target_name)
   if (WIN32)
     set(dlls "$<TARGET_RUNTIME_DLLS:${target_name}>")
@@ -287,48 +262,39 @@ function (_rexglue_add_stage_step target_name)
   endif ()
 endfunction ()
 
-#==========================================================
-# Stages the requested GPU emulation plugins next to the executable. Plugins are
-# runtime-loaded (never linked), so TARGET_RUNTIME_DLLS misses them.
-#==========================================================
-function (_rexglue_stage_gpu_plugins out_var target_name)
-  set(commands ${${out_var}})
-  foreach (plugin IN LISTS ARGN)
-    set(plugin_targets "")
-    foreach (candidate rexgpu-${plugin} rexgpu-${plugin}-d3d12 rexgpu-${plugin}-vulkan)
-      if (TARGET ${candidate})
-        list(APPEND plugin_targets ${candidate})
-        add_dependencies(${target_name} ${candidate})
-      endif ()
-    endforeach ()
-    foreach (candidate rex::gpu-${plugin} rex::gpu-${plugin}-d3d12 rex::gpu-${plugin}-vulkan)
-      if (TARGET ${candidate})
-        list(APPEND plugin_targets ${candidate})
-      endif ()
-    endforeach ()
-    if (NOT plugin_targets)
-      message(FATAL_ERROR "rexglue_configure_target: unknown GPU plugin '${plugin}' "
-                          "(no target rexgpu-${plugin} or rex::gpu-${plugin})"
-      )
-    endif ()
-    foreach (plugin_target IN LISTS plugin_targets)
-      _rexglue_stage_library(commands ${target_name} ${plugin_target})
-    endforeach ()
-  endforeach ()
-  set(${out_var}
-      "${commands}"
-      PARENT_SCOPE
-  )
-endfunction ()
-
-#==========================================================
-# Stages the module libraries next to the executable, from the in-tree target
-# when it exists and from the installed import otherwise.
-#==========================================================
+# Stages every built provider module next to the executable, from the in-tree
+# target when it exists and from the installed import otherwise. The modules load
+# at runtime and are never linked, so TARGET_RUNTIME_DLLS misses them.
 function (_rexglue_stage_modules out_var target_name)
   set(commands ${${out_var}})
-  set(staged_targets rexfilesystem rexapu-sdl3 rexhid-sdl3 rexui-sdl3)
-  set(staged_aliases rex::filesystem rex::apu-sdl3 rex::hid-sdl3 rex::ui-sdl3)
+  set(staged_targets
+      rexfilesystem
+      rexapu
+      rexhid
+      rexui
+      rexgpu
+      rexxam
+      rexgpu-xenos-null
+      rexgpu-xenos-vulkan
+      rexgpu-xenos-d3d12
+      rexapu-sdl3
+      rexhid-sdl3
+      rexui-sdl3
+  )
+  set(staged_aliases
+      rex::filesystem
+      rex::apu
+      rex::hid
+      rex::ui
+      rex::gpu
+      rex::xam
+      rex::gpu-xenos-null
+      rex::gpu-xenos-vulkan
+      rex::gpu-xenos-d3d12
+      rex::apu-sdl3
+      rex::hid-sdl3
+      rex::ui-sdl3
+  )
   if (WIN32)
     list(APPEND staged_targets rexhid-xinput)
     list(APPEND staged_aliases rex::hid-xinput)
@@ -350,11 +316,9 @@ function (_rexglue_stage_modules out_var target_name)
   )
 endfunction ()
 
-#==========================================================
 # Stages the shared SDL3 next to the executable, where the modules find it. The modules load at
 # runtime, so the executable does not link SDL3 and $<TARGET_RUNTIME_DLLS> misses it. On Linux and
-# macOS the copy takes the soname, since the modules record that name.
-#==========================================================
+# macOS the copy takes the soname, since the modules refer to that name.
 function (_rexglue_stage_sdl out_var target_name)
   if (NOT TARGET SDL3::SDL3-shared)
     return()
@@ -386,15 +350,12 @@ function (_rexglue_stage_sdl out_var target_name)
   )
 endfunction ()
 
-#==========================================================
 # rexglue_get_runtime_files(<host_target> <out_var>)
-#
-# Sets out_var to the files rexglue_configure_target stages next to the host: the SDK libraries
-# the host links, the modules, the requested GPU plugins and the shared SDL3 under its staged
+# Sets out_var to the files rexglue_configure_target stages next to the host, being the SDK
+# libraries the host links, every provider module and the shared SDL3 under its staged
 # name. Each entry is the absolute path in the host folder, with generator expressions where the
 # path depends on the configuration. Call it after rexglue_configure_target and use it where
 # generator expressions are accepted, such as install(FILES) and file(GENERATE).
-#==========================================================
 function (rexglue_get_runtime_files target_name out_var)
   get_target_property(files ${target_name} REXGLUE_RUNTIME_FILES)
   if (NOT files)
@@ -406,26 +367,28 @@ function (rexglue_get_runtime_files target_name out_var)
   )
 endfunction ()
 
-#==========================================================
 # rexglue_configure_target(<target>) - Host application
-#
-# Adds:
+# It adds
 #   - Build-config define for the version stamp
-#   - $ORIGIN RPATH on UNIX so the host finds librexruntime.so next to itself, and in the install
+#   - $ORIGIN RPATH on UNIX so the host finds librexkernel.so next to itself, and in the install
 #     layout library folder
 #   - Windows POST_BUILD copy of TARGET_RUNTIME_DLLS.
 #     Title modules colocate with the host (see rexglue_configure_module_target),
 #     so this single copy handles them transitively.
-#==========================================================
 function (rexglue_configure_target target_name)
-  cmake_parse_arguments(ARG "" "" "GPU_PLUGINS" ${ARGN})
+  if (ARGN)
+    list(GET ARGN 0 rejected)
+    message(FATAL_ERROR "rexglue_configure_target: '${rejected}' is no longer accepted. Remove it: "
+                        "every built provider module is staged next to the executable."
+    )
+  endif ()
 
   target_compile_definitions(${target_name} PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
   if (UNIX AND NOT APPLE)
     rexglue_set_rpath(${target_name} "$ORIGIN")
   elseif (APPLE)
-    # macOS analogue of $ORIGIN to resolve @rpath dylibs (librexruntime,
+    # macOS analogue of $ORIGIN to resolve @rpath dylibs (librexkernel,
     # libTracyClient, ...) next to the executable. Pairs with the runtime
     # dylib staging below so the app is self-contained.
     rexglue_set_rpath(${target_name} "@executable_path")
@@ -443,8 +406,6 @@ function (rexglue_configure_target target_name)
       _rexglue_stage_library(stage_commands ${target_name} ${runtime_lib})
     endforeach ()
   endif ()
-
-  _rexglue_stage_gpu_plugins(stage_commands ${target_name} ${ARG_GPU_PLUGINS})
 
   if (WIN32)
     set(optimus_source "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_optimus.cpp")

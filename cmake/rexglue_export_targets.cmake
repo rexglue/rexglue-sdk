@@ -1,53 +1,40 @@
-set_target_properties(rexcore PROPERTIES EXPORT_NAME core)
-set_target_properties(rexfilesystem PROPERTIES EXPORT_NAME filesystem)
-set_target_properties(rexui PROPERTIES EXPORT_NAME ui)
-set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
+set_target_properties(rexbase PROPERTIES EXPORT_NAME base)
+set_target_properties(rexppc PROPERTIES EXPORT_NAME ppc)
+set_target_properties(rexkernel PROPERTIES EXPORT_NAME kernel)
+set_target_properties(rexxam PROPERTIES EXPORT_NAME xam)
 set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
 set_target_properties(rexgpu PROPERTIES EXPORT_NAME gpu)
 
 set(REXGLUE_INSTALL_TARGETS
-    rexcore
-    reximgui
-    rexruntime
+    rexbase
+    rexppc
+    rexxenos
+    rexkernel
+    rexxam
+    rexapp
     rexsdk
-    rexgpu
+    simde
+    o1heap
+)
+
+set(REXGLUE_MODULE_TARGETS
+    rexfilesystem
+    rexapu
+    rexhid
     rexui
+    rexgpu
     rexui-sdl3
     rexapu-sdl3
-    rexhid
     rexhid-sdl3
-    rexgpu-xenos
+    rexgpu-xenos-null
     rexgpu-xenos-vulkan
-    rexfilesystem
-    renderdoc
-    simde
-    tomlplusplus
-    excrypt
-    mspack
-    o1heap
-    disasm
-    xxhash
-    libavcodec
-    libavutil
 )
 if (WIN32)
-  list(APPEND REXGLUE_INSTALL_TARGETS rexhid-xinput)
+  list(APPEND REXGLUE_MODULE_TARGETS rexhid-xinput)
 endif ()
 
-list(
-  APPEND
-  REXGLUE_INSTALL_TARGETS
-  SPIRV
-  glslang
-  MachineIndependent
-  GenericCodeGen
-  OSDependent
-  OGLCompiler # glslang
-  spirv-tools-headers
-)
-
 if (REXGLUE_GPU_D3D12)
-  list(APPEND REXGLUE_INSTALL_TARGETS rexgpu-xenos-d3d12 dxc-headers)
+  list(APPEND REXGLUE_MODULE_TARGETS rexgpu-xenos-d3d12)
 endif ()
 
 if (REXGLUE_ENABLE_TRACY)

@@ -1,6 +1,6 @@
 #include "alloc_module.h"
 
-#include <rex/export.h>
+#include <rex/platform.h>
 
 #if defined(_WIN32)
 #define REX_TEST_ALLOC_EXPORT extern "C" __declspec(dllexport)

@@ -1,0 +1,124 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+
+#include <algorithm>
+#include <cstring>
+
+#include <rex/memory/stream.h>
+
+namespace rex::memory {
+
+RingBuffer::RingBuffer(u8* buffer, size_t capacity)
+    : buffer_(buffer), capacity_(static_cast<RingSizeT>(capacity)) {}
+
+void RingBuffer::AdvanceRead(size_t count) {
+  RingSizeT cnt = static_cast<RingSizeT>(count);
+  if (read_offset_ + cnt < capacity_) {
+    read_offset_ += cnt;
+  } else {
+    RingSizeT left_half = capacity_ - read_offset_;
+    RingSizeT right_half = cnt - left_half;
+    read_offset_ = right_half;
+  }
+}
+
+void RingBuffer::AdvanceWrite(size_t count) {
+  RingSizeT cnt = static_cast<RingSizeT>(count);
+  if (write_offset_ + cnt < capacity_) {
+    write_offset_ += cnt;
+  } else {
+    RingSizeT left_half = capacity_ - write_offset_;
+    RingSizeT right_half = cnt - left_half;
+    write_offset_ = right_half;
+  }
+}
+
+RingBuffer::ReadRange RingBuffer::BeginRead(size_t count) {
+  RingSizeT cnt = static_cast<RingSizeT>(std::min(count, static_cast<size_t>(capacity_)));
+  if (!cnt) {
+    return {nullptr, nullptr, 0, 0};
+  }
+  if (read_offset_ + cnt < capacity_) {
+    return {buffer_ + read_offset_, nullptr, cnt, 0};
+  } else {
+    RingSizeT left_half = capacity_ - read_offset_;
+    RingSizeT right_half = cnt - left_half;
+    return {buffer_ + read_offset_, buffer_, left_half, right_half};
+  }
+}
+
+void RingBuffer::EndRead(ReadRange read_range) {
+  if (read_range.second) {
+    read_offset_ = read_range.second_length;
+  } else {
+    read_offset_ += read_range.first_length;
+  }
+}
+
+size_t RingBuffer::Read(u8* buffer, size_t count) {
+  count = std::min(count, static_cast<size_t>(capacity_));
+  if (!count) {
+    return 0;
+  }
+
+  RingSizeT cnt = static_cast<RingSizeT>(count);
+
+  if (read_offset_ < write_offset_) {
+    REX_ASSERT(read_offset_ + cnt <= write_offset_);
+  } else if (read_offset_ + cnt >= capacity_) {
+    RingSizeT left_half = capacity_ - read_offset_;
+    REX_ASSERT(cnt - left_half <= write_offset_);
+  }
+
+  if (read_offset_ + cnt < capacity_) {
+    std::memcpy(buffer, buffer_ + read_offset_, cnt);
+    read_offset_ += cnt;
+  } else {
+    RingSizeT left_half = capacity_ - read_offset_;
+    RingSizeT right_half = cnt - left_half;
+    std::memcpy(buffer, buffer_ + read_offset_, left_half);
+    std::memcpy(buffer + left_half, buffer_, right_half);
+    read_offset_ = right_half;
+  }
+
+  return count;
+}
+
+size_t RingBuffer::Write(const u8* buffer, size_t count) {
+  count = std::min(count, static_cast<size_t>(capacity_));
+  if (!count) {
+    return 0;
+  }
+
+  RingSizeT cnt = static_cast<RingSizeT>(count);
+
+  if (write_offset_ < read_offset_) {
+    REX_ASSERT(write_offset_ + cnt <= read_offset_);
+  } else if (write_offset_ + cnt >= capacity_) {
+    RingSizeT left_half = capacity_ - write_offset_;
+    REX_ASSERT(cnt - left_half <= read_offset_);
+  }
+
+  if (write_offset_ + cnt < capacity_) {
+    std::memcpy(buffer_ + write_offset_, buffer, cnt);
+    write_offset_ += cnt;
+  } else {
+    RingSizeT left_half = capacity_ - write_offset_;
+    RingSizeT right_half = cnt - left_half;
+    std::memcpy(buffer_ + write_offset_, buffer, left_half);
+    std::memcpy(buffer_, buffer + left_half, right_half);
+    write_offset_ = right_half;
+  }
+
+  return count;
+}
+
+}  // namespace rex::memory

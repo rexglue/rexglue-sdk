@@ -15,93 +15,70 @@
 #include <string>
 #include <string_view>
 
-#include <rex/export.h>
 #include <rex/platform.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex::platform {
 
-/**
- * Controls when a loaded library's imported symbols are resolved.
- */
 enum class SymbolResolution : u8 {
   kLazy,      /**< Resolve on first use. RTLD_LAZY on POSIX. */
   kImmediate, /**< Resolve all at load. RTLD_NOW on POSIX, the Windows behavior. */
 };
 
-/**
- * Loads a shared library and resolves symbols from it. Move only.
- */
+/** Loads a shared library and resolves symbols from it. Move only. */
 class REX_API DynamicLibrary : public rex::MoveOnly {
  public:
   DynamicLibrary() = default;
-  /** Closes the library when one is loaded. */
   ~DynamicLibrary();
 
-  /**
-   * Takes ownership of the library held by another object.
-   *
-   * @param other The object to take from, left empty.
-   */
   DynamicLibrary(DynamicLibrary&& other) noexcept;
-  /**
-   * Closes the library held, then takes ownership of the library held by another object.
-   *
-   * @param other The object to take from, left empty.
-   * @return This object.
-   */
   DynamicLibrary& operator=(DynamicLibrary&& other) noexcept;
 
   /**
-   * Loads the library at the path, closing any library held before.
+   * Loads the library at the path, closing any held library.
    *
-   * @param path Full path to the library file.
    * @param mode Symbol resolution mode. Informational on Windows.
    * @return True on success. On failure GetLastError() holds the OS text.
    */
   bool Load(const std::filesystem::path& path, SymbolResolution mode = SymbolResolution::kLazy);
 
   /**
-   * Opens the library only when the process has it mapped, closing any library held
-   * before.
+   * Loads a library target from the executable folder, adding the platform prefix and extension.
+   * Closes any held library.
+   */
+  bool LoadNamed(std::string_view name, SymbolResolution mode = SymbolResolution::kLazy);
+
+  /**
+   * Opens the library only when the process has it mapped. Closes any held library.
    *
    * @param path Full path or file name of the library.
-   * @return True when the process had the library mapped. A library that is not mapped is never
-   *         loaded.
+   * @return True when the library was mapped. It is never loaded.
    */
   bool Attach(const std::filesystem::path& path);
 
-  /**
-   * Closes the library. Safe when nothing is loaded.
-   */
+  /** Closes the library. Safe when nothing is loaded. */
   void Close();
 
-  /**
-   * @return True when a library is loaded.
-   */
   explicit operator bool() const { return handle_ != nullptr; }
 
   /**
-   * @param name Exported symbol name.
-   * @return The symbol address, or null when the library is not loaded or has no such symbol.
+   * Returns the address of an exported symbol, or null when the library is not loaded or has no
+   * such symbol.
    */
   void* GetRawSymbol(const char* name) const;
 
   /**
    * Typed form of GetRawSymbol.
    *
-   * @tparam T Function pointer or pointer type of the symbol.
-   * @param name Exported symbol name.
-   * @return The symbol cast to T, or null when the library is not loaded or has no such symbol.
+   * @return The symbol cast to T, or null.
    */
   template <typename T>
   T GetSymbol(const char* name) const {
     return reinterpret_cast<T>(GetRawSymbol(name));
   }
 
-  /**
-   * @return The OS error text of the last failed Load, empty after a successful Load.
-   */
+  /** Returns the OS error text of the last failed Load, empty after a success. */
   const std::string& GetLastError() const { return last_error_; }
 
  private:
@@ -113,7 +90,6 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
 /**
  * Finds a section of a loaded image by name.
  *
- * @param image The base address of the image.
  * @param name The section name, at most 8 characters.
  * @return The section bytes, empty when the image has no such section.
  */

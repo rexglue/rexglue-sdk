@@ -20,7 +20,6 @@
 #include <string>
 #include <utility>
 
-#include <rex/logging/flush.h>
 #include <rex/platform.h>
 
 namespace rex::detail {
@@ -28,9 +27,6 @@ namespace rex::detail {
 /**
  * Builds the report of a failed assertion.
  *
- * @param file Source file of the assertion.
- * @param line Source line of the assertion.
- * @param expr The failed expression as text.
  * @param message Detail for the failure, empty when the site gave none.
  * @return The expression line, a message line when the message is not empty, and the location.
  */
@@ -47,9 +43,6 @@ inline std::string FormatAssertFailure(const char* file, int line, const char* e
 /**
  * Prints a failed assertion to stderr and aborts.
  *
- * @param file Source file of the assertion.
- * @param line Source line of the assertion.
- * @param expr The failed expression as text.
  * @param message Detail for the failure, empty when the site gave none.
  */
 [[noreturn]] inline void AssertFail(const char* file, int line, const char* expr,
@@ -63,21 +56,11 @@ inline std::string FormatAssertFailure(const char* file, int line, const char* e
   std::abort();
 }
 
-/**
- * Supplies the empty message of an assertion written without one.
- *
- * @return An empty string.
- */
+/** Supplies the empty message of an assertion written without one. */
 constexpr const char* AssertMessage() {
   return "";
 }
 
-/**
- * Passes an assertion message through.
- *
- * @param message Detail for the failure.
- * @return The message.
- */
 constexpr const char* AssertMessage(const char* message) {
   return message;
 }
@@ -87,10 +70,6 @@ constexpr const char* AssertMessage(const char* message) {
 /**
  * Checks a condition in Debug. Release does not evaluate the condition.
  *
- * Expands to an unevaluated `decltype` of the condition and the message in Release and to a call
- * of `rex::detail::AssertFail` when the condition is false in Debug.
- *
- * @param cond Condition that must hold.
  * @param ... Optional message.
  *
  * @code
@@ -128,8 +107,6 @@ constexpr const char* AssertMessage(const char* message) {
 /**
  * Aborts in Debug when a switch reaches a value it does not handle. Does nothing in Release.
  *
- * @param var The switched value.
- *
  * @code
  * default:
  *   REX_UNHANDLED_CASE(format);
@@ -146,9 +123,7 @@ constexpr const char* AssertMessage(const char* message) {
 /**
  * Checks the size of a type at compile time.
  *
- * Expands to `static_assert(sizeof(type) == size, ...)`.
- *
- * @param type The type.
+ * @param type A complete type, since sizeof evaluates it.
  * @param size Its required size in bytes.
  *
  * @code

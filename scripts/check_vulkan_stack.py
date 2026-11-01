@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the Vulkan dependency submodules sit on their pinned commits."""
+"""Verify the Vulkan dependency submodules sit on their pinned commits and the SDK minimum matches."""
 
 from __future__ import annotations
 
@@ -11,9 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 STACK_FILE = Path("cmake/rexglue_vulkan_stack.cmake")
+FIND_FILE = Path("thirdparty/CMakeLists.txt")
 SUBMODULE_ROOT = "thirdparty"
 
 _SET_BLOCK = re.compile(r"set\(\s*([A-Z0-9_]+)\s+(.*?)\)", re.DOTALL)
+_FIND_VULKAN = re.compile(r"find_package\(\s*Vulkan\s+([0-9][0-9.]*)")
 
 
 @dataclass
@@ -57,6 +59,11 @@ def parse_stack_config(text: str) -> StackConfig:
     return config
 
 
+def find_package_version(text: str) -> str:
+    match = _FIND_VULKAN.search(_strip_comments(text))
+    return match.group(1) if match else ""
+
+
 def evaluate(config: StackConfig, actual: dict[str, str]) -> list[Mismatch]:
     mismatches = []
     for submodule, expected in config.pins.items():
@@ -98,6 +105,15 @@ def main() -> int:
     config = parse_stack_config((args.repo_root / STACK_FILE).read_text(encoding="utf-8"))
     if not config.pins:
         print(f"error: no pins found in {STACK_FILE}", file=sys.stderr)
+        return 1
+
+    found_version = find_package_version((args.repo_root / FIND_FILE).read_text(encoding="utf-8"))
+    if found_version != config.sdk_version:
+        print(
+            f"error: find_package(Vulkan {found_version or '<absent>'}) in {FIND_FILE} "
+            f"does not match REXGLUE_VULKAN_SDK_VERSION {config.sdk_version}",
+            file=sys.stderr,
+        )
         return 1
 
     actual = read_gitlinks(args.repo_root, list(config.pins))

@@ -108,6 +108,6 @@ SpacesInSquareBrackets: false
 Standard: Latest
 CommentPragmas: '^ *@file '
 Macros:
-  - 'REX_INTERFACE(a)=class a {'
-  - 'REX_INTERFACE(a, b, c)=class a {'
+  - 'REX_DECLARE_INTERFACE(a, b)=class a {'
+  - 'REX_DECLARE_PRIVATE_INTERFACE(a, b)=class a {'
 ...

@@ -1,9 +1,9 @@
-#==========================================================
 # SDK Install/Export Rules
-#==========================================================
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_target.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_module.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_metadata.cmake)
+
+install(CODE "file(REMOVE_RECURSE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/include/rex\")")
 
 install(
   TARGETS ${REXGLUE_INSTALL_TARGETS}
@@ -27,6 +27,59 @@ if (WIN32)
   endforeach ()
 endif ()
 
+set(REXGLUE_RUNTIME_FILE_TARGETS ${REXGLUE_MODULE_TARGETS})
+set(REXGLUE_IMPORTED_MODULES "")
+set(REXGLUE_MODULES_CONTENT "")
+string(ASCII 10 _nl)
+if (WIN32)
+  set(_module_dir ${CMAKE_INSTALL_BINDIR})
+else ()
+  set(_module_dir ${CMAKE_INSTALL_LIBDIR})
+endif ()
+set(_config_upper "$<UPPER_CASE:$<CONFIG>>")
+foreach (_module IN LISTS REXGLUE_RUNTIME_FILE_TARGETS)
+  get_target_property(_export_name ${_module} EXPORT_NAME)
+  set(_imported rex::${_export_name})
+  list(APPEND REXGLUE_IMPORTED_MODULES ${_imported})
+
+  if (WIN32)
+    install(FILES $<TARGET_FILE:${_module}> DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(
+      FILES $<TARGET_PDB_FILE:${_module}>
+      DESTINATION ${CMAKE_INSTALL_BINDIR}
+      CONFIGURATIONS Debug RelWithDebInfo
+      OPTIONAL
+    )
+  else ()
+    install(TARGETS ${_module} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} NAMELINK_SKIP)
+  endif ()
+
+  set(_set "  set_property(TARGET ${_imported}")
+  set(_location "\${PACKAGE_PREFIX_DIR}/${_module_dir}/$<TARGET_FILE_NAME:${_module}>")
+  set(_soname "$<TARGET_SONAME_FILE_NAME:${_module}>")
+  string(APPEND REXGLUE_MODULES_CONTENT
+         "if (\"${_imported}\" IN_LIST _rexglue_created_targets)${_nl}"
+  )
+  string(APPEND REXGLUE_MODULES_CONTENT "${_set} APPEND PROPERTY IMPORTED_CONFIGURATIONS ")
+  string(APPEND REXGLUE_MODULES_CONTENT "${_config_upper})${_nl}")
+  string(APPEND REXGLUE_MODULES_CONTENT "${_set} PROPERTY IMPORTED_LOCATION_${_config_upper} ")
+  string(APPEND REXGLUE_MODULES_CONTENT "\"${_location}\")${_nl}")
+  if (NOT WIN32 AND NOT APPLE)
+    string(APPEND REXGLUE_MODULES_CONTENT "${_set} PROPERTY IMPORTED_SONAME_${_config_upper} ")
+    string(APPEND REXGLUE_MODULES_CONTENT "\"${_soname}\")${_nl}")
+  endif ()
+  string(APPEND REXGLUE_MODULES_CONTENT "endif ()${_nl}")
+endforeach ()
+
+file(
+  GENERATE
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rexglueModules-$<CONFIG>.cmake
+  CONTENT "${REXGLUE_MODULES_CONTENT}"
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rexglueModules-$<CONFIG>.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
+)
+
 # A Debug codegen tool runs an order of magnitude slower, so only Release is installed.
 install(
   TARGETS rexglue
@@ -44,39 +97,16 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h
 
 # Install vendored header-only library headers
 install(
-  DIRECTORY thirdparty/renderdoc/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/renderdoc
-  FILES_MATCHING
-  PATTERN "*.h"
-)
-install(DIRECTORY thirdparty/tomlplusplus/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(
   DIRECTORY thirdparty/simde/simde
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   FILES_MATCHING
   PATTERN "*.h"
-)
-install(FILES thirdparty/xxHash/xxhash.h thirdparty/xxHash/xxh3.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 install(FILES thirdparty/o1heap/o1heap/o1heap.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES thirdparty/imgui/imgui.h thirdparty/imgui/imconfig.h thirdparty/imgui/imgui_internal.h
               thirdparty/imgui/imstb_rectpack.h thirdparty/imgui/imstb_textedit.h
               thirdparty/imgui/imstb_truetype.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-
-# Install SPIRV-Tools headers (only the public API, not opt/linker)
-install(FILES thirdparty/spirv-tools/include/spirv-tools/libspirv.h
-              thirdparty/spirv-tools/include/spirv-tools/libspirv.hpp
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spirv-tools
-)
-
-# Install DXC API headers (vendored, for D3D12 backend)
-if (REXGLUE_GPU_D3D12)
-  install(FILES thirdparty/dxc/include/DxbcConverter.h thirdparty/dxc/include/dxcapi.h
-          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dxc
-  )
-endif ()
 
 if (APPLE)
   install(
@@ -139,9 +169,8 @@ if (REXGLUE_REGISTER_PACKAGE)
   # Register in the CMake User Package Registry after install when REXGLUE_REGISTER_PACKAGE is ON.
   # This makes find_package(rexglue) work with no REXSDK env var or CMAKE_PREFIX_PATH.
   # Multiple SxS installs coexist. Each prefix gets a unique hash entry.
-  #
-  # Windows: HKCU\Software\Kitware\CMake\Packages\rexglue  (REG_SZ, value name = MD5 hash)
-  # Unix:    ~/.cmake/packages/rexglue/<hash>               (file containing prefix path)
+  # Windows keeps it in HKCU\Software\Kitware\CMake\Packages\rexglue (REG_SZ, value name = MD5 hash)
+  # Unix keeps it in ~/.cmake/packages/rexglue/<hash> (file containing prefix path)
   install(
     CODE [[
       # Normalize path casing on Windows before hashing to avoid duplicate entries

@@ -102,25 +102,19 @@ function (rexglue_recomp_flags flags_var optimization debug_info)
   )
 endfunction ()
 
-#==========================================================
 # rexglue_recomp_options(<options_var> <optimized_var>)
-#
 # Computes the compile options of the recompiled code for every configuration. Each option is
 # wrapped in $<CONFIG:...>, so one configure serves a multi-config generator.
-#
 # The cache variables REXGLUE_RECOMP_OPTIMIZATION (empty, O0, O1, O2 or O3) and
 # REXGLUE_RECOMP_DEBUG_INFO (empty, line-tables-only, full or none) apply to every configuration.
 # A variable with a _DEBUG, _RELEASE or _RELWITHDEBINFO suffix applies to that configuration and
 # wins over the plain one.
-#
 # With nothing set the defaults are
 #   Debug           O1                   line-tables-only
 #   Release         build type flags     none
 #   RelWithDebInfo  build type flags     line-tables-only
-#
 # <options_var> receives the options. <optimized_var> receives ON when any configuration sets an
 # optimization level.
-#==========================================================
 function (rexglue_recomp_options options_var optimized_var)
   _rexglue_recomp_configs(recomp_configs)
   # Guest SEH scopes emit __try/__except, which traps hardware faults only under asynchronous EH.

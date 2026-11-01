@@ -1,4 +1,3 @@
-#==========================================================
 # rex_compute_version(<out_var>
 #     FLOOR_MAJOR <int>
 #     FLOOR_MINOR <int>
@@ -6,10 +5,8 @@
 #     GIT_DESCRIBE_EXACT <string>   # output of git describe --tags --exact-match
 #     BRANCH_NAME        <string>   # output of git symbolic-ref --short HEAD
 #     [NO_GIT])                     # the source is not a git work tree, no tag is expected
-#
 # Emits a CMake style version string of the form MAJOR.MINOR[.PATCH[.TWEAK]][-id].
 # See https://cmake.org/cmake/help/latest/variable/CMAKE_VERSION.html
-#
 # Tagged commit (vX.Y[.Z[.W]]) emits the tag verbatim (without the v).
 # Untagged commit with the floor at the last tag's major.minor
 #   emits MAJOR.MINOR.<tag-patch>.<commit-count>-<id> (the released base plus
@@ -17,7 +14,6 @@
 # Untagged commit with the floor ahead of the last tag (minor/major bumped on development
 #   but not yet released) holds at MAJOR.MINOR.0-<id> until main catches up.
 #   id is "dev.gSHA" on any branch and "rc.gSHA" on a release/* branch.
-#==========================================================
 function (rex_compute_version out_var)
   set(one_value FLOOR_MAJOR FLOOR_MINOR GIT_DESCRIBE_LONG GIT_DESCRIBE_EXACT BRANCH_NAME)
   cmake_parse_arguments(ARG "NO_GIT" "${one_value}" "" ${ARGN})
@@ -101,12 +97,9 @@ function (rex_compute_version out_var)
   endif ()
 endfunction ()
 
-#==========================================================
 # rex_version_channel(<out_var> VERSION <string>)
-#
 # release = exact v* tag, rc = release/* branch, dev = anything else.
 # Stable across commits, unlike the full version, so it is safe in cache keys.
-#==========================================================
 function (rex_version_channel out_var)
   set(one_value VERSION)
   cmake_parse_arguments(ARG "" "${one_value}" "" ${ARGN})
@@ -129,15 +122,12 @@ function (rex_version_channel out_var)
   endif ()
 endfunction ()
 
-#==========================================================
 # rex_resolve_version(<out_var>
 #     FLOOR_MAJOR <int>
 #     FLOOR_MINOR <int>
 #     [SOURCE_DIR <path>])    # defaults to CMAKE_CURRENT_SOURCE_DIR
-#
 # Runs git in the working tree, then delegates to rex_compute_version. A source folder with no
 # .git entry (an archive or a copied tree) takes the floor version without a warning.
-#==========================================================
 function (rex_resolve_version out_var)
   set(one_value FLOOR_MAJOR FLOOR_MINOR SOURCE_DIR)
   cmake_parse_arguments(ARG "" "${one_value}" "" ${ARGN})

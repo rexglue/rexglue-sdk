@@ -26,41 +26,17 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 
-#include <simde/x86/sse2.h>
-
 namespace rex {
 
-/**
- * Returns the number of elements in a C array.
- *
- * @tparam T Element type.
- * @tparam N Element count.
- * @return The number of elements in a C array.
- */
 template <typename T, size_t N>
 constexpr size_t CountOf(T (&)[N]) noexcept {
   return std::extent<T[N]>::value;
 }
 
 /**
- * Reports whether a value is a power of 2 or 0.
- *
- * @tparam T Integer type.
- * @param value The value to test.
- * @return True when value is a power of 2 or 0.
- */
-template <typename T>
-constexpr bool is_pow2(T value) {
-  return (value & (value - 1)) == 0;
-}
-
-/**
  * Rounds up to a power of 2 alignment. 0 stays 0.
  *
- * @tparam T Integer type.
- * @param value The value to round up.
  * @param alignment Power of 2 alignment.
- * @return value rounded up to a multiple of alignment.
  */
 template <typename T>
 constexpr T RoundUpPow2(T value, T alignment) {
@@ -70,11 +46,7 @@ constexpr T RoundUpPow2(T value, T alignment) {
 /**
  * Rounds up to any multiple. 0 stays 0, as with RoundUpPow2.
  *
- * @tparam T Value type.
- * @tparam V Multiple type.
- * @param value The value to round up.
  * @param multiple The multiple to round to, any positive value.
- * @return value rounded up to a multiple of multiple.
  */
 template <typename T, typename V>
 constexpr T RoundUp(T value, V multiple) {
@@ -82,11 +54,8 @@ constexpr T RoundUp(T value, V multiple) {
 }
 
 /**
- * Rounds up to any multiple. 0 becomes 1 multiple, so a size of 0 still takes space.
+ * Rounds up to any multiple. 0 becomes one multiple, so a size of 0 takes space.
  *
- * @tparam T Value type.
- * @tparam V Multiple type.
- * @param value The value to round up.
  * @param multiple The multiple to round to, any positive value.
  * @return value rounded up to a multiple of multiple, never 0.
  */
@@ -103,10 +72,6 @@ constexpr T RoundUpNonZero(T value, V multiple) {
  * A result at a zero bound takes the sign of that bound.
  *
  * @tparam T Floating point type. The lower clamp narrows through f32.
- * @param value The value to clamp.
- * @param min_value The lower bound.
- * @param max_value The upper bound.
- * @return The clamped value.
  */
 template <typename T>
 T clamp_float(T value, T min_value, T max_value) {
@@ -114,41 +79,15 @@ T clamp_float(T value, T min_value, T max_value) {
   return std::isless(clamped_to_min, max_value) ? clamped_to_min : max_value;
 }
 
-/**
- * Clamps to [0, 1] with shading language rules. NaN becomes +0.
- *
- * @tparam T Floating point type.
- * @param value The value to clamp.
- * @return The clamped value.
- */
+/** Clamps to [0, 1] with shading language rules. NaN becomes +0. */
 template <typename T>
 T saturate(T value) {
   return clamp_float(value, static_cast<T>(0.0f), static_cast<T>(1.0f));
 }
 
 /**
- * Returns the smallest power of 2 greater than or equal to a value.
- *
- * @tparam T Unsigned integer type up to 32 bits.
- * @param value The value to round up.
- * @return The smallest power of 2 greater than or equal to value.
- */
-template <typename T>
-T next_pow2(T value) {
-  value--;
-  value |= value >> 1;
-  value |= value >> 2;
-  value |= value >> 4;
-  value |= value >> 8;
-  value |= value >> 16;
-  value++;
-  return value;
-}
-
-/**
  * Divides a fraction by the greatest common divisor of its terms.
  *
- * @tparam T Integer type.
  * @param numerator The numerator, reduced in place.
  * @param denominator The denominator, reduced in place.
  */
@@ -162,7 +101,6 @@ constexpr void reduce_fraction(T& numerator, T& denominator) {
 /**
  * Divides a fraction by the greatest common divisor of its terms.
  *
- * @tparam T Integer type.
  * @param fraction The numerator and denominator, reduced in place.
  */
 template <typename T>
@@ -171,10 +109,8 @@ constexpr void reduce_fraction(std::pair<T, T>& fraction) {
 }
 
 /**
- * Multiplies a value by a fraction through a 128 bit product and a 128 by 64 bit division.
+ * Multiplies a value by a fraction using a 128 bit product.
  *
- * @param value The value to scale.
- * @param numerator The fraction numerator.
  * @param denominator The fraction denominator, not 0.
  * @return The floor of value * numerator / denominator, saturated at the u64 maximum. A 0
  *         denominator also returns the u64 maximum.
@@ -224,375 +160,8 @@ constexpr u64 mul_div(u64 value, u64 numerator, u64 denominator) {
 }
 
 /**
- * Returns a mask with a contiguous range of bits set.
- *
- * @param a Index of the lowest set bit.
- * @param b Index of the highest set bit.
- * @return A mask with bits a through b set.
- */
-constexpr u32 MakeBitmask(u32 a, u32 b) {
-  return (static_cast<u32>(-1) >> (31 - b)) & ~((1u << a) - 1);
-}
-
-/**
- * Returns a range of bits of a value, shifted down to bit 0.
- *
- * @param value The source value.
- * @param a Index of the lowest bit to extract.
- * @param b Index of the highest bit to extract.
- * @return Bits a through b of value, shifted down to bit 0.
- */
-constexpr u32 select_bits(u32 value, u32 a, u32 b) {
-  return (value & MakeBitmask(a, b)) >> a;
-}
-
-/**
- * Returns the number of set bits in a value.
- *
- * @tparam T Unsigned integer type.
- * @param v The value to count.
- * @return The number of set bits in v.
- */
-template <class T>
-constexpr u32 BitCount(T v) {
-  return static_cast<u32>(std::popcount(v));
-}
-
-/**
- * Returns the number of leading zero bits in an 8 bit value.
- *
- * @param v The value to scan.
- * @return The number of leading zero bits, or 8 when v is 0.
- */
-inline u8 lzcnt(u8 v) {
-  return static_cast<u8>(std::countl_zero(v));
-}
-
-/**
- * Returns the number of leading zero bits in a 16 bit value.
- *
- * @param v The value to scan.
- * @return The number of leading zero bits, or 16 when v is 0.
- */
-inline u8 lzcnt(u16 v) {
-  return static_cast<u8>(std::countl_zero(v));
-}
-
-/**
- * Returns the number of leading zero bits in a 32 bit value.
- *
- * @param v The value to scan.
- * @return The number of leading zero bits, or 32 when v is 0.
- */
-inline u8 lzcnt(u32 v) {
-  return static_cast<u8>(std::countl_zero(v));
-}
-
-/**
- * Returns the number of leading zero bits in a 64 bit value.
- *
- * @param v The value to scan.
- * @return The number of leading zero bits, or 64 when v is 0.
- */
-inline u8 lzcnt(u64 v) {
-  return static_cast<u8>(std::countl_zero(v));
-}
-
-/**
- * Returns the number of trailing zero bits in an 8 bit value.
- *
- * @param v The value to scan.
- * @return The number of trailing zero bits, or 8 when v is 0.
- */
-inline u8 tzcnt(u8 v) {
-  return static_cast<u8>(std::countr_zero(v));
-}
-
-/**
- * Returns the number of trailing zero bits in a 16 bit value.
- *
- * @param v The value to scan.
- * @return The number of trailing zero bits, or 16 when v is 0.
- */
-inline u8 tzcnt(u16 v) {
-  return static_cast<u8>(std::countr_zero(v));
-}
-
-/**
- * Returns the number of trailing zero bits in a 32 bit value.
- *
- * @param v The value to scan.
- * @return The number of trailing zero bits, or 32 when v is 0.
- */
-inline u8 tzcnt(u32 v) {
-  return static_cast<u8>(std::countr_zero(v));
-}
-
-/**
- * Returns the number of trailing zero bits in a 64 bit value.
- *
- * @param v The value to scan.
- * @return The number of trailing zero bits, or 64 when v is 0.
- */
-inline u8 tzcnt(u64 v) {
-  return static_cast<u8>(std::countr_zero(v));
-}
-
-/**
- * Returns the number of leading zero bits in a signed 8 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of leading zero bits, or 8 when v is 0.
- */
-inline u8 lzcnt(i8 v) {
-  return lzcnt(static_cast<u8>(v));
-}
-
-/**
- * Returns the number of leading zero bits in a signed 16 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of leading zero bits, or 16 when v is 0.
- */
-inline u8 lzcnt(i16 v) {
-  return lzcnt(static_cast<u16>(v));
-}
-
-/**
- * Returns the number of leading zero bits in a signed 32 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of leading zero bits, or 32 when v is 0.
- */
-inline u8 lzcnt(i32 v) {
-  return lzcnt(static_cast<u32>(v));
-}
-
-/**
- * Returns the number of leading zero bits in a signed 64 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of leading zero bits, or 64 when v is 0.
- */
-inline u8 lzcnt(i64 v) {
-  return lzcnt(static_cast<u64>(v));
-}
-
-/**
- * Returns the number of trailing zero bits in a signed 8 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of trailing zero bits, or 8 when v is 0.
- */
-inline u8 tzcnt(i8 v) {
-  return tzcnt(static_cast<u8>(v));
-}
-
-/**
- * Returns the number of trailing zero bits in a signed 16 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of trailing zero bits, or 16 when v is 0.
- */
-inline u8 tzcnt(i16 v) {
-  return tzcnt(static_cast<u16>(v));
-}
-
-/**
- * Returns the number of trailing zero bits in a signed 32 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of trailing zero bits, or 32 when v is 0.
- */
-inline u8 tzcnt(i32 v) {
-  return tzcnt(static_cast<u32>(v));
-}
-
-/**
- * Returns the number of trailing zero bits in a signed 64 bit value.
- *
- * @param v The value to scan, read as unsigned.
- * @return The number of trailing zero bits, or 64 when v is 0.
- */
-inline u8 tzcnt(i64 v) {
-  return tzcnt(static_cast<u64>(v));
-}
-
-/**
- * Finds the lowest set bit, like the x86 BSF instruction.
- *
- * @param v The value to scan.
- * @param out_first_set_index Receives the index of the lowest set bit.
- * @return False when v is 0, leaving out_first_set_index invalid.
- */
-inline bool bit_scan_forward(u32 v, u32* out_first_set_index) {
-  if (v == 0) {
-    return false;
-  }
-  *out_first_set_index = static_cast<u32>(std::countr_zero(v));
-  return true;
-}
-
-/**
- * Finds the lowest set bit, like the x86 BSF instruction.
- *
- * @param v The value to scan.
- * @param out_first_set_index Receives the index of the lowest set bit.
- * @return False when v is 0, leaving out_first_set_index invalid.
- */
-inline bool bit_scan_forward(u64 v, u32* out_first_set_index) {
-  if (v == 0) {
-    return false;
-  }
-  *out_first_set_index = static_cast<u32>(std::countr_zero(v));
-  return true;
-}
-
-/**
- * Finds the lowest set bit, like the x86 BSF instruction.
- *
- * @param v The value to scan, read as unsigned.
- * @param out_first_set_index Receives the index of the lowest set bit.
- * @return False when v is 0, leaving out_first_set_index invalid.
- */
-inline bool bit_scan_forward(i32 v, u32* out_first_set_index) {
-  return bit_scan_forward(static_cast<u32>(v), out_first_set_index);
-}
-
-/**
- * Finds the lowest set bit, like the x86 BSF instruction.
- *
- * @param v The value to scan, read as unsigned.
- * @param out_first_set_index Receives the index of the lowest set bit.
- * @return False when v is 0, leaving out_first_set_index invalid.
- */
-inline bool bit_scan_forward(i64 v, u32* out_first_set_index) {
-  return bit_scan_forward(static_cast<u64>(v), out_first_set_index);
-}
-
-/**
- * Returns the base 2 logarithm of a value rounded down.
- *
- * @tparam T Integer type.
- * @param v A value greater than 0.
- * @return The base 2 logarithm of v rounded down.
- */
-template <typename T>
-inline T log2_floor(T v) {
-  return sizeof(T) * 8 - 1 - lzcnt(v);
-}
-
-/**
- * Returns the base 2 logarithm of a value rounded up.
- *
- * @tparam T Integer type.
- * @param v A value greater than 0.
- * @return The base 2 logarithm of v rounded up.
- */
-template <typename T>
-inline T log2_ceil(T v) {
-  return sizeof(T) * 8 - lzcnt(v - 1);
-}
-
-/**
- * Rotates a value left.
- *
- * @tparam T Unsigned integer type.
- * @param v The value to rotate.
- * @param sh Rotation amount in bits, between 1 and the bit width of T minus 1.
- * @return v rotated left by sh bits.
- */
-template <typename T>
-inline T RotateLeft(T v, u8 sh) {
-  return (v << sh) | (v >> ((sizeof(T) * 8) - sh));
-}
-
-/**
- * Returns a lane of an SSE register as f32.
- *
- * @tparam N Lane index, 0 to 3.
- * @param v The SSE register.
- * @return Lane N of v as f32.
- */
-template <int N>
-f32 m128_f32(const simde__m128& v) {
-  f32 ret;
-  simde_mm_store_ss(&ret, simde_mm_shuffle_ps(v, v, SIMDE_MM_SHUFFLE(N, N, N, N)));
-  return ret;
-}
-
-/**
- * Returns the bits of a lane of an SSE register as i32.
- *
- * @tparam N Lane index, 0 to 3.
- * @param v The SSE register.
- * @return The bits of lane N of v as i32.
- */
-template <int N>
-i32 m128_i32(const simde__m128& v) {
-  f32 f;
-  simde_mm_store_ss(&f, simde_mm_shuffle_ps(v, v, SIMDE_MM_SHUFFLE(N, N, N, N)));
-  return std::bit_cast<i32>(f);
-}
-
-/**
- * Returns a lane of an SSE register as f64.
- *
- * @tparam N Lane index, 0 or 1.
- * @param v The SSE register.
- * @return Lane N of v as f64.
- */
-template <int N>
-f64 m128_f64(const simde__m128d& v) {
-  f64 ret;
-  simde_mm_store_sd(&ret, simde_mm_shuffle_pd(v, v, SIMDE_MM_SHUFFLE2(N, N)));
-  return ret;
-}
-
-/**
- * Returns a lane of an SSE register as f64.
- *
- * @tparam N Lane index, 0 or 1.
- * @param v The SSE register, read as 2 f64 lanes.
- * @return Lane N of v as f64.
- */
-template <int N>
-f64 m128_f64(const simde__m128& v) {
-  return m128_f64<N>(simde_mm_castps_pd(v));
-}
-
-/**
- * Returns the bits of a lane of an SSE register as i64.
- *
- * @tparam N Lane index, 0 or 1.
- * @param v The SSE register.
- * @return The bits of lane N of v as i64.
- */
-template <int N>
-i64 m128_i64(const simde__m128d& v) {
-  f64 f;
-  simde_mm_store_sd(&f, simde_mm_shuffle_pd(v, v, SIMDE_MM_SHUFFLE2(N, N)));
-  return std::bit_cast<i64>(f);
-}
-
-/**
- * Returns the bits of a lane of an SSE register as i64.
- *
- * @tparam N Lane index, 0 or 1.
- * @param v The SSE register, read as 2 64 bit lanes.
- * @return The bits of lane N of v as i64.
- */
-template <int N>
-i64 m128_i64(const simde__m128& v) {
-  return m128_i64<N>(simde_mm_castps_pd(v));
-}
-
-/**
  * Saturating addition, from https://locklessinc.com/articles/sat_arithmetic/
  *
- * @tparam T Integer type.
- * @param a First operand.
- * @param b Second operand.
  * @return a + b clamped to the range of T.
  */
 template <typename T>
@@ -613,9 +182,6 @@ inline T SatAdd(T a, T b) {
 /**
  * Saturating subtraction, from https://locklessinc.com/articles/sat_arithmetic/
  *
- * @tparam T Integer type.
- * @param a First operand.
- * @param b Second operand.
  * @return a - b clamped to the range of T.
  */
 template <typename T>
@@ -633,5 +199,13 @@ inline T SatSub(T a, T b) {
   }
   return static_cast<T>(result);
 }
+
+/** A two component size or offset in pixels. */
+struct Vec2 {
+  f32 x = 0;
+  f32 y = 0;
+
+  constexpr bool operator==(const Vec2& other) const = default;
+};
 
 }  // namespace rex

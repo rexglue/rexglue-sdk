@@ -25,20 +25,18 @@
 
 #include <rex/assert.h>
 #include <rex/platform.h>
-#include <rex/string/utf8.h>
+#include <rex/string/text.h>
 #include <rex/types.h>
-#include <rex/vec128.h>
 
 #if REX_PLATFORM_MAC
 #include <locale.h>
 #endif
 
-namespace rex {
+namespace rex::string {
 
 /**
  * Formats a 32 bit value as 8 uppercase hex digits.
  *
- * @param value Value to format.
  * @return The hex digits without a prefix.
  */
 inline std::string to_hex_string(u32 value) {
@@ -48,7 +46,6 @@ inline std::string to_hex_string(u32 value) {
 /**
  * Formats a 64 bit value as 16 uppercase hex digits.
  *
- * @param value Value to format.
  * @return The hex digits without a prefix.
  */
 inline std::string to_hex_string(u64 value) {
@@ -58,7 +55,6 @@ inline std::string to_hex_string(u64 value) {
 /**
  * Formats the bits of a 32 bit float as 8 uppercase hex digits.
  *
- * @param value Value to format.
  * @return The hex digits without a prefix.
  */
 inline std::string to_hex_string(f32 value) {
@@ -70,7 +66,6 @@ inline std::string to_hex_string(f32 value) {
 /**
  * Formats the bits of a 64 bit float as 16 uppercase hex digits.
  *
- * @param value Value to format.
  * @return The hex digits without a prefix.
  */
 inline std::string to_hex_string(f64 value) {
@@ -80,24 +75,9 @@ inline std::string to_hex_string(f64 value) {
 }
 
 /**
- * Formats the 4 32 bit lanes of a vector as hex.
+ * Parses a value from a string. Only the specializations parse.
  *
- * @param value Value to format.
- * @return The lanes as "[XXXXXXXX XXXXXXXX XXXXXXXX XXXXXXXX]".
- */
-inline std::string to_hex_string(const Vec128& value) {
-  return std::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
-                     value.u32[3]);
-}
-
-/**
- * Parses a value from a string. Only the specializations in this header parse. The primary
- * template calls std::terminate.
- *
- * @tparam T Result type.
- * @param value Text to parse.
  * @param force_hex True to parse integers and floats as hex without a prefix.
- * @return The parsed value.
  */
 template <typename T>
 inline T from_string(const std::string_view value, bool force_hex = false) {
@@ -124,15 +104,15 @@ inline T ParseInteger(const std::string_view value, bool force_hex) {
   std::string_view range = value;
   bool is_hex = force_hex;
   bool is_negative = false;
-  if (rex::utf8_starts_with(range, "-")) {
+  if (rex::string::utf8_starts_with(range, "-")) {
     is_negative = true;
     range = range.substr(1);
   }
-  if (rex::utf8_starts_with(range, "0x")) {
+  if (rex::string::utf8_starts_with(range, "0x")) {
     is_hex = true;
     range = range.substr(2);
   }
-  if (rex::utf8_ends_with(range, "h")) {
+  if (rex::string::utf8_ends_with(range, "h")) {
     is_hex = true;
     range = range.substr(0, range.length() - 1);
   }
@@ -201,15 +181,15 @@ inline T ParseFloat(const std::string_view value, bool force_hex) {
   std::string_view range = value;
   bool is_hex = force_hex;
   bool is_negative = false;
-  if (rex::utf8_starts_with(range, "-")) {
+  if (rex::string::utf8_starts_with(range, "-")) {
     is_negative = true;
     range = range.substr(1);
   }
-  if (rex::utf8_starts_with(range, "0x")) {
+  if (rex::string::utf8_starts_with(range, "0x")) {
     is_hex = true;
     range = range.substr(2);
   }
-  if (rex::utf8_ends_with(range, "h")) {
+  if (rex::string::utf8_ends_with(range, "h")) {
     is_hex = true;
     range = range.substr(0, range.length() - 1);
   }
@@ -243,7 +223,6 @@ inline T ParseFloat(const std::string_view value, bool force_hex) {
 /**
  * Parses a boolean. Accepts "true", "1" or "yes".
  *
- * @param value Text to parse.
  * @param force_hex Unused.
  * @return True for "true", "1" or "yes", false otherwise.
  */
@@ -254,9 +233,8 @@ inline bool from_string<bool>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses a signed 8 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for hex.
+ * Parses a signed 8 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -266,10 +244,8 @@ inline i8 from_string<i8>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses an unsigned 8 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
- * hex.
+ * Parses an unsigned 8 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -279,10 +255,8 @@ inline u8 from_string<u8>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses a signed 16 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
- * hex.
+ * Parses a signed 16 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -292,10 +266,8 @@ inline i16 from_string<i16>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses an unsigned 16 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
- * hex.
+ * Parses an unsigned 16 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -305,10 +277,8 @@ inline u16 from_string<u16>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses a signed 32 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
- * hex.
+ * Parses a signed 32 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -318,10 +288,8 @@ inline i32 from_string<i32>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses an unsigned 32 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
- * hex.
+ * Parses an unsigned 32 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -331,10 +299,8 @@ inline u32 from_string<u32>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses a signed 64 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
- * hex.
+ * Parses a signed 64 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -344,10 +310,8 @@ inline i64 from_string<i64>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses an unsigned 64 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
- * hex.
+ * Parses an unsigned 64 bit integer. Hex takes a "0x" prefix or an "h" suffix.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as hex without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -357,9 +321,8 @@ inline u64 from_string<u64>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses a 32 bit float. Hex text, marked by a "0x" prefix or an "h" suffix, gives the raw bits.
+ * Parses a 32 bit float. Hex text gives the raw bits.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as raw hex bits without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -369,9 +332,8 @@ inline f32 from_string<f32>(const std::string_view value, bool force_hex) {
 }
 
 /**
- * Parses a 64 bit float. Hex text, marked by a "0x" prefix or an "h" suffix, gives the raw bits.
+ * Parses a 64 bit float. Hex text gives the raw bits.
  *
- * @param value Text to parse.
  * @param force_hex True to parse as raw hex bits without a prefix.
  * @return The value, or 0 when the text does not parse.
  */
@@ -380,74 +342,4 @@ inline f64 from_string<f64>(const std::string_view value, bool force_hex) {
   return detail::ParseFloat<f64, u64>(value, force_hex);
 }
 
-/**
- * Parses 4 lanes. "[a b c d]" or text without a bracket gives 4 hex 32 bit lanes. "(a, b, c, d)"
- * gives 4 floats. Lanes are separated by spaces or commas.
- *
- * @param value Text to parse.
- * @param force_hex Unused, the opening bracket picks the format.
- * @return The vector, or a zero vector when the text does not parse.
- */
-template <>
-inline Vec128 from_string<Vec128>(const std::string_view value, bool force_hex) {
-  if (value.empty()) {
-    return Vec128();
-  }
-  Vec128 v;
-  auto p = value.data();
-  auto end = value.data() + value.size();
-  bool is_hex = force_hex;
-  if (p != end && *p == '[') {
-    is_hex = true;
-    ++p;
-  } else if (p != end && *p == '(') {
-    is_hex = false;
-    ++p;
-  } else {
-    is_hex = true;
-  }
-  if (p == end) {
-    REX_ASSERT_ALWAYS();
-    return Vec128();
-  }
-  if (is_hex) {
-    for (size_t i = 0; i < 4; i++) {
-      while (p != end && (*p == ' ' || *p == ',')) {
-        ++p;
-      }
-      if (p == end) {
-        REX_ASSERT_ALWAYS();
-        return Vec128();
-      }
-      auto result = std::from_chars(p, end, v.u32[i], 16);
-      if (result.ec != std::errc()) {
-        REX_ASSERT_ALWAYS();
-        return Vec128();
-      }
-      p = result.ptr;
-    }
-  } else {
-    for (size_t i = 0; i < 4; i++) {
-      while (p != end && (*p == ' ' || *p == ',')) {
-        ++p;
-      }
-      if (p == end) {
-        REX_ASSERT_ALWAYS();
-        return Vec128();
-      }
-#if REX_PLATFORM_MAC
-      auto result = detail::portable_float_from_chars(p, end, v.f32[i]);
-#else
-      auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);
-#endif
-      if (result.ec != std::errc()) {
-        REX_ASSERT_ALWAYS();
-        return Vec128();
-      }
-      p = result.ptr;
-    }
-  }
-  return v;
-}
-
-}  // namespace rex
+}  // namespace rex::string

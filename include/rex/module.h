@@ -1,6 +1,6 @@
 /**
  * @file        module.h
- * @brief       Module lifecycle interface and the module DLL export contract
+ * @brief       Interfaces, factory and module declaration
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,306 +11,364 @@
 
 #pragma once
 
-#include <algorithm>
+#include <array>
 #include <cstddef>
-#include <cstring>
-#include <expected>
 #include <span>
 #include <string_view>
-#include <utility>
+#include <type_traits>
+#include <vector>
 
-#include <rex/export.h>
+#include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 #include <rex/version.h>
 
 namespace rex {
 
-struct Config;
+namespace detail {
 
-/**
- * Result of an interface request at the module boundary.
- */
-// NOLINTNEXTLINE(performance-enum-size): the C export reports the status as i32
-enum class InterfaceStatus : i32 {
-  kOk = 0,              /**< The interface is served. */
-  kNotFound = 1,        /**< No interface of that name. */
-  kVersionMismatch = 2, /**< The name is served at a different version. */
+template <typename T>
+constexpr const char* FunctionSignature() {
+#if defined(__clang__) || defined(__GNUC__)
+  return __PRETTY_FUNCTION__;
+#else
+  return __FUNCSIG__;
+#endif
+}
+
+template <typename T>
+constexpr std::string_view ExtractTypeName() {
+  std::string_view signature = FunctionSignature<T>();
+#if defined(__clang__) || defined(__GNUC__)
+  constexpr std::string_view kMarker = "T = ";
+  const size_t begin = signature.find(kMarker) + kMarker.size();
+  const size_t end = signature.find_first_of(";]", begin);
+#else
+  constexpr std::string_view kMarker = "FunctionSignature<";
+  const size_t begin = signature.find(kMarker) + kMarker.size();
+  const size_t end = signature.rfind(">(");
+#endif
+  std::string_view name = signature.substr(begin, end - begin);
+  for (std::string_view prefix :
+       {std::string_view("class "), std::string_view("struct "), std::string_view("enum ")}) {
+    if (name.starts_with(prefix)) {
+      name.remove_prefix(prefix.size());
+    }
+  }
+  return name;
+}
+
+template <typename T>
+inline constexpr auto kTypeNameChars = [] {
+  constexpr std::string_view name = ExtractTypeName<T>();
+  std::array<char, name.size() + 1> chars{};
+  for (size_t i = 0; i < name.size(); ++i) {
+    chars[i] = name[i];
+  }
+  return chars;
+}();
+
+/** The qualified name of T as a null terminated string, the same text on every compiler. */
+template <typename T>
+inline constexpr const char* kTypeName = kTypeNameChars<T>.data();
+
+}  // namespace detail
+
+/** The name and version of an interface. Lookups match the version exactly. */
+struct InterfaceType {
+  const char* name; /**< The qualified type name, such as rex::kernel::IObjectTable. */
+  u32 version;
+  bool is_private = false; /**< Only a private factory finds it. */
 };
 
-/** Base of every interface class. Holds the virtual destructor and forbids copies. */
-class IInterface : public NonCopyable {
+/** Base of every versioned interface. */
+class IInterface : NonCopyable {
  public:
   virtual ~IInterface() = default;
 };
 
 /**
- * A string literal usable as a template argument.
+ * Opens an interface class that derives from IInterface and carries its identity as kInterface.
+ * The name is the qualified type name the compiler gives, so declare the class in a named
+ * namespace. The class body, the closing brace and the semicolon follow the macro.
  *
- * @tparam N The literal size including the terminator.
- */
-template <std::size_t N>
-struct InterfaceName {
-  char value[N]{}; /**< The characters including the terminator. */
-
-  /**
-   * Copies a string literal.
-   *
-   * @param text The literal.
-   */
-  constexpr InterfaceName(const char (&text)[N]) { std::copy_n(text, N, value); }
-};
-
-/**
- * Base of an interface served through the module ABI.
- *
- * @tparam Name The dotted interface name.
- * @tparam Version The interface version.
- */
-template <InterfaceName Name, u32 Version>
-class Interface : public IInterface {
- public:
-  static constexpr const char* kInterfaceName = Name.value; /**< The dotted interface name. */
-  static constexpr u32 kInterfaceVersion = Version;         /**< The interface version. */
-};
-
-/**
- * Joins 2 tokens after their arguments are left unexpanded, so a class name never stands alone in
- * a macro body.
- *
- * @param a The left token.
- * @param b The right token, may be empty.
- * @code
- * REX_DETAIL_PASTE(IFileSystem, )
- * @endcode
- */
-#define REX_DETAIL_PASTE(a, b) a##b
-/**
- * Picks the macro that matches the argument count of REX_INTERFACE.
- *
- * @param _1 The first argument.
- * @param _2 The second argument.
- * @param _3 The third argument.
- * @param Macro The macro to expand.
- * @param ... The remaining arguments.
- * @code
- * REX_DETAIL_INTERFACE_PICK(A, B, C, REX_DETAIL_INTERFACE_3, REX_DETAIL_INTERFACE_2,
- * REX_DETAIL_INTERFACE_1)
- * @endcode
- */
-#define REX_DETAIL_INTERFACE_PICK(_1, _2, _3, Macro, ...) Macro
-/**
- * Opens an interface class that derives from rex::IInterface.
- *
- * @param Name The interface class name.
- * @code
- * REX_DETAIL_INTERFACE_1(IPlain)
- * @endcode
- */
-#define REX_DETAIL_INTERFACE_1(Name) class REX_DETAIL_PASTE(Name, ) : public ::rex::IInterface {
-/**
- * Opens an interface class that derives from rex::Interface.
- *
- * @param Name The interface class name.
- * @param name The dotted interface name, a string literal.
- * @param version The interface version, an integer literal.
- * @code
- * REX_DETAIL_INTERFACE_3(IExample, "rex.example", 1)
- * @endcode
- */
-#define REX_DETAIL_INTERFACE_3(Name, name, version) \
-  class REX_DETAIL_PASTE(Name, ) : public ::rex::Interface<name, version> {
-/**
- * Opens an interface class and its brace. The access label, the class body, the closing brace and
- * the semicolon follow the macro.
- * The 3 argument form derives from rex::Interface and serves kInterfaceName and kInterfaceVersion.
- * The 1 argument form derives from rex::IInterface.
- *
- * @param ... The interface class name, then in the 3 argument form the dotted interface name as a
- *        string literal and the interface version as an integer literal.
+ * @param version The version of the interface layout.
  *
  * @code
- * REX_INTERFACE(IExample, "rex.example", 1)
- *  public:
- *   virtual Result<void> Mount(const MountEntry& entry) = 0;
+ * namespace rex::example {
+ * REX_DECLARE_INTERFACE(IExample, 1)
+ *   virtual int GetValue() const = 0;
  * };
+ * }  // namespace rex::example
  * @endcode
  */
-#define REX_INTERFACE(...)                                                               \
-  REX_DETAIL_INTERFACE_PICK(__VA_ARGS__, REX_DETAIL_INTERFACE_3, REX_DETAIL_INTERFACE_2, \
-                            REX_DETAIL_INTERFACE_1)(__VA_ARGS__)
+#define REX_DECLARE_INTERFACE(Name, version) \
+  class Name : public ::rex::IInterface {    \
+   public:                                   \
+    static constexpr ::rex::InterfaceType kInterface{::rex::detail::kTypeName<Name>, version};
 
 /**
- * Serves interfaces by name and version.
+ * Opens an interface like REX_DECLARE_INTERFACE that only the app and the kernel can reach. The
+ * public factory and API::Get never return it.
+ *
+ * @param version The version of the interface layout.
  */
-REX_INTERFACE(IInterfaceFactory)
+#define REX_DECLARE_PRIVATE_INTERFACE(Name, version) \
+  class Name : public ::rex::IInterface {            \
+   public:                                           \
+    static constexpr ::rex::InterfaceType kInterface{::rex::detail::kTypeName<Name>, version, true};
+
+/** Finds the interfaces the host and the modules serve. */
+class IFactory {
  public:
-  /**
-   * Returns an interface.
-   *
-   * @param name Interface name, the kInterfaceName of the requested interface class.
-   * @param version Version the caller was compiled against.
-   * @return The interface, or a Module error whose code is the InterfaceStatus.
-   */
-  [[nodiscard]] virtual Result<void*> Get(std::string_view name, u32 version) = 0;
+  virtual ~IFactory() = default;
 
   /**
-   * Typed fetch by T::kInterfaceName and T::kInterfaceVersion.
+   * @param version The version, matched exactly.
+   * @return The interface, or null when nothing serves that name and version.
+   */
+  virtual IInterface* Find(std::string_view name, u32 version) = 0;
+
+  /**
+   * Finds the interface of every module that serves it, in list order.
    *
-   * @tparam T The interface class, which declares kInterfaceName and kInterfaceVersion.
-   * @return The interface, or a Module error whose code is the InterfaceStatus.
+   * @param version The version, matched exactly.
+   * @return The interfaces, empty when nothing serves that name and version.
+   */
+  virtual std::vector<IInterface*> FindAll(std::string_view name, u32 version) = 0;
+
+  /**
+   * Finds an interface by type.
+   *
+   * @tparam T An interface declared with REX_DECLARE_INTERFACE.
+   * @return The interface, or null when nothing serves its name and version.
    */
   template <typename T>
-  [[nodiscard]] Result<T*> Get() {
-    auto found = Get(T::kInterfaceName, T::kInterfaceVersion);
-    if (!found) {
-      return std::unexpected(std::move(found).error());
+  T* Get() {
+    return static_cast<T*>(Find(T::kInterface.name, T::kInterface.version));
+  }
+
+  /**
+   * Finds the interface of every module that serves it, by type.
+   *
+   * @tparam T An interface declared with REX_DECLARE_INTERFACE.
+   * @return The interfaces in list order.
+   */
+  template <typename T>
+  std::vector<T*> FindAll() {
+    std::vector<T*> found;
+    for (IInterface* iface : FindAll(T::kInterface.name, T::kInterface.version)) {
+      found.push_back(static_cast<T*>(iface));
     }
-    return static_cast<T*>(*found);
+    return found;
+  }
+};
+
+/** A unit of the SDK or of a title. It connects to the interfaces it needs and serves its own. */
+REX_DECLARE_INTERFACE(IModule, 1)
+  virtual std::string_view GetName() const = 0;
+
+  /**
+   * Lists the interfaces that must be served before this module connects.
+   *
+   * @return The required interfaces. Empty by default.
+   */
+  virtual std::span<const InterfaceType> GetRequiredInterfaces() const { return {}; }
+
+  /**
+   * Lists the interfaces this module serves besides IModule. REX_MODULE_SERVES defines it.
+   *
+   * @return The served interfaces. Empty by default.
+   */
+  virtual std::span<const InterfaceType> GetServedInterfaces() const { return {}; }
+
+  /**
+   * Connects the module to the interfaces it uses. At Connect the factory finds only the host
+   * interfaces and those of earlier modules. From Init on it finds every connected module's
+   * interfaces.
+   *
+   * @return Success, or the reason the module cannot work.
+   */
+  [[nodiscard]] virtual Result<void> Connect(IFactory& factory) = 0;
+
+  /** Releases what Connect took. Runs in reverse list order. */
+  virtual void Disconnect() = 0;
+
+  /**
+   * Starts the module after every module connected.
+   *
+   * @return Success, or the reason the module cannot start.
+   */
+  [[nodiscard]] virtual Result<void> Init() = 0;
+
+  /** Runs in reverse list order. */
+  virtual void Shutdown() = 0;
+
+  /**
+   * Finds an interface the module serves besides IModule.
+   *
+   * @param version The version, matched exactly.
+   * @return The interface, or null when the module serves none by that name and version.
+   */
+  virtual IInterface* QueryInterface(std::string_view name, u32 version) {
+    (void)name;
+    (void)version;
+    return nullptr;
   }
 };
 
 /**
- * Lifecycle of a module.
+ * Finds an interface among those a module class derives from, for QueryInterface.
+ *
+ * @tparam Interfaces The interfaces the module serves besides IModule.
+ * @param version The version, matched exactly.
+ * @return The interface, or null when the module serves none by that name and version.
  */
-REX_INTERFACE(IModule, "rex.module", 1)
+template <typename... Interfaces, typename Module>
+IInterface* FindModuleInterface(Module& module, std::string_view name, u32 version) {
+  IInterface* found = nullptr;
+  ((!found && name == Interfaces::kInterface.name && version == Interfaces::kInterface.version
+        ? (found = static_cast<Interfaces*>(&module))
+        : nullptr),
+   ...);
+  return found;
+}
+
+namespace detail {
+
+/**
+ * Returns the factory of the running app, or null before the app connects its modules and after it
+ * shuts them down.
+ */
+REX_API IFactory* GetAPIFactory();
+
+}  // namespace detail
+
+/** Reaches the interfaces of the running app from anywhere in the program. */
+class API {
  public:
   /**
-   * Returns the module's DLL base name.
+   * Finds an interface of the running app.
    *
-   * @return The DLL base name, for example "rexgpu-xenos".
+   * @tparam T An interface declared with REX_DECLARE_INTERFACE.
+   * @return The interface, or null when no app is running or nothing serves it.
    */
-  virtual const char* GetName() const = 0;
-
-  /**
-   * Returns the interfaces this module needs from modules listed before it.
-   *
-   * @return The required interfaces, each as "name@version".
-   */
-  virtual std::span<const char* const> GetRequiredInterfaces() const = 0;
-
-  /**
-   * Acquires pointers and registers descriptors. Allocates nothing that needs another
-   * module initialized.
-   *
-   * @param factory Serves every loaded module's interfaces.
-   * @param config The consumer's configuration. The module keeps a pointer to its module config.
-   * @return Ok, or an error that aborts Init before any module's Init runs.
-   */
-  [[nodiscard]] virtual Result<void> Connect(IInterfaceFactory* factory, const Config& config) = 0;
-
-  /**
-   * Releases what Connect acquired. Cannot fail.
-   */
-  virtual void Disconnect() = 0;
-
-  /**
-   * Builds the module's state from its module config.
-   *
-   * @return Ok, or an error that unwinds every module initialized before it.
-   */
-  [[nodiscard]] virtual Result<void> Init() = 0;
-
-  /**
-   * Tears down what Init built. Cannot fail.
-   */
-  virtual void Shutdown() = 0;
+  template <typename T>
+  static T* Get() {
+    IFactory* factory = detail::GetAPIFactory();
+    return factory ? factory->Get<T>() : nullptr;
+  }
 };
 
-/**
- * 1 served interface in a module's table.
- */
-struct InterfaceEntry {
-  const char* name; /**< Dotted interface name. */
-  u32 version;      /**< Served version. */
-  void* (*get)();   /**< Returns the interface instance. */
-};
+#define REX_INTERFACE(T) ::rex::API::Get<T>()
 
-/**
- * Name of the C export that serves interfaces.
- */
+/** The symbol a module exports to hand over its interfaces. */
 inline constexpr const char* kCreateInterfaceSymbol = "ReXCreateInterface";
 
-/**
- * Name of the C export that returns the served interface table.
- */
+/** The symbol a module exports to list its interfaces. */
 inline constexpr const char* kEnumerateInterfacesSymbol = "ReXEnumerateInterfaces";
 
-/**
- * Name of the C export that returns the SDK build identity a module was compiled against.
- */
+/** The symbol a module exports to report the SDK build it was compiled against. */
 inline constexpr const char* kBuildIdentitySymbol = "ReXBuildIdentity";
 
-/**
- * Identity of the SDK build these headers belong to. A module loads only when its exported
- * identity equals this value.
- */
+/** The identity of the SDK build these headers belong to. A module loads only when it matches. */
 inline constexpr const char* kBuildIdentity = REXGLUE_BUILD_IDENTITY;
 
-/**
- * Signature of ReXBuildIdentity.
- */
-using BuildIdentityFn = const char* (*)();
+/** The type of ReXCreateInterface. Returns null when the module serves no such interface. */
+using CreateInterfaceFn = IInterface* (*)(const char* name, u32 version);
+
+/** The type of ReXEnumerateInterfaces. Returns the total count and writes at most capacity. */
+using EnumerateInterfacesFn = u32 (*)(InterfaceType* out, u32 capacity);
+
+namespace detail {
 
 /**
- * Signature of ReXCreateInterface.
+ * The descriptions of the interfaces a module serves.
+ *
+ * @tparam Interfaces The interfaces, each declared with REX_DECLARE_INTERFACE or
+ * REX_DECLARE_PRIVATE_INTERFACE.
  */
-using CreateInterfaceFn = void* (*)(const char* name, u32 version, i32* out_status);
+template <typename... Interfaces>
+struct ServedTypeList {
+  static constexpr InterfaceType kList[] = {Interfaces::kInterface...};
+};
 
-/**
- * Signature of ReXEnumerateInterfaces.
- */
-using EnumerateInterfacesFn = void (*)(const InterfaceEntry** out_entries, u32* out_count);
+/** Lists every interface a module serves, IModule first. */
+inline std::vector<InterfaceType> ListServedInterfaces(const IModule& module) {
+  std::vector<InterfaceType> types{IModule::kInterface};
+  for (const InterfaceType& type : module.GetServedInterfaces()) {
+    if (std::string_view(type.name) != IModule::kInterface.name) {
+      types.push_back(type);
+    }
+  }
+  return types;
+}
 
+template <typename Module>
+IInterface* CreateModuleInterface(Module& module, std::string_view name, u32 version) {
+  if (name == IModule::kInterface.name && version == IModule::kInterface.version) {
+    return static_cast<IModule*>(&module);
+  }
+  return module.QueryInterface(name, version);
+}
+
+inline u32 EnumerateModuleInterfaces(const IModule& module, InterfaceType* out, u32 capacity) {
+  const std::vector<InterfaceType> types = ListServedInterfaces(module);
+  const u32 count = static_cast<u32>(types.size());
+  for (u32 i = 0; i < count && i < capacity; ++i) {
+    out[i] = types[i];
+  }
+  return count;
+}
+
+}  // namespace detail
 }  // namespace rex
 
 /**
- * Generates the 3 C exports of a module DLL for a class that declares
- * `static constexpr std::array<rex::InterfaceEntry, N> kInterfaces`.
- *
- * Called exactly once per module DLL at namespace scope. `ReXCreateInterface(name, version,
- * out_status)` searches the table and reports Ok, NotFound or VersionMismatch,
- * `ReXEnumerateInterfaces(out_entries, out_count)` returns the table and `ReXBuildIdentity()`
- * returns the identity of the SDK build the module was compiled against. Nothing runs at DLL
- * load, the module instance is created by the table's getters on first request.
- *
- * @param ModuleClass The module class holding the interface table.
+ * Declares the interfaces a module class serves besides IModule. Use once in a public section of
+ * the class body.
  *
  * @code
- * REX_DECLARE_MODULE(rex::gpu::XenosModule)
+ * class MyModule final : public rex::IModule {
+ *  public:
+ *   REX_MODULE_SERVES(IMyService)
+ * };
  * @endcode
+ *
+ * @param ... The interfaces, each declared with REX_DECLARE_INTERFACE or
+ * REX_DECLARE_PRIVATE_INTERFACE.
  */
-#define REX_DECLARE_MODULE(ModuleClass)                                                       \
-  extern "C" REX_DETAIL_EXPORT const char* ReXBuildIdentity() {                               \
-    return ::rex::kBuildIdentity;                                                             \
-  }                                                                                           \
-  extern "C" REX_DETAIL_EXPORT void* ReXCreateInterface(const char* name, ::rex::u32 version, \
-                                                        ::rex::i32* out_status) {             \
-    if (!name) {                                                                              \
-      if (out_status)                                                                         \
-        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);             \
-      return nullptr;                                                                         \
-    }                                                                                         \
-    for (const ::rex::InterfaceEntry& entry : ModuleClass::kInterfaces) {                     \
-      if (std::strcmp(entry.name, name) != 0)                                                 \
-        continue;                                                                             \
-      if (entry.version != version) {                                                         \
-        if (out_status)                                                                       \
-          *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kVersionMismatch);    \
-        return nullptr;                                                                       \
-      }                                                                                       \
-      if (out_status)                                                                         \
-        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kOk);                   \
-      return entry.get();                                                                     \
-    }                                                                                         \
-    if (out_status)                                                                           \
-      *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);               \
-    return nullptr;                                                                           \
-  }                                                                                           \
-  extern "C" REX_DETAIL_EXPORT void ReXEnumerateInterfaces(                                   \
-      const ::rex::InterfaceEntry** out_entries, ::rex::u32* out_count) {                     \
-    if (out_entries)                                                                          \
-      *out_entries = ModuleClass::kInterfaces.data();                                         \
-    if (out_count)                                                                            \
-      *out_count = static_cast<::rex::u32>(ModuleClass::kInterfaces.size());                  \
+#define REX_MODULE_SERVES(...)                                                   \
+  ::std::span<const ::rex::InterfaceType> GetServedInterfaces() const override { \
+    return ::rex::detail::ServedTypeList<__VA_ARGS__>::kList;                    \
+  }
+
+/**
+ * Exports the module identity and its interfaces. Use once per module.
+ *
+ * @code
+ * REX_DECLARE_MODULE(MyModule)
+ * @endcode
+ *
+ * @param ModuleClass A class deriving from IModule, with a default constructor. One instance exists
+ * as long as the library.
+ */
+#define REX_DECLARE_MODULE(ModuleClass)                                                           \
+  namespace {                                                                                     \
+  ModuleClass& ReXModuleInstance() {                                                              \
+    static ModuleClass instance;                                                                  \
+    return instance;                                                                              \
+  }                                                                                               \
+  }                                                                                               \
+  extern "C" REX_DETAIL_EXPORT const char* ReXBuildIdentity() {                                   \
+    return REXGLUE_BUILD_IDENTITY;                                                                \
+  }                                                                                               \
+  extern "C" REX_DETAIL_EXPORT ::rex::IInterface* ReXCreateInterface(const char* name,            \
+                                                                     ::rex::u32 version) {        \
+    return ::rex::detail::CreateModuleInterface<ModuleClass>(ReXModuleInstance(), name, version); \
+  }                                                                                               \
+  extern "C" REX_DETAIL_EXPORT ::rex::u32 ReXEnumerateInterfaces(::rex::InterfaceType* out,       \
+                                                                 ::rex::u32 capacity) {           \
+    return ::rex::detail::EnumerateModuleInterfaces(ReXModuleInstance(), out, capacity);          \
   }

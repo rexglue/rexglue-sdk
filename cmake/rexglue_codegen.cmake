@@ -1,4 +1,3 @@
-#==========================================================
 # rexglue_add_codegen(<target>
 #                     MANIFEST <manifest>
 #                     OUTPUT_DIR <folder>
@@ -6,12 +5,10 @@
 #                     TOOL <command...>
 #                     [MAX_FILE_SIZE <bytes>]
 #                     [SOURCES <files...>])
-#
 # Runs the codegen tool as a build step. The step reruns when a listed input of the depfile
 # changes or when MAX_FILE_SIZE changes. SOURCES are the generated files the step is ordered
 # before. The step also writes sources.cmake, which is a configure dependency, so a run that
 # changes the list of sources regenerates the build files before anything compiles them.
-#==========================================================
 function (rexglue_add_codegen target_name)
   cmake_parse_arguments(
     PARSE_ARGV 1 ARG "" "MANIFEST;OUTPUT_DIR;WORKING_DIRECTORY;MAX_FILE_SIZE" "TOOL;SOURCES"

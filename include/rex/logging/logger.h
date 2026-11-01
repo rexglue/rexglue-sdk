@@ -10,116 +10,301 @@
 
 #pragma once
 
+#include <chrono>
+#include <deque>
 #include <filesystem>
-#include <optional>
+#include <fstream>
+#include <memory>
+#include <mutex>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
-#include <rex/platform.h>
-#include <rex/logging/category.h>
-#include <rex/logging/config.h>
-#include <rex/logging/flush.h>
-#include <rex/logging/format.h>
-#include <rex/logging/level.h>
-#include <rex/logging/sink.h>
-#include <rex/export.h>
-#include <rex/result.h>
-#include <rex/types.h>
+#include <rex/logging/log.h>
 #include <rex/module.h>
+#include <rex/platform.h>
+#include <rex/result.h>
+#include <rex/setting.h>
+#include <rex/types.h>
+#include <rex/utility.h>
+
+namespace rex::log {
+
+/** Timestamp written at the start of a line. */
+enum class TimestampStyle : u8 {
+  kNone,
+  kClock,    /**< Local wall clock with milliseconds. */
+  kDateTime, /**< Local date and wall clock with milliseconds. */
+  kElapsed,  /**< Seconds since the logger started, with a leading plus sign. */
+};
+
+/** What a text sink writes around each message. The level is never written as text. */
+struct LineFormat {
+  TimestampStyle timestamp = TimestampStyle::kNone;
+  bool category = true;
+  bool thread = false; /**< Host thread ID column. */
+  bool color = true;   /**< Level color, where the sink supports it. */
+};
+
+/** One message as sinks receive it. The views are valid during ISink::Write. */
+struct Message {
+  Level level = Level::kInfo;
+  std::string_view category;
+  std::string_view text;
+  std::chrono::system_clock::time_point time;
+  u32 thread_id = 0;
+  u64 sequence = 0; /**< Process wide order, starting at 1. */
+};
+
+/**
+ * Renders a message as a single line without a line break.
+ *
+ * @return The line. Color is written as ANSI SGR codes.
+ */
+REX_API std::string FormatLine(const Message& message, const LineFormat& format);
+
+/** The ANSI SGR code that ends a colored run. */
+inline constexpr std::string_view kColorReset = "\x1b[0m";
+
+/** Returns the ANSI SGR prefix of a level, empty for Info. */
+REX_API std::string_view LevelColor(Level level);
+
+/**
+ * Returns the file column letter of a level.
+ */
+REX_API char LevelLetter(Level level);
+
+}  // namespace rex::log
+
+namespace rex::log {
+
+/** Receives every written message. The logger calls it under its sink mutex, never concurrently. */
+class ISink : public NonCopyable {
+ public:
+  virtual ~ISink() = default;
+
+  virtual void Write(const Message& message) = 0;
+
+  virtual void Flush() = 0;
+};
+
+/** Standard output, colored with ANSI codes. A Windows console gets virtual terminal mode. */
+class REX_API ConsoleSink final : public ISink {
+ public:
+  explicit ConsoleSink(LineFormat format);
+
+  void Write(const Message& message) override;
+
+  void Flush() override;
+
+  void SetFormat(LineFormat format);
+
+ private:
+  LineFormat format_;
+  bool color_supported_ = false;
+};
+
+/** The debugger. OutputDebugStringW on Windows, standard error elsewhere. Never colored. */
+class REX_API DebuggerSink final : public ISink {
+ public:
+  /**
+   * Builds the sink.
+   *
+   * @param format What to write around each message. color is ignored.
+   */
+  explicit DebuggerSink(LineFormat format);
+
+  void Write(const Message& message) override;
+
+  /** Flushes standard error where it is the target. */
+  void Flush() override;
+
+  /**
+   * Sets the line format.
+   *
+   * @param format What to write around each message. color is ignored.
+   */
+  void SetFormat(LineFormat format);
+
+ private:
+  LineFormat format_;
+};
+
+/** A log file with a level letter column (T, V, D, I, W, E, C) after the timestamp. */
+class REX_API FileSink final : public ISink {
+ public:
+  /**
+   * Opens a file for appending.
+   *
+   * @param path The file. Missing parent folders are created.
+   * @param format What to write around each message. color is ignored.
+   * @return The sink, or an error naming the path.
+   */
+  [[nodiscard]] static Result<std::unique_ptr<FileSink>> Open(const std::filesystem::path& path,
+                                                              LineFormat format);
+
+  void Write(const Message& message) override;
+
+  void Flush() override;
+
+  /**
+   * @return The path passed to Open.
+   */
+  const std::filesystem::path& GetPath() const;
+
+  /**
+   * Wraps an open stream. Open is the usual way to build the sink.
+   *
+   * @param format What to write around each message. color is ignored.
+   */
+  FileSink(std::filesystem::path path, std::ofstream file, LineFormat format);
+
+ private:
+  std::filesystem::path path_;
+  std::ofstream file_;
+  LineFormat format_;
+};
+
+/** One captured message, owning its text. */
+struct CapturedMessage {
+  Level level = Level::kInfo;
+  std::string category;
+  std::string text;
+  std::chrono::system_clock::time_point time;
+  u32 thread_id = 0;
+  u64 sequence = 0;
+};
+
+/** Keeps the newest messages in memory for the console. Safe to read from any thread. */
+class REX_API CaptureSink final : public ISink {
+ public:
+  static constexpr size_t kCapacity = 4096;
+
+  /**
+   * Keeps a message, discarding the oldest at capacity.
+   */
+  void Write(const Message& message) override;
+
+  /** Does nothing, the messages are in memory. */
+  void Flush() override;
+
+  /**
+   * Copies the messages newer than a sequence, oldest first.
+   *
+   * @param after Sequence of the newest message the caller holds, 0 for all.
+   * @param out Receives the messages. Cleared first.
+   * @return The sequence of the newest message kept, or after when nothing is newer.
+   */
+  u64 CopySince(u64 after, std::vector<CapturedMessage>& out) const;
+
+  /** Returns the sequence of the newest message kept, 0 before the first message. */
+  u64 GetLatestSequence() const;
+
+ private:
+  mutable std::mutex mutex_;
+  std::deque<CapturedMessage> messages_;
+};
+
+}  // namespace rex::log
 
 namespace rex {
 
-/** Runtime control of the logger. */
-REX_INTERFACE(ILogger, "rex.log", 1)
- public:
-  /**
-   * Registers categories and adds a log.\<name\> cvar for each.
-   *
-   * @param categories Descriptors that outlive the registration.
-   * @return Ok, or an error naming a duplicate name, a name that collides with a log cvar, or a
-   *         full table.
-   */
-  [[nodiscard]] virtual Result<void> Register(std::span<const log::Category* const> categories) = 0;
+class ProcessLoggerControl;
+
+/** The process logger as modules reach it. */
+REX_DECLARE_INTERFACE(ILogger, 1)
+/**
+ * Adds categories, each with a setting log.categories.<name>, empty to follow log.level.
+ *
+ * @param categories The categories, which must outlive their removal.
+ * @return Ok, or an error when a name is already added by another table.
+ */
+  [[nodiscard]] virtual Result<void> AddCategories(
+      std::span<const log::Category* const> categories) = 0;
 
   /**
-   * Unregisters categories and removes their cvars. Their slots stay and follow the default level.
-   *
-   * @param categories Descriptors passed to Register.
+   * Removes categories and their settings. Later lines follow log.level.
    */
-  virtual void Unregister(std::span<const log::Category* const> categories) = 0;
+  virtual void RemoveCategories(std::span<const log::Category* const> categories) = 0;
 
   /**
-   * Sets a level. The default level applies to every category without its own level.
+   * Adds a sink. It receives the kept lines, then every new line.
    *
-   * @param category Category name, or empty for the default level.
-   * @param level The level, or empty to follow the default again.
-   * @return Ok, or an error for an unknown category or an empty default level.
+   * @param sink The sink, which must outlive the returned guard.
+   * @return Guard that removes the sink and waits for a write in progress. Does nothing for a sink
+   *         that was added twice.
    */
-  [[nodiscard]] virtual Result<void> SetLevel(std::string_view category,
-                                              std::optional<log::Level> level) = 0;
+  [[nodiscard]] virtual ScopeGuard AddSink(log::ISink& sink) = 0;
 
-  /**
-   * Returns a level.
-   *
-   * @param category Category name. Empty names the default level.
-   * @return The effective level, or an error for an unknown category.
-   */
-  [[nodiscard]] virtual Result<log::Level> GetLevel(std::string_view category) const = 0;
-
-  /**
-   * Returns every category, registered or not, in the order they were first seen.
-   *
-   * @return 1 row per category.
-   */
-  virtual std::vector<log::CategoryState> GetCategories() const = 0;
-
-  /**
-   * Adds a sink. The caller keeps ownership and removes the sink before destroying it.
-   *
-   * @param sink The sink. Adding a sink twice has no effect.
-   */
-  virtual void AddSink(log::ISink& sink) = 0;
-
-  /**
-   * Removes a sink added with AddSink. Returns after any write in progress on it finishes.
-   *
-   * @param sink The sink.
-   */
-  virtual void RemoveSink(log::ISink& sink) = 0;
-
-  /**
-   * Sets the format of the console and debugger sinks the logger created from Config::log.
-   *
-   * @param format The format.
-   */
-  virtual void SetFormat(const log::LineFormat& format) = 0;
-
-  /** Writes buffered output of every sink. */
+  /** Flushes every sink. Safe from a crash handler. */
   virtual void Flush() = 0;
 
   /**
-   * Returns the log file.
+   * Writes a message to every sink.
    *
-   * @return The path of the open log file, empty when no file is open.
+   * @param message The message, valid for the call.
    */
-  virtual std::filesystem::path GetFilePath() const = 0;
+  virtual void Emit(const log::Message& message) = 0;
 };
 
-namespace log {
-
 /**
- * Starts the logger for a process that logs outside rex::Init, such as a command line tool. A
- * later rex::Init keeps these sinks and levels and adds only its categories and cvars.
- *
- * @param config The configuration.
- * @return Ok, or an error when the logger is already started or a category fails to register.
+ * It starts on first use and writes to the console and the debugger. It keeps lines until the log
+ * file opens, then writes them to it, and keeps the last 4096 for sinks added later. The app opens
+ * the file once app.log_root resolves.
  */
-[[nodiscard]] REX_API Result<void> Start(const LogConfig& config);
+class REX_API Logger final : public SettingOwner, public ILogger {
+ public:
+  ~Logger() override;
 
-/** Stops a logger started with Start. */
-REX_API void Stop();
+  REX_SETTING(std::string, level, "info",
+              "Lowest level written by a category without its own level",
+              Allowed("trace", "dev", "debug", "info", "warn", "error", "critical", "off"));
+  REX_SETTING(std::string, flush_level, "warn", "Lowest level that flushes every sink at once",
+              Allowed("trace", "dev", "debug", "info", "warn", "error", "critical", "off"),
+              kStartupOnly);
+  REX_SETTING(i32, flush_interval, 1, "Seconds between flushes", Range{0, 60}, kStartupOnly);
+  REX_SETTING(bool, console, true, "Write to the console", kStartupOnly);
+  REX_SETTING(bool, debugger, true, "Write to an attached debugger", kStartupOnly);
+  REX_SETTING(bool, file, true, "Write a log file under app.log_root", kStartupOnly);
+  REX_SETTING(std::string, file_name, "", "File name, the app name when empty", kStartupOnly);
+  REX_SETTING(i64, folder_budget, 0, "Bytes of old log files kept, 0 keeps all",
+              Range{0, 9007199254740992.0}, kStartupOnly);
+  REX_SETTING(std::string, timestamps, "datetime", "Time stamp on each line",
+              Allowed("none", "time", "datetime"), kStartupOnly);
+  REX_SETTING(bool, show_category, true, "Show the category on each line", kStartupOnly);
+  REX_SETTING(bool, show_thread, true, "Show the thread on each line", kStartupOnly);
+  REX_SETTING(bool, color, false, "Color the console", kStartupOnly);
 
-}  // namespace log
+  [[nodiscard]] Result<void> AddCategories(
+      std::span<const log::Category* const> categories) override;
+
+  void RemoveCategories(std::span<const log::Category* const> categories) override;
+
+  [[nodiscard]] ScopeGuard AddSink(log::ISink& sink) override;
+
+  void Flush() override;
+
+  void Emit(const log::Message& message) override;
+
+  struct State;
+
+ private:
+  Logger();
+  friend REX_API Logger& GetLogger();
+  friend class ProcessLoggerControl;
+
+  void ApplySettled();
+  [[nodiscard]] Result<void> OpenFile(const std::filesystem::path& log_root,
+                                      std::string_view app_name);
+  void EndSession();
+
+  std::unique_ptr<State> state_;
+};
+
+/** Returns the process logger, starting it on the first call. */
+REX_API Logger& GetLogger();
+
+#define REX_LOGGER() ::rex::GetLogger()
 
 }  // namespace rex

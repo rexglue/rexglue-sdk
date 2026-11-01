@@ -11,88 +11,88 @@
 
 #include <rex/memory/host.h>
 
+using rex::memory::detail::AllocType;
 using rex::memory::detail::DeleteBlock;
-using rex::memory::detail::Kind;
 using rex::memory::detail::NewBlock;
 
 void* operator new(std::size_t size) {
-  return NewBlock(size, 0, Kind::kScalar, true);
+  return NewBlock(size, 0, AllocType::kScalar, true);
 }
 
 void* operator new[](std::size_t size) {
-  return NewBlock(size, 0, Kind::kArray, true);
+  return NewBlock(size, 0, AllocType::kArray, true);
 }
 
 void* operator new(std::size_t size, std::align_val_t align) {
-  return NewBlock(size, static_cast<std::size_t>(align), Kind::kScalar, true);
+  return NewBlock(size, static_cast<std::size_t>(align), AllocType::kScalar, true);
 }
 
 void* operator new[](std::size_t size, std::align_val_t align) {
-  return NewBlock(size, static_cast<std::size_t>(align), Kind::kArray, true);
+  return NewBlock(size, static_cast<std::size_t>(align), AllocType::kArray, true);
 }
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-  return NewBlock(size, 0, Kind::kScalar, false);
+  return NewBlock(size, 0, AllocType::kScalar, false);
 }
 
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
-  return NewBlock(size, 0, Kind::kArray, false);
+  return NewBlock(size, 0, AllocType::kArray, false);
 }
 
 void* operator new(std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
-  return NewBlock(size, static_cast<std::size_t>(align), Kind::kScalar, false);
+  return NewBlock(size, static_cast<std::size_t>(align), AllocType::kScalar, false);
 }
 
 void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
-  return NewBlock(size, static_cast<std::size_t>(align), Kind::kArray, false);
+  return NewBlock(size, static_cast<std::size_t>(align), AllocType::kArray, false);
 }
 
 void operator delete(void* ptr) noexcept {
-  DeleteBlock(ptr, 0, Kind::kScalar);
+  DeleteBlock(ptr, 0, AllocType::kScalar);
 }
 
 void operator delete[](void* ptr) noexcept {
-  DeleteBlock(ptr, 0, Kind::kArray);
+  DeleteBlock(ptr, 0, AllocType::kArray);
 }
 
 void operator delete(void* ptr, std::size_t size) noexcept {
-  DeleteBlock(ptr, size, Kind::kScalar);
+  DeleteBlock(ptr, size, AllocType::kScalar);
 }
 
 void operator delete[](void* ptr, std::size_t size) noexcept {
-  DeleteBlock(ptr, size, Kind::kArray);
+  DeleteBlock(ptr, size, AllocType::kArray);
 }
 
 void operator delete(void* ptr, std::align_val_t) noexcept {
-  DeleteBlock(ptr, 0, Kind::kScalar);
+  DeleteBlock(ptr, 0, AllocType::kScalar);
 }
 
 void operator delete[](void* ptr, std::align_val_t) noexcept {
-  DeleteBlock(ptr, 0, Kind::kArray);
+  DeleteBlock(ptr, 0, AllocType::kArray);
 }
 
 void operator delete(void* ptr, std::size_t size, std::align_val_t) noexcept {
-  DeleteBlock(ptr, size, Kind::kScalar);
+  DeleteBlock(ptr, size, AllocType::kScalar);
 }
 
 void operator delete[](void* ptr, std::size_t size, std::align_val_t) noexcept {
-  DeleteBlock(ptr, size, Kind::kArray);
+  DeleteBlock(ptr, size, AllocType::kArray);
 }
 
 void operator delete(void* ptr, const std::nothrow_t&) noexcept {
-  DeleteBlock(ptr, 0, Kind::kScalar);
+  DeleteBlock(ptr, 0, AllocType::kScalar);
 }
 
 void operator delete[](void* ptr, const std::nothrow_t&) noexcept {
-  DeleteBlock(ptr, 0, Kind::kArray);
+  DeleteBlock(ptr, 0, AllocType::kArray);
 }
 
 void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-  DeleteBlock(ptr, 0, Kind::kScalar);
+  DeleteBlock(ptr, 0, AllocType::kScalar);
 }
 
 void operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-  DeleteBlock(ptr, 0, Kind::kArray);
+  DeleteBlock(ptr, 0, AllocType::kArray);
 }
 
 #endif

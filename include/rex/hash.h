@@ -13,6 +13,7 @@
 #pragma once
 
 #include <functional>
+#include <span>
 #include <cstddef>
 #include <filesystem>
 #include <string>
@@ -21,25 +22,17 @@
 
 #include <rex/types.h>
 #include <rex/platform.h>
-#include <rex/export.h>
-
-#ifndef XXH_INLINE_ALL
-#define XXH_INLINE_ALL
-#endif
-
-#include <xxhash.h>
 
 namespace rex {
 
 /**
- * Hasher that returns a key already hashed elsewhere, for containers with external hashing.
+ * Hasher that returns a key hashed elsewhere, for containers with external hashing.
  *
  * @tparam Key Key type convertible to size_t.
  */
 template <typename Key>
 struct IdentityHasher {
   /**
-   * @param key The precomputed hash.
    * @return key cast to size_t.
    */
   size_t operator()(const Key& key) const { return static_cast<size_t>(key); }
@@ -53,7 +46,6 @@ struct IdentityHasher {
 template <typename Key>
 struct KeyHasher {
   /**
-   * @param hashed_key The key to hash.
    * @return std::hash of the key member.
    */
   size_t operator()(const Key& hashed_key) const {
@@ -62,18 +54,21 @@ struct KeyHasher {
 };
 
 /**
- * Hasher that runs XXH3 over the object representation of the key.
+ * 64 bit XXH3 hash for hash tables and keys, not for security use.
  *
- * @tparam Key Trivially copyable key type.
+ * @param data The bytes to hash.
  */
+REX_API u64 HashXXH3(std::span<const u8> data);
+
+/** Hasher that runs XXH3 over the object representation of the key. */
 template <typename Key>
 struct XXHasher {
   /**
-   * @param key The key to hash.
    * @return The 64 bit XXH3 hash of the bytes of key.
    */
   size_t operator()(const Key& key) const {
-    return static_cast<size_t>(XXH3_64bits(&key, sizeof(key)));
+    return static_cast<size_t>(
+        HashXXH3(std::span<const u8>(reinterpret_cast<const u8*>(&key), sizeof(key))));
   }
 };
 
@@ -86,9 +81,8 @@ struct XXHasher {
 REX_API std::string HashBytes(std::string_view data);
 
 /**
- * 128 bit XXH3 digest over the contents of a file, read in chunks.
+ * 128 bit XXH3 digest over the contents of a file.
  *
- * @param path The file to hash.
  * @return The digest as a 32 character lowercase hex string, or an empty string when the path is
  *         not a regular file or cannot be opened or read.
  */
@@ -97,23 +91,13 @@ REX_API std::string HashFile(const std::filesystem::path& path);
 /**
  * Ends the hash_combine recursion.
  *
- * @param hash Hash value so far.
  * @return The hash value unchanged.
  */
 inline size_t hash_combine(size_t hash) {
   return hash;
 }
 
-/**
- * Mixes the std::hash of each value into a hash value.
- *
- * @tparam T Type of the first value.
- * @tparam Ts Types of the remaining values.
- * @param hash Hash value to mix into.
- * @param v First value.
- * @param vs Remaining values.
- * @return The combined hash value.
- */
+/** Mixes the std::hash of each value into a hash value. */
 template <typename T, typename... Ts>
 size_t hash_combine(size_t hash, const T& v, const Ts&... vs) {
   std::hash<T> hasher;

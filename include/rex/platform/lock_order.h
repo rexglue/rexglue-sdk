@@ -1,6 +1,5 @@
 /**
  * @file        platform/lock_order.h
- * @brief       Ranked mutexes with a debug lock order check
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,33 +14,23 @@
 #include <shared_mutex>
 
 #include <rex/platform.h>
-#include <rex/export.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex::platform {
 
 /**
- * Ranks of the kernel locks in the order they may be taken. A lock may be taken only when its rank
- * is greater than every rank the thread already holds. Leaf may be taken after any rank and nothing
- * may be taken while a Leaf is held.
+ * A lock may be taken only when its rank is greater than every rank the thread holds. Modules
+ * define lower ranks as values of this type, for example `LockRank kObjectTable{3};`.
  */
 enum class LockRank : u8 {
-  kInterrupt = 1,  /**< Rank 1, the lowest. Guards the function dispatcher interrupt state. */
-  kIdentity,       /**< Rank 2. Guards the object table identity map and the module load counts. */
-  kTable,          /**< Rank 3. Guards the object table. */
-  kName,           /**< Rank 4. Guards the object table name map. */
-  kThreadRegistry, /**< Rank 5. Guards the thread registry. */
-  kModuleRegistry, /**< Rank 6. Guards the module registry. */
-  kObject,         /**< Rank 7. Guards the state of a single object, such as the APU. */
-  kDPC,            /**< Rank 8. Guards the deferred procedure call queue of the dispatcher. */
-  kLeaf,           /**< Rank 9, the highest. Taken last, nothing may be taken while it is held. */
+  kLeaf = 0xFF, /**< The highest rank. Nothing may be taken while it is held. */
 };
 
 /**
  * Receives an order violation in a debug build.
  *
- * @param held The rank on top of the thread's held stack.
- * @param acquiring The rank the thread is taking.
+ * @param held The rank on top of the held stack.
  */
 using LockOrderHandler = void (*)(LockRank held, LockRank acquiring);
 
@@ -53,40 +42,21 @@ using LockOrderHandler = void (*)(LockRank held, LockRank acquiring);
  */
 REX_API LockOrderHandler SetLockOrderHandler(LockOrderHandler handler);
 
-/**
- * Pushes the rank of a lock the calling thread takes and reports an order violation in a debug
- * build.
- *
- * @param rank The rank being taken.
- */
+/** Pushes the rank of a lock being taken and reports an order violation in a debug build. */
 REX_API void PushLockRank(LockRank rank);
 
-/**
- * Pops the rank of a lock the calling thread releases.
- *
- * @param rank The rank being released.
- */
 REX_API void PopLockRank(LockRank rank);
 
 /** A non recursive mutex that reports order violations in a debug build. */
 class RankedMutex : public rex::NonCopyable {
  public:
-  /**
-   * @param rank The rank of this lock.
-   */
   explicit RankedMutex(LockRank rank) : rank_(rank) {}
 
-  /** Locks the mutex. */
   void lock() {
     PushLockRank(rank_);
     mutex_.lock();
   }
 
-  /**
-   * Tries to lock the mutex.
-   *
-   * @return True when the mutex was locked.
-   */
   bool try_lock() {
     if (!mutex_.try_lock()) {
       return false;
@@ -95,7 +65,6 @@ class RankedMutex : public rex::NonCopyable {
     return true;
   }
 
-  /** Unlocks the mutex. */
   void unlock() {
     PopLockRank(rank_);
     mutex_.unlock();
@@ -109,30 +78,23 @@ class RankedMutex : public rex::NonCopyable {
 /** A non recursive shared mutex that reports order violations in a debug build. */
 class RankedSharedMutex : public rex::NonCopyable {
  public:
-  /**
-   * @param rank The rank of this lock.
-   */
   explicit RankedSharedMutex(LockRank rank) : rank_(rank) {}
 
-  /** Locks the mutex exclusively. */
   void lock() {
     PushLockRank(rank_);
     mutex_.lock();
   }
 
-  /** Unlocks the exclusive lock. */
   void unlock() {
     PopLockRank(rank_);
     mutex_.unlock();
   }
 
-  /** Locks the mutex for shared use. */
   void lock_shared() {
     PushLockRank(rank_);
     mutex_.lock_shared();
   }
 
-  /** Unlocks the shared lock. */
   void unlock_shared() {
     PopLockRank(rank_);
     mutex_.unlock_shared();
@@ -144,3 +106,31 @@ class RankedSharedMutex : public rex::NonCopyable {
 };
 
 }  // namespace rex::platform
+
+namespace rex::platform::lock_rank {
+
+/** Rank 1, the lowest. Guards the interrupt state of the function dispatcher. */
+inline constexpr LockRank kInterruptState{1};
+
+/** Rank 2. Guards the identity map of the object table and the module load counts. */
+inline constexpr LockRank kObjectIdentityMap{2};
+
+/** Rank 3. Guards the object table. */
+inline constexpr LockRank kObjectTable{3};
+
+/** Rank 4. Guards the name map of the object table. */
+inline constexpr LockRank kObjectNameMap{4};
+
+/** Rank 5. Guards the thread registry. */
+inline constexpr LockRank kThreadRegistry{5};
+
+/** Rank 6. Guards the module registry. */
+inline constexpr LockRank kModuleRegistry{6};
+
+/** Rank 7. Guards the state of a single object, such as the APU. */
+inline constexpr LockRank kObjectState{7};
+
+/** Rank 8. Guards the deferred procedure call queue of the dispatcher. */
+inline constexpr LockRank kDPC{8};
+
+}  // namespace rex::platform::lock_rank

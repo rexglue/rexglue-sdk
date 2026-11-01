@@ -1,0 +1,53 @@
+/**
+ * @file        tests/unit/base/sleep_test.cpp
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#include "rex_test.h"
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+
+#include <rex/platform.h>
+#include <rex/platform/thread.h>
+
+namespace {
+
+std::chrono::microseconds TimedSleep(std::chrono::microseconds duration) {
+  const auto start = std::chrono::steady_clock::now();
+  rex::platform::SleepFor(duration);
+  return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() -
+                                                               start);
+}
+
+}  // namespace
+
+REX_TEST_CASE("Sleep never returns before a sub millisecond duration", "[base][sleep]") {
+  for (int i = 0; i < 20; ++i) {
+    CHECK(TimedSleep(std::chrono::microseconds(500)) >= std::chrono::microseconds(500));
+  }
+}
+
+REX_TEST_CASE("Sleep never returns before a multi millisecond duration", "[base][sleep]") {
+  for (int i = 0; i < 10; ++i) {
+    CHECK(TimedSleep(std::chrono::microseconds(3500)) >= std::chrono::microseconds(3500));
+  }
+}
+
+#if REX_PLATFORM_WIN32
+REX_TEST_CASE("Sleep stays near a multi millisecond duration at the default timer period",
+              "[base][sleep]") {
+  std::array<std::chrono::microseconds, 21> samples;
+  for (auto& sample : samples) {
+    sample = TimedSleep(std::chrono::microseconds(3000));
+  }
+  std::ranges::sort(samples);
+  CHECK(samples[samples.size() / 2] < std::chrono::microseconds(8000));
+}
+#endif

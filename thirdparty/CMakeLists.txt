@@ -1,3 +1,5 @@
+set(CMAKE_FOLDER "thirdparty")
+
 # Third-party vendored dependencies for ReXGlue
 include(${PROJECT_SOURCE_DIR}/cmake/rexglue_vulkan_stack.cmake)
 
@@ -44,15 +46,7 @@ set(REQUIRED_SUBMODULES
     sdl3
 )
 
-list(
-  APPEND
-  REQUIRED_SUBMODULES
-  vulkan-headers
-  vulkan-memory-allocator
-  spirv-headers
-  spirv-tools
-  glslang
-)
+list(APPEND REQUIRED_SUBMODULES vulkan-memory-allocator spirv-headers glslang)
 if (APPLE)
   list(APPEND REQUIRED_SUBMODULES vulkan-loader moltenvk)
 endif ()
@@ -163,13 +157,13 @@ target_include_directories(
                 $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_compile_definitions(
-  o1heap
-  PRIVATE "O1HEAP_CONFIG_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/../include/rex/o1heap_config.h\""
+  o1heap PRIVATE "O1HEAP_CONFIG_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/../src/base/o1heap_config.h\""
 )
 target_compile_options(o1heap PRIVATE -w)
 
 # xxHash - extremely fast non-cryptographic hash (git submodule)
 set(XXHASH_BUILD_XXHSUM OFF)
+set(XXHASH_BUNDLED_MODE ON)
 add_subdirectory(xxHash/cmake_unofficial)
 target_compile_options(xxhash PRIVATE -w)
 
@@ -183,16 +177,15 @@ target_compile_options(disasm PRIVATE -w)
 #=============================================================================
 message(STATUS "Vulkan stack: SDK ${REXGLUE_VULKAN_SDK_VERSION}")
 
-# Vulkan-Headers
-set(VULKAN_HEADERS_ENABLE_TESTS OFF)
-set(VULKAN_HEADERS_ENABLE_INSTALL ON)
-set(VULKAN_HEADERS_ENABLE_MODULE OFF)
-add_subdirectory(vulkan-headers)
+# Vulkan headers, vk_video and the SPIRV-Tools headers come from the Vulkan SDK
+find_package(Vulkan 1.4.313 REQUIRED GLOBAL)
 
-# VulkanMemoryAllocator
-set(VMA_ENABLE_INSTALL ON)
-add_subdirectory(vulkan-memory-allocator)
-set_target_properties(VulkanMemoryAllocator PROPERTIES SYSTEM ON)
+# VMA - header-only, vendored and private to the Vulkan backend
+add_library(rex-vma INTERFACE)
+target_include_directories(
+  rex-vma SYSTEM
+  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vulkan-memory-allocator/include>
+)
 
 if (APPLE)
   # Build the loader and MoltenVK revisions shipped by the pinned SDK.
@@ -201,7 +194,7 @@ if (APPLE)
   set(BUILD_TESTS OFF)
   set(BUILD_WERROR OFF)
   set(LOADER_CODEGEN OFF)
-  string(REGEX REPLACE "\\.[0-9]+$" "" VulkanHeaders_VERSION "${REXGLUE_VULKAN_SDK_VERSION}")
+  string(CONCAT VulkanHeaders_VERSION "${REXGLUE_VULKAN_SDK_VERSION}")
   add_subdirectory(vulkan-loader EXCLUDE_FROM_ALL)
   set_target_properties(vulkan PROPERTIES EXCLUDE_FROM_ALL FALSE)
 
@@ -217,6 +210,7 @@ set(SDL_INSTALL ON)
 set(SDL_SHARED ON)
 set(SDL_STATIC OFF)
 set(SDL_TEST OFF)
+set(SDL_TEST_LIBRARY OFF)
 set(SDL_UNIX_CONSOLE_BUILD ON)
 
 # Video provides the windowing/event layer; presenters create their own
@@ -284,7 +278,6 @@ if (REXGLUE_GPU_D3D12)
   add_library(dxc-headers INTERFACE)
   target_include_directories(
     dxc-headers INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/dxc/include>
-                          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/dxc>
   )
 endif ()
 
@@ -295,13 +288,6 @@ endif ()
 set(SPIRV_HEADERS_ENABLE_TESTS OFF)
 set(SPIRV_HEADERS_ENABLE_INSTALL OFF)
 add_subdirectory(spirv-headers)
-
-add_library(spirv-tools-headers INTERFACE)
-target_include_directories(
-  spirv-tools-headers SYSTEM
-  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/spirv-tools/include>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 
 # glslang/SPIRV - SPIR-V code generation for shader translation
 set(ENABLE_GLSLANG_BINARIES OFF)
@@ -315,7 +301,7 @@ set(ENABLE_RTTI ON)
 
 # Older glslang versions declare an outdated cmake_minimum_required
 block()
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 add_subdirectory(glslang)
 endblock()
 foreach (glslang_target glslang MachineIndependent GenericCodeGen OSDependent SPIRV)
@@ -695,5 +681,5 @@ set_target_properties(
   libavutil libavcodec
   PROPERTIES C_VISIBILITY_PRESET hidden
              VISIBILITY_INLINES_HIDDEN ON
-             FOLDER "FFmpeg"
+             FOLDER "thirdparty/FFmpeg"
 )

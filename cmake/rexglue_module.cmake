@@ -1,21 +1,15 @@
-#==========================================================
 # rexglue_module.cmake
-#
 #   rexglue_configure_module_target(<target> ...) - title DLL module
-#==========================================================
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_target.cmake)
 
-#==========================================================
 # rexglue_configure_module_target(<target> [HOST <host_target>])
 #   - Title DLL module
-#
 # Output is colocated with HOST (or CMAKE_RUNTIME_OUTPUT_DIRECTORY) so the
 # host's LoadUserModule finds it. The host is wired to depend on the module
 # so a top-level build of the host pulls in all title DLLs. No runtime DLL
 # staging here. The host's POST_BUILD copy covers shared dependencies.
-#==========================================================
 function (rexglue_configure_module_target target_name)
   cmake_parse_arguments(ARG "" "HOST" "" ${ARGN})
 

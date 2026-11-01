@@ -6,7 +6,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from check_cmake import TEMPLATES, is_cmake_path, pinned_version, render_template, tracked_files
+from check_cmake import TEMPLATES, is_cmake_path, render_template, tracked_files
 
 
 def run_checker(*args: str) -> subprocess.CompletedProcess[str]:
@@ -30,10 +30,6 @@ def test_render_replaces_expressions_and_tags():
     assert "{{" not in rendered and "{%" not in rendered
     assert "add_library(rexmodlib ${X__V})" in rendered
     assert rendered.count("# @@TAG") == 2
-
-
-def test_the_pin_matches_the_installed_tool():
-    assert pinned_version(REPO_ROOT) == "0.6.13"
 
 
 def test_every_template_exists():

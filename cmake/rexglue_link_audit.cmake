@@ -1,18 +1,22 @@
-set(REXGLUE_RUNTIME_FOLDED_LIBS rexui)
+set(REXGLUE_RUNTIME_FOLDED_LIBS "")
 set(REXGLUE_FOLDED_LIB_USERS rexui-sdl3 unit_tests)
 set(REXGLUE_ABOVE_CORE_TARGETS
-    rexruntime
+    rexkernel
+    rexxam
+    rexapp
+    rexppc
+    rexxenos
     rexfilesystem
-    reximgui
+    rexapu
+    rexhid
     rexui
     rexui-sdl3
     rexgpu
-    rexgpu-xenos
+    rexgpu-xenos-null
     rexgpu-xenos-vulkan
     rexgpu-xenos-d3d12
     rexcodegen
     rexapu-sdl3
-    rexhid
     rexhid-sdl3
     rexhid-xinput
 )
@@ -57,13 +61,13 @@ function (_rexglue_resolve_alias name out_var)
   )
 endfunction ()
 
-# Rejects a target that links rexruntime and an OBJECT library carrying rexcore objects.
+# Rejects a target that links rexkernel and an OBJECT library carrying rexbase objects.
 function (rexglue_audit_core_linkage)
   _rexglue_collect_targets("${CMAKE_CURRENT_SOURCE_DIR}" all_targets)
 
   set(violations "")
   foreach (target_name IN LISTS all_targets)
-    if (target_name STREQUAL "rexruntime" OR target_name IN_LIST REXGLUE_FOLDED_LIB_USERS)
+    if (target_name STREQUAL "rexkernel" OR target_name IN_LIST REXGLUE_FOLDED_LIB_USERS)
       continue()
     endif ()
 
@@ -81,65 +85,41 @@ function (rexglue_audit_core_linkage)
       _rexglue_resolve_alias("${lib}" real)
       list(APPEND resolved "${real}")
     endforeach ()
-    if (NOT "rexruntime" IN_LIST resolved)
+    if (NOT "rexkernel" IN_LIST resolved)
       continue()
     endif ()
 
     foreach (lib IN LISTS REXGLUE_RUNTIME_FOLDED_LIBS)
       if ("${lib}" IN_LIST resolved)
-        list(APPEND violations "  ${target_name} links rexruntime and ${lib}")
+        list(APPEND violations "  ${target_name} links rexkernel and ${lib}")
       endif ()
     endforeach ()
   endforeach ()
 
   if (violations)
     list(JOIN violations "\n" detail)
-    message(FATAL_ERROR "rexcore objects would be duplicated:\n${detail}\n"
-                        "rexruntime contains them. Drop the direct link."
+    message(FATAL_ERROR "rexbase objects would be duplicated:\n${detail}\n"
+                        "rexkernel contains them. Drop the direct link."
     )
   endif ()
 endfunction ()
 
-# Rejects an SDK target above rexcore in the rexcore link list.
+# Rejects an SDK target above rexbase in the rexbase link list.
 function (rexglue_audit_core_tier)
-  get_target_property(links rexcore LINK_LIBRARIES)
+  get_target_property(links rexbase LINK_LIBRARIES)
   set(violations "")
   foreach (lib IN LISTS links)
     _rexglue_resolve_alias("${lib}" real)
     if ("${real}" IN_LIST REXGLUE_ABOVE_CORE_TARGETS)
-      list(APPEND violations "  rexcore links ${real}")
+      list(APPEND violations "  rexbase links ${real}")
     endif ()
   endforeach ()
   if (violations)
     list(JOIN violations "
 " detail
     )
-    message(FATAL_ERROR "rexcore is tier 0 and links no SDK target:
+    message(FATAL_ERROR "rexbase is tier 0 and links no SDK target:
 ${detail}"
-    )
-  endif ()
-endfunction ()
-
-# Rejects a target that links rexfilesystem.
-function (rexglue_audit_module_links)
-  _rexglue_collect_targets("${CMAKE_CURRENT_SOURCE_DIR}" all_targets)
-  set(violations "")
-  foreach (target_name IN LISTS all_targets)
-    get_target_property(links ${target_name} LINK_LIBRARIES)
-    if (NOT links)
-      continue()
-    endif ()
-    foreach (lib IN LISTS links)
-      _rexglue_resolve_alias("${lib}" real)
-      if ("${real}" STREQUAL "rexfilesystem")
-        list(APPEND violations "  ${target_name} links rexfilesystem")
-      endif ()
-    endforeach ()
-  endforeach ()
-  if (violations)
-    list(JOIN violations "\n" detail)
-    message(FATAL_ERROR "rexfilesystem is a module loaded through rex::Init and is never linked:\n"
-                        "${detail}"
     )
   endif ()
 endfunction ()
@@ -159,34 +139,29 @@ function (_rexglue_audit_forbidden target_name)
   endforeach ()
 endfunction ()
 
-# Keeps SDL and ImGui out of core and runtime, and SDL, ImGui and the GPU backends out of ui.
+# Keeps SDL and ImGui out of core and runtime, and SDL, ImGui and the GPU drivers out of ui.
 # rexglue_audit_host_service_links covers rexgpu.
 function (rexglue_audit_ui_links)
   set(sdl_libs SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static)
-  set(imgui_libs imgui imgui::imgui reximgui)
-  set(backend_libs
-      rexgpu-xenos
+  set(imgui_libs imgui imgui::imgui)
+  set(driver_libs
       rexgpu-xenos-vulkan
       rexgpu-xenos-d3d12
       d3d12
       dxgi
       dxguid
       Vulkan::Headers
-      GPUOpen::VulkanMemoryAllocator
-      spirv-tools-headers
       dxc-headers
   )
-  _rexglue_audit_forbidden(rexcore ${sdl_libs} ${imgui_libs})
-  _rexglue_audit_forbidden(rexruntime ${sdl_libs} ${imgui_libs})
-  _rexglue_audit_forbidden(rexui ${sdl_libs} ${imgui_libs} ${backend_libs})
+  _rexglue_audit_forbidden(rexbase ${sdl_libs})
+  _rexglue_audit_forbidden(rexkernel ${sdl_libs} ${imgui_libs})
 endfunction ()
 
 rexglue_audit_core_linkage()
 rexglue_audit_core_tier()
-rexglue_audit_module_links()
 rexglue_audit_ui_links()
 
-# Keeps host libraries out of the neutral targets and out of rexruntime.
+# Keeps host libraries out of the neutral targets and out of rexkernel.
 function (rexglue_audit_host_service_links)
   set(host_libs
       SDL3::SDL3
@@ -197,11 +172,8 @@ function (rexglue_audit_host_service_links)
       dxgi
       dxguid
       Vulkan::Headers
-      GPUOpen::VulkanMemoryAllocator
-      reximgui
-      rex::imgui
   )
-  foreach (target_name IN ITEMS rexhid-common rexgpu)
+  foreach (target_name IN ITEMS rexgpu)
     if (NOT TARGET ${target_name})
       continue()
     endif ()
@@ -213,13 +185,19 @@ function (rexglue_audit_host_service_links)
       endif ()
     endforeach ()
   endforeach ()
-  set(ui_sdl3_allowed "rexui-sdl3=rexcore|rexui|rexgpu|reximgui|rexruntime|SDL3::SDL3")
+  set(ui_sdl3_allowed "rexui-sdl3=rexbase|SDL3::SDL3")
   if (APPLE)
     string(APPEND ui_sdl3_allowed "|-framework CoreFoundation")
   endif ()
   set(module_allowed
-      "rexapu-sdl3=rexcore|SDL3::SDL3" "rexhid-sdl3=rexcore|rexhid-common|SDL3::SDL3"
-      "rexhid-xinput=rexcore|rexhid-common" "reximgui=rexcore" "${ui_sdl3_allowed}"
+      "rexfilesystem=rexbase|excrypt|mspack"
+      "rexapu=rexbase"
+      "rexhid=rexbase"
+      "rexui=rexbase"
+      "rexapu-sdl3=rexbase|SDL3::SDL3"
+      "rexhid-sdl3=rexbase|SDL3::SDL3"
+      "rexhid-xinput=rexbase"
+      "${ui_sdl3_allowed}"
   )
   foreach (entry IN LISTS module_allowed)
     string(REPLACE "=" ";" pair "${entry}")
@@ -236,26 +214,26 @@ function (rexglue_audit_host_service_links)
       endif ()
     endforeach ()
   endforeach ()
-  get_target_property(runtime_links rexruntime LINK_LIBRARIES)
+  get_target_property(runtime_links rexkernel LINK_LIBRARIES)
   foreach (link IN LISTS runtime_links)
     if (link MATCHES "^rex(apu|hid|ui)-")
-      message(FATAL_ERROR "link audit: rexruntime links the host module ${link}")
+      message(FATAL_ERROR "link audit: rexkernel links the host module ${link}")
     endif ()
   endforeach ()
 endfunction ()
 
 rexglue_audit_host_service_links()
 
-# Rejects an imgui OBJECT target and a rexruntime link to it.
+# Rejects an imgui OBJECT target and a rexkernel link to it.
 function (rexglue_audit_imgui_links)
   if (TARGET imgui)
-    message(FATAL_ERROR "link audit: the imgui OBJECT target exists, reximgui builds ImGui")
+    message(FATAL_ERROR "link audit: the imgui OBJECT target exists, rexbase builds ImGui")
   endif ()
-  get_target_property(runtime_links rexruntime LINK_LIBRARIES)
+  get_target_property(runtime_links rexkernel LINK_LIBRARIES)
   foreach (link IN LISTS runtime_links)
     _rexglue_resolve_alias("${link}" real)
     if ("${real}" STREQUAL "imgui")
-      message(FATAL_ERROR "link audit: rexruntime links the imgui OBJECT")
+      message(FATAL_ERROR "link audit: rexkernel links the imgui OBJECT")
     endif ()
   endforeach ()
 endfunction ()
@@ -297,7 +275,7 @@ rexglue_audit_export_visibility()
 # builds, since a binary without them frees blocks of other binaries with the CRT.
 function (rexglue_audit_host_allocator)
   # These model a module built against another SDK build, or against none, and have no forwarders.
-  set(allocator_exempt rexmod-test-noidentity rexmod-test-otheridentity)
+  set(allocator_exempt rexmod-test-noidentity rexmodule-test-otheridentity)
   _rexglue_collect_targets("${PROJECT_SOURCE_DIR}" all_targets)
   _rexglue_collect_targets("${PROJECT_SOURCE_DIR}/thirdparty" third_party)
   set(missing "")
