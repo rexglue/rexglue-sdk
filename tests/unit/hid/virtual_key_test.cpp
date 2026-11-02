@@ -13,7 +13,7 @@
 #include <array>
 #include <string_view>
 
-#include <rex/hid/virtual_key.h>
+#include <rex/hid/input_keys.h>
 
 using rex::hid::ParseVirtualKey;
 using rex::hid::VirtualKey;

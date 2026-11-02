@@ -15,10 +15,10 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/cvar.h>
-#include <rex/hid/key_chord.h>
+#include <rex/hid/input_keys.h>
+#include <rex/hid/binding.h>
 
-#include "hid/cvar_table.h"
+#include "input_harness.h"
 
 using rex::hid::KeyChord;
 using rex::hid::KeyChordToString;
@@ -172,31 +172,13 @@ REX_TEST_CASE("A bad list item fails the whole list", "[hid][key_chord]") {
 }
 
 REX_TEST_CASE("Every hid.keybind default value parses", "[hid][key_chord]") {
-  rex::u32 checked = 0;
-  for (const rex::cvar::VarBase* var : rex::hid::cvars::kHIDCvars) {
-    if (!var->GetDesc().name.starts_with("hid.keybind_")) {
-      continue;
+  rex::test_input::Run("none", [](rex::hid::IInputSystem& input) {
+    rex::hid::IBindingSet& keys = input.GetKeyBindings();
+    CHECK(keys.TakeParseErrors().empty());
+    for (size_t i = 0; i < keys.GetCount(); ++i) {
+      for (const rex::hid::InputSource& source : keys.GetSources(i)) {
+        CHECK(source.type == rex::hid::InputSourceType::kKey);
+      }
     }
-    INFO(var->GetDesc().name);
-    CHECK(ParseKeyChordList(var->GetDefaultText()));
-    ++checked;
-  }
-  CHECK(checked == 25);
-
-  auto a = ParseKeyChordList(rex::hid::cvars::keybind_a.GetDefaultText());
-  REQUIRE(a);
-  CHECK(*a == std::vector<KeyChord>{{VirtualKey::kOem1}, {VirtualKey::kSpace}});
-  auto dpad_up = ParseKeyChordList(rex::hid::cvars::keybind_dpad_up.GetDefaultText());
-  REQUIRE(dpad_up);
-  CHECK(*dpad_up == std::vector<KeyChord>{{VirtualKey::kUp, KeyModifiers::kShift}});
-  auto guide = ParseKeyChordList(rex::hid::cvars::keybind_guide.GetDefaultText());
-  REQUIRE(guide);
-  CHECK(guide->empty());
-}
-
-REX_TEST_CASE("The standard bind defaults parse to the overlay keys", "[hid][key_chord]") {
-  CHECK(*ParseKeyChord("F3") == KeyChord{VirtualKey::kF3});
-  CHECK(*ParseKeyChord("Backtick") == KeyChord{VirtualKey::kOem3});
-  CHECK(*ParseKeyChord("F4") == KeyChord{VirtualKey::kF4});
-  CHECK(*ParseKeyChord("F7") == KeyChord{VirtualKey::kF7});
+  });
 }

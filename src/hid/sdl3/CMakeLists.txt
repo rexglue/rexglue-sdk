@@ -1,4 +1,4 @@
-add_library(rexhid-sdl3 SHARED module.cpp sdl3_driver.cpp)
+add_library(rexhid-sdl3 SHARED sdl3_input_driver.cpp)
 add_library(rex::hid-sdl3 ALIAS rexhid-sdl3)
 rexglue_link_host_allocator(rexhid-sdl3)
 set_target_properties(
@@ -9,4 +9,4 @@ set_target_properties(
 )
 rexglue_add_version_resource(rexhid-sdl3 DESCRIPTION "ReXGlue SDL3 gamepads")
 target_include_directories(rexhid-sdl3 PRIVATE ${REXGLUE_ROOT}/src)
-target_link_libraries(rexhid-sdl3 PRIVATE rexcore rexhid SDL3::SDL3)
+target_link_libraries(rexhid-sdl3 PRIVATE rexbase SDL3::SDL3)

@@ -1,4 +1,4 @@
-add_library(rexhid-xinput SHARED module.cpp xinput_driver.cpp)
+add_library(rexhid-xinput SHARED xinput_input_driver.cpp)
 add_library(rex::hid-xinput ALIAS rexhid-xinput)
 rexglue_link_host_allocator(rexhid-xinput)
 set_target_properties(
@@ -9,4 +9,4 @@ set_target_properties(
 )
 rexglue_add_version_resource(rexhid-xinput DESCRIPTION "ReXGlue XInput gamepads")
 target_include_directories(rexhid-xinput PRIVATE ${REXGLUE_ROOT}/src)
-target_link_libraries(rexhid-xinput PRIVATE rexcore rexhid)
+target_link_libraries(rexhid-xinput PRIVATE rexbase)
