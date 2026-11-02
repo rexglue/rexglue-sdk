@@ -1,0 +1,146 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ *
+ * @file        xam/enumerator_object.h
+ * @brief       Enumerator object and its guest layouts
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+
+#pragma once
+
+#include <algorithm>
+#include <cstring>
+#include <vector>
+
+#include <rex/platform.h>
+#include <rex/types.h>
+#include <rex/kernel/object/xam_object.h>
+#include <rex/kernel/types/status.h>
+#include <rex/utility.h>
+
+namespace rex::xam {
+
+/** Guest block of an enumerator, followed by the extra bytes of its creator. */
+struct X_KENUMERATOR {
+  be_u32 app_id;              /**< ID of the XAM app the messages go to. */
+  be_u32 open_message;        /**< Message sent to the app to open the enumerator. */
+  be_u32 close_message;       /**< Message sent to the app to close the enumerator. */
+  be_u32 user_index;          /**< Index of the user the enumerator belongs to. */
+  be_u32 items_per_enumerate; /**< Items an enumerate call returns. */
+  be_u32 flags;               /**< Set from EnumeratorInit::flags. */
+};
+REX_STATIC_ASSERT_SIZE(X_KENUMERATOR, 0x18);
+
+/** Extra block after `X_KENUMERATOR` for the content aggregate enumerator. */
+struct X_KENUMERATOR_CONTENT_AGGREGATE {
+  be_u32 magic; /**< `kStashSignature`. */
+  be_u32 handle;
+};
+
+/**
+ * Writes the next batch of items.
+ *
+ * @param buffer_ptr The guest address of the output buffer.
+ * @param buffer_data The host address of the output buffer.
+ * @param written_count Receives the number of items written.
+ * @return The error code the guest receives.
+ */
+using EnumeratorWriter =
+    rex::MoveOnlyFunction<u32(u32 buffer_ptr, u8* buffer_data, u32* written_count)>;
+
+/** The host state of an enumerator object. */
+struct EnumeratorObject final : kernel::IXAMObject {
+  static constexpr u32 kTag = 0x454E554D;
+
+  /**
+   * @param items_per_enumerate_in The items returned by one enumerate call.
+   * @param write_items_in The callback that writes the next batch.
+   */
+  REX_XAM_API EnumeratorObject(size_t items_per_enumerate_in, size_t item_size_in,
+                               EnumeratorWriter write_items_in);
+
+  [[nodiscard]] u32 GetTag() const override { return kTag; }
+
+  /** Maximum items an enumerate call writes, copied to X_KENUMERATOR. */
+  size_t items_per_enumerate;
+  size_t item_size; /**< Size in bytes of one item in the output buffer. */
+  EnumeratorWriter write_items;
+  /** True when the results are in the buffer alone, so an async enumerate reports length 0. */
+  bool results_in_buffer = false;
+};
+
+/** A fixed list of items that an enumerator hands out in batches. */
+class REX_XAM_API StaticItemList {
+ public:
+  /**
+   * @param items_per_enumerate The items returned by one Write call.
+   */
+  StaticItemList(size_t items_per_enumerate, size_t item_size);
+
+  /**
+   * Appends a zeroed item.
+   *
+   * @return The host address of the item, invalidated by the next Append.
+   */
+  u8* Append();
+
+  /**
+   * Appends a zeroed item as a given type.
+   *
+   * @return The item, invalidated by the next Append.
+   */
+  template <typename T>
+  T* Append() {
+    return reinterpret_cast<T*>(Append());
+  }
+
+  [[nodiscard]] size_t GetItemCount() const { return item_count_; }
+
+  /**
+   * Writes the next batch of items.
+   *
+   * @param buffer_data The host address of the output buffer.
+   * @param written_count Receives the number of items written, may be null.
+   * @return X_ERROR_NO_MORE_FILES when no items remain, X_ERROR_SUCCESS otherwise.
+   */
+  u32 Write(u8* buffer_data, u32* written_count);
+
+ private:
+  size_t items_per_enumerate_;
+  size_t item_size_;
+  size_t item_count_ = 0;
+  size_t current_item_ = 0;
+  std::vector<u8> buffer_;
+};
+
+/** The fields of the X_KENUMERATOR block the guest reads. */
+struct EnumeratorInit {
+  u32 user_index;
+  u32 app_id;
+  u32 open_message;
+  u32 close_message;
+  u32 flags;
+};
+
+/**
+ * Creates an enumerator object with its guest X_KENUMERATOR block.
+ *
+ * @param out_handle Receives the handle.
+ * @param init The X_KENUMERATOR fields.
+ * @param enumerator The enumerator state, moved into the table.
+ * @param extra_size The bytes to reserve after the X_KENUMERATOR.
+ * @param extra_buffer Receives the host address of the reserved bytes, may be null.
+ * @return X_STATUS_SUCCESS, or X_STATUS_NO_MEMORY.
+ */
+REX_XAM_API kernel::X_STATUS CreateEnumerator(kernel::X_HANDLE* out_handle,
+                                              const EnumeratorInit& init,
+                                              EnumeratorObject&& enumerator, u32 extra_size = 0,
+                                              void** extra_buffer = nullptr);
+
+}  // namespace rex::xam

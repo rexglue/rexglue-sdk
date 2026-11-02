@@ -31,7 +31,7 @@ constexpr u32 kNotEnoughMemory = 8;
 std::vector<u32> Fill(Caller& c, u32 size) {
   const u32 out = c.Alloc(4);
   std::vector<u32> blocks;
-  while (c.XAM("XamAlloc", {0, size, out}) == 0) {
+  while (c.XAM("XamAlloc", {0x10000000, size, out}) == 0) {
     blocks.push_back(c.Load32(out));
     CHECKED_ELSE(blocks.size() <= 0x60000 / 16) {
       FAIL_CHECK("the check above failed");
@@ -91,12 +91,12 @@ REX_TEST_CASE("XamAlloc returns 8 and a 0 pointer on a full workspace and XamFre
     CHECK(blocks.size() >= 16);
     const u32 out = c.Alloc(4);
     c.Store32(out, 0xFFFFFFFF);
-    CHECK(c.XAM("XamAlloc", {0, 0x1000, out}) == kNotEnoughMemory);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x1000, out}) == kNotEnoughMemory);
     CHECK(c.Load32(out) == 0);
     for (const u32 block : blocks) {
       CHECK(c.XAM("XamFree", {block}) == 0);
     }
-    CHECK(c.XAM("XamAlloc", {0, 0x1000, out}) == 0);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x1000, out}) == 0);
     CHECK(c.Load32(out) != 0);
     CHECK(c.Load32(c.Load32(out)) == 0);
     c.XAM("XamFree", {c.Load32(out)});
@@ -120,15 +120,15 @@ REX_TEST_CASE("A 128 KB XamAlloc fits the default workspace and a second one doe
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(4);
-    CHECKED_ELSE(c.XAM("XamAlloc", {0, 0x20000, out}) == 0) {
+    CHECKED_ELSE(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 first = c.Load32(out);
     CHECK(first != 0);
-    CHECK(c.XAM("XamAlloc", {0, 0x20000, out}) == kNotEnoughMemory);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kNotEnoughMemory);
     CHECK(c.XAM("XamFree", {first}) == 0);
-    CHECK(c.XAM("XamAlloc", {0, 0x20000, out}) == 0);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == 0);
     c.XAM("XamFree", {c.Load32(out)});
   });
 }
