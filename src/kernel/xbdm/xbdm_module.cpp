@@ -11,15 +11,15 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/kernel/xbdm/module.h>
-#include <rex/runtime.h>
+#include "kernel/kernel_init.h"
+#include <rex/kernel/title_runtime.h>
 
 namespace rex {
 namespace kernel {
 namespace xbdm {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
-X_HANDLE CreateXBDMModule(Runtime& runtime) {
+X_HANDLE CreateXBDMModule(TitleRuntime& runtime) {
   return ModuleObject::CreateKernelModule(runtime, "xe:\\xbdm.xex");
 }
 

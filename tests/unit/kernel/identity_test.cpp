@@ -10,19 +10,20 @@
 
 #include "rex_test.h"
 
-#include <rex/runtime.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_table.h>
 
 #include "kernel_fixture.h"
 
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
 namespace {
 u32 Poll(Caller& c) {
-  return c.Quad(0);
+  return c.AllocQuad(0);
 }
 }  // namespace
 

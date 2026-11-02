@@ -16,13 +16,14 @@
 #include <cstddef>
 #include <thread>
 
-#include <rex/runtime.h>
-#include <rex/runtime/dispatcher.h>
-#include <rex/runtime/xio.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/thread_registry.h>
+#include <rex/kernel/types/io.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
-using rex::runtime::XOVERLAPPED;
+using rex::kernel::XOVERLAPPED;
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
@@ -30,23 +31,44 @@ REX_TEST_CASE("Complete writes the result, the extended error and the length", "
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 overlapped = c.Alloc(sizeof(XOVERLAPPED));
-    c.GetRuntime().GetDispatcher().Complete(
-        overlapped, {.result = rex::X_ERROR_SUCCESS, .extended_error = 5, .length = 64});
-    REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, result)) == rex::X_ERROR_SUCCESS);
+    StateOf(c.GetRuntime())
+        .GetOverlappedDispatcher()
+        .Complete(overlapped,
+                  {.result = rex::kernel::X_ERROR_SUCCESS, .extended_error = 5, .length = 64});
+    REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, result)) == rex::kernel::X_ERROR_SUCCESS);
     REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, length)) == 64);
     REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, extended_error)) == 5);
   });
 }
 
+namespace {
+
+template <typename Ready>
+void SpinUntil(Ready ready) {
+  constexpr u32 kSpins = 256;
+  u32 spins = 0;
+  while (!ready()) {
+    if (++spins == kSpins) {
+      spins = 0;
+      std::this_thread::yield();
+    }
+  }
+}
+
+}  // namespace
+
 REX_TEST_CASE("Complete derives the extended error and the length from a failure", "[kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 overlapped = c.Alloc(sizeof(XOVERLAPPED));
-    c.GetRuntime().GetDispatcher().Complete(overlapped, {.result = rex::X_ERROR_NO_SUCH_USER});
-    REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, result)) == rex::X_ERROR_NO_SUCH_USER);
+    StateOf(c.GetRuntime())
+        .GetOverlappedDispatcher()
+        .Complete(overlapped, {.result = rex::kernel::X_ERROR_NO_SUCH_USER});
+    REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, result)) ==
+            rex::kernel::X_ERROR_NO_SUCH_USER);
     REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, length)) == 0xFFFFFFFF);
     REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, extended_error)) ==
-            rex::X_ERROR_NO_SUCH_USER);
+            rex::kernel::X_ERROR_NO_SUCH_USER);
   });
 }
 
@@ -54,19 +76,21 @@ REX_TEST_CASE("CompleteDeferred writes an explicit length on a failure", "[kerne
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 overlapped = c.Alloc(sizeof(XOVERLAPPED));
-    c.GetRuntime().GetDispatcher().CompleteDeferred(overlapped, [] {
-      return rex::runtime::CompletionOptions{.result = rex::X_ERROR_FUNCTION_FAILED, .length = 0};
+    StateOf(c.GetRuntime()).GetOverlappedDispatcher().CompleteDeferred(overlapped, [] {
+      return rex::kernel::CompletionOptions{.result = rex::kernel::X_ERROR_FUNCTION_FAILED,
+                                            .length = 0};
     });
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (c.LoadAcquire32(overlapped + offsetof(XOVERLAPPED, result)) == rex::X_ERROR_IO_PENDING &&
+    while (c.LoadAcquire32(overlapped + offsetof(XOVERLAPPED, result)) ==
+               rex::kernel::X_ERROR_IO_PENDING &&
            std::chrono::steady_clock::now() < deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     REQUIRE(c.LoadAcquire32(overlapped + offsetof(XOVERLAPPED, result)) ==
-            rex::X_ERROR_FUNCTION_FAILED);
+            rex::kernel::X_ERROR_FUNCTION_FAILED);
     REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, length)) == 0);
     REQUIRE(c.Load32(overlapped + offsetof(XOVERLAPPED, extended_error)) ==
-            rex::X_ERROR_FUNCTION_FAILED);
+            rex::kernel::X_ERROR_FUNCTION_FAILED);
   });
 }
 
@@ -80,7 +104,7 @@ REX_TEST_CASE("XamGetOverlappedResult sees the event set once the result is comp
     const u32 event = c.Load32(handle_ptr);
     const u32 overlapped = c.Alloc(sizeof(XOVERLAPPED));
     const u32 length = c.Alloc(4);
-    const u32 poll = c.Quad(0);
+    const u32 poll = c.AllocQuad(0);
     c.Store32(overlapped + offsetof(XOVERLAPPED, event), event);
 
     std::atomic<u32> go{0};
@@ -88,10 +112,8 @@ REX_TEST_CASE("XamGetOverlappedResult sees the event set once the result is comp
     const u32 completer = c.Spawn([&](Caller& s) {
       u32 seen = 0;
       for (;;) {
-        u32 round = go.load(std::memory_order_acquire);
-        while (round == seen) {
-          round = go.load(std::memory_order_acquire);
-        }
+        SpinUntil([&] { return go.load(std::memory_order_acquire) != seen; });
+        const u32 round = go.load(std::memory_order_acquire);
         if (round == kQuit) {
           return;
         }
@@ -104,11 +126,13 @@ REX_TEST_CASE("XamGetOverlappedResult sees the event set once the result is comp
     u32 wrong = 0;
     u32 unset = 0;
     for (u32 round = 1; round <= kRounds; ++round) {
-      c.Store32(overlapped + offsetof(XOVERLAPPED, result), rex::X_ERROR_IO_PENDING);
+      c.Store32(overlapped + offsetof(XOVERLAPPED, result), rex::kernel::X_ERROR_IO_PENDING);
       c.Kernel("NtClearEvent", {event});
       go.store(round, std::memory_order_release);
-      while (c.LoadAcquire32(overlapped + offsetof(XOVERLAPPED, result)) ==
-             rex::X_ERROR_IO_PENDING) {}
+      SpinUntil([&] {
+        return c.LoadAcquire32(overlapped + offsetof(XOVERLAPPED, result)) !=
+               rex::kernel::X_ERROR_IO_PENDING;
+      });
       if (c.XAM("XamGetOverlappedResult", {overlapped, length, 0}) != 0) {
         ++wrong;
       }

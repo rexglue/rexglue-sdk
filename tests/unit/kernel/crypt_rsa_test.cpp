@@ -22,8 +22,8 @@
 
 using rex::test::Caller;
 using rex::test::CopyToGuest;
-using rex::test::Hex;
 using rex::test::KernelFixture;
+using rex::test::ParseHex;
 using rex::test::PutFilled;
 using rex::test::ReadBytes;
 
@@ -615,11 +615,11 @@ REX_TEST_CASE("The RSA exports match the standard algorithm and the console resu
   fixture.RunOnGuestThread([](Caller& c) {
     for (const RsaCase& item : kRsaCases) {
       INFO(item.name);
-      const std::vector<u8> expected = Hex(item.output);
+      const std::vector<u8> expected = ParseHex(item.output);
       const u32 output = PutFilled(c, static_cast<u32>(expected.size()));
-      const u32 result =
-          c.Kernel(item.prv ? "XeCryptBnQwNeRsaPrvCrypt" : "XeCryptBnQwNeRsaPubCrypt",
-                   {CopyToGuest(c, Hex(item.input)), output, CopyToGuest(c, Hex(item.key))});
+      const u32 result = c.Kernel(
+          item.prv ? "XeCryptBnQwNeRsaPrvCrypt" : "XeCryptBnQwNeRsaPubCrypt",
+          {CopyToGuest(c, ParseHex(item.input)), output, CopyToGuest(c, ParseHex(item.key))});
       CHECK(result == item.r3);
       CHECK(ReadBytes(c, output, static_cast<u32>(expected.size())) == expected);
     }
@@ -633,11 +633,11 @@ REX_TEST_CASE("The RSA private operation undoes the public operation", "[kernel]
       INFO(name);
       const RsaCase* item = FindCase(name);
       REQUIRE(item != nullptr);
-      const std::vector<u8> key = Hex(item->key);
+      const std::vector<u8> key = ParseHex(item->key);
       const u32 modulus_digits = (key[0] << 24 | key[1] << 16 | key[2] << 8 | key[3]);
       const std::vector<u8> public_key(
           key.begin(), key.begin() + static_cast<std::ptrdiff_t>(16 + size_t{modulus_digits} * 8));
-      const std::vector<u8> input = Hex(item->input);
+      const std::vector<u8> input = ParseHex(item->input);
       const u32 size = modulus_digits * 8;
       const u32 signature = c.Alloc(size);
       const u32 recovered = c.Alloc(size);
@@ -670,12 +670,12 @@ REX_TEST_CASE("The RSA exports reject modulus sizes outside 2 to 64 quadwords an
     }
     const RsaCase* item = FindCase("pub1024.lt");
     REQUIRE(item != nullptr);
-    std::vector<u8> even_key = Hex(item->key);
+    std::vector<u8> even_key = ParseHex(item->key);
     even_key[16 + 7] &= 0xFE;
     const std::vector<u8> filled(128, 0xA5);
     const u32 output = CopyToGuest(c, filled);
     CHECK(c.Kernel("XeCryptBnQwNeRsaPubCrypt",
-                   {CopyToGuest(c, Hex(item->input)), output, CopyToGuest(c, even_key)}) == 0);
+                   {CopyToGuest(c, ParseHex(item->input)), output, CopyToGuest(c, even_key)}) == 0);
     CHECK(ReadBytes(c, output, 128) == filled);
   });
 }

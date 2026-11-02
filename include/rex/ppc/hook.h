@@ -131,6 +131,21 @@
 #define REX_EXPORT(name, function) REX_HOOK(name, function)
 
 /**
+ * Defines an export for a release, such as a spin lock, that a pending stop request must not skip.
+ *
+ * @param name The hook symbol.
+ * @param function The host function the hook wraps.
+ *
+ * @code
+ * REX_EXPORT_RELEASE(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
+ * @endcode
+ */
+#define REX_EXPORT_RELEASE(name, function)                  \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(name) {       \
+    rex::ppc::GuestToHostThunk<function, false>(ctx, base); \
+  }
+
+/**
  * Defines a stub whose symbol a kernel export table links against.
  *
  * @param name The hook symbol.

@@ -18,9 +18,11 @@
 #include <vector>
 
 #include <rex/kernel/types/thread.h>
+#include <rex/kernel/heap.h>
 
 #include "kernel_fixture.h"
-#include "runtime/guest_stack.h"
+#include "kernel/guest_stack.h"
+#include "kernel/title_state.h"
 
 using rex::u32;
 using rex::test::Caller;
@@ -32,9 +34,9 @@ namespace {
 constexpr u32 kOutOfIndexes = 0xFFFFFFFF;
 
 void GiveTitleSlots(Caller& c, u32 count) {
-  auto& state = rex::runtime::GetState(c.GetRuntime());
+  auto& state = StateOf(c.GetRuntime());
   auto* process =
-      state.GetMemory()->TranslateVirtual<rex::runtime::X_KPROCESS*>(state.GetTitleProcess());
+      state.GetMemory()->TranslateVirtual<rex::kernel::X_KPROCESS*>(state.GetTitleProcess());
   process->tls_slot_size = static_cast<rex::u16>(4 * count);
   for (u32 i = 0; i < 8; ++i) {
     const u32 bits = std::min(count - std::min(count, i * 32), 32u);
@@ -45,16 +47,16 @@ void GiveTitleSlots(Caller& c, u32 count) {
 }  // namespace
 
 REX_TEST_CASE("ResolveTLSSlotCount rounds up to 4 and keeps at most 256 slots", "[kernel][tls]") {
-  CHECK(rex::runtime::ResolveTLSSlotCount(0) == 0);
-  CHECK(rex::runtime::ResolveTLSSlotCount(1) == 4);
-  CHECK(rex::runtime::ResolveTLSSlotCount(10) == 12);
-  CHECK(rex::runtime::ResolveTLSSlotCount(32) == 32);
-  CHECK(rex::runtime::ResolveTLSSlotCount(33) == 36);
-  CHECK(rex::runtime::ResolveTLSSlotCount(64) == 64);
-  CHECK(rex::runtime::ResolveTLSSlotCount(255) == 256);
-  CHECK(rex::runtime::ResolveTLSSlotCount(256) == 256);
-  CHECK(rex::runtime::ResolveTLSSlotCount(257) == 256);
-  CHECK(rex::runtime::ResolveTLSSlotCount(300) == 256);
+  CHECK(rex::kernel::ResolveTLSSlotCount(0) == 0);
+  CHECK(rex::kernel::ResolveTLSSlotCount(1) == 4);
+  CHECK(rex::kernel::ResolveTLSSlotCount(10) == 12);
+  CHECK(rex::kernel::ResolveTLSSlotCount(32) == 32);
+  CHECK(rex::kernel::ResolveTLSSlotCount(33) == 36);
+  CHECK(rex::kernel::ResolveTLSSlotCount(64) == 64);
+  CHECK(rex::kernel::ResolveTLSSlotCount(255) == 256);
+  CHECK(rex::kernel::ResolveTLSSlotCount(256) == 256);
+  CHECK(rex::kernel::ResolveTLSSlotCount(257) == 256);
+  CHECK(rex::kernel::ResolveTLSSlotCount(300) == 256);
 }
 
 REX_TEST_CASE("A title without a TLS header has no slots", "[kernel][tls]") {
@@ -137,7 +139,7 @@ REX_TEST_CASE("KeTlsFree after a thread with the slot exited writes no released 
 REX_TEST_CASE("The TLS data block is copied with a slot count of 0", "[kernel][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.GetRuntime().GetTitleProcess();
+    const u32 process = StateOf(c.GetRuntime()).GetTitleProcess();
     const u32 raw = c.Alloc(8);
     c.Store32(raw, 0x11223344);
     c.Store32(raw + 4, 0x55667788);

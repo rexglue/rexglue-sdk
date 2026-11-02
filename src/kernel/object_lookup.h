@@ -1,6 +1,6 @@
 /**
  * @file        kernel/object_lookup.h
- * @brief       Private macros that find or open a kernel object by handle or name
+ * @brief       Macros that find or open a kernel object by handle or name
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,8 +12,11 @@
 #pragma once
 
 #include <rex/assert.h>
-#include <rex/runtime.h>
-#include <rex/runtime/kernel_string.h>
+#include <rex/kernel/object/object_table.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/io.h>
+
+#include "kernel/title_state.h"
 
 /**
  * Looks a handle up in the object table and returns X_STATUS_INVALID_HANDLE when it is absent.
@@ -27,20 +30,20 @@
  * @endcode
  */
 // NOLINTBEGIN(bugprone-macro-parentheses): VAR is a declared name
-#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)                                  \
-  auto VAR = ::rex::runtime::GetCurrent().GetObjectTable().Get<TYPE>(HANDLE); \
-  if (!(VAR)) {                                                               \
-    return X_STATUS_INVALID_HANDLE;                                           \
+#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)                                 \
+  auto VAR = ::rex::kernel::GetCurrent().GetObjectTable().Get<TYPE>(HANDLE); \
+  if (!(VAR)) {                                                              \
+    return rex::kernel::X_STATUS_INVALID_HANDLE;                             \
   }
 // NOLINTEND(bugprone-macro-parentheses)
 
 /**
- * Handles an existing named object at the head of a named create entry point.
+ * Returns early from a named create export when an object with that name exists.
  *
- * Returns X_STATUS_OBJECT_NAME_EXISTS with a retained handle when an object of the same kind
- * carries the name. Falls through when the name is absent or an object of another kind holds it.
+ * Returns X_STATUS_OBJECT_NAME_EXISTS with a retained handle when an object of the same type
+ * carries the name. Falls through when the name is absent or an object of another type holds it.
  *
- * @param KIND The ObjectKind enumerator of the object.
+ * @param KIND The ObjectType enumerator of the object.
  * @param HANDLE_OUT The handle out parameter.
  * @param ATTRS The object attributes pointer.
  *
@@ -48,29 +51,31 @@
  * REX_KERNEL_NAMED_CREATE(Event, handle_ptr, obj_attributes_ptr);
  * @endcode
  */
-#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                     \
-  if (ATTRS) {                                                                               \
-    auto& rex_runtime_ = ::rex::runtime::GetCurrent();                                       \
-    auto rex_attrs_ = rex_runtime_.GetMemory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(      \
-        (ATTRS).GetGuestAddress());                                                          \
-    REX_ASSERT(rex_attrs_->name_ptr != 0);                                                   \
-    auto rex_name_ =                                                                         \
-        runtime::TranslateAnsiStringAddress(rex_runtime_.GetMemory(), rex_attrs_->name_ptr); \
-    auto& rex_table_ = rex_runtime_.GetObjectTable();                                        \
-    if (!rex_name_.empty()) {                                                                \
-      if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                             \
-        const X_HANDLE rex_handle_ = *rex_opened_;                                           \
-        auto rex_existing_ = rex_table_.Get(rex_handle_);                                    \
-        const bool rex_same_kind_ =                                                          \
-            rex_existing_ && rex_existing_.GetKind() == ::rex::runtime::ObjectKind::KIND;    \
-        if (rex_same_kind_ && (HANDLE_OUT)) {                                                \
-          *(HANDLE_OUT) = rex_handle_;                                                       \
-          return X_STATUS_OBJECT_NAME_EXISTS;                                                \
-        }                                                                                    \
-        ::rex::runtime::CloseOwned(rex_table_, rex_handle_);                                 \
-        if (rex_same_kind_) {                                                                \
-          return X_STATUS_OBJECT_NAME_EXISTS;                                                \
-        }                                                                                    \
-      }                                                                                      \
-    }                                                                                        \
+#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                      \
+  if (ATTRS) {                                                                                \
+    auto& rex_runtime_ = ::rex::kernel::GetCurrent();                                         \
+    auto rex_attrs_ =                                                                         \
+        StateOf(rex_runtime_)                                                                 \
+            .GetMemory()                                                                      \
+            ->TranslateVirtual<rex::kernel::X_OBJECT_ATTRIBUTES*>((ATTRS).GetGuestAddress()); \
+    REX_ASSERT(rex_attrs_->name_ptr != 0);                                                    \
+    auto rex_name_ = kernel::TranslateAnsiStringAddress(StateOf(rex_runtime_).GetMemory(),    \
+                                                        rex_attrs_->name_ptr);                \
+    auto& rex_table_ = rex_runtime_.GetObjectTable();                                         \
+    if (!rex_name_.empty()) {                                                                 \
+      if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                              \
+        const rex::kernel::X_HANDLE rex_handle_ = *rex_opened_;                               \
+        auto rex_existing_ = rex_table_.Get(rex_handle_);                                     \
+        const bool rex_same_type_ =                                                           \
+            rex_existing_ && rex_existing_.GetType() == ::rex::kernel::ObjectType::KIND;      \
+        if (rex_same_type_ && (HANDLE_OUT)) {                                                 \
+          *(HANDLE_OUT) = rex_handle_;                                                        \
+          return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                    \
+        }                                                                                     \
+        ::rex::kernel::CloseOwned(rex_table_, rex_handle_);                                   \
+        if (rex_same_type_) {                                                                 \
+          return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                    \
+        }                                                                                     \
+      }                                                                                       \
+    }                                                                                         \
   }

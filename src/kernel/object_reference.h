@@ -12,10 +12,9 @@
 #pragma once
 
 #include <rex/platform.h>
-#include <rex/export.h>
 #include <rex/result.h>
-#include <rex/runtime/kernel_object.h>
-#include <rex/runtime/object_table.h>
+#include <rex/kernel/object/object_pin.h>
+#include <rex/kernel/object/object_table.h>
 #include <rex/types.h>
 
 namespace rex::kernel {
@@ -27,8 +26,7 @@ namespace rex::kernel {
  * @param object A pin on the object.
  * @return The first handle, or X_STATUS_INVALID_HANDLE when the object has no handle left.
  */
-REX_RUNTIME_API Result<X_HANDLE> OpenPrimaryHandle(runtime::IObjectTable& table,
-                                                   const runtime::PinnedSlot& object);
+Result<X_HANDLE> OpenPrimaryHandle(kernel::IObjectTable& table, const kernel::ObjectPin& object);
 
 /**
  * Takes the reference the title releases with ObDereferenceObject on a pinned object.
@@ -38,8 +36,8 @@ REX_RUNTIME_API Result<X_HANDLE> OpenPrimaryHandle(runtime::IObjectTable& table,
  * @param object_ptr The guest address the lookup hands out.
  * @return object_ptr, or X_STATUS_INVALID_HANDLE when the object has no handle left.
  */
-REX_RUNTIME_API Result<u32> ReferencePrimary(runtime::IObjectTable& table,
-                                             const runtime::PinnedSlot& object, u32 object_ptr);
+Result<u32> ReferencePrimary(kernel::IObjectTable& table, const kernel::ObjectPin& object,
+                             u32 object_ptr);
 
 /**
  * Takes the reference the title releases with ObDereferenceObject on a thread handle.
@@ -49,7 +47,6 @@ REX_RUNTIME_API Result<u32> ReferencePrimary(runtime::IObjectTable& table,
  * @param object_ptr The guest address of the thread object.
  * @return object_ptr, or X_STATUS_INVALID_HANDLE when the handle is closed.
  */
-REX_RUNTIME_API Result<u32> ReferenceThread(runtime::IObjectTable& table, X_HANDLE handle,
-                                            u32 object_ptr);
+Result<u32> ReferenceThread(kernel::IObjectTable& table, X_HANDLE handle, u32 object_ptr);
 
 }  // namespace rex::kernel

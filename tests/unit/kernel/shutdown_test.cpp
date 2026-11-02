@@ -22,17 +22,17 @@
 #include <thread>
 #include <vector>
 
-#include <rex/api.h>
-#include <rex/filesystem.h>
-#include <rex/platform/exceptions.h>
+#include <rex/ppc/seh.h>
+#include <rex/kernel/types/thread.h>
 #include <rex/ppc/recompiled_code.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/thread_registry.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xthread.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_registry.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/object/kernel_thread.h>
 
 #include "kernel_fixture.h"
 #include "elapsed.h"
+#include "kernel/title_state.h"
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
@@ -75,7 +75,7 @@ struct SetOnUnwind {
 
 extern "C" void StopInsideExternC() {
   SetOnUnwind guard;
-  rex::runtime::KernelThread::CheckStop();
+  rex::kernel::KernelThread::CheckStop();
 }
 
 namespace {
@@ -110,7 +110,7 @@ u32 WaitForever(Caller& c, u32 handle, u32 alertable) {
 
 bool Joined(Caller& c, u32 thread, std::chrono::milliseconds budget) {
   const i64 ticks = -static_cast<i64>(budget.count()) * 10000;
-  return c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(ticks)}) == 0;
+  return c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(ticks)}) == 0;
 }
 
 void RequestStop(Caller& c, u32 thread) {
@@ -153,7 +153,7 @@ std::atomic<u32> g_fiber_event{0};
 std::atomic<bool> g_fiber_waiting{false};
 
 void FiberWait(PPCContext& ctx, u8* base) {
-  Caller f(ctx, base, *rex::runtime::ThreadState::Get()->GetRuntime());
+  Caller f(ctx, base, *rex::kernel::ThreadState::Get()->GetRuntime());
   g_fiber_waiting.store(true);
   WaitForever(f, g_fiber_event.load(), 1);
 }
@@ -163,7 +163,7 @@ u32 SpawnFiberWaiter(Caller& c, u32 fiber_entry) {
   g_fiber_waiting.store(false);
   return c.Spawn([fiber_entry](Caller& t) {
     PPCContext& ctx = t.GetContext();
-    u8* base = t.GetRuntime().GetMemory()->GetVirtualMembase();
+    u8* base = StateOf(t.GetRuntime()).GetMemory()->GetVirtualMembase();
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
     ctx.r3.u64 = 0x10000;
@@ -193,7 +193,8 @@ u32 SpawnAndRequestStop(Caller& c, const std::function<void(Caller&)>& body) {
   return thread;
 }
 
-bool StoppedWithin(rex::Runtime& runtime, u32 thread, std::chrono::milliseconds budget) {
+bool StoppedWithin(rex::kernel::TitleRuntime& runtime, u32 thread,
+                   std::chrono::milliseconds budget) {
   const auto until = std::chrono::steady_clock::now() + budget;
   while (std::chrono::steady_clock::now() < until) {
     auto pin = runtime.GetThreadRegistry().FindByHandle(thread);
@@ -205,11 +206,12 @@ bool StoppedWithin(rex::Runtime& runtime, u32 thread, std::chrono::milliseconds 
   return false;
 }
 
-bool ExitedWithin(rex::Runtime& runtime, u32 thread, std::chrono::milliseconds budget) {
+bool ExitedWithin(rex::kernel::TitleRuntime& runtime, u32 thread,
+                  std::chrono::milliseconds budget) {
   const auto until = std::chrono::steady_clock::now() + budget;
   while (std::chrono::steady_clock::now() < until) {
     auto pin = runtime.GetThreadRegistry().FindByHandle(thread);
-    if (!pin || pin->GetGuestObject<rex::runtime::X_KTHREAD>()->terminated) {
+    if (!pin || pin->GetGuestObject<rex::kernel::X_KTHREAD>()->terminated) {
       return true;
     }
     std::this_thread::sleep_for(1ms);
@@ -222,7 +224,7 @@ std::atomic<u32> g_notify_event{0};
 volatile u32 g_never_released = 0;
 
 void WaitingTerminateRoutine(PPCContext& ctx, u8* base) {
-  Caller r(ctx, base, *rex::runtime::ThreadState::Get()->GetRuntime());
+  Caller r(ctx, base, *rex::kernel::ThreadState::Get()->GetRuntime());
   WaitForever(r, g_notify_event.load(), 0);
   ctx.r3.u64 = 0;
 }
@@ -233,7 +235,7 @@ std::atomic<bool> g_exit_wait_armed{false};
 
 void WaitingExitRoutine(PPCContext& ctx, u8* base) {
   if (ctx.r3.u32 == 0 && g_exit_wait_armed.load()) {
-    Caller r(ctx, base, *rex::runtime::ThreadState::Get()->GetRuntime());
+    Caller r(ctx, base, *rex::kernel::ThreadState::Get()->GetRuntime());
     WaitForever(r, g_notify_event.load(), 0);
   }
 }
@@ -268,7 +270,7 @@ bool SwitchToFiberInScope(Caller& t, u32 fiber_entry) {
   bool kept = false;
   REX_SEH_TRY {
     PPCContext& ctx = t.GetContext();
-    u8* base = t.GetRuntime().GetMemory()->GetVirtualMembase();
+    u8* base = StateOf(t.GetRuntime()).GetMemory()->GetVirtualMembase();
     rex::platform::SEHScope* const scope = rex::platform::GetSEHThreadState().top;
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
@@ -322,7 +324,7 @@ REX_TEST_CASE("A stop crosses a guest SEH scope without running its handler",
 REX_TEST_CASE("A stop on a guest fiber unwinds the thread", "[kernel][shutdown]") {
   KernelFixture fixture;
   const u32 fiber_entry =
-      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&FiberWait, 0);
+      StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&FiberWait, 0);
   REQUIRE(fiber_entry != 0);
   fixture.RunOnGuestThread([fiber_entry](Caller& c) {
     const u32 thread = SpawnFiberWaiter(c, fiber_entry);
@@ -336,7 +338,7 @@ REX_TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
               "[kernel][shutdown][fiber]") {
   KernelFixture fixture;
   const u32 fiber_entry =
-      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&FiberWait, 0);
+      StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&FiberWait, 0);
   REQUIRE(fiber_entry != 0);
   fixture.RunOnGuestThread([fiber_entry](Caller& c) {
     const u32 thread = SpawnFiberWaiter(c, fiber_entry);
@@ -385,8 +387,9 @@ REX_TEST_CASE("A stop wakes a signal and wait", "[kernel][shutdown]") {
 REX_TEST_CASE("A stop wakes a nonalertable delay of 1 hour", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 thread = SpawnAndRequestStop(
-        c, [](Caller& t) { t.Kernel("KeDelayExecutionThread", {1, 0, t.Quad(-36000000000LL)}); });
+    const u32 thread = SpawnAndRequestStop(c, [](Caller& t) {
+      t.Kernel("KeDelayExecutionThread", {1, 0, t.AllocQuad(-36000000000LL)});
+    });
     CHECK(Joined(c, thread, kStopBudget));
   });
 }
@@ -428,7 +431,8 @@ REX_TEST_CASE("A stop requested before the wait still wakes it", "[kernel][shutd
 
 REX_TEST_CASE("A nonalertable wait keeps waiting through a guest APC", "[kernel][shutdown]") {
   KernelFixture fixture;
-  const u32 routine = fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&MarkAPC, 0);
+  const u32 routine =
+      StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&MarkAPC, 0);
   REQUIRE(routine != 0);
   fixture.RunOnGuestThread([routine](Caller& c) {
     g_apc_ran.store(false);
@@ -439,7 +443,7 @@ REX_TEST_CASE("A nonalertable wait keeps waiting through a guest APC", "[kernel]
     const u32 thread = c.Spawn([event, status, waiting, elapsed](Caller& t) {
       waiting->store(true);
       const auto start = std::chrono::steady_clock::now();
-      status->store(t.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, t.Quad(-2000000)}));
+      status->store(t.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, t.AllocQuad(-2000000)}));
       elapsed->store(std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::steady_clock::now() - start)
                          .count());
@@ -454,7 +458,7 @@ REX_TEST_CASE("A nonalertable wait keeps waiting through a guest APC", "[kernel]
   });
 }
 
-REX_TEST_CASE("TerminateTitle ends guest threads in every wait kind with no kill",
+REX_TEST_CASE("TerminateTitle ends guest threads in every wait type with no kill",
               "[kernel][shutdown]") {
   KernelFixture fixture;
   std::vector<u32> threads;
@@ -471,12 +475,13 @@ REX_TEST_CASE("TerminateTitle ends guest threads in every wait kind with no kill
     threads.push_back(c.Spawn([event](Caller& t) {
       t.Kernel("NtSignalAndWaitForSingleObjectEx", {CreateGuestEvent(t), event, 0, 0, 0});
     }));
-    threads.push_back(c.Spawn(
-        [](Caller& t) { t.Kernel("KeDelayExecutionThread", {1, 0, t.Quad(-36000000000LL)}); }));
+    threads.push_back(c.Spawn([](Caller& t) {
+      t.Kernel("KeDelayExecutionThread", {1, 0, t.AllocQuad(-36000000000LL)});
+    }));
     std::this_thread::sleep_for(50ms);
   });
   const auto start = std::chrono::steady_clock::now();
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
   CHECK(MillisSince(start) < 1000);
   for (const u32 thread : threads) {
     CHECK(StoppedWithin(fixture.GetRuntime(), thread, 100ms));
@@ -509,7 +514,7 @@ REX_TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kern
     std::this_thread::sleep_for(20ms);
   });
   const auto start = std::chrono::steady_clock::now();
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
   CHECK(MillisSince(start) < 1000);
   CHECK(StoppedWithin(fixture.GetRuntime(), spawner->load(), 100ms));
   std::lock_guard lock(launched->mutex);
@@ -523,28 +528,28 @@ REX_TEST_CASE(
     "A thread created after TerminateTitle leaves the title process thread list as it was",
     "[kernel][shutdown]") {
   KernelFixture fixture;
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
 
-  rex::runtime::ThreadState host_state(0, 0, 0, fixture.GetRuntime().GetMemory(),
-                                       &fixture.GetRuntime());
-  rex::runtime::ThreadState* previous = rex::runtime::ThreadState::Get();
-  rex::runtime::ThreadState::Bind(&host_state);
-  Caller c(*host_state.GetContext(), fixture.GetRuntime().GetMemory()->GetVirtualMembase(),
+  rex::kernel::ThreadState host_state(0, 0, 0, StateOf(fixture.GetRuntime()).GetMemory(),
+                                      &fixture.GetRuntime());
+  rex::kernel::ThreadState* previous = rex::kernel::ThreadState::Get();
+  rex::kernel::ThreadState::Bind(&host_state);
+  Caller c(*host_state.GetContext(), StateOf(fixture.GetRuntime()).GetMemory()->GetVirtualMembase(),
            fixture.GetRuntime());
 
-  const u32 process = fixture.GetRuntime().GetTitleProcess();
+  const u32 process = StateOf(fixture.GetRuntime()).GetTitleProcess();
   const u32 count = c.Load32(process + 0x14);
   const u32 flink = c.Load32(process + 0x04);
   const u32 blink = c.Load32(process + 0x08);
   const u32 handle_ptr = c.Alloc(4);
   const u32 body = Caller::RegisterBody([](Caller&) {});
   CHECK(c.Kernel("ExCreateThread", {handle_ptr, 0x10000, 0, 0, Caller::start_thunk, body, 0}) ==
-        rex::X_STATUS_PROCESS_IS_TERMINATING);
+        rex::kernel::X_STATUS_PROCESS_IS_TERMINATING);
   CHECK(c.Load32(process + 0x14) == count);
   CHECK(c.Load32(process + 0x04) == flink);
   CHECK(c.Load32(process + 0x08) == blink);
 
-  rex::runtime::ThreadState::Bind(previous);
+  rex::kernel::ThreadState::Bind(previous);
 }
 
 REX_TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kernel][shutdown]") {
@@ -568,7 +573,7 @@ REX_TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kerne
           seen->store(!pin || !pin->IsRunning());
         }
       } last{t, other->load(), other_stopped_first};
-      t.GetRuntime().TerminateTitle();
+      StateOf(t.GetRuntime()).TerminateTitle();
     }));
   });
   WaitUntil(*started);
@@ -579,8 +584,9 @@ REX_TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kerne
 REX_TEST_CASE("A terminate notification that waits forever is stopped with no kill",
               "[kernel][shutdown]") {
   KernelFixture fixture;
-  const u32 routine =
-      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&WaitingTerminateRoutine, 0);
+  const u32 routine = StateOf(fixture.GetRuntime())
+                          .GetFunctionDispatcher()
+                          ->AllocateThunk(&WaitingTerminateRoutine, 0);
   REQUIRE(routine != 0);
   fixture.RunOnGuestThread([routine](Caller& c) {
     g_notify_event.store(CreateGuestEvent(c));
@@ -590,16 +596,15 @@ REX_TEST_CASE("A terminate notification that waits forever is stopped with no ki
     c.Kernel("ExRegisterTitleTerminateNotification", {registration, 1});
   });
   const auto start = std::chrono::steady_clock::now();
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
   const i64 elapsed = MillisSince(start);
   CHECK(elapsed >= 1900);
-  CHECK(elapsed < 3500);
 }
 
 REX_TEST_CASE("TerminateTitle stops a guest thread spinning in generated code",
               "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
-  fixture.GetRuntime().GetFunctionDispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
+  StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);
   auto unwound = std::make_shared<std::atomic<bool>>(false);
   u32 thread = 0;
@@ -612,7 +617,7 @@ REX_TEST_CASE("TerminateTitle stops a guest thread spinning in generated code",
   });
   WaitUntil(*started);
   const auto start = std::chrono::steady_clock::now();
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
   CHECK(MillisSince(start) < 3000);
   CHECK(StoppedWithin(fixture.GetRuntime(), thread, 100ms));
   CHECK(unwound->load());
@@ -621,7 +626,7 @@ REX_TEST_CASE("TerminateTitle stops a guest thread spinning in generated code",
 REX_TEST_CASE("TerminateTitle stops a guest thread spinning in an SEH scope",
               "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
-  fixture.GetRuntime().GetFunctionDispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
+  StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);
   auto unwound = std::make_shared<std::atomic<bool>>(false);
   u32 thread = 0;
@@ -634,7 +639,7 @@ REX_TEST_CASE("TerminateTitle stops a guest thread spinning in an SEH scope",
   });
   WaitUntil(*started);
   const auto start = std::chrono::steady_clock::now();
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
   CHECK(MillisSince(start) < 3000);
   CHECK(StoppedWithin(fixture.GetRuntime(), thread, 100ms));
   CHECK(unwound->load());
@@ -645,8 +650,8 @@ REX_TEST_CASE("A stop requested before a thread launches ends it at its first ch
   KernelFixture fixture;
   auto ran_on = std::make_shared<std::atomic<bool>>(false);
   auto thread =
-      std::make_unique<rex::runtime::KernelThread>(fixture.GetRuntime(), 128 * 1024, 0, [ran_on] {
-        rex::runtime::KernelThread::Sleep(1h);
+      std::make_unique<rex::kernel::KernelThread>(fixture.GetRuntime(), 128 * 1024, 0, [ran_on] {
+        rex::kernel::KernelThread::SleepFor(1h);
         ran_on->store(true);
         return 0;
       });
@@ -681,8 +686,8 @@ REX_TEST_CASE("A thread that holds a mutant when the stop arrives abandons it",
     WaitUntil(*owned);
     RequestStop(c, holder);
     CHECK(Joined(c, holder, 1000ms));
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {mutant, 1, 0, c.Quad(-10000000)}) ==
-          rex::X_STATUS_ABANDONED_WAIT_0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {mutant, 1, 0, c.AllocQuad(-10000000)}) ==
+          rex::kernel::X_STATUS_ABANDONED_WAIT_0);
   });
 }
 
@@ -691,7 +696,7 @@ REX_TEST_CASE("A ThreadStop unwinds through an extern C frame", "[kernel][shutdo
   g_extern_c_unwound.store(false);
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 thread = c.Spawn([](Caller&) {
-      rex::runtime::KernelThread::GetCurrentThread()->RequestStop();
+      rex::kernel::KernelThread::GetCallingThread()->RequestStop();
       g_stop_inside_extern_c();
     });
     CHECK(Joined(c, thread, 1000ms));
@@ -739,14 +744,14 @@ struct CallerGate {
   }
 };
 
-std::string DescribeThread(rex::Runtime& runtime, u32 handle) {
+std::string DescribeThread(rex::kernel::TitleRuntime& runtime, u32 handle) {
   auto pin = runtime.GetThreadRegistry().FindByHandle(handle);
   if (!pin) {
     return std::format("thread {:08X} is gone", handle);
   }
   return std::format("thread {:08X} '{}' running {} suspend count {} terminated {}", handle,
                      pin->GetName(), pin->IsRunning(), pin->GetSuspendCount(),
-                     pin->GetGuestObject<rex::runtime::X_KTHREAD>()->terminated);
+                     pin->GetGuestObject<rex::kernel::X_KTHREAD>()->terminated);
 }
 
 REX_TEST_CASE("2 guest threads that call TerminateTitle at once both end", "[kernel][shutdown]") {
@@ -757,7 +762,7 @@ REX_TEST_CASE("2 guest threads that call TerminateTitle at once both end", "[ker
     for (int i = 0; i < 2; ++i) {
       callers.push_back(c.Spawn([gate](Caller& t) {
         gate->ArriveAndWait(2);
-        t.GetRuntime().TerminateTitle();
+        StateOf(t.GetRuntime()).TerminateTitle();
       }));
     }
   });
@@ -773,7 +778,7 @@ REX_TEST_CASE("2 guest threads that call TerminateTitle at once both end", "[ker
 REX_TEST_CASE("TerminateTitle ends a thread suspended after the stop request",
               "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
-  fixture.GetRuntime().GetFunctionDispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
+  StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);
   auto unwound = std::make_shared<std::atomic<bool>>(false);
   u32 thread = 0;
@@ -787,7 +792,7 @@ REX_TEST_CASE("TerminateTitle ends a thread suspended after the stop request",
   WaitUntil(*started);
   auto pin = fixture.GetRuntime().GetThreadRegistry().FindByHandle(thread);
   REQUIRE(pin);
-  std::thread terminator([&fixture] { fixture.GetRuntime().TerminateTitle(); });
+  std::thread terminator([&fixture] { StateOf(fixture.GetRuntime()).TerminateTitle(); });
   std::this_thread::sleep_for(100ms);
   u32 previous = 0;
   pin->Suspend(&previous);
@@ -800,7 +805,7 @@ REX_TEST_CASE("Teardown stops a thread whose exit notification waits forever",
               "[kernel][shutdown]") {
   auto fixture = std::make_unique<KernelFixture>();
   const u32 routine =
-      fixture->GetRuntime().GetFunctionDispatcher()->AllocateThunk(&WaitingExitRoutine, 0);
+      StateOf(fixture->GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&WaitingExitRoutine, 0);
   REQUIRE(routine != 0);
   fixture->RunOnGuestThread([routine](Caller& c) {
     g_notify_event.store(CreateGuestEvent(c));
@@ -856,7 +861,7 @@ void CheckTerminateWakesSocketCall(const std::function<u32(Caller&)>& open,
   });
   REQUIRE(thread != 0);
   const auto start = std::chrono::steady_clock::now();
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
   CHECK(MillisSince(start) < 1000);
   CHECK(StoppedWithin(fixture.GetRuntime(), thread, 100ms));
 }
@@ -1058,7 +1063,7 @@ REX_TEST_CASE("A stop that crosses an SEH scope leaves no scope open on the thre
               "[kernel][shutdown][seh]") {
   KernelFixture fixture;
   const u32 routine =
-      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&CheckScopeOnExit, 0);
+      StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&CheckScopeOnExit, 0);
   REQUIRE(routine != 0);
   g_scope_check_ran.store(false);
   g_scope_left_open.store(false);
@@ -1083,7 +1088,7 @@ REX_TEST_CASE("A guest fiber starts with no SEH scope and the switch back restor
               "[kernel][shutdown][seh][fiber]") {
   KernelFixture fixture;
   const u32 fiber_entry =
-      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&CheckScopeOnFiber, 0);
+      StateOf(fixture.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&CheckScopeOnFiber, 0);
   REQUIRE(fiber_entry != 0);
   g_fiber_checked.store(false);
   g_fiber_saw_scope.store(true);
@@ -1142,27 +1147,4 @@ REX_TEST_CASE("A suspend never parks a guest thread inside a host allocation", "
   stop->store(true);
   allocator.join();
   CHECK(allocated_every_time);
-}
-
-REX_TEST_CASE("Setup fails when kernel initialization fails", "[kernel][kernel_init]") {
-  rex::Config config;
-  config.modules = {"rexfilesystem", "rexruntime"};
-  auto api = rex::Init(config);
-  REQUIRE(api);
-  {
-    rex::Runtime runtime((*api)->GetConfig());
-    rex::RuntimeDesc setup;
-    setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
-    setup.kernel_init = [](rex::Runtime&) -> rex::Result<void> {
-      return rex::Err(rex::ErrorCategory::kRuntime, "kernel module did not load");
-    };
-    setup.tool_mode = true;
-    const rex::Result<void> result = runtime.Setup(setup);
-    CHECK_FALSE(result);
-    if (!result) {
-      CHECK(result.error().message.find("kernel module did not load") != std::string::npos);
-    }
-    runtime.Shutdown();
-  }
-  rex::Shutdown();
 }

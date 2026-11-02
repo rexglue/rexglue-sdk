@@ -14,11 +14,11 @@
 #include <string_view>
 #include <unordered_set>
 
-#include <rex/runtime/exports.h>
+#include <rex/kernel/export.h>
 
 namespace {
 
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 constexpr std::array<ExportModule, 3> kModules = {ExportModule::kXboxkrnl, ExportModule::kXAM,
                                                   ExportModule::kXBDM};
@@ -43,7 +43,7 @@ REX_TEST_CASE("Every function row links to a translation entry and no variable d
               "[kernel][exports]") {
   for (const auto module : kModules) {
     for (const auto& entry : GetExports(module)) {
-      if (entry.kind == ExportKind::kFunction) {
+      if (entry.type == ExportType::kFunction) {
         CHECK(entry.fn != nullptr);
       } else {
         CHECK(entry.fn == nullptr);
@@ -83,12 +83,12 @@ REX_TEST_CASE("Known kernel variables are table variables", "[kernel][exports]")
   const auto* handle = FindByOrdinal(ExportModule::kXboxkrnl, 0x0193);
   REQUIRE(handle != nullptr);
   CHECK(handle->name == "XexExecutableModuleHandle");
-  CHECK(handle->kind == ExportKind::kVariable);
+  CHECK(handle->type == ExportType::kVariable);
 
   const auto* image = FindByOrdinal(ExportModule::kXboxkrnl, 0x01AF);
   REQUIRE(image != nullptr);
   CHECK(image->name == "ExLoadedImageName");
-  CHECK(image->kind == ExportKind::kVariable);
+  CHECK(image->type == ExportType::kVariable);
 }
 
 REX_TEST_CASE("Module names map to tables in short and long form", "[kernel][exports]") {
@@ -110,33 +110,16 @@ REX_TEST_CASE("Names that are not kernel modules map to nothing", "[kernel][expo
 }
 
 REX_TEST_CASE("Export variables bind per instance", "[kernel][exports]") {
-  ExportVariables first;
-  ExportVariables second;
-  first.Set(0x0193, 0x40001000);
-  second.Set(0x0193, 0x40002000);
-  CHECK(first.Get(0x0193) == 0x40001000u);
-  CHECK(second.Get(0x0193) == 0x40002000u);
-  CHECK(first.Get(0x01AF) == 0u);
-  first.Set(0x0193, 0x40003000);
-  CHECK(first.Get(0x0193) == 0x40003000u);
-  CHECK(second.Get(0x0193) == 0x40002000u);
-}
-
-REX_TEST_CASE("Exports that never return end the thread, the title or the console",
-              "[kernel][exports]") {
-  std::unordered_set<std::string_view> found;
-  for (const auto module : kModules) {
-    for (const auto& entry : GetExports(module)) {
-      if (IsNoReturnExport(module, entry.ordinal)) {
-        found.insert(entry.name);
-      }
-    }
-  }
-  const std::unordered_set<std::string_view> expected = {
-      "ExTerminateThread",      "HalReturnToFirmware",  "KeBugCheck",
-      "KeBugCheckEx",           "XamLoaderLaunchTitle", "XamLoaderLaunchTitleEx",
-      "XamLoaderTerminateTitle"};
-  CHECK(found == expected);
+  ExportVariableTable first;
+  ExportVariableTable second;
+  first.SetAddress(0x0193, 0x40001000);
+  second.SetAddress(0x0193, 0x40002000);
+  CHECK(first.GetAddress(0x0193) == 0x40001000u);
+  CHECK(second.GetAddress(0x0193) == 0x40002000u);
+  CHECK(first.GetAddress(0x01AF) == 0u);
+  first.SetAddress(0x0193, 0x40003000);
+  CHECK(first.GetAddress(0x0193) == 0x40003000u);
+  CHECK(second.GetAddress(0x0193) == 0x40002000u);
 }
 
 REX_TEST_CASE("A no return ordinal of another module does not match", "[kernel][exports]") {

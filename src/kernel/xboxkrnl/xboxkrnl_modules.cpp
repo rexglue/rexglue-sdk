@@ -10,28 +10,26 @@
  */
 
 #include <rex/logging/log.h>
-#include <rex/hook.h>
-#include <rex/runtime/module_registry.h>
-#include <rex/runtime/object_table.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/module.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/module_object.h>
-#include <rex/runtime/xexception.h>
-#include <rex/runtime/xthread.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/types/thread.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/kernel/types/status.h>
 #include "kernel/stub_log.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
+#include <rex/kernel/types/xex.h>
+#include <rex/kernel/object/object_table.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
-/**
- * Reports whether the executable has a system flag set.
- *
- * The privilege is the bit index, so 6 selects 0x40 (kXEXSystemInsecureSockets).
- *
- * @param privilege Bit position in the XEX system flags.
- * @return 1 when the flag is set, otherwise 0.
- */
+/** Privilege 6 selects the flag 0x40 (kXEXSystemInsecureSockets). */
 u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   REXLOG_TRACE(kernel,
                "XexCheckExecutablePrivilege "
@@ -39,14 +37,14 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
                static_cast<u32>(privilege));
   u32 mask = 1 << privilege;
 
-  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
-      runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0));
+  auto module = kernel::GetCurrent().GetObjectTable().Get<ModuleObject>(
+      kernel::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0));
   if (!module) {
     return 0;
   }
 
   u32 flags = 0;
-  module->OptHeader<u32>(filesystem::kXEXHeaderSystemFlags, &flags);
+  module->OptHeader<u32>(kXEXHeaderSystemFlags, &flags);
 
   return (flags & mask) > 0;
 }
@@ -55,13 +53,13 @@ u32 XexGetModuleHandle_entry(MappedString module_name, MappedU32 hmodule_ptr) {
   X_HANDLE module_handle = 0;
 
   if (!module_name) {
-    module_handle = runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0);
+    module_handle = kernel::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0);
   } else {
     module_handle =
-        runtime::GetCurrent().GetModuleRegistry().GetModule(module_name.GetValue()).value_or(0);
+        kernel::GetCurrent().GetModuleRegistry().GetModule(module_name.GetValue()).value_or(0);
   }
 
-  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
+  auto module = kernel::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
   if (!module) {
     *hmodule_ptr = 0;
     return X_ERROR_NOT_FOUND;
@@ -76,8 +74,8 @@ u32 XexGetModuleSection_entry(MappedVoid hmodule, MappedString name, MappedU32 d
                               MappedU32 size_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
-      ModuleObject::FromHModule(runtime::GetCurrent(), hmodule));
+  auto module = kernel::GetCurrent().GetObjectTable().Get<ModuleObject>(
+      ModuleObject::FromHModule(kernel::GetCurrent(), hmodule));
   if (module) {
     u32 section_data = 0;
     u32 section_size = 0;
@@ -97,7 +95,7 @@ u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_fla
                        [[maybe_unused]] u32 min_version, MappedU32 hmodule_ptr) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
-  auto& runtime = runtime::GetCurrent();
+  auto& runtime = kernel::GetCurrent();
   auto& modules = runtime.GetModuleRegistry();
   u32 hmodule = 0;
   {
@@ -106,7 +104,8 @@ u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_fla
         modules.GetModule(module_name.GetValue()).value_or(0));
     if (module) {
       hmodule = module->hmodule_ptr;
-      auto ldr_data = runtime.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+      auto ldr_data =
+          StateOf(runtime).GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
       ldr_data->load_count++;
       result = X_STATUS_SUCCESS;
     }
@@ -128,8 +127,8 @@ u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_fla
 }
 
 u32 XexUnloadImage_entry(MappedVoid hmodule) {
-  const X_HANDLE module_handle = ModuleObject::FromHModule(runtime::GetCurrent(), hmodule);
-  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
+  const X_HANDLE module_handle = ModuleObject::FromHModule(kernel::GetCurrent(), hmodule);
+  auto module = kernel::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
   if (!module) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -140,13 +139,13 @@ u32 XexUnloadImage_entry(MappedVoid hmodule) {
   // Decrement and check under the lock so concurrent unloads cannot both see 0 and double free.
   bool last_ref;
   {
-    std::lock_guard lock(runtime::GetCurrent().GetModuleRegistry().GetLoadCountMutex());
+    std::lock_guard lock(kernel::GetCurrent().GetModuleRegistry().GetLoadCountMutex());
     auto ldr_data = hmodule.As<X_LDR_DATA_TABLE_ENTRY*>();
     last_ref = (--ldr_data->load_count == 0);
   }
 
   if (last_ref) {
-    runtime::GetCurrent().GetModuleRegistry().UnloadUserModule(module_handle);
+    kernel::GetCurrent().GetModuleRegistry().UnloadUserModule(module_handle);
   }
 
   return X_STATUS_SUCCESS;
@@ -154,37 +153,37 @@ u32 XexUnloadImage_entry(MappedVoid hmodule) {
 
 u32 XexUnloadImageAndExitThread_entry(MappedVoid hmodule, u32 exit_code) {
   XexUnloadImage_entry(hmodule);
-  KernelThread::GetCurrentThread()->Exit(static_cast<int>(exit_code));
+  KernelThread::GetCallingThread()->Exit(static_cast<int>(exit_code));
 }
 
 u32 XexGetProcedureAddress_entry(MappedVoid hmodule, u32 ordinal, MappedU32 out_function_ptr) {
   REX_ASSERT(ordinal != 0);
 
   u32 caller_address = 0;
-  auto* thread = KernelThread::GetCurrentThread();
+  auto* thread = KernelThread::GetCallingThread();
   if (thread && thread->GetThreadState() && thread->GetThreadState()->GetContext()) {
     caller_address = static_cast<u32>(thread->GetThreadState()->GetContext()->lr);
   }
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
-  auto string_name =
-      reinterpret_cast<const char*>(runtime::GetCurrent().GetMemory()->TranslateVirtual(ordinal));
+  auto string_name = reinterpret_cast<const char*>(
+      kernel::GetCurrentState().GetMemory()->TranslateVirtual(ordinal));
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
   X_HANDLE module_handle = 0;
   if (!hmodule) {
-    module_handle = runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0);
+    module_handle = kernel::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0);
   } else {
-    module_handle = ModuleObject::FromHModule(runtime::GetCurrent(), hmodule);
+    module_handle = ModuleObject::FromHModule(kernel::GetCurrent(), hmodule);
   }
-  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
+  auto module = kernel::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
   if (module) {
     u32 ptr;
     if (is_string_name) {
-      ptr = module->GetProcAddress(string_name);
+      ptr = module->GetExportAddress(string_name);
     } else {
-      ptr = module->GetProcAddress(runtime::GetCurrent(), ordinal, caller_address);
+      ptr = module->GetExportAddress(kernel::GetCurrent(), ordinal, caller_address);
     }
     if (ptr) {
       *out_function_ptr = ptr;
@@ -210,9 +209,9 @@ u32 XexGetProcedureAddress_entry(MappedVoid hmodule, u32 ordinal, MappedU32 out_
 void ExRegisterTitleTerminateNotification_entry(GuestPtrT<X_EX_TITLE_TERMINATE_REGISTRATION> reg,
                                                 u32 create) {
   if (create) {
-    runtime::GetCurrent().RegisterTitleTerminateNotification(reg.GetGuestAddress());
+    kernel::GetCurrentState().RegisterTitleTerminateNotification(reg.GetGuestAddress());
   } else {
-    runtime::GetCurrent().RemoveTitleTerminateNotification(reg.GetGuestAddress());
+    kernel::GetCurrentState().RemoveTitleTerminateNotification(reg.GetGuestAddress());
   }
 }
 

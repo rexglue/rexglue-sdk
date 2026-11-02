@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/kernel/fiber_test.cpp
- * @brief       Fiber switches through the shim fiber routines
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,12 +14,13 @@
 #include <cstring>
 
 #include <rex/platform/lock_order.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/thread_registry.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_registry.h>
+#include <rex/kernel/heap.h>
 
 #include "kernel_fixture.h"
-#include "runtime/guest_stack.h"
+#include "kernel/guest_stack.h"
+#include "kernel/title_state.h"
 
 extern "C" void rexshim_ConvertThreadToFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_ConvertFiberToThread(PPCContext& ctx, rex::u8* base);
@@ -73,7 +73,7 @@ void Fill(PPCContext& ctx, u64 gpr, rex::f64 fpr, u8 vr) {
 }
 
 void FiberBody(PPCContext& ctx, u8* base) {
-  g_fiber_kthread = Caller(ctx, base, rex::runtime::GetCurrent()).Load32(ctx.r13.u32 + 0x100);
+  g_fiber_kthread = Caller(ctx, base, rex::kernel::GetCurrent()).Load32(ctx.r13.u32 + 0x100);
   Fill(ctx, 0xBAD, -1.0, 0xEE);
   ctx.SetCR(0x12345678);
   ctx.lr = 0x8200BEEF;
@@ -88,7 +88,7 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ke
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     PPCContext& ctx = c.GetContext();
-    auto* memory = c.GetRuntime().GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetMemory();
     u8* base = memory->GetVirtualMembase();
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
@@ -98,7 +98,7 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ke
       return;
     }
 
-    const u32 body = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&FiberBody, 0);
+    const u32 body = StateOf(c.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&FiberBody, 0);
     CHECKED_ELSE(body != 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -146,15 +146,15 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ke
 }
 
 REX_TEST_CASE("fibers: ResolveGuestStackSize allows 12 KB fiber stacks", "[kernel][fibers]") {
-  CHECK(rex::runtime::ResolveGuestStackSize(0x2000, 0x10000, 12 * 1024) == 0x3000);
-  CHECK(rex::runtime::ResolveGuestStackSize(0, 0x10000, 12 * 1024) == 0x10000);
-  CHECK(rex::runtime::ResolveGuestStackSize(0x3001, 0x10000, 12 * 1024) == 0x4000);
-  CHECK(rex::runtime::ResolveGuestStackSize(0x2FFF, 0x10000, 12 * 1024) == 0x3000);
-  CHECK(rex::runtime::ResolveGuestStackSize(0x3000, 0x10000, 12 * 1024) == 0x3000);
-  CHECK(rex::runtime::ResolveGuestStackSize(0x4000, 0x10000, 12 * 1024) == 0x4000);
-  CHECK(rex::runtime::ResolveGuestStackSize(1, 0x10000, 12 * 1024) == 0x3000);
-  CHECK(rex::runtime::ResolveGuestStackSize(0, 0x1000, 12 * 1024) == 0x3000);
-  CHECK(rex::runtime::ResolveGuestStackSize(0, 0, 12 * 1024) == 0x10000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0x2000, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0, 0x10000, 12 * 1024) == 0x10000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0x3001, 0x10000, 12 * 1024) == 0x4000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0x2FFF, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0x3000, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0x4000, 0x10000, 12 * 1024) == 0x4000);
+  CHECK(rex::kernel::ResolveGuestStackSize(1, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0, 0x1000, 12 * 1024) == 0x3000);
+  CHECK(rex::kernel::ResolveGuestStackSize(0, 0, 12 * 1024) == 0x10000);
 }
 
 REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breaking the lock order",
@@ -167,11 +167,12 @@ REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breakin
   {
     KernelFixture fixture;
     fixture.RunOnGuestThread([](Caller& c) {
-      const u32 context = c.GetRuntime().GetMemory()->SystemHeapAlloc(
-          0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+      const u32 context = StateOf(c.GetRuntime())
+                              .GetMemory()
+                              ->SystemHeapAlloc(0x1000, 0x1000, rex::kernel::kSystemHeapPhysical);
       REQUIRE(context != 0);
       c.GetRuntime().GetThreadRegistry().RegisterFiber(
-          context, rex::runtime::GuestFiber{nullptr, 0, context, 0, true});
+          context, rex::kernel::GuestFiber{nullptr, 0, context, 0, true});
     });
     previous = rex::platform::SetLockOrderHandler(&CountViolation);
   }

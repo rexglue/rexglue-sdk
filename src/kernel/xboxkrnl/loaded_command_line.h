@@ -15,27 +15,14 @@
 #include <string_view>
 
 #include <rex/platform.h>
-#include <rex/export.h>
 #include <rex/types.h>
 
-namespace rex::runtime {
+namespace rex::kernel {
 
-/**
- * Builds the ExLoadedCommandLine text, the quoted image file name followed by the arguments.
- *
- * @param image_path The path of the loaded image.
- * @param arguments The configured command line, empty for none.
- * @return The command line.
- */
-REX_RUNTIME_API std::string LoadedCommandLine(std::string_view image_path,
-                                              std::string_view arguments);
+/** Builds the ExLoadedCommandLine text, the quoted image file name followed by the arguments. */
+std::string LoadedCommandLine(std::string_view image_path, std::string_view arguments);
 
-/**
- * Returns the ExLoadedCommandLine buffer size that holds any image name with the arguments.
- *
- * @param arguments The configured command line, empty for none.
- * @return The size in bytes, including the terminator.
- */
-REX_RUNTIME_API u32 LoadedCommandLineCapacity(std::string_view arguments);
+/** Returns the ExLoadedCommandLine buffer size in bytes, with the terminator. */
+u32 LoadedCommandLineCapacity(std::string_view arguments);
 
-}  // namespace rex::runtime
+}  // namespace rex::kernel

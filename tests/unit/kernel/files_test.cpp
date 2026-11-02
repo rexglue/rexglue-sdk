@@ -17,33 +17,35 @@
 #include <fstream>
 #include <string_view>
 
-#include <rex/api.h>
-#include <rex/filesystem.h>
-#include <rex/runtime.h>
-#include <rex/runtime/info/file.h>
-#include <rex/runtime/content_manager.h>
-#include <rex/runtime/file_object.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/xam/user_profile.h>
-#include <rex/runtime/xcontent_data.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/filesystem/mount.h>
+#include <rex/kernel/types/content.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/io.h>
+#include <rex/xam/content_manager.h>
+#include <rex/xam/user_profile.h>
+#include <rex/kernel/object/file_object.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_table.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
+#include "xam/xam_state.h"
 
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
 namespace {
-constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
+constexpr u32 kInvalidHandle = rex::kernel::X_STATUS_INVALID_HANDLE;
 constexpr u32 kReadWriteAccess = 0xC0100000;
 
 void MountScratch(KernelFixture& fixture) {
   namespace fs = rex::filesystem;
-  auto* file_system = fixture.GetAPI().Get<fs::IFileSystem>();
+  auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
   REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\Scratch", fs::ProviderKind::kHostDirectory,
+  REQUIRE(file_system->Mount({"\\Device\\Scratch", fs::ProviderType::kHostDirectory,
                               fixture.GetRoot() / "scratch", fs::MountFlags::kWritable}));
   REQUIRE(file_system->Link("scratch:", "\\Device\\Scratch"));
 }
@@ -63,14 +65,16 @@ u32 RecordingAPC(Caller& c) {
   g_apc_calls = 0;
   g_apc_context = 0xFFFFFFFF;
   g_apc_status_block = 0;
-  return c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(
-      +[](PPCContext& ctx, u8*) {
-        ++g_apc_calls;
-        g_apc_context = ctx.r3.u32;
-        g_apc_status_block = ctx.r4.u32;
-        ctx.r3.u64 = 0;
-      },
-      0);
+  return StateOf(c.GetRuntime())
+      .GetFunctionDispatcher()
+      ->AllocateThunk(
+          +[](PPCContext& ctx, u8*) {
+            ++g_apc_calls;
+            g_apc_context = ctx.r3.u32;
+            g_apc_status_block = ctx.r4.u32;
+            ctx.r3.u64 = 0;
+          },
+          0);
 }
 
 u32 NewEvent(Caller& c) {
@@ -81,7 +85,7 @@ u32 NewEvent(Caller& c) {
 
 u32 DeliverAPCs(Caller& c) {
   const u32 event = NewEvent(c);
-  const u32 result = c.Kernel("NtWaitForSingleObjectEx", {event, 1, 1, c.Quad(-10000)});
+  const u32 result = c.Kernel("NtWaitForSingleObjectEx", {event, 1, 1, c.AllocQuad(-10000)});
   c.Kernel("NtClose", {event});
   return result;
 }
@@ -93,9 +97,9 @@ REX_TEST_CASE("files: an allocation size only truncates below the end of file", 
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\a.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\a.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -103,10 +107,10 @@ REX_TEST_CASE("files: an allocation size only truncates below the end of file", 
     const u32 info = c.Alloc(8);
     c.Store64(info, 4096);
     CHECK(c.Kernel("NtSetInformationFile",
-                   {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
+                   {handle, status_block, info, 8, rex::kernel::XFileAllocationInformation}) == 0);
     c.Store64(info, 8);
     CHECK(c.Kernel("NtSetInformationFile",
-                   {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
+                   {handle, status_block, info, 8, rex::kernel::XFileAllocationInformation}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
   CHECK(std::filesystem::file_size(fixture.GetRoot() / "scratch" / "a.bin") == 8);
@@ -118,9 +122,9 @@ REX_TEST_CASE("files: a flush reaches the file and fails on a bad handle", "[ker
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\f.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\f.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -140,9 +144,9 @@ REX_TEST_CASE("files: a rename onto a file needs replace existing", "[kernel][fi
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\r1.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\r1.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -152,13 +156,13 @@ REX_TEST_CASE("files: a rename onto a file needs replace existing", "[kernel][fi
     c.Store32(info, 0);
     c.Store32(info + 4, 0);
     c.Store32(info + 8, static_cast<u32>(kTarget.size() << 16 | kTarget.size()));
-    c.Store32(info + 12, c.String(kTarget));
+    c.Store32(info + 12, c.AllocString(kTarget));
     CHECK(c.Kernel("NtSetInformationFile",
-                   {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) ==
-          rex::X_STATUS_OBJECT_NAME_COLLISION);
+                   {handle, status_block, info, 16, rex::kernel::XFileRenameInformation}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
     c.Store32(info, 1);
     CHECK(c.Kernel("NtSetInformationFile",
-                   {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) == 0);
+                   {handle, status_block, info, 16, rex::kernel::XFileRenameInformation}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
   CHECK_FALSE(std::filesystem::exists(fixture.GetRoot() / "scratch" / "r1.bin"));
@@ -172,16 +176,16 @@ REX_TEST_CASE("files: create accepts ; and = and rename rejects them", "[kernel]
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
     for (const char* name : {"scratch:\\a;b.bin", "scratch:\\a=b.bin"}) {
-      CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes(name),
+      CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.AllocAttributes(name),
                                       status_block, 0, 0, 3, 2, 0x20}) == 0);
       CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
     }
-    CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\a+b.bin"),
-                                    status_block, 0, 0, 3, 2, 0x20}) ==
-          rex::X_STATUS_OBJECT_NAME_INVALID);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\n.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECK(c.Kernel("NtCreateFile",
+                   {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\a+b.bin"),
+                    status_block, 0, 0, 3, 2, 0x20}) == rex::kernel::X_STATUS_OBJECT_NAME_INVALID);
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\n.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -192,10 +196,10 @@ REX_TEST_CASE("files: create accepts ; and = and rename rejects them", "[kernel]
       c.Store32(info, 1);
       c.Store32(info + 4, 0);
       c.Store32(info + 8, static_cast<u32>(target.size() << 16 | target.size()));
-      c.Store32(info + 12, c.String(target));
+      c.Store32(info + 12, c.AllocString(target));
       CHECK(c.Kernel("NtSetInformationFile",
-                     {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) ==
-            rex::X_STATUS_OBJECT_NAME_INVALID);
+                     {handle, status_block, info, 16, rex::kernel::XFileRenameInformation}) ==
+            rex::kernel::X_STATUS_OBJECT_NAME_INVALID);
     }
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -207,9 +211,9 @@ REX_TEST_CASE("files: an allocation size above the end of file keeps the size", 
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\b.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\b.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -217,13 +221,13 @@ REX_TEST_CASE("files: an allocation size above the end of file keeps the size", 
     const u32 info = c.Alloc(8);
     c.Store64(info, 4096);
     CHECK(c.Kernel("NtSetInformationFile",
-                   {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
+                   {handle, status_block, info, 8, rex::kernel::XFileAllocationInformation}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
   CHECK(std::filesystem::file_size(fixture.GetRoot() / "scratch" / "b.bin") == 16);
 }
 
-REX_TEST_CASE("files: create read write seek and query", "[kernel][files]") {
+REX_TEST_CASE("files: create, positioned read, end of file and closed handle", "[kernel][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {
     std::ofstream out(root / "data.bin", std::ios::binary);
     const char bytes[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
@@ -232,22 +236,23 @@ REX_TEST_CASE("files: create read write seek and query", "[kernel][files]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\data.bin"),
-                                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("game:\\data.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
     const u32 buffer = c.Alloc(16);
-    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(0)}) == 0);
+    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.AllocQuad(0)}) == 0);
     CHECK(c.Load32(status_block + 4) == 8);
     CHECK(c.Load32(buffer) == 0x00010203);
-    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(8)}) == 0);
+    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.AllocQuad(8)}) == 0);
     CHECK(c.Load32(buffer) == 0x08090A0B);
-    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(16)}) ==
-          rex::X_STATUS_END_OF_FILE);
+    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.AllocQuad(16)}) ==
+          rex::kernel::X_STATUS_END_OF_FILE);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
-    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(0)}) ==
+    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.AllocQuad(0)}) ==
           kInvalidHandle);
   });
 }
@@ -257,8 +262,9 @@ REX_TEST_CASE("files: missing file", "[kernel][files]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECK(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\missing.bin"),
-                                    status_block, 0, 0, 3, 1, 0x20}) == rex::X_STATUS_NO_SUCH_FILE);
+    CHECK(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("game:\\missing.bin"),
+                                    status_block, 0, 0, 3, 1, 0x20}) ==
+          rex::kernel::X_STATUS_NO_SUCH_FILE);
   });
 }
 
@@ -274,10 +280,11 @@ REX_TEST_CASE("io completion: set remove and timeout", "[kernel][files]") {
     const u32 key = c.Alloc(4);
     const u32 context = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECK(c.Kernel("NtRemoveIoCompletion", {port, key, context, status_block, c.Quad(0)}) ==
-          rex::X_STATUS_TIMEOUT);
+    CHECK(c.Kernel("NtRemoveIoCompletion", {port, key, context, status_block, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_TIMEOUT);
     CHECK(c.Kernel("NtSetIoCompletion", {port, 11, 22, 0, 33}) == 0);
-    CHECK(c.Kernel("NtRemoveIoCompletion", {port, key, context, status_block, c.Quad(0)}) == 0);
+    CHECK(c.Kernel("NtRemoveIoCompletion", {port, key, context, status_block, c.AllocQuad(0)}) ==
+          0);
     CHECK(c.Load32(key) == 11);
     CHECK(c.Load32(context) == 22);
     CHECK(c.Load32(status_block + 4) == 33);
@@ -294,8 +301,9 @@ REX_TEST_CASE("files: sequential reads advance the position", "[kernel][files]")
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\seq.bin"),
-                                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("game:\\seq.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -317,7 +325,7 @@ REX_TEST_CASE("files: full attributes report the size", "[kernel][files]") {
   });
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 info = c.Alloc(0x38);
-    CHECK(c.Kernel("NtQueryFullAttributesFile", {c.Attributes("game:\\size.bin"), info}) == 0);
+    CHECK(c.Kernel("NtQueryFullAttributesFile", {c.AllocAttributes("game:\\size.bin"), info}) == 0);
     CHECK(c.Load32(info + 0x2C) == 16);
   });
 }
@@ -330,9 +338,10 @@ REX_TEST_CASE("files: a creation disposition above overwrite if is an invalid pa
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
     for (const u32 disposition : {6u, 0x101u}) {
-      CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\d.bin"),
-                                      status_block, 0, 0, 3, disposition, 0x20}) ==
-            rex::X_STATUS_INVALID_PARAMETER);
+      CHECK(c.Kernel("NtCreateFile",
+                     {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\d.bin"),
+                      status_block, 0, 0, 3, disposition, 0x20}) ==
+            rex::kernel::X_STATUS_INVALID_PARAMETER);
     }
   });
 }
@@ -340,26 +349,27 @@ REX_TEST_CASE("files: a creation disposition above overwrite if is an invalid pa
 REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be written",
               "[kernel][files][content]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunOnGuestThread([&fixture](Caller& c) {
     constexpr u32 kTitleId = 0x52455831;
-    const u64 xuid = c.GetRuntime().GetContentManager().GetUserProfile().GetXUID();
-    const auto header_path = c.GetRuntime().GetUserDataRoot() / std::format("{:016X}", xuid) /
+    const u64 xuid = rex::xam::CurrentXAM().GetUserProfile().GetXUID();
+    const auto header_path = fixture.GetRoot() / std::format("{:016X}", xuid) /
                              std::format("{:08X}", kTitleId) / "Headers" /
                              std::format("{:08X}", 1u) / "rexsave.header";
     std::filesystem::create_directories(header_path);
 
-    using rex::runtime::XCONTENT_AGGREGATE_DATA;
+    using rex::kernel::XCONTENT_AGGREGATE_DATA;
     const u32 data = c.Alloc(sizeof(XCONTENT_AGGREGATE_DATA));
-    auto* host = c.GetRuntime().GetMemory()->TranslateVirtual<XCONTENT_AGGREGATE_DATA*>(data);
+    auto* host =
+        StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<XCONTENT_AGGREGATE_DATA*>(data);
     std::memset(static_cast<void*>(host), 0, sizeof(XCONTENT_AGGREGATE_DATA));
     host->device_id = 1;
-    host->content_type = rex::runtime::XContentType::kSavedGame;
+    host->content_type = rex::kernel::XContentType::kSavedGame;
     std::memcpy(host->file_name_raw, "rexsave", 7);
     host->xuid = xuid;
     host->title_id = kTitleId;
-    const u32 root = c.String("save");
+    const u32 root = c.AllocString("save");
 
-    const auto package_path = c.GetRuntime().GetUserDataRoot() / std::format("{:016X}", xuid) /
+    const auto package_path = fixture.GetRoot() / std::format("{:016X}", xuid) /
                               std::format("{:08X}", kTitleId) / std::format("{:08X}", 1u) /
                               "rexsave";
     REQUIRE_FALSE(std::filesystem::exists(package_path));
@@ -373,20 +383,20 @@ REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be w
 REX_TEST_CASE("files: content is found under folders whose names differ in case",
               "[kernel][files][content][case]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunOnGuestThread([&fixture](Caller& c) {
     constexpr u32 kTitleId = 0xABCDEF01;
     constexpr u64 kXUID = 0xABCDEF0123456789;
-    const auto title_dir = c.GetRuntime().GetUserDataRoot() / "abcdef0123456789" / "abcdef01";
+    const auto title_dir = fixture.GetRoot() / "abcdef0123456789" / "abcdef01";
     std::filesystem::create_directories(title_dir / "00000001" / "ReXSave");
     std::filesystem::create_directories(title_dir / "headers" / "00000001");
 
-    rex::runtime::XCONTENT_AGGREGATE_DATA data{};
+    rex::kernel::XCONTENT_AGGREGATE_DATA data{};
     data.device_id = 1;
-    data.content_type = rex::runtime::XContentType::kSavedGame;
+    data.content_type = rex::kernel::XContentType::kSavedGame;
     std::memcpy(data.file_name_raw, "rexsave", 7);
     data.xuid = kXUID;
     data.title_id = kTitleId;
-    CHECK(c.GetRuntime().GetContentManager().ContentExists(kXUID, data));
+    CHECK(c.GetRuntime().GetContentManager().HasContent(kXUID, data));
   });
 }
 
@@ -397,7 +407,7 @@ REX_TEST_CASE("files: deleting a symbolic link names it as creating it does",
     const auto ansi = [&c](std::string_view text) {
       const u32 address = c.Alloc(8);
       c.Store32(address, (static_cast<u32>(text.size()) << 16) | static_cast<u32>(text.size() + 1));
-      c.Store32(address + 4, c.String(text));
+      c.Store32(address + 4, c.AllocString(text));
       return address;
     };
     const u32 target = ansi("\\Device\\Harddisk0\\Partition1");
@@ -414,9 +424,9 @@ REX_TEST_CASE("files: closing content with no link leaves other files open",
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\k.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\k.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -435,11 +445,11 @@ REX_TEST_CASE("files: closing content leaves a sibling root that shares its pref
     std::ofstream(root / "contab" / "k.bin", std::ios::binary) << "xxxx";
   });
   namespace fs = rex::filesystem;
-  auto* file_system = fixture.GetAPI().Get<fs::IFileSystem>();
+  auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
   REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderKind::kHostDirectory,
+  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderType::kHostDirectory,
                               fixture.GetRoot() / "conta", fs::MountFlags::kWritable}));
-  REQUIRE(file_system->Mount({"\\Device\\ContAB", fs::ProviderKind::kHostDirectory,
+  REQUIRE(file_system->Mount({"\\Device\\ContAB", fs::ProviderType::kHostDirectory,
                               fixture.GetRoot() / "contab", fs::MountFlags::kWritable}));
   REQUIRE(file_system->Link("conta:", "\\Device\\ContA"));
   REQUIRE(file_system->Link("contab:", "\\Device\\ContAB"));
@@ -447,7 +457,7 @@ REX_TEST_CASE("files: closing content leaves a sibling root that shares its pref
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
     CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("contab:\\k.bin"),
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.AllocAttributes("contab:\\k.bin"),
                                   status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -467,16 +477,16 @@ REX_TEST_CASE(
     std::ofstream(root / "conta" / "k.bin", std::ios::binary) << "xxxx";
   });
   namespace fs = rex::filesystem;
-  auto* file_system = fixture.GetAPI().Get<fs::IFileSystem>();
+  auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
   REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderKind::kHostDirectory,
+  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderType::kHostDirectory,
                               fixture.GetRoot() / "conta", fs::MountFlags::kWritable}));
   REQUIRE(file_system->Link("conta:", "\\DEVICE\\CONTA"));
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
     CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("conta:\\k.bin"),
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.AllocAttributes("conta:\\k.bin"),
                                   status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -494,7 +504,7 @@ REX_TEST_CASE("files: an open with a root handle that does not resolve is an inv
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    const u32 attributes = c.Attributes("h.bin");
+    const u32 attributes = c.AllocAttributes("h.bin");
     c.Store32(attributes, 0x1234);
     CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, attributes, status_block, 0, 0, 3,
                                     1, 0x20}) == kInvalidHandle);
@@ -509,13 +519,13 @@ REX_TEST_CASE("files: full attributes resolve a name under a root directory", "[
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("scratch:\\"),
+    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("scratch:\\"),
                                            status_block, 0, 0, 3, 1, 0x1}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 directory = c.Load32(handle_ptr);
-    const u32 attributes = c.Attributes("s.bin");
+    const u32 attributes = c.AllocAttributes("s.bin");
     c.Store32(attributes, directory);
     const u32 info = c.Alloc(56);
     CHECK(c.Kernel("NtQueryFullAttributesFile", {attributes, info}) == 0);
@@ -529,7 +539,7 @@ REX_TEST_CASE("files: a symbolic link open ignores its root directory", "[kernel
   MountScratch(fixture);
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    const u32 attributes = c.Attributes("scratch:");
+    const u32 attributes = c.AllocAttributes("scratch:");
     c.Store32(attributes, 0x1234);
     c.Store32(attributes + 8, 0x40);
     CHECK(c.Kernel("NtOpenSymbolicLinkObject", {handle_ptr, attributes}) == 0);
@@ -543,7 +553,7 @@ REX_TEST_CASE("files: a symbolic link open takes any attributes", "[kernel][file
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     for (const u32 flags : {0u, 0x240u}) {
-      const u32 attributes = c.Attributes("scratch:");
+      const u32 attributes = c.AllocAttributes("scratch:");
       c.Store32(attributes + 8, flags);
       CHECK(c.Kernel("NtOpenSymbolicLinkObject", {handle_ptr, attributes}) == 0);
       CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
@@ -559,43 +569,46 @@ REX_TEST_CASE("files: a file path with the device prefix resolves like the bare 
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
     CHECKED_ELSE(c.Kernel("NtCreateFile",
-                          {handle_ptr, kReadWriteAccess, c.Attributes("\\??\\scratch:\\s.bin"),
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("\\??\\scratch:\\s.bin"),
                            status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
     const u32 info = c.Alloc(56);
-    CHECK(c.Kernel("NtQueryFullAttributesFile", {c.Attributes("\\??\\scratch:\\s.bin"), info}) ==
-          0);
+    CHECK(c.Kernel("NtQueryFullAttributesFile",
+                   {c.AllocAttributes("\\??\\scratch:\\s.bin"), info}) == 0);
     CHECK(c.Load32(info + 44) == 12);
-    const u32 link = c.Attributes("\\??\\scratch:");
+    const u32 link = c.AllocAttributes("\\??\\scratch:");
     c.Store32(link + 8, 0x40);
     CHECK(c.Kernel("NtOpenSymbolicLinkObject", {handle_ptr, link}) == 0);
     CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
   });
 }
 
-REX_TEST_CASE("files: unsupported information classes keep their results", "[kernel][files]") {
+REX_TEST_CASE("files: an invalid information class is refused and the mode class checks its length",
+              "[kernel][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "m.bin", 4); });
   MountScratch(fixture);
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\m.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\m.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
     const u32 info = c.Alloc(8);
-    CHECK(c.Kernel("NtQueryInformationFile",
-                   {handle, status_block, info, 8, rex::runtime::XFileModeInformation}) ==
-          rex::X_STATUS_INVALID_PARAMETER);
+    CHECK(c.Kernel("NtQueryInformationFile", {handle, status_block, info, 8, 0x7F}) ==
+          rex::kernel::X_STATUS_INVALID_INFO_CLASS);
     c.Store32(info, 0);
     CHECK(c.Kernel("NtSetInformationFile",
-                   {handle, status_block, info, 8, rex::runtime::XFileModeInformation}) == 0);
+                   {handle, status_block, info, 3, rex::kernel::XFileModeInformation}) ==
+          rex::kernel::X_STATUS_INFO_LENGTH_MISMATCH);
+    CHECK(c.Kernel("NtSetInformationFile",
+                   {handle, status_block, info, 4, rex::kernel::XFileModeInformation}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }
@@ -604,25 +617,25 @@ REX_TEST_CASE("files: a seek moves from each origin and sets the length there", 
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "p.bin", 10); });
   MountScratch(fixture);
   fixture.RunOnGuestThread([](Caller& c) {
-    using rex::runtime::SeekOrigin;
+    using rex::kernel::SeekOrigin;
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\p.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\p.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
     {
-      auto file = c.GetRuntime().GetObjectTable().Get<rex::runtime::FileObject>(handle);
+      auto file = c.GetRuntime().GetObjectTable().Get<rex::kernel::FileObject>(handle);
       REQUIRE(file);
       CHECK(file->Seek(4, SeekOrigin::kBegin) == 4);
       CHECK(file->Seek(3, SeekOrigin::kCurrent) == 7);
       CHECK(file->Seek(-2, SeekOrigin::kCurrent) == 5);
       CHECK(file->Seek(-1, SeekOrigin::kEnd) == 9);
       CHECK(file->GetPosition() == 9);
-      CHECK(file->SetLengthToPosition() == rex::X_STATUS_SUCCESS);
+      CHECK(file->SetLengthToPosition() == rex::kernel::X_STATUS_SUCCESS);
     }
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -636,16 +649,16 @@ REX_TEST_CASE("files: a read queues its APC without a context", "[kernel][files]
     const u32 routine = RecordingAPC(c);
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\r.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\r.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
     const u32 buffer = c.Alloc(4);
     CHECK(c.Kernel("NtReadFile", {handle, 0, routine, 0, status_block, buffer, 4, 0}) == 0);
-    CHECK(DeliverAPCs(c) == rex::X_STATUS_USER_APC);
+    CHECK(DeliverAPCs(c) == rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     CHECK(g_apc_context == 0);
     CHECK(g_apc_status_block == status_block);
@@ -660,15 +673,16 @@ REX_TEST_CASE("files: a failed write queues no APC", "[kernel][files][apc]") {
     const u32 routine = RecordingAPC(c);
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("scratch:\\w.bin"),
-                                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("scratch:\\w.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
     const u32 buffer = c.Alloc(4);
     CHECK(c.Kernel("NtWriteFile", {handle, 0, routine, 0x1234, status_block, buffer, 4, 0}) != 0);
-    CHECK(DeliverAPCs(c) == rex::X_STATUS_TIMEOUT);
+    CHECK(DeliverAPCs(c) == rex::kernel::X_STATUS_TIMEOUT);
     CHECK(g_apc_calls == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -682,7 +696,7 @@ REX_TEST_CASE("files: a directory query signals its event and queues its APC",
     const u32 routine = RecordingAPC(c);
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("scratch:\\"),
+    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("scratch:\\"),
                                            status_block, 0, 0, 3, 1, 0x1}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -692,8 +706,8 @@ REX_TEST_CASE("files: a directory query signals its event and queues its APC",
     const u32 info = c.Alloc(0x100);
     CHECK(c.Kernel("NtQueryDirectoryFile",
                    {directory, event, routine, 0, status_block, info, 0x100, 0, 0}) == 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(0)}) == 0);
-    CHECK(DeliverAPCs(c) == rex::X_STATUS_USER_APC);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(DeliverAPCs(c) == rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     CHECK(g_apc_status_block == status_block);
     CHECK(c.Kernel("NtClose", {event}) == 0);
@@ -719,8 +733,9 @@ REX_TEST_CASE(
     CHECK(c.Kernel("NtDeviceIoControlFile", {0, event, routine, 0, status_block, 0x70000, 0, 0,
                                              geometry, 8}) == kInvalidHandle);
     const u32 handle_ptr = c.Alloc(4);
-    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\data.bin"),
-                                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("game:\\data.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -729,8 +744,8 @@ REX_TEST_CASE(
                    {device, event, routine, 0, status_block, 0x70000, 0, 0, geometry, 8}) == 0);
     CHECK(c.Load32(status_block) == 0);
     CHECK(c.Load32(status_block + 4) == 8);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(0)}) == 0);
-    CHECK(DeliverAPCs(c) == rex::X_STATUS_USER_APC);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(DeliverAPCs(c) == rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     CHECK(g_apc_status_block == status_block);
     CHECK(c.Kernel("NtClose", {event}) == 0);

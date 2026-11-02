@@ -10,23 +10,26 @@
  */
 
 #include <rex/logging/log.h>
-#include <rex/hook.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime/config.h>
-#include <rex/runtime.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/title_exit.h>
+#include <rex/kernel/types/status.h>
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
 
 /**
- * Returns the title to firmware.
+ * Exits the title on a return to firmware.
  *
- * @param routine The reentry routine, must be 1 (HalRebootRoutine).
+ * @param routine The reentry routine, which must be 1 (HalRebootRoutine).
  */
 void HalReturnToFirmware_entry(u32 routine) {
   REX_ASSERT(routine == 1);
   REXLOG_INFO(kernel, "Title requested a return to firmware");
-  runtime::GetCurrent().ExitTitle(rex::runtime::TitleExitReason::kHardExit);
+  kernel::GetCurrentState().ExitTitle(rex::kernel::TitleExitReason::kHardExit);
 }
 
 }  // namespace rex::kernel::xboxkrnl

@@ -15,26 +15,27 @@
 
 #include <format>
 
-#include <rex/api.h>
-#include <rex/chrono/clock.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
-#include <rex/kernel/xboxkrnl/module.h>
-#include <rex/kernel/xboxkrnl/video.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/kernel_settings.h>
+#include <rex/chrono.h>
+#include "kernel/kernel_init.h"
+#include <rex/kernel/xboxkrnl.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
-#include <rex/hook.h>
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/module_object.h>
-#include <rex/runtime/xthread.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/platform/timer.h>
 #include "kernel/xboxkrnl/loaded_command_line.h"
-#include "runtime/cvar_table.h"
-#include "runtime/module_registry.h"
+#include "kernel/xboxkrnl/video_export.h"
+#include "kernel/module_registry.h"
+#include "kernel/settings_access.h"
+#include "kernel/title_state.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 namespace {
 
@@ -65,14 +66,14 @@ static_assert(offsetof(X_KE_TIMESTAMP_BUNDLE, tick_count) == 0x10);
 
 }  // namespace
 
-X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
+X_HANDLE CreateXboxkrnlModule(TitleRuntime& runtime) {
   const X_HANDLE handle = ModuleObject::CreateKernelModule(runtime, "xe:\\xboxkrnl.exe");
   if (!handle) {
     return 0;
   }
   auto module_pin = runtime.GetObjectTable().Get<ModuleObject>(handle);
   ModuleObject& module = *module_pin;
-  auto* mem = runtime.GetMemory();
+  auto* mem = StateOf(runtime).GetMemory();
 
   RegisterVideoExports(module, runtime);
 
@@ -103,9 +104,9 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   u32 pp_ex_loaded_image_name = mem->SystemHeapAlloc(kExLoadedImageNameSize);
   module.SetVariable(0x01AF, pp_ex_loaded_image_name);
 
-  const std::string& arguments = runtime.GetConfig().runtime.kernel.command_line;
-  const std::string command_line = runtime::LoadedCommandLine("default.xex", arguments);
-  const u32 command_line_length = runtime::LoadedCommandLineCapacity(arguments);
+  const std::string arguments = StateOf(runtime).GetKernelSettings().command_line.Get();
+  const std::string command_line = kernel::LoadedCommandLine("default.xex", arguments);
+  const u32 command_line_length = kernel::LoadedCommandLineCapacity(arguments);
   u32 p_ex_loaded_command_line = mem->SystemHeapAlloc(command_line_length);
   auto lp_ex_loaded_command_line = mem->TranslateVirtual(p_ex_loaded_command_line);
   module.SetVariable(0x01AE, p_ex_loaded_command_line);
@@ -133,7 +134,7 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
       std::chrono::milliseconds(1),
       [timestamp_bundle]() { timestamp_bundle->tick_count = Clock::GetGuestUptimeMillis(); });
 
-  auto kernel_globals = runtime.GetKernelGlobals();
+  auto kernel_globals = StateOf(runtime).GetKernelGlobals();
   REX_ASSERT(kernel_globals != 0);
   module.SetVariable(0x001B, kernel_globals + offsetof(KernelGuestGlobals, ExThreadObjectType));
   module.SetVariable(0x000E, kernel_globals + offsetof(KernelGuestGlobals, ExEventObjectType));

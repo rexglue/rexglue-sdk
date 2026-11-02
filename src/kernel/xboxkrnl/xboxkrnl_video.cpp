@@ -13,36 +13,37 @@
 #include <atomic>
 #include <string>
 
-#include <rex/cvar.h>
-#include <rex/gpu.h>
-#include <rex/xenos/texture_info.h>
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/xenos.h>
-#include <rex/kernel/xboxkrnl/rtl.h>
-#include <rex/kernel/xboxkrnl/video.h>
+#include <rex/kernel/types/memory.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/title.h>
+#include <rex/xenos/texture.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/packet.h>
+#include <rex/kernel/xboxkrnl.h>
 #include <rex/logging/log.h>
-#include <rex/hook.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/string/buffer.h>
-#include <rex/runtime/module_object.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/string/text.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/types/status.h>
+#include "kernel/xboxkrnl/video_export.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace {
 /** Display gamma type, 0 linear, 1 sRGB (CRT), 2 BT.709 (HDTV) or 3 power. */
 constexpr u32 kDisplayGammaType = 2;
-/** Display gamma power, used with gamma type 3. */
 constexpr f64 kDisplayGammaPower = 2.22222233;
 
-void WarnNoGPUEmulation(const char* export_name, std::atomic<bool>& warned) {
-  if (!warned.exchange(true)) {
-    REXLOG_WARN(kernel, "{}: tool mode runs without a GPU, call ignored", export_name);
-  }
-}
 }  // namespace
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 REX_EXPORT_STUB(__imp__VdBlockUntilGUIIdle);
 REX_EXPORT_STUB(__imp__VdDisplayFatalError);
@@ -90,15 +91,6 @@ REX_EXPORT_STUB(__imp__VdSet3dVideoFormat);
 REX_EXPORT_STUB(__imp__VdSetWSS2Data);
 REX_EXPORT_STUB(__imp__VdSetStudioRGBMode);
 
-/**
- * Returns the display gamma.
- *
- * The gamma type is 1 for sRGB, 2 for TV (BT.709), 3 to use the power in power_ptr, otherwise
- * linear.
- *
- * @param type_ptr Receives the gamma type.
- * @param power_ptr Receives the gamma power.
- */
 void VdGetCurrentDisplayGamma_entry(MappedU32 type_ptr, MappedF32 power_ptr) {
   *type_ptr = kDisplayGammaType;
   *power_ptr = static_cast<f32>(kDisplayGammaPower);
@@ -176,22 +168,7 @@ void VdGetCurrentDisplayInformation_entry(GuestPtrT<X_DISPLAY_INFO> display_info
 }
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
-  const runtime::VideoMode& mode = runtime::GetCurrent().GetVideoMode();
-  const u32 display_width = mode.width;
-  const u32 display_height = mode.height;
-  const f32 refresh_rate_hz = mode.refresh_rate;
-
-  std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
-  video_mode->display_width = display_width;
-  video_mode->display_height = display_height;
-  video_mode->is_interlaced = 0;
-  video_mode->is_widescreen = display_width * 3 >= display_height * 4;
-  video_mode->is_hi_def = display_width >= 1280 || display_height >= 720;
-  video_mode->refresh_rate = refresh_rate_hz;
-  // video_standard 1 is NTSC.
-  video_mode->video_standard = 1;
-  video_mode->reserved_0 = 0x4A;
-  video_mode->unknown_0x01 = 0x01;
+  FillXVideoMode(kernel::GetCurrentState().GetVideoMode(), *video_mode);
 }
 
 void VdQueryVideoMode_entry(GuestPtrT<X_VIDEO_MODE> video_mode) {
@@ -211,28 +188,23 @@ u32 VdQueryVideoFlags_entry() {
 }
 
 /**
- * Sets the display mode. Ignored.
- *
  * Bit 1 of the flags is set when the resolution is 720x480 or 720x576. Bit 27 is set when the
  * texture format is k_2_10_10_10 or k_2_10_10_10_AS_16_16_16_16. Bits 28 to 29 select the color
  * space, 0 for RGB.
- *
- * @param flags The mode flags.
- * @return 0.
  */
 u32 VdSetDisplayMode_entry([[maybe_unused]] u32 flags) {
   return 0;
 }
 
 /**
- * Overrides the display mode. Ignored.
+ * Ignores the display mode override.
  *
  * @param unk0 Unused.
  * @param unk1 Unused.
- * @param refresh_rate The refresh rate, 0, 50 or 59.9.
+ * @param refresh_rate Values 0, 50 or 59.9.
  * @param unk3 Unused.
  * @param unk4 Unused.
- * @return 0.
+ * @return Always 0.
  */
 u32 VdSetDisplayModeOverride_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 unk1,
                                    [[maybe_unused]] f64 refresh_rate, [[maybe_unused]] u32 unk3,
@@ -241,14 +213,14 @@ u32 VdSetDisplayModeOverride_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u
 }
 
 /**
- * Initializes the graphics engines. Ignored.
+ * Accepts the engine setup without starting anything.
  *
  * @param unk0 Always 0x4F810000.
- * @param callback The cleanup function pointer.
- * @param arg The argument of callback.
- * @param pfp_ptr The PFP microcode.
- * @param me_ptr The ME microcode.
- * @return 1.
+ * @param callback The cleanup function.
+ * @param arg Unused.
+ * @param pfp_ptr Unused.
+ * @param me_ptr Unused.
+ * @return Always 1.
  */
 u32 VdInitializeEngines_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 callback,
                               [[maybe_unused]] MappedVoid arg, [[maybe_unused]] MappedU32 pfp_ptr,
@@ -256,79 +228,47 @@ u32 VdInitializeEngines_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 ca
   return 1;
 }
 
-/** Shuts down the graphics engines. Ignored. */
 void VdShutdownEngines_entry() {}
 
-/**
- * Returns the graphics ASIC id.
- *
- * @return 0x11.
- */
 u32 VdGetGraphicsAsicID_entry() {
   return 0x11;
 }
 
-/**
- * Enables or disables clock gating. Ignored.
- *
- * @param enabled Unused.
- * @return 0.
- */
 u32 VdEnableDisableClockGating_entry([[maybe_unused]] u32 enabled) {
   return 0;
 }
 
 /**
- * Sets the graphics interrupt callback.
+ * Sets the graphics interrupt callback. The callback receives r3 of 0 for a normal interrupt,
+ * otherwise 1, and r4 of user_data.
  *
- * The callback is called with r3 set to 0 for a normal interrupt, otherwise 1, and r4 set to
- * user_data.
- *
- * @param callback The interrupt routine.
- * @param user_data The context passed to callback.
+ * @param callback The guest address of the callback.
+ * @param user_data The value passed to the callback in r4.
  */
 void VdSetGraphicsInterruptCallback_entry(u32 callback, MappedVoid user_data) {
-  auto* gpu = runtime::GetCurrent().GetGPU();
-  if (!gpu) {
-    static std::atomic<bool> warned{false};
-    WarnNoGPUEmulation("VdSetGraphicsInterruptCallback", warned);
-    return;
-  }
-  gpu->SetInterruptCallback(callback, user_data.GetGuestAddress());
+  kernel::GetCurrentState().GetFunctionDispatcher()->SetGraphicsInterrupt(
+      callback, user_data.GetGuestAddress());
 }
 
 /**
- * Initializes the primary ring buffer.
- *
- * The buffer is memory from MmAllocatePhysicalMemory with kXPageWriteCombine.
+ * Initializes the GPU ring buffer, which is memory from MmAllocatePhysicalMemory with
+ * kXPageWriteCombine.
  *
  * @param ptr The physical address of the buffer from MmGetPhysicalAddress.
- * @param size_log2 The log2 of the size.
+ * @param size_log2 The log2 of the buffer size.
  */
 void VdInitializeRingBuffer_entry(MappedVoid ptr, i32 size_log2) {
-  auto* gpu = runtime::GetCurrent().GetGPU();
-  if (!gpu) {
-    static std::atomic<bool> warned{false};
-    WarnNoGPUEmulation("VdInitializeRingBuffer", warned);
-    return;
-  }
-  gpu->InitializeRingBuffer(ptr.GetGuestAddress(), size_log2);
+  kernel::GetCurrentState().InitializeGPURingBuffer(ptr.GetGuestAddress(), size_log2);
 }
 
 /**
- * Enables write back of the ring buffer read pointer.
+ * Enables the read pointer write back of the ring buffer.
  *
- * @param ptr The write back address.
+ * @param ptr The write back location.
  * @param block_size_log2 The log2 of the block size, usually 6 and at most 19.
  */
 void VdEnableRingBufferRPtrWriteBack_entry(MappedVoid ptr, i32 block_size_log2) {
-  auto* gpu = runtime::GetCurrent().GetGPU();
-  if (!gpu) {
-    static std::atomic<bool> warned{false};
-    WarnNoGPUEmulation("VdEnableRingBufferRPtrWriteBack", warned);
-    return;
-  }
-  gpu->EnableReadPointerWriteBack(ptr.GetGuestAddress(), block_size_log2);
+  kernel::GetCurrentState().EnableGPUReadPointerWriteBack(ptr.GetGuestAddress(), block_size_log2);
 }
 
 void VdGetSystemCommandBuffer_entry(MappedVoid p0_ptr, MappedVoid p1_ptr) {
@@ -340,21 +280,19 @@ void VdGetSystemCommandBuffer_entry(MappedVoid p0_ptr, MappedVoid p1_ptr) {
 void VdSetSystemCommandBufferGpuIdentifierAddress_entry([[maybe_unused]] MappedVoid unk) {}
 
 /**
- * Initializes the scaler command buffer by filling it with NOP packets (0x80000000).
+ * Fills dest_ptr with NOP packets (0x80000000). The position and size arguments are unused.
  *
- * @param scaler_source_xy The source position, packed as (y << 16) | x with 16 bit fields.
- * @param scaler_source_wh The source size, packed as (h << 16) | w with 16 bit fields.
- * @param scaled_output_xy The output position, packed as (y << 16) | x with 16 bit fields.
- * @param scaled_output_wh The output size, packed as (h << 16) | w with 16 bit fields.
- * @param front_buffer_wh The front buffer size, packed as (h << 16) | w with 16 bit fields.
- * @param vertical_filter_type Unused.
- * @param vertical_filter_params Unused.
- * @param horizontal_filter_type Unused.
- * @param horizontal_filter_params Unused.
+ * @param scaler_source_xy The source position, packed as (y << 16) | x.
+ * @param scaler_source_wh The source size, packed as (h << 16) | w.
+ * @param scaled_output_xy The output position, packed as (y << 16) | x.
+ * @param scaled_output_wh The output size, packed as (h << 16) | w.
+ * @param front_buffer_wh The front buffer size, packed as (h << 16) | w.
+ * @param vertical_filter_params The vertical filter parameters.
+ * @param horizontal_filter_params The horizontal filter parameters.
  * @param unk9 Unused.
- * @param dest_ptr The command buffer.
- * @param dest_count The size of dest_ptr in words.
- * @return The count of words written.
+ * @param dest_ptr Receives the packets.
+ * @param dest_count The number of words to write.
+ * @return The number of words written.
  */
 u32 VdInitializeScalerCommandBuffer_entry(
     [[maybe_unused]] u32 scaler_source_xy, [[maybe_unused]] u32 scaler_source_wh,
@@ -385,28 +323,23 @@ u32 VdCallGraphicsNotificationRoutines_entry(u32 unk0,
   return 0;
 }
 
-/**
- * Reports whether HSIO training succeeded.
- *
- * @return 1 (BOOL TRUE).
- */
 u32 VdIsHSIOTrainingSucceeded_entry() {
   return 1;
 }
 
 /**
- * Persists the display.
+ * Allocates a block that the guest passes to MmFreePhysicalMemory(1, *unk1_ptr).
  *
  * @param unk0 Unused.
- * @param unk1_ptr Receives a pointer that the guest passes to MmFreePhysicalMemory(1, *unk1_ptr).
- * @return 1.
+ * @param unk1_ptr Receives the block address.
+ * @return Always 1.
  */
 u32 VdPersistDisplay_entry([[maybe_unused]] u32 unk0, MappedU32 unk1_ptr) {
   if (unk1_ptr) {
-    auto heap = runtime::GetCurrent().GetMemory()->LookupHeapByType(true, 16 * 1024);
+    auto heap = kernel::GetCurrentState().GetMemory()->LookupHeapByType(true, 16 * 1024);
     u32 unk1_value;
-    heap->Alloc(64, 32, runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
-                runtime::kMemoryProtectNoAccess, false, &unk1_value);
+    heap->Alloc(64, 32, kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit,
+                kernel::kMemoryProtectNoAccess, false, &unk1_value);
     *unk1_ptr = unk1_value;
   }
 
@@ -424,15 +357,11 @@ u32 VdRetrainEDRAM_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 unk1,
 }
 
 /**
- * Swaps the front buffer by writing the swap packets into the primary ring buffer. The caller
- * reserves 64 words (256 bytes) in the ring buffer, which are zeroed, filled with the fetch
- * constant write and padded with NOP packets.
+ * Writes the swap packets into the primary ring buffer. The caller reserves 64 words (256 bytes)
+ * there, which are zeroed, filled with the fetch constant write and padded with NOP packets.
  *
- * The fetch constant is the one stored in the Direct3D 9 texture header, which holds an address in
- * a virtual mapping of the physical memory. The GPU subsystem works with physical addresses, so
- * the address is translated.
- *
- * All parameters except the unused ones are required.
+ * The fetch constant from the Direct3D 9 texture header holds a virtual address, which is
+ * translated to the physical address the GPU works with.
  *
  * @param buffer_ptr The pointer into the primary ring buffer.
  * @param fetch_ptr The front buffer Direct3D 9 texture header fetch.
@@ -457,13 +386,12 @@ void VdSwap_entry(MappedVoid buffer_ptr, MappedVoid fetch_ptr, [[maybe_unused]] 
   assert(height);
 
   xenos::TextureFetch gpu_fetch;
-  memory::copy_and_swap_32_unaligned(&gpu_fetch, reinterpret_cast<u32*>(fetch_ptr.GetHostAddress()),
-                                     6);
+  memory::copy_and_swap_32_unaligned(&gpu_fetch, reinterpret_cast<u32*>(fetch_ptr.GetHostPtr()), 6);
 
   u32 frontbuffer_virtual_address = gpu_fetch.base_address << 12;
   REX_ASSERT(*frontbuffer_ptr == frontbuffer_virtual_address);
   u32 frontbuffer_physical_address =
-      runtime::GetCurrent().GetMemory()->GetPhysicalAddress(frontbuffer_virtual_address);
+      kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(frontbuffer_virtual_address);
   REX_ASSERT(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
     REXLOG_ERROR(kernel, "VdSwap: Invalid front buffer virtual address 0x{:08X}",
@@ -506,25 +434,25 @@ void VdSwap_entry(MappedVoid buffer_ptr, MappedVoid fetch_ptr, [[maybe_unused]] 
   }
 }
 
-void RegisterVideoExports(ModuleObject& module, Runtime& runtime) {
-  auto memory = runtime.GetMemory();
+void RegisterVideoExports(ModuleObject& module, TitleRuntime& runtime) {
+  auto memory = StateOf(runtime).GetMemory();
 
   // Titles only write the global D3D device pointer.
-  u32 p_vd_global_device = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  u32 p_vd_global_device = memory->SystemHeapAlloc(4, 32, kernel::kSystemHeapPhysical);
   module.SetVariable(0x01BE, p_vd_global_device);
   *memory->TranslateVirtual<be_u32*>(p_vd_global_device) = 0;
 
   // No XAM D3D device exists, so the pointer stays 0.
-  u32 p_vd_global_xam_device = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  u32 p_vd_global_xam_device = memory->SystemHeapAlloc(4, 32, kernel::kSystemHeapPhysical);
   module.SetVariable(0x01BF, p_vd_global_xam_device);
   *memory->TranslateVirtual<be_u32*>(p_vd_global_xam_device) = 0;
 
   // The Xenos clock is 500 MHz.
-  u32 p_vd_gpu_clock_in_mhz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  u32 p_vd_gpu_clock_in_mhz = memory->SystemHeapAlloc(4, 32, kernel::kSystemHeapPhysical);
   module.SetVariable(0x01C0, p_vd_gpu_clock_in_mhz);
   *memory->TranslateVirtual<be_u32*>(p_vd_gpu_clock_in_mhz) = 500;
 
-  u32 p_vd_hsio_calibration_lock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
+  u32 p_vd_hsio_calibration_lock = memory->SystemHeapAlloc(28, 32, kernel::kSystemHeapPhysical);
   module.SetVariable(0x01C1, p_vd_hsio_calibration_lock);
   auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(p_vd_hsio_calibration_lock);
   RtlInitializeCriticalSectionAndSpinCount(hsio_lock, 10000);

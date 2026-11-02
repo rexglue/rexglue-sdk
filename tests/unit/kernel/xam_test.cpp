@@ -12,15 +12,18 @@
 
 #include <cstring>
 
-#include <rex/runtime.h>
-#include <rex/runtime/content_manager.h>
-#include <rex/runtime/object_table.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xam/user_profile.h>
-#include <rex/runtime/xmemory.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/types/content.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/xam/content_manager.h>
+#include <rex/xam/user_profile.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/heap.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_table.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
+#include "xam/xam_state.h"
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -30,21 +33,21 @@ REX_TEST_CASE("XAM: a content resolve reports the content as not found", "[kerne
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 buffer = c.Alloc(260);
     CHECK(c.XAM("XamContentResolve", {0, c.Alloc(0x134), buffer, 260, 0, 0, 0}) ==
-          rex::X_ERROR_NOT_FOUND);
+          rex::kernel::X_ERROR_NOT_FOUND);
   });
 }
 
 REX_TEST_CASE("XAM: a launch with no name ends the title", "[kernel][xam]") {
   KernelFixture fixture;
-  rex::runtime::ThreadState host_state(0, 0, 0, fixture.GetRuntime().GetMemory(),
-                                       &fixture.GetRuntime());
-  rex::runtime::ThreadState* previous = rex::runtime::ThreadState::Get();
-  rex::runtime::ThreadState::Bind(&host_state);
-  Caller c(*host_state.GetContext(), fixture.GetRuntime().GetMemory()->GetVirtualMembase(),
+  rex::kernel::ThreadState host_state(0, 0, 0, StateOf(fixture.GetRuntime()).GetMemory(),
+                                      &fixture.GetRuntime());
+  rex::kernel::ThreadState* previous = rex::kernel::ThreadState::Get();
+  rex::kernel::ThreadState::Bind(&host_state);
+  Caller c(*host_state.GetContext(), StateOf(fixture.GetRuntime()).GetMemory()->GetVirtualMembase(),
            fixture.GetRuntime());
   c.XAM("XamLoaderLaunchTitle", {0, 0});
-  rex::runtime::ThreadState::Bind(previous);
-  CHECK(fixture.GetRuntime().IsTerminatingTitle());
+  rex::kernel::ThreadState::Bind(previous);
+  CHECK(StateOf(fixture.GetRuntime()).IsTerminatingTitle());
 }
 
 namespace {
@@ -68,7 +71,7 @@ u32 ReadProfile(Caller& c, u32 user_index, u32 xuid_count, u32 xuids, u32 settin
 REX_TEST_CASE("XAM: a profile read writes 1 entry per XUID and setting", "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u64 own = c.GetRuntime().GetContentManager().GetUserProfile().GetXUID();
+    const u64 own = rex::xam::CurrentXAM().GetUserProfile().GetXUID();
     const u64 other = own + 1;
     const u32 xuids = c.Alloc(16);
     c.Store64(xuids, own);
@@ -151,11 +154,12 @@ REX_TEST_CASE("XAM: a session reference refuses a handle that is not a session",
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 object_ptr = c.Alloc(4);
     CHECK(c.XAM("XamSessionRefObjByHandle", {0xF8001234, object_ptr}) ==
-          rex::X_ERROR_INVALID_HANDLE);
+          rex::kernel::X_ERROR_INVALID_HANDLE);
     const u32 event_ptr = c.Alloc(4);
     REQUIRE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0);
     const u32 event = c.Load32(event_ptr);
-    CHECK(c.XAM("XamSessionRefObjByHandle", {event, object_ptr}) == rex::X_ERROR_INVALID_HANDLE);
+    CHECK(c.XAM("XamSessionRefObjByHandle", {event, object_ptr}) ==
+          rex::kernel::X_ERROR_INVALID_HANDLE);
     CHECK(c.Kernel("NtClose", {event}) == 0);
   });
 }
@@ -207,10 +211,10 @@ REX_TEST_CASE("XAM: opening content reads the license from the header of the pac
     constexpr u32 kOtherTitleId = 0x52455831;
     constexpr u32 kLicense = 5;
     auto& manager = c.GetRuntime().GetContentManager();
-    const u64 xuid = manager.GetUserProfile().GetXUID();
-    rex::runtime::XCONTENT_AGGREGATE_DATA data{};
+    const u64 xuid = rex::xam::CurrentXAM().GetUserProfile().GetXUID();
+    rex::kernel::XCONTENT_AGGREGATE_DATA data{};
     data.device_id = kHDD;
-    data.content_type = rex::runtime::XContentType::kSavedGame;
+    data.content_type = rex::kernel::XContentType::kSavedGame;
     std::memcpy(data.file_name_raw, "rexsave", 7);
     data.xuid = xuid;
     data.title_id = kOtherTitleId;
@@ -223,16 +227,43 @@ REX_TEST_CASE("XAM: opening content reads the license from the header of the pac
   });
 }
 
+REX_TEST_CASE("XAM: a new title numbers its content devices from the first again",
+              "[kernel][xam]") {
+  const auto device_of_first_package = [] {
+    std::string device;
+    KernelFixture fixture;
+    fixture.RunOnGuestThread([&device](Caller& c) {
+      constexpr u32 kHDD = 1;
+      const u64 xuid = rex::xam::CurrentXAM().GetUserProfile().GetXUID();
+      rex::kernel::XCONTENT_AGGREGATE_DATA data{};
+      data.device_id = kHDD;
+      data.content_type = rex::kernel::XContentType::kSavedGame;
+      std::memcpy(data.file_name_raw, "rexsave", 7);
+      data.xuid = xuid;
+      data.title_id = 0x52455831;
+      REQUIRE(c.GetRuntime().GetContentManager().CreateContent("save", xuid, data));
+      const auto link = c.GetRuntime().GetFileSystem().FindLink("save:");
+      REQUIRE(link.has_value());
+      device = *link;
+    });
+    return device;
+  };
+  const std::string first = device_of_first_package();
+  const std::string second = device_of_first_package();
+  CHECK_FALSE(first.empty());
+  CHECK(first == second);
+}
+
 REX_TEST_CASE("XAM: the volume device type of a content root is the type of its device",
               "[kernel][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     constexpr u32 kHDD = 1;
     constexpr u32 kTitleId = 0x52455831;
-    const u64 xuid = c.GetRuntime().GetContentManager().GetUserProfile().GetXUID();
-    rex::runtime::XCONTENT_AGGREGATE_DATA data{};
+    const u64 xuid = rex::xam::CurrentXAM().GetUserProfile().GetXUID();
+    rex::kernel::XCONTENT_AGGREGATE_DATA data{};
     data.device_id = kHDD;
-    data.content_type = rex::runtime::XContentType::kSavedGame;
+    data.content_type = rex::kernel::XContentType::kSavedGame;
     std::memcpy(data.file_name_raw, "rexsave", 7);
     data.xuid = xuid;
     data.title_id = kTitleId;
@@ -240,11 +271,11 @@ REX_TEST_CASE("XAM: the volume device type of a content root is the type of its 
 
     const u32 result = c.Alloc(4);
     c.Store32(result, kSentinel);
-    CHECK(QueryVolumeDeviceType(c, "save", result) == rex::X_E_SUCCESS);
+    CHECK(QueryVolumeDeviceType(c, "save", result) == rex::kernel::X_E_SUCCESS);
     CHECK(c.Load32(result) == kHDD);
 
     c.Store32(result, kSentinel);
-    CHECK(QueryVolumeDeviceType(c, "game", result) == rex::X_E_INVALIDARG);
+    CHECK(QueryVolumeDeviceType(c, "game", result) == rex::kernel::X_E_INVALIDARG);
     CHECK(c.Load32(result) == kSentinel);
   });
 }

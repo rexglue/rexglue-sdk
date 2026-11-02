@@ -14,17 +14,18 @@
 #include <cstring>
 
 #include <rex/logging/log.h>
-#include <rex/memory/byte_swap.h>
-#include <rex/hook.h>
-#include <rex/kernel/xboxkrnl/format.h>
+#include "kernel/categories.h"
+#include <rex/memory/endian.h>
+#include <rex/ppc/hook.h>
+#include "kernel/xboxkrnl/format.h"
 
-using rex::runtime::ArrayArgList;
-using rex::runtime::FormatCore;
-using rex::runtime::StackArgList;
-using rex::runtime::StringFormatData;
-using rex::runtime::GuestPtr;
-using rex::runtime::WideCountFormatData;
-using rex::runtime::WideStringFormatData;
+using rex::kernel::xboxkrnl::detail::ArrayArgList;
+using rex::kernel::xboxkrnl::detail::FormatCore;
+using rex::kernel::xboxkrnl::detail::StackArgList;
+using rex::kernel::xboxkrnl::detail::StringFormatData;
+using rex::kernel::xboxkrnl::detail::WideCountFormatData;
+using rex::kernel::xboxkrnl::detail::WideStringFormatData;
+using rex::memory::GuestPtr;
 
 REX_HOOK_RAW(__imp__DbgPrint) {
   u32 format_ptr = ctx.r3.u32;

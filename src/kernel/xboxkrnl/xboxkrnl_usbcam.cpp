@@ -10,32 +10,24 @@
  */
 
 #include <rex/logging/log.h>
-#include <rex/hook.h>
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/status.h>
 
 namespace rex::kernel::xboxkrnl {
 
 /**
  * Reports success without creating a camera, because titles that see a failure skip their
  * initialization and then run on uninitialized data.
- *
- * @param buffer Unused.
- * @param buffer_size Unused.
- * @param unk3_ptr Unused.
- * @return X_STATUS_SUCCESS.
  */
 u32 XUsbcamCreate_entry([[maybe_unused]] u32 buffer, [[maybe_unused]] u32 buffer_size,
                         [[maybe_unused]] MappedVoid unk3_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-/**
- * Returns the camera state.
- *
- * @return 0, meaning not connected.
- */
+/** Reports the camera as not connected. */
 u32 XUsbcamGetState_entry() {
   return 0;
 }

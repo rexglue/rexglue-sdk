@@ -12,13 +12,15 @@
 #include <cctype>
 #include <string>
 
-#include <rex/hook.h>
-#include <rex/kernel/shim/function.h>
-#include <rex/kernel/xboxkrnl/format.h>
+#include <rex/ppc/hook.h>
+#include "kernel/shim/function.h"
+#include "kernel/xboxkrnl/format.h"
 #include <rex/logging/log.h>
-#include <rex/runtime.h>
-#include <rex/runtime/memory_view.h>
-#include <rex/string.h>
+#include "kernel/categories.h"
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/memory_view.h>
+#include <rex/string/text.h>
+#include "kernel/title_state.h"
 
 namespace rex::kernel::shim {
 
@@ -33,19 +35,19 @@ REX_SHIM_FN_RAW(DebugPrint) {
   if (!rex::log::kernel.IsEnabled(rex::log::Level::kDebug)) {
     return;
   }
-  Runtime* runtime = GetProcessRuntime();
+  TitleRuntime* runtime = REX_RUNTIME();
   if (!runtime) {
     return;
   }
-  const runtime::MemoryView view(*runtime->GetMemory());
+  const kernel::MemoryView view(*StateOf(*runtime).GetMemory());
   const auto format = view.TryGetCString(format_address, kMaxFormatLength);
   if (!format) {
     return;
   }
   const std::string format_text(*format);
-  runtime::StringFormatData data(reinterpret_cast<const u8*>(format_text.c_str()));
-  runtime::StackArgList args(ctx, base, 1);
-  if (runtime::FormatCore(base, data, args, false) <= 0) {
+  xboxkrnl::detail::StringFormatData data(reinterpret_cast<const u8*>(format_text.c_str()));
+  xboxkrnl::detail::StackArgList args(ctx, base, 1);
+  if (xboxkrnl::detail::FormatCore(base, data, args, false) <= 0) {
     return;
   }
   std::string text = data.GetOutput();
@@ -55,7 +57,7 @@ REX_SHIM_FN_RAW(DebugPrint) {
   if (text.empty()) {
     return;
   }
-  REXLOG_DEBUG(kernel, "DebugPrint: {}", rex::ShiftJISToUTF8(text));
+  REXLOG_DEBUG(kernel, "DebugPrint: {}", rex::string::ShiftJISToUTF8(text));
 }
 
 }  // namespace rex::kernel::shim

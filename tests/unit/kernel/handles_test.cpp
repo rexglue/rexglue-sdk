@@ -13,24 +13,24 @@
 #include <chrono>
 #include <future>
 #include <memory>
-#include <rex/runtime/error.h>
-#include <rex/runtime/object_table.h>
-#include <rex/runtime/object.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_table.h>
+#include <rex/kernel/object/object.h>
+#include <rex/kernel/title_runtime.h>
 
 #include "kernel/object_reference.h"
 #include "kernel_fixture.h"
 
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
 namespace {
-constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
-constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
+constexpr u32 kInvalidHandle = rex::kernel::X_STATUS_INVALID_HANDLE;
+constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
 u32 Poll(Caller& c) {
-  return c.Quad(0);
+  return c.AllocQuad(0);
 }
 }  // namespace
 
@@ -133,38 +133,40 @@ REX_TEST_CASE("names: case insensitive open and collision", "[kernel][names]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 again_ptr = c.Alloc(4);
-    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, c.Attributes("TestEvent"), 0, 0}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, c.AllocAttributes("TestEvent"), 0, 0}) ==
+                 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
-    CHECK(c.Kernel("NtCreateEvent", {again_ptr, c.Attributes("testevent"), 0, 0}) ==
-          rex::X_STATUS_OBJECT_NAME_EXISTS);
+    CHECK(c.Kernel("NtCreateEvent", {again_ptr, c.AllocAttributes("testevent"), 0, 0}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_EXISTS);
     CHECK(c.Load32(again_ptr) == handle);
-    CHECK(c.Kernel("ObOpenObjectByName", {c.Attributes("TESTEVENT"), 0, 0, again_ptr}) == 0);
+    CHECK(c.Kernel("ObOpenObjectByName", {c.AllocAttributes("TESTEVENT"), 0, 0, again_ptr}) == 0);
     CHECK(c.Load32(again_ptr) == handle);
     c.Kernel("NtClose", {handle});
     c.Kernel("NtClose", {handle});
     c.Kernel("NtClose", {handle});
-    CHECK(c.Kernel("ObOpenObjectByName", {c.Attributes("TestEvent"), 0, 0, again_ptr}) ==
-          rex::X_STATUS_OBJECT_NAME_NOT_FOUND);
+    CHECK(c.Kernel("ObOpenObjectByName", {c.AllocAttributes("TestEvent"), 0, 0, again_ptr}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
   });
 }
 
-REX_TEST_CASE("names: another kind holding the name", "[kernel][names]") {
+REX_TEST_CASE("names: another type holding the name", "[kernel][names]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 other_ptr = c.Alloc(4);
-    CHECKED_ELSE(c.Kernel("NtCreateSemaphore", {handle_ptr, c.Attributes("Shared"), 1, 2}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtCreateSemaphore", {handle_ptr, c.AllocAttributes("Shared"), 1, 2}) ==
+                 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 semaphore = c.Load32(handle_ptr);
-    CHECK(c.Kernel("NtCreateEvent", {other_ptr, c.Attributes("Shared"), 0, 0}) == 0);
+    CHECK(c.Kernel("NtCreateEvent", {other_ptr, c.AllocAttributes("Shared"), 0, 0}) == 0);
     const u32 event = c.Load32(other_ptr);
     CHECK(event != semaphore);
-    CHECK(c.Kernel("ObOpenObjectByName", {c.Attributes("Shared"), 0, 0, other_ptr}) == 0);
+    CHECK(c.Kernel("ObOpenObjectByName", {c.AllocAttributes("Shared"), 0, 0, other_ptr}) == 0);
     CHECK(c.Load32(other_ptr) == semaphore);
     c.Kernel("NtClose", {event});
     c.Kernel("NtClose", {semaphore});
@@ -196,7 +198,7 @@ REX_TEST_CASE("waits: wait any and wait all", "[kernel][waits]") {
     CHECK(c.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, Poll(c)}) == 0);
     c.Store32(handles + 4, 0xF8001230);
     CHECK(c.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, Poll(c)}) ==
-          rex::X_STATUS_INVALID_PARAMETER);
+          rex::kernel::X_STATUS_INVALID_PARAMETER);
     c.Kernel("NtClose", {first});
     c.Kernel("NtClose", {second});
   });
@@ -228,8 +230,8 @@ REX_TEST_CASE("waits: signal and wait", "[kernel][waits]") {
 namespace {
 
 u32 AddNonWaitable(Caller& c) {
-  auto added = c.GetRuntime().GetObjectTable().Emplace<rex::runtime::SymbolicLinkObject>(
-      rex::runtime::AddOptions{}, "a", "b");
+  auto added = c.GetRuntime().GetObjectTable().Emplace<rex::kernel::SymbolicLinkObject>(
+      rex::kernel::AddOptions{}, "a", "b");
   REQUIRE(added);
   return *added;
 }
@@ -288,7 +290,8 @@ REX_TEST_CASE("waits: a handle closed during a wait completes the wait", "[kerne
     auto result = std::make_shared<std::promise<u32>>();
     auto done = result->get_future();
     const u32 waiter = c.Spawn([handle, result](Caller& w) {
-      result->set_value(w.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, w.Quad(-20000000)}));
+      result->set_value(
+          w.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, w.AllocQuad(-20000000)}));
     });
     c.Kernel("NtClose", {handle});
     CHECKED_ELSE(done.wait_for(std::chrono::seconds(10)) == std::future_status::ready) {
@@ -307,7 +310,7 @@ REX_TEST_CASE("handles: a lookup whose object lost its last handle takes no refe
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.GetRuntime().GetObjectTable();
     auto added =
-        table.Emplace<rex::runtime::SymbolicLinkObject>(rex::runtime::AddOptions{}, "a", "b");
+        table.Emplace<rex::kernel::SymbolicLinkObject>(rex::kernel::AddOptions{}, "a", "b");
     if (!added) {
       FAIL("the symbolic link was not added");
       return;
@@ -317,10 +320,10 @@ REX_TEST_CASE("handles: a lookup whose object lost its last handle takes no refe
     REQUIRE(table.Close(*added));
 
     auto opened = rex::kernel::OpenPrimaryHandle(table, object);
-    CHECK(rex::runtime::ToXStatus(opened) == kInvalidHandle);
+    CHECK(rex::kernel::ToXStatus(opened) == kInvalidHandle);
     auto referenced = rex::kernel::ReferencePrimary(table, object, 0x1234);
-    CHECK(rex::runtime::ToXStatus(referenced) == kInvalidHandle);
+    CHECK(rex::kernel::ToXStatus(referenced) == kInvalidHandle);
     auto thread = rex::kernel::ReferenceThread(table, *added, 0x1234);
-    CHECK(rex::runtime::ToXStatus(thread) == kInvalidHandle);
+    CHECK(rex::kernel::ToXStatus(thread) == kInvalidHandle);
   });
 }

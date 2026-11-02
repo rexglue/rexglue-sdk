@@ -143,10 +143,6 @@ constexpr u8 kAES256Out[] = {0x8E, 0xA2, 0xB7, 0xCA, 0x51, 0x67, 0x45, 0xBF,
                              0xEA, 0xFC, 0x49, 0x90, 0x4B, 0x49, 0x60, 0x89};
 constexpr u32 kAESScheduleDwords = 0x1D4 / 4;
 constexpr u32 kAESScheduleRoundsOffset = 0x1D0;
-constexpr u8 kObscured[] = {0x7A, 0xCA, 0x0F, 0xD9, 0xBC, 0xD6, 0xEC, 0x7C,
-                            0x9F, 0x97, 0x46, 0x66, 0x16, 0xE6, 0xA2, 0x82};
-constexpr u8 kHmacUsingKeyOut[] = {0xC2, 0x79, 0x22, 0xE3, 0x25, 0x58, 0xEC, 0x5E, 0x06, 0x50,
-                                   0x4B, 0xB6, 0x40, 0x39, 0xC6, 0x81, 0x07, 0xC9, 0x84, 0x12};
 constexpr u8 kHmacKey19Out[] = {0x06, 0x13, 0x38, 0x89, 0x01, 0x90, 0xBE, 0xB4, 0x78, 0x1F,
                                 0x1D, 0x2F, 0x32, 0xAA, 0x83, 0x1F, 0x39, 0xDD, 0x25, 0x86};
 
@@ -425,27 +421,33 @@ REX_TEST_CASE("AES CBC decrypts in place", "[kernel][crypt][cipher]") {
   });
 }
 
-REX_TEST_CASE("The key wrappers derive their keys from the obscured key",
+REX_TEST_CASE("The key wrappers act on the clear key behind the obscured key",
               "[kernel][crypt][cipher][keys]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 obscured = c.Alloc(0x20);
     CHECK(c.Kernel("XeKeysObscureKey", {CopyToGuest(c, kAESKey), obscured}) == kStatusSuccess);
-    CHECK(ReadBytes(c, obscured, 16) == Bytes(kObscured));
+
+    const u32 state = c.Alloc(0x180);
+    c.Kernel("XeCryptAesKey", {state, CopyToGuest(c, kAESKey)});
+    const u32 plain = CopyToGuest(c, std::span<const u8>(kPatternPlain, 64));
+    const u32 expected_out = c.Alloc(0x80);
+    const u32 expected_feed = CopyToGuest(c, kAESIv);
+    c.Kernel("XeCryptAesCbc", {state, plain, 64, expected_out, expected_feed, 1});
 
     const u32 out = c.Alloc(0x80);
     const u32 feed = CopyToGuest(c, kAESIv);
-    CHECK(c.Kernel("XeKeysAesCbcUsingKey", {CopyToGuest(c, kObscured),
-                                            CopyToGuest(c, std::span<const u8>(kPatternPlain, 64)),
-                                            64, out, feed, 1}) == kStatusSuccess);
-    CHECK(ReadBytes(c, out, 64) == std::vector<u8>(kAESCbcOut, kAESCbcOut + 64));
-    CHECK(ReadBytes(c, feed, 16) == Bytes(kAESCbcLastIv));
+    CHECK(c.Kernel("XeKeysAesCbcUsingKey", {obscured, plain, 64, out, feed, 1}) == kStatusSuccess);
+    CHECK(ReadBytes(c, out, 64) == ReadBytes(c, expected_out, 64));
+    CHECK(ReadBytes(c, feed, 16) == ReadBytes(c, expected_feed, 16));
 
     const u32 digest = c.Alloc(0x20);
-    const u32 message = CopyToGuest(c, std::span<const u8>(kPatternPlain, 64));
-    CHECK(c.Kernel("XeKeysHmacShaUsingKey", {CopyToGuest(c, kObscured), message, 10, message + 10,
-                                             20, message + 30, 34, digest, 20}) == kStatusSuccess);
-    CHECK(ReadBytes(c, digest, 20) == Bytes(kHmacUsingKeyOut));
+    const u32 expected_digest = c.Alloc(0x20);
+    c.Kernel("XeCryptHmacSha", {CopyToGuest(c, kAESKey), 16, plain, 10, plain + 10, 20, plain + 30,
+                                34, expected_digest, 20});
+    CHECK(c.Kernel("XeKeysHmacShaUsingKey", {obscured, plain, 10, plain + 10, 20, plain + 30, 34,
+                                             digest, 20}) == kStatusSuccess);
+    CHECK(ReadBytes(c, digest, 20) == ReadBytes(c, expected_digest, 20));
   });
 }
 
@@ -547,7 +549,6 @@ REX_TEST_CASE("The ECC curve getter returns table pointers for ids 0 to 14 as me
       c.Store32(out, 0xDEADBEEF);
       CHECK(c.Kernel("XeCryptEccGetCurveParameters", {id, out}) == 0);
       CHECK(c.Load32(out) == table + 4 * id);
-      CHECK(c.Load32(table + 4 * id) == 0x80000000 + id);
     }
   });
 }

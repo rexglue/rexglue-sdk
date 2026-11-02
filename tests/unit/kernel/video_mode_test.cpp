@@ -10,19 +10,21 @@
 
 #include "rex_test.h"
 
-#include <rex/kernel/xboxkrnl/video.h>
-#include <rex/runtime.h>
+#include <rex/kernel/xboxkrnl.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/title.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 REX_TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") {
   rex::test::KernelFixture fixture;
-  const rex::runtime::VideoMode expected = fixture.GetRuntime().GetVideoMode();
+  const rex::VideoMode expected = StateOf(fixture.GetRuntime()).GetVideoMode();
   CHECK(expected.width == 1280);
   CHECK(expected.height == 720);
   CHECK(expected.refresh_rate == 60.0f);
   fixture.RunOnGuestThread([expected](rex::test::Caller&) {
-    rex::runtime::X_VIDEO_MODE mode{};
+    rex::kernel::X_VIDEO_MODE mode{};
     rex::kernel::xboxkrnl::VdQueryVideoMode(&mode);
     CHECK(static_cast<rex::u32>(mode.display_width) == expected.width);
     CHECK(static_cast<rex::u32>(mode.display_height) == expected.height);

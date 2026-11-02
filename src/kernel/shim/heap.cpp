@@ -1,16 +1,19 @@
-#include <rex/kernel/shim/heap.h>
+#include "kernel/shim/heap.h"
 
 #include <algorithm>
 #include <cstring>
 #include <o1heap.h>
 
-#include <rex/cvar.h>
 #include <rex/math.h>
-#include <rex/hook.h>
-#include <rex/kernel/shim/function.h>
-#include <rex/runtime/xmemory.h>
-#include <rex/fail.h>
+#include <rex/ppc/hook.h>
+#include "kernel/shim/function.h"
+#include <rex/kernel/heap.h>
+#include <rex/kernel/title_runtime.h>
 #include <rex/logging/log.h>
+#include "kernel/categories.h"
+
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace {
 
@@ -32,14 +35,14 @@ constexpr u32 kHeapZeroMemory = 0x00000008;
 namespace rex::kernel::shim {
 
 void* GuestHeap::GuestToHost(u32 guest_addr) const {
-  return rex::runtime::GuestPtr<void*>(membase_, guest_addr);
+  return rex::memory::GuestPtr<void*>(membase_, guest_addr);
 }
 
 u32 GuestHeap::HostToGuest(void* host_ptr) const {
-  return rex::runtime::HostPtrToGuest(membase_, host_ptr);
+  return rex::memory::HostPtrToGuest(membase_, host_ptr);
 }
 
-bool GuestHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
+bool GuestHeap::Init(u32 heap_size_bytes, rex::kernel::Memory* memory) {
   memory_ = memory;
   auto* mem = memory_;
   if (!mem) {
@@ -60,7 +63,7 @@ bool GuestHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
     return false;
   }
 
-  const auto diagnostics = GetDiagnosticsLocked();
+  const auto diagnostics = GetStatsLocked();
   REXLOG_DEBUG(kernel, "shim_heap: initialized with {} segment(s), capacity={}MB", segments_.size(),
                diagnostics.capacity >> 20);
   return true;
@@ -163,9 +166,8 @@ bool GuestHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
       rex::RoundUpPow2<u32>(std::max(segment_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
 
   // The system heap range is shared with kernel bookkeeping allocations and cannot hold a segment.
-  auto segment =
-      runtime::GuestAllocator::Create(*mem, segment_size_bytes, O1HEAP_ALIGNMENT, false,
-                                      runtime::kPageSize4KiB, 0, runtime::GuestPool::kHeap);
+  auto segment = kernel::GuestAllocator::Create(*mem, segment_size_bytes, O1HEAP_ALIGNMENT, false,
+                                                kernel::kPageSize4KiB, 0, kernel::GuestPool::kHeap);
   if (!segment) {
     REX_FAIL(kernel, false, "shim_heap: segment allocation of {} bytes failed", segment_size_bytes);
   }
@@ -183,7 +185,7 @@ u32 GuestHeap::AllocLocked(u32 size, bool zero) {
   }
 
   const u32 alloc_size = size + kHeaderSize;
-  auto try_allocate_in_segment = [&](runtime::GuestAllocator& segment) -> u32 {
+  auto try_allocate_in_segment = [&](kernel::GuestAllocator& segment) -> u32 {
     void* ptr = segment.Allocate(alloc_size);
     if (!ptr) {
       return 0;
@@ -211,7 +213,7 @@ u32 GuestHeap::AllocLocked(u32 size, bool zero) {
   const u32 growth_segment_size =
       std::max({initial_segment_size_, kDefaultGrowthSegmentSize, min_required_segment});
   if (!AllocateSegmentLocked(growth_segment_size)) {
-    const auto diagnostics = GetDiagnosticsLocked();
+    const auto diagnostics = GetStatsLocked();
     bool invariants_ok = true;
     for (const auto& segment : segments_) {
       invariants_ok = invariants_ok && segment->IsConsistent();
@@ -229,7 +231,7 @@ u32 GuestHeap::AllocLocked(u32 size, bool zero) {
     return addr;
   }
 
-  const auto diagnostics = GetDiagnosticsLocked();
+  const auto diagnostics = GetStatsLocked();
   const u64 free_bytes = diagnostics.capacity - diagnostics.allocated;
   REXLOG_WARN(kernel,
               "rexshim_RtlAllocateHeap: allocation failed after growth for {} bytes "
@@ -239,16 +241,16 @@ u32 GuestHeap::AllocLocked(u32 size, bool zero) {
   return 0;
 }
 
-runtime::GuestAllocator* GuestHeap::FindSegmentByGuestLocked(u32 guest_addr) {
+kernel::GuestAllocator* GuestHeap::FindSegmentByGuestLocked(u32 guest_addr) {
   auto it = std::ranges::find_if(
       segments_, [&](const auto& segment) { return segment->Contains(guest_addr); });
   return it != segments_.end() ? it->get() : nullptr;
 }
 
-runtime::GuestAllocator::Diagnostics GuestHeap::GetDiagnosticsLocked() const {
-  runtime::GuestAllocator::Diagnostics diagnostics{};
+kernel::GuestAllocator::AllocatorStats GuestHeap::GetStatsLocked() const {
+  kernel::GuestAllocator::AllocatorStats diagnostics{};
   for (const auto& segment : segments_) {
-    const auto d = segment->GetDiagnostics();
+    const auto d = segment->GetStats();
     diagnostics.capacity += d.capacity;
     diagnostics.allocated += d.allocated;
     diagnostics.peak_allocated += d.peak_allocated;
@@ -258,31 +260,35 @@ runtime::GuestAllocator::Diagnostics GuestHeap::GetDiagnosticsLocked() const {
   return diagnostics;
 }
 
-GuestHeap g_heap;
-
 REX_SHIM_FN(RtlAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 dwBytes) {
-  return g_heap.Alloc(dwBytes, dwFlags & kHeapZeroMemory);
+  return kernel::GetCurrentState().heap.Alloc(dwBytes, dwFlags & kHeapZeroMemory);
 }
 
 REX_SHIM_FN(RtlFreeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
-  g_heap.Free(ptr);
+  kernel::GetCurrentState().heap.Free(ptr);
   return 1;
 }
 
 REX_SHIM_FN(RtlSizeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
-  return g_heap.GetSize(ptr);
+  return kernel::GetCurrentState().heap.GetSize(ptr);
 }
 
 REX_SHIM_FN(RtlReAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes) {
-  return g_heap.Realloc(ptr, dwBytes, dwFlags & kHeapZeroMemory);
+  return kernel::GetCurrentState().heap.Realloc(ptr, dwBytes, dwFlags & kHeapZeroMemory);
 }
 
-bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory) {
-  return g_heap.Init(heap_size_mb * 1024u * 1024u, memory);
+bool InitHeap(u32 heap_size_mb, rex::kernel::Memory* memory) {
+  TitleRuntime* runtime = REX_RUNTIME();
+  if (!runtime) {
+    REX_FAIL(kernel, false, "shim_heap: no runtime is set up");
+  }
+  return StateOf(*runtime).heap.Init(heap_size_mb * 1024u * 1024u, memory);
 }
 
 void ShutdownHeap() {
-  g_heap.Shutdown();
+  if (TitleRuntime* runtime = REX_RUNTIME()) {
+    StateOf(*runtime).heap.Shutdown();
+  }
 }
 
 }  // namespace rex::kernel::shim

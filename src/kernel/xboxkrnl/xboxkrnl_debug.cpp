@@ -9,18 +9,23 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/dbg.h>
+#include <rex/platform/process.h>
 #include <rex/logging/log.h>
-#include <rex/hook.h>
-#include <rex/runtime/thread_registry.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/thread_registry.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/xexception.h>
-#include <rex/runtime/xthread.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/title_exit.h>
+#include <rex/kernel/types/thread.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/kernel/types/status.h>
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 void DbgBreakPoint_entry() {
   rex::platform::Break();
@@ -50,20 +55,20 @@ void HandleSetThreadName(GuestPtrT<X_EXCEPTION_RECORD> record) {
 
   // A title may pass freed memory for the name, which holds junk.
   const char* name_data =
-      runtime::GetCurrent().GetMemory()->TranslateVirtual<const char*>(thread_info->name_ptr);
+      kernel::GetCurrentState().GetMemory()->TranslateVirtual<const char*>(thread_info->name_ptr);
   auto name = std::string(name_data, strnlen(name_data, kMaxThreadNameLength));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   ThreadPin thread;
   if (thread_info->thread_id == ~u32{0}) {
-    thread = runtime::GetCurrent().GetThreadRegistry().Find(
-        KernelThread::GetCurrentThread()->GetThreadId());
+    thread = kernel::GetCurrent().GetThreadRegistry().Find(
+        KernelThread::GetCallingThread()->GetThreadID());
   } else {
-    thread = runtime::GetCurrent().GetThreadRegistry().Find(thread_info->thread_id);
+    thread = kernel::GetCurrent().GetThreadRegistry().Find(thread_info->thread_id);
   }
 
   if (thread) {
-    REXLOG_DEBUG(kernel, "SetThreadName({}, {})", thread->GetThreadId(), name);
+    REXLOG_DEBUG(kernel, "SetThreadName({}, {})", thread->GetThreadID(), name);
     thread->SetName(name);
   }
 }
@@ -99,7 +104,7 @@ void KeBugCheckEx_entry(u32 code, u32 param1, u32 param2, u32 param3, u32 param4
   if (rex::platform::IsDebuggerAttached()) {
     rex::platform::Break();
   }
-  runtime::GetCurrent().ExitTitle(TitleExitReason::kBugCheck);
+  kernel::GetCurrentState().ExitTitle(TitleExitReason::kBugCheck);
 }
 
 void KeBugCheck_entry(u32 code) {

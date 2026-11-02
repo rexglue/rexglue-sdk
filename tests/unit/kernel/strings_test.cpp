@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/kernel/strings_test.cpp
- * @brief       Rtl compares and XAM formats strings the way the title asks
+ * @brief       Rtl string comparison and XAM string formatting
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,10 +19,11 @@
 #include <string_view>
 
 #include <rex/platform.h>
-#include <rex/runtime.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/heap.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -35,7 +36,7 @@ constexpr u32 kTextChars = 32;
 
 u32 PutString(Caller& c, std::string_view text) {
   const u32 address = c.Alloc(static_cast<u32>(text.size()) + 1);
-  std::memcpy(c.GetRuntime().GetMemory()->TranslateVirtual<char*>(address), text.data(),
+  std::memcpy(StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<char*>(address), text.data(),
               text.size());
   return address;
 }

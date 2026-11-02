@@ -15,18 +15,19 @@
 #include <cstring>
 #include <memory>
 
-#include <rex/platform/fpscr.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/thread_registry.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xthread.h>
+#include <rex/ppc/context.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_registry.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/object/kernel_thread.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 using rex::u32;
 using rex::u64;
 using rex::u8;
-using rex::platform::FPSCRPlatform;
+using rex::ppc::FPSCRPlatform;
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
@@ -46,7 +47,8 @@ REX_TEST_CASE("A DPC that changes the FP control word leaves the draining thread
               "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 thunk = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&ScrambleFPDPC, 0);
+    const u32 thunk =
+        StateOf(c.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&ScrambleFPDPC, 0);
     CHECKED_ELSE(thunk != 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -137,8 +139,8 @@ REX_TEST_CASE("A host worker starts from the host policy FP control word", "[ker
     auto csr = std::make_shared<std::atomic<u32>>(0);
     auto host = std::make_shared<std::atomic<u32>>(0);
     auto thread =
-        std::make_unique<rex::runtime::KernelThread>(c.GetRuntime(), 0x20000, 0, [csr, host]() {
-          csr->store(rex::runtime::ThreadState::Get()->GetContext()->fpscr.csr);
+        std::make_unique<rex::kernel::KernelThread>(c.GetRuntime(), 0x20000, 0, [csr, host]() {
+          csr->store(rex::kernel::ThreadState::Get()->GetContext()->fpscr.csr);
           host->store(FPSCRPlatform::GetCSR());
           return 0;
         });
@@ -147,7 +149,7 @@ REX_TEST_CASE("A host worker starts from the host policy FP control word", "[ker
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {*launched, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {*launched, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {*launched});
     u32 policy = csr->load();
     FPSCRPlatform::InitHostExceptions(policy);
@@ -168,7 +170,7 @@ REX_TEST_CASE("A guest thread starts from the FP control word InitHostExceptions
       host->store(FPSCRPlatform::GetCSR());
       done->store(true);
     });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
     CHECK(done->load());
     u32 policy = csr->load();
@@ -181,9 +183,8 @@ REX_TEST_CASE("A guest thread starts from the FP control word InitHostExceptions
 REX_TEST_CASE("A thread's FP save area starts with every FP exception masked", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller&) {
-    u32 expected = 0;
-    FPSCRPlatform::InitHostExceptions(expected);
-    CHECK(rex::runtime::ThreadState::Get()->GetDPCSaveArea().csr == expected);
+    const u32 csr = rex::kernel::ThreadState::Get()->GetDPCSaveArea().csr;
+    CHECK((csr & FPSCRPlatform::kExceptionMask) == FPSCRPlatform::kExceptionMask);
   });
 }
 
@@ -193,8 +194,8 @@ REX_TEST_CASE("A new thread starts with VSCR NJ set", "[kernel][fp]") {
     CHECK(c.GetContext().vscr_nj == 1);
     CHECK(c.GetContext().vscr_sat == 0);
     auto nj = std::make_shared<std::atomic<u32>>(0);
-    auto thread = std::make_unique<rex::runtime::KernelThread>(c.GetRuntime(), 0x20000, 0, [nj]() {
-      nj->store(rex::runtime::ThreadState::Get()->GetContext()->vscr_nj);
+    auto thread = std::make_unique<rex::kernel::KernelThread>(c.GetRuntime(), 0x20000, 0, [nj]() {
+      nj->store(rex::kernel::ThreadState::Get()->GetContext()->vscr_nj);
       return 0;
     });
     auto launched = c.GetRuntime().GetThreadRegistry().Launch(std::move(thread));
@@ -202,7 +203,7 @@ REX_TEST_CASE("A new thread starts with VSCR NJ set", "[kernel][fp]") {
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {*launched, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {*launched, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {*launched});
     CHECK(nj->load() == 1);
   });

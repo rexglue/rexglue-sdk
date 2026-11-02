@@ -9,20 +9,22 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/api.h>
-#include <rex/cvar.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/kernel_settings.h>
 #include <rex/logging/log.h>
-#include <rex/hook.h>
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/module_object.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/types/status.h>
 #include "kernel/stub_log.h"
+#include "kernel/kernel.h"
+#include "kernel/settings_access.h"
 
 namespace rex::kernel::xboxkrnl {
 
 /**
- * Fills the value of a console configuration setting.
+ * Reads a console configuration setting.
  *
  * Category 0x0002 (secured) supports setting 0x0002 (AV region), reported as 0x1000 (USA/Canada).
  * Category 0x0003 (user) supports the settings
@@ -39,7 +41,7 @@ namespace rex::kernel::xboxkrnl {
  * @param buffer Receives the value, may be null to query the size.
  * @param buffer_size The size of buffer in bytes.
  * @param required_size Receives the size of the value in bytes, may be null.
- * @return X_STATUS_SUCCESS or an error status.
+ * @return X_STATUS_SUCCESS, or an error status for an unknown category or setting or a bad buffer.
  */
 X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer_size,
                              u16* required_size) {
@@ -72,7 +74,7 @@ X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer
           break;
         case 0x0009:
           setting_size = 4;
-          memory::store<be_u32>(value, static_cast<u32>(runtime::GetCurrent().GetUserLanguage()));
+          memory::store<be_u32>(value, static_cast<u32>(kernel::GetCurrent().GetUserLanguage()));
           break;
         case 0x000A:
           setting_size = 4;
@@ -88,7 +90,8 @@ X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer
           break;
         case 0x000E:
           setting_size = 1;
-          value[0] = static_cast<u8>(runtime::GetCurrent().GetConfig().runtime.kernel.user_country);
+          value[0] =
+              static_cast<u8>(kernel::GetCurrentState().GetKernelSettings().user_country.Get());
           break;
         case 0x0019:
           setting_size = 1;

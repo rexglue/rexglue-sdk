@@ -10,18 +10,17 @@
  */
 
 #include <rex/logging/log.h>
-#include <rex/hook.h>
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/status.h>
 
 namespace rex::kernel::xboxkrnl {
 
 /**
- * Reads keys from a keyboard HID device. Reports the device as not connected.
- *
- * Titles check for 0xC000009D (translated to 0x48F ERROR_DEVICE_NOT_CONNECTED) and 0x103
- * (translated to 0x10D2 ERROR_EMPTY).
+ * Reports the keyboard as not connected. Titles check for 0xC000009D (translated to 0x48F
+ * ERROR_DEVICE_NOT_CONNECTED) and 0x103 (translated to 0x10D2 ERROR_EMPTY).
  *
  * @param unk1 Always 0.
  * @param unk2 Pointer to unk3 + 2.
@@ -33,19 +32,12 @@ u32 HidReadKeys_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
   return 0xC000009D;
 }
 
-/**
- * Reports the capabilities of a keyboard or mouse HID device. Unsupported.
- *
- * @param unk1 Unused.
- * @param caps_ptr Unused.
- * @return X_STATUS_UNSUCCESSFUL.
- */
 u32 HidGetCapabilities_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 caps_ptr) {
   return X_STATUS_UNSUCCESSFUL;
 }
 
 /**
- * Returns the time of the last HID input, always 0.
+ * Writes 0 as the time of the last HID input.
  *
  * @param time_ptr Receives the time.
  * @return X_STATUS_SUCCESS.
@@ -57,13 +49,6 @@ u32 HidGetLastInputTime_entry(MappedU32 time_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-/**
- * Reads mouse input changes. Unsupported.
- *
- * @param unk1 Unused.
- * @param unk2 Unused.
- * @return X_STATUS_UNSUCCESSFUL.
- */
 u32 HidReadMouseChanges_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2) {
   return X_STATUS_UNSUCCESSFUL;
 }

@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <rex/kernel/types/status.h>
+
 #include "kernel_fixture.h"
 
 using rex::test::Caller;
@@ -66,11 +68,11 @@ REX_TEST_CASE("memory: an address outside every heap fails instead of reaching a
       c.Store32(base_ptr, address);
       c.Store32(size_ptr, kPageSize);
       CHECK(c.Kernel("NtProtectVirtualMemory", {base_ptr, size_ptr, kPageReadWrite, old_ptr, 0}) ==
-            rex::X_STATUS_INVALID_PARAMETER);
+            rex::kernel::X_STATUS_INVALID_PARAMETER);
       c.Store32(base_ptr, address);
       c.Store32(size_ptr, 0);
       CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, kMemRelease, 0}) ==
-            rex::X_STATUS_MEMORY_NOT_ALLOCATED);
+            rex::kernel::X_STATUS_MEMORY_NOT_ALLOCATED);
       c.Kernel("MmFreePhysicalMemory", {0, address});
       CHECK(c.Kernel("MmQueryAddressProtect", {address}) == 0);
       CHECK(c.Kernel("MmQueryAllocationSize", {address}) == 0);
@@ -104,12 +106,13 @@ REX_TEST_CASE("memory: regions 0 to 2 use the guest heap and larger values are r
       c.Store32(size_ptr, kPageSize);
       CHECK(c.Kernel("NtAllocateVirtualMemory",
                      {base_ptr, size_ptr, kMemCommit | kMemReserve, kPageReadWrite, region}) ==
-            rex::X_STATUS_INVALID_PARAMETER);
+            rex::kernel::X_STATUS_INVALID_PARAMETER);
       CHECK(c.Load32(base_ptr) == 0);
-      CHECK(c.Kernel("NtProtectVirtualMemory", {base_ptr, size_ptr, kPageReadWrite, old_ptr,
-                                                region}) == rex::X_STATUS_INVALID_PARAMETER);
+      CHECK(c.Kernel("NtProtectVirtualMemory",
+                     {base_ptr, size_ptr, kPageReadWrite, old_ptr, region}) ==
+            rex::kernel::X_STATUS_INVALID_PARAMETER);
       CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, kMemRelease, region}) ==
-            rex::X_STATUS_INVALID_PARAMETER);
+            rex::kernel::X_STATUS_INVALID_PARAMETER);
     }
   });
 }
@@ -127,7 +130,7 @@ REX_TEST_CASE("memory: an allocation type outside the accepted set is rejected",
       c.Store32(base_ptr, 0);
       c.Store32(size_ptr, kPageSize);
       CHECK(c.Kernel("NtAllocateVirtualMemory", {base_ptr, size_ptr, type, kPageReadWrite, 0}) ==
-            rex::X_STATUS_INVALID_PARAMETER);
+            rex::kernel::X_STATUS_INVALID_PARAMETER);
       CHECK(c.Load32(base_ptr) == 0);
     }
   });
@@ -168,7 +171,7 @@ REX_TEST_CASE("memory: a free type other than decommit or release is rejected",
       c.Store32(base_ptr, base);
       c.Store32(size_ptr, 0);
       CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, type, 0}) ==
-            rex::X_STATUS_INVALID_PARAMETER);
+            rex::kernel::X_STATUS_INVALID_PARAMETER);
     }
     c.Store32(base_ptr, base);
     c.Store32(size_ptr, kPageSize);
@@ -213,11 +216,11 @@ REX_TEST_CASE("memory: allocation and protection accept only the kernel protecti
       c.Store32(size_ptr, kPageSize);
       CHECK(c.Kernel("NtAllocateVirtualMemory",
                      {base_ptr, size_ptr, kMemCommit | kMemReserve, protect, 0}) ==
-            rex::X_STATUS_INVALID_PAGE_PROTECTION);
+            rex::kernel::X_STATUS_INVALID_PAGE_PROTECTION);
       c.Store32(base_ptr, base);
       c.Store32(size_ptr, kPageSize);
       CHECK(c.Kernel("NtProtectVirtualMemory", {base_ptr, size_ptr, protect, old_ptr, 0}) ==
-            rex::X_STATUS_INVALID_PAGE_PROTECTION);
+            rex::kernel::X_STATUS_INVALID_PAGE_PROTECTION);
     }
   });
 }

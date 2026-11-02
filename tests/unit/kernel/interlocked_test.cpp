@@ -66,7 +66,7 @@ REX_TEST_CASE("A critical section counts recursion and excludes another thread",
     const u32 thread = c.Spawn([section, other](Caller& t) {
       other->store(static_cast<int>(t.Kernel("RtlTryEnterCriticalSection", {section})));
     });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
     CHECK(other->load() == 0);
 

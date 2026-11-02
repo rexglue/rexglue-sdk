@@ -19,11 +19,13 @@
 #include <vector>
 
 #include <rex/platform/lock_order.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/heap.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 using rex::u32;
 using rex::u64;
@@ -54,7 +56,7 @@ u32 g_safe_mutant = 0;
 std::vector<u32> g_safe_results;
 
 Caller CallerFor(PPCContext& ctx, u8* base) {
-  return Caller(ctx, base, rex::runtime::GetCurrent());
+  return Caller(ctx, base, rex::kernel::GetCurrent());
 }
 
 void AppendTag(u32 tag) {
@@ -84,7 +86,7 @@ void StackDPC(PPCContext& ctx, u8* base) {
   g_thread_stack_base = caller.Load32(ctx.r13.u32 + 0x70);
   g_thread_stack_end = caller.Load32(ctx.r13.u32 + 0x74);
   g_irql_in_dpc =
-      *rex::runtime::GetCurrent().GetMemory()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
+      *rex::kernel::GetCurrentState().GetMemory()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
   ++g_runs;
   ctx.r3.u64 = 0;
 }
@@ -149,7 +151,7 @@ void Reset() {
 }
 
 u32 BuildDPC(Caller& c, void (*routine)(PPCContext&, u8*), u32 context = 0) {
-  const u32 thunk = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(routine, 0);
+  const u32 thunk = StateOf(c.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(routine, 0);
   CHECKED_ELSE(thunk != 0) {
     FAIL_CHECK("the check above failed");
     return 0;
@@ -181,12 +183,13 @@ REX_TEST_CASE("A DPC queued by an ISR runs after the ISR returns", "[kernel][dpc
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     g_isr_dpc = BuildDPC(c, &CountingDPC);
-    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
+    auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
     const u32 isr = dispatcher->AllocateThunk(&QueueingISR, 0);
     const u32 pcr = c.Alloc(0x1000);
     const u32 stack = c.Alloc(0x10000) + 0x8000;
     std::thread interrupt([&] {
-      rex::runtime::ThreadState state(5, stack, pcr, c.GetRuntime().GetMemory(), &c.GetRuntime());
+      rex::kernel::ThreadState state(5, stack, pcr, StateOf(c.GetRuntime()).GetMemory(),
+                                     &c.GetRuntime());
       dispatcher->ExecuteInterrupt(&state, isr, nullptr, 0);
     });
     interrupt.join();
@@ -256,8 +259,8 @@ REX_TEST_CASE("DPCs inserted from 2 threads never overlap", "[kernel][dpc]") {
     };
     const u32 first = c.Spawn(worker);
     const u32 second = c.Spawn(worker);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {first, 1, 0, c.Quad(-100000000)}) == 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.Quad(-100000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {first, 1, 0, c.AllocQuad(-100000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.AllocQuad(-100000000)}) == 0);
     c.Kernel("NtClose", {first});
     c.Kernel("NtClose", {second});
   });
@@ -336,9 +339,10 @@ REX_TEST_CASE("Queueing a DPC that sits in a write watched page keeps the lock o
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto& memory = *c.GetRuntime().GetMemory();
-    const u32 thunk = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&CountingDPC, 0);
-    const u32 dpc = memory.SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+    auto& memory = *StateOf(c.GetRuntime()).GetMemory();
+    const u32 thunk =
+        StateOf(c.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&CountingDPC, 0);
+    const u32 dpc = memory.SystemHeapAlloc(0x1000, 0x1000, rex::kernel::kSystemHeapPhysical);
     REQUIRE(dpc != 0);
     c.Kernel("KeInitializeDpc", {dpc, thunk, 7});
     void* handle = memory.RegisterPhysicalMemoryInvalidationCallback(IgnoreInvalidation, nullptr);

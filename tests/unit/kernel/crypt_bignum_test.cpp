@@ -22,8 +22,8 @@
 
 using rex::test::Caller;
 using rex::test::CopyToGuest;
-using rex::test::Hex;
 using rex::test::KernelFixture;
+using rex::test::ParseHex;
 using rex::test::ReadBytes;
 
 namespace {
@@ -511,9 +511,9 @@ REX_TEST_CASE("Montgomery multiplication matches big integer arithmetic",
       const u32 size = item.digits * 8;
       const u32 out = CopyToGuest(c, std::vector<u8>(size, 0xA5));
       c.Kernel("XeCryptBnQwNeModMul",
-               {CopyToGuest(c, Hex(item.first)), CopyToGuest(c, Hex(item.second)), out,
-                item.inverse, CopyToGuest(c, Hex(item.modulus)), item.digits});
-      CHECK(ReadBytes(c, out, size) == Hex(item.product));
+               {CopyToGuest(c, ParseHex(item.first)), CopyToGuest(c, ParseHex(item.second)), out,
+                item.inverse, CopyToGuest(c, ParseHex(item.modulus)), item.digits});
+      CHECK(ReadBytes(c, out, size) == ParseHex(item.product));
     }
   });
 }
@@ -528,8 +528,8 @@ REX_TEST_CASE("Montgomery multiplication writes nothing for 0 or more than 64 di
       INFO(digits);
       const u32 out = CopyToGuest(c, filled);
       c.Kernel("XeCryptBnQwNeModMul",
-               {CopyToGuest(c, Hex(item.first)), CopyToGuest(c, Hex(item.second)), out,
-                item.inverse, CopyToGuest(c, Hex(item.modulus)), digits});
+               {CopyToGuest(c, ParseHex(item.first)), CopyToGuest(c, ParseHex(item.second)), out,
+                item.inverse, CopyToGuest(c, ParseHex(item.modulus)), digits});
       CHECK(ReadBytes(c, out, static_cast<u32>(filled.size())) == filled);
     }
   });

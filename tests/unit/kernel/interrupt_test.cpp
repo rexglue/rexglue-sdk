@@ -14,12 +14,14 @@
 #include <chrono>
 #include <thread>
 
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime.h>
-#include <rex/runtime/thread_state.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/thread_state.h>
 
 #include "kernel_fixture.h"
-#include "runtime/dispatcher.h"
+#include "kernel/dispatcher.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -50,24 +52,23 @@ void CaptureDPCRegisters(PPCContext& ctx, u8*) {
 }
 
 void ClobberingISR(PPCContext& ctx, u8* base) {
-  g_isr_irql = *rex::runtime::GetCurrent().GetMemory()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
+  g_isr_irql =
+      *rex::kernel::GetCurrentState().GetMemory()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
   ctx.r14.u64 = 0xDEAD;
   ctx.f14.f64 = 7.5;
-  Caller(ctx, base, rex::runtime::GetCurrent())
-      .Kernel("KeInsertQueueDpc", {g_isr_dpc.load(), 0, 0});
+  Caller(ctx, base, rex::kernel::GetCurrent()).Kernel("KeInsertQueueDpc", {g_isr_dpc.load(), 0, 0});
   ctx.r3.u64 = 0;
 }
 
 }  // namespace
 
-REX_TEST_CASE("interrupt callbacks never overlap and never block guest threads",
-              "[kernel][interrupt]") {
+REX_TEST_CASE("interrupt callbacks never overlap", "[kernel][interrupt]") {
   g_active = 0;
   g_max = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
-    auto* memory = c.GetRuntime().GetMemory();
+    auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
+    auto* memory = StateOf(c.GetRuntime()).GetMemory();
     const u32 callback = dispatcher->AllocateThunk(&TrackOverlap, 0);
     CHECKED_ELSE(callback != 0) {
       FAIL_CHECK("the check above failed");
@@ -78,11 +79,11 @@ REX_TEST_CASE("interrupt callbacks never overlap and never block guest threads",
     const u32 stack_first = c.Alloc(0x10000) + 0x8000;
     const u32 stack_second = c.Alloc(0x10000) + 0x8000;
     std::thread first([&] {
-      rex::runtime::ThreadState state(1, stack_first, pcr_first, memory, &c.GetRuntime());
+      rex::kernel::ThreadState state(1, stack_first, pcr_first, memory, &c.GetRuntime());
       dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0);
     });
     std::thread second([&] {
-      rex::runtime::ThreadState state(2, stack_second, pcr_second, memory, &c.GetRuntime());
+      rex::kernel::ThreadState state(2, stack_second, pcr_second, memory, &c.GetRuntime());
       dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0);
     });
     for (int i = 0; i < 1000; ++i) {
@@ -100,7 +101,7 @@ REX_TEST_CASE("interrupts leave the guest thread state intact", "[kernel][interr
   g_max = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
+    auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
     const u32 callback = dispatcher->AllocateThunk(&TrackOverlap, 0);
     CHECKED_ELSE(callback != 0) {
       FAIL_CHECK("the check above failed");
@@ -108,8 +109,8 @@ REX_TEST_CASE("interrupts leave the guest thread state intact", "[kernel][interr
     }
     const u32 pcr = c.Alloc(0x1000);
     c.Store32(pcr, 0x1234);
-    rex::runtime::ThreadState state(3, c.Alloc(0x10000) + 0x8000, pcr, c.GetRuntime().GetMemory(),
-                                    &c.GetRuntime());
+    rex::kernel::ThreadState state(3, c.Alloc(0x10000) + 0x8000, pcr,
+                                   StateOf(c.GetRuntime()).GetMemory(), &c.GetRuntime());
     CHECK(dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0) == 0);
     CHECK(c.Load32(pcr) == 0x1234);
   });
@@ -129,12 +130,12 @@ REX_TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty",
     };
     const u32 first = c.Spawn(worker);
     const u32 second = c.Spawn(worker);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {first, 1, 0, c.Quad(-100000000)}) == 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.Quad(-100000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {first, 1, 0, c.AllocQuad(-100000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.AllocQuad(-100000000)}) == 0);
     c.Kernel("NtClose", {first});
     c.Kernel("NtClose", {second});
-    CHECK_FALSE(
-        static_cast<rex::runtime::Dispatcher&>(c.GetRuntime().GetDispatcher()).HasQueuedDPCs());
+    CHECK_FALSE(static_cast<rex::kernel::Dispatcher&>(StateOf(c.GetRuntime()).GetDPCQueue())
+                    .HasQueuedDPCs());
   });
 }
 
@@ -142,7 +143,7 @@ REX_TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind"
               "[kernel][interrupt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
+    auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
     const u32 isr = dispatcher->AllocateThunk(&ClobberingISR, 0);
     const u32 dpc_routine = dispatcher->AllocateThunk(&CaptureDPCRegisters, 0);
     CHECKED_ELSE(isr != 0) {
@@ -159,7 +160,8 @@ REX_TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind"
     const u32 pcr = c.Alloc(0x1000);
     const u32 stack = c.Alloc(0x10000) + 0x8000;
     std::thread interrupt([&] {
-      rex::runtime::ThreadState state(7, stack, pcr, c.GetRuntime().GetMemory(), &c.GetRuntime());
+      rex::kernel::ThreadState state(7, stack, pcr, StateOf(c.GetRuntime()).GetMemory(),
+                                     &c.GetRuntime());
       state.GetContext()->r14.u64 = 0x1111;
       state.GetContext()->f14.f64 = 2.5;
       dispatcher->ExecuteInterrupt(&state, isr, nullptr, 0);

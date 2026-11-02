@@ -14,23 +14,26 @@
 #include <cstddef>
 #include <string>
 
-#include <rex/chrono/chrono_steady_cast.h>
-#include <rex/kernel/xboxkrnl/rtl.h>
-#include <rex/kernel/xboxkrnl/threading.h>
+#include <rex/chrono.h>
+#include <rex/kernel/xboxkrnl.h>
 #include <rex/logging/log.h>
-#include <rex/hook.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
 #include <rex/types.h>
-#include <rex/string.h>
-#include <rex/runtime.h>
-#include <rex/runtime/module_object.h>
-#include <rex/runtime/kernel_string.h>
-#include <rex/runtime/event_object.h>
-#include <rex/runtime/xthread.h>
+#include <rex/string/text.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/types/io.h>
+#include <rex/kernel/object/kernel_thread.h>
 #include <rex/platform/thread.h>
 #include "kernel/stub_log.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
+#include <rex/kernel/types/xex.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 namespace {
 
@@ -52,8 +55,7 @@ u32 RtlCompareMemory_entry(MappedVoid source1, MappedVoid source2, u32 length) {
   u8* p1 = source1;
   u8* p2 = source2;
 
-  // The return value is the count of matching bytes, so memcmp does not apply.
-
+  // Counts the matching bytes at every position, so memcmp does not apply.
   u32 c = 0;
   for (u32 n = 0; n < length; n++, p1++, p2++) {
     if (*p1 == *p2) {
@@ -110,7 +112,7 @@ u32 RtlLowerChar_entry(u32 in) {
 }
 
 u32 RtlCompareString_entry(MappedString string_1, MappedString string_2, u32 case_insensitive) {
-  int ret = case_insensitive ? rex::CompareIgnoreCase(string_1, string_2)
+  int ret = case_insensitive ? rex::string::CompareIgnoreCase(string_1, string_2)
                              : std::strcmp(string_1, string_2);
 
   return ret;
@@ -129,7 +131,7 @@ u32 RtlCompareStringN_entry(MappedString string_1, u32 string_1_len, MappedStrin
   }
   auto len = std::min(len1, len2);
 
-  int ret = case_insensitive ? rex::CompareIgnoreCaseN(string_1, string_2, len)
+  int ret = case_insensitive ? rex::string::CompareIgnoreCaseN(string_1, string_2, len)
                              : std::strncmp(string_1, string_2, len);
 
   return ret;
@@ -153,7 +155,7 @@ void RtlInitAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination, MappedString 
 
 void RtlFreeAnsiString_entry(GuestPtrT<X_ANSI_STRING> string) {
   if (string->pointer) {
-    runtime::GetCurrent().GetMemory()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetMemory()->SystemHeapFree(string->pointer);
   }
 
   string->Reset();
@@ -171,7 +173,7 @@ void RtlInitUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination, MappedW
 
 void RtlFreeUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> string) {
   if (string->pointer) {
-    runtime::GetCurrent().GetMemory()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetMemory()->SystemHeapFree(string->pointer);
   }
 
   string->Reset();
@@ -185,8 +187,8 @@ void RtlCopyString_entry(GuestPtrT<X_ANSI_STRING> destination, GuestPtrT<X_ANSI_
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(destination->pointer);
-    auto src_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(source->pointer);
+    auto dst_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length);
   }
   destination->length = length;
@@ -201,8 +203,8 @@ void RtlCopyUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination,
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(destination->pointer);
-    auto src_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(source->pointer);
+    auto dst_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length);
   }
   destination->length = length;
@@ -210,7 +212,7 @@ void RtlCopyUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination,
 
 u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
                                        GuestPtrT<X_UNICODE_STRING> source_ptr, u32 alloc_dest) {
-  auto* memory = runtime::GetCurrent().GetMemory();
+  auto* memory = kernel::GetCurrentState().GetMemory();
   const u32 count = source_ptr->length / 2;
   u32 capacity = 0;
   u32 buffer_ptr = 0;
@@ -244,7 +246,7 @@ u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
 
 u32 RtlAnsiStringToUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination_ptr,
                                        GuestPtrT<X_ANSI_STRING> source_ptr, u32 alloc_dest) {
-  auto* memory = runtime::GetCurrent().GetMemory();
+  auto* memory = kernel::GetCurrentState().GetMemory();
   const u32 count = source_ptr->length;
   const u32 length = count * 2;
   const u32 needed = length + 2;
@@ -349,22 +351,19 @@ u32 RtlImageNtHeader_entry(MappedVoid module) {
   return module.GetGuestAddress() + offset;
 }
 
-u32 RtlImageXexHeaderField_entry(GuestPtrT<filesystem::XEXHeader> xex_header, u32 field_dword) {
+u32 RtlImageXexHeaderField_entry(GuestPtrT<XEXHeader> xex_header, u32 field_dword) {
   u32 field_value = 0;
   u32 field = field_dword;
 
-  ModuleObject::GetOptHeader(runtime::GetCurrent().GetMemory(), xex_header,
-                             filesystem::XEXHeaderKey(field), &field_value);
+  ModuleObject::GetOptHeader(kernel::GetCurrentState().GetMemory(), xex_header, XEXHeaderKey(field),
+                             &field_value);
 
   return field_value;
 }
 
 /**
- * Critical section as laid out on the console, 28 bytes. The host RTL_CRITICAL_SECTION is 32
- * bytes, so it cannot replace the console one in place, and the console never calls
- * RtlDeleteCriticalSection, so host handles could not be freed. The struct is mapped
- * into guest memory, where it is opaque to the title. Titles can embed critical sections in
- * initialized form, so the initializers may never run.
+ * Critical section as laid out on the console, 28 bytes, in guest memory where it is opaque to the
+ * title. Titles can embed initialized critical sections, so the initializers may never run.
  *
  * header.type is 1 (EventSynchronizationObject, auto reset) and header.absolute holds the spin
  * count divided by 256.
@@ -435,7 +434,7 @@ u32 RtlInitializeCriticalSectionAndSpinCount_entry(GuestPtrT<X_RTL_CRITICAL_SECT
 }
 
 void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
-  u32 cur_thread = KernelThread::GetCurrentThread()->GetGuestObject();
+  u32 cur_thread = KernelThread::GetCallingThread()->GetGuestObject();
   u32 spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
@@ -462,7 +461,7 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 u32 RtlTryEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
-  u32 thread = KernelThread::GetCurrentThread()->GetGuestObject();
+  u32 thread = KernelThread::GetCallingThread()->GetGuestObject();
 
   if (TryAcquireLockCount(*cs)) {
     cs->owning_thread = thread;
@@ -478,7 +477,7 @@ u32 RtlTryEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 void RtlLeaveCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
-  REX_ASSERT(cs->owning_thread == KernelThread::GetCurrentThread()->GetGuestObject());
+  REX_ASSERT(cs->owning_thread == KernelThread::GetCallingThread()->GetGuestObject());
 
   REX_ASSERT(cs->recursion_count > 0);
   if (--cs->recursion_count != 0) {

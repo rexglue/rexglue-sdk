@@ -15,9 +15,10 @@
 #include <string>
 #include <vector>
 
-#include <rex/runtime.h>
+#include <rex/kernel/title_runtime.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -25,11 +26,11 @@ using rex::test::KernelFixture;
 namespace {
 
 u32 PutText(Caller& c, const std::string& text) {
-  return c.String(text);
+  return c.AllocString(text);
 }
 
 void Store8(Caller& c, u32 address, u8 value) {
-  *c.GetRuntime().GetMemory()->TranslateVirtual<u8*>(address) = value;
+  *StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<u8*>(address) = value;
 }
 
 std::string ReadText(Caller& c, u32 address) {

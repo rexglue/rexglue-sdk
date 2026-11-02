@@ -23,8 +23,8 @@
 
 using rex::test::Caller;
 using rex::test::CopyToGuest;
-using rex::test::Hex;
 using rex::test::KernelFixture;
+using rex::test::ParseHex;
 using rex::test::PutFilled;
 using rex::test::ReadBytes;
 using rex::test::ToHex;
@@ -234,10 +234,10 @@ const char* HashExport(std::string_view kind) {
 void RunMeasuredCase(Caller& c, const MeasuredCase& item) {
   INFO(item.name);
   const std::string_view kind = item.kind;
-  const std::vector<u8> first = Hex(item.first);
-  const std::vector<u8> second = Hex(item.second);
-  const std::vector<u8> third = Hex(item.third);
-  const std::vector<u8> key = Hex(item.key);
+  const std::vector<u8> first = ParseHex(item.first);
+  const std::vector<u8> second = ParseHex(item.second);
+  const std::vector<u8> third = ParseHex(item.third);
+  const std::vector<u8> key = ParseHex(item.key);
   u32 output = 0;
   if (kind == "sha" || kind == "sha256" || kind == "sha384" || kind == "sha512") {
     output = PutFilled(c, item.output_size);
@@ -253,7 +253,7 @@ void RunMeasuredCase(Caller& c, const MeasuredCase& item) {
     CHECK(c.Kernel("XeCryptHmacShaVerify",
                    {CopyToGuest(c, key), key.size(), CopyToGuest(c, first), first.size(),
                     CopyToGuest(c, second), second.size(), CopyToGuest(c, third), third.size(),
-                    CopyToGuest(c, Hex(item.compare)), item.compare_size}) == item.r3);
+                    CopyToGuest(c, ParseHex(item.compare)), item.compare_size}) == item.r3);
     return;
   } else if (kind == "rotsum") {
     output = PutFilled(c, item.output_size);
@@ -266,7 +266,7 @@ void RunMeasuredCase(Caller& c, const MeasuredCase& item) {
     output = PutFilled(c, item.output_size);
     c.Kernel("XeCryptDesParity", {CopyToGuest(c, first), first.size(), output});
   }
-  CHECK(ReadBytes(c, output, item.output_size) == Hex(item.output));
+  CHECK(ReadBytes(c, output, item.output_size) == ParseHex(item.output));
 }
 
 void CheckState(Caller& c, u32 state, const char* expected) {
@@ -414,7 +414,7 @@ REX_TEST_CASE("The cipher key states match the measured layouts", "[kernel][cryp
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 rc4_five = PutFilled(c, 0x200);
-    c.Kernel("XeCryptRc4Key", {rc4_five, CopyToGuest(c, Hex("0102030405")), 5});
+    c.Kernel("XeCryptRc4Key", {rc4_five, CopyToGuest(c, ParseHex("0102030405")), 5});
     CheckState(
         c, rc4_five,
         "010308c9151b2343f291cf595c6d1f9007b637f1e0ffec532799dc8ca3ceed80602e631aaad2de69eb00a84410"
@@ -429,7 +429,7 @@ REX_TEST_CASE("The cipher key states match the measured layouts", "[kernel][cryp
 
     const u32 rc4_sixteen = PutFilled(c, 0x200);
     c.Kernel("XeCryptRc4Key",
-             {rc4_sixteen, CopyToGuest(c, Hex("0102030405060708090a0b0c0d0e0f10")), 16});
+             {rc4_sixteen, CopyToGuest(c, ParseHex("0102030405060708090a0b0c0d0e0f10")), 16});
     CheckState(
         c, rc4_sixteen,
         "01032165554b2d9447bd6c8644bfa258fb7e2324535da89960516a29ab7d77d9a78027386367596b1b98c51ee3"
@@ -444,7 +444,7 @@ REX_TEST_CASE("The cipher key states match the measured layouts", "[kernel][cryp
 
     const u32 des3 = PutFilled(c, 0x200);
     c.Kernel("XeCryptDes3Key",
-             {des3, CopyToGuest(c, Hex("0123456789abcdef23456789abcdef01456789abcdef0123"))});
+             {des3, CopyToGuest(c, ParseHex("0123456789abcdef23456789abcdef01456789abcdef0123"))});
     CheckState(
         c, des3,
         "6464904042ce40ca1490985846898586c4b4488884050b849094e4388184814ed8a004f005cc0704a8f0281001"
@@ -458,7 +458,7 @@ REX_TEST_CASE("The cipher key states match the measured layouts", "[kernel][cryp
         "c048c824c102830b4c0430a80bc6c20b1c503c980c804745");
 
     const u32 aes = PutFilled(c, 0x200);
-    c.Kernel("XeCryptAesKey", {aes, CopyToGuest(c, Hex("000102030405060708090a0b0c0d0e0f"))});
+    c.Kernel("XeCryptAesKey", {aes, CopyToGuest(c, ParseHex("000102030405060708090a0b0c0d0e0f"))});
     CheckState(
         c, aes,
         "000102030405060708090a0b0c0d0e0fd6aa74fdd2af72fadaa678f1d6ab76feb692cf0b643dbdf1be9bc50068"

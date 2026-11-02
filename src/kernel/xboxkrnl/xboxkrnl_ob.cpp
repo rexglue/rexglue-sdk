@@ -12,31 +12,38 @@
 #include <variant>
 
 #include <rex/assert.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/path.h>
 #include <rex/logging/log.h>
-#include <rex/hook.h>
-#include <rex/runtime/thread_registry.h>
+#include <rex/string/text.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/thread_registry.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/kernel_string.h>
-#include <rex/runtime/event_object.h>
-#include <rex/runtime/object.h>
-#include <rex/runtime/semaphore_object.h>
-#include <rex/runtime/xthread.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/io.h>
+#include <rex/kernel/object/event_object.h>
+#include <rex/kernel/object/object.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_pin.h>
+#include <rex/kernel/object/object_table.h>
 #include "kernel/argument_check.h"
 #include "kernel/object_reference.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel {
 
-Result<X_HANDLE> OpenPrimaryHandle(runtime::IObjectTable& table,
-                                   const runtime::PinnedSlot& object) {
+Result<X_HANDLE> OpenPrimaryHandle(kernel::IObjectTable& table, const kernel::ObjectPin& object) {
   if (auto retained = table.RetainPrimary(object); !retained) {
     return Err<X_HANDLE>(retained.error());
   }
   return table.GetPrimaryHandle(object).value_or(0);
 }
 
-Result<u32> ReferencePrimary(runtime::IObjectTable& table, const runtime::PinnedSlot& object,
+Result<u32> ReferencePrimary(kernel::IObjectTable& table, const kernel::ObjectPin& object,
                              u32 object_ptr) {
   if (auto retained = table.RetainPrimary(object); !retained) {
     return Err<u32>(retained.error());
@@ -44,7 +51,7 @@ Result<u32> ReferencePrimary(runtime::IObjectTable& table, const runtime::Pinned
   return object_ptr;
 }
 
-Result<u32> ReferenceThread(runtime::IObjectTable& table, X_HANDLE handle, u32 object_ptr) {
+Result<u32> ReferenceThread(kernel::IObjectTable& table, X_HANDLE handle, u32 object_ptr) {
   if (auto retained = table.Retain(handle); !retained) {
     return Err<u32>(retained.error());
   }
@@ -54,29 +61,30 @@ Result<u32> ReferenceThread(runtime::IObjectTable& table, X_HANDLE handle, u32 o
 }  // namespace rex::kernel
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 /**
- * Opens an object by name.
+ * Opens a named object and returns a handle to it.
  *
- * @param obj_attributes_ptr The X_OBJECT_ATTRIBUTES whose name_ptr names the object.
+ * @param obj_attributes_ptr The object attributes holding the name.
  * @param object_type_ptr ExEventObjectType, ExSemaphoreObjectType or ExTimerObjectType.
- * @param unk Always 0.
+ * @param unk Unused.
  * @param handle_ptr Receives the handle.
- * @return The translated status of the open.
+ * @return The status.
  */
 u32 ObOpenObjectByName_entry(MappedVoid obj_attributes_ptr,
                              [[maybe_unused]] MappedVoid object_type_ptr, [[maybe_unused]] u32 unk,
                              MappedU32 handle_ptr) {
   REX_KERNEL_REQUIRE_NONNULL(obj_attributes_ptr);
 
-  auto obj_attributes = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
-      obj_attributes_ptr.GetGuestAddress());
+  auto obj_attributes =
+      kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
+          obj_attributes_ptr.GetGuestAddress());
   REX_ASSERT(obj_attributes->name_ptr != 0);
-  auto name = runtime::TranslateAnsiStringAddress(runtime::GetCurrent().GetMemory(),
-                                                  obj_attributes->name_ptr);
+  auto name = kernel::TranslateAnsiStringAddress(kernel::GetCurrentState().GetMemory(),
+                                                 obj_attributes->name_ptr);
 
-  auto opened = runtime::GetCurrent().GetObjectTable().OpenByName(name);
+  auto opened = kernel::GetCurrent().GetObjectTable().OpenByName(name);
   if (opened) {
     *handle_ptr = *opened;
   }
@@ -85,7 +93,7 @@ u32 ObOpenObjectByName_entry(MappedVoid obj_attributes_ptr,
 }
 
 u32 ObOpenObjectByPointer_entry(MappedVoid object_ptr, MappedU32 out_handle_ptr) {
-  auto& table = runtime::GetCurrent().GetObjectTable();
+  auto& table = kernel::GetCurrent().GetObjectTable();
   const X_HANDLE handle = table.ResolveHandle(object_ptr.GetGuestAddress(), -1).value_or(0);
   auto object = table.Get(handle);
   if (!object) {
@@ -101,12 +109,12 @@ u32 ObOpenObjectByPointer_entry(MappedVoid object_ptr, MappedU32 out_handle_ptr)
 }
 
 u32 ObLookupThreadByThreadId_entry(u32 thread_id, MappedU32 out_object_ptr) {
-  auto thread = runtime::GetCurrent().GetThreadRegistry().Find(thread_id);
+  auto thread = kernel::GetCurrent().GetThreadRegistry().Find(thread_id);
   if (!thread) {
     return X_STATUS_NOT_FOUND;
   }
 
-  auto referenced = ReferenceThread(runtime::GetCurrent().GetObjectTable(), thread->GetHandle(),
+  auto referenced = ReferenceThread(kernel::GetCurrent().GetObjectTable(), thread->GetHandle(),
                                     thread->GetGuestObject());
   if (!referenced) {
     return ToXStatus(referenced);
@@ -121,35 +129,35 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
                "handle={:#x} type={:#x}",
                static_cast<u32>(handle), static_cast<u32>(object_type_ptr));
 
-  auto object = runtime::GetCurrent().GetObjectTable().Get(handle);
+  auto object = kernel::GetCurrent().GetObjectTable().Get(handle);
   if (!object) {
     return X_STATUS_INVALID_HANDLE;
   }
 
   u32 native_ptr = object.GetGuestAddress();
-  if (object.GetKind() == ObjectKind::kThread) {
-    auto thread = runtime::GetCurrent().GetThreadRegistry().Find(
+  if (object.GetType() == ObjectType::kThread) {
+    auto thread = kernel::GetCurrent().GetThreadRegistry().Find(
         std::get<ThreadRef>(object.GetData()).thread_id);
     native_ptr = thread ? thread->GetGuestObject() : 0;
   }
 
   if (object_type_ptr) {
-    u32 globals_base = runtime::GetCurrent().GetKernelGlobals();
+    u32 globals_base = kernel::GetCurrentState().GetKernelGlobals();
     u32 expected_type = 0;
-    switch (object.GetKind()) {
-      case ObjectKind::kThread:
+    switch (object.GetType()) {
+      case ObjectType::kThread:
         expected_type = globals_base + offsetof(KernelGuestGlobals, ExThreadObjectType);
         break;
-      case ObjectKind::kEvent:
+      case ObjectType::kEvent:
         expected_type = globals_base + offsetof(KernelGuestGlobals, ExEventObjectType);
         break;
-      case ObjectKind::kMutant:
+      case ObjectType::kMutant:
         expected_type = globals_base + offsetof(KernelGuestGlobals, ExMutantObjectType);
         break;
-      case ObjectKind::kSemaphore:
+      case ObjectType::kSemaphore:
         expected_type = globals_base + offsetof(KernelGuestGlobals, ExSemaphoreObjectType);
         break;
-      case ObjectKind::kTimer:
+      case ObjectType::kTimer:
         expected_type = globals_base + offsetof(KernelGuestGlobals, ExTimerObjectType);
         break;
       default:
@@ -160,7 +168,7 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
     }
   }
 
-  auto referenced = ReferencePrimary(runtime::GetCurrent().GetObjectTable(), object, native_ptr);
+  auto referenced = ReferencePrimary(kernel::GetCurrent().GetObjectTable(), object, native_ptr);
   if (!referenced) {
     return ToXStatus(referenced);
   }
@@ -177,7 +185,7 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
 u32 ObReferenceObjectByName_entry(MappedString name, [[maybe_unused]] u32 attributes,
                                   u32 object_type_ptr, [[maybe_unused]] MappedVoid parse_context,
                                   MappedU32 out_object_ptr) {
-  auto opened = runtime::GetCurrent().GetObjectTable().OpenByName(name.GetValue());
+  auto opened = kernel::GetCurrent().GetObjectTable().OpenByName(name.GetValue());
   if (opened) {
     return ObReferenceObjectByHandle_entry(*opened, object_type_ptr, out_object_ptr);
   }
@@ -190,7 +198,7 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
                "ObDereferenceObject "
                "ptr={:#x}",
                static_cast<u32>(native_ptr));
-  auto& table = runtime::GetCurrent().GetObjectTable();
+  auto& table = kernel::GetCurrent().GetObjectTable();
   auto object = table.Get(table.ResolveHandle(native_ptr, -1).value_or(0));
   if (object) {
     if (auto released = table.ReleasePrimary(object); !released) {
@@ -204,16 +212,16 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
 
 u32 ObCreateSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr,
                                GuestPtrT<X_ANSI_STRING> target_ptr) {
-  auto path = rex::utf8_canonicalize_guest_path(
-      runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), path_ptr));
-  auto target = rex::utf8_canonicalize_guest_path(
-      runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), target_ptr));
+  auto path = rex::filesystem::utf8_canonicalize_guest_path(
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), path_ptr));
+  auto target = rex::filesystem::utf8_canonicalize_guest_path(
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), target_ptr));
 
-  if (rex::utf8_starts_with(path, u8"\\??\\")) {
+  if (rex::string::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);
   }
 
-  if (auto linked = runtime::GetCurrent().GetFileSystem()->Link(path, target);
+  if (auto linked = kernel::GetCurrentState().GetFileSystem()->Link(path, target);
       !linked && filesystem::CodeOf(linked.error()) != filesystem::FileSystemError::kExists) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -222,12 +230,12 @@ u32 ObCreateSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr,
 }
 
 u32 ObDeleteSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr) {
-  auto path = rex::utf8_canonicalize_guest_path(
-      runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), path_ptr));
-  if (rex::utf8_starts_with(path, u8"\\??\\")) {
+  auto path = rex::filesystem::utf8_canonicalize_guest_path(
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), path_ptr));
+  if (rex::string::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);
   }
-  if (!runtime::GetCurrent().GetFileSystem()->Unlink(path)) {
+  if (!kernel::GetCurrentState().GetFileSystem()->Unlink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -235,15 +243,15 @@ u32 ObDeleteSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr) {
 }
 
 /**
- * Creates a new handle to the same object.
+ * Duplicates a handle. The handle -2 is the current thread pseudo handle.
  *
- * @param handle The source handle, -2 is the current thread pseudo handle.
- * @param new_handle_ptr Receives the new handle when not null.
- * @param options 1 closes the source handle (DUPLICATE_CLOSE_SOURCE).
- * @return X_STATUS_SUCCESS or an error status.
+ * @param handle The source handle.
+ * @param new_handle_ptr Receives the new handle.
+ * @param options 1 closes the source handle.
+ * @return The status.
  */
 u32 NtDuplicateObject_entry(u32 handle, MappedU32 new_handle_ptr, u32 options) {
-  auto& table = runtime::GetCurrent().GetObjectTable();
+  auto& table = kernel::GetCurrent().GetObjectTable();
   auto duplicated = table.Duplicate(handle);
 
   if (new_handle_ptr) {
@@ -265,7 +273,7 @@ u32 NtClose_entry(u32 handle) {
                "NtClose "
                "handle={:#x}",
                static_cast<u32>(handle));
-  auto result = ToXStatus(runtime::GetCurrent().GetObjectTable().Close(handle));
+  auto result = ToXStatus(kernel::GetCurrent().GetObjectTable().Close(handle));
   REXLOG_TRACE(kernel,
                "NtClose -> "
                "{:#x}",
@@ -276,7 +284,7 @@ u32 NtClose_entry(u32 handle) {
 u32 NtQueryEvent_entry(u32 handle, MappedU32 out_event_info_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = runtime::GetCurrent().GetObjectTable().Get<EventObject>(handle);
+  auto ev = kernel::GetCurrent().GetObjectTable().Get<EventObject>(handle);
   if (ev) {
     u32 type_tmp, state_tmp;
     ev->Query(&type_tmp, &state_tmp);

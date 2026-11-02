@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include <rex/runtime.h>
+#include <rex/kernel/title_runtime.h>
 
 #include "kernel_fixture.h"
 

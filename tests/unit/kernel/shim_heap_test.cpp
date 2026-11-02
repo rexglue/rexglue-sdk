@@ -11,10 +11,11 @@
 
 #include "rex_test.h"
 
-#include <rex/kernel/shim/heap.h>
-#include <rex/runtime.h>
+#include "kernel/shim/heap.h"
+#include <rex/kernel/title_runtime.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 using rex::kernel::shim::GuestHeap;
 
@@ -27,7 +28,7 @@ constexpr u32 kHeapBytes = 4 * 1024 * 1024;
 REX_TEST_CASE("A heap rebuilt over the same memory reuses the range it released",
               "[kernel][shim_heap]") {
   rex::test::KernelFixture fixture;
-  rex::runtime::Memory* memory = fixture.GetRuntime().GetMemory();
+  rex::kernel::Memory* memory = StateOf(fixture.GetRuntime()).GetMemory();
   GuestHeap heap;
   REQUIRE(heap.Init(kHeapBytes, memory));
   const u32 first = heap.Alloc(16);
@@ -41,13 +42,13 @@ REX_TEST_CASE("A heap rebuilt across 2 runtimes holds no stale pointers", "[kern
   u32 first = 0;
   {
     rex::test::KernelFixture fixture;
-    REQUIRE(heap.Init(kHeapBytes, fixture.GetRuntime().GetMemory()));
+    REQUIRE(heap.Init(kHeapBytes, StateOf(fixture.GetRuntime()).GetMemory()));
     first = heap.Alloc(16);
     REQUIRE(first != 0);
     heap.Shutdown();
   }
   rex::test::KernelFixture fixture;
-  REQUIRE(heap.Init(kHeapBytes, fixture.GetRuntime().GetMemory()));
+  REQUIRE(heap.Init(kHeapBytes, StateOf(fixture.GetRuntime()).GetMemory()));
   CHECK(heap.Alloc(16) == first);
   heap.Shutdown();
 }
@@ -55,7 +56,7 @@ REX_TEST_CASE("A heap rebuilt across 2 runtimes holds no stale pointers", "[kern
 REX_TEST_CASE("A block keeps its contents through Realloc and reports its size",
               "[kernel][shim_heap]") {
   rex::test::KernelFixture fixture;
-  rex::runtime::Memory* memory = fixture.GetRuntime().GetMemory();
+  rex::kernel::Memory* memory = StateOf(fixture.GetRuntime()).GetMemory();
   GuestHeap heap;
   REQUIRE(heap.Init(kHeapBytes, memory));
   const u32 block = heap.Alloc(32, true);

@@ -23,8 +23,8 @@
 
 using rex::test::Caller;
 using rex::test::CopyToGuest;
-using rex::test::Hex;
 using rex::test::KernelFixture;
+using rex::test::ParseHex;
 using rex::test::PutFilled;
 using rex::test::ReadBytes;
 using rex::test::ToHex;
@@ -251,12 +251,12 @@ REX_TEST_CASE("XeCryptMd5 and XeCryptHmacMd5 match the measured results", "[kern
   fixture.RunOnGuestThread([](Caller& c) {
     for (const MeasuredCase& item : kMeasuredCases) {
       INFO(item.name);
-      const std::vector<u8> key = Hex(item.key);
-      const std::vector<u8> first = Hex(item.first);
+      const std::vector<u8> key = ParseHex(item.key);
+      const std::vector<u8> first = ParseHex(item.first);
       const std::string_view rest = item.rest;
       const size_t split = rest.find('|');
-      const std::vector<u8> second = Hex(rest.substr(0, split));
-      const std::vector<u8> third = Hex(rest.substr(split + 1));
+      const std::vector<u8> second = ParseHex(rest.substr(0, split));
+      const std::vector<u8> third = ParseHex(rest.substr(split + 1));
       const u32 output = PutFilled(c, 16);
       if (std::string_view(item.name).starts_with("hmac")) {
         c.Kernel("XeCryptHmacMd5", {CopyToGuest(c, key), key.size(), CopyToGuest(c, first),
@@ -280,8 +280,8 @@ REX_TEST_CASE("XeCryptHmacMd5Final matches the measured RFC 2202 results", "[ker
         continue;
       }
       INFO(item.name);
-      const std::vector<u8> key = Hex(item.key);
-      const std::vector<u8> data = Hex(item.first);
+      const std::vector<u8> key = ParseHex(item.key);
+      const std::vector<u8> data = ParseHex(item.first);
       const u32 state = PutFilled(c, 0x200);
       c.Kernel("XeCryptHmacMd5Init", {state, CopyToGuest(c, key), key.size()});
       for (const u8 byte : data) {

@@ -15,10 +15,11 @@
 #include <cstring>
 #include <string>
 
-#include <rex/runtime.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/heap.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -27,7 +28,7 @@ namespace {
 constexpr u32 kBufferBytes = 256;
 
 std::string ReadBuffer(Caller& c, u32 address) {
-  return std::string(c.GetRuntime().GetMemory()->TranslateVirtual<const char*>(address));
+  return std::string(StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<const char*>(address));
 }
 
 constexpr u64 kD1 = 0x11223344;
@@ -56,7 +57,7 @@ constexpr u64 kU10 = 0x3C4D5E6F78899AAB;
 template <typename... Args>
 std::string Print(Caller& c, const char* format, Args... args) {
   const u32 buffer = c.Alloc(kBufferBytes);
-  c.Kernel("_snprintf", {buffer, kBufferBytes, c.String(format), static_cast<u64>(args)...});
+  c.Kernel("_snprintf", {buffer, kBufferBytes, c.AllocString(format), static_cast<u64>(args)...});
   return ReadBuffer(c, buffer);
 }
 }  // namespace
@@ -65,7 +66,7 @@ REX_TEST_CASE("varargs: the 8th variadic argument reads the 9th slot", "[kernel]
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 buffer = c.Alloc(kBufferBytes);
-    const u32 format = c.String("%d %d %d %d %d %d %d %d");
+    const u32 format = c.AllocString("%d %d %d %d %d %d %d %d");
     c.Kernel("sprintf", {buffer, format, 1, 2, 3, 4, 5, 6, 7, 8});
     CHECK(ReadBuffer(c, buffer) == "1 2 3 4 5 6 7 8");
   });
@@ -75,7 +76,7 @@ REX_TEST_CASE("varargs: a 64 bit value in the 9th slot keeps its high word", "[k
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 buffer = c.Alloc(kBufferBytes);
-    const u32 format = c.String("%d %d %d %d %d %d %I64d");
+    const u32 format = c.AllocString("%d %d %d %d %d %d %I64d");
     c.Kernel("sprintf", {buffer, format, 1, 2, 3, 4, 5, 6, 0x1122334455667788});
     CHECK(ReadBuffer(c, buffer) == "1 2 3 4 5 6 1234605616436508552");
   });

@@ -13,13 +13,14 @@
 
 #include <vector>
 
-#include <rex/runtime/workspace_heap.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/guest_allocator.h>
+#include <rex/kernel/heap.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 using rex::u32;
-using rex::runtime::WorkspaceHeap;
+using rex::kernel::WorkspaceHeap;
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
@@ -66,8 +67,8 @@ REX_TEST_CASE(
     "[kernel][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto& memory = *c.GetRuntime().GetMemory();
-    CHECK(c.GetRuntime().GetWorkspace().GetSize() == 0x60000);
+    auto& memory = *StateOf(c.GetRuntime()).GetMemory();
+    CHECK(StateOf(c.GetRuntime()).GetWorkspace().GetSize() == 0x60000);
     const u32 used = memory.GetTitlePages();
     {
       auto second = WorkspaceHeap::Create(memory, 0x40000);
@@ -153,7 +154,8 @@ REX_TEST_CASE("An enumerator on a full workspace returns 8", "[kernel][workspace
     }
     const u32 object = c.Load32(address);
     c.Kernel("ObDereferenceObject", {object});
-    CHECK(object >= c.GetRuntime().GetMemory()->LookupHeapByType(false, 4096)->GetHeapBase());
+    CHECK(object >=
+          StateOf(c.GetRuntime()).GetMemory()->LookupHeapByType(false, 4096)->GetHeapBase());
     CHECK(c.Kernel("NtClose", {handle}) == 0);
     const std::vector<u32> again = Fill(c, 0x1000);
     CHECK(again.size() >= 16);

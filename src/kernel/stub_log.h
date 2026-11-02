@@ -1,6 +1,6 @@
 /**
  * @file        kernel/stub_log.h
- * @brief       Private macro that logs an unimplemented kernel export
+ * @brief       Macro that logs an unimplemented kernel export
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,9 +12,10 @@
 #pragma once
 
 #include <rex/logging/log.h>
+#include "kernel/categories.h"
 
 /**
- * Logs that an entry point is partly or fully unimplemented.
+ * Logs that an entry point is unimplemented.
  *
  * @param FMT A string literal format.
  * @param ... The format arguments.

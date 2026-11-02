@@ -1,14 +1,14 @@
 #include "kernel/xboxkrnl/loaded_command_line.h"
 
 #include <rex/math.h>
-#include <rex/ppc/function.h>
-#include <rex/string.h>
+#include <rex/ppc/call.h>
+#include <rex/filesystem/path.h>
 
-namespace rex::runtime {
+namespace rex::kernel {
 
 std::string LoadedCommandLine(std::string_view image_path, std::string_view arguments) {
   std::string line(1, '"');
-  line += rex::utf8_find_name_from_guest_path(image_path);
+  line += rex::filesystem::utf8_find_name_from_guest_path(image_path);
   line += '"';
   if (!arguments.empty()) {
     line += ' ';
@@ -22,4 +22,4 @@ u32 LoadedCommandLineCapacity(std::string_view arguments) {
   return rex::RoundUpPow2(static_cast<u32>(longest), 1024u);
 }
 
-}  // namespace rex::runtime
+}  // namespace rex::kernel

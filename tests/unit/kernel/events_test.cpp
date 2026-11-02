@@ -10,20 +10,20 @@
 
 #include "rex_test.h"
 
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/types/status.h>
 
 #include "kernel_fixture.h"
 
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
 namespace {
-constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
-constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
+constexpr u32 kInvalidHandle = rex::kernel::X_STATUS_INVALID_HANDLE;
+constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
 u32 Poll(Caller& c) {
-  return c.Quad(0);
+  return c.AllocQuad(0);
 }
 }  // namespace
 

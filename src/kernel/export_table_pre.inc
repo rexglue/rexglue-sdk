@@ -19,7 +19,7 @@
  * @param module The module that owns the export.
  * @param ordinal The number a title import uses to find the export.
  * @param name The export name, passed as text and as the __imp__ symbol.
- * @param type The export kind, kFunction or kVariable.
+ * @param type The export type, kFunction or kVariable.
  *
  * @code
  * REX_EXPORT(xam, 0x00000001, NetDll_WSAStartup, kFunction)
@@ -27,4 +27,11 @@
  */
 #define REX_EXPORT(module, ordinal, name, type) REX_EXPORT_ROW_##type(ordinal, #name, __imp__##name)
 
+/**
+ * Names the export flag constant for a flag suffix.
+ *
+ * @code
+ * REX_EXPORT_FLAG(Variable)
+ * @endcode
+ */
 #define REX_EXPORT_FLAG(t) kXEKernelExportFlag##t

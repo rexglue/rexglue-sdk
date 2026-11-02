@@ -10,28 +10,29 @@
  */
 
 #include <rex/hash.h>
-#include <rex/filesystem.h>
+#include <rex/filesystem/file_stat.h>
 #include <rex/logging/log.h>
+#include "kernel/categories.h"
 #include <rex/memory.h>
-#include <rex/hook.h>
-#include <rex/runtime/object_table.h>
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/object/object_pin.h>
 #include <rex/types.h>
-#include <rex/runtime/info/file.h>
-#include <rex/runtime/info/volume.h>
-#include <rex/runtime.h>
-#include <rex/runtime/kernel_string.h>
-#include <rex/runtime/event_object.h>
-#include <rex/runtime/file_object.h>
-#include <rex/runtime/io_completion_object.h>
-#include <rex/runtime/symbolic_link_object.h>
-#include <rex/runtime/xthread.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/types/io.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/object/io_completion_object.h>
+#include <rex/kernel/object/file_object.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_table.h>
 #include "kernel/object_lookup.h"
 #include "kernel/path_check.h"
 #include "kernel/stub_log.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 u32 GetQueryFileMinimumLength(u32 info_class) {
   switch (info_class) {
@@ -236,24 +237,24 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
     case XFileRenameInformation: {
       auto info = info_ptr.As<X_FILE_RENAME_INFORMATION*>();
       auto target_path =
-          runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), &info->ansi_string);
+          kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), &info->ansi_string);
       if (!IsValidPath(target_path, PathUse::kNewName)) {
         return X_STATUS_OBJECT_NAME_INVALID;
       }
 
-      auto target_file_path = rex::to_path(target_path);
+      auto target_file_path = rex::string::to_path(target_path);
       if (!target_file_path.has_filename()) {
         return X_STATUS_INVALID_PARAMETER;
       }
 
       Pinned<FileObject> root;
       if (info->root_dir_handle) {
-        root = runtime::GetCurrent().GetObjectTable().Get<FileObject>(info->root_dir_handle);
+        root = kernel::GetCurrent().GetObjectTable().Get<FileObject>(info->root_dir_handle);
         if (!root) {
           return X_STATUS_INVALID_HANDLE;
         }
       }
-      result = file->Rename(*runtime::GetCurrent().GetFileSystem(), target_path,
+      result = file->Rename(*kernel::GetCurrentState().GetFileSystem(), target_path,
                             info->replace_existing != 0, root ? &*root : nullptr);
       out_length = sizeof(*info);
       break;
@@ -279,11 +280,11 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
       auto handle = static_cast<u32>(info->handle);
       auto key = static_cast<u32>(info->key);
       out_length = sizeof(*info);
-      auto port = runtime::GetCurrent().GetObjectTable().Get<IOCompletionObject>(handle);
+      auto port = kernel::GetCurrent().GetObjectTable().Get<IOCompletionObject>(handle);
       if (!port) {
         result = X_STATUS_INVALID_HANDLE;
       } else {
-        file->RegisterIOCompletionPort(runtime::GetCurrent(), key, port.GetHandle());
+        file->RegisterIOCompletionPort(kernel::GetCurrent(), key, port.GetHandle());
       }
       break;
     }

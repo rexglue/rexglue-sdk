@@ -10,8 +10,8 @@
 
 #include "rex_test.h"
 
-#include <rex/runtime.h>
-#include <rex/runtime/notifier.h>
+#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/title_runtime.h>
 
 #include "kernel_fixture.h"
 
@@ -30,7 +30,7 @@ REX_TEST_CASE("notifications: listener receives a matching broadcast", "[kernel]
     const u32 param_ptr = c.Alloc(4);
     while (c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1) {}
     c.GetRuntime().GetNotifier().BroadcastNotification(0x11, 5);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {listener, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {listener, 1, 0, c.AllocQuad(-50000000)}) == 0);
     CHECK(c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1);
     CHECK(c.Load32(id_ptr) == 0x11);
     CHECK(c.Load32(param_ptr) == 5);

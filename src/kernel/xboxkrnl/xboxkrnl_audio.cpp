@@ -9,18 +9,22 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/runtime/xthread.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/object/kernel_thread.h>
 #include <rex/logging/log.h>
-#include <rex/hook.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/error.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/status.h>
 
-#include "runtime/apu.h"
+#include "kernel/apu.h"
+#include <rex/kernel/thread_state.h>
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime;
+using namespace rex::kernel;
 
 u32 XAudioGetSpeakerConfig_entry(MappedU32 config_ptr) {
   *config_ptr = 0x00010001;
@@ -30,7 +34,7 @@ u32 XAudioGetSpeakerConfig_entry(MappedU32 config_ptr) {
 u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(MappedVoid driver_ptr, MappedU32 out_ptr) {
   REX_ASSERT((driver_ptr.GetGuestAddress() & 0xFFFF0000) == 0x41550000);
 
-  rex::runtime::KernelThread::Sleep(std::chrono::microseconds(1));
+  rex::kernel::KernelThread::SleepFor(std::chrono::microseconds(1));
 
   *out_ptr = 0;
   return X_ERROR_SUCCESS;
@@ -61,13 +65,13 @@ u32 XAudioRegisterRenderDriverClient_entry(MappedU32 callback_ptr, MappedU32 dri
   }
   u32 callback_arg = callback_ptr[1];
 
-  runtime::APU* apu = runtime::GetCurrent().GetAPU();
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
   if (!apu) {
     return X_STATUS_UNSUCCESSFUL;
   }
   auto index = apu->RegisterClient(callback, callback_arg);
   if (!index) {
-    return runtime::ToXStatus(index.error());
+    return kernel::ToXStatus(index.error());
   }
   *driver_ptr = 0x41550000 | (*index & 0x0000FFFF);
   return X_ERROR_SUCCESS;
@@ -76,7 +80,7 @@ u32 XAudioRegisterRenderDriverClient_entry(MappedU32 callback_ptr, MappedU32 dri
 u32 XAudioUnregisterRenderDriverClient_entry(MappedVoid driver_ptr) {
   REX_ASSERT((driver_ptr.GetGuestAddress() & 0xFFFF0000) == 0x41550000);
 
-  runtime::APU* apu = runtime::GetCurrent().GetAPU();
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
   if (!apu) {
     return X_ERROR_SUCCESS;
   }
@@ -87,14 +91,13 @@ u32 XAudioUnregisterRenderDriverClient_entry(MappedVoid driver_ptr) {
 u32 XAudioSubmitRenderDriverFrame_entry(MappedVoid driver_ptr, MappedVoid samples_ptr) {
   REX_ASSERT((driver_ptr.GetGuestAddress() & 0xFFFF0000) == 0x41550000);
 
-  static u32 submit_krnl_count = 0;
-  if (submit_krnl_count < 10) {
+  if (kernel::GetCurrentState().audio_submit_logs < 10) {
     REXLOG_DEBUG(kernel, "XAudioSubmitRenderDriverFrame: driver={:08X} samples={:08X}",
                  driver_ptr.GetGuestAddress(), samples_ptr.GetGuestAddress());
-    submit_krnl_count++;
+    ++kernel::GetCurrentState().audio_submit_logs;
   }
 
-  runtime::APU* apu = runtime::GetCurrent().GetAPU();
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
   if (!apu) {
     return X_ERROR_SUCCESS;
   }

@@ -19,8 +19,8 @@
 #include <xlocale.h>
 #endif
 
-#include <rex/hook.h>
-#include <rex/kernel/shim/function.h>
+#include <rex/ppc/hook.h>
+#include "kernel/shim/function.h"
 
 namespace rex::kernel::shim {
 

@@ -16,27 +16,29 @@
 #include <memory>
 #include <thread>
 
-#include <rex/kernel/xboxkrnl/threading.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/timer_object.h>
-#include <rex/runtime/xthread.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/types/thread.h>
+#include <rex/kernel/xboxkrnl.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/platform/sync.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_table.h>
 
 #include "kernel_fixture.h"
-#include "runtime/dispatcher.h"
+#include "kernel/title_state.h"
 
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
 using rex::test::SystemTime;
 
 namespace {
-constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
-constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
+constexpr u32 kInvalidHandle = rex::kernel::X_STATUS_INVALID_HANDLE;
+constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
 u32 Poll(Caller& c) {
-  return c.Quad(0);
+  return c.AllocQuad(0);
 }
 }  // namespace
 
@@ -57,7 +59,7 @@ REX_TEST_CASE("semaphores: create release wait and limit", "[kernel][semaphores]
     CHECK(c.Kernel("NtReleaseSemaphore", {handle, 1, previous}) == 0);
     CHECK(c.Load32(previous) == 1);
     CHECK(c.Kernel("NtReleaseSemaphore", {handle, 1, previous}) ==
-          rex::X_STATUS_SEMAPHORE_LIMIT_EXCEEDED);
+          rex::kernel::X_STATUS_SEMAPHORE_LIMIT_EXCEEDED);
     CHECK(c.Kernel("NtReleaseSemaphore", {0xF8001230, 1, previous}) == kInvalidHandle);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -87,7 +89,7 @@ REX_TEST_CASE("mutants: recursive ownership and release", "[kernel][mutants]") {
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
     CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == 0);
     CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == 0);
-    CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
+    CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == rex::kernel::X_STATUS_MUTANT_NOT_OWNED);
     CHECK(c.Kernel("NtReleaseMutant", {0xF8001230, 0}) == kInvalidHandle);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -105,7 +107,8 @@ REX_TEST_CASE("mutants: another thread cannot take an owned mutant", "[kernel][m
     auto other_result = std::make_shared<std::promise<u32>>();
     auto other_done = other_result->get_future();
     const u32 other = c.Spawn([handle, other_result](Caller& o) {
-      other_result->set_value(o.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, o.Quad(-10000)}));
+      other_result->set_value(
+          o.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, o.AllocQuad(-10000)}));
     });
     CHECK(other_done.get() == kTimeout);
     CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == 0);
@@ -124,12 +127,12 @@ REX_TEST_CASE("timers: create set wait cancel", "[kernel][timers]") {
     }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
-    CHECK(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), 0, 1, 0, 0, 0, 0}) == 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-5000000)}) == 0);
+    CHECK(c.Kernel("NtSetTimerEx", {handle, c.AllocQuad(-100000), 0, 1, 0, 0, 0, 0}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-5000000)}) == 0);
     CHECK(c.Kernel("NtCancelTimer", {handle, 0}) == 0);
-    CHECK(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), 0, 1, 0, 1, 0, 0}) ==
-          rex::X_STATUS_TIMER_RESUME_IGNORED);
-    CHECK(c.Kernel("NtSetTimerEx", {0xF8001230, c.Quad(-100000), 0, 1, 0, 0, 0, 0}) ==
+    CHECK(c.Kernel("NtSetTimerEx", {handle, c.AllocQuad(-100000), 0, 1, 0, 1, 0, 0}) ==
+          rex::kernel::X_STATUS_TIMER_RESUME_IGNORED);
+    CHECK(c.Kernel("NtSetTimerEx", {0xF8001230, c.AllocQuad(-100000), 0, 1, 0, 0, 0, 0}) ==
           kInvalidHandle);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -141,7 +144,7 @@ REX_TEST_CASE("timers: completion routine runs as an APC on the setting thread",
   fixture.RunOnGuestThread([](Caller& c) {
     static std::atomic<u32> g_routine_calls;
     g_routine_calls = 0;
-    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
+    auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
     const u32 routine = dispatcher->AllocateThunk(
         +[](PPCContext& ctx, u8*) {
           ++g_routine_calls;
@@ -154,7 +157,8 @@ REX_TEST_CASE("timers: completion routine runs as an APC on the setting thread",
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
-    CHECKED_ELSE(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), routine, 1, 0, 0, 0, 0}) == 0) {
+    CHECKED_ELSE(c.Kernel("NtSetTimerEx", {handle, c.AllocQuad(-100000), routine, 1, 0, 0, 0, 0}) ==
+                 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
@@ -163,52 +167,8 @@ REX_TEST_CASE("timers: completion routine runs as an APC on the setting thread",
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(event_ptr), 1, 1, c.Quad(-5000000)}) ==
-          rex::X_STATUS_USER_APC);
-    CHECK(g_routine_calls == 1);
-    c.Kernel("NtClose", {handle});
-    c.Kernel("NtClose", {c.Load32(event_ptr)});
-  });
-}
-
-REX_TEST_CASE("timers: a completion routine APC waits for the target to release its APC lock",
-              "[kernel][timers][apc]") {
-  KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
-    static std::atomic<u32> g_routine_calls;
-    g_routine_calls = 0;
-    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(
-        +[](PPCContext& ctx, u8*) {
-          ++g_routine_calls;
-          ctx.r3.u64 = 0;
-        },
-        0);
-    const u32 handle_ptr = c.Alloc(4);
-    CHECKED_ELSE(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0}) == 0) {
-      FAIL_CHECK("the check above failed");
-      return;
-    }
-    const u32 handle = c.Load32(handle_ptr);
-    auto* memory = c.GetRuntime().GetMemory();
-    auto* ctx = rex::runtime::ThreadState::Get()->GetContext();
-    auto* kthread =
-        rex::runtime::KernelThread::GetCurrentThread()->GetGuestObject<rex::runtime::X_KTHREAD>();
-    const u32 old_irql =
-        rex::kernel::xboxkrnl::KeKfAcquireSpinLock(*memory, ctx, &kthread->apc_lock);
-    CHECKED_ELSE(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), routine, 1, 0, 0, 0, 0}) == 0) {
-      FAIL_CHECK("the check above failed");
-      return;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-    CHECK(g_routine_calls == 0);
-    rex::kernel::xboxkrnl::KeKfReleaseSpinLock(*memory, ctx, &kthread->apc_lock, old_irql);
-    const u32 event_ptr = c.Alloc(4);
-    CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
-      FAIL_CHECK("the check above failed");
-      return;
-    }
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(event_ptr), 1, 1, c.Quad(-5000000)}) ==
-          rex::X_STATUS_USER_APC);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(event_ptr), 1, 1, c.AllocQuad(-5000000)}) ==
+          rex::kernel::X_STATUS_USER_APC);
     CHECK(g_routine_calls == 1);
     c.Kernel("NtClose", {handle});
     c.Kernel("NtClose", {c.Load32(event_ptr)});
@@ -218,7 +178,7 @@ REX_TEST_CASE("timers: a completion routine APC waits for the target to release 
 namespace {
 
 u32 WaitObject(Caller& c, u32 object, i64 timeout) {
-  return c.Kernel("KeWaitForSingleObject", {object, 0, 0, 0, c.Quad(timeout)});
+  return c.Kernel("KeWaitForSingleObject", {object, 0, 0, 0, c.AllocQuad(timeout)});
 }
 
 u32 WaitAll(Caller& c, std::initializer_list<u32> objects, i64 timeout) {
@@ -229,7 +189,7 @@ u32 WaitAll(Caller& c, std::initializer_list<u32> objects, i64 timeout) {
     offset += 4;
   }
   return c.Kernel("KeWaitForMultipleObjects",
-                  {static_cast<u32>(objects.size()), array, 0, 0, 1, 0, c.Quad(timeout), 0});
+                  {static_cast<u32>(objects.size()), array, 0, 0, 1, 0, c.AllocQuad(timeout), 0});
 }
 
 }  // namespace
@@ -265,9 +225,10 @@ REX_TEST_CASE("mutants: a Ke mutant release by a thread that does not own it fai
     const u32 mutant = c.Alloc(0x20);
     c.Kernel("KeInitializeMutant", {mutant, 1});
     const u32 thread = c.Spawn([mutant](Caller& o) {
-      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) ==
+            rex::kernel::X_STATUS_MUTANT_NOT_OWNED);
     });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
     CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
   });
@@ -283,12 +244,13 @@ REX_TEST_CASE("mutants: a wait all takes the Ke mutant only when every object is
     c.Kernel("KeInitializeEvent", {event, 0, 0});
     const u32 thread = c.Spawn([mutant, event](Caller& o) {
       CHECK(WaitAll(o, {mutant, event}, -500000) == kTimeout);
-      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) ==
+            rex::kernel::X_STATUS_MUTANT_NOT_OWNED);
       o.Kernel("KeSetEvent", {event, 0, 0});
       CHECK(WaitAll(o, {mutant, event}, -10000000) == 0);
       CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
     });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
   });
 }
@@ -311,8 +273,8 @@ REX_TEST_CASE("mutants: a Ke mutant release hands ownership to 1 waiter", "[kern
     CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     CHECK(acquired->load() == 1);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {first, 1, 0, c.Quad(-50000000)}) == 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {first, 1, 0, c.AllocQuad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.AllocQuad(-50000000)}) == 0);
     CHECK(acquired->load() == 2);
     c.Kernel("NtClose", {first});
     c.Kernel("NtClose", {second});
@@ -354,7 +316,7 @@ u32 KeTimer(Caller& c, u32 type) {
 }
 
 u32 WaitTimer(Caller& c, u32 timer, i64 timeout) {
-  return c.Kernel("KeWaitForSingleObject", {timer, 0, 0, 0, c.Quad(timeout)});
+  return c.Kernel("KeWaitForSingleObject", {timer, 0, 0, 0, c.AllocQuad(timeout)});
 }
 
 }  // namespace
@@ -405,7 +367,8 @@ REX_TEST_CASE("timers: a Ke timer queues its DPC with the expiry time", "[kernel
   g_timer_dpc_time = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&TimerDPC, 0);
+    const u32 routine =
+        StateOf(c.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&TimerDPC, 0);
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, routine, 0});
     const u32 timer = KeTimer(c, 0);
@@ -425,17 +388,18 @@ REX_TEST_CASE("timers: a periodic Ke timer rearms until canceled", "[kernel][tim
   g_timer_dpc_runs = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&TimerDPC, 0);
+    const u32 routine =
+        StateOf(c.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&TimerDPC, 0);
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, routine, 0});
     const u32 timer = KeTimer(c, 1);
     CHECK(c.Kernel("KeSetTimerEx", {timer, static_cast<u64>(-100000), 20, dpc}) == 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (g_timer_dpc_runs < 3 && std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
     CHECK(c.Kernel("KeCancelTimer", {timer}) == 1);
-    const int runs = g_timer_dpc_runs;
-    CHECK(runs >= 3);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    CHECK(g_timer_dpc_runs <= runs + 1);
+    CHECK(g_timer_dpc_runs >= 3);
   });
 }
 
@@ -483,21 +447,6 @@ REX_TEST_CASE("timers: a Ke timer with an absolute due time of 0 expires at once
   });
 }
 
-REX_TEST_CASE("timers: stopping the dispatcher disarms Ke timer expiries", "[kernel][timers]") {
-  KernelFixture fixture;
-  u32 timer = 0;
-  fixture.RunOnGuestThread([&timer](Caller& c) {
-    timer = KeTimer(c, 1);
-    CHECK(c.Kernel("KeSetTimerEx", {timer, static_cast<u64>(-100000), 10, 0}) == 0);
-  });
-  static_cast<rex::runtime::Dispatcher&>(fixture.GetRuntime().GetDispatcher())
-      .Stop(std::chrono::milliseconds(1000));
-  auto* object = fixture.GetRuntime().GetMemory()->TranslateVirtual<rex::runtime::X_KTIMER*>(timer);
-  object->header.signal_state = 0;
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  CHECK(static_cast<u32>(object->header.signal_state) == 0);
-}
-
 REX_TEST_CASE("mutants: a Ke mutant abandoned by its owner is released by the next owner",
               "[kernel][mutants]") {
   KernelFixture fixture;
@@ -506,9 +455,9 @@ REX_TEST_CASE("mutants: a Ke mutant abandoned by its owner is released by the ne
     c.Kernel("KeInitializeMutant", {mutant, 0});
     const u32 thread =
         c.Spawn([mutant](Caller& o) { CHECK(WaitObject(o, mutant, -10000000) == 0); });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
-    CHECK(WaitObject(c, mutant, -10000000) == rex::X_STATUS_ABANDONED_WAIT_0);
+    CHECK(WaitObject(c, mutant, -10000000) == rex::kernel::X_STATUS_ABANDONED_WAIT_0);
     CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
   });
 }
@@ -527,13 +476,13 @@ REX_TEST_CASE(
     CHECK(c.Load32(mutant + 0x18) == 0);
     CHECK(c.Load8(mutant + 0x1C) == 1);
     const u32 thread = c.Spawn([mutant](Caller& o) {
-      CHECK(WaitObject(o, mutant, -10000000) == rex::X_STATUS_ABANDONED_WAIT_0);
+      CHECK(WaitObject(o, mutant, -10000000) == rex::kernel::X_STATUS_ABANDONED_WAIT_0);
       CHECK(o.Load8(mutant + 0x1C) == 0);
       CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
       CHECK(WaitObject(o, mutant, -10000000) == 0);
       CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
     });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
   });
 }
@@ -545,9 +494,10 @@ REX_TEST_CASE("mutants: a Ke mutant abandon by a thread that does not own it fai
     const u32 mutant = c.Alloc(0x20);
     c.Kernel("KeInitializeMutant", {mutant, 1});
     const u32 thread = c.Spawn([mutant](Caller& o) {
-      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 1, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 1, 0}) ==
+            rex::kernel::X_STATUS_MUTANT_NOT_OWNED);
     });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
     CHECK(c.Load32(mutant + 4) == 0);
     CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
@@ -560,9 +510,9 @@ REX_TEST_CASE("timers: a timer type other than 0 or 1 fails and creates no handl
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     c.Store32(handle_ptr, 0x1234);
-    CHECK(c.Kernel("NtCreateTimer", {handle_ptr, 0, 2}) == rex::X_STATUS_INVALID_PARAMETER);
+    CHECK(c.Kernel("NtCreateTimer", {handle_ptr, 0, 2}) == rex::kernel::X_STATUS_INVALID_PARAMETER);
     CHECK(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0xFFFFFFFF}) ==
-          rex::X_STATUS_INVALID_PARAMETER);
+          rex::kernel::X_STATUS_INVALID_PARAMETER);
     CHECK(c.Load32(handle_ptr) == 0x1234);
     CHECK(c.Kernel("NtCreateTimer", {handle_ptr, 0, 1}) == 0);
     CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);

@@ -10,7 +10,7 @@
 
 #include "rex_test.h"
 
-#include <rex/kernel/shim/registry.h>
+#include <rex/kernel/shim.h>
 
 using namespace rex::kernel::shim;
 

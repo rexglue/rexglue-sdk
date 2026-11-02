@@ -1,6 +1,6 @@
 /**
  * @file        kernel/argument_check.h
- * @brief       Private macro that rejects a null pointer argument of a kernel export
+ * @brief       Macro that rejects a null pointer argument of a kernel export
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,13 +14,11 @@
 /**
  * Returns X_STATUS_INVALID_PARAMETER when a pointer argument is null.
  *
- * @param PTR The pointer argument.
- *
  * @code
  * REX_KERNEL_REQUIRE_NONNULL(stats_ptr);
  * @endcode
  */
-#define REX_KERNEL_REQUIRE_NONNULL(PTR) \
-  if (!(PTR)) {                         \
-    return X_STATUS_INVALID_PARAMETER;  \
+#define REX_KERNEL_REQUIRE_NONNULL(PTR)             \
+  if (!(PTR)) {                                     \
+    return rex::kernel::X_STATUS_INVALID_PARAMETER; \
   }

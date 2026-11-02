@@ -13,27 +13,29 @@
 #include <memory>
 #include <span>
 
-#include <rex/filesystem.h>
 #include <rex/logging/log.h>
+#include "kernel/categories.h"
 #include <rex/memory.h>
-#include <rex/hook.h>
-#include <rex/kernel/shim/function.h>
-#include <rex/runtime/object_table.h>
+#include <rex/ppc/hook.h>
+#include "kernel/shim/function.h"
+#include <rex/memory/mapped_ptr.h>
 #include <rex/types.h>
-#include <rex/string.h>
-#include <rex/runtime.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/file_object.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/object/file_object.h>
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/object_table.h>
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 namespace rex::kernel::shim {
 
 REX_SHIM_FN(FindClose, u32, u32 hFindFile) {
   if (hFindFile == kXInvalidHandleValue || hFindFile == 0)
     return 0;
-  if (!runtime::GetCurrent().GetObjectTable().Close(hFindFile)) {
+  if (!kernel::GetCurrent().GetObjectTable().Close(hFindFile)) {
     REXLOG_WARN(kernel, "rexshim_FindClose: unknown handle {:#x}", hFindFile);
     return 0;
   }
@@ -44,9 +46,9 @@ REX_SHIM_FN(MoveFileA, u32, MappedString lpExistingFileName, MappedString lpNewF
   const char* src = static_cast<const char*>(lpExistingFileName);
   const char* dst = static_cast<const char*>(lpNewFileName);
 
-  if (auto renamed = runtime::GetCurrent().GetFileSystem()->Rename(src, dst, false); !renamed) {
+  if (auto renamed = kernel::GetCurrentState().GetFileSystem()->Rename(src, dst, false); !renamed) {
     REXLOG_DEBUG(kernel, "rexshim_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
-                 rex::runtime::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
+                 rex::kernel::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
     return 0;
   }
   REXLOG_TRACE(kernel, "rexshim_MoveFileA: '{}' -> '{}'", src, dst);
@@ -61,14 +63,14 @@ REX_SHIM_FN(SetFileAttributesA, u32, MappedString lpFileName, u32 dwFileAttribut
 
 REX_SHIM_FN(RemoveDirectoryA, u32, MappedString lpPathName) {
   const char* path = static_cast<const char*>(lpPathName);
-  bool ok = runtime::GetCurrent().GetFileSystem()->Remove(path).has_value();
+  bool ok = kernel::GetCurrentState().GetFileSystem()->Remove(path).has_value();
   if (!ok)
     REXLOG_DEBUG(kernel, "rexshim_RemoveDirectoryA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 
 REX_SHIM_FN(GetFileType, u32, u32 hFile) {
-  auto file = runtime::GetCurrent().GetObjectTable().Get<rex::runtime::FileObject>(hFile);
+  auto file = kernel::GetCurrent().GetObjectTable().Get<rex::kernel::FileObject>(hFile);
   if (!file)
     // FILE_TYPE_UNKNOWN
     return 0;

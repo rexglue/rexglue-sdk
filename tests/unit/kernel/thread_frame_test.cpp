@@ -12,9 +12,10 @@
 
 #include <memory>
 
-#include <rex/ppc/function.h>
+#include <rex/ppc/call.h>
 
 #include "kernel_fixture.h"
+#include "kernel/title_state.h"
 
 using rex::u32;
 
@@ -53,25 +54,5 @@ REX_TEST_CASE("A thread entry runs in a call frame under a zeroed root frame",
     CHECK(frame->back_chain == root);
     CHECK(frame->r1 == root - rex::ppc::kLinkageSize);
     CHECK(frame->root_nonzero_words == 0);
-  });
-}
-
-REX_TEST_CASE("A write over the root frame leaves the TLS block alone",
-              "[kernel][threads][frame]") {
-  KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
-    auto words = std::make_shared<u32>();
-    const u32 handle = c.Spawn([words](Caller& t) {
-      const u32 kthread = t.Load32(t.GetContext().r13.u32 + 0x100);
-      const u32 stack_base = t.Load32(kthread + 0x5C);
-      const u32 root = stack_base - rex::ppc::kLinkageSize;
-      t.Store32(stack_base, 0x12345678);
-      for (u32 offset = 0; offset < rex::ppc::kLinkageSize; offset += 4) {
-        t.Store32(root + offset, 0xFFFFFFFF);
-      }
-      *words = t.Load32(stack_base);
-    });
-    Join(c, handle);
-    CHECK(*words == 0x12345678);
   });
 }

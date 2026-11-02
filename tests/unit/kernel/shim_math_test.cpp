@@ -19,8 +19,8 @@
 
 #include <rex/platform.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/func.h>
+#include <rex/ppc/call.h>
+#include <rex/ppc/recompiled_code.h>
 
 using namespace rex::ppc;
 

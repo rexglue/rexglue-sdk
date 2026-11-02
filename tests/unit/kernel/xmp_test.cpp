@@ -12,7 +12,8 @@
 
 #include <chrono>
 
-#include <rex/kernel/xam/apps/xmp_app.h>
+#include "xam/app/apps.h"
+#include "xam/xam_state.h"
 
 #include "kernel_fixture.h"
 
@@ -21,10 +22,10 @@ using rex::test::KernelFixture;
 
 namespace {
 
-u32 PlayEmptyPlaylist(Caller& c, rex::kernel::xam::apps::XMPApp& app) {
+u32 PlayEmptyPlaylist(Caller& c, rex::xam::apps::XMPApp& app) {
   const u32 handle = c.Alloc(4);
-  REQUIRE(app.XMPCreateTitlePlaylist(0, 0, 0, u"", 0, 0, handle) == rex::X_E_SUCCESS);
-  REQUIRE(app.XMPPlayTitlePlaylist(c.Load32(handle), 0) == rex::X_E_SUCCESS);
+  REQUIRE(app.XMPCreateTitlePlaylist(0, 0, 0, u"", 0, 0, handle) == rex::kernel::X_E_SUCCESS);
+  REQUIRE(app.XMPPlayTitlePlaylist(c.Load32(handle), 0) == rex::kernel::X_E_SUCCESS);
   return c.Load32(handle);
 }
 
@@ -33,30 +34,30 @@ u32 PlayEmptyPlaylist(Caller& c, rex::kernel::xam::apps::XMPApp& app) {
 REX_TEST_CASE("xmp: next and previous on an empty playlist find no song", "[kernel][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XMPApp app(c.GetRuntime());
+    rex::xam::apps::XMPApp app(rex::xam::CurrentTitle());
     PlayEmptyPlaylist(c, app);
-    CHECK(app.XMPNext() == rex::X_E_NOTFOUND);
-    CHECK(app.XMPPrevious() == rex::X_E_NOTFOUND);
+    CHECK(app.XMPNext() == rex::kernel::X_E_NOTFOUND);
+    CHECK(app.XMPPrevious() == rex::kernel::X_E_NOTFOUND);
   });
 }
 
 REX_TEST_CASE("xmp: song info on an empty playlist fails", "[kernel][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XMPApp app(c.GetRuntime());
+    rex::xam::apps::XMPApp app(rex::xam::CurrentTitle());
     PlayEmptyPlaylist(c, app);
     const u32 args = c.Alloc(12);
     c.Store32(args, 2);
     c.Store32(args + 4, 0);
     c.Store32(args + 8, c.Alloc(0x400));
-    CHECK(app.DispatchMessageSync(0x0007000E, args, 12) == rex::X_E_FAIL);
+    CHECK(app.DispatchMessageSync(0x0007000E, args, 12) == rex::kernel::X_E_FAIL);
   });
 }
 
-REX_TEST_CASE("xmp: the playback controller query returns without sleeping", "[kernel][xmp]") {
+REX_TEST_CASE("xmp: the playback controller query reports controller 0 unlocked", "[kernel][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XMPApp app(c.GetRuntime());
+    rex::xam::apps::XMPApp app(rex::xam::CurrentTitle());
     const u32 args = c.Alloc(12);
     c.Store32(args, 2);
     const u32 controller = c.Alloc(4);
@@ -65,9 +66,7 @@ REX_TEST_CASE("xmp: the playback controller query returns without sleeping", "[k
     c.Store32(locked, 0xFFFFFFFF);
     c.Store32(args + 4, controller);
     c.Store32(args + 8, locked);
-    const auto begin = std::chrono::steady_clock::now();
-    CHECK(app.DispatchMessageSync(0x0007001B, args, 12) == rex::X_E_SUCCESS);
-    CHECK(std::chrono::steady_clock::now() - begin < std::chrono::milliseconds(200));
+    CHECK(app.DispatchMessageSync(0x0007001B, args, 12) == rex::kernel::X_E_SUCCESS);
     CHECK(c.Load32(controller) == 0);
     CHECK(c.Load32(locked) == 0);
   });

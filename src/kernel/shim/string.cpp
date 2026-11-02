@@ -2,9 +2,13 @@
 
 #include <rex/platform.h>
 
-#include <rex/hook.h>
-#include <rex/kernel/shim/function.h>
-#include <rex/string.h>
+#include <rex/ppc/hook.h>
+#include "kernel/shim/function.h"
+#include <rex/string/text.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/thread_state.h>
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel::shim {
 
@@ -32,8 +36,8 @@ REX_SHIM_FN(strrchr, char*, const char* s, int c) {
 }
 
 REX_SHIM_FN(strtok, char*, char* s, const char* delim) {
-  // Non reentrant by libc contract, concurrent threads share the context.
-  static char* context = nullptr;
+  // Not reentrant, so concurrent threads share the context.
+  char*& context = kernel::GetCurrentState().strtok_context;
 #if REX_PLATFORM_WIN32
   return strtok_s(s, delim, &context);
 #else
@@ -42,7 +46,7 @@ REX_SHIM_FN(strtok, char*, char* s, const char* delim) {
 }
 
 REX_SHIM_FN(_stricmp, int, const char* s1, const char* s2) {
-  return rex::CompareIgnoreCase(s1, s2);
+  return rex::string::CompareIgnoreCase(s1, s2);
 }
 
 REX_SHIM_FN(strcpy_s, int, char* dst, u32 dstsz, const char* src) {
@@ -58,7 +62,7 @@ REX_SHIM_FN(strcpy_s, int, char* dst, u32 dstsz, const char* src) {
 }
 
 REX_SHIM_FN(lstrcmpiA, int, const char* s1, const char* s2) {
-  return rex::CompareIgnoreCase(s1, s2);
+  return rex::string::CompareIgnoreCase(s1, s2);
 }
 
 REX_SHIM_FN(wcslen, u32, const be_u16* str) {

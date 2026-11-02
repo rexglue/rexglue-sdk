@@ -1,7 +1,6 @@
 /**
  * @file        tests/unit/kernel/crypt_sig_test.cpp
- * @brief       XeCryptBnQwBeSigCreate and XeCryptBnQwBeSigVerify sign and verify with generated
- * keys
+ * @brief       Signature create and verify with generated keys
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

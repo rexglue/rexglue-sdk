@@ -13,12 +13,12 @@
 
 #include <chrono>
 
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/types/status.h>
 
 #include "kernel_fixture.h"
 #include "elapsed.h"
 
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -28,7 +28,7 @@ namespace {
 
 using rex::test::MillisSince;
 
-constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
+constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
 constexpr i64 kTicksPerMs = 10000;
 
 u32 Event(Caller& c, u32 initial_state) {
@@ -46,7 +46,7 @@ REX_TEST_CASE("waits: an absolute deadline in the past times out at once", "[ker
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = Event(c, 0);
-    const u32 deadline = c.Quad(static_cast<i64>(SystemTime(c)) - 1000 * kTicksPerMs);
+    const u32 deadline = c.AllocQuad(static_cast<i64>(SystemTime(c)) - 1000 * kTicksPerMs);
     const auto start = std::chrono::steady_clock::now();
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, deadline}) == kTimeout);
     CHECK(MillisSince(start) < 500);
@@ -58,7 +58,7 @@ REX_TEST_CASE("waits: an absolute deadline of now times out at once", "[kernel][
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = Event(c, 0);
-    const u32 deadline = c.Quad(static_cast<i64>(SystemTime(c)));
+    const u32 deadline = c.AllocQuad(static_cast<i64>(SystemTime(c)));
     const auto start = std::chrono::steady_clock::now();
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, deadline}) == kTimeout);
     CHECK(MillisSince(start) < 500);
@@ -70,7 +70,7 @@ REX_TEST_CASE("waits: an absolute deadline in the future waits until it", "[kern
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = Event(c, 0);
-    const u32 deadline = c.Quad(static_cast<i64>(SystemTime(c)) + 100 * kTicksPerMs);
+    const u32 deadline = c.AllocQuad(static_cast<i64>(SystemTime(c)) + 100 * kTicksPerMs);
     const auto start = std::chrono::steady_clock::now();
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, deadline}) == kTimeout);
     const i64 elapsed = MillisSince(start);
@@ -85,13 +85,13 @@ REX_TEST_CASE("waits: KeDelayExecutionThread honors an absolute deadline", "[ker
   fixture.RunOnGuestThread([](Caller& c) {
     auto start = std::chrono::steady_clock::now();
     CHECK(c.Kernel("KeDelayExecutionThread",
-                   {1, 0, c.Quad(static_cast<i64>(SystemTime(c)) + 100 * kTicksPerMs)}) == 0);
+                   {1, 0, c.AllocQuad(static_cast<i64>(SystemTime(c)) + 100 * kTicksPerMs)}) == 0);
     i64 elapsed = MillisSince(start);
     CHECK(elapsed >= 80);
     CHECK(elapsed < 2000);
     start = std::chrono::steady_clock::now();
     CHECK(c.Kernel("KeDelayExecutionThread",
-                   {1, 0, c.Quad(static_cast<i64>(SystemTime(c)) - 100 * kTicksPerMs)}) == 0);
+                   {1, 0, c.AllocQuad(static_cast<i64>(SystemTime(c)) - 100 * kTicksPerMs)}) == 0);
     CHECK(MillisSince(start) < 500);
   });
 }

@@ -1,4 +1,5 @@
 #include "kernel_fixture.h"
+#include "object_app.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -20,12 +21,19 @@
 #include <thread>
 
 #include <rex/platform/thread.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/apu/audio_system.h>
+#include <rex/ui/ui_system.h>
+#include <rex/platform/timer.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_state.h>
+#include <rex/kernel/heap.h>
 
 #include "../test_memory.h"
-#include "runtime/dispatcher.h"
+#include "temp_folder.h"
+#include "codegen/tool_runtime.h"
+#include "ui/ui_control.h"
+#include "kernel/dispatcher.h"
+#include "kernel/title_state.h"
 
 namespace rex::test {
 
@@ -57,25 +65,24 @@ void TestStart(PPCContext& ctx, u8* base) {
     body = std::move(it->second);
     Bodies().erase(it);
   }
-  Caller caller(ctx, base, runtime::GetCurrent());
+  Caller caller(ctx, base, kernel::GetCurrent());
   body(caller);
   ctx.r3.u64 = 0;
 }
 
-codegen::ToolRuntime BuildTool(const std::filesystem::path& root,
-                               const std::function<void(const std::filesystem::path&)>& populate,
-                               std::span<const std::string> modules, ui::IUserInterface* ui) {
+codegen::ToolRuntime BuildTool(codegen::ToolApp& app, const std::filesystem::path& root,
+                               const std::function<void(const std::filesystem::path&)>& populate) {
   if (populate) {
     populate(root);
   }
-  auto tool = codegen::OpenToolRuntime(root, modules, ui);
+  auto tool = app.Open(root);
   REQUIRE(tool.has_value());
   return std::move(*tool);
 }
 
-const runtime::ExportEntry* FindExport(runtime::ExportModule module, std::string_view name) {
-  const auto table = runtime::GetExports(module);
-  const auto it = std::ranges::find(table, name, &runtime::ExportEntry::name);
+const kernel::ExportEntry* FindExport(kernel::ExportModule module, std::string_view name) {
+  const auto table = kernel::GetExports(module);
+  const auto it = std::ranges::find(table, name, &kernel::ExportEntry::name);
   return it == table.end() ? nullptr : &*it;
 }
 
@@ -100,7 +107,44 @@ void CheckNoFailures() {
 
 }  // namespace
 
-u32 Caller::Call(runtime::ExportModule module, std::string_view name,
+/** A tool app that can host extra driver providers and pick the audio and UI drivers. */
+class FixtureApp final : public rex::test::ObjectApp<codegen::ToolApp> {
+ public:
+  FixtureApp(std::string_view app_name, std::filesystem::path app_root,
+             std::vector<IModule*> providers, std::string audio_driver, std::string ui_driver)
+      : ObjectApp(app_name, std::move(app_root)),
+        providers_(std::move(providers)),
+        audio_driver_(std::move(audio_driver)),
+        ui_driver_(std::move(ui_driver)) {}
+
+  bool Pump() { return RunFrame(); }
+
+  ui::IUIControl* GetUIControl() { return GetControlFactory().Get<ui::IUIControl>(); }
+
+ protected:
+  void OnRegisterModules(std::vector<IModule*>& providers) override {
+    ObjectApp::OnRegisterModules(providers);
+    providers.insert(providers.end(), providers_.begin(), providers_.end());
+  }
+
+  Result<void> OnConfigure(Settings& settings) override {
+    REX_TRY_VOID(ToolApp::OnConfigure(settings));
+    if (!audio_driver_.empty()) {
+      (void)GetAudio().GetSettings().driver.SetText(SettingLayer::kTitle, audio_driver_);
+    }
+    if (!ui_driver_.empty()) {
+      (void)GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, ui_driver_);
+    }
+    return Ok();
+  }
+
+ private:
+  std::vector<IModule*> providers_;
+  std::string audio_driver_;
+  std::string ui_driver_;
+};
+
+u32 Caller::Call(kernel::ExportModule module, std::string_view name,
                  std::initializer_list<u64> args) {
   const auto* entry = FindExport(module, name);
   if (!entry || !entry->fn) {
@@ -128,55 +172,55 @@ u32 Caller::Call(runtime::ExportModule module, std::string_view name,
 }
 
 u32 Caller::Kernel(std::string_view name, std::initializer_list<u64> args) {
-  return Call(runtime::ExportModule::kXboxkrnl, name, args);
+  return Call(kernel::ExportModule::kXboxkrnl, name, args);
 }
 
 u32 Caller::XAM(std::string_view name, std::initializer_list<u64> args) {
-  return Call(runtime::ExportModule::kXAM, name, args);
+  return Call(kernel::ExportModule::kXAM, name, args);
 }
 
 u32 Caller::Alloc(u32 size) {
-  auto* memory = runtime_.GetMemory();
+  auto* memory = StateOf(runtime_).GetMemory();
   const u32 address = memory->SystemHeapAlloc(size);
   std::memset(memory->TranslateVirtual(address), 0, size);
   return address;
 }
 
 u32 Caller::Load32(u32 address) const {
-  return *runtime_.GetMemory()->TranslateVirtual<const be_u32*>(address);
+  return *StateOf(runtime_).GetMemory()->TranslateVirtual<const be_u32*>(address);
 }
 
 u32 Caller::LoadAcquire32(u32 address) const {
-  return runtime_.GetMemory()->TranslateVirtual<const be_u32*>(address)->Load(
+  return StateOf(runtime_).GetMemory()->TranslateVirtual<const be_u32*>(address)->Load(
       std::memory_order_acquire);
 }
 
 u8 Caller::Load8(u32 address) const {
-  return *runtime_.GetMemory()->TranslateVirtual<u8*>(address);
+  return *StateOf(runtime_).GetMemory()->TranslateVirtual<u8*>(address);
 }
 
 void Caller::Store32(u32 address, u32 value) {
-  *runtime_.GetMemory()->TranslateVirtual<be_u32*>(address) = value;
+  *StateOf(runtime_).GetMemory()->TranslateVirtual<be_u32*>(address) = value;
 }
 
-u32 Caller::String(std::string_view text) {
+u32 Caller::AllocString(std::string_view text) {
   const u32 address = Alloc(static_cast<u32>(text.size()) + 1);
-  std::memcpy(runtime_.GetMemory()->TranslateVirtual(address), text.data(), text.size());
+  std::memcpy(StateOf(runtime_).GetMemory()->TranslateVirtual(address), text.data(), text.size());
   return address;
 }
 
 void Caller::Store64(u32 address, u64 value) {
-  *runtime_.GetMemory()->TranslateVirtual<be_u64*>(address) = value;
+  *StateOf(runtime_).GetMemory()->TranslateVirtual<be_u64*>(address) = value;
 }
 
-u32 Caller::Quad(i64 value) {
+u32 Caller::AllocQuad(i64 value) {
   const u32 address = Alloc(8);
   Store64(address, static_cast<u64>(value));
   return address;
 }
 
-u32 Caller::Attributes(std::string_view name) {
-  const u32 text = String(name);
+u32 Caller::AllocAttributes(std::string_view name) {
+  const u32 text = AllocString(name);
   const u32 ansi = Alloc(8);
   Store32(ansi, (static_cast<u32>(name.size()) << 16) | static_cast<u32>(name.size() + 1));
   Store32(ansi + 4, text);
@@ -201,26 +245,71 @@ u32 Caller::Spawn(std::function<void(Caller&)> body, u32 creation_flags) {
   return Load32(handle_ptr);
 }
 
-KernelFixture::ThreadDrain::ThreadDrain() : baseline(platform::detail::GetThreadCount()) {}
+struct KernelFixture::Impl {
+  struct ThreadDrain {
+    ThreadDrain() : baseline(platform::detail::GetThreadCount()) {}
 
-KernelFixture::ThreadDrain::~ThreadDrain() {
-  platform::detail::ShutdownTimerQueue();
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-  while (platform::detail::GetThreadCount() > baseline &&
-         std::chrono::steady_clock::now() < deadline) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-}
+    ~ThreadDrain() {
+      platform::detail::ShutdownTimerQueue();
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+      while (platform::detail::GetThreadCount() > baseline &&
+             std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      CHECK(platform::detail::GetThreadCount() <= baseline);
+    }
+
+    u64 baseline;
+  };
+
+  Impl(const std::function<void(const std::filesystem::path&)>& populate,
+       std::vector<IModule*> providers, std::string audio_driver, std::string ui_driver)
+      : app("kernel_fixture", app_root.path, std::move(providers), std::move(audio_driver),
+            std::move(ui_driver)),
+        tool((ReleaseTestMemory(), BuildTool(app, root.path, populate))) {}
+
+  ThreadDrain drain;
+  test::TempFolder root{"rexglue_kernel_fixture_"};
+  test::TempFolder app_root{"rexglue_kernel_fixture_app_"};
+  FixtureApp app;
+  codegen::ToolRuntime tool;
+};
 
 KernelFixture::KernelFixture(const std::function<void(const std::filesystem::path&)>& populate,
-                             std::span<const std::string> modules, ui::IUserInterface* ui)
-    : tool_((ReleaseTestMemory(), BuildTool(root_.path, populate, modules, ui))) {
-  auto* dispatcher = GetRuntime().GetFunctionDispatcher();
+                             std::vector<IModule*> providers, std::string audio_driver,
+                             std::string ui_driver)
+    : impl_(std::make_unique<Impl>(populate, std::move(providers), std::move(audio_driver),
+                                   std::move(ui_driver))) {
+  auto* dispatcher = StateOf(GetRuntime()).GetFunctionDispatcher();
   REQUIRE(dispatcher->InitializeFunctionTable(kCodeBase, kCodeSize, kCodeBase, kImageSize,
                                               /*is_entrypoint=*/true));
   Caller::start_thunk = dispatcher->AllocateThunk(&TestStart, 0);
   REQUIRE(Caller::start_thunk != 0);
-  static_cast<runtime::Dispatcher&>(GetRuntime().GetDispatcher()).Start();
+  static_cast<kernel::Dispatcher&>(StateOf(GetRuntime()).GetDPCQueue()).Start();
+}
+
+rex::kernel::TitleRuntime& KernelFixture::GetRuntime() {
+  return impl_->tool.GetRuntime();
+}
+
+rex::apu::IAudioSystem& KernelFixture::GetAudio() {
+  return impl_->app.GetAudio();
+}
+
+rex::ui::IUISystem& KernelFixture::GetUI() {
+  return impl_->app.GetUI();
+}
+
+ui::IUIControl* KernelFixture::GetUIControl() {
+  return impl_->app.GetUIControl();
+}
+
+bool KernelFixture::Pump() {
+  return impl_->app.Pump();
+}
+
+const std::filesystem::path& KernelFixture::GetRoot() const {
+  return impl_->root.path;
 }
 
 KernelFixture::~KernelFixture() {
@@ -235,11 +324,11 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   auto done = std::make_shared<std::promise<void>>();
   auto finished = done->get_future();
 
-  runtime::ThreadState host_state(0, 0, 0, GetRuntime().GetMemory(), &GetRuntime());
-  runtime::ThreadState* previous = runtime::ThreadState::Get();
-  runtime::ThreadState::Bind(&host_state);
+  kernel::ThreadState host_state(0, 0, 0, StateOf(GetRuntime()).GetMemory(), &GetRuntime());
+  kernel::ThreadState* previous = kernel::ThreadState::Get();
+  kernel::ThreadState::Bind(&host_state);
 
-  u8* base = GetRuntime().GetMemory()->GetVirtualMembase();
+  u8* base = StateOf(GetRuntime()).GetMemory()->GetVirtualMembase();
   Caller main_caller(*host_state.GetContext(), base, GetRuntime());
   const u32 handle = main_caller.Spawn([body, done](Caller& caller) {
     body(caller);
@@ -253,27 +342,28 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   if (finished_in_time) {
     main_caller.Kernel("NtClose", {handle});
   }
-  runtime::ThreadState::Bind(previous);
+  kernel::ThreadState::Bind(previous);
 }
 
 void KernelFixture::RunUntilGuestThreadEnds(const std::function<void(Caller&)>& body) {
-  runtime::ThreadState host_state(0, 0, 0, GetRuntime().GetMemory(), &GetRuntime());
-  runtime::ThreadState* previous = runtime::ThreadState::Get();
-  runtime::ThreadState::Bind(&host_state);
+  kernel::ThreadState host_state(0, 0, 0, StateOf(GetRuntime()).GetMemory(), &GetRuntime());
+  kernel::ThreadState* previous = kernel::ThreadState::Get();
+  kernel::ThreadState::Bind(&host_state);
 
-  u8* base = GetRuntime().GetMemory()->GetVirtualMembase();
+  u8* base = StateOf(GetRuntime()).GetMemory()->GetVirtualMembase();
   Caller main_caller(*host_state.GetContext(), base, GetRuntime());
   const u32 handle = main_caller.Spawn(body);
 
   constexpr i64 kTwentySeconds = 200000000;
-  const bool ended = main_caller.Kernel("NtWaitForSingleObjectEx",
-                                        {handle, 1, 0, main_caller.Quad(-kTwentySeconds)}) == 0;
+  const bool ended =
+      main_caller.Kernel("NtWaitForSingleObjectEx",
+                         {handle, 1, 0, main_caller.AllocQuad(-kTwentySeconds)}) == 0;
   CHECK(ended);
   CheckNoFailures();
   if (ended) {
     main_caller.Kernel("NtClose", {handle});
   }
-  runtime::ThreadState::Bind(previous);
+  kernel::ThreadState::Bind(previous);
 }
 
 u32 CopyToGuest(Caller& c, std::span<const u8> bytes) {
@@ -303,7 +393,7 @@ std::vector<u8> ReadBytes(Caller& c, u32 address, u32 size) {
   return bytes;
 }
 
-std::vector<u8> Hex(std::string_view text) {
+std::vector<u8> ParseHex(std::string_view text) {
   std::vector<u8> bytes(text.size() / 2);
   for (size_t i = 0; i < bytes.size(); ++i) {
     bytes[i] = static_cast<u8>(std::stoi(std::string(text.substr(i * 2, 2)), nullptr, 16));
@@ -322,7 +412,7 @@ std::string ToHex(std::span<const u8> bytes) {
 }
 
 void Join(Caller& c, u32 handle) {
-  CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
+  CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
   c.Kernel("NtClose", {handle});
 }
 

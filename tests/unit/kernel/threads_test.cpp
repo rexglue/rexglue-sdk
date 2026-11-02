@@ -21,20 +21,22 @@
 #include <utility>
 #include <vector>
 
+#include <rex/kernel/types/list.h>
+#include <rex/kernel/types/thread.h>
 #include <rex/platform/thread.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/kernel_list.h>
-#include <rex/runtime/thread_registry.h>
-#include <rex/runtime/xmemory.h>
-#include <rex/runtime/xthread.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_registry.h>
+#include <rex/kernel/heap.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/kernel/types/status.h>
 
 #include "kernel_fixture.h"
-#include "runtime/delay_observer.h"
+#include "kernel/delay_observer.h"
+#include "kernel/title_state.h"
 
 using rex::u32;
 using rex::u64;
-using rex::X_STATUS;
+using rex::kernel::X_STATUS;
 
 using rex::test::Caller;
 using rex::test::Join;
@@ -67,7 +69,7 @@ u32 StackSizeOf(Caller& c, u32 stack_size) {
   return size->load();
 }
 
-bool WaitForTitlePages(rex::runtime::Memory& memory, u32 pages) {
+bool WaitForTitlePages(rex::kernel::Memory& memory, u32 pages) {
   const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
   while (memory.GetTitlePages() != pages && std::chrono::steady_clock::now() < until) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -114,7 +116,7 @@ REX_TEST_CASE("threads: create suspended resume and wait for exit", "[kernel][th
     const u32 count = c.Alloc(4);
     CHECK(c.Kernel("NtResumeThread", {handle, count}) == 0);
     CHECK(c.Load32(count) == 1);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
     CHECK(ran->load() == 1);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -131,7 +133,7 @@ REX_TEST_CASE("threads: suspend and resume counts", "[kernel][threads]") {
     CHECK(c.Load32(count) == 2);
     CHECK(c.Kernel("NtResumeThread", {handle, count}) == 0);
     CHECK(c.Load32(count) == 1);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {handle});
   });
 }
@@ -140,12 +142,12 @@ REX_TEST_CASE("threads: a handle outlives the thread", "[kernel][threads]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle = c.Spawn([](Caller&) {});
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(0)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(0)}) == 0);
     const u32 copy_ptr = c.Alloc(4);
     CHECK(c.Kernel("NtDuplicateObject", {handle, copy_ptr, 0}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(copy_ptr), 1, 0, c.Quad(0)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(copy_ptr), 1, 0, c.AllocQuad(0)}) == 0);
     CHECK(c.Kernel("NtClose", {c.Load32(copy_ptr)}) == 0);
   });
 }
@@ -170,11 +172,11 @@ REX_TEST_CASE("threads: ObLookupThreadByThreadId finds a live thread and not a d
     CHECK(c.Load32(object_ptr) != 0);
     CHECK(c.Kernel("ObDereferenceObject", {c.Load32(object_ptr)}) == 0);
     release->set_value();
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(handle_ptr), 1, 0, c.Quad(-50000000)}) ==
-          0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx",
+                   {c.Load32(handle_ptr), 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {c.Load32(handle_ptr)});
     CHECK(c.Kernel("ObLookupThreadByThreadId", {0x7FFFFFF0, object_ptr}) ==
-          rex::X_STATUS_NOT_FOUND);
+          rex::kernel::X_STATUS_NOT_FOUND);
   });
 }
 
@@ -183,7 +185,7 @@ REX_TEST_CASE("threads: ExTerminateThread ends the thread and signals its handle
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle = c.Spawn([](Caller& o) { o.Kernel("ExTerminateThread", {7}); });
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }
@@ -194,7 +196,7 @@ REX_TEST_CASE("threads: a queued user APC runs during an alertable wait",
   g_apc_calls = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
+    auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
     const u32 routine = dispatcher->AllocateThunk(
         +[](PPCContext& ctx, u8*) {
           ++g_apc_calls;
@@ -208,8 +210,8 @@ REX_TEST_CASE("threads: a queued user APC runs during an alertable wait",
       const u32 event_ptr = o.Alloc(4);
       o.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0});
       waiting->store(true);
-      wait_result->set_value(
-          o.Kernel("NtWaitForSingleObjectEx", {o.Load32(event_ptr), 1, 1, o.Quad(-100000000)}));
+      wait_result->set_value(o.Kernel("NtWaitForSingleObjectEx",
+                                      {o.Load32(event_ptr), 1, 1, o.AllocQuad(-100000000)}));
     });
     while (!waiting->load()) {
       std::this_thread::yield();
@@ -217,7 +219,7 @@ REX_TEST_CASE("threads: a queued user APC runs during an alertable wait",
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     c.Kernel("NtQueueApcThread", {thread, routine, 5, 6, 7});
     CHECK(done.wait_for(std::chrono::seconds(10)) == std::future_status::ready);
-    CHECK(done.get() == rex::X_STATUS_USER_APC);
+    CHECK(done.get() == rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     c.Kernel("NtClose", {thread});
   });
@@ -233,7 +235,7 @@ REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without f
   g_normal_at = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
+    auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
     const u32 kernel_routine = dispatcher->AllocateThunk(
         +[](PPCContext& ctx, u8*) {
           g_kernel_at = ++g_sequence;
@@ -246,16 +248,16 @@ REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without f
           ctx.r3.u64 = 0;
         },
         0);
-    const u32 apc = c.Alloc(rex::runtime::XAPC::kSize);
+    const u32 apc = c.Alloc(rex::kernel::XAPC::kSize);
     c.Kernel("KeInitializeApc", {apc, KThread(c), kernel_routine, 0, normal_routine, 1, 0x1234});
     REQUIRE(c.Kernel("KeInsertQueueApc", {apc, 5, 6, 0}) == 1);
-    c.Kernel("KeDelayExecutionThread", {1, 1, c.Quad(-10000)});
+    c.Kernel("KeDelayExecutionThread", {1, 1, c.AllocQuad(-10000)});
 
     CHECK(g_kernel_at == 1);
     CHECK(g_normal_at == 2);
-    rex::runtime::HeapAllocation info{};
-    REQUIRE(c.GetRuntime().GetMemory()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
-    CHECK((info.state & rex::runtime::kMemoryAllocationCommit) != 0);
+    rex::kernel::HeapAllocation info{};
+    REQUIRE(StateOf(c.GetRuntime()).GetMemory()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
+    CHECK((info.state & rex::kernel::kMemoryAllocationCommit) != 0);
   });
 }
 
@@ -268,7 +270,7 @@ REX_TEST_CASE("threads: KeDelayExecutionThread holds a sub millisecond interval 
                                                            << Clock::period::den << " s");
     for (const u32 alertable : {0u, 1u}) {
       for (const rex::i64 ticks : {1, 5000, 15000}) {
-        const u32 interval = c.Quad(-ticks);
+        const u32 interval = c.AllocQuad(-ticks);
         const auto requested = std::chrono::nanoseconds(ticks * 100);
         for (int run = 0; run < 21; ++run) {
           const auto start = Clock::now();
@@ -287,7 +289,7 @@ namespace {
 std::vector<std::pair<std::chrono::microseconds, bool>> g_delays;
 
 struct DelayObserverReset {
-  ~DelayObserverReset() { rex::runtime::SetDelayObserverForTest(nullptr); }
+  ~DelayObserverReset() { rex::kernel::SetDelayObserverForTest(nullptr); }
 };
 
 }  // namespace
@@ -297,14 +299,14 @@ REX_TEST_CASE("threads: KeDelayExecutionThread hands the converted interval to t
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const DelayObserverReset reset;
-    rex::runtime::SetDelayObserverForTest([](std::chrono::microseconds duration, bool alertable) {
+    rex::kernel::SetDelayObserverForTest([](std::chrono::microseconds duration, bool alertable) {
       g_delays.emplace_back(duration, alertable);
     });
     for (const u32 alertable : {0u, 1u}) {
       for (const auto& [ticks, expected] :
            std::initializer_list<std::pair<rex::i64, int>>{{1, 1}, {10, 1}, {11, 2}, {5000, 500}}) {
         g_delays.clear();
-        c.Kernel("KeDelayExecutionThread", {1, alertable, c.Quad(-ticks)});
+        c.Kernel("KeDelayExecutionThread", {1, alertable, c.AllocQuad(-ticks)});
         CAPTURE(alertable, ticks);
         REQUIRE(g_delays.size() == 1);
         CHECK(g_delays[0].first == std::chrono::microseconds(expected));
@@ -320,41 +322,46 @@ REX_TEST_CASE("threads: an APC queued before a non-alertable wait runs at the ne
   g_apc_calls = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(
-        +[](PPCContext& ctx, u8*) {
-          ++g_apc_calls;
-          ctx.r3.u64 = 0;
-        },
-        0);
+    const u32 routine = StateOf(c.GetRuntime())
+                            .GetFunctionDispatcher()
+                            ->AllocateThunk(
+                                +[](PPCContext& ctx, u8*) {
+                                  ++g_apc_calls;
+                                  ctx.r3.u64 = 0;
+                                },
+                                0);
     const u32 events = c.Alloc(8);
     REQUIRE(c.Kernel("NtCreateEvent", {events, 0, 0, 1}) == 0);
     REQUIRE(c.Kernel("NtCreateEvent", {events + 4, 0, 0, 0}) == 0);
     const u32 signaled = c.Load32(events);
     const u32 idle = c.Load32(events + 4);
     const auto queue_behind_plain_wait = [&] {
-      rex::runtime::KernelThread::GetCurrentThread()->EnqueueAPC(routine, 0, 0, 0);
-      CHECK(c.Kernel("NtWaitForSingleObjectEx", {signaled, 1, 0, c.Quad(0)}) == 0);
+      rex::kernel::KernelThread::GetCallingThread()->EnqueueAPC(routine, 0, 0, 0);
+      CHECK(c.Kernel("NtWaitForSingleObjectEx", {signaled, 1, 0, c.AllocQuad(0)}) == 0);
     };
     const u32 calls_before = g_apc_calls;
 
     queue_behind_plain_wait();
     CHECK(g_apc_calls == calls_before);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {idle, 1, 1, c.Quad(-20000000)}) ==
-          rex::X_STATUS_USER_APC);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {idle, 1, 1, c.AllocQuad(-20000000)}) ==
+          rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == calls_before + 1);
 
     queue_behind_plain_wait();
-    CHECK(c.Kernel("NtWaitForMultipleObjectsEx", {1, events + 4, 1, 1, 1, c.Quad(-20000000)}) ==
-          rex::X_STATUS_USER_APC);
+    CHECK(
+        c.Kernel("NtWaitForMultipleObjectsEx", {1, events + 4, 1, 1, 1, c.AllocQuad(-20000000)}) ==
+        rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == calls_before + 2);
 
     queue_behind_plain_wait();
-    CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {signaled, idle, 1, 0, c.Quad(-20000000)}) ==
-          rex::X_STATUS_USER_APC);
+    CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx",
+                   {signaled, idle, 1, 0, c.AllocQuad(-20000000)}) ==
+          rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == calls_before + 3);
 
     queue_behind_plain_wait();
-    CHECK(c.Kernel("KeDelayExecutionThread", {1, 1, c.Quad(-20000000)}) == rex::X_STATUS_USER_APC);
+    CHECK(c.Kernel("KeDelayExecutionThread", {1, 1, c.AllocQuad(-20000000)}) ==
+          rex::kernel::X_STATUS_USER_APC);
     CHECK(g_apc_calls == calls_before + 4);
 
     c.Kernel("NtClose", {signaled});
@@ -383,7 +390,7 @@ REX_TEST_CASE("threads: title termination ends a thread that suspends itself",
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   });
   const auto start = std::chrono::steady_clock::now();
-  fixture.GetRuntime().TerminateTitle();
+  StateOf(fixture.GetRuntime()).TerminateTitle();
   const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now() - start)
                            .count();
@@ -393,7 +400,7 @@ REX_TEST_CASE("threads: title termination ends a thread that suspends itself",
 REX_TEST_CASE("threads: a stack of size 0 takes the process default", "[kernel][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.GetRuntime().GetTitleProcess();
+    const u32 process = StateOf(c.GetRuntime()).GetTitleProcess();
     CHECK(c.Load32(process + 0x1C) == 0x10000);
     CHECK(StackSizeOf(c, 0) == 0x10000);
     c.Store32(process + 0x1C, 0x6000);
@@ -425,13 +432,13 @@ REX_TEST_CASE("threads: a guest stack counts against the budget while the thread
               "[kernel][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = c.GetRuntime().GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetMemory();
     const u32 before = memory->GetTitlePages();
     auto used = std::make_shared<std::atomic<u32>>(0);
     const u32 handle = SpawnWithStack(
         c, 0x10000, [used, memory](Caller&) { used->store(memory->GetTitlePages()); });
     Join(c, handle);
-    CHECK(used->load() - before == 32);
+    CHECK(used->load() - before == 16);
     CHECK(WaitForTitlePages(*memory, before));
   });
 }
@@ -440,17 +447,17 @@ REX_TEST_CASE("threads: ExCreateThread past the budget returns X_STATUS_NO_MEMOR
               "[kernel][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = c.GetRuntime().GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetMemory();
     memory->SetBudget(memory->GetTitlePages() / 256 + 1);
     const u32 room = memory->GetBudgetPages() - memory->GetTitlePages();
     u32 filler = 0;
     if (room > 8) {
       CHECKED_ELSE(memory->LookupHeap(0x10000000)
                        ->Alloc((room - 8) * 4096, 4096,
-                               rex::runtime::kMemoryAllocationReserve |
-                                   rex::runtime::kMemoryAllocationCommit |
-                                   rex::runtime::kMemoryAllocationTitle,
-                               rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite,
+                               rex::kernel::kMemoryAllocationReserve |
+                                   rex::kernel::kMemoryAllocationCommit |
+                                   rex::kernel::kMemoryAllocationTitle,
+                               rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite,
                                false, &filler)) {
         FAIL_CHECK("the check above failed");
         return;
@@ -471,7 +478,7 @@ REX_TEST_CASE(
     "[kernel][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = c.GetRuntime().GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetMemory();
     const u32 before = memory->GetTitlePages();
     const u32 base = c.Kernel("MmCreateKernelStack", {0x4000, 0});
     CHECKED_ELSE(base != 0) {
@@ -495,8 +502,8 @@ REX_TEST_CASE("threads: MmDeleteKernelStack refuses a base that is not the top o
       return;
     }
     CHECK(c.Kernel("MmDeleteKernelStack", {base - 0x1000, base - 0x4000}) ==
-          rex::X_STATUS_INVALID_PARAMETER);
-    CHECK(c.Kernel("MmDeleteKernelStack", {base, base}) == rex::X_STATUS_INVALID_PARAMETER);
+          rex::kernel::X_STATUS_INVALID_PARAMETER);
+    CHECK(c.Kernel("MmDeleteKernelStack", {base, base}) == rex::kernel::X_STATUS_INVALID_PARAMETER);
     CHECK(c.Kernel("MmIsAddressValid", {base - 0x4000}) == 1);
     CHECK(c.Kernel("MmDeleteKernelStack", {base, base - 0x4000}) == 0);
   });
@@ -506,7 +513,7 @@ REX_TEST_CASE("threads: exit writes the exit code, state 4, the exit time and th
               "[kernel][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.GetRuntime().GetTitleProcess();
+    const u32 process = StateOf(c.GetRuntime()).GetTitleProcess();
     const u32 count = c.Load32(process + 0x14);
     auto stage = std::make_shared<std::atomic<int>>(0);
     const u32 handle = c.Spawn([stage](Caller& t) {
@@ -519,7 +526,7 @@ REX_TEST_CASE("threads: exit writes the exit code, state 4, the exit time and th
     CHECK(ExitCodeXAPI(c, kthread) == 0x103);
     CHECK(c.Load32(process + 0x14) == count + 1);
     stage->store(1);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
     CHECK(ExitCodeXAPI(c, kthread) == 3);
     CHECK(c.Load8(kthread + 0x6C) == 4);
     CHECK(c.Load8(kthread + 0xBE) == 1);
@@ -535,13 +542,13 @@ REX_TEST_CASE("threads: a stop writes the same exit state before a waiter wakes"
               "[kernel][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.GetRuntime().GetTitleProcess();
+    const u32 process = StateOf(c.GetRuntime()).GetTitleProcess();
     const u32 handle = c.Spawn([](Caller&) {}, 1);
     const u32 kthread = ReferenceThreadObject(c, handle);
     const u32 count = c.Load32(process + 0x14);
     auto seen = std::make_shared<std::atomic<u32>>(0);
     const u32 waiter = c.Spawn([handle, kthread, seen](Caller& w) {
-      w.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, w.Quad(-50000000)});
+      w.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, w.AllocQuad(-50000000)});
       seen->store(ExitCodeXAPI(w, kthread));
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -554,7 +561,7 @@ REX_TEST_CASE("threads: a stop writes the same exit state before a waiter wakes"
       pin->RequestStop(9);
     }
     c.Kernel("NtResumeThread", {handle, 0});
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {waiter, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {waiter, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {waiter});
     CHECK(seen->load() == 9);
     CHECK(ExitCodeXAPI(c, kthread) == 9);
@@ -582,7 +589,7 @@ REX_TEST_CASE("threads: kernel time grows across a busy loop and a wait",
       return;
     }
     const u32 event = c.Load32(event_ptr);
-    c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(-10000)});
+    c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(-10000)});
     INFO("host thread CPU time " << spun.count() << " ms");
     CHECK(c.Load32(kthread + 0x58) - first >= 100);
     c.Kernel("NtClose", {event});
@@ -600,7 +607,7 @@ REX_TEST_CASE("threads: a new thread starts on its creator's processor", "[kerne
           parent->store(t.Load8(t.GetContext().r13.u32 + 0x10C));
           const u32 inner = t.Spawn(
               [child](Caller& u) { child->store(u.Load8(u.GetContext().r13.u32 + 0x10C)); });
-          t.Kernel("NtWaitForSingleObjectEx", {inner, 1, 0, t.Quad(-50000000)});
+          t.Kernel("NtWaitForSingleObjectEx", {inner, 1, 0, t.AllocQuad(-50000000)});
           t.Kernel("NtClose", {inner});
         },
         0x10000000);
@@ -615,11 +622,11 @@ REX_TEST_CASE("A new thread links its wait, timer and spare lists to themselves"
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* object =
-        rex::runtime::KernelThread::GetCurrentThread()->GetGuestObject<rex::runtime::X_KTHREAD>();
-    auto* memory = c.GetRuntime().GetMemory();
+        rex::kernel::KernelThread::GetCallingThread()->GetGuestObject<rex::kernel::X_KTHREAD>();
+    auto* memory = StateOf(c.GetRuntime()).GetMemory();
     for (auto* list :
          {&object->wait_timeout_block.wait_list_entry, &object->timer_list, &object->unk_154}) {
-      const rex::u32 address = rex::runtime::GuestListAddress(list, memory);
+      const rex::u32 address = rex::kernel::GuestListAddress(list, memory);
       CHECK(list->flink_ptr == address);
       CHECK(list->blink_ptr == address);
     }
@@ -631,16 +638,14 @@ namespace {
 u32 CPUOfThreadCreatedWith(Caller& c, u32 creation_flags) {
   auto cpu = std::make_shared<std::atomic<u32>>(0xFF);
   const u32 handle = c.Spawn(
-      [cpu](Caller&) {
-        cpu->store(rex::runtime::KernelThread::GetCurrentThread()->GetActiveCPU());
-      },
+      [cpu](Caller&) { cpu->store(rex::kernel::KernelThread::GetCallingThread()->GetActiveCPU()); },
       creation_flags);
   Join(c, handle);
   return cpu->load();
 }
 
 u32 CPUAfterSetAffinity(Caller& c, u32 affinity) {
-  auto* thread = rex::runtime::KernelThread::GetCurrentThread();
+  auto* thread = rex::kernel::KernelThread::GetCallingThread();
   const u32 object = thread->GetGuestObject();
   c.Kernel("KeSetAffinityThread", {object, affinity, 0});
   return thread->GetActiveCPU();
@@ -648,24 +653,25 @@ u32 CPUAfterSetAffinity(Caller& c, u32 affinity) {
 
 }  // namespace
 
-REX_TEST_CASE("A creation mask without a valid processor bit inherits the creator processor",
+REX_TEST_CASE("A rejected creation mask still creates the thread on its initial processor",
               "[kernel][threads][affinity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 creator = rex::runtime::KernelThread::GetCurrentThread()->GetActiveCPU();
+    const u32 creator = rex::kernel::KernelThread::GetCallingThread()->GetActiveCPU();
     CHECK(CPUOfThreadCreatedWith(c, 0xC0000000) == creator);
     CHECK(CPUOfThreadCreatedWith(c, 0x80000000) == creator);
   });
 }
 
-REX_TEST_CASE("A creation mask with several bits picks a processor from the mask",
+REX_TEST_CASE("A creation mask with several bits picks the highest processor",
               "[kernel][threads][affinity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    CHECK(CPUOfThreadCreatedWith(c, 0x28000000) == 3);
-    CHECK(CPUOfThreadCreatedWith(c, 0xFF000000) < 6);
-    CHECK(CPUOfThreadCreatedWith(c, 0x3F000000) < 6);
-    CHECK(CPUOfThreadCreatedWith(c, 0x60000000) == 5);
+    const u32 creator = rex::kernel::KernelThread::GetCallingThread()->GetActiveCPU();
+    CHECK(CPUOfThreadCreatedWith(c, 0x28000000) == 5);
+    CHECK(CPUOfThreadCreatedWith(c, 0x3F000000) == 5);
+    CHECK(CPUOfThreadCreatedWith(c, 0xFF000000) == creator);
+    CHECK(CPUOfThreadCreatedWith(c, 0x60000000) == creator);
   });
 }
 
@@ -678,7 +684,7 @@ REX_TEST_CASE(
     CHECK(CPUAfterSetAffinity(c, 0xC0) == 2);
     CHECK(CPUAfterSetAffinity(c, 0x00) == 2);
     CHECK(c.Kernel("KeSetAffinityThread",
-                   {rex::runtime::KernelThread::GetCurrentThread()->GetGuestObject(), 0xC0, 0}) ==
+                   {rex::kernel::KernelThread::GetCallingThread()->GetGuestObject(), 0xC0, 0}) ==
           0xC000000D);
     CHECK(CPUAfterSetAffinity(c, 0x3F) == 5);
     CHECK(CPUAfterSetAffinity(c, 0x0A) == 3);
@@ -697,17 +703,17 @@ std::string NameAfterSetThreadNameRecord(Caller& c, u32 type, u32 name) {
   c.Store32(record + 24, name);
   c.Store32(record + 28, 0xFFFFFFFF);
   c.Kernel("RtlRaiseException", {record});
-  return rex::runtime::KernelThread::GetCurrentThread()->GetName();
+  return rex::kernel::KernelThread::GetCallingThread()->GetName();
 }
 
 }  // namespace
 
-REX_TEST_CASE("A thread name record of another type leaves the thread name alone",
+REX_TEST_CASE("A thread name entry of another type leaves the thread name alone",
               "[kernel][threads][name]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 name = c.String("Worker");
-    const std::string before = rex::runtime::KernelThread::GetCurrentThread()->GetName();
+    const u32 name = c.AllocString("Worker");
+    const std::string before = rex::kernel::KernelThread::GetCallingThread()->GetName();
     CHECK(NameAfterSetThreadNameRecord(c, 0x2000, name) == before);
     CHECK(NameAfterSetThreadNameRecord(c, 0x1000, name).rfind("Worker", 0) == 0);
   });
@@ -717,7 +723,7 @@ REX_TEST_CASE("A thread name without a terminator is cut at a fixed length",
               "[kernel][threads][name]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 name = c.String(std::string(2000, 'A'));
+    const u32 name = c.AllocString(std::string(2000, 'A'));
     const std::string applied = NameAfterSetThreadNameRecord(c, 0x1000, name);
     CHECK(applied.rfind(std::string(256, 'A') + " (", 0) == 0);
   });

@@ -12,9 +12,12 @@
 
 #include <atomic>
 
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/title_exit.h>
+
 #include "kernel_fixture.h"
 
-using rex::runtime::TitleExitReason;
+using rex::kernel::TitleExitReason;
 using rex::test::Caller;
 using rex::test::KernelFixture;
 
@@ -24,14 +27,14 @@ REX_TEST_CASE("KeBugCheckEx never returns and reports a bug check", "[kernel][bu
   g_returned = false;
   g_reported = -1;
   KernelFixture fixture;
-  fixture.GetRuntime().OnTitleExit(
-      [](TitleExitReason reason) { g_reported = static_cast<int>(reason); });
+  auto exit_guard = fixture.GetRuntime().OnTitleExit(
+      [](rex::kernel::TitleExitReason reason) { g_reported = static_cast<int>(reason); });
   fixture.RunUntilGuestThreadEnds([](Caller& c) {
     c.Kernel("KeBugCheckEx", {0x1234, 1, 2, 3, 4});
     g_returned = true;
   });
   CHECK_FALSE(g_returned);
-  CHECK(g_reported == static_cast<int>(TitleExitReason::kBugCheck));
+  CHECK(g_reported == static_cast<int>(rex::kernel::TitleExitReason::kBugCheck));
 }
 
 REX_TEST_CASE("KeBugCheck never returns and reports a bug check", "[kernel][bugcheck]") {
@@ -40,12 +43,12 @@ REX_TEST_CASE("KeBugCheck never returns and reports a bug check", "[kernel][bugc
   g_returned = false;
   g_reported = -1;
   KernelFixture fixture;
-  fixture.GetRuntime().OnTitleExit(
-      [](TitleExitReason reason) { g_reported = static_cast<int>(reason); });
+  auto exit_guard = fixture.GetRuntime().OnTitleExit(
+      [](rex::kernel::TitleExitReason reason) { g_reported = static_cast<int>(reason); });
   fixture.RunUntilGuestThreadEnds([](Caller& c) {
     c.Kernel("KeBugCheck", {0x1234});
     g_returned = true;
   });
   CHECK_FALSE(g_returned);
-  CHECK(g_reported == static_cast<int>(TitleExitReason::kBugCheck));
+  CHECK(g_reported == static_cast<int>(rex::kernel::TitleExitReason::kBugCheck));
 }

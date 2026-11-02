@@ -15,15 +15,18 @@
 #include <vector>
 
 #include <rex/logging/log.h>
+#include <rex/memory/mapped_ptr.h>
 #include <rex/platform.h>
-#include <rex/hook.h>
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/runtime/process.h>
-#include <rex/runtime/xstatus.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/thread.h>
+#include <rex/kernel/types/status.h>
 #include "kernel/argument_check.h"
 #include "kernel/stub_log.h"
 
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 #include "excrypt.h"
 
 extern "C" {
@@ -32,7 +35,6 @@ extern "C" {
 
 namespace rex::kernel::xboxkrnl {
 
-/** RC4 state in guest memory. */
 struct XECRYPT_RC4_STATE {
   u8 s[256];
   u8 i;
@@ -69,7 +71,6 @@ void XeCryptRc4_entry(MappedVoid key, u32 key_size, MappedVoid data, u32 size) {
   ExCryptRc4(key.As<const u8*>(), key_size, data.As<u8*>(), size);
 }
 
-/** SHA-1 state in guest memory. */
 struct XECRYPT_SHA_STATE {
   be_u32 count;
   be_u32 state[5];
@@ -77,7 +78,6 @@ struct XECRYPT_SHA_STATE {
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_SHA_STATE, 0x58);
 
-/** SHA-256 state in guest memory. */
 struct XECRYPT_SHA256_STATE {
   be_u32 count;
   be_u32 state[8];
@@ -268,11 +268,9 @@ void XeCryptSha512_entry(MappedVoid input_1, u32 input_1_size, MappedVoid input_
 }
 
 /**
- * Byteswaps each 8 bytes.
+ * Byte swaps quadwords from qw_inp into qw_out.
  *
- * @param qw_inp The input quadwords.
  * @param qw_out Receives the swapped quadwords.
- * @param size The count of quadwords.
  */
 void XeCryptBnQw_SwapDwQwLeBe_entry(GuestPtrT<u64> qw_inp, GuestPtrT<u64> qw_out, u32 size) {
   memory::copy_and_swap<u64>(qw_out, qw_inp, size);
@@ -307,10 +305,8 @@ void StoreNumber(const Number& number, be_u64* destination) {
 }
 
 /**
- * Compares 2 numbers of the same size from the top quadword down.
+ * Compares two numbers from the top quadword down.
  *
- * @param first The first number, quadwords least significant first.
- * @param second The second number.
  * @return 1 when first is greater, -1 when it is less, otherwise 0.
  */
 i32 CompareNumbers(const Number& first, const Number& second) {
@@ -320,7 +316,7 @@ i32 CompareNumbers(const Number& first, const Number& second) {
 }
 
 /**
- * Subtracts a number from another of the same size in place.
+ * Subtracts amount from value in place.
  *
  * @param value The minuend, receives the difference.
  * @param amount The subtrahend.
@@ -337,14 +333,12 @@ bool SubtractNumber(Number& value, const Number& amount) {
 }
 
 /**
- * Multiplies 2 numbers below an odd modulus in Montgomery form, first * second * R^-1 modulo the
- * modulus with R = 2^(64 * size).
+ * Returns first * second * R^-1 modulo the odd modulus, with R = 2^(64 * size).
  *
- * @param first The first factor, quadwords least significant first.
+ * @param first The first factor.
  * @param second The second factor.
  * @param modulus The odd modulus.
- * @param inverse The inverse of the low quadword of the modulus modulo 2^64.
- * @return The product, fully reduced.
+ * @param inverse The inverse of the low modulus quadword modulo 2^64.
  */
 Number MontgomeryMultiply(const Number& first, const Number& second, const Number& modulus,
                           u64 inverse) {
@@ -385,7 +379,7 @@ Number MontgomeryMultiply(const Number& first, const Number& second, const Numbe
 constexpr u32 kRsaMinDigits = 2;
 
 /**
- * Adds a number to another of the same size in place.
+ * Adds amount to value in place.
  *
  * @param value The first addend, receives the sum.
  * @param amount The second addend.
@@ -401,13 +395,6 @@ bool AddNumber(Number& value, const Number& amount) {
   return carry != 0;
 }
 
-/**
- * Reduces a number modulo another, taking the bits of the value from the top.
- *
- * @param value The number to reduce.
- * @param modulus The modulus.
- * @return The remainder, as many quadwords as the modulus.
- */
 Number ReduceNumber(const Number& value, const Number& modulus) {
   Number remainder(modulus.size(), 0);
   for (size_t bit = value.size() * 64; bit-- > 0;) {
@@ -452,13 +439,6 @@ class Montgomery {
     return Multiply(result, one);
   }
 
-  /**
-   * Multiplies 2 numbers below the modulus.
-   *
-   * @param first The first factor.
-   * @param second The second factor.
-   * @return The product modulo the modulus.
-   */
   Number MultiplyModulo(const Number& first, const Number& second) const {
     return Multiply(Multiply(first, second), radix_squared_);
   }
@@ -469,12 +449,6 @@ class Montgomery {
   Number radix_squared_;
 };
 
-/**
- * Reports whether a key header describes a usable modulus size.
- *
- * @param rsa The key.
- * @return True when the modulus has between 2 and 64 quadwords.
- */
 bool IsRsaSizeValid(const XECRYPT_RSA& rsa) {
   return rsa.size >= kRsaMinDigits && rsa.size <= kBignumMaxDigits;
 }
@@ -507,7 +481,7 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(MappedU64 qw_a, MappedU64 qw_b, GuestPtrT<XEC
 
 /**
  * Applies the RSA private key to qw_a through the Chinese remainder theorem. An input not below the
- * modulus is reduced modulo each prime and still produces a result.
+ * modulus still produces a result.
  *
  * @param qw_a The input quadwords, least significant first.
  * @param qw_b Receives the result.
@@ -567,7 +541,6 @@ u32 XeCryptBnDwLePkcs1Verify_entry(MappedVoid hash, MappedVoid sig, u32 size) {
   return ExCryptBnDwLePkcs1Verify(hash.As<const u8*>(), sig.As<const u8*>(), size) ? 1 : 0;
 }
 
-/** MD5 state in guest memory. */
 struct XECRYPT_MD5_STATE {
   be_u32 count;
   be_u32 state[4];
@@ -581,7 +554,7 @@ struct XECRYPT_HMACMD5_STATE {
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_HMACMD5_STATE, 0xA8);
 
-constexpr u32 kMd5DigestSize = 16;
+constexpr u32 kMD5DigestSize = 16;
 
 void ToHost(const XECRYPT_HMACMD5_STATE& title, EXCRYPT_HMACMD5_STATE& host) {
   ToHost(title.md5[0], host.Md5State[0]);
@@ -594,12 +567,11 @@ void ToGuest(const EXCRYPT_HMACMD5_STATE& host, XECRYPT_HMACMD5_STATE& title) {
 }
 
 /**
- * Pads and finishes an MD5 state, feeding the padding through ExCryptMd5Update.
+ * Pads and finishes an MD5 state.
  *
- * @param state The state to finish.
  * @return The 16 byte digest.
  */
-std::array<u8, kMd5DigestSize> FinishMd5(EXCRYPT_MD5_STATE& state) {
+std::array<u8, kMD5DigestSize> FinishMD5(EXCRYPT_MD5_STATE& state) {
   static constexpr std::array<u8, 64> kPadding = {0x80};
   const u64 bit_count = u64{state.count} * 8;
   const u32 padding_size = 1 + (119 - state.count % 64) % 64;
@@ -609,7 +581,7 @@ std::array<u8, kMd5DigestSize> FinishMd5(EXCRYPT_MD5_STATE& state) {
     length[i] = static_cast<u8>(bit_count >> (8 * i));
   }
   ExCryptMd5Update(&state, length.data(), length.size());
-  std::array<u8, kMd5DigestSize> digest;
+  std::array<u8, kMD5DigestSize> digest;
   for (u32 i = 0; i < digest.size(); ++i) {
     digest[i] = static_cast<u8>(state.state[i / 4] >> (8 * (i % 4)));
   }
@@ -617,9 +589,9 @@ std::array<u8, kMd5DigestSize> FinishMd5(EXCRYPT_MD5_STATE& state) {
 }
 
 void FinishHmacMd5(EXCRYPT_HMACMD5_STATE& state, u8* output, u32 output_size) {
-  const auto inner = FinishMd5(state.Md5State[0]);
+  const auto inner = FinishMD5(state.Md5State[0]);
   ExCryptMd5Update(&state.Md5State[1], inner.data(), inner.size());
-  const auto digest = FinishMd5(state.Md5State[1]);
+  const auto digest = FinishMD5(state.Md5State[1]);
   std::copy_n(digest.begin(), std::min<size_t>(output_size, digest.size()), output);
 }
 
@@ -640,7 +612,7 @@ void XeCryptMd5Update_entry(GuestPtrT<XECRYPT_MD5_STATE> md5_state, MappedVoid i
 void XeCryptMd5Final_entry(GuestPtrT<XECRYPT_MD5_STATE> md5_state, MappedVoid out, u32 out_size) {
   EXCRYPT_MD5_STATE state;
   ToHost(*md5_state, state);
-  const auto digest = FinishMd5(state);
+  const auto digest = FinishMD5(state);
   std::copy_n(digest.begin(), std::min<size_t>(out_size, digest.size()), out.As<u8*>());
   ToGuest(state, *md5_state);
 }
@@ -656,7 +628,7 @@ void XeCryptMd5_entry(MappedVoid input_1, u32 input_1_size, MappedVoid input_2, 
       ExCryptMd5Update(&state, input.As<const u8*>(), size);
     }
   }
-  const auto digest = FinishMd5(state);
+  const auto digest = FinishMD5(state);
   std::copy_n(digest.begin(), std::min<size_t>(output_size, digest.size()), output.As<u8*>());
 }
 
@@ -717,9 +689,9 @@ void XeCryptBnDwLePkcs1Format_entry(MappedVoid hash, u32 format, MappedVoid outp
 }
 
 /**
- * Builds the masked signature block of a SHA1 hash and a 10 byte salt.
+ * Builds the 256 byte masked signature block of a 20 byte SHA1 hash and a 10 byte salt.
  *
- * @param sig Receives the 256 byte block.
+ * @param sig Receives the block.
  * @param hash The 20 byte SHA1 hash.
  * @param salt The 10 byte salt.
  */
@@ -786,7 +758,6 @@ struct XECRYPT_DES_STATE {
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_DES_STATE, 0x80);
 
-/** Triple DES state in guest memory, the 3 DES states. */
 struct XECRYPT_DES3_STATE {
   XECRYPT_DES_STATE des_state[3];
 };
@@ -805,7 +776,7 @@ struct AESSchedule {
 };
 REX_STATIC_ASSERT_SIZE(AESSchedule, 0x1D4);
 
-/** The ExCrypt round key bit behind each title round key bit, -1 where the title bit stays 0. */
+/** Maps each title round key bit to its ExCrypt round key bit, -1 where the title bit stays 0. */
 constexpr std::array<i8, 64> kDESRoundKeyBits = {
     -1, -1, 11, 10, 9,  8,  7,  6,  -1, -1, 23, 22, 21, 20, 19, 18, -1, -1, 35, 34, 33, 32,
     31, 30, -1, -1, 47, 46, 45, 44, 43, 42, 15, 14, 13, 12, -1, -1, 5,  4,  27, 26, 25, 24,
@@ -869,8 +840,7 @@ void ToGuest(const EXCRYPT_AES_SCHEDULE& host, AESSchedule& title) {
 }
 
 /**
- * Fills the key schedules of the title state, the round keys in order and the decryption schedule
- * with the inverse mix columns transform applied to the middle round keys.
+ * Fills the encryption and decryption key schedules of a guest AES state.
  *
  * @param key The 16 byte key.
  * @param title Receives the schedules.
@@ -895,11 +865,9 @@ void FillAESState(const u8* key, XECRYPT_AES_STATE& title) {
 }
 
 /**
- * Sets bit 0 of each byte to make the parity of the byte odd, whatever bit 0 held.
+ * Sets bit 0 of each byte so its parity is odd.
  *
- * @param inp The input key bytes.
- * @param inp_size The size of inp in bytes.
- * @param out_ptr Receives the key bytes with odd parity.
+ * @param out_ptr Receives the adjusted bytes.
  */
 void XeCryptDesParity_entry(MappedVoid inp, u32 inp_size, MappedVoid out_ptr) {
   std::vector<u8> key(inp.As<const u8*>(), inp.As<const u8*>() + inp_size);
@@ -988,9 +956,9 @@ void XeCryptDes3Cbc_entry(GuestPtrT<XECRYPT_DES3_STATE> state_ptr, MappedU64 inp
 }
 
 /**
- * Expands an AES 128 key into the encryption and decryption key schedules.
+ * Expands a 16 byte AES 128 key into the encryption and decryption key schedules.
  *
- * @param state_ptr Receives the key schedules.
+ * @param state_ptr Receives the schedules.
  * @param key The 16 byte key.
  */
 void XeCryptAesKey_entry(GuestPtrT<XECRYPT_AES_STATE> state_ptr, MappedVoid key) {
@@ -1013,10 +981,8 @@ void XeCryptAesCbc_entry(GuestPtrT<XECRYPT_AES_STATE> state_ptr, MappedVoid inp_
 }
 
 /**
- * Expands an AES key of 16, 24 or 32 bytes into an encryption and decryption key schedule. Any
- * other key size leaves the schedule untouched.
+ * Builds an AES key schedule, leaving it untouched for a key size other than 16, 24 or 32 bytes.
  *
- * @param key The key.
  * @param key_size The key size in bytes.
  * @param schedule_ptr Receives the schedule.
  */
@@ -1070,11 +1036,11 @@ void XeCryptAesCbcDecrypt_entry(GuestPtrT<AESSchedule> schedule_ptr, MappedVoid 
 }
 
 /**
- * Returns a pointer into the elliptic curve table for a curve id.
+ * Returns a pointer into the elliptic curve table for a curve ID. It returns 0 for a valid ID, 4
+ * for an ID past the table, and 1 when out_ptr is null.
  *
- * @param curve_id The curve id, 0 to 14.
- * @param out_ptr Receives the table pointer, or 0 for an id past the table.
- * @return 0 for a valid id, 4 for an id past the table, 1 when out_ptr is null.
+ * @param curve_id Range 0 to 14.
+ * @param out_ptr Receives the table pointer, or 0 for an ID past the table.
  */
 u32 XeCryptEccGetCurveParameters_entry(u32 curve_id, GuestPtrT<be_u32> out_ptr) {
   if (!out_ptr) {
@@ -1085,8 +1051,8 @@ u32 XeCryptEccGetCurveParameters_entry(u32 curve_id, GuestPtrT<be_u32> out_ptr) 
     *out_ptr = 0;
     return 4;
   }
-  *out_ptr = runtime::GetCurrent().GetKernelGlobals() +
-             static_cast<u32>(offsetof(runtime::KernelGuestGlobals, ecc_curves)) + 4 * curve_id;
+  *out_ptr = kernel::GetCurrentState().GetKernelGlobals() +
+             static_cast<u32>(offsetof(kernel::KernelGuestGlobals, ecc_curves)) + 4 * curve_id;
   return 0;
 }
 
@@ -1119,11 +1085,9 @@ void XeCryptBnQw_SwapDwQw_entry(MappedVoid source, MappedVoid dest, u32 qwords) 
 }
 
 /**
- * Compares 2 numbers from the top quadword down.
+ * Compares two numbers of num_qwords quadwords.
  *
- * @param input1 The first number, quadwords least significant first.
- * @param input2 The second number, quadwords least significant first.
- * @param num_qwords The count of quadwords of both numbers.
+ * @param num_qwords The number of quadwords in each.
  * @return 1 when input1 is greater, -1 when it is less, otherwise 0.
  */
 i32 XeCryptBnQwNeCompare_entry(MappedU64 input1, MappedU64 input2, u32 num_qwords) {
@@ -1131,14 +1095,14 @@ i32 XeCryptBnQwNeCompare_entry(MappedU64 input1, MappedU64 input2, u32 num_qword
 }
 
 /**
- * Multiplies 2 numbers in Montgomery form, A * B * R^-1 modulo n with R = 2^(64 * modulus_size).
+ * Computes A * B * R^-1 modulo the odd modulus, with R = 2^(64 * modulus_size).
  *
- * @param input_a The first factor, modulus_size quadwords least significant first.
- * @param input_b The second factor, modulus_size quadwords least significant first.
- * @param output_c Receives the product, modulus_size quadwords least significant first.
- * @param inverse The value XeCryptBnQwNeModInv returns for the low quadword of the modulus.
- * @param modulus The odd modulus, modulus_size quadwords least significant first.
- * @param modulus_size The count of quadwords of every number.
+ * @param input_a The first factor.
+ * @param input_b The second factor.
+ * @param output_c Receives the product.
+ * @param inverse The inverse of the low modulus quadword modulo 2^64.
+ * @param modulus The odd modulus.
+ * @param modulus_size The modulus size in quadwords, 1 to 64.
  */
 void XeCryptBnQwNeModMul_entry(MappedU64 input_a, MappedU64 input_b, MappedU64 output_c,
                                u64 inverse, MappedU64 modulus, u32 modulus_size) {
@@ -1151,12 +1115,6 @@ void XeCryptBnQwNeModMul_entry(MappedU64 input_a, MappedU64 input_b, MappedU64 o
       output_c);
 }
 
-/**
- * Computes the inverse of a number modulo 2^64.
- *
- * @param input The odd low quadword of a modulus.
- * @return The inverse of input modulo 2^64.
- */
 u64 XeCryptBnQwNeModInv_entry(u64 input) {
   return ExCryptBnQwNeModInv(input);
 }
@@ -1224,19 +1182,18 @@ void XeCryptHmacSha_entry(MappedVoid key, u32 key_size, MappedVoid inp_1, u32 in
 }
 
 /**
- * Compares an HMAC-SHA digest prefix with the expected bytes.
+ * Checks the first compare_size bytes (at most 20) of an HMAC SHA digest.
  *
- * @param key The key.
- * @param key_size The size of key in bytes.
+ * @param key_size The key size in bytes.
  * @param inp_1 The first input.
- * @param inp_1_size The size of inp_1 in bytes.
+ * @param inp_1_size The first input size in bytes.
  * @param inp_2 The second input.
- * @param inp_2_size The size of inp_2 in bytes.
+ * @param inp_2_size The second input size in bytes.
  * @param inp_3 The third input.
- * @param inp_3_size The size of inp_3 in bytes.
- * @param compare The expected digest bytes.
- * @param compare_size The count of bytes to compare, at most 20.
- * @return 1 when the digest prefix matches, otherwise 0.
+ * @param inp_3_size The third input size in bytes.
+ * @param compare The digest to compare against.
+ * @param compare_size The number of bytes to compare.
+ * @return 1 when the bytes match, otherwise 0.
  */
 u32 XeCryptHmacShaVerify_entry(MappedVoid key, u32 key_size, MappedVoid inp_1, u32 inp_1_size,
                                MappedVoid inp_2, u32 inp_2_size, MappedVoid inp_3, u32 inp_3_size,
@@ -1261,8 +1218,8 @@ u32 XeKeysHmacSha_entry(u32 key_num, MappedVoid inp_1, u32 inp_1_size, MappedVoi
   }
 
   if (key) {
-    XeCryptHmacSha_entry(MappedVoid::GetFromHost(const_cast<u8*>(key)), 0x10, inp_1, inp_1_size,
-                         inp_2, inp_2_size, inp_3, inp_3_size, out, out_size);
+    XeCryptHmacSha_entry(MappedVoid::FromHost(const_cast<u8*>(key)), 0x10, inp_1, inp_1_size, inp_2,
+                         inp_2_size, inp_3, inp_3_size, out, out_size);
 
     return X_STATUS_SUCCESS;
   }
@@ -1273,12 +1230,6 @@ u32 XeKeysHmacSha_entry(u32 key_num, MappedVoid inp_1, u32 inp_1_size, MappedVoi
 static const u8 kKeyObfuscationKey[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-/**
- * Decrypts an obscured key with kKeyObfuscationKey.
- *
- * @param obscured_key The 16 byte obscured key.
- * @param key Receives the 16 byte key.
- */
 static void UnobscureKey(const u8* obscured_key, u8* key) {
   alignas(16) EXCRYPT_AES_STATE aes;
   ExCryptAesKey(&aes, kKeyObfuscationKey);
@@ -1298,13 +1249,6 @@ u32 XeKeysAesCbcUsingKey_entry(MappedVoid obscured_key, MappedVoid inp_ptr, u32 
   return X_STATUS_SUCCESS;
 }
 
-/**
- * Obscures a key by encrypting it with kKeyObfuscationKey.
- *
- * @param input The 16 byte key.
- * @param output Receives the obscured key.
- * @return X_STATUS_SUCCESS.
- */
 u32 XeKeysObscureKey_entry(MappedVoid input, MappedVoid output) {
   alignas(16) EXCRYPT_AES_STATE aes;
   ExCryptAesKey(&aes, kKeyObfuscationKey);
@@ -1321,27 +1265,17 @@ u32 XeKeysHmacShaUsingKey_entry(MappedVoid obscured_key, MappedVoid inp_1, u32 i
   u8 key[16];
   UnobscureKey(obscured_key.As<const u8*>(), key);
 
-  XeCryptHmacSha_entry(MappedVoid::GetFromHost(key), 0x10, inp_1, inp_1_size, inp_2, inp_2_size,
-                       inp_3, inp_3_size, out, out_size);
+  XeCryptHmacSha_entry(MappedVoid::FromHost(key), 0x10, inp_1, inp_1_size, inp_2, inp_2_size, inp_3,
+                       inp_3_size, out, out_size);
   return X_STATUS_SUCCESS;
 }
 
-/**
- * Console sign export.
- *
- * @return 0.
- */
 u32 XeKeysConsolePrivateKeySign_entry([[maybe_unused]] MappedVoid hash,
                                       [[maybe_unused]] MappedVoid signature) {
   REX_KERNEL_STUB("XeKeysConsolePrivateKeySign");
   return 0;
 }
 
-/**
- * Console signature verification export.
- *
- * @return 0.
- */
 u32 XeKeysConsoleSignatureVerification_entry([[maybe_unused]] MappedVoid hash,
                                              [[maybe_unused]] MappedVoid signature,
                                              [[maybe_unused]] MappedVoid pubkey) {
