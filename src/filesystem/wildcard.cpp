@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <vector>
 
-#include <rex/string.h>
+#include <rex/string/text.h>
 
 namespace rex::filesystem {
 
@@ -54,7 +54,7 @@ bool WildcardMatcher::Match(std::string_view name) const {
           next[p + 1] = next[p + 1] || c == '.';
           break;
         default:
-          next[p + 1] = next[p + 1] || utf8_equal_case({&pattern_[p], 1}, {&c, 1});
+          next[p + 1] = next[p + 1] || string::utf8_equal_case({&pattern_[p], 1}, {&c, 1});
           break;
       }
     }

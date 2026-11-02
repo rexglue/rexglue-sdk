@@ -17,6 +17,8 @@
 #include <span>
 #include <string_view>
 
+#include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_open.h>
 #include <rex/filesystem/directory.h>
 #include <rex/filesystem/file.h>
 
@@ -25,7 +27,6 @@
 
 namespace rex::filesystem {
 
-/** An open node. */
 class NodeFile final : public IFile {
  public:
   /**
@@ -40,11 +41,6 @@ class NodeFile final : public IFile {
   /** Closes the stream, then releases the node, which deletes it when delete on close is set. */
   ~NodeFile() override;
 
-  /**
-   * Returns the node the file is open on.
-   *
-   * @return The node.
-   */
   [[nodiscard]] Node& GetNode() const { return *node_; }
 
   [[nodiscard]] FileStat GetInfo() const override;
@@ -79,7 +75,6 @@ class NodeDirectory final : public IDirectory {
    */
   NodeDirectory(Node& node, std::string_view pattern);
 
-  /** Releases the node. */
   ~NodeDirectory() override;
 
   [[nodiscard]] std::optional<FileStat> Next() override;

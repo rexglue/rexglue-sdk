@@ -17,7 +17,8 @@
 #include <cstdlib>
 #include <cstring>
 
-#include <rex/filesystem/xex_types.h>
+#include <rex/filesystem/xex.h>
+#include <rex/kernel/types/xex.h>
 
 #include <lzx.h>
 #include <mspack.h>
@@ -117,7 +118,7 @@ int LZXApplyDelta(std::span<const u8> patch, u32 window_size, std::span<u8> imag
   constexpr size_t kPatchHeaderSize = 12;
   size_t offset = 0;
   while (offset + kPatchHeaderSize <= patch.size()) {
-    const auto* entry = reinterpret_cast<const XEXDeltaPatch*>(patch.data() + offset);
+    const auto* entry = reinterpret_cast<const kernel::XEXDeltaPatch*>(patch.data() + offset);
     const u32 old_addr = entry->old_addr;
     const u32 new_addr = entry->new_addr;
     const u32 length = entry->uncompressed_len;

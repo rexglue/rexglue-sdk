@@ -4,7 +4,8 @@
 #include <mutex>
 #include <utility>
 
-#include <rex/filesystem/error.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/mount.h>
 
 #include "filesystem/container_provider.h"
 #include "filesystem/host_provider.h"
@@ -32,18 +33,18 @@ void Provider::ReleaseDetached() {
 }
 
 Result<std::unique_ptr<Provider>> CreateProvider(const MountEntry& entry) {
-  switch (entry.kind) {
-    case ProviderKind::kHostDirectory:
+  switch (entry.type) {
+    case ProviderType::kHostDirectory:
       return HostProvider::Create(entry);
-    case ProviderKind::kSTFS:
-    case ProviderKind::kDiscImage:
+    case ProviderType::kSTFS:
+    case ProviderType::kDiscImage:
       return ContainerProvider::Create(entry);
-    case ProviderKind::kNull:
+    case ProviderType::kNull:
       return NullProvider::Create(entry);
   }
   return Err<std::unique_ptr<Provider>>(BuildError(
-      FileSystemError::kUnsupported, std::format("mount '{}' names provider kind {}", entry.path,
-                                                 std::to_underlying(entry.kind))));
+      FileSystemError::kUnsupported, std::format("mount '{}' names provider type {}", entry.path,
+                                                 std::to_underlying(entry.type))));
 }
 
 }  // namespace rex::filesystem

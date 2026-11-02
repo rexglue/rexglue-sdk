@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/filesystem/fixture.h
- * @brief       Catch2 fixture that loads rexfilesystem through rex::Init
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,17 +13,22 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
+#include <memory>
 #include <random>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include <rex/api.h>
-#include <rex/filesystem.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/filesystem/mount.h>
+#include <rex/filesystem/file.h>
+#include <rex/filesystem/file_system.h>
 #include <rex/platform/file.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
+#include "filesystem/file_system.h"
 #include "temp_folder.h"
 
 namespace rex::filesystem::test {
@@ -34,23 +38,13 @@ struct TempFolder : rex::test::TempFolder {
   TempFolder() : rex::test::TempFolder("rex_filesystem_test_") {}
 };
 
-/**
- * Writes text into a host file, creating parent folders.
- *
- * @param path The host file.
- * @param text The contents.
- */
+/** Writes text into a host file, creating parent folders. */
 inline void WriteHost(const std::filesystem::path& path, std::string_view text) {
   REQUIRE(platform::WriteHostFile(
       path, std::span(reinterpret_cast<const u8*>(text.data()), text.size())));
 }
 
-/**
- * Reads every byte of an open file.
- *
- * @param file The open file.
- * @return The contents as text.
- */
+/** Returns the whole contents of an open file as text. */
 inline std::string ReadText(IFile& file) {
   std::vector<u8> bytes(file.GetInfo().size);
   if (bytes.empty()) {
@@ -61,61 +55,20 @@ inline std::string ReadText(IFile& file) {
   return {bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(*read)};
 }
 
-/** Loads rexfilesystem, holds its IFileSystem and a temp folder, and shuts down. */
 class Fixture : public NonCopyable {
  public:
-  /**
-   * Runs rex::Init with rexfilesystem as the only module.
-   *
-   * @param game_mount_flags The filesystem mount flags handed to Connect.
-   */
-  explicit Fixture(MountFlags game_mount_flags = MountFlags::kNone) {
-    Config config;
-    config.modules = {"rexfilesystem"};
-    config.filesystem.game_mount_flags = game_mount_flags;
-    auto api = rex::Init(config);
-    REQUIRE(api);
-    file_system_ = (*api)->Get<IFileSystem>();
-    if (!file_system_) {
-      rex::Shutdown();
-    }
-    REQUIRE(file_system_);
-  }
+  Fixture() : file_system_(std::make_unique<FileSystem>()) {}
 
-  ~Fixture() { rex::Shutdown(); }
-
-  /**
-   * Returns the mount table the module serves.
-   *
-   * @return The interface.
-   */
   IFileSystem& GetFileSystem() { return *file_system_; }
 
-  /**
-   * Returns the temp folder of the case.
-   *
-   * @return The host folder.
-   */
   const std::filesystem::path& GetTemp() const { return temp_.path; }
 
-  /**
-   * Mounts the temp folder at a path as a host directory.
-   *
-   * @param path The guest mount path.
-   * @param flags The mount flags.
-   */
   void MountTemp(std::string_view path, MountFlags flags = MountFlags::kWritable) {
     REQUIRE(
-        GetFileSystem().Mount({std::string(path), ProviderKind::kHostDirectory, GetTemp(), flags}));
+        GetFileSystem().Mount({std::string(path), ProviderType::kHostDirectory, GetTemp(), flags}));
   }
 
-  /**
-   * Opens a path and requires success.
-   *
-   * @param path A guest path.
-   * @param options Disposition, access and kind.
-   * @return The opened file and action.
-   */
+  /** Opens a guest path and requires success. */
   Opened Open(std::string_view path, const OpenOptions& options = {}) {
     auto opened = GetFileSystem().Open(path, options);
     REQUIRE(opened);
@@ -124,7 +77,7 @@ class Fixture : public NonCopyable {
 
  private:
   TempFolder temp_;
-  IFileSystem* file_system_ = nullptr;
+  std::unique_ptr<FileSystem> file_system_;
 };
 
 }  // namespace rex::filesystem::test

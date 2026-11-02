@@ -11,10 +11,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <rex/chrono/chrono.h>
+#include <rex/chrono.h>
 #include <rex/platform.h>
-#include <rex/filesystem/error.h>
-#include <rex/string.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/string/text.h>
 
 namespace rex::filesystem {
 
@@ -39,8 +40,9 @@ HostFileStat FromStat(std::filesystem::path name, const struct stat& st) {
 }
 
 rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
-  return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, {}", what, PathToUTF8(path),
-                                                      std::strerror(errno)));
+  return BuildError(
+      FileSystemError::kIO,
+      std::format("{} '{}' failed, {}", what, string::PathToUTF8(path), std::strerror(errno)));
 }
 
 bool NoNativeExclusiveMove(int error) {
@@ -123,9 +125,9 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
     } else if (error == ETXTBSY) {
       code = FileSystemError::kSharingViolation;
     }
-    return Err<std::unique_ptr<HostFile>>(BuildError(
-        code,
-        std::format("cannot open host file '{}', {}", PathToUTF8(path), std::strerror(error))));
+    return Err<std::unique_ptr<HostFile>>(
+        BuildError(code, std::format("cannot open host file '{}', {}", string::PathToUTF8(path),
+                                     std::strerror(error))));
   }
   return std::make_unique<HostFile>(Key{}, path, handle);
 }
@@ -170,8 +172,8 @@ Result<void> HostFile::Flush() const {
     } else if (error == EACCES || error == EPERM || error == EROFS) {
       code = FileSystemError::kAccessDenied;
     }
-    return Err(BuildError(code, std::format("cannot create host file '{}', {}", PathToUTF8(path),
-                                            std::strerror(error))));
+    return Err(BuildError(code, std::format("cannot create host file '{}', {}",
+                                            string::PathToUTF8(path), std::strerror(error))));
   }
   close(handle);
   return Ok();
@@ -191,8 +193,8 @@ Result<void> HostFile::Flush() const {
   } else if (error == EXDEV) {
     code = FileSystemError::kNotSameDevice;
   }
-  return Err(BuildError(code, std::format("cannot move '{}' to '{}', {}", PathToUTF8(from),
-                                          PathToUTF8(to), std::strerror(error))));
+  return Err(BuildError(code, std::format("cannot move '{}' to '{}', {}", string::PathToUTF8(from),
+                                          string::PathToUTF8(to), std::strerror(error))));
 }
 
 std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
@@ -201,8 +203,7 @@ std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
     return std::nullopt;
   }
 #if REX_PLATFORM_MAC
-  // TODO(Graine25): canonical returns the name as the folder stores it,
-  // since mac doesn't play ball with path.filename(). Needs optimization
+  // canonical returns the name as the folder stores it, which path.filename() does not on macOS.
   std::error_code ec;
   if (const std::filesystem::path stored = std::filesystem::canonical(path, ec); !ec) {
     return FromStat(stored.filename(), st);

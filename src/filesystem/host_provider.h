@@ -42,24 +42,16 @@ class HostProvider final : public Provider {
    * Builds the provider and reads the folder tree. A missing folder is created on a writable
    * mount.
    *
-   * @param entry The mount description.
    * @return The provider, or kNotFound when the folder is missing on a read only mount.
    */
   [[nodiscard]] static Result<std::unique_ptr<Provider>> Create(const MountEntry& entry);
 
-  /**
-   * Returns the volume information, named STFS.
-   *
-   * @return The name and geometry.
-   */
+  /** Returns the volume information, named STFS. */
   [[nodiscard]] VolumeStat GetVolume() const override;
 
   /**
-   * Returns the node at a path, looking it up on the host when the tree lacks it, case
-   * insensitive.
-   *
-   * @param path The relative path.
-   * @return The node, or null.
+   * Returns the node at a path, looking it up on the host when the tree lacks it, case insensitive,
+   * or null.
    */
   [[nodiscard]] Node* Resolve(std::string_view path) override;
 
@@ -72,7 +64,6 @@ class HostNode final : public Node {
   /**
    * Creates a node without reading the host.
    *
-   * @param provider The provider that owns the node.
    * @param parent The parent, or null for the root.
    * @param path The path relative to the mount.
    * @param host_path The host file or folder.
@@ -82,7 +73,6 @@ class HostNode final : public Node {
   /**
    * Creates a child node from host information.
    *
-   * @param provider The provider that owns the node.
    * @param parent The parent directory.
    * @param info The host information of the child.
    * @return The node.
@@ -91,14 +81,13 @@ class HostNode final : public Node {
                                                         const HostFileStat& info);
 
   /**
-   * Returns the host file or folder, read under the provider mutex.
-   *
-   * @return A copy of the host path.
+   * Returns the host file or folder, read under the provider mutex. The result is a copy of the
+   * host path.
    */
   [[nodiscard]] std::filesystem::path GetHostPath() const;
 
   /**
-   * Reads the host tree under this folder into child nodes. A folder already on the walk, reached
+   * Reads the host tree under this folder into child nodes. A folder on the walk, reached
    * through a link, is listed without its children.
    */
   void Populate();
@@ -111,11 +100,11 @@ class HostNode final : public Node {
   [[nodiscard]] Result<void> SetTimes(const FileTimes& times) override;
 
  private:
-  [[nodiscard]] Result<std::unique_ptr<Node>> CreateChildImpl(std::string_view name,
-                                                              FileAttributes attributes) override;
-  [[nodiscard]] Result<void> DeleteChildImpl(Node& child) override;
-  [[nodiscard]] Result<void> MoveImpl(Node& new_parent, std::string_view name,
-                                      bool replace_existing) override;
+  [[nodiscard]] Result<std::unique_ptr<Node>> CreateChildBacking(
+      std::string_view name, FileAttributes attributes) override;
+  [[nodiscard]] Result<void> DeleteChildBacking(Node& child) override;
+  [[nodiscard]] Result<void> MoveBacking(Node& new_parent, std::string_view name,
+                                         bool replace_existing) override;
   void OnMoved() override;
   void Populate(std::vector<std::pair<u64, u64>>& ancestors);
 

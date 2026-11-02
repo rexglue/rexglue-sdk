@@ -1,5 +1,5 @@
 /**
- * @file        core/filesystem/gdfx.cpp
+ * @file        filesystem/gdfx.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -21,8 +21,8 @@
 #include <utility>
 #include <vector>
 
-#include <rex/filesystem/info.h>
-#include <rex/literals.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/types.h>
 #include <rex/math.h>
 
 namespace rex::filesystem::detail {

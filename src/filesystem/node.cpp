@@ -5,10 +5,13 @@
 #include <mutex>
 
 #include <rex/types.h>
-#include <rex/filesystem/error.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_open.h>
 #include <rex/logging/log.h>
 #include <rex/result.h>
-#include <rex/string.h>
+#include <rex/string/text.h>
+#include <rex/filesystem/path.h>
 
 #include "filesystem/provider.h"
 #include "filesystem/wildcard.h"
@@ -74,7 +77,8 @@ FileStat Node::GetInfo() const {
 Node* Node::GetChild(std::string_view name) {
   std::lock_guard lock(provider_->GetMutex());
   const auto it = std::ranges::find_if(children_, [&](const std::unique_ptr<Node>& child) {
-    return child->info_.name.size() == name.size() && utf8_equal_case(child->info_.name, name);
+    return child->info_.name.size() == name.size() &&
+           string::utf8_equal_case(child->info_.name, name);
   });
   return it == children_.end() ? nullptr : it->get();
 }
@@ -107,23 +111,23 @@ Node* Node::AddChild(std::unique_ptr<Node> child) {
   return children_.emplace_back(std::move(child)).get();
 }
 
-void Node::DropChild(Node& child) {
+void Node::RemoveChild(Node& child) {
   std::lock_guard lock(provider_->GetMutex());
   const auto it = std::ranges::find_if(
       children_, [&](const std::unique_ptr<Node>& entry) { return entry.get() == &child; });
   if (it == children_.end()) {
     return;
   }
-  std::unique_ptr<Node> dropped = std::move(*it);
+  std::unique_ptr<Node> removed = std::move(*it);
   children_.erase(it);
-  if (dropped->open_count_ == 0) {
+  if (removed->open_count_ == 0) {
     return;
   }
   for (Node* node = this; node; node = node->parent_) {
-    node->open_count_ -= dropped->open_count_;
+    node->open_count_ -= removed->open_count_;
   }
-  dropped->parent_ = nullptr;
-  provider_->Detach(std::move(dropped));
+  removed->parent_ = nullptr;
+  provider_->Detach(std::move(removed));
 }
 
 void Node::AddOpen() {
@@ -158,7 +162,7 @@ Result<Node*> Node::CreateChild(std::string_view name, FileAttributes attributes
     return Err<Node*>(BuildError(FileSystemError::kExists,
                                  std::format("'{}\\{}' exists", info_.absolute_path, name)));
   }
-  REX_TRY(std::unique_ptr<Node> child, CreateChildImpl(name, attributes));
+  REX_TRY(std::unique_ptr<Node> child, CreateChildBacking(name, attributes));
   return children_.emplace_back(std::move(child)).get();
 }
 
@@ -177,8 +181,8 @@ Result<void> Node::DeleteChild(Node& child) {
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("'{}' is open", child.info_.absolute_path)));
   }
-  REX_TRY_VOID(DeleteChildImpl(child));
-  DropChild(child);
+  REX_TRY_VOID(DeleteChildBacking(child));
+  RemoveChild(child);
   return Ok();
 }
 
@@ -225,9 +229,9 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
                             std::format("'{}' cannot be replaced", existing->info_.absolute_path)));
     }
   }
-  REX_TRY_VOID(MoveImpl(new_parent, name, existing != nullptr));
+  REX_TRY_VOID(MoveBacking(new_parent, name, existing != nullptr));
   if (existing) {
-    new_parent.DropChild(*existing);
+    new_parent.RemoveChild(*existing);
   }
 
   auto& siblings = parent_->children_;
@@ -280,20 +284,20 @@ Result<void> Node::SetTimes(const FileTimes& times) {
   return Err(BuildError(FileSystemError::kUnsupported, "the provider has no time change"));
 }
 
-Result<std::unique_ptr<Node>> Node::CreateChildImpl(std::string_view name,
-                                                    FileAttributes attributes) {
+Result<std::unique_ptr<Node>> Node::CreateChildBacking(std::string_view name,
+                                                       FileAttributes attributes) {
   (void)name;
   (void)attributes;
   return Err<std::unique_ptr<Node>>(
       BuildError(FileSystemError::kUnsupported, "the provider cannot create"));
 }
 
-Result<void> Node::DeleteChildImpl(Node& child) {
+Result<void> Node::DeleteChildBacking(Node& child) {
   (void)child;
   return Err(BuildError(FileSystemError::kUnsupported, "the provider cannot delete"));
 }
 
-Result<void> Node::MoveImpl(Node& new_parent, std::string_view name, bool replace_existing) {
+Result<void> Node::MoveBacking(Node& new_parent, std::string_view name, bool replace_existing) {
   (void)new_parent;
   (void)name;
   (void)replace_existing;

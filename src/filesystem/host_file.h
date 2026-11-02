@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/host_file.h
- * @brief       Positional host file handle and host directory queries of the host provider
+ * @brief       Positional host file handle and host queries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,10 +20,11 @@
 #include <span>
 #include <vector>
 
-#include <rex/filesystem/open.h>
+#include <rex/filesystem/file_open.h>
 #include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex::filesystem {
 
@@ -38,24 +39,23 @@ using NativeHandle = int;
 /** Host view of a file or folder. */
 struct HostFileStat {
   std::filesystem::path name; /**< Last path component. */
-  bool directory = false;     /**< True for a folder. */
-  u64 size = 0;               /**< Size in bytes, 0 for a folder. */
-  u64 create_time = 0;        /**< Creation time in FILETIME ticks. */
-  u64 access_time = 0;        /**< Last access time in FILETIME ticks. */
-  u64 write_time = 0;         /**< Last write time in FILETIME ticks. */
-  u64 device = 0;             /**< Host device id, 0 where the host reports none. */
-  u64 inode = 0;              /**< Host file id on the device, 0 where the host reports none. */
+  bool directory = false;
+  u64 size = 0;        /**< Size in bytes, 0 for a folder. */
+  u64 create_time = 0; /**< Creation time in FILETIME ticks. */
+  u64 access_time = 0; /**< Last access time in FILETIME ticks. */
+  u64 write_time = 0;  /**< Last write time in FILETIME ticks. */
+  u64 device = 0;      /**< Host device ID, 0 where the host reports none. */
+  u64 inode = 0;       /**< Host file ID on the device, 0 where the host reports none. */
 };
 
-/** An open host file read and written at explicit offsets. */
+/** An open host file read and written at offsets. */
 class HostFile : public NonCopyable {
   struct Key {};
 
  public:
   /**
-   * Opens a file that exists. The file stays free to be moved or deleted while open.
+   * The file stays free to be moved or deleted while open.
    *
-   * @param path The host file.
    * @param access The requested access bits.
    * @return The handle, kNotFound when the file is missing, kSharingViolation when another handle
    *         refuses sharing, kAccessDenied when the host refuses access, or kIO.
@@ -67,23 +67,16 @@ class HostFile : public NonCopyable {
    * Wraps an open host handle. Only OpenExisting can make the key.
    *
    * @param key The private construction key.
-   * @param path The host file.
    * @param native The open host handle, closed by the destructor.
    */
   HostFile(Key key, std::filesystem::path path, NativeHandle native);
 
   ~HostFile();
 
-  /**
-   * Returns the host file.
-   *
-   * @return The path the handle was opened with.
-   */
+  /** Returns the path the handle was opened with. */
   [[nodiscard]] const std::filesystem::path& GetPath() const { return path_; }
 
   /**
-   * Copies bytes from the file.
-   *
    * @param offset Byte offset in the file.
    * @param buffer Destination.
    * @return The bytes read, 0 at the end, or kIO.
@@ -91,8 +84,6 @@ class HostFile : public NonCopyable {
   [[nodiscard]] Result<size_t> Read(u64 offset, std::span<u8> buffer);
 
   /**
-   * Writes bytes into the file.
-   *
    * @param offset Byte offset in the file.
    * @param buffer Source bytes.
    * @return The bytes written, or kIO.
@@ -100,9 +91,6 @@ class HostFile : public NonCopyable {
   [[nodiscard]] Result<size_t> Write(u64 offset, std::span<const u8> buffer);
 
   /**
-   * Changes the file size.
-   *
-   * @param length The new size in bytes.
    * @return kIO when the host refuses.
    */
   [[nodiscard]] Result<void> SetLength(u64 length);
@@ -122,7 +110,6 @@ class HostFile : public NonCopyable {
 /**
  * Creates an empty host file that does not exist yet.
  *
- * @param path The host file.
  * @return kExists when the path exists, kAccessDenied when the host refuses, or kIO.
  */
 [[nodiscard]] Result<void> HostCreateNew(const std::filesystem::path& path);
@@ -138,19 +125,12 @@ class HostFile : public NonCopyable {
 [[nodiscard]] Result<void> HostMove(const std::filesystem::path& from,
                                     const std::filesystem::path& to, bool replace_existing);
 
-/**
- * Returns the host view of a path.
- *
- * @param path A host path.
- * @return The information, or empty when the path does not exist.
- */
+/** Returns the host view of a path, or empty when the path does not exist. */
 [[nodiscard]] std::optional<HostFileStat> HostStat(const std::filesystem::path& path);
 
 /**
- * Returns the children of a host folder.
- *
- * @param path A host folder.
- * @return Every child except dot and dot dot, empty when the folder cannot be read.
+ * Returns the children of a host folder. It omits dot and dot dot and is empty when the folder
+ * cannot be read.
  */
 [[nodiscard]] std::vector<HostFileStat> HostList(const std::filesystem::path& path);
 

@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/provider.h
- * @brief       The backing of a mount and the factory that builds it from a mount entry
+ * @brief       Mount backing and its factory
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,10 +19,11 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/filesystem/info.h>
+#include <rex/filesystem/file_stat.h>
 #include <rex/filesystem/mount.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 #include "filesystem/node.h"
 
@@ -36,54 +37,26 @@ class Provider : public NonCopyable, public std::enable_shared_from_this<Provide
  public:
   virtual ~Provider();
 
-  /**
-   * Returns the mount description.
-   *
-   * @return The entry the provider was built from.
-   */
   [[nodiscard]] const MountEntry& GetEntry() const { return entry_; }
 
-  /**
-   * Returns the mount path.
-   *
-   * @return The guest mount path.
-   */
   [[nodiscard]] const std::string& GetMountPath() const { return entry_.path; }
 
-  /**
-   * Reports whether the mount refuses writes.
-   *
-   * @return True when kWritable is clear.
-   */
+  /** Reports whether kWritable is clear. */
   [[nodiscard]] bool IsReadOnly() const { return !HasFlags(entry_.flags, MountFlags::kWritable); }
 
-  /**
-   * Returns the volume information titles see.
-   *
-   * @return The name and geometry.
-   */
+  /** Returns the volume information titles see. */
   [[nodiscard]] virtual VolumeStat GetVolume() const = 0;
 
   /**
-   * Returns the node at a path relative to the mount.
+   * Returns the node at a path relative to the mount, or null.
    *
    * @param path The relative path, empty for the root.
-   * @return The node, or null.
    */
   [[nodiscard]] virtual Node* Resolve(std::string_view path);
 
-  /**
-   * Returns the root directory.
-   *
-   * @return The root node.
-   */
   [[nodiscard]] Node& GetRoot() const { return *root_; }
 
-  /**
-   * Returns the mutex tree changes take.
-   *
-   * @return The provider mutex.
-   */
+  /** Returns the mutex tree changes take. */
   [[nodiscard]] std::recursive_mutex& GetMutex() const { return mutex_; }
 
   /**
@@ -97,11 +70,6 @@ class Provider : public NonCopyable, public std::enable_shared_from_this<Provide
   void ReleaseDetached();
 
  protected:
-  /**
-   * Stores the mount description.
-   *
-   * @param entry The mount description.
-   */
   explicit Provider(MountEntry entry);
 
   std::unique_ptr<Node> root_; /**< Root directory, built by the provider. */
@@ -115,7 +83,6 @@ class Provider : public NonCopyable, public std::enable_shared_from_this<Provide
 /**
  * Builds the provider a mount entry names.
  *
- * @param entry The mount description.
  * @return The provider, kNotFound for a missing source, kCorrupt for a container that fails
  *         validation.
  */

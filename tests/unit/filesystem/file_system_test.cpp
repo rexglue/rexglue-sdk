@@ -14,7 +14,6 @@
 
 #include "rex_test.h"
 
-#include "core/module_loader.h"
 #include "filesystem/fixture.h"
 
 namespace {
@@ -26,7 +25,7 @@ using rex::filesystem::FileSystemError;
 using rex::filesystem::MountFlags;
 using rex::filesystem::OpenAction;
 using rex::filesystem::OpenOptions;
-using rex::filesystem::ProviderKind;
+using rex::filesystem::ProviderType;
 using rex::filesystem::test::Fixture;
 using rex::filesystem::test::ReadText;
 using rex::filesystem::test::WriteHost;
@@ -107,13 +106,13 @@ REX_TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][m
   WriteHost(GetTemp() / "outer" / "B" / "x.txt", "from outer");
   WriteHost(GetTemp() / "inner" / "x.txt", "from inner");
   REQUIRE(
-      GetFileSystem().Mount({"\\Device\\A", ProviderKind::kHostDirectory, GetTemp() / "outer"}));
+      GetFileSystem().Mount({"\\Device\\A", ProviderType::kHostDirectory, GetTemp() / "outer"}));
   REQUIRE(
-      GetFileSystem().Mount({"\\Device\\A\\B", ProviderKind::kHostDirectory, GetTemp() / "inner"}));
+      GetFileSystem().Mount({"\\Device\\A\\B", ProviderType::kHostDirectory, GetTemp() / "inner"}));
   CHECK(ReadText(*Open("\\Device\\A\\B\\x.txt").file) == "from outer");
 
   auto duplicate =
-      GetFileSystem().Mount({"\\Device\\A", ProviderKind::kHostDirectory, GetTemp() / "inner"});
+      GetFileSystem().Mount({"\\Device\\A", ProviderType::kHostDirectory, GetTemp() / "inner"});
   REQUIRE_FALSE(duplicate);
   CHECK(CodeOf(duplicate.error()) == FileSystemError::kMountExists);
 
@@ -130,9 +129,9 @@ REX_TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][m
 REX_TEST_CASE_METHOD(Fixture, "Mount and Unmount compare the mount path without case",
                      "[filesystem][mounts][case]") {
   REQUIRE(GetFileSystem().Mount(
-      {"\\Device\\Harddisk0\\Partition1", ProviderKind::kHostDirectory, GetTemp()}));
+      {"\\Device\\Harddisk0\\Partition1", ProviderType::kHostDirectory, GetTemp()}));
   auto duplicate = GetFileSystem().Mount(
-      {"\\DEVICE\\HARDDISK0\\PARTITION1", ProviderKind::kHostDirectory, GetTemp()});
+      {"\\DEVICE\\HARDDISK0\\PARTITION1", ProviderType::kHostDirectory, GetTemp()});
   REQUIRE_FALSE(duplicate);
   CHECK(CodeOf(duplicate.error()) == FileSystemError::kMountExists);
   CHECK(GetFileSystem().GetMounts().size() == 1);
@@ -226,7 +225,7 @@ REX_TEST_CASE_METHOD(Fixture, "require_file refuses a directory", "[filesystem][
 
 REX_TEST_CASE_METHOD(Fixture, "A write on a read only mount opens for read", "[filesystem][open]") {
   WriteHost(GetTemp() / "a.txt", "alpha");
-  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderKind::kHostDirectory, GetTemp()}));
+  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderType::kHostDirectory, GetTemp()}));
   auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kAllAccess});
   CHECK_FALSE(rex::HasFlags(opened.file->GetAccess(), Access::kWriteData));
   CHECK(ReadText(*opened.file) == "alpha");
@@ -296,10 +295,10 @@ REX_TEST_CASE("Standard mounts serve game, d, update and the null paths", "[file
   Fixture fixture;
   WriteHost(fixture.GetTemp() / "game" / "default.xex", "xex");
   WriteHost(fixture.GetTemp() / "update" / "patch.bin", "patch");
-  rex::PathsConfig paths;
-  paths.game_data_root = fixture.GetTemp() / "game";
-  paths.update_data_root = fixture.GetTemp() / "update";
-  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(paths));
+  const std::filesystem::path game_root = fixture.GetTemp() / "game";
+  const std::filesystem::path update_root = fixture.GetTemp() / "update";
+  REQUIRE(
+      fixture.GetFileSystem().ConfigureStandardMounts(game_root, update_root, MountFlags::kNone));
 
   CHECK(ReadText(*fixture.Open("game:\\default.xex").file) == "xex");
   CHECK(ReadText(*fixture.Open("d:\\default.xex").file) == "xex");
@@ -314,50 +313,23 @@ REX_TEST_CASE("Standard mounts serve game, d, update and the null paths", "[file
                   {.disposition = Disposition::kCreate, .access = Access::kWriteAccess}) ==
         FileSystemError::kAccessDenied);
 
-  paths.update_data_root.clear();
-  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(paths));
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(game_root, {}, MountFlags::kNone));
   CHECK(fixture.GetFileSystem().GetMounts().size() == 2);
   CHECK(fixture.GetFileSystem().FindLink("update:\\patch.bin") == std::nullopt);
 
-  paths.game_data_root = fixture.GetTemp() / "missing";
-  auto missing = fixture.GetFileSystem().ConfigureStandardMounts(paths);
+  auto missing = fixture.GetFileSystem().ConfigureStandardMounts(fixture.GetTemp() / "missing", {},
+                                                                 MountFlags::kNone);
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }
 
-REX_TEST_CASE("game_mount_flags makes the game partition writable", "[filesystem][mounts]") {
-  Fixture fixture(MountFlags::kWritable);
+REX_TEST_CASE("the game partition is read only", "[filesystem][mounts]") {
+  Fixture fixture;
   std::filesystem::create_directories(fixture.GetTemp() / "game");
-  rex::PathsConfig paths;
-  paths.game_data_root = fixture.GetTemp() / "game";
-  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(paths));
-  auto created = fixture.Open(
-      "game:\\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
-  CHECK(created.action == OpenAction::kCreated);
-  CHECK(std::filesystem::exists(fixture.GetTemp() / "game" / "new.txt"));
-}
-
-REX_TEST_CASE("game_mount_flags set after Connect still apply when the standard mounts are made",
-              "[filesystem][mounts]") {
-  rex::test::TempFolder temp{"rex_mount_flags_test_"};
-  std::filesystem::create_directories(temp.path / "game");
-  rex::Config config;
-  config.modules = {"rexfilesystem"};
-  auto api = rex::Init(config);
-  REQUIRE(api);
-  rex::detail::ModuleLoader::GetInstance().GetMutableConfig().filesystem.game_mount_flags =
-      MountFlags::kWritable;
-  auto* file_system = (*api)->Get<rex::filesystem::IFileSystem>();
-  REQUIRE(file_system != nullptr);
-  rex::PathsConfig paths;
-  paths.game_data_root = temp.path / "game";
-  REQUIRE(file_system->ConfigureStandardMounts(paths));
-  {
-    auto created = file_system->Open(
-        "game:\\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
-    REQUIRE(created);
-    CHECK(created->action == OpenAction::kCreated);
-  }
-  CHECK(std::filesystem::exists(temp.path / "game" / "new.txt"));
-  rex::Shutdown();
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(fixture.GetTemp() / "game", {},
+                                                          MountFlags::kNone));
+  auto created = fixture.GetFileSystem().Open(
+      "game:\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
+  CHECK_FALSE(created);
+  CHECK_FALSE(std::filesystem::exists(fixture.GetTemp() / "game" / "new.txt"));
 }

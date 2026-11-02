@@ -5,9 +5,10 @@
 
 #include <windows.h>
 
-#include <rex/filesystem/error.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_open.h>
 #include <rex/logging/log.h>
-#include <rex/string.h>
+#include <rex/string/text.h>
 
 namespace rex::filesystem {
 
@@ -30,7 +31,7 @@ OVERLAPPED OverlappedAt(u64 offset) {
 
 rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
   return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, error {}", what,
-                                                      PathToUTF8(path), GetLastError()));
+                                                      string::PathToUTF8(path), GetLastError()));
 }
 
 }  // namespace
@@ -80,7 +81,8 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
       code = FileSystemError::kAccessDenied;
     }
     return Err<std::unique_ptr<HostFile>>(BuildError(
-        code, std::format("cannot open host file '{}', error {}", PathToUTF8(path), error)));
+        code,
+        std::format("cannot open host file '{}', error {}", string::PathToUTF8(path), error)));
   }
   return std::make_unique<HostFile>(Key{}, path, handle);
 }
@@ -139,8 +141,8 @@ Result<void> HostFile::Flush() const {
     } else if (error == ERROR_ACCESS_DENIED) {
       code = FileSystemError::kAccessDenied;
     }
-    return Err(BuildError(
-        code, std::format("cannot create host file '{}', error {}", PathToUTF8(path), error)));
+    return Err(BuildError(code, std::format("cannot create host file '{}', error {}",
+                                            string::PathToUTF8(path), error)));
   }
   CloseHandle(handle);
   return Ok();
@@ -162,8 +164,9 @@ Result<void> HostFile::Flush() const {
   } else if (error == ERROR_NOT_SAME_DEVICE) {
     code = FileSystemError::kNotSameDevice;
   }
-  return Err(BuildError(code, std::format("cannot move '{}' to '{}', error {}", PathToUTF8(from),
-                                          PathToUTF8(to), error)));
+  return Err(
+      BuildError(code, std::format("cannot move '{}' to '{}', error {}", string::PathToUTF8(from),
+                                   string::PathToUTF8(to), error)));
 }
 
 std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
@@ -177,7 +180,8 @@ std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
     WIN32_FIND_DATAW found{};
     if (HANDLE handle = FindFirstFileW(path.c_str(), &found); handle != INVALID_HANDLE_VALUE) {
       FindClose(handle);
-      if (rex::utf8_equal_case(PathToUTF8(found.cFileName), PathToUTF8(info.name))) {
+      if (rex::string::utf8_equal_case(string::PathToUTF8(found.cFileName),
+                                       string::PathToUTF8(info.name))) {
         info.name = found.cFileName;
       }
     }

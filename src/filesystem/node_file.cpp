@@ -2,7 +2,10 @@
 
 #include <format>
 
-#include <rex/filesystem/error.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/filesystem/directory.h>
 
 #include "filesystem/provider.h"
 

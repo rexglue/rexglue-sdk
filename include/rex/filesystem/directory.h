@@ -12,33 +12,23 @@
 
 #include <optional>
 
-#include <rex/filesystem/info.h>
+#include <rex/filesystem/file_stat.h>
 #include <rex/types.h>
-#include <rex/module.h>
+#include <rex/utility.h>
 
 namespace rex::filesystem {
 
-/**
- * Walks the live children of a directory that match a pattern, case insensitive, with the console
- * wildcard rules. A star matches any run, a question mark matches 1 character.
- */
-REX_INTERFACE(IDirectory)
+/** Walks the children of a directory that match a case insensitive wildcard pattern. */
+class IDirectory : public NonCopyable {
  public:
-  /**
-   * Returns the next matching child.
-   *
-   * @return The child, or empty when no child is left.
-   */
+  virtual ~IDirectory() = default;
+
+  /** Returns the next matching child, empty at the end. */
   [[nodiscard]] virtual std::optional<FileStat> Next() = 0;
 
-  /** Starts the walk again from the first child. */
   virtual void Restart() = 0;
 
-  /**
-   * Returns the child index after the last returned child.
-   *
-   * @return The index the kernel writes into FileIndex.
-   */
+  /** Returns the index after the last returned child. */
   [[nodiscard]] virtual u64 GetPosition() const = 0;
 };
 

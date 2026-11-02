@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/file_system.h
- * @brief       The mount table rexfilesystem serves
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,31 +18,28 @@
 #include <utility>
 #include <vector>
 
-#include <rex/filesystem.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/filesystem/mount.h>
+#include <rex/filesystem/directory.h>
+#include <rex/filesystem/file.h>
 #include <rex/filesystem/file_system.h>
 
 #include "filesystem/provider.h"
 
 namespace rex::filesystem {
 
-/** The mount table. */
 class FileSystem final : public IFileSystem {
  public:
-  /**
-   * Sets the configuration section ConfigureStandardMounts reads the game mount flags from when
-   * it mounts.
-   *
-   * @param config The section, which must outlive the file system or be cleared with null.
-   */
-  void SetConfig(const FilesystemConfig* config) { config_ = config; }
-
   [[nodiscard]] Result<void> Mount(const MountEntry& entry) override;
   [[nodiscard]] Result<void> Unmount(std::string_view path) override;
   [[nodiscard]] std::vector<MountEntry> GetMounts() const override;
   [[nodiscard]] Result<void> Link(std::string_view link, std::string_view target) override;
   [[nodiscard]] Result<void> Unlink(std::string_view link) override;
   [[nodiscard]] std::optional<std::string> FindLink(std::string_view path) const override;
-  [[nodiscard]] Result<void> ConfigureStandardMounts(const PathsConfig& paths) override;
+  [[nodiscard]] Result<void> ConfigureStandardMounts(const std::filesystem::path& game_root,
+                                                     const std::filesystem::path& update_root,
+                                                     MountFlags game_flags) override;
   void Clear() override;
   [[nodiscard]] Result<Opened> Open(std::string_view path, const OpenOptions& options) override;
   [[nodiscard]] Result<Opened> OpenRelative(IFile& root, std::string_view path,
@@ -78,7 +74,6 @@ class FileSystem final : public IFileSystem {
   mutable std::recursive_mutex mutex_;
   std::vector<std::shared_ptr<Provider>> providers_;
   std::vector<std::pair<std::string, std::string>> links_;
-  const FilesystemConfig* config_ = nullptr;
 };
 
 }  // namespace rex::filesystem

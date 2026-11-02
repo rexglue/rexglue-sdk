@@ -15,51 +15,34 @@
 #include <string_view>
 
 #include <rex/filesystem/directory.h>
-#include <rex/filesystem/info.h>
-#include <rex/filesystem/open.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/filesystem/file_stat.h>
 #include <rex/result.h>
 #include <rex/types.h>
-#include <rex/module.h>
+#include <rex/utility.h>
 
 namespace rex::filesystem {
 
-/**
- * An open file or directory. Every handle on the same path shares 1 tree node, so each sees the
- * same size and times. The file closes when the object is destroyed.
- */
-REX_INTERFACE(IFile)
+/** An open file or directory. Handles on one path share a node. */
+class IFile : public NonCopyable {
  public:
-  /**
-   * Returns the shared node information.
-   *
-   * @return The name, paths, attributes, sizes and times.
-   */
+  virtual ~IFile() = default;
+
   [[nodiscard]] virtual FileStat GetInfo() const = 0;
 
-  /** Reads the size of the node again from its provider. */
+  /** Reads the node size again from its provider. */
   virtual void Refresh() = 0;
 
-  /**
-   * Returns the access the file was opened with, generic bits expanded to data bits.
-   *
-   * @return The access bits.
-   */
+  /** Returns the access the file was opened with, generic bits expanded to data bits. */
   [[nodiscard]] virtual Access GetAccess() const = 0;
 
-  /**
-   * Returns the volume the file resides on.
-   *
-   * @return The volume information of the mount.
-   */
   [[nodiscard]] virtual VolumeStat GetVolume() const = 0;
 
   /**
    * Copies bytes of the file.
    *
-   * @param buffer Destination. At most buffer.size() bytes are copied.
    * @param offset Byte offset in the file.
-   * @return The bytes copied, kAccessDenied without read access, kEndOfFile when the provider
-   *         reports the end.
+   * @return The bytes copied, kAccessDenied without read access, or kEndOfFile.
    */
   [[nodiscard]] virtual Result<size_t> Read(std::span<u8> buffer, u64 offset) = 0;
 
@@ -76,38 +59,21 @@ REX_INTERFACE(IFile)
    * Changes the file size.
    *
    * @param length The new size in bytes.
-   * @return kAccessDenied without write access, kUnsupported when the provider has no size change.
+   * @return kAccessDenied without write access, kUnsupported when the provider cannot.
    */
   [[nodiscard]] virtual Result<void> SetLength(u64 length) = 0;
 
-  /**
-   * Writes buffered data of the file to its device.
-   *
-   * @return kIO when the host refuses. Ok on a provider with nothing to write.
-   */
   [[nodiscard]] virtual Result<void> Flush() = 0;
 
-  /**
-   * Replaces the attribute bits of the node.
-   *
-   * @param attributes The new bits.
-   * @return kAccessDenied on a read only mount.
-   */
   [[nodiscard]] virtual Result<void> SetAttributes(FileAttributes attributes) = 0;
 
   /**
    * Changes the times of the node. An empty field keeps its time.
    *
-   * @param times The new times.
    * @return kAccessDenied on a read only mount.
    */
   [[nodiscard]] virtual Result<void> SetTimes(const FileTimes& times) = 0;
 
-  /**
-   * Stores a delete on close request on the node.
-   *
-   * @param delete_on_close True to request, false to withdraw.
-   */
   virtual void SetDeleteOnClose(bool delete_on_close) = 0;
 
   /**
@@ -118,12 +84,13 @@ REX_INTERFACE(IFile)
    */
   [[nodiscard]] virtual Result<std::unique_ptr<IDirectory>> List(std::string_view pattern) = 0;
 
-  /**
-   * Returns the whole file as read only bytes without a copy.
-   *
-   * @return The bytes, valid while this file exists, or kUnsupported.
-   */
+  /** Returns the whole file as bytes without a copy, or kUnsupported. */
   [[nodiscard]] virtual Result<std::span<const u8>> View() = 0;
+};
+
+struct Opened {
+  std::unique_ptr<IFile> file;
+  OpenAction action = OpenAction::kOpened;
 };
 
 }  // namespace rex::filesystem

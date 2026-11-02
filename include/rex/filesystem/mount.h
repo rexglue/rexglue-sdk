@@ -28,32 +28,28 @@ using rex::operator|=;
 using rex::operator&=;
 using rex::operator^=;
 
-/** The provider that serves a mount. */
-enum class ProviderKind : u8 {
-  kHostDirectory, /**< A host folder. */
-  kSTFS,          /**< An STFS or SVOD package file, detected from the header. */
-  kDiscImage,     /**< A GDFX disc image. */
-  kNull,          /**< Answers a fixed list of paths with empty files. */
+enum class ProviderType : u8 {
+  kHostDirectory,
+  kSTFS,      /**< An STFS or SVOD package file, detected from the header. */
+  kDiscImage, /**< A GDFX disc image. */
+  kNull,      /**< Answers a fixed list of paths with empty files. */
 };
 
-/** Mount behavior bits. */
 enum class MountFlags : u8 {
   kNone = 0,     /**< Read only. */
   kWritable = 1, /**< Writes, creation and deletion are allowed. */
 };
 
-/** Description of a mount. */
 struct MountEntry {
   std::string path; /**< Guest mount path, such as \\Device\\Cdrom0. */
-  ProviderKind kind = ProviderKind::kHostDirectory; /**< The provider. */
-  std::filesystem::path source = {};    /**< Host folder or container file, empty for kNull. */
-  MountFlags flags = MountFlags::kNone; /**< Behavior bits. */
+  ProviderType type = ProviderType::kHostDirectory;
+  std::filesystem::path source = {}; /**< Host folder or container file, empty for kNull. */
+  MountFlags flags = MountFlags::kNone;
   // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
   std::vector<std::string> null_paths = {}; /**< Paths the null provider answers. */
 };
 
 }  // namespace rex::filesystem
 
-/** Opts MountFlags into the flag operators. */
 template <>
 inline constexpr bool rex::is_flags_enum<rex::filesystem::MountFlags> = true;

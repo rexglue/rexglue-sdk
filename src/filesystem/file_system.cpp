@@ -6,10 +6,16 @@
 #include <system_error>
 #include <utility>
 
-#include <rex/filesystem/error.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/filesystem/mount.h>
+#include <rex/filesystem/directory.h>
+#include <rex/filesystem/file.h>
 #include <rex/logging/log.h>
 #include <rex/result.h>
-#include <rex/string.h>
+#include <rex/string/text.h>
+#include <rex/filesystem/path.h>
 
 #include "filesystem/node_file.h"
 
@@ -36,7 +42,7 @@ Access ExpandAccess(Access access) {
 }
 
 bool StartsWithComponents(std::string_view path, std::string_view prefix) {
-  if (!utf8_starts_with_case(path, prefix)) {
+  if (!string::utf8_starts_with_case(path, prefix)) {
     return false;
   }
   return path.size() == prefix.size() || prefix.ends_with('\\') || path[prefix.size()] == '\\';
@@ -157,7 +163,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
           BuildError(FileSystemError::kIsDirectory, std::format("'{}' is a directory", path)));
     }
     if (parent && parent->HasChildVanished(*node)) {
-      parent->DropChild(*node);
+      parent->RemoveChild(*node);
       node = nullptr;
     }
   }
@@ -240,21 +246,21 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
 Result<void> FileSystem::Mount(const MountEntry& entry) {
   std::lock_guard lock(mutex_);
   if (std::ranges::any_of(providers_, [&](const auto& p) {
-        return utf8_equal_case(p->GetMountPath(), entry.path);
+        return string::utf8_equal_case(p->GetMountPath(), entry.path);
       })) {
     return Err(
         BuildError(FileSystemError::kMountExists, std::format("'{}' is mounted", entry.path)));
   }
   REX_TRY(std::unique_ptr<Provider> provider, CreateProvider(entry));
   providers_.push_back(std::move(provider));
-  REXLOG_DEBUG(filesystem, "mounted '{}' at '{}'", PathToUTF8(entry.source), entry.path);
+  REXLOG_DEBUG(filesystem, "mounted '{}' at '{}'", string::PathToUTF8(entry.source), entry.path);
   return Ok();
 }
 
 Result<void> FileSystem::Unmount(std::string_view path) {
   std::lock_guard lock(mutex_);
   const auto it = std::ranges::find_if(
-      providers_, [&](const auto& p) { return utf8_equal_case(p->GetMountPath(), path); });
+      providers_, [&](const auto& p) { return string::utf8_equal_case(p->GetMountPath(), path); });
   if (it == providers_.end()) {
     return Err(BuildError(FileSystemError::kNoMount, std::format("'{}' is not mounted", path)));
   }
@@ -275,8 +281,8 @@ std::vector<MountEntry> FileSystem::GetMounts() const {
 
 Result<void> FileSystem::Link(std::string_view link, std::string_view target) {
   std::lock_guard lock(mutex_);
-  if (std::ranges::any_of(links_,
-                          [&](const auto& entry) { return utf8_equal_case(entry.first, link); })) {
+  if (std::ranges::any_of(
+          links_, [&](const auto& entry) { return string::utf8_equal_case(entry.first, link); })) {
     return Err(BuildError(FileSystemError::kExists, std::format("link '{}' exists", link)));
   }
   links_.emplace_back(link, target);
@@ -287,7 +293,7 @@ Result<void> FileSystem::Link(std::string_view link, std::string_view target) {
 Result<void> FileSystem::Unlink(std::string_view link) {
   std::lock_guard lock(mutex_);
   const auto it = std::ranges::find_if(
-      links_, [&](const auto& entry) { return utf8_equal_case(link, entry.first); });
+      links_, [&](const auto& entry) { return string::utf8_equal_case(link, entry.first); });
   if (it == links_.end()) {
     return Err(BuildError(FileSystemError::kNotFound, std::format("no link '{}'", link)));
   }
@@ -306,27 +312,28 @@ std::optional<std::string> FileSystem::FindLink(std::string_view path) const {
   return it->second;
 }
 
-Result<void> FileSystem::ConfigureStandardMounts(const PathsConfig& paths) {
+Result<void> FileSystem::ConfigureStandardMounts(const std::filesystem::path& game_root,
+                                                 const std::filesystem::path& update_root,
+                                                 MountFlags game_flags) {
   std::lock_guard lock(mutex_);
   Clear();
   std::error_code ec;
-  const std::filesystem::path game_root = std::filesystem::absolute(paths.game_data_root, ec);
-  if (paths.game_data_root.empty() || !std::filesystem::is_directory(game_root, ec)) {
+  const std::filesystem::path game_path = std::filesystem::absolute(game_root, ec);
+  if (game_root.empty() || !std::filesystem::is_directory(game_path, ec)) {
     return Err(BuildError(
         FileSystemError::kNotFound,
-        std::format("game_data_root '{}' is not a folder", PathToUTF8(paths.game_data_root))));
+        std::format("game_data_root '{}' is not a folder", string::PathToUTF8(game_root))));
   }
-  const MountFlags game_mount_flags = config_ ? config_->game_mount_flags : MountFlags::kNone;
-  REX_TRY_VOID(Mount(
-      {std::string(kGamePartition), ProviderKind::kHostDirectory, game_root, game_mount_flags}));
+  REX_TRY_VOID(
+      Mount({std::string(kGamePartition), ProviderType::kHostDirectory, game_path, game_flags}));
   REX_TRY_VOID(Link("game:", kGamePartition));
   REX_TRY_VOID(Link("d:", kGamePartition));
 
-  if (!paths.update_data_root.empty()) {
-    const std::filesystem::path update_root = std::filesystem::absolute(paths.update_data_root, ec);
-    if (std::filesystem::exists(update_root, ec)) {
-      if (auto mounted = Mount({std::string(kUpdatePartition), ProviderKind::kHostDirectory,
-                                update_root, MountFlags::kNone})) {
+  if (!update_root.empty()) {
+    const std::filesystem::path update_path = std::filesystem::absolute(update_root, ec);
+    if (std::filesystem::exists(update_path, ec)) {
+      if (auto mounted = Mount({std::string(kUpdatePartition), ProviderType::kHostDirectory,
+                                update_path, MountFlags::kNone})) {
         REX_TRY_VOID(Link("update:", kUpdatePartition));
       } else {
         REXLOG_WARN(filesystem, "update_data_root is not mounted, {}", mounted.error().message);
@@ -335,7 +342,7 @@ Result<void> FileSystem::ConfigureStandardMounts(const PathsConfig& paths) {
   }
 
   return Mount({std::string(kHarddisk),
-                ProviderKind::kNull,
+                ProviderType::kNull,
                 {},
                 MountFlags::kWritable,
                 {"\\Partition0", "\\Cache0", "\\Cache1"}});

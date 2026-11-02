@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/null_provider.h
- * @brief       The provider that answers a fixed list of paths with empty files
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -22,8 +21,8 @@
 namespace rex::filesystem {
 
 /**
- * Answers the null paths of its mount entry. Every read and write succeeds with 0 bytes, so title
- * code that opens raw partitions finds them present.
+ * Answers the null paths of its mount entry. Every read and write succeeds with zero bytes, so
+ * title code that opens raw partitions finds them present.
  */
 class NullProvider final : public Provider {
   struct Key {};
@@ -37,26 +36,15 @@ class NullProvider final : public Provider {
    */
   explicit NullProvider(Key, MountEntry entry);
 
-  /**
-   * Builds the provider with 1 file per null path.
-   *
-   * @param entry The mount description.
-   * @return The provider.
-   */
+  /** Builds the provider with one file per null path. */
   [[nodiscard]] static Result<std::unique_ptr<Provider>> Create(const MountEntry& entry);
 
-  /**
-   * Returns the volume information, named NullDevice.
-   *
-   * @return The name and geometry.
-   */
+  /** Returns the volume information, named NullDevice. */
   [[nodiscard]] VolumeStat GetVolume() const override;
 
   /**
-   * Returns the root for an empty path or the null file whose path matches, case insensitive.
-   *
-   * @param path The relative path.
-   * @return The node, or null.
+   * Returns the root for an empty path or the null file whose path matches, case insensitive, or
+   * null.
    */
   [[nodiscard]] Node* Resolve(std::string_view path) override;
 
@@ -67,11 +55,8 @@ class NullProvider final : public Provider {
 class NullNode final : public Node {
  public:
   /**
-   * Creates a node.
-   *
    * @param provider The provider that owns the node.
    * @param parent The parent, or null for the root.
-   * @param path The path relative to the mount.
    */
   NullNode(NullProvider& provider, Node* parent, std::string path);
 

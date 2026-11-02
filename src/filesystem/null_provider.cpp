@@ -2,9 +2,12 @@
 
 #include <format>
 
-#include <rex/filesystem/error.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/filesystem/mount.h>
 #include <rex/logging/log.h>
-#include <rex/string.h>
+#include <rex/string/text.h>
 
 namespace rex::filesystem {
 
@@ -70,7 +73,7 @@ Node* NullProvider::Resolve(std::string_view path) {
     return root_.get();
   }
   for (const auto& child : root_->GetChildren()) {
-    if (utf8_equal_case(child->GetPath(), path)) {
+    if (string::utf8_equal_case(child->GetPath(), path)) {
       return child.get();
     }
   }

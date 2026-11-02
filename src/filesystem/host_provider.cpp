@@ -7,13 +7,17 @@
 #include <system_error>
 
 #include <rex/types.h>
-#include <rex/filesystem/error.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/filesystem/mount.h>
 #include <rex/logging/log.h>
 #include <rex/result.h>
 #include <rex/math.h>
-#include <rex/memory/mapped_memory.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/platform/file.h>
-#include <rex/string.h>
+#include <rex/string/text.h>
+#include <rex/filesystem/path.h>
 
 namespace rex::filesystem {
 
@@ -68,7 +72,7 @@ class HostStream final : public NodeStream {
       map_ = memory::MappedMemory::Open(host_path, memory::MappedMemory::Mode::kRead);
       if (!map_) {
         return Err<std::span<const u8>>(BuildError(
-            FileSystemError::kIO, std::format("cannot map '{}'", PathToUTF8(host_path))));
+            FileSystemError::kIO, std::format("cannot map '{}'", string::PathToUTF8(host_path))));
       }
     }
     return std::span<const u8>(map_->GetData(), map_->GetSize());
@@ -90,9 +94,9 @@ Result<std::unique_ptr<Provider>> HostProvider::Create(const MountEntry& entry) 
   std::error_code ec;
   if (!std::filesystem::exists(entry.source, ec)) {
     if (provider->IsReadOnly()) {
-      return Err<std::unique_ptr<Provider>>(
-          BuildError(FileSystemError::kNotFound,
-                     std::format("host folder '{}' does not exist", PathToUTF8(entry.source))));
+      return Err<std::unique_ptr<Provider>>(BuildError(
+          FileSystemError::kNotFound,
+          std::format("host folder '{}' does not exist", string::PathToUTF8(entry.source))));
     }
     std::filesystem::create_directories(entry.source, ec);
   }
@@ -124,7 +128,7 @@ Node* HostProvider::Resolve(std::string_view path) {
       return nullptr;
     }
     const std::filesystem::path host_path = current->GetHostPath();
-    std::optional<HostFileStat> info = HostStat(host_path / to_path(part));
+    std::optional<HostFileStat> info = HostStat(host_path / string::to_path(part));
     if (!info) {
       info = HostStat(platform::ResolveEntryCase(host_path, part));
     }
@@ -152,7 +156,7 @@ std::filesystem::path HostNode::GetHostPath() const {
 std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& parent,
                                            const HostFileStat& info) {
   auto node = std::make_unique<HostNode>(
-      provider, &parent, utf8_join_guest_paths(parent.GetPath(), PathToUTF8(info.name)),
+      provider, &parent, utf8_join_guest_paths(parent.GetPath(), string::PathToUTF8(info.name)),
       parent.GetHostPath() / info.name);
   node->info_.create_time = info.create_time;
   node->info_.access_time = info.access_time;
@@ -215,7 +219,7 @@ Result<void> HostNode::Truncate() {
     std::ofstream stream(host_path_, std::ios::binary | std::ios::trunc);
     if (!stream) {
       return Err(BuildError(FileSystemError::kIO,
-                            std::format("cannot truncate '{}'", PathToUTF8(host_path_))));
+                            std::format("cannot truncate '{}'", string::PathToUTF8(host_path_))));
     }
   }
   std::lock_guard lock(GetProvider().GetMutex());
@@ -236,7 +240,7 @@ void HostNode::Refresh() {
 
 bool HostNode::HasChildVanished(const Node& child) const {
   std::error_code ec;
-  return !std::filesystem::exists(host_path_ / to_path(child.GetName()), ec);
+  return !std::filesystem::exists(host_path_ / string::to_path(child.GetName()), ec);
 }
 
 Result<void> HostNode::SetAttributes(FileAttributes attributes) {
@@ -261,16 +265,17 @@ Result<void> HostNode::SetTimes(const FileTimes& times) {
   return Ok();
 }
 
-Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
-                                                        FileAttributes attributes) {
+Result<std::unique_ptr<Node>> HostNode::CreateChildBacking(std::string_view name,
+                                                           FileAttributes attributes) {
   if (!IsHostName(name)) {
     return Err<std::unique_ptr<Node>>(BuildError(
         FileSystemError::kInvalidPath, std::format("'{}' is not a valid host name", name)));
   }
-  const std::filesystem::path full_path = host_path_ / to_path(name);
+  const std::filesystem::path full_path = host_path_ / string::to_path(name);
   auto refuse = [&] {
-    return Err<std::unique_ptr<Node>>(BuildError(
-        FileSystemError::kAccessDenied, std::format("cannot create '{}'", PathToUTF8(full_path))));
+    return Err<std::unique_ptr<Node>>(
+        BuildError(FileSystemError::kAccessDenied,
+                   std::format("cannot create '{}'", string::PathToUTF8(full_path))));
   };
   if (HasFlags(attributes, FileAttributes::kDirectory)) {
     std::error_code ec;
@@ -278,7 +283,7 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
       if (!ec) {
         return Err<std::unique_ptr<Node>>(
             BuildError(FileSystemError::kExists,
-                       std::format("'{}' exists on the host", PathToUTF8(full_path))));
+                       std::format("'{}' exists on the host", string::PathToUTF8(full_path))));
       }
       return refuse();
     }
@@ -292,11 +297,11 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
   return std::unique_ptr<Node>(Create(GetHostProvider(), *this, *info));
 }
 
-Result<void> HostNode::DeleteChildImpl(Node& child) {
-  const std::filesystem::path full_path = host_path_ / to_path(child.GetName());
+Result<void> HostNode::DeleteChildBacking(Node& child) {
+  const std::filesystem::path full_path = host_path_ / string::to_path(child.GetName());
   auto refuse = [&] {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("cannot delete '{}'", PathToUTF8(full_path))));
+                          std::format("cannot delete '{}'", string::PathToUTF8(full_path))));
   };
   std::error_code ec;
   if (child.IsDirectory()) {
@@ -314,17 +319,17 @@ Result<void> HostNode::DeleteChildImpl(Node& child) {
   return Ok();
 }
 
-Result<void> HostNode::MoveImpl(Node& new_parent, std::string_view name, bool replace_existing) {
+Result<void> HostNode::MoveBacking(Node& new_parent, std::string_view name, bool replace_existing) {
   if (!IsHostName(name)) {
     return Err(BuildError(FileSystemError::kInvalidPath,
                           std::format("'{}' is not a valid host name", name)));
   }
-  return HostMove(host_path_, static_cast<HostNode&>(new_parent).host_path_ / to_path(name),
+  return HostMove(host_path_, static_cast<HostNode&>(new_parent).host_path_ / string::to_path(name),
                   replace_existing);
 }
 
 void HostNode::OnMoved() {
-  host_path_ = static_cast<const HostNode*>(GetParent())->host_path_ / to_path(GetName());
+  host_path_ = static_cast<const HostNode*>(GetParent())->host_path_ / string::to_path(GetName());
 }
 
 }  // namespace rex::filesystem

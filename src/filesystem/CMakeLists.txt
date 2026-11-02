@@ -1,37 +1,48 @@
-add_library(rexfilesystem-host-objects OBJECT wildcard.cpp)
-if (WIN32)
-  target_sources(rexfilesystem-host-objects PRIVATE host_file_win.cpp)
-elseif (UNIX)
-  target_sources(rexfilesystem-host-objects PRIVATE host_file_posix.cpp)
-endif ()
-set_target_properties(
-  rexfilesystem-host-objects
-  PROPERTIES CXX_VISIBILITY_PRESET hidden
-             VISIBILITY_INLINES_HIDDEN ON
-             POSITION_INDEPENDENT_CODE ON
-)
-target_include_directories(rexfilesystem-host-objects PRIVATE ${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(rexfilesystem-host-objects PRIVATE rexcore)
-
 add_library(
-  rexfilesystem SHARED
+  rexfilesystem-objects OBJECT
+  container.cpp
   container_provider.cpp
   file_system.cpp
+  gdfx.cpp
   host_provider.cpp
-  module.cpp
+  lzx.cpp
   node.cpp
   node_file.cpp
   null_provider.cpp
   provider.cpp
-  $<TARGET_OBJECTS:rexfilesystem-host-objects>
+  stfs.cpp
+  svod.cpp
+  wildcard.cpp
+  xdbf.cpp
+  xex.cpp
 )
+if (WIN32)
+  target_sources(rexfilesystem-objects PRIVATE host_file_win.cpp)
+elseif (UNIX)
+  target_sources(rexfilesystem-objects PRIVATE host_file_posix.cpp)
+endif ()
+set_target_properties(
+  rexfilesystem-objects
+  PROPERTIES CXX_VISIBILITY_PRESET hidden
+             VISIBILITY_INLINES_HIDDEN ON
+             POSITION_INDEPENDENT_CODE ON
+)
+target_include_directories(
+  rexfilesystem-objects PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/thirdparty
+)
+target_link_libraries(rexfilesystem-objects PRIVATE rexbase excrypt mspack)
+
+add_library(rexfilesystem SHARED module_entry.cpp $<TARGET_OBJECTS:rexfilesystem-objects>)
 add_library(rex::filesystem ALIAS rexfilesystem)
 rexglue_link_host_allocator(rexfilesystem)
 set_target_properties(
-  rexfilesystem PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON
+  rexfilesystem
+  PROPERTIES EXPORT_NAME filesystem
+             CXX_VISIBILITY_PRESET hidden
+             VISIBILITY_INLINES_HIDDEN ON
 )
-rexglue_add_version_resource(rexfilesystem DESCRIPTION "ReXGlue filesystem")
-
-target_include_directories(rexfilesystem PRIVATE ${PROJECT_SOURCE_DIR}/src)
-
-target_link_libraries(rexfilesystem PRIVATE rexcore)
+target_include_directories(
+  rexfilesystem PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/thirdparty
+)
+target_link_libraries(rexfilesystem PRIVATE rexbase excrypt mspack)
+rexglue_add_version_resource(rexfilesystem DESCRIPTION "ReXGlue file system")

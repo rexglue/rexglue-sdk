@@ -31,7 +31,7 @@ using rex::filesystem::FileAttributes;
 using rex::filesystem::FileSystemError;
 using rex::filesystem::MountFlags;
 using rex::filesystem::OpenAction;
-using rex::filesystem::ProviderKind;
+using rex::filesystem::ProviderType;
 using rex::filesystem::test::Fixture;
 using rex::filesystem::test::ReadText;
 using rex::filesystem::test::WriteHost;
@@ -56,10 +56,10 @@ std::vector<std::string> Names(Fixture& fixture, std::string_view path, std::str
   return names;
 }
 
-void CheckContainer(Fixture& fixture, ProviderKind kind, const char* image,
+void CheckContainer(Fixture& fixture, ProviderType type, const char* image,
                     std::string_view volume) {
   REQUIRE(fixture.GetFileSystem().Mount(
-      {std::string(kRoot), kind, GetFixtureFolder() / image, MountFlags::kWritable}));
+      {std::string(kRoot), type, GetFixtureFolder() / image, MountFlags::kWritable}));
   CHECK(Names(fixture, kRoot, "") == std::vector<std::string>{"a.txt", "big.bin", "folder"});
   CHECK(Names(fixture, "\\Device\\Test\\folder", "*.txt") == std::vector<std::string>{"c.txt"});
   CHECK(ReadText(*fixture.Open("\\Device\\Test\\a.txt").file) == "alpha\n");
@@ -182,7 +182,7 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounte
                      "[filesystem][providers]") {
   WriteHost(GetTemp() / "outside.txt", "outside");
   WriteHost(GetTemp() / "mount" / "a.txt", "alpha");
-  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderKind::kHostDirectory,
+  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderType::kHostDirectory,
                                  GetTemp() / "mount", MountFlags::kWritable}));
 
   std::string escape(kRoot);
@@ -204,7 +204,7 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounte
 
 REX_TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesystem][providers]") {
   REQUIRE(GetFileSystem().Mount({"\\Device\\Null",
-                                 ProviderKind::kNull,
+                                 ProviderType::kNull,
                                  {},
                                  MountFlags::kWritable,
                                  {"\\Cache0", "\\Cache1"}}));
@@ -225,22 +225,22 @@ REX_TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesyst
 
 REX_TEST_CASE_METHOD(Fixture, "STFS provider mounts the fixture read only",
                      "[filesystem][providers]") {
-  CheckContainer(*this, ProviderKind::kSTFS, "stfs_con.bin", "STFS");
+  CheckContainer(*this, ProviderType::kSTFS, "stfs_con.bin", "STFS");
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Disc provider mounts the fixture read only",
                      "[filesystem][providers]") {
-  CheckContainer(*this, ProviderKind::kDiscImage, "gdfx.iso", "GDFX");
+  CheckContainer(*this, ProviderType::kDiscImage, "gdfx.iso", "GDFX");
 }
 
-REX_TEST_CASE_METHOD(Fixture, "A container of the wrong kind is kCorrupt",
+REX_TEST_CASE_METHOD(Fixture, "A container of the wrong type is kCorrupt",
                      "[filesystem][providers]") {
   auto mounted = GetFileSystem().Mount(
-      {std::string(kRoot), ProviderKind::kDiscImage, GetFixtureFolder() / "stfs_con.bin"});
+      {std::string(kRoot), ProviderType::kDiscImage, GetFixtureFolder() / "stfs_con.bin"});
   REQUIRE_FALSE(mounted);
   CHECK(CodeOf(mounted.error()) == FileSystemError::kCorrupt);
   auto missing =
-      GetFileSystem().Mount({std::string(kRoot), ProviderKind::kSTFS, GetTemp() / "none.bin"});
+      GetFileSystem().Mount({std::string(kRoot), ProviderType::kSTFS, GetTemp() / "none.bin"});
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }

@@ -1,5 +1,5 @@
 /**
- * @file        core/filesystem/svod.cpp
+ * @file        filesystem/svod.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,8 +19,9 @@
 #include <utility>
 #include <vector>
 
-#include <rex/chrono/chrono.h>
+#include <rex/chrono.h>
 #include <rex/logging/log.h>
+#include <rex/filesystem/file_stat.h>
 #include <rex/math.h>
 
 namespace rex::filesystem::detail {

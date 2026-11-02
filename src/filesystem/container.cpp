@@ -1,4 +1,4 @@
-#include <rex/filesystem/container.h>
+#include "filesystem/container.h"
 
 #include <algorithm>
 #include <cstring>
@@ -9,9 +9,11 @@
 #include <system_error>
 
 #include <rex/logging/log.h>
-#include <rex/memory/mapped_memory.h>
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_stat.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/platform/file.h>
-#include <rex/string.h>
+#include <rex/string/text.h>
 
 #include "container_parse.h"
 
@@ -75,14 +77,14 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
     if (!found) {
       return Err<Container>(
           BuildError(FileSystemError::kNotFound,
-                     std::format("no package found under '{}'", PathToUTF8(path))));
+                     std::format("no package found under '{}'", string::PathToUTF8(path))));
     }
     file = *found;
   }
   auto map = memory::MappedMemory::Open(file, memory::MappedMemory::Mode::kRead);
   if (!map) {
-    return Err<Container>(
-        BuildError(FileSystemError::kNotFound, std::format("cannot map '{}'", PathToUTF8(file))));
+    return Err<Container>(BuildError(FileSystemError::kNotFound,
+                                     std::format("cannot map '{}'", string::PathToUTF8(file))));
   }
 
   Container container;
@@ -99,16 +101,16 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
         memory::load<BE<XContentVolumeType>>(&stored.metadata.volume_type);
     const u32 data_file_count = memory::load<be_u32>(&stored.metadata.data_file_count);
     if (volume_type == XContentVolumeType::kSTFS) {
-      container.kind_ = ContainerKind::kSTFS;
+      container.type_ = ContainerType::kSTFS;
       container.files_.push_back(std::move(map));
       REX_TRY_VOID(detail::ParseSTFS(stored, BytesOf(*container.files_[0]), container.nodes_));
     } else if (volume_type == XContentVolumeType::kSVOD) {
-      container.kind_ = ContainerKind::kSVOD;
+      container.type_ = ContainerType::kSVOD;
       if (data_file_count <= 1) {
         container.files_.push_back(std::move(map));
       } else {
-        const std::filesystem::path fragments =
-            platform::ResolveEntryCase(file.parent_path(), PathToUTF8(file.filename()) + ".data");
+        const std::filesystem::path fragments = platform::ResolveEntryCase(
+            file.parent_path(), string::PathToUTF8(file.filename()) + ".data");
         std::vector<std::filesystem::path> names;
         for (const auto& entry : std::filesystem::directory_iterator(fragments, ec)) {
           if (!entry.is_directory(ec)) {
@@ -121,13 +123,14 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
           return Err<Container>(
               BuildError(FileSystemError::kCorrupt,
                          std::format("SVOD lists {} data fragments, '{}' holds {}", data_file_count,
-                                     PathToUTF8(fragments), names.size())));
+                                     string::PathToUTF8(fragments), names.size())));
         }
         for (const auto& name : names) {
           auto fragment = memory::MappedMemory::Open(name, memory::MappedMemory::Mode::kRead);
           if (!fragment) {
-            return Err<Container>(BuildError(FileSystemError::kNotFound,
-                                             std::format("cannot map '{}'", PathToUTF8(name))));
+            return Err<Container>(
+                BuildError(FileSystemError::kNotFound,
+                           std::format("cannot map '{}'", string::PathToUTF8(name))));
           }
           container.total_size_ += fragment->GetSize();
           container.files_.push_back(std::move(fragment));
@@ -145,14 +148,14 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
           std::format("volume type {} is not STFS or SVOD", std::to_underlying(volume_type))));
     }
   } else if (detail::IsGDFX(bytes)) {
-    container.kind_ = ContainerKind::kGDFX;
+    container.type_ = ContainerType::kGDFX;
     container.total_size_ = map->GetSize();
     container.files_.push_back(std::move(map));
     REX_TRY_VOID(detail::ParseGDFX(BytesOf(*container.files_[0]), container.nodes_));
   } else {
-    return Err<Container>(
-        BuildError(FileSystemError::kCorrupt,
-                   std::format("'{}' is not an STFS, SVOD or GDFX image", PathToUTF8(file))));
+    return Err<Container>(BuildError(
+        FileSystemError::kCorrupt,
+        std::format("'{}' is not an STFS, SVOD or GDFX image", string::PathToUTF8(file))));
   }
   return container;
 }
@@ -168,7 +171,7 @@ const ContainerNode* Container::Find(std::string_view path) const {
     const std::string_view part = path.substr(start, end - start);
     if (!part.empty()) {
       auto child = std::ranges::find_if(node->children, [&](u32 index) {
-        return utf8_equal_case(nodes_[index].info.name, part);
+        return string::utf8_equal_case(nodes_[index].info.name, part);
       });
       if (child == node->children.end()) {
         return nullptr;
@@ -180,7 +183,7 @@ const ContainerNode* Container::Find(std::string_view path) const {
   return node;
 }
 
-std::string Container::PathOf(const ContainerNode& node) const {
+std::string Container::GetNodePath(const ContainerNode& node) const {
   std::vector<std::string_view> parts;
   const ContainerNode* current = &node;
   while (current != &nodes_.front()) {
@@ -258,7 +261,8 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
   };
   std::filesystem::create_directories(destination, ec);
   if (ec) {
-    return fail(FileSystemError::kIO, std::format("cannot create '{}'", PathToUTF8(destination)));
+    return fail(FileSystemError::kIO,
+                std::format("cannot create '{}'", string::PathToUTF8(destination)));
   }
   std::vector<std::filesystem::path> host(nodes_.size());
   host[0] = destination;
@@ -269,13 +273,13 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
       return fail(FileSystemError::kInvalidPath,
                   std::format("container name '{}' is refused", node.info.name));
     }
-    host[index] = host[node.parent] / to_path(node.info.name);
+    host[index] = host[node.parent] / string::to_path(node.info.name);
     const bool fresh = !std::filesystem::exists(host[index], ec);
     if (HasFlags(node.info.attributes, FileAttributes::kDirectory)) {
       std::filesystem::create_directories(host[index], ec);
       if (ec) {
         return fail(FileSystemError::kIO,
-                    std::format("cannot create '{}'", PathToUTF8(host[index])));
+                    std::format("cannot create '{}'", string::PathToUTF8(host[index])));
       }
       if (fresh) {
         written.push_back(host[index]);
@@ -284,7 +288,8 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
     }
     std::ofstream stream(host[index], std::ios::binary | std::ios::trunc);
     if (!stream) {
-      return fail(FileSystemError::kIO, std::format("cannot open '{}'", PathToUTF8(host[index])));
+      return fail(FileSystemError::kIO,
+                  std::format("cannot open '{}'", string::PathToUTF8(host[index])));
     }
     if (fresh) {
       written.push_back(host[index]);
@@ -293,18 +298,19 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
     for (u64 offset = 0; offset < node.info.size;) {
       auto read = Read(node, offset, chunk);
       if (!read || *read == 0) {
-        return fail(FileSystemError::kCorrupt, std::format("cannot read '{}'", PathOf(node)));
+        return fail(FileSystemError::kCorrupt, std::format("cannot read '{}'", GetNodePath(node)));
       }
       if (!stream.write(reinterpret_cast<const char*>(chunk.data()),
                         static_cast<std::streamsize>(*read))) {
         return fail(FileSystemError::kIO,
-                    std::format("cannot write '{}'", PathToUTF8(host[index])));
+                    std::format("cannot write '{}'", string::PathToUTF8(host[index])));
       }
       offset += *read;
     }
     stream.close();
     if (!stream) {
-      return fail(FileSystemError::kIO, std::format("cannot flush '{}'", PathToUTF8(host[index])));
+      return fail(FileSystemError::kIO,
+                  std::format("cannot flush '{}'", string::PathToUTF8(host[index])));
     }
   }
   return Ok();
@@ -328,8 +334,8 @@ Result<XContentPackageHeader> ReadSTFSHeader(std::span<const u8> bytes) {
 Result<XContentPackageHeader> ReadSTFSHeader(const std::filesystem::path& path) {
   auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead);
   if (!map) {
-    return Err<XContentPackageHeader>(
-        BuildError(FileSystemError::kNotFound, std::format("cannot open '{}'", PathToUTF8(path))));
+    return Err<XContentPackageHeader>(BuildError(
+        FileSystemError::kNotFound, std::format("cannot open '{}'", string::PathToUTF8(path))));
   }
   return ReadSTFSHeader(std::span<const u8>(map->GetData(), map->GetSize()));
 }

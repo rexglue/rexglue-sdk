@@ -20,25 +20,18 @@ namespace rex::filesystem {
 /**
  * Matches names against an NT file name expression.
  *
- * A star is any run and a question mark is 1 character. The DOS star `<` is any run up to the
- * final dot, the DOS question mark `>` is 1 character or nothing before a dot or the end, and the
+ * A star is any run and a question mark is one character. The DOS star `<` is any run up to the
+ * final dot, the DOS question mark `>` is one character or nothing before a dot or the end, and the
  * DOS dot `"` is a dot or the end. The pattern `*.*` matches every name.
  */
 class WildcardMatcher {
  public:
   /**
-   * Compiles a pattern.
-   *
    * @param pattern The pattern, empty to match every name.
    */
   explicit WildcardMatcher(std::string_view pattern = {});
 
-  /**
-   * Reports whether a name matches, ignoring ASCII case.
-   *
-   * @param name The name to test.
-   * @return True when the name matches.
-   */
+  /** Reports whether a name matches, ignoring ASCII case. */
   [[nodiscard]] bool Match(std::string_view name) const;
 
  private:

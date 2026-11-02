@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/filesystem/open_node_test.cpp
- * @brief       Tests that an open file keeps its node through delete, host removal and unmount
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -26,7 +25,7 @@ using rex::filesystem::CodeOf;
 using rex::filesystem::Disposition;
 using rex::filesystem::FileSystemError;
 using rex::filesystem::MountFlags;
-using rex::filesystem::ProviderKind;
+using rex::filesystem::ProviderType;
 using rex::filesystem::test::Fixture;
 using rex::filesystem::test::ReadText;
 using rex::filesystem::test::WriteHost;
@@ -39,7 +38,7 @@ class OpenRoot : public Fixture {
   OpenRoot() {
     WriteHost(GetHostPath(), "held");
     REQUIRE(GetFileSystem().Mount(
-        {std::string(kMountPath), ProviderKind::kHostDirectory, GetTemp(), MountFlags::kWritable}));
+        {std::string(kMountPath), ProviderType::kHostDirectory, GetTemp(), MountFlags::kWritable}));
   }
 
   std::filesystem::path GetHostPath() const { return GetTemp() / "held.dat"; }

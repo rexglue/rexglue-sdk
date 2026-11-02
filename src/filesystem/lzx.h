@@ -20,7 +20,6 @@ namespace rex::filesystem::detail {
 /**
  * Decompresses an LZX stream.
  *
- * @param input The compressed stream.
  * @param output The buffer that receives exactly output.size() bytes.
  * @param window_size The LZX window size in bytes, a power of 2.
  * @param window_data Reference data placed at the end of the window, empty for none.
@@ -32,7 +31,6 @@ int LZXDecompress(std::span<const u8> input, std::span<u8> output, u32 window_si
 /**
  * Applies a run of XEX delta patch entries to a buffer in place.
  *
- * @param patch The patch entries.
  * @param window_size The LZX window size in bytes.
  * @param image The buffer the entries address.
  * @return 0 on success, 1 when an entry reaches outside a buffer, otherwise the libmspack error

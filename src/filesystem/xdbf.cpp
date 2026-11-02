@@ -9,12 +9,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/runtime/xdbf_reader.h>
+#include "filesystem/xdbf_title_data.h"
+#include <rex/kernel/types/content.h>
 
 #include <optional>
 
 namespace rex {
-namespace runtime {
+namespace filesystem {
 
 constexpr memory::FourCCT kXDBFSignatureXDBF = memory::make_fourcc("XDBF");
 constexpr memory::FourCCT kXDBFSignatureXSTC = memory::make_fourcc("XSTC");
@@ -37,7 +38,8 @@ std::optional<T> LoadAt(const XDBFBlock& block, size_t offset) {
 
 }  // namespace
 
-XDBFReader::XDBFReader(const u8* data, size_t data_size) : data_(data), data_size_(data_size) {
+XDBFTitleData::XDBFTitleData(const u8* data, size_t data_size)
+    : data_(data), data_size_(data_size) {
   if (!data || data_size <= sizeof(XDBFHeader)) {
     data_ = nullptr;
     return;
@@ -61,7 +63,7 @@ XDBFReader::XDBFReader(const u8* data, size_t data_size) : data_(data), data_siz
       entries_ + sizeof(XDBFEntry) * entry_capacity + sizeof(XDBFFileLocation) * free_count;
 }
 
-XDBFBlock XDBFReader::GetEntry(XDBFSection section, u64 id) const {
+XDBFBlock XDBFTitleData::GetEntry(XDBFSection section, u64 id) const {
   if (!IsValid()) {
     return {};
   }
@@ -84,7 +86,7 @@ XDBFBlock XDBFReader::GetEntry(XDBFSection section, u64 id) const {
   return {};
 }
 
-std::string XDBFReader::GetStringTableEntry(XLanguage language, u16 string_id) const {
+std::string XDBFTitleData::GetStringTableEntry(kernel::XLanguage language, u16 string_id) const {
   auto language_block = GetEntry(XDBFSection::kStringTable, static_cast<u64>(language));
   const auto xstr_head = LoadAt<XDBFSectionHeader>(language_block, 0);
   if (!xstr_head || memory::load<be_u32>(&xstr_head->magic) != kXDBFSignatureXSTR ||
@@ -113,7 +115,7 @@ std::string XDBFReader::GetStringTableEntry(XLanguage language, u16 string_id) c
   return "";
 }
 
-std::vector<XDBFAchievementTableEntry> XDBFReader::GetAchievements() const {
+std::vector<XDBFAchievementTableEntry> XDBFTitleData::GetAchievements() const {
   std::vector<XDBFAchievementTableEntry> achievements;
 
   auto achievement_table = GetEntry(XDBFSection::kMetadata, kXDBFIdXACH);
@@ -136,7 +138,7 @@ std::vector<XDBFAchievementTableEntry> XDBFReader::GetAchievements() const {
   return achievements;
 }
 
-XLanguage XDBFTitleData::GetSupportedLanguage(XLanguage language_to_check) const {
+kernel::XLanguage XDBFTitleData::GetSupportedLanguage(kernel::XLanguage language_to_check) const {
   return GetTitle(language_to_check).empty() ? GetDefaultLanguage() : language_to_check;
 }
 
@@ -144,21 +146,21 @@ XDBFBlock XDBFTitleData::GetIcon() const {
   return GetEntry(XDBFSection::kImage, kXDBFIdTitle);
 }
 
-XLanguage XDBFTitleData::GetDefaultLanguage() const {
-  const auto xstc = LoadAt<XDBFXstc>(GetEntry(XDBFSection::kMetadata, kXDBFIdXSTC), 0);
+kernel::XLanguage XDBFTitleData::GetDefaultLanguage() const {
+  const auto xstc = LoadAt<XDBFXSTC>(GetEntry(XDBFSection::kMetadata, kXDBFIdXSTC), 0);
   if (!xstc || memory::load<be_u32>(&xstc->magic) != kXDBFSignatureXSTC) {
-    return XLanguage::kEnglish;
+    return kernel::XLanguage::kEnglish;
   }
-  return ToXLanguage(memory::load<be_u32>(&xstc->default_language));
+  return kernel::ToXLanguage(memory::load<be_u32>(&xstc->default_language));
 }
 
 std::string XDBFTitleData::GetTitle() const {
   return GetStringTableEntry(GetDefaultLanguage(), kXDBFIdTitle);
 }
 
-std::string XDBFTitleData::GetTitle(XLanguage language) const {
+std::string XDBFTitleData::GetTitle(kernel::XLanguage language) const {
   return GetStringTableEntry(language, kXDBFIdTitle);
 }
 
-}  // namespace runtime
+}  // namespace filesystem
 }  // namespace rex

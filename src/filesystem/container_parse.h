@@ -1,5 +1,5 @@
 /**
- * @file        core/filesystem/container_parse.h
+ * @file        filesystem/container_parse.h
  * @brief       Container parsers behind Container::Open
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -17,19 +17,16 @@
 #include <string>
 #include <vector>
 
-#include <rex/filesystem/container.h>
-#include <rex/filesystem/error.h>
-#include <rex/filesystem/xcontent_layout.h>
+#include <rex/filesystem/stfs.h>
+#include <rex/filesystem/file_system_error.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
 namespace rex::filesystem::detail {
 
 /**
- * Copies a trivially copyable value out of a byte span.
+ * Copies a value out of a byte span.
  *
- * @tparam T The value type.
- * @param bytes The source.
  * @param offset Byte offset of the value.
  * @return The value, or empty when it does not fit inside bytes.
  */
@@ -43,24 +40,10 @@ std::optional<T> ReadAt(std::span<const u8> bytes, u64 offset) {
   return value;
 }
 
-/**
- * Reports whether a byte range is inside a span.
- *
- * @param bytes The span.
- * @param offset First byte of the range.
- * @param length Bytes in the range.
- * @return True when the whole range is inside bytes.
- */
 inline bool IsInBounds(std::span<const u8> bytes, u64 offset, u64 length) {
   return offset <= bytes.size() && bytes.size() - offset >= length;
 }
 
-/**
- * Builds a kCorrupt error.
- *
- * @param message Human readable detail.
- * @return The error.
- */
 inline rex::Error Corrupt(std::string message) {
   return BuildError(FileSystemError::kCorrupt, std::move(message));
 }
@@ -88,18 +71,12 @@ inline rex::Error Corrupt(std::string message) {
                                      std::span<const std::span<const u8>> files,
                                      std::vector<ContainerNode>& nodes);
 
-/**
- * Reports whether an image holds the GDFX magic at 1 of the candidate offsets.
- *
- * @param image The whole image.
- * @return True when the magic is found.
- */
+/** Reports whether an image holds the GDFX magic at one of the candidate offsets. */
 bool IsGDFX(std::span<const u8> image);
 
 /**
  * Parses a GDFX disc image into nodes. nodes holds the root on entry.
  *
- * @param image The whole image.
  * @param nodes The node list to fill.
  * @return kCorrupt when the magic is missing or an entry is out of range.
  */

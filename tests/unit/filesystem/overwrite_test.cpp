@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/filesystem/overwrite_test.cpp
- * @brief       Tests that overwrite and supersede truncate host files in place
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,7 +23,7 @@ using rex::filesystem::Access;
 using rex::filesystem::Disposition;
 using rex::filesystem::MountFlags;
 using rex::filesystem::OpenAction;
-using rex::filesystem::ProviderKind;
+using rex::filesystem::ProviderType;
 using rex::filesystem::test::Fixture;
 using rex::filesystem::test::WriteHost;
 
@@ -37,7 +36,7 @@ class ScopedRoot : public Fixture {
   ScopedRoot() {
     WriteHost(GetHostPath(), kOriginal);
     REQUIRE(GetFileSystem().Mount(
-        {std::string(kMountPath), ProviderKind::kHostDirectory, GetTemp(), MountFlags::kWritable}));
+        {std::string(kMountPath), ProviderType::kHostDirectory, GetTemp(), MountFlags::kWritable}));
     REQUIRE(GetFileSystem().Link("test:", kMountPath));
   }
 

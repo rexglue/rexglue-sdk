@@ -1,5 +1,5 @@
 /**
- * @file        filesystem/error.h
+ * @file        filesystem/file_system_error.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,19 +20,19 @@ namespace rex::filesystem {
 
 /** Filesystem error codes, stored in rex::Error::code. */
 enum class FileSystemError : u8 {
-  kNone = 0,         /**< No error. */
-  kNotFound,         /**< The path or 1 of its parents does not exist. */
-  kExists,           /**< The path exists and the request needs it absent. */
-  kIsDirectory,      /**< A file was required and the path names a directory. */
-  kNotDirectory,     /**< A directory was required and the path names a file. */
-  kAccessDenied,     /**< The provider refused the operation. */
-  kEndOfFile,        /**< A read started at or past the end of the file. */
-  kUnsupported,      /**< The provider does not implement the operation. */
-  kNoMount,          /**< No mount covers the path. */
-  kMountExists,      /**< A mount with the same path exists. */
-  kInvalidPath,      /**< The path is malformed or escapes its root. */
-  kCorrupt,          /**< A container image failed validation. */
-  kIO,               /**< The host reported an I/O failure. */
+  kNone = 0,
+  kNotFound, /**< The path or one of its parents does not exist. */
+  kExists,
+  kIsDirectory,
+  kNotDirectory,
+  kAccessDenied,
+  kEndOfFile, /**< A read started at or past the end of the file. */
+  kUnsupported,
+  kNoMount,
+  kMountExists,
+  kInvalidPath, /**< The path is malformed or escapes its root. */
+  kCorrupt,
+  kIO,
   kSharingViolation, /**< Another open handle holds the file with sharing that refuses the open. */
   kNotSameDevice,    /**< A move names a path on another mount. */
 };
@@ -40,10 +40,8 @@ enum class FileSystemError : u8 {
 /**
  * Builds a rex::Error that carries a filesystem code.
  *
- * @param code The filesystem code.
- * @param message Human readable detail.
- * @return The error, with the category NotFound for kNotFound and kNoMount, Format for kCorrupt,
- *         NotImplemented for kUnsupported and IO for every other code.
+ * @return The error. kNotFound and kNoMount map to NotFound, kCorrupt to Format, kUnsupported to
+ *         NotImplemented, the rest to IO.
  */
 [[nodiscard]] inline rex::Error BuildError(FileSystemError code, std::string message) {
   ErrorCategory category = ErrorCategory::kIO;
@@ -64,12 +62,6 @@ enum class FileSystemError : u8 {
   return {category, std::move(message), static_cast<int>(code)};
 }
 
-/**
- * Returns the filesystem code of an error.
- *
- * @param error An error built by BuildError.
- * @return The code.
- */
 [[nodiscard]] inline FileSystemError CodeOf(const rex::Error& error) {
   return static_cast<FileSystemError>(error.code);
 }
