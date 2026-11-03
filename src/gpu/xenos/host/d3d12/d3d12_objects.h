@@ -29,7 +29,7 @@ inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesReadback = {
     D3D12_HEAP_TYPE_READBACK, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 0, 0};
 
 /**
- * Builds a graphics pipeline state description with every field named, the enum fields valid.
+ * Builds a graphics pipeline state description with every field initialized.
  *
  * @return The description, zero for the fields without an enum type.
  */
@@ -92,13 +92,7 @@ inline D3D12_GRAPHICS_PIPELINE_STATE_DESC BuildGraphicsPipelineStateDesc() {
       .Flags = D3D12_PIPELINE_STATE_FLAG_NONE};
 }
 
-/**
- * Builds a default type heap description with every field named.
- *
- * @param size_in_bytes The heap size.
- * @param flags The heap flags.
- * @return The description.
- */
+/** Builds a default type heap description with every field named. */
 inline D3D12_HEAP_DESC BuildDefaultHeapDesc(u64 size_in_bytes, D3D12_HEAP_FLAGS flags) {
   return D3D12_HEAP_DESC{.SizeInBytes = size_in_bytes,
                          .Properties = kHeapPropertiesDefault,

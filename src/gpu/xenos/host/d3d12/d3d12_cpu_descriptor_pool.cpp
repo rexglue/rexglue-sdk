@@ -12,7 +12,6 @@
 #include <cstdint>
 #include <memory>
 
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include "gpu/xenos/host/d3d12/d3d12_cpu_descriptor_pool.h"
 

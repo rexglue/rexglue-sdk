@@ -15,23 +15,21 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/shared_memory.h"
-#include <rex/fail.h>
+#include "gpu/xenos/physical_memory.h"
 #include <rex/logging/log.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include "gpu/xenos/host/vulkan/objects.h"
-
-#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 
 VulkanSharedMemory::VulkanSharedMemory(VulkanCommandProcessor& command_processor,
-                                       runtime::Memory& memory,
+                                       IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
                                        VkPipelineStageFlags guest_shader_pipeline_stages)
-    : SharedMemory(memory),
+    : SharedMemory(memory, watch),
       command_processor_(command_processor),
       guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {}
 
@@ -59,7 +57,7 @@ bool VulkanSharedMemory::Initialize() {
   buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_create_info.queueFamilyIndexCount = 0;
   buffer_create_info.pQueueFamilyIndices = nullptr;
-  if (REXCVAR_GET(::rex::gpu::cvars::vulkan_sparse_shared_memory) &&
+  if (command_processor_.GetVulkanSettings().sparse_shared_memory.Get() &&
       vulkan_device->GetProperties().sparseResidencyBuffer) {
     if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) == VK_SUCCESS) {
       VkMemoryRequirements buffer_memory_requirements;
@@ -203,7 +201,7 @@ void VulkanSharedMemory::Use(Usage usage, std::pair<u32, u32> written_range) {
       offset = static_cast<VkDeviceSize>(last_written_range_.first);
       size = static_cast<VkDeviceSize>(last_written_range_.second);
     } else {
-      // All preceding writes must be available to the destination stage as well as the source.
+      // A usage change covers all earlier writes.
       offset = 0;
       size = VK_WHOLE_SIZE;
       last_usage_ = usage;
@@ -259,7 +257,7 @@ bool VulkanSharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& up
   if (upload_page_ranges.empty()) {
     return true;
   }
-  // upload_page_ranges are sorted, so front and back bound the ordering barrier range.
+  // The ranges are sorted, so front and back bound the barrier.
   Use(Usage::kTransferDestination,
       std::make_pair(upload_page_ranges.front().first << GetPageSizeLog2(),
                      (upload_page_ranges.back().first + upload_page_ranges.back().second -
@@ -288,9 +286,14 @@ bool VulkanSharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& up
       }
       MarkRangeValid(upload_range_start << GetPageSizeLog2(), static_cast<u32>(upload_buffer_size),
                      false);
-      std::memcpy(upload_buffer_mapping,
-                  GetMemory().TranslatePhysical(upload_range_start << GetPageSizeLog2()),
-                  upload_buffer_size);
+      const u8* upload_source =
+          GetPhysicalForRead(GetMemory(), upload_range_start << GetPageSizeLog2(),
+                             static_cast<u32>(upload_buffer_size));
+      if (!upload_source) {
+        successful = false;
+        break;
+      }
+      std::memcpy(upload_buffer_mapping, upload_source, upload_buffer_size);
       if (upload_buffer_previous != upload_buffer && !upload_regions_.empty()) {
         REX_ASSERT(upload_buffer_previous != VK_NULL_HANDLE);
         command_buffer.CmdVkCopyBuffer(upload_buffer_previous, buffer_,

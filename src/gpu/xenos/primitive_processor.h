@@ -24,17 +24,20 @@
 
 #include <rex/hash.h>
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/types.h>
-#include <rex/xenos/register_file.h>
+#include <rex/utility.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/shared_memory.h"
-#include <rex/xenos/xenos.h>
+#include "gpu/xenos/xenos_settings.h"
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/platform.h>
 
 #include "gpu/xenos/index_conversion.h"
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex::gpu {
 
@@ -49,7 +52,7 @@ namespace rex::gpu {
  *   Vulkan implementations and are hard to debug in PIX due to "catastrophic failures", so they
  *   convert to triangle lists.
  * - Vulkan requires a 0xFFFF primitive restart index for 16 bit indices and 0xFFFFFFFF for 32 bit.
- *   Direct3D 12 also allows 0xFFFF for 32 bit, which is of no use as guest indices are usually big
+ *   Direct3D 12 allows 0xFFFF for 32 bit, which is of no use as guest indices are usually big
  *   endian. The guest uses only the low 24 bits of the vertex index, so the upper 8 bits are masked
  *   out of the reset index comparison, while Vulkan and Direct3D 12 require exactly 0xFFFFFFFF.
  *   - 16 bit indices with a guest reset index other than 0xFFFF pass 0xFFFF to the host unchanged,
@@ -66,23 +69,19 @@ namespace rex::gpu {
  *   the indices are pre swapped, masked to 24 bits and the reset index converted to 0xFFFFFFFF,
  *   giving an index buffer that can be used directly.
  *
- * SIMD paths assume alignment is not required, as AVX and Neon do not need it and an unaligned
- * instruction costs nothing when the data is aligned. Truly unaligned access may take 2 hardware
- * memory operations when a boundary of at least the vector size is crossed. To minimize unaligned
- * reads, loops process leading indices without SIMD until the source is vector aligned, then whole
- * vectors with SIMD, then the remainder without SIMD. When the source and destination were
- * co-aligned, neither loads nor stores cross cache lines. Otherwise the source is aligned, with 1
- * memory read per load, and the destination unaligned, with 1 to 2 memory writes per store. Indices
- * are at least naturally aligned to 2 or 4 bytes, as INDEX_BASE_LO in DRAW_INDEX is word aligned,
- * which host graphics APIs also require.
+ * SIMD paths need no alignment, as AVX and Neon do not require it. Loops process leading indices
+ * without SIMD until the source is vector aligned, then whole vectors, then the remainder. Indices
+ * are at least naturally aligned to two or four bytes, as INDEX_BASE_LO in DRAW_INDEX is word
+ * aligned, which host graphics APIs also require.
  */
-class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
+class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable,
+                                             public IPhysicalWriteListener {
  public:
   enum ProcessedIndexBufferType : u8 {
-    kNone, /**< Auto-indexed on the host. */
+    kNone, /**< Auto indexed on the host. */
     /**
      * GPU DMA from the shared memory. For 32 bit, indirection is needed if the host supports only
-     * 24 bit indices, even without endian swapping, as the GPU ignores the upper 8 bits completely.
+     * 24 bit indices, even without endian swapping, as the GPU ignores the upper 8 bits.
      */
     kGuestDMA,
     /**
@@ -90,7 +89,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
      * indices, if the host lacks full 32 bits, the buffer is always pre masked and pre swapped.
      */
     kHostConverted,
-    kHostBuiltinForAuto, /**< Auto-indexed on the guest, with a host adapter index buffer. */
+    kHostBuiltinForAuto, /**< Auto indexed on the guest, with a host adapter index buffer. */
     kHostBuiltinForDMA,  /**< Host adapter index buffer for DMA index loads from shared memory. */
   };
 
@@ -117,8 +116,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
      */
     bool host_primitive_reset_enabled;
     /**
-     * Backend specific handle for the index buffer valid for the current draw, only valid for
-     * index_buffer_type kHostConverted, kHostBuiltinForAuto and kHostBuiltinForDMA.
+     * Driver handle of the index buffer for the current draw. Valid for index_buffer_type
+     * kHostConverted, kHostBuiltinForAuto and kHostBuiltinForDMA.
      */
     size_t host_index_buffer_handle;
     bool IsTessellated() const {
@@ -131,82 +130,50 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   /**
    * Processes the primitives of the current draw. Submission must be open, as the index buffer in
    * the shared memory may be requested.
-   *
-   * @param result_out The processing result.
-   * @return True when processing succeeded.
    */
   bool Process(ProcessingResult& result_out);
 
   /**
    * Invalidates the cache within the range.
    *
-   * @param physical_address_start The start of the range.
-   * @param length The length of the range.
    * @param exact_range True to invalidate only the range, false to invalidate whole buckets.
-   * @return The invalidated range as start address and length.
+   * @return The invalidated range.
    */
-  std::pair<u32, u32> MemoryInvalidationCallback(u32 physical_address_start, u32 length,
-                                                 bool exact_range);
+  PhysicalRange OnPhysicalWrite(PhysicalRange range, bool exact_range) override;
 
  protected:
   /**
-   * For host side index buffer creation, the biggest possibly needed contiguous allocation, in
-   * bytes.
+   * Largest contiguous allocation the host index buffer may need, in bytes.
    *
    * - No conversion needs up to 0xFFFF vertices, as the vertex count in VGT_DRAW_INITIATOR is 16
    * bit.
    * - Triangle fans to lists need 3 * (UINT16_MAX - 2), or 0x2FFF7, since every guest vertex from
-   * the 3rd creates a triangle. Primitive reset only slows the amplification, as the 3 vertices
-   * after a reset add 1 host vertex each, not 3 each.
-   * - Line loops to strips add 1 vertex if the original primitive has at least 2 vertices, either
-   *   replacing the primitive reset index with the new closing vertex or, for the final primitive,
-   *   adding a vertex, so the absolute limit is UINT16_MAX + 1, or 0x10000.
-   * - Quad lists to triangle lists process vertices in groups of 4, each converted to 6 vertices,
-   *   so the limit is 1.5 * 0xFFFC, or 0x17FFA.
+   * the third creates a triangle. Primitive reset only slows the amplification, as the three
+   * vertices after a reset add one host vertex each, not three each.
+   * - Line loops to strips add one vertex if the original primitive has at least two vertices,
+   *   either replacing the primitive reset index with the new closing vertex or, for the final
+   *   primitive, adding a vertex, so the absolute limit is UINT16_MAX + 1, or 0x10000.
+   * - Quad lists to triangle lists process vertices in groups of four, each converted to six
+   *   vertices, so the limit is 1.5 * 0xFFFC, or 0x17FFA.
    *
    * The maximum vertex count is therefore set by triangle fan to list conversion. It also includes
-   * padding for co-alignment of the source and the destination for SIMD.
+   * padding for coalignment of the source and the destination for SIMD.
    */
   static constexpr u32 kMinRequiredConvertedIndexBufferSize =
       sizeof(u32) * (UINT16_MAX - 2) * 3 + REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE;
 
-  PrimitiveProcessor(const xenos::RegisterFile& register_file, runtime::Memory& memory,
+  PrimitiveProcessor(const xenos::RegisterFile& register_file, const XenosSettings& settings,
+                     IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
                      SharedMemory& shared_memory)
-      : register_file_(register_file), memory_(memory), shared_memory_(shared_memory) {}
+      : register_file_(register_file),
+        settings_(settings),
+        physical_memory_(memory),
+        write_watch_(watch),
+        shared_memory_(shared_memory) {}
 
   /**
-   * Initializes the common state from the backend specific initialization function.
-   *
-   * Full 32 bit indices are supported when the backend supports 32 bit indices unconditionally and
-   * generates no indirection logic in vertex shaders. The flag is false when the host lacks full 32
-   * bit indices but supports at least 24 bit, or when the host supports 32 bit but the backend can
-   * handle both cases. Without full 32 bit indices, the host must use auto indexed draws for 32 bit
-   * indices of ProcessedIndexBufferType kGuestDMA, fetching the index data from the shared memory
-   * buffer and endian swapping it. Indirection precludes primitive reset, so when reset is needed
-   * the processor pre swaps and pre masks the index buffer to hold only host endian 0x00###### or
-   * 0xFFFFFFFF values. Process then returns a kHostConverted index buffer and indirection is not
-   * needed, and is impossible as the buffer is no longer in the shared memory buffer. Byte swap is
-   * still needed, as 16 bit kHostConverted indices are unaffected by this. The same applies to
-   * primitive type conversion of 32 bit guest indices that returns kHostConverted.
-   *
-   * The built in index buffer holds 32 bit entries before 16 bit ones for alignment. For primitive
-   * expansion the indices encode the guest vertex index plus a part needed for host expansion, so
-   * values can exceed UINT16_MAX, up to (UINT16_MAX - 1) * 4 + 3 for point sprites. An index
-   * buffer expands point sprites and rectangle lists instead of instancing, as instancing
-   * performance varies widely between GPUs, for example with no different instances in the same
-   * wavefront at small vertex counts per instance. Triangle strips with primitive restart rather
-   * than lists let the vertex shader run once for the inner edge vertices, because memory export
-   * in guest shaders needs it so 2 invocations do not write the same location. The 16 bit entries
-   * serve indirection on top of single auto indexed vertices, enough even when the backend has
-   * primitive reset always enabled (Metal), as auto indexed draws are limited to UINT16_MAX
-   * vertices, not UINT16_MAX + 1.
-   *
-   * The triangle fan, line loop and quad list flags report whether the host supports those guest
-   * primitive types directly or through geometry shader emulation. Debug overrides resolve in the
-   * common code. The two flags without vertex shader expansion report the same for point sprites
-   * and rectangle lists, and overrides do not apply to them as hosts are not required to support
-   * the fallback paths, which need a different vertex shader structure for the fallback
-   * HostVertexShaderTypes.
+   * Initializes the common state from the driver initialization function. Debug overrides of the
+   * support flags resolve in the common code.
    *
    * @param full_32bit_vertex_indices_supported True when 32 bit indices need no indirection.
    * @param triangle_fans_supported True when the host draws triangle fans without list conversion.
@@ -221,14 +188,11 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
                         bool point_sprites_supported_without_vs_expansion,
                         bool rectangle_lists_supported_without_vs_expansion);
   /**
-   * Sets up the backend index buffer holding indices for primitive type remapping, when any
-   * primitive type conversion is needed for auto indexed draws. Called from InitializeCommon, so
-   * once in the processor's lifetime. The backend allocates a 4 byte aligned buffer with size_bytes
-   * and calls fill_callback for its mapping if creation succeeded.
+   * Sets up the driver index buffer for primitive type remapping, when any conversion is needed
+   * for auto indexed draws. Called from InitializeCommon, so once per lifetime. The driver
+   * allocates a 4 byte aligned buffer of size_bytes and calls fill_callback for its mapping.
    *
-   * @param size_bytes The buffer size in bytes.
    * @param fill_callback The callback that fills the mapped buffer.
-   * @return True when creation succeeded.
    */
   virtual bool InitializeBuiltinIndexBuffer(size_t size_bytes,
                                             std::function<void(void*)> fill_callback) = 0;
@@ -236,8 +200,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   void ShutdownCommon();
 
   /**
-   * Clears the per frame cache. Runs at boundaries of converted data lifespans, preferably at the
-   * end of a frame between the swap and the next draw, so access violation handlers do less work.
+   * Runs at boundaries of converted data lifespans, preferably at the end of a frame between the
+   * swap and the next draw, so access violation handlers do less work.
    */
   void ClearPerFrameCache();
 
@@ -245,13 +209,9 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
 
   /**
    * Returns the offset that moves the host pointer forward into the allocation padding so the
-   * source and destination are co-aligned for SIMD. The destination allocation must have
-   * REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE excess bytes. Relies on two's complement wrapping
-   * overflow behavior.
-   *
-   * @param host_index_ptr The host index pointer.
-   * @param guest_index_base The guest index base address.
-   * @return The offset in bytes.
+   * source and destination are coaligned for SIMD. The destination allocation must have
+   * REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE excess bytes. Relies on wrapping overflow. The offset is
+   * in bytes.
    */
   static ptrdiff_t GetSIMDCoalignmentOffset(const void* host_index_ptr, u32 guest_index_base) {
     return static_cast<ptrdiff_t>((guest_index_base - reinterpret_cast<uintptr_t>(host_index_ptr)) &
@@ -264,16 +224,15 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    *
    * @param format The index format.
    * @param index_count The number of indices.
-   * @param coalign_for_simd True to co-align the source and destination for SIMD.
-   * @param coalignment_original_address The source address to co-align with.
-   * @param backend_handle_out A handle for the backend command processor to bind the buffer.
+   * @param coalignment_original_address The source address to coalign with.
+   * @param driver_handle_out A handle for the driver command processor to bind the buffer.
    * @return The mapping of the buffer to write to, or null on failure.
    */
   virtual void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format,
                                                                u32 index_count,
                                                                bool coalign_for_simd,
                                                                u32 coalignment_original_address,
-                                                               size_t& backend_handle_out) = 0;
+                                                               size_t& driver_handle_out) = 0;
 
  private:
   struct PassthroughIndexTransform {
@@ -306,9 +265,6 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   /**
    * Returns the index count of a triangle fan as a triangle list, ordered as (v1, v2, v0),
    * (v2, v3, v0) in Direct3D.
-   *
-   * @param fan_index_count The triangle fan index count.
-   * @return The triangle list index count.
    */
   static constexpr u32 GetTriangleFanListIndexCount(u32 fan_index_count) {
     return fan_index_count > 2 ? (fan_index_count - 2) * 3 : 0;
@@ -332,11 +288,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   }
 
   /**
-   * Returns the index count of a line loop as a line strip. Loops draw n lines for n input
-   * vertices, so 2 vertices still draw 2 lines, and a loop of 1 vertex is ignored.
-   *
-   * @param loop_index_count The line loop index count.
-   * @return The line strip index count.
+   * Loops draw n lines for n input vertices, so two vertices draw two lines, and a loop of one
+   * vertex is ignored.
    */
   static constexpr u32 GetLineLoopStripIndexCount(u32 loop_index_count) {
     return loop_index_count > 1 ? loop_index_count + 1 : 0;
@@ -380,10 +333,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   }
 
   /**
-   * Pre gathering the ranges lets the same functions convert with and without reset. It also
-   * avoids a mismatch between the pre calculated post conversion index count and the actual
-   * conversion if the guest modifies the index buffer between the two and adds or removes reset
-   * indices.
+   * Gathering the ranges first lets the same functions convert with and without reset, and keeps
+   * the post conversion index count in sync if the guest changes reset indices meanwhile.
    */
   struct SinglePrimitiveRange {
     SinglePrimitiveRange(u32 guest_offset, u32 guest_index_count, u32 host_index_count)
@@ -442,7 +393,9 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   }
 
   const xenos::RegisterFile& register_file_;
-  runtime::Memory& memory_;
+  const XenosSettings& settings_;
+  IPhysicalMemory& physical_memory_;
+  IPhysicalWriteWatch& write_watch_;
   SharedMemory& shared_memory_;
 
   bool full_32bit_vertex_indices_used_ = false;
@@ -480,9 +433,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
       /** kNone when the type does not change, like when only processing the reset index. */
       xenos::PrimitiveType conversion_guest_primitive_type : 6;
       /**
-       * Set when the entry is for forced 32 bit guest DMA to host endian 24 bit index conversion,
-       * used by non kVertex host vertex shader types on backends without full 32 bit index fetch
-       * in this path.
+       * Set for forced 32 bit guest DMA to host endian 24 bit index conversion by non kVertex host
+       * vertex shader types on drivers without full 32 bit index fetch in this path.
        */
       u32 non_vertex_32bit_dma_to_24bit : 1;
     };
@@ -547,14 +499,13 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
   };
 
   /**
-   * A cache transaction performs a few operations in a RAII way, so processing may return an error
-   * for any reason without cleaning up cache_pending_base_ and size_bytes_ explicitly.
+   * Releases cache_pending_base_ and size_bytes_ when destroyed, so processing may return an error
+   * at any point.
    *
-   * Initialization looks up previously processed indices in the cache. If not found, it begins
-   * adding a new entry by marking the range as being processed and enabling an access callback for
-   * the range. Marking makes race handling slightly safer. If invalidation happens during the
-   * transaction, outside a global critical region lock since processing may take long, the new
-   * entry is not stored as it is already invalid at completion. The new result is set after
+   * Initialization looks up previously processed indices in the cache. If not found, it marks the
+   * range as being processed and enables an access callback for it. If invalidation happens during
+   * the transaction, outside a global critical region lock since processing may take long, the new
+   * entry is not stored as it is invalid at completion. The new result is set after
    * processing when not found previously. Completion stores the new entry in the cache if the range
    * was not invalidated during the transaction.
    *
@@ -596,7 +547,8 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
 
   std::deque<CacheEntry> cache_entry_pool_;
 
-  void* memory_invalidation_callback_handle_ = nullptr;
+  ScopeGuard write_listener_;
+  bool write_listener_registered_ = false;
 
   std::mutex cache_mutex_;
   // Modified by both the processor and the invalidation callback.
@@ -607,7 +559,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * processor, read by the invalidation callback.
    */
   u32 cache_pending_base_ = 0;
-  /** 0 when not in a cache transaction that has not found an existing entry yet. */
+  /** 0 outside a cache transaction, or while the transaction has an existing entry. */
   u32 cache_pending_size_bytes_ = 0;
   // Modified by both the processor and the invalidation callback.
   size_t cache_bucket_free_first_entry_ = SIZE_MAX;
@@ -622,7 +574,6 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * Updates the L2 bit of a bucket group. Requires cache_mutex_ to be held.
    *
    * @param bucket_index_div_64 The bucket index divided by 64.
-   * @param cache_lock The held cache lock.
    */
   void UpdateCacheBucketsNonEmptyL2(
       u32 bucket_index_div_64, [[maybe_unused]] const std::lock_guard<std::mutex>& cache_lock) {
@@ -641,9 +592,6 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
    * invalidation callback.
    */
   size_t cache_bucket_first_entries_[kCacheBucketCount];
-  static std::pair<u32, u32> MemoryInvalidationCallbackThunk(void* context_ptr,
-                                                             u32 physical_address_start, u32 length,
-                                                             bool exact_range);
 };
 
 }  // namespace rex::gpu

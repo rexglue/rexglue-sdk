@@ -16,17 +16,15 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
-#include <rex/gpu/surface_win.h>
-#include <rex/move_only_function.h>
+#include <rex/utility.h>
+#include <rex/settings.h>
 
-#include "gpu/xenos/d3d12/cvar_table.h"
+#include "gpu/xenos/host/present_policy.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -64,7 +62,8 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
   if (paint_context_.swap_chain) {
     if (was_paintable && paint_context_.swap_chain_width == new_swap_chain_width &&
         paint_context_.swap_chain_height == new_swap_chain_height) {
-      is_vsync_implicit_out = false;
+      is_vsync_implicit_out = IsVsyncImplicit(
+          ChoosePresentSync(GetPaintConnectionVsync(), paint_context_.swap_chain_allows_tearing));
       return SurfacePaintConnectResult::kSuccessUnchanged;
     }
     paint_context_.AwaitSwapChainUsageCompletion();
@@ -115,7 +114,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
     swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
     swap_chain_desc.Flags = 0;
-    if (REXCVAR_GET(::rex::gpu::cvars::allow_tearing) && dxgi_supports_tearing_) {
+    if (provider_.GetSettings().allow_tearing.Get() && dxgi_supports_tearing_) {
       swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
     }
     IDXGIFactory2* dxgi_factory = provider_.GetDXGIFactory();
@@ -124,7 +123,8 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
     switch (surface_type) {
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_GAMES)
       case gpu::Surface::kTypeIndexWin32HWND: {
-        HWND surface_hwnd = static_cast<const gpu::Win32HWNDSurface&>(new_surface).GetHWND();
+        HWND surface_hwnd =
+            static_cast<HWND>(static_cast<const gpu::NativeSurface&>(new_surface).GetHWND());
         if (FAILED(dxgi_factory->CreateSwapChainForHwnd(
                 direct_queue, surface_hwnd, &swap_chain_desc, nullptr, nullptr, &swap_chain_1))) {
           REX_FAIL(ui, SurfacePaintConnectResult::kFailure,
@@ -177,15 +177,16 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
         provider_.OffsetRTVDescriptor(rtv_heap_start, PaintContext::kRTVIndexSwapChainBuffer0 + i));
   }
 
-  is_vsync_implicit_out = false;
+  is_vsync_implicit_out = IsVsyncImplicit(
+      ChoosePresentSync(GetPaintConnectionVsync(), paint_context_.swap_chain_allows_tearing));
   return SurfacePaintConnectResult::kSuccess;
 }
 
-void D3D12Presenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
+void D3D12Presenter::DriverDisconnectPaintingFromSurface() {
   paint_context_.DestroySwapChain();
 }
 
-bool D3D12Presenter::RefreshGuestOutputImpl(
+bool D3D12Presenter::DriverRefreshGuestOutput(
     u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
     rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
     bool& is_8bpc_out_ref) {
@@ -248,7 +249,7 @@ void D3D12Presenter::PaintContext::DestroySwapChain() {
   swap_chain_width = 0;
 }
 
-Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawers) {
+Presenter::PaintResult D3D12Presenter::DriverPaintAndPresent(bool execute_ui_drawers) {
   UINT64 current_paint_submission = paint_context_.paint_submission_tracker.GetCurrentSubmission();
   UINT64 command_allocator_count = static_cast<UINT64>(paint_context_.command_allocators.size());
   if (current_paint_submission >= command_allocator_count) {
@@ -527,10 +528,15 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
     ui_submission_tracker_.NextSubmission();
   }
   paint_context_.paint_submission_tracker.NextSubmission();
-  // Present without vsync, drop stale frames, tear for VRR (never tear in DXGI fullscreen).
-  HRESULT present_result = paint_context_.swap_chain->Present(
-      0, DXGI_PRESENT_RESTART |
-             (paint_context_.swap_chain_allows_tearing ? DXGI_PRESENT_ALLOW_TEARING : 0));
+  const PresentSync present_sync =
+      ChoosePresentSync(GetPaintConnectionVsync(), paint_context_.swap_chain_allows_tearing);
+  UINT present_flags = 0;
+  if (present_sync.sync_interval == 0) {
+    present_flags =
+        DXGI_PRESENT_RESTART | (present_sync.allow_tearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
+  }
+  HRESULT present_result =
+      paint_context_.swap_chain->Present(present_sync.sync_interval, present_flags);
   // Present may enqueue work internally even when it fails.
   paint_context_.present_submission_tracker.NextSubmission();
   switch (present_result) {

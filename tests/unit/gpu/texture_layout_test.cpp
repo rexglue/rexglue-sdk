@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/gpu/texture_layout_test.cpp
- * @brief       Address bounds of tiled texture regions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,8 +11,8 @@
 #include "rex_test.h"
 
 #include <rex/types.h>
-#include <rex/xenos/texture_layout.h>
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/texture.h>
+#include <rex/xenos/fetch.h>
 
 namespace {
 

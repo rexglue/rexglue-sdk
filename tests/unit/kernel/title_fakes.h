@@ -108,7 +108,7 @@ class CountingGraphics final : public rex::gpu::IXenosGraphicsDriver {
   }
   void ResizeSurface(rex::u32, rex::u32) override {}
   bool BeginPresent() override { return false; }
-  void EndPresent(bool) override {}
+  void EndPresent() override {}
   void RenderOverlays(ImDrawData&) override {}
   void InitializeRingBuffer(rex::u32, rex::u32) override {}
   void EnableReadPointerWriteBack(rex::u32, rex::u32) override {}

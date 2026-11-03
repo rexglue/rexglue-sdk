@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/gpu/primitive_processor_simd_test.cpp
- * @brief       The index scan and conversion helpers match a plain loop at every count and offset
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -124,7 +123,7 @@ REX_TEST_CASE("16 bit reset replacement matches a plain loop", "[gpu][primitive_
         AlignedCopy<u16> dest16(std::vector<u16>(count), dest_offset);
         AlignedCopy<u32> dest32(std::vector<u32>(count), dest_offset % 4);
         rex::gpu::ReplaceResetIndex16To16(dest16.start, source.start, count, kReset16);
-        rex::gpu::ReplaceResetIndex16To24(dest32.start, source.start, count, kReset16);
+        rex::gpu::ReplaceResetIndex16To32(dest32.start, source.start, count, kReset16);
         INFO("count " << count << " source " << offset << " dest " << dest_offset);
         for (u32 i = 0; i < count; ++i) {
           const bool reset = values[i] == kReset16;

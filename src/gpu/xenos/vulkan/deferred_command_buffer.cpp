@@ -14,7 +14,7 @@
 #include <cstring>
 
 #include <rex/assert.h>
-#include <rex/dbg.h>
+#include <rex/platform/perf.h>
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include <rex/math.h>

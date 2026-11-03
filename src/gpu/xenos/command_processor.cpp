@@ -20,30 +20,24 @@
 #include <format>
 
 #include <rex/bit.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
-#include <rex/logging/flush.h>
-#include <rex/perf/counter.h>
-#include <rex/chrono/clock.h>
-#include "gpu/xenos/command_processor.h"
-#include "gpu/xenos/graphics_system.h"
-#include <rex/runtime/object_table.h>
-#include <rex/xenos/texture_info.h>
-#include "gpu/xenos/sampler_info.h"
-#include <rex/xenos/xenos.h>
-#include <rex/assert.h>
-#include <rex/fail.h>
+#include <rex/platform/perf.h>
 #include <rex/logging/log.h>
+#include <rex/chrono.h>
+#include "gpu/xenos/command_processor.h"
+#include "gpu/xenos/xenos_graphics_driver_base.h"
+#include "gpu/xenos/physical_memory.h"
+#include <rex/xenos/texture.h>
+#include "gpu/xenos/sampler_info.h"
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/packet.h>
+#include <rex/xenos/state.h>
+#include <rex/assert.h>
 #include <rex/math.h>
 #include <rex/memory.h>
-#include <rex/memory/ring_buffer.h>
-#include <rex/runtime.h>
-#include <rex/runtime/thread_registry.h>
-#include <rex/runtime/module_object.h>
-#include <rex/move_only_function.h>
-
-#include "gpu/xenos/cvar_table_gpu.h"
-#include "gpu/xenos/cvar_table_xenos.h"
+#include <rex/memory/stream.h>
+#include <rex/utility.h>
+#include <rex/platform/sync.h>
 
 namespace rex::gpu {
 
@@ -64,20 +58,24 @@ ReadbackResolveMode ParseReadbackResolveMode(std::string_view value) {
   return ReadbackResolveMode::kDisabled;
 }
 
-void StoreRelease(void* host, u32 value) {
-  std::atomic_ref<u32>(*static_cast<u32*>(host)).store(value, std::memory_order_release);
+void StoreRelease(IPhysicalMemory& memory, u32 address, u32 value) {
+  (void)memory.StoreRelease32(address & kPhysicalAddressMask, rex::byte_swap(value));
 }
 
-u32 LoadAcquire(const void* host) {
-  return std::atomic_ref<u32>(*const_cast<u32*>(static_cast<const u32*>(host)))
-      .load(std::memory_order_acquire);
+u32 LoadAcquire(IPhysicalMemory& memory, u32 address) {
+  auto value = memory.LoadAcquire32(address & kPhysicalAddressMask);
+  return value ? rex::byte_swap(*value) : 0;
 }
 
 }  // namespace
 
-CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime)
-    : memory_(graphics_system->GetMemory()),
-      runtime_(&runtime),
+CommandProcessor::CommandProcessor(XenosGraphicsDriverBase* graphics_system, const TitleInfo& info,
+                                   IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
+                                   IGuestInterrupts& interrupts)
+    : title_info_(info),
+      physical_memory_(memory),
+      write_watch_(watch),
+      guest_interrupts_(interrupts),
       graphics_system_(graphics_system),
       register_file_(graphics_system_->GetRegisterFile()),
       worker_running_(true),
@@ -106,12 +104,15 @@ bool CommandProcessor::Initialize() {
   }
 
   worker_running_ = true;
-  auto thread = std::make_unique<runtime::KernelThread>(*runtime_, 128 * 1024, 0, [this]() {
+  auto thread = guest_interrupts_.StartHostThread("GPU Commands", [this](std::stop_token) {
+    worker_thread_id_ = std::this_thread::get_id();
     WorkerThreadMain();
-    return 0;
   });
-  thread->SetName("GPU Commands");
-  worker_thread_ = runtime_->GetThreadRegistry().Launch(std::move(thread)).value_or(0);
+  if (!thread) {
+    REXLOG_ERROR(gpu, "Unable to start the command processor thread, {}", thread.error().message);
+    return false;
+  }
+  worker_thread_ = std::move(*thread);
 
   return true;
 }
@@ -119,9 +120,7 @@ bool CommandProcessor::Initialize() {
 void CommandProcessor::Shutdown() {
   worker_running_ = false;
   write_ptr_index_event_->Set();
-  runtime::Wait(*runtime_, worker_thread_, 0, 0, 0, nullptr);
-  runtime::CloseOwned(runtime_->GetObjectTable(), worker_thread_);
-  worker_thread_ = 0;
+  worker_thread_ = ScopeGuard();
 }
 
 void CommandProcessor::InitializeShaderStorage(
@@ -162,8 +161,7 @@ void CommandProcessor::InvalidateVertexBufferResidencyRange(u32 first_vfetch, u3
 }
 
 bool CommandProcessor::IsWorkerThread() {
-  return runtime::KernelThread::IsInThread(
-      runtime_->GetThreadRegistry().FindByHandle(worker_thread_).GetThread());
+  return worker_thread_id_.load() == std::this_thread::get_id();
 }
 
 bool CommandProcessor::HasPendingFns() {
@@ -217,10 +215,11 @@ void CommandProcessor::InvalidateGPUMemory() {}
 
 ReadbackResolveMode CommandProcessor::GetReadbackResolveMode(
     bool legacy_readback_resolve_enabled) const {
-  ReadbackResolveMode shared_mode =
-      ParseReadbackResolveMode(REXCVAR_GET(::rex::gpu::cvars::readback_resolve));
-  bool shared_mode_overrides_legacy = shared_mode != ReadbackResolveMode::kDisabled ||
-                                      rex::cvar::IsSet(::rex::gpu::cvars::readback_resolve);
+  const XenosSettings& xenos_settings = GetXenosSettings();
+  ReadbackResolveMode shared_mode = ParseReadbackResolveMode(xenos_settings.readback_resolve.Get());
+  bool shared_mode_overrides_legacy =
+      shared_mode != ReadbackResolveMode::kDisabled ||
+      xenos_settings.readback_resolve.GetLayer() != SettingLayer::kDefault;
   if (shared_mode_overrides_legacy) {
     return shared_mode;
   }
@@ -228,11 +227,16 @@ ReadbackResolveMode CommandProcessor::GetReadbackResolveMode(
                                          : ReadbackResolveMode::kDisabled;
 }
 
-bool CommandProcessor::IsReadbackMemexportEnabled(bool legacy_backend_flag) const {
-  if (legacy_readback_memexport_cvar_ && rex::cvar::IsSet(*legacy_readback_memexport_cvar_)) {
-    return legacy_backend_flag;
+bool CommandProcessor::IsReadbackMemexportEnabled() const {
+  if (driver_readback_memexport_ != nullptr &&
+      driver_readback_memexport_->GetLayer() != SettingLayer::kDefault) {
+    return driver_readback_memexport_->Get();
   }
-  return REXCVAR_GET(::rex::gpu::cvars::readback_memexport);
+  return GetXenosSettings().readback_memexport.Get();
+}
+
+const XenosSettings& CommandProcessor::GetXenosSettings() const {
+  return *graphics_system_;
 }
 
 void CommandProcessor::SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect) {
@@ -272,8 +276,8 @@ void CommandProcessor::WorkerThreadMain() {
     read_ptr_index_ = ExecutePrimaryBuffer(read_ptr_index_, write_ptr_index);
 
     if (read_ptr_writeback_ptr_) {
-      memory_->TranslatePhysical<be_u32*>(read_ptr_writeback_ptr_)
-          ->Store(read_ptr_index_, std::memory_order_release);
+      (void)physical_memory_.StoreRelease32(read_ptr_writeback_ptr_ & kPhysicalAddressMask,
+                                            read_ptr_index_);
     }
   }
 
@@ -330,7 +334,8 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
   // Volatile for the WAIT_REG_MEM loop.
   const_cast<volatile u32&>(regs.values[index]) = value;
   if (!regs.GetRegisterInfo(index)) {
-    REXLOG_DEBUG(gpu, "GPU: Write to unknown register ({:04X} = {:08X})", index, value);
+    REXLOG_WARN_ONCE(gpu, unknown_write_once_, index,
+                     "GPU: Write to unknown register ({:04X} = {:08X})", index, value);
   }
 
   if (index >= std::to_underlying(xenos::Register::SCRATCH_REG0) &&
@@ -339,7 +344,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
     if ((1 << scratch_reg) & regs.values[std::to_underlying(xenos::Register::SCRATCH_UMSK)]) {
       u32 scratch_addr = regs.values[std::to_underlying(xenos::Register::SCRATCH_ADDR)];
       u32 mem_addr = scratch_addr + (scratch_reg * 4);
-      memory_->TranslatePhysical<be_u32*>(mem_addr)->Store(value, std::memory_order_release);
+      (void)physical_memory_.StoreRelease32(mem_addr & kPhysicalAddressMask, value);
     }
   } else {
     switch (index) {
@@ -355,7 +360,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
       case std::to_underlying(xenos::Register::DC_LUT_SEQ_COLOR): {
         REX_ASSERT((regs[std::to_underlying(xenos::Register::DC_LUT_RW_MODE)] & 0b1) == 0);
         auto gamma_ramp_rw_index = regs.Get<xenos::reg::DC_LUT_RW_INDEX>();
-        // DC_LUT_SEQ_COLOR is ordered red, green, blue and the write enable mask blue, green, red.
+        // DC_LUT_SEQ_COLOR is ordered red, green, blue but the write enable mask blue, green, red.
         bool write_gamma_ramp_component =
             (regs[std::to_underlying(xenos::Register::DC_LUT_WRITE_EN_MASK)] &
              (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
@@ -396,7 +401,6 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
         auto gamma_ramp_rw_index = regs.Get<xenos::reg::DC_LUT_RW_INDEX>();
         // Bit 7 of the index is ignored for PWL.
         u32 gamma_ramp_rw_index_pwl = gamma_ramp_rw_index.rw_index & 0x7F;
-        // The write enable bit of a component is 2 minus its index, so the mask is B, G, R order.
         bool write_gamma_ramp_component =
             (regs[std::to_underlying(xenos::Register::DC_LUT_WRITE_EN_MASK)] &
              (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
@@ -564,7 +568,13 @@ void CommandProcessor::ReturnFromWait() {}
 u32 CommandProcessor::ExecutePrimaryBuffer(u32 read_index, u32 write_index) {
   REX_PROFILE_SCOPE("gpu");
 
-  memory::RingBuffer reader(memory_->TranslatePhysical(primary_buffer_ptr_), primary_buffer_size_);
+  u8* primary_buffer =
+      GetPhysicalForWrite(physical_memory_, primary_buffer_ptr_, primary_buffer_size_);
+  if (!primary_buffer) {
+    REXLOG_ERROR(gpu, "primary ring buffer is outside physical memory");
+    return write_index;
+  }
+  memory::RingBuffer reader(primary_buffer, primary_buffer_size_);
   reader.SetReadOffset(read_index * sizeof(u32));
   reader.SetWriteOffset(write_index * sizeof(u32));
   do {
@@ -583,7 +593,12 @@ u32 CommandProcessor::ExecutePrimaryBuffer(u32 read_index, u32 write_index) {
 void CommandProcessor::ExecuteIndirectBuffer(u32 ptr, u32 count) {
   REX_PROFILE_SCOPE("gpu");
 
-  memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(u32));
+  u8* indirect_buffer = GetPhysicalForWrite(physical_memory_, ptr, count * sizeof(u32));
+  if (!indirect_buffer) {
+    REXLOG_ERROR(gpu, "indirect buffer is outside physical memory");
+    return;
+  }
+  memory::RingBuffer reader(indirect_buffer, count * sizeof(u32));
   reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
@@ -595,7 +610,12 @@ void CommandProcessor::ExecuteIndirectBuffer(u32 ptr, u32 count) {
 }
 
 void CommandProcessor::ExecutePacket(u32 ptr, u32 count) {
-  memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(u32));
+  u8* packet_buffer = GetPhysicalForWrite(physical_memory_, ptr, count * sizeof(u32));
+  if (!packet_buffer) {
+    REXLOG_ERROR(gpu, "ExecutePacket buffer is outside physical memory");
+    return;
+  }
+  memory::RingBuffer reader(packet_buffer, count * sizeof(u32));
   reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
@@ -864,14 +884,13 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
     if (last_frame_tick) {
       u64 freq = rex::Clock::GetHostTickFrequency();
       i64 dt_us = static_cast<i64>((now - last_frame_tick) * 1000000 / freq);
-      REX_PERF_SET(kFrameTimeUs, dt_us);
-      REX_PERF_SET(kFps, freq / (now - last_frame_tick));
+      REX_PERF_SET("frame_time_us", dt_us);
+      REX_PERF_SET("fps", freq / (now - last_frame_tick));
     }
     last_frame_tick = now;
   }
 #endif
-  rex::platform::Profiler::Flip();
-  memory_->PlotProfile();
+  rex::platform::Profiler::EndFrame();
 
   u32 magic = reader->ReadAndSwap<memory::FourCCT>();
   REX_ASSERT(magic == kSwapSignature);
@@ -882,6 +901,9 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
   reader->AdvanceRead((count - 4) * sizeof(u32));
 
   IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
+  if (graphics_system_) {
+    graphics_system_->NotifySwap();
+  }
 
   ++counter_;
   return true;
@@ -920,7 +942,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
       rex::platform::MaybeYield();
     } else {
       const u32 doublings = std::min<u32>(attempts - kYields, 5);
-      rex::platform::Sleep(
+      rex::platform::SleepFor(
           std::chrono::microseconds(std::min<u32>(kLongestSleepMicroseconds, 50u << doublings)));
     }
     ++attempts;
@@ -928,7 +950,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
   do {
     u32 value = 0;
     if (is_memory) {
-      value = LoadAcquire(memory_->TranslatePhysical(poll_reg_addr & ~static_cast<u32>(0x3)));
+      value = LoadAcquire(physical_memory_, poll_reg_addr & ~static_cast<u32>(0x3));
       value = xenos::GPUSwap(value, static_cast<xenos::Endian>(poll_reg_addr & 0x3));
     } else {
       value = ReadRegisterValue(poll_reg_addr);
@@ -970,10 +992,10 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
     if (!matched) {
       if (wait >= 0x100) {
         PrepareForWait();
-        if (!REXCVAR_GET(::rex::gpu::cvars::vsync)) {
+        if (!graphics_system_->IsVSyncEnabled()) {
           back_off();
         } else {
-          rex::platform::Sleep(std::chrono::milliseconds(wait / 0x100));
+          rex::platform::SleepFor(std::chrono::milliseconds(wait / 0x100));
         }
         rex::platform::SyncMemory();
         ReturnFromWait();
@@ -1025,7 +1047,7 @@ bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader,
   auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
   mem_addr &= ~0x3;
   reg_val = GPUSwap(reg_val, endianness);
-  StoreRelease(memory_->TranslatePhysical(mem_addr), reg_val);
+  StoreRelease(physical_memory_, mem_addr, reg_val);
 
   return true;
 }
@@ -1039,7 +1061,7 @@ bool CommandProcessor::ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader,
     auto endianness = static_cast<xenos::Endian>(write_addr & 0x3);
     auto addr = write_addr & ~0x3;
     write_data = GPUSwap(write_data, endianness);
-    StoreRelease(memory_->TranslatePhysical(addr), write_data);
+    StoreRelease(physical_memory_, addr, write_data);
     write_addr += 4;
   }
 
@@ -1059,7 +1081,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
   if (wait_info & 0x10) {
     auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
-    value = LoadAcquire(memory_->TranslatePhysical(poll_reg_addr));
+    value = LoadAcquire(physical_memory_, poll_reg_addr);
     value = GPUSwap(value, endianness);
   } else {
     value = ReadRegisterValue(poll_reg_addr);
@@ -1100,7 +1122,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
       auto endianness = static_cast<xenos::Endian>(write_reg_addr & 0x3);
       write_reg_addr &= ~0x3;
       write_data = GPUSwap(write_data, endianness);
-      StoreRelease(memory_->TranslatePhysical(write_reg_addr), write_data);
+      StoreRelease(physical_memory_, write_reg_addr, write_data);
     } else {
       WriteRegister(write_reg_addr, write_data);
     }
@@ -1137,7 +1159,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* re
   auto endianness = static_cast<xenos::Endian>(address & 0x3);
   address &= ~0x3;
   data_value = GPUSwap(data_value, endianness);
-  StoreRelease(memory_->TranslatePhysical(address), data_value);
+  StoreRelease(physical_memory_, address, data_value);
   return true;
 }
 
@@ -1159,8 +1181,11 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* re
       1,                                         // max z
   };
   REX_ASSERT(endianness == xenos::Endian::k8in16);
-  memory::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address), extents,
-                                     rex::CountOf(extents));
+  u8* extents_destination = GetPhysicalForWrite(physical_memory_, address, sizeof(extents));
+  if (!extents_destination) {
+    return true;
+  }
+  memory::copy_and_swap_16_unaligned(extents_destination, extents, rex::CountOf(extents));
   return true;
 }
 
@@ -1181,17 +1206,19 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
   u32 initiator = reader->ReadAndSwap<u32>();
   WriteRegister(std::to_underlying(xenos::Register::VGT_EVENT_INITIATOR), initiator & 0x3F);
 
-  auto fake_sample_count = REXCVAR_GET(::rex::gpu::cvars::query_occlusion_fake_sample_count);
+  auto fake_sample_count = GetXenosSettings().query_occlusion_fake_sample_count.Get();
   if (fake_sample_count >= 0) {
-    auto* sample_counts = memory_->TranslatePhysical<DepthSampleCounts*>(
-        register_file_->values[std::to_underlying(xenos::Register::RB_SAMPLE_COUNT_ADDR)]);
+    auto* sample_counts = GetPhysicalForWrite<DepthSampleCounts>(
+        physical_memory_,
+        register_file_->values[std::to_underlying(xenos::Register::RB_SAMPLE_COUNT_ADDR)],
+        sizeof(DepthSampleCounts));
     if (!sample_counts) {
       return true;
     }
     // D3D writes 0xFFFFFEED to these locations only on D3DISSUE_END to mark a finished query.
     bool is_end_via_z_pass =
         sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished;
-    // Older D3D versions also check ZFail.
+    // Older D3D versions check ZFail.
     bool is_end_via_z_fail =
         sample_counts->ZFail_A == kQueryFinished || sample_counts->ZFail_B == kQueryFinished;
     WriteSampleCounts(*sample_counts, is_end_via_z_pass || is_end_via_z_fail
@@ -1241,7 +1268,6 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
 
       u32 index_size_bytes =
           vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16 ? sizeof(u16) : sizeof(u32);
-      // The base address is word aligned per R6xx, masked for safety.
       index_buffer_info.guest_base = vgt_dma_base & ~(index_size_bytes - 1);
       index_buffer_info.endianness = vgt_dma_size.swap_mode;
       index_buffer_info.format = vgt_draw_initiator.index_size;
@@ -1281,7 +1307,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
         auto rb_modecontrol = register_file_->Get<xenos::reg::RB_MODECONTROL>();
         REXLOG_ERROR(
             gpu,
-            "{}({}, {}, {}) failed in the backend "
+            "{}({}, {}, {}) failed in the driver "
             "(major_mode={}, explicit_major={}, path_select={}, tess_mode={}, edram_mode={})",
             opcode_name, static_cast<u32>(vgt_draw_initiator.num_indices),
             static_cast<u32>(vgt_draw_initiator.prim_type),
@@ -1293,7 +1319,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
     }
   }
 
-  // Keep processing after a dropped draw, as ending the buffer is more inconsistent.
+  // Keep processing after a skipped draw, as ending the buffer early breaks the title more often.
   return true;
 }
 
@@ -1363,7 +1389,11 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(memory::RingBuffer* 
   u32 size_dwords = reader->ReadAndSwap<u32>();
   size_dwords &= 0xFFF;
   u32 type = (offset_type >> 16) & 0xFF;
-  u32* xlat_address = memory_->TranslatePhysical<u32*>(address);
+  u32* xlat_address =
+      GetPhysicalForWrite<u32>(physical_memory_, address, size_dwords * sizeof(u32));
+  if (!xlat_address) {
+    return true;
+  }
   switch (type) {
     case 0:
       WriteALURangeFromMem(index, xlat_address, size_dwords);
@@ -1409,7 +1439,12 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader,
   u32 size_dwords = start_size & 0xFFFF;
   REX_ASSERT(start == 0);
 
-  auto shader = LoadShader(shader_type, addr, memory_->TranslatePhysical<u32*>(addr), size_dwords);
+  const u32* shader_ucode =
+      GetPhysicalForRead<u32>(physical_memory_, addr, size_dwords * sizeof(u32));
+  if (!shader_ucode) {
+    return true;
+  }
+  auto shader = LoadShader(shader_type, addr, shader_ucode, size_dwords);
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;
@@ -1459,7 +1494,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* 
 bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(memory::RingBuffer* reader,
                                                            [[maybe_unused]] u32 packet,
                                                            [[maybe_unused]] u32 count) {
-  /*uint32_t mask =*/reader->ReadAndSwap<u32>();
+  reader->ReadAndSwap<u32>();
   return true;
 }
 

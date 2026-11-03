@@ -10,7 +10,6 @@
  */
 
 #pragma once
-// Include vulkan.h from third_party, not the system directory, before vk_mem_alloc.h.
 
 #include "gpu/xenos/host/vulkan/device.h"
 

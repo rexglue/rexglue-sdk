@@ -11,6 +11,11 @@
 
 #include "thirdparty/dxbc/DXBCChecksum.h"
 
+#ifndef XXH_INLINE_ALL
+#define XXH_INLINE_ALL
+#endif
+#include <xxhash.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cinttypes>
@@ -25,34 +30,29 @@
 #include <format>
 
 #include <rex/assert.h>
-#include <rex/chrono/clock.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
-#include <rex/perf/counter.h>
-#include "gpu/xenos/shared_cvars.h"
+#include <rex/chrono.h>
+#include <rex/platform/perf.h>
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/pipeline_cache.h"
 #include "gpu/xenos/d3d12/render_target_cache.h"
 #include "gpu/xenos/format/dxbc.h"
 #include "gpu/xenos/pipeline_priority.h"
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
-#include <rex/xenos/registers.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/draw_state.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/packet.h>
+#include <rex/xenos/state.h>
 #include <rex/hash.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/platform/file.h>
-#include <rex/no_throw.h>
 #include <rex/math.h>
-#include <rex/string.h>
-#include <rex/string/buffer.h>
+#include <rex/bit.h>
+#include <rex/string/text.h>
 #include <rex/platform/thread.h>
+#include <rex/platform/sync.h>
 #include <rex/types.h>
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
-
-#include "gpu/xenos/cvar_table_pair.h"
-#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -73,6 +73,16 @@ namespace shaders {
 #include "../shaders/bytecode/d3d12_5_1/tessellation_indexed_vs.h"
 }  // namespace shaders
 
+DXBCOptions PipelineCache::GetDXBCOptions() const {
+  const D3D12Settings& settings = command_processor_.GetD3D12Settings();
+  DXBCOptions options;
+  options.source_map = settings.dxbc_source_map.Get();
+  options.use_switch = settings.dxbc_switch.Get();
+  options.fuzzy_alpha_epsilon = settings.use_fuzzy_alpha_epsilon.Get();
+  options.scaled_texture_offsets = settings.draw_resolution_scaled_texture_offsets.Get();
+  return options;
+}
+
 PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
                              const xenos::RegisterFile& register_file,
                              const D3D12RenderTargetCache& render_target_cache,
@@ -87,7 +97,8 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
       render_target_cache.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
   shader_translator_ = std::make_unique<DXBCShaderTranslator>(
-      provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
+      command_processor_.GetXenosSettings(), GetDXBCOptions(), provider.GetAdapterVendorID(),
+      bindless_resources_used_, edram_rov_used,
       !render_target_cache_.IsGammaRenderTargetAsUnorm16(),
       render_target_cache_.IsMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
       render_target_cache_.GetDrawResolutionScaleY(), provider.GetGraphicsAnalysis() != nullptr);
@@ -95,6 +106,11 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
   if (edram_rov_used) {
     depth_only_pixel_shader_ = shader_translator_->CreateDepthOnlyPixelShader();
   }
+}
+
+void PipelineCache::AnalyzeShaderUCode(Shader& shader) {
+  shader.AnalyzeUcode(ucode_disasm_buffer_,
+                      command_processor_.GetXenosSettings().dump_shaders.Get());
 }
 
 PipelineCache::~PipelineCache() {
@@ -107,7 +123,7 @@ bool PipelineCache::Initialize() {
   dxbc_converter_ = nullptr;
   dxc_utils_ = nullptr;
   dxc_compiler_ = nullptr;
-  if (REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm_dxilconv)) {
+  if (command_processor_.GetD3D12Settings().dxbc_disasm_dxilconv.Get()) {
     if (FAILED(provider.DXBCConverterCreateInstance(CLSID_DxbcConverter,
                                                     IID_PPV_ARGS(&dxbc_converter_)))) {
       REXLOG_ERROR(gpu,
@@ -136,13 +152,13 @@ bool PipelineCache::Initialize() {
   REX_ASSERT(creation_completion_event_ != nullptr);
   creation_completion_set_event_ = false;
   creation_threads_shutdown_from_ = SIZE_MAX;
-  if (REXCVAR_GET(::rex::gpu::cvars::d3d12_pipeline_creation_threads) != 0) {
+  if (command_processor_.GetD3D12Settings().pipeline_creation_threads.Get() != 0) {
     size_t creation_thread_count;
-    if (REXCVAR_GET(::rex::gpu::cvars::d3d12_pipeline_creation_threads) < 0) {
+    if (command_processor_.GetD3D12Settings().pipeline_creation_threads.Get() < 0) {
       creation_thread_count = std::max(logical_processor_count * 3 / 4, static_cast<u32>(1));
     } else {
       creation_thread_count = std::min(
-          static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::d3d12_pipeline_creation_threads)),
+          static_cast<u32>(command_processor_.GetD3D12Settings().pipeline_creation_threads.Get()),
           logical_processor_count);
     }
     for (size_t i = 0; i < creation_thread_count; ++i) {
@@ -209,7 +225,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       REXLOG_ERROR(gpu,
                    "Failed to create the shareable shader storage directory, persistent "
                    "shader storage will be disabled, path {}",
-                   rex::PathToUTF8(shader_storage_shareable_root));
+                   rex::string::PathToUTF8(shader_storage_shareable_root));
       return;
     }
   }
@@ -227,7 +243,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     REXLOG_ERROR(gpu,
                  "Failed to open the Direct3D 12 pipeline description storage file for "
                  "writing, persistent shader storage will be disabled, path {}",
-                 rex::PathToUTF8(pipeline_storage_file_path));
+                 rex::string::PathToUTF8(pipeline_storage_file_path));
     return;
   }
   storage_.pipeline_file_flush_needed = false;
@@ -296,7 +312,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     REXLOG_ERROR(gpu,
                  "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled, path {}",
-                 rex::PathToUTF8(shader_storage_file_path));
+                 rex::string::PathToUTF8(shader_storage_file_path));
     storage_.pipeline_file.close();
     return;
   }
@@ -328,9 +344,10 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     std::vector<D3D12Shader::D3D12Translation*> shaders_failed_to_translate;
     auto shader_translation_thread_function = [&]() {
       const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
-      StringBuffer ucode_disasm_buffer;
+      string::StringBuffer ucode_disasm_buffer;
       DXBCShaderTranslator translator(
-          provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
+          command_processor_.GetXenosSettings(), GetDXBCOptions(), provider.GetAdapterVendorID(),
+          bindless_resources_used_, edram_rov_used,
           !render_target_cache_.IsGammaRenderTargetAsUnorm16(),
           render_target_cache_.IsMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
           render_target_cache_.GetDrawResolutionScaleY(),
@@ -338,7 +355,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       IDxbcConverter* dxbc_converter = nullptr;
       IDxcUtils* dxc_utils = nullptr;
       IDxcCompiler* dxc_compiler = nullptr;
-      if (REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm_dxilconv) && dxbc_converter_ &&
+      if (command_processor_.GetD3D12Settings().dxbc_disasm_dxilconv.Get() && dxbc_converter_ &&
           dxc_utils_ && dxc_compiler_) {
         provider.DXBCConverterCreateInstance(CLSID_DxbcConverter, IID_PPV_ARGS(&dxbc_converter));
         provider.DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils));
@@ -360,7 +377,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
           ++shader_translation_threads_busy;
           break;
         }
-        shader_to_translate->AnalyzeUcode(ucode_disasm_buffer);
+        shader_to_translate->AnalyzeUcode(ucode_disasm_buffer,
+                                          command_processor_.GetXenosSettings().dump_shaders.Get());
         u64 ucode_data_hash = shader_to_translate->GetUcodeDataHash();
         for (auto modification_it = shader_translations_needed.lower_bound(
                  std::make_pair(ucode_data_hash, static_cast<u64>(0)));
@@ -369,7 +387,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
              ++modification_it) {
           D3D12Shader::D3D12Translation* translation = static_cast<D3D12Shader::D3D12Translation*>(
               shader_to_translate->GetOrCreateTranslation(modification_it->second));
-          // Only new translations are dropped on failure, so earlier failures are not retried.
+          // Only new translations are removed on failure, so earlier failures are not retried.
           if (!translation->IsTranslated() &&
               !TranslateAnalyzedShader(translator, *translation, dxbc_converter, dxc_utils,
                                        dxc_compiler)) {
@@ -816,7 +834,7 @@ bool PipelineCache::ConfigurePipeline(
   REX_ASSERT(pipeline_handle_out != nullptr);
   REX_ASSERT(root_signature_out != nullptr);
 
-  bool use_async = REXCVAR_GET(::rex::gpu::cvars::async_shader_compilation) &&
+  bool use_async = command_processor_.GetXenosSettings().async_shader_compilation.Get() &&
                    !creation_threads_.empty() && pixel_shader != nullptr;
 
   // Edge flags are not supported as polygon primitives are not.
@@ -827,7 +845,8 @@ bool PipelineCache::ConfigurePipeline(
   REX_ASSERT(!(register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().gen_index_vtx));
   // Ucode analysis runs on the main thread, translation may be deferred to background threads.
   if (!vertex_shader->GetShader().IsUcodeAnalyzed()) {
-    vertex_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
+    vertex_shader->GetShader().AnalyzeUcode(
+        ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
   }
   if (!vertex_shader->IsTranslated() && !use_async) {
     std::lock_guard<std::mutex> lock(translation_request_lock_);
@@ -856,7 +875,8 @@ bool PipelineCache::ConfigurePipeline(
     if (!pixel_shader->IsTranslated() && !use_async) {
       std::lock_guard<std::mutex> lock(translation_request_lock_);
       if (!pixel_shader->IsTranslated()) {
-        pixel_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
+        pixel_shader->GetShader().AnalyzeUcode(
+            ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
         if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader, dxbc_converter_,
                                      dxc_utils_, dxc_compiler_)) {
           REX_FAIL(gpu, false, "Failed to translate the pixel shader!");
@@ -899,14 +919,14 @@ bool PipelineCache::ConfigurePipeline(
   for (auto it = found_range.first; it != found_range.second; ++it) {
     Pipeline* found_pipeline = it->second.get();
     if (found_pipeline->description.description == description) {
-      REX_PERF_INC(kPipelineCacheHits);
+      REX_PERF_INC("pipeline_cache_hits");
       current_pipeline_ = found_pipeline;
       *pipeline_handle_out = found_pipeline;
       *root_signature_out = found_pipeline->root_signature.load(std::memory_order_acquire);
       return true;
     }
   }
-  REX_PERF_INC(kPipelineCacheMisses);
+  REX_PERF_INC("pipeline_cache_misses");
 
   auto new_pipeline_owner = std::make_unique<Pipeline>();
   Pipeline* new_pipeline = new_pipeline_owner.get();
@@ -959,6 +979,7 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
                                             IDxcCompiler* dxc_compiler) {
   D3D12Shader& shader = static_cast<D3D12Shader&>(translation.GetShader());
 
+  translator.SetOptions(GetDXBCOptions());
   if (!translator.TranslateAnalyzedShader(translation)) {
     REX_FAIL(gpu, false, "Shader {:016X} translation failed and the shader is marked as ignored",
              shader.GetUcodeDataHash());
@@ -1102,19 +1123,22 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
   }
 
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
-  if (REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm_dxilconv)) {
-    translation.DisassembleDXBCAndDXIL(provider, REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm),
+  if (command_processor_.GetD3D12Settings().dxbc_disasm_dxilconv.Get()) {
+    translation.DisassembleDXBCAndDXIL(provider,
+                                       command_processor_.GetD3D12Settings().dxbc_disasm.Get(),
                                        dxbc_converter, dxc_utils, dxc_compiler);
   } else {
-    translation.DisassembleDXBCAndDXIL(provider, REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm));
+    translation.DisassembleDXBCAndDXIL(provider,
+                                       command_processor_.GetD3D12Settings().dxbc_disasm.Get());
   }
 
-  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
+  if (const std::string dump_path = command_processor_.GetXenosSettings().dump_shaders.Get();
+      !dump_path.empty()) {
     bool edram_rov_used =
         render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
-    translation.Dump(dump_path, (shader.GetType() == xenos::ShaderType::kPixel)
-                                    ? (edram_rov_used ? "d3d12_rov" : "d3d12_rtv")
-                                    : "d3d12");
+    translation.DumpTranslation(dump_path, (shader.GetType() == xenos::ShaderType::kPixel)
+                                               ? (edram_rov_used ? "d3d12_rov" : "d3d12_rtv")
+                                               : "d3d12");
   }
 
   return translation.IsValid();
@@ -1281,7 +1305,7 @@ bool PipelineCache::GetCurrentStateDescription(
     description_out.depth_bias_slope_scaled =
         polygon_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit;
   }
-  if (tessellated && REXCVAR_GET(::rex::gpu::cvars::d3d12_tessellation_wireframe)) {
+  if (tessellated && command_processor_.GetD3D12Settings().tessellation_wireframe.Get()) {
     description_out.fill_mode_wireframe = 1;
   }
   description_out.depth_clip = !regs.Get<xenos::reg::PA_CL_CLIP_CNTL>().clip_disable;
@@ -1601,7 +1625,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
       rdef_binding_cbuffer_system.bind_point =
           std::to_underlying(DXBCShaderTranslator::CbufferRegister::kSystemConstants);
       rdef_binding_cbuffer_system.bind_count = 1;
-      rdef_binding_cbuffer_system.flags = dxbc::kRdefInputFlagUserPacked;
+      rdef_binding_cbuffer_system.flags = dxbc::kRDEFInputFlagUserPacked;
     }
 
     {
@@ -2012,7 +2036,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
                  dxbc::Src::V2D(0, input_register_point_size, dxbc::Src::kXXXX), point_size_src);
         point_size_src = dxbc::Src::R(0, 0b0100);
       }
-      // Drop zero size points early, as memexport may use point lists as compute.
+      // Zero size points are discarded early, as memexport may use point lists as compute.
       for (u32 i = 0; i < 2; ++i) {
         a.OpLT(dxbc::Dest::R(0, 0b0100), dxbc::Src::LF(0.0f), point_size_src.SelectFromSwizzled(i));
         a.OpRetC(false, dxbc::Src::R(0, dxbc::Src::kZZZZ));
@@ -2676,11 +2700,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   }
   std::u16string name;
   if (runtime_description.pixel_shader != nullptr) {
-    name = rex::ToUTF16(std::format(
+    name = rex::string::ToUTF16(std::format(
         "VS {:016X}, PS {:016X}", runtime_description.vertex_shader->GetShader().GetUcodeDataHash(),
         runtime_description.pixel_shader->GetShader().GetUcodeDataHash()));
   } else {
-    name = rex::ToUTF16(std::format(
+    name = rex::string::ToUTF16(std::format(
         "VS {:016X}", runtime_description.vertex_shader->GetShader().GetUcodeDataHash()));
   }
   state->SetName(reinterpret_cast<LPCWSTR>(name.c_str()));
@@ -2778,7 +2802,8 @@ bool PipelineCache::PrepareRuntimeDescriptionForQueuedCreation(
     if (!translation->IsTranslated()) {
       std::lock_guard<std::mutex> lock(translation_request_lock_);
       if (!translation->IsTranslated()) {
-        translation->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
+        translation->GetShader().AnalyzeUcode(
+            ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
         if (!TranslateAnalyzedShader(*shader_translator_, *translation, dxbc_converter_, dxc_utils_,
                                      dxc_compiler_)) {
           REX_FAIL(gpu, false, "Failed to translate queued {} shader", shader_type);

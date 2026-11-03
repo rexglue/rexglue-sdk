@@ -17,11 +17,7 @@
 
 namespace rex::gpu::d3d12 {
 
-/**
- * Pool of shader visible descriptor heap pages.
- *
- * A submission index is the fence value or a value derived from it.
- */
+/** Pool of shader visible descriptor heap pages. */
 class D3D12DescriptorHeapPool {
  public:
   static constexpr u64 kHeapIndexInvalid = UINT64_MAX;
@@ -36,13 +32,9 @@ class D3D12DescriptorHeapPool {
   /**
    * Allocates descriptor space in the current heap.
    *
-   * All descriptors of a draw call must share a heap, so a full update is needed when the current
-   * heap lacks space for a partial update or the heap holding the unchanged part is outdated.
-   * Callers doing partial updates pass the previous return value for their descriptor set. A
-   * result equal to previous_heap_index means a partial update with count_for_partial_update
-   * descriptors allocated. Any other result means all descriptors are rewritten with
-   * count_for_full_update allocated. A partial update with 0 descriptors still returns whether a
-   * full update is required.
+   * All descriptors of a draw call must share a heap. A result equal to previous_heap_index
+   * means a partial update, any other result means a full update. A partial update of 0
+   * descriptors still reports whether a full update is required.
    *
    * @param submission_index Fence value or a value derived from it.
    * @param previous_heap_index Value returned by the previous call for this descriptor set.
@@ -55,11 +47,7 @@ class D3D12DescriptorHeapPool {
               u32 count_for_full_update, u32& index_out);
 
   /**
-   * Returns the current heap for binding and writing.
-   *
-   * Valid only after a successful Request because the heap may not exist before.
-   *
-   * @return The current heap.
+   * @return The current heap. Valid only after a successful Request.
    */
   ID3D12DescriptorHeap* GetLastRequestHeap() const { return writable_first_->heap.Get(); }
   D3D12_CPU_DESCRIPTOR_HANDLE GetLastRequestHeapCPUStart() const {

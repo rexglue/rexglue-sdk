@@ -11,16 +11,12 @@
 
 #include <cstdlib>
 
-#include <rex/cvar.h>
 #include <rex/assert.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_immediate_drawer.h"
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
-
-#include "gpu/xenos/d3d12/cvar_table.h"
 
 #include <malloc.h>
 
@@ -35,8 +31,10 @@ bool D3D12Provider::IsD3D12APIAvailable() {
   return true;
 }
 
-std::unique_ptr<D3D12Provider> D3D12Provider::Create(i32 adapter_index) {
+std::unique_ptr<D3D12Provider> D3D12Provider::Create(i32 adapter_index,
+                                                     const D3D12Settings& settings) {
   auto provider = std::make_unique<D3D12Provider>(Key{});
+  provider->settings_ = &settings;
   if (!provider->Initialize(adapter_index)) {
     REX_FATAL(gpu,
               "Unable to initialize Direct3D 12 graphics subsystem.\n"
@@ -61,7 +59,7 @@ D3D12Provider::~D3D12Provider() {
     dxgi_factory_->Release();
   }
 
-  if (REXCVAR_GET(::rex::gpu::cvars::debug) && pfn_dxgi_get_debug_interface1_) {
+  if (settings_->debug.Get() && pfn_dxgi_get_debug_interface1_) {
     Microsoft::WRL::ComPtr<IDXGIDebug> dxgi_debug;
     if (SUCCEEDED(pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&dxgi_debug)))) {
       dxgi_debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
@@ -175,17 +173,16 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
                  "Shader Compiler and place the DLL in the ReXGlue directory");
   }
 
-  if (REXCVAR_GET(::rex::gpu::cvars::break_on_error) ||
-      REXCVAR_GET(::rex::gpu::cvars::break_on_warning)) {
+  if (settings_->break_on_error.Get() || settings_->break_on_warning.Get()) {
     IDXGIInfoQueue* dxgi_info_queue;
     if (SUCCEEDED(pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&dxgi_info_queue)))) {
-      if (REXCVAR_GET(::rex::gpu::cvars::break_on_error)) {
+      if (settings_->break_on_error.Get()) {
         dxgi_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL,
                                             DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
         dxgi_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR,
                                             TRUE);
       }
-      if (REXCVAR_GET(::rex::gpu::cvars::break_on_warning)) {
+      if (settings_->break_on_warning.Get()) {
         dxgi_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL,
                                             DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING, TRUE);
       }
@@ -193,7 +190,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
     }
   }
 
-  bool debug = REXCVAR_GET(::rex::gpu::cvars::debug);
+  bool debug = settings_->debug.Get();
   if (debug) {
     ID3D12Debug* debug_interface;
     if (SUCCEEDED(pfn_d3d12_get_debug_interface_(IID_PPV_ARGS(&debug_interface)))) {
@@ -306,11 +303,11 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
         static_cast<UINT>(rex::CountOf(d3d12_info_queue_denied_messages));
     d3d12_info_queue_filter.DenyList.pIDList = d3d12_info_queue_denied_messages;
     d3d12_info_queue->PushStorageFilter(&d3d12_info_queue_filter);
-    if (REXCVAR_GET(::rex::gpu::cvars::break_on_error)) {
+    if (settings_->break_on_error.Get()) {
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
     }
-    if (REXCVAR_GET(::rex::gpu::cvars::break_on_warning)) {
+    if (settings_->break_on_warning.Get()) {
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
     }
     d3d12_info_queue->Release();
@@ -318,7 +315,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
 
   D3D12_COMMAND_QUEUE_DESC queue_desc;
   queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-  if (REXCVAR_GET(::rex::gpu::cvars::queue_priority) >= 2) {
+  if (settings_->queue_priority.Get() >= 2) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME;
     if (!EnableIncreaseBasePriorityPrivilege()) {
       REXLOG_WARN(ui,
@@ -327,7 +324,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
                   "priority, try launching ReXGlue as administrator");
       queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
     }
-  } else if (REXCVAR_GET(::rex::gpu::cvars::queue_priority) >= 1) {
+  } else if (settings_->queue_priority.Get() >= 1) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
   } else {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
@@ -428,8 +425,8 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
 }
 
 std::unique_ptr<Presenter> D3D12Provider::CreatePresenter(
-    Presenter::HostGPULossCallback host_gpu_loss_callback) {
-  return D3D12Presenter::Create(std::move(host_gpu_loss_callback), *this);
+    const XenosGraphicsDriverBase& driver, Presenter::HostGPULossCallback host_gpu_loss_callback) {
+  return D3D12Presenter::Create(std::move(host_gpu_loss_callback), driver, *this);
 }
 
 std::unique_ptr<OverlayDrawer> D3D12Provider::CreateImmediateDrawer() {

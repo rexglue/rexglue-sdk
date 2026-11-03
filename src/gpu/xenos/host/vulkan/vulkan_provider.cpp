@@ -12,13 +12,10 @@
 #include <algorithm>
 #include <vector>
 
-#include <rex/cvar.h>
 #include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/immediate_drawer.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/provider.h"
-
-#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex {
 namespace gpu {
@@ -26,11 +23,13 @@ namespace vulkan {
 
 std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emulation,
                                                        const bool with_presentation,
-                                                       const i32 device_index) {
+                                                       const i32 device_index,
+                                                       const VulkanSettings& settings) {
   auto provider = std::make_unique<VulkanProvider>(Key{});
+  provider->settings_ = &settings;
 
-  provider->vulkan_instance_ =
-      VulkanInstance::Create(with_presentation, REXCVAR_GET(::rex::gpu::cvars::validation));
+  provider->vulkan_instance_ = VulkanInstance::Create(with_presentation, settings.validation.Get(),
+                                                      settings.log_debug_messages.Get());
   if (!provider->vulkan_instance_) {
     return nullptr;
   }
@@ -60,17 +59,15 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
   if (device_index >= 0 && static_cast<u32>(device_index) < physical_devices.size()) {
     provider->vulkan_device_ = VulkanDevice::CreateIfSupported(
         provider->vulkan_instance_.get(), physical_devices[static_cast<size_t>(device_index)],
-        with_gpu_emulation, with_presentation);
+        with_gpu_emulation, with_presentation, settings);
   }
 
   if (!provider->vulkan_device_) {
     std::vector<VkPhysicalDevice> physical_devices_ordered = physical_devices;
-    bool prefer_geometry_shader = REXCVAR_GET(::rex::gpu::cvars::prefer_geometry_shader);
-    bool prefer_fragment_stores =
-        REXCVAR_GET(::rex::gpu::cvars::prefer_fragment_stores_and_atomics);
-    bool prefer_vertex_stores =
-        REXCVAR_GET(::rex::gpu::cvars::prefer_vertex_pipeline_stores_and_atomics);
-    bool prefer_fill_mode_non_solid = REXCVAR_GET(::rex::gpu::cvars::prefer_fill_mode_non_solid);
+    bool prefer_geometry_shader = settings.prefer_geometry_shader.Get();
+    bool prefer_fragment_stores = settings.prefer_fragment_stores_and_atomics.Get();
+    bool prefer_vertex_stores = settings.prefer_vertex_pipeline_stores_and_atomics.Get();
+    bool prefer_fill_mode_non_solid = settings.prefer_fill_mode_non_solid.Get();
     if (with_gpu_emulation && physical_devices.size() > 1 &&
         (prefer_geometry_shader || prefer_fragment_stores || prefer_vertex_stores ||
          prefer_fill_mode_non_solid)) {
@@ -114,8 +111,9 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
     }
 
     for (const VkPhysicalDevice physical_device : physical_devices_ordered) {
-      provider->vulkan_device_ = VulkanDevice::CreateIfSupported(
-          provider->vulkan_instance_.get(), physical_device, with_gpu_emulation, with_presentation);
+      provider->vulkan_device_ =
+          VulkanDevice::CreateIfSupported(provider->vulkan_instance_.get(), physical_device,
+                                          with_gpu_emulation, with_presentation, settings);
       if (provider->vulkan_device_) {
         break;
       }
@@ -130,7 +128,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
   }
 
   if (with_presentation) {
-    provider->ui_samplers_ = UISamplers::Create(provider->vulkan_device_.get());
+    provider->ui_samplers_ = UISamplerSet::Create(provider->vulkan_device_.get());
     if (!provider->ui_samplers_) {
       return nullptr;
     }
@@ -140,9 +138,9 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
 }
 
 std::unique_ptr<Presenter> VulkanProvider::CreatePresenter(
-    Presenter::HostGPULossCallback host_gpu_loss_callback) {
-  return VulkanPresenter::Create(std::move(host_gpu_loss_callback), GetVulkanDevice(),
-                                 GetUISamplers());
+    const XenosGraphicsDriverBase& driver, Presenter::HostGPULossCallback host_gpu_loss_callback) {
+  return VulkanPresenter::Create(std::move(host_gpu_loss_callback), driver, *settings_,
+                                 GetVulkanDevice(), GetUISamplers());
 }
 
 std::unique_ptr<OverlayDrawer> VulkanProvider::CreateImmediateDrawer() {

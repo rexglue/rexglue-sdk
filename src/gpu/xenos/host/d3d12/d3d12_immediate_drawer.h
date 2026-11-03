@@ -117,7 +117,7 @@ class D3D12ImmediateDrawer final : public OverlayDrawer {
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
 
-  /** Holds only textures with non-null resources. */
+  /** Holds only textures with non null resources. */
   std::vector<D3D12OverlayTexture*> textures_;
 
   struct PendingTextureUpload {

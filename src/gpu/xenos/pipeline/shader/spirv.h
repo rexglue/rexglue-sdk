@@ -16,7 +16,8 @@
 
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/state.h>
 
 namespace rex::gpu {
 

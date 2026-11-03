@@ -16,6 +16,8 @@
 #include "gpu/xenos/host/immediate_drawer.h"
 #include "gpu/xenos/host/presenter.h"
 #include <rex/types.h>
+#include <rex/utility.h>
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex {
 namespace gpu {
@@ -46,15 +48,14 @@ class REX_GPU_XENOS_API GraphicsProvider : public rex::NonCopyable {
   /**
    * Creates a presenter.
    *
-   * The presenter may be reinitialized in the host GPU loss callback when it runs on the UI
-   * thread as specified in its arguments.
+   * The presenter may be reinitialized in the host GPU loss callback when the callback runs on
+   * the UI thread.
    *
    * @param host_gpu_loss_callback Callback invoked on host GPU loss.
-   * @return The new presenter.
    */
   virtual std::unique_ptr<Presenter> CreatePresenter(
-      Presenter::HostGPULossCallback host_gpu_loss_callback =
-          Presenter::FatalErrorHostGPULossCallback) = 0;
+      const XenosGraphicsDriverBase& driver, Presenter::HostGPULossCallback host_gpu_loss_callback =
+                                                 Presenter::FatalErrorHostGPULossCallback) = 0;
 
   virtual std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() = 0;
 

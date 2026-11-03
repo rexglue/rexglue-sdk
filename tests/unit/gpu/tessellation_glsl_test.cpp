@@ -1,7 +1,5 @@
 /**
  * @file        tests/unit/gpu/tessellation_glsl_test.cpp
- * @brief       The tessellation helper shaders bind the system constants where the pipeline layout
- *              puts them
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

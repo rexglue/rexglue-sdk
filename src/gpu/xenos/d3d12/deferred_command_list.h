@@ -17,7 +17,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/literals.h>
+#include <rex/types.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
 #include "gpu/xenos/host/deferred_stream.h"

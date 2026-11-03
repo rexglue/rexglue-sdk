@@ -14,7 +14,6 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/linked_type_descriptor_set_allocator.h"
 #include "gpu/xenos/host/vulkan/objects.h"
@@ -210,7 +209,7 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     if (!map_page_has_sufficient_space) {
       continue;
     }
-    // Erase unconditionally as success changes the free counts, and so the map key.
+    // Erase unconditionally as success changes the free counts that make up the map key.
     Page map_page = std::move(page_usable_it->second);
     pages_usable_.erase(std::next(page_usable_it).base());
     descriptor_set_allocate_info.descriptorPool = map_page.pool;

@@ -19,9 +19,9 @@
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_submission_tracker.h"
 #include "gpu/xenos/host/presenter.h"
-#include <rex/gpu/surface.h>
+#include "gpu/xenos/host/surface.h"
 #include <rex/types.h>
-#include <rex/move_only_function.h>
+#include <rex/utility.h>
 
 namespace rex::gpu::d3d12 {
 
@@ -50,8 +50,8 @@ class D3D12Presenter final : public Presenter {
 
  public:
   explicit D3D12Presenter(Key, HostGPULossCallback host_gpu_loss_callback,
-                          const D3D12Provider& provider)
-      : Presenter(std::move(host_gpu_loss_callback)), provider_(provider) {}
+                          const XenosGraphicsDriverBase& driver, const D3D12Provider& provider)
+      : Presenter(std::move(host_gpu_loss_callback), driver), provider_(provider) {}
 
   static constexpr DXGI_FORMAT kGuestOutputFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
   static constexpr D3D12_RESOURCE_STATES kGuestOutputInternalState =
@@ -71,8 +71,6 @@ class D3D12Presenter final : public Presenter {
      *
      * The callback starts in kGuestOutputInternalState and must transition back to it before
      * finishing.
-     *
-     * @return The output resource.
      */
     ID3D12Resource* GetResourceUAVCapable() const { return resource_.Get(); }
 
@@ -81,9 +79,10 @@ class D3D12Presenter final : public Presenter {
   };
 
   static std::unique_ptr<D3D12Presenter> Create(HostGPULossCallback host_gpu_loss_callback,
+                                                const XenosGraphicsDriverBase& driver,
                                                 const D3D12Provider& provider) {
-    auto presenter =
-        std::make_unique<D3D12Presenter>(Key{}, std::move(host_gpu_loss_callback), provider);
+    auto presenter = std::make_unique<D3D12Presenter>(Key{}, std::move(host_gpu_loss_callback),
+                                                      driver, provider);
     if (!presenter->InitializeSurfaceIndependent()) {
       return nullptr;
     }
@@ -104,14 +103,14 @@ class D3D12Presenter final : public Presenter {
   SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
       gpu::Surface& new_surface, u32 new_surface_width, u32 new_surface_height, bool was_paintable,
       bool& is_vsync_implicit_out) override;
-  void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
+  void DriverDisconnectPaintingFromSurface() override;
 
-  bool RefreshGuestOutputImpl(
+  bool DriverRefreshGuestOutput(
       u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
       rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out) override;
 
-  PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
+  PaintResult DriverPaintAndPresent(bool execute_ui_drawers) override;
 
  private:
   struct GuestOutputPaintRectangleConstants {
@@ -237,8 +236,8 @@ class D3D12Presenter final : public Presenter {
   D3D12SubmissionTracker ui_submission_tracker_;
 
   /**
-   * Accessed only by painting, surface connection management, and presenter initialization and
-   * shutdown, from the thread doing it.
+   * Accessed only by the thread that paints, manages the surface connection, or initializes and
+   * shuts down the presenter.
    */
   PaintContext paint_context_;
 };

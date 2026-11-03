@@ -20,10 +20,10 @@
 
 #include <rex/assert.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex::gpu {
 
-/** SpvBuilder with extra helpers. */
 class SPIRVBuilder : public spv::Builder {
  public:
   SPIRVBuilder(unsigned int spv_version, unsigned int user_number,

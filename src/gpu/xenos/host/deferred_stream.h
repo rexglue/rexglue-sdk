@@ -21,14 +21,14 @@ namespace rex::gpu {
 /**
  * A stream of commands, each a header and its arguments in whole uintmax_t elements.
  *
- * @tparam CommandType The command enum of the backend.
+ * @tparam CommandType The command enum of the driver.
  */
 template <typename CommandType>
 class DeferredStream {
  public:
   /** Start of every command in the stream. */
   struct Header {
-    CommandType command;         /**< The command. */
+    CommandType command;
     u32 arguments_size_elements; /**< Elements of arguments that follow the header. */
   };
 
@@ -36,35 +36,19 @@ class DeferredStream {
   static constexpr size_t kHeaderSizeElements =
       (sizeof(Header) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
 
-  /**
-   * Reserves room for bytes of commands.
-   *
-   * @param bytes The size in bytes.
-   */
+  /** Reserves room for bytes of commands. */
   void Reserve(size_t bytes) { stream_.reserve(bytes / sizeof(uintmax_t)); }
 
-  /** Drops every command and keeps the capacity. */
+  /** Discards every command and keeps the capacity. */
   void Clear() { stream_.clear(); }
 
-  /**
-   * Returns the first element.
-   *
-   * @return The first element.
-   */
   const uintmax_t* Data() const { return stream_.data(); }
 
-  /**
-   * Returns the element count.
-   *
-   * @return The element count.
-   */
   size_t Size() const { return stream_.size(); }
 
   /**
    * Appends a header and room for its arguments.
    *
-   * @param command The command.
-   * @param arguments_size_bytes The size of the arguments in bytes.
    * @return The start of the argument elements, valid until the next write.
    */
   void* Write(CommandType command, size_t arguments_size_bytes) {

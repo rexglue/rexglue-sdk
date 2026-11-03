@@ -10,7 +10,7 @@
  */
 
 #include <rex/assert.h>
-#include <rex/dbg.h>
+#include <rex/platform/perf.h>
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/deferred_command_list.h"
 #include <rex/math.h>

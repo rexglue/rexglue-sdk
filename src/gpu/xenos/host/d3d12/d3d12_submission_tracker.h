@@ -13,17 +13,15 @@
 
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex::gpu::d3d12 {
 
 /**
  * GPU to CPU fence wrapper.
  *
- * Handles an uninitialized or shut down fence, dropped submissions and queue transfers so signals
- * stay ordered. The current submission index is associated with object usage to release objects
- * once the GPU no longer references them. 0 is the never referenced submission index. The index
- * timeline survives Shutdown and Initialize, so indices can be given to clients unaware of the
- * tracker lifetime.
+ * Submission indices mark object usage so objects are released once the GPU no longer references
+ * them. 0 is the never referenced index. The timeline survives Shutdown and Initialize.
  */
 class D3D12SubmissionTracker : public rex::NonCopyable {
  public:
@@ -33,9 +31,7 @@ class D3D12SubmissionTracker : public rex::NonCopyable {
   /**
    * Creates the fence and takes a reference to the queue.
    *
-   * @param device Device creating the fence.
    * @param queue Queue signaling the fence, must be non null.
-   * @return True on success.
    */
   bool Initialize(ID3D12Device* device, ID3D12CommandQueue* queue);
   void Shutdown();
@@ -45,8 +41,6 @@ class D3D12SubmissionTracker : public rex::NonCopyable {
    * Returns the last completed submission index.
    *
    * May be lower than a value awaited by AwaitSubmissionCompletion if it returned false.
-   *
-   * @return The completed submission index.
    */
   UINT64 GetCompletedSubmission() const {
     return fence_ ? fence_->GetCompletedValue() : (GetCurrentSubmission() - 1);
@@ -60,7 +54,6 @@ class D3D12SubmissionTracker : public rex::NonCopyable {
    * submission_index.
    *
    * @param submission_index Submission to wait for, at most the current submission.
-   * @return True when the expected signal was reached.
    */
   bool AwaitSubmissionCompletion(UINT64 submission_index);
   bool AwaitAllSubmissionsCompletion() {

@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/gpu/texture_info_test.cpp
- * @brief       Texture descriptions compare by field
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -16,7 +15,7 @@
 #include <new>
 
 #include <rex/types.h>
-#include <rex/xenos/texture_info.h>
+#include <rex/xenos/texture.h>
 
 namespace {
 

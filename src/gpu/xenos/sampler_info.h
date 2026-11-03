@@ -12,7 +12,7 @@
 #pragma once
 
 #include "gpu/xenos/pipeline/shader/shader.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/fetch.h>
 
 namespace rex::gpu {
 

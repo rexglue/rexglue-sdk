@@ -10,6 +10,11 @@
  */
 
 #include <cstring>
+
+#ifndef XXH_INLINE_ALL
+#define XXH_INLINE_ALL
+#endif
+#include <xxhash.h>
 #include <memory>
 
 #include "gpu/xenos/sampler_info.h"

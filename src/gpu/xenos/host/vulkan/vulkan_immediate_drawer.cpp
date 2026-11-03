@@ -16,10 +16,9 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
-#include <rex/no_throw.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include "gpu/xenos/host/vulkan/immediate_drawer.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/objects.h"
@@ -34,7 +33,7 @@ namespace shaders {
 }  // namespace shaders
 
 std::unique_ptr<VulkanImmediateDrawer> VulkanImmediateDrawer::Create(
-    const VulkanDevice* const vulkan_device, const UISamplers* const ui_samplers) {
+    const VulkanDevice* const vulkan_device, const UISamplerSet* const ui_samplers) {
   REX_ASSERT(vulkan_device != nullptr);
   REX_ASSERT(ui_samplers != nullptr);
 
@@ -98,7 +97,7 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
 }
 
 VulkanImmediateDrawer::VulkanImmediateDrawer(Key, const VulkanDevice* const vulkan_device,
-                                             const UISamplers* const ui_samplers)
+                                             const UISamplerSet* const ui_samplers)
     : vulkan_device_(vulkan_device), ui_samplers_(ui_samplers) {
   REX_ASSERT(vulkan_device != nullptr);
   REX_ASSERT(ui_samplers != nullptr);
@@ -323,7 +322,7 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   u32 scissor_left, scissor_top;
   if (!ScissorToRenderTarget(draw, scissor_left, scissor_top, scissor.extent.width,
                              scissor.extent.height)) {
-    // Zero area, also the default current_scissor_ value, means nothing is visible.
+    // Zero area, the default current_scissor_ value, means nothing is visible.
     return;
   }
   scissor.offset.x = static_cast<i32>(scissor_left);
@@ -491,7 +490,7 @@ bool VulkanImmediateDrawer::CreatePipelinesForCurrentRenderPass() {
   VkFormat render_pass_format = vulkan_overlay_draw_context.GetRenderPassFormat();
 
   if (render_pass_format == pipeline_framebuffer_format_) {
-    // Created, or failed once and not retried every frame.
+    // True when the pipelines exist. A failed creation is not retried.
     return pipeline_triangle_ != VK_NULL_HANDLE && pipeline_line_ != VK_NULL_HANDLE;
   }
 
@@ -504,10 +503,8 @@ bool VulkanImmediateDrawer::CreatePipelinesForCurrentRenderPass() {
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
   const VkDevice device = vulkan_device_->GetDevice();
 
-  // Safe to destroy as usage of a recreated render pass was awaited.
   objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
   objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
-  // A failed creation is not retried every frame.
   pipeline_framebuffer_format_ = render_pass_format;
 
   VkPipelineShaderStageCreateInfo stages[2] = {
@@ -832,13 +829,13 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
     return false;
   }
   VkDescriptorImageInfo descriptor_image_info;
-  UISamplers::SamplerIndex ui_sampler_index;
+  UISamplerSet::SamplerIndex ui_sampler_index;
   if (filter == gpu::OverlayTextureFilter::kLinear) {
-    ui_sampler_index = is_repeated ? UISamplers::kSamplerIndexLinearRepeat
-                                   : UISamplers::kSamplerIndexLinearClampToEdge;
+    ui_sampler_index = is_repeated ? UISamplerSet::kSamplerIndexLinearRepeat
+                                   : UISamplerSet::kSamplerIndexLinearClampToEdge;
   } else {
-    ui_sampler_index = is_repeated ? UISamplers::kSamplerIndexNearestRepeat
-                                   : UISamplers::kSamplerIndexNearestClampToEdge;
+    ui_sampler_index = is_repeated ? UISamplerSet::kSamplerIndexNearestRepeat
+                                   : UISamplerSet::kSamplerIndexNearestClampToEdge;
   }
   descriptor_image_info.sampler = ui_samplers_->GetSamplers()[ui_sampler_index];
   descriptor_image_info.imageView = image_view;

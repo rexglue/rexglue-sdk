@@ -18,7 +18,6 @@
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/deferred_command_list.h"
 #include "gpu/xenos/d3d12/primitive_processor.h"
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
@@ -131,7 +130,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
 
 void* D3D12PrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
     xenos::IndexFormat format, u32 index_count, bool coalign_for_simd,
-    u32 coalignment_original_address, size_t& backend_handle_out) {
+    u32 coalignment_original_address, size_t& driver_handle_out) {
   size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(u16) : sizeof(u32);
   D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
   u8* mapping = frame_index_buffer_pool_->Request(
@@ -146,7 +145,7 @@ void* D3D12PrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
     mapping += coalignment_offset;
     gpu_address = static_cast<D3D12_GPU_VIRTUAL_ADDRESS>(gpu_address + coalignment_offset);
   }
-  backend_handle_out = frame_index_buffers_.size();
+  driver_handle_out = frame_index_buffers_.size();
   frame_index_buffers_.push_back(gpu_address);
   return mapping;
 }

@@ -27,19 +27,19 @@
 #include <rex/types.h>
 #include "gpu/xenos/command_processor.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
-#include <rex/xenos/registers.h>
+#include <rex/utility.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
-#include "gpu/xenos/vulkan/graphics_system.h"
+#include "gpu/xenos/vulkan/vulkan_xenos_graphics_driver.h"
 #include "gpu/xenos/vulkan/pipeline_cache.h"
 #include "gpu/xenos/vulkan/primitive_processor.h"
 #include "gpu/xenos/vulkan/render_target_cache.h"
 #include "gpu/xenos/vulkan/shader.h"
 #include "gpu/xenos/vulkan/shared_memory.h"
 #include "gpu/xenos/vulkan/texture_cache.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/state.h>
 #include <rex/hash.h>
-#include <rex/runtime.h>
 #include "gpu/xenos/host/vulkan/linked_type_descriptor_set_allocator.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/provider.h"
@@ -84,11 +84,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
     ~ScratchBufferAcquisition() { Release(); }
 
-    /**
-     * Returns the buffer.
-     *
-     * @return The buffer, or VK_NULL_HANDLE when acquisition failed or this was moved from.
-     */
+    /** Returns the buffer, or VK_NULL_HANDLE when acquisition failed or this was moved from. */
     VkBuffer GetBuffer() const { return buffer_; }
 
     VkPipelineStageFlags GetStageMask() const { return stage_mask_; }
@@ -125,13 +121,17 @@ class VulkanCommandProcessor : public CommandProcessor {
     VkAccessFlags access_mask_ = 0;
   };
 
-  VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system, Runtime& runtime);
+  VulkanCommandProcessor(VulkanXenosGraphicsDriver* graphics_system, const TitleInfo& info,
+                         IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
+                         IGuestInterrupts& interrupts);
   ~VulkanCommandProcessor();
 
   void ClearCaches() override;
   void InvalidateGPUMemory() override;
   void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                bool blocking) override;
+
+  const VulkanSettings& GetVulkanSettings() const;
 
   gpu::vulkan::VulkanDevice* GetVulkanDevice() const {
     return static_cast<const gpu::vulkan::VulkanProvider*>(graphics_system_->GetProvider())
@@ -141,11 +141,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool CompileGLSLToSPIRV(VkShaderStageFlagBits stage, std::string_view source,
                           std::vector<u32>& spirv_out, std::string& error_out) const;
 
-  /**
-   * Returns the deferred drawing command list for the open submission.
-   *
-   * @return The command buffer.
-   */
+  /** Returns the deferred drawing command list for the open submission. */
   DeferredCommandBuffer& GetDeferredCommandBuffer() {
     REX_ASSERT(submission_open_);
     return deferred_command_buffer_;
@@ -162,9 +158,6 @@ class VulkanCommandProcessor : public CommandProcessor {
    * semaphore, so binds between the completed and current submission and within 1 submission
    * must not touch overlapping memory.
    *
-   * @param buffer Buffer to bind.
-   * @param bind_count Number of binds.
-   * @param binds Sparse memory binds.
    * @param wait_stage_mask Pipeline stages that wait for the binds.
    */
   void SparseBindBuffer(VkBuffer buffer, u32 bind_count, const VkSparseMemoryBind* binds,
@@ -177,17 +170,10 @@ class VulkanCommandProcessor : public CommandProcessor {
    * Inserts a buffer memory barrier. The submission must be open. Stage masks are 0 when no
    * pipeline stage accesses the resource in a synchronization scope.
    *
-   * @param buffer Buffer to protect.
    * @param offset Range start in bytes.
    * @param size Range size in bytes.
-   * @param src_stage_mask Source pipeline stages.
-   * @param dst_stage_mask Destination pipeline stages.
-   * @param src_access_mask Source access.
-   * @param dst_access_mask Destination access.
-   * @param src_queue_family_index Source queue family.
-   * @param dst_queue_family_index Destination queue family.
-   * @param skip_if_equal Whether to drop the barrier when source and destination are equal.
-   * @return True when the barrier was inserted and not dropped.
+   * @param skip_if_equal Whether to skip the barrier when source and destination are equal.
+   * @return True when the barrier was inserted and not skipped.
    */
   bool PushBufferMemoryBarrier(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
                                VkPipelineStageFlags src_stage_mask,
@@ -199,18 +185,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   /**
    * Inserts an image memory barrier, with the same rules as PushBufferMemoryBarrier.
    *
-   * @param image Image to protect.
-   * @param subresource_range Subresource range.
-   * @param src_stage_mask Source pipeline stages.
-   * @param dst_stage_mask Destination pipeline stages.
-   * @param src_access_mask Source access.
-   * @param dst_access_mask Destination access.
    * @param old_layout Layout before the barrier.
    * @param new_layout Layout after the barrier.
-   * @param src_queue_family_index Source queue family.
-   * @param dst_queue_family_index Destination queue family.
-   * @param skip_if_equal Whether to drop the barrier when source and destination are equal.
-   * @return True when the barrier was inserted and not dropped.
+   * @param skip_if_equal Whether to skip the barrier when source and destination are equal.
+   * @return True when the barrier was inserted and not skipped.
    */
   bool PushImageMemoryBarrier(VkImage image, const VkImageSubresourceRange& subresource_range,
                               VkPipelineStageFlags src_stage_mask,
@@ -221,19 +199,14 @@ class VulkanCommandProcessor : public CommandProcessor {
                               u32 dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
                               bool skip_if_equal = true);
   /**
-   * Submits the pending barriers.
-   *
    * @param force_end_render_pass Whether to end the render pass even without barriers.
-   * @return True when barriers were submitted, which also closes the render pass.
+   * @return True when barriers were submitted, which closes the render pass.
    */
   bool SubmitBarriers(bool force_end_render_pass);
 
   /**
    * Begins a render pass from the render target cache if not started yet. The submission must be
    * open.
-   *
-   * @param render_pass Render pass to enter.
-   * @param framebuffer Framebuffer for the render pass.
    */
   void SubmitBarriersAndEnterRenderTargetCacheRenderPass(
       VkRenderPass render_pass, const VulkanRenderTargetCache::Framebuffer* framebuffer);
@@ -265,13 +238,12 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   /**
    * Returns a temporary GPU side buffer within a submission for tasks like texture untiling and
-   * resolving. May push a buffer memory barrier into the initial usage. The submission must be
-   * open.
+   * resolving, with a null buffer on failure. May push a buffer memory barrier into the initial
+   * usage. The submission must be open.
    *
    * @param size Buffer size in bytes.
    * @param initial_stage_mask Pipeline stages of the initial usage.
    * @param initial_access_mask Access of the initial usage.
-   * @return The acquisition, with a null buffer on failure.
    */
   ScratchBufferAcquisition AcquireScratchGPUBuffer(VkDeviceSize size,
                                                    VkPipelineStageFlags initial_stage_mask,
@@ -283,7 +255,6 @@ class VulkanCommandProcessor : public CommandProcessor {
    * VulkanCommandProcessor tracking, and true only when the caller modifies the dynamic state
    * through that tracking.
    *
-   * @param pipeline Pipeline to bind.
    * @param keep_dynamic_depth_bias True to keep the tracked dynamic depth bias.
    * @param keep_dynamic_blend_constants True to keep the tracked dynamic blend constants.
    * @param keep_dynamic_stencil_mask_ref True to keep the tracked stencil masks and references.
@@ -318,8 +289,6 @@ class VulkanCommandProcessor : public CommandProcessor {
    * require awaiting a submission, possibly the current one, and earlier updates may then
    * reference objects destroyed by CompletedSubmissionUpdated.
    *
-   * @param prim_type Primitive type of the draw.
-   * @param index_count Number of vertices or indices.
    * @param index_buffer_info Index buffer description, or null for auto indexed draws.
    * @param major_mode_explicit Whether the major mode was set explicitly.
    * @return False when a sampler could not be created, or overflowed twice because of too many
@@ -344,7 +313,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   union TextureDescriptorSetLayoutKey {
     u32 key;
     struct {
-      /** With both counts 0, descriptor_set_layout_empty_ is used instead, these own references. */
+      /**
+       * With both counts 0, descriptor_set_layout_empty_ is used instead. The key owns the layout
+       * references.
+       */
       u32 texture_count : 16;
       u32 sampler_count : 15;
       u32 is_vertex : 1;
@@ -439,7 +411,7 @@ class VulkanCommandProcessor : public CommandProcessor {
     f32 size_inv[2];
   };
 
-  /** Framebuffer for the current presenter guest output image revision, with usage tracking. */
+  /** Framebuffer for the current guest output image, with usage tracking. */
   struct SwapFramebuffer {
     VkFramebuffer framebuffer = VK_NULL_HANDLE;
     u64 version = UINT64_MAX;
@@ -449,29 +421,22 @@ class VulkanCommandProcessor : public CommandProcessor {
   /**
    * Rechecks the submission number and reclaims per submission resources.
    *
-   * @param await_submission Submission to await, 0 only checks status and GetCurrentSubmission()
-   *        waits for all queue operations to complete.
+   * @param await_submission Submission to await, 0 only checks status.
    */
   void CheckSubmissionFenceAndDeviceLoss(u64 await_submission);
   /**
-   * Opens a submission. May be called at any time. An open non frame submission is promoted to a
-   * frame when is_guest_command is true. Unlike Direct3D 12, submission boundaries imply no memory
-   * barriers aside from an incoming host write dependency (outgoing host reads are not covered).
+   * Opens a submission. An open non frame submission is promoted to a frame when is_guest_command
+   * is true. Unlike Direct3D 12, submission boundaries imply no memory barriers aside from an
+   * incoming host write dependency (outgoing host reads are not covered). A guest command opens a
+   * new full frame with resource cleanup and a pending capture start.
    *
-   * A guest command opens a new full frame with resource cleanup and a pending capture start,
-   * instead of resuming after mid frame synchronization.
-   *
-   * @param is_guest_command True for a guest command.
    * @return True when a submission is open and the device is not lost.
    */
   bool BeginSubmission(bool is_guest_command);
   /**
-   * Closes a submission. May be called at any time.
+   * Closes a submission. A swap closes the full frame with cache clearing and a pending capture
+   * stop, whether or not the submission is closed.
    *
-   * A swap closes the full frame with cache clearing and a pending capture stop, whether or not
-   * the submission is closed.
-   *
-   * @param is_swap True for a swap.
    * @return True when the submission completed, otherwise it stays open.
    */
   bool EndSubmission(bool is_swap);
@@ -479,11 +444,7 @@ class VulkanCommandProcessor : public CommandProcessor {
     CheckSubmissionFenceAndDeviceLoss(GetCurrentSubmission());
     return !submission_open_ && submissions_in_flight_fences_.empty();
   }
-  /**
-   * Reports whether a submission can end immediately at the primary buffer end.
-   *
-   * @return True when immediate submission is safe.
-   */
+  /** Reports whether a submission can end immediately at the primary buffer end. */
   bool CanEndSubmissionImmediately() const;
 
   void ClearTransientDescriptorPools();
@@ -531,14 +492,11 @@ class VulkanCommandProcessor : public CommandProcessor {
    * the same for Z. Bit 10 VTX_W0_FMT true means the incoming W0 is not 1/W0, so take the
    * reciprocal.
    *
-   * @param primitive_polygonal Whether the primitive is polygonal.
-   * @param primitive_processing_result Result of primitive processing.
-   * @param shader_32bit_index_dma Whether the shader loads 32 bit indices itself.
-   * @param compute_memexport_vertex_count Vertex count for memexport compute draws.
-   * @param viewport_info Host viewport information.
-   * @param used_texture_mask Mask of used texture fetch constants.
-   * @param normalized_depth_control Normalized RB_DEPTHCONTROL.
-   * @param normalized_color_mask Normalized color write mask.
+   * @param shader_32bit_index_dma True when the shader fetches 32 bit indices by DMA.
+   * @param compute_memexport_vertex_count The vertex count of the memexport compute fallback.
+   * @param used_texture_mask The mask of the used texture fetch constants.
+   * @param normalized_depth_control The depth control with the guest quirks applied.
+   * @param normalized_color_mask The color write mask with the guest quirks applied.
    */
   void UpdateSystemConstantValues(
       bool primitive_polygonal,
@@ -548,15 +506,9 @@ class VulkanCommandProcessor : public CommandProcessor {
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader, const VulkanShader* pixel_shader);
   /**
-   * Allocates a descriptor set and fills 1 or 2 VkWriteDescriptorSet entries for images and
+   * Allocates a descriptor set and fills one or two VkWriteDescriptorSet entries for images and
    * samplers.
    *
-   * @param is_vertex Whether the bindings are for the vertex stage.
-   * @param texture_count Number of texture bindings.
-   * @param sampler_count Number of sampler bindings.
-   * @param descriptor_set_layout GetTextureDescriptorSetLayout result for the 3 arguments above.
-   * @param texture_image_info Texture descriptors.
-   * @param sampler_image_info Sampler descriptors.
    * @param descriptor_set_writes_out Receives the writes.
    * @return The number of writes, or 0 on allocation failure or when no bindings were requested.
    */
@@ -780,9 +732,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   f32 dynamic_depth_bias_slope_factor_;
   f32 dynamic_blend_constants_[4];
   /**
-   * The stencil values start initialized and equal for front and back for portability subset
-   * safety, because updates are conditional to keep the back face values unchanged when stencil
-   * is disabled and the primitive type switches between polygonal and non polygonal.
+   * Front and back stencil values start equal, for portability subset hosts.
    */
   u32 dynamic_stencil_compare_mask_front_ = UINT8_MAX;
   u32 dynamic_stencil_compare_mask_back_ = UINT8_MAX;

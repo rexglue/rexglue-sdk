@@ -13,20 +13,19 @@
 #include <cmath>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/pipeline/texture/cache.h"
-#include <rex/xenos/texture_info.h>
-#include <rex/xenos/texture_layout.h>
-#include <rex/xenos/registers.h>
+#include <rex/xenos/texture.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/draw_state.h"
-#include <rex/xenos/xenos.h>
-#include <rex/fail.h>
+#include "gpu/xenos/physical_memory.h"
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include <rex/memory.h>
 #include "gpu/xenos/host/fixed_point.h"
-
-#include "gpu/xenos/cvar_table_xenos.h"
 
 namespace rex::gpu::draw_state {
 
@@ -139,9 +138,10 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader, const xenos::Reg
   return false;
 }
 
-void GetHostViewport(const xenos::RegisterFile& regs, u32 draw_resolution_scale_x,
-                     u32 draw_resolution_scale_y, bool origin_bottom_left, u32 x_max, u32 y_max,
-                     bool allow_reverse_z, xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
+void GetHostViewport(const XenosSettings& settings, const xenos::RegisterFile& regs,
+                     u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
+                     bool origin_bottom_left, u32 x_max, u32 y_max, bool allow_reverse_z,
+                     xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                      bool convert_z_to_float24, bool full_float24_in_0_to_1,
                      bool pixel_shader_writes_depth, HostViewport& viewport_info_out) {
   REX_ASSERT(draw_resolution_scale_x != 0);
@@ -173,7 +173,7 @@ void GetHostViewport(const xenos::RegisterFile& regs, u32 draw_resolution_scale_
     offset_add_xy[0] += static_cast<f32>(pa_sc_window_offset.window_x_offset);
     offset_add_xy[1] += static_cast<f32>(pa_sc_window_offset.window_y_offset);
   }
-  if (REXCVAR_GET(::rex::gpu::cvars::half_pixel_offset) &&
+  if (settings.half_pixel_offset.Get() &&
       pa_su_vtx_cntl.pix_center == xenos::PixelCenter::kD3DZero) {
     offset_add_xy[0] += 0.5f;
     offset_add_xy[1] += 0.5f;
@@ -467,9 +467,9 @@ const ResolveCopyShaderTraits
         {"Resolve Copy Full 128bpp", true, 2, 4, 4, 3},
 };
 
-bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memory,
-                    u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
-                    bool fixed_rg16_truncated_to_minus_1_to_1,
+bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& regs,
+                    IPhysicalMemory& memory, u32 draw_resolution_scale_x,
+                    u32 draw_resolution_scale_y, bool fixed_rg16_truncated_to_minus_1_to_1,
                     bool fixed_rgba16_truncated_to_minus_1_to_1, ResolveRequest& info_out) {
   info_out.coordinate_info.packed = 0;
   info_out.height_div_8 = 0;
@@ -494,7 +494,11 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     return false;
   }
   const f32* vertices_guest =
-      reinterpret_cast<const f32*>(memory.TranslatePhysical(fetch.address * sizeof(u32)));
+      GetPhysicalForRead<f32>(memory, fetch.address * sizeof(u32), 6 * sizeof(f32));
+  if (!vertices_guest) {
+    REXLOG_ERROR(gpu, "Resolve vertex buffer is outside physical memory");
+    return false;
+  }
   f32 half_pixel_offset =
       regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero ? 0.5f
                                                                                         : 0.0f;
@@ -509,10 +513,10 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   // Exclusive.
   i32 x1 = std::max(std::max(vertices_fixed[0], vertices_fixed[2]), vertices_fixed[4]);
   i32 y1 = std::max(std::max(vertices_fixed[1], vertices_fixed[3]), vertices_fixed[5]);
-  // Top-left includes .5, so 0.128 covers pixel 0 and 0.129 does not.
+  // Top left includes 0.5, so 0.128 covers pixel 0 and 0.129 does not.
   x0 = (x0 + 127) >> 8;
   y0 = (y0 + 127) >> 8;
-  // Bottom-right excludes .5.
+  // Bottom right excludes 0.5.
   x1 = (x1 + 127) >> 8;
   y1 = (y1 + 127) >> 8;
 
@@ -577,7 +581,6 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   info_out.coordinate_info.width_div_8 =
       static_cast<u32>(x1 - x0) >> xenos::kResolveAlignmentPixelsLog2;
   info_out.height_div_8 = static_cast<u32>(y1 - y0) >> xenos::kResolveAlignmentPixelsLog2;
-  // The scales are packed in 3 bits each.
   REX_ASSERT(draw_resolution_scale_x <= 7);
   REX_ASSERT(draw_resolution_scale_y <= 7);
   info_out.coordinate_info.draw_resolution_scale_x = draw_resolution_scale_x;
@@ -708,8 +711,8 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
 
   bool fill_half_pixel_offset =
       (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) &&
-      REXCVAR_GET(::rex::gpu::cvars::resolve_resolution_scale_fill_half_pixel_offset) &&
-      REXCVAR_GET(::rex::gpu::cvars::half_pixel_offset) &&
+      settings.resolve_resolution_scale_fill_half_pixel_offset.Get() &&
+      settings.half_pixel_offset.Get() &&
       regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero;
   i32 exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
   ResolveEDRAMLayout depth_edram_info;

@@ -21,7 +21,6 @@
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/math.h>
 #include <rex/memory.h>
-#include <rex/string.h>
 
 namespace rex::gpu {
 using namespace xenos::ucode;
@@ -39,7 +38,7 @@ Shader::Shader(xenos::ShaderType shader_type, u64 ucode_hash, const u32* ucode_d
 
 Shader::~Shader() = default;
 
-std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dump(
+std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::DumpTranslation(
     const std::filesystem::path& base_path, const char* path_label) const {
   if (!IsValid()) {
     return std::make_pair(std::filesystem::path(), std::filesystem::path());

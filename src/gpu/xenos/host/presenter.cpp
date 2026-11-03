@@ -15,28 +15,25 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/logging/flush.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
+#include <rex/ui/window.h>
 #include <rex/platform.h>
 #include <rex/platform/thread.h>
 #if REX_PLATFORM_WIN32
-#include <rex/gpu/surface_win.h>
-#include <rex/move_only_function.h>
+#include <rex/utility.h>
 #endif
+#include "gpu/xenos/host/present_policy.h"
 #include "gpu/xenos/host/presenter.h"
 
-#include "gpu/xenos/cvar_table_gpu.h"
-#include "gpu/xenos/cvar_table_xenos.h"
+#include "gpu/xenos/xenos_graphics_driver_base.h"
 
 namespace {
 using GuestOutputPaintConfig = rex::gpu::Presenter::GuestOutputPaintConfig;
 
-GuestOutputPaintConfig BuildGuestOutputPaintConfigFromCVar() {
+GuestOutputPaintConfig BuildGuestOutputPaintConfig(const rex::gpu::XenosSettings& settings) {
   GuestOutputPaintConfig config;
-  config.SetAllowOverscanCutoff(REXCVAR_GET(::rex::gpu::cvars::present_allow_overscan_cutoff));
-  config.SetDither(REXCVAR_GET(::rex::gpu::cvars::present_dither));
+  config.SetAllowOverscanCutoff(settings.present_allow_overscan_cutoff.Get());
+  config.SetDither(settings.present_dither.Get());
   return config;
 }
 
@@ -167,11 +164,18 @@ void Presenter::PaintFromUIThread(bool force_paint) {
     if (paint_mode_ == PaintMode::kGuestOutputThreadImmediately) {
       SetPaintModeFromUIThread(PaintMode::kUIThreadOnRequest);
     }
+    if (surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedPaintable &&
+        IsPaintConnectionVsyncStale(surface_paint_connection_vsync_, driver_.IsVSyncEnabled())) {
+      surface_paint_connection_state_ = SurfacePaintConnectionState::kConnectedOutdated;
+    }
     if (surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedOutdated) {
       UpdateSurfacePaintConnectionFromUIThread(nullptr, false);
     }
     if (surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedPaintable) {
       SetPaintModeFromUIThread(PaintMode::kUIThreadOnRequest);
+
+      overlay_paint_pacer_.Wait(last_ui_thread_paint_start_, force_paint);
+      last_ui_thread_paint_start_ = std::chrono::steady_clock::now();
 
       WaitForUITickFromUIThread();
 
@@ -227,9 +231,9 @@ bool Presenter::RefreshGuestOutput(
   writable_properties.is_8bpc = false;
   bool is_active = writable_properties.IsActive();
   if (is_active) {
-    if (!RefreshGuestOutputImpl(guest_output_mailbox_writable_, frontbuffer_width,
-                                frontbuffer_height, std::move(refresher),
-                                writable_properties.is_8bpc)) {
+    if (!DriverRefreshGuestOutput(guest_output_mailbox_writable_, frontbuffer_width,
+                                  frontbuffer_height, std::move(refresher),
+                                  writable_properties.is_8bpc)) {
       return false;
     }
     guest_output_active_last_refresh_ = true;
@@ -243,7 +247,6 @@ bool Presenter::RefreshGuestOutput(
   // Replaces the pending ready image rather than queueing behind it, for the lowest latency.
   u32 last_acquired_and_ready =
       guest_output_mailbox_acquired_and_ready_.load(std::memory_order_relaxed);
-  // acq_rel releases the written image to consumers and acquires the next writable image.
   while (!guest_output_mailbox_acquired_and_ready_.compare_exchange_weak(
       last_acquired_and_ready,
       (last_acquired_and_ready & 3) | (guest_output_mailbox_writable_ << 2),
@@ -256,6 +259,7 @@ bool Presenter::RefreshGuestOutput(
     guest_output_mailbox_writable_ = (3 - last_acquired - guest_output_mailbox_writable_) % 3;
   }
 
+  overlay_paint_pacer_.SignalGuestOutput();
   PaintResult paint_result = PaintResult::kNotPresented;
   {
     std::lock_guard<std::mutex> paint_mode_mutex_lock(paint_mode_mutex_);
@@ -308,7 +312,7 @@ void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
     break;
   }
   auto it_new = overlay_layers_.emplace(z_order, OverlayLayerReference(layer, drawer_last_draw));
-  // Run a drawer added at or above the current Z layer, up to the previously next one.
+  // Run a drawer added at or above the current Z order, but only up to the drawer that was next.
   if (is_executing_ui_drawers_ && z_order >= ui_draw_current_z_order_ &&
       (ui_draw_next_iterator_ == overlay_layers_.end() ||
        z_order < ui_draw_next_iterator_->first)) {
@@ -348,7 +352,7 @@ void Presenter::RequestOverlayPaint() {
 bool Presenter::InitializeCommonSurfaceIndependent() {
   {
     std::lock_guard<std::mutex> config_lock(guest_output_paint_config_mutex_);
-    guest_output_paint_config_ = BuildGuestOutputPaintConfigFromCVar();
+    guest_output_paint_config_ = BuildGuestOutputPaintConfig(driver_);
   }
 
 #if REX_PLATFORM_WIN32
@@ -368,12 +372,10 @@ std::unique_lock<std::mutex> Presenter::ConsumeGuestOutput(
   }
 
   std::unique_lock<std::mutex> consumer_lock(guest_output_mailbox_consumer_mutex_);
-  // A relaxed load suffices because the consumer mutex orders access to acquired images.
   u32 old_acquired_and_ready =
       guest_output_mailbox_acquired_and_ready_.load(std::memory_order_relaxed);
   u32 desired_acquired_and_ready =
       (old_acquired_and_ready & ~static_cast<u32>(3)) | (old_acquired_and_ready >> 2);
-  // acq_rel acquires a new ready image and releases the old acquired image to the producer.
   while (old_acquired_and_ready != desired_acquired_and_ready &&
          !guest_output_mailbox_acquired_and_ready_.compare_exchange_weak(
              old_acquired_and_ready, desired_acquired_and_ready, std::memory_order_acq_rel,
@@ -423,10 +425,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   if (static_cast<u64>(surface_width_in_paint_connection_) * properties.display_aspect_ratio_y >
       static_cast<u64>(surface_height_in_paint_connection_) * properties.display_aspect_ratio_x) {
     u32 present_safe_area;
-    if (config.GetAllowOverscanCutoff() &&
-        REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y) > 0 &&
-        REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y) < 100) {
-      present_safe_area = static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y));
+    if (config.GetAllowOverscanCutoff() && driver_.present_safe_area_y.Get() > 0 &&
+        driver_.present_safe_area_y.Get() < 100) {
+      present_safe_area = static_cast<u32>(driver_.present_safe_area_y.Get());
     } else {
       present_safe_area = 100;
     }
@@ -438,7 +439,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_height = rescale_unsigned(surface_height_in_paint_connection_, 100, present_safe_area);
       letterbox = true;
     }
-    if (letterbox && REXCVAR_GET(::rex::gpu::cvars::present_letterbox)) {
+    if (letterbox && driver_.present_letterbox.Get()) {
       output_width = rescale_unsigned(surface_height_in_paint_connection_ * 100,
                                       properties.display_aspect_ratio_x,
                                       properties.display_aspect_ratio_y * present_safe_area);
@@ -454,10 +455,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
         2;
   } else {
     u32 present_safe_area;
-    if (config.GetAllowOverscanCutoff() &&
-        REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x) > 0 &&
-        REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x) < 100) {
-      present_safe_area = static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x));
+    if (config.GetAllowOverscanCutoff() && driver_.present_safe_area_x.Get() > 0 &&
+        driver_.present_safe_area_x.Get() < 100) {
+      present_safe_area = static_cast<u32>(driver_.present_safe_area_x.Get());
     } else {
       present_safe_area = 100;
     }
@@ -469,7 +469,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_width = rescale_unsigned(surface_width_in_paint_connection_, 100, present_safe_area);
       letterbox = true;
     }
-    if (letterbox && REXCVAR_GET(::rex::gpu::cvars::present_letterbox)) {
+    if (letterbox && driver_.present_letterbox.Get()) {
       output_height = rescale_unsigned(surface_width_in_paint_connection_ * 100,
                                        properties.display_aspect_ratio_y,
                                        properties.display_aspect_ratio_x * present_safe_area);
@@ -611,9 +611,6 @@ Presenter::PaintMode Presenter::GetDesiredPaintModeFromUIThread(bool is_paintabl
   if (!is_paintable) {
     return PaintMode::kNone;
   }
-  if (!REXCVAR_GET(::rex::gpu::cvars::present_from_non_ui_thread)) {
-    return PaintMode::kUIThreadOnRequest;
-  }
   if (surface_paint_connection_has_implicit_vsync_) {
     // Avoids host vertical sync CPU waits in the thread generating the guest output.
     return PaintMode::kUIThreadOnRequest;
@@ -627,7 +624,7 @@ Presenter::PaintMode Presenter::GetDesiredPaintModeFromUIThread(bool is_paintabl
 void Presenter::DisconnectPaintingFromSurfaceFromUIThread(SurfacePaintConnectionState new_state) {
   REX_ASSERT(!IsConnectedSurfacePaintConnectionState(new_state));
   if (IsConnectedSurfacePaintConnectionState(surface_paint_connection_state_)) {
-    DisconnectPaintingFromSurfaceFromUIThreadImpl();
+    DriverDisconnectPaintingFromSurface();
   }
   surface_paint_connection_state_ = new_state;
   surface_paint_connection_has_implicit_vsync_ = false;
@@ -655,6 +652,7 @@ void Presenter::UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_ou
     } else {
       bool is_reconnect = IsConnectedSurfacePaintConnectionState(surface_paint_connection_state_);
       bool is_vsync_implicit = false;
+      surface_paint_connection_vsync_ = driver_.IsVSyncEnabled();
       SurfacePaintConnectResult connect_result = ConnectOrReconnectPaintingToSurfaceFromUIThread(
           *surface_, surface_width, surface_height,
           surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedPaintable,
@@ -708,11 +706,11 @@ bool Presenter::RequestPaintOrConnectionRecoveryViaWindow(bool force_ui_thread_p
 
 void Presenter::UpdateSurfaceMonitorFromUIThread(
     [[maybe_unused]] bool old_monitor_potentially_disconnected) {
-  // A non null monitor requires surface_ (implying host_), so closing a window drops it.
+  // A non null monitor requires surface_ (implying host_), so closing a window clears it.
 #if REX_PLATFORM_WIN32
   HMONITOR surface_new_win32_monitor = nullptr;
   if (surface_ && surface_->GetType() == gpu::Surface::kTypeIndexWin32HWND) {
-    HWND hwnd = static_cast<const gpu::Win32HWNDSurface*>(surface_)->GetHWND();
+    HWND hwnd = static_cast<HWND>(static_cast<const gpu::NativeSurface*>(surface_)->GetHWND());
     if (hwnd) {
       surface_new_win32_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
     }
@@ -769,7 +767,11 @@ bool Presenter::IsSurfaceOnMonitorFromUIThread() const {
 Presenter::PaintResult Presenter::PaintAndPresent(bool execute_ui_drawers) {
   REX_ASSERT(!(execute_ui_drawers && !is_in_ui_thread_paint_));
   REX_ASSERT(surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedPaintable);
-  PaintResult result = PaintAndPresentImpl(execute_ui_drawers);
+  if (IsPaintConnectionVsyncStale(surface_paint_connection_vsync_, driver_.IsVSyncEnabled())) {
+    surface_paint_connection_state_ = SurfacePaintConnectionState::kConnectedOutdated;
+    return PaintResult::kNotPresentedConnectionOutdated;
+  }
+  PaintResult result = DriverPaintAndPresent(execute_ui_drawers);
   switch (result) {
     case PaintResult::kPresented:
       surface_paint_connection_was_optimal_at_successful_paint_ = true;

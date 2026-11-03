@@ -24,9 +24,10 @@ class VulkanCommandProcessor;
 
 class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
  public:
-  VulkanPrimitiveProcessor(const xenos::RegisterFile& register_file, runtime::Memory& memory,
+  VulkanPrimitiveProcessor(const xenos::RegisterFile& register_file, const XenosSettings& settings,
+                           IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
                            SharedMemory& shared_memory, VulkanCommandProcessor& command_processor)
-      : PrimitiveProcessor(register_file, memory, shared_memory),
+      : PrimitiveProcessor(register_file, settings, memory, watch, shared_memory),
         command_processor_(command_processor) {}
   ~VulkanPrimitiveProcessor();
 
@@ -56,7 +57,7 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
   void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format, u32 index_count,
                                                        bool coalign_for_simd,
                                                        u32 coalignment_original_address,
-                                                       size_t& backend_handle_out) override;
+                                                       size_t& driver_handle_out) override;
 
  private:
   VulkanCommandProcessor& command_processor_;
@@ -71,7 +72,7 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
   u64 builtin_index_buffer_upload_submission_ = UINT64_MAX;
 
   std::unique_ptr<gpu::vulkan::VulkanUploadBufferPool> frame_index_buffer_pool_;
-  /** Indexed by the backend handles. */
+  /** Indexed by the driver handles. */
   std::deque<std::pair<VkBuffer, VkDeviceSize>> frame_index_buffers_;
 };
 

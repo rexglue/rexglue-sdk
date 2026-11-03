@@ -20,16 +20,17 @@
 #include <rex/assert.h>
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/xenos.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/state.h>
+#include <rex/guest.h>
 
 namespace rex::gpu {
 
 class ShaderInterpreter {
  public:
-  ShaderInterpreter(const xenos::RegisterFile& register_file, const runtime::Memory& memory)
-      : register_file_(register_file), memory_(memory) {}
+  ShaderInterpreter(const xenos::RegisterFile& register_file, IPhysicalMemory& memory)
+      : register_file_(register_file), physical_memory_(memory) {}
 
   class ExportSink {
    public:
@@ -48,9 +49,6 @@ class ShaderInterpreter {
    * Reports whether the shader can be interpreted.
    *
    * Texture fetch instructions are not supported.
-   *
-   * @param shader Analyzed shader to check.
-   * @return True when the shader can be interpreted.
    */
   static bool CanInterpretShader(const Shader& shader) {
     REX_ASSERT(shader.IsUcodeAnalyzed());
@@ -88,8 +86,6 @@ class ShaderInterpreter {
     /**
      * Returns the loop address clamped to the sequencer range of [-256, 256] from the IPR2015-00325
      * specification.
-     *
-     * @return Clamped loop address.
      */
     i32 GetLoopAddress() const {
       REX_ASSERT(loop_stack_depth && loop_stack_depth < 4);
@@ -129,7 +125,7 @@ class ShaderInterpreter {
   void ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchInstruction instr);
 
   const xenos::RegisterFile& register_file_;
-  const runtime::Memory& memory_;
+  IPhysicalMemory& physical_memory_;
 
   ExportSink* export_sink_ = nullptr;
 

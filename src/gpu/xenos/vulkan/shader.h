@@ -14,7 +14,7 @@
 #include <cstdint>
 
 #include "gpu/xenos/pipeline/shader/spirv.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/state.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
 namespace rex::gpu::vulkan {
@@ -39,17 +39,11 @@ class VulkanShader : public SPIRVShader {
                         size_t ucode_dword_count,
                         std::endian ucode_source_endian = std::endian::big);
 
-  /**
-   * Returns the unique identifier of the texture binding layout used by the shader. Identifiers
-   * replace hashes so collisions cannot happen.
-   */
   size_t GetTextureBindingLayoutUserUID() const { return texture_binding_layout_user_uid_; }
   size_t GetSamplerBindingLayoutUserUID() const { return sampler_binding_layout_user_uid_; }
   /**
-   * Reports whether the caller won the single time setup of the binding layout identifiers.
-   * Modifications of the same shader can be translated on different threads.
-   *
-   * @return True when the caller is the first to enter the setup.
+   * Reports whether the caller is the first to set up the binding layout identifiers.
+   * Modifications of one shader can be translated on different threads.
    */
   bool EnterBindingLayoutUserUIDSetup() { return !binding_layout_user_uids_set_up_.test_and_set(); }
   void SetTextureBindingLayoutUserUID(size_t uid) { texture_binding_layout_user_uid_ = uid; }

@@ -16,15 +16,12 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/platform.h>
-#include <rex/string.h>
+#include <rex/string/text.h>
 #include "gpu/xenos/host/vulkan/device.h"
 #include "gpu/xenos/host/vulkan/objects.h"
-
-#include "gpu/xenos/vulkan/cvar_table.h"
+#include "gpu/xenos/host/vulkan/vulkan_to_string.h"
 
 namespace rex {
 namespace gpu {
@@ -46,7 +43,7 @@ struct VulkanFeatures {
 
 std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     const VulkanInstance* const vulkan_instance, const VkPhysicalDevice physical_device,
-    const bool with_gpu_emulation, const bool with_swapchain) {
+    const bool with_gpu_emulation, const bool with_swapchain, const VulkanSettings& settings) {
   REX_ASSERT(vulkan_instance != nullptr);
   REX_ASSERT(physical_device != nullptr);
 
@@ -86,16 +83,14 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
                   std::string_view{properties.deviceName});
       return nullptr;
     }
-    if (REXCVAR_GET(::rex::gpu::cvars::require_geometry_shader) &&
-        !supported_features.geometryShader) {
+    if (settings.require_geometry_shader.Get() && !supported_features.geometryShader) {
       REXLOG_WARN(ui,
                   "Vulkan device '{}' doesn't support geometryShader, but "
                   "vulkan.require_geometry_shader=true",
                   std::string_view{properties.deviceName});
       return nullptr;
     }
-    if (REXCVAR_GET(::rex::gpu::cvars::require_fill_mode_non_solid) &&
-        !supported_features.fillModeNonSolid) {
+    if (settings.require_fill_mode_non_solid.Get() && !supported_features.fillModeNonSolid) {
       REXLOG_WARN(ui,
                   "Vulkan device '{}' doesn't support fillModeNonSolid, but "
                   "vulkan.require_fill_mode_non_solid=true",
@@ -105,9 +100,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   auto device = std::make_unique<VulkanDevice>(Key{}, vulkan_instance, physical_device);
-  device->requires_geometry_shader_ = REXCVAR_GET(::rex::gpu::cvars::require_geometry_shader);
-  device->requires_fill_mode_non_solid_ =
-      REXCVAR_GET(::rex::gpu::cvars::require_fill_mode_non_solid);
+  device->requires_geometry_shader_ = settings.require_geometry_shader.Get();
+  device->requires_fill_mode_non_solid_ = settings.require_fill_mode_non_solid.Get();
 
   const bool get_physical_device_properties2_supported =
       vulkan_instance->GetExtensions().ext_1_1_KHR_get_physical_device_properties2;
@@ -127,41 +121,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
 #define REX_VK_STRUCT_EXTENSION(name) \
   requested_extensions.emplace("VK_" #name, &device->extensions_.ext_##name);
-/**
- * Requests a device extension whose support flag is a local variable.
- *
- * @param name Extension name without the VK_ prefix.
- *
- * @code
- * REX_VK_LOCAL_EXTENSION(KHR_portability_subset)
- * @endcode
- */
 #define REX_VK_LOCAL_EXTENSION(name) requested_extensions.emplace("VK_" #name, &ext_##name);
-/**
- * Requests an extension promoted to core, with its support flag in the extensions struct.
- *
- * @param name Extension name without the VK_ prefix.
- * @param major Major number of the core version that promoted it.
- * @param minor Minor number of the core version that promoted it.
- *
- * @code
- * REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
- * @endcode
- */
 #define REX_VK_STRUCT_PROMOTED_EXTENSION(name, major, minor) \
   request_promoted_extension("VK_" #name, major, minor,      \
                              &device->extensions_.ext_##major##_##minor##_##name);
-/**
- * Requests an extension promoted to core, with its support flag as a local variable.
- *
- * @param name Extension name without the VK_ prefix.
- * @param major Major number of the core version that promoted it.
- * @param minor Minor number of the core version that promoted it.
- *
- * @code
- * REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_driver_properties, 1, 2)
- * @endcode
- */
 #define REX_VK_LOCAL_PROMOTED_EXTENSION(name, major, minor) \
   request_promoted_extension("VK_" #name, major, minor, &ext_##major##_##minor##_##name);
 
@@ -174,9 +137,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
-  // Also required by VK_KHR_dedicated_allocation and VK_KHR_sampler_ycbcr_conversion.
+  // Required by VK_KHR_dedicated_allocation and VK_KHR_sampler_ycbcr_conversion.
   REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_get_memory_requirements2, 1, 1)
-  // Also required by VK_KHR_sampler_ycbcr_conversion.
+  // Required by VK_KHR_sampler_ycbcr_conversion.
   REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_bind_memory2, 1, 1)
   if (get_physical_device_properties2_supported) {
     REX_VK_STRUCT_EXTENSION(EXT_memory_budget)
@@ -205,13 +168,13 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_image_format_list, 1, 2)
     if (get_physical_device_properties2_supported) {
       REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_sampler_ycbcr_conversion, 1, 1)
-      // Also required by VK_KHR_spirv_1_4.
+      // Required by VK_KHR_spirv_1_4.
       REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_shader_float_controls, 1, 2)
       REX_VK_LOCAL_EXTENSION(EXT_fragment_shader_interlock)
       REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
       REX_VK_LOCAL_PROMOTED_EXTENSION(EXT_shader_demote_to_helper_invocation, 1, 3)
       REX_VK_LOCAL_EXTENSION(EXT_non_seamless_cube_map)
-      // Required for non-black YCbCr border color parity with D3D12.
+      // Required for nonblack YCbCr border color parity with D3D12.
       REX_VK_STRUCT_EXTENSION(EXT_custom_border_color)
       // Required for true null descriptors in bindless texture bindings.
       REX_VK_STRUCT_EXTENSION(EXT_robustness2)
@@ -490,8 +453,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   device->properties_.driverVersion = properties.driverVersion;
   device->properties_.vendorID = properties.vendorID;
   device->properties_.deviceID = properties.deviceID;
-  rex::CopyTruncating(device->properties_.deviceName, properties.deviceName,
-                      sizeof(device->properties_.deviceName));
+  rex::string::CopyTruncating(device->properties_.deviceName, properties.deviceName,
+                              sizeof(device->properties_.deviceName));
 
   REXLOG_INFO(ui,
               "Vulkan device '{}': API {}.{}.{}, vendor 0x{:04X}, device 0x{:04X}, "
@@ -522,86 +485,27 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #define REX_VK_LIMIT(name)                           \
   device->properties_.name = properties.limits.name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", properties.limits.name);
-/**
- * Copies a device limit that is a flag mask and logs it by its Vulkan flag names.
- *
- * @param name Member of VkPhysicalDeviceLimits to copy.
- * @param type Vulkan C++ flags type used to format the value.
- *
- * @code
- * REX_VK_ENUM_LIMIT(framebufferColorSampleCounts, SampleCountFlags)
- * @endcode
- */
 #define REX_VK_ENUM_LIMIT(name, type)                \
   device->properties_.name = properties.limits.name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(static_cast<vk::type>(properties.limits.name)));
-/**
- * Enables a core device feature when supported and stores whether it is supported.
- *
- * @param name Member of VkPhysicalDeviceFeatures to enable.
- *
- * @code
- * REX_VK_FEATURE(samplerAnisotropy)
- * @endcode
- */
 #define REX_VK_FEATURE(name)                          \
   enabled_features.name = supported_features.name;    \
   device->properties_.name = supported_features.name; \
   if (supported_features.name) {                      \
     REXLOG_DEBUG(ui, "* " #name);                     \
   }
-/**
- * Copies a property from an extension properties structure and logs it.
- *
- * @param structure Properties structure to read from.
- * @param name Member of the structure to copy.
- *
- * @code
- * REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32)
- * @endcode
- */
 #define REX_VK_PROPERTY_2(structure, name)     \
   device->properties_.name = (structure).name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", (structure).name);
-/**
- * Copies an enumeration property from an extension properties structure and logs it by name.
- *
- * @param structure Properties structure to read from.
- * @param name Member of the structure to copy.
- * @param type Vulkan C++ enumeration type used to format the value.
- *
- * @code
- * REX_VK_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId)
- * @endcode
- */
 #define REX_VK_ENUM_PROPERTY_2(structure, name, type) \
   device->properties_.name = (structure).name;        \
   REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(static_cast<vk::type>((structure).name)));
-/**
- * Enables a feature from an extension features structure when supported and stores the result.
- *
- * @param structure Features structure holding the supported and enabled members.
- * @param name Feature member to enable.
- *
- * @code
- * REX_VK_FEATURE_2(features_1_2, uniformBufferStandardLayout)
- * @endcode
- */
 #define REX_VK_FEATURE_2(structure, name)                \
   (structure).enabled.name = (structure).supported.name; \
   device->properties_.name = (structure).supported.name; \
   if ((structure).supported.name) {                      \
     REXLOG_DEBUG(ui, "* " #name);                        \
   }
-/**
- * Marks a feature as supported that an enabled extension or core version implies without a query.
- *
- * @param name Name of the implied feature.
- *
- * @code
- * REX_VK_FEATURE_IMPLIED(separateStencilMaskRef)
- * @endcode
- */
 #define REX_VK_FEATURE_IMPLIED(name) \
   device->properties_.name = true;   \
   REXLOG_DEBUG(ui, "* " #name);

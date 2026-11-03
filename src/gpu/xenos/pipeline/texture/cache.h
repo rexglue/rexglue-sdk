@@ -21,13 +21,17 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/xenos/texture_layout.h>
-#include <rex/xenos/register_file.h>
+#include <rex/utility.h>
+#include <rex/xenos/texture.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/shared_memory.h"
-#include <rex/xenos/xenos.h>
+#include "gpu/xenos/xenos_settings.h"
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
 #include <rex/hash.h>
 #include <rex/platform/lock_order.h>
 #include <rex/types.h>
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex::gpu {
 
@@ -43,22 +47,24 @@ namespace rex::gpu {
 class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
  public:
   /**
-   * Limited by the half pixel offset fill in the resolve shaders covering up to 3 pixels, the bit
-   * counts for passing the scale to shaders, and the 490 MB EDRAM buffer fitting the Direct3D 12
-   * minimum of 128 * 2^20 texels per buffer binding (counted as R32 for a byte address buffer).
+   * The half pixel offset fill in the resolve shaders covers up to three pixels. The bit counts
+   * for passing the scale to shaders limit it. The 490 MB EDRAM buffer must fit the Direct3D 12
+   * minimum of 128 * 2^20 texels per buffer binding.
    */
   static constexpr u32 kMaxDrawResolutionScaleAlongAxis = 7;
 
   virtual ~TextureCache();
 
   /**
-   * Reports whether the scale is not smaller than the requested one.
+   * Clamps the requested draw resolution scale to the supported range.
    *
    * @param x_out Receives the horizontal scale.
    * @param y_out Receives the vertical scale.
    * @return True when neither axis was clamped.
    */
-  static bool GetConfigDrawResolutionScale(u32& x_out, u32& y_out);
+  static bool GetConfigDrawResolutionScale(u32 requested_x, u32 requested_y, u32& x_out,
+                                           u32& y_out);
+  const XenosSettings& GetXenosSettings() const { return settings_; }
   u32 GetDrawResolutionScaleX() const { return draw_resolution_scale_x_; }
   u32 GetDrawResolutionScaleY() const { return draw_resolution_scale_y_; }
   bool IsDrawResolutionScaled() const {
@@ -72,11 +78,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   virtual void BeginFrame();
 
   void MarkRangeAsResolved(u32 start_unscaled, u32 length_unscaled);
-  /**
-   * Allocates the memory backing the range in the scaled resolve address space.
-   *
-   * @return True when the memory is allocated.
-   */
+  /** Allocates the memory backing the range in the scaled resolve address space. */
   virtual bool CommitScaledResolveMemory(u32 /*start_unscaled*/, u32 /*length_unscaled*/,
                                          u32 /*length_scaled_alignment_log2*/ = 0) {
     return false;
@@ -187,13 +189,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     u32 GetGuestBaseSize() const { return GetGuestLayout().base.level_data_extent_bytes; }
     u32 GetGuestMipsSize() const { return GetGuestLayout().mips_total_extent_bytes; }
 
-    /**
-     * Reports whether guest memory is tiled as 3D although the host texture is 2D.
-     *
-     * Applies to 3D as 2D wrappers.
-     *
-     * @return True when guest memory is tiled as 3D although the host texture is 2D.
-     */
+    /** Reports whether guest memory is tiled as 3D although the host texture is 2D wrapping 3D. */
     bool IsForceLoad3DTiling() const { return force_load_3d_tiling_; }
     void SetForceLoad3DTiling(bool force) { force_load_3d_tiling_ = force; }
 
@@ -203,15 +199,13 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     static constexpr u32 kOutdatedBitMips = UINT32_C(1) << 1;
     u32 GetOutdatedMask() const { return outdated_mask_.load(std::memory_order_acquire); }
 
-    bool IsBaseOutdated(
-        [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
+    bool IsBaseOutdated([[maybe_unused]] const ScopeGuard& watch_lock) const {
       return base_outdated_;
     }
-    bool IsMipsOutdated(
-        [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
+    bool IsMipsOutdated([[maybe_unused]] const ScopeGuard& watch_lock) const {
       return mips_outdated_;
     }
-    void UpdateAndWatch(const std::unique_lock<rex::platform::RankedMutex>& watch_lock);
+    void UpdateAndWatch(const ScopeGuard& watch_lock);
 
     void WatchCallback(bool is_mip);
 
@@ -221,13 +215,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     void LogAction(const char* action) const;
 
    protected:
-    /**
-     * Creates the texture.
-     *
-     * @param texture_cache Owning texture cache.
-     * @param key Key identifying the texture.
-     * @param track_usage Adds the texture to the LRU list when true.
-     */
+    /** Adds the texture to the LRU list when track_usage is true. */
     explicit Texture(TextureCache& texture_cache, const TextureKey& key, bool track_usage = true);
 
     void SetHostMemoryUsage(u64 new_host_memory_usage) {
@@ -266,33 +254,16 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
    * regions of the sparse (Direct3D 12 tiled) buffer, since tiled resources tier 1 hardware faults
    * on it. Buffer tiles are 64 KB on Direct3D 12, and Vulkan has its own sparse binding alignment.
    *
-   * Without resolution scaling, shared memory regions of power of two sizes map to the same
-   * portions of the 512 MB of physical memory, so a 64 KB aligned host region is 64 KB aligned in
-   * guest memory. Tiled textures keep 32x32x4 block tiles resident as whole tiles, including
-   * overflowing tiles when width exceeds pitch, so reading a 32x32 aligned portion is safe if any
-   * location in it is within the texture bounds. Linear textures have a pitch aligned to 256 bytes
-   * and an unaligned row count (unless the mip tail is loaded), and the overflowing last row when
-   * width exceeds pitch is resident up to its last texel. Since the same shaders load tiled, linear
-   * and 1D textures, a min(256 bytes, 32 blocks) aligned portion along X is safe to read within a
-   * row of blocks with a single bounds check for the whole portion. Shaders should therefore read
-   * power of two block counts, at most 16 blocks of 16bpb or 32 blocks of 8bpb or smaller per
-   * thread under one "if (x < width)".
-   *
-   * With resolution scaling, buffer tile boundaries are not power of two aligned in guest
-   * addresses. 2x2 scaling happens to align (host unit address = guest unit address << 2, likewise
-   * 2x1 and 1x2), but with 3x scaling a 64 KB host tile covers 7281.777 guest bytes. This affects
-   * the width > pitch case for linear textures, which would need the width overestimated when
-   * mapping tiles but not on the guest memory extent side, to avoid uploading unallocated memory.
-   * It does not matter because resolves target only tiled textures, so linear textures are never
-   * resolution scaled. Tiled textures load the potentially referenced 32x32 block tiles whole, so
-   * if any block in a tile is available the whole tile is.
+   * Tiled textures keep 32x32x4 block tiles resident whole, so reading a 32x32 aligned portion is
+   * safe if any location in it is within the texture bounds. Shaders should read power of two
+   * block counts, at most 16 blocks of 16bpb or 32 blocks of 8bpb or smaller per thread under one
+   * "if (x < width)".
    *
    * Destination writes to the linear buffer use host_x_blocks_per_thread, the count of pixels
    * writable without bounds checking, and the destination pitch is overaligned to it if needed.
    *
    * Resolution scaling applies to 8 byte portions of memory for 8bpp textures and 16 byte portions
-   * for higher bit depths, the sizes where contiguous texels in memory are contiguous along X, so
-   * 64 bit and 128 bit loads and stores can untile regardless of the scale.
+   * for higher bit depths, so 64 bit and 128 bit loads and stores can untile regardless of scale.
    */
   struct LoadConstants {
     u32 is_tiled_3d_endian_scale;
@@ -301,12 +272,12 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     u32 guest_pitch_aligned;
     u32 guest_z_stride_block_rows_aligned; /**< 3D textures only, aligned to 32 and unscaled. */
 
-    // - std140 vector boundary -
+    // std140 vector boundary
 
     u32 size_blocks[3]; /**< Aligned to tile dimensions for a packed mip tail. Resolution scaled. */
     u32 host_offset;    /**< Base offset in bytes. */
 
-    // - std140 vector boundary -
+    // std140 vector boundary
 
     u32 host_pitch;
     u32 height_texels;
@@ -380,10 +351,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   struct TextureBinding {
     TextureKey key;
     u32 host_swizzle;
-    /**
-     * Packed TextureSign values, 2 bits per component, with the fetch constant destination swizzle
-     * applied.
-     */
+    /** Packed TextureSign values, 2 bits per component, after the fetch constant swizzle. */
     u8 swizzled_signs;
     Texture* texture;        /**< Unsigned version, or signed if the data is identical. */
     Texture* texture_signed; /**< Signed version, when its host data differs. */
@@ -397,15 +365,14 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     }
   };
 
-  explicit TextureCache(const xenos::RegisterFile& register_file, SharedMemory& shared_memory,
-                        u32 draw_resolution_scale_x, u32 draw_resolution_scale_y);
+  explicit TextureCache(const xenos::RegisterFile& register_file, const XenosSettings& settings,
+                        SharedMemory& shared_memory, u32 draw_resolution_scale_x,
+                        u32 draw_resolution_scale_y);
 
   const xenos::RegisterFile& GetRegisterFile() const { return register_file_; }
   SharedMemory& GetSharedMemory() const { return shared_memory_; }
 
   /**
-   * Destroys all textures.
-   *
    * @param from_destructor True when called from a destructor.
    */
   void DestroyAllTextures(bool from_destructor = false);
@@ -413,25 +380,17 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   /**
    * Reports whether the signed version of the texture has a different host representation than the
    * unsigned one, such as a fixed point texture emulated with a larger host pixel format.
-   *
-   * @param key Key whose format and signedness are examined.
-   * @return True when the signed version has a different host representation.
    */
   virtual bool IsSignedVersionSeparateForFormat(TextureKey /*key*/) const { return false; }
   /**
-   * Reports whether the format supports scaled resolve. Tiling and dimensions are checked
-   * externally, so implementations consider only format related fields.
-   *
-   * @param key Key whose format related fields are examined.
-   * @return True when the format supports scaled resolve.
+   * Reports whether the format supports scaled resolve. Tiling and dimensions are checked by the
+   * caller, so implementations consider only format related fields.
    */
   virtual bool IsScaledResolveSupportedForFormat(TextureKey /*key*/) const { return false; }
   /**
-   * Returns the host swizzle for the format. Formats with fewer than 4 components replicate the
-   * last component into the missing ones, as shader compilers do for unused operand components
-   * (.xxxx, .xyyy, .xyzz, .xyzw). DXT3A and DXT5A use RRRR.
+   * Formats with fewer than 4 components replicate the last component into the missing ones (.xxxx,
+   * .xyyy, .xyzz, .xyzw), and DXT3A and DXT5A use RRRR.
    *
-   * @param key Key of the texture to swizzle.
    * @return Packed host swizzle.
    */
   virtual u32 GetHostFormatSwizzle(TextureKey key) const = 0;
@@ -440,20 +399,18 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   virtual u32 GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const = 0;
 
   /**
-   * Creates a texture with exactly this key, which must not be modified. Returns null when the
-   * implementation does not support the key or creation fails at runtime.
+   * Creates a texture with exactly this key, which must not be modified.
    *
-   * @param key Key of the texture to create.
-   * @return New texture, or null on failure.
+   * @return New texture, or null if the key is unsupported or creation fails.
    */
   virtual std::unique_ptr<Texture> CreateTexture(TextureKey key) = 0;
 
   /**
-   * Finds or creates the texture for the key. Returns null when the key is unsupported or
-   * creation failed, in which case recreation should be attempted occasionally.
+   * Finds or creates the texture for the key. Recreation after a failure should be attempted
+   * occasionally.
    *
    * @param key Key of the texture, possibly adjusted to fit host limits.
-   * @return Texture, or null on failure.
+   * @return Texture, or null if the key is unsupported or creation failed.
    */
   Texture* FindOrCreateTexture(TextureKey key);
 
@@ -463,32 +420,25 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
   }
   bool LoadTextureData(Texture& texture);
   /**
-   * Writes the texture data for the base, the mips or both, but not neither, from the shared memory
-   * or the scaled resolve memory. Shared memory management is done outside, so the implementation
-   * only loads the data into the texture.
-   *
-   * @param texture Texture receiving the data.
-   * @param load_base Loads the base level.
-   * @param load_mips Loads the mips.
-   * @return True when the data was loaded.
+   * Loads the base level, the mips or both from the shared memory or the scaled resolve memory.
+   * The caller manages shared memory, so the implementation only loads the data into the texture.
    */
-  virtual bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
+  virtual bool LoadHostTextureDataFromResidentMemory(Texture& texture, bool load_base,
                                                      bool load_mips) = 0;
 
   /**
    * Converts a texture fetch constant to a texture key, normalizing and validating the values or
    * producing an invalid key, and gets the signedness after the guest swizzle.
    *
-   * @param fetch Texture fetch constant.
    * @param key_out Receives the key.
    * @param swizzled_signs_out Receives the signedness, may be null.
    */
-  static void BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch, TextureKey& key_out,
-                                           u8* swizzled_signs_out);
+  void GetTextureKeyFromFetchConstant(const xenos::TextureFetch& fetch, TextureKey& key_out,
+                                      u8* swizzled_signs_out) const;
 
   /**
-   * Makes all texture bindings invalid. Textures requested afterwards are created or untiled again,
-   * retrying after an error.
+   * Makes all texture bindings invalid, so textures requested afterwards are created or untiled
+   * again, retrying after an error.
    *
    * @param from_destructor True when called from a destructor.
    */
@@ -499,7 +449,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     return binding.key.is_valid ? &binding : nullptr;
   }
   /** Called when a texture binding changes, for the implementation to update dependent state. */
-  virtual void UpdateTextureBindingsImpl(u32 /*fetch_constant_mask*/) {}
+  virtual void UpdateHostTextureBindings(u32 /*fetch_constant_mask*/) {}
 
  private:
   struct PendingTextureLoad {
@@ -525,13 +475,11 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
    *
    * @param start_unscaled Start address, unscaled.
    * @param length_unscaled Length in bytes, unscaled.
-   * @return True when any page in the range contains scaled resolve data.
    */
   bool IsRangeScaledResolved(u32 start_unscaled, u32 length_unscaled);
   /**
    * Global shared memory invalidation callback that unmarks scaled resolved texture data.
    *
-   * @param context TextureCache instance.
    * @param address_first First invalidated address.
    * @param address_last Last invalidated address.
    * @param invalidated_by_gpu True when the GPU caused the invalidation.
@@ -542,6 +490,7 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
                                         bool invalidated_by_gpu);
 
   const xenos::RegisterFile& register_file_;
+  const XenosSettings& settings_;
   SharedMemory& shared_memory_;
   u32 draw_resolution_scale_x_;
   u32 draw_resolution_scale_y_;

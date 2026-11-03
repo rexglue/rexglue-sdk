@@ -16,8 +16,11 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/interpreter.h"
-#include <rex/xenos/registers.h>
-#include <rex/xenos/xenos.h>
+#include "gpu/xenos/physical_memory.h"
+#include <rex/xenos/register.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/math.h>
 #include <rex/types.h>
 
@@ -127,7 +130,7 @@ void ShaderInterpreter::Execute() {
         }
         auto loop_constant = register_file_.Get<xenos::LoopConstant>(
             std::to_underlying(xenos::Register::SHADER_CONSTANT_LOOP_00) +
-            cf_loop_start.GetLoopId());
+            cf_loop_start.GetLoopID());
         state_.loop_constants[state_.loop_stack_depth] = loop_constant;
         u32& loop_iterator_ref = state_.loop_iterators[state_.loop_stack_depth];
         if (!cf_loop_start.IsRepeat()) {
@@ -155,7 +158,7 @@ void ShaderInterpreter::Execute() {
         xenos::LoopConstant loop_constant = state_.loop_constants[state_.loop_stack_depth - 1];
         REX_ASSERT(loop_constant.value ==
                    register_file_[std::to_underlying(xenos::Register::SHADER_CONSTANT_LOOP_00) +
-                                  cf_loop_end.GetLoopId()]);
+                                  cf_loop_end.GetLoopID()]);
         u32 loop_iterator = ++state_.loop_iterators[state_.loop_stack_depth - 1];
         if (loop_iterator < loop_constant.count &&
             (!cf_loop_end.IsPredicatedBreak() || cf_loop_end.GetCondition() != state_.predicate)) {
@@ -223,7 +226,7 @@ void ShaderInterpreter::Execute() {
         }
       } break;
 
-      case xenos::ucode::ControlFlowOpcode::kMarkVsFetchDone: {
+      case xenos::ucode::ControlFlowOpcode::kMarkVSFetchDone: {
       } break;
 
       default:
@@ -263,7 +266,7 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
   f32 vector_result[4] = {};
   xenos::ucode::AluVectorOpcode vector_opcode = instr.GetVectorOpcode();
   const xenos::ucode::AluVectorOpcodeTraits& vector_opcode_info =
-      xenos::ucode::GetAluVectorOpcodeInfo(vector_opcode);
+      xenos::ucode::GetAluVectorOpcodeTraits(vector_opcode);
   u32 vector_result_write_mask = instr.GetVectorOpResultWriteMask();
   if (vector_result_write_mask || vector_opcode_info.changed_state) {
     f32 vector_operands[3][4];
@@ -369,7 +372,7 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       } break;
       case xenos::ucode::AluVectorOpcode::kMad: {
         for (u32 i = 0; i < 4; ++i) {
-          // Direct3D 9 0 or denormal * anything is +0, +0 + -0 must be +0, so add is unconditional.
+          // Direct3D 9 gives +0 for 0 or denormal * anything, and +0 + -0 is +0, so always add.
           vector_result[i] = ((vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f) +
@@ -398,7 +401,7 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDp4: {
         vector_result[0] = 0.0f;
         for (u32 i = 0; i < 4; ++i) {
-          // Direct3D 9 0 or denormal * anything is +0, +0 + -0 must be +0, so add is unconditional.
+          // Direct3D 9 gives +0 for 0 or denormal * anything, and +0 + -0 is +0, so always add.
           vector_result[0] += (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
@@ -408,7 +411,7 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDp3: {
         vector_result[0] = 0.0f;
         for (u32 i = 0; i < 3; ++i) {
-          // Direct3D 9 0 or denormal * anything is +0, +0 + -0 must be +0, so add is unconditional.
+          // Direct3D 9 gives +0 for 0 or denormal * anything, and +0 + -0 is +0, so always add.
           vector_result[0] += (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
@@ -563,7 +566,7 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
 
   xenos::ucode::AluScalarOpcode scalar_opcode = instr.GetScalarOpcode();
   const xenos::ucode::AluScalarOpcodeTraits& scalar_opcode_info =
-      xenos::ucode::GetAluScalarOpcodeInfo(scalar_opcode);
+      xenos::ucode::GetAluScalarOpcodeTraits(scalar_opcode);
   f32 scalar_operands[2];
   u32 scalar_operand_component_count = 0;
   bool scalar_src_absolute = false;
@@ -914,9 +917,9 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
       register_file_.GetVertexFetch(state_.vfetch_full_last.GetFetchConstantIndex());
 
   if (!instr.IsMiniFetch()) {
-    u32 vertex_index = static_cast<u32>(
-        std::floor(GetTempRegister(instr.GetSrc(), instr.IsSrcRelative())[instr.GetSrcSwizzle()] +
-                   (instr.IsIndexRounded() ? 0.5f : 0.0f)));
+    u32 vertex_index = static_cast<u32>(std::floor(
+        GetTempRegister(instr.GetSrcReg(), instr.IsSrcRelative())[instr.GetSrcSwizzle()] +
+        (instr.IsIndexRounded() ? 0.5f : 0.0f)));
     state_.vfetch_address_dwords = instr.GetStride() * vertex_index + fetch_constant.address;
   }
 
@@ -933,7 +936,10 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
       xenos::GetVertexFormatNeededWords(instr.GetDataFormat(), used_result_components);
   if (needed_dwords) {
     u32 data[4] = {};
-    const u32* memory_dwords = reinterpret_cast<const u32*>(memory_.GetPhysicalMembase());
+    const u32* memory_dwords = GetPhysicalToEndForRead<u32>(physical_memory_, 0);
+    if (!memory_dwords) {
+      return;
+    }
     u32 buffer_end_dwords = fetch_constant.address + fetch_constant.size;
     u32 dword_0_address_dwords =
         static_cast<u32>(static_cast<i32>(state_.vfetch_address_dwords) + instr.GetOffset());

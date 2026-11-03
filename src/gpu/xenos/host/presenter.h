@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <condition_variable>
@@ -30,10 +31,12 @@
 #include <rex/math.h>
 #include <rex/platform.h>
 #include <rex/types.h>
-#include <rex/gpu/overlay.h>
-#include <rex/gpu/presenter.h>
-#include <rex/gpu/surface.h>
-#include <rex/move_only_function.h>
+#include "gpu/xenos/host/overlay.h"
+#include "gpu/xenos/host/presentation.h"
+#include "gpu/xenos/host/surface.h"
+#include <rex/utility.h>
+
+#include "gpu/xenos/host/present_policy.h"
 
 #if REX_PLATFORM_WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -48,51 +51,22 @@
 #include <wrl/client.h>
 #endif  // REX_PLATFORM_WIN32
 
+#include "gpu/xenos/xenos_export.h"
+
 namespace rex {
 namespace gpu {
 
 class Presenter;
+class XenosGraphicsDriverBase;
 
 /**
- * Displays up to 2 layers on a host surface, the guest output image and the UI overlays.
+ * Displays the guest output image and the UI overlays on a host surface.
  *
- * The guest output image favors low latency and stable frame pacing, with several scaling and
- * sharpening methods and letterboxing. It may be refreshed from any thread generating it, usually
- * the GPU emulation thread, but never from multiple threads at once. The UI overlays are managed
- * by the UI thread.
- *
- * Without UI overlays the guest output may be painted immediately from the refreshing thread,
- * bypassing OS scheduling and event handling, for platforms where the native paint event rate is
- * limited to the display refresh rate, which may differ greatly from the guest frame rate. With UI
- * overlays, painting of both layers happens only in the platform paint event handler. The guest
- * output alone may be painted there when an extra paint is needed, such as when resizing, or
- * when painting from the refreshing thread would wait for host vertical sync too early and block
- * the next GPU emulation frame.
- *
- * Composition is done manually rather than through platform facilities such as DirectComposition,
- * for predictable GPU queue scheduling and to use independent host presentation, which enables
- * variable refresh rate and lower latency. In borderless fullscreen any composition makes DXGI
- * Present wait for vertical sync even with sync interval 0.
- *
- * Guest output always goes through an intermediate image with the size requested by the guest.
- * It adds GPU overhead, especially at 1:1 size, but allows presenting more often than the guest
- * and separates pre scaling from mid and post scaling operations. The gamma ramp can apply before
- * scaling with 1 lookup per pixel instead of 4 with fetch4. It permits a simple compute
- * shader instead of a graphics pipeline for the copy in the GPU command processor, since
- * Direct3D 12 disallows UAVs for swap chain buffers.
- *
- * The UI overlay frame rate is limited, when the platform paint event has no internal limiter, to
- * the refresh rate of the monitor containing the window. A new guest output image interrupts the
- * UI tick wait where possible.
- *
- * UI overlays prevent presenting from the refreshing thread and may expose paint event rate
- * limits, so persistent overlays must exist only when the user requested them. Temporary non modal
- * elements such as timed notifications should use the Presenter instead of native windows over
- * the surface, since multiple windows disable independent presentation.
+ * The guest output image may be refreshed from any one thread at a time, usually the GPU
+ * emulation thread. The UI overlays are managed by the UI thread.
  *
  * Only the UI thread manages the painting connection to the Surface. The refreshing thread may
- * mark the connection outdated and request painting so the UI thread recovers, but must never
- * reconnect itself because Surface methods are UI thread only.
+ * mark the connection outdated and request painting, but must never reconnect itself.
  */
 class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
  public:
@@ -111,9 +85,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
     virtual ~GuestOutputRefreshContext() = default;
 
     /**
-     * Sets whether the source has at most 8 bits of precision per channel.
-     *
-     * The refresher image may have a higher storage precision. Defaults to false.
+     * Sets whether the source has at most 8 bits of precision per channel. Defaults to false.
      *
      * @param is_8bpc True when the source has at most 8 bits of precision.
      */
@@ -135,7 +107,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
       allow_overscan_cutoff_ = new_allow_overscan_cutoff;
     }
 
-    /** Removes banding in smooth gradients such as skies at 8bpc host output. */
+    /** Dithering removes banding in smooth gradients such as skies at 8bpc host output. */
     bool GetDither() const { return dither_; }
     void SetDither(bool new_dither) { dither_ = new_dither; }
 
@@ -161,10 +133,9 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    * Refreshes the guest output image through the refresher callback.
    *
    * A width or height of 0 disables guest output until the next refresh with a nonzero size. The
-   * aspect ratio accepts 16:9 or 1280:720 forms, so the guest display size may be passed. The
-   * callback receives a backend context and is skipped on errors such as a wrong size or when
-   * guest output is disabled. It must submit all update work to the host GPU before returning
-   * successfully and signal every GPU synchronization primitive the context implementation needs.
+   * aspect ratio accepts 16:9 or 1280:720 forms. The callback is skipped on errors such as a wrong
+   * size or when guest output is disabled. It must submit all update work to the host GPU before
+   * returning successfully.
    *
    * @param frontbuffer_width Front buffer width in pixels.
    * @param frontbuffer_height Front buffer height in pixels.
@@ -200,11 +171,10 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Paints from the platform paint event handler.
    *
-   * Refreshes the surface connection when needed, then paints when possible and needed. Without
-   * UI overlays, and with the guest output presented from the refreshing thread, the paint is
-   * skipped unless requested earlier or force_paint is true. A paint draws the guest output and
-   * any active UI overlays over a black background and letterbox, so windows should have a
-   * black background before a Presenter is attached.
+   * Without UI overlays, and with the guest output presented from the refreshing thread, the
+   * paint is skipped unless requested earlier or force_paint is true. A paint draws over a black
+   * background and letterbox, so windows should have a black background before a Presenter is
+   * attached.
    *
    * @param force_paint True to paint even when no paint was requested.
    */
@@ -301,27 +271,20 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
     }
   };
 
-  explicit Presenter(HostGPULossCallback host_gpu_loss_callback)
-      : host_gpu_loss_callback_(std::move(host_gpu_loss_callback)) {}
+  explicit Presenter(HostGPULossCallback host_gpu_loss_callback,
+                     const XenosGraphicsDriverBase& driver)
+      : host_gpu_loss_callback_(std::move(host_gpu_loss_callback)), driver_(driver) {}
 
-  /**
-   * Finishes common initialization, run by the implementation initialization before any use.
-   *
-   * @return True on success.
-   */
+  /** Finishes the initialization shared by all drivers. */
   bool InitializeCommonSurfaceIndependent();
 
   /**
-   * Connects or reconnects painting to the surface.
-   *
    * Callable only by the UI thread while it has painting access (PaintMode is not
    * kGuestOutputThreadImmediately) and only for a nonzero area surface that may support painting.
-   * On failure the implementation must hold no resources referencing the surface, the same state
-   * as after DisconnectPaintingFromSurfaceFromUIThreadImpl. On success it must report whether the
-   * host window system now forces vertical sync, which may cause undesirable CPU waits when
-   * beginning or ending frames.
+   * On failure the implementation must hold no resources referencing the surface. On success it
+   * must report whether the host window system now forces vertical sync, which may cause CPU waits
+   * when beginning or ending frames.
    *
-   * @param new_surface Surface to paint to.
    * @param new_surface_width Surface width in pixels.
    * @param new_surface_height Surface height in pixels.
    * @param was_paintable True when the previous connection was paintable.
@@ -336,17 +299,15 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    *
    * Invoked by DisconnectPaintingFromSurfaceFromUIThread only while the connection is active.
    */
-  virtual void DisconnectPaintingFromSurfaceFromUIThreadImpl() = 0;
+  virtual void DriverDisconnectPaintingFromSurface() = 0;
 
   /**
    * Acquires the ready guest output image for a consumer.
    *
    * The returned lock interlocks consumers but not the producer, and must be held while accessing
    * implementation objects that depend on the image or its mailbox index, unless other locking
-   * exists such as reference counting of the images or main target painting being limited to 1
-   * thread. While held, the acquired image index cannot change, so the image cannot be released,
-   * made writable or given to another consumer. Properties are returned by copy so the critical
-   * section can be left earlier, since data behind a pointer could be overwritten after unlocking.
+   * exists. While held, the acquired image cannot be released, made writable or given to another
+   * consumer. Properties are returned by copy so the lock can be released earlier.
    *
    * @param mailbox_index_or_max_if_inactive_out Receives the mailbox index or UINT32_MAX.
    * @param properties_out Receives a copy of the image properties.
@@ -359,17 +320,12 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Computes how the guest output is painted to the host render target.
    *
-   * Properties and configuration are passed in rather than read from the acquired image, so a
-   * copy can be used outside the consumer lock when the implementation synchronizes by itself,
-   * and repeated calls are safer.
+   * Properties and configuration are passed in so copies can be used outside the consumer lock.
    *
-   * @param properties Properties of the image to paint.
    * @param host_rt_width Host render target width in pixels.
    * @param host_rt_height Host render target height in pixels.
    * @param max_rt_width Maximum render target width in pixels.
    * @param max_rt_height Maximum render target height in pixels.
-   * @param config Paint configuration.
-   * @return The paint flow.
    */
   GuestOutputPaintFlow GetGuestOutputPaintFlow(const GuestOutputProperties& properties,
                                                u32 host_rt_width, u32 host_rt_height,
@@ -378,7 +334,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Refreshes the guest output image of a mailbox slot through the refresher.
    *
-   * The 8 bits per channel result is false when left unwritten.
+   * The 8bpc result stays false when the refresher does not write it.
    *
    * @param mailbox_index Mailbox slot to write.
    * @param frontbuffer_width Front buffer width in pixels.
@@ -387,7 +343,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    * @param is_8bpc_out_ref Receives whether the source has at most 8 bits per channel.
    * @return True when the refresher succeeded.
    */
-  virtual bool RefreshGuestOutputImpl(
+  virtual bool DriverRefreshGuestOutput(
       u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
       rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out_ref) = 0;
@@ -396,19 +352,19 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    * Paints and presents the guest output, or solid black, with the UI on top when requested.
    *
    * May run on a non UI thread only to paint the guest output with execute_ui_drawers false.
-   * Invoked through PaintAndPresent.
    *
    * @param execute_ui_drawers True to draw the UI overlays.
-   * @return The paint result.
    */
-  virtual PaintResult PaintAndPresentImpl(bool execute_ui_drawers) = 0;
+  virtual PaintResult DriverPaintAndPresent(bool execute_ui_drawers) = 0;
+
+  /** Executes the UI drawers on behalf of the painting implementations. */
+  void ExecuteOverlayLayersFromUIThread(gpu::OverlayDrawContext& ui_draw_context);
 
   /**
-   * Executes the UI drawers on behalf of the painting implementations.
-   *
-   * @param ui_draw_context Context the drawers draw into.
+   * The vsync value the current paint connection was made with. Connection and painting use it
+   * instead of the cvar, so both keep the same value until the next reconnection.
    */
-  void ExecuteOverlayLayersFromUIThread(gpu::OverlayDrawContext& ui_draw_context);
+  bool GetPaintConnectionVsync() const { return surface_paint_connection_vsync_; }
 
  private:
   enum class PaintMode : u8 {
@@ -473,82 +429,56 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   };
 
   void SetPaintModeFromUIThread(PaintMode new_mode);
-  /**
-   * Returns the paint mode wanted from conditions such as UI drawing and implicit vertical sync.
-   *
-   * After connection updates the UI thread owns the connection, so its state is passed to allow
-   * kNone. A false is_paintable always results in kNone.
-   *
-   * @param is_paintable True when the connection can paint.
-   * @return The desired paint mode.
-   */
+  /** Returns the paint mode for the UI drawing and implicit vertical sync state. */
   PaintMode GetDesiredPaintModeFromUIThread(bool is_paintable) const;
 
   /**
    * Connects to a surface after being unconnected, or handles surface changes such as resizing.
    *
-   * Callable only by the UI thread while it has painting access (PaintMode is not
-   * kGuestOutputThreadImmediately). The connection state must be kUnconnectedRetryAtStateChange
-   * when connecting, otherwise the call is dropped. Never switch from one surface to
-   * another, disconnect first, because the implementation may assume the surface is unchanged and
-   * resize its buffers.
-   *
-   * @param repaint_needed_out Receives whether a repaint is needed.
-   * @param update_paint_mode_to_desired True to apply the desired paint mode.
+   * UI thread only, while it has painting access. The connection state must be
+   * kUnconnectedRetryAtStateChange when connecting, otherwise the call is ignored. Never switch
+   * from one surface to another without disconnecting first.
    */
   void UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_out,
                                                 bool update_paint_mode_to_desired);
 
   /**
-   * Disconnects painting from the surface.
+   * UI thread only, while it has painting access.
    *
-   * Callable only by the UI thread while it has painting access (PaintMode is not
-   * kGuestOutputThreadImmediately).
-   *
-   * @param new_state Connection state to set afterwards.
+   * @param new_state The connection state after the disconnect.
    */
   void DisconnectPaintingFromSurfaceFromUIThread(SurfacePaintConnectionState new_state);
 
   /**
-   * Requests a paint, or connection recovery, through the window.
+   * Requests a paint, or connection recovery, through the window. Callable from any thread when
+   * host_ is open and safe for RequestPaint, so the connection state is not checked.
    *
-   * Callable from any thread when an open host_ safe for RequestPaint exists, so the connection
-   * state is not checked.
-   *
-   * @param force_ui_thread_paint_tick True to force a UI thread paint tick.
    * @return True when host_->RequestPaint() was called.
    */
   bool RequestPaintOrConnectionRecoveryViaWindow(bool force_ui_thread_paint_tick);
 
   /**
-   * Refreshes the monitor of the current window surface through the Surface or its Window.
+   * Refreshes the monitor of the current window surface.
    *
-   * The monitor reference is held only while a Surface exists, so it drops when the Window loses
-   * its Surface on closing while staying attached to the Presenter.
-   *
-   * @param old_monitor_potentially_disconnected True when the previous monitor may be gone.
+   * The monitor reference is held only while a Surface exists, so it is cleared when the Window
+   * loses its Surface on closing while staying attached to the Presenter.
    */
   void UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_disconnected);
 
   /**
    * Reports whether the attached surface is visible on any monitor.
    *
-   * UI thread painting may be dropped when false, so painting must be requested when the surface
-   * reappears on a monitor. May use state cached at window and surface changes.
-   *
-   * @return True when the surface is on a monitor.
+   * UI thread painting may be skipped when false, so painting must be requested when the surface
+   * reappears on a monitor.
    */
   bool IsSurfaceOnMonitorFromUIThread() const;
 
   /**
-   * Calls PaintAndPresentImpl and runs post paint checks safe on both the UI and guest output
+   * Calls DriverPaintAndPresent and runs post paint checks safe on both the UI and guest output
    * threads.
    *
-   * A kPresentedSuboptimal result is returned as is and the connection may or may not become
-   * outdated, but the image reached OS presentation, unlike kNotPresentedConnectionOutdated.
-   *
-   * @param execute_ui_drawers True to draw the UI overlays.
-   * @return The paint result.
+   * A kPresentedSuboptimal result is returned as is. The image reached OS presentation, unlike
+   * kNotPresentedConnectionOutdated.
    */
   PaintResult PaintAndPresent(bool execute_ui_drawers);
 
@@ -557,12 +487,8 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Reports whether UI ticks are needed.
    *
-   * Requires UI drawing and possible painting, checked coarsely since the connection state,
-   * including outdated, may be unavailable from the UI thread. Implicit vertical sync in
-   * presentation rules it out, as limiting the frame rate too would cause inconsistent pacing and
-   * skipped vertical sync intervals.
-   *
-   * @return True when UI ticks are needed.
+   * Requires UI drawing and possible painting. Implicit vertical sync rules it out, as limiting
+   * the frame rate too would cause inconsistent pacing and skipped vertical sync intervals.
    */
   bool IsUITickNeededFromUIThread() const {
     return !overlay_layers_.empty() && paint_mode_ != PaintMode::kNone &&
@@ -576,16 +502,17 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Handler for host GPU loss, called only at the end of entry points.
    *
-   * The handler may reinitialize the presenter when called from the UI thread, even when the UI
-   * thread argument is false, such as when the UI thread refreshes the guest output.
+   * It may reinitialize the presenter when called from the UI thread.
    */
   HostGPULossCallback host_gpu_loss_callback_;
 
+  const XenosGraphicsDriverBase& driver_;
+
   /**
-   * Accessed by the guest output thread when the paint mode is not kNone, to request painting
+   * Used by the guest output thread when the paint mode is not kNone, to request painting
    * (kUIThreadOnRequest) or reconnection (kGuestOutputThreadImmediately) in the UI thread.
    *
-   * The paint mode must be kNone before modifying it, which disconnecting painting does anyway.
+   * The paint mode must be kNone before modifying it.
    */
   gpu::IPresentationHost* host_ = nullptr;
 
@@ -594,21 +521,20 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Protects paint_mode_ and, in the guest output thread, the painting objects.
    *
-   * The UI thread, the only modifier of the mode, uses it as barriers around connection work. It
-   * locks to disable guest output thread painting access, interacts with the painting connection,
-   * then locks to re enable the access. The guest output thread must hold it throughout painting
-   * so the mode stays the same.
+   * The UI thread locks it to disable guest output thread painting access, works on the painting
+   * connection, then locks it to re enable the access. The guest output thread must hold it
+   * throughout painting.
    */
   std::mutex paint_mode_mutex_;
   /** Writable by the UI thread, read only for the guest output thread. */
   PaintMode paint_mode_ = PaintMode::kNone;
 
   /**
-   * Accessed exclusively by the guest output thread in kGuestOutputThreadImmediately, otherwise
-   * exclusively by the UI thread.
+   * Accessed only by the guest output thread in kGuestOutputThreadImmediately, otherwise only by
+   * the UI thread.
    *
-   * The UI thread may read fields it writes and both threads read. The guest output thread
-   * may change the connection state, only from kConnectedPaintable to kConnectedOutdated.
+   * The guest output thread may change the connection state, only from kConnectedPaintable to
+   * kConnectedOutdated.
    */
   SurfacePaintConnectionState surface_paint_connection_state_ =
       SurfacePaintConnectionState::kUnconnectedRetryAtStateChange;
@@ -626,11 +552,19 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
    * preceded by reconnection if needed, was requested after a state change that may affect the
    * painting connection.
    *
-   * Relaxed memory order suffices since everything influencing painting is either UI thread local
-   * or protected by barriers. It needs no reset on connection loss because the next successful
-   * reconnection is followed by a repaint request.
+   * It needs no reset on connection loss because the next successful reconnection is followed by
+   * a repaint request.
    */
   std::atomic<bool> ui_thread_paint_requested_{false};
+
+  /** Spaces overlay only paints and wakes the UI thread when a guest frame is published. */
+  OverlayPaintPacer overlay_paint_pacer_;
+
+  /** Modifiable only by the UI thread while connecting, readable by the painting thread. */
+  bool surface_paint_connection_vsync_ = true;
+
+  /** UI thread only. Start of the previous paint, which spaces overlay only paints. */
+  std::chrono::steady_clock::time_point last_ui_thread_paint_start_{};
 
   std::mutex guest_output_paint_config_mutex_;
   /** Writable by the UI thread, read only for the guest output thread. */
@@ -638,14 +572,12 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
 
   static_assert(kGuestOutputMailboxSize == 3);
   /**
-   * Lock free single producer mailbox for presenting the latest guest output image without long
-   * interlocking between refreshing and painting, with consumers serialized by a lock.
+   * Lock free single producer mailbox for presenting the latest guest output image, with
+   * consumers serialized by a lock.
    *
    * The acquired image (bits 0:1) is being or was last read by a consumer, and only the consumer
-   * changes its index, which stays fixed while it processes the image. The ready image (bits 2:3)
-   * is the newest written image a consumer may acquire, equal to the acquired image when no
-   * refresh happened since the last acquisition. Painting may access both in parallel and
-   * unordered with refreshing.
+   * changes its index. The ready image (bits 2:3) is the newest written image a consumer may
+   * acquire, equal to the acquired image when no refresh happened since the last acquisition.
    */
   std::atomic<u32> guest_output_mailbox_acquired_and_ready_{0};
   /** Differs from the acquired and ready images and is written only by guest output refreshing. */
@@ -653,10 +585,9 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Serializes consumers of the guest output images, painting and CPU buffer capture.
    *
-   * Multiple consumers may want an image at the same time, unlike producers whose refresh order
-   * would be undefined even under a lock. It must not be held while locking paint_mode_mutex_.
-   * The guest output thread paints with paint_mode_mutex_ held and consumes as part of painting,
-   * so the lock order there is the reverse.
+   * It must not be held while locking paint_mode_mutex_. The guest output thread paints with
+   * paint_mode_mutex_ held and consumes as part of painting, so the lock order there is the
+   * reverse.
    */
   std::mutex guest_output_mailbox_consumer_mutex_;
 
@@ -667,7 +598,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   /**
    * Ordered by Z order, then by time of addition.
    *
-   * Iteration logic over this order must match input handling in the Window input listeners, in
+   * Iteration over this order must match input handling in the Window input listeners, in
    * reverse.
    */
   std::multimap<size_t, OverlayLayerReference> overlay_layers_;
@@ -697,7 +628,6 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
 
   /**
    * Created on demand with DXGI 1.1, needed by IDXGIFactory1::IsCurrent (Windows 7 and later).
-   *
    * Mixing DXGI 1.0 and 1.1 or later in the Direct3D 12 code is unsupported. It may be released
    * and recreated once it is no longer current.
    */
@@ -709,17 +639,14 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   std::mutex dxgi_ui_tick_mutex_;
   u64 dxgi_ui_tick_last_vblank_ = 1;
   /**
-   * With a null output or shutdown set, the signal may not be sent.
-   *
-   * Then the frame rate is not limited, as in a failure to find the output, or nothing is drawn
-   * when the window left a connected monitor.
+   * The signal may not be sent when the output is null or shutdown is set. The frame rate is then
+   * not limited, as in a failure to find the output, or nothing is drawn when the window left a
+   * connected monitor.
    */
   Microsoft::WRL::ComPtr<IDXGIOutput> dxgi_ui_tick_output_;
   /**
    * The thread waits for vertical blanking only while UI ticks are needed, otherwise it sleeps on
-   * the control condition variable.
-   *
-   * Modifiable only from the UI thread, so readable by it without the mutex.
+   * the control condition variable. Modifiable only from the UI thread.
    */
   bool dxgi_ui_ticks_needed_ = false;
   /** Modifiable only from the UI thread. */

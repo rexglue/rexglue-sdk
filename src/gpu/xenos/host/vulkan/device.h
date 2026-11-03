@@ -17,7 +17,9 @@
 #include <vector>
 
 #include "gpu/xenos/host/vulkan/instance.h"
+#include "gpu/xenos/host/vulkan/settings.h"
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex {
 namespace gpu {
@@ -33,25 +35,16 @@ class VulkanDevice : public rex::NonCopyable {
   /**
    * Creates the device when the physical device meets the requirements.
    *
-   * Without VK_KHR_get_physical_device_properties2 the property and feature structures keep
-   * their zero or minimum and maximum requirement defaults. The device apiVersion is clamped
-   * to 1.0 when the instance is older than 1.1, as validation layers check against the minimum
-   * of the instance and device versions. GPU emulation requires independentBlend, which also
-   * affects the color write mask, cannot reuse the first attachment blend state when
-   * attachments differ in blendable formats, and cannot be split into per attachment draws
-   * because of depth and stencil. Only the experimental Qualcomm Adreno 4xx proprietary driver
-   * lacks it.
-   *
-   * @param vulkan_instance The instance.
-   * @param physical_device The physical device.
    * @param with_gpu_emulation True to require and enable the GPU emulation features.
    * @param with_swapchain True to require swapchain and presentation support.
+   * @param settings The gpu.vulkan settings.
    * @return The device, or null when unsupported or creation fails.
    */
   static std::unique_ptr<VulkanDevice> CreateIfSupported(const VulkanInstance* vulkan_instance,
                                                          VkPhysicalDevice physical_device,
                                                          bool with_gpu_emulation,
-                                                         bool with_swapchain);
+                                                         bool with_swapchain,
+                                                         const VulkanSettings& settings);
 
   ~VulkanDevice();
 
@@ -59,11 +52,7 @@ class VulkanDevice : public rex::NonCopyable {
 
   VkPhysicalDevice GetPhysicalDevice() const { return physical_device_; }
 
-  /**
-   * Highest Vulkan version used, for VkApplicationInfo apiVersion.
-   *
-   * Holds Vulkan 1.3. The patch version is ignored when creating an instance.
-   */
+  /** Highest Vulkan version used, for VkApplicationInfo apiVersion. The patch is ignored. */
   static constexpr u32 kHighestUsedAPIVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
 
   struct Properties {
@@ -193,8 +182,6 @@ class VulkanDevice : public rex::NonCopyable {
    * Returns the properties of the core API, enabled extensions and enabled features.
    *
    * Some functionality is enabled by the with_swapchain and with_gpu_emulation options.
-   *
-   * @return The device properties.
    */
   const Properties& GetProperties() const { return properties_; }
 
@@ -202,8 +189,8 @@ class VulkanDevice : public rex::NonCopyable {
    * Enabled extensions not covered by the device properties and optional feature flags in
    * Properties, mostly those adding API functionality rather than GPU features.
    *
-   * Also true when the Vulkan version that promoted the extension is supported, using the
-   * ext_major_minor_ prefix rather than ext_.
+   * Members with the ext_major_minor_ prefix are true when the extension or the Vulkan version that
+   * promoted it is supported.
    */
   struct Extensions {
     bool ext_KHR_swapchain = false;
@@ -211,18 +198,14 @@ class VulkanDevice : public rex::NonCopyable {
     bool ext_EXT_shader_stencil_export = false;
     bool ext_1_1_KHR_get_memory_requirements2 = false;
     bool ext_1_2_KHR_image_format_list = false;
-    // Has optional features not implied by this being true.
+    // Optional features need their own flags.
     bool ext_1_1_KHR_sampler_ycbcr_conversion = false;
     bool ext_1_1_KHR_bind_memory2 = false;
     bool ext_1_2_KHR_spirv_1_4 = false;
     bool ext_EXT_memory_budget = false;
-    // Has optional features not implied by this being true.
     bool ext_EXT_custom_border_color = false;
-    // Has optional features not implied by this being true.
     bool ext_EXT_robustness2 = false;
-    // Has optional features not implied by this being true.
     bool ext_1_3_KHR_maintenance4 = false;
-    // Has optional features not implied by this being true.
     bool ext_1_3_KHR_dynamic_rendering = false;
   };
 
@@ -304,8 +287,6 @@ class VulkanDevice : public rex::NonCopyable {
    * Returns the sparse binding queue family, UINT32_MAX if not supported or not enabled.
    *
    * May equal GetQueueFamilyGraphicsCompute().
-   *
-   * @return The queue family index.
    */
   u32 GetQueueFamilySparseBinding() const { return queue_family_sparse_binding_; }
 
@@ -322,17 +303,9 @@ class VulkanDevice : public rex::NonCopyable {
 
   const MemoryTypes& GetMemoryTypes() const { return memory_types_; }
 
-  /**
-   * Reports whether vulkan.require_geometry_shader was set at creation.
-   *
-   * @return True when a geometry shader is required.
-   */
+  /** Reports whether vulkan.require_geometry_shader was set at creation. */
   bool IsGeometryShaderRequired() const { return requires_geometry_shader_; }
-  /**
-   * Reports whether vulkan.require_fill_mode_non_solid was set at creation.
-   *
-   * @return True when non solid fill mode is required.
-   */
+  /** Reports whether vulkan.require_fill_mode_non_solid was set at creation. */
   bool IsFillModeNonSolidRequired() const { return requires_fill_mode_non_solid_; }
 
  private:

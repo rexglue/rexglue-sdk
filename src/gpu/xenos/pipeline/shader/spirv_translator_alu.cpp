@@ -18,7 +18,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
-#include <rex/math.h>
+#include <rex/bit.h>
 
 namespace rex::gpu {
 
@@ -53,7 +53,7 @@ void SPIRVShaderTranslator::KillPixel(spv::Id condition,
   kill_if.MakeEndIf();
 }
 
-void SPIRVShaderTranslator::ProcessALUInstruction(const ParsedAluInstruction& instr,
+void SPIRVShaderTranslator::ProcessALUInstruction(const ParsedALUInstruction& instr,
                                                   u8 memexport_em_potentially_written_before) {
   if (instr.IsNop()) {
     return;
@@ -88,14 +88,14 @@ void SPIRVShaderTranslator::ProcessALUInstruction(const ParsedAluInstruction& in
   }
 }
 
-spv::Id SPIRVShaderTranslator::ProcessVectorALUOperation(const ParsedAluInstruction& instr,
+spv::Id SPIRVShaderTranslator::ProcessVectorALUOperation(const ParsedALUInstruction& instr,
                                                          u8 memexport_em_potentially_written_before,
                                                          bool& predicate_written) {
   predicate_written = false;
 
   u32 used_result_components = instr.vector_and_constant_result.GetUsedResultComponents();
   if (!used_result_components &&
-      !xenos::ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
+      !xenos::ucode::GetAluVectorOpcodeTraits(instr.vector_opcode).changed_state) {
     return spv::NoResult;
   }
   u32 used_result_component_count = rex::BitCount(used_result_components);
@@ -695,7 +695,7 @@ spv::Id SPIRVShaderTranslator::ProcessVectorALUOperation(const ParsedAluInstruct
   return spv::NoResult;
 }
 
-spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedAluInstruction& instr,
+spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedALUInstruction& instr,
                                                          u8 memexport_em_potentially_written_before,
                                                          bool& predicate_written) {
   predicate_written = false;

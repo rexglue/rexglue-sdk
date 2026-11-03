@@ -17,6 +17,7 @@
 #include <rex/platform.h>
 #include <rex/platform/dynlib.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 #include "gpu/xenos/host/renderdoc_api.h"
 #include "gpu/xenos/host/vulkan/api.h"
 
@@ -38,17 +39,15 @@ class VulkanInstance : public rex::NonCopyable {
    *
    * @param with_surface True to enable the surface extensions.
    * @param try_enable_validation True to enable the validation layer when present.
+   * @param log_debug_messages True to log the debug utils messages.
    * @return The instance, or null on failure.
    */
-  static std::unique_ptr<VulkanInstance> Create(bool with_surface, bool try_enable_validation);
+  static std::unique_ptr<VulkanInstance> Create(bool with_surface, bool try_enable_validation,
+                                                bool log_debug_messages);
 
   ~VulkanInstance();
 
-  /**
-   * Returns the RenderDoc API.
-   *
-   * @return The API, or null when RenderDoc is not connected.
-   */
+  /** Returns null when RenderDoc is not connected. */
   RenderDocAPI* GetRenderDocAPI() const { return renderdoc_api_.get(); }
 
   struct Functions {
@@ -106,8 +105,8 @@ class VulkanInstance : public rex::NonCopyable {
   /**
    * Enabled instance extensions.
    *
-   * Also true when the Vulkan version that promoted the extension is supported, using the
-   * ext_major_minor_ prefix rather than ext_.
+   * Members with the ext_major_minor_ prefix are true when the extension or the Vulkan version
+   * that promoted it is supported.
    */
   struct Extensions {
     bool ext_KHR_surface = false;

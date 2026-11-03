@@ -33,7 +33,7 @@ bool IsResetIndexUsed(const u16* source, u32 count, u16 reset_index_guest_endian
 void Get16BitResetIndexUsage(const u16* source, u32 count, u16 reset_index_guest_endian,
                              bool& is_reset_index_used_out,
                              bool& is_ffff_used_as_vertex_index_out) {
-  // Optimized for an unused reset index, so there are no early-outs for a simpler loop body.
+  // No early outs, as an unused reset index is the common case.
   is_ffff_used_as_vertex_index_out = false;
   if (reset_index_guest_endian == UINT16_MAX) {
     is_reset_index_used_out = IsResetIndexUsed(source, count, reset_index_guest_endian);
@@ -142,7 +142,7 @@ void ReplaceResetIndex16To16(u16* dest, const u16* source, u32 count,
   }
 }
 
-void ReplaceResetIndex16To24(u32* dest, const u16* source, u32 count,
+void ReplaceResetIndex16To32(u32* dest, const u16* source, u32 count,
                              u16 reset_index_guest_endian) {
   while (count &&
          (reinterpret_cast<uintptr_t>(source) & (REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE - 1))) {

@@ -17,12 +17,14 @@
 #include <vector>
 
 #include <rex/types.h>
+#include <rex/utility.h>
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
-#include <rex/xenos/registers.h>
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/state.h>
 #include <rex/math.h>
-#include <rex/string/buffer.h>
+#include <rex/string/text.h>
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex::gpu {
 
@@ -46,7 +48,6 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
    * AnalyzeUcode must be done on the shader before translating.
    *
    * @param translation Translation to fill.
-   * @return True when translation succeeded.
    */
   bool TranslateAnalyzedShader(Shader::Translation& translation);
 
@@ -72,7 +73,6 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
   /**
    * Emits a translation error that is passed back in the result.
    *
-   * @param message Error text.
    * @param is_fatal True when the error fails the translation.
    */
   virtual void EmitTranslationError(const char* message, bool is_fatal = true);
@@ -80,11 +80,7 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
   /** Called at the start of translation after the vertex and texture bindings are gathered. */
   virtual void StartTranslation() {}
 
-  /**
-   * Called at the end of translation after all ucode is processed.
-   *
-   * @return The translated shader binary.
-   */
+  /** Called at the end of translation after all ucode is processed. */
   virtual std::vector<u8> CompleteTranslation() { return std::vector<u8>(); }
 
   virtual void PostTranslation() {}
@@ -105,19 +101,20 @@ class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
   virtual void ProcessCallInstruction(const ParsedCallInstruction& /*instr*/) {}
   virtual void ProcessReturnInstruction(const ParsedReturnInstruction& /*instr*/) {}
   virtual void ProcessJumpInstruction(const ParsedJumpInstruction& /*instr*/) {}
-  /** Memory exports for the eM# in export_eM must be performed regardless of the alloc type. */
+  /**
+   * Memory exports for the eM# in export_eM must be performed regardless of the alloc type.
+   *
+   * @param export_em Bit mask of eM# elements to export.
+   */
   virtual void ProcessAllocInstruction(const ParsedAllocInstruction& /*instr*/, u8 /*export_em*/) {}
 
   virtual void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& /*instr*/) {}
   virtual void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& /*instr*/) {}
   /**
-   * Processes an ALU instruction.
-   *
-   * @param instr Instruction to process.
    * @param memexport_em_potentially_written_before Must be handled by `kill` so exports of eM#
    * written in earlier execs and the current exec are done before the invocation becomes inactive.
    */
-  virtual void ProcessALUInstruction(const ParsedAluInstruction& /*instr*/,
+  virtual void ProcessALUInstruction(const ParsedALUInstruction& /*instr*/,
                                      u8 /*memexport_em_potentially_written_before*/) {}
 
  private:

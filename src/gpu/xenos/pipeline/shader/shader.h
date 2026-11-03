@@ -21,16 +21,20 @@
 #include <utility>
 #include <vector>
 
+#include <rex/utility.h>
 #include <rex/xenos/ucode.h>
-#include <rex/xenos/registers.h>
-#include <rex/xenos/xenos.h>
-#include <rex/math.h>
-#include <rex/string/buffer.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
+#include <rex/bit.h>
+#include <rex/string/text.h>
 #include <rex/types.h>
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex::gpu {
 
-// Shared with disassembly, so parsing may generalize but not skip nops, for XNA round trips.
+// Shared with disassembly, so parsing keeps nops for XNA round trips.
 
 enum class InstructionStorageTarget : u8 {
   kNone,
@@ -51,13 +55,7 @@ enum class InstructionStorageTarget : u8 {
 };
 
 /**
- * Returns the number of components of the target that are used.
- *
- * Must be used only in translation to skip unused components, not in disassembly, since oPts.x000
- * assembles but oPts.x00_, with skipped components and zeros, cannot be encoded.
- *
- * @param target Storage target.
- * @return Number of used components.
+ * Only for translation, not disassembly, since oPts.x000 assembles but oPts.x00_ cannot be encoded.
  */
 constexpr u32 GetInstructionStorageTargetUsedComponentCount(InstructionStorageTarget target) {
   switch (target) {
@@ -92,7 +90,7 @@ enum class SwizzleSource : u8 {
 constexpr SwizzleSource GetSwizzleFromComponentIndex(u32 i) {
   return static_cast<SwizzleSource>(i);
 }
-constexpr SwizzleSource GetSwizzledAluSourceComponent(u32 swizzle, u32 component_index) {
+constexpr SwizzleSource GetSwizzledALUSourceComponent(u32 swizzle, u32 component_index) {
   return GetSwizzleFromComponentIndex(
       xenos::ucode::AluInstruction::GetSwizzledComponentIndex(swizzle, component_index));
 }
@@ -106,37 +104,23 @@ struct REX_GPU_XENOS_API InstructionResult {
   u32 storage_index = 0;
   InstructionStorageAddressingMode storage_addressing_mode =
       InstructionStorageAddressingMode::kAbsolute;
-  /** Clamps the result to [0-1]. */
+  /** Saturates the result to [0-1]. */
   bool is_clamped = false;
   /** Taken from the original microcode, so components missing in the target are included. */
   u32 original_write_mask = 0b0000;
   SwizzleSource components[4] = {SwizzleSource::kX, SwizzleSource::kY, SwizzleSource::kZ,
                                  SwizzleSource::kW};
-  /**
-   * Returns the write mask limited to components present in the target.
-   *
-   * @return Write mask limited to the target components.
-   */
+  /** Returns the write mask limited to the components present in the target. */
   u32 GetUsedWriteMask() const {
     u32 target_component_count = GetInstructionStorageTargetUsedComponentCount(storage_target);
     return original_write_mask & ((1 << target_component_count) - 1);
   }
-  /**
-   * Reports whether the components are in xyzw order.
-   *
-   * @return True when the components are in xyzw order.
-   */
   bool IsStandardSwizzle() const {
     return (GetUsedWriteMask() == 0b1111) && components[0] == SwizzleSource::kX &&
            components[1] == SwizzleSource::kY && components[2] == SwizzleSource::kZ &&
            components[3] == SwizzleSource::kW;
   }
-  /**
-   * Returns the result components, before swizzling, that are not discarded or replaced with a
-   * constant.
-   *
-   * @return Mask of the used result components.
-   */
+  /** Returns the result components, before swizzling, that are not discarded or constant. */
   u32 GetUsedResultComponents() const {
     u32 used_write_mask = GetUsedWriteMask();
     u32 used_components = 0b0000;
@@ -150,10 +134,10 @@ struct REX_GPU_XENOS_API InstructionResult {
     return used_components;
   }
   /**
-   * Returns which components of the used write mask are constant.
+   * Returns the constant components of the used write mask, with their values in
+   * constant_values_out.
    *
    * @param constant_values_out Receives the values of the constant components.
-   * @return Mask of constant components.
    */
   u32 GetUsedConstantComponents(u32& constant_values_out) const {
     u32 constant_components = 0;
@@ -201,19 +185,11 @@ struct REX_GPU_XENOS_API InstructionOperand {
                                  SwizzleSource::kW};
   /**
    * Returns the swizzle source for the component, replicating the rightmost component when there
-   * are fewer than 4, as the console shader compiler does for unspecified components.
-   *
-   * @param index Component index.
-   * @return Swizzle source of the component.
+   * are fewer than 4, as the console shader compiler does.
    */
   SwizzleSource GetComponent(u32 index) const {
     return components[std::min(index, component_count - 1)];
   }
-  /**
-   * Reports whether the components are in xyzw order.
-   *
-   * @return True when there are 4 components in xyzw order.
-   */
   bool IsStandardSwizzle() const {
     if (component_count != 4) {
       return false;
@@ -223,15 +199,11 @@ struct REX_GPU_XENOS_API InstructionOperand {
   }
 
   /**
-   * Returns which components of two operands are always bitwise equal, ignoring component_count by
-   * treating the rightmost component as replicated.
+   * Returns which components of two operands are always bitwise equal, treating the rightmost
+   * component as replicated.
    *
-   * Must be used with all its conditions when emulating the Shader Model 3 +-0 * x = +0
-   * multiplication with IEEE multiplication, since -0 * |-0| or -0 * +0 is -0 while the result must
-   * be +0.
-   *
-   * @param other Operand to compare with.
-   * @return Mask of the components that are identical.
+   * Used to emulate the Shader Model 3 multiplication rule +-0 * x = +0 with IEEE multiplication,
+   * since -0 * |-0| or -0 * +0 is -0 while the result must be +0.
    */
   u32 GetIdenticalComponents(const InstructionOperand& other) const {
     if (storage_source != other.storage_source || storage_index != other.storage_index ||
@@ -273,7 +245,7 @@ struct REX_GPU_XENOS_API ParsedExecInstruction {
   /** 2 bits per instruction indicating ALU or fetch. */
   u32 sequence = 0;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct REX_GPU_XENOS_API ParsedLoopStartInstruction {
@@ -290,13 +262,12 @@ struct REX_GPU_XENOS_API ParsedLoopStartInstruction {
 
   u32 loop_skip_address = 0;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct REX_GPU_XENOS_API ParsedLoopEndInstruction {
   u32 dword_index = 0;
 
-  /** Breaks from the loop if the predicate matches the expected value. */
   bool is_predicated_break = false;
   bool predicate_condition = false;
 
@@ -309,7 +280,7 @@ struct REX_GPU_XENOS_API ParsedLoopEndInstruction {
 
   u32 loop_body_address = 0;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct ParsedCallInstruction {
@@ -326,13 +297,13 @@ struct ParsedCallInstruction {
   u32 bool_constant_index = 0;
   bool condition = false;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct ParsedReturnInstruction {
   u32 dword_index = 0;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct REX_GPU_XENOS_API ParsedJumpInstruction {
@@ -349,7 +320,7 @@ struct REX_GPU_XENOS_API ParsedJumpInstruction {
   u32 bool_constant_index = 0;
   bool condition = false;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct REX_GPU_XENOS_API ParsedAllocInstruction {
@@ -360,7 +331,7 @@ struct REX_GPU_XENOS_API ParsedAllocInstruction {
 
   bool is_vertex_shader = false;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct REX_GPU_XENOS_API ParsedVertexFetchInstruction {
@@ -373,22 +344,14 @@ struct REX_GPU_XENOS_API ParsedVertexFetchInstruction {
   bool is_predicated = false;
   bool predicate_condition = false;
 
-  /**
-   * Describes how the result is stored.
-   *
-   * A vfetch_full with no components to write the fetched value to needs its address calculation,
-   * since it may set up addressing for a vfetch_mini.
-   */
+  /** A vfetch_full with no components to write still needs its address for a vfetch_mini. */
   InstructionResult result;
 
   size_t operand_count = 0;
   /**
-   * Describes each source operand.
-   *
    * A vfetch_mini inherits the operands of its vfetch_full. The index register may be overwritten
-   * between them without changing the fetch index, so the vfetch_full must store a copy of the
-   * index. The base address, stride and rounding may be pre applied to it since they are the same
-   * for the vfetch_full and all its vfetch_mini instructions.
+   * between them, so the vfetch_full must store a copy of the index. The base address, stride and
+   * rounding are the same for every vfetch_mini, so the vfetch_full may apply them to the index.
    */
   InstructionOperand operands[2];
 
@@ -407,7 +370,7 @@ struct REX_GPU_XENOS_API ParsedVertexFetchInstruction {
   };
   Attributes attributes;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 struct REX_GPU_XENOS_API ParsedTextureFetchInstruction {
@@ -444,18 +407,13 @@ struct REX_GPU_XENOS_API ParsedTextureFetchInstruction {
   };
   Attributes attributes;
 
-  /**
-   * Returns which components of the result may have a value other than zero, considering the
-   * operation, dimensions, filter overrides and result components.
-   *
-   * @return Mask of the possibly non zero result components.
-   */
+  /** Returns which components of the result may be non zero, given the operation and filters. */
   u32 GetNonZeroResultComponents() const;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
-struct REX_GPU_XENOS_API ParsedAluInstruction {
+struct REX_GPU_XENOS_API ParsedALUInstruction {
   xenos::ucode::AluVectorOpcode vector_opcode = xenos::ucode::AluVectorOpcode::kAdd;
   xenos::ucode::AluScalarOpcode scalar_opcode = xenos::ucode::AluScalarOpcode::kAdds;
   const char* vector_opcode_name = nullptr;
@@ -465,14 +423,13 @@ struct REX_GPU_XENOS_API ParsedAluInstruction {
   bool predicate_condition = false;
 
   /**
-   * Describes how the vector operation result and, for exports, the constant 0/1 writes are stored.
+   * How the vector operation result and, for exports, the constant 0/1 writes are stored.
    *
-   * Constant 0/1 writes are treated as part of the vector operation, since they must be expressed
-   * in the disassembly with a disassembled instruction even when only constants are exported. The
-   * XNA disassembler displays the whole vector operation when the scalar operation is a nop or the
-   * vector operation changes a0, p0 or kills pixels, and otherwise puts the entire constant mask in
-   * the scalar destination. It normally outputs the mask in both operations, but the assembler
-   * accepts it in the vector operation, the scalar operation or both.
+   * The constant writes are part of the vector operation so the disassembly can express them even
+   * when only constants are exported. The XNA disassembler shows the whole vector operation when
+   * the scalar operation is a nop or the vector operation changes a0, p0 or kills pixels, and
+   * otherwise puts the constant mask in the scalar destination. The assembler accepts the
+   * mask in the vector operation, the scalar operation or both.
    */
   InstructionResult vector_and_constant_result;
   InstructionResult scalar_result;
@@ -484,41 +441,26 @@ struct REX_GPU_XENOS_API ParsedAluInstruction {
   InstructionOperand scalar_operands[2];
 
   /**
-   * Reports whether the vector part is the same as if omitted in the assembly (compiled or
-   * assembled with the Xenos shader compiler), so reassembling without it gives the same microcode,
-   * since instructions with only an empty write mask may differ in other fields.
+   * Reports whether the vector part matches what the assembler produces when it is omitted, so
+   * reassembling without it gives the same microcode.
    *
    * For disassembly only. Translators should use the write masks and the changed state bits of the
-   * opcode info to skip operations, since this covers 1 nop format.
-   *
-   * @return True when the vector part matches the omitted form.
+   * opcode info to skip operations, since this covers one nop format.
    */
   bool IsVectorOpDefaultNop() const;
   /**
-   * Reports whether the scalar part is the same as if omitted in the assembly (compiled or
-   * assembled with the Xenos shader compiler), so reassembling without it gives the same microcode,
-   * since instructions with only an empty write mask may differ in other fields.
-   *
-   * @return True when the scalar part matches the omitted form.
+   * Reports whether the scalar part matches what the assembler produces when it is omitted, so
+   * reassembling without it gives the same microcode.
    */
   bool IsScalarOpDefaultNop() const;
 
-  /**
-   * Reports whether the instruction has no effect, for translation and not disassembly.
-   *
-   * @return True when the instruction has no effect.
-   */
+  /** Reports whether the instruction has no effect, for translation and not disassembly. */
   bool IsNop() const;
 
-  /**
-   * Returns the index of the stream float constant if this is a normal eA write (MAD with a stream
-   * constant), otherwise UINT32_MAX.
-   *
-   * @return Stream float constant index, or UINT32_MAX.
-   */
+  /** Returns the stream float constant index if this is a normal eA write, otherwise UINT32_MAX. */
   u32 GetMemExportStreamConstant() const;
 
-  void Disassemble(StringBuffer* out) const;
+  void Disassemble(string::StringBuffer* out) const;
 };
 
 void ParseControlFlowExec(const xenos::ucode::ControlFlowExecInstruction& cf, u32 cf_index,
@@ -541,13 +483,9 @@ void ParseControlFlowAlloc(const xenos::ucode::ControlFlowAllocInstruction& cf, 
                            bool is_vertex_shader, ParsedAllocInstruction& instr);
 
 /**
- * Parses a vertex fetch instruction.
- *
- * @param op Instruction to parse.
  * @param previous_full_op Previous full fetch inherited by a mini fetch.
  * @param instr Receives the parsed instruction.
- * @return True when the fetch is a full one, so the next parsed mini fetch inherits most of its
- * parameters.
+ * @return True when the fetch is a full one, so the next mini fetch inherits its parameters.
  */
 bool ParseVertexFetchInstruction(const xenos::ucode::VertexFetchInstruction& op,
                                  const xenos::ucode::VertexFetchInstruction& previous_full_op,
@@ -555,7 +493,7 @@ bool ParseVertexFetchInstruction(const xenos::ucode::VertexFetchInstruction& op,
 void ParseTextureFetchInstruction(const xenos::ucode::TextureFetchInstruction& op,
                                   ParsedTextureFetchInstruction& instr);
 void ParseAluInstruction(const xenos::ucode::AluInstruction& op, xenos::ShaderType shader_type,
-                         ParsedAluInstruction& instr);
+                         ParsedALUInstruction& instr);
 
 class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
  public:
@@ -563,8 +501,8 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
    * Type of the vertex shader on the host.
    *
    * The shader interface depends on it, so it must be known at translation time. Changing the
-   * values requires increasing the version of the shader storages that hold it and checking the bit
-   * count where it is packed. The underlying type is uint32_t for packing in bit fields.
+   * values requires increasing the shader storage version and checking the bit
+   * count where it is packed. The underlying type is u32 for packing in bit fields.
    */
   // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class HostVertexShaderType : u32 {
@@ -579,27 +517,14 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     kQuadDomainPatchIndexed,
     kDomainEnd,
 
-    /**
-     * Vertex shader converted to a compute shader that only performs memory export.
-     *
-     * Used for implementations without unconditional vertex shader memory writes.
-     */
+    /** Vertex shader converted to a compute shader that only performs memory export. */
     kMemExportCompute,
 
-    /**
-     * 4 host vertices per guest vertex.
-     *
-     * Used for implementations without unconditional geometry shader support.
-     */
+    /** Four host vertices per guest vertex. */
     kPointListAsTriangleStrip,
-    /**
-     * 3 guest vertices processed per host shader invocation to choose the strip orientation.
-     *
-     * Used for implementations without unconditional geometry shader support.
-     */
+    /** Three guest vertices processed per host shader invocation to choose the orientation. */
     kRectangleListAsTriangleStrip,
   };
-  /** Bit count for packing HostVertexShaderType in bit fields. */
   static constexpr u32 kHostVertexShaderTypeBitCount = 4;
 
   static constexpr bool IsHostVertexShaderTypeDomain(HostVertexShaderType host_vertex_shader_type) {
@@ -620,7 +545,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     int binding_index;
     /** Fetch constant index in [0-95]. */
     u32 fetch_constant;
-    /** Stride of the entire binding in words. */
+    /** Stride of the binding in words. */
     u32 stride_words;
     std::vector<Attribute> attributes;
   };
@@ -635,9 +560,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   struct ConstantRegisterMap {
     /**
      * Each shader reads up to 256 of the 512 float constants, based on the shader type and the
-     * SQ_VS/PS_CONST registers.
-     *
-     * Each bit is a storage index from that base.
+     * SQ_VS/PS_CONST registers. Each bit is a storage index from that base.
      */
     u64 float_bitmap[256 / 64];
     /** Each bit is a storage index in [0-31]. */
@@ -653,11 +576,8 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     bool float_dynamic_addressing;
 
     /**
-     * Returns the index of the float4 constant as if all referenced float4 constant registers were
-     * tightly packed in a buffer.
-     *
-     * @param float_constant Float constant index.
-     * @return Packed index, or UINT32_MAX if not found.
+     * Returns the index of the float4 constant as if all referenced float4 constants were tightly
+     * packed in a buffer. It is UINT32_MAX if not found.
      */
     u32 GetPackedFloatConstantIndex(u32 float_constant) const {
       if (float_constant >= 256) {
@@ -682,8 +602,8 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
 
   struct ControlFlowMemExportState {
     /**
-     * Which eM elements are potentially written, regardless of conditionals, loop iteration counts
-     * and predication, earlier in the predecessor graph of the instruction since an `alloc export`.
+     * Which eM elements may have been written by earlier instructions since the last `alloc
+     * export`, regardless of conditionals, loop iteration counts and predication.
      */
     u8 em_potentially_written_before = 0;
     /**
@@ -710,22 +630,18 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
 
     const std::vector<u8>& GetTranslatedBinary() const { return translated_binary_; }
 
-    /**
-     * Sets the host disassembly when it depends on the GPU backend.
-     *
-     * @param disassembly Host disassembly text.
-     */
+    /** Sets the host disassembly when it depends on the GPU driver. */
     void SetHostDisassembly(std::string disassembly) { host_disassembly_ = std::move(disassembly); }
 
     /**
-     * Dumps the translated code and, if available, the translated disassembly to files in the given
-     * directory named by the ucode hash.
+     * Dumps the translated code and, if available, the disassembly to files in the directory named
+     * by the ucode hash.
      *
      * @param base_path Output directory.
      * @param path_prefix Prefix of the file names.
      * @return Binary path and disassembly path, the latter empty if not written.
      */
-    std::pair<std::filesystem::path, std::filesystem::path> Dump(
+    std::pair<std::filesystem::path, std::filesystem::path> DumpTranslation(
         const std::filesystem::path& base_path, const char* path_prefix) const;
 
    protected:
@@ -746,12 +662,9 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   };
 
   /**
-   * Constructs the shader. The ucode is stored in the native byte order.
+   * Constructs the shader, storing the ucode in the native byte order.
    *
-   * @param shader_type Shader type.
-   * @param ucode_data_hash Hash of the ucode.
    * @param ucode_dwords Source ucode dwords.
-   * @param ucode_dword_count Number of ucode dwords.
    * @param ucode_source_endian Endianness of ucode_dwords.
    */
   Shader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
@@ -770,10 +683,10 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   /**
    * Analyzes the microcode and gathers the information below.
    *
-   * @param ucode_disasm_buffer Scratch storage for disassembly, provided externally to avoid
-   * reallocating it for every shader.
+   * @param ucode_disasm_buffer Scratch storage for disassembly.
+   * @param dump_path Directory the microcode is dumped to, or empty to skip the dump.
    */
-  void AnalyzeUcode(StringBuffer& ucode_disasm_buffer);
+  void AnalyzeUcode(string::StringBuffer& ucode_disasm_buffer, const std::string& dump_path);
 
   // The accessors below are valid only after AnalyzeUcode.
 
@@ -784,11 +697,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
 
   const ConstantRegisterMap& GetConstantRegisterMap() const { return constant_register_map_; }
 
-  /**
-   * Memory export state at each control flow instruction, empty when there are no eM# writes.
-   *
-   * @return Memory export state per control flow instruction.
-   */
+  /** Memory export state per control flow instruction, empty when there are no eM# writes. */
   const std::vector<ControlFlowMemExportState>& GetControlFlowMemExportState() const {
     return cf_memexport_info_;
   }
@@ -798,52 +707,30 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     return memexport_em_potentially_written_before_end_;
   }
 
-  /**
-   * The c# registers used as the addend in MAD operations to eA.
-   *
-   * @return Set of c# register indices.
-   */
+  /** The c# registers used as the addend in MAD operations to eA. */
   const std::set<u32>& GetMemExportStreamConstants() const { return memexport_stream_constants_; }
 
   const std::set<u32>& GetLabelAddresses() const { return label_addresses_; }
 
-  /**
-   * Returns the exclusive upper bound of the indexes of paired control flow instructions.
-   *
-   * Each pair corresponds to 3 dwords.
-   */
+  /** Returns the exclusive upper bound of the indexes of paired control flow instructions. */
   u32 GetCFPairIndexBound() const { return cf_pair_index_bound_; }
 
   /**
-   * Returns the upper bound of temporary registers addressed statically, the highest static
-   * register address + 1 or 0 if none.
-   *
-   * SQ_PROGRAM_CNTL is not always reliable. Some draws that cover no pixels, such as single point
-   * draws with oPos = 0001, use an invalid zero SQ_PROGRAM_CNTL with an outdated pixel shader
-   * loaded, so it may hold less than the pixel shader needs. SQ_PROGRAM_CNTL should be used to go
-   * above this count only if uses_register_dynamic_addressing is true.
+   * Returns the upper bound of statically addressed temporary registers, the highest address + 1 or
+   * 0 if none. SQ_PROGRAM_CNTL is not always reliable, so it should raise this count only if
+   * uses_register_dynamic_addressing is true.
    */
   u32 GetRegisterStaticAddressBound() const { return register_static_address_bound_; }
 
-  /**
-   * Reports whether temporary registers are addressed dynamically.
-   *
-   * In that case SQ_PROGRAM_CNTL determines the register count in addition to
-   * register_static_address_bound.
-   *
-   * @return True when temporary registers are addressed dynamically.
-   */
+  /** Reports whether temporary registers are addressed dynamically, so SQ_PROGRAM_CNTL matters. */
   bool HasRegisterDynamicAddressing() const { return uses_register_dynamic_addressing_; }
 
   /**
    * Returns the number of temporary registers to allocate, for building and normalizing shader
-   * modification bits.
-   *
-   * Without dynamic register addressing the translator uses register_static_address_bound as is and
-   * this returns 0.
+   * modification bits. 0 without dynamic register addressing, where the translator uses
+   * register_static_address_bound as is.
    *
    * @param program_cntl_num_reg Register count field of SQ_PROGRAM_CNTL.
-   * @return Number of dynamically addressable registers.
    */
   u32 GetDynamicAddressableRegisterCount(u32 program_cntl_num_reg) const {
     if (!HasRegisterDynamicAddressing()) {
@@ -854,32 +741,21 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
 
   bool DoesKillPixels() const { return kills_pixels_; }
 
-  /**
-   * Reports whether any fetch instruction other than vertex fetch writes non constant components.
-   *
-   * @return True when such a fetch instruction exists.
-   */
+  /** Reports whether any fetch other than vertex fetch writes non constant components. */
   bool HasTextureFetchInstructionResults() const { return uses_texture_fetch_instruction_results_; }
 
   /** Mask of interpolators written on any execution path. */
   u32 GetWritesInterpolators() const { return writes_interpolators_; }
 
-  /**
-   * Mask of system vertex shader exports written on any execution path.
-   *
-   * @return Mask of written system exports.
-   */
+  /** Mask of system vertex shader exports written on any execution path. */
   u32 GetWritesPointSizeEdgeFlagKillVertex() const {
     return writes_point_size_edge_flag_kill_vertex_;
   }
 
   /**
-   * Returns the mask of interpolators the pixel shader potentially requires from the vertex shader.
+   * Returns the mask of interpolators the pixel shader may require from the vertex shader.
    *
-   * @param sq_program_cntl SQ_PROGRAM_CNTL value.
-   * @param sq_context_misc SQ_CONTEXT_MISC value.
    * @param param_gen_pos_out Receives the PsParamGen register, or UINT32_MAX when unused.
-   * @return Mask of the required interpolators.
    */
   u32 GetInterpolatorInputMask(xenos::reg::SQ_PROGRAM_CNTL sq_program_cntl,
                                xenos::reg::SQ_CONTEXT_MISC sq_context_misc,
@@ -887,12 +763,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
 
   bool IsDepthWritten() const { return writes_depth_; }
 
-  /**
-   * Reports whether the shader can have early depth and stencil writing enabled, unless alpha test
-   * or alpha to coverage is enabled.
-   *
-   * @return True when early depth and stencil writing is allowed.
-   */
+  /** Reports whether early depth and stencil writes are allowed absent alpha test and A2C. */
   bool IsImplicitEarlyZWriteAllowed() const {
     return !DoesKillPixels() && !IsDepthWritten() && !GetMemExportEMWritten();
   }
@@ -903,12 +774,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     return (GetWritesColorTargets() & (static_cast<u32>(1) << i)) != 0;
   }
 
-  /**
-   * Host translations by modification bits. Not thread safe with respect to translation creation
-   * and destruction.
-   *
-   * @return Translations keyed by modification bits.
-   */
+  /** Host translations by modification bits. Not thread safe against creation and destruction. */
   const std::unordered_map<u64, std::unique_ptr<Translation>>& GetTranslations() const {
     return translations_;
   }
@@ -920,28 +786,20 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
     return nullptr;
   }
   Translation* GetOrCreateTranslation(u64 modification, bool* is_new = nullptr);
-  /**
-   * Removes a modification after a translation failure during shader storage loading. Not thread
-   * safe.
-   *
-   * @param modification Modification bits of the translation to remove.
-   */
+  /** Removes a modification after a translation failure while loading shader storage. */
   void DestroyTranslation(u64 modification);
 
   /**
    * Returns the externally managed identifier of the shader storage the microcode was last written
-   * to or loaded from.
-   *
-   * Used so the microcode is written to the storage once. UINT32_MAX by default.
+   * to or loaded from, so it is written once, or UINT32_MAX by default.
    */
   u32 GetUcodeStorageIndex() const { return ucode_storage_index_; }
   void SetUcodeStorageIndex(u32 storage_index) { ucode_storage_index_ = storage_index; }
 
   /**
-   * Dumps the microcode binary and, if analyzed, the disassembly to files in the given directory
-   * named by the ucode hash. Can be called at any time and does not require translation.
+   * Dumps the microcode binary and, if analyzed, the disassembly to files in the directory named by
+   * the ucode hash. Needs no translation.
    *
-   * @param base_path Output directory.
    * @return Binary path and disassembly path, the latter empty if not written.
    */
   std::pair<std::filesystem::path, std::filesystem::path> DumpUcode(
@@ -956,16 +814,6 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   std::vector<u32> ucode_dwords_;
   u64 ucode_data_hash_;
 
-  /**
-   * Reports whether the info needed before translating has been gathered. It determines which
-   * modifications are needed and is used for drawing.
-   *
-   * Draws that cover nothing and allocate no pixel shader registers in SQ_PROGRAM_CNTL use the
-   * previous pixel shader, so every shader before such a draw is translated again with a different
-   * dynamically addressed register count. That would make host pipeline compilation depend on draw
-   * order, so the effect is limited to shaders with dynamic register addressing, which are rare.
-   * Depth format related translation modifications need care in this case.
-   */
   bool is_ucode_analyzed_ = false;
 
   std::string ucode_disassembly_;
@@ -989,10 +837,7 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
   u8 memexport_em_written_ = 0;
   /**
    * Equivalent of ControlFlowMemExportState::em_potentially_written_before for the end of the
-   * shader.
-   *
-   * Covers the last memory export or exports if the end has multiple predecessor chains exporting
-   * to memory.
+   * shader, covering the last memory export or exports if the end has multiple predecessor chains.
    */
   u8 memexport_em_potentially_written_before_end_ = 0;
   std::set<u32> memexport_stream_constants_;
@@ -1004,15 +849,16 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
  private:
   void GatherExecInformation(const ParsedExecInstruction& instr,
                              xenos::ucode::VertexFetchInstruction& previous_vfetch_full,
-                             u32& unique_texture_bindings, StringBuffer& ucode_disasm_buffer);
+                             u32& unique_texture_bindings,
+                             string::StringBuffer& ucode_disasm_buffer);
   void GatherVertexFetchInformation(const xenos::ucode::VertexFetchInstruction& op,
                                     xenos::ucode::VertexFetchInstruction& previous_vfetch_full,
-                                    StringBuffer& ucode_disasm_buffer);
+                                    string::StringBuffer& ucode_disasm_buffer);
   void GatherTextureFetchInformation(const xenos::ucode::TextureFetchInstruction& op,
                                      u32& unique_texture_bindings,
-                                     StringBuffer& ucode_disasm_buffer);
-  void GatherAluInstructionInformation(const xenos::ucode::AluInstruction& op, u32 exec_cf_index,
-                                       StringBuffer& ucode_disasm_buffer);
+                                     string::StringBuffer& ucode_disasm_buffer);
+  void GatherALUInstructionInformation(const xenos::ucode::AluInstruction& op, u32 exec_cf_index,
+                                       string::StringBuffer& ucode_disasm_buffer);
   void GatherOperandInformation(const InstructionOperand& operand);
   void GatherFetchResultInformation(const InstructionResult& result);
   void GatherAluResultInformation(const InstructionResult& result, u32 exec_cf_index);

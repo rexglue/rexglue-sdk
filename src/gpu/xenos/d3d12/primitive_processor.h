@@ -26,9 +26,10 @@ class D3D12CommandProcessor;
 
 class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
  public:
-  D3D12PrimitiveProcessor(const xenos::RegisterFile& register_file, runtime::Memory& memory,
+  D3D12PrimitiveProcessor(const xenos::RegisterFile& register_file, const XenosSettings& settings,
+                          IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
                           SharedMemory& shared_memory, D3D12CommandProcessor& command_processor)
-      : PrimitiveProcessor(register_file, memory, shared_memory),
+      : PrimitiveProcessor(register_file, settings, memory, watch, shared_memory),
         command_processor_(command_processor) {}
   ~D3D12PrimitiveProcessor();
 
@@ -38,10 +39,8 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
 
   void CompletedSubmissionUpdated();
   /**
-   * Copies the builtin index buffer upload in the first submission.
-   *
-   * No deferred barriers are submitted first, as the destination is in its initial state and the
-   * upload buffer in an upload heap is GENERIC_READ.
+   * Copies the builtin index buffer upload in the first submission. No barriers are submitted
+   * first, as the destination is in its initial state and the upload buffer is GENERIC_READ.
    */
   void BeginSubmission();
   void BeginFrame();
@@ -63,7 +62,7 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format, u32 index_count,
                                                        bool coalign_for_simd,
                                                        u32 coalignment_original_address,
-                                                       size_t& backend_handle_out) override;
+                                                       size_t& driver_handle_out) override;
 
  private:
   D3D12CommandProcessor& command_processor_;
@@ -76,7 +75,7 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   u64 builtin_index_buffer_upload_submission_ = UINT64_MAX;
 
   std::unique_ptr<gpu::d3d12::D3D12UploadBufferPool> frame_index_buffer_pool_;
-  /** Indexed by backend handle. */
+  /** Indexed by driver handle. */
   std::deque<D3D12_GPU_VIRTUAL_ADDRESS> frame_index_buffers_;
 };
 

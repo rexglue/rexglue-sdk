@@ -16,9 +16,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
-#include <rex/no_throw.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_immediate_drawer.h"
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"

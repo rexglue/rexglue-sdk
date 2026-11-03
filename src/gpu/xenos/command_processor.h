@@ -11,33 +11,39 @@
 
 #pragma once
 
-#include <rex/cvar.h>
-
 #include <atomic>
 #include <bit>
 #include <cstring>
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <thread>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include <rex/logging/log.h>
 #include <rex/math.h>
+#include <rex/setting.h>
 #include <rex/types.h>
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/registers.h>
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/packet.h>
+#include <rex/xenos/state.h>
 #include <rex/memory.h>
-#include <rex/memory/ring_buffer.h>
-#include <rex/runtime/xthread.h>
+#include <rex/memory/stream.h>
+#include <rex/guest.h>
+#include <rex/title.h>
 #include <rex/platform/thread.h>
-#include <rex/move_only_function.h>
+#include <rex/utility.h>
+#include <rex/platform/sync.h>
 #include "gpu/xenos/host/presenter.h"
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex::gpu {
 
-class GraphicsSystem;
+class XenosGraphicsDriverBase;
+class XenosSettings;
 class Shader;
 
 enum class ReadbackResolveMode : u8 {
@@ -54,7 +60,7 @@ struct SwapState {
   u32 height = 0;
   uintptr_t front_buffer_texture = 0;
   uintptr_t back_buffer_texture = 0;
-  void* backend_data = nullptr;
+  void* driver_data = nullptr;
   bool pending = false;
 };
 
@@ -77,7 +83,14 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
     kFXAAExtreme,
   };
 
-  CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime);
+  CommandProcessor(XenosGraphicsDriverBase* graphics_system, const TitleInfo& info,
+                   IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
+                   IGuestInterrupts& interrupts);
+
+  const XenosSettings& GetXenosSettings() const;
+
+  XenosGraphicsDriverBase& GetGraphicsDriver() const { return *graphics_system_; }
+
   virtual ~CommandProcessor();
 
   u32 GetCounter() const { return counter_; }
@@ -88,46 +101,32 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   Shader* GetActiveVertexShader() const { return active_vertex_shader_; }
   Shader* GetActivePixelShader() const { return active_pixel_shader_; }
 
-  /**
-   * Initializes the gamma ramps to the linear values titles set when starting with sRGB gamma,
-   * which VdGetCurrentDisplayGamma reports as 1.
-   *
-   * @return True when initialization succeeded.
-   */
+  /** Initializes the gamma ramps to the linear values titles set when starting with sRGB gamma. */
   virtual bool Initialize();
   virtual void Shutdown();
 
   void CallInThread(rex::MoveOnlyFunction<void()> fn);
 
   /**
-   * Runs a function on the worker and waits for it to finish. The function runs on the calling
-   * thread when that is the worker, or when the worker is not running.
-   *
-   * @param fn The function to run.
+   * Runs a function on the worker and waits for it. It runs on the calling thread when that is the
+   * worker or the worker is not running.
    */
   void CallInThreadAndWait(rex::MoveOnlyFunction<void()> fn);
 
   virtual void ClearCaches();
   virtual void InvalidateGPUMemory();
 
-  // "Desired" is for the external thread managing the post-processing effect.
+  // "Desired" is for the external thread managing the post processing effect.
   void SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect);
   /**
-   * Issues a swap. The front buffer is not always a resolve destination and may be a texture
-   * written by the CPU or loaded from a file.
-   *
-   * @param frontbuffer_ptr The front buffer address.
-   * @param frontbuffer_width The front buffer width.
-   * @param frontbuffer_height The front buffer height.
+   * Issues a swap. The front buffer may be a texture written by the CPU, not a resolve destination.
    */
   virtual void IssueSwap(u32 frontbuffer_ptr, u32 frontbuffer_width, u32 frontbuffer_height) = 0;
 
   /**
-   * Initializes the shader storage. May be called from a thread other than the command processor
-   * thread while the command processor is paused, and its termination may be awaited.
+   * Initializes the shader storage. May run on another thread while the command processor is
+   * paused.
    *
-   * @param cache_root The cache root directory.
-   * @param title_id The title ID.
    * @param blocking True to wait for the storage to finish loading.
    */
   virtual void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
@@ -147,7 +146,7 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   void ExecutePacket(u32 ptr, u32 count);
 
  protected:
-  /** Marker a title polls for in an occlusion query result that the GPU has finished. */
+  /** Value in an occlusion query result that marks it finished. */
   static constexpr u32 kQueryFinished = std::byteswap(0xFFFFFEEDu);
 
   static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
@@ -176,25 +175,20 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
    * Takes the next host occlusion query index, wrapping at kMaxOcclusionQueries.
    *
    * @param host_index_out Receives the index.
-   * @return True.
+   * @return Always true.
    */
   bool AcquireOcclusionQueryIndex(u32& host_index_out);
 
   /** Marks every vertex fetch constant as needing a new upload. */
   void InvalidateAllVertexBufferResidency();
 
-  /**
-   * Marks 1 vertex fetch constant as needing a new upload.
-   *
-   * @param vfetch_index The vertex fetch constant index.
-   */
+  /** Marks one vertex fetch constant as needing a new upload. */
   void InvalidateVertexBufferResidency(u32 vfetch_index);
 
   /**
    * Marks a range of vertex fetch constants as needing a new upload.
    *
    * @param first_vfetch The first index, swapped with last_vfetch when greater.
-   * @param last_vfetch The last index.
    */
   void InvalidateVertexBufferResidencyRange(u32 first_vfetch, u32 last_vfetch);
 
@@ -212,10 +206,8 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   void WorkerThreadMain();
 
   /**
-   * Writes an occlusion query result with the fields a title polls written last, as release
-   * stores.
+   * Writes an occlusion query result. The fields a title polls are written last.
    *
-   * @param counts The guest sample counts.
    * @param samples The passed sample count for Total_A and ZPass_A. Every other field is 0.
    */
   static void WriteSampleCounts(xenos::DepthSampleCounts& counts, u32 samples);
@@ -226,11 +218,8 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   virtual void ShutdownContext() = 0;
 
   /**
-   * Writes a register. Direct3D 9 sets DC_LUT_RW_INDEX rw_index to 0x80 after the last PWL entry
-   * although the register documentation says bit 7 is ignored for PWL.
-   *
-   * @param index The register index.
-   * @param value The value to write.
+   * Writes a register. Direct3D 9 sets DC_LUT_RW_INDEX rw_index to 0x80 after the last PWL entry,
+   * although the documentation says bit 7 is ignored for PWL.
    */
   virtual void WriteRegister(u32 index, u32 value);
   u32 ReadRegisterValue(u32 index) const;
@@ -255,9 +244,8 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   virtual void OnGammaRampPWLValueWritten() {}
 
   /**
-   * Makes host memory coherent. COHER_STATUS_HOST often holds 0x01000000 or 0x03000000, and the
-   * VC (vertex cache) or TC (texture cache) action it enables is logged. May run from the
-   * WAIT_REG_MEM loop.
+   * Makes host memory coherent. COHER_STATUS_HOST often holds 0x01000000 or 0x03000000. May run
+   * from the WAIT_REG_MEM loop.
    */
   virtual void SyncCoherency();
   virtual void PrepareForWait();
@@ -271,12 +259,9 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   bool ExecutePacketType1(memory::RingBuffer* reader, u32 packet);
   bool ExecutePacketType2(memory::RingBuffer* reader, u32 packet);
   /**
-   * Executes a type 3 packet. Bit 0 is the predicate. When set, a bin check decides whether the
-   * packet runs. Only type 3 packets are affected. Predicated swaps are skipped as they are never
-   * valid.
+   * Executes a type 3 packet. When bit 0 (the predicate) is set, a bin check decides whether the
+   * packet runs. Predicated swaps are skipped as they are never valid.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
    * @return True when the packet executed.
    */
   bool ExecutePacketType3(memory::RingBuffer* reader, u32 packet);
@@ -284,12 +269,9 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   bool ExecutePacketType3_NOP(memory::RingBuffer* reader, u32 packet, u32 count);
   bool ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
-   * Executes the swap packet that VdSwap posts to request a screen swap and an interrupt. The
-   * packet has 63 words and only the first has data.
+   * Executes the swap packet that VdSwap posts. The packet has 63 words and only the first has
+   * data.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
-   * @param count The packet word count.
    * @return True when the packet executed.
    */
   bool ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, u32 packet, u32 count);
@@ -302,57 +284,41 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   bool ExecutePacketType3_EVENT_WRITE(memory::RingBuffer* reader, u32 packet, u32 count);
   bool ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
-   * Executes the screen extent event. The callback tells the driver the xy coordinates affected by
-   * the previous draw call, which is faked with the maximum extent.
+   * Executes the screen extent event. It reports the xy coordinates affected by the previous draw,
+   * faked as the maximum extent.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
-   * @param count The packet word count.
    * @return True when the packet executed.
    */
   bool ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
-   * Executes the occlusion query event, sent on query begin and end. A fixed number of passed
-   * samples is reported as a workaround.
+   * Executes the occlusion query event, sent on query begin and end. A fixed passed sample count
+   * is reported.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
-   * @param count The packet word count.
    * @return True when the packet executed.
    */
   virtual bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, u32 packet,
                                                   u32 count);
   /**
-   * Executes a draw. When viz_query_condition is not 0 the draw is conditional on a viz query. Bits
-   * 0 to 5 hold the ID matching the one issued in PM4_VIZ_QUERY and bit 8 renders conditionally on
-   * the query result. A draw the host cannot execute is dropped and the buffer keeps processing.
+   * Executes a draw. When viz_query_condition is not 0 the draw is conditional on a viz query.
+   * Bits 0 to 5 hold the ID issued in PM4_VIZ_QUERY and bit 8 renders conditionally on the query
+   * result. A draw the host cannot execute is skipped.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
    * @param opcode_name The opcode name for logging.
-   * @param viz_query_condition The viz query token.
-   * @param count_remaining The packet words left to read.
    * @return True when processing continues.
    */
   bool ExecutePacketType3Draw(memory::RingBuffer* reader, u32 packet, const char* opcode_name,
                               u32 viz_query_condition, u32 count_remaining);
   /**
-   * Initiates a fetch of the index buffer and a draw. Generally used by Direct3D 9 for the kDMA and
-   * kAutoIndex sources. The first token is a viz query token.
+   * Fetches the index buffer and draws. Direct3D 9 uses it for the kDMA and kAutoIndex sources.
+   * The first token is a viz query token.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
-   * @param count The packet word count.
    * @return True when processing continues.
    */
   bool ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
-   * Draws using the indices supplied in the packet. Generally used by Direct3D 9 for the kAutoIndex
-   * source. There is no viz query token.
+   * Draws with the indices in the packet. Direct3D 9 uses it for the kAutoIndex source. There is
+   * no viz query token.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
-   * @param count The packet word count.
    * @return True when processing continues.
    */
   bool ExecutePacketType3_DRAW_INDX_2(memory::RingBuffer* reader, u32 packet, u32 count);
@@ -367,13 +333,9 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   bool ExecutePacketType3_INVALIDATE_STATE(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
    * Executes the begin and end initiator for viz query extent processing. Beginning a query clears
-   * the internal state of the scan converter on hardware, which differs from the register. The scan
-   * converter writes its internal result back to the register at the end, which is faked as
-   * visible in case it is read back.
+   * the scan converter state, which the register does not reflect. At the end the result written
+   * back to the register is faked as visible.
    *
-   * @param reader The ring buffer reader.
-   * @param packet The packet header.
-   * @param count The packet word count.
    * @return True when the packet executed.
    */
   bool ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader, u32 packet, u32 count);
@@ -385,23 +347,22 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
                          IndexBuffer* index_buffer_info, bool major_mode_explicit) = 0;
   virtual bool IssueCopy() = 0;
 
-  /**
-   * Returns the swap post effect the command processor thread reads.
-   *
-   * @return The swap post effect.
-   */
   SwapPostEffect GetActualSwapPostEffect() const { return swap_post_effect_actual_; }
 
   ReadbackResolveMode GetReadbackResolveMode(bool legacy_readback_resolve_enabled) const;
-  bool IsReadbackMemexportEnabled(bool legacy_backend_flag) const;
+  bool IsReadbackMemexportEnabled() const;
 
-  runtime::Memory* memory_ = nullptr;
-  Runtime* runtime_ = nullptr;
-  GraphicsSystem* graphics_system_ = nullptr;
+  TitleInfo title_info_;
+  IPhysicalMemory& physical_memory_;
+  IPhysicalWriteWatch& write_watch_;
+  IGuestInterrupts& guest_interrupts_;
+  XenosGraphicsDriverBase* graphics_system_ = nullptr;
   xenos::RegisterFile* register_file_ = nullptr;
+  rex::log::OncePerKey<xenos::RegisterFile::kRegisterCount> unknown_write_once_;
 
   std::atomic<bool> worker_running_;
-  X_HANDLE worker_thread_ = 0;
+  ScopeGuard worker_thread_;
+  std::atomic<std::thread::id> worker_thread_id_;
 
   std::mutex pending_mutex_;
   std::queue<rex::MoveOnlyFunction<void()>> pending_fns_;
@@ -429,12 +390,10 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   Shader* active_vertex_shader_ = nullptr;
   Shader* active_pixel_shader_ = nullptr;
 
-  // "Desired" is for the external thread managing the post-processing effect.
   SwapPostEffect swap_post_effect_desired_ = SwapPostEffect::kNone;
   SwapPostEffect swap_post_effect_actual_ = SwapPostEffect::kNone;
 
-  /** Set by backend command processors to their legacy memexport readback cvar. */
-  const rex::cvar::VarBase* legacy_readback_memexport_cvar_ = nullptr;
+  const Setting<bool>* driver_readback_memexport_ = nullptr;
 
  private:
   xenos::reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};

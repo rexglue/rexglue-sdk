@@ -26,8 +26,8 @@ class VulkanCommandProcessor;
 
 class VulkanSharedMemory : public SharedMemory {
  public:
-  VulkanSharedMemory(VulkanCommandProcessor& command_processor, runtime::Memory& memory,
-                     VkPipelineStageFlags guest_shader_pipeline_stages);
+  VulkanSharedMemory(VulkanCommandProcessor& command_processor, IPhysicalMemory& memory,
+                     IPhysicalWriteWatch& watch, VkPipelineStageFlags guest_shader_pipeline_stages);
   ~VulkanSharedMemory() override;
 
   bool Initialize();
@@ -45,9 +45,8 @@ class VulkanSharedMemory : public SharedMemory {
     kTransferDestination,
   };
   /**
-   * Inserts a pipeline barrier for the target usage and orders consecutive read write accesses.
+   * Inserts the barrier for a usage change.
    *
-   * @param usage Usage to transition to.
    * @param written_range Byte offset and length the usage writes.
    */
   void Use(Usage usage, std::pair<u32, u32> written_range = {});
@@ -68,7 +67,7 @@ class VulkanSharedMemory : public SharedMemory {
 
   VkBuffer buffer_ = VK_NULL_HANDLE;
   u32 buffer_memory_type_;
-  /** Single allocation when non sparse, every allocation so far when sparse. */
+  /** One allocation, or every allocation so far when sparse. */
   std::vector<VkDeviceMemory> buffer_memory_;
 
   Usage last_usage_;

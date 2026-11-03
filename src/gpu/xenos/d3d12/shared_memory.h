@@ -27,7 +27,8 @@ class D3D12CommandProcessor;
 
 class D3D12SharedMemory : public SharedMemory {
  public:
-  D3D12SharedMemory(D3D12CommandProcessor& command_processor, runtime::Memory& memory);
+  D3D12SharedMemory(D3D12CommandProcessor& command_processor, IPhysicalMemory& memory,
+                    IPhysicalWriteWatch& watch);
   ~D3D12SharedMemory() override;
 
   bool Initialize();
@@ -68,8 +69,8 @@ class D3D12SharedMemory : public SharedMemory {
   void WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   /**
-   * Writes a typed SRV descriptor. D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP makes the
-   * smallest supported formats 32 bit.
+   * Writes a typed SRV descriptor. The smallest supported format is 32 bit, from
+   * D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP.
    *
    * @param handle Destination CPU descriptor.
    * @param element_size_bytes_pow2 Log2 of the element size in bytes, 2 to 4.
@@ -93,7 +94,7 @@ class D3D12SharedMemory : public SharedMemory {
   bool buffer_uav_writes_commit_needed_ = false;
   void CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATES new_state);
 
-  /** Views in the non shader visible descriptor heap, copied instead of created for binding. */
+  /** Views in the non shader visible descriptor heap, copied for binding. */
   enum class BufferDescriptorIndex : u8 {
     kRawSRV,
     kR32UintSRV,

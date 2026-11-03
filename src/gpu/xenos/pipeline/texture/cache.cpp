@@ -14,19 +14,16 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/chrono/clock.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
+#include <rex/chrono.h>
+#include <rex/platform/perf.h>
 #include "gpu/xenos/pipeline/texture/cache.h"
-#include <rex/xenos/texture_info.h>
-#include <rex/xenos/texture_layout.h>
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/texture.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
-
-#include "gpu/xenos/cvar_table_gpu.h"
-#include "gpu/xenos/cvar_table_xenos.h"
+#include <rex/bit.h>
 
 namespace rex::gpu {
 
@@ -41,9 +38,11 @@ const TextureCache::LoadShaderInfo TextureCache::kLoadShaderInfo[kLoadShaderCoun
     {4, 4, 4, 3},
 };
 
-TextureCache::TextureCache(const xenos::RegisterFile& register_file, SharedMemory& shared_memory,
-                           u32 draw_resolution_scale_x, u32 draw_resolution_scale_y)
+TextureCache::TextureCache(const xenos::RegisterFile& register_file, const XenosSettings& settings,
+                           SharedMemory& shared_memory, u32 draw_resolution_scale_x,
+                           u32 draw_resolution_scale_y)
     : register_file_(register_file),
+      settings_(settings),
       shared_memory_(shared_memory),
       draw_resolution_scale_x_(draw_resolution_scale_x),
       draw_resolution_scale_y_(draw_resolution_scale_y) {
@@ -69,11 +68,10 @@ TextureCache::~TextureCache() {
   }
 }
 
-bool TextureCache::GetConfigDrawResolutionScale(u32& x_out, u32& y_out) {
-  u32 config_x =
-      static_cast<u32>(std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_x)));
-  u32 config_y =
-      static_cast<u32>(std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_y)));
+bool TextureCache::GetConfigDrawResolutionScale(u32 requested_x, u32 requested_y, u32& x_out,
+                                                u32& y_out) {
+  u32 config_x = std::max(UINT32_C(1), requested_x);
+  u32 config_y = std::max(UINT32_C(1), requested_y);
   u32 clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
   u32 clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
   x_out = clamped_x;
@@ -88,15 +86,11 @@ void TextureCache::ClearCache() {
 void TextureCache::CompletedSubmissionUpdated(u64 completed_submission_index) {
   u64 current_time = rex::Clock::QueryHostUptimeMillis();
   // The render to texture limit is included in the soft and hard limits at 1x.
-  u32 limit_scaled_resolve_add_mb =
-      REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_render_to_texture) *
-      (GetDrawResolutionScaleX() * GetDrawResolutionScaleY() - 1);
-  u32 limit_soft_mb =
-      REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_soft) + limit_scaled_resolve_add_mb;
-  u32 limit_hard_mb =
-      REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_hard) + limit_scaled_resolve_add_mb;
-  u32 limit_soft_lifetime =
-      REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_soft_lifetime) * 1000;
+  u32 limit_scaled_resolve_add_mb = settings_.texture_cache_memory_limit_render_to_texture.Get() *
+                                    (GetDrawResolutionScaleX() * GetDrawResolutionScaleY() - 1);
+  u32 limit_soft_mb = settings_.texture_cache_memory_limit_soft.Get() + limit_scaled_resolve_add_mb;
+  u32 limit_hard_mb = settings_.texture_cache_memory_limit_hard.Get() + limit_scaled_resolve_add_mb;
+  u32 limit_soft_lifetime = settings_.texture_cache_memory_limit_soft_lifetime.Get() * 1000;
   bool destroyed_any = false;
   while (texture_used_first_ != nullptr) {
     u64 total_host_memory_usage_mb =
@@ -252,7 +246,7 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
     }
   }
 
-  if (!LoadTextureDataFromResidentMemoryImpl(texture, pending_load.load_base,
+  if (!LoadHostTextureDataFromResidentMemory(texture, pending_load.load_base,
                                              pending_load.load_mips)) {
     return false;
   }
@@ -303,7 +297,7 @@ void TextureCache::RequestTextures(u32 used_texture_mask) {
     xenos::TextureFetch fetch = regs.GetTextureFetch(index);
     TextureKey old_key = binding.key;
     u8 old_swizzled_signs = binding.swizzled_signs;
-    BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
+    GetTextureKeyFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
     texture_bindings_in_sync_ |= index_bit;
     if (!binding.key.is_valid) {
       if (old_key.is_valid) {
@@ -389,7 +383,7 @@ void TextureCache::RequestTextures(u32 used_texture_mask) {
     }
   }
   if (bindings_changed) {
-    UpdateTextureBindingsImpl(bindings_changed);
+    UpdateHostTextureBindings(bindings_changed);
   }
 }
 
@@ -481,8 +475,7 @@ TextureCache::Texture::~Texture() {
   texture_cache_.UpdateTexturesTotalHostMemoryUsage(0, host_memory_usage_);
 }
 
-void TextureCache::Texture::UpdateAndWatch(
-    const std::unique_lock<rex::platform::RankedMutex>& watch_lock) {
+void TextureCache::Texture::UpdateAndWatch(const ScopeGuard& watch_lock) {
   SharedMemory& shared_memory = GetTextureCache().GetSharedMemory();
   if (base_outdated_) {
     REX_ASSERT(GetGuestBaseSize() != 0);
@@ -684,8 +677,9 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   return CommitPreparedTextureLoad(pending_load);
 }
 
-void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch,
-                                                TextureKey& key_out, u8* swizzled_signs_out) {
+void TextureCache::GetTextureKeyFromFetchConstant(const xenos::TextureFetch& fetch,
+                                                  TextureKey& key_out,
+                                                  u8* swizzled_signs_out) const {
   key_out.Invalidate();
   if (swizzled_signs_out != nullptr) {
     *swizzled_signs_out =
@@ -696,7 +690,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
     case xenos::FetchConstantType::kTexture:
       break;
     case xenos::FetchConstantType::kInvalidTexture:
-      if (REXCVAR_GET(::rex::gpu::cvars::allow_invalid_fetch_constants)) {
+      if (settings_.allow_invalid_fetch_constants.Get()) {
         break;
       }
       REXLOG_WARN(gpu,
@@ -788,7 +782,7 @@ void TextureCache::ResetTextureBindings(bool from_destructor) {
   }
   texture_bindings_in_sync_ &= ~bindings_reset;
   if (!from_destructor && bindings_reset) {
-    UpdateTextureBindingsImpl(bindings_reset);
+    UpdateHostTextureBindings(bindings_reset);
   }
 }
 
@@ -866,7 +860,7 @@ void TextureCache::ScaledResolveGlobalWatchCallback(u32 address_first, u32 addre
   u32 resolve_l2_block_last = resolve_block_last >> 6;
   for (u32 i = resolve_l2_block_first; i <= resolve_l2_block_last; ++i) {
     u64 resolve_l2_block = scaled_resolve_pages_l2_[i];
-    if (REXCVAR_GET(::rex::gpu::cvars::pre_mask_resolve_l2_block)) {
+    if (settings_.pre_mask_resolve_l2_block.Get()) {
       if (i == resolve_l2_block_first) {
         resolve_l2_block &= ~((UINT64_C(1) << (resolve_block_first & 63)) - 1);
       }

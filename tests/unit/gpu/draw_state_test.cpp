@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/gpu/draw_state_test.cpp
- * @brief       Draws whose depth test never passes do not take over render targets
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -13,9 +12,8 @@
 
 #include <memory>
 
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/registers.h>
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/state.h>
 
 #include "gpu/xenos/draw_state.h"
 

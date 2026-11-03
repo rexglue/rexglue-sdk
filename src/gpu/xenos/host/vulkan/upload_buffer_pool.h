@@ -23,9 +23,8 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
   /**
    * Creates the pool.
    *
-   * The page size is rounded up to nonCoherentAtomSize, the memory mapping granularity, so the
-   * padding of host visible allocations is not wasted.
-   * Map and flush ranges must be clamped to the allocation size.
+   * The page size is rounded up to nonCoherentAtomSize, so map and flush ranges must be clamped
+   * to the allocation size.
    *
    * @param vulkan_device The device to allocate on.
    * @param usage The buffer usage flags.
@@ -47,7 +46,7 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
  private:
   struct VulkanPage : public Page {
     /**
-     * Creates the page and takes ownership of the buffer, its memory and its mapping.
+     * Creates the page and takes ownership of the buffer, memory and mapping.
      *
      * @param vulkan_device The owning device.
      * @param buffer The page buffer.

@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "gpu/xenos/host/immediate_drawer.h"
-#include "gpu/xenos/host/vulkan/ui_samplers.h"
+#include "gpu/xenos/host/vulkan/ui_sampler.h"
 #include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
 
 namespace rex {
@@ -30,10 +30,10 @@ class VulkanImmediateDrawer : public OverlayDrawer {
 
  public:
   explicit VulkanImmediateDrawer(Key, const VulkanDevice* vulkan_device,
-                                 const UISamplers* ui_samplers);
+                                 const UISamplerSet* ui_samplers);
 
   static std::unique_ptr<VulkanImmediateDrawer> Create(const VulkanDevice* vulkan_device,
-                                                       const UISamplers* ui_samplers);
+                                                       const UISamplerSet* ui_samplers);
 
   ~VulkanImmediateDrawer();
 
@@ -73,14 +73,13 @@ class VulkanImmediateDrawer : public OverlayDrawer {
     /** Null for a blank texture or after the immediate drawer has been destroyed. */
     VulkanImmediateDrawer* immediate_drawer;
     size_t immediate_drawer_index;
-    /** Invalid when immediate_drawer is null, as the immediate drawer manages it. */
+    /** Invalid when immediate_drawer is null, since the drawer owns the resource. */
     Resource resource;
     size_t pending_upload_index;
     u64 last_usage_submission = 0;
   };
 
   struct TextureDescriptorPool {
-    // Using uint64_t for recycled bits.
     static constexpr u32 kDescriptorCount = 64;
     VkDescriptorPool pool;
     VkDescriptorSet sets[kDescriptorCount];
@@ -111,8 +110,6 @@ class VulkanImmediateDrawer : public OverlayDrawer {
    *
    * @param width Width in texels.
    * @param height Height in texels.
-   * @param filter Sampler filter.
-   * @param is_repeated True when the sampler repeats.
    * @param data RGBA8 texel data, or null.
    * @param resource_out Receives the created resource.
    * @param pending_upload_index_out Receives the pending upload index.
@@ -126,7 +123,7 @@ class VulkanImmediateDrawer : public OverlayDrawer {
   void OnImmediateTextureDestroyed(VulkanOverlayTexture& texture);
 
   const VulkanDevice* vulkan_device_;
-  const UISamplers* ui_samplers_;
+  const UISamplerSet* ui_samplers_;
 
   VkDescriptorSetLayout texture_descriptor_set_layout_;
   std::vector<TextureDescriptorPool*> texture_descriptor_pools_;

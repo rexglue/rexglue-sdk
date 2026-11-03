@@ -27,7 +27,6 @@ constexpr u8 kPriorityRT0 = 3;
  * Converts a normalized color mask to a 4 bit mask of bound RTs.
  *
  * @param normalized_color_mask The color mask with 4 bits per RT (RGBA).
- * @return The bound RT mask.
  */
 inline u32 GetBoundRTMaskFromNormalizedColorMask(u32 normalized_color_mask) {
   return (((normalized_color_mask >> 0) & 0xF) ? 1 : 0) |
@@ -39,10 +38,8 @@ inline u32 GetBoundRTMaskFromNormalizedColorMask(u32 normalized_color_mask) {
 /**
  * Returns the async compilation priority from shader outputs.
  *
- * @param bound_rts The bound RT mask.
  * @param shader_writes_color_targets The mask of color targets the shader writes.
  * @param shader_writes_depth True when the shader writes depth.
- * @return The priority.
  */
 inline u8 CalculatePipelinePriority(u32 bound_rts, u32 shader_writes_color_targets,
                                     bool shader_writes_depth) {

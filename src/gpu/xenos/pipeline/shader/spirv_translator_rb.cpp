@@ -19,7 +19,7 @@
 #include "gpu/xenos/pipeline/render_target/cache.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
 #include "gpu/xenos/draw_state.h"
-#include <rex/math.h>
+#include <rex/bit.h>
 
 namespace rex::gpu {
 

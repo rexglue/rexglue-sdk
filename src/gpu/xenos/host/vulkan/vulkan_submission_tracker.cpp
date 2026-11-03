@@ -12,6 +12,7 @@
 #include <cstdint>
 
 #include <rex/assert.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/submission_tracker.h"
 #include "gpu/xenos/host/vulkan/objects.h"
 
@@ -57,7 +58,7 @@ void VulkanSubmissionTracker::Shutdown() {
   objects::DestroyAndNullHandle(dfn.vkDestroyFence, device, fence_acquired_);
 }
 
-void VulkanSubmissionTracker::FenceAcquisition::SubmissionFailedOrDropped() {
+void VulkanSubmissionTracker::FenceAcquisition::SubmissionFailedOrDiscarded() {
   if (!submission_tracker_) {
     return;
   }

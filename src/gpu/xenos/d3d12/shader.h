@@ -35,11 +35,8 @@ class D3D12Shader : public DXBCShader {
               size_t ucode_dword_count, std::endian ucode_source_endian = std::endian::big);
 
   /**
-   * Returns the unique identifier, used instead of a hash to rule out collisions, of the texture
-   * binding layout used by the shader, for invalidation when a shader with an incompatible layout
-   * is bound.
-   *
-   * @return The texture binding layout identifier.
+   * Returns the unique identifier of the texture binding layout, used instead of a hash to rule
+   * out collisions. A different identifier invalidates the descriptor indices bound for the stage.
    */
   size_t GetTextureBindingLayoutUserUID() const { return texture_binding_layout_user_uid_; }
   size_t GetSamplerBindingLayoutUserUID() const { return sampler_binding_layout_user_uid_; }

@@ -15,7 +15,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
-#include <rex/math.h>
+#include <rex/bit.h>
 
 namespace rex::gpu {
 using namespace xenos::ucode;

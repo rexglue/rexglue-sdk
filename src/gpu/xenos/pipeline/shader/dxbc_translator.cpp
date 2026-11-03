@@ -18,28 +18,33 @@
 #include <memory>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/pipeline/shader/dxbc.h"
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include "gpu/xenos/host/graphics_provider.h"
-
-#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu {
 using namespace xenos::ucode;
 
 // x# is accessed only by mov, CBs are indexed CBx[y][z] with x binding, y register, z vector.
 
-DXBCShaderTranslator::DXBCShaderTranslator(gpu::GraphicsProvider::GPUVendorID vendor_id,
+DXBCShaderTranslator::DXBCShaderTranslator(const XenosSettings& settings,
+                                           const DXBCOptions& options,
+                                           gpu::GraphicsProvider::GPUVendorID vendor_id,
                                            bool bindless_resources_used, bool edram_rov_used,
                                            bool gamma_render_target_as_unorm8,
                                            bool msaa_2x_supported, u32 draw_resolution_scale_x,
                                            u32 draw_resolution_scale_y, bool force_emit_source_map)
     : a_(shader_code_, statistics_),
       ao_(shader_object_, statistics_),
-      emit_source_map_(force_emit_source_map || REXCVAR_GET(::rex::gpu::cvars::dxbc_source_map)),
+      settings_(settings),
+      options_(options),
+      emit_source_map_(force_emit_source_map || options.source_map),
+      force_emit_source_map_(force_emit_source_map),
       vendor_id_(vendor_id),
       bindless_resources_used_(bindless_resources_used),
       edram_rov_used_(edram_rov_used),
@@ -57,7 +62,7 @@ DXBCShaderTranslator::~DXBCShaderTranslator() = default;
 std::vector<u8> DXBCShaderTranslator::CreateDepthOnlyPixelShader() {
   is_depth_only_pixel_shader_ = true;
   Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
-  shader.AnalyzeUcode(instruction_disassembly_buffer_);
+  shader.AnalyzeUcode(instruction_disassembly_buffer_, settings_.dump_shaders.Get());
   Shader::Translation& translation = *shader.GetOrCreateTranslation(0);
   TranslateAnalyzedShader(translation);
   is_depth_only_pixel_shader_ = false;
@@ -139,6 +144,11 @@ void DXBCShaderTranslator::Reset() {
   statistics_ = {};
 }
 
+void DXBCShaderTranslator::SetOptions(const DXBCOptions& options) {
+  options_ = options;
+  emit_source_map_ = force_emit_source_map_ || options.source_map;
+}
+
 u32 DXBCShaderTranslator::GetModificationRegisterCount() const {
   Modification modification = GetDXBCShaderModification();
   return IsVertexShader() ? modification.vertex.dynamic_addressable_register_count
@@ -147,8 +157,7 @@ u32 DXBCShaderTranslator::GetModificationRegisterCount() const {
 
 bool DXBCShaderTranslator::IsSwitchControlFlowUsed() const {
   // Intel HD Graphics 4000 crashes with switch.
-  return REXCVAR_GET(::rex::gpu::cvars::dxbc_switch) &&
-         vendor_id_ != gpu::GraphicsProvider::GPUVendorID::kIntel;
+  return options_.use_switch && vendor_id_ != gpu::GraphicsProvider::GPUVendorID::kIntel;
 }
 
 u32 DXBCShaderTranslator::PushSystemTemp(u32 zero_mask, u32 count) {
@@ -621,7 +630,7 @@ void DXBCShaderTranslator::StartTranslation() {
   if (IsVertexShader()) {
     system_temp_position_ = PushSystemTemp(0b1111);
     system_temp_point_size_edge_flag_kill_vertex_ = PushSystemTemp(0b0100);
-    // A negative point size tells the geometry shader to use the default size.
+    // A negative point size makes the geometry shader use the default size.
     a_.OpMov(dxbc::Dest::R(system_temp_point_size_edge_flag_kill_vertex_, 0b0001),
              dxbc::Src::LF(-1.0f));
   } else if (IsPixelShader()) {
@@ -748,7 +757,7 @@ void DXBCShaderTranslator::CompleteVertexOrDomainShader() {
            dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW),
            dxbc::Src::R(system_temp_position_));
 
-  // Vertex kill register bits 0:30 non zero kill the vertex, tested with and to avoid denormals.
+  // Any of bits 0 to 30 of the vertex kill register kills the vertex, tested with and.
   bool shader_writes_vertex_kill =
       (GetCurrentShader().GetWritesPointSizeEdgeFlagKillVertex() & 0b100) != 0;
   if (shader_writes_vertex_kill) {
@@ -1182,7 +1191,7 @@ void DXBCShaderTranslator::StoreResult(const InstructionResult& result, const dx
       } else {
         dest = dxbc::Dest::ODepth();
       }
-      // Depth outside [0, 1] is unsafe for the ROV code, 20e4 as 32 conversion and float24 remap.
+      // The ROV 20e4 conversion and float24 remap need depth inside [0, 1].
       is_clamped = true;
       break;
   }
@@ -1384,7 +1393,7 @@ void DXBCShaderTranslator::ProcessLoopStartInstruction(const ParsedLoopStartInst
     EmitInstructionDisassembly();
   }
 
-  // Loop constant bits 0:7 are the count, 8:15 the initial aL, at vector 2 after bool constants.
+  // Loop constant bits 0 to 7 are the count and 8 to 15 the initial aL, at vector 2 after bools.
   if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
     cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
   }
@@ -1455,7 +1464,7 @@ void DXBCShaderTranslator::ProcessLoopEndInstruction(const ParsedLoopEndInstruct
   a_.OpElse();
   {
     u32 al_add_temp = PushSystemTemp();
-    // The signed aL increment is in bits 16:23 of the loop constant.
+    // The signed aL increment is in bits 16 to 23 of the loop constant.
     if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
@@ -2041,7 +2050,7 @@ void DXBCShaderTranslator::WriteResourceDefinition() {
       dxbc::RDEFInputBind& cbuffer = cbuffers[i];
       cbuffer.type = dxbc::RDEFInputType::kCbuffer;
       cbuffer.bind_count = 1;
-      cbuffer.flags = dxbc::kRdefInputFlagUserPacked;
+      cbuffer.flags = dxbc::kRDEFInputFlagUserPacked;
       cbuffer.id = i;
       if (i == cbuffer_index_system_constants_) {
         cbuffer.name_ptr = cbuffer_name_ptr_system;

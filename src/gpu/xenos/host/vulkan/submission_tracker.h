@@ -18,8 +18,8 @@
 
 #include <rex/assert.h>
 #include <rex/logging/log.h>
-#include <rex/no_throw.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
 namespace rex {
@@ -27,14 +27,11 @@ namespace gpu {
 namespace vulkan {
 
 /**
- * Fence wrapper that handles an uninitialized or shut down fence and failed or dropped
- * submissions.
+ * Tracks GPU submissions with a fence.
  *
- * The current submission index tags object usage so objects are released once the GPU no longer
- * references them. 0 is the never referenced submission index. The timeline survives Shutdown,
- * so indices can go to clients unaware of the tracker lifetime. To move to another queue, call
- * AwaitAllSubmissionsCompletion before the first submission on the new one, so its first signal
- * follows the last signal on the old one.
+ * The submission index tags object usage so objects are released once the GPU no longer uses
+ * them. Index 0 is never referenced. The timeline survives Shutdown. To move to another queue,
+ * call AwaitAllSubmissionsCompletion before the first submission on the new one.
  */
 class VulkanSubmissionTracker : public rex::NonCopyable {
  public:
@@ -59,29 +56,21 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
     }
     ~FenceAcquisition() { Release(); }
 
-    /**
-     * Returns the fence, in the unsignaled state.
-     *
-     * @return The fence, or null when creating or resetting it failed.
-     */
+    /** Returns the unsignaled fence, or null when creating or resetting it failed. */
     VkFence GetFence() { return fence_; }
 
     /**
-     * Marks the submission as failed or dropped, so releasing it does not increment the
-     * submission index.
+     * Marks the submission as failed or discarded, so releasing it does not increment the index.
      *
-     * Applies when vkQueueSubmit failed or the submission was not committed, for example to retry
-     * commands with long term effects such as copies or image layout changes under the same index.
+     * Applies when vkQueueSubmit failed or the submission was not committed, so commands with long
+     * term effects can be retried under the same index.
      */
-    void SubmissionFailedOrDropped();
+    void SubmissionFailedOrDiscarded();
     /**
-     * Marks that the fence only submission failed after the command buffer submission succeeded.
-     *
-     * Applies when the fence is signaled in a separate submission, for example to signal multiple
-     * fences. Commands with long term effects still execute, but the fence stays unsignaled so the
-     * tracker does not wait for it.
+     * Marks that the separate fence only submission failed after the command buffer submission
+     * succeeded. The commands still execute, but the tracker does not wait for the fence.
      */
-    void SubmissionSucceededSignalFailed() { signal_failed_ = true; }
+    void MarkFenceSignalFailed() { signal_failed_ = true; }
 
    private:
     void Release() noexcept;
@@ -108,16 +97,10 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
   /**
    * Reports whether the expected GPU signal was reached rather than a fallback condition.
    *
-   * Needed where stronger completeness is required, such as downloading rather than destroying.
-   * When false, UpdateAndGetCompletedSubmission may still return less than submission_index. The
-   * index must not exceed the current submission. Awaiting the current submission is valid after a
-   * failed or dropped submission that did not increment the index, to release the objects it
-   * referenced, for example on shutdown. A failed signal after a successful submission can still
-   * race, so the closest successful signal is the best approximation. Waiting starts from the
-   * most recent fence, as a vkQueueSubmit fence signal covers all earlier commands in submission
-   * order.
+   * Needed where completeness matters, such as downloading rather than destroying. When false,
+   * UpdateAndGetCompletedSubmission may still return less than submission_index. The index must
+   * not exceed the current submission.
    *
-   * @param submission_index The submission to await.
    * @return True when the expected GPU signal was reached.
    */
   bool AwaitSubmissionCompletion(u64 submission_index);
@@ -132,11 +115,7 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
   u64 submission_current_ = 1;
   /** Last submission with a successful fence signal and a successful fence wait or query. */
   u64 submission_completed_on_gpu_ = 0;
-  /**
-   * A fence goes from reclaimed (or created when none) to acquired, pending, then reclaimed.
-   *
-   * A submission dropped while acquired goes straight from acquired to reclaimed.
-   */
+  /** Cycles reclaimed, acquired, pending, reclaimed. A discarded submission skips pending. */
   VkFence fence_acquired_ = VK_NULL_HANDLE;
   /** Ordered by the submission index, the first pair member. */
   std::deque<std::pair<u64, VkFence>> fences_pending_;

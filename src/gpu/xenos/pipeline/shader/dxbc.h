@@ -16,7 +16,8 @@
 
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
 #include "gpu/xenos/pipeline/shader/shader.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/state.h>
 
 namespace rex::gpu {
 
@@ -39,11 +40,7 @@ class DXBCShader : public Shader {
     xenos::FetchOpDimension dimension;
     bool is_signed;
   };
-  /**
-   * Returns the texture bindings, safe to hash and compare with memcmp.
-   *
-   * @return Texture bindings collected by the translation.
-   */
+  /** Returns the texture bindings, safe to hash and compare with memcmp. */
   const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation() const {
     return translated_texture_bindings_;
   }

@@ -1,7 +1,5 @@
 /**
  * @file        tests/unit/gpu/shader_interpreter_test.cpp
- * @brief       The shader interpreter runs scalar constant and temp operations as the translators
- * do
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,10 +16,11 @@
 #include <utility>
 
 #include <rex/types.h>
-#include <rex/xenos/register_file.h>
+#include <rex/xenos/register.h>
 #include <rex/xenos/ucode.h>
 
 #include "gpu/xenos/pipeline/shader/interpreter.h"
+#include "fake_title_context.h"
 #include "test_memory.h"
 
 namespace {
@@ -43,7 +42,8 @@ std::array<u32, 6> MulConstTempProgram(bool abs_constants) {
 f32 RunMulConstTemp(bool abs_constants) {
   auto registers = std::make_unique<rex::xenos::RegisterFile>();
   (*registers)[rex::xenos::Register::SHADER_CONSTANT_000_W] = std::bit_cast<u32>(-2.0f);
-  rex::gpu::ShaderInterpreter interpreter(*registers, rex::test::GetTestMemory());
+  rex::test::FakeTitleContext title(rex::test::GetTestMemory());
+  rex::gpu::ShaderInterpreter interpreter(*registers, title);
   interpreter.GetTempRegisters()[0] = 3.0f;
   const auto ucode = MulConstTempProgram(abs_constants);
   interpreter.SetShader(rex::xenos::ShaderType::kVertex, ucode.data());

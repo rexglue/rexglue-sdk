@@ -21,8 +21,9 @@
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/translator.h"
 #include <rex/math.h>
-#include <rex/string/buffer.h>
+#include <rex/string/text.h>
 #include "gpu/xenos/host/graphics_provider.h"
+#include "gpu/xenos/xenos_settings.h"
 
 namespace rex::gpu {
 
@@ -37,20 +38,31 @@ namespace rex::gpu {
  * - TEXCOORD interpolators go VS to GS to PS and every used one is referenced in all stages.
  * - XESPRITETEXCOORD point coordinates go GS to PS and are present in none or all when drawing
  * points with PsParamGen.
- * - SV_Position goes VS to GS to PS and is placed last in the PS so it can be dropped without
+ * - SV_Position goes VS to GS to PS and is placed last in the PS so it can be removed without
  * affecting linkage.
  * - SV_ClipDistance goes VS to GS or RS.
  * - SV_CullDistance, then the vertex kill AND operator in another SV_CullDistance, go VS to GS or
  * RS.
  * - XEPSIZE point size goes VS to GS only.
  */
+/** What the D3D12 driver asks of the translator. */
+struct DXBCOptions {
+  bool source_map = false;
+  bool use_switch = true;
+  bool fuzzy_alpha_epsilon = false;
+  bool scaled_texture_offsets = true;
+};
+
 class DXBCShaderTranslator : public ShaderTranslator {
  public:
-  DXBCShaderTranslator(gpu::GraphicsProvider::GPUVendorID vendor_id, bool bindless_resources_used,
+  DXBCShaderTranslator(const XenosSettings& settings, const DXBCOptions& options,
+                       gpu::GraphicsProvider::GPUVendorID vendor_id, bool bindless_resources_used,
                        bool edram_rov_used, bool gamma_render_target_as_unorm8 = false,
                        bool msaa_2x_supported = true, u32 draw_resolution_scale_x = 1,
                        u32 draw_resolution_scale_y = 1, bool force_emit_source_map = false);
   ~DXBCShaderTranslator() override;
+
+  void SetOptions(const DXBCOptions& options);
 
   union Modification {
     /**
@@ -227,8 +239,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
     f32 point_screen_diameter_to_ndc_radius[2];
 
     /**
-     * Post swizzle TextureSign values, 1 byte per needed component of each of the 32 texture fetch
-     * constants.
+     * Post swizzle TextureSign values, 1 byte per needed component of each of the 32 texture
+     * fetch constants.
      */
     u32 texture_swizzled_signs[8];
 
@@ -379,7 +391,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
                   "Too many system constants, can't use uint64_t for usage bits");
   };
 
-  /** Shader resource view binding spaces. */
   enum class SRVSpace : u8 {
     /** Uses the SRVMainRegister t# layout. */
     kMain,
@@ -440,8 +451,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * Creates a pixel shader without color outputs.
    *
    * Resets the translator state.
-   *
-   * @return The translated shader binary.
    */
   std::vector<u8> CreateDepthOnlyPixelShader();
 
@@ -451,27 +460,19 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * Source and destination may be the same, the temporary must differ from both.
    *
-   * @param a Assembler receiving the instructions.
    * @param f10_temp Temporary register receiving the 7e3 value.
-   * @param f10_temp_component Component of f10_temp to write.
    * @param f32_temp Temporary register holding the clamped float32 source.
-   * @param f32_temp_component Component of f32_temp to read.
    * @param temp_temp Scratch temporary register.
-   * @param temp_temp_component Component of temp_temp to use.
    */
   static void PreClampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp, u32 f10_temp_component,
                                      u32 f32_temp, u32 f32_temp_component, u32 temp_temp,
                                      u32 temp_temp_component);
   /**
-   * Same as PreClampedFloat32To7e3 but clamps the input to [0, 31.875].
+   * Like PreClampedFloat32To7e3 but clamps the input to [0, 31.875].
    *
-   * @param a Assembler receiving the instructions.
    * @param f10_temp Temporary register receiving the 7e3 value.
-   * @param f10_temp_component Component of f10_temp to write.
    * @param f32_temp Temporary register holding the float32 source.
-   * @param f32_temp_component Component of f32_temp to read.
    * @param temp_temp Scratch temporary register.
-   * @param temp_temp_component Component of temp_temp to use.
    */
   static void UnclampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp, u32 f10_temp_component,
                                     u32 f32_temp, u32 f32_temp_component, u32 temp_temp,
@@ -479,18 +480,14 @@ class DXBCShaderTranslator : public ShaderTranslator {
   /**
    * Converts the 7e3 number in bits [f10_shift, f10_shift + 10) to a 32 bit float.
    *
-   * The temporaries must differ from each other, 1 may be the source. The destination may be
+   * The temporaries must differ from each other, one may be the source. The destination may be
    * anything writable.
    *
-   * @param a Assembler receiving the instructions.
    * @param f32 Destination receiving the float32 result.
    * @param f10_temp Temporary register holding the 7e3 source.
-   * @param f10_temp_component Component of f10_temp to read.
    * @param f10_shift Bit offset of the 7e3 number in the source.
    * @param temp1_temp First scratch temporary register.
-   * @param temp1_temp_component Component of temp1_temp to use.
    * @param temp2_temp Second scratch temporary register.
-   * @param temp2_temp_component Component of temp2_temp to use.
    */
   static void Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f10_temp,
                            u32 f10_temp_component, u32 f10_shift, u32 temp1_temp,
@@ -501,13 +498,9 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * Source and destination may be the same, the temporary must differ from both.
    *
-   * @param a Assembler receiving the instructions.
    * @param f24_temp Temporary register receiving the 20e4 value.
-   * @param f24_temp_component Component of f24_temp to write.
    * @param f32_temp Temporary register holding the clamped float32 source.
-   * @param f32_temp_component Component of f32_temp to read.
    * @param temp_temp Scratch temporary register.
-   * @param temp_temp_component Component of temp_temp to use.
    * @param round_to_nearest_even Whether to round to nearest even instead of towards zero.
    * @param remap_from_0_to_0_5 Whether the input has 0...1 pre remapped to 0...0.5.
    */
@@ -518,18 +511,14 @@ class DXBCShaderTranslator : public ShaderTranslator {
   /**
    * Converts the 20e4 number in bits [f24_shift, f24_shift + 24) to a 32 bit float.
    *
-   * The temporaries must differ from each other, 1 may be the source. The destination may be
+   * The temporaries must differ from each other, one may be the source. The destination may be
    * anything writable.
    *
-   * @param a Assembler receiving the instructions.
    * @param f32 Destination receiving the float32 result.
    * @param f24_temp Temporary register holding the 20e4 source.
-   * @param f24_temp_component Component of f24_temp to read.
    * @param f24_shift Bit offset of the 20e4 number in the source.
    * @param temp1_temp First scratch temporary register.
-   * @param temp1_temp_component Component of temp1_temp to use.
    * @param temp2_temp Second scratch temporary register.
-   * @param temp2_temp_component Component of temp2_temp to use.
    * @param remap_to_0_to_0_5 Whether 0...1 in float24 maps to 0...0.5 in float32.
    */
   static void Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f24_temp,
@@ -543,16 +532,11 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * The target may be the same as the source, the temporaries must differ from both.
    *
-   * @param a Assembler receiving the instructions.
    * @param target_temp Temporary register receiving the linear value.
-   * @param target_temp_component Component of target_temp to write.
    * @param source_temp Temporary register holding the gamma source.
-   * @param source_temp_component Component of source_temp to read.
    * @param source_pre_saturated Whether the source is saturated.
    * @param temp1 First scratch temporary register.
-   * @param temp1_component Component of temp1 to use.
    * @param temp2 Second scratch temporary register.
-   * @param temp2_component Component of temp2 to use.
    */
   static void PWLGammaToLinear(dxbc::Assembler& a, u32 target_temp, u32 target_temp_component,
                                u32 source_temp, u32 source_temp_component,
@@ -564,15 +548,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * The target may be the same as the source or as temp_or_target but not both, and temp_or_target
    * must differ from the source. temp_non_target must differ from all others.
    *
-   * @param a Assembler receiving the instructions.
    * @param target_temp Temporary register receiving the gamma value.
-   * @param target_temp_component Component of target_temp to write.
    * @param source_temp Temporary register holding the linear source.
-   * @param source_temp_component Component of source_temp to read.
    * @param temp_or_target Scratch temporary register that may be the target.
-   * @param temp_or_target_component Component of temp_or_target to use.
    * @param temp_non_target Scratch temporary register distinct from all others.
-   * @param temp_non_target_component Component of temp_non_target to use.
    */
   static void PreSaturatedLinearToPWLGamma(dxbc::Assembler& a, u32 target_temp,
                                            u32 target_temp_component, u32 source_temp,
@@ -599,22 +578,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
   void ProcessAllocInstruction(const ParsedAllocInstruction& instr, u8 export_em) override;
 
   void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& instr) override;
-  /**
-   * Translates a texture fetch.
-   *
-   * Offsets get an extra 1.5/4 of the fixed point texture coordinate ULP, which resolves the
-   * ambiguity between texels in point sampling for normalized and unnormalized coordinates. 1/4 is
-   * not enough at 3x resolution scale. Correcting the division error instead fails because the
-   * sampler's internal multiply rounds differently from `mul` on Nvidia.
-   *
-   * getCompTexLOD forces linear mip filtering because `lod` is undefined for point sampling and its
-   * result may be biased later, and the XNA assembler rejects MipFilter overrides for
-   * getCompTexLOD.
-   *
-   * @param instr Parsed texture fetch instruction.
-   */
   void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& instr) override;
-  void ProcessALUInstruction(const ParsedAluInstruction& instr,
+  void ProcessALUInstruction(const ParsedALUInstruction& instr,
                              u8 memexport_em_potentially_written_before) override;
 
  private:
@@ -622,11 +587,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
   static constexpr u32 kInRegisterVSVertexIndex = 0;
   static constexpr u32 kInRegisterDSControlPointIndex = 0;
 
-  /**
-   * Marks a system constant as used.
-   *
-   * @param index System constant to mark.
-   */
   void MarkSystemConstantUsed(SystemConstants::Index index) {
     system_constants_used_ |= static_cast<u64>(1) << static_cast<u32>(index);
   }
@@ -635,7 +595,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * Swizzle components are relative to the first component of the vector at the offset, so XXXX
    * selects a scalar and moves to YYYY when it sits at +4 in its 16 byte vector. Out of bounds
-   * components are allowed and dropped later.
+   * components are allowed and discarded later.
    *
    * @param offset offsetof(SystemConstants, field).
    * @param swizzle Swizzle relative to the first component at the offset.
@@ -686,11 +646,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
                             : modification.pixel.interpolator_mask;
   }
 
-  /**
-   * Reports whether control flow uses switch-case rather than if (pc >= label).
-   *
-   * @return True when control flow uses switch-case.
-   */
   bool IsSwitchControlFlowUsed() const;
 
   /**
@@ -701,11 +656,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @return Index of the first register.
    */
   u32 PushSystemTemp(u32 zero_mask = 0, u32 count = 1);
-  /**
-   * Frees the last allocated internal r# registers for reuse.
-   *
-   * @param count Number of registers to free.
-   */
   void PopSystemTemp(u32 count = 1);
 
   /**
@@ -728,11 +678,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
     }
     return false;
   }
-  /**
-   * Reports whether the non ROV pixel shader converts depth to 20e4.
-   *
-   * @return True when the non ROV pixel shader converts depth to 20e4.
-   */
   bool IsDSVWritingFloat24Depth() const {
     if (edram_rov_used_) {
       return false;
@@ -742,70 +687,56 @@ class DXBCShaderTranslator : public ShaderTranslator {
     return depth_stencil_mode == Modification::DepthStencilMode::kFloat24Truncating ||
            depth_stencil_mode == Modification::DepthStencilMode::kFloat24Rounding;
   }
-  /**
-   * Reports whether it is possible and worthwhile to skip running the shader for 2x2 quads.
-   *
-   * @return True when skipping the shader for 2x2 quads is possible and worthwhile.
-   */
+  /** Reports whether it is possible and worthwhile to skip running the shader for 2x2 quads. */
   bool IsROVDepthStencilEarly() const {
     REX_ASSERT(edram_rov_used_);
     return !is_depth_only_pixel_shader_ && !GetCurrentShader().IsDepthWritten() &&
            !GetCurrentShader().GetMemExportEMWritten();
   }
   /**
-   * Converts the pre clamped depth to 24 bit in bits 0 to 23 with 24 to 31 zero, leaving no room
-   * for stencil since the result is used in comparisons. Uses the format from the system constants.
+   * Converts the pre clamped depth to 24 bit in bits 0 to 23 with 24 to 31 zero, using the format
+   * from the system constants.
    *
    * Source and destination may be the same, the temporary must differ from both.
    *
    * @param d24_temp Temporary register receiving the 24 bit depth.
-   * @param d24_temp_component Component of d24_temp to write.
    * @param d32_temp Temporary register holding the pre clamped depth.
-   * @param d32_temp_component Component of d32_temp to read.
    * @param temp_temp Scratch temporary register.
-   * @param temp_temp_component Component of temp_temp to use.
    */
   void ROVDepthTo24Bit(u32 d24_temp, u32 d24_temp_component, u32 d32_temp, u32 d32_temp_component,
                        u32 temp_temp, u32 temp_temp_component);
   /**
-   * Performs the depth and stencil test, writing depending on whether it is late or safe to do
-   * early.
+   * Performs the depth and stencil test, writing late or early when that is safe.
    *
-   * Updates system_temp_rov_params_ result and coverage if allowed and safe, and
-   * system_temp_depth_stencil_. Returns from the shader when early, the coverage is empty for all
-   * pixels of the 2x2 quad and it is safe not to await kills, alpha test or alpha to coverage.
+   * Updates system_temp_rov_params_ and system_temp_depth_stencil_. Returns from the shader early
+   * when the coverage is empty for all pixels of the 2x2 quad and no kill, alpha test or alpha to
+   * coverage is pending.
    */
   void ROVDepthStencilTest();
   /**
-   * Unpacks a 32bpp or 64bpp color from packed_temp.packed_temp_components to color_temp using 2
+   * Unpacks a 32bpp or 64bpp color from packed_temp.packed_temp_components to color_temp using two
    * temporary VGPRs.
    *
-   * @param rt_index Render target index.
    * @param packed_temp Temporary register holding the packed color.
    * @param packed_temp_components Component of packed_temp where the packed color starts.
    * @param color_temp Temporary register receiving the unpacked color.
    * @param temp1 First scratch VGPR.
-   * @param temp1_component Component of temp1 to use.
    * @param temp2 Second scratch VGPR.
-   * @param temp2_component Component of temp2 to use.
    */
   void ROVUnpackColor(u32 rt_index, u32 packed_temp, u32 packed_temp_components, u32 color_temp,
                       u32 temp1, u32 temp1_component, u32 temp2, u32 temp2_component);
   /**
    * Packs a float32x4 color from color_temp to a 32bpp or 64bpp value in
-   * packed_temp.packed_temp_components using 2 temporary VGPRs.
+   * packed_temp.packed_temp_components using two temporary VGPRs.
    *
    * color_temp and packed_temp may be the same when packed_temp_components is 0. A 32bpp format
    * writes the high part to break the register dependency.
    *
-   * @param rt_index Render target index.
    * @param color_temp Temporary register holding the float32x4 color.
    * @param packed_temp Temporary register receiving the packed color.
    * @param packed_temp_components Component of packed_temp where the packed color starts.
    * @param temp1 First scratch VGPR.
-   * @param temp1_component Component of temp1 to use.
    * @param temp2 Second scratch VGPR.
-   * @param temp2_component Component of temp2 to use.
    */
   void ROVPackPreClampedColor(u32 rt_index, u32 color_temp, u32 packed_temp,
                               u32 packed_temp_components, u32 temp1, u32 temp1_component, u32 temp2,
@@ -830,14 +761,13 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param src_temp Temporary register holding the source alpha.
    * @param dst_temp Temporary register holding the destination alpha.
    * @param factor_temp Temporary register receiving the factor.
-   * @param factor_component Component of factor_temp to write.
    */
   void ROVHandleAlphaBlendFactorCases(u32 src_temp, u32 dst_temp, u32 factor_temp,
                                       u32 factor_component);
 
   /**
-   * Applies the index offset to vertex or tessellation patch indices, clamps them to the minimum
-   * and maximum index values and converts them to float.
+   * Applies the index offset to vertex or tessellation patch indices, clamps them to the index
+   * range and converts them to float.
    *
    * The destination may be the same as the source.
    *
@@ -882,9 +812,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param threshold_offset Variable part of the alpha threshold.
    * @param threshold_offset_scale Scale applied to threshold_offset.
    * @param coverage_temp Temporary register holding the coverage.
-   * @param coverage_temp_component Component of coverage_temp to update.
    * @param temp Scratch temporary register.
-   * @param temp_component Component of temp to use.
    */
   void CompletePixelShaderAlphaToMaskSample(bool initialize, u32 sample_index, f32 threshold_base,
                                             dxbc::Src threshold_offset, f32 threshold_offset_scale,
@@ -904,8 +832,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
   void CompleteShaderCode();
 
   /**
-   * Writes the original instruction disassembly from instruction_disassembly_buffer_ as shader
-   * messages when enabled.
+   * Writes the pending instruction disassembly as shader messages when enabled.
    */
   void EmitInstructionDisassembly();
 
@@ -920,7 +847,6 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param operand Translator source operand to convert.
    * @param needed_components Mask of components the caller reads.
    * @param temp_pushed_out Set when a system temporary was allocated.
-   * @return DXBC source for the operand.
    */
   dxbc::Src LoadOperand(const InstructionOperand& operand, u32 needed_components,
                         bool& temp_pushed_out);
@@ -940,13 +866,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * needed, then emits the pending disassembly.
    *
    * Conditionals nest as pc checks for labels, then the exec predicate or bool constant check, then
-   * instruction level predicate checks.
-   *
-   * Execs with the same condition are merged where possible, except across labels and after a
-   * `setp` in a predicated exec. Instruction level predicate checks are merged too, and an
-   * instruction with the same condition as its exec gets no `if` until a `setp`. Instructions with
-   * derivatives, such as texture fetches with computed LOD, run the derivative part unpredicated
-   * and predicate only the result store.
+   * instruction level predicate checks. Execs with the same condition are merged except across
+   * labels and after a `setp` in a predicated exec. Instructions with derivatives, such as texture
+   * fetches with computed LOD, run the derivative part unpredicated and predicate only the result
+   * store.
    *
    * An unchanged condition leaves the instruction level predicate `if` open, which callers such as
    * jumps must check separately.
@@ -957,18 +880,16 @@ class DXBCShaderTranslator : public ShaderTranslator {
    */
   void UpdateExecConditionalsAndEmitDisassembly(ParsedExecInstruction::Type type,
                                                 u32 bool_constant_index, bool condition);
-  /** Closes `if`s opened by execs and their instructions, but not by labels. */
+  /** Closes `if`s opened by execs and their instructions, not by labels. */
   void CloseExecConditionals();
   /**
    * Opens or reopens the predicate check for a non control flow instruction, emitting the pending
-   * disassembly between closing the previous conditional and opening the new one. Runs before
-   * each such instruction is processed.
+   * disassembly between closing the previous conditional and opening the new one.
    *
    * @param predicated Whether the instruction is predicated.
    * @param condition Predicate value required for the instruction to run.
    */
   void UpdateInstructionPredicationAndEmitDisassembly(bool predicated, bool condition);
-  /** Closes the instruction level predicate `if` if open. */
   void CloseInstructionPredication();
   void JumpToLabel(u32 address);
 
@@ -977,22 +898,12 @@ class DXBCShaderTranslator : public ShaderTranslator {
   u32 FindOrAddSamplerBinding(u32 fetch_constant, xenos::TextureFilter mag_filter,
                               xenos::TextureFilter min_filter, xenos::TextureFilter mip_filter,
                               xenos::AnisoFilter aniso_filter);
-  /**
-   * Returns the number of texture SRV and sampler offsets passed to the shader through a constant
-   * buffer.
-   *
-   * @return Number of bindless texture and sampler offsets.
-   */
   u32 GetBindlessResourceCount() const {
     return static_cast<u32>(texture_bindings_.size() + sampler_bindings_.size());
   }
   /**
    * Marks fetch constants used and returns the source for words 0 and 1 (pair 0), 2 and 3 (pair 1)
    * or 4 and 5 (pair 2) of a texture fetch constant.
-   *
-   * @param fetch_constant_index Index of the texture fetch constant.
-   * @param pair_index Index of the word pair within the fetch constant.
-   * @return Constant buffer source for the word pair.
    */
   dxbc::Src RequestTextureFetchConstantWordPair(u32 fetch_constant_index, u32 pair_index) {
     if (cbuffer_index_fetch_constants_ == kBindingIndexUnallocated) {
@@ -1011,10 +922,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
   void KillPixel(bool condition, const dxbc::Src& condition_src,
                  u8 memexport_em_potentially_written_before);
 
-  void ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+  void ProcessVectorAluOperation(const ParsedALUInstruction& instr,
                                  u8 memexport_em_potentially_written_before, u32& result_swizzle,
                                  bool& predicate_written);
-  void ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+  void ProcessScalarAluOperation(const ParsedALUInstruction& instr,
                                  u8 memexport_em_potentially_written_before,
                                  bool& predicate_written);
 
@@ -1035,9 +946,12 @@ class DXBCShaderTranslator : public ShaderTranslator {
   /** Must be declared after shader_object_ and statistics_ for initialization order. */
   dxbc::Assembler ao_;
 
-  StringBuffer instruction_disassembly_buffer_;
+  string::StringBuffer instruction_disassembly_buffer_;
 
+  const XenosSettings& settings_;
+  DXBCOptions options_;
   bool emit_source_map_;
+  bool force_emit_source_map_;
 
   gpu::GraphicsProvider::GPUVendorID vendor_id_;
 

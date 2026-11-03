@@ -14,21 +14,18 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/shared_memory.h"
-#include <rex/fail.h>
+#include "gpu/xenos/physical_memory.h"
 #include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
-#include "gpu/xenos/d3d12/cvar_table.h"
-
 namespace rex::gpu::d3d12 {
 
 D3D12SharedMemory::D3D12SharedMemory(D3D12CommandProcessor& command_processor,
-                                     runtime::Memory& memory)
-    : SharedMemory(memory), command_processor_(command_processor) {}
+                                     IPhysicalMemory& memory, IPhysicalWriteWatch& watch)
+    : SharedMemory(memory, watch), command_processor_(command_processor) {}
 
 D3D12SharedMemory::~D3D12SharedMemory() {
   Shutdown(true);
@@ -44,7 +41,7 @@ bool D3D12SharedMemory::Initialize() {
   gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, kBufferSize,
                                               D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
-  if (REXCVAR_GET(::rex::gpu::cvars::d3d12_tiled_shared_memory) &&
+  if (command_processor_.GetD3D12Settings().tiled_shared_memory.Get() &&
       provider.GetTiledResourcesTier() != D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
       !provider.GetGraphicsAnalysis()) {
     if (FAILED(device->CreateReservedResource(&buffer_desc, buffer_state_, nullptr,
@@ -319,9 +316,13 @@ bool D3D12SharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& upl
       }
       MarkRangeValid(upload_range_start << GetPageSizeLog2(), static_cast<u32>(upload_buffer_size),
                      false);
-      std::memcpy(upload_buffer_mapping,
-                  GetMemory().TranslatePhysical(upload_range_start << GetPageSizeLog2()),
-                  upload_buffer_size);
+      const u8* upload_source =
+          GetPhysicalForRead(GetMemory(), upload_range_start << GetPageSizeLog2(),
+                             static_cast<u32>(upload_buffer_size));
+      if (!upload_source) {
+        return false;
+      }
+      std::memcpy(upload_buffer_mapping, upload_source, upload_buffer_size);
       command_list.D3DCopyBufferRegion(buffer_, upload_range_start << GetPageSizeLog2(),
                                        upload_buffer, static_cast<UINT64>(upload_buffer_offset),
                                        static_cast<UINT64>(upload_buffer_size));

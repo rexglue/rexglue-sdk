@@ -15,11 +15,13 @@
 
 #include <rex/platform/dynlib.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 #if REX_PLATFORM_MAC
 struct RENDERDOC_API_1_0_0;
 #else
 #include <renderdoc_app.h>
+#include "gpu/xenos/xenos_export.h"
 #endif
 
 namespace rex {

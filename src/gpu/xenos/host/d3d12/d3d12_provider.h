@@ -12,8 +12,10 @@
 #pragma once
 
 #include <memory>
+#include <rex/settings.h>
 
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
+#include "gpu/xenos/host/d3d12/settings.h"
 #include "gpu/xenos/host/graphics_provider.h"
 
 namespace rex::gpu::d3d12 {
@@ -28,9 +30,18 @@ class D3D12Provider : public GraphicsProvider {
 
   static bool IsD3D12APIAvailable();
 
-  static std::unique_ptr<D3D12Provider> Create(i32 adapter_index);
+  /**
+   * Creates the provider.
+   *
+   * @param adapter_index The adapter to use, or -1 for the first one that fits.
+   * @param settings The gpu.d3d12 settings, which must outlive the provider.
+   */
+  static std::unique_ptr<D3D12Provider> Create(i32 adapter_index, const D3D12Settings& settings);
 
-  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGPULossCallback host_gpu_loss_callback =
+  const D3D12Settings& GetSettings() const { return *settings_; }
+
+  std::unique_ptr<Presenter> CreatePresenter(const XenosGraphicsDriverBase& driver,
+                                             Presenter::HostGPULossCallback host_gpu_loss_callback =
                                                  Presenter::FatalErrorHostGPULossCallback) override;
 
   std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() override;
@@ -111,6 +122,8 @@ class D3D12Provider : public GraphicsProvider {
   }
 
  private:
+  const D3D12Settings* settings_ = nullptr;
+
   static bool EnableIncreaseBasePriorityPrivilege();
   bool Initialize(i32 adapter_index);
 

@@ -10,6 +10,11 @@
  */
 
 #include <algorithm>
+
+#ifndef XXH_INLINE_ALL
+#define XXH_INLINE_ALL
+#endif
+#include <xxhash.h>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -24,36 +29,30 @@
 #include <format>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
-#include <rex/fail.h>
+#include <rex/platform/perf.h>
 #include <rex/logging/log.h>
 #include <rex/platform/file.h>
-#include <rex/math.h>
-#include <rex/no_throw.h>
+#include <rex/bit.h>
 #include <rex/platform/thread.h>
+#include <rex/platform/sync.h>
 #include <rex/memory.h>
-#include "gpu/xenos/shared_cvars.h"
 #include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/pipeline_priority.h"
 #include "gpu/xenos/pipeline/shader/spirv_builder.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
-#include <rex/string/utf8.h>
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/registers.h>
+#include <rex/string/text.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/pipeline_cache.h"
 #include "gpu/xenos/vulkan/shader.h"
 #include "gpu/xenos/vulkan/tessellation_glsl.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/packet.h>
+#include <rex/xenos/state.h>
 #include <rex/hash.h>
-#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/types.h>
 #include "gpu/xenos/host/vulkan/objects.h"
-
-#include "gpu/xenos/cvar_table_pair.h"
-#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 
@@ -77,6 +76,11 @@ VulkanPipelineCache::VulkanPipelineCache(VulkanCommandProcessor& command_process
       register_file_(register_file),
       render_target_cache_(render_target_cache),
       guest_shader_vertex_stages_(guest_shader_vertex_stages) {}
+
+void VulkanPipelineCache::AnalyzeShaderUCode(Shader& shader) {
+  shader.AnalyzeUcode(ucode_disasm_buffer_,
+                      command_processor_.GetXenosSettings().dump_shaders.Get());
+}
 
 VulkanPipelineCache::~VulkanPipelineCache() {
   log::NoThrow(log::gpu, [this] { Shutdown(); });
@@ -162,13 +166,13 @@ bool VulkanPipelineCache::Initialize() {
   REX_ASSERT(creation_completion_event_ != nullptr);
   creation_completion_set_event_ = false;
   creation_threads_shutdown_from_ = SIZE_MAX;
-  if (REXCVAR_GET(::rex::gpu::cvars::vulkan_pipeline_creation_threads) != 0) {
+  if (command_processor_.GetVulkanSettings().pipeline_creation_threads.Get() != 0) {
     size_t creation_thread_count;
-    if (REXCVAR_GET(::rex::gpu::cvars::vulkan_pipeline_creation_threads) < 0) {
+    if (command_processor_.GetVulkanSettings().pipeline_creation_threads.Get() < 0) {
       creation_thread_count = std::max(logical_processor_count * 3 / 4, static_cast<u32>(1));
     } else {
       creation_thread_count = std::min(
-          static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::vulkan_pipeline_creation_threads)),
+          static_cast<u32>(command_processor_.GetVulkanSettings().pipeline_creation_threads.Get()),
           logical_processor_count);
     }
     for (size_t i = 0; i < creation_thread_count; ++i) {
@@ -198,7 +202,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       REXLOG_ERROR(gpu,
                    "Failed to create the shareable shader storage directory, persistent "
                    "shader storage will be disabled: {}",
-                   rex::PathToUTF8(shader_storage_shareable_root));
+                   rex::string::PathToUTF8(shader_storage_shareable_root));
       return;
     }
   }
@@ -216,7 +220,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     REXLOG_ERROR(gpu,
                  "Failed to open the Vulkan pipeline description storage file for "
                  "writing, persistent shader storage will be disabled: {}",
-                 rex::PathToUTF8(pipeline_storage_file_path));
+                 rex::string::PathToUTF8(pipeline_storage_file_path));
     return;
   }
   storage_.pipeline_file_flush_needed = false;
@@ -296,7 +300,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     REXLOG_ERROR(gpu,
                  "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled: {}",
-                 rex::PathToUTF8(shader_storage_file_path));
+                 rex::string::PathToUTF8(shader_storage_file_path));
     storage_.pipeline_file.close();
     return;
   }
@@ -358,7 +362,8 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     }
     auto* shader = shader_it->second.get();
     if (!shader->IsUcodeAnalyzed()) {
-      shader->AnalyzeUcode(ucode_disasm_buffer_);
+      shader->AnalyzeUcode(ucode_disasm_buffer_,
+                           command_processor_.GetXenosSettings().dump_shaders.Get());
     }
     bool translation_is_new = false;
     auto* translation = static_cast<VulkanShader::VulkanTranslation*>(
@@ -416,13 +421,13 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       logical_processor_count = 6;
     }
     size_t creation_thread_count;
-    if (REXCVAR_GET(::rex::gpu::cvars::vulkan_pipeline_creation_threads) == 0) {
+    if (command_processor_.GetVulkanSettings().pipeline_creation_threads.Get() == 0) {
       creation_thread_count = 1;
-    } else if (REXCVAR_GET(::rex::gpu::cvars::vulkan_pipeline_creation_threads) < 0) {
+    } else if (command_processor_.GetVulkanSettings().pipeline_creation_threads.Get() < 0) {
       creation_thread_count = std::max(logical_processor_count * 3 / 4, static_cast<u32>(1));
     } else {
       creation_thread_count = std::min(
-          static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::vulkan_pipeline_creation_threads)),
+          static_cast<u32>(command_processor_.GetVulkanSettings().pipeline_creation_threads.Get()),
           logical_processor_count);
     }
     if (!blocking) {
@@ -528,7 +533,7 @@ void VulkanPipelineCache::EndSubmission() {
       bool await_creation_completion_event;
       {
         std::lock_guard<std::mutex> lock(creation_request_lock_);
-        // The queue is empty here, so only in-flight worker creation is checked.
+        // The queue is empty here, so only in flight worker creation is checked.
         await_creation_completion_event = creation_threads_busy_ != 0;
         if (await_creation_completion_event) {
           creation_completion_event_->Reset();
@@ -755,14 +760,15 @@ SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
 
 bool VulkanPipelineCache::TranslateShaders(VulkanShader::VulkanTranslation* vertex_shader,
                                            VulkanShader::VulkanTranslation* pixel_shader) {
-  // Edge flags are unsupported because polygon primitives are.
+  // Edge flags are unsupported for polygon primitives.
   REX_ASSERT(register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
              register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
   REX_ASSERT(!(register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().gen_index_vtx));
   if (!vertex_shader->IsTranslated()) {
-    vertex_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
+    vertex_shader->GetShader().AnalyzeUcode(
+        ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
     if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader)) {
       REX_FAIL(gpu, false, "Failed to translate the vertex shader!");
     }
@@ -772,7 +778,8 @@ bool VulkanPipelineCache::TranslateShaders(VulkanShader::VulkanTranslation* vert
   }
   if (pixel_shader != nullptr) {
     if (!pixel_shader->IsTranslated()) {
-      pixel_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
+      pixel_shader->GetShader().AnalyzeUcode(
+          ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
       if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader)) {
         REX_FAIL(gpu, false, "Failed to translate the pixel shader!");
       }
@@ -849,7 +856,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     }
   }
 
-  bool use_async = REXCVAR_GET(::rex::gpu::cvars::async_shader_compilation) &&
+  bool use_async = command_processor_.GetXenosSettings().async_shader_compilation.Get() &&
                    !creation_threads_.empty() && pixel_shader &&
                    placeholder_pixel_shader_ != VK_NULL_HANDLE;
   u8 async_priority = pipeline_priority::kPriorityLowest;
@@ -977,8 +984,9 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SPIRVShaderTranslator& transla
     REX_FAIL(gpu, false, "Shader {:016X} translation failed, marking as ignored",
              shader.GetUcodeDataHash());
   }
-  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
-    translation.Dump(dump_path, "vulkan");
+  if (const std::string dump_path = command_processor_.GetXenosSettings().dump_shaders.Get();
+      !dump_path.empty()) {
+    translation.DumpTranslation(dump_path, "vulkan");
   }
   if (translation.GetOrCreateShaderModule() == VK_NULL_HANDLE) {
     return false;
@@ -1233,7 +1241,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   } else {
     description_out.polygon_mode = PipelinePolygonMode::kFill;
   }
-  if (tessellated && REXCVAR_GET(::rex::gpu::cvars::vulkan_tessellation_wireframe) &&
+  if (tessellated && command_processor_.GetVulkanSettings().tessellation_wireframe.Get() &&
       device_properties.fillModeNonSolid) {
     description_out.polygon_mode = PipelinePolygonMode::kLine;
   }
@@ -1551,7 +1559,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     spirv_version = spv::Spv_1_0;
     builder_logger_ptr = &builder_logger;
   }
-  SPIRVBuilder builder(spirv_version, (SPIRVShaderTranslator::kSPIRVMagicToolId << 16) | 1,
+  SPIRVBuilder builder(spirv_version, (SPIRVShaderTranslator::kSPIRVMagicToolID << 16) | 1,
                        builder_logger_ptr);
   builder.addCapability(spv::CapabilityGeometry);
   if (clip_distance_count) {
@@ -1915,7 +1923,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                                        uniform_system_constants, id_vector_temp),
                              spv::NoPrecision);
       if (key.has_point_size) {
-        // Non-negative means the translated vertex shader wrote it, the header default is -1.0.
+        // Nonnegative means the translated vertex shader wrote it, the header default is -1.0.
         id_vector_temp.clear();
         id_vector_temp.push_back(const_int_0);
         spv::Id point_vertex_diameter = builder.createLoad(
@@ -1931,7 +1939,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                 point_vertex_diameter, point_guest_diameter_y);
       }
 
-      // Zero size points are dropped early, point lists may also be used as compute with memexport.
+      // Zero size points are discarded early, point lists may run as compute with memexport.
       spv::Id point_size_not_zero =
           builder.createBinOp(spv::OpLogicalAnd, type_bool,
                               builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
@@ -2133,7 +2141,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         for (u32 j = 0; j < key.interpolator_count; ++j) {
           builder.createStore(point_interpolators[j], out_interpolators[j]);
         }
-        // Top-left, bottom-left, top-right, bottom-right order, face winding is ignored for points.
+        // Top left, bottom left, top right, bottom right order, face winding is ignored for points.
         u32 point_vertex_x = i >> 1;
         u32 point_vertex_y = i & 1;
         if (key.has_point_coordinates) {
@@ -2459,7 +2467,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
 
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
-  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
+  if (const std::string dump_path = command_processor_.GetXenosSettings().dump_shaders.Get();
+      !dump_path.empty()) {
     gpu::vulkan::objects::DumpShader(dump_path, std::format("gs_{:08X}", key.key), shader_code);
   }
 
@@ -2563,7 +2572,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   }
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  bool use_dynamic_rendering = REXCVAR_GET(::rex::gpu::cvars::vulkan_dynamic_rendering) &&
+  bool use_dynamic_rendering = command_processor_.GetVulkanSettings().dynamic_rendering.Get() &&
                                vulkan_device->GetProperties().dynamicRendering;
   VkRenderPass render_pass = VK_NULL_HANDLE;
   if (!use_dynamic_rendering) {
@@ -2863,7 +2872,7 @@ bool VulkanPipelineCache::CreatePipeline(const PipelineCreationArguments& creati
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   } else if (description.render_pass_key.msaa_samples == xenos::MSAASamples::k2X &&
              !render_target_cache_.IsMSAA2xSupported(subpass_has_attachments)) {
-    // 4 samples with samples 0 and 3 stand in for 2x, still top left and bottom right.
+    // 4 samples with samples 0 and 3 stand in for 2x, top left and bottom right.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
     // Sample masks are ignored without attachments.
     if (subpass_has_attachments) {
@@ -3014,7 +3023,7 @@ bool VulkanPipelineCache::CreatePipeline(const PipelineCreationArguments& creati
 
   VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {};
   VkFormat color_attachment_formats[xenos::kMaxColorRenderTargets] = {};
-  bool use_dynamic_rendering = REXCVAR_GET(::rex::gpu::cvars::vulkan_dynamic_rendering) &&
+  bool use_dynamic_rendering = command_processor_.GetVulkanSettings().dynamic_rendering.Get() &&
                                vulkan_device->GetProperties().dynamicRendering;
   if (use_dynamic_rendering) {
     pipeline_rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;

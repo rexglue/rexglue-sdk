@@ -22,11 +22,6 @@
 #define VK_ENABLE_BETA_EXTENSIONS
 #endif
 
-// Disable to_string in vulkan.hpp to avoid circular dependency with vulkan_to_string.hpp
-#ifndef VULKAN_HPP_NO_TO_STRING
-#define VULKAN_HPP_NO_TO_STRING
-#endif
-
 #if REX_PLATFORM_ANDROID
 #ifndef VK_USE_PLATFORM_ANDROID_KHR
 #define VK_USE_PLATFORM_ANDROID_KHR
@@ -37,7 +32,7 @@
 #ifndef VK_USE_PLATFORM_XCB_KHR
 #define VK_USE_PLATFORM_XCB_KHR
 #endif
-// Set from the platform, never the build system, as it gates VulkanInstance::Functions members.
+// Set from the platform, never the build system, as it selects VulkanInstance::Functions members.
 #ifndef VK_USE_PLATFORM_WAYLAND_KHR
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #endif
@@ -64,5 +59,3 @@
 #endif
 
 #include <vulkan/vulkan.h>
-#include <vulkan/vulkan_hpp_macros.hpp>
-#include <vulkan/vulkan_to_string.hpp>

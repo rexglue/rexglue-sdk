@@ -17,25 +17,18 @@
 #include <format>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/pipeline/render_target/cache.h"
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
-#include <rex/math.h>
-#include <rex/string.h>
-
-#include "gpu/xenos/d3d12/cvar_table.h"
+#include <rex/bit.h>
 
 namespace rex::gpu {
 using namespace xenos::ucode;
 
 /**
- * Translates a vertex fetch instruction.
- *
- * The address part `base + index * stride` is kept in system_temp_grad_v_vfetch_address_.w and
- * shared by a vfetch_full and its vfetch_mini instructions.
- *
- * @param instr Parsed vertex fetch instruction.
+ * The address `base + index * stride` is kept in system_temp_grad_v_vfetch_address_.w and shared
+ * by a vfetch_full and its vfetch_mini.
  */
+
 void DXBCShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   if (emit_source_map_) {
@@ -116,7 +109,7 @@ void DXBCShaderTranslator::ProcessVertexFetchInstruction(
 
   // Bounds are not checked, and Adreno 200 returns 0 for words out of bounds.
 
-  // Loading as FXC does (Load4.xyw is Load2 and Load) compromises between AMD and Nvidia buffers.
+  // Load like FXC, as Load2 plus Load for xyw, which suits both AMD and Nvidia buffers.
 
   // Shared memory is an SRV or, with memexport, a UAV, so the likelier SRV case goes first.
   a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001), LoadFlagsSystemConstant(),
@@ -490,22 +483,19 @@ u32 DXBCShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
 }
 
 /**
- * Translates a texture fetch instruction.
- *
- * The texture size is loaded as X width for 1D, X width and Y height for 2D and cube, and X width,
- * Y height, Z depth and W for 3D, where W is 0 for a stacked 2D texture and 1 for 3D.
+ * The texture size is X width for 1D, X and Y height for 2D and cube, and X, Y, Z depth and W for
+ * 3D, where W is 0 for a stacked 2D texture and 1 for 3D.
  *
  * When allocated, srv_selection_temp holds the following.
  * - X is whether all components are signed, with a fallback for a single component. When false the
- * unsigned SRV is sampled.
+ *   unsigned SRV is sampled.
  * - Y is whether any component is signed, with a fallback for a single component. When true the
- * signed SRV is sampled.
- * - Z is the lerp factor between 2 layers of a stacked texture not forced to point sampling, with
- * an l(0.0) fallback.
+ *   signed SRV is sampled.
+ * - Z is the lerp factor between two layers of a stacked texture not forced to point sampling, with
+ *   an l(0.0) fallback.
  * - W is scratch for calculations, then the unsigned or signed SRV description index.
- *
- * @param instr Parsed texture fetch instruction.
  */
+
 void DXBCShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   if (emit_source_map_) {
@@ -753,11 +743,10 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
                 dxbc::Src::R(size_and_is_3d_temp));
     }
   }
-  u32 revert_resolution_scale_axes =
-      REXCVAR_GET(::rex::gpu::cvars::draw_resolution_scaled_texture_offsets)
-          ? static_cast<u32>(draw_resolution_scale_x_ > 1) |
-                (static_cast<u32>(draw_resolution_scale_y_ > 1) << 1)
-          : 0;
+  u32 revert_resolution_scale_axes = options_.scaled_texture_offsets
+                                         ? static_cast<u32>(draw_resolution_scale_x_ > 1) |
+                                               (static_cast<u32>(draw_resolution_scale_y_ > 1) << 1)
+                                         : 0;
 
   if (instr.opcode == FetchOpcode::kGetTextureWeights) {
     REX_ASSERT((used_result_nonzero_components & 0b1000) == 0);
@@ -1168,7 +1157,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
       if (instr.attributes.mip_filter != xenos::TextureFilter::kBaseMap) {
         grad_h_lod_temp = PushSystemTemp();
         lod_src = dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kWWWW);
-        // Explicit LOD adds specified LOD, sampler bias and instruction bias in 11.3 order.
+        // Explicit LOD adds specified LOD, sampler bias and instruction bias, in 11.3 fixed point.
         dxbc::Dest lod_dest(dxbc::Dest::R(grad_h_lod_temp, 0b1000));
         // Fetch constant LOD bias is stored multiplied by 32.
         a_.OpIBFE(lod_dest, dxbc::Src::LU(10), dxbc::Src::LU(12),
@@ -1345,7 +1334,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
           a_.OpEndIf();
           a_.OpEndIf();
         } else {
-          // No gradients assumes magnification (LOD 0), LOD stays within 2D layers unlike 3D mips.
+          // Without gradients magnification (LOD 0) is assumed, staying within 2D layers.
           if (vol_mag_filter_is_fetch_const || vol_mag_filter_is_linear) {
             if (srv_selection_temp == UINT32_MAX) {
               srv_selection_temp = PushSystemTemp();
@@ -1409,7 +1398,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
           srv_grad_component_count = 2;
           layer_lerp_needed = layer_lerp_factor_src.type != dxbc::OperandType::kImmediate32;
           a_.OpElse();
-          // Floor the layer index, Xenos addresses layers like 3D unlike D3D12 nearest even.
+          // Floor the layer index, as D3D12 rounds to nearest even and Xenos addresses like 3D.
           a_.OpRoundNI(dxbc::Dest::R(coord_and_sampler_temp, 0b0100),
                        dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kZZZZ));
         }

@@ -20,6 +20,7 @@
 
 #include <rex/assert.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
 namespace rex {
@@ -27,20 +28,16 @@ namespace gpu {
 namespace vulkan {
 
 /**
- * Allocates descriptor sets whose descriptors span the types given at construction.
+ * Allocates descriptor sets spanning the types given at construction.
  *
- * Linked type means a page is marked full as soon as any one descriptor type runs out. The
- * per page descriptor counts per type should roughly match the ratio allocated, for example
- * twice as many images as samplers when sets use 2 images per sampler. Allocations that use
- * independent types belong in separate allocators. Also suits variable length sets of a single
- * type. Descriptors cannot be freed here, so per layout free lists reside outside the allocator.
+ * A page is full as soon as any one type runs out, so per page counts should match the allocated
+ * ratio, for example two images per sampler. Independent types need separate allocators.
+ * Descriptors cannot be freed, so per layout free lists live outside the allocator.
  */
 class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
  public:
   /**
-   * Creates the allocator.
-   *
-   * Multiple sizes for the same descriptor type, and zero sizes, are not allowed.
+   * Creates the allocator. Each type needs exactly one nonzero size.
    *
    * @param vulkan_device The device to allocate on.
    * @param descriptor_sizes The descriptors per page for each type.
@@ -93,17 +90,9 @@ class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
   u32 descriptor_sets_per_page_;
 
   std::vector<VkDescriptorPool> pages_full_;
-  /**
-   * Pages with free descriptors, keyed by the maximum free descriptor count across all types.
-   *
-   * Allocations must be contiguous, so a page can overflow while descriptors remain and several
-   * pages may have free space. The maximum rather than the minimum is the key so lookups skip
-   * pages that cannot fit the largest requested count and do not degenerate when a type requests
-   * 0. One page, page_usable_latest_, is kept outside the map and tried first, since the key
-   * changes on every allocation.
-   */
+  /** Pages with free descriptors, keyed by the maximum free count across all types. */
   std::multimap<u32, Page> pages_usable_;
-  /** Absent when its pool is VK_NULL_HANDLE. */
+  /** Tried first and kept outside the map. Absent when its pool is VK_NULL_HANDLE. */
   Page page_usable_latest_ = {};
 };
 

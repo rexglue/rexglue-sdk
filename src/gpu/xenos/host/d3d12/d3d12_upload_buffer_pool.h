@@ -18,14 +18,7 @@ namespace rex::gpu::d3d12 {
 
 class D3D12UploadBufferPool : public GraphicsUploadBufferPool {
  public:
-  /**
-   * Creates the pool with the page size aligned to D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT.
-   *
-   * The heap backing a buffer is aligned to that value anyway, so the alignment wastes no space.
-   *
-   * @param provider Provider owning the device.
-   * @param page_size Requested page size in bytes.
-   */
+  /** Creates the pool with the page size aligned to D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT. */
   D3D12UploadBufferPool(const D3D12Provider& provider, size_t page_size = kDefaultPageSize);
 
   u8* Request(u64 submission_index, size_t size, size_t alignment, ID3D12Resource** buffer_out,
@@ -39,12 +32,7 @@ class D3D12UploadBufferPool : public GraphicsUploadBufferPool {
 
  private:
   struct D3D12Page : public Page {
-    /**
-     * Creates a reference to the buffer, which must stay mapped until this page is deleted.
-     *
-     * @param buffer Upload buffer backing the page.
-     * @param mapping CPU mapping of the buffer.
-     */
+    /** Creates a reference to the buffer, which must stay mapped until this page is deleted. */
     D3D12Page(ID3D12Resource* buffer, void* mapping);
     Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
     void* mapping;

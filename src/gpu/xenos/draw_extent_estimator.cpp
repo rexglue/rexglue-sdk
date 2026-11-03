@@ -16,16 +16,16 @@
 
 #include <rex/bit.h>
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
+#include <rex/platform/perf.h>
 #include <rex/xenos/ucode.h>
-#include <rex/xenos/registers.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/draw_extent_estimator.h"
-#include <rex/xenos/xenos.h>
+#include "gpu/xenos/physical_memory.h"
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/memory.h>
 #include "gpu/xenos/host/fixed_point.h"
-
-#include "gpu/xenos/cvar_table_xenos.h"
 
 namespace rex::gpu {
 
@@ -96,7 +96,10 @@ u32 DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
       REX_ASSERT(index_format == xenos::IndexFormat::kInt32);
       index_buffer_base &= ~static_cast<u32>(sizeof(u32) - 1);
     }
-    index_buffer = memory_.TranslatePhysical(index_buffer_base);
+    index_buffer = GetPhysicalToEndForRead(physical_memory_, index_buffer_base);
+    if (!index_buffer) {
+      return xenos::kTexture2DCubeMaxWidthHeight;
+    }
   }
   auto pa_su_sc_mode_cntl = regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>();
   u32 reset_index = regs.Get<xenos::reg::VGT_MULTI_PRIM_IB_RESET_INDX>().reset_indx;
@@ -202,7 +205,7 @@ u32 DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
     max_y_24p8 += regs.Get<xenos::reg::PA_SC_WINDOW_OFFSET>().window_y_offset * 256;
   }
-  // Top-left rule, .5 exclusive without MSAA and 1. exclusive with MSAA.
+  // Top left rule, so the 0.5 sample is exclusive without MSAA and the 1.0 sample with MSAA.
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
   return (static_cast<u32>(std::max(static_cast<i32>(0), max_y_24p8)) +
           ((rb_surface_info.msaa_samples == xenos::MSAASamples::k1X) ? 127 : 255)) >>
@@ -230,10 +233,9 @@ u32 DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
   u32 max_y = static_cast<u32>(std::max(scissor_bottom, static_cast<i32>(0)));
 
   if (regs.Get<xenos::reg::PA_CL_CLIP_CNTL>().clip_disable) {
-    if (try_to_estimate_vertex_max_y &&
-        REXCVAR_GET(::rex::gpu::cvars::execute_unclipped_draw_vs_on_cpu)) {
+    if (try_to_estimate_vertex_max_y && settings_.execute_unclipped_draw_vs_on_cpu.Get()) {
       bool estimate_vertex_max_y;
-      if (REXCVAR_GET(::rex::gpu::cvars::execute_unclipped_draw_vs_on_cpu_with_scissor)) {
+      if (settings_.execute_unclipped_draw_vs_on_cpu_with_scissor.Get()) {
         estimate_vertex_max_y = true;
       } else {
         estimate_vertex_max_y = false;

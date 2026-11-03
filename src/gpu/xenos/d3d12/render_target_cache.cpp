@@ -22,7 +22,6 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/deferred_command_list.h"
 #include "gpu/xenos/d3d12/render_target_cache.h"
@@ -30,16 +29,14 @@
 #include "gpu/xenos/format/dxbc.h"
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
 #include "gpu/xenos/draw_state.h"
-#include <rex/xenos/xenos.h>
-#include <rex/fail.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
-#include <rex/string.h>
+#include <rex/bit.h>
+#include <rex/string/text.h>
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
-
-#include "gpu/xenos/cvar_table_pair.h"
-#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -150,9 +147,9 @@ bool D3D12RenderTargetCache::Initialize() {
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
 
-  if (REXCVAR_GET(::rex::gpu::cvars::d3d12_render_target_path) == "rtv") {
+  if (command_processor_.GetD3D12Settings().render_target_path.Get() == "rtv") {
     path_ = Path::kHostRenderTargets;
-  } else if (REXCVAR_GET(::rex::gpu::cvars::d3d12_render_target_path) == "rov") {
+  } else if (command_processor_.GetD3D12Settings().render_target_path.Get() == "rov") {
     path_ = Path::kPixelShaderInterlock;
   } else {
 #if 1
@@ -318,27 +315,28 @@ bool D3D12RenderTargetCache::Initialize() {
       Shutdown();
       return false;
     }
-    std::u16string resolve_copy_pipeline_name = rex::ToUTF16(resolve_copy_shader_info.debug_name);
+    std::u16string resolve_copy_pipeline_name =
+        rex::string::ToUTF16(resolve_copy_shader_info.debug_name);
     resolve_copy_pipeline->SetName(reinterpret_cast<LPCWSTR>(resolve_copy_pipeline_name.c_str()));
     resolve_copy_pipelines_[i] = resolve_copy_pipeline;
   }
 
   // Read at initialization so pipelines stay consistent across titles in one instance.
   use_stencil_reference_output_ =
-      REXCVAR_GET(::rex::gpu::cvars::native_stencil_value_output) &&
+      command_processor_.GetD3D12Settings().native_stencil_value_output.Get() &&
       provider.IsPSSpecifiedStencilReferenceSupported() &&
-      (REXCVAR_GET(::rex::gpu::cvars::d3d12_native_stencil_value_output_intel) ||
+      (command_processor_.GetD3D12Settings().native_stencil_value_output_intel.Get() ||
        provider.GetAdapterVendorID() != gpu::GraphicsProvider::GPUVendorID::kIntel);
 
   if (path_ == Path::kHostRenderTargets) {
     gamma_render_target_as_unorm16_ =
-        REXCVAR_GET(::rex::gpu::cvars::gamma_render_target_as_unorm16);
+        command_processor_.GetXenosSettings().gamma_render_target_as_unorm16.Get();
 
-    depth_float24_round_ = REXCVAR_GET(::rex::gpu::cvars::depth_float24_round);
+    depth_float24_round_ = command_processor_.GetXenosSettings().depth_float24_round.Get();
     depth_float24_convert_in_pixel_shader_ =
-        REXCVAR_GET(::rex::gpu::cvars::depth_float24_convert_in_pixel_shader);
+        command_processor_.GetXenosSettings().depth_float24_convert_in_pixel_shader.Get();
 
-    if (REXCVAR_GET(::rex::gpu::cvars::native_2x_msaa)) {
+    if (command_processor_.GetXenosSettings().native_2x_msaa.Get()) {
       msaa_2x_supported_ = true;
       static const DXGI_FORMAT kRenderTargetDXGIFormats[] = {
           DXGI_FORMAT_R16G16B16A16_FLOAT,
@@ -776,9 +774,9 @@ bool D3D12RenderTargetCache::Initialize() {
           return false;
         }
         uint32_rtv_clear_pipelines_[i][j] = uint32_rtv_clear_pipeline;
-        auto uint32_rtv_clear_pipeline_name =
-            rex::ToUTF16(std::format("Resolve Clear {} {}xMSAA", i ? "k_32_32_FLOAT" : "k_32_FLOAT",
-                                     static_cast<u32>(1) << j));
+        auto uint32_rtv_clear_pipeline_name = rex::string::ToUTF16(
+            std::format("Resolve Clear {} {}xMSAA", i ? "k_32_32_FLOAT" : "k_32_FLOAT",
+                        static_cast<u32>(1) << j));
         uint32_rtv_clear_pipeline->SetName(
             reinterpret_cast<LPCWSTR>(uint32_rtv_clear_pipeline_name.c_str()));
       }
@@ -790,7 +788,7 @@ bool D3D12RenderTargetCache::Initialize() {
     // Blending is done in linear space in shaders.
     gamma_render_target_as_unorm16_ = false;
 
-    // Always true float24 depth rounded to the nearest even.
+    // Float24 depth is always rounded to the nearest even.
     depth_float24_round_ = true;
     depth_float24_convert_in_pixel_shader_ = true;
 
@@ -1067,8 +1065,7 @@ void D3D12RenderTargetCache::WriteEDRAMUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTO
                                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
-                                     D3D12SharedMemory& shared_memory,
+bool D3D12RenderTargetCache::Resolve(IPhysicalMemory& memory, D3D12SharedMemory& shared_memory,
                                      D3D12TextureCache& texture_cache, u32& written_address_out,
                                      u32& written_length_out) {
   written_address_out = 0;
@@ -1078,8 +1075,9 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
 
   draw_state::ResolveRequest resolve_info;
   bool fixed_16_truncated_to_minus_1_to_1 = IsFixed16TruncatedToMinus1To1();
-  if (!draw_state::GetResolveInfo(GetRegisterFile(), memory, GetDrawResolutionScaleX(),
-                                  GetDrawResolutionScaleY(), fixed_16_truncated_to_minus_1_to_1,
+  if (!draw_state::GetResolveInfo(GetXenosSettings(), GetRegisterFile(), memory,
+                                  GetDrawResolutionScaleX(), GetDrawResolutionScaleY(),
+                                  fixed_16_truncated_to_minus_1_to_1,
                                   fixed_16_truncated_to_minus_1_to_1, resolve_info)) {
     return false;
   }
@@ -1103,7 +1101,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
           draw_state::kResolveCopyShaderInfo[static_cast<size_t>(copy_shader)];
       bool direct_resolved = false;
       if (GetPath() == Path::kHostRenderTargets) {
-        if (REXCVAR_GET(::rex::gpu::cvars::direct_host_resolve)) {
+        if (command_processor_.GetXenosSettings().direct_host_resolve.Get()) {
           direct_resolved =
               TryResolveCopyDirectly(resolve_info, copy_shader, draw_resolution_scaled);
           if (direct_resolved) {
@@ -1323,7 +1321,7 @@ DXGI_FORMAT D3D12RenderTargetCache::GetColorResourceDXGIFormat(
     case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
     case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return DXGI_FORMAT_R16G16B16A16_FLOAT;
-    // SNORM has 2 representations of -1.
+    // SNORM has two representations of -1.
     case xenos::ColorRenderTargetFormat::k_16_16:
       return DXGI_FORMAT_R16G16_TYPELESS;
     case xenos::ColorRenderTargetFormat::k_16_16_16_16:
@@ -1494,7 +1492,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> D3D12RenderTargetCache::CreateR
     return nullptr;
   }
   {
-    std::u16string resource_name = rex::ToUTF16(key.GetDebugName());
+    std::u16string resource_name = rex::string::ToUTF16(key.GetDebugName());
     resource->SetName(reinterpret_cast<LPCWSTR>(resource_name.c_str()));
   }
 
@@ -1596,7 +1594,7 @@ void D3D12RenderTargetCache::RequestPixelShaderInterlockBarrier() {
 
 void D3D12RenderTargetCache::TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state) {
   if (command_processor_.PushTransitionBarrier(edram_buffer_, edram_buffer_state_, new_state)) {
-    // Resets only when a barrier is inserted, as barriers for an unchanged state are dropped.
+    // Resets only when a barrier is inserted, as an unchanged state gets no barrier.
     edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
   }
   edram_buffer_state_ = new_state;
@@ -1674,7 +1672,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         xenos::GetColorRenderTargetFormatComponentCount(source_color_format);
     if (dest_is_stencil_bit) {
       if (source_is_64bpp && !dest_is_64bpp) {
-        // Needs 1 component, chosen from the 2 32bpp halves of the 64bpp sample.
+        // Needs one component, chosen from the two 32bpp halves of the 64bpp sample.
         source_color_srv_component_mask = 0b1 | (0b1 << (source_color_format_component_count >> 1));
       } else {
         // Red is at least 8 bits per component in all formats.
@@ -1891,7 +1889,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_color.bind_count = 1;
       REX_ASSERT(source_color_srv_component_mask != 0);
       rdef_binding_color.flags = (32 - rex::lzcnt(source_color_srv_component_mask) - 1)
-                                 << dxbc::kRdefInputFlagComponentsShift;
+                                 << dxbc::kRDEFInputFlagComponentsShift;
       rdef_binding_color.id = srv_index_color;
     }
     if (srv_index_depth != UINT32_MAX) {
@@ -1953,7 +1951,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_stencil_mask.type = dxbc::RDEFInputType::kCbuffer;
       rdef_binding_stencil_mask.bind_point = kTransferCBVRegisterStencilMask;
       rdef_binding_stencil_mask.bind_count = 1;
-      rdef_binding_stencil_mask.flags = dxbc::kRdefInputFlagUserPacked;
+      rdef_binding_stencil_mask.flags = dxbc::kRDEFInputFlagUserPacked;
       rdef_binding_stencil_mask.id = cbuffer_index_stencil_mask;
     }
     if (cbuffer_index_address != UINT32_MAX) {
@@ -1962,7 +1960,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_address.type = dxbc::RDEFInputType::kCbuffer;
       rdef_binding_address.bind_point = kTransferCBVRegisterAddress;
       rdef_binding_address.bind_count = 1;
-      rdef_binding_address.flags = dxbc::kRdefInputFlagUserPacked;
+      rdef_binding_address.flags = dxbc::kRDEFInputFlagUserPacked;
       rdef_binding_address.id = cbuffer_index_address;
     }
     if (cbuffer_index_host_depth_address != UINT32_MAX) {
@@ -1971,7 +1969,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_host_depth_address.type = dxbc::RDEFInputType::kCbuffer;
       rdef_binding_host_depth_address.bind_point = kTransferCBVRegisterHostDepthAddress;
       rdef_binding_host_depth_address.bind_count = 1;
-      rdef_binding_host_depth_address.flags = dxbc::kRdefInputFlagUserPacked;
+      rdef_binding_host_depth_address.flags = dxbc::kRDEFInputFlagUserPacked;
       rdef_binding_host_depth_address.id = cbuffer_index_host_depth_address;
     }
   }
@@ -2003,7 +2001,6 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                              built_shader_[blob_offset_position_dwords++];
   }
 
-  /** Registers for accessing in the shader code. Multiple inputs may be packed into one. */
   enum InputRegister : u8 {
     kInputRegisterPosition,
     kInputRegisterSampleIndex,
@@ -2543,7 +2540,6 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
 
   if (dest_is_64bpp) {
-    // color_packed_in_r0x_and_r1x combines raw 32 bit samples from r0.x and r1.x generically.
     bool color_packed_in_r0x_and_r1x = false;
     if (source_is_color) {
       switch (source_color_format) {
@@ -2669,7 +2665,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       }
     }
   } else {
-    // color_packed_in_r1x means a raw 32bpp color value was written for common handling.
+    // Set when a raw 32bpp color value is in r1.x for common handling.
     bool color_packed_in_r1x = false;
     bool depth_loaded_in_guest_format = false;
     if (source_is_color) {
@@ -3248,7 +3244,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       pipeline_desc.DepthStencilState.DepthEnable = TRUE;
       pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
       pipeline_desc.DepthStencilState.DepthFunc =
-          REXCVAR_GET(::rex::gpu::cvars::depth_transfer_not_equal_test)
+          command_processor_.GetXenosSettings().depth_transfer_not_equal_test.Get()
               ? D3D12_COMPARISON_FUNC_NOT_EQUAL
               : D3D12_COMPARISON_FUNC_ALWAYS;
       if (use_stencil_reference_output_) {
@@ -3256,8 +3252,9 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         pipeline_desc.DepthStencilState.StencilWriteMask = UINT8_MAX;
         pipeline_desc.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
         pipeline_desc.DepthStencilState.FrontFace.StencilDepthFailOp =
-            REXCVAR_GET(::rex::gpu::cvars::depth_transfer_not_equal_test) ? D3D12_STENCIL_OP_REPLACE
-                                                                          : D3D12_STENCIL_OP_KEEP;
+            command_processor_.GetXenosSettings().depth_transfer_not_equal_test.Get()
+                ? D3D12_STENCIL_OP_REPLACE
+                : D3D12_STENCIL_OP_KEEP;
         pipeline_desc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
         // ALWAYS, not NOT_EQUAL, so a different stencil does not affect depth writing.
         pipeline_desc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
@@ -3724,7 +3721,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
 
       if (!transfer_viewport_set) {
         transfer_viewport_set = true;
-        // NDC is passed directly, so the viewport is the maximum size, with a power of two scale.
+        // NDC is passed as is, so the viewport is the maximum size, with a power of two scale.
         D3D12_VIEWPORT transfer_viewport;
         transfer_viewport.TopLeftX = 0.0f;
         transfer_viewport.TopLeftY = 0.0f;
@@ -3823,7 +3820,6 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             f32 transfer_rectangle_y1 =
                 transfer_rectangle_y0 -
                 static_cast<f32>(transfer_rectangle.height_pixels) * pixels_to_ndc_y;
-            // Vertices are (x0, y0) (x1, y0) (x0, y1) then (x0, y1) (x1, y0) (x1, y1).
             *(transfer_rectangle_write_ptr++) = transfer_rectangle_x0;
             *(transfer_rectangle_write_ptr++) = transfer_rectangle_y0;
             *(transfer_rectangle_write_ptr++) = transfer_rectangle_x1;
@@ -4333,7 +4329,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       rdef_binding_source.sample_count = UINT32_MAX;
     }
     rdef_binding_source.bind_count = 1;
-    rdef_binding_source.flags = (source_component_count - 1) << dxbc::kRdefInputFlagComponentsShift;
+    rdef_binding_source.flags = (source_component_count - 1) << dxbc::kRDEFInputFlagComponentsShift;
     if (key.is_depth) {
       dxbc::RDEFInputBind& rdef_binding_stencil = rdef_bindings[rdef_binding_index++];
       rdef_binding_stencil.name_ptr = rdef_xe_edram_dump_stencil_name_ptr;
@@ -4359,14 +4355,14 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
     rdef_binding_offsets.type = dxbc::RDEFInputType::kCbuffer;
     rdef_binding_offsets.bind_point = kDumpCbufferOffsets;
     rdef_binding_offsets.bind_count = 1;
-    rdef_binding_offsets.flags = dxbc::kRdefInputFlagUserPacked;
+    rdef_binding_offsets.flags = dxbc::kRDEFInputFlagUserPacked;
     rdef_binding_offsets.id = kDumpCbufferOffsets;
     dxbc::RDEFInputBind& rdef_binding_pitches = rdef_bindings[rdef_binding_index++];
     rdef_binding_pitches.name_ptr = rdef_xe_edram_dump_pitches_name_ptr;
     rdef_binding_pitches.type = dxbc::RDEFInputType::kCbuffer;
     rdef_binding_pitches.bind_point = kDumpCbufferPitches;
     rdef_binding_pitches.bind_count = 1;
-    rdef_binding_pitches.flags = dxbc::kRdefInputFlagUserPacked;
+    rdef_binding_pitches.flags = dxbc::kRDEFInputFlagUserPacked;
     rdef_binding_pitches.id = kDumpCbufferPitches;
   }
 
@@ -4700,9 +4696,9 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
                                 ? xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat())
                                 : xenos::GetColorRenderTargetFormatName(key.GetColorFormat());
   if (pipeline) {
-    std::u16string pipeline_name =
-        rex::ToUTF16(std::format("RT Dump {} {}xMSAA", format_name,
-                                 static_cast<u32>(1) << static_cast<u32>(key.msaa_samples)));
+    std::u16string pipeline_name = rex::string::ToUTF16(
+        std::format("RT Dump {} {}xMSAA", format_name,
+                    static_cast<u32>(1) << static_cast<u32>(key.msaa_samples)));
     pipeline->SetName(reinterpret_cast<LPCWSTR>(pipeline_name.c_str()));
   } else {
     REXLOG_ERROR(gpu,
@@ -4976,7 +4972,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
         root_parameters_set |= kDumpRootParameterOffsetsBit;
       }
       command_processor_.SubmitBarriers();
-      // Each group covers 40x16 samples times scale, so a 32bpp tile takes 2 groups at 1x1 scale.
+      // Each group covers 40x16 samples times scale, so a 32bpp tile takes two groups at 1x1 scale.
       command_list.D3DDispatch((dispatch.width_tiles * GetDrawResolutionScaleX())
                                    << static_cast<u32>(!format_is_64bpp),
                                dispatch.height_tiles * GetDrawResolutionScaleY(), 1);
@@ -4988,7 +4984,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
 
 bool D3D12RenderTargetCache::IsFixed16TruncatedToMinus1To1() const {
   return GetPath() == Path::kHostRenderTargets &&
-         !REXCVAR_GET(::rex::gpu::cvars::snorm16_render_target_full_range);
+         !command_processor_.GetXenosSettings().snorm16_render_target_full_range.Get();
 }
 
 }  // namespace rex::gpu::d3d12

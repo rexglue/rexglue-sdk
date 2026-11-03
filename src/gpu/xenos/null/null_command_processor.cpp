@@ -1,11 +1,18 @@
 #include "gpu/xenos/null/null_command_processor.h"
 
+#ifndef XXH_INLINE_ALL
+#define XXH_INLINE_ALL
+#endif
+#include <xxhash.h>
+
 #include <rex/hash.h>
 
 namespace rex::gpu::null {
 
-NullCommandProcessor::NullCommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime)
-    : CommandProcessor(graphics_system, runtime) {}
+NullCommandProcessor::NullCommandProcessor(XenosGraphicsDriverBase* graphics_system,
+                                           const TitleInfo& info, IPhysicalMemory& memory,
+                                           IPhysicalWriteWatch& watch, IGuestInterrupts& interrupts)
+    : CommandProcessor(graphics_system, info, memory, watch, interrupts) {}
 
 NullCommandProcessor::~NullCommandProcessor() = default;
 

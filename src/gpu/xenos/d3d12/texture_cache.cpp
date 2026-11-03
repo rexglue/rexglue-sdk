@@ -18,22 +18,18 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
+#include <rex/platform/perf.h>
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/shared_memory.h"
 #include "gpu/xenos/d3d12/texture_cache.h"
-#include <rex/xenos/texture_info.h>
-#include <rex/xenos/texture_layout.h>
-#include <rex/xenos/xenos.h>
-#include <rex/fail.h>
+#include <rex/xenos/texture.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
 #include <rex/logging/log.h>
-#include <rex/perf/counter.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
-
-#include "gpu/xenos/cvar_table_pair.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -346,11 +342,13 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::kHostFormats[64] = {
 };
 
 D3D12TextureCache::D3D12TextureCache(Key, const xenos::RegisterFile& register_file,
+                                     const XenosSettings& settings,
                                      D3D12SharedMemory& shared_memory, u32 draw_resolution_scale_x,
                                      u32 draw_resolution_scale_y,
                                      D3D12CommandProcessor& command_processor,
                                      bool bindless_resources_used)
-    : TextureCache(register_file, shared_memory, draw_resolution_scale_x, draw_resolution_scale_y),
+    : TextureCache(register_file, settings, shared_memory, draw_resolution_scale_x,
+                   draw_resolution_scale_y),
       command_processor_(command_processor),
       bindless_resources_used_(bindless_resources_used) {}
 
@@ -385,13 +383,11 @@ bool D3D12TextureCache::Initialize() {
   scaled_resolve_heap_count_ = 0;
 
   D3D12_ROOT_PARAMETER root_parameters[3];
-  // Parameter 0 is constants, changed multiple times when untiling.
   root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
   root_parameters[0].Constants.ShaderRegister = 0;
   root_parameters[0].Constants.RegisterSpace = 0;
   root_parameters[0].Constants.Num32BitValues = sizeof(LoadConstants) / sizeof(u32);
   root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  // Parameter 1 is the source, changed multiple times for the same destination.
   D3D12_DESCRIPTOR_RANGE root_source_range;
   root_source_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   root_source_range.NumDescriptors = 1;
@@ -402,7 +398,6 @@ bool D3D12TextureCache::Initialize() {
   root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
   root_parameters[1].DescriptorTable.pDescriptorRanges = &root_source_range;
   root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  // Parameter 2 is the destination.
   D3D12_DESCRIPTOR_RANGE root_dest_range;
   root_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
   root_dest_range.NumDescriptors = 1;
@@ -668,8 +663,8 @@ void D3D12TextureCache::RequestTextures(u32 used_texture_mask) {
 
   TextureCache::RequestTextures(used_texture_mask);
 
-  // Wrapper loading may bind compute pipelines, so 3D as 2D wrappers are created here.
-  if (REXCVAR_GET(::rex::gpu::cvars::texture_3d_to_2d)) {
+  // Loading 3D as 2D textures may bind compute pipelines, so they are created here.
+  if (command_processor_.GetXenosSettings().texture_3d_to_2d.Get()) {
     u32 textures_3d = used_texture_mask;
     u32 index_3d;
     while (rex::bit_scan_forward(textures_3d, &index_3d)) {
@@ -928,7 +923,7 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
   xenos::AnisoFilter aniso_filter = binding.aniso_filter == xenos::AnisoFilter::kUseFetchConst
                                         ? fetch.aniso_filter
                                         : binding.aniso_filter;
-  i32 anisotropic_override = REXCVAR_GET(::rex::gpu::cvars::anisotropic_override);
+  i32 anisotropic_override = command_processor_.GetGraphicsDriver().GetAnisotropicOverride();
   if (anisotropic_override > -1 && anisotropic_override < 6 && has_mips && !mip_base_map &&
       min_mag_linear && mip_filter_bilinear_or_trilinear) {
     aniso_filter = static_cast<xenos::AnisoFilter>(anisotropic_override);
@@ -1088,7 +1083,6 @@ bool D3D12TextureCache::CommitScaledResolveMemory(u32 start_unscaled, u32 length
       continue;
     }
     D3D12_RESOURCE_DESC scaled_resolve_buffer_desc;
-    // Buffer indices are gigabytes.
     gpu::d3d12::objects::FillBufferResourceDesc(
         scaled_resolve_buffer_desc,
         std::min(static_cast<u64>(1) << 31,
@@ -1299,7 +1293,7 @@ ID3D12Resource* D3D12TextureCache::RequestSwapTexture(D3D12_SHADER_RESOURCE_VIEW
   const auto& regs = GetRegisterFile();
   xenos::TextureFetch fetch = regs.GetTextureFetch(0);
   TextureKey key;
-  BindingInfoFromFetchConstant(fetch, key, nullptr);
+  GetTextureKeyFromFetchConstant(fetch, key, nullptr);
   if (!key.is_valid || key.base_page == 0 || key.dimension != xenos::DataDimension::k2DOrStacked) {
     return nullptr;
   }
@@ -1322,7 +1316,7 @@ ID3D12Resource* D3D12TextureCache::RequestSwapTexture(D3D12_SHADER_RESOURCE_VIEW
   srv_desc_out.Texture2D.MipLevels = 1;
   srv_desc_out.Texture2D.PlaneSlice = 0;
   srv_desc_out.Texture2D.ResourceMinLODClamp = 0.0f;
-  // Only texture->key, not BindingInfoFromFetchConstant, says whether the texture is scaled.
+  // Only texture->key, not GetTextureKeyFromFetchConstant, says whether the texture is scaled.
   key = texture->GetKey();
   if (width_unscaled_out) {
     *width_unscaled_out = key.GetWidth();
@@ -1395,7 +1389,7 @@ bool D3D12TextureCache::IsScaledResolveSupportedForFormat(TextureKey key) const 
 }
 
 u32 D3D12TextureCache::GetHostFormatSwizzle(TextureKey key) const {
-  // A dense cache line aligned array avoids touching the full HostFormat on every fetch.
+  // Dense array to avoid touching the full HostFormat on every fetch.
   alignas(64) static const auto kSwizzleCache = []() {
     std::array<u16, 64> arr{};
     for (int i = 0; i < 64; ++i) {
@@ -1477,7 +1471,7 @@ std::unique_ptr<TextureCache::Texture> D3D12TextureCache::CreateTexture(TextureK
   return std::make_unique<D3D12Texture>(*this, key, resource.Get(), resource_state);
 }
 
-bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
+bool D3D12TextureCache::LoadHostTextureDataFromResidentMemory(Texture& texture, bool load_base,
                                                               bool load_mips) {
   D3D12Texture& d3d12_texture = static_cast<D3D12Texture&>(texture);
   TextureKey texture_key = d3d12_texture.GetKey();
@@ -1805,7 +1799,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   return true;
 }
 
-void D3D12TextureCache::UpdateTextureBindingsImpl(u32 fetch_constant_mask) {
+void D3D12TextureCache::UpdateHostTextureBindings(u32 fetch_constant_mask) {
   u32 bindings_remaining = fetch_constant_mask;
   u32 binding_index;
   while (rex::bit_scan_forward(bindings_remaining, &binding_index)) {
@@ -1845,7 +1839,7 @@ void D3D12TextureCache::UpdateTextureBindingsImpl(u32 fetch_constant_mask) {
 
 ID3D12Resource* D3D12TextureCache::D3D12Texture::GetOrCreate3DAs2DResource(
     D3D12_RESOURCE_STATES end_state) {
-  if (!REXCVAR_GET(::rex::gpu::cvars::texture_3d_to_2d)) {
+  if (!GetTextureCache().GetXenosSettings().texture_3d_to_2d.Get()) {
     return nullptr;
   }
 
@@ -1914,10 +1908,10 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
 
   u32 existing_descriptor_index = texture.GetSRVDescriptorIndex(descriptor_key);
   if (existing_descriptor_index != UINT32_MAX) {
-    REX_PERF_INC(kTextureCacheHits);
+    REX_PERF_INC("texture_cache_hits");
     return existing_descriptor_index;
   }
-  REX_PERF_INC(kTextureCacheMisses);
+  REX_PERF_INC("texture_cache_misses");
 
   TextureKey texture_key = texture.GetKey();
 

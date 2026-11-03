@@ -21,13 +21,13 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/host/presenter.h"
-#include <rex/gpu/surface.h>
+#include "gpu/xenos/host/surface.h"
 #include <rex/types.h>
-#include <rex/move_only_function.h>
+#include <rex/utility.h>
 #include "gpu/xenos/host/vulkan/device.h"
 #include "gpu/xenos/host/vulkan/instance.h"
 #include "gpu/xenos/host/vulkan/submission_tracker.h"
-#include "gpu/xenos/host/vulkan/ui_samplers.h"
+#include "gpu/xenos/host/vulkan/ui_sampler.h"
 
 namespace rex {
 namespace gpu {
@@ -56,7 +56,7 @@ class VulkanOverlayDrawContext final : public gpu::OverlayDrawContext {
   VkCommandBuffer draw_command_buffer_;
   u64 submission_index_current_;
   u64 submission_index_completed_;
-  /** Has 1 subpass with a single render_pass_format_ attachment. */
+  /** Has one subpass with one render_pass_format_ attachment. */
   VkRenderPass render_pass_;
   VkFormat render_pass_format_;
 };
@@ -66,8 +66,10 @@ class VulkanPresenter final : public Presenter {
 
  public:
   explicit VulkanPresenter(Key, HostGPULossCallback host_gpu_loss_callback,
-                           const VulkanDevice* vulkan_device, const UISamplers* ui_samplers)
-      : Presenter(std::move(host_gpu_loss_callback)),
+                           const XenosGraphicsDriverBase& driver, const VulkanSettings& settings,
+                           const VulkanDevice* vulkan_device, const UISamplerSet* ui_samplers)
+      : Presenter(std::move(host_gpu_loss_callback), driver),
+        settings_(settings),
         vulkan_device_(vulkan_device),
         ui_samplers_(ui_samplers),
         guest_output_image_refresher_submission_tracker_(vulkan_device),
@@ -77,24 +79,11 @@ class VulkanPresenter final : public Presenter {
     REX_ASSERT(ui_samplers != nullptr);
   }
 
-  /**
-   * Maximum number of guest output image versions that may be alive and given to the
-   * refresher.
-   *
-   * The refresher may need to keep this many instances of dependent objects such as framebuffers
-   * across invocations, as multiple buffering in the presenter can give a different version on
-   * every invocation, to avoid recreating them every frame.
-   */
+  /** Maximum number of guest output image versions alive at once. */
   static constexpr size_t kMaxActiveGuestOutputImageVersions = kGuestOutputMailboxSize;
 
   static constexpr VkFormat kGuestOutputFormat = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
-  /**
-   * Stage, access and layout in which the refresher acquires and releases the guest output.
-   *
-   * The first write to the current guest output image only needs a barrier from
-   * VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT without access. An image refreshed for the first time is
-   * in VK_IMAGE_LAYOUT_UNDEFINED, and transitioning from it when writing is safe and preferred.
-   */
+  /** Stage, access and layout in which the refresher acquires and releases the guest output. */
   static constexpr VkPipelineStageFlagBits kGuestOutputInternalStageMask =
       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
   static constexpr VkAccessFlags kGuestOutputInternalAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -110,38 +99,32 @@ class VulkanPresenter final : public Presenter {
           image_(image),
           image_view_(image_view),
           image_version_(image_version),
-          image_ever_written_previously_(image_ever_written_previously) {}
+          image_written_(image_ever_written_previously) {}
 
     /**
-     * Returns the guest output image.
-     *
-     * The format is kGuestOutputFormat. Usable as a color attachment, a sampled image and a
-     * transfer source, the last for guest output capturing.
-     *
-     * @return The image.
+     * Returns the guest output image in kGuestOutputFormat, usable as color attachment, sampled
+     * image and transfer source.
      */
     VkImage GetImage() const { return image_; }
     VkImageView GetImageView() const { return image_view_; }
     u64 GetImageVersion() const { return image_version_; }
-    /**
-     * Reports whether a full barrier must be done to acquire the image.
-     *
-     * @return True when the image was written before.
-     */
-    bool HasImageBeenWritten() const { return image_ever_written_previously_; }
+    /** Reports whether acquiring the image needs a full barrier. */
+    bool HasImageBeenWritten() const { return image_written_; }
 
    private:
     VkImage image_;
     VkImageView image_view_;
     u64 image_version_;
-    bool image_ever_written_previously_;
+    bool image_written_;
   };
 
   static std::unique_ptr<VulkanPresenter> Create(HostGPULossCallback host_gpu_loss_callback,
+                                                 const XenosGraphicsDriverBase& driver,
+                                                 const VulkanSettings& settings,
                                                  const VulkanDevice* vulkan_device,
-                                                 const UISamplers* ui_samplers) {
-    auto presenter = std::make_unique<VulkanPresenter>(Key{}, std::move(host_gpu_loss_callback),
-                                                       vulkan_device, ui_samplers);
+                                                 const UISamplerSet* ui_samplers) {
+    auto presenter = std::make_unique<VulkanPresenter>(
+        Key{}, std::move(host_gpu_loss_callback), driver, settings, vulkan_device, ui_samplers);
     if (!presenter->InitializeSurfaceIndependent()) {
       return nullptr;
     }
@@ -149,15 +132,8 @@ class VulkanPresenter final : public Presenter {
   }
 
   /**
-   * Destroys the swapchain once its images are no longer used for drawing, then awaits usage of
-   * everything before destroying anything.
-   *
-   * vkQueuePresentKHR signals no fence showing when destroying a swapchain is safe, so its
-   * lifetime is assumed tracked inside the WSI. The swapchain is destroyed before the semaphore
-   * awaited by vkQueuePresentKHR, hoping to avoid destruction during that wait or between the
-   * vkQueueSubmit signal and the present wait. This also awaits all paint submissions. Trackers
-   * are shut down starting with the UI submission tracker, then the guest output image
-   * refresher.
+   * Awaits all paint submissions, then destroys the swapchain before the semaphore that
+   * vkQueuePresentKHR waits on.
    */
   ~VulkanPresenter();
 
@@ -174,13 +150,6 @@ class VulkanPresenter final : public Presenter {
 
  protected:
   /**
-   * Connects painting to a surface, or reconnects it.
-   *
-   * If the gpu::Surface is the same, first tries to create the swapchain from the existing
-   * VkSurface and swapchain, and starts from scratch when that fails. Retiring or destroying the
-   * swapchain awaits GPU usage of the swapchain and the surface.
-   *
-   * @param new_surface The surface to paint to.
    * @param new_surface_width The width of new_surface in pixels.
    * @param new_surface_height The height of new_surface in pixels.
    * @param was_paintable True when painting was connected before.
@@ -190,14 +159,14 @@ class VulkanPresenter final : public Presenter {
   SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
       gpu::Surface& new_surface, u32 new_surface_width, u32 new_surface_height, bool was_paintable,
       bool& is_vsync_implicit_out) override;
-  void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
+  void DriverDisconnectPaintingFromSurface() override;
 
-  bool RefreshGuestOutputImpl(
+  bool DriverRefreshGuestOutput(
       u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
       rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out) override;
 
-  PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
+  PaintResult DriverPaintAndPresent(bool execute_ui_drawers) override;
 
  private:
   class GuestOutputImage : public rex::NonCopyable {
@@ -246,11 +215,7 @@ class VulkanPresenter final : public Presenter {
     std::shared_ptr<GuestOutputImage> image;
     u64 version = UINT64_MAX;
     u64 last_refresher_submission = 0;
-    /**
-     * Selects the barrier stage, access mask and layout.
-     *
-     * True for any image active after a refresh.
-     */
+    /** True once the refresher has refreshed this image. */
     bool ever_successfully_refreshed = false;
 
     void SetToNewImage(const std::shared_ptr<GuestOutputImage>& new_image, u64 new_version) {
@@ -332,10 +297,7 @@ class VulkanPresenter final : public Presenter {
     static constexpr u32 kSubmissionCount = 3;
 
     struct GuestOutputPaintPipeline {
-      /**
-       * Created during guest output painting, after awaiting the last paint when outdated, for
-       * the up to date swapchain render pass with the swapchain image format.
-       */
+      /** Created during guest output painting for the current swapchain render pass and format. */
       VkPipeline swapchain_pipeline = VK_NULL_HANDLE;
       VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
     };
@@ -373,33 +335,19 @@ class VulkanPresenter final : public Presenter {
     /**
      * Creates a swapchain for the surface.
      *
-     * The old swapchain, if passed, is treated as retired after this call. It may be in an
-     * undefined state if the call fails before vkCreateSwapchainKHR retires it, and the caller
-     * must destroy it whatever the result.
+     * The old swapchain is treated as retired after this call and the caller must destroy it
+     * whatever the result.
      *
-     * A zero area surface returns null without setting ui_surface_unusable_out, as the other
-     * fields may carry no information and the flag may be unrecoverable on some platforms. This
-     * happens for VkSurfaceKHR bounds in some Windows window states. The requested size is
-     * clamped to the physical device maximum while minImageExtent of the instance WSI allows it,
-     * otherwise creation fails until the surface shrinks.
-     *
-     * When the graphics and compute queue family cannot present, the concurrent sharing mode
-     * avoids an ownership transfer before presenting, which would need an extra command buffer
-     * submission with the acquire barrier and a semaphore between the queues. Different queues
-     * are rare and the swapchain only carries the final guest output and the internal UI,
-     * so keeping framebuffer compression is not worth the extra submission complexity and latency.
-     *
-     * Present mode prefers modes that allow quick acquisition, so GPU command processing is not
-     * disturbed, and tearing for variable refresh rate. IMMEDIATE tears to cut latency, though
-     * Windows borderless fullscreen uses GDI copying instead of independent flip and does not
-     * support it. MAILBOX drops frames to cut latency without tearing. FIFO_RELAXED limits the
-     * frame rate but lets overlong frames tear. FIFO has the highest latency and is always
-     * available.
+     * A zero area surface returns null without setting ui_surface_unusable_out, as some Windows
+     * window states report such bounds. The requested size is clamped to the physical device
+     * maximum while minImageExtent allows it, otherwise creation fails until the surface shrinks.
      *
      * @param vulkan_device The device that owns the swapchain.
+     * @param settings The gpu.vulkan settings.
      * @param surface The surface to create the swapchain for.
      * @param width The requested width.
      * @param height The requested height.
+     * @param vsync True to synchronize presentation to the display refresh.
      * @param old_swapchain The swapchain to replace, or null.
      * @param present_queue_family_out Receives the presentation queue family.
      * @param image_format_out Receives the swapchain image format.
@@ -409,9 +357,10 @@ class VulkanPresenter final : public Presenter {
      * @return The swapchain, or null on failure.
      */
     static VkSwapchainKHR CreateSwapchainForVulkanSurface(
-        const VulkanDevice* vulkan_device, VkSurfaceKHR surface, u32 width, u32 height,
-        VkSwapchainKHR old_swapchain, u32& present_queue_family_out, VkFormat& image_format_out,
-        VkExtent2D& image_extent_out, bool& is_fifo_out, bool& ui_surface_unusable_out);
+        const VulkanDevice* vulkan_device, const VulkanSettings& settings, VkSurfaceKHR surface,
+        u32 width, u32 height, bool vsync, VkSwapchainKHR old_swapchain,
+        u32& present_queue_family_out, VkFormat& image_format_out, VkExtent2D& image_extent_out,
+        bool& is_fifo_out, bool& ui_surface_unusable_out);
 
     /**
      * Destroys the swapchain derivatives and nulls swapchain.
@@ -434,12 +383,8 @@ class VulkanPresenter final : public Presenter {
     VkDescriptorSet guest_output_descriptor_sets[kGuestOutputDescriptorSetCount];
 
     /**
-     * Refreshed and cleaned up during guest output painting.
-     *
-     * Each pair holds the paint submission index that last used the guest output image and its
-     * descriptors, and the image reference, which may be null. The indices are not mailbox
-     * indices. A reference missing from the array replaces the most outdated one, after awaiting
-     * the usage completion of its last paint.
+     * Pairs of the paint submission index that last used the image and the image reference,
+     * which may be null. The indices are not mailbox indices.
      */
     std::array<std::pair<u64, std::shared_ptr<GuestOutputImage>>, kGuestOutputMailboxSize>
         guest_output_image_paint_refs;
@@ -463,27 +408,16 @@ class VulkanPresenter final : public Presenter {
     std::vector<SwapchainFramebuffer> swapchain_framebuffers;
   };
 
-  /**
-   * Creates the objects that do not depend on a surface connection.
-   *
-   * The descriptor pool needs a sampler descriptor type even with immutable samplers, otherwise
-   * descriptor set allocation fails.
-   *
-   * @return True on success.
-   */
   bool InitializeSurfaceIndependent();
 
   [[nodiscard]] VkPipeline CreateGuestOutputPaintPipeline(GuestOutputPaintEffect effect,
                                                           VkRenderPass render_pass);
 
+  const VulkanSettings& settings_;
   const VulkanDevice* vulkan_device_;
-  const UISamplers* ui_samplers_;
+  const UISamplerSet* ui_samplers_;
 
-  /**
-   * Static objects for guest output presentation, used only when painting the main target.
-   *
-   * Destroy only after awaiting main target usage completion.
-   */
+  /** Static guest output presentation objects. Destroy only after main target usage completes. */
   VkDescriptorSetLayout guest_output_paint_image_descriptor_set_layout_ = VK_NULL_HANDLE;
   std::array<VkPipelineLayout, kGuestOutputPaintPipelineLayoutCount>
       guest_output_paint_pipeline_layouts_ = {};
@@ -491,12 +425,7 @@ class VulkanPresenter final : public Presenter {
   std::array<VkShaderModule, static_cast<size_t>(GuestOutputPaintEffect::kCount)>
       guest_output_paint_fs_ = {};
 
-  /**
-   * Increased monotonically whenever a new guest output image is initialized.
-   *
-   * Refreshers use it to recreate dependent objects such as framebuffers, since comparing handles
-   * is not enough when Create, Destroy, Create yields the same handle for different objects.
-   */
+  /** Increases whenever a new guest output image is initialized, as a reused handle may differ. */
   u64 guest_output_image_next_version_ = 0;
   std::array<GuestOutputImageInstance, kGuestOutputMailboxSize> guest_output_images_;
   VulkanSubmissionTracker guest_output_image_refresher_submission_tracker_;
@@ -504,11 +433,7 @@ class VulkanPresenter final : public Presenter {
   /** UI submission tracker whose submission index may be given to UI drawers. UI thread only. */
   VulkanSubmissionTracker ui_submission_tracker_;
 
-  /**
-   * Accessible only by painting, by the thread running surface connection lifetime management
-   * (ConnectOrReconnectPaintingToSurfaceFromUIThread and
-   * DisconnectPaintingFromSurfaceFromUIThreadImpl), and by presenter initialization and shutdown.
-   */
+  /** Touched only by painting, surface connect and disconnect, and presenter init and shutdown. */
   PaintContext paint_context_;
 };
 

@@ -17,7 +17,7 @@
 #include <span>
 #include <string_view>
 
-#include <rex/math.h>
+#include <rex/bit.h>
 #include <rex/types.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
@@ -26,12 +26,7 @@ namespace gpu {
 namespace vulkan {
 namespace objects {
 
-/**
- * Builds a multisample state with every field named.
- *
- * @param samples The rasterization sample count.
- * @return The state, with sample shading and alpha to coverage off.
- */
+/** Builds a multisample state with sample shading and alpha to coverage off. */
 inline VkPipelineMultisampleStateCreateInfo BuildMultisampleState(VkSampleCountFlagBits samples) {
   return VkPipelineMultisampleStateCreateInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
@@ -45,13 +40,7 @@ inline VkPipelineMultisampleStateCreateInfo BuildMultisampleState(VkSampleCountF
       .alphaToOneEnable = VK_FALSE};
 }
 
-/**
- * Builds a shader stage with every field named and the entry point main.
- *
- * @param stage The stage.
- * @param module The shader module.
- * @return The stage description.
- */
+/** Builds a shader stage with the entry point main. */
 inline VkPipelineShaderStageCreateInfo BuildShaderStage(VkShaderStageFlagBits stage,
                                                         VkShaderModule module) {
   return VkPipelineShaderStageCreateInfo{
@@ -99,10 +88,7 @@ enum class MemoryPurpose : u8 {
 };
 
 /**
- * Chooses a host visible memory type.
- *
- * Upload prefers uncached so writes do not pollute the CPU cache. Readback prefers cached so
- * repeated CPU reads are fast. Without the preferred caching, any host visible type is used.
+ * Chooses a host visible memory type, preferring uncached for upload and cached for readback.
  *
  * @param memory_types The device memory type masks.
  * @param supported_types The mask of memory types the resource supports.
@@ -148,12 +134,8 @@ inline u32 ChooseMemoryType(const VulkanDevice::MemoryTypes& memory_types,
 /**
  * Flushes a mapped memory range, rounding to the non coherent atom size.
  *
- * The offset plus size passed to vkFlushMappedMemoryRanges must be a multiple of
- * nonCoherentAtomSize not exceeding the memory size, or equal to the memory size. The memory
- * size is therefore required when an explicit size is given, to clamp to the allocation size.
+ * The memory size is required when an explicit size is given, to clamp the rounded range.
  *
- * @param vulkan_device The device owning the memory.
- * @param memory The mapped memory.
  * @param memory_type The memory type index of the memory.
  * @param offset The offset of the range.
  * @param memory_size The allocation size of the memory.
@@ -189,13 +171,9 @@ inline VkImageSubresourceRange BuildSubresourceRange(
 /**
  * Creates a buffer backed by a dedicated allocation.
  *
- * The allocation size is not aligned to nonCoherentAtomSize, so when mapping or flushing less
- * than the whole size, memory_size_out must clamp the range.
+ * The allocation size is not aligned to nonCoherentAtomSize, so partial maps or flushes must
+ * clamp to memory_size_out.
  *
- * @param vulkan_device The device to create on.
- * @param size The buffer size.
- * @param usage The buffer usage flags.
- * @param memory_purpose The memory purpose.
  * @param buffer_out Receives the buffer.
  * @param memory_out Receives the memory.
  * @param memory_type_out Receives the memory type index, if not null.
@@ -215,14 +193,8 @@ bool CreateDedicatedAllocationImage(const VulkanDevice* vulkan_device,
                                     VkDeviceSize* memory_size_out = nullptr);
 
 /**
- * Creates a shader module.
- *
- * Takes const uint32_t* so callers handle the code alignment, which matters on some host
- * architectures.
- *
  * @param vulkan_device The device to create on.
  * @param code SPIR-V code, 4 byte aligned.
- * @param code_size_bytes The code size in bytes.
  * @return The shader module, or VK_NULL_HANDLE on failure.
  */
 inline VkShaderModule CreateShaderModule(const VulkanDevice* const vulkan_device,

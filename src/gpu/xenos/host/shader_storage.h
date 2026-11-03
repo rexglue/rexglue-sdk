@@ -18,6 +18,7 @@
 #include <mutex>
 
 #include <rex/platform/thread.h>
+#include <rex/platform/sync.h>
 #include <rex/types.h>
 
 namespace rex::gpu {
@@ -30,27 +31,27 @@ namespace rex::gpu {
  */
 template <typename ShaderType, typename PipelineType>
 struct ShaderStorage {
-  std::filesystem::path cache_root; /**< Folder of the storage files. */
-  u32 title_id = 0;                 /**< Title the storage belongs to. */
+  std::filesystem::path cache_root;
+  u32 title_id = 0;
 
-  std::fstream shader_file;                 /**< Shader storage stream. */
-  std::filesystem::path shader_file_path;   /**< Path of the shader storage file. */
-  u32 shader_index = 0;                     /**< Incremented when switching the storage. */
-  bool shader_file_flush_needed = false;    /**< True when the shader stream has unflushed data. */
-  std::fstream pipeline_file;               /**< Pipeline storage stream. */
-  std::filesystem::path pipeline_file_path; /**< Path of the pipeline storage file. */
-  bool pipeline_file_flush_needed = false; /**< True when the pipeline stream has unflushed data. */
+  std::fstream shader_file;
+  std::filesystem::path shader_file_path;
+  u32 shader_index = 0; /**< Incremented when switching the storage. */
+  bool shader_file_flush_needed = false;
+  std::fstream pipeline_file;
+  std::filesystem::path pipeline_file_path;
+  bool pipeline_file_flush_needed = false;
 
   std::mutex write_request_lock;              /**< Guards the queues and flags below. */
   std::condition_variable write_request_cond; /**< Signaled when the queues or flags change. */
-  std::deque<const ShaderType*> write_shader_queue;    /**< Shaders waiting to be written. */
-  std::deque<PipelineType> write_pipeline_queue;       /**< Pipelines waiting to be written. */
-  bool write_flush_shaders = false;                    /**< Request to flush the shader stream. */
-  bool write_flush_pipelines = false;                  /**< Request to flush the pipeline stream. */
-  bool write_thread_shutdown = false;                  /**< Request to end the writer thread. */
-  std::unique_ptr<rex::platform::Thread> write_thread; /**< The writer thread. */
+  std::deque<const ShaderType*> write_shader_queue;
+  std::deque<PipelineType> write_pipeline_queue;
+  bool write_flush_shaders = false;
+  bool write_flush_pipelines = false;
+  bool write_thread_shutdown = false;
+  std::unique_ptr<rex::platform::Thread> write_thread;
 
-  /** Stops the writer thread, drops the queues and closes both streams. */
+  /** Stops the writer thread, discards the queues and closes both streams. */
   void Shutdown() {
     if (write_thread) {
       {

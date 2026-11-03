@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/gpu/dxbc_operand_test.cpp
- * @brief       DXBC source operands compose swizzles in source order
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

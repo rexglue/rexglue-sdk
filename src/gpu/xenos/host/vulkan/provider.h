@@ -12,11 +12,13 @@
 #pragma once
 
 #include <memory>
+#include <rex/settings.h>
 
 #include "gpu/xenos/host/graphics_provider.h"
 #include "gpu/xenos/host/vulkan/device.h"
 #include "gpu/xenos/host/vulkan/instance.h"
-#include "gpu/xenos/host/vulkan/ui_samplers.h"
+#include "gpu/xenos/host/vulkan/settings.h"
+#include "gpu/xenos/host/vulkan/ui_sampler.h"
 
 namespace rex {
 namespace gpu {
@@ -28,21 +30,27 @@ class VulkanProvider : public GraphicsProvider {
  public:
   explicit VulkanProvider(Key) {}
 
+  /**
+   * @param with_gpu_emulation True to require the device features Xenos emulation needs.
+   * @param with_presentation True to create the instance with surface support.
+   * @param device_index The physical device to use, or -1 to choose.
+   * @param settings The gpu.vulkan settings, which must outlive the provider.
+   * @return The provider, or null when no usable device exists.
+   */
   static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation, bool with_presentation,
-                                                i32 device_index);
+                                                i32 device_index, const VulkanSettings& settings);
+
+  const VulkanSettings& GetSettings() const { return *settings_; }
 
   VulkanInstance* GetVulkanInstance() const { return vulkan_instance_.get(); }
 
   VulkanDevice* GetVulkanDevice() const { return vulkan_device_.get(); }
 
-  /**
-   * Returns the UI samplers.
-   *
-   * @return The samplers, or null when created without presentation support.
-   */
-  const UISamplers* GetUISamplers() const { return ui_samplers_.get(); }
+  /** Returns the UI samplers, or null when created without presentation support. */
+  const UISamplerSet* GetUISamplers() const { return ui_samplers_.get(); }
 
-  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGPULossCallback host_gpu_loss_callback =
+  std::unique_ptr<Presenter> CreatePresenter(const XenosGraphicsDriverBase& driver,
+                                             Presenter::HostGPULossCallback host_gpu_loss_callback =
                                                  Presenter::FatalErrorHostGPULossCallback) override;
 
   std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() override;
@@ -52,9 +60,10 @@ class VulkanProvider : public GraphicsProvider {
 
   // Depends on the instance.
   std::unique_ptr<VulkanDevice> vulkan_device_;
+  const VulkanSettings* settings_ = nullptr;
 
   // Depends on the device.
-  std::unique_ptr<UISamplers> ui_samplers_;
+  std::unique_ptr<UISamplerSet> ui_samplers_;
 };
 
 }  // namespace vulkan

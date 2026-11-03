@@ -16,7 +16,8 @@
 #include <memory>
 
 #include <rex/types.h>
-#include <rex/literals.h>
+#include <rex/utility.h>
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex {
 namespace gpu {
@@ -41,7 +42,6 @@ class REX_GPU_XENOS_API GraphicsUploadBufferPool : public rex::NonCopyable {
   void FlushWrites();
 
  protected:
-  /** Extended by the implementation. */
   struct REX_GPU_XENOS_API Page {
     virtual ~Page();
     u64 last_submission_index;
@@ -56,7 +56,6 @@ class REX_GPU_XENOS_API GraphicsUploadBufferPool : public rex::NonCopyable {
    * Creates a new page when the current one lacks free space.
    *
    * @param submission_index Submission using the space.
-   * @param size Size in bytes.
    * @param alignment Power of 2 alignment in bytes.
    * @param offset_out Receives the offset within the page.
    * @return The page, or null on failure.

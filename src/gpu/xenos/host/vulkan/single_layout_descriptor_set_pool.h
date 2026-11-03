@@ -25,11 +25,8 @@ namespace vulkan {
 class SingleLayoutDescriptorSetPool {
  public:
   /**
-   * Creates the pool.
+   * Creates the pool. The set layout must outlive it.
    *
-   * The set layout must outlive this object.
-   *
-   * @param vulkan_device The device to allocate on.
    * @param pool_set_count The number of sets in each pool.
    * @param set_layout_descriptor_counts_count The number of entries in the counts array.
    * @param set_layout_descriptor_counts The descriptors of each type in a single set.
@@ -41,11 +38,7 @@ class SingleLayoutDescriptorSetPool {
                                 VkDescriptorSetLayout set_layout);
   ~SingleLayoutDescriptorSetPool();
 
-  /**
-   * Allocates a descriptor set.
-   *
-   * @return The set index, or SIZE_MAX on failure.
-   */
+  /** Returns the index of a new descriptor set, or SIZE_MAX on failure. */
   size_t Allocate();
   void Free(size_t index) noexcept {
     REX_ASSERT(index < descriptor_sets_.size());

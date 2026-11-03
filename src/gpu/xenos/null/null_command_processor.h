@@ -21,11 +21,9 @@ namespace rex::gpu::null {
 /** Runs PM4, fences, memory and register writes and interrupts. Skips draws, copies and swaps. */
 class NullCommandProcessor final : public CommandProcessor {
  public:
-  /**
-   * @param graphics_system The graphics system that owns the processor.
-   * @param runtime The runtime the worker thread belongs to.
-   */
-  NullCommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime);
+  NullCommandProcessor(XenosGraphicsDriverBase* graphics_system, const TitleInfo& info,
+                       IPhysicalMemory& memory, IPhysicalWriteWatch& watch,
+                       IGuestInterrupts& interrupts);
   ~NullCommandProcessor() override;
 
   void IssueSwap(u32 frontbuffer_ptr, u32 frontbuffer_width, u32 frontbuffer_height) override;

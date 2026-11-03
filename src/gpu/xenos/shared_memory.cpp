@@ -16,16 +16,16 @@
 
 #include <rex/assert.h>
 #include <rex/bit.h>
-#include <rex/dbg.h>
+#include <rex/platform/perf.h>
 #include <rex/logging/log.h>
 #include "gpu/xenos/shared_memory.h"
 #include <rex/math.h>
-#include <rex/no_throw.h>
 #include <rex/memory.h>
 
 namespace rex::gpu {
 
-SharedMemory::SharedMemory(runtime::Memory& memory) : memory_(memory) {
+SharedMemory::SharedMemory(IPhysicalMemory& memory, IPhysicalWriteWatch& watch)
+    : physical_memory_(memory), write_watch_(watch) {
   page_size_log2_ = rex::log2_ceil(static_cast<u32>(rex::memory::GetPageSize()));
 }
 
@@ -38,8 +38,8 @@ void SharedMemory::InitializeCommon() {
   system_page_flags_valid_.assign(num_system_page_flags_, 0);
   system_page_flags_valid_and_gpu_written_.assign(num_system_page_flags_, 0);
 
-  memory_invalidation_callback_handle_ =
-      memory_.RegisterPhysicalMemoryInvalidationCallback(MemoryInvalidationCallbackThunk, this);
+  write_listener_ = write_watch_.AddWriteListener(*this);
+  write_listener_registered_ = true;
 }
 
 void SharedMemory::InitializeSparseHostGPUMemory(u32 granularity_log2) {
@@ -62,9 +62,9 @@ void SharedMemory::ShutdownCommon() {
   watch_range_current_pool_allocated_ = 0;
   watch_range_pools_.clear();
 
-  if (memory_invalidation_callback_handle_ != nullptr) {
-    memory_.UnregisterPhysicalMemoryInvalidationCallback(memory_invalidation_callback_handle_);
-    memory_invalidation_callback_handle_ = nullptr;
+  if (write_listener_registered_) {
+    write_listener_ = ScopeGuard();
+    write_listener_registered_ = false;
   }
 
   if (host_gpu_memory_sparse_used_bytes_) {
@@ -101,7 +101,7 @@ void SharedMemory::SetSystemPageFlagsValidWithGPUDataWritten() {
 }
 
 void SharedMemory::ClearCache() {
-  // GPU written data is kept, so the watches report invalidated by GPU.
+  // GPU written data is kept, so the watches fire as GPU invalidations.
   FireWatches(0, (kBufferSize - 1) >> page_size_log2_, true);
   // No watches remain, so guest threads cannot reach the pools without the lock.
   watch_node_first_free_ = nullptr;
@@ -142,9 +142,11 @@ void SharedMemory::UnregisterGlobalWatch(GlobalWatchHandle handle) {
   }
 }
 
-SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
-    const std::unique_lock<rex::platform::RankedMutex>&, u32 start, u32 length,
-    WatchCallback callback, void* callback_context, void* callback_data, u64 callback_argument) {
+SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(const ScopeGuard&, u32 start, u32 length,
+                                                         WatchCallback callback,
+                                                         void* callback_context,
+                                                         void* callback_data,
+                                                         u64 callback_argument) {
   if (length == 0 || start >= kBufferSize) {
     return nullptr;
   }
@@ -290,10 +292,9 @@ void SharedMemory::MarkRangeValid(u32 start, u32 length, bool written_by_gpu) {
     }
   }
 
-  if (memory_invalidation_callback_handle_) {
-    GetMemory().EnablePhysicalMemoryAccessCallbacks(
-        valid_page_first << page_size_log2_,
-        (valid_page_last - valid_page_first + 1) << page_size_log2_, true, false);
+  if (write_listener_registered_) {
+    write_watch_.WatchPhysicalWrites({valid_page_first << page_size_log2_,
+                                      (valid_page_last - valid_page_first + 1) << page_size_log2_});
   }
 }
 
@@ -449,17 +450,11 @@ bool SharedMemory::RequestRange(u32 start, u32 length) {
   return RequestRanges(&range, 1);
 }
 
-std::pair<u32, u32> SharedMemory::MemoryInvalidationCallbackThunk(void* context_ptr,
-                                                                  u32 physical_address_start,
-                                                                  u32 length, bool exact_range) {
-  return reinterpret_cast<SharedMemory*>(context_ptr)
-      ->MemoryInvalidationCallback(physical_address_start, length, exact_range);
-}
-
-std::pair<u32, u32> SharedMemory::MemoryInvalidationCallback(u32 physical_address_start, u32 length,
-                                                             bool exact_range) {
+PhysicalRange SharedMemory::OnPhysicalWrite(PhysicalRange range, bool exact_range) {
+  u32 physical_address_start = range.address;
+  u32 length = range.length;
   if (length == 0 || physical_address_start >= kBufferSize) {
-    return std::make_pair(static_cast<u32>(0), UINT32_MAX);
+    return PhysicalRange{0, UINT32_MAX};
   }
   length = std::min(length, kBufferSize - physical_address_start);
   u32 physical_address_last = physical_address_start + (length - 1);
@@ -497,8 +492,8 @@ std::pair<u32, u32> SharedMemory::MemoryInvalidationCallback(u32 physical_addres
 
   FireWatchesLocked(page_first, page_last, false);
 
-  return std::make_pair(page_first << page_size_log2_, (page_last - page_first + 1)
-                                                           << page_size_log2_);
+  return PhysicalRange{page_first << page_size_log2_, (page_last - page_first + 1)
+                                                          << page_size_log2_};
 }
 
 bool SharedMemory::AllocateHostGPUMemory(u32 start, u32 length) {

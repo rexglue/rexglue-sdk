@@ -13,6 +13,7 @@
 
 #include <rex/assert.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include "gpu/xenos/host/graphics_upload_buffer_pool.h"
 #include "gpu/xenos/host/page_list.h"
 

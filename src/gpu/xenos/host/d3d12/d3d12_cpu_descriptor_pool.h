@@ -18,15 +18,12 @@
 
 #include <rex/assert.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 
 namespace rex::gpu::d3d12 {
 
-/**
- * Single descriptor pool with reference counting and unique ownership of allocations.
- *
- * Safe when the release order of the descriptor heap and its descriptors is undefined.
- */
+/** Descriptor pool that stays valid whatever order the pool and its descriptors are released. */
 class D3D12CPUDescriptorPool : public std::enable_shared_from_this<D3D12CPUDescriptorPool>,
                                public rex::NonCopyable {
  public:

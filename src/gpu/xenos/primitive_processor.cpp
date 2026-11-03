@@ -15,19 +15,18 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
+#include <rex/platform/perf.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include "gpu/xenos/primitive_processor.h"
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/registers.h>
-#include <rex/xenos/xenos.h>
-#include <rex/fail.h>
+#include <rex/xenos/register.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include <rex/types.h>
 
-#include "gpu/xenos/cvar_table_xenos.h"
+#include "gpu/xenos/physical_memory.h"
 
 namespace rex::gpu {
 
@@ -42,13 +41,11 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
                                           bool rectangle_lists_supported_without_vs_expansion) {
   full_32bit_vertex_indices_used_ = full_32bit_vertex_indices_supported;
   convert_triangle_fans_to_lists_ =
-      !triangle_fans_supported ||
-      REXCVAR_GET(::rex::gpu::cvars::force_convert_triangle_fans_to_lists);
+      !triangle_fans_supported || settings_.force_convert_triangle_fans_to_lists.Get();
   convert_line_loops_to_strips_ =
-      !line_loops_supported || REXCVAR_GET(::rex::gpu::cvars::force_convert_line_loops_to_strips);
+      !line_loops_supported || settings_.force_convert_line_loops_to_strips.Get();
   convert_quad_lists_to_triangle_lists_ =
-      !quad_lists_supported ||
-      REXCVAR_GET(::rex::gpu::cvars::force_convert_quad_lists_to_triangle_lists);
+      !quad_lists_supported || settings_.force_convert_quad_lists_to_triangle_lists.Get();
   expand_point_sprites_in_vs_ = !point_sprites_supported_without_vs_expansion;
   expand_rectangle_lists_in_vs_ = !rectangle_lists_supported_without_vs_expansion;
 
@@ -130,7 +127,7 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
 }
 
 void PrimitiveProcessor::ShutdownCommon() {
-  if (memory_invalidation_callback_handle_) {
+  if (write_listener_registered_) {
     {
       std::lock_guard<std::mutex> cache_lock(cache_mutex_);
       cache_map_.clear();
@@ -138,14 +135,14 @@ void PrimitiveProcessor::ShutdownCommon() {
       std::memset(cache_buckets_non_empty_l1_, 0, sizeof(cache_buckets_non_empty_l1_));
       std::memset(cache_buckets_non_empty_l2_, 0, sizeof(cache_buckets_non_empty_l2_));
     }
-    memory_.UnregisterPhysicalMemoryInvalidationCallback(memory_invalidation_callback_handle_);
-    memory_invalidation_callback_handle_ = nullptr;
+    write_listener_ = ScopeGuard();
+    write_listener_registered_ = false;
     cache_entry_pool_.clear();
   }
 }
 
 void PrimitiveProcessor::ClearPerFrameCache() {
-  if (!memory_invalidation_callback_handle_) {
+  if (!write_listener_registered_) {
     return;
   }
   std::lock_guard<std::mutex> cache_lock(cache_mutex_);
@@ -228,7 +225,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       case xenos::PrimitiveType::kLineStrip:
       case xenos::PrimitiveType::kTriangleList:
       case xenos::PrimitiveType::kTriangleStrip:
-        // Supported natively on all backends.
+        // Supported natively on all drivers.
         break;
       case xenos::PrimitiveType::kRectangleList:
         if (expand_rectangle_lists_in_vs_) {
@@ -470,7 +467,11 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       if (cache_transaction.GetFoundResult()) {
         cacheable = *cache_transaction.GetFoundResult();
       } else {
-        const void* guest_indices_ptr = memory_.TranslatePhysical(guest_index_base);
+        const void* guest_indices_ptr =
+            GetPhysicalForRead(physical_memory_, guest_index_base, guest_index_buffer_needed_bytes);
+        if (!guest_indices_ptr) {
+          return false;
+        }
         cacheable.index_buffer_type = ProcessedIndexBufferType::kHostConverted;
         cacheable.host_primitive_reset_enabled = false;
         std::function<u32(u32)> host_index_count_getter;
@@ -589,7 +590,11 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
             if (cache_transaction.GetFoundResult()) {
               cacheable = *cache_transaction.GetFoundResult();
             } else {
-              auto guest_indices = memory_.TranslatePhysical<const u16*>(guest_index_base);
+              auto guest_indices = GetPhysicalForRead<u16>(physical_memory_, guest_index_base,
+                                                           guest_index_buffer_needed_bytes);
+              if (!guest_indices) {
+                return false;
+              }
               bool is_reset_index_used, is_ffff_used_as_vertex_index;
               Get16BitResetIndexUsage(guest_indices, guest_draw_vertex_count,
                                       guest_primitive_reset_index_guest_endian, is_reset_index_used,
@@ -606,7 +611,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                   return false;
                 }
                 if (is_ffff_used_as_vertex_index) {
-                  ReplaceResetIndex16To24(reinterpret_cast<u32*>(host_indices_ptr), guest_indices,
+                  ReplaceResetIndex16To32(reinterpret_cast<u32*>(host_indices_ptr), guest_indices,
                                           guest_draw_vertex_count,
                                           guest_primitive_reset_index_guest_endian);
                 } else {
@@ -627,7 +632,11 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           if (cache_transaction.GetFoundResult()) {
             cacheable = *cache_transaction.GetFoundResult();
           } else {
-            auto guest_indices = memory_.TranslatePhysical<const u32*>(guest_index_base);
+            auto guest_indices = GetPhysicalForRead<u32>(physical_memory_, guest_index_base,
+                                                         guest_index_buffer_needed_bytes);
+            if (!guest_indices) {
+              return false;
+            }
             if (IsResetIndexUsed(guest_indices, guest_draw_vertex_count,
                                  guest_primitive_reset_index_guest_endian,
                                  guest_index_mask_guest_endian)) {
@@ -668,7 +677,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         }
       }
 
-      // Backends like Vulkan without fullDrawIndexUint32 cannot fetch 32 bit DMA indices here.
+      // Drivers like Vulkan without fullDrawIndexUint32 cannot fetch 32 bit DMA indices here.
       if (cacheable.index_buffer_type == ProcessedIndexBufferType::kGuestDMA &&
           guest_index_format == xenos::IndexFormat::kInt32 && !full_32bit_vertex_indices_used_ &&
           host_vertex_shader_type != Shader::HostVertexShaderType::kVertex) {
@@ -679,7 +688,11 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         if (cache_transaction.GetFoundResult()) {
           cacheable = *cache_transaction.GetFoundResult();
         } else {
-          auto guest_indices = memory_.TranslatePhysical<const u32*>(guest_index_base);
+          auto guest_indices = GetPhysicalForRead<u32>(physical_memory_, guest_index_base,
+                                                       guest_index_buffer_needed_bytes);
+          if (!guest_indices) {
+            return false;
+          }
           auto host_indices = reinterpret_cast<u32*>(RequestHostConvertedIndexBufferForCurrentFrame(
               xenos::IndexFormat::kInt32, guest_draw_vertex_count, true, guest_index_base,
               cacheable.host_index_buffer_handle));
@@ -846,9 +859,9 @@ u32 PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
 PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& processor, CacheKey key)
     : processor_(processor), key_(key) {
   REX_ASSERT(processor_.cache_pending_size_bytes_ == 0);
-  if (REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices) < 0 ||
+  if (processor_.settings_.primitive_processor_cache_min_indices.Get() < 0 ||
       key_.count <
-          static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices))) {
+          static_cast<u32>(processor_.settings_.primitive_processor_cache_min_indices.Get())) {
     key_.key = 0;
   }
   if (!key_.count) {
@@ -870,12 +883,11 @@ PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& proce
   }
   if (result_type_ != ResultType::kExisting) {
     // Enable the invalidation callback before reading indices, only when processing is needed.
-    if (!processor_.memory_invalidation_callback_handle_) {
-      processor_.memory_invalidation_callback_handle_ =
-          processor_.memory_.RegisterPhysicalMemoryInvalidationCallback(
-              MemoryInvalidationCallbackThunk, &processor_);
+    if (!processor_.write_listener_registered_) {
+      processor_.write_listener_ = processor_.write_watch_.AddWriteListener(processor_);
+      processor_.write_listener_registered_ = true;
     }
-    processor_.memory_.EnablePhysicalMemoryAccessCallbacks(key_.base, size_bytes, true, false);
+    processor_.write_watch_.WatchPhysicalWrites({key_.base, size_bytes});
   }
 }
 
@@ -943,10 +955,11 @@ PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
   processor_.cache_pending_size_bytes_ = 0;
 }
 
-std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_address_start,
-                                                                   u32 length, bool exact_range) {
+PhysicalRange PrimitiveProcessor::OnPhysicalWrite(PhysicalRange range, bool exact_range) {
+  u32 physical_address_start = range.address;
+  u32 length = range.length;
   if (length == 0 || physical_address_start >= SharedMemory::kBufferSize) {
-    return std::make_pair(static_cast<u32>(0), UINT32_MAX);
+    return PhysicalRange{0, UINT32_MAX};
   }
   length = std::min(length, SharedMemory::kBufferSize - physical_address_start);
   u32 physical_address_end = physical_address_start + length;
@@ -1059,16 +1072,8 @@ std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_
     }
   }
   return any_invalidated
-             ? std::make_pair(physical_address_start, physical_address_end - physical_address_start)
-             : std::make_pair(static_cast<u32>(0), UINT32_MAX);
-}
-
-std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallbackThunk(void* context_ptr,
-                                                                        u32 physical_address_start,
-                                                                        u32 length,
-                                                                        bool exact_range) {
-  return reinterpret_cast<PrimitiveProcessor*>(context_ptr)
-      ->MemoryInvalidationCallback(physical_address_start, length, exact_range);
+             ? PhysicalRange{physical_address_start, physical_address_end - physical_address_start}
+             : PhysicalRange{0, UINT32_MAX};
 }
 
 }  // namespace rex::gpu

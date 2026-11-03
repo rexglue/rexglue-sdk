@@ -25,42 +25,23 @@
 #include <rex/hash.h>
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/registers.h>
+#include <rex/utility.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/draw_extent_estimator.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/types.h>
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex::gpu {
 
 class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
  public:
-  /** Emulation implementation path for the output merger. */
+  /** Output merger emulation path. */
   enum class Path : u8 {
     /**
-     * Approximate method using conventional host render targets, copying ("transferring ownership"
-     * of tiles) between them to support aliasing. May be irreparably inaccurate, at the mercy of
-     * the host fixed function output merger, mainly because it must perform blending, and a
-     * different pixel format behaves differently (the range is clamped for normalized formats but
-     * not for floating point ones).
-     *
-     * On a Direct3D 11 level device 8_8_8_8, 2_10_10_10, 32_FLOAT, 32_32_FLOAT and D24S8 map
-     * directly, disregarding blending internal precision. D24FS8 maps directly with a truncated
-     * SV_DepthLessEqual output (SV_Depth is suboptimal as it prevents early depth and stencil). For
-     * bit exact reinterpretation to and from D24F in unmodified areas using pixel shader depth
-     * output without unrestricted depth range, guest depth 0...1 maps to 0...0.5 on the host in the
-     * viewport and conversion. 16_16_FLOAT and 16_16_16_16_FLOAT map directly except for rare edge
-     * cases, as the Xenos float16 has no special values.
-     *
-     * Formats with significant differences are as follows. 8_8_8_8_GAMMA uses a piecewise linear
-     * gamma curve different from sRGB, so it needs either shader conversion (incorrect blending) or
-     * sRGB render targets with conversion on resolve or reading the resolved data as an sRGB
-     * texture (incorrect when the guest reads the data itself). 2_10_10_10_FLOAT has ranges
-     * significantly different from float16, with a much smaller RGB range and a fixed point alpha
-     * of only 2 bits. 16_16 and 16_16_16_16 have a -32 to 32 range rather than -1 to 1, so they
-     * need either range truncation for correct blending or division by 32 in shaders, which breaks
-     * multiplication in blending.
+     * Approximate path using conventional host render targets and tile ownership copies.
      */
     kHostRenderTargets,
 
@@ -109,12 +90,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   /**
    * Returns the blending clamp ranges and the keep masks of the bits left unwritten by write_mask.
    * All keep bits are set for an empty write mask or an invalid format, which makes the shaders
-   * skip the render target. For k_16_16 and k_16_16_16_16 the alpha clamp is nonzero since alpha
-   * clamping affects the blending source (the render target is fixed point), and NaN should become
-   * 0 rather than the lowest negative number as the Direct3D 11.3 functional specification defines
-   * SNorm conversion, which needs separate handling. The float16 formats have no NaNs on the GPU,
-   * but the extended range cannot be used with Direct3D and Vulkan conversions. The 32 bit float
-   * formats use NaN clamps, so min and max pick the original value.
+   * skip the render target.
    *
    * @param format Color render target format.
    * @param write_mask Color component write mask.
@@ -134,17 +110,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
   virtual Path GetPath() const = 0;
 
-  /**
-   * Returns the horizontal resolution scale.
-   *
-   * Resolution scaling on the EDRAM side multiplies the EDRAM tile size by the resolution scale.
-   * Only integer scales are supported, since fractional ones such as 1.5 break pixel coverage of
-   * odd sized screen space geometry (notably the 1x1 final step of reduction passes), break the gap
-   * fill used for 2x and 3x scaling when the half pixel offset becomes whole pixel, and complicate
-   * rounding of integer coordinates.
-   *
-   * @return The resolution scale along X.
-   */
+  /** Returns the horizontal resolution scale. Only integer scales work. */
   u32 GetDrawResolutionScaleX() const { return draw_resolution_scale_x_; }
   u32 GetDrawResolutionScaleY() const { return draw_resolution_scale_y_; }
   bool IsDrawResolutionScaled() const {
@@ -159,24 +125,9 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   /**
    * Updates the bound render targets and EDRAM ownership for a draw.
    *
-   * Render targets whose EDRAM base conflicts with another are eliminated, since binding one render
-   * target into multiple slots is an error in most host implementations and behaves unpredictably.
-   * Depth is least important as it is earlier in the pipeline, and lower indexed render targets are
-   * more important than higher ones, because a shader may select between 2 render targets to write
-   * dynamically (through a static bool constant condition) while the other state implies the same
-   * render target bound twice. On Direct3D 9 a color output not written on the taken control flow
-   * leaves the render target unwritten, while Direct3D 10 treats a declared output as always
-   * written, with an undefined value otherwise.
+   * Render targets whose EDRAM base conflicts with another are eliminated. Lower indexed render
+   * targets are more important than higher ones, and depth is least important.
    *
-   * Render targets are sorted by EDRAM base and then by pipeline order. A render target placed
-   * closer to the end of the EDRAM truncates the previous one, and for the same base color is more
-   * important than depth, which may be a needless leftover and is tested before color is written.
-   * Estimated EDRAM ranges of render targets normally intersect when drawing without a viewport,
-   * since nothing clamps the estimated height, and with multiple render targets bound. Distances
-   * between bases are compared as if 64bpp (32bpp contributions doubled and clamping for 32bpp
-   * halved), because 32bpp render targets can be combined with 64bpp ones twice as long.
-   *
-   * @param is_rasterization_done True when the draw rasterizes.
    * @param normalized_depth_control Depth control with the register normalization applied.
    * @param normalized_color_mask Color write mask, 4 bits per render target.
    * @param vertex_shader Vertex shader of the draw, used to estimate the extent.
@@ -187,32 +138,33 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
                       u32 normalized_color_mask, const Shader& vertex_shader);
 
   /**
-   * Returns a mask where bit 0 is set when a depth render target is bound on the host and
-   * bits 1 and up are set for bound color render targets.
+   * Returns a mask where bit 0 is set when a depth render target is bound on the host and bits 1
+   * and up are set for bound color render targets. The mask has one bit per bound render target.
    *
    * @param depth_and_color_formats_out Receives each target's resource format, may be null.
-   * @return Bit mask of the bound render targets.
    */
   u32 GetLastUpdateBoundRenderTargets(u32* depth_and_color_formats_out = nullptr) const;
 
  protected:
-  RenderTargetCache(const xenos::RegisterFile& register_file, const runtime::Memory& memory,
-                    u32 draw_resolution_scale_x, u32 draw_resolution_scale_y)
+  RenderTargetCache(const xenos::RegisterFile& register_file, const XenosSettings& settings,
+                    IPhysicalMemory& memory, u32 draw_resolution_scale_x,
+                    u32 draw_resolution_scale_y)
       : register_file_(register_file),
+        settings_(settings),
         draw_resolution_scale_x_(draw_resolution_scale_x),
         draw_resolution_scale_y_(draw_resolution_scale_y),
-        draw_extent_estimator_(register_file, memory) {
+        draw_extent_estimator_(register_file, settings, memory) {
     REX_ASSERT(draw_resolution_scale_x != 0);
     REX_ASSERT(draw_resolution_scale_y != 0);
   }
 
   const xenos::RegisterFile& GetRegisterFile() const { return register_file_; }
+  const XenosSettings& GetXenosSettings() const { return settings_; }
 
   virtual bool IsGammaFormatHostStorageSeparate() const = 0;
 
   /** Initializes the EDRAM ownership ranges as a single empty range. */
   void InitializeCommon();
-  /** Destroys all render targets. */
   void DestroyAllRenderTargets() noexcept;
   /** Destroys all render targets and EDRAM ownership ranges. */
   void ShutdownCommon() noexcept;
@@ -288,16 +240,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   };
 
   /**
-   * Range of EDRAM 80x16 sample tiles whose ownership moves between host render targets. The data
-   * is copied bit exactly from the guest perspective, by drawing rectangles with a pixel shader
-   * that converts the previous host render target to a guest bit pattern and reinterprets it in the
-   * new format (through an integer view of the texture when dangerous, such as float16 with non
-   * propagated NaN). If depth is emulated with float32, data may be lost, so for depth both the
-   * guest format ownership and the float32 ownership are tracked, and to let color data overwrite
-   * depth data, loading during the transfer uses intersections of the guest ownership ranges and
-   * the float32 ownership ranges. A transfer happens when a render target is needed, based on the
-   * current viewport, or, if no viewport is available, ownership of the rest of the EDRAM is
-   * transferred.
+   * Range of EDRAM 80x16 sample tiles whose ownership moves between host render targets.
    */
   struct REX_GPU_XENOS_API Transfer {
     u32 start_tiles;
@@ -322,8 +265,8 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
     static constexpr u32 kMaxRectanglesWithCutout =
         kMaxRectanglesWithoutCutout * kMaxCutoutBorderRectangles;
     /**
-     * Returns the rectangles covering a tile range. A cutout can be specified for resolve clears,
-     * to skip areas that are cleared to a single value anyway.
+     * Returns the rectangles covering a tile range, skipping the optional cutout, the area a
+     * resolve clear sets to a single value. The result is the number of rectangles written.
      *
      * @param start_tiles First tile of the range.
      * @param end_tiles Tile after the last one of the range.
@@ -333,7 +276,6 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
      * @param is_64bpp True when the render target uses 64 bits per pixel.
      * @param rectangles_out Receives the rectangles.
      * @param cutout Area to exclude, may be null.
-     * @return Number of rectangles written.
      */
     static u32 GetRangeRectangles(u32 start_tiles, u32 end_tiles, u32 base_tiles, u32 pitch_tiles,
                                   xenos::MSAASamples msaa_samples, bool is_64bpp,
@@ -465,13 +407,10 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   virtual u32 GetMaxRenderTargetHeight() const = 0;
 
   /**
-   * Returns the height of a render target that is needed and can be created, within guest and host
-   * limits. EDRAM base and 32bpp/64bpp are not considered, so one height serves all render targets
-   * even if the implementation supports mixed size render targets.
+   * Returns the render target height, limited by the guest and host maximums. EDRAM base and
+   * 32bpp/64bpp are not considered, so one height serves all render targets.
    *
-   * @param pitch_tiles_at_32bpp Pitch in tiles at 32bpp.
    * @param msaa_samples MSAA sample count, which sets the vertical sample factor of the height.
-   * @return Render target height.
    */
   u32 GetRenderTargetHeight(u32 pitch_tiles_at_32bpp, xenos::MSAASamples msaa_samples) const;
 
@@ -480,10 +419,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   /**
    * Reports whether the depth buffer is encoded differently on the host, so naive aliasing may lose
    * precision. Host depth must be overwritten only if the new guest value differs from the current
-   * host depth converted to the guest format, which mostly catches overwriting to clear the buffer.
-   *
-   * @param format Depth render target format.
-   * @return True when the host encoding differs from the guest format.
+   * host depth converted to the guest format.
    */
   virtual bool IsHostDepthEncodingDifferent(xenos::DepthRenderTargetFormat format) const = 0;
 
@@ -516,8 +452,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
   /**
    * Returns mappings between ranges within the tile rectangle (not the render target texture
-   * rectangle, as textures may have any pitch) from ResolveRequest::GetCopyEDRAMTileSpan and the
-   * render targets owning them.
+   * rectangle) from ResolveRequest::GetCopyEDRAMTileSpan and the render targets owning them.
    *
    * @param base First tile.
    * @param row_length Row length in tiles.
@@ -532,8 +467,8 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
                                       std::vector<ResolveCopyDispatch>& dispatches_out) const;
 
   /**
-   * Sets up the render targets and transfers needed to clear in a resolve operation through a host
-   * render target clear. resolve_info is expected to come from draw_state::GetResolveInfo.
+   * Prepares the render targets and transfers for clearing in a resolve. resolve_info comes from
+   * draw_state::GetResolveInfo.
    *
    * @param resolve_info Resolve whose clear flags, EDRAM formats, bases and extent are read.
    * @param clear_rectangle_out Receives the area to clear.
@@ -552,14 +487,12 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
   virtual void RequestPixelShaderInterlockBarrier() {}
 
-  /**
-   * Clears the EDRAM ownership ranges after a memory barrier committed interlocked writes to all
-   * of the EDRAM.
-   */
+  /** Clears the ownership ranges after a barrier committed interlocked writes to all EDRAM. */
   void PixelShaderInterlockFullEDRAMBarrierPlaced();
 
  private:
   const xenos::RegisterFile& register_file_;
+  const XenosSettings& settings_;
   u32 draw_resolution_scale_x_;
   u32 draw_resolution_scale_y_;
 
@@ -567,21 +500,11 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
   struct OwnershipRange {
     u32 end_tiles;
-    /**
-     * Last using render target. Stored as a key rather than a pointer since pixel shader interlock
-     * has no host render targets and uses ownership to place barriers.
-     */
+    /** Last using render target, a key as pixel shader interlock has no host render targets. */
     RenderTargetKey render_target;
     /**
-     * Last host depth render targets that used the range even if another render target used it
-     * since, tracked only when the format has a different encoding on the host. They are tracked
-     * separately and overwritten when the host value converted to the guest format becomes out of
-     * sync with the guest value. unorm24 and float24 render targets are tracked separately even
-     * when the host emulates both with float32 (Vulkan on AMD), so switching between them for the
-     * same depth data (most clears go through unorm24 without a viewport) is not destructive.
-     * f32tof24(host_f32) == guest_f24 does not imply f32tou24(host_f32) == guest_u24, so aliasing
-     * float24 with unorm24 through the same float32 buffer would drop the precision to that of
-     * unorm24 with a wrong value. Empty when the range is unused (render_target.IsEmpty() == true).
+     * Last host depth render target of the range, tracked only when the host encodes depth
+     * differently. Empty when the range is unused (render_target.IsEmpty() == true).
      */
     RenderTargetKey host_depth_render_target_unorm24;
     RenderTargetKey host_depth_render_target_float24;
@@ -634,13 +557,11 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   RenderTarget* GetOrCreateRenderTarget(RenderTargetKey key);
 
   /**
-   * Reports whether changing ownership of the range to the render target would require transferring
-   * data.
+   * Reports whether changing ownership of the range would require transferring data.
    *
    * @param dest Render target taking ownership.
    * @param start_tiles_base_relative First tile, relative to the base.
    * @param length_tiles Tile count of the range.
-   * @return True when transfers would be required.
    */
   bool WouldOwnershipChangeRequireTransfers(RenderTargetKey dest, u32 start_tiles_base_relative,
                                             u32 length_tiles) const;
@@ -669,28 +590,20 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   std::map<u32, OwnershipRange> ownership_ranges_;
 
   /**
-   * Render targets of the last successful update draw. Index 0 is depth, colors start from 1, null
-   * when not bound. Valid only on non pixel shader interlock paths.
+   * Render targets of the last successful update draw. Index 0 is depth, colors start from 1.
+   * Valid only off the pixel shader interlock path.
    */
   RenderTarget* last_update_used_render_targets_[1 + xenos::kMaxColorRenderTargets];
   /**
    * Render targets of the last successful update or earlier ones, unless a different or new one
    * was bound or surface info changed, to avoid needless switching (undesirable on tile based
-   * GPUs) when depth and stencil test or color writes are toggled. Must also decide whether
-   * depth and stencil or a color render target may be enabled in the pipeline for the draw.
-   * Valid only on non pixel shader interlock paths.
+   * GPUs) when depth and stencil test or color writes are toggled. Valid only off the pixel
+   * shader interlock path.
    */
   RenderTarget* last_update_accumulated_render_targets_[1 + xenos::kMaxColorRenderTargets];
-  /**
-   * When false, the next update copies last_update_used_render_targets_ to
-   * last_update_accumulated_render_targets_, as keeping the previously bound render targets is
-   * not beneficial or is incorrect.
-   */
+  /** When false, the next update resets the accumulated render targets to the used ones. */
   bool are_accumulated_render_targets_valid_ = false;
-  /**
-   * After an update, even an unsuccessful one, the ownership transfer sources needed for each
-   * current render target, ordered so all transfers of one source are consecutive.
-   */
+  /** Transfer sources for each render target after an update, grouped by source. */
   std::vector<Transfer> last_update_transfers_[1 + xenos::kMaxColorRenderTargets];
 };
 

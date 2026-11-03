@@ -20,26 +20,21 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
+#include <rex/bit.h>
 #include <rex/platform.h>
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/objects.h"
 
 #if REX_PLATFORM_GNU_LINUX
-#include <rex/gpu/surface_gnulinux.h>
-#endif
-#if REX_PLATFORM_WIN32
-#include <rex/gpu/surface_win.h>
+#include <X11/Xlib-xcb.h>
 #endif
 #if REX_PLATFORM_MAC
-#include <rex/gpu/surface_mac.h>
-#include <rex/move_only_function.h>
+#include <rex/utility.h>
 #endif
 
-#include "gpu/xenos/vulkan/cvar_table.h"
+#include "gpu/xenos/host/present_policy.h"
 
 namespace rex {
 namespace gpu {
@@ -277,9 +272,10 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     VkSwapchainKHR old_swapchain = paint_context_.PrepareForSwapchainRetirement();
     bool surface_unusable;
     paint_context_.swapchain = PaintContext::CreateSwapchainForVulkanSurface(
-        vulkan_device_, paint_context_.vulkan_surface, new_surface_width, new_surface_height,
-        old_swapchain, paint_context_.present_queue_family, new_swapchain_format,
-        paint_context_.swapchain_extent, paint_context_.swapchain_is_fifo, surface_unusable);
+        vulkan_device_, settings_, paint_context_.vulkan_surface, new_surface_width,
+        new_surface_height, GetPaintConnectionVsync(), old_swapchain,
+        paint_context_.present_queue_family, new_swapchain_format, paint_context_.swapchain_extent,
+        paint_context_.swapchain_is_fifo, surface_unusable);
     if (old_swapchain != VK_NULL_HANDLE) {
       dfn.vkDestroySwapchainKHR(device, old_swapchain, nullptr);
     }
@@ -300,44 +296,45 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     switch (surface_type) {
 #if REX_PLATFORM_GNU_LINUX
       case gpu::Surface::kTypeIndexXCBWindow: {
-        auto& xcb_window_surface = static_cast<const gpu::XCBWindowSurface&>(new_surface);
+        auto& xcb_window_surface = static_cast<const gpu::NativeSurface&>(new_surface);
         VkXcbSurfaceCreateInfoKHR surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
-        surface_create_info.connection = xcb_window_surface.GetConnection();
-        surface_create_info.window = xcb_window_surface.GetWindow();
+        surface_create_info.connection =
+            XGetXCBConnection(static_cast<Display*>(xcb_window_surface.GetDisplay()));
+        surface_create_info.window = xcb_window_surface.GetWindowID();
         vulkan_surface_create_result = ifn.vkCreateXcbSurfaceKHR(
             instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
       case gpu::Surface::kTypeIndexWaylandSurface: {
-        auto& wayland_surface = static_cast<const gpu::WaylandSurface&>(new_surface);
+        auto& wayland_surface = static_cast<const gpu::NativeSurface&>(new_surface);
         VkWaylandSurfaceCreateInfoKHR surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
-        surface_create_info.display = wayland_surface.GetDisplay();
-        surface_create_info.surface = wayland_surface.GetSurface();
+        surface_create_info.display = static_cast<wl_display*>(wayland_surface.GetDisplay());
+        surface_create_info.surface = static_cast<wl_surface*>(wayland_surface.GetHWND());
         vulkan_surface_create_result = ifn.vkCreateWaylandSurfaceKHR(
             instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
 #endif
 #if REX_PLATFORM_WIN32
       case gpu::Surface::kTypeIndexWin32HWND: {
-        auto& win32_hwnd_surface = static_cast<const gpu::Win32HWNDSurface&>(new_surface);
+        auto& win32_hwnd_surface = static_cast<const gpu::NativeSurface&>(new_surface);
         VkWin32SurfaceCreateInfoKHR surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
-        surface_create_info.hinstance = win32_hwnd_surface.GetHinstance();
-        surface_create_info.hwnd = win32_hwnd_surface.GetHWND();
+        surface_create_info.hinstance = static_cast<HINSTANCE>(win32_hwnd_surface.GetHINSTANCE());
+        surface_create_info.hwnd = static_cast<HWND>(win32_hwnd_surface.GetHWND());
         vulkan_surface_create_result = ifn.vkCreateWin32SurfaceKHR(
             instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
 #endif
 #if REX_PLATFORM_MAC
       case gpu::Surface::kTypeIndexCAMetalLayer: {
-        auto& metal_surface = static_cast<const gpu::CAMetalLayerSurface&>(new_surface);
+        auto& metal_surface = static_cast<const gpu::NativeSurface&>(new_surface);
         VkMetalSurfaceCreateInfoEXT surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
         surface_create_info.pNext = nullptr;
@@ -359,9 +356,10 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     }
     bool surface_unusable;
     paint_context_.swapchain = PaintContext::CreateSwapchainForVulkanSurface(
-        vulkan_device_, paint_context_.vulkan_surface, new_surface_width, new_surface_height,
-        VK_NULL_HANDLE, paint_context_.present_queue_family, new_swapchain_format,
-        paint_context_.swapchain_extent, paint_context_.swapchain_is_fifo, surface_unusable);
+        vulkan_device_, settings_, paint_context_.vulkan_surface, new_surface_width,
+        new_surface_height, GetPaintConnectionVsync(), VK_NULL_HANDLE,
+        paint_context_.present_queue_family, new_swapchain_format, paint_context_.swapchain_extent,
+        paint_context_.swapchain_is_fifo, surface_unusable);
     if (paint_context_.swapchain == VK_NULL_HANDLE) {
       ifn.vkDestroySurfaceKHR(instance, paint_context_.vulkan_surface, nullptr);
       paint_context_.vulkan_surface = VK_NULL_HANDLE;
@@ -381,7 +379,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     render_pass_attachment.flags = 0;
     render_pass_attachment.format = new_swapchain_format;
     render_pass_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    render_pass_attachment.loadOp = REXCVAR_GET(::rex::gpu::cvars::render_pass_clear)
+    render_pass_attachment.loadOp = settings_.render_pass_clear.Get()
                                         ? VK_ATTACHMENT_LOAD_OP_CLEAR
                                         : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     render_pass_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -518,11 +516,11 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
   return SurfacePaintConnectResult::kSuccess;
 }
 
-void VulkanPresenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
+void VulkanPresenter::DriverDisconnectPaintingFromSurface() {
   paint_context_.DestroySwapchainAndVulkanSurface();
 }
 
-bool VulkanPresenter::RefreshGuestOutputImpl(
+bool VulkanPresenter::DriverRefreshGuestOutput(
     u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
     rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher, bool& is_8bpc_out) {
   REX_ASSERT(frontbuffer_width != 0);
@@ -558,7 +556,7 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   if (refresher_succeeded) {
     image_instance.ever_successfully_refreshed = true;
   }
-  // Even on failure the refresher may have submitted commands using the image, so signal anyway.
+  // The refresher may have submitted commands using the image even on failure.
   image_instance.last_refresher_submission =
       guest_output_image_refresher_submission_tracker_.GetCurrentSubmission();
   // The fence is signaled here, as a vkQueueSubmit fence signal covers all earlier commands.
@@ -570,7 +568,7 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
         vulkan_device_->AcquireQueue(vulkan_device_->GetQueueFamilyGraphicsCompute(), 0);
     if (dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 0, nullptr, fence_acquisition.GetFence()) !=
         VK_SUCCESS) {
-      fence_acquisition.SubmissionSucceededSignalFailed();
+      fence_acquisition.MarkFenceSignalFailed();
     }
   }
 
@@ -578,9 +576,10 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
 }
 
 VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
-    const VulkanDevice* vulkan_device, VkSurfaceKHR surface, u32 width, u32 height,
-    VkSwapchainKHR old_swapchain, u32& present_queue_family_out, VkFormat& image_format_out,
-    VkExtent2D& image_extent_out, bool& is_fifo_out, bool& ui_surface_unusable_out) {
+    const VulkanDevice* vulkan_device, const VulkanSettings& settings, VkSurfaceKHR surface,
+    u32 width, u32 height, bool vsync, VkSwapchainKHR old_swapchain, u32& present_queue_family_out,
+    VkFormat& image_format_out, VkExtent2D& image_extent_out, bool& is_fifo_out,
+    bool& ui_surface_unusable_out) {
   ui_surface_unusable_out = false;
 
   const VulkanInstance::Functions& ifn = vulkan_device->GetVulkanInstance()->GetFunctions();
@@ -680,7 +679,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     image_format.format = kFormat8888Primary;
     image_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
   } else {
-    // Preference order is OS preferred sRGB 8888, any sRGB 8888, any 8888, any sRGB, the first.
+    // Preference is OS preferred sRGB 8888, any sRGB 8888, any 8888, any sRGB, the first format.
     auto format_8888_primary_it = surface_formats.cend();
     auto format_8888_secondary_it = surface_formats.cend();
     auto any_non_8888_srgb_it = surface_formats.cend();
@@ -778,7 +777,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
       (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
           ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
           : VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
-  // Prefer opaque, else inherit from the window system, else any as guest output writes alpha 1.
+  // Prefers opaque, then inherit, then any, as guest output writes alpha 1.
   if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
     swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
   } else if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
@@ -795,20 +794,28 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
         static_cast<VkCompositeAlphaFlagBitsKHR>(static_cast<u32>(1) << composite_alpha_shift);
   }
   // Update the cvar descriptions when these priorities change.
-  if (REXCVAR_GET(::rex::gpu::cvars::allow_present_mode_immediate) &&
-      std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_IMMEDIATE_KHR) !=
-          present_modes.cend()) {
-    swapchain_create_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-  } else if (REXCVAR_GET(::rex::gpu::cvars::allow_present_mode_mailbox) &&
-             std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_MAILBOX_KHR) !=
-                 present_modes.cend()) {
-    swapchain_create_info.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-  } else if (REXCVAR_GET(::rex::gpu::cvars::allow_present_mode_fifo_relaxed) &&
-             std::find(present_modes.cbegin(), present_modes.cend(),
-                       VK_PRESENT_MODE_FIFO_RELAXED_KHR) != present_modes.cend()) {
-    swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
-  } else {
-    swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+  const auto has_present_mode = [&present_modes](VkPresentModeKHR mode) {
+    return std::find(present_modes.cbegin(), present_modes.cend(), mode) != present_modes.cend();
+  };
+  switch (ChooseVulkanPresentMode(
+      vsync,
+      {settings.allow_present_mode_immediate.Get() &&
+           has_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR),
+       settings.allow_present_mode_mailbox.Get() && has_present_mode(VK_PRESENT_MODE_MAILBOX_KHR),
+       settings.allow_present_mode_fifo_relaxed.Get() &&
+           has_present_mode(VK_PRESENT_MODE_FIFO_RELAXED_KHR)})) {
+    case VulkanPresentMode::kImmediate:
+      swapchain_create_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+      break;
+    case VulkanPresentMode::kMailbox:
+      swapchain_create_info.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+      break;
+    case VulkanPresentMode::kFifoRelaxed:
+      swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+      break;
+    case VulkanPresentMode::kFifo:
+      swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+      break;
   }
   swapchain_create_info.clipped = VK_TRUE;
   swapchain_create_info.oldSwapchain = old_swapchain;
@@ -932,7 +939,7 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
   return true;
 }
 
-Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_drawers) {
+Presenter::PaintResult VulkanPresenter::DriverPaintAndPresent(bool execute_ui_drawers) {
   u64 current_paint_submission_index = paint_context_.submission_tracker.GetCurrentSubmission();
   u64 paint_submission_count = static_cast<u64>(paint_context_.submissions.size());
   if (current_paint_submission_index >= paint_submission_count) {
@@ -991,7 +998,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
                "VulkanPresenter: Failed to acquire the swapchain image");
   }
 
-  // Non-zero extents are needed for the viewport width and the guest output rectangle.
+  // Nonzero extents are needed for the viewport width and the guest output rectangle.
   REX_ASSERT(paint_context_.swapchain_extent.width != 0);
   REX_ASSERT(paint_context_.swapchain_extent.height != 0);
 
@@ -1074,7 +1081,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
                   .first);
         }
         guest_output_image_paint_ref_index = guest_output_image_paint_ref_new_index;
-        // The submission index is set when the image is used and not dropped on error.
+        // The submission index is set when the image is used and not discarded on error.
         paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_index] =
             std::make_pair(static_cast<u64>(0), guest_output_image);
         VkDescriptorImageInfo guest_output_image_descriptor_image_info;
@@ -1333,16 +1340,16 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       if (ui_fence_acquisition.GetFence() != VK_NULL_HANDLE && submit_result == VK_SUCCESS) {
         if (dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 0, nullptr,
                               ui_fence_acquisition.GetFence()) != VK_SUCCESS) {
-          ui_fence_acquisition.SubmissionSucceededSignalFailed();
+          ui_fence_acquisition.MarkFenceSignalFailed();
         }
       }
     }
     if (submit_result != VK_SUCCESS) {
       REXLOG_ERROR(ui, "VulkanPresenter: Failed to submit command buffers");
-      fence_acquisition.SubmissionFailedOrDropped();
-      ui_fence_acquisition.SubmissionFailedOrDropped();
+      fence_acquisition.SubmissionFailedOrDiscarded();
+      ui_fence_acquisition.SubmissionFailedOrDiscarded();
       if (ui_setup_command_buffer_index != SIZE_MAX) {
-        // Reusable at once, as the completed index stays behind and would never recycle it.
+        // Reusable now. The completed index would never recycle it.
         paint_context_.ui_setup_command_buffers[ui_setup_command_buffer_index]
             .last_usage_submission_index = 0;
       }
@@ -1401,7 +1408,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_image_sampler_bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   guest_output_image_sampler_bindings[0].pImmutableSamplers = nullptr;
   const VkSampler sampler_linear_clamp =
-      ui_samplers_->GetSamplers()[UISamplers::kSamplerIndexLinearClampToEdge];
+      ui_samplers_->GetSamplers()[UISamplerSet::kSamplerIndexLinearClampToEdge];
   guest_output_image_sampler_bindings[1].binding = 1;
   guest_output_image_sampler_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
   guest_output_image_sampler_bindings[1].descriptorCount = 1;

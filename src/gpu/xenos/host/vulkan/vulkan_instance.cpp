@@ -15,27 +15,25 @@
 #include <utility>
 #include <vector>
 
-#include <rex/cvar.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/platform.h>
-#include "gpu/xenos/host/library_names.h"
+#include "gpu/xenos/host/library_name.h"
 #include "gpu/xenos/host/vulkan/instance.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_to_string.h"
 
 #if REX_PLATFORM_MAC
 #include "vulkan_moltenvk.h"
 #endif
-
-#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex {
 namespace gpu {
 namespace vulkan {
 
 std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
-                                                       const bool try_enable_validation) {
+                                                       const bool try_enable_validation,
+                                                       const bool log_debug_messages) {
   auto vulkan_instance = std::make_unique<VulkanInstance>(Key{});
 
   vulkan_instance->renderdoc_api_ = RenderDocAPI::CreateIfConnected();
@@ -193,7 +191,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     }
   }
 
-  // Truncating to this size drops layer provided extensions when layers are absent.
+  // Truncating to this size discards layer provided extensions when layers are absent.
   const size_t enabled_implementation_extension_count = enabled_extensions.size();
   std::vector<bool*> enabled_layer_extension_enablement_bools;
 
@@ -283,7 +281,6 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
             continue;
           }
           REX_ASSERT(requested_extension_it->second != nullptr);
-          // Skip extensions enabled by the implementation or another layer.
           if (!*requested_extension_it->second) {
             enabled_extensions.emplace_back(requested_extension_it->first.c_str());
             enabled_layer_extension_enablement_bools.push_back(requested_layer_it->second);
@@ -330,7 +327,6 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 
   if (instance_create_result == VK_ERROR_LAYER_NOT_PRESENT ||
       instance_create_result == VK_ERROR_EXTENSION_NOT_PRESENT) {
-    // Retry without layers when a layer or extension is not present.
     for (bool* const extension_enablement : enabled_layer_extension_enablement_bools) {
       *extension_enablement = false;
     }
@@ -433,8 +429,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     REXLOG_DEBUG(ui, "* {}", instance_create_info.ppEnabledExtensionNames[enabled_extension_index]);
   }
 
-  if (vulkan_instance->extensions_.ext_EXT_debug_utils &&
-      REXCVAR_GET(::rex::gpu::cvars::log_debug_messages)) {
+  if (vulkan_instance->extensions_.ext_EXT_debug_utils && log_debug_messages) {
     auto debug_utils_messenger_create_info =
         objects::BuildStructure<VkDebugUtilsMessengerCreateInfoEXT>(
             VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);

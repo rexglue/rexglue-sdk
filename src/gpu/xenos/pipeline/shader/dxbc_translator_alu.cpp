@@ -14,7 +14,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
-#include <rex/math.h>
+#include <rex/bit.h>
 
 namespace rex::gpu {
 using namespace xenos::ucode;
@@ -32,7 +32,7 @@ void DXBCShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_
   a_.OpEndIf();
 }
 
-void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedALUInstruction& instr,
                                                      u8 memexport_em_potentially_written_before,
                                                      u32& result_swizzle, bool& predicate_written) {
   result_swizzle = dxbc::Src::kXYZW;
@@ -40,7 +40,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
 
   u32 used_result_components = instr.vector_and_constant_result.GetUsedResultComponents();
   if (!used_result_components &&
-      !xenos::ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
+      !xenos::ucode::GetAluVectorOpcodeTraits(instr.vector_opcode).changed_state) {
     return;
   }
 
@@ -75,7 +75,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
       break;
     case AluVectorOpcode::kMul:
     case AluVectorOpcode::kMad: {
-      // DXBC mad is avoided to prevent fused multiply-add.
+      // DXBC mad is avoided to prevent fused multiply add.
       a_.OpMul(per_component_dest, operands[0], operands[1]);
       u32 multiplicands_different =
           used_result_components &
@@ -85,7 +85,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
         u32 is_zero_temp = PushSystemTemp();
         a_.OpMin(dxbc::Dest::R(is_zero_temp, multiplicands_different), operands[0].Abs(),
                  operands[1].Abs());
-        // min isn't required to flush denormals, eq is.
+        // min need not flush denormals, but eq does.
         a_.OpEq(dxbc::Dest::R(is_zero_temp, multiplicands_different), dxbc::Src::R(is_zero_temp),
                 dxbc::Src::LF(0.0f));
         // `0 + term` is not replaced with movc of the term because +0 + -0 must be +0.
@@ -188,7 +188,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
                     dxbc::Src::R(system_temp_result_, i ? dxbc::Src::kYYYY : dxbc::Src::kXXXX));
         }
         if (i) {
-          // DXBC dp# and mad are avoided to prevent fused multiply-add.
+          // DXBC dp# and mad are avoided to prevent fused multiply add.
           a_.OpAdd(dxbc::Dest::R(system_temp_result_, 0b0001),
                    dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
                    dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
@@ -292,7 +292,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
 
     case AluVectorOpcode::kMax4: {
       result_swizzle = dxbc::Src::kXXXX;
-      // SM4 max is used, which replaces NaN with the non-NaN component.
+      // SM4 max is used, which replaces NaN with the non NaN component.
       u32 remaining_components = 0;
       for (u32 i = 0; i < 4; ++i) {
         remaining_components |= 1 << ((operands[0].swizzle >> (i * 2)) & 3);
@@ -478,7 +478,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
           a_.OpMin(dxbc::Dest::R(system_temp_result_, 0b0100),
                    operands[0].SelectFromSwizzled(1).Abs(),
                    operands[1].SelectFromSwizzled(1).Abs());
-          // min isn't required to flush denormals, eq is.
+          // min need not flush denormals, but eq does.
           a_.OpEq(dxbc::Dest::R(system_temp_result_, 0b0100),
                   dxbc::Src::R(system_temp_result_, dxbc::Src::kZZZZ), dxbc::Src::LF(0.0f));
           a_.OpMovC(dxbc::Dest::R(system_temp_result_, 0b0010),
@@ -530,7 +530,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
   PopSystemTemp(operand_temps);
 }
 
-void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedALUInstruction& instr,
                                                      u8 memexport_em_potentially_written_before,
                                                      bool& predicate_written) {
   predicate_written = false;
@@ -568,7 +568,7 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
         // Shader Model 3 gives +-0 or denormal * anything = +0.
         u32 is_zero_temp = PushSystemTemp();
         a_.OpMin(dxbc::Dest::R(is_zero_temp, 0b0001), operand_0_a.Abs(), operand_0_b.Abs());
-        // min isn't required to flush denormals, eq is.
+        // min need not flush denormals, but eq does.
         a_.OpEq(dxbc::Dest::R(is_zero_temp, 0b0001), dxbc::Src::R(is_zero_temp, dxbc::Src::kXXXX),
                 dxbc::Src::LF(0.0f));
         a_.OpMovC(ps_dest, dxbc::Src::R(is_zero_temp, dxbc::Src::kXXXX), dxbc::Src::LF(0.0f),
@@ -594,7 +594,7 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
       }
       // Shader Model 3 gives +-0 or denormal * anything = +0.
       a_.OpMin(dxbc::Dest::R(test_temp, 0b0001), operand_0_a.Abs(), ps_src.Abs());
-      // min isn't required to flush denormals, eq is.
+      // min need not flush denormals, but eq does.
       a_.OpEq(dxbc::Dest::R(test_temp, 0b0001), dxbc::Src::R(test_temp, dxbc::Src::kXXXX),
               dxbc::Src::LF(0.0f));
       a_.OpMul(ps_dest, operand_0_a, ps_src);
@@ -817,7 +817,7 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
         // Shader Model 3 gives +-0 or denormal * anything = +0.
         u32 is_zero_temp = PushSystemTemp();
         a_.OpMin(dxbc::Dest::R(is_zero_temp, 0b0001), operand_0_a.Abs(), operand_1.Abs());
-        // min isn't required to flush denormals, eq is.
+        // min need not flush denormals, but eq does.
         a_.OpEq(dxbc::Dest::R(is_zero_temp, 0b0001), dxbc::Src::R(is_zero_temp, dxbc::Src::kXXXX),
                 dxbc::Src::LF(0.0f));
         a_.OpMovC(ps_dest, dxbc::Src::R(is_zero_temp, dxbc::Src::kXXXX), dxbc::Src::LF(0.0f),
@@ -850,7 +850,7 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
   PopSystemTemp(operand_temps);
 }
 
-void DXBCShaderTranslator::ProcessALUInstruction(const ParsedAluInstruction& instr,
+void DXBCShaderTranslator::ProcessALUInstruction(const ParsedALUInstruction& instr,
                                                  u8 memexport_em_potentially_written_before) {
   if (instr.IsNop()) {
     return;

@@ -20,7 +20,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
-#include <rex/math.h>
+#include <rex/bit.h>
 
 namespace rex::gpu {
 
@@ -989,7 +989,7 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
                                                  const_float_2),
               const_float_minus_3);
         }
-        // OpConvertFToU is undefined for out-of-range values, so clamp the face index to 0...5.
+        // OpConvertFToU is undefined for out of range values, so clamp the face index to 0...5.
         spv::Id face = coordinates[2];
         if (offset_values[2] != 0.0f) {
           face = builder_->CreateNoContractionBinOp(spv::OpFAdd, type_float, face,

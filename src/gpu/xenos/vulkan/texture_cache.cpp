@@ -17,24 +17,17 @@
 
 #include <rex/assert.h>
 #include <rex/bit.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include <rex/math.h>
-#include <rex/cvar.h>
-#include <rex/dbg.h>
-#include <rex/xenos/texture_info.h>
-#include <rex/xenos/texture_layout.h>
+#include <rex/platform/perf.h>
+#include <rex/xenos/texture.h>
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/texture_cache.h"
-#include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/mem_alloc.h"
-#include "gpu/xenos/host/vulkan/ui_samplers.h"
+#include "gpu/xenos/host/vulkan/ui_sampler.h"
 #include "gpu/xenos/host/vulkan/objects.h"
-
-#include "gpu/xenos/cvar_table_pair.h"
-#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 
@@ -511,8 +504,7 @@ void VulkanTextureCache::RequestTextures(u32 used_texture_mask) {
 
   TextureCache::RequestTextures(used_texture_mask);
 
-  // 3D as 2D wrappers are created in the texture request phase.
-  if (REXCVAR_GET(::rex::gpu::cvars::texture_3d_to_2d)) {
+  if (command_processor_.GetXenosSettings().texture_3d_to_2d.Get()) {
     u32 textures_3d = used_texture_mask;
     u32 index_3d;
     while (rex::bit_scan_forward(textures_3d, &index_3d)) {
@@ -664,7 +656,7 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
     bool linear_filterable = true;
     TextureKey texture_key;
     u8 texture_swizzled_signs;
-    BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
+    GetTextureKeyFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
     if (texture_key.is_valid) {
       const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
       if ((xenos::HasNonSignedComponent(texture_swizzled_signs) &&
@@ -692,7 +684,7 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
                                           &mip_min_level, &mip_max_level);
   parameters.mip_min_level = mip_min_level;
   bool has_mips = mip_max_level > mip_min_level;
-  i32 anisotropic_override = REXCVAR_GET(::rex::gpu::cvars::anisotropic_override);
+  i32 anisotropic_override = command_processor_.GetGraphicsDriver().GetAnisotropicOverride();
   if (anisotropic_override > -1 && anisotropic_override < 6 && has_mips &&
       !parameters.mip_base_map && min_mag_linear && mip_filter_bilinear_or_trilinear) {
     aniso_filter = static_cast<xenos::AnisoFilter>(anisotropic_override);
@@ -780,7 +772,7 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
   VkSamplerCreateInfo sampler_create_info = {};
   sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   if (vulkan_device->GetProperties().nonSeamlessCubeMap &&
-      REXCVAR_GET(::rex::gpu::cvars::vulkan_cube_map_edge_filtering_off)) {
+      command_processor_.GetVulkanSettings().cube_map_edge_filtering_off.Get()) {
     sampler_create_info.flags |= VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT;
   }
   sampler_create_info.magFilter = parameters.mag_linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
@@ -932,7 +924,7 @@ VkImageView VulkanTextureCache::RequestSwapTexture(u32& width_scaled_out, u32& h
   const auto& regs = GetRegisterFile();
   xenos::TextureFetch fetch = regs.GetTextureFetch(0);
   TextureKey key;
-  BindingInfoFromFetchConstant(fetch, key, nullptr);
+  GetTextureKeyFromFetchConstant(fetch, key, nullptr);
   if (!key.is_valid || key.base_page == 0 || key.dimension != xenos::DataDimension::k2DOrStacked) {
     return nullptr;
   }
@@ -970,7 +962,7 @@ VkImageView VulkanTextureCache::RequestSwapTexture(u32& width_scaled_out, u32& h
         texture->GetImage(), gpu::vulkan::objects::BuildSubresourceRange(), src_stage_mask,
         dst_stage_mask, src_access_mask, dst_access_mask, old_layout, new_layout);
   }
-  // Only texture->key tells whether the texture is scaled, not BindingInfoFromFetchConstant.
+  // Only the texture key decides whether it is scaled.
   key = texture->GetKey();
   if (width_unscaled_out) {
     *width_unscaled_out = key.GetWidth();
@@ -1144,7 +1136,7 @@ bool VulkanTextureCache::CommitScaledResolveMemory(u32 start_unscaled, u32 lengt
   return AllocateScaledResolveBuffer(start_scaled, length_scaled);
 }
 
-bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
+bool VulkanTextureCache::LoadHostTextureDataFromResidentMemory(Texture& texture, bool load_base,
                                                                bool load_mips) {
   VulkanTexture& vulkan_texture = static_cast<VulkanTexture&>(texture);
   TextureKey texture_key = vulkan_texture.GetKey();
@@ -1242,7 +1234,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     u32 y_pitch_blocks;
   };
   HostLayout host_layout_base;
-  // Indexed as guest stored mips, 1..min(level_last, level_packed) or 0 if level_packed is 0.
+  // Holds mips 1 to min(level_last, level_packed), or only mip 0 when level_packed is 0.
   HostLayout host_layout_mips[xenos::kTextureMaxMips];
   for (u32 loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
     bool is_base = loop_level == 0;
@@ -1465,7 +1457,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
 
     u32 level_width, level_height, level_depth;
     if (level == level_packed) {
-      // The packed mip tail holds other levels at other offsets, so the entire extents load.
+      // The packed mip tail holds other levels at other offsets, so the extents load.
       level_width = level_guest_layout.x_extent_blocks * block_width;
       level_height = level_guest_layout.y_extent_blocks * block_height;
       level_depth = level_guest_layout.z_extent;
@@ -1529,7 +1521,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
                   xenos::FormatInfo::Get(texture_key.format)->name,
                   host_format_is_signed ? "signed" : "unsigned");
     }
-    // Make the normalized intermediate data visible and keep it writable for in place float16.
+    // The normalized data must be visible and stay writable for the in place float16 pass.
     command_processor_.PushBufferMemoryBarrier(
         scratch_buffer, 0, VK_WHOLE_SIZE,
         scratch_buffer_acquisition.SetStageMask(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT),
@@ -1685,7 +1677,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   return true;
 }
 
-void VulkanTextureCache::UpdateTextureBindingsImpl(u32 fetch_constant_mask) {
+void VulkanTextureCache::UpdateHostTextureBindings(u32 fetch_constant_mask) {
   u32 bindings_remaining = fetch_constant_mask;
   u32 binding_index;
   while (rex::bit_scan_forward(bindings_remaining, &binding_index)) {
@@ -1838,7 +1830,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, u32 host_
 
 VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool is_signed,
                                                                           u32 host_swizzle) {
-  if (!REXCVAR_GET(::rex::gpu::cvars::texture_3d_to_2d)) {
+  if (!GetTextureCache().GetXenosSettings().texture_3d_to_2d.Get()) {
     return VK_NULL_HANDLE;
   }
 
@@ -1949,11 +1941,13 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
 }
 
 VulkanTextureCache::VulkanTextureCache(Key, const xenos::RegisterFile& register_file,
+                                       const XenosSettings& settings,
                                        VulkanSharedMemory& shared_memory,
                                        u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
                                        VulkanCommandProcessor& command_processor,
                                        VkPipelineStageFlags guest_shader_pipeline_stages)
-    : TextureCache(register_file, shared_memory, draw_resolution_scale_x, draw_resolution_scale_y),
+    : TextureCache(register_file, settings, shared_memory, draw_resolution_scale_x,
+                   draw_resolution_scale_y),
       command_processor_(command_processor),
       guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {}
 
@@ -2478,7 +2472,7 @@ bool VulkanTextureCache::Initialize() {
 
   for (size_t i = 0; i < rex::CountOf(host_formats_); ++i) {
     HostFormatPair& host_format = host_formats_[i];
-    // load_shader is uninitialized for tail formats and kLoadShaderIndexUnknown may be non-zero.
+    // load_shader is uninitialized for tail formats and kLoadShaderIndexUnknown may be nonzero.
     if (host_format.format_unsigned.format == VK_FORMAT_UNDEFINED) {
       host_format.format_unsigned.load_shader = kLoadShaderIndexUnknown;
     }
@@ -2974,7 +2968,7 @@ bool VulkanTextureCache::Initialize() {
 
   // Some MoltenVK devices allow only 96 to 2048 samplers, below the Vulkan minimum of 4000.
   sampler_max_count_ =
-      device_properties.maxSamplerAllocationCount - gpu::vulkan::UISamplers::kSamplerCount - 16;
+      device_properties.maxSamplerAllocationCount - gpu::vulkan::UISamplerSet::kSamplerCount - 16;
 
   if (device_properties.samplerAnisotropy) {
     max_anisotropy_ = static_cast<xenos::AnisoFilter>(
@@ -3047,7 +3041,7 @@ void VulkanTextureCache::GetTextureUsageMasks(VulkanTexture::Usage usage,
       layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       break;
     case VulkanTexture::Usage::kSwapSampled:
-      // The swap texture is used only by the presentation post-processing passes.
+      // The swap texture is used only by the presentation post processing passes.
       stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
       access_mask = VK_ACCESS_SHADER_READ_BIT;
       layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

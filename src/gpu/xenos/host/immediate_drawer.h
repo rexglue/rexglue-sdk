@@ -13,9 +13,10 @@
 
 #include <memory>
 
-#include <rex/gpu/overlay.h>
+#include "gpu/xenos/host/overlay.h"
 #include <rex/types.h>
 #include "gpu/xenos/host/presenter.h"
+#include "gpu/xenos/xenos_export.h"
 
 namespace rex {
 namespace gpu {
@@ -36,17 +37,16 @@ class REX_GPU_XENOS_API OverlayDrawer : public gpu::IOverlayDrawer {
   virtual void OnLeavePresenter() {}
   virtual void OnEnterPresenter() {}
 
-  /** Valid between Begin and End. */
+  /** Returns the context, valid between Begin and End. */
   gpu::OverlayDrawContext* GetOverlayDrawContext() const { return ui_draw_context_; }
   f32 GetCoordinateSpaceWidth() const { return coordinate_space_width_; }
   f32 GetCoordinateSpaceHeight() const { return coordinate_space_height_; }
 
   /**
-   * Converts and clamps the draw scissor to render target coordinates.
+   * Converts the draw scissor to render target pixels, clamped to the render target size.
    *
-   * A valid scissor is written even when the result is false. Scaling drops NaNs and clamps to the
-   * render target size, within which values are representable as 16p8 fixed point. The top left
-   * edge includes the 0.5 sample and the bottom right edge excludes it.
+   * A valid scissor is written even when the result is false. The top left edge includes the 0.5
+   * sample and the bottom right edge excludes it.
    *
    * @param draw Draw holding the scissor.
    * @param out_left Receives the left edge.

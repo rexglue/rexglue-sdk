@@ -17,12 +17,8 @@
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/primitive_processor.h"
-#include <rex/cvar.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/objects.h"
-
-#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 
@@ -38,13 +34,13 @@ bool VulkanPrimitiveProcessor::Initialize() {
   bool geometry_shader_primitive_emulation_allowed = device_properties.geometryShader;
   bool quad_lists_supported_without_conversion =
       geometry_shader_primitive_emulation_allowed &&
-      !REXCVAR_GET(::rex::gpu::cvars::vulkan_force_convert_quad_lists_to_triangle_lists);
+      !command_processor_.GetVulkanSettings().force_convert_quad_lists_to_triangle_lists.Get();
   bool point_sprites_supported_without_vs_expansion =
       geometry_shader_primitive_emulation_allowed &&
-      !REXCVAR_GET(::rex::gpu::cvars::vulkan_force_expand_point_sprites_in_vs);
+      !command_processor_.GetVulkanSettings().force_expand_point_sprites_in_vs.Get();
   bool rectangle_lists_supported_without_vs_expansion =
       geometry_shader_primitive_emulation_allowed &&
-      !REXCVAR_GET(::rex::gpu::cvars::vulkan_force_expand_rectangle_lists_in_vs);
+      !command_processor_.GetVulkanSettings().force_expand_rectangle_lists_in_vs.Get();
 
   if (!InitializeCommon(
           device_properties.fullDrawIndexUint32, kTriangleFansSupportedWithoutConversion, false,
@@ -194,7 +190,7 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
 
 void* VulkanPrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
     xenos::IndexFormat format, u32 index_count, bool coalign_for_simd,
-    u32 coalignment_original_address, size_t& backend_handle_out) {
+    u32 coalignment_original_address, size_t& driver_handle_out) {
   size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(u16) : sizeof(u32);
   VkBuffer buffer;
   VkDeviceSize offset;
@@ -210,7 +206,7 @@ void* VulkanPrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
     mapping += coalignment_offset;
     offset = static_cast<VkDeviceSize>(offset + coalignment_offset);
   }
-  backend_handle_out = frame_index_buffers_.size();
+  driver_handle_out = frame_index_buffers_.size();
   frame_index_buffers_.emplace_back(buffer, offset);
   return mapping;
 }

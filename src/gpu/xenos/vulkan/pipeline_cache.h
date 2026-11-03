@@ -11,6 +11,11 @@
 
 #pragma once
 
+#ifndef XXH_INLINE_ALL
+#define XXH_INLINE_ALL
+#endif
+#include <xxhash.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -34,13 +39,14 @@
 #include <rex/platform.h>
 #include "gpu/xenos/host/shader_storage.h"
 #include <rex/platform/thread.h>
+#include <rex/platform/sync.h>
 #include "gpu/xenos/primitive_processor.h"
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/registers.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/vulkan/render_target_cache.h"
 #include "gpu/xenos/vulkan/shader.h"
-#include <rex/xenos/xenos.h>
-#include <rex/module.h>
+#include <rex/xenos/packet.h>
+#include <rex/xenos/state.h>
+#include <rex/utility.h>
 #include "gpu/xenos/host/vulkan/api.h"
 
 namespace rex::gpu::vulkan {
@@ -51,8 +57,10 @@ class VulkanPipelineCache {
  public:
   static constexpr size_t kLayoutUIDEmpty = 0;
 
-  REX_INTERFACE(IPipelineLayoutProvider)
+  class IPipelineLayoutProvider : public NonCopyable {
    public:
+    virtual ~IPipelineLayoutProvider() = default;
+
     virtual VkPipelineLayout GetPipelineLayout() const = 0;
 
    protected:
@@ -74,7 +82,7 @@ class VulkanPipelineCache {
 
   VulkanShader* LoadShader(xenos::ShaderType shader_type, const u32* host_address, u32 dword_count);
   // Analyze shader microcode on the translator thread.
-  void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
+  void AnalyzeShaderUCode(Shader& shader);
 
   // The shader must have microcode analyzed.
   SPIRVShaderTranslator::Modification GetCurrentVertexShaderModification(
@@ -330,12 +338,6 @@ class VulkanPipelineCache {
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       PipelineDescription& description_out) const;
 
-  /**
-   * Reports whether the device supports the pipeline.
-   *
-   * @param description Pipeline description to check.
-   * @return True when the device supports the pipeline.
-   */
   bool IsPipelineSupported(const PipelineDescription& description) const;
 
   static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
@@ -358,9 +360,8 @@ class VulkanPipelineCache {
    * Creates the pipeline. Callable from creation threads once the shaders are translated and the
    * pipeline layout and render pass object (unless dynamic rendering is used) are available.
    *
-   * @param creation_arguments Pre-looked-up creation request.
-   * @param fragment_shader_override Replacement fragment shader, or VK_NULL_HANDLE for none.
-   * @return True when the pipeline was created.
+   * @param fragment_shader_override Replaces the fragment shader, or VK_NULL_HANDLE for none.
+   * @return True on success.
    */
   bool CreatePipeline(const PipelineCreationArguments& creation_arguments,
                       VkShaderModule fragment_shader_override = VK_NULL_HANDLE);
@@ -373,7 +374,7 @@ class VulkanPipelineCache {
   VulkanRenderTargetCache& render_target_cache_;
   VkShaderStageFlags guest_shader_vertex_stages_;
 
-  StringBuffer ucode_disasm_buffer_;
+  string::StringBuffer ucode_disasm_buffer_;
   std::unique_ptr<SPIRVShaderTranslator> shader_translator_;
 
   struct LayoutUID {

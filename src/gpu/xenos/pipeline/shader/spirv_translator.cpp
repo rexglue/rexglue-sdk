@@ -24,7 +24,8 @@
 #include "gpu/xenos/pipeline/shader/spirv.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
 #include <rex/math.h>
-#include <rex/string/buffer.h>
+#include <rex/bit.h>
+#include <rex/string/text.h>
 
 namespace rex::gpu {
 
@@ -94,8 +95,8 @@ std::vector<u8> SPIRVShaderTranslator::CreateDepthOnlyFragmentShader(
     Modification::DepthStencilMode depth_stencil_mode) {
   is_depth_only_fragment_shader_ = true;
   Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
-  StringBuffer instruction_disassembly_buffer;
-  shader.AnalyzeUcode(instruction_disassembly_buffer);
+  string::StringBuffer instruction_disassembly_buffer;
+  shader.AnalyzeUcode(instruction_disassembly_buffer, {});
   Modification modification(GetDefaultPixelShaderModification(0));
   modification.pixel.depth_stencil_mode = depth_stencil_mode;
   Shader::Translation& translation = *shader.GetOrCreateTranslation(modification.value);
@@ -168,7 +169,7 @@ u32 SPIRVShaderTranslator::GetModificationRegisterCount() const {
 }
 
 void SPIRVShaderTranslator::StartTranslation() {
-  builder_ = std::make_unique<SPIRVBuilder>(features_.spirv_version, (kSPIRVMagicToolId << 16) | 1,
+  builder_ = std::make_unique<SPIRVBuilder>(features_.spirv_version, (kSPIRVMagicToolID << 16) | 1,
                                             nullptr);
 
   builder_->addCapability(IsSPIRVTessEvalShader() ? spv::CapabilityTessellation
@@ -382,7 +383,7 @@ void SPIRVShaderTranslator::StartTranslation() {
       main_interface_.push_back(uniform_bool_loop_constants_);
     }
 
-    // 32 x 6 uints packed in std140 as 4-component vectors.
+    // 32 x 6 uints packed in std140 as 4 component vectors.
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeArrayType(
         type_uint4, builder_->makeUintConstant(32 * 6 / 4), sizeof(u32) * 4));

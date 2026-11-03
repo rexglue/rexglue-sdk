@@ -21,7 +21,7 @@
 #include <rex/assert.h>
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
-#include <rex/math.h>
+#include <rex/bit.h>
 
 namespace rex::gpu {
 

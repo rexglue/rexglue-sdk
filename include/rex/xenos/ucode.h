@@ -15,8 +15,9 @@
 
 #include <rex/types.h>
 #include <rex/assert.h>
-#include <rex/export.h>
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/math.h>
 #include <rex/platform.h>
 
@@ -47,18 +48,14 @@
  */
 
 /**
- * Microcode instruction layouts. Bit fields use only 32 bit types (uint32_t, int32_t or enums with
- * uint32_t or int32_t as the underlying type) because Visual C++ restarts packing when a field
- * requires a different alignment than the previous one.
+ * Microcode instruction layouts. Bit fields use only 32 bit types because MSVC restarts packing
+ * when the alignment changes.
  */
 namespace rex::xenos::ucode {
 
-/** Control flow opcodes used to schedule instructions. */
 // NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class ControlFlowOpcode : u32 {
-  /** No operation, used to fill space. */
   kNop = 0,
-  /** Executes fetch or ALU instructions. */
   kExec = 1,
   /** Executes fetch or ALU instructions, then ends execution. */
   kExecEnd = 2,
@@ -67,69 +64,46 @@ enum class ControlFlowOpcode : u32 {
   /**
    * Executes conditionally on a bool constant, then ends execution. PredicateClean is false.
    *
-   * Execution ends only if the condition is met, unlike on R600 where it ends unconditionally when
-   * END_OF_PROGRAM is set in the control flow instruction. Shaders rely on this for an if / else in
-   * their tail done via cexece (cexece b130, then cexece !b130, then an empty exece), where
-   * ignoring the condition would never reach the second cexece.
+   * Execution ends only if the condition is met, unlike on R600 where it always ends.
    */
   kCondExecEnd = 4,
   /**
    * Executes conditionally on the current predicate.
    *
-   * The hardware processes 64 vertices or pixels per sequencer, so the condition is the AND of the
-   * predicate values of all active (not killed) invocations for (!p0) exec and the OR of them for
-   * (p0) exec. If any invocation passes the predicate check, all of them enter the exec. Because of
-   * this the compiler predicates the ALU and fetch instructions inside a predicated exec, and
-   * mismatched control flow and ALU / fetch predication is invalid.
+   * The condition is the AND (for !p0) or OR (for p0) of the predicate of all active invocations
+   * in the 64 per sequencer, so the compiler predicates the instructions inside the exec.
    */
   kCondExecPred = 5,
   /**
    * Executes conditionally on the current predicate, then ends execution.
    *
-   * Execution ends only if the condition is met for any of the invocations, unlike on R600 where it
-   * ends unconditionally when END_OF_PROGRAM is set in the control flow instruction.
+   * Execution ends only if the condition is met for any invocation, unlike on R600 where it always
+   * ends.
    */
   kCondExecPredEnd = 6,
   /** Starts a loop that must be terminated with kLoopEnd, with a depth of up to 4. */
   kLoopStart = 7,
-  /**
-   * Continues or breaks out of a loop started with kLoopStart.
-   *
-   * The loop iteration is incremented before the count and predicated break checks.
-   */
+  /** Continues or breaks out of a loop. The iteration is incremented before the break checks. */
   kLoopEnd = 8,
-  /**
-   * Conditionally calls a function, with a depth of up to 4. Pushes a return address to the stack
-   * for kReturn.
-   */
+  /** Conditionally calls a function, with a depth of up to 4. */
   kCondCall = 9,
-  /** Returns from the current function called by kCondCall. No operation outside a function. */
+  /** Returns from the current function. No operation outside a function. */
   kReturn = 10,
-  /** Conditionally jumps to an arbitrary address based on a bool constant. */
   kCondJmp = 11,
-  /** Allocates output values. */
   kAlloc = 12,
   /**
    * Executes conditionally on a bool constant. PredicateClean is true.
    *
-   * This is cexec with a bool constant (kCondExec), not kCondExecPred. kCondExec has no predicate
-   * clean field because the bool constant index occupies that space, while kCondExecPred has one.
-   * An early description of this opcode as kCondExecPred with PredicateClean false predates
-   * predicate clean fields in exec instructions.
+   * Like kCondExec, which has no predicate clean field because the bool constant index occupies it.
    */
   kCondExecPredClean = 13,
   /** Executes conditionally on a bool constant, then ends execution. PredicateClean is true. */
   kCondExecPredCleanEnd = 14,
   /** Hints that no more vertex fetches will be performed. */
-  kMarkVsFetchDone = 15,
+  kMarkVSFetchDone = 15,
 };
 
-/**
- * Reports whether a control flow opcode executes ALU or fetch instructions.
- *
- * @param opcode Control flow opcode to classify.
- * @return True when the opcode executes instructions.
- */
+/** Reports whether a control flow opcode executes ALU or fetch instructions. */
 constexpr bool IsControlFlowOpcodeExec(ControlFlowOpcode opcode) {
   return opcode == ControlFlowOpcode::kExec || opcode == ControlFlowOpcode::kExecEnd ||
          opcode == ControlFlowOpcode::kCondExec || opcode == ControlFlowOpcode::kCondExecEnd ||
@@ -139,12 +113,7 @@ constexpr bool IsControlFlowOpcodeExec(ControlFlowOpcode opcode) {
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
 }
 
-/**
- * Reports whether a control flow opcode terminates the shader after executing.
- *
- * @param opcode Control flow opcode to classify.
- * @return True when the opcode ends the shader.
- */
+/** Reports whether a control flow opcode terminates the shader after executing. */
 constexpr bool IsControlFlowOpcodeEnd(ControlFlowOpcode opcode) {
   return opcode == ControlFlowOpcode::kExecEnd || opcode == ControlFlowOpcode::kCondExecEnd ||
          opcode == ControlFlowOpcode::kCondExecPredEnd ||
@@ -154,9 +123,6 @@ constexpr bool IsControlFlowOpcodeEnd(ControlFlowOpcode opcode) {
 /**
  * Reports whether a conditional exec opcode has a clean predicate, see
  * ControlFlowOpcode::kCondExecPredClean.
- *
- * @param opcode Control flow opcode to classify.
- * @return True when the opcode has a clean predicate.
  */
 constexpr bool HasControlFlowCondExecCleanPredicate(ControlFlowOpcode opcode) {
   return opcode == ControlFlowOpcode::kCondExecPredClean ||
@@ -172,61 +138,42 @@ enum class AddressingMode : u32 {
   kAbsolute = 1,
 };
 
-/**
- * Type of a ControlFlowOpcode::kAlloc instruction. An allocation is a size reservation and a shader
- * may contain several.
- */
 // NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AllocType : u32 {
-  /** Allocation type a shader holds before any alloc instruction sets one. */
+  /** Type of a shader before any alloc instruction sets one. */
   kNone = 0,
-  /** Vertex shader exports a position. */
   kVsPosition = 1,
-  /** Vertex shader exports interpolators. */
   kVsInterpolators = 2,
-  /** Pixel shader exports colors. */
   kPsColors = 2,
-  /** Memory export. */
   kMemory = 3,
 };
 
 /** Instruction data for ControlFlowOpcode::kExec and kExecEnd. */
 struct ControlFlowExecInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
-  /** Returns the address of the first instruction to execute. */
   u32 GetAddress() const { return address_; }
-  /** Returns the number of instructions to execute. */
   u32 GetCount() const { return count_; }
-  /**
-   * Returns the sequence bits, 2 per instruction.
-   *
-   * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
-   */
+  /** Returns 2 sequence bits per instruction, bit 0 is ALU (0) or fetch (1), bit 1 is serialize. */
   u32 GetSequence() const { return sequence_; }
-  /** Reports whether the hardware does not wait for the predicate update after the exec. */
+  /**
+   * Reports whether the hardware does not wait for the predicate update after the exec.
+   *
+   * The compiler clears it when the instructions modify the predicate, unless the set only refines
+   * the current predicate, as in a nested `if`.
+   */
   bool IsPredicateClean() const { return is_predicate_clean_ == 1; }
-  /** Reports whether the yield flag is set. */
   bool IsYield() const { return is_yield_ == 1; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 address_ : 12;
   u32 count_ : 3;
   u32 is_yield_ : 1;
   u32 sequence_ : 12;
   [[maybe_unused]] u32 vc_hi_ : 4;
 
-  /** Word 1 (16 bits). */
   [[maybe_unused]] u32 vc_lo_ : 2;
   u32 : 7;
-  /**
-   * The compiler specifies PredicateClean false for the exec if the instructions inside it modify
-   * the predicate, but may keep it true if the predicate set only refines the current predicate,
-   * like in a nested `if`, because the optimization works.
-   */
   u32 is_predicate_clean_ : 1;
   u32 : 1;
   AddressingMode address_mode_ : 1;
@@ -239,36 +186,24 @@ REX_STATIC_ASSERT_SIZE(ControlFlowExecInstruction, sizeof(u32) * 2);
  * kCondExecPredCleanEnd.
  */
 struct ControlFlowCondExecInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
-  /** Returns the address of the first instruction to execute. */
   u32 GetAddress() const { return address_; }
-  /** Returns the number of instructions to execute. */
   u32 GetCount() const { return count_; }
-  /**
-   * Returns the sequence bits, 2 per instruction.
-   *
-   * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
-   */
+  /** Returns 2 sequence bits per instruction, bit 0 is ALU (0) or fetch (1), bit 1 is serialize. */
   u32 GetSequence() const { return sequence_; }
-  /** Returns the bool constant index. */
   u32 GetBoolAddress() const { return bool_address_; }
   /** Returns the bool constant value that makes the exec run. */
   bool GetCondition() const { return condition_ == 1; }
-  /** Reports whether the yield flag is set. */
   bool IsYield() const { return is_yield_ == 1; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 address_ : 12;
   u32 count_ : 3;
   u32 is_yield_ : 1;
   u32 sequence_ : 12;
   [[maybe_unused]] u32 vc_hi_ : 4;
 
-  /** Word 1 (16 bits). */
   [[maybe_unused]] u32 vc_lo_ : 2;
   u32 bool_address_ : 8;
   u32 condition_ : 1;
@@ -279,36 +214,25 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondExecInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondExecPred and kCondExecPredEnd. */
 struct ControlFlowCondExecPredInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
-  /** Returns the address of the first instruction to execute. */
   u32 GetAddress() const { return address_; }
-  /** Returns the number of instructions to execute. */
   u32 GetCount() const { return count_; }
-  /**
-   * Returns the sequence bits, 2 per instruction.
-   *
-   * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
-   */
+  /** Returns 2 sequence bits per instruction, bit 0 is ALU (0) or fetch (1), bit 1 is serialize. */
   u32 GetSequence() const { return sequence_; }
   /** Reports whether the hardware does not wait for the predicate update after the exec. */
   bool IsPredicateClean() const { return is_predicate_clean_ == 1; }
   /** Returns the predicate value that makes the exec run. */
   bool GetCondition() const { return condition_ == 1; }
-  /** Reports whether the yield flag is set. */
   bool IsYield() const { return is_yield_ == 1; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 address_ : 12;
   u32 count_ : 3;
   u32 is_yield_ : 1;
   u32 sequence_ : 12;
   [[maybe_unused]] u32 vc_hi_ : 4;
 
-  /** Word 1 (16 bits). */
   [[maybe_unused]] u32 vc_lo_ : 2;
   u32 : 7;
   u32 is_predicate_clean_ : 1;
@@ -320,39 +244,22 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondExecPredInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kLoopStart. */
 struct ControlFlowLoopStartInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
-  /**
-   * Returns the address to jump to when skipping the loop, normally the instruction right after the
-   * `endloop` instruction.
-   *
-   * @return Skip target address.
-   */
+  /** Returns the address to jump to when skipping the loop. */
   u32 GetAddress() const { return address_; }
-  /**
-   * Reports whether the loop reuses the current aL instead of resetting it to the loop start.
-   *
-   * @return True when aL is reused.
-   */
+  /** Reports whether the loop reuses the current aL instead of resetting it to the loop start. */
   bool IsRepeat() const { return is_repeat_; }
-  /**
-   * Returns the integer constant register that holds the loop parameters (xenos::LoopConstant).
-   *
-   * @return Loop constant register index.
-   */
-  u32 GetLoopId() const { return loop_id_; }
+  /** Returns the integer constant register holding the loop parameters (xenos::LoopConstant). */
+  u32 GetLoopID() const { return loop_id_; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 address_ : 13;
   u32 is_repeat_ : 1;
   u32 : 2;
   u32 loop_id_ : 5;
   u32 : 11;
 
-  /** Word 1 (16 bits). */
   u32 : 11;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
@@ -361,42 +268,24 @@ REX_STATIC_ASSERT_SIZE(ControlFlowLoopStartInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kLoopEnd. */
 struct ControlFlowLoopEndInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
-  /**
-   * Returns the address of the start of the loop body, normally the instruction right after the
-   * `loop` instruction.
-   *
-   * @return Loop body address.
-   */
+  /** Returns the address of the start of the loop body. */
   u32 GetAddress() const { return address_; }
-  /**
-   * Returns the integer constant register that holds the loop parameters (xenos::LoopConstant).
-   *
-   * @return Loop constant register index.
-   */
-  u32 GetLoopId() const { return loop_id_; }
-  /**
-   * Reports whether the loop breaks if the predicate in all 64 invocations matches the expected
-   * value.
-   *
-   * @return True when the break is predicated.
-   */
+  /** Returns the integer constant register holding the loop parameters (xenos::LoopConstant). */
+  u32 GetLoopID() const { return loop_id_; }
+  /** Reports whether the loop breaks if the predicate in all 64 invocations matches. */
   bool IsPredicatedBreak() const { return is_predicated_break_; }
   /** Returns the predicate value that a predicated break expects. */
   bool GetCondition() const { return condition_ == 1; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 address_ : 13;
   u32 : 3;
   u32 loop_id_ : 5;
   u32 is_predicated_break_ : 1;
   u32 : 10;
 
-  /** Word 1 (16 bits). */
   u32 : 10;
   u32 condition_ : 1;
   AddressingMode address_mode_ : 1;
@@ -406,29 +295,22 @@ REX_STATIC_ASSERT_SIZE(ControlFlowLoopEndInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondCall. */
 struct ControlFlowCondCallInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
-  /** Returns the address of the function to call. */
   u32 GetAddress() const { return address_; }
-  /** Reports whether the call is made without a condition. */
   bool IsUnconditional() const { return is_unconditional_; }
   /** Reports whether the call depends on the predicate rather than a bool constant. */
   bool IsPredicated() const { return is_predicated_; }
-  /** Returns the bool constant index. */
   u32 GetBoolAddress() const { return bool_address_; }
   /** Returns the predicate or bool constant value that makes the call. */
   bool GetCondition() const { return condition_ == 1; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 address_ : 13;
   u32 is_unconditional_ : 1;
   u32 is_predicated_ : 1;
   u32 : 17;
 
-  /** Word 1 (16 bits). */
   u32 : 2;
   u32 bool_address_ : 8;
   u32 condition_ : 1;
@@ -439,16 +321,12 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondCallInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kReturn. */
 struct ControlFlowReturnInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 : 32;
 
-  /** Word 1 (16 bits). */
   u32 : 11;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
@@ -457,29 +335,22 @@ REX_STATIC_ASSERT_SIZE(ControlFlowReturnInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondJmp. */
 struct ControlFlowCondJmpInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the register set addressing mode. */
   AddressingMode GetAddressingMode() const { return address_mode_; }
-  /** Returns the address to jump to. */
   u32 GetAddress() const { return address_; }
-  /** Reports whether the jump is made without a condition. */
   bool IsUnconditional() const { return is_unconditional_; }
   /** Reports whether the jump depends on the predicate rather than a bool constant. */
   bool IsPredicated() const { return is_predicated_; }
-  /** Returns the bool constant index. */
   u32 GetBoolAddress() const { return bool_address_; }
   /** Returns the predicate or bool constant value that makes the jump. */
   bool GetCondition() const { return condition_ == 1; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 address_ : 13;
   u32 is_unconditional_ : 1;
   u32 is_predicated_ : 1;
   u32 : 17;
 
-  /** Word 1 (16 bits). */
   u32 : 1;
   [[maybe_unused]] u32 direction_ : 1;
   u32 bool_address_ : 8;
@@ -491,32 +362,24 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondJmpInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kAlloc. */
 struct ControlFlowAllocInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_; }
-  /** Returns the allocation size. */
   u32 GetSize() const { return size_; }
-  /** Returns the allocation type. */
   AllocType GetAllocType() const { return alloc_type_; }
 
  private:
-  /** Word 0 (32 bits). */
   u32 size_ : 3;
   u32 : 29;
 
-  /** Word 1 (16 bits). */
   u32 : 8;
-  u32 : 1; /**< is_unserialized_ */
+  u32 : 1;
   AllocType alloc_type_ : 2;
   u32 : 1;
   ControlFlowOpcode opcode_ : 4;
 };
 REX_STATIC_ASSERT_SIZE(ControlFlowAllocInstruction, sizeof(u32) * 2);
 
-/**
- * Control flow instruction of 48 bits in 2 dwords, viewed through the layout matching its opcode.
- */
+/** Control flow instruction of 48 bits, viewed through the layout matching its opcode. */
 union ControlFlowInstruction {
-  /** Returns the control flow opcode. */
   ControlFlowOpcode GetOpcode() const { return opcode_value; }
 
   ControlFlowExecInstruction exec;                   /**< kExec* */
@@ -530,22 +393,22 @@ union ControlFlowInstruction {
   ControlFlowAllocInstruction alloc;                 /**< kAlloc */
 
   struct {
-    u32 dword_0; /**< Low dword of the instruction. */
-    u32 dword_1; /**< High dword of the instruction. */
+    u32 dword_0;
+    u32 dword_1;
   };
   struct {
-    u32 unused_0 : 32;                  /**< Bits 0 to 31 of the instruction. No code reads it. */
-    u32 unused_1 : 12;                  /**< Bits 32 to 43 of the instruction. No code reads it. */
-    ControlFlowOpcode opcode_value : 4; /**< Bits 44 to 47 of the instruction, the opcode. */
+    u32 unused_0 : 32;
+    u32 unused_1 : 12;
+    ControlFlowOpcode opcode_value : 4;
   };
 };
 REX_STATIC_ASSERT_SIZE(ControlFlowInstruction, sizeof(u32) * 2);
 
 /**
- * Splits 3 dwords of microcode into the 2 control flow instructions packed in them.
+ * Splits 3 dwords of microcode into the two control flow instructions packed in them.
  *
- * @param dwords 3 dwords holding a pair of instructions.
- * @param out_ab Receives the first and the second instruction.
+ * @param dwords 3 dwords holding the pair.
+ * @param out_ab Receives the two instructions.
  */
 inline void UnpackControlFlowInstructions(const u32* dwords, ControlFlowInstruction* out_ab) {
   u32 dword_0 = dwords[0];
@@ -557,89 +420,48 @@ inline void UnpackControlFlowInstructions(const u32* dwords, ControlFlowInstruct
   out_ab[1].dword_1 = dword_2 >> 16;
 }
 
-/** Opcode of a fetch instruction, either a vertex fetch or a texture operation. */
 // NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class FetchOpcode : u32 {
-  /** Fetches vertex data through a vertex fetch constant. */
   kVertexFetch = 0,
 
   /**
    * Fetches a texture sample.
    *
-   * Parameters and their defaults are as follows.
-   * - UnnormalizedTextureCoords is false (default) or true. It is only taken into account if
-   *   AddressU (1D), AddressU/V (2D) or AddressU/V/W (3D, cube) are all set to a non wrapping mode.
-   *   Unnormalized coordinates are required to access 1D textures wider than 8192 texels.
-   * - MagFilter and MinFilter are point, linear or keep (default).
-   * - MipFilter is point, linear, basemap (undocumented but assembled) or keep (default).
-   * - VolMagFilter (3D only) is the filter used when the volume is magnified, "volume" as opposed
-   *   to "texture". VolMinFilter (3D only) is its minification counterpart. Both are point, linear
-   *   or keep (default).
-   * - AnisoFilter is disabled, max1to1, max2to1, max4to1, max8to1, max16to1 or keep (default).
-   * - UseComputedLOD is false or true (default).
-   * - UseRegisterLOD is false (default) or true.
-   * - LODBias is -4.0 to 3.9375 in 1/16 increments, default 0.
-   * - OffsetX is a value added to the x component of the texel address right before sampling, -8.0
-   *   to 7.5 in 1/2 increments, default 0. OffsetY (2D, 3D and cube only) and OffsetZ (3D and cube
-   *   only) are similar.
-   * - FetchValidOnly (default true) fetches data only for pixels inside the current primitive in a
-   *   2x2 quad, as a performance optimization. It must be false if the result is used to calculate
-   *   gradients.
-   *
-   * Coordinates by dimension are as follows.
-   * - 1D is U (normalized or unnormalized).
-   * - 2D is U, V (normalized or unnormalized).
-   * - 3D, used for both 3D and stacked 2D textures, is U, V, W (normalized or unnormalized, the
-   *   same for 3D W and stack layer). VolMagFilter and VolMinFilter between stack layers are
-   *   supported.
-   * - Cube is SC, TC (between 1 and 2 for normalized) and face ID (0.0 to 5.0), computed by the
-   *   cube vector ALU instruction. The 1.5 constant is designed so that the output face coordinate
-   *   range is {1.0 <= x < 2.0}, which keeps the upper mantissa bits constant throughout the output
-   *   range.
-   *
-   * The total LOD for a sample is additive and based on what is enabled.
-   *
-   * For cube maps, register gradients are in cube space, not in SC/TC space like the coordinates
-   * themselves.
+   * - UnnormalizedTextureCoords applies only when all address modes are non wrapping and is
+   *   required for 1D textures wider than 8192 texels.
+   * - LODBias is -4.0 to 3.9375 in 1/16 increments.
+   * - OffsetX, OffsetY and OffsetZ are -8.0 to 7.5 in 1/2 increments, applied in texels of the
+   *   base level.
+   * - FetchValidOnly is true by default and must be false if the result is used for gradients.
+   * - Cube coordinates are SC, TC (1 to 2 when normalized) and face ID (0.0 to 5.0) from the cube
+   *   vector ALU instruction, and register gradients are in cube space.
    *
    * Cube maps are sampled through host cube views, so filtering crosses faces unless the Vulkan
    * vulkan_cube_map_edge_filtering_off option is set.
-   *
-   * Offsets are applied in texels of the base level, whatever LOD is sampled.
    */
   kTextureFetch = 1,
 
   /**
-   * Writes the fraction of border color that would be blended into the texture data at the given
-   * coordinates to the X component of the destination.
+   * Writes the fraction of border color blended in at the coordinates to X of the destination.
    *
    * May take all the parameters that tfetch takes.
    */
   kGetTextureBorderColorFrac = 16,
 
   /**
-   * Writes the LOD for all of the pixels in the quad at the given coordinates to the X component
-   * of the destination.
+   * Writes the LOD of the pixel quad at the coordinates to X of the destination.
    *
-   * The valid parameters are UnnormalizedTextureCoords, AnisoFilter, VolMagFilter and VolMinFilter.
-   * LODBias is rejected, while UseComputedLOD, UseRegisterLOD and UseRegisterGradients assemble.
-   * The translators ignore the LOD bias and grad_exp_adjust_h/v. MipFilter cannot be overridden
-   * and does not assemble, and the translators query the LOD with a linear mip filter.
-   *
-   * Valid only in pixel shaders. The LOD is computed for all of the pixels in the quad (with
-   * explicit gradients this may diverge) and the instruction does not assemble in vertex shaders
-   * even with UseRegisterGradients=true. Both translators report a translation error for
-   * UseRegisterGradients and for explicit LOD, so only implicit gradients are used.
-   *
-   * The translators return the unclamped LOD.
+   * Valid only in pixel shaders. The valid parameters are UnnormalizedTextureCoords, AnisoFilter,
+   * VolMagFilter and VolMinFilter. The translators query the LOD with a linear mip filter, ignore
+   * the LOD bias and grad_exp_adjust_h/v, return the unclamped LOD and report an error for
+   * UseRegisterGradients and explicit LOD.
    */
   kGetTextureComputedLOD = 17,
 
   /**
    * Source is 2 component. XZ = ddx(source.xy), YW = ddy(source.xy).
    *
-   * This uses the texture unit, where the LOD is computed for the whole quad. The translators
-   * use coarse derivatives.
+   * The translators use coarse derivatives.
    */
   kGetTextureGradients = 18,
 
@@ -650,11 +472,9 @@ enum class FetchOpcode : u32 {
    * - Z is the depth lerp factor.
    * - W is the mip lerp factor.
    *
-   * May take all the parameters that tfetch takes. Takes the filtering mode into account, and is
-   * used with MagFilter=linear and MinFilter=linear. Offsets apply. The translators
-   * compute the factors from the base level size and ignore the LOD, and write 0 to W.
-   *
-   * For cube maps, the translators compute the X and Y factors in SC/TC space from the face size.
+   * May take all the parameters that tfetch takes. The translators compute the factors from the
+   * base level size, ignore the LOD and write 0 to W. For cube maps they compute X and Y in SC/TC
+   * space from the face size.
    */
   kGetTextureWeights = 19,
 
@@ -666,27 +486,23 @@ enum class FetchOpcode : u32 {
   kSetTextureGradientsVert = 26,
 };
 
-/**
- * Fetch destination swizzle. The component indices are absolute, not relative to the component
- * itself like in ALU operation sources.
- */
+/** Fetch destination swizzle. Component indices are absolute, not component relative. */
 enum class FetchDestinationSwizzle : u8 {
-  kX = 0, /**< Fetched X component. */
-  kY = 1, /**< Fetched Y component. */
-  kZ = 2, /**< Fetched Z component. */
-  kW = 3, /**< Fetched W component. */
-  k0 = 4, /**< Constant 0. */
-  k1 = 5, /**< Constant 1. */
+  kX = 0,
+  kY = 1,
+  kZ = 2,
+  kW = 3,
+  k0 = 4,
+  k1 = 5,
   /** Keeps the current value of the destination register without writing. */
   kKeep = 7,
 };
 
 /**
- * Extracts the swizzle of 1 destination component from a packed destination swizzle.
+ * Extracts the swizzle of one destination component from a packed destination swizzle.
  *
  * @param swizzle Packed destination swizzle, 3 bits per component.
  * @param component Destination component index, 0 for X to 3 for W.
- * @return Swizzle of the component.
  */
 constexpr FetchDestinationSwizzle GetFetchDestinationComponentSwizzle(u32 swizzle, u32 component) {
   return static_cast<FetchDestinationSwizzle>((swizzle >> (3 * component)) & 0b111);
@@ -694,36 +510,20 @@ constexpr FetchDestinationSwizzle GetFetchDestinationComponentSwizzle(u32 swizzl
 
 /** Vertex fetch instruction of 3 dwords. */
 struct alignas(u32) VertexFetchInstruction {
-  /** Returns the fetch opcode. */
   FetchOpcode GetOpcode() const { return data_.opcode_value; }
 
-  /** Reports whether the instruction is predicated. */
   bool IsPredicated() const { return data_.is_predicated; }
   /** Returns the predicate value that enables the instruction. */
   bool GetPredicateCondition() const { return data_.pred_condition == 1; }
-  /**
-   * Returns the vertex fetch constant index [0-95]. Applicable only to vfetch_full, as vfetch_mini
-   * reuses its address.
-   *
-   * @return Vertex fetch constant index.
-   */
+  /** Returns the vertex fetch constant index [0-95]. Valid only for vfetch_full. */
   u32 GetFetchConstantIndex() const { return data_.const_index * 3 + data_.const_index_sel; }
 
-  /** Returns the destination register index. */
   u32 GetDest() const { return data_.dst_reg; }
-  /** Returns the packed destination swizzle. */
   u32 GetDestSwizzle() const { return data_.dst_swiz; }
-  /** Reports whether the destination register is relatively addressed. */
   bool IsDestRelative() const { return data_.dst_reg_am; }
-  /**
-   * Returns the source register. Applicable only to vfetch_full, as vfetch_mini reuses its address.
-   *
-   * @return Source register index.
-   */
-  u32 GetSrc() const { return data_.src_reg; }
-  /** Returns the source swizzle. */
+  /** Returns the source register index. Valid only for vfetch_full. */
+  u32 GetSrcReg() const { return data_.src_reg; }
   u32 GetSrcSwizzle() const { return data_.src_swiz; }
-  /** Reports whether the source register is relatively addressed. */
   bool IsSrcRelative() const { return data_.src_reg_am; }
 
   /** Returns the prefetch count, 1 less than the number of vertices. */
@@ -731,76 +531,50 @@ struct alignas(u32) VertexFetchInstruction {
   /** Reports whether the instruction is vfetch_mini rather than vfetch_full. */
   bool IsMiniFetch() const { return data_.is_mini_fetch == 1; }
 
-  /** Returns the vertex data format. */
   xenos::VertexFormat GetDataFormat() const { return data_.format; }
-  /**
-   * Returns the exponent adjustment, [-32, 31].
-   *
-   * @return Exponent adjustment.
-   */
+  /** Returns the exponent adjustment, [-32, 31]. */
   int GetExpAdjust() const { return data_.exp_adjust; }
-  /** Reports whether the data is signed. */
   bool IsSigned() const { return data_.format_comp_all == 1; }
   /** Reports whether the data is normalized rather than integer. */
   bool IsNormalized() const { return data_.num_format_all == 0; }
-  /** Returns the signed repeating fraction mode. */
   xenos::SignedRepeatingFractionMode GetSignedRFMode() const { return data_.signed_rf_mode_all; }
-  /**
-   * Reports whether the floating point index is rounded to the nearest integer, as
-   * floor(index + 0.5), because rounding to the nearest even makes no sense for addressing (both
-   * 1.5 and 2.5 would be 2). Otherwise it is floored, rounded towards negative infinity. Applicable
-   * only to vfetch_full, as vfetch_mini reuses its address.
-   *
-   * @return True when the index is rounded.
-   */
+  /** Reports whether the index is rounded as floor(index + 0.5) rather than floored. */
   bool IsIndexRounded() const { return data_.is_index_rounded == 1; }
-  /**
-   * Returns the dword stride, [0, 255]. Applicable only to vfetch_full, as vfetch_mini reuses its
-   * address.
-   *
-   * @return Dword stride.
-   */
+  /** Returns the dword stride, [0, 255]. Valid only for vfetch_full. */
   u32 GetStride() const { return data_.stride; }
-  /**
-   * Returns the dword offset, [-4194304, 4194303].
-   *
-   * @return Dword offset.
-   */
+  /** Returns the dword offset, [-4194304, 4194303]. */
   i32 GetOffset() const { return data_.offset; }
 
  private:
   struct Data {
     struct {
-      FetchOpcode opcode_value : 5; /**< Fetch opcode. */
-      u32 src_reg : 6;              /**< Source register index. */
-      u32 src_reg_am : 1;           /**< Source register is relatively addressed. */
-      u32 dst_reg : 6;              /**< Destination register index. */
-      u32 dst_reg_am : 1;           /**< Destination register is relatively addressed. */
-      u32 must_be_one : 1;          /**< Must be 1. */
-      u32 const_index : 5;          /**< Index of a group of 3 vertex fetch constants. */
-      u32 const_index_sel : 2;      /**< Constant within the group. */
-      /** Prefetch count minus 1. */
-      u32 prefetch_count : 3;
-      /** Absolute, 1 component. */
-      u32 src_swiz : 2;
+      FetchOpcode opcode_value : 5;
+      u32 src_reg : 6;
+      u32 src_reg_am : 1;
+      u32 dst_reg : 6;
+      u32 dst_reg_am : 1;
+      u32 must_be_one : 1;
+      u32 const_index : 5;     /**< Index of a group of 3 vertex fetch constants. */
+      u32 const_index_sel : 2; /**< Constant within the group. */
+      u32 prefetch_count : 3;  /**< Prefetch count minus 1. */
+      u32 src_swiz : 2;        /**< Absolute, 1 component. */
     };
     struct {
-      u32 dst_swiz : 12;       /**< Destination swizzle, 3 bits per component. */
+      u32 dst_swiz : 12;
       u32 format_comp_all : 1; /**< Data is signed. */
       u32 num_format_all : 1;  /**< Data is integer, clear when normalized. */
-      xenos::SignedRepeatingFractionMode
-          signed_rf_mode_all : 1; /**< Signed repeating fraction mode. */
-      u32 is_index_rounded : 1; /**< Index is rounded to the nearest integer instead of floored. */
-      xenos::VertexFormat format : 6; /**< Vertex data format. */
-      u32 reserved2 : 2;              /**< Reserved. */
-      i32 exp_adjust : 6;             /**< Exponent adjustment. */
-      u32 is_mini_fetch : 1;          /**< Instruction is vfetch_mini, clear for vfetch_full. */
-      u32 is_predicated : 1;          /**< Instruction is predicated. */
+      xenos::SignedRepeatingFractionMode signed_rf_mode_all : 1;
+      u32 is_index_rounded : 1;
+      xenos::VertexFormat format : 6;
+      u32 reserved2 : 2;
+      i32 exp_adjust : 6;
+      u32 is_mini_fetch : 1; /**< Clear for vfetch_full. */
+      u32 is_predicated : 1;
     };
     struct {
-      u32 stride : 8;         /**< Stride in dwords. */
-      i32 offset : 23;        /**< Offset in dwords. */
-      u32 pred_condition : 1; /**< Predicate value that enables the instruction. */
+      u32 stride : 8;  /**< Stride in dwords. */
+      i32 offset : 23; /**< Offset in dwords. */
+      u32 pred_condition : 1;
     };
   };
   Data data_;
@@ -809,132 +583,93 @@ REX_STATIC_ASSERT_SIZE(VertexFetchInstruction, sizeof(u32) * 3);
 
 /** Texture fetch instruction of 3 dwords. */
 struct alignas(u32) TextureFetchInstruction {
-  /** Returns the fetch opcode. */
   FetchOpcode GetOpcode() const { return data_.opcode_value; }
 
-  /** Reports whether the instruction is predicated. */
   bool IsPredicated() const { return data_.is_predicated; }
   /** Returns the predicate value that enables the instruction. */
   bool GetPredicateCondition() const { return data_.pred_condition == 1; }
-  /**
-   * Returns the texture fetch constant index [0-31].
-   *
-   * @return Texture fetch constant index.
-   */
+  /** Ranges from 0 to 31. */
   u32 GetFetchConstantIndex() const { return data_.const_index; }
 
-  /** Returns the destination register index. */
   u32 GetDest() const { return data_.dst_reg; }
-  /** Returns the packed destination swizzle. */
   u32 GetDestSwizzle() const { return data_.dst_swiz; }
-  /** Reports whether the destination register is relatively addressed. */
   bool IsDestRelative() const { return data_.dst_reg_am; }
-  /** Returns the source register index. */
-  u32 GetSrc() const { return data_.src_reg; }
-  /** Returns the source swizzle. */
+  u32 GetSrcReg() const { return data_.src_reg; }
   u32 GetSrcSwizzle() const { return data_.src_swiz; }
-  /** Reports whether the source register is relatively addressed. */
   bool IsSrcRelative() const { return data_.src_reg_am; }
 
-  /** Returns the fetch dimension. */
   xenos::FetchOpDimension GetDimension() const { return data_.dimension; }
   /** Reports whether data is fetched only for pixels inside the current primitive. */
   bool IsFetchValidOnly() const { return data_.fetch_valid_only == 1; }
-  /** Reports whether the coordinates are unnormalized. */
   bool HasUnnormalizedCoordinates() const { return data_.tx_coord_denorm == 1; }
   /** Reports whether the instruction overrides the magnification filter of the fetch constant. */
   bool HasMagFilter() const { return data_.mag_filter != xenos::TextureFilter::kUseFetchConst; }
-  /** Returns the magnification filter. */
   xenos::TextureFilter GetMagFilter() const { return data_.mag_filter; }
   /** Reports whether the instruction overrides the minification filter of the fetch constant. */
   bool HasMinFilter() const { return data_.min_filter != xenos::TextureFilter::kUseFetchConst; }
-  /** Returns the minification filter. */
   xenos::TextureFilter GetMinFilter() const { return data_.min_filter; }
   /** Reports whether the instruction overrides the mip filter of the fetch constant. */
   bool HasMipFilter() const { return data_.mip_filter != xenos::TextureFilter::kUseFetchConst; }
-  /** Returns the mip filter. */
   xenos::TextureFilter GetMipFilter() const { return data_.mip_filter; }
   /** Reports whether the instruction overrides the anisotropic filter of the fetch constant. */
   bool HasAnisoFilter() const { return data_.aniso_filter != xenos::AnisoFilter::kUseFetchConst; }
-  /** Returns the anisotropic filter. */
   xenos::AnisoFilter GetAnisoFilter() const { return data_.aniso_filter; }
-  /**
-   * Reports whether the instruction overrides the volume magnification filter of the fetch
-   * constant.
-   *
-   * @return True when the filter is not `kUseFetchConst`.
-   */
+  /** Reports whether the instruction overrides the volume magnification filter. */
   bool HasVolMagFilter() const {
     return data_.vol_mag_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  /** Returns the volume magnification filter. */
   xenos::TextureFilter GetVolMagFilter() const { return data_.vol_mag_filter; }
-  /**
-   * Reports whether the instruction overrides the volume minification filter of the fetch constant.
-   *
-   * @return True when the filter is not `kUseFetchConst`.
-   */
+  /** Reports whether the instruction overrides the volume minification filter. */
   bool HasVolMinFilter() const {
     return data_.vol_min_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  /** Returns the volume minification filter. */
   xenos::TextureFilter GetVolMinFilter() const { return data_.vol_min_filter; }
-  /** Reports whether the computed LOD is used. */
   bool IsComputedLODUsed() const { return data_.use_comp_lod == 1; }
-  /** Reports whether the LOD from a register is used. */
   bool IsRegisterLODUsed() const { return data_.use_reg_lod == 1; }
-  /** Reports whether gradients from registers are used. */
-  bool AreRegisterGradientsUsed() const { return data_.use_reg_gradients == 1; }
-  /** Returns the sample location. */
+  bool HasRegisterGradients() const { return data_.use_reg_gradients == 1; }
   xenos::SampleLocation GetSampleLocation() const { return data_.sample_location; }
-  /** Returns the LOD bias. */
   f32 GetLODBias() const { return static_cast<f32>(data_.lod_bias) * (1.0f / 16.0f); }
-  /** Returns the X texel offset. */
   f32 GetOffsetX() const { return static_cast<f32>(data_.offset_x) * 0.5f; }
-  /** Returns the Y texel offset. */
   f32 GetOffsetY() const { return static_cast<f32>(data_.offset_y) * 0.5f; }
-  /** Returns the Z texel offset. */
   f32 GetOffsetZ() const { return static_cast<f32>(data_.offset_z) * 0.5f; }
 
  private:
   struct Data {
     struct {
-      FetchOpcode opcode_value : 5; /**< Fetch opcode. */
-      u32 src_reg : 6;              /**< Source register index. */
-      u32 src_reg_am : 1;           /**< Source register is relatively addressed. */
-      u32 dst_reg : 6;              /**< Destination register index. */
-      u32 dst_reg_am : 1;           /**< Destination register is relatively addressed. */
-      u32 fetch_valid_only : 1; /**< Data is fetched only for pixels inside the current primitive.
-                                 */
-      u32 const_index : 5;      /**< Texture fetch constant index. */
-      u32 tx_coord_denorm : 1;  /**< Coordinates are unnormalized. */
-      /** Absolute, 3 components. */
-      u32 src_swiz : 6;
+      FetchOpcode opcode_value : 5;
+      u32 src_reg : 6;
+      u32 src_reg_am : 1;
+      u32 dst_reg : 6;
+      u32 dst_reg_am : 1;
+      u32 fetch_valid_only : 1;
+      u32 const_index : 5;
+      u32 tx_coord_denorm : 1;
+      u32 src_swiz : 6; /**< Absolute, 3 components. */
     };
     struct {
-      u32 dst_swiz : 12;                   /**< Destination swizzle, 3 bits per component. */
-      xenos::TextureFilter mag_filter : 2; /**< Magnification filter. */
-      xenos::TextureFilter min_filter : 2; /**< Minification filter. */
-      xenos::TextureFilter mip_filter : 2; /**< Mip filter. */
-      xenos::AnisoFilter aniso_filter : 3; /**< Anisotropic filter. */
-      xenos::ArbitraryFilter arbitrary_filter : 3; /**< Arbitrary filter. */
-      xenos::TextureFilter vol_mag_filter : 2;     /**< Volume magnification filter. */
-      xenos::TextureFilter vol_min_filter : 2;     /**< Volume minification filter. */
-      u32 use_comp_lod : 1;                        /**< Computed LOD is used. */
-      u32 use_reg_lod : 1;                         /**< LOD from a register is used. */
-      u32 unknown : 1;                             /**< Unknown. */
-      u32 is_predicated : 1;                       /**< Instruction is predicated. */
+      u32 dst_swiz : 12;
+      xenos::TextureFilter mag_filter : 2;
+      xenos::TextureFilter min_filter : 2;
+      xenos::TextureFilter mip_filter : 2;
+      xenos::AnisoFilter aniso_filter : 3;
+      xenos::ArbitraryFilter arbitrary_filter : 3;
+      xenos::TextureFilter vol_mag_filter : 2;
+      xenos::TextureFilter vol_min_filter : 2;
+      u32 use_comp_lod : 1;
+      u32 use_reg_lod : 1;
+      u32 unknown : 1;
+      u32 is_predicated : 1;
     };
     struct {
-      u32 use_reg_gradients : 1;                 /**< Gradients from registers are used. */
-      xenos::SampleLocation sample_location : 1; /**< Sample location. */
-      i32 lod_bias : 7;                          /**< LOD bias in 1/16 increments. */
-      u32 unused : 5;                            /**< Unused. */
-      xenos::FetchOpDimension dimension : 2;     /**< Fetch dimension. */
-      i32 offset_x : 5;                          /**< X texel offset in 1/2 increments. */
-      i32 offset_y : 5;                          /**< Y texel offset in 1/2 increments. */
-      i32 offset_z : 5;                          /**< Z texel offset in 1/2 increments. */
-      u32 pred_condition : 1; /**< Predicate value that enables the instruction. */
+      u32 use_reg_gradients : 1;
+      xenos::SampleLocation sample_location : 1;
+      i32 lod_bias : 7; /**< In 1/16 increments. */
+      u32 unused : 5;
+      xenos::FetchOpDimension dimension : 2;
+      i32 offset_x : 5; /**< In 1/2 increments. */
+      i32 offset_y : 5;
+      i32 offset_z : 5;
+      u32 pred_condition : 1;
     };
   };
   Data data_;
@@ -944,63 +679,43 @@ REX_STATIC_ASSERT_SIZE(TextureFetchInstruction, sizeof(u32) * 3);
 /** Fetch instruction of 3 dwords, viewed as a vertex or texture fetch according to its opcode. */
 union alignas(u32) FetchInstruction {
  public:
-  /** Returns the fetch opcode. */
   FetchOpcode GetOpcode() const { return data_.opcode_value; }
 
-  /** Reports whether the instruction is predicated. */
   bool IsPredicated() const { return data_.is_predicated; }
   /** Returns the predicate value that enables the instruction. */
   bool GetPredicateCondition() const { return data_.pred_condition == 1; }
 
-  /** Returns the destination register index. */
   u32 GetDest() const { return data_.dst_reg; }
-  /** Returns the packed destination swizzle. */
   u32 GetDestSwizzle() const { return data_.dst_swiz; }
-  /** Reports whether the destination register is relatively addressed. */
   bool IsDestRelative() const { return data_.dst_reg_am; }
-  /** Returns the source register index. */
-  u32 GetSrc() const { return data_.src_reg; }
-  /** Reports whether the source register is relatively addressed. */
+  u32 GetSrcReg() const { return data_.src_reg; }
   bool IsSrcRelative() const { return data_.src_reg_am; }
 
-  /**
-   * Returns the vertex fetch data, valid for FetchOpcode::kVertexFetch.
-   *
-   * @return Vertex fetch instruction.
-   */
+  /** Returns the vertex fetch data, valid for FetchOpcode::kVertexFetch. */
   const VertexFetchInstruction& GetVertexFetch() const { return vertex_fetch_; }
-  /**
-   * Returns the texture fetch data, valid for operations other than FetchOpcode::kVertexFetch.
-   *
-   * @return Texture fetch instruction.
-   */
+  /** Returns the texture fetch data, valid for other opcodes. */
   const TextureFetchInstruction& GetTextureFetch() const { return texture_fetch_; }
 
  private:
   struct Data {
     struct {
-      FetchOpcode opcode_value : 5; /**< Fetch opcode. */
-      u32 src_reg : 6;              /**< Source register index. */
-      u32 src_reg_am : 1;           /**< Source register is relatively addressed. */
-      u32 dst_reg : 6;              /**< Destination register index. */
-      u32 dst_reg_am : 1;           /**< Destination register is relatively addressed. */
-      /** Defined by the vertex or texture fetch layout. */
+      FetchOpcode opcode_value : 5;
+      u32 src_reg : 6;
+      u32 src_reg_am : 1;
+      u32 dst_reg : 6;
+      u32 dst_reg_am : 1;
       u32 : 1;
-      /** [0-31], points to 1 tf# or 3 vf# constants. */
-      u32 const_index : 5;
-      /** Defined by the vertex or texture fetch layout. */
+      u32 const_index : 5; /**< [0-31], points to 1 tf# or 3 vf# constants. */
       u32 : 7;
     };
     struct {
-      u32 dst_swiz : 12; /**< Destination swizzle, 3 bits per component. */
-      /** Defined by the vertex or texture fetch layout. */
+      u32 dst_swiz : 12;
       u32 : 19;
-      u32 is_predicated : 1; /**< Instruction is predicated. */
+      u32 is_predicated : 1;
     };
     struct {
-      /** Defined by the vertex or texture fetch layout. */
       u32 : 31;
-      u32 pred_condition : 1; /**< Predicate value that enables the instruction. */
+      u32 pred_condition : 1;
     };
   };
   Data data_;
@@ -1014,7 +729,6 @@ REX_STATIC_ASSERT_SIZE(FetchInstruction, sizeof(u32) * 3);
  * nothing.
  */
 enum AluOpChangedState : u8 {
-  /** The operation changes no state besides its destination. */
   kAluOpChangedStateNone = 0,
   /** The operation writes the address register, set for maxas and maxasf. */
   kAluOpChangedStateAddressRegister = 1 << 0,
@@ -1029,31 +743,18 @@ enum AluOpChangedState : u8 {
  *
  * The scalar and vector opcode descriptions follow these conventions.
  * - All temporary registers are vec4s.
- * - Most scalar operations work with 1 or 2 components of the source register or of the float
- *   constant passed as the third operand of the whole co issued ALU instruction, denoted a (left
- *   operand) and b (right operand). a is component (3 + src3_swizzle[6:7]) & 3 (W, alpha). b is
- *   component (0 + src3_swizzle[0:1]) & 3 (X, red).
- * - mulsc, addsc and subsc take 2 operands. The left operand is a float constant with the a (W)
- *   swizzle, addressed by the third operand index and addressing mode. The right operand is a
- *   temporary register with the b (X) swizzle, with the index constructed from bit 0 of
- *   scalar_opcode as bit 0, bit 0 of src3_sel as bit 1 and src3_swizzle[2:5] as bits 2 to 5. The 2
- *   variants of each opcode are the same instruction, with 1 bit of the register index stored in
- *   the opcode field. abs_constants and the negation of the third source apply to both the constant
- *   and the temporary register.
- * - Some scalar operations have no operands.
+ * - Most scalar operations read components a (W) and b (X) of the source register or of the float
+ *   constant passed as the third operand of the co issued ALU instruction.
+ * - mulsc, addsc and subsc take a float constant as the left operand and a temporary register as
+ *   the right operand. The two variants of each opcode are the same instruction, with 1 bit of the
+ *   register index stored in the opcode field.
  * - Scalar operations replicate the result into all masked components.
- * - ps is the previous result of a scalar operation. It is not modified when the instruction that
- *   would write it fails its predication check.
- * - Multiplication follows Direct3D 9 rules (as GCN v_*_legacy_f32 instructions) wherever it is
- *   present (mul, mad, dp and others), and so does NaN handling in min and max. A zero or denormal
- *   operand makes the product +0 whatever the signs of the other operands, as Infinity * 0
- *   resulting in NaN breaks vector normalization (rcp and mul). Therefore +0 * -0 is +0 and not -0,
- *   and multiply add must not be replaced with a conditional move of the third operand for zero
- *   multiplicands, because +0 + -0 is +0 while the term may be -0.
- * - Multiply add is treated as not fused, like GCN v_mad_legacy_f32 rather than v_fma_legacy_f32,
- *   so translators must not use instructions that the host GPU may interpret as fused multiply
- *   add. The DXBC translator emits separate mul and add instead of mad, and the SPIR-V translator
- *   marks them NoContraction.
+ * - ps is the previous scalar result. It is not modified when the instruction fails its
+ *   predication check.
+ * - Multiplication follows Direct3D 9 rules (as GCN v_*_legacy_f32), so a zero or denormal operand
+ *   makes the product +0 and +0 * -0 is +0. NaN handling in min and max follows the same rules.
+ * - Multiply add is not fused. The DXBC translator emits separate mul and add, and the SPIR-V
+ *   translator marks them NoContraction.
  */
 // NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AluScalarOpcode : u32 {
@@ -1246,7 +947,7 @@ enum class AluScalarOpcode : u32 {
   /**
    * Scalar Reciprocal, Clamp to Zero.
    *
-   * Mimicking the behavior of the fixed function pipeline.
+   * Mimics the fixed function pipeline.
    *
    * @code
    * rcpf/RECIP_FF dest, src0.a
@@ -1603,39 +1304,25 @@ enum class AluScalarOpcode : u32 {
   kRetainPrev = 50,
 };
 
-/** Static description of a scalar ALU opcode. */
 struct AluScalarOpcodeTraits {
   const char* name; /**< Lowercase mnemonic of the opcode. */
-  /**
-   * 0 means no operands. 1 means 1 single component (W) or 2 component (WX) r# or c#. 2 means c#.w
-   * and r#.x.
-   */
+  /** 0 means no operands, 1 means r# or c# with W or WX, 2 means c#.w and r#.x. */
   u32 operand_count;
-  /** If operand_count is 1, true when both W and X of the operand are used rather than only W. */
+  /** If operand_count is 1, true when both W and X of the operand are used. */
   bool single_operand_is_two_component;
-  /**
-   * All scalar instructions except for retain_prev modify the previous scalar register, so they
-   * must be executed even if they do not write any result and do not perform any other state
-   * changes.
-   */
+  /** State the operation changes besides its destination. Only retain_prev leaves ps unchanged. */
   AluOpChangedState changed_state;
 };
 
 /** Indexed by the 6 bit scalar opcode, 64 entries. */
-extern REX_API const AluScalarOpcodeTraits kAluScalarOpcodeInfos[64];
+extern const AluScalarOpcodeTraits kAluScalarOpcodeTraits[64];
 
-/**
- * Looks up the description of a scalar ALU opcode.
- *
- * @param opcode Scalar opcode.
- * @return Description of the opcode.
- */
-inline const AluScalarOpcodeTraits& GetAluScalarOpcodeInfo(AluScalarOpcode opcode) {
-  REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluScalarOpcodeInfos));
-  return kAluScalarOpcodeInfos[static_cast<u32>(opcode)];
+/** Looks up the description of a scalar ALU opcode. */
+inline const AluScalarOpcodeTraits& GetAluScalarOpcodeTraits(AluScalarOpcode opcode) {
+  REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluScalarOpcodeTraits));
+  return kAluScalarOpcodeTraits[static_cast<u32>(opcode)];
 }
 
-/** Vector ALU opcodes. */
 // NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AluVectorOpcode : u32 {
   /**
@@ -1791,9 +1478,6 @@ enum class AluVectorOpcode : u32 {
    *     dest.z = src0.z * src1.z + src2.z;
    *     dest.w = src0.w * src1.w + src2.w;
    * @endcode
-   *
-   * An early reference model computes this fused, rounding to single precision only after the
-   * addition.
    */
   kMad = 11,
 
@@ -1864,10 +1548,6 @@ enum class AluVectorOpcode : u32 {
    * dp2add/DOT2ADDv dest, src0, src1, src2
    *     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src2.x;
    * @endcode
-   *
-   * An early reference model implements this as src0.x * src1.x + src0.z * src1.z + src2.y, which
-   * is outdated and unreliable. The order above is correct, as Shader Model 2 dp2add translates
-   * into this instruction without additional swizzling.
    */
   kDp2Add = 17,
 
@@ -1910,10 +1590,8 @@ enum class AluVectorOpcode : u32 {
    *     tfetchCube r0, r0.yxw, tf0
    * @endcode
    *
-   * tfetchCube does not accept the ST as if the texture was a 2D array in XY exactly, so to get
-   * texture array ST, 1 must be subtracted from its XY inputs. The 1.5 constant is designed so that
-   * the output face coordinate range is {1.0 <= x < 2.0}, which keeps the upper mantissa bits
-   * constant throughout the output range.
+   * The 1.5 constant keeps the face coordinate in [1.0, 2.0). To get texture array ST, subtract 1
+   * from the XY inputs of tfetchCube.
    */
   kCube = 18,
 
@@ -1932,9 +1610,6 @@ enum class AluVectorOpcode : u32 {
    *       dest.xyzw = src0.w;
    *     }
    * @endcode
-   *
-   * The interpreter compares with >= in the order xyzw, and the translators take the maximum of
-   * the components with max.
    */
   kMax4 = 19,
 
@@ -2110,22 +1785,10 @@ enum class AluVectorOpcode : u32 {
    *     dest.z = src0.z >= src1.z ? src0.z : src1.z;
    *     dest.w = src0.w >= src1.w ? src0.w : src1.w;
    * @endcode
-   *
-   * The clamp may instead be the following, which differs only for NaN. Using NaN as an address
-   * would be unusual.
-   * @code
-   * if (!(SQResultF >= -256.0)) {
-   *   SQResultF = -256.0;
-   * }
-   * if (SQResultF > 255.0) {
-   *   SQResultF = 255.0;
-   * }
-   * @endcode
    */
   kMaxA = 29,
 };
 
-/** Static description of a vector ALU opcode. */
 struct AluVectorOpcodeTraits {
   const char* name; /**< Lowercase mnemonic of the opcode. */
   /** Bit mask of the X, Y, Z and W components read from each of the 3 sources, X in bit 0. */
@@ -2134,9 +1797,7 @@ struct AluVectorOpcodeTraits {
   AluOpChangedState changed_state;
 
   /**
-   * Counts the source operands the opcode reads.
-   *
-   * @return Operand count, from 0 to 3.
+   * @return Ranges from 0 to 3.
    */
   u32 GetOperandCount() const {
     if (!operand_components_used[2]) {
@@ -2153,30 +1814,19 @@ struct AluVectorOpcodeTraits {
 };
 
 /** Indexed by the 5 bit vector opcode, 32 entries. */
-extern REX_API const AluVectorOpcodeTraits kAluVectorOpcodeInfos[32];
+extern const AluVectorOpcodeTraits kAluVectorOpcodeTraits[32];
 
-/**
- * Looks up the description of a vector ALU opcode.
- *
- * @param opcode Vector opcode.
- * @return Description of the opcode.
- */
-inline const AluVectorOpcodeTraits& GetAluVectorOpcodeInfo(AluVectorOpcode opcode) {
-  REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluVectorOpcodeInfos));
-  return kAluVectorOpcodeInfos[static_cast<u32>(opcode)];
+/** Looks up the description of a vector ALU opcode. */
+inline const AluVectorOpcodeTraits& GetAluVectorOpcodeTraits(AluVectorOpcode opcode) {
+  REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluVectorOpcodeTraits));
+  return kAluVectorOpcodeTraits[static_cast<u32>(opcode)];
 }
 
 /**
- * Returns the components of a source operand needed by the instruction when executed with the given
- * write mask, which therefore cannot be thrown away or be undefined in translation. For per
- * component operations only the components in the write mask are needed, but some instructions have
- * special behavior for some components. kDst is per component, but not all components are used, and
- * operand_components_used filters out the unused ones.
+ * Returns the components of a source operand that the instruction needs for the given write mask.
  *
- * @param vector_opcode Vector opcode of the instruction.
  * @param src_index 1 based source operand index.
  * @param used_result_components Write mask of the used result components.
- * @return Mask of the needed source components.
  */
 inline u32 GetAluVectorOpNeededSourceComponents(AluVectorOpcode vector_opcode, u32 src_index,
                                                 u32 used_result_components) {
@@ -2217,16 +1867,14 @@ inline u32 GetAluVectorOpNeededSourceComponents(AluVectorOpcode vector_opcode, u
     default:
       break;
   }
-  return components & GetAluVectorOpcodeInfo(vector_opcode).operand_components_used[src_index - 1];
+  return components &
+         GetAluVectorOpcodeTraits(vector_opcode).operand_components_used[src_index - 1];
 }
 
 /** eM# (kExportData) register count. */
 constexpr u32 kMaxMemExportElementCount = 5;
 
-/**
- * Destination of an export ALU instruction. Vertex and pixel shaders use different subsets of the
- * values.
- */
+/** Destination of an export ALU instruction. Vertex and pixel shaders use different subsets. */
 enum class ExportRegister : u8 {
   /** @name Vertex shader interpolators 0 to 15, export registers 0 to 15. */
   /** @{ */
@@ -2252,22 +1900,12 @@ enum class ExportRegister : u8 {
   kVSPosition = 62,
 
   /**
-   * Vertex shader misc export (USE_VTX_POINT_SIZE, USE_VTX_EDGE_FLAG and USE_VTX_KILL_FLAG on
-   * R6xx/R7xx).
-   * - X is PSIZE (gl_PointSize). It is the full width and height of the point sprite, not half, as
-   *   gl_PointSize goes directly to oPts.x. It is clamped to PA_SU_POINT_MINMAX as a signed integer
-   *   in rasterization.
-   *   - -NaN gives min.
-   *   - -Infinity gives min.
-   *   - -Normal gives min.
-   *   - -0 (0x80000000, the smallest signed integer) gives min.
-   *   - +0 gives min.
-   *   - +Infinity gives max.
-   *   - +NaN gives max.
-   * - Y is EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe or point drawing.
-   * - Z is the KILLVERTEX flag, set for killing primitives based on the
-   *   PA_CL_CLIP_CNTL::VTX_KILL_OR condition if bits 0:30 of this export value (the sign bit is
-   *   ignored) are not zero.
+   * Vertex shader miscellaneous export.
+   * - X is PSIZE, the point sprite size, clamped to PA_SU_POINT_MINMAX as a signed integer.
+   *   Negative values, -0 and +0 give min, +Infinity and +NaN give max.
+   * - Y is EDGEFLAG for PrimitiveType::kPolygon wireframe or point drawing.
+   * - Z is the KILLVERTEX flag, set when bits 0 to 30 are not zero, which kills primitives based on
+   *   PA_CL_CLIP_CNTL::VTX_KILL_OR.
    */
   kVSPointSizeEdgeFlagKillVertex = 63,
 
@@ -2282,7 +1920,6 @@ enum class ExportRegister : u8 {
   /** Exported in X. */
   kPSDepth = 61,
 
-  /** Memory export address, index.?y?? * 0100 + MemExportStream.xyzw. */
   kExportAddress = 32,
   /** @name Memory export values for texels [index+0] to [index+4], 1 register each. */
   /** @{ */
@@ -2296,14 +1933,9 @@ enum class ExportRegister : u8 {
 
 /** ALU instruction of 3 dwords holding a vector operation and a scalar operation. */
 struct alignas(u32) AluInstruction {
-  /**
-   * Reports whether data is exported, rather than written to local registers.
-   *
-   * @return True when the instruction exports.
-   */
+  /** Reports whether data is exported, rather than written to local registers. */
   bool IsExport() const { return data_.export_data == 1; }
 
-  /** Reports whether the instruction is predicated. */
   bool IsPredicated() const { return data_.is_predicated; }
   /** Returns the predicate value that enables the instruction. */
   bool GetPredicateCondition() const { return data_.pred_condition == 1; }
@@ -2317,60 +1949,46 @@ struct alignas(u32) AluInstruction {
   /**
    * Reports whether relatively addressed constants are indexed by the address register a0 rather
    * than the loop counter aL.
-   *
-   * @return True when the address register is used.
    */
   bool IsConstAddressRegisterRelative() const { return data_.const_address_register_relative == 1; }
 
-  /** Returns the vector opcode. */
   AluVectorOpcode GetVectorOpcode() const { return data_.vector_opc; }
   /** Returns the vector write mask, 1 bit per component. */
   u32 GetVectorWriteMask() const { return data_.vector_write_mask; }
-  /** Returns the vector destination register index. */
   u32 GetVectorDest() const { return data_.vector_dest; }
-  /** Reports whether the vector destination is relatively addressed. */
   bool IsVectorDestRelative() const { return data_.vector_dest_rel == 1; }
-  /** Reports whether the vector result is clamped. */
   bool IsVectorClamped() const { return data_.vector_clamp == 1; }
 
-  /** Returns the scalar opcode. */
   AluScalarOpcode GetScalarOpcode() const { return data_.scalar_opc; }
   /** Returns the scalar write mask, 1 bit per component. */
   u32 GetScalarWriteMask() const { return data_.scalar_write_mask; }
-  /** Returns the scalar destination register index. */
   u32 GetScalarDest() const { return data_.scalar_dest; }
-  /** Reports whether the scalar destination is relatively addressed. */
   bool IsScalarDestRelative() const { return data_.scalar_dest_rel == 1; }
-  /** Reports whether the scalar result is clamped. */
   bool IsScalarClamped() const { return data_.scalar_clamp == 1; }
 
   /**
    * Returns the temporary register index of a packed temporary register source.
    *
    * @param src_reg Packed temporary register from `src_reg`.
-   * @return Temporary register index.
    */
   static constexpr u32 GetSrcTempReg(u32 src_reg) { return src_reg & 0x3F; }
   /**
    * Reports whether a temporary register source is relatively addressed.
    *
    * @param src_reg Packed temporary register from `src_reg`.
-   * @return True when the register is relatively addressed.
    */
   static constexpr bool IsSrcTempRelative(u32 src_reg) { return (src_reg & 0x40) != 0; }
   /**
    * Reports whether a temporary register source takes the absolute value.
    *
    * @param src_reg Packed temporary register from `src_reg`.
-   * @return True when the absolute value is taken.
    */
   static constexpr bool IsSrcTempValueAbsolute(u32 src_reg) { return (src_reg & 0x80) != 0; }
   /**
-   * Returns the full register index for constants, or the packed structure for temporary registers
-   * (unpack using GetSrcTempReg, IsSrcTempRelative and IsSrcTempValueAbsolute).
+   * Returns the register index of a constant, or the packed value of a temporary register. The
+   * result is a register index or a packed temporary register.
    *
    * @param i 1 based source operand index.
-   * @return Register index or packed temporary register.
    */
   u32 GetSrcReg(size_t i) const {
     switch (i) {
@@ -2389,7 +2007,6 @@ struct alignas(u32) AluInstruction {
    * Reports whether a source operand is a temporary register rather than a constant.
    *
    * @param i 1 based source operand index.
-   * @return True when the operand is a temporary register.
    */
   bool IsSrcTemp(size_t i) const {
     switch (i) {
@@ -2405,18 +2022,11 @@ struct alignas(u32) AluInstruction {
     }
   }
   /**
-   * Reports whether a constant operand uses relative addressing. Whether the operand is a constant
-   * is disregarded, so the scope is limited to parsing the structure layout.
+   * Reports whether the constant slot of a source operand is relatively addressed, even when the
+   * operand is a temporary register.
    *
-   * Operand index 3 is the constant operand in mulsc, addsc and subsc. Its addressing
-   * mode is taken the same way as for the third vector operand, from const_0_rel_abs if there are
-   * no constant vector operands or from const_1_rel_abs if there is at least one. Taking it
-   * unconditionally from const_1_rel_abs gives different microcode when the disassembly is
-   * assembled again.
-   *
-   * When 3 constants are used in 1 instruction, the second and third constant must both be non
-   * relative or both be relative. const_0_rel_abs applies when no previous operand is a constant
-   * and const_1_rel_abs otherwise.
+   * const_0_rel_abs applies when no previous operand is a constant and const_1_rel_abs otherwise.
+   * Operand 3 is the constant of mulsc, addsc and subsc.
    *
    * @param i 1 based source operand index.
    * @return True when the constant operand is relatively addressed.
@@ -2439,7 +2049,6 @@ struct alignas(u32) AluInstruction {
    * Returns the component relative swizzle of a source operand, 2 bits per component.
    *
    * @param i 1 based source operand index.
-   * @return Packed swizzle.
    */
   u32 GetSrcSwizzle(size_t i) const {
     switch (i) {
@@ -2458,7 +2067,6 @@ struct alignas(u32) AluInstruction {
    * Reports whether a source operand is negated.
    *
    * @param i 1 based source operand index.
-   * @return True when the operand is negated.
    */
   bool IsSrcNegated(size_t i) const {
     switch (i) {
@@ -2474,37 +2082,20 @@ struct alignas(u32) AluInstruction {
     }
   }
 
-  /**
-   * Returns the temporary register of the register operand of a scalar operation that takes a
-   * constant and a register, rebuilt from the opcode, the third source select and the third source
-   * swizzle.
-   *
-   * @return Temporary register index.
-   */
+  /** Returns the temporary register of a scalar operation that takes a constant and a register. */
   u32 GetScalarConstRegOpSrcTempReg() const {
     return (static_cast<u32>(data_.scalar_opc) & 1) | (data_.src3_sel << 1) |
            (data_.src3_swiz & 0x3C);
   }
 
-  /**
-   * Returns the absolute component index calculated from the relative swizzle in an ALU
-   * instruction.
-   *
-   * @param swizzle Component relative swizzle.
-   * @param component_index Result component index.
-   * @return Absolute component index.
-   */
+  /** Returns the absolute component index from a component relative swizzle. */
   static constexpr u32 GetSwizzledComponentIndex(u32 swizzle, u32 component_index) {
     return ((swizzle >> (2 * component_index)) + component_index) & 3;
   }
 
   /**
-   * Returns the write mask of the vector operation result. An unused export component, like W of
-   * the vertex shader misc register or YZW of pixel shader depth, must not be excluded, as
-   * disassembly with constant 0 writes in the export may not reassemble. For example oPts.x000 is
-   * assembled, but oPts.x00_ is not, even though W has no effect.
-   *
-   * @return Write mask of the vector result.
+   * Returns the write mask of the vector operation result. Unused export components are
+   * included so the disassembly reassembles.
    */
   u32 GetVectorOpResultWriteMask() const {
     u32 mask = GetVectorWriteMask();
@@ -2515,9 +2106,7 @@ struct alignas(u32) AluInstruction {
   }
   /**
    * Returns the write mask of the scalar operation result. In an export it excludes the components
-   * also in the vector write mask, which export constant 1.
-   *
-   * @return Write mask of the scalar result.
+   * in the vector write mask, as those come from the vector operation or are constant 1.
    */
   u32 GetScalarOpResultWriteMask() const {
     u32 mask = GetScalarWriteMask();
@@ -2527,10 +2116,8 @@ struct alignas(u32) AluInstruction {
     return mask;
   }
   /**
-   * Returns the export components that receive constant 0, which are those neither operation writes
-   * when the scalar destination is relative.
-   *
-   * @return Mask of components exporting 0, empty when the instruction is not an export.
+   * Returns the export components that receive constant 0. The result is empty when the instruction
+   * is not an export.
    */
   u32 GetConstant0WriteMask() const {
     if (!IsExport() || !IsScalarDestRelative()) {
@@ -2539,9 +2126,8 @@ struct alignas(u32) AluInstruction {
     return 0b1111 & ~(GetVectorWriteMask() | GetScalarWriteMask());
   }
   /**
-   * Returns the export components that receive constant 1, which are those both operations write.
-   *
-   * @return Mask of components exporting 1, empty when the instruction is not an export.
+   * Returns the export components that receive constant 1. The result is empty when the instruction
+   * is not an export.
    */
   u32 GetConstant1WriteMask() const {
     if (!IsExport()) {
@@ -2553,56 +2139,49 @@ struct alignas(u32) AluInstruction {
  private:
   struct Data {
     struct {
-      /**
-       * If exporting, both vector and scalar operations use the vector destination, which cannot be
-       * relative in this case. If both operations exporting something have an empty write mask, the
-       * assembler forces vector_dest to 0 (interpolator 0 or color 0) in the microcode.
-       */
+      /** The assembler forces it to 0 when both write masks are empty. */
       u32 vector_dest : 6;
-      u32 vector_dest_rel : 1; /**< Vector destination is relatively addressed. */
-      u32 abs_constants : 1;   /**< Constant operands take the absolute value. */
-      u32 scalar_dest : 6;     /**< Scalar destination register index. */
-      u32 scalar_dest_rel : 1; /**< Scalar destination is relatively addressed. */
+      u32 vector_dest_rel : 1;
+      u32 abs_constants : 1;
+      u32 scalar_dest : 6;
+      u32 scalar_dest_rel : 1;
       /**
-       * Exports have different write masking. Export is done to vector_dest by both the vector and
-       * the scalar operation, and exports can write constant 0 and 1. For each component the result
-       * is as follows.
-       * - vector_write_mask 0, scalar_write_mask 0 is unchanged for scalar_dest_rel 0 and constant
-       *   0 for scalar_dest_rel 1 (all components must be written).
-       * - vector_write_mask 1, scalar_write_mask 0 is from the vector operation.
-       * - vector_write_mask 0, scalar_write_mask 1 is from the scalar operation.
-       * - vector_write_mask 1, scalar_write_mask 1 is constant 1.
+       * Exports write vector_dest from both operations and can write constants 0 and 1. Per
+       * component, with vector and scalar write masks in that order.
+       * - 0, 0 is unchanged for scalar_dest_rel 0 and constant 0 for scalar_dest_rel 1.
+       * - 1, 0 is from the vector operation.
+       * - 0, 1 is from the scalar operation.
+       * - 1, 1 is constant 1.
        */
       u32 export_data : 1;
-      u32 vector_write_mask : 4;      /**< Vector write mask, 1 bit per component. */
-      u32 scalar_write_mask : 4;      /**< Scalar write mask, 1 bit per component. */
-      u32 vector_clamp : 1;           /**< Vector result is clamped. */
-      u32 scalar_clamp : 1;           /**< Scalar result is clamped. */
-      AluScalarOpcode scalar_opc : 6; /**< Scalar opcode. */
+      u32 vector_write_mask : 4;
+      u32 scalar_write_mask : 4;
+      u32 vector_clamp : 1;
+      u32 scalar_clamp : 1;
+      AluScalarOpcode scalar_opc : 6;
     };
     struct {
-      /** Swizzles are component relative. */
-      u32 src3_swiz : 8;
-      u32 src2_swiz : 8;       /**< Second source swizzle. */
-      u32 src1_swiz : 8;       /**< First source swizzle. */
-      u32 src3_reg_negate : 1; /**< Third source is negated. */
-      u32 src2_reg_negate : 1; /**< Second source is negated. */
-      u32 src1_reg_negate : 1; /**< First source is negated. */
-      u32 pred_condition : 1;  /**< Predicate value that enables the instruction. */
-      u32 is_predicated : 1;   /**< Instruction is predicated. */
-      /** Temporary registers can have only absolute and aL relative indices, not a0 relative. */
+      u32 src3_swiz : 8; /**< Swizzles are component relative. */
+      u32 src2_swiz : 8;
+      u32 src1_swiz : 8;
+      u32 src3_reg_negate : 1;
+      u32 src2_reg_negate : 1;
+      u32 src1_reg_negate : 1;
+      u32 pred_condition : 1;
+      u32 is_predicated : 1;
+      /** Temporaries can be absolute or aL relative, never a0 relative. */
       u32 const_address_register_relative : 1;
-      u32 const_1_rel_abs : 1; /**< Second constant operand is relatively addressed. */
-      u32 const_0_rel_abs : 1; /**< First constant operand is relatively addressed. */
+      u32 const_1_rel_abs : 1;
+      u32 const_0_rel_abs : 1;
     };
     struct {
-      u32 src3_reg : 8;               /**< Third source register index. */
-      u32 src2_reg : 8;               /**< Second source register index. */
-      u32 src1_reg : 8;               /**< First source register index. */
-      AluVectorOpcode vector_opc : 5; /**< Vector opcode. */
-      u32 src3_sel : 1; /**< Third source is a temporary register, clear for a constant. */
-      u32 src2_sel : 1; /**< Second source is a temporary register, clear for a constant. */
-      u32 src1_sel : 1; /**< First source is a temporary register, clear for a constant. */
+      u32 src3_reg : 8;
+      u32 src2_reg : 8;
+      u32 src1_reg : 8;
+      AluVectorOpcode vector_opc : 5;
+      u32 src3_sel : 1; /**< Temporary register, clear for a constant. */
+      u32 src2_sel : 1;
+      u32 src1_sel : 1;
     };
   };
   Data data_;

@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/gpu/shader_translation_test.cpp
- * @brief       A shader frees the translations its map holds
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

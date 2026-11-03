@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/gpu/packet_header_test.cpp
- * @brief       PM4 packet headers decode with the command processor field layout
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,7 +11,7 @@
 #include "rex_test.h"
 
 #include <rex/types.h>
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/packet.h>
 
 REX_TEST_CASE("BuildPacketType0 encodes the 1 register flag", "[gpu]") {
   for (bool one_reg : {false, true}) {

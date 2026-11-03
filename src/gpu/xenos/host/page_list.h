@@ -18,10 +18,6 @@ namespace rex::gpu {
  * Moves the submitted pages the GPU has finished with to the end of the writable list.
  *
  * @tparam Page A page with last_submission_index and next.
- * @param submitted_first The first submitted page.
- * @param submitted_last The last submitted page.
- * @param writable_first The first writable page.
- * @param writable_last The last writable page.
  * @param completed_submission_index The newest submission the GPU has completed.
  */
 template <typename Page>
@@ -50,10 +46,6 @@ void ReclaimPages(Page*& submitted_first, Page*& submitted_last, Page*& writable
  * a submission timeline that restarts.
  *
  * @tparam Page A page with last_submission_index and next.
- * @param submitted_first The first submitted page.
- * @param submitted_last The last submitted page.
- * @param writable_first The first writable page.
- * @param writable_last The last writable page.
  */
 template <typename Page>
 void ResetPageTimeline(Page*& submitted_first, Page*& submitted_last, Page*& writable_first,

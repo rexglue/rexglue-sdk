@@ -12,7 +12,6 @@
 #define VMA_IMPLEMENTATION
 #include <cstring>
 
-#include <rex/fail.h>
 #include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/mem_alloc.h"
 

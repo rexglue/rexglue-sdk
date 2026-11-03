@@ -16,10 +16,7 @@
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
 #include "gpu/xenos/pipeline/texture/cache.h"
 #include "gpu/xenos/draw_state.h"
-#include <rex/cvar.h>
 #include <rex/math.h>
-
-#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu {
 using namespace xenos::ucode;
@@ -137,7 +134,7 @@ void DXBCShaderTranslator::StartPixelShaderLoadROVParameters() {
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
             dxbc::Src::LU(tile_size * xenos::kEDRAMTileCount));
 
-  // ForcedSampleCount is 4 as 2 is unsupported on Nvidia, 2x MSAA samples 0 and 3 become 0 and 1.
+  // ForcedSampleCount is 4 as 2 is unsupported on Nvidia, so 2x MSAA samples 0 and 3 become 0, 1.
 
   a_.OpIf(true, LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                    offsetof(SystemConstants, sample_count_log2), dxbc::Src::kXXXX));
@@ -494,7 +491,7 @@ void DXBCShaderTranslator::ROVDepthStencilTest() {
 
     a_.OpEndIf();
 
-    // Samples are at +0, +(80*scale_x), +1 and +(80*scale_x+1).
+    // Sample offsets are +0, +(80*scale_x), +1 and +(80*scale_x+1).
     u32 tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
@@ -941,7 +938,7 @@ void DXBCShaderTranslator::CompletePixelShaderDSVDepthTo24Bit() {
 
   if (GetDXBCShaderModification().pixel.depth_stencil_mode ==
       Modification::DepthStencilMode::kFloat24Truncating) {
-    // 20e4 drops 3 mantissa bits at exponent -14 or above, up to 23 at -34, anything lower is 0.
+    // 20e4 loses 3 mantissa bits at exponent -14 or above, up to 23 at -34, anything lower is 0.
     dxbc::Dest truncate_dest(shader_writes_depth ? dxbc::Dest::ODepth() : dxbc::Dest::ODepthLE());
     a_.OpUGE(temp_y_dest, temp_x_src, dxbc::Src::LU(0x2E800000));
     a_.OpIf(true, temp_y_src);
@@ -1054,7 +1051,7 @@ void DXBCShaderTranslator::CompletePixelShaderAlphaToMask() {
   a_.OpEndIf();
 
   if (edram_rov_used_) {
-    // The mask covers bits 0:3 and 4:7 as stencil may need writing for samples dropped in 0:3.
+    // The mask covers bits 0:3 and 4:7 as stencil may need writing for samples removed in 0:3.
     a_.OpAnd(temp_x_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
              dxbc::Src::LU(0b11111111));
     a_.OpRetC(false, temp_x_src);
@@ -1522,7 +1519,7 @@ void DXBCShaderTranslator::CompletePixelShader() {
                dxbc::Src::LU(std::to_underlying(xenos::CompareFunction::kNotEqual)));
       a_.OpIf(true, alpha_test_op_src);
       {
-        if (REXCVAR_GET(::rex::gpu::cvars::use_fuzzy_alpha_epsilon)) {
+        if (options_.fuzzy_alpha_epsilon) {
           a_.OpAdd(alpha_test_fuzzy_diff_dest, alpha_src, -alpha_test_reference_src);
           a_.OpLT(alpha_test_mask_dest, alpha_test_fuzzy_diff_src.Abs(), fuzzy_epsilon);
           a_.OpNot(alpha_test_mask_dest, alpha_test_mask_src);
@@ -1532,7 +1529,7 @@ void DXBCShaderTranslator::CompletePixelShader() {
       }
       a_.OpElse();
       {
-        if (REXCVAR_GET(::rex::gpu::cvars::use_fuzzy_alpha_epsilon)) {
+        if (options_.fuzzy_alpha_epsilon) {
           a_.OpAdd(alpha_test_fuzzy_diff_dest, alpha_src, -fuzzy_epsilon);
           a_.OpLT(alpha_test_op_dest, alpha_test_fuzzy_diff_src, alpha_test_reference_src);
           a_.OpOr(alpha_test_op_dest, alpha_test_op_src, dxbc::Src::LU(~static_cast<u32>(1 << 0)));

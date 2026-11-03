@@ -18,17 +18,14 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include "gpu/xenos/pipeline/render_target/cache.h"
-#include <rex/xenos/register_file.h>
-#include <rex/xenos/registers.h>
+#include <rex/xenos/register.h>
 #include "gpu/xenos/draw_state.h"
-#include <rex/xenos/xenos.h>
-#include <rex/fail.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
 #include <rex/logging/log.h>
-#include <rex/math.h>
-
-#include "gpu/xenos/cvar_table_xenos.h"
+#include <rex/bit.h>
 
 namespace rex::gpu {
 
@@ -150,7 +147,7 @@ u32 RenderTargetCache::Transfer::GetRangeRectangles(u32 start_tiles, u32 end_til
                                                     xenos::MSAASamples msaa_samples, bool is_64bpp,
                                                     Rectangle* rectangles_out,
                                                     const Rectangle* cutout) {
-  // EDRAM wrapping uses 2 clamped ranges, so start_tiles == end_tiles means an empty range.
+  // EDRAM wrapping uses two clamped ranges, so start_tiles == end_tiles means an empty range.
   REX_ASSERT(start_tiles < xenos::kEDRAMTileCount);
   REX_ASSERT(end_tiles <= xenos::kEDRAMTileCount);
   REX_ASSERT(start_tiles <= end_tiles);
@@ -471,14 +468,13 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     return true;
   }
 
-  u32 height_used = std::min(
-      GetRenderTargetHeight(pitch_tiles_at_32bpp, msaa_samples),
-      draw_extent_estimator_.EstimateMaxY(
-          interlock_barrier_only
-              ? REXCVAR_GET(
-                    ::rex::gpu::cvars::execute_unclipped_draw_vs_on_cpu_for_psi_render_backend)
-              : true,
-          vertex_shader));
+  u32 height_used =
+      std::min(GetRenderTargetHeight(pitch_tiles_at_32bpp, msaa_samples),
+               draw_extent_estimator_.EstimateMaxY(
+                   interlock_barrier_only
+                       ? settings_.execute_unclipped_draw_vs_on_cpu_for_psi_render_backend.Get()
+                       : true,
+                   vertex_shader));
 
   std::pair<u32, u32> edram_bases_sorted[1 + xenos::kMaxColorRenderTargets];
   u32 edram_bases_sorted_count = 0;
@@ -490,8 +486,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   }
   std::sort(edram_bases_sorted, edram_bases_sorted + edram_bases_sorted_count);
   u32 rt_max_distance_tiles_at_64bpp = xenos::kEDRAMTileCount * 2;
-  if (REXCVAR_GET(::rex::gpu::cvars::mrt_edram_used_range_clamp_to_min) &&
-      edram_bases_sorted_count >= 2) {
+  if (settings_.mrt_edram_used_range_clamp_to_min.Get() && edram_bases_sorted_count >= 2) {
     for (u32 i = 1; i < edram_bases_sorted_count; ++i) {
       const std::pair<u32, u32>& rt_base_prev = edram_bases_sorted[i - 1];
       rt_max_distance_tiles_at_64bpp =
@@ -674,7 +669,7 @@ void RenderTargetCache::GetHostDepthStoreRectangleDispatch(
     HostDepthStoreRectangleConstant& rectangle_constant_out, u32& group_count_x_out,
     u32& group_count_y_out) const {
   HostDepthStoreRectangleConstant rectangle_constant;
-  // 8 pixels is the resolve granularity, both clearing and tile size are aligned to 8.
+  // The resolve granularity is 8 pixels, so clearing and tile size are aligned to 8.
   REX_ASSERT((transfer_rectangle.x_pixels & 7) == 0);
   REX_ASSERT((transfer_rectangle.y_pixels & 7) == 0);
   REX_ASSERT((transfer_rectangle.width_pixels & 7) == 0);

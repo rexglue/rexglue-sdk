@@ -20,7 +20,10 @@
 
 #include "gpu/xenos/pipeline/shader/spirv_builder.h"
 #include "gpu/xenos/pipeline/shader/translator.h"
-#include <rex/xenos/xenos.h>
+#include <rex/xenos/fetch.h>
+#include <rex/xenos/format.h>
+#include <rex/xenos/state.h>
+#include <rex/bit.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
 namespace rex::gpu {
@@ -136,13 +139,13 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     kSysFlagCount,
 
     /**
-     * kVertex only, when fullDrawIndexUint32 is unsupported. Fetches 32-bit indices manually,
-     * 16-bit indices always come from the Vulkan index buffer.
+     * kVertex only, when fullDrawIndexUint32 is unsupported. Fetches 32 bit indices manually,
+     * 16 bit indices always come from the Vulkan index buffer.
      */
     kSysFlagVertexIndexLoad = 1u << kSysFlagVertexIndexLoadShift,
     /**
      * kMemExportCompute, kPointListAsTriangleStrip and kRectangleListAsTriangleStrip. Loads the
-     * vertex index from the index buffer and flags whether it is 32-bit. Separate from
+     * vertex index from the index buffer and flags whether it is 32 bit. Separate from
      * kSysFlagVertexIndexLoad.
      */
     kSysFlagComputeOrPrimitiveVertexIndexLoad = 1u
@@ -322,7 +325,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
                 "drivers");
 
   /** SPIR-V generator magic tool ID of the ReXGlue Emulator Microcode Translator. */
-  static constexpr u32 kSPIRVMagicToolId = 26;
+  static constexpr u32 kSPIRVMagicToolID = 26;
 
   struct Features {
     explicit Features(const gpu::vulkan::VulkanDevice* vulkan_device);
@@ -380,12 +383,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     return GetSharedMemoryStorageBufferCountLog2(features_.max_storage_buffer_range);
   }
 
-  /**
-   * Creates a fragment shader without color outputs and resets the translator state.
-   *
-   * @param depth_stencil_mode Depth and stencil output mode.
-   * @return The SPIR-V words of the shader.
-   */
+  /** Creates a fragment shader without color outputs and resets the translator state. */
   std::vector<u8> CreateDepthOnlyFragmentShader(Modification::DepthStencilMode depth_stencil_mode =
                                                     Modification::DepthStencilMode::kNoModifiers);
 
@@ -393,32 +391,29 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * Converts a color value clamped to [0, 31.875] to 7e3 float with zeros in bits 10:31,
    * rounding to nearest even.
    *
-   * @param builder Builder emitting the instructions.
    * @param f32_scalar Clamped 32 bit float scalar.
-   * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
-   * @return Id of the 7e3 value as a uint.
+   * @param ext_inst_glsl_std_450 ID of the imported GLSL.std.450 instruction set.
+   * @return ID of the 7e3 value as a uint.
    */
   static spv::Id PreClampedFloat32To7e3(SPIRVBuilder& builder, spv::Id f32_scalar,
                                         spv::Id ext_inst_glsl_std_450);
   /**
    * As PreClampedFloat32To7e3, but clamps the input to [0, 31.875].
    *
-   * @param builder Builder emitting the instructions.
    * @param f32_scalar 32 bit float scalar.
-   * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
-   * @return Id of the 7e3 value as a uint.
+   * @param ext_inst_glsl_std_450 ID of the imported GLSL.std.450 instruction set.
+   * @return ID of the 7e3 value as a uint.
    */
   static spv::Id UnclampedFloat32To7e3(SPIRVBuilder& builder, spv::Id f32_scalar,
                                        spv::Id ext_inst_glsl_std_450);
   /**
    * Converts the 7e3 number in bits [f10_shift, f10_shift + 10) to a 32 bit float.
    *
-   * @param builder Builder emitting the instructions.
    * @param f10_uint_scalar Uint scalar holding the 7e3 number.
    * @param f10_shift Bit offset of the 7e3 number.
    * @param result_as_uint True to return the float bits as a uint.
-   * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
-   * @return Id of the converted value.
+   * @param ext_inst_glsl_std_450 ID of the imported GLSL.std.450 instruction set.
+   * @return ID of the converted value.
    */
   static spv::Id Float7e3To32(SPIRVBuilder& builder, spv::Id f10_uint_scalar, u32 f10_shift,
                               bool result_as_uint, spv::Id ext_inst_glsl_std_450);
@@ -426,12 +421,11 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * Converts a depth value clamped to [0, 2) to 20e4 float with zeros in bits 24:31, rounding to
    * nearest even or towards zero.
    *
-   * @param builder Builder emitting the instructions.
    * @param f32_scalar Clamped 32 bit float scalar.
    * @param round_to_nearest_even True to round to nearest even, false to round towards zero.
    * @param remap_from_0_to_0_5 True when the input range 0...1 is pre remapped to 0...0.5.
-   * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
-   * @return Id of the 20e4 value as a uint.
+   * @param ext_inst_glsl_std_450 ID of the imported GLSL.std.450 instruction set.
+   * @return ID of the 20e4 value as a uint.
    */
   static spv::Id PreClampedDepthTo20e4(SPIRVBuilder& builder, spv::Id f32_scalar,
                                        bool round_to_nearest_even, bool remap_from_0_to_0_5,
@@ -439,13 +433,12 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   /**
    * Converts the 20e4 number in bits [f24_shift, f24_shift + 24) to a 32 bit float.
    *
-   * @param builder Builder emitting the instructions.
    * @param f24_uint_scalar Uint scalar holding the 20e4 number.
    * @param f24_shift Bit offset of the 20e4 number.
    * @param remap_to_0_to_0_5 True to remap the result range 0...1 to 0...0.5.
    * @param result_as_uint True to return the float bits as a uint.
-   * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
-   * @return Id of the converted value.
+   * @param ext_inst_glsl_std_450 ID of the imported GLSL.std.450 instruction set.
+   * @return ID of the converted value.
    */
   static spv::Id Depth20e4To32(SPIRVBuilder& builder, spv::Id f24_uint_scalar, u32 f24_shift,
                                bool remap_to_0_to_0_5, bool result_as_uint,
@@ -459,13 +452,10 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   void StartTranslation() override;
 
   /**
-   * The rectangle list fallback without geometry shaders runs the guest vertex shader 3 times, once
-   * per source vertex, then chooses or synthesizes the output for the current host strip vertex.
-   * Denormals flush to zero like the hardware, including for the Shader Model 3 multiplication
-   * emulation. Signed zero is preserved as it yields VFACE from ps_param_gen, and infinity as some
-   * instructions treat it specially, such as logarithm, reciprocal and muls_prev2.
-   *
-   * @return The SPIR-V words of the shader.
+   * The rectangle list fallback without geometry shaders runs the guest vertex shader three times,
+   * once per source vertex, for each host strip vertex. Denormals flush to zero like the hardware.
+   * Signed zero is preserved as it yields VFACE from ps_param_gen, and infinity as logarithm,
+   * reciprocal and muls_prev2 treat it specially.
    */
   std::vector<u8> CompleteTranslation() override;
 
@@ -477,62 +467,34 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
   /**
    * The loop constant holds the count in bits 0:7 and the initial aL in bits 8:15, both unsigned.
-   * Pushing moves the count stack XYZ to YZW and sets X, and the loop is skipped when the count is
-   * 0.
-   *
-   * @param instr Parsed loop start instruction.
+   * The loop is skipped when the count is 0.
    */
   void ProcessLoopStartInstruction(const ParsedLoopStartInstruction& instr) override;
   /**
    * The signed value added to aL is in bits 16:23 of the loop constant. A predicated break is a
-   * break if (loop_count == 0 || [!]p0). Breaking pops the count and relative address stacks by
-   * moving YZW to XYZ and setting W to 0.
-   *
-   * @param instr Parsed loop end instruction.
+   * break if (loop_count == 0 || [!]p0).
    */
   void ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
   void ProcessAllocInstruction(const ParsedAllocInstruction& instr, u8 export_em) override;
 
   /**
-   * Vfetch_full computes `base + index * stride` in dwords, kept for the following vfetch_mini.
-   * The base is bits 2:31 of fetch constant word 0 and the endianness is bits 0:1 of word 1. The
-   * index is converted to an integer as floor(index + 0.5), since rounding to nearest even makes no
-   * sense for addressing. Words outside the buffer are not bound checked, and the extended range
-   * Xenos float16 is converted as GLSL float16. Signed normalized values map both -(2^(n-1)) and
-   * -(2^(n-1)-1) to -1. Signed normalization of 1 bit components is unsupported as no format has
-   * them.
-   *
-   * @param instr Parsed vertex fetch instruction.
+   * Vfetch_full computes `base + index * stride` in dwords for the following vfetch_mini. The base
+   * is bits 2:31 of fetch constant word 0 and the endianness is bits 0:1 of word 1. The index is
+   * converted as floor(index + 0.5). Words outside the buffer are not bound checked. The extended
+   * range Xenos float16 is converted as GLSL float16. Signed normalized values map both -(2^(n-1))
+   * and -(2^(n-1)-1) to -1.
    */
   void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& instr) override;
-  /**
-   * Fetch constant word 2 holds the size stored minus 1, word 3 the exponent adjustment, word 4
-   * the LOD at bits 12:21, the result exponent bias at bits 13:18 and the stacked texture filtering
-   * modes, and word 5 the dimensionality at bits 9:10. 3D and stacked textures use different
-   * bindings. The LOD sources accumulate in the D3D11.3 order of specified LOD, sampler LOD bias
-   * and instruction LOD bias. Offsets have a granularity of 0.5, so they cannot be passed as
-   * ConstOffset, and are applied at LOD 0. A rounding epsilon of 1.5/4 of the fixed point texture
-   * coordinate ULP with 8 bit subtexel precision resolves ambiguity when point sampling between
-   * texels. Cube SC and TC are moved from 1...2 to -1...1 and the face index is split into axis
-   * and sign, remapped opposite to the ALU cube instruction. Stacked textures floor the array layer
-   * since addressing is similar to 3D textures, and the LOD within layers does not affect filtering
-   * between layers. Signedness is per guest component while a host format component may repeat, so
-   * it is applied during swizzling for unsigned versus signed and after it for biased and gamma.
-   *
-   * @param instr Parsed texture fetch instruction.
-   */
   void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& instr) override;
   /**
-   * Floating point addition, subtraction, negation, multiplication, division and modulo carry
-   * the NoContraction decoration (glslang does not apply it to OpDot) so calculations optimize
-   * predictably and identically across shaders for multipass rendering, together with the
-   * Invariant decoration on outputs.
+   * Floating point arithmetic carries the NoContraction decoration (glslang does not apply it to
+   * OpDot) and outputs the Invariant one, so results are identical across shaders for multipass
+   * rendering.
    *
-   * @param instr Parsed ALU instruction.
    * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    */
-  void ProcessALUInstruction(const ParsedAluInstruction& instr,
+  void ProcessALUInstruction(const ParsedALUInstruction& instr,
                              u8 memexport_em_potentially_written_before) override;
 
  private:
@@ -605,58 +567,45 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   }
 
   /**
-   * Returns the index of the interpolator that PsParamGen is written to.
-   *
-   * @return The interpolator index, or UINT32_MAX when PsParamGen need not be written.
+   * Returns the index of the interpolator that PsParamGen is written to, or UINT32_MAX when
+   * PsParamGen need not be written.
    */
   u32 GetPSParamGenInterpolator() const;
 
-  /**
-   * Starts a new block when the last instruction, such as OpBranch, terminated the current one.
-   * Operations that must be in a block are emitted after it.
-   */
+  /** Starts a new block when the last instruction, such as OpBranch, terminated the current one. */
   void StartNewBlockIfTerminated();
 
   /**
-   * For the memexport fallback each invocation corresponds to one guest vertex processing index.
-   * The point size output is a separate variable rather than gl_PointSize, which would depend on
-   * the shaderTessellationAndGeometryPointSize feature and must be written greater than zero.
+   * For the memexport fallback each invocation processes one guest vertex index. The point size
+   * output is a separate variable, as gl_PointSize depends on the
+   * shaderTessellationAndGeometryPointSize feature and must be written greater than zero.
    */
   void StartVertexOrTessEvalShaderBeforeMain();
   /**
    * Initializes the point size negative so point sprite expansion uses the default size unless the
    * vertex shader overrides it, and the kill bits 0:30 to zero. General purpose registers are
-   * zeroed as titles read registers they initialized only conditionally. Tessellation registers
-   * hold r0.xyz domain location zyx with r1.xyz control point indices (triangle, control point
-   * indexed), r0.xyz domain location zyx with r1.x patch index and r1.y swizzle (triangle, patch
-   * indexed), r0.xy domain location xy with r0.z and r1.xyz control point indices (quad, control
-   * point indexed), and r0.x patch index with r0.yz domain location xy and r1.x swizzle (quad,
-   * patch indexed). Memory export is allowed from only 1 host vertex per guest vertex, host vertex
-   * 0 for points and the rectangle loop mode, and every host vertex except the synthetic fourth one
-   * otherwise. Rectangle lists consume 3 guest vertices per primitive and the synthetic fourth host
-   * vertex is clamped to guest vertex 2. Indices get the base index added, the 24 bit index mask
-   * applied and are clamped to the draw index range. Primitive reset suppresses memexport for reset
-   * index invocations in the compute fallback.
+   * zeroed as titles read registers they initialized only conditionally. Memory export is allowed
+   * from only one host vertex per guest vertex, host vertex 0 for points and the rectangle loop
+   * mode, and every host vertex except the synthetic fourth one otherwise. Rectangle lists consume
+   * three guest vertices per primitive and the synthetic fourth host vertex is clamped to guest
+   * vertex 2.
    */
   void StartVertexOrTessEvalShaderInMain();
   /**
-   * Vertex killing in the AND mode kills via a cull distance so the primitive is culled only if all
-   * vertices request it, and in the OR mode sets W to NaN. Point sprite corners are emitted in the
-   * order top left, bottom left, top right, bottom right.
+   * Vertex killing in the AND mode uses a cull distance so the primitive is culled only if all
+   * vertices request it, and in the OR mode sets W to NaN. Point sprite corners are emitted as top
+   * left, bottom left, top right, bottom right.
    */
   void CompleteVertexOrTessEvalShaderInMain();
 
   void StartFragmentShaderBeforeMain();
   /**
-   * Pixel killing from the translated shader does not affect control flow, unlike OpKill, as on the
-   * Xenos, and keeps a single critical section exit and return across Vulkan implementations with
-   * fragment shader interlock. The rest of the shader is skipped when the whole quad failed the
-   * depth and stencil test with no late writes pending, detected from zero derivatives of the
-   * covered flag. gl_SampleMaskIn on Vulkan may omit the coverage bits of other sample invocations,
-   * unlike Direct3D SV_Coverage, so the sample friendliest to the half pixel offset is used.
-   * PsParamGen holds X as pixel X .0 with back facing in the sign, Y as pixel Y .0 with point in
-   * the sign, Z as point S with line in the sign and W as point T. Fragment coordinates are rounded
-   * down and made absolute so derivative magnitude and LODs stay correct on the left and top edges.
+   * Pixel killing does not affect control flow, unlike OpKill, as on the Xenos, and keeps a single
+   * critical section exit and return with fragment shader interlock. The rest of the shader is
+   * skipped when the whole quad failed the depth and stencil test with no late writes pending,
+   * detected from zero derivatives of the covered flag. gl_SampleMaskIn on Vulkan may omit the
+   * coverage bits of other sample invocations, unlike Direct3D SV_Coverage, so the sample closest
+   * to the half pixel offset is used.
    */
   void StartFragmentShaderInMain();
   /**
@@ -672,10 +621,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
 
   /**
    * Updates the current flow control condition at the start of exec and in jumps, closing the
-   * previous conditionals when needed. Does not close the instruction level predicate
-   * conditional when the condition is unchanged, callers such as jumps must check separately.
+   * previous conditionals when needed. Does not close the instruction level predicate conditional
+   * when the condition is unchanged, so callers such as jumps must check separately.
    *
-   * @param type Conditional type of the exec instruction.
    * @param bool_constant_index Index of the bool constant for a bool conditional.
    * @param condition Condition the exec requires.
    */
@@ -685,37 +633,27 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * Opens or reopens the predicate check conditional that a non control flow instruction is
    * emitted in.
    *
-   * @param predicated True when the instruction is predicated.
    * @param condition Predicate value the instruction requires.
    */
   void UpdateInstructionPredication(bool predicated, bool condition);
-  /**
-   * Closes the instruction level predicate conditional so a control flow instruction can emit
-   * code that respects the exec conditional without being predicated.
-   */
+  /** Closes the instruction level predicate conditional so control flow code is not predicated. */
   void CloseInstructionPredication();
   /** Closes conditionals opened by exec and the instructions within it, but not by labels. */
   void CloseExecConditionals();
 
   spv::Id GetStorageAddressingIndex(InstructionStorageAddressingMode addressing_mode,
                                     u32 storage_index, bool is_float_constant = false);
-  /**
-   * Loads the unswizzled operand without sign modifiers as float4.
-   *
-   * @param operand Operand to load.
-   * @return Id of the loaded float4.
-   */
+  /** Loads the unswizzled operand without sign modifiers as float4. */
   spv::Id LoadOperandStorage(const InstructionOperand& operand);
   spv::Id ApplyOperandModifiers(spv::Id operand_value, const InstructionOperand& original_operand,
                                 bool invert_negate = false, bool force_absolute = false);
   /**
-   * Returns the requested components with the operand swizzle applied, condensed and without
-   * negation or absolute value modifiers. The storage is float4 whatever the component count.
+   * Returns the requested components with the operand swizzle applied and without negation or
+   * absolute value. The storage is float4 whatever the component count.
    *
-   * @param operand_storage Id of the loaded float4 operand.
+   * @param operand_storage ID of the loaded float4 operand.
    * @param original_operand Operand providing the swizzle.
    * @param components Number of components to return.
-   * @return Id of the requested components.
    */
   spv::Id GetUnmodifiedOperandComponents(spv::Id operand_storage,
                                          const InstructionOperand& original_operand,
@@ -728,9 +666,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
         original_operand, invert_negate, force_absolute);
   }
   /**
-   * Writes the same Id to both outputs when the components are identical.
+   * Writes the same ID to both outputs when the components are identical.
    *
-   * @param operand_storage Id of the loaded float4 operand.
+   * @param operand_storage ID of the loaded float4 operand.
    * @param original_operand Operand providing the swizzle.
    * @param a_out Receives the first component.
    * @param b_out Receives the second component.
@@ -743,17 +681,15 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   /**
    * Returns the absolute value of the loaded operand, or the operand itself when absolute.
    *
-   * @param operand_storage Id of the loaded float4 operand.
+   * @param operand_storage ID of the loaded float4 operand.
    * @param original_operand Operand providing the modifiers.
-   * @return Id of the absolute value.
    */
   spv::Id GetAbsoluteOperand(spv::Id operand_storage, const InstructionOperand& original_operand);
   /**
    * Stores a value to the result. A point size is made non negative, since negative selects the
-   * default size, and clamped like the R400 hardware, functionally a signed 32 bit integer with
-   * -NaN and -Infinity...-0 mapping to the minimum and +NaN to the maximum.
+   * default size, and clamped like the R400 hardware, as a signed 32 bit integer with -NaN and
+   * -Infinity...-0 mapping to the minimum and +NaN to the maximum.
    *
-   * @param result Result destination.
    * @param value Float vector or scalar for the used components, or spv::NoResult for no store.
    * @param can_store_memexport_address Allows only a MAD with a stream constant to write eA.
    */
@@ -767,54 +703,51 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param value Product to replace when needed.
    * @param operand_0_abs Absolute value of the first operand, see GetAbsoluteOperand.
    * @param operand_1_abs Absolute value of the second operand.
-   * @return Id of the product, or +0 when an operand is 0.
+   * @return ID of the product, or +0 when an operand is 0.
    */
   spv::Id ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs, spv::Id operand_1_abs);
   /**
    * Conditionally discards the current fragment and changes the build point. Outstanding memory
-   * exports are performed before the invocation becomes inactive and storage writes are disabled.
+   * exports are performed first.
    *
-   * @param condition Bool Id that is true when the fragment is discarded.
+   * @param condition Bool ID that is true when the fragment is discarded.
    * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    */
   void KillPixel(spv::Id condition, u8 memexport_em_potentially_written_before);
   /**
    * Returns a float vector of rex::BitCount(result.GetUsedResultComponents()) components or a
-   * single float for a reduction instruction, or spv::NoResult when there is nothing to store.
+   * single float for a reduction instruction, or spv::NoResult when there is nothing to store. The
+   * result is a SPIR-V ID.
    *
    * Max and min follow Shader Model 3 NaN behavior (`a op b ? a : b`), unlike SPIR-V FMax and FMin
    * that are undefined for NaN and NMax and NMin that return the non NaN operand. Max4 uses NMax.
-   * Cube takes operands[0] as .z_xy and returns the T
-   * coordinate, S coordinate, 2 * major axis and face ID. For major axis Z, tc = -y,
-   * `sc = z < 0 ? -x : x` and `id = z < 0 ? 5 : 4`. For Y, sc = x, `tc = y < 0 ? -z : z` and
-   * `id = y < 0 ? 3 : 2`. For X, tc = -y, `sc = x < 0 ? z : -z` and `id = x < 0 ? 1 : 0`. The
-   * setp push opcodes set p0 = src0.w == 0 && src1.w op 0 and return
-   * `(src0.x == 0 && src1.x op 0) ? 0 : src0.x + 1`. Dst returns x = 1, y = src0.y * src1.y,
-   * z = src0.z and w = src1.w. Maxa sets a0 = (int)clamp(floor(src0.w + 0.5), -256, 255).
+   * Cube takes operands[0] as .z_xy and returns the T coordinate, S coordinate, 2 * major axis and
+   * face ID. For major axis Z, tc = -y, `sc = z < 0 ? -x : x` and `id = z < 0 ? 5 : 4`. For Y,
+   * sc = x, `tc = y < 0 ? -z : z` and `id = y < 0 ? 3 : 2`. For X, tc = -y,
+   * `sc = x < 0 ? z : -z` and `id = x < 0 ? 1 : 0`. The setp push opcodes set
+   * p0 = src0.w == 0 && src1.w op 0 and return `(src0.x == 0 && src1.x op 0) ? 0 : src0.x + 1`.
+   * Dst returns x = 1, y = src0.y * src1.y, z = src0.z and w = src1.w. Maxa sets
+   * a0 = (int)clamp(floor(src0.w + 0.5), -256, 255).
    *
-   * @param instr Parsed ALU instruction.
    * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    * @param predicate_written Set when the operation writes the predicate.
-   * @return Id of the vector result.
    */
-  spv::Id ProcessVectorALUOperation(const ParsedAluInstruction& instr,
+  spv::Id ProcessVectorALUOperation(const ParsedALUInstruction& instr,
                                     u8 memexport_em_potentially_written_before,
                                     bool& predicate_written);
   /**
    * Returns the float to write to the previous scalar register and the destination, or
-   * spv::NoResult when it is ps itself in the retain_prev case.
+   * spv::NoResult when it is ps itself in the retain_prev case. The result is a SPIR-V ID.
    *
    * Max and min use the Shader Model 3 NaN behavior as in the vector operations. Maxas sets
    * a0 = (int)clamp(floor(src0.a + 0.5), -256, 255) and maxasf uses floor(src0.a). Muls_prev2
    * multiplies src0.a by ps only when ps is finite and not -FLT_MAX, src0.b is finite and
    * src0.b > 0, otherwise it returns -FLT_MAX.
    *
-   * @param instr Parsed ALU instruction.
    * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    * @param predicate_written Set when the operation writes the predicate.
-   * @return Id of the scalar result.
    */
-  spv::Id ProcessScalarALUOperation(const ParsedAluInstruction& instr,
+  spv::Id ProcessScalarALUOperation(const ParsedALUInstruction& instr,
                                     u8 memexport_em_potentially_written_before,
                                     bool& predicate_written);
 
@@ -827,13 +760,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * indexing. The binding split is by log2(512 MB) = 29 in bytes, addressing in dwords.
    *
    * @param address_dwords_int Signed int address in dwords.
-   * @return Id of the loaded uint32.
    */
   spv::Id LoadUint32FromSharedMemory(spv::Id address_dwords_int);
   /**
-   * Stores a uint32 to shared memory.
-   *
-   * @param value Uint32 to store.
    * @param address_dwords_int Signed int address in dwords.
    * @param replace_mask Bits to replace via OpAtomicAnd and OpAtomicOr, other bits of value are
    * ignored.
@@ -855,62 +784,47 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   /**
    * Emits the memory export writes for the written eM# elements. Writes only when the address in
    * eA has sign and exponent bits 0x1 and 0x96 (an index within the mantissa bits) and the index
-   * stays inside the 23 bit limited stream. The stream base is converted from dwords to bytes by
-   * a left shift of 2 that drops the upper bits. Color format packing follows the Direct3D
-   * conversion rules, rounding by adding plus or minus 0.5 before truncation, and requires
-   * widths without holes that add up to the texel size of 8, 16 or 32 bits and are at most 23
-   * bits so max + 0.5 is exact.
-   *
-   * @param export_em Bit mask of the eM# elements to export.
+   * stays inside the 23 bit limited stream. The stream base is converted from dwords to bytes by a
+   * left shift of 2 that discards the upper bits. Color format packing follows the Direct3D
+   * conversion rules, rounding by adding plus or minus 0.5 before truncation, and requires widths
+   * without holes that add up to the texel size of 8, 16 or 32 bits and are at most 23 bits so
+   * max + 0.5 is exact.
    */
   void ExportToMemory(u8 export_em);
 
   /**
    * Converts piecewise linear gamma to linear. The source may be a float scalar or vector.
    *
-   * @param gamma Gamma value.
    * @param gamma_pre_saturated True when the gamma value is already saturated.
-   * @return Id of the linear value.
    */
   spv::Id PWLGammaToLinear(spv::Id gamma, bool gamma_pre_saturated);
   spv::Id LinearToPWLGamma(spv::Id linear, bool linear_pre_saturated);
 
   /**
-   * 1D and 2D textures, including stacked ones, are bound as 2D arrays.
+   * Binds 1D and 2D textures, including stacked ones, as 2D arrays.
    *
-   * @param fetch_constant Fetch constant index.
-   * @param dimension Fetch dimension.
    * @param is_signed True for the signed texture version.
-   * @return Index of the texture binding.
    */
   size_t FindOrAddTextureBinding(u32 fetch_constant, xenos::FetchOpDimension dimension,
                                  bool is_signed);
   /**
-   * Sampler binding indices are assigned after all textures are added, as samplers follow images
-   * in the descriptor set.
-   *
-   * @param fetch_constant Fetch constant index.
-   * @param mag_filter Magnification filter.
-   * @param min_filter Minification filter.
-   * @param mip_filter Mip filter.
-   * @param aniso_filter Anisotropic filter.
-   * @return Index of the sampler binding.
+   * Sampler binding indices are assigned after all textures are added, as samplers follow images in
+   * the descriptor set.
    */
   size_t FindOrAddSamplerBinding(u32 fetch_constant, xenos::TextureFilter mag_filter,
                                  xenos::TextureFilter min_filter, xenos::TextureFilter mip_filter,
                                  xenos::AnisoFilter aniso_filter);
   /**
    * Samples with texture_parameters set up except for sampler. Optionally interpolates between an
-   * existing value and the new one, the result may alias the first lerp endpoint but not across
+   * existing value and the new one, and the result may alias the first lerp endpoint but not across
    * signedness.
    *
    * @param texture_parameters Sampling parameters, with the sampler left unset.
-   * @param image_operands_mask Image operands mask.
-   * @param image_unsigned Unsigned texture Id.
-   * @param image_signed Signed texture Id.
-   * @param sampler Sampler Id.
-   * @param is_any_unsigned Bool Id that is true when any component is unsigned.
-   * @param is_any_signed Bool Id that is true when any component is signed.
+   * @param image_unsigned Unsigned texture ID.
+   * @param image_signed Signed texture ID.
+   * @param sampler Sampler ID.
+   * @param is_any_unsigned Bool ID that is true when any component is unsigned.
+   * @param is_any_signed Bool ID that is true when any component is signed.
    * @param result_unsigned_out Receives the unsigned sample.
    * @param result_signed_out Receives the signed sample.
    * @param lerp_factor Interpolation factor, or spv::NoResult for no interpolation.
@@ -925,25 +839,21 @@ class SPIRVShaderTranslator : public ShaderTranslator {
                      spv::Id lerp_first_unsigned = spv::NoResult,
                      spv::Id lerp_first_signed = spv::NoResult);
   /**
-   * Returns the LOD queried with texture_parameters set up except for the sampler.
+   * Returns the LOD queried with texture_parameters set up except for the sampler. The result is a
+   * SPIR-V ID.
    *
    * @param texture_parameters Sampling parameters, with the sampler left unset.
-   * @param image_unsigned Unsigned texture Id.
-   * @param image_signed Signed texture Id.
-   * @param sampler Sampler Id.
-   * @param is_all_signed Bool Id that is true when all components are signed.
-   * @return Id of the queried LOD.
+   * @param image_unsigned Unsigned texture ID.
+   * @param image_signed Signed texture ID.
+   * @param sampler Sampler ID.
+   * @param is_all_signed Bool ID that is true when all components are signed.
    */
   spv::Id QueryTextureLOD(spv::Builder::TextureParameters& texture_parameters,
                           spv::Id image_unsigned, spv::Id image_signed, spv::Id sampler,
                           spv::Id is_all_signed);
 
   spv::Id LoadMSAASamplesFromFlags();
-  /**
-   * Reports whether skipping the translated shader for 2x2 quads is possible and worthwhile.
-   *
-   * @return True when the depth and stencil test can run early.
-   */
+  /** Reports whether the depth and stencil test runs early. */
   bool FSIIsDepthStencilEarly() const {
     REX_ASSERT(edram_fragment_shader_interlock_);
     return !is_depth_only_fragment_shader_ && !GetCurrentShader().IsDepthWritten() &&
@@ -954,25 +864,19 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * 2x samples are bottom, top and 4x samples are TL, TR, BL, BR, remapped to T, B for 2x and to
    * TL, BL, TR, BR for 4x. 2x corresponds to Vulkan samples 1, 0 with native 2x MSAA and 0, 3 with
    * 2x as 4x, and 4x corresponds to 0, 2, 1, 3.
-   *
-   * @param msaa_samples Uint Id of the MSAA sample count.
    */
   void FSILoadSampleMask(spv::Id msaa_samples);
   /**
    * A 32bpp tile is 80x16 samples in 2 half tiles of 40x16 and a 64bpp tile is 40x16. Depth and
    * stencil place samples 40...79 in the first half tile and 0...39 in the second, flipped
    * compared to color. Addresses wrap modulo the EDRAM size.
-   *
-   * @param msaa_samples Uint Id of the MSAA sample count.
    */
   void FSILoadEDRAMOffsets(spv::Id msaa_samples);
   /**
    * The address must be a signed int.
    *
    * @param sample_0_address Signed int address of sample 0.
-   * @param sample_index Index of the sample.
    * @param is_64bpp Bool for a 64bpp render target, or spv::NoResult for 32bpp.
-   * @return Id of the sample address.
    */
   spv::Id FSIAddSampleOffset(spv::Id sample_0_address, u32 sample_index,
                              spv::Id is_64bpp = spv::NoResult);
@@ -984,20 +888,18 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * GLSL. The polygon offset is applied at the center without clamping so that derivatives scaled
    * by the sample locations added afterwards stay linear. The new depth is converted to 24 bit
    * rounding to nearest even. Stencil increment and decrement with wrap ignore the upper old
-   * depth bits. Sample positions are the center for no MSAA, top left for native 2x, 2x as 4x
-   * and 4x, and for guest 2x the bottom right, for guest 4x the bottom left.
+   * depth bits. Sample positions are the center for no MSAA, top left for native 2x, 2x as 4x and
+   * 4x, and for guest 2x the bottom right, for guest 4x the bottom left.
    *
-   * @param msaa_samples Uint Id of the MSAA sample count.
+   * @param msaa_samples Uint ID of the MSAA sample count.
    * @param sample_mask_potentially_narrowed_previously True when the sample mask may be narrowed.
    */
   void FSIDepthStencilTest(spv::Id msaa_samples, bool sample_mask_potentially_narrowed_previously);
   /**
-   * Returns the first and second 32 bits as 2 uints. NaN is flushed to 0 rather than the minimum
+   * Returns the first and second 32 bits as two uints. NaN is flushed to 0 rather than the minimum
    * value, and the extended range Xenos float16 is unsupported.
    *
-   * @param color_float4 Float4 color to clamp and pack.
-   * @param format_with_flags Uint Id of the color format with flags.
-   * @return The packed color as 2 uints.
+   * @param format_with_flags Uint ID of the color format with flags.
    */
   std::array<spv::Id, 2> FSIClampAndPackColor(spv::Id color_float4, spv::Id format_with_flags);
   std::array<spv::Id, 4> FSIUnpackColor(std::array<spv::Id, 2> color_packed,
@@ -1005,11 +907,10 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   /**
    * The bounds must have the same component count as the color or alpha.
    *
-   * @param color_or_alpha Color or alpha value.
-   * @param is_fixed_point Bool Id that is true for a fixed point format.
+   * @param is_fixed_point Bool ID that is true for a fixed point format.
    * @param min_value Lower bound.
    * @param max_value Upper bound.
-   * @return Id of the flushed and clamped value.
+   * @return ID of the flushed and clamped value.
    */
   spv::Id FSIFlushNaNAndClampForBlending(spv::Id color_or_alpha, spv::Id is_fixed_point,
                                          spv::Id min_value, spv::Id max_value);
@@ -1017,17 +918,13 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * A zero factor is excluded from the multiplication so infinity and NaN do not take part.
    *
    * @param value Color to scale.
-   * @param is_fixed_point Bool Id that is true for a fixed point format.
+   * @param is_fixed_point Bool ID that is true for a fixed point format.
    * @param clamp_min_value Lower clamp bound.
    * @param clamp_max_value Upper clamp bound.
    * @param factor Blend factor.
-   * @param source_color Source color.
-   * @param source_alpha Source alpha.
-   * @param dest_color Destination color.
-   * @param dest_alpha Destination alpha.
    * @param constant_color Blend constant color.
    * @param constant_alpha Blend constant alpha.
-   * @return Id of the scaled color.
+   * @return ID of the scaled color.
    */
   spv::Id FSIApplyColorBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
                                    spv::Id clamp_max_value, spv::Id factor, spv::Id source_color,
@@ -1037,14 +934,12 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * A zero factor is excluded from the multiplication so infinity and NaN do not take part.
    *
    * @param value Alpha to scale.
-   * @param is_fixed_point Bool Id that is true for a fixed point format.
+   * @param is_fixed_point Bool ID that is true for a fixed point format.
    * @param clamp_min_value Lower clamp bound.
    * @param clamp_max_value Upper clamp bound.
    * @param factor Blend factor.
-   * @param source_alpha Source alpha.
-   * @param dest_alpha Destination alpha.
    * @param constant_alpha Blend constant alpha.
-   * @return Id of the scaled alpha.
+   * @return ID of the scaled alpha.
    */
   spv::Id FSIApplyAlphaBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
                                    spv::Id clamp_max_value, spv::Id factor, spv::Id source_alpha,
@@ -1053,19 +948,15 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * Blends the alpha when source_color_clamped, dest_color and constant_color_clamped are
    * spv::NoResult, otherwise the color. The result is unclamped, color packing clamps it.
    *
-   * @param is_fixed_point Bool Id that is true for a fixed point format.
+   * @param is_fixed_point Bool ID that is true for a fixed point format.
    * @param clamp_min_value Lower clamp bound.
    * @param clamp_max_value Upper clamp bound.
-   * @param source_color_clamped Clamped source color.
-   * @param source_alpha_clamped Clamped source alpha.
-   * @param dest_color Destination color.
-   * @param dest_alpha Destination alpha.
    * @param constant_color_clamped Clamped blend constant color.
    * @param constant_alpha_clamped Clamped blend constant alpha.
    * @param equation Blend equation.
    * @param source_factor Source blend factor.
    * @param dest_factor Destination blend factor.
-   * @return Id of the unclamped blend result.
+   * @return ID of the unclamped blend result.
    */
   spv::Id FSIBlendColorOrAlphaWithUnclampedResult(
       spv::Id is_fixed_point, spv::Id clamp_min_value, spv::Id clamp_max_value,
@@ -1078,14 +969,13 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   bool native_2x_msaa_no_attachments_;
 
   /**
-   * Interlock begin and end must be called only on the outermost control flow level of main,
-   * with no return before either, matching the OpenGL fragment shader interlock limits.
+   * Interlock begin and end must be called only on the outermost control flow level of main, with
+   * no return before either, matching the OpenGL fragment shader interlock limits.
    */
   bool edram_fragment_shader_interlock_;
   u32 draw_resolution_scale_x_;
   u32 draw_resolution_scale_y_;
 
-  /** Reports whether the empty depth only pixel shader is being written. */
   bool is_depth_only_fragment_shader_ = false;
 
   std::unique_ptr<SPIRVBuilder> builder_;
@@ -1275,9 +1165,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Id var_main_loop_address_;
   spv::Id var_main_address_register_;
   spv::Id var_main_previous_scalar_;
-  /**
-   * int, `base + index * stride` in dwords from the last vfetch_full, needed by vfetch_mini.
-   */
+  /** int, `base + index * stride` in dwords from the last vfetch_full, needed by vfetch_mini. */
   spv::Id var_main_vfetch_address_;
   spv::Id var_main_tfetch_lod_;
   spv::Id var_main_tfetch_gradients_h_;
@@ -1285,9 +1173,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Id var_main_registers_;
   spv::Id var_main_memexport_address_;
   spv::Id var_main_memexport_data_[xenos::ucode::kMaxMemExportElementCount];
-  /**
-   * uint bit field of the eM# elements written by the invocation since the last memory write.
-   */
+  /** uint bit field of the eM# elements written by the invocation since the last memory write. */
   spv::Id var_main_memexport_data_written_;
   /**
    * bool, whether memory export is allowed in the current execution of the translated code. It is
@@ -1302,7 +1188,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * BuiltIn member decorations are valid only for Input and Output variables.
    */
   spv::Id var_main_rectangle_per_vertex_;
-  /** 1 per user clip plane plus 1 cull distance for vertex killing. */
+  /** One per user clip plane plus one cull distance for vertex killing. */
   static constexpr size_t kMaxRectanglePerVertexDistances = 8;
   /**
    * float[3] per clip and cull distance, VS rectangle list fallback only. Kept separate from
@@ -1346,13 +1232,11 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Block* main_loop_header_;
   spv::Block* main_loop_continue_;
   /**
-   * Convergence of loop body exits before per iteration finalization in the rectangle list vertex
-   * fallback, otherwise the loop merge too.
+   * Block where loop body exits converge before per iteration finalization in the rectangle list
+   * vertex fallback, otherwise the loop merge too.
    */
   spv::Block* main_loop_merge_;
-  /**
-   * Loop merge for the rectangle list vertex fallback, otherwise the same as main_loop_merge_.
-   */
+  /** Loop merge for the rectangle list vertex fallback, otherwise the same as main_loop_merge_. */
   spv::Block* main_loop_exit_;
   spv::Id main_loop_pc_next_;
   spv::Block* main_switch_header_;
@@ -1360,14 +1244,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Block* main_switch_merge_;
   std::vector<spv::Id> main_switch_next_pc_phi_operands_;
 
-  /**
-   * Block after the open exec bool constant or predicate conditional, not yet added to the
-   * function.
-   */
+  /** Block after the open exec conditional, not yet added to the function. */
   spv::Block* cf_exec_conditional_merge_;
-  /**
-   * Block after the open instruction level predicate conditional, not yet added to the function.
-   */
+  /** Block after the open instruction predicate conditional, not yet added to the function. */
   spv::Block* cf_instruction_predicate_merge_;
   /**
    * With cf_exec_conditional_merge_ set, the bool constant number or kCFExecBoolConstantPredicate
@@ -1381,7 +1260,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   bool cf_instruction_predicate_condition_;
   /**
    * True when a `setp` occurred in the current exec before the current instruction, so the
-   * instruction level predicate can differ from the exec level one and 2 execs with the same
+   * instruction level predicate can differ from the exec level one and two execs with the same
    * predicate condition cannot merge.
    */
   bool cf_exec_predicate_written_;
