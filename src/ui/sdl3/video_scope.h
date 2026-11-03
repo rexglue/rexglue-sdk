@@ -19,8 +19,9 @@
 
 #include <rex/platform.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
-namespace rex::ui {
+namespace rex::ui::sdl3 {
 
 class VideoScope : public rex::NonCopyable {
  public:
@@ -55,4 +56,4 @@ class VideoScope : public rex::NonCopyable {
   std::string error_;
 };
 
-}  // namespace rex::ui
+}  // namespace rex::ui::sdl3

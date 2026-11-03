@@ -15,12 +15,12 @@
 #include <SDL3/SDL_stdinc.h>
 #include <SDL3/SDL_video.h>
 
-#include "ui/sdl3/user_interface.h"
+#include "ui/sdl3/sdl_helper.h"
 #include "ui/sdl3/video_scope.h"
 
-namespace rex::ui {
+namespace rex::ui::sdl3 {
 
-std::vector<Monitor> SDL3UserInterface::GetDisplays() {
+std::vector<Monitor> GetSDLDisplays() {
   VideoScope video;
   if (!video.IsOk()) {
     return {};
@@ -57,7 +57,7 @@ std::vector<Monitor> SDL3UserInterface::GetDisplays() {
   return displays;
 }
 
-std::vector<HostLocale> SDL3UserInterface::GetPreferredLocales() {
+std::vector<HostLocale> GetSDLPreferredLocales() {
   i32 count = 0;
   std::unique_ptr<SDL_Locale*, decltype(&SDL_free)> locales(SDL_GetPreferredLocales(&count),
                                                             &SDL_free);
@@ -74,4 +74,4 @@ std::vector<HostLocale> SDL3UserInterface::GetPreferredLocales() {
   return result;
 }
 
-}  // namespace rex::ui
+}  // namespace rex::ui::sdl3

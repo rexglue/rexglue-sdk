@@ -15,18 +15,14 @@
 #include <climits>
 #include <filesystem>
 
+#include <rex/hid/input_keys.h>
 #include <rex/types.h>
-#include <rex/ui.h>
-#include <rex/hid/virtual_key.h>
 
 namespace rex::ui {
 
-class IWindow;
-
-/** Base of every window and input event. */
+/** Base of every window event. */
 class UIEvent {
  public:
-  /** Kinds of event. */
   enum class Type : u8 {
     kOpened,        /**< The window opened. UISetupEvent. */
     kDPIChanged,    /**< The window's DPI changed. UISetupEvent. */
@@ -34,49 +30,23 @@ class UIEvent {
     kMinimized,     /**< The window was minimized. No data. */
     kRestored,      /**< The window was restored. No data. */
     kClosing,       /**< The window is closing after the close was accepted. No data. */
-    kFileDrop,      /**< A file was dropped on the window. FileDropEvent. */
-    kResize,        /**< The client area changed size. ResizeEvent. */
+    kFileDrop,      /**< A file was moved onto the window. FileDropEvent. */
+    kResize,        /**< The client area changed size. UISetupEvent. */
     kClose,         /**< The user asked to close the window. No data. */
-    kFocus,         /**< The window gained or lost focus. FocusEvent. */
-    kKeyDown,       /**< A key was pressed. KeyEvent. */
-    kKeyUp,         /**< A key was released. KeyEvent. */
-    kChar,          /**< Text was typed. KeyEvent. */
-    kMouseDown,     /**< A mouse button was pressed. MouseEvent. */
-    kMouseUp,       /**< A mouse button was released. MouseEvent. */
-    kMouseMove,     /**< The mouse moved. MouseEvent. */
-    kMouseWheel,    /**< The wheel turned. MouseEvent. */
+    kFocus,         /**< The window gained or lost focus. UISetupEvent. */
     kTouch,         /**< A touch point changed. TouchEvent. */
   };
 
-  /**
-   * Creates an event.
-   *
-   * @param type Event kind.
-   * @param target Window the event belongs to.
-   */
-  UIEvent(Type type, IWindow* target) : type_(type), target_(target) {}
+  explicit UIEvent(Type type) : type_(type) {}
 
   virtual ~UIEvent() = default;
 
-  /**
-   * Returns the event kind.
-   *
-   * @return The type the event was created with.
-   */
   Type GetType() const { return type_; }
-
-  /**
-   * Returns the window the event belongs to.
-   *
-   * @return The target window.
-   */
-  IWindow* GetTarget() const { return target_; }
 
   /**
    * Casts this event to the class that carries its data.
    *
-   * @tparam T A class derived from UIEvent.
-   * @return This event as T when GetType() is 1 of the types T carries, otherwise null.
+   * @return This event as T when GetType() is one of the types T carries, otherwise null.
    */
   template <typename T>
   const T* As() const {
@@ -85,7 +55,6 @@ class UIEvent {
 
  private:
   Type type_;
-  IWindow* target_;
 };
 
 /** Carries the setup state for the window opening, DPI, resize, focus and monitor events. */
@@ -95,16 +64,14 @@ class UISetupEvent : public UIEvent {
    * Creates a setup event.
    *
    * @param type Opened, DPIChanged, Resize, Focus or MonitorUpdate.
-   * @param target Window the event belongs to.
    * @param is_initial_setup True when the window is opening.
    */
-  UISetupEvent(Type type, IWindow* target, bool is_initial_setup = false)
-      : UIEvent(type, target), is_initial_setup_(is_initial_setup) {}
+  UISetupEvent(Type type, bool is_initial_setup = false)
+      : UIEvent(type), is_initial_setup_(is_initial_setup) {}
 
   /**
    * Reports whether this class carries a type.
    *
-   * @param type The type to test.
    * @return True for Opened, DPIChanged, Resize, Focus and MonitorUpdate.
    */
   static constexpr bool Carries(Type type) {
@@ -112,415 +79,82 @@ class UISetupEvent : public UIEvent {
            type == Type::kFocus || type == Type::kMonitorUpdate;
   }
 
-  /**
-   * Reports whether the window is opening.
-   *
-   * @return True when the event is part of the window opening.
-   */
   bool IsInitialSetup() const { return is_initial_setup_; }
 
  private:
   bool is_initial_setup_;
 };
 
-/** Carries the new client area size for UIEvent::Type::kResize. */
-class ResizeEvent : public UISetupEvent {
- public:
-  /**
-   * Creates a resize event.
-   *
-   * @param target Window the event belongs to.
-   * @param size The client area size after the change.
-   * @param is_initial_setup True when the window is opening.
-   */
-  ResizeEvent(IWindow* target, WindowSize size, bool is_initial_setup = false)
-      : UISetupEvent(Type::kResize, target, is_initial_setup), size_(size) {}
-
-  /**
-   * Reports whether this class carries a type.
-   *
-   * @param type The type to test.
-   * @return True for Resize.
-   */
-  static constexpr bool Carries(Type type) { return type == Type::kResize; }
-
-  /**
-   * Returns the new client area size.
-   *
-   * @return The size after the change.
-   */
-  WindowSize GetSize() const { return size_; }
-
- private:
-  WindowSize size_;
-};
-
-/** Carries the focus state for UIEvent::Type::kFocus. */
-class FocusEvent : public UISetupEvent {
- public:
-  /**
-   * Creates a focus event.
-   *
-   * @param target Window the event belongs to.
-   * @param focused True when the window gained focus.
-   * @param is_initial_setup True when the window is opening.
-   */
-  FocusEvent(IWindow* target, bool focused, bool is_initial_setup = false)
-      : UISetupEvent(Type::kFocus, target, is_initial_setup), focused_(focused) {}
-
-  /**
-   * Reports whether this class carries a type.
-   *
-   * @param type The type to test.
-   * @return True for Focus.
-   */
-  static constexpr bool Carries(Type type) { return type == Type::kFocus; }
-
-  /**
-   * Reports whether the window gained focus.
-   *
-   * @return True when the window gained focus, false when it lost it.
-   */
-  bool IsFocused() const { return focused_; }
-
- private:
-  bool focused_;
-};
-
-/** Carries the monitor change for UIEvent::Type::kMonitorUpdate. */
 class MonitorUpdateEvent : public UISetupEvent {
  public:
   /**
    * Creates a monitor update event.
    *
-   * @param target Window the event belongs to.
    * @param old_monitor_potentially_disconnected True when the previous monitor may be gone.
    * @param is_initial_setup True when the window is opening.
    */
-  MonitorUpdateEvent(IWindow* target, bool old_monitor_potentially_disconnected,
-                     bool is_initial_setup = false)
-      : UISetupEvent(Type::kMonitorUpdate, target, is_initial_setup),
+  MonitorUpdateEvent(bool old_monitor_potentially_disconnected, bool is_initial_setup = false)
+      : UISetupEvent(Type::kMonitorUpdate, is_initial_setup),
         old_monitor_potentially_disconnected_(old_monitor_potentially_disconnected) {}
 
   /**
    * Reports whether this class carries a type.
    *
-   * @param type The type to test.
    * @return True for MonitorUpdate.
    */
   static constexpr bool Carries(Type type) { return type == Type::kMonitorUpdate; }
 
-  /**
-   * Reports whether the previous monitor may have been disconnected.
-   *
-   * @return True when the previous monitor may be gone.
-   */
   bool IsOldMonitorPotentiallyDisconnected() const { return old_monitor_potentially_disconnected_; }
 
  private:
   bool old_monitor_potentially_disconnected_;
 };
 
-/** Carries the dropped file for UIEvent::Type::kFileDrop. */
 class FileDropEvent : public UIEvent {
  public:
-  /**
-   * Creates a file drop event.
-   *
-   * @param target Window the event belongs to.
-   * @param filename Path of the dropped file.
-   */
-  FileDropEvent(IWindow* target, std::filesystem::path filename)
-      : UIEvent(Type::kFileDrop, target), filename_(std::move(filename)) {}
+  /** Creates an event for a file moved onto the window. */
+  FileDropEvent(std::filesystem::path filename)
+      : UIEvent(Type::kFileDrop), filename_(std::move(filename)) {}
 
   /**
    * Reports whether this class carries a type.
    *
-   * @param type The type to test.
    * @return True for FileDrop.
    */
   static constexpr bool Carries(Type type) { return type == Type::kFileDrop; }
 
-  /**
-   * Returns the dropped file.
-   *
-   * @return Path of the dropped file.
-   */
+  /** Returns the file moved onto the window. */
   const std::filesystem::path& GetFilename() const { return filename_; }
 
  private:
   const std::filesystem::path filename_;
 };
 
-/** Carries a key press, release or typed character. */
-class KeyEvent : public UIEvent {
- public:
-  /**
-   * Creates a key event.
-   *
-   * @param type KeyDown, KeyUp or Char.
-   * @param target Window the event belongs to.
-   * @param virtual_key The key, or the typed code point for Char.
-   * @param repeat_count Number of repeats the event stands for.
-   * @param prev_state True when the key was down before this event.
-   * @param modifier_shift_pressed True while Shift is held.
-   * @param modifier_ctrl_pressed True while Ctrl is held.
-   * @param modifier_alt_pressed True while Alt is held.
-   */
-  KeyEvent(Type type, IWindow* target, hid::VirtualKey virtual_key, i32 repeat_count,
-           bool prev_state, bool modifier_shift_pressed, bool modifier_ctrl_pressed,
-           bool modifier_alt_pressed)
-      : UIEvent(type, target),
-        virtual_key_(virtual_key),
-        repeat_count_(repeat_count),
-        prev_state_(prev_state),
-        modifier_shift_pressed_(modifier_shift_pressed),
-        modifier_ctrl_pressed_(modifier_ctrl_pressed),
-        modifier_alt_pressed_(modifier_alt_pressed) {}
-
-  /**
-   * Reports whether this class carries a type.
-   *
-   * @param type The type to test.
-   * @return True for KeyDown, KeyUp and Char.
-   */
-  static constexpr bool Carries(Type type) {
-    return type == Type::kKeyDown || type == Type::kKeyUp || type == Type::kChar;
-  }
-
-  /**
-   * Reports whether a listener consumed the event.
-   *
-   * @return True once a listener marked the event handled.
-   */
-  bool IsHandled() const { return handled_; }
-
-  /**
-   * Marks the event consumed.
-   *
-   * @param value True stops later listeners from acting on it.
-   */
-  void SetHandled(bool value) { handled_ = value; }
-
-  /**
-   * Returns the key.
-   *
-   * @return The key, or the typed code point for Char.
-   */
-  hid::VirtualKey GetVirtualKey() const { return virtual_key_; }
-
-  /**
-   * Returns the repeat count.
-   *
-   * @return Number of repeats the event stands for.
-   */
-  i32 GetRepeatCount() const { return repeat_count_; }
-
-  /**
-   * Reports whether the key was down before this event.
-   *
-   * @return True when the key was already down.
-   */
-  bool WasKeyDown() const { return prev_state_; }
-
-  /**
-   * Reports whether Shift was held.
-   *
-   * @return True while Shift is held.
-   */
-  bool IsShiftPressed() const { return modifier_shift_pressed_; }
-
-  /**
-   * Reports whether Ctrl was held.
-   *
-   * @return True while Ctrl is held.
-   */
-  bool IsCtrlPressed() const { return modifier_ctrl_pressed_; }
-
-  /**
-   * Reports whether Alt was held.
-   *
-   * @return True while Alt is held.
-   */
-  bool IsAltPressed() const { return modifier_alt_pressed_; }
-
- private:
-  bool handled_ = false;
-  hid::VirtualKey virtual_key_ = hid::VirtualKey::kNone;
-  i32 repeat_count_ = 0;
-  bool prev_state_ = false;
-  bool modifier_shift_pressed_ = false;
-  bool modifier_ctrl_pressed_ = false;
-  bool modifier_alt_pressed_ = false;
-};
-
-/** Carries a mouse button, move or wheel change. */
-class MouseEvent : public UIEvent {
- public:
-  /** Mouse buttons. */
-  enum class Button : u8 {
-    kNone = 0, /**< No button. */
-    kLeft,     /**< The left button. */
-    kRight,    /**< The right button. */
-    kMiddle,   /**< The middle button. */
-    kX1,       /**< The first extra button. */
-    kX2,       /**< The second extra button. */
-  };
-
-  /** Scroll units per wheel detent, matching the Windows WHEEL_DELTA. */
-  static constexpr u32 kScrollPerDetent = 120;
-
-  /**
-   * Creates a mouse event.
-   *
-   * @param type MouseDown, MouseUp, MouseMove or MouseWheel.
-   * @param target Window the event belongs to.
-   * @param button The button, kNone for a move or wheel.
-   * @param x Cursor x in physical pixels.
-   * @param y Cursor y in physical pixels.
-   * @param scroll_x Horizontal wheel change.
-   * @param scroll_y Vertical wheel change, positive away from the user.
-   * @param dx Motion since the previous event in physical pixels.
-   * @param dy Motion since the previous event in physical pixels.
-   */
-  MouseEvent(Type type, IWindow* target, Button button, i32 x, i32 y, i32 scroll_x = 0,
-             i32 scroll_y = 0, f32 dx = 0.0f, f32 dy = 0.0f)
-      : UIEvent(type, target),
-        button_(button),
-        x_(x),
-        y_(y),
-        scroll_x_(scroll_x),
-        scroll_y_(scroll_y),
-        dx_(dx),
-        dy_(dy) {}
-
-  /**
-   * Reports whether this class carries a type.
-   *
-   * @param type The type to test.
-   * @return True for MouseDown, MouseUp, MouseMove and MouseWheel.
-   */
-  static constexpr bool Carries(Type type) {
-    return type == Type::kMouseDown || type == Type::kMouseUp || type == Type::kMouseMove ||
-           type == Type::kMouseWheel;
-  }
-
-  /**
-   * Reports whether a listener consumed the event.
-   *
-   * @return True once a listener marked the event handled.
-   */
-  bool IsHandled() const { return handled_; }
-
-  /**
-   * Marks the event consumed.
-   *
-   * @param value True stops later listeners from acting on it.
-   */
-  void SetHandled(bool value) { handled_ = value; }
-
-  /**
-   * Returns the button.
-   *
-   * @return The button, kNone for a move or wheel.
-   */
-  Button GetButton() const { return button_; }
-
-  /**
-   * Returns the cursor x.
-   *
-   * @return Cursor x in physical pixels.
-   */
-  i32 GetX() const { return x_; }
-
-  /**
-   * Returns the cursor y.
-   *
-   * @return Cursor y in physical pixels.
-   */
-  i32 GetY() const { return y_; }
-
-  /**
-   * Returns the horizontal wheel change.
-   *
-   * @return Scroll units, kScrollPerDetent per detent.
-   */
-  i32 GetScrollX() const { return scroll_x_; }
-
-  /**
-   * Returns the vertical wheel change.
-   *
-   * @return Scroll units, positive away from the user.
-   */
-  i32 GetScrollY() const { return scroll_y_; }
-
-  /**
-   * Returns the motion since the previous event. Moves while the pointer is locked for mouse look,
-   * where x and y do not.
-   *
-   * @return Fractional physical pixels.
-   */
-  f32 GetDx() const { return dx_; }
-
-  /**
-   * Returns the motion since the previous event. Moves while the pointer is locked for mouse look,
-   * where x and y do not.
-   *
-   * @return Fractional physical pixels.
-   */
-  f32 GetDy() const { return dy_; }
-
- private:
-  bool handled_ = false;
-  Button button_;
-  i32 x_ = 0;
-  i32 y_ = 0;
-  i32 scroll_x_ = 0;
-  i32 scroll_y_ = 0;
-  f32 dx_ = 0.0f;
-  f32 dy_ = 0.0f;
-};
-
-/** Carries a touch point change. */
 class TouchEvent : public UIEvent {
  public:
-  /** Touch point changes. */
   enum class Action : u8 {
-    kDown,   /**< The point touched down. */
-    kUp,     /**< The point lifted. */
+    kDown,
+    kUp,
     kCancel, /**< The point lifted without its usual release action. */
-    kMove,   /**< The point moved. */
+    kMove,
   };
 
-  /** Pointer id meaning no current pointer. */
+  /** Pointer ID meaning no current pointer. */
   static constexpr u32 kPointerIDNone = UINT32_MAX;
 
   /**
    * Creates a touch event.
    *
-   * @param type Touch.
-   * @param target Window the event belongs to.
-   * @param pointer_id Id of the touch point.
-   * @param action What the point did.
    * @param x Point x, possibly outside the surface.
    * @param y Point y, possibly outside the surface.
    */
-  TouchEvent(Type type, IWindow* target, u32 pointer_id, Action action, f32 x, f32 y)
-      : UIEvent(type, target), pointer_id_(pointer_id), action_(action), x_(x), y_(y) {}
+  TouchEvent(Type type, u32 pointer_id, Action action, f32 x, f32 y)
+      : UIEvent(type), pointer_id_(pointer_id), action_(action), x_(x), y_(y) {}
 
-  /**
-   * Reports whether this class carries a type.
-   *
-   * @param type The type to test.
-   * @return True for Touch.
-   */
+  /** Reports whether this class carries a type. */
   static constexpr bool Carries(Type type) { return type == Type::kTouch; }
 
-  /**
-   * Reports whether a listener consumed the event.
-   *
-   * @return True once a listener marked the event handled.
-   */
+  /** Reports whether a listener consumed the event. */
   bool IsHandled() const { return handled_; }
 
   /**
@@ -530,32 +164,12 @@ class TouchEvent : public UIEvent {
    */
   void SetHandled(bool value) { handled_ = value; }
 
-  /**
-   * Returns the touch point id.
-   *
-   * @return Id of the touch point.
-   */
   u32 GetPointerID() const { return pointer_id_; }
 
-  /**
-   * Returns what the point did.
-   *
-   * @return The action.
-   */
   Action GetAction() const { return action_; }
 
-  /**
-   * Returns the point x.
-   *
-   * @return Point x, possibly outside the surface.
-   */
   f32 GetX() const { return x_; }
 
-  /**
-   * Returns the point y.
-   *
-   * @return Point y, possibly outside the surface.
-   */
   f32 GetY() const { return y_; }
 
  private:
@@ -564,6 +178,27 @@ class TouchEvent : public UIEvent {
   Action action_;
   f32 x_;
   f32 y_;
+};
+
+/** Receives window and input events on the UI thread. */
+class IUIEventListener {
+ public:
+  virtual ~IUIEventListener() = default;
+
+  /**
+   * Called for every window event, in order.
+   *
+   * @param event Valid only during the call.
+   */
+  virtual void OnUIEvent(const ui::UIEvent& event) = 0;
+
+  /**
+   * Called for every key, character, mouse button, motion and wheel event, in order. A receiver
+   * that consumes the event sets its handled flag.
+   *
+   * @param event Valid only during the call.
+   */
+  virtual void OnInputEvent(hid::InputEvent& event) = 0;
 };
 
 }  // namespace rex::ui

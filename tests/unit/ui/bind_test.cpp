@@ -12,118 +12,164 @@
 
 #include <memory>
 
-#include <rex/hid/key_chord.h>
-#include <rex/ui/ui_event.h>
+#include <rex/hid/input_keys.h>
+#include <rex/setting.h>
+#include <rex/settings.h>
 
-#include "core/cvar_registry.h"
-#include "ui/sdl3/bind_table.h"
+#include "hid/input_harness.h"
+#include "ui/overlay/bind_table.h"
 
+using rex::hid::InputEvent;
 using rex::hid::KeyChord;
 using rex::hid::KeyModifiers;
 using rex::hid::VirtualKey;
 using rex::ui::BindTable;
-using rex::ui::KeyEvent;
-using rex::ui::UIEvent;
 
 namespace {
 
-KeyEvent Down(VirtualKey key, KeyModifiers mods = KeyModifiers::kNone) {
-  return KeyEvent(
-      UIEvent::Type::kKeyDown, nullptr, key, 1, false, rex::HasFlags(mods, KeyModifiers::kShift),
-      rex::HasFlags(mods, KeyModifiers::kCtrl), rex::HasFlags(mods, KeyModifiers::kAlt));
+InputEvent Down(VirtualKey key, KeyModifiers mods = KeyModifiers::kNone) {
+  return InputEvent{.type = InputEvent::Type::kKeyDown, .key = key, .modifiers = mods};
+}
+
+std::string Read(std::string_view name) {
+  auto found = REX_SETTINGS().Find(name);
+  REQUIRE(found);
+  return (*found)->GetText();
 }
 
 struct Harness {
-  Harness() : registry(rex::detail::CreateCvarRegistry()) {
-    REQUIRE(registry->Register("bind", {}));
-    table.Attach(registry.get());
+  explicit Harness(rex::hid::IInputSystem& input) {
+    table.SetInput(&input);
+    table.Attach(&REX_SETTINGS());
   }
+  ~Harness() { table.Attach(nullptr); }
 
-  std::unique_ptr<rex::detail::CvarRegistryImpl> registry;
   BindTable table;
   rex::i32 fired = 0;
 };
 
-}  // namespace
-
-REX_TEST_CASE("A bind writes its cvar from the default chord", "[ui][bind]") {
-  Harness h;
-  h.table.Register("bind_console", {VirtualKey::kOem3}, "Toggle the console", [&h] { ++h.fired; });
-  CHECK(h.registry->Get("bind.console").value() == "Backtick");
-  CHECK(h.table.Process(Down(VirtualKey::kOem3)));
-  CHECK(h.fired == 1);
-  h.table.Register("settings", {VirtualKey::kF4, KeyModifiers::kAlt}, "Toggle settings",
-                   [&h] { ++h.fired; });
-  CHECK(h.registry->Get("bind.settings").value() == "Alt+F4");
+void RunHarness(const std::function<void(Harness&)>& body) {
+  rex::test_input::Run("none", [&body](rex::hid::IInputSystem& input) {
+    Harness h(input);
+    body(h);
+  });
 }
 
-REX_TEST_CASE("A bind cvar change moves the bind to the new chord", "[ui][bind]") {
-  Harness h;
-  h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
-  REQUIRE(h.registry->Set("bind.test", "Ctrl+K"));
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kF9)));
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK)));
-  CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl)));
-  CHECK(h.fired == 1);
-  REQUIRE(h.registry->ResetToDefault("bind.test"));
-  CHECK(h.table.Process(Down(VirtualKey::kF9)));
-  CHECK(h.fired == 2);
+}  // namespace
+
+REX_TEST_CASE("A bind writes its setting from the default chord", "[ui][bind]") {
+  RunHarness([](Harness& h) {
+    h.table.Register("bind_console", {VirtualKey::kOem3}, "Toggle the console",
+                     [&h] { ++h.fired; });
+    CHECK(Read("ui.bind.console") == "Backtick");
+    CHECK(h.table.Process(Down(VirtualKey::kOem3)));
+    CHECK(h.fired == 1);
+    h.table.Register("settings", {VirtualKey::kF4, KeyModifiers::kAlt}, "Toggle settings",
+                     [&h] { ++h.fired; });
+    CHECK(Read("ui.bind.settings") == "Alt+F4");
+  });
+}
+
+REX_TEST_CASE("A bind setting change moves the bind to the new chord", "[ui][bind]") {
+  RunHarness([](Harness& h) {
+    h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
+    REQUIRE(REX_SETTINGS().SetText("ui.bind.test", "Ctrl+K"));
+    CHECK_FALSE(h.table.Process(Down(VirtualKey::kF9)));
+    CHECK_FALSE(h.table.Process(Down(VirtualKey::kK)));
+    CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl)));
+    CHECK(h.fired == 1);
+    REQUIRE(REX_SETTINGS().Reset("ui.bind.test"));
+    CHECK(h.table.Process(Down(VirtualKey::kF9)));
+    CHECK(h.fired == 2);
+  });
 }
 
 REX_TEST_CASE("A chord with Ctrl fires only with Ctrl held", "[ui][bind]") {
-  Harness h;
-  h.table.Register("test", {VirtualKey::kK, KeyModifiers::kCtrl}, "Test bind", [&h] { ++h.fired; });
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK)));
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kShift)));
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl | KeyModifiers::kShift)));
-  CHECK(h.fired == 0);
-  CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl)));
-  CHECK(h.fired == 1);
+  RunHarness([](Harness& h) {
+    h.table.Register("test", {VirtualKey::kK, KeyModifiers::kCtrl}, "Test bind",
+                     [&h] { ++h.fired; });
+    CHECK_FALSE(h.table.Process(Down(VirtualKey::kK)));
+    CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kShift)));
+    CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl | KeyModifiers::kShift)));
+    CHECK(h.fired == 0);
+    CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl)));
+    CHECK(h.fired == 1);
+  });
 }
 
 REX_TEST_CASE("A bad bind value keeps the previous chord", "[ui][bind]") {
-  Harness h;
-  h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
-  REQUIRE(h.registry->Set("bind.test", "Ctrl+NoSuchKey"));
-  CHECK(h.registry->Get("bind.test").value() == "Ctrl+NoSuchKey");
-  CHECK(h.table.Process(Down(VirtualKey::kF9)));
-  CHECK(h.fired == 1);
-  REQUIRE(h.registry->Set("bind.test", "Shift"));
-  CHECK(h.table.Process(Down(VirtualKey::kF9)));
-  CHECK(h.fired == 2);
+  RunHarness([](Harness& h) {
+    h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
+    REQUIRE(REX_SETTINGS().SetText("ui.bind.test", "Ctrl+NoSuchKey"));
+    CHECK(Read("ui.bind.test") == "Ctrl+NoSuchKey");
+    CHECK(h.table.Process(Down(VirtualKey::kF9)));
+    CHECK(h.fired == 1);
+    REQUIRE(REX_SETTINGS().SetText("ui.bind.test", "Shift"));
+    CHECK(h.table.Process(Down(VirtualKey::kF9)));
+    CHECK(h.fired == 2);
+  });
 }
 
-REX_TEST_CASE("A bind with no default key is unbound until its cvar is set", "[ui][bind]") {
-  Harness h;
-  h.table.Register("test", KeyChord{}, "Test bind", [&h] { ++h.fired; });
-  CHECK(h.registry->Get("bind.test").value().empty());
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kNone)));
-  REQUIRE(h.registry->Set("bind.test", "F8"));
-  CHECK(h.table.Process(Down(VirtualKey::kF8)));
-  CHECK(h.fired == 1);
+REX_TEST_CASE("A bind with no default key is unbound until its setting is set", "[ui][bind]") {
+  RunHarness([](Harness& h) {
+    h.table.Register("test", KeyChord{}, "Test bind", [&h] { ++h.fired; });
+    CHECK(Read("ui.bind.test").empty());
+    CHECK_FALSE(h.table.Process(Down(VirtualKey::kNone)));
+    REQUIRE(REX_SETTINGS().SetText("ui.bind.test", "F8"));
+    CHECK(h.table.Process(Down(VirtualKey::kF8)));
+    CHECK(h.fired == 1);
+  });
 }
 
-REX_TEST_CASE("Unregister removes the cvar and the bind", "[ui][bind]") {
-  Harness h;
-  h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
-  REQUIRE(h.registry->Find("bind.test"));
-  h.table.Unregister("test");
-  CHECK_FALSE(h.registry->Find("bind.test"));
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kF9)));
-  CHECK(h.fired == 0);
+REX_TEST_CASE("Unregister removes the setting and the bind", "[ui][bind]") {
+  RunHarness([](Harness& h) {
+    h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
+    REQUIRE(REX_SETTINGS().Find("ui.bind.test"));
+    h.table.Unregister("test");
+    CHECK_FALSE(REX_SETTINGS().Find("ui.bind.test"));
+    CHECK_FALSE(h.table.Process(Down(VirtualKey::kF9)));
+    CHECK(h.fired == 0);
+  });
 }
 
 REX_TEST_CASE("A bind registered before Attach reaches the registry on Attach", "[ui][bind]") {
-  auto registry = rex::detail::CreateCvarRegistry();
-  REQUIRE(registry->Register("bind", {}));
+  rex::test_input::Run("none", [](rex::hid::IInputSystem& input) {
+    rex::i32 fired = 0;
+    BindTable table;
+    table.SetInput(&input);
+    table.Register("test", {VirtualKey::kF9}, "Test bind", [&fired] { ++fired; });
+    CHECK_FALSE(REX_SETTINGS().Find("ui.bind.test"));
+    table.Attach(&REX_SETTINGS());
+    CHECK(REX_SETTINGS().Find("ui.bind.test"));
+    CHECK(table.Process(Down(VirtualKey::kF9)));
+    CHECK(fired == 1);
+    table.Attach(nullptr);
+    CHECK_FALSE(REX_SETTINGS().Find("ui.bind.test"));
+  });
+}
+
+REX_TEST_CASE("A bind without an input system keeps its default chord and shows its text unparsed",
+              "[ui][bind]") {
   rex::i32 fired = 0;
   BindTable table;
+  table.Attach(&REX_SETTINGS());
   table.Register("test", {VirtualKey::kF9}, "Test bind", [&fired] { ++fired; });
-  CHECK_FALSE(registry->Find("bind.test"));
-  table.Attach(registry.get());
-  CHECK(registry->Find("bind.test"));
+  CHECK(Read("ui.bind.test").empty());
+  REQUIRE(REX_SETTINGS().SetText("ui.bind.test", "Ctrl+K"));
+  CHECK(Read("ui.bind.test") == "Ctrl+K");
+  CHECK_FALSE(table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl)));
   CHECK(table.Process(Down(VirtualKey::kF9)));
   CHECK(fired == 1);
   table.Attach(nullptr);
-  CHECK_FALSE(registry->Find("bind.test"));
+}
+
+REX_TEST_CASE("overlay hotkey is ui.bind.name and the old bind name reaches it", "[ui][bind]") {
+  RunHarness([](Harness& h) {
+    h.table.Register("console", {VirtualKey::kOem3}, "Toggle the console", [&h] { ++h.fired; });
+    REQUIRE(REX_SETTINGS().Find("ui.bind.console"));
+    REQUIRE(REX_SETTINGS().SetText(rex::SettingLayer::kFile, "bind.console", "F6"));
+    CHECK(Read("ui.bind.console") == "F6");
+    CHECK(h.table.Process(Down(VirtualKey::kF6)));
+    CHECK(h.fired == 1);
+  });
 }

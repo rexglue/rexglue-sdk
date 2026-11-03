@@ -9,125 +9,112 @@
  */
 
 #include "rex_test.h"
-#include "temp_folder.h"
+#include "object_app.h"
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <cstdio>
+#include <cstdlib>
+#include <mutex>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <functional>
-#include <memory>
 #include <span>
-#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include <rex/api.h>
-#include <rex/cvar/registry.h>
-#include <rex/hid/key_chord.h>
-#include <rex/logging/logger.h>
-#include <rex/logging/log.h>
-#include <rex/logging/sink.h>
+#include <rex/app/app.h>
+#include <rex/paths.h>
+#include <rex/cli.h>
 #include <rex/platform/thread.h>
-#include <rex/ui/imgui_dialog.h>
-#include <rex/ui/overlay.h>
-#include <rex/gpu/backend_select.h>
-#include <rex/ui/title_app.h>
+#include <rex/app/app_info.h>
+#include <rex/platform/sync.h>
+#include <rex/ui/ui_system.h>
+#include <rex/app/title_app.h>
 
-#include "ui/sdl3/app_context.h"
-
-namespace rex::ui {
-
-struct TitleAppAccess {
-  static bool Event(TitleApp& app, const UIEvent& event) { return app.OnWindowEvent(event); }
-  static void Require(TitleApp& app, Config& config) { app.RequireModules(config); }
-};
-
-}  // namespace rex::ui
+#include "app/lifecycle.h"
+#include "kernel/title_entries.h"
+#include "kernel/title_fakes.h"
+#include "kernel/title_image.h"
+#include "kernel/settings_access.h"
+#include "temp_folder.h"
+#include "ui/ui_harness.h"
 
 namespace {
 
-std::atomic<rex::i32> g_constructed{0};
-std::atomic<rex::i32> g_destroyed{0};
+using rex::test_ui::g_ui;
 
-class TestOverlay final : public rex::ui::ImGuiDialog {
+std::atomic<rex::i32> g_overlays_constructed{0};
+std::atomic<rex::i32> g_overlays_destroyed{0};
+std::atomic<rex::i32> g_dialogs_destroyed{0};
+
+class TestOverlay final : public rex::ui::DialogBase {
  public:
-  explicit TestOverlay(const rex::ui::OverlayContext&) { ++g_constructed; }
-  ~TestOverlay() override { ++g_destroyed; }
+  TestOverlay() { ++g_overlays_constructed; }
+  ~TestOverlay() override { ++g_overlays_destroyed; }
+
+  bool Draw(ImGuiIO&) override { return true; }
 };
 
-constexpr rex::hid::KeyChord kTestKey{rex::hid::VirtualKey::kF9, rex::hid::KeyModifiers::kCtrl};
+std::unique_ptr<rex::ui::IDialog> CreateTestOverlay(rex::ui::IUISystem&) {
+  return std::make_unique<TestOverlay>();
+}
 
-REX_OVERLAY_TABLE(kTestOverlays, REX_OVERLAY(TestOverlay, "test", kTestKey));
+constexpr rex::ui::OverlayConfig kTestOverlays[] = {
+    {"test", {rex::hid::VirtualKey::kF9, rex::hid::KeyModifiers::kCtrl}, &CreateTestOverlay},
+};
 
-class FooApp : public rex::ui::TitleApp {
+class CountedDialog final : public rex::ui::DialogBase {
  public:
-  std::vector<std::string> modules{"rexui-sdl3"};
-  std::filesystem::path game_root;
-  bool veto_close = false;
-  rex::i32 close_events = 0;
-  rex::i32 closing_events = 0;
-  rex::i32 closing_events_at_shutdown = -1;
-  bool dialogs_at_closing = false;
-  bool created = false;
-  rex::i32 events_before_create = 0;
-  using TitleApp::GetConfig;
-  using TitleApp::GetUI;
-  using TitleApp::GetWindow;
+  ~CountedDialog() override { ++g_dialogs_destroyed; }
 
-  void ExitTitle(rex::runtime::TitleExitReason reason) { OnTitleExit(reason); }
+  bool Draw(ImGuiIO&) override { return true; }
+};
+
+class FooApp : public rex::test::ObjectApp<rex::app::TitleApp> {
+ public:
+  explicit FooApp(bool display = true, const rex::ppc::PPCImage& image = {})
+      : ObjectApp("foo", image), display_(display) {
+    static_cast<rex::test_ui::FakeUIData&>(g_ui) = rex::test_ui::FakeUIData{};
+    g_ui.has_display = display;
+  }
+
+  std::filesystem::path game_root;
 
  protected:
-  [[nodiscard]] rex::Result<void> OnConfigure(rex::Config& config) override {
-    config.modules = modules;
-    config.ui.video_driver = "dummy";
-    config.paths.config_file.clear();
-    config.paths.game_data_root = game_root;
+  rex::AppSysRequirements GetRequirements() const override { return {}; }
+
+  void OnRegisterModules(std::vector<rex::IModule*>& providers) override {
+    ObjectApp::OnRegisterModules(providers);
+    providers.push_back(&provider_);
+  }
+
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::Settings& settings) override {
+    (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, "");
+    (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root", game_root.string());
+    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
+                                               display_ ? "fake" : "none");
     return rex::Ok();
   }
-  void OnCreateWindow(rex::ui::TitleUI& title_ui) override {
-    REQUIRE(title_ui.GetUI().AddOverlays(kTestOverlays));
-    created = true;
-  }
-  bool OnEvent(const rex::ui::UIEvent& event) override {
-    if (!created) {
-      ++events_before_create;
-    }
-    if (event.GetType() == rex::ui::UIEvent::Type::kClose) {
-      ++close_events;
-      return veto_close;
-    }
-    if (event.GetType() == rex::ui::UIEvent::Type::kClosing) {
-      ++closing_events;
-      dialogs_at_closing = GetUI().HasDialogs();
-    }
-    return false;
-  }
-  void OnShutdown() override {
-    if (!created) {
-      return;
-    }
-    closing_events_at_shutdown = closing_events;
-  }
+
+ private:
+  bool display_;
+  rex::test_ui::FakeUIProvider provider_;
 };
 
-bool Open(FooApp& app, const rex::PPCImage& image = {}) {
-  auto initialized = app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), image);
+bool Open(FooApp& app) {
+  auto initialized = app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}));
   if (!initialized) {
     WARN("Init failed: " << initialized.error().message);
-    return false;
-  }
-  auto created = app.CreateTitleWindow();
-  if (!created) {
-    WARN("CreateTitleWindow failed: " << created.error().message);
     return false;
   }
   return true;
 }
 
-rex::ui::PromptDesc TestPrompt() {
+rex::ui::PromptConfig TestPrompt() {
   return {.title = "Test", .body = "Body"};
 }
 
@@ -138,76 +125,25 @@ bool PumpUntil(FooApp& app, const std::function<bool()>& ready) {
   return ready();
 }
 
-std::atomic<rex::i32> g_dialogs_destroyed{0};
-
-class CountedDialog final : public rex::ui::ImGuiDialog {
- public:
-  ~CountedDialog() override { ++g_dialogs_destroyed; }
-  using ImGuiDialog::Close;
-};
-
 }  // namespace
 
-REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[ui][title_app]") {
-  rex::platform::detail::ShutdownTimerQueue();
-  const rex::u64 before = rex::platform::detail::GetThreadCount();
+REX_TEST_CASE("A title window opens and Shutdown closes it", "[ui][title_app]") {
   FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  REQUIRE(app.RunFrame());
-  rex::RequestShutdown(0);
-  REQUIRE_FALSE(app.RunFrame());
+  REQUIRE(Open(app));
+  CHECK(app.GetUI().HasWindow());
+  CHECK(g_ui.window_open);
   REQUIRE(app.Shutdown() == 0);
-  REQUIRE(rex::platform::detail::GetThreadCount() == before);
-}
-
-REX_TEST_CASE("A consumed Close keeps the app running", "[ui][title_app]") {
-  FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  const rex::ui::UIEvent close(rex::ui::UIEvent::Type::kClose, nullptr);
-  app.veto_close = true;
-  REQUIRE(rex::ui::TitleAppAccess::Event(app, close));
-  REQUIRE(app.close_events == 1);
-  REQUIRE_FALSE(rex::IsShutdownRequested());
-  app.veto_close = false;
-  REQUIRE_FALSE(rex::ui::TitleAppAccess::Event(app, close));
-  REQUIRE(app.close_events == 2);
-  REQUIRE(rex::IsShutdownRequested());
-  REQUIRE(app.Shutdown() == 0);
-}
-
-REX_TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "[ui][title_app]") {
-  FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  const auto ui_thread = std::this_thread::get_id();
-  std::atomic<bool> ran_on_ui{false};
-  std::jthread worker([&] {
-    REQUIRE(rex::ui::InvokeFunction([&] { ran_on_ui = std::this_thread::get_id() == ui_thread; }));
-  });
-  worker.join();
-  app.RunFrame();
-  REQUIRE(ran_on_ui);
-  app.Shutdown();
-  REQUIRE_FALSE(rex::ui::InvokeFunction([] {}));
+  CHECK_FALSE(g_ui.window_open);
 }
 
 REX_TEST_CASE("LaunchTitle without a game directory fails", "[ui][title_app]") {
   const rex::u64 before = rex::platform::detail::GetThreadCount();
-  FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
+  {
+    FooApp app;
+    REQUIRE(Open(app));
+    REQUIRE_FALSE(app.LaunchTitle());
+    REQUIRE(app.Shutdown() == 1);
   }
-  REQUIRE_FALSE(app.LaunchTitle());
-  REQUIRE(app.Shutdown() == 1);
   REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
@@ -216,52 +152,35 @@ REX_TEST_CASE("LaunchTitle finds an entrypoint whose file name differs in case",
   const rex::test::TempFolder folder("rexglue_title_app_case_test_");
   const std::filesystem::path& root = folder.path;
   { std::ofstream(root / "DEFAULT.XEX", std::ios::binary) << "not an xex"; }
-  FooApp app;
-  app.game_root = root;
-  const rex::PPCImage image = {
+  const rex::ppc::PPCImage image = {
       .code_base = 0x82000000,
       .code_size = 0x1000,
       .image_base = 0x82000000,
       .image_size = 0x10000,
       .func_mappings = nullptr,
   };
-  if (!Open(app, image)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
+  FooApp app(true, image);
+  app.game_root = root;
+  REQUIRE(Open(app));
   auto launched = app.LaunchTitle();
   REQUIRE_FALSE(launched);
-  CHECK(launched.error().message.find("Entrypoint XEX not found") == std::string::npos);
+  CHECK(launched.error().message.find("was not found") == std::string::npos);
   app.Shutdown();
-}
-
-REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown",
-              "[ui][title_app]") {
-  FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  REQUIRE(app.Shutdown() == 0);
-  REQUIRE(app.closing_events == 1);
-  REQUIRE(app.closing_events_at_shutdown == 1);
 }
 
 REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop runs",
               "[ui][title_app]") {
   FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  const auto timeout = app.GetConfig().runtime.terminate_timeout;
+  REQUIRE(Open(app));
+  const std::chrono::milliseconds timeout(
+      rex::kernel::GetRuntimeSettings().terminate_timeout_ms.Get());
   const auto ui_thread = std::this_thread::get_id();
   std::atomic<bool> completed{false};
   std::atomic<bool> cancelled{false};
   std::atomic<bool> on_ui{false};
   rex::platform::Fence fence;
   std::jthread app_thread([&] {
-    app.GetUI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
+    app.GetUI().ShowPrompt(TestPrompt(), [&](rex::ui::PromptResult result) {
       cancelled = result.canceled;
       on_ui = std::this_thread::get_id() == ui_thread;
       completed = true;
@@ -279,18 +198,14 @@ REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop 
   REQUIRE(on_ui);
 }
 
-REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[ui][title_app]") {
+REX_TEST_CASE("Prompt after Shutdown completes cancelled at once", "[ui][title_app]") {
   FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  app.GetUI().EndFrameLoop();
-  app.RunFrame();
+  REQUIRE(Open(app));
+  REQUIRE(app.Shutdown() == 0);
   std::atomic<bool> completed{false};
   std::atomic<bool> cancelled{false};
   std::jthread worker([&] {
-    app.GetUI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
+    app.GetUI().ShowPrompt(TestPrompt(), [&](rex::ui::PromptResult result) {
       cancelled = result.canceled;
       completed = true;
     });
@@ -299,33 +214,31 @@ REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[ui
   REQUIRE(completed);
   REQUIRE(cancelled);
   REQUIRE_FALSE(app.GetUI().HasDialogs());
-  REQUIRE(app.Shutdown() == 0);
 }
 
 REX_TEST_CASE("Stop destroys the prompts before the window closes", "[ui][title_app]") {
   FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
+  REQUIRE(Open(app));
   std::atomic<bool> completed{false};
-  app.GetUI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult&) { completed = true; });
+  bool window_open_at_completion = false;
+  app.GetUI().ShowPrompt(TestPrompt(), [&](rex::ui::PromptResult) {
+    window_open_at_completion = g_ui.window_open;
+    completed = true;
+  });
   REQUIRE(PumpUntil(app, [&] { return app.GetUI().HasDialogs(); }));
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(completed);
-  REQUIRE(app.closing_events == 1);
-  REQUIRE_FALSE(app.dialogs_at_closing);
+  CHECK(window_open_at_completion);
+  CHECK_FALSE(app.GetUI().HasDialogs());
 }
 
-REX_TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[ui][title_app]") {
+REX_TEST_CASE("Closing the window leaves a dialog its owner holds to the owner",
+              "[ui][title_app]") {
   g_dialogs_destroyed = 0;
   FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
+  REQUIRE(Open(app));
   auto owned = std::make_unique<CountedDialog>();
-  app.GetUI().AddDialog(*owned);
+  auto owned_guard = app.GetUI().AddDialog(*owned);
   REQUIRE(app.GetUI().HasDialogs());
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(g_dialogs_destroyed == 0);
@@ -333,205 +246,319 @@ REX_TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[ui][
   REQUIRE(g_dialogs_destroyed == 1);
 }
 
-REX_TEST_CASE("Closing the window destroys the overlays", "[ui][title_app]") {
-  g_constructed = 0;
-  g_destroyed = 0;
+REX_TEST_CASE("Overlays toggle without destroying and die with the app", "[ui][title_app]") {
+  g_overlays_constructed = 0;
+  g_overlays_destroyed = 0;
   FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  app.GetUI().ShowOverlay("test", true);
-  app.GetUI().CloseWindow();
-  REQUIRE(g_destroyed == 1);
-  REQUIRE(app.GetUI().GetOverlay("test") == nullptr);
-  REQUIRE_FALSE(app.GetUI().IsAnyOverlayVisible());
-  REQUIRE_FALSE(app.GetAPI().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
+  REQUIRE(Open(app));
+  REQUIRE(app.GetUI().AddOverlays(kTestOverlays));
+  app.GetUI().ToggleOverlay("test");
+  CHECK(app.GetUI().IsAnyOverlayVisible());
+  app.GetUI().ToggleOverlay("test");
+  CHECK_FALSE(app.GetUI().IsAnyOverlayVisible());
+  REQUIRE(g_overlays_constructed == 1);
+  REQUIRE(g_overlays_destroyed == 0);
   REQUIRE(app.Shutdown() == 0);
-  REQUIRE(g_constructed == 1);
-  REQUIRE(g_destroyed == 1);
-}
-
-REX_TEST_CASE("Overlay tables bind, toggle without destroying, and die with the app",
-              "[ui][title_app]") {
-  g_constructed = 0;
-  g_destroyed = 0;
-  FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  REQUIRE(app.GetAPI().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
-  REQUIRE(app.GetAPI().Get<rex::cvar::ICvarRegistry>()->Get("bind.test").value() == "Ctrl+F9");
-  app.GetUI().ToggleOverlay("test");
-  app.GetUI().ToggleOverlay("test");
-  REQUIRE(g_constructed == 1);
-  REQUIRE(g_destroyed == 0);
-  app.Shutdown();
-  REQUIRE(g_destroyed == 1);
+  REQUIRE(g_overlays_destroyed == 1);
 }
 
 REX_TEST_CASE("RequestShutdown before Run ends Run at once", "[ui][title_app]") {
   FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  rex::RequestShutdown(4);
+  REQUIRE(Open(app));
+  rex::app::RequestShutdown(4);
   app.Run();
   REQUIRE(app.Shutdown() == 4);
 }
 
-REX_TEST_CASE("A shutdown requested during Init skips the window and the title",
-              "[ui][title_app]") {
+REX_TEST_CASE("A shutdown requested during Init skips the title", "[ui][title_app]") {
   FooApp app;
-  REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImage{}));
-  rex::RequestShutdown(6);
-  REQUIRE(app.CreateTitleWindow());
+  REQUIRE(Open(app));
+  rex::app::RequestShutdown(6);
   REQUIRE(app.LaunchTitle());
   app.Run();
-  REQUIRE_FALSE(app.created);
   REQUIRE(app.Shutdown() == 6);
 }
 
-REX_TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[ui][title_app]") {
-  FooApp app;
-  if (!Open(app)) {
-    app.Shutdown();
-    SKIP("SDL dummy video driver unavailable");
-  }
-  REQUIRE(app.events_before_create == 0);
-  REQUIRE(app.Shutdown() == 0);
-  REQUIRE(app.closing_events == 1);
-}
-
-REX_TEST_CASE("TitleApp puts rexfilesystem and rexruntime first", "[ui][title_app]") {
-  FooApp app;
-  app.modules = {"rexmod-test-good"};
-  REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImage{}));
-  REQUIRE(app.GetConfig().modules ==
-          std::vector<std::string>{"rexfilesystem", "rexruntime", "rexmod-test-good"});
-  REQUIRE(app.Shutdown() == 0);
-}
-
-REX_TEST_CASE("A title app with no ui module runs headless and Shutdown returns 0",
-              "[ui][title_app][headless]") {
-  FooApp app;
-  app.modules = {};
+REX_TEST_CASE(
+    "A title app with no UI requirement and no display runs headless and Shutdown returns 0",
+    "[ui][title_app][headless]") {
+  FooApp app(false);
   REQUIRE(Open(app));
-  REQUIRE(app.GetAPI().Get<rex::ui::IUserInterface>() == nullptr);
-  REQUIRE(app.GetUI().GetWindow() == nullptr);
-  REQUIRE(app.GetWindow() == nullptr);
-  REQUIRE_FALSE(app.created);
+  REQUIRE_FALSE(app.GetUI().HasWindow());
   bool cancelled = false;
-  app.GetUI().Prompt(TestPrompt(),
-                     [&](const rex::ui::PromptResult& result) { cancelled = result.canceled; });
+  app.GetUI().ShowPrompt(TestPrompt(),
+                         [&](rex::ui::PromptResult result) { cancelled = result.canceled; });
   REQUIRE(cancelled);
   REQUIRE(app.RunFrame());
-  rex::RequestShutdown(0);
+  rex::app::RequestShutdown(0);
   REQUIRE_FALSE(app.RunFrame());
   REQUIRE(app.Shutdown() == 0);
 }
 
-REX_TEST_CASE("InvokeFunction from a guest thread runs on the null provider loop",
-              "[ui][title_app][headless]") {
-  FooApp app;
-  app.modules = {};
-  REQUIRE(Open(app));
-  const auto loop_thread = std::this_thread::get_id();
-  std::atomic<bool> posted{false};
-  std::atomic<bool> ran_on_loop{false};
-  std::jthread app_thread([&] {
-    posted = rex::ui::InvokeFunction([&] {
-      ran_on_loop = std::this_thread::get_id() == loop_thread;
-      app.ExitTitle(rex::runtime::TitleExitReason::kNormalExit);
-    });
-  });
-  app.Run();
-  app_thread.join();
-  REQUIRE(posted);
-  REQUIRE(ran_on_loop);
-  REQUIRE(rex::IsShutdownRequested());
-  REQUIRE(app.Shutdown() == 0);
-}
-
 namespace {
 
-class InertAppContext final : public rex::ui::WindowedAppContext {
- protected:
-  void NotifyUILoopOfPendingFunctions() override {}
-  void PlatformQuitFromUIThread() override {}
+using namespace std::chrono_literals;
+
+class Watchdog {
+ public:
+  explicit Watchdog(std::chrono::seconds limit)
+      : thread_([limit](const std::stop_token& stop) {
+          std::mutex mutex;
+          std::condition_variable_any wake;
+          std::unique_lock lock(mutex);
+          if (!wake.wait_for(lock, stop, limit, [] { return false; }) && !stop.stop_requested()) {
+            std::fputs("the title app did not end in time\n", stderr);
+            std::abort();
+          }
+        }) {}
+
+ private:
+  std::jthread thread_;
 };
 
 }  // namespace
 
-REX_TEST_CASE("A pending UI function that throws at shutdown is logged", "[ui][app_context]") {
-  rex::Shutdown();
-  auto started = rex::Init({});
-  REQUIRE(started);
-  auto* logger = (*started)->Get<rex::ILogger>();
-  REQUIRE(logger);
-  rex::log::CaptureSink sink;
-  logger->AddSink(sink);
-  bool later_ran = false;
-  {
-    InertAppContext context;
-    std::thread([&] {
-      context.CallInUIThreadDeferred([] { throw std::runtime_error("pending function failed"); });
-      context.CallInUIThreadDeferred([&] { later_ran = true; });
-    }).join();
-  }
-  std::vector<rex::log::CapturedMessage> messages;
-  sink.CopySince(0, messages);
-  logger->RemoveSink(sink);
-  rex::Shutdown();
-  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
-    return message.text == "teardown step failed, pending function failed";
-  }));
-  CHECK(later_ran);
+REX_TEST_CASE("A title that exits on its own ends Run and unloads on the UI thread",
+              "[ui][title_app]") {
+  rex::test::g_entry.Reset();
+  const rex::test::TempFolder folder("rex_title_app_exit_");
+  rex::test::WriteTitle(folder.path);
+  FooApp app(false, rex::test::MakeTitleImage(rex::test::kReturningEntry));
+  app.game_root = folder.path;
+  REQUIRE(Open(app));
+  Watchdog watchdog(10s);
+  REQUIRE(app.LaunchTitle());
+  app.Run();
+  CHECK(rex::test::g_entry.finished == 1);
+  CHECK(app.Shutdown() == 0);
+}
+
+REX_TEST_CASE("A shutdown request from another thread unloads a title blocked in a wait",
+              "[ui][title_app]") {
+  rex::test::g_entry.Reset();
+  const rex::test::TempFolder folder("rex_title_app_request_");
+  rex::test::WriteTitle(folder.path);
+  FooApp app(false, rex::test::MakeTitleImage(rex::test::kEventEntry));
+  app.game_root = folder.path;
+  REQUIRE(Open(app));
+  Watchdog watchdog(10s);
+  REQUIRE(app.LaunchTitle());
+  std::jthread requester([] {
+    while (rex::test::g_entry.handle == 0) {
+      std::this_thread::sleep_for(1ms);
+    }
+    rex::app::RequestShutdown(0);
+  });
+  app.Run();
+  CHECK(app.Shutdown() == 0);
 }
 
 namespace {
 
-std::vector<std::string> RequireFor(std::vector<std::string> modules, std::string backend) {
-  FooApp app;
-  rex::Config config;
-  config.modules = std::move(modules);
-  config.gpu.backend = std::move(backend);
-  rex::ui::TitleAppAccess::Require(app, config);
-  return config.modules;
-}
+std::vector<std::string> g_steps;
 
-bool IsXenosAPI(const std::string& name) {
-  return name.starts_with("rexgpu-xenos-");
-}
+class StepApp : public rex::test::ObjectApp<rex::app::TitleApp> {
+ public:
+  explicit StepApp(const rex::ppc::PPCImage& image) : ObjectApp("title_steps", image) {
+    rex::test::WriteTitle(folder_.path / "game");
+  }
+
+  rex::Result<void> Start() { return Init(rex::CLIArgList::Parse(std::span<const std::string>{})); }
+
+  void Restart() { RestartTitle(); }
+
+ protected:
+  void OnRegisterModules(std::vector<rex::IModule*>& providers) override {
+    ObjectApp::OnRegisterModules(providers);
+    providers.push_back(&provider_);
+  }
+
+  rex::Result<void> OnConfigure(rex::Settings& settings) override {
+    g_steps.push_back("configure");
+    (void)settings.SetText(rex::SettingLayer::kTitle, "kernel.user_language", "0");
+    (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
+                           (folder_.path / "game").string());
+    (void)settings.SetText(rex::SettingLayer::kTitle, "app.user_root",
+                           (folder_.path / "user").string());
+    (void)settings.SetText(rex::SettingLayer::kTitle, "app.cache_root",
+                           (folder_.path / "cache").string());
+    (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle,
+                                          (folder_.path / "title_steps.toml").string());
+    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
+    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count");
+    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "count");
+    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count");
+    return settings.SetText(rex::SettingLayer::kTitle, "gpu.driver", "count");
+  }
+
+  rex::Result<void> OnInit() override {
+    g_steps.push_back("init");
+    return rex::Ok();
+  }
+
+  rex::Result<void> OnTitleLaunch(rex::kernel::TitleRuntime& title) override {
+    g_steps.push_back(title.IsLoaded() && !title.IsRunning() ? "launch" : "launch out of order");
+    return rex::Ok();
+  }
+
+  void OnRun() override {
+    g_steps.push_back("run");
+    rex::app::TitleApp::OnRun();
+  }
+
+  void OnShutdown() override { g_steps.push_back("shutdown"); }
+
+ private:
+  rex::test::TempFolder folder_{"rex_title_steps_"};
+  rex::test::CountingProvider provider_;
+};
+
+struct StepFixture {
+  StepFixture() {
+    g_steps.clear();
+    rex::test::g_counts.Reset();
+    rex::test::g_entry.Reset();
+    static_cast<rex::test_ui::FakeUIData&>(g_ui) = rex::test_ui::FakeUIData{};
+  }
+};
 
 }  // namespace
 
-REX_TEST_CASE("RequireModules adds the API library the backend names", "[ui][gpu][modules]") {
-  const auto modules = RequireFor({"rexgpu-xenos"}, "vulkan");
-  CHECK(modules == std::vector<std::string>{"rexfilesystem", "rexruntime", "rexgpu-xenos",
-                                            "rexgpu-xenos-vulkan"});
+REX_TEST_CASE_METHOD(StepFixture, "title app runs its steps in order", "[ui][title_app]") {
+  StepApp app(rex::test::MakeTitleImage(rex::test::kDelayingEntry));
+  REQUIRE(app.Start());
+  REQUIRE(app.LaunchTitle());
+  CHECK(app.GetPhase() == rex::app::AppPhase::kTitleRunning);
+  REQUIRE(rex::test::WaitFor([] { return rex::test::g_entry.entered == 1; }));
+  rex::app::RequestShutdown(0);
+  app.Run();
+  CHECK(app.Shutdown() == 0);
+  CHECK(g_steps == std::vector<std::string>{"configure", "init", "launch", "run", "shutdown"});
+  CHECK(rex::test::g_counts.graphics_attach == 1);
+  CHECK(rex::test::g_counts.graphics_detach == 1);
 }
 
-REX_TEST_CASE("RequireModules adds nothing for the null backend", "[ui][gpu][modules]") {
-  const auto modules = RequireFor({"rexgpu-xenos"}, "null");
-  CHECK(modules == std::vector<std::string>{"rexfilesystem", "rexruntime", "rexgpu-xenos"});
+REX_TEST_CASE_METHOD(StepFixture, "restart relaunches in process", "[ui][title_app]") {
+  StepApp app(rex::test::MakeTitleImage(rex::test::kDelayingEntry));
+  REQUIRE(app.Start());
+  REQUIRE(app.LaunchTitle());
+  REQUIRE(rex::test::WaitFor([] { return rex::test::g_entry.entered == 1; }));
+  app.Restart();
+  CHECK(app.GetPhase() == rex::app::AppPhase::kTitleRunning);
+  REQUIRE(rex::test::WaitFor([] { return rex::test::g_entry.entered == 2; }));
+  CHECK(rex::test::g_counts.graphics_detach == 1);
+  CHECK(rex::test::g_counts.graphics_attach == 2);
+  CHECK(app.GetTitleRuntime().IsRunning());
+  CHECK(app.Shutdown() == 0);
+  CHECK(rex::test::g_counts.graphics_detach == 2);
 }
 
-REX_TEST_CASE("RequireModules keeps a user supplied API library", "[ui][gpu][modules]") {
-  const auto modules = RequireFor({"rexgpu-xenos", "rexgpu-xenos-vulkan"}, "any");
-  CHECK(std::ranges::count_if(modules, IsXenosAPI) == 1);
+REX_TEST_CASE_METHOD(StepFixture, "title app main runs frames before launch", "[ui][title_app]") {
+  StepApp app(rex::test::MakeTitleImage(rex::test::kDelayingEntry));
+  REQUIRE(app.Start());
+  for (int frame = 0; frame < 3; ++frame) {
+    REQUIRE(app.RunFrame());
+    CHECK(app.GetPhase() == rex::app::AppPhase::kRunning);
+    CHECK(rex::test::g_counts.graphics_attach == 0);
+  }
+  REQUIRE(app.LaunchTitle());
+  CHECK(rex::test::g_counts.graphics_attach == 1);
+  CHECK(app.Shutdown() == 0);
 }
 
-REX_TEST_CASE("RequireModules leaves a list without the neutral GPU module alone",
-              "[ui][gpu][modules]") {
-  const auto modules = RequireFor({"rexui-sdl3"}, "any");
-  CHECK(std::ranges::none_of(
-      modules, [](const std::string& name) { return name.starts_with("rexgpu-xenos"); }));
+namespace {
+
+std::atomic<rex::i32> g_startup_boxes{0};
+
+void CountStartupBox(rex::MessageType, std::string_view) {
+  ++g_startup_boxes;
 }
 
-REX_TEST_CASE("RequireModules adds nothing for an unavailable API", "[ui][gpu][modules]") {
-  const auto modules = RequireFor({"rexgpu-xenos"}, "no-such-backend");
-  CHECK(std::ranges::none_of(modules, IsXenosAPI));
+struct StartupBoxScope {
+  StartupBoxScope() {
+    g_startup_boxes = 0;
+    rex::app::detail::SetStartupBoxForTest(&CountStartupBox);
+  }
+  ~StartupBoxScope() { rex::app::detail::SetStartupBoxForTest(nullptr); }
+};
+
+class FailingStartApp : public rex::test::ObjectApp<rex::app::TitleApp> {
+ public:
+  explicit FailingStartApp(bool missing_module, bool headless_setting, bool fail_configure = true)
+      : ObjectApp("failing_start", {}),
+        missing_module_(missing_module),
+        headless_setting_(headless_setting),
+        fail_configure_(fail_configure) {}
+
+  rex::Result<void> Start(std::vector<std::string> args) {
+    return Init(rex::CLIArgList::Parse(std::span<const std::string>(args)));
+  }
+
+ protected:
+  rex::AppSysRequirements GetRequirements() const override { return {}; }
+
+  void OnModules(std::vector<std::string>& modules) override {
+    ObjectApp::OnModules(modules);
+    if (missing_module_) {
+      modules.push_back("rexmissing");
+    }
+  }
+
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::Settings&) override {
+    (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, "");
+    if (headless_setting_) {
+      (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
+    }
+    if (fail_configure_) {
+      return rex::Err<void>(rex::ErrorCategory::kConfig, "configure failed");
+    }
+    return rex::Ok();
+  }
+
+ private:
+  bool missing_module_;
+  bool headless_setting_;
+  bool fail_configure_;
+};
+
+}  // namespace
+
+REX_TEST_CASE("A failed startup with ui.driver none shows no box", "[ui][title_app]") {
+  StartupBoxScope scope;
+  {
+    FailingStartApp app(false, true);
+    REQUIRE_FALSE(app.Start({}));
+    CHECK(app.Shutdown() == 1);
+  }
+  CHECK(g_startup_boxes == 0);
+}
+
+REX_TEST_CASE("A module that fails to load with --ui.driver=none shows no box", "[ui][title_app]") {
+  StartupBoxScope scope;
+  {
+    FailingStartApp app(true, false);
+    REQUIRE_FALSE(app.Start({"--ui.driver=none"}));
+    CHECK(app.Shutdown() == 1);
+  }
+  CHECK(g_startup_boxes == 0);
+}
+
+REX_TEST_CASE("An unknown option shows one box", "[ui][title_app]") {
+  StartupBoxScope scope;
+  {
+    FailingStartApp app(false, false, false);
+    REQUIRE_FALSE(app.Start({"--nope=1"}));
+    CHECK(app.Shutdown() == 1);
+  }
+  CHECK(g_startup_boxes == 1);
+}
+
+REX_TEST_CASE("A module that fails to load shows one box", "[ui][title_app]") {
+  StartupBoxScope scope;
+  {
+    FailingStartApp app(true, false);
+    REQUIRE_FALSE(app.Start({}));
+    CHECK(app.Shutdown() == 1);
+  }
+  CHECK(g_startup_boxes == 1);
 }

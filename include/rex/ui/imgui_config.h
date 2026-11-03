@@ -12,13 +12,12 @@
 
 #include <rex/types.h>
 #include <rex/platform.h>
-#include <rex/export.h>
 
 /**
- * Marks the ImGui API, which reximgui exports and every other binary imports.
+ * Marks the ImGui API, which rexbase exports and every other binary imports.
  *
  * @code
  * IMGUI_API bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags);
  * @endcode
  */
-#define IMGUI_API REX_IMGUI_API
+#define IMGUI_API REX_API

@@ -19,46 +19,55 @@
 #include <string>
 #include <vector>
 
-#include <rex/cvar.h>
-#include <rex/logging/sink.h>
-#include "ui/sdl3/console/model.h"
-
-#include "core/cvar_registry.h"
+#include <rex/logging/logger.h>
+#include <rex/setting.h>
+#include <rex/settings.h>
+#include <rex/command.h>
+#include "ui/overlay/console/model.h"
 
 namespace {
 
 std::string g_console_args;
 
-void CaptureConsoleArgs(std::string_view args) {
-  g_console_args = std::string(args);
-}
+class AlphaOwner final : public rex::SettingOwner {
+ public:
+  AlphaOwner() : SettingOwner("alpha") {}
 
-}  // namespace
+  REX_SETTING(std::string, mode, "low", "Quality mode", rex::Allowed("low", "high"));
+  REX_COMMAND(run, "Records its arguments", [](std::string_view args) {
+    g_console_args = std::string(args);
+    return rex::Ok();
+  });
+};
 
-namespace console_test_cvars {
-REXCVAR_STRING(alpha, mode, "low", "Quality mode").SetAllowed(REXCVAR_ALLOWED("low", "high"));
-REXCVAR_COMMAND_ARGS(alpha, run, CaptureConsoleArgs, "Records its arguments");
-REXCVAR_TABLE(kAlphaCvars, mode, run);
-REXCVAR_INT32(zeta, count, 4, "A counted value").SetRange(1, 8);
-REXCVAR_TABLE(kZetaCvars, count);
-}  // namespace console_test_cvars
+class ZetaOwner final : public rex::SettingOwner {
+ public:
+  ZetaOwner() : SettingOwner("zeta") {}
 
-namespace {
+  REX_SETTING(rex::i32, count, 4, "A counted value", rex::Range{1, 8});
+  REX_SETTING(rex::i32, frozen, 1, "Locked by the title");
+};
+
+class ManyOwner final : public rex::SettingOwner {
+ public:
+  explicit ManyOwner(std::string_view name)
+      : SettingOwner("many"), value(this, name, false, "Generated") {}
+
+  rex::Setting<bool> value;
+};
 
 using rex::log::Level;
 using rex::ui::ConsoleModel;
 
 struct Harness {
-  Harness() : registry(rex::detail::CreateCvarRegistry()) {
-    REQUIRE(registry->Register("alpha", console_test_cvars::kAlphaCvars));
-    REQUIRE(registry->Register("zeta", console_test_cvars::kZetaCvars));
+  Harness() {
+    REQUIRE(REX_SETTINGS().Register(alpha));
+    REQUIRE(REX_SETTINGS().Register(zeta));
   }
 
   ~Harness() {
-    CHECK(registry->ResetToDefault("alpha.mode"));
-    CHECK(registry->ResetToDefault("zeta.count"));
-    registry->Unregister(console_test_cvars::kAlphaCvars);
-    registry->Unregister(console_test_cvars::kZetaCvars);
+    REX_SETTINGS().Unregister(zeta);
+    REX_SETTINGS().Unregister(alpha);
   }
 
   void Write(Level level, std::string_view category, std::string_view text) {
@@ -70,7 +79,8 @@ struct Harness {
     capture.Write(message);
   }
 
-  std::unique_ptr<rex::detail::CvarRegistryImpl> registry;
+  AlphaOwner alpha;
+  ZetaOwner zeta;
   rex::log::CaptureSink capture;
   rex::u64 sequence = 0;
 };
@@ -94,64 +104,71 @@ std::vector<std::string> VisibleText(const ConsoleModel& model) {
 }  // namespace
 
 REX_TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", "[ui][console]") {
-  ConsoleModel model(*registry, capture, {});
+  ConsoleModel model(REX_SETTINGS(), capture, {});
   model.Execute("zeta.count 6");
-  REQUIRE(registry->Get("zeta.count").value() == "6");
+  REQUIRE(zeta.count.Get() == 6);
   REQUIRE(Last(model) == "zeta.count = 6");
   model.Execute("  zeta.count  ");
   REQUIRE(Last(model) == "zeta.count = 6");
   model.Execute("zeta.count 5\r\n");
-  REQUIRE(registry->Get("zeta.count").value() == "5");
+  REQUIRE(zeta.count.Get() == 5);
   model.Execute("zeta.count 6");
   model.Execute("zeta.nope");
-  REQUIRE(Last(model) == "unknown cvar zeta.nope");
+  REQUIRE(Last(model) == "unknown setting zeta.nope");
   model.Execute("zeta.count 99");
   REQUIRE(model.GetLines().back().level == Level::kWarn);
-  REQUIRE(registry->Get("zeta.count").value() == "6");
+  REQUIRE(zeta.count.Get() == 6);
   model.Execute("alpha.run first second");
   REQUIRE(g_console_args == "first second");
   model.Execute("clear");
   REQUIRE(model.GetLines().empty());
 }
 
+REX_TEST_CASE_METHOD(Harness, "Execute refuses a frozen setting and keeps its value",
+                     "[ui][console]") {
+  ConsoleModel model(REX_SETTINGS(), capture, {});
+  REQUIRE(zeta.frozen.Lock(1));
+  model.Execute("zeta.frozen 5");
+  REQUIRE(model.GetLines().back().level == Level::kWarn);
+  REQUIRE(zeta.frozen.Get() == 1);
+}
+
 REX_TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins first",
                      "[ui][console]") {
-  ConsoleModel model(*registry, capture, {});
+  ConsoleModel model(REX_SETTINGS(), capture, {});
   REQUIRE(model.Complete("").empty());
   REQUIRE(model.Complete("alpha.mode x").empty());
 
-  const auto alpha = model.Complete("alpha.");
-  REQUIRE(alpha.size() == 2);
-  REQUIRE(alpha[0].name == "alpha.mode");
-  REQUIRE(alpha[0].scope == "alpha");
-  REQUIRE(alpha[0].description == "Quality mode");
-  REQUIRE_FALSE(alpha[0].command);
-  REQUIRE(alpha[1].name == "alpha.run");
-  REQUIRE(alpha[1].command);
+  const auto alpha_matches = model.Complete("alpha.");
+  REQUIRE(alpha_matches.size() == 2);
+  REQUIRE(alpha_matches[0].name == "alpha.mode");
+  REQUIRE(alpha_matches[0].scope == "alpha");
+  REQUIRE(alpha_matches[0].description == "Quality mode");
+  REQUIRE_FALSE(alpha_matches[0].command);
+  REQUIRE(alpha_matches[1].name == "alpha.run");
+  REQUIRE(alpha_matches[1].command);
 
   const auto help = model.Complete("he");
   REQUIRE(help.size() == 1);
   REQUIRE(help[0].name == "help");
   REQUIRE(help[0].scope.empty());
 
-  std::deque<std::string> names;
-  std::deque<rex::cvar::Var<bool>> vars;
-  std::vector<const rex::cvar::VarBase*> table;
+  std::deque<ManyOwner> owners;
   for (int index = 0; index < 70; ++index) {
-    names.push_back(std::format("many.v{:02}", index));
-    vars.emplace_back(names.back(), false, "Generated");
-    table.push_back(&vars.back());
+    owners.emplace_back(std::format("v{:02}", index));
+    REQUIRE(REX_SETTINGS().Register(owners.back()));
   }
-  REQUIRE(registry->Register("many", table));
   const auto many = model.Complete("m");
   REQUIRE(many.size() == ConsoleModel::kMaxCompletions);
   REQUIRE(many.front().name == "many.v00");
-  registry->Unregister(table);
+  for (ManyOwner& owner : owners) {
+    REX_SETTINGS().Unregister(owner);
+  }
 }
 
-REX_TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing else",
+REX_TEST_CASE_METHOD(Harness, "HelpLine describes a setting, a command and nothing else",
                      "[ui][console]") {
-  ConsoleModel model(*registry, capture, {});
+  ConsoleModel model(REX_SETTINGS(), capture, {});
   REQUIRE(model.HelpLine("alpha.mode") ==
           "alpha.mode string = low, default low, allowed low high. Quality mode");
   REQUIRE(model.HelpLine("zeta.count 3") ==
@@ -167,7 +184,7 @@ REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trip
   const auto path = temp.path / "history.txt";
   std::string newest;
   {
-    ConsoleModel model(*registry, capture, path);
+    ConsoleModel model(REX_SETTINGS(), capture, path);
     model.Execute("zeta.count 2");
     model.Execute("zeta.count 2");
     model.Execute("zeta.count 3");
@@ -183,14 +200,14 @@ REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trip
     REQUIRE(model.GetHistory().size() == ConsoleModel::kMaxHistory);
     newest = model.GetHistory().back();
   }
-  ConsoleModel reloaded(*registry, capture, path);
+  ConsoleModel reloaded(REX_SETTINGS(), capture, path);
   REQUIRE(reloaded.GetHistory().size() == ConsoleModel::kMaxHistory);
   REQUIRE(reloaded.GetHistory().back() == newest);
   REQUIRE(reloaded.StepHistoryBack() == newest);
 }
 
 REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters", "[ui][console]") {
-  ConsoleModel model(*registry, capture, {});
+  ConsoleModel model(REX_SETTINGS(), capture, {});
   Write(Level::kInfo, "kernel", "first");
   model.Execute("zeta.count");
   Write(Level::kDebug, "gpu", "second\nthird");

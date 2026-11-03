@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ui/input_capture_test.cpp
- * @brief       The overlay capture flags are readable from any thread
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,7 +17,7 @@
 
 #include <rex/types.h>
 
-#include "ui/sdl3/input_capture.h"
+#include "ui/input_capture.h"
 
 namespace {
 

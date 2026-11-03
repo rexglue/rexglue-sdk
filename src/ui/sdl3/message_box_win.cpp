@@ -5,11 +5,11 @@
 #endif
 #include <windows.h>
 
-#include <rex/string.h>
+#include <rex/string/text.h>
 
 #include "ui/sdl3/message_box.h"
 
-namespace rex::ui {
+namespace rex::ui::sdl3 {
 
 namespace {
 
@@ -25,25 +25,25 @@ BOOL CALLBACK MinimizeProcessWindow(HWND hwnd, LPARAM param) {
   return TRUE;
 }
 
-UINT IconFlag(MessageKind kind) {
-  switch (kind) {
-    case MessageKind::kError:
+UINT IconFlag(MessageType type) {
+  switch (type) {
+    case MessageType::kError:
       return MB_ICONERROR;
-    case MessageKind::kWarning:
+    case MessageType::kWarning:
       return MB_ICONWARNING;
-    case MessageKind::kInfo:
+    case MessageType::kInfo:
       return MB_ICONINFORMATION;
   }
   return MB_ICONINFORMATION;
 }
 
-[[nodiscard]] Result<u32> ShowTopmostBox(MessageKind kind, const std::string& title,
+[[nodiscard]] Result<u32> ShowTopmostBox(MessageType type, const std::string& title,
                                          const std::string& body) {
-  const std::u16string wide_title = ToUTF16(title);
-  const std::u16string wide_body = ToUTF16(body);
+  const std::u16string wide_title = string::ToUTF16(title);
+  const std::u16string wide_body = string::ToUTF16(body);
   const int pressed = MessageBoxW(nullptr, reinterpret_cast<const wchar_t*>(wide_body.c_str()),
                                   reinterpret_cast<const wchar_t*>(wide_title.c_str()),
-                                  MB_OK | IconFlag(kind) | MB_TOPMOST | MB_SETFOREGROUND);
+                                  MB_OK | IconFlag(type) | MB_TOPMOST | MB_SETFOREGROUND);
   if (pressed == 0) {
     return Err<u32>(ErrorCategory::kPlatform, "MessageBoxW failed");
   }
@@ -52,18 +52,18 @@ UINT IconFlag(MessageKind kind) {
 
 }  // namespace
 
-[[nodiscard]] Result<u32> ShowNativeBox(MessageKind kind, const std::string& title,
+[[nodiscard]] Result<u32> ShowNativeBox(MessageType type, const std::string& title,
                                         const std::string& body,
                                         std::span<const std::string> buttons, SDL_Window* parent) {
   (void)parent;
   std::vector<HWND> minimized;
   EnumWindows(MinimizeProcessWindow, reinterpret_cast<LPARAM>(&minimized));
-  Result<u32> pressed = buttons.size() == 1 ? ShowTopmostBox(kind, title, body)
-                                            : ShowSDLBox(kind, title, body, buttons, nullptr);
+  Result<u32> pressed = buttons.size() == 1 ? ShowTopmostBox(type, title, body)
+                                            : ShowSDLBox(type, title, body, buttons, nullptr);
   for (HWND hwnd : minimized) {
     ShowWindowAsync(hwnd, SW_RESTORE);
   }
   return pressed;
 }
 
-}  // namespace rex::ui
+}  // namespace rex::ui::sdl3

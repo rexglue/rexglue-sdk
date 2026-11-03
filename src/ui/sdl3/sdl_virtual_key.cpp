@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rex::ui {
+namespace rex::ui::sdl3 {
 
 hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode) {
   // Contiguous ranges in both encodings.
@@ -125,4 +125,4 @@ hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode) {
   }
 }
 
-}  // namespace rex::ui
+}  // namespace rex::ui::sdl3

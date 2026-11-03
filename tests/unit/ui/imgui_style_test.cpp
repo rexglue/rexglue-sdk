@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ui/imgui_style_test.cpp
- * @brief       ApplyDefaultStyle maps the Palette and Metrics to ImGuiStyle
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,15 +13,13 @@
 #include <imgui.h>
 
 #include <rex/types.h>
-#include <rex/ui/color.h>
-#include <rex/ui/imgui_style.h>
 #include <rex/ui/style.h>
 
 REX_TEST_CASE("ApplyDefaultStyle takes the button color from the palette accent and alpha",
               "[ui][style]") {
   ImGuiStyle imgui_style;
   rex::ui::Style style;
-  style.palette.accent = rex::Color::FromRGBA(0.7f, 0.1f, 0.3f);
+  style.palette.accent = rex::ui::Color::FromRGBA(0.7f, 0.1f, 0.3f);
   rex::ui::ApplyDefaultStyle(imgui_style, style.palette, style.metrics);
   const ImVec4 expected = rex::ui::ToImVec4(style.palette.accent.WithAlpha(0.60f));
   CHECK(imgui_style.Colors[ImGuiCol_Button].x == expected.x);
@@ -43,7 +40,7 @@ REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[ui][sty
   rex::ui::Style custom;
   rex::ui::ControlPalette& controls = custom.palette.controls;
   const auto role = [](rex::i32 n) {
-    return rex::Color::FromRGBA(static_cast<rex::f32>(n) / 32.0f, 0.5f, 0.25f, 1.0f);
+    return rex::ui::Color::FromRGBA(static_cast<rex::f32>(n) / 32.0f, 0.5f, 0.25f, 1.0f);
   };
   controls.menu_bar = role(1);
   controls.separator = role(2);

@@ -15,25 +15,26 @@
 using rex::ui::UIEvent;
 
 REX_TEST_CASE("As returns the class that carries the type", "[ui][ui_event]") {
-  rex::ui::KeyEvent key(UIEvent::Type::kKeyDown, nullptr, rex::hid::VirtualKey::kF3, 1, false,
-                        false, false, false);
-  const UIEvent& event = key;
-  REQUIRE(event.GetType() == UIEvent::Type::kKeyDown);
-  REQUIRE(event.As<rex::ui::KeyEvent>() == &key);
-  REQUIRE(event.As<rex::ui::MouseEvent>() == nullptr);
+  rex::ui::TouchEvent touch(UIEvent::Type::kTouch, 1, rex::ui::TouchEvent::Action::kDown, 2.0f,
+                            3.0f);
+  const UIEvent& event = touch;
+  REQUIRE(event.GetType() == UIEvent::Type::kTouch);
+  REQUIRE(event.As<rex::ui::TouchEvent>() == &touch);
+  REQUIRE(event.As<rex::ui::UISetupEvent>() == nullptr);
 }
 
-REX_TEST_CASE("ResizeEvent and FocusEvent are setup events with their data", "[ui][ui_event]") {
-  rex::ui::ResizeEvent resize(nullptr, {1280, 720});
-  const UIEvent& event = resize;
-  REQUIRE(event.As<rex::ui::ResizeEvent>()->GetSize().width_px == 1280);
-  REQUIRE(event.As<rex::ui::UISetupEvent>() != nullptr);
-  rex::ui::FocusEvent focus(nullptr, false);
-  REQUIRE(static_cast<const UIEvent&>(focus).As<rex::ui::FocusEvent>()->IsFocused() == false);
+REX_TEST_CASE("Resize and focus are setup events", "[ui][ui_event]") {
+  rex::ui::UISetupEvent resize(UIEvent::Type::kResize);
+  REQUIRE(static_cast<const UIEvent&>(resize).As<rex::ui::UISetupEvent>() == &resize);
+  rex::ui::UISetupEvent focus(UIEvent::Type::kFocus, true);
+  const rex::ui::UISetupEvent* found =
+      static_cast<const UIEvent&>(focus).As<rex::ui::UISetupEvent>();
+  REQUIRE(found != nullptr);
+  REQUIRE(found->IsInitialSetup());
 }
 
 REX_TEST_CASE("A plain event carries no subclass", "[ui][ui_event]") {
-  UIEvent close(UIEvent::Type::kClose, nullptr);
-  REQUIRE(close.As<rex::ui::KeyEvent>() == nullptr);
+  UIEvent close(UIEvent::Type::kClose);
+  REQUIRE(close.As<rex::ui::TouchEvent>() == nullptr);
   REQUIRE(close.As<rex::ui::UISetupEvent>() == nullptr);
 }

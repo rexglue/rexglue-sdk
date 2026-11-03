@@ -17,12 +17,12 @@
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
 
-#include <rex/string/utf8.h>
+#include <rex/string/text.h>
 
-#include "ui/sdl3/user_interface.h"
+#include "ui/sdl3/sdl_helper.h"
 #include "ui/sdl3/video_scope.h"
 
-namespace rex::ui {
+namespace rex::ui::sdl3 {
 
 namespace {
 
@@ -39,20 +39,20 @@ void SDLCALL OnDialogDone(void* userdata, const char* const* list, int filter) {
     state->error = SDL_GetError();
   } else {
     for (const char* const* it = list; *it != nullptr; ++it) {
-      state->paths.push_back(rex::to_path(std::string_view(*it)));
+      state->paths.push_back(rex::string::to_path(std::string_view(*it)));
     }
   }
   state->done.count_down();
 }
 
-SDL_FileDialogType DialogType(FileDialogDesc::Mode mode) {
+SDL_FileDialogType DialogType(FileDialogConfig::Mode mode) {
   switch (mode) {
-    case FileDialogDesc::Mode::kOpenFile:
-    case FileDialogDesc::Mode::kOpenFiles:
+    case FileDialogConfig::Mode::kOpenFile:
+    case FileDialogConfig::Mode::kOpenFiles:
       return SDL_FILEDIALOG_OPENFILE;
-    case FileDialogDesc::Mode::kOpenFolder:
+    case FileDialogConfig::Mode::kOpenFolder:
       return SDL_FILEDIALOG_OPENFOLDER;
-    case FileDialogDesc::Mode::kSaveFile:
+    case FileDialogConfig::Mode::kSaveFile:
       return SDL_FILEDIALOG_SAVEFILE;
   }
   return SDL_FILEDIALOG_OPENFILE;
@@ -60,16 +60,16 @@ SDL_FileDialogType DialogType(FileDialogDesc::Mode mode) {
 
 }  // namespace
 
-Result<std::vector<std::filesystem::path>> SDL3UserInterface::ShowFileDialog(
-    const FileDialogDesc& desc) {
+Result<std::vector<std::filesystem::path>> ShowSDLFileDialog(const FileDialogConfig& config,
+                                                             SDL_Window* parent) {
   VideoScope video;
   if (!video.IsOk()) {
     return Err<std::vector<std::filesystem::path>>(ErrorCategory::kPlatform, video.GetError());
   }
-  const std::string location = rex::PathToUTF8(desc.default_location);
+  const std::string location = rex::string::PathToUTF8(config.default_location);
   std::vector<SDL_DialogFileFilter> filters;
-  filters.reserve(desc.filters.size());
-  for (const FileFilter& filter : desc.filters) {
+  filters.reserve(config.filters.size());
+  for (const FileFilter& filter : config.filters) {
     filters.push_back({filter.name.c_str(), filter.pattern.c_str()});
   }
   DialogState state;
@@ -80,9 +80,9 @@ Result<std::vector<std::filesystem::path>> SDL3UserInterface::ShowFileDialog(
       state.done.count_down();
       return;
     }
-    SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, desc.title.c_str());
+    SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, config.title.c_str());
     SDL_SetBooleanProperty(props, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN,
-                           desc.mode == FileDialogDesc::Mode::kOpenFiles);
+                           config.mode == FileDialogConfig::Mode::kOpenFiles);
     if (!location.empty()) {
       SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, location.c_str());
     }
@@ -91,37 +91,17 @@ Result<std::vector<std::filesystem::path>> SDL3UserInterface::ShowFileDialog(
       SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER,
                             static_cast<Sint64>(filters.size()));
     }
-    if (window_) {
-      SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, window_->GetSDLWindow());
+    if (parent) {
+      SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, parent);
     }
-    SDL_ShowFileDialogWithProperties(DialogType(desc.mode), &OnDialogDone, &state, props);
+    SDL_ShowFileDialogWithProperties(DialogType(config.mode), &OnDialogDone, &state, props);
     SDL_DestroyProperties(props);
   };
 
-  if (IsUIThread()) {
-    show();
-    while (!state.done.try_wait()) {
-      if (context_ && !context_->HasQuitFromUIThread()) {
-        context_->PumpEvents(std::chrono::milliseconds(10));
-      } else {
-        SDL_PumpEvents();
-        SDL_Delay(10);
-      }
-    }
-  } else if (open_.load()) {
-    bool ran = false;
-    RunSynchronous([&] {
-      ran = true;
-      show();
-    });
-    if (!ran) {
-      return Err<std::vector<std::filesystem::path>>(ErrorCategory::kRuntime,
-                                                     "the UI loop has quit");
-    }
-    state.done.wait();
-  } else {
-    show();
-    state.done.wait();
+  show();
+  while (!state.done.try_wait()) {
+    SDL_PumpEvents();
+    SDL_Delay(10);
   }
   if (!state.error.empty()) {
     return Err<std::vector<std::filesystem::path>>(ErrorCategory::kPlatform, state.error);
@@ -129,4 +109,4 @@ Result<std::vector<std::filesystem::path>> SDL3UserInterface::ShowFileDialog(
   return std::move(state.paths);
 }
 
-}  // namespace rex::ui
+}  // namespace rex::ui::sdl3
