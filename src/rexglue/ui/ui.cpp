@@ -10,7 +10,7 @@
 #include <format>
 
 #include <rex/logging/log.h>
-#include <rex/platform/console.h>
+#include <rex/platform/process.h>
 
 namespace rexglue::ui {
 
@@ -134,7 +134,7 @@ void Shutdown() {
   g_sink = nullptr;
 }
 
-rex::log::ISink& LogSink() {
+rex::log::ISink& GetLogSink() {
   RequireGlobalSink();
   return *g_sink;
 }

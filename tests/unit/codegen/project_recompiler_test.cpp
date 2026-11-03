@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/project_recompiler_test.cpp
- * @brief       Code generation for a project whose DLL modules share an image base
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -9,8 +8,10 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include "object_app.h"
 #include "rex_test.h"
 #include "temp_folder.h"
+#include "codegen/tool_runtime.h"
 
 #include <cstring>
 #include <filesystem>
@@ -20,14 +21,13 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/codegen/manifest.h>
-#include <rex/codegen/project_recompiler.h>
+#include "codegen/manifest.h"
+#include "codegen/project_recompiler.h"
 #include <rex/filesystem/xex.h>
-#include <rex/logging/config.h>
 #include <rex/logging/logger.h>
 #include <rex/logging/log.h>
 
-#include "core/xex_builder.h"
+#include "base/xex_builder.h"
 #include "pe/pe_image.h"
 #include "rexglue/log_categories.h"
 #include "test_memory.h"
@@ -100,6 +100,10 @@ std::string ReadTree(const fs::path& root) {
     if (!entry.is_regular_file()) {
       continue;
     }
+    const auto extension = entry.path().extension();
+    if (extension != ".cpp" && extension != ".h") {
+      continue;
+    }
     std::ifstream in(entry.path(), std::ios::binary);
     text.append(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
   }
@@ -137,16 +141,18 @@ out_directory_path = "generated/b"
   }
 
   rex::test::ReleaseTestMemory();
-  rex::LogConfig config;
-  config.debugger = false;
-  config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
-  REQUIRE(rex::log::Start(config).has_value());
+  rex::Logger& logger = REX_LOGGER();
+  REQUIRE(logger.debugger.Set(false));
+  REQUIRE(logger.AddCategories(rexglue::kLogCategories));
   rex::codegen::ProjectRecompiler recompiler(*manifest);
+  rex::test::TempFolder tool_root("rex_recompiler_tool_");
+  rex::test::ObjectApp<rex::codegen::ToolApp> tools("recompiler_test", tool_root.path);
   rex::codegen::ProjectRecompilerOptions options;
+  options.tools = &tools;
   options.force = true;
   options.targets = std::move(targets);
   auto result = recompiler.Run(options);
-  rex::log::Stop();
+  logger.RemoveCategories(rexglue::kLogCategories);
   return result;
 }
 
@@ -161,10 +167,10 @@ REX_TEST_CASE("Code generation reads each DLL module from its own bytes at a sha
 
   const std::string first = ReadTree(folder.path / "generated" / "a");
   const std::string second = ReadTree(folder.path / "generated" / "b");
-  CHECK(first.find("273") != std::string::npos);
-  CHECK(first.find("546") == std::string::npos);
-  CHECK(second.find("546") != std::string::npos);
-  CHECK(second.find("273") == std::string::npos);
+  CHECK(first.find("r3.s64 = 273;") != std::string::npos);
+  CHECK(first.find("r3.s64 = 546;") == std::string::npos);
+  CHECK(second.find("r3.s64 = 546;") != std::string::npos);
+  CHECK(second.find("r3.s64 = 273;") == std::string::npos);
 }
 
 REX_TEST_CASE("Code generation refuses a DLL module whose image overlaps the entrypoint",
@@ -206,15 +212,17 @@ out_directory_path = "generated/entry"
   }
 
   rex::test::ReleaseTestMemory();
-  rex::LogConfig config;
-  config.debugger = false;
-  config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
-  REQUIRE(rex::log::Start(config).has_value());
+  rex::Logger& logger = REX_LOGGER();
+  REQUIRE(logger.debugger.Set(false));
+  REQUIRE(logger.AddCategories(rexglue::kLogCategories));
   rex::codegen::ProjectRecompiler recompiler(*manifest);
+  rex::test::TempFolder tool_root("rex_recompiler_tool_");
+  rex::test::ObjectApp<rex::codegen::ToolApp> tools("recompiler_test", tool_root.path);
   rex::codegen::ProjectRecompilerOptions options;
+  options.tools = &tools;
   options.force = true;
   const auto result = recompiler.Run(options);
-  rex::log::Stop();
+  logger.RemoveCategories(rexglue::kLogCategories);
   INFO((result ? std::string() : result.error().message));
   REQUIRE(result);
 
@@ -405,15 +413,17 @@ out_directory_path = "generated/exporter"
   }
 
   rex::test::ReleaseTestMemory();
-  rex::LogConfig config;
-  config.debugger = false;
-  config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
-  REQUIRE(rex::log::Start(config).has_value());
+  rex::Logger& logger = REX_LOGGER();
+  REQUIRE(logger.debugger.Set(false));
+  REQUIRE(logger.AddCategories(rexglue::kLogCategories));
   rex::codegen::ProjectRecompiler recompiler(*manifest);
+  rex::test::TempFolder tool_root("rex_recompiler_tool_");
+  rex::test::ObjectApp<rex::codegen::ToolApp> tools("recompiler_test", tool_root.path);
   rex::codegen::ProjectRecompilerOptions options;
+  options.tools = &tools;
   options.force = true;
   const auto result = recompiler.Run(options);
-  rex::log::Stop();
+  logger.RemoveCategories(rexglue::kLogCategories);
   INFO((result ? std::string() : result.error().message));
   REQUIRE(result);
 }

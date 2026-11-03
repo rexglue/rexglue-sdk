@@ -9,17 +9,18 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <rex/codegen/phases.h>
+#include "pipeline.h"
 
 #include <format>
 #include <vector>
 
-#include <rex/codegen/analysis_errors.h>
-#include <rex/codegen/config.h>
-#include <rex/codegen/function_types.h>
+#include "analysis_error_log.h"
+#include "config.h"
+#include "function_types.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 
 #include <ppc.h>
 
@@ -27,13 +28,6 @@ namespace rex::codegen {
 
 namespace {
 
-/**
- * Finds the call or tail call edge registered at a site.
- *
- * @param node Function holding the site.
- * @param site Address of the branch.
- * @return The edge, or nullptr when none is registered.
- */
 const CallEdge* FindCallEdgeAt(const FunctionNode* node, u32 site) {
   for (const auto& edge : node->GetCalls()) {
     if (edge.site == site)
@@ -47,12 +41,9 @@ const CallEdge* FindCallEdgeAt(const FunctionNode* node, u32 site) {
 }
 
 /**
- * Warns when the graph contradicts a config function boundary, which the binary cannot assert
- * for itself. Never fatal. A PDATA entry inside a config extent is the normal MSVC layout for a
- * function with an SEH funclet, so only discovery carving an entry point out of a declared range
- * warns.
- *
- * @param ctx Codegen context.
+ * Warns when the graph contradicts a config function boundary. Never fatal. A PDATA entry inside a
+ * config extent is normal for a function with an SEH funclet, so only an entry point carved out of
+ * a declared range warns.
  */
 void ValidateConfigBoundaries(CodegenContext& ctx) {
   auto& graph = ctx.graph;
@@ -91,25 +82,19 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
   }
 }
 
-/**
- * Reports whether an address is inside a millicode run without being an entry of it.
- *
- * @param graph Function graph holding the run entries.
- * @param addr Address to test.
- * @return True when the address is in the middle of an entry or in the closing words.
- */
 bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
   const FunctionNode* node = graph.GetFunctionContaining(addr);
   return node && node->GetMillicode() && node->GetBase() != addr;
 }
 
+}  // anonymous namespace
+
+namespace detail {
+
 /**
  * Validates that every direct b and bl target resolves. A target inside another function counts
- * as resolved, as gap fill can produce, and is emitted as a tail call to that function's internal
- * label. A target in no function, or a call with no registered edge, stops the build.
- *
- * @param ctx Codegen context.
- * @return Ok, or a validation error.
+ * as resolved and is emitted as a tail call to that function's internal label. A target in no
+ * function, or a call with no registered edge, stops the build.
  */
 [[nodiscard]] Result<void> ValidateGraph(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: validating call graph...");
@@ -144,7 +129,7 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
           calls_checked++;
 
           if (IsInsideMillicodeRun(graph, target)) {
-            errors.Add(AnalysisErrors::Category::kMillicode, target, site,
+            errors.Add(AnalysisErrorLog::Category::kMillicode, target, site,
                        std::format("{} 0x{:08X} from 0x{:08X} is inside a millicode run, off "
                                    "its entries",
                                    is_call ? "bl" : "b", target, site));
@@ -180,7 +165,7 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
           }
 
           if (!target_exists) {
-            errors.Add(AnalysisErrors::Category::kUnresolvedCall, target, site,
+            errors.Add(AnalysisErrorLog::Category::kUnresolvedCall, target, site,
                        std::format("{} 0x{:08X} from 0x{:08X} has a target in no function",
                                    is_call ? "bl" : "b", target, site));
             continue;
@@ -191,7 +176,7 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
             if (!edge) {
               const FunctionNode* containing_func = graph.GetFunctionContaining(target);
               if (!containing_func) {
-                errors.Add(AnalysisErrors::Category::kUnresolvedCall, target, site,
+                errors.Add(AnalysisErrorLog::Category::kUnresolvedCall, target, site,
                            std::format("{} 0x{:08X} from 0x{:08X} in {} has no CallEdge",
                                        is_call ? "bl" : "b", target, site, node->GetName()));
               }
@@ -212,21 +197,12 @@ bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
     errors.PrintReport();
     return Err(ErrorCategory::kValidation,
                std::format("Validation failed: {} unresolved calls, {} millicode errors",
-                           errors.Count(AnalysisErrors::Category::kUnresolvedCall),
-                           errors.Count(AnalysisErrors::Category::kMillicode)));
+                           errors.Count(AnalysisErrorLog::Category::kUnresolvedCall),
+                           errors.Count(AnalysisErrorLog::Category::kMillicode)));
   }
 
   REXLOG_TRACE(codegen, "Analyze: all calls resolve");
   return Ok();
-}
-
-}  // anonymous namespace
-
-namespace detail {
-
-[[nodiscard]] Result<void> Validate(CodegenContext& ctx, IProgressReporter* reporter) {
-  (void)reporter;
-  return ValidateGraph(ctx);
 }
 
 }  // namespace detail

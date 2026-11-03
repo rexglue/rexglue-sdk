@@ -17,9 +17,10 @@
 #include <optional>
 #include <vector>
 
-#include <rex/codegen/binary_view.h>
-#include <rex/codegen/code_region.h>
+#include "binary_view.h"
+#include "function_scanner.h"
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex::codegen {
 
@@ -72,33 +73,25 @@ class DecodedBinary : public rex::NonCopyable {
  public:
   explicit DecodedBinary(const BinaryView& binary);
 
-  /** Decodes all executable sections. */
   void Decode();
 
   /**
-   * Returns the instruction at an address in O(1).
-   *
-   * @param addr Instruction address.
-   * @return The instruction, or null when the address is not in an executable section.
+   * Returns the instruction at an address in O(1), or null when the address is not in an executable
+   * section.
    */
   DecodedInsn* FindInsn(u32 addr);
   const DecodedInsn* FindInsn(u32 addr) const;
 
   /**
-   * Returns the instructions in [start, end).
+   * Returns the instructions in [start, end), empty when the addresses are not in the same section.
    *
-   * @param start First address.
    * @param end Address after the last instruction.
-   * @return The range, empty when the addresses are not in the same section.
    */
   InsnRange GetRange(u32 start, u32 end);
 
   /**
-   * Returns raw section bytes such as jump table data.
-   *
-   * @param addr Start address.
-   * @param len Byte count.
-   * @return Pointer to the bytes, or null when the span is not in a section.
+   * Returns raw section bytes such as jump table data. It is null when the span is not in a
+   * section.
    */
   const u8* GetRawData(u32 addr, size_t len) const;
 
@@ -106,7 +99,6 @@ class DecodedBinary : public rex::NonCopyable {
    * Reads a value at an address, byte swapping from big endian.
    *
    * @tparam T Integer type of 2, 4 or 8 bytes.
-   * @param addr Address to read.
    * @return The value, or nullopt when the bytes are not in a section.
    */
   template <typename T>
@@ -115,19 +107,9 @@ class DecodedBinary : public rex::NonCopyable {
   /** Returns the code regions, separated by null padding. */
   const std::vector<CodeRegion>& GetCodeRegions() const { return code_regions_; }
 
-  /**
-   * Returns the code region containing an address.
-   *
-   * @param addr Address to find.
-   * @return The region, or null when none contains the address.
-   */
+  /** Returns the code region containing an address, or null when none contains the address. */
   const CodeRegion* FindRegionContaining(u32 addr) const;
 
-  /**
-   * Returns the number of decoded instructions.
-   *
-   * @return The instruction count.
-   */
   size_t GetInstructionCount() const;
 
  private:
@@ -162,15 +144,8 @@ class DecodedBinary : public rex::NonCopyable {
   std::vector<Section> sections_;
   std::vector<CodeRegion> code_regions_;
 
-  /** Computes code regions by finding null padding boundaries. */
   void ComputeCodeRegions();
 
-  /**
-   * Returns the section containing an address.
-   *
-   * @param addr Address to find.
-   * @return The section, or null when none contains the address.
-   */
   Section* FindSection(u32 addr);
   const Section* FindSection(u32 addr) const;
 };
@@ -187,72 +162,35 @@ std::optional<T> DecodedBinary::Read(u32 addr) const {
   return rex::byte_swap(value);
 }
 
-/**
- * Reports whether the instruction is a branch.
- *
- * @param insn Instruction to test.
- * @return True when it is a branch.
- */
 inline bool IsBranch(const DecodedInsn& insn) {
   return insn.IsBranch();
 }
 
-/**
- * Reports whether the instruction is a call, a branch with link.
- *
- * @param insn Instruction to test.
- * @return True when it is a call.
- */
+/** Reports whether the instruction is a call, a branch with link. */
 inline bool IsCall(const DecodedInsn& insn) {
   return insn.IsCall();
 }
 
-/**
- * Reports whether the instruction is a return, blr.
- *
- * @param insn Instruction to test.
- * @return True when it is a return.
- */
+/** Reports whether the instruction is a return, blr. */
 inline bool IsReturn(const DecodedInsn& insn) {
   return insn.IsReturn();
 }
 
-/**
- * Reports whether the instruction ends a block, as an unconditional branch, return or bctr.
- *
- * @param insn Instruction to test.
- * @return True when it is a terminator.
- */
+/** Reports whether the instruction ends a block, as an unconditional branch, return or bctr. */
 inline bool IsTerminator(const DecodedInsn& insn) {
   return rex::codegen::detail::IsTerminatorInstruction(insn.opcode);
 }
 
-/**
- * Reports whether the instruction is a conditional branch.
- *
- * @param insn Instruction to test.
- * @return True when it is conditional.
- */
 inline bool IsConditional(const DecodedInsn& insn) {
   return insn.IsConditional();
 }
 
-/**
- * Returns the target of a direct branch.
- *
- * @param insn Instruction to test.
- * @return The target, or nullopt when there is none.
- */
+/** Returns the target of a direct branch, nullopt when there is none. */
 inline std::optional<u32> GetBranchTarget(const DecodedInsn& insn) {
   return insn.branch_target;
 }
 
-/**
- * Reports whether the instruction is null padding or invalid.
- *
- * @param insn Instruction to test.
- * @return True when it is invalid.
- */
+/** Reports whether the instruction is null padding or invalid. */
 inline bool IsInvalid(const DecodedInsn& insn) {
   u32 raw = static_cast<u32>(insn.code);
   return raw == 0x00000000 || raw == 0xFFFFFFFF ||

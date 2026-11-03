@@ -15,7 +15,7 @@
 #include <filesystem>
 #include <string>
 
-#include "rexglue/commands/test_recompiler.h"
+#include "rexglue/command/test_recompiler.h"
 #include "rexglue/ui/ui.h"
 
 namespace fs = std::filesystem;

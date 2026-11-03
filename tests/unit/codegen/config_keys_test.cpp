@@ -17,7 +17,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/codegen/config.h>
+#include "codegen/config.h"
 
 using rex::codegen::RecompilerConfig;
 using rex::codegen::VectorMath;

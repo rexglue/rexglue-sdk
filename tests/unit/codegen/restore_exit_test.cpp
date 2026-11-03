@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/restore_exit_test.cpp
- * @brief       A function that ends in a branch to a register restore helper exits through it
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,9 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
+#include "base/xex_builder.h"
 
 #include <algorithm>
 #include <format>
@@ -17,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/logging/sink.h>
+#include <rex/logging/logger.h>
 
 namespace {
 

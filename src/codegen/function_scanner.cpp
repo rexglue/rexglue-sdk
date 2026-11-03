@@ -10,12 +10,13 @@
 
 #include <format>
 
-#include <rex/codegen/binary_view.h>
-#include <rex/codegen/codegen_context.h>
-#include <rex/codegen/function_scanner.h>
+#include "binary_view.h"
+#include "codegen_context.h"
+#include "function_scanner.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 #include <rex/types.h>
 
 namespace rex::codegen {
@@ -74,11 +75,6 @@ namespace {
  * block. An unknown opcode such as a 64 bit rotate does not, and is emitted as a comment. A bcctrl
  * is a call. An unconditional bcctr ends a block and a conditional one falls through when its
  * condition fails.
- *
- * @param insn Instruction to test.
- * @param region Code region holding the instruction.
- * @param known_functions Function entry points.
- * @return True when the block ends.
  */
 bool IsBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
                        const std::unordered_set<u32>& known_functions) {
@@ -116,13 +112,10 @@ bool IsBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
  * unrelated. A cmpli or cmpi on the register gives its immediate plus 1 entries and a clrlwi
  * (rlwinm with SH 0, ME 31 and MB above 0) gives 2^(32-MB).
  *
- * @param decoded Decoded binary.
- * @param limits Scan limits.
- * @param bctr_addr Address of the bctr.
- * @param region Code region holding the bctr.
- * @param expected_reg Register holding the switch index.
- * @param func_start Function start address.
- * @return The bounds, with found set when one was seen.
+ * @param region The code region that holds the bctr.
+ * @param expected_reg The index register of the bctr.
+ * @param func_start The function start, the lowest address the scan reaches.
+ * @return The bounds found.
  */
 Bounds ScanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctr_addr,
                      const CodeRegion& region, u8 expected_reg, u32 func_start) {
@@ -194,21 +187,13 @@ Bounds ScanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctr_addr
 }  // anonymous namespace
 
 /**
- * Detects a jump table by scanning back from a bctr through mtctr, the load, the optional add of a
- * base, and the lis and addi or ori pairs of the table and base addresses. The scan does not stop
- * at conditional branches, which are often bounds checks. The index register is traced back
- * through slwi only (rlwinm with SH above 0, MB 0 and ME 31-SH) and tracing stops when another
- * instruction writes it. An addi low half is sign extended and an ori low half is OR ed. Targets
- * must be 4 byte aligned, inside the code region and not below the function start. A target
- * pointing at null padding is stored as the sentinel 0, which codegen emits as a trap.
- *
- * @param decoded Decoded binary.
- * @param limits Scan limits.
- * @param bctr_addr Address of the bctr.
- * @param containing_region Code region holding the bctr.
- * @param func_start Function start address.
- * @param func_end Function end address.
- * @return The table, or nullopt when none matches.
+ * The scan runs back from the bctr through mtctr, the load, the optional add of a base, and the
+ * lis and addi or ori pairs of the table and base addresses. It does not stop at conditional
+ * branches, which are often bounds checks. The index register is traced back through slwi only
+ * (rlwinm with SH above 0, MB 0 and ME 31-SH) until another instruction writes it. An addi low
+ * half is sign extended and an ori low half is OR ed. Targets must be 4 byte aligned, inside the
+ * code region and not below the function start. A target pointing at null padding is stored as
+ * the sentinel 0, which codegen emits as a trap.
  */
 std::optional<JumpTable> DetectJumpTable(DecodedBinary& decoded, const Limits& limits,
                                          u32 bctr_addr, const CodeRegion& containing_region,
@@ -597,24 +582,14 @@ std::optional<JumpTable> DetectJumpTable(DecodedBinary& decoded, const Limits& l
 }
 
 /**
- * Discovers the blocks of a function from its entry. A bl is registered as an unresolved branch and
- * an external call when its target is outside the function. A conditional bcctr falls through when
- * its condition fails, so the scan follows the fall-through and its CTR target gets no label. An
- * unconditional bctr uses a configured switch table first, as those are needed when the compiler
- * emits a table without an adjacent bounds check, then automatic detection. A table target that
- * is another known function is dropped, with a warning for a configured table, which points at an
- * entry the configuration also registers. An internal table target past the function end extends it
- * to cover out-of-line case blocks inside the code region. A linear scan stops at the entry of
- * another known function and adds a tail call to it, keyed by that entry address.
- *
- * @param decoded Decoded binary.
- * @param limits Scan limits.
- * @param entry_point Function entry address.
- * @param containing_region Code region holding the function.
- * @param known_functions Function entry points that bound the function.
- * @param pdata_size Function size from PDATA, or 0 when unknown.
- * @param manual_switch_tables Configured switch tables keyed by bctr address, or nullptr.
- * @return The discovered blocks, labels and calls.
+ * A bl is registered as an unresolved branch, and as an external call when its target is outside
+ * the function. A conditional bcctr falls through when its condition fails, so the scan follows the
+ * fall through and the CTR target gets no label. An unconditional bctr uses a configured switch
+ * table first, for a table the compiler emits without an adjacent bounds check, then automatic
+ * detection. A table target that is another known function is skipped, with a warning for a
+ * configured table. An internal table target past the function end extends it to cover out of line
+ * case blocks inside the code region. A linear scan stops at the entry of another known function
+ * and adds a tail call to it.
  */
 BlockDiscoveryResult DiscoverBlocks(
     DecodedBinary& decoded, const Limits& limits, u32 entry_point,
@@ -770,7 +745,7 @@ BlockDiscoveryResult DiscoverBlocks(
           } else if (target) {
             result.unresolved_jumps.push_back({addr, *target, false, true});
           }
-          // The fall-through needs a label too.
+          // The fall through needs a label too.
           u32 fallthrough = addr + 4;
           if (is_internal_target(fallthrough)) {
             result.labels.insert(fallthrough);

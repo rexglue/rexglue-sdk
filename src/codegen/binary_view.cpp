@@ -1,14 +1,15 @@
 #include <limits>
 
-#include <rex/codegen/binary_view.h>
+#include "binary_view.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/runtime/binary_types.h>
-#include <rex/runtime/module.h>
+#include <rex/kernel/symbol_map.h>
+#include <rex/kernel/module.h>
 
 namespace rex::codegen {
 
-BinaryView BinaryView::FromModule(const runtime::Module& module) {
+BinaryView BinaryView::FromModule(const kernel::Module& module) {
   BinaryView view;
 
   view.base_address_ = module.GetBaseAddress();
@@ -21,7 +22,7 @@ BinaryView BinaryView::FromModule(const runtime::Module& module) {
   // Import thunk table and the export table after it extend to the end of .text
   u32 min_import_addr = std::numeric_limits<u32>::max();
   for (const auto& sym : module.GetBinarySymbols()) {
-    if (sym.type == runtime::BinarySymbolType::kImport) {
+    if (sym.type == kernel::BinarySymbolType::kImport) {
       view.import_symbols_.push_back(ImportSymbol{.address = sym.address, .name = sym.name});
 
       if (sym.address != 0 && sym.address < min_import_addr) {

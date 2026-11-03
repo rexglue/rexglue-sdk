@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/millicode_test.cpp
- * @brief       Save and restore runs register only when every entry is valid
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <format>
 #include <string>
@@ -214,7 +215,7 @@ REX_TEST_CASE("A run with a foreign instruction is rejected", "[codegen][millico
   CHECK_FALSE(Has(Generate(WithRun(spec)), "__savegprlr_14"));
 }
 
-REX_TEST_CASE("A run shorter than the kind requires is rejected", "[codegen][millicode]") {
+REX_TEST_CASE("A run shorter than the type requires is rejected", "[codegen][millicode]") {
   CHECK_FALSE(Has(Generate(WithRun({Run::kGPRSave, 14, kGPRCount - 1})), "__savegprlr_14"));
 }
 

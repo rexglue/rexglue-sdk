@@ -1,8 +1,8 @@
 #include "ppc/instruction.h"
 #include "ppc/disasm.h"
 #include "ppc/opcode.h"
-#include "builders/builder_context.h"
-#include "builders.h"
+#include "builder/builder_context.h"
+#include "builder.h"
 #include "mmio_analysis.h"
 #include "stack_forwarding.h"
 
@@ -20,10 +20,11 @@
 #include <format>
 
 #include <rex/assert.h>
-#include <rex/codegen/binary_view.h>
-#include <rex/codegen/function_graph.h>
-#include <rex/logging.h>
-#include <rex/memory/byte_swap.h>
+#include "binary_view.h"
+#include "function_graph.h"
+#include <rex/logging/log.h>
+#include "codegen_categories.h"
+#include <rex/memory/endian.h>
 
 #include <dis-asm.h>
 #include <ppc.h>
@@ -107,11 +108,6 @@ bool FunctionNode::CanSeal() const {
   return true;
 }
 
-const FunctionAnalysis& FunctionNode::GetAnalysis() const {
-  REX_ASSERT(state_ == FunctionState::kSealed, "Analysis only valid after seal");
-  return analysis_;
-}
-
 void FunctionNode::AddBlock(Block block) {
   blocks_.push_back(block);
 
@@ -136,7 +132,7 @@ bool FunctionNode::ContainsAddress(u32 addr) const {
     }
   }
 
-  // CONFIG and PDATA trust the declared size, as out-of-line switch cases sit after the epilogue.
+  // CONFIG and PDATA trust the declared size, as out of line switch cases sit after the epilogue.
   if (authority_ == FunctionAuthority::kConfig || authority_ == FunctionAuthority::kPData) {
     return true;
   }
@@ -276,7 +272,6 @@ void FunctionNode::Seal() {
     }
   }
 
-  analysis_ = FunctionAnalysis{};
   state_ = FunctionState::kSealed;
 
   REXLOG_TRACE(
@@ -298,13 +293,7 @@ void EmitPrint(std::string& out, std::format_string<Args...> fmt, Args&&... args
   std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
 }
 
-/**
- * Builds the copies of the localized nonvolatiles between the locals and ctx.
- *
- * @param locals The registers the body localized.
- * @param to_ctx True to copy the locals into ctx, false to copy ctx back into the locals.
- * @return One assignment line per localized nonvolatile.
- */
+/** Builds one assignment per localized nonvolatile, from the locals into ctx or back. */
 std::string RegisterSyncLines(const RecompilerLocalVariables& locals, bool to_ctx) {
   std::string lines;
   auto copy = [&](const std::string& name) {
@@ -332,13 +321,7 @@ std::string RegisterSyncLines(const RecompilerLocalVariables& locals, bool to_ct
   return lines;
 }
 
-/**
- * Replaces each register sync placeholder line with the copies of the nonvolatiles the function
- * localized, which are only known once the whole body is emitted.
- *
- * @param body The emitted function body.
- * @param locals The registers the body localized.
- */
+/** Replaces each sync placeholder line with the copies, known only once the body is emitted. */
 void ExpandRegisterSync(std::string& body, const RecompilerLocalVariables& locals) {
   for (const bool to_ctx : {true, false}) {
     const std::string marker = std::format("\t{}\n", to_ctx ? kSyncToCtx : kSyncFromCtx);
@@ -387,13 +370,7 @@ MMIOClassification ClassifyFunctionMMIO(const FunctionNode& node, const EmitCont
 
 namespace {
 
-/**
- * Reports whether control can continue past an instruction to the next address.
- *
- * @param graph The function graph.
- * @param insn The instruction.
- * @return True when control can continue to the next address.
- */
+/** Reports whether control can continue past an instruction to the next address. */
 bool FallsThrough(const FunctionGraph& graph, const rex::codegen::detail::Instruction& insn) {
   using rex::codegen::detail::Opcode;
   switch (insn.opcode) {
@@ -504,7 +481,9 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
 
             switch (reg[0]) {
               case 'c':
-                if (reg == "ctr")
+                if (reg == "ctx")
+                  EmitPrint(out, "PPCContext& ctx");
+                else if (reg == "ctr")
                   EmitPrint(out, "PPCRegister& ctr");
                 else
                   EmitPrint(out, "PPCCRRegister& {}", reg);
@@ -912,23 +891,12 @@ namespace {
 using rex::codegen::detail::Instruction;
 using rex::codegen::detail::Opcode;
 
-/**
- * Finds the fixed point of the functions that never return.
- */
+/** Finds the fixed point of the functions that never return. */
 class NoReturnSolver {
  public:
-  /**
-   * Creates a solver over a graph.
-   *
-   * @param graph The graph whose functions are sealed.
-   */
   explicit NoReturnSolver(const FunctionGraph& graph) : graph_(graph) {}
 
-  /**
-   * Computes the entry points of the functions that never return.
-   *
-   * @return The entry points.
-   */
+  /** Computes the entry points of the functions that never return. */
   std::unordered_set<u32> Solve() {
     std::vector<Flow> flows;
     for (const auto& [base, node] : graph_.GetFunctions()) {
@@ -956,22 +924,13 @@ class NoReturnSolver {
     std::vector<const Instruction*> insns;
   };
 
-  /**
-   * Reports whether control that reaches a function entry can come back.
-   *
-   * @param target Entry point address.
-   * @return True when control entering the function can come back.
-   */
   bool Returns(u32 target) const {
     return !graph_.IsDeclaredNoReturn(target) && !no_return_.contains(target);
   }
 
   /**
-   * Reports whether any path from the entry of a function leaves it by a return, by a jump to a
+   * Reports whether any path from the entry leaves the function by a return, by a jump to a
    * function that returns or by a jump to an address no instruction of the function covers.
-   *
-   * @param flow The function and its instructions in address order.
-   * @return True when the function may return.
    */
   bool MayReturn(const Flow& flow) const {
     const auto& insns = flow.insns;
@@ -1404,14 +1363,6 @@ void FunctionGraph::RegisterChunk(u32 base, u32 size) {
   REXLOG_TRACE(codegen, "FunctionGraph: registered chunk 0x{:08X}-0x{:08X}", base, base + size);
 }
 
-/**
- * Reports whether a branch may claim a target address. A forward target on a null dword, inside a
- * registered chunk, or inside a function that is not GAP_FILL is not vacant.
- *
- * @param from_addr Address of the branch.
- * @param target_addr Address it targets.
- * @return True when the target is vacant.
- */
 bool FunctionGraph::IsVacant(u32 from_addr, u32 target_addr) const {
   if (memory_reader_) {
     if (target_addr > from_addr) {
@@ -1451,14 +1402,11 @@ bool FunctionGraph::IsVacant(u32 from_addr, u32 target_addr) const {
 
 /**
  * Marks funclets as sharing the registers of their owner. MSVC compiles __finally and __except
- * bodies as funclets that run on the owner's frame with its non volatiles live, reached by bl from
- * the middle of the owner, so localizing their copies would hand them a zero. The scope table names
- * each funclet, the only reliable test since every prologue reads non volatiles to spill them.
- * C++ EH cleanup and catch funclets run the same way and are marked too. The owner stays localized
- * and syncs across the call site. A funclet with both an unwind entry and an inline bl entry is 2
- * nodes sharing 1 tail, so the whole extent is swept. Funclet ranges are [base, end).
- *
- * @return The number of functions marked.
+ * bodies as funclets that run on the owner's frame with its non volatiles live, so a localized
+ * copy would be zero. The scope table names each funclet, the only reliable test since every
+ * prologue reads non volatiles to spill them. C++ EH cleanup and catch funclets run the same way.
+ * A funclet with both an unwind entry and an inline bl entry is two nodes sharing one tail, so the
+ * whole extent [base, end) is swept.
  */
 size_t FunctionGraph::MarkFuncletRegisterSharing() {
   std::vector<std::pair<u32, u32>> ranges;
@@ -1538,37 +1486,32 @@ bool FunctionGraph::IsMergeableEntryPoint(u32 addr) const {
 }
 
 /**
- * Classifies a branch target. An import is always a call or tail call. A bl to the caller's own
- * base is a recursive call and a b to it loops to the start. An entry point of another function is
- * a call or tail call even inside a thunk's range. A target inside the caller is an internal label,
- * which for a bl is a rare PIC pattern.
- *
- * @param target Target address.
- * @param caller_addr Address of the branch.
- * @param is_call_instruction True for bl.
- * @return The target kind.
+ * An import is always a call or tail call. A bl to the caller's own base is a recursive call and a
+ * b to it loops to the start. An entry point of another function is a call or tail call even
+ * inside a thunk's range. A target inside the caller is an internal label, which for a bl is a
+ * rare PIC pattern.
  */
-TargetKind FunctionGraph::ClassifyTarget(u32 target, u32 caller_addr,
+TargetType FunctionGraph::ClassifyTarget(u32 target, u32 caller_addr,
                                          bool is_call_instruction) const {
   const FunctionNode* caller_fn = GetFunctionContaining(caller_addr);
 
   if (IsImport(target)) {
-    return TargetKind::kImport;
+    return TargetType::kImport;
   }
 
   if (caller_fn && target == caller_fn->GetBase()) {
-    return is_call_instruction ? TargetKind::kFunction : TargetKind::kInternalLabel;
+    return is_call_instruction ? TargetType::kFunction : TargetType::kInternalLabel;
   }
 
   if (IsEntryPoint(target)) {
-    return TargetKind::kFunction;
+    return TargetType::kFunction;
   }
 
   if (caller_fn && caller_fn->ContainsAddress(target)) {
-    return TargetKind::kInternalLabel;
+    return TargetType::kInternalLabel;
   }
 
-  return TargetKind::kUnknown;
+  return TargetType::kUnknown;
 }
 
 void FunctionGraph::NotifyFunctionAdded(FunctionNode* new_function) {

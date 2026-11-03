@@ -8,18 +8,21 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <rex/app.h>
+#include <rex/app/app.h>
 
-class FooTool : public rex::App {
+class FooTool : public rex::app::App {
+ public:
+  FooTool() : App("foo") {}
+
  protected:
-  rex::i32 OnRun(rex::API&) override { return 0; }
+  void OnRun() override {}
 };
 
-rex::i32 FooToolMain(FooTool& tool, const rex::CLIArgList& args) {
+int FooToolMain(FooTool& tool, const rex::CLIArgList& args) {
   if (tool.Init(args)) {
     tool.Run();
   }
   return tool.Shutdown();
 }
 
-REX_APP_MAIN(FooTool, FooToolMain)
+REX_CONSOLE_APP_MAIN(FooTool, FooToolMain)

@@ -56,6 +56,7 @@ rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)
 if (EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/sources.cmake")
   include({{ entrypoint_out_dir }}/sources.cmake)
   set(REXGLUE_ENTRYPOINT_GENERATED_SOURCES {{ cmake_var("GENERATED_SOURCES") }})
+  set(REXGLUE_ENTRYPOINT_PREFIX {{ cmake_var("GENERATED_PREFIX") }})
   set(REXGLUE_ENTRYPOINT_INCLUDE_DIR "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}")
 
   # Carried on the sources so they hold for whichever target compiles them.
@@ -98,7 +99,8 @@ macro (rexglue_setup_target target_name)
     )
     rexglue_apply_target_settings({{ names.original }}_recompiled)
     rexglue_apply_recomp_settings(
-      {{ names.original }}_recompiled "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.original }}_pch.h"
+      {{ names.original }}_recompiled
+      "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ cmake_var("REXGLUE_ENTRYPOINT_PREFIX") }}_pch.h"
     )
     add_dependencies({{ names.original }}_recompiled {{ names.original }}_codegen)
   endif ()

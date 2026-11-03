@@ -20,9 +20,9 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/codegen/codegen_context.h>
-#include <rex/codegen/codegen_writer.h>
-#include <rex/codegen/module_stub.h>
+#include "codegen/codegen_context.h"
+#include "codegen/codegen_writer.h"
+#include "codegen/module_stub.h"
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;

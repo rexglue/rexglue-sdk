@@ -1,4 +1,4 @@
-#include <rex/codegen/module_stub.h>
+#include "module_stub.h"
 
 #include <algorithm>
 #include <vector>
@@ -7,10 +7,10 @@
 
 #include "ppc/instruction.h"
 
-#include <rex/codegen/codegen_context.h>
+#include "codegen_context.h"
 #include <rex/logging/log.h>
-#include <rex/memory/byte_swap.h>
-#include <rex/runtime/binary_types.h>
+#include <rex/memory/endian.h>
+#include <rex/kernel/symbol_map.h>
 #include <rex/types.h>
 
 using rex::codegen::detail::DecodeInstruction;
@@ -25,7 +25,7 @@ void StubModule::Load(u32 base_address, const u8* data, size_t size) {
 
   binary_sections_.clear();
   binary_sections_.push_back(
-      runtime::BinarySection{".text", base_address, static_cast<u32>(size), data, true, false});
+      kernel::BinarySection{".text", base_address, static_cast<u32>(size), data, true, false});
 }
 
 void AnalyzeTestBinary(CodegenContext& ctx, std::string_view test_name,

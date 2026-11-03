@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/instruction_comment_test.cpp
- * @brief       The instruction comments in generated code hold only the disassembled text
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <algorithm>
 #include <string>

@@ -10,132 +10,132 @@ namespace rex::codegen {
 
 namespace {
 
-enum class Kind { kString, kInteger, kBoolean, kArray, kTable };
+enum class Type { kString, kInteger, kBoolean, kArray, kTable };
 
 struct KeySpec {
   std::string_view name;
-  Kind kind;
+  Type type;
 };
 
 constexpr std::array kProjectKeys = {
-    KeySpec{"name", Kind::kString},
-    KeySpec{"sdk_version", Kind::kString},
-    KeySpec{"game_root", Kind::kString},
-    KeySpec{"hook_sources", Kind::kArray},
+    KeySpec{"name", Type::kString},
+    KeySpec{"sdk_version", Type::kString},
+    KeySpec{"game_root", Type::kString},
+    KeySpec{"hook_sources", Type::kArray},
 };
 
 constexpr std::array kBinaryKeys = {
-    KeySpec{"includes", Kind::kArray},
-    KeySpec{"guest_path", Kind::kString},
-    KeySpec{"project_name", Kind::kString},
-    KeySpec{"file_path", Kind::kString},
-    KeySpec{"out_directory_path", Kind::kString},
-    KeySpec{"template_dir", Kind::kString},
-    KeySpec{"longjmp_address", Kind::kInteger},
-    KeySpec{"setjmp_address", Kind::kInteger},
-    KeySpec{"skip_lr", Kind::kBoolean},
-    KeySpec{"skip_msr", Kind::kBoolean},
-    KeySpec{"ctr_as_local", Kind::kBoolean},
-    KeySpec{"xer_as_local", Kind::kBoolean},
-    KeySpec{"reserved_as_local", Kind::kBoolean},
-    KeySpec{"cr_as_local", Kind::kBoolean},
-    KeySpec{"non_argument_as_local", Kind::kBoolean},
-    KeySpec{"non_volatile_as_local", Kind::kBoolean},
-    KeySpec{"forward_stack_stores", Kind::kBoolean},
-    KeySpec{"generate_exception_handlers", Kind::kBoolean},
-    KeySpec{"is_dll", Kind::kBoolean},
-    KeySpec{"analysis", Kind::kTable},
-    KeySpec{"shim", Kind::kTable},
-    KeySpec{"functions", Kind::kTable},
-    KeySpec{"invalid_instructions", Kind::kArray},
-    KeySpec{"switch_tables", Kind::kArray},
-    KeySpec{"midasm_hook", Kind::kArray},
-    KeySpec{"mmio", Kind::kTable},
-    KeySpec{"vector_math", Kind::kTable},
+    KeySpec{"includes", Type::kArray},
+    KeySpec{"guest_path", Type::kString},
+    KeySpec{"project_name", Type::kString},
+    KeySpec{"file_path", Type::kString},
+    KeySpec{"out_directory_path", Type::kString},
+    KeySpec{"template_dir", Type::kString},
+    KeySpec{"longjmp_address", Type::kInteger},
+    KeySpec{"setjmp_address", Type::kInteger},
+    KeySpec{"skip_lr", Type::kBoolean},
+    KeySpec{"skip_msr", Type::kBoolean},
+    KeySpec{"ctr_as_local", Type::kBoolean},
+    KeySpec{"xer_as_local", Type::kBoolean},
+    KeySpec{"reserved_as_local", Type::kBoolean},
+    KeySpec{"cr_as_local", Type::kBoolean},
+    KeySpec{"non_argument_as_local", Type::kBoolean},
+    KeySpec{"non_volatile_as_local", Type::kBoolean},
+    KeySpec{"forward_stack_stores", Type::kBoolean},
+    KeySpec{"generate_exception_handlers", Type::kBoolean},
+    KeySpec{"is_dll", Type::kBoolean},
+    KeySpec{"analysis", Type::kTable},
+    KeySpec{"shim", Type::kTable},
+    KeySpec{"functions", Type::kTable},
+    KeySpec{"invalid_instructions", Type::kArray},
+    KeySpec{"switch_tables", Type::kArray},
+    KeySpec{"midasm_hook", Type::kArray},
+    KeySpec{"mmio", Type::kTable},
+    KeySpec{"vector_math", Type::kTable},
 };
 
 constexpr std::array kVectorMathKeys = {
-    KeySpec{"vmaddfp", Kind::kString},     KeySpec{"vnmsubfp", Kind::kString},
-    KeySpec{"vmsum3fp128", Kind::kString}, KeySpec{"vmsum4fp128", Kind::kString},
-    KeySpec{"vrefp", Kind::kString},       KeySpec{"vrsqrtefp", Kind::kString},
-    KeySpec{"vexptefp", Kind::kString},    KeySpec{"fres", Kind::kString},
-    KeySpec{"frsqrte", Kind::kString},
+    KeySpec{"vmaddfp", Type::kString},     KeySpec{"vnmsubfp", Type::kString},
+    KeySpec{"vmsum3fp128", Type::kString}, KeySpec{"vmsum4fp128", Type::kString},
+    KeySpec{"vrefp", Type::kString},       KeySpec{"vrsqrtefp", Type::kString},
+    KeySpec{"vexptefp", Type::kString},    KeySpec{"fres", Type::kString},
+    KeySpec{"frsqrte", Type::kString},
 };
 
 constexpr std::array kAnalysisKeys = {
-    KeySpec{"data_region_threshold", Kind::kInteger},
-    KeySpec{"exception_handler_funcs", Kind::kArray},
+    KeySpec{"data_region_threshold", Type::kInteger},
+    KeySpec{"exception_handler_funcs", Type::kArray},
 };
 
 constexpr std::array kFunctionKeys = {
-    KeySpec{"size", Kind::kInteger},
-    KeySpec{"end", Kind::kInteger},
-    KeySpec{"name", Kind::kString},
-    KeySpec{"parent", Kind::kInteger},
-    KeySpec{"share_registers", Kind::kBoolean},
+    KeySpec{"size", Type::kInteger},
+    KeySpec{"end", Type::kInteger},
+    KeySpec{"name", Type::kString},
+    KeySpec{"parent", Type::kInteger},
+    KeySpec{"share_registers", Type::kBoolean},
 };
 
 constexpr std::array kInvalidInstructionKeys = {
-    KeySpec{"data", Kind::kInteger},
-    KeySpec{"size", Kind::kInteger},
+    KeySpec{"data", Type::kInteger},
+    KeySpec{"size", Type::kInteger},
 };
 
 constexpr std::array kSwitchTableKeys = {
-    KeySpec{"address", Kind::kInteger},
-    KeySpec{"register", Kind::kInteger},
-    KeySpec{"labels", Kind::kArray},
+    KeySpec{"address", Type::kInteger},
+    KeySpec{"register", Type::kInteger},
+    KeySpec{"labels", Type::kArray},
 };
 
 constexpr std::array kMidAsmHookKeys = {
-    KeySpec{"address", Kind::kInteger},
-    KeySpec{"name", Kind::kString},
-    KeySpec{"registers", Kind::kArray},
-    KeySpec{"return", Kind::kBoolean},
-    KeySpec{"return_on_true", Kind::kBoolean},
-    KeySpec{"return_on_false", Kind::kBoolean},
-    KeySpec{"jump_address", Kind::kInteger},
-    KeySpec{"jump_address_on_true", Kind::kInteger},
-    KeySpec{"jump_address_on_false", Kind::kInteger},
-    KeySpec{"after_instruction", Kind::kBoolean},
+    KeySpec{"address", Type::kInteger},
+    KeySpec{"name", Type::kString},
+    KeySpec{"registers", Type::kArray},
+    KeySpec{"return", Type::kBoolean},
+    KeySpec{"return_on_true", Type::kBoolean},
+    KeySpec{"return_on_false", Type::kBoolean},
+    KeySpec{"jump_address", Type::kInteger},
+    KeySpec{"jump_address_on_true", Type::kInteger},
+    KeySpec{"jump_address_on_false", Type::kInteger},
+    KeySpec{"after_instruction", Type::kBoolean},
 };
 
 constexpr std::array kMMIOKeys = {
-    KeySpec{"gpu", Kind::kTable},
-    KeySpec{"apu", Kind::kTable},
+    KeySpec{"gpu", Type::kTable},
+    KeySpec{"apu", Type::kTable},
 };
 
 constexpr std::array kMMIOBlockKeys = {
-    KeySpec{"read", Kind::kArray},
-    KeySpec{"write", Kind::kArray},
+    KeySpec{"read", Type::kArray},
+    KeySpec{"write", Type::kArray},
 };
 
-std::string_view KindName(Kind kind) {
-  switch (kind) {
-    case Kind::kString:
+std::string_view TypeName(Type type) {
+  switch (type) {
+    case Type::kString:
       return "a string";
-    case Kind::kInteger:
+    case Type::kInteger:
       return "an integer";
-    case Kind::kBoolean:
+    case Type::kBoolean:
       return "a boolean";
-    case Kind::kArray:
+    case Type::kArray:
       return "an array";
-    case Kind::kTable:
+    case Type::kTable:
       return "a table";
   }
   return "";
 }
 
-bool Matches(const toml::node& node, Kind kind) {
-  switch (kind) {
-    case Kind::kString:
+bool Matches(const toml::node& node, Type type) {
+  switch (type) {
+    case Type::kString:
       return node.is_string();
-    case Kind::kInteger:
+    case Type::kInteger:
       return node.is_integer();
-    case Kind::kBoolean:
+    case Type::kBoolean:
       return node.is_boolean();
-    case Kind::kArray:
+    case Type::kArray:
       return node.is_array();
-    case Kind::kTable:
+    case Type::kTable:
       return node.is_table();
   }
   return false;
@@ -145,15 +145,7 @@ std::string Join(std::string_view path, std::string_view key) {
   return path.empty() ? std::string(key) : std::format("{}.{}", path, key);
 }
 
-/**
- * Checks the keys of 1 table against the keys the loader reads.
- *
- * @param tbl The table to check.
- * @param specs The keys the loader reads, with their types.
- * @param path The key path of the table, empty for the root.
- * @param source The start of every warning.
- * @param warnings Receives the warnings.
- */
+/** Warns about each key of one table that the loader does not read or reads with another type. */
 void CheckTable(const toml::table& tbl, std::span<const KeySpec> specs, std::string_view path,
                 std::string_view source, std::vector<std::string>& warnings) {
   for (const auto& [key, node] : tbl) {
@@ -161,9 +153,9 @@ void CheckTable(const toml::table& tbl, std::span<const KeySpec> specs, std::str
     const auto spec = std::ranges::find(specs, name, &KeySpec::name);
     if (spec == specs.end()) {
       warnings.push_back(std::format("{}: unknown key '{}'", source, Join(path, name)));
-    } else if (!Matches(node, spec->kind)) {
+    } else if (!Matches(node, spec->type)) {
       warnings.push_back(
-          std::format("{}: key '{}' should be {}", source, Join(path, name), KindName(spec->kind)));
+          std::format("{}: key '{}' should be {}", source, Join(path, name), TypeName(spec->type)));
     }
   }
 }

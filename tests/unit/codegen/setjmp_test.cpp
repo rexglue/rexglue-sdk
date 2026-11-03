@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/setjmp_test.cpp
- * @brief       A setjmp call snapshots the localized nonvolatiles and reads them back on return
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <format>
 #include <string>

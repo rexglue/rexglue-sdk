@@ -1,10 +1,11 @@
 #include <rex/platform/file.h>
-#include <rex/codegen/template_registry.h>
+#include "template_registry.h"
 #include "template_render.h"
 
 #include <inja/inja.hpp>
 #include <rex/hash.h>
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
 #include "embedded_templates.h"
 
@@ -56,7 +57,7 @@ struct TemplateRegistry::Impl {
         });
   }
 
-  std::string RenderImpl(const std::string& id, const nlohmann::json& data) {
+  std::string Render(const std::string& id, const nlohmann::json& data) {
     auto ov_it = overrides.find(id);
     if (ov_it != overrides.end()) {
       return env.render(ov_it->second, data);
@@ -120,7 +121,7 @@ void TemplateRegistry::LoadOverrides(const std::filesystem::path& dir) {
 std::string TemplateRegistry::Render(const std::string& id, const std::string& json_data) {
   try {
     auto data = nlohmann::json::parse(json_data);
-    return impl_->RenderImpl(id, data);
+    return impl_->Render(id, data);
   } catch (const TemplateError&) {
     throw;
   } catch (const nlohmann::json::exception& e) {
@@ -147,7 +148,7 @@ std::string TemplateRegistry::RenderString(const std::string& template_content,
   }
 }
 
-std::vector<std::string> TemplateRegistry::GetRegisteredIds() const {
+std::vector<std::string> TemplateRegistry::GetRegisteredIDs() const {
   std::vector<std::string> ids;
   ids.reserve(impl_->embedded.size());
   for (const auto& [id, _] : impl_->embedded) {

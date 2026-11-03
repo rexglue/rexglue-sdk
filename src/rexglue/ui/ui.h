@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/ui/ui.h
- * @brief       Presentation layer for the rexglue CLI
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -21,9 +20,9 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/logging/format.h>
-#include <rex/logging/sink.h>
+#include <rex/logging/logger.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rexglue::ui {
 
@@ -65,12 +64,8 @@ struct InitOptions {
 void Init(const InitOptions& opts);
 void Shutdown();
 
-/**
- * Returns the presentation sink, for LogConfig::sinks.
- *
- * @return The shared log sink.
- */
-rex::log::ISink& LogSink();
+/** Returns the sink to pass to Logger::AddSink. */
+rex::log::ISink& GetLogSink();
 
 void Banner(std::string_view title);
 
@@ -98,7 +93,7 @@ bool IsSinkTTY();
 
 void SetSinkActiveProgress(bool active);
 
-/** RAII lock on the global sink's mutex for write access. */
+/** Holds the global sink's mutex while writing. */
 class GlobalSinkAccessor : public rex::NonCopyable {
  public:
   GlobalSinkAccessor();

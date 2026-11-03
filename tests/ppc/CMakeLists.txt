@@ -1,9 +1,7 @@
-# PowerPC Instruction Test Suite
-# Compiles PPC assembly tests and generates Catch2 test cases
+set(CMAKE_FOLDER "tests/ppc")
 
 include(ppc_test_pipeline)
 
-# Output directories
 set(PPC_OBJ_DIR ${CMAKE_BINARY_DIR}/tests/ppc/obj)
 set(PPC_BIN_DIR ${CMAKE_BINARY_DIR}/tests/ppc/bin)
 set(PPC_GEN_DIR ${CMAKE_BINARY_DIR}/tests/ppc/generated)
@@ -12,7 +10,6 @@ file(MAKE_DIRECTORY ${PPC_OBJ_DIR})
 file(MAKE_DIRECTORY ${PPC_BIN_DIR})
 file(MAKE_DIRECTORY ${PPC_GEN_DIR})
 
-# Collect and build all assembly test files
 file(GLOB ASM_FILES ${CMAKE_CURRENT_SOURCE_DIR}/asm/*.s)
 list(LENGTH ASM_FILES NUM_TESTS)
 
@@ -51,9 +48,9 @@ set_source_files_properties(
 
 target_include_directories(ppc_tests PRIVATE ${PPC_GEN_DIR})
 
-target_link_libraries(ppc_tests PRIVATE simde rexruntime Catch2::Catch2WithMain)
+target_link_libraries(ppc_tests PRIVATE simde rexkernel Catch2::Catch2WithMain)
 
-set_target_properties(ppc_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>)
+set_target_properties(ppc_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexkernel>)
 if (UNIX AND NOT APPLE)
   rexglue_set_rpath(ppc_tests "$ORIGIN")
 endif ()

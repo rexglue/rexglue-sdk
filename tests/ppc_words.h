@@ -1,6 +1,5 @@
 /**
  * @file        tests/ppc_words.h
- * @brief       Big endian instruction words for codegen tests
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -21,8 +20,7 @@ namespace rex::test {
 /**
  * Encodes instruction words as big endian bytes.
  *
- * @param words Big endian instruction words to encode.
- * @return Each word as 4 big endian bytes in order.
+ * @return 4 bytes per word, in order.
  */
 inline std::vector<u8> Encode(std::initializer_list<u32> words) {
   std::vector<u8> data;

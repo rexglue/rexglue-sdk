@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/tail_call_test.cpp
- * @brief       Branches out of a function are tail calls unless state must outlive the jump
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <format>
 #include <string>
@@ -68,7 +69,7 @@ std::string CalleeName() {
 
 REX_TEST_CASE("A branch to a function is a tail call", "[codegen][tailcall]") {
   const auto tree = Generate({Branch(0, kCalleeIndex), kNop, kBlr});
-  CHECK(Has(tree, std::format("[[clang::musttail]] return {}(ctx, base);", CalleeName())));
+  CHECK(Has(tree, std::format("REX_MUSTTAIL return {}(ctx, base);", CalleeName())));
 }
 
 REX_TEST_CASE("An indirect jump through the counter is a tail call", "[codegen][tailcall]") {

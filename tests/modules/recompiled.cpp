@@ -1,6 +1,6 @@
 /**
  * @file        tests/modules/recompiled.cpp
- * @brief       Recompiled library with 1 function, built once per image the tests load
+ * @brief       Recompiled library with one function, built once per image the tests load
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,10 +10,10 @@
  */
 
 #include <rex/types.h>
-#include <rex/image_info.h>
-#include <rex/export.h>
-#include <rex/ppc/func.h>
-#include <rex/runtime/function_dispatcher.h>
+#include <rex/ppc/image.h>
+#include <rex/platform.h>
+#include <rex/ppc/recompiled_code.h>
+#include <rex/kernel/function_dispatcher.h>
 
 namespace {
 
@@ -25,7 +25,7 @@ void Function(PPCContext& ctx, rex::u8*) {
   ctx.r3.u64 = REX_TEST_RESULT;
 }
 
-const rex::PPCImage kImageInfo = {
+const rex::ppc::PPCImage kImageInfo = {
     .code_base = kImageBase,
     .code_size = kImageSize,
     .image_base = kImageBase,
@@ -35,10 +35,10 @@ const rex::PPCImage kImageInfo = {
 
 }  // namespace
 
-extern "C" REX_DETAIL_EXPORT void ReXRegisterModule(rex::runtime::IModuleRegistrar* registrar) {
+extern "C" REX_DETAIL_EXPORT void ReXRegisterModule(rex::kernel::IFunctionRegistrar* registrar) {
   registrar->SetFunction(kFunctionAddress, Function);
 }
 
-extern "C" REX_DETAIL_EXPORT const rex::PPCImage* ReXGetModuleImage() {
+extern "C" REX_DETAIL_EXPORT const rex::ppc::PPCImage* ReXGetModuleImage() {
   return &kImageInfo;
 }

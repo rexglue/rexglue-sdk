@@ -9,7 +9,7 @@
  */
 
 #include <rex/platform.h>
-#include <rex/platform/exceptions.h>
+#include <rex/ppc/seh.h>
 #include <rex/ppc/recompiled_code.h>
 
 #if REX_PLATFORM_WIN32

@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/function_scanner_test.cpp
- * @brief       Block discovery stops where another function begins
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,11 +17,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include <rex/codegen/codegen_context.h>
-#include <rex/codegen/config.h>
-#include <rex/codegen/function_scanner.h>
-#include <rex/codegen/module_stub.h>
-#include <rex/memory/byte_swap.h>
+#include "codegen/codegen_context.h"
+#include "codegen/config.h"
+#include "codegen/function_scanner.h"
+#include "codegen/module_stub.h"
+#include <rex/memory/endian.h>
 
 #include "codegen/decoded_binary.h"
 

@@ -23,7 +23,6 @@ namespace rex::codegen {
  * Collects a warning for each key of a binary config table that the loader does not read or that
  * has the wrong type. Nested tables and arrays of tables are checked too.
  *
- * @param root The table holding the binary config keys.
  * @param source The file and section the table came from, the start of every warning.
  * @param warnings Receives one warning per key.
  */
@@ -34,7 +33,6 @@ void CheckConfigKeys(const toml::table& root, std::string_view source,
  * Collects a warning for each key of a manifest `[project]` table that the loader does not read or
  * that has the wrong type.
  *
- * @param project The `[project]` table.
  * @param source The file and section the table came from, the start of every warning.
  * @param warnings Receives one warning per key.
  */

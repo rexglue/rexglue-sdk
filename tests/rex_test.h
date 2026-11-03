@@ -21,15 +21,9 @@
 
 namespace Catch {
 
-/** Prints a byte vector as hex so a failed comparison reports it compactly. */
+/** Prints a byte vector as its count and the hex bytes. */
 template <>
 struct StringMaker<std::vector<unsigned char>> {
-  /**
-   * Formats the bytes.
-   *
-   * @param bytes The bytes to print.
-   * @return The byte count followed by each byte in 2 hex digits.
-   */
   static std::string convert(const std::vector<unsigned char>& bytes) {
     std::string text = std::format("{} bytes:", bytes.size());
     for (const unsigned char byte : bytes) {
@@ -43,9 +37,7 @@ struct StringMaker<std::vector<unsigned char>> {
 
 namespace rex::test {
 
-/**
- * True when the test binary is built with ThreadSanitizer.
- */
+/** True when the test binary is built with ThreadSanitizer. */
 #if defined(__has_feature)
 #if __has_feature(thread_sanitizer)
 inline constexpr bool kThreadSanitizer = true;
@@ -57,12 +49,11 @@ inline constexpr bool kThreadSanitizer = false;
 #endif
 
 /**
- * Registers an event listener through a noexcept function, so no throwing constructor runs
- * during static initialization.
+ * Registers an event listener through a noexcept function.
  *
  * @tparam ListenerType Listener class derived from Catch::EventListenerBase.
  * @param name Name Catch reports for the listener.
- * @return The registrar, held by a namespace scope variable for the life of the program.
+ * @return The registrar, held by a namespace scope variable.
  *
  * @code
  * const auto g_registrar = rex::testing::RegisterListener<MyListener>("MyListener"_catch_sr);

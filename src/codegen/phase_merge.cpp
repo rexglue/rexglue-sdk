@@ -9,21 +9,17 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <rex/codegen/phases.h>
+#include "pipeline.h"
 
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 
 namespace rex::codegen {
 
 namespace {
 
-/**
- * Resolves jumps then seals functions.
- *
- * @param ctx Codegen context.
- */
 void MergeAndSeal(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: resolving jumps and sealing functions...");
 
@@ -86,7 +82,7 @@ void MergeAndSeal(CodegenContext& ctx) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> Merge(CodegenContext& ctx, IProgressReporter* reporter) {
+[[nodiscard]] Result<void> MergeFunctions(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   MergeAndSeal(ctx);
   return Ok();

@@ -22,8 +22,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include <rex/codegen/manifest.h>
-#include <rex/codegen/template_registry.h>
+#include "codegen/manifest.h"
+#include "codegen/template_registry.h"
 
 namespace fs = std::filesystem;
 

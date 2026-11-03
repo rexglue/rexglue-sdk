@@ -26,9 +26,9 @@
 #include <string>
 #include <vector>
 
-#include <rex/codegen/codegen_context.h>
-#include <rex/codegen/codegen_writer.h>
-#include <rex/codegen/module_stub.h>
+#include "codegen/codegen_context.h"
+#include "codegen/codegen_writer.h"
+#include "codegen/module_stub.h"
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;
@@ -40,7 +40,7 @@ using rex::test::ReadText;
 constexpr u32 kBaseAddress = 0x82000000;
 constexpr u32 kFunctionCount = 4;
 
-// Big endian `blr` (0x4E800020), one instruction per test function.
+// One `blr` (0x4E800020) per function.
 std::vector<u8> BuildBlrBinary(u32 function_count) {
   std::vector<u8> data;
   data.reserve(size_t{function_count} * 4);
@@ -50,7 +50,6 @@ std::vector<u8> BuildBlrBinary(u32 function_count) {
   return data;
 }
 
-/** Holds a fake module, a context with a sealed function per `blr` and a scratch output tree. */
 struct WriterFixture {
   rex::test::TempFolder folder;
   fs::path root;
@@ -138,6 +137,43 @@ REX_TEST_CASE("Stale generated files are swept after the write", "[codegen][code
   CHECK_FALSE(fs::exists(orphan));
   CHECK(std::find(second.GetDeletedFiles().begin(), second.GetDeletedFiles().end(),
                   std::string("testproj_recomp.99.cpp")) != second.GetDeletedFiles().end());
+}
+
+REX_TEST_CASE("Files left by an earlier project prefix are swept", "[codegen][codegen_writer]") {
+  WriterFixture fx("old_prefix");
+
+  CodegenWriter first(*fx.ctx);
+  REQUIRE(first.Write(false));
+
+  const std::vector<std::string> old_names = {
+      "oldname_pch.h",        "oldname_funcs.h",   "oldname_init.h",       "oldname_init.cpp",
+      "oldname_register.cpp", "oldname_funcs.0.h", "oldname_recomp.12.cpp"};
+  for (const auto& name : old_names) {
+    std::ofstream(fx.GetOutputDir() / name) << "// leftover\n";
+  }
+  std::ofstream(fx.GetOutputDir() / "oldname_notes.txt") << "keep me\n";
+  std::ofstream(fx.GetOutputDir() / "oldname_helper.cpp") << "// hand written\n";
+
+  CodegenWriter second(*fx.ctx);
+  REQUIRE(second.Write(false));
+
+  for (const auto& name : old_names) {
+    CHECK_FALSE(fs::exists(fx.GetOutputDir() / name));
+  }
+  CHECK(fs::exists(fx.GetOutputDir() / "oldname_notes.txt"));
+  CHECK(fs::exists(fx.GetOutputDir() / "oldname_helper.cpp"));
+}
+
+REX_TEST_CASE("sources.cmake names the prefix of the generated files",
+              "[codegen][codegen_writer]") {
+  WriterFixture fx("prefix_var");
+
+  CodegenWriter writer(*fx.ctx);
+  REQUIRE(writer.Write(false));
+
+  const std::string text = ReadText(fx.GetOutputDir() / "sources.cmake");
+  CHECK(text.find("set(GENERATED_PREFIX " + std::string(1, '"') + "testproj" + std::string(1, '"') +
+                  ")") != std::string::npos);
 }
 
 REX_TEST_CASE("Unrelated files in the output directory survive the sweep",
@@ -243,7 +279,7 @@ REX_TEST_CASE("Every name a recomp file calls is declared in its header",
       declared.insert((*it)[1].str());
     }
 
-    // A call may precede its own definition, so being defined here is no excuse.
+    // A call may precede its definition, so only a declaration makes it valid.
     for (std::sregex_iterator it(body.begin(), body.end(), kCallRe), end; it != end; ++it) {
       auto called = (*it)[1].str();
       INFO("file " << name << " calls " << called << " with no declaration");

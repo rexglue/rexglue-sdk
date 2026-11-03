@@ -63,7 +63,7 @@ void StackForwarding::OnInstruction(const ppc_insn& insn, int id) {
   }
 }
 
-u8 StackForwarding::Hold(i32 offset, u8 width) {
+u8 StackForwarding::HoldSlot(i32 offset, u8 width) {
   for (Slot& slot : slots_) {
     if (slot.live && offset < slot.offset + slot.width && slot.offset < offset + width) {
       slot.live = false;
@@ -75,7 +75,7 @@ u8 StackForwarding::Hold(i32 offset, u8 width) {
   return index;
 }
 
-std::optional<u8> StackForwarding::Find(i32 offset, u8 width) const {
+std::optional<u8> StackForwarding::FindSlot(i32 offset, u8 width) const {
   for (size_t i = 0; i < kSlots; ++i) {
     if (slots_[i].live && slots_[i].offset == offset && slots_[i].width == width) {
       return static_cast<u8>(i);

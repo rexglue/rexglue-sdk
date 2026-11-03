@@ -17,12 +17,11 @@
 
 extern "C" {
 /**
- * Classifies the register an operand of a table entry names.
+ * Returns the register class of an operand of an opcode table entry. The class is 1 for a GPR, 2
+ * for a GPR where 0 means no register, 3 for an FPR, 4 for a vector register and 0 for any other
+ * operand.
  *
- * @param entry The opcode table entry.
  * @param position The operand position, as in the operands array of a decoded instruction.
- * @return 1 for a GPR, 2 for a GPR where 0 means no register, 3 for an FPR, 4 for a vector
- * register and 0 for any other operand.
  */
 int OperandRegisterClass(const powerpc_opcode* entry, unsigned position);
 }
@@ -45,11 +44,6 @@ struct DisassemblerEngine {
   ~DisassemblerEngine() = default;
 
   /**
-   * Disassembles a single instruction.
-   *
-   * @param code Pointer to the instruction bytes
-   * @param size Number of bytes available at code
-   * @param base Address of the instruction
    * @param out Receives the decoded instruction
    * @return Number of bytes decoded
    */

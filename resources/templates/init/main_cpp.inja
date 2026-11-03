@@ -1,16 +1,12 @@
 // {{ names.original }} - ReXGlue Recompiled Project
 
-#include <rex/ui/title_app.h>
+#include <rex/app/title_app.h>
 
 #include "{{ entrypoint_out_dir }}/{{ names.original }}_init.h"
 
-class {{ names.pascal_case }}App : public rex::ui::TitleApp {
- protected:
-  void OnCreateWindow(rex::ui::TitleUI& ui) override {
-    if (!ui.GetUI().AddOverlays(rex::ui::kStandardOverlays)) {
-      rex::RequestShutdown(1);
-    }
-  }
+class {{ names.pascal_case }}App : public rex::app::TitleApp {
+ public:
+  {{ names.pascal_case }}App() : TitleApp("{{ names.original }}", PPCImageConfig) {}
 };
 
 REX_TITLE_APP({{ names.pascal_case }}App)

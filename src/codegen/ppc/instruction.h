@@ -21,26 +21,19 @@
 
 namespace rex::codegen::detail {
 
-/**
- * Holds a PowerPC instruction with decoded fields.
- *
- * Uses a union for field access.
- */
+/** A PowerPC instruction with decoded fields. */
 struct Instruction {
   u32 address = 0;
   be_u32 code{0};
   Opcode opcode = Opcode::kUnknown;
   InstrFormat format = InstrFormat::kUnknown;
 
-  /**
-   * Format I, unconditional branch (b, ba, bl, bla)
-   * Fields LI (24-bit), AA (1-bit), LK (1-bit)
-   */
+  /** Format I, unconditional branch (b, ba, bl, bla). */
   struct FormatI {
-    u32 LI : 24;            /**< Branch offset (bits 6-29). */
-    u32 AA : 1;             /**< Absolute address flag (bit 30). */
-    u32 LK : 1;             /**< Link flag (bit 31). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 LI : 24; /**< Branch offset (bits 6-29). */
+    u32 AA : 1;  /**< Absolute address flag (bit 30). */
+    u32 LK : 1;  /**< Link flag (bit 31). */
+    u32 primary_opcode : 6;
 
     i32 GetOffset() const {
       i32 val = static_cast<i32>(LI << 8) >> 6;
@@ -48,17 +41,14 @@ struct Instruction {
     }
   };
 
-  /**
-   * Format B, conditional branch (bc, bca, bcl, bcla)
-   * Fields BO (5-bit), BI (5-bit), BD (14-bit), AA (1-bit), LK (1-bit)
-   */
+  /** Format B, conditional branch (bc, bca, bcl, bcla). */
   struct FormatB {
-    u32 BD : 14;            /**< Branch displacement (bits 16-29). */
-    u32 AA : 1;             /**< Absolute address flag (bit 30). */
-    u32 LK : 1;             /**< Link flag (bit 31). */
-    u32 BI : 5;             /**< Condition register bit (bits 11-15). */
-    u32 BO : 5;             /**< Branch options (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 BD : 14; /**< Branch displacement (bits 16-29). */
+    u32 AA : 1;  /**< Absolute address flag (bit 30). */
+    u32 LK : 1;  /**< Link flag (bit 31). */
+    u32 BI : 5;  /**< Condition register bit (bits 11-15). */
+    u32 BO : 5;  /**< Branch options (bits 6-10). */
+    u32 primary_opcode : 6;
 
     i32 GetOffset() const {
       i32 val = static_cast<i32>(BD << 18) >> 16;
@@ -66,15 +56,12 @@ struct Instruction {
     }
   };
 
-  /**
-   * Format D, immediate operations (load, store, addi and others)
-   * Fields RT/RS (5-bit), RA (5-bit), d/SIMM/UIMM (16-bit)
-   */
+  /** Format D, immediate operations (load, store, addi and others). */
   struct FormatD {
-    u32 d : 16;             /**< Immediate value (bits 16-31). */
-    u32 RA : 5;             /**< Register A (bits 11-15). */
-    u32 RT : 5;             /**< Register T/S (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 d : 16; /**< Immediate value (bits 16-31). */
+    u32 RA : 5; /**< Register A (bits 11-15). */
+    u32 RT : 5; /**< Register T/S (bits 6-10). */
+    u32 primary_opcode : 6;
 
     i32 SIMM() const { return static_cast<i32>(static_cast<i16>(d)); }
 
@@ -83,65 +70,51 @@ struct Instruction {
     u32 RS() const { return RT; }
   };
 
-  /**
-   * Format DS, double-word operations (ld, std)
-   * Fields RT/RS (5-bit), RA (5-bit), DS (14-bit), XO (2-bit)
-   */
+  /** Format DS, double word operations (ld, std). */
   struct FormatDS {
-    u32 XO : 2;             /**< Extended opcode (bits 30-31). */
-    u32 DS : 14;            /**< Displacement (bits 16-29, multiple of 4). */
-    u32 RA : 5;             /**< Register A (bits 11-15). */
-    u32 RT : 5;             /**< Register T/S (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 XO : 2;  /**< Extended opcode (bits 30-31). */
+    u32 DS : 14; /**< Displacement (bits 16-29, multiple of 4). */
+    u32 RA : 5;  /**< Register A (bits 11-15). */
+    u32 RT : 5;  /**< Register T/S (bits 6-10). */
+    u32 primary_opcode : 6;
 
     i32 GetDisplacement() const { return static_cast<i32>(static_cast<i16>(DS << 2)); }
 
     u32 RS() const { return RT; }
   };
 
-  /**
-   * Format X, general register operations (logical, shifts, loads/stores)
-   * Fields RT/RS (5-bit), RA (5-bit), RB (5-bit), XO (10-bit), Rc (1-bit)
-   */
+  /** Format X, general register operations (logical, shifts, loads and stores). */
   struct FormatX {
-    u32 Rc : 1;             /**< Updates CR0. */
-    u32 XO : 10;            /**< Extended opcode (bits 21-30). */
-    u32 RB : 5;             /**< Register B (bits 16-20). */
-    u32 RA : 5;             /**< Register A (bits 11-15). */
-    u32 RT : 5;             /**< Register T/S (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 Rc : 1;  /**< Updates CR0. */
+    u32 XO : 10; /**< Extended opcode (bits 21-30). */
+    u32 RB : 5;  /**< Register B (bits 16-20). */
+    u32 RA : 5;  /**< Register A (bits 11-15). */
+    u32 RT : 5;  /**< Register T/S (bits 6-10). */
+    u32 primary_opcode : 6;
 
     u32 RS() const { return RT; }
   };
 
-  /**
-   * Format XL, branch to LR/CTR (bclr, bcctr)
-   * Fields BO (5-bit), BI (5-bit), XO (10-bit), LK (1-bit)
-   */
+  /** Format XL, branch to LR or CTR (bclr, bcctr). */
   struct FormatXL {
-    u32 LK : 1;             /**< Link bit (bit 31). */
-    u32 XO : 10;            /**< Extended opcode (bits 21-30). */
-    u32 unused : 5;         /**< Unused (bits 16-20). */
-    u32 BI : 5;             /**< Condition register bit (bits 11-15). */
-    u32 BO : 5;             /**< Branch options (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 LK : 1;  /**< Link bit (bit 31). */
+    u32 XO : 10; /**< Extended opcode (bits 21-30). */
+    u32 unused : 5;
+    u32 BI : 5; /**< Condition register bit (bits 11-15). */
+    u32 BO : 5; /**< Branch options (bits 6-10). */
+    u32 primary_opcode : 6;
   };
 
-  /**
-   * Format XFX, SPR access (mfspr, mtspr)
-   * Fields RT/RS (5-bit), SPR (10-bit), XO (10-bit)
-   */
+  /** Format XFX, SPR access (mfspr, mtspr). */
   struct FormatXFX {
-    u32 unused : 1;         /**< Unused (bit 31). */
-    u32 XO : 10;            /**< Extended opcode (bits 21-30). */
-    u32 SPR : 10;           /**< SPR number (bits 11-20, encoded split). */
-    u32 RT : 5;             /**< Register T/S (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 unused : 1;
+    u32 XO : 10;  /**< Extended opcode (bits 21-30). */
+    u32 SPR : 10; /**< SPR number (bits 11-20, encoded split). */
+    u32 RT : 5;   /**< Register T/S (bits 6-10). */
+    u32 primary_opcode : 6;
 
     /**
-     * Returns the SPR number, whose 2 5-bit halves are swapped in the encoding.
-     *
-     * @return The SPR number
+     * Returns the SPR number, whose two 5 bit halves are swapped in the encoding.
      */
     u32 GetSPRNum() const {
       u32 lower = (SPR >> 5) & 0x1F;
@@ -152,122 +125,95 @@ struct Instruction {
     u32 RS() const { return RT; }
   };
 
-  /**
-   * Format XO, arithmetic with overflow (add, sub, mul, div)
-   * Fields RT (5-bit), RA (5-bit), RB (5-bit), OE (1-bit), XO (9-bit), Rc (1-bit)
-   */
+  /** Format XO, arithmetic with overflow (add, sub, mul, div). */
   struct FormatXO {
-    u32 Rc : 1;             /**< Updates CR0. */
-    u32 XO : 9;             /**< Extended opcode (bits 22-30). */
-    u32 OE : 1;             /**< Overflow enable (bit 21). */
-    u32 RB : 5;             /**< Register B (bits 16-20). */
-    u32 RA : 5;             /**< Register A (bits 11-15). */
-    u32 RT : 5;             /**< Register T (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 Rc : 1; /**< Updates CR0. */
+    u32 XO : 9; /**< Extended opcode (bits 22-30). */
+    u32 OE : 1; /**< Overflow enable (bit 21). */
+    u32 RB : 5; /**< Register B (bits 16-20). */
+    u32 RA : 5; /**< Register A (bits 11-15). */
+    u32 RT : 5; /**< Register T (bits 6-10). */
+    u32 primary_opcode : 6;
   };
 
-  /**
-   * Format M, rotate and mask (rlwinm, rlwnm)
-   * Fields RS (5-bit), RA (5-bit), SH/RB (5-bit), MB (5-bit), ME (5-bit), Rc (1-bit)
-   */
+  /** Format M, rotate and mask (rlwinm, rlwnm). */
   struct FormatM {
-    u32 Rc : 1;             /**< Updates CR0. */
-    u32 ME : 5;             /**< Mask end (bits 26-30). */
-    u32 MB : 5;             /**< Mask begin (bits 21-25). */
-    u32 SH : 5;             /**< Shift amount (bits 16-20). */
-    u32 RA : 5;             /**< Register A (bits 11-15). */
-    u32 RS : 5;             /**< Register S (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
-
-    /** Returns the register B field of rlwnm, which shares the SH bits. */
-    u32 RB() const { return SH; }
+    u32 Rc : 1; /**< Updates CR0. */
+    u32 ME : 5; /**< Mask end (bits 26-30). */
+    u32 MB : 5; /**< Mask begin (bits 21-25). */
+    u32 SH : 5; /**< Shift amount (bits 16-20). */
+    u32 RA : 5; /**< Register A (bits 11-15). */
+    u32 RS : 5; /**< Register S (bits 6-10). */
+    u32 primary_opcode : 6;
   };
 
-  /**
-   * Format MD, rotate double-word (64-bit)
-   * Fields RS (5-bit), RA (5-bit), sh (6-bit), mb (6-bit), XO (3-bit), Rc (1-bit)
-   */
+  /** Format MD, rotate double word. */
   struct FormatMD {
-    u32 Rc : 1;             /**< Updates CR0. */
-    u32 XO : 3;             /**< Extended opcode (bits 27-29). */
-    u32 mb : 6;             /**< Mask begin (bits 21-26, includes bit 5). */
-    u32 sh : 6;             /**< Shift amount (bits 16-20, includes bit 30). */
-    u32 RA : 5;             /**< Register A (bits 11-15). */
-    u32 RS : 5;             /**< Register S (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 Rc : 1; /**< Updates CR0. */
+    u32 XO : 3; /**< Extended opcode (bits 27-29). */
+    u32 mb : 6; /**< Mask begin (bits 21-26, includes bit 5). */
+    u32 sh : 6; /**< Shift amount (bits 16-20, includes bit 30). */
+    u32 RA : 5; /**< Register A (bits 11-15). */
+    u32 RS : 5; /**< Register S (bits 6-10). */
+    u32 primary_opcode : 6;
   };
 
-  /**
-   * Format A, floating-point arithmetic (fmadd, fmul and others)
-   * Fields FRT (5-bit), FRA (5-bit), FRB (5-bit), FRC (5-bit), XO (5-bit), Rc (1-bit)
-   */
+  /** Format A, floating point arithmetic (fmadd, fmul and others). */
   struct FormatA {
-    u32 Rc : 1;             /**< Updates CR0. */
-    u32 XO : 5;             /**< Extended opcode (bits 26-30). */
-    u32 FRC : 5;            /**< FPR C (bits 21-25). */
-    u32 FRB : 5;            /**< FPR B (bits 16-20). */
-    u32 FRA : 5;            /**< FPR A (bits 11-15). */
-    u32 FRT : 5;            /**< FPR T (target, bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 Rc : 1;  /**< Updates CR0. */
+    u32 XO : 5;  /**< Extended opcode (bits 26-30). */
+    u32 FRC : 5; /**< FPR C (bits 21-25). */
+    u32 FRB : 5; /**< FPR B (bits 16-20). */
+    u32 FRA : 5; /**< FPR A (bits 11-15). */
+    u32 FRT : 5; /**< FPR T (target, bits 6-10). */
+    u32 primary_opcode : 6;
   };
 
-  /**
-   * Format VA, vector 4-operand (vperm, vmaddfp and others)
-   * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), VRC (5-bit), XO (6-bit)
-   */
+  /** Format VA, vector with four operands (vperm, vmaddfp and others). */
   struct FormatVA {
-    u32 XO : 6;             /**< Extended opcode (bits 26-31). */
-    u32 VRC : 5;            /**< Vector register C (bits 21-25). */
-    u32 VRB : 5;            /**< Vector register B (bits 16-20). */
-    u32 VRA : 5;            /**< Vector register A (bits 11-15). */
-    u32 VRT : 5;            /**< Vector register T (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 XO : 6;  /**< Extended opcode (bits 26-31). */
+    u32 VRC : 5; /**< Vector register C (bits 21-25). */
+    u32 VRB : 5; /**< Vector register B (bits 16-20). */
+    u32 VRA : 5; /**< Vector register A (bits 11-15). */
+    u32 VRT : 5; /**< Vector register T (bits 6-10). */
+    u32 primary_opcode : 6;
 
     u32 VD() const { return VRT; }
   };
 
-  /**
-   * Format VX, vector 3-operand/2-operand (vaddfp, vand and others)
-   * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), XO (11-bit)
-   */
+  /** Format VX, vector with two or three operands (vaddfp, vand and others). */
   struct FormatVX {
-    u32 XO : 11;            /**< Extended opcode (bits 21-31). */
-    u32 VRB : 5;            /**< Vector register B (bits 16-20). */
-    u32 VRA : 5;            /**< Vector register A (bits 11-15). */
-    u32 VRT : 5;            /**< Vector register T (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 XO : 11; /**< Extended opcode (bits 21-31). */
+    u32 VRB : 5; /**< Vector register B (bits 16-20). */
+    u32 VRA : 5; /**< Vector register A (bits 11-15). */
+    u32 VRT : 5; /**< Vector register T (bits 6-10). */
+    u32 primary_opcode : 6;
 
     u32 UIMM() const { return VRA; }
     i32 SIMM() const { return static_cast<i32>(static_cast<i8>(VRA << 3) >> 3); }
     u32 VD() const { return VRT; }
   };
 
-  /**
-   * Format VXR, vector with the Rc bit (vcmp instructions).
-   * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), Rc (1-bit), XO (10-bit)
-   */
+  /** Format VXR, vector with the Rc bit (vcmp instructions). */
   struct FormatVXR {
-    u32 XO : 10;            /**< Extended opcode (bits 22-31). */
-    u32 Rc : 1;             /**< Sets CR6. */
-    u32 VRB : 5;            /**< Vector register B (bits 16-20). */
-    u32 VRA : 5;            /**< Vector register A (bits 11-15). */
-    u32 VRT : 5;            /**< Vector register T (bits 6-10). */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 XO : 10; /**< Extended opcode (bits 22-31). */
+    u32 Rc : 1;  /**< Sets CR6. */
+    u32 VRB : 5; /**< Vector register B (bits 16-20). */
+    u32 VRA : 5; /**< Vector register A (bits 11-15). */
+    u32 VRT : 5; /**< Vector register T (bits 6-10). */
+    u32 primary_opcode : 6;
 
     u32 VD() const { return VRT; }
   };
 
-  /**
-   * Format VMX128, console extended vector format
-   * Uses different register encoding for 128 vector registers
-   */
+  /** Format VMX128, the extended vector format for 128 vector registers. */
   struct FormatVMX128 {
-    u32 XO : 6;             /**< Extended opcode (variable position). */
-    u32 VRC : 5;            /**< Vector register C (bits 21-25), extended. */
-    u32 VRB : 5;            /**< Vector register B (bits 16-20), extended. */
-    u32 VRA : 5;            /**< Vector register A (bits 11-15), extended. */
-    u32 VRT : 5;            /**< Vector register T (bits 6-10), extended. */
-    u32 primary_opcode : 6; /**< Primary opcode (bits 0-5). */
+    u32 XO : 6;  /**< Extended opcode (variable position). */
+    u32 VRC : 5; /**< Vector register C (bits 21-25), extended. */
+    u32 VRB : 5; /**< Vector register B (bits 16-20), extended. */
+    u32 VRA : 5; /**< Vector register A (bits 11-15), extended. */
+    u32 VRT : 5; /**< Vector register T (bits 6-10), extended. */
+    u32 primary_opcode : 6;
 
     u32 VD() const { return VRT; }
   };
@@ -292,26 +238,16 @@ struct Instruction {
   };
 
   /**
-   * Returns the I-form branch offset for b, ba, bl and bla.
-   *
-   * LI is bits 6-29 with an implicit 00 suffix, so mask 0x3FFFFFC (bits 2-25) yields LI * 4. The
-   * XOR and subtract with sign bit 0x2000000 sign extend from 26 bits.
-   *
-   * @param instr Raw instruction word
-   * @return Sign extended byte offset
+   * Returns the I form branch offset for b, ba, bl and bla, which is LI * 4 sign extended from 26
+   * bits.
    */
   static i32 GetIOffset(u32 instr) {
     return static_cast<i32>(((instr & 0x3FFFFFC) ^ 0x2000000) - 0x2000000);
   }
 
   /**
-   * Returns the B-form branch offset for bc, bca, bcl and bcla.
-   *
-   * BD is bits 16-29 with an implicit 00 suffix, so mask 0xFFFC (bits 2-15) yields BD * 4. The
-   * XOR and subtract with sign bit 0x8000 sign extend from 16 bits.
-   *
-   * @param instr Raw instruction word
-   * @return Sign extended byte offset
+   * Returns the B form branch offset for bc, bca, bcl and bcla, which is BD * 4 sign extended from
+   * 16 bits.
    */
   static i32 GetBOffset(u32 instr) {
     return static_cast<i32>(((instr & 0xFFFC) ^ 0x8000) - 0x8000);
@@ -320,46 +256,23 @@ struct Instruction {
   /** Precomputed branch target, empty for indirect branches. */
   std::optional<u32> branch_target;
 
-  /**
-   * Reports whether this is a branch instruction.
-   *
-   * @return True when the instruction is a branch.
-   */
   bool IsBranch() const;
 
-  /**
-   * Reports whether this is a function call (branch with link).
-   *
-   * @return True when the instruction is a call.
-   */
+  /** Reports whether this is a branch with link. */
   bool IsCall() const;
 
-  /**
-   * Reports whether this is a return instruction (blr).
-   *
-   * @return True when the instruction is a return.
-   */
+  /** Reports whether this is blr. */
   bool IsReturn() const;
 
-  /**
-   * Reports whether this is a conditional branch, false for unconditional branches (BO=20).
-   *
-   * @return True when the instruction is a conditional branch.
-   */
+  /** Reports whether this is a conditional branch. Unconditional branches have BO=20. */
   bool IsConditional() const;
 
-  /**
-   * Reports whether this is a trap with every condition set.
-   *
-   * @return True when the instruction is tw or twi with a TO field of 31.
-   */
+  /** Reports whether this is tw or twi with a TO field of 31. */
   bool IsTrapAlways() const;
 
   /**
-   * Reports whether a branch is always taken, which is b, ba and the bc, bca, bclr and bcctr
-   * forms whose BO field ignores both the condition and the count.
-   *
-   * @return True when control never continues to the next instruction without a link
+   * Reports whether a branch is always taken, meaning b, ba and the bc, bca, bclr and bcctr forms
+   * whose BO field ignores both the condition and the count.
    */
   bool IsBranchAlways() const;
 };
@@ -375,40 +288,26 @@ struct RegisterEffects {
 /**
  * Decodes an instruction from a raw code word.
  *
- * @param address Guest address of instruction
- * @param code Raw 32-bit instruction code (host byte order)
- * @return Decoded instruction structure
+ * @param code Raw instruction word in host byte order.
  */
 Instruction DecodeInstruction(u32 address, u32 code);
 
 /**
- * Returns the general purpose and floating point registers an instruction reads and writes.
- *
- * The first register operand is the destination, except for stores, compares, traps, moves to a
- * special register and the cache and stream hints, where every register operand is read. Insert
- * rotates read their destination, update forms read and write rA, and the multiple word forms
- * cover their whole range. A call writes r3 to r12 and f0 to f13 and reads nothing. Vector
- * registers are not tracked.
- *
- * @param instr The decoded instruction.
- * @return The registers read and written, empty for an undecodable word.
+ * Returns the general purpose and floating point registers an instruction reads and writes, empty
+ * for an undecodable word.
  */
 RegisterEffects GetRegisterEffects(const Instruction& instr);
 
 /**
- * Reports whether an instruction allocates the stack frame, a store with update of r1.
+ * Reports whether an instruction allocates the stack frame.
  *
- * @param instr The decoded instruction.
  * @return True for stwu and stdu with r1 as the base.
  */
 bool IsFrameAllocation(const Instruction& instr);
 
 /**
- * Reports whether an instruction stores to the caller's frame, a store of a byte, half word, word,
- * double word or float whose base is r1 and whose displacement is positive. Before the frame is
- * allocated such a store spills an argument register into the caller's parameter area.
+ * Reports whether an instruction stores to the caller's frame.
  *
- * @param instr The decoded instruction.
  * @return True for a store to a positive displacement from r1.
  */
 bool IsCallerFrameSpill(const Instruction& instr);

@@ -12,12 +12,12 @@
 namespace rex::test {
 
 namespace {
-std::unique_ptr<rex::runtime::Memory> g_memory;
+std::unique_ptr<rex::kernel::Memory> g_memory;
 }  // namespace
 
-rex::runtime::Memory& GetTestMemory() {
+rex::kernel::Memory& GetTestMemory() {
   if (!g_memory) {
-    g_memory = std::make_unique<rex::runtime::Memory>();
+    g_memory = std::make_unique<rex::kernel::Memory>();
     const bool initialized = g_memory->Initialize();
     if (!initialized) {
       g_memory.reset();

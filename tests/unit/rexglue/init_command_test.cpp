@@ -24,7 +24,7 @@
 #include <nlohmann/json.hpp>
 
 #include "rexglue/cli_context.h"
-#include "rexglue/commands/init_command.h"
+#include "rexglue/command/init_command.h"
 #include "rexglue/ui/ui.h"
 #include "file_text.h"
 
@@ -145,6 +145,19 @@ REX_TEST_CASE("init splits the host code into an object library", "[rexglue][ini
   CHECK(text.find("target_link_libraries(demo PRIVATE demo_common)") != std::string::npos);
 }
 
+REX_TEST_CASE("init writes a main that uses the title app", "[rexglue][init]") {
+  rex::test::TempFolder root("rexglue_init_main_");
+  WriteText(root.path / "default.xex", "");
+  REQUIRE(RunInit(root.path, false));
+  const std::string text = ReadText(root.path / "src" / "main.cpp");
+  CHECK(text.find("#include <rex/app/title_app.h>") != std::string::npos);
+  CHECK(text.find("class DemoApp : public rex::app::TitleApp") != std::string::npos);
+  CHECK(text.find("TitleApp(\"demo\", PPCImageConfig)") != std::string::npos);
+  CHECK(text.find("REX_TITLE_APP(DemoApp)") != std::string::npos);
+  CHECK(text.find("rex::ui::TitleApp") == std::string::npos);
+  CHECK(text.find("OnCreateWindow") == std::string::npos);
+}
+
 REX_TEST_CASE("init writes one multi config preset per platform", "[rexglue][init]") {
   rex::test::TempFolder root("rexglue_init_presets_");
   WriteText(root.path / "default.xex", "");
@@ -247,4 +260,63 @@ REX_TEST_CASE("init renders codegen with the file size setting and the sources a
   CHECK(text.find("MAX_FILE_SIZE", call) == std::string::npos);
   CHECK(text.find("SOURCES ${REXGLUE_ENTRYPOINT_GENERATED_SOURCES}", call) != std::string::npos);
   CHECK(text.find("set(REXGLUE_RECOMP_MAX_FILE_SIZE") != std::string::npos);
+  CHECK(text.find("${REXGLUE_ENTRYPOINT_PREFIX}_pch.h") != std::string::npos);
+  CHECK(text.find("demo_pch.h") == std::string::npos);
+}
+namespace {
+
+nlohmann::json InitWithSDKExe(const std::filesystem::path& root,
+                              const std::filesystem::path& sdk_exe) {
+  rexglue::cli::InitOptions opts;
+  opts.project_name = "demo";
+  opts.xex_path = (root / "default.xex").string();
+  opts.project_root = root.string();
+  opts.sdk_exe = sdk_exe;
+  rexglue::cli::CLIContext ctx;
+  rexglue::ui::Init({.tty = false, .color = false});
+  const auto result = rexglue::cli::InitProject(opts, ctx);
+  rexglue::ui::Shutdown();
+  REQUIRE(result);
+  return nlohmann::json::parse(ReadText(root / "CMakePresets.json"));
+}
+
+nlohmann::json BasePreset(const nlohmann::json& presets, const std::string& name) {
+  for (const auto& preset : presets.at("configurePresets")) {
+    if (preset.at("name") == name)
+      return preset.at("cacheVariables");
+  }
+  return nlohmann::json::object();
+}
+
+}  // namespace
+
+REX_TEST_CASE("init points the presets at the installed SDK it ran from", "[rexglue][init]") {
+  rex::test::TempFolder sdk("rexglue_init_installed_");
+  WriteText(sdk.path / "lib" / "cmake" / "rexglue" / "rexglueConfig.cmake", "");
+  WriteText(sdk.path / "bin" / "rexglue", "");
+  rex::test::TempFolder root("rexglue_init_installed_proj_");
+  WriteText(root.path / "default.xex", "");
+  const auto presets = InitWithSDKExe(root.path, sdk.path / "bin" / "rexglue");
+  for (const char* name : {"win-base", "linux-base", "mac-base"}) {
+    const auto vars = BasePreset(presets, name);
+    CHECK(vars.value("CMAKE_PREFIX_PATH", "") == sdk.path.generic_string());
+    CHECK_FALSE(vars.contains("REXSDK_DIR"));
+  }
+}
+
+REX_TEST_CASE("init points the presets at the SDK source tree it ran from", "[rexglue][init]") {
+  rex::test::TempFolder sdk("rexglue_init_source_");
+  WriteText(sdk.path / "CMakeLists.txt", "");
+  WriteText(sdk.path / "cmake" / "rexglue_sdk.cmake", "");
+  WriteText(sdk.path / "include" / "rex" / "api.h", "");
+  WriteText(sdk.path / "out" / "build" / "linux-amd64" / "bin" / "rexglue", "");
+  rex::test::TempFolder root("rexglue_init_source_proj_");
+  WriteText(root.path / "default.xex", "");
+  const auto presets =
+      InitWithSDKExe(root.path, sdk.path / "out" / "build" / "linux-amd64" / "bin" / "rexglue");
+  for (const char* name : {"win-base", "linux-base", "mac-base"}) {
+    const auto vars = BasePreset(presets, name);
+    CHECK(vars.value("REXSDK_DIR", "") == sdk.path.generic_string());
+    CHECK_FALSE(vars.contains("CMAKE_PREFIX_PATH"));
+  }
 }

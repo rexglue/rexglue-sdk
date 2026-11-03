@@ -9,10 +9,11 @@
 
 #include "config_keys.h"
 
-#include <rex/codegen/config.h>
-#include <rex/kernel/shim/registry.h>
-#include <rex/fail.h>
+#include "config.h"
+#include <rex/kernel/shim.h>
+#include <rex/ppc/midasm.h>
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
 #include <toml++/toml.hpp>
 
@@ -20,15 +21,9 @@ namespace rex::codegen {
 
 namespace {
 
-/** Maximum nesting depth for include chains. */
 constexpr u32 kMaxIncludeDepth = 32;
 
-/**
- * Parses a hex address string with or without a "0x" or "0X" prefix.
- *
- * @param key_str Address text.
- * @return The address, or nullopt when the text is not hex.
- */
+/** Parses a hex address with or without a "0x" prefix, nullopt when the text is not hex. */
 std::optional<u32> ParseHexAddress(const std::string& key_str) {
   try {
     if (key_str.starts_with("0x") || key_str.starts_with("0X")) {
@@ -55,14 +50,7 @@ void MergeScalar(T& dst, const T& src, const char* name) {
   }
 }
 
-/**
- * Merges a boolean where false is a meaningful value, skipped when the key is absent.
- *
- * @param dst Destination value.
- * @param src Overlay value.
- * @param present True when the overlay sets the key.
- * @param name Key name for the override log.
- */
+/** Merges a boolean where false is meaningful, skipped when the overlay does not set the key. */
 void MergeBool(bool& dst, bool src, bool present, const char* name) {
   if (!present)
     return;
@@ -415,8 +403,8 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
     }
   }
 
-  for (const MMIOBlock block : {MMIOBlock::kGPU, MMIOBlock::kAPU}) {
-    const std::string_view block_name = block == MMIOBlock::kGPU ? "gpu" : "apu";
+  for (const rex::ppc::MMIOBlock block : {rex::ppc::MMIOBlock::kGPU, rex::ppc::MMIOBlock::kAPU}) {
+    const std::string_view block_name = block == rex::ppc::MMIOBlock::kGPU ? "gpu" : "apu";
     for (const bool write : {false, true}) {
       const std::string_view list_name = write ? "write" : "read";
       const auto* list = root["mmio"][block_name][list_name].as_array();
@@ -483,7 +471,7 @@ bool LoadRecursive(const std::filesystem::path& file_path, RecompilerConfig& cfg
 bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path& base_dir,
                             RecompilerConfig& cfg, std::set<std::string>& visited, u32 depth,
                             const std::string& description) {
-  // Process includes first (depth-first), so this table's own values win.
+  // Process includes first (depth first), so this table's own values win.
   if (auto* includes_array = tbl["includes"].as_array()) {
     for (const auto& elem : *includes_array) {
       if (auto include_path = elem.value<std::string>()) {
@@ -706,6 +694,19 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
           "midasm hook '{}' at 0x{:08X} takes r1, which the hook call moves under the red zone",
           hook.name, addr));
       result.valid = false;
+    }
+  }
+
+  for (const auto& [addr, hook] : mid_asm_hooks) {
+    for (const std::string& reg : hook.registers) {
+      if (reg != "r1" && rex::ppc::detail::ParseMidAsmRegister(reg) ==
+                             rex::ppc::detail::MidAsmRegisterType::kInvalid) {
+        result.errors.push_back(std::format(
+            "midasm hook '{}' at 0x{:08X} takes '{}', which is not a register. A register is r0 to "
+            "r31, f0 to f31, v0 to v127, cr0 to cr7, ctr, xer, fpscr, reserved or ctx",
+            hook.name, addr, reg));
+        result.valid = false;
+      }
     }
   }
 

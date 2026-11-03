@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/reserved_register_test.cpp
- * @brief       r2 and r13 stay in ctx whatever the localization flags say
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <string>
 #include <string_view>

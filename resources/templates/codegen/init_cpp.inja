@@ -4,10 +4,10 @@
 #include "{{ project }}_init.h"
 
 {% if has_dll_modules and not is_dll %}
-void RegisterRecompiledModules(rex::runtime::IModuleRegistry&);
+void RegisterRecompiledModules(rex::kernel::IModuleRegistry&);
 {% endif %}
 
-const rex::PPCImage PPCImageConfig = {
+const rex::ppc::PPCImage PPCImageConfig = {
     .code_base = REX_CODE_BASE,
     .code_size = REX_CODE_SIZE,
     .image_base = REX_IMAGE_BASE,
@@ -36,7 +36,7 @@ const PPCFuncMapping kPPCFuncMappings[] = {
 {% endif %}{% endfor %}	{ 0, nullptr }
 };
 
-const rex::PPCCallUsage kPPCCallUsage[] = {
+const rex::ppc::PPCCallUsage kPPCCallUsage[] = {
 {% for entry in call_usage %}	{ {{ entry.address }}, {{ entry.gpr_mask }}, {{ entry.fpr_mask }} },
 {% endfor %}	{ 0, 0, 0 }
 };

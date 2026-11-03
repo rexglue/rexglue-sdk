@@ -1,4 +1,4 @@
-# Codegen library - PPC to C++ recompiler
+# Codegen library that recompiles PPC to C++
 
 # Core recompiler sources
 set(CODEGEN_CORE_SOURCES
@@ -38,15 +38,15 @@ set(CODEGEN_PPC_SOURCES ppc/opcode.cpp ppc/instruction.cpp ppc/disasm.cpp ppc/pp
 
 # Instruction builder sources
 set(CODEGEN_BUILDER_SOURCES
-    builders/context.cpp
-    builders/comparison.cpp
-    builders/arithmetic.cpp
-    builders/logical.cpp
-    builders/control_flow.cpp
-    builders/floating_point.cpp
-    builders/memory.cpp
-    builders/system.cpp
-    builders/vector.cpp
+    builder/context.cpp
+    builder/comparison.cpp
+    builder/arithmetic.cpp
+    builder/logical.cpp
+    builder/control_flow.cpp
+    builder/floating_point.cpp
+    builder/memory.cpp
+    builder/system.cpp
+    builder/vector.cpp
 )
 
 # Inja templates
@@ -84,29 +84,41 @@ add_custom_target(
 )
 
 add_library(
-  rexcodegen STATIC ${CODEGEN_CORE_SOURCES} ${CODEGEN_PPC_SOURCES} ${CODEGEN_BUILDER_SOURCES}
+  rexcodegen-objects OBJECT ${CODEGEN_CORE_SOURCES} ${CODEGEN_PPC_SOURCES}
+                            ${CODEGEN_BUILDER_SOURCES}
 )
+set_target_properties(rexcodegen-objects PROPERTIES POSITION_INDEPENDENT_CODE ON)
+add_library(rexcodegen STATIC $<TARGET_OBJECTS:rexcodegen-objects>)
 add_library(rex::codegen ALIAS rexcodegen)
 set_source_files_properties(
   ppc/ppc_dis_access.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON COMPILE_OPTIONS -w
 )
-add_dependencies(rexcodegen embed_templates)
+add_dependencies(rexcodegen-objects embed_templates)
 
-rex_target_pch(rexcodegen <rex/codegen/function_types.h>)
+rex_target_pch(rexcodegen-objects "${CMAKE_CURRENT_SOURCE_DIR}/function_types.h")
 
-target_include_directories(
-  rexcodegen
-  PUBLIC $<BUILD_INTERFACE:${REXGLUE_ROOT}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-  PRIVATE ${REXGLUE_ROOT}/thirdparty/disasm ${CMAKE_CURRENT_SOURCE_DIR}
-          ${CMAKE_CURRENT_SOURCE_DIR}/builders ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
-)
-target_include_directories(
-  rexcodegen SYSTEM PUBLIC $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
-                           $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
-)
+foreach (codegen_target rexcodegen-objects rexcodegen)
+  target_include_directories(
+    ${codegen_target}
+    PUBLIC $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
+           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE ${REXGLUE_ROOT}/thirdparty/disasm ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/builders ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
+  )
+  target_include_directories(
+    ${codegen_target} SYSTEM
+    PUBLIC $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
+           $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
+  )
+endforeach ()
 
 target_link_libraries(
+  rexcodegen-objects
+  PUBLIC rexkernel-objects rexapp-objects
+  PRIVATE tomlplusplus disasm xxHash::xxhash simde
+)
+target_link_libraries(
   rexcodegen
-  PUBLIC rexruntime
+  PUBLIC rexkernel rexapp
   PRIVATE tomlplusplus disasm xxHash::xxhash simde
 )

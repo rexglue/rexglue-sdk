@@ -10,19 +10,20 @@
  */
 
 #include "decoded_binary.h"
-#include <rex/codegen/function_scanner.h>
+#include "function_scanner.h"
 
 #include <array>
 #include <bitset>
 #include <unordered_set>
 
-#include <rex/codegen/phases.h>
-#include "known_functions.h"
+#include "pipeline.h"
+#include "known_function.h"
 
-#include <rex/codegen/vtable_scanner.h>
+#include "vtable_scanner.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 
 #include <ppc.h>
 
@@ -266,7 +267,7 @@ size_t DiscoverPendingFunctions(CodegenContext& ctx,
 
 namespace detail {
 
-[[nodiscard]] Result<void> Discover(CodegenContext& ctx, IProgressReporter* reporter) {
+[[nodiscard]] Result<void> DiscoverFunctions(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   DiscoverAllFunctions(ctx);
   return Ok();

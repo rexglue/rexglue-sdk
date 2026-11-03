@@ -25,8 +25,6 @@ enum class WriteOutcome : u8 { kFailed, kUnchanged, kWritten };
  * Writes a file only when its bytes differ, so an unchanged output keeps its mtime and does not
  * retrigger a build.
  *
- * @param path File to write.
- * @param content Bytes to write.
  * @return Unchanged, Written or Failed.
  */
 inline WriteOutcome WriteIfChanged(const std::filesystem::path& path, std::string_view content) {

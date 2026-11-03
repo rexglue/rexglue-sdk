@@ -15,15 +15,21 @@
 #include <unordered_map>
 #include <vector>
 
-#include "rexglue/commands/test_spec.h"
+#include "rexglue/command/test_spec.h"
 
 namespace {
 
-std::vector<rexglue::cli::TestSpec> Parse(const std::string& text) {
+rex::Result<std::vector<rexglue::cli::TestSpec>> TryParse(const std::string& text) {
   static const std::unordered_map<std::string, std::string> kSymbols = {
       {"test_a", "fn_a"}, {"test_b", "fn_b"}, {"test_c", "fn_c"}};
   std::istringstream in(text);
   return rexglue::cli::ParseTestSpecs(in, kSymbols);
+}
+
+std::vector<rexglue::cli::TestSpec> Parse(const std::string& text) {
+  auto specs = TryParse(text);
+  REQUIRE(specs);
+  return *specs;
 }
 
 }  // namespace
@@ -65,4 +71,20 @@ REX_TEST_CASE("A directive with a space after the comment mark is not read",
               "[rexglue][test_spec]") {
   const auto specs = Parse("test_a:\n  # _ REGISTER_IN r3 1\n  blr\n  # _ REGISTER_OUT r3 1\n");
   CHECK(specs.empty());
+}
+
+REX_TEST_CASE("A test label with no emitted function is an error", "[rexglue][test_spec]") {
+  const auto specs = TryParse(
+      "test_a:\n  #_ REGISTER_OUT r3 1\n  blr\n"
+      "test_missing:\n  #_ REGISTER_OUT r3 2\n  blr\n");
+  REQUIRE_FALSE(specs);
+  CHECK(specs.error().message.find("test_missing") != std::string::npos);
+}
+
+REX_TEST_CASE("A label that is not a test falls through to the test above",
+              "[rexglue][test_spec]") {
+  const auto specs =
+      Parse("test_a:\n  #_ REGISTER_IN r3 1\n  beq skip\nskip:\n  blr\n  #_ REGISTER_OUT r3 1\n");
+  REQUIRE(specs.size() == 1);
+  CHECK(specs[0].outputs.size() == 1);
 }

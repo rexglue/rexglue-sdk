@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/mmio_analysis_test.cpp
- * @brief       Recompile time MMIO classification, the [mmio] tables, emitted macros and report
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -22,12 +21,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rex/codegen/codegen_context.h>
-#include <rex/codegen/codegen_writer.h>
-#include <rex/codegen/config.h>
-#include <rex/codegen/module_stub.h>
-#include <rex/memory/byte_swap.h>
-#include <rex/mmio.h>
+#include "codegen/codegen_context.h"
+#include "codegen/codegen_writer.h"
+#include "codegen/config.h"
+#include "codegen/module_stub.h"
+#include <rex/memory/endian.h>
+#include <rex/ppc/mmio.h>
 
 #include "codegen/mmio_analysis.h"
 
@@ -196,7 +195,7 @@ REX_TEST_CASE("An unknown base before eieio is guarded and a known plain base is
 
 REX_TEST_CASE("A declared GPU read calls the GPU handler", "[codegen][mmio]") {
   Program program{kLoadThroughR4, kBlr};
-  program.declared = {{Address(0), {rex::MMIOBlock::kGPU, false}}};
+  program.declared = {{Address(0), {rex::ppc::MMIOBlock::kGPU, false}}};
   const auto result = program.Classify();
   CHECK(result.At(Address(0)) == MMIOAccess::kGPU);
   const MMIOSite* site = SiteAt(result, Address(0));
@@ -207,7 +206,7 @@ REX_TEST_CASE("A declared GPU read calls the GPU handler", "[codegen][mmio]") {
 
 REX_TEST_CASE("A declared APU write calls the APU handler", "[codegen][mmio]") {
   Program program{kStoreThroughR4, kBlr};
-  program.declared = {{Address(0), {rex::MMIOBlock::kAPU, true}}};
+  program.declared = {{Address(0), {rex::ppc::MMIOBlock::kAPU, true}}};
   const auto result = program.Classify();
   CHECK(result.At(Address(0)) == MMIOAccess::kAPU);
   const MMIOSite* site = SiteAt(result, Address(0));
@@ -296,11 +295,11 @@ REX_TEST_CASE("The [mmio.gpu] and [mmio.apu] tables load declared accesses", "[c
                                 "[mmio.apu]\nwrite = [0x82000020]\n")));
   const auto& declared = config.declared_mmio_accesses;
   REQUIRE(declared.size() == 3);
-  CHECK(declared.at(0x82000010u).block == rex::MMIOBlock::kGPU);
+  CHECK(declared.at(0x82000010u).block == rex::ppc::MMIOBlock::kGPU);
   CHECK_FALSE(declared.at(0x82000010u).write);
-  CHECK(declared.at(0x82000014u).block == rex::MMIOBlock::kGPU);
+  CHECK(declared.at(0x82000014u).block == rex::ppc::MMIOBlock::kGPU);
   CHECK(declared.at(0x82000014u).write);
-  CHECK(declared.at(0x82000020u).block == rex::MMIOBlock::kAPU);
+  CHECK(declared.at(0x82000020u).block == rex::ppc::MMIOBlock::kAPU);
   CHECK(declared.at(0x82000020u).write);
 }
 
@@ -308,7 +307,7 @@ REX_TEST_CASE("A misaligned declared address fails validation", "[codegen][mmio]
   RecompilerConfig config;
   config.file_path = "game.xex";
   config.out_directory_path = "out";
-  config.declared_mmio_accesses = {{0x82000012, {rex::MMIOBlock::kGPU, false}}};
+  config.declared_mmio_accesses = {{0x82000012, {rex::ppc::MMIOBlock::kGPU, false}}};
   const auto result = config.Validate();
   CHECK_FALSE(result.valid);
   CHECK(std::ranges::any_of(result.errors, [](const std::string& error) {
@@ -416,21 +415,21 @@ REX_TEST_CASE("Codegen writes every classified site to codegen.mmio.json", "[cod
 
 REX_TEST_CASE("A declared GPU read emits the direct call", "[codegen][mmio]") {
   EmitFixture fixture("declared", {kLoadThroughR4, kBlr}, {8},
-                      {{kBase, {rex::MMIOBlock::kGPU, false}}});
+                      {{kBase, {rex::ppc::MMIOBlock::kGPU, false}}});
   CodegenWriter writer(fixture.ctx);
   REQUIRE(writer.Write(false));
   CHECK(Has(fixture.Read("testproj_recomp.0.cpp"), "REX_GPU_LOAD32("));
 }
 
 REX_TEST_CASE("A declaration that matches no load or store fails the write", "[codegen][mmio]") {
-  EmitFixture fixture("unmatched", {kBlr}, {4}, {{kBase, {rex::MMIOBlock::kGPU, false}}});
+  EmitFixture fixture("unmatched", {kBlr}, {4}, {{kBase, {rex::ppc::MMIOBlock::kGPU, false}}});
   CodegenWriter writer(fixture.ctx);
   CHECK_FALSE(writer.Write(false));
 }
 
 REX_TEST_CASE("A read declaration on a store fails the write", "[codegen][mmio]") {
   EmitFixture fixture("direction", {kStoreThroughR4, kBlr}, {8},
-                      {{kBase, {rex::MMIOBlock::kGPU, false}}});
+                      {{kBase, {rex::ppc::MMIOBlock::kGPU, false}}});
   CodegenWriter writer(fixture.ctx);
   CHECK_FALSE(writer.Write(false));
 }
@@ -438,7 +437,7 @@ REX_TEST_CASE("A read declaration on a store fails the write", "[codegen][mmio]"
 REX_TEST_CASE("A declaration that differs from the proven block fails the write",
               "[codegen][mmio]") {
   EmitFixture fixture("mismatch", {kLisGPU, kLoadWord, kBlr}, {12},
-                      {{kBase + 4, {rex::MMIOBlock::kAPU, false}}});
+                      {{kBase + 4, {rex::ppc::MMIOBlock::kAPU, false}}});
   CodegenWriter writer(fixture.ctx);
   CHECK_FALSE(writer.Write(false));
 }

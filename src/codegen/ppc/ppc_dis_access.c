@@ -13,8 +13,6 @@
 /**
  * Reports whether every operand extractor of a table entry accepts an instruction word.
  *
- * @param entry The opcode table entry.
- * @param code The instruction word.
  * @param dialect The PPC_OPCODE_* bits being decoded for.
  * @return 1 when no extractor flags the word invalid, otherwise 0.
  */
@@ -29,14 +27,6 @@ int AreOperandsValid(const struct powerpc_opcode* entry, unsigned long code, int
   return invalid == 0;
 }
 
-/**
- * Classifies the register an operand of a table entry names.
- *
- * @param entry The opcode table entry.
- * @param position The operand position, as in the operands array of a decoded instruction.
- * @return 1 for a GPR, 2 for a GPR where 0 means no register, 3 for an FPR, 4 for a vector
- * register and 0 for any other operand.
- */
 int OperandRegisterClass(const struct powerpc_opcode* entry, unsigned position) {
   unsigned index;
   unsigned long flags;

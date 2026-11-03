@@ -6,13 +6,19 @@
 #include <cstring>
 #include <stdexcept>
 #include "ppc_config.h"
-#include <rex/ppc.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/ppc/hook.h>
+#include <rex/ppc/call.h>
+#include <rex/ppc/context.h>
+#include <rex/ppc/fpu.h>
+#include <rex/ppc/stack.h>
+#include <rex/ppc/vmx.h>
+#include <rex/types.h>
+#include <rex/kernel/heap.h>
 #include "ppc_test_decls.h"
 
 // Global memory instance - same class used by real runtime
-static rex::runtime::Memory& GetMemory() {
-    static rex::runtime::Memory memory;
+static rex::kernel::Memory& GetMemory() {
+    static rex::kernel::Memory memory;
     static bool initialized = false;
     if (!initialized) {
         if (!memory.Initialize()) {
@@ -23,8 +29,8 @@ static rex::runtime::Memory& GetMemory() {
         if (heap) {
             // Allocate from end of guard page (0x10000) up to cover test addresses
             heap->AllocFixed(0x10000, 0x10000000, 0x1000,
-                rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
-                rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite);
+                rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+                rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite);
         }
         if (!memory.InitializeFunctionTable(REX_CODE_BASE, REX_CODE_SIZE, REX_IMAGE_BASE, REX_IMAGE_SIZE)) {
             throw std::runtime_error("Failed to initialize function table");
@@ -35,7 +41,7 @@ static rex::runtime::Memory& GetMemory() {
 }
 
 ## for entry in stems
-[[maybe_unused]] static void register_functions_{{ entry.stem }}(rex::runtime::Memory& memory) {
+[[maybe_unused]] static void register_functions_{{ entry.stem }}(rex::kernel::Memory& memory) {
 ## for func in entry.functions
     memory.SetFunction(0x{{ func.address }}, {{ func.name }});
 ## endfor

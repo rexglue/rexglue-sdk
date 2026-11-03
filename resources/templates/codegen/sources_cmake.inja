@@ -10,4 +10,5 @@ set(GENERATED_SOURCES
 {% if has_dll_modules and not is_dll %}    {{ cmake_var("CMAKE_CURRENT_LIST_DIR") }}/module_registry.cpp
 {% endif %}{% for file in recomp_files %}    {{ cmake_var("CMAKE_CURRENT_LIST_DIR") }}/{{ file }}
 {% endfor %})
+set(GENERATED_PREFIX "{{ project }}")
 # cmake-format: on

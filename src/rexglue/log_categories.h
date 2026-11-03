@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/log_categories.h
- * @brief       The log categories the rexglue tool registers at log start
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,9 +14,13 @@
 
 #include <rex/logging/log.h>
 
+#include "codegen/codegen_categories.h"
+
+REXLOG_CATEGORY(rexglue, "The rexglue command line tool")
+
 namespace rexglue {
 
-/** Categories the tool owns. A category a connected module registers is never listed here. */
+/** Categories the tool owns, not those of connected modules. */
 inline constexpr std::array<const rex::log::Category*, 2> kLogCategories = {&rex::log::codegen,
                                                                             &rex::log::rexglue};
 

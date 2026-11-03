@@ -17,8 +17,8 @@
 #include <string>
 #include <vector>
 
-#include <rex/codegen/config.h>
-#include <rex/codegen/output_stamp.h>
+#include "codegen/config.h"
+#include "codegen/output_stamp.h"
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;

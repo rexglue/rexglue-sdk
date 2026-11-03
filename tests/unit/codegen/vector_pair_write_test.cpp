@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/vector_pair_write_test.cpp
- * @brief       stvlx followed by the stvrx of the same vector is emitted as one pair
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <format>
 #include <string>

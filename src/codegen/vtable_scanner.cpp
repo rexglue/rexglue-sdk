@@ -1,7 +1,8 @@
-#include <rex/codegen/vtable_scanner.h>
+#include "vtable_scanner.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 #include <rex/types.h>
 
 namespace rex::codegen {
@@ -41,12 +42,7 @@ std::vector<VTable> VTableScanner::Scan() {
   return vtables;
 }
 
-/**
- * Finds Complete Object Locators in .rdata. A locator is 20 bytes with signature 0 for 32 bit
- * MSVC RTTI and a type descriptor pointer whose name at +8 starts with ".?AV" or ".?AU".
- *
- * @return Addresses of the locators.
- */
+/** Finds the Complete Object Locators in .rdata. */
 std::vector<u32> VTableScanner::FindCompleteObjectLocators() {
   std::vector<u32> cols;
 
@@ -97,7 +93,6 @@ std::vector<u32> VTableScanner::FindCompleteObjectLocators() {
  * Finds the vtable of a locator. The locator pointer sits at vtable[-1], so the vtable starts 1
  * dword after the .rdata word that holds the locator address.
  *
- * @param col_addr Locator address.
  * @return The vtable address, or nullopt when nothing references the locator.
  */
 std::optional<u32> VTableScanner::FindVTableForCOL(u32 col_addr) {
@@ -164,7 +159,6 @@ std::vector<u32> VTableScanner::ReadVTableSlots(u32 vtable_start) {
  * Reads the class name from the type descriptor at locator offset 12, name at +8, and strips the
  * ".?AV" or ".?AU" prefix and the "@@" suffix.
  *
- * @param col_addr Locator address.
  * @return The class name, or the mangled text when it has no known prefix.
  */
 std::string VTableScanner::ExtractClassName(u32 col_addr) {

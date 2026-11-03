@@ -1,17 +1,13 @@
-//=============================================================================
-// Indirect Call Dispatch
-//
 // REX_LOOKUP_FUNC indexes into the per-module dispatch table at
 // IMAGE_BASE + IMAGE_SIZE. REX_CALL_INDIRECT_FUNC bounds-checks the target
 // against the caller's [REX_CODE_BASE, REX_CODE_BASE + REX_CODE_SIZE +
 // REX_THUNK_RESERVE_SIZE) range. Out-of-bounds targets and in-bounds
 // unregistered slots fall back to rex::ppc::ResolveFunction,
 // which queries the global FunctionDispatcher across every loaded module.
-//=============================================================================
 
 #ifdef REXGLUE_ENABLE_PROFILING
-#include <rex/perf/counter.h>
-#define REX_PROFILE_INDIRECT_DISPATCH() REX_PERF_INC(kFunctionsDispatched)
+#include <rex/platform/perf.h>
+#define REX_PROFILE_INDIRECT_DISPATCH() REX_PERF_INC("functions_dispatched")
 #else
 #define REX_PROFILE_INDIRECT_DISPATCH()
 #endif
@@ -21,38 +17,29 @@
       x + REX_IMAGE_BASE + REX_IMAGE_SIZE +                                        \
       (static_cast<u64>(static_cast<u32>(y) - REX_CODE_BASE) * 2)))
 
+#define REX_RESOLVE_INDIRECT_FUNC(x)                                                       \
+  REX_PROFILE_INDIRECT_DISPATCH();                                                         \
+  u32 rex_indirect_target_ = static_cast<u32>(x);                                          \
+  PPCFunc* rex_indirect_func_;                                                             \
+  if (static_cast<u32>(rex_indirect_target_ - REX_CODE_BASE) <                             \
+      REX_CODE_SIZE + REX_THUNK_RESERVE_SIZE) [[likely]] {                                 \
+    rex_indirect_func_ = REX_LOOKUP_FUNC(base, rex_indirect_target_);                      \
+  } else {                                                                                 \
+    rex_indirect_func_ = nullptr;                                                          \
+  }                                                                                        \
+  if (!rex_indirect_func_) [[unlikely]] {                                                  \
+    ctx.last_indirect_target = rex_indirect_target_;                                       \
+    rex_indirect_func_ = rex::ppc::ResolveFunction(rex_indirect_target_);                  \
+  }
+
 #define REX_CALL_INDIRECT_FUNC(x)                                                          \
   do {                                                                                     \
-    REX_PROFILE_INDIRECT_DISPATCH();                                                       \
-    u32 rex_indirect_target_ = static_cast<u32>(x);                                        \
-    PPCFunc* rex_indirect_func_;                                                           \
-    if (static_cast<u32>(rex_indirect_target_ - REX_CODE_BASE) <                           \
-        REX_CODE_SIZE + REX_THUNK_RESERVE_SIZE) [[likely]] {                               \
-      rex_indirect_func_ = REX_LOOKUP_FUNC(base, rex_indirect_target_);                    \
-    } else {                                                                               \
-      rex_indirect_func_ = nullptr;                                                        \
-    }                                                                                      \
-    if (!rex_indirect_func_) [[unlikely]] {                                                \
-      ctx.last_indirect_target = rex_indirect_target_;                                     \
-      rex_indirect_func_ = rex::ppc::ResolveFunction(rex_indirect_target_);    \
-    }                                                                                      \
+    REX_RESOLVE_INDIRECT_FUNC(x)                                                           \
     rex_indirect_func_(ctx, base);                                                         \
   } while (0)
 
 #define REX_TAIL_INDIRECT_FUNC(x)                                                          \
   do {                                                                                     \
-    REX_PROFILE_INDIRECT_DISPATCH();                                                       \
-    u32 rex_indirect_target_ = static_cast<u32>(x);                                        \
-    PPCFunc* rex_indirect_func_;                                                           \
-    if (static_cast<u32>(rex_indirect_target_ - REX_CODE_BASE) <                           \
-        REX_CODE_SIZE + REX_THUNK_RESERVE_SIZE) [[likely]] {                               \
-      rex_indirect_func_ = REX_LOOKUP_FUNC(base, rex_indirect_target_);                    \
-    } else {                                                                               \
-      rex_indirect_func_ = nullptr;                                                        \
-    }                                                                                      \
-    if (!rex_indirect_func_) [[unlikely]] {                                                \
-      ctx.last_indirect_target = rex_indirect_target_;                                     \
-      rex_indirect_func_ = rex::ppc::ResolveFunction(rex_indirect_target_);                \
-    }                                                                                      \
-    [[clang::musttail]] return rex_indirect_func_(ctx, base);                              \
+    REX_RESOLVE_INDIRECT_FUNC(x)                                                           \
+    REX_MUSTTAIL return rex_indirect_func_(ctx, base);                                     \
   } while (0)

@@ -1,11 +1,21 @@
+/**
+ * @file        codegen/codegen.cpp
+ * @brief       The code generation pipeline
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
 #include <format>
 
-#include <rex/codegen/analyze.h>
-#include <rex/codegen/codegen.h>
-#include <rex/codegen/codegen_writer.h>
-#include <rex/fail.h>
+#include "codegen_categories.h"
+#include "pipeline.h"
+#include "codegen_writer.h"
 #include <rex/logging/log.h>
-#include <rex/runtime.h>
+#include <rex/kernel/title_runtime.h>
 
 #include "tool_runtime.h"
 
@@ -15,7 +25,8 @@ CodegenPipeline::~CodegenPipeline() = default;
 CodegenPipeline::CodegenPipeline(CodegenPipeline&&) noexcept = default;
 CodegenPipeline& CodegenPipeline::operator=(CodegenPipeline&&) noexcept = default;
 
-Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& config_path) {
+Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& config_path,
+                                                ToolApp& tools) {
   CodegenPipeline pipeline;
 
   RecompilerConfig temp_config;
@@ -34,7 +45,7 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
   }
   xex_path = std::filesystem::canonical(xex_path);
 
-  auto tool = OpenToolRuntime(xex_path.parent_path());
+  auto tool = tools.Open(xex_path.parent_path(), xex_path.filename().string());
   if (!tool) {
     return Err<CodegenPipeline>(tool.error());
   }

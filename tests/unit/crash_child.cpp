@@ -26,17 +26,16 @@
 #include <span>
 #include <utility>
 
-#include <rex/logging/config.h>
 #include <rex/logging/logger.h>
 #include <rex/logging/log.h>
 #include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
-#include <rex/platform/crash.h>
-#include <rex/platform/exceptions.h>
-#include <rex/ppc/detour.h>
+#include <rex/platform/process.h>
+#include <rex/ppc/seh.h>
+#include <rex/ppc/hook.h>
 #include <rex/ppc/recompiled_code.h>
 #include <rex/ppc/stack.h>
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/heap.h>
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
@@ -129,14 +128,14 @@ std::optional<unsigned long long> ReadSyscallCount() {
 }
 
 int RunWatchBurst() {
-  rex::runtime::Memory memory;
+  rex::kernel::Memory memory;
   if (!memory.Initialize()) {
     return 2;
   }
   constexpr rex::u32 kPages = 100;
   const auto host_page = static_cast<rex::u32>(rex::memory::GetPageSize());
   const rex::u32 address =
-      memory.SystemHeapAlloc(host_page * kPages, host_page, rex::runtime::kSystemHeapPhysical);
+      memory.SystemHeapAlloc(host_page * kPages, host_page, rex::kernel::kSystemHeapPhysical);
   if (!address) {
     return 2;
   }
@@ -166,13 +165,13 @@ int RunWatchBurst() {
 }
 
 int RunWatchRace() {
-  rex::runtime::Memory memory;
+  rex::kernel::Memory memory;
   if (!memory.Initialize()) {
     return 2;
   }
   const auto host_page = static_cast<rex::u32>(rex::memory::GetPageSize());
   const rex::u32 address =
-      memory.SystemHeapAlloc(host_page, host_page, rex::runtime::kSystemHeapPhysical);
+      memory.SystemHeapAlloc(host_page, host_page, rex::kernel::kSystemHeapPhysical);
   if (!address) {
     return 2;
   }
@@ -268,8 +267,8 @@ int RunStackPushPastLimit() {
   alignas(64) static rex::u8 memory[0x1000] = {};
   PPCContext ctx{};
   ctx.r13.u32 = 0x100;
-  *rex::runtime::GuestPtr<be_u32*>(memory, 0x170) = 0x800;
-  *rex::runtime::GuestPtr<be_u32*>(memory, 0x174) = 0x400;
+  *rex::memory::GuestPtr<be_u32*>(memory, 0x170) = 0x800;
+  *rex::memory::GuestPtr<be_u32*>(memory, 0x174) = 0x400;
   ctx.r1.u32 = 0x800;
   rex::ppc::StackFrame frame(ctx, memory);
   frame.Push<u32>(1);
@@ -289,30 +288,30 @@ int Run(std::string_view mode) {
   } else if (mode == "stack-overflow") {
     return Recurse(0);
   } else if (mode == "mmio") {
-    rex::runtime::Memory memory;
+    rex::kernel::Memory memory;
     if (!memory.Initialize()) {
       return 2;
     }
     *memory.TranslateVirtual<volatile rex::u32*>(0x7FC80010) = 1;
   } else if (mode == "read-only-write") {
-    rex::runtime::Memory memory;
+    rex::kernel::Memory memory;
     if (!memory.Initialize() || !memory.LookupHeap(0x40000000)
                                      ->AllocFixed(0x40000000, 0x10000, 0x10000,
-                                                  rex::runtime::kMemoryAllocationReserve |
-                                                      rex::runtime::kMemoryAllocationCommit,
-                                                  rex::runtime::kMemoryProtectRead)) {
+                                                  rex::kernel::kMemoryAllocationReserve |
+                                                      rex::kernel::kMemoryAllocationCommit,
+                                                  rex::kernel::kMemoryProtectRead)) {
       return 2;
     }
     *memory.TranslateVirtual<volatile rex::u32*>(0x40000010) = 1;
   } else if (mode == "stale-protect") {
     {
-      rex::runtime::Memory memory;
+      rex::kernel::Memory memory;
       if (!memory.Initialize()) {
         return 2;
       }
       const auto host_page = static_cast<rex::u32>(rex::memory::GetPageSize());
       const rex::u32 address =
-          memory.SystemHeapAlloc(host_page, host_page, rex::runtime::kSystemHeapPhysical);
+          memory.SystemHeapAlloc(host_page, host_page, rex::kernel::kSystemHeapPhysical);
       auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
       // NOLINTNEXTLINE(performance-no-int-to-ptr): rounds the host pointer down to its page
       auto* page = reinterpret_cast<rex::u8*>(reinterpret_cast<rex::host_addr_t>(host) &
@@ -328,23 +327,23 @@ int Run(std::string_view mode) {
     return 0;
   } else if (mode == "seh") {
     rex::InitializeSEH();
-    rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
+    rex::ppc::AddRecompiledCode(REX_RECOMPILED_CODE());
     const bool caught = FaultInScope(nullptr) == 1;
     std::puts(caught ? "seh caught" : "seh missed");
     return caught ? 0 : 3;
   } else if (mode == "seh-host-frame") {
     rex::InitializeSEH();
-    rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
+    rex::ppc::AddRecompiledCode(REX_RECOMPILED_CODE());
     const bool caught = FaultBelowHostFrame(nullptr) == 1;
     std::puts(caught ? "seh caught" : "seh missed");
     return caught ? 0 : 3;
   } else if (mode == "watch") {
-    rex::runtime::Memory memory;
+    rex::kernel::Memory memory;
     if (!memory.Initialize()) {
       return 2;
     }
     const rex::u32 address =
-        memory.SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+        memory.SystemHeapAlloc(0x1000, 0x1000, rex::kernel::kSystemHeapPhysical);
     void* handle = memory.RegisterPhysicalMemoryInvalidationCallback(IgnoreInvalidation, nullptr);
     memory.EnablePhysicalMemoryAccessCallbacks(memory.GetPhysicalAddress(address), 0x1000, true,
                                                false);
@@ -396,11 +395,8 @@ int main(int argc, char** argv) {
   }
   const std::string_view mode = argv[1];
   try {
-    rex::LogConfig config;
-    config.console = true;
-    config.debugger = false;
-    config.flush_interval = std::chrono::seconds(0);
-    if (!rex::log::Start(config)) {
+    rex::Logger& logger = REX_LOGGER();
+    if (!logger.console.Set(true) || !logger.debugger.Set(false)) {
       return 6;
     }
     if (!rex::platform::InstallCrashReporter({.app_name = "rex-crash-child"})) {

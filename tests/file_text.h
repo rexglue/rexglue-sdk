@@ -1,6 +1,5 @@
 /**
  * @file        tests/file_text.h
- * @brief       Whole file reads and writes for test assertions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -23,9 +22,8 @@
 namespace rex::test {
 
 /**
- * Reads a whole host file.
+ * Reads a host file.
  *
- * @param path The file.
  * @return The bytes, empty when the file cannot be read.
  */
 inline std::vector<u8> ReadBytes(const std::filesystem::path& path) {
@@ -34,9 +32,8 @@ inline std::vector<u8> ReadBytes(const std::filesystem::path& path) {
 }
 
 /**
- * Reads a whole host file as text.
+ * Reads a host file as text.
  *
- * @param path The file.
  * @return The text, empty when the file cannot be read.
  */
 inline std::string ReadText(const std::filesystem::path& path) {
@@ -47,7 +44,6 @@ inline std::string ReadText(const std::filesystem::path& path) {
 /**
  * Writes a host file, creating the parent folders.
  *
- * @param path The file.
  * @param text The contents.
  */
 inline void WriteText(const std::filesystem::path& path, std::string_view text) {

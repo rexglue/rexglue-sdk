@@ -1,6 +1,6 @@
 /**
  * @file        tests/modules/crossmodule.cpp
- * @brief       Recompiled library that exports a function or imports it from another module
+ * @brief       Recompiled library that exports or imports a function
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,12 +10,12 @@
  */
 
 #include <rex/types.h>
-#include <rex/image_info.h>
-#include <rex/export.h>
+#include <rex/ppc/image.h>
+#include <rex/platform.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/func.h>
-#include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/module_import.h>
+#include <rex/ppc/recompiled_code.h>
+#include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/module.h>
 
 namespace {
 
@@ -39,8 +39,8 @@ void IndirectKernelFunction(PPCContext& ctx, rex::u8* base) {
 }
 
 void DirectFunction(PPCContext& ctx, rex::u8* base) {
-  static rex::runtime::ModuleImport target{"exporter", 1};
-  rex::runtime::ResolveModuleImport(target)(ctx, base);
+  static rex::kernel::ModuleImport target{"exporter", 1};
+  rex::kernel::ResolveModuleImport(target)(ctx, base);
 }
 
 void IndirectFunction(PPCContext& ctx, rex::u8* base) {
@@ -50,7 +50,7 @@ void IndirectFunction(PPCContext& ctx, rex::u8* base) {
 }
 #endif
 
-const rex::PPCImage kImageInfo = {
+const rex::ppc::PPCImage kImageInfo = {
     .code_base = kImageBase,
     .code_size = kImageSize,
     .image_base = kImageBase,
@@ -60,7 +60,7 @@ const rex::PPCImage kImageInfo = {
 
 }  // namespace
 
-extern "C" REX_DETAIL_EXPORT void ReXRegisterModule(rex::runtime::IModuleRegistrar* registrar) {
+extern "C" REX_DETAIL_EXPORT void ReXRegisterModule(rex::kernel::IFunctionRegistrar* registrar) {
 #ifdef REX_TEST_EXPORTER
   registrar->SetFunction(kFunctionAddress, Function);
 #else
@@ -71,6 +71,6 @@ extern "C" REX_DETAIL_EXPORT void ReXRegisterModule(rex::runtime::IModuleRegistr
 #endif
 }
 
-extern "C" REX_DETAIL_EXPORT const rex::PPCImage* ReXGetModuleImage() {
+extern "C" REX_DETAIL_EXPORT const rex::ppc::PPCImage* ReXGetModuleImage() {
   return &kImageInfo;
 }

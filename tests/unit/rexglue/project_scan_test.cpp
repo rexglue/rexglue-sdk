@@ -16,7 +16,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "rexglue/commands/project_scan.h"
+#include "rexglue/command/project_scan.h"
 
 REX_TEST_CASE("stale include scan matches header names without regard to case",
               "[rexglue][scan][case]") {

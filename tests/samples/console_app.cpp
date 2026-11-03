@@ -8,11 +8,14 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <rex/app.h>
+#include <rex/app/app.h>
 
-class FooTool : public rex::App {
+class FooTool : public rex::app::App {
+ public:
+  FooTool() : App("foo") {}
+
  protected:
-  rex::i32 OnRun(rex::API&) override { return 0; }
+  void OnRun() override {}
 };
 
 REX_CONSOLE_APP(FooTool)

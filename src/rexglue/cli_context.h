@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/cli_context.h
- * @brief       Shared types for rexglue CLI subcommands
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,7 +11,11 @@
 #pragma once
 
 #include <rex/result.h>
-#include <rex/move_only_function.h>
+#include <rex/utility.h>
+
+namespace rex::codegen {
+class ToolApp;
+}  // namespace rex::codegen
 
 namespace rexglue::cli {
 
@@ -20,6 +23,7 @@ struct CLIContext {
   bool verbose = false;
   bool overwrite_existing = false;
   bool generate_despite_errors = false;
+  rex::codegen::ToolApp* tools = nullptr;
 };
 
 using DeferredAction = rex::MoveOnlyFunction<rex::Result<void>()>;

@@ -24,7 +24,7 @@ namespace {
 
 using rex::u32;
 using rex::codegen::detail::Disassemble;
-using rex::codegen::detail::IsDropped;
+using rex::codegen::detail::IsInvalidOnXenon;
 using rex::codegen::detail::LookupID;
 using rex::codegen::detail::LookupOpcode;
 using rex::codegen::detail::Opcode;
@@ -37,12 +37,7 @@ constexpr u32 VMX128Load(u32 xop, u32 vd) {
   return (4u << 26) | ((vd & 31) << 21) | (3u << 16) | (4u << 11) | xop | (((vd >> 5) & 3) << 2);
 }
 
-/**
- * Returns the id the disassembler engine gives a word, or 0 when it decodes nothing.
- *
- * @param code The instruction word.
- * @return The engine id.
- */
+/** Returns the disassembler engine ID for a word, or 0 when it decodes nothing. */
 int EngineID(u32 code) {
   const std::array<rex::u8, 4> bytes = {
       static_cast<rex::u8>(code >> 24), static_cast<rex::u8>(code >> 16),
@@ -62,14 +57,9 @@ int EngineID(u32 code) {
   return id;
 }
 
-/**
- * Checks that the lookup returns what the engine decodes, with the dropped instructions invalid.
- *
- * @param code The instruction word.
- */
 void ExpectSameID(u32 code) {
   const int engine = EngineID(code);
-  const int expected = IsDropped(engine) ? 0 : engine;
+  const int expected = IsInvalidOnXenon(engine) ? 0 : engine;
   const bool same_id = LookupID(code) == expected;
   const bool same_validity = (LookupOpcode(code) == Opcode::kUnknown) == (expected == 0);
   if (!same_id || !same_validity) {

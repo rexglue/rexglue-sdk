@@ -22,12 +22,13 @@
 #include <memory>
 #include <unordered_set>
 
-#include <rex/codegen/phases.h>
-#include "known_functions.h"
+#include "pipeline.h"
+#include "known_function.h"
 
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 
 #include <ppc.h>
 
@@ -40,13 +41,10 @@ namespace rex::codegen {
 namespace {
 
 /**
- * Reports whether an address holds exception handler data, a pointer to a known entry point such
- * as __C_specific_handler at +0 followed by a pointer to the scope table in .rdata at +4.
+ * Reports whether an address holds exception handler data, a known entry point at +0 followed by
+ * a pointer into .rdata at +4.
  *
- * @param binary Binary view.
  * @param graph Function graph holding the known entry points.
- * @param addr Address to test.
- * @return True when the data matches.
  */
 bool IsExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 addr) {
   const u8* data = binary.Translate(addr);
@@ -78,17 +76,9 @@ bool IsExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 a
   return false;
 }
 
-/**
- * Disjoint address ranges covered by functions.
- */
+/** Disjoint address ranges covered by functions. */
 class Coverage {
  public:
-  /**
-   * Adds a range.
-   *
-   * @param start First address of the range.
-   * @param end Address 1 past the range.
-   */
   void Add(u32 start, u32 end) {
     if (end <= start)
       return;
@@ -111,8 +101,7 @@ class Coverage {
   /**
    * Finds the end of the range that holds an address.
    *
-   * @param addr Address to look up.
-   * @return The address 1 past the range, or 0 when no range holds the address.
+   * @return The address 1 past the range, or 0 when none holds the address.
    */
   u32 GetCoveredEnd(u32 addr) const {
     auto it = ranges_->upper_bound(addr);
@@ -126,12 +115,6 @@ class Coverage {
   std::unique_ptr<std::map<u32, u32>> ranges_ = std::make_unique<std::map<u32, u32>>();
 };
 
-/**
- * Lists the general registers an instruction names, in operand order.
- *
- * @param operands The operand text of the disassembled instruction.
- * @return The register numbers.
- */
 std::vector<u32> GetRegisterOperands(std::string_view operands) {
   std::vector<u32> regs;
   for (size_t i = 0; i + 1 < operands.size(); ++i) {
@@ -149,11 +132,10 @@ std::vector<u32> GetRegisterOperands(std::string_view operands) {
 }
 
 /**
- * Reports whether the first instruction of a function reads a nonvolatile register as an address
- * base or an operand before anything wrote it, or writes one before saving it. A store through r1
- * only saves, so it does not count.
+ * Reports whether an instruction reads a nonvolatile register before anything wrote it, or writes
+ * one before saving it. A store through r1 only saves.
  *
- * @param code Pointer to the big endian instruction word.
+ * @param code The big endian instruction word.
  * @return True when the word cannot start a function.
  */
 bool HasNonvolatileFirst(const u8* code) {
@@ -186,11 +168,10 @@ bool HasNonvolatileFirst(const u8* code) {
  * Reports whether an uncovered word is data rather than the start of a function.
  *
  * @param ctx Codegen context holding the function graph after discovery.
- * @param binary Binary view the words are read from.
  * @param region Executable region that holds the word.
  * @param addr Address of the candidate word.
- * @return True when the word does not decode, uses a nonvolatile register before writing it,
- *         is exception handler data, or never reaches a terminator inside the region.
+ * @return True when the word does not decode, starts with a nonvolatile register, is exception
+ *         data, or never reaches a terminator inside the region.
  */
 bool IsDataWord(const CodegenContext& ctx, const BinaryView& binary, const CodeRegion& region,
                 u32 addr) {
@@ -276,11 +257,6 @@ void GapFillCodeRegions(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: registered {} GAP_FILL functions", registered);
 }
 
-/**
- * Removes GAP_FILL functions that another function contains.
- *
- * @param ctx Codegen context.
- */
 void CleanupAbsorbedGapFills(CodegenContext& ctx) {
   auto& graph = ctx.graph;
   std::vector<u32> to_remove;

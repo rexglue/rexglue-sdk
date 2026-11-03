@@ -1,4 +1,4 @@
-#include <rex/codegen/output_stamp.h>
+#include "output_stamp.h"
 
 #include <fstream>
 
@@ -8,11 +8,11 @@
 #include <rex/hash.h>
 
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 #include "file_io.h"
 
 namespace rex::codegen {
 
-/** Layout version of the stamp. */
 constexpr int kStampVersion = 1;
 
 std::optional<OutputStamp> OutputStamp::Load(const std::filesystem::path& path) {

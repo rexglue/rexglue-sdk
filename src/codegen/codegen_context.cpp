@@ -2,19 +2,19 @@
 
 #include <format>
 
-#include <rex/codegen/codegen_context.h>
+#include "codegen_context.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/runtime.h>
-#include <rex/runtime/module_object.h>
-#include <rex/runtime/module_registry.h>
-#include <rex/runtime/object_table.h>
-#include <rex/runtime/xex_module.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/module.h>
+#include <rex/kernel/object/object_table.h>
 
 namespace rex::codegen {
 
 Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& config_path,
-                                              Runtime& runtime) {
+                                              rex::kernel::TitleRuntime& runtime) {
   CodegenContext ctx;
 
   if (!ctx.config_.Load(config_path.string())) {
@@ -32,15 +32,7 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
                                std::format("XEX file not found: {}", xex_path.string()));
   }
 
-  auto xex_filename = xex_path.filename();
-  auto vfs_path = "game:\\" + xex_filename.string();
-  if (auto loaded = runtime.LoadXEXImage(vfs_path); !loaded) {
-    return Err<CodegenContext>(
-        ErrorCategory::kFormat,
-        std::format("Failed to load XEX: {}, {}", xex_path.string(), loaded.error().message));
-  }
-
-  auto user_module = runtime.GetObjectTable().Get<rex::runtime::ModuleObject>(
+  auto user_module = runtime.GetObjectTable().Get<rex::kernel::ModuleObject>(
       runtime.GetModuleRegistry().GetExecutable().value_or(0));
   if (!user_module) {
     return Err<CodegenContext>(ErrorCategory::kFormat,

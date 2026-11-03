@@ -1,6 +1,6 @@
 /**
  * @file        codegen/tool_runtime.h
- * @brief       A tool mode Runtime over the mount table rexfilesystem serves
+ * @brief       A loaded TitleRuntime for the tools that read a title and never run it
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,70 +15,78 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
+#include <vector>
 
+#include <rex/app/app.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex {
-class API;
-class Runtime;
-namespace ui {
-class IUserInterface;
-}  // namespace ui
+namespace kernel {
+class TitleRuntime;
+}  // namespace kernel
 }  // namespace rex
 
 namespace rex::codegen {
 
-/**
- * Owns a tool mode Runtime and the rex::Init that serves its mount table. The destructor shuts
- * the Runtime down and then calls rex::Shutdown. Move only.
- */
+class ToolApp;
+
+/** Owns a loaded TitleRuntime that is never launched. */
 class ToolRuntime : public MoveOnly {
  public:
   ToolRuntime(ToolRuntime&& other) noexcept;
   ToolRuntime& operator=(ToolRuntime&& other) noexcept;
   ~ToolRuntime();
 
-  /**
-   * Returns the Runtime.
-   *
-   * @return The Runtime, set up with game colon at the game root.
-   */
-  [[nodiscard]] Runtime& GetRuntime() const { return *runtime_; }
-
-  /**
-   * Returns the API that serves the runtime's interfaces.
-   *
-   * @return The API, valid until the ToolRuntime is destroyed.
-   */
-  API& GetAPI() const { return *api_; }
+  [[nodiscard]] rex::kernel::TitleRuntime& GetRuntime() const { return *runtime_; }
 
  private:
-  friend Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
-                                             std::span<const std::string> extra_modules,
-                                             ui::IUserInterface* ui);
+  friend class ToolApp;
 
-  ToolRuntime(std::unique_ptr<Runtime> runtime, API* api);
-  void Release();
+  explicit ToolRuntime(std::unique_ptr<rex::kernel::TitleRuntime> runtime);
 
-  std::unique_ptr<Runtime> runtime_;
-  API* api_ = nullptr;
+  std::unique_ptr<rex::kernel::TitleRuntime> runtime_;
 };
 
-/**
- * Runs rex::Init with the rexfilesystem module, the rexruntime module and the extra modules,
- * and builds a tool mode Runtime whose game colon mount is game_root. A non empty module list also
- * selects the dummy video driver.
- *
- * @param game_root The host folder that game colon names.
- * @param extra_modules Modules loaded after rexruntime.
- * @param ui The user interface the Runtime shows prompts through. Null uses the one a module
- *        serves, or none.
- *
- * @return The runtime, or the rex::Init or Runtime::Setup error.
- */
-[[nodiscard]] Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
-                                                  std::span<const std::string> extra_modules = {},
-                                                  ui::IUserInterface* ui = nullptr);
+/** An app that selects no driver and opens tool runtimes. It starts on the first Open. */
+class ToolApp : public rex::app::App {
+ public:
+  /**
+   * Creates the app. Nothing starts until Open.
+   *
+   * @param app_root The app root, empty for the default under the user profile.
+   */
+  explicit ToolApp(std::string_view app_name, std::filesystem::path app_root = {});
+  ~ToolApp() override;
+
+  /**
+   * Starts the app when it has not started. Open calls it, and a command that needs the modules
+   * without a title calls it first.
+   *
+   * @return Success, or the reason the app cannot start.
+   */
+  [[nodiscard]] Result<void> Start();
+
+  /**
+   * Loads a title from a game folder without running it.
+   *
+   * @param game_root The host folder mapped to the game device.
+   * @param entry The executable on the game device that Load runs, empty loads none.
+   * @param imports Guest paths the executable may import from, with backslashes.
+   * @return The loaded runtime, or the error that stopped the start or the load.
+   */
+  [[nodiscard]] Result<ToolRuntime> Open(const std::filesystem::path& game_root,
+                                         std::string_view entry = {},
+                                         std::span<const std::string> imports = {});
+
+ protected:
+  Result<void> OnConfigure(Settings& settings) override;
+
+ private:
+  std::filesystem::path app_root_;
+  bool started_ = false;
+};
 
 }  // namespace rex::codegen

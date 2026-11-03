@@ -1,4 +1,4 @@
-#include <rex/codegen/hook_scan.h>
+#include "hook_scan.h"
 
 #include <algorithm>
 #include <cctype>
@@ -13,6 +13,8 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/memory/mapped_ptr.h>
+
 namespace rex::codegen {
 
 namespace {
@@ -20,10 +22,10 @@ namespace {
 namespace fs = std::filesystem;
 namespace midasm = rex::ppc::detail;
 
-enum class TokenKind : u8 { kIdentifier, kNumber, kPunct, kLiteral };
+enum class TokenType : u8 { kIdentifier, kNumber, kPunct, kLiteral };
 
 struct Token {
-  TokenKind kind;
+  TokenType type;
   std::string text;
   u32 line;
   bool conditional;
@@ -77,8 +79,8 @@ std::vector<Token> Lex(std::string_view text) {
   bool line_start = true;
   size_t last_end = 0;
   size_t i = 0;
-  const auto emit = [&](TokenKind kind, size_t begin, size_t end) {
-    tokens.push_back({kind, std::string(text.substr(begin, end - begin)), line, depth > 0});
+  const auto emit = [&](TokenType type, size_t begin, size_t end) {
+    tokens.push_back({type, std::string(text.substr(begin, end - begin)), line, depth > 0});
     last_end = end;
   };
   while (i < text.size()) {
@@ -151,7 +153,7 @@ std::vector<Token> Lex(std::string_view text) {
     }
     line_start = false;
     if (c == '"') {
-      const bool raw = !tokens.empty() && tokens.back().kind == TokenKind::kIdentifier &&
+      const bool raw = !tokens.empty() && tokens.back().type == TokenType::kIdentifier &&
                        last_end == i && tokens.back().text.back() == 'R';
       const size_t begin = i;
       if (raw) {
@@ -174,7 +176,7 @@ std::vector<Token> Lex(std::string_view text) {
           ++line;
         }
       }
-      emit(TokenKind::kLiteral, begin, i);
+      emit(TokenType::kLiteral, begin, i);
       continue;
     }
     if (c == '\'') {
@@ -184,7 +186,7 @@ std::vector<Token> Lex(std::string_view text) {
         i += text[i] == '\\' ? 2 : 1;
       }
       i = std::min(i + 1, text.size());
-      emit(TokenKind::kLiteral, begin, i);
+      emit(TokenType::kLiteral, begin, i);
       continue;
     }
     if (std::isdigit(static_cast<unsigned char>(c)) != 0 ||
@@ -202,7 +204,7 @@ std::vector<Token> Lex(std::string_view text) {
         }
         ++i;
       }
-      emit(TokenKind::kNumber, begin, i);
+      emit(TokenType::kNumber, begin, i);
       continue;
     }
     if (IsIdentifierStart(c)) {
@@ -210,10 +212,10 @@ std::vector<Token> Lex(std::string_view text) {
       while (i < text.size() && IsIdentifierChar(text[i])) {
         ++i;
       }
-      emit(TokenKind::kIdentifier, begin, i);
+      emit(TokenType::kIdentifier, begin, i);
       continue;
     }
-    emit(TokenKind::kPunct, i, i + 1);
+    emit(TokenType::kPunct, i, i + 1);
     ++i;
   }
   return tokens;
@@ -221,7 +223,7 @@ std::vector<Token> Lex(std::string_view text) {
 
 struct Body {
   std::string name;
-  MidAsmKind kind;
+  MidAsmType type;
   std::vector<std::string> types;
   midasm::MidAsmBody descriptor;
   fs::path file;
@@ -244,7 +246,7 @@ std::string_view StripQualifiers(std::string_view type) {
   if (type.starts_with("::")) {
     type.remove_prefix(2);
   }
-  for (const std::string_view prefix : {"rex::", "std::"}) {
+  for (const std::string_view prefix : {"rex::", "memory::", "std::"}) {
     if (type.starts_with(prefix)) {
       type.remove_prefix(prefix.size());
     }
@@ -302,7 +304,7 @@ std::string JoinTokens(std::span<const Token> tokens) {
   const Token* previous = nullptr;
   for (const Token& token : tokens) {
     const auto is_word = [](const Token& t) {
-      return t.kind == TokenKind::kIdentifier || t.kind == TokenKind::kNumber;
+      return t.type == TokenType::kIdentifier || t.type == TokenType::kNumber;
     };
     if (previous && is_word(*previous) && is_word(token)) {
       text += ' ';
@@ -324,7 +326,7 @@ std::optional<Invocation> ReadInvocation(const std::vector<Token>& tokens, size_
   u32 depth = 0;
   for (size_t k = open + 1; k < tokens.size(); ++k) {
     const Token& token = tokens[k];
-    if (token.kind == TokenKind::kPunct) {
+    if (token.type == TokenType::kPunct) {
       if (token.text == "(" || token.text == "[" || token.text == "{") {
         ++depth;
       } else if (token.text == ")" || token.text == "]" || token.text == "}") {
@@ -346,8 +348,8 @@ std::optional<Invocation> ReadInvocation(const std::vector<Token>& tokens, size_
   return std::nullopt;
 }
 
-bool IsSingle(const std::vector<Token>& argument, TokenKind kind) {
-  return argument.size() == 1 && argument[0].kind == kind;
+bool IsSingle(const std::vector<Token>& argument, TokenType type) {
+  return argument.size() == 1 && argument[0].type == type;
 }
 
 std::string FormatLocation(const fs::path& file, u32 line) {
@@ -369,8 +371,8 @@ std::string DescribeResult(midasm::MidAsmAtResult result) {
              "fpscr, reserved or ctx";
     case midasm::MidAsmAtResult::kCountMismatch:
       return "the register count must equal the body parameter count";
-    case midasm::MidAsmAtResult::kKindMismatch:
-      return "a register kind does not fit its parameter";
+    case midasm::MidAsmAtResult::kTypeMismatch:
+      return "a register type does not fit its parameter";
     case midasm::MidAsmAtResult::kOk:
       break;
   }
@@ -389,16 +391,16 @@ struct Scan {
 };
 
 std::optional<std::string> ReadBody(const fs::path& file, const Token& macro,
-                                    const Invocation& invocation, MidAsmKind kind, Scan& scan) {
+                                    const Invocation& invocation, MidAsmType type, Scan& scan) {
   const auto& arguments = invocation.arguments;
-  if (arguments.size() != 2 || !IsSingle(arguments[0], TokenKind::kIdentifier)) {
+  if (arguments.size() != 2 || !IsSingle(arguments[0], TokenType::kIdentifier)) {
     return std::format("{} needs a name and a parameter list", macro.text);
   }
   const auto& list = arguments[1];
   if (list.size() < 2 || list.front().text != "(" || list.back().text != ")") {
     return std::format("{} needs its parameters in parentheses", macro.text);
   }
-  Body body{arguments[0][0].text, kind, {}, {kind, 0, {}}, file, macro.line};
+  Body body{arguments[0][0].text, type, {}, {type, 0, {}}, file, macro.line};
   std::vector<std::vector<Token>> parameters(1);
   u32 depth = 0;
   for (size_t k = 1; k + 1 < list.size(); ++k) {
@@ -419,34 +421,34 @@ std::optional<std::string> ReadBody(const fs::path& file, const Token& macro,
     return std::format("{} takes at most {} parameters", body.name, midasm::kMaxMidAsmParams);
   }
   for (const auto& parameter : parameters) {
-    std::string type = JoinTokens(parameter);
-    midasm::MidAsmParam kind_of = ClassifyType(type);
-    if (kind_of == midasm::MidAsmParam::kInvalid && parameter.size() > 1 &&
-        parameter.back().kind == TokenKind::kIdentifier) {
-      type = JoinTokens(std::span<const Token>(parameter).first(parameter.size() - 1));
-      kind_of = ClassifyType(type);
+    std::string parameter_type = JoinTokens(parameter);
+    midasm::MidAsmParam type_of = ClassifyType(parameter_type);
+    if (type_of == midasm::MidAsmParam::kInvalid && parameter.size() > 1 &&
+        parameter.back().type == TokenType::kIdentifier) {
+      parameter_type = JoinTokens(std::span<const Token>(parameter).first(parameter.size() - 1));
+      type_of = ClassifyType(parameter_type);
     }
-    if (kind_of == midasm::MidAsmParam::kInvalid) {
+    if (type_of == midasm::MidAsmParam::kInvalid) {
       return std::format(
           "the parameter '{}' of {} is not u32, u64, f64, PPCVRegister, a pointer, a MappedPtr, "
           "a reference to a register type or PPCContext&",
           JoinTokens(parameter), body.name);
     }
-    if (kind_of == midasm::MidAsmParam::kPointer) {
-      type = "void*";
-    } else if (kind_of == midasm::MidAsmParam::kMappedPointer) {
-      type = "rex::MappedPtr<u8>";
-    } else if (kind_of == midasm::MidAsmParam::kU32) {
-      type = "u32";
-    } else if (kind_of == midasm::MidAsmParam::kU64) {
-      type = "u64";
-    } else if (kind_of == midasm::MidAsmParam::kF64) {
-      type = "f64";
+    if (type_of == midasm::MidAsmParam::kPointer) {
+      parameter_type = "void*";
+    } else if (type_of == midasm::MidAsmParam::kMappedPointer) {
+      parameter_type = "rex::memory::MappedPtr<u8>";
+    } else if (type_of == midasm::MidAsmParam::kU32) {
+      parameter_type = "u32";
+    } else if (type_of == midasm::MidAsmParam::kU64) {
+      parameter_type = "u64";
+    } else if (type_of == midasm::MidAsmParam::kF64) {
+      parameter_type = "f64";
     } else {
-      type = std::string(StripQualifiers(type));
+      parameter_type = std::string(StripQualifiers(parameter_type));
     }
-    body.descriptor.params[body.types.size()] = kind_of;
-    body.types.push_back(type);
+    body.descriptor.params[body.types.size()] = type_of;
+    body.types.push_back(parameter_type);
   }
   body.descriptor.count = body.types.size();
   const auto [it, inserted] = scan.bodies.emplace(body.name, body);
@@ -460,9 +462,9 @@ std::optional<std::string> ReadBody(const fs::path& file, const Token& macro,
 std::optional<std::string> ReadAttachment(const fs::path& file, const Token& macro,
                                           const Invocation& invocation, Scan& scan) {
   const auto& arguments = invocation.arguments;
-  if (arguments.size() < 3 || !IsSingle(arguments[0], TokenKind::kIdentifier) ||
-      !IsSingle(arguments[1], TokenKind::kNumber) ||
-      !IsSingle(arguments[2], TokenKind::kIdentifier)) {
+  if (arguments.size() < 3 || !IsSingle(arguments[0], TokenType::kIdentifier) ||
+      !IsSingle(arguments[1], TokenType::kNumber) ||
+      !IsSingle(arguments[2], TokenType::kIdentifier)) {
     return std::format("{} needs a body name, a literal address and a placement", macro.text);
   }
   u32 address = 0;
@@ -488,7 +490,7 @@ std::optional<std::string> ScanFile(const fs::path& file, Scan& scan) {
   const std::vector<Token> tokens = Lex(text);
   for (size_t k = 0; k + 1 < tokens.size(); ++k) {
     const Token& macro = tokens[k];
-    if (macro.kind != TokenKind::kIdentifier || tokens[k + 1].text != "(") {
+    if (macro.type != TokenType::kIdentifier || tokens[k + 1].text != "(") {
       continue;
     }
     const bool is_body = macro.text == "REX_MIDASM_HOOK" || macro.text == "REX_MIDASM_BRANCH" ||
@@ -507,10 +509,10 @@ std::optional<std::string> ScanFile(const fs::path& file, Scan& scan) {
     }
     std::optional<std::string> problem;
     if (is_body) {
-      const MidAsmKind kind = macro.text == "REX_MIDASM_HOOK"     ? MidAsmKind::kHook
-                              : macro.text == "REX_MIDASM_BRANCH" ? MidAsmKind::kBranch
-                                                                  : MidAsmKind::kReturnIf;
-      problem = ReadBody(file, macro, *invocation, kind, scan);
+      const MidAsmType type = macro.text == "REX_MIDASM_HOOK"     ? MidAsmType::kHook
+                              : macro.text == "REX_MIDASM_BRANCH" ? MidAsmType::kBranch
+                                                                  : MidAsmType::kReturnIf;
+      problem = ReadBody(file, macro, *invocation, type, scan);
     } else {
       problem = ReadAttachment(file, macro, *invocation, scan);
     }
@@ -593,13 +595,13 @@ Result<std::vector<SourceMidAsmHook>> ScanHookSources(std::span<const fs::path> 
                           attachment.address,
                           attachment.placement == "after",
                           0,
-                          body->second.kind,
+                          body->second.type,
                           {},
                           body->second.types,
                           attachment.file,
                           attachment.line};
     size_t first = 0;
-    if (hook.kind == MidAsmKind::kBranch) {
+    if (hook.type == MidAsmType::kBranch) {
       midasm::ParseMidAsmAddress(attachment.arguments[0], hook.target);
       first = 1;
     }
@@ -621,9 +623,9 @@ MidAsmHook ToMidAsmHook(const SourceMidAsmHook& hook) {
   entry.parameters = hook.parameters;
   entry.after_instruction = hook.after;
   entry.from_source = true;
-  if (hook.kind == MidAsmKind::kBranch) {
+  if (hook.type == MidAsmType::kBranch) {
     entry.jump_address_on_true = hook.target;
-  } else if (hook.kind == MidAsmKind::kReturnIf) {
+  } else if (hook.type == MidAsmType::kReturnIf) {
     entry.return_on_true = true;
   }
   return entry;

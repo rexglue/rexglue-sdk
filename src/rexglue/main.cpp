@@ -9,25 +9,28 @@
  */
 
 #include "cli_context.h"
+#include "codegen/tool_runtime.h"
 #include "log_categories.h"
-#include "commands/codegen_command.h"
-#include "commands/init_command.h"
-#include "commands/vfs_command.h"
-#include "commands/list_command.h"
-#include "commands/test_recompiler.h"
+#include "command/codegen_command.h"
+#include "command/init_command.h"
+#include "command/vfs_command.h"
+#include "command/list_command.h"
+#include "command/test_recompiler.h"
 #include "ui/ui.h"
 
 #include <chrono>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include <CLI/CLI.hpp>
 #include <format>
 
-#include <rex/app.h>
+#include <rex/app/app.h>
+#include <rex/cli.h>
 #include <rex/logging/logger.h>
 #include <rex/logging/log.h>
-#include <rex/platform/console.h>
-#include <rex/platform/env.h>
+#include <rex/platform/process.h>
 #include <rex/result.h>
 #include <rex/version.h>
 
@@ -49,32 +52,55 @@ bool ColorEnabled(bool tty) {
   return tty;
 }
 
+std::unique_ptr<rex::log::FileSink> g_file_sink;
+rex::ScopeGuard g_file_sink_guard;
+rex::ScopeGuard g_ui_sink_guard;
+
 [[nodiscard]] rex::Result<void> StartLogging(const std::string& level, const std::string& log_file,
                                              bool verbose) {
-  rex::LogConfig config;
-  config.debugger = false;
-  config.format.category = false;
-  if (verbose) {
-    config.level = rex::log::Level::kTrace;
-  } else if (auto parsed = rex::log::ParseLevel(level)) {
-    config.level = *parsed;
-  } else {
-    return std::unexpected(parsed.error());
+  rex::Logger& logger = REX_LOGGER();
+  const rex::log::Level parsed_level = verbose ? rex::log::Level::kTrace : [&] {
+    auto parsed = rex::log::ParseLevel(level);
+    return parsed ? *parsed : rex::log::Level::kInfo;
+  }();
+  if (!verbose) {
+    if (auto parsed = rex::log::ParseLevel(level); !parsed) {
+      return std::unexpected(parsed.error());
+    }
   }
-  config.file.enabled = !log_file.empty();
-  config.file.path = log_file;
-  config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
-  config.sinks = {&rexglue::ui::LogSink()};
-  return rex::log::Start(config);
+  REX_TRY_VOID(logger.level.Set(std::string(rex::log::LevelName(parsed_level))));
+  REX_TRY_VOID(logger.console.Set(false));
+  REX_TRY_VOID(logger.debugger.Set(false));
+  REX_TRY_VOID(logger.show_category.Set(false));
+  REX_TRY_VOID(logger.AddCategories(rexglue::kLogCategories));
+  g_ui_sink_guard = logger.AddSink(rexglue::ui::GetLogSink());
+  if (!log_file.empty()) {
+    REX_TRY(g_file_sink, rex::log::FileSink::Open(
+                             log_file, {rex::log::TimestampStyle::kDateTime, true, true, false}));
+    g_file_sink_guard = logger.AddSink(*g_file_sink);
+  }
+  return rex::Ok();
 }
 
-int RunCLI(int argc, char** argv) {
+void StopLogging() {
+  rex::Logger& logger = REX_LOGGER();
+  if (g_file_sink) {
+    g_file_sink_guard.Reset();
+    g_file_sink.reset();
+  }
+  g_ui_sink_guard.Reset();
+  logger.RemoveCategories(rexglue::kLogCategories);
+  logger.Flush();
+}
+
+int RunCLI(rex::codegen::ToolApp& tools, const rex::CLIArgList& args) {
   CLI::App app{BannerString(), "rexglue"};
   app.set_version_flag("--version", REXGLUE_VERSION_STRING);
   app.require_subcommand(1);
   app.fallthrough();
 
   rexglue::cli::CLIContext ctx;
+  ctx.tools = &tools;
   std::string log_level = "info";
   std::string log_file;
   bool verbose = false;
@@ -84,7 +110,9 @@ int RunCLI(int argc, char** argv) {
       ->type_name("LEVEL");
   app.add_option("--log-file", log_file, "Append diagnostics to file")->type_name("PATH");
   app.add_flag("-v,--verbose", verbose, "Equivalent to --log-level=trace");
-  app.add_flag("-f,--force", force, "Skip confirmations and proceed");
+  app.add_flag(
+      "-f,--force", force,
+      "Replace existing init files, skip the stamp check and write despite validation errors");
 
   rexglue::cli::DeferredAction pending;
   rexglue::cli::RegisterCodegen(app, ctx, pending);
@@ -93,7 +121,12 @@ int RunCLI(int argc, char** argv) {
   rexglue::cli::RegisterVFS(app, ctx, pending);
   rexglue::cli::RegisterList(app, ctx, pending);
 
-  CLI11_PARSE(app, argc, argv);
+  std::vector<std::string> reversed(args.GetAll().rbegin(), args.GetAll().rend());
+  try {
+    app.parse(std::move(reversed));
+  } catch (const CLI::ParseError& error) {
+    return app.exit(error);
+  }
 
   ctx.verbose = verbose;
   ctx.overwrite_existing = force;
@@ -116,17 +149,26 @@ int RunCLI(int argc, char** argv) {
   int exit_code = 0;
   if (!result) {
     rexglue::ui::FailureSummary(result.error().GetDescription(), elapsed);
-    exit_code = result.error().category == rex::ErrorCategory::kUserAbort ? 2 : 1;
+    exit_code = 1;
   } else {
     rexglue::ui::DoneSummary(elapsed);
   }
-  rex::log::Stop();
+  StopLogging();
   rexglue::ui::Shutdown();
   return exit_code;
 }
 
+class RexglueApp final : public rex::codegen::ToolApp {
+ public:
+  RexglueApp() : ToolApp("rexglue") {}
+};
+
+int RexglueMain(RexglueApp& app, const rex::CLIArgList& args) {
+  const int code = RunCLI(app, args);
+  app.Shutdown();
+  return code;
+}
+
 }  // namespace
 
-int main(int argc, char** argv) {
-  return rex::detail::RunGuarded([&] { return RunCLI(argc, argv); });
-}
+REX_CONSOLE_APP_MAIN(RexglueApp, RexglueMain)

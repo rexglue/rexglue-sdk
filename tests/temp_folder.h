@@ -20,14 +20,11 @@
 #include <system_error>
 
 #include <rex/types.h>
+#include <rex/utility.h>
 
 namespace rex::test {
 
-/**
- * Removes a folder and its contents. A failure prints to stderr instead of throwing.
- *
- * @param path The folder.
- */
+/** Removes a folder and its contents. A failure prints to stderr instead of throwing. */
 inline void RemoveTree(const std::filesystem::path& path) noexcept {
   try {
     std::error_code ec;
@@ -37,14 +34,8 @@ inline void RemoveTree(const std::filesystem::path& path) noexcept {
   }
 }
 
-/** Uniquely named host folder under the temp directory, removed with its contents on destruction.
- */
+/** Uniquely named host folder in the temp directory, removed with its contents on destruction. */
 struct TempFolder : NonCopyable {
-  /**
-   * Creates the folder.
-   *
-   * @param prefix Start of the folder name.
-   */
   explicit TempFolder(std::string_view prefix = "rex_test_")
       : path(std::filesystem::temp_directory_path() /
              (std::string(prefix) + std::to_string(static_cast<u32>(std::random_device{}())))) {
@@ -52,7 +43,7 @@ struct TempFolder : NonCopyable {
   }
   ~TempFolder() { RemoveTree(path); }
 
-  std::filesystem::path path; /**< The folder. */
+  std::filesystem::path path;
 };
 
 }  // namespace rex::test

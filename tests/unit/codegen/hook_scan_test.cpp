@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/hook_scan_test.cpp
- * @brief       Codegen reads mid asm hooks out of C++ sources
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,13 +18,15 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/codegen/hook_scan.h>
+#include "codegen/hook_scan.h"
+
+#include <rex/memory/mapped_ptr.h>
 
 namespace fs = std::filesystem;
 
 namespace {
 
-using rex::codegen::MidAsmKind;
+using rex::codegen::MidAsmType;
 using rex::codegen::SourceMidAsmHook;
 
 void Write(const fs::path& path, std::string_view text) {
@@ -56,7 +57,7 @@ std::vector<SourceMidAsmHook> Hooks(const rex::Result<std::vector<SourceMidAsmHo
 
 }  // namespace
 
-REX_TEST_CASE("hook_scan: each body kind is read with its attachments", "[codegen][hook_scan]") {
+REX_TEST_CASE("hook_scan: each body type is read with its attachments", "[codegen][hook_scan]") {
   rex::test::TempFolder folder;
   Write(folder.path / "src" / "hooks.cpp",
         R"(REX_MIDASM_HOOK(ScaleStep, (PPCRegister& step)) {
@@ -79,18 +80,18 @@ REX_MIDASM_AT(SkipAll, 0x82000400, before, r3);
   CHECK(hooks[0].name == "ScaleStep");
   CHECK(hooks[0].address == 0x82000100);
   CHECK(hooks[0].after);
-  CHECK(hooks[0].kind == MidAsmKind::kHook);
+  CHECK(hooks[0].type == MidAsmType::kHook);
   CHECK(hooks[0].target == 0);
   CHECK(hooks[0].registers == std::vector<std::string>{"f10"});
   CHECK(hooks[0].parameters == std::vector<std::string>{"PPCRegister&"});
   CHECK(hooks[0].line == 4);
   CHECK(hooks[1].name == "SkipRead");
   CHECK_FALSE(hooks[1].after);
-  CHECK(hooks[1].kind == MidAsmKind::kBranch);
+  CHECK(hooks[1].type == MidAsmType::kBranch);
   CHECK(hooks[1].target == 0x8200030C);
   CHECK(hooks[1].registers == std::vector<std::string>{"r5", "r31"});
   CHECK(hooks[1].parameters == std::vector<std::string>{"u32", "u32"});
-  CHECK(hooks[2].kind == MidAsmKind::kReturnIf);
+  CHECK(hooks[2].type == MidAsmType::kReturnIf);
   CHECK(hooks[2].registers == std::vector<std::string>{"r3"});
 }
 
@@ -105,7 +106,7 @@ REX_MIDASM_AT(NothingToRead, 0x82000500, before);
 )");
   const auto hooks = Hooks(Scan(folder));
   REQUIRE(hooks.size() == 1);
-  CHECK(hooks[0].kind == MidAsmKind::kReturnIf);
+  CHECK(hooks[0].type == MidAsmType::kReturnIf);
   CHECK(hooks[0].registers.empty());
   CHECK(hooks[0].parameters.empty());
 }
@@ -127,14 +128,14 @@ REX_TEST_CASE("hook_scan: one body attached at 3 addresses in another file",
   CHECK(hooks[0].parameters == std::vector<std::string>{"u64"});
 }
 
-REX_TEST_CASE("hook_scan: every register kind and parameter kind is read", "[codegen][hook_scan]") {
+REX_TEST_CASE("hook_scan: every register type and parameter type is read", "[codegen][hook_scan]") {
   rex::test::TempFolder folder;
   Write(folder.path / "src" / "hooks.cpp",
-        R"(REX_MIDASM_HOOK(EveryKind,
+        R"(REX_MIDASM_HOOK(EveryType,
                 (PPCContext & ctx, u32 a, u64 b, f64 c, PPCRegister& d, PPCVRegister e,
                  PPCVRegister& f, PPCCRRegister& g, PPCRegister& h, PPCXERRegister& i,
                  PPCFPSCRRegister& j, PPCRegister& k)) {}
-REX_MIDASM_AT(EveryKind, 0x82000480, after, ctx, r3, r4, f1, r5, v1, v2, cr6, ctr, xer,
+REX_MIDASM_AT(EveryType, 0x82000480, after, ctx, r3, r4, f1, r5, v1, v2, cr6, ctr, xer,
               fpscr, reserved);
 )");
   const auto hooks = Hooks(Scan(folder));
@@ -152,7 +153,7 @@ REX_TEST_CASE("hook_scan: pointer and mapped pointer parameters are read as eras
   rex::test::TempFolder folder;
   Write(folder.path / "src" / "hooks.cpp",
         R"(REX_MIDASM_HOOK(Pointers,
-                (Widget* widget, const Widget* other, rex::MappedPtr<Widget> mapped,
+                (Widget* widget, const Widget* other, rex::memory::MappedPtr<Widget> mapped,
                  MappedPtr<Widget> bare, u8* raw, Widget**, MappedPtr<u32>)) {}
 REX_MIDASM_AT(Pointers, 0x82000100, before, r27, r28, r29, r30, r31, r26, r25);
 )");
@@ -160,9 +161,10 @@ REX_MIDASM_AT(Pointers, 0x82000100, before, r27, r28, r29, r30, r31, r26, r25);
   REQUIRE(hooks.size() == 1);
   CHECK(hooks[0].registers ==
         std::vector<std::string>{"r27", "r28", "r29", "r30", "r31", "r26", "r25"});
-  CHECK(hooks[0].parameters == std::vector<std::string>{"void*", "void*", "rex::MappedPtr<u8>",
-                                                        "rex::MappedPtr<u8>", "void*", "void*",
-                                                        "rex::MappedPtr<u8>"});
+  CHECK(hooks[0].parameters == std::vector<std::string>{"void*", "void*",
+                                                        "rex::memory::MappedPtr<u8>",
+                                                        "rex::memory::MappedPtr<u8>", "void*",
+                                                        "void*", "rex::memory::MappedPtr<u8>"});
 }
 
 REX_TEST_CASE("hook_scan: the spellings the macros accept are read", "[codegen][hook_scan]") {
@@ -179,8 +181,9 @@ REX_MIDASM_AT(Jump, 2181038592, before, 0x8200'0210ul, r3);
   REQUIRE(hooks.size() == 2);
   CHECK(hooks[0].address == 0x82000100);
   CHECK(hooks[0].parameters == std::vector<std::string>{"u32", "u32", "u64", "f64",
-                                                        "rex::MappedPtr<u8>", "rex::MappedPtr<u8>",
-                                                        "u32", "rex::MappedPtr<u8>"});
+                                                        "rex::memory::MappedPtr<u8>",
+                                                        "rex::memory::MappedPtr<u8>", "u32",
+                                                        "rex::memory::MappedPtr<u8>"});
   CHECK(hooks[1].address == 0x82000200);
   CHECK(hooks[1].target == 0x82000210);
 }
@@ -416,7 +419,7 @@ REX_TEST_CASE("hook_scan: the scanner accepts the registers the macro parser acc
   }
 }
 
-REX_TEST_CASE("hook_scan: register count, kind and address problems stop", "[codegen][hook_scan]") {
+REX_TEST_CASE("hook_scan: register count, type and address problems stop", "[codegen][hook_scan]") {
   struct Case {
     const char* attach;
     const char* expect;
@@ -449,7 +452,7 @@ REX_TEST_CASE("hook_scan: a missing folder stops", "[codegen][hook_scan]") {
 }
 
 REX_TEST_CASE("hook_scan: a source hook converts to the hook entry", "[codegen][hook_scan]") {
-  SourceMidAsmHook branch{"Name", 0x82000100, true,        0x82000110, MidAsmKind::kBranch,
+  SourceMidAsmHook branch{"Name", 0x82000100, true,        0x82000110, MidAsmType::kBranch,
                           {"r3"}, {"u32"},    "hooks.cpp", 1};
   const auto entry = rex::codegen::ToMidAsmHook(branch);
   CHECK(entry.from_source);
@@ -459,7 +462,7 @@ REX_TEST_CASE("hook_scan: a source hook converts to the hook entry", "[codegen][
   CHECK(entry.registers == std::vector<std::string>{"r3"});
   CHECK(entry.parameters == std::vector<std::string>{"u32"});
 
-  SourceMidAsmHook skip{"Skip", 0x82000100, false,       0, MidAsmKind::kReturnIf,
+  SourceMidAsmHook skip{"Skip", 0x82000100, false,       0, MidAsmType::kReturnIf,
                         {"r3"}, {"u32"},    "hooks.cpp", 1};
   const auto skip_entry = rex::codegen::ToMidAsmHook(skip);
   CHECK(skip_entry.return_on_true);

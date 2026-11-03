@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 #include <rex/types.h>
 
 namespace rex::codegen {

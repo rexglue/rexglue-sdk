@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/skip_lr_test.cpp
- * @brief       skip_lr drops the LR traffic between guest functions and keeps it at import calls
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,9 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
+#include "base/xex_builder.h"
 
 #include <format>
 #include <string>

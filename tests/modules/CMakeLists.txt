@@ -1,15 +1,13 @@
-# Test modules for the module loader tests. Most link only the header only SDK targets, the apu
-# and hid modules link rexcore and the cross modules link rexruntime.
+set(CMAKE_FOLDER "tests/modules")
 
-# Prefix of a shared library target: none on Windows, lib elsewhere.
+# Shared library prefix is none on Windows and lib elsewhere.
 if (WIN32)
   set(REX_TEST_MODULE_PREFIX "")
 else ()
   set(REX_TEST_MODULE_PREFIX "lib")
 endif ()
 
-# Adds a test module next to rexruntime. FOREIGN modules do not link the host allocator or the SDK,
-# so they only get its include directories.
+# FOREIGN modules link neither the host allocator nor the SDK, only its include directories.
 function (rex_add_test_module name)
   cmake_parse_arguments(ARG "FOREIGN" "" "SOURCES;LIBS;DEFS" ${ARGN})
   add_library(${name} SHARED ${ARG_SOURCES})
@@ -17,7 +15,7 @@ function (rex_add_test_module name)
   target_link_libraries(${name} PRIVATE ${ARG_LIBS})
   if (ARG_FOREIGN)
     target_include_directories(
-      ${name} PRIVATE $<TARGET_PROPERTY:rexcore,INTERFACE_INCLUDE_DIRECTORIES>
+      ${name} PRIVATE $<TARGET_PROPERTY:rexbase,INTERFACE_INCLUDE_DIRECTORIES>
     )
   else ()
     rexglue_link_host_allocator(${name})
@@ -27,21 +25,11 @@ function (rex_add_test_module name)
     PROPERTIES CXX_VISIBILITY_PRESET hidden
                VISIBILITY_INLINES_HIDDEN ON
                PREFIX "${REX_TEST_MODULE_PREFIX}"
-               RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
-               LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+               RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexkernel>
+               LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexkernel>
   )
   rex_config_postfix(${name})
 endfunction ()
-
-foreach (name good missing badversion failinit duplicate-echo)
-  rex_add_test_module(rexmod-test-${name} SOURCES ${name}.cpp LIBS simde rexcore)
-endforeach ()
-
-rex_add_test_module(rexmod-test-null-gpu SOURCES null_gpu/null_gpu_module.cpp LIBS simde rexcore)
-
-foreach (name apu hid)
-  rex_add_test_module(rexmod-test-${name} SOURCES ${name}/${name}_module.cpp LIBS rexcore)
-endforeach ()
 
 foreach (variant a b)
   rex_add_test_module(
@@ -50,7 +38,7 @@ foreach (variant a b)
     recompiled.cpp
     LIBS
     simde
-    rexcore
+    rexbase
     DEFS
     REX_TEST_IMAGE_BASE=0x8E000000
     $<IF:$<STREQUAL:${variant},a>,REX_TEST_RESULT=0xA1,REX_TEST_RESULT=0xB2>
@@ -65,28 +53,20 @@ foreach (role exporter importer)
     crossmodule.cpp
     LIBS
     simde
-    rexruntime
+    rexkernel
     DEFS
     $<IF:${_exporter},REX_TEST_EXPORTER=1,REX_TEST_IMPORTER=1>
     $<IF:${_exporter},REX_TEST_IMAGE_BASE=0x8E000000,REX_TEST_IMAGE_BASE=0x8C000000>
   )
 endforeach ()
 
-foreach (variant noidentity otheridentity)
-  set(_defs "")
-  if (variant STREQUAL "otheridentity")
-    set(_defs REX_TEST_FOREIGN_IDENTITY="0.0.0-000000000000")
-  endif ()
-  rex_add_test_module(
-    rexmod-test-${variant}
-    FOREIGN
-    SOURCES
-    foreign.cpp
-    LIBS
-    simde
-    DEFS
-    ${_defs}
-  )
-endforeach ()
+rex_add_test_module(rexmod-test-noidentity FOREIGN SOURCES foreign.cpp)
 
-rex_add_test_module(rexmod-test-alloc SOURCES alloc/alloc_module.cpp LIBS rexcore)
+rex_add_test_module(rexmod-test-alloc SOURCES alloc/alloc_module.cpp LIBS rexbase)
+
+rex_add_test_module(rexmodule-test-good SOURCES good_module.cpp LIBS rexbase)
+rex_add_test_module(rexmodule-test-dyninit SOURCES dyninit_module.cpp LIBS rexbase)
+rex_add_test_module(rexmodule-test-otheridentity FOREIGN SOURCES otheridentity_module.cpp)
+
+rexglue_audit_provider_init(rexmodule-test-good)
+rexglue_audit_provider_init(rexmodule-test-dyninit EXPECT_FAIL)

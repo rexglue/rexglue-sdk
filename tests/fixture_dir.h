@@ -1,6 +1,5 @@
 /**
  * @file        tests/fixture_dir.h
- * @brief       The folder of the committed filesystem fixtures
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,11 +14,6 @@
 
 namespace rex::test {
 
-/**
- * Returns the folder of the committed filesystem fixtures.
- *
- * @return The folder.
- */
 inline const std::filesystem::path& GetFixtureFolder() {
   static const std::filesystem::path kFolder = REXGLUE_FIXTURE_DIR;
   return kFolder;

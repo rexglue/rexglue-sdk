@@ -11,12 +11,13 @@
 
 #include <unordered_set>
 
-#include <rex/codegen/phases.h>
+#include "pipeline.h"
 
-#include <rex/codegen/config.h>
+#include "config.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
+#include <rex/memory/endian.h>
 
 namespace rex::codegen {
 
@@ -157,7 +158,7 @@ void ScanBinary(CodegenContext& ctx) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> Scan(CodegenContext& ctx, IProgressReporter* reporter) {
+[[nodiscard]] Result<void> ScanRegions(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   ScanBinary(ctx);
   return Ok();

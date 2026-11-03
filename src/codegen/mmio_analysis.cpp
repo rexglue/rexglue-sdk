@@ -6,62 +6,62 @@
 #include <optional>
 #include <utility>
 
-#include <rex/memory/byte_swap.h>
-#include <rex/mmio.h>
+#include <rex/memory/endian.h>
+#include <rex/ppc/mmio.h>
 
 namespace rex::codegen {
 
 namespace {
 
-enum class ValueKind : u8 { kUnknown, kKnown, kOffset };
+enum class ValueType : u8 { kUnknown, kKnown, kOffset };
 
 struct Value {
-  ValueKind kind = ValueKind::kUnknown;
+  ValueType type = ValueType::kUnknown;
   u32 constant = 0;
   u32 shift = 0;
 
   bool operator==(const Value&) const = default;
 };
 
-using Registers = std::array<Value, 32>;
+using RegisterSet = std::array<Value, 32>;
 
 constexpr Value kUnknown{};
 constexpr u32 kEieio = 0x7C0006AC;
 
 constexpr Value KnownValue(u32 value) {
-  return {ValueKind::kKnown, value, 0};
+  return {ValueType::kKnown, value, 0};
 }
 
 constexpr Value OffsetValue(u32 constant, u32 shift) {
-  return {ValueKind::kOffset, constant, shift};
+  return {ValueType::kOffset, constant, shift};
 }
 
 constexpr Value Add(Value a, Value b) {
-  if (a.kind == ValueKind::kKnown) {
+  if (a.type == ValueType::kKnown) {
     std::swap(a, b);
   }
-  if (b.kind != ValueKind::kKnown) {
+  if (b.type != ValueType::kKnown) {
     return kUnknown;
   }
-  switch (a.kind) {
-    case ValueKind::kKnown:
+  switch (a.type) {
+    case ValueType::kKnown:
       return KnownValue(a.constant + b.constant);
-    case ValueKind::kOffset:
+    case ValueType::kOffset:
       return OffsetValue(a.constant + b.constant, a.shift);
-    case ValueKind::kUnknown:
+    case ValueType::kUnknown:
       return OffsetValue(b.constant, 0);
   }
   return kUnknown;
 }
 
 constexpr Value ShiftLeft(Value value, u32 shift) {
-  switch (value.kind) {
-    case ValueKind::kKnown:
+  switch (value.type) {
+    case ValueType::kKnown:
       return KnownValue(value.constant << shift);
-    case ValueKind::kOffset:
+    case ValueType::kOffset:
       return value.shift + shift < 32 ? OffsetValue(value.constant << shift, value.shift + shift)
                                       : kUnknown;
-    case ValueKind::kUnknown:
+    case ValueType::kUnknown:
       return kUnknown;
   }
   return kUnknown;
@@ -71,7 +71,7 @@ constexpr Value Or(Value source, Value other, bool same_register) {
   if (same_register) {
     return source;
   }
-  if (source.kind == ValueKind::kKnown && other.kind == ValueKind::kKnown) {
+  if (source.type == ValueType::kKnown && other.type == ValueType::kKnown) {
     return KnownValue(source.constant | other.constant);
   }
   return kUnknown;
@@ -229,13 +229,13 @@ std::optional<Access> DecodeAccess(u32 word) {
                 .displacement = Immediate(word)};
 }
 
-Value EffectiveAddress(const Access& access, u32 word, const Registers& registers) {
+Value EffectiveAddress(const Access& access, u32 word, const RegisterSet& registers) {
   const u32 base_register = FieldA(word);
   const Value base = base_register == 0 ? KnownValue(0) : registers[base_register];
   return Add(base, access.indexed ? registers[FieldB(word)] : KnownValue(access.displacement));
 }
 
-void ApplyAccess(const Access& access, u32 word, Value address, Registers& registers) {
+void ApplyAccess(const Access& access, u32 word, Value address, RegisterSet& registers) {
   if (access.loads_gpr) {
     registers[FieldD(word)] = kUnknown;
   }
@@ -247,12 +247,12 @@ void ApplyAccess(const Access& access, u32 word, Value address, Registers& regis
   }
 }
 
-void ClobberCall(Registers& registers) {
+void ClobberCall(RegisterSet& registers) {
   registers[0] = kUnknown;
   std::fill(registers.begin() + 3, registers.begin() + 13, kUnknown);
 }
 
-void TransferExtended(u32 word, Registers& registers) {
+void TransferExtended(u32 word, RegisterSet& registers) {
   const u32 extended = ExtendedOpcode(word);
   const u32 rd = FieldD(word);
   const u32 ra = FieldA(word);
@@ -284,7 +284,7 @@ void TransferExtended(u32 word, Registers& registers) {
   registers[ra] = kUnknown;
 }
 
-void Transfer(u32 word, Registers& registers) {
+void Transfer(u32 word, RegisterSet& registers) {
   const u32 opcode = PrimaryOpcode(word);
   const u32 rd = FieldD(word);
   const u32 ra = FieldA(word);
@@ -298,7 +298,7 @@ void Transfer(u32 word, Registers& registers) {
     case 24:
     case 25: {
       const u32 bits = opcode == 24 ? (word & 0xFFFF) : (word & 0xFFFF) << 16;
-      registers[ra] = registers[rd].kind == ValueKind::kKnown
+      registers[ra] = registers[rd].type == ValueType::kKnown
                           ? KnownValue(registers[rd].constant | bits)
                           : kUnknown;
       return;
@@ -524,8 +524,8 @@ std::vector<BasicBlock> BuildBlocks(const Code& code, const MMIOFunctionInput& i
 }
 
 template <typename Visit>
-Registers RunBlock(const BasicBlock& block, Registers registers, const Code& code,
-                   std::span<const u32> hook_sites, Visit&& visit) {
+RegisterSet RunBlock(const BasicBlock& block, RegisterSet registers, const Code& code,
+                     std::span<const u32> hook_sites, Visit&& visit) {
   for (size_t index = block.first; index <= block.last; ++index) {
     const Instruction& instruction = code.instructions[index];
     const bool hooked = Contains(hook_sites, instruction.address);
@@ -546,7 +546,7 @@ Registers RunBlock(const BasicBlock& block, Registers registers, const Code& cod
   return registers;
 }
 
-bool Meet(Registers& into, const Registers& from) {
+bool Meet(RegisterSet& into, const RegisterSet& from) {
   bool changed = false;
   for (size_t index = 0; index < into.size(); ++index) {
     if (into[index] != from[index] && into[index] != kUnknown) {
@@ -557,9 +557,9 @@ bool Meet(Registers& into, const Registers& from) {
   return changed;
 }
 
-std::vector<Registers> Solve(const std::vector<BasicBlock>& blocks, const Code& code,
-                             std::span<const u32> hook_sites) {
-  std::vector<Registers> entries(blocks.size());
+std::vector<RegisterSet> Solve(const std::vector<BasicBlock>& blocks, const Code& code,
+                               std::span<const u32> hook_sites) {
+  std::vector<RegisterSet> entries(blocks.size());
   std::vector<bool> reached(blocks.size());
   std::vector<size_t> pending;
   for (size_t index = 0; index < blocks.size(); ++index) {
@@ -572,7 +572,7 @@ std::vector<Registers> Solve(const std::vector<BasicBlock>& blocks, const Code& 
   while (!pending.empty()) {
     const size_t index = pending.back();
     pending.pop_back();
-    const Registers exit = RunBlock(blocks[index], entries[index], code, hook_sites, ignore);
+    const RegisterSet exit = RunBlock(blocks[index], entries[index], code, hook_sites, ignore);
     for (size_t successor : blocks[index].successors) {
       if (blocks[successor].starts_unknown) {
         continue;
@@ -589,16 +589,16 @@ std::vector<Registers> Solve(const std::vector<BasicBlock>& blocks, const Code& 
   return entries;
 }
 
-constexpr MMIOAccess AccessOf(MMIOBlock block) {
-  return block == MMIOBlock::kGPU ? MMIOAccess::kGPU : MMIOAccess::kAPU;
+constexpr MMIOAccess AccessOf(rex::ppc::MMIOBlock block) {
+  return block == rex::ppc::MMIOBlock::kGPU ? MMIOAccess::kGPU : MMIOAccess::kAPU;
 }
 
 std::optional<MMIOSite> Classify(u32 address, const Access& access, Value target, bool barrier,
                                  const MMIODeclaredAccess* declared) {
-  const bool known = target.kind == ValueKind::kKnown;
+  const bool known = target.type == ValueType::kKnown;
   const bool write = access.writes;
   if (known) {
-    if (const auto block = MMIOBlockOf(target.constant)) {
+    if (const auto block = rex::ppc::MMIOBlockOf(target.constant)) {
       if (!access.classified) {
         return MMIOSite{address, MMIOAccess::kPlain, MMIOReason::kUnsupported, target.constant,
                         write};
@@ -616,7 +616,7 @@ std::optional<MMIOSite> Classify(u32 address, const Access& access, Value target
   if (known && (target.constant >> 24) == 0x7F) {
     return MMIOSite{address, MMIOAccess::kPlain, MMIOReason::kUnserved, target.constant, write};
   }
-  if (target.kind == ValueKind::kOffset && IsMMIOBlockAddress(target.constant)) {
+  if (target.type == ValueType::kOffset && rex::ppc::IsMMIOBlockAddress(target.constant)) {
     return MMIOSite{address, MMIOAccess::kGuarded, MMIOReason::kOffset, 0, write};
   }
   if (!known && barrier) {
@@ -642,7 +642,7 @@ MMIOClassification ClassifyMMIO(const MMIOFunctionInput& input) {
     return result;
   }
   const std::vector<BasicBlock> blocks = BuildBlocks(code, input);
-  const std::vector<Registers> entries = Solve(blocks, code, input.hook_sites);
+  const std::vector<RegisterSet> entries = Solve(blocks, code, input.hook_sites);
 
   const auto barrier_after = [&](size_t index) {
     return index + 1 < code.instructions.size() &&

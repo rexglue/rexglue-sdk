@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/ui/progress.h
- * @brief       ProgressView task list renderer for the codegen pipeline
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,12 +19,12 @@
 #include <thread>
 #include <vector>
 
-#include <rex/codegen/progress_reporter.h>
+#include "codegen/progress_reporter.h"
 #include <rex/types.h>
 
 namespace rexglue::ui {
 
-/** Per module task list view that implements rex::codegen::IProgressReporter. */
+/** Task list view of a codegen run. */
 class ProgressView final : public rex::codegen::IProgressReporter {
  public:
   explicit ProgressView(std::string_view title);
@@ -46,7 +45,7 @@ class ProgressView final : public rex::codegen::IProgressReporter {
     bool finished = false;
   };
 
-  enum class ActiveLineKind : u8 { kNone, kModule, kProjectPhase };
+  enum class ActiveLineType : u8 { kNone, kModule, kProjectPhase };
 
   void RenderActiveLine();
   void RunSpinner(const std::stop_token& stop);
@@ -58,7 +57,7 @@ class ProgressView final : public rex::codegen::IProgressReporter {
   std::string current_phase_;
   std::string current_project_phase_;
   std::size_t spinner_frame_ = 0;
-  ActiveLineKind active_line_kind_ = ActiveLineKind::kNone;
+  ActiveLineType active_line_type_ = ActiveLineType::kNone;
   bool tty_ = false;
 
   std::condition_variable_any spinner_cv_;

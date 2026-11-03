@@ -16,21 +16,14 @@
 #include <span>
 #include <vector>
 
-#include <rex/codegen/output_partition.h>
+#include "codegen/output_partition.h"
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;
 
 namespace {
 
-/**
- * Returns the index of the bucket holding the address, or SIZE_MAX when absent.
- *
- * @param buckets The buckets of entry indexes.
- * @param entries The entries the bucket indexes point into.
- * @param address The address to look for.
- * @return The bucket index.
- */
+/** Returns the index of the bucket holding the address, or SIZE_MAX when absent. */
 size_t BucketOf(const std::vector<std::vector<size_t>>& buckets,
                 std::span<const FunctionSize> entries, u32 address) {
   for (size_t b = 0; b < buckets.size(); ++b) {

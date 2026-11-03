@@ -8,12 +8,13 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "builders/builder_context.h"
-#include "builders.h"
+#include "builder/builder_context.h"
+#include "builder.h"
 
 #include <unordered_map>
 
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
 #include <dis-asm.h>
 #include <ppc-inst.h>
@@ -557,11 +558,8 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
 }
 
 /**
- * Emits the code for an instruction through its builder. An opcode with no builder emits
- * REX_UNIMPLEMENTED so the title fails at runtime and its function is generated.
+ * Emits the code for an instruction. An opcode with no builder emits REX_UNIMPLEMENTED.
  *
- * @param id Opcode ID.
- * @param ctx Builder context.
  * @return True when the instruction was handled.
  */
 bool DispatchInstruction(int id, BuilderContext& ctx) {

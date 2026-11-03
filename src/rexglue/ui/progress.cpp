@@ -36,10 +36,10 @@ ProgressView::~ProgressView() {
     detail::SetSinkActiveProgress(false);
   }
   std::lock_guard lock(state_mutex_);
-  if (active_line_kind_ != ActiveLineKind::kNone) {
+  if (active_line_type_ != ActiveLineType::kNone) {
     detail::GlobalSinkAccessor acc;
     acc.WriteRaw(kEraseLine);
-    active_line_kind_ = ActiveLineKind::kNone;
+    active_line_type_ = ActiveLineType::kNone;
   }
 }
 
@@ -51,7 +51,7 @@ void ProgressView::RenderActiveLine() {
   spinner_frame_ = (spinner_frame_ + 1) % glyphs::kSpinnerFrames.size();
   acc.WriteColored(color::kCyan, glyphs::kSpinnerFrames[spinner_frame_]);
   acc.WriteRaw(" ");
-  if (active_line_kind_ == ActiveLineKind::kModule) {
+  if (active_line_type_ == ActiveLineType::kModule) {
     if (current_module_ >= modules_.size())
       return;
     acc.WriteColored(color::kBold, modules_[current_module_].name);
@@ -59,7 +59,7 @@ void ProgressView::RenderActiveLine() {
     acc.WriteColored(color::kDim, current_phase_.empty() ? std::string_view{"start"}
                                                          : std::string_view{current_phase_});
     acc.WriteRaw("]");
-  } else if (active_line_kind_ == ActiveLineKind::kProjectPhase) {
+  } else if (active_line_type_ == ActiveLineType::kProjectPhase) {
     acc.WriteColored(color::kBold, std::format("project::{}", current_project_phase_));
   }
   acc.Flush();
@@ -68,7 +68,7 @@ void ProgressView::RenderActiveLine() {
 void ProgressView::RunSpinner(const std::stop_token& stop) {
   std::unique_lock cv_lock(state_mutex_);
   while (!stop.stop_requested()) {
-    if (active_line_kind_ != ActiveLineKind::kNone)
+    if (active_line_type_ != ActiveLineType::kNone)
       RenderActiveLine();
     spinner_cv_.wait_for(cv_lock, stop, kSpinnerInterval, [] { return false; });
   }
@@ -108,7 +108,7 @@ void ProgressView::ModuleStarted(std::string_view name, std::size_t index, std::
     return;
   }
 
-  active_line_kind_ = ActiveLineKind::kModule;
+  active_line_type_ = ActiveLineType::kModule;
   RenderActiveLine();
 }
 
@@ -125,7 +125,7 @@ void ProgressView::ModulePhaseStarted(std::string_view name) {
     return;
   }
 
-  active_line_kind_ = ActiveLineKind::kModule;
+  active_line_type_ = ActiveLineType::kModule;
   RenderActiveLine();
 }
 
@@ -153,7 +153,7 @@ void ProgressView::ModuleFinished(std::chrono::milliseconds elapsed) {
   acc.WriteColored(color::kDim,
                    std::format("({:.1f}s)", std::chrono::duration<f64>(elapsed).count()));
   acc.WriteRaw("\n");
-  active_line_kind_ = ActiveLineKind::kNone;
+  active_line_type_ = ActiveLineType::kNone;
 }
 
 void ProgressView::ProjectPhaseStarted(std::string_view name) {
@@ -166,7 +166,7 @@ void ProgressView::ProjectPhaseStarted(std::string_view name) {
     return;
   }
 
-  active_line_kind_ = ActiveLineKind::kProjectPhase;
+  active_line_type_ = ActiveLineType::kProjectPhase;
   RenderActiveLine();
 }
 
@@ -184,7 +184,7 @@ void ProgressView::ProjectPhaseFinished() {
   acc.WriteColored(color::kGreen, glyphs::kCheckMark);
   acc.WriteRaw(" ");
   acc.WriteRaw(std::format("project::{}\n", current_project_phase_));
-  active_line_kind_ = ActiveLineKind::kNone;
+  active_line_type_ = ActiveLineType::kNone;
 }
 
 }  // namespace rexglue::ui

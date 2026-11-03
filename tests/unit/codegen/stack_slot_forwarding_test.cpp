@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/stack_slot_forwarding_test.cpp
- * @brief       Loads from a stack slot reuse the value just written to it
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <string>
 #include <string_view>

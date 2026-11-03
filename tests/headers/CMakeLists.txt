@@ -1,3 +1,5 @@
+set(CMAKE_FOLDER "tests/headers")
+
 file(
   GLOB_RECURSE header_paths
   RELATIVE "${REXGLUE_ROOT}/include"
@@ -27,18 +29,20 @@ endforeach ()
 add_library(rex-header-check OBJECT ${_header_units})
 target_link_libraries(
   rex-header-check
-  PRIVATE rexcore
-          rexruntime
-          reximgui
-          rexgpu
-          rexgpu-xenos
-          rexcodegen
+  PRIVATE rexbase
+          rexppc
+          rexfilesystem
+          rexhid
+          rexapu
           rexui
-          rexhid-common
+          rexkernel
+          rexxam
+          rexapp
+          rexgpu
+          rexcodegen
 )
-target_include_directories(
-  rex-header-check PRIVATE $<TARGET_PROPERTY:rexfilesystem,INTERFACE_INCLUDE_DIRECTORIES>
-)
-target_compile_definitions(
-  rex-header-check PRIVATE $<TARGET_PROPERTY:rexfilesystem,INTERFACE_COMPILE_DEFINITIONS>
+
+# Recompiled code headers stay free of the runtime, the kernel and the UI
+add_test(NAME ppc_header_isolation COMMAND ${CMAKE_COMMAND} -DREXGLUE_ROOT=${REXGLUE_ROOT} -P
+                                           ${CMAKE_CURRENT_SOURCE_DIR}/ppc_header_isolation.cmake
 )

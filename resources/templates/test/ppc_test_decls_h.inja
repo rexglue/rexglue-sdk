@@ -2,7 +2,13 @@
 #pragma once
 
 #include "ppc_config.h"
-#include <rex/ppc.h>
+#include <rex/ppc/hook.h>
+#include <rex/ppc/call.h>
+#include <rex/ppc/context.h>
+#include <rex/ppc/fpu.h>
+#include <rex/ppc/stack.h>
+#include <rex/ppc/vmx.h>
+#include <rex/types.h>
 
 ## for func in functions
 DECLARE_REX_FUNC({{ func.name }});

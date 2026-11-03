@@ -1,9 +1,5 @@
-//=============================================================================
-// Stack Access
-//
 // Accesses through r1 skip the physical alias offset. Every guest stack lies
 // below 0xE0000000, which Debug builds assert.
-//=============================================================================
 
 #define REX_STACK_ADDR(x) (assert(static_cast<u32>(x) < 0xE0000000u), base + static_cast<u32>(x))
 

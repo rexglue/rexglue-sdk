@@ -1,4 +1,4 @@
-#include <rex/codegen/output_partition.h>
+#include "output_partition.h"
 
 #include <algorithm>
 #include <charconv>
@@ -10,12 +10,12 @@
 #include <nlohmann/json.hpp>
 
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
 namespace rex::codegen {
 
 namespace {
 
-/** Layout version of the sidecar. */
 constexpr int kPartitionVersion = 2;
 
 size_t ChooseFileCount(std::span<const FunctionSize> entries, size_t max_file_bytes) {

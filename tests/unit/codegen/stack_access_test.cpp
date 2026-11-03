@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/stack_access_test.cpp
- * @brief       Accesses through r1 use the direct stack macros
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <string>
 #include <string_view>

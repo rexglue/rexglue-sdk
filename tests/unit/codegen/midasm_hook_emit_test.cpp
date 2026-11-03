@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/midasm_hook_emit_test.cpp
- * @brief       The mid function hook wrapper skips the red zone and restores r1 on every exit
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,9 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
+#include "base/xex_builder.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -21,8 +23,9 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/codegen/output_stamp.h>
-#include <rex/platform/env.h>
+#include "codegen/output_stamp.h"
+#include <rex/memory/mapped_ptr.h>
+#include <rex/platform/process.h>
 
 namespace {
 
@@ -223,12 +226,14 @@ REX_TEST_CASE("A source hook passes pointers and mapped pointers through the arg
               "[codegen][midasm][hook_source]") {
   rex::test::TempFolder folder;
   const auto tree = GenerateSourceTree(
-      folder, "REX_MIDASM_HOOK(SrcPointers, (Widget* widget, rex::MappedPtr<Widget> mapped)) {}\n" +
-                  Attach("SrcPointers", "before", "r27, r28"));
-  CHECK(tree.contains("extern \"C\" void SrcPointers(void*, rex::MappedPtr<u8>);"));
+      folder,
+      "REX_MIDASM_HOOK(SrcPointers, (Widget* widget, rex::memory::MappedPtr<Widget> mapped)) {}\n" +
+          Attach("SrcPointers", "before", "r27, r28"));
+  CHECK(tree.contains("extern \"C\" void SrcPointers(void*, rex::memory::MappedPtr<u8>);"));
   CHECK(FunctionBody(tree).contains(
       "SrcPointers(rex::ppc::ArgTranslator::GetPointerValue<void*>(ctx.r27.u64, base), "
-      "rex::ppc::ArgTranslator::GetMappedPointerValue<rex::MappedPtr<u8>>(ctx.r28.u64, base));"));
+      "rex::ppc::ArgTranslator::GetMappedPointerValue<rex::memory::MappedPtr<u8>>(ctx.r28.u64, "
+      "base));"));
 }
 
 REX_TEST_CASE(
@@ -244,7 +249,7 @@ REX_TEST_CASE(
        "r3, r4"},
       {"GeneratedPointers",
        "REX_MIDASM_HOOK(GeneratedPointers, (GeneratedWidget* widget, "
-       "rex::MappedPtr<GeneratedWidget> mapped)) {}\n",
+       "rex::memory::MappedPtr<GeneratedWidget> mapped)) {}\n",
        "r27, r28"},
       {"GeneratedConstPointer",
        "REX_MIDASM_HOOK(GeneratedConstPointer, (const GeneratedWidget* widget)) {}\n", "r5"},
@@ -258,7 +263,7 @@ REX_TEST_CASE(
     declarations += DeclarationOf(tree, hook.name);
     calls += CallOf(tree, hook.name);
   }
-  CHECK(declarations.contains("GeneratedPointers(void*, rex::MappedPtr<u8>);"));
+  CHECK(declarations.contains("GeneratedPointers(void*, rex::memory::MappedPtr<u8>);"));
   CHECK(declarations.contains("GeneratedConstPointer(void*);"));
   if (const auto folder = rex::platform::GetEnvironmentValue("REX_MIDASM_GENERATED_DIR")) {
     WriteFile(std::filesystem::path(*folder) / "declarations.inc", declarations);
@@ -285,9 +290,9 @@ REX_TEST_CASE("A source hook passes cr, ctr, xer, fpscr and reserved as a TOML h
       "PPCFPSCRRegister& fpscr, PPCRegister& held)) {}\n" +
           Attach("SrcState", "before", "cr6, ctr, xer, fpscr, reserved"));
   const auto toml_body = GenerateWithHook(
-      "name = \"TomlState\"\nregisters = [\"cr6\", \"ctr\", \"xer\", \"fpscr\", \"reserved\"]");
+      "name = \"TOMLState\"\nregisters = [\"cr6\", \"ctr\", \"xer\", \"fpscr\", \"reserved\"]");
   const auto source_arguments = ArgumentsOf(FunctionBody(source_tree), "SrcState(");
-  CHECK(source_arguments == ArgumentsOf(toml_body, "TomlState("));
+  CHECK(source_arguments == ArgumentsOf(toml_body, "TOMLState("));
   CHECK_FALSE(source_arguments.empty());
 }
 
@@ -318,23 +323,40 @@ REX_TEST_CASE("A TOML hook keeps its C++ prototype and its call",
   const std::vector<u32> words = {kLiR3, kLiR4, Branch(kBranchIndex, kTargetIndex), kLiR5, kBlr};
   const rex::test::PDataEntry pdata[] = {{Address(0), 5}};
   const std::string manifest = std::format(
-      "[[entrypoint.midasm_hook]]\naddress = 0x{:X}\nname = \"TomlKept\"\n"
+      "[[entrypoint.midasm_hook]]\naddress = 0x{:X}\nname = \"TOMLKept\"\n"
       "registers = [\"r5\", \"f1\", \"v2\"]\n",
       Address(kHookIndex));
   const auto result =
       rex::test::GenerateFromImage(folder, rex::test::BuildCodeImage(words, pdata), manifest);
   REQUIRE(result);
   const auto tree = rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
-  CHECK(tree.contains("extern void TomlKept(PPCRegister& r5, PPCRegister& f1, PPCVRegister& v2);"));
-  CHECK(FunctionBody(tree).contains("TomlKept(ctx.r5, ctx.f1, ctx.v2);"));
-  CHECK_FALSE(tree.contains("extern \"C\" void TomlKept"));
+  CHECK(tree.contains("extern void TOMLKept(PPCRegister& r5, PPCRegister& f1, PPCVRegister& v2);"));
+  CHECK(FunctionBody(tree).contains("TOMLKept(ctx.r5, ctx.f1, ctx.v2);"));
+  CHECK_FALSE(tree.contains("extern \"C\" void TOMLKept"));
+}
+
+REX_TEST_CASE("A TOML hook passes the context for ctx as a source hook does",
+              "[codegen][midasm][hook_source]") {
+  rex::test::TempFolder folder;
+  const std::vector<u32> words = {kLiR3, kLiR4, Branch(kBranchIndex, kTargetIndex), kLiR5, kBlr};
+  const rex::test::PDataEntry pdata[] = {{Address(0), 5}};
+  const std::string manifest = std::format(
+      "[[entrypoint.midasm_hook]]\naddress = 0x{:X}\nname = \"TOMLContext\"\n"
+      "registers = [\"r3\", \"ctx\"]\n",
+      Address(kHookIndex));
+  const auto result =
+      rex::test::GenerateFromImage(folder, rex::test::BuildCodeImage(words, pdata), manifest);
+  REQUIRE(result);
+  const auto tree = rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
+  CHECK(tree.contains("extern void TOMLContext(PPCRegister& r3, PPCContext& ctx);"));
+  CHECK(FunctionBody(tree).contains("TOMLContext(ctx.r3, ctx);"));
 }
 
 REX_TEST_CASE("A source hook at an address that has a TOML hook stops codegen",
               "[codegen][midasm][hook_source]") {
   rex::test::TempFolder folder;
   const auto manifest = std::format(
-      "[[entrypoint.midasm_hook]]\naddress = 0x{:X}\nname = \"TomlHook\"\n", Address(kHookIndex));
+      "[[entrypoint.midasm_hook]]\naddress = 0x{:X}\nname = \"TOMLHook\"\n", Address(kHookIndex));
   const auto result = RunWithSource(
       folder, "REX_MIDASM_HOOK(SrcClash, (u32 value)) {}\n" + Attach("SrcClash", "before", "r3"),
       manifest);

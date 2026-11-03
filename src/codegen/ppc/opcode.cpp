@@ -17,9 +17,7 @@ namespace rex::codegen::detail {
 namespace {
 
 /**
- * The binutils opcode table cut at each primary opcode. The table is sorted by primary opcode, so a
- * word scans only the entries of its own primary opcode, in table order, as the engine would after
- * it has skipped the lower ones.
+ * The binutils opcode table indexed by primary opcode.
  */
 class OpcodeIndex {
  public:
@@ -135,7 +133,7 @@ constexpr std::array<int, 22> kDroppedIDs = {
     PPC_INST_VSUM2SWS,   PPC_INST_VSUMSWS};
 }  // namespace
 
-bool IsDropped(int id) {
+bool IsInvalidOnXenon(int id) {
   for (const int dropped : kDroppedIDs) {
     if (dropped == id) {
       return true;
@@ -149,7 +147,7 @@ int ResolveID(const ppc_insn& insn) {
     return 0;
   }
   const int id = insn.opcode->id;
-  if (IsDropped(id)) {
+  if (IsInvalidOnXenon(id)) {
     return 0;
   }
   if (id == PPC_INST_VUPKHSB128 && insn.operands[2] == 0x60) {
@@ -162,7 +160,7 @@ int ResolveID(const ppc_insn& insn) {
 }
 
 Opcode OpcodeOf(const powerpc_opcode* entry) {
-  if (entry == nullptr || IsDropped(entry->id)) {
+  if (entry == nullptr || IsInvalidOnXenon(entry->id)) {
     return Opcode::kUnknown;
   }
   switch (entry->id) {
@@ -237,7 +235,7 @@ void DecodeWord(u32 code, u64 address, ppc_insn& out) {
 
 int LookupID(u32 code) {
   const powerpc_opcode* entry = GetIndex().Find(code);
-  if (entry == nullptr || IsDropped(entry->id)) {
+  if (entry == nullptr || IsInvalidOnXenon(entry->id)) {
     return 0;
   }
   if (entry->id == PPC_INST_VUPKHSB128 || entry->id == PPC_INST_VUPKLSB128) {

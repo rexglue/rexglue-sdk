@@ -15,9 +15,9 @@
 #include <string>
 #include <vector>
 
-#include <rex/codegen/codegen_context.h>
-#include <rex/codegen/module_stub.h>
-#include <rex/memory/byte_swap.h>
+#include "codegen/codegen_context.h"
+#include "codegen/module_stub.h"
+#include <rex/memory/endian.h>
 
 using namespace rex::codegen;
 using rex::u32;

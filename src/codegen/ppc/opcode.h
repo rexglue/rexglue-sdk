@@ -19,7 +19,7 @@ struct powerpc_opcode;
 
 namespace rex::codegen::detail {
 
-/** Lists the PowerPC instruction formats the decoder needs to find a branch target. */
+/** The PowerPC instruction formats the decoder needs to find a branch target. */
 enum class InstrFormat : u8 {
   kUnknown = 0,
   kI,  /**< Branch (LI, AA, LK). */
@@ -27,67 +27,64 @@ enum class InstrFormat : u8 {
   kXL, /**< Branch to LR/CTR (BO, BI, XO, LK). */
 };
 
-/**
- * The instructions function discovery names, the 2 catch all values and nothing else.
- */
+/** The instructions function discovery names, plus two catch all values. */
 enum class Opcode : u8 {
   kUnknown = 0, /**< The word decodes to no valid instruction. */
   kOther,       /**< A valid instruction that discovery does not name. */
 
-  b,      /**< Branch. */
-  ba,     /**< Branch absolute. */
-  bl,     /**< Branch and link. */
-  bla,    /**< Branch and link absolute. */
-  bc,     /**< Branch conditional. */
-  bca,    /**< Branch conditional absolute. */
-  bcl,    /**< Branch conditional and link. */
-  bcla,   /**< Branch conditional and link absolute. */
-  bclr,   /**< Branch conditional to link register. */
-  bclrl,  /**< Branch conditional to link register and link. */
-  bcctr,  /**< Branch conditional to count register. */
-  bcctrl, /**< Branch conditional to count register and link. */
-  sc,     /**< System call. */
-  tw,     /**< Trap word. */
-  twi,    /**< Trap word immediate. */
+  b,
+  ba,
+  bl,
+  bla,
+  bc,
+  bca,
+  bcl,
+  bcla,
+  bclr,
+  bclrl,
+  bcctr,
+  bcctrl,
+  sc,
+  tw,
+  twi,
 
-  lbz,    /**< Load byte and zero. */
-  lbzx,   /**< Load byte and zero indexed. */
-  lhz,    /**< Load halfword and zero. */
-  lhzx,   /**< Load halfword and zero indexed. */
-  lwz,    /**< Load word and zero. */
-  lwzx,   /**< Load word and zero indexed. */
-  stwu,   /**< Store word with update. */
-  add,    /**< Add. */
-  addi,   /**< Add immediate. */
-  addis,  /**< Add immediate shifted. */
-  subf,   /**< Subtract from. */
-  ori,    /**< OR immediate. */
-  and_,   /**< AND, written and in assembly. */
-  or_,    /**< OR. */
-  xor_,   /**< XOR. */
-  slw,    /**< Shift left word. */
-  srw,    /**< Shift right word. */
-  sraw,   /**< Shift right algebraic word. */
-  srawi,  /**< Shift right algebraic word immediate. */
-  rlwinm, /**< Rotate left word immediate then AND with mask. */
-  cmpi,   /**< Compare immediate. */
-  cmpli,  /**< Compare logical immediate. */
-  li,     /**< Load immediate, addi with RA of 0. */
-  lis,    /**< Load immediate shifted, addis with RA of 0. */
-  mr,     /**< Move register. */
-  nop,    /**< No operation. */
-  mfspr,  /**< Move from special purpose register. */
-  mtspr,  /**< Move to special purpose register. */
-  mflr,   /**< Move from link register. */
-  mtlr,   /**< Move to link register. */
-  mfctr,  /**< Move from count register. */
-  mtctr,  /**< Move to count register. */
+  lbz,
+  lbzx,
+  lhz,
+  lhzx,
+  lwz,
+  lwzx,
+  stwu,
+  add,
+  addi,
+  addis,
+  subf,
+  ori,
+  and_,
+  or_,
+  xor_,
+  slw,
+  srw,
+  sraw,
+  srawi,
+  rlwinm,
+  cmpi,
+  cmpli,
+  li,  /**< addi with RA of 0. */
+  lis, /**< addis with RA of 0. */
+  mr,
+  nop,
+  mfspr,
+  mtspr,
+  mflr,
+  mtlr,
+  mfctr,
+  mtctr,
 };
 
 /**
  * Reports whether an instruction ends a block.
  *
- * @param op The instruction.
  * @return True when the instruction is a branch, sc, tw or twi.
  */
 inline bool IsTerminatorInstruction(Opcode op) {
@@ -113,46 +110,33 @@ inline bool IsTerminatorInstruction(Opcode op) {
   }
 }
 
-/**
- * Reports whether the Xenon CPU dropped an instruction the binutils table still lists.
- *
- * @param id The PPC_INST id.
- * @return True when the instruction is not valid on the Xenon CPU.
- */
-bool IsDropped(int id);
+/** Reports whether the Xenon CPU lacks an instruction the binutils table still lists. */
+bool IsInvalidOnXenon(int id);
 
 /**
- * Returns the id the dispatch and discovery use for a decoded instruction.
- *
- * An instruction the Xenon CPU dropped has no id. The SH forms of vupkhsb128 and vupklsb128 that
- * the binutils table reports as the byte forms get the halfword ids.
- *
- * @param insn The decoded instruction.
- * @return The PPC_INST id, or 0 when the instruction is not valid on the Xenon CPU.
+ * Returns the PPC_INST ID of a decoded instruction, or 0 when the instruction is not valid on the
+ * Xenon CPU. The SH forms of vupkhsb128 and vupklsb128 get the halfword IDs.
  */
 int ResolveID(const ppc_insn& insn);
 
 /**
- * Names a matched binutils table entry for function discovery.
+ * Returns the opcode for a matched binutils table entry. The opcode is kOther for a valid
+ * instruction discovery does not name and kUnknown when the word is not valid on the Xenon CPU.
  *
  * @param entry The matched entry, or null when the word matches nothing.
- * @return The opcode, kOther for a valid instruction discovery does not name and kUnknown when the
- * word is not valid on the Xenon CPU.
  */
 Opcode OpcodeOf(const powerpc_opcode* entry);
 
 /**
- * Looks up the id of an instruction word through the binutils table.
+ * Looks up the ID of an instruction word through the binutils table.
  *
- * @param code Raw 32-bit instruction.
- * @return The PPC_INST id, or 0 when the word is not valid on the Xenon CPU.
+ * @return The PPC_INST ID, or 0 when the word is not valid on the Xenon CPU.
  */
 int LookupID(u32 code);
 
 /**
  * Looks up the opcode of an instruction word through the binutils table.
  *
- * @param code Raw 32-bit instruction.
  * @return The opcode, with kUnknown for a word that is not valid on the Xenon CPU.
  */
 Opcode LookupOpcode(u32 code);

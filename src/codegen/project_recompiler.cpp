@@ -1,4 +1,4 @@
-#include <rex/codegen/project_recompiler.h>
+#include "project_recompiler.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -9,31 +9,31 @@
 
 #include <nlohmann/json.hpp>
 
-#include <rex/codegen/analyze.h>
-#include <rex/codegen/binary_view.h>
-#include <rex/codegen/codegen.h>
-#include <rex/codegen/codegen_context.h>
-#include <rex/codegen/codegen_writer.h>
-#include <rex/codegen/config.h>
-#include <rex/codegen/hook_scan.h>
-#include <rex/codegen/output_stamp.h>
-#include <rex/codegen/progress_reporter.h>
-#include <rex/codegen/template_registry.h>
+#include "pipeline.h"
+#include "binary_view.h"
+#include "codegen_context.h"
+#include "codegen_writer.h"
+#include "config.h"
+#include "hook_scan.h"
+#include "output_stamp.h"
+#include "progress_reporter.h"
+#include "template_registry.h"
+#include <rex/memory/endian.h>
+#include <rex/filesystem/file_system_factory.h>
 #include <rex/filesystem/xex.h>
-#include <rex/memory/byte_swap.h>
+#include <rex/kernel/types/xex.h>
+#include <rex/module.h>
 #include <rex/platform/file.h>
-#include <rex/api.h>
-#include <rex/kernel/init.h>
-#include <rex/fail.h>
 #include <rex/logging/log.h>
-#include <rex/runtime.h>
-#include <rex/runtime/module_object.h>
-#include <rex/runtime/module_registry.h>
-#include <rex/runtime/object_table.h>
-#include <rex/runtime/xex_module.h>
+#include "codegen_categories.h"
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/module.h>
+#include <rex/kernel/object/object_table.h>
 
 #include <chrono>
 
+#include "codegen_tag.h"
 #include "file_io.h"
 #include "tool_runtime.h"
 #include "template_render.h"
@@ -42,8 +42,10 @@ namespace rex::codegen {
 
 namespace {
 
-/** Bumped whenever a builder changes the code it emits, so existing projects regenerate. */
-constexpr u32 kEmitterRevision = 5;
+[[maybe_unused]] const bool g_tag_named = (memory::SetTagName(kCodegen, "Codegen"), true);
+
+/** Revision of the emitted code, part of the module fingerprint. */
+constexpr u32 kEmitterRevision = 6;
 
 std::string DeriveTargetNameFromFilePath(const std::string& file_path) {
   std::filesystem::path p(file_path);
@@ -127,14 +129,14 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
 }
 
 void ReportBinaryInfo(IProgressReporter* reporter, std::string_view display_name,
-                      const rex::runtime::XEXModule& xex) {
+                      const rex::kernel::XEXModule& xex) {
   if (!reporter)
     return;
   BinaryIdentity info{};
   info.name = display_name;
   info.pe_time_date_stamp = xex.GetPE().time_date_stamp;
-  if (auto* exec = xex.GetImage().GetOptHeader<filesystem::XEXOptExecutionInfo>(
-          filesystem::kXEXHeaderExecutionInfo)) {
+  if (auto* exec = xex.GetImage().GetOptHeader<kernel::XEXOptExecutionInfo>(
+          kernel::kXEXHeaderExecutionInfo)) {
     info.title_id = exec->title_id;
     info.media_id = exec->media_id;
     auto version = exec->GetVersion();
@@ -147,12 +149,13 @@ void ReportBinaryInfo(IProgressReporter* reporter, std::string_view display_name
 }
 
 /**
- * Reads the base address and image size of an XEX from its header, without decoding the image.
+ * Reads the base address and image size of an XEX from its header without decoding the image.
  *
- * @param path The XEX file.
- * @return The base address and image size, or an error when the header cannot be read.
+ * @param files The file system factory that parses the header.
+ * @return The base address and image size, or the failure.
  */
-Result<std::pair<u32, u32>> ReadImageRange(const std::filesystem::path& path) {
+Result<std::pair<u32, u32>> ReadImageRange(rex::filesystem::IFileSystemFactory& files,
+                                           const std::filesystem::path& path) {
   auto prefix = rex::platform::ReadHostFile(path, 0, 16);
   if (!prefix || prefix->size() < 16) {
     return Err<std::pair<u32, u32>>(ErrorCategory::kIO,
@@ -163,13 +166,14 @@ Result<std::pair<u32, u32>> ReadImageRange(const std::filesystem::path& path) {
   if (!header) {
     return Err<std::pair<u32, u32>>(header.error());
   }
-  auto image = rex::filesystem::XEXImage::Parse(*header);
+  auto image = files.ParseXEX(*header);
   if (!image) {
     return Err<std::pair<u32, u32>>(image.error());
   }
-  const u32 base = image->GetOptHeaderValue(rex::filesystem::kXEXHeaderImageBaseAddress)
-                       .value_or(image->GetSecurity().load_address);
-  return std::pair<u32, u32>{base, image->GetImageSize()};
+  const u32 base = (*image)
+                       ->GetOptHeaderValue(rex::kernel::kXEXHeaderImageBaseAddress)
+                       .value_or((*image)->GetSecurity().load_address);
+  return std::pair<u32, u32>{base, (*image)->GetImageSize()};
 }
 
 }  // namespace
@@ -325,12 +329,11 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
                                  entry_xex_path.string(), game_root.string()));
   }
 
-  auto tool = OpenToolRuntime(game_root);
-  if (!tool) {
-    return Err<void>(tool.error());
+  if (opts.tools == nullptr) {
+    return Err<void>(ErrorCategory::kValidation, "the run needs a tool app");
   }
-  Runtime* runtime = &tool->GetRuntime();
 
+  std::vector<std::string> imports;
   auto to_vfs_path = [&](const fs::path& file) -> std::optional<std::string> {
     if (!fs::exists(file)) {
       return std::nullopt;
@@ -341,31 +344,31 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     }
     std::string text = relative.string();
     std::replace(text.begin(), text.end(), '/', '\\');
-    return "game:\\" + text;
+    return text;
   };
-  auto& module_registry = runtime->GetModuleRegistry();
   for (size_t i = 1; i < targeted.size(); ++i) {
-    if (auto vfs = to_vfs_path(config_dir / targeted[i].config.file_path)) {
-      module_registry.AddImportCandidate(*vfs);
+    if (auto relative = to_vfs_path(config_dir / targeted[i].config.file_path)) {
+      imports.push_back(*relative);
     }
   }
   for (const auto& file : untargeted_files) {
-    if (auto vfs = to_vfs_path(config_dir / file)) {
-      module_registry.AddImportCandidate(*vfs);
+    if (auto relative = to_vfs_path(config_dir / file)) {
+      imports.push_back(*relative);
     }
   }
 
   std::string entry_rel_str = entry_rel.string();
   std::replace(entry_rel_str.begin(), entry_rel_str.end(), '/', '\\');
-  auto entry_vfs_path = "game:\\" + entry_rel_str;
-  if (auto loaded = runtime->LoadXEXImage(entry_vfs_path); !loaded) {
+  auto tool = opts.tools->Open(game_root, entry_rel_str, imports);
+  if (!tool) {
     return Err<void>(ErrorCategory::kIO,
-                     std::format("Failed to load entrypoint XEX: {}", loaded.error().message));
+                     std::format("Failed to load entrypoint XEX: {}", tool.error().message));
   }
+  rex::kernel::TitleRuntime* runtime = &tool->GetRuntime();
 
   auto entry_display_name = std::filesystem::path(targeted[0].config.file_path).filename().string();
   auto entry_view = [&] {
-    auto executable = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
+    auto executable = runtime->GetObjectTable().Get<rex::kernel::ModuleObject>(
         runtime->GetModuleRegistry().GetExecutable().value_or(0));
     ReportBinaryInfo(opts.reporter, entry_display_name, *executable->GetXEX());
     return BinaryView::FromModule(*executable->GetXEX());
@@ -393,8 +396,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     auto dll_vfs_path = "game:\\" + rel_str;
     auto loaded = runtime->GetModuleRegistry().LoadUserModule(dll_vfs_path, false);
     {
-      auto user_mod = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
-          loaded ? *loaded : rex::X_HANDLE(0));
+      auto user_mod = runtime->GetObjectTable().Get<rex::kernel::ModuleObject>(
+          loaded ? *loaded : rex::kernel::X_HANDLE(0));
       if (!user_mod) {
         return Err<void>(ErrorCategory::kIO,
                          std::format("Failed to load DLL module: {}", targeted[i].target_name));
@@ -414,8 +417,12 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   for (const auto& view : dll_views) {
     image_ranges.emplace_back(view.GetBaseAddress(), view.GetImageSize());
   }
+  rex::filesystem::IFileSystemFactory* files = REX_INTERFACE(rex::filesystem::IFileSystemFactory);
+  if (!files) {
+    return Err<void>(ErrorCategory::kModule, "the file system module is not running");
+  }
   for (const auto& file : untargeted_files) {
-    auto range = ReadImageRange(config_dir / file);
+    auto range = ReadImageRange(*files, config_dir / file);
     if (!range) {
       return Err<void>(range.error());
     }

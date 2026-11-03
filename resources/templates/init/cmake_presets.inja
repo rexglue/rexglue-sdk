@@ -13,7 +13,9 @@
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
                 "CMAKE_CROSS_CONFIGS": "all",
                 "CMAKE_DEFAULT_BUILD_TYPE": "Debug",
-                "CMAKE_DEFAULT_CONFIGS": "all"
+                "CMAKE_DEFAULT_CONFIGS": "all"{% if sdk_prefix != "" %},
+                "CMAKE_PREFIX_PATH": "{{ sdk_prefix }}"{% else if sdk_dir != "" %},
+                "REXSDK_DIR": "{{ sdk_dir }}"{% endif %}
             },
             "condition": {
                 "type": "equals",
@@ -32,7 +34,9 @@
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
                 "CMAKE_CROSS_CONFIGS": "all",
                 "CMAKE_DEFAULT_BUILD_TYPE": "Debug",
-                "CMAKE_DEFAULT_CONFIGS": "all"
+                "CMAKE_DEFAULT_CONFIGS": "all"{% if sdk_prefix != "" %},
+                "CMAKE_PREFIX_PATH": "{{ sdk_prefix }}"{% else if sdk_dir != "" %},
+                "REXSDK_DIR": "{{ sdk_dir }}"{% endif %}
             },
             "condition": {
                 "type": "equals",
@@ -52,7 +56,9 @@
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
                 "CMAKE_CROSS_CONFIGS": "all",
                 "CMAKE_DEFAULT_BUILD_TYPE": "Debug",
-                "CMAKE_DEFAULT_CONFIGS": "all"
+                "CMAKE_DEFAULT_CONFIGS": "all"{% if sdk_prefix != "" %},
+                "CMAKE_PREFIX_PATH": "{{ sdk_prefix }}"{% else if sdk_dir != "" %},
+                "REXSDK_DIR": "{{ sdk_dir }}"{% endif %}
             },
             "condition": {
                 "type": "equals",

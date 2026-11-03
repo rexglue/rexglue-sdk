@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/test_memory.h
- * @brief       Single shared guest Memory instance for the unit test binary
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,21 +10,17 @@
 
 #pragma once
 
-#include <rex/runtime/xmemory.h>
+#include <rex/kernel/heap.h>
 
 namespace rex::test {
 
 /**
- * Returns the guest Memory shared by the test case, creating it on first use. It is destroyed when
- * the test case ends, so a later test case can create its own.
- *
- * @return The shared Memory.
+ * Returns the guest Memory shared by the test case, creating it on first use.
+ * It is destroyed when the test case ends.
  */
-rex::runtime::Memory& GetTestMemory();
+rex::kernel::Memory& GetTestMemory();
 
-/**
- * Destroys the shared Memory so another owner can create its own within the same test case.
- */
+/** Destroys the shared Memory so another owner can create its own. */
 void ReleaseTestMemory();
 
 }  // namespace rex::test

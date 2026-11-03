@@ -1,14 +1,10 @@
-#include <rex/ui/title_app.h>
+#include <rex/app/title_app.h>
 
-rex::PPCImage PPCImageConfig{};
+rex::ppc::PPCImage PPCImageConfig{};
 
-class FooApp : public rex::ui::TitleApp {
- protected:
-  void OnCreateWindow(rex::ui::TitleUI& ui) override {
-    if (!ui.GetUI().AddOverlays(rex::ui::kStandardOverlays)) {
-      rex::RequestShutdown(1);
-    }
-  }
+class FooApp : public rex::app::TitleApp {
+ public:
+  FooApp() : TitleApp("foo", PPCImageConfig) {}
 };
 
 REX_TITLE_APP(FooApp)

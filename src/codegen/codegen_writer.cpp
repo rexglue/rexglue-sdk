@@ -1,4 +1,4 @@
-#include <rex/codegen/codegen_writer.h>
+#include "codegen_writer.h"
 
 #include <algorithm>
 #include <array>
@@ -10,12 +10,12 @@
 #include <format>
 #include <inja/inja.hpp>
 
-#include <rex/codegen/call_usage.h>
-#include <rex/codegen/function_graph.h>
-#include <rex/codegen/output_partition.h>
-#include <rex/codegen/template_registry.h>
-#include <rex/fail.h>
+#include "call_usage.h"
+#include "function_graph.h"
+#include "output_partition.h"
+#include "template_registry.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
 #include "file_io.h"
 #include "mmio_analysis.h"
@@ -103,7 +103,6 @@ nlohmann::json BuildTemplateData(const rex::codegen::CodegenContext& ctx,
       {"cr_as_local", cfg.cr_registers_as_local_variables},
       {"non_argument_as_local", cfg.non_argument_registers_as_local_variables},
       {"non_volatile_as_local", cfg.non_volatile_registers_as_local_variables},
-      {"forward_stack_stores", cfg.forward_stack_stores},
   };
 
   return {
@@ -129,6 +128,33 @@ namespace rex::codegen {
 
 namespace {
 
+bool IsDigits(std::string_view text) {
+  return !text.empty() && std::ranges::all_of(text, [](char c) { return c >= '0' && c <= '9'; });
+}
+
+bool IsPrefixedGeneratedName(std::string_view filename) {
+  constexpr std::array<std::string_view, 5> kSuffixes{"_pch.h", "_funcs.h", "_init.h", "_init.cpp",
+                                                      "_register.cpp"};
+  for (auto suffix : kSuffixes) {
+    if (filename.size() > suffix.size() && filename.ends_with(suffix))
+      return true;
+  }
+  constexpr std::array<std::pair<std::string_view, std::string_view>, 2> kIndexed{
+      {{"_funcs.", ".h"}, {"_recomp.", ".cpp"}}};
+  for (auto [stem, ext] : kIndexed) {
+    if (!filename.ends_with(ext))
+      continue;
+    const auto at = filename.rfind(stem);
+    if (at == std::string_view::npos || at == 0)
+      continue;
+    const auto index =
+        filename.substr(at + stem.size(), filename.size() - at - stem.size() - ext.size());
+    if (IsDigits(index))
+      return true;
+  }
+  return false;
+}
+
 bool IsGeneratedOutputName(std::string_view filename, std::string_view project_name) {
   auto dot = filename.rfind('.');
   if (dot == std::string_view::npos)
@@ -149,7 +175,7 @@ bool IsGeneratedOutputName(std::string_view filename, std::string_view project_n
 
   std::string project_prefix(project_name);
   project_prefix += '_';
-  return filename.starts_with(project_prefix);
+  return filename.starts_with(project_prefix) || IsPrefixedGeneratedName(filename);
 }
 
 }  // namespace
@@ -336,7 +362,7 @@ bool CodegenWriter::Write(bool force) {
   emit_ctx.mmio_sites = nullptr;
 
   for (const auto& [address, declared] : GetConfig().declared_mmio_accesses) {
-    const std::string_view block = declared.block == MMIOBlock::kGPU ? "gpu" : "apu";
+    const std::string_view block = declared.block == rex::ppc::MMIOBlock::kGPU ? "gpu" : "apu";
     const std::string_view list = declared.write ? "write" : "read";
     const auto site = std::ranges::find_if(mmio_sites, [address](const MMIOReportSite& entry) {
       return entry.site.address == address;
@@ -350,7 +376,7 @@ bool CodegenWriter::Write(bool force) {
                site->site.write ? "store" : "load");
     }
     const MMIOAccess expected =
-        declared.block == MMIOBlock::kGPU ? MMIOAccess::kGPU : MMIOAccess::kAPU;
+        declared.block == rex::ppc::MMIOBlock::kGPU ? MMIOAccess::kGPU : MMIOAccess::kAPU;
     if (site->site.access != expected) {
       REX_FAIL(codegen, false, "[mmio.{}] {} 0x{:08X} reaches the {} block", block, list, address,
                BlockName(site->site.access));
@@ -361,7 +387,7 @@ bool CodegenWriter::Write(bool force) {
   auto buckets = partition.Assign(sizes, max_file_bytes);
 
   for (size_t index = 0; index < buckets.size(); ++index) {
-    // Buckets are address-ordered, so a call can precede its definition.
+    // Buckets are address ordered, so a call can precede its definition.
     std::unordered_set<std::string> needed;
     for (size_t entry : buckets[index]) {
       needed.insert(references[entry].begin(), references[entry].end());

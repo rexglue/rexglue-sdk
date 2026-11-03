@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/noreturn_test.cpp
- * @brief       A call that never returns ends the path, so the code after it is not reached
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,13 +9,16 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
+#include "base/xex_builder.h"
 
 #include <algorithm>
 #include <format>
 #include <string>
 #include <vector>
 
-#include <rex/logging/sink.h>
+#include <rex/logging/logger.h>
 
 namespace {
 

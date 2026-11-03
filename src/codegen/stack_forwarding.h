@@ -26,34 +26,26 @@ class StackForwarding {
   /** Number of slots, which is also the number of locals a function can declare. */
   static constexpr size_t kSlots = 8;
 
-  /** Forgets every slot. */
   void Invalidate();
 
-  /**
-   * Forgets every slot the instruction can change. Stores through r1 are left to Hold.
-   *
-   * @param insn The instruction about to be emitted.
-   * @param id The instruction id.
-   */
+  /** Forgets every slot the instruction can change. Stores through r1 are left to HoldSlot. */
   void OnInstruction(const ppc_insn& insn, int id);
 
   /**
    * Forgets every slot that overlaps the range, then takes the next slot in round robin order.
    *
    * @param offset The offset from r1.
-   * @param width The width in bytes.
    * @return The slot index, which names the local that holds the value.
    */
-  u8 Hold(i32 offset, u8 width);
+  u8 HoldSlot(i32 offset, u8 width);
 
   /**
    * Finds the slot with exactly this offset and width.
    *
    * @param offset The offset from r1.
-   * @param width The width in bytes.
    * @return The slot index, empty when no slot matches.
    */
-  std::optional<u8> Find(i32 offset, u8 width) const;
+  std::optional<u8> FindSlot(i32 offset, u8 width) const;
 
  private:
   struct Slot {

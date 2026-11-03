@@ -1,4 +1,4 @@
-#include <rex/codegen/manifest.h>
+#include "manifest.h"
 
 #include "config_keys.h"
 
@@ -14,15 +14,16 @@
 
 #include <toml++/toml.hpp>
 
-#include <rex/fail.h>
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 #include <rex/platform/file.h>
-#include <rex/string/utf8.h>
+#include <rex/string/text.h>
+#include <rex/filesystem/path.h>
 
 namespace rex::codegen {
 
 std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view project_name) {
-  std::string guest_path = rex::NormalizeGuestPath(path);
+  std::string guest_path = rex::filesystem::NormalizeGuestPath(path);
 
   if (!project_name.empty()) {
     std::string lower_project(project_name);
@@ -49,18 +50,6 @@ bool IsValidProjectName(std::string_view name) {
                      [](unsigned char c) { return std::isalnum(c) || c == '_'; });
 }
 
-/**
- * Loads a binary's recompiler config from its table and sets the project name on it. The other
- * fields come from RecompilerConfig::LoadFromTable.
- *
- * @param tbl The TOML table of the entrypoint or module.
- * @param base_dir The directory that relative paths in the table resolve against.
- * @param project_name The project name stored on the recompiler config.
- * @param shared The shared layer whose defaults the binary starts from.
- * @param out The binary config to fill.
- * @param source The manifest file and section, the start of key warnings.
- * @return True when the table loaded, false on failure.
- */
 bool LoadBinaryConfig(const toml::table& tbl, const std::filesystem::path& base_dir,
                       std::string_view project_name, const RecompilerConfig& shared,
                       BinaryConfig& out, const std::string& source) {

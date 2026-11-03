@@ -17,7 +17,7 @@
 #include <fstream>
 #include <string>
 
-#include <rex/codegen/config.h>
+#include "codegen/config.h"
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;

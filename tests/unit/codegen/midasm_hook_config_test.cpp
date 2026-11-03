@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include <rex/codegen/config.h>
+#include "codegen/config.h"
 
 using namespace rex::codegen;
 
@@ -46,6 +46,18 @@ REX_TEST_CASE("A mid function hook cannot take r1", "[codegen][midasm]") {
 REX_TEST_CASE("A mid function hook may take other registers", "[codegen][midasm]") {
   auto result = HookConfig({"r3", "r11", "f1", "ctr"}).Validate();
   CHECK(result.valid);
+}
+
+REX_TEST_CASE("A mid function hook may take the context", "[codegen][midasm]") {
+  auto result = HookConfig({"r3", "ctx"}).Validate();
+  CHECK(result.valid);
+}
+
+REX_TEST_CASE("A mid function hook cannot take an unknown register", "[codegen][midasm]") {
+  auto result = HookConfig({"r3", "context"}).Validate();
+  CHECK_FALSE(result.valid);
+  CHECK(HasError(result, "TestHook"));
+  CHECK(HasError(result, "'context'"));
 }
 
 REX_TEST_CASE("A mid function hook cannot return and jump in the same form", "[codegen][midasm]") {

@@ -13,8 +13,8 @@
 #include "ppc/instruction.h"
 #include "ppc/opcode.h"
 
-#include <rex/codegen/phases.h>
-#include "known_functions.h"
+#include "pipeline.h"
+#include "known_function.h"
 
 #include <algorithm>
 #include <format>
@@ -24,12 +24,14 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/codegen/config.h>
+#include "config.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
-#include <rex/memory/byte_swap.h>
-#include <rex/ppc/pdata.h>
-#include <rex/runtime/exports.h>
+#include <rex/memory/endian.h>
+#include <rex/filesystem/xex.h>
+#include <rex/ppc/image.h>
+#include <rex/kernel/export.h>
 #include <rex/types.h>
 
 #include <ppc.h>
@@ -71,20 +73,15 @@ struct ParsedException {
 
 /** Frame size and calls read from a function prologue for SEH unwinding. */
 struct Prolog {
-  /** Frame size from addi r31, r1, -N. */
-  u32 frame_size = 0;
-  /** Targets of the calls in the prologue, in order. */
-  std::vector<u32> call_targets;
+  u32 frame_size = 0;            /**< Frame size from addi r31, r1, -N. */
+  std::vector<u32> call_targets; /**< Targets of the calls in the prologue, in order. */
   bool valid = false;
 };
 
 /**
- * Scans the prologue of a function with handler data for its frame size and calls.
- * Scanning is skipped when the PDATA prolog length is 0. valid may be false for handler
- * functions that receive the frame in r12.
+ * Scans the prologue of a function with handler data for its frame size and calls. valid may be
+ * false for handler functions that receive the frame in r12.
  *
- * @param binary Binary view.
- * @param func_addr Function address.
  * @param prolog_length Prolog length in instructions from PDATA.
  * @return The prologue info.
  */
@@ -131,17 +128,12 @@ Prolog ScanProlog(const BinaryView& binary, u32 func_addr, u32 prolog_length) {
 }
 
 /**
- * Parses an SEH scope table. A __finally scope holds the handler in word 2 and 0 in word 3. An
- * __except scope holds the filter in word 2 and the handler in word 3. A __finally handler and
- * an __except filter are separate functions and an __except handler is inline.
+ * A __finally scope holds the handler in word 2 and 0 in word 3. An
+ * __except scope holds the filter in word 2 and the handler in word 3. Finally handlers and except
+ * filters are separate functions, and except handlers are inline.
  *
- * @param handler_thunk Address of the handler thunk.
- * @param scope_table_addr Address of the scope table.
- * @param count Scope count.
  * @param rdata_base Host pointer to the start of .rdata.
  * @param rdata_start Address of the start of .rdata.
- * @param rdata_size Size of .rdata in bytes.
- * @param function_begin_addr Address of the function.
  * @param discovered_funcs Receives the functions the table names.
  * @return The parsed info, or nullopt when the table is outside .rdata.
  */
@@ -368,12 +360,9 @@ std::optional<ParsedException> ParseExceptionInfo(const BinaryView& binary, cons
 }
 
 /**
- * Measures an import thunk, which runs from its address through the bctr that follows an mtctr.
- * Any words before the mtctr are whatever the loader leaves there. A thunk that does not end that
- * way within a few words counts as 1 word.
+ * Measures an import thunk, which runs from its address through the bctr that follows an mtctr. A
+ * thunk that does not end that way within eight words counts as 1 word.
  *
- * @param binary Binary view.
- * @param address Thunk address.
  * @return The size of the thunk in bytes.
  */
 u32 GetImportThunkSize(const BinaryView& binary, u32 address) {
@@ -418,55 +407,48 @@ constexpr u32 kVMXExtendedSlotBase = 128;
 constexpr u32 kWordBytes = 4;
 constexpr size_t kRunClassCount = 8;
 
-bool IsSaveKind(MillicodeKind kind) {
-  return kind == MillicodeKind::kGPRSave || kind == MillicodeKind::kFPRSave ||
-         kind == MillicodeKind::kVMXSave;
+bool IsSaveType(MillicodeType type) {
+  return type == MillicodeType::kGPRSave || type == MillicodeType::kFPRSave ||
+         type == MillicodeType::kVMXSave;
 }
 
-bool IsGPRKind(MillicodeKind kind) {
-  return kind == MillicodeKind::kGPRSave || kind == MillicodeKind::kGPRRestore;
+bool IsGPRType(MillicodeType type) {
+  return type == MillicodeType::kGPRSave || type == MillicodeType::kGPRRestore;
 }
 
-bool IsFPRKind(MillicodeKind kind) {
-  return kind == MillicodeKind::kFPRSave || kind == MillicodeKind::kFPRRestore;
+bool IsFPRType(MillicodeType type) {
+  return type == MillicodeType::kFPRSave || type == MillicodeType::kFPRRestore;
 }
 
-u32 GetEntryWordCount(MillicodeKind kind) {
-  return IsGPRKind(kind) || IsFPRKind(kind) ? 1 : 2;
+u32 GetEntryWordCount(MillicodeType type) {
+  return IsGPRType(type) || IsFPRType(type) ? 1 : 2;
 }
 
-std::string_view GetMillicodePrefix(MillicodeKind kind) {
-  switch (kind) {
-    case MillicodeKind::kGPRSave:
+std::string_view GetMillicodePrefix(MillicodeType type) {
+  switch (type) {
+    case MillicodeType::kGPRSave:
       return "__savegprlr_";
-    case MillicodeKind::kGPRRestore:
+    case MillicodeType::kGPRRestore:
       return "__restgprlr_";
-    case MillicodeKind::kFPRSave:
+    case MillicodeType::kFPRSave:
       return "__savefpr_";
-    case MillicodeKind::kFPRRestore:
+    case MillicodeType::kFPRRestore:
       return "__restfpr_";
-    case MillicodeKind::kVMXSave:
+    case MillicodeType::kVMXSave:
       return "__savevmx_";
-    case MillicodeKind::kVMXRestore:
+    case MillicodeType::kVMXRestore:
       return "__restvmx_";
   }
   return {};
 }
 
-/**
- * Lists the instructions of the entry for a register.
- *
- * @param kind The run kind.
- * @param reg Register the entry starts at.
- * @return The instructions the entry must hold.
- */
-std::vector<MillicodeWord> GetEntryWords(MillicodeKind kind, u32 reg) {
-  const bool save = IsSaveKind(kind);
-  if (IsGPRKind(kind)) {
+std::vector<MillicodeWord> GetEntryWords(MillicodeType type, u32 reg) {
+  const bool save = IsSaveType(type);
+  if (IsGPRType(type)) {
     return {{save ? "std" : "ld",
              std::format("r{},{}(r1)", reg, -static_cast<i32>(kGPRSlot * (kGPRSlotBase - reg)))}};
   }
-  if (IsFPRKind(kind)) {
+  if (IsFPRType(type)) {
     return {{save ? "stfd" : "lfd",
              std::format("f{},{}(r12)", reg, -static_cast<i32>(kFPRSlot * (kFPRSlotBase - reg)))}};
   }
@@ -477,16 +459,10 @@ std::vector<MillicodeWord> GetEntryWords(MillicodeKind kind, u32 reg) {
           {name, std::format("v{},r11,r12", reg)}};
 }
 
-/**
- * Lists the instructions after the last entry of a run.
- *
- * @param kind The run kind.
- * @return The instructions that close the run.
- */
-std::vector<MillicodeWord> GetTailWords(MillicodeKind kind) {
-  if (kind == MillicodeKind::kGPRSave)
+std::vector<MillicodeWord> GetTailWords(MillicodeType type) {
+  if (type == MillicodeType::kGPRSave)
     return {{"stw", "r12,-8(r1)"}, {"blr", ""}};
-  if (kind == MillicodeKind::kGPRRestore)
+  if (type == MillicodeType::kGPRRestore)
     return {{"lwz", "r12,-8(r1)"}, {"mtlr", "r12"}, {"blr", ""}};
   return {{"blr", ""}};
 }
@@ -510,69 +486,43 @@ bool WordsMatch(const BinaryView& binary, u32 addr, const std::vector<MillicodeW
   return true;
 }
 
-/**
- * Validates a run from the address of its first entry.
- *
- * @param binary The binary view the words are read from.
- * @param head The address of the first store or load word.
- * @param kind The kind to validate against.
- * @param first Number of the first register of the run.
- * @param count Number of entries the run must have.
- * @return The run, or no value when any entry or the closing return is wrong.
- */
-std::optional<MillicodeRun> ValidateRunFrom(const BinaryView& binary, u32 head, MillicodeKind kind,
+std::optional<MillicodeRun> ValidateRunFrom(const BinaryView& binary, u32 head, MillicodeType type,
                                             u32 first, u32 count) {
-  const u32 stride = GetEntryWordCount(kind) * kWordBytes;
+  const u32 stride = GetEntryWordCount(type) * kWordBytes;
   for (u32 i = 0; i < count; ++i) {
-    if (!WordsMatch(binary, head + i * stride, GetEntryWords(kind, first + i)))
+    if (!WordsMatch(binary, head + i * stride, GetEntryWords(type, first + i)))
       return std::nullopt;
   }
-  if (!WordsMatch(binary, head + count * stride, GetTailWords(kind)))
+  if (!WordsMatch(binary, head + count * stride, GetTailWords(type)))
     return std::nullopt;
-  return MillicodeRun{kind, head, first, count, stride};
+  return MillicodeRun{type, head, first, count, stride};
 }
 
-/**
- * Validates a candidate run from its first word.
- *
- * @param binary The binary view the words are read from.
- * @param head The address of the first store or load word.
- * @param kind The kind to validate against.
- * @return The run, or no value when any entry or the closing return is wrong.
- */
 std::optional<MillicodeRun> ValidateMillicodeRun(const BinaryView& binary, u32 head,
-                                                 MillicodeKind kind) {
-  if (auto run = ValidateRunFrom(binary, head, kind, kGPRFirst, kSavedRegisterCount)) {
-    if (IsGPRKind(kind) &&
-        WordsMatch(binary, head - kWordBytes, GetEntryWords(kind, kGPRWithR13))) {
-      return MillicodeRun{kind, head - kWordBytes, kGPRWithR13, run->count + 1, run->stride};
+                                                 MillicodeType type) {
+  if (auto run = ValidateRunFrom(binary, head, type, kGPRFirst, kSavedRegisterCount)) {
+    if (IsGPRType(type) &&
+        WordsMatch(binary, head - kWordBytes, GetEntryWords(type, kGPRWithR13))) {
+      return MillicodeRun{type, head - kWordBytes, kGPRWithR13, run->count + 1, run->stride};
     }
     return run;
   }
-  if (GetEntryWordCount(kind) == 2)
-    return ValidateRunFrom(binary, head, kind, kVMXExtendedFirst, kVMXExtendedCount);
+  if (GetEntryWordCount(type) == 2)
+    return ValidateRunFrom(binary, head, type, kVMXExtendedFirst, kVMXExtendedCount);
   return std::nullopt;
 }
 
 /**
- * Reports whether 2 runs are the same run class, which is a kind and either the standard or the
- * extended vector range.
+ * Reports whether two runs are the same class, a type and either the standard or the extended
+ * vector range.
  *
- * @param run A run.
- * @param kind The other run kind.
  * @param first First register of the other run.
  * @return True when both belong to the same class.
  */
-bool IsSameRunClass(const MillicodeRun& run, MillicodeKind kind, u32 first) {
-  return run.kind == kind && (run.first >= kVMXExtendedFirst) == (first >= kVMXExtendedFirst);
+bool IsSameRunClass(const MillicodeRun& run, MillicodeType type, u32 first) {
+  return run.type == type && (run.first >= kVMXExtendedFirst) == (first >= kVMXExtendedFirst);
 }
 
-/**
- * Finds the first valid run of each class in the executable sections.
- *
- * @param binary Binary view.
- * @param state Receives the runs.
- */
 void DetectMillicodeRuns(const BinaryView& binary, AnalysisState& state) {
   auto& runs = state.millicode_runs;
   for (const auto& section : binary.GetSections()) {
@@ -581,38 +531,38 @@ void DetectMillicodeRuns(const BinaryView& binary, AnalysisState& state) {
 
     for (u32 offset = 0; offset + kWordBytes <= section.size; offset += kWordBytes) {
       const u32 addr = section.base_address + offset;
-      std::vector<MillicodeKind> kinds;
+      std::vector<MillicodeType> types;
       switch (LookupID(memory::load<be_u32>(section.data + offset))) {
         case PPC_INST_STD:
-          kinds = {MillicodeKind::kGPRSave};
+          types = {MillicodeType::kGPRSave};
           break;
         case PPC_INST_LD:
-          kinds = {MillicodeKind::kGPRRestore};
+          types = {MillicodeType::kGPRRestore};
           break;
         case PPC_INST_STFD:
-          kinds = {MillicodeKind::kFPRSave};
+          types = {MillicodeType::kFPRSave};
           break;
         case PPC_INST_LFD:
-          kinds = {MillicodeKind::kFPRRestore};
+          types = {MillicodeType::kFPRRestore};
           break;
         case PPC_INST_LI:
         case PPC_INST_LIL:
-          kinds = {MillicodeKind::kVMXSave, MillicodeKind::kVMXRestore};
+          types = {MillicodeType::kVMXSave, MillicodeType::kVMXRestore};
           break;
         default:
           continue;
       }
 
-      for (MillicodeKind kind : kinds) {
-        auto run = ValidateMillicodeRun(binary, addr, kind);
+      for (MillicodeType type : types) {
+        auto run = ValidateMillicodeRun(binary, addr, type);
         if (!run)
           continue;
         const bool known = std::any_of(runs.begin(), runs.end(), [&](const MillicodeRun& other) {
-          return IsSameRunClass(other, kind, run->first);
+          return IsSameRunClass(other, type, run->first);
         });
         if (known)
           continue;
-        REXLOG_DEBUG(codegen, "Found {}{} at 0x{:08X}", GetMillicodePrefix(kind), run->first,
+        REXLOG_DEBUG(codegen, "Found {}{} at 0x{:08X}", GetMillicodePrefix(type), run->first,
                      run->head);
         runs.push_back(*run);
       }
@@ -626,13 +576,13 @@ void DetectMillicodeRuns(const BinaryView& binary, AnalysisState& state) {
  * Finds the restore helper that undoes a save helper call.
  *
  * @param state Analysis state holding the runs.
- * @param entry Role of the save helper that was called.
+ * @param entry The save helper that was called.
  * @return The restore entry address, or 0 when no restore run covers the register.
  */
 u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
-  const auto restore_kind = static_cast<MillicodeKind>(static_cast<u8>(entry.kind) + 1);
+  const auto restore_type = static_cast<MillicodeType>(static_cast<u8>(entry.type) + 1);
   for (const auto& run : state.millicode_runs) {
-    if (IsSameRunClass(run, restore_kind, entry.reg) && entry.reg >= run.first &&
+    if (IsSameRunClass(run, restore_type, entry.reg) && entry.reg >= run.first &&
         entry.reg < run.first + run.count) {
       return run.head + (entry.reg - run.first) * run.stride;
     }
@@ -641,12 +591,8 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
 }
 
 /**
- * Registers imports, save and restore helpers, config functions and PDATA functions. A restore
- * helper of the matching kind and register gives the restore helper of an SEH function. An __except
- * handler is inline and becomes a label.
- *
- * @param ctx Codegen context.
- * @return Ok, or the failure.
+ * Registers imports, millicode helpers, config functions and PDATA functions. An __except handler
+ * is inline and becomes a label.
  */
 [[nodiscard]] Result<void> RegisterEntryPoints(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: registering entry points...");
@@ -691,10 +637,10 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
       u16 ordinal = static_cast<u16>(std::stoul(ordinal_str));
 
       std::string resolved_name;
-      const auto export_module = runtime::ModuleFromName(lib_name);
-      const auto* exp = export_module ? runtime::FindByOrdinal(*export_module, ordinal) : nullptr;
+      const auto export_module = kernel::ModuleFromName(lib_name);
+      const auto* exp = export_module ? kernel::FindByOrdinal(*export_module, ordinal) : nullptr;
       if (exp) {
-        if (exp->kind == runtime::ExportKind::kFunction) {
+        if (exp->type == kernel::ExportType::kFunction) {
           resolved_name = "__imp__" + std::string(exp->name);
           resolved_count++;
         } else {
@@ -718,7 +664,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
 
       auto* node = graph.AddImportFunction(sym.address, resolved_name,
                                            GetImportThunkSize(binary, sym.address));
-      if (exp && runtime::IsNoReturnExport(*export_module, ordinal)) {
+      if (exp && kernel::IsNoReturnExport(*export_module, ordinal)) {
         graph.DeclareNoReturn(sym.address);
       }
       if (node && node->CanDiscover()) {
@@ -738,14 +684,14 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
   }
 
   for (const auto& run : state.millicode_runs) {
-    const u32 tail_bytes = static_cast<u32>(GetTailWords(run.kind).size()) * kWordBytes;
+    const u32 tail_bytes = static_cast<u32>(GetTailWords(run.type).size()) * kWordBytes;
     for (u32 i = 0; i < run.count; ++i) {
       const u32 addr = run.head + i * run.stride;
       const u32 reg = run.first + i;
       graph.AddFunction(addr, (run.count - i) * run.stride + tail_bytes, FunctionAuthority::kHelper,
                         true);
-      graph.SetFunctionName(addr, std::format("{}{}", GetMillicodePrefix(run.kind), reg));
-      graph.SetFunctionMillicode(addr, MillicodeEntry{run.kind, reg});
+      graph.SetFunctionName(addr, std::format("{}{}", GetMillicodePrefix(run.type), reg));
+      graph.SetFunctionMillicode(addr, MillicodeEntry{run.type, reg});
     }
   }
 
@@ -809,7 +755,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
       const auto* helper = graph.GetFunction(begin_addr);
       const bool restore = fn.type == rex::ppc::RuntimeFunctionType::kRestoreMillicode;
       if (!helper || !helper->GetMillicode() ||
-          IsSaveKind(helper->GetMillicode()->kind) == restore) {
+          IsSaveType(helper->GetMillicode()->type) == restore) {
         return Err(ErrorCategory::kValidation,
                    std::format("pdata entry 0x{:08X} is a {} millicode helper but no such helper "
                                "run has an entry there",
@@ -855,7 +801,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
 
           for (u32 target : prolog_info.call_targets) {
             const auto* callee = graph.GetFunction(target);
-            if (!callee || !callee->GetMillicode() || !IsSaveKind(callee->GetMillicode()->kind))
+            if (!callee || !callee->GetMillicode() || !IsSaveType(callee->GetMillicode()->type))
               continue;
             if (u32 restore = FindRestoreHelper(state, *callee->GetMillicode()))
               seh_info.restore_helpers.push_back(restore);
@@ -915,7 +861,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
 
 namespace detail {
 
-[[nodiscard]] Result<void> Register(CodegenContext& ctx, IProgressReporter* reporter) {
+[[nodiscard]] Result<void> RegisterFunctions(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
   return RegisterEntryPoints(ctx);
 }

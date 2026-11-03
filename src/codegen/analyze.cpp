@@ -1,12 +1,23 @@
+/**
+ * @file        codegen/analyze.cpp
+ * @brief       Runs the analysis phases in order
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
 #include "decoded_binary.h"
 
 #include <algorithm>
 #include <map>
 
-#include <rex/codegen/analysis_errors.h>
-#include <rex/codegen/analyze.h>
-#include <rex/codegen/phases.h>
+#include "analysis_error_log.h"
+#include "pipeline.h"
 #include <rex/logging/log.h>
+#include "codegen_categories.h"
 
 namespace rex::codegen {
 
@@ -19,21 +30,21 @@ namespace rex::codegen {
 
   if (reporter)
     reporter->ModulePhaseStarted("Register");
-  auto reg_result = detail::Register(ctx, reporter);
+  auto reg_result = detail::RegisterFunctions(ctx, reporter);
   if (!reg_result) {
     return reg_result;
   }
 
   if (reporter)
     reporter->ModulePhaseStarted("Scan");
-  auto scan_result = detail::Scan(ctx, reporter);
+  auto scan_result = detail::ScanRegions(ctx, reporter);
   if (!scan_result) {
     return scan_result;
   }
 
   if (reporter)
     reporter->ModulePhaseStarted("Discover");
-  auto discover_result = detail::Discover(ctx, reporter);
+  auto discover_result = detail::DiscoverFunctions(ctx, reporter);
   if (!discover_result) {
     return discover_result;
   }
@@ -47,14 +58,14 @@ namespace rex::codegen {
 
   if (reporter)
     reporter->ModulePhaseStarted("Merge");
-  auto merge_result = detail::Merge(ctx, reporter);
+  auto merge_result = detail::MergeFunctions(ctx, reporter);
   if (!merge_result) {
     return merge_result;
   }
 
   if (reporter)
     reporter->ModulePhaseStarted("Validate");
-  auto validate_result = detail::Validate(ctx, reporter);
+  auto validate_result = detail::ValidateGraph(ctx);
   if (!validate_result) {
     return validate_result;
   }
@@ -65,18 +76,10 @@ namespace rex::codegen {
   return Ok();
 }
 
-const char* AnalysisErrors::CategoryName(Category cat) {
+const char* AnalysisErrorLog::CategoryName(Category cat) {
   switch (cat) {
     case Category::kUnresolvedCall:
       return "UnresolvedCall";
-    case Category::kMissingJumpTable:
-      return "MissingJumpTable";
-    case Category::kJumpTargetOutOfBounds:
-      return "JumpTargetOutOfBounds";
-    case Category::kDiscontinuousFunction:
-      return "DiscontinuousFunction";
-    case Category::kUnimplementedInsn:
-      return "UnimplementedInsn";
     case Category::kMillicode:
       return "Millicode";
     default:
@@ -84,20 +87,20 @@ const char* AnalysisErrors::CategoryName(Category cat) {
   }
 }
 
-void AnalysisErrors::Add(Category cat, u32 addr, const std::string& msg) {
+void AnalysisErrorLog::Add(Category cat, u32 addr, const std::string& msg) {
   Add(cat, addr, 0, msg);
 }
 
-void AnalysisErrors::Add(Category cat, u32 addr, u32 secondary, const std::string& msg) {
+void AnalysisErrorLog::Add(Category cat, u32 addr, u32 secondary, const std::string& msg) {
   entries_.push_back({cat, addr, secondary, msg});
 }
 
-size_t AnalysisErrors::Count(Category cat) const {
+size_t AnalysisErrorLog::Count(Category cat) const {
   return std::count_if(entries_.begin(), entries_.end(),
                        [cat](const Entry& e) { return e.category == cat; });
 }
 
-void AnalysisErrors::PrintReport() const {
+void AnalysisErrorLog::PrintReport() const {
   if (entries_.empty()) {
     return;
   }

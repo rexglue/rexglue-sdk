@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/codegen/call_usage_test.cpp
- * @brief       Codegen lists the argument registers each function reads at its entry
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +9,8 @@
  */
 
 #include "code_image.h"
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <regex>
 #include <string>
