@@ -404,7 +404,7 @@ struct alignas(0x40) PPCContext {
   PPCXERRegister xer; /**< Fixed point exception register. */
   /** Value loaded by the last load reserved, which the paired store conditional compares. */
   PPCRegister reserved;
-  /** Machine state register, initially 0x200A000, mtmsrd writes only the bits under 0x8020. */
+  /** Machine state register, initially 0x200A000, mtmsrd writes only the bits under 0x8002. */
   u32 msr = 0x200A000;
   PPCCRRegister cr0; /**< Condition register field 0, CR bits 0 to 3. */
   PPCCRRegister cr1; /**< Condition register field 1, CR bits 4 to 7. */

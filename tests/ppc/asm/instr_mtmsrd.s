@@ -49,3 +49,15 @@ test_mtmsrd_other_register_clears_ee_with_zero:
   #_ REGISTER_OUT r3 0x200A000
   #_ REGISTER_OUT r4 0x2002000
   #_ REGISTER_OUT r5 0x200A000
+
+test_mtmsrd_other_register_sets_ri_only:
+  #_ REGISTER_IN r14 0x2
+  mfmsr r3
+  mtmsrd r14, 1
+  mfmsr r4
+  mtmsrd r3, 1
+  mfmsr r5
+  blr
+  #_ REGISTER_OUT r3 0x200A000
+  #_ REGISTER_OUT r4 0x2002002
+  #_ REGISTER_OUT r5 0x200A000

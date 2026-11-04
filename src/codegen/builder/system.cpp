@@ -342,7 +342,7 @@ bool Build<PPC_INST_MTLR>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_MTMSRD>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_msr) {
-    ctx.Println("\tctx.msr = ({}.u32 & 0x8020) | (ctx.msr & ~0x8020);",
+    ctx.Println("\tctx.msr = ({}.u32 & 0x8002) | (ctx.msr & ~0x8002);",
                 ctx.R(ctx.insn.operands[0]));
     // r13 enters the global lock (interrupts off), any other source register leaves it
     u32 src_reg = ctx.insn.operands[0];
