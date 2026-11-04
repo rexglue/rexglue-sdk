@@ -14,7 +14,6 @@
 #include <rex/ui/native_window.h>
 #include <rex/ui/overlay_renderer.h>
 #include <rex/guest.h>
-#include <rex/logging/log.h>
 #include <rex/memory/host.h>
 #include <rex/result.h>
 #include <rex/title.h>

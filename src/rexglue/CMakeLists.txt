@@ -1,5 +1,3 @@
-set(CMAKE_FOLDER "tools")
-
 add_library(
   rexglue-objects OBJECT ui/ui.cpp ui/progress.cpp command/init_command.cpp command/test_spec.cpp
                          command/project_scan.cpp command/test_recompiler.cpp

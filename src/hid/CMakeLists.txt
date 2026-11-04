@@ -16,6 +16,7 @@ add_library(
 )
 add_library(rexhid SHARED module_entry.cpp $<TARGET_OBJECTS:rexhid-objects>)
 add_library(rex::hid ALIAS rexhid)
+rex_target_headers(rexhid DIRS hid)
 rexglue_link_host_allocator(rexhid)
 set_target_properties(rexhid PROPERTIES EXPORT_NAME hid)
 foreach (hid_target rexhid-objects rexhid)
@@ -30,8 +31,9 @@ foreach (hid_target rexhid-objects rexhid)
     ${hid_target} PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src
                           ${PROJECT_SOURCE_DIR}/thirdparty
   )
-  target_link_libraries(${hid_target} PRIVATE rexbase)
+  target_link_libraries(${hid_target} PUBLIC rexbase)
 endforeach ()
+rex_target_pch(rexhid-objects)
 rexglue_add_version_resource(rexhid DESCRIPTION "ReXGlue input")
 
 add_subdirectory(sdl3)

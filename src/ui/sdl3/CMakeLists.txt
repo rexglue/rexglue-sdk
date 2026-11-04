@@ -17,6 +17,7 @@ set_target_properties(
              CXX_VISIBILITY_PRESET hidden
              VISIBILITY_INLINES_HIDDEN ON
 )
+rex_target_pch(rexui-sdl3)
 rexglue_add_version_resource(rexui-sdl3 DESCRIPTION "ReXGlue SDL3 user interface")
 target_include_directories(rexui-sdl3 PRIVATE ${REXGLUE_ROOT}/src)
 set(REX_UI_SDL3_LIBS rexbase SDL3::SDL3)

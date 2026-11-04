@@ -10,6 +10,7 @@
 #include "embedded_templates.h"
 
 #include <algorithm>
+#include <ios>
 #include <unordered_map>
 #include <utility>
 #include <vector>

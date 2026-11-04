@@ -15,7 +15,6 @@
 
 #include <rex/driver.h>
 #include <rex/hid/pad.h>
-#include <rex/logging/log.h>
 #include <rex/memory/host.h>
 #include <rex/result.h>
 #include <rex/types.h>

@@ -95,7 +95,7 @@ set_source_files_properties(
 )
 add_dependencies(rexcodegen-objects embed_templates)
 
-rex_target_pch(rexcodegen-objects "${CMAKE_CURRENT_SOURCE_DIR}/function_types.h")
+rex_target_pch(rexcodegen-objects <function_types.h>)
 
 foreach (codegen_target rexcodegen-objects rexcodegen)
   target_include_directories(

@@ -13,59 +13,37 @@
 
 #pragma once
 
-#include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <memory>
-#include <mutex>
 #include <utility>
 #include <vector>
 
-#include <rex/assert.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 
 namespace rex::platform {
 
 /** Event that clears its own signal once the last waiter returns from Wait. */
-class Fence {
+class REX_API Fence {
  public:
   /** Creates an unsignaled fence. */
-  Fence() : signal_state_{0} {}
+  Fence();
+
+  Fence(const Fence&) = delete;
+  Fence& operator=(const Fence&) = delete;
+
+  ~Fence();
 
   /** Signals the fence and wakes every waiter. */
-  void Signal() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    signal_state_.store(signal_state_.load() | kSigMask, std::memory_order_release);
-    cond_.notify_all();
-  }
+  void Signal();
 
   /** Blocks until the fence is signaled. The last waiter to return clears the signal. */
-  void Wait() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    REX_ASSERT((signal_state_.load() & ~kSigMask) < (kSigMask - 1) && "Too many threads?");
-
-    auto signal_state = signal_state_.fetch_add(1) + 1;
-    for (; !(signal_state & kSigMask); signal_state = signal_state_.load()) {
-      cond_.wait(lock);
-    }
-
-    REX_ASSERT((signal_state & ~kSigMask) > 0);
-    if (signal_state == (1 | kSigMask)) {
-      signal_state_.store(0, std::memory_order_release);
-    } else {
-      signal_state_.store(--signal_state, std::memory_order_release);
-    }
-  }
+  void Wait();
 
  private:
-  using StateT = uint_fast32_t;
-  static constexpr StateT kSigMask = static_cast<StateT>(1) << (sizeof(StateT) * 8 - 1);
-
-  std::mutex mutex_;
-  std::condition_variable cond_;
-  std::atomic<StateT> signal_state_;
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 enum class WaitResult : u8 {

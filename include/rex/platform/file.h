@@ -11,8 +11,7 @@
 #pragma once
 
 #include <filesystem>
-#include <fstream>
-#include <ios>
+#include <iosfwd>
 #include <span>
 #include <string>
 #include <string_view>
@@ -116,13 +115,7 @@ REX_API std::filesystem::path GetUserFolder();
                                                              std::string_view name);
 
 /** Opens a storage file for reading and writing, creating it when missing. */
-inline bool OpenStorageFile(std::fstream& file, const std::filesystem::path& path) {
-  if (!std::filesystem::exists(path)) {
-    std::ofstream create(path, std::ios::binary);
-  }
-  file.open(path, std::ios::in | std::ios::out | std::ios::binary);
-  return file.is_open();
-}
+REX_API bool OpenStorageFile(std::fstream& file, const std::filesystem::path& path);
 
 /**
  * @return Size in bytes, 0 when the size cannot be queried.
@@ -138,27 +131,15 @@ inline u64 GetStorageFileSize(const std::filesystem::path& path) {
  *
  * @return Number of bytes read.
  */
-inline size_t ReadStorageFile(std::fstream& file, void* data, size_t size) {
-  file.read(static_cast<char*>(data), static_cast<std::streamsize>(size));
-  return static_cast<size_t>(file.gcount());
-}
+REX_API size_t ReadStorageFile(std::fstream& file, void* data, size_t size);
 
-inline void AppendStorageFile(std::fstream& file, const void* data, size_t size) {
-  file.seekp(0, std::ios::end);
-  file.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
-}
+REX_API void AppendStorageFile(std::fstream& file, const void* data, size_t size);
 
 /**
  * Truncates a storage file and reopens it positioned at the end.
  *
  * @param file Storage stream, closed and reopened in place.
  */
-inline void ResetStorageFile(std::fstream& file, const std::filesystem::path& path, u64 length) {
-  file.close();
-  std::error_code error;
-  std::filesystem::resize_file(path, length, error);
-  file.open(path, std::ios::in | std::ios::out | std::ios::binary);
-  file.seekp(0, std::ios::end);
-}
+REX_API void ResetStorageFile(std::fstream& file, const std::filesystem::path& path, u64 length);
 
 }  // namespace rex::platform

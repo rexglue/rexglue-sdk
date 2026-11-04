@@ -1,6 +1,7 @@
 add_library(rexgpu SHARED graphics_module.cpp graphics_system.cpp present_thread.cpp)
 set(REX_GPU_SCOPE PUBLIC)
 add_library(rex::gpu ALIAS rexgpu)
+rex_target_headers(rexgpu DIRS gpu)
 rexglue_link_host_allocator(rexgpu)
 set_target_properties(
   rexgpu
@@ -9,6 +10,7 @@ set_target_properties(
              VISIBILITY_INLINES_HIDDEN ON
 )
 target_compile_definitions(rexgpu PRIVATE REX_BUILDING_GPU)
+rex_target_pch(rexgpu)
 target_include_directories(
   rexgpu PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/thirdparty
 )

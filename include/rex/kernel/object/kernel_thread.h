@@ -16,7 +16,6 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -319,10 +318,12 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
 
   i32 priority_ = 0;
 
-  /** Guards the suspend count in the X_KTHREAD and suspend_deferred_. */
-  std::mutex suspend_mutex_;
-  /** Signaled by Resume to release a thread waiting in a deferred suspend. */
-  std::condition_variable suspend_cv_;
+  struct SuspendWait;
+  /**
+   * Holds the mutex that guards the suspend count in the X_KTHREAD and suspend_deferred_, and the
+   * condition variable Resume signals to release a thread waiting in a deferred suspend.
+   */
+  std::unique_ptr<SuspendWait> suspend_wait_;
   /** True when Suspend could not stop the thread, which suspends itself at its next CheckStop. */
   std::atomic<bool> suspend_deferred_{false};
 

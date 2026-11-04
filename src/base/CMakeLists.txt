@@ -48,9 +48,21 @@ target_sources(
 # rexapp
 
 add_library(rex::base ALIAS rexbase)
+rex_target_headers(
+  rexbase
+  TOP
+  DIRS
+  logging
+  memory
+  platform
+  string
+  GENERATED
+  rex/version.h
+)
 rexglue_link_host_allocator(rexbase)
 set_target_properties(rexbase PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 target_compile_definitions(rexbase PRIVATE REX_BUILDING_BASE)
+rex_target_pch(rexbase)
 
 # Installed modules sit in the library folder, so the loader also looks there from the executable.
 if (UNIX)
@@ -115,6 +127,10 @@ elseif (UNIX)
             system_posix.cpp
             threading_posix.cpp
             utf8_posix.cpp
+  )
+  # These define _XOPEN_SOURCE before any system header, which a precompiled header would precede.
+  set_source_files_properties(
+    exception_handler_posix.cpp fiber_posix.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON
   )
 endif ()
 

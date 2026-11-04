@@ -24,6 +24,7 @@ add_library(
 )
 add_library(rexui SHARED module_entry.cpp $<TARGET_OBJECTS:rexui-objects>)
 add_library(rex::ui ALIAS rexui)
+rex_target_headers(rexui DIRS ui)
 rexglue_link_host_allocator(rexui)
 set_target_properties(rexui PROPERTIES EXPORT_NAME ui)
 foreach (ui_target rexui-objects rexui)
@@ -39,8 +40,9 @@ foreach (ui_target rexui-objects rexui)
                          ${PROJECT_SOURCE_DIR}/thirdparty
   )
   target_include_directories(${ui_target} SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/stb)
-  target_link_libraries(${ui_target} PRIVATE rexbase)
+  target_link_libraries(${ui_target} PUBLIC rexbase)
 endforeach ()
+rex_target_pch(rexui-objects)
 rexglue_add_version_resource(rexui DESCRIPTION "ReXGlue UI")
 
 add_subdirectory(sdl3)

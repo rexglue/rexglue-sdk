@@ -40,6 +40,7 @@ add_custom_command(
 
 add_executable(ppc_tests ${PPC_GEN_DIR}/ppc_test_functions.cpp ${PPC_GEN_DIR}/ppc_test_cases.cpp)
 rexglue_link_host_allocator(ppc_tests)
+rex_target_pch(ppc_tests)
 
 set_source_files_properties(
   ${PPC_GEN_DIR}/ppc_test_functions.cpp ${PPC_GEN_DIR}/ppc_test_cases.cpp

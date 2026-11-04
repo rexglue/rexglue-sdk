@@ -117,7 +117,6 @@ set(REXGPU_XENOS_INCLUDE_DIRS ${REXGLUE_ROOT}/src ${PROJECT_BINARY_DIR}/include
 )
 
 set(REXGPU_XENOS_PCH_HEADERS
-    <mutex>
     <unordered_map>
     <rex/math.h>
     <rex/memory.h>

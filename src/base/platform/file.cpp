@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -144,6 +145,32 @@ std::filesystem::path ResolveEntryCase(const std::filesystem::path& parent, std:
     }
   }
   return exact;
+}
+
+bool OpenStorageFile(std::fstream& file, const std::filesystem::path& path) {
+  if (!std::filesystem::exists(path)) {
+    std::ofstream create(path, std::ios::binary);
+  }
+  file.open(path, std::ios::in | std::ios::out | std::ios::binary);
+  return file.is_open();
+}
+
+size_t ReadStorageFile(std::fstream& file, void* data, size_t size) {
+  file.read(static_cast<char*>(data), static_cast<std::streamsize>(size));
+  return static_cast<size_t>(file.gcount());
+}
+
+void AppendStorageFile(std::fstream& file, const void* data, size_t size) {
+  file.seekp(0, std::ios::end);
+  file.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+}
+
+void ResetStorageFile(std::fstream& file, const std::filesystem::path& path, u64 length) {
+  file.close();
+  std::error_code error;
+  std::filesystem::resize_file(path, length, error);
+  file.open(path, std::ios::in | std::ios::out | std::ios::binary);
+  file.seekp(0, std::ios::end);
 }
 
 }  // namespace rex::platform

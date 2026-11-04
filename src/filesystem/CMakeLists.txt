@@ -30,10 +30,16 @@ set_target_properties(
 target_include_directories(
   rexfilesystem-objects PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/thirdparty
 )
-target_link_libraries(rexfilesystem-objects PRIVATE rexbase excrypt mspack)
+rex_target_pch(rexfilesystem-objects)
+target_link_libraries(
+  rexfilesystem-objects
+  PUBLIC rexbase
+  PRIVATE excrypt mspack
+)
 
 add_library(rexfilesystem SHARED module_entry.cpp $<TARGET_OBJECTS:rexfilesystem-objects>)
 add_library(rex::filesystem ALIAS rexfilesystem)
+rex_target_headers(rexfilesystem DIRS filesystem)
 rexglue_link_host_allocator(rexfilesystem)
 set_target_properties(
   rexfilesystem
@@ -44,5 +50,9 @@ set_target_properties(
 target_include_directories(
   rexfilesystem PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/thirdparty
 )
-target_link_libraries(rexfilesystem PRIVATE rexbase excrypt mspack)
+target_link_libraries(
+  rexfilesystem
+  PUBLIC rexbase
+  PRIVATE excrypt mspack
+)
 rexglue_add_version_resource(rexfilesystem DESCRIPTION "ReXGlue file system")

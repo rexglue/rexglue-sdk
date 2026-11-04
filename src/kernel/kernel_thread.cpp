@@ -12,7 +12,9 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <condition_variable>
 #include <cstring>
+#include <mutex>
 
 #include <format>
 #include <vector>
@@ -52,10 +54,18 @@ thread_local std::unique_ptr<rex::platform::Thread> t_exiting_thread;
 
 }  // namespace
 
+struct KernelThread::SuspendWait {
+  std::mutex mutex;
+  std::condition_variable cv;
+};
+
 KernelThread::KernelThread(TitleRuntime& runtime, u32 stack_size, u32 xapi_thread_startup,
                            u32 start_address, u32 start_context, u32 creation_flags,
                            bool guest_thread, bool main_thread, u32 title_process)
-    : guest_thread_(guest_thread), main_thread_(main_thread), runtime_(&runtime) {
+    : guest_thread_(guest_thread),
+      main_thread_(main_thread),
+      suspend_wait_(std::make_unique<SuspendWait>()),
+      runtime_(&runtime) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;
@@ -898,13 +908,13 @@ bool KernelThread::SetTLSValue(u32 slot, u32 value) {
 }
 
 u32 KernelThread::GetSuspendCount() {
-  std::lock_guard lock(suspend_mutex_);
+  std::lock_guard lock(suspend_wait_->mutex);
   return GetGuestObject<X_KTHREAD>()->suspend_count;
 }
 
 X_STATUS KernelThread::Resume(u32* out_suspend_count) {
   auto guest_thread = GetGuestObject<X_KTHREAD>();
-  std::lock_guard lock(suspend_mutex_);
+  std::lock_guard lock(suspend_wait_->mutex);
   const u8 previous = guest_thread->suspend_count;
   if (out_suspend_count) {
     *out_suspend_count = previous;
@@ -917,7 +927,7 @@ X_STATUS KernelThread::Resume(u32* out_suspend_count) {
     return X_STATUS_SUCCESS;
   }
   if (suspend_deferred_.exchange(false, std::memory_order_acq_rel)) {
-    suspend_cv_.notify_all();
+    suspend_wait_->cv.notify_all();
     return X_STATUS_SUCCESS;
   }
   return thread_->Resume() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
@@ -932,7 +942,7 @@ X_STATUS KernelThread::Suspend(u32* out_suspend_count) {
     return X_STATUS_SUCCESS;
   }
   auto guest_thread = GetGuestObject<X_KTHREAD>();
-  std::lock_guard lock(suspend_mutex_);
+  std::lock_guard lock(suspend_wait_->mutex);
   const u8 previous = guest_thread->suspend_count;
   if (out_suspend_count) {
     *out_suspend_count = previous;
@@ -955,21 +965,23 @@ u32 KernelThread::SelfSuspend() {
   auto guest_thread = GetGuestObject<X_KTHREAD>();
   u32 previous = 0;
   {
-    std::unique_lock lock(suspend_mutex_);
+    std::unique_lock lock(suspend_wait_->mutex);
     previous = guest_thread->suspend_count;
     guest_thread->suspend_count = static_cast<u8>(previous + 1);
     if (previous == 0 && guest_thread->suspend_count != 0) {
       suspend_deferred_.store(true, std::memory_order_release);
     }
-    suspend_cv_.wait(lock, [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
+    suspend_wait_->cv.wait(lock,
+                           [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
   }
   CheckStop();
   return previous;
 }
 
 void KernelThread::TakeDeferredSuspend() {
-  std::unique_lock lock(suspend_mutex_);
-  suspend_cv_.wait(lock, [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
+  std::unique_lock lock(suspend_wait_->mutex);
+  suspend_wait_->cv.wait(lock,
+                         [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
 }
 
 namespace {

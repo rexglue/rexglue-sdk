@@ -344,7 +344,7 @@ target_include_directories(
                             $<TARGET_PROPERTY:renderdoc,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-rex_target_pch(unit_tests <chrono> <filesystem> <format> <rex_test.h>)
+rex_target_pch(unit_tests <rex_test.h>)
 
 target_compile_definitions(
   unit_tests
@@ -385,6 +385,7 @@ target_compile_options(
   cross_module_tests PRIVATE -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING
                              -UREXGLUE_ENABLE_PERF_COUNTERS
 )
+rex_target_pch(cross_module_tests <rex/kernel/title_runtime.h> <rex/ppc/context.h>)
 add_dependencies(
   cross_module_tests
   rexfilesystem

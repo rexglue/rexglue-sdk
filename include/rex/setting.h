@@ -13,7 +13,6 @@
 
 #include <atomic>
 #include <filesystem>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>

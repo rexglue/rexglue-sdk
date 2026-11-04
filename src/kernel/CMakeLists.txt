@@ -1,6 +1,7 @@
 add_library(rexkernel-objects OBJECT)
 add_library(rexkernel SHARED module_entry.cpp $<TARGET_OBJECTS:rexkernel-objects>)
 add_library(rex::kernel ALIAS rexkernel)
+rex_target_headers(rexkernel DIRS kernel)
 rexglue_link_host_allocator(rexkernel)
 
 foreach (kernel_target rexkernel-objects rexkernel)
@@ -16,7 +17,6 @@ rexglue_add_version_resource(rexkernel DESCRIPTION "ReXGlue runtime")
 
 rex_target_pch(
   rexkernel-objects
-  <mutex>
   <unordered_map>
   <rex/math.h>
   <rex/string/text.h>

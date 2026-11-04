@@ -44,6 +44,7 @@ list(TRANSFORM REXXAM_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 add_library(rexxam-objects OBJECT ${REXXAM_SOURCES})
 add_library(rexxam SHARED module_entry.cpp $<TARGET_OBJECTS:rexxam-objects>)
 add_library(rex::xam ALIAS rexxam)
+rex_target_headers(rexxam DIRS xam)
 rexglue_link_host_allocator(rexxam)
 set_target_properties(rexxam PROPERTIES EXPORT_NAME xam)
 
@@ -93,4 +94,8 @@ if (APPLE)
 elseif (UNIX)
   target_link_options(rexxam PRIVATE -Wl,--no-undefined)
 endif ()
+rex_target_pch(
+  rexxam-objects <rex/hid/input_system.h> <rex/kernel/title_runtime.h> <rex/kernel/types/content.h>
+  <rex/ppc/hook.h>
+)
 rexglue_add_version_resource(rexxam DESCRIPTION "ReXGlue XAM")

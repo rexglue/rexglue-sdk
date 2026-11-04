@@ -6,12 +6,18 @@ function (rex_target_pch target)
     PRIVATE
     <algorithm>
     <array>
+    <chrono>
     <cstddef>
     <cstdint>
     <cstring>
+    <expected>
+    <filesystem>
+    <format>
     <functional>
     <memory>
+    <mutex>
     <optional>
+    <span>
     <string>
     <string_view>
     <utility>
@@ -19,6 +25,11 @@ function (rex_target_pch target)
     <rex/platform.h>
     <rex/types.h>
     <rex/assert.h>
+    <rex/logging/log.h>
+    <rex/module.h>
+    <rex/result.h>
+    <rex/setting.h>
+    <rex/utility.h>
     ${ARGN}
   )
 endfunction ()

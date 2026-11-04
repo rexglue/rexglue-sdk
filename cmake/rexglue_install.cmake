@@ -5,8 +5,27 @@ include(${CMAKE_CURRENT_LIST_DIR}/rexglue_metadata.cmake)
 
 install(CODE "file(REMOVE_RECURSE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/include/rex\")")
 
+set(_header_set_targets "")
+set(_plain_targets "")
+foreach (_install_target IN LISTS REXGLUE_INSTALL_TARGETS)
+  get_target_property(_header_sets ${_install_target} INTERFACE_HEADER_SETS)
+  if (_header_sets)
+    list(APPEND _header_set_targets ${_install_target})
+  else ()
+    list(APPEND _plain_targets ${_install_target})
+  endif ()
+endforeach ()
+
+set(_header_set_install FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(
-  TARGETS ${REXGLUE_INSTALL_TARGETS}
+  TARGETS ${_header_set_targets}
+  EXPORT rexglueTargets
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} ${_header_set_install}
+)
+install(
+  TARGETS ${_plain_targets}
   EXPORT rexglueTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

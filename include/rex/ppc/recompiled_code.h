@@ -16,7 +16,6 @@
 
 #include <rex/platform.h>
 #include <rex/types.h>
-#include <rex/logging/log.h>
 
 #if REX_PLATFORM_WIN32
 #include <rex/platform/dynlib.h>

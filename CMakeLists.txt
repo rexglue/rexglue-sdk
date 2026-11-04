@@ -75,8 +75,8 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
 endif ()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "18.0")
-    message(FATAL_ERROR "ReXGlue requires Clang 18 or newer (found ${CMAKE_CXX_COMPILER_VERSION})")
+  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "20.0")
+    message(FATAL_ERROR "ReXGlue requires Clang 20 or newer (found ${CMAKE_CXX_COMPILER_VERSION})")
   endif ()
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
   if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
@@ -168,6 +168,7 @@ endif ()
 add_compile_definitions(REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_pch.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_header_set.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_version.cmake)
 rex_resolve_version(

@@ -20,9 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <simde/x86/avx.h>
-#include <simde/x86/sse.h>
-#include <simde/x86/sse4.1.h>
+#include <simde/x86/sse2.h>
 
 #include <rex/ppc/recompiled_code.h>
 #include <rex/types.h>

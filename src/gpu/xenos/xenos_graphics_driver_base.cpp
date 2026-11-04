@@ -25,6 +25,7 @@
 #include "gpu/xenos/command_processor.h"
 #include "gpu/xenos/vblank_pacing.h"
 #include <rex/assert.h>
+#include <rex/chrono.h>
 #include <rex/logging/log.h>
 #include <rex/gpu/graphics_driver.h>
 #include <rex/gpu/graphics_system.h>

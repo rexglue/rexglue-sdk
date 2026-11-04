@@ -16,9 +16,11 @@ else ()
   target_sources(rexppc PRIVATE seh_posix.cpp)
 endif ()
 add_library(rex::ppc ALIAS rexppc)
+rex_target_headers(rexppc DIRS ppc)
 rexglue_link_host_allocator(rexppc)
 set_target_properties(rexppc PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 target_compile_definitions(rexppc PRIVATE REX_BUILDING_PPC)
+rex_target_pch(rexppc)
 target_include_directories(
   rexppc PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/thirdparty
 )

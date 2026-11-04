@@ -12,6 +12,7 @@ add_library(
   texture_conversion.cpp
 )
 add_library(rex::xenos ALIAS rexxenos)
+rex_target_headers(rexxenos DIRS xenos)
 set_target_properties(
   rexxenos
   PROPERTIES EXPORT_NAME xenos
@@ -22,6 +23,7 @@ set_target_properties(
 target_include_directories(
   rexxenos PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/thirdparty
 )
+rex_target_pch(rexxenos)
 target_link_libraries(
   rexxenos
   PUBLIC rexbase

@@ -16,12 +16,9 @@
 #include <atomic>
 #include <chrono>
 #include <climits>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <mutex>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -30,7 +27,6 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/chrono.h>
 #include <rex/platform.h>
 #include <rex/platform/process.h>
 #include <rex/platform/sync.h>

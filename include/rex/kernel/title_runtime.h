@@ -11,18 +11,7 @@
 
 #pragma once
 
-#include <atomic>
-#include <chrono>
-#include <cstddef>
-#include <filesystem>
-#include <functional>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <thread>
-#include <vector>
 
 #include <rex/platform.h>
 #include <rex/utility.h>
@@ -31,7 +20,6 @@
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/types/content.h>
 #include <rex/types.h>
-#include <rex/utility.h>
 #include <rex/result.h>
 #include <rex/kernel/title_exit.h>
 
