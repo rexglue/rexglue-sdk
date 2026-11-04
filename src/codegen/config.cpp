@@ -159,10 +159,6 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
   }
 
   if (auto* analysis_table = root["analysis"].as_table()) {
-    if (auto v = (*analysis_table)["data_region_threshold"].value<u32>()) {
-      MergeScalar(cfg.data_region_threshold, *v, "analysis.data_region_threshold");
-    }
-
     if (auto handlers = (*analysis_table)["exception_handler_funcs"].as_array()) {
       for (const auto& elem : *handlers) {
         if (auto val = elem.value<i64>()) {

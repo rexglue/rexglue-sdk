@@ -102,7 +102,7 @@ REX_TEST_CASE("A table that uses only known keys has no warnings", "[codegen][co
       "xer_as_local = true\nreserved_as_local = true\ncr_as_local = true\n"
       "non_argument_as_local = true\nnon_volatile_as_local = true\nforward_stack_stores = true\n"
       "generate_exception_handlers = true\nis_dll = false\n"
-      "[analysis]\ndata_region_threshold = 1\n"
+      "[analysis]\n"
       "exception_handler_funcs = [0x82000020]\n"
       "[functions]\n0x82000030 = { size = 8, name = \"f\", share_registers = true }\n"
       "[[invalid_instructions]]\ndata = 0x82000040\nsize = 4\n"

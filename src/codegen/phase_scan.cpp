@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_scan.cpp
- * @brief       Scan phase that segments the binary into code and data regions
+ * @brief       Scan phase that segments the binary into code regions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -79,7 +79,6 @@ void ScanBinary(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: scanning binary...");
 
   auto& binary = ctx.GetBinary();
-  auto& config = ctx.GetConfig();
   auto& state = ctx.GetAnalysisState();
   auto& scan = ctx.scan;
   auto& graph = ctx.graph;
@@ -109,49 +108,6 @@ void ScanBinary(CodegenContext& ctx) {
   }
 
   REXLOG_TRACE(codegen, "Analyze: segmented into {} code regions", scan.code_regions.size());
-
-  for (const auto& section : binary.GetSections()) {
-    if (!section.executable)
-      continue;
-
-    const u8* data = section.data;
-    const u8* data_end = section.data + section.size;
-
-    if (export_table && export_table >= section.base_address &&
-        export_table < section.base_address + section.size) {
-      data_end = section.data + (export_table - section.base_address);
-    }
-
-    u32 consecutive_invalid = 0;
-    u32 data_region_start = 0;
-
-    while (data < data_end) {
-      u32 addr = section.base_address + static_cast<u32>(data - section.data);
-      u32 insn = memory::load<be_u32>(data);
-
-      bool is_invalid = (insn == 0x00000000 || insn == 0xFFFFFFFF);
-      if (is_invalid) {
-        if (consecutive_invalid == 0)
-          data_region_start = addr;
-        consecutive_invalid++;
-      } else {
-        if (consecutive_invalid >= config.data_region_threshold) {
-          scan.data_regions.emplace_back(data_region_start, addr);
-        }
-        consecutive_invalid = 0;
-      }
-
-      data += 4;
-    }
-
-    if (consecutive_invalid >= config.data_region_threshold) {
-      u32 end_addr = section.base_address + static_cast<u32>(data_end - section.data);
-      scan.data_regions.emplace_back(data_region_start, end_addr);
-    }
-  }
-
-  REXLOG_TRACE(codegen, "Analyze: {} code regions, {} data regions", scan.code_regions.size(),
-               scan.data_regions.size());
 }
 
 }  // anonymous namespace

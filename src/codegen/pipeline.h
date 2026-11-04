@@ -74,7 +74,7 @@ class CodegenPipeline : public rex::MoveOnly {
 /**
  * Builds and validates the FunctionGraph. The phases run in this order.
  * - Register imports, helpers, PDATA functions and config functions
- * - Scan code regions (null boundaries) and data regions
+ * - Scan code regions (null boundaries)
  * - Discover function blocks, calls and jump tables, iterating to a fixed point
  * - VTable discovers functions through RTTI vtables
  * - GapFill claims orphaned code regions
@@ -100,7 +100,7 @@ namespace rex::codegen::detail {
                                              IProgressReporter* reporter = nullptr);
 
 /**
- * Segments the executable sections into code and data regions.
+ * Segments the executable sections into code regions.
  *
  * @param ctx CodegenContext with binary and config loaded
  * @param reporter Optional progress sink, may be null

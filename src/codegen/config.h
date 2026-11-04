@@ -198,8 +198,6 @@ struct RecompilerConfig {
   bool forward_stack_stores = false;
   bool generate_exception_handlers = false;
 
-  u32 data_region_threshold = 16; /**< Invalid instructions in a row that mark a data region */
-
   VectorMathConfig vector_math; /**< TOML table `[vector_math]`. */
 
   /**

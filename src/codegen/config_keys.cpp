@@ -63,7 +63,6 @@ constexpr std::array kVectorMathKeys = {
 };
 
 constexpr std::array kAnalysisKeys = {
-    KeySpec{"data_region_threshold", Type::kInteger},
     KeySpec{"exception_handler_funcs", Type::kArray},
 };
 

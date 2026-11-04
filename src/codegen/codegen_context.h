@@ -141,12 +141,7 @@ class CodegenContext : public rex::MoveOnly {
     ScanArtifacts& operator=(ScanArtifacts&&) noexcept(false) = default;
     ~ScanArtifacts() = default;
 
-    std::vector<CodeRegion> code_regions; /**< Null delimited code regions */
-    /**
-     * Address ranges `[first, second)` of runs of at least `data_region_threshold` words equal to
-     * 0 or 0xFFFFFFFF.
-     */
-    std::vector<std::pair<u32, u32>> data_regions;
+    std::vector<CodeRegion> code_regions;     /**< Null delimited code regions */
     std::unordered_map<u32, u32> pdata_sizes; /**< Maps address to size */
   } scan;
 
