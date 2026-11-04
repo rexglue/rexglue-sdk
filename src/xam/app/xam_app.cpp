@@ -49,13 +49,13 @@ kernel::X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
         be_u32 length_ptr;
         be_u32 unk_1c;
       }* data = reinterpret_cast<MessageData*>(buffer);
-      REXLOG_DEBUG(xam,
-                   "XamAppEnumerateContentAggregate({}, {:08X}, {:08X}, {:08X}, {}, "
-                   "{:08X}, {:08X}, {:08X})",
-                   static_cast<u32>(data->user_index), static_cast<u32>(data->unk_04),
-                   static_cast<u32>(data->extra_ptr), static_cast<u32>(data->buffer_ptr),
-                   static_cast<u32>(data->buffer_size), static_cast<u32>(data->unk_14),
-                   static_cast<u32>(data->length_ptr), static_cast<u32>(data->unk_1c));
+      REXXAM_DEBUG(
+          "XamAppEnumerateContentAggregate({}, {:08X}, {:08X}, {:08X}, {}, "
+          "{:08X}, {:08X}, {:08X})",
+          static_cast<u32>(data->user_index), static_cast<u32>(data->unk_04),
+          static_cast<u32>(data->extra_ptr), static_cast<u32>(data->buffer_ptr),
+          static_cast<u32>(data->buffer_size), static_cast<u32>(data->unk_14),
+          static_cast<u32>(data->length_ptr), static_cast<u32>(data->unk_1c));
       auto extra = membase_.TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
       auto content_buffer = membase_.TranslateVirtual(data->buffer_ptr);
       auto e = title_.objects.Get<EnumeratorObject>(extra->handle);
@@ -89,7 +89,7 @@ kernel::X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
         be_u32 unk_48;
       }* data = reinterpret_cast<MessageData*>(buffer);
       REX_ASSERT(buffer_length == sizeof(MessageData));
-      REXLOG_DEBUG(xam, "XAMApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
+      REXXAM_DEBUG("XAMApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
                    static_cast<u32>(data->unk_40), static_cast<u32>(data->unk_44),
                    static_cast<u32>(data->unk_48));
       const auto device_id = content_.GetContentDeviceID(
@@ -102,7 +102,7 @@ kernel::X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       return kernel::X_E_SUCCESS;
     }
     case 0x00021012: {
-      REXLOG_DEBUG(xam, "XAMApp(0x00021012)");
+      REXXAM_DEBUG("XAMApp(0x00021012)");
       return kernel::X_E_SUCCESS;
     }
     case 0x00022005: {
@@ -111,17 +111,17 @@ kernel::X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
         be_u32 unk_04;
       }* data = reinterpret_cast<MessageData*>(buffer);
       REX_ASSERT(buffer_length == sizeof(MessageData));
-      REXLOG_DEBUG(xam, "XAMApp(0x00022005)(%.8X, %.8X)", static_cast<u32>(data->unk_00),
+      REXXAM_DEBUG("XAMApp(0x00022005)(%.8X, %.8X)", static_cast<u32>(data->unk_00),
                    static_cast<u32>(data->unk_04));
       return kernel::X_E_SUCCESS;
     }
     default:
       break;
   }
-  REX_FAIL(xam, kernel::X_E_FAIL,
-           "Unimplemented XAM message app={:08X}, msg={:08X}, arg1={:08X}, "
-           "arg2={:08X}",
-           GetAppID(), message, buffer_ptr, buffer_length);
+  REXXAM_FAIL(kernel::X_E_FAIL,
+              "Unimplemented XAM message app={:08X}, msg={:08X}, arg1={:08X}, "
+              "arg2={:08X}",
+              GetAppID(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

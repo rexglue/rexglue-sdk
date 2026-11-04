@@ -275,7 +275,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
 inline void CloseOwned(IObjectTable& table, X_HANDLE handle) noexcept {
   log::NoThrow(log::system, [&] {
     if (auto closed = table.Close(handle); !closed) {
-      REXLOG_WARN(system, "Handle {:08X} did not close, {}", handle, closed.error().message);
+      REXSYS_WARN("Handle {:08X} did not close, {}", handle, closed.error().message);
     }
   });
 }

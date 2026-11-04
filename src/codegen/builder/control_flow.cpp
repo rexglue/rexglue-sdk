@@ -27,8 +27,7 @@ namespace {
 void EmitBranchWithBoundsCheck(BuilderContext& ctx, u32 target, std::string_view condition,
                                std::string_view instr_name) {
   if (target < ctx.fn.GetBase() || target >= ctx.fn.GetEnd()) {
-    REXLOG_WARN(codegen, "{} at {:X} branches outside function to {:X}", instr_name, ctx.base,
-                target);
+    REXCG_WARN("{} at {:X} branches outside function to {:X}", instr_name, ctx.base, target);
     ctx.Println("\tif ({}) {{ /* branch to 0x{:X} outside function */ return; }}", condition,
                 target);
   } else {
@@ -62,7 +61,7 @@ bool Build<PPC_INST_B>(BuilderContext& ctx) {
       if (target >= ctx.fn.GetBase() && target < ctx.fn.GetEnd()) {
         ctx.Println("\tgoto loc_{:X};", target);
       } else {
-        REXLOG_WARN(codegen, "Unresolved b target 0x{:08X} from 0x{:08X}", target, ctx.base);
+        REXCG_WARN("Unresolved b target 0x{:08X} from 0x{:08X}", target, ctx.base);
         ctx.EmitFunctionCall(target);
         ctx.Println("\treturn;");
       }
@@ -92,9 +91,9 @@ bool Build<PPC_INST_BL>(BuilderContext& ctx) {
       break;
 
     case TargetType::kUnknown:
-      REXLOG_ERROR(codegen, "Unresolved bl target 0x{:08X} from 0x{:08X}", target, ctx.base);
+      REXCG_ERROR("Unresolved bl target 0x{:08X} from 0x{:08X}", target, ctx.base);
       ctx.Println("\t// ERROR: unresolved bl target 0x{:08X}", target);
-      ctx.Println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", ctx.base,
+      ctx.Println("\tREXCPU_FATAL(\"Unresolved call from 0x{:08X} to 0x{:08X}\");", ctx.base,
                   target);
       break;
   }
@@ -157,21 +156,19 @@ bool Build<PPC_INST_BCTR>(BuilderContext& ctx) {
             }
             ctx.Println("\t\t{}(ctx, base);", target_fn->GetName());
           } else {
-            REXLOG_ERROR(
-                codegen,
+            REXCG_ERROR(
                 "Jump target 0x{:08X} classified as function but not in graph at bctr 0x{:08X}",
                 label, ctx.base);
             ctx.Println(
-                "\t\tREX_FATAL(cpu, \"Jump target 0x{:08X} classified as function but not "
+                "\t\tREXCPU_FATAL(\"Jump target 0x{:08X} classified as function but not "
                 "in graph at bctr 0x{:08X}\");",
                 label, ctx.base);
           }
           ctx.Println("\t\treturn;");
           break;
         default:
-          REXLOG_ERROR(codegen, "Jump target 0x{:08X} unresolved at bctr 0x{:08X}", label,
-                       ctx.base);
-          ctx.Println("\t\tREX_FATAL(cpu, \"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");",
+          REXCG_ERROR("Jump target 0x{:08X} unresolved at bctr 0x{:08X}", label, ctx.base);
+          ctx.Println("\t\tREXCPU_FATAL(\"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");",
                       label, ctx.base);
           break;
       }

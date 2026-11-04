@@ -177,7 +177,7 @@ KeyboardMousePad::~KeyboardMousePad() = default;
 
 void KeyboardMousePad::RefreshBinds() {
   for (const std::string& message : bindings_.TakeParseErrors()) {
-    REXLOG_WARN(hid, "{}, the binding keeps its previous keys", message);
+    REXHID_WARN("{}, the binding keeps its previous keys", message);
   }
   const u32 generation = bindings_.GetGeneration();
   if (generation == bind_generation_) {

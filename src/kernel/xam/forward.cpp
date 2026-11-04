@@ -21,7 +21,7 @@ XAMForward::XAMForward(std::string_view name) : name_(name), next_(g_head) {
 }
 
 void XAMForward::ReportMissing() const {
-  REXLOG_ERROR(kernel, "{} was called and the rexxam module has no body for it", name_);
+  REXKRNL_ERROR("{} was called and the rexxam module has no body for it", name_);
 }
 
 Result<void> BindXAMForwards(std::span<const xam::XAMBody> bodies) {

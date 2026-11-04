@@ -259,29 +259,28 @@ void SDL3InputDriver::State::OnJoystickAddedLocked(const SDL_Event& event) {
   const SDL_JoystickID id = event.jdevice.which;
   const char* name = SDL_GetJoystickNameForID(id);
   const bool is_gamepad = SDL_IsGamepad(id);
-  REXLOG_DEBUG(hid,
-               "SDL JoystickAdded: \"{}\", VendorID(0x{:04X}), ProductID(0x{:04X}), mapped({})",
+  REXHID_DEBUG("SDL JoystickAdded: \"{}\", VendorID(0x{:04X}), ProductID(0x{:04X}), mapped({})",
                name ? name : "?", SDL_GetJoystickVendorForID(id), SDL_GetJoystickProductForID(id),
                is_gamepad);
   if (!is_gamepad) {
-    REXLOG_WARN(hid,
-                "SDL JoystickAdded: \"{}\" has no gamepad mapping, so it will not be usable. Add "
-                "one to the file named by hid.sdl.mappings_file.",
-                name ? name : "?");
+    REXHID_WARN(
+        "SDL JoystickAdded: \"{}\" has no gamepad mapping, so it will not be usable. Add "
+        "one to the file named by hid.sdl.mappings_file.",
+        name ? name : "?");
   }
 }
 
 void SDL3InputDriver::State::OnGamepadAddedLocked(const SDL_Event& event) {
   SDL_Gamepad* gamepad = SDL_OpenGamepad(event.gdevice.which);
   if (!gamepad) {
-    REXLOG_WARN(hid, "SDL: cannot open gamepad: {}", SDL_GetError());
+    REXHID_WARN("SDL: cannot open gamepad: {}", SDL_GetError());
     return;
   }
   Controller controller;
   controller.sdl = gamepad;
   controller.id = static_cast<PadDeviceID>(next_id++);
   controller.xinput_slot = GetXInputSlot(gamepad);
-  REXLOG_DEBUG(hid, "SDL GamepadAdded: \"{}\", VendorID(0x{:04X}), ProductID(0x{:04X}), slot {}",
+  REXHID_DEBUG("SDL GamepadAdded: \"{}\", VendorID(0x{:04X}), ProductID(0x{:04X}), slot {}",
                SDL_GetGamepadName(gamepad), SDL_GetGamepadVendor(gamepad),
                SDL_GetGamepadProduct(gamepad), controller.xinput_slot);
   if (controller.xinput_slot < 0 && SDL_GetGamepadPlayerIndex(gamepad) < 0) {
@@ -299,7 +298,7 @@ void SDL3InputDriver::State::OnGamepadAddedLocked(const SDL_Event& event) {
 void SDL3InputDriver::State::OnGamepadRemovedLocked(const SDL_Event& event) {
   Controller* controller = FindByInstance(event.gdevice.which);
   if (!controller) {
-    REXLOG_WARN(hid, "SDL GamepadRemoved: ignored, instance {} not in use.", event.gdevice.which);
+    REXHID_WARN("SDL GamepadRemoved: ignored, instance {} not in use.", event.gdevice.which);
     return;
   }
   SDL_CloseGamepad(controller->sdl);
@@ -425,7 +424,7 @@ Result<void> SDL3InputDriver::Initialize(IDriverContext& context) {
         }
         SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
         if (!SDL_InitSubSystem(SDL_INIT_EVENTS)) {
-          REXLOG_ERROR(hid, "SDL: failed to init events subsystem: {}", SDL_GetError());
+          REXHID_ERROR("SDL: failed to init events subsystem: {}", SDL_GetError());
           return;
         }
         state->events_up = true;
@@ -433,7 +432,7 @@ Result<void> SDL3InputDriver::Initialize(IDriverContext& context) {
         SDL_AddEventWatch(&State::EventWatch, state.get());
 
         if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
-          REXLOG_ERROR(hid, "SDL: failed to init gamepad subsystem: {}", SDL_GetError());
+          REXHID_ERROR("SDL: failed to init gamepad subsystem: {}", SDL_GetError());
           return;
         }
         state->gamepad_up = true;
@@ -443,18 +442,18 @@ Result<void> SDL3InputDriver::Initialize(IDriverContext& context) {
           const std::filesystem::path path =
               mappings.is_relative() ? rex::platform::GetExecutableFolder() / mappings : mappings;
           if (!std::filesystem::exists(path)) {
-            REXLOG_WARN(hid, "SDL GameControllerDB: file '{}' does not exist.", path.string());
+            REXHID_WARN("SDL GameControllerDB: file '{}' does not exist.", path.string());
           } else {
             const int count = SDL_AddGamepadMappingsFromFile(path.string().c_str());
             if (count < 0) {
-              REXLOG_ERROR(hid, "SDL GameControllerDB: error loading file '{}': {}.", path.string(),
+              REXHID_ERROR("SDL GameControllerDB: error loading file '{}': {}.", path.string(),
                            SDL_GetError());
             } else {
-              REXLOG_INFO(hid, "SDL GameControllerDB: loaded {} mappings.", count);
+              REXHID_INFO("SDL GameControllerDB: loaded {} mappings.", count);
             }
           }
         }
-        REXLOG_INFO(hid, "SDL input driver initialized");
+        REXHID_INFO("SDL input driver initialized");
       });
   if (!ran) {
     state_->running = false;
@@ -491,7 +490,7 @@ void SDL3InputDriver::Shutdown() {
     }
   });
   if (!ran) {
-    REXLOG_WARN(hid, "SDL input was not stopped, {}", ran.error().message);
+    REXHID_WARN("SDL input was not stopped, {}", ran.error().message);
   }
 }
 

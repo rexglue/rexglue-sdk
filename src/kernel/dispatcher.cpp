@@ -141,27 +141,27 @@ void Dispatcher::CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<void()> 
 void Dispatcher::CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<CompletionOptions()> work,
                                   rex::MoveOnlyFunction<void()> pre,
                                   rex::MoveOnlyFunction<void()> post) {
-  REXLOG_DEBUG(system, "CompleteDeferred: queuing for overlapped {:08X}", overlapped);
+  REXSYS_DEBUG("CompleteDeferred: queuing for overlapped {:08X}", overlapped);
   auto ptr = StateOf(runtime_).GetMemory()->TranslateVirtual(overlapped);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
   std::lock_guard lock(dispatch_mutex_);
   dispatch_queue_.push_back([this, work = std::move(work), overlapped, pre = std::move(pre),
                              post = std::move(post)]() mutable {
-    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running pre", overlapped);
+    REXSYS_DEBUG("Deferred overlapped {:08X}: running pre", overlapped);
     if (pre) {
       pre();
     }
-    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: sleeping {}ms", overlapped,
+    REXSYS_DEBUG("Deferred overlapped {:08X}: sleeping {}ms", overlapped,
                  kDeferredOverlappedDelayMillis);
     rex::platform::SleepFor(std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
-    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running completion", overlapped);
+    REXSYS_DEBUG("Deferred overlapped {:08X}: running completion", overlapped);
     const CompletionOptions options = work();
-    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: completing with result {:08X}", overlapped,
+    REXSYS_DEBUG("Deferred overlapped {:08X}: completing with result {:08X}", overlapped,
                  options.result);
     CompleteOverlappedEx(overlapped, options.result, ExtendedError(options), Length(options));
     if (post) {
-      REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running post", overlapped);
+      REXSYS_DEBUG("Deferred overlapped {:08X}: running post", overlapped);
       post();
     }
   });
@@ -310,7 +310,7 @@ void Dispatcher::Start() {
       dpc_stack_base_ = stack->alloc_base;
       dpc_stack_top_ = stack->base - kDPCStackTopReserve;
     } else {
-      REXLOG_ERROR(system, "Unable to allocate the DPC stack");
+      REXSYS_ERROR("Unable to allocate the DPC stack");
     }
   }
   dispatch_thread_running_ = true;
@@ -324,19 +324,18 @@ void Dispatcher::Start() {
       }
       auto fn = std::move(dispatch_queue_.front());
       dispatch_queue_.pop_front();
-      REXLOG_DEV(system, "Dispatch thread processing queued item ({} remaining)",
-                 dispatch_queue_.size());
+      REXSYS_DEV("Dispatch thread processing queued item ({} remaining)", dispatch_queue_.size());
       lock.unlock();
       try {
         fn();
       } catch (const rex::ThreadStop&) {
         throw;
       } catch (const std::exception& e) {
-        REX_FATAL(system, "Dispatch thread: deferred completion threw '{}'", e.what());
+        REXSYS_FATAL("Dispatch thread: deferred completion threw '{}'", e.what());
       } catch (...) {
-        REX_FATAL(system, "Dispatch thread: deferred completion threw non-std exception");
+        REXSYS_FATAL("Dispatch thread: deferred completion threw non-std exception");
       }
-      REXLOG_DEV(system, "Dispatch thread completed item");
+      REXSYS_DEV("Dispatch thread completed item");
       lock.lock();
     }
     return 0;
@@ -346,8 +345,7 @@ void Dispatcher::Start() {
   if (!launched) {
     dispatch_thread_running_ = false;
     dispatch_thread_ = 0;
-    REX_FATAL(system, "Failed to create kernel dispatch thread (status {:#x})",
-              ToXStatus(launched));
+    REXSYS_FATAL("Failed to create kernel dispatch thread (status {:#x})", ToXStatus(launched));
   }
   dispatch_thread_ = *launched;
 }
@@ -383,7 +381,7 @@ void Dispatcher::Stop(std::chrono::milliseconds interval) {
       std::vector<ThreadPin> threads;
       threads.push_back(std::move(thread));
       WaitForThreadsToStop(threads, interval, [interval](const ThreadPin&) {
-        REXLOG_WARN(system, "Kernel Dispatch thread still running after {} ms", interval.count());
+        REXSYS_WARN("Kernel Dispatch thread still running after {} ms", interval.count());
       });
     }
     CloseOwned(runtime_.GetObjectTable(), dispatch_thread_);

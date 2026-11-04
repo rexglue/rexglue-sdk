@@ -42,6 +42,7 @@ set(REQUIRED_SUBMODULES
     tomlplusplus
     simde
     xxHash
+    spdlog
     imgui
     sdl3
 )
@@ -166,6 +167,22 @@ set(XXHASH_BUILD_XXHSUM OFF)
 set(XXHASH_BUNDLED_MODE ON)
 add_subdirectory(xxHash/cmake_unofficial)
 target_compile_options(xxhash PRIVATE -w)
+
+# spdlog - logging engine behind the rex logger (git submodule, static, std::format)
+set(SPDLOG_BUILD_SHARED OFF)
+set(SPDLOG_BUILD_PIC ON)
+set(SPDLOG_USE_STD_FORMAT ON)
+set(SPDLOG_DISABLE_DEFAULT_LOGGER ON)
+if (WIN32)
+  set(SPDLOG_WCHAR_FILENAMES ON)
+endif ()
+set(SPDLOG_BUILD_EXAMPLE OFF)
+set(SPDLOG_BUILD_TESTS OFF)
+set(SPDLOG_BUILD_BENCH OFF)
+set(SPDLOG_INSTALL OFF)
+set(SPDLOG_SYSTEM_INCLUDES ON)
+add_subdirectory(spdlog)
+target_compile_options(spdlog PRIVATE -w)
 
 # disasm - PowerPC disassembler (existing local library)
 add_subdirectory(disasm)

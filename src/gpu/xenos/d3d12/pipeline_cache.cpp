@@ -126,19 +126,19 @@ bool PipelineCache::Initialize() {
   if (command_processor_.GetD3D12Settings().dxbc_disasm_dxilconv.Get()) {
     if (FAILED(provider.DXBCConverterCreateInstance(CLSID_DxbcConverter,
                                                     IID_PPV_ARGS(&dxbc_converter_)))) {
-      REXLOG_ERROR(gpu,
-                   "Failed to create DxbcConverter, converted DXIL disassembly for "
-                   "debugging will be unavailable");
+      REXGPU_ERROR(
+          "Failed to create DxbcConverter, converted DXIL disassembly for "
+          "debugging will be unavailable");
     }
     if (FAILED(provider.DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils_)))) {
-      REXLOG_ERROR(gpu,
-                   "Failed to create DxcUtils, converted DXIL disassembly for debugging "
-                   "will be unavailable");
+      REXGPU_ERROR(
+          "Failed to create DxcUtils, converted DXIL disassembly for debugging "
+          "will be unavailable");
     }
     if (FAILED(provider.DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxc_compiler_)))) {
-      REXLOG_ERROR(gpu,
-                   "Failed to create DxcCompiler, converted DXIL disassembly for "
-                   "debugging will be unavailable");
+      REXGPU_ERROR(
+          "Failed to create DxcCompiler, converted DXIL disassembly for "
+          "debugging will be unavailable");
     }
   }
 
@@ -222,10 +222,10 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   auto shader_storage_shareable_root = shader_storage_root / "shareable";
   if (!std::filesystem::exists(shader_storage_shareable_root)) {
     if (!std::filesystem::create_directories(shader_storage_shareable_root)) {
-      REXLOG_ERROR(gpu,
-                   "Failed to create the shareable shader storage directory, persistent "
-                   "shader storage will be disabled, path {}",
-                   rex::string::PathToUTF8(shader_storage_shareable_root));
+      REXGPU_ERROR(
+          "Failed to create the shareable shader storage directory, persistent "
+          "shader storage will be disabled, path {}",
+          rex::string::PathToUTF8(shader_storage_shareable_root));
       return;
     }
   }
@@ -240,10 +240,10 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       std::format("{:08X}.{}.d3d12.xpso", title_id, edram_rov_used ? "rov" : "rtv");
   storage_.pipeline_file_path = pipeline_storage_file_path;
   if (!platform::OpenStorageFile(storage_.pipeline_file, pipeline_storage_file_path)) {
-    REXLOG_ERROR(gpu,
-                 "Failed to open the Direct3D 12 pipeline description storage file for "
-                 "writing, persistent shader storage will be disabled, path {}",
-                 rex::string::PathToUTF8(pipeline_storage_file_path));
+    REXGPU_ERROR(
+        "Failed to open the Direct3D 12 pipeline description storage file for "
+        "writing, persistent shader storage will be disabled, path {}",
+        rex::string::PathToUTF8(pipeline_storage_file_path));
     return;
   }
   storage_.pipeline_file_flush_needed = false;
@@ -309,10 +309,10 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
   storage_.shader_file_path = shader_storage_file_path;
   if (!platform::OpenStorageFile(storage_.shader_file, shader_storage_file_path)) {
-    REXLOG_ERROR(gpu,
-                 "Failed to open the title shader storage file for writing, persistent "
-                 "shader storage will be disabled, path {}",
-                 rex::string::PathToUTF8(shader_storage_file_path));
+    REXGPU_ERROR(
+        "Failed to open the title shader storage file for writing, persistent "
+        "shader storage will be disabled, path {}",
+        rex::string::PathToUTF8(shader_storage_file_path));
     storage_.pipeline_file.close();
     return;
   }
@@ -474,8 +474,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
         }
       }
     }
-    REXLOG_INFO(gpu, "Translated {} shaders from the storage in {} milliseconds",
-                shaders_translated,
+    REXGPU_INFO("Translated {} shaders from the storage in {} milliseconds", shaders_translated,
                 (rex::Clock::GetHostTickCount() - shader_storage_initialization_start) * 1000 /
                     rex::Clock::GetHostTickFrequency());
     platform::ResetStorageFile(storage_.shader_file, storage_.shader_file_path,
@@ -641,12 +640,12 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       }
     }
 
-    REXLOG_INFO(gpu,
-                "Created {} graphics pipelines (not including reading the "
-                "descriptions) from the storage in {} milliseconds",
-                pipelines_created,
-                (rex::Clock::GetHostTickCount() - pipeline_creation_start) * 1000 /
-                    rex::Clock::GetHostTickFrequency());
+    REXGPU_INFO(
+        "Created {} graphics pipelines (not including reading the "
+        "descriptions) from the storage in {} milliseconds",
+        pipelines_created,
+        (rex::Clock::GetHostTickCount() - pipeline_creation_start) * 1000 /
+            rex::Clock::GetHostTickFrequency());
     platform::ResetStorageFile(
         storage_.pipeline_file, storage_.pipeline_file_path,
         static_cast<u64>(sizeof(pipeline_storage_file_header) +
@@ -853,7 +852,7 @@ bool PipelineCache::ConfigurePipeline(
     if (!vertex_shader->IsTranslated()) {
       if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader, dxbc_converter_, dxc_utils_,
                                    dxc_compiler_)) {
-        REX_FAIL(gpu, false, "Failed to translate the vertex shader!");
+        REXGPU_FAIL(false, "Failed to translate the vertex shader!");
       }
       if (storage_.shader_file.is_open() &&
           vertex_shader->GetShader().GetUcodeStorageIndex() != storage_.shader_index) {
@@ -879,7 +878,7 @@ bool PipelineCache::ConfigurePipeline(
             ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
         if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader, dxbc_converter_,
                                      dxc_utils_, dxc_compiler_)) {
-          REX_FAIL(gpu, false, "Failed to translate the pixel shader!");
+          REXGPU_FAIL(false, "Failed to translate the pixel shader!");
         }
         if (storage_.shader_file.is_open() &&
             pixel_shader->GetShader().GetUcodeStorageIndex() != storage_.shader_index) {
@@ -981,8 +980,8 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
 
   translator.SetOptions(GetDXBCOptions());
   if (!translator.TranslateAnalyzedShader(translation)) {
-    REX_FAIL(gpu, false, "Shader {:016X} translation failed and the shader is marked as ignored",
-             shader.GetUcodeDataHash());
+    REXGPU_FAIL(false, "Shader {:016X} translation failed and the shader is marked as ignored",
+                shader.GetUcodeDataHash());
   }
 
   const char* host_shader_type;
@@ -1015,7 +1014,7 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
   } else {
     host_shader_type = "pixel";
   }
-  REXLOG_DEV(gpu, "Generated {} shader ({}b) with hash {:016X}\n{}\n", host_shader_type,
+  REXGPU_DEV("Generated {} shader ({}b) with hash {:016X}\n{}\n", host_shader_type,
              shader.GetUcodeDwordCount() * sizeof(u32), shader.GetUcodeDataHash(),
              shader.GetUcodeDisassembly().c_str());
 
@@ -2363,11 +2362,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   const PipelineDescription& description = runtime_description.description;
 
   if (runtime_description.pixel_shader != nullptr) {
-    REXLOG_DEBUG(gpu, "Creating graphics pipeline with VS {:016X}, PS {:016X}",
+    REXGPU_DEBUG("Creating graphics pipeline with VS {:016X}, PS {:016X}",
                  runtime_description.vertex_shader->GetShader().GetUcodeDataHash(),
                  runtime_description.pixel_shader->GetShader().GetUcodeDataHash());
   } else {
-    REXLOG_DEBUG(gpu, "Creating graphics pipeline with VS {:016X}",
+    REXGPU_DEBUG("Creating graphics pipeline with VS {:016X}",
                  runtime_description.vertex_shader->GetShader().GetUcodeDataHash());
   }
 
@@ -2391,7 +2390,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   }
 
   if (!runtime_description.vertex_shader->IsTranslated()) {
-    REXLOG_ERROR(gpu, "Vertex shader {:016X} not translated",
+    REXGPU_ERROR("Vertex shader {:016X} not translated",
                  runtime_description.vertex_shader->GetShader().GetUcodeDataHash());
     REX_ASSERT_ALWAYS();
     return nullptr;
@@ -2506,7 +2505,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
 
   if (runtime_description.pixel_shader != nullptr) {
     if (!runtime_description.pixel_shader->IsTranslated()) {
-      REXLOG_ERROR(gpu, "Pixel shader {:016X} not translated",
+      REXGPU_ERROR("Pixel shader {:016X} not translated",
                    runtime_description.pixel_shader->GetShader().GetUcodeDataHash());
       REX_ASSERT_ALWAYS();
       return nullptr;
@@ -2689,11 +2688,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   ID3D12PipelineState* state;
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc, IID_PPV_ARGS(&state)))) {
     if (runtime_description.pixel_shader != nullptr) {
-      REXLOG_ERROR(gpu, "Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
+      REXGPU_ERROR("Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
                    runtime_description.vertex_shader->GetShader().GetUcodeDataHash(),
                    runtime_description.pixel_shader->GetShader().GetUcodeDataHash());
     } else {
-      REXLOG_ERROR(gpu, "Failed to create graphics pipeline with VS {:016X}",
+      REXGPU_ERROR("Failed to create graphics pipeline with VS {:016X}",
                    runtime_description.vertex_shader->GetShader().GetUcodeDataHash());
     }
     return nullptr;
@@ -2806,7 +2805,7 @@ bool PipelineCache::PrepareRuntimeDescriptionForQueuedCreation(
             ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
         if (!TranslateAnalyzedShader(*shader_translator_, *translation, dxbc_converter_, dxc_utils_,
                                      dxc_compiler_)) {
-          REX_FAIL(gpu, false, "Failed to translate queued {} shader", shader_type);
+          REXGPU_FAIL(false, "Failed to translate queued {} shader", shader_type);
         }
         if (storage_.shader_file.is_open() &&
             translation->GetShader().GetUcodeStorageIndex() != storage_.shader_index) {

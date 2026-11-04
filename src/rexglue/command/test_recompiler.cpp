@@ -124,12 +124,12 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
 
   std::error_code ec;
   if (!fs::is_directory(bin_dir, ec)) {
-    REXLOG_ERROR(rexglue, "Binary folder not found: {}", bin_dir);
+    REXGLUE_ERROR("Binary folder not found: {}", bin_dir);
     return false;
   }
   fs::create_directories(out_dir, ec);
   if (ec) {
-    REXLOG_ERROR(rexglue, "Cannot create output folder {}: {}", out_dir, ec.message());
+    REXGLUE_ERROR("Cannot create output folder {}: {}", out_dir, ec.message());
     return false;
   }
 
@@ -144,17 +144,17 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
       continue;
     ++binary_count;
     auto stem = entry.path().stem().string();
-    REXLOG_DEBUG(rexglue, "Processing binary file: {}", stem);
+    REXGLUE_DEBUG("Processing binary file: {}", stem);
 
     auto loaded = rex::platform::ReadHostFile(entry.path());
     if (!loaded) {
-      REXLOG_ERROR(rexglue, "Failed to load binary file: {}", entry.path().string());
+      REXGLUE_ERROR("Failed to load binary file: {}", entry.path().string());
       succeeded = false;
       continue;
     }
     std::vector<u8> file_data = std::move(*loaded);
     if (file_data.empty()) {
-      REXLOG_ERROR(rexglue, "Binary file is empty: {}", entry.path().string());
+      REXGLUE_ERROR("Binary file is empty: {}", entry.path().string());
       succeeded = false;
       continue;
     }
@@ -162,7 +162,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
     auto map_path = std::format("{}/{}.map", bin_dir, stem);
     auto symbols = ParseMapFile(map_path);
     if (symbols.empty()) {
-      REXLOG_ERROR(rexglue, "No symbols found in map file: {}", map_path);
+      REXGLUE_ERROR("No symbols found in map file: {}", map_path);
       succeeded = false;
       continue;
     }
@@ -184,7 +184,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
     codegen::AnalyzeTestBinary(ctx, stem, symbols, kTestBaseAddress, file_data.data(),
                                file_data.size());
 
-    REXLOG_DEBUG(rexglue, "  Found {} functions", ctx.graph.GetFunctionCount());
+    REXGLUE_DEBUG("  Found {} functions", ctx.graph.GetFunctionCount());
 
     std::vector<const codegen::FunctionNode*> functions;
     for (const auto& [addr, node] : ctx.graph.GetFunctions())
@@ -208,7 +208,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   }
 
   if (binary_count == 0) {
-    REXLOG_ERROR(rexglue, "No .bin files found in {}", bin_dir);
+    REXGLUE_ERROR("No .bin files found in {}", bin_dir);
     return false;
   }
 
@@ -271,11 +271,11 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   for (const auto& [stem, addresses] : functions_by_file) {
     std::ifstream asm_file(std::format("{}/{}.s", asm_dir, stem));
     if (!asm_file.is_open()) {
-      REXLOG_WARN(rexglue, "Unable to open assembly file: {}/{}.s", asm_dir, stem);
+      REXGLUE_WARN("Unable to open assembly file: {}/{}.s", asm_dir, stem);
     }
     auto specs = ParseTestSpecs(asm_file, all_symbols);
     if (!specs) {
-      REXLOG_ERROR(rexglue, "{}.s: {}", stem, specs.error().GetDescription());
+      REXGLUE_ERROR("{}.s: {}", stem, specs.error().GetDescription());
       succeeded = false;
       continue;
     }
@@ -301,7 +301,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
     if (auto written =
             rex::platform::WriteHostFile(std::format("{}/{}", out_dir, filename), rendered);
         !written) {
-      REXLOG_ERROR(rexglue, "write failed: {}", written.error().GetDescription());
+      REXGLUE_ERROR("write failed: {}", written.error().GetDescription());
       succeeded = false;
     }
   };
@@ -310,7 +310,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   write_rendered("test/ppc_test_functions_cpp", "ppc_test_functions.cpp");
   write_rendered("test/ppc_test_cases_cpp", "ppc_test_cases.cpp");
 
-  REXLOG_TRACE(rexglue, "Generated {} test cases", total_tests);
+  REXGLUE_TRACE("Generated {} test cases", total_tests);
   return succeeded;
 }
 

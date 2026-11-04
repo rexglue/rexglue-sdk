@@ -56,18 +56,18 @@ std::string DescribeLimit(u64 value) {
 void LogOpenFileLimit() {
   const auto raised = platform::RaiseOpenFileLimit();
   if (!raised) {
-    REXLOG_WARN(core, "cannot raise the open file limit, {}", raised.error().message);
+    REXLOG_WARN("cannot raise the open file limit, {}", raised.error().message);
     return;
   }
   if (raised->hard == 0) {
     return;
   }
   if (raised->after > raised->before) {
-    REXLOG_INFO(core, "open file limit raised from {} to {}, hard limit {}",
+    REXLOG_INFO("open file limit raised from {} to {}, hard limit {}",
                 DescribeLimit(raised->before), DescribeLimit(raised->after),
                 DescribeLimit(raised->hard));
   } else {
-    REXLOG_INFO(core, "open file limit is {}, hard limit {}", DescribeLimit(raised->after),
+    REXLOG_INFO("open file limit is {}, hard limit {}", DescribeLimit(raised->after),
                 DescribeLimit(raised->hard));
   }
 }
@@ -175,7 +175,7 @@ struct App::State final : IAppInfo {
 
   static void DrainNotices(ISettingsControl& control) {
     for (const std::string& notice : control.TakeNotices()) {
-      REXLOG_WARN(core, "{}", notice);
+      REXLOG_WARN("{}", notice);
     }
   }
 };
@@ -198,9 +198,9 @@ App::~App() {
     try {
       Shutdown();
     } catch (const std::exception& error) {
-      REXLOG_ERROR(core, "Shutdown from the destructor failed, {}", error.what());
+      REXLOG_ERROR("Shutdown from the destructor failed, {}", error.what());
     } catch (...) {
-      REXLOG_ERROR(core, "Shutdown from the destructor failed with an unknown exception");
+      REXLOG_ERROR("Shutdown from the destructor failed with an unknown exception");
     }
   }
   if (state_->stage != State::Stage::kNone && detail::ReleaseInitOwner(this)) {
@@ -269,7 +269,7 @@ void App::OnStop() {}
 void App::OnRelease() {}
 
 void App::ReportError(std::string_view message) {
-  REXLOG_ERROR(core, "{}", message);
+  REXLOG_ERROR("{}", message);
 }
 
 platform::CrashReporterOptions App::GetCrashOptions() {
@@ -398,7 +398,7 @@ Result<void> App::Init(const CLIArgList& args) {
 
     logger_control.ApplySettled();
     if (auto opened = logger_control.OpenFile(log_root.Get(), state.name); !opened) {
-      REXLOG_WARN(core, "{}", opened.error().GetDescription());
+      REXLOG_WARN("{}", opened.error().GetDescription());
     }
     State::DrainNotices(settings_control);
 
@@ -459,7 +459,7 @@ Result<void> App::ReportUnknownSettings() {
                           unknown.name);
     } else if (unknown.layer == SettingLayer::kFile ||
                unknown.layer == SettingLayer::kEnvironment) {
-      REXLOG_WARN(core, "unknown setting '{}' from {}", unknown.name,
+      REXLOG_WARN("unknown setting '{}' from {}", unknown.name,
                   unknown.layer == SettingLayer::kFile ? "Config" : "Environment");
     }
   }
@@ -476,29 +476,28 @@ void App::Run() {
 }
 
 rex::hid::IInputSystem& App::GetInput() {
-  REX_CHECK(core, state_->input, "GetInput is valid from OnConfigure, once the modules connect");
+  REX_CHECK(state_->input, "GetInput is valid from OnConfigure, once the modules connect");
   return *state_->input;
 }
 
 rex::gpu::IGraphicsSystem& App::GetGraphics() {
-  REX_CHECK(core, state_->graphics,
-            "GetGraphics is valid from OnConfigure, once the modules connect");
+  REX_CHECK(state_->graphics, "GetGraphics is valid from OnConfigure, once the modules connect");
   return *state_->graphics;
 }
 
 rex::ui::IUISystem& App::GetUI() {
-  REX_CHECK(core, state_->ui, "GetUI is valid from OnConfigure, once the modules connect");
+  REX_CHECK(state_->ui, "GetUI is valid from OnConfigure, once the modules connect");
   return *state_->ui;
 }
 
 IFactory& App::GetControlFactory() {
-  REX_CHECK(core, state_->private_host,
+  REX_CHECK(state_->private_host,
             "GetControlFactory is valid from OnConfigure, once the modules connect");
   return *state_->private_host;
 }
 
 rex::apu::IAudioSystem& App::GetAudio() {
-  REX_CHECK(core, state_->audio, "GetAudio is valid from OnConfigure, once the modules connect");
+  REX_CHECK(state_->audio, "GetAudio is valid from OnConfigure, once the modules connect");
   return *state_->audio;
 }
 
@@ -545,7 +544,7 @@ int App::Shutdown() {
       relaunch_args.assign(state.args.GetAll().begin(), state.args.GetAll().end());
     }
     if (auto relaunched = detail::RelaunchProcess(relaunch_args); !relaunched) {
-      REXLOG_ERROR(core, "relaunch failed: {}", relaunched.error().GetDescription());
+      REXLOG_ERROR("relaunch failed: {}", relaunched.error().GetDescription());
     }
   }
   if (state.logger) {

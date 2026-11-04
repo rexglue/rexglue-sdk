@@ -20,8 +20,8 @@
 namespace rex::kernel {
 
 void detail::AbortNoRuntime() {
-  REX_FATAL(system, "GetCurrent() called on thread 0x{:X}, which has no runtime",
-            rex::platform::GetCallerThreadID());
+  REXSYS_FATAL("GetCurrent() called on thread 0x{:X}, which has no runtime",
+               rex::platform::GetCallerThreadID());
 }
 
 thread_local ThreadState* thread_state = nullptr;

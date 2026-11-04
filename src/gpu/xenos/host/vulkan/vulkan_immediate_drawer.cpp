@@ -122,15 +122,15 @@ bool VulkanImmediateDrawer::Initialize() {
   texture_descriptor_set_layout_create_info.pBindings = &texture_descriptor_set_layout_binding;
   if (dfn.vkCreateDescriptorSetLayout(device, &texture_descriptor_set_layout_create_info, nullptr,
                                       &texture_descriptor_set_layout_) != VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanImmediateDrawer: Failed to create the combined image sampler "
-             "descriptor set layout");
+    REXUI_FAIL(false,
+               "VulkanImmediateDrawer: Failed to create the combined image sampler "
+               "descriptor set layout");
   }
 
   size_t white_texture_pending_upload_index;
   if (!CreateTextureResource(1, 1, gpu::OverlayTextureFilter::kNearest, false, nullptr,
                              white_texture_, white_texture_pending_upload_index)) {
-    REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create a white texture");
+    REXUI_FAIL(false, "VulkanImmediateDrawer: Failed to create a white texture");
   }
 
   vertex_buffer_pool_ = std::make_unique<VulkanUploadBufferPool>(
@@ -151,7 +151,7 @@ bool VulkanImmediateDrawer::Initialize() {
   pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges;
   if (dfn.vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr,
                                  &pipeline_layout_) != VK_SUCCESS) {
-    REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create the pipeline layout");
+    REXUI_FAIL(false, "VulkanImmediateDrawer: Failed to create the pipeline layout");
   }
 
   batch_open_ = false;
@@ -264,8 +264,8 @@ void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
       vertex_buffer_pool_->Request(last_paint_submission_index_, vertex_buffer_size, sizeof(f32),
                                    vertex_buffer, vertex_buffer_offset);
   if (!vertex_buffer_mapping) {
-    REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to get a buffer for {} vertices",
-                 batch.vertices.size());
+    REXUI_ERROR("VulkanImmediateDrawer: Failed to get a buffer for {} vertices",
+                batch.vertices.size());
     return;
   }
   std::memcpy(vertex_buffer_mapping, batch.vertices.data(), vertex_buffer_size);
@@ -280,8 +280,8 @@ void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
         vertex_buffer_pool_->Request(last_paint_submission_index_, index_buffer_size, sizeof(u16),
                                      index_buffer, index_buffer_offset);
     if (!index_buffer_mapping) {
-      REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to get a buffer for {} indices",
-                   batch.indices.size());
+      REXUI_ERROR("VulkanImmediateDrawer: Failed to get a buffer for {} indices",
+                  batch.indices.size());
       return;
     }
     std::memcpy(index_buffer_mapping, batch.indices.data(), index_buffer_size);
@@ -513,12 +513,12 @@ bool VulkanImmediateDrawer::CreatePipelinesForCurrentRenderPass() {
   stages[0].module = objects::CreateShaderModule(vulkan_device_, shaders::kImmediateVS,
                                                  sizeof(shaders::kImmediateVS));
   if (stages[0].module == VK_NULL_HANDLE) {
-    REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create the vertex shader module");
+    REXUI_FAIL(false, "VulkanImmediateDrawer: Failed to create the vertex shader module");
   }
   stages[1].module = objects::CreateShaderModule(vulkan_device_, shaders::kImmediatePS,
                                                  sizeof(shaders::kImmediatePS));
   if (stages[1].module == VK_NULL_HANDLE) {
-    REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to create the fragment shader module");
+    REXUI_ERROR("VulkanImmediateDrawer: Failed to create the fragment shader module");
     dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
     return false;
   }
@@ -625,7 +625,7 @@ bool VulkanImmediateDrawer::CreatePipelinesForCurrentRenderPass() {
   pipeline_create_info.basePipelineIndex = -1;
   if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
                                     &pipeline_triangle_) != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to create the triangle list pipeline");
+    REXUI_ERROR("VulkanImmediateDrawer: Failed to create the triangle list pipeline");
     dfn.vkDestroyShaderModule(device, stages[1].module, nullptr);
     dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
     return false;
@@ -641,7 +641,7 @@ bool VulkanImmediateDrawer::CreatePipelinesForCurrentRenderPass() {
   dfn.vkDestroyShaderModule(device, stages[1].module, nullptr);
   dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
   if (pipeline_line_create_result != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to create the line list pipeline");
+    REXUI_ERROR("VulkanImmediateDrawer: Failed to create the line list pipeline");
     dfn.vkDestroyPipeline(device, pipeline_triangle_, nullptr);
     pipeline_triangle_ = VK_NULL_HANDLE;
     return false;
@@ -706,17 +706,17 @@ u32 VulkanImmediateDrawer::AllocateTextureDescriptor() {
   VkDescriptorPool descriptor_pool;
   if (dfn.vkCreateDescriptorPool(device, &descriptor_pool_create_info, nullptr, &descriptor_pool) !=
       VK_SUCCESS) {
-    REX_FAIL(ui, UINT32_MAX,
-             "VulkanImmediateDrawer: Failed to create a combined image sampler "
-             "descriptor pool with {} descriptors",
-             TextureDescriptorPool::kDescriptorCount);
+    REXUI_FAIL(UINT32_MAX,
+               "VulkanImmediateDrawer: Failed to create a combined image sampler "
+               "descriptor pool with {} descriptors",
+               TextureDescriptorPool::kDescriptorCount);
   }
   allocate_info.descriptorPool = descriptor_pool;
   VkDescriptorSet descriptor_set;
   if (dfn.vkAllocateDescriptorSets(device, &allocate_info, &descriptor_set) != VK_SUCCESS) {
-    REXLOG_ERROR(ui,
-                 "VulkanImmediateDrawer: Failed to allocate a combined image sampler "
-                 "descriptor");
+    REXUI_ERROR(
+        "VulkanImmediateDrawer: Failed to allocate a combined image sampler "
+        "descriptor");
     dfn.vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
     return UINT32_MAX;
   }
@@ -788,10 +788,10 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
   if (!objects::CreateDedicatedAllocationImage(vulkan_device_, image_create_info,
                                                objects::MemoryPurpose::kDeviceLocal, image,
                                                image_memory)) {
-    REX_FAIL(ui, false,
-             "VulkanImmediateDrawer: Failed to create an image with dedicated "
-             "memory for a {}x{} texture",
-             width, height);
+    REXUI_FAIL(false,
+               "VulkanImmediateDrawer: Failed to create an image with dedicated "
+               "memory for a {}x{} texture",
+               width, height);
   }
 
   VkImageViewCreateInfo image_view_create_info;
@@ -811,10 +811,10 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
   image_view_create_info.subresourceRange = objects::BuildSubresourceRange();
   VkImageView image_view;
   if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &image_view) != VK_SUCCESS) {
-    REXLOG_ERROR(ui,
-                 "VulkanImmediateDrawer: Failed to create an image view for a {}x{} "
-                 "image",
-                 width, height);
+    REXUI_ERROR(
+        "VulkanImmediateDrawer: Failed to create an image view for a {}x{} "
+        "image",
+        width, height);
     dfn.vkDestroyImage(device, image, nullptr);
     dfn.vkFreeMemory(device, image_memory, nullptr);
     return false;
@@ -822,7 +822,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
 
   u32 descriptor_index = AllocateTextureDescriptor();
   if (descriptor_index == UINT32_MAX) {
-    REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to allocate a descriptor for an image");
+    REXUI_ERROR("VulkanImmediateDrawer: Failed to allocate a descriptor for an image");
     dfn.vkDestroyImageView(device, image_view, nullptr);
     dfn.vkDestroyImage(device, image, nullptr);
     dfn.vkFreeMemory(device, image_memory, nullptr);
@@ -862,10 +862,10 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
             vulkan_device_, static_cast<VkDeviceSize>(data_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             objects::MemoryPurpose::kUpload, upload_buffer, upload_buffer_memory,
             &upload_buffer_memory_type)) {
-      REXLOG_ERROR(ui,
-                   "VulkanImmediateDrawer: Failed to create an upload buffer for a "
-                   "{}x{} image",
-                   width, height);
+      REXUI_ERROR(
+          "VulkanImmediateDrawer: Failed to create an upload buffer for a "
+          "{}x{} image",
+          width, height);
       FreeTextureDescriptor(descriptor_index);
       dfn.vkDestroyImageView(device, image_view, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
@@ -875,10 +875,10 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
     void* upload_buffer_mapping;
     if (dfn.vkMapMemory(device, upload_buffer_memory, 0, VK_WHOLE_SIZE, 0,
                         &upload_buffer_mapping) != VK_SUCCESS) {
-      REXLOG_ERROR(ui,
-                   "VulkanImmediateDrawer: Failed to map upload buffer memory for a "
-                   "{}x{} image",
-                   width, height);
+      REXUI_ERROR(
+          "VulkanImmediateDrawer: Failed to map upload buffer memory for a "
+          "{}x{} image",
+          width, height);
       dfn.vkDestroyBuffer(device, upload_buffer, nullptr);
       dfn.vkFreeMemory(device, upload_buffer_memory, nullptr);
       FreeTextureDescriptor(descriptor_index);

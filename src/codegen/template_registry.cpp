@@ -87,7 +87,7 @@ TemplateRegistry& TemplateRegistry::operator=(TemplateRegistry&&) noexcept = def
 
 void TemplateRegistry::LoadOverrides(const std::filesystem::path& dir) {
   if (!std::filesystem::exists(dir)) {
-    REXLOG_WARN(codegen, "Override directory does not exist: {}", dir.string());
+    REXCG_WARN("Override directory does not exist: {}", dir.string());
     return;
   }
 
@@ -102,8 +102,8 @@ void TemplateRegistry::LoadOverrides(const std::filesystem::path& dir) {
     auto id = rel_path.substr(0, rel_path.size() - 5);
 
     if (impl_->embedded.find(id) == impl_->embedded.end()) {
-      REXLOG_WARN(codegen, "Override file does not match a known template ID: {} (from {})", id,
-                  entry.path().string());
+      REXCG_WARN("Override file does not match a known template ID: {} (from {})", id,
+                 entry.path().string());
       continue;
     }
 
@@ -112,7 +112,7 @@ void TemplateRegistry::LoadOverrides(const std::filesystem::path& dir) {
       const std::string content = bytes ? std::string(bytes->begin(), bytes->end()) : std::string{};
       auto tmpl = impl_->env.parse(content);
       impl_->overrides[id] = std::move(tmpl);
-      REXLOG_TRACE(codegen, "Loaded template override: {} -> {}", id, entry.path().string());
+      REXCG_TRACE("Loaded template override: {} -> {}", id, entry.path().string());
     } catch (const std::exception& e) {
       throw TemplateError(id, e.what(), entry.path().string());
     }

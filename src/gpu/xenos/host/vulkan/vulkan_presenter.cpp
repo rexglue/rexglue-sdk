@@ -72,15 +72,15 @@ bool VulkanPresenter::PaintContext::Submission::Initialize() {
   semaphore_create_info.flags = 0;
   if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr, &acquire_semaphore_) !=
       VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to create a swapchain image acquisition "
-             "semaphore");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to create a swapchain image acquisition "
+               "semaphore");
   }
   if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr, &present_semaphore_) !=
       VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to create a swapchain image presentation "
-             "semaphore");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to create a swapchain image presentation "
+               "semaphore");
   }
 
   VkCommandPoolCreateInfo command_pool_create_info;
@@ -90,9 +90,9 @@ bool VulkanPresenter::PaintContext::Submission::Initialize() {
   command_pool_create_info.queueFamilyIndex = vulkan_device_->GetQueueFamilyGraphicsCompute();
   if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr, &draw_command_pool_) !=
       VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to create a command pool for drawing to a "
-             "swapchain");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to create a command pool for drawing to a "
+               "swapchain");
   }
   VkCommandBufferAllocateInfo command_buffer_allocate_info;
   command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -102,9 +102,9 @@ bool VulkanPresenter::PaintContext::Submission::Initialize() {
   command_buffer_allocate_info.commandBufferCount = 1;
   if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &draw_command_buffer_) !=
       VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to allocate a command buffer for drawing to a "
-             "swapchain");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to allocate a command buffer for drawing to a "
+               "swapchain");
   }
 
   return true;
@@ -206,13 +206,13 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
         continue;
       }
       if (dfn.vkResetCommandPool(device, ui_setup_command_buffer.command_pool, 0) != VK_SUCCESS) {
-        REX_FAIL(ui, VK_NULL_HANDLE, "VulkanPresenter: Failed to reset a UI setup command pool");
+        REXUI_FAIL(VK_NULL_HANDLE, "VulkanPresenter: Failed to reset a UI setup command pool");
       }
       if (dfn.vkBeginCommandBuffer(ui_setup_command_buffer.command_buffer,
                                    &command_buffer_begin_info) != VK_SUCCESS) {
-        REX_FAIL(ui, VK_NULL_HANDLE,
-                 "VulkanPresenter: Failed to begin UI setup command buffer "
-                 "recording");
+        REXUI_FAIL(VK_NULL_HANDLE,
+                   "VulkanPresenter: Failed to begin UI setup command buffer "
+                   "recording");
       }
       paint_context_.ui_setup_command_buffer_current_index = i;
       ui_setup_command_buffer.last_usage_submission_index =
@@ -229,7 +229,7 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
   VkCommandPool new_command_pool;
   if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr, &new_command_pool) !=
       VK_SUCCESS) {
-    REX_FAIL(ui, VK_NULL_HANDLE, "VulkanPresenter: Failed to create a UI setup command pool");
+    REXUI_FAIL(VK_NULL_HANDLE, "VulkanPresenter: Failed to create a UI setup command pool");
   }
   VkCommandBufferAllocateInfo command_buffer_allocate_info;
   command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -240,12 +240,12 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
   VkCommandBuffer new_command_buffer;
   if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &new_command_buffer) !=
       VK_SUCCESS) {
-    REXLOG_ERROR(ui, "VulkanPresenter: Failed to allocate a UI setup command buffer");
+    REXUI_ERROR("VulkanPresenter: Failed to allocate a UI setup command buffer");
     dfn.vkDestroyCommandPool(device, new_command_pool, nullptr);
     return VK_NULL_HANDLE;
   }
   if (dfn.vkBeginCommandBuffer(new_command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "VulkanPresenter: Failed to begin UI setup command buffer recording");
+    REXUI_ERROR("VulkanPresenter: Failed to begin UI setup command buffer recording");
     dfn.vkDestroyCommandPool(device, new_command_pool, nullptr);
     return VK_NULL_HANDLE;
   }
@@ -288,9 +288,9 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     REX_ASSERT(paint_context_.vulkan_surface == VK_NULL_HANDLE);
     gpu::Surface::TypeIndex surface_type = new_surface.GetType();
     if (!(GetSupportedSurfaceTypes() & (static_cast<gpu::Surface::TypeFlags>(1) << surface_type))) {
-      REX_FAIL(ui, SurfacePaintConnectResult::kFailureSurfaceUnusable,
-               "VulkanPresenter: Tried to create a Vulkan surface for an "
-               "unsupported ReXGlue surface type");
+      REXUI_FAIL(SurfacePaintConnectResult::kFailureSurfaceUnusable,
+                 "VulkanPresenter: Tried to create a Vulkan surface for an "
+                 "unsupported ReXGlue surface type");
     }
     VkResult vulkan_surface_create_result = VK_ERROR_UNKNOWN;
     switch (surface_type) {
@@ -346,13 +346,13 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
 #endif
       default:
         REX_UNHANDLED_CASE(surface_type);
-        REX_FAIL(ui, SurfacePaintConnectResult::kFailureSurfaceUnusable,
-                 "VulkanPresenter: Tried to create a Vulkan surface for an "
-                 "unknown ReXGlue surface type");
+        REXUI_FAIL(SurfacePaintConnectResult::kFailureSurfaceUnusable,
+                   "VulkanPresenter: Tried to create a Vulkan surface for an "
+                   "unknown ReXGlue surface type");
     }
     if (vulkan_surface_create_result != VK_SUCCESS) {
-      REX_FAIL(ui, SurfacePaintConnectResult::kFailure,
-               "VulkanPresenter: Failed to create a Vulkan surface");
+      REXUI_FAIL(SurfacePaintConnectResult::kFailure,
+                 "VulkanPresenter: Failed to create a Vulkan surface");
     }
     bool surface_unusable;
     paint_context_.swapchain = PaintContext::CreateSwapchainForVulkanSurface(
@@ -428,9 +428,9 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     VkRenderPass new_render_pass;
     if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr, &new_render_pass) !=
         VK_SUCCESS) {
-      REXLOG_ERROR(ui,
-                   "VulkanPresenter: Failed to create the render pass for drawing to "
-                   "swapchain images");
+      REXUI_ERROR(
+          "VulkanPresenter: Failed to create the render pass for drawing to "
+          "swapchain images");
       paint_context_.DestroySwapchainAndVulkanSurface();
       return SurfacePaintConnectResult::kFailure;
     }
@@ -460,7 +460,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     }
   }
   if (swapchain_images_get_result != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "VulkanPresenter: Failed to get swapchain images");
+    REXUI_ERROR("VulkanPresenter: Failed to get swapchain images");
     paint_context_.DestroySwapchainAndVulkanSurface();
     return SurfacePaintConnectResult::kFailure;
   }
@@ -497,14 +497,14 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     image_view_create_info.image = image;
     if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &image_view) !=
         VK_SUCCESS) {
-      REXLOG_ERROR(ui, "VulkanPresenter: Failed to create a swapchain image view");
+      REXUI_ERROR("VulkanPresenter: Failed to create a swapchain image view");
       paint_context_.DestroySwapchainAndVulkanSurface();
       return SurfacePaintConnectResult::kFailure;
     }
     VkFramebuffer framebuffer;
     if (dfn.vkCreateFramebuffer(device, &framebuffer_create_info, nullptr, &framebuffer) !=
         VK_SUCCESS) {
-      REXLOG_ERROR(ui, "VulkanPresenter: Failed to create a swapchain framebuffer");
+      REXUI_ERROR("VulkanPresenter: Failed to create a swapchain framebuffer");
       dfn.vkDestroyImageView(device, image_view, nullptr);
       paint_context_.DestroySwapchainAndVulkanSurface();
       return SurfacePaintConnectResult::kFailure;
@@ -590,7 +590,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   VkSurfaceCapabilitiesKHR surface_capabilities;
   if (ifn.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
                                                     &surface_capabilities) != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "VulkanPresenter: Failed to get Vulkan surface capabilities");
+    REXUI_ERROR("VulkanPresenter: Failed to get Vulkan surface capabilities");
     return VK_NULL_HANDLE;
   }
 
@@ -642,9 +642,9 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
 
   if (!(surface_capabilities.supportedTransforms &
         (VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR | VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR))) {
-    REX_FAIL(ui, VK_NULL_HANDLE,
-             "VulkanPresenter: The surface doesn't support identity or "
-             "window-system-controlled transform");
+    REXUI_FAIL(VK_NULL_HANDLE,
+               "VulkanPresenter: The surface doesn't support identity or "
+               "window-system-controlled transform");
   }
 
   std::vector<VkSurfaceFormatKHR> surface_formats;
@@ -786,9 +786,9 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     u32 composite_alpha_shift;
     if (!rex::bit_scan_forward(static_cast<u32>(surface_capabilities.supportedCompositeAlpha),
                                &composite_alpha_shift)) {
-      REX_FAIL(ui, VK_NULL_HANDLE,
-               "VulkanPresenter: The surface doesn't support any composite alpha "
-               "mode");
+      REXUI_FAIL(VK_NULL_HANDLE,
+                 "VulkanPresenter: The surface doesn't support any composite alpha "
+                 "mode");
     }
     swapchain_create_info.compositeAlpha =
         static_cast<VkCompositeAlphaFlagBitsKHR>(static_cast<u32>(1) << composite_alpha_shift);
@@ -821,15 +821,15 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   swapchain_create_info.oldSwapchain = old_swapchain;
   VkSwapchainKHR swapchain;
   if (dfn.vkCreateSwapchainKHR(device, &swapchain_create_info, nullptr, &swapchain) != VK_SUCCESS) {
-    REX_FAIL(ui, VK_NULL_HANDLE, "VulkanPresenter: Failed to create a swapchain");
+    REXUI_FAIL(VK_NULL_HANDLE, "VulkanPresenter: Failed to create a swapchain");
   }
-  REXLOG_INFO(ui,
-              "VulkanPresenter: Created {}x{} swapchain with format {}, color space "
-              "{}, presentation mode {}",
-              swapchain_create_info.imageExtent.width, swapchain_create_info.imageExtent.height,
-              static_cast<u32>(swapchain_create_info.imageFormat),
-              static_cast<u32>(swapchain_create_info.imageColorSpace),
-              static_cast<u32>(swapchain_create_info.presentMode));
+  REXUI_INFO(
+      "VulkanPresenter: Created {}x{} swapchain with format {}, color space "
+      "{}, presentation mode {}",
+      swapchain_create_info.imageExtent.width, swapchain_create_info.imageExtent.height,
+      static_cast<u32>(swapchain_create_info.imageFormat),
+      static_cast<u32>(swapchain_create_info.imageColorSpace),
+      static_cast<u32>(swapchain_create_info.presentMode));
 
   present_queue_family_out = queue_family_index_present;
   image_format_out = swapchain_create_info.imageFormat;
@@ -910,7 +910,7 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
   if (!gpu::vulkan::objects::CreateDedicatedAllocationImage(
           vulkan_device_, image_create_info, gpu::vulkan::objects::MemoryPurpose::kDeviceLocal,
           image_, memory_)) {
-    REX_FAIL(ui, false, "VulkanPresenter: Failed to create a guest output image");
+    REXUI_FAIL(false, "VulkanPresenter: Failed to create a guest output image");
   }
 
   const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
@@ -933,7 +933,7 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
   image_view_create_info.subresourceRange.baseArrayLayer = 0;
   image_view_create_info.subresourceRange.layerCount = 1;
   if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &view_) != VK_SUCCESS) {
-    REX_FAIL(ui, false, "VulkanPresenter: Failed to create a guest output image view");
+    REXUI_FAIL(false, "VulkanPresenter: Failed to create a guest output image view");
   }
 
   return true;
@@ -954,9 +954,9 @@ Presenter::PaintResult VulkanPresenter::DriverPaintAndPresent(bool execute_ui_dr
 
   VkCommandPool draw_command_pool = paint_submission.GetDrawCommandPool();
   if (dfn.vkResetCommandPool(device, draw_command_pool, 0) != VK_SUCCESS) {
-    REX_FAIL(ui, PaintResult::kNotPresented,
-             "VulkanPresenter: Failed to reset a command buffer for drawing to the "
-             "swapchain");
+    REXUI_FAIL(PaintResult::kNotPresented,
+               "VulkanPresenter: Failed to reset a command buffer for drawing to the "
+               "swapchain");
   }
 
   VkCommandBuffer draw_command_buffer = paint_submission.GetDrawCommandBuffer();
@@ -966,9 +966,9 @@ Presenter::PaintResult VulkanPresenter::DriverPaintAndPresent(bool execute_ui_dr
   command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   command_buffer_begin_info.pInheritanceInfo = nullptr;
   if (dfn.vkBeginCommandBuffer(draw_command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
-    REX_FAIL(ui, PaintResult::kNotPresented,
-             "VulkanPresenter: Failed to begin recording the command buffer for "
-             "drawing to the swapchain");
+    REXUI_FAIL(PaintResult::kNotPresented,
+               "VulkanPresenter: Failed to begin recording the command buffer for "
+               "drawing to the swapchain");
   }
   // vkResetCommandPool resets a command buffer left open, so early returns are safe.
 
@@ -982,20 +982,20 @@ Presenter::PaintResult VulkanPresenter::DriverPaintAndPresent(bool execute_ui_dr
     case VK_SUBOPTIMAL_KHR:
       break;
     case VK_ERROR_DEVICE_LOST:
-      REX_FAIL(ui, PaintResult::kGPULostResponsible,
-               "VulkanPresenter: Failed to acquire the swapchain image as the "
-               "device has been lost");
+      REXUI_FAIL(PaintResult::kGPULostResponsible,
+                 "VulkanPresenter: Failed to acquire the swapchain image as the "
+                 "device has been lost");
     case VK_ERROR_OUT_OF_DATE_KHR:
     case VK_ERROR_SURFACE_LOST_KHR:
     case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
       // Not an error, as this may occur normally while resizing on some platforms.
-      REXLOG_INFO(ui,
-                  "VulkanPresenter: Presentation to the swapchain image has been "
-                  "dropped as the swapchain or the surface has become outdated");
+      REXUI_INFO(
+          "VulkanPresenter: Presentation to the swapchain image has been "
+          "dropped as the swapchain or the surface has become outdated");
       return PaintResult::kNotPresentedConnectionOutdated;
     default:
-      REX_FAIL(ui, PaintResult::kNotPresented,
-               "VulkanPresenter: Failed to acquire the swapchain image");
+      REXUI_FAIL(PaintResult::kNotPresented,
+                 "VulkanPresenter: Failed to acquire the swapchain image");
   }
 
   // Nonzero extents are needed for the viewport width and the guest output rectangle.
@@ -1152,12 +1152,11 @@ Presenter::PaintResult VulkanPresenter::DriverPaintAndPresent(bool execute_ui_dr
             effect_rect_size.second < paint_context_.swapchain_extent.height) {
           static std::atomic<bool> logged_swapchain_expand = false;
           if (!logged_swapchain_expand.exchange(true)) {
-            REXLOG_WARN(ui,
-                        "VulkanPresenter: expanding final guest output rect from "
-                        "{}x{} to swapchain {}x{} to avoid output only in the top left",
-                        effect_rect_size.first, effect_rect_size.second,
-                        paint_context_.swapchain_extent.width,
-                        paint_context_.swapchain_extent.height);
+            REXUI_WARN(
+                "VulkanPresenter: expanding final guest output rect from "
+                "{}x{} to swapchain {}x{} to avoid output only in the top left",
+                effect_rect_size.first, effect_rect_size.second,
+                paint_context_.swapchain_extent.width, paint_context_.swapchain_extent.height);
           }
           effect_rect_size = std::make_pair(paint_context_.swapchain_extent.width,
                                             paint_context_.swapchain_extent.height);
@@ -1345,7 +1344,7 @@ Presenter::PaintResult VulkanPresenter::DriverPaintAndPresent(bool execute_ui_dr
       }
     }
     if (submit_result != VK_SUCCESS) {
-      REXLOG_ERROR(ui, "VulkanPresenter: Failed to submit command buffers");
+      REXUI_ERROR("VulkanPresenter: Failed to submit command buffers");
       fence_acquisition.SubmissionFailedOrDiscarded();
       ui_fence_acquisition.SubmissionFailedOrDiscarded();
       if (ui_setup_command_buffer_index != SIZE_MAX) {
@@ -1379,19 +1378,19 @@ Presenter::PaintResult VulkanPresenter::DriverPaintAndPresent(bool execute_ui_dr
     case VK_SUBOPTIMAL_KHR:
       return PaintResult::kPresentedSuboptimal;
     case VK_ERROR_DEVICE_LOST:
-      REX_FAIL(ui, PaintResult::kGPULostResponsible,
-               "VulkanPresenter: Failed to present the swapchain image as the "
-               "device has been lost");
+      REXUI_FAIL(PaintResult::kGPULostResponsible,
+                 "VulkanPresenter: Failed to present the swapchain image as the "
+                 "device has been lost");
     case VK_ERROR_OUT_OF_DATE_KHR:
     case VK_ERROR_SURFACE_LOST_KHR:
     case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
       // Not an error, as this may occur normally while resizing on some platforms.
-      REXLOG_INFO(ui,
-                  "VulkanPresenter: Presentation to the swapchain image has been "
-                  "dropped as the swapchain or the surface has become outdated");
+      REXUI_INFO(
+          "VulkanPresenter: Presentation to the swapchain image has been "
+          "dropped as the swapchain or the surface has become outdated");
       return PaintResult::kNotPresentedConnectionOutdated;
     default:
-      REXLOG_ERROR(ui, "VulkanPresenter: Failed to present the swapchain image");
+      REXUI_ERROR("VulkanPresenter: Failed to present the swapchain image");
       // An acquired image stays acquired, so request a new swapchain, not kNotPresented.
       return PaintResult::kNotPresentedConnectionOutdated;
   }
@@ -1426,9 +1425,9 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   if (dfn.vkCreateDescriptorSetLayout(
           device, &guest_output_paint_image_descriptor_set_layout_create_info, nullptr,
           &guest_output_paint_image_descriptor_set_layout_) != VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to create the guest output image descriptor "
-             "set layout");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to create the guest output image descriptor "
+               "set layout");
   }
 
   VkPushConstantRange guest_output_paint_push_constant_ranges[2];
@@ -1466,11 +1465,11 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
         1 + static_cast<u32>(guest_output_paint_push_constant_range.size != 0);
     if (dfn.vkCreatePipelineLayout(device, &guest_output_paint_pipeline_layout_create_info, nullptr,
                                    &guest_output_paint_pipeline_layouts_[i]) != VK_SUCCESS) {
-      REX_FAIL(ui, false,
-               "VulkanPresenter: Failed to create a guest output presentation "
-               "pipeline layout with {} bytes of push constants",
-               guest_output_paint_push_constant_range_rect.size +
-                   guest_output_paint_push_constant_range.size);
+      REXUI_FAIL(false,
+                 "VulkanPresenter: Failed to create a guest output presentation "
+                 "pipeline layout with {} bytes of push constants",
+                 guest_output_paint_push_constant_range_rect.size +
+                     guest_output_paint_push_constant_range.size);
     }
   }
 
@@ -1482,9 +1481,9 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   shader_module_create_info.pCode = shaders::kGuestOutputTriangleStripRectVS;
   if (dfn.vkCreateShaderModule(device, &shader_module_create_info, nullptr,
                                &guest_output_paint_vs_) != VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to create the guest output presentation "
-             "vertex shader module");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to create the guest output presentation "
+               "vertex shader module");
   }
   for (size_t i = 0; i < static_cast<size_t>(GuestOutputPaintEffect::kCount); ++i) {
     GuestOutputPaintEffect guest_output_paint_effect = static_cast<GuestOutputPaintEffect>(i);
@@ -1502,10 +1501,10 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
     }
     if (dfn.vkCreateShaderModule(device, &shader_module_create_info, nullptr,
                                  &guest_output_paint_fs_[i]) != VK_SUCCESS) {
-      REX_FAIL(ui, false,
-               "VulkanPresenter: Failed to create the guest output painting shader "
-               "module for effect {}",
-               i);
+      REXUI_FAIL(false,
+                 "VulkanPresenter: Failed to create the guest output painting shader "
+                 "module for effect {}",
+                 i);
     }
   }
 
@@ -1537,9 +1536,9 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
       guest_output_paint_descriptor_pool_sizes;
   if (dfn.vkCreateDescriptorPool(device, &guest_output_paint_descriptor_pool_create_info, nullptr,
                                  &paint_context_.guest_output_descriptor_pool) != VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to create the guest output painting "
-             "descriptor pool");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to create the guest output painting "
+               "descriptor pool");
   }
   VkDescriptorSetLayout
       guest_output_paint_descriptor_set_layouts[PaintContext::kGuestOutputDescriptorSetCount];
@@ -1559,9 +1558,9 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
       guest_output_paint_descriptor_set_layouts;
   if (dfn.vkAllocateDescriptorSets(device, &guest_output_paint_descriptor_set_allocate_info,
                                    paint_context_.guest_output_descriptor_sets) != VK_SUCCESS) {
-    REX_FAIL(ui, false,
-             "VulkanPresenter: Failed to allocate the guest output painting "
-             "descriptor sets");
+    REXUI_FAIL(false,
+               "VulkanPresenter: Failed to allocate the guest output painting "
+               "descriptor sets");
   }
 
   return InitializeCommonSurfaceIndependent();
@@ -1644,10 +1643,10 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
   VkPipeline pipeline;
   if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
                                     &pipeline) != VK_SUCCESS) {
-    REX_FAIL(ui, VK_NULL_HANDLE,
-             "VulkanPresenter: Failed to create the guest output painting pipeline "
-             "for effect {}",
-             static_cast<size_t>(effect));
+    REXUI_FAIL(VK_NULL_HANDLE,
+               "VulkanPresenter: Failed to create the guest output painting pipeline "
+               "for effect {}",
+               static_cast<size_t>(effect));
   }
   return pipeline;
 }

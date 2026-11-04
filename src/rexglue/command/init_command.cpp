@@ -271,7 +271,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
     }
   }
 
-  REXLOG_TRACE(rexglue, "Creating directory structure...");
+  REXGLUE_TRACE("Creating directory structure...");
   for (const auto& dir : {project_root, project_root / "src", project_root / "generated"}) {
     fs::create_directories(dir, ec);
     if (ec) {
@@ -280,11 +280,11 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
     }
   }
 
-  REXLOG_TRACE(rexglue, "Generating project files...");
+  REXGLUE_TRACE("Generating project files...");
   for (const auto& r : renders) {
     if (r.policy == RegeneratePolicy::kFirstInitOnly && fs::exists(r.out)) {
-      REXLOG_DEBUG(rexglue, "  Skipped {} (preserving user content)",
-                   fs::relative(r.out, project_root).generic_string());
+      REXGLUE_DEBUG("  Skipped {} (preserving user content)",
+                    fs::relative(r.out, project_root).generic_string());
       continue;
     }
     if (auto written =
@@ -293,7 +293,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
       return Err<void>(ErrorCategory::kIO,
                        "Failed to write " + r.out.string() + ": " + written.error().message);
     }
-    REXLOG_DEBUG(rexglue, "  Created {}", fs::relative(r.out, project_root).generic_string());
+    REXGLUE_DEBUG("  Created {}", fs::relative(r.out, project_root).generic_string());
   }
   return Ok();
 }
@@ -346,7 +346,7 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
         continue;
       if ((*mod_tbl)["file_path"].value_or<std::string>("") == xex_rel ||
           (*mod_tbl)[rex::codegen::kModuleGuestPathKey].value_or<std::string>("") == guest_path) {
-        REXLOG_TRACE(rexglue, "Manifest already lists this module. Nothing to do.");
+        REXGLUE_TRACE("Manifest already lists this module. Nothing to do.");
         return Ok();
       }
     }
@@ -471,12 +471,12 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
     return Err<void>(ErrorCategory::kIO, "Write error: " + out_path.string());
   }
 
-  REXLOG_INFO(rexglue, "Wrote {} achievements to {}", achievements.size(), out_path.string());
+  REXGLUE_INFO("Wrote {} achievements to {}", achievements.size(), out_path.string());
 
   fs::path icons_dir = out_dir / "icons";
   fs::create_directories(icons_dir, ec);
   if (ec) {
-    REXLOG_WARN(rexglue, "Could not create icons directory: {}", ec.message());
+    REXGLUE_WARN("Could not create icons directory: {}", ec.message());
   } else {
     int icons_written = 0;
     int icons_missing = 0;
@@ -496,29 +496,29 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
 
       fs::path icon_path = icons_dir / std::format("{}.png", img_id);
       if (!rex::platform::WriteHostFile(icon_path, std::span<const u8>(block.buffer, block.size))) {
-        REXLOG_WARN(rexglue, "Cannot write icon {}", icon_path.string());
+        REXGLUE_WARN("Cannot write icon {}", icon_path.string());
         continue;
       }
       ++icons_written;
     }
 
     if (icons_written > 0) {
-      REXLOG_INFO(rexglue, "Wrote {} icon(s) to {}", icons_written, icons_dir.string());
+      REXGLUE_INFO("Wrote {} icon(s) to {}", icons_written, icons_dir.string());
     }
     if (icons_missing > 0) {
-      REXLOG_WARN(rexglue, "{} achievement(s) had no icon in XDBF", icons_missing);
+      REXGLUE_WARN("{} achievement(s) had no icon in XDBF", icons_missing);
     }
 
     if (auto game_icon = db->GetIcon(); game_icon && game_icon.size > 0) {
       fs::path game_icon_path = icons_dir / "title.png";
       if (rex::platform::WriteHostFile(game_icon_path,
                                        std::span<const u8>(game_icon.buffer, game_icon.size))) {
-        REXLOG_INFO(rexglue, "Wrote game icon to {}", game_icon_path.string());
+        REXGLUE_INFO("Wrote game icon to {}", game_icon_path.string());
       } else {
-        REXLOG_WARN(rexglue, "Cannot write game icon {}", game_icon_path.string());
+        REXGLUE_WARN("Cannot write game icon {}", game_icon_path.string());
       }
     } else {
-      REXLOG_WARN(rexglue, "No game icon found in XDBF");
+      REXGLUE_WARN("No game icon found in XDBF");
     }
   }
 

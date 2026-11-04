@@ -40,9 +40,9 @@ u32 XamNotifyCreateListener(u64 mask, u32 is_system, u32 max_version) {
   }
   const kernel::X_HANDLE handle = *added;
 
-  REXLOG_DEBUG(
-      xam, "XamNotifyCreateListener(mask={:#018x}, is_system={}, max_version={}) -> handle={:08X}",
-      mask, is_system, max_version, handle);
+  REXXAM_DEBUG(
+      "XamNotifyCreateListener(mask={:#018x}, is_system={}, max_version={}) -> handle={:08X}", mask,
+      is_system, max_version, handle);
 
   return handle;
 }
@@ -86,8 +86,8 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, MappedU32 id_ptr, MappedU32 p
   }
 
   if (dequeued) {
-    REXLOG_DEV(xam, "XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}",
-               static_cast<u32>(handle), static_cast<u32>(match_id), id, param);
+    REXXAM_DEV("XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}", static_cast<u32>(handle),
+               static_cast<u32>(match_id), id, param);
   }
   return dequeued ? 1 : 0;
 }

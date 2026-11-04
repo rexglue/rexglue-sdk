@@ -103,8 +103,7 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
 
   if (!device_info || device_info->device_id == rex::xam::DummyDeviceID::kODD) {}
 
-  REXLOG_DEBUG(xam, "XamContentCreateEnumerator: added {} items to enumerator",
-               items.GetItemCount());
+  REXXAM_DEBUG("XamContentCreateEnumerator: added {} items to enumerator", items.GetItemCount());
 
   kernel::X_HANDLE handle = kernel::kXInvalidHandleValue;
   auto result = CreateEnumerator(
@@ -170,7 +169,7 @@ u32 CreateAndMountContent(MappedString root_name, MappedVoid content_data_ptr,
       case 2:
         // Titles may reuse a root name without closing it, so close the mount first.
         if (content_manager->CloseContent(root_name)) {
-          REXLOG_DEBUG(xam, "XamContentCreate: closed the open {} before recreating it", root_name);
+          REXXAM_DEBUG("XamContentCreate: closed the open {} before recreating it", root_name);
         }
         if (content_manager->HasContent(xuid, content_data) &&
             !content_manager->DeleteContent(xuid, content_data)) {
@@ -201,8 +200,7 @@ u32 CreateAndMountContent(MappedString root_name, MappedVoid content_data_ptr,
           result = kernel::X_ERROR_PATH_NOT_FOUND;
         } else {
           if (content_manager->CloseContent(root_name)) {
-            REXLOG_DEBUG(xam, "XamContentCreate: closed the open {} before truncating it",
-                         root_name);
+            REXXAM_DEBUG("XamContentCreate: closed the open {} before truncating it", root_name);
           }
           if (!content_manager->DeleteContent(xuid, content_data)) {
             result = kernel::X_ERROR_ACCESS_DENIED;
@@ -221,15 +219,15 @@ u32 CreateAndMountContent(MappedString root_name, MappedVoid content_data_ptr,
       result = kernel::ToXResult(content_manager->CreateContent(root_name, xuid, content_data));
       if (result == kernel::X_ERROR_SUCCESS) {
         if (auto written = content_manager->WriteContentHeaderFile(xuid, content_data); !written) {
-          REXLOG_WARN(xam, "XamContentCreate: header file of {} not written, {}", root_name,
+          REXXAM_WARN("XamContentCreate: header file of {} not written, {}", root_name,
                       written.error().message);
           result = kernel::ToXResult(written);
           if (auto closed = content_manager->CloseContent(root_name); !closed) {
-            REXLOG_WARN(xam, "XamContentCreate: {} did not close, {}", root_name,
+            REXXAM_WARN("XamContentCreate: {} did not close, {}", root_name,
                         closed.error().message);
           }
           if (auto deleted = content_manager->DeleteContent(xuid, content_data); !deleted) {
-            REXLOG_WARN(xam, "XamContentCreate: {} was not removed, {}", root_name,
+            REXXAM_WARN("XamContentCreate: {} was not removed, {}", root_name,
                         deleted.error().message);
           }
         }

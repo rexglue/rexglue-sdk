@@ -22,9 +22,9 @@ ID3D12RootSignature* CreateRootSignature(const D3D12Provider& provider,
   ID3DBlob* error_blob = nullptr;
   if (FAILED(provider.SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob,
                                              &error_blob))) {
-    REXLOG_ERROR(ui, "Failed to serialize a root signature");
+    REXUI_ERROR("Failed to serialize a root signature");
     if (error_blob != nullptr) {
-      REXLOG_ERROR(ui, "{}", reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
+      REXUI_ERROR("{}", reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
       error_blob->Release();
     }
     return nullptr;

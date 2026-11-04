@@ -456,7 +456,7 @@ std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
                                   static_cast<u32>(as_type - 8))
           .value_or(0);
     default:
-      REXLOG_WARN(system, "Guest object at {:08X} has the unsupported type {}", address, as_type);
+      REXSYS_WARN("Guest object at {:08X} has the unsupported type {}", address, as_type);
       return std::nullopt;
   }
 }

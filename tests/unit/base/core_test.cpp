@@ -95,7 +95,7 @@ REX_TEST_CASE("Logging writes through a capture sink with no module loaded", "[b
     rex::Logger& logger = REX_LOGGER();
     rex::log::CaptureSink sink;
     auto sink_guard = logger.AddSink(sink);
-    REXLOG_INFO(core, "core test entry {}", 42);
+    REXLOG_INFO("core test entry {}", 42);
     sink.CopySince(0, entries);
     sink_guard.Reset();
   });

@@ -28,7 +28,7 @@ namespace rex::kernel::xboxkrnl {
  */
 void HalReturnToFirmware_entry(u32 routine) {
   REX_ASSERT(routine == 1);
-  REXLOG_INFO(kernel, "Title requested a return to firmware");
+  REXKRNL_INFO("Title requested a return to firmware");
   kernel::GetCurrentState().ExitTitle(rex::kernel::TitleExitReason::kHardExit);
 }
 

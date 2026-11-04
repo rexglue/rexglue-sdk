@@ -171,12 +171,12 @@ kernel::X_RESULT XAMDispatchPrompt(ui::PromptConfig config, Close close, u32 ove
 kernel::X_RESULT XAMDispatchHeadless(const std::function<kernel::X_RESULT()>& run_callback,
                                      u32 overlapped) {
   auto pre = []() {
-    REXLOG_DEBUG(xam, "XAMDispatchHeadless: Broadcasting XN_SYS_UI = true");
+    REXXAM_DEBUG("XAMDispatchHeadless: Broadcasting XN_SYS_UI = true");
     CurrentTitle().notifier.BroadcastNotification(0x9, true);
   };
   auto post = []() {
     CurrentTitle().threads.SleepCurrentThread(std::chrono::milliseconds(100));
-    REXLOG_DEBUG(xam, "XAMDispatchHeadless: Broadcasting XN_SYS_UI = false");
+    REXXAM_DEBUG("XAMDispatchHeadless: Broadcasting XN_SYS_UI = false");
     CurrentTitle().notifier.BroadcastNotification(0x9, false);
   };
   if (!overlapped) {
@@ -246,8 +246,7 @@ u32 ShowMessageBox(MappedWString title_ptr, MappedWString text_ptr, u32 button_c
 u32 XamShowMessageBoxUI_entry(u32 user_index, MappedWString title_ptr, MappedWString text_ptr,
                               u32 button_count, MappedU32 button_ptrs, u32 active_button, u32 flags,
                               MappedU32 result_ptr, MappedVoid overlapped) {
-  REXLOG_DEBUG(
-      xam,
+  REXXAM_DEBUG(
       "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
       static_cast<u32>(user_index), title_ptr.GetGuestAddress(), text_ptr.GetGuestAddress(),
       static_cast<u32>(button_count), button_ptrs.GetGuestAddress(),
@@ -260,14 +259,13 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, MappedWString title_ptr, MappedWSt
 u32 XamShowMessageBoxUIEx_entry(u32 user_index, MappedWString title_ptr, MappedWString text_ptr,
                                 u32 button_count, MappedU32 button_ptrs, u32 active_button,
                                 u32 flags, u32 extra, MappedU32 result_ptr, MappedVoid overlapped) {
-  REXLOG_DEBUG(xam,
-               "XamShowMessageBoxUIEx({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, "
-               "{:08X}, {:08X}, {:08X})",
-               static_cast<u32>(user_index), title_ptr.GetGuestAddress(),
-               text_ptr.GetGuestAddress(), static_cast<u32>(button_count),
-               button_ptrs.GetGuestAddress(), static_cast<u32>(active_button),
-               static_cast<u32>(flags), static_cast<u32>(extra), result_ptr.GetGuestAddress(),
-               overlapped.GetGuestAddress());
+  REXXAM_DEBUG(
+      "XamShowMessageBoxUIEx({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, "
+      "{:08X}, {:08X}, {:08X})",
+      static_cast<u32>(user_index), title_ptr.GetGuestAddress(), text_ptr.GetGuestAddress(),
+      static_cast<u32>(button_count), button_ptrs.GetGuestAddress(),
+      static_cast<u32>(active_button), static_cast<u32>(flags), static_cast<u32>(extra),
+      result_ptr.GetGuestAddress(), overlapped.GetGuestAddress());
   return ShowMessageBox(title_ptr, text_ptr, button_count, button_ptrs, active_button, result_ptr,
                         overlapped);
 }
@@ -275,11 +273,11 @@ u32 XamShowMessageBoxUIEx_entry(u32 user_index, MappedWString title_ptr, MappedW
 u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, MappedWString default_text,
                             MappedWString title, MappedWString description, MappedWString buffer,
                             u32 buffer_length, MappedVoid overlapped) {
-  REXLOG_DEBUG(
-      xam, "XamShowKeyboardUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-      static_cast<u32>(user_index), static_cast<u32>(flags), default_text.GetGuestAddress(),
-      title.GetGuestAddress(), description.GetGuestAddress(), buffer.GetGuestAddress(),
-      static_cast<u32>(buffer_length), overlapped.GetGuestAddress());
+  REXXAM_DEBUG("XamShowKeyboardUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
+               static_cast<u32>(user_index), static_cast<u32>(flags),
+               default_text.GetGuestAddress(), title.GetGuestAddress(),
+               description.GetGuestAddress(), buffer.GetGuestAddress(),
+               static_cast<u32>(buffer_length), overlapped.GetGuestAddress());
   if (!buffer) {
     return kernel::X_ERROR_INVALID_PARAMETER;
   }
@@ -350,7 +348,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, MappedWString default_tex
 u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_flags,
                                   u64 total_requested, MappedU32 device_id_ptr,
                                   MappedVoid overlapped) {
-  REXLOG_DEBUG(xam, "XamShowDeviceSelectorUI({:08X}, {:08X}, {:08X}, {:016X}, {:08X}, {:08X})",
+  REXXAM_DEBUG("XamShowDeviceSelectorUI({:08X}, {:08X}, {:08X}, {:016X}, {:08X}, {:08X})",
                static_cast<u32>(user_index), static_cast<u32>(content_type),
                static_cast<u32>(content_flags), static_cast<u64>(total_requested),
                device_id_ptr.GetGuestAddress(), overlapped.GetGuestAddress());
@@ -364,8 +362,8 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
 }
 
 void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
-  REXLOG_ERROR(xam, "XamShowDirtyDiscErrorUI called! user_index={}", static_cast<u32>(user_index));
-  REXLOG_ERROR(xam, "This indicates a disc or file read error. Check that all game files exist.");
+  REXXAM_ERROR("XamShowDirtyDiscErrorUI called! user_index={}", static_cast<u32>(user_index));
+  REXXAM_ERROR("This indicates a disc or file read error. Check that all game files exist.");
 
   if (HasWindow()) {
     XAMDispatchPrompt(
@@ -376,11 +374,11 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
                          .buttons = {"OK"}},
         [](const ui::PromptResult&) -> kernel::X_RESULT { return kernel::X_ERROR_SUCCESS; }, 0);
   } else {
-    REXLOG_ERROR(xam, "===========================================");
-    REXLOG_ERROR(xam, "FATAL: Disc Read Error (no UI to display)");
-    REXLOG_ERROR(xam, "Check that all game content files are present");
-    REXLOG_ERROR(xam, "Missing files or bad mounts cause this error");
-    REXLOG_ERROR(xam, "===========================================");
+    REXXAM_ERROR("===========================================");
+    REXXAM_ERROR("FATAL: Disc Read Error (no UI to display)");
+    REXXAM_ERROR("Check that all game content files are present");
+    REXXAM_ERROR("Missing files or bad mounts cause this error");
+    REXXAM_ERROR("===========================================");
   }
   CurrentTitle().exit.ExitTitle(rex::kernel::TitleExitReason::kTitleDataError);
 }

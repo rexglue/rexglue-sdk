@@ -47,9 +47,9 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
 
   ctx.binary_ = BinaryView::FromModule(*module);
 
-  REXLOG_TRACE(codegen, "Loaded XEX: base=0x{:08X}, size=0x{:X}, entry=0x{:08X}",
-               ctx.binary_.GetBaseAddress(), ctx.binary_.GetImageSize(),
-               ctx.binary_.GetEntryPoint());
+  REXCG_TRACE("Loaded XEX: base=0x{:08X}, size=0x{:X}, entry=0x{:08X}",
+              ctx.binary_.GetBaseAddress(), ctx.binary_.GetImageSize(),
+              ctx.binary_.GetEntryPoint());
 
   ctx.analysis_state_.format = "xex";
   ctx.analysis_state_.load_address = ctx.binary_.GetBaseAddress();

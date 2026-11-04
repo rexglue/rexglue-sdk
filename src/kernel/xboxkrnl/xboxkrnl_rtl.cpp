@@ -138,10 +138,10 @@ u32 RtlCompareStringN_entry(MappedString string_1, u32 string_1_len, MappedStrin
 }
 
 void RtlInitAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination, MappedString source) {
-  REXLOG_TRACE(kernel,
-               "RtlInitAnsiString "
-               "str={}",
-               source ? source.GetValue() : "(null)");
+  REXKRNL_TRACE(
+      "RtlInitAnsiString "
+      "str={}",
+      source ? source.GetValue() : "(null)");
   if (source) {
     u16 length = static_cast<u16>(strlen(source));
     destination->length = length;
@@ -405,10 +405,10 @@ void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
 }
 
 void RtlInitializeCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
-  REXLOG_TRACE(kernel,
-               "RtlInitializeCriticalSection "
-               "cs={:#x}",
-               cs.GetGuestAddress());
+  REXKRNL_TRACE(
+      "RtlInitializeCriticalSection "
+      "cs={:#x}",
+      cs.GetGuestAddress());
   RtlInitializeCriticalSection(cs);
 }
 

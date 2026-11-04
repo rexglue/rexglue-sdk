@@ -22,7 +22,7 @@ std::string_view BlockName(MMIOBlock block) {
 void WarnNullRecipient(u32 address, bool is_write) {
   const MMIOBlock block = MMIOBlockOf(address).value_or(MMIOBlock::kGPU);
   if (!g_null_warned[static_cast<size_t>(block)].test_and_set(std::memory_order_relaxed)) {
-    REXLOG_WARN(core, "No {} recipient is attached, the {} of 0x{:08X} {}", BlockName(block),
+    REXLOG_WARN("No {} recipient is attached, the {} of 0x{:08X} {}", BlockName(block),
                 is_write ? "write" : "read", address, is_write ? "is dropped" : "returns 0");
   }
 }
@@ -81,12 +81,12 @@ u16 MMIOLoad16(u32 address) {
 void MMIONarrowStore(u32 address, u32 size) {
   const std::string message = std::format(
       "A {} byte store to the register at 0x{:08X} is narrower than the register", size, address);
-  REX_FATAL(core, "{}", message);
+  REX_FATAL("{}", message);
 }
 
 void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient) {
   if (!recipient.read || !recipient.write) {
-    REXLOG_ERROR(core, "Refused a {} recipient with no read or no write handler", BlockName(block));
+    REXLOG_ERROR("Refused a {} recipient with no read or no write handler", BlockName(block));
     return;
   }
   Slot(block) = recipient;

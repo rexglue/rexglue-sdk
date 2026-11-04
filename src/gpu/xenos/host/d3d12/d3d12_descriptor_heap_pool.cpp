@@ -86,8 +86,8 @@ u64 D3D12DescriptorHeapPool::Request(u64 submission_index, u64 previous_heap_ind
     new_heap_desc.NodeMask = 0;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> new_heap;
     if (FAILED(device_->CreateDescriptorHeap(&new_heap_desc, IID_PPV_ARGS(&new_heap)))) {
-      REX_FAIL(ui, kHeapIndexInvalid, "Failed to create a heap for {} shader visible descriptors",
-               page_size_);
+      REXUI_FAIL(kHeapIndexInvalid, "Failed to create a heap for {} shader visible descriptors",
+                 page_size_);
     }
     writable_first_ = new Page;
     writable_first_->heap = new_heap;

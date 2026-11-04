@@ -71,7 +71,7 @@ rex::ScopeGuard g_ui_sink_guard;
   REX_TRY_VOID(logger.level.Set(std::string(rex::log::LevelName(parsed_level))));
   REX_TRY_VOID(logger.console.Set(false));
   REX_TRY_VOID(logger.debugger.Set(false));
-  REX_TRY_VOID(logger.show_category.Set(false));
+  REX_TRY_VOID(logger.pattern.Set("%^%Y-%m-%d %H:%M:%S.%e %Q %j %v%$"));
   REX_TRY_VOID(logger.AddCategories(rexglue::kLogCategories));
   g_ui_sink_guard = logger.AddSink(rexglue::ui::GetLogSink());
   if (!log_file.empty()) {

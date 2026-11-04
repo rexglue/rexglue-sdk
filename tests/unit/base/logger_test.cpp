@@ -14,8 +14,11 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <chrono>
 #include <random>
+#include <regex>
 #include <sstream>
+#include <thread>
 
 #if !defined(_WIN32)
 #include <unistd.h>
@@ -91,10 +94,10 @@ size_t CountInStreams(const std::string& needle, const std::filesystem::path& fo
 
 REX_TEST_CASE("line before any app reaches the file", "[base][logger]") {
   ResetLogger();
-  REXLOG_INFO(core, "line written before anything opened the file");
+  REXLOG_INFO("line written before anything opened the file");
   HarnessApp app;
   REQUIRE(app.Start());
-  REXLOG_INFO(core, "line written after the file opened");
+  REXLOG_INFO("line written after the file opened");
   app.Finish();
   const auto files = LogFiles(app.folder);
   REQUIRE(files.size() == 1);
@@ -111,9 +114,9 @@ REX_TEST_CASE("dropping the guard removes the sink", "[base][logger]") {
   rex::log::CaptureSink sink;
   {
     auto sink_guard = REX_LOGGER().AddSink(sink);
-    REXLOG_INFO(core, "while subscribed");
+    REXLOG_INFO("while subscribed");
   }
-  REXLOG_INFO(core, "after the guard");
+  REXLOG_INFO("after the guard");
   app.Finish();
   const auto texts = Texts(sink);
   CHECK(std::ranges::contains(texts, std::string("while subscribed")));
@@ -125,11 +128,11 @@ REX_TEST_CASE("late sink gets the last 4096 lines", "[base][logger]") {
   HarnessApp app;
   REQUIRE(app.Start());
   for (int i = 0; i < 5000; ++i) {
-    REXLOG_INFO(core, "bulk {}", i);
+    REXLOG_INFO("bulk {}", i);
   }
   rex::log::CaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
-  REXLOG_INFO(core, "line after the sink joined");
+  REXLOG_INFO("line after the sink joined");
   sink_guard.Reset();
   app.Finish();
   const auto texts = Texts(sink);
@@ -142,13 +145,13 @@ REX_TEST_CASE("late sink gets the last 4096 lines", "[base][logger]") {
 REX_TEST_CASE("file off releases kept lines", "[base][logger]") {
   ResetLogger();
   REQUIRE(REX_LOGGER().file.Set(false));
-  REXLOG_INFO(core, "line that nothing keeps");
+  REXLOG_INFO("line that nothing keeps");
   HarnessApp app;
   REQUIRE(app.Start());
   REQUIRE(LogFiles(app.folder).empty());
   rex::log::CaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
-  REXLOG_INFO(core, "line after the sink joined");
+  REXLOG_INFO("line after the sink joined");
   sink_guard.Reset();
   app.Finish();
   const auto texts = Texts(sink);
@@ -162,12 +165,12 @@ REX_TEST_CASE("category level follows its setting", "[base][logger]") {
   REQUIRE(logger.AddCategories(rex::log::kLogTestTable));
   rex::log::CaptureSink sink;
   auto sink_guard = logger.AddSink(sink);
-  REXLOG_INFO(logtest, "info before the level");
+  REXLOG_CAT_INFO(::rex::log::logtest, "info before the level");
   REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", "error"));
-  REXLOG_INFO(logtest, "info after the level");
-  REXLOG_ERROR(logtest, "error after the level");
+  REXLOG_CAT_INFO(::rex::log::logtest, "info after the level");
+  REXLOG_CAT_ERROR(::rex::log::logtest, "error after the level");
   REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", ""));
-  REXLOG_INFO(logtest, "info after the reset");
+  REXLOG_CAT_INFO(::rex::log::logtest, "info after the reset");
   sink_guard.Reset();
   logger.RemoveCategories(rex::log::kLogTestTable);
 
@@ -187,8 +190,8 @@ REX_TEST_CASE("log.level sets the level of categories without their own", "[base
   rex::log::CaptureSink sink;
   auto sink_guard = logger.AddSink(sink);
   REQUIRE(logger.level.Set("warn"));
-  REXLOG_INFO(logtest, "dropped by the default level");
-  REXLOG_WARN(logtest, "kept by the default level");
+  REXLOG_CAT_INFO(::rex::log::logtest, "dropped by the default level");
+  REXLOG_CAT_WARN(::rex::log::logtest, "kept by the default level");
   sink_guard.Reset();
   logger.RemoveCategories(rex::log::kLogTestTable);
   const auto texts = Texts(sink);
@@ -214,7 +217,7 @@ REX_TEST_CASE("an absolute file_name picks the log file", "[base][logger]") {
   REQUIRE(REX_LOGGER().file_name.Set(named.string()));
   HarnessApp app;
   REQUIRE(app.Start());
-  REXLOG_INFO(core, "line for the explicit file");
+  REXLOG_INFO("line for the explicit file");
   app.Finish();
   REQUIRE(LogFiles(app.folder).empty());
   REQUIRE(ReadFile(named).find("line for the explicit file") != std::string::npos);
@@ -226,7 +229,7 @@ REX_TEST_CASE("folder_budget prunes older runs", "[base][logger]") {
   {
     HarnessApp first(folder.path);
     REQUIRE(first.Start());
-    REXLOG_INFO(core, "line for the first run");
+    REXLOG_INFO("line for the first run");
     first.Finish();
   }
   REQUIRE(LogFiles(folder.path).size() == 1);
@@ -246,7 +249,7 @@ REX_TEST_CASE("the buffer before the file keeps 65536 lines and counts the rest"
               "[base][logger]") {
   ResetLogger();
   for (int i = 0; i < 70000; ++i) {
-    REXLOG_INFO(core, "cap {}", i);
+    REXLOG_INFO("cap {}", i);
   }
   LineSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
@@ -274,7 +277,7 @@ REX_TEST_CASE("one line per sink on Linux", "[base][logger]") {
   std::FILE* err = std::freopen((folder.path / "err.txt").c_str(), "w", stderr);
   REQUIRE(out != nullptr);
   REQUIRE(err != nullptr);
-  REXLOG_INFO(core, "line that must appear once");
+  REXLOG_INFO("line that must appear once");
   REX_LOGGER().Flush();
   std::fflush(stdout);
   std::fflush(stderr);
@@ -288,3 +291,77 @@ REX_TEST_CASE("one line per sink on Linux", "[base][logger]") {
   REQUIRE(CountInStreams("line that must appear once", folder.path) == 1);
 }
 #endif
+
+REX_TEST_CASE("the default pattern writes the timestamp, level letter, category and thread",
+              "[base][logger]") {
+  ResetLogger();
+  REQUIRE(REX_LOGGER().level.Set("trace"));
+  HarnessApp app;
+  REQUIRE(app.Start());
+  REXLOG_TRACE("pattern line");
+  REXLOG_DEV("pattern line");
+  REXLOG_DEBUG("pattern line");
+  REXLOG_INFO("pattern line");
+  REXLOG_WARN("pattern line");
+  REXLOG_ERROR("pattern line");
+  REXLOG_CRITICAL("pattern line");
+  app.Finish();
+  const auto files = LogFiles(app.folder);
+  REQUIRE(files.size() == 1);
+  const std::string text = ReadFile(files[0]);
+  const std::regex line(
+      "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}) ([TVDIWEC]) core       t\\d{5} "
+      "pattern line\n");
+  std::string letters;
+  for (std::sregex_iterator it(text.begin(), text.end(), line), end; it != end; ++it) {
+    letters += (*it)[2].str();
+  }
+  CHECK(letters == "TVDIWEC");
+}
+
+REX_TEST_CASE("a custom pattern changes the file line", "[base][logger]") {
+  ResetLogger();
+  REQUIRE(REX_LOGGER().pattern.Set("%Q|%n|%v"));
+  HarnessApp app;
+  REQUIRE(app.Start());
+  REXLOG_INFO("custom pattern line");
+  app.Finish();
+  const auto files = LogFiles(app.folder);
+  REQUIRE(files.size() == 1);
+  CHECK(ReadFile(files[0]).find("\nI|core|custom pattern line\n") != std::string::npos);
+}
+
+REX_TEST_CASE("a pattern with an unknown flag logs an error and uses the default",
+              "[base][logger]") {
+  ResetLogger();
+  REQUIRE(REX_LOGGER().pattern.Set("%k %v"));
+  HarnessApp app;
+  REQUIRE(app.Start());
+  REXLOG_INFO("line under the fallback");
+  app.Finish();
+  const auto files = LogFiles(app.folder);
+  REQUIRE(files.size() == 1);
+  const std::string text = ReadFile(files[0]);
+  CHECK(text.find("log.pattern '%k %v' is not used") != std::string::npos);
+  CHECK(std::regex_search(text, std::regex(" I core       t\\d{5} line under the fallback\n")));
+}
+
+REX_TEST_CASE("a positive flush_interval writes the file without a flush call", "[base][logger]") {
+  ResetLogger();
+  REQUIRE(REX_LOGGER().flush_interval.Set(1));
+  HarnessApp app;
+  REQUIRE(app.Start());
+  REXLOG_INFO("line the periodic flush writes");
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  bool found = false;
+  while (!found && std::chrono::steady_clock::now() < deadline) {
+    const auto files = LogFiles(app.folder);
+    found = !files.empty() &&
+            ReadFile(files[0]).find("line the periodic flush writes") != std::string::npos;
+    if (!found) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+  }
+  CHECK(found);
+  app.Finish();
+}

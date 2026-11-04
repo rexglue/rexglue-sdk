@@ -13,7 +13,6 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <ctime>
 #include <deque>
 #include <filesystem>
@@ -22,11 +21,20 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
 
 #include <rex/logging/log.h>
 #include <rex/logging/logger.h>
+
+namespace spdlog {
+class logger;
+namespace details {
+struct log_msg;
+}  // namespace details
+namespace sinks {
+class sink;
+}  // namespace sinks
+}  // namespace spdlog
 
 namespace rex::log {
 
@@ -44,8 +52,9 @@ struct LogFileConfig {
   std::filesystem::path folder; /**< Folder of sequential files, or empty for the logs folder. */
   std::string name;             /**< Base name of sequential files, or empty for the executable. */
   u64 folder_budget = 0;        /**< Bytes of older runs kept in folder, 0 for no limit. */
-  LineFormat format{TimestampStyle::kDateTime, true, true, false};
 };
+
+class SinkLogger;
 
 }  // namespace rex::log
 
@@ -59,6 +68,12 @@ struct Logger::State {
   log::Level GetSlotLevel(u16 slot) const { return levels[slot].load(std::memory_order_relaxed); }
 
   void Write(const log::Message& message);
+
+  /** Keeps a message and hands it to every sink. */
+  void Dispatch(const spdlog::details::log_msg& message, u64 message_sequence);
+
+  /** Flushes every sink. Called by the engine, also from the periodic flusher. */
+  void FlushSinks();
 
   /**
    * Writes a message without the level check. Gives up when the sink mutex stays held past the
@@ -93,6 +108,11 @@ struct Logger::State {
   void ApplyDefaultLevel(std::string_view text);
   void ApplyCategoryLevel(std::string_view category, std::string_view text);
 
+  struct Consumer {
+    log::ISink* target;
+    std::shared_ptr<spdlog::sinks::sink> adapter;
+  };
+
   struct Slot {
     std::string name;
     std::string description;
@@ -108,10 +128,11 @@ struct Logger::State {
   void RebuildSinksLocked();
   void FlushLocked();
   bool LockSinks(std::unique_lock<std::mutex>& lock, std::chrono::milliseconds timeout);
-  void RunFlushThread(const std::stop_token& stop, std::chrono::seconds interval);
+  void StopFlusher();
+  void StartFlusher(std::chrono::seconds interval);
   void SetCrashFile(const std::filesystem::path& path);
   void Keep(const log::Message& message);
-  void Replay(log::ISink& sink, bool notice);
+  void Replay(spdlog::sinks::sink& sink, bool notice);
   void EndSession();
 
   static State& Instance();
@@ -123,12 +144,15 @@ struct Logger::State {
   mutable std::mutex mutex;
 
   mutable std::mutex sinks_mutex;
-  std::vector<log::ISink*> sinks;
-  std::vector<log::ISink*> consumer_sinks;
-  log::LineFormat format{log::TimestampStyle::kDateTime, true, true, false};
-  std::unique_ptr<log::DebuggerSink> debugger;
-  std::unique_ptr<log::ConsoleSink> console;
-  std::unique_ptr<log::FileSink> file;
+  std::shared_ptr<log::SinkLogger> engine;
+  std::vector<std::shared_ptr<spdlog::sinks::sink>> sinks;
+  std::vector<Consumer> consumers;
+  std::shared_ptr<spdlog::sinks::sink> debugger;
+  std::shared_ptr<spdlog::sinks::sink> console;
+  std::shared_ptr<spdlog::sinks::sink> file;
+  std::string pattern;
+  std::string rejected_pattern;
+  u64 dispatch_sequence = 0;
   std::atomic<int> crash_fd{-1};
   std::deque<log::CapturedMessage> kept;
   bool keeping = true;
@@ -140,10 +164,6 @@ struct Logger::State {
   std::chrono::system_clock::time_point start_time;
   ScopeGuard level_watch;
   std::vector<ScopeGuard> watches;
-
-  std::mutex flush_mutex;
-  std::condition_variable_any flush_wake;
-  std::jthread flush_thread;
 };
 
 }  // namespace rex

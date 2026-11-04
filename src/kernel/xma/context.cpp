@@ -61,12 +61,12 @@ int XMAContext::Setup(u32 id, kernel::Memory* memory, u32 guest_ptr) {
 
   av_codec_ = avcodec_find_decoder(AV_CODEC_ID_XMAFRAMES);
   if (!av_codec_) {
-    REX_FAIL(apu, 1, "XMAContext {}: Codec not found", id);
+    REXAPU_FAIL(1, "XMAContext {}: Codec not found", id);
   }
 
   av_context_ = avcodec_alloc_context3(av_codec_);
   if (!av_context_) {
-    REX_FAIL(apu, 1, "XMAContext {}: Couldn't allocate context", id);
+    REXAPU_FAIL(1, "XMAContext {}: Couldn't allocate context", id);
   }
 
   av_context_->channels = 0;
@@ -74,7 +74,7 @@ int XMAContext::Setup(u32 id, kernel::Memory* memory, u32 guest_ptr) {
 
   av_frame_ = av_frame_alloc();
   if (!av_frame_) {
-    REX_FAIL(apu, 1, "XMAContext {}: Couldn't allocate frame", id);
+    REXAPU_FAIL(1, "XMAContext {}: Couldn't allocate frame", id);
   }
 
   return 0;
@@ -151,7 +151,7 @@ bool XMAContext::WaitIdle(bool poll) {
 
 void XMAContext::Clear() {
   std::lock_guard<std::mutex> lock(lock_);
-  REXLOG_DEV(apu, "XMAContext: reset context {}", GetID());
+  REXAPU_DEV("XMAContext: reset context {}", GetID());
 
   auto context_ptr = GetMemory()->TranslateVirtual(GetGuestPtr());
   XMA_CONTEXT_DATA data(context_ptr);
@@ -276,7 +276,7 @@ const u8* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_inde
 
   const u32 next_buffer_address = data->GetInputBufferAddress(next_buffer_index);
   if (!next_buffer_address) {
-    REX_FAIL(apu, nullptr, "XMAContext {}: Buffer marked valid but has null pointer!", GetID());
+    REXAPU_FAIL(nullptr, "XMAContext {}: Buffer marked valid but has null pointer!", GetID());
   }
 
   return GetMemory()->TranslatePhysical(next_buffer_address);
@@ -303,10 +303,10 @@ memory::RingBuffer XMAContext::PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data) {
   const u32 output_write_offset = data->output_buffer_write_offset * kOutputBytesPerBlock;
 
   if (output_capacity > kOutputMaxSizeBytes) {
-    REXLOG_WARN(apu,
-                "XMAContext {}: Output buffer exceeds expected size! "
-                "(size {}, max {})",
-                GetID(), output_capacity, kOutputMaxSizeBytes);
+    REXAPU_WARN(
+        "XMAContext {}: Output buffer exceeds expected size! "
+        "(size {}, max {})",
+        GetID(), output_capacity, kOutputMaxSizeBytes);
   }
 
   u8* output_buffer = GetMemory()->TranslatePhysical(data->output_buffer_ptr);
@@ -449,7 +449,7 @@ int XMAContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
   u32 channels = is_two_channel ? 2 : 1;
   if (av_context_->sample_rate != sample_rate ||
       av_context_->channels != static_cast<int>(channels)) {
-    REXLOG_DEV(apu, "XMAContext {}: Codec reinit, rate {} to {}, channels {} to {}", GetID(),
+    REXAPU_DEV("XMAContext {}: Codec reinit, rate {} to {}, channels {} to {}", GetID(),
                av_context_->sample_rate, sample_rate, av_context_->channels, channels);
     avcodec_free_context(&av_context_);
     av_context_ = avcodec_alloc_context3(av_codec_);
@@ -459,7 +459,7 @@ int XMAContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
     av_context_->flags2 |= AV_CODEC_FLAG2_SKIP_MANUAL;
 
     if (avcodec_open2(av_context_, av_codec_, nullptr) < 0) {
-      REX_FAIL(apu, -1, "XMAContext: Failed to reopen FFmpeg context");
+      REXAPU_FAIL(-1, "XMAContext: Failed to reopen FFmpeg context");
     }
     return 1;
   }
@@ -482,8 +482,8 @@ bool XMAContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REX_FAIL(apu, false, "XMAContext {}: Error sending packet for decoding, {} ({})", GetID(),
-             errbuf, ret);
+    REXAPU_FAIL(false, "XMAContext {}: Error sending packet for decoding, {} ({})", GetID(), errbuf,
+                ret);
   }
   ret = avcodec_receive_frame(av_context, av_frame);
 
@@ -493,7 +493,7 @@ bool XMAContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REX_FAIL(apu, false, "XMAContext {}: Error during decoding, {} ({})", GetID(), errbuf, ret);
+    REXAPU_FAIL(false, "XMAContext {}: Error during decoding, {} ({})", GetID(), errbuf, ret);
   }
   return true;
 }
@@ -527,7 +527,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   }
 
   if (!data->output_buffer_block_count) {
-    REXLOG_ERROR(apu, "XMAContext {}: Received 0 for output_buffer_block_count!", GetID());
+    REXAPU_ERROR("XMAContext {}: Received 0 for output_buffer_block_count!", GetID());
     return;
   }
 
@@ -541,7 +541,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   const i16 packet_index = GetPacketNumber(current_input_size, data->input_buffer_read_offset);
 
   if (packet_index == -1) {
-    REXLOG_ERROR(apu, "XMAContext {}: Invalid packet index, input read offset {}", GetID(),
+    REXAPU_ERROR("XMAContext {}: Invalid packet index, input read offset {}", GetID(),
                  static_cast<u32>(data->input_buffer_read_offset));
     return;
   }
@@ -601,7 +601,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
                                                  packet_info.current_frame_size);
 
   if (bits_to_copy == 0) {
-    REXLOG_ERROR(apu, "XMAContext {}: There are no bits to copy!", GetID());
+    REXAPU_ERROR("XMAContext {}: There are no bits to copy!", GetID());
     SwapInputBuffer(data);
     return;
   }

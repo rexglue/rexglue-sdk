@@ -53,7 +53,7 @@ Result<void> AudioModule::Init() {
   if (selected) {
     drivers_ = std::move(*selected);
   } else {
-    REXLOG_WARN(apu, "audio driver: {}", selected.error().message);
+    REXAPU_WARN("audio driver: {}", selected.error().message);
   }
   if (drivers_.empty() && needs_->audio) {
     return Err(ErrorCategory::kConfig, "no audio driver is available");

@@ -22,11 +22,11 @@
 namespace rex::codegen {
 
 [[nodiscard]] Result<void> Analyze(CodegenContext& ctx, IProgressReporter* reporter) {
-  REXLOG_TRACE(codegen, "Analyze: starting analysis...");
+  REXCG_TRACE("Analyze: starting analysis...");
 
   ctx.InitDecoded();
-  REXLOG_TRACE(codegen, "Analyze: decoded {} instructions across {} code regions",
-               ctx.GetDecoded().GetInstructionCount(), ctx.GetDecoded().GetCodeRegions().size());
+  REXCG_TRACE("Analyze: decoded {} instructions across {} code regions",
+              ctx.GetDecoded().GetInstructionCount(), ctx.GetDecoded().GetCodeRegions().size());
 
   if (reporter)
     reporter->ModulePhaseStarted("Register");
@@ -70,8 +70,8 @@ namespace rex::codegen {
     return validate_result;
   }
 
-  REXLOG_TRACE(codegen, "Analyze: complete - {} functions ready for code generation",
-               ctx.graph.GetFunctionCount());
+  REXCG_TRACE("Analyze: complete - {} functions ready for code generation",
+              ctx.graph.GetFunctionCount());
 
   return Ok();
 }
@@ -105,7 +105,7 @@ void AnalysisErrorLog::PrintReport() const {
     return;
   }
 
-  REXLOG_ERROR(codegen, "=== ANALYSIS ERRORS ===");
+  REXCG_ERROR("=== ANALYSIS ERRORS ===");
 
   std::map<Category, std::vector<const Entry*>> by_category;
   for (const auto& entry : entries_) {
@@ -113,19 +113,19 @@ void AnalysisErrorLog::PrintReport() const {
   }
 
   for (const auto& [cat, entries] : by_category) {
-    REXLOG_ERROR(codegen, "{} ({}):", CategoryName(cat), entries.size());
+    REXCG_ERROR("{} ({}):", CategoryName(cat), entries.size());
 
     for (const auto* entry : entries) {
       if (entry->secondary_address != 0) {
-        REXLOG_ERROR(codegen, "  0x{:08X} from 0x{:08X}: {}", entry->address,
-                     entry->secondary_address, entry->message);
+        REXCG_ERROR("  0x{:08X} from 0x{:08X}: {}", entry->address, entry->secondary_address,
+                    entry->message);
       } else {
-        REXLOG_ERROR(codegen, "  0x{:08X}: {}", entry->address, entry->message);
+        REXCG_ERROR("  0x{:08X}: {}", entry->address, entry->message);
       }
     }
   }
 
-  REXLOG_ERROR(codegen, "Total: {} errors", entries_.size());
+  REXCG_ERROR("Total: {} errors", entries_.size());
 }
 
 }  // namespace rex::codegen

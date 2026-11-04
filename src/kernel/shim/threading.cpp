@@ -95,7 +95,7 @@ static void FiberEntryPoint(void* raw_arg) {
     REX_PROFILE_FIBER_LEAVE();
     rex::platform::Fiber::SwitchTo(thread->GetMainFiber());
   }
-  REXLOG_WARN(kernel, "FiberEntryPoint: fiber function returned with no main fiber, terminating");
+  REXKRNL_WARN("FiberEntryPoint: fiber function returned with no main fiber, terminating");
   std::terminate();
 }
 
@@ -168,8 +168,8 @@ REX_SHIM_FN(ConvertThreadToFiber, u32, MappedVoid lpParameter) {
   runtime.GetThreadRegistry().RegisterFiber(
       buf_addr, GuestFiber{host_fiber, kernel::GetCurrentState().fiber_count++, buf_addr, 0, true});
 
-  REXLOG_DEBUG(kernel, "ConvertThreadToFiber: fiber={:#010x} param={:#010x}", buf_addr,
-               lpParameter.GetGuestAddress());
+  REXKRNL_DEBUG("ConvertThreadToFiber: fiber={:#010x} param={:#010x}", buf_addr,
+                lpParameter.GetGuestAddress());
   return buf_addr;
 }
 
@@ -177,7 +177,7 @@ REX_SHIM_FN(ConvertFiberToThread, u32) {
   auto* thread = KernelThread::GetCallingThread();
   auto result = ResetThreadFiber(thread);
   if (result) {
-    REXLOG_DEBUG(kernel, "ConvertFiberToThread: success");
+    REXKRNL_DEBUG("ConvertFiberToThread: success");
   }
   return result;
 }
@@ -236,8 +236,8 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, MappedVoid lp
       buf_addr, GuestFiber{host_fiber, kernel::GetCurrentState().fiber_count++, buf_addr,
                            stack->alloc_base, false});
 
-  REXLOG_DEBUG(kernel, "CreateFiber: fiber={:#010x} start={:#010x} stack={:#x} param={:#010x}",
-               buf_addr, lpStartAddress, guest_stack_size, lpParameter.GetGuestAddress());
+  REXKRNL_DEBUG("CreateFiber: fiber={:#010x} start={:#010x} stack={:#x} param={:#010x}", buf_addr,
+                lpStartAddress, guest_stack_size, lpParameter.GetGuestAddress());
   return buf_addr;
 }
 
@@ -249,14 +249,14 @@ REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
   u32 fiber_addr = lpFiber.GetGuestAddress();
 
   if (static_cast<u32>(kthread->fiber_ptr) == fiber_addr) {
-    REXLOG_DEBUG(kernel, "DeleteFiber: self delete fiber={:#010x}", fiber_addr);
+    REXKRNL_DEBUG("DeleteFiber: self delete fiber={:#010x}", fiber_addr);
     REX_PROFILE_FIBER_LEAVE();
     ResetThreadFiber(thread);
     thread->Exit(1);
     return;
   }
 
-  REXLOG_DEBUG(kernel, "DeleteFiber: fiber={:#010x}", fiber_addr);
+  REXKRNL_DEBUG("DeleteFiber: fiber={:#010x}", fiber_addr);
 
   auto info = runtime.GetThreadRegistry().FindFiber(fiber_addr);
   if (info) {
@@ -280,7 +280,7 @@ REX_SHIM_FN(SwitchToFiber, void, MappedVoid lpFiber) {
 
   auto target_info = runtime.GetThreadRegistry().FindFiber(target_addr);
   if (!target_info || !target_info->host_fiber) {
-    REXLOG_WARN(kernel, "SwitchToFiber: no valid fiber for {:#010x}, skipping", target_addr);
+    REXKRNL_WARN("SwitchToFiber: no valid fiber for {:#010x}, skipping", target_addr);
     return;
   }
 

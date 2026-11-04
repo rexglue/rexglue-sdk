@@ -47,7 +47,7 @@ void UISystem::State::ApplyPointerMode(hid::PointerMode mode) {
   applied_pointer_mode = mode;
   driver->SetCursorShape(mode == hid::PointerMode::kFree && !cursor_hidden_by_timeout,
                          rex::ui::CursorShape::kArrow);
-  REXLOG_INFO(ui, "pointer mode applied");
+  REXUI_INFO("pointer mode applied");
 }
 
 void UISystem::State::RefreshCapture() {

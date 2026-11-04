@@ -30,15 +30,14 @@ u32 KernelProcAddressByOrdinal(TitleRuntime& runtime, ModuleObject& module, u16 
   const auto* export_entry =
       runtime_module ? rex::kernel::FindByOrdinal(*runtime_module, ordinal) : nullptr;
   if (!export_entry) {
-    REXLOG_DEBUG(system, "GetProcAddressByOrdinal: ordinal {:04X} not found in {}", ordinal,
-                 module.name);
+    REXSYS_DEBUG("GetProcAddressByOrdinal: ordinal {:04X} not found in {}", ordinal, module.name);
     return 0;
   }
 
   if (export_entry->type == rex::kernel::ExportType::kVariable) {
     const u32 address = module.GetVariable(ordinal);
-    REXLOG_DEBUG(system, "GetProcAddressByOrdinal: {} ({:04X}) -> variable at {:08X}",
-                 export_entry->name, ordinal, address);
+    REXSYS_DEBUG("GetProcAddressByOrdinal: {} ({:04X}) -> variable at {:08X}", export_entry->name,
+                 ordinal, address);
     return address;
   }
 
@@ -48,7 +47,7 @@ u32 KernelProcAddressByOrdinal(TitleRuntime& runtime, ModuleObject& module, u16 
 
   auto thunk_it = module.kernel.thunk_cache.find(key);
   if (thunk_it != module.kernel.thunk_cache.end()) {
-    REXLOG_DEBUG(system, "GetProcAddressByOrdinal: {} ({:04X}) in {} -> cached thunk {:08X}",
+    REXSYS_DEBUG("GetProcAddressByOrdinal: {} ({:04X}) in {} -> cached thunk {:08X}",
                  export_entry->name, ordinal, module.name, thunk_it->second);
     return thunk_it->second;
   }
@@ -56,12 +55,12 @@ u32 KernelProcAddressByOrdinal(TitleRuntime& runtime, ModuleObject& module, u16 
   const u32 thunk_addr = dispatcher->AllocateThunk(export_entry->fn, caller_address);
   if (thunk_addr) {
     module.kernel.thunk_cache[key] = thunk_addr;
-    REXLOG_DEBUG(system, "GetProcAddressByOrdinal: {} ({:04X}) in {} -> thunk at {:08X}",
+    REXSYS_DEBUG("GetProcAddressByOrdinal: {} ({:04X}) in {} -> thunk at {:08X}",
                  export_entry->name, ordinal, module.name, thunk_addr);
     return thunk_addr;
   }
 
-  REXLOG_WARN(system, "GetProcAddressByOrdinal: function {} ({:04X}) in {} - no thunk available",
+  REXSYS_WARN("GetProcAddressByOrdinal: function {} ({:04X}) in {} - no thunk available",
               export_entry->name, ordinal, module.name);
   return 0;
 }
@@ -177,7 +176,7 @@ u32 ModuleObject::GetExportAddress(TitleRuntime& owning_runtime, u16 ordinal, u3
 
 u32 ModuleObject::GetExportAddress(std::string_view export_name) const {
   if (type == ModuleType::kKernel) {
-    REX_FAIL(system, 0, "GetExportAddress by name is not implemented for kernel modules");
+    REXSYS_FAIL(0, "GetExportAddress by name is not implemented for kernel modules");
   }
   const auto* xex = GetXEX();
   return xex ? xex->GetExportAddress(export_name) : 0;

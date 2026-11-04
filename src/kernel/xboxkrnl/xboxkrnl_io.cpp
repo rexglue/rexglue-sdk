@@ -77,12 +77,12 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
 
   auto target_path = StripDosDevicePrefix(
       kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), object_name));
-  REXLOG_TRACE(kernel,
-               "NtCreateFile "
-               "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
-               target_path, static_cast<u32>(desired_access), static_cast<u32>(file_attributes),
-               static_cast<u32>(share_access), static_cast<u32>(creation_disposition),
-               static_cast<u32>(create_options));
+  REXKRNL_TRACE(
+      "NtCreateFile "
+      "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
+      target_path, static_cast<u32>(desired_access), static_cast<u32>(file_attributes),
+      static_cast<u32>(share_access), static_cast<u32>(creation_disposition),
+      static_cast<u32>(create_options));
 
   if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
@@ -135,15 +135,15 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
 
   *handle_out = handle;
   if (XFAILED(result)) {
-    REXLOG_WARN(kernel,
-                "NtCreateFile failed "
-                "path='{}' -> {:#x}",
-                target_path, result);
+    REXKRNL_WARN(
+        "NtCreateFile failed "
+        "path='{}' -> {:#x}",
+        target_path, result);
   } else {
-    REXLOG_TRACE(kernel,
-                 "NtCreateFile -> "
-                 "{:#x} handle={:#x}",
-                 result, handle);
+    REXKRNL_TRACE(
+        "NtCreateFile -> "
+        "{:#x} handle={:#x}",
+        result, handle);
   }
   return result;
 }
@@ -172,8 +172,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
                      MappedVoid buffer, u32 buffer_length, MappedU64 byte_offset_ptr) {
   u64 byte_offset = byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : 0;
   const bool apc_requested = (static_cast<u32>(apc_routine_ptr) & ~1u) != 0;
-  REXLOG_TRACE(
-      kernel,
+  REXKRNL_TRACE(
       "NtReadFile "
       "handle={:#x} event={:#x} apc={:#x} apc_ctx={:#x} iosb={:#x} buf={:#x} len={:#x} offset={}",
       static_cast<u32>(file_handle), static_cast<u32>(event_handle),
@@ -235,8 +234,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
   }
 
   if (file) {
-    REXLOG_TRACE(
-        kernel,
+    REXKRNL_TRACE(
         "NtReadFile -> "
         "{:#x} (sync={}, iosb_status={:#x}, iosb_info={}, ev_signaled={}, apc_requested={}, "
         "apc_queued={})",
@@ -245,10 +243,10 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
         io_status_block ? static_cast<u32>(io_status_block->information) : 0, ev && signal_event,
         apc_requested, apc_queued);
   } else {
-    REXLOG_TRACE(kernel,
-                 "NtReadFile -> "
-                 "{:#x} (apc_requested={}, apc_queued={})",
-                 result, apc_requested, apc_queued);
+    REXKRNL_TRACE(
+        "NtReadFile -> "
+        "{:#x} (apc_requested={}, apc_queued={})",
+        result, apc_requested, apc_queued);
   }
   return result;
 }
@@ -439,10 +437,10 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
   auto object_name = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(
       object_attrs->name_ptr);
   auto path_str = kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), object_name);
-  REXLOG_TRACE(kernel,
-               "NtQueryFullAttributesFile "
-               "path={}",
-               path_str);
+  REXKRNL_TRACE(
+      "NtQueryFullAttributesFile "
+      "path={}",
+      path_str);
 
   Pinned<FileObject> root_file;
   // 0xFFFFFFFD is ObDosDevices.
@@ -470,16 +468,16 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
     file_info->end_of_file = entry->size;
     file_info->attributes = std::to_underlying(entry->attributes);
 
-    REXLOG_TRACE(kernel,
-                 "NtQueryFullAttributesFile -> "
-                 "0x0 size={}",
-                 entry->size);
+    REXKRNL_TRACE(
+        "NtQueryFullAttributesFile -> "
+        "0x0 size={}",
+        entry->size);
     return X_STATUS_SUCCESS;
   }
 
-  REXLOG_TRACE(kernel,
-               "NtQueryFullAttributesFile -> "
-               "X_STATUS_NO_SUCH_FILE");
+  REXKRNL_TRACE(
+      "NtQueryFullAttributesFile -> "
+      "X_STATUS_NO_SUCH_FILE");
   return X_STATUS_NO_SUCH_FILE;
 }
 

@@ -14,31 +14,31 @@ ConsoleCommandTable::ConsoleCommandTable(ISettings& settings)
     : SettingOwner("console"), settings_(settings) {}
 
 Result<void> ConsoleCommandTable::Echo(std::string_view args) {
-  REXLOG_INFO(console, "{}", args);
+  REXCON_INFO("{}", args);
   return Ok();
 }
 
 Result<void> ConsoleCommandTable::Find(std::string_view args) {
   args = string::Trim(args);
   if (args.empty()) {
-    REXLOG_INFO(console, "find: usage: find <substr>");
+    REXCON_INFO("find: usage: find <substr>");
     return Ok();
   }
   const std::string needle(args);
   int matches = 0;
   for (const SettingBase* setting : settings_.Enumerate()) {
     if (setting->GetName().find(needle) != std::string::npos) {
-      REXLOG_INFO(console, "  {}", setting->GetName());
+      REXCON_INFO("  {}", setting->GetName());
       ++matches;
     }
   }
   for (const Command* command : settings_.EnumerateCommands()) {
     if (command->GetName().find(needle) != std::string::npos) {
-      REXLOG_INFO(console, "  {}", command->GetName());
+      REXCON_INFO("  {}", command->GetName());
       ++matches;
     }
   }
-  REXLOG_INFO(console, "find: {} match(es) for '{}'", matches, needle);
+  REXCON_INFO("find: {} match(es) for '{}'", matches, needle);
   return Ok();
 }
 

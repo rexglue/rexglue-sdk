@@ -66,7 +66,7 @@ void WorkspaceHeap::Free(u32 address) {
     return;
   }
   if (!allocator_->Contains(address)) {
-    REXLOG_WARN(system, "Workspace free of {:#010x} is outside {:#010x}+{:#x}, ignored", address,
+    REXSYS_WARN("Workspace free of {:#010x} is outside {:#010x}+{:#x}, ignored", address,
                 allocator_->GetBase(), allocator_->GetSize());
     return;
   }

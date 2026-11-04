@@ -195,9 +195,9 @@ struct BuilderContext {
   const CallTarget* FindCallTarget(u32 site) const;
 
   /**
-   * Logs an error and emits REX_FATAL when the function node has no call target. Save and restore
-   * helper calls are elided in a function that localizes its nonvolatiles. An SEH funclet and a
-   * setjmp call copy the localized registers into ctx before the call and back after it.
+   * Logs an error and emits REXCPU_FATAL when the function node has no call target. Save and
+   * restore helper calls are elided in a function that localizes its nonvolatiles. An SEH funclet
+   * and a setjmp call copy the localized registers into ctx before the call and back after it.
    */
   void EmitFunctionCall(u32 address);
 

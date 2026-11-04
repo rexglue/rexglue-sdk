@@ -55,7 +55,7 @@ void SDL3AudioDriver::Shutdown() {
   if (context_) {
     if (const auto quit = context_->RunOnUIThread([] { SDL_QuitSubSystem(SDL_INIT_AUDIO); });
         !quit) {
-      REXLOG_WARN(apu, "SDL audio was not stopped, {}", quit.error().message);
+      REXAPU_WARN("SDL audio was not stopped, {}", quit.error().message);
     }
     context_ = nullptr;
   }
@@ -129,7 +129,7 @@ Result<void> SDL3AudioProvider::Connect(IFactory&) {
   rex::memory::SetTagName(rex::apu::kAPU, "APU");
   for (const char* name : {"audio_frame_latency_us", "buffer_queue_depth"}) {
     if (auto counter = rex::platform::RegisterCounter(name); !counter) {
-      REXLOG_WARN(apu, "{}", counter.error().message);
+      REXAPU_WARN("{}", counter.error().message);
     }
   }
   return Ok();

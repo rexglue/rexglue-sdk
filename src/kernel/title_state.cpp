@@ -75,7 +75,7 @@ rex::kernel::XLanguage ResolveUserLanguage(u32 value, rex::ui::IUISystem* ui) {
   }
   const rex::kernel::XLanguage language = rex::kernel::ToXLanguage(value);
   if (language == rex::kernel::XLanguage::kInvalid) {
-    REXLOG_WARN(system, "kernel.user_language {} is not a title language, using English", value);
+    REXSYS_WARN("kernel.user_language {} is not a title language, using English", value);
     return rex::kernel::XLanguage::kEnglish;
   }
   return language;
@@ -195,7 +195,7 @@ Result<void> TitleState::LoadKernel() {
   }
 
   if (game_data_root_.empty()) {
-    REXLOG_WARN(system, "TitleRuntime::Load: no game_data_root, the standard mounts are skipped");
+    REXSYS_WARN("TitleRuntime::Load: no game_data_root, the standard mounts are skipped");
   } else {
     if (auto mounted =
             file_system_->ConfigureStandardMounts(game_data_root_, update_data_root_, game_flags_);
@@ -207,7 +207,7 @@ Result<void> TitleState::LoadKernel() {
   setup_complete_ = true;
   g_active.store(&owner_, std::memory_order_release);
   if (tool_mode_) {
-    REXLOG_DEBUG(system, "Runtime initialized in tool mode (no GPU)");
+    REXSYS_DEBUG("Runtime initialized in tool mode (no GPU)");
   }
   return Ok();
 }
@@ -235,11 +235,11 @@ Result<void> TitleState::AttachSystems(gpu::IGraphicsControl* graphics, rex::ui:
   xam_->AttachSystems(ui_, input, video_mode_);
 
   if (!audio) {
-    REXLOG_INFO(apu, "no audio system is attached, the title gets no audio clients");
+    REXAPU_INFO("no audio system is attached, the title gets no audio clients");
   }
   apu_ = std::make_unique<kernel::APU>(owner_, audio);
   if (auto started = apu_->Setup(); !started) {
-    REXLOG_WARN(apu, "the APU failed to start, audio is disabled, {}", started.error().message);
+    REXAPU_WARN("the APU failed to start, audio is disabled, {}", started.error().message);
     apu_.reset();
   }
 
@@ -256,10 +256,10 @@ Result<void> TitleState::AttachSystems(gpu::IGraphicsControl* graphics, rex::ui:
     graphics_attached_ = true;
     rex::ppc::AttachMMIO(rex::ppc::MMIOBlock::kGPU, {this, GraphicsReadThunk, GraphicsWriteThunk});
   }
-  REXLOG_DEBUG(system, "GPU initialized");
+  REXSYS_DEBUG("GPU initialized");
 
   attached_ = true;
-  REXLOG_DEBUG(system, "Runtime initialized successfully");
+  REXSYS_DEBUG("Runtime initialized successfully");
   return Ok();
 }
 
@@ -309,7 +309,7 @@ Result<void> TitleState::InstallImage() {
         continue;
       }
       if (function_dispatcher_->GetFunction(address)) {
-        REXLOG_WARN(system, "func_mappings: duplicate guest address {:08X}", address);
+        REXSYS_WARN("func_mappings: duplicate guest address {:08X}", address);
         ++duplicates;
       }
       if (!function_dispatcher_->SetFunction(address, host)) {
@@ -318,7 +318,7 @@ Result<void> TitleState::InstallImage() {
         ++count;
       }
     }
-    REXLOG_DEBUG(system, "Registered {} recompiled functions ({} duplicates, {} rejected)", count,
+    REXSYS_DEBUG("Registered {} recompiled functions ({} duplicates, {} rejected)", count,
                  duplicates, rejected);
     if (rejected > 0) {
       Shutdown();
@@ -327,17 +327,16 @@ Result<void> TitleState::InstallImage() {
     }
   }
 
-  REXLOG_DEBUG(system, "Runtime setup complete (code {:08X} to {:08X}, image {:08X} to {:08X})",
+  REXSYS_DEBUG("Runtime setup complete (code {:08X} to {:08X}, image {:08X} to {:08X})",
                image_info.code_base, image_info.code_base + image_info.code_size,
                image_info.image_base, image_info.image_base + image_info.image_size);
 
   const auto& flags = image_info.codegen_flags;
-  REXLOG_DEBUG(system,
-               "Codegen config skip_lr={} skip_msr={} ctr={} xer={} cr={} reserved={} "
-               "non_argument={} non_volatile={}",
-               flags.skip_lr, flags.skip_msr, flags.ctr_as_local, flags.xer_as_local,
-               flags.cr_as_local, flags.reserved_as_local, flags.non_argument_as_local,
-               flags.non_volatile_as_local);
+  REXSYS_DEBUG(
+      "Codegen config skip_lr={} skip_msr={} ctr={} xer={} cr={} reserved={} "
+      "non_argument={} non_volatile={}",
+      flags.skip_lr, flags.skip_msr, flags.ctr_as_local, flags.xer_as_local, flags.cr_as_local,
+      flags.reserved_as_local, flags.non_argument_as_local, flags.non_volatile_as_local);
 
   return Ok();
 }
@@ -431,7 +430,7 @@ bool TitleState::IsAudioPaused() const {
 }
 
 Result<void> TitleState::LoadXEXImage(const std::string_view module_path) {
-  REXLOG_DEBUG(system, "Loading XEX image {}", std::string(module_path));
+  REXSYS_DEBUG("Loading XEX image {}", std::string(module_path));
 
   const X_HANDLE handle = kernel::ModuleObject::CreateUserModule(owner_);
   if (!handle) {
@@ -446,31 +445,31 @@ Result<void> TitleState::LoadXEXImage(const std::string_view module_path) {
   }
 
   SetExecutableModule(handle);
-  REXLOG_DEBUG(system, "  XEX image loaded successfully");
+  REXSYS_DEBUG("  XEX image loaded successfully");
   return Ok();
 }
 
 X_HANDLE TitleState::PrepareModuleLaunch() {
   const std::optional<X_HANDLE> executable = module_registry_->GetExecutable();
   if (!executable) {
-    REX_FAIL(system, 0, "TitleRuntime::PrepareModuleLaunch: No executable module loaded");
+    REXSYS_FAIL(0, "TitleRuntime::PrepareModuleLaunch: No executable module loaded");
   }
   auto module = object_table_->Get<kernel::ModuleObject>(*executable);
   if (!module || !module->processor_module->IsExecutable()) {
-    REX_FAIL(system, 0, "TitleRuntime::PrepareModuleLaunch: Failed to prepare module");
+    REXSYS_FAIL(0, "TitleRuntime::PrepareModuleLaunch: Failed to prepare module");
   }
   SetExecutableModule(*executable);
-  REXLOG_DEBUG(system, "Runtime: Preparing module launch...");
+  REXSYS_DEBUG("Runtime: Preparing module launch...");
   auto thread = std::make_unique<kernel::KernelThread>(owner_, module->user.stack_size, 0,
                                                        module->user.entry_point, 0,
                                                        kernel::kXCreateSuspended, true, true);
   thread->SetName("Main XThread");
   Result<X_HANDLE> launched = thread_registry_->Launch(std::move(thread));
   if (!launched) {
-    REX_FAIL(system, 0, "Could not create launch thread, {:08X}", kernel::ToXStatus(launched));
+    REXSYS_FAIL(0, "Could not create launch thread, {:08X}", kernel::ToXStatus(launched));
   }
   if (auto launch_thread = thread_registry_->FindByHandle(*launched)) {
-    REXLOG_DEBUG(system, "  Module prepared on thread '{}'", launch_thread->GetName());
+    REXSYS_DEBUG("  Module prepared on thread '{}'", launch_thread->GetName());
   }
   return *launched;
 }
@@ -528,7 +527,7 @@ rex::ScopeGuard TitleState::OnTitleExit(rex::MoveOnlyFunction<void(TitleExitReas
 
 KernelSettings& TitleState::GetKernelSettings() const {
   const KernelServices* services = GetKernelServices();
-  REX_CHECK(system, services, "the kernel settings exist while the kernel module is connected");
+  REXSYS_CHECK(services, "the kernel settings exist while the kernel module is connected");
   return *services->kernel_settings;
 }
 
@@ -730,8 +729,8 @@ void TitleState::LoadAchievements() {
   if (auto metadata_path = FindMetadataPath("achievements.toml")) {
     if (auto loaded = xam_managers_->GetAchievementManager().LoadMetadataFile(*metadata_path);
         !loaded) {
-      REXLOG_WARN(system, "achievements metadata {} ignored, {}",
-                  rex::string::PathToUTF8(*metadata_path), loaded.error().message);
+      REXSYS_WARN("achievements metadata {} ignored, {}", rex::string::PathToUTF8(*metadata_path),
+                  loaded.error().message);
     }
   }
 
@@ -772,7 +771,7 @@ Result<void> TitleState::CreateXAM() {
 }
 
 void TitleState::WriteTitleDebugString(std::string_view text) {
-  REXLOG_DEV(title, "{}", text);
+  REXTITLE_DEV("{}", text);
 }
 
 void TitleState::ReleaseXAMApps() {

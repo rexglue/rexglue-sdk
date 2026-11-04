@@ -101,8 +101,7 @@ Prolog ScanProlog(const BinaryView& binary, u32 func_addr, u32 prolog_length) {
   const u8* code = section->data + offset;
 
   if (prolog_length == 0) {
-    REXLOG_WARN(codegen, "SEH function 0x{:08X}: PrologLength=0, cannot determine frame size",
-                func_addr);
+    REXCG_WARN("SEH function 0x{:08X}: PrologLength=0, cannot determine frame size", func_addr);
     return info;
   }
 
@@ -381,8 +380,7 @@ u32 GetImportThunkSize(const BinaryView& binary, u32 address) {
       break;
     previous = decoded.opcode;
   }
-  REXLOG_DEBUG(codegen, "Import thunk at 0x{:08X} does not end in mtctr and bctr, sized as 1 word",
-               address);
+  REXCG_DEBUG("Import thunk at 0x{:08X} does not end in mtctr and bctr, sized as 1 word", address);
   return kFallbackSize;
 }
 
@@ -562,8 +560,7 @@ void DetectMillicodeRuns(const BinaryView& binary, AnalysisState& state) {
         });
         if (known)
           continue;
-        REXLOG_DEBUG(codegen, "Found {}{} at 0x{:08X}", GetMillicodePrefix(type), run->first,
-                     run->head);
+        REXCG_DEBUG("Found {}{} at 0x{:08X}", GetMillicodePrefix(type), run->first, run->head);
         runs.push_back(*run);
       }
       if (runs.size() == kRunClassCount)
@@ -595,7 +592,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
  * is inline and becomes a label.
  */
 [[nodiscard]] Result<void> RegisterEntryPoints(CodegenContext& ctx) {
-  REXLOG_TRACE(codegen, "Analyze: registering entry points...");
+  REXCG_TRACE("Analyze: registering entry points...");
 
   auto& graph = ctx.graph;
   auto& config = ctx.GetConfig();
@@ -628,7 +625,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
     for (const auto& sym : binary.GetImportSymbols()) {
       auto at_pos = sym.name.find('@');
       if (at_pos == std::string::npos) {
-        REXLOG_ERROR(codegen, "Invalid import format (missing @): {}", sym.name);
+        REXCG_ERROR("Invalid import format (missing @): {}", sym.name);
         continue;
       }
 
@@ -657,7 +654,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
         state.module_imports[sym.address] = {lib_name, ordinal};
         module_import_count++;
       } else if (resolved_name.empty()) {
-        REXLOG_ERROR(codegen, "Cannot resolve ordinal {} from {}", ordinal, lib_name);
+        REXCG_ERROR("Cannot resolve ordinal {} from {}", ordinal, lib_name);
         resolved_name = std::format("sub_{:X}", sym.address);
         unresolved_count++;
       }
@@ -676,11 +673,10 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
       import_count++;
     }
 
-    REXLOG_TRACE(codegen,
-                 "Analyze: loaded {} imports ({} resolved, {} from other modules, {} unresolved, "
-                 "{} variables skipped)",
-                 import_count, resolved_count, module_import_count, unresolved_count,
-                 variable_count);
+    REXCG_TRACE(
+        "Analyze: loaded {} imports ({} resolved, {} from other modules, {} unresolved, "
+        "{} variables skipped)",
+        import_count, resolved_count, module_import_count, unresolved_count, variable_count);
   }
 
   for (const auto& run : state.millicode_runs) {
@@ -721,7 +717,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
     }
   }
   if (config_funcs > 0) {
-    REXLOG_DEBUG(codegen, "Analyze: {} CONFIG functions, {} chunks", config_funcs, config_chunks);
+    REXCG_DEBUG("Analyze: {} CONFIG functions, {} chunks", config_funcs, config_chunks);
   }
 
   u32 pdata_addr = binary.GetExceptionDirectoryAddress();
@@ -740,7 +736,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
   u32 offset_in_section = pdata_addr - pdata_section->base_address;
   const u8* pdata_data = pdata_section->data + offset_in_section;
 
-  REXLOG_TRACE(codegen, "Analyze: PDATA base=0x{:08X}, size={}", pdata_addr, pdata_size);
+  REXCG_TRACE("Analyze: PDATA base=0x{:08X}, size={}", pdata_addr, pdata_size);
 
   size_t count = pdata_size / sizeof(RuntimeFunctionWords);
   auto* entries = reinterpret_cast<const RuntimeFunctionWords*>(pdata_data);
@@ -794,9 +790,8 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
           seh_info.frame_size = prolog_info.frame_size;
 
           if (!prolog_info.valid && !seh_info.scopes.empty()) {
-            REXLOG_WARN(codegen,
-                        "SEH function 0x{:08X}: could not determine frame size from prolog",
-                        begin_addr);
+            REXCG_WARN("SEH function 0x{:08X}: could not determine frame size from prolog",
+                       begin_addr);
           }
 
           for (u32 target : prolog_info.call_targets) {
@@ -837,7 +832,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
     pdata_added++;
   }
 
-  REXLOG_TRACE(codegen, "Analyze: added {} functions from PDATA", pdata_added);
+  REXCG_TRACE("Analyze: added {} functions from PDATA", pdata_added);
 
   size_t eh_funcs_queued = 0;
   for (u32 addr : eh_discovered_funcs) {
@@ -851,7 +846,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
   }
 
   if (eh_funcs_queued > 0) {
-    REXLOG_TRACE(codegen, "Analyze: queued {} functions from exception handling", eh_funcs_queued);
+    REXCG_TRACE("Analyze: queued {} functions from exception handling", eh_funcs_queued);
   }
 
   return Ok();

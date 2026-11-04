@@ -109,7 +109,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   *(root_signature_.ReleaseAndGetAddressOf()) =
       objects::CreateRootSignature(provider_, root_signature_desc);
   if (!root_signature_) {
-    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the root signature");
+    REXUI_FAIL(false, "D3D12ImmediateDrawer: Failed to create the root signature");
   }
 
   auto pipeline_desc = objects::BuildGraphicsPipelineStateDesc();
@@ -150,11 +150,11 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_desc.SampleDesc.Count = 1;
   if (FAILED(
           device->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&pipeline_triangle_)))) {
-    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the triangle pipeline");
+    REXUI_FAIL(false, "D3D12ImmediateDrawer: Failed to create the triangle pipeline");
   }
   pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
   if (FAILED(device->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&pipeline_line_)))) {
-    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the line pipeline");
+    REXUI_FAIL(false, "D3D12ImmediateDrawer: Failed to create the line pipeline");
   }
 
   D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc;
@@ -163,7 +163,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   sampler_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&sampler_heap_desc, IID_PPV_ARGS(&sampler_heap_)))) {
-    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the sampler descriptor heap");
+    REXUI_FAIL(false, "D3D12ImmediateDrawer: Failed to create the sampler descriptor heap");
   }
   sampler_heap_cpu_start_ = sampler_heap_->GetCPUDescriptorHandleForHeapStart();
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
@@ -229,7 +229,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
   if (FAILED(device->CreateCommittedResource(
           &objects::kHeapPropertiesDefault, heap_flag_create_not_zeroed, &resource_desc,
           D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource)))) {
-    REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to create a {}x{} texture", width, height);
+    REXUI_ERROR("D3D12ImmediateDrawer: Failed to create a {}x{} texture", width, height);
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
         ErrorCategory::kRuntime, std::format("Failed to create a {}x{} texture", width, height));
   }
@@ -243,10 +243,10 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
   if (FAILED(device->CreateCommittedResource(
           &objects::kHeapPropertiesUpload, heap_flag_create_not_zeroed, &upload_buffer_desc,
           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload_buffer)))) {
-    REXLOG_ERROR(ui,
-                 "D3D12ImmediateDrawer: Failed to create an upload buffer for a {}x{} "
-                 "texture",
-                 width, height);
+    REXUI_ERROR(
+        "D3D12ImmediateDrawer: Failed to create an upload buffer for a {}x{} "
+        "texture",
+        width, height);
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
         ErrorCategory::kRuntime,
         std::format("Failed to create an upload buffer for a {}x{} texture", width, height));
@@ -256,10 +256,10 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
   upload_buffer_read_range.End = 0;
   void* upload_buffer_mapping;
   if (FAILED(upload_buffer->Map(0, &upload_buffer_read_range, &upload_buffer_mapping))) {
-    REXLOG_ERROR(ui,
-                 "D3D12ImmediateDrawer: Failed to map an upload buffer for a {}x{} "
-                 "texture",
-                 width, height);
+    REXUI_ERROR(
+        "D3D12ImmediateDrawer: Failed to map an upload buffer for a {}x{} "
+        "texture",
+        width, height);
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
         ErrorCategory::kRuntime,
         std::format("Failed to map an upload buffer for a {}x{} texture", width, height));
@@ -375,8 +375,8 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
       last_paint_submission_index_, vertex_buffer_view.SizeInBytes, sizeof(f32), nullptr, nullptr,
       &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
-    REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to get a buffer for {} vertices",
-                 batch.vertices.size());
+    REXUI_ERROR("D3D12ImmediateDrawer: Failed to get a buffer for {} vertices",
+                batch.vertices.size());
     return;
   }
   std::memcpy(vertex_buffer_mapping, batch.vertices.data(), vertex_buffer_view.SizeInBytes);
@@ -392,8 +392,8 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
         last_paint_submission_index_, index_buffer_view.SizeInBytes, sizeof(u16), nullptr, nullptr,
         &index_buffer_view.BufferLocation);
     if (index_buffer_mapping == nullptr) {
-      REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to get a buffer for {} indices",
-                   batch.indices.size());
+      REXUI_ERROR("D3D12ImmediateDrawer: Failed to get a buffer for {} indices",
+                  batch.indices.size());
       return;
     }
     std::memcpy(index_buffer_mapping, batch.indices.data(), index_buffer_view.SizeInBytes);

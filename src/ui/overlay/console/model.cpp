@@ -330,7 +330,7 @@ void ConsoleModel::SaveHistory() const {
   if (auto written = platform::WriteHostFile(
           history_path_, std::span(reinterpret_cast<const u8*>(text.data()), text.size()));
       !written) {
-    REXLOG_WARN(ui, "console history not saved, {}", written.error().message);
+    REXUI_WARN("console history not saved, {}", written.error().message);
   }
 }
 

@@ -22,7 +22,7 @@ std::optional<OutputStamp> OutputStamp::Load(const std::filesystem::path& path) 
 
   nlohmann::json doc = nlohmann::json::parse(in, nullptr, false);
   if (doc.is_discarded() || !doc.is_object()) {
-    REXLOG_WARN(codegen, "Ignoring malformed codegen stamp: {}", path.string());
+    REXCG_WARN("Ignoring malformed codegen stamp: {}", path.string());
     return std::nullopt;
   }
 
@@ -75,7 +75,7 @@ std::string ComputeInputFingerprint(std::span<const std::filesystem::path> input
       digest = rex::HashFile(path);
       if (digest.empty()) {
         // A constant would report a locked input as unchanged and skip the module forever.
-        REXLOG_WARN(codegen, "Could not read {} for fingerprinting", path.string());
+        REXCG_WARN("Could not read {} for fingerprinting", path.string());
         digest = std::format("<unreadable:{}:{}>", std::filesystem::file_size(path, ec),
                              std::filesystem::last_write_time(path, ec).time_since_epoch().count());
       }

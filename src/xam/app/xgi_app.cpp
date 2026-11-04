@@ -43,7 +43,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 user_index = args->user_index;
       u32 context_id = args->context_id;
       u32 context_value = args->context_value;
-      REXLOG_DEBUG(xam, "XGIUserSetContextEx({:08X}, {:08X}, {:08X})", user_index, context_id,
+      REXXAM_DEBUG("XGIUserSetContextEx({:08X}, {:08X}, {:08X})", user_index, context_id,
                    context_value);
       return kernel::X_E_SUCCESS;
     }
@@ -60,7 +60,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 property_id = args->property_id;
       u32 value_size = args->value_size;
       u32 value_ptr = args->value_ptr;
-      REXLOG_DEBUG(xam, "XGIUserSetPropertyEx({:08X}, {:08X}, {}, {:08X})", user_index, property_id,
+      REXXAM_DEBUG("XGIUserSetPropertyEx({:08X}, {:08X}, {}, {:08X})", user_index, property_id,
                    value_size, value_ptr);
       return kernel::X_E_SUCCESS;
     }
@@ -72,7 +72,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       REX_STATIC_ASSERT_SIZE(decltype(*args), 8);
       u32 raw0 = buffer_length >= 4 ? u32{args->count} : 0;
       u32 raw4 = buffer_length >= 8 ? u32{args->achievements_ptr} : 0;
-      REXLOG_DEBUG(xam, "XGIUserWriteAchievements called: buf_len={} raw[0]={:08X} raw[4]={:08X}",
+      REXXAM_DEBUG("XGIUserWriteAchievements called: buf_len={} raw[0]={:08X} raw[4]={:08X}",
                    buffer_length, raw0, raw4);
 
       REX_ASSERT(!buffer_length || buffer_length == 8);
@@ -89,25 +89,25 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
 
       if (achievements_ptr && achievement_count > 0) {
         if (achievement_count > kMaxAchievements) {
-          REXLOG_WARN(xam, "XGIUserWriteAchievements: count={} unreasonable, ignoring",
+          REXXAM_WARN("XGIUserWriteAchievements: count={} unreasonable, ignoring",
                       achievement_count);
           return kernel::X_E_FAIL;
         }
         u32 span_end = achievements_ptr + achievement_count * sizeof(Entry) - 1;
         if (!title_.heap.IsAddressMapped(achievements_ptr) ||
             !title_.heap.IsAddressMapped(span_end)) {
-          REXLOG_WARN(xam, "XGIUserWriteAchievements: ptr {:08X} OOB", achievements_ptr);
+          REXXAM_WARN("XGIUserWriteAchievements: ptr {:08X} OOB", achievements_ptr);
           return kernel::X_E_FAIL;
         }
         const auto* entries = membase_.TranslateVirtual<const Entry*>(achievements_ptr);
         for (u32 i = 0; i < achievement_count; ++i) {
           u32 id = entries[i].id;
-          REXLOG_DEBUG(xam, "XGIUserWriteAchievements: id={} ({})", id, i);
+          REXXAM_DEBUG("XGIUserWriteAchievements: id={} ({})", id, i);
           (void)achievements_.UnlockAchievement(id, rex::xam::AchievementNotification::kShow);
         }
       } else {
-        REXLOG_DEBUG(xam, "XGIUserWriteAchievements: skipped (count={} ptr={:08X})",
-                     achievement_count, achievements_ptr);
+        REXXAM_DEBUG("XGIUserWriteAchievements: skipped (count={} ptr={:08X})", achievement_count,
+                     achievements_ptr);
       }
       return kernel::X_E_SUCCESS;
     }
@@ -131,11 +131,11 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 session_info_ptr = args->session_info_ptr;
       u32 nonce_ptr = args->nonce_ptr;
 
-      REXLOG_DEBUG(xam,
-                   "XGISessionCreate({:08X}, {:08X}, {}, {}, {:08X}, {:08X}, "
-                   "{:08X})",
-                   session_ptr, flags, num_slots_public, num_slots_private, user_xuid,
-                   session_info_ptr, nonce_ptr);
+      REXXAM_DEBUG(
+          "XGISessionCreate({:08X}, {:08X}, {}, {}, {:08X}, {:08X}, "
+          "{:08X})",
+          session_ptr, flags, num_slots_public, num_slots_private, user_xuid, session_info_ptr,
+          nonce_ptr);
       return kernel::X_E_SUCCESS;
     }
     case 0x000B0011: {
@@ -153,7 +153,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 flags = args->flags;
       u64 session_nonce = args->session_nonce;
 
-      REXLOG_DEBUG(xam, "XGISessionDelete({:08X}, {:08X}, {:016X})", obj_ptr, flags, session_nonce);
+      REXXAM_DEBUG("XGISessionDelete({:08X}, {:08X}, {:016X})", obj_ptr, flags, session_nonce);
 
       return kernel::X_E_SUCCESS;
     }
@@ -174,7 +174,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 private_slots_array = args->private_slots_array;
       bool is_local = xuid_array_ptr == 0;
 
-      REXLOG_DEBUG(xam, "{}({:08X}, {}, {}, {:08X}, {:08X})",
+      REXXAM_DEBUG("{}({:08X}, {}, {}, {:08X}, {:08X})",
                    is_local ? "XGISessionJoinLocal" : "XGISessionJoinRemote", session_ptr,
                    user_count, xuid_array_ptr, user_index_array, private_slots_array);
       return kernel::X_E_SUCCESS;
@@ -194,7 +194,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 flags = args->flags;
       u64 session_nonce = args->session_nonce;
 
-      REXLOG_DEBUG(xam, "XSessionStart({:08X}, {:08X}, {:016X})", obj_ptr, flags, session_nonce);
+      REXXAM_DEBUG("XSessionStart({:08X}, {:08X}, {:016X})", obj_ptr, flags, session_nonce);
 
       return kernel::X_STATUS_SUCCESS;
     }
@@ -213,7 +213,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 flags = args->flags;
       u64 session_nonce = args->session_nonce;
 
-      REXLOG_DEBUG(xam, "XSessionEnd({:08X}, {:08X}, {:016X})", obj_ptr, flags, session_nonce);
+      REXXAM_DEBUG("XSessionEnd({:08X}, {:08X}, {:016X})", obj_ptr, flags, session_nonce);
 
       return kernel::X_E_SUCCESS;
     }
@@ -242,8 +242,8 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 results_buffer_size = args->results_buffer_size;
       u32 search_results_ptr = args->search_results_ptr;
 
-      REXLOG_DEBUG(xam, "XSessionSearch({}, {}, {}, {}, {}, {:08X}, {:08X}, {}, {:08X})",
-                   proc_index, user_index, num_results, num_props, num_ctx, props_ptr, ctx_ptr,
+      REXXAM_DEBUG("XSessionSearch({}, {}, {}, {}, {}, {:08X}, {:08X}, {}, {:08X})", proc_index,
+                   user_index, num_results, num_props, num_ctx, props_ptr, ctx_ptr,
                    results_buffer_size, search_results_ptr);
       return kernel::X_E_SUCCESS;
     }
@@ -263,7 +263,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 max_public_slots = args->max_public_slots;
       u16 max_private_slots = args->max_private_slots;
 
-      REXLOG_DEBUG(xam, "XSessionModify({:08X}, {:08X}, {:08X}, {:08X})", obj_ptr, flags,
+      REXXAM_DEBUG("XSessionModify({:08X}, {:08X}, {:08X}, {:08X})", obj_ptr, flags,
                    max_public_slots, max_private_slots);
 
       return kernel::X_E_SUCCESS;
@@ -295,7 +295,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 search_results_ptr = args->search_results_ptr;
       u32 num_users = args->num_users;
 
-      REXLOG_DEBUG(xam, "XSessionSearchEx({}, {}, {}, {}, {}, {:08X}, {:08X}, {}, {:08X}, {})",
+      REXXAM_DEBUG("XSessionSearchEx({}, {}, {}, {}, {}, {:08X}, {:08X}, {}, {:08X}, {})",
                    proc_index, user_index, num_results, num_props, num_ctx, props_ptr, ctx_ptr,
                    results_buffer_size, search_results_ptr, num_users);
 
@@ -320,7 +320,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 reserved2 = args->reserved2;
       u32 reserved3 = args->reserved3;
 
-      REXLOG_DEBUG(xam, "XSessionGetDetails({:08X}, {}, {:08X}, {}, {}, {})", obj_ptr,
+      REXXAM_DEBUG("XSessionGetDetails({:08X}, {}, {:08X}, {}, {}, {})", obj_ptr,
                    details_buffer_size, session_details_ptr, reserved1, reserved2, reserved3);
 
       return kernel::X_E_SUCCESS;
@@ -344,8 +344,8 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 reserved2 = args->reserved2;
       u32 reserved3 = args->reserved3;
 
-      REXLOG_DEBUG(xam, "XSessionMigrateHost({:08X}, {:08X}, {}, {}, {}, {})", obj_ptr,
-                   session_info_ptr, user_index, reserved1, reserved2, reserved3);
+      REXXAM_DEBUG("XSessionMigrateHost({:08X}, {:08X}, {}, {}, {}, {})", obj_ptr, session_info_ptr,
+                   user_index, reserved1, reserved2, reserved3);
 
       return kernel::X_E_SUCCESS;
     }
@@ -385,9 +385,9 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 results_buffer_size = args->results_buffer_size;
       u32 results_ptr = args->results_ptr;
 
-      REXLOG_DEBUG(
-          xam, "XSessionArbitrationRegister({:08X}, {:08X}, {:016X}, {:08X}, {:08X}, {:08X})",
-          obj_ptr, flags, session_nonce, session_duration_sec, results_buffer_size, results_ptr);
+      REXXAM_DEBUG("XSessionArbitrationRegister({:08X}, {:08X}, {:016X}, {:08X}, {:08X}, {:08X})",
+                   obj_ptr, flags, session_nonce, session_duration_sec, results_buffer_size,
+                   results_ptr);
 
       return kernel::X_E_SUCCESS;
     }
@@ -414,9 +414,9 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 reserved2 = args->reserved2;
       u32 reserved3 = args->reserved3;
 
-      REXLOG_DEBUG(xam, "XSessionSearchByID({}, {:08X}, {:08X}, {:08X}, {:08X}, {}, {}, {})",
-                   user_index, num_session_ids, session_ids_ptr, results_buffer_size,
-                   search_results_ptr, reserved1, reserved2, reserved3);
+      REXXAM_DEBUG("XSessionSearchByID({}, {:08X}, {:08X}, {:08X}, {:08X}, {}, {}, {})", user_index,
+                   num_session_ids, session_ids_ptr, results_buffer_size, search_results_ptr,
+                   reserved1, reserved2, reserved3);
 
       return kernel::X_E_SUCCESS;
     }
@@ -439,7 +439,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 reserved2 = args->reserved2;
       u32 reserved3 = args->reserved3;
 
-      REXLOG_DEBUG(xam, "XSessionModifySkill({:08X}, {}, {:08X}, {}, {}, {})", obj_ptr, array_count,
+      REXXAM_DEBUG("XSessionModifySkill({:08X}, {}, {:08X}, {}, {}, {})", obj_ptr, array_count,
                    xuid_array_ptr, reserved1, reserved2, reserved3);
 
       return kernel::X_E_SUCCESS;
@@ -455,7 +455,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 user_index = args->user_index;
       u32 view_id = args->view_id;
 
-      REXLOG_DEBUG(xam, "XUserResetStatsView({:08X}, {})", user_index, view_id);
+      REXXAM_DEBUG("XUserResetStatsView({:08X}, {})", user_index, view_id);
 
       return kernel::X_E_SUCCESS;
     }
@@ -480,8 +480,8 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 results_size = args->results_size;
       u32 results_ptr = args->results_ptr;
 
-      REXLOG_DEBUG(xam, "XUserReadStats({}, {}, {:08X}, {}, {:08X}, {}, {:08X})", title_id,
-                   xuids_count, xuids_ptr, specs_count, specs_ptr, results_size, results_ptr);
+      REXXAM_DEBUG("XUserReadStats({}, {}, {:08X}, {}, {:08X}, {}, {:08X})", title_id, xuids_count,
+                   xuids_ptr, specs_count, specs_ptr, results_size, results_ptr);
 
       return kernel::X_E_SUCCESS;
     }
@@ -502,8 +502,8 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 num_views = args->num_views;
       u32 views_ptr = args->views_ptr;
 
-      REXLOG_DEBUG(xam, "XSessionWriteStats({:08X}, {:016X}, {:08X}, {:08X})", obj_ptr, xuid,
-                   num_views, views_ptr);
+      REXXAM_DEBUG("XSessionWriteStats({:08X}, {:016X}, {:08X}, {:08X})", obj_ptr, xuid, num_views,
+                   views_ptr);
 
       return kernel::X_E_SUCCESS;
     }
@@ -524,8 +524,8 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 num_views = args->num_views;
       u32 views_ptr = args->views_ptr;
 
-      REXLOG_DEBUG(xam, "XSessionFlushStats({:08X}, {:016X}, {:08X}, {:08X})", obj_ptr, xuid,
-                   num_views, views_ptr);
+      REXXAM_DEBUG("XSessionFlushStats({:08X}, {:016X}, {:08X}, {:08X})", obj_ptr, xuid, num_views,
+                   views_ptr);
 
       return kernel::X_E_SUCCESS;
     }
@@ -549,8 +549,8 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 anid_buffer_ptr = args->anid_buffer_ptr;
       u32 block = args->block;
 
-      REXLOG_DEBUG(xam, "XUserGetANID({:08X}, {:08X}, {:08X}, {:08X})", user_index,
-                   anid_buffer_size, anid_buffer_ptr, block);
+      REXXAM_DEBUG("XUserGetANID({:08X}, {:08X}, {:08X}, {:08X})", user_index, anid_buffer_size,
+                   anid_buffer_ptr, block);
 
       return kernel::X_E_SUCCESS;
     }
@@ -572,7 +572,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 context_ptr = args->context_ptr;
       auto* context = context_ptr ? membase_.TranslateVirtual<Context*>(context_ptr) : nullptr;
       u32 context_id = context ? u32{context->id} : 0;
-      REXLOG_DEBUG(xam, "XGIUserGetContext({:08X}, {:08X}, {:08X}))", user_index, context_ptr,
+      REXXAM_DEBUG("XGIUserGetContext({:08X}, {:08X}, {:08X}))", user_index, context_ptr,
                    context_id);
       u32 value = 0;
       if (context) {
@@ -603,7 +603,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 reserved2 = args->reserved2;
       u32 reserved3 = args->reserved3;
 
-      REXLOG_DEBUG(xam, "XSessionSearchByIds({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {}, {}, {})",
+      REXXAM_DEBUG("XSessionSearchByIds({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {}, {}, {})",
                    user_index, num_session_ids, session_ids_ptr, results_buffer_size,
                    search_results_ptr, reserved1, reserved2, reserved3);
 
@@ -646,8 +646,7 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       u32 num_users = args->num_users;
       u32 weighted_search = args->weighted_search;
 
-      REXLOG_DEBUG(
-          xam,
+      REXXAM_DEBUG(
           "XSessionSearchWeighted({:08X}, {:08X}, {:08X}, {}, {}, {:08X}, {:08X}, {}, {}, {:08X}, "
           "{:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
           proc_index, user_index, num_results, num_weighted_properties, num_weighted_contexts,
@@ -664,10 +663,10 @@ kernel::X_HRESULT XGIApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
     default:
       break;
   }
-  REX_FAIL(xam, kernel::X_E_FAIL,
-           "Unimplemented XGI message app={:08X}, msg={:08X}, arg1={:08X}, "
-           "arg2={:08X}",
-           GetAppID(), message, buffer_ptr, buffer_length);
+  REXXAM_FAIL(kernel::X_E_FAIL,
+              "Unimplemented XGI message app={:08X}, msg={:08X}, arg1={:08X}, "
+              "arg2={:08X}",
+              GetAppID(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

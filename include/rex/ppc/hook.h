@@ -464,20 +464,20 @@ __attribute__((noinline)) void RunDetour(PPCContext& ctx, u8* base, const char* 
 #ifndef NDEBUG
     const detail::DetourFrame& frame = scope.GetFrame();
     if (!frame.ran_original) {
-      REXLOG_ERROR(cpu, "REX_DETOUR {} returned without running its original", name);
+      REXCPU_ERROR("REX_DETOUR {} returned without running its original", name);
     }
     REX_ASSERT(frame.ran_original, "REX_DETOUR returned without running its original");
     if (ctx.r1.u32 != frame.entry_r1) {
-      REXLOG_ERROR(cpu, "REX_DETOUR {} left a StackFrame open, r1 is {:#x} and was {:#x}", name,
+      REXCPU_ERROR("REX_DETOUR {} left a StackFrame open, r1 is {:#x} and was {:#x}", name,
                    ctx.r1.u32, frame.entry_r1);
     }
     REX_ASSERT(ctx.r1.u32 == frame.entry_r1, "REX_DETOUR left a StackFrame open");
     if (ctx.r2.u64 != at_entry.r2.u64) {
-      REXLOG_ERROR(cpu, "REX_DETOUR {} changed r2", name);
+      REXCPU_ERROR("REX_DETOUR {} changed r2", name);
     }
     REX_ASSERT(ctx.r2.u64 == at_entry.r2.u64, "REX_DETOUR changed r2");
     if (ctx.r13.u64 != at_entry.r13.u64) {
-      REXLOG_ERROR(cpu, "REX_DETOUR {} changed r13", name);
+      REXCPU_ERROR("REX_DETOUR {} changed r13", name);
     }
     REX_ASSERT(ctx.r13.u64 == at_entry.r13.u64, "REX_DETOUR changed r13");
     detail::CheckBoundDetourLocalWrites(name, at_entry, ctx, warned);

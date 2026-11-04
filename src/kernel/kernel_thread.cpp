@@ -360,7 +360,7 @@ X_STATUS KernelThread::Create() {
 
   pcr_address_ = GetMemory()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
-    REXLOG_WARN(system, "Unable to allocate thread state block");
+    REXSYS_WARN("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
   }
 
@@ -377,7 +377,7 @@ X_STATUS KernelThread::Create() {
   GetMemory()->Fill(root_frame, rex::ppc::kLinkageSize, 0);
   thread_state_->GetContext()->r1.u64 = root_frame;
 
-  REXLOG_DEV(system, "KernelThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
+  REXSYS_DEV("KernelThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
              stack_limit_, stack_base_);
 
   const u8 processor_mask = static_cast<u8>(creation_params_.creation_flags >> 24);
@@ -407,7 +407,7 @@ X_STATUS KernelThread::Create() {
 
   // The thread owns itself until it exits.
   if (auto retained = runtime_->GetObjectTable().Retain(handle_); !retained) {
-    REXLOG_ERROR(system, "KernelThread{:08X}: cannot take the self reference, {}", handle_,
+    REXSYS_ERROR("KernelThread{:08X}: cannot take the self reference, {}", handle_,
                  retained.error().message);
     return ToXStatus(retained);
   }
@@ -450,7 +450,7 @@ X_STATUS KernelThread::Create() {
 
   if (!thread_) {
     CloseOwned(runtime_->GetObjectTable(), handle_);
-    REX_FAIL(system, X_STATUS_NO_MEMORY, "CreateThread failed");
+    REXSYS_FAIL(X_STATUS_NO_MEMORY, "CreateThread failed");
   }
 
   if (thread_name_.empty()) {
@@ -525,7 +525,7 @@ void KernelThread::Finish(int exit_code) {
     try {
       CallThreadNotifyRoutines(false);
     } catch (const rex::ThreadStop& stop) {
-      REXLOG_DEBUG(system, "KernelThread{:08X} exited with code {} inside a thread notify routine",
+      REXSYS_DEBUG("KernelThread{:08X} exited with code {} inside a thread notify routine",
                    GetHandle(), stop.exit_code);
     }
   }
@@ -557,8 +557,8 @@ void KernelThread::ReleaseSelf() {
 }
 
 int KernelThread::Execute() {
-  REXLOG_DEV(system, "Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_,
-             GetHandle(), thread_name_, thread_->GetSystemID());
+  REXSYS_DEV("Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, GetHandle(),
+             thread_name_, thread_->GetSystemID());
 
   thread_state_->GetContext()->fpscr.InitHost();
   CheckStop();
@@ -588,7 +588,7 @@ int KernelThread::Execute() {
 
   TitleRuntime* runtime = runtime_;
   if (!StateOf(*runtime).GetFunctionDispatcher()) {
-    REXLOG_ERROR(system, "KernelThread::Execute - Runtime not initialized");
+    REXSYS_ERROR("KernelThread::Execute - Runtime not initialized");
     return 0;
   }
 
@@ -596,7 +596,7 @@ int KernelThread::Execute() {
   auto* memory = StateOf(*runtime).GetMemory();
   PPCFunc* func = dispatcher->GetFunction(address);
   if (!func) {
-    REXLOG_ERROR(system, "KernelThread::Execute - No function registered at {:08X}", address);
+    REXSYS_ERROR("KernelThread::Execute - No function registered at {:08X}", address);
     return 0;
   }
 
@@ -623,7 +623,7 @@ int KernelThread::Execute() {
   // Windows requires the thread to be a fiber before CreateFiber.
   main_fiber_ = rex::platform::Fiber::ConvertCurrentThread();
 
-  REXLOG_DEV(system, "KernelThread::Execute - Calling function at {:08X}", address);
+  REXSYS_DEV("KernelThread::Execute - Calling function at {:08X}", address);
   const u32 root_r1 = rex::ppc::OpenCallFrame(*ctx, base, 0);
   func(*ctx, base);
   ctx->r1.u64 = root_r1;
@@ -648,7 +648,7 @@ void KernelThread::LeaveCriticalRegion() {
 void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, u32 arg2) {
   u32 apc_ptr = GetMemory()->SystemHeapAlloc(XAPC::kSize);
   if (!apc_ptr) {
-    REXLOG_WARN(system, "EnqueueAPC: allocation failed (thid={}, normal={:08X})", thread_id_,
+    REXSYS_WARN("EnqueueAPC: allocation failed (thid={}, normal={:08X})", thread_id_,
                 normal_routine);
     return;
   }
@@ -659,16 +659,16 @@ void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, 
 
   kernel::ThreadState* caller = kernel::ThreadState::Get();
   if (!caller) {
-    REX_FATAL(system, "EnqueueAPC called on a host thread with no bound thread state");
+    REXSYS_FATAL("EnqueueAPC called on a host thread with no bound thread state");
   }
   PPCContext* queue_ctx = caller->GetContext();
 
   if (!kernel::xboxkrnl::KeInsertQueueApc(*GetMemory(), apc, arg1, arg2, 0, queue_ctx)) {
     GetMemory()->SystemHeapFree(apc_ptr);
-    REXLOG_ERROR(system,
-                 "EnqueueAPC: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
-                 "arg2={:08X})",
-                 thread_id_, normal_routine, normal_context, arg1, arg2);
+    REXSYS_ERROR(
+        "EnqueueAPC: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
+        "arg2={:08X})",
+        thread_id_, normal_routine, normal_context, arg1, arg2);
     return;
   }
   // The user callback only wakes the thread. Alertable waits deliver APCs.
@@ -731,7 +731,7 @@ void KernelThread::DeliverAPCs() {
         dispatcher->ExecuteTrap(thread_state_.get(), apc->kernel_routine, kernel_args,
                                 rex::CountOf(kernel_args));
       } else {
-        REXLOG_ERROR(system, "DeliverAPCs: kernel_routine {:08X} not found",
+        REXSYS_ERROR("DeliverAPCs: kernel_routine {:08X} not found",
                      static_cast<u32>(apc->kernel_routine));
       }
     } else {
@@ -749,12 +749,12 @@ void KernelThread::DeliverAPCs() {
         dispatcher->ExecuteTrap(thread_state_.get(), normal_routine, normal_args,
                                 rex::CountOf(normal_args));
       } else {
-        REXLOG_ERROR(system, "DeliverAPCs: normal_routine {:08X} not found", normal_routine);
+        REXSYS_ERROR("DeliverAPCs: normal_routine {:08X} not found", normal_routine);
       }
     }
 
-    REXLOG_DEBUG(system, "Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})",
-                 normal_routine, normal_context, arg1, arg2);
+    REXSYS_DEBUG("Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})", normal_routine,
+                 normal_context, arg1, arg2);
 
     old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
   }
@@ -790,7 +790,7 @@ void KernelThread::RundownAPCs() {
           dispatcher->Execute(thread_state_.get(), apc->rundown_routine, rundown_args,
                               rex::CountOf(rundown_args));
         } else {
-          REXLOG_WARN(system, "RundownAPCs: rundown_routine {:08X} not found",
+          REXSYS_WARN("RundownAPCs: rundown_routine {:08X} not found",
                       static_cast<u32>(apc->rundown_routine));
         }
       }
@@ -883,7 +883,7 @@ void KernelThread::SetActiveCPU(u8 cpu_index) {
       thread_->SetAffinityMask(static_cast<u64>(1) << cpu_index);
     }
   } else {
-    REXLOG_WARN(system, "Too few processor cores - scheduling will be wonky");
+    REXSYS_WARN("Too few processor cores - scheduling will be wonky");
   }
 }
 

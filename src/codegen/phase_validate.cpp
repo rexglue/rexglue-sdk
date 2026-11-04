@@ -54,12 +54,11 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
 
     const FunctionNode* node = graph.GetFunction(addr);
     if (!node) {
-      REXLOG_WARN(codegen, "functions 0x{:08X} is not a function entry point", addr);
+      REXCG_WARN("functions 0x{:08X} is not a function entry point", addr);
       continue;
     }
     if (node->GetAuthority() != FunctionAuthority::kConfig) {
-      REXLOG_WARN(codegen, "functions 0x{:08X} outranked by {}", addr,
-                  AuthorityName(node->GetAuthority()));
+      REXCG_WARN("functions 0x{:08X} outranked by {}", addr, AuthorityName(node->GetAuthority()));
       continue;
     }
 
@@ -72,12 +71,12 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
         continue;
       auto authority = other->GetAuthority();
       if (authority == FunctionAuthority::kPData || authority == FunctionAuthority::kHelper) {
-        REXLOG_DEBUG(codegen, "functions 0x{:08X} size 0x{:X} contains {} 0x{:08X}", addr, declared,
-                     AuthorityName(authority), otherAddr);
+        REXCG_DEBUG("functions 0x{:08X} size 0x{:X} contains {} 0x{:08X}", addr, declared,
+                    AuthorityName(authority), otherAddr);
         continue;
       }
-      REXLOG_WARN(codegen, "functions 0x{:08X} size 0x{:X} split by {} entry point 0x{:08X}", addr,
-                  declared, AuthorityName(authority), otherAddr);
+      REXCG_WARN("functions 0x{:08X} size 0x{:X} split by {} entry point 0x{:08X}", addr, declared,
+                 AuthorityName(authority), otherAddr);
     }
   }
 }
@@ -97,7 +96,7 @@ namespace detail {
  * function, or a call with no registered edge, stops the build.
  */
 [[nodiscard]] Result<void> ValidateGraph(CodegenContext& ctx) {
-  REXLOG_TRACE(codegen, "Analyze: validating call graph...");
+  REXCG_TRACE("Analyze: validating call graph...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.GetBinary();
@@ -189,11 +188,11 @@ namespace detail {
     }
   }
 
-  REXLOG_TRACE(codegen, "Analyze: checked {} branches in {} functions, verified {} edges",
-               calls_checked, functions_checked, edges_verified);
+  REXCG_TRACE("Analyze: checked {} branches in {} functions, verified {} edges", calls_checked,
+              functions_checked, edges_verified);
 
   if (errors.HasErrors()) {
-    REXLOG_ERROR(codegen, "Analyze: found {} errors", errors.Count());
+    REXCG_ERROR("Analyze: found {} errors", errors.Count());
     errors.PrintReport();
     return Err(ErrorCategory::kValidation,
                std::format("Validation failed: {} unresolved calls, {} millicode errors",
@@ -201,7 +200,7 @@ namespace detail {
                            errors.Count(AnalysisErrorLog::Category::kMillicode)));
   }
 
-  REXLOG_TRACE(codegen, "Analyze: all calls resolve");
+  REXCG_TRACE("Analyze: all calls resolve");
   return Ok();
 }
 

@@ -40,13 +40,13 @@ constexpr rex::ui::OverlayConfig kStandardOverlayEntries[] = {
 void LogMessage(MessageType type, std::string_view title, std::string_view body) {
   switch (type) {
     case MessageType::kError:
-      REXLOG_ERROR(ui, "{}: {}", title, body);
+      REXUI_ERROR("{}: {}", title, body);
       break;
     case MessageType::kWarning:
-      REXLOG_WARN(ui, "{}: {}", title, body);
+      REXUI_WARN("{}: {}", title, body);
       break;
     case MessageType::kInfo:
-      REXLOG_INFO(ui, "{}: {}", title, body);
+      REXUI_INFO("{}: {}", title, body);
       break;
   }
 }
@@ -117,7 +117,7 @@ void UISystem::State::ExecutePosts() {
     try {
       fn();
     } catch (const std::exception& error) {
-      REXLOG_ERROR(ui, "posted work failed, {}", error.what());
+      REXUI_ERROR("posted work failed, {}", error.what());
     }
   }
 }
@@ -133,7 +133,7 @@ void UISystem::PostTask(MoveOnlyFunction<void()> fn) {
   if (fn) {
     static std::atomic<bool> warned{false};
     if (!warned.exchange(true)) {
-      REXLOG_WARN(ui, "work posted after the UI system stopped is dropped");
+      REXUI_WARN("work posted after the UI system stopped is dropped");
     }
     return;
   }
@@ -267,7 +267,7 @@ void UISystem::State::OpenWindow() {
   config.vulkan_surface = graphics && graphics->GetDriverName() == "vulkan";
   ui::detail::ResolveModeSize(owner.GetSettings(), config.mode_width, config.mode_height);
   if (auto opened = driver->OpenWindow(config); !opened) {
-    REXLOG_WARN(ui, "the window did not open, running headless, {}", opened.error().message);
+    REXUI_WARN("the window did not open, running headless, {}", opened.error().message);
     headless = true;
     return;
   }
@@ -293,7 +293,7 @@ void UISystem::State::OpenWindow() {
   console = std::make_unique<ui::ConsoleModel>(settings, *log_capture, std::move(history_path));
   console_commands = std::make_unique<ui::ConsoleCommandTable>(settings);
   if (auto added = settings.Register(*console_commands); !added) {
-    REXLOG_WARN(ui, "{}", added.error().message);
+    REXUI_WARN("{}", added.error().message);
     console_commands.reset();
   }
   console_host = std::make_unique<ui::ConsoleDockHost>(owner);
@@ -305,7 +305,7 @@ void UISystem::State::OpenWindow() {
   overlays = std::make_unique<ui::OverlayRegistry>(*imgui, binds, *overlay_context);
   overlays->SetChangeCallback([this] { SyncOverlayBlock(); });
   if (auto added = overlays->Add(kStandardOverlayEntries); !added) {
-    REXLOG_WARN(ui, "{}", added.error().message);
+    REXUI_WARN("{}", added.error().message);
   }
   WatchWindowSettings();
   if (input) {
@@ -510,7 +510,7 @@ void UISystem::ShowMessage(MessageType type, std::string_view heading, std::stri
   }
   const std::string ok[] = {"OK"};
   if (const auto shown = s.driver->ShowMessageBox(type, heading, body, ok); !shown) {
-    REXLOG_DEBUG(ui, "message box not shown, {}", shown.error().message);
+    REXUI_DEBUG("message box not shown, {}", shown.error().message);
   }
 }
 

@@ -24,5 +24,4 @@
  * REX_KERNEL_STUB("XamSwapDisc({})", disc_number);
  * @endcode
  */
-#define REX_KERNEL_STUB(FMT, ...) \
-  REXLOG_WARN(kernel, "unimplemented: " FMT __VA_OPT__(, ) __VA_ARGS__)
+#define REX_KERNEL_STUB(FMT, ...) REXKRNL_WARN("unimplemented: " FMT __VA_OPT__(, ) __VA_ARGS__)

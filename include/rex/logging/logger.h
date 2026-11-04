@@ -89,48 +89,6 @@ class ISink : public NonCopyable {
   virtual void Flush() = 0;
 };
 
-/** Standard output, colored with ANSI codes. A Windows console gets virtual terminal mode. */
-class REX_API ConsoleSink final : public ISink {
- public:
-  explicit ConsoleSink(LineFormat format);
-
-  void Write(const Message& message) override;
-
-  void Flush() override;
-
-  void SetFormat(LineFormat format);
-
- private:
-  LineFormat format_;
-  bool color_supported_ = false;
-};
-
-/** The debugger. OutputDebugStringW on Windows, standard error elsewhere. Never colored. */
-class REX_API DebuggerSink final : public ISink {
- public:
-  /**
-   * Builds the sink.
-   *
-   * @param format What to write around each message. color is ignored.
-   */
-  explicit DebuggerSink(LineFormat format);
-
-  void Write(const Message& message) override;
-
-  /** Flushes standard error where it is the target. */
-  void Flush() override;
-
-  /**
-   * Sets the line format.
-   *
-   * @param format What to write around each message. color is ignored.
-   */
-  void SetFormat(LineFormat format);
-
- private:
-  LineFormat format_;
-};
-
 /** A log file with a level letter column (T, V, D, I, W, E, C) after the timestamp. */
 class REX_API FileSink final : public ISink {
  public:
@@ -270,10 +228,10 @@ class REX_API Logger final : public SettingOwner, public ILogger {
   REX_SETTING(std::string, file_name, "", "File name, the app name when empty", kStartupOnly);
   REX_SETTING(i64, folder_budget, 0, "Bytes of old log files kept, 0 keeps all",
               Range{0, 9007199254740992.0}, kStartupOnly);
-  REX_SETTING(std::string, timestamps, "datetime", "Time stamp on each line",
-              Allowed("none", "time", "datetime"), kStartupOnly);
-  REX_SETTING(bool, show_category, true, "Show the category on each line", kStartupOnly);
-  REX_SETTING(bool, show_thread, true, "Show the thread on each line", kStartupOnly);
+  REX_SETTING(std::string, pattern, "%^%Y-%m-%d %H:%M:%S.%e %Q %-10n %j %v%$",
+              "Layout of each line, an spdlog pattern with %Q for the level letter and %j for the "
+              "thread",
+              kStartupOnly);
   REX_SETTING(bool, color, false, "Color the console", kStartupOnly);
 
   [[nodiscard]] Result<void> AddCategories(

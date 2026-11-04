@@ -126,7 +126,7 @@ class STFSReader {
   bool Load(u64 key, u64 offset) {
     auto table = ReadAt<STFSHashTable>(file_, offset);
     if (!table) {
-      REX_FAIL(filesystem, false, "STFS hash table at {:#x} is outside the package", offset);
+      REXFS_FAIL(false, "STFS hash table at {:#x} is outside the package", offset);
     }
     cache_[key] = *table;
     return true;
@@ -211,12 +211,12 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
           block = hash->GetLevel0NextBlock();
         }
         if (remaining) {
-          REXLOG_WARN(filesystem, "STFS file {} holds {} of {} bytes", node.info.name,
-                      static_cast<u64>(entry.length) - remaining, static_cast<u32>(entry.length));
+          REXFS_WARN("STFS file {} holds {} of {} bytes", node.info.name,
+                     static_cast<u64>(entry.length) - remaining, static_cast<u32>(entry.length));
         }
         if (blocks != entry.GetAllocatedDataBlocks()) {
-          REXLOG_WARN(filesystem, "STFS file {} chains {} blocks, the entry lists {}",
-                      node.info.name, blocks, entry.GetAllocatedDataBlocks());
+          REXFS_WARN("STFS file {} chains {} blocks, the entry lists {}", node.info.name, blocks,
+                     entry.GetAllocatedDataBlocks());
         }
       }
       const auto index = static_cast<u32>(nodes.size());
@@ -233,8 +233,7 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
     }
   }
   if (tables_read != table_blocks) {
-    REXLOG_WARN(filesystem, "STFS read {} directory blocks, the header lists {}", tables_read,
-                table_blocks);
+    REXFS_WARN("STFS read {} directory blocks, the header lists {}", tables_read, table_blocks);
   }
   return Ok();
 }

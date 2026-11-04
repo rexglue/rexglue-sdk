@@ -44,7 +44,7 @@ REX_HOOK_RAW(__imp__DbgPrint) {
     while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
       str.pop_back();
     }
-    REXLOG_DEV(title, "DbgPrint: {}", str);
+    REXTITLE_DEV("DbgPrint: {}", str);
   }
 
   ctx.r3.u64 = 0;
@@ -67,7 +67,7 @@ REX_HOOK_RAW(__imp__XamDbgPrint) {
     while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
       str.pop_back();
     }
-    REXLOG_DEV(title, "XamDbgPrint: {}", str);
+    REXTITLE_DEV("XamDbgPrint: {}", str);
   }
 
   ctx.r3.u64 = 0;

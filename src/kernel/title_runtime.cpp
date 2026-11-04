@@ -48,7 +48,7 @@ namespace {
   };
   for (const Entry& entry : kCounters) {
     if (auto counter = platform::RegisterCounter(entry.name, entry.type); !counter) {
-      REXLOG_WARN(system, "{}", counter.error().message);
+      REXSYS_WARN("{}", counter.error().message);
     }
   }
   return true;

@@ -133,10 +133,10 @@ std::string CheckDetourLocalWrites(const char* name, const PPCCodegenFlags& flag
                                    std::atomic_flag& warned) {
   std::string changed = FindChangedRegister(flags, at_entry, at_exit);
   if (!changed.empty() && !warned.test_and_set()) {
-    REXLOG_WARN(cpu,
-                "REX_DETOUR {} wrote {} through ctx, but the image keeps it in a local and the "
-                "caller never reads the write",
-                name, changed);
+    REXCPU_WARN(
+        "REX_DETOUR {} wrote {} through ctx, but the image keeps it in a local and the "
+        "caller never reads the write",
+        name, changed);
   }
   return changed;
 }
@@ -159,7 +159,7 @@ bool CheckDetourArguments(const char* name, const PPCCallUsage& usage, u8 declar
       registers += std::format("{}f{}", registers.empty() ? "" : ", ", 1 + bit);
     }
   }
-  REXLOG_WARN(cpu, "REX_DETOUR {} does not declare {}, which the function reads at entry", name,
+  REXCPU_WARN("REX_DETOUR {} does not declare {}, which the function reads at entry", name,
               registers);
   return true;
 }

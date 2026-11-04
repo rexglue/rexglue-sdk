@@ -66,11 +66,11 @@ u32 XamTaskSchedule_entry(MappedVoid callback, GuestPtrT<XTASK_MESSAGE> message,
   kernel::X_STATUS result = kernel::ToXStatus(launched);
 
   if (kernel::XFAILED(result)) {
-    REX_FAIL(xam, result, "XAM task creation failed: {:08X}", result);
+    REXXAM_FAIL(result, "XAM task creation failed: {:08X}", result);
   }
   kernel::CloseOwned(CurrentTitle().objects, task_thread);
 
-  REXLOG_DEBUG(xam, "XAM task ({:08X}) scheduled asynchronously", callback.GetGuestAddress());
+  REXXAM_DEBUG("XAM task ({:08X}) scheduled asynchronously", callback.GetGuestAddress());
 
   return kernel::X_STATUS_SUCCESS;
 }

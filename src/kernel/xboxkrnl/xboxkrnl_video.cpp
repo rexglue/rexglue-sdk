@@ -394,8 +394,8 @@ void VdSwap_entry(MappedVoid buffer_ptr, MappedVoid fetch_ptr, [[maybe_unused]] 
       kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(frontbuffer_virtual_address);
   REX_ASSERT(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
-    REXLOG_ERROR(kernel, "VdSwap: Invalid front buffer virtual address 0x{:08X}",
-                 frontbuffer_virtual_address);
+    REXKRNL_ERROR("VdSwap: Invalid front buffer virtual address 0x{:08X}",
+                  frontbuffer_virtual_address);
     return;
   }
   gpu_fetch.base_address = frontbuffer_physical_address >> 12;

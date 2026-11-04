@@ -57,7 +57,7 @@ u32 XamEnableInactivityProcessing_entry([[maybe_unused]] u32 unk, [[maybe_unused
 }
 
 u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_CAPABILITIES> caps) {
-  REXLOG_TRACE(xam, "XAM XamInputGetCapabilities called: user={}, flags=0x{:X}",
+  REXXAM_TRACE("XAM XamInputGetCapabilities called: user={}, flags=0x{:X}",
                static_cast<u32>(user_index), static_cast<u32>(flags));
   if (!caps) {
     return kernel::X_ERROR_BAD_ARGUMENTS;
@@ -108,8 +108,8 @@ u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
 
 u32 XamInputGetState_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_STATE> input_state) {
   if (CurrentXAM().CountInputStateCall() <= 5) {
-    REXLOG_TRACE(xam, "XAM XamInputGetState called: user={}, flags=0x{:X}",
-                 static_cast<u32>(user_index), static_cast<u32>(flags));
+    REXXAM_TRACE("XAM XamInputGetState called: user={}, flags=0x{:X}", static_cast<u32>(user_index),
+                 static_cast<u32>(flags));
   }
 
   if ((flags & 0xFF) && (flags & rex::xam::kXInputFlagGamepad) == 0) {

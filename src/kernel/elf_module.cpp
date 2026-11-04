@@ -72,42 +72,42 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
   }
 
   if (hdr->e_ident[4] != 1) {
-    REX_FAIL(system, false, "ELF: Could not load ELF because it isn't a 32 bit file!");
+    REXSYS_FAIL(false, "ELF: Could not load ELF because it isn't a 32 bit file!");
   }
 
   if (hdr->e_type != 2 /* ET_EXEC */) {
-    REXLOG_ERROR(system, "ELF: Could not load ELF because it isn't executable!");
+    REXSYS_ERROR("ELF: Could not load ELF because it isn't executable!");
     return false;
   }
 
   if (hdr->e_machine != 20 /* EM_PPC */) {
-    REX_FAIL(system, false,
-             "ELF: Could not load ELF because target machine is not PPC! (target: "
-             "{})",
-             static_cast<u32>(hdr->e_machine));
+    REXSYS_FAIL(false,
+                "ELF: Could not load ELF because target machine is not PPC! (target: "
+                "{})",
+                static_cast<u32>(hdr->e_machine));
   }
 
   if (!hdr->e_phoff) {
-    REX_FAIL(system, false, "ELF: File doesn't have a program header!");
+    REXSYS_FAIL(false, "ELF: File doesn't have a program header!");
   }
 
   if (!hdr->e_entry) {
-    REX_FAIL(system, false, "ELF: Executable has no entry point!");
+    REXSYS_FAIL(false, "ELF: Executable has no entry point!");
   }
 
   entry_point_ = hdr->e_entry;
 
   if (hdr->e_ehsize < sizeof(ELF32Ehdr) || hdr->e_ehsize > elf_length) {
-    REX_FAIL(system, false, "ELF: The ELF header size is invalid!");
+    REXSYS_FAIL(false, "ELF: The ELF header size is invalid!");
   }
 
   if (hdr->e_phentsize != sizeof(ELF32Phdr)) {
-    REX_FAIL(system, false, "ELF: The program header entries have an unsupported size!");
+    REXSYS_FAIL(false, "ELF: The program header entries have an unsupported size!");
   }
 
   if (static_cast<u64>(hdr->e_phoff) + static_cast<u64>(hdr->e_phnum) * sizeof(ELF32Phdr) >
       elf_length) {
-    REX_FAIL(system, false, "ELF: The program header table is outside the file!");
+    REXSYS_FAIL(false, "ELF: The program header table is outside the file!");
   }
 
   elf_header_mem_.resize(hdr->e_ehsize);
@@ -123,12 +123,12 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
       if (phdr[i].p_filesz > phdr[i].p_memsz ||
           static_cast<u64>(phdr[i].p_offset) + phdr[i].p_filesz > elf_length ||
           static_cast<u64>(phdr[i].p_vaddr) + phdr[i].p_memsz > 0xA0000000ull) {
-        REX_FAIL(system, false, "ELF: A segment lies outside the file or the address range!");
+        REXSYS_FAIL(false, "ELF: A segment lies outside the file or the address range!");
       }
 
       const u32 alignment = std::max<u32>(phdr[i].p_align, 1);
       if (alignment & (alignment - 1)) {
-        REX_FAIL(system, false, "ELF: A segment alignment is not a power of 2!");
+        REXSYS_FAIL(false, "ELF: A segment alignment is not a power of 2!");
       }
 
       u32 seg_start = phdr[i].p_vaddr;
@@ -137,8 +137,8 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
       max_addr = std::max(max_addr, seg_end);
 
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
-        REX_FAIL(system, false, "ELF: Segment address 0x{:08X} is outside the guest address range",
-                 static_cast<u32>(phdr[i].p_vaddr));
+        REXSYS_FAIL(false, "ELF: Segment address 0x{:08X} is outside the guest address range",
+                    static_cast<u32>(phdr[i].p_vaddr));
       }
 
       u32 virtual_addr = phdr[i].p_vaddr & ~(alignment - 1);
@@ -150,7 +150,7 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
                    virtual_addr, virtual_size, alignment,
                    rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
                    rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite)) {
-        REXLOG_ERROR(system, "ELF: Could not allocate memory!");
+        REXSYS_ERROR("ELF: Could not allocate memory!");
       }
 
       auto p = GetMemory()->TranslateVirtual(phdr[i].p_vaddr);

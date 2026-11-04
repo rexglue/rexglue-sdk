@@ -25,4 +25,4 @@
  * REX_XAM_STUB("XamSwapDisc({})", disc_number);
  * @endcode
  */
-#define REX_XAM_STUB(FMT, ...) REXLOG_WARN(xam, "unimplemented: " FMT __VA_OPT__(, ) __VA_ARGS__)
+#define REX_XAM_STUB(FMT, ...) REXXAM_WARN("unimplemented: " FMT __VA_OPT__(, ) __VA_ARGS__)

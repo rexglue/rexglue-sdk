@@ -284,7 +284,7 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
       s.channels = *opened;
       s.device_open = true;
     } else {
-      REXLOG_WARN(apu, "the audio device did not open, {}", opened.error().message);
+      REXAPU_WARN("the audio device did not open, {}", opened.error().message);
       s.reopen_failed = true;
     }
   }
@@ -302,7 +302,7 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
       }
       if (pulled) {
         if (s.driver->IsDeviceLost()) {
-          REXLOG_WARN(apu, "the audio device was lost");
+          REXAPU_WARN("the audio device was lost");
           s.driver->CloseDevice();
           s.device_open = false;
           s.channels = 2;
@@ -326,15 +326,14 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
             s.channels = *opened;
             s.device_open = true;
             if (s.reopen_failed) {
-              REXLOG_INFO(apu, "the audio device opened");
+              REXAPU_INFO("the audio device opened");
             }
             s.reopen_failed = false;
           } else {
             if (!s.reopen_failed) {
-              REXLOG_WARN(apu, "the audio device did not reopen, {}", opened.error().message);
+              REXAPU_WARN("the audio device did not reopen, {}", opened.error().message);
             } else {
-              REXLOG_DEBUG(apu, "the audio device still did not reopen, {}",
-                           opened.error().message);
+              REXAPU_DEBUG("the audio device still did not reopen, {}", opened.error().message);
             }
             s.reopen_failed = true;
             s.reopen_wait = kReopenPeriods;

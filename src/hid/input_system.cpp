@@ -185,9 +185,9 @@ void InputSystem::State::UpdateConnectionsLocked(std::vector<ConnectionEvent>& e
     }
     connected[user] = now;
     if (now) {
-      REXLOG_INFO(hid, "New controller connected to user {}.", user);
+      REXHID_INFO("New controller connected to user {}.", user);
     } else {
-      REXLOG_INFO(hid, "Controller disconnected from user {}.", user);
+      REXHID_INFO("Controller disconnected from user {}.", user);
       consumed[user] = 0;
     }
     events.push_back({user, now});

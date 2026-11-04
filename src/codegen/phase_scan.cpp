@@ -76,7 +76,7 @@ std::vector<CodeRegion> SegmentSection(const SectionView& section,
 }
 
 void ScanBinary(CodegenContext& ctx) {
-  REXLOG_TRACE(codegen, "Analyze: scanning binary...");
+  REXCG_TRACE("Analyze: scanning binary...");
 
   auto& binary = ctx.GetBinary();
   auto& state = ctx.GetAnalysisState();
@@ -107,7 +107,7 @@ void ScanBinary(CodegenContext& ctx) {
     scan.code_regions.insert(scan.code_regions.end(), regions.begin(), regions.end());
   }
 
-  REXLOG_TRACE(codegen, "Analyze: segmented into {} code regions", scan.code_regions.size());
+  REXCG_TRACE("Analyze: segmented into {} code regions", scan.code_regions.size());
 }
 
 }  // anonymous namespace

@@ -66,8 +66,7 @@ bool IsExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 a
   u32 rdata_end = rdata_start + rdata_section->size;
 
   if (second_dword >= rdata_start && second_dword < rdata_end) {
-    REXLOG_TRACE(
-        codegen,
+    REXCG_TRACE(
         "GapFill: 0x{:08X} looks like exception data (handler=0x{:08X}, scope=0x{:08X}), skipping",
         addr, first_dword, second_dword);
     return true;
@@ -217,7 +216,7 @@ void DiscoverRegisteredFunctions(CodegenContext& ctx, std::unordered_set<u32>& k
 }
 
 void GapFillCodeRegions(CodegenContext& ctx) {
-  REXLOG_TRACE(codegen, "Analyze: checking for uncovered code regions...");
+  REXCG_TRACE("Analyze: checking for uncovered code regions...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.GetBinary();
@@ -242,7 +241,7 @@ void GapFillCodeRegions(CodegenContext& ctx) {
       graph.AddFunction(addr, 4, FunctionAuthority::kGapFill, false);
       known.insert(addr);
       DiscoverRegisteredFunctions(ctx, known);
-      REXLOG_TRACE(codegen, "GapFill: registered sub_{:08X}", addr);
+      REXCG_TRACE("GapFill: registered sub_{:08X}", addr);
       ++registered;
 
       if (graph.GetFunctionCount() > before + 1) {
@@ -254,7 +253,7 @@ void GapFillCodeRegions(CodegenContext& ctx) {
     }
   }
 
-  REXLOG_TRACE(codegen, "Analyze: registered {} GAP_FILL functions", registered);
+  REXCG_TRACE("Analyze: registered {} GAP_FILL functions", registered);
 }
 
 void CleanupAbsorbedGapFills(CodegenContext& ctx) {
@@ -283,7 +282,7 @@ void CleanupAbsorbedGapFills(CodegenContext& ctx) {
   }
 
   if (!to_remove.empty()) {
-    REXLOG_TRACE(codegen, "Analyze: removed {} absorbed GAP_FILL functions", to_remove.size());
+    REXCG_TRACE("Analyze: removed {} absorbed GAP_FILL functions", to_remove.size());
   }
 }
 

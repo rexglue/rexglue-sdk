@@ -417,9 +417,9 @@ bool D3D12TextureCache::Initialize() {
   *(load_root_signature_.ReleaseAndGetAddressOf()) =
       gpu::d3d12::objects::CreateRootSignature(provider, root_signature_desc);
   if (!load_root_signature_) {
-    REX_FAIL(gpu, false,
-             "D3D12TextureCache: Failed to create the texture loading root "
-             "signature");
+    REXGPU_FAIL(false,
+                "D3D12TextureCache: Failed to create the texture loading root "
+                "signature");
   }
 
   D3D12_SHADER_BYTECODE load_shader_code[kLoadShaderCount] = {};
@@ -531,10 +531,10 @@ bool D3D12TextureCache::Initialize() {
         device, current_load_shader_code.pShaderBytecode, current_load_shader_code.BytecodeLength,
         load_root_signature_.Get());
     if (!load_pipelines_[i]) {
-      REX_FAIL(gpu, false,
-               "D3D12TextureCache: Failed to create the texture loading pipeline "
-               "for shader {}",
-               i);
+      REXGPU_FAIL(false,
+                  "D3D12TextureCache: Failed to create the texture loading pipeline "
+                  "for shader {}",
+                  i);
     }
     if (IsDrawResolutionScaled()) {
       const D3D12_SHADER_BYTECODE& current_load_shader_code_scaled = load_shader_code_scaled[i];
@@ -544,10 +544,10 @@ bool D3D12TextureCache::Initialize() {
                 device, current_load_shader_code_scaled.pShaderBytecode,
                 current_load_shader_code_scaled.BytecodeLength, load_root_signature_.Get());
         if (!load_pipelines_scaled_[i]) {
-          REX_FAIL(gpu, false,
-                   "D3D12TextureCache: Failed to create the resolution scaled "
-                   "texture loading pipeline for shader {}",
-                   i);
+          REXGPU_FAIL(false,
+                      "D3D12TextureCache: Failed to create the resolution scaled "
+                      "texture loading pipeline for shader {}",
+                      i);
         }
       }
     }
@@ -563,9 +563,9 @@ bool D3D12TextureCache::Initialize() {
   null_srv_descriptor_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&null_srv_descriptor_heap_desc,
                                           IID_PPV_ARGS(&null_srv_descriptor_heap_)))) {
-    REX_FAIL(gpu, false,
-             "D3D12TextureCache: Failed to create the descriptor heap for null "
-             "SRVs");
+    REXGPU_FAIL(false,
+                "D3D12TextureCache: Failed to create the descriptor heap for null "
+                "SRVs");
   }
   null_srv_descriptor_heap_start_ = null_srv_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
   D3D12_SHADER_RESOURCE_VIEW_DESC null_srv_desc;
@@ -644,11 +644,10 @@ void D3D12TextureCache::EndFrame() {
       continue;
     }
     if (!unsupported_header_written) {
-      REXLOG_ERROR(gpu, "Unsupported texture formats used in the frame");
+      REXGPU_ERROR("Unsupported texture formats used in the frame");
       unsupported_header_written = true;
     }
-    REXLOG_ERROR(gpu, "* {}{}{}{}",
-                 xenos::FormatInfo::Get(static_cast<xenos::TextureFormat>(i))->name,
+    REXGPU_ERROR("* {}{}{}{}", xenos::FormatInfo::Get(static_cast<xenos::TextureFormat>(i))->name,
                  unsupported_features & kUnsupportedResourceBit ? " resource" : "",
                  unsupported_features & kUnsupportedUnormBit ? " unsigned" : "",
                  unsupported_features & kUnsupportedSnormBit ? " signed" : "");
@@ -1095,9 +1094,9 @@ bool D3D12TextureCache::CommitScaledResolveMemory(u32 start_unscaled, u32 length
     if (FAILED(device->CreateReservedResource(&scaled_resolve_buffer_desc,
                                               kScaledResolveVirtualBufferInitialState, nullptr,
                                               IID_PPV_ARGS(&scaled_resolve_buffer_resource)))) {
-      REX_FAIL(gpu, false,
-               "D3D12TextureCache: Failed to create a 2 GB tiled buffer for draw "
-               "resolution scaling");
+      REXGPU_FAIL(false,
+                  "D3D12TextureCache: Failed to create a 2 GB tiled buffer for draw "
+                  "resolution scaling");
     }
     scaled_resolve_2gb_buffers_[i] = std::make_unique<ScaledResolveVirtualBuffer>(
         scaled_resolve_buffer_resource, kScaledResolveVirtualBufferInitialState);
@@ -1116,7 +1115,7 @@ bool D3D12TextureCache::CommitScaledResolveMemory(u32 start_unscaled, u32 length
         D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed());
     Microsoft::WRL::ComPtr<ID3D12Heap> scaled_resolve_heap;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&scaled_resolve_heap)))) {
-      REX_FAIL(gpu, false, "Failed to create a scaled resolve tile heap");
+      REXGPU_FAIL(false, "Failed to create a scaled resolve tile heap");
     }
     scaled_resolve_heaps_[i] = scaled_resolve_heap;
     ++scaled_resolve_heap_count_;
@@ -1876,7 +1875,7 @@ ID3D12Resource* D3D12TextureCache::D3D12Texture::GetOrCreate3DAs2DResource(
   if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              provider.GetHeapFlagCreateNotZeroed(), &desc,
                                              initial_state, nullptr, IID_PPV_ARGS(&resource_2d)))) {
-    REX_FAIL(gpu, nullptr, "Failed to create the 3D as 2D wrapper resource");
+    REXGPU_FAIL(nullptr, "Failed to create the 3D as 2D wrapper resource");
   }
 
   TextureKey key_2d = GetKey();
@@ -1887,7 +1886,7 @@ ID3D12Resource* D3D12TextureCache::D3D12Texture::GetOrCreate3DAs2DResource(
   texture_3d_as_2d_->SetForceLoad3DTiling(true);
 
   if (!d3d12_cache.LoadTextureData(*texture_3d_as_2d_)) {
-    REXLOG_ERROR(gpu, "D3D12TextureCache: Failed to load 3D as 2D wrapper data");
+    REXGPU_ERROR("D3D12TextureCache: Failed to load 3D as 2D wrapper data");
     texture_3d_as_2d_.reset();
     return nullptr;
   }
@@ -1987,9 +1986,9 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
   if (bindless_resources_used_) {
     descriptor_index = command_processor_.RequestPersistentViewBindlessDescriptor();
     if (descriptor_index == UINT32_MAX) {
-      REX_FAIL(gpu, UINT32_MAX,
-               "Failed to create a texture descriptor because no bindless view "
-               "descriptors are free");
+      REXGPU_FAIL(UINT32_MAX,
+                  "Failed to create a texture descriptor because no bindless view "
+                  "descriptors are free");
     }
   } else {
     if (srv_descriptor_cache_free_count_) {
@@ -2009,9 +2008,9 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
         while (srv_descriptor_cache_.size() < cache_pages_needed) {
           Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> cache_heap;
           if (FAILED(device->CreateDescriptorHeap(&cache_heap_desc, IID_PPV_ARGS(&cache_heap)))) {
-            REX_FAIL(gpu, UINT32_MAX,
-                     "D3D12TextureCache: Failed to create a texture descriptor because "
-                     "the descriptor cache heap could not be created");
+            REXGPU_FAIL(UINT32_MAX,
+                        "D3D12TextureCache: Failed to create a texture descriptor because "
+                        "the descriptor cache heap could not be created");
           }
           srv_descriptor_cache_.emplace_back(cache_heap.Get());
         }

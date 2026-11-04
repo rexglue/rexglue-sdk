@@ -700,7 +700,7 @@ bool VulkanCommandProcessor::CompileGLSLToSPIRV(VkShaderStageFlagBits stage,
 
 bool VulkanCommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
-    REX_FAIL(gpu, false, "Failed to initialize base command processor context");
+    REXGPU_FAIL(false, "Failed to initialize base command processor context");
   }
   InvalidateAllVertexBufferResidency();
 
@@ -742,7 +742,7 @@ bool VulkanCommandProcessor::SetupContext() {
   descriptor_set_layout_create_info.pBindings = nullptr;
   if (dfn.vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr,
                                       &descriptor_set_layout_empty_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Failed to create an empty Vulkan descriptor set layout");
+    REXGPU_FAIL(false, "Failed to create an empty Vulkan descriptor set layout");
   }
   VkDescriptorSetLayoutBinding
       descriptor_set_layout_bindings_constants[SPIRVShaderTranslator::kConstantBufferCount] = {};
@@ -771,9 +771,9 @@ bool VulkanCommandProcessor::SetupContext() {
   descriptor_set_layout_create_info.pBindings = descriptor_set_layout_bindings_constants;
   if (dfn.vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr,
                                       &descriptor_set_layout_constants_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create a Vulkan descriptor set layout for guest draw "
-             "constant buffers");
+    REXGPU_FAIL(false,
+                "Failed to create a Vulkan descriptor set layout for guest draw "
+                "constant buffers");
   }
   VkDescriptorSetLayoutBinding descriptor_set_layout_binding_transient;
   descriptor_set_layout_binding_transient.binding = 0;
@@ -787,9 +787,9 @@ bool VulkanCommandProcessor::SetupContext() {
           device, &descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layouts_single_transient_[static_cast<size_t>(
               SingleTransientDescriptorLayout::kStorageBufferCompute)]) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create a Vulkan descriptor set layout for a storage buffer "
-             "bound to the compute shader");
+    REXGPU_FAIL(false,
+                "Failed to create a Vulkan descriptor set layout for a storage buffer "
+                "bound to the compute shader");
   }
   VkDescriptorSetLayoutBinding descriptor_set_layout_bindings_transient_pair[2];
   descriptor_set_layout_bindings_transient_pair[0] = descriptor_set_layout_binding_transient;
@@ -801,21 +801,21 @@ bool VulkanCommandProcessor::SetupContext() {
           device, &descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layouts_single_transient_[static_cast<size_t>(
               SingleTransientDescriptorLayout::kStorageBufferPairCompute)]) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create a Vulkan descriptor set layout for 2 storage "
-             "buffers bound to the compute shader");
+    REXGPU_FAIL(false,
+                "Failed to create a Vulkan descriptor set layout for 2 storage "
+                "buffers bound to the compute shader");
   }
 
   shared_memory_ = std::make_unique<VulkanSharedMemory>(*this, physical_memory_, write_watch_,
                                                         guest_shader_pipeline_stages_);
   if (!shared_memory_->Initialize()) {
-    REX_FAIL(gpu, false, "Failed to initialize shared memory");
+    REXGPU_FAIL(false, "Failed to initialize shared memory");
   }
 
   primitive_processor_ = std::make_unique<VulkanPrimitiveProcessor>(
       *register_file_, GetXenosSettings(), physical_memory_, write_watch_, *shared_memory_, *this);
   if (!primitive_processor_->Initialize()) {
-    REX_FAIL(gpu, false, "Failed to initialize the geometric primitive processor");
+    REXGPU_FAIL(false, "Failed to initialize the geometric primitive processor");
   }
 
   u32 shared_memory_binding_count_log2 =
@@ -828,47 +828,47 @@ bool VulkanCommandProcessor::SetupContext() {
       GetGraphicsDriver().GetResolutionScaleX(), GetGraphicsDriver().GetResolutionScaleY(),
       draw_resolution_scale_x, draw_resolution_scale_y);
   if (!draw_resolution_scale_not_clamped) {
-    REXLOG_WARN(gpu,
-                "The requested draw resolution scale is not supported by the "
-                "emulator, reducing to {}x{}",
-                draw_resolution_scale_x, draw_resolution_scale_y);
+    REXGPU_WARN(
+        "The requested draw resolution scale is not supported by the "
+        "emulator, reducing to {}x{}",
+        draw_resolution_scale_x, draw_resolution_scale_y);
   }
   if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
-    REXLOG_WARN(gpu,
-                "Vulkan draw resolution scaling is experimental and may not affect all "
-                "titles correctly");
+    REXGPU_WARN(
+        "Vulkan draw resolution scaling is experimental and may not affect all "
+        "titles correctly");
   }
   if (!device_properties.fragmentStoresAndAtomics) {
-    REX_FAIL(gpu, false,
-             "Vulkan fragmentStoresAndAtomics is required for GPU emulation and "
-             "D3D12 parity, but unsupported by the selected device");
+    REXGPU_FAIL(false,
+                "Vulkan fragmentStoresAndAtomics is required for GPU emulation and "
+                "D3D12 parity, but unsupported by the selected device");
   }
   if (!device_properties.vertexPipelineStoresAndAtomics) {
-    REX_FAIL(gpu, false,
-             "Vulkan vertexPipelineStoresAndAtomics is required for GPU emulation and "
-             "D3D12 parity, but unsupported by the selected device");
+    REXGPU_FAIL(false,
+                "Vulkan vertexPipelineStoresAndAtomics is required for GPU emulation and "
+                "D3D12 parity, but unsupported by the selected device");
   }
   if (!device_properties.geometryShader) {
     if (vulkan_device->IsGeometryShaderRequired()) {
-      REX_FAIL(gpu, false,
-               "Vulkan geometryShader is required for GPU emulation "
-               "(vulkan.require_geometry_shader=true), but unsupported by the "
-               "selected device");
+      REXGPU_FAIL(false,
+                  "Vulkan geometryShader is required for GPU emulation "
+                  "(vulkan.require_geometry_shader=true), but unsupported by the "
+                  "selected device");
     }
-    REXLOG_WARN(gpu,
-                "Vulkan geometryShader is not supported by the device. Primitive "
-                "fallback conversion/expansion paths will be used");
+    REXGPU_WARN(
+        "Vulkan geometryShader is not supported by the device. Primitive "
+        "fallback conversion/expansion paths will be used");
   }
   if (!device_properties.fillModeNonSolid) {
     if (vulkan_device->IsFillModeNonSolidRequired()) {
-      REX_FAIL(gpu, false,
-               "Vulkan fillModeNonSolid is required for GPU emulation "
-               "(vulkan.require_fill_mode_non_solid=true), but unsupported by the "
-               "selected device");
+      REXGPU_FAIL(false,
+                  "Vulkan fillModeNonSolid is required for GPU emulation "
+                  "(vulkan.require_fill_mode_non_solid=true), but unsupported by the "
+                  "selected device");
     }
-    REXLOG_WARN(gpu,
-                "Vulkan fillModeNonSolid is not supported by the device. Line/point "
-                "polygon modes will fall back to solid fill");
+    REXGPU_WARN(
+        "Vulkan fillModeNonSolid is not supported by the device. Line/point "
+        "polygon modes will fall back to solid fill");
   }
 
   // Requires the transient descriptor set layouts.
@@ -876,7 +876,7 @@ bool VulkanCommandProcessor::SetupContext() {
       *register_file_, GetXenosSettings(), physical_memory_, draw_resolution_scale_x,
       draw_resolution_scale_y, *this);
   if (!render_target_cache_->Initialize(shared_memory_binding_count)) {
-    REX_FAIL(gpu, false, "Failed to initialize the render target cache");
+    REXGPU_FAIL(false, "Failed to initialize the render target cache");
   }
 
   bool edram_fragment_shader_interlock =
@@ -911,15 +911,15 @@ bool VulkanCommandProcessor::SetupContext() {
   if (dfn.vkCreateDescriptorSetLayout(
           device, &shared_memory_and_edram_descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layout_shared_memory_and_edram_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create a Vulkan descriptor set layout for the shared memory "
-             "and the EDRAM");
+    REXGPU_FAIL(false,
+                "Failed to create a Vulkan descriptor set layout for the shared memory "
+                "and the EDRAM");
   }
 
   pipeline_cache_ = std::make_unique<VulkanPipelineCache>(
       *this, *register_file_, *render_target_cache_, guest_shader_vertex_stages_);
   if (!pipeline_cache_->Initialize()) {
-    REX_FAIL(gpu, false, "Failed to initialize the graphics pipeline cache");
+    REXGPU_FAIL(false, "Failed to initialize the graphics pipeline cache");
   }
 
   // Requires the transient descriptor set layouts.
@@ -927,7 +927,7 @@ bool VulkanCommandProcessor::SetupContext() {
                                               draw_resolution_scale_x, draw_resolution_scale_y,
                                               *this, guest_shader_pipeline_stages_);
   if (!texture_cache_) {
-    REX_FAIL(gpu, false, "Failed to initialize the texture cache");
+    REXGPU_FAIL(false, "Failed to initialize the texture cache");
   }
 
   VkDescriptorPoolSize descriptor_pool_sizes[1];
@@ -943,9 +943,9 @@ bool VulkanCommandProcessor::SetupContext() {
   descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes;
   if (dfn.vkCreateDescriptorPool(device, &descriptor_pool_create_info, nullptr,
                                  &shared_memory_and_edram_descriptor_pool_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create the Vulkan descriptor pool for shared memory and "
-             "EDRAM");
+    REXGPU_FAIL(false,
+                "Failed to create the Vulkan descriptor pool for shared memory and "
+                "EDRAM");
   }
   VkDescriptorSetAllocateInfo descriptor_set_allocate_info;
   descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -955,9 +955,9 @@ bool VulkanCommandProcessor::SetupContext() {
   descriptor_set_allocate_info.pSetLayouts = &descriptor_set_layout_shared_memory_and_edram_;
   if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info,
                                    &shared_memory_and_edram_descriptor_set_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to allocate the Vulkan descriptor set for shared memory and "
-             "EDRAM");
+    REXGPU_FAIL(false,
+                "Failed to allocate the Vulkan descriptor set for shared memory and "
+                "EDRAM");
   }
   VkDescriptorBufferInfo
       shared_memory_descriptor_buffers_info[SharedMemory::kBufferSize / (128 << 20)];
@@ -1085,18 +1085,18 @@ bool VulkanCommandProcessor::SetupContext() {
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT,
             gpu::vulkan::objects::MemoryPurpose::kDeviceLocal, gamma_ramp_buffer_,
             gamma_ramp_buffer_memory_)) {
-      REX_FAIL(gpu, false, "Failed to create the gamma ramp buffer");
+      REXGPU_FAIL(false, "Failed to create the gamma ramp buffer");
     }
     if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(
             vulkan_device, kGammaRampSize * kMaxFramesInFlight, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             gpu::vulkan::objects::MemoryPurpose::kUpload, gamma_ramp_upload_buffer_,
             gamma_ramp_upload_buffer_memory_, &gamma_ramp_upload_memory_type_,
             &gamma_ramp_upload_memory_size_)) {
-      REX_FAIL(gpu, false, "Failed to create the gamma ramp upload buffer");
+      REXGPU_FAIL(false, "Failed to create the gamma ramp upload buffer");
     }
     if (dfn.vkMapMemory(device, gamma_ramp_upload_buffer_memory_, 0, VK_WHOLE_SIZE, 0,
                         &gamma_ramp_upload_mapping_) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to map the gamma ramp upload buffer");
+      REXGPU_FAIL(false, "Failed to map the gamma ramp upload buffer");
     }
   }
 
@@ -1112,7 +1112,7 @@ bool VulkanCommandProcessor::SetupContext() {
     gamma_ramp_buffer_view_create_info.offset = kGammaRampSize * i;
     if (dfn.vkCreateBufferView(device, &gamma_ramp_buffer_view_create_info, nullptr,
                                &gamma_ramp_buffer_views_[size_t{i} * 2]) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to create a 256-entry table gamma ramp buffer view");
+      REXGPU_FAIL(false, "Failed to create a 256-entry table gamma ramp buffer view");
     }
   }
   gamma_ramp_buffer_view_create_info.format = VK_FORMAT_R16G16_UINT;
@@ -1121,7 +1121,7 @@ bool VulkanCommandProcessor::SetupContext() {
     gamma_ramp_buffer_view_create_info.offset = kGammaRampSize * i + kGammaRampSize256EntryTable;
     if (dfn.vkCreateBufferView(device, &gamma_ramp_buffer_view_create_info, nullptr,
                                &gamma_ramp_buffer_views_[i * 2 + 1]) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to create a PWL gamma ramp buffer view");
+      REXGPU_FAIL(false, "Failed to create a PWL gamma ramp buffer view");
     }
   }
 
@@ -1141,33 +1141,33 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
   if (dfn.vkCreateDescriptorSetLayout(device, &swap_descriptor_set_layout_create_info, nullptr,
                                       &swap_descriptor_set_layout_sampled_image_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create the presentation sampled image descriptor set "
-             "layout");
+    REXGPU_FAIL(false,
+                "Failed to create the presentation sampled image descriptor set "
+                "layout");
   }
   swap_descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
   if (dfn.vkCreateDescriptorSetLayout(device, &swap_descriptor_set_layout_create_info, nullptr,
                                       &swap_descriptor_set_layout_uniform_texel_buffer_) !=
       VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create the presentation uniform texel buffer descriptor set "
-             "layout");
+    REXGPU_FAIL(false,
+                "Failed to create the presentation uniform texel buffer descriptor set "
+                "layout");
   }
   swap_descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   swap_descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
   if (dfn.vkCreateDescriptorSetLayout(device, &swap_descriptor_set_layout_create_info, nullptr,
                                       &swap_descriptor_set_layout_combined_image_sampler_) !=
       VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create the presentation combined image sampler descriptor "
-             "set layout");
+    REXGPU_FAIL(false,
+                "Failed to create the presentation combined image sampler descriptor "
+                "set layout");
   }
   swap_descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
   if (dfn.vkCreateDescriptorSetLayout(device, &swap_descriptor_set_layout_create_info, nullptr,
                                       &swap_descriptor_set_layout_storage_image_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false,
-             "Failed to create the presentation storage image descriptor set "
-             "layout");
+    REXGPU_FAIL(false,
+                "Failed to create the presentation storage image descriptor set "
+                "layout");
   }
 
   std::array<VkDescriptorPoolSize, 4> swap_descriptor_pool_sizes;
@@ -1210,7 +1210,7 @@ bool VulkanCommandProcessor::SetupContext() {
   }
   if (dfn.vkCreateDescriptorPool(device, &swap_descriptor_pool_create_info, nullptr,
                                  &swap_descriptor_pool_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Failed to create the presentation descriptor pool");
+    REXGPU_FAIL(false, "Failed to create the presentation descriptor pool");
   }
 
   VkDescriptorSetAllocateInfo swap_descriptor_set_allocate_info;
@@ -1222,14 +1222,14 @@ bool VulkanCommandProcessor::SetupContext() {
   for (u32 i = 0; i < gamma_ramp_buffer_view_count; ++i) {
     if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
                                      &swap_descriptors_gamma_ramp_[i]) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to allocate the gamma ramp descriptor sets");
+      REXGPU_FAIL(false, "Failed to allocate the gamma ramp descriptor sets");
     }
   }
   swap_descriptor_set_allocate_info.pSetLayouts = &swap_descriptor_set_layout_sampled_image_;
   for (u32 i = 0; i < kMaxFramesInFlight; ++i) {
     if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
                                      &swap_descriptors_source_[i]) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to allocate the presentation source image descriptor sets");
+      REXGPU_FAIL(false, "Failed to allocate the presentation source image descriptor sets");
     }
   }
   swap_descriptor_set_allocate_info.pSetLayouts =
@@ -1237,27 +1237,27 @@ bool VulkanCommandProcessor::SetupContext() {
   for (u32 i = 0; i < kMaxFramesInFlight; ++i) {
     if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
                                      &swap_descriptors_fxaa_source_[i]) != VK_SUCCESS) {
-      REX_FAIL(gpu, false,
-               "Failed to allocate the presentation FXAA source image descriptor "
-               "sets");
+      REXGPU_FAIL(false,
+                  "Failed to allocate the presentation FXAA source image descriptor "
+                  "sets");
     }
   }
   swap_descriptor_set_allocate_info.pSetLayouts = &swap_descriptor_set_layout_storage_image_;
   for (u32 i = 0; i < kMaxFramesInFlight; ++i) {
     if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
                                      &swap_descriptors_destination_storage_[i]) != VK_SUCCESS) {
-      REX_FAIL(gpu, false,
-               "Failed to allocate the presentation destination storage image "
-               "descriptor sets");
+      REXGPU_FAIL(false,
+                  "Failed to allocate the presentation destination storage image "
+                  "descriptor sets");
     }
   }
   for (u32 i = 0; i < kMaxFramesInFlight; ++i) {
     if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
                                      &swap_descriptors_fxaa_destination_storage_[i]) !=
         VK_SUCCESS) {
-      REX_FAIL(gpu, false,
-               "Failed to allocate the presentation FXAA destination storage image "
-               "descriptor sets");
+      REXGPU_FAIL(false,
+                  "Failed to allocate the presentation FXAA destination storage image "
+                  "descriptor sets");
     }
   }
 
@@ -1297,7 +1297,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
   if (dfn.vkCreateSampler(device, &swap_sampler_create_info, nullptr,
                           &swap_sampler_linear_clamp_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Failed to create the presentation FXAA sampler");
+    REXGPU_FAIL(false, "Failed to create the presentation FXAA sampler");
   }
 
   std::array<VkDescriptorSetLayout, kSwapApplyGammaDescriptorSetCount>
@@ -1319,7 +1319,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_apply_gamma_pipeline_layout_create_info.pPushConstantRanges = nullptr;
   if (dfn.vkCreatePipelineLayout(device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
                                  &swap_apply_gamma_pipeline_layout_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Failed to create the gamma ramp application pipeline layout");
+    REXGPU_FAIL(false, "Failed to create the gamma ramp application pipeline layout");
   }
 
   std::array<VkDescriptorSetLayout, kSwapApplyGammaComputeDescriptorSetCount>
@@ -1343,7 +1343,7 @@ bool VulkanCommandProcessor::SetupContext() {
       &swap_apply_gamma_compute_push_constant_range;
   if (dfn.vkCreatePipelineLayout(device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
                                  &swap_apply_gamma_compute_pipeline_layout_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Failed to create the gamma ramp application compute pipeline layout");
+    REXGPU_FAIL(false, "Failed to create the gamma ramp application compute pipeline layout");
   }
 
   std::array<VkDescriptorSetLayout, kSwapFXAADescriptorSetCount> swap_fxaa_descriptor_set_layouts{};
@@ -1363,7 +1363,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_apply_gamma_pipeline_layout_create_info.pPushConstantRanges = &swap_fxaa_push_constant_range;
   if (dfn.vkCreatePipelineLayout(device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
                                  &swap_fxaa_pipeline_layout_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Failed to create the FXAA compute pipeline layout");
+    REXGPU_FAIL(false, "Failed to create the FXAA compute pipeline layout");
   }
 
   // No assumptions about outer usage, explicit barriers are required.
@@ -1413,7 +1413,7 @@ bool VulkanCommandProcessor::SetupContext() {
       swap_apply_gamma_render_pass_dependencies;
   if (dfn.vkCreateRenderPass(device, &swap_apply_gamma_render_pass_create_info, nullptr,
                              &swap_apply_gamma_render_pass_) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Failed to create the gamma ramp application render pass");
+    REXGPU_FAIL(false, "Failed to create the gamma ramp application render pass");
   }
 
   // A graphics pipeline, not compute, because storage image support is optional for A2B10G10R10.
@@ -1445,7 +1445,7 @@ bool VulkanCommandProcessor::SetupContext() {
                vulkan_device, shaders::kApplyGammaPWLFXAALumaPS,
                sizeof(shaders::kApplyGammaPWLFXAALumaPS))) != VK_NULL_HANDLE;
   if (!swap_apply_gamma_pixel_shaders_created) {
-    REXLOG_ERROR(gpu, "Failed to create the gamma ramp application pixel shader modules");
+    REXGPU_ERROR("Failed to create the gamma ramp application pixel shader modules");
     for (VkShaderModule swap_apply_gamma_pixel_shader : swap_apply_gamma_pixel_shaders) {
       if (swap_apply_gamma_pixel_shader != VK_NULL_HANDLE) {
         dfn.vkDestroyShaderModule(device, swap_apply_gamma_pixel_shader, nullptr);
@@ -1462,7 +1462,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_apply_gamma_pipeline_stages[0].module = gpu::vulkan::objects::CreateShaderModule(
       vulkan_device, shaders::kFullscreenCWVS, sizeof(shaders::kFullscreenCWVS));
   if (swap_apply_gamma_pipeline_stages[0].module == VK_NULL_HANDLE) {
-    REXLOG_ERROR(gpu, "Failed to create the gamma ramp application vertex shader module");
+    REXGPU_ERROR("Failed to create the gamma ramp application vertex shader module");
     for (VkShaderModule swap_apply_gamma_pixel_shader : swap_apply_gamma_pixel_shaders) {
       REX_ASSERT(swap_apply_gamma_pixel_shader != VK_NULL_HANDLE);
       dfn.vkDestroyShaderModule(device, swap_apply_gamma_pixel_shader, nullptr);
@@ -1587,21 +1587,20 @@ bool VulkanCommandProcessor::SetupContext() {
       std::vector<u32> pixel_spirv;
       std::string compile_error;
       if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_FRAGMENT_BIT, source, pixel_spirv, compile_error)) {
-        REXLOG_WARN(gpu, "Failed to compile {} shader to SPIR-V ({})", pipeline_name,
-                    compile_error);
+        REXGPU_WARN("Failed to compile {} shader to SPIR-V ({})", pipeline_name, compile_error);
         return;
       }
       VkShaderModule pixel_shader_module = gpu::vulkan::objects::CreateShaderModule(
           vulkan_device, pixel_spirv.data(), sizeof(u32) * pixel_spirv.size());
       if (pixel_shader_module == VK_NULL_HANDLE) {
-        REXLOG_WARN(gpu, "Failed to create {} shader module", pipeline_name);
+        REXGPU_WARN("Failed to create {} shader module", pipeline_name);
         return;
       }
       swap_apply_gamma_pipeline_stages[1].module = pixel_shader_module;
       if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
                                         &swap_apply_gamma_pipeline_create_info, nullptr,
                                         &pipeline_out) != VK_SUCCESS) {
-        REXLOG_WARN(gpu, "Failed to create {} pipeline", pipeline_name);
+        REXGPU_WARN("Failed to create {} pipeline", pipeline_name);
         pipeline_out = VK_NULL_HANDLE;
       }
       dfn.vkDestroyShaderModule(device, pixel_shader_module, nullptr);
@@ -1621,39 +1620,39 @@ bool VulkanCommandProcessor::SetupContext() {
   if (std::any_of(swap_apply_gamma_pipeline_create_results.begin(),
                   swap_apply_gamma_pipeline_create_results.end(),
                   [](VkResult result) { return result != VK_SUCCESS; })) {
-    REX_FAIL(gpu, false, "Failed to create the gamma ramp application pipelines");
+    REXGPU_FAIL(false, "Failed to create the gamma ramp application pipelines");
   }
 
   swap_apply_gamma_compute_256_entry_table_pipeline_ = gpu::vulkan::objects::CreateComputePipeline(
       vulkan_device, swap_apply_gamma_compute_pipeline_layout_, shaders::kApplyGammaTableCS,
       sizeof(shaders::kApplyGammaTableCS));
   if (swap_apply_gamma_compute_256_entry_table_pipeline_ == VK_NULL_HANDLE) {
-    REXLOG_WARN(gpu,
-                "Failed to create the 256-entry table gamma ramp application compute "
-                "pipeline, keeping graphics fallback");
+    REXGPU_WARN(
+        "Failed to create the 256-entry table gamma ramp application compute "
+        "pipeline, keeping graphics fallback");
   }
   swap_apply_gamma_compute_256_entry_table_fxaa_luma_pipeline_ =
       gpu::vulkan::objects::CreateComputePipeline(
           vulkan_device, swap_apply_gamma_compute_pipeline_layout_,
           shaders::kApplyGammaTableFXAALumaCS, sizeof(shaders::kApplyGammaTableFXAALumaCS));
   if (swap_apply_gamma_compute_256_entry_table_fxaa_luma_pipeline_ == VK_NULL_HANDLE) {
-    REXLOG_WARN(gpu,
-                "Failed to create the 256-entry table gamma ramp application compute "
-                "pipeline with luma output");
+    REXGPU_WARN(
+        "Failed to create the 256-entry table gamma ramp application compute "
+        "pipeline with luma output");
   }
   swap_apply_gamma_compute_pwl_pipeline_ = gpu::vulkan::objects::CreateComputePipeline(
       vulkan_device, swap_apply_gamma_compute_pipeline_layout_, shaders::kApplyGammaPWLCS,
       sizeof(shaders::kApplyGammaPWLCS));
   if (swap_apply_gamma_compute_pwl_pipeline_ == VK_NULL_HANDLE) {
-    REXLOG_WARN(gpu, "Failed to create the PWL gamma ramp application compute pipeline");
+    REXGPU_WARN("Failed to create the PWL gamma ramp application compute pipeline");
   }
   swap_apply_gamma_compute_pwl_fxaa_luma_pipeline_ = gpu::vulkan::objects::CreateComputePipeline(
       vulkan_device, swap_apply_gamma_compute_pipeline_layout_, shaders::kApplyGammaPWLFXAALumaCS,
       sizeof(shaders::kApplyGammaPWLFXAALumaCS));
   if (swap_apply_gamma_compute_pwl_fxaa_luma_pipeline_ == VK_NULL_HANDLE) {
-    REXLOG_WARN(gpu,
-                "Failed to create the PWL gamma ramp application compute pipeline with "
-                "luma output");
+    REXGPU_WARN(
+        "Failed to create the PWL gamma ramp application compute pipeline with "
+        "luma output");
   }
   if (!vulkan_device->GetProperties().imageViewFormatSwizzle) {
     auto create_rb_swap_compute_pipeline = [&](const char* source, VkPipeline& pipeline_out,
@@ -1661,15 +1660,14 @@ bool VulkanCommandProcessor::SetupContext() {
       std::vector<u32> compute_spirv;
       std::string compile_error;
       if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, source, compute_spirv, compile_error)) {
-        REXLOG_WARN(gpu, "Failed to compile {} shader to SPIR-V ({})", pipeline_name,
-                    compile_error);
+        REXGPU_WARN("Failed to compile {} shader to SPIR-V ({})", pipeline_name, compile_error);
         return;
       }
       pipeline_out = gpu::vulkan::objects::CreateComputePipeline(
           vulkan_device, swap_apply_gamma_compute_pipeline_layout_, compute_spirv.data(),
           sizeof(u32) * compute_spirv.size());
       if (pipeline_out == VK_NULL_HANDLE) {
-        REXLOG_WARN(gpu, "Failed to create {} pipeline", pipeline_name);
+        REXGPU_WARN("Failed to create {} pipeline", pipeline_name);
       }
     };
     create_rb_swap_compute_pipeline(GetSwapApplyGammaTableComputeRBSwapSource(),
@@ -1691,14 +1689,13 @@ bool VulkanCommandProcessor::SetupContext() {
   std::string swap_fxaa_compile_error;
   if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFXAAComputeSource(false),
                           swap_fxaa_spirv, swap_fxaa_compile_error)) {
-    REXLOG_WARN(gpu, "Failed to compile FXAA compute shader to SPIR-V ({})",
-                swap_fxaa_compile_error);
+    REXGPU_WARN("Failed to compile FXAA compute shader to SPIR-V ({})", swap_fxaa_compile_error);
   } else {
     swap_fxaa_pipeline_ = gpu::vulkan::objects::CreateComputePipeline(
         vulkan_device, swap_fxaa_pipeline_layout_, swap_fxaa_spirv.data(),
         sizeof(u32) * swap_fxaa_spirv.size());
     if (swap_fxaa_pipeline_ == VK_NULL_HANDLE) {
-      REXLOG_WARN(gpu, "Failed to create the FXAA compute pipeline");
+      REXGPU_WARN("Failed to create the FXAA compute pipeline");
     }
   }
 
@@ -1706,14 +1703,14 @@ bool VulkanCommandProcessor::SetupContext() {
   std::string swap_fxaa_extreme_compile_error;
   if (!CompileGLSLToSPIRV(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFXAAComputeSource(true),
                           swap_fxaa_extreme_spirv, swap_fxaa_extreme_compile_error)) {
-    REXLOG_WARN(gpu, "Failed to compile extreme FXAA compute shader to SPIR-V ({})",
+    REXGPU_WARN("Failed to compile extreme FXAA compute shader to SPIR-V ({})",
                 swap_fxaa_extreme_compile_error);
   } else {
     swap_fxaa_extreme_pipeline_ = gpu::vulkan::objects::CreateComputePipeline(
         vulkan_device, swap_fxaa_pipeline_layout_, swap_fxaa_extreme_spirv.data(),
         sizeof(u32) * swap_fxaa_extreme_spirv.size());
     if (swap_fxaa_extreme_pipeline_ == VK_NULL_HANDLE) {
-      REXLOG_WARN(gpu, "Failed to create the extreme quality FXAA compute pipeline");
+      REXGPU_WARN("Failed to create the extreme quality FXAA compute pipeline");
     }
   }
 
@@ -1736,12 +1733,12 @@ bool VulkanCommandProcessor::SetupContext() {
         vulkan_device, resolve_downscale_pipeline_layout_, shaders::kResolveDownscaleCS,
         sizeof(shaders::kResolveDownscaleCS));
     if (resolve_downscale_pipeline_ == VK_NULL_HANDLE) {
-      REXLOG_WARN(gpu, "Failed to create Vulkan resolve downscale readback pipeline");
+      REXGPU_WARN("Failed to create Vulkan resolve downscale readback pipeline");
       gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
                                                  resolve_downscale_pipeline_layout_);
     }
   } else {
-    REXLOG_WARN(gpu, "Failed to create Vulkan resolve downscale pipeline layout");
+    REXGPU_WARN("Failed to create Vulkan resolve downscale pipeline layout");
   }
 
   occlusion_query_resources_available_ = InitializeOcclusionQueryResources();
@@ -2144,13 +2141,13 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
     return;
   gpu::Presenter* presenter = graphics_system_->GetHostPresenter();
   if (!presenter) {
-    REXLOG_ERROR(gpu, "XELOG_GPU PRESENT: NO PRESENTER");
+    REXGPU_ERROR("XELOG_GPU PRESENT: NO PRESENTER");
     return;
   }
 
   // Opens a submission when the swap is the only command in the frame.
   if (!BeginSubmission(true)) {
-    REXLOG_ERROR(gpu, "XELOG_GPU PRESENT: BeginSubmission FAILED");
+    REXGPU_ERROR("XELOG_GPU PRESENT: BeginSubmission FAILED");
     return;
   }
 
@@ -2162,9 +2159,9 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
     static bool skipped_incomplete_frame_logged = false;
     if (!skipped_incomplete_frame_logged) {
       skipped_incomplete_frame_logged = true;
-      REXLOG_WARN(gpu,
-                  "Skipping Vulkan frame presentation due to async placeholder draw "
-                  "usage in this frame");
+      REXGPU_WARN(
+          "Skipping Vulkan frame presentation due to async placeholder draw "
+          "usage in this frame");
     }
     EndSubmission(true);
     return;
@@ -2180,7 +2177,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
       frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_format,
       &frontbuffer_width_unscaled, &frontbuffer_height_unscaled, &swap_source_needs_rb_swap);
   if (swap_texture_view == VK_NULL_HANDLE) {
-    REXLOG_ERROR(gpu, "XELOG_GPU PRESENT: swap_texture_view=NULL");
+    REXGPU_ERROR("XELOG_GPU PRESENT: swap_texture_view=NULL");
     return;
   }
   // Swap textures may be allocation padded, so the swap packet frontbuffer region is preferred.
@@ -2231,40 +2228,40 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
     if (!draw_scale_cache_mismatch_logged &&
         (texture_scale_x != rt_scale_x || texture_scale_y != rt_scale_y)) {
       draw_scale_cache_mismatch_logged = true;
-      REXLOG_WARN(gpu,
-                  "Vulkan draw scale mismatch, texture cache is {}x{}, render target "
-                  "cache is {}x{}",
-                  texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
+      REXGPU_WARN(
+          "Vulkan draw scale mismatch, texture cache is {}x{}, render target "
+          "cache is {}x{}",
+          texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
     }
     static bool draw_scale_swap_sizes_logged = false;
     if (!draw_scale_swap_sizes_logged) {
       draw_scale_swap_sizes_logged = true;
-      REXLOG_WARN(gpu,
-                  "Vulkan draw scale swap sizing with packet={}x{}, src_scaled={}x{}, "
-                  "src_unscaled={}x{}, active={}x{}",
-                  frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
-                  frontbuffer_height_scaled, frontbuffer_width_unscaled,
-                  frontbuffer_height_unscaled, guest_output_width, guest_output_height);
+      REXGPU_WARN(
+          "Vulkan draw scale swap sizing with packet={}x{}, src_scaled={}x{}, "
+          "src_unscaled={}x{}, active={}x{}",
+          frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
+          frontbuffer_height_scaled, frontbuffer_width_unscaled, frontbuffer_height_unscaled,
+          guest_output_width, guest_output_height);
     }
   }
   if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled) {
     static bool draw_scale_swap_unscaled_logged = false;
     if (!draw_scale_swap_unscaled_logged) {
       draw_scale_swap_unscaled_logged = true;
-      REXLOG_WARN(gpu,
-                  "Vulkan draw resolution scaling is enabled, but the swap source is "
-                  "unscaled ({}x{}). This title may be presenting from an unscaled "
-                  "resolve path.",
-                  frontbuffer_width_scaled, frontbuffer_height_scaled);
+      REXGPU_WARN(
+          "Vulkan draw resolution scaling is enabled, but the swap source is "
+          "unscaled ({}x{}). This title may be presenting from an unscaled "
+          "resolve path.",
+          frontbuffer_width_scaled, frontbuffer_height_scaled);
     }
   }
-  REXLOG_DEBUG(gpu,
-               "XELOG_GPU PRESENT: swap_texture_view={:p} packet_size={}x{} src_size={}x{} "
-               "src_unscaled={}x{} guest_output_size={}x{} format={}",
-               static_cast<void*>(swap_texture_view), frontbuffer_width, frontbuffer_height,
-               frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_width_unscaled,
-               frontbuffer_height_unscaled, guest_output_width, guest_output_height,
-               static_cast<u32>(frontbuffer_format));
+  REXGPU_DEBUG(
+      "XELOG_GPU PRESENT: swap_texture_view={:p} packet_size={}x{} src_size={}x{} "
+      "src_unscaled={}x{} guest_output_size={}x{} format={}",
+      static_cast<void*>(swap_texture_view), frontbuffer_width, frontbuffer_height,
+      frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_width_unscaled,
+      frontbuffer_height_unscaled, guest_output_width, guest_output_height,
+      static_cast<u32>(frontbuffer_format));
 
   const VideoMode video_mode = title_info_.video_mode;
   u32 display_width = std::max(static_cast<u32>(1), video_mode.width);
@@ -2329,14 +2326,14 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
             static bool fxaa_pipelines_unavailable_logged = false;
             if (!fxaa_pipelines_unavailable_logged) {
               if (swap_source_requires_compute_rb_swap) {
-                REXLOG_WARN(gpu,
-                            "Vulkan FXAA swap effect requested but FXAA compute "
-                            "pipelines (including RB swap fallback) are unavailable, "
-                            "falling back to gamma only");
+                REXGPU_WARN(
+                    "Vulkan FXAA swap effect requested but FXAA compute "
+                    "pipelines (including RB swap fallback) are unavailable, "
+                    "falling back to gamma only");
               } else {
-                REXLOG_WARN(gpu,
-                            "Vulkan FXAA swap effect requested but FXAA compute "
-                            "pipelines are unavailable, falling back to gamma only");
+                REXGPU_WARN(
+                    "Vulkan FXAA swap effect requested but FXAA compute "
+                    "pipelines are unavailable, falling back to gamma only");
               }
               fxaa_pipelines_unavailable_logged = true;
             }
@@ -2344,9 +2341,9 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
           } else if (!EnsureSwapFXAASourceImage(guest_output_width, guest_output_height)) {
             static bool fxaa_source_image_failed_logged = false;
             if (!fxaa_source_image_failed_logged) {
-              REXLOG_WARN(gpu,
-                          "Failed to create the Vulkan FXAA source image, falling "
-                          "back to gamma only presentation");
+              REXGPU_WARN(
+                  "Failed to create the Vulkan FXAA source image, falling "
+                  "back to gamma only presentation");
               fxaa_source_image_failed_logged = true;
             }
             use_fxaa = false;
@@ -2361,11 +2358,11 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
           static bool compute_rb_swap_fallback_missing_logged = false;
           if (!compute_rb_swap_fallback_missing_logged) {
             compute_rb_swap_fallback_missing_logged = true;
-            REXLOG_WARN(gpu,
-                        "Vulkan imageViewFormatSwizzle is unavailable and the swap "
-                        "source needs red/blue swizzle, but the compute fallback "
-                        "pipeline is unavailable. Falling back to graphics "
-                        "presentation path");
+            REXGPU_WARN(
+                "Vulkan imageViewFormatSwizzle is unavailable and the swap "
+                "source needs red/blue swizzle, but the compute fallback "
+                "pipeline is unavailable. Falling back to graphics "
+                "presentation path");
           }
         }
         bool use_compute_gamma = swap_apply_gamma_compute_pipeline != VK_NULL_HANDLE;
@@ -2655,7 +2652,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
             swap_framebuffer_create_info.layers = 1;
             if (dfn.vkCreateFramebuffer(device, &swap_framebuffer_create_info, nullptr,
                                         &new_swap_framebuffer.framebuffer) != VK_SUCCESS) {
-              REX_FAIL(gpu, false, "Failed to create the Vulkan framebuffer for presentation");
+              REXGPU_FAIL(false, "Failed to create the Vulkan framebuffer for presentation");
             }
             new_swap_framebuffer.version = guest_output_image_version;
             // The submission index is set once the framebuffer is used.
@@ -2719,10 +2716,10 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
               static bool swap_rb_swap_fallback_missing_logged = false;
               if (!swap_rb_swap_fallback_missing_logged) {
                 swap_rb_swap_fallback_missing_logged = true;
-                REXLOG_WARN(gpu,
-                            "Vulkan imageViewFormatSwizzle is unavailable and the "
-                            "swap source needs red/blue swizzle, but the graphics "
-                            "fallback RB swap shader pipeline is unavailable");
+                REXGPU_WARN(
+                    "Vulkan imageViewFormatSwizzle is unavailable and the "
+                    "swap source needs red/blue swizzle, but the graphics "
+                    "fallback RB swap shader pipeline is unavailable");
               }
             }
           }
@@ -3206,18 +3203,18 @@ const VulkanPipelineCache::IPipelineLayoutProvider* VulkanCommandProcessor::GetP
   VkDescriptorSetLayout descriptor_set_layout_textures_vertex =
       GetTextureDescriptorSetLayout(true, texture_count_vertex, sampler_count_vertex);
   if (descriptor_set_layout_textures_vertex == VK_NULL_HANDLE) {
-    REX_FAIL(gpu, nullptr,
-             "Failed to obtain a Vulkan descriptor set layout for {} sampled images "
-             "and {} samplers for guest vertex shaders",
-             texture_count_vertex, sampler_count_vertex);
+    REXGPU_FAIL(nullptr,
+                "Failed to obtain a Vulkan descriptor set layout for {} sampled images "
+                "and {} samplers for guest vertex shaders",
+                texture_count_vertex, sampler_count_vertex);
   }
   VkDescriptorSetLayout descriptor_set_layout_textures_pixel =
       GetTextureDescriptorSetLayout(false, texture_count_pixel, sampler_count_pixel);
   if (descriptor_set_layout_textures_pixel == VK_NULL_HANDLE) {
-    REX_FAIL(gpu, nullptr,
-             "Failed to obtain a Vulkan descriptor set layout for {} sampled images "
-             "and {} samplers for guest pixel shaders",
-             texture_count_pixel, sampler_count_pixel);
+    REXGPU_FAIL(nullptr,
+                "Failed to obtain a Vulkan descriptor set layout for {} sampled images "
+                "and {} samplers for guest pixel shaders",
+                texture_count_pixel, sampler_count_pixel);
   }
 
   VkDescriptorSetLayout descriptor_set_layouts[SPIRVShaderTranslator::kDescriptorSetCount];
@@ -3246,10 +3243,10 @@ const VulkanPipelineCache::IPipelineLayoutProvider* VulkanCommandProcessor::GetP
   VkPipelineLayout pipeline_layout;
   if (dfn.vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, &pipeline_layout) !=
       VK_SUCCESS) {
-    REX_FAIL(gpu, nullptr,
-             "Failed to create a Vulkan pipeline layout for guest drawing with {} "
-             "pixel shader and {} vertex shader textures",
-             texture_count_pixel, texture_count_vertex);
+    REXGPU_FAIL(nullptr,
+                "Failed to create a Vulkan pipeline layout for guest drawing with {} "
+                "pixel shader and {} vertex shader textures",
+                texture_count_pixel, texture_count_vertex);
   }
   auto emplaced_pair = pipeline_layouts_.emplace(
       std::piecewise_construct, std::forward_as_tuple(pipeline_layout_key),
@@ -3293,8 +3290,8 @@ VulkanCommandProcessor::ScratchBufferAcquisition VulkanCommandProcessor::Acquire
           VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
           gpu::vulkan::objects::MemoryPurpose::kDeviceLocal, new_scratch_buffer,
           new_scratch_buffer_memory)) {
-    REX_FAIL(gpu, ScratchBufferAcquisition(),
-             "VulkanCommandProcessor: Failed to create a {} MB scratch GPU buffer", size >> 20);
+    REXGPU_FAIL(ScratchBufferAcquisition(),
+                "VulkanCommandProcessor: Failed to create a {} MB scratch GPU buffer", size >> 20);
   }
 
   if (submission_completed_ >= scratch_buffer_last_usage_submission_) {
@@ -3415,16 +3412,17 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
   (void)index_buffer_info;
   auto draw_fail = [&](const char* stage) {
     auto vgt_draw_initiator = regs.Get<xenos::reg::VGT_DRAW_INITIATOR>();
-    REX_FAIL(gpu, false,
-             "Vulkan IssueDraw failed at {} "
-             "(prim_type={}, index_count={}, source_select={}, major_mode={}, explicit_major={}, "
-             "path_select={}, tess_mode={}, edram_mode={})",
-             stage, static_cast<u32>(prim_type), index_count,
-             static_cast<u32>(vgt_draw_initiator.source_select),
-             static_cast<u32>(vgt_draw_initiator.major_mode), static_cast<u32>(major_mode_explicit),
-             static_cast<u32>(regs.Get<xenos::reg::VGT_OUTPUT_PATH_CNTL>().path_select),
-             static_cast<u32>(regs.Get<xenos::reg::VGT_HOS_CNTL>().tess_mode),
-             static_cast<u32>(regs.Get<xenos::reg::RB_MODECONTROL>().edram_mode));
+    REXGPU_FAIL(
+        false,
+        "Vulkan IssueDraw failed at {} "
+        "(prim_type={}, index_count={}, source_select={}, major_mode={}, explicit_major={}, "
+        "path_select={}, tess_mode={}, edram_mode={})",
+        stage, static_cast<u32>(prim_type), index_count,
+        static_cast<u32>(vgt_draw_initiator.source_select),
+        static_cast<u32>(vgt_draw_initiator.major_mode), static_cast<u32>(major_mode_explicit),
+        static_cast<u32>(regs.Get<xenos::reg::VGT_OUTPUT_PATH_CNTL>().path_select),
+        static_cast<u32>(regs.Get<xenos::reg::VGT_HOS_CNTL>().tess_mode),
+        static_cast<u32>(regs.Get<xenos::reg::RB_MODECONTROL>().edram_mode));
   };
 
   xenos::EDRAMMode edram_mode = regs.Get<xenos::reg::RB_MODECONTROL>().edram_mode;
@@ -3447,9 +3445,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
   bool memexport_used_vertex = vertex_shader->GetMemExportEMWritten() != 0;
   if (memexport_used_vertex) {
     if (!device_properties.vertexPipelineStoresAndAtomics) {
-      REX_FAIL(gpu, false,
-               "Vertex shader memexport draw encountered without "
-               "vertexPipelineStoresAndAtomics support");
+      REXGPU_FAIL(false,
+                  "Vertex shader memexport draw encountered without "
+                  "vertexPipelineStoresAndAtomics support");
     }
     draw_state::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
   }
@@ -3490,9 +3488,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
   }
   if (memexport_used_pixel) {
     if (!device_properties.fragmentStoresAndAtomics) {
-      REX_FAIL(gpu, false,
-               "Pixel shader memexport draw encountered without "
-               "fragmentStoresAndAtomics support");
+      REXGPU_FAIL(false,
+                  "Pixel shader memexport draw encountered without "
+                  "fragmentStoresAndAtomics support");
     }
     draw_state::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
   }
@@ -3527,9 +3525,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
       return true;
     }
     if (primitive_processing_result.host_primitive_type == xenos::PrimitiveType::kTriangleFan) {
-      REXLOG_ERROR(gpu,
-                   "PrimitiveProcessor returned triangle fan for Vulkan draw. Expected "
-                   "triangle list conversion for D3D12 parity");
+      REXGPU_ERROR(
+          "PrimitiveProcessor returned triangle fan for Vulkan draw. Expected "
+          "triangle list conversion for D3D12 parity");
       REX_ASSERT_ALWAYS();
       return false;
     }
@@ -3539,8 +3537,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
         host_vertex_shader_type != Shader::HostVertexShaderType::kPointListAsTriangleStrip &&
         host_vertex_shader_type != Shader::HostVertexShaderType::kRectangleListAsTriangleStrip &&
         !Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type)) {
-      REX_FAIL(gpu, false, "Unsupported Vulkan host vertex shader type {}",
-               static_cast<u32>(host_vertex_shader_type));
+      REXGPU_FAIL(false, "Unsupported Vulkan host vertex shader type {}",
+                  static_cast<u32>(host_vertex_shader_type));
     }
 
     vertex_shader_modification = pipeline_cache_->GetCurrentVertexShaderModification(
@@ -3714,11 +3712,11 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
     // PrimitiveProcessor must preconvert this case to kHostConverted host endian 24 bit indices.
     static bool non_vertex_32bit_guest_dma_no_full_uint32_logged = false;
     if (!non_vertex_32bit_guest_dma_no_full_uint32_logged) {
-      REXLOG_WARN(gpu,
-                  "Vulkan draw has host vertex shader type {} with guest DMA 32-bit "
-                  "indices on a device without fullDrawIndexUint32. Expected "
-                  "PrimitiveProcessor to return host converted indices",
-                  static_cast<u32>(primitive_processing_result.host_vertex_shader_type));
+      REXGPU_WARN(
+          "Vulkan draw has host vertex shader type {} with guest DMA 32-bit "
+          "indices on a device without fullDrawIndexUint32. Expected "
+          "PrimitiveProcessor to return host converted indices",
+          static_cast<u32>(primitive_processing_result.host_vertex_shader_type));
       non_vertex_32bit_guest_dma_no_full_uint32_logged = true;
     }
   }
@@ -3751,22 +3749,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
           if (GetXenosSettings().allow_invalid_fetch_constants.Get()) {
             break;
           }
-          REXLOG_WARN(gpu,
-                      "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
-                      "This is incorrect behavior, but you can try bypassing this by "
-                      "setting xenos.allow_invalid_fetch_constants=true.",
-                      vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+          REXGPU_WARN(
+              "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+              "This is incorrect behavior, but you can try bypassing this by "
+              "setting xenos.allow_invalid_fetch_constants=true.",
+              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
           return false;
         default:
-          REXLOG_WARN(gpu, "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+          REXGPU_WARN("Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
                       vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
           return false;
       }
       if (!shared_memory_->RequestRange(vfetch_constant.address << 2, vfetch_constant.size << 2)) {
-        REX_FAIL(gpu, false,
-                 "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
-                 "memory",
-                 vfetch_constant.address << 2, vfetch_constant.size << 2);
+        REXGPU_FAIL(false,
+                    "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
+                    "memory",
+                    vfetch_constant.address << 2, vfetch_constant.size << 2);
       }
       vertex_buffers_in_sync_[vfetch_index >> 6] |= vfetch_bit;
     }
@@ -3776,10 +3774,10 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
   for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
     u32 memexport_range_base_bytes = memexport_range.base_address_dwords << 2;
     if (!shared_memory_->RequestRange(memexport_range_base_bytes, memexport_range.size_bytes)) {
-      REX_FAIL(gpu, false,
-               "Failed to request memexport stream at 0x{:08X} (size {}) in the "
-               "shared memory",
-               memexport_range_base_bytes, memexport_range.size_bytes);
+      REXGPU_FAIL(false,
+                  "Failed to request memexport stream at 0x{:08X} (size {}) in the "
+                  "shared memory",
+                  memexport_range_base_bytes, memexport_range.size_bytes);
     }
     memexport_extent_start = std::min(memexport_extent_start, memexport_range_base_bytes);
     memexport_extent_end =
@@ -3787,9 +3785,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
   }
   if (memexport_writes_possible && memexport_ranges_.empty()) {
     if (!shared_memory_->RequestRange(0, SharedMemory::kBufferSize)) {
-      REX_FAIL(gpu, false,
-               "Failed to request full shared memory residency for unresolved "
-               "memexport destinations");
+      REXGPU_FAIL(false,
+                  "Failed to request full shared memory residency for unresolved "
+                  "memexport destinations");
     }
   }
 
@@ -3927,7 +3925,7 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFullPath(u32 total_size) 
           vulkan_device, total_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
           gpu::vulkan::objects::MemoryPurpose::kReadback, readback_buffer, readback_memory,
           &readback_memory_type, &readback_memory_size)) {
-    REX_FAIL(gpu, true, "Failed to create a Vulkan memexport readback buffer");
+    REXGPU_FAIL(true, "Failed to create a Vulkan memexport readback buffer");
   }
 
   shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
@@ -3948,7 +3946,7 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFullPath(u32 total_size) 
                           VK_ACCESS_HOST_READ_BIT);
 
   if (!AwaitAllQueueOperationsCompletion()) {
-    REXLOG_ERROR(gpu, "Failed to await completion of Vulkan memexport readback");
+    REXGPU_ERROR("Failed to await completion of Vulkan memexport readback");
     dfn.vkDestroyBuffer(device, readback_buffer, nullptr);
     dfn.vkFreeMemory(device, readback_memory, nullptr);
     return true;
@@ -3957,7 +3955,7 @@ bool VulkanCommandProcessor::IssueDrawMemexportReadbackFullPath(u32 total_size) 
   void* readback_mapping = nullptr;
   if (dfn.vkMapMemory(device, readback_memory, 0, VK_WHOLE_SIZE, 0, &readback_mapping) !=
       VK_SUCCESS) {
-    REXLOG_ERROR(gpu, "Failed to map a Vulkan memexport readback buffer");
+    REXGPU_ERROR("Failed to map a Vulkan memexport readback buffer");
     dfn.vkDestroyBuffer(device, readback_buffer, nullptr);
     dfn.vkFreeMemory(device, readback_memory, nullptr);
     return true;
@@ -4169,12 +4167,12 @@ bool VulkanCommandProcessor::IssueCopyReadbackResolvePath() {
     if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(
             vulkan_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             gpu::vulkan::objects::MemoryPurpose::kReadback, new_buffer, new_memory)) {
-      REX_FAIL(gpu, false, "Failed to create a {} MB Vulkan resolve readback buffer", size >> 20);
+      REXGPU_FAIL(false, "Failed to create a {} MB Vulkan resolve readback buffer", size >> 20);
     }
 
     void* new_mapping = nullptr;
     if (dfn.vkMapMemory(device, new_memory, 0, VK_WHOLE_SIZE, 0, &new_mapping) != VK_SUCCESS) {
-      REXLOG_ERROR(gpu, "Failed to map a Vulkan resolve readback buffer");
+      REXGPU_ERROR("Failed to map a Vulkan resolve readback buffer");
       dfn.vkDestroyBuffer(device, new_buffer, nullptr);
       dfn.vkFreeMemory(device, new_memory, nullptr);
       return false;
@@ -4262,8 +4260,8 @@ bool VulkanCommandProcessor::IssueCopyReadbackResolvePath() {
               vulkan_device, downscale_buffer_size,
               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
               gpu::vulkan::objects::MemoryPurpose::kDeviceLocal, new_buffer, new_memory)) {
-        REX_FAIL(gpu, true, "Failed to create a {} MB Vulkan resolve downscale buffer",
-                 downscale_buffer_size >> 20);
+        REXGPU_FAIL(true, "Failed to create a {} MB Vulkan resolve downscale buffer",
+                    downscale_buffer_size >> 20);
       }
       if (resolve_downscale_buffer_ != VK_NULL_HANDLE ||
           resolve_downscale_buffer_memory_ != VK_NULL_HANDLE) {
@@ -4484,8 +4482,7 @@ bool VulkanCommandProcessor::InitializeOcclusionQueryResources() {
   pool_info.queryType = VK_QUERY_TYPE_OCCLUSION;
   pool_info.queryCount = kMaxOcclusionQueries;
   if (dfn.vkCreateQueryPool(device, &pool_info, nullptr, &occlusion_query_pool_) != VK_SUCCESS) {
-    REXLOG_WARN(
-        gpu,
+    REXGPU_WARN(
         "VulkanCommandProcessor: Failed to create occlusion query pool, using fake sample counts");
     return false;
   }
@@ -4495,8 +4492,7 @@ bool VulkanCommandProcessor::InitializeOcclusionQueryResources() {
           gpu::vulkan::objects::MemoryPurpose::kReadback, occlusion_query_readback_buffer_,
           occlusion_query_readback_memory_, &occlusion_query_readback_memory_type_,
           &occlusion_query_readback_memory_size_)) {
-    REXLOG_WARN(
-        gpu,
+    REXGPU_WARN(
         "VulkanCommandProcessor: Failed to create occlusion query readback buffer, using fake "
         "sample counts");
     ShutdownOcclusionQueryResources();
@@ -4505,8 +4501,7 @@ bool VulkanCommandProcessor::InitializeOcclusionQueryResources() {
 
   if (dfn.vkMapMemory(device, occlusion_query_readback_memory_, 0, VK_WHOLE_SIZE, 0,
                       reinterpret_cast<void**>(&occlusion_query_readback_mapping_)) != VK_SUCCESS) {
-    REXLOG_WARN(
-        gpu,
+    REXGPU_WARN(
         "VulkanCommandProcessor: Failed to map occlusion query readback buffer, using fake sample "
         "counts");
     ShutdownOcclusionQueryResources();
@@ -4564,8 +4559,8 @@ bool VulkanCommandProcessor::BeginGuestOcclusionQuery(u32 sample_count_address) 
     return false;
   }
   if (active_occlusion_query_.valid) {
-    REXLOG_WARN(
-        gpu, "VulkanCommandProcessor: Occlusion query begin issued while another query is active");
+    REXGPU_WARN(
+        "VulkanCommandProcessor: Occlusion query begin issued while another query is active");
     DisableHostOcclusionQueries();
     return false;
   }
@@ -4690,7 +4685,7 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(u64 await_submiss
     if (wait_result == VK_SUCCESS) {
       fences_awaited += await_submission - submission_completed_;
     } else {
-      REXLOG_ERROR(gpu, "Failed to await submission completion Vulkan fences");
+      REXGPU_ERROR("Failed to await submission completion Vulkan fences");
       if (wait_result == VK_ERROR_DEVICE_LOST) {
         device_lost_ = true;
       }
@@ -4938,7 +4933,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       fence_create_info.flags = 0;
       VkFence fence;
       if (dfn.vkCreateFence(device, &fence_create_info, nullptr, &fence) != VK_SUCCESS) {
-        REXLOG_ERROR(gpu, "Failed to create a Vulkan fence");
+        REXGPU_ERROR("Failed to create a Vulkan fence");
         // Abandoning the submission would leave resources undefined, so retry later.
         return false;
       }
@@ -4952,7 +4947,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       VkSemaphore semaphore;
       if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr, &semaphore) !=
           VK_SUCCESS) {
-        REX_FAIL(gpu, false, "Failed to create a Vulkan semaphore");
+        REXGPU_FAIL(false, "Failed to create a Vulkan semaphore");
       }
       semaphores_free_.push_back(semaphore);
     }
@@ -4965,7 +4960,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       command_pool_create_info.queueFamilyIndex = vulkan_device->GetQueueFamilyGraphicsCompute();
       if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
                                   &command_buffer.pool) != VK_SUCCESS) {
-        REX_FAIL(gpu, false, "Failed to create a Vulkan command pool");
+        REXGPU_FAIL(false, "Failed to create a Vulkan command pool");
       }
       VkCommandBufferAllocateInfo command_buffer_allocate_info;
       command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -4975,7 +4970,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       command_buffer_allocate_info.commandBufferCount = 1;
       if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info,
                                        &command_buffer.buffer) != VK_SUCCESS) {
-        REXLOG_ERROR(gpu, "Failed to allocate a Vulkan command buffer");
+        REXGPU_ERROR("Failed to allocate a Vulkan command buffer");
         dfn.vkDestroyCommandPool(device, command_buffer.pool, nullptr);
         return false;
       }
@@ -5047,7 +5042,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
                                                    &bind_sparse_info, VK_NULL_HANDLE);
       }
       if (bind_sparse_result != VK_SUCCESS) {
-        REX_FAIL(gpu, false, "Failed to submit Vulkan sparse binds");
+        REXGPU_FAIL(false, "Failed to submit Vulkan sparse binds");
       }
       current_submission_wait_semaphores_.push_back(bind_sparse_semaphore);
       semaphores_free_.pop_back();
@@ -5062,7 +5057,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
     REX_ASSERT(!command_buffers_writable_.empty());
     CommandBuffer command_buffer = command_buffers_writable_.back();
     if (dfn.vkResetCommandPool(device, command_buffer.pool, 0) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to reset a Vulkan command pool");
+      REXGPU_FAIL(false, "Failed to reset a Vulkan command pool");
     }
     VkCommandBufferBeginInfo command_buffer_begin_info;
     command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -5070,11 +5065,11 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
     command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     command_buffer_begin_info.pInheritanceInfo = nullptr;
     if (dfn.vkBeginCommandBuffer(command_buffer.buffer, &command_buffer_begin_info) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to begin a Vulkan command buffer");
+      REXGPU_FAIL(false, "Failed to begin a Vulkan command buffer");
     }
     deferred_command_buffer_.Execute(command_buffer.buffer);
     if (dfn.vkEndCommandBuffer(command_buffer.buffer) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to end a Vulkan command buffer");
+      REXGPU_FAIL(false, "Failed to end a Vulkan command buffer");
     }
 
     VkSubmitInfo submit_info;
@@ -5096,7 +5091,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
     REX_ASSERT(!fences_free_.empty());
     VkFence fence = fences_free_.back();
     if (dfn.vkResetFences(device, 1, &fence) != VK_SUCCESS) {
-      REX_FAIL(gpu, false, "Failed to reset a Vulkan submission fence");
+      REXGPU_FAIL(false, "Failed to reset a Vulkan submission fence");
     }
     VkResult submit_result;
     {
@@ -5105,7 +5100,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       submit_result = dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 1, &submit_info, fence);
     }
     if (submit_result != VK_SUCCESS) {
-      REXLOG_ERROR(gpu, "Failed to submit a Vulkan command buffer");
+      REXGPU_ERROR("Failed to submit a Vulkan command buffer");
       if (submit_result == VK_ERROR_DEVICE_LOST && !device_lost_) {
         device_lost_ = true;
         if (graphics_system_) {
@@ -5286,7 +5281,7 @@ bool VulkanCommandProcessor::EnsureSwapFXAASourceImage(u32 width, u32 height) {
   if (!gpu::vulkan::objects::CreateDedicatedAllocationImage(
           vulkan_device, image_create_info, gpu::vulkan::objects::MemoryPurpose::kDeviceLocal,
           swap_fxaa_source_image_, swap_fxaa_source_image_memory_)) {
-    REX_FAIL(gpu, false, "Failed to create the FXAA source image");
+    REXGPU_FAIL(false, "Failed to create the FXAA source image");
   }
 
   VkImageViewCreateInfo image_view_create_info;
@@ -5303,7 +5298,7 @@ bool VulkanCommandProcessor::EnsureSwapFXAASourceImage(u32 width, u32 height) {
   image_view_create_info.subresourceRange = gpu::vulkan::objects::BuildSubresourceRange();
   if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr,
                             &swap_fxaa_source_image_view_) != VK_SUCCESS) {
-    REXLOG_ERROR(gpu, "Failed to create the FXAA source image view");
+    REXGPU_ERROR("Failed to create the FXAA source image view");
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyImage, device, swap_fxaa_source_image_);
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
                                                swap_fxaa_source_image_memory_);

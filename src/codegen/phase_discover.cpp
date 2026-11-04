@@ -42,7 +42,7 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
     return;
 
   if (!node->CanDiscover()) {
-    REXLOG_TRACE(codegen, "Analyze: function 0x{:08X} already discovered, skipping", func_addr);
+    REXCG_TRACE("Analyze: function 0x{:08X} already discovered, skipping", func_addr);
     return;
   }
 
@@ -51,20 +51,19 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
     return;
   }
 
-  REXLOG_TRACE(codegen, "Analyze: discovering function 0x{:08X} ({})", func_addr, node->GetName());
+  REXCG_TRACE("Analyze: discovering function 0x{:08X} ({})", func_addr, node->GetName());
 
   u32 pdata_size = 0;
 
   // CONFIG sizes are entry point hints, so only a declared size applies and PDATA is ignored.
   if (node->GetAuthority() == FunctionAuthority::kConfig) {
     pdata_size = node->GetSize();
-    REXLOG_TRACE(codegen, "Analyze: 0x{:08X} is CONFIG, using declared size={}", func_addr,
-                 pdata_size);
+    REXCG_TRACE("Analyze: 0x{:08X} is CONFIG, using declared size={}", func_addr, pdata_size);
   } else {
     auto pdata_it = ctx.scan.pdata_sizes.find(func_addr);
     if (pdata_it != ctx.scan.pdata_sizes.end()) {
       pdata_size = pdata_it->second;
-      REXLOG_TRACE(codegen, "Analyze: 0x{:08X} using PDATA size={}", func_addr, pdata_size);
+      REXCG_TRACE("Analyze: 0x{:08X} using PDATA size={}", func_addr, pdata_size);
     }
   }
 
@@ -76,7 +75,7 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
     }
   }
   if (!region) {
-    REXLOG_WARN(codegen, "Analyze: function 0x{:08X} not in any code region", func_addr);
+    REXCG_WARN("Analyze: function 0x{:08X} not in any code region", func_addr);
     return;
   }
 
@@ -85,15 +84,14 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
 
   if (node->GetAuthority() == FunctionAuthority::kGapFill && pdata_size == 0) {
     if (const auto cut = FindReturnCut(result, func_addr)) {
-      REXLOG_TRACE(codegen, "GapFill: cut sub_{:08X} after the return at 0x{:08X}", func_addr,
-                   *cut - 4);
+      REXCG_TRACE("GapFill: cut sub_{:08X} after the return at 0x{:08X}", func_addr, *cut - 4);
       result = DiscoverBlocks(decoded, ctx.GetLimits(), func_addr, *region, known_functions,
                               *cut - func_addr, &ctx.GetConfig().switch_tables);
     }
   }
 
   if (result.blocks.empty()) {
-    REXLOG_WARN(codegen, "Analyze: no blocks found for function 0x{:08X}", func_addr);
+    REXCG_WARN("Analyze: no blocks found for function 0x{:08X}", func_addr);
     return;
   }
 
@@ -177,7 +175,7 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
 }
 
 void DiscoverAllFunctions(CodegenContext& ctx) {
-  REXLOG_TRACE(codegen, "Analyze: starting iterative discovery...");
+  REXCG_TRACE("Analyze: starting iterative discovery...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.GetBinary();
@@ -191,8 +189,8 @@ void DiscoverAllFunctions(CodegenContext& ctx) {
 
     size_t current_function_count = graph.GetFunctionCount();
     if (current_function_count == last_function_count && iteration > 1) {
-      REXLOG_DEBUG(codegen, "Analyze: fixed point at iteration {} ({} functions)", iteration,
-                   current_function_count);
+      REXCG_DEBUG("Analyze: fixed point at iteration {} ({} functions)", iteration,
+                  current_function_count);
       break;
     }
 
@@ -204,8 +202,7 @@ void DiscoverAllFunctions(CodegenContext& ctx) {
     }
   }
 
-  REXLOG_TRACE(codegen, "Analyze: {} functions after call graph expansion",
-               graph.GetFunctionCount());
+  REXCG_TRACE("Analyze: {} functions after call graph expansion", graph.GetFunctionCount());
 
   {
     VTableScanner vt_scanner(binary);
@@ -225,8 +222,8 @@ void DiscoverAllFunctions(CodegenContext& ctx) {
       }
     }
 
-    REXLOG_TRACE(codegen, "Analyze: VTable scan found {} vtables, {} new functions", vtables.size(),
-                 new_functions);
+    REXCG_TRACE("Analyze: VTable scan found {} vtables, {} new functions", vtables.size(),
+                new_functions);
 
     if (new_functions > 0) {
       size_t vtable_iteration = 0;
@@ -246,7 +243,7 @@ void DiscoverAllFunctions(CodegenContext& ctx) {
     }
   }
 
-  REXLOG_TRACE(codegen, "Analyze: {} total functions after vtable scan", graph.GetFunctionCount());
+  REXCG_TRACE("Analyze: {} total functions after vtable scan", graph.GetFunctionCount());
 }
 
 }  // anonymous namespace

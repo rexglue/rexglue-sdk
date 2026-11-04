@@ -65,7 +65,7 @@ Result<void> UIModule::Init() {
       driver_ = std::move(selected->front());
       driver = static_cast<rex::ui::IUIDriver*>(driver_.get());
     } else if (!selected) {
-      REXLOG_WARN(ui, "ui driver: {}", selected.error().message);
+      REXUI_WARN("ui driver: {}", selected.error().message);
     }
   }
   if (!driver && needs_->ui) {

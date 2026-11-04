@@ -73,12 +73,12 @@ bool IsGPUDebugMarkersEnabled(const D3D12Settings& settings) {
     cached = true;
     if (settings.debug_markers.Get()) {
       result = true;
-      REXLOG_INFO(gpu, "GPU debug markers enabled via CVar");
+      REXGPU_INFO("GPU debug markers enabled via CVar");
     } else {
       auto renderdoc_api = rex::gpu::RenderDocAPI::CreateIfConnected();
       if (renderdoc_api) {
         result = true;
-        REXLOG_INFO(gpu, "GPU debug markers auto-enabled (RenderDoc detected)");
+        REXGPU_INFO("GPU debug markers auto-enabled (RenderDoc detected)");
       }
     }
   }
@@ -439,10 +439,11 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DXBCShader* v
   ID3D12RootSignature* root_signature =
       gpu::d3d12::objects::CreateRootSignature(GetD3D12Provider(), desc);
   if (root_signature == nullptr) {
-    REX_FAIL(gpu, nullptr,
-             "Failed to create a root signature with {} pixel textures, {} pixel "
-             "samplers, {} vertex textures and {} vertex samplers",
-             texture_count_pixel, sampler_count_pixel, texture_count_vertex, sampler_count_vertex);
+    REXGPU_FAIL(nullptr,
+                "Failed to create a root signature with {} pixel textures, {} pixel "
+                "samplers, {} vertex textures and {} vertex samplers",
+                texture_count_pixel, sampler_count_pixel, texture_count_vertex,
+                sampler_count_vertex);
   }
   root_signatures_bindful_.emplace(index, root_signature);
   return root_signature;
@@ -704,7 +705,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(u32 size,
   if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              provider.GetHeapFlagCreateNotZeroed(), &buffer_desc,
                                              state, nullptr, IID_PPV_ARGS(&buffer)))) {
-    REX_FAIL(gpu, nullptr, "Failed to create a {} MB scratch GPU buffer", size >> 20);
+    REXGPU_FAIL(nullptr, "Failed to create a {} MB scratch GPU buffer", size >> 20);
   }
   if (scratch_buffer_ != nullptr) {
     resources_for_deletion_.emplace_back(submission_current_, scratch_buffer_);
@@ -811,7 +812,7 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
 
 bool D3D12CommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
-    REX_FAIL(gpu, false, "Failed to initialize base command processor context");
+    REXGPU_FAIL(false, "Failed to initialize base command processor context");
   }
   InvalidateAllVertexBufferResidency();
   UpdateDebugMarkersEnabled();
@@ -821,22 +822,22 @@ bool D3D12CommandProcessor::SetupContext() {
 
   fence_completion_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
   if (fence_completion_event_ == nullptr) {
-    REX_FAIL(gpu, false, "Failed to create the fence completion event");
+    REXGPU_FAIL(false, "Failed to create the fence completion event");
   }
   if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&submission_fence_)))) {
-    REX_FAIL(gpu, false, "Failed to create the submission fence");
+    REXGPU_FAIL(false, "Failed to create the submission fence");
   }
   if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
                                  IID_PPV_ARGS(&queue_operations_since_submission_fence_)))) {
-    REX_FAIL(gpu, false,
-             "Failed to create the fence for awaiting queue operations done since "
-             "the latest submission");
+    REXGPU_FAIL(false,
+                "Failed to create the fence for awaiting queue operations done since "
+                "the latest submission");
   }
 
   ID3D12CommandAllocator* command_allocator;
   if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
                                             IID_PPV_ARGS(&command_allocator)))) {
-    REX_FAIL(gpu, false, "Failed to create a command allocator");
+    REXGPU_FAIL(false, "Failed to create a command allocator");
   }
   command_allocator_writable_first_ = new CommandAllocator;
   command_allocator_writable_first_->command_allocator = command_allocator;
@@ -845,7 +846,7 @@ bool D3D12CommandProcessor::SetupContext() {
   command_allocator_writable_last_ = command_allocator_writable_first_;
   if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator,
                                        nullptr, IID_PPV_ARGS(&command_list_)))) {
-    REX_FAIL(gpu, false, "Failed to create the graphics command list");
+    REXGPU_FAIL(false, "Failed to create the graphics command list");
   }
   // Command lists are created open, so close it until a deferred submission.
   command_list_->Close();
@@ -864,15 +865,15 @@ bool D3D12CommandProcessor::SetupContext() {
     draw_resolution_scale_not_clamped = false;
   }
   if (!draw_resolution_scale_not_clamped) {
-    REXLOG_WARN(gpu,
-                "The requested draw resolution scale is not supported by the device or "
-                "the emulator, reducing to {}x{}",
-                draw_resolution_scale_x, draw_resolution_scale_y);
+    REXGPU_WARN(
+        "The requested draw resolution scale is not supported by the device or "
+        "the emulator, reducing to {}x{}",
+        draw_resolution_scale_x, draw_resolution_scale_y);
   }
 
   shared_memory_ = std::make_unique<D3D12SharedMemory>(*this, physical_memory_, write_watch_);
   if (!shared_memory_->Initialize()) {
-    REX_FAIL(gpu, false, "Failed to initialize shared memory");
+    REXGPU_FAIL(false, "Failed to initialize shared memory");
   }
 
   // The render target cache comes first, as the bindless root signature depends on ROV use.
@@ -880,7 +881,7 @@ bool D3D12CommandProcessor::SetupContext() {
       *register_file_, GetXenosSettings(), physical_memory_, draw_resolution_scale_x,
       draw_resolution_scale_y, *this, bindless_resources_used_);
   if (!render_target_cache_->Initialize()) {
-    REX_FAIL(gpu, false, "Failed to initialize the render target cache");
+    REXGPU_FAIL(false, "Failed to initialize the render target cache");
   }
   window_title_state_.store(kWindowTitleStateValid |
                                 static_cast<u32>(render_target_cache_->GetPath()) |
@@ -898,7 +899,7 @@ bool D3D12CommandProcessor::SetupContext() {
     view_bindless_heap_desc.NodeMask = 0;
     if (FAILED(device->CreateDescriptorHeap(&view_bindless_heap_desc,
                                             IID_PPV_ARGS(&view_bindless_heap_)))) {
-      REX_FAIL(gpu, false, "Failed to create the bindless CBV/SRV/UAV descriptor heap");
+      REXGPU_FAIL(false, "Failed to create the bindless CBV/SRV/UAV descriptor heap");
     }
     view_bindless_heap_cpu_start_ = view_bindless_heap_->GetCPUDescriptorHandleForHeapStart();
     view_bindless_heap_gpu_start_ = view_bindless_heap_->GetGPUDescriptorHandleForHeapStart();
@@ -913,7 +914,7 @@ bool D3D12CommandProcessor::SetupContext() {
     sampler_bindless_heap_desc.NodeMask = 0;
     if (FAILED(device->CreateDescriptorHeap(&sampler_bindless_heap_desc,
                                             IID_PPV_ARGS(&sampler_bindless_heap_current_)))) {
-      REX_FAIL(gpu, false, "Failed to create the bindless sampler descriptor heap");
+      REXGPU_FAIL(false, "Failed to create the bindless sampler descriptor heap");
     }
     sampler_bindless_heap_cpu_start_ =
         sampler_bindless_heap_current_->GetCPUDescriptorHandleForHeapStart();
@@ -1092,9 +1093,9 @@ bool D3D12CommandProcessor::SetupContext() {
     root_signature_bindless_vs_ =
         gpu::d3d12::objects::CreateRootSignature(provider, root_signature_bindless_desc);
     if (!root_signature_bindless_vs_) {
-      REX_FAIL(gpu, false,
-               "Failed to create the global root signature for bindless resources, "
-               "the version for use without tessellation");
+      REXGPU_FAIL(false,
+                  "Failed to create the global root signature for bindless resources, "
+                  "the version for use without tessellation");
     }
     root_parameters_bindless[kRootParameterBindlessFloatConstantsVertex].ShaderVisibility =
         D3D12_SHADER_VISIBILITY_DOMAIN;
@@ -1103,29 +1104,29 @@ bool D3D12CommandProcessor::SetupContext() {
     root_signature_bindless_ds_ =
         gpu::d3d12::objects::CreateRootSignature(provider, root_signature_bindless_desc);
     if (!root_signature_bindless_ds_) {
-      REX_FAIL(gpu, false,
-               "Failed to create the global root signature for bindless resources, "
-               "the version for use with tessellation");
+      REXGPU_FAIL(false,
+                  "Failed to create the global root signature for bindless resources, "
+                  "the version for use with tessellation");
     }
   }
 
   primitive_processor_ = std::make_unique<D3D12PrimitiveProcessor>(
       *register_file_, GetXenosSettings(), physical_memory_, write_watch_, *shared_memory_, *this);
   if (!primitive_processor_->Initialize()) {
-    REX_FAIL(gpu, false, "Failed to initialize the geometric primitive processor");
+    REXGPU_FAIL(false, "Failed to initialize the geometric primitive processor");
   }
 
   texture_cache_ = D3D12TextureCache::Create(*register_file_, GetXenosSettings(), *shared_memory_,
                                              draw_resolution_scale_x, draw_resolution_scale_y,
                                              *this, bindless_resources_used_);
   if (!texture_cache_) {
-    REX_FAIL(gpu, false, "Failed to initialize the texture cache");
+    REXGPU_FAIL(false, "Failed to initialize the texture cache");
   }
 
   pipeline_cache_ = std::make_unique<PipelineCache>(*this, *register_file_, *render_target_cache_,
                                                     bindless_resources_used_);
   if (!pipeline_cache_->Initialize()) {
-    REX_FAIL(gpu, false, "Failed to initialize the graphics pipeline cache");
+    REXGPU_FAIL(false, "Failed to initialize the graphics pipeline cache");
   }
 
   D3D12_HEAP_FLAGS heap_flag_create_not_zeroed = provider.GetHeapFlagCreateNotZeroed();
@@ -1140,18 +1141,18 @@ bool D3D12CommandProcessor::SetupContext() {
                                              heap_flag_create_not_zeroed, &gamma_ramp_buffer_desc,
                                              gamma_ramp_buffer_state_, nullptr,
                                              IID_PPV_ARGS(&gamma_ramp_buffer_)))) {
-    REX_FAIL(gpu, false, "Failed to create the gamma ramp buffer");
+    REXGPU_FAIL(false, "Failed to create the gamma ramp buffer");
   }
   gamma_ramp_buffer_desc.Width *= kQueueFrames;
   if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesUpload,
                                              heap_flag_create_not_zeroed, &gamma_ramp_buffer_desc,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
                                              IID_PPV_ARGS(&gamma_ramp_upload_buffer_)))) {
-    REX_FAIL(gpu, false, "Failed to create the gamma ramp upload buffer");
+    REXGPU_FAIL(false, "Failed to create the gamma ramp upload buffer");
   }
   if (FAILED(gamma_ramp_upload_buffer_->Map(
           0, nullptr, reinterpret_cast<void**>(&gamma_ramp_upload_buffer_mapping_)))) {
-    REXLOG_ERROR(gpu, "Failed to map the gamma ramp upload buffer");
+    REXGPU_ERROR("Failed to map the gamma ramp upload buffer");
     gamma_ramp_upload_buffer_mapping_ = nullptr;
     return false;
   }
@@ -1224,41 +1225,41 @@ bool D3D12CommandProcessor::SetupContext() {
   *(apply_gamma_root_signature_.ReleaseAndGetAddressOf()) =
       gpu::d3d12::objects::CreateRootSignature(provider, apply_gamma_root_signature_desc);
   if (!apply_gamma_root_signature_) {
-    REX_FAIL(gpu, false, "Failed to create the gamma ramp application root signature");
+    REXGPU_FAIL(false, "Failed to create the gamma ramp application root signature");
   }
   *(apply_gamma_table_pipeline_.ReleaseAndGetAddressOf()) =
       gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaTableCS,
                                                  sizeof(shaders::kApplyGammaTableCS),
                                                  apply_gamma_root_signature_.Get());
   if (!apply_gamma_table_pipeline_) {
-    REX_FAIL(gpu, false,
-             "Failed to create the 256-entry table gamma ramp application compute "
-             "pipeline");
+    REXGPU_FAIL(false,
+                "Failed to create the 256-entry table gamma ramp application compute "
+                "pipeline");
   }
   *(apply_gamma_table_fxaa_luma_pipeline_.ReleaseAndGetAddressOf()) =
       gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaTableFXAALumaCS,
                                                  sizeof(shaders::kApplyGammaTableFXAALumaCS),
                                                  apply_gamma_root_signature_.Get());
   if (!apply_gamma_table_fxaa_luma_pipeline_) {
-    REX_FAIL(gpu, false,
-             "Failed to create the 256-entry table gamma ramp application compute "
-             "pipeline with perceptual luma output");
+    REXGPU_FAIL(false,
+                "Failed to create the 256-entry table gamma ramp application compute "
+                "pipeline with perceptual luma output");
   }
   *(apply_gamma_pwl_pipeline_.ReleaseAndGetAddressOf()) =
       gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaPWLCS,
                                                  sizeof(shaders::kApplyGammaPWLCS),
                                                  apply_gamma_root_signature_.Get());
   if (!apply_gamma_pwl_pipeline_) {
-    REX_FAIL(gpu, false, "Failed to create the PWL gamma ramp application compute pipeline");
+    REXGPU_FAIL(false, "Failed to create the PWL gamma ramp application compute pipeline");
   }
   *(apply_gamma_pwl_fxaa_luma_pipeline_.ReleaseAndGetAddressOf()) =
       gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaPWLFXAALumaCS,
                                                  sizeof(shaders::kApplyGammaPWLFXAALumaCS),
                                                  apply_gamma_root_signature_.Get());
   if (!apply_gamma_pwl_fxaa_luma_pipeline_) {
-    REX_FAIL(gpu, false,
-             "Failed to create the PWL gamma ramp application compute pipeline with "
-             "perceptual luma output");
+    REXGPU_FAIL(false,
+                "Failed to create the PWL gamma ramp application compute pipeline with "
+                "perceptual luma output");
   }
 
   D3D12_ROOT_PARAMETER fxaa_root_parameters[static_cast<UINT>(FXAARootParameter::kCount)];
@@ -1323,17 +1324,17 @@ bool D3D12CommandProcessor::SetupContext() {
   *(fxaa_root_signature_.ReleaseAndGetAddressOf()) =
       gpu::d3d12::objects::CreateRootSignature(provider, fxaa_root_signature_desc);
   if (!fxaa_root_signature_) {
-    REX_FAIL(gpu, false, "Failed to create the FXAA root signature");
+    REXGPU_FAIL(false, "Failed to create the FXAA root signature");
   }
   *(fxaa_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::objects::CreateComputePipeline(
       device, shaders::kFXAACS, sizeof(shaders::kFXAACS), fxaa_root_signature_.Get());
   if (!fxaa_pipeline_) {
-    REX_FAIL(gpu, false, "Failed to create the FXAA compute pipeline");
+    REXGPU_FAIL(false, "Failed to create the FXAA compute pipeline");
   }
   *(fxaa_extreme_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::objects::CreateComputePipeline(
       device, shaders::kFXAAExtremeCS, sizeof(shaders::kFXAAExtremeCS), fxaa_root_signature_.Get());
   if (!fxaa_extreme_pipeline_) {
-    REX_FAIL(gpu, false, "Failed to create the extreme quality FXAA compute pipeline");
+    REXGPU_FAIL(false, "Failed to create the extreme quality FXAA compute pipeline");
   }
 
   D3D12_ROOT_PARAMETER
@@ -1394,7 +1395,7 @@ bool D3D12CommandProcessor::SetupContext() {
   if (!resolve_downscale_root_signature_ || !resolve_downscale_pipeline_) {
     resolve_downscale_pipeline_.Reset();
     resolve_downscale_root_signature_.Reset();
-    REXLOG_WARN(gpu, "Failed to initialize D3D12 resolve downscale readback pipeline");
+    REXGPU_WARN("Failed to initialize D3D12 resolve downscale readback pipeline");
   }
 
   if (bindless_resources_used_) {
@@ -1798,12 +1799,12 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
     return;
   gpu::Presenter* presenter = graphics_system_->GetHostPresenter();
   if (!presenter) {
-    REXLOG_ERROR(gpu, "IssueSwap: presenter is null");
+    REXGPU_ERROR("IssueSwap: presenter is null");
     return;
   }
 
   if (!BeginSubmission(true)) {
-    REXLOG_ERROR(gpu, "IssueSwap: BeginSubmission failed");
+    REXGPU_ERROR("IssueSwap: BeginSubmission failed");
     return;
   }
 
@@ -1816,8 +1817,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
   if (!swap_texture_resource) {
     const auto& regs = *register_file_;
     auto fetch = regs.GetTextureFetch(0);
-    REXLOG_ERROR(
-        gpu,
+    REXGPU_ERROR(
         "IssueSwap: RequestSwapTexture failed, fetch0: {:08X} {:08X} {:08X} {:08X} {:08X} {:08X}",
         fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
     return;
@@ -1865,11 +1865,11 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
     static bool draw_scale_swap_unscaled_logged = false;
     if (!draw_scale_swap_unscaled_logged) {
       draw_scale_swap_unscaled_logged = true;
-      REXLOG_WARN(gpu,
-                  "D3D12 draw resolution scaling is enabled, but the swap source is "
-                  "unscaled ({}x{}). This title may be presenting from an unscaled "
-                  "resolve path.",
-                  guest_output_width, guest_output_height);
+      REXGPU_WARN(
+          "D3D12 draw resolution scaling is enabled, but the swap source is "
+          "unscaled ({}x{}). This title may be presenting from an unscaled "
+          "resolve path.",
+          guest_output_width, guest_output_height);
     }
   }
 
@@ -1919,7 +1919,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
                     provider.GetHeapFlagCreateNotZeroed(), &fxaa_source_texture_desc,
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, nullptr,
                     IID_PPV_ARGS(&fxaa_source_texture_)))) {
-              REXLOG_ERROR(gpu, "Failed to create the FXAA input texture");
+              REXGPU_ERROR("Failed to create the FXAA input texture");
               swap_post_effect = SwapPostEffect::kNone;
               use_fxaa = false;
             }
@@ -2358,22 +2358,22 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
           if (GetXenosSettings().allow_invalid_fetch_constants.Get()) {
             break;
           }
-          REXLOG_WARN(gpu,
-                      "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
-                      "This is incorrect behavior, but you can try bypassing this by "
-                      "setting xenos.allow_invalid_fetch_constants=true.",
-                      vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+          REXGPU_WARN(
+              "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+              "This is incorrect behavior, but you can try bypassing this by "
+              "setting xenos.allow_invalid_fetch_constants=true.",
+              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
           return false;
         default:
-          REXLOG_WARN(gpu, "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+          REXGPU_WARN("Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
                       vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
           return false;
       }
       if (!shared_memory_->RequestRange(vfetch_constant.address << 2, vfetch_constant.size << 2)) {
-        REX_FAIL(gpu, false,
-                 "Failed to request vertex buffer at 0x{:08X} (size {}) in the "
-                 "shared memory",
-                 vfetch_constant.address << 2, vfetch_constant.size << 2);
+        REXGPU_FAIL(false,
+                    "Failed to request vertex buffer at 0x{:08X} (size {}) in the "
+                    "shared memory",
+                    vfetch_constant.address << 2, vfetch_constant.size << 2);
       }
       vertex_buffers_in_sync_[vfetch_index >> 6] |= vfetch_bit;
     }
@@ -2389,17 +2389,17 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
   for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
     if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
                                       memexport_range.size_bytes)) {
-      REX_FAIL(gpu, false,
-               "Failed to request memexport stream at 0x{:08X} (size {}) in the "
-               "shared memory",
-               memexport_range.base_address_dwords << 2, memexport_range.size_bytes);
+      REXGPU_FAIL(false,
+                  "Failed to request memexport stream at 0x{:08X} (size {}) in the "
+                  "shared memory",
+                  memexport_range.base_address_dwords << 2, memexport_range.size_bytes);
     }
   }
   if (memexport_used && memexport_ranges_.empty()) {
     if (!shared_memory_->RequestRange(0, SharedMemory::kBufferSize)) {
-      REX_FAIL(gpu, false,
-               "Failed to request full shared memory residency for unresolved "
-               "memexport destinations");
+      REXGPU_FAIL(false,
+                  "Failed to request full shared memory residency for unresolved "
+                  "memexport destinations");
     }
   }
 
@@ -2425,10 +2425,10 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
                 : D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST;
         break;
       default:
-        REXLOG_ERROR(gpu,
-                     "Host tessellated primitive type {} returned by the primitive "
-                     "processor is not supported by the Direct3D 12 command processor",
-                     static_cast<u32>(primitive_processing_result.host_primitive_type));
+        REXGPU_ERROR(
+            "Host tessellated primitive type {} returned by the primitive "
+            "processor is not supported by the Direct3D 12 command processor",
+            static_cast<u32>(primitive_processing_result.host_primitive_type));
         REX_UNHANDLED_CASE(primitive_processing_result.host_primitive_type);
         return false;
     }
@@ -2454,10 +2454,10 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
         break;
       default:
-        REXLOG_ERROR(gpu,
-                     "Host primitive type {} returned by the primitive processor is not "
-                     "supported by the Direct3D 12 command processor",
-                     static_cast<u32>(primitive_processing_result.host_primitive_type));
+        REXGPU_ERROR(
+            "Host primitive type {} returned by the primitive processor is not "
+            "supported by the Direct3D 12 command processor",
+            static_cast<u32>(primitive_processing_result.host_primitive_type));
         REX_UNHANDLED_CASE(primitive_processing_result.host_primitive_type);
         return false;
     }
@@ -2763,7 +2763,7 @@ bool D3D12CommandProcessor::IssueCopyReadbackResolvePath() {
     if (FAILED(device->CreateCommittedResource(
             &gpu::d3d12::objects::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)))) {
-      REX_FAIL(gpu, true, "Failed to create a {} MB readback buffer", size >> 20);
+      REXGPU_FAIL(true, "Failed to create a {} MB readback buffer", size >> 20);
     }
     if (rb.buffers[write_index]) {
       if (rb.mapped_data[write_index]) {
@@ -2776,7 +2776,7 @@ bool D3D12CommandProcessor::IssueCopyReadbackResolvePath() {
     rb.sizes[write_index] = size;
     D3D12_RANGE read_range = {0, size};
     if (FAILED(buffer->Map(0, &read_range, &rb.mapped_data[write_index]))) {
-      REXLOG_ERROR(gpu, "Failed to persistently map resolve readback buffer");
+      REXGPU_ERROR("Failed to persistently map resolve readback buffer");
       rb.mapped_data[write_index] = nullptr;
     }
   }
@@ -2828,8 +2828,8 @@ bool D3D12CommandProcessor::IssueCopyReadbackResolvePath() {
               &gpu::d3d12::objects::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
               &buffer_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
               IID_PPV_ARGS(&buffer)))) {
-        REX_FAIL(gpu, true, "Failed to create a {} MB resolve downscale buffer",
-                 downscale_buffer_size >> 20);
+        REXGPU_FAIL(true, "Failed to create a {} MB resolve downscale buffer",
+                    downscale_buffer_size >> 20);
       }
       if (resolve_downscale_buffer_) {
         resources_for_deletion_.emplace_back(GetCurrentSubmission(),
@@ -2966,9 +2966,9 @@ void D3D12CommandProcessor::CheckSubmissionFence(u64 await_submission) {
         WaitForSingleObject(fence_completion_event_, INFINITE);
         queue_operations_done_since_submission_signal_ = false;
       } else {
-        REXLOG_ERROR(gpu,
-                     "Failed to await a queue operation completion outside a submission "
-                     "Direct3D 12 fence");
+        REXGPU_ERROR(
+            "Failed to await a queue operation completion outside a submission "
+            "Direct3D 12 fence");
       }
     }
     // A submission is not ended if not started or if ending failed, so clamp the index.
@@ -2986,7 +2986,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(u64 await_submission) {
     }
   }
   if (submission_completed_ < await_submission) {
-    REXLOG_ERROR(gpu, "Failed to await a submission completion Direct3D 12 fence");
+    REXGPU_ERROR("Failed to await a submission completion Direct3D 12 fence");
   }
   if (submission_completed_ <= submission_completed_before) {
     return;
@@ -3055,7 +3055,7 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
     default:
       break;
   }
-  REXLOG_ERROR(gpu, "D3D12 device removed: HRESULT 0x{:08X}, {}", static_cast<unsigned>(reason),
+  REXGPU_ERROR("D3D12 device removed: HRESULT 0x{:08X}, {}", static_cast<unsigned>(reason),
                reason_str);
 
   Microsoft::WRL::ComPtr<ID3D12DeviceRemovedExtendedData> dred;
@@ -3071,13 +3071,13 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
           *node->pLastBreadcrumbValue == 0) {
         continue;
       }
-      REXLOG_ERROR(gpu, "DRED breadcrumb: completed {} of {} ops", *node->pLastBreadcrumbValue,
+      REXGPU_ERROR("DRED breadcrumb: completed {} of {} ops", *node->pLastBreadcrumbValue,
                    node->BreadcrumbCount);
       u32 last = std::min(*node->pLastBreadcrumbValue, node->BreadcrumbCount);
       u32 start = last > 3 ? last - 3 : 0;
       u32 end = std::min(last + 1, node->BreadcrumbCount);
       for (u32 i = start; i < end; i++) {
-        REXLOG_ERROR(gpu, "  [{}] op type {}{}", i, static_cast<int>(node->pCommandHistory[i]),
+        REXGPU_ERROR("  [{}] op type {}{}", i, static_cast<int>(node->pCommandHistory[i]),
                      i == last ? " <-- FAULT" : "");
       }
     }
@@ -3085,7 +3085,7 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
 
   D3D12_DRED_PAGE_FAULT_OUTPUT page_fault = {};
   if (SUCCEEDED(dred->GetPageFaultAllocationOutput(&page_fault)) && page_fault.PageFaultVA != 0) {
-    REXLOG_ERROR(gpu, "DRED page fault at VA 0x{:016X}", page_fault.PageFaultVA);
+    REXGPU_ERROR("DRED page fault at VA 0x{:016X}", page_fault.PageFaultVA);
   }
 }
 
@@ -3203,7 +3203,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
     ID3D12CommandAllocator* command_allocator;
     if (FAILED(provider.GetDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
                                                             IID_PPV_ARGS(&command_allocator)))) {
-      REXLOG_ERROR(gpu, "Failed to create a command allocator");
+      REXGPU_ERROR("Failed to create a command allocator");
       // The submission cannot be skipped, as resources would be left in an undefined state.
       return false;
     }
@@ -4047,9 +4047,9 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
             sampler_heap_new_desc.NodeMask = 0;
             if (FAILED(device->CreateDescriptorHeap(&sampler_heap_new_desc,
                                                     IID_PPV_ARGS(&sampler_heap_new)))) {
-              REX_FAIL(gpu, false,
-                       "Failed to create a new bindless sampler descriptor heap "
-                       "after an overflow of the previous one");
+              REXGPU_FAIL(false,
+                          "Failed to create a new bindless sampler descriptor heap "
+                          "after an overflow of the previous one");
             }
           }
           // The heap changes only after successful creation, so failure leaves values defined.
@@ -4221,7 +4221,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
         draw_view_bindful_heap_index_, static_cast<u32>(view_count_partial_update),
         static_cast<u32>(view_count_full_update), view_cpu_handle, view_gpu_handle);
     if (view_heap_index == gpu::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
-      REX_FAIL(gpu, false, "Failed to allocate view descriptors");
+      REXGPU_FAIL(false, "Failed to allocate view descriptors");
     }
     size_t sampler_count_partial_update = 0;
     if (write_samplers_vertex) {
@@ -4240,7 +4240,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
           static_cast<u32>(sampler_count_vertex + sampler_count_pixel), sampler_cpu_handle,
           sampler_gpu_handle);
       if (sampler_heap_index == gpu::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
-        REX_FAIL(gpu, false, "Failed to allocate sampler descriptors");
+        REXGPU_FAIL(false, "Failed to allocate sampler descriptors");
       }
     }
     if (draw_view_bindful_heap_index_ != view_heap_index) {
@@ -4502,7 +4502,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(u32 size) {
     if (FAILED(device->CreateCommittedResource(
             &gpu::d3d12::objects::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)))) {
-      REX_FAIL(gpu, nullptr, "Failed to create a {} MB readback buffer", size >> 20);
+      REXGPU_FAIL(nullptr, "Failed to create a {} MB readback buffer", size >> 20);
     }
     if (readback_buffer_ != nullptr) {
       readback_buffer_->Release();
@@ -4531,8 +4531,7 @@ bool D3D12CommandProcessor::InitializeOcclusionQueryResources() {
   heap_desc.Count = kMaxOcclusionQueries;
   heap_desc.NodeMask = 0;
   if (FAILED(device->CreateQueryHeap(&heap_desc, IID_PPV_ARGS(&occlusion_query_heap_)))) {
-    REXLOG_WARN(
-        gpu,
+    REXGPU_WARN(
         "D3D12CommandProcessor: Failed to create occlusion query heap, using fake sample counts");
     return false;
   }
@@ -4544,8 +4543,7 @@ bool D3D12CommandProcessor::InitializeOcclusionQueryResources() {
                                              GetD3D12Provider().GetHeapFlagCreateNotZeroed(),
                                              &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
                                              IID_PPV_ARGS(&occlusion_query_readback_)))) {
-    REXLOG_WARN(
-        gpu,
+    REXGPU_WARN(
         "D3D12CommandProcessor: Failed to allocate occlusion query readback buffer, using fake "
         "sample counts");
     occlusion_query_heap_.Reset();
@@ -4555,8 +4553,7 @@ bool D3D12CommandProcessor::InitializeOcclusionQueryResources() {
   D3D12_RANGE read_range = {0, sizeof(u64) * kMaxOcclusionQueries};
   void* mapping = nullptr;
   if (FAILED(occlusion_query_readback_->Map(0, &read_range, &mapping))) {
-    REXLOG_WARN(
-        gpu,
+    REXGPU_WARN(
         "D3D12CommandProcessor: Failed to map occlusion query readback buffer, using fake sample "
         "counts");
     occlusion_query_readback_.Reset();
@@ -4602,8 +4599,8 @@ bool D3D12CommandProcessor::BeginGuestOcclusionQuery(u32 sample_count_address) {
     return false;
   }
   if (active_occlusion_query_.valid) {
-    REXLOG_WARN(
-        gpu, "D3D12CommandProcessor: Occlusion query begin issued while another query is active");
+    REXGPU_WARN(
+        "D3D12CommandProcessor: Occlusion query begin issued while another query is active");
     DisableHostOcclusionQueries();
     return false;
   }

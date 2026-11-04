@@ -99,24 +99,6 @@ std::string FormatLine(const Message& message, const LineFormat& format) {
   return Render(message, format, format.color, '\0');
 }
 
-void ConsoleSink::Write(const Message& message) {
-  std::string line = Render(message, format_, format_.color && color_supported_, '\0');
-  line += '\n';
-  std::fwrite(line.data(), 1, line.size(), stdout);
-}
-
-void ConsoleSink::Flush() {
-  std::fflush(stdout);
-}
-
-void ConsoleSink::SetFormat(LineFormat format) {
-  format_ = format;
-}
-
-void DebuggerSink::SetFormat(LineFormat format) {
-  format_ = format;
-}
-
 Result<std::unique_ptr<FileSink>> FileSink::Open(const std::filesystem::path& path,
                                                  LineFormat format) {
   std::error_code ec;

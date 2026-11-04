@@ -33,7 +33,7 @@ inline void RegisterXenosCounters() {
   };
   for (const char* name : kNames) {
     if (auto counter = platform::RegisterCounter(name); !counter) {
-      REXLOG_WARN(gpu, "{}", counter.error().message);
+      REXGPU_WARN("{}", counter.error().message);
     }
   }
 }

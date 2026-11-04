@@ -31,10 +31,10 @@ using namespace rex::kernel;
 
 /** Privilege 6 selects the flag 0x40 (kXEXSystemInsecureSockets). */
 u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
-  REXLOG_TRACE(kernel,
-               "XexCheckExecutablePrivilege "
-               "priv={}",
-               static_cast<u32>(privilege));
+  REXKRNL_TRACE(
+      "XexCheckExecutablePrivilege "
+      "priv={}",
+      static_cast<u32>(privilege));
   u32 mask = 1 << privilege;
 
   auto module = kernel::GetCurrent().GetObjectTable().Get<ModuleObject>(
@@ -190,13 +190,13 @@ u32 XexGetProcedureAddress_entry(MappedVoid hmodule, u32 ordinal, MappedU32 out_
       result = X_STATUS_SUCCESS;
     } else {
       if (is_string_name) {
-        REXLOG_WARN(kernel, "ERROR: XexGetProcedureAddress export '{}' in '{}' not found!",
-                    string_name, module->name);
+        REXKRNL_WARN("ERROR: XexGetProcedureAddress export '{}' in '{}' not found!", string_name,
+                     module->name);
       } else {
-        REXLOG_WARN(kernel,
-                    "ERROR: XexGetProcedureAddress ordinal {} (0x{:X}) in '{}' not "
-                    "found!",
-                    ordinal, ordinal, module->name);
+        REXKRNL_WARN(
+            "ERROR: XexGetProcedureAddress ordinal {} (0x{:X}) in '{}' not "
+            "found!",
+            ordinal, ordinal, module->name);
       }
       *out_function_ptr = 0;
       result = X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND;

@@ -55,7 +55,7 @@ void BindTable::AddToRegistry(Entry& entry) {
     return;
   }
   if (auto added = settings->Register(*entry.owner); !added) {
-    REXLOG_WARN(ui, "{}", added.error().message);
+    REXUI_WARN("{}", added.error().message);
     return;
   }
   entry.added = true;
@@ -143,7 +143,7 @@ void BindTable::OnChanged(std::string_view name, std::string_view value) {
   }
   auto chord = input->ParseKeyChord(value);
   if (!chord) {
-    REXLOG_WARN(ui, "bind {} keeps its chord, {}", name, chord.error().message);
+    REXUI_WARN("bind {} keeps its chord, {}", name, chord.error().message);
     return;
   }
   std::lock_guard lock(mutex_);

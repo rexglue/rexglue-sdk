@@ -364,17 +364,17 @@ void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
     const xenos::FormatInfo& format_info =
         *xenos::FormatInfo::Get(static_cast<xenos::TextureFormat>(stream.format));
     if (format_info.type != xenos::FormatType::kResolvable) {
-      REXLOG_ERROR(gpu, "Unsupported memexport format {}", format_info.name);
+      REXGPU_ERROR("Unsupported memexport format {}", format_info.name);
       continue;
     }
     switch (stream.format) {
       case xenos::ColorFormat::k_8_A:
       case xenos::ColorFormat::k_8_B:
       case xenos::ColorFormat::k_8_8_8_8_A:
-        REXLOG_WARN(gpu,
-                    "Memexport done to an unresearched format {}, report the title to "
-                    "ReXGlue developers!",
-                    format_info.name);
+        REXGPU_WARN(
+            "Memexport done to an unresearched format {}, report the title to "
+            "ReXGlue developers!",
+            format_info.name);
         break;
       default:
         break;
@@ -479,24 +479,24 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& re
 
   if (rb_copy_control.copy_command != xenos::CopyCommand::kRaw &&
       rb_copy_control.copy_command != xenos::CopyCommand::kConvert) {
-    REXLOG_ERROR(gpu,
-                 "Unsupported resolve copy command {}. Report the title to ReXGlue "
-                 "developers",
-                 static_cast<u32>(rb_copy_control.copy_command));
+    REXGPU_ERROR(
+        "Unsupported resolve copy command {}. Report the title to ReXGlue "
+        "developers",
+        static_cast<u32>(rb_copy_control.copy_command));
     REX_ASSERT_ALWAYS();
     return false;
   }
 
   xenos::VertexFetch fetch = regs.GetVertexFetch(0);
   if (fetch.type != xenos::FetchConstantType::kVertex || fetch.size != 3 * 2) {
-    REXLOG_ERROR(gpu, "Unsupported resolve vertex buffer format");
+    REXGPU_ERROR("Unsupported resolve vertex buffer format");
     REX_ASSERT_ALWAYS();
     return false;
   }
   const f32* vertices_guest =
       GetPhysicalForRead<f32>(memory, fetch.address * sizeof(u32), 6 * sizeof(f32));
   if (!vertices_guest) {
-    REXLOG_ERROR(gpu, "Resolve vertex buffer is outside physical memory");
+    REXGPU_ERROR("Resolve vertex buffer is outside physical memory");
     return false;
   }
   f32 half_pixel_offset =
@@ -549,17 +549,17 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& re
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
   if (rb_surface_info.msaa_samples > xenos::MSAASamples::k4X) {
     REX_ASSERT_ALWAYS();
-    REX_FAIL(gpu, false,
-             "{}x MSAA requested by the guest in a resolve, Xenos only supports up "
-             "to 4x",
-             static_cast<u32>(1) << static_cast<u32>(rb_surface_info.msaa_samples));
+    REXGPU_FAIL(false,
+                "{}x MSAA requested by the guest in a resolve, Xenos only supports up "
+                "to 4x",
+                static_cast<u32>(1) << static_cast<u32>(rb_surface_info.msaa_samples));
   }
 
   // The maximum surface pitch is assumed to be the largest resolvable size.
   i32 surface_pitch_aligned = static_cast<i32>(
       rb_surface_info.surface_pitch & ~static_cast<u32>(xenos::kResolveAlignmentPixels - 1));
   if (x1 > surface_pitch_aligned) {
-    REXLOG_ERROR(gpu, "Resolve region {} <= x < {} is outside the surface pitch {}", x0, x1,
+    REXGPU_ERROR("Resolve region {} <= x < {} is outside the surface pitch {}", x0, x1,
                  surface_pitch_aligned);
     x0 = std::min(x0, surface_pitch_aligned);
     x1 = std::min(x1, surface_pitch_aligned);
@@ -568,14 +568,13 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& re
 
   // The height must fit in the packed shader constant.
   if (y1 - y0 > static_cast<i32>(xenos::kMaxResolveSize)) {
-    REXLOG_ERROR(gpu, "Resolve region {} <= y < {} is taller than {}", y0, y1,
-                 xenos::kMaxResolveSize);
+    REXGPU_ERROR("Resolve region {} <= y < {} is taller than {}", y0, y1, xenos::kMaxResolveSize);
     y1 = y0 + static_cast<i32>(xenos::kMaxResolveSize);
   }
 
   REX_ASSERT(x0 < x1 && y0 < y1);
   if (x0 >= x1 || y0 >= y1) {
-    REX_FAIL(gpu, false, "Resolve region is empty");
+    REXGPU_FAIL(false, "Resolve region is empty");
   }
 
   info_out.coordinate_info.width_div_8 =
@@ -590,12 +589,11 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& re
   xenos::CopySampleSelect sample_select = SanitizeCopySampleSelect(
       rb_copy_control.copy_sample_select, rb_surface_info.msaa_samples, is_depth);
   if (rb_copy_control.copy_sample_select != sample_select) {
-    REXLOG_WARN(gpu,
-                "Incorrect resolve sample selected for {}-sample {} ({}), treating like "
-                "{}",
-                1 << static_cast<u32>(rb_surface_info.msaa_samples), is_depth ? "depth" : "color",
-                static_cast<u32>(rb_copy_control.copy_sample_select),
-                static_cast<u32>(sample_select));
+    REXGPU_WARN(
+        "Incorrect resolve sample selected for {}-sample {} ({}), treating like "
+        "{}",
+        1 << static_cast<u32>(rb_surface_info.msaa_samples), is_depth ? "depth" : "color",
+        static_cast<u32>(rb_copy_control.copy_sample_select), static_cast<u32>(sample_select));
   }
   info_out.copy_dest_coordinate_info.copy_sample_select = sample_select;
   auto rb_copy_dest_info = regs.Get<xenos::reg::RB_COPY_DEST_INFO>();
@@ -618,11 +616,11 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& re
         dest_closest_format = dest_format;
     }
     if (dest_format != dest_closest_format) {
-      REXLOG_WARN(gpu,
-                  "Resolving to format {}, which is untested, treating like {}. "
-                  "Report the title to ReXGlue developers!",
-                  xenos::FormatInfo::Get(dest_format)->name,
-                  xenos::FormatInfo::Get(dest_closest_format)->name);
+      REXGPU_WARN(
+          "Resolving to format {}, which is untested, treating like {}. "
+          "Report the title to ReXGlue developers!",
+          xenos::FormatInfo::Get(dest_format)->name,
+          xenos::FormatInfo::Get(dest_closest_format)->name);
     }
   }
 
@@ -681,7 +679,7 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& re
                                                      rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
     }
   } else {
-    REXLOG_ERROR(gpu, "Tried to resolve to format {}, which is not a ColorFormat",
+    REXGPU_ERROR("Tried to resolve to format {}, which is not a ColorFormat",
                  dest_format_info.name);
     copy_dest_extent_start = copy_dest_base_adjusted;
     copy_dest_extent_end = copy_dest_base_adjusted;
@@ -766,16 +764,15 @@ bool GetResolveInfo(const XenosSettings& settings, const xenos::RegisterFile& re
   info_out.rb_color_clear = regs[std::to_underlying(xenos::Register::RB_COLOR_CLEAR)];
   info_out.rb_color_clear_lo = regs[std::to_underlying(xenos::Register::RB_COLOR_CLEAR_LO)];
 
-  REXLOG_TRACE(gpu,
-               "Resolve {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (potentially "
-               "modified memory range 0x{:08X} to 0x{:08X})",
-               x0, y0, x1, y1,
-               is_depth ? xenos::GetDepthRenderTargetFormatName(
-                              static_cast<xenos::DepthRenderTargetFormat>(depth_edram_info.format))
-                        : xenos::GetColorRenderTargetFormatName(
-                              static_cast<xenos::ColorRenderTargetFormat>(color_edram_info.format)),
-               dest_format_info.name, rb_copy_dest_base, copy_dest_extent_start,
-               copy_dest_extent_end);
+  REXGPU_TRACE(
+      "Resolve {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (potentially "
+      "modified memory range 0x{:08X} to 0x{:08X})",
+      x0, y0, x1, y1,
+      is_depth ? xenos::GetDepthRenderTargetFormatName(
+                     static_cast<xenos::DepthRenderTargetFormat>(depth_edram_info.format))
+               : xenos::GetColorRenderTargetFormatName(
+                     static_cast<xenos::ColorRenderTargetFormat>(color_edram_info.format)),
+      dest_format_info.name, rb_copy_dest_base, copy_dest_extent_start, copy_dest_extent_end);
 
   return true;
 }
@@ -843,7 +840,7 @@ ResolveCopyShaderIndex ResolveRequest::GetCopyShader(u32 draw_resolution_scale_x
     group_count_y_out =
         (height + ((1 << shader_info.group_size_y_log2) - 1)) >> shader_info.group_size_y_log2;
   } else {
-    REXLOG_ERROR(gpu, "No resolve copy compute shader for the provided configuration");
+    REXGPU_ERROR("No resolve copy compute shader for the provided configuration");
     REX_ASSERT_ALWAYS();
     group_count_x_out = 0;
     group_count_y_out = 0;

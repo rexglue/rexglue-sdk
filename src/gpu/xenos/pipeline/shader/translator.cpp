@@ -444,9 +444,9 @@ void Shader::GatherALUInstructionInformation(const AluInstruction& op, u32 exec_
     if (memexport_stream_constant != UINT32_MAX) {
       memexport_stream_constants_.insert(memexport_stream_constant);
     } else {
-      REXLOG_ERROR(gpu,
-                   "ShaderTranslator::GatherALUInstructionInformation: Couldn't extract "
-                   "memexport stream constant index");
+      REXGPU_ERROR(
+          "ShaderTranslator::GatherALUInstructionInformation: Couldn't extract "
+          "memexport stream constant index");
     }
   }
 }
@@ -544,7 +544,7 @@ bool ShaderTranslator::TranslateAnalyzedShader(Shader::Translation& translation)
   const Shader& shader = translation.GetShader();
   REX_ASSERT(shader.IsUcodeAnalyzed());
   if (!shader.IsUcodeAnalyzed()) {
-    REX_FAIL(gpu, false, "AnalyzeUcode must be done on the shader before translation");
+    REXGPU_FAIL(false, "AnalyzeUcode must be done on the shader before translation");
   }
   translation_ = &translation;
 
@@ -601,7 +601,7 @@ void ShaderTranslator::EmitTranslationError(const char* message, bool is_fatal) 
   error.is_fatal = is_fatal;
   error.message = message;
   errors_.push_back(std::move(error));
-  REXLOG_ERROR(gpu, "Shader translation {}error: {}", is_fatal ? "fatal " : "", message);
+  REXGPU_ERROR("Shader translation {}error: {}", is_fatal ? "fatal " : "", message);
 }
 
 void ShaderTranslator::TranslateControlFlowInstruction(const ControlFlowInstruction& cf) {
@@ -1192,10 +1192,10 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
     }
     if (storage_target == InstructionStorageTarget::kNone) {
       REX_ASSERT_ALWAYS();
-      REXLOG_ERROR(gpu,
-                   "ShaderTranslator::ParseAluInstruction: Unsupported write to export "
-                   "{}",
-                   static_cast<u32>(export_register));
+      REXGPU_ERROR(
+          "ShaderTranslator::ParseAluInstruction: Unsupported write to export "
+          "{}",
+          static_cast<u32>(export_register));
     }
   }
 

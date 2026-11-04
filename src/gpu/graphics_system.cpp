@@ -88,7 +88,7 @@ void GraphicsSystem::State::CountFrame() {
 
 void GraphicsSystem::State::WarnNoXenos(const char* what) {
   if (!warned.exchange(true)) {
-    REXLOG_WARN(gpu, "{} has no Xenos graphics driver to run it", what);
+    REXGPU_WARN("{} has no Xenos graphics driver to run it", what);
     ++warning_count;
   }
 }

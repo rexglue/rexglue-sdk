@@ -110,7 +110,7 @@ std::optional<toml::table> ParseHostToml(const std::filesystem::path& path) {
     return toml::parse(
         std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
   } catch (const toml::parse_error& error) {
-    REXLOG_WARN(system, "'{}' is not read, {}", rex::string::PathToUTF8(path), error.what());
+    REXSYS_WARN("'{}' is not read, {}", rex::string::PathToUTF8(path), error.what());
     return std::nullopt;
   }
 }
@@ -241,7 +241,7 @@ Result<kernel::XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
       if (auto written =
               platform::WriteHostFile(install_path / detail::kThumbnailFileName, info.thumbnail);
           !written) {
-        REXLOG_WARN(system, "the thumbnail write failed, {}", written.error().GetDescription());
+        REXSYS_WARN("the thumbnail write failed, {}", written.error().GetDescription());
       }
     }
 
@@ -495,7 +495,7 @@ void ContentManager::SaveEnableEntriesLocked() const {
   std::ostringstream text;
   text << table;
   if (auto written = platform::WriteHostFile(path, text.str()); !written) {
-    REXLOG_WARN(system, "the content state is not saved, {}", written.error().GetDescription());
+    REXSYS_WARN("the content state is not saved, {}", written.error().GetDescription());
   }
 }
 

@@ -73,7 +73,7 @@ void APU::WorkerMain() {
     auto result = platform::WaitAny(wait_handles_.data(), wait_handles_.size(), true,
                                     std::chrono::milliseconds(500));
     if (result.first == platform::WaitResult::kFailed) {
-      REXLOG_WARN(apu, "Audio worker: WaitAny failed");
+      REXAPU_WARN("Audio worker: WaitAny failed");
       continue;
     }
 
@@ -137,8 +137,7 @@ void APU::StopWorker() {
         pin->RequestStop();
         std::array<ThreadPin, 1> threads{std::move(pin)};
         WaitForThreadsToStop(threads, kWorkerShutdownTimeout, [](const ThreadPin&) {
-          REXLOG_WARN(apu, "Audio worker still running after {} ms",
-                      kWorkerShutdownTimeout.count());
+          REXAPU_WARN("Audio worker still running after {} ms", kWorkerShutdownTimeout.count());
         });
       }
     }
@@ -164,7 +163,7 @@ void APU::Shutdown() {
 
 Result<u32> APU::RegisterClient(u32 callback, u32 callback_arg) {
   if (!audio_) {
-    REXLOG_ERROR(apu, "the program has no audio system, a render client is refused");
+    REXAPU_ERROR("the program has no audio system, a render client is refused");
     return Err<u32>(StatusError(X_STATUS_UNSUCCESSFUL));
   }
   std::lock_guard lock(mutex_);
@@ -176,7 +175,7 @@ Result<u32> APU::RegisterClient(u32 callback, u32 callback_arg) {
   platform::Semaphore* semaphore = semaphores_[index].get();
   auto stream = audio_->OpenStream([semaphore] { semaphore->Release(1, nullptr); });
   if (!stream) {
-    REXLOG_ERROR(apu, "the audio system refused a stream, {}", stream.error().message);
+    REXAPU_ERROR("the audio system refused a stream, {}", stream.error().message);
     return Err<u32>(StatusError(X_STATUS_UNSUCCESSFUL));
   }
   semaphore->Release(static_cast<i32>(queued_frames_), nullptr);
@@ -214,7 +213,7 @@ void APU::SubmitFrame(u32 index, u32 samples_ptr) {
   if (auto submitted = audio_->Submit(clients_[index].stream, frame);
       !submitted && !clients_[index].refused_logged) {
     clients_[index].refused_logged = true;
-    REXLOG_WARN(apu, "the audio system refused a frame for client {}, {}", index,
+    REXAPU_WARN("the audio system refused a frame for client {}, {}", index,
                 submitted.error().message);
   }
 }

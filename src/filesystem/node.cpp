@@ -145,8 +145,8 @@ void Node::ReleaseOpen() {
   }
   if (open_count_ == 0 && delete_on_close_ && parent_) {
     if (auto deleted = parent_->DeleteChild(*this); !deleted) {
-      REXLOG_WARN(filesystem, "delete on close of '{}' failed, {}", info_.absolute_path,
-                  deleted.error().message);
+      REXFS_WARN("delete on close of '{}' failed, {}", info_.absolute_path,
+                 deleted.error().message);
     }
   }
   provider.ReleaseDetached();

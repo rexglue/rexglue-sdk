@@ -77,7 +77,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
   buffer_create_info.pQueueFamilyIndices = nullptr;
   VkBuffer buffer;
   if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer) != VK_SUCCESS) {
-    REX_FAIL(ui, nullptr, "Failed to create a Vulkan upload buffer with {} bytes", page_size_);
+    REXUI_FAIL(nullptr, "Failed to create a Vulkan upload buffer with {} bytes", page_size_);
   }
 
   if (memory_type_ == kMemoryTypeUnknown) {
@@ -86,10 +86,10 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
     memory_type_ = objects::ChooseHostMemoryType(vulkan_device_->GetMemoryTypes(),
                                                  memory_requirements.memoryTypeBits, false);
     if (memory_type_ == UINT32_MAX) {
-      REXLOG_ERROR(ui,
-                   "No host-visible memory types can store a Vulkan upload buffer with "
-                   "{} bytes",
-                   page_size_);
+      REXUI_ERROR(
+          "No host-visible memory types can store a Vulkan upload buffer with "
+          "{} bytes",
+          page_size_);
       memory_type_ = kMemoryTypeUnavailable;
       dfn.vkDestroyBuffer(device, buffer, nullptr);
       return nullptr;
@@ -137,14 +137,13 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
   }
   VkDeviceMemory memory;
   if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "Failed to allocate {} bytes of Vulkan upload buffer memory",
-                 allocation_size_);
+    REXUI_ERROR("Failed to allocate {} bytes of Vulkan upload buffer memory", allocation_size_);
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     return nullptr;
   }
 
   if (dfn.vkBindBufferMemory(device, buffer, memory, 0) != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "Failed to bind memory to a Vulkan upload buffer with {} bytes", page_size_);
+    REXUI_ERROR("Failed to bind memory to a Vulkan upload buffer with {} bytes", page_size_);
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     dfn.vkFreeMemory(device, memory, nullptr);
     return nullptr;
@@ -152,7 +151,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
 
   void* mapping;
   if (dfn.vkMapMemory(device, memory, 0, VK_WHOLE_SIZE, 0, &mapping) != VK_SUCCESS) {
-    REXLOG_ERROR(ui, "Failed to map {} bytes of Vulkan upload buffer memory", allocation_size_);
+    REXUI_ERROR("Failed to map {} bytes of Vulkan upload buffer memory", allocation_size_);
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     dfn.vkFreeMemory(device, memory, nullptr);
     return nullptr;

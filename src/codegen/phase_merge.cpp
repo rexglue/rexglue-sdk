@@ -21,7 +21,7 @@ namespace rex::codegen {
 namespace {
 
 void MergeAndSeal(CodegenContext& ctx) {
-  REXLOG_TRACE(codegen, "Analyze: resolving jumps and sealing functions...");
+  REXCG_TRACE("Analyze: resolving jumps and sealing functions...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.GetBinary();
@@ -63,18 +63,17 @@ void MergeAndSeal(CodegenContext& ctx) {
 
   size_t shared_regs = graph.MarkFuncletRegisterSharing();
   if (shared_regs > 0) {
-    REXLOG_DEBUG(codegen, "Analyze: {} functions share registers with an SEH funclet", shared_regs);
+    REXCG_DEBUG("Analyze: {} functions share registers with an SEH funclet", shared_regs);
   }
 
   size_t total_sealed = graph.SealAllReady();
   size_t still_pending = graph.GetPendingCount();
 
-  REXLOG_TRACE(codegen, "Analyze: {} iterations, resolved={}, sealed={}/{}", iteration,
-               total_resolved, total_sealed, graph.GetFunctionCount());
+  REXCG_TRACE("Analyze: {} iterations, resolved={}, sealed={}/{}", iteration, total_resolved,
+              total_sealed, graph.GetFunctionCount());
 
   if (still_pending > 0) {
-    REXLOG_DEBUG(codegen, "Analyze: {} functions still PENDING with unresolved jumps",
-                 still_pending);
+    REXCG_DEBUG("Analyze: {} functions still PENDING with unresolved jumps", still_pending);
   }
 }
 

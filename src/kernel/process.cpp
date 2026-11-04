@@ -123,7 +123,7 @@ void kernel::TitleState::DestroySubsystems() {
     const auto interval =
         std::chrono::milliseconds(GetRuntimeSettings().terminate_timeout_ms.Get());
     WaitForThreadsToStop(threads, interval, [interval](const ThreadPin& thread) {
-      REXLOG_WARN(system, "Thread {:08X} '{}' still running after {} ms", thread->GetThreadID(),
+      REXSYS_WARN("Thread {:08X} '{}' still running after {} ms", thread->GetThreadID(),
                   thread->GetName(), interval.count());
     });
   }
@@ -164,7 +164,7 @@ void kernel::TitleState::DestroySubsystems() {
 void kernel::TitleState::CreateWorkspace(u32 size) {
   Result<std::unique_ptr<WorkspaceHeap>> workspace = WorkspaceHeap::Create(*memory_, size);
   if (!workspace) {
-    REXLOG_ERROR(system, "Cannot commit a {:#x} byte title workspace, keeping {:#x} bytes", size,
+    REXSYS_ERROR("Cannot commit a {:#x} byte title workspace, keeping {:#x} bytes", size,
                  workspace_ ? workspace_->GetSize() : 0u);
     return;
   }
@@ -250,7 +250,7 @@ bool kernel::TitleState::RunTitleTerminateNotifications(std::chrono::millisecond
       const u32 routine = memory->TranslateVirtual<X_EX_TITLE_TERMINATE_REGISTRATION*>(registration)
                               ->notification_routine;
       progress->routine = routine;
-      REXLOG_INFO(system, "Title terminate notification {:08X} with registration {:08X}", routine,
+      REXSYS_INFO("Title terminate notification {:08X} with registration {:08X}", routine,
                   registration);
       u64 args[] = {registration};
       functions->ExecuteTrap(state, routine, args, rex::CountOf(args));
@@ -264,7 +264,7 @@ bool kernel::TitleState::RunTitleTerminateNotifications(std::chrono::millisecond
   }
   dispatcher_->Post(std::move(run));
   if (done.wait_for(timeout) == std::future_status::timeout) {
-    REXLOG_WARN(system, "Title terminate notification {:08X} still running after {} ms",
+    REXSYS_WARN("Title terminate notification {:08X} still running after {} ms",
                 progress->routine.load(), timeout.count());
     dispatcher_->RequestStop();
     return true;
@@ -340,7 +340,7 @@ void kernel::TitleState::SetExecutableModule(X_HANDLE module_handle) {
 }
 
 void kernel::TitleState::TerminateTitle() {
-  REXLOG_DEBUG(system, "TitleRuntime::TerminateTitle");
+  REXSYS_DEBUG("TitleRuntime::TerminateTitle");
   if (KernelThread::IsInThread() && terminate_claimed_.exchange(true, std::memory_order_acq_rel)) {
     KernelThread::GetCallingThread()->Exit(0);
   }
@@ -383,7 +383,7 @@ void kernel::TitleState::StopGuestThreads(std::chrono::milliseconds timeout,
   }
 
   WaitForThreadsToStop(target_threads, timeout, [timeout](const ThreadPin& thread) {
-    REXLOG_WARN(system, "Guest thread {:08X} '{}' entry {:08X} still running after {} ms",
+    REXSYS_WARN("Guest thread {:08X} '{}' entry {:08X} still running after {} ms",
                 thread->GetThreadID(), thread->GetName(),
                 thread->GetCreationParams()->start_address, timeout.count());
   });

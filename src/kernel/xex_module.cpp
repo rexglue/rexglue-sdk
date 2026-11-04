@@ -58,7 +58,7 @@ u32 XEXModule::GetExportAddress(u16 ordinal) const {
     auto export_table = GetMemory()->TranslateVirtual<const XEXExportTable*>(table_address);
     ordinal -= export_table->base;
     if (ordinal >= export_table->count) {
-      REX_FAIL(system, 0, "GetProcAddress({:03X}): ordinal out of bounds", ordinal);
+      REXSYS_FAIL(0, "GetProcAddress({:03X}): ordinal out of bounds", ordinal);
     }
     u32 ordinal_offset = export_table->ordinal_offset[ordinal];
     ordinal_offset += export_table->image_base_address << 16;
@@ -108,7 +108,7 @@ int XEXModule::ApplyPatch(XEXModule* module) {
   const u32 original_image_size = module->GetImageSize();
   auto patched = module->image_->ApplyHeaderDelta(*image_);
   if (!patched) {
-    REX_FAIL(system, 2, "XEX header patch failed, {}", patched.error().GetDescription());
+    REXSYS_FAIL(2, "XEX header patch failed, {}", patched.error().GetDescription());
   }
   module->image_ = std::move(*patched);
   const u32 new_image_size = module->GetImageSize();
@@ -123,8 +123,8 @@ int XEXModule::ApplyPatch(XEXModule* module) {
                                                    kMemoryAllocationTitle,
                                                kMemoryProtectRead | kMemoryProtectWrite);
     if (!alloc_result) {
-      REX_FAIL(system, 6, "Unable to allocate XEX memory at {:08X} with size {:08X}.", addr_new_mem,
-               size_delta);
+      REXSYS_FAIL(6, "Unable to allocate XEX memory at {:08X} with size {:08X}.", addr_new_mem,
+                  size_delta);
     }
   }
 
@@ -134,7 +134,7 @@ int XEXModule::ApplyPatch(XEXModule* module) {
       std::max<size_t>(host_image.size(), std::max(original_image_size, new_image_size)));
   std::span<u8> base_image(host_image.data(), std::max(original_image_size, new_image_size));
   if (auto applied = module->image_->ApplyImageDelta(*image_, base_image); !applied) {
-    REX_FAIL(system, 9, "XEX patch application failed, {}", applied.error().GetDescription());
+    REXSYS_FAIL(9, "XEX patch application failed, {}", applied.error().GetDescription());
   }
 
   host_image.resize(new_image_size);
@@ -143,8 +143,8 @@ int XEXModule::ApplyPatch(XEXModule* module) {
     const u32 size_delta = original_image_size - new_image_size;
     const u32 addr_free_mem = module->base_address_ + new_image_size;
     if (!GetMemory()->LookupHeap(addr_free_mem)->Decommit(addr_free_mem, size_delta)) {
-      REXLOG_ERROR(system, "Unable to decommit XEX memory at {:08X} with size {:08X}.",
-                   addr_free_mem, size_delta);
+      REXSYS_ERROR("Unable to decommit XEX memory at {:08X} with size {:08X}.", addr_free_mem,
+                   size_delta);
     }
   }
 
@@ -152,11 +152,11 @@ int XEXModule::ApplyPatch(XEXModule* module) {
       image_->GetOptHeader<XEXOptDeltaPatchDescriptor>(kXEXHeaderDeltaPatchDescriptor);
   const auto source = descriptor->GetSourceVersion();
   const auto target = descriptor->GetTargetVersion();
-  REXLOG_INFO(system,
-              "XEX patch applied successfully, base version {}.{}.{}.{}, new version "
-              "{}.{}.{}.{}",
-              u32{source.major}, u32{source.minor}, u32{source.build}, u32{source.qfe},
-              u32{target.major}, u32{target.minor}, u32{target.build}, u32{target.qfe});
+  REXSYS_INFO(
+      "XEX patch applied successfully, base version {}.{}.{}.{}, new version "
+      "{}.{}.{}.{}",
+      u32{source.major}, u32{source.minor}, u32{source.build}, u32{source.qfe}, u32{target.major},
+      u32{target.minor}, u32{target.build}, u32{target.qfe});
   return 0;
 }
 
@@ -186,7 +186,7 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
 
   const auto* format = image_->GetOptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
   if (!format) {
-    REX_FAIL(system, false, "XEX has no file format header");
+    REXSYS_FAIL(false, "XEX has no file format header");
   }
   const u32 alloc_size = static_cast<u16>(format->compression_type) == kXEXCompressionNone
                              ? static_cast<u32>(xex_length - image_->GetHeaderBytes().size())
@@ -196,26 +196,25 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
   HeapAllocation occupant{};
   if (!heap->QueryRegionInfo(base_address_, &occupant) || occupant.state != 0 ||
       occupant.region_size < rex::RoundUpPow2(alloc_size, heap->GetPageSize())) {
-    REX_FAIL(system, false,
-             "XEX image range {:08X}-{:08X} is in use, the module holding it must be "
-             "unloaded first.",
-             base_address_, base_address_ + alloc_size);
+    REXSYS_FAIL(false,
+                "XEX image range {:08X}-{:08X} is in use, the module holding it must be "
+                "unloaded first.",
+                base_address_, base_address_ + alloc_size);
   }
   if (!heap->AllocFixed(base_address_, alloc_size, 4096,
                         kMemoryAllocationReserve | kMemoryAllocationCommit | kMemoryAllocationTitle,
                         kMemoryProtectRead | kMemoryProtectWrite)) {
-    REX_FAIL(system, false, "Unable to allocate XEX memory at {:08X} with size {:08X}.",
-             base_address_, alloc_size);
+    REXSYS_FAIL(false, "Unable to allocate XEX memory at {:08X} with size {:08X}.", base_address_,
+                alloc_size);
   }
   pending_image_.assign(alloc_size, 0);
   std::span<u8> buffer(pending_image_);
   if (auto decoded = image_->Decode(file, buffer); !decoded) {
-    REX_FAIL(system, false, "XEX load failed, tried both encryption keys, {}",
-             decoded.error().GetDescription());
+    REXSYS_FAIL(false, "XEX load failed, tried both encryption keys, {}",
+                decoded.error().GetDescription());
   }
   if (image_->GetKey() != filesystem::XEXKey::kRetail) {
-    REXLOG_WARN(system, "XEX decoded with a non retail key ({})",
-                static_cast<u32>(image_->GetKey()));
+    REXSYS_WARN("XEX decoded with a non retail key ({})", static_cast<u32>(image_->GetKey()));
   }
   return true;
 }
@@ -236,8 +235,7 @@ bool XEXModule::LoadContinue() {
   auto parsed_pe = GetKernelServices()->file_system->ParsePE(
       std::span<const u8>(pending_image_.data(), image_end));
   if (!parsed_pe) {
-    REX_FAIL(system, false, "Failed to load XEX PE headers, {}",
-             parsed_pe.error().GetDescription());
+    REXSYS_FAIL(false, "Failed to load XEX PE headers, {}", parsed_pe.error().GetDescription());
   }
   pe_ = std::move(*parsed_pe);
   if (pe_.header_size < image_end) {
@@ -334,11 +332,11 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
           const u32 variable_ptr = kernel->object->GetVariable(ordinal);
           if (variable_ptr) {
             *record_slot = variable_ptr;
-            REXLOG_DEBUG(system, "Patched variable import {}:{:#x} ({}) -> {:#x}", base_name,
-                         ordinal, kernel_export->name, variable_ptr);
+            REXSYS_DEBUG("Patched variable import {}:{:#x} ({}) -> {:#x}", base_name, ordinal,
+                         kernel_export->name, variable_ptr);
           } else {
             *record_slot = 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16;
-            REXLOG_WARN(system, "Variable import {}:{:#x} ({}) not implemented", base_name, ordinal,
+            REXSYS_WARN("Variable import {}:{:#x} ({}) not implemented", base_name, ordinal,
                         kernel_export->name);
           }
         }
@@ -359,7 +357,7 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
     if (kernel_export && kernel_export->type == rex::kernel::ExportType::kFunction) {
       *GetMemory()->TranslateVirtual<be_u32*>(import_info.value_address) =
           import_info.thunk_address;
-      REXLOG_DEBUG(system, "Patched function import {}:{:#x} ({}) -> {:#x}", base_name, ordinal,
+      REXSYS_DEBUG("Patched function import {}:{:#x} ({}) -> {:#x}", base_name, ordinal,
                    kernel_export->name, import_info.thunk_address);
     }
   }
@@ -369,7 +367,7 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
   }
 
   import_libs_.push_back(import_library);
-  REXLOG_DEBUG(system, "created symbols for import library {} with {} imports", base_name,
+  REXSYS_DEBUG("created symbols for import library {} with {} imports", base_name,
                import_library.imports.size());
   return true;
 }

@@ -44,9 +44,9 @@ void AppDriverContext::PostToUIThread(MoveOnlyFunction<void()> fn) {
     } else {
       static std::atomic<bool> warned{false};
       if (!warned.exchange(true)) {
-        REXLOG_WARN(core,
-                    "work posted to the UI thread from another thread is dropped, the app has "
-                    "no UI");
+        REXLOG_WARN(
+            "work posted to the UI thread from another thread is dropped, the app has "
+            "no UI");
       }
     }
     return;

@@ -32,20 +32,19 @@ BinaryView BinaryView::FromModule(const kernel::Module& module) {
   }
   if (min_import_addr != std::numeric_limits<u32>::max()) {
     view.import_thunk_table_start_ = min_import_addr;
-    REXLOG_DEBUG(codegen, "BinaryView: import thunk table starts at 0x{:08X}", min_import_addr);
+    REXCG_DEBUG("BinaryView: import thunk table starts at 0x{:08X}", min_import_addr);
 
     for (const auto& section : module.GetBinarySections()) {
       u32 section_end = section.virtual_address + section.virtual_size;
       if (min_import_addr >= section.virtual_address && min_import_addr < section_end) {
         view.import_export_range_end_ = section_end;
-        REXLOG_DEBUG(codegen,
-                     "BinaryView: import/export range ends at 0x{:08X} (end of {} section)",
-                     view.import_export_range_end_, section.name);
+        REXCG_DEBUG("BinaryView: import/export range ends at 0x{:08X} (end of {} section)",
+                    view.import_export_range_end_, section.name);
         break;
       }
     }
   }
-  REXLOG_DEBUG(codegen, "BinaryView: copied {} import symbols", view.import_symbols_.size());
+  REXCG_DEBUG("BinaryView: copied {} import symbols", view.import_symbols_.size());
 
   const auto& binary_sections = module.GetBinarySections();
   view.section_names_.reserve(binary_sections.size());
@@ -55,12 +54,12 @@ BinaryView BinaryView::FromModule(const kernel::Module& module) {
   u32 image_end = view.base_address_ + view.image_size_;
   for (const auto& section : binary_sections) {
     if (!section.host_data || section.virtual_size == 0) {
-      REXLOG_DEBUG(codegen, "BinaryView: skipping unmapped section '{}'", section.name);
+      REXCG_DEBUG("BinaryView: skipping unmapped section '{}'", section.name);
       continue;
     }
     if (section.virtual_address + section.virtual_size > image_end) {
-      REXLOG_DEBUG(codegen, "BinaryView: skipping section '{}' (extends past image end 0x{:08X})",
-                   section.name, image_end);
+      REXCG_DEBUG("BinaryView: skipping section '{}' (extends past image end 0x{:08X})",
+                  section.name, image_end);
       continue;
     }
 
@@ -74,12 +73,12 @@ BinaryView BinaryView::FromModule(const kernel::Module& module) {
                                          .data = view.section_data_.back().data(),
                                          .executable = section.executable});
 
-    REXLOG_DEBUG(codegen, "BinaryView: section '{}' at 0x{:08X} size 0x{:X} exec={}", section.name,
-                 section.virtual_address, section.virtual_size, section.executable);
+    REXCG_DEBUG("BinaryView: section '{}' at 0x{:08X} size 0x{:X} exec={}", section.name,
+                section.virtual_address, section.virtual_size, section.executable);
   }
 
-  REXLOG_DEBUG(codegen, "BinaryView: loaded {} sections, base=0x{:08X}, size=0x{:X}",
-               view.sections_.size(), view.base_address_, view.image_size_);
+  REXCG_DEBUG("BinaryView: loaded {} sections, base=0x{:08X}, size=0x{:X}", view.sections_.size(),
+              view.base_address_, view.image_size_);
 
   return view;
 }

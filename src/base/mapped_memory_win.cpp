@@ -301,7 +301,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
           data_ += capacity_;
         }
         if (!successful) {
-          REXLOG_ERROR(core, "Unable to find space for mapping");
+          REXLOG_ERROR("Unable to find space for mapping");
           data_ = nullptr;
           return false;
         }

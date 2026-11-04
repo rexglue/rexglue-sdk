@@ -97,7 +97,7 @@ void XAMState::AttachInput(rex::hid::IInputSystem* input) {
       notifier.BroadcastNotification(kXNotificationSystemInputDevicesChanged, 0);
     });
   } else {
-    REXLOG_INFO(hid, "no input system is attached, the title sees no pads");
+    REXHID_INFO("no input system is attached, the title sees no pads");
   }
 }
 

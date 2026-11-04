@@ -50,18 +50,18 @@ void AVLogCallback([[maybe_unused]] void* avcl, int level, const char* fmt, va_l
 
   switch (level) {
     case AV_LOG_ERROR:
-      REXLOG_ERROR(apu, "ffmpeg: {}", msg);
+      REXAPU_ERROR("ffmpeg: {}", msg);
       break;
     case AV_LOG_WARNING:
-      REXLOG_WARN(apu, "ffmpeg: {}", msg);
+      REXAPU_WARN("ffmpeg: {}", msg);
       break;
     case AV_LOG_INFO:
-      REXLOG_INFO(apu, "ffmpeg: {}", msg);
+      REXAPU_INFO("ffmpeg: {}", msg);
       break;
     case AV_LOG_VERBOSE:
     case AV_LOG_DEBUG:
     default:
-      REXLOG_DEBUG(apu, "ffmpeg: {}", msg);
+      REXAPU_DEBUG("ffmpeg: {}", msg);
       break;
   }
 }
@@ -138,7 +138,7 @@ void XMADecoder::Shutdown() {
 
   if (rex::platform::Wait(worker_exited_.get(), false, std::chrono::milliseconds(2000)) ==
       rex::platform::WaitResult::kTimeout) {
-    REXLOG_WARN(apu, "XMA: Worker thread did not exit within 2s, waiting for it");
+    REXAPU_WARN("XMA: Worker thread did not exit within 2s, waiting for it");
   }
   worker_.join();
 
@@ -226,11 +226,10 @@ u32 XMADecoder::ReadRegister(u32 addr) {
     default:
       const auto register_info = register_file_.GetRegisterInfo(r);
       if (register_info) {
-        REXLOG_WARN_ONCE(apu, unhandled_read_once_, r,
-                         "XMA: Read from unhandled register ({:04X}, {})", r, register_info->name);
+        REXAPU_WARN_ONCE(unhandled_read_once_, r, "XMA: Read from unhandled register ({:04X}, {})",
+                         r, register_info->name);
       } else {
-        REXLOG_WARN_ONCE(apu, unhandled_read_once_, r, "XMA: Read from unknown register ({:04X})",
-                         r);
+        REXAPU_WARN_ONCE(unhandled_read_once_, r, "XMA: Read from unknown register ({:04X})", r);
       }
       break;
   }
@@ -294,11 +293,11 @@ void XMADecoder::WriteRegister(u32 addr, u32 value) {
     // Register 0x0601 receives 0x02000000 and 0x03000000 around a lock operation.
     const auto register_info = register_file_.GetRegisterInfo(r);
     if (register_info) {
-      REXLOG_WARN_ONCE(apu, unhandled_write_once_, r,
+      REXAPU_WARN_ONCE(unhandled_write_once_, r,
                        "XMA: Write to unhandled register ({:04X}, {}) value {:08X}", r,
                        register_info->name, value);
     } else {
-      REXLOG_WARN_ONCE(apu, unhandled_write_once_, r,
+      REXAPU_WARN_ONCE(unhandled_write_once_, r,
                        "XMA: Write to unknown register ({:04X}) value {:08X}", r, value);
     }
   }

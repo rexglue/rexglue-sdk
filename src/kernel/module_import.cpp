@@ -24,7 +24,7 @@ PPCFunc* ResolveModuleImport(ModuleImport& target) {
   std::lock_guard lock(mutex);
   PPCFunc* function = registry.ResolveExport(target.library, target.ordinal);
   if (!function) {
-    REX_FATAL(cpu, "Unresolved import of ordinal {} from {}", target.ordinal, target.library);
+    REXCPU_FATAL("Unresolved import of ordinal {} from {}", target.ordinal, target.library);
   }
   target.generation.store(0, std::memory_order_release);
   target.function.store(function, std::memory_order_release);

@@ -75,7 +75,7 @@ REX_XAM_SHIM_FN(CreateFileA, u32, MappedString lpFileName, u32 dwDesiredAccess,
   options.require_file = true;
   auto opened = CurrentTitle().file_system.Open(path, options);
   if (!opened) {
-    REXLOG_DEV(xam, "rexshim_CreateFileA: FAILED path='{}' status={:#x}", path,
+    REXXAM_DEV("rexshim_CreateFileA: FAILED path='{}' status={:#x}", path,
                rex::kernel::ToXStatus(opened.error()));
     return kernel::kXInvalidHandleValue;
   }
@@ -85,7 +85,7 @@ REX_XAM_SHIM_FN(CreateFileA, u32, MappedString lpFileName, u32 dwDesiredAccess,
     return kernel::kXInvalidHandleValue;
   }
   const kernel::X_HANDLE handle = *added;
-  REXLOG_DEV(xam, "rexshim_CreateFileA: '{}' -> handle={:#x}", path, handle);
+  REXXAM_DEV("rexshim_CreateFileA: '{}' -> handle={:#x}", path, handle);
   return handle;
 }
 
@@ -93,7 +93,7 @@ REX_XAM_SHIM_FN(ReadFile, u32, u32 hFile, MappedVoid lpBuffer, u32 nNumberOfByte
                 MappedU32 lpNumberOfBytesRead, MappedVoid lpOverlapped) {
   auto file = CurrentTitle().objects.Get<rex::kernel::IOpenedFile>(hFile);
   if (!file) {
-    REXLOG_WARN(xam, "rexshim_ReadFile: invalid handle {:#x}", static_cast<u32>(hFile));
+    REXXAM_WARN("rexshim_ReadFile: invalid handle {:#x}", static_cast<u32>(hFile));
     if (lpNumberOfBytesRead)
       *lpNumberOfBytesRead = 0;
     return 0;
@@ -211,7 +211,7 @@ REX_XAM_SHIM_FN(DeleteFileA, u32, MappedString lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
   bool ok = CurrentTitle().file_system.Remove(path).has_value();
   if (!ok)
-    REXLOG_DEV(xam, "rexshim_DeleteFileA: FAILED '{}'", path);
+    REXXAM_DEV("rexshim_DeleteFileA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 
@@ -220,7 +220,7 @@ REX_XAM_SHIM_FN(CloseHandle, u32, u32 hObject) {
   if (h == kernel::kXInvalidHandleValue || h == 0)
     return 0;
   if (!CurrentTitle().objects.Close(h)) {
-    REXLOG_WARN(xam, "rexshim_CloseHandle: unknown handle {:#x}", h);
+    REXXAM_WARN("rexshim_CloseHandle: unknown handle {:#x}", h);
     return 0;
   }
   return 1;
@@ -257,7 +257,7 @@ REX_XAM_SHIM_FN(FindFirstFileA, u32, MappedString lpFileName, MappedVoid lpFindF
   options.create_directory = true;
   auto opened = CurrentTitle().file_system.Open(dir, options);
   if (!opened) {
-    REXLOG_DEBUG(xam, "rexshim_FindFirstFileA: dir not found '{}'", dir);
+    REXXAM_DEBUG("rexshim_FindFirstFileA: dir not found '{}'", dir);
     return kernel::kXInvalidHandleValue;
   }
 
@@ -271,13 +271,13 @@ REX_XAM_SHIM_FN(FindFirstFileA, u32, MappedString lpFileName, MappedVoid lpFindF
 
   auto entry = xfile->FindNext();
   if (!entry) {
-    REXLOG_DEBUG(xam, "rexshim_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
+    REXXAM_DEBUG("rexshim_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
     kernel::CloseOwned(CurrentTitle().objects, handle);
     return kernel::kXInvalidHandleValue;
   }
 
   FillFindData(lpFindFileData, *entry);
-  REXLOG_TRACE(xam, "rexshim_FindFirstFileA: '{}' first match='{}' handle={:#x}", path, entry->name,
+  REXXAM_TRACE("rexshim_FindFirstFileA: '{}' first match='{}' handle={:#x}", path, entry->name,
                handle);
   return handle;
 }
@@ -309,11 +309,11 @@ REX_XAM_SHIM_FN(GetFileAttributesA, u32, MappedString lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
   auto entry = CurrentTitle().file_system.Stat(path);
   if (!entry) {
-    REXLOG_DEBUG(xam, "rexshim_GetFileAttributesA: not found '{}'", path);
+    REXXAM_DEBUG("rexshim_GetFileAttributesA: not found '{}'", path);
     // INVALID_FILE_ATTRIBUTES
     return kernel::kXInvalidHandleValue;
   }
-  REXLOG_TRACE(xam, "rexshim_GetFileAttributesA: '{}' -> attrs={:#x}", path,
+  REXXAM_TRACE("rexshim_GetFileAttributesA: '{}' -> attrs={:#x}", path,
                std::to_underlying(entry->attributes));
   return std::to_underlying(entry->attributes);
 }
@@ -323,7 +323,7 @@ REX_XAM_SHIM_FN(GetFileAttributesExA, u32, [[maybe_unused]] u32 fInfoLevelId,
   const char* path = static_cast<const char*>(lpFileName);
   auto entry = CurrentTitle().file_system.Stat(path);
   if (!entry) {
-    REXLOG_DEBUG(xam, "rexshim_GetFileAttributesExA: not found '{}'", path);
+    REXXAM_DEBUG("rexshim_GetFileAttributesExA: not found '{}'", path);
     return 0;
   }
 
@@ -395,7 +395,7 @@ REX_XAM_SHIM_FN(CopyFileA, u32, MappedString lpExistingFileName, MappedString lp
   source_options.require_file = true;
   auto src_file = CurrentTitle().file_system.Open(src, source_options);
   if (!src_file) {
-    REXLOG_DEBUG(xam, "rexshim_CopyFileA: failed to open source '{}'", src);
+    REXXAM_DEBUG("rexshim_CopyFileA: failed to open source '{}'", src);
     return 0;
   }
 
@@ -406,7 +406,7 @@ REX_XAM_SHIM_FN(CopyFileA, u32, MappedString lpExistingFileName, MappedString lp
   destination_options.require_file = true;
   auto dst_file = CurrentTitle().file_system.Open(dst, destination_options);
   if (!dst_file) {
-    REXLOG_DEBUG(xam, "rexshim_CopyFileA: failed to open dest '{}'", dst);
+    REXXAM_DEBUG("rexshim_CopyFileA: failed to open dest '{}'", dst);
     return 0;
   }
 
@@ -427,7 +427,7 @@ REX_XAM_SHIM_FN(CopyFileA, u32, MappedString lpExistingFileName, MappedString lp
     offset += *bytes_read;
   }
 
-  REXLOG_TRACE(xam, "rexshim_CopyFileA: '{}' -> '{}' {}", src, dst, ok ? "OK" : "FAILED");
+  REXXAM_TRACE("rexshim_CopyFileA: '{}' -> '{}' {}", src, dst, ok ? "OK" : "FAILED");
   return ok ? 1u : 0u;
 }
 
@@ -438,7 +438,7 @@ u32 GetDiskFreeSpaceExA_entry(MappedString lpDirectoryName, MappedVoid lpFreeByt
   auto* fs = (&CurrentTitle().file_system);
   auto volume = fs->GetVolume(path);
   if (!fs->Stat(path) || !volume) {
-    REXLOG_DEBUG(xam, "rexshim_GetDiskFreeSpaceExA: path not found '{}'", path);
+    REXXAM_DEBUG("rexshim_GetDiskFreeSpaceExA: path not found '{}'", path);
     return 0;
   }
 
@@ -463,8 +463,8 @@ u32 GetDiskFreeSpaceExA_entry(MappedString lpDirectoryName, MappedVoid lpFreeByt
     out[1] = static_cast<u32>(free_bytes >> 32);
   }
 
-  REXLOG_TRACE(xam, "rexshim_GetDiskFreeSpaceExA: '{}' total={}MB free={}MB", path,
-               total_bytes >> 20, free_bytes >> 20);
+  REXXAM_TRACE("rexshim_GetDiskFreeSpaceExA: '{}' total={}MB free={}MB", path, total_bytes >> 20,
+               free_bytes >> 20);
   return 1;
 }
 

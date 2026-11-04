@@ -131,7 +131,7 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
       setting->loaded_title_id = title_id_();
     }
   } else {
-    REXLOG_WARN(system, "Attempting to load unsupported profile setting from disk");
+    REXSYS_WARN("Attempting to load unsupported profile setting from disk");
   }
 }
 
@@ -143,10 +143,10 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
     auto setting_id = std::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
     if (auto written = rex::platform::WriteHostFile(file_path, serialized_setting); !written) {
-      REXLOG_WARN(system, "profile setting is not saved, {}", written.error().message);
+      REXSYS_WARN("profile setting is not saved, {}", written.error().message);
     }
   } else {
-    REXLOG_WARN(system, "Attempting to save unsupported profile setting to disk");
+    REXSYS_WARN("Attempting to save unsupported profile setting to disk");
   }
 }
 

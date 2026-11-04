@@ -102,7 +102,7 @@ class SVODReader {
         layout_ = Layout::kSingleFile;
       } else {
         layout_ = Layout::kUnknown;
-        REXLOG_ERROR(filesystem, "SVOD holds its magic block at 0xD000 and is not a single file");
+        REXFS_ERROR("SVOD holds its magic block at 0xD000 and is not a single file");
       }
       return 0xD000;
     }

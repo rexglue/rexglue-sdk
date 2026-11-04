@@ -122,7 +122,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     AddODDContent(items, content_type_enum);
   }
 
-  REXLOG_DEBUG(xam, "XamContentAggregateCreateEnumerator: added {} items to enumerator",
+  REXXAM_DEBUG("XamContentAggregateCreateEnumerator: added {} items to enumerator",
                items.GetItemCount());
 
   kernel::X_HANDLE handle = kernel::kXInvalidHandleValue;

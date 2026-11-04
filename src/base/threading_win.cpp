@@ -28,7 +28,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 #include <rex/utility.h>
 
 #define REX_LOG_LAST_ERROR() \
-  { REXLOG_ERROR(core, "Win32 error 0x{:08X} in {}", GetLastError(), __FUNCTION__); }
+  { REXLOG_ERROR("Win32 error 0x{:08X} in {}", GetLastError(), __FUNCTION__); }
 
 using SetThreadDescriptionFn = HANDLE (*)(HANDLE hThread, PCWSTR lpThreadDescription);
 

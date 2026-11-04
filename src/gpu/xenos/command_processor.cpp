@@ -109,7 +109,7 @@ bool CommandProcessor::Initialize() {
     WorkerThreadMain();
   });
   if (!thread) {
-    REXLOG_ERROR(gpu, "Unable to start the command processor thread, {}", thread.error().message);
+    REXGPU_ERROR("Unable to start the command processor thread, {}", thread.error().message);
     return false;
   }
   worker_thread_ = std::move(*thread);
@@ -249,7 +249,7 @@ void CommandProcessor::SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect)
 
 void CommandProcessor::WorkerThreadMain() {
   if (!SetupContext()) {
-    REX_FATAL(gpu, "Unable to setup command processor internal state");
+    REXGPU_FATAL("Unable to setup command processor internal state");
   }
 
   while (worker_running_) {
@@ -325,8 +325,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
     auto [it, inserted] = extended_register_values_.insert_or_assign(index, value);
     (void)it;
     if (inserted) {
-      REXLOG_WARN(gpu, "register index {} is out of bounds and stored as an extended register",
-                  index);
+      REXGPU_WARN("register index {} is out of bounds and stored as an extended register", index);
     }
     return;
   }
@@ -334,8 +333,8 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
   // Volatile for the WAIT_REG_MEM loop.
   const_cast<volatile u32&>(regs.values[index]) = value;
   if (!regs.GetRegisterInfo(index)) {
-    REXLOG_WARN_ONCE(gpu, unknown_write_once_, index,
-                     "GPU: Write to unknown register ({:04X} = {:08X})", index, value);
+    REXGPU_WARN_ONCE(unknown_write_once_, index, "GPU: Write to unknown register ({:04X} = {:08X})",
+                     index, value);
   }
 
   if (index >= std::to_underlying(xenos::Register::SCRATCH_REG0) &&
@@ -555,7 +554,7 @@ void CommandProcessor::SyncCoherency() {
     action = "VC";
   }
 
-  REXLOG_TRACE(gpu, "Make {:08X} -> {:08X} ({}b) coherent, action = {}", base_host,
+  REXGPU_TRACE("Make {:08X} -> {:08X} ({}b) coherent, action = {}", base_host,
                base_host + size_host, size_host, action);
 
   regs_volatile[std::to_underlying(xenos::Register::COHER_STATUS_HOST)] = 0;
@@ -571,7 +570,7 @@ u32 CommandProcessor::ExecutePrimaryBuffer(u32 read_index, u32 write_index) {
   u8* primary_buffer =
       GetPhysicalForWrite(physical_memory_, primary_buffer_ptr_, primary_buffer_size_);
   if (!primary_buffer) {
-    REXLOG_ERROR(gpu, "primary ring buffer is outside physical memory");
+    REXGPU_ERROR("primary ring buffer is outside physical memory");
     return write_index;
   }
   memory::RingBuffer reader(primary_buffer, primary_buffer_size_);
@@ -579,7 +578,7 @@ u32 CommandProcessor::ExecutePrimaryBuffer(u32 read_index, u32 write_index) {
   reader.SetWriteOffset(write_index * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
-      REXLOG_ERROR(gpu, "primary ring buffer failed to execute a packet");
+      REXGPU_ERROR("primary ring buffer failed to execute a packet");
       REX_ASSERT_ALWAYS();
       break;
     }
@@ -595,14 +594,14 @@ void CommandProcessor::ExecuteIndirectBuffer(u32 ptr, u32 count) {
 
   u8* indirect_buffer = GetPhysicalForWrite(physical_memory_, ptr, count * sizeof(u32));
   if (!indirect_buffer) {
-    REXLOG_ERROR(gpu, "indirect buffer is outside physical memory");
+    REXGPU_ERROR("indirect buffer is outside physical memory");
     return;
   }
   memory::RingBuffer reader(indirect_buffer, count * sizeof(u32));
   reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
-      REXLOG_ERROR(gpu, "indirect buffer failed to execute a packet");
+      REXGPU_ERROR("indirect buffer failed to execute a packet");
       REX_ASSERT_ALWAYS();
       break;
     }
@@ -612,14 +611,14 @@ void CommandProcessor::ExecuteIndirectBuffer(u32 ptr, u32 count) {
 void CommandProcessor::ExecutePacket(u32 ptr, u32 count) {
   u8* packet_buffer = GetPhysicalForWrite(physical_memory_, ptr, count * sizeof(u32));
   if (!packet_buffer) {
-    REXLOG_ERROR(gpu, "ExecutePacket buffer is outside physical memory");
+    REXGPU_ERROR("ExecutePacket buffer is outside physical memory");
     return;
   }
   memory::RingBuffer reader(packet_buffer, count * sizeof(u32));
   reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
-      REXLOG_ERROR(gpu, "ExecutePacket failed to execute a packet");
+      REXGPU_ERROR("ExecutePacket failed to execute a packet");
       REX_ASSERT_ALWAYS();
       break;
     }
@@ -634,7 +633,7 @@ bool CommandProcessor::ExecutePacket(memory::RingBuffer* reader) {
   }
 
   if (packet == 0xCDCDCDCD) {
-    REXLOG_WARN(gpu, "GPU packet is CDCDCDCD, which probably means uninitialized memory was read");
+    REXGPU_WARN("GPU packet is CDCDCDCD, which probably means uninitialized memory was read");
   }
 
   switch (packet_type) {
@@ -655,8 +654,8 @@ bool CommandProcessor::ExecutePacket(memory::RingBuffer* reader) {
 bool CommandProcessor::ExecutePacketType0(memory::RingBuffer* reader, u32 packet) {
   u32 count = ((packet >> 16) & 0x3FFF) + 1;
   if (reader->GetReadCount() < count * sizeof(u32)) {
-    REX_FAIL(gpu, false, "ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
-             reader->GetReadCount(), count * sizeof(u32));
+    REXGPU_FAIL(false, "ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
+                reader->GetReadCount(), count * sizeof(u32));
   }
 
   u32 base_index = (packet & 0x7FFF);
@@ -691,8 +690,8 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, u32 packet
   auto data_start_offset = reader->GetReadOffset();
 
   if (reader->GetReadCount() < count * sizeof(u32)) {
-    REX_FAIL(gpu, false, "ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
-             reader->GetReadCount(), count * sizeof(u32));
+    REXGPU_FAIL(false, "ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
+                reader->GetReadCount(), count * sizeof(u32));
   }
 
   if (packet & 1) {
@@ -816,7 +815,7 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, u32 packet
     case PM4_CONTEXT_UPDATE: {
       REX_ASSERT(count == 1);
       u32 value = reader->ReadAndSwap<u32>();
-      REXLOG_TRACE(gpu, "GPU context update = {:08X}", value);
+      REXGPU_TRACE("GPU context update = {:08X}", value);
       REX_ASSERT(value == 0);
       result = true;
       break;
@@ -824,13 +823,13 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, u32 packet
     case PM4_WAIT_FOR_IDLE: {
       REX_ASSERT(count == 1);
       u32 value = reader->ReadAndSwap<u32>();
-      REXLOG_TRACE(gpu, "GPU wait for idle = {:08X}", value);
+      REXGPU_TRACE("GPU wait for idle = {:08X}", value);
       result = true;
       break;
     }
 
     default:
-      REXLOG_DEV(gpu, "Unimplemented GPU opcode 0x{:02X} with count {}\n", opcode, count);
+      REXGPU_DEV("Unimplemented GPU opcode 0x{:02X} with count {}\n", opcode, count);
       REX_ASSERT_ALWAYS();
       reader->AdvanceRead(count * sizeof(u32));
       break;
@@ -1235,7 +1234,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
                                               u32 count_remaining) {
   REX_ASSERT(count_remaining != 0);
   if (!count_remaining) {
-    REX_FAIL(gpu, false, "{} packet is too small to read VGT_DRAW_INITIATOR", opcode_name);
+    REXGPU_FAIL(false, "{} packet is too small to read VGT_DRAW_INITIATOR", opcode_name);
   }
   xenos::reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
   vgt_draw_initiator.value = reader->ReadAndSwap<u32>();
@@ -1252,7 +1251,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       // Check bounds separately so a single missing value skips 1 word, not 2.
       REX_ASSERT(count_remaining != 0);
       if (!count_remaining) {
-        REX_FAIL(gpu, false, "{} packet is too small to read VGT_DMA_BASE", opcode_name);
+        REXGPU_FAIL(false, "{} packet is too small to read VGT_DMA_BASE", opcode_name);
       }
       u32 vgt_dma_base = reader->ReadAndSwap<u32>();
       --count_remaining;
@@ -1260,7 +1259,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       xenos::reg::VGT_DMA_SIZE vgt_dma_size;
       REX_ASSERT(count_remaining != 0);
       if (!count_remaining) {
-        REX_FAIL(gpu, false, "{} packet is too small to read VGT_DMA_SIZE", opcode_name);
+        REXGPU_FAIL(false, "{} packet is too small to read VGT_DMA_SIZE", opcode_name);
       }
       vgt_dma_size.value = reader->ReadAndSwap<u32>();
       --count_remaining;
@@ -1275,10 +1274,10 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       index_buffer_info.count = vgt_draw_initiator.num_indices;
     } break;
     case xenos::SourceSelect::kImmediate: {
-      REXLOG_ERROR(gpu,
-                   "{}: Using immediate vertex indices, which are not supported yet. "
-                   "Report the title to ReXGlue developers!",
-                   opcode_name, static_cast<u32>(vgt_draw_initiator.source_select));
+      REXGPU_ERROR(
+          "{}: Using immediate vertex indices, which are not supported yet. "
+          "Report the title to ReXGlue developers!",
+          opcode_name, static_cast<u32>(vgt_draw_initiator.source_select));
       draw_succeeded = false;
       REX_ASSERT_ALWAYS();
     } break;
@@ -1305,8 +1304,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
         auto vgt_output_path_cntl = register_file_->Get<xenos::reg::VGT_OUTPUT_PATH_CNTL>();
         auto vgt_hos_cntl = register_file_->Get<xenos::reg::VGT_HOS_CNTL>();
         auto rb_modecontrol = register_file_->Get<xenos::reg::RB_MODECONTROL>();
-        REXLOG_ERROR(
-            gpu,
+        REXGPU_ERROR(
             "{}({}, {}, {}) failed in the driver "
             "(major_mode={}, explicit_major={}, path_select={}, tess_mode={}, edram_mode={})",
             opcode_name, static_cast<u32>(vgt_draw_initiator.num_indices),
@@ -1328,7 +1326,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, 
   u32 count_remaining = count;
   REX_ASSERT(count_remaining != 0);
   if (!count_remaining) {
-    REX_FAIL(gpu, false, "PM4_DRAW_INDX packet is too small to read the viz query token");
+    REXGPU_FAIL(false, "PM4_DRAW_INDX packet is too small to read the viz query token");
   }
   u32 viz_query_condition = reader->ReadAndSwap<u32>();
   --count_remaining;
@@ -1508,10 +1506,10 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader,
   u32 end = dword0 & 0x100;
   if (!end) {
     WriteRegister(std::to_underlying(xenos::Register::VGT_EVENT_INITIATOR), VIZQUERY_START);
-    REXLOG_TRACE(gpu, "Begin viz query ID {:02X}", id);
+    REXGPU_TRACE("Begin viz query ID {:02X}", id);
   } else {
     WriteRegister(std::to_underlying(xenos::Register::VGT_EVENT_INITIATOR), VIZQUERY_END);
-    REXLOG_TRACE(gpu, "End viz query ID {:02X}", id);
+    REXGPU_TRACE("End viz query ID {:02X}", id);
     if (id < 32) {
       register_file_->values[std::to_underlying(xenos::Register::PA_SC_VIZ_QUERY_STATUS_0)] |=
           static_cast<u32>(1) << id;

@@ -31,20 +31,20 @@ kernel::X_HRESULT XLiveBaseApp::DispatchMessageSync(u32 message, u32 buffer_ptr,
   switch (message) {
     case 0x00058004: {
       REX_ASSERT(!buffer_length || buffer_length == 4);
-      REXLOG_DEBUG(xam, "XLiveBaseGetLogonId({:08X})", buffer_ptr);
+      REXXAM_DEBUG("XLiveBaseGetLogonId({:08X})", buffer_ptr);
       memory::store<be_u32>(buffer + 0, 1);
       return kernel::X_E_SUCCESS;
     }
     case 0x00058006: {
       REX_ASSERT(!buffer_length || buffer_length == 4);
-      REXLOG_DEBUG(xam, "XLiveBaseGetNatType({:08X})", buffer_ptr);
+      REXXAM_DEBUG("XLiveBaseGetNatType({:08X})", buffer_ptr);
       // XONLINE_NAT_OPEN
       memory::store<be_u32>(buffer + 0, 1);
       return kernel::X_E_SUCCESS;
     }
     case 0x00058007: {
       // The buffer holds dwServiceId and a pServiceInfo pointer to XONLINE_SERVICE_INFO.
-      REXLOG_DEBUG(xam, "CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr, buffer_length);
+      REXXAM_DEBUG("CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr, buffer_length);
       // XONLINE_E_LOGON_NO_NETWORK_CONNECTION
       return 0x80151802;
     }
@@ -62,16 +62,16 @@ kernel::X_HRESULT XLiveBaseApp::DispatchMessageSync(u32 message, u32 buffer_ptr,
       return kernel::X_E_SUCCESS;
     }
     case 0x00058037: {
-      REXLOG_DEBUG(xam, "XPresenceInitialize({:08X}, {:08X})", buffer_ptr, buffer_length);
+      REXXAM_DEBUG("XPresenceInitialize({:08X}, {:08X})", buffer_ptr, buffer_length);
       return kernel::X_E_SUCCESS;
     }
     default:
       break;
   }
-  REX_FAIL(xam, kernel::X_E_FAIL,
-           "Unimplemented XLIVEBASE message app={:08X}, msg={:08X}, arg1={:08X}, "
-           "arg2={:08X}",
-           GetAppID(), message, buffer_ptr, buffer_length);
+  REXXAM_FAIL(kernel::X_E_FAIL,
+              "Unimplemented XLIVEBASE message app={:08X}, msg={:08X}, arg1={:08X}, "
+              "arg2={:08X}",
+              GetAppID(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

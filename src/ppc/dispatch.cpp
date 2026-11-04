@@ -19,17 +19,17 @@ void Trap(PPCContext& ctx, u8* base, u16 trap_type) {
       const u32 offset = address >= 0xE0000000u ? 0x1000u : 0u;
       const std::string_view text(reinterpret_cast<const char*>(base + address + offset),
                                   ctx.r4.u16);
-      REXLOG_DEBUG(cpu, "(service trap) {}", text);
+      REXCPU_DEBUG("(service trap) {}", text);
       break;
     }
     case 0:
     case 22:
-      REXLOG_WARN(cpu, "tw/td trap hit (type {})", trap_type);
+      REXCPU_WARN("tw/td trap hit (type {})", trap_type);
       break;
     case 25:
       break;
     default:
-      REXLOG_WARN(cpu, "Unknown trap type {}", trap_type);
+      REXCPU_WARN("Unknown trap type {}", trap_type);
       break;
   }
 }

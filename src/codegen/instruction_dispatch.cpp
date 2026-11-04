@@ -569,7 +569,7 @@ bool DispatchInstruction(int id, BuilderContext& ctx) {
     return it->second(ctx);
   }
 
-  REXLOG_WARN(codegen, "Unimplemented: {} at 0x{:08X}", ctx.insn.opcode->name, ctx.base);
+  REXCG_WARN("Unimplemented: {} at 0x{:08X}", ctx.insn.opcode->name, ctx.base);
   ctx.Println("\t// UNIMPLEMENTED: {}", ctx.insn.opcode->name);
   ctx.Println("\tREX_UNIMPLEMENTED(0x{:X}, \"{}\");", ctx.base, ctx.insn.opcode->name);
   return true;

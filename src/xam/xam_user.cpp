@@ -289,11 +289,10 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
       continue;
     }
 
-    REXLOG_DEBUG(xam,
-                 "XamUserWriteProfileSettings: setting index [{}]:"
-                 " from={} setting_id={:08X} data.type={}",
-                 n, static_cast<u32>(setting.from), static_cast<u32>(setting.setting_id),
-                 setting.data.type);
+    REXXAM_DEBUG(
+        "XamUserWriteProfileSettings: setting index [{}]:"
+        " from={} setting_id={:08X} data.type={}",
+        n, static_cast<u32>(setting.from), static_cast<u32>(setting.setting_id), setting.data.type);
 
     switch (setting_type) {
       case rex::xam::UserProfile::Setting::Type::kContext:

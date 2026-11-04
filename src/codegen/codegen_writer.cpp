@@ -265,16 +265,15 @@ bool CodegenWriter::Write(bool force) {
   unchanged_files_.clear();
 
   if (ctx_.errors.HasErrors() && !force) {
-    REX_FAIL(codegen, false,
-             "Code generation blocked: {} validation errors. Use --force to override.",
-             ctx_.errors.Count());
+    REXCG_FAIL(false, "Code generation blocked: {} validation errors. Use --force to override.",
+               ctx_.errors.Count());
   }
 
   std::filesystem::path output_path = ctx_.GetConfigDir() / GetConfig().out_directory_path;
-  REXLOG_TRACE(codegen, "Output path: {}", output_path.string());
+  REXCG_TRACE("Output path: {}", output_path.string());
   std::filesystem::create_directories(output_path);
 
-  REXLOG_TRACE(codegen, "Recompile: starting");
+  REXCG_TRACE("Recompile: starting");
   out_.reserve(kOutputBufferReserveSize);
 
   std::vector<const FunctionNode*> functions;
@@ -302,23 +301,23 @@ bool CodegenWriter::Write(bool force) {
 
   auto tmpl_data = BuildTemplateData(ctx_, functions, shim_by_addr);
 
-  REXLOG_TRACE(codegen, "Recompile: generating {}_pch.h", project_name);
+  REXCG_TRACE("Recompile: generating {}_pch.h", project_name);
   out_ = RenderWithJSON(registry, "codegen/pch_h", tmpl_data);
   QueueOutput(std::format("{}_pch.h", project_name));
 
-  REXLOG_TRACE(codegen, "Recompile: generating {}_funcs.h", project_name);
+  REXCG_TRACE("Recompile: generating {}_funcs.h", project_name);
   out_ = RenderWithJSON(registry, "codegen/funcs_h", tmpl_data);
   QueueOutput(std::format("{}_funcs.h", project_name));
 
-  REXLOG_TRACE(codegen, "Recompile: generating {}_init.h", project_name);
+  REXCG_TRACE("Recompile: generating {}_init.h", project_name);
   out_ = RenderWithJSON(registry, "codegen/init_h", tmpl_data);
   QueueOutput(std::format("{}_init.h", project_name));
 
-  REXLOG_TRACE(codegen, "Recompile: generating {}_init.cpp", project_name);
+  REXCG_TRACE("Recompile: generating {}_init.cpp", project_name);
   out_ = RenderWithJSON(registry, "codegen/init_cpp", tmpl_data);
   QueueOutput(std::format("{}_init.cpp", project_name));
 
-  REXLOG_TRACE(codegen, "Recompile: generating {}_register.cpp", project_name);
+  REXCG_TRACE("Recompile: generating {}_register.cpp", project_name);
   tmpl_data["is_dll"] = ctx_.IsDLLModule();
   out_ = RenderWithJSON(registry, "codegen/register_cpp", tmpl_data);
   QueueOutput(std::format("{}_register.cpp", project_name));
@@ -333,7 +332,7 @@ bool CodegenWriter::Write(bool force) {
   EmitContext emit_ctx{GetBinary(), GetConfig(), GetGraph(), ctx_.GetLimits(),
                        static_cast<u32>(GetAnalysisState().entry_point)};
 
-  REXLOG_TRACE(codegen, "Recompiling {} functions...", functions.size());
+  REXCG_TRACE("Recompiling {} functions...", functions.size());
 
   std::vector<std::string> bodies;
   std::vector<FunctionSize> sizes;
@@ -351,8 +350,8 @@ bool CodegenWriter::Write(bool force) {
     referenced.clear();
     std::string code = fn->EmitCpp(emit_ctx);
     if (code.size() > max_file_bytes) {
-      REXLOG_WARN(codegen, "Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})",
-                  fn->GetBase(), code.size(), max_file_bytes);
+      REXCG_WARN("Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})", fn->GetBase(),
+                 code.size(), max_file_bytes);
     }
     sizes.push_back({fn->GetBase(), code.size()});
     bodies.push_back(std::move(code));
@@ -368,18 +367,18 @@ bool CodegenWriter::Write(bool force) {
       return entry.site.address == address;
     });
     if (site == mmio_sites.end() || site->site.reason == MMIOReason::kUnsupported) {
-      REX_FAIL(codegen, false, "[mmio.{}] {} 0x{:08X} is not a load or store codegen routes", block,
-               list, address);
+      REXCG_FAIL(false, "[mmio.{}] {} 0x{:08X} is not a load or store codegen routes", block, list,
+                 address);
     }
     if (site->site.write != declared.write) {
-      REX_FAIL(codegen, false, "[mmio.{}] {} 0x{:08X} is a {}", block, list, address,
-               site->site.write ? "store" : "load");
+      REXCG_FAIL(false, "[mmio.{}] {} 0x{:08X} is a {}", block, list, address,
+                 site->site.write ? "store" : "load");
     }
     const MMIOAccess expected =
         declared.block == rex::ppc::MMIOBlock::kGPU ? MMIOAccess::kGPU : MMIOAccess::kAPU;
     if (site->site.access != expected) {
-      REX_FAIL(codegen, false, "[mmio.{}] {} 0x{:08X} reaches the {} block", block, list, address,
-               BlockName(site->site.access));
+      REXCG_FAIL(false, "[mmio.{}] {} 0x{:08X} reaches the {} block", block, list, address,
+                 BlockName(site->site.access));
     }
   }
 
@@ -415,9 +414,9 @@ bool CodegenWriter::Write(bool force) {
   out_ = BuildMMIOReport(mmio_sites).dump(2);
   QueueOutput(kMMIOReportFileName);
 
-  REXLOG_TRACE(codegen, "Recompilation complete.");
+  REXCG_TRACE("Recompilation complete.");
 
-  REXLOG_TRACE(codegen, "Recompile: generating sources.cmake");
+  REXCG_TRACE("Recompile: generating sources.cmake");
   {
     auto& recomp_files = tmpl_data["recomp_files"];
     recomp_files = nlohmann::json::array();
@@ -453,15 +452,15 @@ bool CodegenWriter::FlushPendingWrites() {
 
     switch (WriteIfChanged(file_path, content)) {
       case WriteOutcome::kFailed:
-        REXLOG_ERROR(codegen, "Failed to write {}", file_path.string());
+        REXCG_ERROR("Failed to write {}", file_path.string());
         ok = false;
         break;
       case WriteOutcome::kUnchanged:
-        REXLOG_TRACE(codegen, "Unchanged, skipping write: {}", file_path.string());
+        REXCG_TRACE("Unchanged, skipping write: {}", file_path.string());
         unchanged_files_.push_back(filename);
         break;
       case WriteOutcome::kWritten:
-        REXLOG_TRACE(codegen, "Wrote {} bytes to {}", content.size(), file_path.string());
+        REXCG_TRACE("Wrote {} bytes to {}", content.size(), file_path.string());
         written_files_.push_back(filename);
         break;
     }
@@ -479,11 +478,10 @@ bool CodegenWriter::FlushPendingWrites() {
     std::error_code ec;
     std::filesystem::remove(entry.path(), ec);
     if (ec) {
-      REXLOG_ERROR(codegen, "Failed to delete stale output {}: {}", entry.path().string(),
-                   ec.message());
+      REXCG_ERROR("Failed to delete stale output {}: {}", entry.path().string(), ec.message());
       continue;
     }
-    REXLOG_TRACE(codegen, "Deleted stale output: {}", entry.path().string());
+    REXCG_TRACE("Deleted stale output: {}", entry.path().string());
     deleted_files_.push_back(filename);
   }
 

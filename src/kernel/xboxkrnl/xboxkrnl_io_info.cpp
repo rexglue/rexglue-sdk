@@ -128,7 +128,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> i
       break;
     }
     default: {
-      REXLOG_WARN(kernel, "NtQueryInformationFile class {} is unsupported", info_class);
+      REXKRNL_WARN("NtQueryInformationFile class {} is unsupported", info_class);
       status = X_STATUS_INVALID_PARAMETER;
       out_length = 0;
       break;
@@ -224,8 +224,8 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
       bool delete_on_close = info->delete_file ? true : false;
       file->file->SetDeleteOnClose(delete_on_close);
       out_length = 0;
-      REXLOG_WARN(kernel, "NtSetInformationFile set the delete on close flag of {} to {}",
-                  file->file->GetInfo().name, delete_on_close);
+      REXKRNL_WARN("NtSetInformationFile set the delete on close flag of {} to {}",
+                   file->file->GetInfo().name, delete_on_close);
       break;
     }
     case XFilePositionInformation: {
@@ -289,7 +289,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
       break;
     }
     default:
-      REXLOG_WARN(kernel, "NtSetInformationFile class {} is unsupported", info_class);
+      REXKRNL_WARN("NtSetInformationFile class {} is unsupported", info_class);
       out_length = 0;
       break;
   }

@@ -39,14 +39,14 @@ OutputPartition OutputPartition::Load(const std::filesystem::path& path) {
 
   nlohmann::json doc = nlohmann::json::parse(in, nullptr, false);
   if (doc.is_discarded() || !doc.is_object()) {
-    REXLOG_WARN(codegen, "Ignoring malformed partition sidecar: {}", path.string());
+    REXCG_WARN("Ignoring malformed partition sidecar: {}", path.string());
     return partition;
   }
 
   auto version = doc.find("version");
   if (version == doc.end() || !version->is_number_integer() ||
       version->get<int>() != kPartitionVersion) {
-    REXLOG_DEBUG(codegen, "Ignoring partition sidecar from another version: {}", path.string());
+    REXCG_DEBUG("Ignoring partition sidecar from another version: {}", path.string());
     return partition;
   }
 
@@ -92,13 +92,12 @@ std::vector<std::vector<size_t>> OutputPartition::Assign(std::span<const Functio
                                                          size_t max_file_bytes) {
   if (file_count_ == 0 || max_file_bytes != max_file_bytes_) {
     if (file_count_ != 0) {
-      REXLOG_DEBUG(codegen, "Byte budget changed ({} -> {}), repartitioning from scratch",
-                   max_file_bytes_, max_file_bytes);
+      REXCG_DEBUG("Byte budget changed ({} -> {}), repartitioning from scratch", max_file_bytes_,
+                  max_file_bytes);
       address_to_file_.clear();
     }
     file_count_ = ChooseFileCount(entries, max_file_bytes);
-    REXLOG_DEBUG(codegen, "Partitioning {} functions across {} output file(s)", entries.size(),
-                 file_count_);
+    REXCG_DEBUG("Partitioning {} functions across {} output file(s)", entries.size(), file_count_);
   }
   max_file_bytes_ = max_file_bytes;
 

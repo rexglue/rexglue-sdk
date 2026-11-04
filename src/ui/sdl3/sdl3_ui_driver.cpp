@@ -172,8 +172,8 @@ struct SDL3UIDriver::State {
       SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
                             SDL_WINDOWPOS_CENTERED_DISPLAY(display));
     } else {
-      REXLOG_WARN(ui, "monitor is {} but only {} display(s) present, using default", monitor,
-                  display_count);
+      REXUI_WARN("monitor is {} but only {} display(s) present, using default", monitor,
+                 display_count);
     }
     SDL_free(displays);
   }
@@ -192,8 +192,7 @@ struct SDL3UIDriver::State {
     if (width <= 0 || height <= 0) {
       const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
       if (!desktop) {
-        REXLOG_WARN(ui, "No desktop mode for display {}, staying borderless",
-                    static_cast<u32>(display));
+        REXUI_WARN("No desktop mode for display {}, staying borderless", static_cast<u32>(display));
         SDL_SetWindowFullscreenMode(window, nullptr);
         return;
       }
@@ -202,18 +201,17 @@ struct SDL3UIDriver::State {
     }
     SDL_DisplayMode mode = {};
     if (!SDL_GetClosestFullscreenDisplayMode(display, width, height, 0.0f, true, &mode)) {
-      REXLOG_WARN(ui, "Display {} has no mode near {}x{}, staying borderless",
-                  static_cast<u32>(display), width, height);
+      REXUI_WARN("Display {} has no mode near {}x{}, staying borderless", static_cast<u32>(display),
+                 width, height);
       SDL_SetWindowFullscreenMode(window, nullptr);
       return;
     }
     if (!SDL_SetWindowFullscreenMode(window, &mode)) {
-      REXLOG_WARN(ui, "SDL_SetWindowFullscreenMode({}x{}) failed: {}", mode.w, mode.h,
-                  SDL_GetError());
+      REXUI_WARN("SDL_SetWindowFullscreenMode({}x{}) failed: {}", mode.w, mode.h, SDL_GetError());
       return;
     }
-    REXLOG_INFO(ui, "Exclusive fullscreen mode {}x{} @ {:.3g}Hz on display {}", mode.w, mode.h,
-                mode.refresh_rate, static_cast<u32>(display));
+    REXUI_INFO("Exclusive fullscreen mode {}x{} @ {:.3g}Hz on display {}", mode.w, mode.h,
+               mode.refresh_rate, static_cast<u32>(display));
   }
 
   void Deliver(const UIEvent& event) {
@@ -434,12 +432,12 @@ Result<void> SDL3UIDriver::Initialize(IDriverContext& context) {
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, driver.c_str());
   }
   if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
-    REXLOG_WARN(ui, "no video driver, running headless: {}", SDL_GetError());
+    REXUI_WARN("no video driver, running headless: {}", SDL_GetError());
     return Ok();
   }
   s.video_started = true;
   const char* in_use = SDL_GetCurrentVideoDriver();
-  REXLOG_INFO(ui, "SDL video driver: {}", in_use ? in_use : "unknown");
+  REXUI_INFO("SDL video driver: {}", in_use ? in_use : "unknown");
   s.wakeup_event = SDL_RegisterEvents(1);
   if (s.wakeup_event == 0) {
     Shutdown();
@@ -633,8 +631,8 @@ void SDL3UIDriver::SetPointerMode(hid::PointerMode mode) {
     s.relative = true;
     return;
   }
-  REXLOG_WARN(ui, "pointer lock is unavailable, mouse look recenters the pointer instead, {}",
-              SDL_GetError());
+  REXUI_WARN("pointer lock is unavailable, mouse look recenters the pointer instead, {}",
+             SDL_GetError());
   int width = 0;
   int height = 0;
   SDL_GetWindowSize(s.window, &width, &height);
@@ -767,7 +765,7 @@ Result<u32> SDL3UIDriver::ShowMessageBox(MessageType type, std::string_view titl
   State& s = *state_;
   VideoScope video;
   if (!video.IsOk()) {
-    REXLOG_WARN(ui, "no usable message box driver, {}", video.GetError());
+    REXUI_WARN("no usable message box driver, {}", video.GetError());
     return Err<u32>(ErrorCategory::kPlatform, video.GetError());
   }
   const bool on_main = std::this_thread::get_id() == s.main_thread;

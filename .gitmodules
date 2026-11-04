@@ -60,3 +60,6 @@
 [submodule "thirdparty/excrypt"]
 	path = thirdparty/excrypt
 	url = https://github.com/emoose/ExCrypt.git
+[submodule "thirdparty/spdlog"]
+	path = thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git

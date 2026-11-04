@@ -224,7 +224,7 @@ void DumpShader(const std::filesystem::path& dir, std::string_view name,
           dir / std::format("{}.vulkan.bin", name),
           std::span<const u8>(reinterpret_cast<const u8*>(code.data()), code.size_bytes()));
       !written) {
-    REXLOG_WARN(gpu, "write failed: {}", written.error().GetDescription());
+    REXGPU_WARN("write failed: {}", written.error().GetDescription());
   }
 }
 

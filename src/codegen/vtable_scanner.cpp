@@ -13,12 +13,12 @@ std::vector<VTable> VTableScanner::Scan() {
   std::vector<VTable> vtables;
 
   auto cols = FindCompleteObjectLocators();
-  REXLOG_DEBUG(codegen, "VTableScanner: found {} Complete Object Locators", cols.size());
+  REXCG_DEBUG("VTableScanner: found {} Complete Object Locators", cols.size());
 
   for (u32 col_addr : cols) {
     auto vtable_addr = FindVTableForCOL(col_addr);
     if (!vtable_addr) {
-      REXLOG_TRACE(codegen, "VTableScanner: COL at 0x{:08X} has no referencing vtable", col_addr);
+      REXCG_TRACE("VTableScanner: COL at 0x{:08X} has no referencing vtable", col_addr);
       continue;
     }
 
@@ -29,12 +29,12 @@ std::vector<VTable> VTableScanner::Scan() {
     info.slots = ReadVTableSlots(*vtable_addr);
 
     if (info.slots.empty()) {
-      REXLOG_TRACE(codegen, "VTableScanner: vtable at 0x{:08X} has no valid slots", *vtable_addr);
+      REXCG_TRACE("VTableScanner: vtable at 0x{:08X} has no valid slots", *vtable_addr);
       continue;
     }
 
-    REXLOG_DEBUG(codegen, "VTableScanner: vtable at 0x{:08X} ({}) has {} slots",
-                 info.vtable_address, info.class_name, info.slots.size());
+    REXCG_DEBUG("VTableScanner: vtable at 0x{:08X} ({}) has {} slots", info.vtable_address,
+                info.class_name, info.slots.size());
 
     vtables.push_back(std::move(info));
   }
@@ -48,7 +48,7 @@ std::vector<u32> VTableScanner::FindCompleteObjectLocators() {
 
   const auto* rdata = binary_.FindSectionByName(".rdata");
   if (!rdata || !rdata->data) {
-    REXLOG_WARN(codegen, "VTableScanner: .rdata section not found");
+    REXCG_WARN("VTableScanner: .rdata section not found");
     return cols;
   }
 
@@ -83,7 +83,7 @@ std::vector<u32> VTableScanner::FindCompleteObjectLocators() {
     u32 col_addr = base + static_cast<u32>(offset);
     cols.push_back(col_addr);
 
-    REXLOG_TRACE(codegen, "VTableScanner: found COL at 0x{:08X} -> {}", col_addr, type_name);
+    REXCG_TRACE("VTableScanner: found COL at 0x{:08X} -> {}", col_addr, type_name);
   }
 
   return cols;

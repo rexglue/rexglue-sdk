@@ -37,7 +37,7 @@ SettingsOverlayDialog::~SettingsOverlayDialog() {}
 
 static void WarnIfFailed(std::string_view name, const Result<void>& status) {
   if (!status) {
-    REXLOG_WARN(ui, "cannot change '{}', {}", name, status.error().message);
+    REXUI_WARN("cannot change '{}', {}", name, status.error().message);
   }
 }
 
@@ -548,7 +548,7 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
   ImGui::Separator();
   if (ImGui::Button("Save to config")) {
     if (auto status = settings_.Save(config_path_); !status) {
-      REXLOG_ERROR(ui, "{}", status.error().GetDescription());
+      REXUI_ERROR("{}", status.error().GetDescription());
     }
   }
   ImGui::SameLine();

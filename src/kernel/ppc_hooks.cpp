@@ -44,7 +44,7 @@ PPCFunc* ResolveBoundFunction(u32 guest_address) {
 void CheckHookRegisterFile(const PPCContext& ctx, const char* name) {
   const auto* thread_state = ThreadState::Get();
   if (thread_state && &ctx != thread_state->GetContext()) {
-    REXLOG_ERROR(cpu, "Hook {} runs on a register file that is not its thread's", name);
+    REXCPU_ERROR("Hook {} runs on a register file that is not its thread's", name);
   }
   REX_ASSERT(!thread_state || &ctx == thread_state->GetContext(),
              "A hook runs on a register file that is not its thread's");

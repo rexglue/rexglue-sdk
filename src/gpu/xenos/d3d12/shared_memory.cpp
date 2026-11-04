@@ -46,8 +46,7 @@ bool D3D12SharedMemory::Initialize() {
       !provider.GetGraphicsAnalysis()) {
     if (FAILED(device->CreateReservedResource(&buffer_desc, buffer_state_, nullptr,
                                               IID_PPV_ARGS(&buffer_)))) {
-      REXLOG_ERROR(gpu, "Shared memory: Failed to create the {} MB tiled buffer",
-                   kBufferSize >> 20);
+      REXGPU_ERROR("Shared memory: Failed to create the {} MB tiled buffer", kBufferSize >> 20);
       Shutdown();
       return false;
     }
@@ -55,20 +54,20 @@ bool D3D12SharedMemory::Initialize() {
     InitializeSparseHostGPUMemory(
         std::max(kHostGPUMemoryOptimalSparseAllocationLog2, static_cast<u32>(16)));
   } else {
-    REXLOG_INFO(gpu,
-                "Direct3D 12 tiled resources are not used for shared memory "
-                "emulation. Video memory usage may increase significantly "
-                "because a full {} MB buffer will be created",
-                kBufferSize >> 20);
+    REXGPU_INFO(
+        "Direct3D 12 tiled resources are not used for shared memory "
+        "emulation. Video memory usage may increase significantly "
+        "because a full {} MB buffer will be created",
+        kBufferSize >> 20);
     if (provider.GetGraphicsAnalysis()) {
-      REXLOG_INFO(gpu,
-                  "This is caused by PIX being attached, which doesn't support tiled "
-                  "resources yet.");
+      REXGPU_INFO(
+          "This is caused by PIX being attached, which doesn't support tiled "
+          "resources yet.");
     }
     if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                                provider.GetHeapFlagCreateNotZeroed(), &buffer_desc,
                                                buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
-      REXLOG_ERROR(gpu, "Shared memory: Failed to create the {} MB buffer", kBufferSize >> 20);
+      REXGPU_ERROR("Shared memory: Failed to create the {} MB buffer", kBufferSize >> 20);
       Shutdown();
       return false;
     }
@@ -83,7 +82,7 @@ bool D3D12SharedMemory::Initialize() {
   buffer_descriptor_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&buffer_descriptor_heap_desc,
                                           IID_PPV_ARGS(&buffer_descriptor_heap_)))) {
-    REXLOG_ERROR(gpu, "Shared memory: Failed to create the descriptor heap for buffer views");
+    REXGPU_ERROR("Shared memory: Failed to create the descriptor heap for buffer views");
     Shutdown();
     return false;
   }
@@ -273,7 +272,7 @@ bool D3D12SharedMemory::AllocateSparseHostGPUMemoryRange(u32 offset_allocations,
       length_bytes, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed());
   ID3D12Heap* heap;
   if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heap)))) {
-    REX_FAIL(gpu, false, "Failed to create a shared memory tile heap");
+    REXGPU_FAIL(false, "Failed to create a shared memory tile heap");
   }
   buffer_tiled_heaps_.push_back(heap);
 
@@ -312,7 +311,7 @@ bool D3D12SharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& upl
           static_cast<size_t>(1) << GetPageSizeLog2(), &upload_buffer, &upload_buffer_offset,
           &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
-        REX_FAIL(gpu, false, "Failed to get a shared memory upload buffer");
+        REXGPU_FAIL(false, "Failed to get a shared memory upload buffer");
       }
       MarkRangeValid(upload_range_start << GetPageSizeLog2(), static_cast<u32>(upload_buffer_size),
                      false);

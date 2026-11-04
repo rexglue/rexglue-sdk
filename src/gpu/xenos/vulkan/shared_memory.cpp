@@ -79,28 +79,27 @@ bool VulkanSharedMemory::Initialize() {
           buffer_ = VK_NULL_HANDLE;
         }
       } else {
-        REXLOG_ERROR(gpu,
-                     "Shared memory: Failed to get a device-local Vulkan memory type "
-                     "for the sparse buffer");
+        REXGPU_ERROR(
+            "Shared memory: Failed to get a device-local Vulkan memory type "
+            "for the sparse buffer");
         dfn.vkDestroyBuffer(device, buffer_, nullptr);
         buffer_ = VK_NULL_HANDLE;
       }
     } else {
-      REXLOG_ERROR(gpu, "Shared memory: Failed to create the {} MB Vulkan sparse buffer",
+      REXGPU_ERROR("Shared memory: Failed to create the {} MB Vulkan sparse buffer",
                    kBufferSize >> 20);
     }
   }
 
   if (buffer_ == VK_NULL_HANDLE) {
-    REXLOG_INFO(gpu,
-                "Vulkan sparse binding is not used for shared memory emulation. Video "
-                "memory usage may increase significantly because a full {} MB buffer "
-                "will be created",
-                kBufferSize >> 20);
+    REXGPU_INFO(
+        "Vulkan sparse binding is not used for shared memory emulation. Video "
+        "memory usage may increase significantly because a full {} MB buffer "
+        "will be created",
+        kBufferSize >> 20);
     buffer_create_info.flags &= ~sparse_flags;
     if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) != VK_SUCCESS) {
-      REXLOG_ERROR(gpu, "Shared memory: Failed to create the {} MB Vulkan buffer",
-                   kBufferSize >> 20);
+      REXGPU_ERROR("Shared memory: Failed to create the {} MB Vulkan buffer", kBufferSize >> 20);
       Shutdown();
       return false;
     }
@@ -109,9 +108,9 @@ bool VulkanSharedMemory::Initialize() {
     if (!rex::bit_scan_forward(buffer_memory_requirements.memoryTypeBits &
                                    vulkan_device->GetMemoryTypes().device_local,
                                &buffer_memory_type_)) {
-      REXLOG_ERROR(gpu,
-                   "Shared memory: Failed to get a device-local Vulkan memory type for "
-                   "the buffer");
+      REXGPU_ERROR(
+          "Shared memory: Failed to get a device-local Vulkan memory type for "
+          "the buffer");
       Shutdown();
       return false;
     }
@@ -135,16 +134,16 @@ bool VulkanSharedMemory::Initialize() {
     VkDeviceMemory buffer_memory;
     if (dfn.vkAllocateMemory(device, &buffer_memory_allocate_info, nullptr, &buffer_memory) !=
         VK_SUCCESS) {
-      REXLOG_ERROR(gpu,
-                   "Shared memory: Failed to allocate {} MB of memory for the Vulkan "
-                   "buffer",
-                   kBufferSize >> 20);
+      REXGPU_ERROR(
+          "Shared memory: Failed to allocate {} MB of memory for the Vulkan "
+          "buffer",
+          kBufferSize >> 20);
       Shutdown();
       return false;
     }
     buffer_memory_.push_back(buffer_memory);
     if (dfn.vkBindBufferMemory(device, buffer_, buffer_memory, 0) != VK_SUCCESS) {
-      REXLOG_ERROR(gpu, "Shared memory: Failed to bind memory to the Vulkan buffer");
+      REXGPU_ERROR("Shared memory: Failed to bind memory to the Vulkan buffer");
       Shutdown();
       return false;
     }
@@ -231,7 +230,7 @@ bool VulkanSharedMemory::AllocateSparseHostGPUMemoryRange(u32 offset_allocations
   memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
   VkDeviceMemory memory;
   if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) != VK_SUCCESS) {
-    REX_FAIL(gpu, false, "Shared memory failed to allocate sparse buffer memory");
+    REXGPU_FAIL(false, "Shared memory failed to allocate sparse buffer memory");
   }
   buffer_memory_.push_back(memory);
 
@@ -280,7 +279,7 @@ bool VulkanSharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& up
           static_cast<size_t>(1) << GetPageSizeLog2(), upload_buffer, upload_buffer_offset,
           upload_buffer_size);
       if (upload_buffer_mapping == nullptr) {
-        REXLOG_ERROR(gpu, "Shared memory: Failed to get a Vulkan upload buffer");
+        REXGPU_ERROR("Shared memory: Failed to get a Vulkan upload buffer");
         successful = false;
         break;
       }

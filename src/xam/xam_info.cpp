@@ -140,7 +140,7 @@ u32 BuildResourceLocator(u64 module, std::u16string_view container, std::u16stri
   if (!module) {
     path = rex::string::ToUTF16(std::format(
         "file://media:/{}.xzp#{}", rex::string::ToUTF8(container), rex::string::ToUTF8(resource)));
-    REXLOG_DEBUG(xam, "XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
+    REXXAM_DEBUG("XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
                  rex::string::ToUTF8(container));
   } else {
     path = rex::string::ToUTF16(std::format("section://{:X},{}#{}", static_cast<u32>(module),
@@ -186,9 +186,9 @@ u32 XamGetSystemVersion_entry() {
 void XCustomRegisterDynamicActions_entry() {}
 
 u32 XGetAVPack_entry() {
-  REXLOG_TRACE(xam,
-               "XGetAVPack -> "
-               "6");
+  REXXAM_TRACE(
+      "XGetAVPack -> "
+      "6");
   return 6;
 }
 
@@ -282,7 +282,7 @@ void XamLoaderLaunchTitle_entry(MappedString raw_name_ptr, u32 flags) {
         loader_data.launch_path = path;
       }
     } else {
-      REXLOG_INFO(xam, "The title exits to the dashboard");
+      REXXAM_INFO("The title exits to the dashboard");
     }
   }
 
@@ -306,13 +306,13 @@ u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
   *out_ptr = 0;
   auto& xam = CurrentXAM();
   if (!(flags & (kXamAllocWorkspace | kXamAllocSystem))) {
-    REXLOG_ERROR(xam, "XamAlloc: flags {:#010x} select no heap", flags);
+    REXXAM_ERROR("XamAlloc: flags {:#010x} select no heap", flags);
     return kernel::X_ERROR_INVALID_PARAMETER;
   }
   if (flags & kXamAllocSystem) {
     const u32 address = xam.AllocHeap(size);
     if (!address) {
-      REXLOG_WARN(xam, "XamAlloc: the XAM heap has no room for {:#x} bytes, flags {:#010x}", size,
+      REXXAM_WARN("XamAlloc: the XAM heap has no room for {:#x} bytes, flags {:#010x}", size,
                   flags);
       return kernel::X_ERROR_NOT_ENOUGH_MEMORY;
     }
@@ -321,8 +321,8 @@ u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
   }
   Result<u32> address = CurrentTitle().workspace.Allocate(size);
   if (!address) {
-    REXLOG_WARN(xam, "XamAlloc: the title workspace has no room for {:#x} bytes, flags {:#010x}",
-                size, flags);
+    REXXAM_WARN("XamAlloc: the title workspace has no room for {:#x} bytes, flags {:#010x}", size,
+                flags);
     return kernel::X_ERROR_NOT_ENOUGH_MEMORY;
   }
   *out_ptr = *address;

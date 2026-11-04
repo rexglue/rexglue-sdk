@@ -63,38 +63,38 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   if (with_gpu_emulation) {
     if (!supported_features.independentBlend) {
-      REXLOG_WARN(ui,
-                  "Vulkan device '{}' doesn't support the independentBlend feature "
-                  "required for GPU emulation",
-                  std::string_view{properties.deviceName});
+      REXUI_WARN(
+          "Vulkan device '{}' doesn't support the independentBlend feature "
+          "required for GPU emulation",
+          std::string_view{properties.deviceName});
       return nullptr;
     }
     if (!supported_features.fragmentStoresAndAtomics) {
-      REXLOG_WARN(ui,
-                  "Vulkan device '{}' doesn't support fragmentStoresAndAtomics, which "
-                  "is required for Vulkan GPU emulation parity",
-                  std::string_view{properties.deviceName});
+      REXUI_WARN(
+          "Vulkan device '{}' doesn't support fragmentStoresAndAtomics, which "
+          "is required for Vulkan GPU emulation parity",
+          std::string_view{properties.deviceName});
       return nullptr;
     }
     if (!supported_features.vertexPipelineStoresAndAtomics) {
-      REXLOG_WARN(ui,
-                  "Vulkan device '{}' doesn't support vertexPipelineStoresAndAtomics, which "
-                  "is required for Vulkan GPU emulation parity",
-                  std::string_view{properties.deviceName});
+      REXUI_WARN(
+          "Vulkan device '{}' doesn't support vertexPipelineStoresAndAtomics, which "
+          "is required for Vulkan GPU emulation parity",
+          std::string_view{properties.deviceName});
       return nullptr;
     }
     if (settings.require_geometry_shader.Get() && !supported_features.geometryShader) {
-      REXLOG_WARN(ui,
-                  "Vulkan device '{}' doesn't support geometryShader, but "
-                  "vulkan.require_geometry_shader=true",
-                  std::string_view{properties.deviceName});
+      REXUI_WARN(
+          "Vulkan device '{}' doesn't support geometryShader, but "
+          "vulkan.require_geometry_shader=true",
+          std::string_view{properties.deviceName});
       return nullptr;
     }
     if (settings.require_fill_mode_non_solid.Get() && !supported_features.fillModeNonSolid) {
-      REXLOG_WARN(ui,
-                  "Vulkan device '{}' doesn't support fillModeNonSolid, but "
-                  "vulkan.require_fill_mode_non_solid=true",
-                  std::string_view{properties.deviceName});
+      REXUI_WARN(
+          "Vulkan device '{}' doesn't support fillModeNonSolid, but "
+          "vulkan.require_fill_mode_non_solid=true",
+          std::string_view{properties.deviceName});
       return nullptr;
     }
   }
@@ -196,8 +196,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
         physical_device, nullptr, &supported_extension_count, nullptr);
     if (get_supported_extension_count_result != VK_SUCCESS &&
         get_supported_extension_count_result != VK_INCOMPLETE) {
-      REXLOG_WARN(ui, "Failed to get the Vulkan device '{}' extension count",
-                  std::string_view{properties.deviceName});
+      REXUI_WARN("Failed to get the Vulkan device '{}' extension count",
+                 std::string_view{properties.deviceName});
       return nullptr;
     }
     if (supported_extension_count) {
@@ -205,8 +205,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       if (ifn.vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
                                                    &supported_extension_count,
                                                    supported_extensions.data()) != VK_SUCCESS) {
-        REXLOG_WARN(ui, "Failed to get the Vulkan device '{}' extensions",
-                    std::string_view{properties.deviceName});
+        REXUI_WARN("Failed to get the Vulkan device '{}' extensions",
+                   std::string_view{properties.deviceName});
         return nullptr;
       }
       REX_ASSERT(supported_extension_count == supported_extensions.size());
@@ -226,8 +226,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   if (with_swapchain && !device->extensions_.ext_KHR_swapchain) {
-    REXLOG_WARN(ui, "Vulkan device '{}' doesn't support swapchains",
-                std::string_view{properties.deviceName});
+    REXUI_WARN("Vulkan device '{}' doesn't support swapchains",
+               std::string_view{properties.deviceName});
     return nullptr;
   }
 
@@ -378,18 +378,18 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   if (first_queue_family_graphics_compute == UINT32_MAX) {
-    REXLOG_WARN(ui,
-                "Vulkan device '{}' doesn't provide a graphics and compute queue "
-                "family",
-                std::string_view{properties.deviceName});
+    REXUI_WARN(
+        "Vulkan device '{}' doesn't provide a graphics and compute queue "
+        "family",
+        std::string_view{properties.deviceName});
     return nullptr;
   }
 
   if (with_swapchain && !has_presentation_queue_family) {
-    REXLOG_WARN(ui,
-                "Vulkan device '{}' doesn't provide a queue family that supports "
-                "presentation",
-                std::string_view{properties.deviceName});
+    REXUI_WARN(
+        "Vulkan device '{}' doesn't provide a queue family that supports "
+        "presentation",
+        std::string_view{properties.deviceName});
     return nullptr;
   }
 
@@ -456,71 +456,71 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   rex::string::CopyTruncating(device->properties_.deviceName, properties.deviceName,
                               sizeof(device->properties_.deviceName));
 
-  REXLOG_INFO(ui,
-              "Vulkan device '{}': API {}.{}.{}, vendor 0x{:04X}, device 0x{:04X}, "
-              "driver version 0x{:X}",
-              std::string_view{properties.deviceName}, VK_VERSION_MAJOR(properties.apiVersion),
-              VK_VERSION_MINOR(properties.apiVersion), VK_VERSION_PATCH(properties.apiVersion),
-              properties.vendorID, properties.deviceID, properties.driverVersion);
+  REXUI_INFO(
+      "Vulkan device '{}': API {}.{}.{}, vendor 0x{:04X}, device 0x{:04X}, "
+      "driver version 0x{:X}",
+      std::string_view{properties.deviceName}, VK_VERSION_MAJOR(properties.apiVersion),
+      VK_VERSION_MINOR(properties.apiVersion), VK_VERSION_PATCH(properties.apiVersion),
+      properties.vendorID, properties.deviceID, properties.driverVersion);
   if (unclamped_api_version != properties.apiVersion) {
-    REXLOG_INFO(ui,
-                "Device supports Vulkan API {}.{}.{}, but the used version is limited "
-                "by the instance",
-                VK_VERSION_MAJOR(unclamped_api_version), VK_VERSION_MINOR(unclamped_api_version),
-                VK_VERSION_PATCH(unclamped_api_version));
+    REXUI_INFO(
+        "Device supports Vulkan API {}.{}.{}, but the used version is limited "
+        "by the instance",
+        VK_VERSION_MAJOR(unclamped_api_version), VK_VERSION_MINOR(unclamped_api_version),
+        VK_VERSION_PATCH(unclamped_api_version));
   }
 
-  REXLOG_DEBUG(ui, "Enabled Vulkan device extensions:");
+  REXUI_DEBUG("Enabled Vulkan device extensions:");
   for (u32 enabled_extension_index = 0;
        enabled_extension_index < device_create_info.enabledExtensionCount;
        ++enabled_extension_index) {
-    REXLOG_DEBUG(ui, "* {}", device_create_info.ppEnabledExtensionNames[enabled_extension_index]);
+    REXUI_DEBUG("* {}", device_create_info.ppEnabledExtensionNames[enabled_extension_index]);
   }
 
-  REXLOG_DEBUG(ui, "Vulkan device properties and enabled features:");
+  REXUI_DEBUG("Vulkan device properties and enabled features:");
 
   VkPhysicalDeviceFeatures enabled_features = {};
   device_create_info.pEnabledFeatures = &enabled_features;
 
 #define REX_VK_LIMIT(name)                           \
   device->properties_.name = properties.limits.name; \
-  REXLOG_DEBUG(ui, "* " #name ": {}", properties.limits.name);
+  REXUI_DEBUG("* " #name ": {}", properties.limits.name);
 #define REX_VK_ENUM_LIMIT(name, type)                \
   device->properties_.name = properties.limits.name; \
-  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(static_cast<vk::type>(properties.limits.name)));
+  REXUI_DEBUG("* " #name ": {}", vk::to_string(static_cast<vk::type>(properties.limits.name)));
 #define REX_VK_FEATURE(name)                          \
   enabled_features.name = supported_features.name;    \
   device->properties_.name = supported_features.name; \
   if (supported_features.name) {                      \
-    REXLOG_DEBUG(ui, "* " #name);                     \
+    REXUI_DEBUG("* " #name);                          \
   }
 #define REX_VK_PROPERTY_2(structure, name)     \
   device->properties_.name = (structure).name; \
-  REXLOG_DEBUG(ui, "* " #name ": {}", (structure).name);
+  REXUI_DEBUG("* " #name ": {}", (structure).name);
 #define REX_VK_ENUM_PROPERTY_2(structure, name, type) \
   device->properties_.name = (structure).name;        \
-  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(static_cast<vk::type>((structure).name)));
+  REXUI_DEBUG("* " #name ": {}", vk::to_string(static_cast<vk::type>((structure).name)));
 #define REX_VK_FEATURE_2(structure, name)                \
   (structure).enabled.name = (structure).supported.name; \
   device->properties_.name = (structure).supported.name; \
   if ((structure).supported.name) {                      \
-    REXLOG_DEBUG(ui, "* " #name);                        \
+    REXUI_DEBUG("* " #name);                             \
   }
 #define REX_VK_FEATURE_IMPLIED(name) \
   device->properties_.name = true;   \
-  REXLOG_DEBUG(ui, "* " #name);
+  REXUI_DEBUG("* " #name);
 
   if (ext_1_2_KHR_driver_properties) {
     REX_VK_ENUM_PROPERTY_2(properties_1_2_khr_driver_properties, driverID, DriverId);
-    REXLOG_DEBUG(ui, "* driverName: {}", properties_1_2_khr_driver_properties.driverName);
+    REXUI_DEBUG("* driverName: {}", properties_1_2_khr_driver_properties.driverName);
     if (properties_1_2_khr_driver_properties.driverInfo[0]) {
-      REXLOG_DEBUG(ui, "* driverInfo: {}", properties_1_2_khr_driver_properties.driverInfo);
+      REXUI_DEBUG("* driverInfo: {}", properties_1_2_khr_driver_properties.driverInfo);
     }
-    REXLOG_DEBUG(ui, "* conformanceVersion: {}.{}.{}.{}",
-                 properties_1_2_khr_driver_properties.conformanceVersion.major,
-                 properties_1_2_khr_driver_properties.conformanceVersion.minor,
-                 properties_1_2_khr_driver_properties.conformanceVersion.subminor,
-                 properties_1_2_khr_driver_properties.conformanceVersion.patch);
+    REXUI_DEBUG("* conformanceVersion: {}.{}.{}.{}",
+                properties_1_2_khr_driver_properties.conformanceVersion.major,
+                properties_1_2_khr_driver_properties.conformanceVersion.minor,
+                properties_1_2_khr_driver_properties.conformanceVersion.subminor,
+                properties_1_2_khr_driver_properties.conformanceVersion.patch);
   }
 
   REX_VK_LIMIT(maxImageDimension2D)
@@ -671,11 +671,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   const VkResult device_create_result =
       ifn.vkCreateDevice(physical_device, &device_create_info, nullptr, &device->device_);
   if (device_create_result != VK_SUCCESS) {
-    REX_FAIL(ui, nullptr,
-             "Failed to create a Vulkan logical device from the physical device "
-             "'{}': {}",
-             std::string_view{properties.deviceName},
-             vk::to_string(static_cast<vk::Result>(device_create_result)));
+    REXUI_FAIL(nullptr,
+               "Failed to create a Vulkan logical device from the physical device "
+               "'{}': {}",
+               std::string_view{properties.deviceName},
+               vk::to_string(static_cast<vk::Result>(device_create_result)));
   }
 
   bool functions_loaded = true;
@@ -730,8 +730,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #undef REX_VK_FUNCTION
 
   if (!functions_loaded) {
-    REX_FAIL(ui, nullptr, "Failed to get all Vulkan device function pointers for '{}'",
-             std::string_view{properties.deviceName});
+    REXUI_FAIL(nullptr, "Failed to get all Vulkan device function pointers for '{}'",
+               std::string_view{properties.deviceName});
   }
 
   for (size_t queue_family_index = 0; queue_family_index < device->queue_families_.size();

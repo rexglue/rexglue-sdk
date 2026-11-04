@@ -122,11 +122,11 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
                                   u32 alloc_type, u32 protect_bits, u32 region_type) {
   u32 input_base = base_addr_ptr ? static_cast<u32>(*base_addr_ptr) : 0;
   u32 input_size = region_size_ptr ? static_cast<u32>(*region_size_ptr) : 0;
-  REXLOG_TRACE(kernel,
-               "NtAllocateVirtualMemory "
-               "base={:#x} size={:#x} type={:#x} protect={:#x} region={}",
-               input_base, input_size, static_cast<u32>(alloc_type), static_cast<u32>(protect_bits),
-               static_cast<u32>(region_type));
+  REXKRNL_TRACE(
+      "NtAllocateVirtualMemory "
+      "base={:#x} size={:#x} type={:#x} protect={:#x} region={}",
+      input_base, input_size, static_cast<u32>(alloc_type), static_cast<u32>(protect_bits),
+      static_cast<u32>(region_type));
 
   if (!IsValidMemoryRegionType(region_type)) {
     return X_STATUS_INVALID_PARAMETER;
@@ -225,10 +225,10 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
   }
   *base_addr_ptr = address;
   *region_size_ptr = adjusted_size;
-  REXLOG_TRACE(kernel,
-               "NtAllocateVirtualMemory -> "
-               "0x0 addr={:#x} size={:#x}",
-               address, adjusted_size);
+  REXKRNL_TRACE(
+      "NtAllocateVirtualMemory -> "
+      "0x0 addr={:#x} size={:#x}",
+      address, adjusted_size);
   return X_STATUS_SUCCESS;
 }
 
@@ -277,11 +277,11 @@ u32 NtFreeVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr
   }
   u32 base_addr_value = *base_addr_ptr;
   u32 region_size_value = *region_size_ptr;
-  REXLOG_TRACE(kernel,
-               "NtFreeVirtualMemory "
-               "base={:#x} size={:#x} type={:#x} region={}",
-               base_addr_value, region_size_value, static_cast<u32>(free_type),
-               static_cast<u32>(region_type));
+  REXKRNL_TRACE(
+      "NtFreeVirtualMemory "
+      "base={:#x} size={:#x} type={:#x} region={}",
+      base_addr_value, region_size_value, static_cast<u32>(free_type),
+      static_cast<u32>(region_type));
 
   if (!base_addr_value) {
     return X_STATUS_MEMORY_NOT_ALLOCATED;
@@ -321,9 +321,9 @@ u32 NtFreeVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr
 
   *base_addr_ptr = base_addr_value;
   *region_size_ptr = region_size_value;
-  REXLOG_TRACE(kernel,
-               "NtFreeVirtualMemory -> "
-               "0x0");
+  REXKRNL_TRACE(
+      "NtFreeVirtualMemory -> "
+      "0x0");
   return X_STATUS_SUCCESS;
 }
 
@@ -390,15 +390,15 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
  */
 u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bits,
                                      u32 min_addr_range, u32 max_addr_range, u32 alignment) {
-  REXLOG_TRACE(kernel,
-               "MmAllocatePhysicalMemoryEx "
-               "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
-               static_cast<u32>(flags), static_cast<u32>(region_size),
-               static_cast<u32>(protect_bits), static_cast<u32>(min_addr_range),
-               static_cast<u32>(max_addr_range), static_cast<u32>(alignment));
+  REXKRNL_TRACE(
+      "MmAllocatePhysicalMemoryEx "
+      "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
+      static_cast<u32>(flags), static_cast<u32>(region_size), static_cast<u32>(protect_bits),
+      static_cast<u32>(min_addr_range), static_cast<u32>(max_addr_range),
+      static_cast<u32>(alignment));
 
   if (!(protect_bits & (kXPageReadOnly | kXPageReadWrite))) {
-    REX_FAIL(kernel, 0, "MmAllocatePhysicalMemoryEx: bad protection bits");
+    REXKRNL_FAIL(0, "MmAllocatePhysicalMemoryEx: bad protection bits");
   }
 
   u32 page_size = kernel::kPageSize4KiB;
@@ -430,10 +430,10 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
                         allocation_type, protect, top_down, &base_address)) {
     return 0;
   }
-  REXLOG_TRACE(kernel,
-               "MmAllocatePhysicalMemoryEx -> "
-               "addr={:#x}",
-               base_address);
+  REXKRNL_TRACE(
+      "MmAllocatePhysicalMemoryEx -> "
+      "addr={:#x}",
+      base_address);
 
   return base_address;
 }
@@ -443,10 +443,10 @@ u32 MmAllocatePhysicalMemory_entry(u32 flags, u32 region_size, u32 protect_bits)
 }
 
 void MmFreePhysicalMemory_entry(u32 type, u32 base_address) {
-  REXLOG_TRACE(kernel,
-               "MmFreePhysicalMemory "
-               "type={:#x} addr={:#x}",
-               static_cast<u32>(type), static_cast<u32>(base_address));
+  REXKRNL_TRACE(
+      "MmFreePhysicalMemory "
+      "type={:#x} addr={:#x}",
+      static_cast<u32>(type), static_cast<u32>(base_address));
 
   REX_ASSERT((base_address & 0x1F) == 0);
 
@@ -595,10 +595,10 @@ u32 MmGetPhysicalAddress_entry(u32 base_address) {
   if (physical_address == UINT32_MAX) {
     physical_address = 0;
   }
-  REXLOG_TRACE(kernel,
-               "MmGetPhysicalAddress -> "
-               "addr={:#x} -> {:#x}",
-               static_cast<u32>(base_address), physical_address);
+  REXKRNL_TRACE(
+      "MmGetPhysicalAddress -> "
+      "addr={:#x} -> {:#x}",
+      static_cast<u32>(base_address), physical_address);
   return physical_address;
 }
 
@@ -740,10 +740,10 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  REXLOG_TRACE(kernel,
-               "NtAllocateEncryptedMemory -> "
-               "addr={:#x}",
-               out_address);
+  REXKRNL_TRACE(
+      "NtAllocateEncryptedMemory -> "
+      "addr={:#x}",
+      out_address);
   *base_addr_ptr = out_address;
   return X_STATUS_SUCCESS;
 }

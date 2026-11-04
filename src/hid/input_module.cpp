@@ -65,7 +65,7 @@ Result<void> InputModule::Init() {
     }
     auto selected = SelectDrivers(*factory_, DriverType::kInput, driver_name, *context_);
     if (!selected) {
-      REXLOG_WARN(hid, "input drivers: {}", selected.error().message);
+      REXHID_WARN("input drivers: {}", selected.error().message);
       continue;
     }
     for (std::unique_ptr<IDriver>& driver : *selected) {

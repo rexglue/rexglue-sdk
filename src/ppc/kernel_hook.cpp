@@ -18,8 +18,8 @@ const KernelHooks* GetHooks() {
 }
 
 void InvalidFunctionTrap(PPCContext& ctx, u8* /*base*/) {
-  REX_FATAL(cpu, "Call to invalid or unregistered function at guest address 0x{:08X}",
-            ctx.last_indirect_target);
+  REXCPU_FATAL("Call to invalid or unregistered function at guest address 0x{:08X}",
+               ctx.last_indirect_target);
 }
 
 }  // namespace

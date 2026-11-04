@@ -74,14 +74,14 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> D3D12UploadBufferPool::CreatePag
   if (FAILED(provider_.GetDevice()->CreateCommittedResource(
           &objects::kHeapPropertiesUpload, provider_.GetHeapFlagCreateNotZeroed(), &buffer_desc,
           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)))) {
-    REX_FAIL(ui, nullptr, "Failed to create a D3D upload buffer with {} bytes", page_size_);
+    REXUI_FAIL(nullptr, "Failed to create a D3D upload buffer with {} bytes", page_size_);
   }
   D3D12_RANGE read_range;
   read_range.Begin = 0;
   read_range.End = 0;
   void* mapping;
   if (FAILED(buffer->Map(0, &read_range, &mapping))) {
-    REXLOG_ERROR(ui, "Failed to map a D3D upload buffer with {} bytes", page_size_);
+    REXUI_ERROR("Failed to map a D3D upload buffer with {} bytes", page_size_);
     buffer->Release();
     return nullptr;
   }

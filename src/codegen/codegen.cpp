@@ -70,7 +70,7 @@ Result<void> CodegenPipeline::Run(bool force) {
 Result<void> CodegenPipeline::RunAnalyze() {
   auto analyze_result = Analyze(*ctx_);
   if (!analyze_result) {
-    REX_FAIL(codegen, analyze_result, "Analysis failed: {}", analyze_result.error().message);
+    REXCG_FAIL(analyze_result, "Analysis failed: {}", analyze_result.error().message);
   }
   return Ok();
 }

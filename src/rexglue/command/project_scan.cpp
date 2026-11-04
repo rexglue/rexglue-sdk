@@ -58,8 +58,7 @@ bool RefreshGeneratedCMake(const fs::path& project_root, std::string_view projec
   }
 
   if (auto written = rex::platform::WriteHostFile(target, rendered); !written) {
-    REX_FAIL(rexglue, false, "Failed to regenerate {}: {}", target.string(),
-             written.error().message);
+    REXGLUE_FAIL(false, "Failed to regenerate {}: {}", target.string(), written.error().message);
   }
   return true;
 }

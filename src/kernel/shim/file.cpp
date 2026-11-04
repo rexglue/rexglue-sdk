@@ -36,7 +36,7 @@ REX_SHIM_FN(FindClose, u32, u32 hFindFile) {
   if (hFindFile == kXInvalidHandleValue || hFindFile == 0)
     return 0;
   if (!kernel::GetCurrent().GetObjectTable().Close(hFindFile)) {
-    REXLOG_WARN(kernel, "rexshim_FindClose: unknown handle {:#x}", hFindFile);
+    REXKRNL_WARN("rexshim_FindClose: unknown handle {:#x}", hFindFile);
     return 0;
   }
   return 1;
@@ -47,11 +47,11 @@ REX_SHIM_FN(MoveFileA, u32, MappedString lpExistingFileName, MappedString lpNewF
   const char* dst = static_cast<const char*>(lpNewFileName);
 
   if (auto renamed = kernel::GetCurrentState().GetFileSystem()->Rename(src, dst, false); !renamed) {
-    REXLOG_DEBUG(kernel, "rexshim_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
-                 rex::kernel::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
+    REXKRNL_DEBUG("rexshim_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
+                  rex::kernel::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
     return 0;
   }
-  REXLOG_TRACE(kernel, "rexshim_MoveFileA: '{}' -> '{}'", src, dst);
+  REXKRNL_TRACE("rexshim_MoveFileA: '{}' -> '{}'", src, dst);
   return 1;
 }
 
@@ -65,7 +65,7 @@ REX_SHIM_FN(RemoveDirectoryA, u32, MappedString lpPathName) {
   const char* path = static_cast<const char*>(lpPathName);
   bool ok = kernel::GetCurrentState().GetFileSystem()->Remove(path).has_value();
   if (!ok)
-    REXLOG_DEBUG(kernel, "rexshim_RemoveDirectoryA: FAILED '{}'", path);
+    REXKRNL_DEBUG("rexshim_RemoveDirectoryA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 

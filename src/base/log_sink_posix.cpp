@@ -18,15 +18,6 @@
 
 namespace rex::log {
 
-ConsoleSink::ConsoleSink(LineFormat format)
-    : format_(format), color_supported_(isatty(fileno(stdout)) != 0) {}
-
-DebuggerSink::DebuggerSink(LineFormat format) : format_(format) {}
-
-void DebuggerSink::Write(const Message&) {}
-
-void DebuggerSink::Flush() {}
-
 std::tm ToLocalTime(std::time_t time) {
   std::tm local{};
   localtime_r(&time, &local);

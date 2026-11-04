@@ -25,10 +25,10 @@ namespace rex::kernel::xboxkrnl {
 
 u32 RtlNtStatusToDosError_entry(u32 source_status) {
   u32 result = RtlNtStatusToDosError(source_status);
-  REXLOG_TRACE(kernel,
-               "RtlNtStatusToDosError "
-               "status={:#x} -> {}",
-               source_status, result);
+  REXKRNL_TRACE(
+      "RtlNtStatusToDosError "
+      "status={:#x} -> {}",
+      source_status, result);
   return result;
 }
 

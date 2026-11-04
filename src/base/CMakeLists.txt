@@ -166,7 +166,7 @@ endif ()
 target_link_libraries(
   rexbase
   PUBLIC simde
-  PRIVATE tomlplusplus xxHash::xxhash
+  PRIVATE tomlplusplus xxHash::xxhash spdlog::spdlog
 )
 
 if (WIN32)

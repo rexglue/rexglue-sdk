@@ -404,26 +404,25 @@ const char* TextureCache::TextureKey::GetLogDimensionName(xenos::DataDimension d
 }
 
 void TextureCache::TextureKey::LogAction(const char* action) const {
-  REXLOG_TRACE(gpu,
-               "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
-               "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
-               action, tiled ? "tiled" : "linear", scaled_resolve ? "scaled " : "", GetWidth(),
-               GetHeight(), GetDepthOrArraySize(), GetLogDimensionName(),
-               xenos::FormatInfo::Get(format)->name, mip_max_level + 1, packed_mips ? "" : "un",
-               mip_max_level != 0 ? "s" : "", base_page << 12, pitch << 5, mip_page << 12);
+  REXGPU_TRACE(
+      "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
+      "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
+      action, tiled ? "tiled" : "linear", scaled_resolve ? "scaled " : "", GetWidth(), GetHeight(),
+      GetDepthOrArraySize(), GetLogDimensionName(), xenos::FormatInfo::Get(format)->name,
+      mip_max_level + 1, packed_mips ? "" : "un", mip_max_level != 0 ? "s" : "", base_page << 12,
+      pitch << 5, mip_page << 12);
 }
 
 void TextureCache::Texture::LogAction(const char* action) const {
-  REXLOG_TRACE(gpu,
-               "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
-               "base at 0x{:08X} (pitch {}, size 0x{:08X}), mips at 0x{:08X} (size "
-               "0x{:08X})",
-               action, key_.tiled ? "tiled" : "linear", key_.scaled_resolve ? "scaled " : "",
-               key_.GetWidth(), key_.GetHeight(), key_.GetDepthOrArraySize(),
-               key_.GetLogDimensionName(), xenos::FormatInfo::Get(key_.format)->name,
-               key_.mip_max_level + 1, key_.packed_mips ? "" : "un",
-               key_.mip_max_level != 0 ? "s" : "", key_.base_page << 12, key_.pitch << 5,
-               GetGuestBaseSize(), key_.mip_page << 12, GetGuestMipsSize());
+  REXGPU_TRACE(
+      "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
+      "base at 0x{:08X} (pitch {}, size 0x{:08X}), mips at 0x{:08X} (size "
+      "0x{:08X})",
+      action, key_.tiled ? "tiled" : "linear", key_.scaled_resolve ? "scaled " : "",
+      key_.GetWidth(), key_.GetHeight(), key_.GetDepthOrArraySize(), key_.GetLogDimensionName(),
+      xenos::FormatInfo::Get(key_.format)->name, key_.mip_max_level + 1,
+      key_.packed_mips ? "" : "un", key_.mip_max_level != 0 ? "s" : "", key_.base_page << 12,
+      key_.pitch << 5, GetGuestBaseSize(), key_.mip_page << 12, GetGuestMipsSize());
 }
 
 TextureCache::Texture::Texture(TextureCache& texture_cache, const TextureKey& key, bool track_usage)
@@ -693,20 +692,18 @@ void TextureCache::GetTextureKeyFromFetchConstant(const xenos::TextureFetch& fet
       if (settings_.allow_invalid_fetch_constants.Get()) {
         break;
       }
-      REXLOG_WARN(gpu,
-                  "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
-                  "has \"invalid\" type! This is incorrect behavior, but you can try "
-                  "bypassing this by setting "
-                  "xenos.allow_invalid_fetch_constants=true.",
-                  fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4,
-                  fetch.dword_5);
+      REXGPU_WARN(
+          "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
+          "has \"invalid\" type! This is incorrect behavior, but you can try "
+          "bypassing this by setting "
+          "xenos.allow_invalid_fetch_constants=true.",
+          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
       return;
     default:
-      REXLOG_WARN(gpu,
-                  "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
-                  "is invalid!",
-                  fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4,
-                  fetch.dword_5);
+      REXGPU_WARN(
+          "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
+          "is invalid!",
+          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
       return;
   }
 
@@ -721,26 +718,26 @@ void TextureCache::GetTextureKeyFromFetchConstant(const xenos::TextureFetch& fet
   if (fetch.dimension == xenos::DataDimension::k1D) {
     bool is_invalid_1d = false;
     if (width_minus_1 >= xenos::kTexture2DCubeMaxWidthHeight) {
-      REXLOG_ERROR(gpu,
-                   "1D texture is too wide ({}) and is ignored. Report the title to ReXGlue "
-                   "developers",
-                   width_minus_1 + 1);
+      REXGPU_ERROR(
+          "1D texture is too wide ({}) and is ignored. Report the title to ReXGlue "
+          "developers",
+          width_minus_1 + 1);
       is_invalid_1d = true;
     }
     REX_ASSERT(!fetch.tiled);
     if (fetch.tiled) {
-      REXLOG_ERROR(gpu,
-                   "1D texture has tiling enabled in the fetch constant, but this "
-                   "appears to be wrong and is ignored. Report the title to ReXGlue "
-                   "developers");
+      REXGPU_ERROR(
+          "1D texture has tiling enabled in the fetch constant, but this "
+          "appears to be wrong and is ignored. Report the title to ReXGlue "
+          "developers");
       is_invalid_1d = true;
     }
     REX_ASSERT(!fetch.packed_mips);
     if (fetch.packed_mips) {
-      REXLOG_ERROR(gpu,
-                   "1D texture has packed mips enabled in the fetch constant, but this "
-                   "appears to be wrong and is ignored. Report the title to ReXGlue "
-                   "developers");
+      REXGPU_ERROR(
+          "1D texture has packed mips enabled in the fetch constant, but this "
+          "appears to be wrong and is ignored. Report the title to ReXGlue "
+          "developers");
       is_invalid_1d = true;
     }
     if (is_invalid_1d) {

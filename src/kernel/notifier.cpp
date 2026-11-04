@@ -43,8 +43,8 @@ void Notifier::BroadcastNotification(XNotificationID id, u32 data) {
   std::vector<X_HANDLE> snapshot;
   {
     std::lock_guard lock(mutex_);
-    REXLOG_DEBUG(system, "BroadcastNotification(id={:#x}, data={}) to {} listeners",
-                 static_cast<u32>(id), data, listeners_.size());
+    REXSYS_DEBUG("BroadcastNotification(id={:#x}, data={}) to {} listeners", static_cast<u32>(id),
+                 data, listeners_.size());
     snapshot = listeners_;
   }
   for (X_HANDLE handle : snapshot) {

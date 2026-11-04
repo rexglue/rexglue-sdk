@@ -111,7 +111,7 @@ X_STATUS ModuleObject::LoadFromFile(TitleRuntime& owning_runtime, std::string_vi
   auto* fs = StateOf(owning_runtime).GetFileSystem();
   auto fs_entry = fs->Stat(guest_path);
   if (!fs_entry) {
-    REX_FAIL(system, X_STATUS_NO_SUCH_FILE, "File {} was not found", guest_path);
+    REXSYS_FAIL(X_STATUS_NO_SUCH_FILE, "File {} was not found", guest_path);
   }
 
   path = fs_entry->absolute_path;
@@ -141,7 +141,7 @@ X_STATUS ModuleObject::LoadFromFile(TitleRuntime& owning_runtime, std::string_vi
   if (auto patch_entry = fs->Stat(path + "p")) {
     auto patch_path = patch_entry->absolute_path;
 
-    REXLOG_DEBUG(system, "Loading XEX patch from {}", patch_path);
+    REXSYS_DEBUG("Loading XEX patch from {}", patch_path);
 
     ModuleObject patch_module(&owning_runtime, ModuleType::kUser);
     result = patch_module.LoadFromFile(owning_runtime, patch_path);
@@ -149,10 +149,10 @@ X_STATUS ModuleObject::LoadFromFile(TitleRuntime& owning_runtime, std::string_vi
       result = patch_module.GetXEX() && GetXEX() ? patch_module.GetXEX()->ApplyPatch(GetXEX())
                                                  : X_STATUS_UNSUCCESSFUL;
       if (result) {
-        REXLOG_ERROR(system, "Failed to apply XEX patch, status {}", result);
+        REXSYS_ERROR("Failed to apply XEX patch, status {}", result);
       }
     } else {
-      REXLOG_ERROR(system, "Failed to load XEX patch, status {}", result);
+      REXSYS_ERROR("Failed to load XEX patch, status {}", result);
     }
 
     if (result) {
@@ -175,8 +175,7 @@ X_STATUS ModuleObject::LoadFromMemory(TitleRuntime& owning_runtime, const void* 
   } else if (magic == kernel::kELFSignature) {
     user.module_format = ModuleFormat::kELF;
   } else {
-    REX_FAIL(system, X_STATUS_NOT_IMPLEMENTED, "Unknown module magic {:08X}",
-             static_cast<u32>(magic));
+    REXSYS_FAIL(X_STATUS_NOT_IMPLEMENTED, "Unknown module magic {:08X}", static_cast<u32>(magic));
   }
 
   if (user.module_format == ModuleFormat::kXEX) {

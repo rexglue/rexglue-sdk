@@ -201,7 +201,7 @@ void ModuleRegistry::UnloadAll() {
   Shutdown();
   std::lock_guard lock(recompiled_mutex_);
   if (!module_libraries_.empty()) {
-    REXLOG_ERROR(system, "ModuleRegistry: {} recompiled libraries still loaded after module sweep",
+    REXSYS_ERROR("ModuleRegistry: {} recompiled libraries still loaded after module sweep",
                  module_libraries_.size());
     module_libraries_.clear();
   }
@@ -250,8 +250,8 @@ Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
     if (module &&
         rex::string::utf8_equal_case(
             rex::filesystem::utf8_find_base_name_from_guest_path(module->path), library.name)) {
-      REXLOG_DEBUG(system, "Import library '{}' of '{}' matched the loaded module '{}'",
-                   library.file_name, importer.name, module->path);
+      REXSYS_DEBUG("Import library '{}' of '{}' matched the loaded module '{}'", library.file_name,
+                   importer.name, module->path);
       AcquireReference(*module);
       return handle;
     }
@@ -263,7 +263,7 @@ Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
     if (!StateOf(runtime_).GetFileSystem()->Stat(path)) {
       continue;
     }
-    REXLOG_DEBUG(system, "Import library '{}' of '{}' matched the file '{}'", library.file_name,
+    REXSYS_DEBUG("Import library '{}' of '{}' matched the file '{}'", library.file_name,
                  importer.name, path);
     return LoadUserModule(path, call_entry);
   }
@@ -277,13 +277,13 @@ Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
     if (rex::string::utf8_equal_case(file_name, library.file_name) ||
         rex::string::utf8_equal_case(file_name, library.name + ".xex") ||
         rex::string::utf8_equal_case(file_name, library.name + ".dll")) {
-      REXLOG_DEBUG(system, "Import library '{}' of '{}' matched the listed file '{}'",
-                   library.file_name, importer.name, candidate);
+      REXSYS_DEBUG("Import library '{}' of '{}' matched the listed file '{}'", library.file_name,
+                   importer.name, candidate);
       return LoadUserModule(candidate, call_entry);
     }
   }
-  REXLOG_ERROR(system, "Import library '{}' of '{}' matches no loaded module or file",
-               library.file_name, importer.name);
+  REXSYS_ERROR("Import library '{}' of '{}' matches no loaded module or file", library.file_name,
+               importer.name);
   return Err<X_HANDLE>(StatusError(X_STATUS_DLL_NOT_FOUND));
 }
 
@@ -357,8 +357,8 @@ X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view p
       const u32 address =
           exporter ? exporter->GetExportAddress(static_cast<u16>(import.ordinal)) : 0;
       if (!address) {
-        REXLOG_ERROR(system, "Import of ordinal {} from '{}' by '{}' is not exported",
-                     import.ordinal, library.file_name, module.name);
+        REXSYS_ERROR("Import of ordinal {} from '{}' by '{}' is not exported", import.ordinal,
+                     library.file_name, module.name);
         return X_STATUS_DRIVER_ORDINAL_NOT_FOUND;
       }
       if (import.value_address) {
@@ -398,7 +398,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     return *existing;
   }
   if (!BeginLoad(path)) {
-    REXLOG_WARN(system, "LoadUserModule: '{}' already being loaded by another thread", path);
+    REXSYS_WARN("LoadUserModule: '{}' already being loaded by another thread", path);
     return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
   }
 
@@ -444,8 +444,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       inserted = module_libraries_.emplace(lib_key, rex::platform::DynamicLibrary{}).second;
     }
     if (!inserted) {
-      REXLOG_ERROR(system, "Recompiled module '{}' already loaded, refusing duplicate load",
-                   lib_key);
+      REXSYS_ERROR("Recompiled module '{}' already loaded, refusing duplicate load", lib_key);
       ReleaseDependencies(*module, call_entry);
       CloseOwned(table_, created);
       return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
@@ -454,7 +453,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     rex::platform::DynamicLibrary library_local;
     if (!library_local.LoadNamed(recomp->shared_lib_name,
                                  rex::platform::SymbolResolution::kImmediate)) {
-      REXLOG_ERROR(system, "Failed to load shared library for module '{}'", recomp->pe_name);
+      REXSYS_ERROR("Failed to load shared library for module '{}'", recomp->pe_name);
     } else {
       auto register_func = reinterpret_cast<kernel::FunctionDispatcher::RegisterFn>(
           library_local.GetRawSymbol("ReXRegisterModule"));
@@ -462,28 +461,28 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       auto get_image_info =
           reinterpret_cast<GetImageInfoFn>(library_local.GetRawSymbol("ReXGetModuleImage"));
       if (!register_func) {
-        REXLOG_ERROR(system, "ReXRegisterModule not found in '{}'", recomp->shared_lib_name);
+        REXSYS_ERROR("ReXRegisterModule not found in '{}'", recomp->shared_lib_name);
       } else if (!get_image_info) {
-        REXLOG_ERROR(system, "ReXGetModuleImage not found in '{}'", recomp->shared_lib_name);
+        REXSYS_ERROR("ReXGetModuleImage not found in '{}'", recomp->shared_lib_name);
       } else {
         auto* xex = module->GetXEX();
         const auto* image_info = get_image_info();
         if (!xex) {
-          REXLOG_ERROR(system, "Recompiled module '{}' is not an XEX", recomp->pe_name);
+          REXSYS_ERROR("Recompiled module '{}' is not an XEX", recomp->pe_name);
         } else if (!image_info) {
-          REXLOG_ERROR(system, "ReXGetModuleImage returned null for '{}'", recomp->shared_lib_name);
+          REXSYS_ERROR("ReXGetModuleImage returned null for '{}'", recomp->shared_lib_name);
         } else if (image_info->image_base != xex->GetBaseAddress() ||
                    image_info->image_size != xex->GetImageSize()) {
-          REXLOG_ERROR(system,
-                       "Recompiled module '{}' layout does not match loaded XEX "
-                       "(DLL image={:08X}-{:08X}, XEX image={:08X}-{:08X})",
-                       recomp->pe_name, image_info->image_base,
-                       image_info->image_base + image_info->image_size, xex->GetBaseAddress(),
-                       xex->GetBaseAddress() + xex->GetImageSize());
+          REXSYS_ERROR(
+              "Recompiled module '{}' layout does not match loaded XEX "
+              "(DLL image={:08X}-{:08X}, XEX image={:08X}-{:08X})",
+              recomp->pe_name, image_info->image_base,
+              image_info->image_base + image_info->image_size, xex->GetBaseAddress(),
+              xex->GetBaseAddress() + xex->GetImageSize());
         } else if (!StateOf(runtime_).GetFunctionDispatcher()->InitializeFunctionTable(
                        image_info->code_base, image_info->code_size, image_info->image_base,
                        image_info->image_size)) {
-          REXLOG_ERROR(system, "InitializeFunctionTable failed for module '{}'", recomp->pe_name);
+          REXSYS_ERROR("InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
           StateOf(runtime_).GetFunctionDispatcher()->RegisterModule(
               lib_key, image_info->code_base, register_func,
@@ -521,7 +520,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
 
   if (module->user.is_dll_module && module->user.entry_point && call_entry) {
     if (!KernelThread::IsInThread()) {
-      REXLOG_WARN(system, "DllMain(DLL_PROCESS_ATTACH) skipped for '{}', not on a kernel thread",
+      REXSYS_WARN("DllMain(DLL_PROCESS_ATTACH) skipped for '{}', not on a kernel thread",
                   module->name);
     } else {
       auto* thread = KernelThread::GetCallingThread();
@@ -529,8 +528,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       u64 dllmain_ret = StateOf(runtime_).GetFunctionDispatcher()->Execute(
           thread->GetThreadState(), module->user.entry_point, args, 3);
       if (static_cast<u32>(dllmain_ret) == 0) {
-        REXLOG_ERROR(system,
-                     "DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}', rolling back load",
+        REXSYS_ERROR("DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}', rolling back load",
                      module->name);
         UnloadUserModule(loaded, /*call_entry=*/false);
         return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
@@ -544,13 +542,13 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
 void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
   auto module = table_.Get<ModuleObject>(module_handle);
   if (!module) {
-    REXLOG_ERROR(system, "UnloadUserModule: invalid module handle {:08X}", module_handle);
+    REXSYS_ERROR("UnloadUserModule: invalid module handle {:08X}", module_handle);
     return;
   }
 
   if (module->user.is_dll_module && module->user.entry_point && call_entry) {
     if (!KernelThread::IsInThread()) {
-      REXLOG_WARN(system, "DllMain(DLL_PROCESS_DETACH) skipped for '{}', not on a kernel thread",
+      REXSYS_WARN("DllMain(DLL_PROCESS_DETACH) skipped for '{}', not on a kernel thread",
                   module->name);
     } else {
       auto* thread = KernelThread::GetCallingThread();
@@ -588,8 +586,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
   ReleaseDependencies(*module, call_entry);
 
   if (!found_module) {
-    REXLOG_ERROR(system, "UnloadUserModule: module '{}' not found in the module registry",
-                 module->path);
+    REXSYS_ERROR("UnloadUserModule: module '{}' not found in the module registry", module->path);
   }
 }
 
@@ -603,15 +600,14 @@ void ModuleRegistry::RegisterRecompiledModule(const char* pe_name, const char* g
 
   for (const auto& existing : recompiled_modules_) {
     if (existing.guest_path == info.guest_path) {
-      REXLOG_ERROR(
-          system,
+      REXSYS_ERROR(
           "RegisterRecompiledModule: duplicate guest_path '{}' (existing pe='{}', new pe='{}')",
           info.guest_path, existing.pe_name, info.pe_name);
       return;
     }
   }
 
-  REXLOG_DEBUG(system, "Registered recompiled module: pe='{}' path='{}' lib='{}'", info.pe_name,
+  REXSYS_DEBUG("Registered recompiled module: pe='{}' path='{}' lib='{}'", info.pe_name,
                info.guest_path, info.shared_lib_name);
   recompiled_modules_.push_back(std::move(info));
 }

@@ -188,7 +188,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
         return true;
       }
 #if REX_PLATFORM_MAC
-      REXLOG_ERROR(core, "macOS maps no chunk below 4 GiB");
+      REXLOG_ERROR("macOS maps no chunk below 4 GiB");
       return false;
 #else
       // NOLINTNEXTLINE(performance-no-int-to-ptr): mmap takes the address hint as a pointer
@@ -204,7 +204,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
           munmap(data, capacity_);
         }
       }
-      REXLOG_ERROR(core, "Unable to find space for mapping");
+      REXLOG_ERROR("Unable to find space for mapping");
       return false;
 #endif
     }

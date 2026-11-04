@@ -83,16 +83,16 @@ void CloseStash(X_DISPATCH_HEADER& header, u32 address) {
 u32 ExCreateThread_entry(MappedU32 handle_ptr, u32 stack_size, MappedU32 thread_id_ptr,
                          u32 xapi_thread_startup, MappedVoid start_address,
                          MappedVoid start_context, u32 creation_flags) {
-  REXLOG_TRACE(kernel,
-               "ExCreateThread "
-               "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
-               static_cast<u32>(stack_size), static_cast<u32>(xapi_thread_startup),
-               start_address.GetGuestAddress(), start_context.GetGuestAddress(),
-               static_cast<u32>(creation_flags));
+  REXKRNL_TRACE(
+      "ExCreateThread "
+      "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
+      static_cast<u32>(stack_size), static_cast<u32>(xapi_thread_startup),
+      start_address.GetGuestAddress(), start_context.GetGuestAddress(),
+      static_cast<u32>(creation_flags));
   auto& runtime = kernel::GetCurrent();
   u32 title_process = StateOf(runtime).GetTitleProcess();
   if (creation_flags & 2) {
-    REXLOG_WARN(kernel, "ExCreateThread Title is creating a system thread!");
+    REXKRNL_WARN("ExCreateThread Title is creating a system thread!");
     title_process = StateOf(runtime).GetSystemProcess();
   }
 
@@ -108,7 +108,7 @@ u32 ExCreateThread_entry(MappedU32 handle_ptr, u32 stack_size, MappedU32 thread_
   }
   X_STATUS result = ToXStatus(launched);
   if (XFAILED(result)) {
-    REX_FAIL(kernel, result, "Thread creation failed: {:08X}", result);
+    REXKRNL_FAIL(result, "Thread creation failed: {:08X}", result);
   }
 
   const u32 thread_id = raw->GetThreadID();
@@ -123,11 +123,11 @@ u32 ExCreateThread_entry(MappedU32 handle_ptr, u32 stack_size, MappedU32 thread_
   if (thread_id_ptr) {
     *thread_id_ptr = thread_id;
   }
-  REXLOG_TRACE(kernel,
-               "ExCreateThread -> "
-               "{:#x} handle={:#x} tid={}",
-               result, handle_ptr ? static_cast<u32>(*handle_ptr) : 0,
-               thread_id_ptr ? static_cast<u32>(*thread_id_ptr) : 0);
+  REXKRNL_TRACE(
+      "ExCreateThread -> "
+      "{:#x} handle={:#x} tid={}",
+      result, handle_ptr ? static_cast<u32>(*handle_ptr) : 0,
+      thread_id_ptr ? static_cast<u32>(*thread_id_ptr) : 0);
   return result;
 }
 
@@ -143,17 +143,17 @@ u32 NtResumeThread_entry(u32 handle, MappedU32 suspend_count_ptr) {
 
   auto thread = kernel::GetCurrent().GetThreadRegistry().FindByHandle(handle);
   if (thread) {
-    REXLOG_TRACE(kernel, "NtResumeThread handle={:08X} thread={}", static_cast<u32>(handle),
-                 thread->GetName());
+    REXKRNL_TRACE("NtResumeThread handle={:08X} thread={}", static_cast<u32>(handle),
+                  thread->GetName());
     result = thread->Resume(&suspend_count);
   } else {
-    REXLOG_WARN(kernel, "NtResumeThread handle={:08X} NOT FOUND", static_cast<u32>(handle));
+    REXKRNL_WARN("NtResumeThread handle={:08X} NOT FOUND", static_cast<u32>(handle));
   }
   if (suspend_count_ptr) {
     *suspend_count_ptr = suspend_count;
   }
 
-  REXLOG_TRACE(kernel, "NtResumeThread -> {:#x} suspend_count={}", result, suspend_count);
+  REXKRNL_TRACE("NtResumeThread -> {:#x} suspend_count={}", result, suspend_count);
   return result;
 }
 
@@ -161,15 +161,15 @@ u32 KeResumeThread_entry(MappedVoid thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   auto thread = FindThread(thread_ptr.GetGuestAddress());
   if (thread) {
-    REXLOG_TRACE(kernel, "KeResumeThread ptr={:08X} thread={}", thread_ptr.GetGuestAddress(),
-                 thread->GetName());
+    REXKRNL_TRACE("KeResumeThread ptr={:08X} thread={}", thread_ptr.GetGuestAddress(),
+                  thread->GetName());
     result = thread->Resume();
   } else {
-    REXLOG_WARN(kernel, "KeResumeThread ptr={:08X} NOT FOUND", thread_ptr.GetGuestAddress());
+    REXKRNL_WARN("KeResumeThread ptr={:08X} NOT FOUND", thread_ptr.GetGuestAddress());
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  REXLOG_TRACE(kernel, "KeResumeThread -> {:#x}", result);
+  REXKRNL_TRACE("KeResumeThread -> {:#x}", result);
   return result;
 }
 
@@ -184,11 +184,11 @@ u32 NtSuspendThread_entry(u32 handle, MappedU32 suspend_count_ptr) {
       return X_STATUS_THREAD_IS_TERMINATING;
     }
 
-    REXLOG_TRACE(kernel, "NtSuspendThread handle={:08X} thread={}", static_cast<u32>(handle),
-                 thread->GetName());
+    REXKRNL_TRACE("NtSuspendThread handle={:08X} thread={}", static_cast<u32>(handle),
+                  thread->GetName());
     result = thread->Suspend(&suspend_count);
   } else {
-    REXLOG_WARN(kernel, "NtSuspendThread handle={:08X} NOT FOUND", static_cast<u32>(handle));
+    REXKRNL_WARN("NtSuspendThread handle={:08X} NOT FOUND", static_cast<u32>(handle));
     result = X_STATUS_INVALID_HANDLE;
   }
 
@@ -196,7 +196,7 @@ u32 NtSuspendThread_entry(u32 handle, MappedU32 suspend_count_ptr) {
     *suspend_count_ptr = suspend_count;
   }
 
-  REXLOG_TRACE(kernel, "NtSuspendThread -> {:#x} suspend_count={}", result, suspend_count);
+  REXKRNL_TRACE("NtSuspendThread -> {:#x} suspend_count={}", result, suspend_count);
   return result;
 }
 
@@ -223,8 +223,8 @@ void KeSetCurrentStackPointers_entry(MappedVoid stack_ptr, GuestPtrT<X_KTHREAD> 
       static_cast<u32>(context->r13.u64));
 
   if (stack_ptr.GetGuestAddress() >= 0xE0000000u) {
-    REX_FATAL(kernel, "KeSetCurrentStackPointers stack pointer {:#x} is in the physical range",
-              stack_ptr.GetGuestAddress());
+    REXKRNL_FATAL("KeSetCurrentStackPointers stack pointer {:#x} is in the physical range",
+                  stack_ptr.GetGuestAddress());
   }
   UpdateGuestStackPointers(thread, pcr, context, stack_ptr.GetGuestAddress(),
                            stack_alloc_base.GetValue(), stack_base.GetValue(),
@@ -240,17 +240,17 @@ void KeSetCurrentStackPointers_entry(MappedVoid stack_ptr, GuestPtrT<X_KTHREAD> 
  */
 u32 KeSetAffinityThread_entry(MappedVoid thread_ptr, u32 affinity,
                               MappedU32 previous_affinity_ptr) {
-  REXLOG_TRACE(kernel,
-               "KeSetAffinityThread "
-               "thread={:#x} affinity={:#x}",
-               thread_ptr.GetGuestAddress(), static_cast<u32>(affinity));
+  REXKRNL_TRACE(
+      "KeSetAffinityThread "
+      "thread={:#x} affinity={:#x}",
+      thread_ptr.GetGuestAddress(), static_cast<u32>(affinity));
   REX_KERNEL_REQUIRE_NONNULL(affinity);
   auto thread = FindThread(thread_ptr.GetGuestAddress());
   if (!thread) {
-    REXLOG_DEV(kernel,
-               "KeSetAffinityThread "
-               "invalid thread handle ptr={:#x}",
-               thread_ptr.GetGuestAddress());
+    REXKRNL_DEV(
+        "KeSetAffinityThread "
+        "invalid thread handle ptr={:#x}",
+        thread_ptr.GetGuestAddress());
     return X_STATUS_INVALID_HANDLE;
   }
   const u32 previous = static_cast<u32>(1) << thread->GetActiveCPU();
@@ -260,17 +260,17 @@ u32 KeSetAffinityThread_entry(MappedVoid thread_ptr, u32 affinity,
   if (previous_affinity_ptr) {
     *previous_affinity_ptr = previous;
   }
-  REXLOG_TRACE(kernel,
-               "KeSetAffinityThread -> "
-               "0x0");
+  REXKRNL_TRACE(
+      "KeSetAffinityThread -> "
+      "0x0");
   return X_STATUS_SUCCESS;
 }
 
 u32 KeQueryBasePriorityThread_entry(MappedVoid thread_ptr) {
-  REXLOG_TRACE(kernel,
-               "KeQueryBasePriorityThread "
-               "thread={:#x}",
-               thread_ptr.GetGuestAddress());
+  REXKRNL_TRACE(
+      "KeQueryBasePriorityThread "
+      "thread={:#x}",
+      thread_ptr.GetGuestAddress());
   i32 priority = 0;
 
   auto thread = FindThread(thread_ptr.GetGuestAddress());
@@ -278,18 +278,18 @@ u32 KeQueryBasePriorityThread_entry(MappedVoid thread_ptr) {
     priority = thread->GetHostPriority();
   }
 
-  REXLOG_TRACE(kernel,
-               "KeQueryBasePriorityThread -> "
-               "{}",
-               priority);
+  REXKRNL_TRACE(
+      "KeQueryBasePriorityThread -> "
+      "{}",
+      priority);
   return priority;
 }
 
 u32 KeSetBasePriorityThread_entry(MappedVoid thread_ptr, u32 increment) {
-  REXLOG_TRACE(kernel,
-               "KeSetBasePriorityThread "
-               "thread={:#x} increment={}",
-               thread_ptr.GetGuestAddress(), static_cast<i32>(increment));
+  REXKRNL_TRACE(
+      "KeSetBasePriorityThread "
+      "thread={:#x} increment={}",
+      thread_ptr.GetGuestAddress(), static_cast<i32>(increment));
   i32 prev_priority = 0;
   auto thread = FindThread(thread_ptr.GetGuestAddress());
 
@@ -297,10 +297,10 @@ u32 KeSetBasePriorityThread_entry(MappedVoid thread_ptr, u32 increment) {
     prev_priority = thread->GetHostPriority();
     thread->SetPriority(static_cast<i32>(increment));
   }
-  REXLOG_TRACE(kernel,
-               "KeSetBasePriorityThread -> "
-               "prev_priority={}",
-               prev_priority);
+  REXKRNL_TRACE(
+      "KeSetBasePriorityThread -> "
+      "prev_priority={}",
+      prev_priority);
 
   return prev_priority;
 }
@@ -385,29 +385,29 @@ u32 KeTlsAlloc_entry() {
   if (slot != kXTLSOutOfIndexes) {
     KernelThread::GetCallingThread()->SetTLSValue(slot, 0);
   }
-  REXLOG_TRACE(kernel,
-               "KeTlsAlloc -> "
-               "slot={}",
-               slot);
+  REXKRNL_TRACE(
+      "KeTlsAlloc -> "
+      "slot={}",
+      slot);
   return slot;
 }
 
 u32 KeTlsFree_entry(u32 tls_index) {
-  REXLOG_TRACE(kernel,
-               "KeTlsFree "
-               "slot={}",
-               static_cast<u32>(tls_index));
+  REXKRNL_TRACE(
+      "KeTlsFree "
+      "slot={}",
+      static_cast<u32>(tls_index));
   if (tls_index == kXTLSOutOfIndexes) {
-    REXLOG_TRACE(kernel,
-                 "KeTlsFree -> "
-                 "0 (invalid)");
+    REXKRNL_TRACE(
+        "KeTlsFree -> "
+        "0 (invalid)");
     return 0;
   }
 
   kernel::GetCurrent().GetThreadRegistry().FreeTLS(ThreadState::Get()->GetContext(), tls_index);
-  REXLOG_TRACE(kernel,
-               "KeTlsFree -> "
-               "1");
+  REXKRNL_TRACE(
+      "KeTlsFree -> "
+      "1");
   return 1;
 }
 
@@ -429,20 +429,20 @@ u32 KeTlsGetValue_entry(u32 tls_index) {
  * @return 1 when stored, otherwise 0.
  */
 u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
-  REXLOG_TRACE(kernel,
-               "KeTlsSetValue "
-               "slot={} value={:#x}",
-               static_cast<u32>(tls_index), static_cast<u32>(tls_value));
+  REXKRNL_TRACE(
+      "KeTlsSetValue "
+      "slot={} value={:#x}",
+      static_cast<u32>(tls_index), static_cast<u32>(tls_value));
   if (KernelThread::GetCallingThread()->SetTLSValue(tls_index, tls_value)) {
-    REXLOG_TRACE(kernel,
-                 "KeTlsSetValue -> "
-                 "1");
+    REXKRNL_TRACE(
+        "KeTlsSetValue -> "
+        "1");
     return 1;
   }
 
-  REXLOG_TRACE(kernel,
-               "KeTlsSetValue -> "
-               "0");
+  REXKRNL_TRACE(
+      "KeTlsSetValue -> "
+      "0");
   return 0;
 }
 
@@ -465,15 +465,15 @@ void KeInitializeEvent_entry(GuestPtrT<X_KEVENT> event_ptr, u32 event_type, u32 
   event_ptr->header.wait_list_flink = wait_list;
   event_ptr->header.wait_list_blink = wait_list;
   if (!table.Resolve<EventObject>(event_ptr.GetGuestAddress(), static_cast<i32>(event_type))) {
-    REXLOG_WARN(kernel, "KeInitializeEvent({:08X}) could not create the event",
-                event_ptr.GetGuestAddress());
+    REXKRNL_WARN("KeInitializeEvent({:08X}) could not create the event",
+                 event_ptr.GetGuestAddress());
   }
 }
 
 u32 KeSetEvent(u32 event_address, [[maybe_unused]] u32 increment, [[maybe_unused]] u32 wait) {
   auto ev = kernel::GetCurrent().GetObjectTable().Resolve<EventObject>(event_address);
   if (!ev) {
-    REXLOG_WARN(kernel, "KeSetEvent({:08X}) found no event", event_address);
+    REXKRNL_WARN("KeSetEvent({:08X}) found no event", event_address);
     return 0;
   }
 
@@ -488,7 +488,7 @@ u32 KePulseEvent_entry(GuestPtrT<X_KEVENT> event_ptr, [[maybe_unused]] u32 incre
                        [[maybe_unused]] u32 wait) {
   auto ev = kernel::GetCurrent().GetObjectTable().Resolve<EventObject>(event_ptr.GetGuestAddress());
   if (!ev) {
-    REXLOG_WARN(kernel, "KePulseEvent({:08X}) found no event", event_ptr.GetGuestAddress());
+    REXKRNL_WARN("KePulseEvent({:08X}) found no event", event_ptr.GetGuestAddress());
     return 0;
   }
 
@@ -498,7 +498,7 @@ u32 KePulseEvent_entry(GuestPtrT<X_KEVENT> event_ptr, [[maybe_unused]] u32 incre
 u32 KeResetEvent_entry(GuestPtrT<X_KEVENT> event_ptr) {
   auto ev = kernel::GetCurrent().GetObjectTable().Resolve<EventObject>(event_ptr.GetGuestAddress());
   if (!ev) {
-    REXLOG_WARN(kernel, "KeResetEvent({:08X}) found no event", event_ptr.GetGuestAddress());
+    REXKRNL_WARN("KeResetEvent({:08X}) found no event", event_ptr.GetGuestAddress());
     return 0;
   }
 
@@ -588,8 +588,8 @@ void KeInitializeSemaphore_entry(GuestPtrT<X_KSEMAPHORE> semaphore_ptr, u32 coun
   auto sem = kernel::GetCurrent().GetObjectTable().Resolve<SemaphoreObject>(
       semaphore_ptr.GetGuestAddress(), 5);
   if (!sem) {
-    REXLOG_WARN(kernel, "KeInitializeSemaphore({:08X}) could not create the semaphore",
-                semaphore_ptr.GetGuestAddress());
+    REXKRNL_WARN("KeInitializeSemaphore({:08X}) could not create the semaphore",
+                 semaphore_ptr.GetGuestAddress());
   }
 }
 
@@ -597,7 +597,7 @@ u32 KeReleaseSemaphore(u32 semaphore_address, [[maybe_unused]] u32 increment, u3
                        [[maybe_unused]] u32 wait) {
   auto sem = kernel::GetCurrent().GetObjectTable().Resolve<SemaphoreObject>(semaphore_address);
   if (!sem) {
-    REXLOG_WARN(kernel, "KeReleaseSemaphore({:08X}) found no semaphore", semaphore_address);
+    REXKRNL_WARN("KeReleaseSemaphore({:08X}) found no semaphore", semaphore_address);
     return 0;
   }
 
@@ -708,7 +708,7 @@ void KeInitializeMutant_entry(GuestPtrT<X_KMUTANT> mutant, u32 initial_owner) {
   mutant->header.type = kDispatcherMutant;
   const bool owned = initial_owner && thread;
   if (initial_owner && !thread) {
-    REXLOG_WARN(kernel, "KeInitializeMutant with an initial owner and no thread");
+    REXKRNL_WARN("KeInitializeMutant with an initial owner and no thread");
   }
   mutant->header.signal_state = owned ? 0 : 1;
   mutant->owner_thread = owned ? thread->GetGuestObject() : 0;
@@ -787,8 +787,8 @@ void KeInitializeTimerEx_entry(GuestPtrT<X_KTIMER> timer_ptr, u32 timer_type, u3
   timer_ptr->table_bucket_entry.flink_ptr = 0;
   timer_ptr->table_bucket_entry.blink_ptr = 0;
   if (!kernel::GetCurrent().GetObjectTable().Resolve<TimerObject>(timer_ptr.GetGuestAddress())) {
-    REXLOG_WARN(kernel, "KeInitializeTimerEx({:08X}) could not create the timer",
-                timer_ptr.GetGuestAddress());
+    REXKRNL_WARN("KeInitializeTimerEx({:08X}) could not create the timer",
+                 timer_ptr.GetGuestAddress());
   }
 }
 
@@ -879,7 +879,7 @@ u32 KeWaitForSingleObject(u32 object_address, u32 wait_reason, u32 processor_mod
       kernel::GetCurrent().GetObjectTable().ResolveHandle(object_address, -1).value_or(0);
 
   if (!handle) {
-    REXLOG_WARN(kernel, "KeWaitForSingleObject({:08X}) found no object", object_address);
+    REXKRNL_WARN("KeWaitForSingleObject({:08X}) found no object", object_address);
     return X_STATUS_ABANDONED_WAIT_0;
   }
 
@@ -1200,12 +1200,12 @@ void NtQueueApcThread_entry(u32 thread_handle, MappedVoid apc_routine,
   auto thread = kernel::GetCurrent().GetThreadRegistry().FindByHandle(thread_handle);
 
   if (!thread) {
-    REXLOG_ERROR(kernel, "NtQueueApcThread: Incorrect thread handle! Might cause crash");
+    REXKRNL_ERROR("NtQueueApcThread: Incorrect thread handle! Might cause crash");
     return;
   }
 
   if (!apc_routine) {
-    REXLOG_ERROR(kernel, "NtQueueApcThread: Incorrect apc routine! Might cause crash");
+    REXKRNL_ERROR("NtQueueApcThread: Incorrect apc routine! Might cause crash");
     return;
   }
 

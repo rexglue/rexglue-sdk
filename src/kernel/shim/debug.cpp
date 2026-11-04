@@ -57,7 +57,7 @@ REX_SHIM_FN_RAW(DebugPrint) {
   if (text.empty()) {
     return;
   }
-  REXLOG_DEBUG(kernel, "DebugPrint: {}", rex::string::ShiftJISToUTF8(text));
+  REXKRNL_DEBUG("DebugPrint: {}", rex::string::ShiftJISToUTF8(text));
 }
 
 }  // namespace rex::kernel::shim

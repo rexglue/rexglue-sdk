@@ -98,13 +98,12 @@ X_STATUS TimerObject::Set(TitleRuntime& runtime, i64 due_time, u32 period_ms, u3
     const u32 time_high = static_cast<u32>(time >> 32);
     auto& dispatcher = static_cast<Dispatcher&>(StateOf(*runtime).GetDPCQueue());
     if (!dispatcher.IsRunning()) {
-      REXLOG_WARN(system, "timer completion routine {:08X} dropped, the dispatcher is stopped",
-                  routine);
+      REXSYS_WARN("timer completion routine {:08X} dropped, the dispatcher is stopped", routine);
       return;
     }
     dispatcher.Post([runtime, thread_id, routine, routine_arg, time_low, time_high] {
-      REXLOG_DEBUG(system, "Timer enqueuing APC to {:08X}({:08X}, {:08X}, {:08X})", routine,
-                   routine_arg, time_low, time_high);
+      REXSYS_DEBUG("Timer enqueuing APC to {:08X}({:08X}, {:08X}, {:08X})", routine, routine_arg,
+                   time_low, time_high);
       if (auto thread = runtime->GetThreadRegistry().Find(thread_id)) {
         thread->EnqueueAPC(routine, routine_arg, time_low, time_high);
       }

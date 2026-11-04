@@ -1156,13 +1156,13 @@ class PosixCondition<Thread> : public PosixConditionBase {
     if (result != 0) {
       switch (result) {
         case EPERM:
-          REXLOG_WARN(system, "SetPriority: permission denied");
+          REXSYS_WARN("SetPriority: permission denied");
           break;
         case EINVAL:
           REX_ASSERT_ALWAYS();
           break;
         default:
-          REXLOG_WARN(system, "SetPriority: pthread_setschedparam failed ({})", result);
+          REXSYS_WARN("SetPriority: pthread_setschedparam failed ({})", result);
           break;
       }
     }
@@ -1208,7 +1208,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
     lock.unlock();
     if (result != 0) {
-      REXLOG_WARN(system, "QueueUserCallback: signal delivery failed ({})", result);
+      REXSYS_WARN("QueueUserCallback: signal delivery failed ({})", result);
     }
   }
 
@@ -2072,7 +2072,7 @@ Thread* Thread::GetCallingThread() {
 
 void Thread::Exit(int exit_code) {
   if (!g_catches_exit) {
-    REX_FATAL(system, "Thread::Exit called on a thread that Thread::Create did not start");
+    REXSYS_FATAL("Thread::Exit called on a thread that Thread::Create did not start");
   }
   throw ThreadStop{exit_code};
 }

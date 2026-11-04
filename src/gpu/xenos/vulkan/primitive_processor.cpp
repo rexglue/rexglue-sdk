@@ -143,20 +143,20 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
           VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
           gpu::vulkan::objects::MemoryPurpose::kDeviceLocal, builtin_index_buffer_,
           builtin_index_buffer_memory_)) {
-    REX_FAIL(gpu, false,
-             "Vulkan primitive processor: Failed to create the built-in index "
-             "buffer GPU resource with {} bytes",
-             size_bytes);
+    REXGPU_FAIL(false,
+                "Vulkan primitive processor: Failed to create the built-in index "
+                "buffer GPU resource with {} bytes",
+                size_bytes);
   }
   u32 upload_memory_type;
   if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(
           vulkan_device, builtin_index_buffer_size_, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
           gpu::vulkan::objects::MemoryPurpose::kUpload, builtin_index_buffer_upload_,
           builtin_index_buffer_upload_memory_, &upload_memory_type)) {
-    REXLOG_ERROR(gpu,
-                 "Vulkan primitive processor: Failed to create the built-in index "
-                 "buffer upload resource with {} bytes",
-                 size_bytes);
+    REXGPU_ERROR(
+        "Vulkan primitive processor: Failed to create the built-in index "
+        "buffer upload resource with {} bytes",
+        size_bytes);
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
                                                builtin_index_buffer_memory_);
@@ -166,10 +166,10 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
   void* mapping;
   if (dfn.vkMapMemory(device, builtin_index_buffer_upload_memory_, 0, VK_WHOLE_SIZE, 0, &mapping) !=
       VK_SUCCESS) {
-    REXLOG_ERROR(gpu,
-                 "Vulkan primitive processor: Failed to map the built-in index buffer "
-                 "upload resource with {} bytes",
-                 size_bytes);
+    REXGPU_ERROR(
+        "Vulkan primitive processor: Failed to map the built-in index buffer "
+        "upload resource with {} bytes",
+        size_bytes);
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
                                                builtin_index_buffer_upload_);
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,

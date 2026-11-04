@@ -90,7 +90,7 @@ struct Error {
  * @code
  * Result<u32> result = ReadCount();
  * if (!result) {
- *   REXLOG_ERROR(core, "{}", result.error().GetDescription());
+ *   REXLOG_ERROR("{}", result.error().GetDescription());
  * }
  * @endcode
  */

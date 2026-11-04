@@ -89,8 +89,7 @@ Result<void> ParseCommandLine(const CLIArgList& args, std::span<const CLIAction>
       if (!option.value) {
         unknown.push_back(text);
       } else if (flag->setting.empty()) {
-        REXLOG_WARN(core, "--{} sets no setting, drivers are chosen by driver settings",
-                    flag->name);
+        REXLOG_WARN("--{} sets no setting, drivers are chosen by driver settings", flag->name);
       } else {
         set(flag->setting, *option.value);
       }

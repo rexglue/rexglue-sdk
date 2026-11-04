@@ -183,7 +183,7 @@ constexpr std::array<const Category*, sizeof...(Categories)> BuildTable(
 
 namespace rex::log {
 
-/** Remembers which keys in [0, Count) have been seen, for REXLOG_ONCE. Thread safe. */
+/** Remembers which keys in [0, Count) have been seen, for REXLOG_CAT_ONCE. Thread safe. */
 template <size_t Count>
 class OncePerKey {
  public:
@@ -229,25 +229,26 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a message when the category is enabled at the level, else evaluates no arguments.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param level A rex::log::Level.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_DETAIL_WRITE(gpu, ::rex::log::Level::kInfo, "{} pipelines", count);
+ * REXLOG_DETAIL_WRITE(::rex::log::gpu, ::rex::log::Level::kInfo, "{} pipelines", count);
  * @endcode
  */
-#define REXLOG_DETAIL_WRITE(category, level, fmt, ...)                    \
-  do {                                                                    \
-    if (::rex::log::category.IsEnabled(level)) {                          \
-      ::rex::log::detail::WriteFormatted(::rex::log::category, level,     \
-                                         fmt __VA_OPT__(, ) __VA_ARGS__); \
-    }                                                                     \
+#define REXLOG_DETAIL_WRITE(cat, level, fmt, ...)                                       \
+  do {                                                                                  \
+    if ((cat).IsEnabled(level)) {                                                       \
+      ::rex::log::detail::WriteFormatted((cat), level, fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                                   \
   } while (0)
 
 /**
  * Writes a message when the category is enabled and the key has not written yet.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param level A rex::log::Level.
  * @param once A rex::log::OncePerKey lvalue.
  * @param key The key, written once per distinct value.
@@ -255,172 +256,167 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_ONCE(gpu, ::rex::log::Level::kWarn, seen_, index, "register {:04X}", index);
+ * REXLOG_CAT_ONCE(category, ::rex::log::Level::kWarn, seen_, index, "register {:04X}", index);
  * @endcode
  */
-#define REXLOG_ONCE(category, level, once, key, fmt, ...)                 \
-  do {                                                                    \
-    if (::rex::log::category.IsEnabled(level) && (once).IsFirst(key)) {   \
-      ::rex::log::detail::WriteFormatted(::rex::log::category, level,     \
-                                         fmt __VA_OPT__(, ) __VA_ARGS__); \
-    }                                                                     \
+#define REXLOG_CAT_ONCE(cat, level, once, key, fmt, ...)                                \
+  do {                                                                                  \
+    if ((cat).IsEnabled(level) && (once).IsFirst(key)) {                                \
+      ::rex::log::detail::WriteFormatted((cat), level, fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                                   \
   } while (0)
-
-/**
- * Writes a Warn message once per key.
- *
- * @param once A rex::log::OncePerKey lvalue.
- * @param key The key, written once per distinct value.
- * @param fmt std::format string literal.
- * @param ... Format arguments.
- *
- * @code
- * REXLOG_WARN_ONCE(apu, write_once_, index, "write to unknown register {:04X}", index);
- * @endcode
- */
-#define REXLOG_WARN_ONCE(category, once, key, fmt, ...) \
-  REXLOG_ONCE(category, ::rex::log::Level::kWarn, once, key, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes a Trace message.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_TRACE(gpu, "packet {:08X}", header);
+ * REXLOG_CAT_TRACE(category, "{}", text);
  * @endcode
  */
-#define REXLOG_TRACE(category, fmt, ...) \
-  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kTrace, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CAT_TRACE(cat, fmt, ...) \
+  REXLOG_DETAIL_WRITE(cat, ::rex::log::Level::kTrace, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes a Dev message.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_DEV(title, "{}", text);
+ * REXLOG_CAT_DEV(category, "{}", text);
  * @endcode
  */
-#define REXLOG_DEV(category, fmt, ...) \
-  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kDev, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CAT_DEV(cat, fmt, ...) \
+  REXLOG_DETAIL_WRITE(cat, ::rex::log::Level::kDev, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes a Debug message.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_DEBUG(system, "thread {} created", id);
+ * REXLOG_CAT_DEBUG(category, "{}", text);
  * @endcode
  */
-#define REXLOG_DEBUG(category, fmt, ...) \
-  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kDebug, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CAT_DEBUG(cat, fmt, ...) \
+  REXLOG_DETAIL_WRITE(cat, ::rex::log::Level::kDebug, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes an Info message.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_INFO(ui, "SDL video driver {}", name);
+ * REXLOG_CAT_INFO(category, "{}", text);
  * @endcode
  */
-#define REXLOG_INFO(category, fmt, ...) \
-  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kInfo, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CAT_INFO(cat, fmt, ...) \
+  REXLOG_DETAIL_WRITE(cat, ::rex::log::Level::kInfo, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes a Warn message.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_WARN(audio, "falling back to {} channels", channels);
+ * REXLOG_CAT_WARN(category, "{}", text);
  * @endcode
  */
-#define REXLOG_WARN(category, fmt, ...) \
-  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kWarn, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CAT_WARN(cat, fmt, ...) \
+  REXLOG_DETAIL_WRITE(cat, ::rex::log::Level::kWarn, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes an Error message.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_ERROR(filesystem, "{} could not be opened", path);
+ * REXLOG_CAT_ERROR(category, "{}", text);
  * @endcode
  */
-#define REXLOG_ERROR(category, fmt, ...) \
-  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kError, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CAT_ERROR(cat, fmt, ...) \
+  REXLOG_DETAIL_WRITE(cat, ::rex::log::Level::kError, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes a Critical message.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REXLOG_CRITICAL(core, "heap corrupted at {:08X}", address);
+ * REXLOG_CAT_CRITICAL(category, "{}", text);
  * @endcode
  */
-#define REXLOG_CRITICAL(category, fmt, ...) \
-  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kCritical, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CAT_CRITICAL(cat, fmt, ...) \
+  REXLOG_DETAIL_WRITE(cat, ::rex::log::Level::kCritical, fmt __VA_OPT__(, ) __VA_ARGS__)
 
 /**
  * Writes an Error message and returns a value from the enclosing function.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param value The expression the enclosing function returns.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REX_FAIL(kernel, X_STATUS_INVALID_PARAMETER, "{} is out of range", index);
+ * REX_CAT_FAIL(category, X_STATUS_INVALID_PARAMETER, "{} is out of range", index);
  * @endcode
  */
-#define REX_FAIL(category, value, fmt, ...)                 \
-  do {                                                      \
-    REXLOG_ERROR(category, fmt __VA_OPT__(, ) __VA_ARGS__); \
-    return value;                                           \
+#define REX_CAT_FAIL(cat, value, fmt, ...)                 \
+  do {                                                     \
+    REXLOG_CAT_ERROR(cat, fmt __VA_OPT__(, ) __VA_ARGS__); \
+    return value;                                          \
   } while (0)
 
 /**
  * Writes a Critical message, flushes every sink and aborts.
  *
+ * @param cat A rex::log::Category lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REX_FATAL(system, "heap {} is corrupted", name);
+ * REX_CAT_FATAL(category, "heap {} is corrupted", name);
  * @endcode
  */
-#define REX_FATAL(category, fmt, ...)                          \
-  do {                                                         \
-    REXLOG_CRITICAL(category, fmt __VA_OPT__(, ) __VA_ARGS__); \
-    ::rex::log::Flush();                                       \
-    ::std::abort();                                            \
+#define REX_CAT_FATAL(cat, fmt, ...)                          \
+  do {                                                        \
+    REXLOG_CAT_CRITICAL(cat, fmt __VA_OPT__(, ) __VA_ARGS__); \
+    ::rex::log::Flush();                                      \
+    ::std::abort();                                           \
   } while (0)
 
 /**
  * Writes a Critical message, flushes every sink and aborts when a condition is false.
  *
+ * @param cat A rex::log::Category lvalue.
+ * @param cond The condition that must hold.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
  * @code
- * REX_CHECK(system, base != nullptr, "the guest memory base is not mapped");
+ * REX_CAT_CHECK(category, base != nullptr, "the guest memory base is not mapped");
  * @endcode
  */
-#define REX_CHECK(category, cond, fmt, ...)                                            \
-  do {                                                                                 \
-    if (!(cond)) {                                                                     \
-      REX_FATAL(category, "check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
-    }                                                                                  \
+#define REX_CAT_CHECK(cat, cond, fmt, ...)                                            \
+  do {                                                                                \
+    if (!(cond)) {                                                                    \
+      REX_CAT_FATAL(cat, "check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                                 \
   } while (0)
 
 REXLOG_CATEGORY(core, "Core library, provider loading, settings and the app lifecycle")
@@ -434,3 +430,209 @@ REXLOG_CATEGORY(hid, "Pads, keyboard and pointer, and the hid modules")
 REXLOG_CATEGORY(cpu, "Function dispatch and the PPC context")
 REXLOG_CATEGORY(ui, "Windows, presenters, overlays and ImGui")
 REXLOG_CATEGORY(console, "Console command output")
+
+/**
+ * Per category macros. Each prefix writes to its category and takes the arguments of the matching
+ * REXLOG_CAT_ macro without the category.
+ *
+ * @code
+ * REXGPU_INFO("{} pipelines", count);
+ * REXSYS_FAIL(X_STATUS_INVALID_PARAMETER, "{} is out of range", index);
+ * REXAPU_WARN_ONCE(write_once_, index, "write to unknown register {:04X}", index);
+ * @endcode
+ *
+ * Every prefix has TRACE, DEV, DEBUG, INFO, WARN, ERROR, CRITICAL, WARN_ONCE, FAIL, FATAL and
+ * CHECK. REXLOG_ is core, with REX_FAIL, REX_FATAL and REX_CHECK. REXSYS_ is system, REXFS_
+ * filesystem and REXCON_ console. Kernel, title, XAM, codegen and rexglue define theirs beside
+ * their categories.
+ */
+#define REXLOG_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_WARN_ONCE(once, key, fmt, ...)                            \
+  REXLOG_CAT_ONCE(::rex::log::core, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REX_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::core, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REX_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REX_CHECK(cond, fmt, ...)                                            \
+  do {                                                                       \
+    if (!(cond)) {                                                           \
+      REX_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                        \
+  } while (0)
+
+#define REXSYS_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_WARN_ONCE(once, key, fmt, ...)                              \
+  REXLOG_CAT_ONCE(::rex::log::system, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::system, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_CHECK(cond, fmt, ...)                                            \
+  do {                                                                          \
+    if (!(cond)) {                                                              \
+      REXSYS_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                           \
+  } while (0)
+
+#define REXAPU_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_WARN_ONCE(once, key, fmt, ...)                           \
+  REXLOG_CAT_ONCE(::rex::log::apu, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::apu, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_CHECK(cond, fmt, ...)                                            \
+  do {                                                                          \
+    if (!(cond)) {                                                              \
+      REXAPU_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                           \
+  } while (0)
+
+#define REXFS_TRACE(fmt, ...) \
+  REXLOG_CAT_TRACE(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_DEBUG(fmt, ...) \
+  REXLOG_CAT_DEBUG(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_ERROR(fmt, ...) \
+  REXLOG_CAT_ERROR(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_WARN_ONCE(once, key, fmt, ...)                                   \
+  REXLOG_CAT_ONCE(::rex::log::filesystem, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::filesystem, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_CHECK(cond, fmt, ...)                                            \
+  do {                                                                         \
+    if (!(cond)) {                                                             \
+      REXFS_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                          \
+  } while (0)
+
+#define REXGPU_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_WARN_ONCE(once, key, fmt, ...)                           \
+  REXLOG_CAT_ONCE(::rex::log::gpu, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::gpu, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_CHECK(cond, fmt, ...)                                            \
+  do {                                                                          \
+    if (!(cond)) {                                                              \
+      REXGPU_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                           \
+  } while (0)
+
+#define REXHID_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_WARN_ONCE(once, key, fmt, ...)                           \
+  REXLOG_CAT_ONCE(::rex::log::hid, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::hid, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_CHECK(cond, fmt, ...)                                            \
+  do {                                                                          \
+    if (!(cond)) {                                                              \
+      REXHID_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                           \
+  } while (0)
+
+#define REXCPU_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_WARN_ONCE(once, key, fmt, ...)                           \
+  REXLOG_CAT_ONCE(::rex::log::cpu, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::cpu, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_CHECK(cond, fmt, ...)                                            \
+  do {                                                                          \
+    if (!(cond)) {                                                              \
+      REXCPU_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                           \
+  } while (0)
+
+#define REXUI_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_CRITICAL(fmt, ...) REXLOG_CAT_CRITICAL(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_WARN_ONCE(once, key, fmt, ...)                           \
+  REXLOG_CAT_ONCE(::rex::log::ui, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::ui, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_CHECK(cond, fmt, ...)                                            \
+  do {                                                                         \
+    if (!(cond)) {                                                             \
+      REXUI_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                          \
+  } while (0)
+
+#define REXCON_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_DEBUG(fmt, ...) REXLOG_CAT_DEBUG(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_INFO(fmt, ...) REXLOG_CAT_INFO(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_WARN(fmt, ...) REXLOG_CAT_WARN(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_ERROR(fmt, ...) REXLOG_CAT_ERROR(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_CRITICAL(fmt, ...) \
+  REXLOG_CAT_CRITICAL(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_WARN_ONCE(once, key, fmt, ...)                               \
+  REXLOG_CAT_ONCE(::rex::log::console, ::rex::log::Level::kWarn, once, key, \
+                  fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_FAIL(value, fmt, ...) \
+  REX_CAT_FAIL(::rex::log::console, value, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_CHECK(cond, fmt, ...)                                            \
+  do {                                                                          \
+    if (!(cond)) {                                                              \
+      REXCON_FATAL("check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                           \
+  } while (0)

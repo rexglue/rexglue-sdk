@@ -44,7 +44,7 @@ namespace gpu {
 
 void Presenter::FatalErrorHostGPULossCallback([[maybe_unused]] bool is_responsible,
                                               [[maybe_unused]] bool statically_from_ui_thread) {
-  REX_FATAL(gpu, "Graphics device lost (probably due to an internal error)");
+  REXGPU_FATAL("Graphics device lost (probably due to an internal error)");
 }
 
 Presenter::~Presenter() {
@@ -504,10 +504,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_width < host_rt_width && output_height < host_rt_height) {
     static std::atomic<bool> logged_top_left_expand = false;
     if (!logged_top_left_expand.exchange(true)) {
-      REXLOG_WARN(ui,
-                  "Presenter: expanding guest output from {}x{} to host render target "
-                  "{}x{} to avoid top left only presentation",
-                  output_width, output_height, host_rt_width, host_rt_height);
+      REXUI_WARN(
+          "Presenter: expanding guest output from {}x{} to host render target "
+          "{}x{} to avoid top left only presentation",
+          output_width, output_height, host_rt_width, host_rt_height);
     }
     output_width = host_rt_width;
     output_height = host_rt_height;
@@ -730,7 +730,7 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(
     }
     if (!dxgi_ui_tick_factory_) {
       if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&dxgi_ui_tick_factory_)))) {
-        REXLOG_ERROR(ui, "Presenter: Failed to create a DXGI factory");
+        REXUI_ERROR("Presenter: Failed to create a DXGI factory");
       }
     }
     Microsoft::WRL::ComPtr<IDXGIOutput> new_dxgi_output;

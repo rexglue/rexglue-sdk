@@ -70,7 +70,7 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   try {
     tbl = toml::parse_file(path.string());
   } catch (const toml::parse_error& err) {
-    REX_FAIL(codegen, std::nullopt, "Failed to parse manifest {}: {}", path.string(), err.what());
+    REXCG_FAIL(std::nullopt, "Failed to parse manifest {}: {}", path.string(), err.what());
   }
 
   ManifestConfig manifest;
@@ -79,21 +79,21 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
 
   auto* project = tbl["project"].as_table();
   if (!project) {
-    REX_FAIL(codegen, std::nullopt, "Manifest missing [project] section: {}", path.string());
+    REXCG_FAIL(std::nullopt, "Manifest missing [project] section: {}", path.string());
   }
   CheckProjectKeys(*project, path.string() + " [project]", manifest.warnings);
   for (const auto& warning : manifest.warnings) {
-    REXLOG_WARN(codegen, "manifest {}", warning);
+    REXCG_WARN("manifest {}", warning);
   }
   manifest.project_name = (*project)["name"].value_or<std::string>("");
   if (manifest.project_name.empty()) {
-    REX_FAIL(codegen, std::nullopt, "Manifest missing [project].name: {}", path.string());
+    REXCG_FAIL(std::nullopt, "Manifest missing [project].name: {}", path.string());
   }
   if (!IsValidProjectName(manifest.project_name)) {
-    REX_FAIL(codegen, std::nullopt,
-             "Manifest [project].name '{}' is not a valid identifier "
-             "(letters, digits and underscore, and must not start with a digit): {}",
-             manifest.project_name, path.string());
+    REXCG_FAIL(std::nullopt,
+               "Manifest [project].name '{}' is not a valid identifier "
+               "(letters, digits and underscore, and must not start with a digit): {}",
+               manifest.project_name, path.string());
   }
   if (auto stamp = (*project)["sdk_version"].value<std::string>(); stamp && !stamp->empty()) {
     manifest.sdk_version = *stamp;
@@ -105,20 +105,19 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
     for (const auto& source : *sources) {
       auto folder = source.value<std::string>();
       if (!folder || folder->empty()) {
-        REX_FAIL(codegen, std::nullopt,
-                 "Manifest [project].hook_sources must hold non empty folder strings: {}",
-                 path.string());
+        REXCG_FAIL(std::nullopt,
+                   "Manifest [project].hook_sources must hold non empty folder strings: {}",
+                   path.string());
       }
       manifest.hook_sources.push_back(*folder);
     }
   } else if ((*project).contains("hook_sources")) {
-    REX_FAIL(codegen, std::nullopt, "Manifest [project].hook_sources must be an array: {}",
-             path.string());
+    REXCG_FAIL(std::nullopt, "Manifest [project].hook_sources must be an array: {}", path.string());
   }
 
   auto* entrypoint = tbl["entrypoint"].as_table();
   if (!entrypoint) {
-    REX_FAIL(codegen, std::nullopt, "Manifest missing [entrypoint] section: {}", path.string());
+    REXCG_FAIL(std::nullopt, "Manifest missing [entrypoint] section: {}", path.string());
   }
   toml::table shared_table = tbl;
   for (const char* key : {"project", "entrypoint", "modules"}) {
@@ -138,7 +137,7 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
     for (const auto& mod : *modules) {
       auto* mod_tbl = mod.as_table();
       if (!mod_tbl) {
-        REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} is not a table", index);
+        REXCG_FAIL(std::nullopt, "Manifest [[modules]] entry #{} is not a table", index);
       }
       BinaryConfig binary;
       if (!LoadBinaryConfig(*mod_tbl, manifest.manifest_dir, manifest.project_name, manifest.shared,
@@ -147,14 +146,14 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
       }
       auto guest_path = (*mod_tbl)[kModuleGuestPathKey].value_or<std::string>("");
       if (guest_path.empty()) {
-        REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} missing {}", index,
-                 kModuleGuestPathKey);
+        REXCG_FAIL(std::nullopt, "Manifest [[modules]] entry #{} missing {}", index,
+                   kModuleGuestPathKey);
       }
       binary.guest_path = CanonicalizeModuleGuestPath(guest_path, manifest.project_name);
       for (const auto& existing : manifest.modules) {
         if (existing.guest_path == binary.guest_path) {
-          REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] duplicate {} '{}' (entry #{})",
-                   kModuleGuestPathKey, binary.guest_path, index);
+          REXCG_FAIL(std::nullopt, "Manifest [[modules]] duplicate {} '{}' (entry #{})",
+                     kModuleGuestPathKey, binary.guest_path, index);
         }
       }
       manifest.modules.push_back(std::move(binary));
@@ -206,7 +205,7 @@ bool ManifestConfig::WriteSDKVersionStamp(const std::filesystem::path& path,
                                           std::string_view version) {
   std::ifstream in(path);
   if (!in) {
-    REX_FAIL(codegen, false, "Failed to open manifest for stamping: {}", path.string());
+    REXCG_FAIL(false, "Failed to open manifest for stamping: {}", path.string());
   }
   std::vector<std::string> lines;
   std::string buf;
@@ -256,7 +255,7 @@ bool ManifestConfig::WriteSDKVersionStamp(const std::filesystem::path& path,
   auto written = rex::platform::WriteHostFile(
       path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
   if (!written) {
-    REX_FAIL(codegen, false, "Failed to write the manifest: {}", written.error().message);
+    REXCG_FAIL(false, "Failed to write the manifest: {}", written.error().message);
   }
   return true;
 }

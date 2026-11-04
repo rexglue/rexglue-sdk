@@ -477,7 +477,7 @@ REX_TEST_CASE("A category keeps writing after the logger stops and starts", "[ap
   rex::test::RunInInit([&] {
     rex::log::CaptureSink sink;
     auto sink_guard = logger->AddSink(sink);
-    REXLOG_WARN(core, "after logging shut down");
+    REXLOG_WARN("after logging shut down");
     sink.CopySince(0, entries);
     sink_guard.Reset();
   });
@@ -522,7 +522,7 @@ REX_TEST_CASE_METHOD(Fixture, "An app left alive does not end the session of the
   REQUIRE(second.Init(Args()));
   first.reset();
   CHECK_FALSE(second.GetUI().HasDialogs());
-  REXLOG_INFO(core, "second still logs");
+  REXLOG_INFO("second still logs");
   REQUIRE(second.Shutdown() == 0);
   const std::filesystem::path file = LogFile(second.folder.path);
   std::ifstream in(file);

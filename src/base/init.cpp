@@ -108,7 +108,7 @@ Result<void> Init(const Config& config) {
   std::string load_errors;
   for (const std::string& plugin : plugins) {
     if (auto loaded = group.Load(plugin); !loaded) {
-      REXLOG_WARN(core, "driver module '{}': {}", plugin, loaded.error().message);
+      REXLOG_WARN("driver module '{}': {}", plugin, loaded.error().message);
       load_errors += std::format("; driver module '{}': {}", plugin, loaded.error().message);
     }
   }
@@ -153,7 +153,7 @@ void Shutdown() {
   g_state.alloc_stack_depth_watch.Reset();
   platform::UninstallCrashReporter();
   for (const std::string& notice : GetProcessSettingsControl().TakeNotices()) {
-    REXLOG_WARN(core, "{}", notice);
+    REXLOG_WARN("{}", notice);
   }
   REX_LOGGER().Flush();
   GetProcessSettingsControl().EndSession();

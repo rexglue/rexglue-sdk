@@ -210,8 +210,7 @@ void Join(PendingReceive& receive) {
     receive.complete(result);
   }
   if (auto released = receive.table->ReleasePrimary(receive.pin); !released) {
-    REXLOG_WARN(system, "A finished socket receive kept its reference, {}",
-                released.error().message);
+    REXSYS_WARN("A finished socket receive kept its reference, {}", released.error().message);
   }
 }
 

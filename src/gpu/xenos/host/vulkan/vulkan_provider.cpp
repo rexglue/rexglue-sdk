@@ -38,22 +38,22 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
   provider->vulkan_instance_->EnumeratePhysicalDevices(physical_devices);
 
   if (physical_devices.empty()) {
-    REXLOG_WARN(ui, "No Vulkan physical devices available");
+    REXUI_WARN("No Vulkan physical devices available");
     return nullptr;
   }
 
   const VulkanInstance::Functions& ifn = provider->vulkan_instance_->GetFunctions();
 
-  REXLOG_WARN(ui,
-              "Available Vulkan physical devices (set Config::gpu.vulkan_device to force a "
-              "device):");
+  REXUI_WARN(
+      "Available Vulkan physical devices (set Config::gpu.vulkan_device to force a "
+      "device):");
   for (size_t physical_device_index = 0; physical_device_index < physical_devices.size();
        ++physical_device_index) {
     VkPhysicalDeviceProperties physical_device_properties;
     ifn.vkGetPhysicalDeviceProperties(physical_devices[physical_device_index],
                                       &physical_device_properties);
-    REXLOG_WARN(ui, "* {}: {}", physical_device_index,
-                std::string_view{physical_device_properties.deviceName});
+    REXUI_WARN("* {}: {}", physical_device_index,
+               std::string_view{physical_device_properties.deviceName});
   }
 
   if (device_index >= 0 && static_cast<u32>(device_index) < physical_devices.size()) {
@@ -120,9 +120,9 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
     }
 
     if (!provider->vulkan_device_) {
-      REXLOG_WARN(ui,
-                  "Couldn't choose a compatible Vulkan physical device or initialize a "
-                  "Vulkan logical device");
+      REXUI_WARN(
+          "Couldn't choose a compatible Vulkan physical device or initialize a "
+          "Vulkan logical device");
       return nullptr;
     }
   }

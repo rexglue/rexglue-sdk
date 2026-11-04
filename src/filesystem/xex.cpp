@@ -474,7 +474,7 @@ Result<XEXImage> XEXImage::ApplyHeaderDeltaTo(const XEXImage& patch) const {
     return FormatError<XEXImage>("XEX patch has no delta descriptor");
   }
   if (std::memcmp(SHA1Digest(security_.rsa_signature).data(), descriptor->digest_source, 20) != 0) {
-    REXLOG_WARN(filesystem, "XEX patch source hash does not match the base XEX signature hash");
+    REXFS_WARN("XEX patch source hash does not match the base XEX signature hash");
   }
   const u32 size = static_cast<u32>(header_.size());
   const u32 source_offset = descriptor->delta_headers_source_offset;

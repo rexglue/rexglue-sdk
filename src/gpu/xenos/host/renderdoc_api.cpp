@@ -36,7 +36,7 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
   }
   renderdoc_api->api_1_0_0_ = static_cast<const RENDERDOC_API_1_0_0*>(api);
 
-  REXLOG_INFO(ui, "RenderDoc API initialized");
+  REXUI_INFO("RenderDoc API initialized");
 
   return renderdoc_api;
 #endif

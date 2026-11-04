@@ -124,10 +124,10 @@ u32 ObLookupThreadByThreadId_entry(u32 thread_id, MappedU32 out_object_ptr) {
 }
 
 u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 out_object_ptr) {
-  REXLOG_TRACE(kernel,
-               "ObReferenceObjectByHandle "
-               "handle={:#x} type={:#x}",
-               static_cast<u32>(handle), static_cast<u32>(object_type_ptr));
+  REXKRNL_TRACE(
+      "ObReferenceObjectByHandle "
+      "handle={:#x} type={:#x}",
+      static_cast<u32>(handle), static_cast<u32>(object_type_ptr));
 
   auto object = kernel::GetCurrent().GetObjectTable().Get(handle);
   if (!object) {
@@ -175,10 +175,10 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
   if (out_object_ptr.GetGuestAddress()) {
     *out_object_ptr = *referenced;
   }
-  REXLOG_TRACE(kernel,
-               "ObReferenceObjectByHandle -> "
-               "0x0 obj={:#x}",
-               native_ptr);
+  REXKRNL_TRACE(
+      "ObReferenceObjectByHandle -> "
+      "0x0 obj={:#x}",
+      native_ptr);
   return X_STATUS_SUCCESS;
 }
 
@@ -194,16 +194,16 @@ u32 ObReferenceObjectByName_entry(MappedString name, [[maybe_unused]] u32 attrib
 }
 
 u32 ObDereferenceObject_entry(u32 native_ptr) {
-  REXLOG_TRACE(kernel,
-               "ObDereferenceObject "
-               "ptr={:#x}",
-               static_cast<u32>(native_ptr));
+  REXKRNL_TRACE(
+      "ObDereferenceObject "
+      "ptr={:#x}",
+      static_cast<u32>(native_ptr));
   auto& table = kernel::GetCurrent().GetObjectTable();
   auto object = table.Get(table.ResolveHandle(native_ptr, -1).value_or(0));
   if (object) {
     if (auto released = table.ReleasePrimary(object); !released) {
-      REXLOG_WARN(kernel, "ObDereferenceObject: {:#x} not released, {}", native_ptr,
-                  released.error().message);
+      REXKRNL_WARN("ObDereferenceObject: {:#x} not released, {}", native_ptr,
+                   released.error().message);
     }
   }
 
@@ -260,8 +260,8 @@ u32 NtDuplicateObject_entry(u32 handle, MappedU32 new_handle_ptr, u32 options) {
 
   if (options == 1) {
     if (auto removed = table.Remove(handle); !removed) {
-      REXLOG_WARN(kernel, "NtDuplicateObject: source handle {:08X} not closed, {}", handle,
-                  removed.error().message);
+      REXKRNL_WARN("NtDuplicateObject: source handle {:08X} not closed, {}", handle,
+                   removed.error().message);
     }
   }
 
@@ -269,15 +269,15 @@ u32 NtDuplicateObject_entry(u32 handle, MappedU32 new_handle_ptr, u32 options) {
 }
 
 u32 NtClose_entry(u32 handle) {
-  REXLOG_TRACE(kernel,
-               "NtClose "
-               "handle={:#x}",
-               static_cast<u32>(handle));
+  REXKRNL_TRACE(
+      "NtClose "
+      "handle={:#x}",
+      static_cast<u32>(handle));
   auto result = ToXStatus(kernel::GetCurrent().GetObjectTable().Close(handle));
-  REXLOG_TRACE(kernel,
-               "NtClose -> "
-               "{:#x}",
-               result);
+  REXKRNL_TRACE(
+      "NtClose -> "
+      "{:#x}",
+      result);
   return result;
 }
 

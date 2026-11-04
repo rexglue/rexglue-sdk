@@ -177,7 +177,7 @@ bool D3D12RenderTargetCache::Initialize() {
   if (FAILED(device->CreateCommittedResource(
           &gpu::d3d12::objects::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &edram_buffer_desc,
           edram_buffer_state_, nullptr, IID_PPV_ARGS(&edram_buffer_)))) {
-    REXLOG_ERROR(gpu, "D3D12RenderTargetCache: Failed to create the EDRAM buffer");
+    REXGPU_ERROR("D3D12RenderTargetCache: Failed to create the EDRAM buffer");
     Shutdown();
     return false;
   }
@@ -192,9 +192,9 @@ bool D3D12RenderTargetCache::Initialize() {
   edram_buffer_descriptor_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&edram_buffer_descriptor_heap_desc,
                                           IID_PPV_ARGS(&edram_buffer_descriptor_heap_)))) {
-    REXLOG_ERROR(gpu,
-                 "D3D12RenderTargetCache: Failed to create the descriptor heap for "
-                 "EDRAM buffer views");
+    REXGPU_ERROR(
+        "D3D12RenderTargetCache: Failed to create the descriptor heap for "
+        "EDRAM buffer views");
     Shutdown();
     return false;
   }
@@ -285,9 +285,9 @@ bool D3D12RenderTargetCache::Initialize() {
   resolve_copy_root_signature_ =
       gpu::d3d12::objects::CreateRootSignature(provider, resolve_copy_root_signature_desc);
   if (resolve_copy_root_signature_ == nullptr) {
-    REXLOG_ERROR(gpu,
-                 "D3D12RenderTargetCache: Failed to create the resolve copy root "
-                 "signature");
+    REXGPU_ERROR(
+        "D3D12RenderTargetCache: Failed to create the resolve copy root "
+        "signature");
     Shutdown();
     return false;
   }
@@ -310,7 +310,7 @@ bool D3D12RenderTargetCache::Initialize() {
                                : resolve_copy_shader_code.unscaled_size,
         resolve_copy_root_signature_);
     if (resolve_copy_pipeline == nullptr) {
-      REXLOG_ERROR(gpu, "D3D12RenderTargetCache: Failed to create {} resolve copy pipeline",
+      REXGPU_ERROR("D3D12RenderTargetCache: Failed to create {} resolve copy pipeline",
                    resolve_copy_shader_info.debug_name);
       Shutdown();
       return false;
@@ -386,9 +386,9 @@ bool D3D12RenderTargetCache::Initialize() {
       }
     }
     if (!msaa_2x_supported_) {
-      REXLOG_WARN(gpu,
-                  "2x MSAA is not supported, emulated via top-left and bottom-right "
-                  "samples of 4x MSAA");
+      REXGPU_WARN(
+          "2x MSAA is not supported, emulated via top-left and bottom-right "
+          "samples of 4x MSAA");
     }
 
     descriptor_pool_color_ = std::make_unique<gpu::d3d12::D3D12CPUDescriptorPool>(
@@ -460,9 +460,9 @@ bool D3D12RenderTargetCache::Initialize() {
     host_depth_store_root_signature_ =
         gpu::d3d12::objects::CreateRootSignature(provider, host_depth_store_root_desc);
     if (!host_depth_store_root_signature_) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the host depth store "
-                   "root signature");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the host depth store "
+          "root signature");
       Shutdown();
       return false;
     }
@@ -471,9 +471,9 @@ bool D3D12RenderTargetCache::Initialize() {
                                                    sizeof(shaders::kHostDepthStore1xMSAACS),
                                                    host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)]) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the 1-sample host depth "
-                   "write pipeline");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the 1-sample host depth "
+          "write pipeline");
       Shutdown();
       return false;
     }
@@ -484,9 +484,9 @@ bool D3D12RenderTargetCache::Initialize() {
                                                    sizeof(shaders::kHostDepthStore2xMSAACS),
                                                    host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)]) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the 2-sample host depth "
-                   "write pipeline");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the 2-sample host depth "
+          "write pipeline");
       Shutdown();
       return false;
     }
@@ -497,9 +497,9 @@ bool D3D12RenderTargetCache::Initialize() {
                                                    sizeof(shaders::kHostDepthStore4xMSAACS),
                                                    host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k4X)]) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the 4-sample host depth "
-                   "write pipeline");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the 4-sample host depth "
+          "write pipeline");
       Shutdown();
       return false;
     }
@@ -619,10 +619,10 @@ bool D3D12RenderTargetCache::Initialize() {
       transfer_root_signatures_[i] =
           gpu::d3d12::objects::CreateRootSignature(provider, transfer_root_desc);
       if (!transfer_root_signatures_[i]) {
-        REXLOG_ERROR(gpu,
-                     "D3D12RenderTargetCache: Failed to create the render target "
-                     "ownership transfer root signature {:X}",
-                     transfer_root_mask);
+        REXGPU_ERROR(
+            "D3D12RenderTargetCache: Failed to create the render target "
+            "ownership transfer root signature {:X}",
+            transfer_root_mask);
         Shutdown();
         return false;
       }
@@ -698,9 +698,9 @@ bool D3D12RenderTargetCache::Initialize() {
     dump_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
     dump_root_signature_color_ = gpu::d3d12::objects::CreateRootSignature(provider, dump_root_desc);
     if (!dump_root_signature_color_) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the color render target "
-                   "dumping root signature");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the color render target "
+          "dumping root signature");
       Shutdown();
       return false;
     }
@@ -708,9 +708,9 @@ bool D3D12RenderTargetCache::Initialize() {
     dump_root_desc.pParameters = dump_root_depth_parameters;
     dump_root_signature_depth_ = gpu::d3d12::objects::CreateRootSignature(provider, dump_root_desc);
     if (!dump_root_signature_depth_) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the depth render target "
-                   "dumping root signature");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the depth render target "
+          "dumping root signature");
       Shutdown();
       return false;
     }
@@ -730,9 +730,9 @@ bool D3D12RenderTargetCache::Initialize() {
     uint32_rtv_clear_root_signature_ =
         gpu::d3d12::objects::CreateRootSignature(provider, uint32_rtv_clear_root_desc);
     if (!uint32_rtv_clear_root_signature_) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the k_32_FLOAT / "
-                   "k_32_32_FLOAT render target clearing root signature");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the k_32_FLOAT / "
+          "k_32_32_FLOAT render target clearing root signature");
       Shutdown();
       return false;
     }
@@ -766,10 +766,10 @@ bool D3D12RenderTargetCache::Initialize() {
         ID3D12PipelineState* uint32_rtv_clear_pipeline;
         if (FAILED(device->CreateGraphicsPipelineState(&uint32_rtv_clear_pipeline_desc,
                                                        IID_PPV_ARGS(&uint32_rtv_clear_pipeline)))) {
-          REXLOG_ERROR(gpu,
-                       "D3D12RenderTargetCache: Failed to create the {} {}-sample "
-                       "render target clearing pipeline",
-                       i ? "k_32_32_FLOAT" : "k_32_FLOAT", static_cast<u32>(1) << j);
+          REXGPU_ERROR(
+              "D3D12RenderTargetCache: Failed to create the {} {}-sample "
+              "render target clearing pipeline",
+              i ? "k_32_32_FLOAT" : "k_32_FLOAT", static_cast<u32>(1) << j);
           Shutdown();
           return false;
         }
@@ -823,9 +823,9 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_root_signature_ =
         gpu::d3d12::objects::CreateRootSignature(provider, resolve_rov_clear_root_signature_desc);
     if (resolve_rov_clear_root_signature_ == nullptr) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the resolve EDRAM buffer "
-                   "clear root signature");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the resolve EDRAM buffer "
+          "clear root signature");
       Shutdown();
       return false;
     }
@@ -838,9 +838,9 @@ bool D3D12RenderTargetCache::Initialize() {
                                : sizeof(shaders::kResolveClear32BPPCS),
         resolve_rov_clear_root_signature_);
     if (resolve_rov_clear_32bpp_pipeline_ == nullptr) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the 32bpp resolve EDRAM "
-                   "buffer clear pipeline");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the 32bpp resolve EDRAM "
+          "buffer clear pipeline");
       Shutdown();
       return false;
     }
@@ -853,9 +853,9 @@ bool D3D12RenderTargetCache::Initialize() {
                                : sizeof(shaders::kResolveClear64BPPCS),
         resolve_rov_clear_root_signature_);
     if (resolve_rov_clear_64bpp_pipeline_ == nullptr) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create the 64bpp resolve EDRAM "
-                   "buffer clear pipeline");
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create the 64bpp resolve EDRAM "
+          "buffer clear pipeline");
       Shutdown();
       return false;
     }
@@ -1117,8 +1117,8 @@ bool D3D12RenderTargetCache::Resolve(IPhysicalMemory& memory, D3D12SharedMemory&
           u32 dump_pitch;
           resolve_info.GetCopyEDRAMTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
           if (!DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch)) {
-            REX_FAIL(gpu, false,
-                     "D3D12RenderTargetCache: Failed to dump host render targets for resolve");
+            REXGPU_FAIL(false,
+                        "D3D12RenderTargetCache: Failed to dump host render targets for resolve");
           }
         }
       }
@@ -1211,9 +1211,9 @@ bool D3D12RenderTargetCache::Resolve(IPhysicalMemory& memory, D3D12SharedMemory&
           copied = true;
         }
       } else {
-        REXLOG_ERROR(gpu,
-                     "D3D12RenderTargetCache: Failed to obtain the resolve destination "
-                     "memory region");
+        REXGPU_ERROR(
+            "D3D12RenderTargetCache: Failed to obtain the resolve destination "
+            "memory region");
       }
     }
   } else {
@@ -1455,8 +1455,8 @@ std::unique_ptr<RenderTargetCache::RenderTarget> D3D12RenderTargetCache::CreateR
   }
   REX_ASSERT(resource_desc.Format != DXGI_FORMAT_UNKNOWN);
   if (resource_desc.Format == DXGI_FORMAT_UNKNOWN) {
-    REX_FAIL(gpu, nullptr, "D3D12RenderTargetCache: Unknown {} render target format {}",
-             key.is_depth ? "depth" : "color", static_cast<u32>(key.resource_format));
+    REXGPU_FAIL(nullptr, "D3D12RenderTargetCache: Unknown {} render target format {}",
+                key.is_depth ? "depth" : "color", static_cast<u32>(key.resource_format));
   }
   if (key.msaa_samples == xenos::MSAASamples::k2X && !IsMSAA2xSupported()) {
     resource_desc.SampleDesc.Count = 4;
@@ -3282,24 +3282,22 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                                        ? xenos::GetColorRenderTargetFormatName(dest_color_format)
                                        : xenos::GetDepthRenderTargetFormatName(dest_depth_format);
     if (srv_index_host_depth != UINT32_MAX) {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create a render target ownership "
-                   "transfer pipeline for {}-sample {} + {}-sample host depth{} -> "
-                   "{}-sample {} for mode {}",
-                   static_cast<u32>(1) << static_cast<u32>(key.source_msaa_samples),
-                   source_format_name,
-                   static_cast<u32>(1) << static_cast<u32>(key.host_depth_source_msaa_samples),
-                   key.host_depth_source_is_copy ? " copy" : "",
-                   static_cast<u32>(1) << static_cast<u32>(key.dest_msaa_samples), dest_format_name,
-                   static_cast<u32>(key.mode));
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create a render target ownership "
+          "transfer pipeline for {}-sample {} + {}-sample host depth{} -> "
+          "{}-sample {} for mode {}",
+          static_cast<u32>(1) << static_cast<u32>(key.source_msaa_samples), source_format_name,
+          static_cast<u32>(1) << static_cast<u32>(key.host_depth_source_msaa_samples),
+          key.host_depth_source_is_copy ? " copy" : "",
+          static_cast<u32>(1) << static_cast<u32>(key.dest_msaa_samples), dest_format_name,
+          static_cast<u32>(key.mode));
     } else {
-      REXLOG_ERROR(gpu,
-                   "D3D12RenderTargetCache: Failed to create a render target ownership "
-                   "transfer pipeline for {}-sample {} -> {}-sample {} for mode {}",
-                   static_cast<u32>(1) << static_cast<u32>(key.source_msaa_samples),
-                   source_format_name,
-                   static_cast<u32>(1) << static_cast<u32>(key.dest_msaa_samples), dest_format_name,
-                   static_cast<u32>(key.mode));
+      REXGPU_ERROR(
+          "D3D12RenderTargetCache: Failed to create a render target ownership "
+          "transfer pipeline for {}-sample {} -> {}-sample {} for mode {}",
+          static_cast<u32>(1) << static_cast<u32>(key.source_msaa_samples), source_format_name,
+          static_cast<u32>(1) << static_cast<u32>(key.dest_msaa_samples), dest_format_name,
+          static_cast<u32>(key.mode));
     }
   }
   return pipelines;
@@ -4701,10 +4699,10 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
                     static_cast<u32>(1) << static_cast<u32>(key.msaa_samples)));
     pipeline->SetName(reinterpret_cast<LPCWSTR>(pipeline_name.c_str()));
   } else {
-    REXLOG_ERROR(gpu,
-                 "D3D12RenderTargetCache: Failed to create a render target dumping "
-                 "pipeline for {}-sample render targets with format {}",
-                 static_cast<u32>(1) << static_cast<u32>(key.msaa_samples), format_name);
+    REXGPU_ERROR(
+        "D3D12RenderTargetCache: Failed to create a render target dumping "
+        "pipeline for {}-sample render targets with format {}",
+        static_cast<u32>(1) << static_cast<u32>(key.msaa_samples), format_name);
   }
   // A failed creation stores null to avoid retrying.
   dump_pipelines_.emplace(key, pipeline);

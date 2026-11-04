@@ -76,9 +76,9 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
       pool_create_info.pPoolSizes = pool_descriptor_counts_.data();
       if (dfn.vkCreateDescriptorPool(device, &pool_create_info, nullptr, &current_pool_) !=
           VK_SUCCESS) {
-        REX_FAIL(ui, SIZE_MAX,
-                 "SingleLayoutDescriptorSetPool: Failed to create a descriptor "
-                 "pool");
+        REXUI_FAIL(SIZE_MAX,
+                   "SingleLayoutDescriptorSetPool: Failed to create a descriptor "
+                   "pool");
       }
       current_pool_sets_remaining_ = pool_set_count_;
     }
@@ -92,7 +92,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
     VkDescriptorSet descriptor_set;
     if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptor_set) !=
         VK_SUCCESS) {
-      REXLOG_ERROR(ui, "SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
+      REXUI_ERROR("SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
       if (current_pool_sets_remaining_ >= pool_set_count_) {
         // Failed in a new pool, so the empty pool is destroyed rather than stored as full.
         dfn.vkDestroyDescriptorPool(device, current_pool_, nullptr);

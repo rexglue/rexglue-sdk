@@ -60,21 +60,21 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     attempted_loader_paths.push_back(candidate.string());
     if (vulkan_instance->loader_.Load(candidate)) {
       loader_loaded = true;
-      REXLOG_INFO(ui, "Loaded Vulkan runtime from {}", candidate.string());
+      REXUI_INFO("Loaded Vulkan runtime from {}", candidate.string());
       break;
     }
   }
   if (!loader_loaded) {
-    REXLOG_ERROR(ui, "Failed to load a Vulkan runtime on macOS");
+    REXUI_ERROR("Failed to load a Vulkan runtime on macOS");
     for (const std::string& attempted_loader_path : attempted_loader_paths) {
-      REXLOG_ERROR(ui, "* tried {}", attempted_loader_path);
+      REXUI_ERROR("* tried {}", attempted_loader_path);
     }
     return nullptr;
   }
 #else
   loader_loaded = vulkan_instance->loader_.Load(kVulkanLoader);
   if (!loader_loaded) {
-    REX_FAIL(ui, nullptr, "Failed to load {}", kVulkanLoader);
+    REXUI_FAIL(nullptr, "Failed to load {}", kVulkanLoader);
   }
 #endif
 
@@ -84,7 +84,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   REX_VK_LOAD_LOADER_FUNCTION(vkDestroyInstance);
 #undef REX_VK_LOAD_LOADER_FUNCTION
   if (!functions_loaded) {
-    REX_FAIL(ui, nullptr, "Failed to get Vulkan loader function pointers");
+    REXUI_FAIL(nullptr, "Failed to get Vulkan loader function pointers");
   }
 
   functions_loaded &= (ifn.vkCreateInstance = reinterpret_cast<PFN_vkCreateInstance>(
@@ -98,9 +98,9 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
            reinterpret_cast<PFN_vkEnumerateInstanceLayerProperties>(ifn.vkGetInstanceProcAddr(
                nullptr, "vkEnumerateInstanceLayerProperties"))) != nullptr;
   if (!functions_loaded) {
-    REX_FAIL(ui, nullptr,
-             "Failed to get Vulkan global function pointers via "
-             "vkGetInstanceProcAddr");
+    REXUI_FAIL(nullptr,
+               "Failed to get Vulkan global function pointers via "
+               "vkGetInstanceProcAddr");
   }
   // Available since Vulkan 1.1, so null means a Vulkan 1.0 instance.
   ifn.vkEnumerateInstanceVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
@@ -157,7 +157,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
             nullptr, &supported_implementation_extension_count, nullptr);
     if (get_supported_implementation_extension_count_result != VK_SUCCESS &&
         get_supported_implementation_extension_count_result != VK_INCOMPLETE) {
-      REXLOG_WARN(ui, "Failed to get the Vulkan instance extension count");
+      REXUI_WARN("Failed to get the Vulkan instance extension count");
       return nullptr;
     }
     if (supported_implementation_extension_count) {
@@ -170,7 +170,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
         continue;
       }
       if (get_supported_implementation_extensions_result != VK_SUCCESS) {
-        REXLOG_WARN(ui, "Failed to get the Vulkan instance extensions");
+        REXUI_WARN("Failed to get the Vulkan instance extensions");
         return nullptr;
       }
     }
@@ -341,8 +341,8 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   }
 
   if (instance_create_result != VK_SUCCESS) {
-    REX_FAIL(ui, nullptr, "Failed to create a Vulkan instance: {}",
-             vk::to_string(static_cast<vk::Result>(instance_create_result)));
+    REXUI_FAIL(nullptr, "Failed to create a Vulkan instance: {}",
+               vk::to_string(static_cast<vk::Result>(instance_create_result)));
   }
 
 #define REX_VK_FUNCTION(name)                                                             \
@@ -407,26 +407,26 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 #undef REX_VK_FUNCTION
 
   if (!functions_loaded) {
-    REX_FAIL(ui, nullptr, "Failed to get all Vulkan instance function pointers");
+    REXUI_FAIL(nullptr, "Failed to get all Vulkan instance function pointers");
   }
 
   if (with_surface &&
       !VulkanPresenter::GetSurfaceTypesSupportedByInstance(vulkan_instance->extensions_)) {
-    REX_FAIL(ui, nullptr, "The Vulkan instance doesn't support surface types used by ReXGlue");
+    REXUI_FAIL(nullptr, "The Vulkan instance doesn't support surface types used by ReXGlue");
   }
 
-  REXLOG_INFO(ui, "Vulkan instance API version {}.{}.{}. Enabled layers and extensions:",
-              VK_VERSION_MAJOR(vulkan_instance->api_version_),
-              VK_VERSION_MINOR(vulkan_instance->api_version_),
-              VK_VERSION_PATCH(vulkan_instance->api_version_));
+  REXUI_INFO("Vulkan instance API version {}.{}.{}. Enabled layers and extensions:",
+             VK_VERSION_MAJOR(vulkan_instance->api_version_),
+             VK_VERSION_MINOR(vulkan_instance->api_version_),
+             VK_VERSION_PATCH(vulkan_instance->api_version_));
   for (u32 enabled_layer_index = 0; enabled_layer_index < instance_create_info.enabledLayerCount;
        ++enabled_layer_index) {
-    REXLOG_DEBUG(ui, "* {}", instance_create_info.ppEnabledLayerNames[enabled_layer_index]);
+    REXUI_DEBUG("* {}", instance_create_info.ppEnabledLayerNames[enabled_layer_index]);
   }
   for (u32 enabled_extension_index = 0;
        enabled_extension_index < instance_create_info.enabledExtensionCount;
        ++enabled_extension_index) {
-    REXLOG_DEBUG(ui, "* {}", instance_create_info.ppEnabledExtensionNames[enabled_extension_index]);
+    REXUI_DEBUG("* {}", instance_create_info.ppEnabledExtensionNames[enabled_extension_index]);
   }
 
   if (vulkan_instance->extensions_.ext_EXT_debug_utils && log_debug_messages) {
@@ -461,8 +461,8 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
           vulkan_instance->instance_, &debug_utils_messenger_create_info, nullptr,
           &vulkan_instance->debug_utils_messenger_);
       if (debug_utils_messenger_create_result != VK_SUCCESS) {
-        REXLOG_WARN(ui, "Failed to create the Vulkan debug utils messenger: {}",
-                    vk::to_string(static_cast<vk::Result>(debug_utils_messenger_create_result)));
+        REXUI_WARN("Failed to create the Vulkan debug utils messenger: {}",
+                   vk::to_string(static_cast<vk::Result>(debug_utils_messenger_create_result)));
       }
     }
   }
@@ -563,13 +563,13 @@ VkBool32 VulkanInstance::DebugUtilsMessengerCallback(
 
   auto msg = log_str.str();
   if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-    REXLOG_ERROR(gpu, "{}", msg);
+    REXGPU_ERROR("{}", msg);
   } else if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-    REXLOG_WARN(gpu, "{}", msg);
+    REXGPU_WARN("{}", msg);
   } else if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
-    REXLOG_INFO(gpu, "{}", msg);
+    REXGPU_INFO("{}", msg);
   } else {
-    REXLOG_DEBUG(gpu, "{}", msg);
+    REXGPU_DEBUG("{}", msg);
   }
 
   return VK_FALSE;

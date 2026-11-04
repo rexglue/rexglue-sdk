@@ -148,7 +148,7 @@ Result<void> XenosGraphicsDriverBase::AttachTitle(const TitleInfo& info, IPhysic
 
   command_processor_ = CreateCommandProcessor();
   if (!command_processor_->Initialize()) {
-    REXLOG_ERROR(gpu, "Unable to initialize command processor");
+    REXGPU_ERROR("Unable to initialize command processor");
     return Err(ErrorCategory::kRuntime, "Unable to initialize command processor");
   }
   command_processor_->SetDesiredSwapPostEffect(ParseSwapPostEffect(swap_post_effect.Get()));
@@ -222,7 +222,7 @@ void XenosGraphicsDriverBase::OnHostGPULossFromAnyThread([[maybe_unused]] bool i
   if (host_gpu_loss_reported_.test_and_set(std::memory_order_relaxed)) {
     return;
   }
-  REX_FATAL(gpu, "Graphics device lost (probably due to an internal error)");
+  REXGPU_FATAL("Graphics device lost (probably due to an internal error)");
 }
 
 u32 XenosGraphicsDriverBase::ReadRegister(u32 r) {
@@ -235,7 +235,7 @@ u32 XenosGraphicsDriverBase::ReadRegister(u32 r) {
   }
 
   if (!register_file_.GetRegisterInfo(r)) {
-    REXLOG_WARN_ONCE(gpu, unknown_read_once_, r, "GPU: Read from unknown register ({:04X})", r);
+    REXGPU_WARN_ONCE(unknown_read_once_, r, "GPU: Read from unknown register ({:04X})", r);
   }
 
   REX_ASSERT(r < xenos::RegisterFile::kRegisterCount);
@@ -252,7 +252,7 @@ void XenosGraphicsDriverBase::WriteRegister(u32 r, u32 value) {
     case static_cast<u32>(xenos::Register::D1GRPH_PRIMARY_SURFACE_ADDRESS):
       break;
     default:
-      REXLOG_WARN_ONCE(gpu, unknown_write_once_, r, "Unknown GPU register {:04X} write: {:08X}", r,
+      REXGPU_WARN_ONCE(unknown_write_once_, r, "Unknown GPU register {:04X} write: {:08X}", r,
                        value);
       break;
   }
@@ -289,7 +289,7 @@ void XenosGraphicsDriverBase::NotifySwap() {
 
 void XenosGraphicsDriverBase::DispatchInterruptCallback(u32 source, u32 cpu) {
   if (auto raised = guest_interrupts_->RaiseGraphicsInterrupt(source, cpu); !raised) {
-    REXLOG_ERROR(gpu, "Graphics interrupt refused, {}", raised.error().message);
+    REXGPU_ERROR("Graphics interrupt refused, {}", raised.error().message);
   }
 }
 
