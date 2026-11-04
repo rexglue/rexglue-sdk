@@ -72,6 +72,9 @@ class REX_KERNEL_API ThreadState {
 
   DPCSaveArea& GetDPCSaveArea() { return dpc_save_area_; }
 
+  /** Returns the scan position of the shim strtok on this thread. */
+  char*& GetStrtokContext() { return strtok_context_; }
+
   /**
    * Binds a thread state to the calling host thread.
    *
@@ -94,6 +97,7 @@ class REX_KERNEL_API ThreadState {
   alignas(64)::PPCContext context_storage_{};
   ::PPCContext* context_ = &context_storage_;
   DPCSaveArea dpc_save_area_;
+  char* strtok_context_ = nullptr;
   std::atomic<bool> stop_requested_{false};
 };
 

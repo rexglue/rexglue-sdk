@@ -42,7 +42,6 @@ REX_TEST_CASE_METHOD(Fixture, "unload resets the kernel state", "[kernel][kernel
 
   CHECK(state.fiber_count == 0);
   CHECK(state.audio_submit_logs == 0);
-  CHECK(state.strtok_context == nullptr);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "two runtimes in turn start from the same kernel state",

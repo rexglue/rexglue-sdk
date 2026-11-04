@@ -407,7 +407,6 @@ void TitleState::Shutdown() {
   delete guest_memory_;
   guest_memory_ = nullptr;
   heap.Shutdown();
-  strtok_context = nullptr;
   fiber_count = 0;
   audio_submit_logs = 0;
   memory_.reset();

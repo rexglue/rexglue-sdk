@@ -344,7 +344,6 @@ class REX_KERNEL_API TitleState : public ITitleExit,
   KernelSettings& GetKernelSettings() const;
 
   kernel::shim::GuestHeap heap;
-  char* strtok_context = nullptr;  /**< Position of the shim strtok. */
   std::atomic<u32> fiber_count{0}; /**< Fibers created, for unique IDs. */
   std::atomic<u32> audio_submit_logs{0};
 

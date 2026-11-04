@@ -36,8 +36,9 @@ REX_SHIM_FN(strrchr, char*, const char* s, int c) {
 }
 
 REX_SHIM_FN(strtok, char*, char* s, const char* delim) {
-  // Not reentrant, so concurrent threads share the context.
-  char*& context = kernel::GetCurrentState().strtok_context;
+  static thread_local char* host_context = nullptr;
+  ThreadState* state = ThreadState::Get();
+  char*& context = state ? state->GetStrtokContext() : host_context;
 #if REX_PLATFORM_WIN32
   return strtok_s(s, delim, &context);
 #else

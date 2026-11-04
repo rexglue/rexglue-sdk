@@ -68,6 +68,7 @@ add_executable(
   kernel/rtl_string_test.cpp
   kernel/rtl_time_test.cpp
   kernel/strings_test.cpp
+  kernel/strtok_test.cpp
   kernel/varargs_test.cpp
   kernel/shutdown_test.cpp
   kernel/threads_test.cpp
