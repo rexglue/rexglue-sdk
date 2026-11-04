@@ -109,13 +109,14 @@
  * REX_STUB_RETURN(ExampleFunction, 0);
  * @endcode
  */
-#define REX_STUB_RETURN(subroutine, value)                                 \
-  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                \
-    static constinit ::std::atomic_flag rex_stub_seen_;                    \
-    ::rex::log::detail::WriteStub(                                         \
-        ::rex::log::cpu, rex_stub_seen_, #subroutine,                      \
-        ::std::format("returning {:#x}", static_cast<::rex::u32>(value))); \
-    ctx.r3.u64 = (value);                                                  \
+#define REX_STUB_RETURN(subroutine, value)                                           \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                          \
+    static constinit ::std::atomic_flag rex_stub_seen_;                              \
+    const auto rex_stub_value_ = (value);                                            \
+    ::rex::log::detail::WriteStub(                                                   \
+        ::rex::log::cpu, rex_stub_seen_, #subroutine,                                \
+        ::std::format("returning {:#x}", static_cast<::rex::u32>(rex_stub_value_))); \
+    ctx.r3.u64 = rex_stub_value_;                                                    \
   }
 
 /**
