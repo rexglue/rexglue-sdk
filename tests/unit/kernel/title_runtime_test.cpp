@@ -29,6 +29,34 @@
 #include "test_memory.h"
 #include "kernel/title_state.h"
 #include "xam/xam_state.h"
+#include <chrono>
+#include <memory>
+#include <rex/settings_registry.h>
+#include <filesystem>
+#include "kernel/apu.h"
+#include <algorithm>
+#include <string_view>
+#include <rex/logging/log_category.h>
+#include <rex/ppc/image.h>
+#include <rex/logging/logger.h>
+#include <rex/ppc/context.h>
+#include <rex/ppc/hook.h>
+#include <rex/ppc/recompiled_code.h>
+#include <rex/kernel/thread_state.h>
+#include <array>
+#include <span>
+#include <rex/filesystem/mount.h>
+#include <rex/filesystem/file_system.h>
+#include "kernel/shim/heap.h"
+#include "object_app.h"
+#include <rex/app/app.h>
+#include <rex/cli.h>
+#include <rex/filesystem/file_system_factory.h>
+#include <rex/module.h>
+#include <rex/ui/ui_system.h>
+#include "kernel/kernel_control.h"
+#include "codegen/tool_runtime.h"
+#include "rexglue/log_categories.h"
 
 namespace {
 
@@ -70,7 +98,7 @@ REX_TEST_CASE_METHOD(Title, "load without an entrypoint leaves nothing loaded", 
   rex::kernel::TitleRuntime title(MakeImage());
   CHECK_FALSE(title.Load());
   CHECK_FALSE(title.IsLoaded());
-  CHECK(StateOf(title).GetMemory() == nullptr);
+  CHECK(StateOf(title).GetAddressSpace() == nullptr);
   CHECK(title.GetTitleID() == 0);
 }
 
@@ -82,7 +110,7 @@ REX_TEST_CASE_METHOD(Title, "unload leaves nothing and the title loads again", "
   rex::xam::CurrentXAM().SetOnlineSchemaAddress(0x1234);
   title.Unload();
   CHECK_FALSE(title.IsLoaded());
-  CHECK(StateOf(title).GetMemory() == nullptr);
+  CHECK(StateOf(title).GetAddressSpace() == nullptr);
   CHECK(title.GetTitleID() == 0);
 
   REQUIRE(title.Load());
@@ -140,7 +168,7 @@ REX_TEST_CASE_METHOD(Title, "a failed load leaves nothing behind", "[kernel][tit
   CHECK(failed.error().message.find("is not a folder") != std::string::npos);
   CHECK_FALSE(title.IsLoaded());
   CHECK(title.GetTitleID() == 0);
-  CHECK(StateOf(title).GetMemory() == nullptr);
+  CHECK(StateOf(title).GetAddressSpace() == nullptr);
   CHECK(StateOf(title).GetFileSystem() == nullptr);
   CHECK(REX_RUNTIME() == nullptr);
 

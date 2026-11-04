@@ -41,9 +41,9 @@
 #include <rex/xenos/state.h>
 #include <rex/hash.h>
 #include "gpu/xenos/host/vulkan/linked_type_descriptor_set_allocator.h"
-#include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/provider.h"
-#include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
+#include "gpu/xenos/host/vulkan/vulkan_presenter.h"
+#include "gpu/xenos/host/vulkan/vulkan_provider.h"
+#include "gpu/xenos/host/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace rex::gpu::vulkan {
 

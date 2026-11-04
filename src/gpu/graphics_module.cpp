@@ -3,7 +3,7 @@
 #include <format>
 
 #include <rex/logging/logger.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/ui/ui_system.h>
 #include <rex/driver_module.h>
 
@@ -11,7 +11,7 @@ namespace rex::gpu {
 
 std::span<const InterfaceType> GraphicsModule::GetRequiredInterfaces() const {
   static constexpr InterfaceType kRequired[] = {IDriverContext::kInterface, IAppInfo::kInterface,
-                                                ISettings::kInterface, ILogger::kInterface};
+                                                ISettingsRegistry::kInterface, ILogger::kInterface};
   return kRequired;
 }
 
@@ -23,11 +23,11 @@ GraphicsSystem& GraphicsModule::GetOrCreateSystem() {
   return *system_;
 }
 
-Result<void> GraphicsModule::Connect(IFactory& factory) {
+Result<void> GraphicsModule::Connect(IInterfaceFactory& factory) {
   GetOrCreateSystem();
   context_ = factory.Get<IDriverContext>();
   needs_ = &factory.Get<IAppInfo>()->GetRequirements();
-  settings_ = factory.Get<ISettings>();
+  settings_ = factory.Get<ISettingsRegistry>();
   logger_ = factory.Get<ILogger>();
   factory_ = &factory;
   REX_TRY_VOID(logger_->AddCategories(log::kGraphicsLog));

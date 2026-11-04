@@ -2,9 +2,9 @@
 
 #include <ranges>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/string/text.h>
 #include <rex/driver_module.h>
 
@@ -12,7 +12,7 @@ namespace rex::hid {
 
 std::span<const InterfaceType> InputModule::GetRequiredInterfaces() const {
   static constexpr InterfaceType kRequired[] = {IDriverContext::kInterface, IAppInfo::kInterface,
-                                                ISettings::kInterface, ILogger::kInterface};
+                                                ISettingsRegistry::kInterface, ILogger::kInterface};
   return kRequired;
 }
 
@@ -24,11 +24,11 @@ InputSystem& InputModule::GetOrCreateSystem() {
   return *system_;
 }
 
-Result<void> InputModule::Connect(IFactory& factory) {
+Result<void> InputModule::Connect(IInterfaceFactory& factory) {
   GetOrCreateSystem();
   context_ = factory.Get<IDriverContext>();
   needs_ = &factory.Get<IAppInfo>()->GetRequirements();
-  settings_ = factory.Get<ISettings>();
+  settings_ = factory.Get<ISettingsRegistry>();
   logger_ = factory.Get<ILogger>();
   factory_ = &factory;
   REX_TRY_VOID(logger_->AddCategories(log::kInputLog));

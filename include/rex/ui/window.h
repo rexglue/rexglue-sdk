@@ -72,7 +72,7 @@ struct WindowConfig {
   u32 min_height = 0;
   ui::AspectRatio aspect_ratio = ui::AspectRatio::kStretch;
   bool fullscreen = true;
-  bool fullscreen_exclusive = false; /**< Exclusive rather than borderless. */
+  bool fullscreen_exclusive = false; /**< True for exclusive fullscreen, false for borderless. */
   i32 monitor = 0;
   bool vulkan_surface = false; /**< The graphics driver presents through Vulkan. */
   u32 mode_width = 0;          /**< Exclusive fullscreen mode width, 0 for the desktop. */

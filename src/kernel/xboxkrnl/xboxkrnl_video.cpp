@@ -22,7 +22,7 @@
 #include <rex/xenos/format.h>
 #include <rex/xenos/packet.h>
 #include <rex/kernel/xboxkrnl.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include <rex/types.h>
@@ -336,7 +336,7 @@ u32 VdIsHSIOTrainingSucceeded_entry() {
  */
 u32 VdPersistDisplay_entry([[maybe_unused]] u32 unk0, MappedU32 unk1_ptr) {
   if (unk1_ptr) {
-    auto heap = kernel::GetCurrentState().GetMemory()->LookupHeapByType(true, 16 * 1024);
+    auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeapByType(true, 16 * 1024);
     u32 unk1_value;
     heap->Alloc(64, 32, kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit,
                 kernel::kMemoryProtectNoAccess, false, &unk1_value);
@@ -391,7 +391,7 @@ void VdSwap_entry(MappedVoid buffer_ptr, MappedVoid fetch_ptr, [[maybe_unused]] 
   u32 frontbuffer_virtual_address = gpu_fetch.base_address << 12;
   REX_ASSERT(*frontbuffer_ptr == frontbuffer_virtual_address);
   u32 frontbuffer_physical_address =
-      kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(frontbuffer_virtual_address);
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(frontbuffer_virtual_address);
   REX_ASSERT(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
     REXKRNL_ERROR("VdSwap: Invalid front buffer virtual address 0x{:08X}",
@@ -435,7 +435,7 @@ void VdSwap_entry(MappedVoid buffer_ptr, MappedVoid fetch_ptr, [[maybe_unused]] 
 }
 
 void RegisterVideoExports(ModuleObject& module, TitleRuntime& runtime) {
-  auto memory = StateOf(runtime).GetMemory();
+  auto memory = StateOf(runtime).GetAddressSpace();
 
   // Titles only write the global D3D device pointer.
   u32 p_vd_global_device = memory->SystemHeapAlloc(4, 32, kernel::kSystemHeapPhysical);

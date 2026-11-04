@@ -12,7 +12,7 @@
 #include <cstdlib>
 #include <format>
 
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex {
 
@@ -116,7 +116,7 @@ std::string RenderSetting(const std::filesystem::path& value) {
 
 std::filesystem::path ResolveSettingPath(const std::filesystem::path& value) {
   std::string text = value.generic_string();
-  Settings& settings = REX_SETTINGS();
+  SettingsRegistry& settings = REX_SETTINGS();
   for (int pass = 0; pass < 8; ++pass) {
     const size_t open = text.find('{');
     if (open == std::string::npos)

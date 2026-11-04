@@ -57,7 +57,7 @@ class NoDriverApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
  protected:
-  rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
                            (folder_.path / "game").string());
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
@@ -116,7 +116,7 @@ REX_TEST_CASE_METHOD(Fixture, "a title with no audio plugin runs with the null a
 REX_TEST_CASE_METHOD(Fixture, "no graphics driver writes the write pointer back", "[gpu]") {
   NoDriverApp app;
   app.body = [](NoDriverApp&, rex::kernel::TitleRuntime& runtime) {
-    auto* memory = StateOf(runtime).GetMemory();
+    auto* memory = StateOf(runtime).GetAddressSpace();
     const rex::u32 ring = memory->SystemHeapAlloc(0x1000, 0x1000, rex::kernel::kSystemHeapPhysical);
     REQUIRE(ring != 0);
     const rex::u32 physical = memory->GetPhysicalAddress(ring);

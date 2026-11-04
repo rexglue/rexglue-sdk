@@ -3,10 +3,10 @@
 #include <rex/apu/audio_system.h>
 #include <rex/gpu/graphics_system.h>
 #include <rex/hid/input_system.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/ui/ui_driver.h>
 #include <rex/version.h>
 #include <rex/driver_module.h>
@@ -16,7 +16,7 @@ namespace rex::ui {
 
 std::span<const InterfaceType> UIModule::GetRequiredInterfaces() const {
   static constexpr InterfaceType kRequired[] = {IDriverContext::kInterface, IAppInfo::kInterface,
-                                                ISettings::kInterface, ILogger::kInterface};
+                                                ISettingsRegistry::kInterface, ILogger::kInterface};
   return kRequired;
 }
 
@@ -28,11 +28,11 @@ UISystem& UIModule::GetOrCreateSystem() {
   return *system_;
 }
 
-Result<void> UIModule::Connect(IFactory& factory) {
+Result<void> UIModule::Connect(IInterfaceFactory& factory) {
   GetOrCreateSystem();
   context_ = factory.Get<IDriverContext>();
   info_ = factory.Get<IAppInfo>();
-  settings_ = factory.Get<ISettings>();
+  settings_ = factory.Get<ISettingsRegistry>();
   logger_ = factory.Get<ILogger>();
   needs_ = &info_->GetRequirements();
   factory_ = &factory;

@@ -20,15 +20,15 @@
 #include <vector>
 
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 #include <rex/utility.h>
 
 namespace rex {
 
 inline constexpr size_t kSettingLayerCount = 7;
 
-void RegisterAliases(Settings& settings);
+void RegisterAliases(SettingsRegistry& settings);
 
 extern std::atomic<bool> g_startup_frozen;
 extern std::atomic<bool> g_launch_frozen;
@@ -36,7 +36,7 @@ extern std::atomic<bool> g_launch_frozen;
 struct SettingOwner::State {
   std::string scope;
   std::vector<SettingBase*> settings;
-  std::vector<Command*> commands;
+  std::vector<ConsoleCommand*> commands;
   bool registered = false;
 };
 
@@ -50,17 +50,17 @@ struct SettingBase::State {
   bool restart_pending = false;
 };
 
-struct Command::State {
+struct ConsoleCommand::State {
   SettingOwner* owner = nullptr;
   std::string name;
   std::string help;
   MoveOnlyFunction<Result<void>(std::string_view)> run;
 };
 
-struct Settings::State {
+struct SettingsRegistry::State {
   mutable std::recursive_mutex mutex;
   std::map<std::string, SettingBase*, std::less<>> settings;
-  std::map<std::string, Command*, std::less<>> commands;
+  std::map<std::string, ConsoleCommand*, std::less<>> commands;
   std::map<std::string, std::string, std::less<>> aliases;
   std::map<std::string, std::array<std::optional<std::string>, kSettingLayerCount>, std::less<>>
       waiting;

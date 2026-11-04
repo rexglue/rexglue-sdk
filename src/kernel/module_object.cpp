@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/export.h>
 #include <rex/kernel/object/object_table.h>
 #include <rex/string/text.h>
@@ -94,14 +94,15 @@ u32 UserProcAddressByOrdinal(TitleRuntime& runtime, ModuleObject& module, u16 or
 
 ModuleObject::ModuleObject(TitleRuntime* runtime_in, ModuleType type_in)
     : type(type_in), runtime(runtime_in) {
-  hmodule_ptr = StateOf(*runtime).GetMemory()->SystemHeapAlloc(sizeof(X_LDR_DATA_TABLE_ENTRY));
+  hmodule_ptr =
+      StateOf(*runtime).GetAddressSpace()->SystemHeapAlloc(sizeof(X_LDR_DATA_TABLE_ENTRY));
 }
 
 ModuleObject::~ModuleObject() {
   if (type == ModuleType::kUser) {
     Unload();
   }
-  StateOf(*runtime).GetMemory()->SystemHeapFree(hmodule_ptr);
+  StateOf(*runtime).GetAddressSpace()->SystemHeapFree(hmodule_ptr);
 }
 
 X_HANDLE CreateModule(TitleRuntime& runtime, ModuleType type) {
@@ -112,8 +113,8 @@ X_HANDLE CreateModule(TitleRuntime& runtime, ModuleType type) {
   }
   const X_HANDLE handle = *added;
   auto module = runtime.GetObjectTable().Get<ModuleObject>(handle);
-  auto ldr_data =
-      StateOf(runtime).GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module->hmodule_ptr);
+  auto ldr_data = StateOf(runtime).GetAddressSpace()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(
+      module->hmodule_ptr);
   ldr_data->checksum = handle;
   return handle;
 }

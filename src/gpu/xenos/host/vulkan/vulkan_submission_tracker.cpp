@@ -12,9 +12,9 @@
 #include <cstdint>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
-#include "gpu/xenos/host/vulkan/submission_tracker.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include <rex/logging/log_category.h>
+#include "gpu/xenos/host/vulkan/vulkan_submission_tracker.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex {
 namespace gpu {

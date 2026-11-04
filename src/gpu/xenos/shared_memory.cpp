@@ -17,7 +17,7 @@
 #include <rex/assert.h>
 #include <rex/bit.h>
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "gpu/xenos/shared_memory.h"
 #include <rex/math.h>
 #include <rex/memory.h>

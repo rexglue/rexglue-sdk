@@ -193,7 +193,7 @@ inline std::unique_ptr<IDriver> CreateFakeUI() {
 class FakeUIProvider final : public IModule, public IDriverModule {
  public:
   std::string_view GetName() const override { return "fake_ui"; }
-  Result<void> Connect(IFactory&) override { return {}; }
+  Result<void> Connect(IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   Result<void> Init() override { return {}; }
   void Shutdown() override {}
@@ -283,7 +283,7 @@ class UIApp final : public rex::test::ObjectApp<rex::app::App> {
     providers.push_back(&input_provider_);
   }
 
-  Result<void> OnConfigure(Settings& settings) override {
+  Result<void> OnConfigure(SettingsRegistry& settings) override {
     (void)settings.SetText(SettingLayer::kTitle, "kernel.user_language", "0");
     (void)root.SetText(SettingLayer::kTitle, folder_.path.string());
     (void)GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, display_ ? "fake" : "none");

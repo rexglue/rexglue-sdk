@@ -36,7 +36,7 @@ namespace {
 
 void Print(Caller& c, u32 format, std::initializer_list<u64> arguments = {}) {
   PPCContext& ctx = c.GetContext();
-  u8* base = StateOf(c.GetRuntime()).GetMemory()->GetVirtualMembase();
+  u8* base = StateOf(c.GetRuntime()).GetAddressSpace()->GetVirtualMembase();
   ArgTranslator::SetIntegerArgumentValue(ctx, base, 0, format);
   u32 index = 1;
   for (const u64 value : arguments) {
@@ -52,7 +52,7 @@ std::vector<std::string> RunPrint(const std::optional<Level>& level,
   REQUIRE(logger);
   REQUIRE(REX_SETTINGS().SetText("log.categories.kernel",
                                  level ? rex::log::LevelName(*level) : std::string_view{}));
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger->AddSink(sink);
   fixture.RunOnGuestThread(body);
   sink_guard.Reset();

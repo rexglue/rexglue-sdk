@@ -3,11 +3,11 @@
 #include <atomic>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/xam/title_lifecycle.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 
-#include "xam/app/apps.h"
+#include "xam/app/xam_apps.h"
 
 namespace rex::xam {
 
@@ -90,7 +90,7 @@ bool XAMState::FreeHeap(u32 address) {
 }
 
 void XAMState::AttachInput(rex::hid::IInputSystem* input) {
-  kernel::INotifier& notifier = title_.notifier;
+  kernel::INotificationBroadcaster& notifier = title_.notifier;
   input_ = input;
   if (input_) {
     pad_watch_ = input_->OnConnectionChange([&notifier](u32, bool) {

@@ -38,7 +38,7 @@ class ModuleRegistry final : public IModuleRegistry {
  public:
   /**
    * @param runtime The runtime whose file system, memory and function dispatcher modules use.
-   * @param table The table that holds the modules.
+   * @param table Object table that holds the modules.
    */
   ModuleRegistry(TitleRuntime& runtime, ObjectTable& table);
 

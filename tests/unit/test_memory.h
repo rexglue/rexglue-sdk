@@ -15,12 +15,12 @@
 namespace rex::test {
 
 /**
- * Returns the guest Memory shared by the test case, creating it on first use.
+ * Returns the guest address space shared by the test case, creating it on first use.
  * It is destroyed when the test case ends.
  */
-rex::kernel::Memory& GetTestMemory();
+rex::kernel::GuestAddressSpace& GetTestMemory();
 
-/** Destroys the shared Memory so another owner can create its own. */
+/** Destroys the shared guest address space so another owner can create its own. */
 void ReleaseTestMemory();
 
 }  // namespace rex::test

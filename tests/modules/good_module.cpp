@@ -20,7 +20,7 @@ class GoodModule final : public rex::IModule, public ITestService {
   REX_MODULE_SERVES(ITestService)
 
   std::string_view GetName() const override { return "good"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}

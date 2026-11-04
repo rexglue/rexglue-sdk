@@ -7,7 +7,7 @@
 #include <SDL3/SDL.h>
 
 #include <rex/apu/audio_driver.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/perf.h>
 #include <rex/driver.h>
 #include <rex/driver_context.h>
@@ -125,7 +125,7 @@ std::string_view SDL3AudioProvider::GetName() const {
   return "rexapu-sdl3";
 }
 
-Result<void> SDL3AudioProvider::Connect(IFactory&) {
+Result<void> SDL3AudioProvider::Connect(IInterfaceFactory&) {
   rex::memory::SetTagName(rex::apu::kAPU, "APU");
   for (const char* name : {"audio_frame_latency_us", "buffer_queue_depth"}) {
     if (auto counter = rex::platform::RegisterCounter(name); !counter) {

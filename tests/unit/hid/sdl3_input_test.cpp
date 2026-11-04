@@ -18,7 +18,7 @@
 #include <rex/hid/input_driver.h>
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/utility.h>
 
 #include "base/driver_context.h"
@@ -29,7 +29,7 @@ namespace {
 
 class TrackingContext final : public rex::IDriverContext {
  public:
-  rex::ISettings& GetSettings() override { return REX_SETTINGS(); }
+  rex::ISettingsRegistry& GetSettingsRegistry() override { return REX_SETTINGS(); }
   rex::ILogger& GetLogger() override { return REX_LOGGER(); }
   rex::Result<void> RunOnUIThread(rex::MoveOnlyFunction<void()> fn) override {
     fn();

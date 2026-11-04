@@ -17,12 +17,12 @@
 namespace rex {
 
 class ILogger;
-class ISettings;
+class ISettingsRegistry;
 
 /** What a driver receives at Initialize, and its only route to core services. */
 REX_DECLARE_INTERFACE(IDriverContext, 1)
 /** Returns the settings registry, where the driver registers its own settings. */
-  virtual ISettings& GetSettings() = 0;
+  virtual ISettingsRegistry& GetSettingsRegistry() = 0;
 
   /**
    * Returns the logger, where the driver adds its categories.

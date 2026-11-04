@@ -2,7 +2,7 @@
 
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/settings/settings_internal.h"
 

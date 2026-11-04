@@ -14,7 +14,7 @@
 #include <array>
 #include <memory>
 
-#include "gpu/xenos/host/vulkan/device.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
 #include <rex/types.h>
 #include <rex/utility.h>
 

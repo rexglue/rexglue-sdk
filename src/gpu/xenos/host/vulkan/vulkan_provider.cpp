@@ -12,10 +12,10 @@
 #include <algorithm>
 #include <vector>
 
-#include <rex/logging/log.h>
-#include "gpu/xenos/host/vulkan/immediate_drawer.h"
-#include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/provider.h"
+#include <rex/logging/log_category.h>
+#include "gpu/xenos/host/vulkan/vulkan_immediate_drawer.h"
+#include "gpu/xenos/host/vulkan/vulkan_presenter.h"
+#include "gpu/xenos/host/vulkan/vulkan_provider.h"
 
 namespace rex {
 namespace gpu {

@@ -1,5 +1,5 @@
 /**
- * @file        logging/log.h
+ * @file        logging/log_category.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -68,7 +68,7 @@ class DetailAccess;
  * Log category declared with REXLOG_CATEGORY and added with Logger::AddCategories. Copies with the
  * same name share one level.
  */
-class REX_API Category : public NonCopyable {
+class REX_API LogCategory : public NonCopyable {
  public:
   /** Slot value of a copy that has not written yet. */
   static constexpr u16 kUnresolved = 0xFFFF;
@@ -79,7 +79,7 @@ class REX_API Category : public NonCopyable {
    * @param name Identifier, lowercase, unique across the process.
    * @param description Shown by the console.
    */
-  constexpr Category(std::string_view name, std::string_view description) noexcept
+  constexpr LogCategory(std::string_view name, std::string_view description) noexcept
       : name_(name), description_(description) {}
 
   constexpr std::string_view GetName() const { return name_; }
@@ -112,18 +112,18 @@ struct CategoryState {
 
 namespace detail {
 
-REX_API void Write(const Category& category, Level level, std::string_view text);
+REX_API void Write(const LogCategory& category, Level level, std::string_view text);
 
 /** Writes the line that replaces a message that threw. Falls back to stderr. */
-REX_API void WriteFailure(const Category& category, const char* what) noexcept;
+REX_API void WriteFailure(const LogCategory& category, const char* what) noexcept;
 
 /** Formats and writes a message. A throw becomes a WriteFailure line. */
-REX_API void WriteArgs(const Category& category, Level level, std::string_view fmt,
+REX_API void WriteArgs(const LogCategory& category, Level level, std::string_view fmt,
                        std::format_args args) noexcept;
 
 /** Formats and writes a message. A throw becomes a WriteFailure line. */
 template <typename... Args>
-void WriteFormatted(const Category& category, Level level, std::format_string<Args...> fmt,
+void WriteFormatted(const LogCategory& category, Level level, std::format_string<Args...> fmt,
                     Args&&... args) noexcept {
   WriteArgs(category, level, fmt.get(), std::make_format_args(args...));
 }
@@ -134,14 +134,14 @@ void WriteFormatted(const Category& category, Level level, std::format_string<Ar
  * @param seen Per stub flag, set by the first call.
  * @param detail Text after the name, may be empty.
  */
-REX_API void WriteStub(const Category& category, std::atomic_flag& seen, std::string_view name,
+REX_API void WriteStub(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
                        std::string_view detail);
 
 /** Collects categories for Logger::AddCategories. */
 template <typename... Categories>
-constexpr std::array<const Category*, sizeof...(Categories)> BuildTable(
+constexpr std::array<const LogCategory*, sizeof...(Categories)> BuildTable(
     const Categories&... categories) noexcept {
-  return {static_cast<const Category*>(&categories)...};
+  return {static_cast<const LogCategory*>(&categories)...};
 }
 
 }  // namespace detail
@@ -159,9 +159,9 @@ constexpr std::array<const Category*, sizeof...(Categories)> BuildTable(
  * REXLOG_CATEGORY(gpu, "GPU emulation")
  * @endcode
  */
-#define REXLOG_CATEGORY(name, description)                        \
-  namespace rex::log {                                            \
-  inline constinit ::rex::log::Category name{#name, description}; \
+#define REXLOG_CATEGORY(name, description)                           \
+  namespace rex::log {                                               \
+  inline constinit ::rex::log::LogCategory name{#name, description}; \
   }
 
 /**
@@ -214,7 +214,7 @@ REX_API void Flush();
  * @param category Category of the log line for a throw.
  */
 template <typename Fn>
-void NoThrow(const Category& category, Fn&& fn) noexcept {
+void NoThrow(const LogCategory& category, Fn&& fn) noexcept {
   try {
     std::forward<Fn>(fn)();
   } catch (const std::exception& error) {
@@ -229,7 +229,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a message when the category is enabled at the level, else evaluates no arguments.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param level A rex::log::Level.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
@@ -248,7 +248,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a message when the category is enabled and the key has not written yet.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param level A rex::log::Level.
  * @param once A rex::log::OncePerKey lvalue.
  * @param key The key, written once per distinct value.
@@ -269,7 +269,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a Trace message.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -283,7 +283,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a Dev message.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -297,7 +297,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a Debug message.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -311,7 +311,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes an Info message.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -325,7 +325,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a Warn message.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -339,7 +339,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes an Error message.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -353,7 +353,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a Critical message.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -367,7 +367,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes an Error message and returns a value from the enclosing function.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param value The expression the enclosing function returns.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
@@ -385,7 +385,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a Critical message, flushes every sink and aborts.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param fmt std::format string literal.
  * @param ... Format arguments.
  *
@@ -403,7 +403,7 @@ void NoThrow(const Category& category, Fn&& fn) noexcept {
 /**
  * Writes a Critical message, flushes every sink and aborts when a condition is false.
  *
- * @param cat A rex::log::Category lvalue.
+ * @param cat A rex::log::LogCategory lvalue.
  * @param cond The condition that must hold.
  * @param fmt std::format string literal.
  * @param ... Format arguments.

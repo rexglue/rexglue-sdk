@@ -33,7 +33,7 @@ namespace rex::ppc {
  */
 REX_PPC_API PPCFunc* ResolveFunction(u32 guest_address);
 
-/** Handles a trap instruction of generated code. */
+/** Logs a trap instruction of generated code. Execution continues. */
 REX_PPC_API void Trap(PPCContext& ctx, u8* base, u16 trap_type);
 
 /**

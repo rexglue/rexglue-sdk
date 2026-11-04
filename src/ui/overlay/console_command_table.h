@@ -1,5 +1,5 @@
 /**
- * @file        ui/overlay/console_command.h
+ * @file        ui/overlay/console_command_table.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,8 +14,8 @@
 
 #include <rex/result.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 
 namespace rex::ui {
 
@@ -25,7 +25,7 @@ class ConsoleCommandTable final : public SettingOwner {
   /**
    * @param settings The registry find searches.
    */
-  explicit ConsoleCommandTable(ISettings& settings);
+  explicit ConsoleCommandTable(ISettingsRegistry& settings);
 
   REX_COMMAND(echo, "Echo arguments to the console",
               [](std::string_view args) { return Echo(args); });
@@ -36,7 +36,7 @@ class ConsoleCommandTable final : public SettingOwner {
   static Result<void> Echo(std::string_view args);
   Result<void> Find(std::string_view args);
 
-  ISettings& settings_;
+  ISettingsRegistry& settings_;
 };
 
 }  // namespace rex::ui

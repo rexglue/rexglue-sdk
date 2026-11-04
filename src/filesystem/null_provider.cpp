@@ -6,7 +6,7 @@
 #include <rex/filesystem/file_stat.h>
 #include <rex/filesystem/file_open.h>
 #include <rex/filesystem/mount.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/string/text.h>
 
 namespace rex::filesystem {

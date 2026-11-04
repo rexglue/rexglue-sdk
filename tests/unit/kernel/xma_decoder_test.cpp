@@ -69,7 +69,7 @@ REX_TEST_CASE("Releasing an XMA context twice leaves the released memory alone",
   auto decoder = MakeDecoder(fixture);
   const rex::u32 context = decoder->AllocateContext();
   REQUIRE(context != 0);
-  auto* memory = StateOf(fixture.GetRuntime()).GetMemory();
+  auto* memory = StateOf(fixture.GetRuntime()).GetAddressSpace();
   decoder->ReleaseContext(context);
   *memory->TranslateVirtual<rex::u8*>(context) = 0x5A;
   decoder->ReleaseContext(context);
@@ -90,7 +90,7 @@ REX_TEST_CASE("Two writes to the same unknown XMA register log one line", "[kern
   auto decoder = MakeDecoder(fixture);
   rex::Logger* logger = &REX_LOGGER();
   REQUIRE(logger);
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger->AddSink(sink);
   constexpr rex::u32 kUnknown = 0x601 * 4;
   decoder->WriteRegister(kUnknown, 3);

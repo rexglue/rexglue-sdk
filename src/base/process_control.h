@@ -16,7 +16,7 @@
 namespace rex {
 
 /** Reaches the private members of the process settings. */
-class ProcessSettingsControl final : public ISettingsControl {
+class ProcessSettingsControl final : public ISettingsRegistryControl {
  public:
   void Freeze(SettingLife life) override;
   void Thaw(SettingLife life) override;

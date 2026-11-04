@@ -42,17 +42,17 @@ namespace rex::kernel {
 
 class FunctionDispatcher;
 
-class REX_KERNEL_API Module {
+class REX_KERNEL_API GuestModule {
  public:
   /**
    * Builds a module.
    *
    * @param function_dispatcher The dispatcher that supplies the memory, may be null.
    */
-  explicit Module(FunctionDispatcher* function_dispatcher);
-  virtual ~Module();
+  explicit GuestModule(FunctionDispatcher* function_dispatcher);
+  virtual ~GuestModule();
 
-  kernel::Memory* GetMemory() const { return memory_; }
+  kernel::GuestAddressSpace* GetAddressSpace() const { return memory_; }
   FunctionDispatcher* GetFunctionDispatcher() const { return function_dispatcher_; }
 
   virtual const std::string& GetName() const = 0;
@@ -100,7 +100,7 @@ class REX_KERNEL_API Module {
 
  protected:
   FunctionDispatcher* function_dispatcher_ = nullptr;
-  kernel::Memory* memory_ = nullptr;
+  kernel::GuestAddressSpace* memory_ = nullptr;
 
   /** Populated by derived classes. */
   std::vector<BinarySection> binary_sections_;
@@ -112,7 +112,7 @@ class REX_KERNEL_API Module {
 namespace rex::kernel {
 
 /** Loads libxenon executables. */
-class REX_KERNEL_API ELFModule : public Module {
+class REX_KERNEL_API ELFModule : public GuestModule {
  public:
   /**
    * Builds an unloaded module.
@@ -169,7 +169,7 @@ constexpr memory::FourCCT kXEX2Signature = memory::make_fourcc("XEX2");
 constexpr memory::FourCCT kELFSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F');
 
 /** A module loaded from an XEX image, or from an XEX patch image. */
-class REX_KERNEL_API XEXModule : public Module {
+class REX_KERNEL_API XEXModule : public GuestModule {
  public:
   struct LibraryImport {
    public:
@@ -200,7 +200,7 @@ class REX_KERNEL_API XEXModule : public Module {
   const filesystem::PEInfo& GetPE() const { return pe_; }
 
   /**
-   * @return The size in bytes, the sum of the page ranges of the image.
+   * @return Size in bytes, summed over the page ranges of the image.
    */
   u32 GetImageSize() const override;
 
@@ -276,11 +276,7 @@ class REX_KERNEL_API XEXModule : public Module {
   bool Unload();
 
   const std::string& GetName() const override { return name_; }
-  /**
-   * Reports whether the image is a title module.
-   *
-   * @return True when the module flags mark a title.
-   */
+  /** Reports whether the module flags mark a title module. */
   bool IsExecutable() const override {
     return image_ && (static_cast<u32>(image_->GetHeader().module_flags) & kXEXModuleTitle) != 0;
   }

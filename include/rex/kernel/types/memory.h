@@ -95,7 +95,7 @@ struct be_ptr {
     }
     auto* thread_state = rex::kernel::ThreadState::Get();
     REX_ASSERT(thread_state != nullptr);
-    return rex::memory::GuestPtr<T*>(thread_state->GetMemory()->GetVirtualMembase(), value);
+    return rex::memory::GuestPtr<T*>(thread_state->GetAddressSpace()->GetVirtualMembase(), value);
   }
 
   /**
@@ -107,10 +107,10 @@ struct be_ptr {
    */
   T* TryGetHost() const {
     auto* thread_state = rex::kernel::ThreadState::Get();
-    if (thread_state == nullptr || thread_state->GetMemory() == nullptr) {
+    if (thread_state == nullptr || thread_state->GetAddressSpace() == nullptr) {
       return nullptr;
     }
-    return thread_state->GetMemory()->TryTranslateVirtual<T*>(value);
+    return thread_state->GetAddressSpace()->TryTranslateVirtual<T*>(value);
   }
 
   /**
@@ -156,7 +156,7 @@ struct be_ptr {
     } else {
       auto* thread_state = rex::kernel::ThreadState::Get();
       REX_ASSERT(thread_state != nullptr);
-      value = rex::memory::HostPtrToGuest(thread_state->GetMemory()->GetVirtualMembase(),
+      value = rex::memory::HostPtrToGuest(thread_state->GetAddressSpace()->GetVirtualMembase(),
                                           reinterpret_cast<const void*>(host_pointer));
     }
     return *this;
@@ -276,10 +276,10 @@ struct GuestVector {
    */
   const T* TryAt(size_t index) const {
     auto* thread_state = rex::kernel::ThreadState::Get();
-    if (thread_state == nullptr || thread_state->GetMemory() == nullptr) {
+    if (thread_state == nullptr || thread_state->GetAddressSpace() == nullptr) {
       return nullptr;
     }
-    return TryAt(index, rex::kernel::MemoryView(*thread_state->GetMemory()));
+    return TryAt(index, rex::kernel::MemoryView(*thread_state->GetAddressSpace()));
   }
 };
 REX_STATIC_ASSERT_SIZE(GuestVector<u8>, 12);

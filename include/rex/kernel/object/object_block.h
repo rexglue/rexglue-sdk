@@ -15,7 +15,7 @@
 
 namespace rex::kernel {
 
-class Memory;
+class GuestAddressSpace;
 class WorkspaceHeap;
 
 struct ObjectBlock {
@@ -37,8 +37,8 @@ enum class ObjectBlockHeap : u8 {
  * @param workspace The workspace for the header and body, null for the system heap.
  * @return The block with owned set, address 0 when the allocation failed.
  */
-REX_KERNEL_API ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, u32 type_address,
-                                            WorkspaceHeap* workspace = nullptr);
+REX_KERNEL_API ObjectBlock AllocObjectBlock(kernel::GuestAddressSpace* memory, u32 size,
+                                            u32 type_address, WorkspaceHeap* workspace = nullptr);
 
 /**
  * Frees a block made by AllocObjectBlock. The type object it points at is not freed.
@@ -46,7 +46,7 @@ REX_KERNEL_API ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, u3
  * @param address The address of the object body, 0 for none.
  * @param workspace The workspace AllocObjectBlock used, null for the system heap.
  */
-REX_KERNEL_API void FreeObjectBlock(kernel::Memory* memory, u32 address,
+REX_KERNEL_API void FreeObjectBlock(kernel::GuestAddressSpace* memory, u32 address,
                                     WorkspaceHeap* workspace = nullptr);
 
 }  // namespace rex::kernel

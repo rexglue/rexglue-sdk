@@ -22,7 +22,7 @@ REX_DECLARE_PRIVATE_INTERFACE(IKernelControl, 1)
  * from. The app calls it between Connect and Init.
  *
  */
-  virtual void SetControls(IFactory& controls) = 0;
+  virtual void SetControls(IInterfaceFactory& controls) = 0;
 };
 
 }  // namespace rex::kernel

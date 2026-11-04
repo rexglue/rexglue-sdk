@@ -14,7 +14,7 @@
 #include "pipeline.h"
 
 #include "config.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <rex/memory/endian.h>

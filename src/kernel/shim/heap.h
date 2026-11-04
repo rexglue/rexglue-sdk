@@ -20,7 +20,7 @@
 #include <rex/types.h>
 
 namespace rex::kernel {
-class Memory;
+class GuestAddressSpace;
 }  // namespace rex::kernel
 
 namespace rex::kernel::shim {
@@ -34,7 +34,7 @@ class GuestHeap {
    * @param heap_size_bytes The size of the first segment.
    * @param memory The guest memory the segment is carved from.
    */
-  bool Init(u32 heap_size_bytes, rex::kernel::Memory* memory);
+  bool Init(u32 heap_size_bytes, rex::kernel::GuestAddressSpace* memory);
 
   void Shutdown();
 
@@ -62,7 +62,7 @@ class GuestHeap {
   std::vector<std::unique_ptr<rex::kernel::GuestAllocator>> segments_;
   u8* membase_ = nullptr;
   u32 initial_segment_size_ = 0;
-  rex::kernel::Memory* memory_ = nullptr;
+  rex::kernel::GuestAddressSpace* memory_ = nullptr;
 
   void* GuestToHost(u32 guest_addr) const;
   u32 HostToGuest(void* host_ptr) const;
@@ -78,7 +78,7 @@ class GuestHeap {
  * @param heap_size_mb The size of the first segment in MiB.
  * @param memory The guest memory the heap is carved from.
  */
-bool InitHeap(u32 heap_size_mb, rex::kernel::Memory* memory);
+bool InitHeap(u32 heap_size_mb, rex::kernel::GuestAddressSpace* memory);
 
 void ShutdownHeap();
 

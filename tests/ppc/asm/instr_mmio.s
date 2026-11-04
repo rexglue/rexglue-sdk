@@ -33,7 +33,7 @@ test_mmio_offset_load:
   blr
   #_ REGISTER_OUT r3 0x11223344
 
-test_mmio_proven_null_load:
+test_mmio_matched_null_load:
   #_ REGISTER_IN r3 0x12345678
   lis r11, 0x7FC8
   lwz r3, 0x10(r11)

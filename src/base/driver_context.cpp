@@ -2,16 +2,16 @@
 
 #include <atomic>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include <rex/utility.h>
 
 namespace rex {
 
-AppDriverContext::AppDriverContext(ISettings& settings, ILogger& logger)
+AppDriverContext::AppDriverContext(ISettingsRegistry& settings, ILogger& logger)
     : settings_(settings), logger_(logger), init_thread_(std::this_thread::get_id()) {}
 
-ISettings& AppDriverContext::GetSettings() {
+ISettingsRegistry& AppDriverContext::GetSettingsRegistry() {
   return settings_;
 }
 

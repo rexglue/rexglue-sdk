@@ -32,8 +32,7 @@
 #include <rex/types.h>
 #include <rex/ppc/recompiled_code.h>
 #include <rex/ppc/image.h>
-#include <rex/logging/log.h>
-#include <rex/logging/logger.h>
+#include <rex/logging/log_category.h>
 #include <rex/chrono.h>
 #include <rex/platform/perf.h>
 #include <rex/ppc/mmio.h>

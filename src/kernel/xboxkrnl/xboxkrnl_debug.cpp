@@ -10,7 +10,7 @@
  */
 
 #include <rex/platform/process.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include <rex/memory/mapped_ptr.h>
@@ -55,7 +55,8 @@ void HandleSetThreadName(GuestPtrT<X_EXCEPTION_RECORD> record) {
 
   // A title may pass freed memory for the name, which holds junk.
   const char* name_data =
-      kernel::GetCurrentState().GetMemory()->TranslateVirtual<const char*>(thread_info->name_ptr);
+      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<const char*>(
+          thread_info->name_ptr);
   auto name = std::string(name_data, strnlen(name_data, kMaxThreadNameLength));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 

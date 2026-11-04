@@ -20,7 +20,7 @@
 #include <rex/driver_registration.h>
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/ui/ui_driver.h>
 #include <rex/ui/window.h>
 

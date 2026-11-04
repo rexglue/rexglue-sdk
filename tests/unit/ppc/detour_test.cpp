@@ -20,7 +20,7 @@
 
 #include "rex_test.h"
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 #include <rex/ppc/image.h>
 #include <rex/ppc/seh.h>
@@ -331,7 +331,7 @@ REX_TEST_CASE("A detour ctx write to a register kept in a local warns once", "[p
   std::vector<rex::log::CapturedMessage> messages;
   rex::test::RunInInit([&] {
     rex::Logger& logger = REX_LOGGER();
-    rex::log::CaptureSink sink;
+    rex::log::LogCaptureSink sink;
     auto sink_guard = logger.AddSink(sink);
 
     const PPCContext at_entry = MakeContext();
@@ -465,7 +465,7 @@ REX_TEST_CASE("A detour declaring fewer arguments than the function reads warns"
   std::vector<rex::log::CapturedMessage> messages;
   rex::test::RunInInit([&] {
     rex::Logger& logger = REX_LOGGER();
-    rex::log::CaptureSink sink;
+    rex::log::LogCaptureSink sink;
     auto sink_guard = logger.AddSink(sink);
 
     const rex::ppc::PPCCallUsage usage{0x82000100, 0x3, 0x1};

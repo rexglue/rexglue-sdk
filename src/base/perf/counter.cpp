@@ -1,8 +1,8 @@
 #include <rex/platform/perf.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/string/text.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/core_settings.h"
 

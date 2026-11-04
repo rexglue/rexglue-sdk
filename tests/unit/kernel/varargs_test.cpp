@@ -28,7 +28,8 @@ namespace {
 constexpr u32 kBufferBytes = 256;
 
 std::string ReadBuffer(Caller& c, u32 address) {
-  return std::string(StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<const char*>(address));
+  return std::string(
+      StateOf(c.GetRuntime()).GetAddressSpace()->TranslateVirtual<const char*>(address));
 }
 
 constexpr u64 kD1 = 0x11223344;

@@ -21,7 +21,7 @@
 #include <rex/xenos/register.h>
 #include <rex/xenos/fetch.h>
 #include <rex/xenos/format.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/bit.h>
 

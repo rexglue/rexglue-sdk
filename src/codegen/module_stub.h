@@ -19,8 +19,8 @@
 
 namespace rex::codegen {
 
-/** Module over raw binary test data held by reference. The caller owns the buffer. */
-class StubModule : public kernel::Module {
+/** GuestModule over raw binary test data held by reference. The caller owns the buffer. */
+class StubModule : public kernel::GuestModule {
  public:
   StubModule();
   ~StubModule() override = default;

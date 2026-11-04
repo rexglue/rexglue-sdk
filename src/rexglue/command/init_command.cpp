@@ -16,7 +16,7 @@
 #include <rex/string/text.h>
 #include "codegen/manifest.h"
 #include "codegen/template_registry.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "rexglue/log_categories.h"
 #include <rex/platform/file.h>
 #include <rex/result.h>
@@ -118,9 +118,9 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   (void)ctx;
 
   if (opts.project_name.empty())
-    return Err<void>(ErrorCategory::kConfig, "--project_name is required");
+    return Err<void>(ErrorCategory::kConfig, "--project-name is required");
   if (opts.xex_path.empty())
-    return Err<void>(ErrorCategory::kConfig, "--xex_path is required (path to entrypoint XEX)");
+    return Err<void>(ErrorCategory::kConfig, "--xex-path is required (path to entrypoint XEX)");
 
   std::string validation_error;
   if (!ValidateProjectName(opts.project_name, validation_error))
@@ -136,15 +136,15 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   fs::path xex_abs = ResolveDir(opts.xex_path, ec);
   if (ec)
     return Err<void>(ErrorCategory::kIO,
-                     "Failed to resolve --xex_path '" + opts.xex_path + "': " + ec.message());
+                     "Failed to resolve --xex-path '" + opts.xex_path + "': " + ec.message());
   if (!fs::exists(xex_abs))
     return Err<void>(ErrorCategory::kIO, "Entrypoint XEX not found: " + xex_abs.string());
   if (!fs::is_regular_file(xex_abs))
-    return Err<void>(ErrorCategory::kIO, "--xex_path is not a regular file: " + xex_abs.string());
+    return Err<void>(ErrorCategory::kIO, "--xex-path is not a regular file: " + xex_abs.string());
 
   std::string xex_stem = xex_abs.stem().string();
   if (xex_stem.empty())
-    return Err<void>(ErrorCategory::kConfig, "--xex_path has no filename: " + opts.xex_path);
+    return Err<void>(ErrorCategory::kConfig, "--xex-path has no filename: " + opts.xex_path);
 
   fs::path game_root_abs;
   if (opts.game_root.empty()) {
@@ -153,16 +153,16 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
     game_root_abs = ResolveDir(opts.game_root, ec);
     if (ec)
       return Err<void>(ErrorCategory::kIO,
-                       "Failed to resolve --game_root '" + opts.game_root + "': " + ec.message());
+                       "Failed to resolve --game-root '" + opts.game_root + "': " + ec.message());
   }
   if (!fs::exists(game_root_abs) || !fs::is_directory(game_root_abs))
     return Err<void>(ErrorCategory::kIO,
-                     "--game_root is not a directory: " + game_root_abs.string());
+                     "--game-root is not a directory: " + game_root_abs.string());
 
   fs::path xex_rel_to_game = fs::relative(xex_abs, game_root_abs, ec);
   if (ec || xex_rel_to_game.empty() || *xex_rel_to_game.begin() == fs::path("..")) {
-    return Err<void>(ErrorCategory::kConfig, "--xex_path (" + xex_abs.string() +
-                                                 ") is not inside --game_root (" +
+    return Err<void>(ErrorCategory::kConfig, "--xex-path (" + xex_abs.string() +
+                                                 ") is not inside --game-root (" +
                                                  game_root_abs.string() + ")");
   }
 

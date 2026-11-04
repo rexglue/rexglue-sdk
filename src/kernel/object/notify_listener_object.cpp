@@ -9,11 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 #include <rex/kernel/object/notify_listener_object.h>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/sync.h>
 
 namespace rex::kernel {

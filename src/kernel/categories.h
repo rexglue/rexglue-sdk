@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 REXLOG_CATEGORY(kernel, "Kernel exports of xboxkrnl")
 REXLOG_CATEGORY(title, "Debug output the title writes through DbgPrint and OutputDebugString")

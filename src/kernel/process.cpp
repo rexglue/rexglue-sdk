@@ -27,7 +27,7 @@
 #include <rex/kernel/runtime_settings.h>
 #include <rex/kernel/kernel_settings.h>
 #include <rex/kernel/title_exit.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/ppc/call.h>
 #include <rex/kernel/function_dispatcher.h>
@@ -41,7 +41,7 @@
 #include "kernel/apu.h"
 #include "kernel/dispatcher.h"
 #include "kernel/module_registry.h"
-#include "kernel/notifier.h"
+#include "kernel/notification_broadcaster.h"
 #include "kernel/object_table.h"
 #include "kernel/thread_registry.h"
 #include "kernel/thread_wait.h"
@@ -59,7 +59,7 @@ Result<void> kernel::TitleState::CreateSubsystems() {
   CreateWorkspace(WorkspaceHeap::ResolveSize(0));
   thread_registry_ = std::make_unique<kernel::ThreadRegistry>(owner_, *object_table_);
   module_registry_ = std::make_unique<kernel::ModuleRegistry>(owner_, *object_table_);
-  notifier_ = std::make_unique<kernel::Notifier>(*object_table_);
+  notifier_ = std::make_unique<kernel::NotificationBroadcaster>(*object_table_);
   dispatcher_ = std::make_unique<kernel::Dispatcher>(owner_);
   REX_TRY_VOID(CreateXAM());
 

@@ -6,10 +6,10 @@
 #include <format>
 
 #include <rex/apu/audio_system.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/gpu/graphics_system.h>
 #include <rex/hid/input_system.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ui/ui_driver.h>
 #include <rex/ui/dialog.h>
 #include <rex/ui/window.h>
@@ -283,8 +283,8 @@ void UISystem::State::OpenWindow() {
   CreateImGui();
   last_pointer_motion = std::chrono::steady_clock::now();
 
-  ISettings& settings = *registry;
-  log_capture = std::make_unique<log::CaptureSink>();
+  ISettingsRegistry& settings = *registry;
+  log_capture = std::make_unique<log::LogCaptureSink>();
   log_capture_guard = logger->AddSink(*log_capture);
   binds.SetInput(input);
   binds.Attach(&settings);
@@ -367,7 +367,7 @@ void UISystem::State::CloseWindow() {
 
 Result<void> UISystem::Start(rex::ui::IUIDriver* ui_driver, rex::hid::IInputSystem* input,
                              rex::apu::IAudioSystem& audio, rex::gpu::IGraphicsSystem& graphics,
-                             ISettings& settings, ILogger& logger) {
+                             ISettingsRegistry& settings, ILogger& logger) {
   State& s = *state_;
   if (s.started.load()) {
     return Err(ErrorCategory::kRuntime, "the UI system already started");

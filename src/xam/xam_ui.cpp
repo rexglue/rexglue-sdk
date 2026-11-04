@@ -24,7 +24,7 @@
 #include <rex/kernel/title_exit.h>
 #include <rex/kernel/thread_registry.h>
 #include <rex/kernel/object/kernel_thread.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/string/text.h>
 
@@ -38,7 +38,7 @@
 #include "xam/stub_log.h"
 #include <rex/kernel/thread_state.h>
 #include <rex/utility.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 #include "xam/xam_module.h"
 #include "xam/xam_state.h"
 #include "xam/xam_bodies.h"

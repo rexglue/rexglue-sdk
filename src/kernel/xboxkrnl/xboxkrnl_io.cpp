@@ -13,7 +13,7 @@
 #include <rex/filesystem/file_stat.h>
 #include <rex/filesystem/file_open.h>
 #include <rex/filesystem/file.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/memory.h>
 #include <rex/ppc/hook.h>
@@ -76,11 +76,11 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
   }
   REX_ASSERT(handle_out != nullptr);
 
-  auto object_name = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(
+  auto object_name = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_ANSI_STRING*>(
       object_attrs->name_ptr);
 
   auto target_path = StripDosDevicePrefix(
-      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), object_name));
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), object_name));
   REXKRNL_TRACE(
       "NtCreateFile "
       "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
@@ -392,9 +392,10 @@ static Result<filesystem::FileStat> StatRelative(filesystem::IFile& root, std::s
 
 u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
                                     GuestPtrT<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
-  auto object_name = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(
+  auto object_name = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_ANSI_STRING*>(
       object_attrs->name_ptr);
-  auto path_str = kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), object_name);
+  auto path_str =
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), object_name);
   REXKRNL_TRACE(
       "NtQueryFullAttributesFile "
       "path={}",
@@ -410,7 +411,7 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
   }
 
   auto target_path = StripDosDevicePrefix(
-      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), object_name));
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), object_name));
 
   if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
@@ -451,7 +452,7 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routin
   u32 info = 0;
 
   auto file = kernel::GetCurrent().GetObjectTable().Get<FileObject>(file_handle);
-  auto name = kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), file_name);
+  auto name = kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), file_name);
 
   if (!IsValidPath(name, PathUse::kPattern)) {
     return X_STATUS_INVALID_PARAMETER;
@@ -507,11 +508,11 @@ u32 NtOpenSymbolicLinkObject_entry(MappedU32 handle_out,
   REX_KERNEL_REQUIRE_NONNULL(object_attrs);
   REX_ASSERT(handle_out != nullptr);
 
-  auto object_name = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_ANSI_STRING*>(
+  auto object_name = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_ANSI_STRING*>(
       object_attrs->name_ptr);
 
   auto target_path = StripDosDevicePrefix(
-      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), object_name));
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), object_name));
 
   if (!IsValidPath(target_path, PathUse::kExisting)) {
     return X_STATUS_OBJECT_NAME_INVALID;
@@ -546,7 +547,8 @@ u32 NtQuerySymbolicLinkObject_entry(u32 handle, GuestPtrT<X_ANSI_STRING> target)
   }
   auto length = std::min(static_cast<size_t>(target->maximum_length), symlink->target.size());
   if (length > 0) {
-    auto target_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(target->pointer);
+    auto target_buf =
+        kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual(target->pointer);
     std::memcpy(target_buf, symlink->target.c_str(), length);
   }
   target->length = static_cast<u16>(length);
@@ -639,7 +641,7 @@ u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u
 
   if (io_status_block) {
     auto* status_block =
-        kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_IO_STATUS_BLOCK*>(
+        kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_IO_STATUS_BLOCK*>(
             io_status_block);
     status_block->status = X_STATUS_SUCCESS;
     status_block->information = information;
@@ -666,12 +668,12 @@ u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u
 u32 IoCreateDevice_entry([[maybe_unused]] u32 device_struct, [[maybe_unused]] u32 r4,
                          [[maybe_unused]] u32 r5, [[maybe_unused]] u32 r6, [[maybe_unused]] u32 r7,
                          MappedU32 out_struct) {
-  auto out_guest = kernel::GetCurrentState().GetMemory()->SystemHeapAlloc(0x24);
+  auto out_guest = kernel::GetCurrentState().GetAddressSpace()->SystemHeapAlloc(0x24);
 
-  auto out = kernel::GetCurrentState().GetMemory()->TranslateVirtual<u8*>(out_guest);
+  auto out = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<u8*>(out_guest);
   memset(out, 0, 0x24);
 
-  auto out_guest2 = kernel::GetCurrentState().GetMemory()->SystemHeapAlloc(0x1000);
+  auto out_guest2 = kernel::GetCurrentState().GetAddressSpace()->SystemHeapAlloc(0x1000);
   memory::store<be_u32>(out + 0x18, out_guest2);
 
   *out_struct = out_guest;

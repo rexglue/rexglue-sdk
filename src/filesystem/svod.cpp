@@ -20,7 +20,7 @@
 #include <vector>
 
 #include <rex/chrono.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/filesystem/file_stat.h>
 #include <rex/math.h>
 

@@ -24,7 +24,7 @@
 #include <rex/filesystem/file_system.h>
 #include <rex/filesystem/stfs.h>
 #include <rex/kernel/types/content.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/kernel/module.h>
 #include <rex/string/text.h>

@@ -29,7 +29,7 @@
 #include <rex/assert.h>
 #include <rex/platform/perf.h>
 #include <rex/bit.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/pipeline/shader/shader.h"
@@ -47,8 +47,8 @@
 #include <rex/xenos/state.h>
 #include <rex/types.h>
 #include <rex/memory/endian.h>
-#include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_presenter.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 static_assert(GLSLANG_VERSION_MAJOR == 11);
 

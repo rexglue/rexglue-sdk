@@ -46,7 +46,7 @@ REX_TEST_CASE("CloseOwned logs a handle that does not close", "[kernel][close_ow
   KernelFixture fixture;
   rex::Logger* logger = &REX_LOGGER();
   REQUIRE(logger);
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger->AddSink(sink);
   fixture.RunOnGuestThread(
       [](Caller& c) { CloseOwned(c.GetRuntime().GetObjectTable(), 0xF8FFFFF0); });

@@ -92,20 +92,20 @@ REX_KERNEL_API u32 KeSetEvent(u32 event_address, u32 increment, u32 wait);
 /**
  * Acquires a spinlock stored in guest memory.
  *
- * @param ctx The calling context, whose r13 addresses the PCR.
+ * @param ctx Calling context. Its r13 holds the PCR address.
  * @param change_irql True to raise the IRQL while the lock is held.
  * @return The previous IRQL.
  */
-REX_KERNEL_API u32 KeKfAcquireSpinLock(rex::kernel::Memory& memory, PPCContext* ctx,
+REX_KERNEL_API u32 KeKfAcquireSpinLock(rex::kernel::GuestAddressSpace& memory, PPCContext* ctx,
                                        rex::kernel::X_KSPINLOCK* lock, bool change_irql = true);
 /**
  * Releases a spinlock stored in guest memory.
  *
- * @param ctx The calling context, whose r13 addresses the PCR.
+ * @param ctx Calling context. Its r13 holds the PCR address.
  * @param old_irql The IRQL returned by KeKfAcquireSpinLock.
  * @param change_irql True to restore the IRQL.
  */
-REX_KERNEL_API void KeKfReleaseSpinLock(rex::kernel::Memory& memory, PPCContext* ctx,
+REX_KERNEL_API void KeKfReleaseSpinLock(rex::kernel::GuestAddressSpace& memory, PPCContext* ctx,
                                         rex::kernel::X_KSPINLOCK* lock, u32 old_irql,
                                         bool change_irql = true);
 
@@ -127,12 +127,12 @@ REX_KERNEL_API void KeInitializeApc(rex::kernel::XAPC* apc, u32 thread_ptr, u32 
  * @param arg1 First system argument passed to the APC routines.
  * @param arg2 Second system argument passed to the APC routines.
  * @param priority_increment Priority boost, ignored.
- * @param ctx The calling context, whose r13 addresses the PCR.
+ * @param ctx Calling context. Its r13 holds the PCR address.
  * @return 1 when queued, 0 when the APC has no thread, is already queued or its thread takes no
  * APCs.
  */
-REX_KERNEL_API u32 KeInsertQueueApc(rex::kernel::Memory& memory, rex::kernel::XAPC* apc, u32 arg1,
-                                    u32 arg2, u32 priority_increment, PPCContext* ctx);
+REX_KERNEL_API u32 KeInsertQueueApc(rex::kernel::GuestAddressSpace& memory, rex::kernel::XAPC* apc,
+                                    u32 arg1, u32 arg2, u32 priority_increment, PPCContext* ctx);
 
 }  // namespace rex::kernel::xboxkrnl
 

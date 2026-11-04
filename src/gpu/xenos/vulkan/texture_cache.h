@@ -21,7 +21,7 @@
 #include "gpu/xenos/vulkan/shader.h"
 #include "gpu/xenos/vulkan/shared_memory.h"
 #include <rex/hash.h>
-#include "gpu/xenos/host/vulkan/mem_alloc.h"
+#include "gpu/xenos/host/vulkan/vulkan_mem_alloc.h"
 
 namespace rex::gpu::vulkan {
 

@@ -588,7 +588,7 @@ struct alignas(u32) TextureFetchInstruction {
   bool IsPredicated() const { return data_.is_predicated; }
   /** Returns the predicate value that enables the instruction. */
   bool GetPredicateCondition() const { return data_.pred_condition == 1; }
-  /** Ranges from 0 to 31. */
+  /** Returns the texture fetch constant index, 0 to 31. */
   u32 GetFetchConstantIndex() const { return data_.const_index; }
 
   u32 GetDest() const { return data_.dst_reg; }
@@ -1797,7 +1797,7 @@ struct AluVectorOpcodeTraits {
   AluOpChangedState changed_state;
 
   /**
-   * @return Ranges from 0 to 3.
+   * @return Number of source operands, 0 to 3.
    */
   u32 GetOperandCount() const {
     if (!operand_components_used[2]) {
@@ -1871,7 +1871,7 @@ inline u32 GetAluVectorOpNeededSourceComponents(AluVectorOpcode vector_opcode, u
          GetAluVectorOpcodeTraits(vector_opcode).operand_components_used[src_index - 1];
 }
 
-/** eM# (kExportData) register count. */
+/** Number of memory export data registers, eM0 to eM4 (kExportData0 to kExportData4). */
 constexpr u32 kMaxMemExportElementCount = 5;
 
 /** Destination of an export ALU instruction. Vertex and pixel shaders use different subsets. */
@@ -1985,8 +1985,8 @@ struct alignas(u32) AluInstruction {
    */
   static constexpr bool IsSrcTempValueAbsolute(u32 src_reg) { return (src_reg & 0x80) != 0; }
   /**
-   * Returns the register index of a constant, or the packed value of a temporary register. The
-   * result is a register index or a packed temporary register.
+   * Returns the register index of a constant source, or the packed value of a temporary register
+   * source.
    *
    * @param i 1 based source operand index.
    */

@@ -195,8 +195,10 @@ REX_TEST_CASE("modules: a second recompiled module at a held base is refused and
     CHECK_FALSE(modules.LoadUserModule(kPathB));
 
     rex::kernel::HeapAllocation info{};
-    REQUIRE(
-        StateOf(runtime).GetMemory()->LookupHeap(kImageBase)->QueryRegionInfo(kImageBase, &info));
+    REQUIRE(StateOf(runtime)
+                .GetAddressSpace()
+                ->LookupHeap(kImageBase)
+                ->QueryRegionInfo(kImageBase, &info));
     CHECK(info.state != 0);
     CHECK(info.allocation_base == kImageBase);
     CHECK(CallFunction(runtime) == kResultA);
@@ -250,7 +252,7 @@ REX_TEST_CASE("modules: the PE header pages read as zero once the module is load
     REQUIRE(pe.sections.size() == 1);
     CHECK(std::string(pe.sections[0].name) == ".text");
 
-    const u8* header = StateOf(runtime).GetMemory()->TranslateVirtual(kImageBase);
+    const u8* header = StateOf(runtime).GetAddressSpace()->TranslateVirtual(kImageBase);
     CHECK(std::all_of(header, header + kHeaderSize, [](u8 byte) { return byte == 0; }));
     CHECK(c.Kernel("RtlImageNtHeader", {kImageBase}) == 0);
     CHECK(CallFunction(runtime) == kResultA);
@@ -280,7 +282,7 @@ REX_TEST_CASE("modules: the PE header stays in host memory until the sections ar
       CHECK(pending[1] == 'Z');
       CHECK(pending[kHeaderPadding] == 0xAB);
       CHECK(pending[kMarkerOffset] == 0xCD);
-      const u8* image = StateOf(runtime).GetMemory()->TranslateVirtual(kImageBase);
+      const u8* image = StateOf(runtime).GetAddressSpace()->TranslateVirtual(kImageBase);
       CHECK(std::all_of(image, image + kImageSize, [](u8 byte) { return byte == 0; }));
 
       REQUIRE(xex->LoadContinue());
@@ -302,7 +304,7 @@ REX_TEST_CASE("modules: a patch changes the image before the sections are copied
     auto& modules = runtime.GetModuleRegistry();
     auto first = modules.LoadUserModule(kPathA);
     REQUIRE(first);
-    const u8* image = StateOf(runtime).GetMemory()->TranslateVirtual(kImageBase);
+    const u8* image = StateOf(runtime).GetAddressSpace()->TranslateVirtual(kImageBase);
     CHECK(std::all_of(image, image + kHeaderSize, [](u8 byte) { return byte == 0; }));
     CHECK(image[kPatchCopyOffset] == 'M');
     CHECK(image[kPatchCopyOffset + 1] == 'Z');
@@ -330,7 +332,7 @@ REX_TEST_CASE("modules: a patched module reads its section table from the patche
     REQUIRE(pe.sections.size() == 1);
     CHECK(std::string(pe.sections[0].name).empty());
 
-    const u8* image = StateOf(runtime).GetMemory()->TranslateVirtual(kImageBase);
+    const u8* image = StateOf(runtime).GetAddressSpace()->TranslateVirtual(kImageBase);
     CHECK(std::all_of(image, image + kHeaderSize, [](u8 byte) { return byte == 0; }));
     CHECK(c.Kernel("RtlImageNtHeader", {kImageBase}) == 0);
     module = {};
@@ -340,7 +342,7 @@ REX_TEST_CASE("modules: a patched module reads its section table from the patche
 
 namespace {
 
-class GateSink final : public rex::log::ISink {
+class GateSink final : public rex::log::ILogSink {
  public:
   void Write(const rex::log::Message& message) override {
     std::unique_lock lock(mutex_);

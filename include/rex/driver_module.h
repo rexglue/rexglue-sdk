@@ -38,12 +38,12 @@ REX_DECLARE_INTERFACE(IDriverModule, 1)
  *
  * @param names Driver names separated by commas. Empty names, "none" and repeats are skipped.
  * @param family The family of a graphics driver, kNone for the other types.
- * @param connected The connected modules, whose registered names are skipped. Null skips none.
+ * @param connected Connected modules. Their registered names are skipped. Null skips none.
  * @return The module names in list order.
  */
 [[nodiscard]] REX_API std::vector<std::string> GetDriverModules(
     DriverType type, std::string_view names, GraphicsFamily family = GraphicsFamily::kNone,
-    IFactory* connected = nullptr);
+    IInterfaceFactory* connected = nullptr);
 
 /**
  * Creates and initializes the drivers of a type, in list order.
@@ -55,6 +55,6 @@ REX_DECLARE_INTERFACE(IDriverModule, 1)
  * after the earlier ones shut down.
  */
 [[nodiscard]] REX_API Result<std::vector<std::unique_ptr<IDriver>>> SelectDrivers(
-    IFactory& factory, DriverType type, std::string_view names, IDriverContext& context);
+    IInterfaceFactory& factory, DriverType type, std::string_view names, IDriverContext& context);
 
 }  // namespace rex

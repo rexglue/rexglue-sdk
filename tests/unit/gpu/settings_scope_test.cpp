@@ -22,7 +22,7 @@
 #include <rex/gpu/graphics_system.h>
 #include <rex/hid/input_system.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/ui/ui_system.h>
 
 namespace {
@@ -41,7 +41,7 @@ class GPUApp final : public rex::test::ObjectApp<rex::app::App> {
     return requirements;
   }
 
-  rex::Result<void> OnConfigure(rex::Settings&) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
     (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
     (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none");

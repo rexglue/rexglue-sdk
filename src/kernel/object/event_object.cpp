@@ -11,7 +11,7 @@
 
 #include <chrono>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/object/event_object.h>
 #include <rex/platform/sync.h>
 

@@ -283,7 +283,7 @@
  * Marks a declaration that rexkernel exports.
  *
  * @code
- * class REX_KERNEL_API Memory;
+ * class REX_KERNEL_API GuestAddressSpace;
  * REX_KERNEL_API std::span<const ExportEntry> Exports(ExportModule module);
  * @endcode
  */

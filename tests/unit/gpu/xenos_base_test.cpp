@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include <rex/logging/logger.h>
+#include <rex/logging/log_category.h>
 #include <rex/xenos/register.h>
 #include <rex/xenos/format.h>
 #include <rex/xenos/packet.h>
@@ -39,11 +39,11 @@ struct Fixture {
 
 constexpr rex::u32 kWritePointerRegister = 0x01C5;
 
-void Put(rex::kernel::Memory& memory, rex::u32 physical, rex::u32 value) {
+void Put(rex::kernel::GuestAddressSpace& memory, rex::u32 physical, rex::u32 value) {
   *memory.TranslatePhysical<be_u32*>(physical) = value;
 }
 
-rex::u32 Get(rex::kernel::Memory& memory, rex::u32 physical) {
+rex::u32 Get(rex::kernel::GuestAddressSpace& memory, rex::u32 physical) {
   return memory.TranslatePhysical<const be_u32*>(physical)->Load(std::memory_order_acquire);
 }
 
@@ -63,7 +63,7 @@ struct Ring {
   rex::u32 count = 0;
 };
 
-Ring Submit(rex::kernel::Memory& memory, rex::gpu::null::NullXenosGraphicsDriver& driver,
+Ring Submit(rex::kernel::GuestAddressSpace& memory, rex::gpu::null::NullXenosGraphicsDriver& driver,
             rex::xenos::Endian endian) {
   const rex::u32 block = memory.SystemHeapAlloc(0x2000, 0x1000, rex::kernel::kSystemHeapPhysical);
   Ring ring;

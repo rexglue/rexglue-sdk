@@ -53,7 +53,7 @@ void CaptureDPCRegisters(PPCContext& ctx, u8*) {
 
 void ClobberingISR(PPCContext& ctx, u8* base) {
   g_isr_irql =
-      *rex::kernel::GetCurrentState().GetMemory()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
+      *rex::kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
   ctx.r14.u64 = 0xDEAD;
   ctx.f14.f64 = 7.5;
   Caller(ctx, base, rex::kernel::GetCurrent()).Kernel("KeInsertQueueDpc", {g_isr_dpc.load(), 0, 0});
@@ -68,7 +68,7 @@ REX_TEST_CASE("interrupt callbacks never overlap", "[kernel][interrupt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* dispatcher = StateOf(c.GetRuntime()).GetFunctionDispatcher();
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 callback = dispatcher->AllocateThunk(&TrackOverlap, 0);
     CHECKED_ELSE(callback != 0) {
       FAIL_CHECK("the check above failed");
@@ -110,7 +110,7 @@ REX_TEST_CASE("interrupts leave the guest thread state intact", "[kernel][interr
     const u32 pcr = c.Alloc(0x1000);
     c.Store32(pcr, 0x1234);
     rex::kernel::ThreadState state(3, c.Alloc(0x10000) + 0x8000, pcr,
-                                   StateOf(c.GetRuntime()).GetMemory(), &c.GetRuntime());
+                                   StateOf(c.GetRuntime()).GetAddressSpace(), &c.GetRuntime());
     CHECK(dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0) == 0);
     CHECK(c.Load32(pcr) == 0x1234);
   });
@@ -160,7 +160,7 @@ REX_TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind"
     const u32 pcr = c.Alloc(0x1000);
     const u32 stack = c.Alloc(0x10000) + 0x8000;
     std::thread interrupt([&] {
-      rex::kernel::ThreadState state(7, stack, pcr, StateOf(c.GetRuntime()).GetMemory(),
+      rex::kernel::ThreadState state(7, stack, pcr, StateOf(c.GetRuntime()).GetAddressSpace(),
                                      &c.GetRuntime());
       state.GetContext()->r14.u64 = 0x1111;
       state.GetContext()->f14.f64 = 2.5;

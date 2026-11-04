@@ -6,7 +6,7 @@
 #include <string_view>
 
 #include "binary_view.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <rex/memory/mapped_ptr.h>

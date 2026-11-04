@@ -6,7 +6,7 @@
 
 #include <rex/filesystem/file_system.h>
 #include <rex/filesystem/file_system_factory.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 #include <rex/memory/host.h>
 #include <rex/module.h>
@@ -32,7 +32,7 @@ class FileSystemModule final : public IModule, public IFileSystemFactory {
     return kRequired;
   }
 
-  [[nodiscard]] Result<void> Connect(IFactory& factory) override {
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory& factory) override {
     memory::SetTagName(kFilesystem, "Filesystem");
     logger_ = factory.Get<ILogger>();
     return logger_->AddCategories(log::kFileSystemLog);
@@ -61,12 +61,13 @@ class FileSystemModule final : public IModule, public IFileSystemFactory {
     return std::unique_ptr<IXEXImage>(std::make_unique<XEXImage>(std::move(*image)));
   }
 
-  Result<std::unique_ptr<IContainer>> OpenContainer(const std::filesystem::path& path) override {
+  Result<std::unique_ptr<IContainerImage>> OpenContainer(
+      const std::filesystem::path& path) override {
     auto container = Container::Open(path);
     if (!container) {
-      return Err<std::unique_ptr<IContainer>>(container.error());
+      return Err<std::unique_ptr<IContainerImage>>(container.error());
     }
-    return std::unique_ptr<IContainer>(std::make_unique<Container>(std::move(*container)));
+    return std::unique_ptr<IContainerImage>(std::make_unique<Container>(std::move(*container)));
   }
 
   std::unique_ptr<IXDBFTitleData> OpenXDBF(const u8* data, size_t data_size) override {

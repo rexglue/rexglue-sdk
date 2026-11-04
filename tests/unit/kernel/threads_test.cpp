@@ -69,7 +69,7 @@ u32 StackSizeOf(Caller& c, u32 stack_size) {
   return size->load();
 }
 
-bool WaitForTitlePages(rex::kernel::Memory& memory, u32 pages) {
+bool WaitForTitlePages(rex::kernel::GuestAddressSpace& memory, u32 pages) {
   const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
   while (memory.GetTitlePages() != pages && std::chrono::steady_clock::now() < until) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -256,7 +256,8 @@ REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without f
     CHECK(g_kernel_at == 1);
     CHECK(g_normal_at == 2);
     rex::kernel::HeapAllocation info{};
-    REQUIRE(StateOf(c.GetRuntime()).GetMemory()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
+    REQUIRE(
+        StateOf(c.GetRuntime()).GetAddressSpace()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
     CHECK((info.state & rex::kernel::kMemoryAllocationCommit) != 0);
   });
 }
@@ -432,7 +433,7 @@ REX_TEST_CASE("threads: a guest stack counts against the budget while the thread
               "[kernel][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 before = memory->GetTitlePages();
     auto used = std::make_shared<std::atomic<u32>>(0);
     const u32 handle = SpawnWithStack(
@@ -447,7 +448,7 @@ REX_TEST_CASE("threads: ExCreateThread past the budget returns X_STATUS_NO_MEMOR
               "[kernel][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     memory->SetBudget(memory->GetTitlePages() / 256 + 1);
     const u32 room = memory->GetBudgetPages() - memory->GetTitlePages();
     u32 filler = 0;
@@ -478,7 +479,7 @@ REX_TEST_CASE(
     "[kernel][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 before = memory->GetTitlePages();
     const u32 base = c.Kernel("MmCreateKernelStack", {0x4000, 0});
     CHECKED_ELSE(base != 0) {
@@ -623,7 +624,7 @@ REX_TEST_CASE("A new thread links its wait, timer and spare lists to themselves"
   fixture.RunOnGuestThread([](Caller& c) {
     auto* object =
         rex::kernel::KernelThread::GetCallingThread()->GetGuestObject<rex::kernel::X_KTHREAD>();
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     for (auto* list :
          {&object->wait_timeout_block.wait_list_entry, &object->timer_list, &object->unk_154}) {
       const rex::u32 address = rex::kernel::GuestListAddress(list, memory);

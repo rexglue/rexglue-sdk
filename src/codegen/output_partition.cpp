@@ -9,7 +9,7 @@
 #include <format>
 #include <nlohmann/json.hpp>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 namespace rex::codegen {

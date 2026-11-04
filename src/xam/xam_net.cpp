@@ -20,7 +20,7 @@
 #include <rex/chrono.h>
 #include "xam/xam_ui.h"
 #include <rex/kernel/xboxkrnl.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/mapped_ptr.h>
 #include <rex/platform/socket.h>
 #include <rex/ppc/hook.h>

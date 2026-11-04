@@ -11,10 +11,10 @@
 
 #include <algorithm>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
-#include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_upload_buffer_pool.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex {
 namespace gpu {

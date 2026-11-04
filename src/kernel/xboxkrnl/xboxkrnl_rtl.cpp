@@ -16,7 +16,7 @@
 
 #include <rex/chrono.h>
 #include <rex/kernel/xboxkrnl.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include <rex/memory/mapped_ptr.h>
@@ -155,7 +155,7 @@ void RtlInitAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination, MappedString 
 
 void RtlFreeAnsiString_entry(GuestPtrT<X_ANSI_STRING> string) {
   if (string->pointer) {
-    kernel::GetCurrentState().GetMemory()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(string->pointer);
   }
 
   string->Reset();
@@ -173,7 +173,7 @@ void RtlInitUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination, MappedW
 
 void RtlFreeUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> string) {
   if (string->pointer) {
-    kernel::GetCurrentState().GetMemory()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(string->pointer);
   }
 
   string->Reset();
@@ -187,8 +187,9 @@ void RtlCopyString_entry(GuestPtrT<X_ANSI_STRING> destination, GuestPtrT<X_ANSI_
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(destination->pointer);
-    auto src_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(source->pointer);
+    auto dst_buf =
+        kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length);
   }
   destination->length = length;
@@ -203,8 +204,9 @@ void RtlCopyUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination,
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(destination->pointer);
-    auto src_buf = kernel::GetCurrentState().GetMemory()->TranslateVirtual(source->pointer);
+    auto dst_buf =
+        kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length);
   }
   destination->length = length;
@@ -212,7 +214,7 @@ void RtlCopyUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination,
 
 u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
                                        GuestPtrT<X_UNICODE_STRING> source_ptr, u32 alloc_dest) {
-  auto* memory = kernel::GetCurrentState().GetMemory();
+  auto* memory = kernel::GetCurrentState().GetAddressSpace();
   const u32 count = source_ptr->length / 2;
   u32 capacity = 0;
   u32 buffer_ptr = 0;
@@ -246,7 +248,7 @@ u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
 
 u32 RtlAnsiStringToUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination_ptr,
                                        GuestPtrT<X_ANSI_STRING> source_ptr, u32 alloc_dest) {
-  auto* memory = kernel::GetCurrentState().GetMemory();
+  auto* memory = kernel::GetCurrentState().GetAddressSpace();
   const u32 count = source_ptr->length;
   const u32 length = count * 2;
   const u32 needed = length + 2;
@@ -355,8 +357,8 @@ u32 RtlImageXexHeaderField_entry(GuestPtrT<XEXHeader> xex_header, u32 field_dwor
   u32 field_value = 0;
   u32 field = field_dword;
 
-  ModuleObject::GetOptHeader(kernel::GetCurrentState().GetMemory(), xex_header, XEXHeaderKey(field),
-                             &field_value);
+  ModuleObject::GetOptHeader(kernel::GetCurrentState().GetAddressSpace(), xex_header,
+                             XEXHeaderKey(field), &field_value);
 
   return field_value;
 }

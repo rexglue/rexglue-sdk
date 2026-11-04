@@ -20,7 +20,7 @@ const int g_mode = std::rand() % 2 + 1;
 class DynInitModule final : public rex::IModule {
  public:
   std::string_view GetName() const override { return g_mode == 1 ? "dyninit" : "dyninit-other"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}

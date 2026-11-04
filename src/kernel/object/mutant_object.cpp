@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/heap.h>
 #include <rex/kernel/object/mutant_object.h>
 #include <rex/kernel/object/kernel_thread.h>
@@ -76,7 +76,7 @@ bool MutantObject::OnAcquired() {
     hold_count = 1;
   }
   if (guest_mutant) {
-    thread->GetMemory()->TranslateVirtual<X_KMUTANT*>(guest_mutant)->abandoned = 0;
+    thread->GetAddressSpace()->TranslateVirtual<X_KMUTANT*>(guest_mutant)->abandoned = 0;
   }
   return abandoned.exchange(false);
 }

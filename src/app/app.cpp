@@ -1,5 +1,5 @@
 #include <rex/app/app.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 
 #include <atomic>
 #include <chrono>
@@ -16,7 +16,7 @@
 #include "kernel/kernel_control.h"
 #include <rex/platform/file.h>
 #include <rex/platform/process.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 #include <rex/platform.h>
 #include <rex/platform/thread.h>
@@ -104,7 +104,7 @@ class AppInfoModule final : public IModule {
   explicit AppInfoModule(IAppInfo& info) : info_(info) {}
 
   std::string_view GetName() const override { return "appinfo"; }
-  [[nodiscard]] Result<void> Connect(IFactory&) override { return Ok(); }
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory&) override { return Ok(); }
   void Disconnect() override {}
   [[nodiscard]] Result<void> Init() override { return Ok(); }
   void Shutdown() override {}
@@ -134,7 +134,7 @@ struct App::State final : IAppInfo {
   bool on_init_done = false;
   i32 final_code = 0;
   AppSysRequirements needs;
-  IFactory* private_host = nullptr;
+  IInterfaceFactory* private_host = nullptr;
   ILogger* logger = nullptr;
   rex::apu::IAudioSystem* audio = nullptr;
   rex::hid::IInputSystem* input = nullptr;
@@ -173,7 +173,7 @@ struct App::State final : IAppInfo {
     ui_control = nullptr;
   }
 
-  static void DrainNotices(ISettingsControl& control) {
+  static void DrainNotices(ISettingsRegistryControl& control) {
     for (const std::string& notice : control.TakeNotices()) {
       REXLOG_WARN("{}", notice);
     }
@@ -236,7 +236,7 @@ AppSysRequirements App::GetRequirements() const {
   return {};
 }
 
-Result<void> App::OnConfigure(Settings&) {
+Result<void> App::OnConfigure(SettingsRegistry&) {
   return Ok();
 }
 
@@ -307,7 +307,7 @@ Result<void> App::Init(const CLIArgList& args) {
   detail::InstallSignalHandlers();
   state.signals = true;
 
-  Settings& settings = REX_SETTINGS();
+  SettingsRegistry& settings = REX_SETTINGS();
   if (auto registered = settings.Register(*this); !registered) {
     return Fail("settings", registered.error());
   }
@@ -320,9 +320,10 @@ Result<void> App::Init(const CLIArgList& args) {
   config.code_modules.push_back(&state.info_module);
   config.code_modules.insert(config.code_modules.end(), state.code_modules.begin(),
                              state.code_modules.end());
-  config.select_plugins = [this, &state, &settings](
-                              IFactory& factory,
-                              IFactory& private_factory) -> Result<std::vector<std::string>> {
+  config.select_plugins =
+      [this, &state, &settings](
+          IInterfaceFactory& factory,
+          IInterfaceFactory& private_factory) -> Result<std::vector<std::string>> {
     state.private_host = &private_factory;
     const auto failed = [&](std::string_view step, Error error) {
       state.error_reported = true;
@@ -354,7 +355,7 @@ Result<void> App::Init(const CLIArgList& args) {
     state.graphics_control->SetUIPump([ui = state.ui_control](std::chrono::milliseconds timeout) {
       return ui->ServePosts(timeout);
     });
-    ISettingsControl& settings_control = *private_factory.Get<ISettingsControl>();
+    ISettingsRegistryControl& settings_control = *private_factory.Get<ISettingsRegistryControl>();
     ILoggerControl& logger_control = *private_factory.Get<ILoggerControl>();
     (void)name.SetText(SettingLayer::kTitle, state.name);
     (void)root.SetText(SettingLayer::kTitle, DefaultRoot(state.name).string());
@@ -435,7 +436,7 @@ Result<void> App::Init(const CLIArgList& args) {
     }
     return Fail("modules", started.error());
   }
-  ISettingsControl& settings_control = *state.private_host->Get<ISettingsControl>();
+  ISettingsRegistryControl& settings_control = *state.private_host->Get<ISettingsRegistryControl>();
   State::DrainNotices(settings_control);
   detail::SetShutdownWake([ui = state.ui_control] { ui->EndFrameLoop(); });
 
@@ -453,7 +454,7 @@ Result<void> App::Init(const CLIArgList& args) {
 Result<void> App::ReportUnknownSettings() {
   std::string hard;
   for (const UnknownSetting& unknown :
-       state_->private_host->Get<ISettingsControl>()->TakeUnknown()) {
+       state_->private_host->Get<ISettingsRegistryControl>()->TakeUnknown()) {
     if (unknown.layer == SettingLayer::kCommandLine) {
       hard += std::format("{}unknown setting '{}' from CommandLine", hard.empty() ? "" : ", ",
                           unknown.name);
@@ -490,7 +491,7 @@ rex::ui::IUISystem& App::GetUI() {
   return *state_->ui;
 }
 
-IFactory& App::GetControlFactory() {
+IInterfaceFactory& App::GetControlFactory() {
   REX_CHECK(state_->private_host,
             "GetControlFactory is valid from OnConfigure, once the modules connect");
   return *state_->private_host;

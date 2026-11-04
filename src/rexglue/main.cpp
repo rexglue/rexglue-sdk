@@ -29,7 +29,7 @@
 #include <rex/app/app.h>
 #include <rex/cli.h>
 #include <rex/logging/logger.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/process.h>
 #include <rex/result.h>
 #include <rex/version.h>
@@ -52,7 +52,7 @@ bool ColorEnabled(bool tty) {
   return tty;
 }
 
-std::unique_ptr<rex::log::FileSink> g_file_sink;
+std::unique_ptr<rex::log::LogFileSink> g_file_sink;
 rex::ScopeGuard g_file_sink_guard;
 rex::ScopeGuard g_ui_sink_guard;
 
@@ -75,7 +75,7 @@ rex::ScopeGuard g_ui_sink_guard;
   REX_TRY_VOID(logger.AddCategories(rexglue::kLogCategories));
   g_ui_sink_guard = logger.AddSink(rexglue::ui::GetLogSink());
   if (!log_file.empty()) {
-    REX_TRY(g_file_sink, rex::log::FileSink::Open(
+    REX_TRY(g_file_sink, rex::log::LogFileSink::Open(
                              log_file, {rex::log::TimestampStyle::kDateTime, true, true, false}));
     g_file_sink_guard = logger.AddSink(*g_file_sink);
   }
@@ -106,7 +106,8 @@ int RunCLI(rex::codegen::ToolApp& tools, const rex::CLIArgList& args) {
   bool verbose = false;
   bool force = false;
 
-  app.add_option("--log-level", log_level, "Log level (trace, dev, debug, info, warn, error)")
+  app.add_option("--log-level", log_level,
+                 "Log level (trace, dev, debug, info, warn, error, critical, off)")
       ->type_name("LEVEL");
   app.add_option("--log-file", log_file, "Append diagnostics to file")->type_name("PATH");
   app.add_flag("-v,--verbose", verbose, "Equivalent to --log-level=trace");

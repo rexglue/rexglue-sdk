@@ -32,12 +32,13 @@ concept GuestScalar = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
 }  // namespace detail
 
 /**
- * Translates between guest virtual addresses and host addresses with the same results as Memory.
- * Valid while the Memory it was built from exists.
+ * Translates between guest virtual addresses and host addresses with the same results as
+ * GuestAddressSpace. Valid while the GuestAddressSpace it was built from exists.
  */
 class MemoryView {
  public:
-  explicit MemoryView(const Memory& memory) : memory_(&memory), membase_(memory.GetMembase()) {}
+  explicit MemoryView(const GuestAddressSpace& memory)
+      : memory_(&memory), membase_(memory.GetMembase()) {}
 
   u8* GetVirtualMembase() const { return membase_.GetBase(); }
 
@@ -48,7 +49,7 @@ class MemoryView {
 
   /**
    * Translates a guest virtual address to a host address only when the title could access it, as
-   * Memory does.
+   * GuestAddressSpace does.
    *
    * @param required The kMemoryProtect bits the page must grant, the read bit by default.
    * @return The host address, null when the address is 0, misaligned, in no heap, or on a page
@@ -183,7 +184,7 @@ class MemoryView {
            memory_->TryTranslateVirtual<const u8*>(last, required);
   }
 
-  const Memory* memory_;
+  const GuestAddressSpace* memory_;
   rex::memory::GuestMembase membase_;
 };
 
@@ -208,7 +209,7 @@ struct GuestGlobal {
   T* GetHost() const {
     auto* thread_state = rex::kernel::ThreadState::Get();
     REX_ASSERT(thread_state != nullptr);
-    return rex::memory::GuestPtr<T*>(thread_state->GetMemory()->GetVirtualMembase(), Address);
+    return rex::memory::GuestPtr<T*>(thread_state->GetAddressSpace()->GetVirtualMembase(), Address);
   }
 
   /** Resolves the value through a memory view, for a host thread with no bound runtime. */
@@ -217,21 +218,21 @@ struct GuestGlobal {
   }
 
   /**
-   * Like get, but checks that the title could read the value.
+   * Like GetHost, but checks that the title could read the value.
    *
    * @return The host pointer, null when the address is in no heap, its page is not readable, or
    * the calling thread has no runtime.
    */
   T* TryGetHost() const {
     auto* thread_state = rex::kernel::ThreadState::Get();
-    if (thread_state == nullptr || thread_state->GetMemory() == nullptr) {
+    if (thread_state == nullptr || thread_state->GetAddressSpace() == nullptr) {
       return nullptr;
     }
-    return thread_state->GetMemory()->TryTranslateVirtual<T*>(Address);
+    return thread_state->GetAddressSpace()->TryTranslateVirtual<T*>(Address);
   }
 
   /**
-   * Like get with a view, but checks that the title could read the value.
+   * Like GetHost with a view, but checks that the title could read the value.
    *
    * @return The host pointer, null when the address is in no heap or its page is not readable.
    */

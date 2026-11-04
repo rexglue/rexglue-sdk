@@ -1,5 +1,5 @@
 /**
- * @file        gpu/xenos/host/d3d12/settings.h
+ * @file        gpu/xenos/host/d3d12/d3d12_settings.h
  * @brief       Settings of the Direct3D 12 driver
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

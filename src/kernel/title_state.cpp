@@ -8,7 +8,7 @@
 #include "gpu/graphics_control.h"
 #include <rex/kernel/types/thread.h>
 #include <rex/ppc/mmio.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/seh.h>
 #include <rex/kernel/function_dispatcher.h>
@@ -43,20 +43,20 @@
 #include "kernel/shim/heap.h"
 #include <rex/title.h>
 #include <rex/ui/ui_system.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 
 #include "kernel/rexkernel_module.h"
 #include "kernel/dispatcher.h"
 #include "kernel/title_state.h"
 #include "kernel/module_registry.h"
-#include "kernel/notifier.h"
+#include "kernel/notification_broadcaster.h"
 #include "kernel/object_table.h"
 #include "kernel/thread_registry.h"
 #include "kernel/settings_access.h"
 #include "kernel/categories.h"
 #include <rex/kernel/types/content.h>
 #include <rex/kernel/object/object_table.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 #include <rex/filesystem/file_system_factory.h>
 
 namespace rex::kernel {
@@ -175,7 +175,7 @@ Result<void> TitleState::LoadKernel() {
   ui_ = nullptr;
   user_language_ = ResolveUserLanguage(GetKernelSettings().user_language.Get(), ui_);
 
-  memory_ = std::make_unique<kernel::Memory>();
+  memory_ = std::make_unique<kernel::GuestAddressSpace>();
   if (!memory_->Initialize()) {
     return fail(X_STATUS_UNSUCCESSFUL, "memory init failed");
   }
@@ -490,7 +490,7 @@ IModuleRegistry& TitleState::GetModuleRegistry() {
   return *module_registry_;
 }
 
-INotifier& TitleState::GetNotifier() {
+INotificationBroadcaster& TitleState::GetNotificationBroadcaster() {
   return *notifier_;
 }
 
@@ -535,7 +535,7 @@ void TitleState::ReportTitleLaunched() {
   if (!settings_control_) {
     const KernelServices* services = GetKernelServices();
     if (services && services->controls) {
-      settings_control_ = services->controls->Get<ISettingsControl>();
+      settings_control_ = services->controls->Get<ISettingsRegistryControl>();
       if (settings_control_) {
         settings_control_->Freeze(SettingLife::kUntilLaunch);
       }
@@ -605,7 +605,8 @@ Result<void> TitleState::Load() {
     }
   }
   if (image_.shim_heap &&
-      !kernel::shim::InitHeap(rex::kernel::GetRuntimeSettings().heap_size_mb.Get(), GetMemory())) {
+      !kernel::shim::InitHeap(rex::kernel::GetRuntimeSettings().heap_size_mb.Get(),
+                              GetAddressSpace())) {
     return fail("shim heap initialization failed");
   }
   return Ok();
@@ -619,13 +620,13 @@ Result<void> TitleState::Launch() {
   if (!services || !services->controls) {
     return Err(ErrorCategory::kRuntime, "the kernel was given no controls");
   }
-  IFactory& controls = *services->controls;
+  IInterfaceFactory& controls = *services->controls;
   rex::ui::IUISystem* ui = controls.Get<rex::ui::IUISystem>();
   ui::IUIControl* ui_control = controls.Get<ui::IUIControl>();
   if (!ui || !ui_control) {
     return Err(ErrorCategory::kRuntime, "the app serves no UI system");
   }
-  if (!controls.Get<ISettingsControl>()) {
+  if (!controls.Get<ISettingsRegistryControl>()) {
     return Err(ErrorCategory::kRuntime, "the app serves no settings control");
   }
   rex::hid::IInputSystem* input = controls.Get<rex::hid::IInputSystem>();

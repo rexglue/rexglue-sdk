@@ -31,7 +31,7 @@ constexpr u16 kOrdinalThreadType = 0x001B;
 constexpr u16 kOrdinalEventType = 0x000E;
 constexpr u16 kOrdinalSemaphoreType = 0x0017;
 
-u32 HeaderType(rex::kernel::Memory* memory, u32 body) {
+u32 HeaderType(rex::kernel::GuestAddressSpace* memory, u32 body) {
   return *memory->TranslateVirtual<const be_u32*>(body - 8);
 }
 
@@ -48,7 +48,7 @@ u32 ExportedType(Caller& c, u16 ordinal) {
 
 REX_TEST_CASE("An object block keeps its type 8 bytes before the body", "[kernel][object]") {
   KernelFixture fixture;
-  auto* memory = StateOf(fixture.GetRuntime()).GetMemory();
+  auto* memory = StateOf(fixture.GetRuntime()).GetAddressSpace();
   const u32 type_address =
       StateOf(fixture.GetRuntime()).GetObjectTypeAddress(rex::kernel::ObjectType::kEvent);
   REQUIRE(type_address != 0);
@@ -77,7 +77,7 @@ REX_TEST_CASE("An object block keeps its type 8 bytes before the body", "[kernel
 
 REX_TEST_CASE("An object block with no exported type points at 0", "[kernel][object]") {
   KernelFixture fixture;
-  auto* memory = StateOf(fixture.GetRuntime()).GetMemory();
+  auto* memory = StateOf(fixture.GetRuntime()).GetAddressSpace();
   const auto block = rex::kernel::AllocObjectBlock(memory, 0x10, 0);
   REQUIRE(block.address != 0);
   CHECK(HeaderType(memory, block.address) == 0);
@@ -88,7 +88,7 @@ REX_TEST_CASE("The header of a new event holds the address of ExEventObjectType"
               "[kernel][object]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 handle_ptr = c.Alloc(4);
     const u32 object_ptr = c.Alloc(4);
     REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
@@ -110,7 +110,7 @@ REX_TEST_CASE("The header of a new semaphore holds the address of ExSemaphoreObj
               "[kernel][object]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 handle_ptr = c.Alloc(4);
     const u32 object_ptr = c.Alloc(4);
     REQUIRE(c.Kernel("NtCreateSemaphore", {handle_ptr, 0, 1, 2}) == 0);
@@ -127,7 +127,7 @@ REX_TEST_CASE("The header of a new thread holds the address of ExThreadObjectTyp
               "[kernel][object]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 handle = c.Spawn([](Caller&) {});
     const u32 object_ptr = c.Alloc(4);
     REQUIRE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, object_ptr}) == 0);

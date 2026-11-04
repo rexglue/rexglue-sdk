@@ -27,7 +27,7 @@
 #include <utility>
 
 #include <rex/logging/logger.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 #include <rex/platform/process.h>
@@ -128,7 +128,7 @@ std::optional<unsigned long long> ReadSyscallCount() {
 }
 
 int RunWatchBurst() {
-  rex::kernel::Memory memory;
+  rex::kernel::GuestAddressSpace memory;
   if (!memory.Initialize()) {
     return 2;
   }
@@ -165,7 +165,7 @@ int RunWatchBurst() {
 }
 
 int RunWatchRace() {
-  rex::kernel::Memory memory;
+  rex::kernel::GuestAddressSpace memory;
   if (!memory.Initialize()) {
     return 2;
   }
@@ -288,13 +288,13 @@ int Run(std::string_view mode) {
   } else if (mode == "stack-overflow") {
     return Recurse(0);
   } else if (mode == "mmio") {
-    rex::kernel::Memory memory;
+    rex::kernel::GuestAddressSpace memory;
     if (!memory.Initialize()) {
       return 2;
     }
     *memory.TranslateVirtual<volatile rex::u32*>(0x7FC80010) = 1;
   } else if (mode == "read-only-write") {
-    rex::kernel::Memory memory;
+    rex::kernel::GuestAddressSpace memory;
     if (!memory.Initialize() || !memory.LookupHeap(0x40000000)
                                      ->AllocFixed(0x40000000, 0x10000, 0x10000,
                                                   rex::kernel::kMemoryAllocationReserve |
@@ -305,7 +305,7 @@ int Run(std::string_view mode) {
     *memory.TranslateVirtual<volatile rex::u32*>(0x40000010) = 1;
   } else if (mode == "stale-protect") {
     {
-      rex::kernel::Memory memory;
+      rex::kernel::GuestAddressSpace memory;
       if (!memory.Initialize()) {
         return 2;
       }
@@ -338,7 +338,7 @@ int Run(std::string_view mode) {
     std::puts(caught ? "seh caught" : "seh missed");
     return caught ? 0 : 3;
   } else if (mode == "watch") {
-    rex::kernel::Memory memory;
+    rex::kernel::GuestAddressSpace memory;
     if (!memory.Initialize()) {
       return 2;
     }

@@ -7,7 +7,7 @@
 
 #include <rex/filesystem/file_system_error.h>
 #include <rex/filesystem/file_open.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/string/text.h>
 
 namespace rex::filesystem {

@@ -9,7 +9,7 @@
 
 #include <SDL3/SDL.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/driver.h>
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
@@ -19,7 +19,7 @@
 #include <rex/ui/window.h>
 #include <rex/ui/ui_event.h>
 #include <rex/platform.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "ui/sdl3/message_box.h"
 #include "ui/sdl3/sdl_helper.h"
@@ -420,7 +420,7 @@ Result<void> SDL3UIDriver::Initialize(IDriverContext& context) {
   State& s = *state_;
   s.context = &context;
   s.main_thread = std::this_thread::get_id();
-  REX_TRY_VOID(context.GetSettings().Register(*this));
+  REX_TRY_VOID(context.GetSettingsRegistry().Register(*this));
   SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
   std::string driver = video_driver.Get();
 #if REX_PLATFORM_MAC
@@ -461,7 +461,7 @@ void SDL3UIDriver::Shutdown() {
     s.video_started = false;
   }
   if (s.context) {
-    s.context->GetSettings().Unregister(*this);
+    s.context->GetSettingsRegistry().Unregister(*this);
     s.context = nullptr;
   }
 }
@@ -803,7 +803,7 @@ std::string_view SDL3UIProvider::GetName() const {
   return "rexui-sdl3";
 }
 
-Result<void> SDL3UIProvider::Connect(IFactory&) {
+Result<void> SDL3UIProvider::Connect(IInterfaceFactory&) {
   rex::memory::SetTagName(rex::ui::kUI, "UI");
   return Ok();
 }

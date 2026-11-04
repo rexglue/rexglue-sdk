@@ -67,7 +67,7 @@ REX_TEST_CASE(
     "[kernel][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto& memory = *StateOf(c.GetRuntime()).GetMemory();
+    auto& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     CHECK(StateOf(c.GetRuntime()).GetWorkspace().GetSize() == 0x60000);
     const u32 used = memory.GetTitlePages();
     {
@@ -155,7 +155,7 @@ REX_TEST_CASE("An enumerator on a full workspace returns 8", "[kernel][workspace
     const u32 object = c.Load32(address);
     c.Kernel("ObDereferenceObject", {object});
     CHECK(object >=
-          StateOf(c.GetRuntime()).GetMemory()->LookupHeapByType(false, 4096)->GetHeapBase());
+          StateOf(c.GetRuntime()).GetAddressSpace()->LookupHeapByType(false, 4096)->GetHeapBase());
     CHECK(c.Kernel("NtClose", {handle}) == 0);
     const std::vector<u32> again = Fill(c, 0x1000);
     CHECK(again.size() >= 16);

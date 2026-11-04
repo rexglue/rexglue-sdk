@@ -82,7 +82,7 @@ REX_API u32 GetSocketError();
 /**
  * Reports the readiness of each socket without waiting.
  *
- * @param ready Receives, for each socket, the readiness it asked for that holds now.
+ * @param ready Receives, for each socket, the requested readiness that is currently set.
  * @return The count of ready sockets, or -1 with GetSocketError set.
  */
 REX_API int PollSockets(std::span<const SocketWait> sockets, std::span<SocketReady> ready);
@@ -198,16 +198,16 @@ class Socket : public MoveOnly {
   REX_API i32 RecvFrom(void* buf, i32 len, i32 flags, sockaddr* from, i32* from_len) const;
 
   /**
-   * A send to a closed peer never raises a signal.
+   * Sends data. A send to a closed peer raises no signal.
    *
    * @return The byte count, or -1 with GetSocketError set.
    */
   REX_API i32 Send(const void* buf, i32 len, i32 flags) const;
 
   /**
-   * A send to a closed peer never raises a signal.
+   * Sends a datagram. A send to a closed peer raises no signal.
    *
-   * @param to The destination, null for the connected peer.
+   * @param toThe destination, null for the connected peer.
    * @return The byte count, or -1 with GetSocketError set.
    */
   REX_API i32 SendTo(const void* buf, i32 len, i32 flags, const sockaddr* to, i32 to_len) const;

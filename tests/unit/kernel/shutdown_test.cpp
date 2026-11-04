@@ -163,7 +163,7 @@ u32 SpawnFiberWaiter(Caller& c, u32 fiber_entry) {
   g_fiber_waiting.store(false);
   return c.Spawn([fiber_entry](Caller& t) {
     PPCContext& ctx = t.GetContext();
-    u8* base = StateOf(t.GetRuntime()).GetMemory()->GetVirtualMembase();
+    u8* base = StateOf(t.GetRuntime()).GetAddressSpace()->GetVirtualMembase();
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
     ctx.r3.u64 = 0x10000;
@@ -270,7 +270,7 @@ bool SwitchToFiberInScope(Caller& t, u32 fiber_entry) {
   bool kept = false;
   REX_SEH_TRY {
     PPCContext& ctx = t.GetContext();
-    u8* base = StateOf(t.GetRuntime()).GetMemory()->GetVirtualMembase();
+    u8* base = StateOf(t.GetRuntime()).GetAddressSpace()->GetVirtualMembase();
     rex::platform::SEHScope* const scope = rex::platform::GetSEHThreadState().top;
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
@@ -530,11 +530,12 @@ REX_TEST_CASE(
   KernelFixture fixture;
   StateOf(fixture.GetRuntime()).TerminateTitle();
 
-  rex::kernel::ThreadState host_state(0, 0, 0, StateOf(fixture.GetRuntime()).GetMemory(),
+  rex::kernel::ThreadState host_state(0, 0, 0, StateOf(fixture.GetRuntime()).GetAddressSpace(),
                                       &fixture.GetRuntime());
   rex::kernel::ThreadState* previous = rex::kernel::ThreadState::Get();
   rex::kernel::ThreadState::Bind(&host_state);
-  Caller c(*host_state.GetContext(), StateOf(fixture.GetRuntime()).GetMemory()->GetVirtualMembase(),
+  Caller c(*host_state.GetContext(),
+           StateOf(fixture.GetRuntime()).GetAddressSpace()->GetVirtualMembase(),
            fixture.GetRuntime());
 
   const u32 process = StateOf(fixture.GetRuntime()).GetTitleProcess();

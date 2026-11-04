@@ -1,16 +1,16 @@
-#include "kernel/notifier.h"
+#include "kernel/notification_broadcaster.h"
 
 #include <mutex>
 
-#include <rex/logging/log.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/logging/log_category.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 #include <rex/kernel/object/notify_listener_object.h>
 
 namespace rex::kernel {
 
-Notifier::Notifier(ObjectTable& table) : table_(table) {}
+NotificationBroadcaster::NotificationBroadcaster(ObjectTable& table) : table_(table) {}
 
-Result<X_HANDLE> Notifier::AddNotifyListener(u64 mask, u32 max_version) {
+Result<X_HANDLE> NotificationBroadcaster::AddNotifyListener(u64 mask, u32 max_version) {
   Result<X_HANDLE> added = table_.Emplace<NotifyListenerObject>(AddOptions{}, mask, max_version);
   if (added) {
     RegisterNotifyListener(*added);
@@ -18,7 +18,7 @@ Result<X_HANDLE> Notifier::AddNotifyListener(u64 mask, u32 max_version) {
   return added;
 }
 
-void Notifier::RegisterNotifyListener(X_HANDLE listener_handle) {
+void NotificationBroadcaster::RegisterNotifyListener(X_HANDLE listener_handle) {
   Result<X_HANDLE> owned = table_.Duplicate(listener_handle);
   if (!owned) {
     return;
@@ -39,7 +39,7 @@ void Notifier::RegisterNotifyListener(X_HANDLE listener_handle) {
   }
 }
 
-void Notifier::BroadcastNotification(XNotificationID id, u32 data) {
+void NotificationBroadcaster::BroadcastNotification(XNotificationID id, u32 data) {
   std::vector<X_HANDLE> snapshot;
   {
     std::lock_guard lock(mutex_);
@@ -54,7 +54,7 @@ void Notifier::BroadcastNotification(XNotificationID id, u32 data) {
   }
 }
 
-void Notifier::Shutdown() {
+void NotificationBroadcaster::Shutdown() {
   std::vector<X_HANDLE> listeners;
   {
     std::lock_guard lock(mutex_);

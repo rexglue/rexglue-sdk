@@ -12,10 +12,10 @@
 #pragma once
 
 #include <memory>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "gpu/xenos/command_processor.h"
-#include "gpu/xenos/host/vulkan/settings.h"
+#include "gpu/xenos/host/vulkan/vulkan_settings.h"
 #include "gpu/xenos/xenos_graphics_driver_base.h"
 
 namespace rex::gpu::vulkan {
@@ -39,7 +39,7 @@ class VulkanXenosGraphicsDriver : public XenosGraphicsDriverBase {
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 
   VulkanSettings vulkan_settings_;
-  ISettings* vulkan_registry_ = nullptr;
+  ISettingsRegistry* vulkan_registry_ = nullptr;
 };
 
 }  // namespace rex::gpu::vulkan

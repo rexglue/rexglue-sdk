@@ -8,7 +8,7 @@
 #include <rex/platform/file.h>
 
 #include <rex/logging/logger.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/library_name.h"
 #include "base/process_control.h"
@@ -23,7 +23,7 @@ struct Entry {
   IModule* module = nullptr;
   CreateInterfaceFn create = nullptr;
   std::string label;
-  std::unique_ptr<IFactory> factory;
+  std::unique_ptr<IInterfaceFactory> factory;
   bool connected = false;
   bool inited = false;
 };
@@ -55,7 +55,7 @@ struct ModuleGroup::State {
   std::vector<std::unique_ptr<Entry>> entries;
   std::vector<Served> served;
   std::function<void(IModule&, bool)> observer;
-  std::unique_ptr<IFactory> private_factory;
+  std::unique_ptr<IInterfaceFactory> private_factory;
   bool connected = false;
   bool inited = false;
 
@@ -119,7 +119,7 @@ struct ModuleGroup::State {
     connected = false;
   }
 
-  class Prefix final : public IFactory {
+  class Prefix final : public IInterfaceFactory {
    public:
     Prefix(State& state, const Entry& self) : state_(state), self_(self) {}
     void Open() { open_ = true; }
@@ -310,7 +310,7 @@ ModuleGroup::ModuleGroup() : ModuleGroup(REXGLUE_BUILD_IDENTITY) {}
 
 namespace {
 
-class PrivateFactory final : public IFactory {
+class PrivateFactory final : public IInterfaceFactory {
  public:
   explicit PrivateFactory(std::function<IInterface*(std::string_view, u32)> find,
                           std::function<std::vector<IInterface*>(std::string_view, u32)> find_all)
@@ -344,9 +344,9 @@ ModuleGroup::ModuleGroup(std::string_view identity) : state_(std::make_unique<St
         }
         return found;
       });
-  state_->served.push_back({&REX_SETTINGS(), ISettings::kInterface});
+  state_->served.push_back({&REX_SETTINGS(), ISettingsRegistry::kInterface});
   state_->served.push_back({&REX_LOGGER(), ILogger::kInterface});
-  state_->served.push_back({&GetProcessSettingsControl(), ISettingsControl::kInterface});
+  state_->served.push_back({&GetProcessSettingsControl(), ISettingsRegistryControl::kInterface});
   state_->served.push_back({&GetProcessLoggerControl(), ILoggerControl::kInterface});
 }
 
@@ -475,7 +475,7 @@ void ModuleGroup::Disconnect() {
   state_->DisconnectAll();
 }
 
-IFactory& ModuleGroup::GetPrivateFactory() {
+IInterfaceFactory& ModuleGroup::GetPrivateFactory() {
   return *state_->private_factory;
 }
 

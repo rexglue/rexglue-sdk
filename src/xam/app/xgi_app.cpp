@@ -9,8 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "xam/app/apps.h"
-#include <rex/logging/log.h>
+#include "xam/app/xam_apps.h"
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/kernel/heap.h>
 #include <rex/platform/thread.h>

@@ -3,7 +3,7 @@
 #include <format>
 
 #include "codegen_context.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <rex/kernel/title_runtime.h>

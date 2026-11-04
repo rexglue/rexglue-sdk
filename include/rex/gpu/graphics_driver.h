@@ -37,7 +37,7 @@ class IXenosGraphicsDriver;
 class IGraphicsDriver : public IDriver, public IOverlayRenderer {
  public:
   /**
-   * Works across a module boundary where dynamic_cast does not.
+   * Casts to the Xenos driver. Works across a module boundary where dynamic_cast does not.
    *
    * @return The Xenos driver, or nullptr for a native driver.
    */
@@ -55,7 +55,7 @@ class IGraphicsDriver : public IDriver, public IOverlayRenderer {
   }
 
   /**
-   * A title launched. The driver takes what it uses from the title here.
+   * Called when a title launches. The driver takes what it uses from the title here.
    *
    * @return Ok, or an error that stops the launch.
    */

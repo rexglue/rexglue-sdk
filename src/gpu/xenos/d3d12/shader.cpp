@@ -15,7 +15,7 @@
 #include <rex/assert.h>
 #include "gpu/xenos/d3d12/shader.h"
 #include "gpu/xenos/pipeline/shader/dxbc.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
 
 namespace rex::gpu::d3d12 {

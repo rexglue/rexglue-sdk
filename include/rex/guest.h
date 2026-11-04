@@ -43,7 +43,10 @@ class IPhysicalWriteListener {
   virtual PhysicalRange OnPhysicalWrite(PhysicalRange range, bool exact) = 0;
 };
 
-/** Guest physical memory. Each call fails for an unmapped range. */
+/**
+ * Guest physical memory. Each call fails only for a range outside the 512 MiB of physical memory.
+ * It does not check mapping or protection.
+ */
 class IPhysicalMemory {
  public:
   virtual ~IPhysicalMemory() = default;
@@ -52,7 +55,7 @@ class IPhysicalMemory {
    * Copies guest physical memory into a buffer.
    *
    * @param out The destination, sized to the length.
-   * @return Ok, or an error when the range is not mapped.
+   * @return Ok, or an error when the range is outside physical memory.
    */
   [[nodiscard]] virtual Result<void> CopyFromPhysical(u32 address, std::span<std::byte> out) = 0;
 
@@ -60,20 +63,20 @@ class IPhysicalMemory {
    * Copies a buffer into guest physical memory and notifies the listeners of watched pages.
    *
    * @param data The bytes to copy.
-   * @return Ok, or an error when the range is not mapped writable.
+   * @return Ok, or an error when the range is outside physical memory.
    */
   [[nodiscard]] virtual Result<void> CopyToPhysical(u32 address,
                                                     std::span<const std::byte> data) = 0;
 
   /**
-   * Returns a read only view of guest physical memory, or an error when the range is not mapped.
+   * Returns a read only view of guest physical memory, or an error when the range is outside it.
    */
   [[nodiscard]] virtual Result<std::span<const std::byte>> GetReadOnlyPhysicalSpan(
       PhysicalRange range) = 0;
 
   /**
-   * Returns a writable view of guest physical memory, or an error when not mapped writable. Writes
-   * through it do not notify listeners.
+   * Returns a writable view of guest physical memory, or an error when the range is outside it.
+   * Writes through it do not notify listeners.
    */
   [[nodiscard]] virtual Result<std::span<std::byte>> GetWritablePhysicalSpan(
       PhysicalRange range) = 0;
@@ -82,7 +85,7 @@ class IPhysicalMemory {
    * Writes a big endian u32 with release ordering, for GPU fences.
    *
    * @param address The 4 byte aligned address.
-   * @return Ok, or an error when the address is not mapped writable.
+   * @return Ok, or an error when the address is outside physical memory.
    */
   [[nodiscard]] virtual Result<void> StoreRelease32(u32 address, u32 value) = 0;
 
@@ -90,7 +93,7 @@ class IPhysicalMemory {
    * Reads a big endian u32 with acquire ordering.
    *
    * @param address The 4 byte aligned address.
-   * @return The value, or an error when the address is not mapped.
+   * @return The value, or an error when the address is outside physical memory.
    */
   [[nodiscard]] virtual Result<u32> LoadAcquire32(u32 address) = 0;
 };

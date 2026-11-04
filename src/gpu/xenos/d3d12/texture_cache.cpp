@@ -25,7 +25,7 @@
 #include <rex/xenos/texture.h>
 #include <rex/xenos/fetch.h>
 #include <rex/xenos/format.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/bit.h>
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"

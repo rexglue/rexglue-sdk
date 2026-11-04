@@ -18,7 +18,7 @@
 #include <rex/module.h>
 #include <rex/result.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/types.h>
 #include <rex/utility.h>
 
@@ -40,7 +40,8 @@ class REX_APU_API AudioSettings final : public SettingOwner {
  public:
   AudioSettings();
 
-  REX_SETTING(std::string, driver, "sdl3", "Audio driver, none for silence", kStartupOnly);
+  REX_SETTING(std::string, driver, "sdl3",
+              "Audio driver, none for silence in an app that does not require audio", kStartupOnly);
   REX_SETTING(bool, mute, false, "Mute the audio output");
   REX_SETTING(bool, mute_unfocused, false, "Mute while the window does not have focus");
   REX_SETTING(f64, gain, 1.0, "Output gain, 1 is unity", Range{0.0, 4.0});
@@ -53,8 +54,8 @@ class REX_APU_API AudioSettings final : public SettingOwner {
 };
 
 /**
- * For every period the device asks for, the mix takes one frame from every open
- * stream and applies the player's settings. A stream with nothing queued adds silence. With no
+ * Mixes the open streams. For every period the device asks for, the mix takes one frame from every
+ * open stream and applies the player's settings. A stream with nothing queued adds silence. With no
  * driver the mix runs on a timer, so every stream receives its frame played callbacks.
  *
  * A sample that is not finite becomes silence. With apu.peak_limit above 0, a stream whose peak
@@ -93,7 +94,7 @@ REX_DECLARE_INTERFACE(IAudioSystem, 1)
   virtual u32 GetOutputChannels() const = 0;
 
   /**
-   * @return A snapshot.
+   * @return A snapshot of the audio counters.
    */
   virtual AudioStats GetStats() const = 0;
 

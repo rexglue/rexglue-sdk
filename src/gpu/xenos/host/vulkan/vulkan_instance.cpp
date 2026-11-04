@@ -15,12 +15,12 @@
 #include <utility>
 #include <vector>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform.h>
 #include "gpu/xenos/host/library_name.h"
-#include "gpu/xenos/host/vulkan/instance.h"
-#include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_instance.h"
+#include "gpu/xenos/host/vulkan/vulkan_presenter.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 #include "gpu/xenos/host/vulkan/vulkan_to_string.h"
 
 #if REX_PLATFORM_MAC

@@ -35,7 +35,7 @@ u32 HardwarePhysical(u32 address) {
   return (address & 0x1FFFFFFF) + (address >= 0xE0000000 ? 0x1000 : 0);
 }
 
-void CheckAliases(rex::kernel::Memory& memory, u32 address) {
+void CheckAliases(rex::kernel::GuestAddressSpace& memory, u32 address) {
   CAPTURE(address);
   CHECK(memory.GetPhysicalAddress(address) == HardwarePhysical(address));
   u8* virtual_byte = memory.TranslateVirtual(address);
@@ -47,7 +47,7 @@ void CheckAliases(rex::kernel::Memory& memory, u32 address) {
   CHECK(memory.HostToGuestVirtual(virtual_byte) == address);
 }
 
-u8* HeapLookup(const rex::kernel::Memory& memory, u32 address) {
+u8* HeapLookup(const rex::kernel::GuestAddressSpace& memory, u32 address) {
   const rex::kernel::BaseHeap* heap = memory.LookupHeap(address);
   return memory.GetVirtualMembase() + address + (heap ? heap->GetHostAddressOffset() : 0);
 }
@@ -56,7 +56,7 @@ u8* HeapLookup(const rex::kernel::Memory& memory, u32 address) {
 
 REX_TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[kernel]") {
   rex::test::KernelFixture fixture;
-  const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  const rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const rex::kernel::MemoryView view(memory);
   CHECK(view.GetVirtualMembase() == memory.GetVirtualMembase());
   for (const u32 address : kHeapEdges) {
@@ -67,7 +67,7 @@ REX_TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[ke
 
 REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge", "[kernel]") {
   rex::test::KernelFixture fixture;
-  const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  const rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const rex::kernel::MemoryView view(memory);
   for (const u32 address : kHeapEdges) {
     CHECK(memory.HostToGuestVirtual(memory.TranslateVirtual(address)) == address);
@@ -77,7 +77,7 @@ REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge", 
 
 REX_TEST_CASE("An allocated virtual page is writable through TranslateVirtual", "[kernel]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const rex::kernel::MemoryView view(memory);
   rex::kernel::BaseHeap* heap = memory.LookupHeap(0x10000000);
   REQUIRE(heap != nullptr);
@@ -96,7 +96,7 @@ REX_TEST_CASE("An allocated virtual page is writable through TranslateVirtual", 
 
 REX_TEST_CASE("TranslateVirtual above the 0xE0 heap matches recompiled code", "[kernel]") {
   rex::test::KernelFixture fixture;
-  const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  const rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const rex::kernel::MemoryView view(memory);
   for (const u32 address : {0xFFD00000u, 0xFFFFFFFFu}) {
     CHECK(memory.TranslateVirtual(address) ==
@@ -108,7 +108,7 @@ REX_TEST_CASE("TranslateVirtual above the 0xE0 heap matches recompiled code", "[
 
 REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual above the 0xE0 heap", "[kernel]") {
   rex::test::KernelFixture fixture;
-  const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  const rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const rex::kernel::MemoryView view(memory);
   for (const u32 address : {0xE0000FFFu, 0xFFCFF000u, 0xFFD00000u, 0xFFD00FFFu, 0xFFD01000u,
                             0xFFFFEFFFu, 0xFFFFF000u, 0xFFFFFFFFu}) {
@@ -119,7 +119,7 @@ REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual above the 0xE0 heap",
 
 REX_TEST_CASE("Every physical heap reaches the physical byte the hardware maps", "[kernel]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   for (const u32 page_size : {4096u, 64u * 1024u, 16u * 1024u * 1024u}) {
     for (const bool top_down : {false, true}) {
       CAPTURE(page_size, top_down);
@@ -140,7 +140,7 @@ REX_TEST_CASE("Every physical heap reaches the physical byte the hardware maps",
 
 REX_TEST_CASE("The top guest page wraps to physical 0 as the hardware does", "[kernel]") {
   rex::test::KernelFixture fixture;
-  const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  const rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   if (rex::memory::detail::kPhysicalOffsetInCode) {
     CHECK(memory.TranslateVirtual(0xFFFFF000) == memory.TranslatePhysical(0));
     CHECK(memory.TranslateVirtual(0xFFFFFFFF) == memory.TranslatePhysical(0xFFF));
@@ -153,7 +153,7 @@ REX_TEST_CASE("The top guest page wraps to physical 0 as the hardware does", "[k
 REX_TEST_CASE("TryTranslateVirtual rejects null, misaligned and unmapped addresses", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+    const rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
     const rex::kernel::MemoryView view(memory);
     const u32 block = c.Alloc(64);
     CHECK(view.TryTranslateVirtual<u32*>(block) == memory.TranslateVirtual<u32*>(block));
@@ -176,7 +176,7 @@ REX_TEST_CASE("TryTranslateVirtual rejects null, misaligned and unmapped address
 REX_TEST_CASE("TryTranslateVirtual rejects a page that is not readable", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+    const rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
     const u32 base_ptr = c.Alloc(4);
     const u32 size_ptr = c.Alloc(4);
     const u32 old_ptr = c.Alloc(4);
@@ -197,7 +197,7 @@ REX_TEST_CASE("TryTranslateVirtual rejects a page that is not readable", "[kerne
 REX_TEST_CASE("MemoryView Load reads big endian values at any alignment", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     const u32 block = c.Alloc(32);
     u8* bytes = view.TranslateVirtual<u8*>(block);
     const u8 pattern[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09};
@@ -224,7 +224,7 @@ REX_TEST_CASE("MemoryView Load reads big endian values at any alignment", "[kern
 REX_TEST_CASE("MemoryView Store writes big endian values at any alignment", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     const u32 block = c.Alloc(32);
     const u8* bytes = view.TranslateVirtual<const u8*>(block);
     view.Store<u32>(block, 0x01020304);
@@ -255,7 +255,7 @@ REX_TEST_CASE("MemoryView Store writes big endian values at any alignment", "[ke
 REX_TEST_CASE("MemoryView TryLoad and TryStore reject addresses the title cannot use", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     const u32 block = c.Alloc(16);
     CHECK(view.TryStore<u32>(block, 0xCAFEBABE));
     REQUIRE(view.TryLoad<u32>(block).has_value());
@@ -274,7 +274,7 @@ REX_TEST_CASE("MemoryView TryLoad and TryStore reject addresses the title cannot
 REX_TEST_CASE("MemoryView TryLoad and TryStore check every byte and the write bit", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     const u32 base_ptr = c.Alloc(4);
     const u32 size_ptr = c.Alloc(4);
     const u32 old_ptr = c.Alloc(4);
@@ -301,7 +301,7 @@ REX_TEST_CASE("MemoryView TryLoad and TryStore check every byte and the write bi
 REX_TEST_CASE("MemoryView GetCString reads a null terminated string", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     const u32 block = c.Alloc(32);
     std::memcpy(view.TranslateVirtual<char*>(block), "hello\0world", 12);
     CHECK(view.GetCString(block) == "hello");
@@ -315,7 +315,7 @@ REX_TEST_CASE("MemoryView GetCString reads a null terminated string", "[kernel]"
 REX_TEST_CASE("MemoryView TryGetCString stops where the title cannot read", "[kernel]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     const u32 base_ptr = c.Alloc(4);
     const u32 size_ptr = c.Alloc(4);
     const u32 old_ptr = c.Alloc(4);
@@ -347,7 +347,7 @@ REX_TEST_CASE("MemoryView TryGetCString stops where the title cannot read", "[ke
 
 REX_TEST_CASE("The 0xE0000000 view reaches physical 0x1000 on every host", "[kernel]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
   REQUIRE(heap != nullptr);
   u32 block = 0;

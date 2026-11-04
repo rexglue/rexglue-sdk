@@ -63,7 +63,7 @@ inline rex::Error Corrupt(std::string message) {
  * Parses an SVOD package into nodes. nodes holds the root on entry.
  *
  * @param header The package header.
- * @param files The data files, the header file alone for a single file package.
+ * @param files Data files. A single file package has only the header file.
  * @param nodes The node list to fill.
  * @return kCorrupt when the magic block is missing or an entry is out of range.
  */

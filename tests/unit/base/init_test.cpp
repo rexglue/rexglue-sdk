@@ -44,7 +44,7 @@ class InitModule final : public rex::IModule, public IInitExample {
 
   std::string_view GetName() const override { return name_; }
   std::span<const rex::InterfaceType> GetRequiredInterfaces() const override { return required; }
-  rex::Result<void> Connect(rex::IFactory& factory) override {
+  rex::Result<void> Connect(rex::IInterfaceFactory& factory) override {
     events_.push_back("connect " + name_);
     kept = &factory;
     return {};
@@ -66,7 +66,7 @@ class InitModule final : public rex::IModule, public IInitExample {
   int GetValue() const override { return 1; }
 
   std::vector<rex::InterfaceType> required;
-  rex::IFactory* kept = nullptr;
+  rex::IInterfaceFactory* kept = nullptr;
   ITestService* service_at_init = nullptr;
 
  private:
@@ -136,8 +136,8 @@ REX_TEST_CASE("rex::Shutdown leaves no module loaded", "[base][init]") {
 REX_TEST_CASE("a program that lists no rexgpu never loads it", "[base][init]") {
   bool graphics_seen = true;
   rex::Config config;
-  config.select_plugins = [&](rex::IFactory& factory,
-                              rex::IFactory&) -> rex::Result<std::vector<std::string>> {
+  config.select_plugins = [&](rex::IInterfaceFactory& factory,
+                              rex::IInterfaceFactory&) -> rex::Result<std::vector<std::string>> {
     graphics_seen = factory.Get<rex::gpu::IGraphicsSystem>() != nullptr;
     return std::vector<std::string>{};
   };
@@ -154,8 +154,8 @@ REX_TEST_CASE("rex::Init loads the plugins the callback names before any module 
   ITestService* at_callback = nullptr;
   rex::Config config;
   config.code_modules = {&a};
-  config.select_plugins = [&](rex::IFactory& factory,
-                              rex::IFactory&) -> rex::Result<std::vector<std::string>> {
+  config.select_plugins = [&](rex::IInterfaceFactory& factory,
+                              rex::IInterfaceFactory&) -> rex::Result<std::vector<std::string>> {
     at_callback = factory.Get<ITestService>();
     events.push_back("callback");
     return std::vector<std::string>{"rexmodule-test-good"};
@@ -174,8 +174,8 @@ REX_TEST_CASE("a callback error stops rex::Init before any module inits", "[base
   InitModule a("a", events, false);
   rex::Config config;
   config.code_modules = {&a};
-  config.select_plugins = [](rex::IFactory&,
-                             rex::IFactory&) -> rex::Result<std::vector<std::string>> {
+  config.select_plugins = [](rex::IInterfaceFactory&,
+                             rex::IInterfaceFactory&) -> rex::Result<std::vector<std::string>> {
     return rex::Err<std::vector<std::string>>(rex::ErrorCategory::kConfig, "refused");
   };
   auto started = rex::Init(config);
@@ -186,13 +186,13 @@ REX_TEST_CASE("a callback error stops rex::Init before any module inits", "[base
   rex::Shutdown();
 }
 
-REX_TEST_CASE("API::Get never returns a private interface", "[base][init]") {
+REX_TEST_CASE("AppInterfaces::Get never returns a private interface", "[base][init]") {
   Events events;
   InitModule a("a", events, true);
   rex::Config config;
   config.code_modules = {&a};
   REQUIRE(rex::Init(config));
-  CHECK(REX_INTERFACE(rex::ISettingsControl) == nullptr);
+  CHECK(REX_INTERFACE(rex::ISettingsRegistryControl) == nullptr);
   CHECK(REX_INTERFACE(IInitExample) != nullptr);
   rex::Shutdown();
 }
@@ -203,15 +203,15 @@ REX_TEST_CASE("the private factory of Init finds the interfaces the public one h
   InitModule a("a", events, true);
   rex::Config config;
   config.code_modules = {&a};
-  rex::ISettingsControl* public_found = nullptr;
+  rex::ISettingsRegistryControl* public_found = nullptr;
   bool selected = false;
-  rex::ISettingsControl* private_found = nullptr;
+  rex::ISettingsRegistryControl* private_found = nullptr;
   config.select_plugins =
-      [&](rex::IFactory& factory,
-          rex::IFactory& private_factory) -> rex::Result<std::vector<std::string>> {
+      [&](rex::IInterfaceFactory& factory,
+          rex::IInterfaceFactory& private_factory) -> rex::Result<std::vector<std::string>> {
     selected = true;
-    public_found = factory.Get<rex::ISettingsControl>();
-    private_found = private_factory.Get<rex::ISettingsControl>();
+    public_found = factory.Get<rex::ISettingsRegistryControl>();
+    private_found = private_factory.Get<rex::ISettingsRegistryControl>();
     return std::vector<std::string>{};
   };
   REQUIRE(rex::Init(config));
@@ -221,7 +221,8 @@ REX_TEST_CASE("the private factory of Init finds the interfaces the public one h
   rex::Shutdown();
 }
 
-REX_TEST_CASE("rex::Stop leaves API::Get null and the modules disconnected", "[base][init]") {
+REX_TEST_CASE("rex::Stop leaves AppInterfaces::Get null and the modules disconnected",
+              "[base][init]") {
   Events events;
   InitModule a("a", events, true);
   rex::Config config;

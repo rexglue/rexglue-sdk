@@ -90,7 +90,7 @@ class LaunchApp final : public rex::test::ObjectApp<rex::app::App> {
     providers.push_back(&provider_);
   }
 
-  rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     (void)settings.SetText(rex::SettingLayer::kTitle, "kernel.user_language", "0");
     (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
                            (folder_.path / "game").string());

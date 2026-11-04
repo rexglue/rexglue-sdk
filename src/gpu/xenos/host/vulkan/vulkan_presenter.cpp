@@ -20,12 +20,12 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/bit.h>
 #include <rex/platform.h>
-#include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_presenter.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 #if REX_PLATFORM_GNU_LINUX
 #include <X11/Xlib-xcb.h>

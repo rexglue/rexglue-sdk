@@ -88,7 +88,7 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ke
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     PPCContext& ctx = c.GetContext();
-    auto* memory = StateOf(c.GetRuntime()).GetMemory();
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
     u8* base = memory->GetVirtualMembase();
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
@@ -168,7 +168,7 @@ REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breakin
     KernelFixture fixture;
     fixture.RunOnGuestThread([](Caller& c) {
       const u32 context = StateOf(c.GetRuntime())
-                              .GetMemory()
+                              .GetAddressSpace()
                               ->SystemHeapAlloc(0x1000, 0x1000, rex::kernel::kSystemHeapPhysical);
       REQUIRE(context != 0);
       c.GetRuntime().GetThreadRegistry().RegisterFiber(

@@ -323,8 +323,8 @@ struct REX_API Fiber {
   static void SwitchTo(Fiber* target);
 
   /**
-   * A created fiber must not be running. A converted thread fiber is destroyed from its own thread
-   * and turns it back into a plain thread.
+   * Destroys the fiber. A created fiber must not be running. A converted thread fiber is destroyed
+   * from its own thread and turns it back into a plain thread.
    */
   void Destroy();
 

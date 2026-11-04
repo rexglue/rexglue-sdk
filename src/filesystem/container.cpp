@@ -8,7 +8,7 @@
 #include <ranges>
 #include <system_error>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/filesystem/file_system_error.h>
 #include <rex/filesystem/file_stat.h>
 #include <rex/memory/virtual_memory.h>

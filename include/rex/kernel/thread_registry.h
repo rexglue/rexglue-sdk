@@ -264,7 +264,8 @@ REX_DECLARE_INTERFACE(IOverlappedDispatcher, 1)
   virtual u32 Observe(rex::MoveOnlyFunction<u32()> observe) = 0;
 
   /**
-   * Marks an overlapped operation pending and completes it on the dispatch thread after the work.
+   * Marks an overlapped operation pending. On the dispatch thread it runs pre, waits 100 ms, runs
+   * the work, then writes the completion.
    *
    * @param overlapped The guest address of the XOVERLAPPED.
    * @param work The function that does the operation.
@@ -290,7 +291,7 @@ REX_DECLARE_INTERFACE(IOverlappedDispatcher, 1)
                                 rex::MoveOnlyFunction<void()> post = {}) = 0;
 };
 
-/** Holds the DPC list. */
+/** Queues DPCs and runs them one at a time. */
 REX_DECLARE_INTERFACE(IDPCQueue, 1)
   virtual ~IDPCQueue() = default;
 

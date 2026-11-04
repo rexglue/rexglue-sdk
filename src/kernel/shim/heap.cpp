@@ -9,7 +9,7 @@
 #include "kernel/shim/function.h"
 #include <rex/kernel/heap.h>
 #include <rex/kernel/title_runtime.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 
 #include "kernel/title_state.h"
@@ -42,7 +42,7 @@ u32 GuestHeap::HostToGuest(void* host_ptr) const {
   return rex::memory::HostPtrToGuest(membase_, host_ptr);
 }
 
-bool GuestHeap::Init(u32 heap_size_bytes, rex::kernel::Memory* memory) {
+bool GuestHeap::Init(u32 heap_size_bytes, rex::kernel::GuestAddressSpace* memory) {
   memory_ = memory;
   auto* mem = memory_;
   if (!mem) {
@@ -277,7 +277,7 @@ REX_SHIM_FN(RtlReAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32
   return kernel::GetCurrentState().heap.Realloc(ptr, dwBytes, dwFlags & kHeapZeroMemory);
 }
 
-bool InitHeap(u32 heap_size_mb, rex::kernel::Memory* memory) {
+bool InitHeap(u32 heap_size_mb, rex::kernel::GuestAddressSpace* memory) {
   TitleRuntime* runtime = REX_RUNTIME();
   if (!runtime) {
     REXKRNL_FAIL(false, "shim_heap: no runtime is set up");

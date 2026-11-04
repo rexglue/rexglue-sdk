@@ -27,7 +27,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/seh.h>
 #include <rex/ppc/context.h>
@@ -260,7 +260,7 @@ struct ArgTranslator {
    * Writes an integer argument to its register or its stack slot.
    *
    * @tparam Bytes The argument width in bytes, 4 or 8.
-   * @param value The value to write, a 4 byte value goes to the low word of a stack slot.
+   * @param value Value to write. A 4 byte value goes to the low word of a stack slot.
    */
   template <size_t Bytes = sizeof(u32)>
   static constexpr void SetIntegerArgumentValue(PPCContext& ctx, u8* base, size_t slot,
@@ -302,7 +302,7 @@ struct ArgTranslator {
   /**
    * Reads a vector argument from its register or its 16 byte stack slot pair.
    *
-   * @return The vector, whose stack image is the byte reversed register.
+   * @return The vector. Its stack image is the byte reversed register.
    */
   static PPCVRegister GetVectorArgumentValue(const PPCContext& ctx, u8* base,
                                              const ArgPlace& arg) noexcept {
@@ -396,7 +396,7 @@ struct ArgTranslator {
   /**
    * Converts the value of an integer register to a mapped pointer.
    *
-   * @param value The register value, its low word is the guest address.
+   * @param value Register value whose low 32 bits are the guest address.
    * @return The mapped pointer, null when the address is 0.
    */
   template <MappedPtrType T>
@@ -438,7 +438,7 @@ struct ArgTranslator {
   /**
    * Converts the value of an integer register to a host pointer.
    *
-   * @param value The register value, its low word is the guest address.
+   * @param value Register value whose low 32 bits are the guest address.
    * @return The host pointer, null when the address is 0.
    */
   template <typename T>
@@ -574,7 +574,7 @@ struct ArgPlaceT {
   static constexpr ArgPlace value = PlaceFunctionArgs<Func>()[I];
 };
 
-/** Ends the translation of arguments to host values. */
+/** Ends the recursion over the arguments read into host values. */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
 void TranslateArgsToHost([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
@@ -589,7 +589,7 @@ void TranslateArgsToHost(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) n
   TranslateArgsToHost<Func, I + 1>(ctx, base, tpl);
 }
 
-/** Ends the translation of arguments to guest values. */
+/** Ends the recursion over the arguments written as guest values. */
 template <int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
 void TranslateArgsToGuest([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
@@ -740,7 +740,7 @@ inline u32 GetStackLimit(PPCContext& ctx, u8* base) {
 }
 
 /**
- * Aborts when lowering r1 to a new value leaves the thread stack it is on.
+ * Aborts when a new r1 would fall below the stack limit of the thread.
  *
  * @param ctx The register file, r1 still at its current value.
  * @param new_r1 The r1 the caller is about to set.

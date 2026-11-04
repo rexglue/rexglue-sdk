@@ -5,7 +5,7 @@
 #include <string_view>
 #include <unordered_map>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/recompiled_code.h>

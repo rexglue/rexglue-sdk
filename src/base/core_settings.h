@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/setting.h>
 
 namespace rex {
@@ -19,7 +19,8 @@ class ClockSettings final : public SettingOwner {
  public:
   ClockSettings() : SettingOwner("clock") {}
 
-  REX_SETTING(bool, no_scaling, false, "Scales the clock when false. True disables scaling");
+  REX_SETTING(bool, no_scaling, false,
+              "Follows host time and ignores the guest time scalar when true");
 };
 
 class PerfSettings final : public SettingOwner {

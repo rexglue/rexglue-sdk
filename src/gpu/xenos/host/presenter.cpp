@@ -15,7 +15,7 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ui/window.h>
 #include <rex/platform.h>
 #include <rex/platform/thread.h>

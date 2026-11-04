@@ -20,14 +20,14 @@
 #include <vector>
 
 #include <rex/platform.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 #include <rex/types.h>
 #include <rex/utility.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex {
-class ISettings;
+class ISettingsRegistry;
 }  // namespace rex
 
 namespace rex::ui {
@@ -71,7 +71,8 @@ class ConsoleModel : public NonCopyable {
    * @param capture The sink the console shows.
    * @param history_path File the history is loaded from and saved to. Empty keeps it in memory.
    */
-  ConsoleModel(ISettings& settings, log::CaptureSink& capture, std::filesystem::path history_path);
+  ConsoleModel(ISettingsRegistry& settings, log::LogCaptureSink& capture,
+               std::filesystem::path history_path);
 
   /** Pulls new entries from the capture sink. */
   void Poll();
@@ -149,8 +150,8 @@ class ConsoleModel : public NonCopyable {
   void SaveHistory() const;
   void ListCvars();
 
-  ISettings& settings_;
-  log::CaptureSink& capture_;
+  ISettingsRegistry& settings_;
+  log::LogCaptureSink& capture_;
   std::filesystem::path history_path_;
   std::deque<ConsoleLine> lines_;
   std::deque<std::string> history_;

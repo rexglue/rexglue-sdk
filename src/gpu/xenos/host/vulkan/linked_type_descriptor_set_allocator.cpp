@@ -14,9 +14,9 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "gpu/xenos/host/vulkan/linked_type_descriptor_set_allocator.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex {
 namespace gpu {

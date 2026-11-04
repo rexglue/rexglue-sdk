@@ -11,7 +11,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ppc/hook.h>
 
 REX_EXPORT_STUB(__imp__DmAllocatePool);

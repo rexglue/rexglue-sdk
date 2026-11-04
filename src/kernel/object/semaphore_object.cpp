@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <limits>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/object/semaphore_object.h>
 #include <rex/platform/sync.h>
 

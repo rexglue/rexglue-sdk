@@ -69,7 +69,7 @@ Output Run(Image image, u32 ordinal, std::string_view manifest, bool count_run_o
   image.thunk = static_cast<u32>(image.words.size());
   image.words.push_back(kImportFunctionRecord | ordinal);
   image.words.insert(image.words.end(), {kLiR3Zero, kMtctrR11, kBctr});
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   rex::test::TempFolder folder;
   const auto result = rex::test::GenerateFromImage(
       folder, rex::test::BuildCodeImage(image.words, image.pdata), manifest, true,

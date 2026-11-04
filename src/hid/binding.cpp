@@ -42,7 +42,7 @@ struct BindingSet::Impl {
   std::vector<std::unique_ptr<Setting<std::string>>> vars;
   std::vector<ScopeGuard> watches;
   std::vector<std::string> parse_errors;
-  ISettings* registry = nullptr;
+  ISettingsRegistry* registry = nullptr;
   u32 generation = 1;
 
   void Apply(size_t binding, std::string_view value) {
@@ -157,7 +157,7 @@ BindingSet::~BindingSet() {
   Unregister();
 }
 
-Result<void> BindingSet::Register(ISettings& settings) {
+Result<void> BindingSet::Register(ISettingsRegistry& settings) {
   if (impl_->registry) {
     return Err<void>(ErrorCategory::kConfig, "the bindings are already registered");
   }

@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include <rex/hid/input_keys.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/utility.h>
 
 namespace rex::ui {
@@ -22,8 +22,8 @@ BindTable::~BindTable() {
   settings_ = nullptr;
 }
 
-void BindTable::Attach(ISettings* settings) {
-  ISettings* previous = nullptr;
+void BindTable::Attach(ISettingsRegistry* settings) {
+  ISettingsRegistry* previous = nullptr;
   {
     std::lock_guard lock(mutex_);
     previous = settings_;
@@ -46,7 +46,7 @@ void BindTable::SetInput(const hid::IInputSystem* input) {
 }
 
 void BindTable::AddToRegistry(Entry& entry) {
-  ISettings* settings = nullptr;
+  ISettingsRegistry* settings = nullptr;
   {
     std::lock_guard lock(mutex_);
     settings = settings_;
@@ -69,7 +69,7 @@ void BindTable::RemoveFromRegistry(Entry& entry) {
   if (!entry.added) {
     return;
   }
-  ISettings* settings = nullptr;
+  ISettingsRegistry* settings = nullptr;
   {
     std::lock_guard lock(mutex_);
     settings = settings_;

@@ -18,7 +18,7 @@
 
 #include <rex/platform.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/hid/input_keys.h>
 #include <rex/hid/input_system.h>
 #include <rex/types.h>
@@ -31,7 +31,7 @@ class BindTable : public NonCopyable {
   BindTable() = default;
   ~BindTable();
 
-  void Attach(ISettings* settings);
+  void Attach(ISettingsRegistry* settings);
 
   /**
    * Sets the input system that reads and writes the chords. Call it before Register. Without one,
@@ -69,7 +69,7 @@ class BindTable : public NonCopyable {
 
   std::mutex mutex_;
   std::deque<Entry> entries_;
-  ISettings* settings_ = nullptr;
+  ISettingsRegistry* settings_ = nullptr;
   const hid::IInputSystem* input_ = nullptr;
 };
 

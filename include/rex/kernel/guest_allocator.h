@@ -32,7 +32,7 @@ class GuestHeap;
 
 namespace rex::kernel {
 
-class Memory;
+class GuestAddressSpace;
 class WorkspaceHeap;
 
 /** Profiler pool that the blocks of a guest allocator are reported to. */
@@ -63,7 +63,8 @@ class REX_KERNEL_API GuestAllocator : public NonCopyable {
    * @param heap The o1heap instance over the range.
    * @param pool The pool the blocks are reported to.
    */
-  GuestAllocator(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap, GuestPool pool);
+  GuestAllocator(Key, GuestAddressSpace& memory, u32 base, u32 size, O1HeapInstance* heap,
+                 GuestPool pool);
 
   /**
    * Reserves and commits a range and starts the allocator over it.
@@ -123,12 +124,12 @@ class REX_KERNEL_API GuestAllocator : public NonCopyable {
   friend class WorkspaceHeap;
   friend class rex::kernel::shim::GuestHeap;
 
-  [[nodiscard]] static Result<std::unique_ptr<GuestAllocator>> Create(Memory& memory, u32 size,
-                                                                      u32 alignment, bool physical,
-                                                                      u32 page_size, u32 flags,
-                                                                      GuestPool pool);
+  [[nodiscard]] static Result<std::unique_ptr<GuestAllocator>> Create(GuestAddressSpace& memory,
+                                                                      u32 size, u32 alignment,
+                                                                      bool physical, u32 page_size,
+                                                                      u32 flags, GuestPool pool);
 
-  Memory& memory_;
+  GuestAddressSpace& memory_;
   u32 base_;
   u32 size_;
   O1HeapInstance* heap_;
@@ -140,7 +141,7 @@ class REX_KERNEL_API GuestAllocator : public NonCopyable {
 
 namespace rex::kernel {
 
-class Memory;
+class GuestAddressSpace;
 
 /** Interface XAM uses to allocate from the title workspace. */
 class ITitleWorkspace {
@@ -169,12 +170,13 @@ class REX_KERNEL_API WorkspaceHeap : public ITitleWorkspace, public NonCopyable 
 
  public:
   /** Wraps a committed workspace. Only Create can make the key. */
-  WorkspaceHeap(Key, Memory& memory, std::unique_ptr<GuestAllocator> allocator);
+  WorkspaceHeap(Key, GuestAddressSpace& memory, std::unique_ptr<GuestAllocator> allocator);
 
   /**
    * @return An error when the memory cannot be committed.
    */
-  [[nodiscard]] static Result<std::unique_ptr<WorkspaceHeap>> Create(Memory& memory, u32 size);
+  [[nodiscard]] static Result<std::unique_ptr<WorkspaceHeap>> Create(GuestAddressSpace& memory,
+                                                                     u32 size);
 
   /**
    * Resolves the workspace size of a title.
@@ -200,7 +202,7 @@ class REX_KERNEL_API WorkspaceHeap : public ITitleWorkspace, public NonCopyable 
   void Free(u32 address) override;
 
  private:
-  Memory& memory_;
+  GuestAddressSpace& memory_;
   std::unique_ptr<GuestAllocator> allocator_;
 };
 

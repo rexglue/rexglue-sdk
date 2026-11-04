@@ -24,15 +24,15 @@
 #endif
 
 #include <rex/string/text.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/thread.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex::log {
 
 class DetailAccess {
  public:
-  static std::atomic<u16>& Slot(const Category& category) { return category.slot_; }
+  static std::atomic<u16>& Slot(const LogCategory& category) { return category.slot_; }
 };
 
 namespace {
@@ -201,7 +201,7 @@ std::string CheckPattern(std::string_view pattern) {
 
 class ConsumerSink final : public spdlog::sinks::base_sink<spdlog::details::null_mutex> {
  public:
-  ConsumerSink(ISink& target, const u64& sequence) : target_(target), sequence_(sequence) {}
+  ConsumerSink(ILogSink& target, const u64& sequence) : target_(target), sequence_(sequence) {}
 
  protected:
   void sink_it_(const spdlog::details::log_msg& message) override {
@@ -211,7 +211,7 @@ class ConsumerSink final : public spdlog::sinks::base_sink<spdlog::details::null
   void flush_() override { target_.Flush(); }
 
  private:
-  ISink& target_;
+  ILogSink& target_;
   const u64& sequence_;
 };
 
@@ -255,7 +255,7 @@ std::string_view LevelName(Level level) {
   return index < kLevelNames.size() ? kLevelNames[index] : kLevelNames.back();
 }
 
-bool Category::IsEnabled(Level level) const {
+bool LogCategory::IsEnabled(Level level) const {
   Logger::State& logger = GetLoggerInstance();
   u16 slot = slot_.load(std::memory_order_acquire);
   if (slot == kUnresolved) {
@@ -266,14 +266,14 @@ bool Category::IsEnabled(Level level) const {
 
 namespace detail {
 
-void Write(const Category& category, Level level, std::string_view text) {
+void Write(const LogCategory& category, Level level, std::string_view text) {
   Logger::State& logger = GetLoggerInstance();
   logger.Write(Message{level, category.GetName(), text, std::chrono::system_clock::now(),
                        platform::GetCallerSystemThreadID(),
                        logger.sequence.fetch_add(1, std::memory_order_relaxed) + 1});
 }
 
-void WriteArgs(const Category& category, Level level, std::string_view fmt,
+void WriteArgs(const LogCategory& category, Level level, std::string_view fmt,
                std::format_args args) noexcept {
   try {
     Write(category, level, std::vformat(fmt, args));
@@ -284,7 +284,7 @@ void WriteArgs(const Category& category, Level level, std::string_view fmt,
   }
 }
 
-void WriteFailure(const Category& category, const char* what) noexcept {
+void WriteFailure(const LogCategory& category, const char* what) noexcept {
   try {
     Write(category, Level::kError, std::format("log message dropped, {}", what));
   } catch (...) {
@@ -292,7 +292,7 @@ void WriteFailure(const Category& category, const char* what) noexcept {
   }
 }
 
-void WriteStub(const Category& category, std::atomic_flag& seen, std::string_view name,
+void WriteStub(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
                std::string_view detail) {
   const Level level = seen.test_and_set(std::memory_order_relaxed) ? Level::kDev : Level::kWarn;
   if (!category.IsEnabled(level)) {
@@ -382,7 +382,7 @@ void Logger::State::RecomputeAllLocked() {
   }
 }
 
-u16 Logger::State::Resolve(const log::Category& category) {
+u16 Logger::State::Resolve(const log::LogCategory& category) {
   bool created = false;
   u16 slot = 0;
   {
@@ -401,11 +401,11 @@ u16 Logger::State::Resolve(const log::Category& category) {
   return slot;
 }
 
-Result<void> Logger::State::AddCategories(std::span<const log::Category* const> categories) {
+Result<void> Logger::State::AddCategories(std::span<const log::LogCategory* const> categories) {
   std::vector<std::pair<std::string, std::string>> added;
   {
     std::lock_guard lock(mutex);
-    for (const log::Category* category : categories) {
+    for (const log::LogCategory* category : categories) {
       const std::string_view name = category->GetName();
       std::optional<u16> slot = FindLocked(name);
       if (slot && slots[*slot].registered) {
@@ -439,11 +439,11 @@ Result<void> Logger::State::AddCategories(std::span<const log::Category* const> 
   return Ok();
 }
 
-void Logger::State::RemoveCategories(std::span<const log::Category* const> categories) {
+void Logger::State::RemoveCategories(std::span<const log::LogCategory* const> categories) {
   std::vector<std::unique_ptr<SettingOwner>> detached;
   {
     std::lock_guard lock(mutex);
-    for (const log::Category* category : categories) {
+    for (const log::LogCategory* category : categories) {
       auto slot = FindLocked(category->GetName());
       if (!slot || !slots[*slot].registered) {
         continue;
@@ -484,7 +484,7 @@ void Logger::State::ApplyCategoryLevel(std::string_view category, std::string_vi
   }
 }
 
-bool Logger::State::AddSink(log::ISink& sink) {
+bool Logger::State::AddSink(log::ILogSink& sink) {
   std::lock_guard lock(sinks_mutex);
   if (std::ranges::any_of(consumers,
                           [&sink](const Consumer& entry) { return entry.target == &sink; })) {
@@ -497,7 +497,7 @@ bool Logger::State::AddSink(log::ISink& sink) {
   return true;
 }
 
-void Logger::State::RemoveSink(log::ISink& sink) {
+void Logger::State::RemoveSink(log::ILogSink& sink) {
   std::lock_guard lock(sinks_mutex);
   std::erase_if(consumers, [&sink](const Consumer& entry) { return entry.target == &sink; });
   RebuildSinksLocked();
@@ -596,7 +596,7 @@ bool Logger::State::LockSinks(std::unique_lock<std::mutex>& lock,
   return true;
 }
 
-bool Logger::State::TryWrite(const log::Category& category, log::Level severity,
+bool Logger::State::TryWrite(const log::LogCategory& category, log::Level severity,
                              std::string_view text, std::chrono::milliseconds timeout) {
   const log::Message message{severity,
                              category.GetName(),
@@ -749,19 +749,19 @@ Logger::Logger() : SettingOwner("log"), state_(std::make_unique<State>(*this)) {
   reapply(pattern);
   reapply(color);
   (void)REX_SETTINGS().Register(*this);
-  const log::Category* core[] = {&log::core, &log::system};
+  const log::LogCategory* core[] = {&log::core, &log::system};
   (void)state_->AddCategories(core);
 }
 
-Result<void> Logger::AddCategories(std::span<const log::Category* const> categories) {
+Result<void> Logger::AddCategories(std::span<const log::LogCategory* const> categories) {
   return state_->AddCategories(categories);
 }
 
-void Logger::RemoveCategories(std::span<const log::Category* const> categories) {
+void Logger::RemoveCategories(std::span<const log::LogCategory* const> categories) {
   state_->RemoveCategories(categories);
 }
 
-ScopeGuard Logger::AddSink(log::ISink& sink) {
+ScopeGuard Logger::AddSink(log::ILogSink& sink) {
   if (!state_->AddSink(sink)) {
     return ScopeGuard();
   }

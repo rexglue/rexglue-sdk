@@ -19,10 +19,10 @@
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/shared_memory.h"
 #include "gpu/xenos/physical_memory.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/bit.h>
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex::gpu::vulkan {
 

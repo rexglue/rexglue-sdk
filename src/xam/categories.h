@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 REXLOG_CATEGORY(xam, "XAM exports")
 

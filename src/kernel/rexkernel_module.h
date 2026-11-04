@@ -17,13 +17,13 @@
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/kernel_settings.h>
 #include <rex/module.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "kernel/kernel_control.h"
 
 namespace rex {
 class ILogger;
-class ISettings;
+class ISettingsRegistry;
 namespace filesystem {
 class IFileSystemFactory;
 }  // namespace filesystem
@@ -58,7 +58,8 @@ struct KernelServices {
   xam::IXAMLanguage* language = nullptr;
   xam::IXAMTitleLifecycle* xam = nullptr;
   xam::IXAMTitleServices* managers = nullptr;
-  IFactory* controls = nullptr; /**< The private factory the app set, null until it is set. */
+  IInterfaceFactory* controls =
+      nullptr; /**< The private factory the app set, null until it is set. */
   KernelSettings* kernel_settings = nullptr;
 };
 
@@ -72,19 +73,19 @@ class KernelModule final : public IModule, public IKernelControl {
 
   std::string_view GetName() const override;
   std::span<const InterfaceType> GetRequiredInterfaces() const override;
-  [[nodiscard]] Result<void> Connect(IFactory& factory) override;
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory& factory) override;
   void Disconnect() override;
   [[nodiscard]] Result<void> Init() override;
   void Shutdown() override;
   IInterface* QueryInterface(std::string_view name, u32 version) override;
-  void SetControls(IFactory& controls) override;
+  void SetControls(IInterfaceFactory& controls) override;
 
  private:
   Result<void> RegisterSettings();
 
   KernelSettings kernel_settings_;
-  IFactory* factory_ = nullptr;
-  ISettings* settings_ = nullptr;
+  IInterfaceFactory* factory_ = nullptr;
+  ISettingsRegistry* settings_ = nullptr;
   ILogger* logger_ = nullptr;
   bool hooks_ = false;
   bool forwards_ = false;

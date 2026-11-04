@@ -24,12 +24,12 @@
 #include <rex/driver.h>
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/hid/input_driver.h>
 #include <rex/hid/pad.h>
 #include <rex/platform.h>
 #include <rex/platform/file.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex::hid::sdl3 {
 
@@ -410,7 +410,7 @@ std::string_view SDL3InputDriver::GetName() const {
 }
 
 Result<void> SDL3InputDriver::Initialize(IDriverContext& context) {
-  REX_TRY_VOID(context.GetSettings().Register(*this));
+  REX_TRY_VOID(context.GetSettingsRegistry().Register(*this));
 
   state_ = std::make_shared<State>();
   state_->context = &context;
@@ -458,7 +458,7 @@ Result<void> SDL3InputDriver::Initialize(IDriverContext& context) {
   if (!ran) {
     state_->running = false;
     state_.reset();
-    context.GetSettings().Unregister(*this);
+    context.GetSettingsRegistry().Unregister(*this);
     return ran;
   }
   return {};
@@ -469,7 +469,7 @@ void SDL3InputDriver::Shutdown() {
     return;
   }
   state_->running = false;
-  state_->context->GetSettings().Unregister(*this);
+  state_->context->GetSettingsRegistry().Unregister(*this);
   std::shared_ptr<State> state = std::move(state_);
   const Result<void> ran = state->context->RunOnUIThread([state]() {
     {
@@ -610,7 +610,7 @@ std::string_view SDL3InputProvider::GetName() const {
   return "rexhid-sdl3";
 }
 
-Result<void> SDL3InputProvider::Connect(IFactory&) {
+Result<void> SDL3InputProvider::Connect(IInterfaceFactory&) {
   rex::memory::SetTagName(rex::hid::kHID, "HID");
   return {};
 }

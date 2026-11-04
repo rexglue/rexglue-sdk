@@ -197,7 +197,7 @@ REX_TEST_CASE("loading a module loads its exporter and patches the import slots"
     CHECK(c.Load32(variable) == kDataValue);
     CHECK(c.Load32(kThunkSlot) == ((1u << 24) | kFunctionOrdinal));
 
-    const u8* header = StateOf(runtime).GetMemory()->TranslateVirtual(kExporterBase);
+    const u8* header = StateOf(runtime).GetAddressSpace()->TranslateVirtual(kExporterBase);
     CHECK(std::all_of(header, header + kHeaderSize, [](u8 byte) { return byte == 0; }));
     CHECK(c.Kernel("RtlImageNtHeader", {kExporterBase}) == 0);
 
@@ -317,7 +317,7 @@ REX_TEST_CASE("a codegen unload of the importer attempts no detach on its export
   KernelFixture fixture(PopulateDLLExporter);
   rex::Logger* logger = &REX_LOGGER();
   REQUIRE(logger);
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger->AddSink(sink);
   auto& modules = fixture.GetRuntime().GetModuleRegistry();
   rex::kernel::X_HANDLE importer = 0;

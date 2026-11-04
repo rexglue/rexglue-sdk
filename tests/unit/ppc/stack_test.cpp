@@ -242,7 +242,7 @@ REX_TEST_CASE("A MappedPtr import argument passes the guest address", "[ppc][sta
 
 REX_TEST_CASE("A default StackFrame binds the context of the calling thread", "[ppc][stack]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
   u32 block = 0;
   REQUIRE(heap->Alloc(
@@ -268,7 +268,7 @@ REX_TEST_CASE("A default StackFrame binds the context of the calling thread", "[
 REX_TEST_CASE("StackFrame pushes and the PCR read reach the 0xE0 heap through its page offset",
               "[ppc][stack]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
   u32 block = 0;
   REQUIRE(heap->Alloc(

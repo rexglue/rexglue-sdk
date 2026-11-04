@@ -19,13 +19,13 @@
 #include <rex/platform/process.h>
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/app_harness.h"
 
 namespace {
 
-using rex::GetSettings;
+using rex::GetSettingsRegistry;
 using rex::SettingLayer;
 using rex::test::HarnessApp;
 
@@ -153,7 +153,7 @@ REX_TEST_CASE("unknown name reported once", "[base][settings_feed]") {
   HarnessApp app;
   const auto arg = WriteFile(
       app, "[nope]\nname = 1\n\n[log]\nlevel = \"debug\"\n\n[clock]\nno_scaling = true\n");
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
   REQUIRE(app.Start({arg}));
   app.Finish();

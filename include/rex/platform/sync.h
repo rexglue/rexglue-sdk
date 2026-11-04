@@ -69,7 +69,7 @@ class WaitHandle {
 };
 
 /**
- * A timeout of 0 polls and max() waits forever.
+ * Waits on one object. A timeout of 0 polls and max() waits forever.
  *
  * @param is_alertable True to let a queued user callback end the wait.
  */

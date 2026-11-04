@@ -15,7 +15,7 @@
 #include <rex/assert.h>
 #include <rex/kernel/types/status.h>
 #include <rex/kernel/types/thread.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/math.h>
 #include <rex/bit.h>
@@ -148,7 +148,7 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
   u32 page_size;
   if (*base_addr_ptr != 0) {
     // The specified page size is ignored when a base address is given.
-    auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(*base_addr_ptr);
+    auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(*base_addr_ptr);
     if (!heap || heap->GetHeapType() != kernel::HeapType::kGuestVirtual) {
       return X_STATUS_INVALID_PARAMETER;
     }
@@ -189,7 +189,7 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
   bool was_committed = false;
 
   if (adjusted_base != 0) {
-    heap = kernel::GetCurrentState().GetMemory()->LookupHeap(adjusted_base);
+    heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(adjusted_base);
     REX_KERNEL_REQUIRE_NONNULL(heap);
     if (heap->GetPageSize() != page_size) {
       return X_STATUS_ACCESS_DENIED;
@@ -202,7 +202,7 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
     }
   } else {
     bool top_down = !!(alloc_type & kXMemTopDown);
-    heap = kernel::GetCurrentState().GetMemory()->LookupHeapByType(false, page_size);
+    heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeapByType(false, page_size);
     heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down, &address);
   }
   if (!address) {
@@ -216,7 +216,7 @@ u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size
                       kernel::kMemoryProtectRead | kernel::kMemoryProtectWrite);
       }
       if (!was_committed) {
-        kernel::GetCurrentState().GetMemory()->Zero(address, adjusted_size);
+        kernel::GetCurrentState().GetAddressSpace()->Zero(address, adjusted_size);
       }
       if (!(protect & kernel::kMemoryProtectWrite)) {
         heap->Protect(address, adjusted_size, protect);
@@ -246,7 +246,7 @@ u32 NtProtectVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_
     return X_STATUS_INVALID_PAGE_PROTECTION;
   }
 
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(*base_addr_ptr);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(*base_addr_ptr);
   if (!heap || heap->GetHeapType() != kernel::HeapType::kGuestVirtual) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -287,7 +287,7 @@ u32 NtFreeVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr
     return X_STATUS_MEMORY_NOT_ALLOCATED;
   }
 
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(base_addr_value);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(base_addr_value);
   if (!heap) {
     return X_STATUS_MEMORY_NOT_ALLOCATED;
   }
@@ -349,7 +349,7 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
       return X_STATUS_INVALID_PARAMETER;
   }
 
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(base_address);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(base_address);
   kernel::HeapAllocation alloc_info;
   if (heap == nullptr || !heap->QueryRegionInfo(base_address, &alloc_info)) {
     return X_STATUS_INVALID_PARAMETER;
@@ -416,7 +416,7 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
   u32 protect = FromXdkProtectFlags(protect_bits);
   bool top_down = true;
   auto heap = static_cast<kernel::PhysicalHeap*>(
-      kernel::GetCurrentState().GetMemory()->LookupHeapByType(true, page_size));
+      kernel::GetCurrentState().GetAddressSpace()->LookupHeapByType(true, page_size));
   // min_addr_range and max_addr_range bound physical memory, not virtual.
   u32 heap_base = heap->GetHeapBase();
   u32 heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
@@ -450,14 +450,14 @@ void MmFreePhysicalMemory_entry(u32 type, u32 base_address) {
 
   REX_ASSERT((base_address & 0x1F) == 0);
 
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(base_address);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(base_address);
   if (heap) {
     heap->Release(base_address);
   }
 }
 
 u32 MmQueryAddressProtect_entry(u32 base_address) {
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(base_address);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(base_address);
   u32 access;
   if (!heap || !heap->QueryProtect(base_address, &access)) {
     access = 0;
@@ -477,7 +477,8 @@ void MmSetAddressProtect_entry(MappedVoid base_address, u32 region_size, u32 pro
   }
 
   u32 protect = FromXdkProtectFlags(protect_bits);
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(base_address.GetGuestAddress());
+  auto heap =
+      kernel::GetCurrentState().GetAddressSpace()->LookupHeap(base_address.GetGuestAddress());
   if (!heap) {
     return;
   }
@@ -489,7 +490,8 @@ void MmSetAddressProtect_entry(MappedVoid base_address, u32 region_size, u32 pro
 }
 
 u32 MmQueryAllocationSize_entry(MappedVoid base_address) {
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(base_address.GetGuestAddress());
+  auto heap =
+      kernel::GetCurrentState().GetAddressSpace()->LookupHeap(base_address.GetGuestAddress());
   u32 size;
   if (!heap || !heap->QuerySize(base_address.GetGuestAddress(), &size)) {
     size = 0;
@@ -545,17 +547,17 @@ u32 MmQueryStatistics_entry(GuestPtrT<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   u32 used_pages = 0;
   u32 reserved_pages_bytes = 0;
   const kernel::BaseHeap* physical_heaps[3] = {
-      kernel::GetCurrentState().GetMemory()->LookupHeapByType(true, 0x1000),
-      kernel::GetCurrentState().GetMemory()->LookupHeapByType(true, 0x10000),
-      kernel::GetCurrentState().GetMemory()->LookupHeapByType(true, 0x1000000)};
+      kernel::GetCurrentState().GetAddressSpace()->LookupHeapByType(true, 0x1000),
+      kernel::GetCurrentState().GetAddressSpace()->LookupHeapByType(true, 0x10000),
+      kernel::GetCurrentState().GetAddressSpace()->LookupHeapByType(true, 0x1000000)};
 
-  kernel::GetCurrentState().GetMemory()->GetHeapsPageStats(
+  kernel::GetCurrentState().GetAddressSpace()->GetHeapsPageStats(
       physical_heaps, std::size(physical_heaps), unreserved_pages, reserved_pages, used_pages,
       reserved_pages_bytes);
 
   REX_ASSERT(used_pages < stats_ptr->total_physical_pages);
 
-  auto* memory = kernel::GetCurrentState().GetMemory();
+  auto* memory = kernel::GetCurrentState().GetAddressSpace();
   const u32 title_pages = stats_ptr->total_physical_pages - stats_ptr->kernel_pages;
   const u32 budget = memory->GetBudgetPages() ? memory->GetBudgetPages() : title_pages;
   const u32 used = memory->GetBudgetPages() ? memory->GetTitlePages() : used_pages;
@@ -590,7 +592,8 @@ u32 MmQueryStatistics_entry(GuestPtrT<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
 
 /** Returns the physical address of a guest address, or 0 when base_address is not physical. */
 u32 MmGetPhysicalAddress_entry(u32 base_address) {
-  u32 physical_address = kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(base_address);
+  u32 physical_address =
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(base_address);
   REX_ASSERT(physical_address != UINT32_MAX);
   if (physical_address == UINT32_MAX) {
     physical_address = 0;
@@ -630,16 +633,17 @@ REX_STATIC_ASSERT_SIZE(X_POOL_ALLOC_HEADER, 8);
 u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero) {
   if (size <= 0xFD8) {
     u32 adjusted_size = size + sizeof(X_POOL_ALLOC_HEADER);
-    u32 addr = kernel::GetCurrentState().GetMemory()->SystemHeapAlloc(adjusted_size, 64);
+    u32 addr = kernel::GetCurrentState().GetAddressSpace()->SystemHeapAlloc(adjusted_size, 64);
     if (!addr)
       return 0;
     auto header =
-        kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
+        kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
     header->unk_2 = 170;
     header->tag = tag;
     return addr + sizeof(X_POOL_ALLOC_HEADER);
   } else {
-    return kernel::GetCurrentState().GetMemory()->SystemHeapAlloc(size, kernel::kPageSize4KiB);
+    return kernel::GetCurrentState().GetAddressSpace()->SystemHeapAlloc(size,
+                                                                        kernel::kPageSize4KiB);
   }
 }
 
@@ -652,14 +656,14 @@ void ExFreePool_entry(MappedVoid base_address) {
   u32 addr = base_address.GetGuestAddress();
   if ((addr & (kernel::kPageSize4KiB - 1)) == 0) {
     // A page aligned address is a large allocation without a pool header.
-    kernel::GetCurrentState().GetMemory()->SystemHeapFree(addr);
+    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(addr);
   } else {
-    kernel::GetCurrentState().GetMemory()->SystemHeapFree(addr - sizeof(X_POOL_ALLOC_HEADER));
+    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(addr - sizeof(X_POOL_ALLOC_HEADER));
   }
 }
 
 u32 KeGetImagePageTableEntry_entry(MappedVoid address) {
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(address.GetGuestAddress());
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(address.GetGuestAddress());
   if (!heap || heap->GetHeapType() != kernel::HeapType::kGuestXEX) {
     return 0;
   }
@@ -680,16 +684,16 @@ void KeUnlockL2_entry() {}
 u32 MmCreateKernelStack_entry(u32 stack_size, u32 r4) {
   REX_ASSERT(r4 == 0);
   auto& runtime = kernel::GetCurrent();
-  const auto* process = StateOf(runtime).GetMemory()->TranslateVirtual<const X_KPROCESS*>(
+  const auto* process = StateOf(runtime).GetAddressSpace()->TranslateVirtual<const X_KPROCESS*>(
       StateOf(runtime).GetTitleProcess());
   const u32 size =
       ResolveGuestStackSize(stack_size, process->kernel_stack_size, kMinimumThreadStackSize);
-  Result<GuestStack> stack = AllocateGuestStack(*StateOf(runtime).GetMemory(), size, 0, true);
+  Result<GuestStack> stack = AllocateGuestStack(*StateOf(runtime).GetAddressSpace(), size, 0, true);
   return stack ? stack->base : 0;
 }
 
 u32 MmDeleteKernelStack_entry(MappedVoid stack_base, MappedVoid stack_end) {
-  auto* memory = kernel::GetCurrentState().GetMemory();
+  auto* memory = kernel::GetCurrentState().GetAddressSpace();
   const u32 base = stack_base.GetGuestAddress();
   if (base <= KernelThread::kStackAddressRangeBegin || base > KernelThread::kStackAddressRangeEnd ||
       stack_end.GetGuestAddress() >= base) {
@@ -710,7 +714,7 @@ u32 ExAllocatePoolWithTag_entry(u32 numbytes, u32 tag, u32 zero) {
 }
 
 u32 MmIsAddressValid_entry(u32 address) {
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(address);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(address);
   if (!heap) {
     return 0;
   }
@@ -729,7 +733,7 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
   }
 
   u32 out_address = 0;
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(0x8C000000);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(0x8C000000);
   if (!heap) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -751,16 +755,16 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
 u32 NtFreeEncryptedMemory_entry([[maybe_unused]] u32 region_type, MappedU32 base_address_ptr) {
   REX_KERNEL_REQUIRE_NONNULL(base_address_ptr);
 
-  auto heap = kernel::GetCurrentState().GetMemory()->LookupHeap(0x80000000);
+  auto heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(0x80000000);
   REX_KERNEL_REQUIRE_NONNULL(heap);
   const u32 encrypt_address = heap->GetHeapBase() + heap->GetPageSize() * (*base_address_ptr);
 
-  auto encrypt_heap = kernel::GetCurrentState().GetMemory()->LookupHeap(encrypt_address);
+  auto encrypt_heap = kernel::GetCurrentState().GetAddressSpace()->LookupHeap(encrypt_address);
   if (!encrypt_heap || encrypt_heap->GetHeapType() != kernel::HeapType::kGuestXEX) {
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  kernel::GetCurrentState().GetMemory()->SystemHeapFree(encrypt_address);
+  kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(encrypt_address);
   return X_STATUS_SUCCESS;
 }
 

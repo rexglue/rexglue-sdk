@@ -31,7 +31,7 @@ namespace rex::kernel {
 /** FP and vector state the Ke save exports hold for the routine running on this thread. */
 struct DPCSaveArea {
   std::array<PPCRegister, 32> fpr{};
-  /** The host FP control word, which holds the guest rounding and flush bits. */
+  /** Host FP control word with the guest rounding and flush bits. */
   u32 csr = 0;
   std::array<PPCVRegister, 128> vr{};
   PPCVSCRRegister vscr;
@@ -47,12 +47,12 @@ class REX_KERNEL_API ThreadState {
    * @param pcr_address The guest PCR address, loaded into r13.
    * @param runtime The runtime the thread belongs to, null in tests that run without one.
    */
-  ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory* memory,
+  ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, GuestAddressSpace* memory,
               TitleRuntime* runtime);
   /** Unbinds the state from the calling host thread when it is the bound one. */
   ~ThreadState();
 
-  Memory* GetMemory() const { return memory_; }
+  GuestAddressSpace* GetAddressSpace() const { return memory_; }
 
   /** Asks the thread to stop at its next kernel boundary. */
   void RequestStop() { stop_requested_.store(true, std::memory_order_release); }
@@ -87,7 +87,7 @@ class REX_KERNEL_API ThreadState {
   static u32 GetBoundThreadID();
 
  private:
-  Memory* memory_;
+  GuestAddressSpace* memory_;
   TitleRuntime* runtime_;
 
   u32 thread_id_ = 0;

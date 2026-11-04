@@ -1,5 +1,5 @@
 /**
- * @file        paths.h
+ * @file        path_settings.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -27,10 +27,10 @@ class REX_API PathSettings final : public SettingOwner {
   REX_SETTING(std::filesystem::path, user_root, "{app.root}/user", "Saves and per player data",
               kStartupOnly);
   REX_SETTING(std::filesystem::path, cache_root, "",
-              "Shader and pipeline caches, the OS cache folder when empty", kStartupOnly);
+              "Shader and pipeline caches, no shader storage when empty", kStartupOnly);
 };
 
-/** The first call registers them. */
+/** Returns the path settings. The first call registers them. */
 REX_API PathSettings& GetPathSettings();
 
 #define REX_PATHS() ::rex::GetPathSettings()

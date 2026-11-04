@@ -24,7 +24,7 @@ namespace rex::kernel {
 
 class TitleState;
 class GuestAllocator;
-class Memory;
+class GuestAddressSpace;
 class MemoryView;
 
 enum class GuestProtect : u8 {
@@ -33,7 +33,7 @@ enum class GuestProtect : u8 {
 };
 
 enum class GuestHeap : u8 {
-  kTitle,    /**< Title memory, which counts against the title budget. */
+  kTitle,    /**< Virtual memory in 64 KiB pages, which does not count against the title budget. */
   kSystem,   /**< System memory, kept apart from title memory and zeroed. */
   kPhysical, /**< Physical memory in 64 KiB pages, which counts against the title budget. */
 };
@@ -153,8 +153,8 @@ class REX_KERNEL_API GuestMemory {
   friend class TitleRuntime;
   friend class kernel::GuestAllocator;
   friend class kernel::TitleState;
-  explicit GuestMemory(kernel::Memory& memory);
-  kernel::Memory& GetMemory() const;
+  explicit GuestMemory(kernel::GuestAddressSpace& memory);
+  kernel::GuestAddressSpace& GetAddressSpace() const;
   ~GuestMemory();
 
   struct State;

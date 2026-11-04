@@ -19,7 +19,7 @@
 #include <rex/gpu/graphics_system.h>
 #include <rex/utility.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include "gpu/graphics_control.h"
 

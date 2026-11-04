@@ -64,7 +64,7 @@ REX_TEST_CASE("Current returns the runtime inside an interrupt callback", "[kern
     const u32 pcr = c.Alloc(0x1000);
     const u32 stack = c.Alloc(0x10000) + 0x8000;
     std::jthread worker([&] {
-      rex::kernel::ThreadState state(4, stack, pcr, StateOf(c.GetRuntime()).GetMemory(),
+      rex::kernel::ThreadState state(4, stack, pcr, StateOf(c.GetRuntime()).GetAddressSpace(),
                                      &c.GetRuntime());
       dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0);
     });
@@ -113,8 +113,9 @@ REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::test::Caller& c) {
     const u32 address = c.Alloc(sizeof(rex::kernel::X_KEVENT));
-    auto* event =
-        StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<rex::kernel::X_KEVENT*>(address);
+    auto* event = StateOf(c.GetRuntime())
+                      .GetAddressSpace()
+                      ->TranslateVirtual<rex::kernel::X_KEVENT*>(address);
     std::memset(event, 0, sizeof(rex::kernel::X_KEVENT));
     auto& table = c.GetRuntime().GetObjectTable();
     const std::optional<rex::kernel::X_HANDLE> handle = table.ResolveHandle(address, -1);

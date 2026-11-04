@@ -5,19 +5,19 @@
 
 #include <memory>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include "rex_test.h"
 
 namespace rex::test {
 
 namespace {
-std::unique_ptr<rex::kernel::Memory> g_memory;
+std::unique_ptr<rex::kernel::GuestAddressSpace> g_memory;
 }  // namespace
 
-rex::kernel::Memory& GetTestMemory() {
+rex::kernel::GuestAddressSpace& GetTestMemory() {
   if (!g_memory) {
-    g_memory = std::make_unique<rex::kernel::Memory>();
+    g_memory = std::make_unique<rex::kernel::GuestAddressSpace>();
     const bool initialized = g_memory->Initialize();
     if (!initialized) {
       g_memory.reset();

@@ -23,18 +23,18 @@
 #include <vector>
 
 #include <rex/app/app.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/cli.h>
 #include <rex/logging/logger.h>
 #include <rex/platform/file.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform.h>
 #include <rex/platform/process.h>
 #include <rex/platform/timer.h>
 #include <rex/driver_registration.h>
 #include <rex/driver_module.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/ui/ui_system.h>
 
 #include "base/app_harness.h"
@@ -75,7 +75,7 @@ class TestApp : public rex::test::ObjectApp<rex::app::App> {
     providers.insert(providers.end(), extra_providers.begin(), extra_providers.end());
   }
 
-  [[nodiscard]] rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     g_events.push_back("app:configure");
     (void)settings;
     (void)root.SetText(rex::SettingLayer::kTitle, folder.path.string());
@@ -123,7 +123,7 @@ class LayerApp : public TestApp {
   DepthOwner owner;
 
  protected:
-  [[nodiscard]] rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     REX_TRY_VOID(settings.Register(owner));
     if (title_value != 0) {
       REX_TRY_VOID(owner.depth.SetText(rex::SettingLayer::kTitle, std::to_string(title_value)));
@@ -142,7 +142,7 @@ class LayerApp : public TestApp {
 class OrderProvider final : public rex::IModule, public rex::IDriverModule {
  public:
   std::string_view GetName() const override { return "order"; }
-  rex::Result<void> Connect(rex::IFactory&) override {
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override {
     g_events.push_back("provider:connect");
     return rex::Ok();
   }
@@ -432,7 +432,7 @@ REX_TEST_CASE_METHOD(Fixture, "A failed relaunch reaches the log before logging 
   TestApp app;
   REQUIRE(app.Init(Args()));
   rex::Logger* logger = &REX_LOGGER();
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger->AddSink(sink);
   rex::app::RequestRestart();
   REQUIRE(app.Shutdown() == 0);
@@ -475,7 +475,7 @@ REX_TEST_CASE("A category keeps writing after the logger stops and starts", "[ap
   }
   std::vector<rex::log::CapturedMessage> entries;
   rex::test::RunInInit([&] {
-    rex::log::CaptureSink sink;
+    rex::log::LogCaptureSink sink;
     auto sink_guard = logger->AddSink(sink);
     REXLOG_WARN("after logging shut down");
     sink.CopySince(0, entries);
@@ -651,7 +651,7 @@ REX_TEST_CASE_METHOD(Fixture, "an unknown setting from the config file is only a
   rex::test::TempFolder folder("rex_app_unknown_");
   const auto file = folder.path / "unknown.toml";
   std::ofstream(file, std::ios::binary) << "[nope]\nthing = 1\n";
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
   TestApp app;
   REQUIRE(app.Init(Args({"--config_file=" + file.string()})));

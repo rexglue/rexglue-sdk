@@ -13,7 +13,7 @@
 #include <atomic>
 #include <thread>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/heap.h>
 
 #include "test_memory.h"

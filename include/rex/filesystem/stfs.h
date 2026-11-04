@@ -9,8 +9,6 @@
  *              See LICENSE file in the project root for full license text.
  *
  * @remarks     Derived from Xenia's xenia/vfs/devices/stfs_xbox.h (Ben Vanik, 2021).
- *
- * @remarks     Derived from Xenia's xenia/vfs/devices/stfs_container_device.cc and
  */
 
 #pragma once
@@ -530,9 +528,9 @@ struct ContainerNode {
 };
 
 /** A mapped and parsed container image. Open one with IFileSystemFactory. */
-class IContainer {
+class IContainerImage {
  public:
-  virtual ~IContainer() = default;
+  virtual ~IContainerImage() = default;
 
   [[nodiscard]] virtual ContainerType GetType() const = 0;
 
@@ -547,7 +545,7 @@ class IContainer {
   [[nodiscard]] virtual u64 GetTotalSize() const = 0;
 
   /**
-   * @return The nodes, the root first.
+   * @return The nodes, with the root first.
    */
   [[nodiscard]] virtual std::span<const ContainerNode> GetNodes() const = 0;
 

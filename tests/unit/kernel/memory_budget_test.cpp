@@ -30,8 +30,8 @@
 
 using rex::u32;
 using rex::kernel::BaseHeap;
+using rex::kernel::GuestAddressSpace;
 using rex::kernel::HeapAllocation;
-using rex::kernel::Memory;
 using rex::kernel::PhysicalHeap;
 using rex::kernel::X_STATUS;
 using rex::test::Caller;
@@ -46,11 +46,11 @@ constexpr u32 kCommit =
     rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit;
 constexpr u32 kTitle = kCommit | rex::kernel::kMemoryAllocationTitle;
 
-BaseHeap* VirtualHeap4K(Memory& memory) {
+BaseHeap* VirtualHeap4K(GuestAddressSpace& memory) {
   return memory.LookupHeap(0x10000000);
 }
 
-u32 RoomAfter(Memory& memory, u32 room_pages) {
+u32 RoomAfter(GuestAddressSpace& memory, u32 room_pages) {
   memory.SetBudget(memory.GetTitlePages() / 256 + 1);
   const u32 room = memory.GetBudgetPages() - memory.GetTitlePages();
   REQUIRE(room >= room_pages);
@@ -63,7 +63,7 @@ u32 RoomAfter(Memory& memory, u32 room_pages) {
   return filler;
 }
 
-void ReleaseFiller(Memory& memory, u32 filler) {
+void ReleaseFiller(GuestAddressSpace& memory, u32 filler) {
   if (filler) {
     VirtualHeap4K(memory)->Release(filler);
   }
@@ -73,7 +73,7 @@ void ReleaseFiller(Memory& memory, u32 filler) {
 }  // namespace
 
 REX_TEST_CASE("A title commit counts its pages and a release returns them", "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   memory.SetBudget(0);
   const u32 before = memory.GetTitlePages();
   u32 address = 0;
@@ -85,7 +85,7 @@ REX_TEST_CASE("A title commit counts its pages and a release returns them", "[ke
 
 REX_TEST_CASE("Commits without the title flag and system heap blocks are not counted",
               "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   memory.SetBudget(0);
   const u32 before = memory.GetTitlePages();
   u32 address = 0;
@@ -98,7 +98,7 @@ REX_TEST_CASE("Commits without the title flag and system heap blocks are not cou
 
 REX_TEST_CASE("The commit that crosses the budget fails with nothing committed",
               "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   const u32 filler = RoomAfter(memory, 8);
   BaseHeap* heap = VirtualHeap4K(memory);
   const u32 unreserved = heap->GetUnreservedPageCount();
@@ -115,7 +115,7 @@ REX_TEST_CASE("The commit that crosses the budget fails with nothing committed",
 
 REX_TEST_CASE("A commit in pieces counts each page once and a decommit returns it",
               "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   memory.SetBudget(0);
   BaseHeap* heap = VirtualHeap4K(memory);
   const u32 before = memory.GetTitlePages();
@@ -134,7 +134,7 @@ REX_TEST_CASE("A commit in pieces counts each page once and a decommit returns i
 }
 
 REX_TEST_CASE("A physical commit counts its parent pages", "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   memory.SetBudget(0);
   BaseHeap* alias = memory.LookupHeapByType(true, 0x10000);
   const u32 before = memory.GetTitlePages();
@@ -146,7 +146,7 @@ REX_TEST_CASE("A physical commit counts its parent pages", "[kernel][budget]") {
 }
 
 REX_TEST_CASE("2 threads racing at the budget pass at most once", "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   for (int round = 0; round < 50; ++round) {
     const u32 filler = RoomAfter(memory, 16);
     std::latch start(2);
@@ -174,7 +174,7 @@ REX_TEST_CASE("2 threads racing at the budget pass at most once", "[kernel][budg
 }
 
 REX_TEST_CASE("A budget of 0 removes the cap", "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   const u32 filler = RoomAfter(memory, 0);
   u32 address = 0;
   CHECK_FALSE(VirtualHeap4K(memory)->Alloc(0x10000, 4096, kTitle, kRW, false, &address));
@@ -186,7 +186,7 @@ REX_TEST_CASE("A budget of 0 removes the cap", "[kernel][budget]") {
 }
 
 REX_TEST_CASE("A failed alias pin returns the parent pages", "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   memory.SetBudget(0);
   auto* alias = static_cast<PhysicalHeap*>(memory.LookupHeapByType(true, 0x10000));
   BaseHeap* parent = memory.GetPhysicalHeap();
@@ -212,7 +212,7 @@ REX_TEST_CASE("A failed alias pin returns the parent pages", "[kernel][budget]")
 }
 
 REX_TEST_CASE("A fixed physical allocation over a partly used range fails", "[kernel][budget]") {
-  Memory& memory = GetTestMemory();
+  GuestAddressSpace& memory = GetTestMemory();
   memory.SetBudget(0);
   auto* alias = static_cast<PhysicalHeap*>(memory.LookupHeapByType(true, 0x1000));
   BaseHeap* parent = memory.GetPhysicalHeap();
@@ -270,7 +270,7 @@ REX_TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budg
               "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 before = memory.GetTitlePages();
     u32 status = 0;
     const u32 address = CommitVirtual(c, 0x100000, &status);
@@ -291,7 +291,7 @@ REX_TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budg
 REX_TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 before = memory.GetTitlePages();
     const u32 address =
         c.Kernel("MmAllocatePhysicalMemoryEx", {0, 0x10000, 0x04, 0, 0xFFFFFFFF, 0});
@@ -308,7 +308,7 @@ REX_TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[kernel][bu
 REX_TEST_CASE("MmQueryStatistics available pages track the title pages", "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 first = AvailablePages(c);
     CHECK(first == memory.GetBudgetPages() - memory.GetTitlePages());
     u32 status = 0;
@@ -327,7 +327,7 @@ REX_TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
               "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     memory.SetBudget(0);
     const u32 first = AvailablePages(c);
     const u32 address =
@@ -345,7 +345,7 @@ REX_TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
 
 REX_TEST_CASE("SetBudget saturates instead of wrapping", "[kernel][budget]") {
   KernelFixture fixture;
-  Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   memory.SetBudget(0x01000000);
   CHECK(memory.GetBudgetPages() == UINT32_MAX);
   memory.SetBudget(480);
@@ -355,7 +355,7 @@ REX_TEST_CASE("SetBudget saturates instead of wrapping", "[kernel][budget]") {
 REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap", "[kernel][budget]") {
   KernelFixture fixture;
   rex::kernel::TitleRuntime& runtime = fixture.GetRuntime();
-  Memory& memory = *StateOf(runtime).GetMemory();
+  GuestAddressSpace& memory = *StateOf(runtime).GetAddressSpace();
   BaseHeap* heap = memory.LookupHeap(0x82000000);
   REQUIRE(heap == memory.LookupHeap(0x80000000));
   REQUIRE(heap == memory.LookupHeap(0x8F100000));
@@ -412,7 +412,7 @@ REX_TEST_CASE("A decommit of size 0 at a region base succeeds and changes nothin
               "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     BaseHeap* heap = memory.LookupHeap(0x40000000);
     CHECKED_ELSE(PageState(heap, 0x40000000) == 0) {
       FAIL_CHECK("the check above failed");
@@ -457,7 +457,7 @@ REX_TEST_CASE("A decommit of size 0 inside a region succeeds and changes nothing
               "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
     CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
@@ -485,7 +485,7 @@ REX_TEST_CASE("A decommit range that crosses a page boundary decommits both page
               "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
     CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
@@ -518,7 +518,7 @@ u32 BudgetPagesFor(u32 megabytes) {
   REQUIRE(rex::kernel::GetRuntimeSettings().title_memory_mb.Set(megabytes));
   rex::kernel::TitleRuntime runtime{rex::ppc::PPCImage{}};
   REQUIRE(runtime.Load());
-  const u32 pages = StateOf(runtime).GetMemory()->GetBudgetPages();
+  const u32 pages = StateOf(runtime).GetAddressSpace()->GetBudgetPages();
   runtime.Unload();
   (void)rex::kernel::GetRuntimeSettings().title_memory_mb.Reset();
   return pages;
@@ -539,7 +539,7 @@ REX_TEST_CASE("A release of the free first page of a heap fails and changes noth
               "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     BaseHeap* heap = memory.LookupHeap(0x40000000);
     CHECKED_ELSE(PageState(heap, 0x40000000) == 0) {
       FAIL_CHECK("the check above failed");
@@ -559,7 +559,7 @@ REX_TEST_CASE("A release of the free first page of a heap fails and changes noth
 REX_TEST_CASE("A release with a nonzero size frees that range", "[kernel][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *StateOf(c.GetRuntime()).GetMemory();
+    GuestAddressSpace& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
     CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {

@@ -24,7 +24,7 @@
 
 namespace rex::filesystem {
 
-class IContainer;
+class IContainerImage;
 struct XContentPackageHeader;
 
 /** Creates file systems and parsers. Its objects must be destroyed before the module unloads. */
@@ -49,7 +49,7 @@ REX_DECLARE_INTERFACE(IFileSystemFactory, 1)
    * @param path The container file or a folder that holds one.
    * @return The container, kNotFound when nothing opens, kCorrupt for a bad image.
    */
-  [[nodiscard]] virtual Result<std::unique_ptr<IContainer>> OpenContainer(
+  [[nodiscard]] virtual Result<std::unique_ptr<IContainerImage>> OpenContainer(
       const std::filesystem::path& path) = 0;
 
   /**

@@ -14,7 +14,7 @@
 #include <nlohmann/json.hpp>
 #include "codegen/template_registry.h"
 #include "rexglue/log_categories.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/string/text.h>
 

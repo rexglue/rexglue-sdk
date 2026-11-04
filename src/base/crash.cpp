@@ -14,7 +14,7 @@
 #include <thread>
 #include <typeinfo>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/version.h>
 

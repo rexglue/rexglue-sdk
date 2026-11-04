@@ -1,5 +1,5 @@
 /**
- * @file        command.h
+ * @file        console_command.h
  * @brief       Console commands an owner registers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -23,15 +23,15 @@
 namespace rex {
 
 /** A console command an owner registers, declared with REX_COMMAND. Runs on the calling thread. */
-class REX_API Command : public NonCopyable {
+class REX_API ConsoleCommand : public NonCopyable {
  public:
   /**
    * @param run Called with the argument text.
    */
-  Command(SettingOwner* owner, std::string_view name, std::string_view help,
-          MoveOnlyFunction<Result<void>(std::string_view args)> run);
+  ConsoleCommand(SettingOwner* owner, std::string_view name, std::string_view help,
+                 MoveOnlyFunction<Result<void>(std::string_view args)> run);
 
-  ~Command();
+  ~ConsoleCommand();
 
   /**
    * Returns the full name.
@@ -61,6 +61,6 @@ class REX_API Command : public NonCopyable {
  * @param fn Called with the argument text, returns Result<void>.
  */
 #define REX_COMMAND(name, help, fn) \
-  ::rex::Command name {             \
+  ::rex::ConsoleCommand name {      \
     this, #name, help, fn           \
   }

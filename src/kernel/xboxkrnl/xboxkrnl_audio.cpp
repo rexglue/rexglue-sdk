@@ -11,7 +11,7 @@
 
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/object/kernel_thread.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include <rex/types.h>

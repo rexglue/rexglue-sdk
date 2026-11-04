@@ -6,7 +6,7 @@
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  *
- * @file        kernel/object/notifier.h
+ * @file        kernel/object/notification_broadcaster.h
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  *
@@ -29,8 +29,8 @@ namespace rex::kernel {
 /** ID of a notification, split into fields by `XNotificationKey`. */
 using XNotificationID = u32;
 
-REX_DECLARE_INTERFACE(INotifier, 1)
-  virtual ~INotifier() = default;
+REX_DECLARE_INTERFACE(INotificationBroadcaster, 1)
+  virtual ~INotificationBroadcaster() = default;
 
   /**
    * Creates a notify listener and registers it. The notifier keeps its own duplicate of the

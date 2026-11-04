@@ -31,7 +31,7 @@ namespace hid {
 class IInputSystem;
 }  // namespace hid
 namespace kernel {
-class INotifier;
+class INotificationBroadcaster;
 class IModuleRegistry;
 class IObjectTable;
 class IOverlappedDispatcher;
@@ -56,7 +56,7 @@ struct XAMKernelInterfaces {
   kernel::IObjectTable& objects;
   kernel::IThreadRegistry& threads;
   kernel::IModuleRegistry& modules;
-  kernel::INotifier& notifier;
+  kernel::INotificationBroadcaster& notifier;
   kernel::IOverlappedDispatcher& overlapped_dispatcher;
   kernel::ITitleExit& exit;
   kernel::ITitleDebugOutput& debug;

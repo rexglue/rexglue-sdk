@@ -15,15 +15,15 @@
 
 #include <rex/module.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex {
 
 /** Closes and opens writes for a setting lifetime. */
-REX_DECLARE_PRIVATE_INTERFACE(ISettingsControl, 1)
+REX_DECLARE_PRIVATE_INTERFACE(ISettingsRegistryControl, 1)
 /**
- * Closes writes for a setting lifetime. kStartupOnly closes when the modules connect, kUntilLaunch
- * when the title launches.
+ * Closes writes for a setting lifetime. kStartupOnly closes after the modules init, just before
+ * OnInit, kUntilLaunch when the title launches.
  *
  * @param life kStartupOnly or kUntilLaunch.
  */

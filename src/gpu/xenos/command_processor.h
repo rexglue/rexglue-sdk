@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/setting.h>
 #include <rex/types.h>
@@ -136,7 +136,7 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   /**
    * Enables writing the read pointer back to memory.
    *
-   * @param ptr RB_RPTR_ADDR of CP_RB_RPTR_ADDR (0x70C), the address the read pointer is written to.
+   * @param ptr RB_RPTR_ADDR of CP_RB_RPTR_ADDR (0x70C), the address to write the read pointer to.
    * @param block_size_log2 RB_BLKSZ of CP_RB_CNTL (0x704), log2 of quadwords read between updates.
    */
   void EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2);

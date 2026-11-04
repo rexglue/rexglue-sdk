@@ -54,7 +54,7 @@ Result<void> CollectLeaves(const toml::table& table, const std::string& prefix,
 
 }  // namespace
 
-Result<void> Settings::Save(const std::filesystem::path& file) const {
+Result<void> SettingsRegistry::Save(const std::filesystem::path& file) const {
   toml::table root;
   {
     std::lock_guard lock(state_->mutex);
@@ -102,7 +102,7 @@ Result<void> Settings::Save(const std::filesystem::path& file) const {
   return Ok();
 }
 
-Result<void> Settings::Load(const std::filesystem::path& file, SettingLayer layer) {
+Result<void> SettingsRegistry::Load(const std::filesystem::path& file, SettingLayer layer) {
   toml::table parsed;
   try {
     parsed = toml::parse_file(file.string());

@@ -19,13 +19,13 @@ class IAchievementRegistry;
 namespace hid {
 class InputSettings;
 }  // namespace hid
-class ISettings;
+class ISettingsRegistry;
 namespace hid {
 class IBindingSet;
 class IInputSystem;
 }  // namespace hid
 namespace log {
-class CaptureSink;
+class LogCaptureSink;
 }  // namespace log
 }  // namespace rex
 
@@ -38,7 +38,7 @@ using FrameStatsProvider = MoveOnlyFunction<rex::gpu::FrameStats()>;
 
 struct OverlayContext {
   IUISystem& ui;
-  ISettings& settings;
+  ISettingsRegistry& settings;
   /** The keyboard bindings the overlays check for conflicts, null without an input system. */
   const hid::IBindingSet* key_bindings = nullptr;
   /** The input system that reads and writes key chords, null without one. */
@@ -51,7 +51,7 @@ struct ModuleOverlayContext {
   OverlayContext base;
   ConsoleModel& console;
   IConsoleHost& console_host;
-  log::CaptureSink& log_capture;
+  log::LogCaptureSink& log_capture;
   IAchievementRegistry*& achievements;
   FrameStatsProvider& frame_stats;
 };

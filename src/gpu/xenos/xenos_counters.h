@@ -12,7 +12,7 @@
 
 #include <array>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/perf.h>
 
 namespace rex::gpu {

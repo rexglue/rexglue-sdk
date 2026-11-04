@@ -27,7 +27,7 @@
 #include <vector>
 
 #include <rex/app/app.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/cli.h>
 #include <rex/platform/thread.h>
 #include <rex/app/app_info.h>
@@ -92,7 +92,7 @@ class FooApp : public rex::test::ObjectApp<rex::app::TitleApp> {
     providers.push_back(&provider_);
   }
 
-  [[nodiscard]] rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, "");
     (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root", game_root.string());
     (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
@@ -373,7 +373,7 @@ class StepApp : public rex::test::ObjectApp<rex::app::TitleApp> {
     providers.push_back(&provider_);
   }
 
-  rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     g_steps.push_back("configure");
     (void)settings.SetText(rex::SettingLayer::kTitle, "kernel.user_language", "0");
     (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
@@ -504,7 +504,7 @@ class FailingStartApp : public rex::test::ObjectApp<rex::app::TitleApp> {
     }
   }
 
-  [[nodiscard]] rex::Result<void> OnConfigure(rex::Settings&) override {
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
     (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, "");
     if (headless_setting_) {
       (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");

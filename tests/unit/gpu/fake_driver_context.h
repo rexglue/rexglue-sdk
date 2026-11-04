@@ -12,7 +12,7 @@
 
 #include <rex/driver_context.h>
 #include <rex/logging/logger.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/utility.h>
 
 namespace rex::test {
@@ -20,7 +20,7 @@ namespace rex::test {
 /** Serves the global settings and logger. */
 class FakeDriverContext final : public IDriverContext {
  public:
-  ISettings& GetSettings() override { return REX_SETTINGS(); }
+  ISettingsRegistry& GetSettingsRegistry() override { return REX_SETTINGS(); }
   ILogger& GetLogger() override { return REX_LOGGER(); }
   Result<void> RunOnUIThread(MoveOnlyFunction<void()> fn) override {
     fn();

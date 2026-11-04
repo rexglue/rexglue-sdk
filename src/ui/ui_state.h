@@ -25,7 +25,7 @@
 #include <rex/ui/ui_driver.h>
 #include <rex/ui/ui_event.h>
 #include <rex/utility.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/types.h>
 #include <rex/ui/style.h>
 #include "ui/ui_system.h"
@@ -33,7 +33,7 @@
 #include "ui/imgui_host.h"
 #include "ui/overlay/achievement_toast.h"
 #include "ui/overlay/console/model.h"
-#include "ui/overlay/console_command.h"
+#include "ui/overlay/console_command_table.h"
 #include "ui/overlay/console_host.h"
 #include "ui/overlay/bind_table.h"
 #include "ui/overlay/overlay_context.h"
@@ -99,12 +99,12 @@ struct UISystem::State {
   ui::Style style;
   ui::Style applied_style;
   MoveOnlyFunction<void()> close_handler;
-  ISettings* registry = nullptr;
+  ISettingsRegistry* registry = nullptr;
   ILogger* logger = nullptr;
   ui::BindTable binds;
   std::unique_ptr<ui::OverlayRegistry> overlays;
   std::unique_ptr<ui::ModuleOverlayContext> overlay_context;
-  std::unique_ptr<log::CaptureSink> log_capture;
+  std::unique_ptr<log::LogCaptureSink> log_capture;
   ScopeGuard log_capture_guard;
   ScopeGuard pointer_guard;
   std::unique_ptr<ui::ConsoleModel> console;

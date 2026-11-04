@@ -27,7 +27,7 @@ class BindingSet final : public IBindingSet {
   /**
    * Parses the defaults of every binding. The descriptions must outlive the set.
    *
-   * @param configs The bindings, addressed by index everywhere else.
+   * @param configs Bindings, referred to by index elsewhere.
    * @param scope The setting scope, one name without a dot.
    */
   explicit BindingSet(std::span<const BindingConfig> configs, std::string_view scope = "bind");
@@ -35,7 +35,7 @@ class BindingSet final : public IBindingSet {
   BindingSet(const BindingSet&) = delete;
   BindingSet& operator=(const BindingSet&) = delete;
 
-  [[nodiscard]] Result<void> Register(ISettings& settings) override;
+  [[nodiscard]] Result<void> Register(ISettingsRegistry& settings) override;
   void Unregister() override;
   [[nodiscard]] size_t GetCount() const override;
   [[nodiscard]] std::span<const InputSource> GetSources(size_t binding) const override;

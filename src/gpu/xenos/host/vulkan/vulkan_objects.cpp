@@ -12,12 +12,12 @@
 #include <cstdint>
 #include <format>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/assert.h>
 #include <rex/math.h>
-#include "gpu/xenos/host/vulkan/device.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex {
 namespace gpu {

@@ -14,7 +14,7 @@
 #include "kernel/xma/context.h"
 #include "kernel/xma/decoder.h"
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/apu/audio_driver.h>
 #include <rex/math.h>
 #include <rex/ppc/mmio.h>
@@ -33,7 +33,7 @@ extern "C" {
 namespace rex::kernel {
 
 XMADecoder::XMADecoder(kernel::FunctionDispatcher* function_dispatcher)
-    : memory_(function_dispatcher->GetMemory()), function_dispatcher_(function_dispatcher) {}
+    : memory_(function_dispatcher->GetAddressSpace()), function_dispatcher_(function_dispatcher) {}
 
 XMADecoder::~XMADecoder() {
   Shutdown();
@@ -72,16 +72,16 @@ X_STATUS XMADecoder::Setup() {
   rex::ppc::AttachMMIO(rex::ppc::MMIOBlock::kAPU,
                        {this, MMIOReadRegisterThunk, MMIOWriteRegisterThunk});
 
-  context_data_first_ptr_ = GetMemory()->SystemHeapAlloc(sizeof(XMA_CONTEXT_DATA) * kContextCount,
-                                                         256, kernel::kSystemHeapPhysical);
+  context_data_first_ptr_ = GetAddressSpace()->SystemHeapAlloc(
+      sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kernel::kSystemHeapPhysical);
   context_data_last_ptr_ = context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
   register_file_[XMARegister::kContextArrayAddress] =
-      GetMemory()->GetPhysicalAddress(context_data_first_ptr_);
+      GetAddressSpace()->GetPhysicalAddress(context_data_first_ptr_);
 
   for (size_t i = 0; i < kContextCount; ++i) {
     u32 context_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
     XMAContext& context = contexts_[i];
-    if (context.Setup(i, GetMemory(), context_ptr)) {
+    if (context.Setup(i, GetAddressSpace(), context_ptr)) {
       REX_ASSERT_ALWAYS();
     }
   }
@@ -143,7 +143,7 @@ void XMADecoder::Shutdown() {
   worker_.join();
 
   if (context_data_first_ptr_) {
-    GetMemory()->SystemHeapFree(context_data_first_ptr_);
+    GetAddressSpace()->SystemHeapFree(context_data_first_ptr_);
   }
 
   context_data_first_ptr_ = 0;

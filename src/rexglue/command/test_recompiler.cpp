@@ -25,7 +25,7 @@
 #include "codegen/function_scanner.h"
 #include "codegen/template_registry.h"
 #include "codegen/module_stub.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "rexglue/log_categories.h"
 #include <rex/kernel/symbol_map.h>
 

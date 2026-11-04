@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "gpu/xenos/host/vulkan/device.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 // Silences the Clang pointer nullability completeness warnings.

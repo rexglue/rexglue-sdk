@@ -13,7 +13,7 @@
 #include <functional>
 
 #include <rex/chrono.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/thread_registry.h>
 #include <rex/kernel/object/kernel_thread.h>
@@ -124,7 +124,7 @@ X_STATUS TimerObject::SetDPC(TitleRuntime& runtime, u32 ktimer, i64 due_time, u3
   const u32 scaled_period = Clock::ScaleGuestDurationMillis(period_ms);
   auto callback = [runtime = &runtime, host = timer.get(), ktimer, dpc,
                    periodic = scaled_period != 0](void*) {
-    auto* object = StateOf(*runtime).GetMemory()->TranslateVirtual<X_KTIMER*>(ktimer);
+    auto* object = StateOf(*runtime).GetAddressSpace()->TranslateVirtual<X_KTIMER*>(ktimer);
     object->header.signal_state = 1;
     if (!periodic) {
       object->header.inserted = 0;

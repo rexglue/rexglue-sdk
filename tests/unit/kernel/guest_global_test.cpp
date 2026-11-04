@@ -53,7 +53,7 @@ REX_TEST_CASE("GuestGlobal resolves its address in guest memory", "[kernel][gues
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
     MapRegion(c);
-    const auto* memory = StateOf(fixture.GetRuntime()).GetMemory();
+    const auto* memory = StateOf(fixture.GetRuntime()).GetAddressSpace();
     CHECK(kCounter.GetHost() == memory->TranslateVirtual<rex::be_u32*>(kRegion + 0x10));
     CHECK(kPair.GetHost() == memory->TranslateVirtual<Pair*>(kRegion + 0x20));
     CHECK(kCounter.TryGetHost() == kCounter.GetHost());
@@ -77,7 +77,7 @@ REX_TEST_CASE("GuestGlobal resolves through a memory view without a bound thread
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
     MapRegion(c);
     c.Store32(kRegion + 0x10, 0xBEEF);
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     CHECK(kCounter.GetHost(view) == kCounter.GetHost());
     u32 seen = 0;
     const rex::be_u32* host_pointer = nullptr;
@@ -116,7 +116,7 @@ REX_TEST_CASE("GuestGlobal TryGetHost through a memory view needs no bound threa
               "[kernel][guest_global]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([&fixture](rex::test::Caller& c) {
-    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetMemory());
+    const rex::kernel::MemoryView view(*StateOf(fixture.GetRuntime()).GetAddressSpace());
     CHECK(kCounter.TryGetHost(view) == nullptr);
     MapRegion(c);
     CHECK(kCounter.TryGetHost(view) == kCounter.GetHost());

@@ -15,7 +15,7 @@
 #include <rex/module.h>
 #include <rex/platform.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/types.h>
 
 namespace rex::gpu {
@@ -30,10 +30,12 @@ class REX_GPU_API GraphicsSettings final : public SettingOwner {
  public:
   GraphicsSettings();
 
-  REX_SETTING(std::string, driver, "any",
-              "Graphics driver within the title's family. Values are d3d12, vulkan, null, or any "
-              "for d3d12 on Windows and vulkan elsewhere",
-              kStartupOnly);
+  REX_SETTING(
+      std::string, driver, "any",
+      "Graphics driver within the title's family. Values are d3d12, vulkan, null, none for no "
+      "driver in an app that does not require one, or any for d3d12 on Windows and vulkan "
+      "elsewhere",
+      kStartupOnly);
   REX_SETTING(bool, vsync, true, "Wait for vertical blank when presenting");
   REX_SETTING(f64, frame_limit, 0.0, "Most presents per second, 0 for no limit",
               Range{0.0, 1000.0});
@@ -45,7 +47,7 @@ class REX_GPU_API GraphicsSettings final : public SettingOwner {
 };
 
 /**
- * It runs the present thread when a driver exists and routes the guest kernel's
+ * Runs the present thread when a driver exists and routes the guest kernel's
  * Vd calls and GPU register accesses to a Xenos driver. With no driver a title that presents
  * itself calls ReportFrame and UISystem::DrawOverlays from its own present.
  */

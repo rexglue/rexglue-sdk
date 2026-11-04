@@ -26,10 +26,10 @@
 #include "gpu/xenos/vblank_pacing.h"
 #include <rex/assert.h>
 #include <rex/chrono.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/gpu/graphics_driver.h>
 #include <rex/gpu/graphics_system.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/xenos/register.h>
 #include <rex/driver_context.h>
 #include "gpu/xenos/host/graphics_provider.h"
@@ -65,11 +65,11 @@ Result<void> XenosGraphicsDriverBase::Initialize(IDriverContext& context) {
   if (settings_ != nullptr) {
     return Ok();
   }
-  if (auto registered = context.GetSettings().Register(*this); !registered) {
+  if (auto registered = context.GetSettingsRegistry().Register(*this); !registered) {
     return Err(ErrorCategory::kConfig,
                std::format("gpu.xenos settings: {}", registered.error().message));
   }
-  settings_ = &context.GetSettings();
+  settings_ = &context.GetSettingsRegistry();
   graphics_settings_ = provided_settings_;
   return Ok();
 }

@@ -28,7 +28,7 @@ namespace rex {
  * Owns the modules of one app and acts as their factory. Connect and Init run in list order,
  * Shutdown and Disconnect in reverse, and libraries unload in reverse when the group is destroyed.
  */
-class REX_API ModuleGroup final : public IFactory {
+class REX_API ModuleGroup final : public IInterfaceFactory {
  public:
   /** Accepts modules built with the identity of this build. */
   ModuleGroup();
@@ -53,7 +53,7 @@ class REX_API ModuleGroup final : public IFactory {
   /**
    * Returns the factory that also finds private interfaces. Only the app and the kernel take it.
    */
-  IFactory& GetPrivateFactory();
+  IInterfaceFactory& GetPrivateFactory();
 
   /**
    * Adds a module compiled into the program. A module added after Connect connects at once, and
@@ -138,7 +138,7 @@ class REX_API ModuleGroup final : public IFactory {
    */
   std::vector<IInterface*> FindAll(std::string_view name, u32 version) override;
 
-  using IFactory::FindAll;
+  using IInterfaceFactory::FindAll;
 
  private:
   struct State;

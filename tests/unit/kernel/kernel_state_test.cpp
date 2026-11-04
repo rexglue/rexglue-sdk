@@ -33,7 +33,7 @@ REX_TEST_CASE_METHOD(Fixture, "unload resets the kernel state", "[kernel][kernel
   rex::kernel::TitleRuntime& runtime = loaded.runtime;
 
   rex::kernel::TitleState& state = StateOf(runtime);
-  REQUIRE(rex::kernel::shim::InitHeap(8, StateOf(runtime).GetMemory()));
+  REQUIRE(rex::kernel::shim::InitHeap(8, StateOf(runtime).GetAddressSpace()));
   CHECK(state.heap.Alloc(64, true) != 0);
   state.fiber_count = 7;
   state.audio_submit_logs = 10;

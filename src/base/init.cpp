@@ -6,13 +6,13 @@
 #include <utility>
 #include <vector>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 #include <rex/memory/host.h>
 #include <rex/platform/perf.h>
 #include <rex/platform/process.h>
 #include <rex/platform/timer.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/driver_context.h>
 #include <rex/ui/ui_thread.h>
 

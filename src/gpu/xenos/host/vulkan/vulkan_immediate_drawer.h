@@ -19,7 +19,7 @@
 
 #include "gpu/xenos/host/immediate_drawer.h"
 #include "gpu/xenos/host/vulkan/ui_sampler.h"
-#include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
+#include "gpu/xenos/host/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace rex {
 namespace gpu {

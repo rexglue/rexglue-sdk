@@ -23,7 +23,7 @@ target_sources(
           logger.cpp
           module_group.cpp
           path.cpp
-          paths.cpp
+          path_settings.cpp
           process_control.cpp
           driver_context.cpp
           driver_select.cpp
@@ -33,7 +33,7 @@ target_sources(
           settings/aliases.cpp
           settings/parse.cpp
           settings/setting.cpp
-          settings/settings.cpp
+          settings/settings_registry.cpp
           settings/toml.cpp
           status.cpp
           string_buffer.cpp

@@ -36,10 +36,10 @@
 #include <rex/xenos/fetch.h>
 #include <rex/xenos/format.h>
 #include <rex/xenos/state.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/bit.h>
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex::gpu::vulkan {
 

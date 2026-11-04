@@ -15,7 +15,7 @@
 
 #include <rex/chrono.h>
 #include <rex/math.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/core_settings.h"
 

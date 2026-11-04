@@ -63,7 +63,7 @@ struct KernelObject {
       0; /**< The handle that stands in while only pointer references hold the object. */
   u32 guest_ptr = 0;             /**< Address of the object body, 0 without a guest block. */
   bool owns_guest_block = false; /**< True when the destructor frees the block at guest_ptr. */
-  kernel::Memory* memory = nullptr;
+  kernel::GuestAddressSpace* memory = nullptr;
   WorkspaceHeap* workspace = nullptr; /**< Null for the system heap. */
   PinCount pins;                      /**< Keeps the object alive while a caller uses it. */
   /** Frees the object. The owning table sets it. */

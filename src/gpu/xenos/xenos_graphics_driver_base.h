@@ -23,14 +23,14 @@
 
 #include <rex/gpu/graphics_driver.h>
 #include <rex/gpu/xenos_graphics_driver.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory.h>
 #include <rex/guest.h>
 #include <rex/title.h>
 #include <rex/utility.h>
 #include <rex/types.h>
 #include <rex/xenos/register.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include "gpu/xenos/host/graphics_provider.h"
 #include "gpu/xenos/host/presenter.h"
 #include "gpu/xenos/host/xenos_presentation.h"
@@ -166,7 +166,7 @@ class REX_GPU_XENOS_API XenosGraphicsDriverBase : public IXenosGraphicsDriver,
   IGuestInterrupts* guest_interrupts_ = nullptr;
   std::unique_ptr<::rex::gpu::GraphicsProvider> provider_;
 
-  ISettings* settings_ = nullptr;
+  ISettingsRegistry* settings_ = nullptr;
   GraphicsSettings* graphics_settings_ = nullptr;
   static inline GraphicsSettings* provided_settings_ = nullptr;
   std::atomic<bool> vsync_worker_running_;

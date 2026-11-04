@@ -68,6 +68,7 @@ struct MMIORecipient {
  * Routes the loads and stores of a block to a recipient. A recipient with no read or write handler
  * is refused. Call it only while no guest thread runs.
  *
+ * @param block Block whose accesses are routed.
  * @param recipient The handler and its context.
  */
 REX_PPC_API void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient);
@@ -75,6 +76,7 @@ REX_PPC_API void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient);
 /**
  * Restores the null recipient when the block routes to the context.
  *
+ * @param block Block to restore.
  * @param context The context the owner attached.
  */
 REX_PPC_API void DetachMMIO(MMIOBlock block, const void* context);

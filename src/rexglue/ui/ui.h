@@ -31,7 +31,7 @@ class GlobalSinkAccessor;
 }
 
 /** Log sink that owns presentation output for the rexglue CLI. */
-class PresentationSink final : public rex::log::ISink {
+class PresentationSink final : public rex::log::ILogSink {
  public:
   PresentationSink(std::ostream& out, bool tty, bool color);
 
@@ -65,7 +65,7 @@ void Init(const InitOptions& opts);
 void Shutdown();
 
 /** Returns the sink to pass to Logger::AddSink. */
-rex::log::ISink& GetLogSink();
+rex::log::ILogSink& GetLogSink();
 
 void Banner(std::string_view title);
 

@@ -171,6 +171,8 @@ enum class HIDError : u8 {
 }
 
 /**
+ * Returns the HID code of an error.
+ *
  * @param error An error built by BuildError.
  */
 [[nodiscard]] inline HIDError CodeOf(const rex::Error& error) {

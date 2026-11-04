@@ -39,11 +39,12 @@ REX_TEST_CASE("XAM: a content resolve reports the content as not found", "[kerne
 
 REX_TEST_CASE("XAM: a launch with no name ends the title", "[kernel][xam]") {
   KernelFixture fixture;
-  rex::kernel::ThreadState host_state(0, 0, 0, StateOf(fixture.GetRuntime()).GetMemory(),
+  rex::kernel::ThreadState host_state(0, 0, 0, StateOf(fixture.GetRuntime()).GetAddressSpace(),
                                       &fixture.GetRuntime());
   rex::kernel::ThreadState* previous = rex::kernel::ThreadState::Get();
   rex::kernel::ThreadState::Bind(&host_state);
-  Caller c(*host_state.GetContext(), StateOf(fixture.GetRuntime()).GetMemory()->GetVirtualMembase(),
+  Caller c(*host_state.GetContext(),
+           StateOf(fixture.GetRuntime()).GetAddressSpace()->GetVirtualMembase(),
            fixture.GetRuntime());
   c.XAM("XamLoaderLaunchTitle", {0, 0});
   rex::kernel::ThreadState::Bind(previous);

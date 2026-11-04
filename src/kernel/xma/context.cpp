@@ -21,7 +21,7 @@
 #include "kernel/xma/decoder.h"
 #include "kernel/xma/packet.h"
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform.h>
 #include <rex/memory/stream.h>
 #include <rex/platform/sync.h>
@@ -50,7 +50,7 @@ XMAContext::~XMAContext() {
   }
 }
 
-int XMAContext::Setup(u32 id, kernel::Memory* memory, u32 guest_ptr) {
+int XMAContext::Setup(u32 id, kernel::GuestAddressSpace* memory, u32 guest_ptr) {
   id_ = id;
   memory_ = memory;
   guest_ptr_ = guest_ptr;
@@ -88,7 +88,7 @@ bool XMAContext::Work() {
   std::lock_guard<std::mutex> lock(lock_);
   SetEnabled(false);
 
-  auto context_ptr = GetMemory()->TranslateVirtual(GetGuestPtr());
+  auto context_ptr = GetAddressSpace()->TranslateVirtual(GetGuestPtr());
   XMA_CONTEXT_DATA data(context_ptr);
   const XMA_CONTEXT_DATA initial_data = data;
 
@@ -153,7 +153,7 @@ void XMAContext::Clear() {
   std::lock_guard<std::mutex> lock(lock_);
   REXAPU_DEV("XMAContext: reset context {}", GetID());
 
-  auto context_ptr = GetMemory()->TranslateVirtual(GetGuestPtr());
+  auto context_ptr = GetAddressSpace()->TranslateVirtual(GetGuestPtr());
   XMA_CONTEXT_DATA data(context_ptr);
   ClearLocked(&data);
   data.Store(context_ptr);
@@ -198,7 +198,7 @@ void XMAContext::Release() {
 
   SetAllocated(false);
   ResetDecoderState();
-  auto context_ptr = GetMemory()->TranslateVirtual(GetGuestPtr());
+  auto context_ptr = GetAddressSpace()->TranslateVirtual(GetGuestPtr());
   std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));
 }
 
@@ -255,7 +255,7 @@ u32 XMAContext::GetCurrentInputBufferSize(XMA_CONTEXT_DATA* data) {
 }
 
 u8* XMAContext::GetCurrentInputBuffer(XMA_CONTEXT_DATA* data) const {
-  return GetMemory()->TranslatePhysical(data->GetCurrentInputBufferAddress());
+  return GetAddressSpace()->TranslatePhysical(data->GetCurrentInputBufferAddress());
 }
 
 u32 XMAContext::GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size) {
@@ -265,7 +265,7 @@ u32 XMAContext::GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size)
 const u8* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_index,
                                     u32 current_input_packet_count) const {
   if (next_packet_index < current_input_packet_count) {
-    return GetMemory()->TranslatePhysical(data->GetCurrentInputBufferAddress()) +
+    return GetAddressSpace()->TranslatePhysical(data->GetCurrentInputBufferAddress()) +
            size_t{next_packet_index} * kBytesPerPacket;
   }
 
@@ -279,7 +279,7 @@ const u8* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_inde
     REXAPU_FAIL(nullptr, "XMAContext {}: Buffer marked valid but has null pointer!", GetID());
   }
 
-  return GetMemory()->TranslatePhysical(next_buffer_address);
+  return GetAddressSpace()->TranslatePhysical(next_buffer_address);
 }
 
 u32 XMAContext::GetNextPacketReadOffset(u8* buffer, u32 next_packet_index,
@@ -309,7 +309,7 @@ memory::RingBuffer XMAContext::PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data) {
         GetID(), output_capacity, kOutputMaxSizeBytes);
   }
 
-  u8* output_buffer = GetMemory()->TranslatePhysical(data->output_buffer_ptr);
+  u8* output_buffer = GetAddressSpace()->TranslatePhysical(data->output_buffer_ptr);
 
   memory::RingBuffer output_rb(output_buffer, output_capacity);
   output_rb.SetReadOffset(output_read_offset);
@@ -687,7 +687,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     SwapInputBuffer(data);
     if (data->IsAnyInputBufferValid()) {
       next_input_offset = xma::GetPacketFrameOffset(
-          GetMemory()->TranslatePhysical(data->GetCurrentInputBufferAddress()));
+          GetAddressSpace()->TranslatePhysical(data->GetCurrentInputBufferAddress()));
 
       if (next_input_offset > kMaxFrameSizeInBits) {
         SwapInputBuffer(data);

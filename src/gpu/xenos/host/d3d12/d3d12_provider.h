@@ -12,10 +12,10 @@
 #pragma once
 
 #include <memory>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
-#include "gpu/xenos/host/d3d12/settings.h"
+#include "gpu/xenos/host/d3d12/d3d12_settings.h"
 #include "gpu/xenos/host/graphics_provider.h"
 
 namespace rex::gpu::d3d12 {

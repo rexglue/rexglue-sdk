@@ -63,7 +63,7 @@ Output Generate(std::string_view manifest) {
   code.insert(code.end(), {DForm(32, 12, 1, -8), kMtlrR12, kBlr});
   const rex::test::PDataEntry pdata[] = {{Address(0), kLoopLength}};
 
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   rex::test::TempFolder folder;
   const auto result = rex::test::GenerateFromImage(folder, rex::test::BuildCodeImage(code, pdata),
                                                    manifest, true, {}, &sink);

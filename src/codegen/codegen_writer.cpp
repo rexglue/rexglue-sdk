@@ -14,7 +14,7 @@
 #include "function_graph.h"
 #include "output_partition.h"
 #include "template_registry.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include "file_io.h"
@@ -193,7 +193,7 @@ std::string_view BlockName(MMIOAccess access) {
 }
 
 nlohmann::json BuildMMIOReport(const std::vector<MMIOReportSite>& sites) {
-  nlohmann::json report{{"proven", nlohmann::json::array()},
+  nlohmann::json report{{"matched", nlohmann::json::array()},
                         {"declared", nlohmann::json::array()},
                         {"guarded", nlohmann::json::array()},
                         {"unserved", nlohmann::json::array()},
@@ -203,10 +203,10 @@ nlohmann::json BuildMMIOReport(const std::vector<MMIOReportSite>& sites) {
                        {"address", HexAddress(entry.site.address)},
                        {"access", entry.site.write ? "write" : "read"}};
     switch (entry.site.reason) {
-      case MMIOReason::kProven:
+      case MMIOReason::kMatched:
         row["block"] = BlockName(entry.site.access);
         row["target"] = HexAddress(entry.site.target);
-        report["proven"].push_back(std::move(row));
+        report["matched"].push_back(std::move(row));
         break;
       case MMIOReason::kOffset:
         row["reason"] = "offset";

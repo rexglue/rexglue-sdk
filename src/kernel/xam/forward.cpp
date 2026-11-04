@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include "kernel/categories.h"
 

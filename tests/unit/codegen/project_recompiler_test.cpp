@@ -25,7 +25,7 @@
 #include "codegen/project_recompiler.h"
 #include <rex/filesystem/xex.h>
 #include <rex/logging/logger.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include "base/xex_builder.h"
 #include "pe/pe_image.h"

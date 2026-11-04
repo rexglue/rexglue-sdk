@@ -15,7 +15,7 @@
 
 #include <rex/ui/ui_system.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ui/ui_thread.h>
 #include <rex/ui/overlay_renderer.h>
 
@@ -25,7 +25,7 @@ REXLOG_TABLE(kUILog, ui, console)
 
 namespace rex {
 class ILogger;
-class ISettings;
+class ISettingsRegistry;
 }  // namespace rex
 
 namespace rex::apu {
@@ -105,7 +105,7 @@ class UISystem final : public rex::ui::IUISystem, public IUIControl, public IUIT
    */
   [[nodiscard]] Result<void> Start(rex::ui::IUIDriver* ui_driver, rex::hid::IInputSystem* input,
                                    rex::apu::IAudioSystem& audio,
-                                   rex::gpu::IGraphicsSystem& graphics, ISettings& settings,
+                                   rex::gpu::IGraphicsSystem& graphics, ISettingsRegistry& settings,
                                    ILogger& logger);
 
   void BeginStop() override;

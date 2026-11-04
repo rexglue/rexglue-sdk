@@ -15,7 +15,7 @@
 #include <rex/apu/audio_driver.h>
 #include <rex/apu/audio_system.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 REXLOG_TABLE(kAudioLog, apu)
 

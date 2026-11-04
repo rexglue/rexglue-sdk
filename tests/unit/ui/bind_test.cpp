@@ -14,7 +14,7 @@
 
 #include <rex/hid/input_keys.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "hid/input_harness.h"
 #include "ui/overlay/bind_table.h"

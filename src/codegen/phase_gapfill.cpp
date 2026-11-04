@@ -25,7 +25,7 @@
 #include "pipeline.h"
 #include "known_function.h"
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <rex/memory/endian.h>

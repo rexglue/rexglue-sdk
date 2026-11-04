@@ -18,7 +18,7 @@
 #include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/seh.h>
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include "kernel/shim/function.h"
@@ -44,12 +44,12 @@ struct GuestThreadPtrs {
   X_KTHREAD* kthread;
   X_KPCR* pcr;
   PPCContext* ctx;
-  kernel::Memory* mem;
+  kernel::GuestAddressSpace* mem;
 };
 
 GuestThreadPtrs GetGuestThreadPtrs(KernelThread* thread) {
   auto* ctx = thread->GetThreadState()->GetContext();
-  auto* mem = StateOf(thread->GetRuntime()).GetMemory();
+  auto* mem = StateOf(thread->GetRuntime()).GetAddressSpace();
   auto* pcr = mem->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
   auto* kthread =
       mem->TranslateVirtual<X_KTHREAD*>(static_cast<u32>(pcr->prcb_data.current_thread));
@@ -75,7 +75,7 @@ struct FiberEntryData {
 static void FiberEntryPoint(void* raw_arg) {
   auto args = std::unique_ptr<FiberEntryData>(static_cast<FiberEntryData*>(raw_arg));
   auto* thread = KernelThread::GetCallingThread();
-  auto* mem = StateOf(*args->runtime).GetMemory();
+  auto* mem = StateOf(*args->runtime).GetAddressSpace();
   PPCContext& ctx = *thread->GetThreadState()->GetContext();
   ctx.fpscr.SetCSR(ctx.fpscr.csr);
 
@@ -185,7 +185,7 @@ REX_SHIM_FN(ConvertFiberToThread, u32) {
 REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, MappedVoid lpParameter) {
   auto* thread = KernelThread::GetCallingThread();
   TitleRuntime& runtime = thread->GetRuntime();
-  auto* mem = StateOf(runtime).GetMemory();
+  auto* mem = StateOf(runtime).GetAddressSpace();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
 
   const auto* process =
@@ -244,7 +244,7 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, MappedVoid lp
 REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
   auto* thread = KernelThread::GetCallingThread();
   TitleRuntime& runtime = thread->GetRuntime();
-  auto* mem = StateOf(runtime).GetMemory();
+  auto* mem = StateOf(runtime).GetAddressSpace();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
   u32 fiber_addr = lpFiber.GetGuestAddress();
 
@@ -274,7 +274,7 @@ REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
 REX_SHIM_FN(SwitchToFiber, void, MappedVoid lpFiber) {
   auto* thread = KernelThread::GetCallingThread();
   TitleRuntime& runtime = thread->GetRuntime();
-  auto* mem = StateOf(runtime).GetMemory();
+  auto* mem = StateOf(runtime).GetAddressSpace();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
   u32 target_addr = lpFiber.GetGuestAddress();
 

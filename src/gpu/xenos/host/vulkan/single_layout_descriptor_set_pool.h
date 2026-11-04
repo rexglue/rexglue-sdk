@@ -16,7 +16,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include "gpu/xenos/host/vulkan/device.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
 
 namespace rex {
 namespace gpu {

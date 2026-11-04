@@ -6,7 +6,7 @@
 #include <rex/math.h>
 #include <rex/platform/perf.h>
 #include <rex/kernel/types/thread.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/call.h>
@@ -22,7 +22,7 @@
 
 namespace rex::kernel {
 
-FunctionDispatcher::FunctionDispatcher(rex::kernel::Memory* memory) : memory_(memory) {}
+FunctionDispatcher::FunctionDispatcher(rex::kernel::GuestAddressSpace* memory) : memory_(memory) {}
 
 FunctionDispatcher::~FunctionDispatcher() {
   std::lock_guard lock(recompiled_code_mutex_);

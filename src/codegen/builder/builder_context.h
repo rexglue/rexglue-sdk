@@ -171,8 +171,8 @@ struct BuilderContext {
    * Maps a plain memory macro to the macro the current instruction needs.
    *
    * @param plain A REX_LOAD_ or REX_STORE_ macro name.
-   * @return The REX_GPU_ or REX_APU_ macro for a proven 32 bit access, the REX_MM_ macro of the
-   *         same width for any other proven or guarded access, otherwise plain.
+   * @return The REX_GPU_ or REX_APU_ macro for a matched 32 bit access, the REX_MM_ macro of the
+   *         same width for any other matched or guarded access, otherwise plain.
    */
   std::string_view MMIOMacro(std::string_view plain) const;
 

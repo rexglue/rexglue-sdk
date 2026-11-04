@@ -18,17 +18,17 @@
 
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/app_harness.h"
 #include "app/command_line.h"
-#include "gpu/xenos/host/d3d12/settings.h"
-#include "gpu/xenos/host/vulkan/settings.h"
+#include "gpu/xenos/host/d3d12/d3d12_settings.h"
+#include "gpu/xenos/host/vulkan/vulkan_settings.h"
 #include "gpu/xenos/xenos_settings.h"
 
 namespace {
 
-using rex::GetSettings;
+using rex::GetSettingsRegistry;
 using rex::SettingLayer;
 using rex::test::HarnessApp;
 
@@ -264,7 +264,7 @@ struct Owners {
   }
 };
 
-size_t Count(rex::log::CaptureSink& sink, const std::string& text) {
+size_t Count(rex::log::LogCaptureSink& sink, const std::string& text) {
   std::vector<rex::log::CapturedMessage> entries;
   sink.CopySince(0, entries);
   return static_cast<size_t>(std::ranges::count_if(
@@ -293,7 +293,7 @@ void CheckLanding(const OldName& old) {
   CHECK((*target)->GetLayer() == SettingLayer::kFile);
 }
 
-void CheckNotice(rex::log::CaptureSink& sink, const OldName& old) {
+void CheckNotice(rex::log::LogCaptureSink& sink, const OldName& old) {
   const std::string name = old.name;
   INFO(name);
   if (old.target == nullptr || name == old.target) {
@@ -309,10 +309,10 @@ void CheckNotice(rex::log::CaptureSink& sink, const OldName& old) {
 
 REX_TEST_CASE("aliases cover every old name", "[base][aliases]") {
   HarnessApp app;
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   rex::ScopeGuard sink_guard;
   Owners owners;
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     sink_guard = REX_LOGGER().AddSink(sink);
     for (const OldName& old : kOldCvars) {
       CheckLanding(old);
@@ -338,11 +338,11 @@ REX_TEST_CASE("aliases cover every old name", "[base][aliases]") {
 
 REX_TEST_CASE("old log.file path converts", "[base][aliases]") {
   HarnessApp app;
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   rex::ScopeGuard sink_guard;
   const std::filesystem::path logs = app.folder / "oldlogs";
   const std::filesystem::path file = logs / "old.log";
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     sink_guard = REX_LOGGER().AddSink(sink);
     CHECK(REX_SETTINGS().SetText(SettingLayer::kFile, "log.file", file.string()));
     return rex::Ok();
@@ -362,7 +362,7 @@ REX_TEST_CASE("old log.file path converts", "[base][aliases]") {
 
 REX_TEST_CASE("old log.file bool keeps its meaning", "[base][aliases]") {
   HarnessApp app;
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     CHECK(REX_SETTINGS().SetText(SettingLayer::kFile, "log.file", "false"));
     return rex::Ok();
   };
@@ -376,10 +376,10 @@ REX_TEST_CASE("old log.file bool keeps its meaning", "[base][aliases]") {
 
 REX_TEST_CASE("the structural flags map to their settings", "[base][aliases]") {
   HarnessApp app;
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   Owners owners;
   const std::string base = app.folder.generic_string();
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     auto sink_guard = REX_LOGGER().AddSink(sink);
     const std::vector<std::string> args = {"--modules=rexfilesystem",
                                            "--game_data_root=" + base + "/game",
@@ -414,7 +414,7 @@ REX_TEST_CASE("the structural flags map to their settings", "[base][aliases]") {
 
 REX_TEST_CASE("an old flat name on the command line sets the new setting", "[base][aliases]") {
   HarnessApp app;
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     const std::vector<std::string> args = {"--log_flush_interval=5"};
     CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
     auto found = REX_SETTINGS().Find("log.flush_interval");
@@ -429,7 +429,7 @@ REX_TEST_CASE("an old flat name on the command line sets the new setting", "[bas
 
 REX_TEST_CASE("an old flat name in a config file sets the new setting", "[base][aliases]") {
   HarnessApp app;
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     CHECK(REX_SETTINGS().SetText(SettingLayer::kFile, "log_flush_interval", "7"));
     auto found = REX_SETTINGS().Find("log.flush_interval");
     REQUIRE(found);
@@ -443,7 +443,7 @@ REX_TEST_CASE("an old flat name in a config file sets the new setting", "[base][
 
 REX_TEST_CASE("an old flat bool name takes the bare form", "[base][aliases]") {
   HarnessApp app;
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     const std::vector<std::string> args = {"--clock_no_scaling"};
     CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
     auto found = REX_SETTINGS().Find("clock.no_scaling");
@@ -458,7 +458,7 @@ REX_TEST_CASE("an old flat bool name takes the bare form", "[base][aliases]") {
 
 REX_TEST_CASE("an old flat bool name takes the no form", "[base][aliases]") {
   HarnessApp app;
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     const std::vector<std::string> args = {"--no-clock_no_scaling"};
     CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
     auto found = REX_SETTINGS().Find("clock.no_scaling");
@@ -473,7 +473,7 @@ REX_TEST_CASE("an old flat bool name takes the no form", "[base][aliases]") {
 
 REX_TEST_CASE("a flat name that is no alias stays an unknown option", "[base][aliases]") {
   HarnessApp app;
-  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     const std::vector<std::string> args = {"--no_such_flat_name=1"};
     CHECK_FALSE(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
     return rex::Ok();

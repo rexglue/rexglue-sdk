@@ -110,7 +110,7 @@ class IInterface : NonCopyable {
 
 /**
  * Opens an interface like REX_DECLARE_INTERFACE that only the app and the kernel can reach. The
- * public factory and API::Get never return it.
+ * public factory and AppInterfaces::Get never return it.
  *
  * @param version The version of the interface layout.
  */
@@ -120,9 +120,9 @@ class IInterface : NonCopyable {
     static constexpr ::rex::InterfaceType kInterface{::rex::detail::kTypeName<Name>, version, true};
 
 /** Finds the interfaces the host and the modules serve. */
-class IFactory {
+class IInterfaceFactory {
  public:
-  virtual ~IFactory() = default;
+  virtual ~IInterfaceFactory() = default;
 
   /**
    * @param version The version, matched exactly.
@@ -190,7 +190,7 @@ REX_DECLARE_INTERFACE(IModule, 1)
    *
    * @return Success, or the reason the module cannot work.
    */
-  [[nodiscard]] virtual Result<void> Connect(IFactory& factory) = 0;
+  [[nodiscard]] virtual Result<void> Connect(IInterfaceFactory& factory) = 0;
 
   /** Releases what Connect took. Runs in reverse list order. */
   virtual void Disconnect() = 0;
@@ -241,12 +241,12 @@ namespace detail {
  * Returns the factory of the running app, or null before the app connects its modules and after it
  * shuts them down.
  */
-REX_API IFactory* GetAPIFactory();
+REX_API IInterfaceFactory* GetAppInterfaceFactory();
 
 }  // namespace detail
 
 /** Reaches the interfaces of the running app from anywhere in the program. */
-class API {
+class AppInterfaces {
  public:
   /**
    * Finds an interface of the running app.
@@ -256,12 +256,12 @@ class API {
    */
   template <typename T>
   static T* Get() {
-    IFactory* factory = detail::GetAPIFactory();
+    IInterfaceFactory* factory = detail::GetAppInterfaceFactory();
     return factory ? factory->Get<T>() : nullptr;
   }
 };
 
-#define REX_INTERFACE(T) ::rex::API::Get<T>()
+#define REX_INTERFACE(T) ::rex::AppInterfaces::Get<T>()
 
 /** The symbol a module exports to hand over its interfaces. */
 inline constexpr const char* kCreateInterfaceSymbol = "ReXCreateInterface";

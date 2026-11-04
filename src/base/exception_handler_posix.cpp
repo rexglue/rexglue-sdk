@@ -25,7 +25,7 @@
 #include <cstring>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/bit.h>
 #include <rex/platform.h>
 

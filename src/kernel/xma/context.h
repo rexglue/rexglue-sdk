@@ -173,7 +173,7 @@ class XMAContext {
   explicit XMAContext();
   ~XMAContext();
 
-  int Setup(u32 id, kernel::Memory* memory, u32 guest_ptr);
+  int Setup(u32 id, kernel::GuestAddressSpace* memory, u32 guest_ptr);
   bool Work();
 
   void Enable();
@@ -182,7 +182,7 @@ class XMAContext {
   void Disable();
   void Release();
 
-  kernel::Memory* GetMemory() const { return memory_; }
+  kernel::GuestAddressSpace* GetAddressSpace() const { return memory_; }
 
   u32 GetID() const { return id_; }
   u32 GetGuestPtr() const { return guest_ptr_; }
@@ -247,7 +247,7 @@ class XMAContext {
    */
   static void ConvertFrame(const u8** samples, bool is_two_channel, u8* output_buffer);
 
-  kernel::Memory* memory_ = nullptr;
+  kernel::GuestAddressSpace* memory_ = nullptr;
   std::unique_ptr<rex::platform::Event> work_completion_event_;
 
   u32 id_ = 0;
@@ -281,7 +281,7 @@ class XMAContext {
   bool carry_valid_ = false;
   /**
    * Pending limit and skip belong to the frame being assembled,
-   * so they apply one decode after the frame they describe.
+   * so they apply one decode after the frame they belong to.
    */
   u8 pending_output_limit_ = 0;
   u8 pending_start_skip_ = 0;

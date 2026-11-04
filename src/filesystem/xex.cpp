@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstring>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include "excrypt.h"
 #include "lzx.h"

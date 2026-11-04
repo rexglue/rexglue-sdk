@@ -10,7 +10,7 @@
  */
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "gpu/xenos/host/d3d12/d3d12_descriptor_heap_pool.h"
 #include "gpu/xenos/host/page_list.h"
 

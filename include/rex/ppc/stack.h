@@ -87,6 +87,7 @@ class StackFrame : public rex::NonCopyable {
    * Binds a context and saves its r1.
    *
    * @param ctx The context whose r1 is lowered by pushes and restored at scope exit.
+   * @param base Guest memory base.
    */
   StackFrame(PPCContext& ctx, u8* base)
       : ctx_(ctx), base_(base), saved_r1_(ctx.r1.u32), previous_(detail::GetInnermostStackFrame()) {

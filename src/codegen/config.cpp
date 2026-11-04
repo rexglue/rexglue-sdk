@@ -12,7 +12,7 @@
 #include "config.h"
 #include <rex/kernel/shim.h>
 #include <rex/ppc/midasm.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <toml++/toml.hpp>

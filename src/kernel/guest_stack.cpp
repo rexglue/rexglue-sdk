@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/kernel/types/status.h>
 #include <rex/kernel/heap.h>
@@ -25,7 +25,8 @@ u32 ResolveTLSSlotCount(u32 xex_slot_count) {
   return std::min(rex::RoundUp(xex_slot_count, 4u), kMaximumSlots);
 }
 
-Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size, bool title_memory) {
+Result<GuestStack> AllocateGuestStack(GuestAddressSpace& memory, u32 size, u32 tls_size,
+                                      bool title_memory) {
   BaseHeap* heap = memory.LookupHeap(KernelThread::kStackAddressRangeBegin);
   size = rex::RoundUpNonZero(size, 4096u);
   tls_size = rex::RoundUp(tls_size, 16u);
@@ -53,7 +54,7 @@ Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size, bo
   return GuestStack{alloc_base, top - tls_size - size, top - tls_size};
 }
 
-void FreeGuestStack(Memory& memory, u32 alloc_base) {
+void FreeGuestStack(GuestAddressSpace& memory, u32 alloc_base) {
   if (alloc_base) {
     memory.LookupHeap(alloc_base)->Release(alloc_base);
   }

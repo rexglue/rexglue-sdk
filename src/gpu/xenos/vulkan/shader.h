@@ -15,7 +15,7 @@
 
 #include "gpu/xenos/pipeline/shader/spirv.h"
 #include <rex/xenos/state.h>
-#include "gpu/xenos/host/vulkan/device.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
 
 namespace rex::gpu::vulkan {
 

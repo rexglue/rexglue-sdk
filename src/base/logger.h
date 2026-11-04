@@ -23,7 +23,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 
 namespace spdlog {
@@ -63,7 +63,7 @@ namespace rex {
 struct Logger::State {
   explicit State(Logger& logger);
 
-  u16 Resolve(const log::Category& category);
+  u16 Resolve(const log::LogCategory& category);
 
   log::Level GetSlotLevel(u16 slot) const { return levels[slot].load(std::memory_order_relaxed); }
 
@@ -82,7 +82,7 @@ struct Logger::State {
    * @param timeout The longest wait for the sink mutex.
    * @return True when a sink took the message.
    */
-  bool TryWrite(const log::Category& category, log::Level severity, std::string_view text,
+  bool TryWrite(const log::LogCategory& category, log::Level severity, std::string_view text,
                 std::chrono::milliseconds timeout);
 
   /**
@@ -97,10 +97,10 @@ struct Logger::State {
 
   std::chrono::system_clock::time_point GetStartTime() const { return start_time; }
 
-  [[nodiscard]] Result<void> AddCategories(std::span<const log::Category* const> categories);
-  void RemoveCategories(std::span<const log::Category* const> categories);
-  bool AddSink(log::ISink& sink);
-  void RemoveSink(log::ISink& sink);
+  [[nodiscard]] Result<void> AddCategories(std::span<const log::LogCategory* const> categories);
+  void RemoveCategories(std::span<const log::LogCategory* const> categories);
+  bool AddSink(log::ILogSink& sink);
+  void RemoveSink(log::ILogSink& sink);
   void Flush();
   void ApplySettled();
   [[nodiscard]] Result<void> OpenFile(const std::filesystem::path& log_root,
@@ -109,7 +109,7 @@ struct Logger::State {
   void ApplyCategoryLevel(std::string_view category, std::string_view text);
 
   struct Consumer {
-    log::ISink* target;
+    log::ILogSink* target;
     std::shared_ptr<spdlog::sinks::sink> adapter;
   };
 

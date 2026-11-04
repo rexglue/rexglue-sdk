@@ -200,7 +200,7 @@ inline auto Err(ErrorCategory category, std::string message, int code = 0) {
 /**
  * Returns an error from the enclosing function when a condition holds.
  *
- * @param error The rex::Error to return when it holds.
+ * @param error The rex::Error to return when the condition is true.
  *
  * @code
  * REX_ERROR_IF(ptr == nullptr, rex::Error(rex::ErrorCategory::kValidation, "null"));

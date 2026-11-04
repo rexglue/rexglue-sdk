@@ -14,7 +14,7 @@
 #include <cstring>
 #include <vector>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/mapped_ptr.h>
 #include <rex/platform.h>
 #include <rex/ppc/hook.h>

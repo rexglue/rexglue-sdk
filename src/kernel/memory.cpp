@@ -24,7 +24,7 @@
 #include <rex/assert.h>
 #include <rex/platform/perf.h>
 #include <rex/platform/exception_handler.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/bit.h>
 #include <rex/kernel/function_dispatcher.h>
@@ -51,7 +51,7 @@ u32 GetPageCount(u32 value, u32 page_size, u32 page_size_shift) {
   return rex::RoundUpNonZero(value, page_size) >> page_size_shift;
 }
 
-static std::atomic<kernel::Memory*> g_active_memory{nullptr};
+static std::atomic<kernel::GuestAddressSpace*> g_active_memory{nullptr};
 
 namespace {
 
@@ -126,7 +126,7 @@ u32 DescribeCrashAddress(u64 host_address, std::span<char> out) {
         break;
     }
   }
-  const Memory* memory = g_active_memory.load(std::memory_order_acquire);
+  const GuestAddressSpace* memory = g_active_memory.load(std::memory_order_acquire);
   if (memory && host_address) {
     const u64 base = reinterpret_cast<u64>(memory->GetVirtualMembase());
     if (host_address >= base && host_address - base < kGuestAddressSpace) {
@@ -151,7 +151,7 @@ bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
       operation != rex::platform::Exception::AccessViolationOperation::kWrite) {
     return false;
   }
-  auto* memory = static_cast<Memory*>(data);
+  auto* memory = static_cast<GuestAddressSpace*>(data);
   const bool is_write = operation == rex::platform::Exception::AccessViolationOperation::kWrite;
   auto* host_address = std::bit_cast<void*>(static_cast<uintptr_t>(ex->GetFaultAddress()));
   switch (memory->HandleAccessViolation(host_address, is_write)) {
@@ -180,7 +180,7 @@ void StorePageEntry(PageEntry& slot, PageEntry entry) {
 
 }  // namespace
 
-Memory::Memory() {
+GuestAddressSpace::GuestAddressSpace() {
   system_page_size_ = static_cast<u32>(rex::memory::GetPageSize());
   system_allocation_granularity_ = static_cast<u32>(rex::memory::GetAllocationGranularity());
   REX_ASSERT(g_active_memory.load() == nullptr);
@@ -188,7 +188,7 @@ Memory::Memory() {
   platform::SetCrashAddressDescriber(DescribeCrashAddress);
 }
 
-Memory::~Memory() {
+GuestAddressSpace::~GuestAddressSpace() {
   REX_ASSERT(g_active_memory.load() == this);
   platform::SetCrashAddressDescriber(nullptr);
   g_active_memory.store(nullptr, std::memory_order_release);
@@ -221,7 +221,7 @@ Memory::~Memory() {
   physical_membase_ = nullptr;
 }
 
-bool Memory::Initialize() {
+bool GuestAddressSpace::Initialize() {
   if ((system_allocation_granularity_ > 0x1000) != rex::memory::detail::kPhysicalOffsetInCode) {
     REXSYS_ERROR(
         "The host allocation granularity is 0x{:X}, which does not match how the 0xE0000000 view "
@@ -396,7 +396,7 @@ static const struct {
     },
 };
 #if REX_PLATFORM_MAC
-int Memory::MapViewsMac() {
+int GuestAddressSpace::MapViewsMac() {
   REX_ASSERT(rex::CountOf(kViewRanges) == rex::CountOf(views_.all_views));
 
   // mmap without MAP_FIXED can ignore the requested address, so reserve one range first.
@@ -438,7 +438,7 @@ int Memory::MapViewsMac() {
 }
 #endif  // REX_PLATFORM_MAC
 
-int Memory::MapViews(u8* mapping_base) {
+int GuestAddressSpace::MapViews(u8* mapping_base) {
   REX_ASSERT(rex::CountOf(kViewRanges) == rex::CountOf(views_.all_views));
   u64 granularity_mask = ~static_cast<u64>(system_allocation_granularity_ - 1);
   for (size_t n = 0; n < rex::CountOf(kViewRanges); n++) {
@@ -454,7 +454,7 @@ int Memory::MapViews(u8* mapping_base) {
   return 0;
 }
 
-void Memory::UnmapViews() {
+void GuestAddressSpace::UnmapViews() {
   for (size_t n = 0; n < rex::CountOf(views_.all_views); n++) {
     if (views_.all_views[n]) {
       size_t length = kViewRanges[n].virtual_address_end - kViewRanges[n].virtual_address_start + 1;
@@ -463,7 +463,7 @@ void Memory::UnmapViews() {
   }
 }
 
-const BaseHeap* Memory::LookupHeap(u32 address) const {
+const BaseHeap* GuestAddressSpace::LookupHeap(u32 address) const {
   if (address < 0x40000000) {
     return &heaps_.v00000000;
   }
@@ -488,7 +488,7 @@ const BaseHeap* Memory::LookupHeap(u32 address) const {
   return &heaps_.ve0000000;
 }
 
-BaseHeap* Memory::LookupHeapByType(bool physical, u32 page_size) {
+BaseHeap* GuestAddressSpace::LookupHeapByType(bool physical, u32 page_size) {
   if (physical) {
     if (page_size <= 4096) {
       return &heaps_.ve0000000;
@@ -506,15 +506,15 @@ BaseHeap* Memory::LookupHeapByType(bool physical, u32 page_size) {
   }
 }
 
-VirtualHeap* Memory::GetPhysicalHeap() {
+VirtualHeap* GuestAddressSpace::GetPhysicalHeap() {
   return &heaps_.physical;
 }
 
-u32 Memory::HostToGuestVirtual(const void* host_address) const {
+u32 GuestAddressSpace::HostToGuestVirtual(const void* host_address) const {
   return rex::memory::HostPtrToGuest(virtual_membase_, host_address);
 }
 
-u32 Memory::GetPhysicalAddress(u32 address) const {
+u32 GuestAddressSpace::GetPhysicalAddress(u32 address) const {
   const BaseHeap* heap = LookupHeap(address);
   if (!heap || heap->GetHeapType() != kernel::HeapType::kGuestPhysical) {
     return UINT32_MAX;
@@ -522,21 +522,21 @@ u32 Memory::GetPhysicalAddress(u32 address) const {
   return static_cast<const PhysicalHeap*>(heap)->GetPhysicalAddress(address);
 }
 
-void Memory::Zero(u32 address, u32 size) const {
+void GuestAddressSpace::Zero(u32 address, u32 size) const {
   std::memset(TranslateVirtual(address), 0, size);
 }
 
-void Memory::Fill(u32 address, u32 size, u8 value) const {
+void GuestAddressSpace::Fill(u32 address, u32 size, u8 value) const {
   std::memset(TranslateVirtual(address), value, size);
 }
 
-void Memory::Copy(u32 dest, u32 src, u32 size) const {
+void GuestAddressSpace::Copy(u32 dest, u32 src, u32 size) const {
   u8* pdest = TranslateVirtual(dest);
   const u8* psrc = TranslateVirtual(src);
   std::memcpy(pdest, psrc, size);
 }
 
-bool Memory::ReserveMMIOBlocks() const {
+bool GuestAddressSpace::ReserveMMIOBlocks() const {
   const size_t host_page_size = rex::memory::GetPageSize();
   return std::ranges::all_of(
       std::array{rex::ppc::MMIOBlock::kGPU, rex::ppc::MMIOBlock::kAPU},
@@ -552,7 +552,7 @@ bool Memory::ReserveMMIOBlocks() const {
       });
 }
 
-AccessViolationResult Memory::HandleAccessViolation(void* host_address, bool is_write) {
+AccessViolationResult GuestAddressSpace::HandleAccessViolation(void* host_address, bool is_write) {
   const auto host = reinterpret_cast<uintptr_t>(host_address);
   const auto virtual_base = reinterpret_cast<uintptr_t>(virtual_membase_);
   const auto physical_base = reinterpret_cast<uintptr_t>(physical_membase_);
@@ -566,7 +566,7 @@ AccessViolationResult Memory::HandleAccessViolation(void* host_address, bool is_
                                                          : AccessViolationResult::kUnhandled;
 }
 
-bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
+bool GuestAddressSpace::AccessViolationCallback(void* host_address, bool is_write) {
   // Accesses through physical_membase_ bypass callbacks, which fire only on virtual regions.
   if (reinterpret_cast<size_t>(host_address) < reinterpret_cast<size_t>(virtual_membase_) ||
       reinterpret_cast<size_t>(host_address) >= reinterpret_cast<size_t>(physical_membase_)) {
@@ -620,7 +620,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   return false;
 }
 
-void* Memory::RegisterPhysicalMemoryInvalidationCallback(
+void* GuestAddressSpace::RegisterPhysicalMemoryInvalidationCallback(
     PhysicalMemoryInvalidationCallback callback, void* callback_context) {
   auto entry = std::make_unique<std::pair<PhysicalMemoryInvalidationCallback, void*>>(
       callback, callback_context);
@@ -630,7 +630,7 @@ void* Memory::RegisterPhysicalMemoryInvalidationCallback(
   return handle;
 }
 
-void Memory::UnregisterPhysicalMemoryInvalidationCallback(void* callback_handle) {
+void GuestAddressSpace::UnregisterPhysicalMemoryInvalidationCallback(void* callback_handle) {
   std::unique_ptr<std::pair<PhysicalMemoryInvalidationCallback, void*>> entry;
   {
     std::lock_guard lock(watch_mutex_);
@@ -646,9 +646,9 @@ void Memory::UnregisterPhysicalMemoryInvalidationCallback(void* callback_handle)
   }
 }
 
-void Memory::EnablePhysicalMemoryAccessCallbacks(u32 physical_address, u32 length,
-                                                 bool enable_invalidation_notifications,
-                                                 bool enable_data_providers) {
+void GuestAddressSpace::EnablePhysicalMemoryAccessCallbacks(u32 physical_address, u32 length,
+                                                            bool enable_invalidation_notifications,
+                                                            bool enable_data_providers) {
   heaps_.va0000000.EnableAccessCallbacks(physical_address, length,
                                          enable_invalidation_notifications, enable_data_providers);
   heaps_.vc0000000.EnableAccessCallbacks(physical_address, length,
@@ -657,7 +657,7 @@ void Memory::EnablePhysicalMemoryAccessCallbacks(u32 physical_address, u32 lengt
                                          enable_invalidation_notifications, enable_data_providers);
 }
 
-u32 Memory::SystemHeapAlloc(u32 size, u32 alignment, u32 system_heap_flags) {
+u32 GuestAddressSpace::SystemHeapAlloc(u32 size, u32 alignment, u32 system_heap_flags) {
   bool is_physical = !!(system_heap_flags & kernel::kSystemHeapPhysical);
   auto heap = LookupHeapByType(is_physical, 4096);
   u32 address;
@@ -670,7 +670,7 @@ u32 Memory::SystemHeapAlloc(u32 size, u32 alignment, u32 system_heap_flags) {
   return address;
 }
 
-void Memory::SystemHeapFree(u32 address, u32* out_region_size) {
+void GuestAddressSpace::SystemHeapFree(u32 address, u32* out_region_size) {
   if (!address) {
     return;
   }
@@ -678,9 +678,9 @@ void Memory::SystemHeapFree(u32 address, u32* out_region_size) {
   heap->Release(address, out_region_size);
 }
 
-void Memory::GetHeapsPageStats(const BaseHeap* const* provided_heaps, size_t heaps_count,
-                               u32& unreserved_pages, u32& reserved_pages, u32& used_pages,
-                               u32& reserved_bytes) {
+void GuestAddressSpace::GetHeapsPageStats(const BaseHeap* const* provided_heaps, size_t heaps_count,
+                                          u32& unreserved_pages, u32& reserved_pages,
+                                          u32& used_pages, u32& reserved_bytes) {
   // The heap array is fixed after init and page counts are approximate.
   for (size_t i = 0; i < heaps_count; i++) {
     const BaseHeap* heap = provided_heaps[i];
@@ -694,20 +694,20 @@ void Memory::GetHeapsPageStats(const BaseHeap* const* provided_heaps, size_t hea
   }
 }
 
-void Memory::SetBudget(u32 megabytes) {
+void GuestAddressSpace::SetBudget(u32 megabytes) {
   budget_pages_.store(static_cast<u32>(std::min<u64>(u64{megabytes} * 256, UINT32_MAX)),
                       std::memory_order_relaxed);
 }
 
-u32 Memory::GetTitlePages() const {
+u32 GuestAddressSpace::GetTitlePages() const {
   return title_pages_.load(std::memory_order_relaxed);
 }
 
-u32 Memory::GetBudgetPages() const {
+u32 GuestAddressSpace::GetBudgetPages() const {
   return budget_pages_.load(std::memory_order_relaxed);
 }
 
-bool Memory::ReserveBudgetPages(u32 pages) {
+bool GuestAddressSpace::ReserveBudgetPages(u32 pages) {
   const u32 budget = budget_pages_.load(std::memory_order_relaxed);
   u32 used = title_pages_.load(std::memory_order_relaxed);
   do {
@@ -718,11 +718,11 @@ bool Memory::ReserveBudgetPages(u32 pages) {
   return true;
 }
 
-void Memory::ReleaseBudgetPages(u32 pages) {
+void GuestAddressSpace::ReleaseBudgetPages(u32 pages) {
   title_pages_.fetch_sub(pages, std::memory_order_relaxed);
 }
 
-void Memory::PlotProfile() {
+void GuestAddressSpace::PlotProfile() {
 #ifdef REXGLUE_ENABLE_PROFILING
   if (!TracyIsStarted) {
     return;
@@ -749,7 +749,8 @@ void Memory::PlotProfile() {
 #endif
 }
 
-bool Memory::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size) {
+bool GuestAddressSpace::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base,
+                                                u32 image_size) {
   constexpr u32 kThunkReserveSize = kernel::FunctionDispatcher::kThunkReserveSize;
   u32 table_base = image_base + image_size;
   u32 table_size = (code_size + kThunkReserveSize) * 2;
@@ -779,7 +780,7 @@ bool Memory::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_bas
   return true;
 }
 
-bool Memory::DestroyFunctionTable(u32 code_base) {
+bool GuestAddressSpace::DestroyFunctionTable(u32 code_base) {
   u32 table_base = 0;
   u32 table_size = 0;
   u32 logged_code_base = 0;
@@ -806,7 +807,7 @@ bool Memory::DestroyFunctionTable(u32 code_base) {
   return true;
 }
 
-bool Memory::SetFunction(u32 guest_address, PPCFunc* host_function) {
+bool GuestAddressSpace::SetFunction(u32 guest_address, PPCFunc* host_function) {
   u32 table_address = 0;
   {
     std::lock_guard lock(function_tables_mutex_);
@@ -981,8 +982,8 @@ bool BaseHeap::SyncHostPageAccess(u32 start_page_number, u32 end_page_number) {
   return flush_run(host_page_last);
 }
 
-void BaseHeap::Initialize(kernel::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
-                          u32 heap_size, u32 page_size, u32 host_address_offset) {
+void BaseHeap::Initialize(kernel::GuestAddressSpace* memory, u8* membase, HeapType heap_type,
+                          u32 heap_base, u32 heap_size, u32 page_size, u32 host_address_offset) {
   memory_ = memory;
   membase_ = membase;
   heap_type_ = heap_type;
@@ -1717,8 +1718,8 @@ VirtualHeap::VirtualHeap() = default;
 
 VirtualHeap::~VirtualHeap() = default;
 
-void VirtualHeap::Initialize(kernel::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
-                             u32 heap_size, u32 page_size) {
+void VirtualHeap::Initialize(kernel::GuestAddressSpace* memory, u8* membase, HeapType heap_type,
+                             u32 heap_base, u32 heap_size, u32 page_size) {
   BaseHeap::Initialize(memory, membase, heap_type, heap_base, heap_size, page_size);
 }
 
@@ -1726,7 +1727,7 @@ PhysicalHeap::PhysicalHeap() : parent_heap_(nullptr) {}
 
 PhysicalHeap::~PhysicalHeap() = default;
 
-void PhysicalHeap::Initialize(kernel::Memory* memory, u8* membase, HeapType heap_type,
+void PhysicalHeap::Initialize(kernel::GuestAddressSpace* memory, u8* membase, HeapType heap_type,
                               u32 heap_base, u32 heap_size, u32 page_size,
                               VirtualHeap* parent_heap) {
   const u32 host_address_offset = rex::memory::detail::PhysicalHostOffset(heap_base);

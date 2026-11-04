@@ -96,7 +96,7 @@ std::unique_ptr<rex::IDriver> CreateUI() {
 class OrderProvider final : public rex::IModule, public rex::IDriverModule {
  public:
   std::string_view GetName() const override { return "order"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}
@@ -146,7 +146,7 @@ class OrderApp final : public rex::test::ObjectApp<rex::app::App> {
     providers.push_back(&provider_);
   }
 
-  rex::Result<void> OnConfigure(rex::Settings&) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
     (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "order_input");
     (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "order_audio");

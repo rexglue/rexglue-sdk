@@ -15,7 +15,7 @@
 #include <algorithm>
 
 #include <rex/math.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/types.h>
 #include <rex/platform.h>
 
@@ -212,8 +212,10 @@ struct ControlPalette {
   bool operator==(const ControlPalette& other) const = default;
 };
 
-/** The semantic color roles. A consumer override changes the theme of every ImGui slot and every
- * overlay. */
+/**
+ * The semantic color roles. A consumer override changes the theme of every ImGui slot and every
+ * overlay.
+ */
 struct Palette {
   /** Buttons and the base accent. */
   Color accent = Color::FromRGBA(0.15f, 0.56f, 0.11f);
@@ -283,7 +285,7 @@ struct Metrics {
   f32 toast_padding = 16;
   f32 toast_width = 320;
   f32 toast_height = 70;
-  /** Distance from the bottom edge the toast reserves, its height plus a margin. */
+  /** Distance from the bottom edge that the toast reserves: its height plus a margin. */
   f32 toast_stack_height = 80;
   /** Height of the bar below the settings list. */
   f32 footer_height = 30;

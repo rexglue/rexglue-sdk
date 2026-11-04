@@ -58,8 +58,7 @@ struct PackageInfo {
 struct InstallOptions {
   /** Refuses a package whose title ID is not the running title. */
   bool require_running_title = true;
-  /** Extracts the package. False keeps the package at its path and mounts it in place when opened.
-   */
+  /** Extracts the package. False keeps it at its path and mounts it in place when opened. */
   bool extract = true;
 };
 

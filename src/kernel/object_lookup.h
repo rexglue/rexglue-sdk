@@ -54,38 +54,38 @@
  * REX_KERNEL_NAMED_CREATE(Event, handle_ptr, obj_attributes_ptr);
  * @endcode
  */
-#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                      \
-  if (ATTRS) {                                                                                \
-    auto& rex_runtime_ = ::rex::kernel::GetCurrent();                                         \
-    auto rex_attrs_ =                                                                         \
-        StateOf(rex_runtime_)                                                                 \
-            .GetMemory()                                                                      \
-            ->TranslateVirtual<rex::kernel::X_OBJECT_ATTRIBUTES*>((ATTRS).GetGuestAddress()); \
-    REX_ASSERT(rex_attrs_->name_ptr != 0);                                                    \
-    auto rex_name_ = kernel::TranslateAnsiStringAddress(StateOf(rex_runtime_).GetMemory(),    \
-                                                        rex_attrs_->name_ptr);                \
-    auto& rex_table_ = rex_runtime_.GetObjectTable();                                         \
-    if (!rex_name_.empty()) {                                                                 \
-      if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                              \
-        const rex::kernel::X_HANDLE rex_handle_ = *rex_opened_;                               \
-        auto rex_existing_ = rex_table_.Get(rex_handle_);                                     \
-        const bool rex_same_type_ =                                                           \
-            rex_existing_ && rex_existing_.GetType() == ::rex::kernel::ObjectType::KIND;      \
-        const bool rex_open_if_ =                                                             \
-            (static_cast<u32>(rex_attrs_->attributes) & ::rex::kernel::kObjOpenIf) != 0;      \
-        if (rex_same_type_ && rex_open_if_ && (HANDLE_OUT)) {                                 \
-          *(HANDLE_OUT) = rex_handle_;                                                        \
-          return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                    \
-        }                                                                                     \
-        ::rex::kernel::CloseOwned(rex_table_, rex_handle_);                                   \
-        if (rex_same_type_ && rex_open_if_) {                                                 \
-          return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                    \
-        }                                                                                     \
-        if (HANDLE_OUT) {                                                                     \
-          *(HANDLE_OUT) = 0u;                                                                 \
-        }                                                                                     \
-        return rex_open_if_ ? rex::kernel::X_STATUS_OBJECT_TYPE_MISMATCH                      \
-                            : rex::kernel::X_STATUS_OBJECT_NAME_COLLISION;                    \
-      }                                                                                       \
-    }                                                                                         \
+#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                         \
+  if (ATTRS) {                                                                                   \
+    auto& rex_runtime_ = ::rex::kernel::GetCurrent();                                            \
+    auto rex_attrs_ =                                                                            \
+        StateOf(rex_runtime_)                                                                    \
+            .GetAddressSpace()                                                                   \
+            ->TranslateVirtual<rex::kernel::X_OBJECT_ATTRIBUTES*>((ATTRS).GetGuestAddress());    \
+    REX_ASSERT(rex_attrs_->name_ptr != 0);                                                       \
+    auto rex_name_ = kernel::TranslateAnsiStringAddress(StateOf(rex_runtime_).GetAddressSpace(), \
+                                                        rex_attrs_->name_ptr);                   \
+    auto& rex_table_ = rex_runtime_.GetObjectTable();                                            \
+    if (!rex_name_.empty()) {                                                                    \
+      if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                                 \
+        const rex::kernel::X_HANDLE rex_handle_ = *rex_opened_;                                  \
+        auto rex_existing_ = rex_table_.Get(rex_handle_);                                        \
+        const bool rex_same_type_ =                                                              \
+            rex_existing_ && rex_existing_.GetType() == ::rex::kernel::ObjectType::KIND;         \
+        const bool rex_open_if_ =                                                                \
+            (static_cast<u32>(rex_attrs_->attributes) & ::rex::kernel::kObjOpenIf) != 0;         \
+        if (rex_same_type_ && rex_open_if_ && (HANDLE_OUT)) {                                    \
+          *(HANDLE_OUT) = rex_handle_;                                                           \
+          return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                       \
+        }                                                                                        \
+        ::rex::kernel::CloseOwned(rex_table_, rex_handle_);                                      \
+        if (rex_same_type_ && rex_open_if_) {                                                    \
+          return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                       \
+        }                                                                                        \
+        if (HANDLE_OUT) {                                                                        \
+          *(HANDLE_OUT) = 0u;                                                                    \
+        }                                                                                        \
+        return rex_open_if_ ? rex::kernel::X_STATUS_OBJECT_TYPE_MISMATCH                         \
+                            : rex::kernel::X_STATUS_OBJECT_NAME_COLLISION;                       \
+      }                                                                                          \
+    }                                                                                            \
   }

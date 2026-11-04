@@ -36,7 +36,7 @@
 #include <rex/result.h>
 #include <rex/types.h>
 #include <rex/utility.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 
 namespace rex::kernel {
 

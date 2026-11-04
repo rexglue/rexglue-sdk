@@ -35,7 +35,7 @@ namespace rex::test {
 struct KernelHostApp final : rex::test::ObjectApp<codegen::ToolApp> {
   using ObjectApp::ObjectApp;
 
-  IFactory& GetPrivateFactory() { return GetControlFactory(); }
+  IInterfaceFactory& GetPrivateFactory() { return GetControlFactory(); }
 };
 
 struct KernelHost {

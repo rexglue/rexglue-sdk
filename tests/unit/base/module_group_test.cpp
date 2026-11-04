@@ -18,7 +18,7 @@
 #include <rex/module.h>
 #include <rex/platform/dynlib.h>
 #include <rex/platform/file.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/library_name.h"
 #include "base/module_group.h"
@@ -58,7 +58,7 @@ class FakeModule final : public rex::IModule, public IExample {
 
   std::string_view GetName() const override { return name_; }
   std::span<const rex::InterfaceType> GetRequiredInterfaces() const override { return required; }
-  rex::Result<void> Connect(rex::IFactory& factory) override {
+  rex::Result<void> Connect(rex::IInterfaceFactory& factory) override {
     events_.push_back("connect " + name_);
     seen = factory.Get<IExample>();
     kept = &factory;
@@ -91,7 +91,7 @@ class FakeModule final : public rex::IModule, public IExample {
   std::vector<rex::InterfaceType> required;
   IExample* seen = nullptr;
   IExample* seen_at_init = nullptr;
-  rex::IFactory* kept = nullptr;
+  rex::IInterfaceFactory* kept = nullptr;
 
  private:
   std::string name_;
@@ -103,12 +103,12 @@ class BaseServicesModule final : public rex::IModule {
  public:
   std::string_view GetName() const override { return "base_services"; }
   std::span<const rex::InterfaceType> GetRequiredInterfaces() const override {
-    static constexpr rex::InterfaceType kRequired[] = {rex::ISettings::kInterface,
+    static constexpr rex::InterfaceType kRequired[] = {rex::ISettingsRegistry::kInterface,
                                                        rex::ILogger::kInterface};
     return kRequired;
   }
-  rex::Result<void> Connect(rex::IFactory& factory) override {
-    settings = factory.Get<rex::ISettings>();
+  rex::Result<void> Connect(rex::IInterfaceFactory& factory) override {
+    settings = factory.Get<rex::ISettingsRegistry>();
     logger = factory.Get<rex::ILogger>();
     return {};
   }
@@ -117,7 +117,7 @@ class BaseServicesModule final : public rex::IModule {
   void Shutdown() override {}
   rex::IInterface* QueryInterface(std::string_view, rex::u32) override { return nullptr; }
 
-  rex::ISettings* settings = nullptr;
+  rex::ISettingsRegistry* settings = nullptr;
   rex::ILogger* logger = nullptr;
 };
 
@@ -430,12 +430,12 @@ REX_TEST_CASE("ShutdownAfter stops only the modules added after the mark", "[bas
   CHECK(events == rest);
 }
 
-REX_TEST_CASE("a module finds ISettings and ILogger at Connect", "[base][module]") {
+REX_TEST_CASE("a module finds ISettingsRegistry and ILogger at Connect", "[base][module]") {
   BaseServicesModule module;
   rex::ModuleGroup group;
   REQUIRE(group.Add(module));
   REQUIRE(group.Connect());
-  CHECK(module.settings == static_cast<rex::ISettings*>(&REX_SETTINGS()));
+  CHECK(module.settings == static_cast<rex::ISettingsRegistry*>(&REX_SETTINGS()));
   CHECK(module.logger == static_cast<rex::ILogger*>(&REX_LOGGER()));
   group.Disconnect();
 }
@@ -445,7 +445,7 @@ class HiddenModule final : public rex::IModule, public IHidden {
   REX_MODULE_SERVES(IHidden)
 
   std::string_view GetName() const override { return "hidden"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}

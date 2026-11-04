@@ -17,9 +17,9 @@
 #include <rex/hid/pad.h>
 #include <rex/hid/input_system.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 REXLOG_TABLE(kInputLog, hid)
 
@@ -70,7 +70,7 @@ class InputSystem final : public rex::hid::IInputSystem {
   hid::PointerMode GetPointerModeToApply() const override;
   [[nodiscard]] ScopeGuard SetPointerModeListener(MoveOnlyFunction<void()> listener) override;
 
-  [[nodiscard]] Result<void> RegisterBindings(ISettings& settings);
+  [[nodiscard]] Result<void> RegisterBindings(ISettingsRegistry& settings);
   void UnregisterBindings();
 
   /**

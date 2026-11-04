@@ -18,7 +18,7 @@
 
 #include <rex/assert.h>
 #include <rex/kernel/types/thread.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/types/status.h>
 #include <rex/kernel/object/event_object.h>
 #include <rex/kernel/object/mutant_object.h>
@@ -60,7 +60,7 @@ KernelObject::~KernelObject() {
   }
 }
 
-ObjectTable::ObjectTable(Memory* memory) : memory_(memory) {}
+ObjectTable::ObjectTable(GuestAddressSpace* memory) : memory_(memory) {}
 
 ObjectTable::~ObjectTable() {
   log::NoThrow(log::system, [this] { Reset(); });

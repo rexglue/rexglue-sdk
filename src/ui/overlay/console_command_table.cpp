@@ -1,16 +1,16 @@
-#include "ui/overlay/console_command.h"
+#include "ui/overlay/console_command_table.h"
 
 #include <string>
 
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
-#include <rex/logging/log.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
+#include <rex/logging/log_category.h>
 #include <rex/string/text.h>
 
 namespace rex::ui {
 
-ConsoleCommandTable::ConsoleCommandTable(ISettings& settings)
+ConsoleCommandTable::ConsoleCommandTable(ISettingsRegistry& settings)
     : SettingOwner("console"), settings_(settings) {}
 
 Result<void> ConsoleCommandTable::Echo(std::string_view args) {
@@ -32,7 +32,7 @@ Result<void> ConsoleCommandTable::Find(std::string_view args) {
       ++matches;
     }
   }
-  for (const Command* command : settings_.EnumerateCommands()) {
+  for (const ConsoleCommand* command : settings_.EnumerateCommands()) {
     if (command->GetName().find(needle) != std::string::npos) {
       REXCON_INFO("  {}", command->GetName());
       ++matches;

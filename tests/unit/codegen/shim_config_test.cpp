@@ -126,7 +126,7 @@ REX_TEST_CASE("A shim at an address with no function warns and the run succeeds"
   constexpr rex::u32 kEntry = rex::test::kCodeImageBase + rex::test::kCodeImageCodeOffset;
   const std::vector<rex::u32> words{kBlr, kBlr};
   const std::vector<rex::test::PDataEntry> pdata{{kEntry, 1}};
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   rex::test::TempFolder folder;
   const auto result = rex::test::GenerateFromImage(
       folder, rex::test::BuildCodeImage(words, pdata),

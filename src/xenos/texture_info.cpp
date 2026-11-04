@@ -20,7 +20,7 @@
 
 #include <rex/xenos/texture.h>
 #include <rex/hash.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/bit.h>
 #include <rex/memory.h>
 

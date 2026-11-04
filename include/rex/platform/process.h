@@ -39,7 +39,7 @@ struct LockHandle;
  * Builds the Windows command line that starts exe with args, each quoted so
  * CommandLineToArgvW returns it unchanged.
  *
- * @param exe Executable path, the first argument.
+ * @param exe Executable path. It becomes the first argument.
  * @param args Arguments after the executable, UTF-8.
  */
 REX_API std::wstring BuildCommandLine(std::wstring_view exe, std::span<const std::string> args);
@@ -101,7 +101,7 @@ struct OpenFileLimit {
 [[nodiscard]] REX_API Result<OpenFileLimit> RaiseOpenFileLimit();
 
 /**
- * Describes the host resources this process uses, for logging when something runs out.
+ * Reports the host resources this process uses, for logging when something runs out.
  *
  * @return The description of descriptors, memory maps or handles the host reports.
  */
@@ -205,8 +205,8 @@ struct CrashReporterOptions {
 };
 
 /**
- * Describes a host fault address in title terms. Runs in a signal handler, so it must not allocate
- * or lock.
+ * Writes a host fault address as title terms, such as a guest address or a register. Runs in a
+ * signal handler, so it must not allocate or lock.
  *
  * @param host_address The fault address, or 0 when there is none.
  * @param out Buffer for the text.
@@ -225,7 +225,7 @@ using CrashAddressDescriber = u32 (*)(u64 host_address, std::span<char> out);
 REX_API void UninstallCrashReporter();
 
 /**
- * Sets the function the report calls to describe the fault address.
+ * Sets the function the report calls to write the fault address as title terms.
  *
  * @param describer The describer, or null for none.
  */

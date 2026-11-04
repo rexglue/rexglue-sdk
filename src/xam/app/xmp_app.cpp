@@ -9,15 +9,15 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "xam/app/apps.h"
-#include <rex/logging/log.h>
+#include "xam/app/xam_apps.h"
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/kernel/object/kernel_thread.h>
 #include <rex/kernel/thread_registry.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/platform/thread.h>
 #include <rex/xam/title_lifecycle.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 #include "xam/stub_log.h"
 
 namespace rex {

@@ -15,14 +15,14 @@
 
 #include <rex/chrono.h>
 #include <rex/memory/host.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 
 #include "base/app_harness.h"
-#include "gpu/xenos/host/d3d12/settings.h"
-#include "gpu/xenos/host/vulkan/settings.h"
+#include "gpu/xenos/host/d3d12/d3d12_settings.h"
+#include "gpu/xenos/host/vulkan/vulkan_settings.h"
 #include "gpu/xenos/xenos_settings.h"
 
 REX_TEST_CASE("no_scaling follows the setting", "[base][settings]") {
@@ -93,7 +93,7 @@ REX_TEST_CASE("every SDK setting name is lowercase dotted", "[base][settings]") 
       INFO(setting->GetName());
       CHECK(IsLowercaseDotted(setting->GetName()));
     }
-    for (const rex::Command* command : settings.EnumerateCommands()) {
+    for (const rex::ConsoleCommand* command : settings.EnumerateCommands()) {
       INFO(command->GetName());
       CHECK(IsLowercaseDotted(command->GetName()));
     }

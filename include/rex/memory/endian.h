@@ -252,7 +252,7 @@ constexpr u32 LoadUint24LE(const u8* p) {
  * Writes a 24 bit little endian value.
  *
  * @param p The 3 destination bytes.
- * @param value The value, the top 8 bits are discarded.
+ * @param value Value whose top 8 bits are discarded.
  */
 constexpr void StoreUint24LE(u8* p, u32 value) {
   p[2] = static_cast<u8>((value >> 16) & 0xFF);

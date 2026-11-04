@@ -43,7 +43,7 @@ class VulkanXenosProvider final : public IModule, public IDriverModule {
 
   std::string_view GetName() const override { return "rexgpu-xenos-vulkan"; }
   std::span<const InterfaceType> GetRequiredInterfaces() const override { return kRequired; }
-  [[nodiscard]] Result<void> Connect(IFactory& factory) override {
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory& factory) override {
     rex::memory::SetTagName(rex::gpu::kGPU, "GPU");
     rex::gpu::RegisterXenosCounters();
     if (auto* graphics = factory.Get<IGraphicsSystem>()) {

@@ -21,8 +21,8 @@
 
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 #include "ui/overlay/console/model.h"
 
 namespace {
@@ -81,7 +81,7 @@ struct Harness {
 
   AlphaOwner alpha;
   ZetaOwner zeta;
-  rex::log::CaptureSink capture;
+  rex::log::LogCaptureSink capture;
   rex::u64 sequence = 0;
 };
 
@@ -166,7 +166,7 @@ REX_TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins 
   }
 }
 
-REX_TEST_CASE_METHOD(Harness, "HelpLine describes a setting, a command and nothing else",
+REX_TEST_CASE_METHOD(Harness, "HelpLine reports a setting, a command and nothing else",
                      "[ui][console]") {
   ConsoleModel model(REX_SETTINGS(), capture, {});
   REQUIRE(model.HelpLine("alpha.mode") ==

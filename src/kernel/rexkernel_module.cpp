@@ -12,9 +12,9 @@
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/title_paths.h>
 #include <rex/kernel/runtime_settings.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/ui/ui_system.h>
 
 #include "kernel/categories.h"
@@ -43,15 +43,15 @@ std::string_view KernelModule::GetName() const {
 }
 
 std::span<const InterfaceType> KernelModule::GetRequiredInterfaces() const {
-  static constexpr InterfaceType kRequired[] = {ISettings::kInterface, ILogger::kInterface,
+  static constexpr InterfaceType kRequired[] = {ISettingsRegistry::kInterface, ILogger::kInterface,
                                                 filesystem::IFileSystemFactory::kInterface,
                                                 ui::IUISystem::kInterface};
   return kRequired;
 }
 
-Result<void> KernelModule::Connect(IFactory& factory) {
+Result<void> KernelModule::Connect(IInterfaceFactory& factory) {
   factory_ = &factory;
-  settings_ = factory.Get<ISettings>();
+  settings_ = factory.Get<ISettingsRegistry>();
   logger_ = factory.Get<ILogger>();
   REX_TRY_VOID(logger_->AddCategories(log::kRuntimeLog));
   if (auto registered = RegisterSettings(); !registered) {
@@ -113,7 +113,7 @@ IInterface* KernelModule::QueryInterface(std::string_view name, u32 version) {
   return FindModuleInterface<IKernelControl>(*this, name, version);
 }
 
-void KernelModule::SetControls(IFactory& controls) {
+void KernelModule::SetControls(IInterfaceFactory& controls) {
   g_services.controls = &controls;
 }
 

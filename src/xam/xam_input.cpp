@@ -13,7 +13,7 @@
 #include <rex/hid/input_system.h>
 #include <rex/xam/input.h>
 #include "xam/xam_ui.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/title_runtime.h>

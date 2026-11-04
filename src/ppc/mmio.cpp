@@ -1,4 +1,4 @@
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ppc/mmio.h>
 
 #include <atomic>

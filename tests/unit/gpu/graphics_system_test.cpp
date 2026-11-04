@@ -152,7 +152,7 @@ std::unique_ptr<rex::IDriver> CreatePlain() {
 class FakeGraphicsProvider final : public rex::IModule, public rex::IDriverModule {
  public:
   std::string_view GetName() const override { return "fake_graphics"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}
@@ -203,7 +203,7 @@ class GraphicsApp final : public rex::test::ObjectApp<rex::codegen::ToolApp> {
     providers.push_back(&ui_provider_);
   }
 
-  rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     REX_TRY_VOID(ToolApp::OnConfigure(settings));
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
     (void)GetGraphics().GetSettings().driver.SetText(rex::SettingLayer::kTitle, driver_);
@@ -227,7 +227,7 @@ class GraphicsApp final : public rex::test::ObjectApp<rex::codegen::ToolApp> {
   rex::GraphicsFamily family_;
 };
 
-struct WarningSink final : rex::log::ISink {
+struct WarningSink final : rex::log::ILogSink {
   void Write(const rex::log::Message& message) override {
     if (message.text.find("has no Xenos graphics driver") != std::string_view::npos) {
       ++count;

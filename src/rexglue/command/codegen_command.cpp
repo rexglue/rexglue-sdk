@@ -15,7 +15,7 @@
 
 #include "codegen/manifest.h"
 #include "codegen/project_recompiler.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "rexglue/log_categories.h"
 #include <rex/version.h>
 

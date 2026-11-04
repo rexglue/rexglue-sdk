@@ -1,7 +1,7 @@
 #include <atomic>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/hook.h>
 #include <rex/ppc/kernel_hook.h>

@@ -9,8 +9,7 @@
 #include <rex/ppc/stack.h>
 #include <rex/ppc/vmx.h>
 #include <rex/types.h>
-#include <rex/logging/log.h>
-#include <rex/logging/logger.h>
+#include <rex/logging/log_category.h>
 
 ## for func in functions
 DECLARE_REX_FUNC({{ func.name }});

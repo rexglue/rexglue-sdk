@@ -24,7 +24,7 @@ REX_TEST_CASE("NoThrow logs an exception from its step and returns", "[base][no_
   std::vector<rex::log::CapturedMessage> messages;
   rex::test::RunInInit([&] {
     rex::Logger& logger = REX_LOGGER();
-    rex::log::CaptureSink sink;
+    rex::log::LogCaptureSink sink;
     auto sink_guard = logger.AddSink(sink);
 
     rex::log::NoThrow(rex::log::core, [&] { ran = true; });

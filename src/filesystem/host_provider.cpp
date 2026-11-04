@@ -11,7 +11,7 @@
 #include <rex/filesystem/file_stat.h>
 #include <rex/filesystem/file_open.h>
 #include <rex/filesystem/mount.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/result.h>
 #include <rex/math.h>
 #include <rex/memory/virtual_memory.h>

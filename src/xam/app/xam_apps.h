@@ -1,5 +1,5 @@
 /**
- * @file        xam/app/apps.h
+ * @file        xam/app/xam_apps.h
  * @brief       The XAM, XGI, XLiveBase and XMP apps that serve guest app messages
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

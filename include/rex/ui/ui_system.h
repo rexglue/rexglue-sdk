@@ -31,7 +31,7 @@
 #include <rex/utility.h>
 #include <rex/result.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/title.h>
 #include <rex/types.h>
 #include <rex/ui/overlay_renderer.h>
@@ -119,7 +119,8 @@ class REX_UI_API UISettings final : public SettingOwner {
  public:
   UISettings();
 
-  REX_SETTING(std::string, driver, "sdl3", "UI driver, none for headless", kStartupOnly);
+  REX_SETTING(std::string, driver, "sdl3",
+              "UI driver, none for headless in an app that does not require a UI", kStartupOnly);
   REX_SETTING(std::string, title, "", "Window title, the app name when empty");
   REX_SETTING(i32, window_width, 0, "Window width, 0 for the video mode width", Range{0, 16384});
   REX_SETTING(i32, window_height, 0, "Window height, 0 for the video mode height", Range{0, 16384});
@@ -143,7 +144,7 @@ class REX_UI_API UISettings final : public SettingOwner {
 };
 
 /**
- * It owns the window, the UI thread and frame loop, ImGui, the overlays, dialogs,
+ * Owns the window, the UI thread and frame loop, ImGui, the overlays, dialogs,
  * prompts and message boxes. With no driver, or a driver with no display, it is headless. The
  * frame loop runs, message boxes only log and prompts cancel at once.
  *
@@ -171,7 +172,7 @@ REX_DECLARE_INTERFACE(IUISystem, 1)
    */
   virtual bool IsFocused() const = 0;
 
-  /** Built from ui.resolution and the ui.video_mode_* settings. Any thread. */
+  /** Returns the video mode built from ui.resolution and ui.video_mode_*. Any thread. */
   virtual VideoMode GetVideoMode() const = 0;
 
   /**
@@ -203,7 +204,7 @@ REX_DECLARE_INTERFACE(IUISystem, 1)
    */
   [[nodiscard]] virtual ScopeGuard AddEventListener(IUIEventListener& listener) = 0;
 
-  /** The renderer receives new fonts with the next frame. */
+  /** Returns the font atlas. Fonts added to it reach the renderer with the next frame. */
   virtual ImFontAtlas& GetFonts() = 0;
 
   /**

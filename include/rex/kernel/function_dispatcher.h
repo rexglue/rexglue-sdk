@@ -50,11 +50,11 @@ class REX_KERNEL_API FunctionDispatcher : public IFunctionRegistrar {
   using RegisterFn = void (*)(IFunctionRegistrar*);
 
   /** Builds a dispatcher with no modules. */
-  explicit FunctionDispatcher(kernel::Memory* memory);
+  explicit FunctionDispatcher(kernel::GuestAddressSpace* memory);
   /** Removes the recompiled code of every registered module. */
   virtual ~FunctionDispatcher();
 
-  kernel::Memory* GetMemory() const { return memory_; }
+  kernel::GuestAddressSpace* GetAddressSpace() const { return memory_; }
 
   /**
    * Runs recompiled code on a thread and restores its register file afterwards.
@@ -159,7 +159,7 @@ class REX_KERNEL_API FunctionDispatcher : public IFunctionRegistrar {
 
   ModuleTable* FindModuleByAddress(u32 guest_address);
 
-  kernel::Memory* memory_ = nullptr;
+  kernel::GuestAddressSpace* memory_ = nullptr;
 
   std::unordered_map<u32, ::PPCFunc*> function_table_;
 

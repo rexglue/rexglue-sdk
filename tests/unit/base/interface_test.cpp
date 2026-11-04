@@ -19,7 +19,7 @@
 #include <rex/xam/content_manager.h>
 #include <rex/kernel/thread_registry.h>
 #include <rex/kernel/module.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 #include <rex/kernel/object/object_table.h>
 
 namespace {
@@ -42,7 +42,7 @@ static_assert(kIsInterface<rex::xam::IContentManager>);
 static_assert(kIsInterface<rex::kernel::IDPCQueue>);
 static_assert(kIsInterface<rex::kernel::IOverlappedDispatcher>);
 static_assert(kIsInterface<rex::kernel::IModuleRegistry>);
-static_assert(kIsInterface<rex::kernel::INotifier>);
+static_assert(kIsInterface<rex::kernel::INotificationBroadcaster>);
 static_assert(kIsInterface<rex::kernel::IObjectTable>);
 static_assert(kIsInterface<rex::kernel::IThreadRegistry>);
 

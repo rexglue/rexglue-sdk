@@ -21,14 +21,14 @@
 #include <rex/memory/host.h>
 #include <rex/platform.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/logging/log.h>
+#include <rex/settings_registry.h>
+#include <rex/logging/log_category.h>
 
 #include "base/app_harness.h"
 
 REX_TEST_CASE("A command line value sets perf.profiler above the title value", "[base]") {
   rex::test::HarnessApp app;
-  app.configure = [](rex::Settings&) -> rex::Result<void> {
+  app.configure = [](rex::SettingsRegistry&) -> rex::Result<void> {
     auto found = REX_SETTINGS().Find("perf.profiler");
     REQUIRE(found);
     REQUIRE(found.value()->SetText(rex::SettingLayer::kTitle, "true"));
@@ -78,7 +78,7 @@ REX_TEST_CASE("The alloc stack depth watch ends with the app", "[base][memory]")
 #if !REX_PLATFORM_WIN32
 REX_TEST_CASE("Init logs the open file limit", "[base]") {
   std::vector<rex::log::CapturedMessage> entries;
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
   rex::test::RunInInit([] {});
   sink_guard.Reset();
@@ -93,7 +93,7 @@ REX_TEST_CASE("Logging writes through a capture sink with no module loaded", "[b
   std::vector<rex::log::CapturedMessage> entries;
   rex::test::RunInInit([&] {
     rex::Logger& logger = REX_LOGGER();
-    rex::log::CaptureSink sink;
+    rex::log::LogCaptureSink sink;
     auto sink_guard = logger.AddSink(sink);
     REXLOG_INFO("core test entry {}", 42);
     sink.CopySince(0, entries);

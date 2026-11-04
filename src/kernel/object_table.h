@@ -35,7 +35,7 @@ class ObjectTable final : public IObjectTable {
   /**
    * @param memory The guest memory that owned object blocks are freed from, null in tests.
    */
-  explicit ObjectTable(Memory* memory);
+  explicit ObjectTable(GuestAddressSpace* memory);
 
   /**
    * Sets the runtime that the files created by the table use for reads and writes.
@@ -99,7 +99,7 @@ class ObjectTable final : public IObjectTable {
 
   static constexpr u32 GetHandleSlot(X_HANDLE handle) { return (handle - kHandleBase) >> 2; }
 
-  Memory* memory_;
+  GuestAddressSpace* memory_;
   WorkspaceHeap* workspace_ = nullptr;
   TitleRuntime* owner_ = nullptr;
   rex::platform::RankedMutex identity_mutex_{rex::platform::lock_rank::kObjectIdentityMap};

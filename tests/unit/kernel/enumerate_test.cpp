@@ -84,7 +84,7 @@ REX_TEST_CASE("enumerate: the aggregate message takes an item with a buffer size
     const u32 length_ptr = c.Alloc(4);
     const u32 message = c.Alloc(0x20);
     c.Store32(message + 0x08,
-              StateOf(c.GetRuntime()).GetMemory()->HostToGuestVirtual(extra_buffer));
+              StateOf(c.GetRuntime()).GetAddressSpace()->HostToGuestVirtual(extra_buffer));
     c.Store32(message + 0x0C, buffer);
     c.Store32(message + 0x10, kShortBufferSize);
     c.Store32(message + 0x18, length_ptr);
@@ -114,7 +114,7 @@ REX_TEST_CASE("enumerate: ObDereferenceObject on an enumerator leaves its body a
     const u32 body = enumerator.GetGuestAddress();
     REQUIRE(body != 0);
     std::vector<u8> before(sizeof(rex::xam::X_KENUMERATOR));
-    std::memcpy(before.data(), StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual(body),
+    std::memcpy(before.data(), StateOf(c.GetRuntime()).GetAddressSpace()->TranslateVirtual(body),
                 before.size());
     REQUIRE(table.Reference(enumerator.GetSlot()));
 
@@ -122,7 +122,7 @@ REX_TEST_CASE("enumerate: ObDereferenceObject on an enumerator leaves its body a
     CHECK(c.Kernel("ObDereferenceObject", {body}) == 0);
 
     std::vector<u8> after(before.size());
-    std::memcpy(after.data(), StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual(body),
+    std::memcpy(after.data(), StateOf(c.GetRuntime()).GetAddressSpace()->TranslateVirtual(body),
                 after.size());
     CHECK(after == before);
     CHECK(table.Get<rex::xam::EnumeratorObject>(handle));
@@ -155,7 +155,7 @@ REX_TEST_CASE("enumerate: the aggregate message writes a count of 0 when no item
     c.Store32(length_ptr, kSentinel);
     const u32 message = c.Alloc(0x20);
     c.Store32(message + 0x08,
-              StateOf(c.GetRuntime()).GetMemory()->HostToGuestVirtual(extra_buffer));
+              StateOf(c.GetRuntime()).GetAddressSpace()->HostToGuestVirtual(extra_buffer));
     c.Store32(message + 0x0C, buffer);
     c.Store32(message + 0x10, kItemSize);
     c.Store32(message + 0x18, length_ptr);

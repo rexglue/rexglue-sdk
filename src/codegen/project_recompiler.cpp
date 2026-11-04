@@ -24,7 +24,7 @@
 #include <rex/kernel/types/xex.h>
 #include <rex/module.h>
 #include <rex/platform/file.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/module_object.h>

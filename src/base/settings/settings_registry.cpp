@@ -1,5 +1,5 @@
 /**
- * @file        base/settings/settings.cpp
+ * @file        base/settings/settings_registry.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -13,8 +13,8 @@
 #include <format>
 
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 #include <rex/platform/process.h>
 
 #include "base/settings/settings_internal.h"
@@ -33,18 +33,18 @@ std::string ToUpperEnv(std::string_view name) {
 
 }  // namespace
 
-Settings::Settings() : state_(std::make_unique<State>()) {
+SettingsRegistry::SettingsRegistry() : state_(std::make_unique<State>()) {
   RegisterAliases(*this);
 }
 
-Settings::~Settings() = default;
+SettingsRegistry::~SettingsRegistry() = default;
 
-Settings& GetSettings() {
-  static Settings* settings = new Settings();
+SettingsRegistry& GetSettingsRegistry() {
+  static SettingsRegistry* settings = new SettingsRegistry();
   return *settings;
 }
 
-Result<void> Settings::Register(SettingOwner& owner) {
+Result<void> SettingsRegistry::Register(SettingOwner& owner) {
   std::lock_guard lock(state_->mutex);
   for (SettingBase* setting : owner.state_->settings) {
     if (auto alias = state_->aliases.find(setting->GetName()); alias != state_->aliases.end()) {
@@ -61,7 +61,7 @@ Result<void> Settings::Register(SettingOwner& owner) {
                              it->second->GetOwner().GetScope(), owner.GetScope()));
     }
   }
-  for (Command* command : owner.state_->commands) {
+  for (ConsoleCommand* command : owner.state_->commands) {
     if (state_->commands.contains(command->GetName())) {
       return Err(ErrorCategory::kConfig, std::format("{} is registered twice", command->GetName()));
     }
@@ -69,7 +69,7 @@ Result<void> Settings::Register(SettingOwner& owner) {
   for (SettingBase* setting : owner.state_->settings) {
     state_->settings.emplace(setting->GetName(), setting);
   }
-  for (Command* command : owner.state_->commands) {
+  for (ConsoleCommand* command : owner.state_->commands) {
     state_->commands.emplace(command->GetName(), command);
   }
   owner.state_->registered = true;
@@ -103,17 +103,17 @@ Result<void> Settings::Register(SettingOwner& owner) {
   return Ok();
 }
 
-void Settings::Detach(SettingBase& setting) {
+void SettingsRegistry::Detach(SettingBase& setting) {
   std::lock_guard lock(state_->mutex);
   state_->settings.erase(setting.GetName());
 }
 
-void Settings::Detach(Command& command) {
+void SettingsRegistry::Detach(ConsoleCommand& command) {
   std::lock_guard lock(state_->mutex);
   state_->commands.erase(command.GetName());
 }
 
-void Settings::ApplyEnvironment() {
+void SettingsRegistry::ApplyEnvironment() {
   std::lock_guard lock(state_->mutex);
   state_->env_active = true;
   for (auto& [name, setting] : state_->settings) {
@@ -127,7 +127,7 @@ void Settings::ApplyEnvironment() {
   }
 }
 
-void Settings::Unregister(SettingOwner& owner) {
+void SettingsRegistry::Unregister(SettingOwner& owner) {
   std::lock_guard lock(state_->mutex);
   for (SettingBase* setting : owner.state_->settings) {
     if (setting->GetLayer() != SettingLayer::kDefault &&
@@ -137,13 +137,13 @@ void Settings::Unregister(SettingOwner& owner) {
     }
     state_->settings.erase(setting->GetName());
   }
-  for (Command* command : owner.state_->commands) {
+  for (ConsoleCommand* command : owner.state_->commands) {
     state_->commands.erase(command->GetName());
   }
   owner.state_->registered = false;
 }
 
-Result<SettingBase*> Settings::Find(std::string_view name) const {
+Result<SettingBase*> SettingsRegistry::Find(std::string_view name) const {
   std::lock_guard lock(state_->mutex);
   if (auto it = state_->settings.find(name); it != state_->settings.end()) {
     return it->second;
@@ -151,7 +151,7 @@ Result<SettingBase*> Settings::Find(std::string_view name) const {
   return Err<SettingBase*>(ErrorCategory::kNotFound, std::format("no setting named {}", name));
 }
 
-std::vector<SettingBase*> Settings::Enumerate(std::string_view scope) const {
+std::vector<SettingBase*> SettingsRegistry::Enumerate(std::string_view scope) const {
   std::lock_guard lock(state_->mutex);
   std::vector<SettingBase*> out;
   const std::string prefix = scope.empty() ? std::string() : std::string(scope) + ".";
@@ -162,9 +162,9 @@ std::vector<SettingBase*> Settings::Enumerate(std::string_view scope) const {
   return out;
 }
 
-std::vector<Command*> Settings::EnumerateCommands(std::string_view scope) const {
+std::vector<ConsoleCommand*> SettingsRegistry::EnumerateCommands(std::string_view scope) const {
   std::lock_guard lock(state_->mutex);
-  std::vector<Command*> out;
+  std::vector<ConsoleCommand*> out;
   const std::string prefix = scope.empty() ? std::string() : std::string(scope) + ".";
   for (auto& [name, command] : state_->commands) {
     if (prefix.empty() || name.starts_with(prefix))
@@ -173,8 +173,8 @@ std::vector<Command*> Settings::EnumerateCommands(std::string_view scope) const 
   return out;
 }
 
-bool Settings::ApplyOldLogFile(SettingLayer layer, std::string_view name, std::string_view text,
-                               Result<void>& result) {
+bool SettingsRegistry::ApplyOldLogFile(SettingLayer layer, std::string_view name,
+                                       std::string_view text, Result<void>& result) {
   bool flag = false;
   if (name != "log.file" || detail::ParseSetting(text, flag)) {
     return false;
@@ -199,7 +199,8 @@ bool Settings::ApplyOldLogFile(SettingLayer layer, std::string_view name, std::s
   return true;
 }
 
-Result<void> Settings::SetText(SettingLayer layer, std::string_view name, std::string_view text) {
+Result<void> SettingsRegistry::SetText(SettingLayer layer, std::string_view name,
+                                       std::string_view text) {
   if (Result<void> converted = Ok(); ApplyOldLogFile(layer, name, text, converted)) {
     return converted;
   }
@@ -225,7 +226,7 @@ Result<void> Settings::SetText(SettingLayer layer, std::string_view name, std::s
   return Ok();
 }
 
-Result<void> Settings::SetText(std::string_view name, std::string_view text) {
+Result<void> SettingsRegistry::SetText(std::string_view name, std::string_view text) {
   if (Result<void> converted = Ok();
       ApplyOldLogFile(SettingLayer::kRuntime, name, text, converted)) {
     return converted;
@@ -247,17 +248,17 @@ Result<void> Settings::SetText(std::string_view name, std::string_view text) {
   return (*found)->SetText(SettingLayer::kRuntime, text);
 }
 
-void Settings::AddAlias(std::string_view old_name, std::string_view new_name) {
+void SettingsRegistry::AddAlias(std::string_view old_name, std::string_view new_name) {
   std::lock_guard lock(state_->mutex);
   state_->aliases[std::string(old_name)] = std::string(new_name);
 }
 
-bool Settings::IsAlias(std::string_view name) const {
+bool SettingsRegistry::IsAlias(std::string_view name) const {
   std::lock_guard lock(state_->mutex);
   return state_->aliases.contains(name);
 }
 
-void Settings::EndSession() {
+void SettingsRegistry::EndSession() {
   std::lock_guard lock(state_->mutex);
   for (auto& [name, setting] : state_->settings) {
     if (setting->Store(setting->RenderDefault())) {
@@ -275,12 +276,12 @@ void Settings::EndSession() {
   g_launch_frozen = false;
 }
 
-std::vector<std::string> Settings::TakeNotices() {
+std::vector<std::string> SettingsRegistry::TakeNotices() {
   std::lock_guard lock(state_->mutex);
   return std::exchange(state_->notices, {});
 }
 
-std::vector<UnknownSetting> Settings::TakeUnknown() {
+std::vector<UnknownSetting> SettingsRegistry::TakeUnknown() {
   std::lock_guard lock(state_->mutex);
   std::vector<UnknownSetting> out;
   for (const std::string& name : std::exchange(state_->awaiting, {})) {
@@ -298,7 +299,7 @@ std::vector<UnknownSetting> Settings::TakeUnknown() {
   return out;
 }
 
-Result<void> Settings::Reset(std::string_view name) {
+Result<void> SettingsRegistry::Reset(std::string_view name) {
   auto found = Find(name);
   if (!found) {
     return std::unexpected(found.error());
@@ -306,8 +307,8 @@ Result<void> Settings::Reset(std::string_view name) {
   return (*found)->Reset();
 }
 
-Result<void> Settings::Run(std::string_view name, std::string_view args) {
-  Command* command = nullptr;
+Result<void> SettingsRegistry::Run(std::string_view name, std::string_view args) {
+  ConsoleCommand* command = nullptr;
   {
     std::lock_guard lock(state_->mutex);
     if (auto it = state_->commands.find(name); it != state_->commands.end())
@@ -319,7 +320,7 @@ Result<void> Settings::Run(std::string_view name, std::string_view args) {
   return command->Run(args);
 }
 
-std::vector<std::string> Settings::GetRestartPending() const {
+std::vector<std::string> SettingsRegistry::GetRestartPending() const {
   std::lock_guard lock(state_->mutex);
   std::vector<std::string> out;
   for (auto& [name, setting] : state_->settings) {

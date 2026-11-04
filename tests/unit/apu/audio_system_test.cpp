@@ -108,7 +108,7 @@ std::unique_ptr<rex::IDriver> CreateFake() {
 class FakeProvider final : public rex::IModule, public rex::IDriverModule {
  public:
   std::string_view GetName() const override { return "fake"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}
@@ -150,7 +150,7 @@ class AudioApp final : public rex::test::ObjectApp<rex::app::App> {
     providers.push_back(&ui_provider_);
   }
 
-  rex::Result<void> OnConfigure(rex::Settings& registry) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry& registry) override {
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
     (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
                                                windowed ? "fake" : "none");

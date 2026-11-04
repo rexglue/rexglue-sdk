@@ -25,7 +25,7 @@ namespace rex::hid {
 inline constexpr memory::Tag kHID{6};
 
 /**
- * A source of pads. It reports devices and their raw state, with the guide button and no deadzone
+ * A source of pads that reports devices and their raw state, with the guide button and no deadzone
  * or masking. InputSystem makes one call at a time, from any thread.
  */
 class IInputDriver : public IDriver {

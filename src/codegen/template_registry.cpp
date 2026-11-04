@@ -4,7 +4,7 @@
 
 #include <inja/inja.hpp>
 #include <rex/hash.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include "embedded_templates.h"

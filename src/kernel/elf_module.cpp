@@ -10,7 +10,7 @@
  */
 
 #include <algorithm>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/kernel/module.h>
 #include <rex/kernel/function_dispatcher.h>
@@ -18,7 +18,7 @@
 
 namespace rex::kernel {
 
-ELFModule::ELFModule(FunctionDispatcher* function_dispatcher) : Module(function_dispatcher) {}
+ELFModule::ELFModule(FunctionDispatcher* function_dispatcher) : GuestModule(function_dispatcher) {}
 
 ELFModule::~ELFModule() = default;
 
@@ -143,8 +143,8 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
 
       u32 virtual_addr = phdr[i].p_vaddr & ~(alignment - 1);
       u32 virtual_size =
-          rex::round_up_nonzero(phdr[i].p_vaddr + phdr[i].p_memsz, alignment) - virtual_addr;
-      if (!GetMemory()
+          rex::RoundUpNonZero(phdr[i].p_vaddr + phdr[i].p_memsz, alignment) - virtual_addr;
+      if (!GetAddressSpace()
                ->LookupHeap(virtual_addr)
                ->AllocFixed(
                    virtual_addr, virtual_size, alignment,
@@ -153,7 +153,7 @@ bool ELFModule::Load(const std::string_view name, const std::string_view path, c
         REXSYS_ERROR("ELF: Could not allocate memory!");
       }
 
-      auto p = GetMemory()->TranslateVirtual(phdr[i].p_vaddr);
+      auto p = GetAddressSpace()->TranslateVirtual(phdr[i].p_vaddr);
       std::memset(p, 0, phdr[i].p_memsz);
       std::memcpy(p, pelf + phdr[i].p_offset, phdr[i].p_filesz);
 

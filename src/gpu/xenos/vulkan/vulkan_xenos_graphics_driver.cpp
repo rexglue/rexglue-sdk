@@ -11,11 +11,11 @@
 
 #include <format>
 #include <rex/driver_context.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/vulkan_xenos_graphics_driver.h"
-#include "gpu/xenos/host/vulkan/provider.h"
+#include "gpu/xenos/host/vulkan/vulkan_provider.h"
 
 namespace rex::gpu::vulkan {
 
@@ -32,12 +32,12 @@ Result<void> VulkanXenosGraphicsDriver::Initialize(IDriverContext& context) {
   if (auto base = XenosGraphicsDriverBase::Initialize(context); !base) {
     return base;
   }
-  if (auto registered = context.GetSettings().Register(vulkan_settings_); !registered) {
+  if (auto registered = context.GetSettingsRegistry().Register(vulkan_settings_); !registered) {
     XenosGraphicsDriverBase::Shutdown();
     return Err(ErrorCategory::kConfig,
                std::format("gpu.vulkan settings: {}", registered.error().message));
   }
-  vulkan_registry_ = &context.GetSettings();
+  vulkan_registry_ = &context.GetSettingsRegistry();
   return Ok();
 }
 

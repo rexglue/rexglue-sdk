@@ -15,7 +15,7 @@
 #include <rex/ppc/hook.h>
 #include "kernel/shim/function.h"
 #include "kernel/xboxkrnl/format.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/memory_view.h>
@@ -39,7 +39,7 @@ REX_SHIM_FN_RAW(DebugPrint) {
   if (!runtime) {
     return;
   }
-  const kernel::MemoryView view(*StateOf(*runtime).GetMemory());
+  const kernel::MemoryView view(*StateOf(*runtime).GetAddressSpace());
   const auto format = view.TryGetCString(format_address, kMaxFormatLength);
   if (!format) {
     return;

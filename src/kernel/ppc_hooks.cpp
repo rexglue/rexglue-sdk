@@ -8,7 +8,7 @@
 #include <rex/kernel/thread_state.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/heap.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/hook.h>
 #include <rex/ppc/kernel_hook.h>
@@ -25,7 +25,7 @@ ppc::BoundThread ReadBoundThread() {
   if (!state) {
     return {nullptr, nullptr};
   }
-  Memory* memory = state->GetMemory();
+  GuestAddressSpace* memory = state->GetAddressSpace();
   return {state->GetContext(), memory ? memory->GetVirtualMembase() : nullptr};
 }
 

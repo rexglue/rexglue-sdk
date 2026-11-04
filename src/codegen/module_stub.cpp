@@ -8,7 +8,7 @@
 #include "ppc/instruction.h"
 
 #include "codegen_context.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/endian.h>
 #include <rex/kernel/symbol_map.h>
 #include <rex/types.h>
@@ -17,7 +17,7 @@ using rex::codegen::detail::DecodeInstruction;
 
 namespace rex::codegen {
 
-StubModule::StubModule() : Module(nullptr) {}
+StubModule::StubModule() : GuestModule(nullptr) {}
 
 void StubModule::Load(u32 base_address, const u8* data, size_t size) {
   base_address_ = base_address;

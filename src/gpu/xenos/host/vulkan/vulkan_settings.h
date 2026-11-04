@@ -1,5 +1,5 @@
 /**
- * @file        gpu/xenos/host/vulkan/settings.h
+ * @file        gpu/xenos/host/vulkan/vulkan_settings.h
  * @brief       Settings of the Vulkan driver
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

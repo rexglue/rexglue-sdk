@@ -30,7 +30,7 @@
 #include <rex/xenos/fetch.h>
 #include <rex/xenos/format.h>
 #include <rex/xenos/state.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/endian.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"

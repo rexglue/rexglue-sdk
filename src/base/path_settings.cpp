@@ -1,5 +1,5 @@
-#include <rex/paths.h>
-#include <rex/settings.h>
+#include <rex/path_settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex {
 

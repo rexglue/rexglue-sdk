@@ -27,7 +27,7 @@ using namespace rex::test_input;
 
 namespace {
 
-class WarningSink final : public rex::log::ISink {
+class WarningSink final : public rex::log::ILogSink {
  public:
   void Write(const rex::log::Message& message) override {
     std::lock_guard lock(mutex_);

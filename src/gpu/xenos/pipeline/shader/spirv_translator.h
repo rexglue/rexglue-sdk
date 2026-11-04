@@ -24,7 +24,7 @@
 #include <rex/xenos/format.h>
 #include <rex/xenos/state.h>
 #include <rex/bit.h>
-#include "gpu/xenos/host/vulkan/device.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
 
 namespace rex::gpu {
 

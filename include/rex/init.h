@@ -33,7 +33,8 @@ struct Config {
    * @param private_factory Finds the private interfaces, for the app only.
    * @return The plugin library names, or the reason the program cannot start.
    */
-  std::function<Result<std::vector<std::string>>(IFactory& factory, IFactory& private_factory)>
+  std::function<Result<std::vector<std::string>>(IInterfaceFactory& factory,
+                                                 IInterfaceFactory& private_factory)>
       select_plugins;
 };
 
@@ -47,9 +48,9 @@ struct Config {
 [[nodiscard]] REX_API Result<void> Init(const Config& config);
 
 /**
- * Shuts down and disconnects every module in reverse order and makes API::Get return null. The
- * libraries, settings and logger stay open until Shutdown. Does nothing when called again or before
- * Init.
+ * Shuts down and disconnects every module in reverse order and makes AppInterfaces::Get return
+ * null. The libraries, settings and logger stay open until Shutdown. Does nothing when called again
+ * or before Init.
  */
 REX_API void Stop();
 

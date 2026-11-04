@@ -22,7 +22,7 @@
 #include <rex/assert.h>
 #include "binary_view.h"
 #include "function_graph.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 #include <rex/memory/endian.h>
 

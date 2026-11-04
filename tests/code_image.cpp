@@ -96,7 +96,7 @@ Result<void> GenerateFromImage(const TempFolder& folder, std::vector<u8> image,
 
 Result<void> GenerateFromImage(const TempFolder& folder, std::vector<u8> image,
                                std::string_view extra_manifest, bool force,
-                               std::vector<XEXImportSpec> imports, log::ISink* sink,
+                               std::vector<XEXImportSpec> imports, log::ILogSink* sink,
                                std::string_view project_keys) {
   XEXSpec spec;
   spec.load_address = kCodeImageBase;

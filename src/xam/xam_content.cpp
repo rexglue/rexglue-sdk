@@ -17,7 +17,7 @@
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/title_runtime.h>
 #include "xam/xam_ui.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/math.h>
 #include <rex/ppc/hook.h>

@@ -24,7 +24,7 @@
 #include <rex/xenos/fetch.h>
 #include <rex/xenos/format.h>
 #include <rex/xenos/state.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/bit.h>
 
 namespace rex::gpu {

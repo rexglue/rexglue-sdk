@@ -16,8 +16,8 @@
 #include <mutex>
 #include <vector>
 
-#include "gpu/xenos/host/vulkan/instance.h"
-#include "gpu/xenos/host/vulkan/settings.h"
+#include "gpu/xenos/host/vulkan/vulkan_instance.h"
+#include "gpu/xenos/host/vulkan/vulkan_settings.h"
 #include <rex/types.h>
 #include <rex/utility.h>
 

@@ -21,7 +21,7 @@
 
 #include <rex/chrono.h>
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/types/list.h>
 #include <rex/kernel/types/thread.h>
 #include <rex/types.h>
@@ -93,14 +93,14 @@ KernelThread::~KernelThread() {
   }
   thread_.reset();
 
-  StateOf(*runtime_).GetMemory()->SystemHeapFree(scratch_address_);
+  StateOf(*runtime_).GetAddressSpace()->SystemHeapFree(scratch_address_);
   FreeStack();
-  StateOf(*runtime_).GetMemory()->SystemHeapFree(pcr_address_);
-  FreeObjectBlock(GetMemory(), guest_object_ptr_);
+  StateOf(*runtime_).GetAddressSpace()->SystemHeapFree(pcr_address_);
+  FreeObjectBlock(GetAddressSpace(), guest_object_ptr_);
 }
 
-kernel::Memory* KernelThread::GetMemory() const {
-  return StateOf(*runtime_).GetMemory();
+kernel::GuestAddressSpace* KernelThread::GetAddressSpace() const {
+  return StateOf(*runtime_).GetAddressSpace();
 }
 
 u32 KernelThread::GetProcessAddress() const {
@@ -236,7 +236,7 @@ void KernelThread::InitializeGuestObject() {
   kthread->unk_10 = guest_ptr + 0x010;
   kthread->unk_14 = guest_ptr + 0x010;
 
-  kernel::InitializeListHead(&kthread->wait_timeout_block.wait_list_entry, GetMemory());
+  kernel::InitializeListHead(&kthread->wait_timeout_block.wait_list_entry, GetAddressSpace());
   kthread->wait_timeout_block.thread = guest_ptr;
   kthread->wait_timeout_block.object = guest_ptr + 0x18;
   kthread->wait_timeout_block.wait_result_xstatus = 0x0100;
@@ -248,8 +248,8 @@ void KernelThread::InitializeGuestObject() {
   kthread->tls_address = tls_dynamic_address_;
   kthread->thread_state = 0;
 
-  kthread->apc_lists[0].Initialize(GetMemory());
-  kthread->apc_lists[1].Initialize(GetMemory());
+  kthread->apc_lists[0].Initialize(GetAddressSpace());
+  kthread->apc_lists[1].Initialize(GetAddressSpace());
 
   u32 process_ptr = GetProcessAddress();
   kthread->process = process_ptr;
@@ -262,16 +262,17 @@ void KernelThread::InitializeGuestObject() {
   auto* ctx = thread_state_->GetContext();
 
   if (process_ptr) {
-    auto target_process = GetMemory()->TranslateVirtual<X_KPROCESS*>(process_ptr);
+    auto target_process = GetAddressSpace()->TranslateVirtual<X_KPROCESS*>(process_ptr);
     kthread->process_type = target_process->process_type;
     kthread->process_type_dup = target_process->process_type;
 
-    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx,
+    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx,
                                                           &target_process->thread_list_spinlock);
-    kernel::InsertTailList(&target_process->thread_list, &kthread->process_threads, GetMemory());
+    kernel::InsertTailList(&target_process->thread_list, &kthread->process_threads,
+                           GetAddressSpace());
     target_process->thread_count = target_process->thread_count + 1;
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &target_process->thread_list_spinlock,
-                                          old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx,
+                                          &target_process->thread_list_spinlock, old_irql);
   } else {
     kthread->process_type = kXProcTypeUser;
     kthread->process_type_dup = kXProcTypeUser;
@@ -282,12 +283,12 @@ void KernelThread::InitializeGuestObject() {
   kthread->stack_alloc_base = stack_base_;
   kthread->create_time = Clock::QueryGuestSystemTime();
 
-  kernel::InitializeListHead(&kthread->timer_list, GetMemory());
+  kernel::InitializeListHead(&kthread->timer_list, GetAddressSpace());
 
   kthread->thread_id = thread_id_;
   kthread->start_address = creation_params_.start_address;
 
-  kernel::InitializeListHead(&kthread->unk_154, GetMemory());
+  kernel::InitializeListHead(&kthread->unk_154, GetAddressSpace());
 
   kthread->last_error = 0;
   kthread->creation_flags = creation_params_.creation_flags;
@@ -301,20 +302,21 @@ void KernelThread::FreeStack() {
   const u32 globals_address = StateOf(*runtime_).GetKernelGlobals();
   KernelThread* caller = GetBoundCurrentThread();
   KernelThread* owner = caller ? caller : this;
-  auto* lock = globals_address
-                   ? &GetMemory()->TranslateVirtual<KernelGuestGlobals*>(globals_address)->tls_lock
-                   : nullptr;
+  auto* lock =
+      globals_address
+          ? &GetAddressSpace()->TranslateVirtual<KernelGuestGlobals*>(globals_address)->tls_lock
+          : nullptr;
   if (lock && owner->thread_state_) {
     const bool change_irql = caller != nullptr;
     auto* ctx = owner->thread_state_->GetContext();
     const auto old_irql =
-        kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, lock, change_irql);
+        kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, lock, change_irql);
     tls_slot_count_.store(0, std::memory_order_release);
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, lock, old_irql, change_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx, lock, old_irql, change_irql);
   } else {
     tls_slot_count_.store(0, std::memory_order_release);
   }
-  FreeGuestStack(*GetMemory(), stack_alloc_base_);
+  FreeGuestStack(*GetAddressSpace(), stack_alloc_base_);
   stack_alloc_base_ = 0;
   stack_base_ = 0;
   stack_limit_ = 0;
@@ -330,7 +332,8 @@ void KernelThread::FreeStack() {
 X_STATUS KernelThread::Create() {
   const u32 process_address = GetProcessAddress();
   const auto* process =
-      process_address ? GetMemory()->TranslateVirtual<const X_KPROCESS*>(process_address) : nullptr;
+      process_address ? GetAddressSpace()->TranslateVirtual<const X_KPROCESS*>(process_address)
+                      : nullptr;
   const u32 guest_default = process ? static_cast<u32>(process->kernel_stack_size) : 0;
   const u32 data_size = process ? rex::RoundUp(static_cast<u32>(process->tls_data_size), 4u) : 0;
   const u32 slot_count =
@@ -338,7 +341,8 @@ X_STATUS KernelThread::Create() {
   const u32 tls_size = data_size + slot_count * 4;
   const u32 stack_size =
       ResolveGuestStackSize(creation_params_.stack_size, guest_default, kMinimumThreadStackSize);
-  Result<GuestStack> stack = AllocateGuestStack(*GetMemory(), stack_size, tls_size, guest_thread_);
+  Result<GuestStack> stack =
+      AllocateGuestStack(*GetAddressSpace(), stack_size, tls_size, guest_thread_);
   if (!stack) {
     return X_STATUS_NO_MEMORY;
   }
@@ -347,18 +351,18 @@ X_STATUS KernelThread::Create() {
   stack_base_ = stack->base;
 
   scratch_size_ = 4 * 16;
-  scratch_address_ = GetMemory()->SystemHeapAlloc(scratch_size_);
+  scratch_address_ = GetAddressSpace()->SystemHeapAlloc(scratch_size_);
 
   tls_static_address_ = stack_base_;
   tls_dynamic_address_ = stack_base_ + data_size;
-  GetMemory()->Fill(tls_static_address_, tls_size, 0);
+  GetAddressSpace()->Fill(tls_static_address_, tls_size, 0);
   if (process && process->tls_raw_data_size) {
-    GetMemory()->Copy(tls_static_address_, process->tls_static_data_address,
-                      std::min(static_cast<u32>(process->tls_raw_data_size), data_size));
+    GetAddressSpace()->Copy(tls_static_address_, process->tls_static_data_address,
+                            std::min(static_cast<u32>(process->tls_raw_data_size), data_size));
   }
   tls_slot_count_.store(slot_count, std::memory_order_release);
 
-  pcr_address_ = GetMemory()->SystemHeapAlloc(0x2D8);
+  pcr_address_ = GetAddressSpace()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
     REXSYS_WARN("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -367,14 +371,14 @@ X_STATUS KernelThread::Create() {
   {
     std::lock_guard lock(stop_mutex_);
     thread_state_ = std::make_unique<kernel::ThreadState>(thread_id_, stack_base_, pcr_address_,
-                                                          GetMemory(), runtime_);
+                                                          GetAddressSpace(), runtime_);
     if (stop_requested_ || (IsGuestThread() && StateOf(*runtime_).IsTerminatingTitle())) {
       thread_state_->RequestStop();
     }
   }
 
   const u32 root_frame = stack_base_ - rex::ppc::kLinkageSize;
-  GetMemory()->Fill(root_frame, rex::ppc::kLinkageSize, 0);
+  GetAddressSpace()->Fill(root_frame, rex::ppc::kLinkageSize, 0);
   thread_state_->GetContext()->r1.u64 = root_frame;
 
   REXSYS_DEV("KernelThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
@@ -391,7 +395,7 @@ X_STATUS KernelThread::Create() {
 
   InitializeGuestObject();
 
-  X_KPCR* pcr = GetMemory()->TranslateVirtual<X_KPCR*>(pcr_address_);
+  X_KPCR* pcr = GetAddressSpace()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
   pcr->tls_ptr = tls_static_address_;
   pcr->pcr_ptr = pcr_address_;
@@ -513,13 +517,13 @@ void KernelThread::WriteExitState(u32 exit_code) {
   KernelThread* caller = GetBoundCurrentThread();
   const bool change_irql = caller != nullptr;
   auto* ctx = (caller ? caller : this)->GetThreadState()->GetContext();
-  auto* process = GetMemory()->TranslateVirtual<X_KPROCESS*>(process_address);
+  auto* process = GetAddressSpace()->TranslateVirtual<X_KPROCESS*>(process_address);
   const auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(
-      *GetMemory(), ctx, &process->thread_list_spinlock, change_irql);
-  kernel::RemoveEntryList(&thread->process_threads, GetMemory());
+      *GetAddressSpace(), ctx, &process->thread_list_spinlock, change_irql);
+  kernel::RemoveEntryList(&thread->process_threads, GetAddressSpace());
   process->thread_count = process->thread_count - 1;
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &process->thread_list_spinlock, old_irql,
-                                        change_irql);
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx, &process->thread_list_spinlock,
+                                        old_irql, change_irql);
 }
 
 void KernelThread::Exit(int exit_code) {
@@ -615,7 +619,7 @@ int KernelThread::Execute() {
   }
 
   auto* dispatcher = StateOf(*runtime).GetFunctionDispatcher();
-  auto* memory = StateOf(*runtime).GetMemory();
+  auto* memory = StateOf(*runtime).GetAddressSpace();
   PPCFunc* func = dispatcher->GetFunction(address);
   if (!func) {
     REXSYS_ERROR("KernelThread::Execute - No function registered at {:08X}", address);
@@ -668,13 +672,13 @@ void KernelThread::LeaveCriticalRegion() {
 }
 
 void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, u32 arg2) {
-  u32 apc_ptr = GetMemory()->SystemHeapAlloc(XAPC::kSize);
+  u32 apc_ptr = GetAddressSpace()->SystemHeapAlloc(XAPC::kSize);
   if (!apc_ptr) {
     REXSYS_WARN("EnqueueAPC: allocation failed (thid={}, normal={:08X})", thread_id_,
                 normal_routine);
     return;
   }
-  auto apc = GetMemory()->TranslateVirtual<XAPC*>(apc_ptr);
+  auto apc = GetAddressSpace()->TranslateVirtual<XAPC*>(apc_ptr);
   kernel::xboxkrnl::KeInitializeApc(apc, GetGuestObject(), XAPC::kDummyKernelRoutine,
                                     XAPC::kDummyRundownRoutine, normal_routine,
                                     1 /* user APC mode */, normal_context);
@@ -685,8 +689,8 @@ void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, 
   }
   PPCContext* queue_ctx = caller->GetContext();
 
-  if (!kernel::xboxkrnl::KeInsertQueueApc(*GetMemory(), apc, arg1, arg2, 0, queue_ctx)) {
-    GetMemory()->SystemHeapFree(apc_ptr);
+  if (!kernel::xboxkrnl::KeInsertQueueApc(*GetAddressSpace(), apc, arg1, arg2, 0, queue_ctx)) {
+    GetAddressSpace()->SystemHeapFree(apc_ptr);
     REXSYS_ERROR(
         "EnqueueAPC: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
         "arg2={:08X})",
@@ -700,9 +704,11 @@ void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, 
 bool KernelThread::HasPendingAPCs() {
   auto* ctx = thread_state_->GetContext();
   auto kthread = GetGuestObject<X_KTHREAD>();
-  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
-  const bool pending = !kthread->apc_lists[1].empty(GetMemory()) && kthread->apc_disable_count == 0;
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
+  auto old_irql =
+      kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock);
+  const bool pending =
+      !kthread->apc_lists[1].empty(GetAddressSpace()) && kthread->apc_disable_count == 0;
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock, old_irql);
   return pending;
 }
 
@@ -722,12 +728,13 @@ static_assert(offsetof(XAPC_DISPATCH_ARGS, arg2) == 12);
 }  // namespace
 
 void KernelThread::DeliverAPCs() {
-  auto mem = GetMemory();
+  auto mem = GetAddressSpace();
   auto* ctx = thread_state_->GetContext();
   auto kthread = GetGuestObject<X_KTHREAD>();
   auto* dispatcher = StateOf(*runtime_).GetFunctionDispatcher();
 
-  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
+  auto old_irql =
+      kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock);
   auto& user_apc_queue = kthread->apc_lists[1];
 
   while (!user_apc_queue.empty(mem) && kthread->apc_disable_count == 0) {
@@ -738,7 +745,7 @@ void KernelThread::DeliverAPCs() {
     kernel::RemoveEntryList(&apc->list_entry, mem);
     apc->enqueued = 0;
 
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock, old_irql);
 
     auto* args = mem->TranslateVirtual<XAPC_DISPATCH_ARGS*>(scratch_address_);
     args->normal_routine = apc->normal_routine;
@@ -778,20 +785,21 @@ void KernelThread::DeliverAPCs() {
     REXSYS_DEBUG("Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})", normal_routine,
                  normal_context, arg1, arg2);
 
-    old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
+    old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock);
   }
 
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock, old_irql);
 }
 
 void KernelThread::RundownAPCs() {
   REX_ASSERT(KernelThread::GetCallingThread() == this);
-  auto mem = GetMemory();
+  auto mem = GetAddressSpace();
   auto kthread = GetGuestObject<X_KTHREAD>();
   auto* ctx = thread_state_->GetContext();
 
   for (int mode = 1; mode >= 0; --mode) {
-    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
+    auto old_irql =
+        kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock);
     auto& apc_queue = kthread->apc_lists[mode];
 
     while (!apc_queue.empty(mem)) {
@@ -802,7 +810,7 @@ void KernelThread::RundownAPCs() {
       kernel::RemoveEntryList(&apc->list_entry, mem);
       apc->enqueued = 0;
 
-      kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
+      kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock, old_irql);
 
       if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
       } else if (apc->rundown_routine) {
@@ -821,9 +829,9 @@ void KernelThread::RundownAPCs() {
         mem->SystemHeapFree(apc_ptr);
       }
 
-      old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
+      old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock);
     }
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock, old_irql);
   }
 }
 
@@ -831,7 +839,7 @@ void KernelThread::CallThreadNotifyRoutines(bool create) {
   auto* dispatcher = StateOf(*runtime_).GetFunctionDispatcher();
   for (const u32 notification : registry_->GetThreadNotifications()) {
     const u32 routine =
-        GetMemory()->TranslateVirtual<X_THREAD_NOTIFICATION*>(notification)->notify_routine;
+        GetAddressSpace()->TranslateVirtual<X_THREAD_NOTIFICATION*>(notification)->notify_routine;
     u64 args[] = {create ? 1u : 0u};
     dispatcher->ExecuteTrap(thread_state_.get(), routine, args, rex::CountOf(args));
   }
@@ -875,13 +883,13 @@ bool KernelThread::SetAffinity(u32 affinity) {
 u8 KernelThread::GetActiveCPU() const {
   // pcr_address_ may be unset, so read the guest KTHREAD.
   if (IsGuestThread()) {
-    auto* kthread = GetMemory()->TranslateVirtual<const X_KTHREAD*>(GetGuestObject());
+    auto* kthread = GetAddressSpace()->TranslateVirtual<const X_KTHREAD*>(GetGuestObject());
     return kthread->current_cpu;
   }
   if (!pcr_address_) {
     return 0;
   }
-  const X_KPCR& pcr = *GetMemory()->TranslateVirtual<const X_KPCR*>(pcr_address_);
+  const X_KPCR& pcr = *GetAddressSpace()->TranslateVirtual<const X_KPCR*>(pcr_address_);
   return pcr.prcb_data.current_cpu;
 }
 
@@ -891,12 +899,12 @@ void KernelThread::SetActiveCPU(u8 cpu_index) {
   REX_ASSERT(cpu_index < 6);
 
   if (IsGuestThread()) {
-    X_KTHREAD& thread_object = *GetMemory()->TranslateVirtual<X_KTHREAD*>(GetGuestObject());
+    X_KTHREAD& thread_object = *GetAddressSpace()->TranslateVirtual<X_KTHREAD*>(GetGuestObject());
     thread_object.current_cpu = cpu_index;
   }
 
   if (pcr_address_) {
-    X_KPCR& pcr = *GetMemory()->TranslateVirtual<X_KPCR*>(pcr_address_);
+    X_KPCR& pcr = *GetAddressSpace()->TranslateVirtual<X_KPCR*>(pcr_address_);
     pcr.prcb_data.current_cpu = cpu_index;
   }
 
@@ -914,7 +922,7 @@ bool KernelThread::GetTLSValue(u32 slot, u32* value_out) const {
     return false;
   }
 
-  auto mem = GetMemory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
+  auto mem = GetAddressSpace()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
   *value_out = memory::load<be_u32>(mem);
   return true;
 }
@@ -924,7 +932,7 @@ bool KernelThread::SetTLSValue(u32 slot, u32 value) {
     return false;
   }
 
-  auto mem = GetMemory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
+  auto mem = GetAddressSpace()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
   memory::store<be_u32>(mem, value);
   return true;
 }

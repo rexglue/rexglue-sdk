@@ -86,7 +86,8 @@ Result<void> TitleContext::CopyFromPhysical(u32 address, std::span<std::byte> ou
   if (!InPhysical(address, out.size())) {
     return std::unexpected(OutOfRange());
   }
-  std::memcpy(out.data(), StateOf(runtime_).GetMemory()->TranslatePhysical<const u8*>(address),
+  std::memcpy(out.data(),
+              StateOf(runtime_).GetAddressSpace()->TranslatePhysical<const u8*>(address),
               out.size());
   return {};
 }
@@ -95,7 +96,7 @@ Result<void> TitleContext::CopyToPhysical(u32 address, std::span<const std::byte
   if (!InPhysical(address, data.size())) {
     return std::unexpected(OutOfRange());
   }
-  kernel::Memory& memory = *StateOf(runtime_).GetMemory();
+  kernel::GuestAddressSpace& memory = *StateOf(runtime_).GetAddressSpace();
   std::memcpy(memory.TranslatePhysical<u8*>(address), data.data(), data.size());
   if (!data.empty()) {
     const u32 length = static_cast<u32>(data.size());
@@ -119,7 +120,7 @@ Result<std::span<const std::byte>> TitleContext::GetReadOnlyPhysicalSpan(Physica
     return std::unexpected(OutOfRange());
   }
   return std::span<const std::byte>(
-      StateOf(runtime_).GetMemory()->TranslatePhysical<const std::byte*>(range.address),
+      StateOf(runtime_).GetAddressSpace()->TranslatePhysical<const std::byte*>(range.address),
       range.length);
 }
 
@@ -128,7 +129,8 @@ Result<std::span<std::byte>> TitleContext::GetWritablePhysicalSpan(PhysicalRange
     return std::unexpected(OutOfRange());
   }
   return std::span<std::byte>(
-      StateOf(runtime_).GetMemory()->TranslatePhysical<std::byte*>(range.address), range.length);
+      StateOf(runtime_).GetAddressSpace()->TranslatePhysical<std::byte*>(range.address),
+      range.length);
 }
 
 Result<void> TitleContext::StoreRelease32(u32 address, u32 value) {
@@ -138,7 +140,7 @@ Result<void> TitleContext::StoreRelease32(u32 address, u32 value) {
   if (!InPhysical(address, sizeof(u32))) {
     return std::unexpected(OutOfRange());
   }
-  StateOf(runtime_).GetMemory()->TranslatePhysical<be_u32*>(address)->Store(
+  StateOf(runtime_).GetAddressSpace()->TranslatePhysical<be_u32*>(address)->Store(
       value, std::memory_order_release);
   return {};
 }
@@ -150,12 +152,12 @@ Result<u32> TitleContext::LoadAcquire32(u32 address) {
   if (!InPhysical(address, sizeof(u32))) {
     return std::unexpected(OutOfRange());
   }
-  return StateOf(runtime_).GetMemory()->TranslatePhysical<const be_u32*>(address)->Load(
+  return StateOf(runtime_).GetAddressSpace()->TranslatePhysical<const be_u32*>(address)->Load(
       std::memory_order_acquire);
 }
 
 ScopeGuard TitleContext::AddWriteListener(IPhysicalWriteListener& listener) {
-  kernel::Memory* memory = StateOf(runtime_).GetMemory();
+  kernel::GuestAddressSpace* memory = StateOf(runtime_).GetAddressSpace();
   void* registration = memory->RegisterPhysicalMemoryInvalidationCallback(&WriteThunk, &listener);
   AddHandle();
   return ScopeGuard([this, memory, registration]() {
@@ -168,13 +170,13 @@ void TitleContext::WatchPhysicalWrites(PhysicalRange range) {
   if (!InPhysical(range.address, range.length)) {
     return;
   }
-  StateOf(runtime_).GetMemory()->EnablePhysicalMemoryAccessCallbacks(range.address, range.length,
-                                                                     true, false);
+  StateOf(runtime_).GetAddressSpace()->EnablePhysicalMemoryAccessCallbacks(
+      range.address, range.length, true, false);
 }
 
 ScopeGuard TitleContext::LockWriteWatches() {
   return ScopeGuard(
-      [lock = StateOf(runtime_).GetMemory()->LockWatches()]() mutable { lock.unlock(); });
+      [lock = StateOf(runtime_).GetAddressSpace()->LockWatches()]() mutable { lock.unlock(); });
 }
 
 Result<void> TitleContext::RaiseGraphicsInterrupt(u32 source, u32 cpu) {

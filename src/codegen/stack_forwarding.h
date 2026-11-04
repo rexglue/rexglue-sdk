@@ -35,7 +35,7 @@ class StackForwarding {
    * Forgets every slot that overlaps the range, then takes the next slot in round robin order.
    *
    * @param offset The offset from r1.
-   * @return The slot index, which names the local that holds the value.
+   * @return Index of the slot, which names the local variable for the value.
    */
   u8 HoldSlot(i32 offset, u8 width);
 

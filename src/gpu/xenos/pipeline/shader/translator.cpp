@@ -18,7 +18,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/translator.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/bit.h>
 
 namespace rex::gpu {

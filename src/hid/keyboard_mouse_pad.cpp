@@ -14,7 +14,7 @@
 #include <ranges>
 #include <utility>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/hid/pad.h>
 
 #include "hid/input_internal.h"

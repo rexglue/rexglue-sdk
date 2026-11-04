@@ -22,7 +22,7 @@
 #include <rex/kernel/types/status.h>
 #include <rex/kernel/types/thread.h>
 #include <rex/kernel/xboxkrnl.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include <rex/memory/mapped_ptr.h>
@@ -60,7 +60,7 @@ ThreadPin FindThread(u32 thread_address) {
 void DrainDPCsBelowDispatch(TitleRuntime& runtime) {
   auto* ctx = ThreadState::Get()->GetContext();
   auto* pcr =
-      StateOf(runtime).GetMemory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
+      StateOf(runtime).GetAddressSpace()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
   if (pcr->current_irql < kIRQLDispatch) {
     StateOf(runtime).GetDPCQueue().Drain();
   }
@@ -219,7 +219,7 @@ void KeSetCurrentStackPointers_entry(MappedVoid stack_ptr, GuestPtrT<X_KTHREAD> 
                                      MappedVoid stack_limit) {
   auto current_thread = KernelThread::GetCallingThread();
   auto context = current_thread->GetThreadState()->GetContext();
-  auto pcr = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_KPCR*>(
+  auto pcr = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KPCR*>(
       static_cast<u32>(context->r13.u64));
 
   if (stack_ptr.GetGuestAddress() >= 0xE0000000u) {
@@ -314,14 +314,14 @@ u32 KeSetDisableBoostThread_entry(GuestPtrT<X_KTHREAD> thread_ptr, u32 disabled)
 u32 KeGetCurrentProcessType_entry() {
   auto current_thread = KernelThread::GetCallingThread();
   auto context = current_thread->GetThreadState()->GetContext();
-  auto pcr = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_KPCR*>(
+  auto pcr = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KPCR*>(
       static_cast<u32>(context->r13.u64));
 
   if (pcr->prcb_data.dpc_active) {
     return pcr->processtype_value_in_dpc;
   }
 
-  auto thread = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_KTHREAD*>(
+  auto thread = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KTHREAD*>(
       pcr->prcb_data.current_thread);
   return thread->process_type;
 }
@@ -333,7 +333,7 @@ void KeSetCurrentProcessType_entry(u32 type) {
 
   auto current_thread = KernelThread::GetCallingThread();
   auto context = current_thread->GetThreadState()->GetContext();
-  auto pcr = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_KPCR*>(
+  auto pcr = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KPCR*>(
       static_cast<u32>(context->r13.u64));
 
   if (pcr->prcb_data.dpc_active) {
@@ -980,14 +980,16 @@ u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u
  * @param ctx The context whose IRQL changes.
  * @return The previous IRQL.
  */
-static unsigned char KfRaiseIrql(kernel::Memory& memory, PPCContext* ctx, unsigned char new_irql) {
+static unsigned char KfRaiseIrql(kernel::GuestAddressSpace& memory, PPCContext* ctx,
+                                 unsigned char new_irql) {
   auto pcr = memory.TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
   u8 old_irql = pcr->current_irql;
   pcr->current_irql = new_irql;
   return old_irql;
 }
 
-static void KfLowerIrql(kernel::Memory& memory, PPCContext* ctx, unsigned char new_irql) {
+static void KfLowerIrql(kernel::GuestAddressSpace& memory, PPCContext* ctx,
+                        unsigned char new_irql) {
   auto pcr = memory.TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
   pcr->current_irql = new_irql;
 }
@@ -1003,7 +1005,7 @@ static void KfLowerIrql(kernel::Memory& memory, PPCContext* ctx, unsigned char n
  *
  * @return The previous IRQL, or 0 when change_irql is false.
  */
-static u32 AcquireSpinLock(kernel::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock,
+static u32 AcquireSpinLock(kernel::GuestAddressSpace& memory, PPCContext* ctx, X_KSPINLOCK* lock,
                            bool change_irql, bool stoppable) {
   u32 old_irql = change_irql ? KfRaiseIrql(memory, ctx, kIRQLDispatch) : 0;
   const u32 pcr_addr = static_cast<u32>(ctx->r13.u64);
@@ -1021,13 +1023,13 @@ static u32 AcquireSpinLock(kernel::Memory& memory, PPCContext* ctx, X_KSPINLOCK*
   return old_irql;
 }
 
-u32 KeKfAcquireSpinLock(kernel::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock,
+u32 KeKfAcquireSpinLock(kernel::GuestAddressSpace& memory, PPCContext* ctx, X_KSPINLOCK* lock,
                         bool change_irql) {
   return AcquireSpinLock(memory, ctx, lock, change_irql, false);
 }
 
-void KeKfReleaseSpinLock(kernel::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock, u32 old_irql,
-                         bool change_irql) {
+void KeKfReleaseSpinLock(kernel::GuestAddressSpace& memory, PPCContext* ctx, X_KSPINLOCK* lock,
+                         u32 old_irql, bool change_irql) {
   REX_ASSERT(lock->owner_pcr.Load(std::memory_order_relaxed) == static_cast<u32>(ctx->r13.u64));
   lock->owner_pcr.Store(0, std::memory_order_release);
   if (change_irql && old_irql < kIRQLDispatch) {
@@ -1053,7 +1055,7 @@ void KeInitializeApc(XAPC* apc, u32 thread_ptr, u32 kernel_routine, u32 rundown_
   apc->enqueued = 0;
 }
 
-u32 KeInsertQueueApc(kernel::Memory& memory, XAPC* apc, u32 arg1, u32 arg2,
+u32 KeInsertQueueApc(kernel::GuestAddressSpace& memory, XAPC* apc, u32 arg1, u32 arg2,
                      [[maybe_unused]] u32 priority_increment, PPCContext* ctx) {
   u32 thread_guest_pointer = apc->thread_ptr;
   if (!thread_guest_pointer) {
@@ -1098,21 +1100,21 @@ u32 KeInsertQueueApc(kernel::Memory& memory, XAPC* apc, u32 arg1, u32 arg2,
 
 u32 KfAcquireSpinLock_entry(MappedU32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostPtr());
-  return AcquireSpinLock(*kernel::GetCurrentState().GetMemory(), ThreadState::Get()->GetContext(),
-                         lock, true, true);
+  return AcquireSpinLock(*kernel::GetCurrentState().GetAddressSpace(),
+                         ThreadState::Get()->GetContext(), lock, true, true);
 }
 
 void KfReleaseSpinLock_entry(MappedU32 lock_ptr, u32 old_irql) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostPtr());
-  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ThreadState::Get()->GetContext(),
-                      lock, old_irql);
+  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(),
+                      ThreadState::Get()->GetContext(), lock, old_irql);
   DrainDPCsBelowDispatch(kernel::GetCurrent());
 }
 
 void KeAcquireSpinLockAtRaisedIrql_entry(MappedU32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostPtr());
-  AcquireSpinLock(*kernel::GetCurrentState().GetMemory(), ThreadState::Get()->GetContext(), lock,
-                  false, true);
+  AcquireSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ThreadState::Get()->GetContext(),
+                  lock, false, true);
 }
 
 u32 KeTryToAcquireSpinLockAtRaisedIrql_entry(MappedU32 lock_ptr) {
@@ -1127,8 +1129,8 @@ u32 KeTryToAcquireSpinLockAtRaisedIrql_entry(MappedU32 lock_ptr) {
 
 void KeReleaseSpinLockFromRaisedIrql_entry(MappedU32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostPtr());
-  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ThreadState::Get()->GetContext(),
-                      lock, 0, false);
+  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(),
+                      ThreadState::Get()->GetContext(), lock, 0, false);
 }
 
 void KeEnterCriticalRegion_entry() {
@@ -1176,25 +1178,25 @@ void KeLeaveCriticalRegion_entry() {
 }
 
 u32 KeRaiseIrqlToDpcLevel_entry() {
-  return KfRaiseIrql(*kernel::GetCurrentState().GetMemory(), ThreadState::Get()->GetContext(),
+  return KfRaiseIrql(*kernel::GetCurrentState().GetAddressSpace(), ThreadState::Get()->GetContext(),
                      kIRQLDispatch);
 }
 
 void KfLowerIrql_entry(u32 old_value) {
   auto& runtime = kernel::GetCurrent();
-  KfLowerIrql(*StateOf(runtime).GetMemory(), ThreadState::Get()->GetContext(),
+  KfLowerIrql(*StateOf(runtime).GetAddressSpace(), ThreadState::Get()->GetContext(),
               static_cast<u8>(old_value));
   DrainDPCsBelowDispatch(runtime);
 }
 
 u32 KfRaiseIrql_entry(u32 new_irql) {
-  return KfRaiseIrql(*kernel::GetCurrentState().GetMemory(), ThreadState::Get()->GetContext(),
+  return KfRaiseIrql(*kernel::GetCurrentState().GetAddressSpace(), ThreadState::Get()->GetContext(),
                      static_cast<u8>(new_irql));
 }
 
 void NtQueueApcThread_entry(u32 thread_handle, MappedVoid apc_routine,
                             MappedVoid apc_routine_context, MappedVoid arg1, MappedVoid arg2) {
-  auto mem = kernel::GetCurrentState().GetMemory();
+  auto mem = kernel::GetCurrentState().GetAddressSpace();
   auto thread = kernel::GetCurrent().GetThreadRegistry().FindByHandle(thread_handle);
 
   if (!thread) {
@@ -1235,7 +1237,7 @@ void KeInitializeApc_entry(GuestPtrT<XAPC> apc, MappedVoid thread_ptr, MappedVoi
 
 u32 KeInsertQueueApc_entry(GuestPtrT<XAPC> apc, MappedVoid arg1, MappedVoid arg2,
                            u32 priority_increment) {
-  return KeInsertQueueApc(*kernel::GetCurrentState().GetMemory(), apc.GetHostPtr(),
+  return KeInsertQueueApc(*kernel::GetCurrentState().GetAddressSpace(), apc.GetHostPtr(),
                           arg1.GetGuestAddress(), arg2.GetGuestAddress(), priority_increment,
                           ThreadState::Get()->GetContext());
 }
@@ -1246,7 +1248,7 @@ u32 KeRemoveQueueApc_entry(GuestPtrT<XAPC> apc) {
     return 0;
   }
   auto* ctx = ThreadState::Get()->GetContext();
-  auto mem = kernel::GetCurrentState().GetMemory();
+  auto mem = kernel::GetCurrentState().GetAddressSpace();
   auto target_thread = mem->TranslateVirtual<X_KTHREAD*>(thread_guest_pointer);
   auto old_irql = KeKfAcquireSpinLock(*mem, ctx, &target_thread->apc_lock);
 
@@ -1358,18 +1360,19 @@ void ExInitializeReadWriteLock_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
 void ExAcquireReadWriteLockExclusive_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
   auto* ctx = ThreadState::Get()->GetContext();
   auto old_irql =
-      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock);
+      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock);
 
   i32 lock_count = ++lock_ptr->lock_count;
   if (!lock_count) {
-    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock,
+    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
                         old_irql);
     return;
   }
 
   lock_ptr->writers_waiting_count++;
 
-  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
+                      old_irql);
   KeWaitForSingleObject(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, writer_event), 7, 0, 0,
                         nullptr);
 }
@@ -1377,7 +1380,7 @@ void ExAcquireReadWriteLockExclusive_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
 u32 ExTryToAcquireReadWriteLockExclusive_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
   auto* ctx = ThreadState::Get()->GetContext();
   auto old_irql =
-      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock);
+      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock);
 
   u32 result;
   if (lock_ptr->lock_count < 0) {
@@ -1387,26 +1390,28 @@ u32 ExTryToAcquireReadWriteLockExclusive_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
     result = 0;
   }
 
-  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
+                      old_irql);
   return result;
 }
 
 void ExAcquireReadWriteLockShared_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
   auto* ctx = ThreadState::Get()->GetContext();
   auto old_irql =
-      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock);
+      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock);
 
   i32 lock_count = ++lock_ptr->lock_count;
   if (!lock_count || (lock_ptr->readers_entry_count && !lock_ptr->writers_waiting_count)) {
     lock_ptr->readers_entry_count++;
-    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock,
+    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
                         old_irql);
     return;
   }
 
   lock_ptr->readers_waiting_count++;
 
-  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
+                      old_irql);
   KeWaitForSingleObject(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, reader_semaphore), 7, 0, 0,
                         nullptr);
 }
@@ -1414,7 +1419,7 @@ void ExAcquireReadWriteLockShared_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
 u32 ExTryToAcquireReadWriteLockShared_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
   auto* ctx = ThreadState::Get()->GetContext();
   auto old_irql =
-      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock);
+      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock);
 
   u32 result;
   if (lock_ptr->lock_count < 0 ||
@@ -1426,20 +1431,21 @@ u32 ExTryToAcquireReadWriteLockShared_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
     result = 0;
   }
 
-  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
+                      old_irql);
   return result;
 }
 
 void ExReleaseReadWriteLock_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
   auto* ctx = ThreadState::Get()->GetContext();
   auto old_irql =
-      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock);
+      KeKfAcquireSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock);
 
   i32 lock_count = --lock_ptr->lock_count;
 
   if (lock_count < 0) {
     lock_ptr->readers_entry_count = 0;
-    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock,
+    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
                         old_irql);
     return;
   }
@@ -1449,7 +1455,7 @@ void ExReleaseReadWriteLock_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
     if (readers_waiting_count) {
       lock_ptr->readers_waiting_count = 0;
       lock_ptr->readers_entry_count = readers_waiting_count;
-      KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock,
+      KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
                           old_irql);
       KeReleaseSemaphore(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, reader_semaphore), 1,
                          readers_waiting_count, 0);
@@ -1459,13 +1465,14 @@ void ExReleaseReadWriteLock_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
 
   auto readers_entry_count = --lock_ptr->readers_entry_count;
   if (readers_entry_count) {
-    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock,
+    KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
                         old_irql);
     return;
   }
 
   lock_ptr->writers_waiting_count--;
-  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeKfReleaseSpinLock(*kernel::GetCurrentState().GetAddressSpace(), ctx, &lock_ptr->spin_lock,
+                      old_irql);
   KeSetEvent(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, writer_event), 1, 0);
 }
 
@@ -1516,7 +1523,7 @@ u32 InterlockedPopEntrySList_entry(GuestPtrT<X_SLIST_HEADER> plist_ptr) {
   alignas(8) X_SLIST_HEADER new_hdr = {};
   do {
     old_hdr = *plist_ptr;
-    auto next = kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
+    auto next = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
         old_hdr.next.next);
     if (!old_hdr.next.next) {
       return 0;
@@ -1633,13 +1640,13 @@ REX_EXPORT(__imp__NtWaitForMultipleObjectsEx,
 REX_EXPORT(__imp__NtSignalAndWaitForSingleObjectEx,
            rex::kernel::xboxkrnl::NtSignalAndWaitForSingleObjectEx_entry)
 REX_EXPORT(__imp__KfAcquireSpinLock, rex::kernel::xboxkrnl::KfAcquireSpinLock_entry)
-REX_EXPORT_RELEASE(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
+REX_EXPORT_NO_STOP_CHECK(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
 REX_EXPORT(__imp__KeAcquireSpinLockAtRaisedIrql,
            rex::kernel::xboxkrnl::KeAcquireSpinLockAtRaisedIrql_entry)
 REX_EXPORT(__imp__KeTryToAcquireSpinLockAtRaisedIrql,
            rex::kernel::xboxkrnl::KeTryToAcquireSpinLockAtRaisedIrql_entry)
-REX_EXPORT_RELEASE(__imp__KeReleaseSpinLockFromRaisedIrql,
-                   rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
+REX_EXPORT_NO_STOP_CHECK(__imp__KeReleaseSpinLockFromRaisedIrql,
+                         rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
 REX_EXPORT(__imp__KeEnableFpuExceptions, rex::kernel::xboxkrnl::KeEnableFpuExceptions_entry)
 REX_EXPORT(__imp__KeEnterCriticalRegion, rex::kernel::xboxkrnl::KeEnterCriticalRegion_entry)
 REX_EXPORT(__imp__KeLeaveCriticalRegion, rex::kernel::xboxkrnl::KeLeaveCriticalRegion_entry)

@@ -12,11 +12,11 @@
 #pragma once
 
 #include <memory>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "gpu/xenos/command_processor.h"
 #include "gpu/xenos/d3d12/deferred_command_list.h"
-#include "gpu/xenos/host/d3d12/settings.h"
+#include "gpu/xenos/host/d3d12/d3d12_settings.h"
 #include "gpu/xenos/xenos_graphics_driver_base.h"
 
 namespace rex::gpu::d3d12 {
@@ -38,7 +38,7 @@ class D3D12XenosGraphicsDriver : public XenosGraphicsDriverBase {
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 
   D3D12Settings d3d12_settings_;
-  ISettings* d3d12_registry_ = nullptr;
+  ISettingsRegistry* d3d12_registry_ = nullptr;
 };
 
 }  // namespace rex::gpu::d3d12

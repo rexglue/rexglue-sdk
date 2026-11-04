@@ -17,7 +17,7 @@
 #include <rex/platform/perf.h>
 #include <rex/xenos/texture.h>
 #include <rex/hash.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 

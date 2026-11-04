@@ -17,7 +17,7 @@
 #include "analysis_error_log.h"
 #include "config.h"
 #include "function_types.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <rex/memory/endian.h>

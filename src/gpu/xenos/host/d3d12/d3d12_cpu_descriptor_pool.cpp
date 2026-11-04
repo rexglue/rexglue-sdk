@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <memory>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "gpu/xenos/host/d3d12/d3d12_cpu_descriptor_pool.h"
 
 namespace rex::gpu::d3d12 {

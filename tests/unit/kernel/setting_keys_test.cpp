@@ -13,7 +13,7 @@
 
 #include <string>
 
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "kernel/title_fixture.h"
 #include "temp_folder.h"

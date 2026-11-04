@@ -36,8 +36,8 @@ constexpr u32 kTextChars = 32;
 
 u32 PutString(Caller& c, std::string_view text) {
   const u32 address = c.Alloc(static_cast<u32>(text.size()) + 1);
-  std::memcpy(StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<char*>(address), text.data(),
-              text.size());
+  std::memcpy(StateOf(c.GetRuntime()).GetAddressSpace()->TranslateVirtual<char*>(address),
+              text.data(), text.size());
   return address;
 }
 

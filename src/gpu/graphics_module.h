@@ -20,7 +20,7 @@
 #include <rex/driver.h>
 #include <rex/driver_context.h>
 #include <rex/app/app_info.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/module.h>
 
 #include "gpu/graphics_system.h"
@@ -38,7 +38,7 @@ class GraphicsModule final : public IModule {
 
   std::string_view GetName() const override { return "rexgpu"; }
   std::span<const InterfaceType> GetRequiredInterfaces() const override;
-  [[nodiscard]] Result<void> Connect(IFactory& factory) override;
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory& factory) override;
   void Disconnect() override;
   [[nodiscard]] Result<void> Init() override;
   void Shutdown() override;
@@ -50,8 +50,8 @@ class GraphicsModule final : public IModule {
   const rex::AppSysRequirements* needs_ = nullptr;
   std::unique_ptr<GraphicsSystem> system_;
   bool retired_ = false;
-  IFactory* factory_ = nullptr;
-  ISettings* settings_ = nullptr;
+  IInterfaceFactory* factory_ = nullptr;
+  ISettingsRegistry* settings_ = nullptr;
   ILogger* logger_ = nullptr;
   IDriverContext* context_ = nullptr;
   std::unique_ptr<IDriver> driver_;

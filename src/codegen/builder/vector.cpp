@@ -18,7 +18,7 @@
 
 #include <simde/x86/sse.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include <ppc.h>
 

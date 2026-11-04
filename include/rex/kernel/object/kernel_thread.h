@@ -133,7 +133,7 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
 
   TitleRuntime& GetRuntime() const { return *runtime_; }
 
-  kernel::Memory* GetMemory() const;
+  kernel::GuestAddressSpace* GetAddressSpace() const;
 
   /**
    * @return The handle, 0 before launch.
@@ -145,7 +145,7 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
   /** Returns the thread block as a host pointer. */
   template <typename T>
   T* GetGuestObject() {
-    return GetMemory()->TranslateVirtual<T*>(guest_object_ptr_);
+    return GetAddressSpace()->TranslateVirtual<T*>(guest_object_ptr_);
   }
 
   const std::string& GetName() const { return thread_name_; }
@@ -227,7 +227,7 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
    * Sets the affinity. Logical processors are 0 core 0 thread 0, 1 core 0 thread 1, 2 core 1
    * thread 0, 3 core 1 thread 1, 4 core 2 thread 0 and 5 core 2 thread 1.
    *
-   * @param affinity The processor mask, the highest set bit picks the processor.
+   * @param affinity Processor mask. The highest set bit selects the processor.
    * @return False and no change when the mask is 0 or names a processor past the sixth.
    */
   bool SetAffinity(u32 affinity);

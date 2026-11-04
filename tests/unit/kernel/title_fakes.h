@@ -139,7 +139,7 @@ inline std::unique_ptr<rex::IDriver> CreateGraphics() {
 class CountingProvider final : public rex::IModule, public rex::IDriverModule {
  public:
   std::string_view GetName() const override { return "count"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}

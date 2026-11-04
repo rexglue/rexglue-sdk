@@ -82,7 +82,7 @@ class ToolApp : public rex::app::App {
                                          std::span<const std::string> imports = {});
 
  protected:
-  Result<void> OnConfigure(Settings& settings) override;
+  Result<void> OnConfigure(SettingsRegistry& settings) override;
 
  private:
   std::filesystem::path app_root_;

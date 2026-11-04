@@ -16,7 +16,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/primitive_processor.h"
-#include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
+#include "gpu/xenos/host/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace rex::gpu::vulkan {
 

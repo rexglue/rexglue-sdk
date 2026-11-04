@@ -99,36 +99,36 @@ std::string FormatLine(const Message& message, const LineFormat& format) {
   return Render(message, format, format.color, '\0');
 }
 
-Result<std::unique_ptr<FileSink>> FileSink::Open(const std::filesystem::path& path,
-                                                 LineFormat format) {
+Result<std::unique_ptr<LogFileSink>> LogFileSink::Open(const std::filesystem::path& path,
+                                                       LineFormat format) {
   std::error_code ec;
   if (path.has_parent_path()) {
     std::filesystem::create_directories(path.parent_path(), ec);
   }
   std::ofstream file(path, std::ios::out | std::ios::app | std::ios::binary);
   if (!file) {
-    return Err<std::unique_ptr<FileSink>>(
+    return Err<std::unique_ptr<LogFileSink>>(
         ErrorCategory::kIO, std::format("log file {} could not be opened", path.string()));
   }
-  return std::make_unique<FileSink>(path, std::move(file), format);
+  return std::make_unique<LogFileSink>(path, std::move(file), format);
 }
 
-FileSink::FileSink(std::filesystem::path path, std::ofstream file, LineFormat format)
+LogFileSink::LogFileSink(std::filesystem::path path, std::ofstream file, LineFormat format)
     : path_(std::move(path)), file_(std::move(file)), format_(format) {}
 
-void FileSink::Write(const Message& message) {
+void LogFileSink::Write(const Message& message) {
   file_ << Render(message, format_, false, LevelLetter(message.level)) << '\n';
 }
 
-void FileSink::Flush() {
+void LogFileSink::Flush() {
   file_.flush();
 }
 
-const std::filesystem::path& FileSink::GetPath() const {
+const std::filesystem::path& LogFileSink::GetPath() const {
   return path_;
 }
 
-void CaptureSink::Write(const Message& message) {
+void LogCaptureSink::Write(const Message& message) {
   std::lock_guard lock(mutex_);
   if (messages_.size() == kCapacity) {
     messages_.pop_front();
@@ -138,9 +138,9 @@ void CaptureSink::Write(const Message& message) {
                                       message.sequence});
 }
 
-void CaptureSink::Flush() {}
+void LogCaptureSink::Flush() {}
 
-u64 CaptureSink::CopySince(u64 after, std::vector<CapturedMessage>& out) const {
+u64 LogCaptureSink::CopySince(u64 after, std::vector<CapturedMessage>& out) const {
   out.clear();
   std::lock_guard lock(mutex_);
   for (const CapturedMessage& message : messages_) {
@@ -151,7 +151,7 @@ u64 CaptureSink::CopySince(u64 after, std::vector<CapturedMessage>& out) const {
   return messages_.empty() ? after : std::max(after, messages_.back().sequence);
 }
 
-u64 CaptureSink::GetLatestSequence() const {
+u64 LogCaptureSink::GetLatestSequence() const {
   std::lock_guard lock(mutex_);
   return messages_.empty() ? 0 : messages_.back().sequence;
 }

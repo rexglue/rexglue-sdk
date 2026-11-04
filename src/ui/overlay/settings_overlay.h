@@ -14,7 +14,7 @@
 #include <rex/types.h>
 #include <rex/ui/ui_system.h>
 #include <rex/platform.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex {
 namespace hid {
@@ -40,7 +40,7 @@ class SettingsOverlayDialog : public DialogBase {
 
  private:
   IUISystem& ui_;
-  rex::ISettings& settings_;
+  rex::ISettingsRegistry& settings_;
   const rex::hid::IBindingSet* key_bindings_;
   const rex::hid::IInputSystem* input_;
   const rex::hid::InputSettings* input_settings_;

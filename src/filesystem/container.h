@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/container.h
- * @brief       The container parser behind IContainer
+ * @brief       The container parser behind IContainerImage
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -46,7 +46,7 @@ namespace rex::filesystem {
 [[nodiscard]] Result<XContentPackageHeader> ReadSTFSHeader(const std::filesystem::path& path);
 
 /** A mapped and parsed container image. Move only. */
-class Container final : public IContainer, public MoveOnly {
+class Container final : public IContainerImage, public MoveOnly {
  public:
   Container(Container&& other) noexcept;
   Container& operator=(Container&& other) noexcept;

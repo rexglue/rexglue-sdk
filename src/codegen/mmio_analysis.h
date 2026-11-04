@@ -32,7 +32,7 @@ enum class MMIOAccess : u8 {
 
 /** Why an access has a report entry. */
 enum class MMIOReason : u8 {
-  kProven,      /**< The effective address is a known register block address. */
+  kMatched,     /**< The effective address is a known register block address. */
   kOffset,      /**< An unknown shifted value plus a register block constant. */
   kBarrier,     /**< The base is unknown and eieio follows the access. */
   kDeclared,    /**< The [mmio.gpu] or [mmio.apu] table lists the instruction. */

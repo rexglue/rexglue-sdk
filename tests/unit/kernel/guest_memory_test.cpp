@@ -32,7 +32,8 @@ REX_TEST_CASE("GuestMemory loads and stores big endian values", "[kernel][guest_
   auto address = memory.Allocate(0x1000, 0x1000, rex::kernel::GuestProtect::kReadWrite);
   REQUIRE(address.has_value());
   REQUIRE(memory.Store<be_u32>(*address, be_u32(0x01020304)).has_value());
-  const u8* raw = StateOf(fixture.GetRuntime()).GetMemory()->TranslateVirtual<const u8*>(*address);
+  const u8* raw =
+      StateOf(fixture.GetRuntime()).GetAddressSpace()->TranslateVirtual<const u8*>(*address);
   CHECK(raw[0] == 0x01);
   CHECK(raw[1] == 0x02);
   CHECK(raw[2] == 0x03);
@@ -179,7 +180,7 @@ REX_TEST_CASE("GuestMemory allocates from the system heap and frees from it",
               "[kernel][guest_memory]") {
   KernelFixture fixture;
   rex::kernel::GuestMemory& memory = fixture.GetRuntime().GetGuestMemory();
-  rex::kernel::Memory* raw = StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace* raw = StateOf(fixture.GetRuntime()).GetAddressSpace();
 
   auto title = memory.Allocate(0x1000, 0x1000, rex::kernel::GuestProtect::kReadWrite);
   auto system = memory.Allocate(0x1000, 0x1000, rex::kernel::GuestProtect::kReadWrite,
@@ -207,7 +208,7 @@ REX_TEST_CASE("GuestMemory allocates physical memory in 64K pages and frees it",
               "[kernel][guest_memory]") {
   KernelFixture fixture;
   rex::kernel::GuestMemory& memory = fixture.GetRuntime().GetGuestMemory();
-  rex::kernel::Memory* raw = StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace* raw = StateOf(fixture.GetRuntime()).GetAddressSpace();
 
   const u32 before = raw->GetTitlePages();
   auto address = memory.Allocate(0x10000, 0x10000, rex::kernel::GuestProtect::kReadWrite,

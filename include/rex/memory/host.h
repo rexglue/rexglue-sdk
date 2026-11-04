@@ -153,6 +153,7 @@ enum class AllocType : u8 {
  *
  * @param size The size in bytes.
  * @param align The alignment in bytes, 0 for the default.
+ * @param type Form of the allocating call.
  * @param can_throw False for the nothrow forms, which return null on failure.
  * @return The block, or null for a nothrow form that failed.
  */
@@ -163,6 +164,7 @@ REX_API void* NewBlock(size_t size, size_t align, AllocType type, bool can_throw
  *
  * @param ptr The block, null does nothing.
  * @param size The size from a sized delete, 0 when unknown.
+ * @param type Form of the call that allocated the block.
  */
 REX_API void DeleteBlock(void* ptr, size_t size, AllocType type) noexcept;
 

@@ -17,8 +17,8 @@
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/primitive_processor.h"
-#include <rex/logging/log.h>
-#include "gpu/xenos/host/vulkan/objects.h"
+#include <rex/logging/log_category.h>
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex::gpu::vulkan {
 

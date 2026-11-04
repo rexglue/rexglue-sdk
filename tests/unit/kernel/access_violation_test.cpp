@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/kernel/access_violation_test.cpp
- * @brief       Register block reservation and the access violation path of Memory
+ * @brief       Register block reservation and the access violation path of GuestAddressSpace
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,7 +24,7 @@
 
 using rex::kernel::AccessViolationResult;
 
-REX_TEST_CASE("Memory reserves both register blocks as no access", "[kernel][mmio]") {
+REX_TEST_CASE("GuestAddressSpace reserves both register blocks as no access", "[kernel][mmio]") {
   auto& memory = rex::test::GetTestMemory();
   for (rex::u32 address : {0x7FC80000u, 0x7FC8FFFCu, 0x7FEA0000u, 0x7FEAFFFCu}) {
     size_t length = rex::memory::GetPageSize();
@@ -96,8 +96,9 @@ REX_TEST_CASE("A write to a watched physical page runs the invalidation callback
   memory.SystemHeapFree(address);
 }
 
-REX_TEST_CASE("A plain read of a register block is refused by Memory and reaches the next handler",
-              "[kernel][mmio]") {
+REX_TEST_CASE(
+    "A plain read of a register block is refused by GuestAddressSpace and reaches the next handler",
+    "[kernel][mmio]") {
   auto& memory = rex::test::GetTestMemory();
   BlockFault fault_block{memory.TranslateVirtual(0x7FC80000), rex::memory::GetPageSize()};
   rex::platform::ExceptionHandler::Install(OpenBlockPage, &fault_block);

@@ -12,7 +12,7 @@
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/kernel_settings.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ppc/hook.h>
 #include <rex/types.h>
 #include <rex/kernel/object/module_object.h>

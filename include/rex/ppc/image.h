@@ -49,7 +49,10 @@ struct PPCCodegenFlags {
   bool xer_as_local = false;
   /** Keeps the reservation register in a local variable instead of `ctx.reserved`. */
   bool reserved_as_local = false;
-  /** Omits the generated global lock check that mfmsr emits. Config key `skip_msr`. */
+  /**
+   * Omits the global lock check at mfmsr, and the MSR update and the global lock enter and leave at
+   * mtmsrd. Config key `skip_msr`.
+   */
   bool skip_msr = false;
   /** Keeps the CR fields in local variables instead of `ctx.cr0` to `ctx.cr7`. */
   bool cr_as_local = false;
@@ -94,7 +97,9 @@ struct EmbeddedMetadataAsset {
  * An empty path, null data, 0 size or a path that normalizes to nothing is rejected.
  *
  * @param relative_path Path relative to the metadata root, such as "icons/custom/67.png".
- * @param data Must stay valid for the whole process.
+ * @param data Asset bytes, which must stay valid for the whole process.
+ * @param size Byte count of data.
+ * @return True when the asset is registered.
  */
 REX_PPC_API bool RegisterEmbeddedMetadataAsset(std::string_view relative_path, const u8* data,
                                                std::size_t size);

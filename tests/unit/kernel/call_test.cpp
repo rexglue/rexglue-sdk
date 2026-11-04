@@ -103,7 +103,7 @@ void HookNext(u32 depth) {
   }
 }
 
-u32 AllocPCR(rex::kernel::Memory& memory, u32 stack) {
+u32 AllocPCR(rex::kernel::GuestAddressSpace& memory, u32 stack) {
   const u32 pcr = memory.SystemHeapAlloc(0x100);
   *memory.TranslateVirtual<be_u32*>(pcr + 0x70) = stack + kStackSize;
   *memory.TranslateVirtual<be_u32*>(pcr + 0x74) = stack;
@@ -113,7 +113,7 @@ u32 AllocPCR(rex::kernel::Memory& memory, u32 stack) {
 
 struct GuestThread {
   rex::kernel::ScopedPPCHookRegistration hooks;
-  rex::kernel::Memory& memory = rex::test::GetTestMemory();
+  rex::kernel::GuestAddressSpace& memory = rex::test::GetTestMemory();
   u32 stack = memory.SystemHeapAlloc(kStackSize);
   u32 pcr = AllocPCR(memory, stack);
   ThreadState state{1, stack + kStackSize, pcr, &memory, nullptr};
@@ -412,7 +412,8 @@ REX_TEST_CASE("An export reads an integer after a float from the next slot", "[k
   ctx.f1.f64 = 0.5;
   ctx.r5.u64 = 2;
   ctx.r6.u64 = 3;
-  rex::ppc::GuestToHostThunk<&MixedExport>(ctx, thread.state.GetMemory()->GetVirtualMembase());
+  rex::ppc::GuestToHostThunk<&MixedExport>(ctx,
+                                           thread.state.GetAddressSpace()->GetVirtualMembase());
   CHECK(g_export_ints[0] == 1);
   CHECK(g_export_float == 0.5);
   CHECK(g_export_ints[1] == 2);
@@ -611,7 +612,7 @@ REX_TEST_CASE("A hook reads a vector from v1 and returns it in v1", "[kernel][ca
   PPCContext& ctx = *thread.state.GetContext();
   ctx.v1 = MakeVector(2);
   ctx.r3.u64 = 0xFF;
-  rex::ppc::GuestToHostThunk<&EchoVector>(ctx, thread.state.GetMemory()->GetVirtualMembase());
+  rex::ppc::GuestToHostThunk<&EchoVector>(ctx, thread.state.GetAddressSpace()->GetVirtualMembase());
   PPCVRegister expected = MakeVector(2);
   expected.u32[0] ^= 0xFF;
   CHECK(SameVector(ctx.v1, expected));
@@ -720,7 +721,7 @@ REX_TEST_CASE("A hook returning a structure over 8 bytes fills the caller's poin
               "[kernel][call]") {
   GuestThread thread;
   PPCContext& ctx = *thread.state.GetContext();
-  u8* base = thread.state.GetMemory()->GetVirtualMembase();
+  u8* base = thread.state.GetAddressSpace()->GetVirtualMembase();
   const u32 destination = thread.stack + 0x100;
   ctx.r3.u64 = destination;
   ctx.r4.u64 = 0x40;

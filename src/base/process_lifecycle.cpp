@@ -12,7 +12,7 @@
 namespace rex {
 namespace {
 
-std::atomic<IFactory*> g_api_factory{nullptr};
+std::atomic<IInterfaceFactory*> g_api_factory{nullptr};
 
 }  // namespace
 
@@ -32,11 +32,11 @@ void BeginTimerResolution() {}
 void EndTimerResolution() {}
 #endif
 
-IFactory* GetAPIFactory() {
+IInterfaceFactory* GetAppInterfaceFactory() {
   return g_api_factory.load();
 }
 
-void SetAPIFactory(IFactory* factory) {
+void SetAPIFactory(IInterfaceFactory* factory) {
   g_api_factory.store(factory);
 }
 

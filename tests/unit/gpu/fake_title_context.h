@@ -23,13 +23,13 @@
 
 namespace rex::test {
 
-/** Serves physical memory from a Memory and logs fence writes. The rest does nothing. */
+/** Serves physical memory from a GuestAddressSpace and logs fence writes. The rest does nothing. */
 class FakeTitleContext final : public IPhysicalMemory,
                                public IPhysicalWriteWatch,
                                public IGuestInterrupts,
                                public IAchievementRegistry {
  public:
-  explicit FakeTitleContext(kernel::Memory& memory) : memory_(memory) {}
+  explicit FakeTitleContext(kernel::GuestAddressSpace& memory) : memory_(memory) {}
 
   Result<void> CopyFromPhysical(u32 address, std::span<std::byte> out) override {
     std::memcpy(out.data(), memory_.TranslatePhysical<const u8*>(address), out.size());
@@ -89,7 +89,7 @@ class FakeTitleContext final : public IPhysicalMemory,
   std::vector<IPhysicalWriteListener*> listeners;
 
  private:
-  kernel::Memory& memory_;
+  kernel::GuestAddressSpace& memory_;
   std::mutex stores_mutex_;
   std::vector<Store> stores_;
 };

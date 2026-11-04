@@ -20,6 +20,11 @@
 #include <rex/kernel/title_runtime.h>
 
 #include "kernel_fixture.h"
+#include <algorithm>
+#include <vector>
+#include <rex/logging/logger.h>
+#include <rex/logging/log_category.h>
+#include "kernel/kernel_fixture.h"
 
 using rex::kernel::X_STATUS;
 

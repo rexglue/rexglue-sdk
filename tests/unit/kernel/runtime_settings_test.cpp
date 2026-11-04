@@ -16,7 +16,7 @@
 #include <string>
 
 #include <rex/kernel/title_runtime.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "kernel/settings_access.h"
 #include "kernel/title_fixture.h"

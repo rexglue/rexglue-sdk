@@ -196,7 +196,7 @@ std::string_view XInputInputProvider::GetName() const {
   return "rexhid-xinput";
 }
 
-Result<void> XInputInputProvider::Connect(IFactory&) {
+Result<void> XInputInputProvider::Connect(IInterfaceFactory&) {
   rex::memory::SetTagName(rex::hid::kHID, "HID");
   return {};
 }

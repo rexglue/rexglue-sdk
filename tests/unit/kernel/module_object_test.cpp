@@ -38,10 +38,10 @@ using rex::kernel::ModuleFormat;
 using rex::kernel::ModuleObject;
 using rex::kernel::ModuleType;
 
-class CountingModule : public rex::kernel::Module {
+class CountingModule : public rex::kernel::GuestModule {
  public:
   CountingModule(rex::kernel::FunctionDispatcher* dispatcher, u32* destroyed)
-      : Module(dispatcher), destroyed_(destroyed) {}
+      : GuestModule(dispatcher), destroyed_(destroyed) {}
   ~CountingModule() override { ++*destroyed_; }
   const std::string& GetName() const override { return name_; }
   bool IsExecutable() const override { return false; }
@@ -99,7 +99,7 @@ REX_TEST_CASE("A user module object unloads its XEX image before freeing the mod
   bool loaded_at_destroy = true;
   auto xex = std::make_unique<WatchedXEXModule>(runtime, &destroyed, &loaded_at_destroy);
   REQUIRE(xex->Load("watched", "game:\\watched.xex", file.data(), file.size()));
-  rex::kernel::BaseHeap* heap = StateOf(runtime).GetMemory()->LookupHeap(spec.load_address);
+  rex::kernel::BaseHeap* heap = StateOf(runtime).GetAddressSpace()->LookupHeap(spec.load_address);
   rex::kernel::HeapAllocation info{};
   REQUIRE(heap->QueryRegionInfo(spec.load_address, &info));
   REQUIRE(info.state != 0);
@@ -215,9 +215,9 @@ REX_TEST_CASE("The exception directory is read from the cached PE info when the 
   REQUIRE(xex.Load("exporter", "game:\\exporter.xex", file.data(), file.size()));
   REQUIRE(xex.LoadContinue());
 
-  std::memset(StateOf(runtime).GetMemory()->TranslateVirtual(kExportImageBase), 0, 0x1000);
+  std::memset(StateOf(runtime).GetAddressSpace()->TranslateVirtual(kExportImageBase), 0, 0x1000);
 
-  const rex::kernel::Module& module = xex;
+  const rex::kernel::GuestModule& module = xex;
   CHECK(module.GetExceptionDirectoryRVA() == kDirectoryRva);
   CHECK(module.GetExceptionDirectorySize() == kDirectorySize);
   CHECK(module.GetExceptionDirectoryAddress() == kExportImageBase + kDirectoryRva);

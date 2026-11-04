@@ -98,6 +98,7 @@ constexpr u32 kEDRAMBaseTilesBits = 11;
  * Returns the EDRAM row pitch of a surface in tiles.
  *
  * @param pitch_pixels Surface pitch in pixels.
+ * @param msaa_samples Sample count of the surface.
  * @param is_64bpp True for 64 bits per sample.
  */
 constexpr u32 GetSurfacePitchTiles(u32 pitch_pixels, MSAASamples msaa_samples, bool is_64bpp) {
@@ -241,8 +242,7 @@ enum class SampleControl : u32 {
 };
 
 /**
- * Returns the per interpolator SampleLocation bits. The result has one bit per interpolator, set
- * for kCenter.
+ * Returns one SampleLocation bit per interpolator, set for kCenter.
  *
  * @param msaa_samples RB_SURFACE_INFO::msaa_samples.
  * @param sample_control SQ_CONTEXT_MISC::sc_sample_cntl.

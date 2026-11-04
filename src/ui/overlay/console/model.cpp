@@ -10,9 +10,9 @@
 
 #include <rex/string/text.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
-#include <rex/logging/log.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 
 namespace rex::ui {
@@ -51,8 +51,8 @@ std::string_view TypeName(SettingType type) {
   return "value";
 }
 
-Command* FindCommand(ISettings& settings, std::string_view name) {
-  for (Command* command : settings.EnumerateCommands()) {
+ConsoleCommand* FindCommand(ISettingsRegistry& settings, std::string_view name) {
+  for (ConsoleCommand* command : settings.EnumerateCommands()) {
     if (command->GetName() == name) {
       return command;
     }
@@ -73,7 +73,7 @@ std::string JoinAllowed(std::span<const std::string> allowed) {
 
 }  // namespace
 
-ConsoleModel::ConsoleModel(ISettings& settings, log::CaptureSink& capture,
+ConsoleModel::ConsoleModel(ISettingsRegistry& settings, log::LogCaptureSink& capture,
                            std::filesystem::path history_path)
     : settings_(settings), capture_(capture), history_path_(std::move(history_path)) {
   LoadHistory();
@@ -129,7 +129,7 @@ void ConsoleModel::Execute(std::string_view line) {
   const std::string_view args = space == std::string_view::npos
                                     ? std::string_view{}
                                     : string::Trim(command.substr(space + 1));
-  if (Command* found = FindCommand(settings_, name)) {
+  if (ConsoleCommand* found = FindCommand(settings_, name)) {
     if (auto invoked = found->Run(args); !invoked) {
       Add(log::Level::kWarn, invoked.error().message);
     }
@@ -161,7 +161,7 @@ void ConsoleModel::ListCvars() {
     rows.push_back({var->GetName(),
                     std::format("  {} = {}  {}", var->GetName(), var->GetText(), var->GetHelp())});
   }
-  for (const Command* command : settings_.EnumerateCommands()) {
+  for (const ConsoleCommand* command : settings_.EnumerateCommands()) {
     rows.push_back(
         {command->GetName(), std::format("  {}  {}", command->GetName(), command->GetHelp())});
   }
@@ -187,7 +187,7 @@ std::vector<Completion> ConsoleModel::Complete(std::string_view input) const {
       vars.push_back({var->GetName(), var->GetOwner().GetScope(), var->GetHelp(), false});
     }
   }
-  for (const Command* command : settings_.EnumerateCommands()) {
+  for (const ConsoleCommand* command : settings_.EnumerateCommands()) {
     if (command->GetName().starts_with(input)) {
       vars.push_back({command->GetName(),
                       command->GetName().substr(0, command->GetName().rfind('.')),
@@ -215,7 +215,7 @@ std::string ConsoleModel::HelpLine(std::string_view input) const {
       return std::format("{}. {}", name, built_in.description);
     }
   }
-  if (const Command* command = FindCommand(settings_, name)) {
+  if (const ConsoleCommand* command = FindCommand(settings_, name)) {
     return std::format("{} command. {}", name, command->GetHelp());
   }
   const auto found = settings_.Find(name);

@@ -18,7 +18,7 @@
 
 #include "gpu/xenos/shared_memory.h"
 #include <rex/memory.h>
-#include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
+#include "gpu/xenos/host/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace rex::gpu::vulkan {
 

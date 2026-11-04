@@ -12,7 +12,7 @@
 
 #include <chrono>
 
-#include "xam/app/apps.h"
+#include "xam/app/xam_apps.h"
 #include "xam/xam_state.h"
 
 #include "kernel_fixture.h"

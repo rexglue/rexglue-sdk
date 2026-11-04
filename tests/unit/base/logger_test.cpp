@@ -24,7 +24,7 @@
 #include <unistd.h>
 #endif
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
 
 #include "base/app_harness.h"
@@ -44,7 +44,7 @@ std::string ReadFile(const std::filesystem::path& path) {
   return text.str();
 }
 
-std::vector<std::string> Texts(const rex::log::CaptureSink& sink) {
+std::vector<std::string> Texts(const rex::log::LogCaptureSink& sink) {
   std::vector<rex::log::CapturedMessage> entries;
   sink.CopySince(0, entries);
   std::vector<std::string> out;
@@ -54,7 +54,7 @@ std::vector<std::string> Texts(const rex::log::CaptureSink& sink) {
   return out;
 }
 
-class LineSink final : public rex::log::ISink {
+class LineSink final : public rex::log::ILogSink {
  public:
   void Write(const rex::log::Message& message) override { lines.emplace_back(message.text); }
   void Flush() override {}
@@ -111,7 +111,7 @@ REX_TEST_CASE("dropping the guard removes the sink", "[base][logger]") {
   ResetLogger();
   HarnessApp app;
   REQUIRE(app.Start());
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   {
     auto sink_guard = REX_LOGGER().AddSink(sink);
     REXLOG_INFO("while subscribed");
@@ -130,13 +130,13 @@ REX_TEST_CASE("late sink gets the last 4096 lines", "[base][logger]") {
   for (int i = 0; i < 5000; ++i) {
     REXLOG_INFO("bulk {}", i);
   }
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
   REXLOG_INFO("line after the sink joined");
   sink_guard.Reset();
   app.Finish();
   const auto texts = Texts(sink);
-  REQUIRE(texts.size() == rex::log::CaptureSink::kCapacity);
+  REQUIRE(texts.size() == rex::log::LogCaptureSink::kCapacity);
   REQUIRE(texts.front() == "bulk 905");
   REQUIRE(texts[4094] == "bulk 4999");
   REQUIRE(texts.back() == "line after the sink joined");
@@ -149,7 +149,7 @@ REX_TEST_CASE("file off releases kept lines", "[base][logger]") {
   HarnessApp app;
   REQUIRE(app.Start());
   REQUIRE(LogFiles(app.folder).empty());
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
   REXLOG_INFO("line after the sink joined");
   sink_guard.Reset();
@@ -163,7 +163,7 @@ REX_TEST_CASE("category level follows its setting", "[base][logger]") {
   ResetLogger();
   Logger& logger = REX_LOGGER();
   REQUIRE(logger.AddCategories(rex::log::kLogTestTable));
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger.AddSink(sink);
   REXLOG_CAT_INFO(::rex::log::logtest, "info before the level");
   REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", "error"));
@@ -187,7 +187,7 @@ REX_TEST_CASE("log.level sets the level of categories without their own", "[base
   ResetLogger();
   Logger& logger = REX_LOGGER();
   REQUIRE(logger.AddCategories(rex::log::kLogTestTable));
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger.AddSink(sink);
   REQUIRE(logger.level.Set("warn"));
   REXLOG_CAT_INFO(::rex::log::logtest, "dropped by the default level");

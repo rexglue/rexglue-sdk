@@ -41,7 +41,7 @@ class TitleRuntime;
 
 namespace rex::kernel {
 
-class Memory;
+class GuestAddressSpace;
 
 /** HMODULE points to this struct. */
 struct X_LDR_DATA_TABLE_ENTRY {
@@ -191,7 +191,7 @@ struct ModuleObject : public ILoadedModule, public rex::NonCopyable {
   std::string name; /**< Module name, the file name of `path` for a user module. */
   std::string path; /**< Absolute path of the file a user module was loaded from. */
   /** Loaded XEX or ELF image of a user module, owned by this object, null until loaded. */
-  PropagateConst<std::unique_ptr<rex::kernel::Module>> processor_module;
+  PropagateConst<std::unique_ptr<rex::kernel::GuestModule>> processor_module;
 
   /** Guest address of the module X_LDR_DATA_TABLE_ENTRY, the HMODULE titles use. */
   u32 hmodule_ptr = 0;
@@ -313,7 +313,7 @@ struct ModuleObject : public ILoadedModule, public rex::NonCopyable {
   /**
    * Creates the `KernelObject` of a kernel module with its first handle.
    *
-   * @param path The guest path of the module, its name is the file name of the path.
+   * @param path Guest path of the module. Its file name is the module name.
    * @return The handle with a count of 1, 0 when the table cannot grow.
    */
   REX_KERNEL_API static X_HANDLE CreateKernelModule(TitleRuntime& runtime, std::string_view path);
@@ -333,8 +333,9 @@ struct ModuleObject : public ILoadedModule, public rex::NonCopyable {
    * @param out_header_guest_ptr Receives the header value or the guest address of its data.
    * @return X_STATUS_SUCCESS, or X_STATUS_NOT_FOUND.
    */
-  REX_KERNEL_API static X_STATUS GetOptHeader(const kernel::Memory* memory, const XEXHeader* header,
-                                              XEXHeaderKey key, u32* out_header_guest_ptr);
+  REX_KERNEL_API static X_STATUS GetOptHeader(const kernel::GuestAddressSpace* memory,
+                                              const XEXHeader* header, XEXHeaderKey key,
+                                              u32* out_header_guest_ptr);
 };
 
 /**

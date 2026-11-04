@@ -31,6 +31,7 @@ enum class LockRank : u8 {
  * Receives an order violation in a debug build.
  *
  * @param held The rank on top of the held stack.
+ * @param acquiring The rank being taken.
  */
 using LockOrderHandler = void (*)(LockRank held, LockRank acquiring);
 

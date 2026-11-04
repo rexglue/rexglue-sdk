@@ -92,11 +92,12 @@ REX_KERNEL_API std::chrono::microseconds DelayFromTicks(i64 delay_ticks);
 /**
  * Reads the object name out of an X_OBJECT_ATTRIBUTES.
  *
- * @param memory The memory that holds the attributes and the name.
+ * @param memory Memory containing the attributes and the name.
  * @param obj_attributes_ptr The guest address of the attributes, or 0.
  * @return The name, empty when the attributes or the name pointer are null.
  */
-REX_KERNEL_API std::string NameFromAttributes(kernel::Memory* memory, u32 obj_attributes_ptr);
+REX_KERNEL_API std::string NameFromAttributes(kernel::GuestAddressSpace* memory,
+                                              u32 obj_attributes_ptr);
 
 template <typename T>
 class Pinned;

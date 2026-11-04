@@ -453,7 +453,7 @@ inline void StoreVectorRight(u8* host, u32 ea, simde__m128i v) {
  *
  * @param left_host The host address of the stvlx address.
  * @param left_ea The stvlx guest effective address.
- * @param right_host The host address of the start of the quadword that holds the stvrx address.
+ * @param right_host Host address of the start of the quadword containing the stvrx address.
  * @param right_ea The stvrx guest effective address.
  */
 inline void StoreVectorPair(u8* left_host, u32 left_ea, u8* right_host, u32 right_ea,

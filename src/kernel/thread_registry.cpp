@@ -11,7 +11,7 @@
 
 #include <rex/kernel/types/thread.h>
 #include <rex/kernel/xboxkrnl.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/bit.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/types/status.h>
@@ -84,7 +84,7 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<KernelThread> thread) {
   KernelThread* raw = thread.get();
   raw->thread_id_ = ++next_id_;
   raw->registry_ = this;
-  ObjectBlock block = AllocObjectBlock(raw->GetMemory(), sizeof(X_KTHREAD),
+  ObjectBlock block = AllocObjectBlock(raw->GetAddressSpace(), sizeof(X_KTHREAD),
                                        StateOf(runtime_).GetObjectTypeAddress(ObjectType::kThread));
   if (!block.address) {
     return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
@@ -187,27 +187,27 @@ std::optional<u32> ThreadRegistry::AllocateTLS(PPCContext* context) {
     REXSYS_FAIL(std::nullopt, "AllocateTLS: null PPCContext");
   }
 
-  auto globals = StateOf(runtime_).GetMemory()->TranslateVirtual<KernelGuestGlobals*>(
+  auto globals = StateOf(runtime_).GetAddressSpace()->TranslateVirtual<KernelGuestGlobals*>(
       StateOf(runtime_).GetKernelGlobals());
   auto tls_lock = &globals->tls_lock;
-  auto old_irql =
-      kernel::xboxkrnl::KeKfAcquireSpinLock(*StateOf(runtime_).GetMemory(), context, tls_lock);
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*StateOf(runtime_).GetAddressSpace(),
+                                                        context, tls_lock);
 
   std::optional<u32> result;
 
   auto current_thread = KernelThread::GetCallingThread();
   if (!current_thread) {
     REXSYS_ERROR("AllocateTLS: no current thread");
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetMemory(), context, tls_lock,
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetAddressSpace(), context, tls_lock,
                                           old_irql);
     return std::nullopt;
   }
 
-  auto process_ptr = StateOf(runtime_).GetMemory()->TranslateVirtual<X_KPROCESS*>(
+  auto process_ptr = StateOf(runtime_).GetAddressSpace()->TranslateVirtual<X_KPROCESS*>(
       static_cast<u32>(current_thread->GetGuestObject<X_KTHREAD>()->process));
   if (!process_ptr) {
     REXSYS_ERROR("AllocateTLS: failed to resolve current process");
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetMemory(), context, tls_lock,
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetAddressSpace(), context, tls_lock,
                                           old_irql);
     return std::nullopt;
   }
@@ -230,7 +230,7 @@ std::optional<u32> ThreadRegistry::AllocateTLS(PPCContext* context) {
     break;
   }
 
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetMemory(), context, tls_lock,
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetAddressSpace(), context, tls_lock,
                                         old_irql);
   return result;
 }
@@ -257,18 +257,18 @@ void ThreadRegistry::FreeTLS(PPCContext* context, u32 slot) {
     return;
   }
 
-  auto process_ptr = StateOf(runtime_).GetMemory()->TranslateVirtual<X_KPROCESS*>(
+  auto process_ptr = StateOf(runtime_).GetAddressSpace()->TranslateVirtual<X_KPROCESS*>(
       static_cast<u32>(current_kthread->process));
   if (!process_ptr) {
     REXSYS_ERROR("FreeTLS: failed to resolve current process");
     return;
   }
 
-  auto globals = StateOf(runtime_).GetMemory()->TranslateVirtual<KernelGuestGlobals*>(
+  auto globals = StateOf(runtime_).GetAddressSpace()->TranslateVirtual<KernelGuestGlobals*>(
       StateOf(runtime_).GetKernelGlobals());
   auto tls_lock = &globals->tls_lock;
-  auto old_irql =
-      kernel::xboxkrnl::KeKfAcquireSpinLock(*StateOf(runtime_).GetMemory(), context, tls_lock);
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*StateOf(runtime_).GetAddressSpace(),
+                                                        context, tls_lock);
 
   u32 bitmap_index = slot / 32;
   u32 bit_mask = 1U << (31 - (slot % 32));
@@ -276,7 +276,7 @@ void ThreadRegistry::FreeTLS(PPCContext* context, u32 slot) {
 
   if (bitmap_value & bit_mask) {
     REXSYS_WARN("FreeTLS: slot {} already free", slot);
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetMemory(), context, tls_lock,
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetAddressSpace(), context, tls_lock,
                                           old_irql);
     return;
   }
@@ -296,7 +296,7 @@ void ThreadRegistry::FreeTLS(PPCContext* context, u32 slot) {
 
   process_ptr->tls_slot_bitmap[bitmap_index] = bitmap_value | bit_mask;
 
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetMemory(), context, tls_lock,
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*StateOf(runtime_).GetAddressSpace(), context, tls_lock,
                                         old_irql);
 }
 
@@ -341,10 +341,10 @@ void ThreadRegistry::DestroyFibers() {
       info.host_fiber->Destroy();
     }
     if (!info.is_thread_fiber) {
-      FreeGuestStack(*StateOf(runtime_).GetMemory(), info.guest_stack_bottom);
+      FreeGuestStack(*StateOf(runtime_).GetAddressSpace(), info.guest_stack_bottom);
     }
     if (info.guest_context_addr) {
-      StateOf(runtime_).GetMemory()->SystemHeapFree(info.guest_context_addr);
+      StateOf(runtime_).GetAddressSpace()->SystemHeapFree(info.guest_context_addr);
     }
   }
 }

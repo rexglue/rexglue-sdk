@@ -18,7 +18,7 @@
 
 #include "kernel/xma/context.h"
 #include "kernel/xma/register_file.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/bit.h>
@@ -42,7 +42,7 @@ class XMADecoder {
   explicit XMADecoder(FunctionDispatcher* function_dispatcher);
   ~XMADecoder();
 
-  Memory* GetMemory() const { return memory_; }
+  GuestAddressSpace* GetAddressSpace() const { return memory_; }
   FunctionDispatcher* GetFunctionDispatcher() const { return function_dispatcher_; }
 
   /**
@@ -78,7 +78,7 @@ class XMADecoder {
   /**
    * Register 0x0606 returns a rotating context index so a title never sees a stuck context.
    *
-   * @param addr The register address, whose low 16 bits select the register.
+   * @param addr Register address. Its low 16 bits select the register.
    * @return The register value, byte swapped.
    */
   u32 ReadRegister(u32 addr);
@@ -102,7 +102,7 @@ class XMADecoder {
   }
 
  protected:
-  Memory* memory_ = nullptr;
+  GuestAddressSpace* memory_ = nullptr;
   FunctionDispatcher* function_dispatcher_ = nullptr;
 
   std::unique_ptr<rex::platform::Event> work_event_ = nullptr;

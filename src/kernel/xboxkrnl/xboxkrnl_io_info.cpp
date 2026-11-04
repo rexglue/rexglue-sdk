@@ -11,7 +11,7 @@
 
 #include <rex/hash.h>
 #include <rex/filesystem/file_stat.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/memory.h>
 #include <rex/ppc/hook.h>
@@ -236,8 +236,8 @@ u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_
     }
     case XFileRenameInformation: {
       auto info = info_ptr.As<X_FILE_RENAME_INFORMATION*>();
-      auto target_path =
-          kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), &info->ansi_string);
+      auto target_path = kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(),
+                                                   &info->ansi_string);
       if (!IsValidPath(target_path, PathUse::kNewName)) {
         return X_STATUS_OBJECT_NAME_INVALID;
       }

@@ -35,7 +35,7 @@ class ThreadRegistry final : public IThreadRegistry, public IObjectWaiter {
  public:
   /**
    * @param runtime The runtime whose process blocks hold the TLS bitmaps.
-   * @param table The table that holds the thread handles.
+   * @param table Table of thread handles.
    */
   ThreadRegistry(TitleRuntime& runtime, ObjectTable& table);
   ~ThreadRegistry() override;

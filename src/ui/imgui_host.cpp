@@ -21,7 +21,7 @@
 
 #include <rex/assert.h>
 #include <rex/chrono.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/ui/ui_event.h>
 #include <rex/platform.h>
 #include <rex/ui/ui_system.h>

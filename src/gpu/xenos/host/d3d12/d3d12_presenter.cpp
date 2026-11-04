@@ -16,13 +16,13 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 #include <rex/utility.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "gpu/xenos/host/present_policy.h"
 

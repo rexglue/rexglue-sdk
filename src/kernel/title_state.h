@@ -55,7 +55,7 @@ struct PPCFuncMapping;
 
 namespace rex {
 
-class ISettingsControl;
+class ISettingsRegistryControl;
 
 namespace apu {
 class IAudioSystem;
@@ -89,12 +89,12 @@ class FunctionDispatcher;
 class IDPCQueue;
 class IOverlappedDispatcher;
 class IModuleRegistry;
-class INotifier;
+class INotificationBroadcaster;
 class IObjectTable;
 class IThreadRegistry;
-class Memory;
+class GuestAddressSpace;
 class ModuleRegistry;
-class Notifier;
+class NotificationBroadcaster;
 class ObjectTable;
 class ThreadRegistry;
 class WorkspaceHeap;
@@ -166,7 +166,7 @@ class REX_KERNEL_API TitleState : public ITitleExit,
   /**
    * @return The memory, null before Load.
    */
-  kernel::Memory* GetMemory() const { return memory_.get(); }
+  kernel::GuestAddressSpace* GetAddressSpace() const { return memory_.get(); }
 
   GuestMemory& GetGuestMemory() const { return *guest_memory_; }
 
@@ -284,7 +284,7 @@ class REX_KERNEL_API TitleState : public ITitleExit,
 
   kernel::IModuleRegistry& GetModuleRegistry();
 
-  kernel::INotifier& GetNotifier();
+  kernel::INotificationBroadcaster& GetNotificationBroadcaster();
 
   rex::xam::IContentManager& GetContentManager();
 
@@ -426,15 +426,15 @@ class REX_KERNEL_API TitleState : public ITitleExit,
   bool setup_complete_ = false;
   bool attached_ = false;
 
-  std::unique_ptr<kernel::Memory> memory_;
+  std::unique_ptr<kernel::GuestAddressSpace> memory_;
   GuestMemory* guest_memory_ = nullptr;
   std::unique_ptr<kernel::FunctionDispatcher> function_dispatcher_;
   std::unique_ptr<filesystem::IFileSystem> file_system_;
-  ISettingsControl* settings_control_ = nullptr;
+  ISettingsRegistryControl* settings_control_ = nullptr;
   std::unique_ptr<kernel::ObjectTable> object_table_;
   std::unique_ptr<kernel::ThreadRegistry> thread_registry_;
   std::unique_ptr<kernel::ModuleRegistry> module_registry_;
-  std::unique_ptr<kernel::Notifier> notifier_;
+  std::unique_ptr<kernel::NotificationBroadcaster> notifier_;
   rex::xam::IXAMTitleLifecycle* xam_ = nullptr;
   rex::xam::IXAMTitleServices* xam_managers_ = nullptr;
   std::unique_ptr<TitleContext> title_context_;

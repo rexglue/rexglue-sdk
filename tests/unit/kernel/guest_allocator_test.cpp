@@ -31,7 +31,7 @@ constexpr u32 kPhysicalPageSize = 64 * 1024;
 constexpr u32 kPhysicalBase = 0xA0000000;
 constexpr u32 kPhysicalEnd = 0xC0000000;
 
-u32 ReserveAndRelease(rex::kernel::Memory& memory, u32 size, bool physical = false,
+u32 ReserveAndRelease(rex::kernel::GuestAddressSpace& memory, u32 size, bool physical = false,
                       u32 page_size = rex::kernel::kPageSize4KiB) {
   rex::kernel::BaseHeap* heap = memory.LookupHeapByType(physical, page_size);
   u32 base = 0;
@@ -47,7 +47,7 @@ u32 ReserveAndRelease(rex::kernel::Memory& memory, u32 size, bool physical = fal
 
 REX_TEST_CASE("A failed o1heapInit releases its range", "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const u32 expected = ReserveAndRelease(memory, 16);
   auto failed = GuestAllocator::Create(fixture.GetRuntime().GetGuestMemory(), 16, kAlignment, false,
                                        kPageSize, 0, GuestPool::kHeap);
@@ -57,7 +57,7 @@ REX_TEST_CASE("A failed o1heapInit releases its range", "[kernel][allocator]") {
 
 REX_TEST_CASE("A destroyed allocator releases its range", "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const u32 expected = ReserveAndRelease(memory, kRangeSize);
   {
     auto allocator = GuestAllocator::Create(fixture.GetRuntime().GetGuestMemory(), kRangeSize,
@@ -71,7 +71,7 @@ REX_TEST_CASE("A destroyed allocator releases its range", "[kernel][allocator]")
 
 REX_TEST_CASE("Blocks reside inside the range and Free returns them", "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   auto allocator = GuestAllocator::Create(fixture.GetRuntime().GetGuestMemory(), kRangeSize,
                                           kAlignment, false, kPageSize, 0, GuestPool::kHeap);
   REQUIRE(allocator);
@@ -106,7 +106,7 @@ REX_TEST_CASE("Reallocate keeps the contents and an exhausted range returns null
 REX_TEST_CASE("A physical 64K allocator falls in the physical range and releases on destroy",
               "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const u32 expected = ReserveAndRelease(memory, kRangeSize, true, kPhysicalPageSize);
   CHECK(expected >= kPhysicalBase);
   CHECK(expected < kPhysicalEnd);
@@ -129,7 +129,7 @@ REX_TEST_CASE("A physical 64K allocator falls in the physical range and releases
 
 REX_TEST_CASE("Committed pages follow commit, decommit and release", "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   rex::kernel::BaseHeap* heap = memory.LookupHeapByType(false, kPageSize);
   const u32 before = heap->GetCommittedPages();
   u32 base = 0;
@@ -152,7 +152,7 @@ REX_TEST_CASE("Committed pages follow commit, decommit and release", "[kernel][a
 REX_TEST_CASE("A physical heap view counts the committed pages of its parent",
               "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, kPhysicalPageSize);
   rex::kernel::BaseHeap* parent = memory.GetPhysicalHeap();
   const u32 before = parent->GetCommittedPages();
@@ -168,7 +168,7 @@ REX_TEST_CASE("A physical heap view counts the committed pages of its parent",
 
 REX_TEST_CASE("Plotting the memory profile works without a profiler", "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
-  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   auto allocator = GuestAllocator::Create(fixture.GetRuntime().GetGuestMemory(), kRangeSize,
                                           kAlignment, false, kPageSize, 0, GuestPool::kWorkspace);
   REQUIRE(allocator);

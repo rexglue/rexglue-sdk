@@ -13,7 +13,7 @@
 #include "binary_view.h"
 #include "codegen_context.h"
 #include "function_scanner.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <rex/memory/endian.h>

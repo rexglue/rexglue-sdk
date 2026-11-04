@@ -21,7 +21,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/module.h>
 #include <rex/platform.h>
 #include <rex/result.h>
@@ -47,7 +47,7 @@ struct LineFormat {
   bool color = true;   /**< Level color, where the sink supports it. */
 };
 
-/** One message as sinks receive it. The views are valid during ISink::Write. */
+/** One message as sinks receive it. The views are valid during ILogSink::Write. */
 struct Message {
   Level level = Level::kInfo;
   std::string_view category;
@@ -80,9 +80,9 @@ REX_API char LevelLetter(Level level);
 namespace rex::log {
 
 /** Receives every written message. The logger calls it under its sink mutex, never concurrently. */
-class ISink : public NonCopyable {
+class ILogSink : public NonCopyable {
  public:
-  virtual ~ISink() = default;
+  virtual ~ILogSink() = default;
 
   virtual void Write(const Message& message) = 0;
 
@@ -90,7 +90,7 @@ class ISink : public NonCopyable {
 };
 
 /** A log file with a level letter column (T, V, D, I, W, E, C) after the timestamp. */
-class REX_API FileSink final : public ISink {
+class REX_API LogFileSink final : public ILogSink {
  public:
   /**
    * Opens a file for appending.
@@ -99,8 +99,8 @@ class REX_API FileSink final : public ISink {
    * @param format What to write around each message. color is ignored.
    * @return The sink, or an error naming the path.
    */
-  [[nodiscard]] static Result<std::unique_ptr<FileSink>> Open(const std::filesystem::path& path,
-                                                              LineFormat format);
+  [[nodiscard]] static Result<std::unique_ptr<LogFileSink>> Open(const std::filesystem::path& path,
+                                                                 LineFormat format);
 
   void Write(const Message& message) override;
 
@@ -116,7 +116,7 @@ class REX_API FileSink final : public ISink {
    *
    * @param format What to write around each message. color is ignored.
    */
-  FileSink(std::filesystem::path path, std::ofstream file, LineFormat format);
+  LogFileSink(std::filesystem::path path, std::ofstream file, LineFormat format);
 
  private:
   std::filesystem::path path_;
@@ -135,7 +135,7 @@ struct CapturedMessage {
 };
 
 /** Keeps the newest messages in memory for the console. Safe to read from any thread. */
-class REX_API CaptureSink final : public ISink {
+class REX_API LogCaptureSink final : public ILogSink {
  public:
   static constexpr size_t kCapacity = 4096;
 
@@ -179,12 +179,12 @@ REX_DECLARE_INTERFACE(ILogger, 1)
  * @return Ok, or an error when a name is already added by another table.
  */
   [[nodiscard]] virtual Result<void> AddCategories(
-      std::span<const log::Category* const> categories) = 0;
+      std::span<const log::LogCategory* const> categories) = 0;
 
   /**
    * Removes categories and their settings. Later lines follow log.level.
    */
-  virtual void RemoveCategories(std::span<const log::Category* const> categories) = 0;
+  virtual void RemoveCategories(std::span<const log::LogCategory* const> categories) = 0;
 
   /**
    * Adds a sink. It receives the kept lines, then every new line.
@@ -193,7 +193,7 @@ REX_DECLARE_INTERFACE(ILogger, 1)
    * @return Guard that removes the sink and waits for a write in progress. Does nothing for a sink
    *         that was added twice.
    */
-  [[nodiscard]] virtual ScopeGuard AddSink(log::ISink& sink) = 0;
+  [[nodiscard]] virtual ScopeGuard AddSink(log::ILogSink& sink) = 0;
 
   /** Flushes every sink. Safe from a crash handler. */
   virtual void Flush() = 0;
@@ -207,9 +207,9 @@ REX_DECLARE_INTERFACE(ILogger, 1)
 };
 
 /**
- * It starts on first use and writes to the console and the debugger. It keeps lines until the log
- * file opens, then writes them to it, and keeps the last 4096 for sinks added later. The app opens
- * the file once app.log_root resolves.
+ * The process logger. Starts on first use and writes to the console and the debugger. Keeps lines
+ * until the log file opens, then writes them to it, and keeps the last 4096 for sinks added later.
+ * The app opens the file once app.log_root resolves.
  */
 class REX_API Logger final : public SettingOwner, public ILogger {
  public:
@@ -235,11 +235,11 @@ class REX_API Logger final : public SettingOwner, public ILogger {
   REX_SETTING(bool, color, false, "Color the console", kStartupOnly);
 
   [[nodiscard]] Result<void> AddCategories(
-      std::span<const log::Category* const> categories) override;
+      std::span<const log::LogCategory* const> categories) override;
 
-  void RemoveCategories(std::span<const log::Category* const> categories) override;
+  void RemoveCategories(std::span<const log::LogCategory* const> categories) override;
 
-  [[nodiscard]] ScopeGuard AddSink(log::ISink& sink) override;
+  [[nodiscard]] ScopeGuard AddSink(log::ILogSink& sink) override;
 
   void Flush() override;
 

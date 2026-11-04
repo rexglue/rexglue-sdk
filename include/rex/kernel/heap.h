@@ -65,7 +65,7 @@ struct PointeeAlignment<T, false> {
 namespace rex::kernel {
 
 class GuestAllocator;
-class Memory;
+class GuestAddressSpace;
 
 /** Selects the heap that SystemHeapAlloc takes memory from. */
 enum SystemHeapFlag : u8 {
@@ -388,10 +388,11 @@ class REX_KERNEL_API BaseHeap {
    * @param heap_base The heap offset relative to membase.
    * @param host_address_offset The offset added to guest addresses to give host addresses.
    */
-  void Initialize(kernel::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
+  void Initialize(kernel::GuestAddressSpace* memory, u8* membase, HeapType heap_type, u32 heap_base,
                   u32 heap_size, u32 page_size, u32 host_address_offset = 0);
 
-  kernel::Memory* memory_; /**< Memory system that owns the heap, source of the host page size. */
+  kernel::GuestAddressSpace*
+      memory_; /**< Guest address space that owns the heap, source of the host page size. */
   u8* membase_;
   HeapType heap_type_;
   u32 heap_base_;
@@ -421,7 +422,7 @@ class REX_KERNEL_API VirtualHeap : public BaseHeap {
    *
    * @param heap_base The heap offset relative to membase.
    */
-  void Initialize(kernel::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
+  void Initialize(kernel::GuestAddressSpace* memory, u8* membase, HeapType heap_type, u32 heap_base,
                   u32 heap_size, u32 page_size);
 };
 
@@ -440,7 +441,7 @@ class REX_KERNEL_API PhysicalHeap : public BaseHeap {
    * @param heap_base The heap offset relative to membase.
    * @param parent_heap The heap that performs allocation in the guest virtual address space.
    */
-  void Initialize(kernel::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
+  void Initialize(kernel::GuestAddressSpace* memory, u8* membase, HeapType heap_type, u32 heap_base,
                   u32 heap_size, u32 page_size, VirtualHeap* parent_heap);
 
   /**
@@ -549,7 +550,7 @@ class REX_KERNEL_API PhysicalHeap : public BaseHeap {
     /** Set bits mark the pages whose writes trigger invalidation callbacks. */
     u64 notify_on_invalidation;
   };
-  /** Guarded by Memory::LockWatches(). */
+  /** Guarded by GuestAddressSpace::LockWatches(). */
   std::vector<SystemPageFlagsBlock> system_page_flags_;
 };
 
@@ -558,19 +559,19 @@ enum class AccessViolationResult : u8 {
   kResumed,
   /** The access reached a register block that generated code did not route. */
   kMMIOMiss,
-  /** Memory makes no claim on the fault. */
+  /** GuestAddressSpace makes no claim on the fault. */
   kUnhandled,
 };
 
 /**
- * A memory mapped file at a fixed host address backs it. The address space is split into ranges,
- * each a BaseHeap that is a VirtualHeap or a PhysicalHeap.
+ * The guest address space, backed by a memory mapped file at a fixed host address. It is split into
+ * ranges, each a BaseHeap that is a VirtualHeap or a PhysicalHeap.
  */
-class REX_KERNEL_API Memory : public ISystemHeap {
+class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
  public:
   /** Constructs the memory system and registers it as the active instance. */
-  Memory();
-  ~Memory();
+  GuestAddressSpace();
+  ~GuestAddressSpace();
 
   /**
    * Initializes the memory system.
@@ -579,9 +580,7 @@ class REX_KERNEL_API Memory : public ISystemHeap {
    */
   bool Initialize();
 
-  /**
-   * Returns the file name and path of the memory mapped file backing all memory.
-   */
+  /** Returns the path of the memory mapped file that backs all memory. */
   const std::filesystem::path& GetFileName() const { return file_name_; }
 
   u8* GetVirtualMembase() const { return virtual_membase_; }
@@ -717,7 +716,8 @@ class REX_KERNEL_API Memory : public ISystemHeap {
   const BaseHeap* LookupHeap(u32 address) const;
 
   BaseHeap* LookupHeap(u32 address) {
-    return const_cast<BaseHeap*>(const_cast<const kernel::Memory*>(this)->LookupHeap(address));
+    return const_cast<BaseHeap*>(
+        const_cast<const kernel::GuestAddressSpace*>(this)->LookupHeap(address));
   }
 
   BaseHeap* LookupHeapByType(bool physical, u32 page_size);

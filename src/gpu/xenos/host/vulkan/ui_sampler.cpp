@@ -10,9 +10,9 @@
  */
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "gpu/xenos/host/vulkan/ui_sampler.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 #include "gpu/xenos/host/vulkan/vulkan_to_string.h"
 
 namespace rex {

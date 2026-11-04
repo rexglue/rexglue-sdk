@@ -15,7 +15,7 @@
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/object/kernel_thread.h>
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include <rex/types.h>
@@ -65,7 +65,8 @@ u32 XMAReleaseContext_entry(MappedVoid context_ptr) {
 }
 
 void StoreXMAContextIndexedRegister(TitleRuntime& runtime, u32 base_reg, u32 context_ptr) {
-  u32 context_physical_address = StateOf(runtime).GetMemory()->GetPhysicalAddress(context_ptr);
+  u32 context_physical_address =
+      StateOf(runtime).GetAddressSpace()->GetPhysicalAddress(context_ptr);
   auto* xma_decoder = GetXMADecoder(runtime);
   if (xma_decoder) {
     xma_decoder->SignalContext(base_reg, context_physical_address);
@@ -103,7 +104,7 @@ u32 XMAInitializeContext_entry(MappedVoid context_ptr, GuestPtrT<XMA_CONTEXT_INI
   u32 input_buffer_0_physical_address = 0;
   if (input_buffer_0_guest_ptr) {
     input_buffer_0_physical_address =
-        kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
+        kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(input_buffer_0_guest_ptr);
     REX_ASSERT(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
       REXKRNL_FAIL(X_E_FALSE, "XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
@@ -114,7 +115,7 @@ u32 XMAInitializeContext_entry(MappedVoid context_ptr, GuestPtrT<XMA_CONTEXT_INI
   u32 input_buffer_1_physical_address = 0;
   if (input_buffer_1_guest_ptr) {
     input_buffer_1_physical_address =
-        kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
+        kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(input_buffer_1_guest_ptr);
     REX_ASSERT(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
       REXKRNL_FAIL(X_E_FALSE, "XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
@@ -124,7 +125,7 @@ u32 XMAInitializeContext_entry(MappedVoid context_ptr, GuestPtrT<XMA_CONTEXT_INI
   u32 output_buffer_guest_ptr = context_init->output_buffer_ptr;
   REX_ASSERT(output_buffer_guest_ptr != 0);
   u32 output_buffer_physical_address =
-      kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(output_buffer_guest_ptr);
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(output_buffer_guest_ptr);
   REX_ASSERT(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
     REXKRNL_FAIL(X_E_FALSE, "XMAInitializeContext: Invalid output buffer virtual address {:08X}",
@@ -189,7 +190,7 @@ u32 XMASetInputBufferReadOffset_entry(MappedVoid context_ptr, u32 value) {
 
 u32 XMASetInputBuffer0_entry(MappedVoid context_ptr, MappedVoid buffer, u32 packet_count) {
   u32 buffer_physical_address =
-      kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(buffer.GetGuestAddress());
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(buffer.GetGuestAddress());
   REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     REXKRNL_FAIL(X_E_FALSE, "XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
@@ -221,7 +222,7 @@ u32 XMASetInputBuffer0Valid_entry(MappedVoid context_ptr) {
 
 u32 XMASetInputBuffer1_entry(MappedVoid context_ptr, MappedVoid buffer, u32 packet_count) {
   u32 buffer_physical_address =
-      kernel::GetCurrentState().GetMemory()->GetPhysicalAddress(buffer.GetGuestAddress());
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(buffer.GetGuestAddress());
   REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     REXKRNL_FAIL(X_E_FALSE, "XMASetInputBuffer1: Invalid buffer virtual address {:08X}",

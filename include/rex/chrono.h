@@ -49,7 +49,7 @@ class REX_API Clock {
   /** Returns the host uptime in milliseconds. */
   static u64 QueryHostUptimeMillis();
 
-  /** 1 is normal speed. */
+  /** Returns the guest time scalar. 1 is normal speed. */
   static f64 GetGuestTimeScalar();
 
   /**

@@ -360,7 +360,7 @@ REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be w
     using rex::kernel::XCONTENT_AGGREGATE_DATA;
     const u32 data = c.Alloc(sizeof(XCONTENT_AGGREGATE_DATA));
     auto* host =
-        StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<XCONTENT_AGGREGATE_DATA*>(data);
+        StateOf(c.GetRuntime()).GetAddressSpace()->TranslateVirtual<XCONTENT_AGGREGATE_DATA*>(data);
     std::memset(static_cast<void*>(host), 0, sizeof(XCONTENT_AGGREGATE_DATA));
     host->device_id = 1;
     host->content_type = rex::kernel::XContentType::kSavedGame;

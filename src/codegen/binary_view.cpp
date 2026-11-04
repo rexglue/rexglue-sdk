@@ -1,7 +1,7 @@
 #include <limits>
 
 #include "binary_view.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 #include <rex/kernel/symbol_map.h>
@@ -9,7 +9,7 @@
 
 namespace rex::codegen {
 
-BinaryView BinaryView::FromModule(const kernel::Module& module) {
+BinaryView BinaryView::FromModule(const kernel::GuestModule& module) {
   BinaryView view;
 
   view.base_address_ = module.GetBaseAddress();

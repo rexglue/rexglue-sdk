@@ -23,7 +23,7 @@
 #include <rex/kernel/module.h>
 #include <rex/kernel/types/content.h>
 #include <rex/kernel/types/status.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/string/text.h>
 #include <rex/xam/device.h>
@@ -213,7 +213,7 @@ Result<kernel::XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
 
     std::error_code ec;
     if (options.extract) {
-      REX_TRY(std::unique_ptr<filesystem::IContainer> container,
+      REX_TRY(std::unique_ptr<filesystem::IContainerImage> container,
               title_.file_system_factory.OpenContainer(package_path));
       std::filesystem::path staging = install_path;
       staging += ".installing";

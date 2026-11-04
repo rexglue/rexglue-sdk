@@ -10,7 +10,7 @@
 #include <thread>
 
 #include <rex/apu/audio_driver.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/utility.h>
 
 #include "apu/mix.h"

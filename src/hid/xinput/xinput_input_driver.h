@@ -68,7 +68,7 @@ class XInputInputProvider final : public IModule, public IDriverModule {
   REX_MODULE_SERVES(::rex::IDriverModule)
 
   std::string_view GetName() const override;
-  [[nodiscard]] Result<void> Connect(IFactory& factory) override;
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory& factory) override;
   void Disconnect() override;
   [[nodiscard]] Result<void> Init() override;
   void Shutdown() override;

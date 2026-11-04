@@ -83,7 +83,7 @@ struct alignas(16) Vec128S {
   /**
    * Applies a bitwise XOR with b to this value.
    *
-   * @return This value after the bitwise XOR with b.
+   * @return This value.
    */
   Vec128S& operator^=(const Vec128S& b) {
     *this = *this ^ b;
@@ -100,7 +100,7 @@ struct alignas(16) Vec128S {
   /**
    * Applies a bitwise AND with b to this value.
    *
-   * @return This value after the bitwise AND with b.
+   * @return This value.
    */
   Vec128S& operator&=(const Vec128S& b) {
     *this = *this & b;
@@ -117,7 +117,7 @@ struct alignas(16) Vec128S {
   /**
    * Applies a bitwise OR with b to this value.
    *
-   * @return This value after the bitwise OR with b.
+   * @return This value.
    */
   Vec128S& operator|=(const Vec128S& b) {
     *this = *this | b;
@@ -270,10 +270,10 @@ static inline Vec128 vec128b(u8 src) {
 /**
  * Builds a vector from u8 values given in big endian order within each 32 bit lane.
  *
- * @param x0 Byte 0, the most significant, of 32 bit lane 0.
+ * @param x0 Most significant byte (byte 0) of 32 bit lane 0.
  * @param x1 Byte 1 of 32 bit lane 0.
  * @param x2 Byte 2 of 32 bit lane 0.
- * @param x3 Byte 3, the least significant, of 32 bit lane 0.
+ * @param x3 Least significant byte (byte 3) of 32 bit lane 0.
  * @param y0 Byte 0 of 32 bit lane 1.
  * @param y1 Byte 1 of 32 bit lane 1.
  * @param y2 Byte 2 of 32 bit lane 1.

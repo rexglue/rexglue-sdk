@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
 #include <rex/memory/mapped_ptr.h>
@@ -105,7 +105,7 @@ u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_fla
     if (module) {
       hmodule = module->hmodule_ptr;
       auto ldr_data =
-          StateOf(runtime).GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+          StateOf(runtime).GetAddressSpace()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
       ldr_data->load_count++;
       result = X_STATUS_SUCCESS;
     }
@@ -167,7 +167,7 @@ u32 XexGetProcedureAddress_entry(MappedVoid hmodule, u32 ordinal, MappedU32 out_
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
   auto string_name = reinterpret_cast<const char*>(
-      kernel::GetCurrentState().GetMemory()->TranslateVirtual(ordinal));
+      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual(ordinal));
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 

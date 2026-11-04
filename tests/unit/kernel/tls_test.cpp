@@ -36,7 +36,7 @@ constexpr u32 kOutOfIndexes = 0xFFFFFFFF;
 void GiveTitleSlots(Caller& c, u32 count) {
   auto& state = StateOf(c.GetRuntime());
   auto* process =
-      state.GetMemory()->TranslateVirtual<rex::kernel::X_KPROCESS*>(state.GetTitleProcess());
+      state.GetAddressSpace()->TranslateVirtual<rex::kernel::X_KPROCESS*>(state.GetTitleProcess());
   process->tls_slot_size = static_cast<rex::u16>(4 * count);
   for (u32 i = 0; i < 8; ++i) {
     const u32 bits = std::min(count - std::min(count, i * 32), 32u);

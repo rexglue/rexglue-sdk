@@ -14,8 +14,8 @@
 #include "base/settings/settings_internal.h"
 
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 #include <rex/utility.h>
 
 namespace rex {
@@ -222,8 +222,8 @@ std::span<SettingBase* const> SettingOwner::GetOwnedSettings() const {
   return state_->settings;
 }
 
-Command::Command(SettingOwner* owner, std::string_view name, std::string_view help,
-                 MoveOnlyFunction<Result<void>(std::string_view)> run)
+ConsoleCommand::ConsoleCommand(SettingOwner* owner, std::string_view name, std::string_view help,
+                               MoveOnlyFunction<Result<void>(std::string_view)> run)
     : state_(std::make_unique<State>()) {
   state_->owner = owner;
   state_->name = std::format("{}.{}", owner->GetScope(), name);
@@ -232,7 +232,7 @@ Command::Command(SettingOwner* owner, std::string_view name, std::string_view he
   owner->state_->commands.push_back(this);
 }
 
-Command::~Command() {
+ConsoleCommand::~ConsoleCommand() {
   SettingOwner::State& owner = *state_->owner->state_;
   if (owner.registered) {
     REX_SETTINGS().Detach(*this);
@@ -240,15 +240,15 @@ Command::~Command() {
   std::erase(owner.commands, this);
 }
 
-const std::string& Command::GetName() const {
+const std::string& ConsoleCommand::GetName() const {
   return state_->name;
 }
 
-const std::string& Command::GetHelp() const {
+const std::string& ConsoleCommand::GetHelp() const {
   return state_->help;
 }
 
-Result<void> Command::Run(std::string_view args) {
+Result<void> ConsoleCommand::Run(std::string_view args) {
   return state_->run(args);
 }
 

@@ -33,7 +33,7 @@ REX_TEST_CASE("A callback queued to an exited thread is dropped quietly", "[base
         auto ran = std::make_shared<std::atomic<bool>>(false);
         auto token = std::make_shared<int>(0);
         std::weak_ptr<int> alive = token;
-        rex::log::CaptureSink sink;
+        rex::log::LogCaptureSink sink;
         auto sink_guard = logger.AddSink(sink);
         thread->QueueUserCallback([ran, token = std::move(token)] { ran->store(true); });
         std::vector<rex::log::CapturedMessage> messages;

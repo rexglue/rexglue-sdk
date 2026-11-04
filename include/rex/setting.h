@@ -31,9 +31,9 @@
 
 namespace rex {
 
-class Command;
+class ConsoleCommand;
 class SettingOwner;
-class Settings;
+class SettingsRegistry;
 
 enum class SettingType : u8 {
   kBool,
@@ -49,18 +49,18 @@ enum class SettingType : u8 {
 /** Where a setting's value came from, lowest first. A higher layer wins. kLock refuses writes. */
 enum class SettingLayer : u8 {
   kDefault,
-  kTitle,       /**< The title's code. Writable until the title launches. */
+  kTitle,       /**< Code before the title launches, OnInit included. */
   kFile,        /**< The player's config file. */
   kEnvironment, /**< A REX_<SCOPE>_<NAME> environment variable. */
   kCommandLine, /**< A --scope.name option. */
-  kRuntime,     /**< The console, the settings overlay or code after startup. */
+  kRuntime,     /**< The console, the settings overlay, or code from launch until unload. */
   kLock,        /**< Locked by the title's code. */
 };
 
 enum class SettingLife : u8 {
   kLive,        /**< Any time. Readers see the change on their next read. */
   kRestart,     /**< Any time, applied on the next start. The registry lists it as pending. */
-  kStartupOnly, /**< Until the providers connect. */
+  kStartupOnly, /**< Until the modules init, just before OnInit. */
   kUntilLaunch,
 };
 
@@ -128,7 +128,7 @@ class REX_API SettingBase : public NonCopyable {
   /** Reports whether a kRestart setting changed and waits for the next start. */
   bool IsRestartPending() const;
 
-  /** A path keeps its {scope.name} references. */
+  /** Returns the value as text. A path keeps its {scope.name} references. */
   std::string GetText() const;
 
   std::string GetDefaultText() const;
@@ -170,7 +170,7 @@ class REX_API SettingBase : public NonCopyable {
 
  private:
   friend class SettingOwner;
-  friend class Settings;
+  friend class SettingsRegistry;
 
   virtual bool Store(std::string_view text) = 0;
   virtual void Publish() = 0;
@@ -199,7 +199,7 @@ class Setting final : public SettingBase {
   Setting(SettingOwner* owner, std::string_view name, T default_value, std::string_view help,
           Traits... traits);
 
-  /** A path comes back with its {scope.name} references resolved. */
+  /** Returns the value. A path comes back with its {scope.name} references resolved. */
   T Get() const;
 
   /**
@@ -265,8 +265,8 @@ class REX_API SettingOwner : public NonCopyable {
 
  private:
   friend class SettingBase;
-  friend class Command;
-  friend class Settings;
+  friend class ConsoleCommand;
+  friend class SettingsRegistry;
   struct State;
   std::unique_ptr<State> state_;
 };

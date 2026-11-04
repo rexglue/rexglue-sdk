@@ -16,7 +16,7 @@
 #include <rex/filesystem/file_open.h>
 #include <rex/filesystem/xex.h>
 #include <rex/kernel/types/xex.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/filesystem/path.h>
 #include <rex/kernel/module.h>
 #include <rex/kernel/function_dispatcher.h>
@@ -44,7 +44,7 @@ X_STATUS LoadXEXContinue(TitleRuntime& runtime, ModuleObject& module) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  auto* memory = StateOf(runtime).GetMemory();
+  auto* memory = StateOf(runtime).GetAddressSpace();
   const auto& image = module.GetXEX()->GetImage();
   const auto header = image.GetHeaderBytes();
   module.user.guest_xex_header = memory->SystemHeapAlloc(static_cast<u32>(header.size()));
@@ -246,7 +246,7 @@ X_STATUS ModuleObject::GetOptHeader(XEXHeaderKey key, u32* out_header_guest_ptr)
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  auto* memory = StateOf(*runtime).GetMemory();
+  auto* memory = StateOf(*runtime).GetAddressSpace();
   auto header = memory->TranslateVirtual<const XEXHeader*>(user.guest_xex_header);
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;
@@ -254,8 +254,9 @@ X_STATUS ModuleObject::GetOptHeader(XEXHeaderKey key, u32* out_header_guest_ptr)
   return GetOptHeader(memory, header, key, out_header_guest_ptr);
 }
 
-X_STATUS ModuleObject::GetOptHeader(const kernel::Memory* memory, const XEXHeader* header,
-                                    XEXHeaderKey key, u32* out_header_guest_ptr) {
+X_STATUS ModuleObject::GetOptHeader(const kernel::GuestAddressSpace* memory,
+                                    const XEXHeader* header, XEXHeaderKey key,
+                                    u32* out_header_guest_ptr) {
   REX_ASSERT(out_header_guest_ptr != nullptr);
   const KernelServices* services = GetKernelServices();
   if (!services) {

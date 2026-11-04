@@ -20,7 +20,7 @@
 #include <rex/chrono.h>
 #include "kernel/kernel_init.h"
 #include <rex/kernel/xboxkrnl.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/hook.h>
@@ -73,7 +73,7 @@ X_HANDLE CreateXboxkrnlModule(TitleRuntime& runtime) {
   }
   auto module_pin = runtime.GetObjectTable().Get<ModuleObject>(handle);
   ModuleObject& module = *module_pin;
-  auto* mem = StateOf(runtime).GetMemory();
+  auto* mem = StateOf(runtime).GetAddressSpace();
 
   RegisterVideoExports(module, runtime);
 

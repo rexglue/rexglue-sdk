@@ -7,7 +7,7 @@
 
 #include <rex/hash.h>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 #include "file_io.h"
 

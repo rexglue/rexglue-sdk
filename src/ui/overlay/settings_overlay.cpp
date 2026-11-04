@@ -1,13 +1,13 @@
 #include "ui/overlay/settings_overlay.h"
 #include "ui/overlay/overlay_context.h"
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 #include <rex/hid/input_keys.h>
 #include <rex/hid/binding.h>
 #include <rex/hid/input_system.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/string/text.h>
 #include <rex/string/numeric.h>
 #include <imgui.h>
@@ -196,13 +196,13 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
 #ifdef NDEBUG
   std::erase_if(vars, [](const rex::SettingBase* var) { return var->GetConstraints().debug_only; });
 #endif
-  const std::vector<rex::Command*> commands = settings_.EnumerateCommands();
+  const std::vector<rex::ConsoleCommand*> commands = settings_.EnumerateCommands();
 
   std::set<std::string> category_set;
   for (const rex::SettingBase* var : vars) {
     category_set.insert(var->GetOwner().GetScope());
   }
-  for (const rex::Command* command : commands) {
+  for (const rex::ConsoleCommand* command : commands) {
     const std::string& full = command->GetName();
     category_set.insert(full.substr(0, full.rfind('.')));
   }
@@ -526,7 +526,7 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
 
     ImGui::PopID();
   }
-  for (rex::Command* command : commands) {
+  for (rex::ConsoleCommand* command : commands) {
     const std::string& name = command->GetName();
     const std::string scope = name.substr(0, name.rfind('.'));
     if (!searching ? !category_matches(scope)

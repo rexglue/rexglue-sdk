@@ -30,7 +30,7 @@ namespace {
 XAMSettings g_settings;
 
 template <typename T>
-Result<Setting<T>*> FindSetting(ISettings& settings, std::string_view name) {
+Result<Setting<T>*> FindSetting(ISettingsRegistry& settings, std::string_view name) {
   auto found = settings.Find(name);
   if (!found) {
     return Err<Setting<T>*>(ErrorCategory::kModule,
@@ -54,12 +54,12 @@ std::string_view XAMModule::GetName() const {
 }
 
 std::span<const InterfaceType> XAMModule::GetRequiredInterfaces() const {
-  static constexpr InterfaceType kRequired[] = {ISettings::kInterface, ILogger::kInterface};
+  static constexpr InterfaceType kRequired[] = {ISettingsRegistry::kInterface, ILogger::kInterface};
   return kRequired;
 }
 
-Result<void> XAMModule::Connect(IFactory& factory) {
-  settings_ = factory.Get<ISettings>();
+Result<void> XAMModule::Connect(IInterfaceFactory& factory) {
+  settings_ = factory.Get<ISettingsRegistry>();
   logger_ = factory.Get<ILogger>();
   return logger_->AddCategories(log::kXAMLog);
 }

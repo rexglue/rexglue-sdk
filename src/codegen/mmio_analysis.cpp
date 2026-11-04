@@ -603,7 +603,7 @@ std::optional<MMIOSite> Classify(u32 address, const Access& access, Value target
         return MMIOSite{address, MMIOAccess::kPlain, MMIOReason::kUnsupported, target.constant,
                         write};
       }
-      return MMIOSite{address, AccessOf(*block), MMIOReason::kProven, target.constant, write};
+      return MMIOSite{address, AccessOf(*block), MMIOReason::kMatched, target.constant, write};
     }
   }
   if (!access.classified) {

@@ -12,7 +12,7 @@
 #include <rex/filesystem/mount.h>
 #include <rex/filesystem/directory.h>
 #include <rex/filesystem/file.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/result.h>
 #include <rex/string/text.h>
 #include <rex/filesystem/path.h>

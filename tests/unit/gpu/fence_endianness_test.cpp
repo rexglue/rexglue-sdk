@@ -40,15 +40,15 @@ constexpr rex::u32 kWritePointerRegister = 0x01C5;
 constexpr rex::u32 kSourceValue = 0x11223344;
 constexpr rex::u32 kPolledRef = 0x5566AA77;
 
-void Put(rex::kernel::Memory& memory, rex::u32 physical, rex::u32 value) {
+void Put(rex::kernel::GuestAddressSpace& memory, rex::u32 physical, rex::u32 value) {
   *memory.TranslatePhysical<be_u32*>(physical) = value;
 }
 
-rex::u32 GetBig(rex::kernel::Memory& memory, rex::u32 physical) {
+rex::u32 GetBig(rex::kernel::GuestAddressSpace& memory, rex::u32 physical) {
   return memory.TranslatePhysical<const be_u32*>(physical)->Load(std::memory_order_acquire);
 }
 
-rex::u32 GetNative(rex::kernel::Memory& memory, rex::u32 physical) {
+rex::u32 GetNative(rex::kernel::GuestAddressSpace& memory, rex::u32 physical) {
   return *memory.TranslatePhysical<const rex::u32*>(physical);
 }
 

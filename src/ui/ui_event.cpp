@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <chrono>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/apu/audio_system.h>
 #include <rex/hid/input_system.h>
 #include <rex/title.h>

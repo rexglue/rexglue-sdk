@@ -50,7 +50,7 @@ namespace rex::kernel {
 
 /**
  * Translates a guest list pointer to a host pointer. A translator is any type with
- * TranslateVirtual<T*>(uint32_t) and HostToGuestVirtual(void*), such as kernel::Memory*.
+ * TranslateVirtual<T*>(uint32_t) and HostToGuestVirtual(void*), such as kernel::GuestAddressSpace*.
  *
  * @param ptr The guest address of the list entry.
  */

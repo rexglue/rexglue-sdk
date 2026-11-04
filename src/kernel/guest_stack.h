@@ -16,7 +16,7 @@
 
 namespace rex::kernel {
 
-class Memory;
+class GuestAddressSpace;
 
 /** Bytes in a page of the stack heap, the guard below every guest stack. */
 inline constexpr u32 kGuestStackPageSize = 64 * 1024;
@@ -64,14 +64,14 @@ struct GuestStack {
  * @param title_memory True when the pages count against the title memory budget.
  * @return The stack, or an error when the range or the budget has no room.
  */
-[[nodiscard]] Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size,
-                                                    bool title_memory);
+[[nodiscard]] Result<GuestStack> AllocateGuestStack(GuestAddressSpace& memory, u32 size,
+                                                    u32 tls_size, bool title_memory);
 
 /**
  * Releases a stack from AllocateGuestStack.
  *
  * @param alloc_base The first byte of the stack allocation, 0 for none.
  */
-void FreeGuestStack(Memory& memory, u32 alloc_base);
+void FreeGuestStack(GuestAddressSpace& memory, u32 alloc_base);
 
 }  // namespace rex::kernel

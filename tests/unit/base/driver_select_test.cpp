@@ -22,7 +22,7 @@
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
 #include <rex/driver_module.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace {
 
@@ -63,7 +63,7 @@ std::unique_ptr<rex::IDriver> CreateFailing() {
 class TestModule final : public rex::IModule, public rex::IDriverModule {
  public:
   std::string_view GetName() const override { return "test"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}

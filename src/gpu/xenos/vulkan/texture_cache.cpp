@@ -17,7 +17,7 @@
 
 #include <rex/assert.h>
 #include <rex/bit.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/platform/perf.h>
 #include <rex/xenos/texture.h>
@@ -25,9 +25,9 @@
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/texture_cache.h"
 #include <rex/math.h>
-#include "gpu/xenos/host/vulkan/mem_alloc.h"
+#include "gpu/xenos/host/vulkan/vulkan_mem_alloc.h"
 #include "gpu/xenos/host/vulkan/ui_sampler.h"
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex::gpu::vulkan {
 

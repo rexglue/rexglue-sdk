@@ -12,7 +12,7 @@
 #include "xam/xam_state.h"
 #include "xam/xam_ui.h"
 #include <rex/kernel/types/content.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/math.h>
 #include <rex/ppc/hook.h>

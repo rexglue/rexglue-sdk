@@ -20,7 +20,7 @@ Result<void> BadRange(u32 address, u64 length, const char* reason) {
 }  // namespace
 
 struct GuestMemory::State {
-  kernel::Memory* memory = nullptr;
+  kernel::GuestAddressSpace* memory = nullptr;
 
   Result<u8*> Resolve(u32 address, u64 length, u32 required) const {
     const u64 end = static_cast<u64>(address) + length;
@@ -56,9 +56,9 @@ struct GuestMemory::State {
   }
 };
 
-GuestMemory::GuestMemory(kernel::Memory& memory) : state_(new State{&memory}) {}
+GuestMemory::GuestMemory(kernel::GuestAddressSpace& memory) : state_(new State{&memory}) {}
 
-kernel::Memory& GuestMemory::GetMemory() const {
+kernel::GuestAddressSpace& GuestMemory::GetAddressSpace() const {
   return *state_->memory;
 }
 

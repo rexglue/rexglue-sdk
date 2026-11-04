@@ -8,11 +8,10 @@
 #include <mutex>
 #include <optional>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/filesystem/file_system.h>
 #include <rex/filesystem/xdbf.h>
 #include "kernel/categories.h"
-#include <rex/logging/logger.h>
 #include <rex/platform/perf.h>
 #include <rex/kernel/object/object.h>
 #include <rex/kernel/function_dispatcher.h>
@@ -157,19 +156,19 @@ kernel::ITitleWorkspace& TitleRuntime::GetGuestWorkspace() {
 }
 
 kernel::ISystemHeap& TitleRuntime::GetGuestHeap() {
-  return *state_->GetMemory();
+  return *state_->GetAddressSpace();
 }
 
 rex::memory::GuestMembase TitleRuntime::GetMembase() {
-  return state_->GetMemory()->GetMembase();
+  return state_->GetAddressSpace()->GetMembase();
 }
 
 kernel::ITitleExit& TitleRuntime::GetTitleExit() {
   return *state_;
 }
 
-kernel::INotifier& TitleRuntime::GetNotifier() {
-  return state_->GetNotifier();
+kernel::INotificationBroadcaster& TitleRuntime::GetNotificationBroadcaster() {
+  return state_->GetNotificationBroadcaster();
 }
 
 filesystem::IFileSystem& TitleRuntime::GetFileSystem() {

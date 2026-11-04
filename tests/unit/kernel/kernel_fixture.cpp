@@ -127,7 +127,7 @@ class FixtureApp final : public rex::test::ObjectApp<codegen::ToolApp> {
     providers.insert(providers.end(), providers_.begin(), providers_.end());
   }
 
-  Result<void> OnConfigure(Settings& settings) override {
+  Result<void> OnConfigure(SettingsRegistry& settings) override {
     REX_TRY_VOID(ToolApp::OnConfigure(settings));
     if (!audio_driver_.empty()) {
       (void)GetAudio().GetSettings().driver.SetText(SettingLayer::kTitle, audio_driver_);
@@ -180,37 +180,38 @@ u32 Caller::XAM(std::string_view name, std::initializer_list<u64> args) {
 }
 
 u32 Caller::Alloc(u32 size) {
-  auto* memory = StateOf(runtime_).GetMemory();
+  auto* memory = StateOf(runtime_).GetAddressSpace();
   const u32 address = memory->SystemHeapAlloc(size);
   std::memset(memory->TranslateVirtual(address), 0, size);
   return address;
 }
 
 u32 Caller::Load32(u32 address) const {
-  return *StateOf(runtime_).GetMemory()->TranslateVirtual<const be_u32*>(address);
+  return *StateOf(runtime_).GetAddressSpace()->TranslateVirtual<const be_u32*>(address);
 }
 
 u32 Caller::LoadAcquire32(u32 address) const {
-  return StateOf(runtime_).GetMemory()->TranslateVirtual<const be_u32*>(address)->Load(
+  return StateOf(runtime_).GetAddressSpace()->TranslateVirtual<const be_u32*>(address)->Load(
       std::memory_order_acquire);
 }
 
 u8 Caller::Load8(u32 address) const {
-  return *StateOf(runtime_).GetMemory()->TranslateVirtual<u8*>(address);
+  return *StateOf(runtime_).GetAddressSpace()->TranslateVirtual<u8*>(address);
 }
 
 void Caller::Store32(u32 address, u32 value) {
-  *StateOf(runtime_).GetMemory()->TranslateVirtual<be_u32*>(address) = value;
+  *StateOf(runtime_).GetAddressSpace()->TranslateVirtual<be_u32*>(address) = value;
 }
 
 u32 Caller::AllocString(std::string_view text) {
   const u32 address = Alloc(static_cast<u32>(text.size()) + 1);
-  std::memcpy(StateOf(runtime_).GetMemory()->TranslateVirtual(address), text.data(), text.size());
+  std::memcpy(StateOf(runtime_).GetAddressSpace()->TranslateVirtual(address), text.data(),
+              text.size());
   return address;
 }
 
 void Caller::Store64(u32 address, u64 value) {
-  *StateOf(runtime_).GetMemory()->TranslateVirtual<be_u64*>(address) = value;
+  *StateOf(runtime_).GetAddressSpace()->TranslateVirtual<be_u64*>(address) = value;
 }
 
 u32 Caller::AllocQuad(i64 value) {
@@ -325,11 +326,11 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   auto done = std::make_shared<std::promise<void>>();
   auto finished = done->get_future();
 
-  kernel::ThreadState host_state(0, 0, 0, StateOf(GetRuntime()).GetMemory(), &GetRuntime());
+  kernel::ThreadState host_state(0, 0, 0, StateOf(GetRuntime()).GetAddressSpace(), &GetRuntime());
   kernel::ThreadState* previous = kernel::ThreadState::Get();
   kernel::ThreadState::Bind(&host_state);
 
-  u8* base = StateOf(GetRuntime()).GetMemory()->GetVirtualMembase();
+  u8* base = StateOf(GetRuntime()).GetAddressSpace()->GetVirtualMembase();
   Caller main_caller(*host_state.GetContext(), base, GetRuntime());
   const u32 handle = main_caller.Spawn([body, done](Caller& caller) {
     body(caller);
@@ -347,11 +348,11 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
 }
 
 void KernelFixture::RunUntilGuestThreadEnds(const std::function<void(Caller&)>& body) {
-  kernel::ThreadState host_state(0, 0, 0, StateOf(GetRuntime()).GetMemory(), &GetRuntime());
+  kernel::ThreadState host_state(0, 0, 0, StateOf(GetRuntime()).GetAddressSpace(), &GetRuntime());
   kernel::ThreadState* previous = kernel::ThreadState::Get();
   kernel::ThreadState::Bind(&host_state);
 
-  u8* base = StateOf(GetRuntime()).GetMemory()->GetVirtualMembase();
+  u8* base = StateOf(GetRuntime()).GetAddressSpace()->GetVirtualMembase();
   Caller main_caller(*host_state.GetContext(), base, GetRuntime());
   const u32 handle = main_caller.Spawn(body);
 

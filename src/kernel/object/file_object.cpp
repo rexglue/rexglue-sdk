@@ -12,7 +12,7 @@
 #include <rex/filesystem/file_stat.h>
 #include <rex/filesystem/file.h>
 #include <rex/filesystem/file_system.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/string/text.h>
 #include <rex/math.h>
 #include <rex/memory.h>
@@ -52,7 +52,7 @@ void NotifyIOCompletionPorts(TitleRuntime& runtime, FileObject& file,
 X_STATUS FileObject::ReadInternal(TitleRuntime& runtime, u32 buffer_address, u32 buffer_length,
                                   u64 byte_offset, u32* out_bytes_read, u32 apc_context,
                                   bool notify_completion) {
-  auto* memory = StateOf(runtime).GetMemory();
+  auto* memory = StateOf(runtime).GetAddressSpace();
   if (byte_offset == static_cast<u64>(-1)) {
     byte_offset = position_;
   }
@@ -203,8 +203,8 @@ X_STATUS FileObject::ReadScatter(TitleRuntime& runtime, u32 segments_address, u3
   std::lock_guard<std::mutex> lock(file_lock);
   X_STATUS result = X_STATUS_SUCCESS;
 
-  be_u32* segments =
-      reinterpret_cast<be_u32*>(StateOf(runtime).GetMemory()->TranslateVirtual(segments_address));
+  be_u32* segments = reinterpret_cast<be_u32*>(
+      StateOf(runtime).GetAddressSpace()->TranslateVirtual(segments_address));
 
   u32 page_size = kPageSize4KiB;
 
@@ -260,7 +260,7 @@ X_STATUS FileObject::Write(TitleRuntime& runtime, u32 buffer_address, u32 buffer
   size_t bytes_written = 0;
   X_STATUS result = X_STATUS_SUCCESS;
   auto written = file->Write(
-      std::span<const u8>(StateOf(runtime).GetMemory()->TranslateVirtual(buffer_address),
+      std::span<const u8>(StateOf(runtime).GetAddressSpace()->TranslateVirtual(buffer_address),
                           buffer_length),
       byte_offset);
   if (written) {

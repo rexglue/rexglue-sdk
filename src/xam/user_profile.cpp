@@ -13,7 +13,7 @@
 
 #include <format>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/xam/content_manager.h>
 #include <rex/xam/user_profile.h>

@@ -17,7 +17,7 @@
 #include <utility>
 
 #include <rex/ppc/image.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/platform/file.h>
 #include <rex/ppc/call.h>
@@ -288,7 +288,7 @@ Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
 }
 
 void ModuleRegistry::PatchImportSlot(u32 slot, u32 value) {
-  auto* memory = StateOf(runtime_).GetMemory();
+  auto* memory = StateOf(runtime_).GetAddressSpace();
   auto* heap = memory->LookupHeap(slot);
   const u32 page = slot & ~(heap->GetPageSize() - 1);
   u32 previous = 0;
@@ -303,7 +303,7 @@ void ModuleRegistry::PatchImportSlot(u32 slot, u32 value) {
 void ModuleRegistry::AcquireReference(ModuleObject& module) {
   std::lock_guard lock(load_count_mutex_);
   StateOf(runtime_)
-      .GetMemory()
+      .GetAddressSpace()
       ->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module.hmodule_ptr)
       ->load_count++;
 }
@@ -316,7 +316,7 @@ void ModuleRegistry::ReleaseReference(X_HANDLE handle, bool call_entry) {
   bool last;
   {
     std::lock_guard lock(load_count_mutex_);
-    auto* ldr_data = StateOf(runtime_).GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(
+    auto* ldr_data = StateOf(runtime_).GetAddressSpace()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(
         module->hmodule_ptr);
     last = (--ldr_data->load_count == 0);
   }
@@ -580,8 +580,9 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
 
   const bool found_module = RemoveUser(module_handle);
   if (found_module) {
-    CloseOwned(table_, ModuleObject::HandleFromHModule(
-                           StateOf(runtime_).GetMemory()->TranslateVirtual(module->hmodule_ptr)));
+    CloseOwned(table_,
+               ModuleObject::HandleFromHModule(
+                   StateOf(runtime_).GetAddressSpace()->TranslateVirtual(module->hmodule_ptr)));
   }
   ReleaseDependencies(*module, call_entry);
 

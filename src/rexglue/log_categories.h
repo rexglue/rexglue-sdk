@@ -12,7 +12,7 @@
 
 #include <array>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 
 #include "codegen/codegen_categories.h"
 
@@ -45,7 +45,7 @@ REXLOG_CATEGORY(rexglue, "The rexglue command line tool")
 namespace rexglue {
 
 /** Categories the tool owns, not those of connected modules. */
-inline constexpr std::array<const rex::log::Category*, 2> kLogCategories = {&rex::log::codegen,
-                                                                            &rex::log::rexglue};
+inline constexpr std::array<const rex::log::LogCategory*, 2> kLogCategories = {&rex::log::codegen,
+                                                                               &rex::log::rexglue};
 
 }  // namespace rexglue

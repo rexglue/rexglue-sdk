@@ -9,11 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "xam/app/apps.h"
+#include "xam/app/xam_apps.h"
 #include <cstring>
 #include <string_view>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/kernel/title_runtime.h>
 #include <rex/xam/app_manager.h>

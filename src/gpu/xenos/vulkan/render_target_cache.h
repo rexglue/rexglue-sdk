@@ -31,7 +31,7 @@
 #include <rex/xenos/state.h>
 #include <rex/hash.h>
 #include "gpu/xenos/host/vulkan/single_layout_descriptor_set_pool.h"
-#include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
+#include "gpu/xenos/host/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace rex::gpu::vulkan {
 

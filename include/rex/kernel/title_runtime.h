@@ -48,16 +48,16 @@ class FunctionDispatcher;
 class ObjectTable;
 class ThreadRegistry;
 class ModuleRegistry;
-class Notifier;
+class NotificationBroadcaster;
 class Dispatcher;
 class WorkspaceHeap;
-class Memory;
+class GuestAddressSpace;
 class ISystemHeap;
 class ITitleWorkspace;
 class IObjectTable;
 class IThreadRegistry;
 class IModuleRegistry;
-class INotifier;
+class INotificationBroadcaster;
 class IDPCQueue;
 class IOverlappedDispatcher;
 class TitleState;
@@ -178,7 +178,7 @@ class REX_KERNEL_API TitleRuntime final : public rex::NonCopyable {
 
   kernel::ITitleExit& GetTitleExit();
 
-  kernel::INotifier& GetNotifier();
+  kernel::INotificationBroadcaster& GetNotificationBroadcaster();
 
   filesystem::IFileSystem& GetFileSystem();
 

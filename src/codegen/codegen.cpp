@@ -14,7 +14,7 @@
 #include "codegen_categories.h"
 #include "pipeline.h"
 #include "codegen_writer.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/title_runtime.h>
 
 #include "tool_runtime.h"

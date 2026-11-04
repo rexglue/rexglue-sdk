@@ -1072,7 +1072,7 @@ REX_TEST_CASE("net: title termination ends a pending WSARecvFrom before it retur
   REQUIRE(overlapped != 0);
   StateOf(fixture.GetRuntime()).TerminateTitle();
   auto* internal =
-      StateOf(fixture.GetRuntime()).GetMemory()->TranslateVirtual<rex::be_u32*>(overlapped);
+      StateOf(fixture.GetRuntime()).GetAddressSpace()->TranslateVirtual<rex::be_u32*>(overlapped);
   CHECK(*internal == kWSAECANCELLED);
 }
 

@@ -71,7 +71,7 @@ class HeadlessApp final : public rex::test::ObjectApp<rex::app::App> {
     return needs;
   }
 
-  rex::Result<void> OnConfigure(rex::Settings& settings) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
                            (folder_.path / "game").string());
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
@@ -115,7 +115,7 @@ REX_TEST_CASE_METHOD(Fixture, "headless xenos title runs to first swap", "[gpu][
     REQUIRE(runtime.Load());
     REQUIRE(runtime.Launch());
 
-    auto& memory = *StateOf(runtime).GetMemory();
+    auto& memory = *StateOf(runtime).GetAddressSpace();
     const rex::u32 block = memory.SystemHeapAlloc(0x2000, 0x1000, rex::kernel::kSystemHeapPhysical);
     REQUIRE(block != 0);
     const rex::u32 ring = memory.GetPhysicalAddress(block);

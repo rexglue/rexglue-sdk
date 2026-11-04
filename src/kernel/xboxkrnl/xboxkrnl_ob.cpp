@@ -14,7 +14,7 @@
 #include <rex/assert.h>
 #include <rex/filesystem/file_system_error.h>
 #include <rex/filesystem/path.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/string/text.h>
 #include "kernel/categories.h"
 #include <rex/ppc/hook.h>
@@ -51,10 +51,10 @@ u32 ObOpenObjectByName_entry(MappedVoid obj_attributes_ptr,
   REX_KERNEL_REQUIRE_NONNULL(obj_attributes_ptr);
 
   auto obj_attributes =
-      kernel::GetCurrentState().GetMemory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
+      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
           obj_attributes_ptr.GetGuestAddress());
   REX_ASSERT(obj_attributes->name_ptr != 0);
-  auto name = kernel::TranslateAnsiStringAddress(kernel::GetCurrentState().GetMemory(),
+  auto name = kernel::TranslateAnsiStringAddress(kernel::GetCurrentState().GetAddressSpace(),
                                                  obj_attributes->name_ptr);
 
   auto opened = kernel::GetCurrent().GetObjectTable().OpenByName(name);
@@ -172,9 +172,9 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
 u32 ObCreateSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr,
                                GuestPtrT<X_ANSI_STRING> target_ptr) {
   auto path = rex::filesystem::utf8_canonicalize_guest_path(
-      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), path_ptr));
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), path_ptr));
   auto target = rex::filesystem::utf8_canonicalize_guest_path(
-      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), target_ptr));
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), target_ptr));
 
   if (rex::string::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);
@@ -190,7 +190,7 @@ u32 ObCreateSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr,
 
 u32 ObDeleteSymbolicLink_entry(GuestPtrT<X_ANSI_STRING> path_ptr) {
   auto path = rex::filesystem::utf8_canonicalize_guest_path(
-      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetMemory(), path_ptr));
+      kernel::TranslateAnsiPath(kernel::GetCurrentState().GetAddressSpace(), path_ptr));
   if (rex::string::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);
   }

@@ -44,7 +44,7 @@
 #include <rex/xenos/packet.h>
 #include <rex/xenos/state.h>
 #include <rex/hash.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/math.h>
 #include <rex/bit.h>

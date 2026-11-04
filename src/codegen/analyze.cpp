@@ -16,7 +16,7 @@
 
 #include "analysis_error_log.h"
 #include "pipeline.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 
 namespace rex::codegen {

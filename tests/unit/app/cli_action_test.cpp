@@ -19,7 +19,7 @@
 #include <rex/app/app.h>
 #include <rex/cli.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/app_harness.h"
 #include "app/command_line.h"
@@ -44,7 +44,7 @@ class ActionApp final : public rex::test::ObjectApp<rex::app::App> {
   std::vector<rex::CLIActionHit> hits;
 
  protected:
-  rex::Result<void> OnConfigure(rex::Settings&) override {
+  rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
     return rex::Ok();
   }

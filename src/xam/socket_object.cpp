@@ -21,7 +21,7 @@
 #include <thread>
 #include <utility>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/memory/endian.h>
 #include <rex/platform/socket.h>
 #include <rex/platform.h>

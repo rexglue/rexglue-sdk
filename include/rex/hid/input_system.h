@@ -22,7 +22,7 @@
 #include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/types.h>
 #include <rex/utility.h>
 
@@ -46,10 +46,10 @@ class REX_HID_API InputSettings final : public SettingOwner {
 };
 
 /**
- * It merges the selected drivers into four users. A pad seen by two drivers
+ * Merges the selected drivers into four users. A pad seen by two drivers
  * counts once, from the driver listed first in hid.drivers. User 0 always has a pad, a neutral
- * one when nothing else is present. Every user reads a neutral pad while the window lacks input
- * capture. Any thread.
+ * one when nothing else is present. Without input capture only the keyboard and mouse source reads
+ * neutral, and AcquireUIBlock makes every user neutral. Any thread.
  */
 REX_DECLARE_INTERFACE(IInputSystem, 1)
   static constexpr u32 kMaxUsers = 4;
@@ -127,7 +127,7 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
   virtual hid::KeyModifiers GetModifiers() const = 0;
 
   /**
-   * @return Its position and the window size.
+   * @return The pointer position and the window size.
    */
   virtual hid::PointerState GetPointer() const = 0;
 

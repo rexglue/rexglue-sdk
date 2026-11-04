@@ -16,8 +16,8 @@ constexpr const char* kPoolPlotNames[] = {"Guest heap in use", "Guest workspace 
 
 }  // namespace
 
-GuestAllocator::GuestAllocator(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap,
-                               GuestPool pool)
+GuestAllocator::GuestAllocator(Key, GuestAddressSpace& memory, u32 base, u32 size,
+                               O1HeapInstance* heap, GuestPool pool)
     : memory_(memory), base_(base), size_(size), heap_(heap), pool_(pool) {
   std::lock_guard lock(memory_.allocators_mutex_);
   memory_.allocators_.push_back(this);
@@ -39,10 +39,10 @@ Result<std::unique_ptr<GuestAllocator>> GuestAllocator::Create(rex::kernel::Gues
                                                                u32 size, u32 alignment,
                                                                bool physical, u32 page_size,
                                                                u32 flags, GuestPool pool) {
-  return Create(memory.GetMemory(), size, alignment, physical, page_size, flags, pool);
+  return Create(memory.GetAddressSpace(), size, alignment, physical, page_size, flags, pool);
 }
 
-Result<std::unique_ptr<GuestAllocator>> GuestAllocator::Create(Memory& memory, u32 size,
+Result<std::unique_ptr<GuestAllocator>> GuestAllocator::Create(GuestAddressSpace& memory, u32 size,
                                                                u32 alignment, bool physical,
                                                                u32 page_size, u32 flags,
                                                                GuestPool pool) {

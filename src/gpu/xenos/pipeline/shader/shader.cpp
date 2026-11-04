@@ -15,7 +15,7 @@
 
 #include <format>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/shader.h"

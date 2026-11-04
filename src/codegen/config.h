@@ -170,8 +170,8 @@ struct RecompilerConfig {
    */
   bool reserved_register_as_local_variable = false;
   /**
-   * TOML key `skip_msr`, default false. When true, omits the generated global lock check that
-   * mfmsr emits.
+   * TOML key `skip_msr`, default false. When true, omits the global lock check at mfmsr, and the
+   * MSR update and the global lock enter and leave at mtmsrd.
    */
   bool skip_msr = false;
   /**
@@ -260,7 +260,7 @@ struct RecompilerConfig {
    * Load() does.
    *
    * @param base_dir Directory that includes resolve against
-   * @param source The file and section the table came from, the start of key warnings
+   * @param source File and section the table came from, shown at the start of key warnings
    */
   bool LoadFromTable(const toml::table& tbl, const std::filesystem::path& base_dir,
                      const std::string& source = "<inline>");
@@ -271,7 +271,7 @@ struct RecompilerConfig {
    * shared layer is not a complete binary config.
    *
    * @param base_dir Directory that includes resolve against
-   * @param source The file and section the table came from, the start of key warnings
+   * @param source File and section the table came from, shown at the start of key warnings
    */
   bool LoadShared(const toml::table& tbl, const std::filesystem::path& base_dir,
                   const std::string& source = "<shared>");

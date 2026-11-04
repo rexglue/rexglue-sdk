@@ -30,7 +30,7 @@ u32 PutText(Caller& c, const std::string& text) {
 }
 
 void Store8(Caller& c, u32 address, u8 value) {
-  *StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual<u8*>(address) = value;
+  *StateOf(c.GetRuntime()).GetAddressSpace()->TranslateVirtual<u8*>(address) = value;
 }
 
 std::string ReadText(Caller& c, u32 address) {

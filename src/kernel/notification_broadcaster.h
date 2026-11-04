@@ -1,5 +1,5 @@
 /**
- * @file        kernel/notifier.h
+ * @file        kernel/notification_broadcaster.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -13,15 +13,15 @@
 #include <vector>
 
 #include <rex/platform/lock_order.h>
-#include <rex/kernel/object/notifier.h>
+#include <rex/kernel/object/notification_broadcaster.h>
 
 #include "kernel/object_table.h"
 
 namespace rex::kernel {
 
-class Notifier final : public INotifier {
+class NotificationBroadcaster final : public INotificationBroadcaster {
  public:
-  explicit Notifier(ObjectTable& table);
+  explicit NotificationBroadcaster(ObjectTable& table);
 
   [[nodiscard]] Result<X_HANDLE> AddNotifyListener(u64 mask, u32 max_version) override;
   void BroadcastNotification(XNotificationID id, u32 data) override;

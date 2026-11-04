@@ -13,7 +13,7 @@
 #include <cctype>
 #include <cstring>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/memory/endian.h>
 #include <rex/ppc/hook.h>

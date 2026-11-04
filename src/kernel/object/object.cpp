@@ -186,7 +186,7 @@ std::chrono::microseconds DelayFromTicks(i64 delay_ticks) {
   return std::chrono::microseconds(std::min(microseconds, kLongestMs * 1000));
 }
 
-std::string NameFromAttributes(kernel::Memory* memory, u32 obj_attributes_ptr) {
+std::string NameFromAttributes(kernel::GuestAddressSpace* memory, u32 obj_attributes_ptr) {
   if (!obj_attributes_ptr) {
     return {};
   }
@@ -195,7 +195,7 @@ std::string NameFromAttributes(kernel::Memory* memory, u32 obj_attributes_ptr) {
   return std::string(name);
 }
 
-ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, u32 type_address,
+ObjectBlock AllocObjectBlock(kernel::GuestAddressSpace* memory, u32 size, u32 type_address,
                              WorkspaceHeap* workspace) {
   const u32 total_size = size + sizeof(X_OBJECT_HEADER);
   const u32 mem =
@@ -209,7 +209,7 @@ ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, u32 type_address,
   return ObjectBlock{mem + static_cast<u32>(sizeof(X_OBJECT_HEADER)), true, workspace};
 }
 
-void FreeObjectBlock(kernel::Memory* memory, u32 address, WorkspaceHeap* workspace) {
+void FreeObjectBlock(kernel::GuestAddressSpace* memory, u32 address, WorkspaceHeap* workspace) {
   if (!address) {
     return;
   }

@@ -12,7 +12,7 @@
 #include <cstdlib>
 
 #include <rex/assert.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/kernel/thread_state.h>
 #include <rex/ppc/context.h>
 #include <rex/platform/thread.h>
@@ -26,7 +26,7 @@ void detail::AbortNoRuntime() {
 
 thread_local ThreadState* thread_state = nullptr;
 
-ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory* memory,
+ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, GuestAddressSpace* memory,
                          TitleRuntime* runtime)
     : memory_(memory), runtime_(runtime), thread_id_(thread_id) {
   if (thread_id_ == UINT_MAX) {

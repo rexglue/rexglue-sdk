@@ -44,13 +44,14 @@ rex::u32 PutWide(rex::test::Caller& caller, rex::kernel::TitleRuntime& runtime,
   const rex::u32 address =
       caller.Alloc(static_cast<rex::u32>((text.size() + 1) * sizeof(char16_t)));
   rex::string::CopyAndSwapTruncating(
-      StateOf(runtime).GetMemory()->TranslateVirtual<char16_t*>(address), text, text.size() + 1);
+      StateOf(runtime).GetAddressSpace()->TranslateVirtual<char16_t*>(address), text,
+      text.size() + 1);
   return address;
 }
 
 std::u16string ReadWide(rex::kernel::TitleRuntime& runtime, rex::u32 address) {
   return rex::memory::load_and_swap<std::u16string>(
-      StateOf(runtime).GetMemory()->TranslateVirtual(address));
+      StateOf(runtime).GetAddressSpace()->TranslateVirtual(address));
 }
 
 rex::u32 CallMessageBox(rex::test::Caller& caller, rex::kernel::TitleRuntime& runtime,
@@ -82,7 +83,7 @@ rex::u32 CallMessageBoxEx(rex::test::Caller& caller, rex::kernel::TitleRuntime& 
 }
 
 rex::u32 WaitOverlapped(rex::kernel::TitleRuntime& runtime, rex::u32 overlapped) {
-  auto* host = StateOf(runtime).GetMemory()->TranslateVirtual<XOVERLAPPED*>(overlapped);
+  auto* host = StateOf(runtime).GetAddressSpace()->TranslateVirtual<XOVERLAPPED*>(overlapped);
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
   while (XOverlappedGetResult(host) == kIOPending && std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));

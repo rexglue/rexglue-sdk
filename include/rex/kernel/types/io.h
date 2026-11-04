@@ -43,7 +43,7 @@ enum X_FILE_ATTRIBUTES : u16 {
   kXFileAttributeEncrypted = 0x4000,
 };
 
-/** The overlapped IO block, known as XOVERLAPPED to the title. */
+/** Guest layout of an overlapped IO block. */
 struct XOVERLAPPED {
   be_u32 result;
   be_u32 length;
@@ -332,7 +332,7 @@ namespace kernel {
  *
  * @param ansi_string The guest string, may be null.
  */
-inline std::string_view TranslateAnsiString(const kernel::Memory* memory,
+inline std::string_view TranslateAnsiString(const kernel::GuestAddressSpace* memory,
                                             const X_ANSI_STRING* ansi_string) {
   if (!ansi_string || !ansi_string->length) {
     return "";
@@ -346,7 +346,7 @@ inline std::string_view TranslateAnsiString(const kernel::Memory* memory,
  *
  * @param ansi_string The guest string, may be null.
  */
-inline std::string TranslateAnsiPath(const kernel::Memory* memory,
+inline std::string TranslateAnsiPath(const kernel::GuestAddressSpace* memory,
                                      const X_ANSI_STRING* ansi_string) {
   return rex::string::TrimString(std::string(TranslateAnsiString(memory, ansi_string)));
 }
@@ -357,7 +357,7 @@ inline std::string TranslateAnsiPath(const kernel::Memory* memory,
  *
  * @param guest_address The guest address of the string structure, 0 for none.
  */
-inline std::string_view TranslateAnsiStringAddress(const kernel::Memory* memory,
+inline std::string_view TranslateAnsiStringAddress(const kernel::GuestAddressSpace* memory,
                                                    u32 guest_address) {
   if (!guest_address) {
     return "";
@@ -371,7 +371,7 @@ inline std::string_view TranslateAnsiStringAddress(const kernel::Memory* memory,
  * @param unicode_string The guest string, may be null.
  * @return The text, empty when the string is null or has no length.
  */
-inline std::u16string TranslateUnicodeString(const kernel::Memory* memory,
+inline std::u16string TranslateUnicodeString(const kernel::GuestAddressSpace* memory,
                                              const X_UNICODE_STRING* unicode_string) {
   if (!unicode_string) {
     return u"";

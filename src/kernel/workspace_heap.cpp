@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <cstring>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/kernel/types/status.h>
 
@@ -28,10 +28,11 @@ constexpr u32 kSizeStep = 16 * 1024;
 
 }  // namespace
 
-WorkspaceHeap::WorkspaceHeap(Key, Memory& memory, std::unique_ptr<GuestAllocator> allocator)
+WorkspaceHeap::WorkspaceHeap(Key, GuestAddressSpace& memory,
+                             std::unique_ptr<GuestAllocator> allocator)
     : memory_(memory), allocator_(std::move(allocator)) {}
 
-Result<std::unique_ptr<WorkspaceHeap>> WorkspaceHeap::Create(Memory& memory, u32 size) {
+Result<std::unique_ptr<WorkspaceHeap>> WorkspaceHeap::Create(GuestAddressSpace& memory, u32 size) {
   auto allocator = GuestAllocator::Create(memory, size, kPageSize4KiB, false, kPageSize4KiB,
                                           kMemoryAllocationTitle, GuestPool::kWorkspace);
   if (!allocator) {

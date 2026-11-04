@@ -20,7 +20,7 @@
 #include <rex/apu/audio_driver.h>
 #include <rex/logging/logger.h>
 #include <rex/platform/process.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/driver_context.h"
 #include "base/module_group.h"

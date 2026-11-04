@@ -41,7 +41,7 @@ REX_TEST_CASE("be_ptr: a null pointer resolves to null", "[kernel][be_ptr]") {
     CHECK(pointer.GetAddress() == 0);
     CHECK_FALSE(static_cast<bool>(pointer));
     CHECK(pointer.GetHost() == nullptr);
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     CHECK(pointer.GetHost(view) == nullptr);
     pointer = 0x1234;
     pointer = nullptr;
@@ -89,7 +89,7 @@ REX_TEST_CASE("be_ptr: the physical view round trips through the host pointer",
               "[kernel][be_ptr]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller&) {
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     for (const u32 address : {0x00010000u, 0xDFFFFFF8u, 0xE0000000u, 0xE0001000u, 0xFFCFFFF8u}) {
       INFO(address);
       rex::kernel::be_ptr<Pair> pointer;
@@ -145,7 +145,7 @@ REX_TEST_CASE("GuestVector: a zeroed vector is empty", "[kernel][be_ptr]") {
     c.Store32(header + 4, 0);
     c.Store32(header + 8, 0);
     const auto* vector = rex::kernel::ThreadState::Get()
-                             ->GetMemory()
+                             ->GetAddressSpace()
                              ->TranslateVirtual<const rex::kernel::GuestVector<be_u32>*>(header);
     CHECK(vector->size() == 0);
     CHECK(vector->empty());
@@ -158,7 +158,7 @@ REX_TEST_CASE("GuestVector: elements resolve by the element size", "[kernel][be_
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 header = MakeVector(c, sizeof(Pair), 3, 8);
-    auto* memory = rex::kernel::ThreadState::Get()->GetMemory();
+    auto* memory = rex::kernel::ThreadState::Get()->GetAddressSpace();
     const auto* vector = memory->TranslateVirtual<const rex::kernel::GuestVector<Pair>*>(header);
     const u32 storage = vector->first.GetAddress();
     for (u32 i = 0; i < 3; ++i) {
@@ -184,7 +184,7 @@ REX_TEST_CASE("GuestVector: pointers out of order give an empty vector", "[kerne
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 header = MakeVector(c, 4, 2, 4);
     const auto* vector = rex::kernel::ThreadState::Get()
-                             ->GetMemory()
+                             ->GetAddressSpace()
                              ->TranslateVirtual<rex::kernel::GuestVector<be_u32>*>(header);
     c.Store32(header + 4, vector->first.GetAddress() - 4);
     CHECK(vector->size() == 0);
@@ -197,7 +197,7 @@ REX_TEST_CASE("GuestVector: a memory view resolves the elements without a bound 
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 header = MakeVector(c, 4, 2, 2);
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     const auto* vector = view.TranslateVirtual<const rex::kernel::GuestVector<be_u32>*>(header);
     c.Store32(vector->first.GetAddress(), 7);
     c.Store32(vector->first.GetAddress() + 4, 9);
@@ -212,7 +212,7 @@ REX_TEST_CASE("be_ptr: TryGetHost through a memory view needs no bound thread",
               "[kernel][be_ptr]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     const u32 address = c.Alloc(sizeof(Pair));
     rex::kernel::be_ptr<Pair> pointer;
     pointer = address;
@@ -240,7 +240,7 @@ REX_TEST_CASE("GuestVector: GetAddress gives element addresses and 0 out of rang
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 header = MakeVector(c, sizeof(Pair), 3, 8);
     const auto* vector = rex::kernel::ThreadState::Get()
-                             ->GetMemory()
+                             ->GetAddressSpace()
                              ->TranslateVirtual<const rex::kernel::GuestVector<Pair>*>(header);
     const u32 storage = vector->first.GetAddress();
     CHECK(vector->GetAddress(0) == storage);
@@ -255,7 +255,7 @@ REX_TEST_CASE("GuestVector: TryAt resolves elements the title can read", "[kerne
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 header = MakeVector(c, sizeof(Pair), 3, 8);
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     const auto* vector = view.TranslateVirtual<const rex::kernel::GuestVector<Pair>*>(header);
     c.Store32(vector->GetAddress(1), 5);
     REQUIRE(vector->TryAt(1) != nullptr);
@@ -295,7 +295,7 @@ REX_TEST_CASE("GuestVector: TryAt rejects an element that reaches unreadable mem
     c.Store32(header, edge - 8);
     c.Store32(header + 4, edge + 4);
     c.Store32(header + 8, edge + 4);
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     const auto* vector = view.TranslateVirtual<const rex::kernel::GuestVector<Pair>*>(header);
     REQUIRE(vector->size() == 1);
     CHECK(vector->TryAt(0) != nullptr);
@@ -311,7 +311,7 @@ REX_TEST_CASE("GuestVector: TryGet reads a numeric element through a view", "[ke
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 header = MakeVector(c, sizeof(u32), 3, 8);
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     const auto* vector = view.TranslateVirtual<const rex::kernel::GuestVector<u32>*>(header);
     c.Store32(vector->GetAddress(0), 0x11223344);
     c.Store32(vector->GetAddress(2), 7);
@@ -340,7 +340,7 @@ REX_TEST_CASE("GuestVector: TryGet rejects an element on an unreadable page", "[
     c.Store32(header + 4, edge + 4);
     c.Store32(header + 8, edge + 4);
     c.Store32(edge - 8, 9);
-    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetMemory());
+    const rex::kernel::MemoryView view(*rex::kernel::ThreadState::Get()->GetAddressSpace());
     const auto* vector = view.TranslateVirtual<const rex::kernel::GuestVector<u32>*>(header);
     REQUIRE(vector->size() == 3);
     CHECK(vector->TryGet(0, view) == 9u);

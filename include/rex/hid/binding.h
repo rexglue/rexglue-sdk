@@ -22,7 +22,7 @@
 #include <rex/hid/input_keys.h>
 #include <rex/platform.h>
 #include <rex/result.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/types.h>
 
 namespace rex::hid {
@@ -83,7 +83,7 @@ class IBindingSet {
    * @param settings The registry, which must outlive the registration.
    * @return Ok, or the error of the registry.
    */
-  [[nodiscard]] virtual Result<void> Register(ISettings& settings) = 0;
+  [[nodiscard]] virtual Result<void> Register(ISettingsRegistry& settings) = 0;
 
   /** Removes the settings from the registry. The sources keep their last values. */
   virtual void Unregister() = 0;
@@ -146,7 +146,7 @@ class IBindingSet {
    *
    * @param binding The index into the descriptions of the binding being edited.
    * @param source The input to look for, compared with IsSameInput.
-   * @return The index of the first other binding that holds the input, or empty.
+   * @return Index of the first other binding using the input, or empty.
    */
   [[nodiscard]] virtual std::optional<size_t> FindConflict(size_t binding,
                                                            const InputSource& source) const = 0;

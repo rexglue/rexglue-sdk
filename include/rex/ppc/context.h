@@ -684,7 +684,7 @@ struct alignas(0x40) PPCContext {
   }
 
   /**
-   * Loads the non volatile registers from a buffer written by SaveNonVolatiles. Only the title
+   * Loads the non volatile registers from a buffer written by SaveNonVolatiles. Only the guest
    * owned bits of fpscr are restored.
    *
    * @param src The source buffer of kNonVolatileSaveSize bytes.

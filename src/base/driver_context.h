@@ -28,9 +28,9 @@ namespace rex {
  */
 class REX_API AppDriverContext final : public IDriverContext {
  public:
-  AppDriverContext(ISettings& settings, ILogger& logger);
+  AppDriverContext(ISettingsRegistry& settings, ILogger& logger);
 
-  ISettings& GetSettings() override;
+  ISettingsRegistry& GetSettingsRegistry() override;
   ILogger& GetLogger() override;
   [[nodiscard]] Result<void> RunOnUIThread(MoveOnlyFunction<void()> fn) override;
   void PostToUIThread(MoveOnlyFunction<void()> fn) override;
@@ -43,7 +43,7 @@ class REX_API AppDriverContext final : public IDriverContext {
   void SetUI(IUIThread* ui);
 
  private:
-  ISettings& settings_;
+  ISettingsRegistry& settings_;
   ILogger& logger_;
   IUIThread* ui_ = nullptr;
   std::thread::id init_thread_;

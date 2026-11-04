@@ -16,14 +16,14 @@
 
 #include <rex/logging/logger.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
-#include <rex/command.h>
+#include <rex/settings_registry.h>
+#include <rex/console_command.h>
 
 #include "base/app_harness.h"
 
 namespace {
 
-using rex::GetSettings;
+using rex::GetSettingsRegistry;
 using rex::SettingLayer;
 using rex::test::HarnessApp;
 using rex::test::RunInInit;
@@ -79,7 +79,7 @@ REX_TEST_CASE("settings: value for a later owner applies on register", "[base][s
 }
 
 REX_TEST_CASE("settings: alias maps an old name", "[base][settings]") {
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
   RunInInit([] {
     AudioOwner audio;
@@ -117,7 +117,7 @@ REX_TEST_CASE("a setting cannot take a name that is an alias", "[base][settings]
 REX_TEST_CASE("settings: startup only refuses after freeze", "[base][settings]") {
   LifeOwner life;
   HarnessApp app;
-  app.configure = [&](rex::Settings& settings) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry& settings) -> rex::Result<void> {
     REX_TRY_VOID(settings.Register(life));
     REQUIRE(life.startup.Set(2));
     return rex::Ok();
@@ -257,7 +257,7 @@ REX_TEST_CASE("settings: save writes changed settings and load reads them back",
   });
   AudioOwner audio;
   HarnessApp app;
-  app.configure = [&](rex::Settings& settings) -> rex::Result<void> {
+  app.configure = [&](rex::SettingsRegistry& settings) -> rex::Result<void> {
     REX_TRY_VOID(settings.Register(audio));
     REQUIRE(audio.count.Get() == 3);
     REX_TRY_VOID(settings.Load(file));

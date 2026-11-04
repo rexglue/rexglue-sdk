@@ -30,7 +30,7 @@
 
 #include <rex/assert.h>
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <rex/bit.h>
 #include <rex/platform/thread.h>
@@ -52,7 +52,7 @@
 #include <rex/hash.h>
 #include <rex/math.h>
 #include <rex/types.h>
-#include "gpu/xenos/host/vulkan/objects.h"
+#include "gpu/xenos/host/vulkan/vulkan_objects.h"
 
 namespace rex::gpu::vulkan {
 

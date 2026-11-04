@@ -131,22 +131,22 @@ struct Scratch {
 
 }  // namespace
 
-REX_TEST_CASE("A constant GPU base is proven", "[codegen][mmio]") {
+REX_TEST_CASE("A constant GPU base is matched", "[codegen][mmio]") {
   const auto result = Program{kLisGPU, kLoadWord, kBlr}.Classify();
   REQUIRE(result.sites.size() == 1);
   CHECK(result.At(Address(1)) == MMIOAccess::kGPU);
-  CHECK(result.sites[0].reason == MMIOReason::kProven);
+  CHECK(result.sites[0].reason == MMIOReason::kMatched);
   CHECK(result.sites[0].target == 0x7FC80010u);
 }
 
-REX_TEST_CASE("A constant APU base built with ori and mr is proven", "[codegen][mmio]") {
+REX_TEST_CASE("A constant APU base built with ori and mr is matched", "[codegen][mmio]") {
   const auto result = Program{kLisAPU, kOriRegister, kMoveBase, kLoadThroughCopy, kBlr}.Classify();
   CHECK(result.At(Address(3)) == MMIOAccess::kAPU);
   REQUIRE(SiteAt(result, Address(3)) != nullptr);
   CHECK(SiteAt(result, Address(3))->target == 0x7FEA6540u);
 }
 
-REX_TEST_CASE("A proven 16 bit access and a proven store are classified", "[codegen][mmio]") {
+REX_TEST_CASE("A matched 16 bit access and a matched store are classified", "[codegen][mmio]") {
   const auto result = Program{kLisGPU, kLoadHalf, kStoreWord, kBlr}.Classify();
   CHECK(result.At(Address(1)) == MMIOAccess::kGPU);
   CHECK(result.At(Address(2)) == MMIOAccess::kGPU);
@@ -215,7 +215,7 @@ REX_TEST_CASE("A declared APU write calls the APU handler", "[codegen][mmio]") {
   CHECK(site->write);
 }
 
-REX_TEST_CASE("A base set before a loop is proven inside the loop", "[codegen][mmio]") {
+REX_TEST_CASE("A base set before a loop is matched inside the loop", "[codegen][mmio]") {
   const auto result =
       Program{kLisGPU, kLoadWordZero, kCompare, kBranchNotEqualMinus8, kBlr}.Classify();
   CHECK(result.At(Address(1)) == MMIOAccess::kGPU);
@@ -400,7 +400,7 @@ REX_TEST_CASE("Codegen writes every classified site to codegen.mmio.json", "[cod
   CodegenWriter writer(fixture.ctx);
   REQUIRE(writer.Write(false));
   const std::string report = fixture.Read("codegen.mmio.json");
-  CHECK(Has(report, "\"proven\""));
+  CHECK(Has(report, "\"matched\""));
   CHECK(Has(report, "\"guarded\""));
   CHECK(Has(report, "\"unserved\""));
   CHECK(Has(report, "\"unsupported\""));
@@ -434,7 +434,7 @@ REX_TEST_CASE("A read declaration on a store fails the write", "[codegen][mmio]"
   CHECK_FALSE(writer.Write(false));
 }
 
-REX_TEST_CASE("A declaration that differs from the proven block fails the write",
+REX_TEST_CASE("A declaration that differs from the matched block fails the write",
               "[codegen][mmio]") {
   EmitFixture fixture("mismatch", {kLisGPU, kLoadWord, kBlr}, {12},
                       {{kBase + 4, {rex::ppc::MMIOBlock::kAPU, false}}});

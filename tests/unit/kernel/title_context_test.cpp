@@ -44,7 +44,7 @@ struct CountingListener final : rex::IPhysicalWriteListener {
 
 class PhysicalBlock {
  public:
-  PhysicalBlock(rex::kernel::Memory& memory, rex::u32 size) : memory_(memory) {
+  PhysicalBlock(rex::kernel::GuestAddressSpace& memory, rex::u32 size) : memory_(memory) {
     address_ = memory.SystemHeapAlloc(size, 0x1000, rex::kernel::kSystemHeapPhysical);
     REQUIRE(address_ != 0);
     physical_ = memory.GetPhysicalAddress(address_);
@@ -54,7 +54,7 @@ class PhysicalBlock {
   rex::u32 GetPhysical() const { return physical_; }
 
  private:
-  rex::kernel::Memory& memory_;
+  rex::kernel::GuestAddressSpace& memory_;
   rex::u32 address_ = 0;
   rex::u32 physical_ = 0;
 };
@@ -64,7 +64,7 @@ class PhysicalBlock {
 REX_TEST_CASE("physical copy checks range", "[kernel][title_context]") {
   rex::test::KernelFixture fixture;
   rex::kernel::TitleContext context(fixture.GetRuntime());
-  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetMemory(), 0x1000);
+  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetAddressSpace(), 0x1000);
 
   std::array<std::byte, 16> in;
   in.fill(std::byte{0x5A});
@@ -95,7 +95,7 @@ REX_TEST_CASE("physical copy checks range", "[kernel][title_context]") {
 REX_TEST_CASE("write listener fires once per watch", "[kernel][title_context]") {
   rex::test::KernelFixture fixture;
   rex::kernel::TitleContext context(fixture.GetRuntime());
-  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetMemory(), 0x1000);
+  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetAddressSpace(), 0x1000);
   CountingListener listener;
   rex::ScopeGuard handle = context.AddWriteListener(listener);
 
@@ -114,7 +114,7 @@ REX_TEST_CASE("release store seen by acquire load", "[kernel][title_context]") {
   rex::test::KernelFixture fixture;
   rex::kernel::TitleContext context(fixture.GetRuntime());
   constexpr rex::u32 kRounds = 10000;
-  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetMemory(), 0x20000);
+  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetAddressSpace(), 0x20000);
   const rex::u32 base = block.GetPhysical();
   auto span = context.GetWritablePhysicalSpan({base, kRounds * 8});
   REQUIRE(span.has_value());
@@ -136,7 +136,7 @@ REX_TEST_CASE("release store seen by acquire load", "[kernel][title_context]") {
       }
     }
   });
-  auto* host = StateOf(fixture.GetRuntime()).GetMemory();
+  auto* host = StateOf(fixture.GetRuntime()).GetAddressSpace();
   for (rex::u32 i = 0; i < kRounds; ++i) {
     host->TranslatePhysical<rex::be_u32*>(base + i * 8)->Store(i + 1, std::memory_order_relaxed);
     REQUIRE(context.StoreRelease32(base + i * 8 + 4, 1).has_value());
@@ -165,7 +165,7 @@ REX_TEST_CASE("interrupt refused on a foreign thread", "[kernel][title_context]"
 REX_TEST_CASE("handles released before detach returns", "[kernel][title_context]") {
   rex::test::KernelFixture fixture;
   rex::kernel::TitleContext context(fixture.GetRuntime());
-  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetMemory(), 0x1000);
+  PhysicalBlock block(*StateOf(fixture.GetRuntime()).GetAddressSpace(), 0x1000);
   CountingListener listener;
   auto handle = std::make_unique<rex::ScopeGuard>(context.AddWriteListener(listener));
   context.WatchPhysicalWrites({block.GetPhysical(), 0x1000});

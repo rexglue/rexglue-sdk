@@ -14,17 +14,17 @@
 
 namespace rex::kernel {
 
-Module::Module(FunctionDispatcher* function_dispatcher)
+GuestModule::GuestModule(FunctionDispatcher* function_dispatcher)
     : function_dispatcher_(function_dispatcher),
-      memory_(function_dispatcher ? function_dispatcher->GetMemory() : nullptr) {}
+      memory_(function_dispatcher ? function_dispatcher->GetAddressSpace() : nullptr) {}
 
-Module::~Module() = default;
+GuestModule::~GuestModule() = default;
 
-std::span<const BinarySection> Module::GetBinarySections() const {
+std::span<const BinarySection> GuestModule::GetBinarySections() const {
   return binary_sections_;
 }
 
-const BinarySection* Module::FindSectionByAddress(u32 address) const {
+const BinarySection* GuestModule::FindSectionByAddress(u32 address) const {
   for (const auto& sec : binary_sections_) {
     if (address >= sec.virtual_address && address < sec.virtual_address + sec.virtual_size) {
       return &sec;
@@ -33,11 +33,11 @@ const BinarySection* Module::FindSectionByAddress(u32 address) const {
   return nullptr;
 }
 
-std::span<const BinarySymbol> Module::GetBinarySymbols() const {
+std::span<const BinarySymbol> GuestModule::GetBinarySymbols() const {
   return binary_symbols_;
 }
 
-bool Module::IsExecutableAddress(u32 address) const {
+bool GuestModule::IsExecutableAddress(u32 address) const {
   for (const auto& sec : binary_sections_) {
     if (address >= sec.virtual_address && address < sec.virtual_address + sec.virtual_size) {
       return sec.executable;

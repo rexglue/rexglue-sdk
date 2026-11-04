@@ -15,10 +15,10 @@
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/d3d12_xenos_graphics_driver.h"
 #include "gpu/xenos/draw_state.h"
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/driver_context.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 namespace rex::gpu::d3d12 {
@@ -36,12 +36,12 @@ Result<void> D3D12XenosGraphicsDriver::Initialize(IDriverContext& context) {
   if (auto base = XenosGraphicsDriverBase::Initialize(context); !base) {
     return base;
   }
-  if (auto registered = context.GetSettings().Register(d3d12_settings_); !registered) {
+  if (auto registered = context.GetSettingsRegistry().Register(d3d12_settings_); !registered) {
     XenosGraphicsDriverBase::Shutdown();
     return Err(ErrorCategory::kConfig,
                std::format("gpu.d3d12 settings: {}", registered.error().message));
   }
-  d3d12_registry_ = &context.GetSettings();
+  d3d12_registry_ = &context.GetSettingsRegistry();
   return Ok();
 }
 

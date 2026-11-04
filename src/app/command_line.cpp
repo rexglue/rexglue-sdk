@@ -7,9 +7,9 @@
 #include <optional>
 #include <string_view>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 namespace rex::app::detail {
 
@@ -66,7 +66,7 @@ std::string JoinOptions(const std::vector<std::string>& options) {
 
 Result<void> ParseCommandLine(const CLIArgList& args, std::span<const CLIAction> actions,
                               std::vector<CLIActionHit>* hits) {
-  Settings& settings = REX_SETTINGS();
+  SettingsRegistry& settings = REX_SETTINGS();
   std::vector<std::string> unknown;
   std::optional<Error> refused;
   const auto set = [&](std::string_view name, std::string_view text) {

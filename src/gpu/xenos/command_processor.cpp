@@ -21,7 +21,7 @@
 
 #include <rex/bit.h>
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/chrono.h>
 #include "gpu/xenos/command_processor.h"
 #include "gpu/xenos/xenos_graphics_driver_base.h"

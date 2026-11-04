@@ -8,7 +8,7 @@
 #include <utility>
 
 #include <rex/chrono.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/file.h>
 #include <toml++/toml.hpp>
 

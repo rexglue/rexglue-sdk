@@ -17,7 +17,7 @@
 #include <rex/logging/logger.h>
 #include <rex/module.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/xam/language.h>
 #include <rex/xam/title_lifecycle.h>
 
@@ -47,7 +47,7 @@ class XAMModule final : public IModule {
 
   std::string_view GetName() const override;
   std::span<const InterfaceType> GetRequiredInterfaces() const override;
-  [[nodiscard]] Result<void> Connect(IFactory& factory) override;
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory& factory) override;
   void Disconnect() override;
   [[nodiscard]] Result<void> Init() override;
   void Shutdown() override;
@@ -57,7 +57,7 @@ class XAMModule final : public IModule {
   XAMTitleLifecycle events_;
   XAMLanguage language_;
   XAMExports exports_;
-  ISettings* settings_ = nullptr;
+  ISettingsRegistry* settings_ = nullptr;
   ILogger* logger_ = nullptr;
 };
 

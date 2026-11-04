@@ -205,7 +205,7 @@ constexpr std::pair<const char*, const char*> kAliases[] = {
 
 }  // namespace
 
-void RegisterAliases(Settings& settings) {
+void RegisterAliases(SettingsRegistry& settings) {
   for (const auto& [old_name, new_name] : kAliases) {
     settings.AddAlias(old_name, new_name);
   }

@@ -53,7 +53,7 @@ std::string GetModuleName(DriverType type, std::string_view name, GraphicsFamily
   return {};
 }
 
-const DriverRegistration* FindRegistration(IFactory& factory, DriverType type,
+const DriverRegistration* FindRegistration(IInterfaceFactory& factory, DriverType type,
                                            std::string_view name) {
   for (IDriverModule* module : factory.FindAll<IDriverModule>()) {
     for (const DriverRegistration& registration : module->GetDrivers()) {
@@ -85,7 +85,7 @@ std::string_view GetGraphicsFamilyName(GraphicsFamily family) {
 }
 
 std::vector<std::string> GetDriverModules(DriverType type, std::string_view names,
-                                          GraphicsFamily family, IFactory* connected) {
+                                          GraphicsFamily family, IInterfaceFactory* connected) {
   std::vector<std::string> modules;
   for (const std::string& name : SplitNames(names)) {
     if (connected && FindRegistration(*connected, type, name)) {
@@ -99,8 +99,8 @@ std::vector<std::string> GetDriverModules(DriverType type, std::string_view name
   return modules;
 }
 
-Result<std::vector<std::unique_ptr<IDriver>>> SelectDrivers(IFactory& factory, DriverType type,
-                                                            std::string_view names,
+Result<std::vector<std::unique_ptr<IDriver>>> SelectDrivers(IInterfaceFactory& factory,
+                                                            DriverType type, std::string_view names,
                                                             IDriverContext& context) {
   std::vector<std::unique_ptr<IDriver>> drivers;
   for (const std::string& name : SplitNames(names)) {

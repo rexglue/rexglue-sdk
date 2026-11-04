@@ -23,7 +23,7 @@
 
 #include <rex/hid/input_system.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/logging/logger.h>
 #include <rex/ui/ui_system.h>
 #include <rex/ui/overlay_renderer.h>
@@ -418,7 +418,7 @@ REX_TEST_CASE("a host-owned dialog is destroyed when it closes", "[ui]") {
 REX_TEST_CASE("a posted function that throws is logged and later work runs", "[ui]") {
   UIApp app(false);
   REQUIRE(app.Start());
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
   bool later = false;
   app.GetUI().PostTask([] { throw std::runtime_error("pending function failed"); });

@@ -24,9 +24,9 @@
 #include "gpu/xenos/host/surface.h"
 #include <rex/types.h>
 #include <rex/utility.h>
-#include "gpu/xenos/host/vulkan/device.h"
-#include "gpu/xenos/host/vulkan/instance.h"
-#include "gpu/xenos/host/vulkan/submission_tracker.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
+#include "gpu/xenos/host/vulkan/vulkan_instance.h"
+#include "gpu/xenos/host/vulkan/vulkan_submission_tracker.h"
 #include "gpu/xenos/host/vulkan/ui_sampler.h"
 
 namespace rex {

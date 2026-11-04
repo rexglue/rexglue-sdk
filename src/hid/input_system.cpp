@@ -5,7 +5,7 @@
 
 #include <rex/chrono.h>
 #include <rex/hid/input_keys.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/hid/input_driver.h>
 #include <rex/hid/pad.h>
 #include <rex/utility.h>
@@ -333,7 +333,7 @@ std::string InputSystem::InputSourceToString(const hid::InputSource& source) con
   return ::rex::hid::InputSourceToString(source);
 }
 
-Result<void> InputSystem::RegisterBindings(ISettings& settings) {
+Result<void> InputSystem::RegisterBindings(ISettingsRegistry& settings) {
   State& state = *state_;
   Result<void> registered = state.bindings.Register(settings);
   if (registered) {

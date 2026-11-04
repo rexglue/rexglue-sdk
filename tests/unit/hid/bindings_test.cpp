@@ -19,7 +19,7 @@
 
 #include <rex/hid/binding.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "base/app_harness.h"
 #include "hid/binding_set.h"

@@ -118,10 +118,10 @@ REX_TEST_CASE_METHOD(Fixture, "call usage: a hook is found by its symbol and che
   CHECK(narrow.value_or(rex::ppc::PPCCallUsage{}).address == 0x82000300);
 
   alignas(64) static u8 memory[0x10000] = {};
-  rex::kernel::ThreadState state(1, 0x8000, 0, StateOf(runtime).GetMemory(), &runtime);
+  rex::kernel::ThreadState state(1, 0x8000, 0, StateOf(runtime).GetAddressSpace(), &runtime);
   rex::kernel::ThreadState* previous = rex::kernel::ThreadState::Get();
   rex::kernel::ThreadState::Bind(&state);
-  rex::log::CaptureSink sink;
+  rex::log::LogCaptureSink sink;
   auto sink_guard = logger->AddSink(sink);
 
   PPCContext& ctx = *state.GetContext();

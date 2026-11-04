@@ -14,7 +14,7 @@
 
 #include "rex_test.h"
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
 #include <rex/kernel/function_dispatcher.h>

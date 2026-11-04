@@ -9,7 +9,7 @@
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/title_paths.h>
 #include <rex/setting.h>
-#include <rex/paths.h>
+#include <rex/path_settings.h>
 #include <rex/ppc/image.h>
 #include <rex/ui/ui_system.h>
 
@@ -43,7 +43,7 @@ ToolApp::~ToolApp() {
   Shutdown();
 }
 
-Result<void> ToolApp::OnConfigure(Settings&) {
+Result<void> ToolApp::OnConfigure(SettingsRegistry&) {
   (void)REX_PATHS().user_root.SetText(SettingLayer::kTitle, "{title.game_root}");
   if (!app_root_.empty()) {
     (void)root.SetText(SettingLayer::kTitle, app_root_.string());

@@ -60,7 +60,7 @@ REX_API std::filesystem::path GetUserFolder();
  * is the executable folder, or GetUserConfigFolder when IsPackagedApp is true or the executable
  * folder is not writable. It is empty when neither folder is usable.
  *
- * @param app_name The application name, used for the fallback.
+ * @param app_name Application name used for the fallback folder.
  */
 [[nodiscard]] REX_API std::filesystem::path GetAppRoot(std::string_view app_name);
 

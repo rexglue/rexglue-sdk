@@ -6,7 +6,7 @@
 #include <cstddef>
 
 #include <rex/platform/perf.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/apu/audio_driver.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/types/status.h>
@@ -155,7 +155,7 @@ void APU::Shutdown() {
     }
     audio_->CloseStream(client.stream);
     if (client.wrapped_callback_arg) {
-      StateOf(runtime_).GetMemory()->SystemHeapFree(client.wrapped_callback_arg);
+      StateOf(runtime_).GetAddressSpace()->SystemHeapFree(client.wrapped_callback_arg);
     }
     client = {};
   }
@@ -179,8 +179,8 @@ Result<u32> APU::RegisterClient(u32 callback, u32 callback_arg) {
     return Err<u32>(StatusError(X_STATUS_UNSUCCESSFUL));
   }
   semaphore->Release(static_cast<i32>(queued_frames_), nullptr);
-  const u32 ptr = StateOf(runtime_).GetMemory()->SystemHeapAlloc(0x4);
-  *StateOf(runtime_).GetMemory()->TranslateVirtual<be_u32*>(ptr) = callback_arg;
+  const u32 ptr = StateOf(runtime_).GetAddressSpace()->SystemHeapAlloc(0x4);
+  *StateOf(runtime_).GetAddressSpace()->TranslateVirtual<be_u32*>(ptr) = callback_arg;
   *free = {*stream, callback, callback_arg, ptr, true};
   return index;
 }
@@ -192,7 +192,7 @@ void APU::UnregisterClient(u32 index) {
     return;
   }
   audio_->CloseStream(clients_[index].stream);
-  StateOf(runtime_).GetMemory()->SystemHeapFree(clients_[index].wrapped_callback_arg);
+  StateOf(runtime_).GetAddressSpace()->SystemHeapFree(clients_[index].wrapped_callback_arg);
   clients_[index] = {};
   platform::Semaphore* semaphore = semaphores_[index].get();
   while (platform::Wait(semaphore, false, std::chrono::milliseconds(0)) ==
@@ -205,7 +205,8 @@ void APU::SubmitFrame(u32 index, u32 samples_ptr) {
   if (index >= kMaxClients || !clients_[index].in_use) {
     return;
   }
-  const auto* samples = StateOf(runtime_).GetMemory()->TranslateVirtual<const be_f32*>(samples_ptr);
+  const auto* samples =
+      StateOf(runtime_).GetAddressSpace()->TranslateVirtual<const be_f32*>(samples_ptr);
   std::array<f32, rex::apu::kAudioFrameSamples> frame;
   for (size_t i = 0; i < frame.size(); ++i) {
     frame[i] = samples[i];

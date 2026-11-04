@@ -1,6 +1,6 @@
 /**
  * @file        base/app_state.h
- * @brief       The API factory and timer resolution of the process
+ * @brief       The AppInterfaces factory and timer resolution of the process
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -17,11 +17,11 @@
 namespace rex::detail {
 
 /**
- * Sets the factory API::Get reads.
+ * Sets the factory AppInterfaces::Get reads.
  *
  * @param factory The factory of the running app, or null for none.
  */
-void SetAPIFactory(IFactory* factory);
+void SetAPIFactory(IInterfaceFactory* factory);
 
 /** Raises the timer resolution of the process where the platform needs it. */
 void BeginTimerResolution();

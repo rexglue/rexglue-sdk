@@ -16,7 +16,7 @@
 
 #include <rex/filesystem/file_stat.h>
 #include <rex/filesystem/file_open.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/memory.h>
 #include <rex/ppc/hook.h>

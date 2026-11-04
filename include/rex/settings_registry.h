@@ -1,5 +1,5 @@
 /**
- * @file        settings.h
+ * @file        settings_registry.h
  * @brief       The registry of every registered setting
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -35,7 +35,7 @@ struct UnknownSetting {
 };
 
 /** The registry of every registered owner's settings. Values for a later owner wait here. */
-REX_DECLARE_INTERFACE(ISettings, 1)
+REX_DECLARE_INTERFACE(ISettingsRegistry, 1)
 /**
  * Registers an owner and applies values waiting for its settings.
  *
@@ -67,7 +67,7 @@ REX_DECLARE_INTERFACE(ISettings, 1)
    *
    * @param scope Only commands under this scope, every command when empty.
    */
-  virtual std::vector<Command*> EnumerateCommands(std::string_view scope = {}) const = 0;
+  virtual std::vector<ConsoleCommand*> EnumerateCommands(std::string_view scope = {}) const = 0;
 
   /**
    * Sets a setting from text at the runtime layer. An old name applies to its new setting.
@@ -134,8 +134,9 @@ REX_DECLARE_INTERFACE(ISettings, 1)
                                           SettingLayer layer = SettingLayer::kRuntime) = 0;
 };
 
-/** The process settings registry, reached through GetSettings() and, for modules, ISettings. */
-class REX_API Settings final : public ISettings {
+/** The process settings registry, reached through GetSettingsRegistry() and, for modules,
+ * ISettingsRegistry. */
+class REX_API SettingsRegistry final : public ISettingsRegistry {
  public:
   [[nodiscard]] Result<void> Register(SettingOwner& owner) override;
 
@@ -145,7 +146,7 @@ class REX_API Settings final : public ISettings {
 
   std::vector<SettingBase*> Enumerate(std::string_view scope = {}) const override;
 
-  std::vector<Command*> EnumerateCommands(std::string_view scope = {}) const override;
+  std::vector<ConsoleCommand*> EnumerateCommands(std::string_view scope = {}) const override;
 
   [[nodiscard]] Result<void> SetText(std::string_view name, std::string_view text) override;
 
@@ -168,7 +169,7 @@ class REX_API Settings final : public ISettings {
                                   SettingLayer layer = SettingLayer::kRuntime) override;
 
  private:
-  friend REX_API Settings& GetSettings();
+  friend REX_API SettingsRegistry& GetSettingsRegistry();
   friend class ProcessSettingsControl;
 
   /** Returns every setting to its default, unlocks it and forgets waiting values. */
@@ -189,12 +190,12 @@ class REX_API Settings final : public ISettings {
    */
   std::vector<UnknownSetting> TakeUnknown();
 
-  Settings();
-  ~Settings();
+  SettingsRegistry();
+  ~SettingsRegistry();
   friend class SettingBase;
-  friend class Command;
+  friend class ConsoleCommand;
   void Detach(SettingBase& setting);
-  void Detach(Command& command);
+  void Detach(ConsoleCommand& command);
   bool ApplyOldLogFile(SettingLayer layer, std::string_view name, std::string_view text,
                        Result<void>& result);
 
@@ -202,8 +203,8 @@ class REX_API Settings final : public ISettings {
   std::unique_ptr<State> state_;
 };
 
-REX_API Settings& GetSettings();
+REX_API SettingsRegistry& GetSettingsRegistry();
 
-#define REX_SETTINGS() ::rex::GetSettings()
+#define REX_SETTINGS() ::rex::GetSettingsRegistry()
 
 }  // namespace rex

@@ -83,7 +83,7 @@ std::unique_ptr<rex::IDriver> CreateCapture() {
 class CaptureProvider final : public rex::IModule, public rex::IDriverModule {
  public:
   std::string_view GetName() const override { return "capture"; }
-  rex::Result<void> Connect(rex::IFactory&) override { return {}; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }
   void Shutdown() override {}
@@ -109,7 +109,7 @@ bool WaitFor(const std::function<bool()>& condition, int milliseconds = 3000) {
 }
 
 rex::u32 AllocateFrame(rex::kernel::TitleRuntime& runtime) {
-  return StateOf(runtime).GetMemory()->SystemHeapAlloc(kFrameBytes);
+  return StateOf(runtime).GetAddressSpace()->SystemHeapAlloc(kFrameBytes);
 }
 
 }  // namespace
@@ -154,7 +154,7 @@ REX_TEST_CASE("guest frame reaches the mix in host order", "[kernel]") {
   auto client = apu.RegisterClient(0, 0);
   REQUIRE(client);
   const rex::u32 frame = AllocateFrame(fixture.GetRuntime());
-  auto* bytes = StateOf(fixture.GetRuntime()).GetMemory()->TranslateVirtual<rex::u8*>(frame);
+  auto* bytes = StateOf(fixture.GetRuntime()).GetAddressSpace()->TranslateVirtual<rex::u8*>(frame);
   std::memset(bytes, 0, kFrameBytes);
   bytes[0] = 0x3F;
   apu.SubmitFrame(*client, frame);

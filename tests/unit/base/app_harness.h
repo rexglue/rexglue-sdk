@@ -23,7 +23,7 @@
 #include <rex/app/app.h>
 #include <rex/cli.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 
 #include "temp_folder.h"
 
@@ -36,7 +36,7 @@ namespace rex::test {
 class HarnessApp final : public rex::test::ObjectApp<rex::app::App> {
  public:
   /** Runs in OnConfigure, before the layers apply. */
-  std::function<Result<void>(Settings&)> configure;
+  std::function<Result<void>(SettingsRegistry&)> configure;
   /** Runs in OnInit, after the startup settings froze. */
   std::function<Result<void>()> init;
   std::filesystem::path folder;
@@ -66,7 +66,7 @@ class HarnessApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
  protected:
-  Result<void> OnConfigure(Settings& settings) override {
+  Result<void> OnConfigure(SettingsRegistry& settings) override {
     (void)root.SetText(SettingLayer::kTitle, folder.string());
     return Guard([&] { return configure ? configure(settings) : Ok(); });
   }

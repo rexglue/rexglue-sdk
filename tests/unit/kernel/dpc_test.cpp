@@ -86,7 +86,7 @@ void StackDPC(PPCContext& ctx, u8* base) {
   g_thread_stack_base = caller.Load32(ctx.r13.u32 + 0x70);
   g_thread_stack_end = caller.Load32(ctx.r13.u32 + 0x74);
   g_irql_in_dpc =
-      *rex::kernel::GetCurrentState().GetMemory()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
+      *rex::kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
   ++g_runs;
   ctx.r3.u64 = 0;
 }
@@ -188,7 +188,7 @@ REX_TEST_CASE("A DPC queued by an ISR runs after the ISR returns", "[kernel][dpc
     const u32 pcr = c.Alloc(0x1000);
     const u32 stack = c.Alloc(0x10000) + 0x8000;
     std::thread interrupt([&] {
-      rex::kernel::ThreadState state(5, stack, pcr, StateOf(c.GetRuntime()).GetMemory(),
+      rex::kernel::ThreadState state(5, stack, pcr, StateOf(c.GetRuntime()).GetAddressSpace(),
                                      &c.GetRuntime());
       dispatcher->ExecuteInterrupt(&state, isr, nullptr, 0);
     });
@@ -339,7 +339,7 @@ REX_TEST_CASE("Queueing a DPC that sits in a write watched page keeps the lock o
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto& memory = *StateOf(c.GetRuntime()).GetMemory();
+    auto& memory = *StateOf(c.GetRuntime()).GetAddressSpace();
     const u32 thunk =
         StateOf(c.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&CountingDPC, 0);
     const u32 dpc = memory.SystemHeapAlloc(0x1000, 0x1000, rex::kernel::kSystemHeapPhysical);

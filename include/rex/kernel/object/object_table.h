@@ -21,7 +21,7 @@
 #include <rex/kernel/object/object_pin.h>
 #include <rex/kernel/object/xam_object.h>
 #include <rex/kernel/types/status.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/module.h>
 #include <rex/platform.h>
 #include <rex/result.h>

@@ -26,7 +26,7 @@
 #include <rex/module.h>
 #include <rex/result.h>
 #include <rex/setting.h>
-#include <rex/settings.h>
+#include <rex/settings_registry.h>
 #include <rex/types.h>
 
 #if REX_PLATFORM_WIN32
@@ -53,7 +53,7 @@ class IUISystem;
 namespace rex::app {
 
 /**
- * Where the app is in its life. kTitleLaunch, kTitleRunning and kTitleStop exist only in a
+ * Phase of the app lifecycle. kTitleLaunch, kTitleRunning and kTitleStop exist only in a
  * TitleApp.
  */
 enum class AppPhase : u8 {
@@ -94,7 +94,7 @@ class REX_APP_API App : public SettingOwner {
   AppPhase GetPhase() const;
 
   /**
-   * Returns the command line arguments the framework did not take. Always empty for a title app.
+   * Returns the positional command line arguments the framework did not consume.
    */
   std::span<const std::string> GetArgs() const;
 
@@ -139,15 +139,15 @@ class REX_APP_API App : public SettingOwner {
   /**
    * The shutdown phase. Safe after a failed Init.
    *
-   * @return The exit code, the code passed to rex::app::RequestShutdown when there is one, 1 when a
-   *         step failed, otherwise 0.
+   * @return The exit code passed to rex::app::RequestShutdown if there was one, else 1 when a
+   *         step failed, else 0.
    */
   int Shutdown();
 
  protected:
   /**
-   * Returns the systems this program needs. The app connects only the modules that fill them. The
-   * default requires nothing.
+   * Returns the systems this program needs. The app uses it to choose driver plugins and to fail
+   * startup when a required system has no driver. The default requires nothing.
    */
   virtual AppSysRequirements GetRequirements() const;
 
@@ -157,7 +157,7 @@ class REX_APP_API App : public SettingOwner {
    *
    * @return Ok, or an error that fails Init.
    */
-  [[nodiscard]] virtual Result<void> OnConfigure(Settings& settings);
+  [[nodiscard]] virtual Result<void> OnConfigure(SettingsRegistry& settings);
 
   /**
    * Returns the command line actions this program accepts, such as --version. The default has none.
@@ -208,7 +208,7 @@ class REX_APP_API App : public SettingOwner {
 
   /**
    * Returns the UI system, or null while the systems are not connected and after a failed start
-   * forgot them.
+   * released them.
    */
   rex::ui::IUISystem* FindUI();
 
@@ -235,7 +235,7 @@ class REX_APP_API App : public SettingOwner {
   virtual void OnRelease();
 
   /** Returns the internal interfaces of the systems, for TitleRuntime::Launch. */
-  IFactory& GetControlFactory();
+  IInterfaceFactory& GetControlFactory();
 
   /** Moves the app to a phase between kRunning and kTitleStop, for an app that runs a title. */
   void SetPhase(AppPhase phase);

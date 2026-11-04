@@ -50,7 +50,7 @@ std::string TypeName(fs::ContainerType type) {
   if (!opened) {
     return rex::Err(opened.error());
   }
-  const std::unique_ptr<fs::IContainer> container = std::move(*opened);
+  const std::unique_ptr<fs::IContainerImage> container = std::move(*opened);
   const auto nodes = container->GetNodes();
   const rex::u64 bytes = std::accumulate(
       nodes.begin(), nodes.end(), rex::u64{0},

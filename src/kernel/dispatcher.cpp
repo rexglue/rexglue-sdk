@@ -22,7 +22,7 @@
 
 #include <rex/assert.h>
 #include <rex/kernel/types/thread.h>
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/ppc/seh.h>
 #include <rex/platform/thread.h>
@@ -72,22 +72,22 @@ bool LeaveInterrupt() {
 }
 
 Dispatcher::Dispatcher(TitleRuntime& runtime) : runtime_(runtime) {
-  auto* memory = StateOf(runtime).GetMemory();
+  auto* memory = StateOf(runtime).GetAddressSpace();
   dpc_list_head_ = memory->SystemHeapAlloc(sizeof(X_LIST_ENTRY));
   kernel::InitializeListHead(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_),
                              dpc_list_head_);
 }
 
 Dispatcher::~Dispatcher() {
-  FreeGuestStack(*StateOf(runtime_).GetMemory(), dpc_stack_base_);
+  FreeGuestStack(*StateOf(runtime_).GetAddressSpace(), dpc_stack_base_);
   if (dpc_list_head_) {
-    StateOf(runtime_).GetMemory()->SystemHeapFree(dpc_list_head_);
+    StateOf(runtime_).GetAddressSpace()->SystemHeapFree(dpc_list_head_);
   }
 }
 
 void Dispatcher::CompleteOverlappedEx(u32 overlapped, X_RESULT result, u32 extended_error,
                                       u32 length) {
-  auto ptr = StateOf(runtime_).GetMemory()->TranslateVirtual(overlapped);
+  auto ptr = StateOf(runtime_).GetAddressSpace()->TranslateVirtual(overlapped);
   rex::kernel::PublishOverlapped([&] {
     XOverlappedSetExtendedError(ptr, extended_error);
     XOverlappedSetLength(ptr, length);
@@ -120,7 +120,7 @@ u32 Dispatcher::Observe(rex::MoveOnlyFunction<u32()> observe) {
 }
 
 void Dispatcher::Complete(u32 overlapped, const CompletionOptions& options) {
-  auto ptr = StateOf(runtime_).GetMemory()->TranslateVirtual(overlapped);
+  auto ptr = StateOf(runtime_).GetAddressSpace()->TranslateVirtual(overlapped);
   XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
   CompleteOverlappedEx(overlapped, options.result, ExtendedError(options), Length(options));
 }
@@ -142,7 +142,7 @@ void Dispatcher::CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<Completi
                                   rex::MoveOnlyFunction<void()> pre,
                                   rex::MoveOnlyFunction<void()> post) {
   REXSYS_DEBUG("CompleteDeferred: queuing for overlapped {:08X}", overlapped);
-  auto ptr = StateOf(runtime_).GetMemory()->TranslateVirtual(overlapped);
+  auto ptr = StateOf(runtime_).GetAddressSpace()->TranslateVirtual(overlapped);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
   std::lock_guard lock(dispatch_mutex_);
@@ -182,7 +182,7 @@ void Dispatcher::EndDPCImpersonation(X_KPCR& pcr, const DPCImpersonationScope& s
 }
 
 bool Dispatcher::Queue(u32 dpc, u32 arg1, u32 arg2) {
-  auto* memory = StateOf(runtime_).GetMemory();
+  auto* memory = StateOf(runtime_).GetAddressSpace();
   std::lock_guard lock(dpc_mutex_);
   auto* object = memory->TranslateVirtual<X_KDPC*>(dpc);
   if (object->inserted_number) {
@@ -196,7 +196,7 @@ bool Dispatcher::Queue(u32 dpc, u32 arg1, u32 arg2) {
 }
 
 bool Dispatcher::Remove(u32 dpc) {
-  auto* memory = StateOf(runtime_).GetMemory();
+  auto* memory = StateOf(runtime_).GetAddressSpace();
   std::lock_guard lock(dpc_mutex_);
   auto* object = memory->TranslateVirtual<X_KDPC*>(dpc);
   if (!object->inserted_number) {
@@ -208,13 +208,13 @@ bool Dispatcher::Remove(u32 dpc) {
 }
 
 bool Dispatcher::HasQueuedDPCs() {
-  auto* memory = StateOf(runtime_).GetMemory();
+  auto* memory = StateOf(runtime_).GetAddressSpace();
   std::lock_guard lock(dpc_mutex_);
   return !kernel::IsListEmpty(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_), memory);
 }
 
 std::optional<Dispatcher::QueuedDPC> Dispatcher::PopDPC() {
-  auto* memory = StateOf(runtime_).GetMemory();
+  auto* memory = StateOf(runtime_).GetAddressSpace();
   std::lock_guard lock(dpc_mutex_);
   auto* head = memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_);
   if (kernel::IsListEmpty(head, memory)) {
@@ -228,8 +228,8 @@ std::optional<Dispatcher::QueuedDPC> Dispatcher::PopDPC() {
 
 void Dispatcher::RunQueuedDPCs(ThreadState& state) {
   auto* ctx = state.GetContext();
-  auto& pcr =
-      *StateOf(runtime_).GetMemory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
+  auto& pcr = *StateOf(runtime_).GetAddressSpace()->TranslateVirtual<X_KPCR*>(
+      static_cast<u32>(ctx->r13.u64));
   auto* functions = StateOf(runtime_).GetFunctionDispatcher();
   const DPCImpersonationScope scope = BeginDPCImpersonation(pcr);
   while (const std::optional<QueuedDPC> dpc = PopDPC()) {
@@ -306,7 +306,7 @@ void Dispatcher::Start() {
   }
   if (!dpc_stack_base_) {
     if (Result<GuestStack> stack =
-            AllocateGuestStack(*StateOf(runtime_).GetMemory(), kDPCStackSize, 0, false)) {
+            AllocateGuestStack(*StateOf(runtime_).GetAddressSpace(), kDPCStackSize, 0, false)) {
       dpc_stack_base_ = stack->alloc_base;
       dpc_stack_top_ = stack->base - kDPCStackTopReserve;
     } else {

@@ -20,7 +20,7 @@
 #include <rex/utility.h>
 
 namespace rex::kernel {
-class Module;
+class GuestModule;
 }
 
 namespace rex::codegen {
@@ -58,8 +58,8 @@ struct ImportSymbol {
 /** Binary view that owns all section data. */
 class BinaryView : public rex::MoveOnly {
  public:
-  /** Copies all data from a Module. */
-  static BinaryView FromModule(const kernel::Module& module);
+  /** Copies all data from a GuestModule. */
+  static BinaryView FromModule(const kernel::GuestModule& module);
 
   /**
    * @return Pointer to the byte at addr, or null when no section contains addr

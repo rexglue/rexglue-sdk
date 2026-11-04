@@ -39,7 +39,7 @@
 #include <rex/xenos/state.h>
 #include "gpu/xenos/host/d3d12/d3d12_descriptor_heap_pool.h"
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
-#include "gpu/xenos/host/d3d12/settings.h"
+#include "gpu/xenos/host/d3d12/d3d12_settings.h"
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 

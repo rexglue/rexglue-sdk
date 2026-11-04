@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform.h>
 #include <rex/gpu/graphics_driver.h>
 #include <rex/xenos/register.h>

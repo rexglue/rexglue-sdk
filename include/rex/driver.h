@@ -51,7 +51,7 @@ class IDriver {
    * Called when the runtime selects this driver. Settings registered here follow the startup
    * layers.
    *
-   * @return Ok, or an error and the runtime falls back to the next driver of the type.
+   * @return Ok, or an error that fails driver selection for the system.
    */
   [[nodiscard]] virtual Result<void> Initialize(IDriverContext& context) = 0;
 

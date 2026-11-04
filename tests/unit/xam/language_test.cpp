@@ -55,7 +55,7 @@ class BootedRuntime {
     REQUIRE(runtime_->GetKernelSettings().user_language.Set(user_language));
     REQUIRE(runtime_->Load());
     state_ = std::make_unique<rex::kernel::ThreadState>(
-        1, 0x8000, 0, StateOf(*runtime_).GetMemory(), runtime_.get());
+        1, 0x8000, 0, StateOf(*runtime_).GetAddressSpace(), runtime_.get());
     previous_ = rex::kernel::ThreadState::Get();
     rex::kernel::ThreadState::Bind(state_.get());
   }
@@ -75,7 +75,7 @@ class BootedRuntime {
     REQUIRE(it != table.end());
     REQUIRE(it->fn);
     PPCContext& ctx = *state_->GetContext();
-    it->fn(ctx, StateOf(*runtime_).GetMemory()->GetVirtualMembase());
+    it->fn(ctx, StateOf(*runtime_).GetAddressSpace()->GetVirtualMembase());
     return ctx.r3.u32;
   }
 

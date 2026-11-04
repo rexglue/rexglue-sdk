@@ -7,7 +7,7 @@ add_library(
   overlay/bind_table.cpp
   overlay/console/model.cpp
   overlay/console/view.cpp
-  overlay/console_command.cpp
+  overlay/console_command_table.cpp
   overlay/console_host.cpp
   overlay/console_overlay.cpp
   overlay/debug_overlay.cpp

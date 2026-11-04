@@ -1,6 +1,6 @@
 /**
  * @file        kernel/argument_check.h
- * @brief       Macro that rejects a null pointer argument of a kernel export
+ * @brief       Macros for the bodies of kernel exports
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,6 +10,8 @@
  */
 
 #pragma once
+
+#include <rex/ppc/hook.h>
 
 /**
  * Returns X_STATUS_INVALID_PARAMETER when a pointer argument is null.
@@ -21,4 +23,20 @@
 #define REX_KERNEL_REQUIRE_NONNULL(PTR)             \
   if (!(PTR)) {                                     \
     return rex::kernel::X_STATUS_INVALID_PARAMETER; \
+  }
+
+/**
+ * Defines an export that skips the stop check at entry, so a release such as a spin lock unlock
+ * completes after a stop request.
+ *
+ * @param name The hook symbol.
+ * @param function The host function the export wraps.
+ *
+ * @code
+ * REX_EXPORT_NO_STOP_CHECK(__imp__KfReleaseSpinLock, KfReleaseSpinLock_entry)
+ * @endcode
+ */
+#define REX_EXPORT_NO_STOP_CHECK(name, function)            \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(name) {       \
+    rex::ppc::GuestToHostThunk<function, false>(ctx, base); \
   }

@@ -67,7 +67,7 @@ class IUIDriver : public IDriver {
   /**
    * Enters or leaves fullscreen on a display.
    *
-   * @param exclusive Exclusive rather than borderless.
+   * @param exclusive True for exclusive fullscreen, false for borderless.
    * @param mode_width Exclusive mode width, 0 for the desktop mode.
    * @param mode_height Exclusive mode height, 0 for the desktop mode.
    */

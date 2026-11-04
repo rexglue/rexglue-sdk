@@ -97,7 +97,7 @@ set(REXKERNEL_SOURCES
     guest_stack.cpp
     process.cpp
     dispatcher.cpp
-    notifier.cpp
+    notification_broadcaster.cpp
     object_table.cpp
     overlapped.cpp
     module.cpp
@@ -125,7 +125,7 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_memory.cpp
     xboxkrnl/xboxkrnl_stub.cpp
     xboxkrnl/xboxkrnl_module.cpp
-    xboxkrnl/xboxkrnl_modules.cpp
+    xboxkrnl/xboxkrnl_xex.cpp
     xboxkrnl/xboxkrnl_ob.cpp
     xboxkrnl/xboxkrnl_rtl.cpp
     xboxkrnl/xboxkrnl_strings.cpp

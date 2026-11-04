@@ -19,7 +19,7 @@
 
 #include <rex/bit.h>
 #include <rex/types.h>
-#include "gpu/xenos/host/vulkan/device.h"
+#include "gpu/xenos/host/vulkan/vulkan_device.h"
 
 namespace rex {
 namespace gpu {

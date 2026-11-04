@@ -35,7 +35,7 @@
 /**
  * Picks the count out of the arguments of REX_DETAIL_MIDASM_COUNT.
  *
- * @param ... The 32 arguments, the count and the rest.
+ * @param ... Arguments whose 33rd entry is the count.
  *
  * @code
  * REX_DETAIL_MIDASM_PICK(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -463,7 +463,7 @@
  * Defines the extern C entry of a body, which takes the erased parameter types.
  *
  * @param ret The return type, void for none.
- * @param name The body name, its linked name.
+ * @param name Name of the body and of its linked symbol.
  * @param params The parameter list in parentheses.
  *
  * @code
@@ -905,7 +905,7 @@ constexpr MidAsmAtResult CheckMidAsmAt(const MidAsmBody& body, std::string_view 
  *
  * @param type The MidAsmType enumerator.
  * @param ret The return type, void for none.
- * @param name The body name, the linked name of its entry.
+ * @param name Name of the body and of its linked symbol.
  * @param params The parameter list in parentheses, with names.
  *
  * @code
@@ -931,7 +931,7 @@ constexpr MidAsmAtResult CheckMidAsmAt(const MidAsmBody& body, std::string_view 
  * Declares a mid asm body that returns void. A pointer or MappedPtr parameter takes an integer
  * register holding a guest address and receives the host pointer, null for 0.
  *
- * @param name The body name, its linked name.
+ * @param name Name of the body and of its linked symbol.
  * @param params The parameter list in parentheses, with names.
  *
  * @code
@@ -947,7 +947,7 @@ constexpr MidAsmAtResult CheckMidAsmAt(const MidAsmBody& body, std::string_view 
  * Declares a mid asm body that returns bool and makes the generated code jump to the target of
  * its REX_MIDASM_AT line when it returns true.
  *
- * @param name The body name, its linked name.
+ * @param name Name of the body and of its linked symbol.
  * @param params The parameter list in parentheses, with names.
  *
  * @code
@@ -963,7 +963,7 @@ constexpr MidAsmAtResult CheckMidAsmAt(const MidAsmBody& body, std::string_view 
  * Declares a mid asm body that returns bool and makes the generated code return from the function
  * when it returns true.
  *
- * @param name The body name, its linked name.
+ * @param name Name of the body and of its linked symbol.
  * @param params The parameter list in parentheses, with names.
  *
  * @code
@@ -997,6 +997,7 @@ constexpr MidAsmAtResult CheckMidAsmAt(const MidAsmBody& body, std::string_view 
  * every body takes one register token per parameter, ctx for a PPCContext parameter. A line that
  * does not fit its body fails to compile.
  *
+ * @param name Name of the body.
  * @param address The instruction address, a literal.
  * @param placement The token before or after.
  * @param ... The branch target for a branch body, then the register tokens.

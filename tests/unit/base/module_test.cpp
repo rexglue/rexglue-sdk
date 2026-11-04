@@ -36,7 +36,7 @@ class FakeExample final : public IExample {
   int GetValue() const override { return 7; }
 };
 
-class FakeFactory final : public rex::IFactory {
+class FakeFactory final : public rex::IInterfaceFactory {
  public:
   rex::IInterface* Find(std::string_view name, rex::u32 version) override {
     if (name == IExample::kInterface.name && version == IExample::kInterface.version) {

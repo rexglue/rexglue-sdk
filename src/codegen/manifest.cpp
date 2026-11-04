@@ -14,7 +14,7 @@
 
 #include <toml++/toml.hpp>
 
-#include <rex/logging/log.h>
+#include <rex/logging/log_category.h>
 #include "codegen_categories.h"
 #include <rex/platform/file.h>
 #include <rex/string/text.h>
