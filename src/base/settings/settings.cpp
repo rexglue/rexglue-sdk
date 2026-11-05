@@ -252,6 +252,11 @@ void Settings::AddAlias(std::string_view old_name, std::string_view new_name) {
   state_->aliases[std::string(old_name)] = std::string(new_name);
 }
 
+bool Settings::IsAlias(std::string_view name) const {
+  std::lock_guard lock(state_->mutex);
+  return state_->aliases.contains(name);
+}
+
 void Settings::EndSession() {
   std::lock_guard lock(state_->mutex);
   for (auto& [name, setting] : state_->settings) {

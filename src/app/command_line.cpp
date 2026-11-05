@@ -100,7 +100,7 @@ Result<void> ParseCommandLine(const CLIArgList& args, std::span<const CLIAction>
     if (negated) {
       name.remove_prefix(3);
     }
-    if (!IsSettingName(name)) {
+    if (!IsSettingName(name) && !(IsNamePart(name) && settings.IsAlias(name))) {
       unknown.push_back(text);
       continue;
     }

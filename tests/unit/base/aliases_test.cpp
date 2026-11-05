@@ -207,6 +207,15 @@ constexpr OldName kOldCvars[] = {
     {"xenos.vulkan_tessellation_wireframe", "gpu.vulkan.tessellation_wireframe"},
     {"xenos.use_fuzzy_alpha_epsilon", "gpu.d3d12.use_fuzzy_alpha_epsilon"},
     {"xenos.vulkan_pipeline_creation_threads", "gpu.vulkan.pipeline_creation_threads"},
+    {"audio_mute", "apu.mute"},
+    {"clock_no_scaling", "clock.no_scaling"},
+    {"log_level", "log.level"},
+    {"log_file", "log.file_name"},
+    {"log_flush_interval", "log.flush_interval"},
+    {"vibration", "hid.vibration"},
+    {"keybind_dpad_up", "hid.keybind_dpad_up"},
+    {"protect_zero", "runtime.protect_zero"},
+    {"window_width", "ui.window_width"},
 };
 
 constexpr OldName kOldFields[] = {
@@ -397,6 +406,76 @@ REX_TEST_CASE("the structural flags map to their settings", "[base][aliases]") {
       CHECK((*found)->GetText() == text);
     }
     sink_guard.Reset();
+    return rex::Ok();
+  };
+  REQUIRE(app.Start());
+  app.Finish();
+}
+
+REX_TEST_CASE("an old flat name on the command line sets the new setting", "[base][aliases]") {
+  HarnessApp app;
+  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+    const std::vector<std::string> args = {"--log_flush_interval=5"};
+    CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    auto found = REX_SETTINGS().Find("log.flush_interval");
+    REQUIRE(found);
+    CHECK((*found)->GetLayer() == SettingLayer::kCommandLine);
+    CHECK((*found)->GetText() == "5");
+    return rex::Ok();
+  };
+  REQUIRE(app.Start());
+  app.Finish();
+}
+
+REX_TEST_CASE("an old flat name in a config file sets the new setting", "[base][aliases]") {
+  HarnessApp app;
+  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+    CHECK(REX_SETTINGS().SetText(SettingLayer::kFile, "log_flush_interval", "7"));
+    auto found = REX_SETTINGS().Find("log.flush_interval");
+    REQUIRE(found);
+    CHECK((*found)->GetLayer() == SettingLayer::kFile);
+    CHECK((*found)->GetText() == "7");
+    return rex::Ok();
+  };
+  REQUIRE(app.Start());
+  app.Finish();
+}
+
+REX_TEST_CASE("an old flat bool name takes the bare form", "[base][aliases]") {
+  HarnessApp app;
+  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+    const std::vector<std::string> args = {"--clock_no_scaling"};
+    CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    auto found = REX_SETTINGS().Find("clock.no_scaling");
+    REQUIRE(found);
+    CHECK((*found)->GetLayer() == SettingLayer::kCommandLine);
+    CHECK((*found)->GetText() == "true");
+    return rex::Ok();
+  };
+  REQUIRE(app.Start());
+  app.Finish();
+}
+
+REX_TEST_CASE("an old flat bool name takes the no form", "[base][aliases]") {
+  HarnessApp app;
+  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+    const std::vector<std::string> args = {"--no-clock_no_scaling"};
+    CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    auto found = REX_SETTINGS().Find("clock.no_scaling");
+    REQUIRE(found);
+    CHECK((*found)->GetLayer() == SettingLayer::kCommandLine);
+    CHECK((*found)->GetText() == "false");
+    return rex::Ok();
+  };
+  REQUIRE(app.Start());
+  app.Finish();
+}
+
+REX_TEST_CASE("a flat name that is no alias stays an unknown option", "[base][aliases]") {
+  HarnessApp app;
+  app.configure = [&](rex::Settings&) -> rex::Result<void> {
+    const std::vector<std::string> args = {"--no_such_flat_name=1"};
+    CHECK_FALSE(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
     return rex::Ok();
   };
   REQUIRE(app.Start());

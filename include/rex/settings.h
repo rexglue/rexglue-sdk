@@ -95,6 +95,14 @@ REX_DECLARE_INTERFACE(ISettings, 1)
   virtual void AddAlias(std::string_view old_name, std::string_view new_name) = 0;
 
   /**
+   * Reports whether a name is an old name in the alias table, removed names included.
+   *
+   * @param name The name to look up.
+   * @return True when SetText resolves the name through an alias.
+   */
+  [[nodiscard]] virtual bool IsAlias(std::string_view name) const = 0;
+
+  /**
    * Returns a setting to its default. The result is Ok, kNotFound, or an error when it is frozen.
    */
   [[nodiscard]] virtual Result<void> Reset(std::string_view name) = 0;
@@ -145,6 +153,8 @@ class REX_API Settings final : public ISettings {
                                      std::string_view text) override;
 
   void AddAlias(std::string_view old_name, std::string_view new_name) override;
+
+  [[nodiscard]] bool IsAlias(std::string_view name) const override;
 
   [[nodiscard]] Result<void> Reset(std::string_view name) override;
 
