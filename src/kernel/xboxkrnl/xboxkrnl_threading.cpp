@@ -1160,8 +1160,7 @@ void KeSaveVectorUnitState_entry() {
   PPCContext* ctx = state->GetContext();
   DPCSaveArea& area = state->GetDPCSaveArea();
   std::memcpy(area.vr.data(), &ctx->v0, sizeof(area.vr));
-  area.vscr_sat = ctx->vscr_sat;
-  area.vscr_nj = ctx->vscr_nj;
+  area.vscr = ctx->vscr;
 }
 
 void KeRestoreVectorUnitState_entry() {
@@ -1169,8 +1168,7 @@ void KeRestoreVectorUnitState_entry() {
   PPCContext* ctx = state->GetContext();
   const DPCSaveArea& area = state->GetDPCSaveArea();
   std::memcpy(&ctx->v0, area.vr.data(), sizeof(area.vr));
-  ctx->vscr_sat = area.vscr_sat;
-  ctx->vscr_nj = area.vscr_nj;
+  ctx->vscr = area.vscr;
 }
 
 void KeLeaveCriticalRegion_entry() {

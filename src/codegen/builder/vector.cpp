@@ -37,7 +37,7 @@ namespace {
  */
 void EmitSaturation(BuilderContext& ctx, std::string_view function) {
   ctx.Println(
-      "\tctx.vscr_sat |= u8(rex::ppc::simd::{}(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "\tctx.vscr.sat |= u8(rex::ppc::simd::{}(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       function, ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
 }
@@ -78,7 +78,7 @@ bool Build<PPC_INST_VMADDFP>(BuilderContext& ctx) {
   }
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::MultiplyAdd(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32), ctx.vscr_nj));",
+      "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32), ctx.vscr.nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
       ctx.V(ctx.insn.operands[3]));
   return true;
@@ -101,7 +101,7 @@ bool Build<PPC_INST_VNMSUBFP>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, "
       "rex::ppc::simd::NegativeMultiplySubtract(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32), ctx.vscr_nj));",
+      "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32), ctx.vscr.nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
       ctx.V(ctx.insn.operands[3]));
   return true;
@@ -129,7 +129,7 @@ bool Build<PPC_INST_VREFP>(BuilderContext& ctx) {
     return true;
   }
   ctx.EmitVecFPUnaryExpr(
-      "rex::ppc::simd::ReciprocalEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+      "rex::ppc::simd::ReciprocalEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr.nj)");
   return true;
 }
 
@@ -142,7 +142,7 @@ bool Build<PPC_INST_VRSQRTEFP>(BuilderContext& ctx) {
     return true;
   }
   ctx.EmitVecFPUnaryExpr(
-      "rex::ppc::simd::ReciprocalSqrtEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+      "rex::ppc::simd::ReciprocalSqrtEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr.nj)");
   return true;
 }
 
@@ -170,14 +170,14 @@ bool Build<PPC_INST_VEXPTEFP>(BuilderContext& ctx) {
     ctx.Println("\t}}");
     return true;
   }
-  ctx.EmitVecFPUnaryExpr("rex::ppc::simd::Exp2Estimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+  ctx.EmitVecFPUnaryExpr("rex::ppc::simd::Exp2Estimate(simde_mm_load_ps({vA}.f32), ctx.vscr.nj)");
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VLOGEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.EmitVecFPUnaryExpr("rex::ppc::simd::Log2Estimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+  ctx.EmitVecFPUnaryExpr("rex::ppc::simd::Log2Estimate(simde_mm_load_ps({vA}.f32), ctx.vscr.nj)");
   return true;
 }
 
@@ -194,7 +194,7 @@ bool Build<PPC_INST_VMSUM3FP128>(BuilderContext& ctx) {
   }
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::DotProduct3(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32), ctx.vscr_nj));",
+      "simde_mm_load_ps({}.f32), ctx.vscr.nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
 }
@@ -212,7 +212,7 @@ bool Build<PPC_INST_VMSUM4FP128>(BuilderContext& ctx) {
   }
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::DotProduct4(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32), ctx.vscr_nj));",
+      "simde_mm_load_ps({}.f32), ctx.vscr.nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
 }
@@ -779,10 +779,9 @@ bool Build<PPC_INST_VCMPGTSW>(BuilderContext& ctx) {
  */
 template <>
 bool Build<PPC_INST_MTVSCR>(BuilderContext& ctx) {
-  ctx.Println("\tctx.vscr_sat = {}.u32[0] & 1;", ctx.V(ctx.insn.operands[0]));
-  ctx.Println("\tctx.vscr_nj = ({}.u32[0] >> 16) & 1;", ctx.V(ctx.insn.operands[0]));
+  ctx.Println("\tctx.vscr.Write({}.u32[0]);", ctx.V(ctx.insn.operands[0]));
   if (ctx.csr_state == CSRState::kVMX) {
-    ctx.Println("\tctx.fpscr.SetFlushMode(ctx.vscr_nj);");
+    ctx.Println("\tctx.fpscr.SetFlushMode(ctx.vscr.nj);");
   }
   return true;
 }
@@ -793,8 +792,7 @@ bool Build<PPC_INST_MTVSCR>(BuilderContext& ctx) {
  */
 template <>
 bool Build<PPC_INST_MFVSCR>(BuilderContext& ctx) {
-  ctx.Println("\t{}.u32[0] = u32(ctx.vscr_sat) | (u32(ctx.vscr_nj) << 16);",
-              ctx.V(ctx.insn.operands[0]));
+  ctx.Println("\t{}.u32[0] = ctx.vscr.Read();", ctx.V(ctx.insn.operands[0]));
   ctx.Println("\t{}.u32[1] = 0;", ctx.V(ctx.insn.operands[0]));
   ctx.Println("\t{}.u64[1] = 0;", ctx.V(ctx.insn.operands[0]));
   return true;
@@ -808,7 +806,7 @@ bool Build<PPC_INST_VCTSXS>(BuilderContext& ctx) {
           ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
                         ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
           : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
-  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::IsConvertSaturating<true>({}));", scaled);
+  ctx.Println("\tctx.vscr.sat |= u8(rex::ppc::simd::IsConvertSaturating<true>({}));", scaled);
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::ppc::simd::ConvertSaturate<i32, "
       "f32>({}));",
@@ -860,7 +858,7 @@ bool Build<PPC_INST_VCTUXS>(BuilderContext& ctx) {
           ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
                         ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
           : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
-  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::IsConvertSaturating<false>({}));", scaled);
+  ctx.Println("\tctx.vscr.sat |= u8(rex::ppc::simd::IsConvertSaturating<false>({}));", scaled);
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::ppc::simd::ConvertSaturate<u32, "
       "f32>({}));",
@@ -1282,7 +1280,7 @@ bool Build<PPC_INST_VPKD3D128>(BuilderContext& ctx) {
     ctx.Println("	__builtin_debugtrap();");
     return true;
   }
-  ctx.Println("	ctx.vscr_sat |= rex::ppc::simd::PackD3D<{}, {}, {}>({}, {});", type,
+  ctx.Println("	ctx.vscr.sat |= rex::ppc::simd::PackD3D<{}, {}, {}>({}, {});", type,
               ctx.insn.operands[3], ctx.insn.operands[4], ctx.V(ctx.insn.operands[0]),
               ctx.V(ctx.insn.operands[1]));
   return true;

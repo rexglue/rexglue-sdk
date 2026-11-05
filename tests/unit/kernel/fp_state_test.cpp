@@ -114,22 +114,22 @@ REX_TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 
     for (u32 i = 0; i < 128; ++i) {
       std::memset(&vr[i], static_cast<int>(i), sizeof(PPCVRegister));
     }
-    ctx.vscr_sat = 1;
-    ctx.vscr_nj = 1;
+    ctx.vscr.sat = 1;
+    ctx.vscr.nj = 1;
     c.Kernel("KeSaveVectorUnitState");
     for (u32 i = 0; i < 128; ++i) {
       std::memset(&vr[i], 0xEE, sizeof(PPCVRegister));
     }
-    ctx.vscr_sat = 0;
-    ctx.vscr_nj = 0;
+    ctx.vscr.sat = 0;
+    ctx.vscr.nj = 0;
     c.Kernel("KeRestoreVectorUnitState");
     for (u32 i = 0; i < 128; ++i) {
       const u64 expected = 0x0101010101010101ull * i;
       CHECK(vr[i].u64[0] == expected);
       CHECK(vr[i].u64[1] == expected);
     }
-    CHECK(ctx.vscr_sat == 1);
-    CHECK(ctx.vscr_nj == 1);
+    CHECK(ctx.vscr.sat == 1);
+    CHECK(ctx.vscr.nj == 1);
   });
 }
 
@@ -191,11 +191,11 @@ REX_TEST_CASE("A thread's FP save area starts with every FP exception masked", "
 REX_TEST_CASE("A new thread starts with VSCR NJ set", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    CHECK(c.GetContext().vscr_nj == 1);
-    CHECK(c.GetContext().vscr_sat == 0);
+    CHECK(c.GetContext().vscr.nj == 1);
+    CHECK(c.GetContext().vscr.sat == 0);
     auto nj = std::make_shared<std::atomic<u32>>(0);
     auto thread = std::make_unique<rex::kernel::KernelThread>(c.GetRuntime(), 0x20000, 0, [nj]() {
-      nj->store(rex::kernel::ThreadState::Get()->GetContext()->vscr_nj);
+      nj->store(rex::kernel::ThreadState::Get()->GetContext()->vscr.nj);
       return 0;
     });
     auto launched = c.GetRuntime().GetThreadRegistry().Launch(std::move(thread));

@@ -34,9 +34,7 @@ struct DPCSaveArea {
   /** The host FP control word, which holds the guest rounding and flush bits. */
   u32 csr = 0;
   std::array<PPCVRegister, 128> vr{};
-  u8 vscr_sat = 0;
-  /** The VSCR non Java mode bit. */
-  u8 vscr_nj = 0;
+  PPCVSCRRegister vscr;
 };
 
 class REX_KERNEL_API ThreadState {

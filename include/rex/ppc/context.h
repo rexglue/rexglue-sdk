@@ -347,6 +347,29 @@ struct FPSCRRegister {
   }
 };
 
+/** Vector status and control register (VSCR). */
+struct VSCRRegister {
+  u8 sat = 0; /**< Saturation flag, 1 once a saturating vector operation clamped a result. */
+  u8 nj = 0;  /**< Non Java mode bit as mtvscr stored it. */
+
+  /**
+   * Returns the register as mfvscr reads it.
+   *
+   * @return The word with sat in bit 0 and nj in bit 16.
+   */
+  u32 Read() const noexcept { return static_cast<u32>(sat) | (static_cast<u32>(nj) << 16); }
+
+  /**
+   * Sets the register as mtvscr writes it.
+   *
+   * @param word The word to store. Only bit 0 for sat and bit 16 for nj are kept.
+   */
+  void Write(u32 word) noexcept {
+    sat = static_cast<u8>(word & 1);
+    nj = static_cast<u8>((word >> 16) & 1);
+  }
+};
+
 }  // namespace rex::ppc
 
 using PPCRegister = rex::ppc::Register;
@@ -354,6 +377,7 @@ using PPCXERRegister = rex::ppc::XERRegister;
 using PPCCRRegister = rex::ppc::CRRegister;
 using PPCVRegister = rex::ppc::VRegister;
 using PPCFPSCRRegister = rex::ppc::FPSCRRegister;
+using PPCVSCRRegister = rex::ppc::VSCRRegister;
 
 /** PPC execution context of a thread. */
 struct alignas(0x40) PPCContext {
@@ -413,8 +437,7 @@ struct alignas(0x40) PPCContext {
   PPCCRRegister cr6; /**< Condition register field 6, CR bits 24 to 27. */
   PPCCRRegister cr7; /**< Condition register field 7, CR bits 28 to 31. */
   PPCFPSCRRegister fpscr;
-  u8 vscr_sat = 0; /**< VSCR saturation flag for vector ops. */
-  u8 vscr_nj = 0;  /**< VSCR non Java mode bit as mtvscr stored it. */
+  PPCVSCRRegister vscr;
 
   /** Target of the last indirect call, set before dispatch. */
   u32 last_indirect_target = 0;

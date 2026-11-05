@@ -402,7 +402,7 @@ void BuilderContext::EmitSetFlushMode(bool enable) {
   auto new_state = enable ? CSRState::kVMX : CSRState::kFPU;
   if (csr_state != new_state) {
     if (enable) {
-      Println("\tctx.fpscr.SetFlushMode(ctx.vscr_nj);");
+      Println("\tctx.fpscr.SetFlushMode(ctx.vscr.nj);");
     } else {
       auto suffix = csr_state != CSRState::kUnknown ? "Unconditional" : "";
       Println("\tctx.fpscr.DisableFlushMode{}();", suffix);

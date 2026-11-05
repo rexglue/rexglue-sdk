@@ -42,7 +42,7 @@ constexpr u32 kBeqSkipOne = 0x41820008;
 constexpr u32 kBeqSkipTwo = 0x4182000C;
 constexpr u32 kBneBackTwo = 0x4082FFF8;
 constexpr std::string_view kDisable = "DisableFlushMode();";
-constexpr std::string_view kSet = "ctx.fpscr.SetFlushMode(ctx.vscr_nj);";
+constexpr std::string_view kSet = "ctx.fpscr.SetFlushMode(ctx.vscr.nj);";
 
 std::string EmitFunction(std::string_view name, std::initializer_list<u32> words) {
   const rex::test::TempFolder folder(std::string("rexglue_flush_mode_") + std::string(name) + "_");
@@ -115,7 +115,7 @@ REX_TEST_CASE("mtvscr between vector float operations applies the new NJ bit to 
               "[codegen][flush]") {
   const std::string code = EmitFunction("mtvscr_vector", {kVaddfp, kMtvscr, kVsubfp, kBlr});
   CHECK(Count(code, kSet) == 2);
-  const size_t store = code.find("ctx.vscr_nj = ");
+  const size_t store = code.find("ctx.vscr.Write(");
   const size_t second = code.find(kSet, code.find(kSet) + 1);
   CHECK(store != std::string::npos);
   CHECK(store < second);

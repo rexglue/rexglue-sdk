@@ -39,7 +39,7 @@ ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory*
   context_->r13.u64 = pcr_address;
   context_->thread_state = this;
   context_->stop_requested = &stop_requested_;
-  context_->vscr_nj = 1;
+  context_->vscr.nj = 1;
   rex::ppc::FPSCRPlatform::InitHostExceptions(dpc_save_area_.csr);
 }
 

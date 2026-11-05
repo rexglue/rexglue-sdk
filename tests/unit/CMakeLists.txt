@@ -175,6 +175,7 @@ add_executable(
   ppc/dot_product_test.cpp
   ppc/estimate_test.cpp
   ppc/fpscr_flush_test.cpp
+  ppc/vscr_register_test.cpp
   ppc/detour_test.cpp
   ppc/hook_shapes_test.cpp
   ppc/kernel_hooks_test.cpp
