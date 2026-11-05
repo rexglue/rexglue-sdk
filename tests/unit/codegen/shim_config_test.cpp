@@ -8,14 +8,20 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include "code_image.h"
 #include "rex_test.h"
 #include "temp_folder.h"
+#include "base/xex_builder.h"
 #include "validation_errors.h"
 
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <string>
+#include <vector>
+
+#include <rex/logging/logger.h>
 
 #include "codegen/config.h"
 
@@ -112,4 +118,24 @@ REX_TEST_CASE("The retired table is rejected and leaves the shim map empty", "[c
   RecompilerConfig config;
   CHECK_FALSE(config.Load(scratch.Write("[rexcrt]\nmemcpy = 0x82000000\n")));
   CHECK(config.shim_functions.empty());
+}
+
+REX_TEST_CASE("A shim at an address with no function warns and the run succeeds",
+              "[codegen][shim]") {
+  constexpr rex::u32 kBlr = 0x4E800020;
+  constexpr rex::u32 kEntry = rex::test::kCodeImageBase + rex::test::kCodeImageCodeOffset;
+  const std::vector<rex::u32> words{kBlr, kBlr};
+  const std::vector<rex::test::PDataEntry> pdata{{kEntry, 1}};
+  rex::log::CaptureSink sink;
+  rex::test::TempFolder folder;
+  const auto result = rex::test::GenerateFromImage(
+      folder, rex::test::BuildCodeImage(words, pdata),
+      std::format("[shim]\nmemcpy = 0x{:08X}\n", kEntry + 0x800), true, {}, &sink);
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
+  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
+    return message.text.contains("[shim] memcpy at 0x82001800 has no function");
+  }));
 }

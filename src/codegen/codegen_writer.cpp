@@ -290,6 +290,8 @@ bool CodegenWriter::Write(bool force) {
     shim_by_addr[addr] = shim_name;
     if (auto* node = GetGraph().GetFunction(addr)) {
       node->SetName(std::move(shim_name));
+    } else {
+      REXCG_WARN("[shim] {} at 0x{:08X} has no function, skipped", name, addr);
     }
   }
 
