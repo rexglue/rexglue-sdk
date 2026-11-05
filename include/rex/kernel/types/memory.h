@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <type_traits>
 
 #include <rex/types.h>
@@ -169,7 +170,7 @@ struct be_ptr {
  * @tparam T The element type, laid out as the title stores it.
  */
 template <typename T>
-struct be_vector {
+struct GuestVector {
   be_ptr<T> first; /**< Guest address of the first element. */
   be_ptr<T> last;  /**< Guest address one past the last element. */
   be_ptr<T> limit; /**< Guest address one past the allocated storage. */
@@ -248,6 +249,24 @@ struct be_vector {
   }
 
   /**
+   * Reads a numeric element through a memory view only when the title could read all of it.
+   *
+   * @param index The element index.
+   * @param view The memory view to read through.
+   * @return The element in native byte order, nothing when the index is not below size(), the
+   * element wraps the address space, is in no heap, or has an unreadable page.
+   */
+  std::optional<T> TryGet(size_t index, const rex::kernel::MemoryView& view) const
+    requires(rex::kernel::detail::GuestScalar<T>)
+  {
+    const u32 address = GetAddress(index);
+    if (address == 0) {
+      return std::nullopt;
+    }
+    return view.TryLoad<T>(address);
+  }
+
+  /**
    * Resolves an element through the guest memory of the calling thread only when the title could
    * read all of it.
    *
@@ -263,6 +282,6 @@ struct be_vector {
     return TryAt(index, rex::kernel::MemoryView(*thread_state->GetMemory()));
   }
 };
-REX_STATIC_ASSERT_SIZE(be_vector<u8>, 12);
+REX_STATIC_ASSERT_SIZE(GuestVector<u8>, 12);
 
 }  // namespace rex::kernel
