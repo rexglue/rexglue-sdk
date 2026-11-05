@@ -48,10 +48,14 @@ struct CreateOptions {
   static const u32 kFileRandomAccess = 0x00000800;
 };
 
+static bool IsErrorStatus(X_STATUS status) {
+  return (status & 0xC0000000) == 0xC0000000;
+}
+
 static bool QueueCompletionAPC(u32 apc_routine, u32 apc_context, u32 io_status_block,
                                X_STATUS result) {
   const u32 routine = apc_routine & ~3u;
-  if (!routine || (result != X_STATUS_SUCCESS && result != X_STATUS_PENDING)) {
+  if (!routine || IsErrorStatus(result)) {
     return false;
   }
   KernelThread::GetCallingThread()->EnqueueAPC(routine, apc_context, io_status_block, 0);
@@ -194,11 +198,12 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
   }
 
   if (XSUCCEEDED(result)) {
-    if (true || file->is_synchronous) {
-      u32 bytes_read = 0;
-      result = file->Read(kernel::GetCurrent(), buffer.GetGuestAddress(), buffer_length,
-                          byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_read,
-                          apc_context.GetGuestAddress());
+    u32 bytes_read = 0;
+    result = file->Read(kernel::GetCurrent(), buffer.GetGuestAddress(), buffer_length,
+                        byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_read,
+                        apc_context.GetGuestAddress());
+
+    if (!IsErrorStatus(result)) {
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_read;
@@ -208,25 +213,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
           QueueCompletionAPC(static_cast<u32>(apc_routine_ptr), apc_context.GetGuestAddress(),
                              io_status_block.GetGuestAddress(), result);
 
-      if (!file->is_synchronous && result != X_STATUS_END_OF_FILE) {
-        result = X_STATUS_PENDING;
-      }
-
       // Signal the event only after the info is written.
       signal_event = true;
-    } else {
-      if (io_status_block) {
-        io_status_block->status = X_STATUS_PENDING;
-        io_status_block->information = 0;
-      }
-
-      result = X_STATUS_PENDING;
     }
-  }
-
-  if (XFAILED(result) && io_status_block) {
-    io_status_block->status = result;
-    io_status_block->information = 0;
   }
 
   if (ev && signal_event) {
@@ -268,11 +257,12 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, MappedVoid apc_ro
   }
 
   if (XSUCCEEDED(result)) {
-    if (true || file->is_synchronous) {
-      u32 bytes_read = 0;
-      result = file->ReadScatter(kernel::GetCurrent(), segment_array.GetGuestAddress(), length,
-                                 byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
-                                 &bytes_read, apc_context.GetGuestAddress());
+    u32 bytes_read = 0;
+    result = file->ReadScatter(kernel::GetCurrent(), segment_array.GetGuestAddress(), length,
+                               byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
+                               &bytes_read, apc_context.GetGuestAddress());
+
+    if (!IsErrorStatus(result)) {
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_read;
@@ -281,25 +271,9 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, MappedVoid apc_ro
       QueueCompletionAPC(static_cast<u32>(apc_routine_ptr), apc_context.GetGuestAddress(),
                          io_status_block.GetGuestAddress(), result);
 
-      if (!file->is_synchronous) {
-        result = X_STATUS_PENDING;
-      }
-
       // Signal the event only after the info is written.
       signal_event = true;
-    } else {
-      if (io_status_block) {
-        io_status_block->status = X_STATUS_PENDING;
-        io_status_block->information = 0;
-      }
-
-      result = X_STATUS_PENDING;
     }
-  }
-
-  if (XFAILED(result) && io_status_block) {
-    io_status_block->status = result;
-    io_status_block->information = 0;
   }
 
   if (ev && signal_event) {
@@ -326,12 +300,12 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
   }
 
   if (XSUCCEEDED(result)) {
-    if (true || file->is_synchronous) {
-      u32 bytes_written = 0;
-      result = file->Write(kernel::GetCurrent(), buffer.GetGuestAddress(), buffer_length,
-                           byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
-                           &bytes_written, apc_context.GetGuestAddress());
+    u32 bytes_written = 0;
+    result = file->Write(kernel::GetCurrent(), buffer.GetGuestAddress(), buffer_length,
+                         byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_written,
+                         apc_context.GetGuestAddress());
 
+    if (!IsErrorStatus(result)) {
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_written;
@@ -340,25 +314,9 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
       QueueCompletionAPC(apc_routine, apc_context.GetGuestAddress(),
                          io_status_block.GetGuestAddress(), result);
 
-      if (!file->is_synchronous) {
-        result = X_STATUS_PENDING;
-      }
-
       // Signal the event only after the info is written.
       signal_event = true;
-    } else {
-      result = X_STATUS_PENDING;
-
-      if (io_status_block) {
-        io_status_block->status = X_STATUS_PENDING;
-        io_status_block->information = 0;
-      }
     }
-  }
-
-  if (XFAILED(result) && io_status_block) {
-    io_status_block->status = result;
-    io_status_block->information = 0;
   }
 
   if (ev && signal_event) {

@@ -752,3 +752,91 @@ REX_TEST_CASE(
     CHECK(c.Kernel("NtClose", {device}) == 0);
   });
 }
+
+namespace {
+constexpr u32 kPrefill = 0xA5A5A5A5;
+
+u32 OpenScratch(Caller& c, const char* path, u32 create_options) {
+  const u32 handle_ptr = c.Alloc(4);
+  const u32 status_block = c.Alloc(8);
+  CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.AllocAttributes(path),
+                                         status_block, 0, 0, 3, 1, create_options}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
+  return c.Load32(handle_ptr);
+}
+
+u32 PrefilledBlock(Caller& c) {
+  const u32 block = c.Alloc(8);
+  c.Store32(block, kPrefill);
+  c.Store32(block + 4, kPrefill);
+  return block;
+}
+}  // namespace
+
+REX_TEST_CASE("files: an async read returns its status and completes", "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "a.bin", 8); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\a.bin", 0);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(8);
+    CHECK(c.Kernel("NtReadFile", {handle, event, 0, 0, block, buffer, 8, c.AllocQuad(0)}) == 0);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 8);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an async read at end of file leaves its block and event alone",
+              "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "e.bin", 8); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\e.bin", 0);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(8);
+    CHECK(c.Kernel("NtReadFile", {handle, event, 0, 0, block, buffer, 8, c.AllocQuad(8)}) ==
+          rex::kernel::X_STATUS_END_OF_FILE);
+    CHECK(c.Load32(block) == kPrefill);
+    CHECK(c.Load32(block + 4) == kPrefill);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_TIMEOUT);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an async write returns its status", "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "s.bin", 8); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\s.bin", 0);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(4);
+    CHECK(c.Kernel("NtWriteFile", {handle, 0, 0, 0, block, buffer, 4, c.AllocQuad(0)}) == 0);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 4);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: a synchronous read error leaves its block alone", "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "y.bin", 8); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\y.bin", 0x20);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(8);
+    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, block, buffer, 8, c.AllocQuad(8)}) ==
+          rex::kernel::X_STATUS_END_OF_FILE);
+    CHECK(c.Load32(block) == kPrefill);
+    CHECK(c.Load32(block + 4) == kPrefill);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
