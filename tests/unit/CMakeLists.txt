@@ -120,6 +120,7 @@ add_executable(
   base/socket_wait_test.cpp
   base/thread_callback_test.cpp
   base/thread_start_data_test.cpp
+  base/thread_priority_test.cpp
   base/thread_time_test.cpp
   base/timer_queue_test.cpp
   base/utf8_test.cpp

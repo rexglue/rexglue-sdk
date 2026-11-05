@@ -92,6 +92,10 @@ void SetCurrentThreadName(const std::string_view name) {
   ApplyThreadName(GetCurrentThread(), name);
 }
 
+void SetCurrentThreadPriority(i32 priority) {
+  SetThreadPriority(GetCurrentThread(), priority);
+}
+
 void MaybeYield() {
   SwitchToThread();
   MemoryBarrier();

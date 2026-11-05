@@ -66,6 +66,14 @@ REX_API void SetCallerThreadID(u32 id);
  */
 REX_API void SetCurrentThreadName(const std::string_view name);
 
+/**
+ * Sets the priority of the calling thread, with the same mapping as Thread::SetPriority. A failure
+ * is logged and leaves the priority unchanged.
+ *
+ * @param priority Usually a ThreadPriority value.
+ */
+REX_API void SetCurrentThreadPriority(i32 priority);
+
 /** Yields the calling thread to the scheduler and issues a full memory barrier. */
 REX_API void MaybeYield();
 

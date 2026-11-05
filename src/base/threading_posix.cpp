@@ -925,6 +925,29 @@ class PosixCondition<Timer> : public PosixConditionBase {
   const bool manual_reset_;
 };
 
+namespace {
+
+void ApplyThreadPriority(pthread_t thread, int new_priority) {
+  sched_param param{};
+  param.sched_priority = new_priority;
+  int result = pthread_setschedparam(thread, SCHED_FIFO, &param);
+  if (result != 0) {
+    switch (result) {
+      case EPERM:
+        REXSYS_WARN("SetPriority: permission denied");
+        break;
+      case EINVAL:
+        REX_ASSERT_ALWAYS();
+        break;
+      default:
+        REXSYS_WARN("SetPriority: pthread_setschedparam failed ({})", result);
+        break;
+    }
+  }
+}
+
+}  // namespace
+
 struct ThreadStartData {
   rex::MoveOnlyFunction<void()> start_routine;
   bool create_suspended;
@@ -1150,22 +1173,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   void SetPriority(int new_priority) const {
     WaitStarted();
-    sched_param param{};
-    param.sched_priority = new_priority;
-    int result = pthread_setschedparam(thread_, SCHED_FIFO, &param);
-    if (result != 0) {
-      switch (result) {
-        case EPERM:
-          REXSYS_WARN("SetPriority: permission denied");
-          break;
-        case EINVAL:
-          REX_ASSERT_ALWAYS();
-          break;
-        default:
-          REXSYS_WARN("SetPriority: pthread_setschedparam failed ({})", result);
-          break;
-      }
-    }
+    ApplyThreadPriority(thread_, new_priority);
   }
 
   void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) {
@@ -2088,6 +2096,10 @@ void SetCurrentThreadName(const std::string_view name) {
     current_thread->GetCondition().SetAndroidPreAPI26Name(name);
   }
 #endif
+}
+
+void SetCurrentThreadPriority(i32 priority) {
+  ApplyThreadPriority(pthread_self(), priority);
 }
 
 static void SignalHandler(int signal, siginfo_t* /*info*/, void* context) {
