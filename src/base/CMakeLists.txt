@@ -64,14 +64,6 @@ set_target_properties(rexbase PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY
 target_compile_definitions(rexbase PRIVATE REX_BUILDING_BASE)
 rex_target_pch(rexbase)
 
-# Installed modules sit in the library folder, so the loader also looks there from the executable.
-if (UNIX)
-  target_compile_definitions(
-    rexbase PRIVATE REX_INSTALL_LIBDIR_FROM_BINDIR="${REXGLUE_LIBDIR_FROM_BINDIR}"
-  )
-else ()
-  target_compile_definitions(rexbase PRIVATE REX_INSTALL_LIBDIR_FROM_BINDIR="")
-endif ()
 rexglue_add_version_resource(rexbase DESCRIPTION "ReXGlue base")
 
 if (APPLE)

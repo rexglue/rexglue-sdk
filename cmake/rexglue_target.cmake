@@ -1,6 +1,6 @@
 # rexglue_target.cmake
 #   rexglue_apply_target_settings(<target>)  - common compile/platform flags
-#   rexglue_configure_target(<target>)       - host application
+#   rexglue_configure_target(<target> [NO_COPY] [EXCLUDE <name>...]) - host application
 #   rexglue_get_runtime_files(<target> <out>) - files staged next to the host
 include_guard(GLOBAL)
 
@@ -180,13 +180,30 @@ function (_rexglue_stage_library out_var target_name library)
   )
 endfunction ()
 
-# Lists the SDK libraries a host links, the in-tree target or the installed import of each.
+# Lists the names the EXCLUDE keyword of rexglue_configure_target accepts: the staged provider
+# modules, the SDK libraries a host links and SDL3. Names that exist on another platform only are
+# included.
+function (_rexglue_get_copy_names out_var)
+  _rexglue_get_staged_modules(modules aliases)
+  set(${out_var}
+      "${modules};rexbase;rexppc;rexkernel;rexapp;TracyClient;SDL3"
+      PARENT_SCOPE
+  )
+endfunction ()
+
+# Lists the SDK libraries a host links, the in-tree target or the installed import of each. The
+# libraries named after out_var are left out.
 function (_rexglue_get_runtime_libs out_var)
+  set(excluded ${ARGN})
   set(libs "")
   foreach (pair "rex::base|rexbase" "rex::ppc|rexppc" "rex::kernel|rexkernel" "rex::app|rexapp"
                 "rex::TracyClient|TracyClient"
   )
     string(REPLACE "|" ";" candidates "${pair}")
+    list(GET candidates -1 pair_name)
+    if (pair_name IN_LIST excluded)
+      continue()
+    endif ()
     foreach (candidate IN LISTS candidates)
       if (TARGET ${candidate})
         list(APPEND libs ${candidate})
@@ -206,7 +223,7 @@ endfunction ()
 # between an in-tree build and an installed SDK import.
 function (_rexglue_stage_unix_runtime out_var target_name)
   set(commands ${${out_var}})
-  _rexglue_get_runtime_libs(runtime_libs)
+  _rexglue_get_runtime_libs(runtime_libs ${ARGN})
   foreach (runtime_lib IN LISTS runtime_libs)
     _rexglue_add_runtime_file(${target_name} "$<TARGET_FILE_NAME:${runtime_lib}>")
     list(
@@ -229,10 +246,13 @@ endfunction ()
 # Adds the one POST_BUILD step that stages every runtime file next to the host, so the build
 # prints a single line for the target. On Windows it starts with the runtime DLLs and their PDBs,
 # and the host relinks when a staged DLL changes, since an unchanged import library skips the link
-# otherwise.
-function (_rexglue_add_stage_step target_name)
+# otherwise. The runtime DLLs leave out the libraries named in dll_excludes.
+function (_rexglue_add_stage_step target_name dll_excludes)
   if (WIN32)
     set(dlls "$<TARGET_RUNTIME_DLLS:${target_name}>")
+    foreach (excluded_target IN LISTS dll_excludes)
+      set(dlls "$<FILTER:${dlls},EXCLUDE,[/\\\\]$<TARGET_FILE_NAME:${excluded_target}>$>")
+    endforeach ()
     set(dll_dir "$<TARGET_FILE_DIR:${target_name}>")
     set(stage_pdbs "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rexglue_stage_pdbs.cmake")
     set_property(
@@ -262,12 +282,10 @@ function (_rexglue_add_stage_step target_name)
   endif ()
 endfunction ()
 
-# Stages every built provider module next to the executable, from the in-tree
-# target when it exists and from the installed import otherwise. The modules load
-# at runtime and are never linked, so TARGET_RUNTIME_DLLS misses them.
-function (_rexglue_stage_modules out_var target_name)
-  set(commands ${${out_var}})
-  set(staged_targets
+# Sets the two variables to the provider module targets and the installed import of each, in the
+# same order.
+function (_rexglue_get_staged_modules out_targets out_aliases)
+  set(${out_targets}
       rexfilesystem
       rexapu
       rexhid
@@ -280,8 +298,10 @@ function (_rexglue_stage_modules out_var target_name)
       rexapu-sdl3
       rexhid-sdl3
       rexui-sdl3
+      rexhid-xinput
+      PARENT_SCOPE
   )
-  set(staged_aliases
+  set(${out_aliases}
       rex::filesystem
       rex::apu
       rex::hid
@@ -294,12 +314,22 @@ function (_rexglue_stage_modules out_var target_name)
       rex::apu-sdl3
       rex::hid-sdl3
       rex::ui-sdl3
+      rex::hid-xinput
+      PARENT_SCOPE
   )
-  if (WIN32)
-    list(APPEND staged_targets rexhid-xinput)
-    list(APPEND staged_aliases rex::hid-xinput)
-  endif ()
+endfunction ()
+
+# Stages every built provider module next to the executable, from the in-tree
+# target when it exists and from the installed import otherwise. The modules load
+# at runtime and are never linked, so TARGET_RUNTIME_DLLS misses them.
+function (_rexglue_stage_modules out_var target_name)
+  set(excluded ${ARGN})
+  set(commands ${${out_var}})
+  _rexglue_get_staged_modules(staged_targets staged_aliases)
   foreach (module imported IN ZIP_LISTS staged_targets staged_aliases)
+    if (module IN_LIST excluded OR (NOT WIN32 AND module STREQUAL "rexhid-xinput"))
+      continue()
+    endif ()
     if (TARGET ${module})
       set(module_target ${module})
       add_dependencies(${target_name} ${module})
@@ -367,21 +397,89 @@ function (rexglue_get_runtime_files target_name out_var)
   )
 endfunction ()
 
-# rexglue_configure_target(<target>) - Host application
+# Fails configure when the keywords of rexglue_configure_target are wrong. Takes the unparsed
+# arguments, the names with missing values, NO_COPY as a boolean and the EXCLUDE names in
+# quotes.
+function (_rexglue_check_copy_args unparsed missing no_copy excluded)
+  if (unparsed)
+    list(GET unparsed 0 rejected)
+    message(FATAL_ERROR "rexglue_configure_target: '${rejected}' is not accepted. The keywords "
+                        "are NO_COPY and EXCLUDE <name>..."
+    )
+  endif ()
+  if ("EXCLUDE" IN_LIST missing)
+    message(FATAL_ERROR "rexglue_configure_target: EXCLUDE needs at least one name")
+  endif ()
+  if (no_copy AND excluded)
+    message(FATAL_ERROR "rexglue_configure_target: NO_COPY copies nothing, so it cannot be "
+                        "combined with EXCLUDE"
+    )
+  endif ()
+  _rexglue_get_copy_names(copy_names)
+  foreach (excluded_name IN LISTS excluded)
+    if (NOT excluded_name IN_LIST copy_names)
+      string(REPLACE ";" ", " valid_names "${copy_names}")
+      message(FATAL_ERROR "rexglue_configure_target: EXCLUDE name '${excluded_name}' is not "
+                          "copied. Valid names: ${valid_names}"
+      )
+    endif ()
+  endforeach ()
+endfunction ()
+
+# Adds the POST_BUILD step that stages the runtime files of a host, leaving out the EXCLUDE names
+# after target_name.
+function (_rexglue_stage_runtime_files target_name)
+  set(excluded ${ARGN})
+  set(stage_commands "")
+  if (NOT WIN32)
+    _rexglue_stage_unix_runtime(stage_commands ${target_name} ${excluded})
+  else ()
+    _rexglue_get_runtime_libs(runtime_libs ${excluded})
+    foreach (runtime_lib IN LISTS runtime_libs)
+      _rexglue_stage_library(stage_commands ${target_name} ${runtime_lib})
+    endforeach ()
+  endif ()
+
+  _rexglue_stage_modules(stage_commands ${target_name} ${excluded})
+  if (NOT "SDL3" IN_LIST excluded)
+    _rexglue_stage_sdl(stage_commands ${target_name})
+  endif ()
+
+  if (APPLE)
+    _rexglue_stage_macos_vulkan_runtime(stage_commands ${target_name})
+  endif ()
+
+  _rexglue_get_runtime_libs(dll_excludes)
+  _rexglue_get_runtime_libs(kept_libs ${excluded})
+  if (kept_libs)
+    list(REMOVE_ITEM dll_excludes ${kept_libs})
+  endif ()
+  _rexglue_add_stage_step(${target_name} "${dll_excludes}" ${stage_commands})
+endfunction ()
+
+# rexglue_configure_target(<target> [NO_COPY] [EXCLUDE <name>...]) - Host application
 # It adds
 #   - Build-config define for the version stamp
 #   - $ORIGIN RPATH on UNIX so the host finds librexkernel.so next to itself, and in the install
 #     layout library folder
-#   - Windows POST_BUILD copy of TARGET_RUNTIME_DLLS.
+#   - A POST_BUILD copy of the SDK libraries the host links, every built provider module and the
+#     shared SDL3 into the executable folder. On Windows it also copies TARGET_RUNTIME_DLLS.
 #     Title modules colocate with the host (see rexglue_configure_module_target),
 #     so this single copy handles them transitively.
+# Keywords:
+#   NO_COPY           Copies nothing. The RPATH, the defines, the allocator and the optimus source
+#                     still apply.
+#   EXCLUDE <name>... Skips the named items. A name is a provider module target (rexfilesystem,
+#                     rexapu, rexhid, rexui, rexgpu, rexxam, rexgpu-xenos-null,
+#                     rexgpu-xenos-vulkan, rexgpu-xenos-d3d12, rexapu-sdl3, rexhid-sdl3,
+#                     rexui-sdl3, rexhid-xinput), a linked SDK library (rexbase, rexppc,
+#                     rexkernel, rexapp, TracyClient) or SDL3. A name of another platform is
+#                     accepted and ignored. NO_COPY with EXCLUDE is an error.
 function (rexglue_configure_target target_name)
-  if (ARGN)
-    list(GET ARGN 0 rejected)
-    message(FATAL_ERROR "rexglue_configure_target: '${rejected}' is no longer accepted. Remove it: "
-                        "every built provider module is staged next to the executable."
-    )
-  endif ()
+  cmake_parse_arguments(PARSE_ARGV 1 ARG "NO_COPY" "" "EXCLUDE")
+  _rexglue_check_copy_args(
+    "${ARG_UNPARSED_ARGUMENTS}" "${ARG_KEYWORDS_MISSING_VALUES}" "${ARG_NO_COPY}" "${ARG_EXCLUDE}"
+  )
 
   target_compile_definitions(${target_name} PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
@@ -397,16 +495,6 @@ function (rexglue_configure_target target_name)
   rexglue_apply_target_settings(${target_name})
   rexglue_link_host_allocator(${target_name})
 
-  set(stage_commands "")
-  if (NOT WIN32)
-    _rexglue_stage_unix_runtime(stage_commands ${target_name})
-  else ()
-    _rexglue_get_runtime_libs(runtime_libs)
-    foreach (runtime_lib IN LISTS runtime_libs)
-      _rexglue_stage_library(stage_commands ${target_name} ${runtime_lib})
-    endforeach ()
-  endif ()
-
   if (WIN32)
     set(optimus_source "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_optimus.cpp")
     configure_file(
@@ -415,12 +503,7 @@ function (rexglue_configure_target target_name)
     target_sources(${target_name} PRIVATE "${optimus_source}")
   endif ()
 
-  _rexglue_stage_modules(stage_commands ${target_name})
-  _rexglue_stage_sdl(stage_commands ${target_name})
-
-  if (APPLE)
-    _rexglue_stage_macos_vulkan_runtime(stage_commands ${target_name})
+  if (NOT ARG_NO_COPY)
+    _rexglue_stage_runtime_files(${target_name} ${ARG_EXCLUDE})
   endif ()
-
-  _rexglue_add_stage_step(${target_name} ${stage_commands})
 endfunction ()

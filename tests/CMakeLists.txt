@@ -23,14 +23,30 @@ add_test(NAME gpu_no_runtime_include
                  ${PROJECT_SOURCE_DIR}/cmake/check_gpu_includes.cmake
 )
 
-# The removed staging arguments fail configure and name the argument
-add_test(NAME configure_target_rejects_gpu_plugins
-         COMMAND ${CMAKE_COMMAND} -DREXGLUE_ROOT=${PROJECT_SOURCE_DIR} -P
-                 ${CMAKE_CURRENT_SOURCE_DIR}/configure_target_args.cmake
+# Arguments rexglue_configure_target refuses fail configure and name the cause
+function (add_configure_target_args_test name arguments expected)
+  add_test(NAME ${name}
+           COMMAND ${CMAKE_COMMAND} -DREXGLUE_ROOT=${PROJECT_SOURCE_DIR} "-DARGS=${arguments}" -P
+                   ${CMAKE_CURRENT_SOURCE_DIR}/configure_target_args.cmake
+  )
+  set_tests_properties(${name} PROPERTIES PASS_REGULAR_EXPRESSION "${expected}")
+endfunction ()
+
+add_configure_target_args_test(
+  configure_target_rejects_gpu_plugins "GPU_PLUGINS$<SEMICOLON>xenos"
+  "'GPU_PLUGINS'[ \n]+is[ \n]+not[ \n]+accepted"
 )
-set_tests_properties(
-  configure_target_rejects_gpu_plugins PROPERTIES PASS_REGULAR_EXPRESSION
-                                                  "'GPU_PLUGINS' is no longer accepted"
+add_configure_target_args_test(
+  configure_target_rejects_no_copy_with_exclude "NO_COPY$<SEMICOLON>EXCLUDE$<SEMICOLON>rexapu"
+  "cannot[ \n]+be[ \n]+combined[ \n]+with[ \n]+EXCLUDE"
+)
+add_configure_target_args_test(
+  configure_target_rejects_unknown_exclude_name "EXCLUDE$<SEMICOLON>rexnothing"
+  "'rexnothing'[ \n]+is[ \n]+not[ \n]+copied.*Valid[ \n]+names:[ \n]+rexfilesystem"
+)
+add_configure_target_args_test(
+  configure_target_rejects_empty_exclude "EXCLUDE"
+  "EXCLUDE[ \n]+needs[ \n]+at[ \n]+least[ \n]+one[ \n]+name"
 )
 
 # Compile and run checks for the entry point macros

@@ -17,16 +17,6 @@ namespace rex {
 
 namespace {
 
-std::vector<std::filesystem::path> GetModuleSearchPaths(const std::filesystem::path& folder,
-                                                        std::string_view name,
-                                                        std::string_view libdir) {
-  std::vector<std::filesystem::path> paths{folder / detail::ModuleFileName(name)};
-  if (!libdir.empty()) {
-    paths.push_back((folder / libdir / detail::ModuleFileName(name)).lexically_normal());
-  }
-  return paths;
-}
-
 struct Entry {
   platform::DynamicLibrary library;
   std::vector<InterfaceType> types;
@@ -416,23 +406,17 @@ Result<void> ModuleGroup::Load(std::string_view module_name) {
       })) {
     return Ok();
   }
-  const auto candidates = GetModuleSearchPaths(platform::GetExecutableFolder(), module_name,
-                                               REX_INSTALL_LIBDIR_FROM_BINDIR);
-  const auto found = std::ranges::find_if(
-      candidates, [](const std::filesystem::path& file) { return std::filesystem::exists(file); });
-  if (found == candidates.end()) {
-    std::string searched;
-    for (const auto& candidate : candidates) {
-      searched += std::format("{}'{}'", searched.empty() ? "" : ", ", candidate.string());
-    }
+  const std::filesystem::path file =
+      platform::GetExecutableFolder() / detail::ModuleFileName(module_name);
+  if (!std::filesystem::exists(file)) {
     return Err(ErrorCategory::kModule,
-               std::format("module '{}' not found at {}", module_name, searched));
+               std::format("module '{}' not found at '{}'", module_name, file.string()));
   }
   auto entry = std::make_unique<Entry>();
   entry->label = std::string(module_name);
-  if (!entry->library.Load(*found, platform::SymbolResolution::kImmediate)) {
+  if (!entry->library.Load(file, platform::SymbolResolution::kImmediate)) {
     return Err(ErrorCategory::kModule,
-               std::format("module '{}' failed to load from '{}', {}", module_name, found->string(),
+               std::format("module '{}' failed to load from '{}', {}", module_name, file.string(),
                            entry->library.GetLastError()));
   }
   using IdentityFn = const char* (*)();
