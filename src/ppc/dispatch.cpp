@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include <rex/logging/log.h>
+#include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/recompiled_code.h>
 
@@ -16,9 +17,7 @@ void Trap(PPCContext& ctx, u8* base, u16 trap_type) {
     case 20:
     case 26: {
       const u32 address = ctx.r3.u32;
-      const u32 offset = address >= 0xE0000000u ? 0x1000u : 0u;
-      const std::string_view text(reinterpret_cast<const char*>(base + address + offset),
-                                  ctx.r4.u16);
+      const std::string_view text(rex::memory::GuestPtr<const char*>(base, address), ctx.r4.u16);
       REXCPU_DEBUG("(service trap) {}", text);
       break;
     }

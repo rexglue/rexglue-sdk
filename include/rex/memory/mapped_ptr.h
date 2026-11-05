@@ -19,6 +19,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include <rex/platform.h>
 #include <rex/types.h>
 
 namespace rex::memory {
@@ -352,11 +353,22 @@ using GuestPtrT = rex::memory::MappedPtr<T>;
 namespace rex::memory::detail {
 
 /**
- * Returns the host offset of a guest address. The 0xE0 view adds 1 page from 0xE0000000 up. The
- * offset is 0x1000 from 0xE0000000 up, else 0.
+ * True on hosts whose allocation granularity is above 4 KiB, which are Windows and macOS on
+ * arm64. The mapping API rounds the 0x1000 byte offset of the 0xE0000000 view away there, so the
+ * view maps physical memory from 0 and code adds the offset. Other hosts map the offset itself.
+ */
+#if REX_PLATFORM_WIN32 || (REX_PLATFORM_MAC && defined(REX_ARCH_ARM64))
+inline constexpr bool kPhysicalOffsetInCode = true;
+#else
+inline constexpr bool kPhysicalOffsetInCode = false;
+#endif
+
+/**
+ * Returns the offset code adds to the host address of a guest address: 0x1000 from 0xE0000000 up
+ * on a host with kPhysicalOffsetInCode, else 0.
  */
 constexpr u32 PhysicalHostOffset(u32 guest_addr) noexcept {
-  return (guest_addr >= 0xE0000000u) ? 0x1000u : 0u;
+  return (kPhysicalOffsetInCode && guest_addr >= 0xE0000000u) ? 0x1000u : 0u;
 }
 
 /**

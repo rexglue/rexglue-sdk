@@ -77,7 +77,11 @@
 #endif
 #endif
 
+#if REX_PLATFORM_WIN32 || (REX_PLATFORM_MAC && defined(REX_ARCH_ARM64))
 #define REX_PHYS_HOST_OFFSET(addr) ((static_cast<u32>(addr) >= 0xE0000000u) ? 0x1000u : 0u)
+#else
+#define REX_PHYS_HOST_OFFSET(addr) 0u
+#endif
 
 #define REX_RAW_ADDR(x) (base + static_cast<u32>(x) + REX_PHYS_HOST_OFFSET(x))
 

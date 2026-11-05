@@ -95,8 +95,8 @@ u32* ReturnPointer() {
 }
 
 u32* AtGuest(u32 guest_address) {
-  const uintptr_t host_offset =
-      static_cast<uintptr_t>(guest_address) + (guest_address >= 0xE0000000u ? 0x1000u : 0u);
+  const uintptr_t host_offset = static_cast<uintptr_t>(guest_address) +
+                                rex::memory::detail::PhysicalHostOffset(guest_address);
   return reinterpret_cast<u32*>(reinterpret_cast<uintptr_t>(g_test_memory) + host_offset);
 }
 

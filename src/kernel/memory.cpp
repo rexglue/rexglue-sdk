@@ -222,6 +222,13 @@ Memory::~Memory() {
 }
 
 bool Memory::Initialize() {
+  if ((system_allocation_granularity_ > 0x1000) != rex::memory::detail::kPhysicalOffsetInCode) {
+    REXSYS_ERROR(
+        "The host allocation granularity is 0x{:X}, which does not match how the 0xE0000000 view "
+        "offset is applied on this platform.",
+        system_allocation_granularity_);
+    return false;
+  }
   rex::memory::RemoveStaleFileMappings(kFileMappingPrefix);
   file_name_ = rex::memory::CreateFileMappingName(kFileMappingPrefix);
 
@@ -380,7 +387,7 @@ static const struct {
     {
         0xE0000000,
         0xFFFFFFFF,
-        0x0000000100000000ull,
+        0x0000000100001000ull,
     },
     {
         0x100000000,

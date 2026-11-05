@@ -12,11 +12,13 @@
 #include "rex_test.h"
 
 #include <array>
+#include <cstddef>
 #include <cstring>
 
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/memory_view.h>
 #include <rex/kernel/heap.h>
+#include <rex/memory/mapped_ptr.h>
 
 #include "../kernel/kernel_fixture.h"
 #include "kernel/title_state.h"
@@ -139,9 +141,13 @@ REX_TEST_CASE("Every physical heap reaches the physical byte the hardware maps",
 REX_TEST_CASE("The top guest page wraps to physical 0 as the hardware does", "[kernel]") {
   rex::test::KernelFixture fixture;
   const rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
-  CHECK(memory.TranslateVirtual(0xFFFFF000) == memory.TranslatePhysical(0));
-  CHECK(memory.TranslateVirtual(0xFFFFFFFF) == memory.TranslatePhysical(0xFFF));
-  CHECK(memory.TranslateVirtual(0xE0000000) == memory.GetVirtualMembase() + 0xE0001000u);
+  if (rex::memory::detail::kPhysicalOffsetInCode) {
+    CHECK(memory.TranslateVirtual(0xFFFFF000) == memory.TranslatePhysical(0));
+    CHECK(memory.TranslateVirtual(0xFFFFFFFF) == memory.TranslatePhysical(0xFFF));
+  }
+  CHECK(memory.TranslateVirtual(0xE0000000) ==
+        memory.GetVirtualMembase() + 0xE0000000u +
+            rex::memory::detail::PhysicalHostOffset(0xE0000000u));
 }
 
 REX_TEST_CASE("TryTranslateVirtual rejects null, misaligned and unmapped addresses", "[kernel]") {
@@ -337,4 +343,39 @@ REX_TEST_CASE("MemoryView TryGetCString stops where the title cannot read", "[ke
     CHECK(view.TryGetCString(block + 0x0FFFF).value() == "x");
     CHECK_FALSE(view.TryGetCString(edge).has_value());
   });
+}
+
+REX_TEST_CASE("The 0xE0000000 view reaches physical 0x1000 on every host", "[kernel]") {
+  rex::test::KernelFixture fixture;
+  rex::kernel::Memory& memory = *StateOf(fixture.GetRuntime()).GetMemory();
+  rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
+  REQUIRE(heap != nullptr);
+  u32 block = 0;
+  REQUIRE(heap->Alloc(
+      0x2000, 0x1000, rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+      rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite, false, &block));
+  REQUIRE(block >= 0xE0000000);
+  for (const u32 x :
+       {block - 0xE0000000, block - 0xE0000000 + 0xFFF, block - 0xE0000000 + 0x1FFF}) {
+    CAPTURE(x);
+    *memory.TranslateVirtual(0xE0000000 + x) = 0x3C;
+    CHECK(*memory.TranslatePhysical(0x1000 + x) == 0x3C);
+    *memory.TranslatePhysical(0x1000 + x) = 0xC3;
+    CHECK(*memory.TranslateVirtual(0xE0000000 + x) == 0xC3);
+    if (!rex::memory::detail::kPhysicalOffsetInCode) {
+      CHECK(memory.GetVirtualMembase()[0xE0000000u + x] == 0xC3);
+    }
+  }
+  CHECK(heap->Release(block));
+}
+
+REX_TEST_CASE("RemovePhysicalHostOffset inverts the host offset at the 0xE0000000 view edges",
+              "[kernel]") {
+  for (const u32 address : {0xDFFFFFFFu, 0xE0000000u, 0xE0000FFFu, 0xE0001000u, 0xFFCFFFFFu,
+                            0xFFFFF000u, 0xFFFFFFFFu}) {
+    CAPTURE(address);
+    const std::size_t host_offset =
+        static_cast<std::size_t>(address) + rex::memory::detail::PhysicalHostOffset(address);
+    CHECK(rex::memory::detail::RemovePhysicalHostOffset(host_offset) == address);
+  }
 }
