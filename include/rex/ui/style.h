@@ -187,6 +187,26 @@ struct ControlPalette {
   Color plot_histogram_hovered = Color::FromRGBA(1.00f, 0.60f, 0.00f, 1.00f);
   /** Selected text background. */
   Color selection = Color::FromRGBA(0.00f, 1.00f, 0.00f, 0.21f);
+  /** Table header background. */
+  Color table_header = Color::FromRGBA(0.19f, 0.19f, 0.20f, 1.00f);
+  /** Table outer and header borders. */
+  Color table_border_strong = Color::FromRGBA(0.31f, 0.31f, 0.35f, 1.00f);
+  /** Table inner borders. */
+  Color table_border_light = Color::FromRGBA(0.23f, 0.23f, 0.25f, 1.00f);
+  /** Table row background on even rows. */
+  Color table_row = Color::FromRGBA(0.00f, 0.00f, 0.00f, 0.00f);
+  /** Table row background on odd rows. */
+  Color table_row_alt = Color::FromRGBA(1.00f, 1.00f, 1.00f, 0.06f);
+  /** Hyperlink text. */
+  Color text_link = Color::FromRGBA(0.26f, 0.59f, 0.98f, 1.00f);
+  /** Tree node hierarchy lines. */
+  Color tree_lines = Color::FromRGBA(0.43f, 0.43f, 0.50f, 0.50f);
+  /** Keyboard and gamepad navigation rectangle. */
+  Color nav_cursor = Color::FromRGBA(0.26f, 0.59f, 0.98f, 1.00f);
+  /** Window highlight while switching windows with Ctrl+Tab. */
+  Color nav_windowing_highlight = Color::FromRGBA(1.00f, 1.00f, 1.00f, 0.70f);
+  /** Dim layer behind the Ctrl+Tab window list. */
+  Color nav_windowing_dim = Color::FromRGBA(0.80f, 0.80f, 0.80f, 0.20f);
 
   /** Reports whether every field is equal. */
   bool operator==(const ControlPalette& other) const = default;
@@ -245,6 +265,12 @@ struct Metrics {
   /** Corner radius of scrollbars and tabs. */
   f32 rounding = 0;
   f32 frame_rounding = 0;
+  /** Corner radius of child windows. */
+  f32 child_rounding = 0;
+  /** Corner radius of popups. */
+  f32 popup_rounding = 0;
+  /** Corner radius of slider and scrollbar grabs. */
+  f32 grab_rounding = 0;
   f32 border = 1;
   Vec2 window_padding{8, 8};
   Vec2 item_spacing{8, 4};

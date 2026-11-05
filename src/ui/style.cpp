@@ -12,6 +12,9 @@ void ApplyDefaultStyle(ImGuiStyle& imgui_style, const Palette& palette, const Me
   imgui_style.ScrollbarRounding = metrics.rounding;
   imgui_style.TabRounding = metrics.rounding;
   imgui_style.FrameRounding = metrics.frame_rounding;
+  imgui_style.ChildRounding = metrics.child_rounding;
+  imgui_style.PopupRounding = metrics.popup_rounding;
+  imgui_style.GrabRounding = metrics.grab_rounding;
   imgui_style.WindowBorderSize = metrics.border;
   imgui_style.WindowPadding = ImVec2(metrics.window_padding.x, metrics.window_padding.y);
   imgui_style.ItemSpacing = ImVec2(metrics.item_spacing.x, metrics.item_spacing.y);
@@ -60,6 +63,16 @@ void ApplyDefaultStyle(ImGuiStyle& imgui_style, const Palette& palette, const Me
   set(ImGuiCol_PlotHistogram, controls.plot_histogram);
   set(ImGuiCol_PlotHistogramHovered, controls.plot_histogram_hovered);
   set(ImGuiCol_TextSelectedBg, controls.selection);
+  set(ImGuiCol_TableHeaderBg, controls.table_header);
+  set(ImGuiCol_TableBorderStrong, controls.table_border_strong);
+  set(ImGuiCol_TableBorderLight, controls.table_border_light);
+  set(ImGuiCol_TableRowBg, controls.table_row);
+  set(ImGuiCol_TableRowBgAlt, controls.table_row_alt);
+  set(ImGuiCol_TextLink, controls.text_link);
+  set(ImGuiCol_TreeLines, controls.tree_lines);
+  set(ImGuiCol_NavCursor, controls.nav_cursor);
+  set(ImGuiCol_NavWindowingHighlight, controls.nav_windowing_highlight);
+  set(ImGuiCol_NavWindowingDimBg, controls.nav_windowing_dim);
   set(ImGuiCol_ModalWindowDimBg, palette.overlay_dim);
 }
 
