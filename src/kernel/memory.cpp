@@ -291,7 +291,6 @@ bool Memory::Initialize() {
   heaps_.physical.AllocFixed(0x1FFF0000, 0x10000, 0x10000, kernel::kMemoryAllocationReserve,
                              kernel::kMemoryProtectNoAccess);
 
-  // GPU writeback at 0xC0000000 aliases the virtual range at 0x7F000000.
   heaps_.vc0000000.AllocFixed(0xC0000000, 0x01000000, 32,
                               kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit,
                               kernel::kMemoryProtectRead | kernel::kMemoryProtectWrite);
@@ -1524,12 +1523,14 @@ bool BaseHeap::Protect(u32 address, u32 size, u32 protect, u32* old_protect) {
   return ProtectLocked(address, size, protect, old_protect);
 }
 
-bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protect) {
+bool BaseHeap::CheckProtectRangeLocked(u32 address, u32 size, u32* out_start_page,
+                                       u32* out_end_page) {
   if (!size) {
     REXSYS_FAIL(false, "BaseHeap::Protect failed due to zero size");
   }
 
-  // Protect covers every host page the range touches and needs all of them committed.
+  // Protect covers every page from the one holding the first byte to the one holding the last, and
+  // needs all of them committed.
 
   u32 start_page_number = (address - heap_base_) >> page_size_shift_;
   if (start_page_number >= page_table_.size()) {
@@ -1545,8 +1546,6 @@ bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protec
                 size, address);
   }
 
-  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
-
   u32 first_base_address = UINT_MAX;
   for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto page_entry = page_table_[page_number];
@@ -1558,6 +1557,20 @@ bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protec
     if (!(page_entry.state & kernel::kMemoryAllocationCommit)) {
       REXSYS_FAIL(false, "BaseHeap::Protect failed due to uncommitted page");
     }
+  }
+
+  *out_start_page = start_page_number;
+  *out_end_page = end_page_number;
+  return true;
+}
+
+bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protect) {
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
+
+  u32 start_page_number;
+  u32 end_page_number;
+  if (!CheckProtectRangeLocked(address, size, &start_page_number, &end_page_number)) {
+    return false;
   }
 
   // Guest pages smaller than host pages are reconciled after the page table update.
@@ -1885,6 +1898,22 @@ bool PhysicalHeap::Release(u32 base_address, u32* out_region_size) {
 
 bool PhysicalHeap::Protect(u32 address, u32 size, u32 protect, u32* old_protect) {
   std::lock_guard lock(memory_->watch_mutex_);
+
+  u32 start_page_number;
+  u32 end_page_number;
+  {
+    std::lock_guard<std::recursive_mutex> parent_lock(parent_heap_->heap_mutex_);
+    if (!parent_heap_->CheckProtectRangeLocked(GetPhysicalAddress(address), size,
+                                               &start_page_number, &end_page_number)) {
+      return false;
+    }
+  }
+  {
+    std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
+    if (!CheckProtectRangeLocked(address, size, &start_page_number, &end_page_number)) {
+      return false;
+    }
+  }
 
   // Only invalidate when making writable again, not when marking a range immutable.
   if (protect & kernel::kMemoryProtectWrite) {

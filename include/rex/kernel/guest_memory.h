@@ -40,7 +40,7 @@ enum class GuestHeap : u8 {
 
 /**
  * Checked guest virtual memory, used by everything except recompiled code. A call whose range is
- * not mapped with the needed access returns a kMemory error and touches nothing. Spans stay valid
+ * not mapped with the needed access returns a kMemory error and changes nothing. Spans stay valid
  * until TitleRuntime::Unload.
  */
 class REX_KERNEL_API GuestMemory {
@@ -129,7 +129,8 @@ class REX_KERNEL_API GuestMemory {
   [[nodiscard]] Result<void> Free(u32 address);
 
   /**
-   * Changes the access of mapped pages. The range covers every page it touches.
+   * Changes the access of mapped pages. The range covers every page from the one holding the first
+   * byte to the one holding the last.
    *
    * @return Ok, or a kMemory error when any page is not mapped.
    */

@@ -353,6 +353,18 @@ class REX_KERNEL_API BaseHeap {
   bool ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protect);
 
   /**
+   * Checks that a range can be protected: it is not empty, lies inside the heap, stays in one
+   * region and is committed. The caller holds heap_mutex_.
+   *
+   * @param address The first address of the range.
+   * @param size The size of the range in bytes.
+   * @param out_start_page The page number holding the first byte.
+   * @param out_end_page The page number holding the last byte.
+   * @return True when the range can be protected.
+   */
+  bool CheckProtectRangeLocked(u32 address, u32 size, u32* out_start_page, u32* out_end_page);
+
+  /**
    * Reports whether a host page is write watched, so SyncHostPageAccess must not restore write
    * access to it. Only PhysicalHeap tracks this.
    *
@@ -655,8 +667,9 @@ class REX_KERNEL_API Memory : public ISystemHeap {
    * spuriously or more than once, and fire only for accesses through the guest virtual views of
    * physical memory, so a handler ignores pages it does not track and data providers write through
    * the host physical heap. A triggered page is unwatched in one guest view until requested again.
-   * The granularity is 1 page, so a handler invalidates all data in the touched pages. A write
-   * fault unprotects the shortest range the callbacks return.
+   * The granularity is 1 page, so a handler invalidates all data in every page from the one holding
+   * the first written byte to the one holding the last. A write fault unprotects the shortest range
+   * the callbacks return.
    *
    * @param context_ptr The context given at registration.
    * @param length The length of the watched region in bytes.

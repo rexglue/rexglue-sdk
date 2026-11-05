@@ -33,8 +33,8 @@ class IPhysicalWriteListener {
   virtual ~IPhysicalWriteListener() = default;
 
   /**
-   * Called once per watched range a write touched, on the writing thread under the write watch
-   * lock. The watch fires once.
+   * Called once per watched range that overlaps a write, on the writing thread under the write
+   * watch lock. The watch fires once.
    *
    * @param range The written range, in whole pages.
    * @param exact True when only this exact range is unwatched.
