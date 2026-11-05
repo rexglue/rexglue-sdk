@@ -26,8 +26,17 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::kernel;
 
+constexpr u32 kSpeakerAnalogSurround = 0x00000001;
+constexpr u32 kSpeakerDigitalDolbyDigital = 0x00010000;
+constexpr u32 kSurroundChannels = 6;
+
 u32 XAudioGetSpeakerConfig_entry(MappedU32 config_ptr) {
-  *config_ptr = 0x00010001;
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
+  if (apu && apu->GetOutputChannels() == kSurroundChannels) {
+    *config_ptr = kSpeakerDigitalDolbyDigital | kSpeakerAnalogSurround;
+  } else {
+    *config_ptr = kSpeakerAnalogSurround;
+  }
   return X_ERROR_SUCCESS;
 }
 

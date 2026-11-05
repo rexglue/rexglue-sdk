@@ -44,8 +44,12 @@ namespace rex::test {
 struct Counts {
   std::atomic<int> graphics_attach{0};
   std::atomic<int> graphics_detach{0};
+  std::atomic<rex::u32> audio_channels{0};
 
-  void Reset() { graphics_attach = graphics_detach = 0; }
+  void Reset() {
+    graphics_attach = graphics_detach = 0;
+    audio_channels = 0;
+  }
 };
 
 inline Counts g_counts;
@@ -86,7 +90,10 @@ class CountingAudio final : public rex::apu::IAudioDriver {
   std::string_view GetName() const override { return "count"; }
   rex::Result<void> Initialize(rex::IDriverContext&) override { return {}; }
   void Shutdown() override {}
-  rex::Result<rex::u32> OpenDevice(rex::u32 wanted, rex::apu::AudioFill) override { return wanted; }
+  rex::Result<rex::u32> OpenDevice(rex::u32 wanted, rex::apu::AudioFill) override {
+    const rex::u32 channels = g_counts.audio_channels.load();
+    return channels ? channels : wanted;
+  }
   void CloseDevice() override {}
   bool IsDeviceLost() const override { return false; }
 };

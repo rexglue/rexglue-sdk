@@ -29,6 +29,7 @@ struct EntryCounts {
   std::atomic<u32> handle{0};
   std::atomic<bool> listening{false};
   std::atomic<int> devices_changed{0};
+  std::atomic<u32> speaker_config{0xFFFFFFFF};
 
   void Reset() {
     entered = 0;
@@ -36,6 +37,7 @@ struct EntryCounts {
     handle = 0;
     listening = false;
     devices_changed = 0;
+    speaker_config = 0xFFFFFFFF;
   }
 };
 
@@ -81,6 +83,14 @@ inline void EntryWaitsOnEvent(PPCContext& ctx, u8* base) {
   ++g_entry.finished;
 }
 
+inline void EntryReadsSpeakerConfig(PPCContext& ctx, u8* base) {
+  ++g_entry.entered;
+  const u32 config_ptr = ctx.r1.u32 - 0x100;
+  CallExport(ctx, base, "XAudioGetSpeakerConfig", {config_ptr});
+  g_entry.speaker_config = *reinterpret_cast<be_u32*>(base + config_ptr);
+  ++g_entry.finished;
+}
+
 inline void EntryListensForDevices(PPCContext& ctx, u8* base) {
   ++g_entry.entered;
   constexpr u32 kInputDevicesChanged = 0x00000012;
@@ -105,6 +115,8 @@ inline void EntryListensForDevices(PPCContext& ctx, u8* base) {
 inline const PPCFuncMapping kReturningEntry[] = {{kTitleEntry, EntryReturns}, {0, nullptr}};
 inline const PPCFuncMapping kDelayingEntry[] = {{kTitleEntry, EntryDelays}, {0, nullptr}};
 inline const PPCFuncMapping kEventEntry[] = {{kTitleEntry, EntryWaitsOnEvent}, {0, nullptr}};
+inline const PPCFuncMapping kSpeakerEntry[] = {{kTitleEntry, EntryReadsSpeakerConfig},
+                                               {0, nullptr}};
 inline const PPCFuncMapping kListeningEntry[] = {{kTitleEntry, EntryListensForDevices},
                                                  {0, nullptr}};
 

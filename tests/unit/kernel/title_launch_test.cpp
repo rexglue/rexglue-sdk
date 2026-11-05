@@ -41,6 +41,7 @@
 #include "kernel/title_entries.h"
 #include "kernel/title_fakes.h"
 #include "kernel/title_image.h"
+#include "kernel/title_state.h"
 #include "temp_folder.h"
 #include "test_memory.h"
 #include "ui/ui_harness.h"
@@ -62,6 +63,8 @@ class LaunchApp final : public rex::test::ObjectApp<rex::app::App> {
   LaunchApp() : ObjectApp("launch_test") { rex::test::WriteTitle(folder_.path / "game"); }
 
   std::function<void(LaunchApp&)> body;
+
+  std::string audio_driver = "count";
 
   std::exception_ptr failure;
 
@@ -94,7 +97,7 @@ class LaunchApp final : public rex::test::ObjectApp<rex::app::App> {
     (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
     (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count");
     (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "count");
-    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count");
+    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, audio_driver);
     return settings.SetText(rex::SettingLayer::kTitle, "gpu.driver", "count");
   }
 
@@ -244,6 +247,46 @@ REX_TEST_CASE_METHOD(Fixture, "device change notification sent once", "[kernel][
     settles_at(2);
     UnloadWithin(title, 5s);
   };
+  REQUIRE(app.Start());
+  CHECK(app.Finish() == 0);
+}
+
+namespace {
+rex::u32 ReadSpeakerConfig(LaunchApp& app, rex::u32 expected_channels) {
+  CHECK(app.GetAudio().GetOutputChannels() == expected_channels);
+  rex::kernel::TitleRuntime title(rex::test::MakeTitleImage(rex::test::kSpeakerEntry));
+  REQUIRE(title.Load());
+  REQUIRE(title.Launch());
+  CHECK(StateOf(title).GetAPU() != nullptr);
+  CHECK(WaitFor([] { return rex::test::g_entry.finished == 1; }));
+  title.Unload();
+  return rex::test::g_entry.speaker_config;
+}
+}  // namespace
+
+REX_TEST_CASE_METHOD(Fixture, "the speaker config is surround for a 6 channel device",
+                     "[kernel][title]") {
+  LaunchApp app;
+  g_counts.audio_channels = 6;
+  app.body = [](LaunchApp& launched) { CHECK(ReadSpeakerConfig(launched, 6) == 0x00010001); };
+  REQUIRE(app.Start());
+  CHECK(app.Finish() == 0);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "the speaker config is analog surround for a stereo device",
+                     "[kernel][title]") {
+  LaunchApp app;
+  g_counts.audio_channels = 2;
+  app.body = [](LaunchApp& launched) { CHECK(ReadSpeakerConfig(launched, 2) == 0x00000001); };
+  REQUIRE(app.Start());
+  CHECK(app.Finish() == 0);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "the speaker config is analog surround with no audio driver",
+                     "[kernel][title]") {
+  LaunchApp app;
+  app.audio_driver = "";
+  app.body = [](LaunchApp& launched) { CHECK(ReadSpeakerConfig(launched, 2) == 0x00000001); };
   REQUIRE(app.Start());
   CHECK(app.Finish() == 0);
 }
