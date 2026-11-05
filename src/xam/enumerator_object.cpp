@@ -57,7 +57,8 @@ kernel::X_STATUS CreateEnumerator(kernel::X_HANDLE* out_handle, const Enumerator
                                   EnumeratorObject&& enumerator, u32 extra_size,
                                   void** extra_buffer) {
   kernel::ObjectBlock block = CurrentTitle().objects.AllocateObjectBlock(
-      sizeof(X_KENUMERATOR) + extra_size, kernel::ObjectBlockHeap::kWorkspace);
+      sizeof(X_KENUMERATOR) + extra_size, kernel::ObjectType::kXAM,
+      kernel::ObjectBlockHeap::kWorkspace);
   if (!block.address) {
     return kernel::X_STATUS_NO_MEMORY;
   }

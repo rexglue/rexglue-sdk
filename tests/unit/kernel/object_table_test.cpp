@@ -138,59 +138,76 @@ REX_TEST_CASE("ObjectTable Close removes at zero and reports bad handles",
   CHECK(ToXStatus(table.Close(0xFFFFFFFF)) == rex::kernel::X_STATUS_INVALID_HANDLE);
 }
 
-REX_TEST_CASE("ObjectTable Retain needs a matching Close", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Open gives each call its own handle", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const rex::kernel::X_HANDLE handle = AddEvent(table);
-  REQUIRE(ToXStatus(table.Retain(handle)) == rex::kernel::X_STATUS_SUCCESS);
-  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  auto first = table.Open(table.Get(handle));
+  auto second = table.Open(table.Get(handle));
+  REQUIRE(first.has_value());
+  REQUIRE(second.has_value());
+  CHECK(*first != handle);
+  CHECK(*second != *first);
+  CHECK(ToXStatus(table.Close(*first)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(*first)) == rex::kernel::X_STATUS_INVALID_HANDLE);
   CHECK(table.Get(handle));
-  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
-  CHECK_FALSE(table.Get(handle));
-  CHECK(ToXStatus(table.Retain(handle)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+  CHECK(table.Get(*second));
 }
 
-REX_TEST_CASE("ObjectTable RetainPrimary needs a matching Close", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Reference keeps the object after its last handle closes",
+              "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const rex::kernel::X_HANDLE handle = AddEvent(table);
   {
     auto pin = table.Get(handle);
-    REQUIRE(ToXStatus(table.RetainPrimary(pin)) == rex::kernel::X_STATUS_SUCCESS);
+    REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
   }
   CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK_FALSE(table.Get(handle));
+  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+  CHECK(table.GetAll().size() == 1);
+}
+
+REX_TEST_CASE("ObjectTable Dereference destroys the object once no handle is left",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto pin = table.Get(handle);
+  REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  REQUIRE(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Dereference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(table.GetAll().empty());
+  CHECK(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+}
+
+REX_TEST_CASE("ObjectTable Dereference leaves an object that still has a handle",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto pin = table.Get(handle);
+  REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Dereference(pin)) == rex::kernel::X_STATUS_SUCCESS);
   CHECK(table.Get(handle));
-  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
-  CHECK_FALSE(table.Get(handle));
+  CHECK(ToXStatus(table.Dereference(pin)) == rex::kernel::X_STATUS_INVALID_PARAMETER);
 }
 
-REX_TEST_CASE("ObjectTable GetPrimaryHandle returns the first handle", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable GetByAddress finds an object that has no handle of the title",
+              "[kernel][object_table]") {
   ObjectTable table(nullptr);
-  const rex::kernel::X_HANDLE handle = AddEvent(table);
-  auto duplicated = table.Duplicate(handle);
-  REQUIRE(duplicated.has_value());
-  const rex::kernel::X_HANDLE copy = *duplicated;
-  auto pin = table.Get(copy);
-  CHECK(table.GetPrimaryHandle(pin) == std::optional<rex::kernel::X_HANDLE>(handle));
-}
-
-REX_TEST_CASE("ObjectTable ReleasePrimary closes the first handle", "[kernel][object_table]") {
-  ObjectTable table(nullptr);
-  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto added =
+      table.Emplace<EventObject>(AddOptions{{}, rex::kernel::ObjectBlock{0x2000}}, true, false);
+  REQUIRE(added.has_value());
+  CHECK(table.GetByAddress(0x2000));
+  CHECK_FALSE(table.GetByAddress(0x2004));
   {
-    auto pin = table.Get(handle);
-    CHECK(ToXStatus(table.ReleasePrimary(pin)) == rex::kernel::X_STATUS_SUCCESS);
+    auto pin = table.Get(*added);
+    REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
   }
-  CHECK_FALSE(table.Get(handle));
-}
-
-REX_TEST_CASE("ObjectTable Remove ignores the count", "[kernel][object_table]") {
-  ObjectTable table(nullptr);
-  const rex::kernel::X_HANDLE handle = AddEvent(table);
-  {
-    auto pin = table.Get(handle);
-    REQUIRE(ToXStatus(table.RetainPrimary(pin)) == rex::kernel::X_STATUS_SUCCESS);
-  }
-  CHECK(ToXStatus(table.Remove(handle)) == rex::kernel::X_STATUS_SUCCESS);
-  CHECK_FALSE(table.Get(handle));
+  REQUIRE(ToXStatus(table.Close(*added)) == rex::kernel::X_STATUS_SUCCESS);
+  auto found = table.GetByAddress(0x2000);
+  REQUIRE(found);
+  CHECK(ToXStatus(table.Dereference(found)) == rex::kernel::X_STATUS_SUCCESS);
+  found.Reset();
+  CHECK_FALSE(table.GetByAddress(0x2000));
 }
 
 REX_TEST_CASE("ObjectTable keeps a pinned object alive across Close",
@@ -234,7 +251,8 @@ REX_TEST_CASE("ObjectTable names are case insensitive and collide",
   const rex::kernel::X_HANDLE handle = AddEvent(table, "Alpha");
   auto found = table.OpenByName("ALPHA");
   REQUIRE(found.has_value());
-  CHECK(*found == handle);
+  CHECK(*found != handle);
+  CHECK(&*table.Get<EventObject>(*found) == &*table.Get<EventObject>(handle));
   CHECK(ToXStatus(table.AddName("alpha", 0xF8000008)) ==
         rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
   auto missing = table.OpenByName("Missing");
@@ -242,13 +260,19 @@ REX_TEST_CASE("ObjectTable names are case insensitive and collide",
   CHECK(missing.value_or(rex::kernel::kXInvalidHandleValue) == rex::kernel::kXInvalidHandleValue);
 }
 
-REX_TEST_CASE("ObjectTable OpenByName takes a handle reference", "[kernel][object_table][names]") {
+REX_TEST_CASE("ObjectTable OpenByName gives each open its own handle",
+              "[kernel][object_table][names]") {
   ObjectTable table(nullptr);
   const rex::kernel::X_HANDLE handle = AddEvent(table, "Beta");
-  REQUIRE(table.OpenByName("Beta").has_value());
+  auto opened = table.OpenByName("Beta");
+  REQUIRE(opened.has_value());
   CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
-  CHECK(table.Get(handle));
-  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK_FALSE(table.Get(handle));
+  CHECK(table.Get(*opened));
+  auto again = table.OpenByName("Beta");
+  REQUIRE(again.has_value());
+  CHECK(ToXStatus(table.Close(*opened)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(*again)) == rex::kernel::X_STATUS_SUCCESS);
   CHECK(ToXStatus(table.OpenByName("Beta")) == rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
@@ -261,12 +285,23 @@ REX_TEST_CASE("ObjectTable keeps a name while any handle is open",
   REQUIRE(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
   auto found = table.OpenByName("Gamma");
   REQUIRE(found.has_value());
-  CHECK(*found == *duplicated);
   CHECK(ToXStatus(table.AddName("Gamma", 0xF8000010)) ==
         rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
   REQUIRE(ToXStatus(table.Close(*duplicated)) == rex::kernel::X_STATUS_SUCCESS);
-  REQUIRE(ToXStatus(table.Close(*duplicated)) == rex::kernel::X_STATUS_SUCCESS);
+  REQUIRE(ToXStatus(table.Close(*found)) == rex::kernel::X_STATUS_SUCCESS);
   CHECK(ToXStatus(table.OpenByName("Gamma")) == rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+}
+
+REX_TEST_CASE("ObjectTable frees a name when the last handle closes under a reference",
+              "[kernel][object_table][names]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table, "Delta");
+  {
+    auto pin = table.Get(handle);
+    REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  }
+  REQUIRE(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.OpenByName("Delta")) == rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
 REX_TEST_CASE("ObjectTable All returns one pin per object of the type", "[kernel][object_table]") {

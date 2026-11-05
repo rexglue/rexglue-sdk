@@ -84,7 +84,8 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<KernelThread> thread) {
   KernelThread* raw = thread.get();
   raw->thread_id_ = ++next_id_;
   raw->registry_ = this;
-  ObjectBlock block = AllocObjectBlock(raw->GetMemory(), sizeof(X_KTHREAD));
+  ObjectBlock block = AllocObjectBlock(raw->GetMemory(), sizeof(X_KTHREAD),
+                                       StateOf(runtime_).GetObjectTypeAddress(ObjectType::kThread));
   if (!block.address) {
     return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
   }
@@ -113,7 +114,7 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<KernelThread> thread) {
   }
   if (!published) {
     raw->Abandon();
-    CloseOwned(table_, *handle);
+    raw->ReleaseReference();
     CloseOwned(table_, *handle);
     return Err<X_HANDLE>(StatusError(X_STATUS_PROCESS_IS_TERMINATING));
   }

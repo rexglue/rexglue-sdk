@@ -209,7 +209,7 @@ void Join(PendingReceive& receive) {
     result.canceled = true;
     receive.complete(result);
   }
-  if (auto released = receive.table->ReleasePrimary(receive.pin); !released) {
+  if (auto released = receive.table->Dereference(receive.pin); !released) {
     REXSYS_WARN("A finished socket receive kept its reference, {}", released.error().message);
   }
 }
@@ -657,7 +657,7 @@ bool SocketObject::StartReceive(kernel::IObjectTable& table, kernel::ObjectPin p
   }
   auto receive = std::make_unique<PendingReceive>();
   receive->wake = rex::platform::Event::CreateManualResetEvent(false);
-  if (!receive->wake || !table.RetainPrimary(pin)) {
+  if (!receive->wake || !table.Reference(pin)) {
     return false;
   }
   receive->table = &table;

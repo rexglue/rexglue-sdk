@@ -195,7 +195,8 @@ std::string NameFromAttributes(kernel::Memory* memory, u32 obj_attributes_ptr) {
   return std::string(name);
 }
 
-ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, WorkspaceHeap* workspace) {
+ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, u32 type_address,
+                             WorkspaceHeap* workspace) {
   const u32 total_size = size + sizeof(X_OBJECT_HEADER);
   const u32 mem =
       workspace ? workspace->Allocate(total_size).value_or(0) : memory->SystemHeapAlloc(total_size);
@@ -204,10 +205,7 @@ ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, WorkspaceHeap* wo
   }
   memory->Zero(mem, total_size);
   auto* header = memory->TranslateVirtual<X_OBJECT_HEADER*>(mem);
-  const u32 object_type = memory->SystemHeapAlloc(sizeof(X_OBJECT_TYPE));
-  if (object_type) {
-    header->object_type_ptr = object_type;
-  }
+  header->object_type_ptr = type_address;
   return ObjectBlock{mem + static_cast<u32>(sizeof(X_OBJECT_HEADER)), true, workspace};
 }
 
@@ -216,10 +214,6 @@ void FreeObjectBlock(kernel::Memory* memory, u32 address, WorkspaceHeap* workspa
     return;
   }
   const u32 block = address - sizeof(X_OBJECT_HEADER);
-  auto* header = memory->TranslateVirtual<X_OBJECT_HEADER*>(block);
-  if (header->object_type_ptr) {
-    memory->SystemHeapFree(header->object_type_ptr);
-  }
   if (workspace) {
     workspace->Free(block);
   } else {

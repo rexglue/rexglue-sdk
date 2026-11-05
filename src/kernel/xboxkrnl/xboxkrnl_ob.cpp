@@ -30,35 +30,8 @@
 #include <rex/kernel/object/object_pin.h>
 #include <rex/kernel/object/object_table.h>
 #include "kernel/argument_check.h"
-#include "kernel/object_reference.h"
 #include "kernel/title_state.h"
 #include "kernel/kernel.h"
-
-namespace rex::kernel {
-
-Result<X_HANDLE> OpenPrimaryHandle(kernel::IObjectTable& table, const kernel::ObjectPin& object) {
-  if (auto retained = table.RetainPrimary(object); !retained) {
-    return Err<X_HANDLE>(retained.error());
-  }
-  return table.GetPrimaryHandle(object).value_or(0);
-}
-
-Result<u32> ReferencePrimary(kernel::IObjectTable& table, const kernel::ObjectPin& object,
-                             u32 object_ptr) {
-  if (auto retained = table.RetainPrimary(object); !retained) {
-    return Err<u32>(retained.error());
-  }
-  return object_ptr;
-}
-
-Result<u32> ReferenceThread(kernel::IObjectTable& table, X_HANDLE handle, u32 object_ptr) {
-  if (auto retained = table.Retain(handle); !retained) {
-    return Err<u32>(retained.error());
-  }
-  return object_ptr;
-}
-
-}  // namespace rex::kernel
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::kernel;
@@ -100,7 +73,7 @@ u32 ObOpenObjectByPointer_entry(MappedVoid object_ptr, MappedU32 out_handle_ptr)
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  auto opened = OpenPrimaryHandle(table, object);
+  auto opened = table.Open(object);
   if (!opened) {
     return ToXStatus(opened);
   }
@@ -114,12 +87,15 @@ u32 ObLookupThreadByThreadId_entry(u32 thread_id, MappedU32 out_object_ptr) {
     return X_STATUS_NOT_FOUND;
   }
 
-  auto referenced = ReferenceThread(kernel::GetCurrent().GetObjectTable(), thread->GetHandle(),
-                                    thread->GetGuestObject());
-  if (!referenced) {
+  auto& table = kernel::GetCurrent().GetObjectTable();
+  auto object = table.GetByAddress(thread->GetGuestObject());
+  if (!object) {
+    return X_STATUS_NOT_FOUND;
+  }
+  if (auto referenced = table.Reference(object); !referenced) {
     return ToXStatus(referenced);
   }
-  *out_object_ptr = *referenced;
+  *out_object_ptr = thread->GetGuestObject();
   return X_STATUS_SUCCESS;
 }
 
@@ -142,38 +118,17 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
   }
 
   if (object_type_ptr) {
-    u32 globals_base = kernel::GetCurrentState().GetKernelGlobals();
-    u32 expected_type = 0;
-    switch (object.GetType()) {
-      case ObjectType::kThread:
-        expected_type = globals_base + offsetof(KernelGuestGlobals, ExThreadObjectType);
-        break;
-      case ObjectType::kEvent:
-        expected_type = globals_base + offsetof(KernelGuestGlobals, ExEventObjectType);
-        break;
-      case ObjectType::kMutant:
-        expected_type = globals_base + offsetof(KernelGuestGlobals, ExMutantObjectType);
-        break;
-      case ObjectType::kSemaphore:
-        expected_type = globals_base + offsetof(KernelGuestGlobals, ExSemaphoreObjectType);
-        break;
-      case ObjectType::kTimer:
-        expected_type = globals_base + offsetof(KernelGuestGlobals, ExTimerObjectType);
-        break;
-      default:
-        break;
-    }
+    const u32 expected_type = kernel::GetCurrentState().GetObjectTypeAddress(object.GetType());
     if (expected_type && object_type_ptr != expected_type) {
       return X_STATUS_OBJECT_TYPE_MISMATCH;
     }
   }
 
-  auto referenced = ReferencePrimary(kernel::GetCurrent().GetObjectTable(), object, native_ptr);
-  if (!referenced) {
+  if (auto referenced = kernel::GetCurrent().GetObjectTable().Reference(object); !referenced) {
     return ToXStatus(referenced);
   }
   if (out_object_ptr.GetGuestAddress()) {
-    *out_object_ptr = *referenced;
+    *out_object_ptr = native_ptr;
   }
   REXKRNL_TRACE(
       "ObReferenceObjectByHandle -> "
@@ -185,12 +140,14 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
 u32 ObReferenceObjectByName_entry(MappedString name, [[maybe_unused]] u32 attributes,
                                   u32 object_type_ptr, [[maybe_unused]] MappedVoid parse_context,
                                   MappedU32 out_object_ptr) {
-  auto opened = kernel::GetCurrent().GetObjectTable().OpenByName(name.GetValue());
-  if (opened) {
-    return ObReferenceObjectByHandle_entry(*opened, object_type_ptr, out_object_ptr);
+  auto& table = kernel::GetCurrent().GetObjectTable();
+  auto opened = table.OpenByName(name.GetValue());
+  if (!opened) {
+    return ToXStatus(opened);
   }
-
-  return ToXStatus(opened);
+  const u32 status = ObReferenceObjectByHandle_entry(*opened, object_type_ptr, out_object_ptr);
+  kernel::CloseOwned(table, *opened);
+  return status;
 }
 
 u32 ObDereferenceObject_entry(u32 native_ptr) {
@@ -199,12 +156,14 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
       "ptr={:#x}",
       static_cast<u32>(native_ptr));
   auto& table = kernel::GetCurrent().GetObjectTable();
-  auto object = table.Get(table.ResolveHandle(native_ptr, -1).value_or(0));
-  if (object) {
-    if (auto released = table.ReleasePrimary(object); !released) {
-      REXKRNL_WARN("ObDereferenceObject: {:#x} not released, {}", native_ptr,
-                   released.error().message);
-    }
+  auto object = table.GetByAddress(native_ptr);
+  if (!object) {
+    REXKRNL_WARN("ObDereferenceObject: {:#x} is not a registered object", native_ptr);
+    return 0;
+  }
+  if (auto released = table.Dereference(object); !released) {
+    REXKRNL_WARN("ObDereferenceObject: {:#x} not released, {}", native_ptr,
+                 released.error().message);
   }
 
   return 0;
@@ -259,7 +218,7 @@ u32 NtDuplicateObject_entry(u32 handle, MappedU32 new_handle_ptr, u32 options) {
   }
 
   if (options == 1) {
-    if (auto removed = table.Remove(handle); !removed) {
+    if (auto removed = table.Close(handle); !removed) {
       REXKRNL_WARN("NtDuplicateObject: source handle {:08X} not closed, {}", handle,
                    removed.error().message);
     }

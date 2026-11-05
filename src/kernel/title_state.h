@@ -28,6 +28,7 @@
 #include <vector>
 
 #include <rex/ppc/image.h>
+#include <rex/kernel/object/object.h>
 #include <rex/kernel/types/thread.h>
 #include <rex/hid/input_system.h>
 #include <rex/module.h>
@@ -293,6 +294,15 @@ class REX_KERNEL_API TitleState : public ITitleExit,
   kernel::IDPCQueue& GetDPCQueue();
 
   u32 GetKernelGlobals() const { return kernel_guest_globals_; }
+
+  /**
+   * Returns the guest address of the type object that a kernel object of a type points at.
+   *
+   * @param type The type of the kernel object.
+   * @return The address of the exported type global, such as ExEventObjectType, or 0 when the
+   *         type has none or the globals are not set up.
+   */
+  u32 GetObjectTypeAddress(ObjectType type) const;
 
   u32 GetTitleProcess() const {
     return kernel_guest_globals_ + offsetof(kernel::KernelGuestGlobals, title_process);

@@ -219,13 +219,14 @@ u32 Caller::AllocQuad(i64 value) {
   return address;
 }
 
-u32 Caller::AllocAttributes(std::string_view name) {
+u32 Caller::AllocAttributes(std::string_view name, u32 attributes_field) {
   const u32 text = AllocString(name);
   const u32 ansi = Alloc(8);
   Store32(ansi, (static_cast<u32>(name.size()) << 16) | static_cast<u32>(name.size() + 1));
   Store32(ansi + 4, text);
   const u32 attributes = Alloc(16);
   Store32(attributes + 4, ansi);
+  Store32(attributes + 8, attributes_field);
   return attributes;
 }
 

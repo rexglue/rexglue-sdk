@@ -117,7 +117,7 @@ u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, MappedU32 out_object_
     return kernel::X_STATUS_INVALID_HANDLE;
   }
 
-  if (auto retained = CurrentTitle().objects.RetainPrimary(e.GetSlot()); !retained) {
+  if (auto retained = CurrentTitle().objects.Reference(e.GetSlot()); !retained) {
     return kernel::ToXStatus(retained);
   }
 

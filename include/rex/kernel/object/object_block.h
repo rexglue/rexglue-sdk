@@ -30,16 +30,18 @@ enum class ObjectBlockHeap : u8 {
 };
 
 /**
- * Allocates a guest block for an object, with its X_OBJECT_HEADER and X_OBJECT_TYPE.
+ * Allocates a guest block for an object, with its X_OBJECT_HEADER pointing at the type.
  *
+ * @param type_address The guest address of the exported type object of the object, such as
+ *        ExEventObjectType, 0 for an object that has none.
  * @param workspace The workspace for the header and body, null for the system heap.
  * @return The block with owned set, address 0 when the allocation failed.
  */
-REX_KERNEL_API ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size,
+REX_KERNEL_API ObjectBlock AllocObjectBlock(kernel::Memory* memory, u32 size, u32 type_address,
                                             WorkspaceHeap* workspace = nullptr);
 
 /**
- * Frees a block made by AllocObjectBlock, with its X_OBJECT_TYPE.
+ * Frees a block made by AllocObjectBlock. The type object it points at is not freed.
  *
  * @param address The address of the object body, 0 for none.
  * @param workspace The workspace AllocObjectBlock used, null for the system heap.

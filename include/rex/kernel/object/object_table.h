@@ -42,7 +42,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   virtual ~IObjectTable() = default;
 
   /**
-   * Takes ownership of a `KernelObject` and gives it its first handle with a count of 1.
+   * Takes ownership of a `KernelObject` and gives it its first handle.
    *
    * @param options The name to register and the guest block that backs the object.
    */
@@ -63,13 +63,16 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   /**
    * Allocates an object block that the table frees with the object.
    *
+   * @param type The type of the object, which selects the exported type object the header
+   *        points at.
    * @param heap The heap for the header and body.
    * @return The block with owned set, address 0 when the allocation failed.
    */
-  [[nodiscard]] virtual ObjectBlock AllocateObjectBlock(u32 size, ObjectBlockHeap heap) = 0;
+  [[nodiscard]] virtual ObjectBlock AllocateObjectBlock(u32 size, ObjectType type,
+                                                        ObjectBlockHeap heap) = 0;
 
   /**
-   * Creates an event with a guest KEVENT block and gives it its first handle with a count of 1.
+   * Creates an event with a guest KEVENT block and gives it its first handle.
    *
    * @param manual_reset True for a notification event, false for a synchronization event.
    * @param initial_state True when the event starts signaled.
@@ -78,7 +81,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   [[nodiscard]] virtual Result<X_HANDLE> AddEvent(bool manual_reset, bool initial_state) = 0;
 
   /**
-   * Creates an object around a host state XAM owns and gives it its first handle with a count of 1.
+   * Creates an object around a host state XAM owns and gives it its first handle.
    *
    * @param body The host state. The table destroys it with the object.
    * @param options The name to register and the guest block that backs the object.
@@ -87,8 +90,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
                                                       const AddOptions& options) = 0;
 
   /**
-   * Creates a file object over an opened file or directory and gives it its first handle with a
-   * count of 1.
+   * Creates a file object over an opened file or directory and gives it its first handle.
    *
    * @param synchronous True when the file was opened for synchronous IO.
    */
@@ -96,7 +98,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
                                                  bool synchronous) = 0;
 
   /**
-   * Gives an object a new handle value with a count of 1.
+   * Opens an object again through a handle. The new handle has its own value and is closed once.
    *
    * @param handle The existing handle, pseudo handles are translated.
    * @return The new handle, or X_STATUS_INVALID_HANDLE.
@@ -104,15 +106,15 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   [[nodiscard]] virtual Result<X_HANDLE> Duplicate(X_HANDLE handle) = 0;
 
   /**
-   * Adds 1 to the count of a handle.
+   * Opens a pinned object. The new handle has its own value and is closed once.
    *
-   * @param handle The handle, pseudo handles are translated.
-   * @return Ok, or X_STATUS_INVALID_HANDLE.
+   * @param object A pin on the object.
+   * @return The new handle, or X_STATUS_INVALID_HANDLE when the object has left the table.
    */
-  [[nodiscard]] virtual Result<void> Retain(X_HANDLE handle) = 0;
+  [[nodiscard]] virtual Result<X_HANDLE> Open(const ObjectPin& object) = 0;
 
   /**
-   * Removes 1 from the count of a handle and frees the handle at 0.
+   * Frees a handle. The object is destroyed once it has no handle and no pointer reference.
    *
    * @param handle The handle, pseudo handles are translated.
    * @return Ok, or X_STATUS_INVALID_HANDLE.
@@ -120,36 +122,28 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   [[nodiscard]] virtual Result<void> Close(X_HANDLE handle) = 0;
 
   /**
-   * Frees a handle whatever its count.
+   * Adds a pointer reference, which keeps the object after its last handle is closed.
    *
-   * @param handle The handle, pseudo handles are translated.
-   * @return Ok, or X_STATUS_INVALID_HANDLE.
+   * @param object A pin on the object.
+   * @return Ok, or X_STATUS_INVALID_HANDLE when the object has left the table.
    */
-  [[nodiscard]] virtual Result<void> Remove(X_HANDLE handle) = 0;
+  [[nodiscard]] virtual Result<void> Reference(const ObjectPin& object) = 0;
 
   /**
-   * Adds 1 to the count of the first handle of the pinned object.
+   * Removes a pointer reference and destroys the object when it has no handle left.
    *
-   * @param slot A pin on the object.
-   * @return Ok, or X_STATUS_INVALID_HANDLE when the object has no handle.
+   * @param object A pin on the object.
+   * @return Ok, or X_STATUS_INVALID_PARAMETER when the object has no pointer reference.
    */
-  [[nodiscard]] virtual Result<void> RetainPrimary(const ObjectPin& slot) = 0;
+  [[nodiscard]] virtual Result<void> Dereference(const ObjectPin& object) = 0;
 
   /**
-   * Removes 1 from the count of the first handle of the pinned object, as Close does.
+   * Pins the object whose guest block starts at an address, whether or not it has a handle.
    *
-   * @param slot A pin on the object.
-   * @return Ok, or X_STATUS_INVALID_HANDLE when the object has no handle.
+   * @param address The guest address of the object body.
+   * @return The pin, empty when no object is registered at the address.
    */
-  [[nodiscard]] virtual Result<void> ReleasePrimary(const ObjectPin& slot) = 0;
-
-  /**
-   * Reads the first handle of a pinned object under the table lock.
-   *
-   * @param slot A pin on the object.
-   * @return The first handle, empty when the object has no handle.
-   */
-  [[nodiscard]] virtual std::optional<X_HANDLE> GetPrimaryHandle(const ObjectPin& slot) = 0;
+  [[nodiscard]] virtual ObjectPin GetByAddress(u32 address) = 0;
 
   /**
    * Looks a handle up and pins its `KernelObject`.
@@ -171,9 +165,9 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   [[nodiscard]] virtual Result<void> AddName(std::string_view name, X_HANDLE handle) = 0;
 
   /**
-   * Finds a handle by name and adds 1 to the count of the first handle of its object.
+   * Opens the object that carries a name. The new handle has its own value and is closed once.
    *
-   * @return The handle, or X_STATUS_OBJECT_NAME_NOT_FOUND.
+   * @return The new handle, or X_STATUS_OBJECT_NAME_NOT_FOUND.
    */
   [[nodiscard]] virtual Result<X_HANDLE> OpenByName(std::string_view name) = 0;
 
@@ -188,10 +182,10 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   [[nodiscard]] virtual std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) = 0;
 
   /**
-   * Finds the handle of the object registered at a guest address and creates nothing.
+   * Finds a handle of the object registered at a guest address and creates nothing.
    *
    * @param address The guest address of the dispatch header.
-   * @return The first handle of the object, empty when nothing is registered at the address.
+   * @return A handle of the object, empty when nothing is registered at the address.
    */
   [[nodiscard]] virtual std::optional<X_HANDLE> FindHandle(u32 address) = 0;
 
@@ -204,7 +198,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   virtual void ForgetAddress(u32 address) = 0;
 
   /**
-   * Constructs an object in place and gives it its first handle with a count of 1.
+   * Constructs an object in place and gives it its first handle.
    *
    * @param options The name to register and the guest block that backs the object.
    */

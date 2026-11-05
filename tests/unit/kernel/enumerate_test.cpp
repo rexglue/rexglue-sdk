@@ -116,7 +116,7 @@ REX_TEST_CASE("enumerate: ObDereferenceObject on an enumerator leaves its body a
     std::vector<u8> before(sizeof(rex::xam::X_KENUMERATOR));
     std::memcpy(before.data(), StateOf(c.GetRuntime()).GetMemory()->TranslateVirtual(body),
                 before.size());
-    REQUIRE(table.Retain(handle));
+    REQUIRE(table.Reference(enumerator.GetSlot()));
 
     CHECK(table.ResolveHandle(body, -1) == handle);
     CHECK(c.Kernel("ObDereferenceObject", {body}) == 0);

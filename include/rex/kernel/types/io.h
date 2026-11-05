@@ -154,6 +154,9 @@ REX_STATIC_ASSERT_SIZE(X_OBJECT_ATTRIBUTES, 0xC);
 
 #pragma pack(pop)
 
+/** Object attribute that opens an existing object of the same type when the name is taken. */
+inline constexpr u32 kObjOpenIf = 0x80;
+
 /** File information class selecting the layout of a query or set request. */
 enum X_FILE_INFORMATION_CLASS : u8 {
   XFileDirectoryInformation = 1,

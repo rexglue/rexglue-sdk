@@ -40,8 +40,11 @@
 /**
  * Returns early from a named create export when an object with that name exists.
  *
- * Returns X_STATUS_OBJECT_NAME_EXISTS with a retained handle when an object of the same type
- * carries the name. Falls through when the name is absent or an object of another type holds it.
+ * Without OBJ_OPENIF an existing name returns X_STATUS_OBJECT_NAME_COLLISION for any type.
+ * With OBJ_OPENIF an object of the same type stores a new handle to it and returns
+ * X_STATUS_OBJECT_NAME_EXISTS, and an object of another type returns
+ * X_STATUS_OBJECT_TYPE_MISMATCH. Both failures store handle 0. Falls through only when the name is
+ * absent.
  *
  * @param KIND The ObjectType enumerator of the object.
  * @param HANDLE_OUT The handle out parameter.
@@ -68,14 +71,21 @@
         auto rex_existing_ = rex_table_.Get(rex_handle_);                                     \
         const bool rex_same_type_ =                                                           \
             rex_existing_ && rex_existing_.GetType() == ::rex::kernel::ObjectType::KIND;      \
-        if (rex_same_type_ && (HANDLE_OUT)) {                                                 \
+        const bool rex_open_if_ =                                                             \
+            (static_cast<u32>(rex_attrs_->attributes) & ::rex::kernel::kObjOpenIf) != 0;      \
+        if (rex_same_type_ && rex_open_if_ && (HANDLE_OUT)) {                                 \
           *(HANDLE_OUT) = rex_handle_;                                                        \
           return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                    \
         }                                                                                     \
         ::rex::kernel::CloseOwned(rex_table_, rex_handle_);                                   \
-        if (rex_same_type_) {                                                                 \
+        if (rex_same_type_ && rex_open_if_) {                                                 \
           return rex::kernel::X_STATUS_OBJECT_NAME_EXISTS;                                    \
         }                                                                                     \
+        if (HANDLE_OUT) {                                                                     \
+          *(HANDLE_OUT) = 0u;                                                                 \
+        }                                                                                     \
+        return rex_open_if_ ? rex::kernel::X_STATUS_OBJECT_TYPE_MISMATCH                      \
+                            : rex::kernel::X_STATUS_OBJECT_NAME_COLLISION;                    \
       }                                                                                       \
     }                                                                                         \
   }

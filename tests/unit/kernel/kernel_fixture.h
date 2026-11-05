@@ -85,8 +85,12 @@ class Caller {
   /** Returns the guest address of a big endian 8 byte value. */
   u32 AllocQuad(i64 value);
 
-  /** Returns the guest address of an X_OBJECT_ATTRIBUTES named name. */
-  u32 AllocAttributes(std::string_view name);
+  /**
+   * Returns the guest address of an X_OBJECT_ATTRIBUTES named name.
+   *
+   * @param attributes The value of the attributes field.
+   */
+  u32 AllocAttributes(std::string_view name, u32 attributes = 0);
 
   /**
    * Runs a body on a new guest thread created through the ExCreateThread export.

@@ -748,7 +748,8 @@ class SessionObject final : public kernel::IXAMObject {
 
 u32 XamSessionCreateHandle_entry(MappedU32 handle_ptr) {
   kernel::ObjectBlock block = CurrentTitle().objects.AllocateObjectBlock(
-      sizeof(kernel::X_DISPATCH_HEADER), kernel::ObjectBlockHeap::kSystem);
+      sizeof(kernel::X_DISPATCH_HEADER), kernel::ObjectType::kXAM,
+      kernel::ObjectBlockHeap::kSystem);
   if (!block.address) {
     return kernel::X_ERROR_NOT_ENOUGH_MEMORY;
   }
@@ -769,7 +770,7 @@ u32 XamSessionRefObjByHandle_entry(u32 handle, MappedU32 obj_ptr) {
   if (!object) {
     return kernel::X_ERROR_INVALID_HANDLE;
   }
-  if (!table.RetainPrimary(object.GetSlot())) {
+  if (!table.Reference(object.GetSlot())) {
     return kernel::X_ERROR_INVALID_HANDLE;
   }
   *obj_ptr = object.GetGuestAddress();

@@ -212,6 +212,35 @@ void kernel::TitleState::SetProcessType(u32 value) {
   globals->title_process.process_type = static_cast<u8>(value);
 }
 
+u32 kernel::TitleState::GetObjectTypeAddress(ObjectType type) const {
+  if (!kernel_guest_globals_) {
+    return 0;
+  }
+  switch (type) {
+    case ObjectType::kEvent:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, ExEventObjectType);
+    case ObjectType::kSemaphore:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, ExSemaphoreObjectType);
+    case ObjectType::kMutant:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, ExMutantObjectType);
+    case ObjectType::kTimer:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, ExTimerObjectType);
+    case ObjectType::kThread:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, ExThreadObjectType);
+    case ObjectType::kFile:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, IoFileObjectType);
+    case ObjectType::kIOCompletion:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, IoCompletionObjectType);
+    case ObjectType::kSymbolicLink:
+      return kernel_guest_globals_ + offsetof(KernelGuestGlobals, ObSymbolicLinkObjectType);
+    case ObjectType::kNotifyListener:
+    case ObjectType::kModule:
+    case ObjectType::kXAM:
+      return 0;
+  }
+  return 0;
+}
+
 void kernel::TitleState::RegisterTitleTerminateNotification(u32 registration) {
   std::lock_guard lock(terminate_mutex_);
   if (std::ranges::find(terminate_registrations_, registration) == terminate_registrations_.end()) {

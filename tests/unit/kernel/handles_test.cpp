@@ -13,12 +13,12 @@
 #include <chrono>
 #include <future>
 #include <memory>
+#include <rex/kernel/types/io.h>
 #include <rex/kernel/types/status.h>
 #include <rex/kernel/object/object_table.h>
 #include <rex/kernel/object/object.h>
 #include <rex/kernel/title_runtime.h>
 
-#include "kernel/object_reference.h"
 #include "kernel_fixture.h"
 
 using rex::kernel::X_STATUS;
@@ -31,6 +31,9 @@ constexpr u32 kInvalidHandle = rex::kernel::X_STATUS_INVALID_HANDLE;
 constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
 u32 Poll(Caller& c) {
   return c.AllocQuad(0);
+}
+bool ObjectAlive(Caller& c, u32 address) {
+  return static_cast<bool>(c.GetRuntime().GetObjectTable().GetByAddress(address));
 }
 }  // namespace
 
@@ -77,7 +80,22 @@ REX_TEST_CASE("handles: close of pseudo and bad handles returns a status", "[ker
   });
 }
 
-REX_TEST_CASE("handles: ObReferenceObjectByHandle and ObDereferenceObject keep the object open",
+REX_TEST_CASE("handles: a closed handle stays invalid", "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+    CHECK(c.Kernel("NtSetEvent", {handle, 0}) == kInvalidHandle);
+    CHECK(c.Kernel("NtClose", {handle}) == kInvalidHandle);
+  });
+}
+
+REX_TEST_CASE("handles: a pointer reference keeps the object after the last NtClose",
               "[kernel][handles]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -95,8 +113,12 @@ REX_TEST_CASE("handles: ObReferenceObjectByHandle and ObDereferenceObject keep t
     const u32 object = c.Load32(object_ptr);
     CHECK(object != 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
-    CHECK(c.Kernel("NtSetEvent", {handle, 0}) == 0);
+    CHECK(c.Kernel("NtSetEvent", {handle, 0}) == kInvalidHandle);
+    CHECK(ObjectAlive(c, object));
+    CHECK(static_cast<bool>(
+        c.GetRuntime().GetObjectTable().Resolve<rex::kernel::EventObject>(object)));
     CHECK(c.Kernel("ObDereferenceObject", {object}) == 0);
+    CHECK_FALSE(ObjectAlive(c, object));
     CHECK(c.Kernel("NtSetEvent", {handle, 0}) == kInvalidHandle);
   });
 }
@@ -124,11 +146,37 @@ REX_TEST_CASE("handles: ObOpenObjectByPointer returns a closable handle", "[kern
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtSetEvent", {handle, 0}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
-    CHECK(c.Kernel("NtSetEvent", {handle, 0}) == 0);
+    CHECK(c.Kernel("NtSetEvent", {handle, 0}) == kInvalidHandle);
   });
 }
 
-REX_TEST_CASE("names: case insensitive open and collision", "[kernel][names]") {
+REX_TEST_CASE("handles: every open has its own handle closed once", "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 event = c.Alloc(0x10);
+    c.Kernel("KeInitializeEvent", {event, 0, 0});
+    const u32 first_ptr = c.Alloc(4);
+    const u32 second_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("ObOpenObjectByPointer", {event, first_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(c.Kernel("ObOpenObjectByPointer", {event, second_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 first = c.Load32(first_ptr);
+    const u32 second = c.Load32(second_ptr);
+    CHECK(first != second);
+    CHECK(c.Kernel("NtClose", {first}) == 0);
+    CHECK(c.Kernel("NtClose", {first}) == kInvalidHandle);
+    CHECK(c.Kernel("NtSetEvent", {second, 0}) == 0);
+    CHECK(c.Kernel("NtClose", {second}) == 0);
+    CHECK(c.Kernel("NtSetEvent", {second, 0}) == kInvalidHandle);
+  });
+}
+
+REX_TEST_CASE("names: case insensitive open and OBJ_OPENIF", "[kernel][names]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -139,20 +187,50 @@ REX_TEST_CASE("names: case insensitive open and collision", "[kernel][names]") {
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
-    CHECK(c.Kernel("NtCreateEvent", {again_ptr, c.AllocAttributes("testevent"), 0, 0}) ==
+    CHECK(c.Kernel("NtCreateEvent",
+                   {again_ptr, c.AllocAttributes("testevent", rex::kernel::kObjOpenIf), 0, 0}) ==
           rex::kernel::X_STATUS_OBJECT_NAME_EXISTS);
-    CHECK(c.Load32(again_ptr) == handle);
+    const u32 created = c.Load32(again_ptr);
+    CHECK(created != handle);
     CHECK(c.Kernel("ObOpenObjectByName", {c.AllocAttributes("TESTEVENT"), 0, 0, again_ptr}) == 0);
-    CHECK(c.Load32(again_ptr) == handle);
-    c.Kernel("NtClose", {handle});
-    c.Kernel("NtClose", {handle});
-    c.Kernel("NtClose", {handle});
+    const u32 opened = c.Load32(again_ptr);
+    CHECK(opened != handle);
+    CHECK(opened != created);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+    CHECK(c.Kernel("NtClose", {created}) == 0);
+    CHECK(c.Kernel("NtSetEvent", {opened, 0}) == 0);
+    CHECK(c.Kernel("NtClose", {opened}) == 0);
     CHECK(c.Kernel("ObOpenObjectByName", {c.AllocAttributes("TestEvent"), 0, 0, again_ptr}) ==
           rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
   });
 }
 
-REX_TEST_CASE("names: another type holding the name", "[kernel][names]") {
+REX_TEST_CASE("names: without OBJ_OPENIF an existing name collides and stores handle 0",
+              "[kernel][names]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 again_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateMutant", {handle_ptr, c.AllocAttributes("Once"), 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    c.Store32(again_ptr, 0xDEADBEEF);
+    CHECK(c.Kernel("NtCreateMutant", {again_ptr, c.AllocAttributes("Once"), 0}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
+    CHECK(c.Load32(again_ptr) == 0);
+    c.Store32(again_ptr, 0xDEADBEEF);
+    CHECK(c.Kernel("NtCreateEvent", {again_ptr, c.AllocAttributes("Once"), 0, 0}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
+    CHECK(c.Load32(again_ptr) == 0);
+    CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
+    CHECK(c.Kernel("NtCreateMutant", {again_ptr, c.AllocAttributes("Once"), 0}) == 0);
+    CHECK(c.Kernel("NtClose", {c.Load32(again_ptr)}) == 0);
+  });
+}
+
+REX_TEST_CASE("names: another type with OBJ_OPENIF is a type mismatch with handle 0",
+              "[kernel][names]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -163,13 +241,39 @@ REX_TEST_CASE("names: another type holding the name", "[kernel][names]") {
       return;
     }
     const u32 semaphore = c.Load32(handle_ptr);
-    CHECK(c.Kernel("NtCreateEvent", {other_ptr, c.AllocAttributes("Shared"), 0, 0}) == 0);
-    const u32 event = c.Load32(other_ptr);
-    CHECK(event != semaphore);
+    c.Store32(other_ptr, 0xDEADBEEF);
+    CHECK(c.Kernel("NtCreateEvent",
+                   {other_ptr, c.AllocAttributes("Shared", rex::kernel::kObjOpenIf), 0, 0}) ==
+          rex::kernel::X_STATUS_OBJECT_TYPE_MISMATCH);
+    CHECK(c.Load32(other_ptr) == 0);
     CHECK(c.Kernel("ObOpenObjectByName", {c.AllocAttributes("Shared"), 0, 0, other_ptr}) == 0);
-    CHECK(c.Load32(other_ptr) == semaphore);
-    c.Kernel("NtClose", {event});
+    const u32 opened = c.Load32(other_ptr);
+    CHECK(opened != semaphore);
+    CHECK(c.Kernel("NtReleaseSemaphore", {opened, 1, 0}) == 0);
+    c.Kernel("NtClose", {opened});
     c.Kernel("NtClose", {semaphore});
+  });
+}
+
+REX_TEST_CASE("names: a create with no name makes a new object each time", "[kernel][names]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 first_ptr = c.Alloc(4);
+    const u32 second_ptr = c.Alloc(4);
+    const u32 third_ptr = c.Alloc(4);
+    CHECK(c.Kernel("NtCreateEvent", {first_ptr, 0, 0, 0}) == 0);
+    CHECK(c.Kernel("NtCreateEvent", {second_ptr, c.AllocAttributes(""), 0, 0}) == 0);
+    CHECK(c.Kernel("NtCreateEvent",
+                   {third_ptr, c.AllocAttributes("", rex::kernel::kObjOpenIf), 0, 0}) == 0);
+    const u32 first = c.Load32(first_ptr);
+    const u32 second = c.Load32(second_ptr);
+    const u32 third = c.Load32(third_ptr);
+    CHECK(first != second);
+    CHECK(second != third);
+    CHECK(first != third);
+    c.Kernel("NtClose", {first});
+    c.Kernel("NtClose", {second});
+    c.Kernel("NtClose", {third});
   });
 }
 
@@ -319,11 +423,8 @@ REX_TEST_CASE("handles: a lookup whose object lost its last handle takes no refe
     REQUIRE(object);
     REQUIRE(table.Close(*added));
 
-    auto opened = rex::kernel::OpenPrimaryHandle(table, object);
-    CHECK(rex::kernel::ToXStatus(opened) == kInvalidHandle);
-    auto referenced = rex::kernel::ReferencePrimary(table, object, 0x1234);
-    CHECK(rex::kernel::ToXStatus(referenced) == kInvalidHandle);
-    auto thread = rex::kernel::ReferenceThread(table, *added, 0x1234);
-    CHECK(rex::kernel::ToXStatus(thread) == kInvalidHandle);
+    CHECK(rex::kernel::ToXStatus(table.Open(object)) == kInvalidHandle);
+    CHECK(rex::kernel::ToXStatus(table.Reference(object)) == kInvalidHandle);
+    CHECK(rex::kernel::ToXStatus(table.Dereference(object)) == kInvalidHandle);
   });
 }

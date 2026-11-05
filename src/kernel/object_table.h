@@ -62,19 +62,19 @@ class ObjectTable final : public IObjectTable {
                                      const AddOptions& options) override;
   [[nodiscard]] Result<X_HANDLE> AddWithBlock(std::unique_ptr<KernelObject> object,
                                               u32 attributes_ptr, u32 block_size) override;
-  [[nodiscard]] ObjectBlock AllocateObjectBlock(u32 size, ObjectBlockHeap heap) override;
+  [[nodiscard]] ObjectBlock AllocateObjectBlock(u32 size, ObjectType type,
+                                                ObjectBlockHeap heap) override;
   [[nodiscard]] Result<X_HANDLE> AddEvent(bool manual_reset, bool initial_state) override;
   [[nodiscard]] Result<X_HANDLE> AddXAMObject(std::unique_ptr<IXAMObject> body,
                                               const AddOptions& options) override;
   [[nodiscard]] Result<X_HANDLE> AddFile(std::unique_ptr<filesystem::IFile> file,
                                          bool synchronous) override;
   [[nodiscard]] Result<X_HANDLE> Duplicate(X_HANDLE handle) override;
-  [[nodiscard]] Result<void> Retain(X_HANDLE handle) override;
+  [[nodiscard]] Result<X_HANDLE> Open(const ObjectPin& object) override;
   [[nodiscard]] Result<void> Close(X_HANDLE handle) override;
-  [[nodiscard]] Result<void> Remove(X_HANDLE handle) override;
-  [[nodiscard]] Result<void> RetainPrimary(const ObjectPin& slot) override;
-  [[nodiscard]] Result<void> ReleasePrimary(const ObjectPin& slot) override;
-  std::optional<X_HANDLE> GetPrimaryHandle(const ObjectPin& slot) override;
+  [[nodiscard]] Result<void> Reference(const ObjectPin& object) override;
+  [[nodiscard]] Result<void> Dereference(const ObjectPin& object) override;
+  ObjectPin GetByAddress(u32 address) override;
   ObjectPin Get(X_HANDLE handle) override;
   std::vector<ObjectPin> GetAll() override;
   [[nodiscard]] Result<void> AddName(std::string_view name, X_HANDLE handle) override;
@@ -86,13 +86,15 @@ class ObjectTable final : public IObjectTable {
  private:
   struct Slot {
     KernelObject* object = nullptr;
-    u32 ref_count = 0;
   };
 
+  u32 GetTypeAddress(ObjectType type) const;
   X_HANDLE Translate(X_HANDLE handle) const;
   Slot* FindSlot(X_HANDLE handle);
   u32 AllocSlot();
-  KernelObject* Detach(Slot& slot, X_HANDLE handle);
+  X_HANDLE AddSlot(KernelObject* object);
+  KernelObject* Detach(KernelObject* object, X_HANDLE handle);
+  KernelObject* Settle(KernelObject* object);
   static void Retire(KernelObject* object);
 
   static constexpr u32 GetHandleSlot(X_HANDLE handle) { return (handle - kHandleBase) >> 2; }

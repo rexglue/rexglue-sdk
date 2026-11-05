@@ -31,6 +31,7 @@
 #include <rex/kernel/object/kernel_object.h>
 #include <rex/kernel/object/object_pin.h>
 #include <rex/kernel/object/object_table.h>
+#include "kernel/title_state.h"
 
 namespace rex::kernel {
 
@@ -128,6 +129,14 @@ u32 ObjectTable::AllocSlot() {
   return last_free_slot_;
 }
 
+X_HANDLE ObjectTable::AddSlot(KernelObject* object) {
+  const u32 index = AllocSlot();
+  const X_HANDLE handle = kHandleBase + (index << 2);
+  slots_[index] = Slot{object};
+  object->handles.push_back(handle);
+  return handle;
+}
+
 Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<KernelObject> object, const AddOptions& options) {
   object->destroy = [](KernelObject* retired) noexcept { delete retired; };
   object->memory = memory_;
@@ -135,11 +144,8 @@ Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<KernelObject> object, const Ad
   object->owns_guest_block = options.block.owned;
   object->workspace = options.block.workspace;
   std::unique_lock lock(mutex_);
-  const u32 index = AllocSlot();
-  const X_HANDLE handle = kHandleBase + (index << 2);
   KernelObject* raw = object.get();
-  raw->handles.push_back(handle);
-  slots_[index] = Slot{raw, 1};
+  const X_HANDLE handle = AddSlot(raw);
   if (!options.name.empty() && AddName(options.name, handle)) {
     raw->name = std::string(options.name);
   }
@@ -150,8 +156,12 @@ Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<KernelObject> object, const Ad
   return handle;
 }
 
-ObjectBlock ObjectTable::AllocateObjectBlock(u32 size, ObjectBlockHeap heap) {
-  return AllocObjectBlock(memory_, size,
+u32 ObjectTable::GetTypeAddress(ObjectType type) const {
+  return owner_ != nullptr ? StateOf(*owner_).GetObjectTypeAddress(type) : 0;
+}
+
+ObjectBlock ObjectTable::AllocateObjectBlock(u32 size, ObjectType type, ObjectBlockHeap heap) {
+  return AllocObjectBlock(memory_, size, GetTypeAddress(type),
                           heap == ObjectBlockHeap::kWorkspace ? workspace_ : nullptr);
 }
 
@@ -175,7 +185,7 @@ Result<X_HANDLE> ObjectTable::AddWithBlock(std::unique_ptr<KernelObject> object,
                                            u32 block_size) {
   ObjectBlock block;
   if (block_size) {
-    block = AllocObjectBlock(memory_, block_size);
+    block = AllocObjectBlock(memory_, block_size, GetTypeAddress(object->GetType()));
     if (!block.address) {
       return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
     }
@@ -201,33 +211,25 @@ Result<X_HANDLE> ObjectTable::Duplicate(X_HANDLE handle) {
   if (!source) {
     return Err<X_HANDLE>(StatusError(X_STATUS_INVALID_HANDLE));
   }
-  KernelObject* object = source->object;
-  const u32 index = AllocSlot();
-  const X_HANDLE copy = kHandleBase + (index << 2);
-  slots_[index] = Slot{object, 1};
-  object->handles.push_back(copy);
-  return copy;
+  return AddSlot(source->object);
 }
 
-KernelObject* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
-  KernelObject* object = slot.object;
-  slot = Slot{};
-  auto handle_entry = std::find(object->handles.begin(), object->handles.end(), handle);
-  if (handle_entry != object->handles.end()) {
-    object->handles.erase(handle_entry);
+Result<X_HANDLE> ObjectTable::Open(const ObjectPin& object) {
+  std::unique_lock lock(mutex_);
+  KernelObject* raw = &object.GetKernelObject();
+  if (!objects_.contains(raw)) {
+    return Err<X_HANDLE>(StatusError(X_STATUS_INVALID_HANDLE));
   }
-  if (!object->name.empty()) {
-    std::lock_guard name_lock(name_mutex_);
-    auto it = names_.find(string::StringKeyIgnoreCase(object->name));
-    if (it != names_.end() && it->second == handle) {
-      if (object->handles.empty()) {
-        names_.erase(it);
-      } else {
-        it->second = object->handles.front();
-      }
-    }
+  return AddSlot(raw);
+}
+
+KernelObject* ObjectTable::Settle(KernelObject* object) {
+  if (object->pointer_refs == 0 && object->anchor) {
+    slots_[GetHandleSlot(object->anchor)] = Slot{};
+    std::erase(object->handles, object->anchor);
+    object->anchor = 0;
   }
-  if (!object->handles.empty()) {
+  if (!object->handles.empty() || object->pointer_refs > 0) {
     return nullptr;
   }
   if (auto block = block_objects_.find(object->guest_ptr);
@@ -240,15 +242,30 @@ KernelObject* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
   return released;
 }
 
-Result<void> ObjectTable::Retain(X_HANDLE handle) {
-  handle = Translate(handle);
-  std::unique_lock lock(mutex_);
-  Slot* slot = FindSlot(handle);
-  if (!slot) {
-    return Err(StatusError(X_STATUS_INVALID_HANDLE));
+KernelObject* ObjectTable::Detach(KernelObject* object, X_HANDLE handle) {
+  const bool was_anchor = handle == object->anchor;
+  const size_t others = object->handles.size() - (object->anchor ? 1 : 0) - (was_anchor ? 0 : 1);
+  X_HANDLE anchor = was_anchor ? 0 : object->anchor;
+  if (others == 0 && object->pointer_refs > 0 && anchor == 0) {
+    anchor = AddSlot(object);
   }
-  ++slot->ref_count;
-  return Ok();
+  slots_[GetHandleSlot(handle)] = Slot{};
+  std::erase(object->handles, handle);
+  object->anchor = anchor;
+  if (!object->name.empty()) {
+    std::lock_guard name_lock(name_mutex_);
+    auto it = names_.find(string::StringKeyIgnoreCase(object->name));
+    if (it != names_.end() && it->second == handle) {
+      auto named = std::ranges::find_if(
+          object->handles, [object](X_HANDLE entry) { return entry != object->anchor; });
+      if (named != object->handles.end()) {
+        it->second = *named;
+      } else {
+        names_.erase(it);
+      }
+    }
+  }
+  return Settle(object);
 }
 
 Result<void> ObjectTable::Close(X_HANDLE handle) {
@@ -263,10 +280,7 @@ Result<void> ObjectTable::Close(X_HANDLE handle) {
     if (!slot) {
       return Err(StatusError(X_STATUS_INVALID_HANDLE));
     }
-    if (--slot->ref_count != 0) {
-      return Ok();
-    }
-    retired = Detach(*slot, handle);
+    retired = Detach(slot->object, handle);
   }
   if (retired) {
     Retire(retired);
@@ -274,20 +288,29 @@ Result<void> ObjectTable::Close(X_HANDLE handle) {
   return Ok();
 }
 
-Result<void> ObjectTable::Remove(X_HANDLE handle) {
-  handle = Translate(handle);
-  if (!handle) {
+Result<void> ObjectTable::Reference(const ObjectPin& object) {
+  std::unique_lock lock(mutex_);
+  KernelObject* raw = &object.GetKernelObject();
+  if (!objects_.contains(raw)) {
     return Err(StatusError(X_STATUS_INVALID_HANDLE));
   }
+  ++raw->pointer_refs;
+  return Ok();
+}
+
+Result<void> ObjectTable::Dereference(const ObjectPin& object) {
   KernelObject* retired = nullptr;
   {
     std::unique_lock lock(mutex_);
-    Slot* slot = FindSlot(handle);
-    if (!slot) {
+    KernelObject* raw = &object.GetKernelObject();
+    if (!objects_.contains(raw)) {
       return Err(StatusError(X_STATUS_INVALID_HANDLE));
     }
-    slot->ref_count = 0;
-    retired = Detach(*slot, handle);
+    if (raw->pointer_refs == 0) {
+      return Err(StatusError(X_STATUS_INVALID_PARAMETER));
+    }
+    --raw->pointer_refs;
+    retired = Settle(raw);
   }
   if (retired) {
     Retire(retired);
@@ -295,32 +318,14 @@ Result<void> ObjectTable::Remove(X_HANDLE handle) {
   return Ok();
 }
 
-Result<void> ObjectTable::RetainPrimary(const ObjectPin& slot) {
-  std::unique_lock lock(mutex_);
-  const KernelObject& object = slot.GetKernelObject();
-  if (object.handles.empty()) {
-    return Err(StatusError(X_STATUS_INVALID_HANDLE));
-  }
-  Slot* primary = FindSlot(object.handles.front());
-  if (!primary) {
-    return Err(StatusError(X_STATUS_INVALID_HANDLE));
-  }
-  ++primary->ref_count;
-  return Ok();
-}
-
-Result<void> ObjectTable::ReleasePrimary(const ObjectPin& slot) {
-  const std::optional<X_HANDLE> primary = GetPrimaryHandle(slot);
-  return primary ? Close(*primary) : Err(StatusError(X_STATUS_INVALID_HANDLE));
-}
-
-std::optional<X_HANDLE> ObjectTable::GetPrimaryHandle(const ObjectPin& slot) {
+ObjectPin ObjectTable::GetByAddress(u32 address) {
   std::shared_lock lock(mutex_);
-  const std::vector<X_HANDLE>& handles = slot.GetKernelObject().handles;
-  if (handles.empty()) {
-    return std::nullopt;
+  auto block = block_objects_.find(address);
+  if (block == block_objects_.end()) {
+    return {};
   }
-  return handles.front();
+  block->second->pins.Pin();
+  return ObjectPin(block->second, block->second->handles.front());
 }
 
 ObjectPin ObjectTable::Get(X_HANDLE handle) {
@@ -371,9 +376,7 @@ Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
   if (!slot) {
     return Err<X_HANDLE>(StatusError(X_STATUS_OBJECT_NAME_NOT_FOUND));
   }
-  Slot* primary = FindSlot(slot->object->handles.front());
-  ++primary->ref_count;
-  return handle;
+  return AddSlot(slot->object);
 }
 
 std::optional<X_HANDLE> ObjectTable::FindHandle(u32 address) {

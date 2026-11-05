@@ -354,6 +354,9 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
   [[noreturn]] static void ThrowStop();
   void ReleaseSelf();
 
+  /** Removes the pointer reference the thread holds on its own object. */
+  void ReleaseReference();
+
   /**
    * Increments the suspend count and blocks until another thread resumes the caller.
    *

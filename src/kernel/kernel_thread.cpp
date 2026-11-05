@@ -406,10 +406,18 @@ X_STATUS KernelThread::Create() {
   pcr->prcb_data.dpc_active = 0;
 
   // The thread owns itself until it exits.
-  if (auto retained = runtime_->GetObjectTable().Retain(handle_); !retained) {
-    REXSYS_ERROR("KernelThread{:08X}: cannot take the self reference, {}", handle_,
-                 retained.error().message);
-    return ToXStatus(retained);
+  {
+    IObjectTable& table = runtime_->GetObjectTable();
+    ObjectPin self = table.GetByAddress(guest_object_ptr_);
+    if (!self) {
+      REXSYS_ERROR("KernelThread{:08X}: its object is not in the table", handle_);
+      return X_STATUS_INVALID_HANDLE;
+    }
+    if (auto referenced = table.Reference(self); !referenced) {
+      REXSYS_ERROR("KernelThread{:08X}: cannot take the self reference, {}", handle_,
+                   referenced.error().message);
+      return ToXStatus(referenced);
+    }
   }
 
   rex::platform::Thread::CreationParameters params;
@@ -449,7 +457,7 @@ X_STATUS KernelThread::Create() {
   }
 
   if (!thread_) {
-    CloseOwned(runtime_->GetObjectTable(), handle_);
+    ReleaseReference();
     REXSYS_FAIL(X_STATUS_NO_MEMORY, "CreateThread failed");
   }
 
@@ -546,14 +554,28 @@ void KernelThread::ReleaseSelf() {
   if (released_.exchange(true)) {
     return;
   }
-  const X_HANDLE handle = handle_;
   ThreadRegistry* registry = registry_;
   running_ = false;
   if (IsInThread(this)) {
     current_thread_tls = nullptr;
   }
   registry->MarkExited(*this);
-  CloseOwned(runtime_->GetObjectTable(), handle);
+  ReleaseReference();
+}
+
+void KernelThread::ReleaseReference() {
+  log::NoThrow(log::system, [this] {
+    IObjectTable& table = runtime_->GetObjectTable();
+    ObjectPin self = table.GetByAddress(guest_object_ptr_);
+    if (!self) {
+      REXSYS_WARN("KernelThread{:08X}: its object has left the table", handle_);
+      return;
+    }
+    if (auto released = table.Dereference(self); !released) {
+      REXSYS_WARN("KernelThread{:08X}: the self reference was not released, {}", handle_,
+                  released.error().message);
+    }
+  });
 }
 
 int KernelThread::Execute() {

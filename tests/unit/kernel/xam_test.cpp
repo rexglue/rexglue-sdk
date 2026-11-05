@@ -130,9 +130,10 @@ REX_TEST_CASE("XAM: a session reference holds the session until its dereference"
     const u32 object = c.Load32(object_ptr);
     CHECK(object != 0);
     CHECK(c.Kernel("NtClose", {session}) == 0);
-    CHECK(HandleResolves(c, session));
-    c.Kernel("ObDereferenceObject", {object});
     CHECK_FALSE(HandleResolves(c, session));
+    CHECK(static_cast<bool>(c.GetRuntime().GetObjectTable().GetByAddress(object)));
+    c.Kernel("ObDereferenceObject", {object});
+    CHECK_FALSE(static_cast<bool>(c.GetRuntime().GetObjectTable().GetByAddress(object)));
   });
 }
 
