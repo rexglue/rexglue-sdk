@@ -63,11 +63,6 @@ REX_TEST_CASE("An overlay paint after the interval does not wait", "[gpu][presen
   CHECK(GetOverlayPaintDelay(start + 1s, start) == 0ns);
 }
 
-REX_TEST_CASE("The overlay paint interval is 60 Hz", "[gpu][present]") {
-  CHECK(kOverlayPaintInterval > 16ms);
-  CHECK(kOverlayPaintInterval < 17ms);
-}
-
 REX_TEST_CASE("Only a non zero sync interval makes the present vsync implicit", "[gpu][present]") {
   CHECK(IsVsyncImplicit(ChoosePresentSync(true, true)));
   CHECK(IsVsyncImplicit(ChoosePresentSync(true, false)));

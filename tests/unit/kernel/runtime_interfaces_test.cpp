@@ -156,3 +156,20 @@ REX_TEST_CASE("ResolveObject finds the newest object at a block after the older 
     CHECK(&found.GetKernelObject() == &expected.GetKernelObject());
   });
 }
+
+REX_TEST_CASE("GetProcessRuntime is null before Setup and after Shutdown", "[kernel]") {
+  CHECK(REX_RUNTIME() == nullptr);
+  {
+    rex::test::KernelFixture fixture;
+    CHECK(REX_RUNTIME() == &fixture.GetRuntime());
+  }
+  CHECK(REX_RUNTIME() == nullptr);
+}
+
+REX_TEST_CASE("GetProcessRuntime works on a thread with no runtime", "[kernel]") {
+  rex::test::KernelFixture fixture;
+  rex::kernel::TitleRuntime* seen = nullptr;
+  std::thread host([&seen] { seen = REX_RUNTIME(); });
+  host.join();
+  CHECK(seen == &fixture.GetRuntime());
+}

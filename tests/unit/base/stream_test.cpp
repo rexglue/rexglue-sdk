@@ -19,42 +19,41 @@
 using rex::memory::BitStream;
 using rex::memory::ByteStream;
 
-REX_TEST_CASE("ByteStream construction and initial state", "[base][stream][bytestream]") {
-  std::array<u8, 16> buffer{};
-  rex::memory::ByteStream stream(buffer.data(), buffer.size());
+REX_TEST_CASE("ByteStream tracks its data, size and offset", "[base][stream][bytestream]") {
+  {
+    std::array<u8, 16> buffer{};
+    rex::memory::ByteStream stream(buffer.data(), buffer.size());
 
-  CHECK(stream.GetData() == buffer.data());
-  CHECK(stream.GetSize() == 16);
-  CHECK(stream.GetOffset() == 0);
-}
+    CHECK(stream.GetData() == buffer.data());
+    CHECK(stream.GetSize() == 16);
+    CHECK(stream.GetOffset() == 0);
+  }
+  {
+    std::array<u8, 16> buffer{};
+    rex::memory::ByteStream stream(buffer.data(), buffer.size(), 8);
 
-REX_TEST_CASE("ByteStream construction with offset", "[base][stream][bytestream]") {
-  std::array<u8, 16> buffer{};
-  rex::memory::ByteStream stream(buffer.data(), buffer.size(), 8);
+    CHECK(stream.GetOffset() == 8);
+  }
+  {
+    std::array<u8, 16> buffer{};
+    rex::memory::ByteStream stream(buffer.data(), buffer.size());
 
-  CHECK(stream.GetOffset() == 8);
-}
+    stream.Advance(4);
+    CHECK(stream.GetOffset() == 4);
 
-REX_TEST_CASE("ByteStream Advance moves offset", "[base][stream][bytestream]") {
-  std::array<u8, 16> buffer{};
-  rex::memory::ByteStream stream(buffer.data(), buffer.size());
+    stream.Advance(8);
+    CHECK(stream.GetOffset() == 12);
+  }
+  {
+    std::array<u8, 16> buffer{};
+    rex::memory::ByteStream stream(buffer.data(), buffer.size());
 
-  stream.Advance(4);
-  CHECK(stream.GetOffset() == 4);
+    stream.SetOffset(10);
+    CHECK(stream.GetOffset() == 10);
 
-  stream.Advance(8);
-  CHECK(stream.GetOffset() == 12);
-}
-
-REX_TEST_CASE("ByteStream SetOffset moves offset", "[base][stream][bytestream]") {
-  std::array<u8, 16> buffer{};
-  rex::memory::ByteStream stream(buffer.data(), buffer.size());
-
-  stream.SetOffset(10);
-  CHECK(stream.GetOffset() == 10);
-
-  stream.SetOffset(0);
-  CHECK(stream.GetOffset() == 0);
+    stream.SetOffset(0);
+    CHECK(stream.GetOffset() == 0);
+  }
 }
 
 REX_TEST_CASE("ByteStream Write and Read span", "[base][stream][bytestream]") {
@@ -148,34 +147,34 @@ REX_TEST_CASE("ByteStream empty string round trip", "[base][stream][bytestream]"
   CHECK(result.empty());
 }
 
-REX_TEST_CASE("BitStream construction and initial state", "[base][stream][bitstream]") {
-  std::array<u8, 16> buffer{};
-  rex::memory::BitStream stream(buffer.data(), buffer.size() * 8);
+REX_TEST_CASE("BitStream tracks its buffer, size and offset", "[base][stream][bitstream]") {
+  {
+    std::array<u8, 16> buffer{};
+    rex::memory::BitStream stream(buffer.data(), buffer.size() * 8);
 
-  CHECK(stream.GetBuffer() == buffer.data());
-  CHECK(stream.GetSizeBits() == 128);
-  CHECK(stream.GetOffsetBits() == 0);
-  CHECK(stream.GetBitsRemaining() == 128);
-}
+    CHECK(stream.GetBuffer() == buffer.data());
+    CHECK(stream.GetSizeBits() == 128);
+    CHECK(stream.GetOffsetBits() == 0);
+    CHECK(stream.GetBitsRemaining() == 128);
+  }
+  {
+    std::array<u8, 16> buffer{};
+    rex::memory::BitStream stream(buffer.data(), buffer.size() * 8);
 
-REX_TEST_CASE("BitStream SetOffset works", "[base][stream][bitstream]") {
-  std::array<u8, 16> buffer{};
-  rex::memory::BitStream stream(buffer.data(), buffer.size() * 8);
+    stream.SetOffset(32);
+    CHECK(stream.GetOffsetBits() == 32);
+    CHECK(stream.GetBitsRemaining() == 96);
+  }
+  {
+    std::array<u8, 16> buffer{};
+    rex::memory::BitStream stream(buffer.data(), buffer.size() * 8);
 
-  stream.SetOffset(32);
-  CHECK(stream.GetOffsetBits() == 32);
-  CHECK(stream.GetBitsRemaining() == 96);
-}
+    stream.Advance(10);
+    CHECK(stream.GetOffsetBits() == 10);
 
-REX_TEST_CASE("BitStream Advance works", "[base][stream][bitstream]") {
-  std::array<u8, 16> buffer{};
-  rex::memory::BitStream stream(buffer.data(), buffer.size() * 8);
-
-  stream.Advance(10);
-  CHECK(stream.GetOffsetBits() == 10);
-
-  stream.Advance(5);
-  CHECK(stream.GetOffsetBits() == 15);
+    stream.Advance(5);
+    CHECK(stream.GetOffsetBits() == 15);
+  }
 }
 
 REX_TEST_CASE("BitStream Peek reads without advancing", "[base][stream][bitstream]") {

@@ -27,6 +27,8 @@
 
 #include "kernel_fixture.h"
 #include "kernel/title_state.h"
+#include "kernel/kernel_fixture.h"
+#include "elapsed.h"
 
 using rex::kernel::X_STATUS;
 
@@ -520,3 +522,316 @@ REX_TEST_CASE("timers: a timer type other than 0 or 1 fails and creates no handl
     CHECK(c.Kernel("NtClose", {c.Load32(handle_ptr)}) == 0);
   });
 }
+
+REX_TEST_CASE("A title initialized semaphore with a limit above the int range works",
+              "[kernel][semaphore]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 semaphore = c.Alloc(0x14);
+    c.Kernel("KeInitializeSemaphore", {semaphore, 0, 0x80000000});
+    CHECK(c.Kernel("KeReleaseSemaphore", {semaphore, 0, 1, 0}) == 0);
+    CHECK(c.Kernel("KeReleaseSemaphore", {semaphore, 0, 1, 0}) == 1);
+  });
+}
+
+using rex::u32;
+
+REX_TEST_CASE(
+    "InterlockedPushEntrySList returns the old head and Pop returns entries last in first out",
+    "[kernel][interlocked]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 header = c.Alloc(8);
+    const u32 first = c.Alloc(8);
+    const u32 second = c.Alloc(8);
+    const u32 third = c.Alloc(8);
+    CHECK(c.Kernel("InterlockedPushEntrySList", {header, first}) == 0);
+    CHECK(c.Kernel("InterlockedPushEntrySList", {header, second}) == first);
+    CHECK(c.Kernel("InterlockedPushEntrySList", {header, third}) == second);
+    CHECK(c.Kernel("InterlockedPopEntrySList", {header}) == third);
+    CHECK(c.Kernel("InterlockedPopEntrySList", {header}) == second);
+    CHECK(c.Kernel("InterlockedPopEntrySList", {header}) == first);
+    CHECK(c.Kernel("InterlockedPopEntrySList", {header}) == 0);
+  });
+}
+
+REX_TEST_CASE("InterlockedFlushSList returns the head and empties the list",
+              "[kernel][interlocked]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 header = c.Alloc(8);
+    const u32 first = c.Alloc(8);
+    const u32 second = c.Alloc(8);
+    c.Kernel("InterlockedPushEntrySList", {header, first});
+    c.Kernel("InterlockedPushEntrySList", {header, second});
+    CHECK(c.Kernel("InterlockedFlushSList", {header}) == second);
+    CHECK(c.Kernel("InterlockedPopEntrySList", {header}) == 0);
+  });
+}
+
+REX_TEST_CASE("A critical section counts recursion and excludes another thread",
+              "[kernel][interlocked]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 section = c.Alloc(28);
+    c.Kernel("RtlInitializeCriticalSection", {section});
+    c.Kernel("RtlEnterCriticalSection", {section});
+    c.Kernel("RtlEnterCriticalSection", {section});
+    CHECK(c.Kernel("RtlTryEnterCriticalSection", {section}) == 1);
+
+    auto other = std::make_shared<std::atomic<int>>(-1);
+    const u32 thread = c.Spawn([section, other](Caller& t) {
+      other->store(static_cast<int>(t.Kernel("RtlTryEnterCriticalSection", {section})));
+    });
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
+    c.Kernel("NtClose", {thread});
+    CHECK(other->load() == 0);
+
+    for (int i = 0; i < 3; ++i) {
+      c.Kernel("RtlLeaveCriticalSection", {section});
+    }
+    CHECK(c.Kernel("RtlTryEnterCriticalSection", {section}) == 1);
+    c.Kernel("RtlLeaveCriticalSection", {section});
+  });
+}
+
+namespace wait_tests {
+
+using rex::kernel::X_STATUS;
+
+using rex::test::Caller;
+using rex::test::KernelFixture;
+using rex::test::SystemTime;
+
+namespace {
+
+using rex::test::MillisSince;
+
+constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
+constexpr i64 kTicksPerMs = 10000;
+
+u32 Event(Caller& c, u32 initial_state) {
+  const u32 handle = c.Alloc(4);
+  CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle, 0, 0, initial_state}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
+  return c.Load32(handle);
+}
+
+}  // namespace
+
+REX_TEST_CASE("waits: an absolute deadline in the past times out at once", "[kernel][waits]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 event = Event(c, 0);
+    const u32 deadline = c.AllocQuad(static_cast<i64>(SystemTime(c)) - 1000 * kTicksPerMs);
+    const auto start = std::chrono::steady_clock::now();
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, deadline}) == kTimeout);
+    CHECK(MillisSince(start) < 500);
+    c.Kernel("NtClose", {event});
+  });
+}
+
+REX_TEST_CASE("waits: an absolute deadline of now times out at once", "[kernel][waits]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 event = Event(c, 0);
+    const u32 deadline = c.AllocQuad(static_cast<i64>(SystemTime(c)));
+    const auto start = std::chrono::steady_clock::now();
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, deadline}) == kTimeout);
+    CHECK(MillisSince(start) < 500);
+    c.Kernel("NtClose", {event});
+  });
+}
+
+REX_TEST_CASE("waits: an absolute deadline in the future waits until it", "[kernel][waits]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 event = Event(c, 0);
+    const u32 deadline = c.AllocQuad(static_cast<i64>(SystemTime(c)) + 100 * kTicksPerMs);
+    const auto start = std::chrono::steady_clock::now();
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, deadline}) == kTimeout);
+    const i64 elapsed = MillisSince(start);
+    CHECK(elapsed >= 80);
+    CHECK(elapsed < 2000);
+    c.Kernel("NtClose", {event});
+  });
+}
+
+REX_TEST_CASE("waits: KeDelayExecutionThread honors an absolute deadline", "[kernel][waits]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto start = std::chrono::steady_clock::now();
+    CHECK(c.Kernel("KeDelayExecutionThread",
+                   {1, 0, c.AllocQuad(static_cast<i64>(SystemTime(c)) + 100 * kTicksPerMs)}) == 0);
+    i64 elapsed = MillisSince(start);
+    CHECK(elapsed >= 80);
+    CHECK(elapsed < 2000);
+    start = std::chrono::steady_clock::now();
+    CHECK(c.Kernel("KeDelayExecutionThread",
+                   {1, 0, c.AllocQuad(static_cast<i64>(SystemTime(c)) - 100 * kTicksPerMs)}) == 0);
+    CHECK(MillisSince(start) < 500);
+  });
+}
+
+REX_TEST_CASE("waits: NetDll_WSAWaitForMultipleEvents waits its millisecond timeout",
+              "[kernel][waits][net]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 unsignaled = Event(c, 0);
+    const u32 signaled = Event(c, 1);
+    const u32 events = c.Alloc(4);
+    c.Store32(events, unsignaled);
+    const auto start = std::chrono::steady_clock::now();
+    CHECK(c.XAM("NetDll_WSAWaitForMultipleEvents", {1, events, 0, 100, 0}) == kTimeout);
+    const i64 elapsed = MillisSince(start);
+    CHECK(elapsed >= 80);
+    CHECK(elapsed < 2000);
+    c.Store32(events, signaled);
+    CHECK(c.XAM("NetDll_WSAWaitForMultipleEvents", {1, events, 0, 100, 0}) == 0);
+    c.Kernel("NtClose", {unsignaled});
+    c.Kernel("NtClose", {signaled});
+  });
+}
+
+}  // namespace wait_tests
+
+namespace events_tests {
+
+using rex::kernel::X_STATUS;
+
+using rex::test::Caller;
+using rex::test::KernelFixture;
+
+namespace {
+constexpr u32 kInvalidHandle = rex::kernel::X_STATUS_INVALID_HANDLE;
+constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
+u32 Poll(Caller& c) {
+  return c.AllocQuad(0);
+}
+}  // namespace
+
+REX_TEST_CASE("events: manual reset create set wait clear", "[kernel][events]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    CHECKED_ELSE(handle != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
+    const u32 previous = c.Alloc(4);
+    CHECK(c.Kernel("NtSetEvent", {handle, previous}) == 0);
+    CHECK(c.Load32(previous) == 1);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("NtClearEvent", {handle}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("events: auto reset is consumed by one wait", "[kernel][events]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
+    CHECK(c.Kernel("NtSetEvent", {handle, 0}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("events: query reports type and state", "[kernel][events]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 out = c.Alloc(8);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 manual = c.Load32(handle_ptr);
+    CHECK(c.Kernel("NtQueryEvent", {manual, out}) == 0);
+    CHECK(c.Load32(out + 4) == 1);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 sync = c.Load32(handle_ptr);
+    CHECK(c.Kernel("NtQueryEvent", {sync, out}) == 0);
+    CHECK(c.Load32(out + 4) == 0);
+    CHECK(c.Kernel("NtQueryEvent", {0xF8001230, out}) == kInvalidHandle);
+    c.Kernel("NtClose", {manual});
+    c.Kernel("NtClose", {sync});
+  });
+}
+
+REX_TEST_CASE("events: pulse and invalid handles", "[kernel][events]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 previous = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    CHECK(c.Kernel("NtPulseEvent", {handle, previous}) == 0);
+    CHECK(c.Load32(previous) == 1);
+    CHECK(c.Kernel("NtSetEvent", {0, 0}) == kInvalidHandle);
+    CHECK(c.Kernel("NtSetEvent", {0xF8001230, 0}) == kInvalidHandle);
+    CHECK(c.Kernel("NtClearEvent", {0xF8001230}) == kInvalidHandle);
+    CHECK(c.Kernel("NtPulseEvent", {0xF8001230, 0}) == kInvalidHandle);
+    c.Kernel("NtClose", {handle});
+  });
+}
+
+REX_TEST_CASE("events: guest KEVENT initialized and lazily created", "[kernel][events][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 initialized = c.Alloc(0x10);
+    c.Kernel("KeInitializeEvent", {initialized, 1, 1});
+    CHECK(c.Load32(initialized + 8) == initialized + 8);
+    CHECK(c.Load32(initialized + 12) == initialized + 8);
+    CHECK(c.Kernel("KeWaitForSingleObject", {initialized, 0, 0, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("KeWaitForSingleObject", {initialized, 0, 0, 0, Poll(c)}) == kTimeout);
+    CHECK(c.Kernel("KeSetEvent", {initialized, 0, 0}) == 1);
+    CHECK(c.Kernel("KeWaitForSingleObject", {initialized, 0, 0, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("KeResetEvent", {initialized}) == 1);
+
+    const u32 inlined = c.Alloc(0x10);
+    c.Store32(inlined, 0x01000000);
+    c.Store32(inlined + 4, 1);
+    CHECK(c.Kernel("KeWaitForSingleObject", {inlined, 0, 0, 0, Poll(c)}) == 0);
+    c.Kernel("KeSetEvent", {inlined, 0, 0});
+    CHECK(c.Kernel("KeWaitForSingleObject", {inlined, 0, 0, 0, Poll(c)}) == 0);
+  });
+}
+
+REX_TEST_CASE("events: a block re-initialized as a semaphore can be waited on",
+              "[kernel][events]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 reused = c.Alloc(32);
+    c.Kernel("KeInitializeEvent", {reused, 0, 0});
+    c.Kernel("KeInitializeSemaphore", {reused, 1, 1});
+    CHECK(c.Kernel("KeWaitForSingleObject", {reused, 0, 0, 0, Poll(c)}) == 0);
+    CHECK(c.Kernel("KeWaitForSingleObject", {reused, 0, 0, 0, Poll(c)}) == kTimeout);
+  });
+}
+
+}  // namespace events_tests

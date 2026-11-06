@@ -10,7 +10,10 @@
 
 #include "rex_test.h"
 
+#include <format>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <rex/app/app.h>
 #include <rex/driver.h>
@@ -57,36 +60,20 @@ const rex::DriverRegistration* FindGraphics(rex::ModuleGroup& group, std::string
 
 }  // namespace
 
-REX_TEST_CASE("null provider registrations null in family xenos", "[gpu][xenos]") {
-  GraphicsGroup graphics;
-  rex::ModuleGroup& group = graphics.group;
-  REQUIRE(group.Load("rexgpu-xenos-null").has_value());
-  REQUIRE(group.Connect().has_value());
-  const rex::DriverRegistration* registration = FindGraphics(group, "null");
-  REQUIRE(registration != nullptr);
-  CHECK(registration->family == rex::GraphicsFamily::kXenos);
-  CHECK(registration->type == rex::DriverType::kGraphics);
-}
-
-REX_TEST_CASE("vulkan provider registrations vulkan in family xenos", "[gpu][xenos]") {
-  GraphicsGroup graphics;
-  rex::ModuleGroup& group = graphics.group;
-  REQUIRE(group.Load("rexgpu-xenos-vulkan").has_value());
-  REQUIRE(group.Connect().has_value());
-  const rex::DriverRegistration* registration = FindGraphics(group, "vulkan");
-  REQUIRE(registration != nullptr);
-  CHECK(registration->family == rex::GraphicsFamily::kXenos);
-  CHECK(registration->type == rex::DriverType::kGraphics);
-}
-
+REX_TEST_CASE("each provider registers its driver in family xenos", "[gpu][xenos]") {
+  std::vector<std::string_view> names = {"null", "vulkan"};
 #if REX_PLATFORM_WIN32
-REX_TEST_CASE("d3d12 provider registrations d3d12 in family xenos", "[gpu][xenos]") {
-  GraphicsGroup graphics;
-  rex::ModuleGroup& group = graphics.group;
-  REQUIRE(group.Load("rexgpu-xenos-d3d12").has_value());
-  REQUIRE(group.Connect().has_value());
-  const rex::DriverRegistration* registration = FindGraphics(group, "d3d12");
-  REQUIRE(registration != nullptr);
-  CHECK(registration->family == rex::GraphicsFamily::kXenos);
-}
+  names.push_back("d3d12");
 #endif
+  for (const std::string_view name : names) {
+    INFO(name);
+    GraphicsGroup graphics;
+    rex::ModuleGroup& group = graphics.group;
+    REQUIRE(group.Load(std::format("rexgpu-xenos-{}", name)).has_value());
+    REQUIRE(group.Connect().has_value());
+    const rex::DriverRegistration* registration = FindGraphics(group, name);
+    REQUIRE(registration != nullptr);
+    CHECK(registration->family == rex::GraphicsFamily::kXenos);
+    CHECK(registration->type == rex::DriverType::kGraphics);
+  }
+}

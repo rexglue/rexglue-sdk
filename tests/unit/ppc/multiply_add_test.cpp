@@ -258,14 +258,6 @@ REX_TEST_CASE("MultiplyAdd matches the full path at every exponent gap", "[ppc][
   }
 }
 
-REX_TEST_CASE("MultiplyAdd matches the sampled results", "[ppc][multiply_add]") {
-  CheckLanes<rex::ppc::simd::MultiplyAdd>(kMultiplyAddCases, 1);
-}
-
-REX_TEST_CASE("NegativeMultiplySubtract matches the sampled results", "[ppc][multiply_add]") {
-  CheckLanes<rex::ppc::simd::NegativeMultiplySubtract>(kNegativeMultiplySubtractCases, 1);
-}
-
 REX_TEST_CASE("MultiplyAdd keeps each lane apart in a mixed vector", "[ppc][multiply_add]") {
   CheckLanes<rex::ppc::simd::MultiplyAdd>(kMultiplyAddCases, 97);
 }

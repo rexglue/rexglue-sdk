@@ -28,6 +28,8 @@
 #include "test_memory.h"
 #include "kernel/ppc_hooks.h"
 #include "kernel/title_state.h"
+#include <memory>
+#include "kernel_fixture.h"
 
 extern "C" void rexshim_ConvertThreadToFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_ConvertFiberToThread(PPCContext& ctx, rex::u8* base);
@@ -849,3 +851,47 @@ REX_TEST_CASE("A fiber switch inside a call returns to the calling frame", "[ker
     CHECK(state->GetContext()->r1.u32 == r1);
   });
 }
+
+namespace thread_frame_tests {
+
+using rex::u32;
+
+using rex::test::Caller;
+using rex::test::Join;
+using rex::test::KernelFixture;
+
+namespace {
+
+struct EntryFrame {
+  u32 stack_base = 0;
+  u32 r1 = 0;
+  u32 back_chain = 0;
+  u32 root_nonzero_words = 0;
+};
+
+}  // namespace
+
+REX_TEST_CASE("A thread entry runs in a call frame under a zeroed root frame",
+              "[kernel][threads][frame]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto frame = std::make_shared<EntryFrame>();
+    const u32 handle = c.Spawn([frame](Caller& t) {
+      const u32 kthread = t.Load32(t.GetContext().r13.u32 + 0x100);
+      frame->stack_base = t.Load32(kthread + 0x5C);
+      frame->r1 = t.GetContext().r1.u32;
+      frame->back_chain = t.Load32(frame->r1);
+      const u32 root = frame->stack_base - rex::ppc::kLinkageSize;
+      for (u32 offset = 0; offset < rex::ppc::kLinkageSize; offset += 4) {
+        frame->root_nonzero_words += t.Load32(root + offset) != 0;
+      }
+    });
+    Join(c, handle);
+    const u32 root = frame->stack_base - rex::ppc::kLinkageSize;
+    CHECK(frame->back_chain == root);
+    CHECK(frame->r1 == root - rex::ppc::kLinkageSize);
+    CHECK(frame->root_nonzero_words == 0);
+  });
+}
+
+}  // namespace thread_frame_tests

@@ -24,6 +24,10 @@
 #include "kernel_fixture.h"
 #include "kernel/title_state.h"
 #include "xam/xam_state.h"
+#include <atomic>
+#include <rex/kernel/title_exit.h>
+#include <rex/kernel/xboxkrnl.h>
+#include <rex/title.h>
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -279,5 +283,82 @@ REX_TEST_CASE("XAM: the volume device type of a content root is the type of its 
     c.Store32(result, kSentinel);
     CHECK(QueryVolumeDeviceType(c, "game", result) == rex::kernel::X_E_INVALIDARG);
     CHECK(c.Load32(result) == kSentinel);
+  });
+}
+
+namespace xekeys_tests {
+
+using rex::test::Caller;
+using rex::test::KernelFixture;
+
+namespace {
+constexpr u32 kOutputSize = 0x100;
+}
+
+REX_TEST_CASE("xekeys: the console sign export returns 0 and leaves the output untouched",
+              "[kernel][crypt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 hash = c.Alloc(0x14);
+    const u32 output = c.Alloc(kOutputSize);
+    for (u32 offset = 0; offset < kOutputSize; offset += 4) {
+      c.Store32(output + offset, 0xCDCDCDCD);
+    }
+    CHECK(c.Kernel("XeKeysConsolePrivateKeySign", {hash, output}) == 0);
+    for (u32 offset = 0; offset < kOutputSize; offset += 4) {
+      CHECK(c.Load32(output + offset) == 0xCDCDCDCD);
+    }
+    CHECK(c.Kernel("XeKeysConsolePrivateKeySign", {hash, 0}) == 0);
+  });
+}
+
+}  // namespace xekeys_tests
+
+using rex::kernel::TitleExitReason;
+
+REX_TEST_CASE("KeBugCheckEx never returns and reports a bug check", "[kernel][bugcheck]") {
+  static std::atomic<bool> g_returned;
+  static std::atomic<int> g_reported;
+  g_returned = false;
+  g_reported = -1;
+  KernelFixture fixture;
+  auto exit_guard = fixture.GetRuntime().OnTitleExit(
+      [](rex::kernel::TitleExitReason reason) { g_reported = static_cast<int>(reason); });
+  fixture.RunUntilGuestThreadEnds([](Caller& c) {
+    c.Kernel("KeBugCheckEx", {0x1234, 1, 2, 3, 4});
+    g_returned = true;
+  });
+  CHECK_FALSE(g_returned);
+  CHECK(g_reported == static_cast<int>(rex::kernel::TitleExitReason::kBugCheck));
+}
+
+REX_TEST_CASE("KeBugCheck never returns and reports a bug check", "[kernel][bugcheck]") {
+  static std::atomic<bool> g_returned;
+  static std::atomic<int> g_reported;
+  g_returned = false;
+  g_reported = -1;
+  KernelFixture fixture;
+  auto exit_guard = fixture.GetRuntime().OnTitleExit(
+      [](rex::kernel::TitleExitReason reason) { g_reported = static_cast<int>(reason); });
+  fixture.RunUntilGuestThreadEnds([](Caller& c) {
+    c.Kernel("KeBugCheck", {0x1234});
+    g_returned = true;
+  });
+  CHECK_FALSE(g_returned);
+  CHECK(g_reported == static_cast<int>(rex::kernel::TitleExitReason::kBugCheck));
+}
+
+REX_TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") {
+  rex::test::KernelFixture fixture;
+  const rex::VideoMode expected = StateOf(fixture.GetRuntime()).GetVideoMode();
+  fixture.RunOnGuestThread([expected](rex::test::Caller&) {
+    rex::kernel::X_VIDEO_MODE mode{};
+    rex::kernel::xboxkrnl::VdQueryVideoMode(&mode);
+    CHECK(static_cast<rex::u32>(mode.display_width) == expected.width);
+    CHECK(static_cast<rex::u32>(mode.display_height) == expected.height);
+    CHECK(static_cast<f32>(mode.refresh_rate) == expected.refresh_rate);
+    CHECK(static_cast<rex::u32>(mode.is_widescreen) == 1);
+    CHECK(static_cast<rex::u32>(mode.is_hi_def) == 1);
+    CHECK(static_cast<rex::u32>(mode.is_interlaced) == 0);
   });
 }

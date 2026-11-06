@@ -16,8 +16,10 @@
 #include <rex/kernel/heap.h>
 #include "ppc_test_decls.h"
 
-// Global memory instance - same class used by real runtime
-static rex::kernel::GuestAddressSpace& GetAddressSpace() {
+// Global memory instance - same class used by real runtime, shared by every case file
+rex::kernel::GuestAddressSpace& GetPPCTestMemory();
+## if define_memory
+rex::kernel::GuestAddressSpace& GetPPCTestMemory() {
     static rex::kernel::GuestAddressSpace memory;
     static bool initialized = false;
     if (!initialized) {
@@ -39,6 +41,7 @@ static rex::kernel::GuestAddressSpace& GetAddressSpace() {
     }
     return memory;
 }
+## endif
 
 ## for entry in stems
 [[maybe_unused]] static void register_functions_{{ entry.stem }}(rex::kernel::GuestAddressSpace& memory) {
@@ -50,7 +53,7 @@ static rex::kernel::GuestAddressSpace& GetAddressSpace() {
 ## endfor
 ## for test in tests
 TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
-    auto& mem = GetAddressSpace();
+    auto& mem = GetPPCTestMemory();
     register_functions_{{ test.stem }}(mem);
     u8* memory = mem.GetVirtualMembase();
     PPCContext ctx{};

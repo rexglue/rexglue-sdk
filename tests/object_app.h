@@ -12,20 +12,11 @@
 #pragma once
 
 #include <algorithm>
-#include <initializer_list>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <rex/module.h>
-
-#ifndef REX_TEST_REAL_MODULES
-#include "apu/audio_module.h"
-#include "filesystem/filesystem_module.h"
-#include "hid/input_module.h"
-#include "kernel/rexkernel_module.h"
-#include "xam/xam_module.h"
-#include "ui/ui_module.h"
-#endif
 
 namespace rex::test {
 
@@ -40,14 +31,21 @@ class ObjectApp : public Base {
 
 #else
 
-/** The module instances an ObjectApp registers, built before the app base and destroyed after. */
-struct ObjectModules {
-  filesystem::FileSystemModule filesystem_module;
-  hid::InputModule input_module;
-  apu::AudioModule audio_module;
-  ui::UIModule ui_module;
-  xam::XAMModule xam_module;
-  kernel::KernelModule kernel_module;
+/**
+ * The module instances an ObjectApp registers, built before the app base and destroyed after.
+ * Defined in object_app.cpp, so the module headers stay out of the tests that include this one.
+ */
+class ObjectModules {
+ public:
+  ObjectModules();
+  ~ObjectModules();
+
+  /** Returns every module instance. */
+  std::vector<IModule*> GetAll();
+
+ private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 /**
@@ -64,10 +62,7 @@ class ObjectApp : private ObjectModules, public Base {
   void OnModules(std::vector<std::string>& modules) override {
     Base::OnModules(modules);
     registered_.clear();
-    for (IModule* module :
-         {static_cast<IModule*>(&filesystem_module), static_cast<IModule*>(&input_module),
-          static_cast<IModule*>(&audio_module), static_cast<IModule*>(&ui_module),
-          static_cast<IModule*>(&xam_module), static_cast<IModule*>(&kernel_module)}) {
+    for (IModule* module : GetAll()) {
       if (std::ranges::find(modules, std::string(module->GetName())) != modules.end()) {
         registered_.push_back(module);
       }

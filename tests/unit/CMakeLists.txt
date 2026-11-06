@@ -28,12 +28,10 @@ add_executable(
   gpu/texture_info_test.cpp
   gpu/texture_layout_test.cpp
   gpu/primitive_processor_simd_test.cpp
-  gpu/settings_scope_test.cpp
   gpu/xenos_provider_test.cpp
   gpu/imgui_overlay_test.cpp
   gpu/xenos_base_test.cpp
   gpu/headless_test.cpp
-  gpu/no_driver_test.cpp
   gpu/draw_state_test.cpp
   gpu/dxbc_operand_test.cpp
   gpu/present_policy_test.cpp
@@ -42,13 +40,8 @@ add_executable(
   gpu/shader_translation_test.cpp
   gpu/tessellation_glsl_test.cpp
   kernel/be_ptr_test.cpp
-  kernel/xekeys_test.cpp
-  kernel/bugcheck_test.cpp
   kernel/exit_title_test.cpp
-  kernel/kernel_module_test.cpp
   kernel/xam_input_test.cpp
-  kernel/interlocked_test.cpp
-  kernel/video_mode_test.cpp
   kernel/object_table_test.cpp
   kernel/shim_crt_test.cpp
   kernel/shim_debug_test.cpp
@@ -60,19 +53,15 @@ add_executable(
   kernel/kernel_fixture.cpp
   kernel/lock_order_test.cpp
   kernel/pinned_wait_test.cpp
-  kernel/events_test.cpp
   kernel/sync_test.cpp
   kernel/enumerate_test.cpp
   kernel/handles_test.cpp
   kernel/format_test.cpp
   kernel/rtl_string_test.cpp
-  kernel/rtl_time_test.cpp
   kernel/strings_test.cpp
-  kernel/strtok_test.cpp
   kernel/varargs_test.cpp
   kernel/shutdown_test.cpp
   kernel/threads_test.cpp
-  kernel/thread_frame_test.cpp
   kernel/files_test.cpp
   kernel/memory_test.cpp
   kernel/net_test.cpp
@@ -88,10 +77,8 @@ add_executable(
   kernel/xam_test.cpp
   kernel/xmp_test.cpp
   kernel/identity_test.cpp
-  kernel/notify_listener_test.cpp
   kernel/interrupt_test.cpp
   kernel/dpc_test.cpp
-  kernel/wait_test.cpp
   kernel/notify_test.cpp
   kernel/fp_state_test.cpp
   kernel/tls_test.cpp
@@ -100,7 +87,6 @@ add_executable(
   kernel/overlapped_test.cpp
   base/assert_test.cpp
   base/container_test.cpp
-  base/core_settings_test.cpp
   base/core_test.cpp
   base/high_resolution_timer_test.cpp
   base/host_alloc_test.cpp
@@ -111,14 +97,12 @@ add_executable(
   base/module_test.cpp
   base/module_group_test.cpp
   base/module_served_test.cpp
-  app/system_modules_test.cpp
   base/logger_test.cpp
   base/math_test.cpp
   base/propagate_const_test.cpp
   base/sleep_test.cpp
   base/socket_test.cpp
   base/socket_wait_test.cpp
-  base/thread_callback_test.cpp
   base/thread_start_data_test.cpp
   base/thread_priority_test.cpp
   base/thread_time_test.cpp
@@ -135,8 +119,6 @@ add_executable(
   filesystem/rename_test.cpp
   filesystem/wildcard_test.cpp
   app/app_test.cpp
-  kernel/close_owned_test.cpp
-  base/no_throw_test.cpp
   base/fat_timestamp_test.cpp
   base/storage_file_test.cpp
   base/host_paths_test.cpp
@@ -171,7 +153,6 @@ add_executable(
   base/relaunch_test.cpp
   base/posix_wait_test.cpp
   base/thread_redirect_test.cpp
-  base/thread_registry_test.cpp
   ppc/dot_product_test.cpp
   ppc/estimate_test.cpp
   ppc/fpscr_flush_test.cpp
@@ -200,29 +181,22 @@ add_executable(
   xam/achievement_manager_test.cpp
   xam/content_package_test.cpp
   kernel/xcontent_test.cpp
-  kernel/xsemaphore_test.cpp
   kernel/xdbf_test.cpp
   kernel/xstatus_test.cpp
   kernel/xtypes_test.cpp
   kernel/function_dispatcher_test.cpp
   kernel/call_test.cpp
-  kernel/call_usage_lookup_test.cpp
-  kernel/title_public_access_test.cpp
   xam/language_test.cpp
   kernel/thread_wait_test.cpp
   kernel/runtime_error_test.cpp
   kernel/runtime_interfaces_test.cpp
   kernel/memory_view_test.cpp
-  kernel/process_runtime_test.cpp
-  kernel/runtime_settings_test.cpp
   kernel/setting_keys_test.cpp
-  kernel/kernel_state_test.cpp
   kernel/title_launch_test.cpp
   kernel/title_runtime_test.cpp
   kernel/guest_global_test.cpp
   kernel/apu_test.cpp
   kernel/xma_decoder_test.cpp
-  kernel/host_service_modules_test.cpp
   kernel/title_context_test.cpp
   kernel/recompiled_module_test.cpp
   ui/bind_test.cpp
@@ -267,7 +241,6 @@ add_executable(
   codegen/project_recompiler_test.cpp
   codegen/seh_scope_test.cpp
   codegen/shim_config_test.cpp
-  codegen/tool_runtime_test.cpp
   codegen/mmio_analysis_test.cpp
   rexglue/init_command_test.cpp
   rexglue/project_scan_test.cpp
@@ -279,6 +252,7 @@ target_sources(
   unit_tests
   PRIVATE ${PROJECT_SOURCE_DIR}/src/gpu/xenos/null/null_command_processor.cpp
           ${PROJECT_SOURCE_DIR}/tests/code_image.cpp
+          ${PROJECT_SOURCE_DIR}/tests/object_app.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/null/null_xenos_graphics_driver.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
           $<TARGET_OBJECTS:rexglue-objects>
@@ -595,6 +569,8 @@ if (REXGLUE_ENABLE_TSAN)
   # TSan defers asynchronous signals, so the forced stop redirect cannot take effect
   catch_discover_tests(
     unit_tests
+    DISCOVERY_MODE
+    PRE_TEST
     TEST_SPEC
     "[crash_report]"
     TEST_PREFIX
@@ -612,6 +588,8 @@ elseif (REXGLUE_ENABLE_SANITIZERS)
   # UBSan installs its own fault handlers unless they are turned off
   catch_discover_tests(
     unit_tests
+    DISCOVERY_MODE
+    PRE_TEST
     TEST_SPEC
     "[crash_report]"
     TEST_PREFIX
@@ -626,6 +604,8 @@ elseif (REXGLUE_ENABLE_SANITIZERS)
 endif ()
 catch_discover_tests(
   unit_tests
+  DISCOVERY_MODE
+  PRE_TEST
   ${_unit_test_spec}
   TEST_PREFIX
   "unit."
@@ -636,6 +616,8 @@ catch_discover_tests(
 )
 catch_discover_tests(
   cross_module_tests
+  DISCOVERY_MODE
+  PRE_TEST
   TEST_PREFIX
   "unit."
   ADD_TAGS_AS_LABELS

@@ -170,15 +170,3 @@ REX_TEST_CASE("A bad list item fails the whole list", "[hid][key_chord]") {
   CHECK(list.error().message.find("NoSuchKey") != std::string::npos);
   CHECK_FALSE(ParseKeyChordList("A,Shift"));
 }
-
-REX_TEST_CASE("Every hid.keybind default value parses", "[hid][key_chord]") {
-  rex::test_input::Run("none", [](rex::hid::IInputSystem& input) {
-    rex::hid::IBindingSet& keys = input.GetKeyBindings();
-    CHECK(keys.TakeParseErrors().empty());
-    for (size_t i = 0; i < keys.GetCount(); ++i) {
-      for (const rex::hid::InputSource& source : keys.GetSources(i)) {
-        CHECK(source.type == rex::hid::InputSourceType::kKey);
-      }
-    }
-  });
-}

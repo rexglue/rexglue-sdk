@@ -70,5 +70,5 @@ REX_TEST_CASE("Recompiling tests writes the generated files", "[rexglue][recompi
   const fs::path out = folder.path / "out";
   REQUIRE(rexglue::cli::RecompileTests(folder.path.string(), folder.path.string(), out.string()));
   CHECK(fs::exists(out / "ppc_config.h"));
-  CHECK(fs::exists(out / "ppc_test_cases.cpp"));
+  CHECK(fs::exists(out / "ppc_test_cases_0.cpp"));
 }

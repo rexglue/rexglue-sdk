@@ -15,6 +15,7 @@
 #include <initializer_list>
 #include <string_view>
 
+#include <rex/ppc/context.h>
 #include <rex/ppc/image.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/export.h>

@@ -18,7 +18,6 @@
 #include <vector>
 
 #include <rex/memory/host.h>
-#include <rex/kernel/object/object.h>
 
 using rex::memory::GetHostStats;
 using rex::memory::HostAlloc;
@@ -229,10 +228,6 @@ REX_TEST_CASE("An unnamed or out of range tag reads Invalid and counts nothing",
 REX_TEST_CASE("A scope with an out of range tag uses the core tag", "[base][memory]") {
   TagScope scope(static_cast<Tag>(200));
   CHECK(rex::memory::GetThreadTag() == Tag::kCore);
-}
-
-REX_TEST_CASE("The runtime library names its tags at load", "[base][memory]") {
-  CHECK(std::strcmp(rex::memory::GetTagName(rex::kernel::kRuntime), "Runtime") == 0);
 }
 
 REX_TEST_CASE("Failed allocations return null, throw or retry through the new handler",

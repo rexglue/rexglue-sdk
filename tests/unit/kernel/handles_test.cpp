@@ -562,3 +562,37 @@ REX_TEST_CASE("handles: a lookup whose object lost its last handle takes no refe
     CHECK(rex::kernel::ToXStatus(table.Dereference(object)) == kInvalidHandle);
   });
 }
+
+using rex::kernel::AddOptions;
+using rex::kernel::CloseOwned;
+using rex::kernel::SymbolicLinkObject;
+
+REX_TEST_CASE("CloseOwned closes the handle it is given", "[kernel][close_owned]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& table = c.GetRuntime().GetObjectTable();
+    auto added = table.Emplace<SymbolicLinkObject>(AddOptions{}, "a", "b");
+    if (!added) {
+      FAIL("the symbolic link was not added");
+      return;
+    }
+    CloseOwned(table, *added);
+    CHECK_FALSE(table.Close(*added));
+  });
+}
+
+REX_TEST_CASE("CloseOwned logs a handle that does not close", "[kernel][close_owned]") {
+  KernelFixture fixture;
+  rex::Logger* logger = &REX_LOGGER();
+  REQUIRE(logger);
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = logger->AddSink(sink);
+  fixture.RunOnGuestThread(
+      [](Caller& c) { CloseOwned(c.GetRuntime().GetObjectTable(), 0xF8FFFFF0); });
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
+  sink_guard.Reset();
+  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
+    return message.text.starts_with("Handle F8FFFFF0 did not close, ");
+  }));
+}

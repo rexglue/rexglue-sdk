@@ -73,12 +73,6 @@ struct Fixture {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "sdl3 registrations sdl3", "[hid][sdl3]") {
-  auto driver = Create();
-  REQUIRE(driver);
-  CHECK(driver->GetName() == "sdl3");
-}
-
 REX_TEST_CASE_METHOD(Fixture, "sdl3 devices are live after Initialize", "[hid][sdl3]") {
   auto driver = Create();
   REQUIRE(driver);

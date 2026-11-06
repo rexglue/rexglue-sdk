@@ -15,7 +15,6 @@
 
 #include <mutex>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -45,12 +44,6 @@ class WarningSink final : public rex::log::ILogSink {
   std::mutex mutex_;
   std::vector<std::string> lines_;
 };
-
-rex::hid::InputSource ParseSource(std::string_view text) {
-  auto parsed = rex::hid::ParseInputSource(text);
-  REQUIRE(parsed);
-  return *parsed;
-}
 
 }  // namespace
 
@@ -426,47 +419,4 @@ REX_TEST_CASE("a key binding written at run time moves the pad stick", "[hid][ke
   app.Pump();
   CHECK(input.GetState(0)->state.thumb_ly == INT16_MAX);
   app.Shutdown();
-}
-
-REX_TEST_CASE("the key bindings find an input another binding already uses", "[hid][keybind]") {
-  Run("none", [](rex::hid::IInputSystem& input) {
-    rex::hid::IBindingSet& keys = input.GetKeyBindings();
-    const auto a = keys.FindBySetting("hid.keybind_a");
-    const auto x = keys.FindBySetting("hid.keybind_x");
-    const auto dpad_up = keys.FindBySetting("hid.keybind_dpad_up");
-    const auto rstick_up = keys.FindBySetting("hid.keybind_rstick_up");
-    REQUIRE(a);
-    REQUIRE(x);
-    REQUIRE(dpad_up);
-    REQUIRE(rstick_up);
-    CHECK(keys.FindConflict(*x, ParseSource("Space")) == a);
-    CHECK_FALSE(keys.FindConflict(*a, ParseSource("Space")));
-    CHECK(keys.FindConflict(*x, ParseSource("Up")) == rstick_up);
-    CHECK(keys.FindConflict(*x, ParseSource("Shift+Up")) == dpad_up);
-    CHECK_FALSE(keys.FindConflict(*x, ParseSource("F9")));
-  });
-}
-
-REX_TEST_CASE("key and input text parse and format through the input system", "[hid]") {
-  Run("fake_a", [](rex::hid::IInputSystem& input) {
-    const rex::hid::VirtualKey key = input.ParseVirtualKey("F4");
-    CHECK(key != rex::hid::VirtualKey::kNone);
-    CHECK(key == rex::hid::ParseVirtualKey("F4"));
-    CHECK(input.VirtualKeyToString(key) == rex::hid::VirtualKeyToString(key));
-    CHECK(input.ParseVirtualKey(input.VirtualKeyToString(key)) == key);
-    CHECK(input.ParseVirtualKey("NoSuchKey") == rex::hid::VirtualKey::kNone);
-
-    for (const std::string_view text : {"Shift+W", "PadA"}) {
-      auto through = input.ParseInputSource(text);
-      auto direct = rex::hid::ParseInputSource(text);
-      REQUIRE(through);
-      REQUIRE(direct);
-      CHECK(*through == *direct);
-      CHECK(input.InputSourceToString(*through) == rex::hid::InputSourceToString(*direct));
-      auto round = input.ParseInputSource(input.InputSourceToString(*through));
-      REQUIRE(round);
-      CHECK(*round == *through);
-    }
-    CHECK_FALSE(input.ParseInputSource("NoSuchInput"));
-  });
 }

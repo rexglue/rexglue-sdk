@@ -16,22 +16,18 @@ using rex::u32;
 using rex::ppc::DecodeRuntimeFunction;
 using rex::ppc::RuntimeFunctionType;
 
-REX_TEST_CASE("A pdata word decodes each of the 4 types", "[ppc][pdata]") {
+REX_TEST_CASE("A pdata word decodes its type, length and prologue", "[ppc][pdata]") {
   CHECK(DecodeRuntimeFunction(0x82000000, 0x00000A05).type == RuntimeFunctionType::kSaveMillicode);
   CHECK(DecodeRuntimeFunction(0x82000000, 0x40000A05).type == RuntimeFunctionType::kNoHandler);
   CHECK(DecodeRuntimeFunction(0x82000000, 0x80000A05).type ==
         RuntimeFunctionType::kRestoreMillicode);
   CHECK(DecodeRuntimeFunction(0x82000000, 0xC0000A05).type == RuntimeFunctionType::kHandler);
-}
 
-REX_TEST_CASE("A pdata word splits the length and the prologue", "[ppc][pdata]") {
   const auto entry = DecodeRuntimeFunction(0x82001000, 0x40001205);
   CHECK(entry.begin == 0x82001000);
   CHECK(entry.length == 0x12);
   CHECK(entry.prologue == 5);
-}
 
-REX_TEST_CASE("A pdata word keeps the 22 bit length and the 8 bit prologue apart", "[ppc][pdata]") {
   const auto longest = DecodeRuntimeFunction(0, 0x7FFFFF00);
   CHECK(longest.type == RuntimeFunctionType::kNoHandler);
   CHECK(longest.length == 0x3FFFFF);

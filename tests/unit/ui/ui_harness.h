@@ -20,6 +20,7 @@
 #include <mutex>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <rex/app/app.h>

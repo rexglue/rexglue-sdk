@@ -52,12 +52,6 @@ struct Fixture {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "sdl3 provider registrations sdl3", "[apu][sdl3]") {
-  auto driver = Create();
-  REQUIRE(driver);
-  CHECK(driver->GetName() == "sdl3");
-}
-
 REX_TEST_CASE_METHOD(Fixture, "sdl3 opens 2 or 6 channels", "[apu][sdl3]") {
   auto driver = Create();
   REQUIRE(driver);

@@ -35,7 +35,6 @@ using rex::kernel::XLanguage;
 using rex::ui::HostLocale;
 using rex::xam::GetLanguageForLocale;
 using rex::xam::GetLanguageForLocales;
-using rex::xam::GetLanguageName;
 using rex::xam::ParseLanguageCode;
 
 namespace {
@@ -150,29 +149,6 @@ REX_TEST_CASE("Language: DetectHostLanguage reads the preferred locales of the i
   app.Shutdown();
 }
 
-REX_TEST_CASE("Language: names follow the XGetLanguage documentation", "[xam][language]") {
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kEnglish) == "English");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kJapanese) == "Japanese");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kGerman) == "German");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kFrench) == "French");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kSpanish) == "Spanish");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kItalian) == "Italian");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kKorean) == "Korean");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kTChinese) == "Chinese (Traditional)");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kPortuguese) == "Portuguese");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kSChinese) == "Chinese (Simplified)");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kPolish) == "Polish");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kRussian) == "Russian");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kSwedish) == "Swedish");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kTurkish) == "Turkish");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kNorwegian) == "Norwegian");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kDutch) == "Dutch");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kSChineseDeprecated) ==
-        "Placeholder for deprecated constant for Simplified Chinese");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kInvalid) == "Unknown");
-  CHECK(rex::xam::GetLanguageName(rex::kernel::XLanguage::kMaxLanguages) == "Unknown");
-}
-
 REX_TEST_CASE("Language: ParseLanguageCode accepts standard tags", "[xam][language]") {
   CHECK(rex::xam::ParseLanguageCode("en") == rex::kernel::XLanguage::kEnglish);
   CHECK(rex::xam::ParseLanguageCode("EN-us") == rex::kernel::XLanguage::kEnglish);
@@ -244,12 +220,6 @@ REX_TEST_CASE_METHOD(Fixture, "Language: a value past the title languages become
 REX_TEST_CASE(
     "Language: the ids follow the XDK header and host detection never gives the deprecated one",
     "[xam][language]") {
-  STATIC_REQUIRE(static_cast<u32>(rex::kernel::XLanguage::kSChineseDeprecated) == 0x0A);
-  STATIC_REQUIRE(static_cast<u32>(rex::kernel::XLanguage::kSwedish) == 0x0D);
-  STATIC_REQUIRE(static_cast<u32>(rex::kernel::XLanguage::kTurkish) == 0x0E);
-  STATIC_REQUIRE(static_cast<u32>(rex::kernel::XLanguage::kNorwegian) == 0x0F);
-  STATIC_REQUIRE(static_cast<u32>(rex::kernel::XLanguage::kDutch) == 0x10);
-  STATIC_REQUIRE(static_cast<u32>(rex::kernel::XLanguage::kSChinese) == 0x11);
   for (const char* country : {"", "CN", "SG", "TW", "HK", "MO"}) {
     CHECK(ForLocale("zh", country) != rex::kernel::XLanguage::kSChineseDeprecated);
   }

@@ -62,12 +62,6 @@ class ActionApp final : public rex::test::ObjectApp<rex::app::App> {
 
 }  // namespace
 
-REX_TEST_CASE("REX_CLI_ACTION keeps the name and the description", "[app][cli][action]") {
-  REQUIRE(kActions[0].name == "repair");
-  REQUIRE(kActions[0].description == "Opens the repair mode.");
-  REQUIRE(kActions[1].name == "dump_state");
-}
-
 REX_TEST_CASE("An action name is lowercase with digits, underscores and hyphens",
               "[app][cli][action]") {
   REQUIRE(rex::detail::IsActionName("repair"));

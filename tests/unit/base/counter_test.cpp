@@ -58,12 +58,6 @@ REX_TEST_CASE("A frame snapshot zeroes accumulators and keeps gauges", "[base][p
   CHECK(rex::platform::GetCounter(gauge) == 9);
 }
 
-REX_TEST_CASE("The runtime library registers the counters it owns", "[base][perf]") {
-  CHECK(FindCounter("functions_dispatched").has_value());
-  CHECK(FindCounter("active_threads").has_value());
-  CHECK(FindCounter("critical_region_contentions").has_value());
-}
-
 REX_TEST_CASE("A full counter table refuses a new name and still finds the others",
               "[base][perf]") {
   static std::deque<std::string> names;

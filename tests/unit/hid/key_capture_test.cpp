@@ -89,6 +89,8 @@ REX_TEST_CASE("KeyCapture bindable keys ascend and each one has a name", "[hid][
     REQUIRE(parsed);
     CHECK(*parsed == source);
   }
+  CHECK(std::ranges::find(keys, VirtualKey::kXButton1) != keys.end());
+  CHECK(std::ranges::find(keys, VirtualKey::kXButton2) != keys.end());
 }
 
 REX_TEST_CASE("KeyCapture reports a key once it is released", "[hid][key_capture]") {
@@ -210,12 +212,6 @@ REX_TEST_CASE("KeyCapture reads the extra mouse buttons as keys", "[hid][key_cap
     REQUIRE(second);
     CHECK(second->code == static_cast<rex::u16>(VirtualKey::kXButton2));
   });
-}
-
-REX_TEST_CASE("KeyCapture bindable keys include the extra mouse buttons", "[hid][key_capture]") {
-  const auto keys = rex::hid::GetBindableKeys();
-  CHECK(std::ranges::find(keys, VirtualKey::kXButton1) != keys.end());
-  CHECK(std::ranges::find(keys, VirtualKey::kXButton2) != keys.end());
 }
 
 REX_TEST_CASE("KeyCapture reports a wheel step and ignores a wheel held at the start",

@@ -114,7 +114,12 @@ std::string CategoryFromStem(std::string_view stem) {
 
 }  // namespace
 
-bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::string_view out_dir) {
+bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::string_view out_dir,
+                    size_t case_files) {
+  if (case_files == 0) {
+    REXGLUE_ERROR("The number of case files must be at least 1");
+    return false;
+  }
   std::array<ui::KeyValueRow, 3> header_rows = {{
       {"Bin dir", std::string(bin_dir)},
       {"ASM dir", std::string(asm_dir)},
@@ -296,8 +301,9 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   }
 
   codegen::TemplateRegistry registry;
-  auto write_rendered = [&](std::string_view template_id, std::string_view filename) {
-    auto rendered = codegen::RenderWithJSON(registry, std::string(template_id), template_data);
+  auto write_rendered = [&](std::string_view template_id, std::string_view filename,
+                            const nlohmann::json& data) {
+    auto rendered = codegen::RenderWithJSON(registry, std::string(template_id), data);
     if (auto written =
             rex::platform::WriteHostFile(std::format("{}/{}", out_dir, filename), rendered);
         !written) {
@@ -305,10 +311,18 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
       succeeded = false;
     }
   };
-  write_rendered("test/ppc_config_h", "ppc_config.h");
-  write_rendered("test/ppc_test_decls_h", "ppc_test_decls.h");
-  write_rendered("test/ppc_test_functions_cpp", "ppc_test_functions.cpp");
-  write_rendered("test/ppc_test_cases_cpp", "ppc_test_cases.cpp");
+  write_rendered("test/ppc_config_h", "ppc_config.h", template_data);
+  write_rendered("test/ppc_test_decls_h", "ppc_test_decls.h", template_data);
+  write_rendered("test/ppc_test_functions_cpp", "ppc_test_functions.cpp", template_data);
+  for (size_t part = 0; part < case_files; ++part) {
+    nlohmann::json part_data = template_data;
+    part_data["tests"] = nlohmann::json::array();
+    for (size_t index = part; index < template_data["tests"].size(); index += case_files)
+      part_data["tests"].push_back(template_data["tests"][index]);
+    part_data["define_memory"] = part == 0;
+    write_rendered("test/ppc_test_cases_cpp", std::format("ppc_test_cases_{}.cpp", part),
+                   part_data);
+  }
 
   REXGLUE_TRACE("Generated {} test cases", total_tests);
   return succeeded;
@@ -320,6 +334,7 @@ struct RecompileTestsOptions {
   std::string bin_dir;
   std::string asm_dir;
   std::string output;
+  size_t case_files = 1;
 };
 
 }  // namespace
@@ -338,9 +353,13 @@ void RegisterRecompileTests(CLI::App& parent, const CLIContext& ctx, DeferredAct
   sub->add_option("--output", args->output, "Output path for recompile-tests")
       ->type_name("PATH")
       ->required();
+  sub->add_option("--case-files", args->case_files,
+                  "Number of ppc_test_cases_N.cpp files to split the cases into")
+      ->type_name("N")
+      ->check(CLI::PositiveNumber);
   sub->callback([args, &pending]() {
     pending = [args]() -> rex::Result<void> {
-      if (!RecompileTests(args->bin_dir, args->asm_dir, args->output)) {
+      if (!RecompileTests(args->bin_dir, args->asm_dir, args->output, args->case_files)) {
         return Err<void>(rex::ErrorCategory::kValidation, "Test recompilation failed");
       }
       return rex::Ok();

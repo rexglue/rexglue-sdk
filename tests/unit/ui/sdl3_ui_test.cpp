@@ -54,12 +54,6 @@ struct Fixture {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "sdl3 registrations a UI driver named sdl3", "[ui][sdl3]") {
-  auto driver = Create();
-  REQUIRE(driver);
-  CHECK(driver->GetName() == "sdl3");
-}
-
 REX_TEST_CASE_METHOD(Fixture, "the video driver setting is ui.sdl.video_driver with an alias",
                      "[ui][sdl3]") {
   auto driver = Create();

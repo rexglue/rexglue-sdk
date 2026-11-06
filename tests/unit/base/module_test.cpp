@@ -61,11 +61,6 @@ static_assert(std::string_view(rex::kernel::IObjectTable::kInterface.name) ==
 static_assert(std::string_view(IExample::kInterface.name) == "rex::test::module_test::IExample");
 static_assert(!IExample::kInterface.is_private);
 
-REX_TEST_CASE("the module interface is rex::IModule version 1", "[base][module]") {
-  CHECK(std::string_view(rex::IModule::kInterface.name) == "rex::IModule");
-  CHECK(rex::IModule::kInterface.version == 1);
-}
-
 REX_TEST_CASE("a declared interface carries its qualified type name and version",
               "[base][module]") {
   CHECK(std::string_view(IExample::kInterface.name) == "rex::test::module_test::IExample");

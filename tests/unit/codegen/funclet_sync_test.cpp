@@ -73,27 +73,13 @@ bool SyncedAround(const std::string& body, std::string_view reg) {
 
 }  // namespace
 
-REX_TEST_CASE("An owner copies r31 through ctx around a funclet call", "[codegen][funclet]") {
-  CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "r31"));
-}
-
-REX_TEST_CASE("An owner copies f31 through ctx around a funclet call", "[codegen][funclet]") {
-  CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "f31"));
-}
-
-REX_TEST_CASE("An owner copies v64 through ctx around a funclet call", "[codegen][funclet]") {
-  CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "v64"));
-}
-
-REX_TEST_CASE("An owner copies v14 through ctx around a funclet call", "[codegen][funclet]") {
-  CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "v14"));
-}
-
-REX_TEST_CASE("An owner copies v31 through ctx around a funclet call", "[codegen][funclet]") {
-  CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\n"), "v31"));
-}
-
-REX_TEST_CASE("An owner copies cr5 through ctx around a funclet call", "[codegen][funclet]") {
+REX_TEST_CASE("An owner copies its locals through ctx around a funclet call",
+              "[codegen][funclet]") {
+  const auto locals = GenerateOwner("non_volatile_as_local = true\n");
+  for (const std::string_view reg : {"r31", "f31", "v64", "v14", "v31"}) {
+    INFO(reg);
+    CHECK(SyncedAround(locals, reg));
+  }
   CHECK(SyncedAround(GenerateOwner("non_volatile_as_local = true\ncr_as_local = true\n"), "cr5"));
 }
 
