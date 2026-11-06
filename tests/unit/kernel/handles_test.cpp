@@ -214,6 +214,49 @@ REX_TEST_CASE("handles: ObDereferenceObject leaves a guest initialised event alo
   });
 }
 
+REX_TEST_CASE("handles: ObReferenceObject keeps the object after the last NtClose",
+              "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    const u32 object = c.GetRuntime().GetObjectTable().Get(handle).GetGuestAddress();
+    REQUIRE(object != 0);
+    c.Kernel("ObReferenceObject", {object});
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+    CHECK(ObjectAlive(c, object));
+    CHECK(c.Kernel("ObDereferenceObject", {object}) == 0);
+    CHECK_FALSE(ObjectAlive(c, object));
+  });
+}
+
+REX_TEST_CASE("handles: ObReferenceObject and ObDereferenceObject net to zero on a guest event",
+              "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 event = c.Alloc(0x10);
+    c.Kernel("KeInitializeEvent", {event, 0, 1});
+    c.Kernel("ObReferenceObject", {event});
+    CHECK(c.Kernel("ObDereferenceObject", {event}) == 0);
+    const auto held = c.GetRuntime().GetObjectTable().GetByAddress(event);
+    REQUIRE(held);
+    CHECK(held.GetKernelObject().pointer_refs == 0);
+    CHECK(c.Kernel("KeWaitForSingleObject", {event, 0, 0, 0, Poll(c)}) == 0);
+  });
+}
+
+REX_TEST_CASE("handles: ObReferenceObject ignores an address with no object", "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    c.Kernel("ObReferenceObject", {c.Alloc(0x10)});
+    c.Kernel("ObReferenceObject", {0});
+  });
+}
+
 REX_TEST_CASE("handles: ObDereferenceObject and ObOpenObjectByPointer reject a null object",
               "[kernel][handles]") {
   KernelFixture fixture;

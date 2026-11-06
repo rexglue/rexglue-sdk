@@ -39,6 +39,7 @@ using namespace rex::kernel;
 
 namespace {
 log::OncePerKey<16> bodyless_once;
+log::OncePerKey<1> unregistered_once;
 }  // namespace
 
 /**
@@ -160,6 +161,26 @@ u32 ObReferenceObjectByName_entry(MappedString name, [[maybe_unused]] u32 attrib
   return status;
 }
 
+/**
+ * Adds a pointer reference to the object at a guest address.
+ *
+ * @param object_ptr The guest address of the object body. An address with no registered object
+ *        changes nothing.
+ */
+void ObReferenceObject_entry(u32 object_ptr) {
+  auto& table = kernel::GetCurrent().GetObjectTable();
+  auto object = table.GetByAddress(object_ptr);
+  if (!object) {
+    REXKRNL_WARN_ONCE(unregistered_once, 0, "ObReferenceObject: {:#x} is not a registered object",
+                      object_ptr);
+    return;
+  }
+  if (auto referenced = table.Reference(object); !referenced) {
+    REXKRNL_WARN("ObReferenceObject: {:#x} not referenced, {}", object_ptr,
+                 referenced.error().message);
+  }
+}
+
 u32 ObDereferenceObject_entry(u32 native_ptr) {
   REXKRNL_TRACE(
       "ObDereferenceObject "
@@ -273,6 +294,7 @@ REX_EXPORT(__imp__ObOpenObjectByPointer, rex::kernel::xboxkrnl::ObOpenObjectByPo
 REX_EXPORT(__imp__ObLookupThreadByThreadId, rex::kernel::xboxkrnl::ObLookupThreadByThreadId_entry)
 REX_EXPORT(__imp__ObReferenceObjectByHandle, rex::kernel::xboxkrnl::ObReferenceObjectByHandle_entry)
 REX_EXPORT(__imp__ObReferenceObjectByName, rex::kernel::xboxkrnl::ObReferenceObjectByName_entry)
+REX_EXPORT(__imp__ObReferenceObject, rex::kernel::xboxkrnl::ObReferenceObject_entry)
 REX_EXPORT(__imp__ObDereferenceObject, rex::kernel::xboxkrnl::ObDereferenceObject_entry)
 REX_EXPORT(__imp__ObCreateSymbolicLink, rex::kernel::xboxkrnl::ObCreateSymbolicLink_entry)
 REX_EXPORT(__imp__ObDeleteSymbolicLink, rex::kernel::xboxkrnl::ObDeleteSymbolicLink_entry)
@@ -286,7 +308,6 @@ REX_EXPORT_STUB(__imp__ObInsertObject);
 REX_EXPORT_STUB(__imp__ObIsTitleObject);
 REX_EXPORT_STUB(__imp__ObLookupAnyThreadByThreadId);
 REX_EXPORT_STUB(__imp__ObMakeTemporaryObject);
-REX_EXPORT_STUB(__imp__ObReferenceObject);
 REX_EXPORT_STUB(__imp__ObTranslateSymbolicLink);
 REX_EXPORT_STUB(__imp__NtCreateDirectoryObject);
 REX_EXPORT_STUB(__imp__NtCreateSymbolicLinkObject);
