@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <memory>
@@ -125,6 +126,91 @@ REX_TEST_CASE("handles: a pointer reference keeps the object after the last NtCl
     CHECK(c.Kernel("ObDereferenceObject", {object}) == 0);
     CHECK_FALSE(ObjectAlive(c, object));
     CHECK(c.Kernel("NtSetEvent", {handle, 0}) == kInvalidHandle);
+  });
+}
+
+REX_TEST_CASE("handles: an object held only by a pointer reference needs no handle",
+              "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 object_ptr = c.Alloc(4);
+    const u32 opened_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, object_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 object = c.Load32(object_ptr);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+    {
+      const auto held = c.GetRuntime().GetObjectTable().GetByAddress(object);
+      REQUIRE(held);
+      CHECK(held.GetKernelObject().handles.empty());
+    }
+    CHECK(c.Kernel("KeWaitForSingleObject", {object, 0, 0, 0, Poll(c)}) == 0);
+    CHECKED_ELSE(c.Kernel("ObOpenObjectByPointer", {object, opened_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 opened = c.Load32(opened_ptr);
+    CHECK(c.Kernel("NtSetEvent", {opened, 0}) == 0);
+    CHECK(c.Kernel("NtClose", {opened}) == 0);
+    {
+      const auto held = c.GetRuntime().GetObjectTable().GetByAddress(object);
+      REQUIRE(held);
+      CHECK(held.GetKernelObject().handles.empty());
+    }
+    CHECK(c.Kernel("ObDereferenceObject", {object}) == 0);
+    CHECK_FALSE(ObjectAlive(c, object));
+  });
+}
+
+REX_TEST_CASE("handles: a thread held only by a pointer reference is found without a handle",
+              "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto ran = std::make_shared<std::atomic<bool>>(false);
+    const u32 handle = c.Spawn([ran](Caller&) { ran->store(true); }, 1);
+    const u32 object_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, object_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 object = c.Load32(object_ptr);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+    {
+      const auto held = c.GetRuntime().GetObjectTable().GetByAddress(object);
+      REQUIRE(held);
+      CHECK(held.GetKernelObject().handles.empty());
+    }
+    CHECK(c.Kernel("KeResumeThread", {object}) == 0);
+    CHECK(c.Kernel("KeWaitForSingleObject", {object, 0, 0, 0, c.AllocQuad(-50000000)}) == 0);
+    CHECK(ran->load());
+    CHECK(c.Kernel("ObDereferenceObject", {object}) == 0);
+  });
+}
+
+REX_TEST_CASE("handles: ObDereferenceObject leaves a guest initialised event alone",
+              "[kernel][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 event = c.Alloc(0x10);
+    c.Kernel("KeInitializeEvent", {event, 0, 1});
+    CHECK(c.Kernel("ObDereferenceObject", {event}) == 0);
+    CHECK(ObjectAlive(c, event));
+    CHECK(c.Kernel("KeWaitForSingleObject", {event, 0, 0, 0, Poll(c)}) == 0);
+    const auto old = c.GetRuntime().GetObjectTable().GetByAddress(event);
+    REQUIRE(old);
+    c.Kernel("KeInitializeEvent", {event, 1, 0});
+    const auto current = c.GetRuntime().GetObjectTable().GetByAddress(event);
+    REQUIRE(current);
+    CHECK(&current.GetKernelObject() != &old.GetKernelObject());
+    CHECK(c.Kernel("KeWaitForSingleObject", {event, 0, 0, 0, Poll(c)}) == kTimeout);
   });
 }
 

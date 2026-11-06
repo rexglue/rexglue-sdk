@@ -79,8 +79,7 @@ class ObjectTable final : public IObjectTable {
   std::vector<ObjectPin> GetAll() override;
   [[nodiscard]] Result<void> AddName(std::string_view name, X_HANDLE handle) override;
   [[nodiscard]] Result<X_HANDLE> OpenByName(std::string_view name) override;
-  std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) override;
-  std::optional<X_HANDLE> FindHandle(u32 address) override;
+  ObjectPin ResolveObject(u32 address, i32 as_type) override;
   void ForgetAddress(u32 address) override;
 
  private:
@@ -93,6 +92,7 @@ class ObjectTable final : public IObjectTable {
   Slot* FindSlot(X_HANDLE handle);
   u32 AllocSlot();
   X_HANDLE AddSlot(KernelObject* object);
+  KernelObject* Register(std::unique_ptr<KernelObject> object, const AddOptions& options);
   KernelObject* Detach(KernelObject* object, X_HANDLE handle);
   KernelObject* Settle(KernelObject* object);
   static void Retire(KernelObject* object);

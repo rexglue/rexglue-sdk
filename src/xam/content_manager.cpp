@@ -485,7 +485,9 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
     }
     const std::string_view rest = std::string_view(file_path).substr(root.size());
     if (rest.empty() || is_separator(rest.front()) || is_separator(root.back())) {
-      kernel::CloseOwned(title_.objects, file.GetHandle());
+      if (file.GetHandle()) {
+        kernel::CloseOwned(title_.objects, file.GetHandle());
+      }
     }
   }
 }

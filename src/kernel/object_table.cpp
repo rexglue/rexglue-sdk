@@ -17,6 +17,7 @@
 #include <string>
 
 #include <rex/assert.h>
+#include <rex/kernel/types/io.h>
 #include <rex/kernel/types/thread.h>
 #include <rex/logging/log_category.h>
 #include <rex/kernel/types/status.h>
@@ -137,22 +138,28 @@ X_HANDLE ObjectTable::AddSlot(KernelObject* object) {
   return handle;
 }
 
-Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<KernelObject> object, const AddOptions& options) {
+KernelObject* ObjectTable::Register(std::unique_ptr<KernelObject> object,
+                                    const AddOptions& options) {
   object->destroy = [](KernelObject* retired) noexcept { delete retired; };
   object->memory = memory_;
   object->guest_ptr = options.block.address;
   object->owns_guest_block = options.block.owned;
   object->workspace = options.block.workspace;
-  std::unique_lock lock(mutex_);
   KernelObject* raw = object.get();
-  const X_HANDLE handle = AddSlot(raw);
-  if (!options.name.empty() && AddName(options.name, handle)) {
-    raw->name = std::string(options.name);
-  }
   if (options.block.address) {
     block_objects_.insert_or_assign(options.block.address, raw);
   }
   objects_.emplace(raw, std::move(object));
+  return raw;
+}
+
+Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<KernelObject> object, const AddOptions& options) {
+  std::unique_lock lock(mutex_);
+  KernelObject* raw = Register(std::move(object), options);
+  const X_HANDLE handle = AddSlot(raw);
+  if (!options.name.empty() && AddName(options.name, handle)) {
+    raw->name = std::string(options.name);
+  }
   return handle;
 }
 
@@ -176,9 +183,15 @@ Result<X_HANDLE> ObjectTable::AddXAMObject(std::unique_ptr<IXAMObject> body,
 }
 
 Result<X_HANDLE> ObjectTable::AddFile(std::unique_ptr<filesystem::IFile> file, bool synchronous) {
+  ObjectBlock block =
+      AllocateObjectBlock(kFileObjectSize, ObjectType::kFile, ObjectBlockHeap::kSystem);
+  if (!block.address) {
+    return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
+  }
+  *memory_->TranslateVirtual<be_u16*>(block.address) = kFileObjectTypeId;
   std::unique_ptr<KernelObject> object = MakeObject<FileObject>(std::move(file), synchronous);
   std::get<FileObject>(object->data).owner = owner_;
-  return Add(std::move(object), AddOptions{});
+  return Add(std::move(object), AddOptions{{}, block});
 }
 
 Result<X_HANDLE> ObjectTable::AddWithBlock(std::unique_ptr<KernelObject> object, u32 attributes_ptr,
@@ -224,12 +237,7 @@ Result<X_HANDLE> ObjectTable::Open(const ObjectPin& object) {
 }
 
 KernelObject* ObjectTable::Settle(KernelObject* object) {
-  if (object->pointer_refs == 0 && object->anchor) {
-    slots_[GetHandleSlot(object->anchor)] = Slot{};
-    std::erase(object->handles, object->anchor);
-    object->anchor = 0;
-  }
-  if (!object->handles.empty() || object->pointer_refs > 0) {
+  if (!object->handles.empty() || object->pointer_refs > 0 || object->header_hold) {
     return nullptr;
   }
   if (auto block = block_objects_.find(object->guest_ptr);
@@ -243,23 +251,14 @@ KernelObject* ObjectTable::Settle(KernelObject* object) {
 }
 
 KernelObject* ObjectTable::Detach(KernelObject* object, X_HANDLE handle) {
-  const bool was_anchor = handle == object->anchor;
-  const size_t others = object->handles.size() - (object->anchor ? 1 : 0) - (was_anchor ? 0 : 1);
-  X_HANDLE anchor = was_anchor ? 0 : object->anchor;
-  if (others == 0 && object->pointer_refs > 0 && anchor == 0) {
-    anchor = AddSlot(object);
-  }
   slots_[GetHandleSlot(handle)] = Slot{};
   std::erase(object->handles, handle);
-  object->anchor = anchor;
   if (!object->name.empty()) {
     std::lock_guard name_lock(name_mutex_);
     auto it = names_.find(string::StringKeyIgnoreCase(object->name));
     if (it != names_.end() && it->second == handle) {
-      auto named = std::ranges::find_if(
-          object->handles, [object](X_HANDLE entry) { return entry != object->anchor; });
-      if (named != object->handles.end()) {
-        it->second = *named;
+      if (!object->handles.empty()) {
+        it->second = object->handles.front();
       } else {
         names_.erase(it);
       }
@@ -325,7 +324,7 @@ ObjectPin ObjectTable::GetByAddress(u32 address) {
     return {};
   }
   block->second->pins.Pin();
-  return ObjectPin(block->second, block->second->handles.front());
+  return ObjectPin(block->second, 0);
 }
 
 ObjectPin ObjectTable::Get(X_HANDLE handle) {
@@ -379,35 +378,33 @@ Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
   return AddSlot(slot->object);
 }
 
-std::optional<X_HANDLE> ObjectTable::FindHandle(u32 address) {
-  std::shared_lock lock(mutex_);
-  if (auto block = block_objects_.find(address); block != block_objects_.end()) {
-    return block->second->handles.front();
-  }
-  return std::nullopt;
-}
-
 void ObjectTable::ForgetAddress(u32 address) {
-  X_HANDLE handle = 0;
-  {
-    std::shared_lock table_lock(mutex_);
-    if (auto block = block_objects_.find(address); block != block_objects_.end()) {
-      handle = block->second->handles.front();
-    }
-  }
-  if (!handle) {
+  ObjectPin object = GetByAddress(address);
+  if (!object) {
     return;
   }
-  if (auto timer = Get<TimerObject>(handle)) {
-    timer->Cancel();
+  if (auto* timer = std::get_if<TimerObject>(&object.GetData())) {
+    (void)timer->Cancel();
   }
-  (void)Close(handle);
+  KernelObject* retired = nullptr;
+  {
+    std::unique_lock lock(mutex_);
+    KernelObject* raw = &object.GetKernelObject();
+    if (!objects_.contains(raw) || !raw->header_hold) {
+      return;
+    }
+    raw->header_hold = false;
+    retired = Settle(raw);
+  }
+  if (retired) {
+    Retire(retired);
+  }
 }
 
-std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
+ObjectPin ObjectTable::ResolveObject(u32 address, i32 as_type) {
   REX_ASSERT(memory_ != nullptr);
   if (address == 0) {
-    return std::nullopt;
+    return {};
   }
   std::lock_guard lock(identity_mutex_);
   void* native_ptr = memory_->TranslateVirtual(address);
@@ -418,7 +415,8 @@ std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
     if (auto block = block_objects_.find(address); block != block_objects_.end()) {
       if (block->second->owns_guest_block ||
           TypeMatchesHeader(block->second->GetType(), header->type)) {
-        return block->second->handles.front();
+        block->second->pins.Pin();
+        return ObjectPin(block->second, 0);
       }
       stale = true;
     }
@@ -430,38 +428,40 @@ std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
     as_type = header->type;
   }
   if (header->wait_list_flink == kStashSignature) {
-    return static_cast<X_HANDLE>(header->wait_list_blink);
+    return Get(static_cast<X_HANDLE>(header->wait_list_blink));
   }
+  std::unique_ptr<KernelObject> object;
   switch (as_type) {
     case 0:
     case 1:
-      return Emplace<EventObject>(AddOptions{{}, ObjectBlock{address}}, *header).value_or(0);
+      object = MakeObject<EventObject>(*header);
+      break;
     case kDispatcherMutant: {
       const auto* mutant = reinterpret_cast<const X_KMUTANT*>(native_ptr);
       const bool owned_here = static_cast<i32>(static_cast<u32>(header->signal_state)) <= 0 &&
                               KernelThread::IsInThread() &&
                               KernelThread::GetCallingThread()->GetGuestObject() ==
                                   static_cast<u32>(mutant->owner_thread);
-      return Emplace<MutantObject>(AddOptions{{}, ObjectBlock{address}}, owned_here, address)
-          .value_or(0);
+      object = MakeObject<MutantObject>(owned_here, address);
+      break;
     }
-    case 5: {
-      const X_HANDLE added = Emplace<SemaphoreObject>(AddOptions{{}, ObjectBlock{address}},
-                                                      *reinterpret_cast<X_KSEMAPHORE*>(native_ptr))
-                                 .value_or(0);
-      [[maybe_unused]] auto semaphore = Get<SemaphoreObject>(added);
-      REX_ASSERT(semaphore && semaphore->semaphore);
-      return added;
-    }
+    case 5:
+      object = MakeObject<SemaphoreObject>(*reinterpret_cast<X_KSEMAPHORE*>(native_ptr));
+      REX_ASSERT(std::get<SemaphoreObject>(object->data).semaphore);
+      break;
     case kDispatcherManualResetTimer:
     case kDispatcherAutoResetTimer:
-      return Emplace<TimerObject>(AddOptions{{}, ObjectBlock{address}},
-                                  static_cast<u32>(as_type - 8))
-          .value_or(0);
+      object = MakeObject<TimerObject>(static_cast<u32>(as_type - 8));
+      break;
     default:
       REXSYS_WARN("Guest object at {:08X} has the unsupported type {}", address, as_type);
-      return std::nullopt;
+      return {};
   }
+  std::unique_lock table_lock(mutex_);
+  KernelObject* raw = Register(std::move(object), AddOptions{{}, ObjectBlock{address}});
+  raw->header_hold = true;
+  raw->pins.Pin();
+  return ObjectPin(raw, 0);
 }
 
 }  // namespace rex::kernel

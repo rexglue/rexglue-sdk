@@ -157,6 +157,18 @@ REX_STATIC_ASSERT_SIZE(X_OBJECT_ATTRIBUTES, 0xC);
 /** Object attribute that opens an existing object of the same type when the name is taken. */
 inline constexpr u32 kObjOpenIf = 0x80;
 
+/** Size of the guest body of a file object. */
+inline constexpr u32 kFileObjectSize = 0x68;
+
+/** Value of the Type field at the start of a file object body. */
+inline constexpr u16 kFileObjectTypeId = 5;
+
+/** Size of the guest body of an IO completion object. */
+inline constexpr u32 kIOCompletionObjectSize = 0x28;
+
+/** Size of a symbolic link body before the target name, which follows it. */
+inline constexpr u32 kSymbolicLinkObjectSize = 0xC;
+
 /** File information class selecting the layout of a query or set request. */
 enum X_FILE_INFORMATION_CLASS : u8 {
   XFileDirectoryInformation = 1,

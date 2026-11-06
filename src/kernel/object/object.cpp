@@ -18,6 +18,7 @@
 #include <variant>
 #include <vector>
 
+#include <rex/assert.h>
 #include <rex/chrono.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/object_block.h>
@@ -36,7 +37,6 @@ namespace rex::kernel {
 namespace {
 
 struct WaitTarget {
-  ObjectPin slot;
   ThreadPin thread;
   rex::platform::WaitHandle* handle = nullptr;
   MutantObject* mutant = nullptr;
@@ -65,18 +65,15 @@ rex::platform::WaitHandle* HandleOf(ObjectData& data) {
       data);
 }
 
-WaitTarget Resolve(TitleRuntime& runtime, X_HANDLE handle) {
+WaitTarget TargetOf(TitleRuntime& runtime, const ObjectPin& object) {
+  REX_ASSERT(object);
   WaitTarget target;
-  target.slot = runtime.GetObjectTable().Get(handle);
-  if (!target.slot) {
-    return target;
-  }
-  if (auto* ref = std::get_if<ThreadRef>(&target.slot.GetData())) {
+  if (auto* ref = std::get_if<ThreadRef>(&object.GetData())) {
     target.thread = runtime.GetThreadRegistry().Find(ref->thread_id);
     target.handle = target.thread ? target.thread->GetThread() : nullptr;
   } else {
-    target.handle = HandleOf(target.slot.GetData());
-    target.mutant = std::get_if<MutantObject>(&target.slot.GetData());
+    target.handle = HandleOf(object.GetData());
+    target.mutant = std::get_if<MutantObject>(&object.GetData());
   }
   return target;
 }
@@ -221,12 +218,9 @@ void FreeObjectBlock(kernel::GuestAddressSpace* memory, u32 address, WorkspaceHe
   }
 }
 
-X_STATUS Wait(TitleRuntime& runtime, X_HANDLE handle, [[maybe_unused]] u32 wait_reason,
+X_STATUS Wait(TitleRuntime& runtime, const ObjectPin& object, [[maybe_unused]] u32 wait_reason,
               [[maybe_unused]] u32 processor_mode, u32 alertable, u64* opt_timeout) {
-  WaitTarget target = Resolve(runtime, handle);
-  if (!target.slot) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+  WaitTarget target = TargetOf(runtime, object);
   if (!target.handle) {
     return X_STATUS_SUCCESS;
   }
@@ -248,14 +242,11 @@ X_STATUS Wait(TitleRuntime& runtime, X_HANDLE handle, [[maybe_unused]] u32 wait_
   return status;
 }
 
-X_STATUS SignalAndWait(TitleRuntime& runtime, X_HANDLE signal_handle, X_HANDLE wait_handle,
-                       [[maybe_unused]] u32 wait_reason, [[maybe_unused]] u32 processor_mode,
-                       u32 alertable, u64* opt_timeout) {
-  WaitTarget signal = Resolve(runtime, signal_handle);
-  WaitTarget wait = Resolve(runtime, wait_handle);
-  if (!signal.slot || !wait.slot) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+X_STATUS SignalAndWait(TitleRuntime& runtime, const ObjectPin& signal_object,
+                       const ObjectPin& wait_object, [[maybe_unused]] u32 wait_reason,
+                       [[maybe_unused]] u32 processor_mode, u32 alertable, u64* opt_timeout) {
+  WaitTarget signal = TargetOf(runtime, signal_object);
+  WaitTarget wait = TargetOf(runtime, wait_object);
   if (!wait.handle) {
     return X_STATUS_SUCCESS;
   }
@@ -281,22 +272,19 @@ X_STATUS SignalAndWait(TitleRuntime& runtime, X_HANDLE signal_handle, X_HANDLE w
   return status;
 }
 
-X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const X_HANDLE> handles, u32 wait_type,
+X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects, u32 wait_type,
                       [[maybe_unused]] u32 wait_reason, [[maybe_unused]] u32 processor_mode,
                       u32 alertable, u64* opt_timeout) {
   std::vector<WaitTarget> targets;
-  targets.reserve(handles.size());
+  targets.reserve(objects.size());
   std::vector<rex::platform::WaitHandle*> wait_handles;
-  wait_handles.reserve(handles.size());
-  size_t idle_index = handles.size();
-  for (const X_HANDLE handle : handles) {
-    WaitTarget target = Resolve(runtime, handle);
-    if (!target.slot) {
-      return X_STATUS_INVALID_PARAMETER;
-    }
+  wait_handles.reserve(objects.size());
+  size_t idle_index = objects.size();
+  for (const ObjectPin& object : objects) {
+    WaitTarget target = TargetOf(runtime, object);
     if (!target.handle) {
       idle_index = std::min(idle_index, targets.size());
-    } else if (wait_type ? idle_index == handles.size() : true) {
+    } else if (wait_type ? idle_index == objects.size() : true) {
       wait_handles.push_back(target.handle);
     }
     targets.push_back(std::move(target));
@@ -310,7 +298,7 @@ X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const X_HANDLE> handles, 
   if (wait_type) {
     std::pair<rex::platform::WaitResult, size_t> result{rex::platform::WaitResult::kSuccess,
                                                         idle_index};
-    if (idle_index == handles.size()) {
+    if (idle_index == objects.size()) {
       result = WaitGuest(
           alertable, timeout,
           [&](std::chrono::milliseconds left) {

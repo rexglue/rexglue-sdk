@@ -32,7 +32,7 @@ class ObjectPin : public rex::MoveOnly {
   /**
    * Takes a pin already taken on a `KernelObject`.
    *
-   * @param handle The handle the pin was resolved from.
+   * @param handle The handle the pin was resolved from, 0 when it was found by address.
    */
   ObjectPin(KernelObject* object, X_HANDLE handle) noexcept : object_(object), handle_(handle) {}
 
@@ -58,7 +58,11 @@ class ObjectPin : public rex::MoveOnly {
 
   [[nodiscard]] KernelObject& GetKernelObject() const { return *object_; }
 
-  /** Returns the handle value the pin was looked up by, with pseudo handles translated. */
+  /**
+   * Returns the handle value the pin was looked up by, with pseudo handles translated. A pin found
+   * by address carries 0, and a pin from an enumeration carries the first handle of the object, 0
+   * when it has none.
+   */
   [[nodiscard]] X_HANDLE GetHandle() const noexcept { return handle_; }
 
   /** Returns the guest address of the object body, 0 when the object has no guest block. */

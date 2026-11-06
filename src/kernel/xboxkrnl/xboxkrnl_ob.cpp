@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <utility>
 #include <variant>
 
 #include <rex/assert.h>
@@ -35,6 +36,10 @@
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::kernel;
+
+namespace {
+log::OncePerKey<16> bodyless_once;
+}  // namespace
 
 /**
  * Opens a named object and returns a handle to it.
@@ -67,8 +72,7 @@ u32 ObOpenObjectByName_entry(MappedVoid obj_attributes_ptr,
 
 u32 ObOpenObjectByPointer_entry(MappedVoid object_ptr, MappedU32 out_handle_ptr) {
   auto& table = kernel::GetCurrent().GetObjectTable();
-  const X_HANDLE handle = table.ResolveHandle(object_ptr.GetGuestAddress(), -1).value_or(0);
-  auto object = table.Get(handle);
+  auto object = table.ResolveObject(object_ptr.GetGuestAddress(), -1);
   if (!object) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -124,8 +128,14 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, MappedU32 o
     }
   }
 
-  if (auto referenced = kernel::GetCurrent().GetObjectTable().Reference(object); !referenced) {
-    return ToXStatus(referenced);
+  if (native_ptr) {
+    if (auto referenced = kernel::GetCurrent().GetObjectTable().Reference(object); !referenced) {
+      return ToXStatus(referenced);
+    }
+  } else {
+    REXKRNL_WARN_ONCE(bodyless_once, std::to_underlying(object.GetType()),
+                      "ObReferenceObjectByHandle on object type {} with no guest body returns 0",
+                      std::to_underlying(object.GetType()));
   }
   if (out_object_ptr.GetGuestAddress()) {
     *out_object_ptr = native_ptr;

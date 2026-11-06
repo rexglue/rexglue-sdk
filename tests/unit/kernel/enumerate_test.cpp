@@ -118,7 +118,11 @@ REX_TEST_CASE("enumerate: ObDereferenceObject on an enumerator leaves its body a
                 before.size());
     REQUIRE(table.Reference(enumerator.GetSlot()));
 
-    CHECK(table.ResolveHandle(body, -1) == handle);
+    {
+      const rex::kernel::ObjectPin resolved = table.ResolveObject(body, -1);
+      REQUIRE(resolved);
+      CHECK(&resolved.GetKernelObject() == &enumerator.GetSlot().GetKernelObject());
+    }
     CHECK(c.Kernel("ObDereferenceObject", {body}) == 0);
 
     std::vector<u8> after(before.size());

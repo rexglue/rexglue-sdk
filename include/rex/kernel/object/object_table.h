@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -141,7 +142,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
    * Pins the object whose guest block starts at an address, whether or not it has a handle.
    *
    * @param address The guest address of the object body.
-   * @return The pin, empty when no object is registered at the address.
+   * @return The pin, empty when no object is registered at the address. The pin carries no handle.
    */
   [[nodiscard]] virtual ObjectPin GetByAddress(u32 address) = 0;
 
@@ -155,6 +156,25 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
 
   /** Pins every `KernelObject`, once per `KernelObject`. */
   [[nodiscard]] virtual std::vector<ObjectPin> GetAll() = 0;
+
+  /**
+   * Looks several handles up and pins their `KernelObject`s.
+   *
+   * @param handles The handles, pseudo handles are translated.
+   * @return The pins in order, empty when any handle is invalid.
+   */
+  [[nodiscard]] std::optional<std::vector<ObjectPin>> GetEach(std::span<const X_HANDLE> handles) {
+    std::vector<ObjectPin> pins;
+    pins.reserve(handles.size());
+    for (const X_HANDLE handle : handles) {
+      ObjectPin pin = Get(handle);
+      if (!pin) {
+        return std::nullopt;
+      }
+      pins.push_back(std::move(pin));
+    }
+    return pins;
+  }
 
   /**
    * Registers a name for a handle.
@@ -172,26 +192,20 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
   [[nodiscard]] virtual Result<X_HANDLE> OpenByName(std::string_view name) = 0;
 
   /**
-   * Finds the handle of the object behind a guest dispatch header, and creates the object on first
-   * use for an event, mutant or semaphore header.
+   * Pins the object behind a guest dispatch header, and creates it on first use for an event,
+   * mutant, semaphore or timer header. A created object is held by the table, with no handle and no
+   * pointer reference, until ForgetAddress.
    *
    * @param address The guest address of the dispatch header.
    * @param as_type The dispatcher object type to create, -1 for the type in the header.
-   * @return The handle, empty for a null address or a header type the table cannot create.
+   * @return The pin, empty for a null address or a header type the table cannot create. The pin
+   *         carries no handle.
    */
-  [[nodiscard]] virtual std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) = 0;
+  [[nodiscard]] virtual ObjectPin ResolveObject(u32 address, i32 as_type) = 0;
 
   /**
-   * Finds a handle of the object registered at a guest address and creates nothing.
-   *
-   * @param address The guest address of the dispatch header.
-   * @return A handle of the object, empty when nothing is registered at the address.
-   */
-  [[nodiscard]] virtual std::optional<X_HANDLE> FindHandle(u32 address) = 0;
-
-  /**
-   * Cancels and closes the object registered by guest address, such as a timer. Does nothing when
-   * no object is registered there.
+   * Cancels the timer and releases the hold that ResolveObject took on the object
+   * registered at a guest address. Does nothing when no such object is registered there.
    *
    * @param address The guest address of the dispatch header.
    */
@@ -256,8 +270,7 @@ REX_DECLARE_INTERFACE(IObjectTable, 1)
    */
   template <typename T>
   [[nodiscard]] Pinned<T> Resolve(u32 address, i32 as_type = -1) {
-    const std::optional<X_HANDLE> handle = ResolveHandle(address, as_type);
-    return handle ? Get<T>(*handle) : Pinned<T>();
+    return Pinned<T>(ResolveObject(address, as_type));
   }
 };
 

@@ -108,7 +108,7 @@ REX_TEST_CASE("GetProcessType reads what SetProcessType wrote", "[kernel][interf
   CHECK(StateOf(fixture.GetRuntime()).GetProcessType() == rex::kernel::kXProcTypeUser);
 }
 
-REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
+REX_TEST_CASE("ResolveObject takes the guest address of a dispatch header",
               "[kernel][interfaces]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::test::Caller& c) {
@@ -118,17 +118,20 @@ REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
                       ->TranslateVirtual<rex::kernel::X_KEVENT*>(address);
     std::memset(event, 0, sizeof(rex::kernel::X_KEVENT));
     auto& table = c.GetRuntime().GetObjectTable();
-    const std::optional<rex::kernel::X_HANDLE> handle = table.ResolveHandle(address, -1);
-    CHECKED_ELSE(handle.has_value()) {
+    const rex::kernel::ObjectPin first = table.ResolveObject(address, -1);
+    CHECKED_ELSE(static_cast<bool>(first)) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(table.ResolveHandle(address, -1) == handle);
+    const rex::kernel::ObjectPin second = table.ResolveObject(address, -1);
+    REQUIRE(second);
+    CHECK(&second.GetKernelObject() == &first.GetKernelObject());
+    CHECK(first.GetKernelObject().handles.empty());
     CHECK(table.Resolve<rex::kernel::EventObject>(address));
   });
 }
 
-REX_TEST_CASE("ResolveHandle finds the newest object at a block after the older one is released",
+REX_TEST_CASE("ResolveObject finds the newest object at a block after the older one is released",
               "[kernel][interfaces]") {
   rex::test::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::test::Caller& c) {
@@ -140,8 +143,16 @@ REX_TEST_CASE("ResolveHandle finds the newest object at a block after the older 
         rex::kernel::AddOptions{{}, {.address = address}}, true, false);
     REQUIRE(older);
     REQUIRE(newer);
-    CHECK(table.ResolveHandle(address, -1) == *newer);
+    const rex::kernel::ObjectPin expected = table.Get(*newer);
+    REQUIRE(expected);
+    {
+      const rex::kernel::ObjectPin found = table.ResolveObject(address, -1);
+      REQUIRE(found);
+      CHECK(&found.GetKernelObject() == &expected.GetKernelObject());
+    }
     REQUIRE(table.Close(*older));
-    CHECK(table.ResolveHandle(address, -1) == *newer);
+    const rex::kernel::ObjectPin found = table.ResolveObject(address, -1);
+    REQUIRE(found);
+    CHECK(&found.GetKernelObject() == &expected.GetKernelObject());
   });
 }

@@ -52,9 +52,9 @@ using namespace rex::kernel;
 namespace {
 
 ThreadPin FindThread(u32 thread_address) {
-  const X_HANDLE handle =
-      kernel::GetCurrent().GetObjectTable().ResolveHandle(thread_address, -1).value_or(0);
-  return handle ? kernel::GetCurrent().GetThreadRegistry().FindByHandle(handle) : ThreadPin{};
+  auto& runtime = kernel::GetCurrent();
+  auto thread = runtime.GetObjectTable().Resolve<ThreadRef>(thread_address);
+  return thread ? runtime.GetThreadRegistry().Find(thread->thread_id) : ThreadPin{};
 }
 
 void DrainDPCsBelowDispatch(TitleRuntime& runtime) {
@@ -448,14 +448,12 @@ u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
 
 void KeInitializeEvent_entry(GuestPtrT<X_KEVENT> event_ptr, u32 event_type, u32 initial_state) {
   auto& table = kernel::GetCurrent().GetObjectTable();
-  if (const auto registered = table.FindHandle(event_ptr.GetGuestAddress())) {
-    if (auto existing = table.Get<EventObject>(*registered);
-        existing && existing->manual_reset == (event_type == 0)) {
-      event_ptr->header.type = static_cast<u8>(event_type);
-      event_ptr->header.signal_state = initial_state;
-      initial_state ? existing->Set() : existing->Reset();
-      return;
-    }
+  if (Pinned<EventObject> existing(table.GetByAddress(event_ptr.GetGuestAddress()));
+      existing && existing->manual_reset == (event_type == 0)) {
+    event_ptr->header.type = static_cast<u8>(event_type);
+    event_ptr->header.signal_state = initial_state;
+    initial_state ? existing->Set() : existing->Reset();
+    return;
   }
   CloseStash(event_ptr->header, event_ptr.GetGuestAddress());
   event_ptr.Zero();
@@ -875,16 +873,15 @@ u32 KeCancelTimer_entry(GuestPtrT<X_KTIMER> timer) {
 
 u32 KeWaitForSingleObject(u32 object_address, u32 wait_reason, u32 processor_mode, u32 alertable,
                           u64* timeout_ptr) {
-  const X_HANDLE handle =
-      kernel::GetCurrent().GetObjectTable().ResolveHandle(object_address, -1).value_or(0);
+  ObjectPin object = kernel::GetCurrent().GetObjectTable().ResolveObject(object_address, -1);
 
-  if (!handle) {
+  if (!object) {
     REXKRNL_WARN("KeWaitForSingleObject({:08X}) found no object", object_address);
     return X_STATUS_ABANDONED_WAIT_0;
   }
 
   X_STATUS result =
-      Wait(kernel::GetCurrent(), handle, wait_reason, processor_mode, alertable, timeout_ptr);
+      Wait(kernel::GetCurrent(), object, wait_reason, processor_mode, alertable, timeout_ptr);
 
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCallingThread()->DeliverAPCs();
@@ -904,8 +901,12 @@ u32 KeWaitForSingleObject_entry(MappedVoid object_ptr, u32 wait_reason, u32 proc
 u32 NtWaitForSingleObjectEx_entry(u32 object_handle, u32 wait_mode, u32 alertable,
                                   MappedU64 timeout_ptr) {
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
-  X_STATUS result = Wait(kernel::GetCurrent(), object_handle, 3, wait_mode, alertable,
-                         timeout_ptr ? &timeout : nullptr);
+  ObjectPin object = kernel::GetCurrent().GetObjectTable().Get(object_handle);
+  if (!object) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  X_STATUS result =
+      Wait(kernel::GetCurrent(), object, 3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCallingThread()->DeliverAPCs();
   }
@@ -918,21 +919,20 @@ u32 KeWaitForMultipleObjects_entry(u32 count, MappedU32 objects_ptr, u32 wait_ty
                                    [[maybe_unused]] MappedVoid wait_block_array_ptr) {
   REX_ASSERT(wait_type <= 1);
 
-  std::vector<X_HANDLE> handles;
+  std::vector<ObjectPin> objects;
+  objects.reserve(count);
   for (u32 n = 0; n < count; n++) {
-    const X_HANDLE handle = kernel::GetCurrent()
-                                .GetObjectTable()
-                                .ResolveHandle(static_cast<u32>(objects_ptr[n]), -1)
-                                .value_or(0);
-    if (!handle) {
+    ObjectPin object =
+        kernel::GetCurrent().GetObjectTable().ResolveObject(static_cast<u32>(objects_ptr[n]), -1);
+    if (!object) {
       return X_STATUS_INVALID_PARAMETER;
     }
 
-    handles.push_back(handle);
+    objects.push_back(std::move(object));
   }
 
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
-  X_STATUS result = WaitMultiple(kernel::GetCurrent(), handles, wait_type, wait_reason,
+  X_STATUS result = WaitMultiple(kernel::GetCurrent(), objects, wait_type, wait_reason,
                                  processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCallingThread()->DeliverAPCs();
@@ -945,9 +945,13 @@ u32 NtWaitForMultipleObjectsEx(u32 count, be_u32* handles, u32 wait_type, u32 wa
   REX_ASSERT(wait_type <= 1);
 
   std::vector<X_HANDLE> object_handles(handles, handles + count);
+  auto objects = kernel::GetCurrent().GetObjectTable().GetEach(object_handles);
+  if (!objects) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
-  auto result = WaitMultiple(kernel::GetCurrent(), object_handles, wait_type, 6, wait_mode,
-                             alertable, timeout_ptr);
+  auto result =
+      WaitMultiple(kernel::GetCurrent(), *objects, wait_type, 6, wait_mode, alertable, timeout_ptr);
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCallingThread()->DeliverAPCs();
   }
@@ -964,7 +968,13 @@ u32 NtWaitForMultipleObjectsEx_entry(u32 count, MappedU32 handles, u32 wait_type
 u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u32 alertable,
                                            [[maybe_unused]] u32 r6, MappedU64 timeout_ptr) {
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
-  X_STATUS result = SignalAndWait(kernel::GetCurrent(), signal_handle, wait_handle, 3, 1, alertable,
+  auto& table = kernel::GetCurrent().GetObjectTable();
+  ObjectPin signal = table.Get(signal_handle);
+  ObjectPin wait = table.Get(wait_handle);
+  if (!signal || !wait) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  X_STATUS result = SignalAndWait(kernel::GetCurrent(), signal, wait, 3, 1, alertable,
                                   timeout_ptr ? &timeout : nullptr);
 
   if (alertable && result == X_STATUS_USER_APC) {

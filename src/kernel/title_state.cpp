@@ -654,7 +654,7 @@ Result<void> TitleState::Launch() {
   running_ = true;
   GetThreadRegistry().FindByHandle(main_thread)->Resume();
   monitor_ = platform::Spawn("Title Monitor", [this, main_thread](const std::stop_token&) {
-    kernel::Wait(owner_, main_thread, 0, 0, 0, nullptr);
+    GetThreadRegistry().GetObjectWaiter().WaitGuestObject(main_thread, 0, 0, 0, nullptr);
     kernel::CloseOwned(GetObjectTable(), main_thread);
     ReportTitleExit(TitleExitReason::kNormalExit);
   });

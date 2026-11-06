@@ -124,8 +124,8 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
     // desired_access must carry the SYNCHRONIZE flag when synchronous.
     bool synchronous = (create_options & CreateOptions::kFileSynchronousIOAlert) ||
                        (create_options & CreateOptions::kFileSynchronousIONonAlert);
-    auto added = kernel::GetCurrent().GetObjectTable().Emplace<FileObject>(
-        AddOptions{}, std::move(opened->file), synchronous);
+    auto added =
+        kernel::GetCurrent().GetObjectTable().AddFile(std::move(opened->file), synchronous);
     if (added) {
       handle = *added;
     }
@@ -330,7 +330,13 @@ u32 NtCreateIoCompletion_entry(MappedU32 handle_out, [[maybe_unused]] u32 desire
                                [[maybe_unused]] MappedVoid object_attrs,
                                [[maybe_unused]] u32 num_concurrent_threads) {
   X_HANDLE handle = 0;
-  auto added = kernel::GetCurrent().GetObjectTable().Emplace<IOCompletionObject>(AddOptions{});
+  auto& table = kernel::GetCurrent().GetObjectTable();
+  ObjectBlock block = table.AllocateObjectBlock(kIOCompletionObjectSize, ObjectType::kIOCompletion,
+                                                ObjectBlockHeap::kSystem);
+  if (!block.address) {
+    return X_STATUS_NO_MEMORY;
+  }
+  auto added = table.Emplace<IOCompletionObject>(AddOptions{{}, block});
   if (added) {
     handle = *added;
   }
@@ -525,8 +531,14 @@ u32 NtOpenSymbolicLinkObject_entry(MappedU32 handle_out,
   }
 
   X_HANDLE handle = kXInvalidHandleValue;
-  auto added = kernel::GetCurrent().GetObjectTable().Emplace<SymbolicLinkObject>(
-      AddOptions{}, target_path, *link_path);
+  auto& table = kernel::GetCurrent().GetObjectTable();
+  ObjectBlock block =
+      table.AllocateObjectBlock(kSymbolicLinkObjectSize + static_cast<u32>(link_path->size()),
+                                ObjectType::kSymbolicLink, ObjectBlockHeap::kSystem);
+  if (!block.address) {
+    return X_STATUS_NO_MEMORY;
+  }
+  auto added = table.Emplace<SymbolicLinkObject>(AddOptions{{}, block}, target_path, *link_path);
   if (added) {
     handle = *added;
   }

@@ -26,15 +26,19 @@ class NotificationBroadcaster final : public INotificationBroadcaster {
   [[nodiscard]] Result<X_HANDLE> AddNotifyListener(u64 mask, u32 max_version) override;
   void BroadcastNotification(XNotificationID id, u32 data) override;
 
-  /** Closes the duplicated listener handles. */
+  /** Forgets every listener. */
   void Shutdown();
 
  private:
-  void RegisterNotifyListener(X_HANDLE listener_handle);
+  void RegisterNotifyListener(u32 address, NotifyListenerObject& listener);
 
   ObjectTable& table_;
   rex::platform::RankedMutex mutex_{rex::platform::LockRank::kLeaf};
-  std::vector<X_HANDLE> listeners_;
+  /**
+   * Guest addresses of the listener bodies. A broadcast drops one entry per address whose object
+   * has left, so a new listener at a reused address keeps its own entry.
+   */
+  std::vector<u32> listeners_;
   bool has_notified_startup_ = false;
 };
 

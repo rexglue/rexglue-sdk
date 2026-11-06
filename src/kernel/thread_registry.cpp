@@ -56,14 +56,22 @@ rex::platform::WaitResult ThreadRegistry::WaitHostObject(rex::platform::WaitHand
 
 X_STATUS ThreadRegistry::WaitGuestObject(X_HANDLE handle, u32 wait_reason, u32 processor_mode,
                                          u32 alertable, u64* opt_timeout) {
-  return Wait(runtime_, handle, wait_reason, processor_mode, alertable, opt_timeout);
+  ObjectPin object = table_.Get(handle);
+  if (!object) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  return Wait(runtime_, object, wait_reason, processor_mode, alertable, opt_timeout);
 }
 
 X_STATUS ThreadRegistry::WaitGuestObjects(std::span<const X_HANDLE> handles, u32 wait_type,
                                           u32 wait_reason, u32 processor_mode, u32 alertable,
                                           u64* opt_timeout) {
   REX_ASSERT(wait_type <= 1);
-  const X_STATUS result = WaitMultiple(runtime_, handles, wait_type, wait_reason, processor_mode,
+  std::optional<std::vector<ObjectPin>> objects = table_.GetEach(handles);
+  if (!objects) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+  const X_STATUS result = WaitMultiple(runtime_, *objects, wait_type, wait_reason, processor_mode,
                                        alertable, opt_timeout);
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCallingThread()->DeliverAPCs();

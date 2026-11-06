@@ -281,17 +281,19 @@ REX_TEST_CASE("mutants: a Ke mutant release hands ownership to 1 waiter", "[kern
   });
 }
 
-REX_TEST_CASE("events: KeInitializeEvent on an initialized event reuses its slot",
+REX_TEST_CASE("events: KeInitializeEvent on an initialized event reuses its object",
               "[kernel][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {event, 0, 1});
     auto& table = c.GetRuntime().GetObjectTable();
-    const auto registered = table.FindHandle(event);
+    const auto registered = table.GetByAddress(event);
     REQUIRE(registered);
     c.Kernel("KeInitializeEvent", {event, 0, 0});
-    CHECK(table.FindHandle(event) == registered);
+    const auto again = table.GetByAddress(event);
+    REQUIRE(again);
+    CHECK(&again.GetKernelObject() == &registered.GetKernelObject());
     CHECK(c.Load32(event + 8) == event + 8);
     CHECK(c.Load32(event + 0xC) == event + 8);
     CHECK(WaitObject(c, event, 0) == kTimeout);

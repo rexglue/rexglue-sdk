@@ -58,9 +58,8 @@ struct KernelObject {
   ObjectData data;
   std::string name;              /**< Empty for an unnamed object. */
   std::vector<X_HANDLE> handles; /**< One entry per open, in the order opened. */
+  bool header_hold = false;      /**< Held by ResolveObject until ForgetAddress, like a handle. */
   u32 pointer_refs = 0;          /**< Pointer references, which keep the object without a handle. */
-  X_HANDLE anchor =
-      0; /**< The handle that stands in while only pointer references hold the object. */
   u32 guest_ptr = 0;             /**< Address of the object body, 0 without a guest block. */
   bool owns_guest_block = false; /**< True when the destructor frees the block at guest_ptr. */
   kernel::GuestAddressSpace* memory = nullptr;

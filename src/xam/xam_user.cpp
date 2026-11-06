@@ -739,6 +739,9 @@ u32 XamWriteGamerTile_entry([[maybe_unused]] u32 arg1, [[maybe_unused]] u32 arg2
   return kernel::X_ERROR_SUCCESS;
 }
 
+/** Size of the guest body of a session. */
+constexpr u32 kSessionObjectSize = 4;
+
 class SessionObject final : public kernel::IXAMObject {
  public:
   static constexpr u32 kTag = 0x53455353;
@@ -748,8 +751,7 @@ class SessionObject final : public kernel::IXAMObject {
 
 u32 XamSessionCreateHandle_entry(MappedU32 handle_ptr) {
   kernel::ObjectBlock block = CurrentTitle().objects.AllocateObjectBlock(
-      sizeof(kernel::X_DISPATCH_HEADER), kernel::ObjectType::kXAM,
-      kernel::ObjectBlockHeap::kSystem);
+      kSessionObjectSize, kernel::ObjectType::kXAM, kernel::ObjectBlockHeap::kSystem);
   if (!block.address) {
     return kernel::X_ERROR_NOT_ENOUGH_MEMORY;
   }
@@ -758,8 +760,6 @@ u32 XamSessionCreateHandle_entry(MappedU32 handle_ptr) {
   if (!added) {
     return kernel::X_ERROR_NOT_ENOUGH_MEMORY;
   }
-  kernel::StashHandle(
-      CurrentTitle().membase.TranslateVirtual<kernel::X_DISPATCH_HEADER*>(block.address), *added);
   *handle_ptr = *added;
   return kernel::X_ERROR_SUCCESS;
 }

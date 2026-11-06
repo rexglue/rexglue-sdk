@@ -24,6 +24,8 @@
 #include <rex/xam/content_manager.h>
 #include <rex/xam/user_profile.h>
 #include <rex/kernel/object/file_object.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/module.h>
 #include <rex/kernel/function_dispatcher.h>
 #include <rex/kernel/types/status.h>
 #include <rex/kernel/object/object_table.h>
@@ -40,6 +42,26 @@ using rex::test::KernelFixture;
 namespace {
 constexpr u32 kInvalidHandle = rex::kernel::X_STATUS_INVALID_HANDLE;
 constexpr u32 kReadWriteAccess = 0xC0100000;
+constexpr u16 kOrdinalIoCompletionType = 0x0036;
+constexpr u16 kOrdinalIoFileType = 0x003E;
+
+u32 ExportedType(Caller& c, u16 ordinal) {
+  auto& runtime = c.GetRuntime();
+  const auto kernel_module = runtime.GetModuleRegistry().FindKernelModule("xboxkrnl.exe");
+  REQUIRE(kernel_module);
+  auto module = runtime.GetObjectTable().Get<rex::kernel::ModuleObject>(*kernel_module);
+  REQUIRE(module);
+  return module->GetVariable(ordinal);
+}
+
+u32 HeaderType(Caller& c, u32 body) {
+  auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
+  return *memory->TranslateVirtual<const be_u32*>(body - 8);
+}
+
+bool ObjectAlive(Caller& c, u32 address) {
+  return static_cast<bool>(c.GetRuntime().GetObjectTable().GetByAddress(address));
+}
 
 void MountScratch(KernelFixture& fixture) {
   namespace fs = rex::filesystem;
@@ -289,6 +311,69 @@ REX_TEST_CASE("io completion: set remove and timeout", "[kernel][files]") {
     CHECK(c.Load32(context) == 22);
     CHECK(c.Load32(status_block + 4) == 33);
     CHECK(c.Kernel("NtClose", {port}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: a file object has a guest body that ObDereferenceObject destroys",
+              "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "o.bin", 16); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    const u32 object_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\o.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    const u32 file_type = ExportedType(c, kOrdinalIoFileType);
+    REQUIRE(file_type != 0);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, file_type, object_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 body = c.Load32(object_ptr);
+    CHECK(body != 0);
+    CHECK(HeaderType(c, body) == file_type);
+    auto* memory = StateOf(c.GetRuntime()).GetAddressSpace();
+    CHECK(static_cast<u16>(*memory->TranslateVirtual<const be_u16*>(body)) ==
+          rex::kernel::kFileObjectTypeId);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+    CHECK(ObjectAlive(c, body));
+    CHECK(c.Kernel("ObDereferenceObject", {body}) == 0);
+    CHECK_FALSE(ObjectAlive(c, body));
+  });
+}
+
+REX_TEST_CASE(
+    "io completion: an IO completion object has a guest body that ObDereferenceObject "
+    "destroys",
+    "[kernel][files]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 port_ptr = c.Alloc(4);
+    const u32 object_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateIoCompletion", {port_ptr, 0x1F0003, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 port = c.Load32(port_ptr);
+    const u32 port_type = ExportedType(c, kOrdinalIoCompletionType);
+    REQUIRE(port_type != 0);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {port, port_type, object_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 body = c.Load32(object_ptr);
+    CHECK(body != 0);
+    CHECK(HeaderType(c, body) == port_type);
+    CHECK(c.Kernel("NtClose", {port}) == 0);
+    CHECK(ObjectAlive(c, body));
+    CHECK(c.Kernel("ObDereferenceObject", {body}) == 0);
+    CHECK_FALSE(ObjectAlive(c, body));
   });
 }
 

@@ -101,42 +101,44 @@ REX_KERNEL_API std::string NameFromAttributes(kernel::GuestAddressSpace* memory,
 
 template <typename T>
 class Pinned;
+class ObjectPin;
 
 /**
- * Waits on the object a handle names. A type without a wait handle succeeds at once.
+ * Waits on a pinned object. A type without a wait handle succeeds at once.
  *
- * @param handle The handle, pseudo handles are translated.
+ * @param object A pin on the object, which is not empty.
  * @param alertable Nonzero when a user APC ends the wait.
  * @param opt_timeout The timeout in 100 nanosecond ticks, null to wait forever.
- * @return X_STATUS_SUCCESS, X_STATUS_USER_APC, X_STATUS_TIMEOUT, X_STATUS_ABANDONED_WAIT_0, or
- * X_STATUS_INVALID_HANDLE.
+ * @return X_STATUS_SUCCESS, X_STATUS_USER_APC, X_STATUS_TIMEOUT, or X_STATUS_ABANDONED_WAIT_0.
  */
-REX_KERNEL_API X_STATUS Wait(TitleRuntime& runtime, X_HANDLE handle, u32 wait_reason,
+REX_KERNEL_API X_STATUS Wait(TitleRuntime& runtime, const ObjectPin& object, u32 wait_reason,
                              u32 processor_mode, u32 alertable, u64* opt_timeout);
 
 /**
- * Waits on several objects.
+ * Waits on several pinned objects.
  *
+ * @param objects Pins on the objects, none of them empty.
  * @param wait_type Nonzero to wait for any object, 0 to wait for all.
  * @param alertable Nonzero when a user APC ends the wait.
  * @param opt_timeout The timeout in 100 nanosecond ticks, null to wait forever.
- * @return The index of the signaled object for a wait on any, or the status Wait returns, or
- * X_STATUS_INVALID_PARAMETER when a handle is invalid.
+ * @return The index of the signaled object for a wait on any, or the status Wait returns.
  */
-REX_KERNEL_API X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const X_HANDLE> handles,
+REX_KERNEL_API X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects,
                                      u32 wait_type, u32 wait_reason, u32 processor_mode,
                                      u32 alertable, u64* opt_timeout);
 
 /**
- * Signals one object and waits on another as a single operation.
+ * Signals one pinned object and waits on another as a single operation.
  *
+ * @param signal_object A pin on the object to signal, which is not empty.
+ * @param wait_object A pin on the object to wait on, which is not empty.
  * @param alertable Nonzero when a user APC ends the wait.
  * @param opt_timeout The timeout in 100 nanosecond ticks, null to wait forever.
- * @return The status as Wait returns it, X_STATUS_INVALID_HANDLE when either handle is invalid.
+ * @return The status as Wait returns it.
  */
-REX_KERNEL_API X_STATUS SignalAndWait(TitleRuntime& runtime, X_HANDLE signal_handle,
-                                      X_HANDLE wait_handle, u32 wait_reason, u32 processor_mode,
-                                      u32 alertable, u64* opt_timeout);
+REX_KERNEL_API X_STATUS SignalAndWait(TitleRuntime& runtime, const ObjectPin& signal_object,
+                                      const ObjectPin& wait_object, u32 wait_reason,
+                                      u32 processor_mode, u32 alertable, u64* opt_timeout);
 
 }  // namespace rex::kernel
 

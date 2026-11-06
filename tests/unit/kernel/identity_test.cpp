@@ -27,19 +27,22 @@ u32 Poll(Caller& c) {
 }
 }  // namespace
 
-REX_TEST_CASE("identity: the registered handle survives repeated resolution",
+REX_TEST_CASE("identity: a guest initialised event keeps its object and takes no handle",
               "[kernel][identity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {event, 0, 0});
     auto& table = c.GetRuntime().GetObjectTable();
-    const auto registered = table.FindHandle(event);
+    const auto registered = table.GetByAddress(event);
     REQUIRE(registered);
-    CHECK(*registered >= 0xF8000004);
+    CHECK(registered.GetKernelObject().handles.empty());
     CHECK(c.Kernel("KeSetEvent", {event, 0, 0}) == 1);
-    CHECK(table.FindHandle(event) == registered);
-    CHECK(c.Kernel("NtWaitForSingleObjectEx", {*registered, 1, 0, Poll(c)}) == 0);
+    const auto again = table.GetByAddress(event);
+    REQUIRE(again);
+    CHECK(&again.GetKernelObject() == &registered.GetKernelObject());
+    CHECK(c.Kernel("KeWaitForSingleObject", {event, 0, 0, 0, Poll(c)}) == 0);
+    CHECK(registered.GetKernelObject().handles.empty());
   });
 }
 

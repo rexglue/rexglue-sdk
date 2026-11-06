@@ -210,7 +210,7 @@ Result<ScopeGuard> TitleContext::StartHostThread(std::string_view name,
   AddHandle();
   return ScopeGuard([this, stop, handle]() {
     stop->request_stop();
-    kernel::Wait(runtime_, handle, 0, 0, 0, nullptr);
+    runtime_.GetThreadRegistry().GetObjectWaiter().WaitGuestObject(handle, 0, 0, 0, nullptr);
     kernel::CloseOwned(runtime_.GetObjectTable(), handle);
     ReleaseHandle();
   });

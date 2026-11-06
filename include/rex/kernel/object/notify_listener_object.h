@@ -62,6 +62,9 @@ class INotifyListenerQueue {
   virtual bool Dequeue(XNotificationID* out_id, u32* out_data) = 0;
 };
 
+/** Size of the guest body of a notify listener. */
+inline constexpr u32 kNotifyListenerObjectSize = 0x30;
+
 struct NotifyListenerObject : INotifyListenerQueue {
   /**
    * @param mask_in The bit mask of notification areas the listener receives.
