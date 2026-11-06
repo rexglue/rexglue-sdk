@@ -61,7 +61,12 @@ X_STATUS XSocket::Initialize(AddressFamily af, Type type, Protocol proto) {
 }
 
 X_STATUS XSocket::Close() {
+  if (native_handle_ == uint64_t(-1)) {
+    return X_STATUS_SUCCESS;
+  }
+
   int ret = rex::net::socket_close(native_handle_);
+  native_handle_ = -1;
   if (ret != 0) {
     return X_STATUS_UNSUCCESSFUL;
   }

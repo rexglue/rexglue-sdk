@@ -9,13 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/cvar.h>
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
-
-REXCVAR_DEFINE_BOOL(writable_executable_memory, true, "Memory",
-                    "Allow executable memory to be writable")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 #if REX_ARCH_ARM64
 #include <arm_neon.h>
@@ -25,10 +20,6 @@ REXCVAR_DEFINE_BOOL(writable_executable_memory, true, "Memory",
 
 namespace rex {
 namespace memory {
-
-bool IsWritableExecutableMemoryPreferred() {
-  return REXCVAR_GET(writable_executable_memory);
-}
 
 // TODO(benvanik): fancy AVX versions.
 // https://github.com/gnuradio/volk/blob/master/kernels/volk/volk_16u_byteswap.h

@@ -14,6 +14,7 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
+#include <rex/graphics/video_mode_util.h>
 #include <rex/logging.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/presenter.h>
@@ -22,25 +23,26 @@
 #include <imgui.h>
 
 REXCVAR_DEFINE_INT32(window_width, 0, "UI/Window",
-                     "Startup window width in logical pixels (0 = use app default)")
-    .range(0, 8192)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+                     "Window width in logical pixels (0 = use app default)")
+    .range(0, 8192);
 
 REXCVAR_DEFINE_INT32(window_height, 0, "UI/Window",
-                     "Startup window height in logical pixels (0 = use app default)")
-    .range(0, 8192)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+                     "Window height in logical pixels (0 = use app default)")
+    .range(0, 8192);
 
 // kHotReload (default): Window::SetFullscreen can be applied live, so the
 // change callback registered in ReXApp::SetupPresentation keeps the window
 // in sync whenever this cvar is changed at runtime.
 REXCVAR_DEFINE_BOOL(fullscreen, true, "UI/Window", "Start the window in fullscreen mode");
 
+REXCVAR_DEFINE_BOOL(fullscreen_exclusive, false, "UI/Window",
+                    "Switch the display mode in fullscreen instead of going "
+                    "borderless at the desktop mode");
+
 REXCVAR_DEFINE_INT32(monitor, 0, "UI/Window",
                      "Monitor index to display on (0 = default, 1 = primary, 2 = "
                      "second monitor, etc.)")
-    .range(0, 16)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+    .range(0, 16);
 
 REXCVAR_DEFINE_STRING(video_driver, "", "UI/Window",
                       "SDL video driver to use, such as \"wayland\" or \"x11\". Empty picks "
@@ -56,9 +58,8 @@ REXCVAR_DEFINE_INT32(video_mode_height, 720, "Display", "Guest video mode height
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 REXCVAR_DEFINE_STRING(resolution, "", "Display",
-                      "Common resolution preset for both guest video mode and startup window (for "
-                      "example: 720p, 1080p, 1440p, 4k, 1280x720)")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+                      "Common resolution preset for both guest video mode and window (for "
+                      "example: 720p, 1080p, 1440p, 4k, 1280x720)");
 
 REXCVAR_DEFINE_DOUBLE(video_mode_refresh_rate, 60.0, "Display",
                       "Guest video mode refresh rate in Hz")
@@ -285,6 +286,60 @@ void Window::SetFullscreen(bool new_fullscreen) {
   if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
     return;
   }
+}
+
+void Window::RefreshFullscreen() {
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewFullscreen();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::SetMonitor(int32_t new_monitor) {
+  if (monitor_ == new_monitor) {
+    return;
+  }
+  monitor_ = new_monitor;
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewMonitor();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::SetDesiredLogicalSize(uint32_t new_desired_logical_width,
+                                   uint32_t new_desired_logical_height) {
+  if (desired_logical_width_ == new_desired_logical_width &&
+      desired_logical_height_ == new_desired_logical_height) {
+    return;
+  }
+  desired_logical_width_ = new_desired_logical_width;
+  desired_logical_height_ = new_desired_logical_height;
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewDesiredLogicalSize();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::ResolveConfiguredLogicalSize(uint32_t& width_out, uint32_t& height_out) {
+  int32_t configured_width = REXCVAR_GET(window_width);
+  int32_t configured_height = REXCVAR_GET(window_height);
+  if (configured_width <= 0 || configured_height <= 0) {
+    rex::graphics::video_mode_util::ResolveConfiguredSize(configured_width, configured_height);
+  }
+  width_out = uint32_t(std::clamp(configured_width, 1, 8192));
+  height_out = uint32_t(std::clamp(configured_height, 1, 8192));
 }
 
 void Window::SetTitle(const std::string_view new_title) {

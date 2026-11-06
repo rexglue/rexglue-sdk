@@ -1,48 +1,7 @@
 #==========================================================
 # SDK Install/Export Rules
 #==========================================================
-set_target_properties(rexcore PROPERTIES EXPORT_NAME core)
-set_target_properties(rexfilesystem PROPERTIES EXPORT_NAME filesystem)
-set_target_properties(rexui PROPERTIES EXPORT_NAME ui)
-set_target_properties(rexinput PROPERTIES EXPORT_NAME input)
-set_target_properties(rexaudio PROPERTIES EXPORT_NAME audio)
-set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
-set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
-
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_helpers.cmake)
-
-# Build install target list dynamically based on backend options
-set(REXGLUE_INSTALL_TARGETS
-    rexruntime
-    rexgpu-xenos
-    disruptorplus renderdoc simde tomlplusplus
-    aes128 mspack o1heap disasm xxhash
-    libavcodec libavutil
-)
-
-if(REXGLUE_USE_VULKAN)
-    list(APPEND REXGLUE_INSTALL_TARGETS
-        SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler  # glslang
-        spirv-tools-headers
-    )
-endif()
-
-if(REXGLUE_USE_D3D12)
-    list(APPEND REXGLUE_INSTALL_TARGETS dxc-headers)
-endif()
-
-if(REXGLUE_ENABLE_TRACY)
-    list(APPEND REXGLUE_INSTALL_TARGETS TracyClient)
-endif()
-
-set(REXGLUE_INSTALL_FIDELITYFX_TARGETS)
-if(TARGET amd_fidelityfx_vk)
-    list(APPEND REXGLUE_INSTALL_FIDELITYFX_TARGETS amd_fidelityfx_vk)
-endif()
-
-if(TARGET amd_fidelityfx_dx12)
-    list(APPEND REXGLUE_INSTALL_FIDELITYFX_TARGETS amd_fidelityfx_dx12)
-endif()
 
 install(TARGETS ${REXGLUE_INSTALL_TARGETS}
     EXPORT rexglueTargets
@@ -174,7 +133,7 @@ install(FILES
 )
 
 install(FILES
-    ${CMAKE_SOURCE_DIR}/cmake/rexglue_helpers.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
 )
 

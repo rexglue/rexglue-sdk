@@ -17,9 +17,8 @@
 
 namespace rex::input {
 
-// XInput's published thresholds.
-constexpr int32_t kThumbDeadzone = 7849;
-constexpr uint8_t kTriggerThreshold = 30;
+constexpr int32_t kThumbDeadzone = X_INPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
+constexpr uint8_t kTriggerThreshold = X_INPUT_GAMEPAD_TRIGGER_THRESHOLD;
 
 /// Folds src into dst: buttons OR, triggers max, stick axes larger magnitude,
 /// packet number newest.

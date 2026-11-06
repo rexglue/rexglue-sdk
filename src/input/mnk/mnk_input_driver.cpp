@@ -58,12 +58,21 @@ REXCVAR_DEFINE_STRING(keybind_back, "Z,Tab", "Input/Keybinds/Controller", "Back 
 REXCVAR_DEFINE_STRING(keybind_start, "X,Return", "Input/Keybinds/Controller", "Start button");
 REXCVAR_DEFINE_STRING(keybind_guide, "", "Input/Keybinds/Controller", "Guide button");
 
+REXCVAR_DEFINE_BOOL(mnk_passthrough, false, "Input",
+                    "Surface raw keystrokes to the title instead of emulating a pad, for "
+                    "titles that read a USB keyboard. Enables the device on its own");
+
 namespace rex::input::mnk {
+
+using rex::ui::VirtualKey;
 
 namespace {
 
 // A single device, so its handle is a constant.
 constexpr rex::input::DeviceId kMnkDevice = static_cast<rex::input::DeviceId>(0x4D4E4B00);
+
+// Bounds the queue for titles that never call XamInputGetKeystroke.
+constexpr size_t kMaxQueuedKeystrokes = 256;
 
 // Bind values are a comma-separated list of alternatives, each optionally
 // carrying modifier prefixes: "Q,I" or "Shift+W". Modifier matching is exact,
@@ -137,6 +146,157 @@ bool TokenPressed(const bool (&key_down)[256], std::string_view token, uint8_t l
 
 std::atomic<bool> mouse_look_active{true};
 
+// ui::VirtualKey follows Windows VK_ numbering; the guest wants USB HID usage
+// page 0x07.
+uint8_t VirtualKeyToHIDUsage(rex::ui::VirtualKey vk_enum) {
+  const uint32_t vk = static_cast<uint32_t>(vk_enum);
+
+  // The runs below are contiguous in both numbering schemes.
+  if (vk >= 'A' && vk <= 'Z') {
+    return static_cast<uint8_t>(vk - 'A' + 0x04);
+  }
+  // 0 is irregular in both digit runs; handled in the switch.
+  if (vk >= '1' && vk <= '9') {
+    return static_cast<uint8_t>(vk - '1' + 0x1E);
+  }
+  if (vk >= static_cast<uint32_t>(VirtualKey::kF1) &&
+      vk <= static_cast<uint32_t>(VirtualKey::kF12)) {
+    return static_cast<uint8_t>(vk - static_cast<uint32_t>(VirtualKey::kF1) + 0x3A);
+  }
+  if (vk >= static_cast<uint32_t>(VirtualKey::kF13) &&
+      vk <= static_cast<uint32_t>(VirtualKey::kF24)) {
+    return static_cast<uint8_t>(vk - static_cast<uint32_t>(VirtualKey::kF13) + 0x68);
+  }
+  if (vk >= static_cast<uint32_t>(VirtualKey::kNumpad1) &&
+      vk <= static_cast<uint32_t>(VirtualKey::kNumpad9)) {
+    return static_cast<uint8_t>(vk - static_cast<uint32_t>(VirtualKey::kNumpad1) + 0x59);
+  }
+  if (vk >= static_cast<uint32_t>(VirtualKey::kLShift) &&
+      vk <= static_cast<uint32_t>(VirtualKey::kLMenu)) {
+    return static_cast<uint8_t>(vk - static_cast<uint32_t>(VirtualKey::kLShift) + 0xE1);
+  }
+
+  switch (vk_enum) {
+    case VirtualKey::k0:
+      return 0x27;
+    case VirtualKey::kReturn:
+      return 0x28;
+    case VirtualKey::kEscape:
+      return 0x29;
+    case VirtualKey::kBack:
+      return 0x2A;
+    case VirtualKey::kTab:
+      return 0x2B;
+    case VirtualKey::kSpace:
+      return 0x2C;
+    case VirtualKey::kOemMinus:
+      return 0x2D;
+    case VirtualKey::kOemPlus:
+      return 0x2E;
+    case VirtualKey::kOem4:
+      return 0x2F;
+    case VirtualKey::kOem6:
+      return 0x30;
+    case VirtualKey::kOem5:
+      return 0x31;
+    case VirtualKey::kOem1:
+      return 0x33;
+    case VirtualKey::kOem7:
+      return 0x34;
+    case VirtualKey::kOem3:
+      return 0x35;
+    case VirtualKey::kOemComma:
+      return 0x36;
+    case VirtualKey::kOemPeriod:
+      return 0x37;
+    case VirtualKey::kOem2:
+      return 0x38;
+    case VirtualKey::kCapital:
+      return 0x39;
+    case VirtualKey::kSnapshot:
+      return 0x46;
+    case VirtualKey::kScroll:
+      return 0x47;
+    case VirtualKey::kPause:
+      return 0x48;
+    case VirtualKey::kInsert:
+      return 0x49;
+    case VirtualKey::kHome:
+      return 0x4A;
+    case VirtualKey::kPrior:
+      return 0x4B;
+    case VirtualKey::kDelete:
+      return 0x4C;
+    case VirtualKey::kEnd:
+      return 0x4D;
+    case VirtualKey::kNext:
+      return 0x4E;
+    case VirtualKey::kRight:
+      return 0x4F;
+    case VirtualKey::kLeft:
+      return 0x50;
+    case VirtualKey::kDown:
+      return 0x51;
+    case VirtualKey::kUp:
+      return 0x52;
+    case VirtualKey::kNumLock:
+      return 0x53;
+    case VirtualKey::kDivide:
+      return 0x54;
+    case VirtualKey::kMultiply:
+      return 0x55;
+    case VirtualKey::kSubtract:
+      return 0x56;
+    case VirtualKey::kAdd:
+      return 0x57;
+    case VirtualKey::kNumpad0:
+      return 0x62;
+    case VirtualKey::kDecimal:
+      return 0x63;
+    case VirtualKey::kApps:
+      return 0x65;
+    default:
+      return 0x00;
+  }
+}
+
+// Sticks and triggers are included: XInput reports those as directional pad
+// keys, which is what menu navigation reads.
+struct PadBind {
+  const std::string& keys;
+  VirtualKey pad_key;
+};
+
+// Rebuilt per call because the cvars are live-editable.
+std::array<PadBind, 24> PadBinds() {
+  return {{
+      {REXCVAR_GET(keybind_a), VirtualKey::kXInputPadA},
+      {REXCVAR_GET(keybind_b), VirtualKey::kXInputPadB},
+      {REXCVAR_GET(keybind_x), VirtualKey::kXInputPadX},
+      {REXCVAR_GET(keybind_y), VirtualKey::kXInputPadY},
+      {REXCVAR_GET(keybind_left_shoulder), VirtualKey::kXInputPadLShoulder},
+      {REXCVAR_GET(keybind_right_shoulder), VirtualKey::kXInputPadRShoulder},
+      {REXCVAR_GET(keybind_left_trigger), VirtualKey::kXInputPadLTrigger},
+      {REXCVAR_GET(keybind_right_trigger), VirtualKey::kXInputPadRTrigger},
+      {REXCVAR_GET(keybind_lstick_press), VirtualKey::kXInputPadLThumbPress},
+      {REXCVAR_GET(keybind_rstick_press), VirtualKey::kXInputPadRThumbPress},
+      {REXCVAR_GET(keybind_back), VirtualKey::kXInputPadBack},
+      {REXCVAR_GET(keybind_start), VirtualKey::kXInputPadStart},
+      {REXCVAR_GET(keybind_dpad_up), VirtualKey::kXInputPadDpadUp},
+      {REXCVAR_GET(keybind_dpad_down), VirtualKey::kXInputPadDpadDown},
+      {REXCVAR_GET(keybind_dpad_left), VirtualKey::kXInputPadDpadLeft},
+      {REXCVAR_GET(keybind_dpad_right), VirtualKey::kXInputPadDpadRight},
+      {REXCVAR_GET(keybind_lstick_up), VirtualKey::kXInputPadLThumbUp},
+      {REXCVAR_GET(keybind_lstick_down), VirtualKey::kXInputPadLThumbDown},
+      {REXCVAR_GET(keybind_lstick_left), VirtualKey::kXInputPadLThumbLeft},
+      {REXCVAR_GET(keybind_lstick_right), VirtualKey::kXInputPadLThumbRight},
+      {REXCVAR_GET(keybind_rstick_up), VirtualKey::kXInputPadRThumbUp},
+      {REXCVAR_GET(keybind_rstick_down), VirtualKey::kXInputPadRThumbDown},
+      {REXCVAR_GET(keybind_rstick_left), VirtualKey::kXInputPadRThumbLeft},
+      {REXCVAR_GET(keybind_rstick_right), VirtualKey::kXInputPadRThumbRight},
+  }};
+}
+
 }  // namespace
 
 void SetMouseLookActive(bool active) {
@@ -146,8 +306,6 @@ void SetMouseLookActive(bool active) {
 bool IsMouseLookActive() {
   return mouse_look_active.load(std::memory_order_relaxed);
 }
-
-using rex::ui::VirtualKey;
 
 MnkInputDriver::MnkInputDriver(rex::ui::Window* window, size_t window_z_order)
     : InputDriver(window, window_z_order) {}
@@ -197,7 +355,12 @@ void MnkInputDriver::DetachFromWindow() {
 }
 
 bool MnkInputDriver::IsEnabled() const {
-  return REXCVAR_GET(mnk_mode);
+  // Passthrough enables the device on its own.
+  return REXCVAR_GET(mnk_mode) || REXCVAR_GET(mnk_passthrough);
+}
+
+static bool IsPassthroughEnabled() {
+  return REXCVAR_GET(mnk_passthrough);
 }
 
 static bool IsBindPressed(const bool (&key_down)[256], const std::string& cvar_val) {
@@ -226,7 +389,9 @@ void MnkInputDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
   }
   DeviceInfo info;
   info.id = kMnkDevice;
-  info.name = "Keyboard and Mouse";
+  info.name = IsPassthroughEnabled() ? "Keyboard" : "Keyboard and Mouse";
+  info.subtype =
+      IsPassthroughEnabled() ? XINPUT_DEVSUBTYPE_USB_KEYBOARD : XINPUT_DEVSUBTYPE_GAMEPAD;
   info.synthetic = true;
   out.push_back(info);
 }
@@ -238,8 +403,13 @@ X_RESULT MnkInputDriver::GetDeviceCapabilities(DeviceId id, uint32_t flags,
   }
   if (out_caps) {
     std::memset(out_caps, 0, sizeof(*out_caps));
-    out_caps->type = 0x01;
-    out_caps->sub_type = 0x01;
+    if (IsPassthroughEnabled()) {
+      out_caps->type = XINPUT_DEVTYPE_KEYBOARD;
+      out_caps->sub_type = XINPUT_DEVSUBTYPE_USB_KEYBOARD;
+      return X_ERROR_SUCCESS;
+    }
+    out_caps->type = XINPUT_DEVTYPE_GAMEPAD;
+    out_caps->sub_type = XINPUT_DEVSUBTYPE_GAMEPAD;
     out_caps->flags = 0;
     out_caps->gamepad.buttons = 0xFFFF;
     out_caps->gamepad.left_trigger = 0xFF;
@@ -256,6 +426,12 @@ X_RESULT MnkInputDriver::GetDeviceCapabilities(DeviceId id, uint32_t flags,
 
 X_RESULT MnkInputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
   if (!IsEnabled() || id != kMnkDevice) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+
+  // Keys reach the guest through GetDeviceKeystroke only, leaving the guest
+  // user free for a real controller.
+  if (IsPassthroughEnabled()) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
@@ -393,7 +569,63 @@ void MnkInputDriver::EnqueueKeystroke(uint16_t vk_pad, bool down) {
   // InputSystem stamps the guest user this device is assigned to.
   ks.user_index = 0;
   ks.hid_code = 0;
+  PushKeystroke(ks);
+}
+
+void MnkInputDriver::PushKeystroke(const X_INPUT_KEYSTROKE& ks) {
+  if (keystroke_queue_.size() >= kMaxQueuedKeystrokes) {
+    keystroke_queue_.pop();
+  }
   keystroke_queue_.push(ks);
+}
+
+void MnkInputDriver::EnqueueRawKeystroke(const rex::ui::KeyEvent& e, bool down) {
+  X_INPUT_KEYSTROKE ks = {};
+  ks.virtual_key = static_cast<uint16_t>(e.virtual_key());
+  ks.unicode = 0;
+  ks.user_index = 0;
+  ks.hid_code = VirtualKeyToHIDUsage(e.virtual_key());
+
+  uint16_t flags = down ? X_INPUT_KEYSTROKE_KEYDOWN : X_INPUT_KEYSTROKE_KEYUP;
+  // Already down, so this is the OS auto-repeat.
+  if (down && e.prev_state()) {
+    flags |= X_INPUT_KEYSTROKE_REPEAT;
+  }
+  if (e.is_shift_pressed()) {
+    flags |= X_INPUT_KEYSTROKE_SHIFT;
+  }
+  if (e.is_ctrl_pressed()) {
+    flags |= X_INPUT_KEYSTROKE_CTRL;
+  }
+  if (e.is_alt_pressed()) {
+    flags |= X_INPUT_KEYSTROKE_ALT;
+  }
+  ks.flags = flags;
+  PushKeystroke(ks);
+}
+
+void MnkInputDriver::RefreshBoundKeystrokesLocked() {
+  const auto binds = PadBinds();
+  uint32_t pressed = 0;
+  for (size_t i = 0; i < binds.size(); i++) {
+    if (IsBindPressed(key_down_, binds[i].keys)) {
+      pressed |= uint32_t(1) << i;
+    }
+  }
+
+  // The whole table is diffed rather than the key that moved: binds carry
+  // modifiers, so Shift alone can flip several of them at once.
+  const uint32_t changed = pressed ^ bound_pressed_;
+  bound_pressed_ = pressed;
+  if (!changed) {
+    return;
+  }
+  for (size_t i = 0; i < binds.size(); i++) {
+    const uint32_t bit = uint32_t(1) << i;
+    if (changed & bit) {
+      EnqueueKeystroke(static_cast<uint16_t>(binds[i].pad_key), (pressed & bit) != 0);
+    }
+  }
 }
 
 void MnkInputDriver::QueueMouseCaptureUpdate(bool should_capture) {
@@ -484,16 +716,44 @@ void MnkInputDriver::OnKeyDown(rex::ui::KeyEvent& e) {
   if (!IsEnabled() || !has_focus_)
     return;
   std::lock_guard lock(state_mutex_);
+  if (IsPassthroughEnabled()) {
+    EnqueueRawKeystroke(e, true);
+    return;
+  }
   uint16_t vk = static_cast<uint16_t>(e.virtual_key());
   SetKeyState(vk, true);
+  RefreshBoundKeystrokesLocked();
 }
 
 void MnkInputDriver::OnKeyUp(rex::ui::KeyEvent& e) {
   if (!IsEnabled())
     return;
   std::lock_guard lock(state_mutex_);
+  if (IsPassthroughEnabled()) {
+    EnqueueRawKeystroke(e, false);
+    return;
+  }
   uint16_t vk = static_cast<uint16_t>(e.virtual_key());
   SetKeyState(vk, false);
+  RefreshBoundKeystrokesLocked();
+}
+
+void MnkInputDriver::OnKeyChar(rex::ui::KeyEvent& e) {
+  if (!IsEnabled() || !IsPassthroughEnabled())
+    return;
+  // WM_CHAR convention: the codepoint arrives after its key-down, so it is
+  // attached to the keystroke already queued for that key.
+  std::lock_guard lock(state_mutex_);
+  if (keystroke_queue_.empty()) {
+    return;
+  }
+  X_INPUT_KEYSTROKE& last = keystroke_queue_.back();
+  const uint16_t flags = last.flags;
+  if (!(flags & X_INPUT_KEYSTROKE_KEYDOWN) || last.unicode != 0) {
+    return;
+  }
+  last.unicode = static_cast<uint16_t>(e.virtual_key());
+  last.flags = static_cast<uint16_t>(flags | X_INPUT_KEYSTROKE_VALIDUNICODE);
 }
 
 void MnkInputDriver::OnMouseDown(rex::ui::MouseEvent& e) {
@@ -513,6 +773,7 @@ void MnkInputDriver::OnMouseDown(rex::ui::MouseEvent& e) {
     default:
       break;
   }
+  RefreshBoundKeystrokesLocked();
 }
 
 void MnkInputDriver::OnMouseUp(rex::ui::MouseEvent& e) {
@@ -532,6 +793,7 @@ void MnkInputDriver::OnMouseUp(rex::ui::MouseEvent& e) {
     default:
       break;
   }
+  RefreshBoundKeystrokesLocked();
 }
 
 void MnkInputDriver::OnMouseMove(rex::ui::MouseEvent& e) {
@@ -566,6 +828,8 @@ void MnkInputDriver::OnLostFocus(rex::ui::UISetupEvent&) {
   {
     std::lock_guard lock(state_mutex_);
     std::memset(key_down_, 0, sizeof(key_down_));
+    // Releases landing on another window never arrive here as key-ups.
+    RefreshBoundKeystrokesLocked();
     mouse_dx_ = 0.0f;
     mouse_dy_ = 0.0f;
   }

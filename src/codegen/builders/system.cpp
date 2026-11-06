@@ -31,20 +31,32 @@ bool build_attn(BuilderContext& ctx) {
 }
 
 bool build_sync(BuilderContext& ctx) {
-  // Memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // sync: full barrier. Orders all combinations including StoreLoad,
+  // which x86_64 TSO does not. seq_cst is the exact C++ mapping.
+  //
+  // x86_64: emits mfence.
+  // ARM64:  emits dmb ish.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
 bool build_lwsync(BuilderContext& ctx) {
-  // Lightweight memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // lwsync: acquire-release fence. Orders LoadLoad, LoadStore, StoreStore,
+  // but NOT StoreLoad. acq_rel matches exactly.
+  //
+  // x86_64: TSO already orders those three.
+  // ARM64:  emits dmb ish.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_acq_rel);");
   return true;
 }
 
 bool build_eieio(BuilderContext& ctx) {
-  // Enforce in-order execution of I/O, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // eieio: I/O ordering. No separate I/O space on the host, so seq_cst
+  // is the safe conservative mapping.
+  //
+  // x86_64: emits mfence.
+  // ARM64:  emits dmb ish.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
@@ -249,8 +261,6 @@ bool build_mflr(BuilderContext& ctx) {
 
 bool build_mfmsr(BuilderContext& ctx) {
   if (!ctx.config().skipMsr) {
-    // Memory barrier for MSR read
-    ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
     // Check global lock and return appropriate value
     // Returns 0x8000 if unlocked (interrupts enabled), 0 if locked
     ctx.println("\t{}.u64 = REX_CHECK_GLOBAL_LOCK();", ctx.r(ctx.insn.operands[0]));
@@ -317,8 +327,6 @@ bool build_mtlr(BuilderContext& ctx) {
 
 bool build_mtmsrd(BuilderContext& ctx) {
   if (!ctx.config().skipMsr) {
-    // Memory barrier for MSR write
-    ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
     // Update MSR bits
     ctx.println("\tctx.msr = ({}.u32 & 0x8020) | (ctx.msr & ~0x8020);",
                 ctx.r(ctx.insn.operands[0]));

@@ -54,6 +54,7 @@ add_library(rex::system ALIAS rexruntime)
 add_library(rex::kernel ALIAS rexruntime)
 
 set_target_properties(rexruntime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+rexglue_add_version_resource(rexruntime DESCRIPTION "ReXGlue runtime")
 
 rex_target_pch(rexruntime
     <mutex>
@@ -71,6 +72,8 @@ rex_target_pch(rexruntime
 target_include_directories(rexruntime PUBLIC
     $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/imgui>
+    $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/xxHash>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_include_directories(rexruntime PRIVATE

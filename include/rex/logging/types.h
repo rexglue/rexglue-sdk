@@ -11,7 +11,9 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <optional>
@@ -70,8 +72,7 @@ struct LogConfig {
    *  the platform debug sink created by InitLoggingEarly(). */
   bool log_to_console = false;
 
-  /** Path to a log file, or nullptr for no file logging. */
-  const char* log_file = nullptr;
+  std::filesystem::path log_file;
 
   /** spdlog pattern string for the stdout console sink. */
   std::string console_pattern = "[%^%l%$] [%n] [t%t] %v";
@@ -109,7 +110,9 @@ struct LogConfig {
   bool category_sinks_exclusive = false;
 
   std::string app_name;
-  std::string log_dir;
+  std::filesystem::path log_dir;
+  uint64_t dir_budget_bytes = 0;
+  std::chrono::seconds flush_interval{0};
 };
 
 }  // namespace rex

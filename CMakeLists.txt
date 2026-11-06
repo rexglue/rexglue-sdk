@@ -139,6 +139,10 @@ add_compile_options(
     -fno-char8_t
 )
 
+if(NOT MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    add_compile_options(-msse4.1)
+endif()
+
 # Platform detection (supports AMD64 and ARM64)
 set(REX_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
 if(APPLE AND CMAKE_OSX_ARCHITECTURES)
@@ -188,7 +192,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_pch.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_version.cmake)
 rex_resolve_version(REXGLUE_FULL_VERSION
     FLOOR_MAJOR ${PROJECT_VERSION_MAJOR}
-    FLOOR_MINOR ${PROJECT_VERSION_MINOR})
+    FLOOR_MINOR ${PROJECT_VERSION_MINOR}
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # Strip the -id trailer (if any) for the numeric-only version.
 string(REGEX REPLACE "-.*$" "" REXGLUE_NUMERIC_VERSION "${REXGLUE_FULL_VERSION}")
@@ -285,6 +290,8 @@ message(STATUS "  Tracy: ${REXGLUE_ENABLE_TRACY}")
 message(STATUS "  Perf Counters: ${REXGLUE_ENABLE_PERF_COUNTERS}")
 message(STATUS "===========================================")
 
+include(cmake/rexglue_export_targets.cmake)
+
 # SDK install/export rules (skipped when consumed as a subdirectory)
 if(PROJECT_IS_TOP_LEVEL)
     include(cmake/rexglue_devenv.cmake)
@@ -295,4 +302,13 @@ else()
     set(REXGLUE_SHARE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ui" PARENT_SCOPE)
     set(REXGLUE_SHARE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ui")
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake)
+    foreach(target IN LISTS REXGLUE_INSTALL_TARGETS REXGLUE_INSTALL_FIDELITYFX_TARGETS)
+        get_target_property(export_name ${target} EXPORT_NAME)
+        if(NOT export_name)
+            set(export_name ${target})
+        endif()
+        if(NOT TARGET rex::${export_name})
+            add_library(rex::${export_name} ALIAS ${target})
+        endif()
+    endforeach()
 endif()

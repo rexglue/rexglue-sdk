@@ -39,38 +39,15 @@ constexpr uint32_t kDisplayGammaType = 2;
 // Display gamma power (used with gamma type 3)
 constexpr double kDisplayGammaPower = 2.22222233;
 
-uint32_t GetConfiguredVideoModeWidth() {
+void ConfiguredVideoMode(uint32_t& width, uint32_t& height) {
   int32_t configured_width = REXCVAR_GET(video_mode_width);
-  if (!rex::cvar::HasNonDefaultValue("video_mode_width")) {
-    if (rex::cvar::HasNonDefaultValue("window_width") && REXCVAR_GET(window_width) > 0) {
-      configured_width = REXCVAR_GET(window_width);
-    } else {
-      int32_t preset_width = 0;
-      int32_t preset_height = 0;
-      if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
-                                                                         preset_height)) {
-        configured_width = preset_width;
-      }
-    }
-  }
-  return uint32_t(std::clamp(configured_width, 640, 0x0FFF));
-}
-
-uint32_t GetConfiguredVideoModeHeight() {
   int32_t configured_height = REXCVAR_GET(video_mode_height);
-  if (!rex::cvar::HasNonDefaultValue("video_mode_height")) {
-    if (rex::cvar::HasNonDefaultValue("window_height") && REXCVAR_GET(window_height) > 0) {
-      configured_height = REXCVAR_GET(window_height);
-    } else {
-      int32_t preset_width = 0;
-      int32_t preset_height = 0;
-      if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
-                                                                         preset_height)) {
-        configured_height = preset_height;
-      }
-    }
+  if (!rex::cvar::HasNonDefaultValue("video_mode_width") &&
+      !rex::cvar::HasNonDefaultValue("video_mode_height")) {
+    rex::graphics::video_mode_util::ResolveConfiguredSize(configured_width, configured_height);
   }
-  return uint32_t(std::clamp(configured_height, 480, 0x0FFF));
+  width = uint32_t(std::clamp(configured_width, 640, 0x0FFF));
+  height = uint32_t(std::clamp(configured_height, 480, 0x0FFF));
 }
 
 float GetConfiguredVideoModeRefreshRate() {
@@ -230,8 +207,9 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   // Exposed as CVARs so the guest can observe custom display settings.
-  uint32_t display_width = GetConfiguredVideoModeWidth();
-  uint32_t display_height = GetConfiguredVideoModeHeight();
+  uint32_t display_width = 0;
+  uint32_t display_height = 0;
+  ConfiguredVideoMode(display_width, display_height);
   float refresh_rate_hz = GetConfiguredVideoModeRefreshRate();
 
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));

@@ -13,7 +13,6 @@
 
 #include <rex/ui/window_sdl.h>
 
-#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -43,42 +42,6 @@
 namespace rex::ui {
 
 namespace {
-
-uint32_t ResolveWindowWidth(uint32_t requested_width) {
-  if (REXCVAR_GET(window_width) > 0) {
-    return uint32_t(REXCVAR_GET(window_width));
-  }
-  if (!rex::cvar::HasNonDefaultValue("window_width")) {
-    if (rex::cvar::HasNonDefaultValue("video_mode_width") && REXCVAR_GET(video_mode_width) > 0) {
-      return uint32_t(std::clamp(REXCVAR_GET(video_mode_width), 1, 8192));
-    }
-    int32_t preset_width = 0;
-    int32_t preset_height = 0;
-    if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
-                                                                       preset_height)) {
-      return uint32_t(std::clamp(preset_width, 1, 8192));
-    }
-  }
-  return requested_width;
-}
-
-uint32_t ResolveWindowHeight(uint32_t requested_height) {
-  if (REXCVAR_GET(window_height) > 0) {
-    return uint32_t(REXCVAR_GET(window_height));
-  }
-  if (!rex::cvar::HasNonDefaultValue("window_height")) {
-    if (rex::cvar::HasNonDefaultValue("video_mode_height") && REXCVAR_GET(video_mode_height) > 0) {
-      return uint32_t(std::clamp(REXCVAR_GET(video_mode_height), 1, 8192));
-    }
-    int32_t preset_width = 0;
-    int32_t preset_height = 0;
-    if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
-                                                                       preset_height)) {
-      return uint32_t(std::clamp(preset_height, 1, 8192));
-    }
-  }
-  return requested_height;
-}
 
 // SDL timer callback (runs on SDL's timer thread): defer the actual hide to
 // the UI thread. The deferred function only touches the global SDL cursor and
@@ -116,12 +79,11 @@ MouseEvent::Button TranslateSDLMouseButton(Uint8 button) {
 }  // namespace
 
 std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
-                                       const std::string_view title, uint32_t desired_logical_width,
-                                       uint32_t desired_logical_height) {
-  desired_logical_width = ResolveWindowWidth(desired_logical_width);
-  desired_logical_height = ResolveWindowHeight(desired_logical_height);
-  return std::make_unique<WindowSDL>(app_context, title, desired_logical_width,
-                                     desired_logical_height);
+                                       const std::string_view title) {
+  uint32_t width = 0;
+  uint32_t height = 0;
+  ResolveConfiguredLogicalSize(width, height);
+  return std::make_unique<WindowSDL>(app_context, title, width, height);
 }
 
 WindowSDL::WindowSDL(WindowedAppContext& app_context, const std::string_view title,
@@ -152,26 +114,10 @@ bool WindowSDL::OpenImpl() {
   sdl_window_id_ = SDL_GetWindowID(sdl_window_);
   sdl_app_context().RegisterWindow(sdl_window_id_, this);
 
-  // Center on the requested display before fullscreen so SDL resolves
-  // fullscreen against it. 1-based enumeration order; 0 = system default.
-  if (int32_t monitor_index = REXCVAR_GET(monitor); monitor_index > 0) {
-    int display_count = 0;
-    SDL_DisplayID* displays = SDL_GetDisplays(&display_count);
-    if (displays) {
-      if (monitor_index <= display_count) {
-        SDL_DisplayID display = displays[monitor_index - 1];
-        SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
-                              SDL_WINDOWPOS_CENTERED_DISPLAY(display));
-      } else {
-        REXLOG_WARN("monitor cvar is {} but only {} display(s) present; using default",
-                    monitor_index, display_count);
-      }
-      SDL_free(displays);
-    }
-  }
+  CenterOnConfiguredDisplay();
 
   if (IsFullscreen()) {
-    // Borderless desktop fullscreen (a NULL display mode is SDL3's default).
+    ApplyFullscreenModeNow();
     SDL_SetWindowFullscreen(sdl_window_, true);
   }
 #if REX_PLATFORM_MAC
@@ -277,6 +223,19 @@ bool WindowSDL::WarpMouseToCenter(int32_t& x_out, int32_t& y_out) {
   return true;
 }
 
+bool WindowSDL::GetDisplayPixelSize(uint32_t& width, uint32_t& height) const {
+  if (!sdl_window_) {
+    return false;
+  }
+  const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(sdl_window_));
+  if (!mode) {
+    return false;
+  }
+  width = uint32_t(float(mode->w) * mode->pixel_density);
+  height = uint32_t(float(mode->h) * mode->pixel_density);
+  return width > 0 && height > 0;
+}
+
 float WindowSDL::GetPixelDensity() const {
   float density = sdl_window_ ? SDL_GetWindowPixelDensity(sdl_window_) : 1.0f;
   return density > 0.0f ? density : 1.0f;
@@ -295,7 +254,97 @@ void WindowSDL::ApplyNewFullscreen() {
   if (!sdl_window_) {
     return;
   }
+  ApplyFullscreenModeNow();
   SDL_SetWindowFullscreen(sdl_window_, IsFullscreen());
+}
+
+void WindowSDL::ApplyNewMonitor() {
+  if (!sdl_window_) {
+    return;
+  }
+  const bool was_fullscreen = IsFullscreen();
+  if (was_fullscreen) {
+    SDL_SetWindowFullscreen(sdl_window_, false);
+    SDL_SyncWindow(sdl_window_);
+  }
+  CenterOnConfiguredDisplay();
+  if (was_fullscreen) {
+    ApplyFullscreenModeNow();
+    SDL_SetWindowFullscreen(sdl_window_, true);
+  }
+}
+
+void WindowSDL::ApplyNewDesiredLogicalSize() {
+  if (!sdl_window_ || (SDL_GetWindowFlags(sdl_window_) &
+                       (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MINIMIZED))) {
+    return;
+  }
+#if REX_PLATFORM_MAC
+  SDL_SetWindowSize(sdl_window_, int(GetDesiredLogicalWidth()), int(GetDesiredLogicalHeight()));
+#else
+  SDL_SetWindowSize(sdl_window_, int(SizeToPhysical(GetDesiredLogicalWidth())),
+                    int(SizeToPhysical(GetDesiredLogicalHeight())));
+#endif
+}
+
+void WindowSDL::CenterOnConfiguredDisplay() {
+  const int32_t monitor_index = GetMonitor();
+  if (!sdl_window_ || monitor_index <= 0) {
+    return;
+  }
+  int display_count = 0;
+  SDL_DisplayID* displays = SDL_GetDisplays(&display_count);
+  if (!displays) {
+    return;
+  }
+  if (monitor_index <= display_count) {
+    SDL_DisplayID display = displays[monitor_index - 1];
+    SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
+                          SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+  } else {
+    REXLOG_WARN("monitor cvar is {} but only {} display(s) present; using default", monitor_index,
+                display_count);
+  }
+  SDL_free(displays);
+}
+
+void WindowSDL::ApplyFullscreenModeNow() {
+  if (!sdl_window_) {
+    return;
+  }
+  if (!REXCVAR_GET(fullscreen_exclusive)) {
+    SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
+    return;
+  }
+
+  const SDL_DisplayID display = SDL_GetDisplayForWindow(sdl_window_);
+  int32_t width = 0;
+  int32_t height = 0;
+  if (!rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(width, height) ||
+      width <= 0 || height <= 0) {
+    const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
+    if (!desktop) {
+      REXLOG_WARN("No desktop mode for display {}: staying borderless", uint32_t(display));
+      SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
+      return;
+    }
+    width = desktop->w;
+    height = desktop->h;
+  }
+
+  SDL_DisplayMode mode = {};
+  if (!SDL_GetClosestFullscreenDisplayMode(display, width, height, 0.0f, true, &mode)) {
+    REXLOG_WARN("Display {} has no mode near {}x{}: staying borderless", uint32_t(display), width,
+                height);
+    SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
+    return;
+  }
+  if (!SDL_SetWindowFullscreenMode(sdl_window_, &mode)) {
+    REXLOG_WARN("SDL_SetWindowFullscreenMode({}x{}) failed: {}", mode.w, mode.h, SDL_GetError());
+    return;
+  }
+  REXLOG_INFO("Exclusive fullscreen mode {}x{} @ {:.3g}Hz on display {}", mode.w, mode.h,
+              mode.refresh_rate, uint32_t(display));
 }
 
 void WindowSDL::ApplyNewTitle() {

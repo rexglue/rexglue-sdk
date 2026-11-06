@@ -13,7 +13,6 @@
 #include "ui/ui.h"
 
 #include <chrono>
-#include <map>
 #include <string>
 
 #include <CLI/CLI.hpp>
@@ -46,10 +45,10 @@ bool ColorEnabled(bool tty) {
 }
 
 void ConfigureLogging(const std::string& level, const std::string& log_file, bool verbose) {
-  std::map<std::string, std::string> category_levels;
-  auto config = rex::BuildLogConfig(log_file.empty() ? nullptr : log_file.c_str(),
-                                    verbose ? "trace" : level, category_levels);
+  auto config = rex::BuildLogConfig(verbose ? "trace" : level, {});
+  config.log_file = log_file;
   config.log_to_console = true;
+  rex::ApplyLogCvarOverrides(config);
   rex::InitLogging(config);
   rex::RegisterLogLevelCallback();
 }
@@ -87,12 +86,9 @@ int main(int argc, char** argv) {
 
   CLI11_PARSE(app, argc, argv);
 
-  // The registry also exposes log_level/log_file, so honor those spellings.
+  // The registry also exposes log_level, so honor that spelling.
   if (rex::cvar::GetFlagSource("log_level") == rex::cvar::Source::kCommandLine) {
     log_level = rex::cvar::GetFlagByName("log_level");
-  }
-  if (rex::cvar::GetFlagSource("log_file") == rex::cvar::Source::kCommandLine) {
-    log_file = rex::cvar::GetFlagByName("log_file");
   }
 
   ConfigureLogging(log_level, log_file, verbose);

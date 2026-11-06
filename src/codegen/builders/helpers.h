@@ -294,7 +294,7 @@ inline void emitAtomicLoadReserve(BuilderContext& ctx, const char* ptr_type, con
  * @param ctx The builder context
  * @param ptr_type The pointer type (e.g., "uint32_t", "uint64_t")
  * @param bswap_func The byte-swap builtin (e.g., "__builtin_bswap32")
- * @param field The register field (e.g., "s32", "s64")
+ * @param field The register field (e.g., "u32", "u64")
  */
 inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type,
                                        const char* bswap_func, const char* field) {
@@ -305,11 +305,11 @@ inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type
   ctx.println("\t{}.lt = 0;", ctx.cr(0));
   ctx.println("\t{}.gt = 0;", ctx.cr(0));
   ctx.println(
-      "\t{}.eq = __sync_bool_compare_and_swap(reinterpret_cast<{}*>(REX_RAW_ADDR({})), "
-      "{}.{}, {}({}.{}));",
+      "\t{}.eq = reinterpret_cast<std::atomic<{}>*>(REX_RAW_ADDR({}))"
+      "->compare_exchange_strong({}.{}, {}({}.{}), "
+      "std::memory_order_acq_rel, std::memory_order_acquire);",
       ctx.cr(0), ptr_type, ctx.ea(), ctx.reserved(), field, bswap_func, ctx.r(ctx.insn.operands[0]),
       field);
-  ctx.println("\t{}.so = {}.so;", ctx.cr(0), ctx.xer());
 }
 
 //=============================================================================

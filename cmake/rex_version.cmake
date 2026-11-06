@@ -101,7 +101,7 @@ endfunction()
 # rex_resolve_version(<out_var>
 #     FLOOR_MAJOR <int>
 #     FLOOR_MINOR <int>
-#     [SOURCE_DIR <path>])    # defaults to CMAKE_SOURCE_DIR
+#     [SOURCE_DIR <path>])    # defaults to CMAKE_CURRENT_SOURCE_DIR
 #
 # Runs git in the working tree, then delegates to rex_compute_version.
 #==========================================================
@@ -110,7 +110,7 @@ function(rex_resolve_version out_var)
     cmake_parse_arguments(ARG "" "${one_value}" "" ${ARGN})
 
     if(NOT ARG_SOURCE_DIR)
-        set(ARG_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+        set(ARG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
 
     find_program(GIT_EXECUTABLE git)
@@ -169,4 +169,25 @@ function(rex_resolve_version out_var)
         GIT_DESCRIBE_EXACT "${describe_exact}"
         BRANCH_NAME "${branch_name}")
     set(${out_var} "${result}" PARENT_SCOPE)
+endfunction()
+
+function(rexglue_add_version_resource target_name)
+    if(NOT WIN32)
+        return()
+    endif()
+    cmake_parse_arguments(PARSE_ARGV 1 ARG "" "DESCRIPTION" "")
+    get_target_property(_type ${target_name} TYPE)
+    if(_type STREQUAL "EXECUTABLE")
+        set(REX_RC_FILETYPE 0x1)
+    else()
+        set(REX_RC_FILETYPE 0x2)
+    endif()
+    set(REX_RC_FILE_VERSION
+        "${REXGLUE_DERIVED_MAJOR},${REXGLUE_DERIVED_MINOR},${REXGLUE_DERIVED_PATCH},${REXGLUE_DERIVED_TWEAK}")
+    set(REX_RC_VERSION_STRING "${REXGLUE_FULL_VERSION}")
+    set(REX_RC_TARGET "${target_name}")
+    set(REX_RC_DESCRIPTION "${ARG_DESCRIPTION}")
+    set(_rc_file "${CMAKE_CURRENT_BINARY_DIR}/rexglue_rc/${target_name}.rc")
+    configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/version.rc.in" "${_rc_file}" @ONLY)
+    target_sources(${target_name} PRIVATE "${_rc_file}")
 endfunction()

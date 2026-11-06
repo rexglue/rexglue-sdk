@@ -13,11 +13,14 @@
 #include <cctype>
 #include <charconv>
 #include <filesystem>
+#include <map>
 #include <mutex>
+#include <optional>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
-#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <toml++/toml.hpp>
@@ -48,14 +51,6 @@ REXCVAR_DEFINE_INT32(log_flush_interval, 0, "Log", "Periodic flush interval in s
     .range(0, 60)
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
-REXCVAR_DEFINE_INT32(log_max_file_size_mb, 5, "Log", "Max log file size in MB before rotation")
-    .range(1, 100)
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
-REXCVAR_DEFINE_INT32(log_max_files, 20, "Log", "Max number of rotated log files to keep")
-    .range(1, 100)
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
 namespace rex {
 
 namespace {
@@ -70,26 +65,73 @@ bool g_initialized = false;
 std::mutex g_mutex;
 LogConfig g_config;
 
-std::filesystem::path NextSequentialLogPath(const std::filesystem::path& logs_dir,
-                                            std::string_view app_name) {
-  std::filesystem::create_directories(logs_dir);
+std::optional<int> RunNumber(const std::filesystem::path& file, std::string_view prefix) {
+  if (file.extension() != ".log") {
+    return std::nullopt;
+  }
+  std::string stem = file.stem().string();
+  if (!stem.starts_with(prefix)) {
+    return std::nullopt;
+  }
+  std::string_view digits(stem);
+  digits.remove_prefix(prefix.size());
+  digits = digits.substr(0, digits.find('.'));
+  int number = 0;
+  auto [ptr, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), number);
+  if (ec != std::errc() || ptr != digits.data() + digits.size()) {
+    return std::nullopt;
+  }
+  return number;
+}
 
-  int max_seq = 0;
+void PruneLogDirectory(const std::filesystem::path& logs_dir, std::string_view app_name,
+                       uint64_t budget_bytes) {
   std::string prefix = std::string(app_name) + "_";
+  std::map<int, std::vector<std::filesystem::path>> runs;
+  uint64_t total = 0;
   std::error_code ec;
   for (const auto& entry : std::filesystem::directory_iterator(logs_dir, ec)) {
-    if (!entry.is_regular_file())
+    if (!entry.is_regular_file(ec)) {
       continue;
-    auto stem = entry.path().stem().string();
-    if (stem.starts_with(prefix)) {
-      auto num_str = stem.substr(prefix.size());
-      int num = 0;
-      auto [ptr, parse_ec] = std::from_chars(num_str.data(), num_str.data() + num_str.size(), num);
-      if (parse_ec == std::errc() && ptr == num_str.data() + num_str.size())
-        max_seq = std::max(max_seq, num);
+    }
+    auto run = RunNumber(entry.path(), prefix);
+    if (!run) {
+      continue;
+    }
+    uint64_t bytes = entry.file_size(ec);
+    if (ec) {
+      continue;
+    }
+    runs[*run].push_back(entry.path());
+    total += bytes;
+  }
+  for (const auto& [run, files] : runs) {
+    if (total <= budget_bytes) {
+      break;
+    }
+    for (const auto& file : files) {
+      uint64_t bytes = std::filesystem::file_size(file, ec);
+      if (!ec && std::filesystem::remove(file, ec)) {
+        total -= bytes;
+      }
     }
   }
+}
 
+std::filesystem::path NextSequentialLogPath(const std::filesystem::path& logs_dir,
+                                            std::string_view app_name) {
+  std::error_code ec;
+  std::filesystem::create_directories(logs_dir, ec);
+  std::string prefix = std::string(app_name) + "_";
+  int max_seq = 0;
+  for (const auto& entry : std::filesystem::directory_iterator(logs_dir, ec)) {
+    if (!entry.is_regular_file(ec)) {
+      continue;
+    }
+    if (auto run = RunNumber(entry.path(), prefix)) {
+      max_seq = std::max(max_seq, *run);
+    }
+  }
   return logs_dir / fmt::format("{}_{:03d}.log", app_name, max_seq + 1);
 }
 
@@ -216,19 +258,17 @@ void InitLogging(const LogConfig& config) {
     g_console_sink = sink;
   }
 
-  // File sink (rotating) with sequential naming fallback
-  std::string resolved_path;
-  if (config.log_file) {
-    resolved_path = config.log_file;
-  } else if (!config.app_name.empty()) {
-    auto log_dir = config.log_dir.empty() ? std::filesystem::current_path() / "logs"
-                                          : std::filesystem::path(config.log_dir);
-    resolved_path = NextSequentialLogPath(log_dir, config.app_name).string();
+  std::filesystem::path resolved_path = config.log_file;
+  if (resolved_path.empty() && !config.app_name.empty()) {
+    auto log_dir =
+        config.log_dir.empty() ? std::filesystem::current_path() / "logs" : config.log_dir;
+    if (config.dir_budget_bytes > 0) {
+      PruneLogDirectory(log_dir, config.app_name, config.dir_budget_bytes);
+    }
+    resolved_path = NextSequentialLogPath(log_dir, config.app_name);
   }
   if (!resolved_path.empty()) {
-    auto sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-        resolved_path, static_cast<size_t>(REXCVAR_GET(log_max_file_size_mb)) * 1024 * 1024,
-        static_cast<size_t>(REXCVAR_GET(log_max_files)), false);
+    auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(resolved_path.string(), false);
     sink->set_level(spdlog::level::trace);
     sink->set_pattern(config.file_pattern);
     g_file_sink = sink;
@@ -256,15 +296,13 @@ void InitLogging(const LogConfig& config) {
   }
   g_initialized = true;
 
-  // Periodic flush
-  int flush_interval = REXCVAR_GET(log_flush_interval);
-  if (flush_interval > 0)
-    spdlog::flush_every(std::chrono::seconds(flush_interval));
+  if (config.flush_interval.count() > 0)
+    spdlog::flush_every(config.flush_interval);
 }
 
-void InitLogging(const char* log_file, spdlog::level::level_enum level) {
+void InitLogging(std::filesystem::path log_file, spdlog::level::level_enum level) {
   LogConfig config;
-  config.log_file = log_file;
+  config.log_file = std::move(log_file);
   config.default_level = level;
   InitLogging(config);
 }
@@ -502,10 +540,9 @@ spdlog::level::level_enum ParseLogLevelOr(const std::string& level_str,
   return ParseLogLevel(level_str).value_or(default_level);
 }
 
-LogConfig BuildLogConfig(const char* log_file, const std::string& cli_level,
+LogConfig BuildLogConfig(const std::string& cli_level,
                          const std::map<std::string, std::string>& category_levels) {
   LogConfig config;
-  config.log_file = log_file;
 
   // Build-type default
   config.default_level = kDefaultLogLevel;
@@ -535,6 +572,19 @@ LogConfig BuildLogConfig(const char* log_file, const std::string& cli_level,
   }
 
   return config;
+}
+
+void ApplyLogCvarOverrides(LogConfig& config) {
+  if (rex::cvar::HasNonDefaultValue("log_file")) {
+    config.log_file = std::string(REXCVAR_GET(log_file));
+  }
+  if (rex::cvar::HasNonDefaultValue("log_flush_interval")) {
+    config.flush_interval = std::chrono::seconds(REXCVAR_GET(log_flush_interval));
+  }
+}
+
+const LogConfig& LoggingConfig() {
+  return g_config;
 }
 
 std::map<std::string, std::string> ParseCategoryLevelsFromConfig(

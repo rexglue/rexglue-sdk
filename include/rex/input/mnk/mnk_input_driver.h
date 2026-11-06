@@ -47,6 +47,7 @@ class MnkInputDriver final : public InputDriver,
   // WindowInputListener
   void OnKeyDown(rex::ui::KeyEvent& e) override;
   void OnKeyUp(rex::ui::KeyEvent& e) override;
+  void OnKeyChar(rex::ui::KeyEvent& e) override;
   void OnMouseDown(rex::ui::MouseEvent& e) override;
   void OnMouseUp(rex::ui::MouseEvent& e) override;
   void OnMouseMove(rex::ui::MouseEvent& e) override;
@@ -60,6 +61,15 @@ class MnkInputDriver final : public InputDriver,
   bool IsEnabled() const;
   void SetKeyState(uint16_t vk, bool down);
   void EnqueueKeystroke(uint16_t vk_pad, bool down);
+  /// Appends to the keystroke queue, evicting the oldest entry once it is full.
+  void PushKeystroke(const X_INPUT_KEYSTROKE& ks);
+  /// Queues one raw key for the guest, with its unicode and modifier state.
+  /// Passthrough only.
+  void EnqueueRawKeystroke(const rex::ui::KeyEvent& e, bool down);
+  /// Re-evaluates every bind against the current key state and queues a
+  /// keystroke for each pad button that changed. Call with state_mutex_ held
+  /// after any key or mouse button moves.
+  void RefreshBoundKeystrokesLocked();
 
   // Called from the guest thread. The rest of the capture path stays on the UI
   // thread, since every Window call in it reaches SDL.
@@ -99,8 +109,12 @@ class MnkInputDriver final : public InputDriver,
 
   std::atomic<bool> has_focus_{true};
 
-  // Keystroke queue
+  // Keystroke queue. In passthrough it carries raw keys; otherwise the
+  // VK_PAD_* codes of the bound buttons.
   std::queue<X_INPUT_KEYSTROKE> keystroke_queue_;
+  // Which binds were pressed at the last evaluation, to diff against. One bit
+  // per entry of the bind table.
+  uint32_t bound_pressed_ = 0;
 
   // Packet number incremented on state change
   uint32_t packet_number_ = 0;

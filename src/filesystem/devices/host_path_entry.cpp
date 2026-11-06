@@ -75,11 +75,20 @@ bool HostPathEntry::Truncate() {
   if (is_read_only() || (attributes_ & kFileAttributeDirectory)) {
     return false;
   }
-  auto file = rex::filesystem::OpenFile(host_path_, "wb");
-  if (!file) {
-    return false;
+  auto file_handle = rex::filesystem::FileHandle::OpenExisting(
+      host_path_, FileAccess::kGenericWrite,
+      static_cast<HostPathDevice*>(device_)->allow_share_delete());
+  if (file_handle) {
+    if (!file_handle->SetLength(0)) {
+      return false;
+    }
+  } else {
+    auto file = rex::filesystem::OpenFile(host_path_, "wb");
+    if (!file) {
+      return false;
+    }
+    fclose(file);
   }
-  fclose(file);
   size_ = 0;
   allocation_size_ = 0;
   return true;
@@ -112,11 +121,16 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
   if (entry->attributes() & kFileAttributeDirectory) {
     // Delete entire directory and contents.
     auto removed = std::filesystem::remove_all(full_path, ec);
-    return removed >= 1 && removed != static_cast<std::uintmax_t>(-1);
+    if (removed < 1 || removed == static_cast<std::uintmax_t>(-1)) {
+      return false;
+    }
   } else {
     // Delete file.
-    return !std::filesystem::is_directory(full_path) && std::filesystem::remove(full_path, ec);
+    if (std::filesystem::is_directory(full_path, ec) || !std::filesystem::remove(full_path, ec)) {
+      return false;
+    }
   }
+  return std::filesystem::status(full_path, ec).type() == std::filesystem::file_type::not_found;
 }
 
 X_STATUS HostPathEntry::RenameEntryInternal(const std::vector<std::string_view>& path_parts) {

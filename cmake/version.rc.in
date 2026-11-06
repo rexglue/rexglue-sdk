@@ -1,0 +1,27 @@
+1 VERSIONINFO
+FILEVERSION @REX_RC_FILE_VERSION@
+PRODUCTVERSION @REX_RC_FILE_VERSION@
+FILEFLAGSMASK 0x3F
+FILEFLAGS 0x0
+FILEOS 0x40004
+FILETYPE @REX_RC_FILETYPE@
+FILESUBTYPE 0x0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "ReXGlue"
+            VALUE "FileDescription", "@REX_RC_DESCRIPTION@"
+            VALUE "FileVersion", "@REX_RC_VERSION_STRING@"
+            VALUE "InternalName", "@REX_RC_TARGET@"
+            VALUE "LegalCopyright", "Copyright (c) 2026 ReXGlue"
+            VALUE "ProductName", "ReXGlue SDK"
+            VALUE "ProductVersion", "@REX_RC_VERSION_STRING@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

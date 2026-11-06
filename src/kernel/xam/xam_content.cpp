@@ -160,16 +160,12 @@ u32 xeXamContentCreate(u32 user_index, mapped_string root_name, mapped_void cont
         // Close any existing mount under this root name first.
         // Games may reuse the same root without explicitly closing.
         content_manager->CloseContent(root_name);
-        if (content_manager->ContentExists(xuid, content_data)) {
-          content_manager->DeleteContent(xuid, content_data);
+        if (content_manager->ContentExists(xuid, content_data) &&
+            content_manager->DeleteContent(xuid, content_data) != X_ERROR_SUCCESS) {
+          result = X_ERROR_ACCESS_DENIED;
+          break;
         }
-        // Check filesystem state after deletion attempt to decide
-        // whether to create fresh or open existing.
-        if (content_manager->ContentExists(xuid, content_data)) {
-          disposition = kDispositionState::Open;
-        } else {
-          disposition = kDispositionState::Create;
-        }
+        disposition = kDispositionState::Create;
         break;
       case 3:  // OPEN_EXISTING
                // Open only if exists.
@@ -193,9 +189,8 @@ u32 xeXamContentCreate(u32 user_index, mapped_string root_name, mapped_void cont
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
           content_manager->CloseContent(root_name);
-          content_manager->DeleteContent(xuid, content_data);
-          if (content_manager->ContentExists(xuid, content_data)) {
-            disposition = kDispositionState::Open;
+          if (content_manager->DeleteContent(xuid, content_data) != X_ERROR_SUCCESS) {
+            result = X_ERROR_ACCESS_DENIED;
           } else {
             disposition = kDispositionState::Create;
           }
@@ -209,14 +204,14 @@ u32 xeXamContentCreate(u32 user_index, mapped_string root_name, mapped_void cont
     uint32_t content_license = 0;
     if (disposition == kDispositionState::Create) {
       result = content_manager->CreateContent(root_name, xuid, content_data);
-      if (XSUCCEEDED(result)) {
+      if (result == X_ERROR_SUCCESS) {
         content_manager->WriteContentHeaderFile(xuid, content_data);
       }
     } else if (disposition == kDispositionState::Open) {
       result = content_manager->OpenContent(root_name, xuid, content_data, content_license);
     }
 
-    if (license_mask_ptr && XSUCCEEDED(result)) {
+    if (license_mask_ptr && result == X_ERROR_SUCCESS) {
       *license_mask_ptr = content_license;
     }
 
@@ -340,7 +335,7 @@ u32 XamContentGetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
 
   *buffer_size_ptr = uint32_t(buffer.size());
 
-  if (XSUCCEEDED(result)) {
+  if (result == X_ERROR_SUCCESS) {
     // Write data, if we were given a pointer.
     // This may have just been a size query.
     if (buffer_ptr) {

@@ -24,8 +24,6 @@ REXCVAR_DECLARE(std::string, log_file);
 REXCVAR_DECLARE(bool, log_verbose);
 REXCVAR_DECLARE(bool, log_noisy);
 REXCVAR_DECLARE(int32_t, log_flush_interval);
-REXCVAR_DECLARE(int32_t, log_max_file_size_mb);
-REXCVAR_DECLARE(int32_t, log_max_files);
 
 namespace rex {
 
@@ -53,10 +51,10 @@ void InitLogging(const LogConfig& config);
 /**
  * Initialize logging with simple parameters (convenience overload).
  *
- * @param log_file  Path to log file, or nullptr for no file logging.
+ * @param log_file  Path to log file, or empty for no file logging.
  * @param level     Default log level for all categories.
  */
-void InitLogging(const char* log_file = nullptr,
+void InitLogging(std::filesystem::path log_file = {},
                  spdlog::level::level_enum level = spdlog::level::info);
 
 /**
@@ -241,13 +239,16 @@ spdlog::level::level_enum ParseLogLevelOr(const std::string& level_str,
  *
  * Precedence: CLI args > environment (REX_LOG_LEVEL) > build-type default.
  *
- * @param log_file         Path to log file, or nullptr.
  * @param cli_level        Global level from CLI (empty string = not set).
  * @param category_levels  Per-category level overrides from CLI.
  * @return                 Populated LogConfig.
  */
-LogConfig BuildLogConfig(const char* log_file, const std::string& cli_level,
+LogConfig BuildLogConfig(const std::string& cli_level,
                          const std::map<std::string, std::string>& category_levels);
+
+void ApplyLogCvarOverrides(LogConfig& config);
+
+const LogConfig& LoggingConfig();
 
 std::map<std::string, std::string> ParseCategoryLevelsFromConfig(
     const std::filesystem::path& config_path);

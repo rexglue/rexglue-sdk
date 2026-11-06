@@ -109,14 +109,21 @@ inline bool TryParseResolutionPreset(std::string_view resolution_value, int32_t&
 }
 
 inline bool TryGetResolutionPresetFromCVar(int32_t& width_out, int32_t& height_out) {
-  if (!rex::cvar::HasNonDefaultValue("resolution")) {
-    return false;
+  return TryParseResolutionPreset(REXCVAR_GET(resolution), width_out, height_out);
+}
+
+inline bool ResolveConfiguredSize(int32_t& width_out, int32_t& height_out) {
+  if (TryGetResolutionPresetFromCVar(width_out, height_out)) {
+    return true;
   }
-  const std::string& resolution_value = REXCVAR_GET(resolution);
-  if (resolution_value.empty()) {
-    return false;
+  if (REXCVAR_GET(window_width) > 0 && REXCVAR_GET(window_height) > 0) {
+    width_out = REXCVAR_GET(window_width);
+    height_out = REXCVAR_GET(window_height);
+    return true;
   }
-  return TryParseResolutionPreset(resolution_value, width_out, height_out);
+  width_out = REXCVAR_GET(video_mode_width);
+  height_out = REXCVAR_GET(video_mode_height);
+  return width_out > 0 && height_out > 0;
 }
 
 }  // namespace rex::graphics::video_mode_util

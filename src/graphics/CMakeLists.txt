@@ -104,6 +104,7 @@ set_target_properties(rexgpu-xenos PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
 )
+rexglue_add_version_resource(rexgpu-xenos DESCRIPTION "ReXGlue Xenos GPU emulation")
 
 target_include_directories(rexgpu-xenos PRIVATE
     ${REXGLUE_ROOT}/thirdparty/renderdoc

@@ -1,9 +1,9 @@
-# {{ names.snake_case }} - ReXGlue Recompiled Project
+# {{ names.original }} - ReXGlue Recompiled Project
 #
 # SDK boilerplate lives in generated/rexglue.cmake.
 
 cmake_minimum_required(VERSION 3.25)
-project({{ names.snake_case }} LANGUAGES CXX)
+project({{ names.original }} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,9 +16,9 @@ set({{ names.upper_case }}_SOURCES
 )
 
 if(WIN32)
-    add_executable({{ names.snake_case }} WIN32 {{ cmake_var(names.upper_case + "_SOURCES") }})
+    add_executable({{ names.original }} WIN32 {{ cmake_var(names.upper_case + "_SOURCES") }})
 else()
-    add_executable({{ names.snake_case }} {{ cmake_var(names.upper_case + "_SOURCES") }})
+    add_executable({{ names.original }} {{ cmake_var(names.upper_case + "_SOURCES") }})
 endif()
 
-rexglue_setup_target({{ names.snake_case }})
+rexglue_setup_target({{ names.original }})

@@ -16,3 +16,6 @@
 REXCVAR_DECLARE(bool, guide_button);
 REXCVAR_DECLARE(std::string, hid_mappings_file);
 REXCVAR_DECLARE(std::string, input_backend);
+REXCVAR_DECLARE(bool, vibration);
+REXCVAR_DECLARE(double, left_stick_deadzone_percentage);
+REXCVAR_DECLARE(double, right_stick_deadzone_percentage);

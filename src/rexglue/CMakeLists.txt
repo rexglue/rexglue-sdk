@@ -11,6 +11,7 @@ add_executable(rexglue
 )
 
 rex_config_postfix(rexglue)
+rexglue_add_version_resource(rexglue DESCRIPTION "ReXGlue recompiler")
 
 target_include_directories(rexglue
     PRIVATE

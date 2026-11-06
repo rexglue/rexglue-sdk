@@ -155,9 +155,9 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(uint32_t device
       continue;
     }
 
-    XCONTENT_AGGREGATE_DATA content_data;
-    if (XSUCCEEDED(ReadContentHeaderFile(rex::path_to_utf8(file_info.name), xuid, title_id,
-                                         content_type, content_data))) {
+    XCONTENT_AGGREGATE_DATA content_data{};
+    if (ReadContentHeaderFile(rex::path_to_utf8(file_info.name), xuid, title_id, content_type,
+                              content_data) == X_ERROR_SUCCESS) {
       result.emplace_back(std::move(content_data));
     } else {
       content_data.device_id = device_id;
@@ -375,7 +375,8 @@ X_RESULT ContentManager::DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_D
   auto package_path = ResolvePackagePath(xuid, data);
   std::error_code ec;
   auto dir_removed = std::filesystem::remove_all(package_path, ec);
-  if (ec) {
+  if (ec ||
+      std::filesystem::status(package_path, ec).type() != std::filesystem::file_type::not_found) {
     return X_ERROR_ACCESS_DENIED;
   }
 
@@ -427,7 +428,8 @@ X_RESULT ContentManager::UnmountAndDeleteContent(uint64_t xuid,
 
   std::error_code ec;
   auto dir_removed = std::filesystem::remove_all(package_path, ec);
-  if (ec) {
+  if (ec ||
+      std::filesystem::status(package_path, ec).type() != std::filesystem::file_type::not_found) {
     return X_ERROR_ACCESS_DENIED;
   }
 

@@ -153,9 +153,7 @@ class Window {
   };
 
   static std::unique_ptr<Window> Create(WindowedAppContext& app_context,
-                                        const std::string_view title,
-                                        uint32_t desired_logical_width,
-                                        uint32_t desired_logical_height);
+                                        const std::string_view title);
 
   virtual ~Window();
 
@@ -259,6 +257,9 @@ class Window {
   // user resizes a non-maximized window.
   uint32_t GetDesiredLogicalWidth() const { return desired_logical_width_; }
   uint32_t GetDesiredLogicalHeight() const { return desired_logical_height_; }
+  void SetDesiredLogicalSize(uint32_t new_desired_logical_width,
+                             uint32_t new_desired_logical_height);
+  static void ResolveConfiguredLogicalSize(uint32_t& width_out, uint32_t& height_out);
 
   // 0 width or height may be returned even in case of an open window with a
   // valid non-zero-area surface depending on the platform.
@@ -269,10 +270,20 @@ class Window {
   uint32_t GetActualLogicalWidth() const { return SizeToLogical(GetActualPhysicalWidth()); }
   uint32_t GetActualLogicalHeight() const { return SizeToLogical(GetActualPhysicalHeight()); }
 
+  virtual bool GetDisplayPixelSize(uint32_t& width, uint32_t& height) const {
+    (void)width;
+    (void)height;
+    return false;
+  }
+
   // Desired state stored by the common Window, modifiable both externally and
   // by the implementation (including from SetFullscreen itself).
   bool IsFullscreen() const { return fullscreen_; }
   void SetFullscreen(bool new_fullscreen);
+  void RefreshFullscreen();
+
+  int32_t GetMonitor() const { return monitor_; }
+  void SetMonitor(int32_t new_monitor);
 
   // Desired state stored by the common Window, externally modifiable, read-only
   // in the implementation.
@@ -514,6 +525,8 @@ class Window {
   // ApplyNew* means that the value has actually been changed to something
   // different than it was previously.
   virtual void ApplyNewFullscreen() {}
+  virtual void ApplyNewMonitor() {}
+  virtual void ApplyNewDesiredLogicalSize() {}
   virtual void ApplyNewTitle() {}
   // can_apply_state_in_current_phase whether the window is in a life cycle
   // phase that would normally accept Apply calls (the native window surely
@@ -712,6 +725,7 @@ class Window {
   uint32_t actual_physical_height_ = 0;
 
   bool fullscreen_ = false;
+  int32_t monitor_ = 0;
 
   std::string title_;
 
