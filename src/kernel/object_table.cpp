@@ -93,10 +93,7 @@ void PublishHostState(ObjectData& live, ObjectData& fresh) {
     semaphore->semaphore.Replace(other.semaphore.Take());
   } else if (auto* mutant = std::get_if<MutantObject>(&live)) {
     auto& other = std::get<MutantObject>(fresh);
-    mutant->mutant.Replace(other.mutant.Take());
-    mutant->owner_thread_id.store(other.owner_thread_id.load());
-    mutant->hold_count.store(other.hold_count.load());
-    mutant->abandoned.store(other.abandoned.load());
+    mutant->Adopt(other);
   } else if (auto* timer = std::get_if<TimerObject>(&live)) {
     auto& other = std::get<TimerObject>(fresh);
     timer->timer.Replace(other.timer.Take());

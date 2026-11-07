@@ -36,6 +36,7 @@ MutantObject::MutantObject(bool initial_owner, u32 guest_mutant_in)
 }
 
 X_STATUS MutantObject::Release(bool abandon, i32* previous_state) {
+  std::lock_guard lock(state_mutex);
   const u32 self = CurrentThreadID();
   if (!self || owner_thread_id.load() != self) {
     return X_STATUS_MUTANT_NOT_OWNED;
@@ -69,6 +70,7 @@ X_STATUS MutantObject::Release(bool abandon, i32* previous_state) {
 }
 
 bool MutantObject::OnAcquired(const rex::platform::WaitHandle* waited) {
+  std::lock_guard lock(state_mutex);
   if (waited != mutant.get()) {
     return false;
   }
@@ -83,6 +85,14 @@ bool MutantObject::OnAcquired(const rex::platform::WaitHandle* waited) {
     thread->GetAddressSpace()->TranslateVirtual<X_KMUTANT*>(guest_mutant)->abandoned = 0;
   }
   return abandoned.exchange(false);
+}
+
+void MutantObject::Adopt(MutantObject& fresh) {
+  std::lock_guard lock(state_mutex);
+  mutant.Replace(fresh.mutant.Take());
+  owner_thread_id.store(fresh.owner_thread_id.load());
+  hold_count.store(fresh.hold_count.load());
+  abandoned.store(fresh.abandoned.load());
 }
 
 }  // namespace rex::kernel

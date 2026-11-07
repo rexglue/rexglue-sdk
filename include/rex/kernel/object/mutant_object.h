@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 
 #include <rex/assert.h>
 #include <rex/kernel/object/object.h>
@@ -67,6 +68,8 @@ struct MutantObject {
   std::atomic<bool> abandoned{false};
   /** The guest KMUTANT the object backs, 0 for none. */
   u32 guest_mutant = 0;
+  /** Orders Release, OnAcquired and Adopt, so a replaced host mutant never changes the owner. */
+  std::mutex state_mutex;
 
   /**
    * Releases a mutant held by the current thread.
@@ -85,6 +88,13 @@ struct MutantObject {
    * @return True when the mutant was abandoned since its last acquire.
    */
   REX_KERNEL_API bool OnAcquired(const rex::platform::WaitHandle* waited);
+
+  /**
+   * Replaces the host mutant and the owner state with those of a new object.
+   *
+   * @param fresh A mutant no other thread can see, whose host mutant is taken.
+   */
+  REX_KERNEL_API void Adopt(MutantObject& fresh);
 };
 
 }  // namespace rex::kernel
