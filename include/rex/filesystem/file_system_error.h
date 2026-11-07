@@ -21,7 +21,8 @@ namespace rex::filesystem {
 /** Filesystem error codes, stored in rex::Error::code. */
 enum class FileSystemError : u8 {
   kNone = 0,
-  kNotFound, /**< The path or one of its parents does not exist. */
+  kNotFound,     /**< The last component of the path does not exist. */
+  kPathNotFound, /**< A folder before the last component does not exist or is a file. */
   kExists,
   kIsDirectory,
   kNotDirectory,
@@ -40,13 +41,14 @@ enum class FileSystemError : u8 {
 /**
  * Builds a rex::Error that carries a filesystem code.
  *
- * @return The error. kNotFound and kNoMount map to NotFound, kCorrupt to Format, kUnsupported to
- *         NotImplemented, the rest to IO.
+ * @return The error. kNotFound, kPathNotFound and kNoMount map to NotFound, kCorrupt to Format,
+ * kUnsupported to NotImplemented, the rest to IO.
  */
 [[nodiscard]] inline rex::Error BuildError(FileSystemError code, std::string message) {
   ErrorCategory category = ErrorCategory::kIO;
   switch (code) {
     case FileSystemError::kNotFound:
+    case FileSystemError::kPathNotFound:
     case FileSystemError::kNoMount:
       category = ErrorCategory::kNotFound;
       break;

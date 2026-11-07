@@ -93,7 +93,9 @@ class IFileSystem : public NonCopyable {
    * Opens or creates a file or directory.
    *
    * @param options Disposition, access and type.
-   * @return The file and the action. A write request on a read only mount gets read access.
+   * @return The file and the action, kPathNotFound when a folder of the path is missing or is a
+   *         file, kNotFound when a disposition that needs the file finds none. A write request on a
+   *         read only mount gets read access.
    */
   [[nodiscard]] virtual Result<Opened> Open(std::string_view path, const OpenOptions& options) = 0;
 
@@ -106,14 +108,14 @@ class IFileSystem : public NonCopyable {
   [[nodiscard]] virtual Result<Opened> OpenRelative(IFile& root, std::string_view path,
                                                     const OpenOptions& options) = 0;
 
-  /** Returns the information of a path without opening it, or kNoMount or kNotFound. */
+  /** Returns the information of a path without opening it, kNoMount, kPathNotFound or kNotFound. */
   [[nodiscard]] virtual Result<FileStat> Stat(std::string_view path) = 0;
 
   /**
    * Starts a walk of the children of a directory.
    *
    * @param pattern The wildcard pattern, empty for every child.
-   * @return The walk, kNotFound or kNotDirectory.
+   * @return The walk, kPathNotFound, kNotFound or kNotDirectory.
    */
   [[nodiscard]] virtual Result<std::unique_ptr<IDirectory>> List(std::string_view path,
                                                                  std::string_view pattern) = 0;
@@ -128,7 +130,7 @@ class IFileSystem : public NonCopyable {
   /**
    * Deletes a file, or a directory with its contents.
    *
-   * @return kNotFound, or kAccessDenied for a mount root or a read only mount.
+   * @return kPathNotFound, kNotFound, or kAccessDenied for a mount root or a read only mount.
    */
   [[nodiscard]] virtual Result<void> Remove(std::string_view path) = 0;
 
@@ -137,7 +139,8 @@ class IFileSystem : public NonCopyable {
    *
    * @param to The new guest path, resolved through links and mounts.
    * @param replace_existing True to replace a closed file at the new path.
-   * @return kNotFound, kExists, kNotSameDevice, kInvalidPath, kAccessDenied, or the provider error.
+   * @return kPathNotFound, kNotFound, kExists, kNotSameDevice, kInvalidPath, kAccessDenied, or the
+   *         provider error.
    */
   [[nodiscard]] virtual Result<void> Rename(std::string_view from, std::string_view to,
                                             bool replace_existing) = 0;
@@ -148,7 +151,8 @@ class IFileSystem : public NonCopyable {
    * @param to The new path. A bare name with no root stays in the folder of the file.
    * @param replace_existing True to replace a closed file at the new path.
    * @param root An open directory the new path is relative to, or null.
-   * @return kNotFound, kExists, kNotSameDevice, kInvalidPath, kAccessDenied, or the provider error.
+   * @return kPathNotFound, kNotFound, kExists, kNotSameDevice, kInvalidPath, kAccessDenied, or the
+   *         provider error.
    */
   [[nodiscard]] virtual Result<void> Rename(IFile& file, std::string_view to, bool replace_existing,
                                             IFile* root = nullptr) = 0;

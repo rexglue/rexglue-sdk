@@ -197,12 +197,51 @@ REX_TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files",
   }
 }
 
+REX_TEST_CASE_METHOD(Fixture, "A missing folder is kPathNotFound and a missing file is kNotFound",
+                     "[filesystem][open]") {
+  WriteHost(GetTemp() / "dir" / "inside.txt", "alpha");
+  WriteHost(GetTemp() / "plain.txt", "beta");
+  MountTemp(kRoot);
+  const std::string missing_folder = "\\Device\\Test\\gone\\file.txt";
+  const std::string deep_folder = "\\Device\\Test\\gone\\deeper\\file.txt";
+  const std::string through_file = "\\Device\\Test\\plain.txt\\file.txt";
+  const std::string missing_file = "\\Device\\Test\\dir\\none.txt";
+
+  for (const Disposition disposition :
+       {Disposition::kOpen, Disposition::kOverwrite, Disposition::kCreate, Disposition::kOpenIf}) {
+    INFO(static_cast<int>(disposition));
+    const OpenOptions options{.disposition = disposition, .access = Access::kWriteAccess};
+    CHECK(OpenError(*this, missing_folder, options) == FileSystemError::kPathNotFound);
+    CHECK(OpenError(*this, deep_folder, options) == FileSystemError::kPathNotFound);
+    CHECK(OpenError(*this, through_file, options) == FileSystemError::kPathNotFound);
+  }
+  CHECK(OpenError(*this, missing_file, {}) == FileSystemError::kNotFound);
+  CHECK(OpenError(*this, missing_file, {.disposition = Disposition::kOverwrite}) ==
+        FileSystemError::kNotFound);
+  CHECK_FALSE(std::filesystem::exists(GetTemp() / "gone"));
+
+  CHECK(CodeOf(GetFileSystem().Stat(missing_folder).error()) == FileSystemError::kPathNotFound);
+  CHECK(CodeOf(GetFileSystem().Stat(deep_folder).error()) == FileSystemError::kPathNotFound);
+  CHECK(CodeOf(GetFileSystem().Stat(through_file).error()) == FileSystemError::kPathNotFound);
+  CHECK(CodeOf(GetFileSystem().Stat(missing_file).error()) == FileSystemError::kNotFound);
+  CHECK(CodeOf(GetFileSystem().List("\\Device\\Test\\gone\\sub", "").error()) ==
+        FileSystemError::kPathNotFound);
+  CHECK(CodeOf(GetFileSystem().Remove(missing_folder).error()) == FileSystemError::kPathNotFound);
+  CHECK(CodeOf(GetFileSystem().Remove(missing_file).error()) == FileSystemError::kNotFound);
+
+  auto root = Open("\\Device\\Test\\dir", {});
+  CHECK(CodeOf(GetFileSystem().OpenRelative(*root.file, "gone\\file.txt", {}).error()) ==
+        FileSystemError::kPathNotFound);
+  CHECK(CodeOf(GetFileSystem().OpenRelative(*root.file, "none.txt", {}).error()) ==
+        FileSystemError::kNotFound);
+}
+
 REX_TEST_CASE_METHOD(Fixture, "Open creates files and directories in present parents",
                      "[filesystem][open]") {
   MountTemp(kRoot);
   const OpenOptions create{.disposition = Disposition::kCreate, .access = Access::kWriteAccess};
   CHECK(OpenError(*this, "\\Device\\Test\\one\\two\\file.txt", create) ==
-        FileSystemError::kNotFound);
+        FileSystemError::kPathNotFound);
   REQUIRE(GetFileSystem().CreateDirectories("\\Device\\Test\\one\\two"));
   auto file = Open("\\Device\\Test\\one\\two\\file.txt", create);
   CHECK(file.action == OpenAction::kCreated);

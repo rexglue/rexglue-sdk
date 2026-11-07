@@ -83,8 +83,12 @@ Result<Node*> FileSystem::ResolveNode(std::string_view path) const {
   Node* node = resolved.provider->Resolve(resolved.relative);
   if (!node) {
     REXFS_DEBUG("'{}' is not on mount '{}'", path, resolved.provider->GetMountPath());
-    return Err<Node*>(
-        BuildError(FileSystemError::kNotFound, std::format("'{}' does not exist", path)));
+    const std::string folder = utf8_find_base_guest_path(resolved.relative);
+    Node* parent =
+        folder.empty() ? &resolved.provider->GetRoot() : resolved.provider->Resolve(folder);
+    const FileSystemError code = parent && parent->IsDirectory() ? FileSystemError::kNotFound
+                                                                 : FileSystemError::kPathNotFound;
+    return Err<Node*>(BuildError(code, std::format("'{}' does not exist", path)));
   }
   REXFS_TRACE("'{}' resolves to '{}'", path, node->GetAbsolutePath());
   return node;
@@ -137,6 +141,10 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
     return Err<Opened>(
         BuildError(FileSystemError::kNotFound, std::format("'{}' does not exist", path)));
   };
+  auto path_not_found = [&] {
+    return Err<Opened>(BuildError(FileSystemError::kPathNotFound,
+                                  std::format("a folder of '{}' does not exist", path)));
+  };
 
   Node* parent = nullptr;
   Node* node = nullptr;
@@ -144,13 +152,21 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   if (root) {
     Provider& provider = root->GetProvider();
     parent = base.empty() ? root : provider.Resolve(utf8_join_guest_paths(root->GetPath(), base));
-    if (!parent) {
-      return not_found();
+    if (!parent || !parent->IsDirectory()) {
+      return path_not_found();
     }
     node = provider.Resolve(utf8_join_guest_paths(root->GetPath(), path));
   } else {
     if (!base.empty()) {
-      REX_TRY(parent, ResolveNode(base));
+      auto resolved_parent = ResolveNode(base);
+      if (!resolved_parent) {
+        const bool missing = CodeOf(resolved_parent.error()) == FileSystemError::kNotFound;
+        return missing ? path_not_found() : Err<Opened>(resolved_parent.error());
+      }
+      parent = *resolved_parent;
+      if (!parent->IsDirectory()) {
+        return path_not_found();
+      }
     }
     if (auto resolved = ResolveNode(path)) {
       node = *resolved;
