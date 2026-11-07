@@ -316,6 +316,15 @@ class REX_KERNEL_API BaseHeap {
   BaseHeap();
 
   /**
+   * Returns the union of the committed guest protection of the guest pages in a host page, ignoring
+   * write watches. The caller holds the same locks as for GetHostPageAccess.
+   *
+   * @param host_page_number Host page number from the heap host base, with GetHostAddressOffset().
+   * @return The host access the guest protection allows.
+   */
+  rex::memory::PageAccess GetHostPageGuestAccess(u32 host_page_number) const;
+
+  /**
    * Reconciles host page access with guest page protection. The caller holds the memory watch lock
    * when guest pages are smaller than host pages.
    *

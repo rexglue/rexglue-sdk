@@ -161,6 +161,7 @@ Watches are kept per host page, the size `rex::memory::GetPageSize` returns, and
 
 - `WatchPhysicalWrites` watches the host pages that cover the range in each of the three views.
 - In each view, it watches only the pages whose protection there is read write, and sets their host protection to read only.
+- When a host page holds several guest pages, as on macOS arm64, its protection is the combined protection of all the guest pages in it. A host page with any writable guest page is watched, and when its watch fires the page becomes writable again by the same rule.
 
 These writes call the listeners:
 

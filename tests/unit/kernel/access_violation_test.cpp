@@ -19,6 +19,7 @@
 #include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 #include <rex/kernel/heap.h>
+#include <rex/utility.h>
 
 #include "test_memory.h"
 
@@ -46,6 +47,61 @@ REX_TEST_CASE("A fault outside guest memory is unhandled", "[kernel][mmio]") {
   auto& memory = rex::test::GetTestMemory();
   int local = 0;
   CHECK(memory.HandleAccessViolation(&local, true) == AccessViolationResult::kUnhandled);
+}
+
+namespace {
+
+std::atomic<int> g_watch_hits{0};
+
+std::pair<rex::u32, rex::u32> CountWatchHit(void*, rex::u32, rex::u32, bool) {
+  g_watch_hits.fetch_add(1);
+  return {0, UINT32_MAX};
+}
+
+}  // namespace
+
+REX_TEST_CASE("A write to a watched host page unprotects it by the access of every guest page",
+              "[kernel][mmio]") {
+  const auto host_page = static_cast<rex::u32>(rex::memory::GetPageSize());
+  constexpr rex::u32 kGuestPage = 0x1000;
+  if (host_page <= kGuestPage) {
+    SKIP("the host page is not larger than a guest page");
+  }
+  auto& memory = rex::test::GetTestMemory();
+  const rex::u32 address =
+      memory.SystemHeapAlloc(host_page, host_page, rex::kernel::kSystemHeapPhysical);
+  REQUIRE(address != 0);
+  auto* host = memory.TranslateVirtual<rex::u8*>(address);
+  REQUIRE((reinterpret_cast<uintptr_t>(host) & (host_page - 1)) == 0);
+  auto* heap = memory.LookupHeap(address);
+  void* handle = nullptr;
+  const rex::ScopeGuard cleanup([&] {
+    heap->Protect(address, host_page,
+                  rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite);
+    if (handle) {
+      memory.UnregisterPhysicalMemoryInvalidationCallback(handle);
+    }
+    memory.SystemHeapFree(address);
+  });
+  REQUIRE(heap->Protect(address, kGuestPage, rex::kernel::kMemoryProtectRead));
+
+  handle = memory.RegisterPhysicalMemoryInvalidationCallback(CountWatchHit, nullptr);
+  g_watch_hits = 0;
+  memory.EnablePhysicalMemoryAccessCallbacks(memory.GetPhysicalAddress(address), host_page, true,
+                                             false);
+  size_t length = host_page;
+  rex::memory::PageAccess access = rex::memory::PageAccess::kReadWrite;
+  REQUIRE(rex::memory::QueryProtect(host, length, access));
+  CHECK(access == rex::memory::PageAccess::kReadOnly);
+
+  CHECK(memory.HandleAccessViolation(host + kGuestPage, true) == AccessViolationResult::kResumed);
+  CHECK(g_watch_hits.load() == 1);
+  length = host_page;
+  REQUIRE(rex::memory::QueryProtect(host, length, access));
+  CHECK(access == rex::memory::PageAccess::kReadWrite);
+
+  *reinterpret_cast<volatile rex::u32*>(host + kGuestPage) = 0x12345678;
+  CHECK(g_watch_hits.load() == 1);
 }
 
 #if REX_PLATFORM_WIN32

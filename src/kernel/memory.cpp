@@ -871,7 +871,7 @@ std::unique_lock<rex::platform::RankedMutex> BaseHeap::AcquireHostPageReconcileL
   return std::unique_lock(memory_->watch_mutex_);
 }
 
-rex::memory::PageAccess BaseHeap::GetHostPageAccess(u32 host_page_number) const {
+rex::memory::PageAccess BaseHeap::GetHostPageGuestAccess(u32 host_page_number) const {
   const u32 host_page_size = memory_->system_page_size_;
   // A host page spans several guest pages, so it gets the union of their committed access.
   const u64 host_page_start = static_cast<u64>(host_page_number) * host_page_size;
@@ -919,7 +919,11 @@ rex::memory::PageAccess BaseHeap::GetHostPageAccess(u32 host_page_number) const 
   } else {
     access = has_write ? rex::memory::PageAccess::kReadWrite : rex::memory::PageAccess::kReadOnly;
   }
+  return access;
+}
 
+rex::memory::PageAccess BaseHeap::GetHostPageAccess(u32 host_page_number) const {
+  rex::memory::PageAccess access = GetHostPageGuestAccess(host_page_number);
   // A write watched page stays read only so the watch can fire.
   if (access == rex::memory::PageAccess::kReadWrite && IsHostPageWriteWatched(host_page_number)) {
     access = rex::memory::PageAccess::kReadOnly;
@@ -2139,8 +2143,11 @@ bool PhysicalHeap::TriggerCallbacksLocked(u32 virtual_address, u32 length, bool 
       if (unprotect_page) {
         u32 guest_page_number =
             rex::SatSub(i * system_page_size_, GetHostAddressOffset()) >> page_size_shift_;
-        if (ToPageAccess(page_table_[guest_page_number].current_protect) !=
-            rex::memory::PageAccess::kReadWrite) {
+        const rex::memory::PageAccess guest_access =
+            page_size_ < system_page_size_
+                ? GetHostPageGuestAccess(i)
+                : ToPageAccess(page_table_[guest_page_number].current_protect);
+        if (guest_access != rex::memory::PageAccess::kReadWrite) {
           unprotect_page = false;
         }
       }
