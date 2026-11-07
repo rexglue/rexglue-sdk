@@ -291,7 +291,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
                                       nullptr, 0)) {
               successful = true;
             } else {
-              VirtualFree(data_, capacity_, MEM_RELEASE);
+              VirtualFree(data_, 0, MEM_RELEASE);
             }
           }
 #endif
