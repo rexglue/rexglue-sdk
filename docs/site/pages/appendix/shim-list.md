@@ -58,8 +58,8 @@ These shims copy and fill memory.
 | `memchr` | Finds a byte in memory. |
 | `XMemCpy` | Copies memory. |
 | `XMemSet` | Fills memory. |
-| `XMemSet128` | Fills memory in blocks of 128 bytes. |
-| `memset_vmx` | Fills memory through the vector path. |
+| `XMemSet128` | Fills memory with a byte value. |
+| `memset_vmx` | Fills memory with a byte value. |
 | `memcpy_s` | Copies memory with a size check. |
 | `memmove_s` | Copies overlapping memory with a size check. |
 

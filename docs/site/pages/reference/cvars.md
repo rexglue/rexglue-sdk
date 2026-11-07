@@ -8,7 +8,7 @@ A setting has a full name made of a scope and a name, such as `gpu.vsync`. Set i
 
 | Column | Meaning |
 |---|---|
-| Default | A path default can name another setting in braces, such as `{app.root}`, which takes the current value of that setting. |
+| Default | A path default can contain another setting in braces, such as `{app.root}`, which takes the current value of that setting. |
 | Life | See [Life](#life). |
 | Meaning | Includes the range or the allowed values. Values outside them are rejected. |
 
@@ -23,7 +23,7 @@ A setting has a full name made of a scope and a name, such as `gpu.vsync`. Set i
 
 ### Availability
 
-- A setting exists while its settings class exists. Each table names its settings class.
+- A setting exists while its settings class exists. Each table gives its settings class.
 - The registry keeps a config file or title layer value for a name that no settings class declares, until a settings class that declares the name is added.
 - On the command line, a name that no settings class declares is an error.
 - The SDK reads an environment variable only for a registered setting.
@@ -38,7 +38,7 @@ Every program has these settings. `App` declares `app.name`, `app.root`, `app.lo
 
 | Name | Type | Default | Life | Meaning |
 |---|---|---|---|---|
-| `app.name` | `string` | `""` | startup only | Names the default config file and the log file. Passed to the `App` constructor and never written to the config file. |
+| `app.name` | `string` | `""` | startup only | Base name of the default config file and the log file. Passed to the `App` constructor and never written to the config file. |
 | `app.root` | `path` | `""` | startup only | Empty means the executable folder. |
 | `app.config_file` | `path` | `"{app.root}/{app.name}.toml"` | startup only | Config file loaded at startup. |
 | `app.log_root` | `path` | `"{app.root}/logs"` | startup only | Log folder. |
@@ -61,7 +61,7 @@ Every program has these settings. Declared by [`Logger`](../app/logging.md). Eac
 | Name | Type | Default | Life | Meaning |
 |---|---|---|---|---|
 | `log.level` | `string` | `"info"` | live | Level for categories without their own. `trace`, `dev`, `debug`, `info`, `warn`, `error`, `critical` or `off`. |
-| `log.flush_level` | `string` | `"warn"` | startup only | Lowest level that flushes every sink at once. Same values as `log.level`. |
+| `log.flush_level` | `string` | `"warn"` | startup only | Lowest level that flushes every sink immediately. Same values as `log.level`. |
 | `log.flush_interval` | `i32` | `1` | startup only | Seconds between flushes. 0 to 60. |
 | `log.console` | `bool` | `true` | startup only | Log to the terminal. |
 | `log.debugger` | `bool` | `true` | startup only | Log to an attached debugger, on Windows only. |
@@ -199,7 +199,7 @@ These settings exist while a Xenos driver is initialized, with any host API. Dec
 | `gpu.xenos.occlusion_query_enable` | `bool` | `true` | live | Handle occlusion queries on the host. |
 | `gpu.xenos.readback_resolve_half_pixel_offset` | `bool` | `false` | live | With draw resolution scaling active, sample from the center of each scaled block when a resolve readback scales down. |
 | `gpu.xenos.readback_memexport_fast` | `bool` | `true` | live | Use the fast double buffered memexport readback when possible. It falls back to the full synchronous readback. |
-| `gpu.xenos.async_shader_compilation` | `bool` | `true` | live | Compile shaders and pipelines on background threads. Brief artifacts can appear meanwhile. |
+| `gpu.xenos.async_shader_compilation` | `bool` | `true` | live | Compile shaders and pipelines on background threads. Brief artifacts can appear until compilation finishes. |
 | `gpu.xenos.native_2x_msaa` | `bool` | `true` | live | Use native 2x MSAA. |
 | `gpu.xenos.depth_float24_round` | `bool` | `false` | live | Round float24 depth values. |
 | `gpu.xenos.depth_float24_convert_in_pixel_shader` | `bool` | `false` | live | Convert float24 depth in the pixel shader. |
@@ -278,7 +278,7 @@ These settings exist while the `rexkernel` module is connected. Declared by `Run
 
 | Name | Type | Default | Life | Meaning |
 |---|---|---|---|---|
-| `runtime.heap_size_mb` | `u32` | `256` | until launch | Shim heap size in MiB. 1 to 2048. |
+| `runtime.heap_size_mb` | `u32` | `256` | until launch | Shim heap size in MiB. 4 to 2048. |
 | `runtime.title_memory_mb` | `u32` | `480` | until launch | Title memory cap in MiB. 0 removes the cap. 0 to 512. |
 | `runtime.writable_code_segments` | `bool` | `false` | until launch | Load code and read only data as writable memory. |
 | `runtime.protect_zero` | `bool` | `true` | until launch | The first 64 KiB fault on any access. |

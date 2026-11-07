@@ -18,7 +18,7 @@ namespace rex::kernel {
 
 class REX_KERNEL_API RuntimeSettings final : public SettingOwner {
  public:
-  REX_SETTING(u32, heap_size_mb, 256, "First shim heap segment in MiB", Range{1, 2048},
+  REX_SETTING(u32, heap_size_mb, 256, "First shim heap segment in MiB", Range{4, 2048},
               kUntilLaunch);
   REX_SETTING(u32, title_memory_mb, 480, "Title memory in MiB, 0 removes the cap", Range{0, 512},
               kUntilLaunch);
