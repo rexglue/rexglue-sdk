@@ -27,27 +27,13 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ fromJSON('{"win-amd64":"windows-latest","mac-amd64":"macos-26-intel","mac-arm64":"macos-26","linux-amd64":"ubuntu-latest","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
-    # linux-amd64 builds inside 22.04 so the glibc floor stays at 2.35, which is
-    # what every downstream binary inherits. 24.04 puts it at 2.38, above Debian
-    # stable and the older SteamOS releases. arm64 stays on the runner: FFmpeg's
-    # checked-in config_linux_aarch64.h sets HAVE_ARC4RANDOM, and that call
-    # needs glibc 2.36.
-    container: ${{ inputs.platform == 'linux-amd64' && fromJSON('{"image":"ubuntu:22.04"}') || fromJSON('null') }}
+    runs-on: ${{ fromJSON('{"win-amd64":"windows-latest","mac-amd64":"macos-26-intel","mac-arm64":"macos-26","linux-amd64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
     outputs:
       version: ${{ steps.version.outputs.v }}
     env:
       DEBIAN_FRONTEND: noninteractive
+      VULKAN_SDK_VERSION: "1.4.363.1"
     steps:
-      # The container starts bare, and checkout needs git before it can clone.
-      - name: Bootstrap container (linux-amd64)
-        if: inputs.platform == 'linux-amd64'
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates curl wget gnupg git git-lfs
-          git config --global --add safe.directory '*'
-
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
@@ -57,21 +43,25 @@ jobs:
 
       - name: Install toolchain (Windows)
         if: inputs.platform == 'win-amd64'
-        run: choco install llvm cmake ninja -y
-
-      - name: Install clang 20 (linux-amd64)
-        if: inputs.platform == 'linux-amd64'
+        shell: pwsh
         run: |
-          apt-get install -y --no-install-recommends software-properties-common lsb-release
-          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          ./llvm.sh 20
-          apt-get install -y clang-20 lld-20
-          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 200
-          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 200
+          choco install cmake ninja -y
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath
+          $llvm = Join-Path $vs "VC\Tools\Llvm\x64\bin"
+          $llvm | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & (Join-Path $llvm "clang.exe") --version
 
-      - name: Install clang 20 (linux-arm64)
-        if: inputs.platform == 'linux-arm64'
+      - name: Install Vulkan SDK (Windows)
+        if: inputs.platform == 'win-amd64'
+        shell: pwsh
+        run: |
+          $root = "C:\VulkanSDK\$env:VULKAN_SDK_VERSION"
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/vulkan_sdk.exe" -OutFile vulkan_sdk.exe
+          .\vulkan_sdk.exe --root $root --accept-licenses --default-answer --confirm-command install copy_only=1
+          "VULKAN_SDK=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install clang 20 (linux)
+        if: startsWith(inputs.platform, 'linux-')
         run: |
           sudo apt-get update
           sudo apt-get install -y wget gnupg lsb-release
@@ -84,29 +74,50 @@ jobs:
 
       - name: Install build deps (macOS)
         if: startsWith(inputs.platform, 'mac-')
-        run: brew install cmake ninja vulkan-loader molten-vk
+        run: brew install cmake ninja
+
+      - name: Install Vulkan SDK (macOS)
+        if: startsWith(inputs.platform, 'mac-')
+        run: |
+          root="$HOME/VulkanSDK/${VULKAN_SDK_VERSION}"
+          curl -fsSL -o vulkan_sdk.zip "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/mac/vulkan_sdk.zip"
+          unzip -q vulkan_sdk.zip
+          installer=$(ls -d vulkansdk-*.app | head -n 1)
+          sudo "${installer}/Contents/MacOS/${installer%.app}" --root "${root}" --accept-licenses --default-answer --confirm-command install copy_only=1
+          before=$(env | sort)
+          old_path="$PATH"
+          source "${root}/setup-env.sh"
+          after=$(env | sort)
+          comm -13 <(echo "$before") <(echo "$after") | grep -v -e '^PATH=' -e '^_=' >> "$GITHUB_ENV"
+          echo "${PATH%"$old_path"}" | tr ':' '\n' | sed '/^$/d' >> "$GITHUB_PATH"
 
       - name: Install build deps (linux-amd64)
         if: inputs.platform == 'linux-amd64'
         run: |
-          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | tee /etc/apt/trusted.gpg.d/lunarg.asc
-          wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
-          # jammy's libstdc++ 11 has no <format>, and its cmake is 3.22 against a 3.25 minimum
-          add-apt-repository -y ppa:ubuntu-toolchain-r/test
-          wget -qO- https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor -o /usr/share/keyrings/kitware.gpg
-          echo "deb [signed-by=/usr/share/keyrings/kitware.gpg] https://apt.kitware.com/ubuntu/ jammy main" > /etc/apt/sources.list.d/kitware.list
-          apt-get update
-          apt-get install -y cmake ninja-build build-essential g++-13 git curl unzip zip autoconf python3-venv \
-            libgtk-3-dev libx11-xcb-dev libxss-dev vulkan-sdk \
+          sudo apt-get install -y cmake ninja-build build-essential git curl unzip zip autoconf python3-venv xz-utils \
+            libgtk-3-dev libx11-xcb-dev libxss-dev \
             libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
             libasound2-dev libpulse-dev libpipewire-0.3-dev
+
+      - name: Install Vulkan SDK (linux-amd64)
+        if: inputs.platform == 'linux-amd64'
+        run: |
+          curl -fsSL -o vulkan_sdk.tar.xz "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/linux/vulkan_sdk.tar.xz"
+          mkdir -p "$HOME/vulkan"
+          tar -xf vulkan_sdk.tar.xz -C "$HOME/vulkan"
+          before=$(env | sort)
+          old_path="$PATH"
+          source "$HOME/vulkan/${VULKAN_SDK_VERSION}/setup-env.sh"
+          after=$(env | sort)
+          comm -13 <(echo "$before") <(echo "$after") | grep -v -e '^PATH=' -e '^_=' >> "$GITHUB_ENV"
+          echo "${PATH%"$old_path"}" | tr ':' '\n' | sed '/^$/d' >> "$GITHUB_PATH"
 
       - name: Install build deps (linux-arm64)
         if: inputs.platform == 'linux-arm64'
         run: |
           sudo apt update
           sudo apt install -y cmake ninja-build build-essential git curl unzip autoconf python3.12-venv \
-            libgtk-3-dev libx11-xcb-dev libxss-dev libvulkan-dev \
+            libgtk-3-dev libx11-xcb-dev libxss-dev libvulkan-dev libvulkan-memory-allocator-dev \
             libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
             libasound2-dev libpulse-dev libpipewire-0.3-dev
 
@@ -120,7 +131,7 @@ jobs:
         env:
           CC: ${{ fromJSON('{"win-amd64":"clang","mac-amd64":"/usr/bin/clang","mac-arm64":"/usr/bin/clang","linux-amd64":"clang-20","linux-arm64":"clang-20"}')[inputs.platform] }}
           CXX: ${{ fromJSON('{"win-amd64":"clang++","mac-amd64":"/usr/bin/clang++","mac-arm64":"/usr/bin/clang++","linux-amd64":"clang++-20","linux-arm64":"clang++-20"}')[inputs.platform] }}
-        run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER="${{ env.CC }}" -DCMAKE_CXX_COMPILER="${{ env.CXX }}" -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache ${{ startsWith(inputs.platform, 'mac-') && '-DCMAKE_OSX_DEPLOYMENT_TARGET=13.3' || '' }}
+        run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER="${{ env.CC }}" -DCMAKE_CXX_COMPILER="${{ env.CXX }}" -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: Build and install
         run: cmake --build out/build/${{ inputs.platform }} --target install --parallel

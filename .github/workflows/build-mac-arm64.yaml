@@ -1,9 +1,7 @@
 name: Build rexglue-sdk mac-arm64
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -15,5 +13,6 @@ jobs:
     with:
       platform: mac-arm64
       ref: ${{ github.ref }}
-      publish_mode: release
+      publish_mode: ${{ github.ref_type == 'tag' && 'release' || 'artifact' }}
+      artifact_name: mac-arm64
     secrets: inherit

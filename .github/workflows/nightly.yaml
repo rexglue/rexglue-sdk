@@ -85,28 +85,6 @@ jobs:
       artifact_name: nightly-linux-amd64
     secrets: inherit
 
-  build-mac-amd64:
-    needs: check
-    if: needs.check.outputs.should_build == 'true'
-    uses: ./.github/workflows/_build-platform.yaml
-    with:
-      platform: mac-amd64
-      ref: ${{ needs.check.outputs.dev_sha }}
-      publish_mode: artifact
-      artifact_name: nightly-mac-amd64
-    secrets: inherit
-
-  build-mac-arm64:
-    needs: check
-    if: needs.check.outputs.should_build == 'true'
-    uses: ./.github/workflows/_build-platform.yaml
-    with:
-      platform: mac-arm64
-      ref: ${{ needs.check.outputs.dev_sha }}
-      publish_mode: artifact
-      artifact_name: nightly-mac-arm64
-    secrets: inherit
-
   build-linux-arm64:
     needs: check
     if: needs.check.outputs.should_build == 'true'
@@ -119,7 +97,7 @@ jobs:
     secrets: inherit
 
   publish:
-    needs: [check, build-win-amd64, build-linux-amd64, build-mac-amd64, build-mac-arm64, build-linux-arm64]
+    needs: [check, build-win-amd64, build-linux-amd64, build-linux-arm64]
     if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -155,8 +133,6 @@ jobs:
           assets=(
             artifacts/nightly-win-amd64/*.zip
             artifacts/nightly-linux-amd64/*.zip
-            artifacts/nightly-mac-amd64/*.zip
-            artifacts/nightly-mac-arm64/*.zip
             artifacts/nightly-linux-arm64/*.zip
           )
           if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
