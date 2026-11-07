@@ -15,6 +15,7 @@
 #include <random>
 #include <string_view>
 
+#include <rex/logging/log_category.h>
 #include <rex/memory/virtual_memory.h>
 
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM | \
@@ -207,50 +208,91 @@ void CloseFileMappingHandle(FileMappingHandle handle,
   CloseHandle(handle);
 }
 
-void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
-                  size_t file_offset) {
+namespace {
+
 #ifdef REX_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-  DWORD target_address_low = static_cast<DWORD>(file_offset);
-  DWORD target_address_high = static_cast<DWORD>(file_offset >> 32);
-  DWORD file_access = 0;
-  switch (access) {
-    case PageAccess::kReadOnly:
-      file_access = FILE_MAP_READ;
-      break;
-    case PageAccess::kReadWrite:
-      file_access = FILE_MAP_ALL_ACCESS;
-      break;
-    case PageAccess::kExecuteReadOnly:
-      file_access = FILE_MAP_READ | FILE_MAP_EXECUTE;
-      break;
-    case PageAccess::kExecuteReadWrite:
-      file_access = FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE;
-      break;
-    case PageAccess::kNoAccess:
-    default:
-      REX_UNHANDLED_CASE(access);
-      return nullptr;
+// VirtualAlloc2 and MapViewOfFile3 need Windows 10 1803. The import libraries of the desktop
+// Windows SDK do not provide them, so they are resolved from kernelbase.dll.
+using VirtualAlloc2Function = PVOID(WINAPI*)(HANDLE process, PVOID base_address, SIZE_T size,
+                                             ULONG allocation_type, ULONG protect,
+                                             void* extended_parameters, ULONG parameter_count);
+using MapViewOfFile3Function = PVOID(WINAPI*)(HANDLE file_mapping, HANDLE process,
+                                              PVOID base_address, ULONG64 offset, SIZE_T view_size,
+                                              ULONG allocation_type, ULONG protect,
+                                              void* extended_parameters, ULONG parameter_count);
+
+struct PlaceholderFunctions {
+  VirtualAlloc2Function alloc = nullptr;
+  MapViewOfFile3Function map = nullptr;
+};
+
+const PlaceholderFunctions& GetPlaceholderFunctions() {
+  static const PlaceholderFunctions functions = [] {
+    PlaceholderFunctions resolved;
+    if (HMODULE kernelbase = GetModuleHandleW(L"kernelbase.dll")) {
+      resolved.alloc =
+          reinterpret_cast<VirtualAlloc2Function>(GetProcAddress(kernelbase, "VirtualAlloc2"));
+      resolved.map =
+          reinterpret_cast<MapViewOfFile3Function>(GetProcAddress(kernelbase, "MapViewOfFile3"));
+    }
+    if (!resolved.alloc || !resolved.map) {
+      REXSYS_ERROR("MapFileView needs VirtualAlloc2 and MapViewOfFile3 from Windows 10 1803");
+      resolved = {};
+    }
+    return resolved;
+  }();
+  return functions;
+}
+#endif
+
+void* ReservePlaceholder(void* base_address, size_t length) {
+#ifdef REX_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
+  const PlaceholderFunctions& functions = GetPlaceholderFunctions();
+  if (!functions.alloc) {
+    return nullptr;
   }
-  return MapViewOfFileEx(handle, file_access, target_address_high, target_address_low, length,
-                         base_address);
+  return functions.alloc(GetCurrentProcess(), base_address, length,
+                         MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, nullptr, 0);
 #else
   // VirtualAlloc2FromApp and MapViewOfFile3FromApp require 10.0.17134.0.
-  HANDLE process = GetCurrentProcess();
-  void* placeholder =
-      VirtualAlloc2FromApp(process, base_address, length, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
-                           PAGE_NOACCESS, nullptr, 0);
+  return VirtualAlloc2FromApp(GetCurrentProcess(), base_address, length,
+                              MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, nullptr, 0);
+#endif
+}
+
+void* ReplacePlaceholder(HANDLE handle, void* placeholder, size_t length, DWORD protect,
+                         size_t file_offset) {
+#ifdef REX_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
+  return GetPlaceholderFunctions().map(handle, GetCurrentProcess(), placeholder,
+                                       static_cast<ULONG64>(file_offset), length,
+                                       MEM_REPLACE_PLACEHOLDER, protect, nullptr, 0);
+#else
+  return MapViewOfFile3FromApp(handle, GetCurrentProcess(), placeholder,
+                               static_cast<ULONG64>(file_offset), length, MEM_REPLACE_PLACEHOLDER,
+                               static_cast<ULONG>(protect), nullptr, 0);
+#endif
+}
+
+}  // namespace
+
+void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
+                  size_t file_offset) {
+  if (access == PageAccess::kNoAccess || file_offset % GetPageSize() != 0) {
+    return nullptr;
+  }
+  // A view that replaces a placeholder needs a page aligned file offset, not a multiple of the
+  // allocation granularity, so the mapping can start at a 4 KiB offset.
+  void* placeholder = ReservePlaceholder(base_address, length);
   if (!placeholder) {
     return nullptr;
   }
-  void* mapping = MapViewOfFile3FromApp(
-      handle, process, placeholder, static_cast<ULONG64>(file_offset), length,
-      MEM_REPLACE_PLACEHOLDER, static_cast<ULONG>(ToWin32ProtectFlags(access)), nullptr, 0);
+  void* mapping =
+      ReplacePlaceholder(handle, placeholder, length, ToWin32ProtectFlags(access), file_offset);
   if (!mapping) {
-    VirtualFree(placeholder, length, MEM_RELEASE);
+    VirtualFree(placeholder, 0, MEM_RELEASE);
     return nullptr;
   }
   return mapping;
-#endif
 }
 
 bool UnmapFileView([[maybe_unused]] FileMappingHandle handle, void* base_address,
