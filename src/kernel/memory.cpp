@@ -1992,8 +1992,11 @@ void PhysicalHeap::EnableAccessCallbacks(u32 physical_address, u32 length,
       REX_ASSERT_ALWAYS();
       continue;
     }
+    // A host page larger than a guest page takes the access of every guest page in it.
     rex::memory::PageAccess current_page_access =
-        ToPageAccess(page_table_[guest_page_number].current_protect);
+        page_size_ < system_page_size_
+            ? GetHostPageAccess(i)
+            : ToPageAccess(page_table_[guest_page_number].current_protect);
     bool protect_system_page = false;
     if (current_page_access != rex::memory::PageAccess::kNoAccess) {
       if (enable_invalidation_notifications) {
