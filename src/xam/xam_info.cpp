@@ -26,6 +26,7 @@
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/module_object.h>
 #include <rex/kernel/guest_allocator.h>
+#include <rex/kernel/heap.h>
 #include "xam/enumerator_object.h"
 #include <rex/kernel/object/kernel_thread.h>
 #include <rex/kernel/types/status.h>
@@ -35,6 +36,7 @@
 #include <windows.h>
 #endif
 
+#include <cstring>
 #include <ctime>
 #include <format>
 #include <rex/kernel/thread_state.h>
@@ -300,11 +302,15 @@ namespace {
 constexpr u32 kXamAllocWorkspace = 0x10000000;
 constexpr u32 kXamAllocSystem = 0x04000000;
 constexpr u32 kXamAllocNoZero = 0x00100000;
+constexpr u32 kXamAllocPhysical = 0x40000000;
+constexpr u32 kXamAllocExZero = 0x40000000;
 constexpr u32 kPhysicalBase = 0xA0000000;
 
 }  // namespace
 
-u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
+namespace {
+
+u32 AllocHeapBlock(u32 flags, u32 size, MappedU32 out_ptr) {
   if (!out_ptr) {
     return kernel::X_E_INVALIDARG;
   }
@@ -332,6 +338,45 @@ u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
     return kernel::X_E_OUTOFMEMORY;
   }
   *out_ptr = *address;
+  return kernel::X_E_SUCCESS;
+}
+
+}  // namespace
+
+u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
+  return AllocHeapBlock(flags, size, out_ptr);
+}
+
+u32 XamAllocEx_entry(u32 attributes, u32 flags, u32 size, MappedU32 out_ptr) {
+  if (!(flags & kXamAllocPhysical)) {
+    return AllocHeapBlock(flags, size, out_ptr);
+  }
+  if (!out_ptr) {
+    return kernel::X_E_INVALIDARG;
+  }
+  *out_ptr = 0;
+  constexpr u32 kDefaultAlignmentShift = 0xC;
+  u32 alignment_shift = (attributes >> 24) & 0xF;
+  if (alignment_shift == 0) {
+    alignment_shift = kDefaultAlignmentShift;
+  }
+  constexpr u32 kReadWrite = kernel::kMemoryProtectRead | kernel::kMemoryProtectWrite;
+  constexpr u32 kProtect[4] = {kReadWrite | kernel::kMemoryProtectWriteCombine,
+                               kReadWrite | kernel::kMemoryProtectNoCache, kReadWrite,
+                               kReadWrite | kernel::kMemoryProtectWriteCombine};
+  const u32 protect_index = (attributes >> 28) & 3;
+  const u32 page_size = protect_index == 0 ? kernel::kPageSize64KiB : kernel::kPageSize4KiB;
+  const u32 address = CurrentTitle().heap.AllocPhysical(size, page_size, kProtect[protect_index], 0,
+                                                        0xFFFFFFFF, 1u << alignment_shift);
+  if (!address) {
+    REXXAM_WARN("XamAllocEx: no physical memory for {:#x} bytes, attributes {:#010x}", size,
+                attributes);
+    return kernel::X_E_OUTOFMEMORY;
+  }
+  if (attributes & kXamAllocExZero) {
+    std::memset(CurrentTitle().membase.TranslateVirtual<u8*>(address), 0, size);
+  }
+  *out_ptr = address;
   return kernel::X_E_SUCCESS;
 }
 
@@ -398,6 +443,7 @@ REX_XAM_BODY(__imp__XamLoaderGetLaunchData, rex::xam::XamLoaderGetLaunchData_ent
 REX_XAM_BODY(__imp__XamLoaderLaunchTitle, rex::xam::XamLoaderLaunchTitle_entry)
 REX_XAM_BODY(__imp__XamLoaderTerminateTitle, rex::xam::XamLoaderTerminateTitle_entry)
 REX_XAM_BODY(__imp__XamAlloc, rex::xam::XamAlloc_entry)
+REX_XAM_BODY(__imp__XamAllocEx, rex::xam::XamAllocEx_entry)
 REX_XAM_BODY(__imp__XamFree, rex::xam::XamFree_entry)
 REX_XAM_BODY(__imp__XamQueryLiveHiveW, rex::xam::XamQueryLiveHiveW_entry)
 REX_XAM_BODY(__imp__XamLoaderGetDvdTrayState, rex::xam::XamLoaderGetDvdTrayState_entry)

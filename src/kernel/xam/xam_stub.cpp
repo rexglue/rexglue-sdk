@@ -274,7 +274,6 @@ REX_EXPORT_STUB(__imp__XamAccountRecoveryRecoverAllProfileData);
 REX_EXPORT_STUB(__imp__XamAccountRecoveryRecoverTitle);
 REX_EXPORT_STUB(__imp__XamActivateCounterMeasure);
 REX_EXPORT_STUB(__imp__XamAllocDevkitHeapAvailable);
-REX_EXPORT_STUB(__imp__XamAllocEx);
 REX_EXPORT_STUB(__imp__XamAllocFreeIPTVHeap);
 REX_EXPORT_STUB(__imp__XamAllocHeapFreeSpace);
 REX_EXPORT_STUB(__imp__XamAllocMountIPTVHeap);

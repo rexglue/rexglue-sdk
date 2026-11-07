@@ -408,26 +408,10 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
     page_size = kernel::kPageSize16MiB;
   }
 
-  u32 adjusted_size = rex::RoundUpNonZero(region_size, page_size);
-  u32 adjusted_alignment = rex::RoundUpNonZero(alignment, page_size);
-
-  u32 allocation_type = kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit |
-                        kernel::kMemoryAllocationTitle;
-  u32 protect = FromXdkProtectFlags(protect_bits);
-  bool top_down = true;
-  auto heap = static_cast<kernel::PhysicalHeap*>(
-      kernel::GetCurrentState().GetAddressSpace()->LookupHeapByType(true, page_size));
-  // min_addr_range and max_addr_range bound physical memory, not virtual.
-  u32 heap_base = heap->GetHeapBase();
-  u32 heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
-  u32 heap_min_addr = rex::SatSub(min_addr_range, heap_physical_address_offset);
-  u32 heap_max_addr = rex::SatSub(max_addr_range, heap_physical_address_offset);
-  u32 heap_size = heap->GetHeapSize();
-  heap_min_addr = heap_base + std::min(heap_min_addr, heap_size - 1);
-  heap_max_addr = heap_base + std::min(heap_max_addr, heap_size - 1);
-  u32 base_address;
-  if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size, adjusted_alignment,
-                        allocation_type, protect, top_down, &base_address)) {
+  const u32 base_address = kernel::GetCurrentState().GetAddressSpace()->AllocPhysical(
+      region_size, page_size, FromXdkProtectFlags(protect_bits), min_addr_range, max_addr_range,
+      alignment);
+  if (!base_address) {
     return 0;
   }
   REXKRNL_TRACE(

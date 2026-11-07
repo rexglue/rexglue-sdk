@@ -670,6 +670,29 @@ u32 GuestAddressSpace::SystemHeapAlloc(u32 size, u32 alignment, u32 system_heap_
   return address;
 }
 
+u32 GuestAddressSpace::AllocPhysical(u32 size, u32 page_size, u32 protect, u32 min_address,
+                                     u32 max_address, u32 alignment) {
+  const u32 adjusted_size = rex::RoundUpNonZero(size, page_size);
+  const u32 adjusted_alignment = rex::RoundUpNonZero(alignment, page_size);
+  const u32 allocation_type = kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit |
+                              kernel::kMemoryAllocationTitle;
+  auto* heap = static_cast<kernel::PhysicalHeap*>(LookupHeapByType(true, page_size));
+  // The address range bounds physical memory, not virtual.
+  const u32 heap_base = heap->GetHeapBase();
+  const u32 physical_offset = heap->GetPhysicalAddress(heap_base);
+  const u32 heap_size = heap->GetHeapSize();
+  const u32 heap_min =
+      heap_base + std::min(rex::SatSub(min_address, physical_offset), heap_size - 1);
+  const u32 heap_max =
+      heap_base + std::min(rex::SatSub(max_address, physical_offset), heap_size - 1);
+  u32 base_address;
+  if (!heap->AllocRange(heap_min, heap_max, adjusted_size, adjusted_alignment, allocation_type,
+                        protect, true, &base_address)) {
+    return 0;
+  }
+  return base_address;
+}
+
 void GuestAddressSpace::SystemHeapFree(u32 address, u32* out_region_size) {
   if (!address) {
     return;

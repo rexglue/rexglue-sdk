@@ -96,6 +96,20 @@ class ISystemHeap {
   virtual void SystemHeapFree(u32 address, u32* out_region_size = nullptr) = 0;
 
   [[nodiscard]] virtual bool IsAddressMapped(u32 address) const = 0;
+
+  /**
+   * Allocates contiguous physical memory for the title. SystemHeapFree releases it.
+   *
+   * @param size The size in bytes, rounded up to the page size.
+   * @param page_size The page size in bytes: 4 KiB, 64 KiB or 16 MiB.
+   * @param protect MemoryProtectFlag bits.
+   * @param min_address The lowest acceptable physical address.
+   * @param max_address The highest acceptable physical address.
+   * @param alignment The alignment in bytes, rounded up to the page size.
+   * @return The base address, or 0 when no memory is available.
+   */
+  virtual u32 AllocPhysical(u32 size, u32 page_size, u32 protect, u32 min_address, u32 max_address,
+                            u32 alignment) = 0;
 };
 
 enum class HeapType : u8 {
@@ -719,6 +733,9 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
                       u32 system_heap_flags = kSystemHeapDefault) override;
 
   void SystemHeapFree(u32 address, u32* out_region_size = nullptr) override;
+
+  u32 AllocPhysical(u32 size, u32 page_size, u32 protect, u32 min_address, u32 max_address,
+                    u32 alignment) override;
 
   bool IsAddressMapped(u32 address) const override { return LookupHeap(address) != nullptr; }
 

@@ -148,6 +148,66 @@ REX_TEST_CASE("XamAlloc returns E_INVALIDARG for a null out pointer and E_UNEXPE
   });
 }
 
+REX_TEST_CASE("XamAllocEx without the physical flag allocates from the title workspace",
+              "[kernel][workspace]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 out = c.Alloc(4);
+    CHECK(c.XAM("XamAllocEx", {0, 0x10000000, 0x30000, 0}) == kInvalidArg);
+    CHECKED_ELSE(c.XAM("XamAllocEx", {0x500, 0x10000000, 0x30000, out}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 block = c.Load32(out);
+    CHECK(block != 0);
+    CHECK(block < 0xA0000000);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x30000, out}) == kOutOfMemory);
+    c.XAM("XamFree", {block});
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x30000, out}) == 0);
+    c.XAM("XamFree", {c.Load32(out)});
+  });
+}
+
+REX_TEST_CASE(
+    "XamAllocEx with the physical flag returns aligned physical memory that XamFree frees",
+    "[kernel][workspace]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 out = c.Alloc(4);
+    constexpr u32 kPhysical = 0x40000000;
+    constexpr u32 kZero = 0x40000000;
+    const u32 attributes = kZero | (2u << 28) | (0xEu << 24);
+    CHECKED_ELSE(c.XAM("XamAllocEx", {attributes, kPhysical, 0x1000, out}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 first = c.Load32(out);
+    CHECK(first >= 0xE0000000);
+    // The alignment applies to the physical address, which is 0x1000 below the offset in the
+    // 4 KB page heap.
+    CHECK((first - 0xE0000000 + 0x1000) % 0x4000 == 0);
+    c.Store32(first, 0xDEADBEEF);
+    c.XAM("XamFree", {first});
+
+    CHECKED_ELSE(c.XAM("XamAllocEx", {attributes, kPhysical, 0x1000, out}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 second = c.Load32(out);
+    CHECK(second == first);
+    CHECK(c.Load32(second) == 0);
+    c.XAM("XamFree", {second});
+
+    CHECKED_ELSE(c.XAM("XamAllocEx", {0, kPhysical, 0x1000, out}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(c.Load32(out) >= 0xA0000000);
+    CHECK(c.Load32(out) % 0x1000 == 0);
+    c.XAM("XamFree", {c.Load32(out)});
+  });
+}
+
 REX_TEST_CASE("XamAlloc with flags 0 allocates from the title workspace", "[kernel][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
