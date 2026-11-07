@@ -80,7 +80,8 @@ REX_TEST_CASE("Wait keeps the object alive when its handle closes mid wait",
     const u32 waiter = c.Spawn([handle, result, started](Caller& w) {
       const rex::kernel::ObjectPin object = w.GetRuntime().GetObjectTable().Get(handle);
       started->set_value();
-      u64 timeout = static_cast<u64>(-100000000);
+      // 2 s relative, well past the close 100 ms in.
+      u64 timeout = static_cast<u64>(-20000000);
       result->set_value(rex::kernel::Wait(w.GetRuntime(), object, 3, 1, 0, &timeout));
     });
     running.wait();
