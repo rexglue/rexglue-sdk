@@ -789,11 +789,6 @@ Result<void> TitleState::CreateXAM() {
   xam_ = GetKernelServices()->xam;
   xam_managers_ = GetKernelServices()->managers;
   if (auto attached = xam_->AttachTitle(rex::xam::XAMKernelInterfaces{
-          .objects = *object_table_,
-          .threads = *thread_registry_,
-          .modules = *module_registry_,
-          .notifier = *notifier_,
-          .overlapped_dispatcher = *dispatcher_,
           .exit = *this,
           .debug = *this,
           .heap = *memory_,

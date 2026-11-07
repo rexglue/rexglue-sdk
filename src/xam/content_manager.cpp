@@ -109,8 +109,7 @@ constexpr std::string_view kGameUserContentDirName = "profile";
 
 }  // namespace
 
-ContentManager::ContentManager(const XAMKernelInterfaces& title,
-                               rex::xam::UserProfile& user_profile)
+ContentManager::ContentManager(const XAMTitle& title, rex::xam::UserProfile& user_profile)
     : title_(title), root_path_(title.user_data_root), user_profile_(user_profile) {}
 
 ContentManager::~ContentManager() = default;

@@ -27,6 +27,7 @@
 #include <rex/result.h>
 #include <rex/xam/content_manager.h>
 #include <rex/xam/title_lifecycle.h>
+#include "xam/xam_title.h"
 #include <rex/kernel/types/status.h>
 #include <rex/string/text.h>
 #include <rex/xam/user_profile.h>
@@ -83,7 +84,7 @@ class ContentManager final : public rex::xam::IContentManager {
    * @param title The kernel interfaces of the title. The user data root is taken from it.
    * @param user_profile The signed in profile.
    */
-  ContentManager(const XAMKernelInterfaces& title, rex::xam::UserProfile& user_profile);
+  ContentManager(const XAMTitle& title, rex::xam::UserProfile& user_profile);
   ~ContentManager() override;
 
   std::vector<kernel::XCONTENT_AGGREGATE_DATA> ListContent(u32 device_id, u64 xuid,
@@ -169,7 +170,7 @@ class ContentManager final : public rex::xam::IContentManager {
 
   std::unique_ptr<ContentPackage> DetachPackage(const std::string_view root_name);
 
-  XAMKernelInterfaces title_;
+  XAMTitle title_;
   std::atomic<int> device_count_{0};
   std::filesystem::path root_path_;
   rex::xam::UserProfile& user_profile_;

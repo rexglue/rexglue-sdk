@@ -25,6 +25,7 @@
 #include <rex/kernel/title_runtime.h>
 #include <rex/xam/app_manager.h>
 #include <rex/xam/title_lifecycle.h>
+#include "xam/xam_title.h"
 #include <rex/xam/user_profile.h>
 #include <rex/kernel/heap.h>
 #include <rex/types.h>
@@ -56,7 +57,7 @@ XAMState* FindCurrentXAM();
 XAMState& CurrentXAM();
 
 /** Returns the kernel interfaces of the attached title, which must exist. */
-const XAMKernelInterfaces& CurrentTitle();
+const XAMTitle& CurrentTitle();
 
 /**
  * The content, profile, achievement and app managers, the XAM heap and the input connection of
@@ -145,7 +146,7 @@ class XAMState : public rex::NonCopyable {
 
   rex::kernel::XLanguage GetUserLanguage() const { return user_language_; }
 
-  const XAMKernelInterfaces& GetTitle() const { return title_; }
+  const XAMTitle& GetTitle() const { return title_; }
 
   XAMLoaderState& GetLoaderState() { return loader_state_; }
 
@@ -157,7 +158,7 @@ class XAMState : public rex::NonCopyable {
   int CountInputStateCall() { return ++input_state_calls_; }
 
  private:
-  XAMKernelInterfaces title_;
+  XAMTitle title_;
   std::unique_ptr<rex::xam::AppManager> app_manager_;
   std::unique_ptr<rex::xam::UserProfile> user_profile_;
   std::unique_ptr<ContentManager> content_manager_;

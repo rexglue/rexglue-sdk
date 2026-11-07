@@ -31,15 +31,10 @@ namespace hid {
 class IInputSystem;
 }  // namespace hid
 namespace kernel {
-class INotificationBroadcaster;
-class IModuleRegistry;
-class IObjectTable;
-class IOverlappedDispatcher;
 class ISystemHeap;
 class ITitleDebugOutput;
 class ITitleExit;
 class ITitleWorkspace;
-class IThreadRegistry;
 }  // namespace kernel
 namespace ui {
 class IUISystem;
@@ -53,11 +48,6 @@ class IContentManager;
 
 /** Kernel interfaces and values XAM reads for a title. Each outlives the title. */
 struct XAMKernelInterfaces {
-  kernel::IObjectTable& objects;
-  kernel::IThreadRegistry& threads;
-  kernel::IModuleRegistry& modules;
-  kernel::INotificationBroadcaster& notifier;
-  kernel::IOverlappedDispatcher& overlapped_dispatcher;
   kernel::ITitleExit& exit;
   kernel::ITitleDebugOutput& debug;
   kernel::ISystemHeap& heap;

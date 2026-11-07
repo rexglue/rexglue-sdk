@@ -3,6 +3,7 @@
 #include <atomic>
 
 #include <rex/assert.h>
+#include <rex/module.h>
 #include <rex/logging/log_category.h>
 #include <rex/xam/title_lifecycle.h>
 #include <rex/kernel/object/notification_broadcaster.h>
@@ -17,6 +18,13 @@ constexpr u32 kXNotificationSystemInputDevicesChanged = 0x00000012;
 
 std::atomic<XAMState*> g_current{nullptr};
 
+template <typename T>
+T& Require() {
+  T* found = REX_INTERFACE(T);
+  REX_ASSERT(found != nullptr);
+  return *found;
+}
+
 }  // namespace
 
 XAMState* FindCurrentXAM() {
@@ -29,9 +37,17 @@ XAMState& CurrentXAM() {
   return *state;
 }
 
-const XAMKernelInterfaces& CurrentTitle() {
+const XAMTitle& CurrentTitle() {
   return CurrentXAM().GetTitle();
 }
+
+XAMTitle::XAMTitle(const XAMKernelInterfaces& title)
+    : XAMKernelInterfaces(title),
+      objects(Require<kernel::IObjectTable>()),
+      threads(Require<kernel::IThreadRegistry>()),
+      modules(Require<kernel::IModuleRegistry>()),
+      notifier(Require<kernel::INotificationBroadcaster>()),
+      overlapped_dispatcher(Require<kernel::IOverlappedDispatcher>()) {}
 
 XAMState::XAMState(const XAMKernelInterfaces& title) : title_(title) {
   app_manager_ = std::make_unique<rex::xam::AppManager>();

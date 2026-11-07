@@ -48,6 +48,7 @@ add_executable(
   kernel/shim_math_test.cpp
   kernel/shim_registry_test.cpp
   kernel/exports_test.cpp
+  kernel/title_interfaces_test.cpp
   kernel/xam_forward_test.cpp
   kernel/xbdm_forward_test.cpp
   kernel/exports_visibility_test.cpp

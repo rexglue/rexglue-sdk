@@ -19,6 +19,7 @@
 #include <rex/xam/title_lifecycle.h>
 #include <rex/kernel/object/notification_broadcaster.h>
 #include "xam/stub_log.h"
+#include "xam/xam_state.h"
 
 namespace rex {
 namespace xam {
@@ -74,9 +75,9 @@ XMPApp::XMPApp(const XAMKernelInterfaces& title)
       next_song_handle_(1) {}
 
 kernel::X_HRESULT XMPApp::XMPGetStatus(u32 state_ptr) {
-  if (!title_.threads.GetCallingThread()->IsMainThread()) {
+  if (!CurrentTitle().threads.GetCallingThread()->IsMainThread()) {
     // Titles poll this in a loop, the delay keeps them from starving other threads.
-    title_.threads.SleepCurrentThread(std::chrono::milliseconds(1));
+    CurrentTitle().threads.SleepCurrentThread(std::chrono::milliseconds(1));
   }
 
   REXXAM_TRACE("XMPGetStatus({:08X})", state_ptr);
@@ -170,7 +171,7 @@ kernel::X_HRESULT XMPApp::XMPPlayTitlePlaylist(u32 playlist_handle, u32 song_han
   active_song_index_ = 0;
   state_ = State::kPlaying;
   OnStateChanged();
-  title_.notifier.BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
+  CurrentTitle().notifier.BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
   return kernel::X_E_SUCCESS;
 }
 
@@ -226,7 +227,7 @@ kernel::X_HRESULT XMPApp::XMPPrevious() {
 }
 
 void XMPApp::OnStateChanged() {
-  title_.notifier.BroadcastNotification(kMsgStateChanged, static_cast<u32>(state_));
+  CurrentTitle().notifier.BroadcastNotification(kMsgStateChanged, static_cast<u32>(state_));
 }
 
 kernel::X_HRESULT XMPApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
@@ -292,7 +293,7 @@ kernel::X_HRESULT XMPApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
       playback_mode_ = static_cast<PlaybackMode>(static_cast<u32>(args->playback_mode));
       repeat_mode_ = static_cast<RepeatMode>(static_cast<u32>(args->repeat_mode));
       unknown_flags_ = args->flags;
-      title_.notifier.BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
+      CurrentTitle().notifier.BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
       return kernel::X_E_SUCCESS;
     }
     case 0x00070009: {
@@ -419,7 +420,8 @@ kernel::X_HRESULT XMPApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
                    static_cast<u32>(args->playback_client));
 
       playback_client_ = static_cast<PlaybackClient>(static_cast<u32>(args->playback_client));
-      title_.notifier.BroadcastNotification(kMsgPlaybackControllerChanged, !args->playback_client);
+      CurrentTitle().notifier.BroadcastNotification(kMsgPlaybackControllerChanged,
+                                                    !args->playback_client);
       return kernel::X_E_SUCCESS;
     }
     case 0x0007001B: {

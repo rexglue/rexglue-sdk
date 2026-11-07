@@ -20,6 +20,7 @@
 #include <rex/xam/content_manager.h>
 #include <rex/xam/device.h>
 #include "xam/enumerator_object.h"
+#include "xam/xam_state.h"
 #include <rex/platform/thread.h>
 #include <rex/xam/title_lifecycle.h>
 #include <rex/kernel/object/object_table.h>
@@ -58,7 +59,7 @@ kernel::X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 b
           static_cast<u32>(data->length_ptr), static_cast<u32>(data->unk_1c));
       auto extra = membase_.TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
       auto content_buffer = membase_.TranslateVirtual(data->buffer_ptr);
-      auto e = title_.objects.Get<EnumeratorObject>(extra->handle);
+      auto e = CurrentTitle().objects.Get<EnumeratorObject>(extra->handle);
       if (!e || !content_buffer || !extra) {
         return kernel::X_E_INVALIDARG;
       }
