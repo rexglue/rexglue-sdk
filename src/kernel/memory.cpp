@@ -762,6 +762,9 @@ void GuestAddressSpace::PlotProfile() {
     for (const GuestAllocator* allocator : allocators_) {
       in_use[static_cast<size_t>(allocator->GetPool())] += allocator->GetStats().allocated;
     }
+    for (const WorkspaceHeap* workspace : workspaces_) {
+      in_use[static_cast<size_t>(GuestPool::kWorkspace)] += workspace->GetAllocated();
+    }
   }
   for (size_t i = 0; i < in_use.size(); ++i) {
     REX_PROFILE_PLOT(GuestAllocator::GetPoolPlotName(static_cast<GuestPool>(i)), in_use[i]);

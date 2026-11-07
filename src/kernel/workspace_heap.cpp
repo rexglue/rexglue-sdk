@@ -16,7 +16,9 @@
 
 #include <rex/logging/log_category.h>
 #include <rex/math.h>
+#include <rex/platform/perf.h>
 #include <rex/kernel/types/status.h>
+#include "kernel/best_fit_range_allocator.h"
 
 namespace rex::kernel {
 
@@ -25,20 +27,37 @@ namespace {
 constexpr u32 kDefaultSize = 384 * 1024;
 constexpr u32 kMinimumSize = 256 * 1024;
 constexpr u32 kSizeStep = 16 * 1024;
+[[maybe_unused]] constexpr const char* kPoolName = "Guest workspace";
 
 }  // namespace
 
-WorkspaceHeap::WorkspaceHeap(Key, GuestAddressSpace& memory,
-                             std::unique_ptr<GuestAllocator> allocator)
-    : memory_(memory), allocator_(std::move(allocator)) {}
+WorkspaceHeap::WorkspaceHeap(Key, GuestAddressSpace& memory, u32 base, u32 size)
+    : memory_(memory),
+      base_(base),
+      size_(size),
+      ranges_(std::make_unique<BestFitRangeAllocator>(size)) {
+  std::lock_guard lock(memory_.allocators_mutex_);
+  memory_.workspaces_.push_back(this);
+}
+
+WorkspaceHeap::~WorkspaceHeap() {
+  {
+    std::lock_guard lock(memory_.allocators_mutex_);
+    std::erase(memory_.workspaces_, this);
+  }
+  memory_.LookupHeap(base_)->Release(base_);
+}
 
 Result<std::unique_ptr<WorkspaceHeap>> WorkspaceHeap::Create(GuestAddressSpace& memory, u32 size) {
-  auto allocator = GuestAllocator::Create(memory, size, kPageSize4KiB, false, kPageSize4KiB,
-                                          kMemoryAllocationTitle, GuestPool::kWorkspace);
-  if (!allocator) {
-    return Err<std::unique_ptr<WorkspaceHeap>>(allocator.error());
+  BaseHeap* heap = memory.LookupHeapByType(false, kPageSize4KiB);
+  u32 base = 0;
+  if (!heap ||
+      !heap->Alloc(size, kPageSize4KiB,
+                   kMemoryAllocationReserve | kMemoryAllocationCommit | kMemoryAllocationTitle,
+                   kMemoryProtectRead | kMemoryProtectWrite, true, &base)) {
+    return Err<std::unique_ptr<WorkspaceHeap>>(StatusError(X_STATUS_NO_MEMORY));
   }
-  return std::make_unique<WorkspaceHeap>(Key{}, memory, std::move(*allocator));
+  return std::make_unique<WorkspaceHeap>(Key{}, memory, base, size);
 }
 
 u32 WorkspaceHeap::ResolveSize(u32 header_size) {
@@ -49,31 +68,45 @@ u32 WorkspaceHeap::ResolveSize(u32 header_size) {
 }
 
 u32 WorkspaceHeap::GetSize() const {
-  return allocator_->GetSize();
+  return size_;
+}
+
+u32 WorkspaceHeap::GetAllocated() const {
+  std::lock_guard lock(mutex_);
+  return ranges_->GetAllocated();
 }
 
 Result<u32> WorkspaceHeap::Allocate(u32 size, bool zero) {
   size = std::max(size, 1u);
-  void* block = allocator_->Allocate(size);
-  if (!block) {
+  std::lock_guard lock(mutex_);
+  const std::optional<u32> offset = ranges_->Allocate(size);
+  if (!offset) {
     return Err<u32>(StatusError(X_STATUS_NO_MEMORY));
   }
+  const u32 address = base_ + *offset;
+  void* block = memory_.TranslateVirtual(address);
   if (zero) {
     std::memset(block, 0, size);
   }
-  return memory_.HostToGuestVirtual(block);
+  REX_PROFILE_ALLOC_NAMED(block, size, kPoolName);
+  return address;
 }
 
 void WorkspaceHeap::Free(u32 address) {
   if (!address) {
     return;
   }
-  if (!allocator_->Contains(address)) {
-    REXSYS_WARN("Workspace free of {:#010x} is outside {:#010x}+{:#x}, ignored", address,
-                allocator_->GetBase(), allocator_->GetSize());
+  if (address < base_ || address - base_ >= size_) {
+    REXSYS_WARN("Workspace free of {:#010x} is outside {:#010x}+{:#x}, ignored", address, base_,
+                size_);
     return;
   }
-  allocator_->Free(memory_.TranslateVirtual(address));
+  std::lock_guard lock(mutex_);
+  if (!ranges_->Free(address - base_)) {
+    REXSYS_WARN("Workspace free of {:#010x} is not a live block, ignored", address);
+    return;
+  }
+  REX_PROFILE_FREE_NAMED(memory_.TranslateVirtual(address), kPoolName);
 }
 
 }  // namespace rex::kernel

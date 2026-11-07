@@ -108,6 +108,7 @@ set(REXKERNEL_SOURCES
     user_module.cpp
     memory.cpp
     guest_memory.cpp
+    best_fit_range_allocator.cpp
     guest_allocator.cpp
     workspace_heap.cpp
     function_dispatcher.cpp

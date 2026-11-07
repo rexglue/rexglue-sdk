@@ -66,6 +66,7 @@ namespace rex::kernel {
 
 class GuestAllocator;
 class GuestAddressSpace;
+class WorkspaceHeap;
 
 /** Selects the heap that SystemHeapAlloc takes memory from. */
 enum SystemHeapFlag : u8 {
@@ -880,6 +881,7 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
 
   friend class BaseHeap;
   friend class GuestAllocator;
+  friend class WorkspaceHeap;
 
   friend class PhysicalHeap;
   rex::platform::RankedMutex watch_mutex_{rex::platform::LockRank::kLeaf};
@@ -888,7 +890,8 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
   std::atomic<u32> title_pages_{0};
   std::atomic<u32> budget_pages_{0};
   std::mutex allocators_mutex_;
-  std::vector<GuestAllocator*> allocators_; /**< Every live guest allocator, for the plots. */
+  std::vector<GuestAllocator*> allocators_;      /**< Every live guest allocator, for the plots. */
+  std::vector<const WorkspaceHeap*> workspaces_; /**< Every live workspace, for the plots. */
 };
 
 }  // namespace rex::kernel

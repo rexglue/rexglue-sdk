@@ -149,8 +149,10 @@ A host menu manages downloadable content through `IContentManager`, from `TitleR
 The title workspace is a range of title memory that XAM uses on behalf of the title, for example for enumerator buffers. `XamAlloc` uses it when the title asks for workspace memory, and `XamFree` returns memory to it. `ITitleWorkspace`, from `TitleRuntime::GetGuestWorkspace`, allocates from it.
 
 - The size comes from the `kXEXHeaderTitleWorkspaceSize` header of the executable. Without the header the workspace has a default size.
-- `ITitleWorkspace::Allocate` returns zeroed memory, or an error when the workspace is full.
-- `ITitleWorkspace::Free` ignores an address outside the workspace with a log message.
+- `ITitleWorkspace::Allocate` zeroes the block when the caller asks for it, and returns an error when the workspace is full.
+- A block is sized to the request, rounded up to 16 bytes. The workspace takes the smallest free range that fits, so a freed block can be taken again by a request of the same size.
+- `ITitleWorkspace::Free` ignores an address outside the workspace, or one that is not a live block, with a log message.
+- `XamAlloc` returns `0`, `E_INVALIDARG` for a null out pointer, `E_UNEXPECTED` for flags that select no heap, or `E_OUTOFMEMORY` when the heap is full. `XamAllocEx` takes the same path, or allocates physical memory when flags bit `0x40000000` is set.
 
 ## Kernel Exports
 

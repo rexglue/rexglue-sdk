@@ -31,6 +31,7 @@ class GuestHeap;
 namespace rex::kernel {
 
 class GuestAddressSpace;
+class BestFitRangeAllocator;
 class WorkspaceHeap;
 
 /** Profiler pool that the blocks of a guest allocator are reported to. */
@@ -41,7 +42,10 @@ enum class GuestPool : u8 {
   kCount, /**< Number of pools, not a pool. */
 };
 
-/** Reserves and commits a range of guest memory and serves blocks from it. */
+/**
+ * Reserves and commits a range of guest memory and serves blocks from it. The shim heap is its
+ * user.
+ */
 class REX_KERNEL_API GuestAllocator : public NonCopyable {
   /** Limits construction to Create. */
   struct Key {};
@@ -121,7 +125,6 @@ class REX_KERNEL_API GuestAllocator : public NonCopyable {
   [[nodiscard]] bool IsConsistent() const;
 
  private:
-  friend class WorkspaceHeap;
   friend class rex::kernel::shim::GuestHeap;
 
   [[nodiscard]] static Result<std::unique_ptr<GuestAllocator>> Create(GuestAddressSpace& memory,
@@ -169,16 +172,23 @@ class ITitleWorkspace {
   virtual void Free(u32 address) = 0;
 };
 
-/** The title workspace, title memory the system uses on the title's behalf. */
+/**
+ * The title workspace, title memory the system uses on the title's behalf. Blocks are sized to the
+ * request and rounded to 16 bytes, so a freed block can be taken again by a request of its size.
+ */
 class REX_KERNEL_API WorkspaceHeap : public ITitleWorkspace, public NonCopyable {
   /** Limits construction to Create. */
   struct Key {};
 
  public:
-  /** Wraps a committed workspace. Only Create can make the key. */
-  WorkspaceHeap(Key, GuestAddressSpace& memory, std::unique_ptr<GuestAllocator> allocator);
+  /** Wraps a committed range. Only Create can make the key. */
+  WorkspaceHeap(Key, GuestAddressSpace& memory, u32 base, u32 size);
+
+  ~WorkspaceHeap() override;
 
   /**
+   * Reserves and commits the workspace range.
+   *
    * @return An error when the memory cannot be committed.
    */
   [[nodiscard]] static Result<std::unique_ptr<WorkspaceHeap>> Create(GuestAddressSpace& memory,
@@ -193,6 +203,9 @@ class REX_KERNEL_API WorkspaceHeap : public ITitleWorkspace, public NonCopyable 
 
   [[nodiscard]] u32 GetSize() const;
 
+  /** Returns the bytes held by live blocks. */
+  [[nodiscard]] u32 GetAllocated() const;
+
   /**
    * Allocates bytes from the workspace.
    *
@@ -202,7 +215,8 @@ class REX_KERNEL_API WorkspaceHeap : public ITitleWorkspace, public NonCopyable 
   [[nodiscard]] Result<u32> Allocate(u32 size, bool zero) override;
 
   /**
-   * Frees an address from Allocate. An address outside the workspace is logged and ignored.
+   * Frees an address from Allocate. An address outside the workspace, or one that is not a live
+   * block, is logged and ignored.
    *
    * @param address The guest address, 0 for none.
    */
@@ -210,7 +224,10 @@ class REX_KERNEL_API WorkspaceHeap : public ITitleWorkspace, public NonCopyable 
 
  private:
   GuestAddressSpace& memory_;
-  std::unique_ptr<GuestAllocator> allocator_;
+  u32 base_;
+  u32 size_;
+  std::unique_ptr<BestFitRangeAllocator> ranges_;
+  mutable std::mutex mutex_;
 };
 
 }  // namespace rex::kernel

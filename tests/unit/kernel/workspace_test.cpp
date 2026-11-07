@@ -118,7 +118,7 @@ REX_TEST_CASE("XamFree of an address outside the workspace is ignored", "[kernel
   });
 }
 
-REX_TEST_CASE("Two 128 KB XamAlloc blocks fit the default workspace and a third does not",
+REX_TEST_CASE("Two 128 KB XamAlloc blocks fit the default workspace and a 160 KB block does not",
               "[kernel][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -136,7 +136,7 @@ REX_TEST_CASE("Two 128 KB XamAlloc blocks fit the default workspace and a third 
     const u32 second = c.Load32(out);
     CHECK(second != 0);
     CHECK(second != first);
-    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kOutOfMemory);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x28000, out}) == kOutOfMemory);
     c.XAM("XamFree", {first});
     CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == 0);
     c.XAM("XamFree", {c.Load32(out)});
@@ -169,7 +169,7 @@ REX_TEST_CASE("XamAllocEx without the physical flag allocates from the title wor
     const u32 block = c.Load32(out);
     CHECK(block != 0);
     CHECK(block < 0xA0000000);
-    CHECK(c.XAM("XamAlloc", {0x10000000, 0x30000, out}) == kOutOfMemory);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x38000, out}) == kOutOfMemory);
     c.XAM("XamFree", {block});
     CHECK(c.XAM("XamAlloc", {0x10000000, 0x30000, out}) == 0);
     c.XAM("XamFree", {c.Load32(out)});
@@ -231,7 +231,7 @@ REX_TEST_CASE("XamAlloc with flags 0 allocates from the title workspace", "[kern
       return;
     }
     const u32 second = c.Load32(out);
-    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kOutOfMemory);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x28000, out}) == kOutOfMemory);
     c.XAM("XamFree", {block});
     CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == 0);
     c.XAM("XamFree", {c.Load32(out)});

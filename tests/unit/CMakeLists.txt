@@ -172,6 +172,7 @@ add_executable(
   kernel/timeout_test.cpp
   kernel/guest_path_test.cpp
   kernel/map_parser_test.cpp
+  kernel/best_fit_range_allocator_test.cpp
   kernel/guest_allocator_test.cpp
   kernel/guest_memory_test.cpp
   kernel/guest_stack_range_test.cpp
