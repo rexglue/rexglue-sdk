@@ -196,14 +196,18 @@ void KernelThread::SleepFor(std::chrono::microseconds duration) {
 
 void KernelThread::RequestStop(i32 exit_code) {
   stop_exit_code_.store(exit_code, std::memory_order_release);
-  std::lock_guard lock(stop_mutex_);
-  stop_requested_ = true;
-  if (thread_state_) {
-    thread_state_->RequestStop();
+  {
+    std::lock_guard lock(stop_mutex_);
+    stop_requested_ = true;
+    if (thread_state_) {
+      thread_state_->RequestStop();
+    }
+    if (thread_) {
+      thread_->QueueUserCallback([] {});
+    }
   }
-  if (thread_) {
-    thread_->QueueUserCallback([] {});
-  }
+  { std::lock_guard lock(suspend_wait_->mutex); }
+  suspend_wait_->cv.notify_all();
 }
 
 u32 KernelThread::GetCurrentThreadHandle() {
@@ -1012,8 +1016,7 @@ u32 KernelThread::SelfSuspend() {
     if (previous == 0 && guest_thread->suspend_count != 0) {
       suspend_deferred_.store(true, std::memory_order_release);
     }
-    suspend_wait_->cv.wait(lock,
-                           [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
+    WaitForResume(lock);
   }
   CheckStop();
   return previous;
@@ -1021,8 +1024,13 @@ u32 KernelThread::SelfSuspend() {
 
 void KernelThread::TakeDeferredSuspend() {
   std::unique_lock lock(suspend_wait_->mutex);
-  suspend_wait_->cv.wait(lock,
-                         [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
+  WaitForResume(lock);
+}
+
+void KernelThread::WaitForResume(std::unique_lock<std::mutex>& lock) {
+  suspend_wait_->cv.wait(lock, [this] {
+    return !suspend_deferred_.load(std::memory_order_acquire) || thread_state_->IsStopRequested();
+  });
 }
 
 namespace {

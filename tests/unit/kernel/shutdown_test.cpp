@@ -1208,3 +1208,73 @@ REX_TEST_CASE("A guest thread spinning on a held lock stops when the title termi
   CHECK(StoppedWithin(fixture.GetRuntime(), thread, 1000ms));
   CHECK_FALSE(acquired->load());
 }
+
+REX_TEST_CASE("A stop request ends a thread that suspended itself with no resume",
+              "[kernel][shutdown][suspend]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto handle = std::make_shared<std::atomic<u32>>(0);
+    auto suspending = std::make_shared<std::atomic<bool>>(false);
+    auto resumed = std::make_shared<std::atomic<bool>>(false);
+    const u32 thread = c.Spawn([handle, suspending, resumed](Caller& t) {
+      while (handle->load() == 0) {
+        std::this_thread::yield();
+      }
+      suspending->store(true);
+      t.Kernel("NtSuspendThread", {handle->load(), 0});
+      resumed->store(true);
+    });
+    handle->store(thread);
+    WaitUntil(*suspending);
+    std::this_thread::sleep_for(50ms);
+    auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(thread);
+    CHECKED_ELSE(pin) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 kthread = pin->GetGuestObject();
+    pin->RequestStop(7);
+    CHECK(Joined(c, thread, kStopBudget));
+    CHECK_FALSE(resumed->load());
+    CHECK(c.Load32(kthread + 0x140) == 7);
+  });
+}
+
+REX_TEST_CASE("A stop request ends a thread whose deferred suspend is taken at a stop check",
+              "[kernel][shutdown][suspend]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto started = std::make_shared<std::atomic<bool>>(false);
+    auto release = std::make_shared<std::atomic<bool>>(false);
+    const u32 thread = c.Spawn([started, release](Caller&) {
+      started->store(true);
+      while (!release->load()) {
+        rex::kernel::KernelThread::CheckStop();
+        std::this_thread::yield();
+      }
+    });
+    WaitUntil(*started);
+    auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(thread);
+    CHECKED_ELSE(pin) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    u32 previous = 0;
+    pin->Suspend(&previous);
+    std::this_thread::sleep_for(50ms);
+    pin->RequestStop(9);
+    CHECK(Joined(c, thread, kStopBudget));
+    release->store(true);
+    CHECK(c.Load32(pin->GetGuestObject() + 0x140) == 9);
+  });
+}
+
+REX_TEST_CASE("A stop request ends a thread that is not suspended as before",
+              "[kernel][shutdown][suspend]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 event = CreateGuestEvent(c);
+    const u32 thread = SpawnAndRequestStop(c, [event](Caller& t) { WaitForever(t, event, 0); });
+    CHECK(Joined(c, thread, kStopBudget));
+  });
+}

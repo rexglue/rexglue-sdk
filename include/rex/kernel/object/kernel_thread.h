@@ -362,6 +362,8 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
   [[noreturn]] static void ThrowStop();
   /** True when this thread has a stop request, or is a guest thread of a terminating title. */
   bool ShouldStop() const;
+  /** Blocks in a deferred suspend until Resume or a stop request ends it. */
+  void WaitForResume(std::unique_lock<std::mutex>& lock);
   void ReleaseSelf();
 
   /** Removes the pointer reference the thread holds on its own object. */
