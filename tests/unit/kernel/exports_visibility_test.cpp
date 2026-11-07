@@ -26,6 +26,11 @@
 #include <rex/kernel/export.h>
 #include <rex/platform.h>
 
+#if REX_PLATFORM_MAC
+#include <mach-o/loader.h>
+#include <mach-o/nlist.h>
+#endif
+
 namespace {
 
 using rex::kernel::ExportModule;
@@ -93,6 +98,33 @@ std::set<std::string> ListExportedNames(const std::vector<rex::u8>& bytes) {
   const size_t name_table = to_offset(ReadAt<rex::u32>(bytes, directory + 32));
   for (rex::u32 i = 0; i < name_count; ++i) {
     names.insert(ReadCString(bytes, to_offset(ReadAt<rex::u32>(bytes, name_table + i * 4))));
+  }
+  return names;
+}
+
+#elif REX_PLATFORM_MAC
+
+std::set<std::string> ListExportedNames(const std::vector<rex::u8>& bytes) {
+  std::set<std::string> names;
+  const mach_header_64 header = ReadAt<mach_header_64>(bytes, 0);
+  REQUIRE(header.magic == MH_MAGIC_64);
+  symtab_command symbols{};
+  dysymtab_command dynamic_symbols{};
+  size_t offset = sizeof(mach_header_64);
+  for (rex::u32 i = 0; i < header.ncmds; ++i) {
+    const load_command command = ReadAt<load_command>(bytes, offset);
+    if (command.cmd == LC_SYMTAB) {
+      symbols = ReadAt<symtab_command>(bytes, offset);
+    } else if (command.cmd == LC_DYSYMTAB) {
+      dynamic_symbols = ReadAt<dysymtab_command>(bytes, offset);
+    }
+    offset += command.cmdsize;
+  }
+  // Hidden symbols are local after the link, so the defined external symbols are the exports.
+  for (rex::u32 i = 0; i < dynamic_symbols.nextdefsym; ++i) {
+    const size_t index = size_t{dynamic_symbols.iextdefsym} + i;
+    const nlist_64 symbol = ReadAt<nlist_64>(bytes, symbols.symoff + index * sizeof(nlist_64));
+    names.insert(ReadCString(bytes, symbols.stroff + symbol.n_un.n_strx).substr(1));
   }
   return names;
 }
