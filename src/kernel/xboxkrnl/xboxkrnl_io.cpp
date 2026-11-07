@@ -42,11 +42,47 @@ using namespace rex::kernel;
 struct CreateOptions {
   static const u32 kFileDirectoryFile = 0x00000001;
   static const u32 kFileSequentialOnly = 0x00000004;
+  static const u32 kFileNoIntermediateBuffering = 0x00000008;
   static const u32 kFileSynchronousIOAlert = 0x00000010;
   static const u32 kFileSynchronousIONonAlert = 0x00000020;
   static const u32 kFileNonDirectoryFile = 0x00000040;
   static const u32 kFileRandomAccess = 0x00000800;
 };
+
+static u8 FileObjectFlags(u32 create_options) {
+  u8 flags = 0;
+  if (create_options &
+      (CreateOptions::kFileSynchronousIOAlert | CreateOptions::kFileSynchronousIONonAlert)) {
+    flags |= 0x01;
+  }
+  if (create_options & CreateOptions::kFileNoIntermediateBuffering) {
+    flags |= 0x04;
+  }
+  if (create_options & CreateOptions::kFileSequentialOnly) {
+    flags |= 0x08;
+  }
+  if (create_options & CreateOptions::kFileRandomAccess) {
+    flags |= 0x40;
+  }
+  return flags;
+}
+
+static void InitializeFileObject(u32 address, u32 create_options, u32 related_file) {
+  auto* file =
+      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_FILE_OBJECT*>(address);
+  file->flags = FileObjectFlags(create_options);
+  file->related_file = related_file;
+  file->unk_24 = 0xFFFFFFFF;
+  file->unk_28 = 1;
+  file->unk_58 = 2;
+  file->unk_list_30.flink_ptr = address + offsetof(X_FILE_OBJECT, unk_list_30);
+  file->unk_list_30.blink_ptr = file->unk_list_30.flink_ptr;
+  file->event.type = kDispatcherManualResetEvent;
+  file->event.signal_state = 1;
+  file->event.wait_list_flink =
+      address + offsetof(X_FILE_OBJECT, event) + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+  file->event.wait_list_blink = file->event.wait_list_flink;
+}
 
 static bool IsErrorStatus(X_STATUS status) {
   return (status & 0xC0000000) == 0xC0000000;
@@ -128,6 +164,10 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
         kernel::GetCurrent().GetObjectTable().AddFile(std::move(opened->file), synchronous);
     if (added) {
       handle = *added;
+      if (auto file = kernel::GetCurrent().GetObjectTable().Get(handle)) {
+        InitializeFileObject(file.GetGuestAddress(), create_options,
+                             root_file ? root_file.GetGuestAddress() : 0);
+      }
     }
     result = ToXStatus(added);
   }

@@ -409,6 +409,76 @@ REX_TEST_CASE("files: NtCreateIoCompletion initializes the queue header of its b
   });
 }
 
+REX_TEST_CASE("files: NtCreateFile initializes the file object body", "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "b.bin", 16); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    for (const u32 options : {0x20u, 0x82Cu}) {
+      const u32 handle_ptr = c.Alloc(4);
+      const u32 object_ptr = c.Alloc(4);
+      CHECKED_ELSE(c.Kernel("NtCreateFile",
+                            {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\b.bin"),
+                             c.Alloc(8), 0, 0, 3, 1, options}) == 0) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
+      CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {c.Load32(handle_ptr), 0, object_ptr}) ==
+                   0) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
+      const u32 body = c.Load32(object_ptr);
+      REQUIRE(body != 0);
+      CHECK(c.Load8(body + 2) == (options == 0x20u ? 0x01 : 0x4D));
+      CHECK(c.Load32(body + 4) == 0);
+      CHECK(c.Load32(body + 0x1C) == 0);
+      CHECK(c.Load32(body + 0x24) == 0xFFFFFFFF);
+      CHECK(c.Load8(body + 0x28) == 1);
+      CHECK(c.Load32(body + 0x30) == body + 0x30);
+      CHECK(c.Load32(body + 0x34) == body + 0x30);
+      CHECK(c.Load8(body + 0x38) == 0);
+      CHECK(c.Load32(body + 0x3C) == 1);
+      CHECK(c.Load32(body + 0x40) == body + 0x40);
+      CHECK(c.Load32(body + 0x44) == body + 0x40);
+      CHECK(c.Load8(body + 0x58) == 2);
+    }
+  });
+}
+
+REX_TEST_CASE("files: a file opened relative to a directory points at its body",
+              "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "s.bin", 12); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 object_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("scratch:\\"),
+                                           c.Alloc(8), 0, 0, 3, 1, 0x1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 directory = c.Load32(handle_ptr);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {directory, 0, object_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 directory_body = c.Load32(object_ptr);
+    const u32 attributes = c.AllocAttributes("s.bin");
+    c.Store32(attributes, directory);
+    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, attributes, c.Alloc(8), 0,
+                                           0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {c.Load32(handle_ptr), 0, object_ptr}) ==
+                 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(c.Load32(c.Load32(object_ptr) + 0x1C) == directory_body);
+  });
+}
+
 REX_TEST_CASE("files: sequential reads advance the position", "[kernel][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {
     std::ofstream out(root / "seq.bin", std::ios::binary);

@@ -17,7 +17,9 @@
 
 #include <rex/assert.h>
 #include <rex/memory.h>
+#include <rex/kernel/types/list.h>
 #include <rex/kernel/types/status.h>
+#include <rex/kernel/types/thread.h>
 #include <rex/string/text.h>
 #include <rex/kernel/heap.h>
 
@@ -162,6 +164,26 @@ inline constexpr u32 kFileObjectSize = 0x68;
 
 /** Value of the Type field at the start of a file object body. */
 inline constexpr u16 kFileObjectTypeId = 5;
+
+/** The guest body of a file object. */
+struct X_FILE_OBJECT {
+  be_u16 type; /**< `kFileObjectTypeId`. */
+  u8 flags;
+  u8 pad_03;
+  be_u32 device_ptr; /**< Zero, there is no device object. */
+  u8 pad_08[0x14];
+  be_u32 related_file; /**< Guest body of the directory the open was relative to, 0 for none. */
+  u8 pad_20[4];
+  be_u32 unk_24;
+  u8 unk_28;
+  u8 pad_29[7];
+  X_LIST_ENTRY unk_list_30;
+  X_DISPATCH_HEADER event;
+  u8 pad_48[0x10];
+  u8 unk_58;
+  u8 pad_59[0xF];
+};
+REX_STATIC_ASSERT_SIZE(X_FILE_OBJECT, kFileObjectSize);
 
 /** Size of the guest body of an IO completion object. */
 inline constexpr u32 kIOCompletionObjectSize = 0x28;
