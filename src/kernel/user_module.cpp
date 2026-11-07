@@ -111,7 +111,7 @@ X_STATUS ModuleObject::LoadFromFile(TitleRuntime& owning_runtime, std::string_vi
   auto* fs = StateOf(owning_runtime).GetFileSystem();
   auto fs_entry = fs->Stat(guest_path);
   if (!fs_entry) {
-    REXSYS_FAIL(X_STATUS_NO_SUCH_FILE, "File {} was not found", guest_path);
+    REXSYS_FAIL(ToXStatus(fs_entry.error()), "File {} was not found", guest_path);
   }
 
   path = fs_entry->absolute_path;

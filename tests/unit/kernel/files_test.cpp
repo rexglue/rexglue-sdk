@@ -288,7 +288,77 @@ REX_TEST_CASE("files: missing file", "[kernel][files]") {
     const u32 status_block = c.Alloc(8);
     CHECK(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes("game:\\missing.bin"),
                                     status_block, 0, 0, 3, 1, 0x20}) ==
-          rex::kernel::X_STATUS_NO_SUCH_FILE);
+          rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+  });
+}
+
+REX_TEST_CASE("files: a missing folder or device is path not found", "[kernel][files]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    const u32 info = c.Alloc(56);
+    for (const char* path : {"game:\\gone\\missing.bin", "game:\\gone\\deeper\\missing.bin",
+                             "nodevice:\\missing.bin"}) {
+      INFO(path);
+      CHECK(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes(path), status_block,
+                                      0, 0, 3, 1, 0x20}) ==
+            rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND);
+      CHECK(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes(path), status_block,
+                                      0, 0, 3, 2, 0x20}) ==
+            rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND);
+      CHECK(c.Kernel("NtQueryFullAttributesFile", {c.AllocAttributes(path), info}) ==
+            rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND);
+    }
+    CHECK(c.Kernel("NtQueryFullAttributesFile", {c.AllocAttributes("game:\\missing.bin"), info}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+  });
+}
+
+REX_TEST_CASE("files: symbolic link and directory calls report the console statuses",
+              "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "s.bin", 4); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 link = c.AllocAttributes("nolink:");
+    c.Store32(link + 8, 0x40);
+    CHECK(c.Kernel("NtOpenSymbolicLinkObject", {handle_ptr, link}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+
+    const u32 target = c.Alloc(12);
+    CHECK(c.Kernel("NtQuerySymbolicLinkObject", {0x1234, target}) == kInvalidHandle);
+
+    const u32 status_block = c.Alloc(8);
+    const u32 info = c.Alloc(0x100);
+    CHECK(c.Kernel("NtQueryDirectoryFile", {0x1234, 0, 0, 0, status_block, info, 0x100, 0, 0}) ==
+          kInvalidHandle);
+
+    CHECKED_ELSE(c.Kernel("NtCreateFile",
+                          {handle_ptr, kReadWriteAccess, c.AllocAttributes("scratch:\\s.bin"),
+                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 file = c.Load32(handle_ptr);
+    CHECK(c.Kernel("NtQuerySymbolicLinkObject", {file, target}) ==
+          rex::kernel::X_STATUS_OBJECT_TYPE_MISMATCH);
+    CHECK(c.Kernel("NtClose", {file}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: XexLoadImage reports the open status of a missing module",
+              "[kernel][files]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 hmodule_ptr = c.Alloc(4);
+    CHECK(c.Kernel("XexLoadImage", {c.AllocString("game:\\absent.xex"), 8, 0, hmodule_ptr}) ==
+          rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+    CHECK(c.Kernel("XexLoadImage", {c.AllocString("game:\\gone\\absent.xex"), 8, 0, hmodule_ptr}) ==
+          rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND);
+    CHECK(c.Kernel("XexLoadImage", {c.AllocString("nodevice:\\absent.xex"), 8, 0, hmodule_ptr}) ==
+          rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND);
+    CHECK(c.Load32(hmodule_ptr) == 0);
   });
 }
 
@@ -1104,7 +1174,7 @@ REX_TEST_CASE("files: CreateDirectoryA creates one level and fails on a missing 
 
     CallingThread(c).SetLastError(kSentinelError);
     CHECK(c.XAM("CreateDirectoryA", {c.AllocString("scratch:\\missing\\two"), 0}) == 0);
-    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_NO_SUCH_FILE));
+    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND));
     CHECK_FALSE(file_system->Stat("scratch:\\missing"));
   });
 }
@@ -1131,7 +1201,7 @@ REX_TEST_CASE("files: GetFileAttributesExA on a missing file sets the last error
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 info = c.Alloc(36);
     CallingThread(c).SetLastError(kSentinelError);
-    CHECK(c.XAM("GetFileAttributesExA", {0, c.AllocString("scratch:\absent.bin"), info}) == 0);
-    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_NO_SUCH_FILE));
+    CHECK(c.XAM("GetFileAttributesExA", {0, c.AllocString("scratch:\\absent.bin"), info}) == 0);
+    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND));
   });
 }

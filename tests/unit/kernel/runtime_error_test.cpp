@@ -52,7 +52,11 @@ REX_TEST_CASE("ToXStatus keeps the filesystem mapping", "[kernel][error]") {
   using rex::filesystem::BuildError;
   using rex::filesystem::FileSystemError;
   CHECK(rt::ToXStatus(BuildError(FileSystemError::kNotFound, "a")) ==
-        rex::kernel::X_STATUS_NO_SUCH_FILE);
+        rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kPathNotFound, "a")) ==
+        rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND);
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kNoMount, "a")) ==
+        rex::kernel::X_STATUS_OBJECT_PATH_NOT_FOUND);
   CHECK(rt::ToXStatus(BuildError(FileSystemError::kExists, "a")) ==
         rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
   CHECK(rt::ToXStatus(BuildError(FileSystemError::kUnsupported, "a"),

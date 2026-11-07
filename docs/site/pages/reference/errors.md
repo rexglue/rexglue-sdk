@@ -4,7 +4,7 @@ SDK functions that can fail return their error as a value, not as an exception. 
 
 ## Result
 
-`Result<T>` is `std::expected<T, Error>`: it holds either the value of type `T` or an `Error`. `Result<void>` holds no value on success. Test a result with `if (result)`, read the value with `*result` and the error with `result.error()`.
+`Result<T>` is `std::expected<T, Error>`. It holds either the value of type `T` or an `Error`. `Result<void>` holds no value on success. Test a result with `if (result)`, read the value with `*result` and the error with `result.error()`.
 
 The header provides two helpers to build results:
 
@@ -42,7 +42,7 @@ Two parts of the SDK need finer codes than a category. Each declares an error en
 
 | Enum | Header | Category of the error |
 |---|---|---|
-| `FileSystemError` | `rex/filesystem/file_system_error.h` | `kNotFound` for `kNotFound` and `kNoMount`, `kFormat` for `kCorrupt`, `kNotImplemented` for `kUnsupported`, and `kIO` for the others. |
+| `FileSystemError` | `rex/filesystem/file_system_error.h` | `kNotFound` for `kNotFound`, `kPathNotFound` and `kNoMount`, `kFormat` for `kCorrupt`, `kNotImplemented` for `kUnsupported`, and `kIO` for the others. |
 | `HIDError` | `rex/xam/input.h` | Always `kPlatform`. |
 
 ```cpp

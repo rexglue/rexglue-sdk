@@ -19,7 +19,8 @@ This page lists how the kernel file exports, such as `NtCreateFile` and `NtQuery
 | The object attributes are null, or the disposition is above `kOverwriteIf` | `X_STATUS_INVALID_PARAMETER` |
 | The path breaks the path rules | `X_STATUS_OBJECT_NAME_INVALID` |
 | The root directory handle is unknown | `X_STATUS_INVALID_HANDLE` |
-| The filesystem returns `kNotFound` or `kNoMount` | `X_STATUS_NO_SUCH_FILE` |
+| The filesystem returns `kNotFound` | `X_STATUS_OBJECT_NAME_NOT_FOUND` |
+| The filesystem returns `kPathNotFound` or `kNoMount` | `X_STATUS_OBJECT_PATH_NOT_FOUND` |
 | The filesystem returns `kExists` | `X_STATUS_OBJECT_NAME_COLLISION` |
 | The filesystem returns `kIsDirectory` | `X_STATUS_FILE_IS_A_DIRECTORY` |
 | The filesystem returns `kNotDirectory` | `X_STATUS_NOT_A_DIRECTORY` |
@@ -36,10 +37,10 @@ The disposition of an open says what happens when the path exists and when it is
 | Disposition | Path exists | Path absent |
 |---|---|---|
 | `kSupersede` | Replace | Create |
-| `kOpen` | Open | Fail with `kNotFound` |
+| `kOpen` | Open | Fail with `kNotFound`, or `kPathNotFound` when a folder is missing |
 | `kCreate` | Fail with `kExists` | Create |
 | `kOpenIf` | Open | Create |
-| `kOverwrite` | Truncate | Fail with `kNotFound` |
+| `kOverwrite` | Truncate | Fail with `kNotFound`, or `kPathNotFound` when a folder is missing |
 | `kOverwriteIf` | Truncate | Create |
 
 ## Open Actions

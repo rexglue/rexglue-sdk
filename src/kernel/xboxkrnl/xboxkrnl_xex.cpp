@@ -93,7 +93,7 @@ u32 XexGetModuleSection_entry(MappedVoid hmodule, MappedString name, MappedU32 d
 
 u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_flags,
                        [[maybe_unused]] u32 min_version, MappedU32 hmodule_ptr) {
-  X_STATUS result = X_STATUS_NO_SUCH_FILE;
+  X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
   auto& runtime = kernel::GetCurrent();
   auto& modules = runtime.GetModuleRegistry();
@@ -118,6 +118,8 @@ u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_fla
     if (user_module) {
       hmodule = user_module->hmodule_ptr;
       result = X_STATUS_SUCCESS;
+    } else if (!loaded) {
+      result = ToXStatus(loaded.error());
     }
   }
 

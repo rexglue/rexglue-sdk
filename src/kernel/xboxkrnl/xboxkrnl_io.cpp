@@ -475,8 +475,9 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 
-  if (auto entry = root_file ? StatRelative(*root_file->file, target_path)
-                             : kernel::GetCurrentState().GetFileSystem()->Stat(target_path)) {
+  auto entry = root_file ? StatRelative(*root_file->file, target_path)
+                         : kernel::GetCurrentState().GetFileSystem()->Stat(target_path);
+  if (entry) {
     file_info->creation_time = entry->create_time;
     file_info->last_access_time = entry->access_time;
     file_info->last_write_time = entry->write_time;
@@ -492,10 +493,9 @@ u32 NtQueryFullAttributesFile_entry(GuestPtrT<X_OBJECT_ATTRIBUTES> object_attrs,
     return X_STATUS_SUCCESS;
   }
 
-  REXKRNL_TRACE(
-      "NtQueryFullAttributesFile -> "
-      "X_STATUS_NO_SUCH_FILE");
-  return X_STATUS_NO_SUCH_FILE;
+  const X_STATUS status = ToXStatus(entry.error());
+  REXKRNL_TRACE("NtQueryFullAttributesFile -> {:#x}", status);
+  return status;
 }
 
 u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine,
@@ -523,7 +523,7 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routin
       info = length;
     }
   } else {
-    result = X_STATUS_NO_SUCH_FILE;
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   if (XFAILED(result)) {
@@ -579,7 +579,7 @@ u32 NtOpenSymbolicLinkObject_entry(MappedU32 handle_out,
   std::optional<std::string> link_path =
       kernel::GetCurrentState().GetFileSystem()->FindLink(target_path);
   if (!link_path) {
-    return X_STATUS_NO_SUCH_FILE;
+    return X_STATUS_OBJECT_NAME_NOT_FOUND;
   }
 
   X_HANDLE handle = kXInvalidHandleValue;
@@ -605,9 +605,13 @@ u32 NtOpenSymbolicLinkObject_entry(MappedU32 handle_out,
 }
 
 u32 NtQuerySymbolicLinkObject_entry(u32 handle, GuestPtrT<X_ANSI_STRING> target) {
-  auto symlink = kernel::GetCurrent().GetObjectTable().Get<SymbolicLinkObject>(handle);
+  auto& table = kernel::GetCurrent().GetObjectTable();
+  if (!table.Get(handle)) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  auto symlink = table.Get<SymbolicLinkObject>(handle);
   if (!symlink) {
-    return X_STATUS_NO_SUCH_FILE;
+    return X_STATUS_OBJECT_TYPE_MISMATCH;
   }
   auto length = std::min(static_cast<size_t>(target->maximum_length), symlink->target.size());
   if (length > 0) {

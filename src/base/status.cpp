@@ -25,9 +25,10 @@ X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
   using filesystem::FileSystemError;
   switch (filesystem::CodeOf(error)) {
     case FileSystemError::kNotFound:
+      return X_STATUS_OBJECT_NAME_NOT_FOUND;
     case FileSystemError::kPathNotFound:
     case FileSystemError::kNoMount:
-      return X_STATUS_NO_SUCH_FILE;
+      return X_STATUS_OBJECT_PATH_NOT_FOUND;
     case FileSystemError::kExists:
       return X_STATUS_OBJECT_NAME_COLLISION;
     case FileSystemError::kIsDirectory:
