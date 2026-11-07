@@ -3,6 +3,10 @@ cmake_minimum_required(VERSION 3.25)
 
 if (APPLE)
   set(REXGLUE_LANGUAGES C CXX OBJC OBJCXX)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET
+      "13.3"
+      CACHE STRING "Minimum macOS version to build for"
+  )
 else ()
   set(REXGLUE_LANGUAGES C CXX)
 endif ()
@@ -79,8 +83,8 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     message(FATAL_ERROR "ReXGlue requires Clang 20 or newer (found ${CMAKE_CXX_COMPILER_VERSION})")
   endif ()
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
-    message(FATAL_ERROR "ReXGlue requires AppleClang 16 or newer / Xcode 16+ for C++23 support "
+  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
+    message(FATAL_ERROR "ReXGlue requires AppleClang 17 or newer / Xcode 26+ for C++23 support "
                         "(found ${CMAKE_CXX_COMPILER_VERSION})"
     )
   endif ()
