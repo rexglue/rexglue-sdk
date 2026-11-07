@@ -1027,3 +1027,51 @@ REX_TEST_CASE("files: a synchronous read error leaves its block alone", "[kernel
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }
+
+namespace {
+
+u64 LoadGuestTime(Caller& c, u32 address) {
+  return (static_cast<u64>(c.Load32(address)) << 32) | c.Load32(address + 4);
+}
+
+}  // namespace
+
+REX_TEST_CASE(
+    "files: a file time reads back the same through GetFileAttributesExA and FindFirstFileA",
+    "[kernel][files][xam]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "t.bin", 4); });
+  MountScratch(fixture);
+  auto stat = StateOf(fixture.GetRuntime()).GetFileSystem()->Stat("scratch:\t.bin");
+  REQUIRE(stat);
+  const u64 write_time = stat->write_time;
+  REQUIRE((write_time >> 32) != (write_time & 0xFFFFFFFF));
+  fixture.RunOnGuestThread([&](Caller& c) {
+    const u32 info = c.Alloc(36);
+    CHECK(c.XAM("GetFileAttributesExA", {0, c.AllocString("scratch:\t.bin"), info}) == 1);
+    CHECK(LoadGuestTime(c, info + 4) == stat->create_time);
+    CHECK(LoadGuestTime(c, info + 12) == stat->access_time);
+    CHECK(LoadGuestTime(c, info + 20) == write_time);
+
+    const u32 find = c.Alloc(0x140);
+    const u32 handle = c.XAM("FindFirstFileA", {c.AllocString("scratch:\t.bin"), find});
+    REQUIRE(handle != rex::kernel::kXInvalidHandleValue);
+    CHECK(LoadGuestTime(c, find + 4) == stat->create_time);
+    CHECK(LoadGuestTime(c, find + 12) == stat->access_time);
+    CHECK(LoadGuestTime(c, find + 20) == write_time);
+    c.Kernel("NtClose", {handle});
+  });
+}
+
+REX_TEST_CASE("files: CompareFileTime orders two times that differ only in the high half",
+              "[kernel][files][xam]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 lower = c.AllocQuad(0x0000000100000005);
+    const u32 higher = c.AllocQuad(0x0000000200000005);
+    CHECK(c.XAM("CompareFileTime", {lower, higher}) == 0xFFFFFFFFu);
+    CHECK(c.XAM("CompareFileTime", {higher, lower}) == 1);
+    CHECK(c.XAM("CompareFileTime", {lower, lower}) == 0);
+    const u32 low_big = c.AllocQuad(0x00000001FFFFFFFF);
+    CHECK(c.XAM("CompareFileTime", {low_big, higher}) == 0xFFFFFFFFu);
+  });
+}

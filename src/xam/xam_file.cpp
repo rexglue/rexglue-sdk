@@ -44,6 +44,16 @@ constexpr u32 kTruncateExisting = 5;
 
 constexpr u32 kFileEnd = 2;
 
+/** Stores a time as a guest FILETIME, which is the high word then the low word. */
+static void StoreFileTime(rex::BE<u32>* out, u64 time) {
+  out[0] = static_cast<u32>(time >> 32);
+  out[1] = static_cast<u32>(time & 0xFFFFFFFF);
+}
+
+static u64 LoadFileTime(const rex::BE<u32>* in) {
+  return (static_cast<u64>(static_cast<u32>(in[0])) << 32) | static_cast<u32>(in[1]);
+}
+
 static filesystem::Disposition MapDisposition(u32 win32_disp) {
   using FD = filesystem::Disposition;
   switch (win32_disp) {
@@ -233,12 +243,9 @@ static void FillFindData(MappedVoid lpFindFileData, const filesystem::FileStat& 
 
   auto* fields = lpFindFileData.AsArray<u32>();
   fields[0] = std::to_underlying(entry.attributes);
-  fields[1] = static_cast<u32>(entry.create_time & 0xFFFFFFFF);
-  fields[2] = static_cast<u32>(entry.create_time >> 32);
-  fields[3] = static_cast<u32>(entry.access_time & 0xFFFFFFFF);
-  fields[4] = static_cast<u32>(entry.access_time >> 32);
-  fields[5] = static_cast<u32>(entry.write_time & 0xFFFFFFFF);
-  fields[6] = static_cast<u32>(entry.write_time >> 32);
+  StoreFileTime(&fields[1], entry.create_time);
+  StoreFileTime(&fields[3], entry.access_time);
+  StoreFileTime(&fields[5], entry.write_time);
   fields[7] = static_cast<u32>(entry.size >> 32);
   fields[8] = static_cast<u32>(entry.size & 0xFFFFFFFF);
 
@@ -330,12 +337,9 @@ REX_XAM_SHIM_FN(GetFileAttributesExA, u32, [[maybe_unused]] u32 fInfoLevelId,
   // WIN32_FILE_ATTRIBUTE_DATA for GetFileExInfoStandard (0).
   auto* buf = lpFileInformation.AsArray<u32>();
   buf[0] = std::to_underlying(entry->attributes);
-  buf[1] = static_cast<u32>(entry->create_time & 0xFFFFFFFF);
-  buf[2] = static_cast<u32>(entry->create_time >> 32);
-  buf[3] = static_cast<u32>(entry->access_time & 0xFFFFFFFF);
-  buf[4] = static_cast<u32>(entry->access_time >> 32);
-  buf[5] = static_cast<u32>(entry->write_time & 0xFFFFFFFF);
-  buf[6] = static_cast<u32>(entry->write_time >> 32);
+  StoreFileTime(&buf[1], entry->create_time);
+  StoreFileTime(&buf[3], entry->access_time);
+  StoreFileTime(&buf[5], entry->write_time);
   buf[7] = static_cast<u32>(entry->size >> 32);
   buf[8] = static_cast<u32>(entry->size & 0xFFFFFFFF);
   return 1;
@@ -374,9 +378,8 @@ REX_XAM_SHIM_FN(SetFileTime, u32, u32 hFile, MappedVoid lpCreationTime, MappedVo
 REX_XAM_SHIM_FN(CompareFileTime, u32, MappedVoid lpFileTime1, MappedVoid lpFileTime2) {
   auto* ft1 = lpFileTime1.AsArray<u32>();
   auto* ft2 = lpFileTime2.AsArray<u32>();
-  // FILETIME is dwLowDateTime then dwHighDateTime.
-  u64 t1 = (static_cast<u64>(static_cast<u32>(ft1[1])) << 32) | static_cast<u32>(ft1[0]);
-  u64 t2 = (static_cast<u64>(static_cast<u32>(ft2[1])) << 32) | static_cast<u32>(ft2[0]);
+  const u64 t1 = LoadFileTime(ft1);
+  const u64 t2 = LoadFileTime(ft2);
   if (t1 < t2)
     return static_cast<u32>(-1);
   if (t1 > t2)
