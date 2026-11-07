@@ -10,7 +10,7 @@
 #include <rex/result.h>
 #include <rex/math.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 namespace rex::filesystem {
 
@@ -79,7 +79,7 @@ void ContainerProvider::Build(Node& parent, const ContainerNode& source) {
   for (u32 index : source.children) {
     const ContainerNode& child_source = nodes[index];
     Node* child = parent.AddChild(std::make_unique<ContainerProviderNode>(
-        *this, &parent, utf8_join_guest_paths(parent.GetPath(), child_source.info.name),
+        *this, &parent, string::utf8_join_guest_paths(parent.GetPath(), child_source.info.name),
         child_source));
     if (!child_source.children.empty()) {
       Build(*child, child_source);

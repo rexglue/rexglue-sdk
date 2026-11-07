@@ -18,12 +18,12 @@
 #include "codegen_categories.h"
 #include <rex/platform/file.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 namespace rex::codegen {
 
 std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view project_name) {
-  std::string guest_path = rex::filesystem::NormalizeGuestPath(path);
+  std::string guest_path = rex::string::NormalizeGuestPath(path);
 
   if (!project_name.empty()) {
     std::string lower_project(project_name);

@@ -13,7 +13,7 @@
 #include <rex/kernel/export.h>
 #include <rex/kernel/object/object_table.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include <rex/kernel/function_dispatcher.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/module_object.h>
@@ -120,8 +120,7 @@ X_HANDLE CreateModule(TitleRuntime& runtime, ModuleType type) {
 }
 
 bool ModuleObject::IsNamed(std::string_view query) const {
-  return rex::string::utf8_equal_case(rex::filesystem::utf8_find_name_from_guest_path(path),
-                                      query) ||
+  return rex::string::utf8_equal_case(rex::string::utf8_find_name_from_guest_path(path), query) ||
          rex::string::utf8_equal_case(name, query) || rex::string::utf8_equal_case(path, query);
 }
 

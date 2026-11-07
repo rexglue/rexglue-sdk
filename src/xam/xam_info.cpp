@@ -22,7 +22,7 @@
 #include <rex/kernel/module.h>
 #include <rex/types.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/module_object.h>
 #include <rex/kernel/guest_allocator.h>
@@ -275,11 +275,11 @@ void XamLoaderLaunchTitle_entry(MappedString raw_name_ptr, u32 flags) {
       if (path.empty()) {
         loader_data.launch_path = "game:\\default.xex";
       } else {
-        if (rex::filesystem::utf8_find_name_from_guest_path(path) == path) {
+        if (rex::string::utf8_find_name_from_guest_path(path) == path) {
           auto executable = CurrentTitle().objects.Get<kernel::ILoadedModule>(
               CurrentTitle().modules.GetExecutable().value_or(0));
-          path = rex::filesystem::utf8_join_guest_paths(
-              rex::filesystem::utf8_find_base_guest_path(executable->GetPath()), path);
+          path = rex::string::utf8_join_guest_paths(
+              rex::string::utf8_find_base_guest_path(executable->GetPath()), path);
         }
         loader_data.launch_path = path;
       }

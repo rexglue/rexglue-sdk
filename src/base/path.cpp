@@ -1,4 +1,4 @@
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 #include <algorithm>
 #include <cctype>
@@ -11,10 +11,10 @@
 
 #include "base/utf8_codec.h"
 
-namespace rex::filesystem {
+namespace rex::string {
 
 std::vector<std::string_view> utf8_split_path(const std::string_view path) {
-  return string::utf8_split(path, "\\/", true);
+  return utf8_split(path, "\\/", true);
 }
 
 std::string utf8_join_paths(const std::string_view left_path, const std::string_view right_path,
@@ -25,13 +25,13 @@ std::string utf8_join_paths(const std::string_view left_path, const std::string_
     return std::string(left_path);
   }
 
-  string::CodePointIterator it;
-  std::tie(std::ignore, it) = string::BuildIterators(left_path);
+  CodePointIterator it;
+  std::tie(std::ignore, it) = BuildIterators(left_path);
   --it;
 
   std::string result = std::string(left_path);
   if (*it != static_cast<u32>(separator)) {
-    string::EncodeUTF8(separator, result);
+    EncodeUTF8(separator, result);
   }
   return result + std::string(right_path);
 }
@@ -67,7 +67,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
 
   const char32_t old_separator = new_separator == U'\\' ? U'/' : U'\\';
 
-  auto [path_begin, path_end] = string::BuildIterators(path);
+  auto [path_begin, path_end] = BuildIterators(path);
 
   std::string result;
   auto it = path_begin;
@@ -78,7 +78,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
   };
 
   if (is_separator(*it)) {
-    string::EncodeUTF8(new_separator, result);
+    EncodeUTF8(new_separator, result);
     ++it;
     last = it;
   }
@@ -90,10 +90,10 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
     }
 
     if (it != last) {
-      auto offset = string::ByteLength(path_begin, last);
-      auto length = string::ByteLength(path_begin, it) - offset;
+      auto offset = ByteLength(path_begin, last);
+      auto length = ByteLength(path_begin, it) - offset;
       result += path.substr(offset, length);
-      string::EncodeUTF8(new_separator, result);
+      EncodeUTF8(new_separator, result);
     }
 
     ++it;
@@ -105,7 +105,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
   }
 
   if (last != path_end) {
-    auto offset = string::ByteLength(path_begin, last);
+    auto offset = ByteLength(path_begin, last);
     result += path.substr(offset);
   }
 
@@ -117,7 +117,7 @@ std::string utf8_find_name_from_path(const std::string_view path, char32_t separ
     return std::string();
   }
 
-  auto [begin, end] = string::BuildIterators(path);
+  auto [begin, end] = BuildIterators(path);
 
   auto it = end;
   --it;
@@ -142,8 +142,8 @@ std::string utf8_find_name_from_path(const std::string_view path, char32_t separ
     ++it;
   }
 
-  auto offset = string::ByteLength(begin, it);
-  auto length = string::ByteLength(it, end);
+  auto offset = ByteLength(begin, it);
+  auto length = ByteLength(it, end);
   return std::string(path.substr(offset, length));
 }
 
@@ -153,7 +153,7 @@ std::string utf8_find_base_name_from_path(const std::string_view path, char32_t 
     return std::string();
   }
 
-  auto [begin, end] = string::BuildIterators(name);
+  auto [begin, end] = BuildIterators(name);
 
   auto it = end;
   --it;
@@ -169,7 +169,7 @@ std::string utf8_find_base_name_from_path(const std::string_view path, char32_t 
     return name;
   }
 
-  auto length = string::ByteLength(it, end);
+  auto length = ByteLength(it, end);
   auto offset = name.length() - length;
   return std::string(name.substr(0, offset));
 }
@@ -179,7 +179,7 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
     return std::string();
   }
 
-  auto [begin, end] = string::BuildIterators(path);
+  auto [begin, end] = BuildIterators(path);
 
   auto it = end;
   --it;
@@ -209,11 +209,11 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
 
   // A volume root such as "D:" keeps its separator.
   if (*it == static_cast<u32>(':')) {
-    auto length = string::ByteLength(begin, std::next(sep_pos));
+    auto length = ByteLength(begin, std::next(sep_pos));
     return std::string(path.substr(0, length));
   }
 
-  auto length = string::ByteLength(begin, std::next(it));
+  auto length = ByteLength(begin, std::next(it));
   return std::string(path.substr(0, length));
 }
 
@@ -222,7 +222,7 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
     return std::string();
   }
 
-  auto is_rooted = string::StartsWithCodePoint(path, separator);
+  auto is_rooted = StartsWithCodePoint(path, separator);
 
   auto parts = utf8_split_path(path);
   for (auto it = parts.begin(); it != parts.end();) {
@@ -233,7 +233,7 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
       // ".." never removes a device name such as "game:".
       if (it != parts.begin()) {
         auto prev = std::prev(it);
-        if (!string::utf8_ends_with(*prev, ":")) {
+        if (!utf8_ends_with(*prev, ":")) {
           it = parts.erase(prev);
         }
       }
@@ -244,7 +244,7 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
   }
 
   return !is_rooted ? utf8_join_paths(parts, separator)
-                    : string::ToString(separator) + utf8_join_paths(parts, separator);
+                    : ToString(separator) + utf8_join_paths(parts, separator);
 }
 
 std::string_view utf8_strip_leading_slashes(const std::string_view path) {
@@ -269,4 +269,4 @@ std::string NormalizeGuestPath(std::string_view path) {
   return result;
 }
 
-}  // namespace rex::filesystem
+}  // namespace rex::string

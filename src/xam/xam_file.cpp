@@ -25,7 +25,7 @@
 #include <rex/kernel/thread_registry.h>
 #include <rex/types.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/thread_state.h>
 #include <rex/kernel/object/file_object.h>
@@ -261,8 +261,8 @@ static void FillFindData(MappedVoid lpFindFileData, const filesystem::FileStat& 
 
 REX_XAM_SHIM_FN(FindFirstFileA, u32, MappedString lpFileName, MappedVoid lpFindFileData) {
   const char* path = static_cast<const char*>(lpFileName);
-  auto dir = rex::filesystem::utf8_find_base_guest_path(path);
-  auto pattern = rex::filesystem::utf8_find_name_from_guest_path(path);
+  auto dir = rex::string::utf8_find_base_guest_path(path);
+  auto pattern = rex::string::utf8_find_name_from_guest_path(path);
 
   filesystem::OpenOptions options;
   options.disposition = filesystem::Disposition::kOpen;

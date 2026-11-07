@@ -1,6 +1,6 @@
 #include <rex/ppc/image.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 #include <algorithm>
 #include <mutex>
@@ -17,7 +17,7 @@ struct RegisteredEmbeddedMetadataAsset {
 
 std::string NormalizeMetadataPath(const std::filesystem::path& relative_path) {
   const std::string forward_slash_path = relative_path.generic_string();
-  return std::string(rex::filesystem::utf8_strip_leading_slashes(forward_slash_path));
+  return std::string(rex::string::utf8_strip_leading_slashes(forward_slash_path));
 }
 
 std::mutex& RegistryMutex() {

@@ -17,7 +17,7 @@
 #include <rex/memory/virtual_memory.h>
 #include <rex/platform/file.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 namespace rex::filesystem {
 
@@ -116,7 +116,7 @@ Node* HostProvider::Resolve(std::string_view path) {
   }
   std::lock_guard lock(GetMutex());
   auto* current = static_cast<HostNode*>(root_.get());
-  for (std::string_view part : utf8_split_path(path)) {
+  for (std::string_view part : string::utf8_split_path(path)) {
     if (part.empty()) {
       continue;
     }
@@ -156,7 +156,8 @@ std::filesystem::path HostNode::GetHostPath() const {
 std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& parent,
                                            const HostFileStat& info) {
   auto node = std::make_unique<HostNode>(
-      provider, &parent, utf8_join_guest_paths(parent.GetPath(), string::PathToUTF8(info.name)),
+      provider, &parent,
+      string::utf8_join_guest_paths(parent.GetPath(), string::PathToUTF8(info.name)),
       parent.GetHostPath() / info.name);
   node->info_.create_time = info.create_time;
   node->info_.access_time = info.access_time;

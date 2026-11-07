@@ -17,7 +17,7 @@
 
 #include <format>
 
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include <rex/filesystem/xex.h>
 #include <rex/kernel/types/xex.h>
 #include <rex/logging/log_category.h>
@@ -290,7 +290,7 @@ bool XEXModule::Unload() {
 
 bool XEXModule::SetupLibraryImports(std::string_view name,
                                     const filesystem::XEXImportLibrary& library) {
-  auto base_name = rex::filesystem::utf8_find_base_name_from_guest_path(name);
+  auto base_name = rex::string::utf8_find_base_name_from_guest_path(name);
 
   struct KernelModule {
     rex::kernel::ExportModule exports;

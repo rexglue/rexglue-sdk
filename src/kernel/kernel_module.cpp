@@ -12,7 +12,7 @@
 #include <functional>
 #include <string_view>
 
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include <rex/kernel/object/module_object.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/object_table.h>
@@ -30,7 +30,7 @@ X_HANDLE ModuleObject::CreateKernelModule(TitleRuntime& runtime, std::string_vie
   }
   auto module = runtime.GetObjectTable().Get<ModuleObject>(handle);
   module->path = path;
-  module->name = rex::filesystem::utf8_find_base_name_from_guest_path(path);
+  module->name = rex::string::utf8_find_base_name_from_guest_path(path);
   return handle;
 }
 

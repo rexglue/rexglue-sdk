@@ -23,7 +23,7 @@
 #include <rex/kernel/module.h>
 #include <rex/types.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include <rex/string/numeric.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/module_object.h>
@@ -50,9 +50,9 @@ void AddODDContent(StaticItemList& items, rex::kernel::XContentType content_type
   while (auto title_entry = (*titles)->Next()) {
     auto title_id = rex::string::from_string<u32>(title_entry->name, true);
 
-    auto contents = fs->List(
-        rex::filesystem::utf8_join_guest_paths({kRoot, title_entry->name, content_type_path}),
-        "????????????????");
+    auto contents =
+        fs->List(rex::string::utf8_join_guest_paths({kRoot, title_entry->name, content_type_path}),
+                 "????????????????");
     if (contents) {
       while (auto content_entry = (*contents)->Next()) {
         auto item = items.Append<kernel::XCONTENT_AGGREGATE_DATA>();

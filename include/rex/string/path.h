@@ -1,5 +1,5 @@
 /**
- * @file        filesystem/path.h
+ * @file        string/path.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,7 +20,7 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 
-namespace rex::filesystem {
+namespace rex::string {
 
 constexpr char32_t kUTF8PathSeparator = static_cast<char32_t>(rex::platform::kPathSeparator);
 constexpr char32_t kUTF8GuestPathSeparator = U'\\';
@@ -128,4 +128,4 @@ inline std::string utf8_canonicalize_guest_path(const std::string_view path) {
   return utf8_canonicalize_path(path, kUTF8GuestPathSeparator);
 }
 
-}  // namespace rex::filesystem
+}  // namespace rex::string

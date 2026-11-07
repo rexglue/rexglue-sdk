@@ -17,7 +17,7 @@
 #include <rex/filesystem/xex.h>
 #include <rex/kernel/types/xex.h>
 #include <rex/logging/log_category.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include <rex/kernel/module.h>
 #include <rex/kernel/function_dispatcher.h>
 #include <rex/kernel/title_runtime.h>
@@ -115,7 +115,7 @@ X_STATUS ModuleObject::LoadFromFile(TitleRuntime& owning_runtime, std::string_vi
   }
 
   path = fs_entry->absolute_path;
-  name = rex::filesystem::utf8_find_base_name_from_guest_path(path);
+  name = rex::string::utf8_find_base_name_from_guest_path(path);
 
   filesystem::OpenOptions options;
   options.access = filesystem::Access::kReadAccess;

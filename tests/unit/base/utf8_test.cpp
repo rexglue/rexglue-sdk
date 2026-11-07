@@ -16,7 +16,7 @@
 #include <vector>
 
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 namespace {
 
@@ -83,19 +83,18 @@ REX_TEST_CASE("Case folding touches only ASCII", "[base][utf8]") {
 
 REX_TEST_CASE("Path helpers handle multibyte text", "[base][utf8]") {
   CHECK(rex::string::utf8_find_any_of("\xC3\xA9/x", "/") == 2);
-  CHECK(rex::filesystem::utf8_join_paths("dir\xE2\x82\xAC", "file", U'/') ==
-        "dir\xE2\x82\xAC/file");
-  CHECK(rex::filesystem::utf8_join_paths("dir/", "file", U'/') == "dir/file");
-  CHECK(rex::filesystem::utf8_fix_path_separators("\xC3\xA9\\x/y", U'/') == "\xC3\xA9/x/y");
-  CHECK(rex::filesystem::utf8_find_base_path("a/\xE2\x82\xAC/b\xC3\xA9", U'/') == "a/\xE2\x82\xAC");
+  CHECK(rex::string::utf8_join_paths("dir\xE2\x82\xAC", "file", U'/') == "dir\xE2\x82\xAC/file");
+  CHECK(rex::string::utf8_join_paths("dir/", "file", U'/') == "dir/file");
+  CHECK(rex::string::utf8_fix_path_separators("\xC3\xA9\\x/y", U'/') == "\xC3\xA9/x/y");
+  CHECK(rex::string::utf8_find_base_path("a/\xE2\x82\xAC/b\xC3\xA9", U'/') == "a/\xE2\x82\xAC");
 }
 
-REX_TEST_CASE("rex::filesystem::utf8_strip_leading_slashes drops only the leading slashes",
+REX_TEST_CASE("rex::string::utf8_strip_leading_slashes drops only the leading slashes",
               "[base][utf8]") {
-  CHECK(rex::filesystem::utf8_strip_leading_slashes("//a/b/") == "a/b/");
-  CHECK(rex::filesystem::utf8_strip_leading_slashes("a//b") == "a//b");
-  CHECK(rex::filesystem::utf8_strip_leading_slashes("///").empty());
-  CHECK(rex::filesystem::utf8_strip_leading_slashes("").empty());
+  CHECK(rex::string::utf8_strip_leading_slashes("//a/b/") == "a/b/");
+  CHECK(rex::string::utf8_strip_leading_slashes("a//b") == "a//b");
+  CHECK(rex::string::utf8_strip_leading_slashes("///").empty());
+  CHECK(rex::string::utf8_strip_leading_slashes("").empty());
 }
 
 REX_TEST_CASE("Bytes that start no valid sequence keep their value through the case helpers",
@@ -152,12 +151,11 @@ REX_TEST_CASE("Each invalid byte is its own code point", "[base][utf8][invalid]"
 }
 
 REX_TEST_CASE("Path helpers keep invalid bytes", "[base][utf8][invalid]") {
-  CHECK(rex::filesystem::utf8_fix_path_separators("\x82\xA0\\\x83\x41", U'/') ==
-        "\x82\xA0/\x83\x41");
-  CHECK(rex::filesystem::utf8_join_paths("\x82\xA0", "\x83\x41", U'/') == "\x82\xA0/\x83\x41");
-  CHECK(rex::filesystem::utf8_canonicalize_path("/\x82\xA0/./x/../\x83\x41", U'/') ==
+  CHECK(rex::string::utf8_fix_path_separators("\x82\xA0\\\x83\x41", U'/') == "\x82\xA0/\x83\x41");
+  CHECK(rex::string::utf8_join_paths("\x82\xA0", "\x83\x41", U'/') == "\x82\xA0/\x83\x41");
+  CHECK(rex::string::utf8_canonicalize_path("/\x82\xA0/./x/../\x83\x41", U'/') ==
         "/\x82\xA0/\x83\x41");
-  CHECK(rex::filesystem::utf8_find_name_from_path("a/\x82\xA0", U'/') == "\x82\xA0");
+  CHECK(rex::string::utf8_find_name_from_path("a/\x82\xA0", U'/') == "\x82\xA0");
 }
 
 REX_TEST_CASE("A name with invalid bytes survives UTF-16 byte for byte", "[base][utf8][invalid]") {

@@ -27,7 +27,7 @@
 #include <rex/kernel/object/module_object.h>
 #include <rex/kernel/object/kernel_thread.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 #include "kernel/title_state.h"
 
 namespace rex::kernel {
@@ -248,18 +248,18 @@ Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
   for (X_HANDLE handle : GetUserModules()) {
     auto module = table_.Get<ModuleObject>(handle);
     if (module &&
-        rex::string::utf8_equal_case(
-            rex::filesystem::utf8_find_base_name_from_guest_path(module->path), library.name)) {
+        rex::string::utf8_equal_case(rex::string::utf8_find_base_name_from_guest_path(module->path),
+                                     library.name)) {
       REXSYS_DEBUG("Import library '{}' of '{}' matched the loaded module '{}'", library.file_name,
                    importer.name, module->path);
       AcquireReference(*module);
       return handle;
     }
   }
-  const std::string directory = rex::filesystem::utf8_find_base_guest_path(importer_path);
+  const std::string directory = rex::string::utf8_find_base_guest_path(importer_path);
   for (const std::string& candidate :
        {library.file_name, library.name + ".xex", library.name + ".dll"}) {
-    const std::string path = rex::filesystem::utf8_join_guest_paths(directory, candidate);
+    const std::string path = rex::string::utf8_join_guest_paths(directory, candidate);
     if (!StateOf(runtime_).GetFileSystem()->Stat(path)) {
       continue;
     }
@@ -273,7 +273,7 @@ Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
     candidates = import_candidates_;
   }
   for (const std::string& candidate : candidates) {
-    const std::string file_name = rex::filesystem::utf8_find_name_from_guest_path(candidate);
+    const std::string file_name = rex::string::utf8_find_name_from_guest_path(candidate);
     if (rex::string::utf8_equal_case(file_name, library.file_name) ||
         rex::string::utf8_equal_case(file_name, library.name + ".xex") ||
         rex::string::utf8_equal_case(file_name, library.name + ".dll")) {
@@ -372,9 +372,8 @@ X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view p
 PPCFunc* ModuleRegistry::ResolveExport(std::string_view library, u16 ordinal) {
   for (X_HANDLE handle : GetUserModules()) {
     auto module = table_.Get<ModuleObject>(handle);
-    if (module &&
-        rex::string::utf8_equal_case(
-            rex::filesystem::utf8_find_base_name_from_guest_path(module->path), library)) {
+    if (module && rex::string::utf8_equal_case(
+                      rex::string::utf8_find_base_name_from_guest_path(module->path), library)) {
       const XEXModule* xex = module->GetXEX();
       const u32 address = xex ? xex->GetExportAddress(ordinal) : 0;
       return address ? StateOf(runtime_).GetFunctionDispatcher()->GetFunction(address) : nullptr;
@@ -384,13 +383,13 @@ PPCFunc* ModuleRegistry::ResolveExport(std::string_view library, u16 ordinal) {
 }
 
 Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool call_entry) {
-  auto name = rex::filesystem::utf8_find_name_from_guest_path(raw_name);
+  auto name = rex::string::utf8_find_name_from_guest_path(raw_name);
   std::string path(raw_name);
   if (name == raw_name) {
     auto executable_module = table_.Get<ModuleObject>(GetExecutable().value_or(0));
     REX_ASSERT(executable_module);
-    path = rex::filesystem::utf8_join_guest_paths(
-        rex::filesystem::utf8_find_base_guest_path(executable_module->path), name);
+    path = rex::string::utf8_join_guest_paths(
+        rex::string::utf8_find_base_guest_path(executable_module->path), name);
   }
 
   if (auto existing = FindUserModule(path)) {
@@ -596,7 +595,7 @@ void ModuleRegistry::RegisterRecompiledModule(const char* pe_name, const char* g
   std::lock_guard lock(recompiled_mutex_);
   RecompiledModule info;
   info.pe_name = pe_name ? pe_name : "";
-  info.guest_path = guest_path ? rex::filesystem::NormalizeGuestPath(guest_path) : "";
+  info.guest_path = guest_path ? rex::string::NormalizeGuestPath(guest_path) : "";
   info.shared_lib_name = shared_lib_name ? shared_lib_name : "";
 
   for (const auto& existing : recompiled_modules_) {
@@ -621,7 +620,7 @@ void ModuleRegistry::AddImportCandidate(std::string_view path) {
 std::optional<ModuleRegistry::RecompiledModule> ModuleRegistry::FindRecompiledModule(
     std::string_view guest_path) {
   std::lock_guard lock(recompiled_mutex_);
-  auto normalized = rex::filesystem::NormalizeGuestPath(guest_path);
+  auto normalized = rex::string::NormalizeGuestPath(guest_path);
   for (const auto& info : recompiled_modules_) {
     if (info.guest_path == normalized) {
       return info;

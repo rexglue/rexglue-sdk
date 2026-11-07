@@ -2,13 +2,13 @@
 
 #include <rex/math.h>
 #include <rex/ppc/call.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 namespace rex::kernel {
 
 std::string LoadedCommandLine(std::string_view image_path, std::string_view arguments) {
   std::string line(1, '"');
-  line += rex::filesystem::utf8_find_name_from_guest_path(image_path);
+  line += rex::string::utf8_find_name_from_guest_path(image_path);
   line += '"';
   if (!arguments.empty()) {
     line += ' ';

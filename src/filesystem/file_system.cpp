@@ -15,7 +15,7 @@
 #include <rex/logging/log_category.h>
 #include <rex/result.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 #include "filesystem/node_file.h"
 
@@ -52,7 +52,7 @@ bool StartsWithComponents(std::string_view path, std::string_view prefix) {
 
 Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path,
                                                       bool log_missing) const {
-  std::string resolved = utf8_canonicalize_guest_path(path);
+  std::string resolved = string::utf8_canonicalize_guest_path(path);
   for (size_t depth = 0;; ++depth) {
     const auto link = std::ranges::find_if(
         links_, [&](const auto& entry) { return StartsWithComponents(resolved, entry.first); });
@@ -83,7 +83,7 @@ Result<Node*> FileSystem::ResolveNode(std::string_view path) const {
   Node* node = resolved.provider->Resolve(resolved.relative);
   if (!node) {
     REXFS_DEBUG("'{}' is not on mount '{}'", path, resolved.provider->GetMountPath());
-    const std::string folder = utf8_find_base_guest_path(resolved.relative);
+    const std::string folder = string::utf8_find_base_guest_path(resolved.relative);
     Node* parent =
         folder.empty() ? &resolved.provider->GetRoot() : resolved.provider->Resolve(folder);
     const FileSystemError code = parent && parent->IsDirectory() ? FileSystemError::kNotFound
@@ -112,7 +112,7 @@ Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttr
     provider = resolved.provider;
     relative = std::move(resolved.relative);
   }
-  const std::vector<std::string_view> parts = utf8_split_path(relative);
+  const std::vector<std::string_view> parts = string::utf8_split_path(relative);
   if (parts.empty()) {
     return Err<Node*>(
         BuildError(FileSystemError::kInvalidPath, std::format("'{}' names a mount root", path)));
@@ -120,7 +120,7 @@ Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttr
   Node* parent = root ? root : &provider->GetRoot();
   std::string partial;
   for (size_t i = 0; i + 1 < parts.size(); ++i) {
-    partial = utf8_join_guest_paths(partial, parts[i]);
+    partial = string::utf8_join_guest_paths(partial, parts[i]);
     Node* child = provider ? provider->Resolve(partial) : parent->GetChild(parts[i]);
     if (!child) {
       REX_TRY(child, parent->CreateChild(parts[i], FileAttributes::kDirectory));
@@ -133,7 +133,7 @@ Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttr
 Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
                                     const OpenOptions& options, bool retried) {
   std::lock_guard lock(mutex_);
-  const std::string canonical = utf8_canonicalize_guest_path(requested);
+  const std::string canonical = string::utf8_canonicalize_guest_path(requested);
   const std::string_view path = canonical;
   const auto mount_lock = root ? std::unique_lock(root->GetProvider().GetMutex()) : LockMount(path);
   Access access = ExpandAccess(options.access);
@@ -148,14 +148,15 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
 
   Node* parent = nullptr;
   Node* node = nullptr;
-  const std::string base = utf8_find_base_guest_path(path);
+  const std::string base = string::utf8_find_base_guest_path(path);
   if (root) {
     Provider& provider = root->GetProvider();
-    parent = base.empty() ? root : provider.Resolve(utf8_join_guest_paths(root->GetPath(), base));
+    parent = base.empty() ? root
+                          : provider.Resolve(string::utf8_join_guest_paths(root->GetPath(), base));
     if (!parent || !parent->IsDirectory()) {
       return path_not_found();
     }
-    node = provider.Resolve(utf8_join_guest_paths(root->GetPath(), path));
+    node = provider.Resolve(string::utf8_join_guest_paths(root->GetPath(), path));
   } else {
     if (!base.empty()) {
       auto resolved_parent = ResolveNode(base);
@@ -440,14 +441,15 @@ Result<void> FileSystem::Rename(IFile& file, std::string_view to, bool replace_e
 }
 
 Result<void> FileSystem::Move(Node& node, std::string_view to, bool replace_existing, Node* root) {
-  const std::string target = utf8_canonicalize_guest_path(to);
-  const std::string base = utf8_find_base_guest_path(target);
-  const std::string name(utf8_find_name_from_guest_path(target));
+  const std::string target = string::utf8_canonicalize_guest_path(to);
+  const std::string base = string::utf8_find_base_guest_path(target);
+  const std::string name(string::utf8_find_name_from_guest_path(target));
   Node* parent = nullptr;
   if (root) {
-    parent = base.empty()
-                 ? root
-                 : root->GetProvider().Resolve(utf8_join_guest_paths(root->GetPath(), base));
+    parent =
+        base.empty()
+            ? root
+            : root->GetProvider().Resolve(string::utf8_join_guest_paths(root->GetPath(), base));
   } else if (base.empty()) {
     parent = node.GetParent();
   } else {

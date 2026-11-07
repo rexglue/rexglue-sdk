@@ -11,7 +11,7 @@
 #include <rex/logging/log_category.h>
 #include <rex/result.h>
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 #include "filesystem/provider.h"
 #include "filesystem/wildcard.h"
@@ -54,8 +54,8 @@ Result<std::span<const u8>> NodeStream::View() {
 Node::Node(Provider& provider, Node* parent, std::string path)
     : provider_(&provider), parent_(parent) {
   info_.path = std::move(path);
-  info_.absolute_path = utf8_join_guest_paths(provider.GetMountPath(), info_.path);
-  info_.name = std::string(utf8_find_name_from_guest_path(info_.path));
+  info_.absolute_path = string::utf8_join_guest_paths(provider.GetMountPath(), info_.path);
+  info_.name = std::string(string::utf8_find_name_from_guest_path(info_.path));
 }
 
 Node::~Node() = default;
@@ -85,7 +85,7 @@ Node* Node::GetChild(std::string_view name) {
 
 Node* Node::ResolvePath(std::string_view path) {
   Node* node = this;
-  for (std::string_view part : utf8_split_path(path)) {
+  for (std::string_view part : string::utf8_split_path(path)) {
     node = node->GetChild(part);
     if (!node) {
       return nullptr;
@@ -215,7 +215,7 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("'{}' has an open file below it", info_.absolute_path)));
   }
-  Node* existing = provider_->Resolve(utf8_join_guest_paths(new_parent.info_.path, name));
+  Node* existing = provider_->Resolve(string::utf8_join_guest_paths(new_parent.info_.path, name));
   if (existing == this) {
     existing = nullptr;
   }
@@ -253,8 +253,9 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
   while (!pending.empty()) {
     Node* node = pending.back();
     pending.pop_back();
-    node->info_.path = utf8_join_guest_paths(node->parent_->info_.path, node->info_.name);
-    node->info_.absolute_path = utf8_join_guest_paths(provider_->GetMountPath(), node->info_.path);
+    node->info_.path = string::utf8_join_guest_paths(node->parent_->info_.path, node->info_.name);
+    node->info_.absolute_path =
+        string::utf8_join_guest_paths(provider_->GetMountPath(), node->info_.path);
     node->OnMoved();
     for (const std::unique_ptr<Node>& child : node->children_) {
       pending.push_back(child.get());

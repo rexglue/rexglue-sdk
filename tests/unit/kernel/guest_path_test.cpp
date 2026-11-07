@@ -10,24 +10,24 @@
 
 #include "rex_test.h"
 #include <rex/string/text.h>
-#include <rex/filesystem/path.h>
+#include <rex/string/path.h>
 
 REX_TEST_CASE("Guest path normalization strips the device prefix", "[kernel][system][path]") {
-  CHECK(rex::filesystem::NormalizeGuestPath("game:\\bin\\somelib.dll") == "bin/somelib.dll");
-  CHECK(rex::filesystem::NormalizeGuestPath("GAME:\\BIN\\SomeLib.DLL") == "bin/somelib.dll");
-  CHECK(rex::filesystem::NormalizeGuestPath("d:\\content\\modules\\test.dll") ==
+  CHECK(rex::string::NormalizeGuestPath("game:\\bin\\somelib.dll") == "bin/somelib.dll");
+  CHECK(rex::string::NormalizeGuestPath("GAME:\\BIN\\SomeLib.DLL") == "bin/somelib.dll");
+  CHECK(rex::string::NormalizeGuestPath("d:\\content\\modules\\test.dll") ==
         "content/modules/test.dll");
 }
 
 REX_TEST_CASE("Guest path normalization keeps a normalized path", "[kernel][system][path]") {
-  CHECK(rex::filesystem::NormalizeGuestPath("bin/somelib.dll") == "bin/somelib.dll");
+  CHECK(rex::string::NormalizeGuestPath("bin/somelib.dll") == "bin/somelib.dll");
 }
 
 REX_TEST_CASE("Guest path normalization turns a backslash into a forward slash",
               "[kernel][system][path]") {
-  CHECK(rex::filesystem::NormalizeGuestPath("data\\libs\\foo.dll") == "data/libs/foo.dll");
+  CHECK(rex::string::NormalizeGuestPath("data\\libs\\foo.dll") == "data/libs/foo.dll");
 }
 
 REX_TEST_CASE("Guest path normalization folds case", "[kernel][system][path]") {
-  CHECK(rex::filesystem::NormalizeGuestPath("BIN/SomeLib.DLL") == "bin/somelib.dll");
+  CHECK(rex::string::NormalizeGuestPath("BIN/SomeLib.DLL") == "bin/somelib.dll");
 }
