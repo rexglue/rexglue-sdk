@@ -43,6 +43,8 @@ struct FPSCRPlatform {
   /** MXCSR IM, DM, ZM, OM, UM and PM bits. A set bit masks the exception. */
   static constexpr u32 kExceptionMask =
       (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12);
+  /** The kExceptionMask bits when every exception is masked. */
+  static constexpr u32 kExceptionsMasked = kExceptionMask;
   /** MXCSR rounding bits indexed by the PowerPC FPSCR RN field. */
   static constexpr size_t kGuestToHost[] = {SIMDE_MM_ROUND_NEAREST, SIMDE_MM_ROUND_TOWARD_ZERO,
                                             SIMDE_MM_ROUND_UP, SIMDE_MM_ROUND_DOWN};
@@ -78,6 +80,8 @@ struct FPSCRPlatform {
   /** FPCR IOE, DZE, OFE, UFE, IXE and IDE bits. A clear bit disables the trap. */
   static constexpr u32 kExceptionMask =
       (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12) | (1 << 15);
+  /** The kExceptionMask bits when every exception is masked. */
+  static constexpr u32 kExceptionsMasked = 0;
 
   /** Reads FPCR. */
   static inline u32 GetCSR() noexcept {

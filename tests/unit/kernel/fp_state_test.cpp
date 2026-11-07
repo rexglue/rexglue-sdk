@@ -133,7 +133,7 @@ REX_TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 
   });
 }
 
-REX_TEST_CASE("A host worker starts from the host policy FP control word", "[kernel][fp]") {
+REX_TEST_CASE("A host worker starts with every FP exception masked", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto csr = std::make_shared<std::atomic<u32>>(0);
@@ -151,15 +151,12 @@ REX_TEST_CASE("A host worker starts from the host policy FP control word", "[ker
     }
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {*launched, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {*launched});
-    u32 policy = csr->load();
-    FPSCRPlatform::InitHostExceptions(policy);
     CHECK(csr->load() == host->load());
-    CHECK(policy == csr->load());
+    CHECK((csr->load() & FPSCRPlatform::kExceptionMask) == FPSCRPlatform::kExceptionsMasked);
   });
 }
 
-REX_TEST_CASE("A guest thread starts from the FP control word InitHostExceptions sets",
-              "[kernel][fp]") {
+REX_TEST_CASE("A guest thread starts with every FP exception masked", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto csr = std::make_shared<std::atomic<u32>>(0);
@@ -173,18 +170,24 @@ REX_TEST_CASE("A guest thread starts from the FP control word InitHostExceptions
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
     CHECK(done->load());
-    u32 policy = csr->load();
-    FPSCRPlatform::InitHostExceptions(policy);
-    CHECK(policy == csr->load());
     CHECK(csr->load() == host->load());
+    CHECK((csr->load() & FPSCRPlatform::kExceptionMask) == FPSCRPlatform::kExceptionsMasked);
   });
+}
+
+REX_TEST_CASE("InitHostExceptions masks every FP exception", "[kernel][fp]") {
+  constexpr u32 kRound = static_cast<u32>(FPSCRPlatform::kRoundMaskVal);
+  u32 word = (FPSCRPlatform::kExceptionsMasked ^ FPSCRPlatform::kExceptionMask) | kRound;
+  FPSCRPlatform::InitHostExceptions(word);
+  CHECK((word & FPSCRPlatform::kExceptionMask) == FPSCRPlatform::kExceptionsMasked);
+  CHECK((word & kRound) == kRound);
 }
 
 REX_TEST_CASE("A thread's FP save area starts with every FP exception masked", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller&) {
     const u32 csr = rex::kernel::ThreadState::Get()->GetDPCSaveArea().csr;
-    CHECK((csr & FPSCRPlatform::kExceptionMask) == FPSCRPlatform::kExceptionMask);
+    CHECK((csr & FPSCRPlatform::kExceptionMask) == FPSCRPlatform::kExceptionsMasked);
   });
 }
 
