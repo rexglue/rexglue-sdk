@@ -1,7 +1,10 @@
 #include <rex/kernel/guest_allocator.h>
 #include <rex/kernel/guest_memory.h>
 
-#include <o1heap.h>
+#include <algorithm>
+#include <cstring>
+
+#include <tlsf.h>
 
 #include <rex/platform/perf.h>
 #include <rex/kernel/types/status.h>
@@ -16,9 +19,14 @@ constexpr const char* kPoolPlotNames[] = {"Guest heap in use", "Guest workspace 
 
 }  // namespace
 
-GuestAllocator::GuestAllocator(Key, GuestAddressSpace& memory, u32 base, u32 size,
-                               O1HeapInstance* heap, GuestPool pool)
-    : memory_(memory), base_(base), size_(size), heap_(heap), pool_(pool) {
+GuestAllocator::GuestAllocator(Key, GuestAddressSpace& memory, u32 base, u32 size, void* state,
+                               GuestPool pool)
+    : memory_(memory),
+      base_(base),
+      size_(size),
+      state_(state),
+      pool_(pool),
+      capacity_(size - tlsf_size() - tlsf_pool_overhead()) {
   std::lock_guard lock(memory_.allocators_mutex_);
   memory_.allocators_.push_back(this);
 }
@@ -53,12 +61,17 @@ Result<std::unique_ptr<GuestAllocator>> GuestAllocator::Create(GuestAddressSpace
                    kMemoryProtectRead | kMemoryProtectWrite, true, &base)) {
     return Err<std::unique_ptr<GuestAllocator>>(StatusError(X_STATUS_NO_MEMORY));
   }
-  O1HeapInstance* instance = o1heapInit(memory.TranslateVirtual(base), size);
-  if (!instance) {
+  const size_t overhead = tlsf_size() + tlsf_pool_overhead();
+  tlsf_t state = nullptr;
+  if (base % tlsf_align_size() == 0 && size >= overhead + tlsf_block_size_min() &&
+      size - overhead <= tlsf_block_size_max()) {
+    state = tlsf_create_with_pool(memory.TranslateVirtual(base), size);
+  }
+  if (!state) {
     heap->Release(base);
     return Err<std::unique_ptr<GuestAllocator>>(StatusError(X_STATUS_NO_MEMORY));
   }
-  return std::make_unique<GuestAllocator>(Key{}, memory, base, size, instance, pool);
+  return std::make_unique<GuestAllocator>(Key{}, memory, base, size, state, pool);
 }
 
 u32 GuestAllocator::GetBase() const {
@@ -79,42 +92,60 @@ bool GuestAllocator::Contains(u32 address) const {
 
 void* GuestAllocator::Allocate(u32 size) {
   std::lock_guard lock(mutex_);
-  void* block = o1heapAllocate(heap_, size);
-  if (block) {
-    REX_PROFILE_ALLOC_NAMED(block, size, kPoolNames[static_cast<size_t>(pool_)]);
+  peak_request_size_ = std::max<u64>(peak_request_size_, size);
+  void* block = tlsf_memalign(state_, kBlockAlignment, size);
+  if (!block) {
+    ++oom_count_;
+    return nullptr;
   }
+  allocated_ += tlsf_block_size(block);
+  peak_allocated_ = std::max(peak_allocated_, allocated_);
+  REX_PROFILE_ALLOC_NAMED(block, size, kPoolNames[static_cast<size_t>(pool_)]);
   return block;
 }
 
 void* GuestAllocator::Reallocate(void* block, u32 size) {
-  std::lock_guard lock(mutex_);
-  void* resized = o1heapReallocate(heap_, block, size);
-  if (resized) {
-    if (block) {
-      REX_PROFILE_FREE_NAMED(block, kPoolNames[static_cast<size_t>(pool_)]);
-    }
-    REX_PROFILE_ALLOC_NAMED(resized, size, kPoolNames[static_cast<size_t>(pool_)]);
+  if (!block) {
+    return Allocate(size);
   }
+  std::lock_guard lock(mutex_);
+  peak_request_size_ = std::max<u64>(peak_request_size_, size);
+  const size_t old_size = tlsf_block_size(block);
+  if (size <= old_size) {
+    return block;
+  }
+  void* resized = tlsf_memalign(state_, kBlockAlignment, size);
+  if (!resized) {
+    ++oom_count_;
+    return nullptr;
+  }
+  std::memcpy(resized, block, old_size);
+  REX_PROFILE_FREE_NAMED(block, kPoolNames[static_cast<size_t>(pool_)]);
+  allocated_ += tlsf_block_size(resized) - old_size;
+  tlsf_free(state_, block);
+  peak_allocated_ = std::max(peak_allocated_, allocated_);
+  REX_PROFILE_ALLOC_NAMED(resized, size, kPoolNames[static_cast<size_t>(pool_)]);
   return resized;
 }
 
 void GuestAllocator::Free(void* block) {
-  std::lock_guard lock(mutex_);
-  if (block) {
-    REX_PROFILE_FREE_NAMED(block, kPoolNames[static_cast<size_t>(pool_)]);
+  if (!block) {
+    return;
   }
-  o1heapFree(heap_, block);
+  std::lock_guard lock(mutex_);
+  REX_PROFILE_FREE_NAMED(block, kPoolNames[static_cast<size_t>(pool_)]);
+  allocated_ -= tlsf_block_size(block);
+  tlsf_free(state_, block);
 }
 
 GuestAllocator::AllocatorStats GuestAllocator::GetStats() const {
   std::lock_guard lock(mutex_);
-  const O1HeapDiagnostics d = o1heapGetDiagnostics(heap_);
-  return {d.capacity, d.allocated, d.peak_allocated, d.peak_request_size, d.oom_count};
+  return {capacity_, allocated_, peak_allocated_, peak_request_size_, oom_count_};
 }
 
 bool GuestAllocator::IsConsistent() const {
   std::lock_guard lock(mutex_);
-  return o1heapDoInvariantsHold(heap_);
+  return tlsf_check(state_) == 0;
 }
 
 }  // namespace rex::kernel

@@ -26,9 +26,6 @@
 [submodule "thirdparty/cli11"]
 	path = thirdparty/cli11
 	url = https://github.com/CLIUtils/CLI11
-[submodule "thirdparty/o1heap"]
-	path = thirdparty/o1heap
-	url = https://github.com/pavel-kirienko/o1heap.git
 [submodule "thirdparty/sdl3"]
 	path = thirdparty/sdl3
 	url = https://github.com/libsdl-org/SDL
@@ -45,3 +42,6 @@
 [submodule "thirdparty/spdlog"]
 	path = thirdparty/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "thirdparty/tlsf"]
+	path = thirdparty/tlsf
+	url = https://github.com/mattconte/tlsf.git

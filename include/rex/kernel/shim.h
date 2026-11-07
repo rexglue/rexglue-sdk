@@ -20,7 +20,7 @@ namespace rex::kernel::shim {
 
 enum class Group : u8 {
   kFile, /**< File I/O backed by the filesystem module. */
-  kHeap, /**< The o1heap backed heap, all four entries are required together. */
+  kHeap, /**< The shim heap, all four entries are required together. */
   kMemory,
   kString, /**< C, Win32 and UTF-16 string routines. */
   kMath,   /**< Floating point math and text conversion routines. */
@@ -57,7 +57,7 @@ struct Entry {
 
 inline constexpr std::array<GroupTraits, 7> kGroups = {{
     {Group::kFile, "file", false, "File I/O backed by the filesystem module"},
-    {Group::kHeap, "heap", true, "The o1heap backed heap, all 4 routines are required together"},
+    {Group::kHeap, "heap", true, "The shim heap, all 4 routines are required together"},
     {Group::kMemory, "memory", false, "Memory copy and fill routines"},
     {Group::kString, "string", false, "C, Win32 and UTF-16 string routines"},
     {Group::kMath, "math", false, "Floating point math and text conversion routines"},

@@ -14,7 +14,7 @@ set(REXGLUE_INSTALL_TARGETS
     rexapp
     rexsdk
     simde
-    o1heap
+    tlsf
 )
 
 set(REXGLUE_MODULE_TARGETS

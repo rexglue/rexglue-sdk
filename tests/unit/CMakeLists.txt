@@ -295,7 +295,7 @@ target_link_libraries(
           rexbase
           simde
           disasm
-          o1heap
+          tlsf
           libavcodec
           libavutil
           SDL3::SDL3

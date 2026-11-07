@@ -37,11 +37,11 @@ These shims read and write files through the filesystem module.
 
 ### `heap`
 
-These shims allocate from the shim heap, which uses the o1heap allocator. The manifest must list all four together.
+These shims allocate from the shim heap, which uses the TLSF allocator. The manifest must list all four together.
 
 | Name | Description |
 |---|---|
-| `RtlAllocateHeap` | Allocates memory, honors the zero flag. |
+| `RtlAllocateHeap` | Allocates memory and honors the zero flag. |
 | `RtlFreeHeap` | Frees an allocation. |
 | `RtlSizeHeap` | Returns the requested size of an allocation. |
 | `RtlReAllocateHeap` | Resizes an allocation in place or by copy. |

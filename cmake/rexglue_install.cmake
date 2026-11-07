@@ -117,7 +117,6 @@ install(
   FILES_MATCHING
   PATTERN "*.h"
 )
-install(FILES thirdparty/o1heap/o1heap/o1heap.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES thirdparty/imgui/imgui.h thirdparty/imgui/imconfig.h thirdparty/imgui/imgui_internal.h
               thirdparty/imgui/imstb_rectpack.h thirdparty/imgui/imstb_textedit.h
               thirdparty/imgui/imstb_truetype.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}

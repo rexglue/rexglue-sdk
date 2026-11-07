@@ -41,7 +41,7 @@ foreach (kernel_target rexkernel-objects rexkernel)
   target_link_libraries(
     ${kernel_target}
     PUBLIC rexbase rexppc simde
-    PRIVATE tomlplusplus excrypt xxHash::xxhash o1heap libavcodec libavutil
+    PRIVATE tomlplusplus excrypt xxHash::xxhash tlsf libavcodec libavutil
   )
 
   if (REXGLUE_ENABLE_TRACY)

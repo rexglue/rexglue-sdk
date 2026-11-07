@@ -45,7 +45,7 @@ u32 ReserveAndRelease(rex::kernel::GuestAddressSpace& memory, u32 size, bool phy
 
 }  // namespace
 
-REX_TEST_CASE("A failed o1heapInit releases its range", "[kernel][allocator]") {
+REX_TEST_CASE("A failed TLSF pool creation releases its range", "[kernel][allocator]") {
   rex::test::KernelFixture fixture;
   rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
   const u32 expected = ReserveAndRelease(memory, 16);

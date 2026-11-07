@@ -18,8 +18,6 @@
 #include <rex/types.h>
 #include <rex/utility.h>
 
-struct O1HeapInstance;
-
 namespace rex {
 namespace kernel {
 class GuestMemory;
@@ -49,6 +47,9 @@ class REX_KERNEL_API GuestAllocator : public NonCopyable {
   struct Key {};
 
  public:
+  /** Alignment of every block in bytes. */
+  static constexpr u32 kBlockAlignment = 16;
+
   struct AllocatorStats {
     u64 capacity;
     u64 allocated;
@@ -60,11 +61,10 @@ class REX_KERNEL_API GuestAllocator : public NonCopyable {
   /**
    * Wraps a committed range. Only Create can make the key.
    *
-   * @param heap The o1heap instance over the range.
+   * @param state The allocator state that Create built over the range.
    * @param pool The pool the blocks are reported to.
    */
-  GuestAllocator(Key, GuestAddressSpace& memory, u32 base, u32 size, O1HeapInstance* heap,
-                 GuestPool pool);
+  GuestAllocator(Key, GuestAddressSpace& memory, u32 base, u32 size, void* state, GuestPool pool);
 
   /**
    * Reserves and commits a range and starts the allocator over it.
@@ -132,9 +132,14 @@ class REX_KERNEL_API GuestAllocator : public NonCopyable {
   GuestAddressSpace& memory_;
   u32 base_;
   u32 size_;
-  O1HeapInstance* heap_;
+  void* state_;
   GuestPool pool_;
   mutable std::mutex mutex_;
+  u64 capacity_ = 0;
+  u64 allocated_ = 0;
+  u64 peak_allocated_ = 0;
+  u64 peak_request_size_ = 0;
+  u64 oom_count_ = 0;
 };
 
 }  // namespace rex::kernel
