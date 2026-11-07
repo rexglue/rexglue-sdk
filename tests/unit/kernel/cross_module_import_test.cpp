@@ -32,7 +32,7 @@
 #include "kernel/kernel_fixture.h"
 #include "pe/pe_image.h"
 #include "kernel/module_registry.h"
-#include "kernel/title_state.h"
+#include "kernel/test_access.h"
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
@@ -165,7 +165,7 @@ void RegisterImages(rex::kernel::TitleRuntime& runtime) {
 
 u32 CallFunction(rex::kernel::TitleRuntime& runtime, u32 address) {
   u64 args[1] = {0};
-  return static_cast<u32>(StateOf(runtime).GetFunctionDispatcher()->Execute(
+  return static_cast<u32>(rex::kernel::GetFunctionDispatcher(runtime).Execute(
       rex::kernel::ThreadState::Get(), address, args, 0));
 }
 
@@ -197,7 +197,7 @@ REX_TEST_CASE("loading a module loads its exporter and patches the import slots"
     CHECK(c.Load32(variable) == kDataValue);
     CHECK(c.Load32(kThunkSlot) == ((1u << 24) | kFunctionOrdinal));
 
-    const u8* header = StateOf(runtime).GetAddressSpace()->TranslateVirtual(kExporterBase);
+    const u8* header = rex::kernel::GetAddressSpace(runtime).TranslateVirtual(kExporterBase);
     CHECK(std::all_of(header, header + kHeaderSize, [](u8 byte) { return byte == 0; }));
     CHECK(c.Kernel("RtlImageNtHeader", {kExporterBase}) == 0);
 

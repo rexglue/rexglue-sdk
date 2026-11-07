@@ -205,7 +205,7 @@ class REX_KERNEL_API TitleRuntime final : public rex::NonCopyable {
    */
   KernelSettings& GetKernelSettings();
 
-  friend REX_KERNEL_API TitleState& StateOf(const TitleRuntime& runtime);
+  friend TitleState& StateOf(const TitleRuntime& runtime);
 
  private:
   std::unique_ptr<kernel::TitleState> state_;

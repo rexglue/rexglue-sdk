@@ -107,9 +107,7 @@ namespace kernel {
  * public TitleRuntime forwards its calls here. The subsystem getters are valid between Load and
  * Unload.
  */
-class REX_KERNEL_API TitleState : public ITitleExit,
-                                  public ITitleDebugOutput,
-                                  public rex::NonCopyable {
+class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonCopyable {
  public:
   /**
    * Creates an unloaded state for a title image.
@@ -451,7 +449,7 @@ class REX_KERNEL_API TitleState : public ITitleExit,
 };
 
 /** Returns the kernel instance of a runtime, for the kernel, XAM and tests. */
-REX_KERNEL_API TitleState& StateOf(const TitleRuntime& runtime);
+TitleState& StateOf(const TitleRuntime& runtime);
 
 }  // namespace kernel
 }  // namespace rex

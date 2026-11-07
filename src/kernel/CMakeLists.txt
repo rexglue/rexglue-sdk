@@ -89,6 +89,7 @@ set(REXKERNEL_SOURCES
     object/notify_listener_object.cpp
     object/symbolic_link_object.cpp
     object/object.cpp
+    test_access.cpp
     title_state.cpp
     thread_state.cpp
     kernel_thread.cpp

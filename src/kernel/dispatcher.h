@@ -48,7 +48,7 @@ void EnterInterrupt();
  */
 bool LeaveInterrupt();
 
-class REX_KERNEL_API Dispatcher final : public IOverlappedDispatcher, public IDPCQueue {
+class Dispatcher final : public IOverlappedDispatcher, public IDPCQueue {
  public:
   /**
    * Creates the dispatcher.
