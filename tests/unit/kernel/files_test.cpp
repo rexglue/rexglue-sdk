@@ -29,6 +29,8 @@
 #include <rex/kernel/function_dispatcher.h>
 #include <rex/kernel/types/status.h>
 #include <rex/kernel/object/object_table.h>
+#include <rex/kernel/thread_registry.h>
+#include <rex/kernel/object/kernel_thread.h>
 
 #include "kernel_fixture.h"
 #include "kernel/title_state.h"
@@ -1041,19 +1043,19 @@ REX_TEST_CASE(
     "[kernel][files][xam]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "t.bin", 4); });
   MountScratch(fixture);
-  auto stat = StateOf(fixture.GetRuntime()).GetFileSystem()->Stat("scratch:\t.bin");
+  auto stat = StateOf(fixture.GetRuntime()).GetFileSystem()->Stat("scratch:\\t.bin");
   REQUIRE(stat);
   const u64 write_time = stat->write_time;
   REQUIRE((write_time >> 32) != (write_time & 0xFFFFFFFF));
   fixture.RunOnGuestThread([&](Caller& c) {
     const u32 info = c.Alloc(36);
-    CHECK(c.XAM("GetFileAttributesExA", {0, c.AllocString("scratch:\t.bin"), info}) == 1);
+    CHECK(c.XAM("GetFileAttributesExA", {0, c.AllocString("scratch:\\t.bin"), info}) == 1);
     CHECK(LoadGuestTime(c, info + 4) == stat->create_time);
     CHECK(LoadGuestTime(c, info + 12) == stat->access_time);
     CHECK(LoadGuestTime(c, info + 20) == write_time);
 
     const u32 find = c.Alloc(0x140);
-    const u32 handle = c.XAM("FindFirstFileA", {c.AllocString("scratch:\t.bin"), find});
+    const u32 handle = c.XAM("FindFirstFileA", {c.AllocString("scratch:\\t.bin"), find});
     REQUIRE(handle != rex::kernel::kXInvalidHandleValue);
     CHECK(LoadGuestTime(c, find + 4) == stat->create_time);
     CHECK(LoadGuestTime(c, find + 12) == stat->access_time);
@@ -1073,5 +1075,63 @@ REX_TEST_CASE("files: CompareFileTime orders two times that differ only in the h
     CHECK(c.XAM("CompareFileTime", {lower, lower}) == 0);
     const u32 low_big = c.AllocQuad(0x00000001FFFFFFFF);
     CHECK(c.XAM("CompareFileTime", {low_big, higher}) == 0xFFFFFFFFu);
+  });
+}
+
+namespace {
+
+u32 NtToDos(rex::kernel::X_STATUS status) {
+  return rex::kernel::xboxkrnl::RtlNtStatusToDosError(status);
+}
+
+rex::kernel::ICallingThread& CallingThread(Caller& c) {
+  return *c.GetRuntime().GetThreadRegistry().GetCallingThread();
+}
+
+constexpr u32 kSentinelError = 0x4321;
+
+}  // namespace
+
+REX_TEST_CASE("files: CreateDirectoryA creates one level and fails on a missing parent",
+              "[kernel][files][xam]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "t.bin", 4); });
+  MountScratch(fixture);
+  auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
+  fixture.RunOnGuestThread([&](Caller& c) {
+    CallingThread(c).SetLastError(kSentinelError);
+    CHECK(c.XAM("CreateDirectoryA", {c.AllocString("scratch:\\one"), 0}) == 1);
+    CHECK(file_system->Stat("scratch:\\one"));
+
+    CallingThread(c).SetLastError(kSentinelError);
+    CHECK(c.XAM("CreateDirectoryA", {c.AllocString("scratch:\\missing\\two"), 0}) == 0);
+    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_NO_SUCH_FILE));
+    CHECK_FALSE(file_system->Stat("scratch:\\missing"));
+  });
+}
+
+REX_TEST_CASE("files: CreateDirectoryA fails on an existing folder or file",
+              "[kernel][files][xam]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "t.bin", 4); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    CHECK(c.XAM("CreateDirectoryA", {c.AllocString("scratch:\\dir"), 0}) == 1);
+    CallingThread(c).SetLastError(kSentinelError);
+    CHECK(c.XAM("CreateDirectoryA", {c.AllocString("scratch:\\dir"), 0}) == 0);
+    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_OBJECT_NAME_COLLISION));
+    CallingThread(c).SetLastError(kSentinelError);
+    CHECK(c.XAM("CreateDirectoryA", {c.AllocString("scratch:\\t.bin"), 0}) == 0);
+    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_OBJECT_NAME_COLLISION));
+  });
+}
+
+REX_TEST_CASE("files: GetFileAttributesExA on a missing file sets the last error",
+              "[kernel][files][xam]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "t.bin", 4); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 info = c.Alloc(36);
+    CallingThread(c).SetLastError(kSentinelError);
+    CHECK(c.XAM("GetFileAttributesExA", {0, c.AllocString("scratch:\absent.bin"), info}) == 0);
+    CHECK(CallingThread(c).GetLastError() == NtToDos(rex::kernel::X_STATUS_NO_SUCH_FILE));
   });
 }

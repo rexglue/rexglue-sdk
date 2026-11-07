@@ -54,6 +54,12 @@ static u64 LoadFileTime(const rex::BE<u32>* in) {
   return (static_cast<u64>(static_cast<u32>(in[0])) << 32) | static_cast<u32>(in[1]);
 }
 
+/** Sets the last error of the calling thread from an NT status, as RtlSetLastNTError does. */
+static void SetLastNTError(X_STATUS status) {
+  CurrentTitle().threads.GetCallingThread()->SetLastError(
+      kernel::xboxkrnl::RtlNtStatusToDosError(status));
+}
+
 static filesystem::Disposition MapDisposition(u32 win32_disp) {
   using FD = filesystem::Disposition;
   switch (win32_disp) {
@@ -305,11 +311,16 @@ REX_XAM_SHIM_FN(FindNextFileA, u32, u32 hFindFile, MappedVoid lpFindFileData) {
 REX_XAM_SHIM_FN(CreateDirectoryA, u32, MappedString lpPathName,
                 [[maybe_unused]] MappedVoid lpSecurityAttributes) {
   const char* path = static_cast<const char*>(lpPathName);
-  auto* fs = (&CurrentTitle().file_system);
-  if (fs->Stat(path)) {
+  filesystem::OpenOptions options;
+  options.disposition = filesystem::Disposition::kCreate;
+  options.access = filesystem::Access::kNone;
+  options.create_directory = true;
+  auto created = CurrentTitle().file_system.Open(path, options);
+  if (!created) {
+    SetLastNTError(kernel::ToXStatus(created.error()));
     return 0;
   }
-  return fs->CreateDirectories(path) ? 1u : 0u;
+  return 1;
 }
 
 REX_XAM_SHIM_FN(GetFileAttributesA, u32, MappedString lpFileName) {
@@ -331,6 +342,7 @@ REX_XAM_SHIM_FN(GetFileAttributesExA, u32, [[maybe_unused]] u32 fInfoLevelId,
   auto entry = CurrentTitle().file_system.Stat(path);
   if (!entry) {
     REXXAM_DEBUG("rexshim_GetFileAttributesExA: not found '{}'", path);
+    SetLastNTError(kernel::ToXStatus(entry.error()));
     return 0;
   }
 
