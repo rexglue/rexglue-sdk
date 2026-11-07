@@ -108,11 +108,13 @@ class MoveOnlyCallable {
   template <typename D>
   static constexpr Ops kOps{&Invoke<D>, &Relocate<D>, &Destroy<D>};
 
+  // Checks the call before the construction, as std::move_only_function does, so a type that is
+  // constructible from this class does not recurse.
   template <typename F>
   static constexpr bool kAccepts =
       std::conjunction_v<std::negation<std::is_same<std::remove_cvref_t<F>, MoveOnlyCallable>>,
-                         std::is_constructible<std::decay_t<F>, F>,
-                         std::is_invocable_r<R, TargetRef<std::decay_t<F>>, Args...>>;
+                         std::is_invocable_r<R, TargetRef<std::decay_t<F>>, Args...>,
+                         std::is_constructible<std::decay_t<F>, F>>;
 
  public:
   MoveOnlyCallable() noexcept = default;
