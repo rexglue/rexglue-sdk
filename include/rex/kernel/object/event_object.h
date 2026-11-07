@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 
 #include <rex/assert.h>
@@ -32,7 +33,6 @@
 #include <rex/platform/timer.h>
 #include <rex/result.h>
 #include <rex/types.h>
-#include <rex/utility.h>
 
 namespace rex::kernel {
 
@@ -70,9 +70,9 @@ struct EventObject : IGuestEvent {
   REX_KERNEL_API explicit EventObject(const X_DISPATCH_HEADER& header);
 
   /** True for a notification event, false for a synchronization event that resets on a wait. */
-  bool manual_reset = false;
+  std::atomic<bool> manual_reset{false};
   /** Host event that carries the signal state and wakes waiters. */
-  PropagateConst<std::unique_ptr<rex::platform::Event>> event;
+  PublishedPtr<rex::platform::Event> event;
 
   /**
    * Reads the type and the live state of an event.

@@ -83,11 +83,12 @@ X_STATUS TimerObject::Set(TitleRuntime& runtime, i64 due_time, u32 period_ms, u3
   callback_routine = routine;
   callback_routine_arg = routine_arg;
   Disarm(*this);
-  if (!timer->Reset()) {
+  rex::platform::Timer* const host_timer = timer.get();
+  if (!host_timer->Reset()) {
     return X_STATUS_UNSUCCESSFUL;
   }
   const u32 scaled_period = Clock::ScaleGuestDurationMillis(period_ms);
-  auto callback = [runtime = &runtime, host = timer.get(), thread_id = callback_thread_id, routine,
+  auto callback = [runtime = &runtime, host = host_timer, thread_id = callback_thread_id, routine,
                    routine_arg](void*) {
     host->SetOnceAfter(rex::HundredNanoseconds(0));
     if (!routine) {
@@ -118,11 +119,12 @@ X_STATUS TimerObject::Set(TitleRuntime& runtime, i64 due_time, u32 period_ms, u3
 X_STATUS TimerObject::SetDPC(TitleRuntime& runtime, u32 ktimer, i64 due_time, u32 period_ms,
                              u32 dpc) {
   Disarm(*this);
-  if (!timer->Reset()) {
+  rex::platform::Timer* const host_timer = timer.get();
+  if (!host_timer->Reset()) {
     return X_STATUS_UNSUCCESSFUL;
   }
   const u32 scaled_period = Clock::ScaleGuestDurationMillis(period_ms);
-  auto callback = [runtime = &runtime, host = timer.get(), ktimer, dpc,
+  auto callback = [runtime = &runtime, host = host_timer, ktimer, dpc,
                    periodic = scaled_period != 0](void*) {
     auto* object = StateOf(*runtime).GetAddressSpace()->TranslateVirtual<X_KTIMER*>(ktimer);
     object->header.signal_state = 1;

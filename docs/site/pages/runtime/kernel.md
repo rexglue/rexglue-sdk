@@ -38,7 +38,7 @@ Host code that uses an object for the length of a call pins it. `IObjectTable::G
 
 ### Resolving a Guest Address
 
-Every console synchronization object starts with an `X_DISPATCH_HEADER`, a small block in guest memory that holds its type and signal state. A title can embed such an object in its own structures and pass its guest address where a handle is expected. `IObjectTable::ResolveObject` takes the address and returns a pin on the kernel object for it. For an event, mutant, semaphore or timer, the first call creates that object. An object created this way has no handle.
+Every console synchronization object starts with an `X_DISPATCH_HEADER`, a small block in guest memory that holds its type and signal state. A title can embed such an object in its own structures and pass its guest address where a handle is expected. `IObjectTable::ResolveObject` takes the address and returns a pin on the kernel object for it. For an event, mutant, semaphore or timer, the first call creates that object. An object created this way has no handle. A `KeInitialize*` call over the body of an object that `NtCreate*` made resets that same object, and threads already waiting on it stay blocked.
 
 ### Object Types
 
@@ -52,7 +52,7 @@ Every console synchronization object starts with an `X_DISPATCH_HEADER`, a small
 | `kThread` | A `ThreadRef`, which names a `KernelThread` in the thread registry. |
 | `kXAM` | An `IXAMObject` from `object/xam_object.h`, such as an enumerator. |
 
-The console keeps a guest block for each object, an `X_OBJECT_HEADER` followed by the object body. `AllocObjectBlock` allocates this block from the system heap or from a workspace. XAM enumerator objects take their blocks from the [title workspace](#title-workspace).
+The console keeps a guest block for each object, an `X_OBJECT_HEADER` followed by the object body. `AllocObjectBlock` allocates this block from the system heap or from a workspace. XAM enumerator objects take their blocks from the [title workspace](#title-workspace). `NtCreateEvent`, `NtCreateSemaphore`, `NtCreateMutant` and `NtCreateTimer` allocate this block, so `ObReferenceObjectByHandle` returns the body address for their handles. Every dispatcher body starts with an empty wait list, as the console writes it.
 
 ## Threads
 

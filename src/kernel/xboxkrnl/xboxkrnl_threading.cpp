@@ -66,14 +66,9 @@ void DrainDPCsBelowDispatch(TitleRuntime& runtime) {
   }
 }
 
-void CloseStash(X_DISPATCH_HEADER& header, u32 address) {
-  auto& table = kernel::GetCurrent().GetObjectTable();
-  if (header.wait_list_flink == kStashSignature) {
-    kernel::CloseOwned(table, header.wait_list_blink);
-  }
-  header.wait_list_flink = 0;
-  header.wait_list_blink = 0;
-  table.ForgetAddress(address);
+void InitializeWaitList(X_DISPATCH_HEADER& header, u32 address) {
+  header.wait_list_flink = address + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+  header.wait_list_blink = header.wait_list_flink;
 }
 
 }  // namespace
@@ -455,13 +450,11 @@ void KeInitializeEvent_entry(GuestPtrT<X_KEVENT> event_ptr, u32 event_type, u32 
     initial_state ? existing->Set() : existing->Reset();
     return;
   }
-  CloseStash(event_ptr->header, event_ptr.GetGuestAddress());
+  kernel::GetCurrent().GetObjectTable().ForgetAddress(event_ptr.GetGuestAddress());
   event_ptr.Zero();
   event_ptr->header.type = static_cast<u8>(event_type);
   event_ptr->header.signal_state = initial_state;
-  const u32 wait_list = event_ptr.GetGuestAddress() + offsetof(X_DISPATCH_HEADER, wait_list_flink);
-  event_ptr->header.wait_list_flink = wait_list;
-  event_ptr->header.wait_list_blink = wait_list;
+  InitializeWaitList(event_ptr->header, event_ptr.GetGuestAddress());
   if (!table.Resolve<EventObject>(event_ptr.GetGuestAddress(), static_cast<i32>(event_type))) {
     REXKRNL_WARN("KeInitializeEvent({:08X}) could not create the event",
                  event_ptr.GetGuestAddress());
@@ -516,6 +509,13 @@ u32 NtCreateEvent_entry(MappedU32 handle_ptr, GuestPtrT<X_OBJECT_ATTRIBUTES> obj
   X_STATUS status = ToXStatus(added);
   if (XFAILED(status)) {
     return status;
+  }
+  if (auto object = kernel::GetCurrent().GetObjectTable().Get(handle)) {
+    auto* body = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KEVENT*>(
+        object.GetGuestAddress());
+    body->header.type = static_cast<u8>(event_type);
+    body->header.signal_state = initial_state;
+    InitializeWaitList(body->header, object.GetGuestAddress());
   }
   if (handle_ptr) {
     *handle_ptr = handle;
@@ -577,9 +577,10 @@ u32 NtClearEvent_entry(u32 handle) {
 }
 
 void KeInitializeSemaphore_entry(GuestPtrT<X_KSEMAPHORE> semaphore_ptr, u32 count, u32 limit) {
-  CloseStash(semaphore_ptr->header, semaphore_ptr.GetGuestAddress());
+  kernel::GetCurrent().GetObjectTable().ForgetAddress(semaphore_ptr.GetGuestAddress());
   // The header type 5 marks a semaphore.
   semaphore_ptr->header.type = 5;
+  InitializeWaitList(semaphore_ptr->header, semaphore_ptr.GetGuestAddress());
   semaphore_ptr->header.signal_state = count;
   semaphore_ptr->limit = limit;
 
@@ -635,6 +636,14 @@ u32 NtCreateSemaphore_entry(MappedU32 handle_ptr, MappedVoid obj_attributes_ptr,
     }
     return X_STATUS_INVALID_PARAMETER;
   }
+  if (auto object = kernel::GetCurrent().GetObjectTable().Get(handle)) {
+    auto* body = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KSEMAPHORE*>(
+        object.GetGuestAddress());
+    body->header.type = kDispatcherSemaphore;
+    body->header.signal_state = count;
+    InitializeWaitList(body->header, object.GetGuestAddress());
+    body->limit = limit;
+  }
 
   if (handle_ptr) {
     *handle_ptr = handle;
@@ -669,13 +678,23 @@ u32 NtCreateMutant_entry(MappedU32 handle_out, GuestPtrT<X_OBJECT_ATTRIBUTES> ob
 
   X_HANDLE handle = 0;
   auto added = kernel::GetCurrent().GetObjectTable().CreateObject<MutantObject>(
-      obj_attributes.GetGuestAddress(), 0, initial_owner ? true : false);
+      obj_attributes.GetGuestAddress(), sizeof(X_KMUTANT), initial_owner ? true : false);
   if (added) {
     handle = *added;
   }
   X_STATUS status = ToXStatus(added);
   if (XFAILED(status)) {
     return status;
+  }
+  if (auto object = kernel::GetCurrent().GetObjectTable().Get(handle)) {
+    auto* body = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KMUTANT*>(
+        object.GetGuestAddress());
+    KernelThread* thread = KernelThread::GetCallingThread();
+    const bool owned = initial_owner && thread;
+    body->header.type = kDispatcherMutant;
+    body->header.signal_state = owned ? 0 : 1;
+    InitializeWaitList(body->header, object.GetGuestAddress());
+    body->owner_thread = owned ? thread->GetGuestObject() : 0;
   }
   if (handle_out) {
     *handle_out = handle;
@@ -701,9 +720,10 @@ u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
 }
 
 void KeInitializeMutant_entry(GuestPtrT<X_KMUTANT> mutant, u32 initial_owner) {
-  CloseStash(mutant->header, mutant.GetGuestAddress());
+  kernel::GetCurrent().GetObjectTable().ForgetAddress(mutant.GetGuestAddress());
   KernelThread* thread = KernelThread::GetCallingThread();
   mutant->header.type = kDispatcherMutant;
+  InitializeWaitList(mutant->header, mutant.GetGuestAddress());
   const bool owned = initial_owner && thread;
   if (initial_owner && !thread) {
     REXKRNL_WARN("KeInitializeMutant with an initial owner and no thread");
@@ -740,6 +760,8 @@ u32 KeReleaseMutant_entry(GuestPtrT<X_KMUTANT> mutant, [[maybe_unused]] u32 incr
   return static_cast<u32>(previous);
 }
 
+constexpr u32 kNtTimerBodySize = 0x80;
+
 /**
  * Creates a timer, where type 0 is NotificationTimer and 1 is SynchronizationTimer.
  *
@@ -756,13 +778,20 @@ u32 NtCreateTimer_entry(MappedU32 handle_ptr, MappedVoid obj_attributes_ptr, u32
 
   X_HANDLE handle = 0;
   auto added = kernel::GetCurrent().GetObjectTable().CreateObject<TimerObject>(
-      obj_attributes_ptr.GetGuestAddress(), 0, timer_type);
+      obj_attributes_ptr.GetGuestAddress(), kNtTimerBodySize, timer_type);
   if (added) {
     handle = *added;
   }
   X_STATUS status = ToXStatus(added);
   if (XFAILED(status)) {
     return status;
+  }
+  if (auto object = kernel::GetCurrent().GetObjectTable().Get(handle)) {
+    auto* body = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KTIMER*>(
+        object.GetGuestAddress());
+    body->header.type = static_cast<u8>(timer_type + kDispatcherManualResetTimer);
+    body->header.process_type = static_cast<u8>(kernel::GetCurrentState().GetProcessType());
+    InitializeWaitList(body->header, object.GetGuestAddress());
   }
   if (handle_ptr) {
     *handle_ptr = handle;
@@ -772,10 +801,8 @@ u32 NtCreateTimer_entry(MappedU32 handle_ptr, MappedVoid obj_attributes_ptr, u32
 }
 
 void KeInitializeTimerEx_entry(GuestPtrT<X_KTIMER> timer_ptr, u32 timer_type, u32 proc_type) {
-  CloseStash(timer_ptr->header, timer_ptr.GetGuestAddress());
-  const u32 wait_list = timer_ptr.GetGuestAddress() + offsetof(X_DISPATCH_HEADER, wait_list_flink);
-  timer_ptr->header.wait_list_flink = wait_list;
-  timer_ptr->header.wait_list_blink = wait_list;
+  kernel::GetCurrent().GetObjectTable().ForgetAddress(timer_ptr.GetGuestAddress());
+  InitializeWaitList(timer_ptr->header, timer_ptr.GetGuestAddress());
   timer_ptr->header.type = static_cast<u8>(timer_type + kDispatcherManualResetTimer);
   timer_ptr->header.process_type = static_cast<u8>(proc_type);
   timer_ptr->header.inserted = 0;

@@ -44,8 +44,9 @@ X_STATUS MutantObject::Release(bool abandon, i32* previous_state) {
     const i32 held = hold_count.exchange(0);
     owner_thread_id = 0;
     abandoned = true;
+    rex::platform::Mutant* host = mutant.get();
     for (i32 i = 0; i < held; ++i) {
-      mutant->Release();
+      host->Release();
     }
     if (previous_state) {
       *previous_state = 1 - held;
@@ -67,7 +68,10 @@ X_STATUS MutantObject::Release(bool abandon, i32* previous_state) {
   return X_STATUS_SUCCESS;
 }
 
-bool MutantObject::OnAcquired() {
+bool MutantObject::OnAcquired(const rex::platform::WaitHandle* waited) {
+  if (waited != mutant.get()) {
+    return false;
+  }
   KernelThread* thread = KernelThread::GetCallingThread();
   const u32 self = thread->GetThreadID();
   if (owner_thread_id.exchange(self) == self) {

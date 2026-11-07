@@ -231,6 +231,8 @@ void KernelThread::InitializeGuestObject() {
 
   // Dispatch header type 6 is a thread object.
   kthread->header.type = 6;
+  kthread->header.wait_list_flink = guest_ptr + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+  kthread->header.wait_list_blink = kthread->header.wait_list_flink;
   kthread->suspend_count = (creation_params_.creation_flags & kXCreateSuspended) ? 1 : 0;
 
   kthread->unk_10 = guest_ptr + 0x010;

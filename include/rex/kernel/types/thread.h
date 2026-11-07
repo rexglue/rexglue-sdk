@@ -104,6 +104,15 @@ struct X_KSEMAPHORE {
 };
 REX_STATIC_ASSERT_SIZE(X_KSEMAPHORE, 0x14);
 
+struct X_KQUEUE {
+  X_DISPATCH_HEADER header;
+  X_LIST_ENTRY entry_list_head;  /**< Entries waiting to be dequeued. */
+  be_u32 current_count;          /**< Number of threads currently processing queue entries. */
+  be_u32 maximum_count;          /**< Number of threads allowed to process entries at once. */
+  X_LIST_ENTRY thread_list_head; /**< Threads that dequeued entries and are still processing. */
+};
+REX_STATIC_ASSERT_SIZE(X_KQUEUE, 0x28);
+
 struct X_KDPC;
 
 struct X_KTIMER {

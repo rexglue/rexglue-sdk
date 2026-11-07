@@ -32,7 +32,6 @@
 #include <rex/platform/timer.h>
 #include <rex/result.h>
 #include <rex/types.h>
-#include <rex/utility.h>
 
 namespace rex::kernel {
 
@@ -52,7 +51,7 @@ struct SemaphoreObject {
   REX_KERNEL_API explicit SemaphoreObject(const X_KSEMAPHORE& header);
 
   /** Host semaphore that carries the count and wakes waiters. */
-  PropagateConst<std::unique_ptr<rex::platform::Semaphore>> semaphore;
+  PublishedPtr<rex::platform::Semaphore> semaphore;
   u32 maximum_count = 0;
 
   /**

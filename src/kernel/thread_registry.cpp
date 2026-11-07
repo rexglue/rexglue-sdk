@@ -104,7 +104,6 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<KernelThread> thread) {
   if (!handle) {
     return handle;
   }
-  StashHandle(&raw->GetGuestObject<X_KTHREAD>()->header, *handle);
   raw->SetHandle(*handle);
   const X_STATUS status = raw->Create();
   if (XFAILED(status)) {

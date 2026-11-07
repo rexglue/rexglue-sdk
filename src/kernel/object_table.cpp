@@ -15,6 +15,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <utility>
 
 #include <rex/assert.h>
 #include <rex/kernel/types/io.h>
@@ -51,6 +52,67 @@ bool TypeMatchesHeader(ObjectType type, u32 header_type) {
     default:
       return true;
   }
+}
+
+std::unique_ptr<KernelObject> MakeGuestObject(u32 address, i32 as_type, X_DISPATCH_HEADER* header,
+                                              void* native_ptr) {
+  switch (as_type) {
+    case 0:
+    case 1:
+      return MakeObject<EventObject>(*header);
+    case kDispatcherMutant: {
+      const auto* mutant = reinterpret_cast<const X_KMUTANT*>(native_ptr);
+      const bool owned_here = static_cast<i32>(static_cast<u32>(header->signal_state)) <= 0 &&
+                              KernelThread::IsInThread() &&
+                              KernelThread::GetCallingThread()->GetGuestObject() ==
+                                  static_cast<u32>(mutant->owner_thread);
+      return MakeObject<MutantObject>(owned_here, address);
+    }
+    case 5: {
+      auto object = MakeObject<SemaphoreObject>(*reinterpret_cast<X_KSEMAPHORE*>(native_ptr));
+      REX_ASSERT(std::get<SemaphoreObject>(object->data).semaphore);
+      return object;
+    }
+    case kDispatcherManualResetTimer:
+    case kDispatcherAutoResetTimer:
+      return MakeObject<TimerObject>(static_cast<u32>(as_type - 8));
+    default:
+      REXSYS_WARN("Guest object at {:08X} has the unsupported type {}", address, as_type);
+      return nullptr;
+  }
+}
+
+void PublishHostState(ObjectData& live, ObjectData& fresh) {
+  if (auto* event = std::get_if<EventObject>(&live)) {
+    auto& other = std::get<EventObject>(fresh);
+    event->manual_reset.store(other.manual_reset.load());
+    event->event.Replace(other.event.Take());
+  } else if (auto* semaphore = std::get_if<SemaphoreObject>(&live)) {
+    auto& other = std::get<SemaphoreObject>(fresh);
+    semaphore->maximum_count = other.maximum_count;
+    semaphore->semaphore.Replace(other.semaphore.Take());
+  } else if (auto* mutant = std::get_if<MutantObject>(&live)) {
+    auto& other = std::get<MutantObject>(fresh);
+    mutant->mutant.Replace(other.mutant.Take());
+    mutant->owner_thread_id.store(other.owner_thread_id.load());
+    mutant->hold_count.store(other.hold_count.load());
+    mutant->abandoned.store(other.abandoned.load());
+  } else if (auto* timer = std::get_if<TimerObject>(&live)) {
+    auto& other = std::get<TimerObject>(fresh);
+    timer->timer.Replace(other.timer.Take());
+  }
+}
+
+void RebuildHostState(KernelObject& object, u32 address, i32 as_type, X_DISPATCH_HEADER* header,
+                      void* native_ptr) {
+  if (!TypeMatchesHeader(object.GetType(), header->type)) {
+    return;
+  }
+  std::unique_ptr<KernelObject> fresh = MakeGuestObject(address, as_type, header, native_ptr);
+  if (!fresh || fresh->GetType() != object.GetType()) {
+    return;
+  }
+  PublishHostState(object.data, fresh->data);
 }
 
 }  // namespace
@@ -205,14 +267,8 @@ Result<X_HANDLE> ObjectTable::AddWithBlock(std::unique_ptr<KernelObject> object,
   }
   const std::string name = NameFromAttributes(memory_, attributes_ptr);
   Result<X_HANDLE> handle = Add(std::move(object), AddOptions{name, block});
-  if (!handle) {
-    if (block.address) {
-      FreeObjectBlock(memory_, block.address);
-    }
-    return handle;
-  }
-  if (block.address) {
-    StashHandle(memory_->TranslateVirtual<X_DISPATCH_HEADER*>(block.address), *handle);
+  if (!handle && block.address) {
+    FreeObjectBlock(memory_, block.address);
   }
   return handle;
 }
@@ -390,7 +446,14 @@ void ObjectTable::ForgetAddress(u32 address) {
   {
     std::unique_lock lock(mutex_);
     KernelObject* raw = &object.GetKernelObject();
-    if (!objects_.contains(raw) || !raw->header_hold) {
+    if (!objects_.contains(raw)) {
+      return;
+    }
+    if (raw->owns_guest_block) {
+      raw->reinit_pending.store(true);
+      return;
+    }
+    if (!raw->header_hold) {
       return;
     }
     raw->header_hold = false;
@@ -409,53 +472,35 @@ ObjectPin ObjectTable::ResolveObject(u32 address, i32 as_type) {
   std::lock_guard lock(identity_mutex_);
   void* native_ptr = memory_->TranslateVirtual(address);
   auto* header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
+  if (as_type == -1) {
+    as_type = header->type;
+  }
   bool stale = false;
+  KernelObject* hit = nullptr;
   {
     std::shared_lock table_lock(mutex_);
     if (auto block = block_objects_.find(address); block != block_objects_.end()) {
       if (block->second->owns_guest_block ||
           TypeMatchesHeader(block->second->GetType(), header->type)) {
         block->second->pins.Pin();
-        return ObjectPin(block->second, 0);
+        hit = block->second;
+      } else {
+        stale = true;
       }
-      stale = true;
     }
+  }
+  if (hit) {
+    if (hit->owns_guest_block && hit->reinit_pending.exchange(false)) {
+      RebuildHostState(*hit, address, as_type, header, native_ptr);
+    }
+    return ObjectPin(hit, 0);
   }
   if (stale) {
     ForgetAddress(address);
   }
-  if (as_type == -1) {
-    as_type = header->type;
-  }
-  if (header->wait_list_flink == kStashSignature) {
-    return Get(static_cast<X_HANDLE>(header->wait_list_blink));
-  }
-  std::unique_ptr<KernelObject> object;
-  switch (as_type) {
-    case 0:
-    case 1:
-      object = MakeObject<EventObject>(*header);
-      break;
-    case kDispatcherMutant: {
-      const auto* mutant = reinterpret_cast<const X_KMUTANT*>(native_ptr);
-      const bool owned_here = static_cast<i32>(static_cast<u32>(header->signal_state)) <= 0 &&
-                              KernelThread::IsInThread() &&
-                              KernelThread::GetCallingThread()->GetGuestObject() ==
-                                  static_cast<u32>(mutant->owner_thread);
-      object = MakeObject<MutantObject>(owned_here, address);
-      break;
-    }
-    case 5:
-      object = MakeObject<SemaphoreObject>(*reinterpret_cast<X_KSEMAPHORE*>(native_ptr));
-      REX_ASSERT(std::get<SemaphoreObject>(object->data).semaphore);
-      break;
-    case kDispatcherManualResetTimer:
-    case kDispatcherAutoResetTimer:
-      object = MakeObject<TimerObject>(static_cast<u32>(as_type - 8));
-      break;
-    default:
-      REXSYS_WARN("Guest object at {:08X} has the unsupported type {}", address, as_type);
-      return {};
+  std::unique_ptr<KernelObject> object = MakeGuestObject(address, as_type, header, native_ptr);
+  if (!object) {
+    return {};
   }
   std::unique_lock table_lock(mutex_);
   KernelObject* raw = Register(std::move(object), AddOptions{{}, ObjectBlock{address}});

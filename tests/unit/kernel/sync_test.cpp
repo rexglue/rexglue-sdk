@@ -19,6 +19,7 @@
 #include <rex/kernel/types/thread.h>
 #include <rex/kernel/xboxkrnl.h>
 #include <rex/kernel/function_dispatcher.h>
+#include <rex/kernel/thread_registry.h>
 #include <rex/kernel/thread_state.h>
 #include <rex/kernel/object/kernel_thread.h>
 #include <rex/platform/sync.h>
@@ -835,3 +836,318 @@ REX_TEST_CASE("events: a block re-initialized as a semaphore can be waited on",
 }
 
 }  // namespace events_tests
+
+namespace reinit_tests {
+
+using rex::u32;
+
+u32 CreateNt(Caller& c, const char* name, u64 first = 0, u64 second = 0, u64 third = 0) {
+  const u32 handle_ptr = c.Alloc(4);
+  CHECKED_ELSE(c.Kernel(name, {handle_ptr, first, second, third}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
+  return c.Load32(handle_ptr);
+}
+
+u32 BodyOf(Caller& c, u32 handle) {
+  const u32 object_ptr = c.Alloc(4);
+  CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, object_ptr}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
+  return c.Load32(object_ptr);
+}
+
+u32 WaitHandleFor(Caller& c, u32 handle, i64 timeout) {
+  return c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(timeout)});
+}
+
+u32 WaitBodyFor(Caller& c, u32 body, i64 timeout) {
+  return c.Kernel("KeWaitForSingleObject", {body, 0, 0, 0, c.AllocQuad(timeout)});
+}
+
+REX_TEST_CASE("NtCreateEvent gives the handle a guest body with an event header",
+              "[kernel][events][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 notification = BodyOf(c, CreateNt(c, "NtCreateEvent", 0, 0, 1));
+    REQUIRE(notification != 0);
+    CHECK(c.Load8(notification) == 0);
+    CHECK(c.Load32(notification + 4) == 1);
+    CHECK(c.Load32(notification + 8) == notification + 8);
+    CHECK(c.Load32(notification + 0xC) == notification + 8);
+    const u32 synchronization = BodyOf(c, CreateNt(c, "NtCreateEvent", 0, 1, 0));
+    REQUIRE(synchronization != 0);
+    CHECK(c.Load8(synchronization) == 1);
+    CHECK(c.Load32(synchronization + 4) == 0);
+  });
+}
+
+REX_TEST_CASE("NtCreateSemaphore gives the handle a guest body with a semaphore header",
+              "[kernel][semaphores][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 body = BodyOf(c, CreateNt(c, "NtCreateSemaphore", 0, 2, 5));
+    REQUIRE(body != 0);
+    CHECK(c.Load8(body) == 5);
+    CHECK(c.Load32(body + 4) == 2);
+    CHECK(c.Load32(body + 0x10) == 5);
+    CHECK(c.Load32(body + 8) == body + 8);
+    CHECK(c.Load32(body + 0xC) == body + 8);
+  });
+}
+
+REX_TEST_CASE("NtCreateMutant gives the handle a guest body with a mutant header",
+              "[kernel][mutants][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 free_body = BodyOf(c, CreateNt(c, "NtCreateMutant", 0, 0));
+    REQUIRE(free_body != 0);
+    CHECK(c.Load8(free_body) == static_cast<u32>(rex::kernel::kDispatcherMutant));
+    CHECK(c.Load32(free_body + 4) == 1);
+    CHECK(c.Load32(free_body + 0x18) == 0);
+    CHECK(c.Load32(free_body + 8) == free_body + 8);
+    CHECK(c.Load32(free_body + 0xC) == free_body + 8);
+    const u32 owned_body = BodyOf(c, CreateNt(c, "NtCreateMutant", 0, 1));
+    REQUIRE(owned_body != 0);
+    CHECK(c.Load8(owned_body) == static_cast<u32>(rex::kernel::kDispatcherMutant));
+    CHECK(c.Load32(owned_body + 4) == 0);
+    CHECK(c.Load32(owned_body + 0x18) != 0);
+  });
+}
+
+REX_TEST_CASE("NtCreateTimer gives the handle a guest body with a timer header",
+              "[kernel][timers][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    for (const u32 type : {0u, 1u}) {
+      const u32 body = BodyOf(c, CreateNt(c, "NtCreateTimer", 0, type));
+      REQUIRE(body != 0);
+      CHECK(c.Load8(body) == static_cast<u32>(rex::kernel::kDispatcherManualResetTimer) + type);
+      CHECK(c.Load32(body + 4) == 0);
+      CHECK(c.Load32(body + 8) == body + 8);
+      CHECK(c.Load32(body + 0xC) == body + 8);
+    }
+  });
+}
+
+REX_TEST_CASE("A thread body starts with an empty wait list", "[kernel][threads][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 thread = c.Spawn([](Caller&) {});
+    const u32 body = BodyOf(c, thread);
+    REQUIRE(body != 0);
+    CHECK(c.Load32(body + 8) == body + 8);
+    CHECK(c.Load32(body + 0xC) == body + 8);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
+    c.Kernel("NtClose", {thread});
+  });
+}
+
+REX_TEST_CASE(
+    "A KeInitializeSemaphore over an NtCreateSemaphore body resets the count of the same object",
+    "[kernel][semaphores][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = CreateNt(c, "NtCreateSemaphore", 0, 2, 2);
+    const u32 body = BodyOf(c, handle);
+    auto& table = c.GetRuntime().GetObjectTable();
+    const auto before = table.Get(handle);
+    REQUIRE(before);
+    c.Kernel("KeInitializeSemaphore", {body, 0, 2});
+    CHECK(WaitHandleFor(c, handle, 0) == kTimeout);
+    CHECK(WaitBodyFor(c, body, 0) == kTimeout);
+    const auto by_body = table.GetByAddress(body);
+    REQUIRE(by_body);
+    CHECK(&by_body.GetKernelObject() == &before.GetKernelObject());
+    CHECK(c.Kernel("NtReleaseSemaphore", {handle, 1, c.Alloc(4)}) == 0);
+    CHECK(WaitBodyFor(c, body, 0) == 0);
+    CHECK(WaitHandleFor(c, handle, 0) == kTimeout);
+  });
+}
+
+REX_TEST_CASE("A KeInitializeMutant over an owned NtCreateMutant body leaves it free to acquire",
+              "[kernel][mutants][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = CreateNt(c, "NtCreateMutant", 0, 1);
+    const u32 body = BodyOf(c, handle);
+    c.Kernel("KeInitializeMutant", {body, 0});
+    auto taken = std::make_shared<std::promise<u32>>();
+    auto done = taken->get_future();
+    const u32 other = c.Spawn([handle, taken](Caller& o) {
+      taken->set_value(o.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, o.AllocQuad(-10000000)}));
+    });
+    CHECK(done.get() == 0);
+    c.Kernel("NtClose", {other});
+    c.Kernel("NtClose", {handle});
+  });
+}
+
+REX_TEST_CASE(
+    "A KeInitializeEvent of another type over an NtCreateEvent body resets the same object",
+    "[kernel][events][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = CreateNt(c, "NtCreateEvent", 0, 0, 1);
+    const u32 body = BodyOf(c, handle);
+    auto& table = c.GetRuntime().GetObjectTable();
+    const auto before = table.Get(handle);
+    REQUIRE(before);
+    c.Kernel("KeInitializeEvent", {body, 1, 0});
+    CHECK(WaitHandleFor(c, handle, 0) == kTimeout);
+    CHECK(WaitBodyFor(c, body, 0) == kTimeout);
+    c.Kernel("KeSetEvent", {body, 0, 0});
+    CHECK(WaitHandleFor(c, handle, 0) == 0);
+    CHECK(WaitHandleFor(c, handle, 0) == kTimeout);
+    const auto by_body = table.GetByAddress(body);
+    REQUIRE(by_body);
+    CHECK(&by_body.GetKernelObject() == &before.GetKernelObject());
+    const auto by_handle = table.Get(handle);
+    REQUIRE(by_handle);
+    CHECK(&by_handle.GetKernelObject() == &before.GetKernelObject());
+  });
+}
+
+REX_TEST_CASE("A KeInitializeTimerEx over an armed NtCreateTimer body never signals",
+              "[kernel][timers][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = CreateNt(c, "NtCreateTimer");
+    const u32 body = BodyOf(c, handle);
+    CHECK(c.Kernel("NtSetTimerEx", {handle, c.AllocQuad(-100000), 0, 1, 0, 0, 0, 0}) == 0);
+    c.Kernel("KeInitializeTimerEx", {body, 0, 0});
+    CHECK(WaitHandleFor(c, handle, -3000000) == kTimeout);
+    CHECK(WaitBodyFor(c, body, 0) == kTimeout);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("A thread waiting on a replaced event stays blocked and still stops on RequestStop",
+              "[kernel][events][shutdown]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = CreateNt(c, "NtCreateEvent");
+    const u32 body = BodyOf(c, handle);
+    auto waiting = std::make_shared<std::atomic<bool>>(false);
+    auto woken = std::make_shared<std::atomic<bool>>(false);
+    const u32 thread = c.Spawn([handle, waiting, woken](Caller& t) {
+      waiting->store(true);
+      t.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, 0});
+      woken->store(true);
+    });
+    while (!waiting->load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    c.Kernel("KeInitializeEvent", {body, 1, 0});
+    c.Kernel("NtSetEvent", {handle, 0});
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK_FALSE(woken->load());
+    auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(thread);
+    REQUIRE(pin);
+    pin->RequestStop();
+    CHECK(WaitHandleFor(c, thread, -50000000) == 0);
+    c.Kernel("NtClose", {thread});
+  });
+}
+
+struct MutantHandoff {
+  std::promise<u32> handle;
+  std::promise<u32> release;
+  std::atomic<bool> proceed{false};
+};
+
+REX_TEST_CASE("A KeReleaseMutant by the old owner after a KeInitializeMutant is refused",
+              "[kernel][mutants][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto handoff = std::make_shared<MutantHandoff>();
+    auto published = handoff->handle.get_future();
+    auto released = handoff->release.get_future();
+    const u32 owner = c.Spawn([handoff](Caller& o) {
+      const u32 handle = CreateNt(o, "NtCreateMutant", 0, 1);
+      handoff->handle.set_value(handle);
+      while (!handoff->proceed.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      handoff->release.set_value(o.Kernel("KeReleaseMutant", {BodyOf(o, handle), 0, 0, 0}));
+    });
+    const u32 handle = published.get();
+    c.Kernel("KeInitializeMutant", {BodyOf(c, handle), 0});
+    handoff->proceed.store(true);
+    CHECK(released.get() == rex::kernel::X_STATUS_MUTANT_NOT_OWNED);
+    c.Kernel("NtClose", {owner});
+  });
+}
+
+REX_TEST_CASE("A waiter woken on a replaced mutant leaves the new owner in place",
+              "[kernel][mutants][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto handoff = std::make_shared<MutantHandoff>();
+    auto published = handoff->handle.get_future();
+    const u32 owner = c.Spawn([handoff](Caller& o) {
+      handoff->handle.set_value(CreateNt(o, "NtCreateMutant", 0, 1));
+      while (!handoff->proceed.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+    });
+    const u32 handle = published.get();
+    const u32 body = BodyOf(c, handle);
+    auto waiting = std::make_shared<std::atomic<bool>>(false);
+    auto woken = std::make_shared<std::atomic<bool>>(false);
+    const u32 waiter = c.Spawn([handle, waiting, woken](Caller& w) {
+      waiting->store(true);
+      w.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, 0});
+      woken->store(true);
+    });
+    while (!waiting->load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    c.Kernel("KeInitializeMutant", {body, 1});
+    handoff->proceed.store(true);
+    CHECK(WaitHandleFor(c, owner, -50000000) == 0);
+    for (int i = 0; i < 1000 && !woken->load(); ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(woken->load());
+    CHECK(c.Kernel("KeReleaseMutant", {body, 0, 0, 0}) == 0);
+    c.Kernel("NtClose", {owner});
+    c.Kernel("NtClose", {waiter});
+  });
+}
+
+REX_TEST_CASE("KeSetEvent and NtSetEvent from other threads run safely during a reinitialization",
+              "[kernel][events][identity]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = CreateNt(c, "NtCreateEvent", 0, 0, 0);
+    const u32 body = BodyOf(c, handle);
+    auto stop = std::make_shared<std::atomic<bool>>(false);
+    const u32 setter = c.Spawn([handle, body, stop](Caller& t) {
+      while (!stop->load()) {
+        t.Kernel("KeSetEvent", {body, 0, 0});
+        t.Kernel("NtSetEvent", {handle, 0});
+      }
+    });
+    const u32 poller = c.Spawn([handle, stop](Caller& t) {
+      while (!stop->load()) {
+        t.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, t.AllocQuad(-1000)});
+        t.Kernel("NtClearEvent", {handle, 0});
+      }
+    });
+    for (u32 i = 0; i < 500; ++i) {
+      c.Kernel("KeInitializeEvent", {body, i & 1, 0});
+    }
+    stop->store(true);
+    CHECK(WaitHandleFor(c, setter, -50000000) == 0);
+    CHECK(WaitHandleFor(c, poller, -50000000) == 0);
+    c.Kernel("NtClose", {setter});
+    c.Kernel("NtClose", {poller});
+  });
+}
+
+}  // namespace reinit_tests

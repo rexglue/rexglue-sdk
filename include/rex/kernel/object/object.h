@@ -19,6 +19,7 @@
 #include <concepts>
 #include <cstddef>
 #include <format>
+#include <memory>
 #include <span>
 #include <string>
 #include <vector>
@@ -42,7 +43,7 @@ class TitleRuntime;
 
 namespace rex::kernel {
 
-/** Value StashHandle writes to wait_list_flink to mark a dispatch header that holds a handle. */
+/** Magic value at the start of the extra block of an XAM enumerator. */
 constexpr memory::FourCCT kStashSignature = memory::make_fourcc('R', 'E', 'X', '\0');
 
 enum class ObjectType : u8 {
@@ -61,16 +62,6 @@ enum class ObjectType : u8 {
 
 /** The value added to a table slot index, shifted left by 2, to form a handle. */
 inline constexpr u32 kHandleBase = 0xF8000000;
-
-/**
- * Writes the guest header stash that Ke exports use to find the handle.
- *
- * @param header The dispatch header inside a guest object.
- */
-inline void StashHandle(X_DISPATCH_HEADER* header, u32 handle) {
-  header->wait_list_flink = kStashSignature;
-  header->wait_list_blink = handle;
-}
 
 /**
  * Converts a wait timeout in 100 nanosecond ticks to milliseconds.
@@ -186,6 +177,70 @@ class PinCount {
  private:
   static constexpr u32 kRetired = 0x80000000u;
   std::atomic<u32> count_{0};
+};
+
+/**
+ * Owns a host primitive that any thread reads without a lock and one writer at a time can replace.
+ * A replaced primitive stays alive until the owner is destroyed, so a reader holding the old
+ * pointer stays valid.
+ *
+ * @tparam T A primitive type with a virtual destructor.
+ */
+template <typename T>
+class PublishedPtr {
+ public:
+  PublishedPtr() = default;
+
+  /** @param owner The primitive to publish. */
+  PublishedPtr(std::unique_ptr<T> owner) { Replace(std::move(owner)); }
+
+  PublishedPtr& operator=(std::unique_ptr<T> owner) {
+    Replace(std::move(owner));
+    return *this;
+  }
+
+  /** @return The published primitive, which readers load once and then use. */
+  T* get() noexcept { return current_.load(std::memory_order_acquire); }
+
+  const T* get() const noexcept { return current_.load(std::memory_order_acquire); }
+
+  T* operator->() noexcept { return get(); }
+
+  const T* operator->() const noexcept { return get(); }
+
+  explicit operator bool() const noexcept { return get() != nullptr; }
+
+  friend bool operator==(const PublishedPtr& value, std::nullptr_t) noexcept {
+    return value.get() == nullptr;
+  }
+
+  /**
+   * Publishes a primitive and keeps the previous one alive. Callers serialize the writes.
+   *
+   * @param next The primitive readers load from now on.
+   */
+  void Replace(std::unique_ptr<T> next) {
+    if (owner_) {
+      retired_.push_back(std::move(owner_));
+    }
+    owner_ = std::move(next);
+    current_.store(owner_.get(), std::memory_order_release);
+  }
+
+  /**
+   * Takes the primitive of an object no other thread can see yet.
+   *
+   * @return The primitive, which this pointer no longer publishes.
+   */
+  [[nodiscard]] std::unique_ptr<T> Take() noexcept {
+    current_.store(nullptr, std::memory_order_relaxed);
+    return std::move(owner_);
+  }
+
+ private:
+  std::atomic<T*> current_{nullptr};
+  std::unique_ptr<T> owner_;
+  std::vector<std::unique_ptr<T>> retired_;
 };
 
 }  // namespace rex::kernel

@@ -46,10 +46,11 @@ void EventObject::Query(u32* out_type, u32* out_state) {
     *out_type = manual_reset ? 0x00 : 0x01;
   }
   if (out_state) {
-    auto result = rex::platform::Wait(event.get(), false, std::chrono::milliseconds(0));
+    rex::platform::Event* host = event.get();
+    auto result = rex::platform::Wait(host, false, std::chrono::milliseconds(0));
     if (result == rex::platform::WaitResult::kSuccess) {
       *out_state = 1;
-      event->Set();
+      host->Set();
     } else {
       *out_state = 0;
     }

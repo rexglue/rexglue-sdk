@@ -59,7 +59,7 @@ struct MutantObject {
    */
   REX_KERNEL_API explicit MutantObject(bool initial_owner, u32 guest_mutant_in = 0);
 
-  std::unique_ptr<rex::platform::Mutant> mutant; /**< Host mutant that waiters block on. */
+  PublishedPtr<rex::platform::Mutant> mutant; /**< Host mutant that waiters block on. */
   /** ID of the owning thread, 0 when no thread owns the mutant. */
   std::atomic<u32> owner_thread_id{0};
   std::atomic<i32> hold_count{0}; /**< Number of recursive acquires by the owner, 0 when unowned. */
@@ -80,9 +80,11 @@ struct MutantObject {
   /**
    * Sets the current thread as the owner after a successful wait.
    *
+   * @param waited The host mutant the wait returned on. A replaced mutant leaves the owner as it
+   * is.
    * @return True when the mutant was abandoned since its last acquire.
    */
-  REX_KERNEL_API bool OnAcquired();
+  REX_KERNEL_API bool OnAcquired(const rex::platform::WaitHandle* waited);
 };
 
 }  // namespace rex::kernel

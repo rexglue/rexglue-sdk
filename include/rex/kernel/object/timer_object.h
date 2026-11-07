@@ -53,7 +53,7 @@ struct TimerObject {
   REX_KERNEL_API ~TimerObject();
 
   /** Host timer that signals the object when it expires. */
-  std::unique_ptr<rex::platform::Timer> timer;
+  PublishedPtr<rex::platform::Timer> timer;
   /** Pending expiry entry the dispatcher tracks, expired when the timer is canceled. */
   std::weak_ptr<rex::platform::TimerQueueWaitItem> expiry;
   /** ID of the thread that armed the timer, the thread its completion routine runs on. */

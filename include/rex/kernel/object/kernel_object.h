@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <utility>
@@ -62,6 +63,8 @@ struct KernelObject {
   u32 pointer_refs = 0;          /**< Pointer references, which keep the object without a handle. */
   u32 guest_ptr = 0;             /**< Address of the object body, 0 without a guest block. */
   bool owns_guest_block = false; /**< True when the destructor frees the block at guest_ptr. */
+  /** Set when a Ke initializer rewrote the header of an object that owns its block. */
+  std::atomic<bool> reinit_pending{false};
   kernel::GuestAddressSpace* memory = nullptr;
   WorkspaceHeap* workspace = nullptr; /**< Null for the system heap. */
   PinCount pins;                      /**< Keeps the object alive while a caller uses it. */

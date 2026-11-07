@@ -328,7 +328,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
 
 u32 NtCreateIoCompletion_entry(MappedU32 handle_out, [[maybe_unused]] u32 desired_access,
                                [[maybe_unused]] MappedVoid object_attrs,
-                               [[maybe_unused]] u32 num_concurrent_threads) {
+                               u32 num_concurrent_threads) {
   X_HANDLE handle = 0;
   auto& table = kernel::GetCurrent().GetObjectTable();
   ObjectBlock block = table.AllocateObjectBlock(kIOCompletionObjectSize, ObjectType::kIOCompletion,
@@ -336,6 +336,18 @@ u32 NtCreateIoCompletion_entry(MappedU32 handle_out, [[maybe_unused]] u32 desire
   if (!block.address) {
     return X_STATUS_NO_MEMORY;
   }
+  auto* queue =
+      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KQUEUE*>(block.address);
+  queue->header.type = kDispatcherQueue;
+  queue->header.signal_state = 0;
+  queue->header.wait_list_flink = block.address + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+  queue->header.wait_list_blink = queue->header.wait_list_flink;
+  queue->entry_list_head.flink_ptr = block.address + offsetof(X_KQUEUE, entry_list_head);
+  queue->entry_list_head.blink_ptr = queue->entry_list_head.flink_ptr;
+  queue->thread_list_head.flink_ptr = block.address + offsetof(X_KQUEUE, thread_list_head);
+  queue->thread_list_head.blink_ptr = queue->thread_list_head.flink_ptr;
+  queue->current_count = 0;
+  queue->maximum_count = num_concurrent_threads ? num_concurrent_threads : 1;
   auto added = table.Emplace<IOCompletionObject>(AddOptions{{}, block});
   if (added) {
     handle = *added;

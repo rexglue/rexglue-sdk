@@ -377,6 +377,38 @@ REX_TEST_CASE(
   });
 }
 
+REX_TEST_CASE("files: NtCreateIoCompletion initializes the queue header of its body",
+              "[kernel][files]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    for (const u32 concurrent : {0u, 3u}) {
+      const u32 port_ptr = c.Alloc(4);
+      const u32 object_ptr = c.Alloc(4);
+      CHECKED_ELSE(c.Kernel("NtCreateIoCompletion", {port_ptr, 0x1F0003, 0, concurrent}) == 0) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
+      CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {c.Load32(port_ptr), 0, object_ptr}) ==
+                   0) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
+      const u32 body = c.Load32(object_ptr);
+      REQUIRE(body != 0);
+      CHECK(c.Load8(body) == 4);
+      CHECK(c.Load32(body + 4) == 0);
+      CHECK(c.Load32(body + 0x8) == body + 0x8);
+      CHECK(c.Load32(body + 0xC) == body + 0x8);
+      CHECK(c.Load32(body + 0x10) == body + 0x10);
+      CHECK(c.Load32(body + 0x14) == body + 0x10);
+      CHECK(c.Load32(body + 0x18) == 0);
+      CHECK(c.Load32(body + 0x1C) == (concurrent ? concurrent : 1));
+      CHECK(c.Load32(body + 0x20) == body + 0x20);
+      CHECK(c.Load32(body + 0x24) == body + 0x20);
+    }
+  });
+}
+
 REX_TEST_CASE("files: sequential reads advance the position", "[kernel][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {
     std::ofstream out(root / "seq.bin", std::ios::binary);

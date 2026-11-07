@@ -236,7 +236,7 @@ X_STATUS Wait(TitleRuntime& runtime, const ObjectPin& object, [[maybe_unused]] u
   KernelThread::CheckStop();
   const X_STATUS status = MapResult(result);
   if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && target.mutant &&
-      target.mutant->OnAcquired()) {
+      target.mutant->OnAcquired(target.handle)) {
     return X_STATUS_ABANDONED_WAIT_0;
   }
   return status;
@@ -266,7 +266,7 @@ X_STATUS SignalAndWait(TitleRuntime& runtime, const ObjectPin& signal_object,
   KernelThread::CheckStop();
   const X_STATUS status = MapResult(result);
   if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && wait.mutant &&
-      wait.mutant->OnAcquired()) {
+      wait.mutant->OnAcquired(wait.handle)) {
     return X_STATUS_ABANDONED_WAIT_0;
   }
   return status;
@@ -315,7 +315,8 @@ X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects,
     KernelThread::CheckStop();
     switch (result.first) {
       case rex::platform::WaitResult::kSuccess:
-        if (targets[result.second].mutant && targets[result.second].mutant->OnAcquired()) {
+        if (targets[result.second].mutant &&
+            targets[result.second].mutant->OnAcquired(targets[result.second].handle)) {
           return static_cast<X_STATUS>(X_STATUS_ABANDONED_WAIT_0 + result.second);
         }
         return static_cast<X_STATUS>(result.second);
@@ -328,7 +329,7 @@ X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects,
         return X_STATUS_UNSUCCESSFUL;
       default:
         if (targets[result.second].mutant) {
-          (void)targets[result.second].mutant->OnAcquired();
+          (void)targets[result.second].mutant->OnAcquired(targets[result.second].handle);
         }
         return static_cast<X_STATUS>(X_STATUS_ABANDONED_WAIT_0 + result.second);
     }
@@ -344,7 +345,7 @@ X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects,
     case rex::platform::WaitResult::kSuccess: {
       bool abandoned = false;
       for (WaitTarget& target : targets) {
-        if (target.mutant && target.mutant->OnAcquired()) {
+        if (target.mutant && target.mutant->OnAcquired(target.handle)) {
           abandoned = true;
         }
       }
@@ -358,7 +359,7 @@ X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects,
     default:
       for (WaitTarget& target : targets) {
         if (target.mutant) {
-          (void)target.mutant->OnAcquired();
+          (void)target.mutant->OnAcquired(target.handle);
         }
       }
       return X_STATUS_ABANDONED_WAIT_0;
