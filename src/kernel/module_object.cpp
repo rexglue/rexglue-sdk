@@ -18,6 +18,7 @@
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/object/module_object.h>
 #include "kernel/title_state.h"
+#include <rex/filesystem/xex.h>
 #include <rex/kernel/types/xex.h>
 
 namespace rex::kernel {

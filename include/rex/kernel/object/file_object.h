@@ -24,10 +24,6 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/assert.h>
-#include <rex/filesystem/file_stat.h>
-#include <rex/filesystem/directory.h>
-#include <rex/filesystem/file.h>
-#include <rex/filesystem/file_system.h>
 #include <rex/platform/thread.h>
 #include <rex/utility.h>
 #include <rex/platform/sync.h>
@@ -37,6 +33,12 @@
 #include <rex/kernel/object/object.h>
 
 namespace rex {
+namespace filesystem {
+class IDirectory;
+class IFile;
+class IFileSystem;
+struct FileStat;
+}  // namespace filesystem
 namespace kernel {
 class TitleRuntime;
 }  // namespace kernel
@@ -274,9 +276,9 @@ struct FileObject : IOpenedFile {
 
   REX_KERNEL_API std::optional<filesystem::FileStat> FindNext() override;
 
-  u64 GetSize() override { return file->GetInfo().size; }
+  REX_KERNEL_API u64 GetSize() override;
 
-  std::string GetAbsolutePath() override { return file->GetInfo().absolute_path; }
+  REX_KERNEL_API std::string GetAbsolutePath() override;
 
   /**
    * Associates an IO completion port with the file. The file owns a duplicate of the port handle.

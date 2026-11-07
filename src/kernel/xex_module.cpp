@@ -39,9 +39,35 @@
 namespace rex::kernel {
 
 XEXModule::XEXModule(FunctionDispatcher* function_dispatcher, TitleRuntime& runtime)
-    : GuestModule(function_dispatcher), runtime_(&runtime) {}
+    : GuestModule(function_dispatcher),
+      runtime_(&runtime),
+      pe_(std::make_unique<filesystem::PEInfo>()) {}
 
 XEXModule::~XEXModule() = default;
+
+u32 XEXModule::GetEntryPoint() const {
+  return image_ ? image_->GetOptHeaderValue(kXEXHeaderEntryPoint).value_or(0) : 0;
+}
+
+u32 XEXModule::GetExportTableAddress() const {
+  return image_ ? image_->GetSecurity().export_table : 0;
+}
+
+u32 XEXModule::GetExceptionDirectoryRVA() const {
+  return pe_->exception_directory_rva;
+}
+
+u32 XEXModule::GetExceptionDirectorySize() const {
+  return pe_->exception_directory_size;
+}
+
+u32 XEXModule::GetExceptionDirectoryAddress() const {
+  return base_address_ + pe_->exception_directory_rva;
+}
+
+bool XEXModule::IsExecutable() const {
+  return image_ && (static_cast<u32>(image_->GetHeader().module_flags) & kXEXModuleTitle) != 0;
+}
 
 u32 XEXModule::GetImageSize() const {
   REX_ASSERT(base_address_ != 0);
@@ -237,13 +263,13 @@ bool XEXModule::LoadContinue() {
   if (!parsed_pe) {
     REXSYS_FAIL(false, "Failed to load XEX PE headers, {}", parsed_pe.error().GetDescription());
   }
-  pe_ = std::move(*parsed_pe);
-  if (pe_.header_size < image_end) {
-    std::memcpy(GetAddressSpace()->TranslateVirtual(base_address_ + pe_.header_size),
-                pending_image_.data() + pe_.header_size, image_end - pe_.header_size);
+  *pe_ = std::move(*parsed_pe);
+  if (pe_->header_size < image_end) {
+    std::memcpy(GetAddressSpace()->TranslateVirtual(base_address_ + pe_->header_size),
+                pending_image_.data() + pe_->header_size, image_end - pe_->header_size);
   }
   std::vector<u8>().swap(pending_image_);
-  for (auto& section : pe_.sections) {
+  for (auto& section : pe_->sections) {
     section.address += base_address_;
   }
 
@@ -375,7 +401,7 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
 void XEXModule::PopulateBinaryData() {
   binary_sections_.clear();
   binary_symbols_.clear();
-  for (const auto& pe_sec : pe_.sections) {
+  for (const auto& pe_sec : pe_->sections) {
     BinarySection sec;
     sec.name = pe_sec.name;
     sec.virtual_address = pe_sec.address;

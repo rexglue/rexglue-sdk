@@ -28,7 +28,6 @@
 #include <rex/kernel/symbol_map.h>
 #include <memory>
 
-#include <rex/filesystem/xex.h>
 #include <rex/kernel/types/xex.h>
 #include <rex/memory/endian.h>
 #include <rex/ppc/recompiled_code.h>
@@ -37,6 +36,12 @@
 #include <rex/kernel/types/status.h>
 #include <rex/module.h>
 #include <rex/utility.h>
+
+namespace rex::filesystem {
+class IXEXImage;
+struct PEInfo;
+struct XEXImportLibrary;
+}  // namespace rex::filesystem
 
 namespace rex::kernel {
 
@@ -197,7 +202,7 @@ class REX_KERNEL_API XEXModule : public GuestModule {
 
   bool IsLoaded() const { return loaded_; }
   const filesystem::IXEXImage& GetImage() const { return *image_; }
-  const filesystem::PEInfo& GetPE() const { return pe_; }
+  const filesystem::PEInfo& GetPE() const { return *pe_; }
 
   /**
    * @return Size in bytes, summed over the page ranges of the image.
@@ -212,22 +217,16 @@ class REX_KERNEL_API XEXModule : public GuestModule {
   /**
    * @return The guest address, 0 when the image has none.
    */
-  u32 GetEntryPoint() const override {
-    return image_ ? image_->GetOptHeaderValue(kXEXHeaderEntryPoint).value_or(0) : 0;
-  }
+  u32 GetEntryPoint() const override;
 
   /**
    * @return The guest address, 0 when the image has none.
    */
-  u32 GetExportTableAddress() const override {
-    return image_ ? image_->GetSecurity().export_table : 0;
-  }
+  u32 GetExportTableAddress() const override;
 
-  u32 GetExceptionDirectoryRVA() const override { return pe_.exception_directory_rva; }
-  u32 GetExceptionDirectorySize() const override { return pe_.exception_directory_size; }
-  u32 GetExceptionDirectoryAddress() const override {
-    return base_address_ + pe_.exception_directory_rva;
-  }
+  u32 GetExceptionDirectoryRVA() const override;
+  u32 GetExceptionDirectorySize() const override;
+  u32 GetExceptionDirectoryAddress() const override;
 
   std::span<const BinarySection> GetBinarySections() const override;
   /**
@@ -277,9 +276,7 @@ class REX_KERNEL_API XEXModule : public GuestModule {
 
   const std::string& GetName() const override { return name_; }
   /** Reports whether the module flags mark a title module. */
-  bool IsExecutable() const override {
-    return image_ && (static_cast<u32>(image_->GetHeader().module_flags) & kXEXModuleTitle) != 0;
-  }
+  bool IsExecutable() const override;
 
  private:
   bool SetupLibraryImports(std::string_view name, const filesystem::XEXImportLibrary& library);
@@ -289,7 +286,7 @@ class REX_KERNEL_API XEXModule : public GuestModule {
   std::string name_;
   std::string path_;
   std::unique_ptr<filesystem::IXEXImage> image_;
-  filesystem::PEInfo pe_;
+  std::unique_ptr<filesystem::PEInfo> pe_;
   std::vector<u8> pending_image_;
   std::vector<ImportLibrary> import_libs_;
 

@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/filesystem/directory.h>
 #include <rex/filesystem/file_stat.h>
 #include <rex/filesystem/file.h>
 #include <rex/filesystem/file_system.h>
@@ -333,6 +334,14 @@ X_STATUS FileObject::SetLengthToPosition() {
   std::lock_guard<std::mutex> lock(file_lock);
   auto status = file->SetLength(position_);
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
+}
+
+u64 FileObject::GetSize() {
+  return file->GetInfo().size;
+}
+
+std::string FileObject::GetAbsolutePath() {
+  return file->GetInfo().absolute_path;
 }
 
 u64 FileObject::GetPosition() {

@@ -11,6 +11,7 @@
 
 #include <rex/hash.h>
 #include <rex/filesystem/file_stat.h>
+#include <rex/filesystem/file_system.h>
 #include <rex/logging/log_category.h>
 #include "kernel/categories.h"
 #include <rex/memory.h>

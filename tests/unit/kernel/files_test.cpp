@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include <rex/filesystem/mount.h>
+#include <rex/filesystem/file_system.h>
 #include <rex/kernel/types/content.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/types/io.h>
