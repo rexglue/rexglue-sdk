@@ -26,6 +26,9 @@ using namespace rex::test_input;
 
 namespace {
 
+constexpr rex::hid::KeystrokeSource kAllSources =
+    rex::hid::KeystrokeSource::kPad | rex::hid::KeystrokeSource::kKeyboard;
+
 class WarningSink final : public rex::log::ILogSink {
  public:
   void Write(const rex::log::Message& message) override {
@@ -129,21 +132,21 @@ REX_TEST_CASE("keystrokes respect the UI block", "[hid]") {
   Run("fake_a", [](rex::hid::IInputSystem& input) {
     g_fake[0].devices = {MakePad(1, 0)};
     g_fake[0].states[1] = Buttons(0);
-    CHECK_FALSE(input.GetKeystroke(0).has_value());
+    CHECK_FALSE(input.GetKeystroke(0, kAllSources).has_value());
 
     input.AcquireUIBlock();
     g_fake[0].states[1] = Buttons(rex::hid::kPadA);
-    CHECK_FALSE(input.GetKeystroke(0).has_value());
+    CHECK_FALSE(input.GetKeystroke(0, kAllSources).has_value());
     CHECK(input.GetState(0)->state.buttons == 0);
 
     input.ReleaseUIBlock();
-    CHECK_FALSE(input.GetKeystroke(0).has_value());
+    CHECK_FALSE(input.GetKeystroke(0, kAllSources).has_value());
     CHECK(input.GetState(0)->state.buttons == 0);
 
     g_fake[0].states[1] = Buttons(0);
-    CHECK_FALSE(input.GetKeystroke(0).has_value());
+    CHECK_FALSE(input.GetKeystroke(0, kAllSources).has_value());
     g_fake[0].states[1] = Buttons(rex::hid::kPadA);
-    auto pressed = input.GetKeystroke(0);
+    auto pressed = input.GetKeystroke(0, kAllSources);
     REQUIRE(pressed.has_value());
     CHECK((pressed->flags & 0x0001) != 0);
     CHECK(pressed->user == 0);
@@ -156,7 +159,7 @@ REX_TEST_CASE("any user takes a keystroke from the user that has one", "[hid]") 
     g_fake[0].states[1] = Buttons(0);
     g_fake[0].states[2] = Buttons(0);
     g_fake[0].states[3] = Buttons(rex::hid::kPadStart);
-    auto stroke = input.GetKeystroke(rex::hid::IInputSystem::kAnyUser);
+    auto stroke = input.GetKeystroke(rex::hid::IInputSystem::kAnyUser, kAllSources);
     REQUIRE(stroke.has_value());
     CHECK(stroke->user == 2);
   });
@@ -418,5 +421,37 @@ REX_TEST_CASE("a key binding written at run time moves the pad stick", "[hid][ke
   rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kG);
   app.Pump();
   CHECK(input.GetState(0)->state.thumb_ly == INT16_MAX);
+  app.Shutdown();
+}
+
+REX_TEST_CASE("a pad keystroke stays queued while only the keyboard is asked for", "[hid]") {
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0), MakePad(2, 1), MakePad(3, 2)};
+    g_fake[0].states[1] = Buttons(0);
+    g_fake[0].states[2] = Buttons(0);
+    g_fake[0].states[3] = Buttons(rex::hid::kPadStart);
+    CHECK_FALSE(
+        input.GetKeystroke(rex::hid::IInputSystem::kAnyUser, rex::hid::KeystrokeSource::kKeyboard)
+            .has_value());
+    auto stroke =
+        input.GetKeystroke(rex::hid::IInputSystem::kAnyUser, rex::hid::KeystrokeSource::kPad);
+    REQUIRE(stroke.has_value());
+    CHECK(stroke->user == 2);
+  });
+}
+
+REX_TEST_CASE("a keyboard keystroke stays queued while only the pad is asked for", "[hid]") {
+  rex::test_ui::UIApp app;
+  app.input_drivers = "none";
+  REQUIRE(app.Start());
+  rex::hid::IInputSystem& input = app.GetInput();
+  REQUIRE(input.GetSettings().mnk_passthrough.Set(true));
+  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kW);
+  app.Pump();
+  CHECK_FALSE(input.GetKeystroke(0, rex::hid::KeystrokeSource::kPad).has_value());
+  auto stroke = input.GetKeystroke(0, rex::hid::KeystrokeSource::kKeyboard);
+  REQUIRE(stroke.has_value());
+  CHECK(stroke->virtual_key != 0);
+  CHECK_FALSE(input.GetKeystroke(0, kAllSources).has_value());
   app.Shutdown();
 }

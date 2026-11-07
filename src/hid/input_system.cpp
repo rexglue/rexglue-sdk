@@ -455,7 +455,7 @@ Result<void> InputSystem::SetVibration(u32 user, const rex::hid::PadVibration& m
   return result;
 }
 
-Result<rex::hid::PadKeystroke> InputSystem::GetKeystroke(u32 user) {
+Result<rex::hid::PadKeystroke> InputSystem::GetKeystroke(u32 user, KeystrokeSource sources) {
   State& state = *state_;
   std::vector<ConnectionEvent> events;
   Result<rex::hid::PadKeystroke> result = std::unexpected(NotFound("no keystroke is waiting"));
@@ -471,10 +471,10 @@ Result<rex::hid::PadKeystroke> InputSystem::GetKeystroke(u32 user) {
             std::ranges::any_of(state.users[candidate], [&](const detail::DeviceKey& key) {
               return key.source == state.keyboard_mouse_source;
             });
-        if (has_keyboard) {
+        if (has_keyboard && HasFlags(sources, KeystrokeSource::kKeyboard)) {
           result = state.keyboard_mouse->TakeKeystroke();
         }
-        if (!result) {
+        if (!result && HasFlags(sources, KeystrokeSource::kPad)) {
           auto reading = state.ReadUserLocked(candidate);
           if (reading) {
             result = state.synth[candidate].Next(reading->state, Clock::GetGuestUptimeMillis());

@@ -13,6 +13,8 @@
 #include <array>
 #include <cstring>
 
+#include "../hid/input_harness.h"
+#include "../ui/ui_harness.h"
 #include "xam/input_convert.h"
 
 using rex::xam::ToInputResult;
@@ -97,4 +99,60 @@ REX_TEST_CASE("a missing pad reads as not connected and other failures as failed
         rex::kernel::X_ERROR_DEVICE_NOT_CONNECTED);
   CHECK(rex::xam::ToInputResult(rex::Error(rex::ErrorCategory::kPlatform, "refused")) ==
         rex::kernel::X_ERROR_FUNCTION_FAILED);
+}
+
+REX_TEST_CASE("an any user keystroke reports the user that produced it", "[kernel][xam][input]") {
+  using namespace rex::test_input;
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0), MakePad(2, 1), MakePad(3, 2)};
+    g_fake[0].states[1] = Buttons(0);
+    g_fake[0].states[2] = Buttons(0);
+    g_fake[0].states[3] = Buttons(rex::hid::kPadStart);
+    u32 user = 0;
+    rex::xam::X_INPUT_KEYSTROKE out{};
+    const u32 flags = rex::xam::kXInputFlagGamepad | rex::xam::kXInputFlagAnyUser;
+    CHECK(rex::xam::TakeInputKeystroke(input, user, flags, out) == rex::kernel::X_ERROR_SUCCESS);
+    CHECK(user == 2);
+    CHECK(out.user_index == 2);
+    CHECK(out.virtual_key != 0);
+  });
+}
+
+REX_TEST_CASE("a keystroke query without the gamepad bit leaves a pad key queued",
+              "[kernel][xam][input]") {
+  using namespace rex::test_input;
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0)};
+    g_fake[0].states[1] = Buttons(rex::hid::kPadStart);
+    u32 user = 0;
+    rex::xam::X_INPUT_KEYSTROKE out{};
+    out.virtual_key = 0x1234;
+    CHECK(rex::xam::TakeInputKeystroke(input, user, rex::xam::kXInputFlagKeyboard, out) ==
+          rex::kernel::X_ERROR_EMPTY);
+    CHECK(out.virtual_key == 0);
+    CHECK(rex::xam::TakeInputKeystroke(input, user, rex::xam::kXInputFlagGamepad, out) ==
+          rex::kernel::X_ERROR_SUCCESS);
+    CHECK(out.virtual_key != 0);
+  });
+}
+
+REX_TEST_CASE("a keystroke query without the gamepad bit still returns a keyboard key",
+              "[kernel][xam][input]") {
+  rex::test_ui::UIApp app;
+  app.input_drivers = "none";
+  REQUIRE(app.Start());
+  rex::hid::IInputSystem& input = app.GetInput();
+  REQUIRE(input.GetSettings().mnk_passthrough.Set(true));
+  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kW);
+  app.Pump();
+  u32 user = 3;
+  rex::xam::X_INPUT_KEYSTROKE out{};
+  const u32 any_user = rex::xam::kXInputFlagAnyUser;
+  CHECK(rex::xam::TakeInputKeystroke(input, user, rex::xam::kXInputFlagGamepad | any_user, out) ==
+        rex::kernel::X_ERROR_EMPTY);
+  CHECK(rex::xam::TakeInputKeystroke(input, user, rex::xam::kXInputFlagKeyboard | any_user, out) ==
+        rex::kernel::X_ERROR_SUCCESS);
+  CHECK(out.virtual_key != 0);
+  CHECK(user == 0);
+  app.Shutdown();
 }

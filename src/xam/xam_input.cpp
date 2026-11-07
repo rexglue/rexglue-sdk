@@ -154,62 +154,33 @@ u32 XamInputSetState_entry(u32 user_index, u32 unk, GuestPtrT<X_INPUT_VIBRATION>
 
 namespace {
 
-Result<rex::hid::PadKeystroke> TakeKeystroke(rex::hid::IInputSystem& input, u32 user) {
-  return input.GetKeystroke(user);
-}
-
-kernel::X_RESULT KeystrokeFailure(rex::hid::IInputSystem& input, u32 user) {
-  return input.GetState(user) ? kernel::X_ERROR_EMPTY : kernel::X_ERROR_DEVICE_NOT_CONNECTED;
+u32 GetKeystroke(u32& user, u32 flags, GuestPtrT<X_INPUT_KEYSTROKE> keystroke) {
+  if (!keystroke) {
+    return kernel::X_ERROR_BAD_ARGUMENTS;
+  }
+  X_INPUT_KEYSTROKE* out = keystroke;
+  rex::hid::IInputSystem* input = GetInput();
+  if (!input) {
+    *out = {};
+    return kernel::X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+  return TakeInputKeystroke(*input, user, flags, *out);
 }
 
 }  // namespace
 
 u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_KEYSTROKE> keystroke) {
-  if (!keystroke) {
-    return kernel::X_ERROR_BAD_ARGUMENTS;
-  }
-
-  if ((flags & 0xFF) && (flags & rex::xam::kXInputFlagGamepad) == 0) {
-    return kernel::X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-
-  const u32 actual_user_index = NormalizeUser(user_index, flags);
-  rex::hid::IInputSystem* input = GetInput();
-  if (!input || actual_user_index >= rex::hid::IInputSystem::kMaxUsers) {
-    return kernel::X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-  auto result = TakeKeystroke(*input, actual_user_index);
-  if (!result) {
-    return KeystrokeFailure(*input, actual_user_index);
-  }
-  X_INPUT_KEYSTROKE* out = keystroke;
-  *out = ToXInputKeystroke(*result);
-  return kernel::X_ERROR_SUCCESS;
+  return GetKeystroke(user_index, flags, keystroke);
 }
 
 u32 XamInputGetKeystrokeEx_entry(MappedU32 user_index_ptr, u32 flags,
                                  GuestPtrT<X_INPUT_KEYSTROKE> keystroke) {
-  if (!keystroke) {
-    return kernel::X_ERROR_BAD_ARGUMENTS;
+  u32 user = *user_index_ptr;
+  const u32 result = GetKeystroke(user, flags, keystroke);
+  if (result == kernel::X_ERROR_SUCCESS && (flags & rex::xam::kXInputFlagAnyUser)) {
+    *user_index_ptr = user;
   }
-
-  if ((flags & 0xFF) && (flags & rex::xam::kXInputFlagGamepad) == 0) {
-    return kernel::X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-
-  const u32 user_index = NormalizeUser(*user_index_ptr, flags);
-  rex::hid::IInputSystem* input = GetInput();
-  if (!input || user_index >= rex::hid::IInputSystem::kMaxUsers) {
-    return kernel::X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-  auto result = TakeKeystroke(*input, user_index);
-  if (!result) {
-    return KeystrokeFailure(*input, user_index);
-  }
-  X_INPUT_KEYSTROKE* out = keystroke;
-  *out = ToXInputKeystroke(*result);
-  *user_index_ptr = result->user;
-  return kernel::X_ERROR_SUCCESS;
+  return result;
 }
 
 i32 XamUserGetDeviceContext_entry(u32 user_index, [[maybe_unused]] u32 unk, MappedU32 out_ptr) {

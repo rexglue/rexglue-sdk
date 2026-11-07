@@ -35,7 +35,8 @@ class InputSystem final : public rex::hid::IInputSystem {
   [[nodiscard]] Result<PadReading> GetState(u32 user) override;
   [[nodiscard]] Result<rex::hid::PadCapabilities> GetCapabilities(u32 user) override;
   [[nodiscard]] Result<void> SetVibration(u32 user, const rex::hid::PadVibration& motors) override;
-  [[nodiscard]] Result<rex::hid::PadKeystroke> GetKeystroke(u32 user) override;
+  [[nodiscard]] Result<rex::hid::PadKeystroke> GetKeystroke(u32 user,
+                                                            KeystrokeSource sources) override;
   [[nodiscard]] Result<rex::hid::PadInfo> GetPadInfo(u32 user) override;
   [[nodiscard]] ScopeGuard OnConnectionChange(
       MoveOnlyFunction<void(u32 user, bool connected)> fn) override;

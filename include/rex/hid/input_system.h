@@ -92,9 +92,11 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
    * Takes the next keystroke.
    *
    * @param user 0 to 3, or kAnyUser.
+   * @param sources The devices to take it from: kPad for controller keys, kKeyboard for keyboard
+   * and chatpad text. A keystroke from a device left out stays queued.
    * @return The keystroke, or kNotFound when none is waiting.
    */
-  [[nodiscard]] virtual Result<PadKeystroke> GetKeystroke(u32 user) = 0;
+  [[nodiscard]] virtual Result<PadKeystroke> GetKeystroke(u32 user, KeystrokeSource sources) = 0;
 
   /**
    * Returns which pad a user holds, or kNotFound.

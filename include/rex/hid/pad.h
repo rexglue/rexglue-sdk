@@ -13,6 +13,7 @@
 
 #include <string>
 
+#include <rex/bit.h>
 #include <rex/types.h>
 
 namespace rex::hid {
@@ -69,6 +70,12 @@ struct PadKeystroke {
   u8 hid_code = 0;     /**< The USB HID usage of a key, 0 when none. */
 };
 
+/** The devices a keystroke can come from. */
+enum class KeystrokeSource : u8 {
+  kPad = 0x01,      /**< Controller keys: buttons and sticks made into keystrokes. */
+  kKeyboard = 0x02, /**< Keyboard and chatpad text. */
+};
+
 /** The pad family, for button glyphs. */
 enum class PadType : u8 {
   kUnknown,
@@ -112,3 +119,6 @@ struct PadDevice {
 };
 
 }  // namespace rex::hid
+
+template <>
+inline constexpr bool rex::is_flags_enum<rex::hid::KeystrokeSource> = true;

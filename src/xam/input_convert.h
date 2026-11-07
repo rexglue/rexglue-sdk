@@ -69,6 +69,52 @@ inline rex::xam::X_INPUT_KEYSTROKE ToXInputKeystroke(const rex::hid::PadKeystrok
 }
 
 /**
+ * Takes the next keystroke the way XamInputGetKeystrokeEx does.
+ *
+ * @param input The input system.
+ * @param user The user index the title passed. With the any user flag it receives the user that
+ * produced the keystroke.
+ * @param flags The query flags: kXInputFlagGamepad and kXInputFlagKeyboard select the devices,
+ * kXInputFlagAnyUser takes the keystroke from any user.
+ * @param out The keystroke struct, zeroed first.
+ * @return X_ERROR_SUCCESS, X_ERROR_EMPTY when a user is connected and no keystroke waits, else
+ * X_ERROR_DEVICE_NOT_CONNECTED.
+ */
+inline rex::kernel::X_RESULT TakeInputKeystroke(rex::hid::IInputSystem& input, u32& user, u32 flags,
+                                                rex::xam::X_INPUT_KEYSTROKE& out) {
+  out = {};
+  const bool any_user = (flags & rex::xam::kXInputFlagAnyUser) != 0;
+  const u32 query = any_user ? rex::hid::IInputSystem::kAnyUser : (user & 0xFF) == 0xFF ? 0 : user;
+  if (!any_user && query >= rex::hid::IInputSystem::kMaxUsers) {
+    return rex::kernel::X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+  using rex::hid::KeystrokeSource;
+  KeystrokeSource sources{};
+  if (flags & rex::xam::kXInputFlagGamepad) {
+    sources = sources | KeystrokeSource::kPad;
+  }
+  if (flags & rex::xam::kXInputFlagKeyboard) {
+    sources = sources | KeystrokeSource::kKeyboard;
+  }
+  auto result = input.GetKeystroke(query, sources);
+  if (result) {
+    out = ToXInputKeystroke(*result);
+    if (any_user) {
+      user = result->user;
+    }
+    return rex::kernel::X_ERROR_SUCCESS;
+  }
+  const u32 first = any_user ? 0 : query;
+  const u32 last = any_user ? rex::hid::IInputSystem::kMaxUsers : query + 1;
+  for (u32 candidate = first; candidate < last; ++candidate) {
+    if (input.GetState(candidate)) {
+      return rex::kernel::X_ERROR_EMPTY;
+    }
+  }
+  return rex::kernel::X_ERROR_DEVICE_NOT_CONNECTED;
+}
+
+/**
  * Reads the motor speeds the title asked for.
  *
  * @return The speeds in host order.
