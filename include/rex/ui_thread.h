@@ -1,5 +1,5 @@
 /**
- * @file        ui/ui_thread.h
+ * @file        ui_thread.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

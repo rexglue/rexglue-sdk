@@ -17,7 +17,7 @@
 #include <rex/logging/logger.h>
 #include <rex/ui/style.h>
 #include <rex/utility.h>
-#include <rex/ui/overlay_renderer.h>
+#include <rex/overlay_renderer.h>
 
 #include "ui/overlay/console/model.h"
 #include "ui/overlay/console_host.h"

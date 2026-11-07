@@ -46,7 +46,7 @@
 #include <rex/apu/audio_system.h>
 #include <rex/driver.h>
 #include <rex/driver_context.h>
-#include <rex/app/app_info.h>
+#include <rex/app_info.h>
 #include <rex/hid/input_driver.h>
 #include <rex/hid/pad.h>
 #include <rex/hid/input_system.h>

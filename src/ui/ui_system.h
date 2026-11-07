@@ -16,8 +16,8 @@
 #include <rex/ui/ui_system.h>
 
 #include <rex/logging/log_category.h>
-#include <rex/ui/ui_thread.h>
-#include <rex/ui/overlay_renderer.h>
+#include <rex/ui_thread.h>
+#include <rex/overlay_renderer.h>
 
 #include "ui/ui_control.h"
 

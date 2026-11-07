@@ -14,7 +14,7 @@
 #include <thread>
 
 #include <rex/driver_context.h>
-#include <rex/ui/ui_thread.h>
+#include <rex/ui_thread.h>
 #include <rex/module.h>
 #include <rex/platform.h>
 #include <rex/utility.h>

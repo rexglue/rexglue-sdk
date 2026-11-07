@@ -15,7 +15,7 @@
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
 #include <rex/driver_module.h>
-#include <rex/ui/native_window.h>
+#include <rex/platform/native_window.h>
 #include <rex/setting.h>
 #include <rex/ui/ui_driver.h>
 #include <rex/ui/dialog.h>

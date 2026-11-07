@@ -30,7 +30,7 @@
 #include <rex/path_settings.h>
 #include <rex/cli.h>
 #include <rex/platform/thread.h>
-#include <rex/app/app_info.h>
+#include <rex/app_info.h>
 #include <rex/platform/sync.h>
 #include <rex/ui/ui_system.h>
 #include <rex/app/title_app.h>

@@ -11,8 +11,8 @@
 #pragma once
 
 #include <rex/driver.h>
-#include <rex/ui/native_window.h>
-#include <rex/ui/overlay_renderer.h>
+#include <rex/platform/native_window.h>
+#include <rex/overlay_renderer.h>
 #include <rex/guest.h>
 #include <rex/memory/host.h>
 #include <rex/result.h>

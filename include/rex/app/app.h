@@ -22,7 +22,7 @@
 #include <rex/cli.h>
 #include <rex/platform.h>
 #include <rex/platform/process.h>
-#include <rex/app/app_info.h>
+#include <rex/app_info.h>
 #include <rex/module.h>
 #include <rex/result.h>
 #include <rex/setting.h>

@@ -25,7 +25,7 @@
 #include <rex/ui/window.h>
 #include <rex/ui/ui_event.h>
 #include <rex/utility.h>
-#include <rex/ui/overlay_renderer.h>
+#include <rex/overlay_renderer.h>
 
 #include <imgui.h>
 

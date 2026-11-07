@@ -26,7 +26,7 @@
 #include <rex/settings_registry.h>
 #include <rex/logging/logger.h>
 #include <rex/ui/ui_system.h>
-#include <rex/ui/overlay_renderer.h>
+#include <rex/overlay_renderer.h>
 #include <rex/ui/dialog.h>
 #include <rex/ui/ui_event.h>
 

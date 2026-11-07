@@ -1,5 +1,5 @@
 /**
- * @file        ui/overlay_renderer.h
+ * @file        overlay_renderer.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

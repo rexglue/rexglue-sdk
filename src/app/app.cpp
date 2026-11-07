@@ -23,7 +23,7 @@
 #include <rex/apu/audio_system.h>
 #include <rex/driver.h>
 #include <rex/driver_module.h>
-#include <rex/app/app_info.h>
+#include <rex/app_info.h>
 #include <rex/init.h>
 #include <rex/gpu/graphics_system.h>
 #include <rex/hid/input_system.h>

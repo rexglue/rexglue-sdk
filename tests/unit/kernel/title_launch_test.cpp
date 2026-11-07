@@ -33,7 +33,7 @@
 #include <rex/gpu/graphics_system.h>
 #include <rex/hid/input_system.h>
 #include <rex/driver.h>
-#include <rex/app/app_info.h>
+#include <rex/app_info.h>
 #include <rex/kernel/export.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/setting.h>

@@ -25,7 +25,7 @@
 #include <rex/hid/input_keys.h>
 #include <rex/module.h>
 #include <rex/ui/dialog.h>
-#include <rex/ui/native_window.h>
+#include <rex/platform/native_window.h>
 #include <rex/ui/window.h>
 #include <rex/ui/ui_event.h>
 #include <rex/utility.h>
@@ -34,7 +34,7 @@
 #include <rex/settings_registry.h>
 #include <rex/title.h>
 #include <rex/types.h>
-#include <rex/ui/overlay_renderer.h>
+#include <rex/overlay_renderer.h>
 
 struct ImGuiIO;
 

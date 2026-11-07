@@ -14,7 +14,7 @@
 #include <memory>
 
 #include "gpu/xenos/xenos_export.h"
-#include <rex/ui/native_window.h>
+#include <rex/platform/native_window.h>
 #include "gpu/xenos/host/graphics_provider.h"
 #include "gpu/xenos/host/imgui_overlay.h"
 #include "gpu/xenos/host/presentation.h"

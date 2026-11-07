@@ -17,7 +17,7 @@
 #include <rex/assert.h>
 #include <rex/types.h>
 #include <rex/bit.h>
-#include <rex/ui/native_window.h>
+#include <rex/platform/native_window.h>
 #include <rex/utility.h>
 
 namespace rex {

@@ -23,7 +23,7 @@
 #include <rex/types.h>
 #include <rex/platform/process.h>
 #include <rex/ui/dialog.h>
-#include <rex/ui/native_window.h>
+#include <rex/platform/native_window.h>
 #include <rex/ui/ui_event.h>
 #include <rex/ui/window.h>
 

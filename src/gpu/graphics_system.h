@@ -14,7 +14,7 @@
 #include <chrono>
 #include <memory>
 
-#include <rex/ui/overlay_renderer.h>
+#include <rex/overlay_renderer.h>
 #include <rex/gpu/graphics_driver.h>
 #include <rex/gpu/graphics_system.h>
 #include <rex/utility.h>

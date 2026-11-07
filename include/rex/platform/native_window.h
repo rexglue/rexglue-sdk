@@ -1,5 +1,5 @@
 /**
- * @file        ui/native_window.h
+ * @file        platform/native_window.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -29,7 +29,7 @@
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
 #include <rex/driver_module.h>
-#include <rex/ui/native_window.h>
+#include <rex/platform/native_window.h>
 #include <rex/cli.h>
 #include <rex/hid/input_system.h>
 #include <rex/ui/ui_driver.h>

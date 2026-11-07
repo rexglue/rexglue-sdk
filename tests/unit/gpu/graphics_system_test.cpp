@@ -35,7 +35,7 @@
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
 #include <rex/driver_module.h>
-#include <rex/app/app_info.h>
+#include <rex/app_info.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/setting.h>
 #include <rex/title.h>

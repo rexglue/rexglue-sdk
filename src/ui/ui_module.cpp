@@ -10,7 +10,7 @@
 #include <rex/ui/ui_driver.h>
 #include <rex/version.h>
 #include <rex/driver_module.h>
-#include <rex/ui/ui_thread.h>
+#include <rex/ui_thread.h>
 
 namespace rex::ui {
 

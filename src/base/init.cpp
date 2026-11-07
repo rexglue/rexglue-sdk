@@ -14,7 +14,7 @@
 #include <rex/platform/timer.h>
 #include <rex/settings_registry.h>
 #include <rex/driver_context.h>
-#include <rex/ui/ui_thread.h>
+#include <rex/ui_thread.h>
 
 #include "base/app_state.h"
 #include "base/driver_context.h"

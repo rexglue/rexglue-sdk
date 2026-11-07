@@ -18,7 +18,7 @@
 
 #include <rex/driver.h>
 #include <rex/driver_context.h>
-#include <rex/app/app_info.h>
+#include <rex/app_info.h>
 #include <rex/logging/log_category.h>
 #include <rex/module.h>
 
