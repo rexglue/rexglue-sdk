@@ -157,14 +157,15 @@ X_STATUS FileObject::QueryDirectory(TitleRuntime&, X_FILE_DIRECTORY_INFORMATION*
       return X_STATUS_NO_SUCH_FILE;
     }
   } else {
-    if (!find) {
+    const bool started = !find;
+    if (started) {
       SetFindPattern({});
     } else if (restart) {
       find->Restart();
     }
     entry = FindNext();
     if (!entry) {
-      return X_STATUS_NO_MORE_FILES;
+      return started ? X_STATUS_NO_SUCH_FILE : X_STATUS_NO_MORE_FILES;
     }
   }
 
@@ -172,7 +173,7 @@ X_STATUS FileObject::QueryDirectory(TitleRuntime&, X_FILE_DIRECTORY_INFORMATION*
   const std::string& entry_name = entry->name;
   if (reinterpret_cast<u8*>(&out_info->file_name[0]) + entry_name.size() > end) {
     REX_ASSERT_ALWAYS("Buffer overflow?");
-    return X_STATUS_NO_SUCH_FILE;
+    return X_STATUS_BUFFER_OVERFLOW;
   }
 
   out_info->next_entry_offset = 0;

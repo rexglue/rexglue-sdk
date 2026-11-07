@@ -231,7 +231,9 @@ struct FileObject : IOpenedFile {
    *
    * @param out_info Receives the entry.
    * @param file_name The pattern, empty to continue the current listing.
-   * @return X_STATUS_SUCCESS, X_STATUS_NO_SUCH_FILE or X_STATUS_NO_MORE_FILES.
+   * @return X_STATUS_SUCCESS; X_STATUS_NO_SUCH_FILE when this call started the listing and nothing
+   *         matches; X_STATUS_NO_MORE_FILES when a started listing has no entry left;
+   *         X_STATUS_BUFFER_OVERFLOW when the name does not fit.
    */
   REX_KERNEL_API X_STATUS QueryDirectory(TitleRuntime& runtime,
                                          X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,

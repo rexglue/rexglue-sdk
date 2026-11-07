@@ -347,6 +347,51 @@ REX_TEST_CASE("files: symbolic link and directory calls report the console statu
   });
 }
 
+REX_TEST_CASE("files: a directory query with no match is no such file only when it starts",
+              "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) {
+    WriteScratch(root, "q.bin", 4);
+    std::filesystem::create_directories(root / "scratch" / "empty");
+  });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    const u32 info = c.Alloc(0x100);
+    const auto open_directory = [&](const char* path) {
+      CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.AllocAttributes(path),
+                                             status_block, 0, 0, 3, 1, 0x1}) == 0) {
+        FAIL_CHECK("the check above failed");
+        return u32{0};
+      }
+      return c.Load32(handle_ptr);
+    };
+    const auto query = [&](u32 directory, u32 restart) {
+      return c.Kernel("NtQueryDirectoryFile",
+                      {directory, 0, 0, 0, status_block, info, 0x100, 0, restart});
+    };
+
+    const u32 empty = open_directory("scratch:\\empty");
+    if (empty == 0) {
+      return;
+    }
+    CHECK(query(empty, 0) == rex::kernel::X_STATUS_NO_SUCH_FILE);
+    CHECK(query(empty, 0) == rex::kernel::X_STATUS_NO_MORE_FILES);
+    CHECK(c.Kernel("NtClose", {empty}) == 0);
+
+    const u32 full = open_directory("scratch:\\");
+    if (full == 0) {
+      return;
+    }
+    CHECK(query(full, 0) == 0);
+    u32 guard = 0;
+    while (query(full, 0) == 0 && ++guard < 16) {}
+    CHECK(query(full, 0) == rex::kernel::X_STATUS_NO_MORE_FILES);
+    CHECK(query(full, 1) == 0);
+    CHECK(c.Kernel("NtClose", {full}) == 0);
+  });
+}
+
 REX_TEST_CASE("files: XexLoadImage reports the open status of a missing module",
               "[kernel][files]") {
   KernelFixture fixture;
