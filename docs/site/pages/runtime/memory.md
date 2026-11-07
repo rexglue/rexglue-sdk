@@ -14,9 +14,13 @@ The runtime maps the whole guest address space at one host base, the `u8* base` 
 A guest address `A` maps to the host address `base + A`. `rex::memory::GuestPtr` and `rex::memory::HostPtrToGuest` translate in both directions.
 
 !!! note "The range from 0xE0000000"
-    The range from `0xE0000000` to `0xFFFFFFFF` shows physical memory one 4 KiB page in: guest address `0xE0000000` is physical address `0x1000`. The SDK maps this range as a view of the physical memory at offset `0x1000`.
+    The range from `0xE0000000` to `0xFFFFFFFF` shows physical memory starting at its second 4 KiB page, so guest address `0xE0000000` is physical address `0x1000`. The SDK maps this range as a view of the physical memory at offset `0x1000`.
 
-    A host can only map a view at a multiple of its allocation granularity. Windows allocates in 64 KiB units and macOS on arm64 uses 16 KiB pages, so neither can start a view at offset `0x1000`. On those hosts the view starts at offset 0, and recompiled code adds `0x1000` to every address at or above `0xE0000000` through the `REX_PHYS_HOST_OFFSET` macro. Linux and macOS on x86_64 use 4 KiB pages and map the offset. On a host whose granularity does not match its platform, `TitleRuntime::Load` logs the granularity and fails.
+    A host can only map a view at a multiple of its MMU page size. Windows, Linux on x86_64 and macOS on x86_64 have 4 KiB pages, so the SDK maps the view at offset `0x1000` and recompiled code adds nothing. Windows can do this because the SDK maps its views through placeholders, which need a 4 KiB aligned offset instead of the 64 KiB allocation granularity.
+
+    A host with larger pages cannot start a view at offset `0x1000`. macOS on arm64 has 16 KiB pages. On those hosts the view starts at offset 0, and recompiled code adds `0x1000` to every address at or above `0xE0000000` through the `REX_PHYS_HOST_OFFSET` macro. Linux on aarch64 depends on the kernel page size, so the CMake option `REX_PHYSICAL_OFFSET_IN_CODE` selects it. The option defaults to `ON` when the page size of the build host is above 4 KiB, and to `OFF` when cross compiling.
+
+    The choice is made when the SDK is built, and `rexbase` passes it to generated code as the compile definition `REX_PHYSICAL_OFFSET_IN_CODE`. When the page size of the host does not match the build, `TitleRuntime::Load` logs the page size and the option to change, and fails.
 
 ## Address Map
 
@@ -54,7 +58,7 @@ Guest thread stacks are in `0x70000000` to `0x7F000000`, each with a no access g
 
 ## MMIO Blocks
 
-MMIO, memory mapped I/O, means that a device exposes its registers at memory addresses, so the CPU controls the device with plain loads and stores. On the Xbox 360, the `0x7F000000` range holds two 64 KiB register blocks, the only addresses where an access reaches a device:
+On the Xbox 360, the `0x7F000000` range holds two 64 KiB register blocks, the only addresses where an access reaches a device:
 
 - `MMIOBlock::kGPU` at `0x7FC80000`, the registers of the Xenos GPU
 - `MMIOBlock::kAPU` at `0x7FEA0000`, the registers of the XMA audio decoder
@@ -93,7 +97,7 @@ The runtime commits the first 256 KiB of `v80000000` and writes the value `0x2A6
 
 The runtime installs an access violation handler for faults inside the guest mapping:
 
-- A fault in a register block is an MMIO miss. The crash text names the block, the access and the guest address.
+- A fault in a register block is an MMIO miss. The crash text gives the block, the access and the guest address.
 - A fault on a page that the heap allows is a stale host protection. The handler applies the protection again and the access resumes.
 - A write fault on a watched page of a physical view runs the write listeners, and the access resumes. See [Write Watches](#write-watches).
 
@@ -118,7 +122,7 @@ See `GuestMemory` in the API reference for the calls.
 
 | Heap | Purpose |
 |---|---|
-| `GuestHeap::kTitle` (default) | Allocates virtual memory in 64 KiB pages that does not count against the title budget. Needs an alignment of at least 4096. |
+| `GuestHeap::kTitle` (default) | Allocates virtual memory in 64 KiB pages without counting against the title budget. Needs an alignment of at least 4096. |
 | `GuestHeap::kSystem` | Allocates zeroed memory from the system range. |
 | `GuestHeap::kPhysical` | Allocates physical memory in 64 KiB pages at `0xA0000000` and counts it against the title budget. |
 
@@ -138,7 +142,7 @@ The heaps themselves are declared in `rex/kernel/heap.h`. Their calls do fewer c
 - `GuestAddressSpace::TryTranslateVirtual` returns null for address 0, a misaligned address, an unmapped address or a page without the required access.
 - `MemoryView` provides both translations, typed loads and stores, and string reads.
 
-`GuestAllocator::Create` reserves and commits a range through a `GuestMemory` and serves blocks from it, such as a range of the physical heap with `physical` true and a 64 KiB page size. The title workspace of XAM is such an allocator. See [Title Workspace](kernel.md#title-workspace).
+`GuestAllocator::Create` reserves and commits a range through a `GuestMemory` and serves blocks from it. An example is a range of the physical heap, created with `physical` true and a 64 KiB page size. The title workspace of XAM is such an allocator. See [Title Workspace](kernel.md#title-workspace).
 
 ## Physical Memory
 
@@ -151,7 +155,7 @@ Physical memory is the 512 MiB of RAM of the console. The runtime maps it at hos
 - An allocation in a view rounds its size and alignment up to the page size of the view. `Alloc` takes the highest free range of `physical` that the view covers.
 - Each view has its own page table, so the same physical page can have a different protection in each view.
 
-Systems and drivers read and write physical memory through `IPhysicalMemory` from `rex/guest.h`, which takes physical addresses from `0` to `0x1FFFFFFF`. Its calls go through the host mapping at `base + 0x100000000`, which is committed read write for all 512 MiB, so they reach pages the title has not allocated or has protected. See [Driver Context](../devices/driver-context.md#physical-memory) for the calls.
+Systems and drivers read and write physical memory through `IPhysicalMemory` from `rex/guest.h`, which takes physical addresses from `0` to `0x1FFFFFFF`. Its calls ignore guest allocation and page protection, because they go through the host mapping at `base + 0x100000000`, which is committed read write for all 512 MiB. See [Driver Context](../devices/driver-context.md#physical-memory) for the calls.
 
 ## Write Watches
 

@@ -19,6 +19,7 @@
 #include <rex/kernel/memory_view.h>
 #include <rex/kernel/heap.h>
 #include <rex/memory/mapped_ptr.h>
+#include <rex/memory/virtual_memory.h>
 
 #include "../kernel/kernel_fixture.h"
 #include "kernel/title_state.h"
@@ -378,4 +379,40 @@ REX_TEST_CASE("RemovePhysicalHostOffset inverts the host offset at the 0xE000000
         static_cast<std::size_t>(address) + rex::memory::detail::PhysicalHostOffset(address);
     CHECK(rex::memory::detail::RemovePhysicalHostOffset(host_offset) == address);
   }
+}
+
+REX_TEST_CASE("The 0xE0000000 view shows the physical bytes the 0xA0000000 view shows from 0x1000",
+              "[kernel]") {
+  rex::test::KernelFixture fixture;
+  rex::kernel::GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
+  rex::kernel::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
+  REQUIRE(heap != nullptr);
+  u32 block = 0;
+  REQUIRE(heap->Alloc(
+      0x2000, 0x1000, rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+      rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite, false, &block));
+  REQUIRE(block >= 0xE0000000);
+  const u32 offset = block - 0xE0000000;
+  for (const u32 x : {offset, offset + 0xFFFu, offset + 0x1FFFu}) {
+    CAPTURE(x);
+    u8* const alias_high = memory.TranslateVirtual(0xA0001000u + x);
+    u8* const view = memory.TranslateVirtual(0xE0000000u + x);
+    u8* const raw = memory.GetVirtualMembase() + 0xE0000000u + x +
+                    rex::memory::detail::PhysicalHostOffset(0xE0000000u);
+    *alias_high = 0x22;
+    CHECK(*view == 0x22);
+    CHECK(*raw == 0x22);
+    *view = 0x33;
+    CHECK(*alias_high == 0x33);
+    *raw = 0x44;
+    CHECK(*alias_high == 0x44);
+  }
+  CHECK(heap->Release(block));
+}
+
+REX_TEST_CASE("The offset is added in code exactly on hosts with pages above 4 KiB", "[kernel]") {
+  CHECK(rex::memory::detail::kPhysicalOffsetInCode == (rex::memory::GetPageSize() > 0x1000));
+  CHECK(rex::memory::detail::PhysicalHostOffset(0xE0000000u) ==
+        (rex::memory::GetPageSize() > 0x1000 ? 0x1000u : 0u));
+  CHECK(rex::memory::detail::PhysicalHostOffset(0xDFFFFFFFu) == 0u);
 }

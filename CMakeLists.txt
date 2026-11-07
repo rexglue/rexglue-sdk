@@ -57,6 +57,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_init_audit.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_physical_offset.cmake)
 
 if (UNIX AND NOT APPLE)
   # Keep installed binaries self-contained by resolving shared libs relative

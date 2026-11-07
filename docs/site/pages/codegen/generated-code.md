@@ -1,18 +1,18 @@
 # Generated Code
 
-`rexglue codegen` writes C++ source files for each binary in the manifest. This page shows what those files contain and how the build compiles them. [Codegen Pipeline](codegen-pipeline.md) describes the steps that produce them. The examples use the project `foobar` from [Getting Started](../getting-started.md).
+`rexglue codegen` writes C++ source files for each binary in the manifest. This page shows what those files contain and how the build compiles them. [Codegen Pipeline](codegen-pipeline.md) lists the steps that produce them. The examples use the project `foobar` from [Getting Started](../getting-started.md).
 
 Do not edit the generated files. Each time codegen regenerates a binary, it rewrites every file of that binary whose content differs from what it writes. To change generated behavior, use the [manifest](../reference/manifest.md) and [hooks](hooks.md).
 
 ## Output Files
 
-Codegen writes each binary into the folder named by the binary's `out_directory_path`, relative to the manifest. Two binaries cannot share a folder. For `foobar`, `rexglue init` sets the entrypoint folder to `generated/default`.
+Codegen writes each binary into the folder given by the binary's `out_directory_path`, relative to the manifest. Two binaries cannot share a folder. For `foobar`, `rexglue init` sets the entrypoint folder to `generated/default`.
 
 Every C++ file name starts with a prefix, which is `[project].name` for every binary, DLL modules included. The `project_name` key in a [binary table](../reference/manifest.md#binary-tables) sets another prefix for that binary. For `foobar`, the names start with `foobar_`, such as `foobar_pch.h` and the numbered files `foobar_recomp.0.cpp` and up. See [Generated Files](../appendix/generated-files.md) for the purpose of each file.
 
 The entrypoint folder also holds `codegen.d` and `codegen.build.stamp`, which the build uses to rerun codegen. When the manifest lists `[[modules]]`, it holds `module_registry.cpp` and `dll_targets.cmake` too.
 
-- To replace a built in template for the headers, the init file, the register file or `sources.cmake`, put a file named `codegen/` and the template name with the `.inja` extension, such as `codegen/pch_h.inja`, in the folder that the manifest key `template_dir` names.
+- To replace a built in template for the headers, the init file, the register file or `sources.cmake`, add a file `codegen/` plus the template name and `.inja`, such as `codegen/pch_h.inja`, to the folder that the manifest key `template_dir` points to.
 - The templates for `module_registry.cpp` and `dll_targets.cmake` cannot be replaced.
 
 ### The Precompiled Header
@@ -73,7 +73,7 @@ See [Registers in Locals](codegen-pipeline.md#registers-in-locals) for the regis
 Guest memory is big endian, so every load and store swaps the bytes. Generated code reaches guest address `A` at host address `base + A`.
 
 !!! note "Addresses from 0xE0000000"
-    On Windows and on macOS on arm64, every access to an address of `0xE0000000` or above adds `0x1000`, through `REX_PHYS_HOST_OFFSET`. On the console, guest address `0xE0000000` is physical address `0x1000`. The allocation granularity of those hosts is larger than `0x1000` bytes, so a memory view cannot start at physical address `0x1000`. The SDK starts the view at physical address 0 and the generated code adds the difference. Accesses through `r1` skip the offset, since every guest stack lies below `0xE0000000`. On Linux and on macOS on x86_64, `REX_PHYS_HOST_OFFSET` is 0. See [Address Translation](../runtime/memory.md#address-translation).
+    On macOS on arm64, and on Linux on aarch64 when the CMake option `REX_PHYSICAL_OFFSET_IN_CODE` is `ON`, every access to an address of `0xE0000000` or above adds `0x1000`, through `REX_PHYS_HOST_OFFSET`. On the console, guest address `0xE0000000` is physical address `0x1000`. The MMU page of those hosts is larger than `0x1000` bytes, so a memory view cannot start at physical address `0x1000`. The SDK starts the view at physical address 0 and the generated code adds the difference. Accesses through `r1` skip the offset, since every guest stack lies below `0xE0000000`. On Windows, on Linux on x86_64 and on macOS on x86_64, the view starts at physical address `0x1000` and `REX_PHYS_HOST_OFFSET` is 0. The definition `REX_PHYSICAL_OFFSET_IN_CODE` comes from `rex::base`, so a target that links `rex::sdk` gets the value the SDK was built with. See [Address Translation](../runtime/memory.md#address-translation).
 
 The GPU and APU registers are memory mapped (MMIO). Guest code reaches them by reading and writing two blocks of guest addresses (see [MMIO Blocks](../runtime/memory.md#mmio-blocks)). Codegen picks a macro for each access by its address and width:
 
@@ -85,7 +85,7 @@ The GPU and APU registers are memory mapped (MMIO). Guest code reaches them by r
 | APU register, 32 bit | `REX_APU_LOAD32` | `REX_APU_STORE32` |
 | Guarded | `REX_MM_LOAD_U8`, `REX_MM_LOAD_U16`, `REX_MM_LOAD_U32`, `REX_MM_LOAD_U64` | `REX_MM_STORE_U8`, `REX_MM_STORE_U16`, `REX_MM_STORE_U32`, `REX_MM_STORE_U64` |
 
-A guarded access is one that might reach a register block, or one of another width than 32 bits to a block. It tests the address at runtime. Outside the blocks it takes the plain path. Inside a block, a 64 bit write goes out as two 32 bit writes, and a write narrower than 32 bits ends the process (see [Misses](../runtime/memory.md#misses)). The GPU and APU macros call the handler that the runtime attached to the block (see [Attaching a Recipient](../runtime/memory.md#attaching-a-recipient)).
+A guarded access is one that might reach a register block, or an access of a width other than 32 bits to a block. It tests the address at runtime. Outside the blocks it takes the plain path. Inside a block, a 64 bit write is made as two 32 bit writes, and a write narrower than 32 bits ends the process (see [Misses](../runtime/memory.md#misses)). The GPU and APU macros call the handler that the runtime attached to the block (see [Attaching a Recipient](../runtime/memory.md#attaching-a-recipient)).
 
 `codegen.mmio.json` lists the loads and stores that reach or might reach a register block, and those in the `0x7F000000` range outside both blocks:
 
@@ -97,7 +97,7 @@ A guarded access is one that might reach a register block, or one of another wid
 | Unserved | The address is in the `0x7F000000` range, outside both blocks. |
 | Unsupported | The site reaches a block through an instruction that codegen cannot route. The site stays a plain access, and codegen logs an error. |
 
-Each `[mmio.gpu]` or `[mmio.apu]` [manifest](../reference/manifest.md#mmio) entry must name a load or a store that codegen routes to that block, in the matching `read` or `write` array. Codegen fails on any other entry.
+Each `[mmio.gpu]` or `[mmio.apu]` [manifest](../reference/manifest.md#mmio) entry must point to a load or a store that codegen routes to that block, in the matching `read` or `write` array. Codegen fails on any other entry.
 
 ### Calls and Branches
 

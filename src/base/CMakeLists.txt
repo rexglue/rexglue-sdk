@@ -62,6 +62,9 @@ rex_target_headers(
 rexglue_link_host_allocator(rexbase)
 set_target_properties(rexbase PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 target_compile_definitions(rexbase PRIVATE REX_BUILDING_BASE)
+target_compile_definitions(
+  rexbase PUBLIC REX_PHYSICAL_OFFSET_IN_CODE=${REX_PHYSICAL_OFFSET_IN_CODE_VALUE}
+)
 rex_target_pch(rexbase)
 
 rexglue_add_version_resource(rexbase DESCRIPTION "ReXGlue base")

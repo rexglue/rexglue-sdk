@@ -353,15 +353,16 @@ using GuestPtrT = rex::memory::MappedPtr<T>;
 namespace rex::memory::detail {
 
 /**
- * True on hosts whose allocation granularity is above 4 KiB, which are Windows and macOS on
- * arm64. The mapping API rounds the 0x1000 byte offset of the 0xE0000000 view away there, so the
- * view maps physical memory from 0 and code adds the offset. Other hosts map the offset itself.
+ * True on hosts whose MMU page is above 4 KiB, where a memory view cannot start at the physical
+ * offset 0x1000 of the 0xE0000000 range. The view then maps physical memory from 0 and code adds
+ * the offset. This is macOS on arm64, which has 16 KiB pages, and Linux on aarch64 when the
+ * CMake option REX_PHYSICAL_OFFSET_IN_CODE is on. Windows maps the offset through placeholders,
+ * which only need a page aligned offset, and every other host maps it with a 4 KiB page.
  */
-#if REX_PLATFORM_WIN32 || (REX_PLATFORM_MAC && defined(REX_ARCH_ARM64))
-inline constexpr bool kPhysicalOffsetInCode = true;
-#else
-inline constexpr bool kPhysicalOffsetInCode = false;
+#ifndef REX_PHYSICAL_OFFSET_IN_CODE
+#error "REX_PHYSICAL_OFFSET_IN_CODE is set by the CMake option of the same name"
 #endif
+inline constexpr bool kPhysicalOffsetInCode = REX_PHYSICAL_OFFSET_IN_CODE != 0;
 
 /**
  * Returns the offset code adds to the host address of a guest address: 0x1000 from 0xE0000000 up

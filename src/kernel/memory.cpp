@@ -222,11 +222,11 @@ GuestAddressSpace::~GuestAddressSpace() {
 }
 
 bool GuestAddressSpace::Initialize() {
-  if ((system_allocation_granularity_ > 0x1000) != rex::memory::detail::kPhysicalOffsetInCode) {
+  if ((system_page_size_ > 0x1000) != rex::memory::detail::kPhysicalOffsetInCode) {
     REXSYS_ERROR(
-        "The host allocation granularity is 0x{:X}, which does not match how the 0xE0000000 view "
-        "offset is applied on this platform.",
-        system_allocation_granularity_);
+        "The host page size is 0x{:X}, which does not match how this build applies the 0xE0000000 "
+        "view offset. Rebuild with the CMake option REX_PHYSICAL_OFFSET_IN_CODE {}.",
+        system_page_size_, system_page_size_ > 0x1000 ? "ON" : "OFF");
     return false;
   }
   rex::memory::RemoveStaleFileMappings(kFileMappingPrefix);
@@ -410,12 +410,12 @@ int GuestAddressSpace::MapViewsMac() {
   }
 
   u8* mapping_base = reinterpret_cast<u8*>(reserved_base);
-  u64 granularity_mask = ~static_cast<u64>(system_allocation_granularity_ - 1);
+  u64 page_mask = ~static_cast<u64>(system_page_size_ - 1);
 
   for (size_t n = 0; n < rex::CountOf(kViewRanges); n++) {
     size_t view_size = static_cast<size_t>(kViewRanges[n].virtual_address_end -
                                            kViewRanges[n].virtual_address_start + 1);
-    size_t file_offset = static_cast<size_t>(kViewRanges[n].target_address & granularity_mask);
+    size_t file_offset = static_cast<size_t>(kViewRanges[n].target_address & page_mask);
     void* target_address = mapping_base + kViewRanges[n].virtual_address_start;
     void* result = mmap(target_address, view_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED,
                         mapping_, file_offset);
@@ -440,12 +440,12 @@ int GuestAddressSpace::MapViewsMac() {
 
 int GuestAddressSpace::MapViews(u8* mapping_base) {
   REX_ASSERT(rex::CountOf(kViewRanges) == rex::CountOf(views_.all_views));
-  u64 granularity_mask = ~static_cast<u64>(system_allocation_granularity_ - 1);
+  u64 page_mask = ~static_cast<u64>(system_page_size_ - 1);
   for (size_t n = 0; n < rex::CountOf(kViewRanges); n++) {
     views_.all_views[n] = reinterpret_cast<u8*>(rex::memory::MapFileView(
         mapping_, mapping_base + kViewRanges[n].virtual_address_start,
         kViewRanges[n].virtual_address_end - kViewRanges[n].virtual_address_start + 1,
-        rex::memory::PageAccess::kReadWrite, kViewRanges[n].target_address & granularity_mask));
+        rex::memory::PageAccess::kReadWrite, kViewRanges[n].target_address & page_mask));
     if (!views_.all_views[n]) {
       UnmapViews();
       return 1;
