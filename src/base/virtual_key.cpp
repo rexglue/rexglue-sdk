@@ -3,9 +3,9 @@
 #include <string>
 #include <string_view>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 
-namespace rex::hid {
+namespace rex {
 
 namespace {
 
@@ -145,4 +145,4 @@ std::string VirtualKeyToString(VirtualKey vk) {
   return it != kKeyNames.end() ? std::string(it->name) : std::string();
 }
 
-}  // namespace rex::hid
+}  // namespace rex

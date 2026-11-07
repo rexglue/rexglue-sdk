@@ -19,7 +19,7 @@
 #include <rex/platform.h>
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/hid/input_system.h>
 #include <rex/types.h>
 #include <rex/utility.h>
@@ -38,10 +38,10 @@ class BindTable : public NonCopyable {
    * binds keep their default chord and ignore changes to the setting text.
    */
   void SetInput(const hid::IInputSystem* input);
-  void Register(std::string_view name, hid::KeyChord default_key, std::string_view description,
+  void Register(std::string_view name, KeyChord default_key, std::string_view description,
                 rex::MoveOnlyFunction<void()> callback);
   void Unregister(std::string_view name);
-  bool Process(const hid::InputEvent& e);
+  bool Process(const InputEvent& e);
 
  private:
   class BindOwner final : public SettingOwner {
@@ -58,7 +58,7 @@ class BindTable : public NonCopyable {
     std::string description;
     std::unique_ptr<BindOwner> owner;
     ScopeGuard watch;
-    hid::KeyChord chord;
+    KeyChord chord;
     std::shared_ptr<rex::MoveOnlyFunction<void()>> callback;
     bool added = false;
   };

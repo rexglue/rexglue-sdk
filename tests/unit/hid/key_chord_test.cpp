@@ -15,17 +15,17 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/hid/binding.h>
 
 #include "input_harness.h"
 
-using rex::hid::KeyChord;
-using rex::hid::KeyChordToString;
-using rex::hid::KeyModifiers;
-using rex::hid::ParseKeyChord;
-using rex::hid::ParseKeyChordList;
-using rex::hid::VirtualKey;
+using rex::KeyChord;
+using rex::KeyChordToString;
+using rex::KeyModifiers;
+using rex::ParseKeyChord;
+using rex::ParseKeyChordList;
+using rex::VirtualKey;
 
 REX_TEST_CASE("A plain key name parses to a chord with no modifiers", "[hid][key_chord]") {
   auto chord = ParseKeyChord("F3");

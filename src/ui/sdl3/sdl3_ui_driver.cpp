@@ -45,33 +45,33 @@ constexpr std::array<DriverRegistration, 1> kDrivers = {
 /** Wheel units per detent that the pointer reports, matching the Windows WHEEL_DELTA. */
 constexpr i32 kScrollPerDetent = 120;
 
-hid::MouseButton TranslateButton(Uint8 button) {
+MouseButton TranslateButton(Uint8 button) {
   switch (button) {
     case SDL_BUTTON_LEFT:
-      return hid::MouseButton::kLeft;
+      return MouseButton::kLeft;
     case SDL_BUTTON_RIGHT:
-      return hid::MouseButton::kRight;
+      return MouseButton::kRight;
     case SDL_BUTTON_MIDDLE:
-      return hid::MouseButton::kMiddle;
+      return MouseButton::kMiddle;
     case SDL_BUTTON_X1:
-      return hid::MouseButton::kX1;
+      return MouseButton::kX1;
     case SDL_BUTTON_X2:
-      return hid::MouseButton::kX2;
+      return MouseButton::kX2;
     default:
-      return hid::MouseButton::kNone;
+      return MouseButton::kNone;
   }
 }
 
-hid::KeyModifiers ToModifiers(SDL_Keymod mod) {
-  hid::KeyModifiers modifiers = hid::KeyModifiers::kNone;
+KeyModifiers ToModifiers(SDL_Keymod mod) {
+  KeyModifiers modifiers = KeyModifiers::kNone;
   if ((mod & SDL_KMOD_SHIFT) != 0) {
-    modifiers |= hid::KeyModifiers::kShift;
+    modifiers |= KeyModifiers::kShift;
   }
   if ((mod & SDL_KMOD_CTRL) != 0) {
-    modifiers |= hid::KeyModifiers::kCtrl;
+    modifiers |= KeyModifiers::kCtrl;
   }
   if ((mod & SDL_KMOD_ALT) != 0) {
-    modifiers |= hid::KeyModifiers::kAlt;
+    modifiers |= KeyModifiers::kAlt;
   }
   return modifiers;
 }
@@ -144,7 +144,7 @@ struct SDL3UIDriver::State {
   bool has_focus = false;
   bool text_input = false;
   bool quit_requested = false;
-  hid::PointerMode pointer_mode = hid::PointerMode::kFree;
+  PointerMode pointer_mode = PointerMode::kFree;
   bool relative = false;
   std::array<SDL_Cursor*, 9> cursors{};
   std::thread::id main_thread;
@@ -220,7 +220,7 @@ struct SDL3UIDriver::State {
     }
   }
 
-  void Deliver(hid::InputEvent& event) {
+  void Deliver(InputEvent& event) {
     if (listener) {
       listener->OnInputEvent(event);
     }
@@ -271,15 +271,15 @@ struct SDL3UIDriver::State {
   }
 
   void HandleKey(const SDL_Event& event) {
-    const hid::VirtualKey virtual_key = TranslateSDLScancode(event.key.scancode);
-    if (virtual_key == hid::VirtualKey::kNone) {
+    const VirtualKey virtual_key = TranslateSDLScancode(event.key.scancode);
+    if (virtual_key == VirtualKey::kNone) {
       return;
     }
-    hid::InputEvent e{.type = event.type == SDL_EVENT_KEY_DOWN ? hid::InputEvent::Type::kKeyDown
-                                                               : hid::InputEvent::Type::kKeyUp,
-                      .key = virtual_key,
-                      .modifiers = ToModifiers(event.key.mod),
-                      .repeat = event.key.repeat};
+    InputEvent e{.type = event.type == SDL_EVENT_KEY_DOWN ? InputEvent::Type::kKeyDown
+                                                          : InputEvent::Type::kKeyUp,
+                 .key = virtual_key,
+                 .modifiers = ToModifiers(event.key.mod),
+                 .repeat = event.key.repeat};
     Deliver(e);
   }
 
@@ -292,7 +292,7 @@ struct SDL3UIDriver::State {
     size_t remaining = std::strlen(text);
     while (remaining > 0) {
       const u32 codepoint = SDL_StepUTF8(&it, &remaining);
-      hid::InputEvent e{.type = hid::InputEvent::Type::kKeyChar, .character = codepoint};
+      InputEvent e{.type = InputEvent::Type::kKeyChar, .character = codepoint};
       Deliver(e);
     }
   }
@@ -305,7 +305,7 @@ struct SDL3UIDriver::State {
         f32 dy = event.motion.yrel * density;
         const f32 x = event.motion.x * density;
         const f32 y = event.motion.y * density;
-        if (pointer_mode == hid::PointerMode::kLocked && !relative && window) {
+        if (pointer_mode == PointerMode::kLocked && !relative && window) {
           int width = 0;
           int height = 0;
           SDL_GetWindowSize(window, &width, &height);
@@ -317,31 +317,31 @@ struct SDL3UIDriver::State {
             SDL_WarpMouseInWindow(window, center_x, center_y);
           }
         }
-        hid::InputEvent e{.type = hid::InputEvent::Type::kMotion,
-                          .x = std::trunc(x),
-                          .y = std::trunc(y),
-                          .dx = dx,
-                          .dy = dy};
+        InputEvent e{.type = InputEvent::Type::kMotion,
+                     .x = std::trunc(x),
+                     .y = std::trunc(y),
+                     .dx = dx,
+                     .dy = dy};
         Deliver(e);
         break;
       }
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
       case SDL_EVENT_MOUSE_BUTTON_UP: {
-        hid::InputEvent e{.type = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
-                                      ? hid::InputEvent::Type::kButtonDown
-                                      : hid::InputEvent::Type::kButtonUp,
-                          .button = TranslateButton(event.button.button),
-                          .x = std::trunc(event.button.x * density),
-                          .y = std::trunc(event.button.y * density)};
+        InputEvent e{.type = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
+                                 ? InputEvent::Type::kButtonDown
+                                 : InputEvent::Type::kButtonUp,
+                     .button = TranslateButton(event.button.button),
+                     .x = std::trunc(event.button.x * density),
+                     .y = std::trunc(event.button.y * density)};
         Deliver(e);
         break;
       }
       case SDL_EVENT_MOUSE_WHEEL: {
-        hid::InputEvent e{.type = hid::InputEvent::Type::kWheel,
-                          .x = std::trunc(event.wheel.mouse_x * density),
-                          .y = std::trunc(event.wheel.mouse_y * density),
-                          .scroll_x = ToDetents(event.wheel.x),
-                          .scroll_y = ToDetents(event.wheel.y)};
+        InputEvent e{.type = InputEvent::Type::kWheel,
+                     .x = std::trunc(event.wheel.mouse_x * density),
+                     .y = std::trunc(event.wheel.mouse_y * density),
+                     .scroll_x = ToDetents(event.wheel.x),
+                     .scroll_y = ToDetents(event.wheel.y)};
         Deliver(e);
         break;
       }
@@ -535,7 +535,7 @@ void SDL3UIDriver::CloseUIWindow() {
     s.has_focus = false;
   }
   s.relative = false;
-  s.pointer_mode = hid::PointerMode::kFree;
+  s.pointer_mode = PointerMode::kFree;
 }
 
 void SDL3UIDriver::SetTitle(std::string_view title) {
@@ -613,9 +613,9 @@ void SDL3UIDriver::SetCursorShape(bool visible, CursorShape shape) {
   }
 }
 
-void SDL3UIDriver::SetPointerMode(hid::PointerMode mode) {
+void SDL3UIDriver::SetPointerMode(PointerMode mode) {
   State& s = *state_;
-  if (s.pointer_mode == hid::PointerMode::kLocked) {
+  if (s.pointer_mode == PointerMode::kLocked) {
     if (s.window && s.relative) {
       SDL_SetWindowRelativeMouseMode(s.window, false);
     }
@@ -623,7 +623,7 @@ void SDL3UIDriver::SetPointerMode(hid::PointerMode mode) {
     s.relative = false;
   }
   s.pointer_mode = mode;
-  if (mode != hid::PointerMode::kLocked || !s.window) {
+  if (mode != PointerMode::kLocked || !s.window) {
     return;
   }
   SDL_CaptureMouse(true);

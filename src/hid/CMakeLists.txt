@@ -4,15 +4,12 @@ add_library(
   assignment.cpp
   binding.cpp
   idle_pad.cpp
-  input_source.cpp
   input_module.cpp
   input_system.cpp
   key_capture.cpp
-  key_chord.cpp
   keyboard_mouse_pad.cpp
   keystroke.cpp
   merge.cpp
-  virtual_key.cpp
 )
 add_library(rexhid SHARED module_entry.cpp $<TARGET_OBJECTS:rexhid-objects>)
 add_library(rex::hid ALIAS rexhid)

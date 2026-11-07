@@ -14,15 +14,15 @@
 
 #include <rex/types.h>
 #include <rex/platform.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 
 namespace rex::ui::sdl3 {
 
 /**
- * Maps an SDL scancode to a hid::VirtualKey.
+ * Maps an SDL scancode to a VirtualKey.
  *
- * @return The virtual key, or hid::VirtualKey::kNone for unmapped keys.
+ * @return The virtual key, or VirtualKey::kNone for unmapped keys.
  */
-hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode);
+VirtualKey TranslateSDLScancode(SDL_Scancode scancode);
 
 }  // namespace rex::ui::sdl3

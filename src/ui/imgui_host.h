@@ -57,19 +57,19 @@ class ImGuiHost final {
 
   void SetDisplay(u32 physical_width, u32 physical_height, f32 content_scale);
   bool HandleEvent(UIEvent& event);
-  void HandleEvent(hid::InputEvent& event);
+  void HandleEvent(InputEvent& event);
   ImDrawData* BuildFrame();
   bool NeedsContinuousPaint() const;
 
  private:
   void Initialize();
   void ClearInput();
-  void OnKey(hid::InputEvent& e, bool is_down);
-  void OnKeyChar(hid::InputEvent& e);
-  void OnMouseButton(const hid::InputEvent& e, bool is_down);
+  void OnKey(InputEvent& e, bool is_down);
+  void OnKeyChar(InputEvent& e);
+  void OnMouseButton(const InputEvent& e, bool is_down);
   void OnTouch(TouchEvent& e);
   void UpdateMousePosition(f32 x, f32 y);
-  void SwitchToPhysicalMouseAndUpdateMousePosition(const hid::InputEvent& e);
+  void SwitchToPhysicalMouseAndUpdateMousePosition(const InputEvent& e);
   bool IsDrawingDialogs() const { return dialog_loop_next_index_ != SIZE_MAX; }
   void DetachIfLastDialogRemoved();
   void PublishDialogCount();

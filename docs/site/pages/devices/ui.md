@@ -8,7 +8,7 @@ The UI system owns the window of the program. It opens the window, receives its 
 
 The UI system draws nothing on its own and reaches the host through a UI driver, an `IUIDriver` in a module named after the driver, such as `rexui-sdl3`. A UI driver provides the native window, its events, the native message boxes and file dialogs, the list of displays, the host locales and the clipboard. It never draws. The graphics driver draws into the window, and ImGui draws the overlays.
 
-`ui.driver` names the UI driver. The SDK includes the SDL3 driver, `sdl3`, which adds the `ui.sdl.video_driver` setting. The value `none` starts no UI driver.
+`ui.driver` selects the UI driver. The SDK includes the SDL3 driver, `sdl3`, which adds the `ui.sdl.video_driver` setting. The value `none` starts no UI driver.
 
 A program states whether it needs a window in `AppSysRequirements::ui`. `TitleApp` needs one, because the game draws into it. When a program needs a window and none opens, startup fails with a `kConfig` error. So `ui.driver = none` works only in a program that needs no window.
 
@@ -20,21 +20,21 @@ The video mode is the display mode that the game reads, the resolution and refre
 
 ### Headless
 
-The UI system runs headless when it has no display to show anything on. That happens in three cases:
+The UI system runs headless when no display is available. That happens in three cases:
 
 - `ui.driver` is `none`.
 - The UI driver reports no display, such as SDL3 with `ui.sdl.video_driver = dummy`, or when SDL cannot start its video subsystem.
 - The window fails to open. The UI system logs a warning.
 
-`IUISystem::IsHeadless` reports this state. While headless, `IUISystem::ShowMessage` only logs its message, `IUISystem::ShowChoice` and `IUISystem::ShowFileDialog` return an error, and the display list is empty. A prompt needs an open window, so without one every prompt is canceled at once.
+`IUISystem::IsHeadless` reports this state. While headless, `IUISystem::ShowMessage` only logs its message, `IUISystem::ShowChoice` and `IUISystem::ShowFileDialog` return an error, and the display list is empty. A prompt needs an open window, so without one every prompt is canceled immediately.
 
-`ui.driver = none` has one more effect. When a `TitleApp` fails to start before a window opens, it shows the error in a native message box, and the crash reporter shows a dialog, unless the value of `ui.driver` or the command line names `none`. The protected `App::IsHeadlessRequested` reports this choice.
+`ui.driver = none` changes one more thing. When a `TitleApp` fails to start before a window opens, it shows the error in a native message box and the crash reporter shows a dialog. With `none` in the config or on the command line, it shows neither. The protected `App::IsHeadlessRequested` reports this choice.
 
 ## Frame Loop
 
-The UI thread runs the frame loop. `App::RunFrame` runs one pass: it runs the work posted with `IUISystem::PostTask`, waits up to 16 ms for window events, and delivers them. The default `App::OnRun` calls `RunFrame` until shutdown, and `TitleApp` runs the same loop while the game runs.
+The UI thread runs the frame loop. `App::RunFrame` runs one pass. It runs the work posted with `IUISystem::PostTask`, waits up to 16 ms for window events, and delivers them. The default `App::OnRun` calls `RunFrame` until shutdown, and `TitleApp` runs the same loop while the game runs.
 
-`IUISystem::RunSynchronous` runs a function on the UI thread and waits for it. Called on the UI thread, it runs the function at once. After the UI system stops, it returns false and does not run the function.
+`IUISystem::RunSynchronous` runs a function on the UI thread and waits for it. Called on the UI thread, it runs the function immediately. After the UI system stops, it returns false and does not run the function.
 
 A close request from the window calls `rex::app::RequestShutdown`. During shutdown, the UI thread keeps running posted work while it waits for the present thread and the guest threads to stop, so a thread that waits for the UI thread does not block the shutdown.
 
@@ -43,7 +43,7 @@ A close request from the window calls `rex::app::RequestShutdown`. During shutdo
 Code outside the input system receives window events through a listener. Implement `IUIEventListener` and add it with `IUISystem::AddEventListener`, which returns a `ScopeGuard` that removes it when destroyed.
 
 - `OnUIEvent` receives the window events, such as resize, focus and close, as `UIEvent`.
-- `OnInputEvent` receives the keyboard and mouse events as `hid::InputEvent`.
+- `OnInputEvent` receives the keyboard and mouse events as `InputEvent`.
 - Setting `handled` on a key press or a character keeps it from the overlay hotkeys and the input system.
 - Wheel events carry fractional detents in `scroll_x` and `scroll_y`.
 
@@ -71,7 +71,7 @@ A window event goes to the listeners first. The UI system then passes resize and
 
 ## Overlays and Dialogs
 
-An overlay is an SDK window drawn with ImGui on top of the game, which a hotkey shows and hides. The SDK has four:
+An overlay is an SDK window that ImGui draws on top of the game. A hotkey shows and hides it. The SDK has four:
 
 | Overlay | Hotkey | Shows |
 |---|---|---|
@@ -90,7 +90,7 @@ Call `IUISystem::AddOverlays` from `OnInit`. It fails when no window is open or 
 static std::unique_ptr<rex::ui::IDialog> MakeStats(rex::ui::IUISystem& ui);
 
 static constexpr rex::ui::OverlayConfig kOverlays[] = {
-    {"stats", {rex::hid::VirtualKey::kF9}, MakeStats},
+    {"stats", {rex::VirtualKey::kF9}, MakeStats},
 };
 (void)GetUI().AddOverlays(kOverlays);
 ```

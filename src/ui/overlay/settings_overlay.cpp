@@ -4,7 +4,7 @@
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
 #include <rex/console_command.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/hid/binding.h>
 #include <rex/hid/input_system.h>
 #include <rex/logging/log_category.h>
@@ -74,8 +74,8 @@ static std::string ClampUnsignedText(const rex::SettingConstraints& constraints,
   return std::to_string(value);
 }
 
-static rex::hid::VirtualKey ImGuiKeyToVirtualKey(ImGuiKey key) {
-  using VK = rex::hid::VirtualKey;
+static rex::VirtualKey ImGuiKeyToVirtualKey(ImGuiKey key) {
+  using VK = rex::VirtualKey;
   if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
     return static_cast<VK>(static_cast<u16>(VK::kA) + (key - ImGuiKey_A));
   }
@@ -177,16 +177,16 @@ static rex::hid::VirtualKey ImGuiKeyToVirtualKey(ImGuiKey key) {
   }
 }
 
-static rex::hid::KeyModifiers HeldModifiers(const ImGuiIO& io) {
-  rex::hid::KeyModifiers mods = rex::hid::KeyModifiers::kNone;
+static rex::KeyModifiers HeldModifiers(const ImGuiIO& io) {
+  rex::KeyModifiers mods = rex::KeyModifiers::kNone;
   if (io.KeyShift) {
-    mods |= rex::hid::KeyModifiers::kShift;
+    mods |= rex::KeyModifiers::kShift;
   }
   if (io.KeyCtrl) {
-    mods |= rex::hid::KeyModifiers::kCtrl;
+    mods |= rex::KeyModifiers::kCtrl;
   }
   if (io.KeyAlt) {
-    mods |= rex::hid::KeyModifiers::kAlt;
+    mods |= rex::KeyModifiers::kAlt;
   }
   return mods;
 }
@@ -361,15 +361,15 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
           capturing_bind_name_.clear();
         } else {
-          const rex::hid::KeyModifiers held = HeldModifiers(io);
+          const rex::KeyModifiers held = HeldModifiers(io);
           for (rex::i32 k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k) {
             auto imgui_key = static_cast<ImGuiKey>(k);
             if (imgui_key == ImGuiKey_Escape)
               continue;
             if (ImGui::IsKeyPressed(imgui_key)) {
               const auto vk = ImGuiKeyToVirtualKey(imgui_key);
-              if (vk == rex::hid::VirtualKey::kShift || vk == rex::hid::VirtualKey::kControl ||
-                  vk == rex::hid::VirtualKey::kMenu) {
+              if (vk == rex::VirtualKey::kShift || vk == rex::VirtualKey::kControl ||
+                  vk == rex::VirtualKey::kMenu) {
                 continue;
               }
               const std::string text = input_->FormatKeyChord({vk, held});
@@ -380,10 +380,9 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
               break;
             }
           }
-          constexpr rex::hid::VirtualKey kMouseKeys[] = {
-              rex::hid::VirtualKey::kLButton, rex::hid::VirtualKey::kRButton,
-              rex::hid::VirtualKey::kMButton, rex::hid::VirtualKey::kXButton1,
-              rex::hid::VirtualKey::kXButton2};
+          constexpr rex::VirtualKey kMouseKeys[] = {
+              rex::VirtualKey::kLButton, rex::VirtualKey::kRButton, rex::VirtualKey::kMButton,
+              rex::VirtualKey::kXButton1, rex::VirtualKey::kXButton2};
           for (rex::i32 mb = 0; mb < 5; ++mb) {
             if (ImGui::IsMouseClicked(mb)) {
               WarnIfFailed(name,
@@ -410,7 +409,7 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
         std::set<size_t> conflicts;
         if (const auto binding =
                 key_bindings_ ? key_bindings_->FindBySetting(name) : std::nullopt) {
-          for (const rex::hid::InputSource& source : key_bindings_->GetSources(*binding)) {
+          for (const rex::InputSource& source : key_bindings_->GetSources(*binding)) {
             if (const auto other = key_bindings_->FindConflict(*binding, source)) {
               conflicts.insert(*other);
             }

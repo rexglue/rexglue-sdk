@@ -16,17 +16,17 @@
 #include <string_view>
 #include <utility>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 
-using rex::hid::InputSource;
-using rex::hid::InputSourceToString;
-using rex::hid::InputSourceType;
-using rex::hid::IsSameInput;
-using rex::hid::KeyModifiers;
-using rex::hid::PadAxes;
-using rex::hid::PadInput;
-using rex::hid::ParseInputSource;
-using rex::hid::VirtualKey;
+using rex::InputSource;
+using rex::InputSourceToString;
+using rex::InputSourceType;
+using rex::IsSameInput;
+using rex::KeyModifiers;
+using rex::PadAxes;
+using rex::PadInput;
+using rex::ParseInputSource;
+using rex::VirtualKey;
 
 namespace {
 
@@ -42,17 +42,17 @@ InputSource PadSource(PadInput button) {
 REX_TEST_CASE("InputSource Every pad button has a distinct name that parses back",
               "[hid][input_source]") {
   std::set<std::string> names;
-  for (u8 i = 0; i < rex::hid::kPadButtonCount; ++i) {
+  for (u8 i = 0; i < rex::kPadButtonCount; ++i) {
     const InputSource source = PadSource(static_cast<PadInput>(i));
     const std::string text = InputSourceToString(source);
     REQUIRE_FALSE(text.empty());
     CHECK(names.insert(text).second);
-    CHECK(rex::hid::GetPadButtonName(static_cast<PadInput>(i)) == text);
+    CHECK(rex::GetPadButtonName(static_cast<PadInput>(i)) == text);
     auto parsed = ParseInputSource(text);
     REQUIRE(parsed);
     CHECK(*parsed == source);
   }
-  CHECK(rex::hid::GetPadButtonName(static_cast<PadInput>(rex::hid::kPadButtonCount)).empty());
+  CHECK(rex::GetPadButtonName(static_cast<PadInput>(rex::kPadButtonCount)).empty());
 }
 
 REX_TEST_CASE("InputSource Pad names match the text saved configs use", "[hid][input_source]") {

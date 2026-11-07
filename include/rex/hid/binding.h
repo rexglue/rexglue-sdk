@@ -19,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/settings_registry.h>

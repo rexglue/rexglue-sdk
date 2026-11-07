@@ -63,7 +63,7 @@ struct FakeUIData {
   ui::AspectRatio ratio = ui::AspectRatio::kStretch;
   std::string title;
   std::string clipboard;
-  hid::PointerMode pointer_mode = hid::PointerMode::kFree;
+  PointerMode pointer_mode = PointerMode::kFree;
   bool cursor_visible = true;
   bool text_input = false;
   bool mouse_captured = false;
@@ -134,7 +134,7 @@ class FakeUIDriver : public rex::ui::IUIDriver {
   void SetCursorShape(bool visible, rex::ui::CursorShape) override {
     g_ui.cursor_visible = visible;
   }
-  void SetPointerMode(hid::PointerMode mode) override { g_ui.pointer_mode = mode; }
+  void SetPointerMode(PointerMode mode) override { g_ui.pointer_mode = mode; }
   void CaptureMouse(bool captured) override { g_ui.mouse_captured = captured; }
   f32 GetContentScale() const override { return g_ui.scale; }
   ui::WindowSize GetWindowSize() const override { return {g_ui.width, g_ui.height}; }
@@ -216,24 +216,23 @@ inline void Deliver(std::function<void(rex::ui::IUIEventListener&)> step) {
   g_ui.cv.notify_all();
 }
 
-inline void DeliverKey(hid::InputEvent::Type type, hid::VirtualKey key, bool repeat = false) {
+inline void DeliverKey(InputEvent::Type type, VirtualKey key, bool repeat = false) {
   Deliver([=](rex::ui::IUIEventListener& listener) {
-    hid::InputEvent event{.type = type, .key = key, .repeat = repeat};
+    InputEvent event{.type = type, .key = key, .repeat = repeat};
     listener.OnInputEvent(event);
   });
 }
 
-inline void DeliverMouseButton(hid::InputEvent::Type type, hid::MouseButton button) {
+inline void DeliverMouseButton(InputEvent::Type type, MouseButton button) {
   Deliver([=](rex::ui::IUIEventListener& listener) {
-    hid::InputEvent event{.type = type, .button = button, .x = 4.0f, .y = 4.0f};
+    InputEvent event{.type = type, .button = button, .x = 4.0f, .y = 4.0f};
     listener.OnInputEvent(event);
   });
 }
 
 inline void DeliverWheelTurn(f32 detents) {
   Deliver([=](rex::ui::IUIEventListener& listener) {
-    hid::InputEvent event{
-        .type = hid::InputEvent::Type::kWheel, .x = 4.0f, .y = 4.0f, .scroll_y = detents};
+    InputEvent event{.type = InputEvent::Type::kWheel, .x = 4.0f, .y = 4.0f, .scroll_y = detents};
     listener.OnInputEvent(event);
   });
 }

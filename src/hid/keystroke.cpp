@@ -17,8 +17,6 @@ namespace rex::hid::detail {
 
 namespace {
 
-using hid::VirtualKey;
-
 constexpr std::array<VirtualKey, 34> kKeyForBit = {
     VirtualKey::kXInputPadDPadUp,
     VirtualKey::kXInputPadDPadDown,

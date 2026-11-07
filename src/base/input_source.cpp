@@ -1,9 +1,9 @@
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 
 #include <array>
 #include <format>
 
-namespace rex::hid {
+namespace rex {
 
 namespace {
 
@@ -80,4 +80,4 @@ std::string InputSourceToString(const InputSource& source) {
   return {};
 }
 
-}  // namespace rex::hid
+}  // namespace rex

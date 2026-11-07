@@ -15,7 +15,9 @@ target_sources(
           exception_handler.cpp
           hash.cpp
           init.cpp
+          input_source.cpp
           host_alloc.cpp
+          key_chord.cpp
           library_name.cpp
           lock_order.cpp
           log_file.cpp
@@ -42,6 +44,7 @@ target_sources(
           timer_queue.cpp
           utf8.cpp
           utility.cpp
+          virtual_key.cpp
           ${PROJECT_BINARY_DIR}/generated/base/build_stamp.cpp
 )
 

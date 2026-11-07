@@ -17,7 +17,7 @@ void UISystem::State::Dispatcher::OnUIEvent(const ui::UIEvent& event) {
   state.OnEvent(const_cast<ui::UIEvent&>(event));
 }
 
-void UISystem::State::Dispatcher::OnInputEvent(hid::InputEvent& event) {
+void UISystem::State::Dispatcher::OnInputEvent(InputEvent& event) {
   state.OnInputEvent(event);
 }
 
@@ -39,13 +39,13 @@ bool UISystem::State::IsOverlayCapturingInput(bool keyboard) const {
   return keyboard ? capture.WantsKeyboard() : capture.WantsMouse();
 }
 
-void UISystem::State::ApplyPointerMode(hid::PointerMode mode) {
+void UISystem::State::ApplyPointerMode(PointerMode mode) {
   if (!driver || mode == applied_pointer_mode) {
     return;
   }
   driver->SetPointerMode(mode);
   applied_pointer_mode = mode;
-  driver->SetCursorShape(mode == hid::PointerMode::kFree && !cursor_hidden_by_timeout,
+  driver->SetCursorShape(mode == PointerMode::kFree && !cursor_hidden_by_timeout,
                          rex::ui::CursorShape::kArrow);
   REXUI_INFO("pointer mode applied");
 }
@@ -61,7 +61,7 @@ void UISystem::State::RefreshCapture() {
 void UISystem::State::UpdateCursorTimeout() {
   const f64 seconds = owner.GetSettings().cursor_timeout.Get();
   if (!window_open.load() || seconds <= 0.0 || cursor_hidden_by_timeout ||
-      applied_pointer_mode != hid::PointerMode::kFree) {
+      applied_pointer_mode != PointerMode::kFree) {
     return;
   }
   const auto idle = std::chrono::steady_clock::now() - last_pointer_motion;
@@ -71,8 +71,8 @@ void UISystem::State::UpdateCursorTimeout() {
   }
 }
 
-bool UISystem::State::IsHeldByOverlay(const hid::InputEvent& event) const {
-  using Type = hid::InputEvent::Type;
+bool UISystem::State::IsHeldByOverlay(const InputEvent& event) const {
+  using Type = InputEvent::Type;
   switch (event.type) {
     case Type::kKeyDown:
     case Type::kKeyChar:
@@ -86,8 +86,8 @@ bool UISystem::State::IsHeldByOverlay(const hid::InputEvent& event) const {
   }
 }
 
-void UISystem::State::OnInputEvent(hid::InputEvent& event) {
-  using Type = hid::InputEvent::Type;
+void UISystem::State::OnInputEvent(InputEvent& event) {
+  using Type = InputEvent::Type;
   if (!IsHeldByOverlay(event)) {
     std::lock_guard delivery(delivery_mutex);
     std::vector<rex::ui::IUIEventListener*> snapshot;
@@ -103,7 +103,7 @@ void UISystem::State::OnInputEvent(hid::InputEvent& event) {
     last_pointer_motion = std::chrono::steady_clock::now();
     if (cursor_hidden_by_timeout) {
       cursor_hidden_by_timeout = false;
-      if (applied_pointer_mode == hid::PointerMode::kFree) {
+      if (applied_pointer_mode == PointerMode::kFree) {
         driver->SetCursorShape(true, rex::ui::CursorShape::kArrow);
       }
     }
@@ -134,13 +134,13 @@ void UISystem::State::OnInputEvent(hid::InputEvent& event) {
       }
       break;
     case Type::kButtonDown:
-      if (event.button != hid::MouseButton::kNone && !IsOverlayCapturingInput(false)) {
+      if (event.button != MouseButton::kNone && !IsOverlayCapturingInput(false)) {
         input->OnInputEvent(event);
       }
       RefreshCapture();
       break;
     case Type::kButtonUp:
-      if (event.button != hid::MouseButton::kNone) {
+      if (event.button != MouseButton::kNone) {
         input->OnInputEvent(event);
       }
       RefreshCapture();
@@ -184,8 +184,8 @@ void UISystem::State::OnEvent(ui::UIEvent& event) {
         resize_handler(window_width, window_height);
       }
       if (input) {
-        hid::InputEvent resized{
-            .type = hid::InputEvent::Type::kResize, .width = window_width, .height = window_height};
+        InputEvent resized{
+            .type = InputEvent::Type::kResize, .width = window_width, .height = window_height};
         input->OnInputEvent(resized);
       }
       break;
@@ -201,8 +201,8 @@ void UISystem::State::OnEvent(ui::UIEvent& event) {
         audio->SetFocused(gained);
       }
       if (input) {
-        hid::InputEvent focus{.type = gained ? hid::InputEvent::Type::kFocusGained
-                                             : hid::InputEvent::Type::kFocusLost};
+        InputEvent focus{.type = gained ? InputEvent::Type::kFocusGained
+                                        : InputEvent::Type::kFocusLost};
         input->OnInputEvent(focus);
       }
       RefreshCapture();

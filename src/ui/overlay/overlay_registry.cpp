@@ -83,7 +83,7 @@ Result<void> OverlayRegistry::Add(std::span<const OverlayConfig> table) {
     Entry entry;
     entry.name = std::string(config.name);
     entry.overlay = std::move(overlay);
-    if (config.default_key.key != hid::VirtualKey::kNone) {
+    if (config.default_key.key != VirtualKey::kNone) {
       binds_.Register(entry.name, config.default_key,
                       std::format("Toggle the {} overlay", entry.name),
                       [this, name = entry.name] { Toggle(name); });

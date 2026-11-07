@@ -22,7 +22,7 @@
 #include <vector>
 
 #include <rex/platform.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/module.h>
 #include <rex/ui/dialog.h>
 #include <rex/platform/native_window.h>
@@ -109,8 +109,8 @@ struct Style;
 
 /** One overlay a program adds. The name sets its toggle hotkey setting ui.bind.<name>. */
 struct OverlayConfig {
-  std::string_view name;     /**< Unique name. */
-  hid::KeyChord default_key; /**< Default toggle chord, kNone registers no hotkey. */
+  std::string_view name; /**< Unique name. */
+  KeyChord default_key;  /**< Default toggle chord, kNone registers no hotkey. */
   /** Creates the overlay. Called on the UI thread. */
   std::unique_ptr<ui::IDialog> (*create)(IUISystem& ui);
 };

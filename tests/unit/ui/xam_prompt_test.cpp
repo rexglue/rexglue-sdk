@@ -113,19 +113,19 @@ void Frames(rex::test::KernelFixture& fixture, int count) {
   }
 }
 
-void Press(rex::test::KernelFixture& fixture, rex::hid::VirtualKey key) {
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, key);
+void Press(rex::test::KernelFixture& fixture, rex::VirtualKey key) {
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, key);
   fixture.Pump();
   Frames(fixture, 2);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyUp, key);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyUp, key);
   fixture.Pump();
   Frames(fixture, 2);
 }
 
 void Type(rex::test::KernelFixture& fixture, char16_t character) {
   rex::test_ui::Deliver([=](rex::ui::IUIEventListener& listener) {
-    rex::hid::InputEvent event{.type = rex::hid::InputEvent::Type::kKeyChar,
-                               .character = static_cast<rex::u32>(character)};
+    rex::InputEvent event{.type = rex::InputEvent::Type::kKeyChar,
+                          .character = static_cast<rex::u32>(character)};
     listener.OnInputEvent(event);
   });
   fixture.Pump();
@@ -133,11 +133,11 @@ void Type(rex::test::KernelFixture& fixture, char16_t character) {
 }
 
 void Click(rex::test::KernelFixture& fixture, rex::i32 x, rex::i32 y) {
-  using rex::hid::InputEvent;
+  using rex::InputEvent;
   auto send = [&](InputEvent::Type type) {
     rex::test_ui::Deliver([=](rex::ui::IUIEventListener& listener) {
       InputEvent event{.type = type,
-                       .button = rex::hid::MouseButton::kLeft,
+                       .button = rex::MouseButton::kLeft,
                        .x = static_cast<rex::f32>(x),
                        .y = static_cast<rex::f32>(y)};
       listener.OnInputEvent(event);
@@ -264,7 +264,7 @@ REX_TEST_CASE("xam keyboard prompt returns typed text", "[ui][xam]") {
   WaitForDialog(fixture);
   Type(fixture, u'h');
   Type(fixture, u'i');
-  Press(fixture, rex::hid::VirtualKey::kReturn);
+  Press(fixture, rex::VirtualKey::kReturn);
   WaitForGuest(fixture, finished);
   guest.join();
   CHECK(completion == 0);

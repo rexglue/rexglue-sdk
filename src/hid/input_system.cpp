@@ -4,7 +4,7 @@
 #include <cmath>
 
 #include <rex/chrono.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/logging/log_category.h>
 #include <rex/hid/input_driver.h>
 #include <rex/hid/pad.h>
@@ -26,7 +26,7 @@ Error NotFound(const char* what) {
   return Error(ErrorCategory::kNotFound, what);
 }
 
-u32 ButtonBit(hid::MouseButton button) {
+u32 ButtonBit(MouseButton button) {
   return 1u << static_cast<u32>(button);
 }
 
@@ -96,7 +96,7 @@ struct InputSystem::State {
   std::atomic<i32> wheel_accum{0};
   std::atomic<f32> wheel_remainder{0.0f};
   std::atomic<i32> wheel_taken{0};
-  std::atomic<hid::PointerMode> requested_mode{hid::PointerMode::kFree};
+  std::atomic<PointerMode> requested_mode{PointerMode::kFree};
   std::mutex pointer_mutex;
   MoveOnlyFunction<void()> pointer_listener;
   u64 pointer_serial = 0;
@@ -309,28 +309,28 @@ std::unique_ptr<hid::IKeyCapture> InputSystem::CreateKeyCapture(hid::KeyCaptureC
   return std::make_unique<hid::KeyCapture>(*this, config);
 }
 
-Result<hid::KeyChord> InputSystem::ParseKeyChord(std::string_view text) const {
-  return hid::ParseKeyChord(text);
+Result<KeyChord> InputSystem::ParseKeyChord(std::string_view text) const {
+  return rex::ParseKeyChord(text);
 }
 
-std::string InputSystem::FormatKeyChord(hid::KeyChord chord) const {
-  return hid::KeyChordToString(chord);
+std::string InputSystem::FormatKeyChord(KeyChord chord) const {
+  return rex::KeyChordToString(chord);
 }
 
-hid::VirtualKey InputSystem::ParseVirtualKey(std::string_view name) const {
-  return ::rex::hid::ParseVirtualKey(name);
+VirtualKey InputSystem::ParseVirtualKey(std::string_view name) const {
+  return ::rex::ParseVirtualKey(name);
 }
 
-std::string InputSystem::VirtualKeyToString(hid::VirtualKey key) const {
-  return ::rex::hid::VirtualKeyToString(key);
+std::string InputSystem::VirtualKeyToString(VirtualKey key) const {
+  return ::rex::VirtualKeyToString(key);
 }
 
-Result<hid::InputSource> InputSystem::ParseInputSource(std::string_view text) const {
-  return ::rex::hid::ParseInputSource(text);
+Result<InputSource> InputSystem::ParseInputSource(std::string_view text) const {
+  return ::rex::ParseInputSource(text);
 }
 
-std::string InputSystem::InputSourceToString(const hid::InputSource& source) const {
-  return ::rex::hid::InputSourceToString(source);
+std::string InputSystem::InputSourceToString(const InputSource& source) const {
+  return ::rex::InputSourceToString(source);
 }
 
 Result<void> InputSystem::RegisterBindings(ISettingsRegistry& settings) {
@@ -563,10 +563,10 @@ void InputSystem::ReleaseUIBlock() {
   state.Fire(events);
 }
 
-void InputSystem::OnInputEvent(hid::InputEvent& event) {
-  using Type = hid::InputEvent::Type;
+void InputSystem::OnInputEvent(InputEvent& event) {
+  using Type = InputEvent::Type;
   State& state = *state_;
-  hid::InputEvent forwarded = event;
+  InputEvent forwarded = event;
   switch (event.type) {
     case Type::kKeyDown:
     case Type::kKeyUp: {
@@ -592,7 +592,7 @@ void InputSystem::OnInputEvent(hid::InputEvent& event) {
           state.focused.load(std::memory_order_relaxed) &&
           state.captured.load(std::memory_order_relaxed) &&
           (state.keyboard_mouse->IsPointerLockWanted() ||
-           state.requested_mode.load(std::memory_order_relaxed) == hid::PointerMode::kLocked);
+           state.requested_mode.load(std::memory_order_relaxed) == PointerMode::kLocked);
       if (locked) {
         state.motion_dx.fetch_add(event.dx, std::memory_order_relaxed);
         state.motion_dy.fetch_add(event.dy, std::memory_order_relaxed);
@@ -652,7 +652,7 @@ void InputSystem::SetInputCaptured(bool captured) {
   state_->captured.store(captured, std::memory_order_relaxed);
 }
 
-bool InputSystem::IsKeyDown(hid::VirtualKey key) const {
+bool InputSystem::IsKeyDown(VirtualKey key) const {
   const auto index = static_cast<u16>(key);
   if (index >= 256) {
     return false;
@@ -665,21 +665,21 @@ bool InputSystem::IsAnyKeyDown() const {
       state_->keys, [](const auto& word) { return word.load(std::memory_order_relaxed) != 0; });
 }
 
-hid::KeyModifiers InputSystem::GetModifiers() const {
-  hid::KeyModifiers mods = hid::KeyModifiers::kNone;
-  if (IsKeyDown(hid::VirtualKey::kShift)) {
-    mods |= hid::KeyModifiers::kShift;
+KeyModifiers InputSystem::GetModifiers() const {
+  KeyModifiers mods = KeyModifiers::kNone;
+  if (IsKeyDown(VirtualKey::kShift)) {
+    mods |= KeyModifiers::kShift;
   }
-  if (IsKeyDown(hid::VirtualKey::kControl)) {
-    mods |= hid::KeyModifiers::kCtrl;
+  if (IsKeyDown(VirtualKey::kControl)) {
+    mods |= KeyModifiers::kCtrl;
   }
-  if (IsKeyDown(hid::VirtualKey::kMenu)) {
-    mods |= hid::KeyModifiers::kAlt;
+  if (IsKeyDown(VirtualKey::kMenu)) {
+    mods |= KeyModifiers::kAlt;
   }
   return mods;
 }
 
-hid::PointerState InputSystem::GetPointer() const {
+PointerState InputSystem::GetPointer() const {
   const State& state = *state_;
   return {.x = state.x.load(std::memory_order_relaxed),
           .y = state.y.load(std::memory_order_relaxed),
@@ -688,7 +688,7 @@ hid::PointerState InputSystem::GetPointer() const {
           .has_position = state.has_position.load(std::memory_order_relaxed)};
 }
 
-bool InputSystem::IsButtonDown(hid::MouseButton button) const {
+bool InputSystem::IsButtonDown(MouseButton button) const {
   return (state_->buttons.load(std::memory_order_relaxed) & ButtonBit(button)) != 0;
 }
 
@@ -700,12 +700,12 @@ bool InputSystem::TakePointerMoved() {
   return state_->moved.exchange(false, std::memory_order_relaxed);
 }
 
-hid::PointerDelta InputSystem::TakeMotion() {
+PointerDelta InputSystem::TakeMotion() {
   return {.dx = state_->motion_dx.exchange(0.0f, std::memory_order_relaxed),
           .dy = state_->motion_dy.exchange(0.0f, std::memory_order_relaxed)};
 }
 
-hid::PointerDelta InputSystem::PeekMotion() const {
+PointerDelta InputSystem::PeekMotion() const {
   return {.dx = state_->motion_dx.load(std::memory_order_relaxed),
           .dy = state_->motion_dy.load(std::memory_order_relaxed)};
 }
@@ -720,7 +720,7 @@ i32 InputSystem::GetWheel() const {
   return state_->wheel_taken.load(std::memory_order_relaxed);
 }
 
-void InputSystem::SetPointerMode(hid::PointerMode mode) {
+void InputSystem::SetPointerMode(PointerMode mode) {
   state_->requested_mode.store(mode, std::memory_order_relaxed);
   std::lock_guard lock(state_->pointer_mutex);
   if (state_->pointer_listener) {
@@ -728,13 +728,13 @@ void InputSystem::SetPointerMode(hid::PointerMode mode) {
   }
 }
 
-hid::PointerMode InputSystem::GetPointerModeToApply() const {
+PointerMode InputSystem::GetPointerModeToApply() const {
   const State& state = *state_;
   if (!state.IsActive()) {
-    return hid::PointerMode::kFree;
+    return PointerMode::kFree;
   }
   if (state.keyboard_mouse->IsPointerLockWanted()) {
-    return hid::PointerMode::kLocked;
+    return PointerMode::kLocked;
   }
   return state.requested_mode.load(std::memory_order_relaxed);
 }

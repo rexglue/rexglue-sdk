@@ -6,7 +6,7 @@
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  *
- * @file        hid/input_keys.h
+ * @file        input_keys.h
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  *
@@ -29,7 +29,7 @@
 #include <rex/result.h>
 #include <rex/types.h>
 
-namespace rex::hid {
+namespace rex {
 
 /** Windows and XInput virtual keys. Platform keys translate to it for keystrokes and UI events. */
 enum class VirtualKey : u16 {
@@ -361,21 +361,12 @@ enum class VirtualKey : u16 {
  * @param name A key name such as "F3", "Backtick", "A" or "Escape".
  * @return The key, or VirtualKey::kNone for an unknown name.
  */
-REX_HID_API VirtualKey ParseVirtualKey(std::string_view name);
+REX_API VirtualKey ParseVirtualKey(std::string_view name);
 
 /**
  * @return The name ParseVirtualKey accepts, or empty for a key with no name.
  */
-REX_HID_API std::string VirtualKeyToString(VirtualKey key);
-
-using rex::HasFlags;
-using rex::operator|;
-using rex::operator&;
-using rex::operator^;
-using rex::operator~;
-using rex::operator|=;
-using rex::operator&=;
-using rex::operator^=;
+REX_API std::string VirtualKeyToString(VirtualKey key);
 
 enum class PointerMode : u8 {
   kFree,   /**< The arrow shows and moves freely. */
@@ -468,12 +459,8 @@ struct InputEvent {
   bool handled = false;
 };
 
-}  // namespace rex::hid
-
 template <>
-inline constexpr bool rex::is_flags_enum<rex::hid::KeyModifiers> = true;
-
-namespace rex::hid {
+inline constexpr bool is_flags_enum<KeyModifiers> = true;
 
 /** The types of input a binding can name. Mouse buttons are keys with their VirtualKey. */
 enum class InputSourceType : u8 {
@@ -545,7 +532,7 @@ constexpr bool IsSameInput(const InputSource& left, const InputSource& right) {
 }
 
 /** Returns the name of a pad button in binding text, or empty for a value outside PadInput. */
-REX_HID_API std::string_view GetPadButtonName(PadInput button);
+REX_API std::string_view GetPadButtonName(PadInput button);
 
 /**
  * Parses one input such as "Shift+W", "LMB", "WheelUp", "PadA" or "LStick". Key text follows
@@ -554,14 +541,14 @@ REX_HID_API std::string_view GetPadButtonName(PadInput button);
  * @return The source, or ErrorCategory::kConfig naming text when it is empty, a bare modifier or
  *         names nothing.
  */
-[[nodiscard]] REX_HID_API Result<InputSource> ParseInputSource(std::string_view text);
+[[nodiscard]] REX_API Result<InputSource> ParseInputSource(std::string_view text);
 
 /**
  * Writes a source as binding text, modifiers in the order Shift, Ctrl, Alt and then the name.
  *
  * @return The text ParseInputSource reads back, or empty when the source names nothing.
  */
-REX_HID_API std::string InputSourceToString(const InputSource& source);
+REX_API std::string InputSourceToString(const InputSource& source);
 
 /** A key and the exact modifiers that must be held with it. */
 struct KeyChord {
@@ -581,7 +568,7 @@ struct KeyChord {
  * @return The chord, or ErrorCategory::kConfig naming text when the key is unknown, missing or a
  *         bare modifier.
  */
-[[nodiscard]] REX_HID_API Result<KeyChord> ParseKeyChord(std::string_view text);
+[[nodiscard]] REX_API Result<KeyChord> ParseKeyChord(std::string_view text);
 
 /**
  * Parses a comma separated list of chords such as "Q,I" or "Shift+W, A". Spaces and tabs around
@@ -589,7 +576,7 @@ struct KeyChord {
  *
  * @return The chords in order, or the error of the first item ParseKeyChord rejects.
  */
-[[nodiscard]] REX_HID_API Result<std::vector<KeyChord>> ParseKeyChordList(std::string_view text);
+[[nodiscard]] REX_API Result<std::vector<KeyChord>> ParseKeyChordList(std::string_view text);
 
 /**
  * Writes a chord as text, modifiers in the order Shift, Ctrl, Alt and then the key name.
@@ -597,6 +584,6 @@ struct KeyChord {
  * @return The text ParseKeyChord reads back, or empty when the key is VirtualKey::kNone or has
  *         no name.
  */
-REX_HID_API std::string KeyChordToString(KeyChord chord);
+REX_API std::string KeyChordToString(KeyChord chord);
 
-}  // namespace rex::hid
+}  // namespace rex

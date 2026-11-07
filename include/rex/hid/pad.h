@@ -18,6 +18,15 @@
 
 namespace rex::hid {
 
+using rex::HasFlags;
+using rex::operator|;
+using rex::operator&;
+using rex::operator^;
+using rex::operator~;
+using rex::operator|=;
+using rex::operator&=;
+using rex::operator^=;
+
 /** Button bits of PadState::buttons. The layout matches the title's input API. */
 enum PadButton : u16 {
   kPadDPadUp = 0x0001,

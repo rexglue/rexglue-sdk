@@ -95,7 +95,7 @@ inline constexpr struct NoSave {
 } kNoSave;
 inline constexpr struct DebugOnly {
 } kDebugOnly;
-inline constexpr struct KeyChord {
+inline constexpr struct KeyChordTrait {
 } kKeyChord;
 
 /** The untyped part of a setting, which the registry, the console and the overlay use. */
@@ -329,7 +329,7 @@ inline void ApplyTrait(SettingConstraints& c, NoSave) {
 inline void ApplyTrait(SettingConstraints& c, DebugOnly) {
   c.debug_only = true;
 }
-inline void ApplyTrait(SettingConstraints& c, KeyChord) {
+inline void ApplyTrait(SettingConstraints& c, KeyChordTrait) {
   c.key_chord = true;
 }
 

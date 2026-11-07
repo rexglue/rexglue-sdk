@@ -17,35 +17,35 @@
 
 using namespace std::chrono_literals;
 
-using rex::hid::InputSource;
-using rex::hid::InputSourceType;
+using rex::InputSource;
+using rex::InputSourceType;
+using rex::KeyModifiers;
+using rex::MouseButton;
+using rex::PadInput;
+using rex::VirtualKey;
 using rex::hid::KeyCaptureConfig;
-using rex::hid::KeyModifiers;
-using rex::hid::MouseButton;
-using rex::hid::PadInput;
-using rex::hid::VirtualKey;
 
 namespace {
 
 using rex::test_ui::UIApp;
 
 void KeyDown(UIApp& app, VirtualKey key) {
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, key);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, key);
   app.Pump();
 }
 
 void KeyUp(UIApp& app, VirtualKey key) {
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyUp, key);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyUp, key);
   app.Pump();
 }
 
 void ButtonDown(UIApp& app, MouseButton button) {
-  rex::test_ui::DeliverMouseButton(rex::hid::InputEvent::Type::kButtonDown, button);
+  rex::test_ui::DeliverMouseButton(rex::InputEvent::Type::kButtonDown, button);
   app.Pump();
 }
 
 void ButtonUp(UIApp& app, MouseButton button) {
-  rex::test_ui::DeliverMouseButton(rex::hid::InputEvent::Type::kButtonUp, button);
+  rex::test_ui::DeliverMouseButton(rex::InputEvent::Type::kButtonUp, button);
   app.Pump();
 }
 
@@ -83,9 +83,9 @@ REX_TEST_CASE("KeyCapture bindable keys ascend and each one has a name", "[hid][
     }
     InputSource source;
     source.code = static_cast<rex::u16>(keys[i]);
-    const std::string text = rex::hid::InputSourceToString(source);
+    const std::string text = rex::InputSourceToString(source);
     CHECK_FALSE(text.empty());
-    auto parsed = rex::hid::ParseInputSource(text);
+    auto parsed = rex::ParseInputSource(text);
     REQUIRE(parsed);
     CHECK(*parsed == source);
   }

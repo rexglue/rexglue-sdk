@@ -1,5 +1,5 @@
 #include <rex/string/text.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 
 #include <algorithm>
 #include <array>
@@ -7,7 +7,7 @@
 
 #include <rex/bit.h>
 
-namespace rex::hid {
+namespace rex {
 
 namespace {
 
@@ -97,4 +97,4 @@ std::string KeyChordToString(KeyChord chord) {
   return text;
 }
 
-}  // namespace rex::hid
+}  // namespace rex

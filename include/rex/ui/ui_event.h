@@ -15,7 +15,7 @@
 #include <climits>
 #include <filesystem>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/types.h>
 
 namespace rex::ui {
@@ -198,7 +198,7 @@ class IUIEventListener {
    *
    * @param event Valid only during the call.
    */
-  virtual void OnInputEvent(hid::InputEvent& event) = 0;
+  virtual void OnInputEvent(InputEvent& event) = 0;
 };
 
 }  // namespace rex::ui

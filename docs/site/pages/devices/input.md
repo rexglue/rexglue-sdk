@@ -32,7 +32,7 @@ The idle pad is a virtual gamepad on user 0 that never presses anything. A game 
 
 ## Users
 
-A gamepad can appear in two drivers at once, such as an Xbox controller that both SDL and XInput see. The input system treats two reports as the same device when they share an XInput slot, or the same serial number, vendor and product. It then uses the copy from the driver listed first in `hid.drivers`.
+A gamepad can appear in two drivers at once, such as an Xbox controller that both SDL and XInput report. The input system treats two reports as the same device when they share an XInput slot, or the same serial number, vendor and product. It then uses the copy from the driver listed first in `hid.drivers`.
 
 The input system assigns users to devices in this order:
 
@@ -48,7 +48,7 @@ When several devices share a user, the input system merges their state:
 
 ### Deadzones
 
-A worn stick reports small values when it rests at the center. `hid.left_stick_deadzone` and `hid.right_stick_deadzone` set a radial deadzone for each stick, as a fraction of the full stick range. The deadzone is a circle around the center, and each axis reads 0 while it lies inside the part of the circle in the stick's direction. Values outside pass unchanged, without rescaling. The values 0 and 1 leave the stick unchanged. The SDK applies no other deadzone to the stick values.
+A worn stick reports small values when it rests at the center. `hid.left_stick_deadzone` and `hid.right_stick_deadzone` set a radial deadzone for each stick, as a fraction of the full stick range. The deadzone is a circle around the center. While the stick is inside the circle, both axes read 0. Values outside pass unchanged, without rescaling. The values 0 and 1 leave the stick unchanged. The SDK applies no other deadzone to the stick values.
 
 ## Keyboard and Mouse
 
@@ -74,7 +74,7 @@ Each `hid.keybind_*` setting is a bind, a comma separated list of key chords, su
 
 `IInputSystem::SetPointerMode` sets how the mouse pointer behaves in the window:
 
-- `hid::PointerMode::kFree`, the default, shows the pointer and lets it move freely.
+- `PointerMode::kFree`, the default, shows the pointer and lets it move freely.
 - `kHidden` hides the pointer, for a game or overlay that draws its own.
 - `kLocked` hides the pointer, keeps it in the window and reports motion as deltas.
 

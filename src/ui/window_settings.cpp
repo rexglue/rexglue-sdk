@@ -69,7 +69,7 @@ void UISystem::State::WatchWindowSettings() {
     last_pointer_motion = std::chrono::steady_clock::now();
     if (cursor_hidden_by_timeout) {
       cursor_hidden_by_timeout = false;
-      if (applied_pointer_mode == hid::PointerMode::kFree) {
+      if (applied_pointer_mode == PointerMode::kFree) {
         driver->SetCursorShape(true, rex::ui::CursorShape::kArrow);
       }
     }

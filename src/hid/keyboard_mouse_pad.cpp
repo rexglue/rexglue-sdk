@@ -23,12 +23,6 @@ namespace rex::hid::detail {
 
 namespace {
 
-using hid::InputEvent;
-using hid::KeyChord;
-using hid::KeyModifiers;
-using hid::MouseButton;
-using hid::VirtualKey;
-
 constexpr rex::hid::PadDeviceID kKeyboardMouseDevice =
     static_cast<rex::hid::PadDeviceID>(0x4D4E4B00);
 constexpr size_t kMaxQueuedKeystrokes = 256;
@@ -186,8 +180,8 @@ void KeyboardMousePad::RefreshBinds() {
   bind_generation_ = generation;
   std::array<std::vector<KeyChord>, kBindCount> fresh;
   for (size_t i = 0; i < kBindCount; ++i) {
-    for (const hid::InputSource& source : bindings_.GetSources(i)) {
-      if (source.type == hid::InputSourceType::kKey) {
+    for (const InputSource& source : bindings_.GetSources(i)) {
+      if (source.type == InputSourceType::kKey) {
         fresh[i].push_back({static_cast<VirtualKey>(source.code), source.modifiers});
       }
     }

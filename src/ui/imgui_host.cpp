@@ -50,105 +50,105 @@ class ContextScope : public rex::NonCopyable {
   ImGuiContext* previous_;
 };
 
-std::optional<ImGuiKey> VirtualKeyToImGuiKey(hid::VirtualKey vkey) {
-  static const std::map<hid::VirtualKey, ImGuiKey> kKeyMap = {
-      {hid::VirtualKey::kTab, ImGuiKey_Tab},
-      {hid::VirtualKey::kLeft, ImGuiKey_LeftArrow},
-      {hid::VirtualKey::kRight, ImGuiKey_RightArrow},
-      {hid::VirtualKey::kUp, ImGuiKey_UpArrow},
-      {hid::VirtualKey::kDown, ImGuiKey_DownArrow},
-      {hid::VirtualKey::kHome, ImGuiKey_Home},
-      {hid::VirtualKey::kEnd, ImGuiKey_End},
-      {hid::VirtualKey::kPrior, ImGuiKey_PageUp},
-      {hid::VirtualKey::kNext, ImGuiKey_PageDown},
-      {hid::VirtualKey::kInsert, ImGuiKey_Insert},
-      {hid::VirtualKey::kDelete, ImGuiKey_Delete},
-      {hid::VirtualKey::kBack, ImGuiKey_Backspace},
-      {hid::VirtualKey::kReturn, ImGuiKey_Enter},
-      {hid::VirtualKey::kEscape, ImGuiKey_Escape},
-      {hid::VirtualKey::kSpace, ImGuiKey_Space},
-      {hid::VirtualKey::kA, ImGuiKey_A},
-      {hid::VirtualKey::kB, ImGuiKey_B},
-      {hid::VirtualKey::kC, ImGuiKey_C},
-      {hid::VirtualKey::kD, ImGuiKey_D},
-      {hid::VirtualKey::kE, ImGuiKey_E},
-      {hid::VirtualKey::kF, ImGuiKey_F},
-      {hid::VirtualKey::kG, ImGuiKey_G},
-      {hid::VirtualKey::kH, ImGuiKey_H},
-      {hid::VirtualKey::kI, ImGuiKey_I},
-      {hid::VirtualKey::kJ, ImGuiKey_J},
-      {hid::VirtualKey::kK, ImGuiKey_K},
-      {hid::VirtualKey::kL, ImGuiKey_L},
-      {hid::VirtualKey::kM, ImGuiKey_M},
-      {hid::VirtualKey::kN, ImGuiKey_N},
-      {hid::VirtualKey::kO, ImGuiKey_O},
-      {hid::VirtualKey::kP, ImGuiKey_P},
-      {hid::VirtualKey::kQ, ImGuiKey_Q},
-      {hid::VirtualKey::kR, ImGuiKey_R},
-      {hid::VirtualKey::kS, ImGuiKey_S},
-      {hid::VirtualKey::kT, ImGuiKey_T},
-      {hid::VirtualKey::kU, ImGuiKey_U},
-      {hid::VirtualKey::kV, ImGuiKey_V},
-      {hid::VirtualKey::kW, ImGuiKey_W},
-      {hid::VirtualKey::kX, ImGuiKey_X},
-      {hid::VirtualKey::kY, ImGuiKey_Y},
-      {hid::VirtualKey::kZ, ImGuiKey_Z},
-      {hid::VirtualKey::k0, ImGuiKey_0},
-      {hid::VirtualKey::k1, ImGuiKey_1},
-      {hid::VirtualKey::k2, ImGuiKey_2},
-      {hid::VirtualKey::k3, ImGuiKey_3},
-      {hid::VirtualKey::k4, ImGuiKey_4},
-      {hid::VirtualKey::k5, ImGuiKey_5},
-      {hid::VirtualKey::k6, ImGuiKey_6},
-      {hid::VirtualKey::k7, ImGuiKey_7},
-      {hid::VirtualKey::k8, ImGuiKey_8},
-      {hid::VirtualKey::k9, ImGuiKey_9},
-      {hid::VirtualKey::kF1, ImGuiKey_F1},
-      {hid::VirtualKey::kF2, ImGuiKey_F2},
-      {hid::VirtualKey::kF3, ImGuiKey_F3},
-      {hid::VirtualKey::kF4, ImGuiKey_F4},
-      {hid::VirtualKey::kF5, ImGuiKey_F5},
-      {hid::VirtualKey::kF6, ImGuiKey_F6},
-      {hid::VirtualKey::kF7, ImGuiKey_F7},
-      {hid::VirtualKey::kF8, ImGuiKey_F8},
-      {hid::VirtualKey::kF9, ImGuiKey_F9},
-      {hid::VirtualKey::kF10, ImGuiKey_F10},
-      {hid::VirtualKey::kF11, ImGuiKey_F11},
-      {hid::VirtualKey::kF12, ImGuiKey_F12},
-      {hid::VirtualKey::kShift, ImGuiKey_LeftShift},
-      {hid::VirtualKey::kControl, ImGuiKey_LeftCtrl},
-      {hid::VirtualKey::kMenu, ImGuiKey_LeftAlt},
-      {hid::VirtualKey::kCapital, ImGuiKey_CapsLock},
-      {hid::VirtualKey::kNumLock, ImGuiKey_NumLock},
-      {hid::VirtualKey::kScroll, ImGuiKey_ScrollLock},
-      {hid::VirtualKey::kSnapshot, ImGuiKey_PrintScreen},
-      {hid::VirtualKey::kPause, ImGuiKey_Pause},
-      {hid::VirtualKey::kOem3, ImGuiKey_GraveAccent},
-      {hid::VirtualKey::kOemMinus, ImGuiKey_Minus},
-      {hid::VirtualKey::kOemPlus, ImGuiKey_Equal},
-      {hid::VirtualKey::kOem4, ImGuiKey_LeftBracket},
-      {hid::VirtualKey::kOem6, ImGuiKey_RightBracket},
-      {hid::VirtualKey::kOem5, ImGuiKey_Backslash},
-      {hid::VirtualKey::kOem1, ImGuiKey_Semicolon},
-      {hid::VirtualKey::kOem7, ImGuiKey_Apostrophe},
-      {hid::VirtualKey::kOemComma, ImGuiKey_Comma},
-      {hid::VirtualKey::kOemPeriod, ImGuiKey_Period},
-      {hid::VirtualKey::kOem2, ImGuiKey_Slash},
-      {hid::VirtualKey::kNumpad0, ImGuiKey_Keypad0},
-      {hid::VirtualKey::kNumpad1, ImGuiKey_Keypad1},
-      {hid::VirtualKey::kNumpad2, ImGuiKey_Keypad2},
-      {hid::VirtualKey::kNumpad3, ImGuiKey_Keypad3},
-      {hid::VirtualKey::kNumpad4, ImGuiKey_Keypad4},
-      {hid::VirtualKey::kNumpad5, ImGuiKey_Keypad5},
-      {hid::VirtualKey::kNumpad6, ImGuiKey_Keypad6},
-      {hid::VirtualKey::kNumpad7, ImGuiKey_Keypad7},
-      {hid::VirtualKey::kNumpad8, ImGuiKey_Keypad8},
-      {hid::VirtualKey::kNumpad9, ImGuiKey_Keypad9},
-      {hid::VirtualKey::kAdd, ImGuiKey_KeypadAdd},
-      {hid::VirtualKey::kSubtract, ImGuiKey_KeypadSubtract},
-      {hid::VirtualKey::kMultiply, ImGuiKey_KeypadMultiply},
-      {hid::VirtualKey::kDivide, ImGuiKey_KeypadDivide},
-      {hid::VirtualKey::kDecimal, ImGuiKey_KeypadDecimal},
+std::optional<ImGuiKey> VirtualKeyToImGuiKey(VirtualKey vkey) {
+  static const std::map<VirtualKey, ImGuiKey> kKeyMap = {
+      {VirtualKey::kTab, ImGuiKey_Tab},
+      {VirtualKey::kLeft, ImGuiKey_LeftArrow},
+      {VirtualKey::kRight, ImGuiKey_RightArrow},
+      {VirtualKey::kUp, ImGuiKey_UpArrow},
+      {VirtualKey::kDown, ImGuiKey_DownArrow},
+      {VirtualKey::kHome, ImGuiKey_Home},
+      {VirtualKey::kEnd, ImGuiKey_End},
+      {VirtualKey::kPrior, ImGuiKey_PageUp},
+      {VirtualKey::kNext, ImGuiKey_PageDown},
+      {VirtualKey::kInsert, ImGuiKey_Insert},
+      {VirtualKey::kDelete, ImGuiKey_Delete},
+      {VirtualKey::kBack, ImGuiKey_Backspace},
+      {VirtualKey::kReturn, ImGuiKey_Enter},
+      {VirtualKey::kEscape, ImGuiKey_Escape},
+      {VirtualKey::kSpace, ImGuiKey_Space},
+      {VirtualKey::kA, ImGuiKey_A},
+      {VirtualKey::kB, ImGuiKey_B},
+      {VirtualKey::kC, ImGuiKey_C},
+      {VirtualKey::kD, ImGuiKey_D},
+      {VirtualKey::kE, ImGuiKey_E},
+      {VirtualKey::kF, ImGuiKey_F},
+      {VirtualKey::kG, ImGuiKey_G},
+      {VirtualKey::kH, ImGuiKey_H},
+      {VirtualKey::kI, ImGuiKey_I},
+      {VirtualKey::kJ, ImGuiKey_J},
+      {VirtualKey::kK, ImGuiKey_K},
+      {VirtualKey::kL, ImGuiKey_L},
+      {VirtualKey::kM, ImGuiKey_M},
+      {VirtualKey::kN, ImGuiKey_N},
+      {VirtualKey::kO, ImGuiKey_O},
+      {VirtualKey::kP, ImGuiKey_P},
+      {VirtualKey::kQ, ImGuiKey_Q},
+      {VirtualKey::kR, ImGuiKey_R},
+      {VirtualKey::kS, ImGuiKey_S},
+      {VirtualKey::kT, ImGuiKey_T},
+      {VirtualKey::kU, ImGuiKey_U},
+      {VirtualKey::kV, ImGuiKey_V},
+      {VirtualKey::kW, ImGuiKey_W},
+      {VirtualKey::kX, ImGuiKey_X},
+      {VirtualKey::kY, ImGuiKey_Y},
+      {VirtualKey::kZ, ImGuiKey_Z},
+      {VirtualKey::k0, ImGuiKey_0},
+      {VirtualKey::k1, ImGuiKey_1},
+      {VirtualKey::k2, ImGuiKey_2},
+      {VirtualKey::k3, ImGuiKey_3},
+      {VirtualKey::k4, ImGuiKey_4},
+      {VirtualKey::k5, ImGuiKey_5},
+      {VirtualKey::k6, ImGuiKey_6},
+      {VirtualKey::k7, ImGuiKey_7},
+      {VirtualKey::k8, ImGuiKey_8},
+      {VirtualKey::k9, ImGuiKey_9},
+      {VirtualKey::kF1, ImGuiKey_F1},
+      {VirtualKey::kF2, ImGuiKey_F2},
+      {VirtualKey::kF3, ImGuiKey_F3},
+      {VirtualKey::kF4, ImGuiKey_F4},
+      {VirtualKey::kF5, ImGuiKey_F5},
+      {VirtualKey::kF6, ImGuiKey_F6},
+      {VirtualKey::kF7, ImGuiKey_F7},
+      {VirtualKey::kF8, ImGuiKey_F8},
+      {VirtualKey::kF9, ImGuiKey_F9},
+      {VirtualKey::kF10, ImGuiKey_F10},
+      {VirtualKey::kF11, ImGuiKey_F11},
+      {VirtualKey::kF12, ImGuiKey_F12},
+      {VirtualKey::kShift, ImGuiKey_LeftShift},
+      {VirtualKey::kControl, ImGuiKey_LeftCtrl},
+      {VirtualKey::kMenu, ImGuiKey_LeftAlt},
+      {VirtualKey::kCapital, ImGuiKey_CapsLock},
+      {VirtualKey::kNumLock, ImGuiKey_NumLock},
+      {VirtualKey::kScroll, ImGuiKey_ScrollLock},
+      {VirtualKey::kSnapshot, ImGuiKey_PrintScreen},
+      {VirtualKey::kPause, ImGuiKey_Pause},
+      {VirtualKey::kOem3, ImGuiKey_GraveAccent},
+      {VirtualKey::kOemMinus, ImGuiKey_Minus},
+      {VirtualKey::kOemPlus, ImGuiKey_Equal},
+      {VirtualKey::kOem4, ImGuiKey_LeftBracket},
+      {VirtualKey::kOem6, ImGuiKey_RightBracket},
+      {VirtualKey::kOem5, ImGuiKey_Backslash},
+      {VirtualKey::kOem1, ImGuiKey_Semicolon},
+      {VirtualKey::kOem7, ImGuiKey_Apostrophe},
+      {VirtualKey::kOemComma, ImGuiKey_Comma},
+      {VirtualKey::kOemPeriod, ImGuiKey_Period},
+      {VirtualKey::kOem2, ImGuiKey_Slash},
+      {VirtualKey::kNumpad0, ImGuiKey_Keypad0},
+      {VirtualKey::kNumpad1, ImGuiKey_Keypad1},
+      {VirtualKey::kNumpad2, ImGuiKey_Keypad2},
+      {VirtualKey::kNumpad3, ImGuiKey_Keypad3},
+      {VirtualKey::kNumpad4, ImGuiKey_Keypad4},
+      {VirtualKey::kNumpad5, ImGuiKey_Keypad5},
+      {VirtualKey::kNumpad6, ImGuiKey_Keypad6},
+      {VirtualKey::kNumpad7, ImGuiKey_Keypad7},
+      {VirtualKey::kNumpad8, ImGuiKey_Keypad8},
+      {VirtualKey::kNumpad9, ImGuiKey_Keypad9},
+      {VirtualKey::kAdd, ImGuiKey_KeypadAdd},
+      {VirtualKey::kSubtract, ImGuiKey_KeypadSubtract},
+      {VirtualKey::kMultiply, ImGuiKey_KeypadMultiply},
+      {VirtualKey::kDivide, ImGuiKey_KeypadDivide},
+      {VirtualKey::kDecimal, ImGuiKey_KeypadDecimal},
   };
   if (auto search = kKeyMap.find(vkey); search != kKeyMap.end()) {
     return search->second;
@@ -407,11 +407,11 @@ bool ImGuiHost::HandleEvent(UIEvent& event) {
   return false;
 }
 
-void ImGuiHost::HandleEvent(hid::InputEvent& event) {
+void ImGuiHost::HandleEvent(InputEvent& event) {
   if (dialogs_.empty()) {
     return;
   }
-  using Type = hid::InputEvent::Type;
+  using Type = InputEvent::Type;
   switch (event.type) {
     case Type::kKeyDown:
       OnKey(event, true);
@@ -444,7 +444,7 @@ void ImGuiHost::HandleEvent(hid::InputEvent& event) {
   }
 }
 
-void ImGuiHost::OnKeyChar(hid::InputEvent& e) {
+void ImGuiHost::OnKeyChar(InputEvent& e) {
   ContextScope scope(context_);
   auto& io = ImGui::GetIO();
   unsigned int character = e.character;
@@ -457,16 +457,16 @@ void ImGuiHost::OnKeyChar(hid::InputEvent& e) {
   }
 }
 
-void ImGuiHost::OnMouseButton(const hid::InputEvent& e, bool is_down) {
+void ImGuiHost::OnMouseButton(const InputEvent& e, bool is_down) {
   ContextScope scope(context_);
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = ImGui::GetIO();
   int button = -1;
   switch (e.button) {
-    case hid::MouseButton::kLeft:
+    case MouseButton::kLeft:
       button = 0;
       break;
-    case hid::MouseButton::kRight:
+    case MouseButton::kRight:
       button = 1;
       break;
     default:
@@ -532,31 +532,31 @@ void ImGuiHost::ClearInput() {
   capture_.Clear();
 }
 
-void ImGuiHost::OnKey(hid::InputEvent& e, bool is_down) {
+void ImGuiHost::OnKey(InputEvent& e, bool is_down) {
   ContextScope scope(context_);
   auto& io = ImGui::GetIO();
-  const hid::VirtualKey virtual_key = e.key;
+  const VirtualKey virtual_key = e.key;
   if (auto imgui_key = VirtualKeyToImGuiKey(virtual_key); imgui_key) {
     io.AddKeyEvent(*imgui_key, is_down);
   }
   switch (virtual_key) {
-    case hid::VirtualKey::kShift:
-    case hid::VirtualKey::kLShift:
-    case hid::VirtualKey::kRShift:
+    case VirtualKey::kShift:
+    case VirtualKey::kLShift:
+    case VirtualKey::kRShift:
       io.AddKeyEvent(ImGuiMod_Shift, is_down);
       break;
-    case hid::VirtualKey::kControl:
-    case hid::VirtualKey::kLControl:
-    case hid::VirtualKey::kRControl:
+    case VirtualKey::kControl:
+    case VirtualKey::kLControl:
+    case VirtualKey::kRControl:
       io.AddKeyEvent(ImGuiMod_Ctrl, is_down);
       break;
-    case hid::VirtualKey::kMenu:
-    case hid::VirtualKey::kLMenu:
-    case hid::VirtualKey::kRMenu:
+    case VirtualKey::kMenu:
+    case VirtualKey::kLMenu:
+    case VirtualKey::kRMenu:
       io.AddKeyEvent(ImGuiMod_Alt, is_down);
       break;
-    case hid::VirtualKey::kLWin:
-    case hid::VirtualKey::kRWin:
+    case VirtualKey::kLWin:
+    case VirtualKey::kRWin:
       io.AddKeyEvent(ImGuiMod_Super, is_down);
       break;
     default:
@@ -574,7 +574,7 @@ void ImGuiHost::UpdateMousePosition(f32 x, f32 y) {
   io.MousePos.y = y / content_scale_;
 }
 
-void ImGuiHost::SwitchToPhysicalMouseAndUpdateMousePosition(const hid::InputEvent& e) {
+void ImGuiHost::SwitchToPhysicalMouseAndUpdateMousePosition(const InputEvent& e) {
   ContextScope scope(context_);
   if (touch_pointer_id_ != TouchEvent::kPointerIDNone) {
     touch_pointer_id_ = TouchEvent::kPointerIDNone;

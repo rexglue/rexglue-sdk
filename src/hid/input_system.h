@@ -42,33 +42,33 @@ class InputSystem final : public rex::hid::IInputSystem {
       MoveOnlyFunction<void(u32 user, bool connected)> fn) override;
   void AcquireUIBlock() override;
   void ReleaseUIBlock() override;
-  bool IsKeyDown(hid::VirtualKey key) const override;
+  bool IsKeyDown(VirtualKey key) const override;
   bool IsAnyKeyDown() const override;
-  hid::KeyModifiers GetModifiers() const override;
-  hid::PointerState GetPointer() const override;
-  bool IsButtonDown(hid::MouseButton button) const override;
+  KeyModifiers GetModifiers() const override;
+  PointerState GetPointer() const override;
+  bool IsButtonDown(MouseButton button) const override;
   bool IsAnyButtonDown() const override;
   bool TakePointerMoved() override;
-  hid::PointerDelta TakeMotion() override;
-  hid::PointerDelta PeekMotion() const override;
+  PointerDelta TakeMotion() override;
+  PointerDelta PeekMotion() const override;
   i32 TakeWheel() override;
   i32 GetWheel() const override;
-  void SetPointerMode(hid::PointerMode mode) override;
+  void SetPointerMode(PointerMode mode) override;
   hid::IBindingSet& GetKeyBindings() override;
   [[nodiscard]] std::unique_ptr<hid::IBindingSet> CreateBindingSet(
       std::span<const hid::BindingConfig> configs, std::string_view scope) override;
   [[nodiscard]] std::unique_ptr<hid::IKeyCapture> CreateKeyCapture(
       hid::KeyCaptureConfig config) override;
-  [[nodiscard]] Result<hid::KeyChord> ParseKeyChord(std::string_view text) const override;
-  [[nodiscard]] std::string FormatKeyChord(hid::KeyChord chord) const override;
-  [[nodiscard]] hid::VirtualKey ParseVirtualKey(std::string_view name) const override;
-  [[nodiscard]] std::string VirtualKeyToString(hid::VirtualKey key) const override;
-  [[nodiscard]] Result<hid::InputSource> ParseInputSource(std::string_view text) const override;
-  [[nodiscard]] std::string InputSourceToString(const hid::InputSource& source) const override;
+  [[nodiscard]] Result<KeyChord> ParseKeyChord(std::string_view text) const override;
+  [[nodiscard]] std::string FormatKeyChord(KeyChord chord) const override;
+  [[nodiscard]] VirtualKey ParseVirtualKey(std::string_view name) const override;
+  [[nodiscard]] std::string VirtualKeyToString(VirtualKey key) const override;
+  [[nodiscard]] Result<InputSource> ParseInputSource(std::string_view text) const override;
+  [[nodiscard]] std::string InputSourceToString(const InputSource& source) const override;
 
-  void OnInputEvent(hid::InputEvent& event) override;
+  void OnInputEvent(InputEvent& event) override;
   void SetInputCaptured(bool captured) override;
-  hid::PointerMode GetPointerModeToApply() const override;
+  PointerMode GetPointerModeToApply() const override;
   [[nodiscard]] ScopeGuard SetPointerModeListener(MoveOnlyFunction<void()> listener) override;
 
   [[nodiscard]] Result<void> RegisterBindings(ISettingsRegistry& settings);

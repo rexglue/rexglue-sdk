@@ -41,11 +41,11 @@ namespace {
 class CountingListener final : public rex::ui::IUIEventListener {
  public:
   void OnUIEvent(const rex::ui::UIEvent&) override {}
-  void OnInputEvent(rex::hid::InputEvent& event) override {
-    if (event.type == rex::hid::InputEvent::Type::kKeyDown) {
+  void OnInputEvent(rex::InputEvent& event) override {
+    if (event.type == rex::InputEvent::Type::kKeyDown) {
       ++key_downs;
     }
-    if (event.type == rex::hid::InputEvent::Type::kWheel) {
+    if (event.type == rex::InputEvent::Type::kWheel) {
       wheel_turns.push_back(event.scroll_y);
     }
   }
@@ -101,8 +101,8 @@ void Frames(UIApp& app, rex::ui::IUISystem& ui, NullRenderer& renderer, int coun
   }
 }
 
-void DeliverButton(rex::hid::InputEvent::Type type) {
-  rex::test_ui::DeliverMouseButton(type, rex::hid::MouseButton::kLeft);
+void DeliverButton(rex::InputEvent::Type type) {
+  rex::test_ui::DeliverMouseButton(type, rex::MouseButton::kLeft);
 }
 
 void RunWithCallerContext(ImGuiContext* caller) {
@@ -117,10 +117,10 @@ void RunWithCallerContext(ImGuiContext* caller) {
     Frames(app, ui, renderer, 3);
     REQUIRE(ui.HasDialogs());
     CHECK(ImGui::GetCurrentContext() == caller);
-    DeliverButton(rex::hid::InputEvent::Type::kButtonDown);
+    DeliverButton(rex::InputEvent::Type::kButtonDown);
     app.Pump();
     CHECK(ImGui::GetCurrentContext() == caller);
-    DeliverButton(rex::hid::InputEvent::Type::kButtonUp);
+    DeliverButton(rex::InputEvent::Type::kButtonUp);
     app.Pump();
     CHECK(ImGui::GetCurrentContext() == caller);
     ui.CancelPrompts();
@@ -133,11 +133,11 @@ void RunWithCallerContext(ImGuiContext* caller) {
 
 void DeliverMotion(rex::i32 x, rex::i32 y, rex::f32 dx, rex::f32 dy) {
   rex::test_ui::Deliver([=](rex::ui::IUIEventListener& listener) {
-    rex::hid::InputEvent event{.type = rex::hid::InputEvent::Type::kMotion,
-                               .x = static_cast<rex::f32>(x),
-                               .y = static_cast<rex::f32>(y),
-                               .dx = dx,
-                               .dy = dy};
+    rex::InputEvent event{.type = rex::InputEvent::Type::kMotion,
+                          .x = static_cast<rex::f32>(x),
+                          .y = static_cast<rex::f32>(y),
+                          .dx = dx,
+                          .dy = dy};
     listener.OnInputEvent(event);
   });
 }
@@ -228,15 +228,15 @@ REX_TEST_CASE("events reach input and listeners", "[ui]") {
   rex::ui::IUISystem& ui = app.GetUI();
   CountingListener listener;
   auto listener_guard = ui.AddEventListener(listener);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kA);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kA);
   app.Pump();
-  CHECK(app.GetInput().IsKeyDown(rex::hid::VirtualKey::kA));
+  CHECK(app.GetInput().IsKeyDown(rex::VirtualKey::kA));
   CHECK(listener.key_downs == 1);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyUp, rex::hid::VirtualKey::kA);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyUp, rex::VirtualKey::kA);
   app.Pump();
-  CHECK_FALSE(app.GetInput().IsKeyDown(rex::hid::VirtualKey::kA));
+  CHECK_FALSE(app.GetInput().IsKeyDown(rex::VirtualKey::kA));
   listener_guard.Reset();
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kB);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kB);
   app.Pump();
   CHECK(listener.key_downs == 1);
   app.Shutdown();
@@ -247,7 +247,7 @@ REX_TEST_CASE("dropping the guard unsubscribes the event listener", "[ui]") {
   REQUIRE(app.Start());
   CountingListener listener;
   { auto listener_guard = app.GetUI().AddEventListener(listener); }
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kA);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kA);
   app.Pump();
   CHECK(listener.key_downs == 0);
   app.Shutdown();
@@ -287,13 +287,13 @@ REX_TEST_CASE("a wheel turn keeps its fraction for listeners and truncates for i
 REX_TEST_CASE("a lost focus releases keys", "[ui]") {
   UIApp app;
   REQUIRE(app.Start());
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kC);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kC);
   app.Pump();
-  REQUIRE(app.GetInput().IsKeyDown(rex::hid::VirtualKey::kC));
+  REQUIRE(app.GetInput().IsKeyDown(rex::VirtualKey::kC));
   rex::test_ui::DeliverFocus(false);
   app.Pump();
   CHECK_FALSE(app.GetUI().IsFocused());
-  CHECK_FALSE(app.GetInput().IsKeyDown(rex::hid::VirtualKey::kC));
+  CHECK_FALSE(app.GetInput().IsKeyDown(rex::VirtualKey::kC));
   rex::test_ui::DeliverFocus(true);
   app.Pump();
   CHECK(app.GetUI().IsFocused());
@@ -317,17 +317,17 @@ REX_TEST_CASE("a post from another thread wakes the driver", "[ui]") {
 REX_TEST_CASE("a locked pointer mode reports motion", "[ui]") {
   UIApp app;
   REQUIRE(app.Start());
-  app.GetInput().SetPointerMode(rex::hid::PointerMode::kLocked);
+  app.GetInput().SetPointerMode(rex::PointerMode::kLocked);
   app.Pump();
-  CHECK(g_ui.pointer_mode == rex::hid::PointerMode::kLocked);
+  CHECK(g_ui.pointer_mode == rex::PointerMode::kLocked);
   DeliverMotion(100, 100, 5.0f, -3.0f);
   app.Pump();
-  const rex::hid::PointerDelta motion = app.GetInput().TakeMotion();
+  const rex::PointerDelta motion = app.GetInput().TakeMotion();
   CHECK(motion.dx == 5.0f);
   CHECK(motion.dy == -3.0f);
-  app.GetInput().SetPointerMode(rex::hid::PointerMode::kFree);
+  app.GetInput().SetPointerMode(rex::PointerMode::kFree);
   app.Pump();
-  CHECK(g_ui.pointer_mode == rex::hid::PointerMode::kFree);
+  CHECK(g_ui.pointer_mode == rex::PointerMode::kFree);
   app.Shutdown();
 }
 
@@ -344,16 +344,16 @@ REX_TEST_CASE("an overlay with keyboard focus hides keys from the title", "[ui]"
     ui.DrawOverlays(renderer);
     app.Pump();
   }
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kA);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kA);
   app.Pump();
   CHECK(listener.key_downs == 0);
-  CHECK_FALSE(app.GetInput().IsKeyDown(rex::hid::VirtualKey::kA));
+  CHECK_FALSE(app.GetInput().IsKeyDown(rex::VirtualKey::kA));
   dialog_guard.Reset();
   ui.DrawOverlays(renderer);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kB);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kB);
   app.Pump();
   CHECK(listener.key_downs == 1);
-  CHECK(app.GetInput().IsKeyDown(rex::hid::VirtualKey::kB));
+  CHECK(app.GetInput().IsKeyDown(rex::VirtualKey::kB));
   listener_guard.Reset();
   app.Shutdown();
 }
@@ -549,10 +549,10 @@ REX_TEST_CASE("a text prompt returns the accepted text", "[ui]") {
                   answer = std::move(result);
                 });
   Frames(app, ui, renderer, 4);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kReturn);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kReturn);
   app.Pump();
   Frames(app, ui, renderer, 2);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyUp, rex::hid::VirtualKey::kReturn);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyUp, rex::VirtualKey::kReturn);
   app.Pump();
   Frames(app, ui, renderer, 2);
   REQUIRE(calls == 1);

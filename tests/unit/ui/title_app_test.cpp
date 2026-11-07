@@ -64,7 +64,7 @@ std::unique_ptr<rex::ui::IDialog> CreateTestOverlay(rex::ui::IUISystem&) {
 }
 
 constexpr rex::ui::OverlayConfig kTestOverlays[] = {
-    {"test", {rex::hid::VirtualKey::kF9, rex::hid::KeyModifiers::kCtrl}, &CreateTestOverlay},
+    {"test", {rex::VirtualKey::kF9, rex::KeyModifiers::kCtrl}, &CreateTestOverlay},
 };
 
 class CountedDialog final : public rex::ui::DialogBase {

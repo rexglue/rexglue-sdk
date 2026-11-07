@@ -47,7 +47,7 @@ class SDL3UIDriver final : public IUIDriver, public SettingOwner {
                      u32 mode_height) override;
   void RaiseWindow() override;
   void SetCursorShape(bool visible, CursorShape shape) override;
-  void SetPointerMode(hid::PointerMode mode) override;
+  void SetPointerMode(PointerMode mode) override;
   void CaptureMouse(bool captured) override;
   f32 GetContentScale() const override;
   WindowSize GetWindowSize() const override;

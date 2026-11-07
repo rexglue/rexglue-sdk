@@ -24,13 +24,13 @@
 #include "base/app_harness.h"
 #include "hid/binding_set.h"
 
+using rex::InputSource;
+using rex::InputSourceType;
+using rex::PadAxes;
+using rex::ParseInputSource;
 using rex::SettingLayer;
 using rex::hid::BindingConfig;
 using rex::hid::BindingSet;
-using rex::hid::InputSource;
-using rex::hid::InputSourceType;
-using rex::hid::PadAxes;
-using rex::hid::ParseInputSource;
 
 namespace {
 

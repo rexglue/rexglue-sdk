@@ -13,11 +13,11 @@
 #include <array>
 #include <string_view>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 
-using rex::hid::ParseVirtualKey;
-using rex::hid::VirtualKey;
-using rex::hid::VirtualKeyToString;
+using rex::ParseVirtualKey;
+using rex::VirtualKey;
+using rex::VirtualKeyToString;
 
 REX_TEST_CASE("Enter is named Return and NumpadEnter parses to it", "[hid]") {
   CHECK(VirtualKeyToString(VirtualKey::kReturn) == "Return");

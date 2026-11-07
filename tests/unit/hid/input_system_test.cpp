@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/hid/binding.h>
 #include <rex/logging/logger.h>
 
@@ -284,16 +284,16 @@ REX_TEST_CASE("keyboard and mouse feed a pad when enabled", "[hid]") {
   REQUIRE(app.Start());
   rex::hid::IInputSystem& input = app.GetInput();
   REQUIRE(input.GetSettings().mnk_mode.Set(true));
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kW);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kW);
   app.Pump();
-  CHECK(input.IsKeyDown(rex::hid::VirtualKey::kW));
+  CHECK(input.IsKeyDown(rex::VirtualKey::kW));
   auto reading = input.GetState(0);
   REQUIRE(reading.has_value());
   CHECK(reading->state.thumb_ly == INT16_MAX);
 
   rex::test_ui::DeliverFocus(false);
   app.Pump();
-  CHECK_FALSE(input.IsKeyDown(rex::hid::VirtualKey::kW));
+  CHECK_FALSE(input.IsKeyDown(rex::VirtualKey::kW));
   CHECK(input.GetState(0)->state.thumb_ly == 0);
   app.Shutdown();
 }
@@ -352,10 +352,10 @@ REX_TEST_CASE("dropping the guard removes the pointer mode listener", "[hid]") {
   int calls = 0;
   {
     auto listener_guard = input.SetPointerModeListener([&] { ++calls; });
-    input.SetPointerMode(rex::hid::PointerMode::kLocked);
+    input.SetPointerMode(rex::PointerMode::kLocked);
     CHECK(calls == 1);
   }
-  input.SetPointerMode(rex::hid::PointerMode::kFree);
+  input.SetPointerMode(rex::PointerMode::kFree);
   CHECK(calls == 1);
   app.Shutdown();
 }
@@ -370,7 +370,7 @@ REX_TEST_CASE("an old guard does not clear a newer pointer mode listener", "[hid
   auto first = input.SetPointerModeListener([&] { ++first_calls; });
   auto second = input.SetPointerModeListener([&] { ++second_calls; });
   first.Reset();
-  input.SetPointerMode(rex::hid::PointerMode::kLocked);
+  input.SetPointerMode(rex::PointerMode::kLocked);
   CHECK(first_calls == 0);
   CHECK(second_calls == 1);
   second.Reset();
@@ -387,7 +387,7 @@ REX_TEST_CASE("a bad key binding warns and keeps the previous keys", "[hid][keyb
   REQUIRE(input.GetSettings().mnk_mode.Set(true));
   REQUIRE(REX_SETTINGS().SetText(rex::SettingLayer::kTitle, "hid.keybind_lstick_up",
                                  "Space,NoSuchKey"));
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kW);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kW);
   app.Pump();
   REX_LOGGER().Flush();
   sink_guard.Reset();
@@ -414,11 +414,11 @@ REX_TEST_CASE("a key binding written at run time moves the pad stick", "[hid][ke
   rex::hid::IInputSystem& input = app.GetInput();
   REQUIRE(input.GetSettings().mnk_mode.Set(true));
   REQUIRE(REX_SETTINGS().SetText(rex::SettingLayer::kTitle, "hid.keybind_lstick_up", "Shift+G"));
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kW);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kW);
   app.Pump();
   CHECK(input.GetState(0)->state.thumb_ly == 0);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kShift);
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kG);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kShift);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kG);
   app.Pump();
   CHECK(input.GetState(0)->state.thumb_ly == INT16_MAX);
   app.Shutdown();
@@ -446,7 +446,7 @@ REX_TEST_CASE("a keyboard keystroke stays queued while only the pad is asked for
   REQUIRE(app.Start());
   rex::hid::IInputSystem& input = app.GetInput();
   REQUIRE(input.GetSettings().mnk_passthrough.Set(true));
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kW);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kW);
   app.Pump();
   CHECK_FALSE(input.GetKeystroke(0, rex::hid::KeystrokeSource::kPad).has_value());
   auto stroke = input.GetKeystroke(0, rex::hid::KeystrokeSource::kKeyboard);

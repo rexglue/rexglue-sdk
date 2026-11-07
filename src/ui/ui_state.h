@@ -19,7 +19,7 @@
 #include <thread>
 #include <vector>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/logging/logger.h>
 #include <rex/title.h>
 #include <rex/ui/ui_driver.h>
@@ -60,7 +60,7 @@ struct UISystem::State {
   struct Dispatcher final : rex::ui::IUIEventListener {
     explicit Dispatcher(State& owner_state) : state(owner_state) {}
     void OnUIEvent(const ui::UIEvent& event) override;
-    void OnInputEvent(hid::InputEvent& event) override;
+    void OnInputEvent(InputEvent& event) override;
     State& state;
   };
 
@@ -121,7 +121,7 @@ struct UISystem::State {
   u32 window_width = 0;
   u32 window_height = 0;
   f32 content_scale = 1.0f;
-  hid::PointerMode applied_pointer_mode = hid::PointerMode::kFree;
+  PointerMode applied_pointer_mode = PointerMode::kFree;
   bool cursor_hidden_by_timeout = false;
   bool block_acquired = false;
   std::chrono::steady_clock::time_point last_pointer_motion;
@@ -136,12 +136,12 @@ struct UISystem::State {
   void WatchWindowSettings();
   void RequestClose();
   void OnEvent(ui::UIEvent& event);
-  void OnInputEvent(hid::InputEvent& event);
+  void OnInputEvent(InputEvent& event);
   void RefreshCapture();
   bool IsCaptureActive() const;
   bool IsOverlayCapturingInput(bool keyboard) const;
-  bool IsHeldByOverlay(const hid::InputEvent& event) const;
-  void ApplyPointerMode(hid::PointerMode mode);
+  bool IsHeldByOverlay(const InputEvent& event) const;
+  void ApplyPointerMode(PointerMode mode);
   void UpdateCursorTimeout();
   void SyncOverlayBlock();
   void CreateImGui();

@@ -16,7 +16,7 @@
 #include <string_view>
 
 #include <rex/hid/binding.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/hid/pad.h>
 #include <rex/module.h>
 #include <rex/platform.h>
@@ -122,18 +122,18 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
 
   virtual void ReleaseUIBlock() = 0;
 
-  virtual bool IsKeyDown(hid::VirtualKey key) const = 0;
+  virtual bool IsKeyDown(VirtualKey key) const = 0;
 
   virtual bool IsAnyKeyDown() const = 0;
 
-  virtual hid::KeyModifiers GetModifiers() const = 0;
+  virtual KeyModifiers GetModifiers() const = 0;
 
   /**
    * @return The pointer position and the window size.
    */
-  virtual hid::PointerState GetPointer() const = 0;
+  virtual PointerState GetPointer() const = 0;
 
-  virtual bool IsButtonDown(hid::MouseButton button) const = 0;
+  virtual bool IsButtonDown(MouseButton button) const = 0;
 
   virtual bool IsAnyButtonDown() const = 0;
 
@@ -143,12 +143,12 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
   /**
    * Returns the motion since the last call, and clears it.
    */
-  virtual hid::PointerDelta TakeMotion() = 0;
+  virtual PointerDelta TakeMotion() = 0;
 
   /**
    * Returns the motion since the last TakeMotion.
    */
-  virtual hid::PointerDelta PeekMotion() const = 0;
+  virtual PointerDelta PeekMotion() const = 0;
 
   /**
    * Returns the wheel turns since the last call, and clears them, positive away from the player.
@@ -160,21 +160,21 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
   /**
    * Sets the pointer mode. The UI system applies it on the UI thread.
    */
-  virtual void SetPointerMode(hid::PointerMode mode) = 0;
+  virtual void SetPointerMode(PointerMode mode) = 0;
 
   /**
    * Receives a window event from the UI system.
    *
    * @param event The event, which the call may change.
    */
-  virtual void OnInputEvent(hid::InputEvent& event) = 0;
+  virtual void OnInputEvent(InputEvent& event) = 0;
 
   virtual void SetInputCaptured(bool captured) = 0;
 
   /**
    * Returns the pointer mode the UI applies.
    */
-  virtual hid::PointerMode GetPointerModeToApply() const = 0;
+  virtual PointerMode GetPointerModeToApply() const = 0;
 
   /**
    * Sets the function called when the pointer mode to apply may have changed, replacing the earlier
@@ -214,14 +214,14 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
    *
    * @return The chord, or the reason the text does not parse.
    */
-  [[nodiscard]] virtual Result<hid::KeyChord> ParseKeyChord(std::string_view text) const = 0;
+  [[nodiscard]] virtual Result<KeyChord> ParseKeyChord(std::string_view text) const = 0;
 
   /**
    * Writes a key chord as text, the form ParseKeyChord reads.
    *
    * @return The text, empty for a chord with no key.
    */
-  [[nodiscard]] virtual std::string FormatKeyChord(hid::KeyChord chord) const = 0;
+  [[nodiscard]] virtual std::string FormatKeyChord(KeyChord chord) const = 0;
 
   /**
    * Parses a key name.
@@ -229,12 +229,12 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
    * @param name A key name such as "F3", "Backtick", "A" or "Escape".
    * @return The key, or VirtualKey::kNone for an unknown name.
    */
-  [[nodiscard]] virtual hid::VirtualKey ParseVirtualKey(std::string_view name) const = 0;
+  [[nodiscard]] virtual VirtualKey ParseVirtualKey(std::string_view name) const = 0;
 
   /**
    * @return The name ParseVirtualKey accepts, or empty for a key with no name.
    */
-  [[nodiscard]] virtual std::string VirtualKeyToString(hid::VirtualKey key) const = 0;
+  [[nodiscard]] virtual std::string VirtualKeyToString(VirtualKey key) const = 0;
 
   /**
    * Parses one input such as "Shift+W", "LMB", "WheelUp", "PadA" or "LStick". Key text follows
@@ -243,14 +243,14 @@ REX_DECLARE_INTERFACE(IInputSystem, 1)
    * @return The source, or ErrorCategory::kConfig naming text when it is empty, a bare modifier or
    *         names nothing.
    */
-  [[nodiscard]] virtual Result<hid::InputSource> ParseInputSource(std::string_view text) const = 0;
+  [[nodiscard]] virtual Result<InputSource> ParseInputSource(std::string_view text) const = 0;
 
   /**
    * Writes a source as binding text, modifiers in the order Shift, Ctrl, Alt and then the name.
    *
    * @return The text ParseInputSource reads back, or empty when the source names nothing.
    */
-  [[nodiscard]] virtual std::string InputSourceToString(const hid::InputSource& source) const = 0;
+  [[nodiscard]] virtual std::string InputSourceToString(const InputSource& source) const = 0;
 };
 
 }  // namespace rex::hid

@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/hid/binding.h>
 #include <rex/hid/input_driver.h>
 #include <rex/hid/pad.h>
@@ -190,31 +190,31 @@ enum KeyBind : size_t {
 
 /** The keys of the keyboard and mouse pad, settings named hid.keybind_*. */
 inline constexpr std::array<hid::BindingConfig, kBindCount> kKeyBindDescs = {{
-    {"keybind_a", "Semicolon,Space", "Keys for the A button", 0, hid::PadAxes::kNone},
-    {"keybind_b", "Quote,Backspace", "Keys for the B button", 0, hid::PadAxes::kNone},
-    {"keybind_x", "L", "Keys for the X button", 0, hid::PadAxes::kNone},
-    {"keybind_y", "P", "Keys for the Y button", 0, hid::PadAxes::kNone},
-    {"keybind_left_shoulder", "1", "Keys for the left shoulder", 0, hid::PadAxes::kNone},
-    {"keybind_right_shoulder", "3", "Keys for the right shoulder", 0, hid::PadAxes::kNone},
-    {"keybind_left_trigger", "Q,I", "Keys for the left trigger", 0, hid::PadAxes::kNone},
-    {"keybind_right_trigger", "E,O", "Keys for the right trigger", 0, hid::PadAxes::kNone},
-    {"keybind_lstick_press", "F", "Keys for the left stick press", 0, hid::PadAxes::kNone},
-    {"keybind_rstick_press", "K", "Keys for the right stick press", 0, hid::PadAxes::kNone},
-    {"keybind_back", "Z,Tab", "Keys for the back button", 0, hid::PadAxes::kNone},
-    {"keybind_start", "X,Return", "Keys for the start button", 0, hid::PadAxes::kNone},
-    {"keybind_dpad_up", "Shift+Up", "Keys for D pad up", 0, hid::PadAxes::kNone},
-    {"keybind_dpad_down", "Shift+Down", "Keys for D pad down", 0, hid::PadAxes::kNone},
-    {"keybind_dpad_left", "Shift+Left", "Keys for D pad left", 0, hid::PadAxes::kNone},
-    {"keybind_dpad_right", "Shift+Right", "Keys for D pad right", 0, hid::PadAxes::kNone},
-    {"keybind_lstick_up", "W", "Keys for the left stick up", 0, hid::PadAxes::kNone},
-    {"keybind_lstick_down", "S", "Keys for the left stick down", 0, hid::PadAxes::kNone},
-    {"keybind_lstick_left", "A", "Keys for the left stick left", 0, hid::PadAxes::kNone},
-    {"keybind_lstick_right", "D", "Keys for the left stick right", 0, hid::PadAxes::kNone},
-    {"keybind_rstick_up", "Up", "Keys for the right stick up", 0, hid::PadAxes::kNone},
-    {"keybind_rstick_down", "Down", "Keys for the right stick down", 0, hid::PadAxes::kNone},
-    {"keybind_rstick_left", "Left", "Keys for the right stick left", 0, hid::PadAxes::kNone},
-    {"keybind_rstick_right", "Right", "Keys for the right stick right", 0, hid::PadAxes::kNone},
-    {"keybind_guide", "", "Keys for the guide button", 0, hid::PadAxes::kNone},
+    {"keybind_a", "Semicolon,Space", "Keys for the A button", 0, PadAxes::kNone},
+    {"keybind_b", "Quote,Backspace", "Keys for the B button", 0, PadAxes::kNone},
+    {"keybind_x", "L", "Keys for the X button", 0, PadAxes::kNone},
+    {"keybind_y", "P", "Keys for the Y button", 0, PadAxes::kNone},
+    {"keybind_left_shoulder", "1", "Keys for the left shoulder", 0, PadAxes::kNone},
+    {"keybind_right_shoulder", "3", "Keys for the right shoulder", 0, PadAxes::kNone},
+    {"keybind_left_trigger", "Q,I", "Keys for the left trigger", 0, PadAxes::kNone},
+    {"keybind_right_trigger", "E,O", "Keys for the right trigger", 0, PadAxes::kNone},
+    {"keybind_lstick_press", "F", "Keys for the left stick press", 0, PadAxes::kNone},
+    {"keybind_rstick_press", "K", "Keys for the right stick press", 0, PadAxes::kNone},
+    {"keybind_back", "Z,Tab", "Keys for the back button", 0, PadAxes::kNone},
+    {"keybind_start", "X,Return", "Keys for the start button", 0, PadAxes::kNone},
+    {"keybind_dpad_up", "Shift+Up", "Keys for D pad up", 0, PadAxes::kNone},
+    {"keybind_dpad_down", "Shift+Down", "Keys for D pad down", 0, PadAxes::kNone},
+    {"keybind_dpad_left", "Shift+Left", "Keys for D pad left", 0, PadAxes::kNone},
+    {"keybind_dpad_right", "Shift+Right", "Keys for D pad right", 0, PadAxes::kNone},
+    {"keybind_lstick_up", "W", "Keys for the left stick up", 0, PadAxes::kNone},
+    {"keybind_lstick_down", "S", "Keys for the left stick down", 0, PadAxes::kNone},
+    {"keybind_lstick_left", "A", "Keys for the left stick left", 0, PadAxes::kNone},
+    {"keybind_lstick_right", "D", "Keys for the left stick right", 0, PadAxes::kNone},
+    {"keybind_rstick_up", "Up", "Keys for the right stick up", 0, PadAxes::kNone},
+    {"keybind_rstick_down", "Down", "Keys for the right stick down", 0, PadAxes::kNone},
+    {"keybind_rstick_left", "Left", "Keys for the right stick left", 0, PadAxes::kNone},
+    {"keybind_rstick_right", "Right", "Keys for the right stick right", 0, PadAxes::kNone},
+    {"keybind_guide", "", "Keys for the guide button", 0, PadAxes::kNone},
 }};
 
 /** The keyboard and mouse as a pad, or as a keyboard that sends its keys as keystrokes. */
@@ -246,17 +246,17 @@ class KeyboardMousePad final : public rex::hid::IInputDriver {
 
   bool IsPointerLockWanted() const { return pointer_lock_.load(std::memory_order_relaxed); }
 
-  void OnEvent(hid::InputEvent& event);
+  void OnEvent(InputEvent& event);
 
   /** Logs bindings that did not parse and reloads the keys. UI thread only. */
   void RefreshBinds();
 
  private:
   bool IsEnabled() const;
-  void OnKey(const hid::InputEvent& event, bool down);
-  void OnChar(const hid::InputEvent& event);
-  void OnButton(const hid::InputEvent& event, bool down);
-  void OnMotion(const hid::InputEvent& event);
+  void OnKey(const InputEvent& event, bool down);
+  void OnChar(const InputEvent& event);
+  void OnButton(const InputEvent& event, bool down);
+  void OnMotion(const InputEvent& event);
   void OnFocusLost();
   void SetKeyState(u16 key, bool down);
   void PushKeystroke(const rex::hid::PadKeystroke& keystroke);
@@ -266,7 +266,7 @@ class KeyboardMousePad final : public rex::hid::IInputDriver {
   hid::IBindingSet& bindings_;
   const std::atomic<bool>& focused_;
   mutable std::mutex mutex_;
-  std::array<std::vector<hid::KeyChord>, kBindCount> binds_;
+  std::array<std::vector<KeyChord>, kBindCount> binds_;
   u32 bind_generation_ = 0;
   bool key_down_[256] = {};
   f32 mouse_dx_ = 0.0f;

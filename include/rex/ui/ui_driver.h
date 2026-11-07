@@ -17,7 +17,7 @@
 #include <vector>
 
 #include <rex/driver.h>
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/memory/host.h>
 #include <rex/result.h>
 #include <rex/types.h>
@@ -87,7 +87,7 @@ class IUIDriver : public IDriver {
    * Sets the pointer mode. When the host refuses relative motion the driver recenters the pointer
    * and reports dx and dy.
    */
-  virtual void SetPointerMode(hid::PointerMode mode) = 0;
+  virtual void SetPointerMode(PointerMode mode) = 0;
 
   /** Captures the mouse so a drag keeps reporting outside the window, or releases it. */
   virtual void CaptureMouse(bool captured) = 0;

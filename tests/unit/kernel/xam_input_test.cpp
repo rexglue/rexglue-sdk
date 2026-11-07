@@ -143,7 +143,7 @@ REX_TEST_CASE("a keystroke query without the gamepad bit still returns a keyboar
   REQUIRE(app.Start());
   rex::hid::IInputSystem& input = app.GetInput();
   REQUIRE(input.GetSettings().mnk_passthrough.Set(true));
-  rex::test_ui::DeliverKey(rex::hid::InputEvent::Type::kKeyDown, rex::hid::VirtualKey::kW);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kW);
   app.Pump();
   u32 user = 3;
   rex::xam::X_INPUT_KEYSTROKE out{};

@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/logging/log_category.h>
 #include <rex/utility.h>
 
@@ -80,8 +80,8 @@ void BindTable::RemoveFromRegistry(Entry& entry) {
   entry.added = false;
 }
 
-void BindTable::Register(std::string_view name, hid::KeyChord default_key,
-                         std::string_view description, rex::MoveOnlyFunction<void()> callback) {
+void BindTable::Register(std::string_view name, KeyChord default_key, std::string_view description,
+                         rex::MoveOnlyFunction<void()> callback) {
   Entry* entry = nullptr;
   {
     std::lock_guard lock(mutex_);
@@ -113,12 +113,12 @@ void BindTable::Unregister(std::string_view name) {
   entries_.erase(std::ranges::find(entries_, name, &Entry::name));
 }
 
-bool BindTable::Process(const hid::InputEvent& e) {
+bool BindTable::Process(const InputEvent& e) {
   std::shared_ptr<rex::MoveOnlyFunction<void()>> callback;
   {
     std::lock_guard lock(mutex_);
     for (const Entry& entry : entries_) {
-      if (entry.callback && entry.chord.key != hid::VirtualKey::kNone && entry.chord.key == e.key &&
+      if (entry.callback && entry.chord.key != VirtualKey::kNone && entry.chord.key == e.key &&
           entry.chord.modifiers == e.modifiers) {
         callback = entry.callback;
         break;

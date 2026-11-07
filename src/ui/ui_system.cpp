@@ -31,10 +31,10 @@ namespace rex::ui {
 namespace {
 
 constexpr rex::ui::OverlayConfig kStandardOverlayEntries[] = {
-    {"debug", {hid::VirtualKey::kF3}, nullptr},
-    {"console", {hid::VirtualKey::kOem3}, nullptr},
-    {"settings", {hid::VirtualKey::kF4}, nullptr},
-    {"achievements", {hid::VirtualKey::kF7}, nullptr},
+    {"debug", {VirtualKey::kF3}, nullptr},
+    {"console", {VirtualKey::kOem3}, nullptr},
+    {"settings", {VirtualKey::kF4}, nullptr},
+    {"achievements", {VirtualKey::kF7}, nullptr},
 };
 
 void LogMessage(MessageType type, std::string_view title, std::string_view body) {
@@ -311,11 +311,11 @@ void UISystem::State::OpenWindow() {
   if (input) {
     pointer_guard =
         input->SetPointerModeListener([this] { owner.PostTask([this] { RefreshCapture(); }); });
-    hid::InputEvent resized{
-        .type = hid::InputEvent::Type::kResize, .width = window_width, .height = window_height};
+    InputEvent resized{
+        .type = InputEvent::Type::kResize, .width = window_width, .height = window_height};
     input->OnInputEvent(resized);
-    hid::InputEvent focus{.type = focused.load() ? hid::InputEvent::Type::kFocusGained
-                                                 : hid::InputEvent::Type::kFocusLost};
+    InputEvent focus{.type = focused.load() ? InputEvent::Type::kFocusGained
+                                            : InputEvent::Type::kFocusLost};
     input->OnInputEvent(focus);
     RefreshCapture();
   }
@@ -330,8 +330,8 @@ void UISystem::State::CloseWindow() {
   }
   if (input) {
     pointer_guard.Reset();
-    if (applied_pointer_mode != hid::PointerMode::kFree) {
-      ApplyPointerMode(hid::PointerMode::kFree);
+    if (applied_pointer_mode != PointerMode::kFree) {
+      ApplyPointerMode(PointerMode::kFree);
     }
     input->SetInputCaptured(true);
     if (block_acquired) {

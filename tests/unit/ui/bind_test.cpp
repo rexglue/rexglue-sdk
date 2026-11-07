@@ -12,17 +12,17 @@
 
 #include <memory>
 
-#include <rex/hid/input_keys.h>
+#include <rex/input_keys.h>
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
 
 #include "hid/input_harness.h"
 #include "ui/overlay/bind_table.h"
 
-using rex::hid::InputEvent;
-using rex::hid::KeyChord;
-using rex::hid::KeyModifiers;
-using rex::hid::VirtualKey;
+using rex::InputEvent;
+using rex::KeyChord;
+using rex::KeyModifiers;
+using rex::VirtualKey;
 using rex::ui::BindTable;
 
 namespace {
