@@ -565,6 +565,17 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
   // if guest metadata says the page is writable but host protection is still
   // read-only / no-access, restore write access and resume execution.
   if (is_write) {
+    // The MMIO handler passes write faults here before it checks the host page.
+    // If another thread cleared the watch after this fault, the page is already
+    // writable and the write only has to be retried, without the repair below.
+    rex::memory::PageAccess host_access;
+    size_t host_length = rex::memory::page_size();
+    if (rex::memory::QueryProtect(host_address, host_length, host_access) &&
+        host_access != rex::memory::PageAccess::kNoAccess &&
+        host_access != rex::memory::PageAccess::kReadOnly) {
+      return true;
+    }
+
     constexpr uint32_t kWriteProtectMask =
         memory::kMemoryProtectWrite | memory::kMemoryProtectWriteCombine;
     uint32_t guest_protect = 0;

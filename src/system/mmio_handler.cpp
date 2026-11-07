@@ -402,6 +402,16 @@ bool MMIOHandler::ExceptionCallback(arch::Exception* ex) {
     }
   }
   if (!range) {
+    // A write fault here is almost always a write watch. Give it to the callback
+    // first: under the lock it checks the heap's own watch tracking, and it
+    // retries the write if another thread has already cleared the watch. The
+    // host page query below (VirtualQuery on Windows, /proc/self/maps on Linux)
+    // then runs for writes only when the callback can't handle them.
+    if (is_write && access_violation_callback_ &&
+        access_violation_callback_(global_critical_region_.Acquire(),
+                                   access_violation_callback_context_, fault_host_address, true)) {
+      return true;
+    }
     // Recheck if the pages are still protected (race condition - another thread
     // clears the watch we just hit).
     // Do this under the lock so we don't introduce another race condition.
@@ -415,8 +425,8 @@ bool MMIOHandler::ExceptionCallback(arch::Exception* ex) {
       return true;
     }
     // The address is not found within any range, so either a write watch or an
-    // actual access violation.
-    if (access_violation_callback_) {
+    // actual access violation. Writes have been to the callback already.
+    if (access_violation_callback_ && !is_write) {
       return access_violation_callback_(std::move(lock), access_violation_callback_context_,
                                         fault_host_address, is_write);
     }
