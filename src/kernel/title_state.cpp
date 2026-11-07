@@ -82,6 +82,9 @@ rex::kernel::XLanguage ResolveUserLanguage(u32 value, rex::ui::IUISystem* ui) {
 }
 
 std::atomic<TitleRuntime*> g_active{nullptr};
+
+/** The title the kernel module serves, from before XAM attaches to after its subsystems end. */
+std::atomic<TitleState*> g_serving{nullptr};
 std::atomic<ui::IUIControl*> g_ui_control{nullptr};
 
 }  // namespace
@@ -114,6 +117,41 @@ filesystem::IFileSystem* TitleState::GetFileSystem() const {
 bool ServeUI(std::chrono::milliseconds timeout) {
   ui::IUIControl* control = g_ui_control.load(std::memory_order_acquire);
   return control && control->ServePosts(timeout);
+}
+
+IInterface* TitleState::FindServedInterface(std::string_view name, u32 version) {
+  TitleState* state = g_serving.load(std::memory_order_acquire);
+  if (!state) {
+    return nullptr;
+  }
+  const auto is = [&](const InterfaceType& type) {
+    return type.version == version && name == type.name;
+  };
+  if (is(IObjectTable::kInterface)) {
+    return static_cast<IObjectTable*>(state->object_table_.get());
+  }
+  if (is(IThreadRegistry::kInterface)) {
+    return static_cast<IThreadRegistry*>(state->thread_registry_.get());
+  }
+  if (is(IModuleRegistry::kInterface)) {
+    return static_cast<IModuleRegistry*>(state->module_registry_.get());
+  }
+  if (is(INotificationBroadcaster::kInterface)) {
+    return static_cast<INotificationBroadcaster*>(state->notifier_.get());
+  }
+  if (is(IOverlappedDispatcher::kInterface)) {
+    return static_cast<IOverlappedDispatcher*>(state->dispatcher_.get());
+  }
+  return nullptr;
+}
+
+void TitleState::BeginServing() {
+  g_serving.store(this, std::memory_order_release);
+}
+
+void TitleState::EndServing() {
+  TitleState* self = this;
+  g_serving.compare_exchange_strong(self, nullptr, std::memory_order_acq_rel);
 }
 
 TitleRuntime* TitleState::GetActive() {
@@ -398,6 +436,7 @@ void TitleState::Shutdown() {
   StopThreads();
   DetachSystems();
   DestroySubsystems();
+  EndServing();
   function_dispatcher_.reset();
   if (file_system_) {
     file_system_->Clear();

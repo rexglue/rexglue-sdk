@@ -44,6 +44,8 @@ Any code can call `REX_INTERFACE(T)` from `rex/module.h` to get an interface tha
 
 The filesystem, the content manager and the achievement manager belong to the loaded title, not to a module, so `REX_INTERFACE` does not return them. Get them from the `TitleRuntime`, through `REX_RUNTIME()` or the runtime your code receives, such as `REX_RUNTIME()->GetFileSystem()`. See [Runtime Lifecycle](../runtime/lifecycle.md) for when the runtime exists.
 
+The kernel module serves five interfaces of the loaded title: `IObjectTable`, `IThreadRegistry`, `IModuleRegistry`, `INotificationBroadcaster` and `IOverlappedDispatcher`. Each resolves to the instance of the title that is being set up, running or being torn down, and returns null while no title is in that window. One title is loaded at a time, so a second title that loads after the first unloads gets its own instances.
+
 ### Interfaces a Module Serves
 
 A module lists the interfaces it serves, other than `IModule`, with `REX_MODULE_SERVES`, and returns them from `QueryInterface`. The three exported functions read these two members:
@@ -70,7 +72,7 @@ flowchart TB
     code["Any code"] -- REX_INTERFACE --> factory
 ```
 
-`IInterfaceFactory` is the lookup that the app builds over every loaded module. A module receives it in `Connect`, and `REX_INTERFACE` uses the same lookup. Ahead of the modules, it serves three interfaces of the SDK itself: the settings registry (`ISettingsRegistry`), the logger (`ILogger`) and `IDriverContext`.
+`IInterfaceFactory` is the lookup that the app builds over every loaded module. A module receives it in `Connect`, and `REX_INTERFACE` uses the same lookup. It serves three interfaces of the SDK itself before it asks the modules: the settings registry (`ISettingsRegistry`), the logger (`ILogger`) and `IDriverContext`.
 
 ### Driver Interfaces
 
@@ -85,11 +87,11 @@ A driver module also serves `IDriverModule`. Its `GetDrivers` call returns one `
 
 A driver implements `IDriver`. The system of its type calls `IDriver::Initialize` with an `IDriverContext`, which is the only way a driver reaches the rest of the SDK:
 
-- `GetSettingsRegistry` and `GetLogger` return the settings registry and the logger, where the driver adds its own settings and log categories.
+- `GetSettingsRegistry` and `GetLogger` return the settings registry and the logger, so the driver can add its settings and log categories.
 - `RunOnUIThread` runs a function on the UI thread and waits for it.
-- `PostToUIThread` queues a function for the UI thread and returns at once.
+- `PostToUIThread` queues a function for the UI thread and returns immediately.
 
-A graphics driver also receives its window surface through `IGraphicsDriver::SetSurface` and the running title through `AttachTitle`. See [Driver Context](../devices/driver-context.md) for what it receives at attach. The other driver types never see the title.
+A graphics driver also receives its window surface through `IGraphicsDriver::SetSurface` and the running title through `AttachTitle`. See [Driver Context](../devices/driver-context.md) for what the driver receives at attach. The other driver types never see the title.
 
 ## Lifecycle
 
@@ -101,7 +103,7 @@ A graphics driver also receives its window surface through `IGraphicsDriver::Set
 | `code_modules` | The code modules. They come before the libraries in the list. |
 | `select_plugins` | A callback that returns more libraries to load once the list has connected. An `App` returns the driver modules of the selected drivers. |
 
-Each module goes through two steps on the way up. `Connect` only looks up the interfaces the module needs. `Init` starts the module, and may start threads and drivers. `rex::Init` connects every module before it inits any:
+Each module starts in two steps. `Connect` looks up the interfaces the module needs. `Init` starts the module, and may start threads and drivers. `rex::Init` connects every module before it inits any:
 
 ```mermaid
 sequenceDiagram
@@ -177,12 +179,12 @@ See [Binaries and Modules](../appendix/binaries-and-modules.md#system-libraries)
 
 - `rexkernel` must come last. It reads the filesystem, input, audio, UI, graphics and XAM interfaces during `Connect`, and those come only from earlier modules.
 - `rexxam` must come before `rexkernel`. A program that never launches a title can remove it. Without it, `TitleRuntime::Load` fails with "the rexxam module is not loaded, a title cannot launch without it".
-- `rexxbdm` must come before `rexkernel`. A program that never launches a title can remove it. Without it, each XBDM export logs that it was called and returns the value it returns with the module loaded.
+- `rexxbdm` must come before `rexkernel`. A program that never launches a title can remove it. Without it, each XBDM export logs that it was called and returns the value that the module would return.
 - `rexhid` can be removed when the app needs no input.
 
 ## Selecting Drivers
 
-Each system has a setting that names its drivers. The app turns the names into driver modules before `Init`, and each system creates its drivers during `Init`.
+Each system has a setting that lists its drivers. The app turns the names into driver modules before `Init`, and each system creates its drivers during `Init`.
 
 - `GetDriverModules` from `rex/driver_module.h` returns the library names of the drivers that the settings name, and skips drivers that a connected module provides.
 - `SelectDrivers` creates and initializes the drivers of one type in list order.
@@ -203,7 +205,7 @@ Each system has a setting that names its drivers. The app turns the names into d
 
 | Field | Purpose |
 |---|---|
-| `graphics_family` | `kXenos` requires a Xenos graphics driver. `kNone` starts no graphics driver at all. |
+| `graphics_family` | `kXenos` requires a Xenos graphics driver. `kNone` starts no graphics driver. |
 | `audio` | Requires an audio driver. |
 | `input` | Requires at least one input driver. |
 | `ui` | Requires a UI driver with a display and an open window. |
@@ -218,10 +220,10 @@ The app finds a driver module from the name of the driver. The module name is th
 
 `rex::Init` loads each module library from the folder of the executable, on every platform.
 
-- `rexglue_configure_target` copies the system libraries and every built driver module there. `EXCLUDE` leaves out the modules it names, and `NO_COPY` copies nothing.
+- `rexglue_configure_target` copies the system libraries and every built driver module there. `EXCLUDE` leaves out the modules it lists, and `NO_COPY` copies nothing.
 - An installed SDK puts its module libraries in `bin` next to `rexglue`.
 
-The file name adds a postfix for the build configuration: `d` for Debug, `rd` for RelWithDebInfo and nothing for Release. A Debug build loads `rexapu-sdl3` from these files:
+The file name has a postfix for the build configuration: `d` for Debug, `rd` for RelWithDebInfo and nothing for Release. A Debug build loads `rexapu-sdl3` from these files:
 
 | Platform | File |
 |---|---|

@@ -14,6 +14,10 @@
 #include <span>
 #include <string_view>
 
+#include <rex/kernel/module.h>
+#include <rex/kernel/object/notification_broadcaster.h>
+#include <rex/kernel/object/object_table.h>
+#include <rex/kernel/thread_registry.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/kernel_settings.h>
 #include <rex/module.h>
@@ -69,7 +73,9 @@ const KernelServices* GetKernelServices();
 /** The kernel module. The program registers one with the app or loads it from rexkernel. */
 class KernelModule final : public IModule, public IKernelControl {
  public:
-  REX_MODULE_SERVES(::rex::kernel::IKernelControl)
+  REX_MODULE_SERVES(::rex::kernel::IKernelControl, ::rex::kernel::IObjectTable,
+                    ::rex::kernel::IThreadRegistry, ::rex::kernel::IModuleRegistry,
+                    ::rex::kernel::INotificationBroadcaster, ::rex::kernel::IOverlappedDispatcher)
 
   std::string_view GetName() const override;
   std::span<const InterfaceType> GetRequiredInterfaces() const override;

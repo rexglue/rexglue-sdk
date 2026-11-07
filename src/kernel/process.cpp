@@ -61,6 +61,7 @@ Result<void> kernel::TitleState::CreateSubsystems() {
   module_registry_ = std::make_unique<kernel::ModuleRegistry>(owner_, *object_table_);
   notifier_ = std::make_unique<kernel::NotificationBroadcaster>(*object_table_);
   dispatcher_ = std::make_unique<kernel::Dispatcher>(owner_);
+  BeginServing();
   REX_TRY_VOID(CreateXAM());
 
   kernel_guest_globals_ = memory_->SystemHeapAlloc(sizeof(KernelGuestGlobals));

@@ -20,6 +20,7 @@
 #include "kernel/categories.h"
 #include "kernel/kernel_control.h"
 #include "kernel/ppc_hooks.h"
+#include "kernel/title_state.h"
 #include "kernel/settings_access.h"
 #include "kernel/xam/forward.h"
 #include "kernel/xbdm/forward.h"
@@ -119,7 +120,10 @@ void KernelModule::Shutdown() {
 }
 
 IInterface* KernelModule::QueryInterface(std::string_view name, u32 version) {
-  return FindModuleInterface<IKernelControl>(*this, name, version);
+  if (IInterface* found = FindModuleInterface<IKernelControl>(*this, name, version)) {
+    return found;
+  }
+  return TitleState::FindServedInterface(name, version);
 }
 
 void KernelModule::SetControls(IInterfaceFactory& controls) {

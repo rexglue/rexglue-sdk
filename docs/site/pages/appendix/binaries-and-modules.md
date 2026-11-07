@@ -8,14 +8,14 @@ The program links the first seven libraries through the `rex::sdk` CMake target.
 |---|---|
 | `rexbase` | Provides settings, logging, `rex::Init`, ImGui and the platform layer. |
 | `rexppc` | Provides what recompiled code needs at runtime: the routing of the MMIO blocks, the registry of recompiled code, exception handling, and the guest stack and detour frames. |
-| `rexxenos` | Describes the Xenos registers, formats and texture layouts. It is a static library. |
+| `rexxenos` | Holds the register, format and texture layout definitions of the Xenos GPU. It is a static library. |
 | `rexkernel` | Provides `TitleRuntime`, the kernel exports, guest memory, and guest audio with XMA decoding. |
 | `rexxam` | Implements the XAM exports. |
 | `rexxbdm` | Implements the XBDM exports. |
 | `rexapp` | Provides `App`, `TitleApp`, the command line and the entry macros. |
 | `rexfilesystem` | Provides the filesystem. `rex::Init` loads it by name. |
 | `rexhid`, `rexapu`, `rexui`, `rexgpu` | Provide the input, audio, UI and graphics systems. `rex::Init` loads each by name. |
-| Driver modules | Provide the drivers. `rex::Init` loads the ones that the settings name. |
+| Driver modules | Provide the drivers. `rex::Init` loads the ones that the settings select. |
 | `rexglue` | Creates projects and recompiles the XEX. It is a separate program and never loads into the program it builds. |
 
 ## Driver Modules
@@ -46,7 +46,7 @@ See [Graphics](../devices/graphics.md#drivers) for the `gpu.driver` setting.
 
 ## System Libraries
 
-The seven libraries that an `App` loads, in load order. A module can only connect when the SDK or an earlier module serves every interface it requires. See [Modules and Interfaces](../app/modules.md#system-libraries) for why the order matters.
+The seven libraries that an `App` loads, in load order. A module can only connect when the SDK or an earlier module serves every interface it requires. See [Modules and Interfaces](../app/modules.md#system-libraries) for the load order.
 
 | Library | Serves | Requires |
 |---|---|---|
@@ -57,6 +57,6 @@ The seven libraries that an `App` loads, in load order. A module can only connec
 | `rexgpu` | `IGraphicsSystem`, `IGraphicsControl` | `IDriverContext`, `IAppInfo`, `ISettingsRegistry`, `ILogger` |
 | `rexxam` | `IXAMTitleLifecycle`, `IXAMTitleServices`, `IXAMLanguage`, `IXAMExports` | `ISettingsRegistry`, `ILogger` |
 | `rexxbdm` | `IXBDMExports` | none |
-| `rexkernel` | `IKernelControl` | `ISettingsRegistry`, `ILogger`, `IFileSystemFactory`, `IUISystem` |
+| `rexkernel` | `IKernelControl`, `IObjectTable`, `IThreadRegistry`, `IModuleRegistry`, `INotificationBroadcaster`, `IOverlappedDispatcher` | `ISettingsRegistry`, `ILogger`, `IFileSystemFactory`, `IUISystem` |
 
 `IUIControl`, `IGraphicsControl`, `IXAMExports`, `IXBDMExports` and `IKernelControl` are private interfaces that only the app and the kernel can find. The app serves `IAppInfo` from a code module of its own.

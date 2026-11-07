@@ -177,6 +177,17 @@ class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonC
   [[nodiscard]] static TitleRuntime* GetActive();
 
   /**
+   * Finds one of the interfaces the kernel module serves for the title that is being set up, runs
+   * or is being torn down.
+   *
+   * @param name The interface name.
+   * @param version The interface version, matched exactly.
+   * @return The title's instance, or null when no title is in that window or the interface is not
+   *         one the title serves.
+   */
+  [[nodiscard]] static IInterface* FindServedInterface(std::string_view name, u32 version);
+
+  /**
    * Starts the GPU reading commands from the ring buffer.
    *
    * @param address Physical address of the ring.
@@ -384,6 +395,8 @@ class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonC
   void SetExecutableModule(X_HANDLE module);
   void CreateWorkspace(u32 size);
   [[nodiscard]] Result<void> CreateXAM();
+  void BeginServing();
+  void EndServing();
   void ReleaseXAMApps();
   void DestroyXAM();
   void LoadAchievements();
