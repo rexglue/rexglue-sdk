@@ -52,13 +52,15 @@ u32 WorkspaceHeap::GetSize() const {
   return allocator_->GetSize();
 }
 
-Result<u32> WorkspaceHeap::Allocate(u32 size) {
+Result<u32> WorkspaceHeap::Allocate(u32 size, bool zero) {
   size = std::max(size, 1u);
   void* block = allocator_->Allocate(size);
   if (!block) {
     return Err<u32>(StatusError(X_STATUS_NO_MEMORY));
   }
-  std::memset(block, 0, size);
+  if (zero) {
+    std::memset(block, 0, size);
+  }
   return memory_.HostToGuestVirtual(block);
 }
 

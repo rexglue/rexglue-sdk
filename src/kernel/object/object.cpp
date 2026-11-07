@@ -195,8 +195,8 @@ std::string NameFromAttributes(kernel::GuestAddressSpace* memory, u32 obj_attrib
 ObjectBlock AllocObjectBlock(kernel::GuestAddressSpace* memory, u32 size, u32 type_address,
                              WorkspaceHeap* workspace) {
   const u32 total_size = size + sizeof(X_OBJECT_HEADER);
-  const u32 mem =
-      workspace ? workspace->Allocate(total_size).value_or(0) : memory->SystemHeapAlloc(total_size);
+  const u32 mem = workspace ? workspace->Allocate(total_size, false).value_or(0)
+                            : memory->SystemHeapAlloc(total_size);
   if (!mem) {
     return {};
   }

@@ -299,43 +299,57 @@ namespace {
 
 constexpr u32 kXamAllocWorkspace = 0x10000000;
 constexpr u32 kXamAllocSystem = 0x04000000;
+constexpr u32 kXamAllocNoZero = 0x00100000;
+constexpr u32 kPhysicalBase = 0xA0000000;
 
 }  // namespace
 
 u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
+  if (!out_ptr) {
+    return kernel::X_E_INVALIDARG;
+  }
   *out_ptr = 0;
   auto& xam = CurrentXAM();
   // Flags 0 selects the title workspace, as kXamAllocWorkspace does.
   if (flags != 0 && !(flags & (kXamAllocWorkspace | kXamAllocSystem))) {
     REXXAM_ERROR("XamAlloc: flags {:#010x} select no heap", flags);
-    return kernel::X_ERROR_INVALID_PARAMETER;
+    return kernel::X_E_UNEXPECTED;
   }
   if (flags & kXamAllocSystem) {
     const u32 address = xam.AllocHeap(size);
     if (!address) {
       REXXAM_WARN("XamAlloc: the XAM heap has no room for {:#x} bytes, flags {:#010x}", size,
                   flags);
-      return kernel::X_ERROR_NOT_ENOUGH_MEMORY;
+      return kernel::X_E_OUTOFMEMORY;
     }
     *out_ptr = address;
-    return kernel::X_ERROR_SUCCESS;
+    return kernel::X_E_SUCCESS;
   }
-  Result<u32> address = CurrentTitle().workspace.Allocate(size);
+  Result<u32> address = CurrentTitle().workspace.Allocate(size, !(flags & kXamAllocNoZero));
   if (!address) {
     REXXAM_WARN("XamAlloc: the title workspace has no room for {:#x} bytes, flags {:#010x}", size,
                 flags);
-    return kernel::X_ERROR_NOT_ENOUGH_MEMORY;
+    return kernel::X_E_OUTOFMEMORY;
   }
   *out_ptr = *address;
-  return kernel::X_ERROR_SUCCESS;
+  return kernel::X_E_SUCCESS;
 }
 
-u32 XamFree_entry(MappedU32 ptr) {
-  if (CurrentXAM().FreeHeap(ptr.GetGuestAddress())) {
-    return kernel::X_ERROR_SUCCESS;
+void XamFree_entry(MappedU32 ptr) {
+  const u32 address = ptr.GetGuestAddress();
+  if (!address) {
+    return;
   }
-  CurrentTitle().workspace.Free(ptr.GetGuestAddress());
-  return kernel::X_ERROR_SUCCESS;
+  if (address >= kPhysicalBase) {
+    if (CurrentTitle().heap.IsAddressMapped(address)) {
+      CurrentTitle().heap.SystemHeapFree(address);
+    }
+    return;
+  }
+  if (CurrentXAM().FreeHeap(address)) {
+    return;
+  }
+  CurrentTitle().workspace.Free(address);
 }
 
 u32 XamQueryLiveHiveW_entry([[maybe_unused]] MappedWString name,

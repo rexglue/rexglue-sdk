@@ -27,6 +27,9 @@ using rex::test::KernelFixture;
 namespace {
 
 constexpr u32 kNotEnoughMemory = 8;
+constexpr u32 kOutOfMemory = 0x8007000E;
+constexpr u32 kInvalidArg = 0x80070057;
+constexpr u32 kUnexpected = 0x8000FFFF;
 
 std::vector<u32> Fill(Caller& c, u32 size) {
   const u32 out = c.Alloc(4);
@@ -91,10 +94,10 @@ REX_TEST_CASE("XamAlloc returns 8 and a 0 pointer on a full workspace and XamFre
     CHECK(blocks.size() >= 16);
     const u32 out = c.Alloc(4);
     c.Store32(out, 0xFFFFFFFF);
-    CHECK(c.XAM("XamAlloc", {0x10000000, 0x1000, out}) == kNotEnoughMemory);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x1000, out}) == kOutOfMemory);
     CHECK(c.Load32(out) == 0);
     for (const u32 block : blocks) {
-      CHECK(c.XAM("XamFree", {block}) == 0);
+      c.XAM("XamFree", {block});
     }
     CHECK(c.XAM("XamAlloc", {0x10000000, 0x1000, out}) == 0);
     CHECK(c.Load32(out) != 0);
@@ -107,8 +110,8 @@ REX_TEST_CASE("XamFree of an address outside the workspace is ignored", "[kernel
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 outside = c.Alloc(16);
-    CHECK(c.XAM("XamFree", {outside}) == 0);
-    CHECK(c.XAM("XamFree", {0}) == 0);
+    c.XAM("XamFree", {outside});
+    c.XAM("XamFree", {0});
     const std::vector<u32> blocks = Fill(c, 0x1000);
     CHECK(blocks.size() >= 16);
     FreeAll(c, blocks);
@@ -126,10 +129,22 @@ REX_TEST_CASE("A 128 KB XamAlloc fits the default workspace and a second one doe
     }
     const u32 first = c.Load32(out);
     CHECK(first != 0);
-    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kNotEnoughMemory);
-    CHECK(c.XAM("XamFree", {first}) == 0);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kOutOfMemory);
+    c.XAM("XamFree", {first});
     CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == 0);
     c.XAM("XamFree", {c.Load32(out)});
+  });
+}
+
+REX_TEST_CASE("XamAlloc returns E_INVALIDARG for a null out pointer and E_UNEXPECTED for no heap",
+              "[kernel][workspace]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x100, 0}) == kInvalidArg);
+    const u32 out = c.Alloc(4);
+    c.Store32(out, 0xFFFFFFFF);
+    CHECK(c.XAM("XamAlloc", {0x1, 0x100, out}) == kUnexpected);
+    CHECK(c.Load32(out) == 0);
   });
 }
 
@@ -143,8 +158,8 @@ REX_TEST_CASE("XamAlloc with flags 0 allocates from the title workspace", "[kern
     }
     const u32 block = c.Load32(out);
     CHECK(block != 0);
-    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kNotEnoughMemory);
-    CHECK(c.XAM("XamFree", {block}) == 0);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kOutOfMemory);
+    c.XAM("XamFree", {block});
     CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == 0);
     c.XAM("XamFree", {c.Load32(out)});
   });

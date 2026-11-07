@@ -149,11 +149,12 @@ class ITitleWorkspace {
   virtual ~ITitleWorkspace() = default;
 
   /**
-   * Allocates zeroed bytes from the workspace.
+   * Allocates bytes from the workspace.
    *
+   * @param zero True to zero the bytes.
    * @return The guest address, or an error when the workspace is exhausted.
    */
-  [[nodiscard]] virtual Result<u32> Allocate(u32 size) = 0;
+  [[nodiscard]] virtual Result<u32> Allocate(u32 size, bool zero) = 0;
 
   /**
    * Frees an address from Allocate. An address outside the workspace is logged and ignored.
@@ -188,11 +189,12 @@ class REX_KERNEL_API WorkspaceHeap : public ITitleWorkspace, public NonCopyable 
   [[nodiscard]] u32 GetSize() const;
 
   /**
-   * Allocates zeroed bytes from the workspace.
+   * Allocates bytes from the workspace.
    *
+   * @param zero True to zero the bytes.
    * @return The guest address, or an error when the workspace is exhausted.
    */
-  [[nodiscard]] Result<u32> Allocate(u32 size) override;
+  [[nodiscard]] Result<u32> Allocate(u32 size, bool zero) override;
 
   /**
    * Frees an address from Allocate. An address outside the workspace is logged and ignored.
