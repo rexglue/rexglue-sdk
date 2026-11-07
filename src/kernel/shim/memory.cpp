@@ -41,15 +41,25 @@ REX_SHIM_FN(memset_vmx, void*, void* dst, int val, u32 n) {
 }
 
 REX_SHIM_FN(memcpy_s, int, void* dst, u32 dstsz, const void* src, u32 count) {
-  if (!dst || !src || count > dstsz)
+  if (count == 0)
+    return 0;
+  if (!dst)
     return 22;
+  if (!src || dstsz < count) {
+    std::memset(dst, 0, dstsz);
+    return src ? 34 : 22;
+  }
   std::memcpy(dst, src, count);
   return 0;
 }
 
 REX_SHIM_FN(memmove_s, int, void* dst, u32 dstsz, const void* src, u32 count) {
-  if (!dst || !src || count > dstsz)
+  if (count == 0)
+    return 0;
+  if (!dst || !src)
     return 22;
+  if (dstsz < count)
+    return 34;
   std::memmove(dst, src, count);
   return 0;
 }

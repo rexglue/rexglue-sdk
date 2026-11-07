@@ -41,6 +41,8 @@ extern "C" REX_FUNC(rexshim_wcsrchr);
 extern "C" REX_FUNC(rexshim_wcscpy);
 extern "C" REX_FUNC(rexshim_wcsncpy);
 extern "C" REX_FUNC(rexshim_wcsncpy_s);
+extern "C" REX_FUNC(rexshim_wcscoll);
+extern "C" REX_FUNC(rexshim__stricmp);
 extern "C" REX_FUNC(rexshim_wcsstr);
 
 namespace {
@@ -195,10 +197,33 @@ REX_TEST_CASE("CRT memcpy_s and memmove_s refuse a count past the destination si
               "[kernel][shim][crt]") {
   ResetGuest();
   PutBytes(kSource, "abcdefgh");
-  CHECK(CallInt(rexshim_memcpy_s, {kDestination, 4, kSource, 8}) != 0);
-  CHECK(CallInt(rexshim_memmove_s, {kDestination, 4, kSource, 8}) != 0);
-  CHECK(CallInt(rexshim_memcpy_s, {kDestination, 8, 0, 8}) != 0);
-  CHECK(CallInt(rexshim_memcpy_s, {0, 8, kSource, 8}) != 0);
+  PutBytes(kDestination, "wxyzwxyz");
+  CHECK(CallInt(rexshim_memcpy_s, {kDestination, 4, kSource, 8}) == 34);
+  CHECK(GetBytes(kDestination, 8) == std::string("\0\0\0\0wxyz", 8));
+  PutBytes(kDestination, "wxyzwxyz");
+  CHECK(CallInt(rexshim_memmove_s, {kDestination, 4, kSource, 8}) == 34);
+  CHECK(GetBytes(kDestination, 8) == "wxyzwxyz");
+}
+
+REX_TEST_CASE(
+    "CRT memcpy_s zeroes the destination for a null source and refuses a null destination",
+    "[kernel][shim][crt]") {
+  ResetGuest();
+  PutBytes(kDestination, "wxyzwxyz");
+  CHECK(CallInt(rexshim_memcpy_s, {kDestination, 8, 0, 8}) == 22);
+  CHECK(GetBytes(kDestination, 8) == std::string(8, '\0'));
+  CHECK(CallInt(rexshim_memcpy_s, {0, 8, kSource, 8}) == 22);
+  CHECK(CallInt(rexshim_memmove_s, {kDestination, 8, 0, 8}) == 22);
+  CHECK(CallInt(rexshim_memmove_s, {0, 8, kSource, 8}) == 22);
+}
+
+REX_TEST_CASE("CRT memcpy_s and memmove_s accept a count of zero before any check",
+              "[kernel][shim][crt]") {
+  ResetGuest();
+  CHECK(CallInt(rexshim_memcpy_s, {0, 0, 0, 0}) == 0);
+  CHECK(CallInt(rexshim_memmove_s, {0, 0, 0, 0}) == 0);
+  CHECK(CallInt(rexshim_memcpy_s, {kDestination, 0, 0, 0}) == 0);
+  CHECK(IsUntouched(kDestination, 16));
 }
 
 REX_TEST_CASE("CRT strncmp compares up to a length", "[kernel][shim][crt]") {
@@ -244,10 +269,40 @@ REX_TEST_CASE("CRT strcpy_s copies and refuses a short destination", "[kernel][s
   PutString(kSource, "abcd");
   CHECK(CallInt(rexshim_strcpy_s, {kDestination, 5, kSource}) == 0);
   CHECK(GetBytes(kDestination, 5) == std::string("abcd\0", 5));
-  CHECK(CallInt(rexshim_strcpy_s, {kDestination, 4, kSource}) != 0);
-  CHECK(g_guest[kDestination] == 0);
-  CHECK(CallInt(rexshim_strcpy_s, {kDestination, 0, kSource}) != 0);
-  CHECK(CallInt(rexshim_strcpy_s, {0, 5, kSource}) != 0);
+  CHECK(CallInt(rexshim_strcpy_s, {kDestination, 0, kSource}) == 22);
+  CHECK(CallInt(rexshim_strcpy_s, {0, 5, kSource}) == 22);
+}
+
+REX_TEST_CASE("CRT strcpy_s copies an overflow and then clears the first byte",
+              "[kernel][shim][crt]") {
+  ResetGuest();
+  PutString(kSource, "abcd");
+  CHECK(CallInt(rexshim_strcpy_s, {kDestination, 4, kSource}) == 34);
+  CHECK(GetBytes(kDestination, 4) == std::string("\0bcd", 4));
+  CHECK(g_guest[kDestination + 4] == kGuard);
+}
+
+REX_TEST_CASE("CRT strcpy_s clears the first byte for a null source", "[kernel][shim][crt]") {
+  ResetGuest();
+  PutString(kDestination, "xyz");
+  CHECK(CallInt(rexshim_strcpy_s, {kDestination, 4, 0}) == 22);
+  CHECK(GetBytes(kDestination, 4) == std::string("\0yz\0", 4));
+}
+
+REX_TEST_CASE("CRT _stricmp folds ASCII case and reports a null argument", "[kernel][shim][crt]") {
+  ResetGuest();
+  PutString(kSource, "AbC_");
+  PutString(kDestination, "aBcD");
+  CHECK(CallInt(rexshim__stricmp, {kSource, kDestination}) == '_' - 'd');
+  PutString(kDestination, "aBc_");
+  CHECK(CallInt(rexshim__stricmp, {kSource, kDestination}) == 0);
+  g_guest[kSource] = 0xC0;
+  g_guest[kSource + 1] = 0;
+  g_guest[kDestination] = 0xE0;
+  g_guest[kDestination + 1] = 0;
+  CHECK(CallInt(rexshim__stricmp, {kSource, kDestination}) == 0xC0 - 0xE0);
+  CHECK(CallInt(rexshim__stricmp, {0, kDestination}) == 0x7FFFFFFF);
+  CHECK(CallInt(rexshim__stricmp, {kSource, 0}) == 0x7FFFFFFF);
 }
 
 REX_TEST_CASE("CRT wcslen counts big endian units", "[kernel][shim][crt][wide]") {
@@ -274,6 +329,24 @@ REX_TEST_CASE("CRT wcscmp orders by code unit value", "[kernel][shim][crt][wide]
   PutWide(kDestination, u"\x102");
   CHECK(CallInt(rexshim_wcscmp, {kSource, kDestination}) > 0);
   CHECK(CallInt(rexshim_wcscmp, {kDestination, kSource}) < 0);
+}
+
+REX_TEST_CASE("CRT wcscmp returns only minus one, zero or one", "[kernel][shim][crt][wide]") {
+  ResetGuest();
+  PutWide(kSource, u"a");
+  PutWide(kDestination, u"");
+  CHECK(CallInt(rexshim_wcscmp, {kSource, kDestination}) == -1);
+  CHECK(CallInt(rexshim_wcscmp, {kDestination, kSource}) == 1);
+}
+
+REX_TEST_CASE("CRT wcsncmp compares with a count of two to the thirty first or more",
+              "[kernel][shim][crt][wide]") {
+  ResetGuest();
+  PutWide(kSource, u"abc");
+  PutWide(kDestination, u"abd");
+  CHECK(CallInt(rexshim_wcsncmp, {kSource, kDestination, 0x80000000u}) < 0);
+  CHECK(CallInt(rexshim_wcsncmp, {kDestination, kSource, 0xFFFFFFFFu}) > 0);
+  CHECK(CallInt(rexshim_wcsncmp, {kSource, kDestination, 0}) == 0);
 }
 
 REX_TEST_CASE("CRT wcsncmp orders by code unit value up to a length", "[kernel][shim][crt][wide]") {
@@ -331,9 +404,57 @@ REX_TEST_CASE("CRT wcsncpy_s copies within the destination size", "[kernel][shim
   PutWide(kSource, u"abcd");
   CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 8, kSource, 4}) == 0);
   CHECK(GetWide(kDestination) == u"abcd");
-  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 3, kSource, 4}) != 0);
-  CHECK(GetWide(kDestination).size() <= 2);
-  CHECK(CallInt(rexshim_wcsncpy_s, {0, 8, kSource, 4}) != 0);
+  CHECK(CallInt(rexshim_wcsncpy_s, {0, 8, kSource, 4}) == 22);
+  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 0, kSource, 4}) == 22);
+}
+
+REX_TEST_CASE("CRT wcsncpy_s clears the first unit when the destination is too small",
+              "[kernel][shim][crt][wide]") {
+  ResetGuest();
+  PutWide(kSource, u"abcd");
+  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 3, kSource, 4}) == 34);
+  CHECK(GetWide(kDestination).empty());
+}
+
+REX_TEST_CASE("CRT wcsncpy_s with _TRUNCATE copies what fits and returns 80",
+              "[kernel][shim][crt][wide]") {
+  ResetGuest();
+  PutWide(kSource, u"abcd");
+  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 3, kSource, 0xFFFFFFFFu}) == 80);
+  CHECK(GetWide(kDestination) == u"ab");
+  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 8, kSource, 0xFFFFFFFFu}) == 0);
+  CHECK(GetWide(kDestination) == u"abcd");
+}
+
+REX_TEST_CASE("CRT wcsncpy_s treats a count of zero and a null source as the CRT does",
+              "[kernel][shim][crt][wide]") {
+  ResetGuest();
+  PutWide(kDestination, u"xyz");
+  CHECK(CallInt(rexshim_wcsncpy_s, {0, 0, 0, 0}) == 0);
+  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 8, 0, 0}) == 0);
+  CHECK(GetWide(kDestination).empty());
+  PutWide(kDestination, u"xyz");
+  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 8, 0, 4}) == 22);
+  CHECK(GetWide(kDestination).empty());
+}
+
+REX_TEST_CASE("CRT wcsncpy_s stops at the count and terminates", "[kernel][shim][crt][wide]") {
+  ResetGuest();
+  PutWide(kSource, u"abcd");
+  CHECK(CallInt(rexshim_wcsncpy_s, {kDestination, 8, kSource, 2}) == 0);
+  CHECK(GetWide(kDestination) == u"ab");
+}
+
+REX_TEST_CASE("CRT wcscoll orders like wcscmp and reports a null argument",
+              "[kernel][shim][crt][wide]") {
+  ResetGuest();
+  PutWide(kSource, u"abc");
+  PutWide(kDestination, u"abd");
+  CHECK(CallInt(rexshim_wcscoll, {kSource, kDestination}) == -1);
+  CHECK(CallInt(rexshim_wcscoll, {kDestination, kSource}) == 1);
+  CHECK(CallInt(rexshim_wcscoll, {kSource, kSource}) == 0);
+  CHECK(CallInt(rexshim_wcscoll, {0, kSource}) == 0x7FFFFFFF);
+  CHECK(CallInt(rexshim_wcscoll, {kSource, 0}) == 0x7FFFFFFF);
 }
 
 REX_TEST_CASE("CRT wcsstr finds a substring by big endian units", "[kernel][shim][crt][wide]") {

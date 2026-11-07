@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 
 #include <rex/platform.h>
@@ -47,18 +48,36 @@ REX_SHIM_FN(strtok, char*, char* s, const char* delim) {
 }
 
 REX_SHIM_FN(_stricmp, int, const char* s1, const char* s2) {
-  return rex::string::CompareIgnoreCase(s1, s2);
+  constexpr int kCompareError = 0x7FFFFFFF;
+  if (!s1 || !s2) {
+    return kCompareError;
+  }
+  const auto fold = [](const char c) {
+    const int value = static_cast<unsigned char>(c);
+    return value >= 'A' && value <= 'Z' ? value + ('a' - 'A') : value;
+  };
+  int left;
+  int right;
+  do {
+    left = fold(*s1++);
+    right = fold(*s2++);
+  } while (left && left == right);
+  return left - right;
 }
 
 REX_SHIM_FN(strcpy_s, int, char* dst, u32 dstsz, const char* src) {
-  if (!dst || !src || dstsz == 0)
+  if (!dst || dstsz == 0)
     return 22;
-  const size_t src_len = std::strlen(src);
-  if (src_len + 1 > dstsz) {
+  if (!src) {
+    dst[0] = '\0';
+    return 22;
+  }
+  const size_t copied = std::min<size_t>(std::strlen(src) + 1, dstsz);
+  std::memcpy(dst, src, copied);
+  if (dst[copied - 1] != '\0') {
     dst[0] = '\0';
     return 34;
   }
-  std::memcpy(dst, src, src_len + 1);
   return 0;
 }
 
@@ -79,10 +98,12 @@ REX_SHIM_FN(wcscmp, int, const be_u16* lhs, const be_u16* rhs) {
     ++lhs;
     ++rhs;
   }
-  return static_cast<int>(static_cast<u16>(*lhs)) - static_cast<int>(static_cast<u16>(*rhs));
+  const int difference =
+      static_cast<int>(static_cast<u16>(*lhs)) - static_cast<int>(static_cast<u16>(*rhs));
+  return (difference > 0) - (difference < 0);
 }
 
-REX_SHIM_FN(wcsncmp, int, const be_u16* lhs, const be_u16* rhs, int count) {
+REX_SHIM_FN(wcsncmp, int, const be_u16* lhs, const be_u16* rhs, u32 count) {
   for (; count > 0; count--, lhs++, rhs++) {
     const u16 left = *lhs;
     const u16 right = *rhs;
@@ -100,7 +121,7 @@ REX_SHIM_FN(wcscoll, int, const be_u16* lhs, const be_u16* rhs) {
   if (lhs && rhs) {
     return wcscmp_shim(lhs, rhs);
   }
-  return 22;
+  return 0x7FFFFFFF;
 }
 
 REX_SHIM_FN(wcschr, be_u16*, const be_u16* str, u16 ch) {
@@ -139,22 +160,45 @@ REX_SHIM_FN(wcsncpy, be_u16*, be_u16* dst, const be_u16* src, u32 count) {
 }
 
 REX_SHIM_FN(wcsncpy_s, u32, be_u16* dst, u32 dstsz, const be_u16* src, u32 count) {
-  if (!dst || !src || dstsz == 0) {
+  constexpr u32 kTruncate = 0xFFFFFFFF;
+  if (count == 0 && !dst && dstsz == 0) {
+    return 0;
+  }
+  if (!dst || dstsz == 0) {
+    return 22;
+  }
+  if (count == 0) {
+    dst[0] = be_u16(0);
+    return 0;
+  }
+  if (!src) {
+    dst[0] = be_u16(0);
     return 22;
   }
 
-  u32 i = 0;
-  for (; i < count && i + 1 < dstsz && src[i]; i++) {
-    dst[i] = src[i];
-  }
-
-  if (i < dstsz) {
-    dst[i] = be_u16(0);
+  be_u16* out = dst;
+  u32 available = dstsz;
+  const auto copy_next = [&out, &src] {
+    const be_u16 unit = *src++;
+    *out++ = unit;
+    return static_cast<u16>(unit) != 0;
+  };
+  if (count == kTruncate) {
+    while (copy_next() && --available > 0) {}
   } else {
-    dst[dstsz - 1] = be_u16(0);
+    u32 remaining = count;
+    while (copy_next() && --available > 0 && --remaining > 0) {}
+    if (remaining == 0) {
+      *out = be_u16(0);
+    }
   }
 
-  if (i < count && src[i] != 0) {
+  if (available == 0) {
+    if (count == kTruncate) {
+      dst[dstsz - 1] = be_u16(0);
+      return 80;
+    }
+    dst[0] = be_u16(0);
     return 34;
   }
   return 0;
