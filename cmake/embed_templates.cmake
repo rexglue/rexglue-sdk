@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.25)
+
 if (NOT DEFINED TEMPLATE_SOURCE_DIR OR NOT DEFINED TEMPLATE_OUTPUT_DIR)
   message(
     FATAL_ERROR "embed_templates.cmake requires -DTEMPLATE_SOURCE_DIR and -DTEMPLATE_OUTPUT_DIR"

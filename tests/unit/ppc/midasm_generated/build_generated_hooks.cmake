@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.25)
+
 set(ENV{REX_MIDASM_GENERATED_DIR} "${GENERATED_DIR}")
 execute_process(
   COMMAND "${UNIT_TESTS}" "The generated declarations and calls of source hooks*"

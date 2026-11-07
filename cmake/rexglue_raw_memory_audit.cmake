@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.25)
+
 # Fails when raw guest memory access appears outside the memory implementation and what recompiled
 # code calls. Run with cmake -DREXGLUE_ROOT=<root> -P.
 function (rexglue_audit_raw_memory)

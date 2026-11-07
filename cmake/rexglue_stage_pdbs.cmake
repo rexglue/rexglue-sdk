@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.25)
+
 math(EXPR _last "${CMAKE_ARGC} - 1")
 foreach (_index RANGE 4 ${_last} 1)
   get_filename_component(_directory "${CMAKE_ARGV${_index}}" DIRECTORY)

@@ -1,6 +1,8 @@
 # Fails when a recompiled code header reaches the kernel or UI through its includes.
 # Run with cmake -DREXGLUE_ROOT=<root> -P ppc_header_isolation.cmake
 
+cmake_minimum_required(VERSION 3.25)
+
 set(_include_dir "${REXGLUE_ROOT}/include")
 file(
   GLOB _ppc_headers

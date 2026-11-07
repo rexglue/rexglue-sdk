@@ -1,4 +1,6 @@
 #Fails when a file under src/gpu includes the runtime or the kernel
+cmake_minimum_required(VERSION 3.25)
+
 file(GLOB_RECURSE gpu_files "${GPU_SOURCE_DIR}/*.h" "${GPU_SOURCE_DIR}/*.cpp"
      "${GPU_SOURCE_DIR}/CMakeLists.txt"
 )
