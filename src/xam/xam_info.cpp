@@ -305,7 +305,8 @@ constexpr u32 kXamAllocSystem = 0x04000000;
 u32 XamAlloc_entry(u32 flags, u32 size, MappedU32 out_ptr) {
   *out_ptr = 0;
   auto& xam = CurrentXAM();
-  if (!(flags & (kXamAllocWorkspace | kXamAllocSystem))) {
+  // Flags 0 selects the title workspace, as kXamAllocWorkspace does.
+  if (flags != 0 && !(flags & (kXamAllocWorkspace | kXamAllocSystem))) {
     REXXAM_ERROR("XamAlloc: flags {:#010x} select no heap", flags);
     return kernel::X_ERROR_INVALID_PARAMETER;
   }

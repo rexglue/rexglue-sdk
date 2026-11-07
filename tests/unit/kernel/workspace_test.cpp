@@ -133,6 +133,23 @@ REX_TEST_CASE("A 128 KB XamAlloc fits the default workspace and a second one doe
   });
 }
 
+REX_TEST_CASE("XamAlloc with flags 0 allocates from the title workspace", "[kernel][workspace]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 out = c.Alloc(4);
+    CHECKED_ELSE(c.XAM("XamAlloc", {0, 0x20000, out}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 block = c.Load32(out);
+    CHECK(block != 0);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == kNotEnoughMemory);
+    CHECK(c.XAM("XamFree", {block}) == 0);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x20000, out}) == 0);
+    c.XAM("XamFree", {c.Load32(out)});
+  });
+}
+
 REX_TEST_CASE("An enumerator on a full workspace returns 8", "[kernel][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
