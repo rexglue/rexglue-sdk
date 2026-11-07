@@ -1037,7 +1037,7 @@ static void KfLowerIrql(kernel::GuestAddressSpace& memory, PPCContext* ctx,
  * @param ctx The context of the acquiring thread.
  * @param lock The spin lock.
  * @param change_irql True to raise the IRQL to dispatch level.
- * @param stoppable True to end the spin with ThreadStop on a stop request or a terminating title,
+ * @param stoppable True to end the spin with ThreadStop when KernelThread::IsStopPending is true,
  * false for host teardown.
  *
  * @return The previous IRQL, or 0 when change_irql is false.
@@ -1050,9 +1050,7 @@ static u32 AcquireSpinLock(kernel::GuestAddressSpace& memory, PPCContext* ctx, X
   for (u32 expected = 0;
        !lock->owner_pcr.CompareExchange(expected, pcr_addr, std::memory_order_acquire);
        expected = 0) {
-    if (stoppable &&
-        ((ctx->stop_requested && ctx->stop_requested->load(std::memory_order_acquire)) ||
-         kernel::GetCurrentState().IsTerminatingTitle())) {
+    if (stoppable && KernelThread::IsStopPending()) {
       throw rex::ThreadStop{};
     }
     rex::platform::MaybeYield();

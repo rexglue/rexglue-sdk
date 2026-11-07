@@ -142,10 +142,19 @@ void KernelThread::CheckStop() {
   if (self->suspend_deferred_.load(std::memory_order_acquire)) {
     self->TakeDeferredSuspend();
   }
-  if (self->thread_state_->IsStopRequested() ||
-      (self->IsGuestThread() && StateOf(self->GetRuntime()).IsTerminatingTitle())) {
+  if (self->ShouldStop()) {
     throw rex::ThreadStop{self->stop_exit_code_.load(std::memory_order_acquire)};
   }
+}
+
+bool KernelThread::IsStopPending() {
+  KernelThread* self = GetBoundCurrentThread();
+  return self && !self->exiting_ && self->IsRunning() && self->ShouldStop();
+}
+
+bool KernelThread::ShouldStop() const {
+  return thread_state_->IsStopRequested() ||
+         (IsGuestThread() && StateOf(GetRuntime()).IsTerminatingTitle());
 }
 
 void KernelThread::ThrowStop() {

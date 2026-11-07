@@ -123,6 +123,14 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
    */
   static void CheckStop();
 
+  /**
+   * True when CheckStop would throw for the calling thread: it has a stop request, or it is a
+   * guest thread and the title is terminating. Takes no deferred suspend.
+   *
+   * @return True when the calling thread must stop.
+   */
+  static bool IsStopPending();
+
   /** Sleeps the calling thread, waking early to stop when it has a stop request. */
   static void SleepFor(std::chrono::microseconds duration);
 
@@ -352,6 +360,8 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
   int Execute();
   void Finish(int exit_code);
   [[noreturn]] static void ThrowStop();
+  /** True when this thread has a stop request, or is a guest thread of a terminating title. */
+  bool ShouldStop() const;
   void ReleaseSelf();
 
   /** Removes the pointer reference the thread holds on its own object. */

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <rex/ppc/seh.h>
+#include <rex/kernel/types/list.h>
 #include <rex/kernel/types/thread.h>
 #include <rex/ppc/recompiled_code.h>
 #include <rex/kernel/function_dispatcher.h>
@@ -1148,4 +1149,62 @@ REX_TEST_CASE("A suspend never parks a guest thread inside a host allocation", "
   stop->store(true);
   allocator.join();
   CHECK(allocated_every_time);
+}
+
+REX_TEST_CASE("A host worker spinning on a held lock keeps spinning when the title terminates",
+              "[kernel][shutdown][spinlock]") {
+  KernelFixture fixture;
+  auto lock_address = std::make_shared<std::atomic<u32>>(0);
+  auto spinning = std::make_shared<std::atomic<bool>>(false);
+  auto acquired = std::make_shared<std::atomic<bool>>(false);
+  auto ended = std::make_shared<std::atomic<bool>>(false);
+  fixture.RunOnGuestThread([&](Caller& c) {
+    const u32 lock = c.Alloc(4);
+    c.Store32(lock, 1);
+    lock_address->store(lock);
+    auto thread = std::make_unique<rex::kernel::KernelThread>(
+        c.GetRuntime(), 0x20000, 0,
+        [lock, spinning, acquired, ended, base = c.GetBase(), &runtime = c.GetRuntime()]() {
+          SetOnDestroy guard{ended};
+          Caller host(*rex::kernel::ThreadState::Get()->GetContext(), base, runtime);
+          spinning->store(true);
+          host.Kernel("KfAcquireSpinLock", {lock});
+          acquired->store(true);
+          return 0;
+        });
+    CHECK(c.GetRuntime().GetThreadRegistry().Launch(std::move(thread)));
+  });
+  WaitUntil(*spinning);
+  std::this_thread::sleep_for(20ms);
+  StateOf(fixture.GetRuntime()).TerminateTitle();
+  std::this_thread::sleep_for(100ms);
+  CHECK_FALSE(ended->load());
+  auto* lock = StateOf(fixture.GetRuntime())
+                   .GetAddressSpace()
+                   ->TranslateVirtual<rex::kernel::X_KSPINLOCK*>(lock_address->load());
+  lock->owner_pcr.Store(0, std::memory_order_release);
+  WaitUntil(*acquired);
+  CHECK(acquired->load());
+}
+
+REX_TEST_CASE("A guest thread spinning on a held lock stops when the title terminates",
+              "[kernel][shutdown][spinlock]") {
+  KernelFixture fixture;
+  auto spinning = std::make_shared<std::atomic<bool>>(false);
+  auto acquired = std::make_shared<std::atomic<bool>>(false);
+  u32 thread = 0;
+  fixture.RunOnGuestThread([&](Caller& c) {
+    const u32 lock = c.Alloc(4);
+    c.Store32(lock, 1);
+    thread = c.Spawn([lock, spinning, acquired](Caller& t) {
+      spinning->store(true);
+      t.Kernel("KfAcquireSpinLock", {lock});
+      acquired->store(true);
+    });
+  });
+  WaitUntil(*spinning);
+  std::this_thread::sleep_for(20ms);
+  StateOf(fixture.GetRuntime()).TerminateTitle();
+  CHECK(StoppedWithin(fixture.GetRuntime(), thread, 1000ms));
+  CHECK_FALSE(acquired->load());
 }
