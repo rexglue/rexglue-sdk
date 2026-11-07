@@ -113,8 +113,9 @@ set(REXKERNEL_SOURCES
     workspace_heap.cpp
     function_dispatcher.cpp
     # __imp__Xbdm* symbols
+    xbdm/forward.cpp
+    xbdm/xbdm_forwards.cpp
     xbdm/xbdm_module.cpp
-    xbdm/xbdm_stub.cpp
     # __imp__ symbols for generated code
     xboxkrnl/xboxkrnl_crypt.cpp
     xboxkrnl/xboxkrnl_debug.cpp

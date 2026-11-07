@@ -89,6 +89,7 @@ class KernelModule final : public IModule, public IKernelControl {
   ILogger* logger_ = nullptr;
   bool hooks_ = false;
   bool forwards_ = false;
+  bool xbdm_forwards_ = false;
 };
 
 }  // namespace rex::kernel

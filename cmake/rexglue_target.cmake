@@ -292,6 +292,7 @@ function (_rexglue_get_staged_modules out_targets out_aliases)
       rexui
       rexgpu
       rexxam
+      rexxbdm
       rexgpu-xenos-null
       rexgpu-xenos-vulkan
       rexgpu-xenos-d3d12
@@ -308,6 +309,7 @@ function (_rexglue_get_staged_modules out_targets out_aliases)
       rex::ui
       rex::gpu
       rex::xam
+      rex::xbdm
       rex::gpu-xenos-null
       rex::gpu-xenos-vulkan
       rex::gpu-xenos-d3d12
@@ -470,7 +472,7 @@ endfunction ()
 #   NO_COPY           Copies nothing. The RPATH, the defines, the allocator and the optimus source
 #                     still apply.
 #   EXCLUDE <name>... Skips the named items. A name is a provider module target (rexfilesystem,
-#                     rexapu, rexhid, rexui, rexgpu, rexxam, rexgpu-xenos-null,
+#                     rexapu, rexhid, rexui, rexgpu, rexxam, rexxbdm, rexgpu-xenos-null,
 #                     rexgpu-xenos-vulkan, rexgpu-xenos-d3d12, rexapu-sdl3, rexhid-sdl3,
 #                     rexui-sdl3, rexhid-xinput), a linked SDK library (rexbase, rexppc,
 #                     rexkernel, rexapp, TracyClient) or SDL3. A name of another platform is

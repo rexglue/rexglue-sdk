@@ -46,9 +46,9 @@ Makes an executable a host executable. It applies the compile settings, links th
 
 | Argument | Meaning |
 |---|---|
-| `<target>` | Names the host executable target. |
+| `<target>` | The host executable target. |
 | `NO_COPY` | Copies no runtime files. Cannot be combined with `EXCLUDE`. |
-| `EXCLUDE` | Leaves the named [staged files](#staged-files) out of the copy. A name is a module or driver module target such as `rexhid-xinput`, a linked SDK library such as `rexbase`, or `SDL3`. |
+| `EXCLUDE` | Leaves the listed [staged files](#staged-files) out of the copy. A name is a module or driver module target such as `rexhid-xinput`, a linked SDK library such as `rexbase`, or `SDL3`. |
 
 - Defines `REXGLUE_BUILD_CONFIG` as the build configuration.
 - On Linux and macOS, the run path is the executable folder and the install library folder.
@@ -58,7 +58,7 @@ Makes an executable a host executable. It applies the compile settings, links th
 #### Staged Files
 
 - `rexbase` (with ImGui), `rexppc`, `rexkernel`, `rexapp`, and `TracyClient` when that target exists.
-- `rexfilesystem`, `rexhid`, `rexapu`, `rexui`, `rexgpu` and `rexxam`.
+- `rexfilesystem`, `rexhid`, `rexapu`, `rexui`, `rexgpu`, `rexxam` and `rexxbdm`.
 - `rexgpu-xenos-null`, `rexgpu-xenos-vulkan`, `rexapu-sdl3`, `rexhid-sdl3` and `rexui-sdl3`, plus `rexgpu-xenos-d3d12` and `rexhid-xinput` on Windows.
 - SDL3, under its soname on Linux and macOS, such as `libSDL3.so.0`.
 - On macOS, the Vulkan loader and MoltenVK with its ICD file, in a `vulkan` folder.
@@ -93,8 +93,8 @@ Applies the compile settings and the host allocator to the shared library of a D
 
 | Argument | Meaning |
 |---|---|
-| `<target>` | Names the module library target. |
-| `HOST` | Names the host target. The module builds into the host folder, and the host depends on the module. The host can be declared after the module. |
+| `<target>` | The module library target. |
+| `HOST` | The host target. The module builds into the host folder, and the host depends on the module. The host can be declared after the module. |
 
 - Without `HOST`, the output goes to `CMAKE_RUNTIME_OUTPUT_DIRECTORY` when set.
 - The host stages the runtime files.
@@ -115,9 +115,9 @@ Defines a custom target that runs `rexglue codegen`. `generated/rexglue.cmake` c
 
 | Argument | Meaning |
 |---|---|
-| `<target>` | Names the custom target. |
-| `MANIFEST` | Names the [project manifest](manifest.md). |
-| `OUTPUT_DIR` | Names the entrypoint output folder, which contains `codegen.build.stamp`, `sources.cmake` and `codegen.d`. |
+| `<target>` | The custom target. |
+| `MANIFEST` | Points to the [project manifest](manifest.md). |
+| `OUTPUT_DIR` | Points to the entrypoint output folder, which contains `codegen.build.stamp`, `sources.cmake` and `codegen.d`. |
 | `WORKING_DIRECTORY` | Sets the folder the tool runs in. |
 | `TOOL` | Gives the command that runs the tool, such as `$<TARGET_FILE:rex::rexglue>`. |
 | `MAX_FILE_SIZE` | Passed as `--max_file_size_bytes`. |
@@ -133,8 +133,8 @@ Embeds the files under a folder into the executable. With `DIRECTORY metadata/ic
 
 | Argument | Meaning |
 |---|---|
-| `<target>` | Names the target that receives the files. |
-| `DIRECTORY` | Required. Names the folder to embed. |
+| `<target>` | The target that receives the files. |
+| `DIRECTORY` | Required. Points to the folder to embed. |
 | `PREFIX` | Adds a prefix to the asset paths. |
 
 ## Compile Settings
@@ -216,13 +216,13 @@ Applies the precompiled header and the recompile options to a target.
 
 - Calls `rexglue_add_codegen` for `foobar_codegen`.
 - Includes `dll_targets.cmake` when codegen has written it.
-- `REXGLUE_HOST_TARGET` names the executable that DLL modules build next to. The default is `PROJECT_NAME`. If the executable has another name, set the variable before the file is included.
+- `REXGLUE_HOST_TARGET` selects the executable that DLL modules build next to. The default is `PROJECT_NAME`. If the executable has another name, set the variable before the file is included.
 
 ### SDK Discovery
 
 `generated/rexglue.cmake` finds the SDK in one of two ways:
 
-- When the cache variable `REXSDK_DIR` names an SDK source folder, such as a submodule, it adds that folder with `add_subdirectory` and builds the SDK with the project.
+- When the cache variable `REXSDK_DIR` points to an SDK source folder, such as a submodule, it adds that folder with `add_subdirectory` and builds the SDK with the project.
 - Otherwise it finds an installed SDK with `find_package(rexglue)`, which searches `CMAKE_PREFIX_PATH`.
 
 `rexglue init` sets one of the two in the presets it writes. From an installed SDK it sets `CMAKE_PREFIX_PATH` to the install folder, and from a build inside the SDK source tree it sets `REXSDK_DIR`.

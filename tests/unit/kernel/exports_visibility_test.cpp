@@ -237,3 +237,13 @@ REX_TEST_CASE("The XAM library exports no entry point symbol", "[kernel][exports
     CHECK_FALSE(name.starts_with("rexshim_"));
   }
 }
+
+REX_TEST_CASE("The XBDM library exports no entry point symbol", "[kernel][exports][xbdm]") {
+  const std::set<std::string> names = ListExportedNames(ReadLibraryFile(REX_TEST_XBDM_PATH));
+  REQUIRE_FALSE(names.empty());
+  for (const std::string& name : names) {
+    INFO(name);
+    CHECK_FALSE(name.starts_with("__imp__"));
+    CHECK_FALSE(name.starts_with("rexshim_"));
+  }
+}

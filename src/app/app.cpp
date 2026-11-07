@@ -314,7 +314,8 @@ Result<void> App::Init(const CLIArgList& args) {
   state.registered = true;
 
   rex::Config config;
-  config.modules = {"rexfilesystem", "rexhid", "rexapu", "rexui", "rexgpu", "rexxam", "rexkernel"};
+  config.modules = {"rexfilesystem", "rexhid", "rexapu",  "rexui",
+                    "rexgpu",        "rexxam", "rexxbdm", "rexkernel"};
   OnModules(config.modules);
   OnRegisterModules(state.code_modules);
   config.code_modules.push_back(&state.info_module);

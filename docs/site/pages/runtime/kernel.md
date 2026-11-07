@@ -34,11 +34,11 @@ if (added) {
 
 The example creates a manual reset event that starts not signaled, and returns its first handle.
 
-Host code that uses an object for the length of a call pins it. `IObjectTable::Get` returns a pin, an `ObjectPin` or a typed `Pinned<T>`, that keeps the object alive until the pin is destroyed, even if the title closes the last handle meanwhile. An invalid handle, or an object of a type other than `T`, gives an empty pin.
+Host code that uses an object for the length of a call pins it. `IObjectTable::Get` returns a pin, an `ObjectPin` or a typed `Pinned<T>`, that keeps the object alive until the pin is destroyed, even if the title closes the last handle in the meantime. An invalid handle, or an object of a type other than `T`, gives an empty pin.
 
 ### Resolving a Guest Address
 
-Every console synchronization object starts with an `X_DISPATCH_HEADER`, a small block in guest memory that holds its type and signal state. A title can embed such an object in its own structures and pass its guest address where a handle is expected. `IObjectTable::ResolveObject` takes the address and returns a pin on the kernel object for it. For an event, mutant, semaphore or timer, the first call creates that object. An object created this way has no handle. A `KeInitialize*` call over the body of an object that `NtCreate*` made resets that same object, and threads already waiting on it stay blocked.
+Every console synchronization object starts with an `X_DISPATCH_HEADER`, a small block in guest memory that holds its type and signal state. A title can embed such an object in its own structures and pass its guest address where a handle is expected. `IObjectTable::ResolveObject` takes the address and returns a pin on the kernel object for it. For an event, mutant, semaphore or timer, the first call creates that object. An object created this way has no handle. A `KeInitialize*` call over the body of an object that `NtCreate*` made resets that same object, and threads waiting on it stay blocked.
 
 ### Object Types
 
@@ -49,7 +49,7 @@ Every console synchronization object starts with an `X_DISPATCH_HEADER`, a small
 | `kNotifyListener` | A host event. |
 | `kIOCompletion` | A host semaphore. |
 | `kSymbolicLink`, `kModule` | No host primitive. |
-| `kThread` | A `ThreadRef`, which names a `KernelThread` in the thread registry. |
+| `kThread` | A `ThreadRef`, which refers to a `KernelThread` in the thread registry. |
 | `kXAM` | An `IXAMObject` from `object/xam_object.h`, such as an enumerator. |
 
 The console keeps a guest block for each object, an `X_OBJECT_HEADER` followed by the object body. `AllocObjectBlock` allocates this block from the system heap or from a workspace. XAM enumerator objects take their blocks from the [title workspace](#title-workspace). `NtCreateEvent`, `NtCreateSemaphore`, `NtCreateMutant` and `NtCreateTimer` allocate this block, so `ObReferenceObjectByHandle` returns the body address for their handles. Every dispatcher body starts with an empty wait list, as the console writes it.
@@ -72,7 +72,7 @@ See [Thread List](../appendix/thread-list.md) for every thread of the process.
 A guest thread cannot be killed from outside, because it may hold locks or be inside host code. The runtime asks it to stop and waits:
 
 1. `RequestStop` marks the thread. The thread stops at its next call to `CheckStop` or its next alertable wait, which throw `ThreadStop` to unwind the thread.
-2. If the thread has not stopped after `runtime.terminate_timeout_ms`, 2000 ms by default, the runtime logs a warning and calls `ForceStop` every 5 ms. `ForceStop` makes a thread that is inside recompiled code throw `ThreadStop` at once. The warning repeats each time the timeout passes again.
+2. If the thread has not stopped after `runtime.terminate_timeout_ms`, 2000 ms by default, the runtime logs a warning and calls `ForceStop` every 5 ms. `ForceStop` makes a thread that is inside recompiled code throw `ThreadStop` immediately. The warning repeats each time the timeout passes again.
 
 A guest thread moves between these states:
 
@@ -98,7 +98,7 @@ When a guest thread finishes, `KernelThread::Finish` runs the thread notificatio
 
 ## Process Model
 
-The console kernel runs three processes, each described by an `X_KPROCESS` block in guest memory. `KernelGuestGlobals` from `rex/kernel/types/thread.h` holds the three blocks, the ten object type descriptors, the TLS lock and the ECC curve table.
+The console kernel runs three processes, each kept in an `X_KPROCESS` block in guest memory. `KernelGuestGlobals` from `rex/kernel/types/thread.h` holds the three blocks, the ten object type descriptors, the TLS lock and the ECC curve table.
 
 | Process | Type | Details |
 |---|---|---|
@@ -127,7 +127,7 @@ A DPC, a deferred procedure call, is a routine that the kernel queues to run lat
 
 ## Guest Audio
 
-The audio part of `rexkernel` is the guest side of audio: the part that the title talks to through the XAudio kernel exports. It does not play sound itself. It passes the frames of the title to the audio system of the app, which plays them through its driver.
+The audio part of `rexkernel` is the guest side of audio. The title calls it through the XAudio kernel exports. It does not play sound. It passes the frames of the title to the audio system of the app, which plays them through its driver.
 
 - `XAudioRegisterRenderDriverClient` registers a render client, a guest callback that produces audio frames. The runtime has eight client slots, and each client gets a stream in the audio system.
 - The `Audio Worker` thread calls the callback of a client each time the audio system wants another frame, and `XAudioSubmitRenderDriverFrame` hands the frame to the stream.
@@ -173,8 +173,15 @@ A kernel export is a host function that takes the place of a function that the t
 The XAM exports live in two libraries. `rexkernel` holds the `__imp__` symbols that the generated code calls, and the stub bodies. `rexxam` holds the implemented bodies and the XAM shims.
 
 - Each `__imp__` symbol or `rexshim_` function of XAM in `rexkernel` forwards to the `rexxam` body of the same name.
-- The `Init` of `rexkernel` fails and names the export when a forwarder has no body, a body has no forwarder, or two bodies have the same name.
+- The `Init` of `rexkernel` fails and reports the export when a forwarder has no body, a body has no forwarder, or two bodies have the same name.
 - A forwarder with no bound body logs an error and leaves `r3` unchanged.
+
+### XBDM Export Forwarding
+
+The XBDM exports follow the same split. `rexkernel` holds the `__imp__` symbols and `rexxbdm` holds the bodies, which log that the export was called and return a fixed value where the export has one.
+
+- The `Init` of `rexkernel` binds the forwarders when `rexxbdm` is loaded and fails and reports the export on a mismatch, as for XAM.
+- A forwarder with no bound body does what the body does: it logs and sets `r3` to the same value.
 
 A hook on an XAM `__imp__` symbol in your program replaces the forwarder.
 

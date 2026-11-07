@@ -22,6 +22,7 @@
 #include "kernel/ppc_hooks.h"
 #include "kernel/settings_access.h"
 #include "kernel/xam/forward.h"
+#include "kernel/xbdm/forward.h"
 
 REXLOG_TABLE(kRuntimeLog, kernel, cpu, title)
 
@@ -93,6 +94,10 @@ Result<void> KernelModule::Init() {
     REX_TRY_VOID(BindXAMForwards(exports->GetBodies()));
     forwards_ = true;
   }
+  if (auto* exports = g_services.controls->Get<::rex::xbdm::IXBDMExports>()) {
+    REX_TRY_VOID(BindXBDMForwards(exports->GetBodies()));
+    xbdm_forwards_ = true;
+  }
   RegisterPPCHooks();
   hooks_ = true;
   return {};
@@ -102,6 +107,10 @@ void KernelModule::Shutdown() {
   if (forwards_) {
     UnbindXAMForwards();
     forwards_ = false;
+  }
+  if (xbdm_forwards_) {
+    UnbindXBDMForwards();
+    xbdm_forwards_ = false;
   }
   if (hooks_) {
     UnregisterPPCHooks();

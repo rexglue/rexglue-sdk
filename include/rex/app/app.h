@@ -174,7 +174,7 @@ class REX_APP_API App : public SettingOwner {
 
   /**
    * Init, before any module loads. Edits the module libraries rex::Init loads, in order. The
-   * default is rexfilesystem, rexhid, rexapu, rexui, rexgpu, rexxam and rexkernel.
+   * default is rexfilesystem, rexhid, rexapu, rexui, rexgpu, rexxam, rexxbdm and rexkernel.
    *
    * @param modules The library names. The driver plugins load after them.
    */

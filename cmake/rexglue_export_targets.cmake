@@ -2,6 +2,7 @@ set_target_properties(rexbase PROPERTIES EXPORT_NAME base)
 set_target_properties(rexppc PROPERTIES EXPORT_NAME ppc)
 set_target_properties(rexkernel PROPERTIES EXPORT_NAME kernel)
 set_target_properties(rexxam PROPERTIES EXPORT_NAME xam)
+set_target_properties(rexxbdm PROPERTIES EXPORT_NAME xbdm)
 set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
 set_target_properties(rexgpu PROPERTIES EXPORT_NAME gpu)
 
@@ -11,6 +12,7 @@ set(REXGLUE_INSTALL_TARGETS
     rexxenos
     rexkernel
     rexxam
+    rexxbdm
     rexapp
     rexsdk
     simde

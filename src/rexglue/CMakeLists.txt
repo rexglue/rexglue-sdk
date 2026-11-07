@@ -34,4 +34,5 @@ add_dependencies(
   rexui
   rexgpu
   rexxam
+  rexxbdm
 )

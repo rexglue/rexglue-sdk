@@ -2,7 +2,7 @@
 
 ## Binaries
 
-The program links the first six libraries through the `rex::sdk` CMake target. `rex::Init` loads the others by name at runtime, and loads `rexxam` and `rexkernel` as modules too. See [Introduction](../index.md#runtime) for how they fit together.
+The program links the first seven libraries through the `rex::sdk` CMake target. `rex::Init` loads the others by name at runtime, and loads `rexxam`, `rexxbdm` and `rexkernel` as modules too. See [Introduction](../index.md#runtime) for how they fit together.
 
 | Binary | Purpose |
 |---|---|
@@ -11,6 +11,7 @@ The program links the first six libraries through the `rex::sdk` CMake target. `
 | `rexxenos` | Describes the Xenos registers, formats and texture layouts. It is a static library. |
 | `rexkernel` | Provides `TitleRuntime`, the kernel exports, guest memory, and guest audio with XMA decoding. |
 | `rexxam` | Implements the XAM exports. |
+| `rexxbdm` | Implements the XBDM exports. |
 | `rexapp` | Provides `App`, `TitleApp`, the command line and the entry macros. |
 | `rexfilesystem` | Provides the filesystem. `rex::Init` loads it by name. |
 | `rexhid`, `rexapu`, `rexui`, `rexgpu` | Provide the input, audio, UI and graphics systems. `rex::Init` loads each by name. |
@@ -55,6 +56,7 @@ The seven libraries that an `App` loads, in load order. A module can only connec
 | `rexui` | `IUISystem`, `IUIControl` | `IDriverContext`, `IAppInfo`, `ISettingsRegistry`, `ILogger` |
 | `rexgpu` | `IGraphicsSystem`, `IGraphicsControl` | `IDriverContext`, `IAppInfo`, `ISettingsRegistry`, `ILogger` |
 | `rexxam` | `IXAMTitleLifecycle`, `IXAMTitleServices`, `IXAMLanguage`, `IXAMExports` | `ISettingsRegistry`, `ILogger` |
+| `rexxbdm` | `IXBDMExports` | none |
 | `rexkernel` | `IKernelControl` | `ISettingsRegistry`, `ILogger`, `IFileSystemFactory`, `IUISystem` |
 
-`IUIControl`, `IGraphicsControl`, `IXAMExports` and `IKernelControl` are private interfaces that only the app and the kernel can find. The app serves `IAppInfo` from a code module of its own.
+`IUIControl`, `IGraphicsControl`, `IXAMExports`, `IXBDMExports` and `IKernelControl` are private interfaces that only the app and the kernel can find. The app serves `IAppInfo` from a code module of its own.

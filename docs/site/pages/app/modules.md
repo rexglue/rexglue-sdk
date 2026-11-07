@@ -8,7 +8,7 @@ A module is an object that implements `rex::IModule` from `rex/module.h`. It has
 
 There are three kinds of module:
 
-- A system module is one of the seven SDK libraries that an `App` loads at every start. Five of them provide the filesystem and the four systems for input, audio, UI and graphics. The other two, `rexxam` and `rexkernel`, connect the XAM and kernel parts of the SDK.
+- A system module is one of the eight SDK libraries that an `App` loads at every start. Five of them provide the filesystem and the four systems for input, audio, UI and graphics. The other three, `rexxam`, `rexxbdm` and `rexkernel`, connect the XAM, XBDM and kernel parts of the SDK.
 - A driver module is a shared library that provides drivers. A driver is the host implementation that a system runs, such as SDL3 audio or Vulkan graphics. The app loads a driver module only when a setting selects one of its drivers.
 - A code module is a module compiled into your program. The app adds it to the list without loading a library.
 
@@ -170,12 +170,14 @@ An `App` loads these libraries, in this order:
 4. `rexui`
 5. `rexgpu`
 6. `rexxam`
-7. `rexkernel`
+7. `rexxbdm`
+8. `rexkernel`
 
 See [Binaries and Modules](../appendix/binaries-and-modules.md#system-libraries) for the interfaces each one serves and requires. To change the list, override `App::OnModules`.
 
 - `rexkernel` must come last. It reads the filesystem, input, audio, UI, graphics and XAM interfaces during `Connect`, and those come only from earlier modules.
 - `rexxam` must come before `rexkernel`. A program that never launches a title can remove it. Without it, `TitleRuntime::Load` fails with "the rexxam module is not loaded, a title cannot launch without it".
+- `rexxbdm` must come before `rexkernel`. A program that never launches a title can remove it. Without it, each XBDM export logs that it was called and returns the value it returns with the module loaded.
 - `rexhid` can be removed when the app needs no input.
 
 ## Selecting Drivers

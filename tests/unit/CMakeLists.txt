@@ -49,6 +49,7 @@ add_executable(
   kernel/shim_registry_test.cpp
   kernel/exports_test.cpp
   kernel/xam_forward_test.cpp
+  kernel/xbdm_forward_test.cpp
   kernel/exports_visibility_test.cpp
   kernel/kernel_fixture.cpp
   kernel/lock_order_test.cpp
@@ -260,6 +261,7 @@ target_sources(
           $<TARGET_OBJECTS:rexcodegen-objects>
           $<TARGET_OBJECTS:rexkernel-objects>
           $<TARGET_OBJECTS:rexxam-objects>
+          $<TARGET_OBJECTS:rexxbdm-objects>
           $<TARGET_OBJECTS:rexapp-objects>
           $<TARGET_OBJECTS:rexhid-objects>
           $<TARGET_OBJECTS:rexapu-objects>
@@ -328,6 +330,7 @@ target_compile_definitions(
   unit_tests
   PRIVATE REX_TEST_KERNEL_PATH="$<TARGET_FILE:rexkernel>"
           REX_TEST_XAM_PATH="$<TARGET_FILE:rexxam>"
+          REX_TEST_XBDM_PATH="$<TARGET_FILE:rexxbdm>"
           REX_TEST_RECOMPILED_A_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-a>"
           REX_TEST_RECOMPILED_B_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-b>"
           REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem"
@@ -372,6 +375,7 @@ add_dependencies(
   rexui
   rexgpu
   rexxam
+  rexxbdm
   rexmod-test-cross-exporter
   rexmod-test-cross-importer
 )
@@ -412,6 +416,7 @@ add_dependencies(
   rexui
   rexgpu
   rexxam
+  rexxbdm
   rexgpu-xenos-null
   rexgpu-xenos-vulkan
   rex-sample-console

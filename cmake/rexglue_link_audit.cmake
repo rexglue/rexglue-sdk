@@ -3,6 +3,7 @@ set(REXGLUE_FOLDED_LIB_USERS rexui-sdl3 unit_tests)
 set(REXGLUE_ABOVE_CORE_TARGETS
     rexkernel
     rexxam
+    rexxbdm
     rexapp
     rexppc
     rexxenos
@@ -194,6 +195,7 @@ function (rexglue_audit_host_service_links)
       "rexapu=rexbase"
       "rexhid=rexbase"
       "rexui=rexbase"
+      "rexxbdm=rexbase|rexppc|simde"
       "rexapu-sdl3=rexbase|SDL3::SDL3"
       "rexhid-sdl3=rexbase|SDL3::SDL3"
       "rexhid-xinput=rexbase"
