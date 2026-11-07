@@ -1,8 +1,6 @@
 set(CMAKE_FOLDER "thirdparty")
 
 # Third-party vendored dependencies for ReXGlue
-include(${PROJECT_SOURCE_DIR}/cmake/rexglue_vulkan_stack.cmake)
-
 # Vendored projects older than CMake 3.13 would otherwise let option() replace the settings below.
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(BUILD_SHARED_LIBS OFF)
@@ -47,10 +45,7 @@ set(REQUIRED_SUBMODULES
     sdl3
 )
 
-list(APPEND REQUIRED_SUBMODULES vulkan-memory-allocator spirv-headers glslang)
-if (APPLE)
-  list(APPEND REQUIRED_SUBMODULES vulkan-loader moltenvk)
-endif ()
+list(APPEND REQUIRED_SUBMODULES glslang)
 
 if (REXGLUE_ENABLE_TRACY)
   list(APPEND REQUIRED_SUBMODULES tracy)
@@ -192,33 +187,30 @@ target_compile_options(disasm PRIVATE -w)
 #=============================================================================
 # Vulkan dependencies (only when Vulkan backend is enabled)
 #=============================================================================
-message(STATUS "Vulkan stack: SDK ${REXGLUE_VULKAN_SDK_VERSION}")
 
-# Vulkan headers, vk_video and the SPIRV-Tools headers come from the Vulkan SDK
-find_package(Vulkan 1.4.313 REQUIRED GLOBAL)
-
-# VMA - header-only, vendored and private to the Vulkan backend
-add_library(rex-vma INTERFACE)
-target_include_directories(
-  rex-vma SYSTEM
-  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vulkan-memory-allocator/include>
+# Vulkan headers, VMA, the loader and MoltenVK all come from the Vulkan SDK. The loader and
+# MoltenVK stay runtime loaded; no Vulkan implementation is linked into rexglue itself.
+set(REXGLUE_VULKAN_MIN_VERSION 1.4.313)
+if (UNIX
+    AND NOT APPLE
+    AND IS_ARM64
 )
-
-if (APPLE)
-  # Build the loader and MoltenVK revisions shipped by the pinned SDK.
-  # They remain runtime-loaded; no Vulkan implementation is linked into
-  # rexglue itself.
-  set(BUILD_TESTS OFF)
-  set(BUILD_WERROR OFF)
-  set(LOADER_CODEGEN OFF)
-  string(CONCAT VulkanHeaders_VERSION "${REXGLUE_VULKAN_SDK_VERSION}")
-  add_subdirectory(vulkan-loader EXCLUDE_FROM_ALL)
-  set_target_properties(vulkan PROPERTIES EXCLUDE_FROM_ALL FALSE)
-
-  set(MVK_BUILD_SHADER_CONVERTER_TOOL OFF)
-  set(MVK_EXCLUDE_SPIRV_TOOLS ON)
-  add_subdirectory(moltenvk)
+  set(REXGLUE_VULKAN_MIN_VERSION 1.3.275)
 endif ()
+set(REXGLUE_VULKAN_COMPONENTS "")
+if (APPLE)
+  set(REXGLUE_VULKAN_COMPONENTS COMPONENTS MoltenVK)
+endif ()
+find_package(Vulkan ${REXGLUE_VULKAN_MIN_VERSION} REQUIRED ${REXGLUE_VULKAN_COMPONENTS} GLOBAL)
+
+# VMA - header-only, from the Vulkan SDK and private to the Vulkan backend
+find_path(
+  REXGLUE_VMA_INCLUDE_DIR vk_mem_alloc.h
+  HINTS "${Vulkan_INCLUDE_DIR}"
+  PATH_SUFFIXES vma REQUIRED
+)
+add_library(rex-vma INTERFACE)
+target_include_directories(rex-vma SYSTEM INTERFACE $<BUILD_INTERFACE:${REXGLUE_VMA_INCLUDE_DIR}>)
 
 #=============================================================================
 # SDL3 - Cross-platform media layer
@@ -301,11 +293,6 @@ endif ()
 #=============================================================================
 # SPIR-V toolchain (only when Vulkan backend is enabled)
 #=============================================================================
-# SPIRV-Headers
-set(SPIRV_HEADERS_ENABLE_TESTS OFF)
-set(SPIRV_HEADERS_ENABLE_INSTALL OFF)
-add_subdirectory(spirv-headers)
-
 # glslang/SPIRV - SPIR-V code generation for shader translation
 set(ENABLE_GLSLANG_BINARIES OFF)
 set(ENABLE_SPVREMAPPER OFF)

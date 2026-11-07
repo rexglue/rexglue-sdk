@@ -27,19 +27,19 @@ function (rexglue_set_rpath target_name origin)
   )
 endfunction ()
 
-# Adds the commands that stage the pinned Vulkan loader and MoltenVK with their ICD file next to
+# Adds the commands that stage the Vulkan loader and MoltenVK with their ICD file next to
 # the host to the list named by out_var.
 function (_rexglue_stage_macos_vulkan_runtime out_var target_name)
-  if (TARGET Vulkan::Loader AND TARGET MoltenVK::MoltenVK)
-    set(vulkan_loader Vulkan::Loader)
-    set(moltenvk MoltenVK::MoltenVK)
+  if (TARGET Vulkan::Vulkan AND TARGET Vulkan::MoltenVK)
+    set(vulkan_loader Vulkan::Vulkan)
+    set(moltenvk Vulkan::MoltenVK)
     set(moltenvk_icd "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/MoltenVK_icd.json")
   elseif (TARGET rex::vulkan-loader AND TARGET rex::moltenvk)
     set(vulkan_loader rex::vulkan-loader)
     set(moltenvk rex::moltenvk)
     set(moltenvk_icd "${REXGLUE_MOLTENVK_ICD}")
   else ()
-    message(FATAL_ERROR "rexglue: pinned macOS Vulkan runtime targets are unavailable")
+    message(FATAL_ERROR "rexglue: macOS Vulkan runtime targets are unavailable")
   endif ()
 
   set(commands ${${out_var}})

@@ -125,13 +125,13 @@ install(FILES thirdparty/imgui/imgui.h thirdparty/imgui/imconfig.h thirdparty/im
 
 if (APPLE)
   install(
-    FILES "$<TARGET_FILE:Vulkan::Loader>"
+    FILES "$<TARGET_FILE:Vulkan::Vulkan>"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
     CONFIGURATIONS Release
     RENAME libvulkan.1.dylib
   )
   install(
-    FILES "$<TARGET_FILE:MoltenVK::MoltenVK>"
+    FILES "$<TARGET_FILE:Vulkan::MoltenVK>"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
     CONFIGURATIONS Release
     RENAME libMoltenVK.dylib

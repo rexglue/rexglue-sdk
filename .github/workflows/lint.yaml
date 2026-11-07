@@ -30,9 +30,6 @@ jobs:
       - name: Check CMake format and lint
         run: python scripts/check_cmake.py
 
-      - name: Check Vulkan dependency pins
-        run: python scripts/check_vulkan_stack.py
-
       - name: Run script tests
         run: python -m pytest scripts/tests -v
 

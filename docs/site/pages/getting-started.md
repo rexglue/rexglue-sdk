@@ -1,8 +1,8 @@
 # Getting Started
 
-This page builds and installs the SDK, creates a project from an Xbox 360 executable, and builds and runs it.
+Build and install the SDK, then create, build and run a project from an Xbox 360 executable.
 
-The SDK includes `rexglue`, its command line tool. `rexglue init` creates a project from a XEX, the executable file format of the Xbox 360, and `rexglue codegen` recompiles the XEX into C++. The project build runs `rexglue codegen` for you, so you call `rexglue` yourself only to create the project.
+The SDK's `rexglue` command line tool has two commands for projects. `rexglue init` creates a project from a XEX, the executable file format of the Xbox 360, and `rexglue codegen` recompiles the XEX into C++. The project build runs `rexglue codegen` for you, so you call `rexglue` yourself only to create the project.
 
 ## Install the Tools
 
@@ -23,20 +23,21 @@ The SDK includes `rexglue`, its command line tool. `rexglue init` creates a proj
 === "Linux"
 
     1. Install Clang 20.
-    2. Install the build dependencies. On Debian and Ubuntu:
+    2. Install the build dependencies. On Ubuntu 24.04 or newer:
 
         ```
-        sudo apt install cmake ninja-build libgtk-3-dev libx11-xcb-dev libxss-dev libvulkan-dev \
+        sudo apt install cmake ninja-build libgtk-3-dev libx11-xcb-dev libxss-dev \
           libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
           libasound2-dev libpulse-dev libpipewire-0.3-dev
         ```
 
-    3. Install the LunarG Vulkan SDK, and source its `setup-env.sh` in the shell you build from.
+    3. Install the LunarG Vulkan SDK, and source its `setup-env.sh` in the shell you build from. LunarG provides no SDK for arm64, so on arm64 run `sudo apt install libvulkan-dev libvulkan-memory-allocator-dev` instead.
 
 === "macOS"
 
-    1. Install Xcode 26 or newer.
-    2. Run `brew install cmake ninja vulkan-loader molten-vk`.
+    1. Use macOS 13.3 or newer, and install Xcode 26 or newer.
+    2. Run `brew install cmake ninja`.
+    3. Install the LunarG Vulkan SDK, and source its `setup-env.sh` in the shell you build from.
 
 ## Build and Install the SDK
 
@@ -88,14 +89,14 @@ cd foobar
 
 `rexglue init` writes these files into `foobar`:
 
-- `foobar_manifest.toml`, the [project manifest](reference/manifest.md). It names the XEX and holds the settings for recompiling it.
+- `foobar_manifest.toml`, the [project manifest](reference/manifest.md). It holds the path of the XEX and the settings for recompiling it.
 - `CMakeLists.txt` and `CMakePresets.json`, the build.
 - `src/main.cpp`, which declares the program, and `src/foobar_hooks.cpp`, for your own code.
 - `generated/rexglue.cmake`, the CMake functions that connect the build to codegen.
 
 A project name starts with a letter and contains only letters, digits and `_`, because it starts the names of the generated C++ files and functions. See [`init`](reference/cli.md#init) for all options.
 
-Because `rexglue` runs from the installed SDK, the presets that `init` writes point CMake at that install, and the project finds the SDK with no further setup.
+The presets that `init` writes point CMake at the installed SDK, so the project needs no further setup.
 
 ## Build the Project
 
@@ -158,7 +159,7 @@ See [`[functions]`](reference/manifest.md#functions) for the other keys, and [Pr
 
 ## Run the Project
 
-Start the program with the folder that holds the game files, the folder that contains `default.xex`. The project is inside `foobar`, so that folder is `../assets`:
+Start the program with the game root, the folder that contains `default.xex`. The project is inside `foobar`, so that folder is `../assets`:
 
 === "Windows"
 
@@ -178,7 +179,7 @@ Start the program with the folder that holds the game files, the folder that con
     ./out/build/mac-arm64/Debug/foobar --title.game_root=../assets
     ```
 
-`title.game_root` is a setting. Every setting can be given on the command line as `--name=value`, for example `--gpu.vsync=false`. `--game_data_root` is a short alias of `--title.game_root`. See the [Settings Reference](reference/cvars.md) for every setting.
+`title.game_root` is a setting. Every setting can be given on the command line as `--name=value`, for example `--gpu.vsync=false`. `--game_data_root` is a short alias for `--title.game_root`. See the [Settings Reference](reference/cvars.md) for every setting.
 
 ## Troubleshooting
 
@@ -186,7 +187,8 @@ Start the program with the folder that holds the game files, the folder that con
 |---|---|
 | `ReXGlue requires the Clang compiler` | Configure with a preset, since the presets select Clang. If the build folder was configured with another compiler, delete it and configure again. |
 | `ReXGlue requires Clang 20 or newer` | Install Clang 20 or newer. On Windows, update Visual Studio. |
-| `Could NOT find Vulkan` | Install the LunarG Vulkan SDK 1.4.313 or newer. On Windows, open a new shell. On Linux, source `setup-env.sh`. |
+| `ReXGlue requires AppleClang 17 or newer` | Install Xcode 26 or newer. |
+| `Could NOT find Vulkan` | Install the LunarG Vulkan SDK 1.4.313 or newer, or 1.3.275 or newer on Linux arm64. On Windows, open a new shell. On Linux and macOS, source `setup-env.sh`. |
 | `ReXGlue SDK not found` | Add the SDK install folder, such as `out/install/win-amd64`, to `CMAKE_PREFIX_PATH`. To build the SDK from source with the project, set `REXSDK_DIR` to the SDK source folder. |
 | `--game_data_root was not provided` | Pass `--title.game_root` with the folder of the game files. |
 | `unknown setting '<name>' from CommandLine` | Check the name in the [Settings Reference](reference/cvars.md). |
