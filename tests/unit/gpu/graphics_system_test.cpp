@@ -299,9 +299,16 @@ REX_TEST_CASE("resize before begin", "[gpu]") {
 REX_TEST_CASE("frame limit paces presents", "[gpu]") {
   GraphicsApp app("fake", false, "50");
   REQUIRE(app.Start());
+  REQUIRE(WaitFor([] { return g_fake.presents.load() >= 1; }));
+  const rex::u32 first = g_fake.presents.load();
+  const auto start = std::chrono::steady_clock::now();
   std::this_thread::sleep_for(2s);
+  const rex::u32 presented = g_fake.presents.load() - first;
+  const double seconds =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
   app.Shutdown();
-  CHECK(g_fake.presents.load() >= 50);
+  CHECK(presented >= 50);
+  CHECK(presented <= seconds * 50.0 + 2.0);
 }
 
 REX_TEST_CASE("API serves the graphics system only while the app runs", "[gpu]") {
