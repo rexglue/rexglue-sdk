@@ -174,6 +174,16 @@ class ILoadedModule {
   X_STATUS OptHeader(XEXHeaderKey key, T* out_ptr) {
     return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
   }
+
+  /**
+   * Finds an optional XEX header the way RtlImageXexHeaderField does: the value for a key whose low
+   * byte is 0, otherwise the guest address of the field.
+   *
+   * @param key The header key.
+   * @param out_guest_address Receives the value or the guest address, 0 when absent.
+   * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
+   */
+  virtual X_STATUS GetOptHeaderGuestAddress(XEXHeaderKey key, u32* out_guest_address) const = 0;
 };
 
 struct ModuleObject : public ILoadedModule, public rex::NonCopyable {
@@ -274,13 +284,8 @@ struct ModuleObject : public ILoadedModule, public rex::NonCopyable {
     return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
   }
 
-  /**
-   * Finds an optional XEX header and returns an address that the title can read.
-   *
-   * @param out_header_guest_ptr Receives the header value or the guest address of its data.
-   * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
-   */
-  REX_KERNEL_API X_STATUS GetOptHeader(XEXHeaderKey key, u32* out_header_guest_ptr) const;
+  REX_KERNEL_API X_STATUS GetOptHeaderGuestAddress(XEXHeaderKey key,
+                                                   u32* out_guest_address) const override;
 
   /**
    * Erases the cached thunks whose guest address falls in a range.

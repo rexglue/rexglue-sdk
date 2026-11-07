@@ -54,6 +54,8 @@ struct XEXSpec {
   u32 entry_point = 0x82000100;
   u32 export_table = 0;
   u32 title_id = 0x4D5307E6;
+  bool execution_info = true;
+  u32 workspace_size = 0;
   std::vector<u32> alternate_title_ids;
   std::vector<u8> image;
   std::vector<u8> patch_descriptor;
@@ -222,8 +224,13 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
   std::vector<Entry> entries = {
       {kernel::kXEXHeaderFileFormatInfo, format, 0},
       {kernel::kXEXHeaderEntryPoint, {}, spec.entry_point},
-      {kernel::kXEXHeaderExecutionInfo, exec, 0},
   };
+  if (spec.execution_info) {
+    entries.push_back({kernel::kXEXHeaderExecutionInfo, exec, 0});
+  }
+  if (spec.workspace_size) {
+    entries.push_back({kernel::kXEXHeaderTitleWorkspaceSize, {}, spec.workspace_size});
+  }
   if (!alt_ids.empty()) {
     entries.push_back({kernel::kXEXHeaderAlternateTitleIDs, alt_ids, 0});
   }

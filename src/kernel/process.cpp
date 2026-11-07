@@ -334,7 +334,7 @@ void kernel::TitleState::SetExecutableModule(X_HANDLE module_handle) {
                       tls_header->raw_data_address);
   }
   u32 workspace_size_address = 0;
-  module->OptHeader(kXEXHeaderTitleWorkspaceSize, &workspace_size_address);
+  module->GetOptHeaderGuestAddress(kXEXHeaderTitleWorkspaceSize, &workspace_size_address);
   const u32 workspace_size = WorkspaceHeap::ResolveSize(
       workspace_size_address
           ? u32{*memory_->TranslateVirtual<const be_u32*>(workspace_size_address)}

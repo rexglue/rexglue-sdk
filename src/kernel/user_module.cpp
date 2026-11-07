@@ -241,7 +241,9 @@ X_STATUS ModuleObject::GetOptHeader(XEXHeaderKey key, void** out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS ModuleObject::GetOptHeader(XEXHeaderKey key, u32* out_header_guest_ptr) const {
+X_STATUS ModuleObject::GetOptHeaderGuestAddress(XEXHeaderKey key, u32* out_guest_address) const {
+  REX_ASSERT(out_guest_address != nullptr);
+  *out_guest_address = 0;
   if (user.module_format == ModuleFormat::kELF) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -251,7 +253,7 @@ X_STATUS ModuleObject::GetOptHeader(XEXHeaderKey key, u32* out_header_guest_ptr)
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  return GetOptHeader(memory, header, key, out_header_guest_ptr);
+  return GetOptHeader(memory, header, key, out_guest_address);
 }
 
 X_STATUS ModuleObject::GetOptHeader(const kernel::GuestAddressSpace* memory,

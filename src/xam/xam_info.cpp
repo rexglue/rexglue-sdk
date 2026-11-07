@@ -214,15 +214,15 @@ u32 XamGetCurrentTitleId_entry() {
 }
 
 u32 XamGetExecutionId_entry(MappedU32 info_ptr) {
+  *info_ptr = 0;
   auto module = CurrentTitle().objects.Get<kernel::ILoadedModule>(
       CurrentTitle().modules.GetExecutable().value_or(0));
-  REX_ASSERT(module);
-
-  u32 guest_hdr_ptr;
-  kernel::X_STATUS result = module->OptHeader(kernel::kXEXHeaderExecutionInfo, &guest_hdr_ptr);
-
-  if (kernel::XFAILED(result)) {
-    return result;
+  u32 guest_hdr_ptr = 0;
+  if (!module ||
+      kernel::XFAILED(
+          module->GetOptHeaderGuestAddress(kernel::kXEXHeaderExecutionInfo, &guest_hdr_ptr)) ||
+      guest_hdr_ptr == 0) {
+    return kernel::X_STATUS_NOT_FOUND;
   }
 
   *info_ptr = guest_hdr_ptr;

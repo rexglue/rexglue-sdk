@@ -11,6 +11,8 @@
 #include "rex_test.h"
 
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,9 +26,12 @@
 #include <rex/kernel/object/module_object.h>
 #include <rex/kernel/object/object_table.h>
 #include <rex/kernel/heap.h>
+#include <rex/filesystem/mount.h>
+#include <rex/kernel/guest_allocator.h>
 
 #include "base/xex_builder.h"
 #include "kernel/kernel_fixture.h"
+#include "kernel/title_image.h"
 #include "kernel/xboxkrnl/loaded_command_line.h"
 #include "pe/pe_image.h"
 #include "kernel/module_registry.h"
@@ -332,4 +337,101 @@ REX_TEST_CASE("A module that is not an XEX answers its XEX only calls with a fai
   ModuleObject undefined(&fixture.GetRuntime(), ModuleType::kUser);
   CHECK(undefined.GetXEX() == nullptr);
   CHECK(undefined.GetExportAddress("Export") == 0);
+}
+
+namespace {
+
+rex::test::XEXSpec ExecutableSpec() {
+  rex::test::XEXSpec spec;
+  spec.load_address = rex::test::kTitleImageBase;
+  spec.entry_point = rex::test::kTitleEntry;
+  spec.image = rex::test::BuildTitleImage();
+  return spec;
+}
+
+void WriteExecutable(const std::filesystem::path& root, const rex::test::XEXSpec& spec) {
+  std::filesystem::create_directories(root / "scratch");
+  const auto file = rex::test::BuildXEX(spec);
+  std::ofstream(root / "scratch" / "default.xex", std::ios::binary)
+      .write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
+}
+
+void LoadExecutable(rex::test::KernelFixture& fixture) {
+  namespace fs = rex::filesystem;
+  rex::kernel::TitleRuntime& runtime = fixture.GetRuntime();
+  auto* file_system = StateOf(runtime).GetFileSystem();
+  REQUIRE(file_system);
+  REQUIRE(file_system->Mount({"\\Device\\Scratch", fs::ProviderType::kHostDirectory,
+                              fixture.GetRoot() / "scratch", fs::MountFlags::kNone}));
+  REQUIRE(file_system->Link("scratch:", "\\Device\\Scratch"));
+  REQUIRE(StateOf(runtime).LoadXEXImage("scratch:\\default.xex"));
+}
+
+}  // namespace
+
+REX_TEST_CASE("XamGetExecutionId writes the guest address of the execution info", "[kernel][xex]") {
+  const auto spec = ExecutableSpec();
+  rex::test::KernelFixture fixture(
+      [&](const std::filesystem::path& root) { WriteExecutable(root, spec); });
+  LoadExecutable(fixture);
+  u32 header_start = 0;
+  u32 header_end = 0;
+  {
+    rex::kernel::TitleRuntime& runtime = fixture.GetRuntime();
+    auto module = runtime.GetObjectTable().Get<ModuleObject>(
+        runtime.GetModuleRegistry().GetExecutable().value_or(0));
+    REQUIRE(module);
+    header_start = module->user.guest_xex_header;
+    header_end =
+        header_start + static_cast<u32>(module->GetXEX()->GetImage().GetHeaderBytes().size());
+  }
+  fixture.RunOnGuestThread([&](rex::test::Caller& c) {
+    const u32 info_ptr = c.Alloc(4);
+    c.Store32(info_ptr, 0xDEADBEEF);
+    CHECK(c.XAM("XamGetExecutionId", {info_ptr}) == 0);
+    const u32 info = c.Load32(info_ptr);
+    CHECK(info >= header_start);
+    CHECK(info + 0x18 <= header_end);
+    if (info >= header_start && info + 0x18 <= header_end) {
+      CHECK(c.Load32(info + 0xC) == spec.title_id);
+    }
+  });
+}
+
+REX_TEST_CASE("XamGetExecutionId writes 0 and fails when the executable has no execution info",
+              "[kernel][xex]") {
+  auto spec = ExecutableSpec();
+  spec.execution_info = false;
+  rex::test::KernelFixture fixture(
+      [&](const std::filesystem::path& root) { WriteExecutable(root, spec); });
+  LoadExecutable(fixture);
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
+    const u32 info_ptr = c.Alloc(4);
+    c.Store32(info_ptr, 0xDEADBEEF);
+    CHECK(c.XAM("XamGetExecutionId", {info_ptr}) == rex::kernel::X_STATUS_NOT_FOUND);
+    CHECK(c.Load32(info_ptr) == 0);
+  });
+}
+
+REX_TEST_CASE("XamGetExecutionId writes 0 and fails without an executable module",
+              "[kernel][xex]") {
+  rex::test::KernelFixture fixture;
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
+    const u32 info_ptr = c.Alloc(4);
+    c.Store32(info_ptr, 0xDEADBEEF);
+    CHECK(c.XAM("XamGetExecutionId", {info_ptr}) == rex::kernel::X_STATUS_NOT_FOUND);
+    CHECK(c.Load32(info_ptr) == 0);
+  });
+}
+
+REX_TEST_CASE("A title workspace size header gives the title workspace that size",
+              "[kernel][xex][workspace]") {
+  auto spec = ExecutableSpec();
+  spec.workspace_size = 0x100000;
+  rex::test::KernelFixture fixture(
+      [&](const std::filesystem::path& root) { WriteExecutable(root, spec); });
+  LoadExecutable(fixture);
+  const u32 expected = rex::kernel::WorkspaceHeap::ResolveSize(spec.workspace_size);
+  CHECK(expected != rex::kernel::WorkspaceHeap::ResolveSize(0));
+  CHECK(StateOf(fixture.GetRuntime()).GetWorkspace().GetSize() == expected);
 }
