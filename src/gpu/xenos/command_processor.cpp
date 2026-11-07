@@ -209,6 +209,14 @@ void CommandProcessor::CallInThreadAndWait(rex::MoveOnlyFunction<void()> fn) {
   fence.Wait();
 }
 
+void CommandProcessor::CallInThreadNoWait(rex::MoveOnlyFunction<void()> fn) {
+  if (!worker_running_ || IsWorkerThread()) {
+    fn();
+    return;
+  }
+  CallInThread(std::move(fn));
+}
+
 void CommandProcessor::ClearCaches() {}
 
 void CommandProcessor::InvalidateGPUMemory() {}
@@ -292,7 +300,7 @@ bool CommandProcessor::SetupContext() {
 void CommandProcessor::ShutdownContext() {}
 
 void CommandProcessor::InitializeRingBuffer(u32 ptr, u32 size_log2) {
-  CallInThreadAndWait([this, ptr, size_log2]() {
+  CallInThreadNoWait([this, ptr, size_log2]() {
     read_ptr_index_ = 0;
     primary_buffer_ptr_ = ptr;
     primary_buffer_size_ = static_cast<u32>(1) << (size_log2 + 3);
@@ -300,7 +308,7 @@ void CommandProcessor::InitializeRingBuffer(u32 ptr, u32 size_log2) {
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) {
-  CallInThreadAndWait([this, ptr, block_size_log2]() {
+  CallInThreadNoWait([this, ptr, block_size_log2]() {
     read_ptr_writeback_ptr_ = ptr;
     read_ptr_update_freq_ = static_cast<u32>(1) << block_size_log2 >> 2;
   });

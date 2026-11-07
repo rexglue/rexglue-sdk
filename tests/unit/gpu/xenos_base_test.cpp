@@ -11,6 +11,7 @@
 #include "rex_test.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <thread>
 #include <utility>
@@ -170,4 +171,117 @@ REX_TEST_CASE_METHOD(Fixture, "write listener invalidates shared memory", "[gpu]
   title.listeners[0]->OnPhysicalWrite({kStart, kLength}, true);
   REQUIRE(shared.RequestRange(kStart, kLength));
   CHECK(shared.uploads == 2);
+}
+
+namespace {
+
+struct WaitRings {
+  rex::u32 first = 0;
+  rex::u32 first_count = 0;
+  rex::u32 second = 0;
+  rex::u32 second_count = 0;
+  rex::u32 gate = 0;
+  rex::u32 first_marker = 0;
+  rex::u32 second_marker = 0;
+};
+
+// The first ring waits on memory the second step writes, then stores a marker. The second ring only
+// stores a marker.
+WaitRings BuildWaitRings(rex::kernel::GuestAddressSpace& memory) {
+  const rex::u32 block = memory.SystemHeapAlloc(0x2000, 0x1000, rex::kernel::kSystemHeapPhysical);
+  WaitRings rings;
+  const rex::u32 base = memory.GetPhysicalAddress(block);
+  rings.first = base;
+  rings.second = base + 0x400;
+  rings.gate = base + 0x1200;
+  rings.first_marker = base + 0x1100;
+  rings.second_marker = base + 0x1104;
+  const auto swap = std::to_underlying(rex::xenos::Endian::k8in32);
+  const rex::u32 first[] = {
+      rex::xenos::BuildPacketType3(rex::xenos::PM4_WAIT_REG_MEM, 5),
+      0x13,
+      rings.gate | swap,
+      1,
+      0xFFFFFFFF,
+      0x0A,
+      rex::xenos::BuildPacketType3(rex::xenos::PM4_MEM_WRITE, 2),
+      rings.first_marker | swap,
+      0x11111111,
+  };
+  const rex::u32 second[] = {
+      rex::xenos::BuildPacketType3(rex::xenos::PM4_MEM_WRITE, 2),
+      rings.second_marker | swap,
+      0x22222222,
+  };
+  rings.first_count = static_cast<rex::u32>(std::size(first));
+  rings.second_count = static_cast<rex::u32>(std::size(second));
+  for (rex::u32 i = 0; i < rings.first_count; ++i) {
+    Put(memory, rings.first + i * 4, first[i]);
+  }
+  for (rex::u32 i = 0; i < rings.second_count; ++i) {
+    Put(memory, rings.second + i * 4, second[i]);
+  }
+  return rings;
+}
+
+}  // namespace
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "a ring buffer set up while the processor waits on memory does not block the "
+                     "caller",
+                     "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  const WaitRings rings = BuildWaitRings(memory);
+  driver.InitializeRingBuffer(rings.first, 9);
+  driver.WriteRegister(kWritePointerRegister, rings.first_count);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  std::atomic<bool> returned{false};
+  std::thread guest([&] {
+    driver.InitializeRingBuffer(rings.second, 9);
+    returned.store(true);
+    Put(memory, rings.gate, 1);
+  });
+  const bool call_returned = WaitFor([&] { return returned.load(); });
+  CHECK(call_returned);
+  if (!call_returned) {
+    Put(memory, rings.gate, 1);
+  }
+  guest.join();
+  CHECK(WaitFor([&] { return Get(memory, rings.first_marker) == 0x11111111; }));
+
+  driver.DetachTitle();
+  driver.Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "a ring buffer set up during a memory wait applies before the next packet",
+                     "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  const WaitRings rings = BuildWaitRings(memory);
+  driver.InitializeRingBuffer(rings.first, 9);
+  driver.WriteRegister(kWritePointerRegister, rings.first_count);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  driver.InitializeRingBuffer(rings.second, 9);
+  driver.WriteRegister(kWritePointerRegister, rings.second_count);
+  Put(memory, rings.gate, 1);
+
+  CHECK(WaitFor([&] { return Get(memory, rings.first_marker) == 0x11111111; }));
+  CHECK(WaitFor([&] { return Get(memory, rings.second_marker) == 0x22222222; }));
+
+  driver.DetachTitle();
+  driver.Shutdown();
 }

@@ -132,9 +132,17 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   virtual void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                        bool blocking);
 
+  /**
+   * Sets the primary ring buffer. The worker applies it before it reads the next packet, so the
+   * read index is 0 once it returns to its loop, and the call does not wait for the worker.
+   *
+   * @param ptr The physical address of the buffer.
+   * @param size_log2 The log2 of the buffer size in quadwords.
+   */
   void InitializeRingBuffer(u32 ptr, u32 size_log2);
   /**
-   * Enables writing the read pointer back to memory.
+   * Enables writing the read pointer back to memory. The worker applies it at its next loop, and
+   * the call does not wait for the worker.
    *
    * @param ptr RB_RPTR_ADDR of CP_RB_RPTR_ADDR (0x70C), the address to write the read pointer to.
    * @param block_size_log2 RB_BLKSZ of CP_RB_CNTL (0x704), log2 of quadwords read between updates.
@@ -212,6 +220,12 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
    */
   static void WriteSampleCounts(xenos::DepthSampleCounts& counts, u32 samples);
   bool IsWorkerThread();
+  /**
+   * Runs a function on the worker without waiting for it, so a caller never blocks on a worker that
+   * is inside a packet. It runs on the calling thread when that is the worker or the worker is not
+   * running.
+   */
+  void CallInThreadNoWait(rex::MoveOnlyFunction<void()> fn);
   bool HasPendingFns();
   void RunPendingFns();
   virtual bool SetupContext() = 0;
