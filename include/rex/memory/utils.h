@@ -142,6 +142,11 @@ constexpr FileMappingHandle kFileMappingHandleInvalid = -1;
 
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
                                           PageAccess access, bool commit);
+// On POSIX, optionally remove the shared-memory name after opening it. The
+// returned handle remains valid; this is useful for private, process-local mappings.
+FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
+                                          PageAccess access, bool commit,
+                                          bool unlink_name_after_open);
 void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path);
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
                   size_t file_offset);

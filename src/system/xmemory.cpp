@@ -141,7 +141,7 @@ bool Memory::Initialize() {
       rex::round_up(static_cast<size_t>(0x120000000ull) + system_allocation_granularity_,
                     static_cast<size_t>(system_allocation_granularity_));
   mapping_ = rex::memory::CreateFileMappingHandle(file_name_, mapping_size,
-                                                  rex::memory::PageAccess::kReadWrite, false);
+                                                  rex::memory::PageAccess::kReadWrite, false, true);
   if (mapping_ == rex::memory::kFileMappingHandleInvalid) {
     REXSYS_ERROR("Unable to reserve the 4gb guest address space.");
     assert_always();

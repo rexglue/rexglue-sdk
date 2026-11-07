@@ -22,6 +22,10 @@ add_executable(unit_tests
     codegen/output_stamp_test.cpp
 )
 
+if(UNIX AND NOT ANDROID)
+    target_sources(unit_tests PRIVATE core/memory_posix_test.cpp)
+endif()
+
 target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp

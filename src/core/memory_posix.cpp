@@ -431,6 +431,12 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
                                           PageAccess access, bool commit) {
+  return CreateFileMappingHandle(path, length, access, commit, false);
+}
+
+FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
+                                          PageAccess access, bool commit,
+                                          [[maybe_unused]] bool unlink_name_after_open) {
 #if REX_PLATFORM_ANDROID
   // TODO(Triang3l): Check if memfd can be used instead on API 30+.
   if (android_ASharedMemory_create_) {
@@ -482,6 +488,15 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
     close(ret);
     shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
+  }
+  if (unlink_name_after_open) {
+    // POSIX shared-memory names survive process crashes unless they are unlinked.
+    // The open descriptor remains usable for MapFileView after the name is removed.
+    if (shm_unlink(full_path.c_str()) != 0) {
+      REXSYS_ERROR("Unable to unlink shared memory mapping {}: {}", full_path, strerror(errno));
+      close(ret);
+      return kFileMappingHandleInvalid;
+    }
   }
   return static_cast<FileMappingHandle>(ret);
 #endif

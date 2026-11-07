@@ -188,6 +188,12 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   return reinterpret_cast<FileMappingHandle>(h);
 }
 
+FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
+                                          PageAccess access, bool commit,
+                                          [[maybe_unused]] bool unlink_name_after_open) {
+  return CreateFileMappingHandle(path, length, access, commit);
+}
+
 void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path) {
   CloseHandle(reinterpret_cast<HANDLE>(handle));
 }
