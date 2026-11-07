@@ -12,3 +12,4 @@ add_custom_target(
   COMMENT "Configuring ReXGlue developer environment..."
   VERBATIM USES_TERMINAL
 )
+set_target_properties(config-rexdevenv PROPERTIES FOLDER "sdk/utility")

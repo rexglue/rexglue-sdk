@@ -82,6 +82,7 @@ add_custom_target(
   COMMENT "Embedding inja templates"
   DEPENDS ${EMBEDDED_HEADERS}
 )
+set_target_properties(embed_templates PROPERTIES FOLDER "sdk/utility")
 
 add_library(
   rexcodegen-objects OBJECT ${CODEGEN_CORE_SOURCES} ${CODEGEN_PPC_SOURCES}

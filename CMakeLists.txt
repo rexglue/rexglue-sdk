@@ -37,6 +37,7 @@ option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
 option(REXGLUE_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 option(REXGLUE_ENABLE_TRACY "Enable Tracy profiler integration" ON)
 option(REXGLUE_ENABLE_PERF_COUNTERS "Enable lightweight perf counter registry and overlay" ON)
+option(REXGLUE_VERIFY_HEADERS "Create the CMake targets that compile each public header alone" OFF)
 
 if (WIN32)
   set(REXGLUE_GPU_D3D12 ON)
@@ -174,6 +175,7 @@ add_compile_definitions(REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_pch.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_header_set.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_folders.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_version.cmake)
 rex_resolve_version(
@@ -283,6 +285,7 @@ add_subdirectory(src/xbdm)
 add_subdirectory(src/app)
 add_subdirectory(src/codegen)
 add_subdirectory(src/rexglue)
+rexglue_group_object_libraries()
 include(cmake/rexglue_sdk.cmake)
 
 # Add tests subdirectory if tests are enabled

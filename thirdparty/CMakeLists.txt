@@ -308,6 +308,8 @@ foreach (glslang_target glslang MachineIndependent GenericCodeGen OSDependent SP
     set_target_properties(${glslang_target} PROPERTIES SYSTEM ON)
   endif ()
 endforeach ()
+# glslang sets the FOLDER of its targets itself, which replaces the folder set above
+rexglue_set_folder_recursive(${CMAKE_CURRENT_SOURCE_DIR}/glslang "thirdparty/glslang")
 # Create alias for older glslang versions that don't provide it
 if (NOT TARGET glslang::SPIRV)
   add_library(glslang::SPIRV ALIAS SPIRV)

@@ -1,8 +1,9 @@
 # rex_target_headers(<target> [TOP] [DIRS <folder>...] [GENERATED <file>...])
-# declares the public headers a library owns as its PUBLIC HEADERS file set and has CMake verify
-# that each one compiles alone against the usage requirements of the library. TOP takes the
-# headers directly in include/rex, DIRS the headers below each named folder of include/rex, and
-# GENERATED the headers CMake writes to the build include directory, given relative to it.
+# declares the public headers a library owns as its PUBLIC HEADERS file set. With
+# REXGLUE_VERIFY_HEADERS ON, CMake also creates the targets that compile each header alone against
+# the usage requirements of the library. TOP takes the headers directly in include/rex, DIRS the
+# headers below each named folder of include/rex, and GENERATED the headers CMake writes to the
+# build include directory, given relative to it.
 function (rex_target_headers target)
   cmake_parse_arguments(ARG "TOP" "" "DIRS;GENERATED" ${ARGN})
   set(headers "")
@@ -23,6 +24,8 @@ function (rex_target_headers target)
     endforeach ()
   endif ()
   target_sources(${target} PUBLIC FILE_SET HEADERS BASE_DIRS ${base_dirs} FILES ${headers})
-  set_target_properties(${target} PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON)
+  if (REXGLUE_VERIFY_HEADERS)
+    set_target_properties(${target} PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON)
+  endif ()
   set_property(GLOBAL APPEND PROPERTY REXGLUE_HEADER_SET_FILES ${owned})
 endfunction ()

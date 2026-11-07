@@ -1,7 +1,7 @@
 set(CMAKE_FOLDER "tests/headers")
 
 # Every public header belongs to exactly one library header set, which CMake verifies alone with
-# the all_verify_interface_header_sets target.
+# the all_verify_interface_header_sets target, which exists when REXGLUE_VERIFY_HEADERS is ON.
 get_property(_owned_headers GLOBAL PROPERTY REXGLUE_HEADER_SET_FILES)
 file(GLOB_RECURSE _public_headers CONFIGURE_DEPENDS "${REXGLUE_ROOT}/include/rex/*.h")
 set(_unowned_headers "")
