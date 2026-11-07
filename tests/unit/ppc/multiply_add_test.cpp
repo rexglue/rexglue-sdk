@@ -116,8 +116,10 @@ void CheckAgainstFull(bool flush) {
         (*picked[Next(state) % 3])[lane] = Compose(Next(state), kSpecial[Next(state) % 8]);
       }
     }
-    CAPTURE(i, flush, a, b, c);
-    REQUIRE(SameAsFull<Negate>(a, b, c, flush));
+    if (const bool same = SameAsFull<Negate>(a, b, c, flush); !same) {
+      CAPTURE(i, flush, a, b, c);
+      REQUIRE(same);
+    }
   }
 }
 
@@ -167,8 +169,10 @@ void CheckTinyAgainstFull() {
       b[lane] = (static_cast<u32>(Next(state) >> 40) & 0x80000000u) | (eb << 23) | mantissa();
       c[lane] = (static_cast<u32>(Next(state) >> 40) & 0x80000000u) | (ec << 23) | mantissa();
     }
-    CAPTURE(i, a, b, c);
-    REQUIRE(SameAsFull<Negate>(a, b, c, true));
+    if (const bool same = SameAsFull<Negate>(a, b, c, true); !same) {
+      CAPTURE(i, a, b, c);
+      REQUIRE(same);
+    }
   }
 }
 
@@ -251,9 +255,13 @@ REX_TEST_CASE("MultiplyAdd matches the full path at every exponent gap", "[ppc][
                                  Compose(Next(state), eb), Compose(Next(state), eb)};
       const std::array<u32, 4> c{Compose(Next(state), ec), Compose(Next(state), ec),
                                  Compose(Next(state), ec), Compose(Next(state), ec)};
-      CAPTURE(gap, a, b, c);
-      REQUIRE(SameAsFull<false>(a, b, c, true));
-      REQUIRE(SameAsFull<true>(a, b, c, true));
+      const bool same_add = SameAsFull<false>(a, b, c, true);
+      const bool same_subtract = SameAsFull<true>(a, b, c, true);
+      if (!same_add || !same_subtract) {
+        CAPTURE(gap, a, b, c);
+        REQUIRE(same_add);
+        REQUIRE(same_subtract);
+      }
     }
   }
 }

@@ -117,9 +117,11 @@ void CheckAgainstReference(DotFunction dot) {
                                   simde_mm_castsi128_ps(simde_mm_load_si128(
                                       reinterpret_cast<const simde__m128i*>(b.data()))))));
     const u32 expected = rex::ppc::simd::detail::DotProductReference<Terms>(terms_a, terms_b);
-    CAPTURE(a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
-    REQUIRE(out[0] == expected);
-    REQUIRE(out[3] == expected);
+    if (out[0] != expected || out[3] != expected) {
+      CAPTURE(a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
+      REQUIRE(out[0] == expected);
+      REQUIRE(out[3] == expected);
+    }
   }
 }
 
