@@ -131,6 +131,8 @@ add_compile_options(
 
 rexglue_cpu_flags(REXGLUE_CPU_FLAGS)
 add_compile_options(${REXGLUE_CPU_FLAGS})
+rexglue_link_flags(REXGLUE_LINK_FLAGS)
+add_link_options(${REXGLUE_LINK_FLAGS})
 
 # Platform detection (supports AMD64 and ARM64)
 set(REX_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")

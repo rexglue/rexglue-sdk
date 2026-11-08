@@ -77,6 +77,29 @@ function (_rexglue_stage_macos_vulkan_runtime out_var target_name)
   )
 endfunction ()
 
+# rexglue_uses_large_code_model(<out_var>)
+# Sets <out_var> to ON where ReXGlue binaries use the large code model, which is Linux x86_64. The
+# object files of that model put each COMDAT function in its own .ltext.* section, and GNU ld keeps
+# each one as an output section. Past 65,280 sections GNU ld cannot write the dynamic symbol table
+# of a binary that exports symbols, and lld can, so the binaries link with lld (see
+# rexglue_link_flags).
+function (rexglue_uses_large_code_model out_var)
+  if (UNIX
+      AND NOT APPLE
+      AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64"
+  )
+    set(${out_var}
+        ON
+        PARENT_SCOPE
+    )
+  else ()
+    set(${out_var}
+        OFF
+        PARENT_SCOPE
+    )
+  endif ()
+endfunction ()
+
 # rexglue_cpu_flags(<out_var>)
 # The CPU floor flags of every ReXGlue binary, the only place they are defined. The SDK applies
 # them to its own targets with add_compile_options. Projects that use the SDK get them through
@@ -86,15 +109,46 @@ endfunction ()
 # -mcmodel=large, and macOS maps binaries in the low address space so +/-2GB is sufficient.
 function (rexglue_cpu_flags out_var)
   set(flags "")
-  if (UNIX AND NOT APPLE)
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-      list(APPEND flags -mcmodel=large)
-    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
-      list(APPEND flags -march=armv8-a)
-    endif ()
+  rexglue_uses_large_code_model(large_model)
+  if (large_model)
+    list(APPEND flags -mcmodel=large)
+  elseif (
+    UNIX
+    AND NOT APPLE
+    AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64"
+  )
+    list(APPEND flags -march=armv8-a)
   endif ()
   if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     list(APPEND flags -msse4.1)
+  endif ()
+  set(${out_var}
+      "${flags}"
+      PARENT_SCOPE
+  )
+endfunction ()
+
+# rexglue_link_flags(<out_var>)
+# The link flags of every ReXGlue binary, the only place they are defined. The SDK applies them to
+# its own targets with add_link_options, and rexglue_apply_target_settings applies them to the
+# targets of projects. Where the large code model applies, the binaries link with lld, and the
+# configure step fails when lld is missing. Clang takes the full path of the linker it found, so
+# a versioned install such as ld.lld-20 works without an unversioned ld.lld.
+function (rexglue_link_flags out_var)
+  set(flags "")
+  rexglue_uses_large_code_model(large_model)
+  if (large_model)
+    find_program(REXGLUE_LLD NAMES ld.lld-20 ld.lld)
+    if (NOT REXGLUE_LLD)
+      message(FATAL_ERROR "ReXGlue links with lld on Linux x86_64 because of the large code model. "
+                          "Install lld-20 (sudo apt install lld-20) and configure again."
+      )
+    endif ()
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+      list(APPEND flags "--ld-path=${REXGLUE_LLD}")
+    else ()
+      list(APPEND flags -fuse-ld=lld)
+    endif ()
   endif ()
   set(${out_var}
       "${flags}"
@@ -108,6 +162,8 @@ endfunction ()
 function (rexglue_apply_target_settings target_name)
   rexglue_cpu_flags(flags)
   target_compile_options(${target_name} PRIVATE ${flags})
+  rexglue_link_flags(link_flags)
+  target_link_options(${target_name} PRIVATE ${link_flags})
   if (UNIX
       AND NOT APPLE
       AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64"

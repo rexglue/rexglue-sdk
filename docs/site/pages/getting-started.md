@@ -22,7 +22,7 @@ The SDK's `rexglue` command line tool has two commands for projects. `rexglue in
 
 === "Linux"
 
-    1. Install Clang 20.
+    1. Install Clang 20 and lld 20.
     2. Install the build dependencies. On Ubuntu 24.04 or newer:
 
         ```
