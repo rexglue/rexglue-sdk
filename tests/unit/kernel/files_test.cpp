@@ -51,7 +51,10 @@ constexpr u16 kOrdinalIoFileType = 0x003E;
 u32 ExportedType(Caller& c, u16 ordinal) {
   auto& runtime = c.GetRuntime();
   const auto kernel_module = runtime.GetModuleRegistry().FindKernelModule("xboxkrnl.exe");
-  REQUIRE(kernel_module);
+  if (!kernel_module) {
+    FAIL("the kernel module is not registered");
+    return 0;
+  }
   auto module = runtime.GetObjectTable().Get<rex::kernel::ModuleObject>(*kernel_module);
   REQUIRE(module);
   return module->GetVariable(ordinal);
@@ -70,8 +73,11 @@ void MountScratch(KernelFixture& fixture) {
   namespace fs = rex::filesystem;
   auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
   REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\Scratch", fs::ProviderType::kHostDirectory,
-                              fixture.GetRoot() / "scratch", fs::MountFlags::kWritable}));
+  REQUIRE(file_system->Mount({"\\Device\\Scratch",
+                              fs::ProviderType::kHostDirectory,
+                              fixture.GetRoot() / "scratch",
+                              fs::MountFlags::kWritable,
+                              {}}));
   REQUIRE(file_system->Link("scratch:", "\\Device\\Scratch"));
 }
 
@@ -752,10 +758,16 @@ REX_TEST_CASE("files: closing content leaves a sibling root that shares its pref
   namespace fs = rex::filesystem;
   auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
   REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderType::kHostDirectory,
-                              fixture.GetRoot() / "conta", fs::MountFlags::kWritable}));
-  REQUIRE(file_system->Mount({"\\Device\\ContAB", fs::ProviderType::kHostDirectory,
-                              fixture.GetRoot() / "contab", fs::MountFlags::kWritable}));
+  REQUIRE(file_system->Mount({"\\Device\\ContA",
+                              fs::ProviderType::kHostDirectory,
+                              fixture.GetRoot() / "conta",
+                              fs::MountFlags::kWritable,
+                              {}}));
+  REQUIRE(file_system->Mount({"\\Device\\ContAB",
+                              fs::ProviderType::kHostDirectory,
+                              fixture.GetRoot() / "contab",
+                              fs::MountFlags::kWritable,
+                              {}}));
   REQUIRE(file_system->Link("conta:", "\\Device\\ContA"));
   REQUIRE(file_system->Link("contab:", "\\Device\\ContAB"));
   fixture.RunOnGuestThread([](Caller& c) {
@@ -784,8 +796,11 @@ REX_TEST_CASE(
   namespace fs = rex::filesystem;
   auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
   REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderType::kHostDirectory,
-                              fixture.GetRoot() / "conta", fs::MountFlags::kWritable}));
+  REQUIRE(file_system->Mount({"\\Device\\ContA",
+                              fs::ProviderType::kHostDirectory,
+                              fixture.GetRoot() / "conta",
+                              fs::MountFlags::kWritable,
+                              {}}));
   REQUIRE(file_system->Link("conta:", "\\DEVICE\\CONTA"));
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);

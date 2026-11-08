@@ -135,10 +135,16 @@ REX_TEST_CASE_METHOD(Fixture, "Rename refuses to replace an open file or a folde
 REX_TEST_CASE_METHOD(Fixture, "Rename to another mount is kNotSameDevice", "[filesystem][rename]") {
   WriteHost(GetTemp() / "one" / "a.txt", "alpha");
   std::filesystem::create_directories(GetTemp() / "two");
-  REQUIRE(GetFileSystem().Mount(
-      {"\\Device\\One", ProviderType::kHostDirectory, GetTemp() / "one", MountFlags::kWritable}));
-  REQUIRE(GetFileSystem().Mount(
-      {"\\Device\\Two", ProviderType::kHostDirectory, GetTemp() / "two", MountFlags::kWritable}));
+  REQUIRE(GetFileSystem().Mount({"\\Device\\One",
+                                 ProviderType::kHostDirectory,
+                                 GetTemp() / "one",
+                                 MountFlags::kWritable,
+                                 {}}));
+  REQUIRE(GetFileSystem().Mount({"\\Device\\Two",
+                                 ProviderType::kHostDirectory,
+                                 GetTemp() / "two",
+                                 MountFlags::kWritable,
+                                 {}}));
 
   auto renamed = GetFileSystem().Rename("\\Device\\One\\a.txt", "\\Device\\Two\\a.txt", false);
   REQUIRE_FALSE(renamed);

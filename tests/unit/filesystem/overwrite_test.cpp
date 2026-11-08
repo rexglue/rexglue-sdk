@@ -35,8 +35,11 @@ class ScopedRoot : public Fixture {
  public:
   ScopedRoot() {
     WriteHost(GetHostPath(), kOriginal);
-    REQUIRE(GetFileSystem().Mount(
-        {std::string(kMountPath), ProviderType::kHostDirectory, GetTemp(), MountFlags::kWritable}));
+    REQUIRE(GetFileSystem().Mount({std::string(kMountPath),
+                                   ProviderType::kHostDirectory,
+                                   GetTemp(),
+                                   MountFlags::kWritable,
+                                   {}}));
     REQUIRE(GetFileSystem().Link("test:", kMountPath));
   }
 

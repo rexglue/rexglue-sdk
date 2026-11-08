@@ -59,7 +59,7 @@ std::vector<std::string> Names(Fixture& fixture, std::string_view path, std::str
 void CheckContainer(Fixture& fixture, ProviderType type, const char* image,
                     std::string_view volume) {
   REQUIRE(fixture.GetFileSystem().Mount(
-      {std::string(kRoot), type, GetFixtureFolder() / image, MountFlags::kWritable}));
+      {std::string(kRoot), type, GetFixtureFolder() / image, MountFlags::kWritable, {}}));
   CHECK(Names(fixture, kRoot, "") == std::vector<std::string>{"a.txt", "big.bin", "folder"});
   CHECK(Names(fixture, "\\Device\\Test\\folder", "*.txt") == std::vector<std::string>{"c.txt"});
   CHECK(ReadText(*fixture.Open("\\Device\\Test\\a.txt").file) == "alpha\n");
@@ -182,8 +182,11 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounte
                      "[filesystem][providers]") {
   WriteHost(GetTemp() / "outside.txt", "outside");
   WriteHost(GetTemp() / "mount" / "a.txt", "alpha");
-  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderType::kHostDirectory,
-                                 GetTemp() / "mount", MountFlags::kWritable}));
+  REQUIRE(GetFileSystem().Mount({std::string(kRoot),
+                                 ProviderType::kHostDirectory,
+                                 GetTemp() / "mount",
+                                 MountFlags::kWritable,
+                                 {}}));
 
   std::string escape(kRoot);
   escape += '\\';
@@ -235,12 +238,15 @@ REX_TEST_CASE_METHOD(Fixture, "Disc provider mounts the fixture read only",
 
 REX_TEST_CASE_METHOD(Fixture, "A container of the wrong type is kCorrupt",
                      "[filesystem][providers]") {
-  auto mounted = GetFileSystem().Mount(
-      {std::string(kRoot), ProviderType::kDiscImage, GetFixtureFolder() / "stfs_con.bin"});
+  auto mounted = GetFileSystem().Mount({std::string(kRoot),
+                                        ProviderType::kDiscImage,
+                                        GetFixtureFolder() / "stfs_con.bin",
+                                        MountFlags::kNone,
+                                        {}});
   REQUIRE_FALSE(mounted);
   CHECK(CodeOf(mounted.error()) == FileSystemError::kCorrupt);
-  auto missing =
-      GetFileSystem().Mount({std::string(kRoot), ProviderType::kSTFS, GetTemp() / "none.bin"});
+  auto missing = GetFileSystem().Mount(
+      {std::string(kRoot), ProviderType::kSTFS, GetTemp() / "none.bin", MountFlags::kNone, {}});
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }

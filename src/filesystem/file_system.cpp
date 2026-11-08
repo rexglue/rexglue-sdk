@@ -341,16 +341,19 @@ Result<void> FileSystem::ConfigureStandardMounts(const std::filesystem::path& ga
         FileSystemError::kNotFound,
         std::format("game_data_root '{}' is not a folder", string::PathToUTF8(game_root))));
   }
-  REX_TRY_VOID(
-      Mount({std::string(kGamePartition), ProviderType::kHostDirectory, game_path, game_flags}));
+  REX_TRY_VOID(Mount(
+      {std::string(kGamePartition), ProviderType::kHostDirectory, game_path, game_flags, {}}));
   REX_TRY_VOID(Link("game:", kGamePartition));
   REX_TRY_VOID(Link("d:", kGamePartition));
 
   if (!update_root.empty()) {
     const std::filesystem::path update_path = std::filesystem::absolute(update_root, ec);
     if (std::filesystem::exists(update_path, ec)) {
-      if (auto mounted = Mount({std::string(kUpdatePartition), ProviderType::kHostDirectory,
-                                update_path, MountFlags::kNone})) {
+      if (auto mounted = Mount({std::string(kUpdatePartition),
+                                ProviderType::kHostDirectory,
+                                update_path,
+                                MountFlags::kNone,
+                                {}})) {
         REX_TRY_VOID(Link("update:", kUpdatePartition));
       } else {
         REXFS_WARN("update_data_root is not mounted, {}", mounted.error().message);

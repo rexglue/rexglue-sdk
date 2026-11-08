@@ -68,11 +68,11 @@ struct Title {
     rex::test::ReleaseTestMemory();
     std::filesystem::create_directories(folder.path / "game");
   }
-  ~Title() { (void)rex::kernel::GetTitlePaths().game_root.Reset(); }
+  ~Title() { CHECK(rex::kernel::GetTitlePaths().game_root.Reset()); }
 
-  void WriteImage() { rex::test::WriteTitle(folder.path / "game"); }
+  void WriteImage() const { rex::test::WriteTitle(folder.path / "game"); }
 
-  void Start() { REQUIRE(rex::kernel::GetTitlePaths().game_root.Set(folder.path / "game")); }
+  void Start() const { REQUIRE(rex::kernel::GetTitlePaths().game_root.Set(folder.path / "game")); }
 };
 
 rex::ppc::PPCImage MakeImage() {
@@ -441,7 +441,8 @@ REX_TEST_CASE_METHOD(Fixture, "GetFileSystem mounts a writable host folder and l
   REQUIRE(files.Mount(MountEntry{.path = "\\Device\\Save",
                                  .type = ProviderType::kHostDirectory,
                                  .source = save,
-                                 .flags = MountFlags::kWritable}));
+                                 .flags = MountFlags::kWritable,
+                                 .null_paths = {}}));
   REQUIRE(files.Link("save:", "\\Device\\Save"));
   CHECK(files.FindLink("save:\\slot0.bin").value_or("") == "\\Device\\Save");
 

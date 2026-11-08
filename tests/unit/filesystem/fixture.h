@@ -64,8 +64,8 @@ class Fixture : public NonCopyable {
   const std::filesystem::path& GetTemp() const { return temp_.path; }
 
   void MountTemp(std::string_view path, MountFlags flags = MountFlags::kWritable) {
-    REQUIRE(
-        GetFileSystem().Mount({std::string(path), ProviderType::kHostDirectory, GetTemp(), flags}));
+    REQUIRE(GetFileSystem().Mount(
+        {std::string(path), ProviderType::kHostDirectory, GetTemp(), flags, {}}));
   }
 
   /** Opens a guest path and requires success. */

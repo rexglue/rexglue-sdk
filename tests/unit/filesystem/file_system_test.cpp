@@ -105,14 +105,17 @@ REX_TEST_CASE_METHOD(Fixture, "A link that never ends is kInvalidPath", "[filesy
 REX_TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][mounts]") {
   WriteHost(GetTemp() / "outer" / "B" / "x.txt", "from outer");
   WriteHost(GetTemp() / "inner" / "x.txt", "from inner");
-  REQUIRE(
-      GetFileSystem().Mount({"\\Device\\A", ProviderType::kHostDirectory, GetTemp() / "outer"}));
-  REQUIRE(
-      GetFileSystem().Mount({"\\Device\\A\\B", ProviderType::kHostDirectory, GetTemp() / "inner"}));
+  REQUIRE(GetFileSystem().Mount(
+      {"\\Device\\A", ProviderType::kHostDirectory, GetTemp() / "outer", MountFlags::kNone, {}}));
+  REQUIRE(GetFileSystem().Mount({"\\Device\\A\\B",
+                                 ProviderType::kHostDirectory,
+                                 GetTemp() / "inner",
+                                 MountFlags::kNone,
+                                 {}}));
   CHECK(ReadText(*Open("\\Device\\A\\B\\x.txt").file) == "from outer");
 
-  auto duplicate =
-      GetFileSystem().Mount({"\\Device\\A", ProviderType::kHostDirectory, GetTemp() / "inner"});
+  auto duplicate = GetFileSystem().Mount(
+      {"\\Device\\A", ProviderType::kHostDirectory, GetTemp() / "inner", MountFlags::kNone, {}});
   REQUIRE_FALSE(duplicate);
   CHECK(CodeOf(duplicate.error()) == FileSystemError::kMountExists);
 
@@ -128,10 +131,16 @@ REX_TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][m
 
 REX_TEST_CASE_METHOD(Fixture, "Mount and Unmount compare the mount path without case",
                      "[filesystem][mounts][case]") {
-  REQUIRE(GetFileSystem().Mount(
-      {"\\Device\\Harddisk0\\Partition1", ProviderType::kHostDirectory, GetTemp()}));
-  auto duplicate = GetFileSystem().Mount(
-      {"\\DEVICE\\HARDDISK0\\PARTITION1", ProviderType::kHostDirectory, GetTemp()});
+  REQUIRE(GetFileSystem().Mount({"\\Device\\Harddisk0\\Partition1",
+                                 ProviderType::kHostDirectory,
+                                 GetTemp(),
+                                 MountFlags::kNone,
+                                 {}}));
+  auto duplicate = GetFileSystem().Mount({"\\DEVICE\\HARDDISK0\\PARTITION1",
+                                          ProviderType::kHostDirectory,
+                                          GetTemp(),
+                                          MountFlags::kNone,
+                                          {}});
   REQUIRE_FALSE(duplicate);
   CHECK(CodeOf(duplicate.error()) == FileSystemError::kMountExists);
   CHECK(GetFileSystem().GetMounts().size() == 1);
@@ -264,7 +273,8 @@ REX_TEST_CASE_METHOD(Fixture, "require_file refuses a directory", "[filesystem][
 
 REX_TEST_CASE_METHOD(Fixture, "A write on a read only mount opens for read", "[filesystem][open]") {
   WriteHost(GetTemp() / "a.txt", "alpha");
-  REQUIRE(GetFileSystem().Mount({std::string(kRoot), ProviderType::kHostDirectory, GetTemp()}));
+  REQUIRE(GetFileSystem().Mount(
+      {std::string(kRoot), ProviderType::kHostDirectory, GetTemp(), MountFlags::kNone, {}}));
   auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kAllAccess});
   CHECK_FALSE(rex::HasFlags(opened.file->GetAccess(), Access::kWriteData));
   CHECK(ReadText(*opened.file) == "alpha");

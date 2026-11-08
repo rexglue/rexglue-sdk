@@ -43,10 +43,9 @@ enum class MountFlags : u8 {
 struct MountEntry {
   std::string path; /**< Guest mount path, such as \\Device\\Cdrom0. */
   ProviderType type = ProviderType::kHostDirectory;
-  std::filesystem::path source = {}; /**< Host folder or container file, empty for kNull. */
+  std::filesystem::path source; /**< Host folder or container file, empty for kNull. */
   MountFlags flags = MountFlags::kNone;
-  // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field
-  std::vector<std::string> null_paths = {}; /**< Paths the null provider answers. */
+  std::vector<std::string> null_paths; /**< Paths the null provider answers. */
 };
 
 }  // namespace rex::filesystem

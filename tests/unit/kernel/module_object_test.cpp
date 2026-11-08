@@ -361,8 +361,11 @@ void LoadExecutable(rex::test::KernelFixture& fixture) {
   rex::kernel::TitleRuntime& runtime = fixture.GetRuntime();
   auto* file_system = StateOf(runtime).GetFileSystem();
   REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\Scratch", fs::ProviderType::kHostDirectory,
-                              fixture.GetRoot() / "scratch", fs::MountFlags::kNone}));
+  REQUIRE(file_system->Mount({"\\Device\\Scratch",
+                              fs::ProviderType::kHostDirectory,
+                              fixture.GetRoot() / "scratch",
+                              fs::MountFlags::kNone,
+                              {}}));
   REQUIRE(file_system->Link("scratch:", "\\Device\\Scratch"));
   REQUIRE(StateOf(runtime).LoadXEXImage("scratch:\\default.xex"));
 }
