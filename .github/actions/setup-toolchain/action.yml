@@ -1,0 +1,126 @@
+name: Set up toolchain
+description: Installs the compiler, build tools, system packages and Vulkan SDK that a platform build needs
+
+inputs:
+  platform:
+    description: "win-amd64 | mac-amd64 | mac-arm64 | linux-amd64 | linux-arm64"
+    required: true
+  vulkan-sdk-version:
+    description: "Version of the LunarG Vulkan SDK to install"
+    required: false
+    default: "1.4.363.1"
+  llvm-version:
+    description: "Version of the official LLVM Windows installer that provides clang on Windows"
+    required: false
+    default: "20.1.8"
+
+runs:
+  using: composite
+  steps:
+    - name: Install toolchain (Windows)
+      if: inputs.platform == 'win-amd64'
+      shell: pwsh
+      env:
+        LLVM_VERSION: ${{ inputs.llvm-version }}
+      run: |
+        choco install cmake ninja -y
+        $installer = "LLVM-$env:LLVM_VERSION-win64.exe"
+        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/$installer" -OutFile $installer
+        $install = Start-Process -FilePath ".\$installer" -ArgumentList "/S", "/D=C:\Program Files\LLVM" -Wait -PassThru
+        if ($install.ExitCode -ne 0) {
+          throw "The LLVM $env:LLVM_VERSION installer failed with exit code $($install.ExitCode)"
+        }
+        $llvm = "C:\Program Files\LLVM\bin"
+        $llvm | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        & (Join-Path $llvm "clang.exe") --version
+
+    - name: Install Vulkan SDK (Windows)
+      if: inputs.platform == 'win-amd64'
+      shell: pwsh
+      env:
+        VULKAN_SDK_VERSION: ${{ inputs.vulkan-sdk-version }}
+      run: |
+        $root = "C:\VulkanSDK\$env:VULKAN_SDK_VERSION"
+        Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/vulkan_sdk.exe" -OutFile vulkan_sdk.exe
+        .\vulkan_sdk.exe --root $root --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.vma copy_only=1
+        if (-not ((Test-Path "$root\Include\vma\vk_mem_alloc.h") -or (Test-Path "$root\Include\vk_mem_alloc.h"))) {
+          throw "The Vulkan SDK install has no vk_mem_alloc.h below $root\Include, so the VMA component was not installed"
+        }
+        "VULKAN_SDK=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+    - name: Install clang 20 (linux)
+      if: startsWith(inputs.platform, 'linux-')
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget gnupg lsb-release
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 20
+        sudo apt-get install -y clang-20 lld-20
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 200
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 200
+
+    - name: Install build deps (macOS)
+      if: startsWith(inputs.platform, 'mac-')
+      shell: bash
+      run: brew install cmake ninja
+
+    - name: Install Vulkan SDK (macOS)
+      if: startsWith(inputs.platform, 'mac-')
+      shell: bash
+      env:
+        VULKAN_SDK_VERSION: ${{ inputs.vulkan-sdk-version }}
+      run: |
+        root="$HOME/VulkanSDK/${VULKAN_SDK_VERSION}"
+        curl -fsSL -o vulkan_sdk.zip "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/mac/vulkan_sdk.zip"
+        unzip -q vulkan_sdk.zip
+        installer=$(ls -d vulkansdk-*.app | head -n 1)
+        sudo "${installer}/Contents/MacOS/${installer%.app}" --root "${root}" --accept-licenses --default-answer --confirm-command install copy_only=1
+        before=$(env | sort)
+        old_path="$PATH"
+        source "${root}/setup-env.sh"
+        after=$(env | sort)
+        comm -13 <(echo "$before") <(echo "$after") | grep -v -e '^PATH=' -e '^_=' >> "$GITHUB_ENV"
+        echo "${PATH%"$old_path"}" | tr ':' '\n' | sed '/^$/d' >> "$GITHUB_PATH"
+
+    - name: Install build deps (linux-amd64)
+      if: inputs.platform == 'linux-amd64'
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo apt-get install -y cmake ninja-build build-essential git curl unzip zip autoconf python3-venv xz-utils \
+          libgtk-3-dev libx11-xcb-dev libxss-dev \
+          libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
+          libasound2-dev libpulse-dev libpipewire-0.3-dev
+
+    - name: Install Vulkan SDK (linux-amd64)
+      if: inputs.platform == 'linux-amd64'
+      shell: bash
+      env:
+        VULKAN_SDK_VERSION: ${{ inputs.vulkan-sdk-version }}
+      run: |
+        curl -fsSL -o vulkan_sdk.tar.xz "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/linux/vulkan_sdk.tar.xz"
+        mkdir -p "$HOME/vulkan"
+        tar -xf vulkan_sdk.tar.xz -C "$HOME/vulkan"
+        before=$(env | sort)
+        old_path="$PATH"
+        source "$HOME/vulkan/${VULKAN_SDK_VERSION}/setup-env.sh"
+        after=$(env | sort)
+        comm -13 <(echo "$before") <(echo "$after") | grep -v -e '^PATH=' -e '^_=' >> "$GITHUB_ENV"
+        echo "${PATH%"$old_path"}" | tr ':' '\n' | sed '/^$/d' >> "$GITHUB_PATH"
+
+    - name: Install build deps (linux-arm64)
+      if: inputs.platform == 'linux-arm64'
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo apt update
+        sudo apt install -y cmake ninja-build build-essential git curl unzip autoconf python3.12-venv \
+          libgtk-3-dev libx11-xcb-dev libxss-dev libvulkan-dev libvulkan-memory-allocator-dev \
+          libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
+          libasound2-dev libpulse-dev libpipewire-0.3-dev
