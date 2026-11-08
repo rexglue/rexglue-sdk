@@ -200,6 +200,23 @@ uint32_t XObject::TimeoutTicksToMs(int64_t timeout_ticks) {
   }
 }
 
+namespace {
+// Records what the current guest thread is blocked on, for the hang dump.
+struct DebugWaitScope {
+  XThread* thread;
+  DebugWaitScope(uint32_t a, uint32_t b = 0, uint32_t c = 0) : thread(XThread::GetCurrentThread()) {
+    if (thread) {
+      thread->SetDebugWait(a, b, c);
+    }
+  }
+  ~DebugWaitScope() {
+    if (thread) {
+      thread->SetDebugWait(0, 0, 0);
+    }
+  }
+};
+}  // namespace
+
 X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
                        uint64_t* opt_timeout) {
   auto wait_handle = GetWaitHandle();
@@ -207,6 +224,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode, uint32_t a
     // Object doesn't support waiting.
     return X_STATUS_SUCCESS;
   }
+  DebugWaitScope debug_wait(handle());
 
   auto timeout_ms = opt_timeout ? std::chrono::milliseconds(chrono::Clock::ScaleGuestDurationMillis(
                                       TimeoutTicksToMs(*opt_timeout)))
@@ -239,6 +257,7 @@ X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object, ui
                                       TimeoutTicksToMs(*opt_timeout)))
                                 : std::chrono::milliseconds::max();
 
+  DebugWaitScope debug_wait(wait_object->handle(), signal_object->handle());
   auto result =
       rex::thread::SignalAndWait(signal_object->GetWaitHandle(), wait_object->GetWaitHandle(),
                                  alertable ? true : false, timeout_ms);
@@ -267,6 +286,9 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects, uint32_t wait_
     wait_handles[i] = objects[i]->GetWaitHandle();
     assert_not_null(wait_handles[i]);
   }
+  DebugWaitScope debug_wait(count > 0 ? objects[0]->handle() : 0,
+                            count > 1 ? objects[1]->handle() : 0,
+                            count > 2 ? objects[2]->handle() : 0);
 
   auto timeout_ms = opt_timeout ? std::chrono::milliseconds(chrono::Clock::ScaleGuestDurationMillis(
                                       TimeoutTicksToMs(*opt_timeout)))

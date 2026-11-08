@@ -9,7 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -56,6 +59,72 @@ KernelState* kernel_state() {
   return shared_kernel_state_;
 }
 
+namespace {
+
+const char* ObjectTypeName(XObject::Type type) {
+  switch (type) {
+    case XObject::Type::Event:
+      return "event";
+    case XObject::Type::File:
+      return "file";
+    case XObject::Type::IOCompletion:
+      return "iocompletion";
+    case XObject::Type::Module:
+      return "module";
+    case XObject::Type::Mutant:
+      return "mutant";
+    case XObject::Type::NotifyListener:
+      return "notifylistener";
+    case XObject::Type::Semaphore:
+      return "semaphore";
+    case XObject::Type::Session:
+      return "session";
+    case XObject::Type::Socket:
+      return "socket";
+    case XObject::Type::SymbolicLink:
+      return "symlink";
+    case XObject::Type::Thread:
+      return "thread";
+    case XObject::Type::Timer:
+      return "timer";
+    default:
+      return "other";
+  }
+}
+
+std::atomic<bool> g_dump_watchdog_started{false};
+
+}  // namespace
+
+// Prints every waitable kernel object with its host state and what each guest
+// thread is blocked on. Triggered by creating the file named in the
+// REX_DEBUG_DUMP_TRIGGER environment variable while the game runs.
+void KernelState::DumpKernelObjects() {
+  auto objects = object_table_.GetAllObjects();
+  std::string out = fmt::format("==== kernel object dump: {} objects\n", objects.size());
+  for (auto& object : objects) {
+    auto type = object->type();
+    if (type == XObject::Type::Thread) {
+      auto* thread = static_cast<XThread*>(object.get());
+      out +=
+          fmt::format("thread {:#x} tid={:#x} running={} name='{}' waiting_on={:#x} {:#x} {:#x}\n",
+                      object->handle(), thread->thread_id(), thread->is_running(), object->name(),
+                      thread->debug_wait(0), thread->debug_wait(1), thread->debug_wait(2));
+      continue;
+    }
+    if (type != XObject::Type::Event && type != XObject::Type::Mutant &&
+        type != XObject::Type::Semaphore && type != XObject::Type::Timer) {
+      continue;
+    }
+    out += fmt::format("{} {:#x} name='{}' {}\n", ObjectTypeName(type), object->handle(),
+                       object->name(), object->DebugWaitState());
+  }
+  out += "==== end of dump\n";
+  fputs(out.c_str(), stderr);
+  fflush(stderr);
+  REXSYS_WARN("{}", out);
+}
+
 KernelState::KernelState(Runtime* emulator)
     : emulator_(emulator),
       memory_(emulator->memory()),
@@ -63,6 +132,21 @@ KernelState::KernelState(Runtime* emulator)
       dpc_list_(emulator->memory()) {
   function_dispatcher_ = emulator->function_dispatcher();
   file_system_ = emulator->file_system();
+
+  if (const char* trigger = std::getenv("REX_DEBUG_DUMP_TRIGGER");
+      trigger && *trigger && !g_dump_watchdog_started.exchange(true)) {
+    std::string trigger_path = trigger;
+    std::thread([this, trigger_path] {
+      while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        std::error_code ec;
+        if (std::filesystem::exists(trigger_path, ec)) {
+          std::filesystem::remove(trigger_path, ec);
+          DumpKernelObjects();
+        }
+      }
+    }).detach();
+  }
 
   app_manager_ = std::make_unique<xam::AppManager>();
   user_profile_ = std::make_unique<xam::UserProfile>();

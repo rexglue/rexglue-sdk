@@ -203,6 +203,9 @@ class KernelState {
 
   // Access must be guarded by the global critical region.
   util::ObjectTable* object_table() { return &object_table_; }
+  // Hang diagnostics: print every waitable object's host state and each
+  // guest thread's current wait to stderr and the log.
+  void DumpKernelObjects();
 
   uint32_t process_type() const;
   void set_process_type(uint32_t value);

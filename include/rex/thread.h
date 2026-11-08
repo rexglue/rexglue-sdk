@@ -202,6 +202,9 @@ class WaitHandle {
   // This value is platform specific.
   virtual void* native_handle() const = 0;
 
+  // Human-readable host state of the object, for hang diagnostics.
+  virtual std::string debug_state() const { return std::string(); }
+
  protected:
   WaitHandle() = default;
 };

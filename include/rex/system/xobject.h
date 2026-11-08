@@ -209,6 +209,15 @@ class XObject {
 
   // Called on successful wait.
   virtual void WaitCallback() {}
+
+ public:
+  // Hang diagnostics: host state of the wait handle, empty if not waitable.
+  std::string DebugWaitState() {
+    auto* wait_handle = GetWaitHandle();
+    return wait_handle ? wait_handle->debug_state() : std::string();
+  }
+
+ protected:
   virtual rex::thread::WaitHandle* GetWaitHandle() { return nullptr; }
 
   // Creates the kernel object for guest code to use. Typically not needed.

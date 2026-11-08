@@ -333,6 +333,13 @@ class XThread : public XObject {
   bool is_running() const { return running_; }
 
   uint32_t thread_id() const { return thread_id_; }
+  // Handles this thread is currently blocked on (0 = none); hang diagnostics.
+  void SetDebugWait(uint32_t a, uint32_t b = 0, uint32_t c = 0) {
+    debug_wait_[0].store(a, std::memory_order_relaxed);
+    debug_wait_[1].store(b, std::memory_order_relaxed);
+    debug_wait_[2].store(c, std::memory_order_relaxed);
+  }
+  uint32_t debug_wait(size_t i) const { return debug_wait_[i].load(std::memory_order_relaxed); }
   uint32_t last_error();
   void set_last_error(uint32_t error_code);
   void set_name(const std::string_view name);
@@ -421,6 +428,7 @@ class XThread : public XObject {
   // Atomic: written by the thread itself in Exit/Terminate, read cross-thread by
   // KernelState::TerminateTitle's cooperative drain.
   std::atomic<bool> running_{false};
+  std::atomic<uint32_t> debug_wait_[3]{};
 
   std::string thread_name_;
   std::unique_ptr<runtime::ThreadState> thread_state_;
