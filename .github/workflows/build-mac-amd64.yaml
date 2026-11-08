@@ -1,6 +1,9 @@
 name: Build rexglue-sdk mac-amd64
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch: {}
 
 permissions:

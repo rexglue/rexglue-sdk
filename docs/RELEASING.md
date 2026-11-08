@@ -81,7 +81,7 @@ git tag vX.Y.Z release/X.Y.Z
 git push origin vX.Y.Z
 ```
 
-The tag push triggers `build-win-amd64`, `build-linux-amd64`, and `build-linux-aarch64`, which publish a GitHub release with the three platform zips.
+The tag push triggers `build-win-amd64`, `build-linux-amd64`, `build-linux-aarch64`, `build-mac-amd64`, and `build-mac-arm64`, which publish a GitHub release with the five platform zips.
 
 Delete the release branch (after tagging):
 
@@ -113,7 +113,7 @@ Only when the public API is changing. Single commit on `development`:
 
 ## Nightly builds
 
-Scheduled workflow that builds dev tip when its SHA has advanced since the last nightly. Each run produces a prerelease tagged `<NIGHTLY_TAG_PREFIX>YYYYMMDD-<short_sha>` and prunes older ones beyond `NIGHTLY_RETENTION`.
+Scheduled workflow that builds dev tip when its SHA has advanced since the last nightly. Each run produces a prerelease tagged `<NIGHTLY_TAG_PREFIX>YYYYMMDD-<short_sha>` and prunes older ones beyond `NIGHTLY_RETENTION`. The nightly builds Windows and Linux. macOS builds only for a release tag or a manual run.
 
 ## When something goes wrong
 
