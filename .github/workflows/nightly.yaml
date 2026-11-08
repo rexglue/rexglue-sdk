@@ -25,7 +25,7 @@ jobs:
       tag_name: ${{ steps.compare.outputs.tag_name }}
     steps:
       - name: Checkout dev branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.DEV_BRANCH }}
           fetch-depth: 1
@@ -101,7 +101,7 @@ jobs:
     if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.check.outputs.dev_sha }}
           fetch-depth: 0

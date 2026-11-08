@@ -31,7 +31,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.v }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           submodules: recursive
@@ -44,7 +44,7 @@ jobs:
           platform: ${{ inputs.platform }}
 
       - name: Set up sccache
-        uses: hendrikmuhs/ccache-action@v1.2.22
+        uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           variant: sccache
           key: ${{ inputs.platform }}
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload as release asset
         if: inputs.publish_mode == 'release'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: out/install/rexglue-sdk-*-${{ inputs.platform }}.zip
           generate_release_notes: true
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload as workflow artifact
         if: inputs.publish_mode == 'artifact'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact_name }}
           path: out/install/rexglue-sdk-*-${{ inputs.platform }}.zip
