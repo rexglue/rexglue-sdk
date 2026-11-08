@@ -928,7 +928,8 @@ void KernelThread::SetActiveCPU(u8 cpu_index) {
       thread_->SetAffinityMask(static_cast<u64>(1) << cpu_index);
     }
   } else {
-    REXSYS_WARN("Too few processor cores - scheduling will be wonky");
+    static log::OncePerKey<1> too_few_cores_once;
+    REXSYS_WARN_ONCE(too_few_cores_once, 0, "Too few processor cores - scheduling will be wonky");
   }
 }
 
