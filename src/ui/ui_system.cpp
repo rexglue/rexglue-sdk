@@ -396,7 +396,7 @@ void UISystem::BeginStop() {
     return;
   }
   s.stopping = true;
-  CancelPrompts();
+  s.DestroyPrompts();
 }
 
 void UISystem::Stop() {
@@ -571,8 +571,12 @@ void UISystem::CancelPrompts() {
     (void)RunSynchronous([this] { CancelPrompts(); });
     return;
   }
-  if (s.imgui) {
-    s.imgui->DestroyOwnedDialogs();
+  s.DestroyPrompts();
+}
+
+void UISystem::State::DestroyPrompts() {
+  if (imgui) {
+    imgui->DestroyOwnedDialogs();
   }
 }
 
