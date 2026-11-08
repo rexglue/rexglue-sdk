@@ -30,6 +30,6 @@ void {{ project }}_RegisterFunctions(rex::kernel::IFunctionRegistrar* registrar)
 // constants used by this module's REX_LOOKUP_FUNC macro.
 extern "C" REX_MODULE_EXPORT
 const rex::ppc::PPCImage* ReXGetModuleImage() {
-  return &PPCImageConfig;
+  return &kPPCImageConfig;
 }
 {% endif %}

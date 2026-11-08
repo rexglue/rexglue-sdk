@@ -107,14 +107,14 @@ class REX_APP_API TitleApp : public App {
  * stderr and the exit code is 1.
  *
  * @param AppClass A class deriving from rex::app::TitleApp whose default constructor passes the app
- * name and the PPCImageConfig that the codegen init header declares to TitleApp.
+ * name and the kPPCImageConfig that the codegen init header declares to TitleApp.
  *
  * @code
  * #include "generated/default/foo_init.h"
  *
  * class FooApp : public rex::app::TitleApp {
  *  public:
- *   FooApp() : TitleApp("foo", PPCImageConfig) {}
+ *   FooApp() : TitleApp("foo", kPPCImageConfig) {}
  * };
  * REX_TITLE_APP(FooApp)
  * @endcode

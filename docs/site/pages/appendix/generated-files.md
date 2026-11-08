@@ -1,13 +1,13 @@
 # Generated Files
 
-These are the files that `rexglue codegen` writes into the output folder of each binary, for the project `foobar` from [Getting Started](../getting-started.md). The prefix `foobar` is `[project].name`. See [Output Files](../codegen/generated-code.md#output-files) for the prefix and the templates, and `rex::ppc::PPCImage` for the fields of `PPCImageConfig`.
+These are the files that `rexglue codegen` writes into the output folder of each binary, for the project `foobar` from [Getting Started](../getting-started.md). The prefix `foobar` is `[project].name`. See [Output Files](../codegen/generated-code.md#output-files) for the prefix and the templates, and `rex::ppc::PPCImage` for the fields of `kPPCImageConfig`.
 
 | File | Purpose |
 |---|---|
 | `foobar_pch.h` | The precompiled header. Defines the image constants, the configuration defines and the macros that generated code uses. |
 | `foobar_funcs.h` | Declares every function with `DECLARE_REX_FUNC`, imports included. |
 | `foobar_init.h` | Includes `foobar_pch.h` and `foobar_funcs.h`. |
-| `foobar_init.cpp` | Defines `PPCImageConfig`, the function mappings and the call usage table. |
+| `foobar_init.cpp` | Defines `kPPCImageConfig`, the function mappings and the call usage table. |
 | `foobar_register.cpp` | Defines a function for each import from another recompiled module. Also defines `foobar_RegisterFunctions` for the entrypoint, or `ReXRegisterModule` and `ReXGetModuleImage` for a DLL module. |
 | `foobar_recomp.0.cpp`, `foobar_recomp.1.cpp` and up | Define the function bodies, ordered by address. |
 | `foobar_funcs.0.h`, `foobar_funcs.1.h` and up | Each declares the functions that the `.cpp` file of the same number references. |

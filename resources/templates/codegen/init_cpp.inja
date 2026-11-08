@@ -7,7 +7,7 @@
 void RegisterRecompiledModules(rex::kernel::IModuleRegistry&);
 {% endif %}
 
-const rex::ppc::PPCImage PPCImageConfig = {
+const rex::ppc::PPCImage kPPCImageConfig = {
     .code_base = REX_CODE_BASE,
     .code_size = REX_CODE_SIZE,
     .image_base = REX_IMAGE_BASE,

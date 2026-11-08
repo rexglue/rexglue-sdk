@@ -6,7 +6,7 @@
 
 class {{ names.pascal_case }}App : public rex::app::TitleApp {
  public:
-  {{ names.pascal_case }}App() : TitleApp("{{ names.original }}", PPCImageConfig) {}
+  {{ names.pascal_case }}App() : TitleApp("{{ names.original }}", kPPCImageConfig) {}
 };
 
 REX_TITLE_APP({{ names.pascal_case }}App)

@@ -152,7 +152,7 @@ REX_TEST_CASE("init writes a main that uses the title app", "[rexglue][init]") {
   const std::string text = ReadText(root.path / "src" / "main.cpp");
   CHECK(text.find("#include <rex/app/title_app.h>") != std::string::npos);
   CHECK(text.find("class DemoApp : public rex::app::TitleApp") != std::string::npos);
-  CHECK(text.find("TitleApp(\"demo\", PPCImageConfig)") != std::string::npos);
+  CHECK(text.find("TitleApp(\"demo\", kPPCImageConfig)") != std::string::npos);
   CHECK(text.find("REX_TITLE_APP(DemoApp)") != std::string::npos);
   CHECK(text.find("rex::ui::TitleApp") == std::string::npos);
   CHECK(text.find("OnCreateWindow") == std::string::npos);

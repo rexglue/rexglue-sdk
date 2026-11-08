@@ -17,7 +17,7 @@
 /**
  * The image of a binary, defined in `<p>_init.cpp`. The host program passes it to the application.
  */
-extern const rex::ppc::PPCImage PPCImageConfig;
+extern const rex::ppc::PPCImage kPPCImageConfig;
 
 /**
  * The argument registers that each function reads at entry, r3 to r10 and f1 to f13, ending with

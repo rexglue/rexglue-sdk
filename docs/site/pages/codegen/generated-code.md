@@ -129,11 +129,11 @@ Such a function never keeps non volatile registers in locals. The recompiled sou
 
 `foobar_init.cpp` connects the generated code to the runtime. It defines:
 
-- `PPCImageConfig`, a `rex::ppc::PPCImage` that holds the image constants, the register flags and pointers to the tables below. For an entrypoint with DLL modules it also points to the function that registers them.
+- `kPPCImageConfig`, a `rex::ppc::PPCImage` that holds the image constants, the register flags and pointers to the tables below. For an entrypoint with DLL modules it also points to the function that registers them.
 - `kPPCFuncMappings`, the guest address and host function of every import and of every function at or above the code base, ending with `{ 0, nullptr }`.
 - `kPPCCallUsage`, the argument registers, `r3` to `r10` and `f1` to `f13`, that each function reads at entry.
 
-The `src/main.cpp` that `rexglue init` writes includes `foobar_init.h`, passes `PPCImageConfig` to the `TitleApp` constructor, and declares the app with `REX_TITLE_APP`. [`TitleRuntime::Load`](../runtime/lifecycle.md#load) reads the mappings into the function table.
+The `src/main.cpp` that `rexglue init` writes includes `foobar_init.h`, passes `kPPCImageConfig` to the `TitleApp` constructor, and declares the app with `REX_TITLE_APP`. [`TitleRuntime::Load`](../runtime/lifecycle.md#load) reads the mappings into the function table. A project created before this name changed has to rename `PPCImageConfig` to `kPPCImageConfig` in its own `src/main.cpp` by hand.
 
 ### Function Table
 

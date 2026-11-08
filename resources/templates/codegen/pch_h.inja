@@ -46,7 +46,7 @@
 #include <unordered_map>
 
 
-extern const rex::ppc::PPCImage PPCImageConfig;
+extern const rex::ppc::PPCImage kPPCImageConfig;
 extern const PPCFuncMapping kPPCFuncMappings[];
 extern const rex::ppc::PPCCallUsage kPPCCallUsage[];
 
