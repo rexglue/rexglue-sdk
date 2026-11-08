@@ -267,6 +267,8 @@ static sem_t* RexCreateAnonymousSemaphore() {
 }
 #endif  // __APPLE__
 
+constexpr auto kAlertablePollSlice = std::chrono::milliseconds(1);
+
 class PosixConditionBase {
  public:
   PosixConditionBase() {
@@ -288,8 +290,22 @@ class PosixConditionBase {
   virtual bool Signal() = 0;
 
   WaitResult Wait(std::chrono::milliseconds timeout) {
-    bool executed;
-    auto predicate = [this] { return this->signaled(); };
+    return WaitUntil(nullptr, DeadlineFromTimeout(timeout), nullptr);
+  }
+
+  // Waits for this object, optionally releasing `to_signal` first and
+  // optionally returning kUserCallback as soon as `alert_flag` is set.
+  //
+  // The signal happens only after this thread holds the wait lock, so another
+  // thread that is unblocked by it cannot Signal() this object and then steal
+  // that signal back with its own wait before this thread is registered: that
+  // is what SignalObjectAndWait guarantees on the Xbox, and guest code relies
+  // on it for its mutex-protected flag/event handshakes. For the same reason an
+  // alertable wait polls `alert_flag` with the lock held instead of leaving and
+  // re-entering the wait every poll slice.
+  WaitResult WaitUntil(PosixConditionBase* to_signal,
+                       std::chrono::steady_clock::time_point deadline,
+                       const std::atomic<bool>* alert_flag) {
 #if REX_PLATFORM_LINUX
     auto native_mutex = static_cast<pthread_mutex_t*>(mutex_.native_handle());
     int lock_result = pthread_mutex_lock(native_mutex);
@@ -302,22 +318,51 @@ class PosixConditionBase {
 #else
     std::unique_lock<std::mutex> lock(mutex_);
 #endif
-    if (predicate()) {
-      executed = true;
-    } else {
-      if (timeout == std::chrono::milliseconds::max()) {
-        cond_.wait(lock, predicate);
-        executed = true;  // Did not time out;
+    if (to_signal && to_signal != this && !to_signal->Signal()) {
+      return WaitResult::kFailed;
+    }
+    const bool infinite = deadline == std::chrono::steady_clock::time_point::max();
+    OnWaitEnter();
+    while (true) {
+      if (signaled()) {
+        post_execution();
+        OnWaitExit(true);
+        return WaitResult::kSuccess;
+      }
+      if (alert_flag && alert_flag->load(std::memory_order_acquire)) {
+        OnWaitExit(false);
+        return WaitResult::kUserCallback;
+      }
+      if (alert_flag) {
+        auto slice = kAlertablePollSlice;
+        if (!infinite) {
+          auto now = std::chrono::steady_clock::now();
+          if (now >= deadline) {
+            OnWaitExit(false);
+            return WaitResult::kTimeout;
+          }
+          slice = std::min(slice,
+                           std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now) +
+                               std::chrono::milliseconds(1));
+        }
+        cond_.wait_for(lock, slice);
+      } else if (infinite) {
+        cond_.wait(lock);
       } else {
-        executed = cond_.wait_for(lock, timeout, predicate);
+        if (cond_.wait_until(lock, deadline) == std::cv_status::timeout && !signaled()) {
+          OnWaitExit(false);
+          return WaitResult::kTimeout;
+        }
       }
     }
-    if (executed) {
-      post_execution();
-      return WaitResult::kSuccess;
-    } else {
-      return WaitResult::kTimeout;
+  }
+
+  static std::chrono::steady_clock::time_point DeadlineFromTimeout(
+      std::chrono::milliseconds timeout) {
+    if (timeout == std::chrono::milliseconds::max()) {
+      return std::chrono::steady_clock::time_point::max();
     }
+    return std::chrono::steady_clock::now() + timeout;
   }
 
   static std::pair<WaitResult, size_t> WaitMultiple(std::vector<PosixConditionBase*>&& handles,
@@ -428,6 +473,10 @@ class PosixConditionBase {
  protected:
   inline virtual bool signaled() const = 0;
   inline virtual void post_execution() = 0;
+  // Called with mutex_ held when a thread enters/leaves a blocking wait on
+  // this object through WaitUntil. `consumed` is true when the wait succeeded.
+  virtual void OnWaitEnter() {}
+  virtual void OnWaitExit(bool /*consumed*/) {}
   std::condition_variable cond_;
   std::mutex mutex_;
 };
@@ -448,7 +497,31 @@ class PosixCondition<Event> : public PosixConditionBase {
 
   bool Signal() override {
     auto lock = std::unique_lock<std::mutex>(mutex_);
-    signal_ = true;
+    if (manual_reset_) {
+      // On Windows and the 360 kernel, SetEvent satisfies every wait that is
+      // in progress at that moment; a ResetEvent right after (the Set/Reset
+      // "pulse" that guest condition variables rely on) only affects threads
+      // that start waiting later. Remember the ticket boundary so the threads
+      // already waiting still return success after the reset.
+      signal_ = true;
+      release_boundary_ = next_ticket_;
+      cond_.notify_all();
+      return true;
+    }
+    // Auto-reset: on Windows, SetEvent with a waiting thread hands the signal
+    // to that thread inside the kernel, so a thread that starts waiting
+    // afterwards can never take it. Emulate that by reserving one release for
+    // the threads already waiting (tickets below the boundary); only when no
+    // such thread exists does the event stay plainly signaled.
+    if (waiters_ > release_count_) {
+      if (release_count_ == 0) {
+        release_boundary_ = next_ticket_;
+        eligible_waiters_ = waiters_;
+      }
+      ++release_count_;
+    } else {
+      signal_ = true;
+    }
     cond_.notify_all();
     return true;
   }
@@ -459,15 +532,58 @@ class PosixCondition<Event> : public PosixConditionBase {
   }
 
  private:
-  inline bool signaled() const override { return signal_; }
+  bool eligible() const {
+    return !manual_reset_ && release_count_ > 0 && tls_wait_object_ == this &&
+           tls_ticket_ < release_boundary_;
+  }
+  bool released_by_earlier_set() const {
+    return manual_reset_ && tls_wait_object_ == this && tls_ticket_ < release_boundary_;
+  }
+  inline bool signaled() const override {
+    return signal_ || eligible() || released_by_earlier_set();
+  }
   inline void post_execution() override {
-    if (!manual_reset_) {
+    if (manual_reset_) {
+      return;
+    }
+    if (eligible()) {
+      --release_count_;
+    } else {
       signal_ = false;
     }
   }
+  void OnWaitEnter() override {
+    tls_wait_object_ = this;
+    tls_ticket_ = next_ticket_++;
+    ++waiters_;
+  }
+  void OnWaitExit(bool consumed) override {
+    const bool was_eligible = !manual_reset_ && tls_ticket_ < release_boundary_;
+    --waiters_;
+    tls_wait_object_ = nullptr;
+    if (was_eligible && eligible_waiters_ > 0) {
+      --eligible_waiters_;
+    }
+    // Reservations nobody eligible can take fold back into a plain signal.
+    if (release_count_ > eligible_waiters_) {
+      signal_ = true;
+      release_count_ = eligible_waiters_;
+    }
+    (void)consumed;
+  }
   bool signal_;
   const bool manual_reset_;
+  uint32_t waiters_ = 0;
+  uint32_t release_count_ = 0;
+  uint32_t eligible_waiters_ = 0;
+  uint64_t next_ticket_ = 0;
+  uint64_t release_boundary_ = 0;
+  static thread_local const PosixCondition<Event>* tls_wait_object_;
+  static thread_local uint64_t tls_ticket_;
 };
+
+thread_local const PosixCondition<Event>* PosixCondition<Event>::tls_wait_object_ = nullptr;
+thread_local uint64_t PosixCondition<Event>::tls_ticket_ = 0;
 
 template <>
 class PosixCondition<Semaphore> : public PosixConditionBase {
@@ -1043,6 +1159,13 @@ class PosixCondition<Thread> : public PosixConditionBase {
   mutable std::condition_variable state_signal_;
   std::deque<std::function<void()>> user_callbacks_;
   std::atomic<bool> has_pending_user_callbacks_{false};
+
+ public:
+  const std::atomic<bool>* pending_user_callbacks_flag() const {
+    return &has_pending_user_callbacks_;
+  }
+
+ private:
 #if REX_PLATFORM_ANDROID
   // Name accessible via name() on Android before API 26 which added
   // pthread_getname_np.
@@ -1068,9 +1191,15 @@ bool DispatchCurrentThreadUserCallback() {
   return current_thread_condition_ && current_thread_condition_->DispatchQueuedUserCallbacks();
 }
 
-namespace {
+const std::atomic<bool>* CurrentThreadPendingUserCallbacksFlag() {
+  if (!current_thread_condition_) {
+    Thread::GetCurrentThread();
+  }
+  return current_thread_condition_ ? current_thread_condition_->pending_user_callbacks_flag()
+                                   : nullptr;
+}
 
-constexpr auto kAlertablePollSlice = std::chrono::milliseconds(1);
+namespace {
 
 class ScopedAlertableState {
  public:
@@ -1165,6 +1294,7 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
 
   ScopedAlertableState alertable_state_guard(true);
   auto deadline = ComputeAlertableDeadline(timeout);
+  const std::atomic<bool>* alert_flag = CurrentThreadPendingUserCallbacksFlag();
 
   while (true) {
     if (DispatchCurrentThreadUserCallback()) {
@@ -1173,10 +1303,12 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
     if (HasAlertableTimeoutElapsed(deadline)) {
       return WaitResult::kTimeout;
     }
-    auto result = posix_wait_handle->condition().Wait(ComputeAlertableWaitTimeout(deadline));
-    if (result != WaitResult::kTimeout) {
+    auto result = posix_wait_handle->condition().WaitUntil(nullptr, deadline, alert_flag);
+    if (result != WaitResult::kUserCallback) {
       return result;
     }
+    // The flag was set: loop to dispatch the callback (or re-wait if it was
+    // already drained by someone else).
   }
 }
 
@@ -1188,25 +1320,34 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_han
   if (posix_wait_handle_to_signal == nullptr || posix_wait_handle_to_wait_on == nullptr) {
     return WaitResult::kFailed;
   }
-  if (!posix_wait_handle_to_signal->condition().Signal()) {
-    return WaitResult::kFailed;
-  }
+  auto& to_signal = posix_wait_handle_to_signal->condition();
+  auto& to_wait_on = posix_wait_handle_to_wait_on->condition();
+  auto deadline = ComputeAlertableDeadline(timeout);
 
   if (!is_alertable) {
-    return posix_wait_handle_to_wait_on->condition().Wait(timeout);
+    return to_wait_on.WaitUntil(&to_signal, deadline, nullptr);
   }
 
   ScopedAlertableState alertable_state_guard(true);
-  auto deadline = ComputeAlertableDeadline(timeout);
+  const std::atomic<bool>* alert_flag = CurrentThreadPendingUserCallbacksFlag();
+  // Signal exactly once, atomically with the first wait registration.
+  PosixConditionBase* pending_signal = &to_signal;
   while (true) {
     if (DispatchCurrentThreadUserCallback()) {
+      if (pending_signal) {
+        pending_signal->Signal();
+      }
       return WaitResult::kUserCallback;
     }
     if (HasAlertableTimeoutElapsed(deadline)) {
+      if (pending_signal) {
+        pending_signal->Signal();
+      }
       return WaitResult::kTimeout;
     }
-    result = posix_wait_handle_to_wait_on->condition().Wait(ComputeAlertableWaitTimeout(deadline));
-    if (result != WaitResult::kTimeout) {
+    result = to_wait_on.WaitUntil(pending_signal, deadline, alert_flag);
+    pending_signal = nullptr;
+    if (result != WaitResult::kUserCallback) {
       return result;
     }
   }
