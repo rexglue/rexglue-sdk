@@ -1,6 +1,18 @@
 <#
 .SYNOPSIS
-    Run clang-tidy on rexglue-sdk source files.
+    Run clang-tidy through scripts/lint.py.
+.DESCRIPTION
+    Runs `python scripts/lint.py <build dir>` with the selection given. With no selection it
+    checks the files changed since the development branch. The exit code of the script is left
+    in $LASTEXITCODE: 1 for a finding, 2 for a setup error, 0 when clean.
+.PARAMETER BuildDir
+    Configured build directory with compile_commands.json. Defaults to out/build/<preset>.
+.PARAMETER Since
+    Check the files in <Since>...HEAD. Defaults to development when no other selection is given.
+.PARAMETER Files
+    Check these repository relative or absolute paths.
+.PARAMETER All
+    Check every unit below src and tests, and every header check unit.
 .NOTES
     Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
     All rights reserved.
@@ -11,8 +23,9 @@ function Invoke-ReXLint {
     [CmdletBinding()]
     param(
         [string]$BuildDir,
+        [string]$Since,
         [string[]]$Files,
-        [string]$Since
+        [switch]$All
     )
 
     $root = Get-ReXRoot
@@ -21,48 +34,40 @@ function Invoke-ReXLint {
         $BuildDir = Join-Path $root "out/build/$preset"
     }
 
-    $compileDb = Join-Path $BuildDir "compile_commands.json"
-    if (-not (Test-Path $compileDb)) {
-        Write-Error "compile_commands.json not found at $BuildDir`nRun rex-configure first."
-        return
-    }
-
-    $lintDir = Join-Path $BuildDir "lint"
-    New-Item -ItemType Directory -Path $lintDir -Force | Out-Null
-    $entries = Get-Content $compileDb -Raw | ConvertFrom-Json
-    $debugEntries = @($entries | Where-Object { $_.output -match '[\\/]Debug[\\/]' })
-    if ($debugEntries.Count -eq 0) { $debugEntries = @($entries) }
-    ConvertTo-Json -InputObject $debugEntries -Depth 4 | Set-Content (Join-Path $lintDir "compile_commands.json")
-
-    $headerUnits = [System.IO.Path]::GetFullPath((Join-Path $BuildDir "tests/headers"))
-    $roots = @((Join-Path $root "src"), (Join-Path $root "tests"), $headerUnits) |
-        ForEach-Object { [System.IO.Path]::GetFullPath($_) + [System.IO.Path]::DirectorySeparatorChar }
-    $units = @($debugEntries | ForEach-Object { [System.IO.Path]::GetFullPath($_.file) } | Sort-Object -Unique)
-    $inScope = { param($path) @($roots | Where-Object { $path.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0 }
-
-    if ($Since) {
-        $Files = @(git -C $root diff --name-only --diff-filter=ACMR "$Since...HEAD" -- include src tests)
-    }
-    if (-not $PSBoundParameters.ContainsKey('Files') -and -not $Since) {
-        $targets = @($units | Where-Object { & $inScope $_ })
+    $selection = @()
+    if ($All) {
+        $selection = @('--all')
+    } elseif ($Files) {
+        $selection = @('--files') + $Files
     } else {
-        $targets = @($Files | ForEach-Object {
-            $full = [System.IO.Path]::GetFullPath($(if ([System.IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $root $_ }))
-            if ($full -match '[\\/]include[\\/](rex[\\/].+\.h)$') { Join-Path $headerUnits "$($Matches[1]).cpp" }
-            elseif ($full -match '\.(cpp|c)$') { $full }
-        } | ForEach-Object { [System.IO.Path]::GetFullPath($_) } |
-            Where-Object { $units -contains $_ } | Sort-Object -Unique)
+        if (-not $Since) { $Since = 'development' }
+        $selection = @('--since', $Since)
     }
 
-    Write-Host "=== Running clang-tidy on $($targets.Count) file(s) ==="
-    $failed = 0
-    foreach ($file in $targets) {
-        $output = & clang-tidy --quiet -p $lintDir $file 2>&1
-        if ($LASTEXITCODE -ne 0 -or ($output -match 'warning:|error:')) {
-            $output | Write-Host
-            $failed++
+    $tidyArgs = @()
+    $onPath = Get-Command clang-tidy-22, clang-tidy -ErrorAction SilentlyContinue
+    if (-not $onPath) {
+        $candidates = @()
+        $cache = Join-Path $BuildDir 'CMakeCache.txt'
+        if (Test-Path $cache) {
+            $match = Select-String -Path $cache -Pattern '^CMAKE_CXX_COMPILER:[A-Z]+=(.+)$' | Select-Object -First 1
+            if ($match) {
+                $candidates += Join-Path (Split-Path $match.Matches[0].Groups[1].Value) 'clang-tidy.exe'
+            }
+        }
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+        if (Test-Path $vswhere) {
+            $vs = & $vswhere -latest -property installationPath
+            if ($vs) {
+                $candidates += Join-Path $vs 'VC/Tools/Llvm/x64/bin/clang-tidy.exe'
+            }
+        }
+        $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if ($found) {
+            $tidyArgs = @('--clang-tidy', $found)
         }
     }
-    Write-Host "Done. $failed file(s) with findings."
-    if ($failed -gt 0) { $global:LASTEXITCODE = 1 } else { $global:LASTEXITCODE = 0 }
+
+    & python (Join-Path $root 'scripts/lint.py') $BuildDir @selection @tidyArgs
+    $global:LASTEXITCODE = $LASTEXITCODE
 }

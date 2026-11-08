@@ -121,8 +121,12 @@ jobs:
         with:
           platform: linux-amd64
 
-      - name: Install clang-tidy 20
-        run: sudo apt-get install -y clang-tidy-20
+      - name: Install clang-tidy 22
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 22
+          sudo apt-get install -y clang-tidy-22
 
       - name: Set up sccache
         uses: hendrikmuhs/ccache-action@v1.2.24
@@ -137,7 +141,7 @@ jobs:
         run: cmake --build out/build/linux-amd64 --config Debug --parallel
 
       - name: Run clang-tidy on the changed files
-        run: python3 scripts/lint_changed.py out/build/linux-amd64 ${{ needs.prepare.outputs.base }}
+        run: python3 scripts/lint.py out/build/linux-amd64 --since ${{ needs.prepare.outputs.base }} --clang-tidy clang-tidy-22
 
   report:
     name: Report the results on the pull request
