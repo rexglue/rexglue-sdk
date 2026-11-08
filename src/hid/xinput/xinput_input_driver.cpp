@@ -33,11 +33,11 @@ constexpr auto kPollInterval = std::chrono::milliseconds(500);
 constexpr u16 kGuideButton = 0x0400;
 
 constexpr PadDeviceID DeviceForSlot(u32 slot) {
-  return static_cast<PadDeviceID>(kDeviceBase | slot);
+  return PadDeviceID{kDeviceBase | slot};
 }
 
 bool SlotForDevice(PadDeviceID id, u32* out_slot) {
-  const u64 raw = static_cast<u64>(id);
+  const u64 raw = id.value;
   if ((raw & ~0xFFull) != kDeviceBase || (raw & 0xFF) >= kSlotCount) {
     return false;
   }

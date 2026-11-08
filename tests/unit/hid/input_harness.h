@@ -49,7 +49,7 @@ inline std::array<FakeState, 2> g_fake;
 
 inline rex::hid::PadDevice MakePad(u64 id, i32 xinput_slot, const char* name = "pad") {
   rex::hid::PadDevice device;
-  device.id = static_cast<rex::hid::PadDeviceID>(id);
+  device.id = rex::hid::PadDeviceID{id};
   device.name = name;
   device.identity.xinput_slot = xinput_slot;
   return device;
@@ -64,7 +64,7 @@ class FakeDriver final : public rex::hid::IInputDriver {
   u64 GetDeviceRevision() const override { return g_fake[N].revision; }
   void EnumerateDevices(std::vector<rex::hid::PadDevice>& out) override { out = g_fake[N].devices; }
   rex::Result<rex::hid::PadState> GetDeviceState(rex::hid::PadDeviceID id) override {
-    auto found = g_fake[N].states.find(static_cast<u64>(id));
+    auto found = g_fake[N].states.find(id.value);
     if (found == g_fake[N].states.end()) {
       return rex::Err<rex::hid::PadState>(rex::ErrorCategory::kNotFound, "gone");
     }
@@ -129,9 +129,9 @@ class InputApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, names_);
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, names_));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     return rex::Ok();
   }
 

@@ -105,8 +105,15 @@ struct PadInfo {
   u16 product = 0; /**< USB product, 0 when unknown. */
 };
 
-/** Identifies a pad inside one driver. */
-enum class PadDeviceID : u64 { kInvalid = 0 };
+/** Identifies a pad inside one driver. The number is the driver's own, and 0 is no pad. */
+struct PadDeviceID {
+  u64 value = 0;
+
+  constexpr bool operator==(const PadDeviceID&) const = default;
+};
+
+/** The id that names no pad. */
+inline constexpr PadDeviceID kInvalidPadDeviceID{};
 
 /**
  * Identifies the physical pad, so one pad seen by two drivers is used once. Devices match when
@@ -121,7 +128,7 @@ struct PadIdentity {
 };
 
 struct PadDevice {
-  PadDeviceID id = PadDeviceID::kInvalid; /**< The driver's id for it. */
+  PadDeviceID id = kInvalidPadDeviceID; /**< The driver's id for it. */
   std::string name;
   PadInfo info;
   PadIdentity identity;

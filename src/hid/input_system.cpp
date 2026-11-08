@@ -18,7 +18,6 @@ namespace rex::hid {
 
 using detail::Device;
 using detail::DeviceKey;
-using detail::kMaxUsers;
 
 namespace {
 
@@ -255,8 +254,8 @@ Result<InputSystem::PadReading> InputSystem::State::ReadUserLocked(u32 user) {
   }
   u64 signature = 0xCBF29CE484222325ull;
   for (const detail::DeviceKey& key : users[user]) {
-    signature = (signature ^ ((static_cast<u64>(key.source) << 32) ^ static_cast<u64>(key.id))) *
-                0x100000001B3ull;
+    signature =
+        (signature ^ ((static_cast<u64>(key.source) << 32) ^ key.id.value)) * 0x100000001B3ull;
   }
   const rex::hid::PadState& before = last_state[user];
   const bool same = before.buttons == state.buttons && before.left_trigger == state.left_trigger &&

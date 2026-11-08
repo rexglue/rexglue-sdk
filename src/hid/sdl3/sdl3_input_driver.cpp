@@ -159,7 +159,7 @@ i32 GetXInputSlot([[maybe_unused]] SDL_Gamepad* gamepad) {
 struct SDL3InputDriver::State {
   struct Controller {
     SDL_Gamepad* sdl = nullptr;
-    PadDeviceID id = PadDeviceID::kInvalid;
+    PadDeviceID id = kInvalidPadDeviceID;
     PadState state;
     i32 xinput_slot = -1;
   };
@@ -278,7 +278,7 @@ void SDL3InputDriver::State::OnGamepadAddedLocked(const SDL_Event& event) {
   }
   Controller controller;
   controller.sdl = gamepad;
-  controller.id = static_cast<PadDeviceID>(next_id++);
+  controller.id = PadDeviceID{next_id++};
   controller.xinput_slot = GetXInputSlot(gamepad);
   REXHID_DEBUG("SDL GamepadAdded: \"{}\", VendorID(0x{:04X}), ProductID(0x{:04X}), slot {}",
                SDL_GetGamepadName(gamepad), SDL_GetGamepadVendor(gamepad),

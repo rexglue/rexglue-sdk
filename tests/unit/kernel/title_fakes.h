@@ -58,7 +58,7 @@ inline std::atomic<rex::u64> g_pad_revision{1};
 
 inline rex::hid::PadDevice MakePad(rex::u64 id, rex::i32 xinput_slot) {
   rex::hid::PadDevice device;
-  device.id = static_cast<rex::hid::PadDeviceID>(id);
+  device.id = rex::hid::PadDeviceID{id};
   device.name = "pad";
   device.identity.xinput_slot = xinput_slot;
   return device;

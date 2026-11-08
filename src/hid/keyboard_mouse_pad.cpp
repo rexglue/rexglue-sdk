@@ -23,8 +23,7 @@ namespace rex::hid::detail {
 
 namespace {
 
-constexpr rex::hid::PadDeviceID kKeyboardMouseDevice =
-    static_cast<rex::hid::PadDeviceID>(0x4D4E4B00);
+constexpr rex::hid::PadDeviceID kKeyboardMouseDevice = rex::hid::PadDeviceID{0x4D4E4B00};
 constexpr size_t kMaxQueuedKeystrokes = 256;
 constexpr f64 kMouseBaseScale = 200.0;
 

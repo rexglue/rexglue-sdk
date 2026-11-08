@@ -50,7 +50,7 @@ inline constexpr u16 kKeystrokeValidUnicode = 0x1000;
 /** A pad inside the merged list, with the source that reported it and its ID there. */
 struct DeviceKey {
   u32 source = 0;
-  rex::hid::PadDeviceID id = rex::hid::PadDeviceID::kInvalid;
+  rex::hid::PadDeviceID id = rex::hid::kInvalidPadDeviceID;
   friend bool operator==(const DeviceKey&, const DeviceKey&) = default;
 };
 
@@ -159,7 +159,7 @@ class IdlePad final : public rex::hid::IInputDriver {
 rex::hid::PadCapabilities MakeFullPadCapabilities();
 
 /** The keyboard and mouse bindings, in the order of kKeyBindDescs. */
-enum KeyBind : size_t {
+enum KeyBind : u8 {
   kBindA,
   kBindB,
   kBindX,

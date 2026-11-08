@@ -15,7 +15,7 @@ namespace rex::hid::detail {
 
 namespace {
 
-constexpr rex::hid::PadDeviceID kIdleDevice = static_cast<rex::hid::PadDeviceID>(0x4E4F5000);
+constexpr rex::hid::PadDeviceID kIdleDevice = rex::hid::PadDeviceID{0x4E4F5000};
 
 Error NotTheIdlePad() {
   return Error(ErrorCategory::kNotFound, "not the idle pad");
