@@ -32,7 +32,7 @@ namespace {
 
 [[maybe_unused]] const bool g_tag_named = (memory::SetTagName(kernel::kRuntime, "Runtime"), true);
 
-[[maybe_unused]] const bool g_counters_registered = [] {
+[[maybe_unused]] const bool g_counters_registered = []() noexcept {
   struct Entry {
     const char* name;
     platform::CounterType type;

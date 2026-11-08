@@ -28,7 +28,7 @@ namespace rex::kernel {
 class XAMForward {
  public:
   /** Adds the forward to the list that BindXAMForwards walks. */
-  explicit XAMForward(std::string_view name);
+  explicit XAMForward(std::string_view name) noexcept;
 
   /** Calls the body. Without a bound body it logs an error and leaves the registers as they are. */
   void Call(PPCContext& ctx, u8* base) const {

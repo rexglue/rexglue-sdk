@@ -38,7 +38,7 @@ std::array<std::atomic<i64>, kMaxCounters> g_snapshot{};
 constexpr size_t kNameCapacity = 48;
 using CounterName = std::array<char, kNameCapacity>;
 
-constexpr CounterName MakeName(std::string_view text) {
+constexpr CounterName MakeName(std::string_view text) noexcept {
   CounterName name{};
   for (size_t i = 0; i < text.size() && i + 1 < name.size(); ++i) {
     name[i] = text[i];

@@ -373,7 +373,7 @@ template <typename R, typename... Args>
 struct DetourOriginal<R(Args...)> {
   PPCFunc& fn;
 
-  constexpr explicit DetourOriginal(PPCFunc& original) : fn(original) {}
+  constexpr explicit DetourOriginal(PPCFunc& original) noexcept : fn(original) {}
 
   /**
    * Runs the original on the live context of the running detour, so its other results stay in the
@@ -391,7 +391,7 @@ template <typename R, typename... Args>
 struct DetourOriginal<R(PPCContext&, Args...)> {
   PPCFunc& fn;
 
-  constexpr explicit DetourOriginal(PPCFunc& original) : fn(original) {}
+  constexpr explicit DetourOriginal(PPCFunc& original) noexcept : fn(original) {}
 
   /** Runs the original on the register file of the running detour. */
   R operator()(PPCContext& ctx, Args... args) const {

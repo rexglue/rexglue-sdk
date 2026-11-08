@@ -39,6 +39,8 @@ using rex::hid::PadDeviceID;
 using rex::hid::PadState;
 
 struct FakeState {
+  FakeState() noexcept = default;
+
   std::vector<rex::hid::PadDevice> devices;
   std::map<u64, rex::hid::PadState> states;
   u64 revision = 1;

@@ -16,7 +16,7 @@ XAMForward* g_head = nullptr;
 
 }  // namespace
 
-XAMForward::XAMForward(std::string_view name) : name_(name), next_(g_head) {
+XAMForward::XAMForward(std::string_view name) noexcept : name_(name), next_(g_head) {
   g_head = this;
 }
 

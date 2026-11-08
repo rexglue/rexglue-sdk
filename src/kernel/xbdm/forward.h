@@ -36,7 +36,7 @@ class XBDMForward {
    * @param name The export symbol.
    * @param fallback What a call runs while no body is bound. It logs and returns as the body does.
    */
-  XBDMForward(std::string_view name, PPCFunc* fallback);
+  XBDMForward(std::string_view name, PPCFunc* fallback) noexcept;
 
   /** Calls the body, or the fallback when rexxbdm is not loaded. */
   void Call(PPCContext& ctx, u8* base) const {

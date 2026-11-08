@@ -12,7 +12,7 @@ XBDMForward* g_head = nullptr;
 
 }  // namespace
 
-XBDMForward::XBDMForward(std::string_view name, PPCFunc* fallback)
+XBDMForward::XBDMForward(std::string_view name, PPCFunc* fallback) noexcept
     : name_(name), fallback_(fallback), next_(g_head) {
   g_head = this;
 }

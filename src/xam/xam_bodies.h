@@ -47,7 +47,13 @@ class XAMExports final : public IXAMExports {
 /** Adds a body to the list XAMExports serves. REX_XAM_BODY creates one per body. */
 class XAMBodyRegistrar {
  public:
-  XAMBodyRegistrar(std::string_view name, PPCFunc* function);
+  XAMBodyRegistrar(std::string_view name, PPCFunc* function) noexcept;
+
+ private:
+  friend class XAMExports;
+
+  XAMBody body_;
+  XAMBodyRegistrar* next_ = nullptr;
 };
 
 }  // namespace rex::xam
@@ -69,13 +75,13 @@ class XAMBodyRegistrar {
  * REX_XAM_BODY(__imp__XamGetSystemVersion, rex::xam::XamGetSystemVersion_entry)
  * @endcode
  */
-#define REX_XAM_BODY(name, function)                                                        \
-  namespace {                                                                               \
-  REX_FUNC(rex_xam_body_##name) {                                                           \
-    REX_XAM_BODY_ZONE(name);                                                                \
-    rex::ppc::GuestToHostThunk<function>(ctx, base);                                        \
-  }                                                                                         \
-  const ::rex::xam::XAMBodyRegistrar rex_xam_registrar_##name{#name, &rex_xam_body_##name}; \
+#define REX_XAM_BODY(name, function)                                                  \
+  namespace {                                                                         \
+  REX_FUNC(rex_xam_body_##name) {                                                     \
+    REX_XAM_BODY_ZONE(name);                                                          \
+    rex::ppc::GuestToHostThunk<function>(ctx, base);                                  \
+  }                                                                                   \
+  ::rex::xam::XAMBodyRegistrar rex_xam_registrar_##name{#name, &rex_xam_body_##name}; \
   }
 
 /**

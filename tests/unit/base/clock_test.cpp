@@ -19,7 +19,7 @@ struct EarlyClockReads {
   rex::u64 system_time;
   rex::u64 tick_count;
 
-  EarlyClockReads()
+  EarlyClockReads() noexcept
       : tick_frequency(rex::Clock::GetGuestTickFrequency()),
         system_time(rex::Clock::QueryGuestSystemTime()),
         tick_count(rex::Clock::QueryGuestTickCount()) {}

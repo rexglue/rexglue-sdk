@@ -6,19 +6,26 @@ namespace rex::xam {
 
 namespace {
 
-std::vector<XAMBody>& GetRegistered() {
-  static std::vector<XAMBody> bodies;
-  return bodies;
-}
+XAMBodyRegistrar* g_first = nullptr;
+XAMBodyRegistrar* g_last = nullptr;
 
 }  // namespace
 
 std::span<const XAMBody> XAMExports::GetBodies() const {
-  return GetRegistered();
+  static const std::vector<XAMBody> bodies = [] {
+    std::vector<XAMBody> collected;
+    for (const XAMBodyRegistrar* registrar = g_first; registrar; registrar = registrar->next_) {
+      collected.push_back(registrar->body_);
+    }
+    return collected;
+  }();
+  return bodies;
 }
 
-XAMBodyRegistrar::XAMBodyRegistrar(std::string_view name, PPCFunc* function) {
-  GetRegistered().push_back(XAMBody{name, function});
+XAMBodyRegistrar::XAMBodyRegistrar(std::string_view name, PPCFunc* function) noexcept
+    : body_{name, function} {
+  (g_last ? g_last->next_ : g_first) = this;
+  g_last = this;
 }
 
 }  // namespace rex::xam

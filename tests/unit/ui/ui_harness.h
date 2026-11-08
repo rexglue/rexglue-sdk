@@ -79,6 +79,8 @@ struct FakeUIData {
 };
 
 struct FakeUIState : FakeUIData {
+  FakeUIState() noexcept = default;
+
   std::mutex mutex;
   std::condition_variable cv;
 };
@@ -284,12 +286,13 @@ class UIApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   Result<void> OnConfigure(SettingsRegistry& settings) override {
-    (void)settings.SetText(SettingLayer::kTitle, "kernel.user_language", "0");
-    (void)root.SetText(SettingLayer::kTitle, folder_.path.string());
-    (void)GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, display_ ? "fake" : "none");
+    REX_TRY_VOID(settings.SetText(SettingLayer::kTitle, "kernel.user_language", "0"));
+    REX_TRY_VOID(root.SetText(SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(
+        GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, display_ ? "fake" : "none"));
     if (!input_drivers.empty()) {
       test_input::g_fake = {};
-      (void)GetInput().GetSettings().drivers.SetText(SettingLayer::kTitle, input_drivers);
+      REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(SettingLayer::kTitle, input_drivers));
     }
     if (configure) {
       configure(GetUI());

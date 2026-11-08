@@ -6,19 +6,26 @@ namespace rex::xbdm {
 
 namespace {
 
-std::vector<XBDMBody>& GetRegistered() {
-  static std::vector<XBDMBody> bodies;
-  return bodies;
-}
+XBDMBodyRegistrar* g_first = nullptr;
+XBDMBodyRegistrar* g_last = nullptr;
 
 }  // namespace
 
 std::span<const XBDMBody> XBDMExports::GetBodies() const {
-  return GetRegistered();
+  static const std::vector<XBDMBody> bodies = [] {
+    std::vector<XBDMBody> collected;
+    for (const XBDMBodyRegistrar* registrar = g_first; registrar; registrar = registrar->next_) {
+      collected.push_back(registrar->body_);
+    }
+    return collected;
+  }();
+  return bodies;
 }
 
-XBDMBodyRegistrar::XBDMBodyRegistrar(std::string_view name, PPCFunc* function) {
-  GetRegistered().push_back(XBDMBody{name, function});
+XBDMBodyRegistrar::XBDMBodyRegistrar(std::string_view name, PPCFunc* function) noexcept
+    : body_{name, function} {
+  (g_last ? g_last->next_ : g_first) = this;
+  g_last = this;
 }
 
 }  // namespace rex::xbdm

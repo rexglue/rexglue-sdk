@@ -15,7 +15,7 @@
 
 namespace {
 
-const int g_mode = std::rand() % 2 + 1;
+const int g_mode = []() noexcept { return std::rand() % 2 + 1; }();
 
 class DynInitModule final : public rex::IModule {
  public:

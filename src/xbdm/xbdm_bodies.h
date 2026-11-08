@@ -49,7 +49,13 @@ class XBDMExports final : public IXBDMExports {
 /** Adds a body to the list XBDMExports serves. REX_XBDM_BODY creates one per body. */
 class XBDMBodyRegistrar {
  public:
-  XBDMBodyRegistrar(std::string_view name, PPCFunc* function);
+  XBDMBodyRegistrar(std::string_view name, PPCFunc* function) noexcept;
+
+ private:
+  friend class XBDMExports;
+
+  XBDMBody body_;
+  XBDMBodyRegistrar* next_ = nullptr;
 };
 
 }  // namespace rex::xbdm
@@ -64,13 +70,13 @@ class XBDMBodyRegistrar {
  * REX_XBDM_BODY(__imp__DmGo)
  * @endcode
  */
-#define REX_XBDM_BODY(name)                                                                     \
-  namespace {                                                                                   \
-  REX_FUNC(rex_xbdm_body_##name) {                                                              \
-    static constinit ::std::atomic_flag rex_stub_seen_;                                         \
-    ::rex::log::detail::WriteStub(::rex::log::cpu, rex_stub_seen_, #name, {});                  \
-  }                                                                                             \
-  const ::rex::xbdm::XBDMBodyRegistrar rex_xbdm_registrar_##name{#name, &rex_xbdm_body_##name}; \
+#define REX_XBDM_BODY(name)                                                               \
+  namespace {                                                                             \
+  REX_FUNC(rex_xbdm_body_##name) {                                                        \
+    static constinit ::std::atomic_flag rex_stub_seen_;                                   \
+    ::rex::log::detail::WriteStub(::rex::log::cpu, rex_stub_seen_, #name, {});            \
+  }                                                                                       \
+  ::rex::xbdm::XBDMBodyRegistrar rex_xbdm_registrar_##name{#name, &rex_xbdm_body_##name}; \
   }
 
 /**
@@ -84,15 +90,15 @@ class XBDMBodyRegistrar {
  * REX_XBDM_BODY_RETURN(__imp__DmRegisterCommandProcessorEx, 0)
  * @endcode
  */
-#define REX_XBDM_BODY_RETURN(name, value)                                                       \
-  namespace {                                                                                   \
-  REX_FUNC(rex_xbdm_body_##name) {                                                              \
-    static constinit ::std::atomic_flag rex_stub_seen_;                                         \
-    const auto rex_stub_value_ = (value);                                                       \
-    ::rex::log::detail::WriteStub(                                                              \
-        ::rex::log::cpu, rex_stub_seen_, #name,                                                 \
-        ::std::format("returning {:#x}", static_cast<::rex::u32>(rex_stub_value_)));            \
-    ctx.r3.u64 = rex_stub_value_;                                                               \
-  }                                                                                             \
-  const ::rex::xbdm::XBDMBodyRegistrar rex_xbdm_registrar_##name{#name, &rex_xbdm_body_##name}; \
+#define REX_XBDM_BODY_RETURN(name, value)                                                 \
+  namespace {                                                                             \
+  REX_FUNC(rex_xbdm_body_##name) {                                                        \
+    static constinit ::std::atomic_flag rex_stub_seen_;                                   \
+    const auto rex_stub_value_ = (value);                                                 \
+    ::rex::log::detail::WriteStub(                                                        \
+        ::rex::log::cpu, rex_stub_seen_, #name,                                           \
+        ::std::format("returning {:#x}", static_cast<::rex::u32>(rex_stub_value_)));      \
+    ctx.r3.u64 = rex_stub_value_;                                                         \
+  }                                                                                       \
+  ::rex::xbdm::XBDMBodyRegistrar rex_xbdm_registrar_##name{#name, &rex_xbdm_body_##name}; \
   }
