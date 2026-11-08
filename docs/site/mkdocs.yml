@@ -1,5 +1,6 @@
 site_name: ReXGlue SDK
 site_description: Documentation for the ReXGlue SDK
+site_url: https://docs.rexglue.com/
 repo_url: https://github.com/rexglue/rexglue-sdk
 docs_dir: pages
 strict: true
