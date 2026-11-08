@@ -1,0 +1,175 @@
+name: PR checks
+
+# A maintainer starts the checks by hand: add the label run-checks to a pull request, or run this
+# workflow from the Actions tab with the pull request number. The code of the pull request runs
+# with the default read token and no secrets. This workflow never uses pull_request_target.
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number"
+        required: true
+        type: string
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number || inputs.pr }}-${{ github.event.label.name || 'dispatch' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Resolve the pull request
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-checks'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr: ${{ steps.resolve.outputs.pr }}
+      head: ${{ steps.resolve.outputs.head }}
+      base: ${{ steps.resolve.outputs.base }}
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - name: Resolve the commit under test
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR_INPUT: ${{ inputs.pr }}
+          PR_EVENT: ${{ github.event.pull_request.number }}
+          HEAD_EVENT: ${{ github.event.pull_request.head.sha }}
+          BASE_EVENT: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            pr="$PR_INPUT"
+            if ! [[ "$pr" =~ ^[0-9]+$ ]]; then
+              echo "The pull request number must be digits, got '$pr'" >&2
+              exit 1
+            fi
+            head=$(gh api "repos/$REPO/pulls/$pr" --jq .head.sha)
+            base=$(gh api "repos/$REPO/pulls/$pr" --jq .base.sha)
+          else
+            pr="$PR_EVENT"
+            head="$HEAD_EVENT"
+            base="$BASE_EVENT"
+          fi
+          {
+            echo "pr=$pr"
+            echo "head=$head"
+            echo "base=$base"
+            echo "ref=refs/pull/$pr/merge"
+          } >> "$GITHUB_OUTPUT"
+
+  format:
+    name: Format and CMake checks
+    needs: prepare
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-checks'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/requirements-dev.txt
+
+      - name: Install clang-format
+        run: |
+          python -m pip install -r scripts/requirements-dev.txt
+          clang-format --version
+
+      - name: Check C/C++ formatting
+        run: |
+          find include src tests \
+            -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.c' \) \
+            | xargs clang-format --dry-run --Werror
+
+      - name: Check CMake format and lint
+        run: python scripts/check_cmake.py
+
+      - name: Run script tests
+        run: python -m pytest scripts/tests -v
+
+  lint:
+    name: clang-tidy on the changed files
+    needs: prepare
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-checks'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+          submodules: recursive
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          platform: linux-amd64
+
+      - name: Install clang-tidy 20
+        run: sudo apt-get install -y clang-tidy-20
+
+      - name: Set up sccache
+        uses: hendrikmuhs/ccache-action@v1.2.22
+        with:
+          variant: sccache
+          key: linux-amd64
+
+      - name: Configure
+        run: cmake --preset linux-amd64 -DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DREXGLUE_BUILD_TESTS=ON -DREXGLUE_VERIFY_HEADERS=ON
+
+      - name: Build
+        run: cmake --build out/build/linux-amd64 --config Debug --parallel
+
+      - name: Run clang-tidy on the changed files
+        run: python3 scripts/lint_changed.py out/build/linux-amd64 ${{ needs.prepare.outputs.base }}
+
+  report:
+    name: Report the results on the pull request
+    needs: [prepare, format, lint]
+    if: always() && github.event_name == 'workflow_dispatch' && needs.prepare.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      statuses: write
+    steps:
+      - name: Post a commit status for each job
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD: ${{ needs.prepare.outputs.head }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FORMAT: ${{ needs.format.result }}
+          LINT: ${{ needs.lint.result }}
+        run: |
+          post() {
+            context="$1"
+            result="$2"
+            case "$result" in
+              success) state=success ;;
+              failure) state=failure ;;
+              *) state=error ;;
+            esac
+            gh api "repos/$REPO/statuses/$HEAD" \
+              -f state="$state" \
+              -f context="pr-checks/$context" \
+              -f description="$context: $result" \
+              -f target_url="$RUN_URL"
+          }
+          post format "$FORMAT"
+          post lint "$LINT"
