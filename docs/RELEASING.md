@@ -81,7 +81,7 @@ git tag vX.Y.Z release/X.Y.Z
 git push origin vX.Y.Z
 ```
 
-The tag push triggers `build-win-amd64`, `build-linux-amd64`, `build-linux-aarch64`, `build-mac-amd64`, and `build-mac-arm64`, which publish a GitHub release with the five platform zips.
+The tag push triggers `build-win-amd64`, `build-linux-amd64`, `build-linux-arm64`, `build-mac-amd64` and `build-mac-arm64`, which publish a GitHub release with the platform zips.
 
 Delete the release branch (after tagging):
 

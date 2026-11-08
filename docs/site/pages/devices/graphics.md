@@ -2,7 +2,7 @@
 
 The Xbox 360 GPU, Xenos, runs command buffers that the game writes into guest memory. The commands are PM4 packets: register writes, draws, copies, fences and frame swaps. The game hands them to the GPU through the ring buffer, a circular buffer in guest memory whose read and write positions are GPU registers.
 
-The graphics system of the SDK runs those commands on a host graphics API and presents the frames in the window. `App::GetGraphics()` returns it as `IGraphicsSystem`, and the `rexgpu` system library provides it. See [System Libraries](../app/modules.md#system-libraries) for what `rexgpu` requires.
+The SDK's graphics system runs those commands on a host graphics API and presents the frames in the window. `App::GetGraphics()` returns it as `IGraphicsSystem`, and the `rexgpu` system library provides it. See [System Libraries](../app/modules.md#system-libraries) for what `rexgpu` requires.
 
 ## Drivers
 
@@ -47,13 +47,13 @@ The null driver runs a game's GPU commands on a machine without a usable GPU. To
 In a program that requires no graphics family, the graphics system starts no driver. If such a program launches a game, the graphics system handles the GPU register accesses of the game:
 
 - A register read returns the fixed value for the video mode, or else the last value written.
-- After `EnableReadPointerWriteBack`, each write to the ring buffer write pointer is copied to the write back address, as if the GPU had read every command at once.
+- After `EnableReadPointerWriteBack`, each write to the ring buffer write pointer is copied to the write back address, as if the GPU had read every command immediately.
 
 No PM4 packet runs. A game that waits for a fence that a PM4 packet writes waits forever.
 
 ## Presenting
 
-A driver presents frames through two objects. The provider owns the connection to the host GPU, and the presenter shows the finished frames in the window.
+A driver presents frames through two objects. The provider holds the connection to the host GPU, and the presenter shows the finished frames in the window.
 
 - With a window, the driver creates both in `SetSurface`, when the graphics system starts. If either cannot be created, graphics fails to start.
 - Without a window, the driver creates only the provider, when a title attaches.

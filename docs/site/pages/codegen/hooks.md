@@ -49,7 +49,7 @@ When the runtime stops a guest thread, such as at shutdown, it sets a stop reque
 
 ### Export Macros
 
-A kernel export is a host function that takes the place of a function that the XEX imports from the Xbox 360 kernel, XAM or XBDM. Its symbol is `__imp__` and the export name, such as `__imp__NtCreateFile`, and the export tables of the SDK link against that symbol.
+The symbol of a kernel export is `__imp__` and the export name, such as `__imp__NtCreateFile`, and the export tables of the SDK link against that symbol.
 
 The export macros `REX_EXPORT`, `REX_EXPORT_STUB` and `REX_EXPORT_STUB_RETURN` work like `REX_HOOK`, `REX_STUB` and `REX_STUB_RETURN`, and take the `__imp__` symbol of the export:
 
@@ -129,7 +129,7 @@ It warns once when:
 
 ## Mid Function Hooks
 
-A mid function hook calls host code at one guest instruction, before or after it, without replacing the function. Codegen writes the call into the generated function, so it reads the hook declarations at code generation time. They come from C++ [hook sources](#hook-sources) or from [manifest entries](#manifest-hooks).
+A mid function hook calls host code at one guest instruction, before or after it, without replacing the function. Codegen reads the hook declarations and writes the call into the generated function. They come from C++ [hook sources](#hook-sources) or from [manifest entries](#manifest-hooks).
 
 In C++, declare the body with one of three macros and attach it to an address with `REX_MIDASM_AT`. The macros are in `rex/ppc/midasm.h`, which `rex/ppc/hook.h` does not include.
 

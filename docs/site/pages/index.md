@@ -52,7 +52,7 @@ The program links the SDK through the `rex::sdk` CMake target. These are the lin
 - `rexxbdm` provides the XBDM exports.
 - `rexapp` provides `App` and `TitleApp`, the base classes of the program.
 
-A kernel export is a host function that takes the place of a function the XEX imports from the Xbox 360 kernel, XAM or XBDM. Guest memory is the 32 bit address space of the console, mapped into the host process.
+Guest memory is the 32 bit address space of the console, mapped into the host process.
 
 At startup `App::Init` calls `rex::Init`, which loads the system libraries by name. The program never links them.
 

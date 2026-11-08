@@ -2,7 +2,7 @@
 
 ## Binaries
 
-The program links the first seven libraries through the `rex::sdk` CMake target. `rex::Init` loads the others by name at runtime, and loads `rexxam`, `rexxbdm` and `rexkernel` as modules too. See [Introduction](../index.md#runtime) for how they fit together.
+The program links the first seven libraries through the `rex::sdk` CMake target. `rex::Init` loads the others by name at runtime, and loads `rexxam`, `rexxbdm` and `rexkernel` as modules. See [Introduction](../index.md#runtime) for how they fit together.
 
 | Binary | Purpose |
 |---|---|
@@ -46,7 +46,7 @@ See [Graphics](../devices/graphics.md#drivers) for the `gpu.driver` setting.
 
 ## System Libraries
 
-The seven libraries that an `App` loads, in load order. A module can only connect when the SDK or an earlier module serves every interface it requires. See [Modules and Interfaces](../app/modules.md#system-libraries) for the load order.
+The eight libraries that an `App` loads, in load order. A module can only connect when the SDK or an earlier module serves every interface it requires. See [Modules and Interfaces](../app/modules.md#system-libraries) for the load order.
 
 | Library | Serves | Requires |
 |---|---|---|

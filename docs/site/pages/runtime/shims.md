@@ -28,7 +28,7 @@ memset = 0x82000600
 CreateFileA = 0x82000800
 ```
 
-Find the address of the routine in IDA or in a symbol map of the executable. [`rexglue list shim`](../reference/cli.md#list-shim) prints the names that the SDK provides, and `--group` with a group name such as `file` limits the output to one group.
+Find the address of the routine in IDA or in a symbol map of the executable. [`rexglue list shim`](../reference/cli.md#list-shim) prints the shims that the SDK provides, and `--group` with a group name such as `file` limits the output to one group.
 
 ## Rules
 

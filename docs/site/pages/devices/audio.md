@@ -8,7 +8,7 @@ The SDK splits this work the same way. The audio system mixes the streams of sam
 
 `App::GetAudio()` returns the audio system as `IAudioSystem`, and the `rexapu` system library provides it. See [System Libraries](../app/modules.md#system-libraries) for what `rexapu` requires.
 
-The audio system plays through the driver that `apu.driver` names. The default is `sdl3`. See [Driver Modules](../appendix/binaries-and-modules.md#driver-modules) for the audio driver module. With `none`, a program that does not require audio plays no sound. A program that requires audio, such as a `TitleApp`, fails startup with `none` or when no audio driver is available.
+The audio system plays through the driver that `apu.driver` selects. The default is `sdl3`. See [Driver Modules](../appendix/binaries-and-modules.md#driver-modules) for the audio driver module. With `none`, a program that does not require audio plays no sound. A program that requires audio, such as a `TitleApp`, fails startup with `none` or when no audio driver is available.
 
 ### Streams and Frames
 

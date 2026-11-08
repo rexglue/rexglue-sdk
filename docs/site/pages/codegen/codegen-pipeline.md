@@ -35,7 +35,7 @@ flowchart TD
     more -->|no| write["Write files"]
 ```
 
-A validation error in any binary stops the run before codegen writes anything, so all generated sources stay as they were. With `--force`, the errors become warnings and the run continues.
+A validation error in any binary stops the run before codegen writes anything. With `--force`, the errors become warnings and the run continues.
 
 ### Load
 
@@ -90,7 +90,7 @@ Discover follows the instructions of each registered function from its start and
 New functions come from three places:
 
 - A `bl` to an address outside the current function makes that address a function.
-- A `bctr` (an indirect branch through the count register) with no condition is read as a jump table, the table of addresses through which a `switch` statement branches. Analysis reads the targets from the table, unless a `[[switch_tables]]` entry gives them. A target past the end of the function extends the function.
+- A `bctr` (an indirect branch through the count register) with no condition is read as a jump table. Analysis reads the targets from the table, unless a `[[switch_tables]]` entry gives them. A target past the end of the function extends the function.
 - The vtable scan finds the vtables of C++ classes, the tables of virtual function pointers, through the MSVC RTTI complete object locators in `.rdata`, and makes every slot a function.
 
 A `b` to an address outside the current function stays a pending jump until Merge resolves it.
@@ -162,9 +162,9 @@ A generated function keeps the guest registers in `PPCContext`, the register sta
 
 ### Link and Machine State Registers
 
-`skip_lr` removes the writes to the link register, except for a `bl` to an import. Use it only for a title that never reads the link register as data.
+`skip_lr` removes the `mflr` read and the writes to the link register, except the write of a `bl` to an import. Use it only for a title that never reads the link register as data.
 
-`skip_msr` removes the global lock, which `mtmsrd` from `r13` enters, any other `mtmsrd` leaves and `mfmsr` reads. Use it only for a title that does not use that lock for mutual exclusion.
+`skip_msr` removes the global lock operations: `mtmsrd` from `r13` enters the lock, any other `mtmsrd` leaves it, and `mfmsr` reads it. Use it only for a title that does not use that lock for mutual exclusion.
 
 ### Stack Slot Forwarding
 

@@ -6,7 +6,7 @@ Each `TitleRuntime` creates its own `rex::filesystem::IFileSystem` at `Load`, fr
 
 ## Links and Mounts
 
-The Xbox 360 kernel names each storage device with a device path, such as `\Device\Harddisk0\Partition1` for the game partition. Games rarely use device paths. They use short names such as `game:` and `update:`, which the kernel maps to device paths.
+The Xbox 360 kernel identifies each storage device by a device path, such as `\Device\Harddisk0\Partition1` for the game partition. Games rarely use device paths. They use short names such as `game:` and `update:`, which the kernel maps to device paths.
 
 The filesystem keeps one table for each of these two steps:
 
@@ -140,7 +140,7 @@ flowchart TD
     H --> R
 ```
 
-After every read, failed or not, the file object notifies the IO completion ports that the file is bound to and sets its own event. Only when the status is not an error does the export write the status block, queue the APC and set the event that the caller passed, each when the caller passed one. End of file is an error status, so a read at the end of a file returns `X_STATUS_END_OF_FILE` and leaves the status block unchanged. `NtWriteFile` runs the same steps.
+After every read, failed or not, the file object notifies the IO completion ports that the file is bound to and sets its own event. When the status is not an error, the export also writes the status block, queues the APC and sets the event that the caller passed, each when the caller passed one. End of file is an error status, so a read at the end of a file returns `X_STATUS_END_OF_FILE` and leaves the status block unchanged. `NtWriteFile` runs the same steps.
 
 XAM operations that report into an `XOVERLAPPED` block complete through the [dispatcher](../runtime/kernel.md#dispatcher) instead.
 

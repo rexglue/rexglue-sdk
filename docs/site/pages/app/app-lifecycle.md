@@ -4,7 +4,7 @@ Every ReXGlue program is a class derived from `rex::app::App`, or from `rex::app
 
 ## Steps and Hooks
 
-A step is a public method of the app that the program calls. A hook is a virtual method that a step calls at a fixed point, and that your class overrides to add its own work. The default of every hook does nothing or returns success.
+A step is a public method of the app that the program calls. A hook is a virtual method that a step calls at a fixed point, and that your class overrides to add its own work. Every hook does nothing or returns success by default.
 
 `App` has four steps:
 
@@ -109,7 +109,7 @@ See [Exit Code](#exit-code) for the value that `main` returns.
 9. The app applies the `REX_` environment variables.
 10. The app opens the log file.
 11. The app installs the crash reporter with the options from `GetCrashOptions`.
-12. The app calls `GetRequirements` and collects the driver modules that the driver settings name.
+12. The app calls `GetRequirements` and collects the driver modules that the driver settings select.
 13. `rex::Init` loads the driver modules, starts the profiler if `perf.profiler` is set, and inits every module. Each system starts its drivers. On Windows, `rex::Init` raises the timer resolution to 1 ms.
 14. The app freezes the `kStartupOnly` settings.
 15. `OnInit` runs. The systems run and the window is open.
@@ -127,7 +127,7 @@ A failed step calls `ReportError`, which logs the error, and `App::Init` returns
 |---|---|
 | 3, 13 | A module fails to load, connect or init. A driver module that fails to load only logs a warning, but a system that needs it then fails to init. |
 | 4, 6, 15 | `OnConfigure`, `OnAction` or `OnInit` returns an error. |
-| 5 | An option is not a setting name, an action or one of the [older options](settings.md#command-line), or a setting refuses its value. `GetActions` returns an action with an invalid name, a duplicate name or the name of an older option. |
+| 5 | An option is not a setting name, an action or one of the [older options](settings.md#command-line), or a setting rejects its value. `GetActions` returns an action with an invalid name, a duplicate name or the name of an older option. |
 | 7 | Another running copy holds the instance lock. |
 | 8 | The config file does not parse. A missing file is not an error. Clearing `app.config_file` in `OnConfigure` skips the step. |
 | 13 | A system that the app requires has no driver. A `TitleApp` fails when `gpu.driver`, `apu.driver`, `ui.driver` or `hid.drivers` is `none`. |

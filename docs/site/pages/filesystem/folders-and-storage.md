@@ -32,7 +32,7 @@ When there is no user config folder, such as with no home folder, the app folder
 
 ### Single Instance
 
-`app.single_instance` names a lock that only one running copy of the program can hold. A second copy with the same lock name fails to start. Empty means no lock.
+`app.single_instance` holds the name of a lock that only one running copy of the program can hold. A second copy with the same lock name fails to start. Empty means no lock.
 
 ## Game Folders
 
@@ -63,7 +63,7 @@ XAM stores the saves, the downloaded content and the profile data of the game un
 
 A content package is a save or a piece of downloaded content. The path of a package holds three IDs, written in uppercase hexadecimal:
 
-- The XUID, the 16 digit ID of the profile that owns it.
+- The XUID, the 16 digit ID of the profile that the package belongs to.
 - The title ID of the game, 8 digits.
 - The content type, 8 digits, such as `00000001` for a saved game.
 

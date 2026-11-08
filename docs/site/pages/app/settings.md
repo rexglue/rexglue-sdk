@@ -115,7 +115,7 @@ Other SDK calls that register something until you release it, such as `Logger::A
 
 ## Sources and Precedence
 
-Each source writes at its own [layer](#layers), so the order in which `App::Init` reads the sources does not decide which value wins.
+Each source writes at its own [layer](#layers), so the order in which `App::Init` reads the sources does not affect which value wins.
 
 ### Startup Order
 
@@ -161,7 +161,7 @@ An action that your program declares in `GetActions`, such as `--version`, is no
 
 ### Config File
 
-Every app reads the TOML file that `app.config_file` names, `{app.root}/{app.name}.toml` by default.
+Every app reads the TOML file at `app.config_file`, `{app.root}/{app.name}.toml` by default.
 
 - `--config_file` or `--app.config_file` replaces the path.
 - An empty path reads no file.

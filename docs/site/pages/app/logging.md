@@ -1,6 +1,6 @@
 # Logging
 
-The SDK writes every log message through one process logger, `rex::Logger`, which `REX_LOGGER()` returns. The declarations are in `rex/logging/log_category.h` and `rex/logging/logger.h`. This page explains categories and levels, how to write messages, and how the logger chooses where its output goes.
+The SDK writes every log message through one process logger, `rex::Logger`, which `REX_LOGGER()` returns. The declarations are in `rex/logging/log_category.h` and `rex/logging/logger.h`. This page covers categories and levels, how to write messages, and the sinks that receive them.
 
 A message has a category, a level and a text. The logger passes each message that its category lets through to its sinks, the outputs it writes to: standard output, the debugger on Windows, the log file and any sink your code adds.
 
@@ -88,7 +88,7 @@ See [Settings Reference](../reference/cvars.md#log) for every `log` setting.
 - `log.debugger` writes to the debugger on Windows and has no effect elsewhere.
 - A `log.pattern` with a flag the logger does not know is refused with a warning, and the logger keeps the default pattern.
 - The log file is in `app.log_root`. Its name is `log.file_name`, or the app name when that is empty, followed by a run number, such as `mygame_007.log`. The run number is one higher than the highest number in the folder.
-- An absolute `log.file_name` names the file itself, with no run number.
+- An absolute `log.file_name` is the path of the file itself, with no run number.
 - When `log.folder_budget` is above 0, the logger removes the oldest runs of the same name until the files fit in that many bytes.
 
 In `log.pattern`, `%Q` writes the level as one letter and `%j` writes the thread. See [Log Categories and Macros](../appendix/log-categories-and-macros.md#level-letters) for the letters.

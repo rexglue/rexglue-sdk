@@ -9,11 +9,11 @@ A system or driver runs before a game launches and after it exits, so it does no
 
 `IDriver::Initialize` receives the `IDriverContext`. A driver registers its settings and adds its log categories through it.
 
-Some host libraries, such as SDL, must run on the thread that owns the window. `IDriverContext::RunOnUIThread` runs a function on the UI thread and waits for it, and `PostToUIThread` queues a function there and returns immediately.
+Some host libraries, such as SDL, must run on the thread that created the window. `IDriverContext::RunOnUIThread` runs a function on the UI thread and waits for it, and `PostToUIThread` queues a function there and returns immediately.
 
 ## Title Attach
 
-`TitleRuntime::Launch` attaches the game to the systems. These are the interfaces the game hands over:
+`TitleRuntime::Launch` attaches the game to the systems with these interfaces:
 
 | Type | Header | Purpose |
 |---|---|---|
@@ -33,7 +33,7 @@ Several of these calls return a `ScopeGuard`, an object from `rex/utility.h` tha
 
 ## Physical Memory
 
-The Xenos GPU reads and writes memory by physical address, from `0` to `0x1FFFFFFF`. `IPhysicalMemory` takes these physical addresses. See [Physical Memory](../runtime/memory.md#physical-memory) for how physical memory relates to the guest address space.
+The Xenos GPU reads and writes memory by physical address, from `0` to `0x1FFFFFFF`, which is the range of `IPhysicalMemory`. See [Physical Memory](../runtime/memory.md#physical-memory) for how physical memory relates to the guest address space.
 
 Calls ignore guest allocation and page protection. A range that ends above `0x20000000` fails with a `kMemory` error, and nothing is read or written.
 
@@ -90,7 +90,7 @@ A `RankedMutex` carries a rank, and a thread may take it only when its rank is a
 Guest code runs only on threads that the kernel created, because each needs a guest thread state and a guest stack. A driver thread that calls into the game is such a thread. `IGuestInterrupts::StartHostThread(name, fn)` starts one:
 
 - The function receives a `std::stop_token`.
-- The call returns a `ScopeGuard`. Destroying it stops the thread and waits for it to end.
+- The call returns a `Result` that holds a `ScopeGuard`. Destroying the guard stops the thread and waits for it to end.
 
 The game registers a graphics interrupt callback, which the GPU calls at each vblank and at some command stream events. `RaiseGraphicsInterrupt(source, cpu)` runs that callback on the calling thread:
 

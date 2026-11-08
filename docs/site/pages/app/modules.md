@@ -122,11 +122,11 @@ sequenceDiagram
 ```
 
 1. `rex::Init` adds the code modules, loads the listed libraries and connects every module in list order.
-2. `select_plugins` runs. In an `App`, the command line, the config file and the environment apply in this callback, so the driver settings hold their final values. The callback then returns the driver modules that those settings name.
+2. `select_plugins` runs. In an `App`, the command line, the config file and the environment apply in this callback, so the driver settings hold their final values. The callback then returns the driver modules that those settings select.
 3. `rex::Init` loads the driver modules, and each one connects as it loads.
 4. `rex::Init` calls `Init` on every module in list order. Each system selects and initializes its drivers in its own `Init`.
 
-During `Connect`, a module finds only the interfaces of the SDK and of the modules before it in the list. A module can list the interfaces it cannot connect without in `IModule::GetRequiredInterfaces`. When one of them is served only by a later module, the module fails to connect with an error that names the module, the interface and its version. From `Init` on, a module finds the interface of every connected module, so a module that needs an interface of a later module looks it up in `Init`.
+During `Connect`, a module finds only the interfaces of the SDK and of the modules before it in the list. A module can list the interfaces it cannot connect without in `IModule::GetRequiredInterfaces`. When one of them is served only by a later module, the module fails to connect with an error that gives the module, the interface and its version. From `Init` on, a module finds the interface of every connected module, so a module that needs an interface of a later module looks it up in `Init`.
 
 A driver module that fails to load does not stop `rex::Init`, which logs a warning and continues. A system that needed one of its drivers then fails in `Init`, and the error carries the load warning.
 
@@ -186,7 +186,7 @@ See [Binaries and Modules](../appendix/binaries-and-modules.md#system-libraries)
 
 Each system has a setting that lists its drivers. The app turns the names into driver modules before `Init`, and each system creates its drivers during `Init`.
 
-- `GetDriverModules` from `rex/driver_module.h` returns the library names of the drivers that the settings name, and skips drivers that a connected module provides.
+- `GetDriverModules` from `rex/driver_module.h` returns the library names of the drivers that the settings select, and skips drivers that a connected module provides.
 - `SelectDrivers` creates and initializes the drivers of one type in list order.
 - A setting can hold several names separated by commas. Empty names, repeats and `none` are skipped.
 - When a driver fails, `SelectDrivers` shuts down the drivers that the same call started before it.
@@ -201,7 +201,7 @@ Each system has a setting that lists its drivers. The app turns the names into d
 
 ### Requirements
 
-`App::GetRequirements` returns a `rex::AppSysRequirements`, which says which systems the program needs:
+`App::GetRequirements` returns a `rex::AppSysRequirements`, which lists the systems the program needs:
 
 | Field | Purpose |
 |---|---|

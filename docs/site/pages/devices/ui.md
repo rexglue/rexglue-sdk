@@ -1,6 +1,6 @@
 # UI
 
-The UI system owns the window of the program. It opens the window, receives its keyboard, mouse and window events, draws the SDK overlays on top of each frame, and shows message boxes and prompts. The Xbox 360 had no window, so nothing in the game calls the UI system. It serves the program, the overlays and the XAM dialogs.
+The UI system holds the window of the program. It opens the window, receives its keyboard, mouse and window events, draws the SDK overlays on top of each frame, and shows message boxes and prompts. The Xbox 360 had no window, so nothing in the game calls the UI system. It serves the program, the overlays and the XAM dialogs.
 
 `App::GetUI()` returns the UI system as `IUISystem`, and the `rexui` system library provides it. The UI system runs on the UI thread, the thread that called `App::Init`.
 

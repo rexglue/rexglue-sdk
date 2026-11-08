@@ -117,7 +117,7 @@ An indirect call finds the host function for its guest target in the [function t
 
 ### Exception Scopes
 
-Structured exception handling (SEH) is the MSVC form of `__try`, `__except` and `__finally`. When `generate_exception_handlers` is true, codegen wraps a function with SEH scopes in one `REX_SEH_TRY` and `REX_SEH_CATCH_ALL` block, and turns each `return;` into `REX_SEH_RETURN;`. On a hardware fault the catch block:
+When `generate_exception_handlers` is true, codegen wraps a function with SEH scopes (`__try`, `__except` and `__finally`) in one `REX_SEH_TRY` and `REX_SEH_CATCH_ALL` block, and turns each `return;` into `REX_SEH_RETURN;`. On a hardware fault the catch block:
 
 1. Calls the `__finally` handlers of the scopes that have no filter, in reverse order.
 2. Calls the register restore helper of the function.

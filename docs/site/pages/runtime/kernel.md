@@ -13,7 +13,7 @@ Export bodies and hooks find the runtime in one of two ways:
 
 ## Kernel Objects and Handles
 
-A kernel object is a host object that stands for a console kernel object, such as an event, a thread or an open file. The title refers to an object by a handle, a `u32` that the object table hands out. `IObjectTable`, from `TitleRuntime::GetObjectTable`, owns every object and its handles.
+A kernel object is a host object that stands for a console kernel object, such as an event, a thread or an open file. The title refers to an object by a handle, a `u32` that the object table assigns. `IObjectTable`, from `TitleRuntime::GetObjectTable`, holds every object and its handles.
 
 ### Handles
 
@@ -58,7 +58,7 @@ The console keeps a guest block for each object, an `X_OBJECT_HEADER` followed b
 
 Each guest thread is a host thread. A `KernelThread`, from `rex/kernel/object/kernel_thread.h`, holds the host thread, the guest register state, the guest `X_KTHREAD` block, the guest stack and a PCR, the processor control region that guest code reads through register r13. A `KernelThread` built with a host function instead of a guest entry point is a host worker of the runtime, such as `Kernel Dispatch`.
 
-`IThreadRegistry`, from `TitleRuntime::GetThreadRegistry`, owns every `KernelThread`:
+`IThreadRegistry`, from `TitleRuntime::GetThreadRegistry`, holds every `KernelThread`:
 
 - `Launch` takes ownership of a `KernelThread`, starts it and returns its handle.
 - `Find`, `FindByHandle` and `All` return `ThreadPin` values that keep a thread alive while you hold them.
@@ -130,7 +130,7 @@ A DPC, a deferred procedure call, is a routine that the kernel queues to run lat
 The audio part of `rexkernel` is the guest side of audio. The title calls it through the XAudio kernel exports. It does not play sound. It passes the frames of the title to the audio system of the app, which plays them through its driver.
 
 - `XAudioRegisterRenderDriverClient` registers a render client, a guest callback that produces audio frames. The runtime has eight client slots, and each client gets a stream in the audio system.
-- The `Audio Worker` thread calls the callback of a client each time the audio system wants another frame, and `XAudioSubmitRenderDriverFrame` hands the frame to the stream.
+- The `Audio Worker` thread calls the callback of a client each time the audio system needs another frame, and `XAudioSubmitRenderDriverFrame` hands the frame to the stream.
 - The `XMA Decoder` thread decodes XMA, the compressed audio format of the console, for the contexts that the title sets up through the APU register block. See [MMIO Blocks](memory.md#mmio-blocks).
 - `TitleRuntime::SetAudioPaused` parks the worker and the decoder, and resumes them.
 

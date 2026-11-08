@@ -70,6 +70,7 @@ markdown_extensions:
 nav:
   - Introduction: index.md
   - Getting Started: getting-started.md
+  - Contributing: contributing.md
   - Code Generation:
       - Codegen Pipeline: codegen/codegen-pipeline.md
       - Generated Code: codegen/generated-code.md

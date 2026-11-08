@@ -82,7 +82,7 @@ The pointer is free while the window has no focus or the input system does not h
 
 ## Window Events
 
-The UI system forwards the keyboard, mouse, focus and resize events of the window to the input system. An open overlay or dialog can hold the keyboard or the mouse, and a key that triggers an overlay hotkey never reaches the input system. See [Events](ui.md#events) for the order in which the UI system hands out each event.
+The UI system forwards the keyboard, mouse, focus and resize events of the window to the input system. An open overlay or dialog can hold the keyboard or the mouse, and a key that triggers an overlay hotkey never reaches the input system. See [Events](ui.md#events) for the order in which the UI system delivers each event.
 
 ## XAM Input Exports
 

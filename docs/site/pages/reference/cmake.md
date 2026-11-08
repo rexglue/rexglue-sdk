@@ -202,7 +202,7 @@ rexglue_setup_host_library(<library>)
 
 Applies the SDK settings, the include paths and the codegen dependency to a library that compiles against the SDK, and links it to `rex::sdk`. The project's `CMakeLists.txt` calls it on the hooks library `foobar_common`.
 
-`rex::sdk` is the one target a project links. It collects `rex::base`, `rex::ppc`, `rex::xenos`, `rex::kernel`, `rex::xam` and `rex::app`.
+`rex::sdk` is the one target a project links. It collects `rex::base`, `rex::ppc`, `rex::xenos`, `rex::kernel`, `rex::xam`, `rex::xbdm` and `rex::app`.
 
 ### `rexglue_apply_recomp_settings`
 
@@ -285,3 +285,4 @@ A variable with a configuration suffix overrides the plain variable for that con
 | `REXGLUE_ENABLE_TRACY` | `ON` | Links Tracy and defines `REXGLUE_ENABLE_PROFILING` in every configuration except Release. |
 | `REX_PHYSICAL_OFFSET_IN_CODE` | Linux on aarch64: `ON` when the build host page size is above 4 KiB, else `OFF` | Adds the `0x1000` offset of the `0xE0000000` range in code, for hosts with pages above 4 KiB. Only Linux on aarch64 reads it. macOS on arm64 always adds the offset, and every other host maps it. |
 | `REXGLUE_ENABLE_PERF_COUNTERS` | `ON` | Builds the perf counter registry and overlay in every configuration except Release. |
+| `REXGLUE_VERIFY_HEADERS` | `OFF` | Creates the targets that compile each public header alone. clang-tidy checks the public headers only through these targets. |
