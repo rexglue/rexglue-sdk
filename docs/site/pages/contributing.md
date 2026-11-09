@@ -43,6 +43,6 @@ A maintainer starts the pull request checks by hand, in one of two ways:
 The checks build the merge of the pull request with its base and run two jobs:
 
 - `format` checks the C and C++ formatting with clang-format, runs the CMake format and lint check, and runs the script tests.
-- `lint` runs clang-tidy 22 through `scripts/lint.py` on the source files the pull request changes, and on the public headers it changes through their header check units. Any warning or error fails the job. To run the same check locally on a configured build directory, use `rex-lint` on Windows or run `python scripts/lint.py <build dir> --since development`. Add `--all` instead of `--since` to check the whole tree. The build directory needs `-DREXGLUE_VERIFY_HEADERS=ON` for the public headers to be checked.
+- `lint` runs clang-tidy 22 through `scripts/lint.py` on the source files the pull request changes, and on the public headers it changes through their header check units. Any warning or error fails the job. To run the same check locally on a configured build directory, use `rex-lint` on Windows or run `python scripts/lint.py <build dir> --since development`. Add `--all` instead of `--since` to check the whole tree. The build directory needs `-DREXGLUE_VERIFY_HEADERS=ON` for the public headers to be checked. The job also builds the SDK with its unit tests and runs them with ctest. A failing test fails the job, the same as a clang-tidy warning.
 
 A pull request from a fork runs with the default read token and no secrets.

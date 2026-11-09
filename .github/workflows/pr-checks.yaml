@@ -102,7 +102,7 @@ jobs:
         run: python -m pytest scripts/tests -v
 
   lint:
-    name: clang-tidy on the changed files
+    name: clang-tidy and unit tests
     needs: prepare
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-checks'
     runs-on: ubuntu-24.04
@@ -142,6 +142,10 @@ jobs:
 
       - name: Run clang-tidy on the changed files
         run: python3 scripts/lint.py out/build/linux-amd64 --since ${{ needs.prepare.outputs.base }} --clang-tidy clang-tidy-22
+
+      - name: Run the unit tests
+        if: ${{ !cancelled() }}
+        run: ctest --test-dir out/build/linux-amd64 -C Debug --output-on-failure --timeout 300
 
   report:
     name: Report the results on the pull request

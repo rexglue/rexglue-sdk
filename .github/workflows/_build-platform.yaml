@@ -53,7 +53,7 @@ jobs:
         env:
           CC: ${{ fromJSON('{"win-amd64":"clang","mac-amd64":"/usr/bin/clang","mac-arm64":"/usr/bin/clang","linux-amd64":"clang-20","linux-arm64":"clang-20"}')[inputs.platform] }}
           CXX: ${{ fromJSON('{"win-amd64":"clang++","mac-amd64":"/usr/bin/clang++","mac-arm64":"/usr/bin/clang++","linux-amd64":"clang++-20","linux-arm64":"clang++-20"}')[inputs.platform] }}
-        run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER="${{ env.CC }}" -DCMAKE_CXX_COMPILER="${{ env.CXX }}" -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER="${{ env.CC }}" -DCMAKE_CXX_COMPILER="${{ env.CXX }}" -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DREXGLUE_BUILD_TESTS=OFF
 
       - name: Build and install
         run: cmake --build out/build/${{ inputs.platform }} --target install --parallel
