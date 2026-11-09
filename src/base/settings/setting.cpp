@@ -175,10 +175,14 @@ Result<void> SettingBase::SetText(SettingLayer layer, std::string_view text) {
   if (auto checked = Check(text); !checked) {
     return checked;
   }
+  const std::string before = Render();
   if (!Store(text)) {
     return Err(ErrorCategory::kConfig, std::format("{}: '{}' did not store", state_->name, text));
   }
   state_->layer = layer;
+  if (Render() == before) {
+    return Ok();
+  }
   if (state_->constraints.life == SettingLife::kRestart && g_startup_frozen.load()) {
     state_->restart_pending = true;
     return Ok();
@@ -198,10 +202,14 @@ Result<void> SettingBase::Reset() {
     return Err(ErrorCategory::kConfig, std::format("{} can no longer change", state_->name));
   }
   const std::string text = RenderDefault();
+  const std::string before = Render();
   if (!Store(text)) {
     return Err(ErrorCategory::kConfig, std::format("{}: default did not store", state_->name));
   }
   state_->layer = SettingLayer::kDefault;
+  if (Render() == before) {
+    return Ok();
+  }
   state_->restart_pending = false;
   Publish();
   Notify();

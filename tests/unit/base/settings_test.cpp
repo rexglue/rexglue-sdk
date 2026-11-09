@@ -231,12 +231,38 @@ REX_TEST_CASE("settings: a change watch runs until it is destroyed", "[base][set
         ++calls;
         last = value;
       });
-      REQUIRE(audio.count.Set(3));
+      REQUIRE(audio.count.Set(2));
       REQUIRE(audio.count.Set(4));
       REQUIRE(calls == 2);
       REQUIRE(last == 4);
     }
     REQUIRE(audio.count.Set(5));
+    REQUIRE(calls == 2);
+  });
+}
+
+REX_TEST_CASE("settings: a write that keeps the value does not call the watch",
+              "[base][settings]") {
+  RunInInit([] {
+    AudioOwner audio;
+    REQUIRE(REX_SETTINGS().Register(audio));
+    int calls = 0;
+    auto watch = audio.count.OnChange([&](const rex::i32&) { ++calls; });
+    REQUIRE(audio.count.Set(3));
+    REQUIRE(calls == 0);
+    REQUIRE(audio.count.Set(4));
+    REQUIRE(calls == 1);
+    REQUIRE(audio.count.Set(4));
+    REQUIRE(calls == 1);
+    REQUIRE(audio.count.Reset());
+    REQUIRE(calls == 2);
+    REQUIRE(audio.count.Reset());
+    REQUIRE(calls == 2);
+    REQUIRE(audio.count.SetText(SettingLayer::kFile, "3"));
+    REQUIRE(calls == 2);
+    REQUIRE(audio.count.GetLayer() == SettingLayer::kFile);
+    REQUIRE_FALSE(audio.count.SetText(SettingLayer::kTitle, "5"));
+    REQUIRE(audio.count.Get() == 3);
     REQUIRE(calls == 2);
   });
 }
