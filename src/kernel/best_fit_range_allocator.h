@@ -64,7 +64,7 @@ class BestFitRangeAllocator : public NonCopyable {
 
  private:
   void AddFree(u32 offset, u32 size);
-  void RemoveFree(std::map<u32, u32>::iterator it);
+  void RemoveFree(const std::map<u32, u32>::iterator& it);
 
   u32 size_;
   u32 allocated_ = 0;

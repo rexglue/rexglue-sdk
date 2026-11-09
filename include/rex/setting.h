@@ -196,7 +196,7 @@ class Setting final : public SettingBase {
    * @tparam Traits The traits, such as Range, Allowed, kRestart or kNoSave.
    */
   template <typename... Traits>
-  Setting(SettingOwner* owner, std::string_view name, T default_value, std::string_view help,
+  Setting(SettingOwner* owner, std::string_view name, const T& default_value, std::string_view help,
           Traits... traits);
 
   /** Returns the value. A path comes back with its {scope.name} references resolved. */
@@ -337,7 +337,7 @@ inline void ApplyTrait(SettingConstraints& c, KeyChordTrait) {
 
 template <typename T>
 template <typename... Traits>
-Setting<T>::Setting(SettingOwner* owner, std::string_view name, T default_value,
+Setting<T>::Setting(SettingOwner* owner, std::string_view name, const T& default_value,
                     std::string_view help, Traits... traits)
     : SettingBase(*owner, name, detail::TypeOf<T>(), help),
       default_(default_value),

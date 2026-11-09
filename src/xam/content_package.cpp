@@ -281,21 +281,20 @@ Result<void> ContentManager::SetContentEnabled(const kernel::XCONTENT_AGGREGATE_
     if (!std::filesystem::exists(ResolvePackagePath(0, resolved))) {
       return Err(kernel::XResultError(kernel::X_ERROR_FILE_NOT_FOUND));
     }
-    LoadEnableEntriesLocked();
+    std::vector<EnableEntry>& entries = LoadEnableEntriesLocked();
     const std::string file_name = resolved.GetFileName();
-    auto entry = std::ranges::find_if(*enable_entries_, [&](const EnableEntry& candidate) {
+    auto entry = std::ranges::find_if(entries, [&](const EnableEntry& candidate) {
       return candidate.title_id == resolved.title_id &&
              candidate.content_type == resolved.content_type && candidate.file_name == file_name &&
              candidate.xuid == xuid;
     });
-    if (entry != enable_entries_->end()) {
+    if (entry != entries.end()) {
       if (entry->enabled == enabled) {
         return Ok();
       }
       entry->enabled = enabled;
     } else {
-      enable_entries_->push_back(
-          {resolved.title_id, resolved.content_type, file_name, xuid, enabled});
+      entries.push_back({resolved.title_id, resolved.content_type, file_name, xuid, enabled});
     }
     SaveEnableEntriesLocked();
   }
@@ -410,10 +409,10 @@ bool ContentManager::IsContentEnabled(u32 title_id, kernel::XContentType content
 
 bool ContentManager::IsContentEnabledLocked(u32 title_id, kernel::XContentType content_type,
                                             std::string_view file_name) const {
-  LoadEnableEntriesLocked();
+  const std::vector<EnableEntry>& entries = LoadEnableEntriesLocked();
   const u64 profile = user_profile_.GetXUID();
   std::optional<bool> all_profiles;
-  for (const EnableEntry& entry : *enable_entries_) {
+  for (const EnableEntry& entry : entries) {
     if (entry.title_id != title_id || entry.content_type != content_type ||
         entry.file_name != file_name) {
       continue;
@@ -431,22 +430,22 @@ std::filesystem::path ContentManager::GetEnableStatePath() const {
   return root_path_.empty() ? std::filesystem::path{} : root_path_ / kEnableStateFileName;
 }
 
-void ContentManager::LoadEnableEntriesLocked() const {
+std::vector<ContentManager::EnableEntry>& ContentManager::LoadEnableEntriesLocked() const {
   if (enable_entries_) {
-    return;
+    return *enable_entries_;
   }
-  enable_entries_.emplace();
+  std::vector<EnableEntry>& entries = enable_entries_.emplace();
   const std::filesystem::path path = GetEnableStatePath();
   if (path.empty()) {
-    return;
+    return entries;
   }
   const std::optional<toml::table> table = ParseHostToml(path);
   if (!table) {
-    return;
+    return entries;
   }
   const auto* packages = (*table)["package"].as_array();
   if (!packages) {
-    return;
+    return entries;
   }
   for (const auto& node : *packages) {
     const auto* entry = node.as_table();
@@ -468,9 +467,10 @@ void ContentManager::LoadEnableEntriesLocked() const {
       loaded.xuid = value;
     }
     if (!loaded.file_name.empty()) {
-      enable_entries_->push_back(std::move(loaded));
+      entries.push_back(std::move(loaded));
     }
   }
+  return entries;
 }
 
 void ContentManager::SaveEnableEntriesLocked() const {

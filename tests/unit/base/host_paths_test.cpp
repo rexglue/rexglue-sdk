@@ -31,7 +31,7 @@ namespace {
 
 class EnvGuard {
  public:
-  EnvGuard(std::string name, std::optional<std::string> value) : name_(std::move(name)) {
+  EnvGuard(std::string name, const std::optional<std::string>& value) : name_(std::move(name)) {
     saved_ = rex::platform::GetEnvironmentValue(name_);
     Apply(value);
   }

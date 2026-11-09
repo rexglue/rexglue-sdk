@@ -25,14 +25,14 @@ struct EarlyClockReads {
         tick_count(rex::Clock::QueryGuestTickCount()) {}
 };
 
-const EarlyClockReads g_early_reads;
+const EarlyClockReads kEarlyReads;
 
 }  // namespace
 
 REX_TEST_CASE("Clock globals are constant initialized", "[base][clock]") {
-  CHECK(g_early_reads.tick_frequency == rex::Clock::GetHostTickFrequency());
-  CHECK(g_early_reads.system_time != 0);
-  CHECK(g_early_reads.tick_count < rex::Clock::GetHostTickFrequency());
+  CHECK(kEarlyReads.tick_frequency == rex::Clock::GetHostTickFrequency());
+  CHECK(kEarlyReads.system_time != 0);
+  CHECK(kEarlyReads.tick_count < rex::Clock::GetHostTickFrequency());
 }
 
 REX_TEST_CASE("Guest system time tracks the host after the setters run", "[base][clock]") {

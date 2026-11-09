@@ -507,7 +507,7 @@ kernel::X_STATUS SocketObject::Connect(N_XSOCKADDR* name, u32 name_len) const {
   return kernel::X_STATUS_SUCCESS;
 }
 
-kernel::X_STATUS SocketObject::Bind(N_XSOCKADDR_IN* name, u32 name_len) {
+kernel::X_STATUS SocketObject::Bind(N_XSOCKADDR_IN* name, u32 name_len) const {
   if (name_len < sizeof(XSOCKADDR_IN) || name_len > kMaxSocketLength) {
     return kernel::X_STATUS_UNSUCCESSFUL;
   }

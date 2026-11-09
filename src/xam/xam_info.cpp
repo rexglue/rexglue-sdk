@@ -319,14 +319,14 @@ u32 AllocHeapBlock(u32 flags, u32 size, MappedU32 out_ptr) {
   // Flags 0 selects the title workspace, as kXamAllocWorkspace does.
   if (flags != 0 && !(flags & (kXamAllocWorkspace | kXamAllocSystem))) {
     REXXAM_ERROR("XamAlloc: flags {:#010x} select no heap", flags);
-    return kernel::X_E_UNEXPECTED;
+    return kernel::kXEUnexpected;
   }
   if (flags & kXamAllocSystem) {
     const u32 address = xam.AllocHeap(size);
     if (!address) {
       REXXAM_WARN("XamAlloc: the XAM heap has no room for {:#x} bytes, flags {:#010x}", size,
                   flags);
-      return kernel::X_E_OUTOFMEMORY;
+      return kernel::kXEOutOfMemory;
     }
     *out_ptr = address;
     return kernel::X_E_SUCCESS;
@@ -335,7 +335,7 @@ u32 AllocHeapBlock(u32 flags, u32 size, MappedU32 out_ptr) {
   if (!address) {
     REXXAM_WARN("XamAlloc: the title workspace has no room for {:#x} bytes, flags {:#010x}", size,
                 flags);
-    return kernel::X_E_OUTOFMEMORY;
+    return kernel::kXEOutOfMemory;
   }
   *out_ptr = *address;
   return kernel::X_E_SUCCESS;
@@ -371,7 +371,7 @@ u32 XamAllocEx_entry(u32 attributes, u32 flags, u32 size, MappedU32 out_ptr) {
   if (!address) {
     REXXAM_WARN("XamAllocEx: no physical memory for {:#x} bytes, attributes {:#010x}", size,
                 attributes);
-    return kernel::X_E_OUTOFMEMORY;
+    return kernel::kXEOutOfMemory;
   }
   if (attributes & kXamAllocExZero) {
     std::memset(CurrentTitle().membase.TranslateVirtual<u8*>(address), 0, size);

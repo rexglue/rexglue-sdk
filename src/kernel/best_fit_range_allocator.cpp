@@ -26,7 +26,7 @@ void BestFitRangeAllocator::AddFree(u32 offset, u32 size) {
   free_by_size_.emplace(size, offset);
 }
 
-void BestFitRangeAllocator::RemoveFree(std::map<u32, u32>::iterator it) {
+void BestFitRangeAllocator::RemoveFree(const std::map<u32, u32>::iterator& it) {
   free_by_size_.erase({it->second, it->first});
   free_by_address_.erase(it);
 }

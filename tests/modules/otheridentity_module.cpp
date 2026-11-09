@@ -13,20 +13,20 @@
 
 extern "C" {
 
-REX_DETAIL_EXPORT int ReXTestCreateCalls = 0;
-REX_DETAIL_EXPORT int ReXTestEnumerateCalls = 0;
+REX_DETAIL_EXPORT int rex_test_create_calls = 0;
+REX_DETAIL_EXPORT int rex_test_enumerate_calls = 0;
 
 REX_DETAIL_EXPORT const char* ReXBuildIdentity() {
   return "0.0.0-000000000000";
 }
 
 REX_DETAIL_EXPORT void* ReXCreateInterface(const char*, unsigned) {
-  ++ReXTestCreateCalls;
+  ++rex_test_create_calls;
   return nullptr;
 }
 
 REX_DETAIL_EXPORT unsigned ReXEnumerateInterfaces(void*, unsigned) {
-  ++ReXTestEnumerateCalls;
+  ++rex_test_enumerate_calls;
   return 0;
 }
 

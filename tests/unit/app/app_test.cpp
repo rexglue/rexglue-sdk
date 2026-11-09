@@ -88,8 +88,8 @@ class TestApp : public rex::test::ObjectApp<rex::app::App> {
   [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     g_events.push_back("app:configure");
     (void)settings;
-    (void)root.SetText(rex::SettingLayer::kTitle, folder.path.string());
-    (void)single_instance.SetText(rex::SettingLayer::kTitle, lock_name);
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder.path.string()));
+    REX_TRY_VOID(single_instance.SetText(rex::SettingLayer::kTitle, lock_name));
     if (fail_configure) {
       return rex::Err<void>(rex::ErrorCategory::kConfig, "configure failed");
     }
@@ -801,13 +801,14 @@ class OrderApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "order_input");
-    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "order_audio");
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(
+        GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "order_input"));
+    REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "order_audio"));
     if (dirty) {
-      (void)GetAudio().GetSettings().mute.SetText(rex::SettingLayer::kTitle, "true");
+      REX_TRY_VOID(GetAudio().GetSettings().mute.SetText(rex::SettingLayer::kTitle, "true"));
     }
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "order_ui");
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "order_ui"));
     return rex::Ok();
   }
 

@@ -23,7 +23,6 @@
 
 namespace {
 
-using rex::GetSettingsRegistry;
 using rex::SettingLayer;
 using rex::test::HarnessApp;
 using rex::test::RunInInit;
@@ -59,7 +58,10 @@ class PathOwner final : public rex::SettingOwner {
   REX_SETTING(std::filesystem::path, log_root, "{tpath.root}/logs", "Logs");
 
   size_t CountOwned() const { return GetOwnedSettings().size(); }
-  bool NamesRegistry() { return &REX_SETTINGS() == &REX_SETTINGS(); }
+  bool NamesRegistry() {
+    const rex::SettingsRegistry* first = &REX_SETTINGS();
+    return first == &REX_SETTINGS();
+  }
 };
 
 std::filesystem::path TempFile(const char* name) {

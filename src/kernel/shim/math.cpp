@@ -29,11 +29,11 @@ namespace {
 f64 ParseDouble(const char* text) {
   char* end = nullptr;
 #if REX_PLATFORM_WIN32
-  static const _locale_t c_locale = _create_locale(LC_NUMERIC, "C");
-  return _strtod_l(text, &end, c_locale);
+  static const _locale_t kCLocale = _create_locale(LC_NUMERIC, "C");
+  return _strtod_l(text, &end, kCLocale);
 #else
-  static const locale_t c_locale = newlocale(LC_ALL_MASK, "C", nullptr);
-  return strtod_l(text, &end, c_locale);
+  static const locale_t kCLocale = newlocale(LC_ALL_MASK, "C", nullptr);
+  return strtod_l(text, &end, kCLocale);
 #endif
 }
 

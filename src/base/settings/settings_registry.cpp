@@ -81,11 +81,12 @@ Result<void> SettingsRegistry::Register(SettingOwner& owner) {
       state_->waiting.erase(waiting);
       state_->awaiting.erase(name);
       for (size_t i = 0; i < kSettingLayerCount; ++i) {
-        if (!layers[i])
+        const auto& layer = layers[i];
+        if (!layer)
           continue;
         if (setting->GetLayer() > static_cast<SettingLayer>(i))
           continue;
-        if (auto r = setting->SetText(static_cast<SettingLayer>(i), *layers[i]); !r) {
+        if (auto r = setting->SetText(static_cast<SettingLayer>(i), *layer); !r) {
           state_->notices.push_back(r.error().GetDescription());
         }
       }

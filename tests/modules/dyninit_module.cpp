@@ -9,17 +9,18 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <cstdlib>
-
 #include <rex/module.h>
 
 namespace {
 
-const int g_mode = []() noexcept { return std::rand() % 2 + 1; }();
+const int kMode = []() noexcept {
+  volatile int seed = 2;
+  return seed % 2 + 1;
+}();
 
 class DynInitModule final : public rex::IModule {
  public:
-  std::string_view GetName() const override { return g_mode == 1 ? "dyninit" : "dyninit-other"; }
+  std::string_view GetName() const override { return kMode == 1 ? "dyninit" : "dyninit-other"; }
   rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
   rex::Result<void> Init() override { return {}; }

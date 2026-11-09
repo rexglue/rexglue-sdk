@@ -79,9 +79,12 @@ Result<void> UIModule::Init() {
     return Err(ErrorCategory::kModule, "the UI module finds no audio or graphics system");
   }
   if (system_->GetSettings().title.Get().empty() && driver && driver->HasDisplay()) {
-    (void)system_->GetSettings().title.SetText(
-        SettingLayer::kTitle,
-        std::string(info_->GetAppName()) + " " + std::string(REXGLUE_BUILD_LABEL));
+    if (auto set = system_->GetSettings().title.SetText(
+            SettingLayer::kTitle,
+            std::string(info_->GetAppName()) + " " + std::string(REXGLUE_BUILD_LABEL));
+        !set) {
+      REXUI_WARN("window title: {}", set.error().message);
+    }
   }
   if (auto started = system_->Start(driver, input, *audio, *graphics, *settings_, *logger_);
       !started) {

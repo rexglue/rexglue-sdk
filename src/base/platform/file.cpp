@@ -41,7 +41,7 @@ std::filesystem::path GetExecutableFolder() {
 }
 
 std::filesystem::path GetAppRoot(std::string_view app_name) {
-  const std::filesystem::path folder = GetExecutableFolder();
+  std::filesystem::path folder = GetExecutableFolder();
   if (!IsPackagedApp() && IsDirectoryWritable(folder)) {
     return folder;
   }

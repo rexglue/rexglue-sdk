@@ -110,7 +110,7 @@ struct InputSystem::State {
   Result<rex::hid::PadState> ReadRawLocked(u32 user);
   Result<InputSystem::PadReading> ReadUserLocked(u32 user);
   void UpdateConnectionsLocked(std::vector<ConnectionEvent>& events);
-  void Fire(const std::vector<ConnectionEvent>& events);
+  void Fire(const std::vector<ConnectionEvent>& events) const;
 };
 
 const detail::Device* InputSystem::State::FindDeviceLocked(const detail::DeviceKey& key) const {
@@ -270,7 +270,7 @@ Result<InputSystem::PadReading> InputSystem::State::ReadUserLocked(u32 user) {
   return InputSystem::PadReading{packet[user], state};
 }
 
-void InputSystem::State::Fire(const std::vector<ConnectionEvent>& events) {
+void InputSystem::State::Fire(const std::vector<ConnectionEvent>& events) const {
   if (events.empty()) {
     return;
   }

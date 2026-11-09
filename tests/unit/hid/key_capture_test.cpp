@@ -69,7 +69,7 @@ constexpr u32 PadBit(PadInput button) {
   return 1u << static_cast<u32>(button);
 }
 
-const std::chrono::steady_clock::time_point kStart{};
+constexpr std::chrono::steady_clock::time_point kStart{};
 
 }  // namespace
 

@@ -20,12 +20,13 @@ std::wstring DecodeToWide(UINT code_page, const std::string_view source) {
     return {};
   }
   const int length = static_cast<int>(source.size());
-  const int required = MultiByteToWideChar(code_page, 0, source.data(), length, nullptr, 0);
+  const char* const text = source.data();
+  const int required = MultiByteToWideChar(code_page, 0, text, length, nullptr, 0);
   if (required <= 0) {
     return {};
   }
   std::wstring result(static_cast<size_t>(required), L'\0');
-  MultiByteToWideChar(code_page, 0, source.data(), length, result.data(), required);
+  MultiByteToWideChar(code_page, 0, text, length, result.data(), required);
   return result;
 }
 
@@ -34,14 +35,14 @@ std::string EncodeFromWide(UINT code_page, const std::wstring_view source) {
     return {};
   }
   const int length = static_cast<int>(source.size());
+  const wchar_t* const text = source.data();
   const int required =
-      WideCharToMultiByte(code_page, 0, source.data(), length, nullptr, 0, nullptr, nullptr);
+      WideCharToMultiByte(code_page, 0, text, length, nullptr, 0, nullptr, nullptr);
   if (required <= 0) {
     return {};
   }
   std::string result(static_cast<size_t>(required), '\0');
-  WideCharToMultiByte(code_page, 0, source.data(), length, result.data(), required, nullptr,
-                      nullptr);
+  WideCharToMultiByte(code_page, 0, text, length, result.data(), required, nullptr, nullptr);
   return result;
 }
 

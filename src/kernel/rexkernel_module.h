@@ -88,6 +88,7 @@ class KernelModule final : public IModule, public IKernelControl {
 
  private:
   Result<void> RegisterSettings();
+  void RegisterCounters();
 
   KernelSettings kernel_settings_;
   IInterfaceFactory* factory_ = nullptr;

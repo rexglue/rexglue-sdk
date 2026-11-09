@@ -45,7 +45,7 @@ namespace rex::xam {
 /** What the header of a content package says, read without extracting the package. */
 struct PackageInfo {
   u32 title_id = 0;
-  kernel::XContentType content_type{};
+  kernel::XContentType content_type = kernel::XContentType::kInvalid;
   std::map<kernel::XLanguage, std::u16string> display_names; /**< Only the languages with a name. */
   std::u16string description;                                /**< The English description. */
   std::u16string publisher;

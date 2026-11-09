@@ -42,7 +42,7 @@ namespace rex::codegen {
 
 namespace {
 
-[[maybe_unused]] const bool g_tag_named = (memory::SetTagName(kCodegen, "Codegen"), true);
+[[maybe_unused]] const bool kTagNamed = (memory::SetTagName(kCodegen, "Codegen"), true);
 
 /** Revision of the emitted code, part of the module fingerprint. */
 constexpr u32 kEmitterRevision = 6;

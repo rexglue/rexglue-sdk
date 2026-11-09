@@ -10,7 +10,9 @@
 
 #include <rex/platform/process.h>
 
+#include <cctype>
 #include <cerrno>
+#include <charconv>
 #include <cstdio>
 #include <cstring>
 #include <format>
@@ -105,11 +107,21 @@ long ReadLong(const char* path) {
   if (!file) {
     return -1;
   }
-  long value = -1;
-  if (std::fscanf(file, "%ld", &value) != 1) {
-    value = -1;
-  }
+  char line[64];
+  const char* const text = std::fgets(line, sizeof(line), file);
   ::fclose(file);
+  if (!text) {
+    return -1;
+  }
+  const char* begin = text;
+  const char* const end = text + std::strlen(text);
+  while (begin != end && std::isspace(static_cast<unsigned char>(*begin))) {
+    ++begin;
+  }
+  long value = -1;
+  if (std::from_chars(begin, end, value).ec != std::errc{}) {
+    return -1;
+  }
   return value;
 }
 

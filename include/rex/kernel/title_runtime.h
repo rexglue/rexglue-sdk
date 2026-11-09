@@ -203,7 +203,7 @@ class REX_KERNEL_API TitleRuntime final : public rex::NonCopyable {
   /**
    * @return The settings, scope "kernel".
    */
-  KernelSettings& GetKernelSettings();
+  KernelSettings& GetKernelSettings() const;
 
   friend TitleState& StateOf(const TitleRuntime& runtime);
 

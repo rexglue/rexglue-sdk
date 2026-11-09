@@ -17,12 +17,6 @@
 #include "../ui/ui_harness.h"
 #include "xam/input_convert.h"
 
-using rex::xam::ToInputResult;
-using rex::xam::ToPadVibration;
-using rex::xam::ToXInputCapabilities;
-using rex::xam::ToXInputKeystroke;
-using rex::xam::ToXInputState;
-
 namespace {
 
 template <typename T>

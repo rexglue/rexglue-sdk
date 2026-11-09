@@ -166,7 +166,7 @@ inline constexpr u32 kFileObjectSize = 0x68;
 inline constexpr u16 kFileObjectTypeId = 5;
 
 /** The guest body of a file object. */
-struct X_FILE_OBJECT {
+struct XFileObject {
   be_u16 type; /**< `kFileObjectTypeId`. */
   u8 flags;
   u8 pad_03;
@@ -183,7 +183,7 @@ struct X_FILE_OBJECT {
   u8 unk_58;
   u8 pad_59[0xF];
 };
-REX_STATIC_ASSERT_SIZE(X_FILE_OBJECT, kFileObjectSize);
+REX_STATIC_ASSERT_SIZE(XFileObject, kFileObjectSize);
 
 /** Size of the guest body of an IO completion object. */
 inline constexpr u32 kIOCompletionObjectSize = 0x28;

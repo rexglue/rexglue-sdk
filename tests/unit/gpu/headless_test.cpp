@@ -75,12 +75,12 @@ class HeadlessApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
-    (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
-                           (folder_.path / "game").string());
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
-    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none");
-    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
+                                  (folder_.path / "game").string()));
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     return settings.SetText(rex::SettingLayer::kTitle, "gpu.driver", driver_);
   }
 
@@ -200,12 +200,12 @@ class NoDriverApp final : public rex::test::ObjectApp<rex::app::App> {
 
  protected:
   rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
-    (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
-                           (folder_.path / "game").string());
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
-    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none");
-    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
+                                  (folder_.path / "game").string()));
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     return rex::Ok();
   }
 

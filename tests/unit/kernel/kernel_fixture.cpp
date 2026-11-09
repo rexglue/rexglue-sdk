@@ -129,10 +129,10 @@ class FixtureApp final : public rex::test::ObjectApp<codegen::ToolApp> {
   Result<void> OnConfigure(SettingsRegistry& settings) override {
     REX_TRY_VOID(ToolApp::OnConfigure(settings));
     if (!audio_driver_.empty()) {
-      (void)GetAudio().GetSettings().driver.SetText(SettingLayer::kTitle, audio_driver_);
+      REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(SettingLayer::kTitle, audio_driver_));
     }
     if (!ui_driver_.empty()) {
-      (void)GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, ui_driver_);
+      REX_TRY_VOID(GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, ui_driver_));
     }
     return Ok();
   }

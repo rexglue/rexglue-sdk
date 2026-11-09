@@ -67,7 +67,7 @@ class HarnessApp final : public rex::test::ObjectApp<rex::app::App> {
 
  protected:
   Result<void> OnConfigure(SettingsRegistry& settings) override {
-    (void)root.SetText(SettingLayer::kTitle, folder.string());
+    REX_TRY_VOID(root.SetText(SettingLayer::kTitle, folder.string()));
     return Guard([&] { return configure ? configure(settings) : Ok(); });
   }
 

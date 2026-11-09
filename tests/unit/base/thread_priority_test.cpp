@@ -17,14 +17,14 @@
 #include <rex/types.h>
 
 REX_TEST_CASE("SetCurrentThreadPriority accepts every ThreadPriority value", "[base][thread]") {
-  constexpr std::array<rex::i32, 5> priorities = {
+  constexpr std::array<rex::i32, 5> kPriorities = {
       rex::platform::ThreadPriority::kLowest,  rex::platform::ThreadPriority::kBelowNormal,
       rex::platform::ThreadPriority::kNormal,  rex::platform::ThreadPriority::kAboveNormal,
       rex::platform::ThreadPriority::kHighest,
   };
   bool finished = false;
   std::thread worker([&] {
-    for (const rex::i32 priority : priorities) {
+    for (const rex::i32 priority : kPriorities) {
       rex::platform::SetCurrentThreadPriority(priority);
     }
     rex::platform::SetCurrentThreadPriority(rex::platform::ThreadPriority::kNormal);

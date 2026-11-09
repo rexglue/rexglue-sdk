@@ -23,18 +23,11 @@
 #include <string_view>
 #include <vector>
 
+#include <spdlog/details/log_msg.h>
+#include <spdlog/fwd.h>
+
 #include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
-
-namespace spdlog {
-class logger;
-namespace details {
-struct log_msg;
-}  // namespace details
-namespace sinks {
-class sink;
-}  // namespace sinks
-}  // namespace spdlog
 
 namespace rex::log {
 
@@ -67,7 +60,7 @@ struct Logger::State {
 
   log::Level GetSlotLevel(u16 slot) const { return levels[slot].load(std::memory_order_relaxed); }
 
-  void Write(const log::Message& message);
+  void Write(const log::Message& message) const;
 
   /** Keeps a message and hands it to every sink. */
   void Dispatch(const spdlog::details::log_msg& message, u64 message_sequence);
@@ -101,7 +94,7 @@ struct Logger::State {
   void RemoveCategories(std::span<const log::LogCategory* const> categories);
   bool AddSink(log::ILogSink& sink);
   void RemoveSink(log::ILogSink& sink);
-  void Flush();
+  void Flush() const;
   void ApplySettled();
   [[nodiscard]] Result<void> OpenFile(const std::filesystem::path& log_root,
                                       std::string_view app_name);
@@ -129,7 +122,7 @@ struct Logger::State {
   void FlushLocked();
   bool LockSinks(std::unique_lock<std::mutex>& lock, std::chrono::milliseconds timeout);
   void StopFlusher();
-  void StartFlusher(std::chrono::seconds interval);
+  void StartFlusher(std::chrono::seconds interval) const;
   void SetCrashFile(const std::filesystem::path& path);
   void Keep(const log::Message& message);
   void Replay(spdlog::sinks::sink& sink, bool notice);

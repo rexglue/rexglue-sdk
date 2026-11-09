@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <span>
 
 #include <format>
@@ -10,7 +11,7 @@ namespace rex::codegen {
 
 namespace {
 
-enum class Type { kString, kInteger, kBoolean, kArray, kTable };
+enum class Type : std::uint8_t { kString, kInteger, kBoolean, kArray, kTable };
 
 struct KeySpec {
   std::string_view name;

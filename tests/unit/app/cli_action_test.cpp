@@ -45,7 +45,7 @@ class ActionApp final : public rex::test::ObjectApp<rex::app::App> {
 
  protected:
   rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
     return rex::Ok();
   }
 

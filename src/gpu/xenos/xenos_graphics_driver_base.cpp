@@ -58,7 +58,7 @@ XenosGraphicsDriverBase::XenosGraphicsDriverBase() : vsync_worker_running_(false
 XenosGraphicsDriverBase::~XenosGraphicsDriverBase() {}
 
 void XenosGraphicsDriverBase::SetGraphicsSettings(GraphicsSettings* settings) {
-  provided_settings_ = settings;
+  provided_settings = settings;
 }
 
 Result<void> XenosGraphicsDriverBase::Initialize(IDriverContext& context) {
@@ -70,7 +70,7 @@ Result<void> XenosGraphicsDriverBase::Initialize(IDriverContext& context) {
                std::format("gpu.xenos settings: {}", registered.error().message));
   }
   settings_ = &context.GetSettingsRegistry();
-  graphics_settings_ = provided_settings_;
+  graphics_settings_ = provided_settings;
   return Ok();
 }
 
@@ -154,7 +154,7 @@ Result<void> XenosGraphicsDriverBase::AttachTitle(const TitleInfo& info, IPhysic
   command_processor_->SetDesiredSwapPostEffect(ParseSwapPostEffect(swap_post_effect.Get()));
 
   vsync_worker_running_ = true;
-  auto thread = guest_interrupts_->StartHostThread("GPU VSync", [this](std::stop_token) {
+  auto thread = guest_interrupts_->StartHostThread("GPU VSync", [this](const std::stop_token&) {
     f64 refresh_rate_hz = std::max(1.0, static_cast<f64>(title_info_.video_mode.refresh_rate));
     u64 guest_tick_frequency = Clock::GetGuestTickFrequency();
     u64 vsync_interval_ticks =

@@ -81,8 +81,8 @@
  * REX_DETAIL_MIDASM_PARAM(ExampleStep_rex_body, 0)
  * @endcode
  */
-#define REX_DETAIL_MIDASM_PARAM(body, index)                                           \
-  rex::ppc::detail::MidAsmErasedT<rex::ppc::detail::MidAsmArg<decltype(&body), index>> \
+#define REX_DETAIL_MIDASM_PARAM(body, index)                                               \
+  rex::ppc::detail::MidAsmErasedT<rex::ppc::detail::MidAsmArg<decltype(&(body)), (index)>> \
       rex_arg##index
 
 /**
@@ -92,8 +92,8 @@
  * REX_DETAIL_MIDASM_ARG(ExampleStep_rex_body, 0)
  * @endcode
  */
-#define REX_DETAIL_MIDASM_ARG(body, index)                                                 \
-  rex::ppc::detail::RestoreMidAsmArg<rex::ppc::detail::MidAsmArg<decltype(&body), index>>( \
+#define REX_DETAIL_MIDASM_ARG(body, index)                                                     \
+  rex::ppc::detail::RestoreMidAsmArg<rex::ppc::detail::MidAsmArg<decltype(&(body)), (index)>>( \
       rex_arg##index)
 
 /**
@@ -616,7 +616,7 @@ struct MidAsmErased<memory::MappedPtr<T>> {
 
 /** The entry type of a parameter. */
 template <typename T>
-using MidAsmErasedT = typename MidAsmErased<T>::Type;
+using MidAsmErasedT = MidAsmErased<T>::Type;
 
 /** Converts an entry argument back to the parameter type of the body. */
 template <typename T>
@@ -624,7 +624,7 @@ constexpr T RestoreMidAsmArg(MidAsmErasedT<T> value) {
   if constexpr (std::is_pointer_v<T>) {
     return static_cast<T>(value);
   } else if constexpr (memory::is_mapped_ptr_v<T>) {
-    return T(reinterpret_cast<typename memory::MappedPtrInnerType<T>::type*>(value.GetHostPtr()),
+    return T(reinterpret_cast<memory::MappedPtrInnerType<T>::type*>(value.GetHostPtr()),
              value.GetGuestAddress());
   } else {
     return value;

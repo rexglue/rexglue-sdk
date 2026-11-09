@@ -91,13 +91,13 @@ class LaunchApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
-    (void)settings.SetText(rex::SettingLayer::kTitle, "kernel.user_language", "0");
-    (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
-                           (folder_.path / "game").string());
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count");
-    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "count");
-    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, audio_driver);
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "kernel.user_language", "0"));
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
+                                  (folder_.path / "game").string()));
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count"));
+    REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "count"));
+    REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, audio_driver));
     return settings.SetText(rex::SettingLayer::kTitle, "gpu.driver", "count");
   }
 
@@ -234,7 +234,7 @@ REX_TEST_CASE_METHOD(Fixture, "device change notification sent once", "[kernel][
     auto settles_at = [&self, baseline](int expected_changes) {
       const int expected = baseline + expected_changes;
       REQUIRE(WaitFor([&] {
-        (void)self.GetInput().GetState(0);
+        [[maybe_unused]] auto polled = self.GetInput().GetState(0);
         return rex::test::g_entry.devices_changed == expected;
       }));
       CHECK(rex::test::g_entry.devices_changed == expected);

@@ -97,7 +97,8 @@ std::set<std::string> ListExportedNames(const std::vector<rex::u8>& bytes) {
   const rex::u32 name_count = ReadAt<rex::u32>(bytes, directory + 24);
   const size_t name_table = to_offset(ReadAt<rex::u32>(bytes, directory + 32));
   for (rex::u32 i = 0; i < name_count; ++i) {
-    names.insert(ReadCString(bytes, to_offset(ReadAt<rex::u32>(bytes, name_table + i * 4))));
+    names.insert(ReadCString(
+        bytes, to_offset(ReadAt<rex::u32>(bytes, name_table + static_cast<size_t>(i) * 4))));
   }
   return names;
 }

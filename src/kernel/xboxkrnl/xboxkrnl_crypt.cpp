@@ -996,10 +996,11 @@ void XeCryptAesCreateKeySchedule_entry(MappedVoid key, u32 key_size,
   std::array<u32, sizeof(schedule.keytab) / sizeof(u32)> words;
   std::memcpy(words.data(), schedule.keytab, sizeof(schedule.keytab));
   const u32 num_rounds = (key_size >> 2) + 5;
-  u32* decryption = words.data() + (num_rounds + 1) * 4;
-  rijndaelSetupEncrypt(words.data(), key.As<const u8*>(), key_size * 8);
-  std::memmove(decryption, words.data(), (num_rounds + 2) * 0x10);
-  rijndaelSetupDecrypt(decryption, key.As<const u8*>(), key_size * 8);
+  const int key_bits = static_cast<int>(key_size * 8);
+  u32* decryption = words.data() + (static_cast<size_t>(num_rounds) + 1) * 4;
+  rijndaelSetupEncrypt(words.data(), key.As<const u8*>(), key_bits);
+  std::memmove(decryption, words.data(), (static_cast<size_t>(num_rounds) + 2) * 0x10);
+  rijndaelSetupDecrypt(decryption, key.As<const u8*>(), key_bits);
   std::memcpy(schedule.keytab, words.data(), sizeof(schedule.keytab));
   schedule.num_rounds = num_rounds;
   ToGuest(schedule, *schedule_ptr);

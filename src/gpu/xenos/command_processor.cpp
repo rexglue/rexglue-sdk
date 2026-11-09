@@ -58,8 +58,18 @@ ReadbackResolveMode ParseReadbackResolveMode(std::string_view value) {
   return ReadbackResolveMode::kDisabled;
 }
 
+log::OncePerKey<1> store_failed_once;
+
+void StoreReleaseHost(IPhysicalMemory& memory, u32 address, u32 value) {
+  const u32 physical = address & kPhysicalAddressMask;
+  if (auto stored = memory.StoreRelease32(physical, value); !stored) {
+    REXGPU_WARN_ONCE(store_failed_once, 0, "GPU: Store to physical {:08X} failed, {}", physical,
+                     stored.error().message);
+  }
+}
+
 void StoreRelease(IPhysicalMemory& memory, u32 address, u32 value) {
-  (void)memory.StoreRelease32(address & kPhysicalAddressMask, rex::byte_swap(value));
+  StoreReleaseHost(memory, address, rex::byte_swap(value));
 }
 
 u32 LoadAcquire(IPhysicalMemory& memory, u32 address) {
@@ -104,7 +114,7 @@ bool CommandProcessor::Initialize() {
   }
 
   worker_running_ = true;
-  auto thread = guest_interrupts_.StartHostThread("GPU Commands", [this](std::stop_token) {
+  auto thread = guest_interrupts_.StartHostThread("GPU Commands", [this](const std::stop_token&) {
     worker_thread_id_ = std::this_thread::get_id();
     WorkerThreadMain();
   });
@@ -284,8 +294,7 @@ void CommandProcessor::WorkerThreadMain() {
     read_ptr_index_ = ExecutePrimaryBuffer(read_ptr_index_, write_ptr_index);
 
     if (read_ptr_writeback_ptr_) {
-      (void)physical_memory_.StoreRelease32(read_ptr_writeback_ptr_ & kPhysicalAddressMask,
-                                            read_ptr_index_);
+      StoreReleaseHost(physical_memory_, read_ptr_writeback_ptr_, read_ptr_index_);
     }
   }
 
@@ -351,7 +360,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
     if ((1 << scratch_reg) & regs.values[std::to_underlying(xenos::Register::SCRATCH_UMSK)]) {
       u32 scratch_addr = regs.values[std::to_underlying(xenos::Register::SCRATCH_ADDR)];
       u32 mem_addr = scratch_addr + (scratch_reg * 4);
-      (void)physical_memory_.StoreRelease32(mem_addr & kPhysicalAddressMask, value);
+      StoreReleaseHost(physical_memory_, mem_addr, value);
     }
   } else {
     switch (index) {

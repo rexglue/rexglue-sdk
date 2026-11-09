@@ -134,7 +134,7 @@ class ContentManager final : public rex::xam::IContentManager {
   /** One enable flag, for all profiles when xuid is empty. */
   struct EnableEntry {
     u32 title_id = 0;
-    kernel::XContentType content_type{};
+    kernel::XContentType content_type = kernel::XContentType::kInvalid;
     std::string file_name;
     std::optional<u64> xuid;
     bool enabled = true;
@@ -164,7 +164,7 @@ class ContentManager final : public rex::xam::IContentManager {
   bool IsContentEnabledLocked(u32 title_id, kernel::XContentType content_type,
                               std::string_view file_name) const;
   std::filesystem::path GetEnableStatePath() const;
-  void LoadEnableEntriesLocked() const;
+  std::vector<EnableEntry>& LoadEnableEntriesLocked() const;
   void SaveEnableEntriesLocked() const;
   void NotifyContentChanged();
 

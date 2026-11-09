@@ -151,9 +151,11 @@ struct be_ptr {
   be_ptr& operator=(P host_pointer) {
     if constexpr (std::is_null_pointer_v<P>) {
       value = 0;
-    } else if (host_pointer == nullptr) {
-      value = 0;
     } else {
+      if (host_pointer == nullptr) {
+        value = 0;
+        return *this;
+      }
       auto* thread_state = rex::kernel::ThreadState::Get();
       REX_ASSERT(thread_state != nullptr);
       value = rex::memory::HostPtrToGuest(thread_state->GetAddressSpace()->GetVirtualMembase(),

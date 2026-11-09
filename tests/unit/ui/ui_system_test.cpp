@@ -58,13 +58,13 @@ class TextBoxDialog final : public rex::ui::DialogBase {
   bool Draw(ImGuiIO&) override {
     ImGui::Begin("text box");
     ImGui::SetKeyboardFocusHere();
-    ImGui::InputText("text", text, sizeof(text));
+    ImGui::InputText("text", text_, sizeof(text_));
     ImGui::End();
     return true;
   }
 
  private:
-  char text[32] = {};
+  char text_[32] = {};
 };
 
 class ClosingDialog final : public rex::ui::DialogBase {
@@ -113,7 +113,7 @@ void RunWithCallerContext(ImGuiContext* caller) {
     rex::ui::IUISystem& ui = app.GetUI();
     CHECK(ImGui::GetCurrentContext() == caller);
     NullRenderer renderer;
-    ui.ShowPrompt({.title = "Title", .body = "Body"}, [](rex::ui::PromptResult) {});
+    ui.ShowPrompt({.title = "Title", .body = "Body"}, [](const rex::ui::PromptResult&) {});
     Frames(app, ui, renderer, 3);
     REQUIRE(ui.HasDialogs());
     CHECK(ImGui::GetCurrentContext() == caller);
@@ -156,8 +156,8 @@ REX_TEST_CASE("API serves the UI system only while the app runs", "[ui]") {
 REX_TEST_CASE("headless loop runs", "[ui]") {
   UIApp app(false);
   app.configure = [](rex::ui::IUISystem& ui) {
-    (void)ui.GetSettings().video_mode_width.SetText(rex::SettingLayer::kTitle, "1920");
-    (void)ui.GetSettings().video_mode_height.SetText(rex::SettingLayer::kTitle, "1080");
+    CHECK(ui.GetSettings().video_mode_width.SetText(rex::SettingLayer::kTitle, "1920"));
+    CHECK(ui.GetSettings().video_mode_height.SetText(rex::SettingLayer::kTitle, "1080"));
   };
   REQUIRE(app.Start());
   rex::ui::IUISystem& ui = app.GetUI();
@@ -194,7 +194,7 @@ REX_TEST_CASE("prompt cancels with no window", "[ui]") {
   rex::ui::IUISystem& ui = app.GetUI();
   int calls = 0;
   bool canceled = false;
-  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [&](rex::ui::PromptResult result) {
+  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [&](const rex::ui::PromptResult& result) {
     ++calls;
     canceled = result.canceled;
   });
@@ -506,7 +506,7 @@ REX_TEST_CASE("a prompt on an open window completes cancelled when the prompts a
   NullRenderer renderer;
   int calls = 0;
   bool canceled = false;
-  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [&](rex::ui::PromptResult result) {
+  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [&](const rex::ui::PromptResult& result) {
     ++calls;
     canceled = result.canceled;
   });
@@ -526,7 +526,7 @@ REX_TEST_CASE("a prompt pending at Shutdown completes cancelled", "[ui]") {
   NullRenderer renderer;
   int calls = 0;
   bool canceled = false;
-  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [&](rex::ui::PromptResult result) {
+  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [&](const rex::ui::PromptResult& result) {
     ++calls;
     canceled = result.canceled;
   });
@@ -578,7 +578,7 @@ REX_TEST_CASE("Shutdown joins a worker that waits on the UI thread with a dialog
   REQUIRE(app.Start());
   rex::ui::IUISystem& ui = app.GetUI();
   NullRenderer renderer;
-  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [](rex::ui::PromptResult) {});
+  ui.ShowPrompt({.title = "Prompt", .body = "Body"}, [](const rex::ui::PromptResult&) {});
   Frames(app, ui, renderer, 3);
   REQUIRE(ui.HasDialogs());
   std::atomic<bool> running{true};

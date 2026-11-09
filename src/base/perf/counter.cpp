@@ -20,7 +20,10 @@ namespace rex {
 PerfSettings& GetPerfSettings() {
   static PerfSettings& settings = [] -> PerfSettings& {
     static PerfSettings owner;
-    (void)REX_SETTINGS().Register(owner);
+    if (auto registered = REX_SETTINGS().Register(owner); !registered) {
+      std::fprintf(stderr, "perf settings are not registered, %s\n",
+                   registered.error().message.c_str());
+    }
     return owner;
   }();
   return settings;

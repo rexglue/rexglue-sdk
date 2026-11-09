@@ -90,7 +90,7 @@ struct XDBFAchievementTableEntry {
   be_u16 unachieved_id;  /**< String ID of the description shown while locked. */
   be_u32 image_id;       /**< Image entry ID of the icon. */
   be_u16 gamerscore;
-  be_u16 unk0E;
+  be_u16 unk0e;
   be_u32 flags;
   be_u32 unk14;
   be_u32 unk18;

@@ -228,7 +228,7 @@ REX_TEST_CASE("connection callback holds no lock", "[hid]") {
   Run("fake_a", [](rex::hid::IInputSystem& input) {
     bool answered = false;
     auto watch = input.OnConnectionChange([&](u32 user, bool) {
-      (void)input.GetState(user);
+      [[maybe_unused]] auto polled = input.GetState(user);
       answered = true;
     });
     g_fake[0].devices = {MakePad(1, 0)};

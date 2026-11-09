@@ -31,6 +31,7 @@ namespace rex::kernel {
 
 /** Type of a content package and the hex folder name of its path. */
 enum class XContentType : u32 {
+  kInvalid = 0x00000000, /**< No content type. */
   kSavedGame = 0x00000001,
   kMarketplaceContent = 0x00000002,
   kPublisher = 0x00000003,

@@ -38,7 +38,10 @@ u32 HeaderType(rex::kernel::GuestAddressSpace* memory, u32 body) {
 u32 ExportedType(Caller& c, u16 ordinal) {
   auto& runtime = c.GetRuntime();
   const auto kernel_module = runtime.GetModuleRegistry().FindKernelModule("xboxkrnl.exe");
-  REQUIRE(kernel_module);
+  REQUIRE(kernel_module.has_value());
+  if (!kernel_module) {
+    return 0;
+  }
   auto module = runtime.GetObjectTable().Get<rex::kernel::ModuleObject>(*kernel_module);
   REQUIRE(module);
   return module->GetVariable(ordinal);

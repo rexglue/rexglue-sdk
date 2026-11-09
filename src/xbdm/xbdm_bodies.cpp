@@ -12,14 +12,14 @@ XBDMBodyRegistrar* g_last = nullptr;
 }  // namespace
 
 std::span<const XBDMBody> XBDMExports::GetBodies() const {
-  static const std::vector<XBDMBody> bodies = [] {
+  static const std::vector<XBDMBody> kBodies = [] {
     std::vector<XBDMBody> collected;
     for (const XBDMBodyRegistrar* registrar = g_first; registrar; registrar = registrar->next_) {
       collected.push_back(registrar->body_);
     }
     return collected;
   }();
-  return bodies;
+  return kBodies;
 }
 
 XBDMBodyRegistrar::XBDMBodyRegistrar(std::string_view name, PPCFunc* function) noexcept

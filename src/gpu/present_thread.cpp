@@ -35,7 +35,7 @@ void SleepUntil(std::chrono::steady_clock::time_point deadline, const std::stop_
 
 }  // namespace
 
-void GraphicsSystem::State::PresentLoop(std::stop_token stop) {
+void GraphicsSystem::State::PresentLoop(const std::stop_token& stop) {
   auto next_present = std::chrono::steady_clock::now();
   while (!stop.stop_requested()) {
     const rex::gpu::FrameStatus status = driver->WaitForFrame(kFrameWaitMs);

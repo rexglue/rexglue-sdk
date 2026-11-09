@@ -71,7 +71,7 @@ Result<void> XInputInputDriver::Initialize(IDriverContext&) {
     return Err(ErrorCategory::kPlatform, "xinput1_4.dll lacks a required export");
   }
   Poll();
-  plug_poll_ = std::jthread([this](std::stop_token stop) {
+  plug_poll_ = std::jthread([this](const std::stop_token& stop) {
     std::unique_lock lock(wake_mutex_);
     while (!stop.stop_requested()) {
       wake_.wait_for(lock, stop, kPollInterval, [] { return false; });

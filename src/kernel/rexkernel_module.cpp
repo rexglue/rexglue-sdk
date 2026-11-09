@@ -2,6 +2,7 @@
 #include <rex/xam/language.h>
 #include <rex/xam/title_lifecycle.h>
 
+#include <array>
 #include <atomic>
 #include <span>
 
@@ -14,6 +15,7 @@
 #include <rex/kernel/runtime_settings.h>
 #include <rex/logging/log_category.h>
 #include <rex/logging/logger.h>
+#include <rex/platform/perf.h>
 #include <rex/settings_registry.h>
 #include <rex/ui/ui_system.h>
 
@@ -51,6 +53,26 @@ std::span<const InterfaceType> KernelModule::GetRequiredInterfaces() const {
   return kRequired;
 }
 
+void KernelModule::RegisterCounters() {
+  struct Entry {
+    const char* name;
+    platform::CounterType type;
+  };
+  constexpr std::array<Entry, 6> kCounters = {{
+      {"xma_frames_decoded", platform::CounterType::kAccumulator},
+      {"functions_dispatched", platform::CounterType::kAccumulator},
+      {"interrupt_dispatches", platform::CounterType::kAccumulator},
+      {"active_threads", platform::CounterType::kGauge},
+      {"apc_queue_depth", platform::CounterType::kAccumulator},
+      {"critical_region_contentions", platform::CounterType::kGauge},
+  }};
+  for (const Entry& entry : kCounters) {
+    if (auto counter = platform::RegisterCounter(entry.name, entry.type); !counter) {
+      REXSYS_WARN("{}", counter.error().message);
+    }
+  }
+}
+
 Result<void> KernelModule::Connect(IInterfaceFactory& factory) {
   factory_ = &factory;
   settings_ = factory.Get<ISettingsRegistry>();
@@ -60,6 +82,7 @@ Result<void> KernelModule::Connect(IInterfaceFactory& factory) {
     logger_->RemoveCategories(log::kRuntimeLog);
     return registered;
   }
+  RegisterCounters();
   g_services = {};
   g_services.file_system = factory.Get<filesystem::IFileSystemFactory>();
   g_services.input = factory.Get<hid::IInputSystem>();

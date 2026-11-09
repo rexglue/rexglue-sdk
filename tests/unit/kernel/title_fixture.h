@@ -69,10 +69,10 @@ struct TitleBoot {
   }
 
   ~TitleBoot() {
-    (void)kernel::GetTitlePaths().game_root.Reset();
-    (void)kernel::GetTitlePaths().game_writable.Reset();
-    (void)kernel::GetTitlePaths().metadata_root.Reset();
-    (void)kernel::GetTitlePaths().entry.Reset();
+    CHECK(kernel::GetTitlePaths().game_root.Reset());
+    CHECK(kernel::GetTitlePaths().game_writable.Reset());
+    CHECK(kernel::GetTitlePaths().metadata_root.Reset());
+    CHECK(kernel::GetTitlePaths().entry.Reset());
   }
 
   TempFolder folder;

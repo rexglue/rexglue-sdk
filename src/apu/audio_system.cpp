@@ -137,7 +137,7 @@ Result<void> AudioSystem::Submit(rex::apu::AudioStreamID stream, rex::apu::Audio
   QueuedFrame queued;
   std::ranges::copy(frame, queued.samples.begin());
   queued.submitted = Clock::now();
-  slot.queue.push_back(std::move(queued));
+  slot.queue.push_back(queued);
   return Ok();
 }
 
@@ -196,7 +196,7 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
           s.pad = true;
           continue;
         }
-        taken[i] = std::move(slot.queue.front());
+        taken[i] = slot.queue.front();
         slot.queue.pop_front();
         have[i] = true;
         s.latency_sum_us += static_cast<u64>(

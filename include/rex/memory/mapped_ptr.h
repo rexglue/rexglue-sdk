@@ -362,7 +362,7 @@ namespace rex::memory::detail {
 #ifndef REX_PHYSICAL_OFFSET_IN_CODE
 #error "REX_PHYSICAL_OFFSET_IN_CODE is set by the CMake option of the same name"
 #endif
-inline constexpr bool kPhysicalOffsetInCode = REX_PHYSICAL_OFFSET_IN_CODE != 0;
+inline constexpr bool kPhysicalOffsetInCode = static_cast<bool>(REX_PHYSICAL_OFFSET_IN_CODE);
 
 /**
  * Returns the offset code adds to the host address of a guest address: 0x1000 from 0xE0000000 up

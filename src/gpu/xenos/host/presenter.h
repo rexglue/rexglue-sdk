@@ -564,7 +564,7 @@ class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
   bool surface_paint_connection_vsync_ = true;
 
   /** UI thread only. Start of the previous paint, which spaces overlay only paints. */
-  std::chrono::steady_clock::time_point last_ui_thread_paint_start_{};
+  std::chrono::steady_clock::time_point last_ui_thread_paint_start_;
 
   std::mutex guest_output_paint_config_mutex_;
   /** Writable by the UI thread, read only for the guest output thread. */

@@ -151,9 +151,9 @@ class AudioApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry& registry) override {
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
-                                               windowed ? "fake" : "none");
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
+                                                      windowed ? "fake" : "none"));
     for (const auto& [name, value] : settings_) {
       REX_TRY_VOID(registry.SetText(rex::SettingLayer::kTitle, name, value));
     }
@@ -212,7 +212,7 @@ class Feeder {
       : thread_([this, &audio, stream, frame] {
           while (!stop_) {
             if (audio.GetStats().queued_frames < 3) {
-              (void)audio.Submit(stream, frame);
+              [[maybe_unused]] auto submitted = audio.Submit(stream, frame);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
           }
@@ -603,7 +603,7 @@ REX_TEST_CASE("the device gets exactly the samples it asks for", "[apu]") {
     const auto blocks = g_device.Take();
     std::vector<rex::f32> first;
     for (const Block& block : blocks) {
-      CHECK(block.size() == 480 * 6);
+      CHECK(block.size() == static_cast<size_t>(480) * 6);
       for (rex::u32 n = 0; n < 480; ++n) {
         first.push_back(At(block, 6, 0, n));
       }
@@ -613,7 +613,7 @@ REX_TEST_CASE("the device gets exactly the samples it asks for", "[apu]") {
         CHECK(Near(first[i * kPeriodFrames + n], 0.1f * static_cast<rex::f32>(i + 1), 1e-5f));
       }
     }
-    CHECK(first[6 * kPeriodFrames] == 0.0f);
+    CHECK(first[static_cast<size_t>(6) * kPeriodFrames] == 0.0f);
     audio.CloseStream(*stream);
   });
 }

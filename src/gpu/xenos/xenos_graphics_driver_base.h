@@ -168,7 +168,7 @@ class REX_GPU_XENOS_API XenosGraphicsDriverBase : public IXenosGraphicsDriver,
 
   ISettingsRegistry* settings_ = nullptr;
   GraphicsSettings* graphics_settings_ = nullptr;
-  static inline GraphicsSettings* provided_settings_ = nullptr;
+  static inline GraphicsSettings* provided_settings = nullptr;
   std::atomic<bool> vsync_worker_running_;
   ScopeGuard vsync_worker_thread_;
 

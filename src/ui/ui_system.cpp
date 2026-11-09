@@ -574,7 +574,7 @@ void UISystem::CancelPrompts() {
   s.DestroyPrompts();
 }
 
-void UISystem::State::DestroyPrompts() {
+void UISystem::State::DestroyPrompts() const {
   if (imgui) {
     imgui->DestroyOwnedDialogs();
   }

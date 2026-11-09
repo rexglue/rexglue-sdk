@@ -332,8 +332,8 @@ REX_TEST_CASE("load refuses another build identity before calling the module", "
                     rex::detail::ModuleFileName("rexmodule-test-otheridentity");
   rex::platform::DynamicLibrary probe;
   REQUIRE(probe.Load(file, rex::platform::SymbolResolution::kImmediate));
-  auto* create_calls = probe.GetSymbol<int*>("ReXTestCreateCalls");
-  auto* enumerate_calls = probe.GetSymbol<int*>("ReXTestEnumerateCalls");
+  auto* create_calls = probe.GetSymbol<int*>("rex_test_create_calls");
+  auto* enumerate_calls = probe.GetSymbol<int*>("rex_test_enumerate_calls");
   REQUIRE(create_calls != nullptr);
   REQUIRE(enumerate_calls != nullptr);
   rex::ModuleGroup group;

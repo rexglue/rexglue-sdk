@@ -151,7 +151,7 @@ REX_TEST_CASE("interrupt refused on a foreign thread", "[kernel][title_context]"
   CHECK_FALSE(context.RaiseGraphicsInterrupt(0, 2).has_value());
 
   std::atomic<int> host_result{-1};
-  auto thread = context.StartHostThread("title context test", [&](std::stop_token) {
+  auto thread = context.StartHostThread("title context test", [&](const std::stop_token&) {
     host_result = context.RaiseGraphicsInterrupt(0, 2).has_value() ? 1 : 0;
   });
   REQUIRE(thread.has_value());

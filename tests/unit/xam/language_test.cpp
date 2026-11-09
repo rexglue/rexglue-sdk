@@ -33,9 +33,6 @@
 
 using rex::kernel::XLanguage;
 using rex::ui::HostLocale;
-using rex::xam::GetLanguageForLocale;
-using rex::xam::GetLanguageForLocales;
-using rex::xam::ParseLanguageCode;
 
 namespace {
 
@@ -62,7 +59,7 @@ class BootedRuntime {
   ~BootedRuntime() {
     rex::kernel::ThreadState::Bind(previous_);
     runtime_->Unload();
-    (void)runtime_->GetKernelSettings().user_language.Set(1);
+    CHECK(runtime_->GetKernelSettings().user_language.Set(1));
   }
 
   rex::kernel::TitleRuntime& GetRuntime() { return *runtime_; }

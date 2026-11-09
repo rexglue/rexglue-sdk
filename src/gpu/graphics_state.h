@@ -34,7 +34,7 @@ struct GraphicsSystem::State {
 
   void CountFrame();
 
-  void PresentLoop(std::stop_token stop);
+  void PresentLoop(const std::stop_token& stop);
 
   /** Warns once that a Vd call arrived with no Xenos driver. */
   void WarnNoXenos(const char* what);

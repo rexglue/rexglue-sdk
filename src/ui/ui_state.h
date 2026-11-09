@@ -144,7 +144,7 @@ struct UISystem::State {
   void ApplyPointerMode(PointerMode mode);
   void UpdateCursorTimeout();
   void SyncOverlayBlock();
-  void DestroyPrompts();
+  void DestroyPrompts() const;
   void CreateImGui();
   void CreateToast();
   void ReleaseToast();

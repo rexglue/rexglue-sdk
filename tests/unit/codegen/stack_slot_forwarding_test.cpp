@@ -163,6 +163,7 @@ REX_TEST_CASE("A word write forwards to a float load", "[codegen][forwarding]") 
 
 REX_TEST_CASE("The ninth slot evicts the first", "[codegen][forwarding]") {
   std::vector<u32> words;
+  words.reserve(kSlotCount);
   for (u32 i = 0; i < kSlotCount; ++i) {
     words.push_back(kStwR11Slot0 | (0x50 + 4 * i));
   }

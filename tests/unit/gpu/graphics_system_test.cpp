@@ -187,7 +187,7 @@ class GraphicsApp final : public rex::test::ObjectApp<rex::codegen::ToolApp> {
     rex::test::ReleaseTestMemory();
   }
 
-  rex::Result<void> Start() { return Init(rex::CLIArgList::Parse(std::vector<std::string>{})); }
+  rex::Result<void> StartApp() { return Init(rex::CLIArgList::Parse(std::vector<std::string>{})); }
 
   rex::Result<rex::codegen::ToolRuntime> OpenTitle() { return Open(folder_.path); }
 
@@ -210,14 +210,14 @@ class GraphicsApp final : public rex::test::ObjectApp<rex::codegen::ToolApp> {
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     REX_TRY_VOID(ToolApp::OnConfigure(settings));
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetGraphics().GetSettings().driver.SetText(rex::SettingLayer::kTitle, driver_);
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetGraphics().GetSettings().driver.SetText(rex::SettingLayer::kTitle, driver_));
     if (with_ui_) {
-      (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "fake");
+      REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "fake"));
     }
     if (!frame_limit_.empty()) {
-      (void)GetGraphics().GetSettings().frame_limit.SetText(rex::SettingLayer::kTitle,
-                                                            frame_limit_);
+      REX_TRY_VOID(
+          GetGraphics().GetSettings().frame_limit.SetText(rex::SettingLayer::kTitle, frame_limit_));
     }
     return rex::Ok();
   }
@@ -256,7 +256,7 @@ constexpr rex::u32 kRegisterBase = rex::ppc::MMIOBlockBase(rex::ppc::MMIOBlock::
 
 REX_TEST_CASE("present thread order", "[gpu]") {
   GraphicsApp app("fake");
-  REQUIRE(app.Start());
+  REQUIRE(app.StartApp());
   REQUIRE(WaitFor([] { return g_fake.presents.load() >= 3; }));
   app.Shutdown();
 
@@ -271,7 +271,7 @@ REX_TEST_CASE("present thread order", "[gpu]") {
 
 REX_TEST_CASE("resize before begin", "[gpu]") {
   GraphicsApp app("fake", true);
-  REQUIRE(app.Start());
+  REQUIRE(app.StartApp());
   const std::string resize = "resize " + std::to_string(rex::test_ui::g_ui.width) + " " +
                              std::to_string(rex::test_ui::g_ui.height);
   REQUIRE(WaitFor([&] {
@@ -298,7 +298,7 @@ REX_TEST_CASE("resize before begin", "[gpu]") {
 
 REX_TEST_CASE("frame limit paces presents", "[gpu]") {
   GraphicsApp app("fake", false, "50");
-  REQUIRE(app.Start());
+  REQUIRE(app.StartApp());
   REQUIRE(WaitFor([] { return g_fake.presents.load() >= 1; }));
   const rex::u32 first = g_fake.presents.load();
   const auto start = std::chrono::steady_clock::now();
@@ -314,7 +314,7 @@ REX_TEST_CASE("frame limit paces presents", "[gpu]") {
 REX_TEST_CASE("API serves the graphics system only while the app runs", "[gpu]") {
   GraphicsApp app("fake");
   CHECK(REX_INTERFACE(rex::gpu::IGraphicsSystem) == nullptr);
-  REQUIRE(app.Start());
+  REQUIRE(app.StartApp());
   CHECK(REX_INTERFACE(rex::gpu::IGraphicsSystem) == &app.GetGraphics());
   app.Shutdown();
   CHECK(REX_INTERFACE(rex::gpu::IGraphicsSystem) == nullptr);
@@ -322,7 +322,7 @@ REX_TEST_CASE("API serves the graphics system only while the app runs", "[gpu]")
 
 REX_TEST_CASE("frame stats count new frames", "[gpu]") {
   GraphicsApp app("fake");
-  REQUIRE(app.Start());
+  REQUIRE(app.StartApp());
   rex::gpu::IGraphicsSystem& graphics = app.GetGraphics();
   g_fake.every_wait_is_new_frame = false;
   const rex::u32 first = g_fake.presents.load();
@@ -348,7 +348,7 @@ REX_TEST_CASE("frame stats count new frames", "[gpu]") {
 
 REX_TEST_CASE("an app that needs xenos refuses a graphics driver that is not xenos", "[gpu]") {
   GraphicsApp app("plain");
-  const auto started = app.Start();
+  const auto started = app.StartApp();
   REQUIRE_FALSE(started);
   CHECK(started.error().message.find("not a Xenos driver") != std::string::npos);
 }
@@ -415,11 +415,11 @@ class GPUApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
-    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none");
-    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
-    (void)GetGraphics().GetSettings().driver.SetText(rex::SettingLayer::kTitle, driver_);
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetGraphics().GetSettings().driver.SetText(rex::SettingLayer::kTitle, driver_));
     return rex::Ok();
   }
 

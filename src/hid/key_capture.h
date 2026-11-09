@@ -46,7 +46,7 @@ class KeyCapture final : public IKeyCapture {
   i32 wheel_seen_ = 0;
   i32 pending_ = -1;
   KeyModifiers pending_modifiers_ = KeyModifiers::kNone;
-  std::chrono::steady_clock::time_point pending_since_{};
+  std::chrono::steady_clock::time_point pending_since_;
   bool capturing_ = false;
   bool canceled_ = false;
 };

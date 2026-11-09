@@ -73,6 +73,7 @@ Result<void> InputModule::Init() {
     }
   }
   std::vector<rex::hid::IInputDriver*> started;
+  started.reserve(drivers_.size());
   for (const std::unique_ptr<IDriver>& driver : drivers_) {
     started.push_back(static_cast<rex::hid::IInputDriver*>(driver.get()));
   }

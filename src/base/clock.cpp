@@ -10,6 +10,7 @@
  */
 
 #include <algorithm>
+#include <cstdio>
 #include <limits>
 #include <mutex>
 
@@ -24,7 +25,10 @@ namespace rex {
 ClockSettings& GetClockSettings() {
   static ClockSettings& settings = [] -> ClockSettings& {
     static ClockSettings owner;
-    (void)REX_SETTINGS().Register(owner);
+    if (auto registered = REX_SETTINGS().Register(owner); !registered) {
+      std::fprintf(stderr, "clock settings are not registered, %s\n",
+                   registered.error().message.c_str());
+    }
     return owner;
   }();
   return settings;

@@ -30,8 +30,7 @@ class AllocModule {
     const auto path =
         rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexmod-test-alloc");
     REQUIRE(library_.Load(path, rex::platform::SymbolResolution::kImmediate));
-    const auto get =
-        library_.GetSymbol<const rex::test::AllocEntries* (*)()>("rexmod_alloc_entries");
+    const auto get = library_.GetSymbol<const rex::test::AllocEntries* (*)()>("GetAllocEntries");
     REQUIRE(get != nullptr);
     entries_ = get();
     REQUIRE(entries_ != nullptr);

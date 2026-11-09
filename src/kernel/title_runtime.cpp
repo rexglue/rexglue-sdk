@@ -12,7 +12,6 @@
 #include <rex/filesystem/file_system.h>
 #include <rex/filesystem/xdbf.h>
 #include "kernel/categories.h"
-#include <rex/platform/perf.h>
 #include <rex/kernel/object/object.h>
 #include <rex/kernel/function_dispatcher.h>
 #include <rex/result.h>
@@ -30,28 +29,7 @@ namespace rex::kernel {
 
 namespace {
 
-[[maybe_unused]] const bool g_tag_named = (memory::SetTagName(kernel::kRuntime, "Runtime"), true);
-
-[[maybe_unused]] const bool g_counters_registered = []() noexcept {
-  struct Entry {
-    const char* name;
-    platform::CounterType type;
-  };
-  constexpr Entry kCounters[] = {
-      {"xma_frames_decoded", platform::CounterType::kAccumulator},
-      {"functions_dispatched", platform::CounterType::kAccumulator},
-      {"interrupt_dispatches", platform::CounterType::kAccumulator},
-      {"active_threads", platform::CounterType::kGauge},
-      {"apc_queue_depth", platform::CounterType::kAccumulator},
-      {"critical_region_contentions", platform::CounterType::kGauge},
-  };
-  for (const Entry& entry : kCounters) {
-    if (auto counter = platform::RegisterCounter(entry.name, entry.type); !counter) {
-      REXSYS_WARN("{}", counter.error().message);
-    }
-  }
-  return true;
-}();
+[[maybe_unused]] const bool kTagNamed = (memory::SetTagName(kernel::kRuntime, "Runtime"), true);
 
 }  // namespace
 
@@ -192,7 +170,7 @@ RuntimeSettings& TitleRuntime::GetRuntimeSettings() {
   return rex::kernel::GetRuntimeSettings();
 }
 
-KernelSettings& TitleRuntime::GetKernelSettings() {
+KernelSettings& TitleRuntime::GetKernelSettings() const {
   return StateOf(*this).GetKernelSettings();
 }
 

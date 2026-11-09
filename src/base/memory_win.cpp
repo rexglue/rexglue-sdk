@@ -227,7 +227,7 @@ struct PlaceholderFunctions {
 };
 
 const PlaceholderFunctions& GetPlaceholderFunctions() {
-  static const PlaceholderFunctions functions = [] {
+  static const PlaceholderFunctions kFunctions = [] {
     PlaceholderFunctions resolved;
     if (HMODULE kernelbase = GetModuleHandleW(L"kernelbase.dll")) {
       resolved.alloc =
@@ -241,7 +241,7 @@ const PlaceholderFunctions& GetPlaceholderFunctions() {
     }
     return resolved;
   }();
-  return functions;
+  return kFunctions;
 }
 #endif
 

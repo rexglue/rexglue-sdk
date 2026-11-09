@@ -102,18 +102,29 @@ Message ToMessage(const spdlog::details::log_msg& message, u64 sequence) {
                  sequence};
 }
 
+void ReportSinkFailure() noexcept {
+  static std::atomic<bool> reported{false};
+  if (!reported.exchange(true)) {
+    std::fputs("a log sink threw an exception, later failures are not reported\n", stderr);
+  }
+}
+
 void SafeLog(spdlog::sinks::sink& sink, const spdlog::details::log_msg& message) noexcept {
   try {
     if (sink.should_log(message.level)) {
       sink.log(message);
     }
-  } catch (...) {}
+  } catch (...) {
+    ReportSinkFailure();
+  }
 }
 
 void SafeFlush(spdlog::sinks::sink& sink) noexcept {
   try {
     sink.flush();
-  } catch (...) {}
+  } catch (...) {
+    ReportSinkFailure();
+  }
 }
 
 class LetterFlag final : public spdlog::custom_flag_formatter {
@@ -531,7 +542,7 @@ void Logger::State::FlushSinks() {
   FlushLocked();
 }
 
-void Logger::State::Flush() {
+void Logger::State::Flush() const {
   engine->flush();
 }
 
@@ -577,7 +588,7 @@ void Logger::State::Dispatch(const spdlog::details::log_msg& message, u64 messag
   }
 }
 
-void Logger::State::Write(const log::Message& message) {
+void Logger::State::Write(const log::Message& message) const {
   engine->Emit(message);
 }
 
@@ -667,7 +678,7 @@ void Logger::State::StopFlusher() {
   spdlog::shutdown();
 }
 
-void Logger::State::StartFlusher(std::chrono::seconds interval) {
+void Logger::State::StartFlusher(std::chrono::seconds interval) const {
   spdlog::register_logger(engine);
   spdlog::flush_every(interval);
 }
@@ -748,9 +759,15 @@ Logger::Logger() : SettingOwner("log"), state_(std::make_unique<State>(*this)) {
   reapply(debugger);
   reapply(pattern);
   reapply(color);
-  (void)REX_SETTINGS().Register(*this);
+  if (auto registered = REX_SETTINGS().Register(*this); !registered) {
+    std::fprintf(stderr, "log: registering the log settings failed, %s\n",
+                 registered.error().message.c_str());
+  }
   const log::LogCategory* core[] = {&log::core, &log::system};
-  (void)state_->AddCategories(core);
+  if (auto added = state_->AddCategories(core); !added) {
+    std::fprintf(stderr, "log: adding the core log categories failed, %s\n",
+                 added.error().message.c_str());
+  }
 }
 
 Result<void> Logger::AddCategories(std::span<const log::LogCategory* const> categories) {

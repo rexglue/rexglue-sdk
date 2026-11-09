@@ -224,7 +224,10 @@ REX_TEST_CASE("An unknown project key warns with the file", "[codegen][keys]") {
   rex::test::TempFolder folder;
   const auto manifest =
       rex::codegen::ManifestConfig::Load(WriteKeyed(folder, "game_rooot = \"x\"\n", "", "", ""));
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
   CHECK(Mentions(manifest->warnings, "game_rooot"));
   CHECK(Mentions(manifest->warnings, "demo_manifest.toml"));
 }
@@ -233,7 +236,10 @@ REX_TEST_CASE("A mistyped project key warns", "[codegen][keys]") {
   rex::test::TempFolder folder;
   const auto manifest =
       rex::codegen::ManifestConfig::Load(WriteKeyed(folder, "sdk_version = 5\n", "", "", ""));
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
   CHECK(Mentions(manifest->warnings, "sdk_version"));
   CHECK(Mentions(manifest->warnings, "string"));
 }
@@ -242,7 +248,10 @@ REX_TEST_CASE("An unknown entrypoint or module key warns on that binary", "[code
   rex::test::TempFolder folder;
   const auto manifest = rex::codegen::ManifestConfig::Load(
       WriteKeyed(folder, "", "skip_lrr = true\n", "ctr_as_locall = true\n", ""));
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
   CHECK(Mentions(manifest->entrypoint.recompiler.load_warnings, "skip_lrr"));
   CHECK(Mentions(manifest->entrypoint.recompiler.load_warnings, "[entrypoint]"));
   CHECK_FALSE(Mentions(manifest->entrypoint.recompiler.load_warnings, "ctr_as_locall"));
@@ -255,7 +264,10 @@ REX_TEST_CASE("A shared layer warning is reported once", "[codegen][keys]") {
   rex::test::TempFolder folder;
   const auto manifest =
       rex::codegen::ManifestConfig::Load(WriteKeyed(folder, "", "", "", "skip_msrr = true\n"));
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
   CHECK(Mentions(manifest->shared.load_warnings, "skip_msrr"));
   CHECK_FALSE(Mentions(manifest->entrypoint.recompiler.load_warnings, "skip_msrr"));
   CHECK_FALSE(Mentions(manifest->modules[0].recompiler.load_warnings, "skip_msrr"));
@@ -265,7 +277,10 @@ REX_TEST_CASE("A manifest with only known keys has no warnings", "[codegen][keys
   rex::test::TempFolder folder;
   const auto manifest = rex::codegen::ManifestConfig::Load(
       WriteKeyed(folder, "sdk_version = \"1.0.0\"\nhook_sources = []\n", "", "", ""));
-  REQUIRE(manifest);
+  if (!manifest) {
+    FAIL("the manifest did not load");
+    return;
+  }
   CHECK(manifest->warnings.empty());
   CHECK(manifest->shared.load_warnings.empty());
   CHECK(manifest->entrypoint.recompiler.load_warnings.empty());

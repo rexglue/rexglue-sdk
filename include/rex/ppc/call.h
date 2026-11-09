@@ -689,15 +689,15 @@ void StoreHostResult(PPCContext& ctx, u8* base, u32 hidden_pointer, const RetT& 
 /**
  * Calls a native function with arguments read from the register file.
  *
- * @tparam kStopAtEntry False to skip the stop check before the call, for a release that must
+ * @tparam StopAtEntry False to skip the stop check before the call, for a release that must
  *         finish.
  */
-template <auto Func, bool kStopAtEntry = true>
+template <auto Func, bool StopAtEntry = true>
 __attribute__((noinline)) void GuestToHostThunk(PPCContext& ctx, u8* base) {
   using RetT = decltype(std::apply(Func, FunctionArgs(Func)));
 
   detail::CheckHookContext(ctx, __PRETTY_FUNCTION__);
-  if (kStopAtEntry && ctx.stop_requested && ctx.stop_requested->load(std::memory_order_acquire)) {
+  if (StopAtEntry && ctx.stop_requested && ctx.stop_requested->load(std::memory_order_acquire)) {
     throw rex::ThreadStop{};
   }
 #if !REX_PLATFORM_WIN32

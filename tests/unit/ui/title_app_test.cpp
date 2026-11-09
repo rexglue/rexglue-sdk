@@ -93,10 +93,11 @@ class FooApp : public rex::test::ObjectApp<rex::app::TitleApp> {
   }
 
   [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
-    (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, "");
-    (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root", game_root.string());
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
-                                               display_ ? "fake" : "none");
+    REX_TRY_VOID(REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, ""));
+    REX_TRY_VOID(
+        settings.SetText(rex::SettingLayer::kTitle, "title.game_root", game_root.string()));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
+                                                      display_ ? "fake" : "none"));
     return rex::Ok();
   }
 
@@ -180,7 +181,7 @@ REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop 
   std::atomic<bool> on_ui{false};
   rex::platform::Fence fence;
   std::jthread app_thread([&] {
-    app.GetUI().ShowPrompt(TestPrompt(), [&](rex::ui::PromptResult result) {
+    app.GetUI().ShowPrompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
       cancelled = result.canceled;
       on_ui = std::this_thread::get_id() == ui_thread;
       completed = true;
@@ -205,7 +206,7 @@ REX_TEST_CASE("Prompt after Shutdown completes cancelled at once", "[ui][title_a
   std::atomic<bool> completed{false};
   std::atomic<bool> cancelled{false};
   std::jthread worker([&] {
-    app.GetUI().ShowPrompt(TestPrompt(), [&](rex::ui::PromptResult result) {
+    app.GetUI().ShowPrompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
       cancelled = result.canceled;
       completed = true;
     });
@@ -221,7 +222,7 @@ REX_TEST_CASE("Stop destroys the prompts before the window closes", "[ui][title_
   REQUIRE(Open(app));
   std::atomic<bool> completed{false};
   bool window_open_at_completion = false;
-  app.GetUI().ShowPrompt(TestPrompt(), [&](rex::ui::PromptResult) {
+  app.GetUI().ShowPrompt(TestPrompt(), [&](const rex::ui::PromptResult&) {
     window_open_at_completion = g_ui.window_open;
     completed = true;
   });
@@ -287,7 +288,7 @@ REX_TEST_CASE(
   REQUIRE_FALSE(app.GetUI().HasWindow());
   bool cancelled = false;
   app.GetUI().ShowPrompt(TestPrompt(),
-                         [&](rex::ui::PromptResult result) { cancelled = result.canceled; });
+                         [&](const rex::ui::PromptResult& result) { cancelled = result.canceled; });
   REQUIRE(cancelled);
   REQUIRE(app.RunFrame());
   rex::app::RequestShutdown(0);
@@ -375,19 +376,19 @@ class StepApp : public rex::test::ObjectApp<rex::app::TitleApp> {
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     g_steps.push_back("configure");
-    (void)settings.SetText(rex::SettingLayer::kTitle, "kernel.user_language", "0");
-    (void)settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
-                           (folder_.path / "game").string());
-    (void)settings.SetText(rex::SettingLayer::kTitle, "app.user_root",
-                           (folder_.path / "user").string());
-    (void)settings.SetText(rex::SettingLayer::kTitle, "app.cache_root",
-                           (folder_.path / "cache").string());
-    (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle,
-                                          (folder_.path / "title_steps.toml").string());
-    (void)root.SetText(rex::SettingLayer::kTitle, folder_.path.string());
-    (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count");
-    (void)GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "count");
-    (void)GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count");
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "kernel.user_language", "0"));
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "title.game_root",
+                                  (folder_.path / "game").string()));
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "app.user_root",
+                                  (folder_.path / "user").string()));
+    REX_TRY_VOID(settings.SetText(rex::SettingLayer::kTitle, "app.cache_root",
+                                  (folder_.path / "cache").string()));
+    REX_TRY_VOID(REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle,
+                                                 (folder_.path / "title_steps.toml").string()));
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count"));
+    REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "count"));
+    REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "count"));
     return settings.SetText(rex::SettingLayer::kTitle, "gpu.driver", "count");
   }
 
@@ -505,9 +506,9 @@ class FailingStartApp : public rex::test::ObjectApp<rex::app::TitleApp> {
   }
 
   [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
-    (void)REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, "");
+    REX_TRY_VOID(REX_PATHS().config_file.SetText(rex::SettingLayer::kTitle, ""));
     if (headless_setting_) {
-      (void)GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none");
+      REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     }
     if (fail_configure_) {
       return rex::Err<void>(rex::ErrorCategory::kConfig, "configure failed");

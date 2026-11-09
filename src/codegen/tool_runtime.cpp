@@ -44,14 +44,14 @@ ToolApp::~ToolApp() {
 }
 
 Result<void> ToolApp::OnConfigure(SettingsRegistry&) {
-  (void)REX_PATHS().user_root.SetText(SettingLayer::kTitle, "{title.game_root}");
+  REX_TRY_VOID(REX_PATHS().user_root.SetText(SettingLayer::kTitle, "{title.game_root}"));
   if (!app_root_.empty()) {
-    (void)root.SetText(SettingLayer::kTitle, app_root_.string());
+    REX_TRY_VOID(root.SetText(SettingLayer::kTitle, app_root_.string()));
   }
-  (void)GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, "none");
-  (void)GetInput().GetSettings().drivers.SetText(SettingLayer::kTitle, "none");
-  (void)GetAudio().GetSettings().driver.SetText(SettingLayer::kTitle, "none");
-  (void)GetGraphics().GetSettings().driver.SetText(SettingLayer::kTitle, "none");
+  REX_TRY_VOID(GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, "none"));
+  REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(SettingLayer::kTitle, "none"));
+  REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(SettingLayer::kTitle, "none"));
+  REX_TRY_VOID(GetGraphics().GetSettings().driver.SetText(SettingLayer::kTitle, "none"));
   return Ok();
 }
 

@@ -24,9 +24,9 @@ struct Fence::Impl {
   using StateT = uint_fast32_t;
   static constexpr StateT kSigMask = static_cast<StateT>(1) << (sizeof(StateT) * 8 - 1);
 
-  std::mutex mutex_;
-  std::condition_variable cond_;
-  std::atomic<StateT> signal_state_{0};
+  std::mutex mutex;
+  std::condition_variable cond;
+  std::atomic<StateT> signal_state{0};
 };
 
 Fence::Fence() : impl_(std::make_unique<Impl>()) {}
@@ -34,27 +34,26 @@ Fence::Fence() : impl_(std::make_unique<Impl>()) {}
 Fence::~Fence() = default;
 
 void Fence::Signal() {
-  std::unique_lock<std::mutex> lock(impl_->mutex_);
-  impl_->signal_state_.store(impl_->signal_state_.load() | Impl::kSigMask,
-                             std::memory_order_release);
-  impl_->cond_.notify_all();
+  std::unique_lock<std::mutex> lock(impl_->mutex);
+  impl_->signal_state.store(impl_->signal_state.load() | Impl::kSigMask, std::memory_order_release);
+  impl_->cond.notify_all();
 }
 
 void Fence::Wait() {
-  std::unique_lock<std::mutex> lock(impl_->mutex_);
-  REX_ASSERT((impl_->signal_state_.load() & ~Impl::kSigMask) < (Impl::kSigMask - 1) &&
+  std::unique_lock<std::mutex> lock(impl_->mutex);
+  REX_ASSERT((impl_->signal_state.load() & ~Impl::kSigMask) < (Impl::kSigMask - 1) &&
              "Too many threads?");
 
-  auto signal_state = impl_->signal_state_.fetch_add(1) + 1;
-  for (; !(signal_state & Impl::kSigMask); signal_state = impl_->signal_state_.load()) {
-    impl_->cond_.wait(lock);
+  auto signal_state = impl_->signal_state.fetch_add(1) + 1;
+  for (; !(signal_state & Impl::kSigMask); signal_state = impl_->signal_state.load()) {
+    impl_->cond.wait(lock);
   }
 
   REX_ASSERT((signal_state & ~Impl::kSigMask) > 0);
   if (signal_state == (1 | Impl::kSigMask)) {
-    impl_->signal_state_.store(0, std::memory_order_release);
+    impl_->signal_state.store(0, std::memory_order_release);
   } else {
-    impl_->signal_state_.store(--signal_state, std::memory_order_release);
+    impl_->signal_state.store(--signal_state, std::memory_order_release);
   }
 }
 

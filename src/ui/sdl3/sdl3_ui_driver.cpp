@@ -178,7 +178,7 @@ struct SDL3UIDriver::State {
     SDL_free(displays);
   }
 
-  void ApplyFullscreenMode() {
+  void ApplyFullscreenMode() const {
     if (!window) {
       return;
     }
@@ -214,13 +214,13 @@ struct SDL3UIDriver::State {
                mode.refresh_rate, static_cast<u32>(display));
   }
 
-  void Deliver(const UIEvent& event) {
+  void Deliver(const UIEvent& event) const {
     if (listener) {
       listener->OnUIEvent(event);
     }
   }
 
-  void Deliver(InputEvent& event) {
+  void Deliver(InputEvent& event) const {
     if (listener) {
       listener->OnInputEvent(event);
     }
@@ -270,7 +270,7 @@ struct SDL3UIDriver::State {
     }
   }
 
-  void HandleKey(const SDL_Event& event) {
+  void HandleKey(const SDL_Event& event) const {
     const VirtualKey virtual_key = TranslateSDLScancode(event.key.scancode);
     if (virtual_key == VirtualKey::kNone) {
       return;
@@ -283,7 +283,7 @@ struct SDL3UIDriver::State {
     Deliver(e);
   }
 
-  void HandleText(const SDL_Event& event) {
+  void HandleText(const SDL_Event& event) const {
     const char* text = event.text.text;
     if (!text || !*text) {
       return;
@@ -297,7 +297,7 @@ struct SDL3UIDriver::State {
     }
   }
 
-  void HandleMouse(const SDL_Event& event) {
+  void HandleMouse(const SDL_Event& event) const {
     const f32 density = GetPixelDensity();
     switch (event.type) {
       case SDL_EVENT_MOUSE_MOTION: {

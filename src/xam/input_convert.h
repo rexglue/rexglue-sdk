@@ -89,7 +89,7 @@ inline rex::kernel::X_RESULT TakeInputKeystroke(rex::hid::IInputSystem& input, u
     return rex::kernel::X_ERROR_DEVICE_NOT_CONNECTED;
   }
   using rex::hid::KeystrokeSource;
-  KeystrokeSource sources{};
+  KeystrokeSource sources = KeystrokeSource::kNone;
   if (flags & rex::xam::kXInputFlagGamepad) {
     sources = sources | KeystrokeSource::kPad;
   }

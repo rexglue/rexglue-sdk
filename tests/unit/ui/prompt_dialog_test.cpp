@@ -17,7 +17,6 @@
 
 #include "ui/prompt.h"
 
-using rex::ui::PromptConfig;
 using rex::ui::PromptDialog;
 using rex::ui::PromptDone;
 using rex::ui::PromptResult;

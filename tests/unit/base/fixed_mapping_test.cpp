@@ -125,8 +125,11 @@ REX_TEST_CASE("Committing single pages of a reserved range reads no process file
   }
   const auto after = ReadSyscallCount();
   CHECK(committed == kPages);
-  REQUIRE((before && after));
-  CHECK(*after - *before < 20);
+  REQUIRE(before.has_value());
+  REQUIRE(after.has_value());
+  if (before && after) {
+    CHECK(*after - *before < 20);
+  }
   CHECK(rex::memory::DeallocFixed(base, kPages * page, rex::memory::DeallocationType::kRelease));
 }
 

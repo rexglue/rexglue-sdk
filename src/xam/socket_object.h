@@ -202,7 +202,7 @@ struct SocketObject final : kernel::IXAMObject {
 
   kernel::X_STATUS Connect(N_XSOCKADDR* name, u32 name_len) const;
 
-  kernel::X_STATUS Bind(N_XSOCKADDR_IN* name, u32 name_len);
+  kernel::X_STATUS Bind(N_XSOCKADDR_IN* name, u32 name_len) const;
 
   /**
    * Returns the local address, which has the bound port and INADDR_ANY. It returns

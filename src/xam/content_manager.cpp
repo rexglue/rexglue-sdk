@@ -425,9 +425,9 @@ Result<void> ContentManager::DeleteContent(u64 xuid, const kernel::XCONTENT_AGGR
     bool header_removed = std::filesystem::remove(header_path, ec2);
     std::filesystem::remove(manifest_path, ec2);
 
-    LoadEnableEntriesLocked();
+    std::vector<EnableEntry>& entries = LoadEnableEntriesLocked();
     const std::string file_name = data.GetFileName();
-    if (std::erase_if(*enable_entries_, [&](const EnableEntry& entry) {
+    if (std::erase_if(entries, [&](const EnableEntry& entry) {
           return entry.title_id == title_id && entry.content_type == data.content_type &&
                  entry.file_name == file_name;
         }) != 0) {

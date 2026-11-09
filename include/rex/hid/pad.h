@@ -81,6 +81,7 @@ struct PadKeystroke {
 
 /** The devices a keystroke can come from. */
 enum class KeystrokeSource : u8 {
+  kNone = 0x00,     /**< No source. */
   kPad = 0x01,      /**< Controller keys: buttons and sticks made into keystrokes. */
   kKeyboard = 0x02, /**< Keyboard and chatpad text. */
 };

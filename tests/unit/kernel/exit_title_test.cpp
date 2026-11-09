@@ -17,8 +17,6 @@
 #include "kernel/title_state.h"
 #include "kernel/title_fixture.h"
 
-using rex::kernel::TitleExitReason;
-
 REX_TEST_CASE("ReportTitleExit calls the callback once with the first reason",
               "[kernel][title_exit]") {
   rex::kernel::TitleRuntime runtime{rex::ppc::PPCImage{}};

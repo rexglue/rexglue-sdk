@@ -25,7 +25,6 @@
 
 namespace {
 
-using rex::GetSettingsRegistry;
 using rex::SettingLayer;
 using rex::test::HarnessApp;
 

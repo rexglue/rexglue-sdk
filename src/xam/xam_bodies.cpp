@@ -12,14 +12,14 @@ XAMBodyRegistrar* g_last = nullptr;
 }  // namespace
 
 std::span<const XAMBody> XAMExports::GetBodies() const {
-  static const std::vector<XAMBody> bodies = [] {
+  static const std::vector<XAMBody> kBodies = [] {
     std::vector<XAMBody> collected;
     for (const XAMBodyRegistrar* registrar = g_first; registrar; registrar = registrar->next_) {
       collected.push_back(registrar->body_);
     }
     return collected;
   }();
-  return bodies;
+  return kBodies;
 }
 
 XAMBodyRegistrar::XAMBodyRegistrar(std::string_view name, PPCFunc* function) noexcept

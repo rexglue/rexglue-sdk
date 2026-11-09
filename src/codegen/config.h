@@ -20,12 +20,7 @@
 
 #include "function_graph.h"
 #include <rex/ppc/mmio.h>
-
-namespace toml {
-inline namespace v3 {
-class table;
-}  // namespace v3
-}  // namespace toml
+#include <toml++/impl/forward_declarations.hpp>
 
 namespace rex::codegen {
 

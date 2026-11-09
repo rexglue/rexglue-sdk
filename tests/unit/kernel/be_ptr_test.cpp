@@ -147,7 +147,8 @@ REX_TEST_CASE("GuestVector: a zeroed vector is empty", "[kernel][be_ptr]") {
     const auto* vector = rex::kernel::ThreadState::Get()
                              ->GetAddressSpace()
                              ->TranslateVirtual<const rex::kernel::GuestVector<be_u32>*>(header);
-    CHECK(vector->size() == 0);
+    const size_t count = vector->size();
+    CHECK(count == 0);
     CHECK(vector->empty());
     CHECK(vector->begin() == nullptr);
     CHECK(vector->end() == nullptr);
@@ -187,7 +188,8 @@ REX_TEST_CASE("GuestVector: pointers out of order give an empty vector", "[kerne
                              ->GetAddressSpace()
                              ->TranslateVirtual<rex::kernel::GuestVector<be_u32>*>(header);
     c.Store32(header + 4, vector->first.GetAddress() - 4);
-    CHECK(vector->size() == 0);
+    const size_t count = vector->size();
+    CHECK(count == 0);
     CHECK(vector->empty());
   });
 }

@@ -61,10 +61,10 @@ constexpr std::string_view ExtractTypeName() {
 
 template <typename T>
 inline constexpr auto kTypeNameChars = [] {
-  constexpr std::string_view name = ExtractTypeName<T>();
-  std::array<char, name.size() + 1> chars{};
-  for (size_t i = 0; i < name.size(); ++i) {
-    chars[i] = name[i];
+  constexpr std::string_view kName = ExtractTypeName<T>();
+  std::array<char, kName.size() + 1> chars{};
+  for (size_t i = 0; i < kName.size(); ++i) {
+    chars[i] = kName[i];
   }
   return chars;
 }();
@@ -89,6 +89,14 @@ class IInterface : NonCopyable {
 };
 
 /**
+ * Passes a class name through unchanged. A macro that declares a class writes the name through it,
+ * because a class name cannot be put in parentheses.
+ *
+ * @param x The class name.
+ */
+#define REX_DETAIL_ID(x) x
+
+/**
  * Opens an interface class that derives from IInterface and carries its identity as kInterface.
  * The name is the qualified type name the compiler gives, so declare the class in a named
  * namespace. The class body, the closing brace and the semicolon follow the macro.
@@ -103,9 +111,9 @@ class IInterface : NonCopyable {
  * }  // namespace rex::example
  * @endcode
  */
-#define REX_DECLARE_INTERFACE(Name, version) \
-  class Name : public ::rex::IInterface {    \
-   public:                                   \
+#define REX_DECLARE_INTERFACE(Name, version)             \
+  class REX_DETAIL_ID(Name) : public ::rex::IInterface { \
+   public:                                               \
     static constexpr ::rex::InterfaceType kInterface{::rex::detail::kTypeName<Name>, version};
 
 /**
@@ -114,9 +122,9 @@ class IInterface : NonCopyable {
  *
  * @param version The version of the interface layout.
  */
-#define REX_DECLARE_PRIVATE_INTERFACE(Name, version) \
-  class Name : public ::rex::IInterface {            \
-   public:                                           \
+#define REX_DECLARE_PRIVATE_INTERFACE(Name, version)     \
+  class REX_DETAIL_ID(Name) : public ::rex::IInterface { \
+   public:                                               \
     static constexpr ::rex::InterfaceType kInterface{::rex::detail::kTypeName<Name>, version, true};
 
 /** Finds the interfaces the host and the modules serve. */
@@ -356,7 +364,8 @@ inline u32 EnumerateModuleInterfaces(const IModule& module, InterfaceType* out, 
  */
 #define REX_DECLARE_MODULE(ModuleClass)                                                           \
   namespace {                                                                                     \
-  ModuleClass& ReXModuleInstance() {                                                              \
+  using ReXModuleType = ModuleClass;                                                              \
+  ReXModuleType& ReXModuleInstance() {                                                            \
     static ModuleClass instance;                                                                  \
     return instance;                                                                              \
   }                                                                                               \

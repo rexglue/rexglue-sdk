@@ -37,7 +37,6 @@ using rex::kernel::X_STATUS;
 using rex::test::Caller;
 using rex::test::GetTestMemory;
 using rex::test::KernelFixture;
-using rex::test::ReleaseTestMemory;
 
 namespace {
 
@@ -520,7 +519,7 @@ u32 BudgetPagesFor(u32 megabytes) {
   REQUIRE(runtime.Load());
   const u32 pages = StateOf(runtime).GetAddressSpace()->GetBudgetPages();
   runtime.Unload();
-  (void)rex::kernel::GetRuntimeSettings().title_memory_mb.Reset();
+  REQUIRE(rex::kernel::GetRuntimeSettings().title_memory_mb.Reset());
   return pages;
 }
 

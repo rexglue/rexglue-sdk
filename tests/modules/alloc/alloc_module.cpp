@@ -40,7 +40,7 @@ int* MakeArray(size_t count) {
 
 }  // namespace
 
-REX_TEST_ALLOC_EXPORT const rex::test::AllocEntries* rexmod_alloc_entries() {
+REX_TEST_ALLOC_EXPORT const rex::test::AllocEntries* GetAllocEntries() {
   static const rex::test::AllocEntries kEntries = {
       &MakeVector,      &FillString,        &DeleteInt, &DeleteArray,
       &MakeOverAligned, &DeleteOverAligned, &MakeArray,

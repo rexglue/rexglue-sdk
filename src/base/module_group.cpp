@@ -59,7 +59,7 @@ struct ModuleGroup::State {
   bool connected = false;
   bool inited = false;
 
-  void StopEntry(Entry& entry) {
+  void StopEntry(Entry& entry) const {
     if (observer) {
       observer(*entry.module, false);
     }

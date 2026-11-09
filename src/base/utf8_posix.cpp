@@ -3,6 +3,7 @@
 static_assert(!REX_PLATFORM_WIN32, "This file is POSIX-only");
 
 #include <cerrno>
+#include <cstdint>
 #include <string>
 
 #include <iconv.h>
@@ -13,7 +14,9 @@ namespace rex::string {
 
 namespace {
 
-const iconv_t kInvalidConverter = reinterpret_cast<iconv_t>(-1);
+bool IsInvalidConverter(iconv_t converter) {
+  return reinterpret_cast<std::uintptr_t>(converter) == ~std::uintptr_t{0};
+}
 
 size_t UTF8SequenceLength(u8 lead, size_t available) {
   size_t length = 1;
@@ -33,7 +36,7 @@ std::string Convert(const char* to, const char* from, const std::string_view sou
     return {};
   }
   const iconv_t converter = iconv_open(to, from);
-  if (converter == kInvalidConverter) {
+  if (IsInvalidConverter(converter)) {
     return std::string(source);
   }
   std::string result;

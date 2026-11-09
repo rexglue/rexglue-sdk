@@ -358,8 +358,12 @@ Result<void> App::Init(const CLIArgList& args) {
     });
     ISettingsRegistryControl& settings_control = *private_factory.Get<ISettingsRegistryControl>();
     ILoggerControl& logger_control = *private_factory.Get<ILoggerControl>();
-    (void)name.SetText(SettingLayer::kTitle, state.name);
-    (void)root.SetText(SettingLayer::kTitle, DefaultRoot(state.name).string());
+    if (auto set = name.SetText(SettingLayer::kTitle, state.name); !set) {
+      return failed("name", set.error());
+    }
+    if (auto set = root.SetText(SettingLayer::kTitle, DefaultRoot(state.name).string()); !set) {
+      return failed("root", set.error());
+    }
     LogOpenFileLimit();
 
     if (auto configured = OnConfigure(settings); !configured) {

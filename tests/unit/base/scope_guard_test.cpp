@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 
+#include <optional>
 #include <utility>
 
 #include <rex/types.h>
@@ -32,9 +33,11 @@ REX_TEST_CASE("A default ScopeGuard does nothing", "[base][scope_guard]") {
 REX_TEST_CASE("A moved ScopeGuard runs once and the source does nothing", "[base][scope_guard]") {
   i32 runs = 0;
   {
-    rex::ScopeGuard first([&runs] { ++runs; });
-    rex::ScopeGuard second(std::move(first));
-    first.Reset();
+    std::optional<rex::ScopeGuard> second;
+    {
+      rex::ScopeGuard first([&runs] { ++runs; });
+      second.emplace(std::move(first));
+    }
     CHECK(runs == 0);
   }
   CHECK(runs == 1);

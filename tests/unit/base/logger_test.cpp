@@ -48,6 +48,7 @@ std::vector<std::string> Texts(const rex::log::LogCaptureSink& sink) {
   std::vector<rex::log::CapturedMessage> entries;
   sink.CopySince(0, entries);
   std::vector<std::string> out;
+  out.reserve(entries.size());
   for (const auto& entry : entries) {
     out.push_back(entry.text);
   }

@@ -113,7 +113,11 @@ void GraphicsSystem::State::WriteNullRegister(u32 index, u32 value) {
   }
   const u32 writeback = null_writeback.load(std::memory_order_acquire);
   if (writeback != 0) {
-    (void)memory->StoreRelease32(writeback & 0x1FFFFFFF, value);
+    if (auto stored = memory->StoreRelease32(writeback & 0x1FFFFFFF, value); !stored) {
+      static log::OncePerKey<1> write_back_failed_once;
+      REXGPU_WARN_ONCE(write_back_failed_once, 0, "null graphics: write back to {:08X} failed, {}",
+                       writeback & 0x1FFFFFFF, stored.error().message);
+    }
   }
 }
 
@@ -131,8 +135,8 @@ Result<void> GraphicsSystem::Start(rex::gpu::IGraphicsDriver* graphics_driver) {
   }
   state.xenos = graphics_driver->AsXenos();
   state.present_finished = false;
-  state.present_thread = std::jthread([&state](std::stop_token stop) {
-    state.PresentLoop(std::move(stop));
+  state.present_thread = std::jthread([&state](const std::stop_token& stop) {
+    state.PresentLoop(stop);
     state.present_finished = true;
   });
   return {};

@@ -90,7 +90,7 @@ REX_TEST_CASE("a texture request creates the texture and marks it ready", "[gpu]
 
   CHECK(texture.Status == ImTextureStatus_OK);
   CHECK(texture.TexID != ImTextureID_Invalid);
-  CHECK(drawer.last_size == 16u * 8u * 4u);
+  CHECK(drawer.last_size == size_t{16} * 8 * 4);
   CHECK(overlay.GetTextureCount() == 1);
 }
 
@@ -128,7 +128,7 @@ REX_TEST_CASE("an alpha texture is expanded to RGBA", "[gpu][imgui]") {
   overlay.UpdateTextures(frame.data);
 
   CHECK(texture.Status == ImTextureStatus_OK);
-  CHECK(drawer.last_size == 4u * 4u * 4u);
+  CHECK(drawer.last_size == size_t{4} * 4 * 4);
 }
 
 REX_TEST_CASE("an update request replaces the texture", "[gpu][imgui]") {

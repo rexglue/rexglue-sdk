@@ -69,19 +69,18 @@ static u8 FileObjectFlags(u32 create_options) {
 }
 
 static void InitializeFileObject(u32 address, u32 create_options, u32 related_file) {
-  auto* file =
-      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_FILE_OBJECT*>(address);
+  auto* file = kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<XFileObject*>(address);
   file->flags = FileObjectFlags(create_options);
   file->related_file = related_file;
   file->unk_24 = 0xFFFFFFFF;
   file->unk_28 = 1;
   file->unk_58 = 2;
-  file->unk_list_30.flink_ptr = address + offsetof(X_FILE_OBJECT, unk_list_30);
+  file->unk_list_30.flink_ptr = address + offsetof(XFileObject, unk_list_30);
   file->unk_list_30.blink_ptr = file->unk_list_30.flink_ptr;
   file->event.type = kDispatcherManualResetEvent;
   file->event.signal_state = 1;
   file->event.wait_list_flink =
-      address + offsetof(X_FILE_OBJECT, event) + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+      address + offsetof(XFileObject, event) + offsetof(X_DISPATCH_HEADER, wait_list_flink);
   file->event.wait_list_blink = file->event.wait_list_flink;
 }
 
@@ -378,14 +377,14 @@ u32 NtCreateIoCompletion_entry(MappedU32 handle_out, [[maybe_unused]] u32 desire
     return X_STATUS_NO_MEMORY;
   }
   auto* queue =
-      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_KQUEUE*>(block.address);
+      kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<XKQueue*>(block.address);
   queue->header.type = kDispatcherQueue;
   queue->header.signal_state = 0;
   queue->header.wait_list_flink = block.address + offsetof(X_DISPATCH_HEADER, wait_list_flink);
   queue->header.wait_list_blink = queue->header.wait_list_flink;
-  queue->entry_list_head.flink_ptr = block.address + offsetof(X_KQUEUE, entry_list_head);
+  queue->entry_list_head.flink_ptr = block.address + offsetof(XKQueue, entry_list_head);
   queue->entry_list_head.blink_ptr = queue->entry_list_head.flink_ptr;
-  queue->thread_list_head.flink_ptr = block.address + offsetof(X_KQUEUE, thread_list_head);
+  queue->thread_list_head.flink_ptr = block.address + offsetof(XKQueue, thread_list_head);
   queue->thread_list_head.blink_ptr = queue->thread_list_head.flink_ptr;
   queue->current_count = 0;
   queue->maximum_count = num_concurrent_threads ? num_concurrent_threads : 1;
