@@ -13,14 +13,24 @@ namespace rex::ui::sdl3 {
 
 namespace {
 
+struct MinimizedWindow {
+  HWND hwnd;
+  bool own_thread;
+};
+
 BOOL CALLBACK MinimizeProcessWindow(HWND hwnd, LPARAM param) {
   DWORD pid = 0;
-  GetWindowThreadProcessId(hwnd, &pid);
+  const DWORD thread_id = GetWindowThreadProcessId(hwnd, &pid);
   if (pid == GetCurrentProcessId() && IsWindowVisible(hwnd) && !IsIconic(hwnd) &&
       ::GetWindow(hwnd, GW_OWNER) == nullptr) {
-    ShowWindowAsync(hwnd, SW_FORCEMINIMIZE);
+    const bool own_thread = thread_id == GetCurrentThreadId();
+    if (own_thread) {
+      ShowWindow(hwnd, SW_FORCEMINIMIZE);
+    } else {
+      ShowWindowAsync(hwnd, SW_FORCEMINIMIZE);
+    }
     // NOLINTNEXTLINE(performance-no-int-to-ptr): EnumWindows passes the context as an LPARAM
-    reinterpret_cast<std::vector<HWND>*>(param)->push_back(hwnd);
+    reinterpret_cast<std::vector<MinimizedWindow>*>(param)->push_back({hwnd, own_thread});
   }
   return TRUE;
 }
@@ -56,12 +66,16 @@ UINT IconFlag(MessageType type) {
                                         const std::string& body,
                                         std::span<const std::string> buttons, SDL_Window* parent) {
   (void)parent;
-  std::vector<HWND> minimized;
+  std::vector<MinimizedWindow> minimized;
   EnumWindows(MinimizeProcessWindow, reinterpret_cast<LPARAM>(&minimized));
   Result<u32> pressed = buttons.size() == 1 ? ShowTopmostBox(type, title, body)
                                             : ShowSDLBox(type, title, body, buttons, nullptr);
-  for (HWND hwnd : minimized) {
-    ShowWindowAsync(hwnd, SW_RESTORE);
+  for (const MinimizedWindow& window : minimized) {
+    if (window.own_thread) {
+      ShowWindow(window.hwnd, SW_RESTORE);
+    } else {
+      ShowWindowAsync(window.hwnd, SW_RESTORE);
+    }
   }
   return pressed;
 }
