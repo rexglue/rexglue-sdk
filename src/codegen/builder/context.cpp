@@ -137,6 +137,7 @@ bool BuilderContext::CanLocalizeNonVolatiles() const {
 std::string BuilderContext::R(size_t index) {
   const auto& cfg = GetConfig();
   if (!fn.GetMillicode() && ((cfg.non_argument_registers_as_local_variables &&
+                              !fn.IsRegisterSharing() &&
                               (index == 0 || index == 11 || index == 12)) ||
                              (CanLocalizeNonVolatiles() && index >= 14))) {
     locals.r[index] = true;

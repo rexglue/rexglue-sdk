@@ -30,6 +30,7 @@ constexpr u32 kCmpwiCR5R3 = 0x2E830000;
 constexpr u32 kStvx128V64 = 0x100B61CB;
 constexpr u32 kVorV14 = 0x11CE7484;
 constexpr u32 kVorV31 = 0x13FFFC84;
+constexpr u32 kLwzR3FromR12Plus96 = 0x806C0060;
 constexpr u32 kOwnerWords = 9;
 constexpr u32 kFuncletIndex = kOwnerWords;
 
@@ -48,10 +49,10 @@ std::string Body(const std::string& tree, std::string_view name) {
   return tree.substr(begin, tree.find("\n}\n", begin) - begin);
 }
 
-std::string GenerateOwner(std::string_view flags) {
+std::string Generate(std::string_view flags, u32 funclet_instruction = kLiR3One) {
   const std::vector<u32> words = {
       kMrR31R3, kFmrF31F1, kCmpwiCR5R3, kStvx128V64, kVorV14, kVorV31, BranchLink(6, kFuncletIndex),
-      kMrR3R31, kBlr,      kLiR3One,    kBlr};
+      kMrR3R31, kBlr,      funclet_instruction, kBlr};
   const rex::test::PDataEntry pdata[] = {{Address(0), kOwnerWords}};
   rex::test::TempFolder folder;
   const auto result = rex::test::GenerateFromImage(
@@ -60,7 +61,11 @@ std::string GenerateOwner(std::string_view flags) {
                   Address(kFuncletIndex)));
   INFO((result ? std::string() : result.error().message));
   REQUIRE(result);
-  return Body(rex::test::ReadGeneratedTree(folder.path / "generated" / "entry"), "xstart");
+  return rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
+}
+
+std::string GenerateOwner(std::string_view flags) {
+  return Body(Generate(flags), "xstart");
 }
 
 bool SyncedAround(const std::string& body, std::string_view reg) {
@@ -88,4 +93,13 @@ REX_TEST_CASE("An owner that keeps registers in ctx copies nothing around a func
   const auto body = GenerateOwner("");
   CHECK(body.find("ctx.r31 = r31;") == std::string::npos);
   CHECK(body.find("r31 = ctx.r31;") == std::string::npos);
+}
+
+REX_TEST_CASE("A register-sharing funclet reads r12 from its owner's context",
+              "[codegen][funclet][registers]") {
+  const auto tree = Generate("non_argument_as_local = true\n", kLwzR3FromR12Plus96);
+  const auto funclet = Body(tree, std::format("sub_{:08X}", Address(kFuncletIndex)));
+
+  CHECK(funclet.find("PPCRegister r12{}") == std::string::npos);
+  CHECK(funclet.find("ctx.r12") != std::string::npos);
 }
