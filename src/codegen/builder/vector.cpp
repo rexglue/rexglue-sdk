@@ -599,8 +599,8 @@ bool Build<PPC_INST_VSEL>(BuilderContext& ctx) {
 }
 
 /**
- * Builds vcmpbfp. Per element, 0x80000000 is set when vA > vB and 0x40000000 when vA < -vB. CR6
- * is set from vD OR'd with vD shifted left by 1, because movemask_ps reads only bit 31.
+ * Builds vcmpbfp. Per element, 0x80000000 is set unless vA <= vB and 0x40000000 unless vA >= -vB.
+ * CR6 is set from vD OR'd with vD shifted left by 1, because movemask_ps reads only bit 31.
  */
 template <>
 bool Build<PPC_INST_VCMPBFP>(BuilderContext& ctx) {
@@ -610,11 +610,11 @@ bool Build<PPC_INST_VCMPBFP>(BuilderContext& ctx) {
   auto v_d = ctx.V(ctx.insn.operands[0]);
 
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_and_ps(simde_mm_cmpgt_ps(simde_mm_load_ps({}.f32), "
+      "\tsimde_mm_store_ps({}.f32, simde_mm_andnot_ps(simde_mm_cmple_ps(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32)), simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x80000000)))));",
       ctx.VTemp(), v_a, v_b);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_and_ps(simde_mm_cmplt_ps(simde_mm_load_ps({}.f32), "
+      "\tsimde_mm_store_ps({}.f32, simde_mm_andnot_ps(simde_mm_cmpge_ps(simde_mm_load_ps({}.f32), "
       "simde_mm_xor_ps(simde_mm_load_ps({}.f32), "
       "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x80000000))))), "
       "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x40000000)))));",
@@ -624,12 +624,14 @@ bool Build<PPC_INST_VCMPBFP>(BuilderContext& ctx) {
       "simde_mm_load_ps({}.f32)));",
       v_d, ctx.VTemp(), v_d);
 
-  if (IsRecordForm(ctx.insn))
+  if (IsRecordForm(ctx.insn)) {
     ctx.Println(
         "\t{}.SetFromMask(simde_mm_castsi128_ps(simde_mm_or_si128("
         "simde_mm_load_si128((simde__m128i*){}.f32), "
         "simde_mm_slli_epi32(simde_mm_load_si128((simde__m128i*){}.f32), 1))), 0xF);",
         ctx.CR(6), v_d, v_d);
+    ctx.Println("\t{}.lt = 0;", ctx.CR(6));
+  }
   return true;
 }
 
