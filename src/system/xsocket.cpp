@@ -26,6 +26,7 @@
 #include <WS2tcpip.h>
 #else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
@@ -147,6 +148,19 @@ object_ref<XSocket> XSocket::Accept(N_XSOCKADDR* name, int* name_len) {
 
   std::memcpy(name, &n_sockaddr, n_name_len);
   *name_len = n_name_len;
+
+#if !REX_PLATFORM_WIN32
+  // WinSock gives an accepted socket the listener's non-blocking mode; POSIX
+  // accept() always returns a blocking one. A title that polls its accepted
+  // socket would otherwise block its thread in recv().
+  const int listener_flags = fcntl(static_cast<int>(native_handle_), F_GETFL, 0);
+  if (listener_flags >= 0 && (listener_flags & O_NONBLOCK)) {
+    const int flags = fcntl(static_cast<int>(ret), F_GETFL, 0);
+    if (flags >= 0) {
+      fcntl(static_cast<int>(ret), F_SETFL, flags | O_NONBLOCK);
+    }
+  }
+#endif
 
   // Create a kernel object to represent the new socket, and copy parameters
   // over.
