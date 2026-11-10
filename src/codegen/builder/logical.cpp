@@ -379,6 +379,9 @@ bool Build<PPC_INST_SRAD>(BuilderContext& ctx) {
   ctx.Println("\t{}.ca = ({}.s64 < 0) & ((({}.s64 >> {}.u64) << {}.u64) != {}.s64);", ctx.XER(),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.Temp(), ctx.Temp(),
               ctx.R(ctx.insn.operands[1]));
+  // Shift amount of 64 or more: CA is the sign bit
+  ctx.Println("\tif ({}.u8 & 0x40) {}.ca = {}.s64 < 0;", ctx.R(ctx.insn.operands[2]), ctx.XER(),
+              ctx.R(ctx.insn.operands[1]));
   ctx.Println("\t{}.s64 = {}.s64 >> {}.u64;", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.Temp());
   EmitRecordFormCompare(ctx);
@@ -407,6 +410,9 @@ bool Build<PPC_INST_SRAW>(BuilderContext& ctx) {
   ctx.Println("\tif ({}.u32 > 0x1F) {}.u32 = 0x1F;", ctx.Temp(), ctx.Temp());
   ctx.Println("\t{}.ca = ({}.s32 < 0) & ((({}.s32 >> {}.u32) << {}.u32) != {}.s32);", ctx.XER(),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.Temp(), ctx.Temp(),
+              ctx.R(ctx.insn.operands[1]));
+  // Shift amount of 32 or more: CA is the sign bit
+  ctx.Println("\tif ({}.u8 & 0x20) {}.ca = {}.s32 < 0;", ctx.R(ctx.insn.operands[2]), ctx.XER(),
               ctx.R(ctx.insn.operands[1]));
   ctx.Println("\t{}.s64 = {}.s32 >> {}.u32;", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.Temp());
