@@ -29,9 +29,31 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #endif
 
 namespace rex::system {
+
+namespace {
+
+// SOL_SOCKET and its options as the guest numbers them (WinSock's values).
+constexpr uint32_t kXSolSocket = 0xFFFF;
+constexpr uint32_t kXSoReuseAddr = 0x0004;
+constexpr uint32_t kXSoBroadcast = 0x0020;
+constexpr uint32_t kXSoLinger = 0x0080;
+constexpr uint32_t kXSoSndBuf = 0x1001;
+constexpr uint32_t kXSoRcvBuf = 0x1002;
+constexpr uint32_t kXSoSndTimeo = 0x1005;
+constexpr uint32_t kXSoRcvTimeo = 0x1006;
+
+uint32_t LoadBE32(const uint8_t* p) {
+  return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | uint32_t(p[3]);
+}
+uint16_t LoadBE16(const uint8_t* p) {
+  return uint16_t(p[0] << 8 | p[1]);
+}
+
+}  // namespace
 
 XSocket::XSocket(KernelState* kernel_state) : XObject(kernel_state, kObjectType) {}
 
@@ -75,17 +97,102 @@ X_STATUS XSocket::Close() {
 }
 
 X_STATUS XSocket::SetOption(uint32_t level, uint32_t optname, void* optval_ptr, uint32_t optlen) {
-  if (level == 0xFFFF && (optname == 0x5801 || optname == 0x5802)) {
+  if (level == kXSolSocket && (optname == 0x5801 || optname == 0x5802)) {
     // Disable socket encryption
     secure_ = false;
     return X_STATUS_SUCCESS;
   }
 
-  int ret = setsockopt(native_handle_, level, optname, (char*)optval_ptr, optlen);
+  // The guest uses WinSock's numbering (SOL_SOCKET is 0xFFFF, 1 on Linux) and
+  // writes its values big-endian, so passing the buffer straight to the host
+  // either fails (unknown level/option on POSIX) or sets a byte-swapped value
+  // (a 128 KiB SO_RCVBUF becomes 512 bytes). Convert the SOL_SOCKET options
+  // titles use; anything else goes through unchanged, as before.
+  int native_level = static_cast<int>(level);
+  int native_optname = static_cast<int>(optname);
+  const char* value = static_cast<const char*>(optval_ptr);
+  socklen_t value_len = static_cast<socklen_t>(optlen);
+  const auto* guest = static_cast<const uint8_t*>(optval_ptr);
+  int int_value = 0;
+  linger linger_value{};
+#if !REX_PLATFORM_WIN32
+  timeval timeout_value{};
+#endif
+  bool converted = false;
+  if (level == kXSolSocket && guest) {
+    switch (optname) {
+      case kXSoReuseAddr:
+      case kXSoBroadcast:
+        // BOOL. Titles pass 4 bytes or a single byte; any non-zero byte is true.
+        for (uint32_t i = 0; i < optlen; ++i) {
+          int_value |= guest[i] != 0;
+        }
+        native_optname = optname == kXSoReuseAddr ? SO_REUSEADDR : SO_BROADCAST;
+        converted = optlen > 0;
+        break;
+      case kXSoSndBuf:
+      case kXSoRcvBuf:
+        int_value = static_cast<int>(LoadBE32(guest));
+        native_optname = optname == kXSoSndBuf ? SO_SNDBUF : SO_RCVBUF;
+        converted = optlen == 4;
+        break;
+      case kXSoLinger:
+        // WinSock's struct linger is two u_shorts.
+        linger_value.l_onoff = LoadBE16(guest);
+        linger_value.l_linger = LoadBE16(guest + 2);
+        native_optname = SO_LINGER;
+        converted = optlen == 4;
+        if (converted) {
+          value = reinterpret_cast<const char*>(&linger_value);
+          value_len = sizeof(linger_value);
+        }
+        break;
+      case kXSoSndTimeo:
+      case kXSoRcvTimeo: {
+        // WinSock: a DWORD in milliseconds. POSIX: a struct timeval.
+        const uint32_t ms = LoadBE32(guest);
+        native_optname = optname == kXSoSndTimeo ? SO_SNDTIMEO : SO_RCVTIMEO;
+        converted = optlen == 4;
+#if !REX_PLATFORM_WIN32
+        if (converted) {
+          timeout_value.tv_sec = ms / 1000;
+          timeout_value.tv_usec = (ms % 1000) * 1000;
+          value = reinterpret_cast<const char*>(&timeout_value);
+          value_len = sizeof(timeout_value);
+        }
+#else
+        int_value = static_cast<int>(ms);
+#endif
+        break;
+      }
+      default:
+        break;
+    }
+    if (converted) {
+      native_level = SOL_SOCKET;
+      if (value == static_cast<const char*>(optval_ptr)) {
+        value = reinterpret_cast<const char*>(&int_value);
+        value_len = sizeof(int_value);
+      }
+    } else {
+      native_optname = static_cast<int>(optname);
+    }
+  }
+
+  int ret = setsockopt(native_handle_, native_level, native_optname, value, value_len);
   if (ret < 0) {
     // TODO: WSAGetLastError()
     return X_STATUS_UNSUCCESSFUL;
   }
+
+#if !REX_PLATFORM_WIN32 && defined(SO_REUSEPORT)
+  // WinSock's SO_REUSEADDR lets several sockets bind the same address and port
+  // (P2P titles open one per peer); POSIX hosts need SO_REUSEPORT for that.
+  if (converted && optname == kXSoReuseAddr && int_value) {
+    int one = 1;
+    setsockopt(native_handle_, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+  }
+#endif
 
   // SO_BROADCAST
   if (level == 0xFFFF && optname == 0x0020) {
