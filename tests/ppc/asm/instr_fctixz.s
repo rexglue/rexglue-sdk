@@ -190,3 +190,34 @@ test_fctidz_12:
   blr
   #_ REGISTER_OUT f0 0xfff4000000000000
   #_ REGISTER_OUT f1 0x8000000000000000
+
+# Expected values: qemu-ppc64 -cpu power7
+test_fctidz_sat_1:
+  #_ REGISTER_IN f0 0x43E0000000000000
+  fctidz f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x7FFFFFFFFFFFFFFF
+
+test_fctidz_sat_2:
+  #_ REGISTER_IN f0 0x43E158E460913D00
+  fctidz f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x7FFFFFFFFFFFFFFF
+
+test_fctidz_sat_3:
+  #_ REGISTER_IN f0 0x43DFFFFFFFFFFFFF
+  fctidz f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x7FFFFFFFFFFFFC00
+
+test_fctidz_sat_4:
+  #_ REGISTER_IN f0 0xC3E0000000000000
+  fctidz f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x8000000000000000
+
+test_fctidz_sat_5:
+  #_ REGISTER_IN f0 0xC3E158E460913D00
+  fctidz f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x8000000000000000

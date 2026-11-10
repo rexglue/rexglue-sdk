@@ -59,7 +59,7 @@ bool Build<PPC_INST_FCTID>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x8000000000000000ULL) : "
-      "({1}.f64 > f64(LLONG_MAX)) ? LLONG_MAX : "
+      "({1}.f64 >= 0x1p63) ? LLONG_MAX : "
       "simde_mm_cvtsd_si64(simde_mm_load_sd(&{1}.f64));",
       ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
@@ -70,7 +70,7 @@ bool Build<PPC_INST_FCTIDZ>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x8000000000000000ULL) : "
-      "({1}.f64 > f64(LLONG_MAX)) ? LLONG_MAX : "
+      "({1}.f64 >= 0x1p63) ? LLONG_MAX : "
       "simde_mm_cvttsd_si64(simde_mm_load_sd(&{1}.f64));",
       ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;

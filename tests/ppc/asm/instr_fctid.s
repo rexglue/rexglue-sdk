@@ -1,0 +1,29 @@
+test_fctid_sat_1:
+  #_ REGISTER_IN f0 0x43E0000000000000
+  fctid f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x7FFFFFFFFFFFFFFF
+
+test_fctid_sat_2:
+  #_ REGISTER_IN f0 0x43E158E460913D00
+  fctid f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x7FFFFFFFFFFFFFFF
+
+test_fctid_sat_3:
+  #_ REGISTER_IN f0 0x43DFFFFFFFFFFFFF
+  fctid f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x7FFFFFFFFFFFFC00
+
+test_fctid_sat_4:
+  #_ REGISTER_IN f0 0xC3E0000000000000
+  fctid f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x8000000000000000
+
+test_fctid_sat_5:
+  #_ REGISTER_IN f0 0xC3E158E460913D00
+  fctid f1, f0
+  blr
+  #_ REGISTER_OUT f1 0x8000000000000000
