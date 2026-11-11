@@ -41,7 +41,7 @@ This project is not intended to promote piracy nor unauthorized use of copyright
 
 ## ReXGlue
 - [Tom (crack)](https://github.com/tomcl7) - Project Founder and Lead
-- [Graine25](https://github.com/Graine25) - macOS Maintainer
+- [Rien (graine)](https://github.com/Graine25) - macOS Maintainer
 - [Carlos Estrague (mrcmunir)](https://github.com/mrcmunir) - Linux / ARM64 Maintainer
 
 The list above is not exhaustive. Thanks to everyone in the ReXGlue community who contributes code, files issues, tests builds, and keeps the project moving.
