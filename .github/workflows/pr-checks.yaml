@@ -135,7 +135,12 @@ jobs:
           key: linux-amd64
 
       - name: Configure
-        run: cmake --preset linux-amd64 -DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DREXGLUE_BUILD_TESTS=ON -DREXGLUE_VERIFY_HEADERS=ON
+        run: cmake --preset linux-amd64 -DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DREXGLUE_BUILD_TESTS=ON -DREXGLUE_VERIFY_HEADERS=ON -DREXGLUE_GCC_INSTALL_DIR=$REXGLUE_GCC_INSTALL_DIR
+
+      - name: Check the libstdc++ release
+        run: |
+          clang++-20 -v
+          grep -x '_REXGLUE_STDLIB_DETECTED_RELEASE:INTERNAL=13' out/build/linux-amd64/CMakeCache.txt || { echo "error: the build does not use the GCC 13 libstdc++" >&2; exit 1; }
 
       - name: Build
         run: cmake --build out/build/linux-amd64 --config Debug --parallel

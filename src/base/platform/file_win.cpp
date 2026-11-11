@@ -13,12 +13,13 @@
 
 namespace rex::platform {
 
-std::filesystem::path GetExecutablePath() {
-  // _get_wpgmptr aborts under the debug CRT when the process started through a narrow main.
+namespace {
+
+std::filesystem::path GetModulePath(HMODULE module) {
   std::wstring buffer(MAX_PATH, L'\0');
   for (;;) {
     const DWORD length =
-        GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+        GetModuleFileNameW(module, buffer.data(), static_cast<DWORD>(buffer.size()));
     if (length == 0) {
       return {};
     }
@@ -28,6 +29,26 @@ std::filesystem::path GetExecutablePath() {
     }
     buffer.resize(buffer.size() * 2);
   }
+}
+
+}  // namespace
+
+std::filesystem::path GetExecutablePath() {
+  // _get_wpgmptr aborts under the debug CRT when the process started through a narrow main.
+  return GetModulePath(nullptr);
+}
+
+std::filesystem::path GetLibraryFolder() {
+  HMODULE module = nullptr;
+  if (GetModuleHandleExW(
+          GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+          reinterpret_cast<LPCWSTR>(&GetLibraryFolder), &module)) {
+    const std::filesystem::path file = GetModulePath(module);
+    if (!file.empty()) {
+      return file.parent_path();
+    }
+  }
+  return GetExecutableFolder();
 }
 
 std::filesystem::path GetUserFolder() {

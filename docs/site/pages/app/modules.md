@@ -218,10 +218,15 @@ The app finds a driver module from the name of the driver. The module name is th
 
 ## Where Modules Load From
 
-`rex::Init` loads each module library from the folder of the executable, on every platform.
+`rex::Init` loads each module library from the first of these folders that holds the file, on every platform:
+
+1. The folder `rexbase` was loaded from. In an installed SDK this is the folder of the shared libraries.
+2. The folder of the executable. When it is the same folder as the first, the app looks there once.
+
+When neither holds the file, the load fails with an error that names every folder it looked in. No setting or environment variable adds a folder.
 
 - `rexglue_configure_target` copies the system libraries and every built driver module there. `EXCLUDE` leaves out the modules it lists, and `NO_COPY` copies nothing.
-- An installed SDK puts its shared libraries, module libraries included, in `bin` next to `rexglue` on every platform.
+- An installed SDK puts its shared libraries, module libraries included, in `lib` on Linux and macOS and in `bin` next to `rexglue` on Windows. The loader finds them through `rexbase`, so the executable can be anywhere.
 
 The file name has a postfix for the build configuration: `d` for Debug, `rd` for RelWithDebInfo and nothing for Release. A Debug build loads `rexapu-sdl3` from these files:
 

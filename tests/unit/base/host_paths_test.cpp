@@ -154,6 +154,14 @@ REX_TEST_CASE("A Windows build is never a packaged app", "[base][paths]") {
 }
 #endif
 
+REX_TEST_CASE("The library folder is the folder the rexbase library was loaded from",
+              "[base][paths]") {
+  const std::filesystem::path folder = rex::platform::GetLibraryFolder();
+  REQUIRE_FALSE(folder.empty());
+  std::error_code ec;
+  CHECK(std::filesystem::equivalent(folder, std::filesystem::path(REX_TEST_BASE_FOLDER), ec));
+}
+
 REX_TEST_CASE("A loose build keeps its files beside the executable when that folder is writable",
               "[base][paths]") {
   const auto exe_folder = rex::platform::GetExecutableFolder();

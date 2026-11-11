@@ -21,14 +21,14 @@ install(
   TARGETS ${_header_set_targets}
   EXPORT rexglueTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} ${_header_set_install}
 )
 install(
   TARGETS ${_plain_targets}
   EXPORT rexglueTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
@@ -50,7 +50,12 @@ set(REXGLUE_RUNTIME_FILE_TARGETS ${REXGLUE_MODULE_TARGETS})
 set(REXGLUE_IMPORTED_MODULES "")
 set(REXGLUE_MODULES_CONTENT "")
 string(ASCII 10 _nl)
-set(_module_dir ${CMAKE_INSTALL_BINDIR})
+# Windows keeps DLLs in bin. Linux and macOS keep shared libraries in lib.
+if (WIN32)
+  set(_module_dir ${CMAKE_INSTALL_BINDIR})
+else ()
+  set(_module_dir ${CMAKE_INSTALL_LIBDIR})
+endif ()
 set(_config_upper "$<UPPER_CASE:$<CONFIG>>")
 foreach (_module IN LISTS REXGLUE_RUNTIME_FILE_TARGETS)
   get_target_property(_export_name ${_module} EXPORT_NAME)
@@ -66,7 +71,7 @@ foreach (_module IN LISTS REXGLUE_RUNTIME_FILE_TARGETS)
       OPTIONAL
     )
   else ()
-    install(TARGETS ${_module} LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR} NAMELINK_SKIP)
+    install(TARGETS ${_module} LIBRARY DESTINATION ${_module_dir} NAMELINK_SKIP)
   endif ()
 
   set(_set "  set_property(TARGET ${_imported}")
@@ -165,6 +170,7 @@ install(
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_recomp_options.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stdlib.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stage_pdbs.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_optimus.cpp.in
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_host_alloc_stub.cpp

@@ -35,6 +35,15 @@ REX_API std::filesystem::path GetExecutablePath();
 REX_API std::filesystem::path GetExecutableFolder();
 
 /**
+ * Returns the folder the rexbase shared library was loaded from, which is where the SDK keeps its
+ * libraries and modules. It is the lib folder of an installed SDK on Linux and macOS, and the bin
+ * folder on Windows.
+ *
+ * @return The absolute folder, or GetExecutableFolder when the host does not report it.
+ */
+REX_API std::filesystem::path GetLibraryFolder();
+
+/**
  * @return Documents on Windows, the XDG data home on Linux and macOS.
  */
 REX_API std::filesystem::path GetUserFolder();

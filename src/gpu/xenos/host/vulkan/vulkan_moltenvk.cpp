@@ -88,6 +88,14 @@ void CollectExecutableRoots(std::vector<fs::path>& roots) {
   AppendNormalizedRoot(roots, executable_dir);
   AppendNormalizedRoot(roots, executable_dir / "vulkan");
 
+  // The libraries of an installed SDK are in the lib folder of its prefix, which holds the loaded
+  // rexbase library, wherever the executable is.
+  const fs::path library_prefix = rex::platform::GetLibraryFolder().parent_path();
+  if (!library_prefix.empty()) {
+    AppendNormalizedRoot(roots, library_prefix);
+    AppendNormalizedRoot(roots, library_prefix / "vulkan");
+  }
+
   const fs::path install_prefix = executable_dir.parent_path();
   if (!install_prefix.empty()) {
     AppendNormalizedRoot(roots, install_prefix);

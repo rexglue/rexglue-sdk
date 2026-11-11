@@ -2,6 +2,13 @@
 
 set(REXGLUE_VERSION_STRING "@REXGLUE_FULL_VERSION@")
 
+# What the package was built with.
+# REXGLUE_STDLIB and REXGLUE_LIBSTDCXX_RELEASE are set on Linux only.
+set(REXGLUE_CXX_COMPILER_ID "@CMAKE_CXX_COMPILER_ID@")
+set(REXGLUE_CXX_COMPILER_VERSION "@CMAKE_CXX_COMPILER_VERSION@")
+set(REXGLUE_STDLIB "@REXGLUE_STDLIB@")
+set(REXGLUE_LIBSTDCXX_RELEASE "@REXGLUE_LIBSTDCXX_RELEASE@")
+
 set(REXGLUE_MOLTENVK_ICD
     "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_DATADIR@/vulkan/icd.d/MoltenVK_icd.json"
 )
@@ -11,6 +18,9 @@ include(CMakeFindDependencyMacro)
 include("${CMAKE_CURRENT_LIST_DIR}/rexglue_target.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/rexglue_module.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/rexglue_metadata.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/rexglue_stdlib.cmake")
+
+rexglue_check_stdlib()
 
 list(PREPEND CMAKE_PREFIX_PATH "${PACKAGE_PREFIX_DIR}")
 

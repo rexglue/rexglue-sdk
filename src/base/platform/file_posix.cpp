@@ -6,6 +6,7 @@
 #include <string>
 #include <system_error>
 
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <pwd.h>
 #include <unistd.h>
@@ -41,6 +42,19 @@ std::filesystem::path GetExecutablePath() {
   std::filesystem::path path = std::filesystem::read_symlink("/proc/self/exe", ec);
   return ec ? std::filesystem::path() : path;
 #endif
+}
+
+std::filesystem::path GetLibraryFolder() {
+  Dl_info info{};
+  if (dladdr(reinterpret_cast<const void*>(&GetLibraryFolder), &info) != 0 &&
+      info.dli_fname != nullptr) {
+    std::error_code ec;
+    const std::filesystem::path file = std::filesystem::absolute(info.dli_fname, ec);
+    if (!ec && !file.parent_path().empty()) {
+      return file.parent_path().lexically_normal();
+    }
+  }
+  return GetExecutableFolder();
 }
 
 namespace {

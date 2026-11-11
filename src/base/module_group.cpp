@@ -406,11 +406,16 @@ Result<void> ModuleGroup::Load(std::string_view module_name) {
       })) {
     return Ok();
   }
+  std::vector<std::filesystem::path> folders;
   const std::filesystem::path file =
-      platform::GetExecutableFolder() / detail::ModuleFileName(module_name);
-  if (!std::filesystem::exists(file)) {
+      detail::FindLibraryFile(detail::ModuleFileName(module_name), folders);
+  if (file.empty()) {
+    std::string tried;
+    for (const std::filesystem::path& folder : folders) {
+      tried += std::format("{}'{}'", tried.empty() ? "" : ", ", folder.string());
+    }
     return Err(ErrorCategory::kModule,
-               std::format("module '{}' not found at '{}'", module_name, file.string()));
+               std::format("module '{}' not found in {}", module_name, tried));
   }
   auto entry = std::make_unique<Entry>();
   entry->label = std::string(module_name);

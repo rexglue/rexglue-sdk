@@ -53,7 +53,14 @@ jobs:
         env:
           CC: ${{ fromJSON('{"win-amd64":"clang","mac-amd64":"/usr/bin/clang","mac-arm64":"/usr/bin/clang","linux-amd64":"clang-20","linux-arm64":"clang-20"}')[inputs.platform] }}
           CXX: ${{ fromJSON('{"win-amd64":"clang++","mac-amd64":"/usr/bin/clang++","mac-arm64":"/usr/bin/clang++","linux-amd64":"clang++-20","linux-arm64":"clang++-20"}')[inputs.platform] }}
-        run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER="${{ env.CC }}" -DCMAKE_CXX_COMPILER="${{ env.CXX }}" -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DREXGLUE_BUILD_TESTS=OFF
+        run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER="${{ env.CC }}" -DCMAKE_CXX_COMPILER="${{ env.CXX }}" -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DREXGLUE_BUILD_TESTS=OFF ${{ startsWith(inputs.platform, 'linux-') && '-DREXGLUE_GCC_INSTALL_DIR=$REXGLUE_GCC_INSTALL_DIR' || '' }}
+
+      - name: Check the libstdc++ release
+        if: startsWith(inputs.platform, 'linux-')
+        shell: bash
+        run: |
+          clang++-20 -v
+          grep -x '_REXGLUE_STDLIB_DETECTED_RELEASE:INTERNAL=13' out/build/${{ inputs.platform }}/CMakeCache.txt || { echo "error: the build does not use the GCC 13 libstdc++" >&2; exit 1; }
 
       - name: Build and install
         run: cmake --build out/build/${{ inputs.platform }} --target install --parallel

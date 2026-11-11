@@ -229,6 +229,19 @@ Applies the precompiled header and the recompile options to a target.
 
 `REXSDK_VERSION` pins the exact SDK version of an installed SDK. Without it, `find_package` accepts the version that last wrote `generated/rexglue.cmake` or a newer one with the same major version.
 
+### Build Record
+
+An installed SDK records what it was built with. `rexglueConfig.cmake` sets these variables:
+
+| Variable | Meaning |
+|---|---|
+| `REXGLUE_CXX_COMPILER_ID` | `CMAKE_CXX_COMPILER_ID` of the SDK build, such as `Clang`. |
+| `REXGLUE_CXX_COMPILER_VERSION` | `CMAKE_CXX_COMPILER_VERSION` of the SDK build. |
+| `REXGLUE_STDLIB` | Linux only: `libstdc++`, `libc++` or `unknown`. |
+| `REXGLUE_LIBSTDCXX_RELEASE` | Linux only: the major release of libstdc++ (`_GLIBCXX_RELEASE`), empty for another library. |
+
+On Linux, `find_package(rexglue)` and `rexglue_configure_target` compare `REXGLUE_STDLIB` and `REXGLUE_LIBSTDCXX_RELEASE` with the standard library of the project's C++ compiler. A mismatch stops the configure with an error that names both libraries and the fix. Only the major release is compared, and no setting turns the check off.
+
 ## Cache Variables
 
 These cache variables apply to the recompiled sources only, not to your own code.
@@ -285,4 +298,5 @@ A variable with a configuration suffix overrides the plain variable for that con
 | `REXGLUE_ENABLE_TRACY` | `ON` | Links Tracy and defines `REXGLUE_ENABLE_PROFILING` in every configuration except Release. |
 | `REX_PHYSICAL_OFFSET_IN_CODE` | Linux on aarch64: `ON` when the build host page size is above 4 KiB, else `OFF` | Adds the `0x1000` offset of the `0xE0000000` range in code, for hosts with pages above 4 KiB. Only Linux on aarch64 reads it. macOS on arm64 always adds the offset, and every other host maps it. |
 | `REXGLUE_ENABLE_PERF_COUNTERS` | `ON` | Builds the perf counter registry and overlay in every configuration except Release. |
+| `REXGLUE_GCC_INSTALL_DIR` | empty | Linux only. Adds `--gcc-install-dir=<dir>` to `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS` before `project()`, so Clang compiles and links against that GCC install and its libstdc++, such as `/usr/lib/gcc/x86_64-linux-gnu/13`. The release CI sets it to GCC 13. Subprojects and the link line get the flag too. |
 | `REXGLUE_VERIFY_HEADERS` | `OFF` | Creates the targets that compile each public header alone. clang-tidy checks the public headers only through these targets. |

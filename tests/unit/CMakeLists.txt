@@ -329,7 +329,8 @@ rex_target_pch(unit_tests <rex_test.h>)
 
 target_compile_definitions(
   unit_tests
-  PRIVATE REX_TEST_KERNEL_PATH="$<TARGET_FILE:rexkernel>"
+  PRIVATE REX_TEST_BASE_FOLDER="$<TARGET_FILE_DIR:rexbase>"
+          REX_TEST_KERNEL_PATH="$<TARGET_FILE:rexkernel>"
           REX_TEST_XAM_PATH="$<TARGET_FILE:rexxam>"
           REX_TEST_XBDM_PATH="$<TARGET_FILE:rexxbdm>"
           REX_TEST_RECOMPILED_A_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-a>"

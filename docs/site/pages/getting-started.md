@@ -22,7 +22,7 @@ The SDK's `rexglue` command line tool has two commands for projects. `rexglue in
 
 === "Linux"
 
-    1. Install Clang 20 and lld 20.
+    1. Install Clang 20, lld 20 and `g++-13` with `libstdc++-13-dev`. The Linux SDK packages are built against the GCC 13 libstdc++, and a title must build against the same major version. With Clang, pass `--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/13` (`aarch64-linux-gnu` on arm64) in `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS`, since Clang otherwise picks the newest GCC it finds. To build the SDK itself against GCC 13, configure with `-DREXGLUE_GCC_INSTALL_DIR=/usr/lib/gcc/x86_64-linux-gnu/13`.
     2. Install the build dependencies. On Ubuntu 24.04 or newer:
 
         ```
@@ -188,6 +188,7 @@ Start the program with the game root, the folder that contains `default.xex`. Th
 | `ReXGlue requires the Clang compiler` | Configure with a preset, since the presets select Clang. If the build folder was configured with another compiler, delete it and configure again. |
 | `ReXGlue requires Clang 20 or newer` | Install Clang 20 or newer. On Windows, update Visual Studio. |
 | `ReXGlue requires AppleClang 17 or newer` | Install Xcode 26 or newer. |
+| `The ReXGlue SDK package was built against libstdc++ 13, but the C++ compiler of this project ... uses libstdc++ 14` | The Linux SDK packages are built against the GCC 13 libstdc++, and a title must use the same major version, since both sides emit the same standard library classes with different layouts and the process crashes at startup. Install `g++-13` and `libstdc++-13-dev`. With Clang, also pass `--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/13` (`aarch64-linux-gnu` on arm64) in `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS`. Or set `REXSDK_DIR` to build the SDK from source with the title's own compiler, where the check does not apply. A package built against another standard library, such as libc++, gives the same error with that library named. |
 | `Could NOT find Vulkan` | Install the LunarG Vulkan SDK 1.4.313 or newer, or 1.3.275 or newer on Linux arm64. On Windows, open a new shell. On Linux and macOS, source `setup-env.sh`. |
 | `ReXGlue SDK not found` | Add the SDK install folder, such as `out/install/win-amd64`, to `CMAKE_PREFIX_PATH`. To build the SDK from source with the project, set `REXSDK_DIR` to the SDK source folder. |
 | `--game_data_root was not provided` | Pass `--title.game_root` with the folder of the game files. |

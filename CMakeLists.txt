@@ -11,6 +11,22 @@ else ()
   set(REXGLUE_LANGUAGES C CXX)
 endif ()
 
+# Selects the GCC install whose libstdc++ clang compiles and links against. Without it clang uses
+# the newest GCC it finds, so the library release depends on the machine. The flag goes into the
+# compiler flags before project() so that the third party subprojects, the try_compile checks and
+# the link line all get it.
+set(REXGLUE_GCC_INSTALL_DIR
+    ""
+    CACHE PATH "Linux: GCC install directory for clang, such as /usr/lib/gcc/x86_64-linux-gnu/13"
+)
+if (REXGLUE_GCC_INSTALL_DIR)
+  if (NOT IS_DIRECTORY "${REXGLUE_GCC_INSTALL_DIR}")
+    message(FATAL_ERROR "REXGLUE_GCC_INSTALL_DIR is not a directory: ${REXGLUE_GCC_INSTALL_DIR}")
+  endif ()
+  string(APPEND CMAKE_C_FLAGS " --gcc-install-dir=${REXGLUE_GCC_INSTALL_DIR}")
+  string(APPEND CMAKE_CXX_FLAGS " --gcc-install-dir=${REXGLUE_GCC_INSTALL_DIR}")
+endif ()
+
 project(
   ReXGlue
   VERSION 0.11.0
@@ -58,6 +74,15 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_init_audit.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stdlib.cmake)
+
+# The C++ standard library the SDK libraries are built against. The package records it.
+set(REXGLUE_STDLIB "")
+set(REXGLUE_LIBSTDCXX_RELEASE "")
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  rexglue_detect_stdlib(REXGLUE_STDLIB REXGLUE_LIBSTDCXX_RELEASE)
+  message(STATUS "C++ standard library: ${REXGLUE_STDLIB} ${REXGLUE_LIBSTDCXX_RELEASE}")
+endif ()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_physical_offset.cmake)
 
 if (UNIX AND NOT APPLE)

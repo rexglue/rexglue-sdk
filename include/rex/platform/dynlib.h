@@ -44,8 +44,8 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
   bool Load(const std::filesystem::path& path, SymbolResolution mode = SymbolResolution::kLazy);
 
   /**
-   * Loads a library target from the executable folder, adding the platform prefix and extension.
-   * Closes any held library.
+   * Loads a library target from the folder rexbase was loaded from, or else from the executable
+   * folder, adding the platform prefix and extension. Closes any held library.
    */
   bool LoadNamed(std::string_view name, SymbolResolution mode = SymbolResolution::kLazy);
 

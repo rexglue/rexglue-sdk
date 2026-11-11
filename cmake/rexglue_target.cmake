@@ -6,6 +6,7 @@ include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_codegen.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_recomp_options.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/rexglue_stdlib.cmake)
 include(GNUInstallDirs)
 
 # rexglue_set_rpath(<target> <origin>)
@@ -535,6 +536,7 @@ endfunction ()
 #                     accepted and ignored. NO_COPY with EXCLUDE is an error.
 function (rexglue_configure_target target_name)
   cmake_parse_arguments(PARSE_ARGV 1 ARG "NO_COPY" "" "EXCLUDE")
+  rexglue_check_stdlib()
   _rexglue_check_copy_args(
     "${ARG_UNPARSED_ARGUMENTS}" "${ARG_KEYWORDS_MISSING_VALUES}" "${ARG_NO_COPY}" "${ARG_EXCLUDE}"
   )
