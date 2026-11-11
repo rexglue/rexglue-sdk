@@ -14,7 +14,6 @@
 #include <cstddef>
 #include <filesystem>
 #include <string>
-#include <string_view>
 #include <unordered_set>
 #include <vector>
 
@@ -27,21 +26,6 @@ struct SourceWarning {
   std::string detail;
   std::string hint;
 };
-
-std::string RenderReXGlueCMake(std::string_view project_name, std::string_view sdk_version,
-                               std::string_view entrypoint_out_dir);
-
-/**
- * Rewrites generated/rexglue.cmake when it differs from what the installed SDK renders.
- *
- * @param project_root Directory holding generated/rexglue.cmake.
- * @param project_name Name rendered into rexglue.cmake.
- * @param sdk_version Installed SDK version.
- * @param entrypoint_out_dir Output directory of the entry binary.
- * @return True when the file was rewritten.
- */
-bool RefreshGeneratedCMake(const std::filesystem::path& project_root, std::string_view project_name,
-                           std::string_view sdk_version, std::string_view entrypoint_out_dir);
 
 /**
  * Finds source files that include headers the run no longer emits.

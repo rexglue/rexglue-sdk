@@ -176,7 +176,7 @@ REX_DECLARE_INTERFACE(IUISystem, 1)
   virtual VideoMode GetVideoMode() const = 0;
 
   /**
-   * Returns the window's native handles, for a title that presents with its own renderer, or
+   * Returns the window's native handles, for a project that presents with its own renderer, or
    * kNotFound when the window is not open.
    */
   [[nodiscard]] virtual Result<NativeWindow> GetNativeWindow() const = 0;

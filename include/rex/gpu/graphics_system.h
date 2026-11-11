@@ -48,7 +48,7 @@ class REX_GPU_API GraphicsSettings final : public SettingOwner {
 
 /**
  * Runs the present thread when a driver exists and routes the guest kernel's
- * Vd calls and GPU register accesses to a Xenos driver. With no driver a title that presents
+ * Vd calls and GPU register accesses to a Xenos driver. With no driver a project that presents
  * itself calls ReportFrame and UISystem::DrawOverlays from its own present.
  */
 REX_DECLARE_INTERFACE(IGraphicsSystem, 1)
@@ -60,7 +60,7 @@ REX_DECLARE_INTERFACE(IGraphicsSystem, 1)
   virtual std::string GetDriverName() const = 0;
 
   /**
-   * Counts one title frame, for a title that presents with its own renderer. Any thread.
+   * Counts one title frame, for a project that presents with its own renderer. Any thread.
    */
   virtual void ReportFrame() = 0;
 

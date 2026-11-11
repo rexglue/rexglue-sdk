@@ -94,7 +94,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   /**
    * Reports whether fixed16 values are truncated to the -1 to 1 range of R16G16[B16A16]_SNORM
-   * instead of the needed -32 to 32. Per title configuration can override it.
+   * instead of the needed -32 to 32. Per project configuration can override it.
    */
   bool IsFixed16TruncatedToMinus1To1() const;
 

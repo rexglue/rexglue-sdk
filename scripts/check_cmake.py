@@ -15,7 +15,6 @@ CONFIG = Path(".cmake-format.yaml")
 REQUIREMENTS = Path("scripts/requirements-dev.txt")
 TEMPLATES = (
     "resources/templates/init/cmakelists.inja",
-    "resources/templates/init/rexglue_cmake.inja",
     "resources/templates/codegen/dll_targets_cmake.inja",
     "resources/templates/codegen/sources_cmake.inja",
 )

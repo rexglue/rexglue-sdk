@@ -45,7 +45,6 @@ PAGE_LINKS = {
     "REXGLUE_RECOMP_OPTIMIZATION_<CONFIG>": "reference/cmake.md#per-configuration-variables",
     "REXGLUE_RECOMP_DEBUG_INFO_<CONFIG>": "reference/cmake.md#per-configuration-variables",
     "REXSDK_DIR": "reference/cmake.md#sdk-discovery",
-    "REXSDK_VERSION": "reference/cmake.md#sdk-discovery",
 }
 
 Candidate = namedtuple("Candidate", "target depth from_file")

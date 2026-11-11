@@ -2,7 +2,7 @@
 
 ## Building
 
-Install the tools and build the SDK as the [Getting Started](getting-started.md) guide shows. The SDK needs CMake 3.25 or newer, Clang 20 or newer (Apple Clang 17 or newer on macOS), lld 20 on Linux x86_64, and Ninja. On Linux the SDK packages are built against the GCC 13 libstdc++, so also install `g++-13` and `libstdc++-13-dev` and configure with `-DREXGLUE_GCC_INSTALL_DIR=/usr/lib/gcc/<triple>/13`. A title must build against the same major version.
+Install the tools and build the SDK as the [Getting Started](getting-started.md) guide shows. The SDK needs CMake 3.25 or newer, Clang 20 or newer (Apple Clang 17 or newer on macOS), lld 20 on Linux x86_64, and Ninja. On Linux the SDK packages are built against the GCC 13 libstdc++, so also install `g++-13` and `libstdc++-13-dev` and configure with `-DREXGLUE_GCC_INSTALL_DIR=/usr/lib/gcc/<triple>/13`. A project must build against the same major version.
 
 On Windows, the `scripts/PSReX` PowerShell module wraps the CMake steps. Run `Import-Module ./scripts/PSReX`, then `rex-configure`, `rex-build`, `rex-test` and `rex-format`.
 

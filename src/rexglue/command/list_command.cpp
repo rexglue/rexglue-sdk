@@ -56,7 +56,7 @@ void RegisterList(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
   auto* list = parent.add_subcommand("list", "List what the SDK provides")->fallthrough();
   list->require_subcommand(1);
   auto* shim_command =
-      list->add_subcommand("shim", "List the functions a title can replace with a shim")
+      list->add_subcommand("shim", "List the functions a project can replace with a shim")
           ->fallthrough();
   auto args = std::make_shared<ListShimOptions>();
   std::vector<std::string> groups;

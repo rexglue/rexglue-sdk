@@ -237,7 +237,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
                      "Path exists but is not a directory: " + project_root.string());
   }
 
-  enum class RegeneratePolicy : u8 { kAlwaysRegenerate, kFirstInitOnly, kRequiresForce };
+  enum class RegeneratePolicy : u8 { kFirstInitOnly, kRequiresForce };
   struct Render {
     std::string template_id;
     fs::path out;
@@ -246,8 +246,6 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   std::string manifest_file = names.original + "_manifest.toml";
   std::vector<Render> renders = {
       {"init/cmakelists", project_root / "CMakeLists.txt", RegeneratePolicy::kRequiresForce},
-      {"init/rexglue_cmake", project_root / "generated" / "rexglue.cmake",
-       RegeneratePolicy::kAlwaysRegenerate},
       {"init/main_cpp", project_root / "src" / "main.cpp", RegeneratePolicy::kFirstInitOnly},
       {"init/hooks_cpp", project_root / "src" / (names.original + "_hooks.cpp"),
        RegeneratePolicy::kFirstInitOnly},
@@ -272,7 +270,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   }
 
   REXGLUE_TRACE("Creating directory structure...");
-  for (const auto& dir : {project_root, project_root / "src", project_root / "generated"}) {
+  for (const auto& dir : {project_root, project_root / "src"}) {
     fs::create_directories(dir, ec);
     if (ec) {
       return Err<void>(ErrorCategory::kIO,

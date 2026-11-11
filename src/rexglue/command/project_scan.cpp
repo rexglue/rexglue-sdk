@@ -1,5 +1,4 @@
 #include "project_scan.h"
-#include "app_name.h"
 
 #include <algorithm>
 #include <array>
@@ -7,15 +6,11 @@
 #include <fstream>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <unordered_set>
 
 #include <format>
-#include <nlohmann/json.hpp>
-#include "codegen/template_registry.h"
-#include "rexglue/log_categories.h"
-#include <rex/logging/log_category.h>
-#include <rex/platform/file.h>
 #include <rex/string/text.h>
 
 namespace rexglue::cli {
@@ -33,35 +28,6 @@ bool IsSourceExtension(const fs::path& p) {
 }
 
 }  // namespace
-
-std::string RenderReXGlueCMake(std::string_view project_name, std::string_view sdk_version,
-                               std::string_view entrypoint_out_dir) {
-  rex::codegen::TemplateRegistry registry;
-  auto names = ParseAppName(std::string(project_name));
-  nlohmann::json data = {
-      {"names", NamesToJSON(names)},
-      {"sdk_version", std::string(sdk_version)},
-      {"entrypoint_out_dir", std::string(entrypoint_out_dir)},
-  };
-  return registry.Render("init/rexglue_cmake", data.dump());
-}
-
-bool RefreshGeneratedCMake(const fs::path& project_root, std::string_view project_name,
-                           std::string_view sdk_version, std::string_view entrypoint_out_dir) {
-  fs::path target = project_root / "generated" / "rexglue.cmake";
-  std::string rendered = RenderReXGlueCMake(project_name, sdk_version, entrypoint_out_dir);
-
-  if (auto existing = rex::platform::ReadHostFile(target);
-      existing && std::string_view(reinterpret_cast<const char*>(existing->data()),
-                                   existing->size()) == rendered) {
-    return false;
-  }
-
-  if (auto written = rex::platform::WriteHostFile(target, rendered); !written) {
-    REXGLUE_FAIL(false, "Failed to regenerate {}: {}", target.string(), written.error().message);
-  }
-  return true;
-}
 
 std::vector<SourceWarning> ScanStaleIncludes(
     const fs::path& src_dir, const std::unordered_set<std::string>& removed_basenames) {

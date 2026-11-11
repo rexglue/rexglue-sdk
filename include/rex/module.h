@@ -173,7 +173,7 @@ class IInterfaceFactory {
   }
 };
 
-/** A unit of the SDK or of a title. It connects to the interfaces it needs and serves its own. */
+/** A unit of the SDK or of a project. It connects to the interfaces it needs and serves its own. */
 REX_DECLARE_INTERFACE(IModule, 1)
   virtual std::string_view GetName() const = 0;
 

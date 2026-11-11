@@ -32,7 +32,7 @@ REX_DECLARE_INTERFACE(IExample, 1)
 
 The name is the qualified type name, such as `rex::kernel::IObjectTable`, so the class must be in a named namespace. The version is the version of the class layout. A lookup matches both exactly, so a caller built against version 1 never receives a version 2 object.
 
-`REX_DECLARE_PRIVATE_INTERFACE(Name, version)` declares an interface that only the app and the kernel can find. The SDK uses private interfaces for calls that title code must not make, such as running the frame loop of the UI.
+`REX_DECLARE_PRIVATE_INTERFACE(Name, version)` declares an interface that only the app and the kernel can find. The SDK uses private interfaces for calls that code outside the app and the kernel must not make, such as running the frame loop of the UI.
 
 ### Finding an Interface
 

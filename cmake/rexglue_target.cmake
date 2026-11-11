@@ -523,7 +523,7 @@ endfunction ()
 #     layout library folder
 #   - A POST_BUILD copy of the SDK libraries the host links, every built provider module and the
 #     shared SDL3 into the executable folder. On Windows it also copies TARGET_RUNTIME_DLLS.
-#     Title modules colocate with the host (see rexglue_configure_module_target),
+#     DLL modules colocate with the host (see rexglue_configure_module_target),
 #     so this single copy handles them transitively.
 # Keywords:
 #   NO_COPY           Copies nothing. The RPATH, the defines, the allocator and the optimus source

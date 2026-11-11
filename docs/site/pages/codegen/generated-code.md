@@ -147,11 +147,11 @@ A call to an address with no slot in the table, or with an empty slot, asks the 
 
 ## Build Integration
 
-`rexglue init` writes `generated/rexglue.cmake`, and every `rexglue codegen` run rewrites it when it differs from the SDK template. The project's `CMakeLists.txt` includes it. It defines the codegen target and the CMake functions that connect the generated files to the program.
+The SDK package provides `rexglue_project` and the `rexglue_setup_*` functions, so no generated CMake file is needed. The project's `CMakeLists.txt` calls `rexglue_project`, which defines the codegen target and the settings that connect the generated files to the program. The output folder holds only what codegen writes, so nothing in it needs to be committed.
 
 ```mermaid
 flowchart TD
-    cmake["rexglue.cmake"] -- defines --> codegen["Codegen target"]
+    cmake["rexglue_project"] -- defines --> codegen["Codegen target"]
     manifest["Manifest"] --> codegen
     codegen --> sources["sources.cmake"]
     codegen --> dll["dll_targets.cmake"]

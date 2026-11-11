@@ -1,6 +1,6 @@
 # {{ names.original }} - ReXGlue Recompiled Project
 #
-# SDK boilerplate resides in generated/rexglue.cmake.
+# The SDK package provides rexglue_project and the rexglue_setup_* functions.
 
 cmake_minimum_required(VERSION 3.25)
 project({{ names.original }} LANGUAGES CXX)
@@ -8,7 +8,12 @@ project({{ names.original }} LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(generated/rexglue.cmake)
+if (REXSDK_DIR)
+  add_subdirectory("{{ cmake_var("REXSDK_DIR") }}" rexglue-sdk)
+else ()
+  find_package(rexglue {{ sdk_version }} REQUIRED CONFIG)
+endif ()
+rexglue_project({{ names.original }}{% if entrypoint_out_dir != "generated" %} OUTPUT_DIR {{ entrypoint_out_dir }}{% endif %})
 
 # Host sources. src/main.cpp stays on the executable.
 set({{ names.upper_case }}_HOST_SOURCES src/{{ names.original }}_hooks.cpp)

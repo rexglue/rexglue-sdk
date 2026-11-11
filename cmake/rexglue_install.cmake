@@ -170,6 +170,7 @@ install(
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_recomp_options.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_project.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stdlib.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stage_pdbs.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_optimus.cpp.in

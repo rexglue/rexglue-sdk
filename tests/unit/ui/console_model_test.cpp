@@ -45,7 +45,7 @@ class ZetaOwner final : public rex::SettingOwner {
   ZetaOwner() : SettingOwner("zeta") {}
 
   REX_SETTING(rex::i32, count, 4, "A counted value", rex::Range{1, 8});
-  REX_SETTING(rex::i32, frozen, 1, "Locked by the title");
+  REX_SETTING(rex::i32, frozen, 1, "Locked by the project");
 };
 
 class ManyOwner final : public rex::SettingOwner {

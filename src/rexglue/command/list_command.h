@@ -19,7 +19,7 @@ class App;
 namespace rexglue::cli {
 
 /**
- * Registers the list shim command, which lists the functions a title can replace with a shim.
+ * Registers the list shim command, which lists the functions a project can replace with a shim.
  *
  * @param pending Receives the action when the command is chosen.
  */

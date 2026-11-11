@@ -27,7 +27,7 @@ struct ChoiceConfig {
   std::vector<std::string> buttons;
 };
 
-/** A prompt shown inside the title window. */
+/** A prompt shown inside the app window. */
 struct PromptConfig {
   std::string title;
   // NOLINTNEXTLINE(readability-redundant-member-init): designated initializers omit this field

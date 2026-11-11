@@ -119,12 +119,12 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   /**
    * Reports whether R16G16_SNORM is used, which covers -1 to 1 rather than the needed -32 to 32.
-   * Persistent data does not depend on it, so per title configuration may override it.
+   * Persistent data does not depend on it, so per project configuration may override it.
    */
   bool IsFixedRG16TruncatedToMinus1To1() const;
   /**
    * Reports whether R16G16B16A16_SNORM is used, which covers -1 to 1 rather than the needed -32 to
-   * 32. Persistent data does not depend on it, so per title configuration may override it.
+   * 32. Persistent data does not depend on it, so per project configuration may override it.
    */
   bool IsFixedRGBA16TruncatedToMinus1To1() const;
   bool IsGammaRenderTargetAsUnorm16() const { return gamma_render_target_as_unorm16_; }

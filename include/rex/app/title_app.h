@@ -29,10 +29,10 @@ namespace rex::app {
 
 /**
  * An app that runs a title. REX_TITLE_APP calls Init, LaunchTitle, Run and Shutdown in order. A
- * title with an installer or a launcher uses REX_TITLE_APP_MAIN, calling RunFrame until it is ready
- * to launch. LaunchTitle and UnloadTitle may run any number of times, each launch from a fresh
- * mapping. When the title exits on its own the app asks the player to restart it or exit, or shuts
- * down when headless. Every step and hook runs on the UI thread that called Init.
+ * project with an installer or a launcher uses REX_TITLE_APP_MAIN, calling RunFrame until it is
+ * ready to launch. LaunchTitle and UnloadTitle may run any number of times, each launch from a
+ * fresh mapping. When the title exits on its own the app asks the player to restart it or exit, or
+ * shuts down when headless. Every step and hook runs on the UI thread that called Init.
  */
 class REX_APP_API TitleApp : public App {
  public:

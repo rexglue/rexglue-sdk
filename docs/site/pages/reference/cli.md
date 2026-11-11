@@ -88,13 +88,12 @@ The limits bound the analysis passes and the size of the output files. Changing 
 
 ### Steps
 
-1. Rewrites `generated/rexglue.cmake` if it differs from the SDK template.
-2. Skips each binary whose manifest settings, input files, limits and SDK version are unchanged since the last run, and whose generated files all exist. `--ignore-stamp` and `--force` turn off the skip.
-3. Analyzes each binary that is not skipped. If validation fails, codegen stops before it writes any generated file, unless `--force` is passed.
-4. Writes the files of each analyzed binary. A file whose content is unchanged keeps its time stamp. Codegen removes the generated files that the run no longer writes.
-5. Writes `codegen.stamp` in each output folder, and `codegen.d` and `codegen.build.stamp` in the entrypoint folder.
-6. Scans the `src` folder next to the manifest, and lists each file and line that includes a header that this run removed.
-7. Writes the SDK version into `[project].sdk_version` and logs a summary, such as:
+1. Skips each binary whose manifest settings, input files, limits and SDK version are unchanged since the last run, and whose generated files all exist. `--ignore-stamp` and `--force` turn off the skip.
+2. Analyzes each binary that is not skipped. If validation fails, codegen stops before it writes any generated file, unless `--force` is passed.
+3. Writes the files of each analyzed binary. A file whose content is unchanged keeps its time stamp. Codegen removes the generated files that the run no longer writes.
+4. Writes `codegen.stamp` in each output folder, and `codegen.d` and `codegen.build.stamp` in the entrypoint folder.
+5. Scans the `src` folder next to the manifest, and lists each file and line that includes a header that this run removed.
+6. Writes the SDK version into `[project].sdk_version` and logs a summary, such as:
 
     ```
     Codegen summary: 12 written, 3 unchanged, 0 deleted, 1 module(s) up to date
@@ -124,7 +123,6 @@ rexglue init --project-name NAME --xex-path PATH [options]
 | `CMakeLists.txt` | Replaced only with `--force`. |
 | `CMakePresets.json` | Replaced only with `--force`. |
 | `foobar_manifest.toml` | Replaced only with `--force`. |
-| `generated/rexglue.cmake` | Rewritten every time. |
 | `src/main.cpp` | Written once and never replaced. |
 | `src/foobar_hooks.cpp` | Written once and never replaced. |
 

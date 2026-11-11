@@ -193,25 +193,19 @@ REX_TEST_CASE("init writes one multi config preset per platform", "[rexglue][ini
   CHECK(builds == 18);
 }
 
-REX_TEST_CASE(
-    "init writes the recompiled library macros and applies the options to the library only",
-    "[rexglue][init]") {
+REX_TEST_CASE("init writes no generated CMake file and sets the project up from the package",
+              "[rexglue][init]") {
   rex::test::TempFolder root("rexglue_init_once_");
   WriteText(root.path / "default.xex", "");
   REQUIRE(RunInit(root.path, false));
-  const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(text.find("macro (rexglue_setup_host_library") != std::string::npos);
-  CHECK(text.find("NOT TARGET demo_recompiled") != std::string::npos);
-  CHECK(text.find("rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)") !=
-        std::string::npos);
-  CHECK(text.find("demo_recomp ") == std::string::npos);
-  const size_t library = text.find("add_library(demo_recompiled OBJECT");
-  REQUIRE(library != std::string::npos);
-  const size_t clear = text.find("PROPERTIES COMPILE_OPTIONS \"\"", library);
-  const size_t apply = text.find("rexglue_apply_recomp_settings(", library);
-  REQUIRE(clear != std::string::npos);
-  REQUIRE(apply != std::string::npos);
-  CHECK(clear < apply);
+  CHECK_FALSE(std::filesystem::exists(root.path / "generated" / "rexglue.cmake"));
+  const std::string text = ReadText(root.path / "CMakeLists.txt");
+  CHECK(text.find("generated/rexglue.cmake") == std::string::npos);
+  CHECK(text.find("find_package(rexglue ") != std::string::npos);
+  CHECK(text.find(" REQUIRED CONFIG)") != std::string::npos);
+  CHECK(text.find("REXSDK_VERSION") == std::string::npos);
+  CHECK(text.find("QUIET") == std::string::npos);
+  CHECK(text.find("rexglue_project(demo OUTPUT_DIR generated/default)") != std::string::npos);
 }
 
 REX_TEST_CASE("init keeps the underscores of the project name", "[rexglue][init][case]") {
@@ -222,8 +216,7 @@ REX_TEST_CASE("init keeps the underscores of the project name", "[rexglue][init]
   const std::string text = ReadText(root.path / "CMakeLists.txt");
   CHECK(text.find("project(my_game_2 ") != std::string::npos);
   CHECK(text.find("add_library(my_game_2_common OBJECT") != std::string::npos);
-  const std::string glue = ReadText(root.path / "generated" / "rexglue.cmake");
-  CHECK(glue.find("my_game_2_codegen") != std::string::npos);
+  CHECK(text.find("rexglue_project(my_game_2 OUTPUT_DIR generated/default)") != std::string::npos);
 }
 
 REX_TEST_CASE("init rejects a project name the manifest loader would refuse",
@@ -247,22 +240,6 @@ REX_TEST_CASE("init names the character it rejects in the project name", "[rexgl
   CHECK(text.find("letters, digits and underscore") != std::string::npos);
 }
 
-REX_TEST_CASE("init renders codegen with the file size setting and the sources as outputs",
-              "[rexglue][init]") {
-  rex::test::TempFolder root("rexglue_init_codegen_");
-  WriteText(root.path / "default.xex", "");
-  REQUIRE(RunInit(root.path, false));
-  const std::string text = ReadText(root.path / "generated" / "rexglue.cmake");
-  const size_t call = text.find("rexglue_add_codegen(\n  demo_codegen");
-  REQUIRE(call != std::string::npos);
-  CHECK(text.find("${_rexglue_codegen_max_file_size}", call) != std::string::npos);
-  CHECK(text.find("MAX_FILE_SIZE \"${REXGLUE_RECOMP_MAX_FILE_SIZE}\"") < call);
-  CHECK(text.find("MAX_FILE_SIZE", call) == std::string::npos);
-  CHECK(text.find("SOURCES ${REXGLUE_ENTRYPOINT_GENERATED_SOURCES}", call) != std::string::npos);
-  CHECK(text.find("set(REXGLUE_RECOMP_MAX_FILE_SIZE") != std::string::npos);
-  CHECK(text.find("${REXGLUE_ENTRYPOINT_PREFIX}_pch.h") != std::string::npos);
-  CHECK(text.find("demo_pch.h") == std::string::npos);
-}
 namespace {
 
 nlohmann::json InitWithSDKExe(const std::filesystem::path& root,

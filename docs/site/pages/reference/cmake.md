@@ -5,7 +5,7 @@ A project builds with CMake. This page lists the CMake functions, cache variable
 The functions come from two places:
 
 - The SDK package defines most of them. They are available after `find_package(rexglue CONFIG REQUIRED)`, or after `add_subdirectory` of the SDK source.
-- `generated/rexglue.cmake`, which `rexglue init` writes into the project, defines the [scaffold functions](#scaffold-functions). It finds the SDK and creates the codegen target, and the project's `CMakeLists.txt` includes it.
+- The project's `CMakeLists.txt` finds the SDK (see [SDK Discovery](#sdk-discovery)). The [scaffold functions](#scaffold-functions) come from the package too.
 
 A host executable is the native program that a project builds. It links the SDK and the recompiled code, and loads the SDK modules at runtime.
 
@@ -17,7 +17,7 @@ A host executable is the native program that a project builds. It links the SDK 
 rexglue_setup_target(<target> [NO_COPY] [EXCLUDE <name>...])
 ```
 
-Defined in `generated/rexglue.cmake`. Adds the generated sources of the entrypoint to the target, then calls `rexglue_configure_target` with the other arguments. The project's `CMakeLists.txt` calls it on the executable.
+Needs [`rexglue_project`](#rexglue_project) to have run first. Adds the generated sources of the entrypoint to the target, then calls `rexglue_configure_target` with the other arguments. The project's `CMakeLists.txt` calls it on the executable.
 
 ```mermaid
 flowchart TD
@@ -108,7 +108,7 @@ rexglue_add_codegen(<target> MANIFEST <file> OUTPUT_DIR <folder> WORKING_DIRECTO
                     TOOL <command...> [MAX_FILE_SIZE <bytes>] [SOURCES <file>...])
 ```
 
-Defines a custom target that runs `rexglue codegen`. `generated/rexglue.cmake` calls it to create `foobar_codegen`.
+Defines a custom target that runs `rexglue codegen`. `rexglue_project` calls it to create `foobar_codegen`.
 
 - The target reruns when an input in `codegen.d` or `MAX_FILE_SIZE` changes.
 - The target writes `sources.cmake`, a configure dependency, so a changed source list regenerates the build files.
@@ -164,7 +164,7 @@ rexglue_link_host_allocator(<target>)
 Adds the `operator new` and `operator delete` forwarders to an executable or a shared library, so that one binary can free memory that another binary allocated.
 
 - Static libraries are skipped.
-- `generated/rexglue.cmake` does not call it.
+- `rexglue_project` does not call it.
 
 ### `rexglue_set_rpath`
 
@@ -192,7 +192,25 @@ Computes the recompiled code options for every configuration, each wrapped in `$
 
 ## Scaffold Functions
 
-These are defined in `generated/rexglue.cmake`. `rexglue codegen` rewrites the file when it differs from the SDK template, so edits to it do not last.
+These are defined in the SDK package, in `rexglue_project.cmake`. Call `rexglue_project` first. `rexglue_setup_target`, `rexglue_setup_host_library` and `rexglue_apply_recomp_settings` stop with an error that names the missing call when it has not run.
+
+### `rexglue_project`
+
+```
+rexglue_project(<name> [OUTPUT_DIR <folder>])
+```
+
+Connects a project to codegen. `<name>` is the project name, which starts the name of the manifest `<name>_manifest.toml`. `OUTPUT_DIR` is the codegen output folder, relative to the project, and defaults to `generated`. `rexglue init` passes the entrypoint folder of the manifest, `generated/<name of the XEX>`. The project's `CMakeLists.txt` calls it after it finds the SDK.
+
+- Sets `REXGLUE_HOST_TARGET` to `PROJECT_NAME` unless the project set it before the call. It selects the executable that DLL modules build next to.
+- Declares the `REXGLUE_RECOMP_MAX_FILE_SIZE` cache variable and stops when it is not a byte count.
+- Calls `rexglue_recomp_options`, which sets `REXGLUE_RECOMP_OPTIONS` and `REXGLUE_RECOMP_OPTIMIZED`.
+- Includes `sources.cmake` from the output folder when codegen has written it. It then sets `REXGLUE_ENTRYPOINT_GENERATED_SOURCES`, `REXGLUE_ENTRYPOINT_PREFIX` and `REXGLUE_ENTRYPOINT_INCLUDE_DIR`, and puts the recompile options on the generated sources.
+- Calls `rexglue_add_codegen` for `foobar_codegen`.
+- Includes `dll_targets.cmake` when codegen has written it.
+- Stops with an error when `generated/rexglue.cmake` exists, since the file is no longer used.
+
+`rexglue_project`, `rexglue_setup_host_library` and `rexglue_setup_target` are macros, so the variables above and the ones `sources.cmake` and `dll_targets.cmake` set stay visible to the project's `CMakeLists.txt`. `rexglue_apply_recomp_settings` is a function.
 
 ### `rexglue_setup_host_library`
 
@@ -212,22 +230,46 @@ rexglue_apply_recomp_settings(<target> <pch_header>)
 
 Applies the precompiled header and the recompile options to a target.
 
-### Other Contents
-
-- Calls `rexglue_add_codegen` for `foobar_codegen`.
-- Includes `dll_targets.cmake` when codegen has written it.
-- `REXGLUE_HOST_TARGET` selects the executable that DLL modules build next to. The default is `PROJECT_NAME`. If the executable has another name, set the variable before the file is included.
-
 ### SDK Discovery
 
-`generated/rexglue.cmake` finds the SDK in one of two ways:
+The project's `CMakeLists.txt` finds the SDK in one of two ways:
 
 - When the cache variable `REXSDK_DIR` points to an SDK source folder, such as a submodule, it adds that folder with `add_subdirectory` and builds the SDK with the project.
 - Otherwise it finds an installed SDK with `find_package(rexglue)`, which searches `CMAKE_PREFIX_PATH`.
 
 `rexglue init` sets one of the two in the presets it writes. From an installed SDK it sets `CMAKE_PREFIX_PATH` to the install folder, and from a build inside the SDK source tree it sets `REXSDK_DIR`.
 
-`REXSDK_VERSION` pins the exact SDK version of an installed SDK. Without it, `find_package` accepts the version that last wrote `generated/rexglue.cmake` or a newer one with the same major version.
+The number in `find_package(rexglue <version> REQUIRED CONFIG)` is the SDK version that wrote the project. CMake accepts that version or a newer one with the same major version. To ask for another version, edit the number. To use one install, set `rexglue_DIR` to its `lib/cmake/rexglue` folder or `CMAKE_PREFIX_PATH` to its prefix. When CMake finds no package, it reports `Could not find a package configuration file provided by "rexglue"`.
+
+### Updating a Project
+
+A project made with an earlier SDK includes `generated/rexglue.cmake`. The SDK no longer writes or updates the file. Remove it once:
+
+1. Delete `generated/rexglue.cmake`. Nothing else under the output folder needs to be committed.
+2. In `CMakeLists.txt`, replace the line `include(generated/rexglue.cmake)` with the lines below, for a project named `foobar` whose entrypoint is `default.xex`:
+
+```cmake
+if (REXSDK_DIR)
+  add_subdirectory("${REXSDK_DIR}" rexglue-sdk)
+else ()
+  find_package(rexglue 0.11.0 REQUIRED CONFIG)
+endif ()
+rexglue_project(foobar OUTPUT_DIR generated/default)
+```
+
+The `REXSDK_DIR` branch builds the SDK from a source folder. Leave it out when the project only uses an installed SDK. `OUTPUT_DIR` is the folder the manifest writes the entrypoint to, `generated/<name of the XEX>`.
+
+A project that is not edited keeps configuring and building. The old file redefines the setup functions the package provides, so the project runs on the old copy of them. Each configure prints one deprecation warning:
+
+```
+CMake Deprecation Warning at <prefix>/lib/cmake/rexglue/rexglue_project.cmake:14 (message):
+  The SDK no longer writes or updates generated/rexglue.cmake.  Delete it,
+  and replace include(generated/rexglue.cmake) in CMakeLists.txt with
+  find_package(rexglue <version> REQUIRED CONFIG) and
+  rexglue_project(<name>).  The CMake reference page shows the lines.
+```
+
+Pass `-Wno-deprecated` to CMake to silence the warning, or `-Werror=deprecated` to make it stop the configure.
 
 ### Build Record
 

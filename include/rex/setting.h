@@ -54,7 +54,7 @@ enum class SettingLayer : u8 {
   kEnvironment, /**< A REX_<SCOPE>_<NAME> environment variable. */
   kCommandLine, /**< A --scope.name option. */
   kRuntime,     /**< The console, the settings overlay, or code from launch until unload. */
-  kLock,        /**< Locked by the title's code. */
+  kLock,        /**< Locked by the project's code. */
 };
 
 enum class SettingLife : u8 {
