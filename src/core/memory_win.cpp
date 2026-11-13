@@ -170,8 +170,26 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
   return true;
 }
 
+// Wine answers every VirtualProtect and VirtualQuery on a view of a SEC_RESERVE
+// section by asking the wineserver for the committed range
+// (get_committed_size in dlls/ntdll/unix/virtual.c). The GPU write watches
+// protect guest pages hundreds of times a frame, so under Wine a reserved
+// section turns each of those into a server round trip. A SEC_COMMIT section is
+// answered locally. Wine backs both kinds with the same sparse file, and
+// MEM_COMMIT on a view of a committed section only sets the protection. The one
+// difference is that guest pages nobody committed are readable and writable
+// instead of faulting, as they already are on Linux and macOS, where the views
+// are mapped read-write up front.
+static bool RunningUnderWine() {
+  HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+  return ntdll && GetProcAddress(ntdll, "wine_get_version");
+}
+
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
                                           PageAccess access, bool commit) {
+  if (!commit && RunningUnderWine()) {
+    commit = true;
+  }
   DWORD protect = ToWin32ProtectFlags(access) | (commit ? SEC_COMMIT : SEC_RESERVE);
   auto full_path = "Local" / path;
 #ifdef REX_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
