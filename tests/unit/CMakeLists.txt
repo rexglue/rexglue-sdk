@@ -307,7 +307,7 @@ target_link_libraries(
           xxHash::xxhash
           Catch2::Catch2WithMain
           SDL3::Headers
-          Vulkan::Headers
+          rex-vulkan-headers
 )
 target_compile_definitions(
   unit_tests PRIVATE REX_BUILDING_KERNEL REX_BUILDING_XAM REX_BUILDING_APP REX_BUILDING_HID

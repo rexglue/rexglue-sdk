@@ -182,29 +182,28 @@ target_compile_options(disasm PRIVATE -w)
 # Vulkan dependencies (only when Vulkan backend is enabled)
 #=============================================================================
 
-# Vulkan headers, VMA, the loader and MoltenVK all come from the Vulkan SDK. The loader and
-# MoltenVK stay runtime loaded; no Vulkan implementation is linked into rexglue itself.
-set(REXGLUE_VULKAN_MIN_VERSION 1.4.313)
-if (UNIX
-    AND NOT APPLE
-    AND IS_ARM64
+# The Vulkan headers and VMA are submodules, so every machine and NRI build with the same ones. The
+# loader and MoltenVK stay runtime loaded; no Vulkan implementation is linked into rexglue itself.
+add_library(rex-vulkan-headers INTERFACE)
+target_include_directories(
+  rex-vulkan-headers SYSTEM
+  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers/include>
 )
-  set(REXGLUE_VULKAN_MIN_VERSION 1.3.275)
-endif ()
-set(REXGLUE_VULKAN_COMPONENTS "")
-if (APPLE)
-  set(REXGLUE_VULKAN_COMPONENTS COMPONENTS MoltenVK)
-endif ()
-find_package(Vulkan ${REXGLUE_VULKAN_MIN_VERSION} REQUIRED ${REXGLUE_VULKAN_COMPONENTS} GLOBAL)
 
-# VMA - header-only, from the Vulkan SDK and private to the Vulkan backend
-find_path(
-  REXGLUE_VMA_INCLUDE_DIR vk_mem_alloc.h
-  HINTS "${Vulkan_INCLUDE_DIR}"
-  PATH_SUFFIXES vma REQUIRED
-)
+# VMA - header-only and private to the Vulkan backend
 add_library(rex-vma INTERFACE)
-target_include_directories(rex-vma SYSTEM INTERFACE $<BUILD_INTERFACE:${REXGLUE_VMA_INCLUDE_DIR}>)
+target_include_directories(
+  rex-vma SYSTEM
+  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/VulkanMemoryAllocator/include>
+)
+
+# macOS draws through the loader and MoltenVK of the Vulkan SDK, which the install includes. No
+# other platform needs the SDK to build. macOS needs Vulkan 1.4 at run time, and 1.4.328 is the
+# first SDK with MoltenVK 1.4.0, the first MoltenVK that reports 1.4. The SDKs from 1.4.304 to
+# 1.4.313 include MoltenVK 1.2.11, and 1.4.321 includes 1.3.0.
+if (APPLE)
+  find_package(Vulkan 1.4.328 REQUIRED COMPONENTS MoltenVK GLOBAL)
+endif ()
 
 #=============================================================================
 # SDL3 - Cross-platform media layer

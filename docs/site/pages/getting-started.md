@@ -9,8 +9,7 @@ The SDK's `rexglue` command line tool has two commands for projects. `rexglue in
 === "Windows"
 
     1. Install [Visual Studio 2026](https://visualstudio.microsoft.com/downloads/) with the **Desktop development with C++** workload. Under **Optional**, select **C++ Clang Compiler for Windows**.
-    2. Install the Vulkan SDK.
-    3. Open an x64 Developer PowerShell from a PowerShell window:
+    2. Open an x64 Developer PowerShell from a PowerShell window:
 
         ```
         & 'C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\Launch-VsDevShell.ps1' -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
@@ -31,13 +30,13 @@ The SDK's `rexglue` command line tool has two commands for projects. `rexglue in
           libasound2-dev libpulse-dev libpipewire-0.3-dev
         ```
 
-    3. Install the LunarG Vulkan SDK, and source its `setup-env.sh` in the shell you build from. LunarG provides no SDK for arm64, so on arm64 run `sudo apt install libvulkan-dev libvulkan-memory-allocator-dev` instead.
+    The build needs no Vulkan SDK. The Vulkan headers and the Vulkan Memory Allocator are submodules of the repository.
 
 === "macOS"
 
     1. Use macOS 13.3 or newer, and install Xcode 26 or newer.
     2. Run `brew install cmake ninja`.
-    3. Install the LunarG Vulkan SDK, and source its `setup-env.sh` in the shell you build from.
+    3. Install the LunarG Vulkan SDK 1.4.328 or newer, and source its `setup-env.sh` in the shell you build from. macOS is the one platform that needs the SDK to build, because the install includes the Vulkan loader and MoltenVK from it. The Vulkan headers and the Vulkan Memory Allocator are submodules of the repository.
 
 ## Build and Install the SDK
 
@@ -189,7 +188,7 @@ Start the program with the game root, the folder that contains `default.xex`. Th
 | `ReXGlue requires Clang 20 or newer` | Install Clang 20 or newer. On Windows, update Visual Studio. |
 | `ReXGlue requires AppleClang 17 or newer` | Install Xcode 26 or newer. |
 | `The ReXGlue SDK package was built against libstdc++ 13, but the C++ compiler of this project ... uses libstdc++ 14` | The Linux SDK packages are built against the GCC 13 libstdc++, and a project must use the same major version, since both sides emit the same standard library classes with different layouts and the process crashes at startup. Install `g++-13` and `libstdc++-13-dev`. With Clang, also pass `--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/13` (`aarch64-linux-gnu` on arm64) in `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS`. Or set `REXSDK_DIR` to build the SDK from source with the project's own compiler, where the check does not apply. A package built against another standard library, such as libc++, gives the same error with that library named. |
-| `Could NOT find Vulkan` | Install the LunarG Vulkan SDK 1.4.313 or newer, or 1.3.275 or newer on Linux arm64. On Windows, open a new shell. On Linux and macOS, source `setup-env.sh`. |
+| `Could NOT find Vulkan` | Only macOS looks for the SDK. Install the LunarG Vulkan SDK 1.4.328 or newer and source its `setup-env.sh`. Older SDKs include a MoltenVK that reports less than Vulkan 1.4. |
 | `Could not find a package configuration file provided by "rexglue"` | Install the SDK again, which registers it for CMake, or set the `CMAKE_PREFIX_PATH` environment variable, or pass `-DCMAKE_PREFIX_PATH=<folder>` at configure, with the SDK install folder, such as `out/install/win-amd64`. To build the SDK from source with the project, set `REXSDK_DIR` to the SDK source folder. |
 | `--game_data_root was not provided` | Pass `--title.game_root` with the folder of the game files. |
 | `unknown setting '<name>' from CommandLine` | Check the name in the [Settings Reference](reference/cvars.md). |

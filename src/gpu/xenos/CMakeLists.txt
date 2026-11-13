@@ -194,7 +194,7 @@ target_link_libraries(
           OSDependent
           OGLCompiler
           rex-vma
-          Vulkan::Headers
+          rex-vulkan-headers
 )
 
 if (REXGLUE_GPU_D3D12)

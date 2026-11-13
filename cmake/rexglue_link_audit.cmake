@@ -151,7 +151,7 @@ function (rexglue_audit_ui_links)
       d3d12
       dxgi
       dxguid
-      Vulkan::Headers
+      rex-vulkan-headers
       dxc-headers
   )
   _rexglue_audit_forbidden(rexbase ${sdl_libs})
@@ -172,7 +172,7 @@ function (rexglue_audit_host_service_links)
       d3d12
       dxgi
       dxguid
-      Vulkan::Headers
+      rex-vulkan-headers
   )
   foreach (target_name IN ITEMS rexgpu)
     if (NOT TARGET ${target_name})
