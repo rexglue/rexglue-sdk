@@ -2,13 +2,17 @@
 // DO NOT EDIT - this file is auto-generated
 
 #include "ppc_config.h"
-#include <rex/ppc.h>
-#include <rex/logging.h>  // For REX_FATAL on unresolved calls
+#include <rex/ppc/hook.h>
+#include <rex/ppc/call.h>
+#include <rex/ppc/context.h>
+#include <rex/ppc/fpu.h>
+#include <rex/ppc/stack.h>
+#include <rex/ppc/vmx.h>
+#include <rex/types.h>
+#include <rex/logging/log_category.h>
 
-// Forward declarations
 ## for func in functions
 DECLARE_REX_FUNC({{ func.name }});
 ## endfor
 
-// Function implementations
 {{ functions_code }}

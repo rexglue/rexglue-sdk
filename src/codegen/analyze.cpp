@@ -1,6 +1,6 @@
 /**
  * @file        codegen/analyze.cpp
- * @brief       Analysis pipeline orchestrator
+ * @brief       Runs the analysis phases in order
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,141 +14,118 @@
 #include <algorithm>
 #include <map>
 
-#include <rex/codegen/analysis_errors.h>
-#include <rex/codegen/analyze.h>
-#include <rex/codegen/phases.h>
-#include <rex/logging.h>
-
-#include "codegen_logging.h"
+#include "analysis_error_log.h"
+#include "pipeline.h"
+#include <rex/logging/log_category.h>
+#include "codegen_categories.h"
 
 namespace rex::codegen {
 
-Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter) {
-  REXCODEGEN_TRACE("Analyze: starting analysis...");
+[[nodiscard]] Result<void> Analyze(CodegenContext& ctx, IProgressReporter* reporter) {
+  REXCG_TRACE("Analyze: starting analysis...");
 
-  ctx.initDecoded();
-  REXCODEGEN_TRACE("Analyze: decoded {} instructions across {} code regions",
-                   ctx.decoded().instructionCount(), ctx.decoded().codeRegions().size());
+  ctx.InitDecoded();
+  REXCG_TRACE("Analyze: decoded {} instructions across {} code regions",
+              ctx.GetDecoded().GetInstructionCount(), ctx.GetDecoded().GetCodeRegions().size());
 
-  // 1. Register entry points (imports, helpers, config, pdata)
   if (reporter)
-    reporter->phaseChanged("Register");
-  auto regResult = phases::Register(ctx, reporter);
-  if (!regResult) {
-    return regResult;
+    reporter->ModulePhaseStarted("Register");
+  auto reg_result = detail::RegisterFunctions(ctx, reporter);
+  if (!reg_result) {
+    return reg_result;
   }
 
-  // 2. Scan binary into code/data regions
   if (reporter)
-    reporter->phaseChanged("Scan");
-  auto scanResult = phases::Scan(ctx, reporter);
-  if (!scanResult) {
-    return scanResult;
+    reporter->ModulePhaseStarted("Scan");
+  auto scan_result = detail::ScanRegions(ctx, reporter);
+  if (!scan_result) {
+    return scan_result;
   }
 
-  // 3. Discover function blocks iteratively (includes vtable scan)
   if (reporter)
-    reporter->phaseChanged("Discover");
-  auto discoverResult = phases::Discover(ctx, reporter);
-  if (!discoverResult) {
-    return discoverResult;
+    reporter->ModulePhaseStarted("Discover");
+  auto discover_result = detail::DiscoverFunctions(ctx, reporter);
+  if (!discover_result) {
+    return discover_result;
   }
 
-  // 3.5. Function pointer scan: find lis/addi pairs loading code addresses
-  // TODO(tomc): disabled for now, causes too many false positives
-  // functionPointerScan(ctx);
-
-  // 4. Gap fill uncovered regions + discover blocks for gap-filled functions + cleanup
   if (reporter)
-    reporter->phaseChanged("GapFill");
-  auto gapFillResult = phases::GapFill(ctx, reporter);
-  if (!gapFillResult) {
-    return gapFillResult;
+    reporter->ModulePhaseStarted("GapFill");
+  auto gap_fill_result = detail::GapFill(ctx, reporter);
+  if (!gap_fill_result) {
+    return gap_fill_result;
   }
 
-  // 5. Merge: resolve jumps and seal functions
   if (reporter)
-    reporter->phaseChanged("Merge");
-  auto mergeResult = phases::Merge(ctx, reporter);
-  if (!mergeResult) {
-    return mergeResult;
+    reporter->ModulePhaseStarted("Merge");
+  auto merge_result = detail::MergeFunctions(ctx, reporter);
+  if (!merge_result) {
+    return merge_result;
   }
 
-  // 6. Validate
   if (reporter)
-    reporter->phaseChanged("Validate");
-  auto validateResult = phases::Validate(ctx, reporter);
-  if (!validateResult) {
-    return validateResult;
+    reporter->ModulePhaseStarted("Validate");
+  auto validate_result = detail::ValidateGraph(ctx);
+  if (!validate_result) {
+    return validate_result;
   }
 
-  REXCODEGEN_TRACE("Analyze: complete - {} functions ready for code generation",
-                   ctx.graph.functionCount());
+  REXCG_TRACE("Analyze: complete - {} functions ready for code generation",
+              ctx.graph.GetFunctionCount());
 
   return Ok();
 }
 
-//=============================================================================
-// AnalysisErrors implementation
-//=============================================================================
-
-const char* AnalysisErrors::CategoryName(Category cat) {
+const char* AnalysisErrorLog::CategoryName(Category cat) {
   switch (cat) {
-    case Category::UnresolvedCall:
+    case Category::kUnresolvedCall:
       return "UnresolvedCall";
-    case Category::MissingJumpTable:
-      return "MissingJumpTable";
-    case Category::JumpTargetOutOfBounds:
-      return "JumpTargetOutOfBounds";
-    case Category::DiscontinuousFunction:
-      return "DiscontinuousFunction";
-    case Category::UnimplementedInsn:
-      return "UnimplementedInsn";
+    case Category::kMillicode:
+      return "Millicode";
     default:
       return "Unknown";
   }
 }
 
-void AnalysisErrors::Add(Category cat, uint32_t addr, const std::string& msg) {
+void AnalysisErrorLog::Add(Category cat, u32 addr, const std::string& msg) {
   Add(cat, addr, 0, msg);
 }
 
-void AnalysisErrors::Add(Category cat, uint32_t addr, uint32_t secondary, const std::string& msg) {
+void AnalysisErrorLog::Add(Category cat, u32 addr, u32 secondary, const std::string& msg) {
   entries_.push_back({cat, addr, secondary, msg});
 }
 
-size_t AnalysisErrors::Count(Category cat) const {
+size_t AnalysisErrorLog::Count(Category cat) const {
   return std::count_if(entries_.begin(), entries_.end(),
                        [cat](const Entry& e) { return e.category == cat; });
 }
 
-void AnalysisErrors::PrintReport() const {
+void AnalysisErrorLog::PrintReport() const {
   if (entries_.empty()) {
     return;
   }
 
-  REXCODEGEN_ERROR("=== ANALYSIS ERRORS ===");
+  REXCG_ERROR("=== ANALYSIS ERRORS ===");
 
-  // Group by category
-  std::map<Category, std::vector<const Entry*>> byCategory;
+  std::map<Category, std::vector<const Entry*>> by_category;
   for (const auto& entry : entries_) {
-    byCategory[entry.category].push_back(&entry);
+    by_category[entry.category].push_back(&entry);
   }
 
-  for (const auto& [cat, entries] : byCategory) {
-    REXCODEGEN_ERROR("{} ({}):", CategoryName(cat), entries.size());
+  for (const auto& [cat, entries] : by_category) {
+    REXCG_ERROR("{} ({}):", CategoryName(cat), entries.size());
 
     for (const auto* entry : entries) {
-      if (entry->secondaryAddress != 0) {
-        REXCODEGEN_ERROR("  0x{:08X} from 0x{:08X}: {}", entry->address, entry->secondaryAddress,
-                         entry->message);
+      if (entry->secondary_address != 0) {
+        REXCG_ERROR("  0x{:08X} from 0x{:08X}: {}", entry->address, entry->secondary_address,
+                    entry->message);
       } else {
-        REXCODEGEN_ERROR("  0x{:08X}: {}", entry->address, entry->message);
+        REXCG_ERROR("  0x{:08X}: {}", entry->address, entry->message);
       }
     }
   }
 
-  REXCODEGEN_ERROR("Total: {} errors", entries_.size());
+  REXCG_ERROR("Total: {} errors", entries_.size());
 }
 
 }  // namespace rex::codegen

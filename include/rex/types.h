@@ -1,16 +1,19 @@
 /**
  * @file        types.h
- * @brief       Core type definitions and aliases
+ * @brief       Integer types, byte order wrappers and size literals
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
  *
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/literals.h (Ben Vanik, 2021).
  */
 
 #pragma once
 
+#include <atomic>
 #include <bit>
 #include <compare>
 #include <concepts>
@@ -23,101 +26,10 @@
 #include <rex/assert.h>
 #include <rex/platform.h>
 
-// Check for mixed endian
 static_assert((std::endian::native == std::endian::big) ||
               (std::endian::native == std::endian::little));
 
 namespace rex {
-
-/// Byte-swap a value of any trivially copyable type (1, 2, 4, or 8 bytes).
-/// Uses std::bit_cast for safe type punning and std::byteswap for the swap.
-template <class T>
-constexpr T byte_swap(T value) noexcept {
-  static_assert(sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1,
-                "byte_swap(T value): Type T has illegal size");
-  if constexpr (sizeof(T) == 1) {
-    return value;
-  } else {
-    // Convert to unsigned integer of same size, byteswap, convert back
-    using uint_t = std::conditional_t<sizeof(T) == 8, uint64_t,
-                                      std::conditional_t<sizeof(T) == 4, uint32_t, uint16_t>>;
-    return std::bit_cast<T>(std::byteswap(std::bit_cast<uint_t>(value)));
-  }
-}
-
-template <typename T, std::endian E>
-struct endian_store {
-  using value_type = T;  // Type alias for value() in MappedPtr
-
-  endian_store() = default;
-  endian_store(const T& src) { set(src); }
-  endian_store(const endian_store&) = default;
-  endian_store& operator=(const endian_store&) = default;
-  operator T() const { return get(); }
-
-  void set(const T& src) {
-    if constexpr (std::endian::native == E) {
-      value = src;
-    } else {
-      value = rex::byte_swap(src);
-    }
-  }
-  T get() const {
-    if constexpr (std::endian::native == E) {
-      return value;
-    }
-    return rex::byte_swap(value);
-  }
-
-  endian_store<T, E>& operator+=(int a) {
-    *this = *this + a;
-    return *this;
-  }
-  endian_store<T, E>& operator-=(int a) {
-    *this = *this - a;
-    return *this;
-  }
-  endian_store<T, E>& operator++() {
-    *this += 1;
-    return *this;
-  }  // ++a
-  endian_store<T, E> operator++(int) {
-    *this += 1;
-    return (*this - 1);
-  }  // a++
-  endian_store<T, E>& operator--() {
-    *this -= 1;
-    return *this;
-  }  // --a
-  endian_store<T, E> operator--(int) {
-    *this -= 1;
-    return (*this + 1);
-  }  // a--
-
-  T value;
-};
-
-template <typename T>
-using be = endian_store<T, std::endian::big>;
-template <typename T>
-using le = endian_store<T, std::endian::little>;
-
-//=============================================================================
-// Big-Endian Type Detection
-//=============================================================================
-
-template <typename T>
-struct is_be_type : std::false_type {};
-
-template <typename T>
-struct is_be_type<rex::be<T>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_be_type_v = is_be_type<T>::value;
-
-//=============================================================================
-// Basic Integer Types
-//=============================================================================
 
 using u8 = uint8_t;
 using u16 = uint16_t;
@@ -132,258 +44,177 @@ using i64 = int64_t;
 using f32 = float;
 using f64 = double;
 
-static_assert(sizeof(f32) == 4, "float must be 4 bytes");
-static_assert(sizeof(f64) == 8, "double must be 8 bytes");
+static_assert(sizeof(f32) == 4, "f32 must be 4 bytes");
+static_assert(sizeof(f64) == 8, "f64 must be 8 bytes");
 
-//=============================================================================
-// Memory Address Types
-//=============================================================================
+/** Reverses the byte order of a trivially copyable value of 1, 2, 4 or 8 bytes. */
+template <class T>
+constexpr T byte_swap(T value) noexcept {
+  static_assert(sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1,
+                "byte_swap(T value): Type T has illegal size");
+  if constexpr (sizeof(T) == 1) {
+    return value;
+  } else {
+    using UintT =
+        std::conditional_t<sizeof(T) == 8, u64, std::conditional_t<sizeof(T) == 4, u32, u16>>;
+    return std::bit_cast<T>(std::byteswap(std::bit_cast<UintT>(value)));
+  }
+}
 
-using guest_addr_t = u32;       // Xbox 360 guest address (32-bit)
-using host_addr_t = uintptr_t;  // Host native address (64-bit on x64)
+/** Value held in memory in a fixed byte order and converted to native order on access. */
+template <typename T, std::endian E>
+struct EndianValue {
+  using value_type = T;
 
-//=============================================================================
-// Big-Endian Type Aliases (using rex::be<T>)
-//=============================================================================
+  EndianValue() = default;
 
-using be_u8 = u8;  // No byte-swapping needed for single bytes
-using be_u16 = be<u16>;
-using be_u32 = be<u32>;
-using be_u64 = be<u64>;
+  EndianValue(const T& src) { Set(src); }
 
-using be_i8 = i8;
-using be_i16 = be<i16>;
-using be_i32 = be<i32>;
-using be_i64 = be<i64>;
+  EndianValue(const EndianValue&) = default;
+  EndianValue& operator=(const EndianValue&) = default;
 
-using be_f32 = be<f32>;
-using be_f64 = be<f64>;
+  /**
+   * @return The value in native byte order.
+   */
+  operator T() const { return Get(); }
 
-//=============================================================================
-// MappedPtr - Wraps host pointer with guest address tracking
-//=============================================================================
-
-template <typename T>
-class MappedPtr {
-  T* host_ptr_;
-  u32 guest_addr_;
-
- public:
-  MappedPtr() : host_ptr_(nullptr), guest_addr_(0) {}
-  MappedPtr(T* host_ptr, u32 guest_addr) : host_ptr_(host_ptr), guest_addr_(guest_addr) {}
-  MappedPtr(std::nullptr_t) : host_ptr_(nullptr), guest_addr_(0) {}
-
-  static MappedPtr from_host(T* host_ptr) { return MappedPtr(host_ptr, 0); }
-
-  u32 guest_address() const { return guest_addr_; }
-  T* host_address() const { return host_ptr_; }
-
-  operator T*() const { return host_ptr_; }
-
-  T* operator->() const { return host_ptr_; }
-  T& operator*() const { return *host_ptr_; }
-
-  auto value() const {
-    if constexpr (is_be_type_v<T>) {
-      return static_cast<typename T::value_type>(*host_ptr_);
+  /** Stores a native value in byte order E. */
+  void Set(const T& src) {
+    if constexpr (std::endian::native == E) {
+      value = src;
     } else {
-      return *host_ptr_;
+      value = rex::byte_swap(src);
     }
   }
 
-  explicit operator bool() const { return host_ptr_ != nullptr; }
-  explicit operator u32() const { return guest_address(); }
-
-  MappedPtr operator+(std::ptrdiff_t offset) const {
-    return MappedPtr(host_ptr_ + offset, guest_addr_ + static_cast<u32>(offset * sizeof(T)));
-  }
-  MappedPtr operator-(std::ptrdiff_t offset) const {
-    return MappedPtr(host_ptr_ - offset, guest_addr_ - static_cast<u32>(offset * sizeof(T)));
-  }
-
-  template <typename U>
-  U as() const {
-    return reinterpret_cast<U>(host_ptr_);
-  }
-
-  template <typename U>
-  rex::be<U>* as_array() const {
-    return reinterpret_cast<rex::be<U>*>(host_ptr_);
-  }
-
-  void Zero() const {
-    if (host_ptr_) {
-      std::memset(host_ptr_, 0, sizeof(T));
+  /**
+   * @return The value in native byte order.
+   */
+  T Get() const {
+    if constexpr (std::endian::native == E) {
+      return value;
     }
+    return rex::byte_swap(value);
   }
 
-  void Zero(size_t size) const {
-    if (host_ptr_) {
-      std::memset(host_ptr_, 0, size);
+  /**
+   * Loads the native value atomically.
+   *
+   * @return The value in native byte order.
+   */
+  T Load(std::memory_order order) const {
+    static_assert(std::atomic_ref<T>::is_always_lock_free);
+    REX_ASSERT(std::bit_cast<uintptr_t>(&value) % std::atomic_ref<T>::required_alignment == 0);
+    const T raw = std::atomic_ref<T>(const_cast<T&>(value)).load(order);
+    if constexpr (std::endian::native == E) {
+      return raw;
     }
-  }
-};
-
-//=============================================================================
-// MappedPtr<void> Specialization
-//=============================================================================
-
-template <>
-class MappedPtr<void> {
-  void* host_ptr_;
-  u32 guest_addr_;
-
- public:
-  MappedPtr() : host_ptr_(nullptr), guest_addr_(0) {}
-  MappedPtr(void* host_ptr, u32 guest_addr) : host_ptr_(host_ptr), guest_addr_(guest_addr) {}
-  MappedPtr(std::nullptr_t) : host_ptr_(nullptr), guest_addr_(0) {}
-
-  static MappedPtr from_host(void* host_ptr) { return MappedPtr(host_ptr, 0); }
-
-  u32 guest_address() const { return guest_addr_; }
-  u32 value() const { return guest_addr_; }
-  void* host_address() const { return host_ptr_; }
-
-  operator void*() const { return host_ptr_; }
-  operator uint8_t*() const { return static_cast<uint8_t*>(host_ptr_); }
-  explicit operator bool() const { return host_ptr_ != nullptr; }
-  explicit operator u32() const { return guest_addr_; }
-
-  template <std::integral IntType>
-  MappedPtr operator+(IntType offset) const {
-    return MappedPtr(static_cast<uint8_t*>(host_ptr_) + static_cast<std::ptrdiff_t>(offset),
-                     guest_addr_ + static_cast<u32>(offset));
-  }
-  template <std::integral IntType>
-  MappedPtr operator-(IntType offset) const {
-    return MappedPtr(static_cast<uint8_t*>(host_ptr_) - static_cast<std::ptrdiff_t>(offset),
-                     guest_addr_ - static_cast<u32>(offset));
+    return rex::byte_swap(raw);
   }
 
-  template <typename U>
-  U as() const {
-    return reinterpret_cast<U>(host_ptr_);
-  }
-
-  template <typename U>
-  rex::be<U>* as_array() const {
-    return reinterpret_cast<rex::be<U>*>(host_ptr_);
-  }
-
-  void Zero(size_t size) const {
-    if (host_ptr_) {
-      std::memset(host_ptr_, 0, size);
+  /** Stores a native value in byte order E atomically. */
+  void Store(T src, std::memory_order order) {
+    static_assert(std::atomic_ref<T>::is_always_lock_free);
+    REX_ASSERT(std::bit_cast<uintptr_t>(&value) % std::atomic_ref<T>::required_alignment == 0);
+    if constexpr (std::endian::native != E) {
+      src = rex::byte_swap(src);
     }
+    std::atomic_ref<T>(value).store(src, order);
   }
+
+  /**
+   * Replaces the value atomically when it equals an expected native value.
+   *
+   * @param expected The native value to compare. Receives the current native value on failure.
+   * @param desired The native value to store on success.
+   * @return True when the value matched and desired was stored.
+   */
+  bool CompareExchange(T& expected, T desired, std::memory_order order) {
+    static_assert(std::atomic_ref<T>::is_always_lock_free);
+    REX_ASSERT(std::bit_cast<uintptr_t>(&value) % std::atomic_ref<T>::required_alignment == 0);
+    T raw_expected = expected;
+    if constexpr (std::endian::native != E) {
+      raw_expected = rex::byte_swap(expected);
+      desired = rex::byte_swap(desired);
+    }
+    if (std::atomic_ref<T>(value).compare_exchange_strong(raw_expected, desired, order)) {
+      return true;
+    }
+    if constexpr (std::endian::native != E) {
+      expected = rex::byte_swap(raw_expected);
+    } else {
+      expected = raw_expected;
+    }
+    return false;
+  }
+
+  EndianValue<T, E>& operator+=(int a) {
+    *this = *this + a;
+    return *this;
+  }
+
+  EndianValue<T, E>& operator-=(int a) {
+    *this = *this - a;
+    return *this;
+  }
+
+  EndianValue<T, E>& operator++() {
+    *this += 1;
+    return *this;
+  }
+
+  EndianValue<T, E> operator++(int) {
+    *this += 1;
+    return (*this - 1);
+  }
+
+  EndianValue<T, E>& operator--() {
+    *this -= 1;
+    return *this;
+  }
+
+  EndianValue<T, E> operator--(int) {
+    *this -= 1;
+    return (*this + 1);
+  }
+
+  T value; /**< The raw value in byte order E. */
 };
 
-//=============================================================================
-// MappedPtr<char> Specialization (strings)
-//=============================================================================
-
-template <>
-class MappedPtr<char> {
-  char* host_ptr_;
-  u32 guest_addr_;
-
- public:
-  MappedPtr() : host_ptr_(nullptr), guest_addr_(0) {}
-  MappedPtr(char* host_ptr, u32 guest_addr) : host_ptr_(host_ptr), guest_addr_(guest_addr) {}
-  MappedPtr(std::nullptr_t) : host_ptr_(nullptr), guest_addr_(0) {}
-
-  u32 guest_address() const { return guest_addr_; }
-  char* host_address() const { return host_ptr_; }
-
-  operator char*() const { return host_ptr_; }
-  explicit operator bool() const { return host_ptr_ != nullptr; }
-
-  std::string_view value() const {
-    return host_ptr_ ? std::string_view(host_ptr_) : std::string_view();
-  }
-
-  char* operator->() const { return host_ptr_; }
-  char& operator*() const { return *host_ptr_; }
-
-  MappedPtr operator+(std::ptrdiff_t offset) const {
-    return MappedPtr(host_ptr_ + offset, guest_addr_ + static_cast<u32>(offset));
-  }
-  MappedPtr operator-(std::ptrdiff_t offset) const {
-    return MappedPtr(host_ptr_ - offset, guest_addr_ - static_cast<u32>(offset));
-  }
-
-  char& operator[](size_t idx) const { return host_ptr_[idx]; }
-
-  template <typename U>
-  U as() const {
-    return reinterpret_cast<U>(host_ptr_);
-  }
-};
-
-//=============================================================================
-// MappedPtr<char16_t> Specialization (wide strings)
-//=============================================================================
-
-template <>
-class MappedPtr<char16_t> {
-  char16_t* host_ptr_;
-  u32 guest_addr_;
-
- public:
-  MappedPtr() : host_ptr_(nullptr), guest_addr_(0) {}
-  MappedPtr(char16_t* host_ptr, u32 guest_addr) : host_ptr_(host_ptr), guest_addr_(guest_addr) {}
-  MappedPtr(std::nullptr_t) : host_ptr_(nullptr), guest_addr_(0) {}
-
-  u32 guest_address() const { return guest_addr_; }
-  char16_t* host_address() const { return host_ptr_; }
-
-  operator char16_t*() const { return host_ptr_; }
-  explicit operator bool() const { return host_ptr_ != nullptr; }
-
-  std::u16string_view value() const {
-    return host_ptr_ ? std::u16string_view(host_ptr_) : std::u16string_view();
-  }
-
-  char16_t* operator->() const { return host_ptr_; }
-  char16_t& operator*() const { return *host_ptr_; }
-
-  MappedPtr operator+(std::ptrdiff_t offset) const {
-    return MappedPtr(host_ptr_ + offset, guest_addr_ + static_cast<u32>(offset * sizeof(char16_t)));
-  }
-  MappedPtr operator-(std::ptrdiff_t offset) const {
-    return MappedPtr(host_ptr_ - offset, guest_addr_ - static_cast<u32>(offset * sizeof(char16_t)));
-  }
-
-  char16_t& operator[](size_t idx) const { return host_ptr_[idx]; }
-
-  template <typename U>
-  U as() const {
-    return reinterpret_cast<U>(host_ptr_);
-  }
-};
-
-//=============================================================================
-// MappedPtr Type Traits
-//=============================================================================
+template <typename T>
+using BE = EndianValue<T, std::endian::big>;
 
 template <typename T>
-struct is_mapped_ptr : std::false_type {};
-template <typename T>
-struct is_mapped_ptr<MappedPtr<T>> : std::true_type {};
-template <typename T>
-inline constexpr bool is_mapped_ptr_v = is_mapped_ptr<T>::value;
+using LE = EndianValue<T, std::endian::little>;
 
 template <typename T>
-struct mapped_ptr_inner_type;
+struct IsBEType : std::false_type {};
+
 template <typename T>
-struct mapped_ptr_inner_type<MappedPtr<T>> {
-  using type = T;
-};
+struct IsBEType<rex::BE<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_be_type_v = IsBEType<T>::value;
+
+using GuestAddrT = u32;
+using host_addr_t = uintptr_t;
+
+/** Single byte, which needs no byte swap. */
+using be_u8 = u8;
+using be_u16 = BE<u16>;
+using be_u32 = BE<u32>;
+using be_u64 = BE<u64>;
+
+/** Single byte, which needs no byte swap. */
+using be_i8 = i8;
+using be_i16 = BE<i16>;
+using be_i32 = BE<i32>;
+using be_i64 = BE<i64>;
+
+using be_f32 = BE<f32>;
+using be_f64 = BE<f64>;
 
 }  // namespace rex
-
-//=============================================================================
-// Global Namespace Exports
-//=============================================================================
 
 using u8 = rex::u8;
 using i8 = rex::i8;
@@ -405,16 +236,31 @@ using be_i64 = rex::be_i64;
 using be_f32 = rex::be_f32;
 using be_f64 = rex::be_f64;
 
-using mapped_void = rex::MappedPtr<void>;
-using mapped_u8 = rex::MappedPtr<uint8_t>;
-using mapped_u16 = rex::MappedPtr<rex::be_u16>;
-using mapped_u32 = rex::MappedPtr<rex::be_u32>;
-using mapped_u64 = rex::MappedPtr<rex::be_u64>;
-using mapped_f32 = rex::MappedPtr<rex::be_f32>;
-using mapped_f64 = rex::MappedPtr<rex::be_f64>;
-using mapped_string = rex::MappedPtr<char>;
-using mapped_wstring = rex::MappedPtr<char16_t>;
+namespace rex {
 
-// Legacy compat alias for ppc_ptr_t<T>
-template <typename T>
-using ppc_ptr_t = rex::MappedPtr<T>;
+/** Returns a size in bytes from a count of kibibytes. */
+constexpr size_t operator""_KiB(unsigned long long int x) {
+  return 1024ULL * x;
+}
+
+/** Returns a size in bytes from a count of mebibytes. */
+constexpr size_t operator""_MiB(unsigned long long int x) {
+  return 1024_KiB * x;
+}
+
+/** Returns a size in bytes from a count of gibibytes. */
+constexpr size_t operator""_GiB(unsigned long long int x) {
+  return 1024_MiB * x;
+}
+
+/** Returns a size in bytes from a count of tebibytes. */
+constexpr size_t operator""_TiB(unsigned long long int x) {
+  return 1024_GiB * x;
+}
+
+/** Returns a size in bytes from a count of pebibytes. */
+constexpr size_t operator""_PiB(unsigned long long int x) {
+  return 1024_TiB * x;
+}
+
+}  // namespace rex

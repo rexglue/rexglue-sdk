@@ -15,6 +15,18 @@ function Invoke-ReXInstall {
     $preset = Get-ReXPreset
     $buildDir = Join-Path $root "out/build/$preset"
 
+    $cache = Join-Path $buildDir "CMakeCache.txt"
+    $prefixLine = Select-String -Path $cache -Pattern '^CMAKE_INSTALL_PREFIX:PATH=(.+)$' | Select-Object -First 1
+    if (-not $prefixLine) { throw "CMAKE_INSTALL_PREFIX not found in $cache" }
+    $installDir = [System.IO.Path]::GetFullPath($prefixLine.Matches[0].Groups[1].Value)
+    $installRoot = [System.IO.Path]::GetFullPath((Join-Path $root "out/install"))
+    if (-not $installDir.StartsWith($installRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "install prefix $installDir is outside $installRoot"
+    }
+    if (Test-Path -LiteralPath $installDir) {
+        Remove-Item -LiteralPath $installDir -Recurse -Force
+    }
+
     foreach ($config in @("Debug", "Release", "RelWithDebInfo")) {
         Write-Host "=== Installing $config ==="
         cmake --install $buildDir --config $config

@@ -195,3 +195,57 @@ test_sraw_9_constant:
   #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_OUT r5 32
   #_ REGISTER_OUT r6 1
+
+test_sraw_ca_1:
+  #_ REGISTER_IN r4 0x80000000
+  #_ REGISTER_IN r5 0x20
+  sraw r3, r4, r5
+  adde r6, r0, r0
+  blr
+  #_ REGISTER_OUT r3 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r6 0x0000000000000001
+
+test_sraw_ca_2:
+  #_ REGISTER_IN r4 0x80000000
+  #_ REGISTER_IN r5 0x21
+  sraw r3, r4, r5
+  adde r6, r0, r0
+  blr
+  #_ REGISTER_OUT r3 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r6 0x0000000000000001
+
+test_sraw_ca_3:
+  #_ REGISTER_IN r4 0x80000000
+  #_ REGISTER_IN r5 0x3F
+  sraw r3, r4, r5
+  adde r6, r0, r0
+  blr
+  #_ REGISTER_OUT r3 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r6 0x0000000000000001
+
+test_sraw_ca_4:
+  #_ REGISTER_IN r4 0xC0000000
+  #_ REGISTER_IN r5 0x20
+  sraw r3, r4, r5
+  adde r6, r0, r0
+  blr
+  #_ REGISTER_OUT r3 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r6 0x0000000000000001
+
+test_sraw_ca_5:
+  #_ REGISTER_IN r4 0x7FFFFFFF
+  #_ REGISTER_IN r5 0x28
+  sraw r3, r4, r5
+  adde r6, r0, r0
+  blr
+  #_ REGISTER_OUT r3 0x0000000000000000
+  #_ REGISTER_OUT r6 0x0000000000000000
+
+test_sraw_ca_6:
+  #_ REGISTER_IN r4 0x80000000
+  #_ REGISTER_IN r5 0x1F
+  sraw r3, r4, r5
+  adde r6, r0, r0
+  blr
+  #_ REGISTER_OUT r3 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r6 0x0000000000000000

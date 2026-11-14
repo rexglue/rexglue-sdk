@@ -1,40 +1,43 @@
-/**
- * @file        ui/overlay/debug_overlay.cpp
- *
- * @brief       Debug overlay implementation. See debug_overlay.h for details.
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-#include <rex/ui/overlay/debug_overlay.h>
+#include "ui/overlay/debug_overlay.h"
+#include "ui/overlay/overlay_context.h"
 #include <rex/version.h>
 #include <imgui.h>
+
+#include <rex/ui/style.h>
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
-#include <rex/perf/counter.h>
+#include <rex/platform/perf.h>
 #include <cinttypes>
+#include <string_view>
 #endif
 
 namespace rex::ui {
 
-DebugOverlayDialog::DebugOverlayDialog(ImGuiDrawer* imgui_drawer, FrameStatsProvider stats_provider)
-    : ImGuiDialog(imgui_drawer), stats_provider_(std::move(stats_provider)) {}
+#ifdef REXGLUE_ENABLE_PERF_COUNTERS
+namespace {
+
+i64 Snapshot(std::string_view name) {
+  const auto id = rex::platform::FindCounter(name);
+  return id ? rex::platform::GetSnapshotCounter(*id) : 0;
+}
+
+}  // namespace
+#endif
+
+DebugOverlayDialog::DebugOverlayDialog(const ModuleOverlayContext& context) : context_(context) {}
 
 DebugOverlayDialog::~DebugOverlayDialog() {}
 
-void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
+bool DebugOverlayDialog::Draw(ImGuiIO& io) {
   ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
   ImGui::SetNextWindowSize(ImVec2(280, 280), ImGuiCond_FirstUseEver);
 #else
   ImGui::SetNextWindowSize(ImVec2(220, 60), ImGuiCond_FirstUseEver);
 #endif
-  ImGui::SetNextWindowBgAlpha(0.5f);
+  ImGui::SetNextWindowBgAlpha(context_.base.ui.GetStyle().metrics.window_alpha.hud);
   if (ImGui::Begin("Debug##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
-    if (stats_provider_) {
-      auto stats = stats_provider_();
+    if (FrameStatsProvider& provider = context_.frame_stats) {
+      auto stats = provider();
       if (stats.frame_count > 0) {
         ImGui::Text("Guest: %.1f FPS (%.2f ms)", stats.fps, stats.frame_time_ms);
       }
@@ -42,67 +45,54 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
     ImGui::Separator();
 
-    // Frame time graph
-    auto ft_us = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kFrameTimeUs);
-    float ft_ms = static_cast<float>(ft_us) / 1000.0f;
+    auto ft_us = rex::platform::GetSnapshotCounter(rex::platform::CounterID::kFrameTimeUs);
+    f32 ft_ms = static_cast<f32>(ft_us) / 1000.0f;
     frame_time_history_[frame_history_idx_] = ft_ms;
     frame_history_idx_ = (frame_history_idx_ + 1) % kFrameHistorySize;
     ImGui::PlotLines("##ft", frame_time_history_.data(), kFrameHistorySize,
                      static_cast<int>(frame_history_idx_), "Frame (ms)", 0.0f, 50.0f,
                      ImVec2(200, 40));
 
-    // GPU
-    ImGui::Text("Draw: %" PRId64 "  Stalls: %" PRId64 "  Verts: %" PRId64,
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kDrawCalls),
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kCommandBufferStalls),
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kVerticesProcessed));
+    ImGui::Text("Draw: %" PRId64 "  Stalls: %" PRId64 "  Verts: %" PRId64, Snapshot("draw_calls"),
+                Snapshot("command_buffer_stalls"), Snapshot("vertices_processed"));
 
-    // Audio
-    ImGui::Text("XMA: %" PRId64 "  Lat: %.1fms  BufQ: %" PRId64,
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kXmaFramesDecoded),
-                static_cast<float>(
-                    rex::perf::GetSnapshotCounter(rex::perf::CounterId::kAudioFrameLatencyUs)) /
-                    1000.0f,
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kBufferQueueDepth));
+    ImGui::Text("XMA: %" PRId64 "  Lat: %.1fms  BufQ: %" PRId64, Snapshot("xma_frames_decoded"),
+                static_cast<f32>(Snapshot("audio_frame_latency_us")) / 1000.0f,
+                Snapshot("buffer_queue_depth"));
 
-    // Dispatch
-    ImGui::Text("Dispatch: %" PRId64 "  IRQ: %" PRId64,
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kFunctionsDispatched),
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kInterruptDispatches));
+    ImGui::Text("Dispatch: %" PRId64 "  IRQ: %" PRId64, Snapshot("functions_dispatched"),
+                Snapshot("interrupt_dispatches"));
 
-    // Threading
     ImGui::Text("Threads: %" PRId64 "  APC: %" PRId64 "  Contention: %" PRId64,
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kActiveThreads),
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kApcQueueDepth),
-                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kCriticalRegionContentions));
+                Snapshot("active_threads"), Snapshot("apc_queue_depth"),
+                Snapshot("critical_region_contentions"));
 
-    // Caches
-    auto tex_h = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kTextureCacheHits);
-    auto tex_m = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kTextureCacheMisses);
-    auto pip_h = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kPipelineCacheHits);
-    auto pip_m = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kPipelineCacheMisses);
+    auto tex_h = Snapshot("texture_cache_hits");
+    auto tex_m = Snapshot("texture_cache_misses");
+    auto pip_h = Snapshot("pipeline_cache_hits");
+    auto pip_m = Snapshot("pipeline_cache_misses");
     ImGui::Text("TexCache: %" PRId64 "/%" PRId64 "  PipeCache: %" PRId64 "/%" PRId64, tex_h,
                 tex_h + tex_m, pip_h, pip_h + pip_m);
 #endif
   }
   ImGui::End();
 
-  // Build stamp watermark -- centered near bottom of screen
-  auto text_size = ImGui::CalcTextSize(REXGLUE_BUILD_STAMP);
-  float padding = ImGui::GetStyle().WindowPadding.x * 2.0f;
-  float bottom_offset = io.DisplaySize.y * 0.03f;
+  auto text_size = ImGui::CalcTextSize(rex::GetBuildStamp());
+  f32 padding = ImGui::GetStyle().WindowPadding.x * 2.0f;
+  f32 bottom_offset = io.DisplaySize.y * 0.03f;
   ImGui::SetNextWindowPos(ImVec2((io.DisplaySize.x - text_size.x - padding) * 0.5f,
                                  io.DisplaySize.y - text_size.y - bottom_offset));
   ImGui::SetNextWindowSize(ImVec2(0, 0));
-  ImGui::PushStyleColor(ImGuiCol_Text, imgui_drawer()->style().debug.muted_text);
+  ImGui::PushStyleColor(ImGuiCol_Text, ToImVec4(context_.base.ui.GetStyle().debug.muted_text));
   if (ImGui::Begin("##watermark", nullptr,
                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
                        ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::TextUnformatted(REXGLUE_BUILD_STAMP);
+    ImGui::TextUnformatted(rex::GetBuildStamp());
   }
   ImGui::End();
   ImGui::PopStyleColor();
+  return true;
 }
 
 }  // namespace rex::ui

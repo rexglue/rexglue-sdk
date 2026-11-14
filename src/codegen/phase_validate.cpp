@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_validate.cpp
- * @brief       Validate phase: verify all call targets resolve
+ * @brief       Validate phase that verifies all call targets resolve
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -9,179 +9,178 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <rex/codegen/phases.h>
+#include "pipeline.h"
 
-#include <fmt/format.h>
+#include <format>
+#include <vector>
 
-#include <rex/codegen/analysis_errors.h>
-#include <rex/codegen/config.h>
-#include <rex/codegen/function_types.h>
-#include <rex/logging.h>
+#include "analysis_error_log.h"
+#include "config.h"
+#include "function_types.h"
+#include <rex/logging/log_category.h>
+#include "codegen_categories.h"
 
-#include "codegen_logging.h"
-#include <rex/memory/utils.h>
+#include <rex/memory/endian.h>
 
 #include <ppc.h>
-
-using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
 namespace {
 
-//=============================================================================
-// Validate all calls resolve
-//=============================================================================
-const CallEdge* findCallEdgeAt(const FunctionNode* node, uint32_t site) {
-  for (const auto& edge : node->calls()) {
+const CallEdge* FindCallEdgeAt(const FunctionNode* node, u32 site) {
+  for (const auto& edge : node->GetCalls()) {
     if (edge.site == site)
       return &edge;
   }
-  for (const auto& edge : node->tailCalls()) {
+  for (const auto& edge : node->GetTailCalls()) {
     if (edge.site == site)
       return &edge;
   }
   return nullptr;
 }
 
-// A config boundary is an assertion the binary cannot make for itself, so one
-// the graph contradicts has to say so: otherwise the author sees a full rebuild
-// change nothing and has no way to tell why. Reported, never fatal. A PDATA
-// entry inside a config extent is the normal MSVC layout for a function with an
-// SEH funclet, so only discovery carving an entry point out of a declared range
-// is worth a warning.
-void validateConfigBoundaries(CodegenContext& ctx) {
+/**
+ * Warns when the graph contradicts a config function boundary. Never fatal. A PDATA entry inside a
+ * config extent is normal for a function with an SEH funclet, so only an entry point carved out of
+ * a declared range warns.
+ */
+void ValidateConfigBoundaries(CodegenContext& ctx) {
   auto& graph = ctx.graph;
 
-  for (const auto& [addr, fc] : ctx.Config().functions) {
-    if (fc.isChunk())
+  for (const auto& [addr, fc] : ctx.GetConfig().functions) {
+    if (fc.IsChunk())
       continue;
 
-    const FunctionNode* node = graph.getFunction(addr);
+    const FunctionNode* node = graph.GetFunction(addr);
     if (!node) {
-      REXCODEGEN_WARN("[functions] 0x{:08X} is not a function entry point", addr);
+      REXCG_WARN("functions 0x{:08X} is not a function entry point", addr);
       continue;
     }
-    if (node->authority() != FunctionAuthority::CONFIG) {
-      REXCODEGEN_WARN("[functions] 0x{:08X} outranked by {}", addr,
-                      AuthorityName(node->authority()));
+    if (node->GetAuthority() != FunctionAuthority::kConfig) {
+      REXCG_WARN("functions 0x{:08X} outranked by {}", addr, AuthorityName(node->GetAuthority()));
       continue;
     }
 
-    // The declared size, not node->size(): discover() grows a node to cover its
-    // blocks, and only what the author wrote is a boundary claim.
-    uint32_t declared = fc.getSize(addr);
+    u32 declared = fc.GetSize(addr);
     if (declared == 0)
       continue;
 
-    for (const auto& [otherAddr, other] : graph.functions()) {
+    for (const auto& [otherAddr, other] : graph.GetFunctions()) {
       if (otherAddr <= addr || otherAddr >= addr + declared)
         continue;
-      auto authority = other->authority();
-      if (authority == FunctionAuthority::PDATA || authority == FunctionAuthority::HELPER) {
-        REXCODEGEN_DEBUG("[functions] 0x{:08X} size 0x{:X} contains {} 0x{:08X}", addr, declared,
-                         AuthorityName(authority), otherAddr);
+      auto authority = other->GetAuthority();
+      if (authority == FunctionAuthority::kPData || authority == FunctionAuthority::kHelper) {
+        REXCG_DEBUG("functions 0x{:08X} size 0x{:X} contains {} 0x{:08X}", addr, declared,
+                    AuthorityName(authority), otherAddr);
         continue;
       }
-      REXCODEGEN_WARN("[functions] 0x{:08X} size 0x{:X} split by {} entry point 0x{:08X}", addr,
-                      declared, AuthorityName(authority), otherAddr);
+      REXCG_WARN("functions 0x{:08X} size 0x{:X} split by {} entry point 0x{:08X}", addr, declared,
+                 AuthorityName(authority), otherAddr);
     }
   }
 }
 
-VoidResult validateGraph(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: validating call graph...");
+bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
+  const FunctionNode* node = graph.GetFunctionContaining(addr);
+  return node && node->GetMillicode() && node->GetBase() != addr;
+}
+
+}  // anonymous namespace
+
+namespace detail {
+
+/**
+ * Validates that every direct b and bl target resolves. A target inside another function counts
+ * as resolved and is emitted as a tail call to that function's internal label. A target in no
+ * function, or a call with no registered edge, stops the build.
+ */
+[[nodiscard]] Result<void> ValidateGraph(CodegenContext& ctx) {
+  REXCG_TRACE("Analyze: validating call graph...");
 
   auto& graph = ctx.graph;
-  auto& binary = ctx.binary();
+  auto& binary = ctx.GetBinary();
   auto& errors = ctx.errors;
 
-  validateConfigBoundaries(ctx);
+  ValidateConfigBoundaries(ctx);
 
-  size_t functionsChecked = 0;
-  size_t callsChecked = 0;
-  size_t edgesVerified = 0;
+  size_t functions_checked = 0;
+  size_t calls_checked = 0;
+  size_t edges_verified = 0;
 
-  for (const auto& [addr, node] : graph.functions()) {
-    functionsChecked++;
+  for (const auto& [addr, node] : graph.GetFunctions()) {
+    functions_checked++;
 
-    for (const auto& block : node->blocks()) {
-      const uint8_t* data = binary.translate(block.base);
+    for (const auto& block : node->GetBlocks()) {
+      const u8* data = binary.Translate(block.base);
       if (!data)
         continue;
 
       for (size_t offset = 0; offset < block.size; offset += 4) {
-        uint32_t insn = load_and_swap<uint32_t>(data + offset);
+        u32 insn = memory::load<be_u32>(data + offset);
 
         if (PPC_OP(insn) == PPC_OP_B && !PPC_BA(insn)) {
-          uint32_t site = block.base + static_cast<uint32_t>(offset);
-          int32_t branchOffset = PPC_BI(insn);
-          uint32_t target = site + branchOffset;
-          bool isCall = PPC_BL(insn);
+          u32 site = block.base + static_cast<u32>(offset);
+          i32 branch_offset = PPC_BI(insn);
+          u32 target = site + branch_offset;
+          bool is_call = PPC_BL(insn);
 
-          callsChecked++;
+          calls_checked++;
 
-          bool targetExists = false;
-          bool isInternalJump = false;
-
-          // Check if target is within this function's blocks
-          if (node->containsAddress(target)) {
-            isInternalJump = true;
-            targetExists = true;
-          }
-
-          // Check if target is within this function's overall bounds
-          // (handles cases where blocks don't cover all owned addresses)
-          if (!targetExists && node->isWithinBounds(target)) {
-            isInternalJump = true;
-            targetExists = true;
-          }
-
-          // Check if target is another function's entry point
-          if (!targetExists && graph.isEntryPoint(target)) {
-            targetExists = true;
-          }
-
-          // Check if target is an import
-          if (!targetExists && graph.isImport(target)) {
-            targetExists = true;
-          }
-
-          // Check if target is inside any other function's blocks
-          // (handles cross-function internal branches due to gap-fill merging)
-          if (!targetExists) {
-            const FunctionNode* containingFunc = graph.getFunctionContaining(target);
-            if (containingFunc) {
-              // Target is inside another function - treat as internal to that function
-              // This can happen when gap-fill created overlapping regions
-              targetExists = true;
-            }
-          }
-
-          if (!targetExists) {
-            // Target is not in any function - this is an error that must stop the build
-            errors.Add(AnalysisErrors::Category::UnresolvedCall, target, site,
-                       fmt::format("{} 0x{:08X} from 0x{:08X} - target not in any function",
-                                   isCall ? "bl" : "b", target, site));
+          if (IsInsideMillicodeRun(graph, target)) {
+            errors.Add(AnalysisErrorLog::Category::kMillicode, target, site,
+                       std::format("{} 0x{:08X} from 0x{:08X} is inside a millicode run, off "
+                                   "its entries",
+                                   is_call ? "bl" : "b", target, site));
             continue;
           }
 
-          if (!isInternalJump) {
-            const CallEdge* edge = findCallEdgeAt(node.get(), site);
+          bool target_exists = false;
+          bool is_internal_jump = false;
+
+          if (node->ContainsAddress(target)) {
+            is_internal_jump = true;
+            target_exists = true;
+          }
+
+          if (!target_exists && node->IsWithinBounds(target)) {
+            is_internal_jump = true;
+            target_exists = true;
+          }
+
+          if (!target_exists && graph.IsEntryPoint(target)) {
+            target_exists = true;
+          }
+
+          if (!target_exists && graph.IsImport(target)) {
+            target_exists = true;
+          }
+
+          if (!target_exists) {
+            const FunctionNode* containing_func = graph.GetFunctionContaining(target);
+            if (containing_func) {
+              target_exists = true;
+            }
+          }
+
+          if (!target_exists) {
+            errors.Add(AnalysisErrorLog::Category::kUnresolvedCall, target, site,
+                       std::format("{} 0x{:08X} from 0x{:08X} has a target in no function",
+                                   is_call ? "bl" : "b", target, site));
+            continue;
+          }
+
+          if (!is_internal_jump) {
+            const CallEdge* edge = FindCallEdgeAt(node.get(), site);
             if (!edge) {
-              // Check if target is inside another function - this is a special case
-              // where code branches to another function's internal address
-              const FunctionNode* containingFunc = graph.getFunctionContaining(target);
-              if (!containingFunc) {
-                // Target is not in any function - this is an error (call the cops)
-                errors.Add(AnalysisErrors::Category::UnresolvedCall, target, site,
-                           fmt::format("{} 0x{:08X} from 0x{:08X} in {} - no CallEdge recorded",
-                                       isCall ? "bl" : "b", target, site, node->name()));
+              const FunctionNode* containing_func = graph.GetFunctionContaining(target);
+              if (!containing_func) {
+                errors.Add(AnalysisErrorLog::Category::kUnresolvedCall, target, site,
+                           std::format("{} 0x{:08X} from 0x{:08X} in {} has no CallEdge",
+                                       is_call ? "bl" : "b", target, site, node->GetName()));
               }
-              // If target is inside another function, it will be handled as a tail call
-              // to that function's internal label during code generation
             } else {
-              edgesVerified++;
+              edges_verified++;
             }
           }
         }
@@ -189,30 +188,22 @@ VoidResult validateGraph(CodegenContext& ctx) {
     }
   }
 
-  REXCODEGEN_TRACE("Analyze: checked {} branches in {} functions, verified {} edges", callsChecked,
-                   functionsChecked, edgesVerified);
+  REXCG_TRACE("Analyze: checked {} branches in {} functions, verified {} edges", calls_checked,
+              functions_checked, edges_verified);
 
   if (errors.HasErrors()) {
-    REXCODEGEN_ERROR("Analyze: found {} errors", errors.Count());
+    REXCG_ERROR("Analyze: found {} errors", errors.Count());
     errors.PrintReport();
-    return Err(ErrorCategory::Validation,
-               fmt::format("Validation failed: {} unresolved calls",
-                           errors.Count(AnalysisErrors::Category::UnresolvedCall)));
+    return Err(ErrorCategory::kValidation,
+               std::format("Validation failed: {} unresolved calls, {} millicode errors",
+                           errors.Count(AnalysisErrorLog::Category::kUnresolvedCall),
+                           errors.Count(AnalysisErrorLog::Category::kMillicode)));
   }
 
-  REXCODEGEN_TRACE("Analyze: all calls resolve");
+  REXCG_TRACE("Analyze: all calls resolve");
   return Ok();
 }
 
-}  // anonymous namespace
-
-namespace phases {
-
-VoidResult Validate(CodegenContext& ctx, ProgressReporter* reporter) {
-  (void)reporter;
-  return validateGraph(ctx);
-}
-
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

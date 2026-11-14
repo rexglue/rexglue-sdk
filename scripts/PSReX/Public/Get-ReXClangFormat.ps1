@@ -28,19 +28,19 @@ function Get-ReXClangFormat {
     $python = Get-Command python -ErrorAction SilentlyContinue
     if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
     if (-not $python) {
-        throw "Python not found on PATH. Install Python, then: $install"
+        throw "Python not found on PATH. Install Python and run $install"
     }
 
     $locator = 'import glob, os, clang_format; ' +
                'print(glob.glob(os.path.join(os.path.dirname(clang_format.__file__), "data", "bin", "clang-format*"))[0])'
     $exe = & $python.Source -c $locator 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $exe -or -not (Test-Path $exe)) {
-        throw "clang-format $pinned is not installed. Run: $install"
+        throw "clang-format $pinned is not installed. Run $install"
     }
 
     $reported = (& $exe --version) -replace '^.*clang-format version\s+', '' -replace '\s.*$', ''
     if ($reported -ne $pinned) {
-        throw "clang-format version mismatch: found $reported, expected $pinned. Run: $install"
+        throw "clang-format found $reported, expected $pinned. Run $install"
     }
 
     return $exe

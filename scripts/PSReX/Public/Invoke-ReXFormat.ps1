@@ -22,18 +22,25 @@ function Invoke-ReXFormat {
 
     $root = Get-ReXRoot
     $extensions = @("*.cpp", "*.h", "*.hpp", "*.c")
+    $cmakeNames = @("CMakeLists.txt", "*.cmake", "*.cmake.in")
 
     if ($Path) {
         # Explicit files provided
-        $files = @($Path | ForEach-Object { Resolve-Path $_ -ErrorAction Stop })
-        Write-Host "=== Formatting $($files.Count) specified file(s) ==="
+        $resolved = @($Path | ForEach-Object { Resolve-Path $_ -ErrorAction Stop })
+        $isCMake = { $name = Split-Path $_ -Leaf; $name -like 'CMakeLists.txt' -or $name -like '*.cmake' -or $name -like '*.cmake.in' }
+        $cmakeFiles = @($resolved | Where-Object $isCMake)
+        $files = @($resolved | Where-Object { -not (& $isCMake) })
+        Write-Host "=== Formatting $($files.Count + $cmakeFiles.Count) specified file(s) ==="
     } elseif ($All) {
         # All source files
         $searchDirs = @("include", "src", "tests") | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ }
         $files = @(Get-ChildItem -Path $searchDirs -Recurse -Include $extensions | Select-Object -ExpandProperty FullName)
-        Write-Host "=== Formatting all C/C++ files ==="
+        $cmakeDirs = @("cmake", "src", "tests") | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ }
+        $cmakeFiles = @(Get-ChildItem -Path $cmakeDirs -Recurse -Include $cmakeNames | Select-Object -ExpandProperty FullName) +
+            @(Join-Path $root "CMakeLists.txt")
+        Write-Host "=== Formatting all C/C++ and CMake files ==="
     } else {
-        # Default: modified files (staged + unstaged changes)
+        # Default is modified files (staged and unstaged changes)
         $diff = git -C $root diff --name-only HEAD 2>$null
         $untracked = git -C $root ls-files --others --exclude-standard 2>$null
         $candidates = @($diff) + @($untracked) | Where-Object { $_ }
@@ -41,7 +48,11 @@ function Invoke-ReXFormat {
             $ext = [System.IO.Path]::GetExtension($_)
             $ext -in @('.cpp', '.h', '.hpp', '.c')
         } | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ })
-        Write-Host "=== Formatting modified C/C++ files ==="
+        $cmakeFiles = @($candidates | Where-Object {
+            $name = [System.IO.Path]::GetFileName($_)
+            $name -like 'CMakeLists.txt' -or $name -like '*.cmake' -or $name -like '*.cmake.in'
+        } | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ })
+        Write-Host "=== Formatting modified C/C++ and CMake files ==="
     }
 
     if ($files.Count -gt 0) {
@@ -50,6 +61,13 @@ function Invoke-ReXFormat {
         Write-Host "  Formatted $($files.Count) files"
     } else {
         Write-Host "  No files found"
+    }
+
+    if ($cmakeFiles.Count -gt 0) {
+        $python = Get-ReXCMakeLang
+        $config = Join-Path $root ".cmake-format.yaml"
+        $cmakeFiles | ForEach-Object { & $python -m cmakelang.format -i $_ -c $config }
+        Write-Host "  Formatted $($cmakeFiles.Count) CMake files"
     }
 
     Write-Host "Done."

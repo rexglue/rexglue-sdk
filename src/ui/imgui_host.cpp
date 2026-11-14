@@ -1,0 +1,617 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+
+#include <algorithm>
+#include <cfloat>
+#include <cstring>
+#include <filesystem>
+#include <iterator>
+#include <map>
+#include <optional>
+#include <string>
+#include <utility>
+
+#include <rex/assert.h>
+#include <rex/chrono.h>
+#include <rex/logging/log_category.h>
+#include <rex/ui/ui_event.h>
+#include <rex/platform.h>
+#include <rex/ui/ui_system.h>
+#include <rex/utility.h>
+
+#include "ui/imgui_host.h"
+
+#include <imgui.h>
+
+namespace rex {
+namespace ui {
+
+/** ProggyTiny.ttf (35656 bytes) as compressed base85. */
+const char kProggyTinyCompressedDataBase85[10950 + 1] =
+    R"(7])#######LJg=:'/###[),##/l:$#Q6>##5[n42<Vh8H4,>>#/e>11NNV=Bv(*:.F?uu#(gRU.o0XGH`$vhLG1hxt9?W`#,5LsCm<]vf.r$<$u7k;hb';9C'mm?]XmKVeU2cD4Eo3R/[WB]b(MC;$jPfY.;h^`ItLw6Lh2TlS+f-s$o6Q<BaRTQrU.xfLq$N;$0iR/G0VCf_cW2p/W*q?-qmnUCLYgR`*1mTi+7.nT@C=GH?a9wps_2IH,.TQg1)Q-GL(lf(T(ofL:%SS%MS=C#jfQ$X7V$t'X#(v#Y9w0#2D$CI]V3N0PRAV3#&5>#X14,MZ[Z##UE31#J&###Q-F%b>-nw'w++GM-]u)Nx0#,M[LH>#Zsvx+6O_^#l(FS7f`C_&E?g'&kcg-6Y,/;M#@2G`Bf%=(`5LF%fv$8#,+[0#veg>$EB&sQSSDgEKnIS7EM9>Z,KO_/78pQWqJE#$nt-4$F&###E`J&#uU'B#*9D6N;@;=-:U>hL&Y5<-%A9;-Y+Z&P^)9<QYN8VQM#S/Mx?c(NdBxfMKpCEPX;*qM$Q?##&5>##._L&#awnk+ib*.-Z06X1>LcA#'rB#$o4ve6)fbA#kt72LN.72L=CG&#*iX&#90Wt(F,>>#_03:)`(@2L@^x4Sj2B@PN#[xO8QkJNRR()N@#f.Mr#)t-L5FGMm8#&#/2TkLi3n##-/5##MwQ0#EB^1v&ols-)-mTMQ@-##qlQ08*lkA#aNRV7KRYML%4_s[kNa=_0Z%7Nd4[3#S@1g_/v`W#'`Fm#<MOe#_=:n#Lx;%$b(w,$g&J1$N9>B$(Q#n$oqvc$&Svv$`,TM%,PS=%OeJE%s+]l%A=Fe%']K#&7aW5&O-Nd&q&>^&GZs1'w.bA'c>u>'B-1R'%gJ.(t1tx'_jH4(iNdc(GJ*X(l`uf(^Wqr(-=Jx(=[%5)')Gb)$1vV)57Vk),8n<*BYl/*qs%]*OI5R*Fkgb*H<+q*TQv(+Xak6+?C@H+5SaT+o2VhLKd)k+i$xl+4YW=,sJd,,C*oT,Eb:K,mSPgLsF8e,Z$=rJ[<5J`E:E&#k&bV7uVco]JfaJ2M'8L#xArJ27FJx?Zgt%uov/vZ@?Gj:Kl;,jo%*K;AL7L#7G'3/J(*t.5xO+/0r+N/%ipJ/Bq_k/A>4Y/^iwl/%K:K0[HW=04D'N0wQq_00Kjt0]NJ21?p?d1T:=Y1e*&i1HLr@28x*:29A[L2Mpd%3pFIp2igO+3aXRX3M#PN3uY$d37p2=4c,s54.3SI4v0iw4JqN65G$S*5rh<65ld7E5.IRt5.f-16A/U(6IoFR6Nj7I6Y3i[6>s#s6EF=P90>=W6-Mc##=(V$#MXI%#^3=&#nd0'#(?$(#8pm(#HJa)#X%T*#iUG+##1;,#3b.-#C<x-#Smk.#GdrI3TCR/$3Ds9)?^k-$&pG/?Hn.1#rPr.LR;NHZYu-A-muPG`uqJfLK_v>#$i0B#'2[0#s6aW-AS*wp1W,/$-pZw'%]#AOC+[]O>X`=-9_cHMN8r&MsKH##77N/)8r_G3=^x]O].[]-/(pI$^=Kn<00k-$t`%/LDK5x76,G&#$or>I?v+sQ;koJM>,CS-14,dM,Hv<-cLH?01FQ*NGx0='H9V&#;Rov$8ooX_i7d;)]]>R*sVi.Lt3NM-$@dXM:uSGMDn%>-30[b's6Ct_.39I$3#bo7;FP&#YKh9&#d)KE$tok&L1tY-sTf2LP]K<Lsjr>&s9L]u-c4Au9*A>-<'3UN-PZL-NIV+85p0eZ3:.Q8bj1S*(h)Z$lel,MX_CH-.Nck-(veHZwdJe$ej+_frio0cKB$HFtRZ>#DiaWqFq7Q84okA#tiUi'Qumo%<]Xl8As(?@iLT[%tDn8gsDGA#hDu-$+HM3X_?@_8:N+q7v3G&#a7>0H3=t-?ZKm.HK+U58E/.`AcQV,tUd+Z-$fQ-Haotl8Zx2Fn)&UQ8c6E&docd.%&^R]u)x:p.N*wIL8+fsrk+5<MR@v58X^?xKxUi^6A``6MU-lPSgJ$##P*w,v%,[0#Rhi;-`2$I%*nhxu67Np.(AP##Y+YB]LD_K*NPG])IsiA#Dqi05siIfL;G;QMM8-##?bu&#,>###>jq:9%/v2;f`?J8fDrG%fmWw9gl'ENgjG:,EC%<-WW5x'6eaR86kf2`5alP&u]::.'a0i);c)3LN3wK#gZb19YvMa,?IggL3xoFMTK_P85<B9&NP'##mF#m8$6<QhEn>.)0xLp7gw]m_oM++.`=JfLm)1#.gGKd4N^@N%M'Np7ZO:k)VTqt%EO`gurjj;-0r%;%I<Ga>'M,W-(hdnXP4bA,%GLp75c<LYo5oMiXKh+0O>`QUWh<_&.ZoDuWmL<LKx(B6eVxZ9,V@Z76OM=-Ke??.]RXk:UD`?%^FHM&LMQY-SJmDc?1&Z$gq`gMi.(58gkcA#l5#N9#9Z;%Y*K-;8K?E5#0]guh&tP8m7:f[<f568<JtpBUNiF*4db;-[s[n&9o`Y-R7B$L4*XQ8t$,?.Vqa_&fQB?-/]2u$#JUp7S+5wp=25?R6W5@MA)jB%lpNp7^'9U)jNtKNBU0I,'XFQ/&&###'><h#I[*T.73rI3#1[m%:TUv[NC90/Q]i.L(dt_/1dC_&8QFeFKgL<L+qdU2f$;R3rftK3GiIn&ddcA,CDkGM'CYcM#c[#%(MgTTc645&L(T&#b:o<<l/tDYp$M3<QQGb@vjfe$i@nEI?ZKal44)=-T4sP-u0@q$:-d9`EQjDNuagC-_1X_$PQ`&#g1iJs&h'a)J`C<-M`B-'sB1tL>CVJ+7:P&#Wj7n$+8sb<:+R.Qx7m<-T`&0%3TK<-h.oN'eSYW-g7D^6mu<W)>7Rc;:cIH%5hWHX9uCq'RC/2'GZZ(=:.$ekS>k((WP_=-,8dT%;]DeHjNJ'HOsgj-vUa$UFQO68Ic+k2HwQ'(0Kgn8V=:</jUcP(Nir;JdYO&/+mZe;Cmw@^[x8IH2i<w-u$Hq7lB)KE@V)7)'R4tQc*Fv%0DTgLvgjIL%Xi.Lb+pE='Rf3M_o>*(iM]?[]-#9)#tb,;mdUw.SB+-8M*cj)1)A@;:O#kipW<78t=vERat3KN(RZ&%0)3XJh/1q+<E3'mJ9?m'as868qukA#>'_5'r1GX`4;kNbkh&@-HCp[+c+Z68=Z9:BM#Jn$R+0Au6A)K:YXr1d^8ILE65V'#Y_%n8Mc`3r:>H9%PMhj9GVCh3F3wm81EG&#,`**<3AEYLN1pA#>q0p&(^?@'Bl+&>klY'vO%co7juS^d)a#9%=&m9.m`0i)rQNm8*GF]uI9+W-wmw5_L07xLC8qT;`9%90i^Gx'abQp7)>5wLq3n0#/U0V8+B^G3%3,0:3w<W8.p?#+Hp]p7*MXK3JhpgLE-q8P&(mW-dxr>R]4fJ(d%2N9Z-r_&7rjQS<XpW&&A-W--@;qi&29tUa5N&#gB)gL8,Ap-elVKW5TwR*0l;wPAjbS(()Eb<iU(Y&3:8,($2)49;(fvnOpTx=Jx#6qqjL<LA?*l2PS&i;d2W&HBfj.L6$[J8b(%df[2Q:8bDew'2N#k9gbY2VAHX*2L0,rBcSWf%AZbqKY9g8)k4ZQ_8dP^0#$$3:,hwW&^?Ie-:Z&Eu:RL>,sM;n9g#>ve^2SK)71JTRxD)o0@1wWA2#E;<PRZ;%>xov>0f^-QQQYVBeT+?-7kMD5d0B#QZAW0:Z<A^HCkC&Oe4LI89xAs997Um.Xi,FNt-iE)6=nm8<>jUK[OZi&61L&#>CCj;r]/RLH'(j>+$P-R9bF69`%f@[p-JZ*.hnp7;-ge$NSi?-qx8;-V<ZA+1q8N9tGRWAv9j+(7=DHFC=[Z:UVgY(=5)N<)b)OBsUeA,RgI#P76ZE,3tQnTSSff&N,76LMX[r;%'1'#(AP##r-7G;4akA[ve^@%sVi.LS_r&&;4qgL>]Z##,B?nrCn,)'(Q%a-sI^W&9'i&#SrRfL`Zwe%k.jA,xf:-%<Gf&#_:JfL:JQi*c/Z)<'7(a6g/mx'aPc689TO]uo<MU'5+WZPi.cE<g(_>$+:t>-v^)'%of?pg=`N_*o'w<LJb*=-q`6]'Fh0BI@9[&%7bI4VM$D*'C[:RaFCI<-v=B[%7hep7=wRLa#E-v.K#gmA.2(LNqLC2)bqDp7.5HZAm;&_8ekx;8FmR/&mTV:@#CTp9:td>)3(ip7XqF]uN-Fj9l=K/+sAH^*I=5qBCRt-,T163BO%ov7%,sb&T=XaZ$(#GM0#Qp%a]Cs7HNbxum=g@>wb%?7N:Fk'0PYRhUv-tLWr+P(lLM/:9N*H=KRZT'Pf2;.@2<)#pVl1MwLk0&;tUAuP3w.Le.]T/*Mc##O->>#9NCU.73rI3ZbA;%^xT3BS2L#$uLjf%53Kt-2SJMBFZ.m0cmcPS)aX%(c]Yg<^[G6;$W(8*2&$X->B+kk^$D'8E@P&#I-nT'u5pm8u;Be=AJ8F-T6po)A:&?-CPcd$rDtJjLUsv'7Hx_onecgHu78k:D#]4;tb)$-UHAm8h;2c>8J<@.(W=p&oVoY?&@+w7-)ri'bb=+<b2:*S]stQ_=5>X:<Q(Ka=4)=-+'h&,:TKs-#>#29.*DW/tNqT&QAl29xj+AuD:*+lnW]D,3l6<-PX9YYw)vX&=WuT8H=AbIs[`Am2xcW-jqbn*cZV%_t/Z&QpvGJ(i2.^==iWDurfn:Ml;-##/-U%)x$+1:lROdt*mpM=i4/)Zdr'H'P[N>-EKHl$hUvf:P'Q3`u*IM&uZA39^0F[pUB+n8hq+?I`L'-)2>Cq71g/6(?(oR&iBRiLr7w;-[HuL3u6e2&V:QjBJ:9iuF8.a<ARjp'0Abr&l&:P9L3B:^7aj(8PK:(QkKLTMsCt?'Yqkd4'DW-2%^Bq7xR[[%i_Nh11uZp7LW^G3(Y0(=DRYF%#jl<-h&*u$;S^,Mw?<K**]I^FG,614Dd@N%$;Ed;0pkKNJl:a%rL@Y-&5n0#TD,##%5w.LCn^-)uH90:H;lA#;qp1(J7rLExpE]F=%,(HFI8V%095g)3fBemf@#kGO5###'5>##PHT<-.4r1&,qBE<es9B#LG'>#LK,W-fIO4kX@%%#tUB#$57>uHN^KeX'-cD)d.s*<i5qHQhe%D<KIF&#_UK]u**<gLY7<C0t#jgLqWQ>#P<Eh#$`b3(.hFQ/0rC$#P9cY#]TJLC,=5(H)L2Y&SE^=-6hk.?lG8<9c6Bt+=B`&#Ee<wTFMGT&2P###3XG$>2+c&#ok:/:3l(RsPD###2d#<-%,.t$5@HgL/mu<+PXhv[Bgb4)GO;eMZQMr?,tXvIIe;t-P2l?G2j1v^)3l$'mEa68K1l@7.`V[GG#)C]Y&f;]?OM>&x]i.L(/5##BO+k9Xp0B#NS9>#+7E<-d]nl$Yw6v9YK*6(sxGug]oko$_'l_-Ai%RMq<&_8o2@2L@@AS)c8(<-c&r]$J9oq7g?(m9LIS;H-)KfF@qVI*^ACO9fKc'&6k/q7RD&Fe&*l2LSQUV$vC#W-lwf&v:'n]%D4xVH4&(^#0jg<-@r'29EQT_6Gx)Q&':nKC>s6.6*;X^ZH.->#>atJC6`hJ>NjO?-^5l-8Tj72LFIRp7,:<Q3$)F/)5Wu>-.wruM;q0)(YHWp7@i('#'2,##8ZDK<cUb5A@]kA#9fRjNh6]0#&P[g)P`0i)0d](%^m[v$q)TVHKS9.v<%SR8<<9*#2<_C-7)hg'Orqs-QEsFMp=h19vO%o<M5,##n[li98-aQL[3=G%6J>M9dvR3kYKd&#V(f+MR?xK#liDE<[/RM3M7-##1na_$+q)'%xheG*DsXbN^BxK#R90%'vrIfL.r&/LT*=(&A's2;O56>>/jsX_Z_+/(NSi.L>jEG']iNUR238^&?MR49ne<Gm'IVQ(((wQ8*9Xd=.H6h'lv049,uPGG:Jw_-Oghr?PvblrD)TJGlq=42p_N^-e59I$%]4d<r%wd+^1Iu'n94395H72LcojA#^QWp7i0/kXEFEm8TjjM3j^an8JUbA#FS0a=l6G]uVMHW-P-t2DpAqa)1xF&#l.HB,)'sFl=TA_%6DPT^$ok%(vc<'#Z'[0#SHW-$2W(1:C,QD.Ln5%()ocjK+uZH+o[2n<rh/:)jPHmk0S_GDMgTd4o'1c&X(ek90sTn`pij7'7_j:HY/6ElAGdvDUpK#$mgJH+.`]&=*6J_60lSc&>A>.M5N=h#=eq:T?k)/:;SF&#;k-gLXL0e,e6JdDNHj?@ihvi&wNT-;6`E.FAl):%3WK<-:EI+'^([:.+lQS%?_,c<8L[W&T7-##`QHXA=(xn&Yqbf(kg<LWVZx2&&]?68vN6pgnUIu'M6YE<i(72Lgs00:xi8u_)F.^'J5YY#)PjfL=w;/:ilAqBqSBt7r[b&#hEqhLJLvu#DO*e*),8Z>e2-g)[OksHT*bm+Do5IM<_jILK4Pv'=u5a*E#Z^FHmn),Dheq.+Sl##04kWoAl[W]rYHI%+d@a-.dm<%#1[,MtRBt)O(35&>-f;-J=<n)/on,48,Ut':/;3t&u5*P`^0d%5P'gLvk,6+)>.g:(xp/)U]W]+RCwgCbE0#Aes-h%vr_BF0;=K34Yv',/GoEYQQ-U&5&Aw>]ewGt?k,l$1oR8VCkF<%+nTH4Z8f%/M&dQ/(2###S`%/L*cS5JX&V_$iac=(LG:;$ZcRPA.$+bHU7-###c7^O1[qS%)S#qT=lI(#=,o_Q.^r#(w1I<-+PK`&,o'^#GhsWQt6j(,]_<g:%t)qK.h`u&QggR8p0S`ABAla*GK[,MtDNg8IUL^#'5>##IN]p7i4mFuXih@-t=58.1&>uu$&h2`2H:%'T):wPGJuD%5DJTIUXbA#pvRdM=WcO-uhKj%0ej?Ppr<A+6o*KWQJ,x)lE59)+HL$Gs2J?n(Y]9@3*?$(x%Id;IZO]un4WJ%ncg;-3Fd<-;Q*((VD,C'q3n0#J,,##Jw@D<aNO&#PYkb$S(Fk4:Ru&#()>uu9k,h%cwfi'B.x`=Tg^d4%45GM@iZQ'YGHP9(MGGG<CD?@lb`^)j()<-X,r]$5rJ&voRl5(4@m=&l#I]uFX9b<,#hdOsBqA.&?sI3w+K?I(kEe$PLRN9De:'#6]###QfB##:a;l9Z^:m9;pd,k#en3)wXN*<W.r_&Y]$O9+]^8iC,`l--hN,m%VO;&@RG&#]*J788ix?7HZU18T0Y(f;F@q7O51Llmr1hYQw<kkDqkjDx&AKu$-a&#2f<p^oXAZ$`([K:&tF?.T;a38igw-+BB]c;N)man%)(gL$V0`$ilcp7Clp/NCP,3)Ev$&41Nw`*@0.9@iN7rqS]Ll)H)1W-]3n0#`6%_8I;TGlGR1H-w,TRLb8jn'+.UE,fK^n&SO7m83wgDlG=](WrCeA%ioD(=;+<r7r)`0G8MT&#Dfdf.>vbG3jZJp7FAeEP&e<tDI$f[@Kn,$%6M.M:12f4V.,j80DmpKC;'+-tl;rn-okgdkq5%Y%pBmp@r,g2`PR-N9&<D^63_RR(L<*b*bP5<-s>PL'8k8k91/D?[-7(&(m@?q7kdH)cDfYN)@9TDSe;DG)uQh&#k+'p74N)^ohl=,'';[P9_kisBjgU,&g>Ok2=4'K%cl@Nii)3q-_.1U9,.QL/2&>uuF*^TVA7Bs&;W36AZ(j'muJG4M_<bc%_Q?6']Td`*<g-[-%u,N<Tcm(F,rGF>CpO4)0kNeFKG2V?'jkgNvkK<&MQU+<[xKVaY>/T@&Jp'HtA$a&5U&R8bs:RWYiYeQu4k(NgxE$%X6V&#X+3O-u_dQ8/_-ldRf1W-2dpGe*E^r7d>S^JisoC%s`^68r*d;))C[p7W?<McU=n%P4'Ho$8VG29mZvQ:H1[^&foZaE#jbxu$lZp7%2s&-9rJfL4s*C8mlB#$P:=QSF-*j$[A'aNtobb.Z'[0#kQ*n%:i4%(JN#,2#9bp7q>[6OfId2P&;Hr7cpB#$X8-l93rg996Nb4):v0<-Y7`[eEdoW*l/xNN9<&v,%nra*-?078.F8o8aP+Au]ZX2L:1Bn*fuW1;N&&3M5U#x'<w:u??w]RjZCNv'[c)BFnoDbPf][`*(pBQ8mcN)YW/b,'^Y(<-QIIZ*eRrP8r=24D<.#L%vXMnNG_`78f:HO*m$N$-PMR8`[9jb8tBuTW.WqG`++ho%pI<#6EZA`X;)&G;EY+Aus#XjBZXG&#j[*RBY<-El+AI':)Z.=`]4i78Z]]2`=R$m8,@^2`Qs849_LfH[(X+`)X0-2(a+@>-KA$ZAf0YS&_;AL;>g6pgV==5A6R.db1Wbs'MC9-)5u:ENe7-##H:O&=$^]712c&gL,%,cM+4(5SmwUF<qhvhO+X[b+rh(hL5:Tf$^gs]OK?Qd&kJ1>-x-*j0c-G(-9Y`N*$0_k2ece`*#JdQ8Fk=9W'&%kCjYeaHC@nL-$[d;B*<^#DuHQNYF#>Q8L*fW]8cJX/,CWR83+pVooXXk'1HCL:6I%T(`2VY(An&R8?uN]'WLJM'$/*JLXm@8JhS](6l0tv'x06oDXFC'%=7CP8fCKetbqp0%;=0iC/kRkrjK5x'qtD_Or/9x:VWF&#<r)<-rHR.'>LW`<04=q0E8/c&hItt'a8J0)kY#Q8nnV78o=6UT`-1t%-FuN:xA1J[Oq`p77%72L9$2<?vo]Q(S/,`%VaGY>-'[qp)mH^*[eL]u/o(HF0iu.-vwoW_wn=O:[3NPcDh)Zn)ex[T%LaP-VC%f$36t1CvSw,X>^>Z4q=Z58]evqT5.xP33h839>So>InZb%=w=>F%$Mdm_FjSEEwGJMN3B,-(b@mHM;uFr$r&V@-Vp;m$bF6XJbM0-'-PgQJ=Z.lBE?=x>YBPX9N3?&+0)xm'wQsH$K]MP9cmv9glREr(>=n-k;/6t$r]2@-Ips&d-8oS@pb5r@lwcQ:aum))u=KkrVv[n>Lu,@RvlOE.^Puk;v4[+9.2A2LrPn'&]/?pg&.Rq$9-vc6BUpD*8[?:BmMq*9.HFt_QSl##O->>#b7278#r%34A$;M%+=hlTsVPp'X8N&Zu/To%mDh:.,umo%5VIl90wn5F9;_OFJ?=?JbjcX($^)Rj2vao7W9Udkr[F%8:@(4F@5W5_oHOG%M4Y@G:P+JGUsRA%UeO-;Tr+OOHi8i:F$aC=K@82L(__3:>H-g)S65e;B@:xnT_x0+x,2N:rmL4)VtH#)NF7WAs,Zx'uQpE<NJEaGq^'%'j%gpB;Je(-/`%=-8`&.6X/4S-FK=f'F>U78_TX=?1s?cZYlBd'<IaN9E=Ws^iqV_,Yei68%U@9KA-Rb'2WK78hIZ;%DkE2LDfvd(M%Jn&KSC<-mSZ[$ca<@9#`'^#nx(X-BLpU@YmB#$0Q?d8/4hFco+Eu$fY%F<]%*?@FBA,;vV@-Fo:Cu047V2B18,'$Rqmr*$J4gU<7(p(Y5:wPn;v&'C(^('$9#v/1<#e+K2ta*SV0<ISF0'HPQB%oF'7F'IZ'N9$/+8Vf[VC2)&4V&7rpgL<=XD+`2aO;_((e*FKK=-J.fQ-]HGM.IhF(=2tJQ(C9ES.qL)*NpYd.:b[+Au-g([I%QL@-cVfJ8D>BugDAVB-vlc_fV5gc*s&Y9.;25##F7,W.P'OC&aTZ`*65m_&WRJM'vGl_&==(S*2)7`&27@U1G^4?-:_`=-+()t-c'ChLGF%q.0l:$#:T__&Pi68%0xi_&Zh+/(77j_&JWoF.V735&S)[R*:xFR*K5>>#`bW-?4Ne_&6Ne_&6Ne_&lM4;-xCJcM6X;uM6X;uM(.a..^2TkL%oR(#;u.T%eAr%4tJ8&><1=GHZ_+m9/#H1F^R#SC#*N=BA9(D?v[UiFk-c/>tBc/>`9IL2a)Ph#WL](#O:Jr1Btu+#TH4.#a5C/#vS3rL<1^NMowY.##t6qLw`5oL_R#.#2HwqLUwXrLp/w+#ALx>-1xRu-'*IqL@KCsLB@]qL]cYs-dpao7Om#K)l?1?%;LuDNH@H>#/X-TI(;P>#,Gc>#0Su>#4`1?#8lC?#<xU?#@.i?#D:%@#HF7@#LRI@#P_[@#Tkn@#Xw*A#]-=A#a9OA#d<F&#*;G##.GY##2Sl##6`($#:l:$#>xL$#B.`$#F:r$#JF.%#NR@%#R_R%#Vke%#Zww%#_-4&#1TR-&Mglr-k'MS.o?.5/sWel/wpEM0%3'/1)K^f1-d>G21&v(35>V`39V7A4=onx4A1OY5EI0;6Ibgr6M$HS7Q<)58UT`l8Ym@M9^/x.:bGXf:f`9G;jxp(<n:Q`<rR2A=vkix=$.JY>(F+;?,_br?0wBS@49$5A8QZlAQ#]V-kw:8.o9ro.sQRP/wj320%-ki0)EKJ1-^,,21vcc258DD39P%&4=i[]4A+=>5ECtu5I[TV6Mt587Q6mo7tB'DW-fJcMxUq4S=Gj(N=eC]OkKu=Yc/;ip3#T(j:6s7R`?U+rH#5PSpL7]bIFtIqmW:YYdQqFrhod(WEH1VdDMSrZ>vViBn_t.CTp;JCbMMrdku.Sek+f4ft(XfCsOFlfOuo7[&+T.q6j<fh#+$JhxUwOoErf%OLoOcDQ@h%FSL-AF3HJ]FZndxF_6auGcH&;Hggx7I1$BSIm/YoIrVq1KXpa._D1SiKx%n.L<U=lox/Ff_)(:oDkarTCu:.T2B-5CPgW=CPh^FCPidOCPjjXCPkpbCPlvkCPm&uCPn,(DP@t>HPA$HHPB*QHPC0ZHPD6dHPD3Q-P_aQL2<j9xpG';xpG';xpG';xpG';xpG';xpG';xpG';xpG';xpG';xpG';xpG';xpG';xpG';xpCUi'%jseUCF3K29]cP.PK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPK)uCPT$au7ggUA5o,^<-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-O<eT-RWaQ.nW&##]9Pwf+($##)";
+namespace {
+
+class ContextScope : public rex::NonCopyable {
+ public:
+  explicit ContextScope(ImGuiContext* context) : previous_(ImGui::GetCurrentContext()) {
+    ImGui::SetCurrentContext(context);
+  }
+  ~ContextScope() { ImGui::SetCurrentContext(previous_); }
+
+ private:
+  ImGuiContext* previous_;
+};
+
+std::optional<ImGuiKey> VirtualKeyToImGuiKey(VirtualKey vkey) {
+  static const std::map<VirtualKey, ImGuiKey> kKeyMap = {
+      {VirtualKey::kTab, ImGuiKey_Tab},
+      {VirtualKey::kLeft, ImGuiKey_LeftArrow},
+      {VirtualKey::kRight, ImGuiKey_RightArrow},
+      {VirtualKey::kUp, ImGuiKey_UpArrow},
+      {VirtualKey::kDown, ImGuiKey_DownArrow},
+      {VirtualKey::kHome, ImGuiKey_Home},
+      {VirtualKey::kEnd, ImGuiKey_End},
+      {VirtualKey::kPrior, ImGuiKey_PageUp},
+      {VirtualKey::kNext, ImGuiKey_PageDown},
+      {VirtualKey::kInsert, ImGuiKey_Insert},
+      {VirtualKey::kDelete, ImGuiKey_Delete},
+      {VirtualKey::kBack, ImGuiKey_Backspace},
+      {VirtualKey::kReturn, ImGuiKey_Enter},
+      {VirtualKey::kEscape, ImGuiKey_Escape},
+      {VirtualKey::kSpace, ImGuiKey_Space},
+      {VirtualKey::kA, ImGuiKey_A},
+      {VirtualKey::kB, ImGuiKey_B},
+      {VirtualKey::kC, ImGuiKey_C},
+      {VirtualKey::kD, ImGuiKey_D},
+      {VirtualKey::kE, ImGuiKey_E},
+      {VirtualKey::kF, ImGuiKey_F},
+      {VirtualKey::kG, ImGuiKey_G},
+      {VirtualKey::kH, ImGuiKey_H},
+      {VirtualKey::kI, ImGuiKey_I},
+      {VirtualKey::kJ, ImGuiKey_J},
+      {VirtualKey::kK, ImGuiKey_K},
+      {VirtualKey::kL, ImGuiKey_L},
+      {VirtualKey::kM, ImGuiKey_M},
+      {VirtualKey::kN, ImGuiKey_N},
+      {VirtualKey::kO, ImGuiKey_O},
+      {VirtualKey::kP, ImGuiKey_P},
+      {VirtualKey::kQ, ImGuiKey_Q},
+      {VirtualKey::kR, ImGuiKey_R},
+      {VirtualKey::kS, ImGuiKey_S},
+      {VirtualKey::kT, ImGuiKey_T},
+      {VirtualKey::kU, ImGuiKey_U},
+      {VirtualKey::kV, ImGuiKey_V},
+      {VirtualKey::kW, ImGuiKey_W},
+      {VirtualKey::kX, ImGuiKey_X},
+      {VirtualKey::kY, ImGuiKey_Y},
+      {VirtualKey::kZ, ImGuiKey_Z},
+      {VirtualKey::k0, ImGuiKey_0},
+      {VirtualKey::k1, ImGuiKey_1},
+      {VirtualKey::k2, ImGuiKey_2},
+      {VirtualKey::k3, ImGuiKey_3},
+      {VirtualKey::k4, ImGuiKey_4},
+      {VirtualKey::k5, ImGuiKey_5},
+      {VirtualKey::k6, ImGuiKey_6},
+      {VirtualKey::k7, ImGuiKey_7},
+      {VirtualKey::k8, ImGuiKey_8},
+      {VirtualKey::k9, ImGuiKey_9},
+      {VirtualKey::kF1, ImGuiKey_F1},
+      {VirtualKey::kF2, ImGuiKey_F2},
+      {VirtualKey::kF3, ImGuiKey_F3},
+      {VirtualKey::kF4, ImGuiKey_F4},
+      {VirtualKey::kF5, ImGuiKey_F5},
+      {VirtualKey::kF6, ImGuiKey_F6},
+      {VirtualKey::kF7, ImGuiKey_F7},
+      {VirtualKey::kF8, ImGuiKey_F8},
+      {VirtualKey::kF9, ImGuiKey_F9},
+      {VirtualKey::kF10, ImGuiKey_F10},
+      {VirtualKey::kF11, ImGuiKey_F11},
+      {VirtualKey::kF12, ImGuiKey_F12},
+      {VirtualKey::kShift, ImGuiKey_LeftShift},
+      {VirtualKey::kControl, ImGuiKey_LeftCtrl},
+      {VirtualKey::kMenu, ImGuiKey_LeftAlt},
+      {VirtualKey::kCapital, ImGuiKey_CapsLock},
+      {VirtualKey::kNumLock, ImGuiKey_NumLock},
+      {VirtualKey::kScroll, ImGuiKey_ScrollLock},
+      {VirtualKey::kSnapshot, ImGuiKey_PrintScreen},
+      {VirtualKey::kPause, ImGuiKey_Pause},
+      {VirtualKey::kOem3, ImGuiKey_GraveAccent},
+      {VirtualKey::kOemMinus, ImGuiKey_Minus},
+      {VirtualKey::kOemPlus, ImGuiKey_Equal},
+      {VirtualKey::kOem4, ImGuiKey_LeftBracket},
+      {VirtualKey::kOem6, ImGuiKey_RightBracket},
+      {VirtualKey::kOem5, ImGuiKey_Backslash},
+      {VirtualKey::kOem1, ImGuiKey_Semicolon},
+      {VirtualKey::kOem7, ImGuiKey_Apostrophe},
+      {VirtualKey::kOemComma, ImGuiKey_Comma},
+      {VirtualKey::kOemPeriod, ImGuiKey_Period},
+      {VirtualKey::kOem2, ImGuiKey_Slash},
+      {VirtualKey::kNumpad0, ImGuiKey_Keypad0},
+      {VirtualKey::kNumpad1, ImGuiKey_Keypad1},
+      {VirtualKey::kNumpad2, ImGuiKey_Keypad2},
+      {VirtualKey::kNumpad3, ImGuiKey_Keypad3},
+      {VirtualKey::kNumpad4, ImGuiKey_Keypad4},
+      {VirtualKey::kNumpad5, ImGuiKey_Keypad5},
+      {VirtualKey::kNumpad6, ImGuiKey_Keypad6},
+      {VirtualKey::kNumpad7, ImGuiKey_Keypad7},
+      {VirtualKey::kNumpad8, ImGuiKey_Keypad8},
+      {VirtualKey::kNumpad9, ImGuiKey_Keypad9},
+      {VirtualKey::kAdd, ImGuiKey_KeypadAdd},
+      {VirtualKey::kSubtract, ImGuiKey_KeypadSubtract},
+      {VirtualKey::kMultiply, ImGuiKey_KeypadMultiply},
+      {VirtualKey::kDivide, ImGuiKey_KeypadDivide},
+      {VirtualKey::kDecimal, ImGuiKey_KeypadDecimal},
+  };
+  if (auto search = kKeyMap.find(vkey); search != kKeyMap.end()) {
+    return search->second;
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
+ImGuiHost::ImGuiHost(Hooks hooks) : hooks_(std::move(hooks)) {
+  Initialize();
+}
+
+ImGuiHost::~ImGuiHost() {
+  ImGuiContext* caller_context = ImGui::GetCurrentContext();
+  if (dialog_counter_) {
+    dialog_counter_->store(0, std::memory_order_relaxed);
+  }
+  DestroyDialogs();
+  log::NoThrow(log::ui, [this] { SetTextInputActive(false); });
+  if (context_) {
+    ImGui::DestroyContext(context_);
+    if (caller_context == context_) {
+      caller_context = nullptr;
+    }
+    context_ = nullptr;
+  }
+  ImGui::SetCurrentContext(caller_context);
+}
+
+bool ImGuiHost::Contains(const IDialog& dialog) const {
+  return std::ranges::any_of(dialogs_,
+                             [&](const DialogEntry& entry) { return entry.dialog == &dialog; });
+}
+
+u64 ImGuiHost::AddDialog(IDialog& dialog) {
+  const auto existing = std::ranges::find(dialogs_, &dialog, &DialogEntry::dialog);
+  if (existing != dialogs_.end()) {
+    return existing->id;
+  }
+  const u64 id = next_dialog_id_++;
+  dialogs_.push_back({&dialog, id});
+  changed_ = true;
+  PublishDialogCount();
+  return id;
+}
+
+void ImGuiHost::AddDialog(std::unique_ptr<IDialog> dialog) {
+  REX_ASSERT(dialog.get() != nullptr);
+  IDialog& added = *dialog;
+  if (Contains(added)) {
+    return;
+  }
+  owned_.push_back(std::move(dialog));
+  AddDialog(added);
+}
+
+ImGuiStyle& ImGuiHost::GetImGuiStyle() {
+  ContextScope scope(context_);
+  return ImGui::GetStyle();
+}
+
+ImGuiIO& ImGuiHost::GetIO() {
+  ContextScope scope(context_);
+  return ImGui::GetIO();
+}
+
+ImFontAtlas& ImGuiHost::GetFonts() {
+  ContextScope scope(context_);
+  return *ImGui::GetIO().Fonts;
+}
+
+void ImGuiHost::DestroyDialogs() {
+  REX_ASSERT(!IsDrawingDialogs());
+  std::vector<std::unique_ptr<IDialog>> doomed = std::move(owned_);
+  owned_.clear();
+  dialogs_.clear();
+  log::NoThrow(log::ui, [this] { DetachIfLastDialogRemoved(); });
+  PublishDialogCount();
+  retired_.clear();
+  doomed.clear();
+}
+
+void ImGuiHost::DestroyOwnedDialogs() {
+  REX_ASSERT(!IsDrawingDialogs());
+  std::vector<std::unique_ptr<IDialog>> doomed = std::move(owned_);
+  owned_.clear();
+  for (const std::unique_ptr<IDialog>& dialog : doomed) {
+    RemoveDialog(*dialog);
+  }
+  retired_.clear();
+  doomed.clear();
+}
+
+void ImGuiHost::SetDialogCounter(std::atomic<u32>* counter) {
+  dialog_counter_ = counter;
+  PublishDialogCount();
+}
+
+void ImGuiHost::PublishDialogCount() {
+  if (dialog_counter_) {
+    dialog_counter_->store(static_cast<u32>(dialogs_.size()), std::memory_order_relaxed);
+  }
+}
+
+void ImGuiHost::RemoveDialog(IDialog& dialog, u64 id) {
+  auto it = std::ranges::find(dialogs_, &dialog, &DialogEntry::dialog);
+  if (it == dialogs_.end() || (id != 0 && it->id != id)) {
+    return;
+  }
+  if (IsDrawingDialogs()) {
+    const size_t existing_index = static_cast<size_t>(std::distance(dialogs_.begin(), it));
+    if (dialog_loop_next_index_ > existing_index) {
+      --dialog_loop_next_index_;
+    }
+  }
+  dialogs_.erase(it);
+  auto owned = std::ranges::find(owned_, &dialog, &std::unique_ptr<IDialog>::get);
+  if (owned != owned_.end()) {
+    retired_.push_back(std::move(*owned));
+    owned_.erase(owned);
+  }
+  if (!IsDrawingDialogs()) {
+    retired_.clear();
+  }
+  DetachIfLastDialogRemoved();
+  PublishDialogCount();
+  changed_ = true;
+}
+
+void ImGuiHost::Initialize() {
+  ImGuiContext* caller_context = ImGui::GetCurrentContext();
+  context_ = ImGui::CreateContext();
+  ImGui::SetCurrentContext(caller_context);
+  ContextScope scope(context_);
+
+  auto& io = ImGui::GetIO();
+
+  auto& platform_io = ImGui::GetPlatformIO();
+  platform_io.Platform_SetImeDataFn = PlatformSetImeData;
+  platform_io.Platform_ImeUserData = this;
+  platform_io.Platform_ClipboardUserData = this;
+  platform_io.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) {
+    auto* host = static_cast<ImGuiHost*>(ImGui::GetPlatformIO().Platform_ClipboardUserData);
+    if (host && host->hooks_.set_clipboard) {
+      host->hooks_.set_clipboard(text ? text : "");
+    }
+  };
+  platform_io.Platform_GetClipboardTextFn = [](ImGuiContext*) -> const char* {
+    static std::string clipboard;
+    auto* host = static_cast<ImGuiHost*>(ImGui::GetPlatformIO().Platform_ClipboardUserData);
+    clipboard = host && host->hooks_.get_clipboard ? host->hooks_.get_clipboard() : std::string();
+    return clipboard.c_str();
+  };
+
+  io.IniFilename = nullptr;
+  io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+
+  ImFontConfig font_config;
+  font_config.OversampleH = font_config.OversampleV = 1;
+  font_config.PixelSnapH = true;
+  static const ImWchar kFontGlyphRanges[] = {
+      0x0020,
+      0x00FF,
+      0,
+  };
+  io.Fonts->AddFontFromMemoryCompressedBase85TTF(kProggyTinyCompressedDataBase85, 10.0f,
+                                                 &font_config, kFontGlyphRanges);
+
+#if REX_PLATFORM_WIN32
+  const char* jp_font_path = "C:\\Windows\\Fonts\\msgothic.ttc";
+  if (std::filesystem::exists(jp_font_path)) {
+    ImFontConfig jp_font_config;
+    jp_font_config.MergeMode = true;
+    jp_font_config.OversampleH = jp_font_config.OversampleV = 1;
+    jp_font_config.PixelSnapH = true;
+    jp_font_config.FontNo = 0;
+    io.Fonts->AddFontFromFileTTF(jp_font_path, 12.0f, &jp_font_config,
+                                 io.Fonts->GetGlyphRangesJapanese());
+  } else {
+    REXUI_WARN("Unable to load Japanese font, JP characters will be boxes");
+  }
+#endif
+
+  frame_time_tick_frequency_ = static_cast<f64>(rex::Clock::GetHostTickFrequency());
+  last_frame_time_ticks_ = rex::Clock::GetHostTickCount();
+}
+
+void ImGuiHost::SetDisplay(u32 physical_width, u32 physical_height, f32 content_scale) {
+  display_width_ = physical_width;
+  display_height_ = physical_height;
+  content_scale_ = content_scale > 0.0f ? content_scale : 1.0f;
+}
+
+bool ImGuiHost::NeedsContinuousPaint() const {
+  return changed_ || std::ranges::any_of(dialogs_, [](const DialogEntry& entry) {
+           return entry.dialog->NeedsContinuousPaint();
+         });
+}
+
+ImDrawData* ImGuiHost::BuildFrame() {
+  if (dialogs_.empty() || IsDrawingDialogs()) {
+    return nullptr;
+  }
+  ContextScope scope(context_);
+  ImGuiIO& io = ImGui::GetIO();
+
+  u64 current_frame_time_ticks = rex::Clock::GetHostTickCount();
+  io.DeltaTime =
+      static_cast<f32>(static_cast<f64>(current_frame_time_ticks - last_frame_time_ticks_) /
+                       frame_time_tick_frequency_);
+  if (!(io.DeltaTime > 0.0f) || current_frame_time_ticks < last_frame_time_ticks_) {
+    io.DeltaTime = 1.0f / 60.0f;
+  }
+  last_frame_time_ticks_ = current_frame_time_ticks;
+
+  io.DisplaySize.x = static_cast<f32>(display_width_) / content_scale_;
+  io.DisplaySize.y = static_cast<f32>(display_height_) / content_scale_;
+
+  ImGui::NewFrame();
+  capture_.Update(io);
+
+  dialog_loop_next_index_ = 0;
+  while (dialog_loop_next_index_ < dialogs_.size()) {
+    ImGui::SetCurrentContext(context_);
+    const DialogEntry entry = dialogs_[dialog_loop_next_index_++];
+    if (!entry.dialog->Draw(ImGui::GetIO())) {
+      entry.dialog->OnClose();
+      RemoveDialog(*entry.dialog, entry.id);
+    }
+  }
+  dialog_loop_next_index_ = SIZE_MAX;
+  retired_.clear();
+
+  ImGui::SetCurrentContext(context_);
+  ImGui::Render();
+  ImDrawData* draw_data = ImGui::GetDrawData();
+
+  if (reset_mouse_position_after_next_frame_) {
+    reset_mouse_position_after_next_frame_ = false;
+    io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+  }
+
+  DetachIfLastDialogRemoved();
+  changed_ = false;
+  return draw_data;
+}
+
+bool ImGuiHost::HandleEvent(UIEvent& event) {
+  if (dialogs_.empty()) {
+    return false;
+  }
+  if (event.GetType() == UIEvent::Type::kTouch) {
+    OnTouch(static_cast<TouchEvent&>(event));
+  }
+  return false;
+}
+
+void ImGuiHost::HandleEvent(InputEvent& event) {
+  if (dialogs_.empty()) {
+    return;
+  }
+  using Type = InputEvent::Type;
+  switch (event.type) {
+    case Type::kKeyDown:
+      OnKey(event, true);
+      break;
+    case Type::kKeyUp:
+      OnKey(event, false);
+      break;
+    case Type::kKeyChar:
+      OnKeyChar(event);
+      break;
+    case Type::kButtonDown:
+      OnMouseButton(event, true);
+      break;
+    case Type::kButtonUp:
+      OnMouseButton(event, false);
+      break;
+    case Type::kMotion: {
+      ContextScope scope(context_);
+      SwitchToPhysicalMouseAndUpdateMousePosition(event);
+      break;
+    }
+    case Type::kWheel: {
+      ContextScope scope(context_);
+      SwitchToPhysicalMouseAndUpdateMousePosition(event);
+      ImGui::GetIO().MouseWheel += event.scroll_y;
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void ImGuiHost::OnKeyChar(InputEvent& e) {
+  ContextScope scope(context_);
+  auto& io = ImGui::GetIO();
+  unsigned int character = e.character;
+  if (character > 0 && character < 0x10000) {
+    io.AddInputCharacter(character);
+    e.handled = true;
+  }
+  if (io.WantCaptureKeyboard) {
+    e.handled = true;
+  }
+}
+
+void ImGuiHost::OnMouseButton(const InputEvent& e, bool is_down) {
+  ContextScope scope(context_);
+  SwitchToPhysicalMouseAndUpdateMousePosition(e);
+  auto& io = ImGui::GetIO();
+  int button = -1;
+  switch (e.button) {
+    case MouseButton::kLeft:
+      button = 0;
+      break;
+    case MouseButton::kRight:
+      button = 1;
+      break;
+    default:
+      break;
+  }
+  if (button < 0 || button >= std::ssize(io.MouseDown)) {
+    return;
+  }
+  if (is_down && !io.MouseDown[button]) {
+    if (!ImGui::IsAnyMouseDown() && hooks_.set_mouse_capture) {
+      hooks_.set_mouse_capture(true);
+    }
+    io.MouseDown[button] = true;
+  } else if (!is_down && io.MouseDown[button]) {
+    io.MouseDown[button] = false;
+    if (!ImGui::IsAnyMouseDown() && hooks_.set_mouse_capture) {
+      hooks_.set_mouse_capture(false);
+    }
+  }
+}
+
+void ImGuiHost::OnTouch(TouchEvent& e) {
+  ContextScope scope(context_);
+  auto& io = ImGui::GetIO();
+  TouchEvent::Action action = e.GetAction();
+  u32 pointer_id = e.GetPointerID();
+  if (action == TouchEvent::Action::kDown) {
+    if (touch_pointer_id_ == TouchEvent::kPointerIDNone) {
+      if (ImGui::IsAnyMouseDown()) {
+        std::memset(io.MouseDown, 0, sizeof(io.MouseDown));
+        if (hooks_.set_mouse_capture) {
+          hooks_.set_mouse_capture(false);
+        }
+      }
+    }
+    touch_pointer_id_ = pointer_id;
+  } else if (pointer_id != touch_pointer_id_) {
+    return;
+  }
+  UpdateMousePosition(e.GetX(), e.GetY());
+  if (action == TouchEvent::Action::kUp || action == TouchEvent::Action::kCancel) {
+    io.MouseDown[0] = false;
+    touch_pointer_id_ = TouchEvent::kPointerIDNone;
+    reset_mouse_position_after_next_frame_ = true;
+  } else {
+    io.MouseDown[0] = true;
+    reset_mouse_position_after_next_frame_ = false;
+  }
+}
+
+void ImGuiHost::ClearInput() {
+  ContextScope scope(context_);
+  auto& io = ImGui::GetIO();
+  if (touch_pointer_id_ == TouchEvent::kPointerIDNone && ImGui::IsAnyMouseDown() &&
+      hooks_.set_mouse_capture) {
+    hooks_.set_mouse_capture(false);
+  }
+  io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+  std::memset(io.MouseDown, 0, sizeof(io.MouseDown));
+  io.ClearInputKeys();
+  touch_pointer_id_ = TouchEvent::kPointerIDNone;
+  reset_mouse_position_after_next_frame_ = false;
+  capture_.Clear();
+}
+
+void ImGuiHost::OnKey(InputEvent& e, bool is_down) {
+  ContextScope scope(context_);
+  auto& io = ImGui::GetIO();
+  const VirtualKey virtual_key = e.key;
+  if (auto imgui_key = VirtualKeyToImGuiKey(virtual_key); imgui_key) {
+    io.AddKeyEvent(*imgui_key, is_down);
+  }
+  switch (virtual_key) {
+    case VirtualKey::kShift:
+    case VirtualKey::kLShift:
+    case VirtualKey::kRShift:
+      io.AddKeyEvent(ImGuiMod_Shift, is_down);
+      break;
+    case VirtualKey::kControl:
+    case VirtualKey::kLControl:
+    case VirtualKey::kRControl:
+      io.AddKeyEvent(ImGuiMod_Ctrl, is_down);
+      break;
+    case VirtualKey::kMenu:
+    case VirtualKey::kLMenu:
+    case VirtualKey::kRMenu:
+      io.AddKeyEvent(ImGuiMod_Alt, is_down);
+      break;
+    case VirtualKey::kLWin:
+    case VirtualKey::kRWin:
+      io.AddKeyEvent(ImGuiMod_Super, is_down);
+      break;
+    default:
+      break;
+  }
+  if (io.WantCaptureKeyboard) {
+    e.handled = true;
+  }
+}
+
+void ImGuiHost::UpdateMousePosition(f32 x, f32 y) {
+  ContextScope scope(context_);
+  auto& io = ImGui::GetIO();
+  io.MousePos.x = x / content_scale_;
+  io.MousePos.y = y / content_scale_;
+}
+
+void ImGuiHost::SwitchToPhysicalMouseAndUpdateMousePosition(const InputEvent& e) {
+  ContextScope scope(context_);
+  if (touch_pointer_id_ != TouchEvent::kPointerIDNone) {
+    touch_pointer_id_ = TouchEvent::kPointerIDNone;
+    auto& io = ImGui::GetIO();
+    std::memset(io.MouseDown, 0, sizeof(io.MouseDown));
+  }
+  reset_mouse_position_after_next_frame_ = false;
+  UpdateMousePosition(e.x, e.y);
+}
+
+void ImGuiHost::PlatformSetImeData(ImGuiContext* context, ImGuiViewport* viewport,
+                                   ImGuiPlatformImeData* data) {
+  (void)context;
+  (void)viewport;
+  auto* host = static_cast<ImGuiHost*>(ImGui::GetPlatformIO().Platform_ImeUserData);
+  if (host) {
+    host->SetTextInputActive(data->WantTextInput);
+  }
+}
+
+void ImGuiHost::SetTextInputActive(bool active) {
+  if (text_input_active_ == active) {
+    return;
+  }
+  text_input_active_ = active;
+  if (hooks_.set_text_input) {
+    hooks_.set_text_input(active);
+  }
+}
+
+void ImGuiHost::DetachIfLastDialogRemoved() {
+  if (!dialogs_.empty() || IsDrawingDialogs()) {
+    return;
+  }
+  SetTextInputActive(false);
+  ClearInput();
+}
+
+}  // namespace ui
+}  // namespace rex

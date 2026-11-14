@@ -1,0 +1,113 @@
+site_name: ReXGlue SDK
+site_description: Documentation for the ReXGlue SDK
+site_url: https://docs.rexglue.com/
+repo_url: https://github.com/rexglue/rexglue-sdk
+docs_dir: pages
+strict: true
+
+theme:
+  name: material
+  logo: assets/logo-green.png
+  favicon: assets/favicon-green.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - search.suggest
+
+plugins:
+  - search
+
+hooks:
+  - hooks/doxygen_links.py
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
+
+markdown_extensions:
+  - tables
+  - abbr
+  - attr_list
+  - admonition
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.snippets:
+      base_path:
+        - docs/site/includes
+        - includes
+      check_paths: true
+      auto_append:
+        - abbreviations.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: diagram
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Introduction: index.md
+  - Getting Started: getting-started.md
+  - Contributing: contributing.md
+  - Code Generation:
+      - Codegen Pipeline: codegen/codegen-pipeline.md
+      - Generated Code: codegen/generated-code.md
+      - Hooks: codegen/hooks.md
+  - App:
+      - App Lifecycle: app/app-lifecycle.md
+      - Modules and Interfaces: app/modules.md
+      - Settings: app/settings.md
+      - Logging: app/logging.md
+  - Runtime:
+      - Runtime Lifecycle: runtime/lifecycle.md
+      - Guest Memory: runtime/memory.md
+      - Kernel Services: runtime/kernel.md
+      - Shims: runtime/shims.md
+  - Filesystem:
+      - Filesystem: filesystem/filesystem.md
+      - Folders and Storage: filesystem/folders-and-storage.md
+  - Devices:
+      - Graphics: devices/graphics.md
+      - Driver Context: devices/driver-context.md
+      - Audio: devices/audio.md
+      - Input: devices/input.md
+      - UI: devices/ui.md
+  - Reference:
+      - CLI: reference/cli.md
+      - Project Manifest: reference/manifest.md
+      - CMake: reference/cmake.md
+      - Settings Reference: reference/cvars.md
+      - Errors: reference/errors.md
+      - Glossary: reference/glossary.md
+      - API Reference: reference/api.md
+  - Appendix:
+      - Binaries and Modules: appendix/binaries-and-modules.md
+      - Generated Files: appendix/generated-files.md
+      - Log Categories and Macros: appendix/log-categories-and-macros.md
+      - Shim List: appendix/shim-list.md
+      - Thread List: appendix/thread-list.md
+      - Storage Paths: appendix/storage-paths.md
+      - File Exports: appendix/file-exports.md
+      - XAM Input Exports: appendix/xam-input-exports.md

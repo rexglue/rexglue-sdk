@@ -1,0 +1,173 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+
+#pragma once
+
+#include <memory>
+#include <rex/settings_registry.h>
+
+#include "gpu/xenos/host/d3d12/d3d12_api.h"
+#include "gpu/xenos/host/d3d12/d3d12_settings.h"
+#include "gpu/xenos/host/graphics_provider.h"
+
+namespace rex::gpu::d3d12 {
+
+class D3D12Provider : public GraphicsProvider {
+  struct Key {};
+
+ public:
+  explicit D3D12Provider(Key) {}
+
+  ~D3D12Provider();
+
+  static bool IsD3D12APIAvailable();
+
+  /**
+   * Creates the provider.
+   *
+   * @param adapter_index The adapter to use, or -1 for the first one that fits.
+   * @param settings The gpu.d3d12 settings, which must outlive the provider.
+   */
+  static std::unique_ptr<D3D12Provider> Create(i32 adapter_index, const D3D12Settings& settings);
+
+  const D3D12Settings& GetSettings() const { return *settings_; }
+
+  std::unique_ptr<Presenter> CreatePresenter(const XenosGraphicsDriverBase& driver,
+                                             Presenter::HostGPULossCallback host_gpu_loss_callback =
+                                                 Presenter::FatalErrorHostGPULossCallback) override;
+
+  std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() override;
+
+  IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
+  /** Returns null when PIX is not attached. */
+  IDXGraphicsAnalysis* GetGraphicsAnalysis() const { return graphics_analysis_; }
+  ID3D12Device* GetDevice() const { return device_; }
+  ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
+
+  u32 GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE type) const { return descriptor_sizes_[type]; }
+  u32 GetViewDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  }
+  u32 GetSamplerDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+  }
+  u32 GetRTVDescriptorSize() const { return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV); }
+  u32 GetDSVDescriptorSize() const { return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV); }
+  template <typename T>
+  T OffsetDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE type, T start, u32 index) const {
+    start.ptr += index * GetDescriptorSize(type);
+    return start;
+  }
+  template <typename T>
+  T OffsetViewDescriptor(T start, u32 index) const {
+    start.ptr += index * GetViewDescriptorSize();
+    return start;
+  }
+  template <typename T>
+  T OffsetSamplerDescriptor(T start, u32 index) const {
+    start.ptr += index * GetSamplerDescriptorSize();
+    return start;
+  }
+  template <typename T>
+  T OffsetRTVDescriptor(T start, u32 index) const {
+    start.ptr += index * GetRTVDescriptorSize();
+    return start;
+  }
+
+  GPUVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
+
+  D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const { return heap_flag_create_not_zeroed_; }
+  D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
+  GetProgrammableSamplePositionsTier() const { return programmable_sample_positions_tier_; }
+  bool IsPSSpecifiedStencilReferenceSupported() const {
+    return ps_specified_stencil_reference_supported_;
+  }
+  bool IsRasterizerOrderedViewSupported() const { return rasterizer_ordered_views_supported_; }
+  D3D12_RESOURCE_BINDING_TIER GetResourceBindingTier() const { return resource_binding_tier_; }
+  D3D12_TILED_RESOURCES_TIER GetTiledResourcesTier() const { return tiled_resources_tier_; }
+  bool IsUnalignedBlockTextureSupported() const { return unaligned_block_textures_supported_; }
+  u32 GetVirtualAddressBitsPerResource() const { return virtual_address_bits_per_resource_; }
+
+  HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
+                                 D3D_ROOT_SIGNATURE_VERSION version, ID3DBlob** blob_out,
+                                 ID3DBlob** error_blob_out) const {
+    return pfn_d3d12_serialize_root_signature_(desc, version, blob_out, error_blob_out);
+  }
+  HRESULT Disassemble(const void* src_data, size_t src_data_size, UINT flags, const char* comments,
+                      ID3DBlob** disassembly_out) const {
+    if (!pfn_d3d_disassemble_) {
+      return E_NOINTERFACE;
+    }
+    return pfn_d3d_disassemble_(src_data, src_data_size, flags, comments, disassembly_out);
+  }
+  HRESULT DXBCConverterCreateInstance(const CLSID& rclsid, const IID& riid, void** ppv) const {
+    if (!pfn_dxilconv_dxc_create_instance_) {
+      return E_NOINTERFACE;
+    }
+    return pfn_dxilconv_dxc_create_instance_(rclsid, riid, ppv);
+  }
+  HRESULT DxcCreateInstance(const CLSID& rclsid, const IID& riid, void** ppv) const {
+    if (!pfn_dxcompiler_dxc_create_instance_) {
+      return E_NOINTERFACE;
+    }
+    return pfn_dxcompiler_dxc_create_instance_(rclsid, riid, ppv);
+  }
+
+ private:
+  const D3D12Settings* settings_ = nullptr;
+
+  static bool EnableIncreaseBasePriorityPrivilege();
+  bool Initialize(i32 adapter_index);
+
+  using PFNCreateDXGIFactory2 = HRESULT(WINAPI*)(UINT Flags, REFIID riid,
+                                                 _COM_Outptr_ void** ppFactory);
+  using PFNDXGIGetDebugInterface1 = HRESULT(WINAPI*)(UINT Flags, REFIID riid,
+                                                     _COM_Outptr_ void** pDebug);
+
+  HMODULE library_dxgi_ = nullptr;
+  PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
+  /** Needed during shutdown to report live objects, so may be null. */
+  PFNDXGIGetDebugInterface1 pfn_dxgi_get_debug_interface1_ = nullptr;
+
+  HMODULE library_d3d12_ = nullptr;
+  PFN_D3D12_GET_DEBUG_INTERFACE pfn_d3d12_get_debug_interface_;
+  PFN_D3D12_CREATE_DEVICE pfn_d3d12_create_device_;
+  PFN_D3D12_SERIALIZE_ROOT_SIGNATURE pfn_d3d12_serialize_root_signature_;
+
+  HMODULE library_d3dcompiler_ = nullptr;
+  pD3DDisassemble pfn_d3d_disassemble_ = nullptr;
+
+  HMODULE library_dxilconv_ = nullptr;
+  DxcCreateInstanceProc pfn_dxilconv_dxc_create_instance_ = nullptr;
+
+  HMODULE library_dxcompiler_ = nullptr;
+  DxcCreateInstanceProc pfn_dxcompiler_dxc_create_instance_ = nullptr;
+
+  IDXGIFactory2* dxgi_factory_ = nullptr;
+  ID3D12Device* device_ = nullptr;
+  ID3D12CommandQueue* direct_queue_ = nullptr;
+  IDXGraphicsAnalysis* graphics_analysis_ = nullptr;
+
+  u32 descriptor_sizes_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
+
+  GPUVendorID adapter_vendor_id_;
+
+  D3D12_HEAP_FLAGS heap_flag_create_not_zeroed_;
+  D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER programmable_sample_positions_tier_;
+  D3D12_RESOURCE_BINDING_TIER resource_binding_tier_;
+  D3D12_TILED_RESOURCES_TIER tiled_resources_tier_;
+  u32 virtual_address_bits_per_resource_;
+  bool ps_specified_stencil_reference_supported_;
+  bool rasterizer_ordered_views_supported_;
+  bool unaligned_block_textures_supported_;
+};
+
+}  // namespace rex::gpu::d3d12

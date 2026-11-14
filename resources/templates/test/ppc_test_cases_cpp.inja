@@ -6,13 +6,21 @@
 #include <cstring>
 #include <stdexcept>
 #include "ppc_config.h"
-#include <rex/ppc.h>
-#include <rex/system/xmemory.h>
+#include <rex/ppc/hook.h>
+#include <rex/ppc/call.h>
+#include <rex/ppc/context.h>
+#include <rex/ppc/fpu.h>
+#include <rex/ppc/stack.h>
+#include <rex/ppc/vmx.h>
+#include <rex/types.h>
+#include <rex/kernel/heap.h>
 #include "ppc_test_decls.h"
 
-// Global memory instance - same class used by real runtime
-static rex::memory::Memory& get_memory() {
-    static rex::memory::Memory memory;
+// Global memory instance - same class used by real runtime, shared by every case file
+rex::kernel::GuestAddressSpace& GetPPCTestMemory();
+## if define_memory
+rex::kernel::GuestAddressSpace& GetPPCTestMemory() {
+    static rex::kernel::GuestAddressSpace memory;
     static bool initialized = false;
     if (!initialized) {
         if (!memory.Initialize()) {
@@ -23,20 +31,33 @@ static rex::memory::Memory& get_memory() {
         if (heap) {
             // Allocate from end of guard page (0x10000) up to cover test addresses
             heap->AllocFixed(0x10000, 0x10000000, 0x1000,
-                rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
-                rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite);
+                rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+                rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite);
+        }
+        if (!memory.InitializeFunctionTable(REX_CODE_BASE, REX_CODE_SIZE, REX_IMAGE_BASE, REX_IMAGE_SIZE)) {
+            throw std::runtime_error("Failed to initialize function table");
         }
         initialized = true;
     }
     return memory;
 }
+## endif
 
+## for entry in stems
+[[maybe_unused]] static void register_functions_{{ entry.stem }}(rex::kernel::GuestAddressSpace& memory) {
+## for func in entry.functions
+    memory.SetFunction(0x{{ func.address }}, {{ func.name }});
+## endfor
+}
+
+## endfor
 ## for test in tests
 TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
-    auto& mem = get_memory();
-    uint8_t* memory = mem.virtual_membase();
+    auto& mem = GetPPCTestMemory();
+    register_functions_{{ test.stem }}(mem);
+    u8* memory = mem.GetVirtualMembase();
     PPCContext ctx{};
-    ctx.fpscr.loadFromHost();
+    ctx.fpscr.LoadFromHost();
 
 ## for reg in test.inputs.registers
 ## if reg.type == "cr"
@@ -70,7 +91,7 @@ TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
 ## for reg in test.outputs.registers
 ## if reg.type == "cr"
     {
-        uint32_t cr_actual = (ctx.cr0.raw() << 28) | (ctx.cr1.raw() << 24) | (ctx.cr2.raw() << 20) | (ctx.cr3.raw() << 16) | (ctx.cr4.raw() << 12) | (ctx.cr5.raw() << 8) | (ctx.cr6.raw() << 4) | ctx.cr7.raw();
+        u32 cr_actual = (ctx.cr0.GetRaw() << 28) | (ctx.cr1.GetRaw() << 24) | (ctx.cr2.GetRaw() << 20) | (ctx.cr3.GetRaw() << 16) | (ctx.cr4.GetRaw() << 12) | (ctx.cr5.GetRaw() << 8) | (ctx.cr6.GetRaw() << 4) | ctx.cr7.GetRaw();
         REQUIRE(cr_actual == {{ reg.value }});
     }
 ## else if reg.type == "vector"
@@ -81,7 +102,7 @@ TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
 ## else if reg.type == "float"
     REQUIRE(ctx.{{ reg.reg }}.f64 == {{ reg.value }});
 ## else
-    REQUIRE(ctx.{{ reg.reg }}.u64 == {{ reg.value }});
+    REQUIRE(ctx.{{ reg.reg }}.u64 == static_cast<u64>({{ reg.value }}));
 ## endif
 ## endfor
 ## for mem_out in test.outputs.memory

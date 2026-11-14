@@ -25,7 +25,7 @@ body:
       placeholder: |
         1. Build with '...'
         2. Run '...'
-        3. Observe error in log, set breakpoint here and inspect, etc.
+        3. Observe error in log, set breakpoint here and inspect.
     validations:
       required: true
 
@@ -41,7 +41,7 @@ body:
     id: actual-behavior
     attributes:
       label: Actual Behavior
-      description: What actually happens? Include error messages, stack traces, or logs if available.
+      description: What happens? Include error messages, stack traces, or logs if available.
       placeholder: |
         The program crashes with:
         ```
@@ -81,7 +81,7 @@ body:
     id: environment
     attributes:
       label: Additional Environment Info
-      description: Any other relevant environment details (dev tool versions, GPU, etc.)
+      description: Any other relevant environment details (dev tool versions, GPU)
     validations:
       required: false
 

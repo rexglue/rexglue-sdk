@@ -11,6 +11,6 @@ function Get-ReXRoot {
     if ($env:REXGLUE_ROOT) { return $env:REXGLUE_ROOT }
     $root = git rev-parse --show-toplevel 2>$null
     if ($root) { return [System.IO.Path]::GetFullPath($root) }
-    # Fallback: module is at <repo>/scripts/PSReX/
-    return (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+    # Fallback when git is unavailable. The module is at <repo>/scripts/PSReX/Private/.
+    return (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
 }

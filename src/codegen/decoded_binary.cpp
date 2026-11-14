@@ -1,53 +1,34 @@
-/**
- * @file        decoded_binary.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "decoded_binary.h"
 
 #include <algorithm>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/endian.h>
 #include <rex/types.h>
-
-using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
-//=============================================================================
-// DecodedBinary Implementation
-//=============================================================================
-
 DecodedBinary::DecodedBinary(const BinaryView& binary) : binary_(binary) {}
 
-void DecodedBinary::decode() {
+void DecodedBinary::Decode() {
   sections_.clear();
-  codeRegions_.clear();
+  code_regions_.clear();
 
-  for (const auto& section : binary_.sections()) {
+  for (const auto& section : binary_.GetSections()) {
     Section sec;
-    sec.base = section.baseAddress;
+    sec.base = section.base_address;
     sec.size = section.size;
 
-    // Copy raw section data (needed for reading jump tables and other data)
     sec.data.assign(section.data, section.data + section.size);
 
-    // Only decode instructions for executable sections
     if (section.executable) {
-      // Reserve space for instructions
-      size_t insnCount = section.size / 4;
-      sec.instructions.reserve(insnCount);
+      size_t insn_count = section.size / 4;
+      sec.instructions.reserve(insn_count);
 
-      for (uint32_t offset = 0; offset < section.size; offset += 4) {
-        uint32_t addr = section.baseAddress + offset;
-        uint32_t raw = load_and_swap<uint32_t>(section.data + offset);
+      for (u32 offset = 0; offset < section.size; offset += 4) {
+        u32 addr = section.base_address + offset;
+        u32 raw = memory::load<be_u32>(section.data + offset);
 
-        auto insn = rex::codegen::ppc::decode_instruction(addr, raw);
+        auto insn = rex::codegen::detail::DecodeInstruction(addr, raw);
         sec.instructions.push_back(insn);
       }
     }
@@ -55,77 +36,57 @@ void DecodedBinary::decode() {
     sections_.push_back(std::move(sec));
   }
 
-  // Sort sections by base address for binary search
   std::sort(sections_.begin(), sections_.end(),
             [](const Section& a, const Section& b) { return a.base < b.base; });
 
-  // Compute code regions
-  computeCodeRegions();
+  ComputeCodeRegions();
 }
 
-DecodedInsn* DecodedBinary::get(uint32_t addr) {
-  Section* sec = findSection(addr);
-  return sec ? sec->get(addr) : nullptr;
+DecodedInsn* DecodedBinary::FindInsn(u32 addr) {
+  Section* sec = FindSection(addr);
+  return sec ? sec->FindInsn(addr) : nullptr;
 }
 
-const DecodedInsn* DecodedBinary::get(uint32_t addr) const {
-  const Section* sec = findSection(addr);
-  return sec ? sec->get(addr) : nullptr;
+const DecodedInsn* DecodedBinary::FindInsn(u32 addr) const {
+  const Section* sec = FindSection(addr);
+  return sec ? sec->FindInsn(addr) : nullptr;
 }
 
-InsnRange DecodedBinary::range(uint32_t start, uint32_t end) {
-  Section* sec = findSection(start);
-  if (!sec || !sec->contains(end - 4)) {
+InsnRange DecodedBinary::GetRange(u32 start, u32 end) {
+  Section* sec = FindSection(start);
+  if (!sec || !sec->Contains(end - 4)) {
     return InsnRange(nullptr, nullptr);
   }
 
-  uint32_t startIdx = (start - sec->base) / 4;
-  uint32_t endIdx = (end - sec->base) / 4;
+  u32 start_idx = (start - sec->base) / 4;
+  u32 end_idx = (end - sec->base) / 4;
 
-  // Clamp to section bounds
-  endIdx = std::min(endIdx, static_cast<uint32_t>(sec->instructions.size()));
+  end_idx = std::min(end_idx, static_cast<u32>(sec->instructions.size()));
 
-  return InsnRange(&sec->instructions[startIdx], &sec->instructions[endIdx]);
+  return InsnRange(&sec->instructions[start_idx], &sec->instructions[end_idx]);
 }
 
-const uint8_t* DecodedBinary::rawData(uint32_t addr, size_t len) const {
-  const Section* sec = findSection(addr);
+const u8* DecodedBinary::GetRawData(u32 addr, size_t len) const {
+  const Section* sec = FindSection(addr);
   if (!sec)
     return nullptr;
 
-  uint32_t offset = addr - sec->base;
+  u32 offset = addr - sec->base;
   if (offset + len > sec->data.size())
     return nullptr;
 
   return sec->data.data() + offset;
 }
 
-const CodeRegion* DecodedBinary::regionContaining(uint32_t addr) const {
-  for (const auto& region : codeRegions_) {
-    if (region.contains(addr))
+const CodeRegion* DecodedBinary::FindRegionContaining(u32 addr) const {
+  for (const auto& region : code_regions_) {
+    if (region.Contains(addr))
       return &region;
   }
   return nullptr;
 }
 
-bool DecodedBinary::crossesNullBoundary(uint32_t from, uint32_t to) const {
-  const CodeRegion* fromRegion = regionContaining(from);
-  const CodeRegion* toRegion = regionContaining(to);
-
-  // If either is not in a code region, or they're in different regions
-  return !fromRegion || !toRegion || fromRegion != toRegion;
-}
-
-bool DecodedBinary::isInCodeRegion(uint32_t addr) const {
-  return regionContaining(addr) != nullptr;
-}
-
-bool DecodedBinary::isNullPadding(uint32_t addr) const {
-  const DecodedInsn* insn = get(addr);
-  return insn && isInvalid(*insn);
-}
-
-size_t DecodedBinary::instructionCount() const {
+size_t DecodedBinary::GetInstructionCount() const {
   size_t count = 0;
   for (const auto& sec : sections_) {
     count += sec.instructions.size();
@@ -133,26 +94,25 @@ size_t DecodedBinary::instructionCount() const {
   return count;
 }
 
-DecodedBinary::Section* DecodedBinary::findSection(uint32_t addr) {
+DecodedBinary::Section* DecodedBinary::FindSection(u32 addr) {
   for (auto& sec : sections_) {
-    if (sec.contains(addr))
+    if (sec.Contains(addr))
       return &sec;
   }
   return nullptr;
 }
 
-const DecodedBinary::Section* DecodedBinary::findSection(uint32_t addr) const {
+const DecodedBinary::Section* DecodedBinary::FindSection(u32 addr) const {
   for (const auto& sec : sections_) {
-    if (sec.contains(addr))
+    if (sec.Contains(addr))
       return &sec;
   }
   return nullptr;
 }
 
-void DecodedBinary::computeCodeRegions() {
-  codeRegions_.clear();
+void DecodedBinary::ComputeCodeRegions() {
+  code_regions_.clear();
 
-  // Minimum consecutive nulls to consider as a boundary
   constexpr size_t kMinNullRun = 2;
 
   for (const auto& sec : sections_) {
@@ -161,38 +121,35 @@ void DecodedBinary::computeCodeRegions() {
 
     CodeRegion current;
     current.start = sec.base;
-    size_t nullRun = 0;
-    bool inCode = false;
+    size_t null_run = 0;
+    bool in_code = false;
 
     for (size_t i = 0; i < sec.instructions.size(); i++) {
       const auto& insn = sec.instructions[i];
-      bool isNull = isInvalid(insn);
+      bool is_invalid = IsInvalid(insn);
 
-      if (isNull) {
-        nullRun++;
-        if (inCode && nullRun >= kMinNullRun) {
-          // End of code region (at start of null run)
-          current.end = sec.base + static_cast<uint32_t>((i - nullRun + 1) * 4);
+      if (is_invalid) {
+        null_run++;
+        if (in_code && null_run >= kMinNullRun) {
+          current.end = sec.base + static_cast<u32>((i - null_run + 1) * 4);
           if (current.end > current.start) {
-            codeRegions_.push_back(current);
+            code_regions_.push_back(current);
           }
-          inCode = false;
+          in_code = false;
         }
       } else {
-        if (!inCode) {
-          // Start of new code region
-          current.start = sec.base + static_cast<uint32_t>(i * 4);
-          inCode = true;
+        if (!in_code) {
+          current.start = sec.base + static_cast<u32>(i * 4);
+          in_code = true;
         }
-        nullRun = 0;
+        null_run = 0;
       }
     }
 
-    // Close final region if still in code
-    if (inCode) {
+    if (in_code) {
       current.end = sec.base + sec.size;
       if (current.end > current.start) {
-        codeRegions_.push_back(current);
+        code_regions_.push_back(current);
       }
     }
   }

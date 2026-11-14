@@ -3,33 +3,31 @@
 
 {% for mod in dll_modules %}
 # DLL module: {{ mod.target_name }}
-if(EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/sources.cmake")
-    set(_REXGLUE_RESTORE_GENERATED_SOURCES FALSE)
-    if(DEFINED GENERATED_SOURCES)
-        set(_REXGLUE_PREVIOUS_GENERATED_SOURCES {{ cmake_var("GENERATED_SOURCES") }})
-        set(_REXGLUE_RESTORE_GENERATED_SOURCES TRUE)
-    endif()
-    include({{ mod.output_dir }}/sources.cmake)
-    set(DLL_SOURCES_{{ mod.target_name }} {{ cmake_var("GENERATED_SOURCES") }})
-    if(_REXGLUE_RESTORE_GENERATED_SOURCES)
-        set(GENERATED_SOURCES {{ cmake_var("_REXGLUE_PREVIOUS_GENERATED_SOURCES") }})
-    else()
-        unset(GENERATED_SOURCES)
-    endif()
-    unset(_REXGLUE_PREVIOUS_GENERATED_SOURCES)
-    unset(_REXGLUE_RESTORE_GENERATED_SOURCES)
-    add_library({{ mod.lib_name }} SHARED {{ cmake_var("DLL_SOURCES_" + mod.target_name) }})
-    target_include_directories({{ mod.lib_name }} PRIVATE
-        {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
-        {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}
-    )
-    target_link_libraries({{ mod.lib_name }} PRIVATE rex::runtime)
-    rexglue_apply_recomp_settings({{ mod.lib_name }}
-        "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/{{ project }}_pch.h")
-    add_dependencies({{ mod.lib_name }} {{ project }}_codegen)
-    set_target_properties({{ mod.lib_name }} PROPERTIES
-        CXX_VISIBILITY_PRESET hidden
-    )
-    rexglue_configure_module_target({{ mod.lib_name }} HOST {{ cmake_var("REXGLUE_HOST_TARGET") }})
-endif()
+if (EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/sources.cmake")
+  set(_rexglue_restore_generated_sources FALSE)
+  if (DEFINED GENERATED_SOURCES)
+    set(_rexglue_previous_generated_sources {{ cmake_var("GENERATED_SOURCES") }})
+    set(_rexglue_restore_generated_sources TRUE)
+  endif ()
+  include({{ mod.output_dir }}/sources.cmake)
+  set(DLL_SOURCES_{{ mod.target_name }} {{ cmake_var("GENERATED_SOURCES") }})
+  if (_rexglue_restore_generated_sources)
+    set(GENERATED_SOURCES {{ cmake_var("_rexglue_previous_generated_sources") }})
+  else ()
+    unset(GENERATED_SOURCES)
+  endif ()
+  unset(_rexglue_previous_generated_sources)
+  unset(_rexglue_restore_generated_sources)
+  add_library({{ mod.lib_name }} SHARED {{ cmake_var("DLL_SOURCES_" + mod.target_name) }})
+  target_include_directories(
+    {{ mod.lib_name }} PRIVATE {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }} {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}
+  )
+  target_link_libraries({{ mod.lib_name }} PRIVATE rex::sdk)
+  rexglue_apply_recomp_settings(
+    {{ mod.lib_name }} "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/{{ mod.project }}_pch.h"
+  )
+  add_dependencies({{ mod.lib_name }} {{ project }}_codegen)
+  set_target_properties({{ mod.lib_name }} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  rexglue_configure_module_target({{ mod.lib_name }} HOST {{ cmake_var("REXGLUE_HOST_TARGET") }})
+endif ()
 {% endfor %}

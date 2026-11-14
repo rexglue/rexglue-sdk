@@ -17,45 +17,15 @@
 [submodule "thirdparty/xxHash"]
 	path = thirdparty/xxHash
 	url = https://github.com/Cyan4973/xxHash.git
-[submodule "thirdparty/spdlog"]
-	path = thirdparty/spdlog
-	url = https://github.com/gabime/spdlog.git
-[submodule "thirdparty/fmt"]
-	path = thirdparty/fmt
-	url = https://github.com/fmtlib/fmt.git
 [submodule "thirdparty/catch2"]
 	path = thirdparty/catch2
 	url = https://github.com/catchorg/Catch2.git
-[submodule "thirdparty/utfcpp"]
-	path = thirdparty/utfcpp
-	url = https://github.com/nemtrif/utfcpp.git
-[submodule "thirdparty/vulkan-headers"]
-	path = thirdparty/vulkan-headers
-	url = https://github.com/KhronosGroup/Vulkan-Headers.git
-[submodule "thirdparty/vulkan-loader"]
-	path = thirdparty/vulkan-loader
-	url = https://github.com/KhronosGroup/Vulkan-Loader.git
-[submodule "thirdparty/moltenvk"]
-	path = thirdparty/moltenvk
-	url = https://github.com/KhronosGroup/MoltenVK.git
-[submodule "thirdparty/vulkan-memory-allocator"]
-	path = thirdparty/vulkan-memory-allocator
-	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
 [submodule "thirdparty/imgui"]
 	path = thirdparty/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "thirdparty/spirv-tools"]
-	path = thirdparty/spirv-tools
-	url = https://github.com/KhronosGroup/SPIRV-Tools.git
-[submodule "thirdparty/spirv-headers"]
-	path = thirdparty/spirv-headers
-	url = https://github.com/KhronosGroup/SPIRV-Headers.git
 [submodule "thirdparty/cli11"]
 	path = thirdparty/cli11
 	url = https://github.com/CLIUtils/CLI11
-[submodule "thirdparty/o1heap"]
-	path = thirdparty/o1heap
-	url = https://github.com/pavel-kirienko/o1heap.git
 [submodule "thirdparty/sdl3"]
 	path = thirdparty/sdl3
 	url = https://github.com/libsdl-org/SDL
@@ -66,3 +36,12 @@
 [submodule "thirdparty/tracy"]
 	path = thirdparty/tracy
 	url = https://github.com/wolfpld/tracy.git
+[submodule "thirdparty/excrypt"]
+	path = thirdparty/excrypt
+	url = https://github.com/emoose/ExCrypt.git
+[submodule "thirdparty/spdlog"]
+	path = thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "thirdparty/tlsf"]
+	path = thirdparty/tlsf
+	url = https://github.com/mattconte/tlsf.git

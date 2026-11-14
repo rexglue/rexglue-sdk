@@ -1,6 +1,5 @@
 /**
  * @file        memory.h
- * @brief       Memory subsystem umbrella header
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,17 +10,8 @@
 
 #pragma once
 
-// Memory utilities (page allocation, protection, load/store helpers)
-#include <rex/memory/utils.h>
-
-// Arena allocator
-#include <rex/memory/arena.h>
-
-// Memory-mapped files
-#include <rex/memory/mapped_memory.h>
-
-// Ring buffer
-#include <rex/memory/ring_buffer.h>
-
-// Memory class (Xbox 360 guest memory system with heaps)
-#include <rex/system/xmemory.h>
+#include <rex/memory/endian.h>
+#include <rex/memory/host.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/memory/stream.h>
+#include <rex/memory/virtual_memory.h>

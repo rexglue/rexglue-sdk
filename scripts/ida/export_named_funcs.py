@@ -1,9 +1,9 @@
 """
 Export functions from IDA into an existing ReXGlue TOML config.
 
-Reads the existing TOML file, updates entries that already exist,
+Reads the existing TOML file, updates entries that exist,
 and appends new entries for functions not yet in the config. Preserves all
-existing entry metadata (parent, size, etc.).
+existing entry metadata (parent, size).
 
 @file        export_named_funcs.py
 
@@ -27,7 +27,7 @@ import idautils
 import idc
 
 
-# ── Config persistence ──────────────────────────────────────────────────────
+# -- Config persistence ------------------------------------------------------
 
 def _config_path():
     """Return path to the JSON config sidecar next to the current IDB."""
@@ -68,7 +68,7 @@ def save_config(cfg):
         pass  # non-fatal
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
+# -- Helpers -----------------------------------------------------------------
 
 def collect_import_eas():
     """Build a set of all imported function addresses for lookup."""
@@ -96,7 +96,7 @@ def sanitize_name(name):
     return name
 
 
-# ── TOML parsing / writing ──────────────────────────────────────────────────
+# -- TOML parsing / writing --------------------------------------------------
 
 # Regex to match a [functions] entry line like:
 #   0x82C061F0 = { parent = 0x82C03A58, size = 8 }
@@ -224,7 +224,7 @@ def write_toml(out_path, lines, func_section_start, func_section_end,
         f.writelines(out_lines)
 
 
-# ── UI ──────────────────────────────────────────────────────────────────────
+# -- UI ----------------------------------------------------------------------
 
 class ExportOptionsForm(ida_kernwin.Form):
     """Options dialog for export_named_funcs script."""
@@ -295,7 +295,7 @@ def show_options():
     if not toml_path:
         return None
 
-    # Show options dialog with last-used settings
+    # Show options dialog with last used settings
     form = ExportOptionsForm()
     form.Compile()
     form.cExportGroup.value = cfg["export_group"]
@@ -353,7 +353,7 @@ def show_options():
     if ignore_thunks:
         ignore_prefixes.append("j_")
 
-    # Resolve output path: overwrite reuses input, otherwise prompt save-as
+    # Resolve output path. Overwrite reuses input, otherwise prompt save as
     if overwrite:
         out_path = toml_path
     else:
@@ -378,7 +378,7 @@ def show_options():
     }
 
 
-# ── IDA data collection ────────────────────────────────────────────────────
+# -- IDA data collection ----------------------------------------------------
 
 def collect_func_ptr_args():
     """Find functions whose addresses are only loaded in code as values
@@ -414,7 +414,7 @@ def collect_func_ptr_args():
     return func_ptrs
 
 
-# ── Main export workflow ────────────────────────────────────────────────────
+# -- Main export workflow ----------------------------------------------------
 
 def run_export(settings):
     """Unified export workflow: collect IDA data, sync with TOML, write output."""
@@ -430,13 +430,13 @@ def run_export(settings):
     name_filter = settings["name_filter"]
     name_exclude = settings["name_exclude"]
 
-    # Step 1 — Load & parse TOML
+    # Step 1. Load and parse TOML
     result = load_toml_functions(toml_path)
     if result is None:
         return
     lines, section_start, section_end, existing_addrs, func_lines = result
 
-    # Step 2 — Collect IDA data into a unified map: addr -> (name|None, size|None)
+    # Step 2. Collect IDA data into a unified map of addr -> (name|None, size|None)
     import_eas = collect_import_eas()
     ida_funcs_map = {}
 
@@ -489,11 +489,11 @@ def run_export(settings):
             if n in used_names and used_names[n] != addr_int:
                 duplicate_names.append((n, addr_int, used_names[n]))
                 print(f"[export] PRE-EXISTING DUPLICATE: '{n}' at 0x{addr_int:08X} "
-                      f"conflicts with 0x{used_names[n]:08X} -- removing name")
+                      f"conflicts with 0x{used_names[n]:08X}. Removing name")
                 del props["name"]
                 func_lines[idx] = (True, (addr_int, addr_str, props))
 
-    # Step 3 -- Iterate existing TOML entries against IDA data
+    # Step 3. Iterate existing TOML entries against IDA data
     updated_count = 0
     removed_count = 0
     stale_indices = set()
@@ -516,7 +516,7 @@ def run_export(settings):
                     if full_name in used_names and used_names[full_name] != addr_int:
                         duplicate_names.append((full_name, addr_int, used_names[full_name]))
                         print(f"[export] DUPLICATE: '{full_name}' at 0x{addr_int:08X} "
-                              f"conflicts with 0x{used_names[full_name]:08X} -- skipping name update")
+                              f"conflicts with 0x{used_names[full_name]:08X}. Skipping name update")
                     else:
                         # Remove old name from tracking if it had one
                         if "name" in props:
@@ -541,11 +541,11 @@ def run_export(settings):
             del ida_funcs_map[addr_int]
 
         elif remove_stale:
-            # Never remove chunks (entries with parent) — they're manual config
+            # Never remove chunks (entries with parent) because they're manual config
             if "parent" in props:
                 continue
             # Check if this address is a valid function or chunk start in IDA
-            # (covers entries skipped by name filters like sub_, nullsub_, etc.)
+            # (covers entries skipped by name filters like sub_ and nullsub_)
             func = ida_funcs.get_func(addr_int)
             chunk = ida_funcs.get_fchunk(addr_int)
             is_func_start = func is not None and func.start_ea == addr_int
@@ -561,7 +561,7 @@ def run_export(settings):
             if idx not in stale_indices
         ]
 
-    # Step 4 -- Insert new entries from remaining ida_funcs_map items
+    # Step 4. Insert new entries from remaining ida_funcs_map items
     added_count = 0
     for ea, (name, size) in sorted(ida_funcs_map.items()):
         addr_str = f"0x{ea:08X}"
@@ -573,7 +573,7 @@ def run_export(settings):
             if full_name in used_names:
                 duplicate_names.append((full_name, ea, used_names[full_name]))
                 print(f"[export] DUPLICATE: '{full_name}' at 0x{ea:08X} "
-                      f"conflicts with 0x{used_names[full_name]:08X} -- inserting without name")
+                      f"conflicts with 0x{used_names[full_name]:08X}. Inserting without name")
             else:
                 props["name"] = f'"{full_name}"'
                 used_names[full_name] = ea
@@ -582,17 +582,17 @@ def run_export(settings):
         func_lines.append((True, (ea, addr_str, props)))
         added_count += 1
 
-    # Step 5 & 6 -- Sort and write (out_path resolved in show_options)
+    # Steps 5 and 6. Sort and write (out_path resolved in show_options)
     write_toml(out_path, lines, section_start, section_end, func_lines)
 
-    # Step 7 -- Report duplicates in detail to console
+    # Step 7. Report duplicates in detail to console
     if duplicate_names:
         print(f"\n[export] WARNING: {len(duplicate_names)} duplicate function name(s) detected:")
         for dup_name, new_addr, existing_addr in duplicate_names:
             print(f"  '{dup_name}': 0x{new_addr:08X} conflicts with 0x{existing_addr:08X}")
         print("")
 
-    # Step 8 -- Show single stats dialog
+    # Step 8. Show single stats dialog
     dup_msg = ""
     if duplicate_names:
         dup_msg = (f"\n  WARNING: {len(duplicate_names)} duplicate name(s) skipped "

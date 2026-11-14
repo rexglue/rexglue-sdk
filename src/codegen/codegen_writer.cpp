@@ -1,16 +1,4 @@
-/**
- * @file        codegen/codegen_writer.cpp
- * @brief       Consolidated codegen output writer
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
-#include <rex/codegen/codegen_writer.h>
-#include "codegen_flags.h"
+#include "codegen_writer.h"
 
 #include <algorithm>
 #include <array>
@@ -19,90 +7,117 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <fmt/format.h>
+#include <format>
 #include <inja/inja.hpp>
 
-#include <rex/codegen/function_graph.h>
-#include <rex/codegen/output_partition.h>
-#include <rex/codegen/template_registry.h>
-#include <rex/logging.h>
-#include <rex/runtime.h>
-#include <rex/system/export_resolver.h>
+#include "call_usage.h"
+#include "function_graph.h"
+#include "output_partition.h"
+#include "template_registry.h"
+#include <rex/logging/log_category.h>
+#include "codegen_categories.h"
 
-#include "codegen_logging.h"
 #include "file_io.h"
-#include "template_registry_internal.h"
+#include "mmio_analysis.h"
+#include "template_render.h"
 
 namespace {
 
-nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
+nlohmann::json BuildTemplateData(const rex::codegen::CodegenContext& ctx,
                                  const std::vector<const rex::codegen::FunctionNode*>& functions,
-                                 const std::unordered_map<uint32_t, std::string>& rexcrtByAddr) {
-  const auto& cfg = ctx.Config();
+                                 const std::unordered_map<u32, std::string>& shim_by_addr) {
+  const auto& cfg = ctx.GetConfig();
 
-  // Compute code_base and code_size from binary sections
-  size_t codeMin = ~size_t(0);
-  size_t codeMax = 0;
-  for (const auto& section : ctx.binary().sections()) {
+  size_t code_min = ~static_cast<size_t>(0);
+  size_t code_max = 0;
+  for (const auto& section : ctx.GetBinary().GetSections()) {
     if (section.executable) {
-      if (section.baseAddress < codeMin)
-        codeMin = section.baseAddress;
-      if ((section.baseAddress + section.size) > codeMax)
-        codeMax = section.baseAddress + section.size;
+      if (section.base_address < code_min)
+        code_min = section.base_address;
+      if ((section.base_address + section.size) > code_max)
+        code_max = section.base_address + section.size;
     }
   }
 
-  // Build functions JSON array
-  nlohmann::json functionsJson = nlohmann::json::array();
+  nlohmann::json functions_json = nlohmann::json::array();
   for (const auto* fn : functions) {
-    std::string funcName;
-    bool isRexcrt = false;
+    std::string func_name;
 
-    auto crtIt = rexcrtByAddr.find(static_cast<uint32_t>(fn->base()));
-    if (crtIt != rexcrtByAddr.end()) {
-      funcName = crtIt->second;
-      isRexcrt = true;
-    } else if (fn->base() == ctx.analysisState().entryPoint) {
-      funcName = "xstart";
-    } else if (!fn->name().empty()) {
-      funcName = fn->name();
+    auto shim_it = shim_by_addr.find(fn->GetBase());
+    if (shim_it != shim_by_addr.end()) {
+      func_name = shim_it->second;
+    } else if (fn->GetBase() == ctx.GetAnalysisState().entry_point) {
+      func_name = "xstart";
+    } else if (!fn->GetName().empty()) {
+      func_name = fn->GetName();
     } else {
-      funcName = fmt::format("sub_{:08X}", fn->base());
+      func_name = std::format("sub_{:08X}", fn->GetBase());
     }
 
-    functionsJson.push_back({
-        {"address", fmt::format("0x{:X}", fn->base())},
-        {"name", funcName},
-        {"is_rexcrt", isRexcrt},
-        {"below_code_base", (fn->base() < codeMin)},
-        {"is_import", fn->authority() == rex::codegen::FunctionAuthority::IMPORT},
+    const auto& module_imports = ctx.GetAnalysisState().module_imports;
+    const auto module_import = module_imports.find(fn->GetBase());
+    const bool is_module_import = module_import != module_imports.end();
+    functions_json.push_back({
+        {"address", std::format("0x{:X}", fn->GetBase())},
+        {"name", func_name},
+        {"below_code_base", (fn->GetBase() < code_min)},
+        {"is_import", fn->GetAuthority() == rex::codegen::FunctionAuthority::kImport},
+        {"is_module_import", is_module_import},
+        {"import_library", is_module_import ? module_import->second.library : std::string()},
+        {"import_ordinal", is_module_import ? module_import->second.ordinal : 0},
     });
   }
 
-  // Build config flags
-  nlohmann::json configFlags = {
-      {"skip_lr", cfg.skipLr},
-      {"ctr_as_local", cfg.ctrAsLocalVariable},
-      {"xer_as_local", cfg.xerAsLocalVariable},
-      {"reserved_as_local", cfg.reservedRegisterAsLocalVariable},
-      {"skip_msr", cfg.skipMsr},
-      {"cr_as_local", cfg.crRegistersAsLocalVariables},
-      {"non_argument_as_local", cfg.nonArgumentRegistersAsLocalVariables},
-      {"non_volatile_as_local", cfg.nonVolatileRegistersAsLocalVariables},
+  std::unordered_set<u32> millicode_entries;
+  for (const auto* fn : functions) {
+    if (fn->GetMillicode()) {
+      millicode_entries.insert(fn->GetBase());
+    }
+  }
+
+  std::vector<const rex::codegen::FunctionNode*> analysed;
+  for (const auto* fn : functions) {
+    if (fn->GetAuthority() != rex::codegen::FunctionAuthority::kImport &&
+        fn->GetBase() >= code_min) {
+      analysed.push_back(fn);
+    }
+  }
+  const auto usages = rex::codegen::ComputeCallUsages(analysed, millicode_entries);
+  std::vector<std::pair<u32, rex::codegen::CallUsage>> usage_entries(usages.begin(), usages.end());
+  std::ranges::sort(usage_entries, {}, &decltype(usage_entries)::value_type::first);
+  nlohmann::json call_usage_json = nlohmann::json::array();
+  for (const auto& [address, usage] : usage_entries) {
+    call_usage_json.push_back({
+        {"address", std::format("0x{:X}", address)},
+        {"gpr_mask", std::format("0x{:X}", usage.gpr_mask)},
+        {"fpr_mask", std::format("0x{:X}", usage.fpr_mask)},
+    });
+  }
+
+  nlohmann::json config_flags = {
+      {"skip_lr", cfg.skip_lr},
+      {"ctr_as_local", cfg.ctr_as_local_variable},
+      {"xer_as_local", cfg.xer_as_local_variable},
+      {"reserved_as_local", cfg.reserved_register_as_local_variable},
+      {"skip_msr", cfg.skip_msr},
+      {"cr_as_local", cfg.cr_registers_as_local_variables},
+      {"non_argument_as_local", cfg.non_argument_registers_as_local_variables},
+      {"non_volatile_as_local", cfg.non_volatile_registers_as_local_variables},
   };
 
   return {
-      {"project", cfg.projectName},
-      {"image_base", fmt::format("0x{:X}", ctx.binary().baseAddress())},
-      {"image_size", fmt::format("0x{:X}", ctx.binary().imageSize())},
-      {"code_base", fmt::format("0x{:X}", codeMin)},
-      {"code_size", fmt::format("0x{:X}", codeMax - codeMin)},
-      {"rexcrt_heap", cfg.rexcrtFunctions.contains("RtlAllocateHeap") ? 1 : 0},
-      {"thunk_reserve_size", fmt::format("0x{:X}", 0x10000u)},
-      {"has_dll_modules", ctx.hasDllModules()},
-      {"is_dll", ctx.isDllModule()},
-      {"config_flags", configFlags},
-      {"functions", functionsJson},
+      {"project", cfg.project_name},
+      {"image_base", std::format("0x{:X}", ctx.GetBinary().GetBaseAddress())},
+      {"image_size", std::format("0x{:X}", ctx.GetBinary().GetImageSize())},
+      {"code_base", std::format("0x{:X}", code_min)},
+      {"code_size", std::format("0x{:X}", code_max - code_min)},
+      {"shim_heap", cfg.UsesShimHeap() ? 1 : 0},
+      {"thunk_reserve_size", std::format("0x{:X}", 0x10000u)},
+      {"has_dll_modules", ctx.HasDLLModules()},
+      {"is_dll", ctx.IsDLLModule()},
+      {"config_flags", config_flags},
+      {"functions", functions_json},
+      {"call_usage", call_usage_json},
       {"recomp_files", nlohmann::json::array()},
   };
 }
@@ -111,7 +126,36 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
 
 namespace rex::codegen {
 
-bool IsGeneratedOutputName(std::string_view filename, std::string_view projectName) {
+namespace {
+
+bool IsDigits(std::string_view text) {
+  return !text.empty() && std::ranges::all_of(text, [](char c) { return c >= '0' && c <= '9'; });
+}
+
+bool IsPrefixedGeneratedName(std::string_view filename) {
+  constexpr std::array<std::string_view, 5> kSuffixes{"_pch.h", "_funcs.h", "_init.h", "_init.cpp",
+                                                      "_register.cpp"};
+  for (auto suffix : kSuffixes) {
+    if (filename.size() > suffix.size() && filename.ends_with(suffix))
+      return true;
+  }
+  constexpr std::array<std::pair<std::string_view, std::string_view>, 2> kIndexed{
+      {{"_funcs.", ".h"}, {"_recomp.", ".cpp"}}};
+  for (auto [stem, ext] : kIndexed) {
+    if (!filename.ends_with(ext))
+      continue;
+    const auto at = filename.rfind(stem);
+    if (at == std::string_view::npos || at == 0)
+      continue;
+    const auto index =
+        filename.substr(at + stem.size(), filename.size() - at - stem.size() - ext.size());
+    if (IsDigits(index))
+      return true;
+  }
+  return false;
+}
+
+bool IsGeneratedOutputName(std::string_view filename, std::string_view project_name) {
   auto dot = filename.rfind('.');
   if (dot == std::string_view::npos)
     return false;
@@ -129,128 +173,168 @@ bool IsGeneratedOutputName(std::string_view filename, std::string_view projectNa
       return true;
   }
 
-  std::string projectPrefix(projectName);
-  projectPrefix += '_';
-  return filename.starts_with(projectPrefix);
+  std::string project_prefix(project_name);
+  project_prefix += '_';
+  return filename.starts_with(project_prefix) || IsPrefixedGeneratedName(filename);
 }
 
-constexpr size_t kOutputBufferReserveSize = 32 * 1024 * 1024;  // 32 MB
+}  // namespace
 
-CodegenWriter::CodegenWriter(CodegenContext& ctx, Runtime* runtime)
-    : ctx_(ctx), runtime_(runtime) {}
+constexpr size_t kOutputBufferReserveSize = size_t{32} * 1024 * 1024;
 
-// Convenience accessors
-FunctionGraph& CodegenWriter::graph() {
+namespace {
+
+std::string HexAddress(u32 address) {
+  return std::format("0x{:08X}", address);
+}
+
+std::string_view BlockName(MMIOAccess access) {
+  return access == MMIOAccess::kGPU ? "GPU" : "APU";
+}
+
+nlohmann::json BuildMMIOReport(const std::vector<MMIOReportSite>& sites) {
+  nlohmann::json report{{"matched", nlohmann::json::array()},
+                        {"declared", nlohmann::json::array()},
+                        {"guarded", nlohmann::json::array()},
+                        {"unserved", nlohmann::json::array()},
+                        {"unsupported", nlohmann::json::array()}};
+  for (const MMIOReportSite& entry : sites) {
+    nlohmann::json row{{"function", HexAddress(entry.function)},
+                       {"address", HexAddress(entry.site.address)},
+                       {"access", entry.site.write ? "write" : "read"}};
+    switch (entry.site.reason) {
+      case MMIOReason::kMatched:
+        row["block"] = BlockName(entry.site.access);
+        row["target"] = HexAddress(entry.site.target);
+        report["matched"].push_back(std::move(row));
+        break;
+      case MMIOReason::kOffset:
+        row["reason"] = "offset";
+        report["guarded"].push_back(std::move(row));
+        break;
+      case MMIOReason::kBarrier:
+        row["reason"] = "eieio";
+        report["guarded"].push_back(std::move(row));
+        break;
+      case MMIOReason::kDeclared:
+        row["block"] = BlockName(entry.site.access);
+        report["declared"].push_back(std::move(row));
+        break;
+      case MMIOReason::kUnserved:
+        row["target"] = HexAddress(entry.site.target);
+        report["unserved"].push_back(std::move(row));
+        break;
+      case MMIOReason::kUnsupported:
+        row["target"] = HexAddress(entry.site.target);
+        report["unsupported"].push_back(std::move(row));
+        break;
+    }
+  }
+  return report;
+}
+
+}  // namespace
+
+CodegenWriter::CodegenWriter(CodegenContext& ctx) : ctx_(ctx) {}
+
+FunctionGraph& CodegenWriter::GetGraph() {
   return ctx_.graph;
 }
-const FunctionGraph& CodegenWriter::graph() const {
+const FunctionGraph& CodegenWriter::GetGraph() const {
   return ctx_.graph;
 }
-const BinaryView& CodegenWriter::binary() const {
-  return ctx_.binary();
+const BinaryView& CodegenWriter::GetBinary() const {
+  return ctx_.GetBinary();
 }
-RecompilerConfig& CodegenWriter::config() {
-  return ctx_.Config();
+RecompilerConfig& CodegenWriter::GetConfig() {
+  return ctx_.GetConfig();
 }
-const RecompilerConfig& CodegenWriter::config() const {
-  return ctx_.Config();
+const RecompilerConfig& CodegenWriter::GetConfig() const {
+  return ctx_.GetConfig();
 }
-AnalysisState& CodegenWriter::analysisState() {
-  return ctx_.analysisState();
+AnalysisState& CodegenWriter::GetAnalysisState() {
+  return ctx_.GetAnalysisState();
 }
-const AnalysisState& CodegenWriter::analysisState() const {
-  return ctx_.analysisState();
+const AnalysisState& CodegenWriter::GetAnalysisState() const {
+  return ctx_.GetAnalysisState();
 }
 
-bool CodegenWriter::write(bool force) {
-  deletedFiles_.clear();
-  writtenFiles_.clear();
-  unchangedFiles_.clear();
+bool CodegenWriter::Write(bool force) {
+  deleted_files_.clear();
+  written_files_.clear();
+  unchanged_files_.clear();
 
-  // --- Validation gate (from recompile.cpp) ---
   if (ctx_.errors.HasErrors() && !force) {
-    REXCODEGEN_ERROR("Code generation blocked: {} validation errors. Use --force to override.",
-                     ctx_.errors.Count());
-    return false;
+    REXCG_FAIL(false, "Code generation blocked: {} validation errors. Use --force to override.",
+               ctx_.errors.Count());
   }
 
-  // --- Output directory setup (from recompile.cpp) ---
-  std::filesystem::path outputPath = ctx_.configDir() / config().outDirectoryPath;
-  REXCODEGEN_TRACE("Output path: {}", outputPath.string());
-  std::filesystem::create_directories(outputPath);
+  std::filesystem::path output_path = ctx_.GetConfigDir() / GetConfig().out_directory_path;
+  REXCG_TRACE("Output path: {}", output_path.string());
+  std::filesystem::create_directories(output_path);
 
-  // --- Everything below from recompiler.cpp recompile() ---
-  REXCODEGEN_TRACE("Recompile: starting");
-  out.reserve(kOutputBufferReserveSize);
+  REXCG_TRACE("Recompile: starting");
+  out_.reserve(kOutputBufferReserveSize);
 
-  // Build sorted function list from graph
   std::vector<const FunctionNode*> functions;
-  functions.reserve(graph().functionCount());
-  for (const auto& [addr, node] : graph().functions()) {
+  functions.reserve(GetGraph().GetFunctionCount());
+  for (const auto& [addr, node] : GetGraph().GetFunctions()) {
     functions.push_back(node.get());
   }
   std::sort(functions.begin(), functions.end(),
-            [](const auto* a, const auto* b) { return a->base() < b->base(); });
+            [](const auto* a, const auto* b) { return a->GetBase() < b->GetBase(); });
 
-  // Build rexcrt reverse map and rename graph nodes
-  std::unordered_map<uint32_t, std::string> rexcrtByAddr;
-  for (const auto& [name, addr] : config().rexcrtFunctions) {
-    auto crtName = fmt::format("rexcrt_{}", name);
-    rexcrtByAddr[addr] = crtName;
-    if (auto* node = graph().getFunction(addr)) {
-      node->setName(std::move(crtName));
+  std::unordered_map<u32, std::string> shim_by_addr;
+  for (const auto& [name, addr] : GetConfig().shim_functions) {
+    auto shim_name = std::format("rexshim_{}", name);
+    shim_by_addr[addr] = shim_name;
+    if (auto* node = GetGraph().GetFunction(addr)) {
+      node->SetName(std::move(shim_name));
+    } else {
+      REXCG_WARN("[shim] {} at 0x{:08X} has no function, skipped", name, addr);
     }
   }
 
-  const std::string& projectName = config().projectName;
+  const std::string& project_name = GetConfig().project_name;
 
   TemplateRegistry registry;
-  if (!config().templateDir.empty())
-    registry.loadOverrides(config().templateDir);
+  if (!GetConfig().template_dir.empty())
+    registry.LoadOverrides(ctx_.GetConfigDir() / GetConfig().template_dir);
 
-  auto tmplData = buildTemplateData(ctx_, functions, rexcrtByAddr);
+  auto tmpl_data = BuildTemplateData(ctx_, functions, shim_by_addr);
 
-  // Generate {project}_pch.h (config + macros, stable enough to precompile)
-  REXCODEGEN_TRACE("Recompile: generating {}_pch.h", projectName);
-  out = renderWithJson(registry, "codegen/pch_h", tmplData);
-  SaveCurrentOutData(fmt::format("{}_pch.h", projectName));
+  REXCG_TRACE("Recompile: generating {}_pch.h", project_name);
+  out_ = RenderWithJSON(registry, "codegen/pch_h", tmpl_data);
+  QueueOutput(std::format("{}_pch.h", project_name));
 
-  // Generate {project}_funcs.h (every guest function declaration)
-  REXCODEGEN_TRACE("Recompile: generating {}_funcs.h", projectName);
-  out = renderWithJson(registry, "codegen/funcs_h", tmplData);
-  SaveCurrentOutData(fmt::format("{}_funcs.h", projectName));
+  REXCG_TRACE("Recompile: generating {}_funcs.h", project_name);
+  out_ = RenderWithJSON(registry, "codegen/funcs_h", tmpl_data);
+  QueueOutput(std::format("{}_funcs.h", project_name));
 
-  // Generate {project}_init.h (the full surface, for init.cpp and consumers)
-  REXCODEGEN_TRACE("Recompile: generating {}_init.h", projectName);
-  out = renderWithJson(registry, "codegen/init_h", tmplData);
-  SaveCurrentOutData(fmt::format("{}_init.h", projectName));
+  REXCG_TRACE("Recompile: generating {}_init.h", project_name);
+  out_ = RenderWithJSON(registry, "codegen/init_h", tmpl_data);
+  QueueOutput(std::format("{}_init.h", project_name));
 
-  // Generate {project}_init.cpp (PPCImageConfig + PPCFuncMappings)
-  REXCODEGEN_TRACE("Recompile: generating {}_init.cpp", projectName);
-  out = renderWithJson(registry, "codegen/init_cpp", tmplData);
-  SaveCurrentOutData(fmt::format("{}_init.cpp", projectName));
+  REXCG_TRACE("Recompile: generating {}_init.cpp", project_name);
+  out_ = RenderWithJSON(registry, "codegen/init_cpp", tmpl_data);
+  QueueOutput(std::format("{}_init.cpp", project_name));
 
-  // Generate {project}_register.cpp (registration function for hash-based dispatch)
-  REXCODEGEN_TRACE("Recompile: generating {}_register.cpp", projectName);
-  tmplData["is_dll"] = ctx_.isDllModule();
-  out = renderWithJson(registry, "codegen/register_cpp", tmplData);
-  SaveCurrentOutData(fmt::format("{}_register.cpp", projectName));
+  REXCG_TRACE("Recompile: generating {}_register.cpp", project_name);
+  tmpl_data["is_dll"] = ctx_.IsDLLModule();
+  out_ = RenderWithJSON(registry, "codegen/register_cpp", tmpl_data);
+  QueueOutput(std::format("{}_register.cpp", project_name));
 
-  // Filter out imports and rexcrt functions before recompilation
   std::erase_if(functions, [](const FunctionNode* fn) {
-    return fn->authority() == FunctionAuthority::IMPORT;
+    return fn->GetAuthority() == FunctionAuthority::kImport;
   });
-  std::erase_if(functions, [&rexcrtByAddr](const FunctionNode* fn) {
-    return rexcrtByAddr.contains(static_cast<uint32_t>(fn->base()));
+  std::erase_if(functions, [&shim_by_addr](const FunctionNode* fn) {
+    return shim_by_addr.contains(fn->GetBase());
   });
 
-  // Build EmitContext -- resolver is now properly connected
-  EmitContext emitCtx{binary(), config(), graph(),
-                      static_cast<uint32_t>(analysisState().entryPoint), nullptr};
-  if (runtime_)
-    emitCtx.resolver = runtime_->export_resolver();
+  EmitContext emit_ctx{GetBinary(), GetConfig(), GetGraph(), ctx_.GetLimits(),
+                       static_cast<u32>(GetAnalysisState().entry_point)};
 
-  REXCODEGEN_TRACE("Recompiling {} functions...", functions.size());
+  REXCG_TRACE("Recompiling {} functions...", functions.size());
 
   std::vector<std::string> bodies;
   std::vector<FunctionSize> sizes;
@@ -259,27 +343,52 @@ bool CodegenWriter::write(bool force) {
   sizes.reserve(functions.size());
   references.reserve(functions.size());
 
-  const size_t maxFileBytes = REXCVAR_GET(max_file_size_bytes);
+  const size_t max_file_bytes = ctx_.GetLimits().max_file_size_bytes;
   std::unordered_set<std::string> referenced;
-  emitCtx.referenced = &referenced;
+  std::vector<MMIOReportSite> mmio_sites;
+  emit_ctx.referenced = &referenced;
+  emit_ctx.mmio_sites = &mmio_sites;
   for (const auto* fn : functions) {
     referenced.clear();
-    std::string code = fn->emitCpp(emitCtx);
-    if (code.size() > maxFileBytes) {
-      REXCODEGEN_WARN("Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})", fn->base(),
-                      code.size(), maxFileBytes);
+    std::string code = fn->EmitCpp(emit_ctx);
+    if (code.size() > max_file_bytes) {
+      REXCG_WARN("Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})", fn->GetBase(),
+                 code.size(), max_file_bytes);
     }
-    sizes.push_back({static_cast<uint32_t>(fn->base()), code.size()});
+    sizes.push_back({fn->GetBase(), code.size()});
     bodies.push_back(std::move(code));
     references.push_back(referenced);
   }
-  emitCtx.referenced = nullptr;
+  emit_ctx.referenced = nullptr;
+  emit_ctx.mmio_sites = nullptr;
 
-  auto partition = OutputPartition::Load(outputPath / kPartitionFileName);
-  auto buckets = partition.Assign(sizes, maxFileBytes);
+  for (const auto& [address, declared] : GetConfig().declared_mmio_accesses) {
+    const std::string_view block = declared.block == rex::ppc::MMIOBlock::kGPU ? "gpu" : "apu";
+    const std::string_view list = declared.write ? "write" : "read";
+    const auto site = std::ranges::find_if(mmio_sites, [address](const MMIOReportSite& entry) {
+      return entry.site.address == address;
+    });
+    if (site == mmio_sites.end() || site->site.reason == MMIOReason::kUnsupported) {
+      REXCG_FAIL(false, "[mmio.{}] {} 0x{:08X} is not a load or store codegen routes", block, list,
+                 address);
+    }
+    if (site->site.write != declared.write) {
+      REXCG_FAIL(false, "[mmio.{}] {} 0x{:08X} is a {}", block, list, address,
+                 site->site.write ? "store" : "load");
+    }
+    const MMIOAccess expected =
+        declared.block == rex::ppc::MMIOBlock::kGPU ? MMIOAccess::kGPU : MMIOAccess::kAPU;
+    if (site->site.access != expected) {
+      REXCG_FAIL(false, "[mmio.{}] {} 0x{:08X} reaches the {} block", block, list, address,
+                 BlockName(site->site.access));
+    }
+  }
+
+  auto partition = OutputPartition::Load(output_path / kPartitionFileName);
+  auto buckets = partition.Assign(sizes, max_file_bytes);
 
   for (size_t index = 0; index < buckets.size(); ++index) {
-    // Buckets are address-ordered, so a call can precede its definition.
+    // Buckets are address ordered, so a call can precede its definition.
     std::unordered_set<std::string> needed;
     for (size_t entry : buckets[index]) {
       needed.insert(references[entry].begin(), references[entry].end());
@@ -287,97 +396,98 @@ bool CodegenWriter::write(bool force) {
 
     std::vector<std::string> ordered(needed.begin(), needed.end());
     std::sort(ordered.begin(), ordered.end());
-    println("#pragma once\n");
-    println("#include \"{}_pch.h\"\n", projectName);
+    Println("#pragma once\n");
+    Println("#include \"{}_pch.h\"\n", project_name);
     for (const auto& name : ordered) {
-      println("DECLARE_REX_FUNC({});", name);
+      Println("DECLARE_REX_FUNC({});", name);
     }
-    SaveCurrentOutData(fmt::format("{}_funcs.{}.h", projectName, index));
+    QueueOutput(std::format("{}_funcs.{}.h", project_name, index));
 
-    println("#include \"{}_funcs.{}.h\"\n", projectName, index);
+    Println("#include \"{}_funcs.{}.h\"\n", project_name, index);
     for (size_t entry : buckets[index]) {
-      out += bodies[entry];
+      out_ += bodies[entry];
     }
-    SaveCurrentOutData(fmt::format("{}_recomp.{}.cpp", projectName, index));
+    QueueOutput(std::format("{}_recomp.{}.cpp", project_name, index));
   }
 
-  out = partition.Serialize();
-  SaveCurrentOutData(kPartitionFileName);
+  out_ = partition.Serialize();
+  QueueOutput(kPartitionFileName);
 
-  REXCODEGEN_TRACE("Recompilation complete.");
+  out_ = BuildMMIOReport(mmio_sites).dump(2);
+  QueueOutput(kMMIOReportFileName);
 
-  // Generate sources.cmake
-  REXCODEGEN_TRACE("Recompile: generating sources.cmake");
+  REXCG_TRACE("Recompilation complete.");
+
+  REXCG_TRACE("Recompile: generating sources.cmake");
   {
-    auto& recompFiles = tmplData["recomp_files"];
-    recompFiles = nlohmann::json::array();
+    auto& recomp_files = tmpl_data["recomp_files"];
+    recomp_files = nlohmann::json::array();
     for (size_t i = 0; i < buckets.size(); ++i) {
-      recompFiles.push_back(fmt::format("{}_recomp.{}.cpp", projectName, i));
+      recomp_files.push_back(std::format("{}_recomp.{}.cpp", project_name, i));
     }
-    out = renderWithJson(registry, "codegen/sources_cmake", tmplData);
-    SaveCurrentOutData("sources.cmake");
+    out_ = RenderWithJSON(registry, "codegen/sources_cmake", tmpl_data);
+    QueueOutput("sources.cmake");
   }
 
-  // Write all buffered files to disk
   return FlushPendingWrites();
 }
 
-void CodegenWriter::SaveCurrentOutData(const std::string_view name) {
-  if (!out.empty()) {
-    pendingWrites.emplace_back(std::string(name), std::move(out));
-    out.clear();
+void CodegenWriter::QueueOutput(const std::string_view name) {
+  if (!out_.empty()) {
+    pending_writes_.emplace_back(std::string(name), std::move(out_));
+    out_.clear();
   }
 }
 
 bool CodegenWriter::FlushPendingWrites() {
-  std::filesystem::path outputPath = ctx_.configDir() / config().outDirectoryPath;
+  std::filesystem::path output_path = ctx_.GetConfigDir() / GetConfig().out_directory_path;
 
   std::unordered_set<std::string> emitted;
-  emitted.reserve(pendingWrites.size());
+  emitted.reserve(pending_writes_.size());
 
   // A swallowed failure would be stamped as success and skipped on the next run.
   bool ok = true;
 
-  for (const auto& [filename, content] : pendingWrites) {
+  for (const auto& [filename, content] : pending_writes_) {
     emitted.insert(filename);
-    auto filePath = outputPath / filename;
+    auto file_path = output_path / filename;
 
-    switch (WriteIfChanged(filePath, content)) {
-      case WriteOutcome::Failed:
-        REXCODEGEN_ERROR("Failed to write {}", filePath.string());
+    switch (WriteIfChanged(file_path, content)) {
+      case WriteOutcome::kFailed:
+        REXCG_ERROR("Failed to write {}", file_path.string());
         ok = false;
         break;
-      case WriteOutcome::Unchanged:
-        REXCODEGEN_TRACE("Unchanged, skipping write: {}", filePath.string());
-        unchangedFiles_.push_back(filename);
+      case WriteOutcome::kUnchanged:
+        REXCG_TRACE("Unchanged, skipping write: {}", file_path.string());
+        unchanged_files_.push_back(filename);
         break;
-      case WriteOutcome::Written:
-        REXCODEGEN_TRACE("Wrote {} bytes to {}", content.size(), filePath.string());
-        writtenFiles_.push_back(filename);
+      case WriteOutcome::kWritten:
+        REXCG_TRACE("Wrote {} bytes to {}", content.size(), file_path.string());
+        written_files_.push_back(filename);
         break;
     }
   }
 
-  for (const auto& entry : std::filesystem::directory_iterator(outputPath)) {
+  for (const auto& entry : std::filesystem::directory_iterator(output_path)) {
     if (!entry.is_regular_file())
       continue;
     auto filename = entry.path().filename().string();
     if (emitted.contains(filename))
       continue;
-    if (!IsGeneratedOutputName(filename, config().projectName))
+    if (!IsGeneratedOutputName(filename, GetConfig().project_name))
       continue;
 
     std::error_code ec;
     std::filesystem::remove(entry.path(), ec);
     if (ec) {
-      REXCODEGEN_ERROR("Failed to delete stale output {}: {}", entry.path().string(), ec.message());
+      REXCG_ERROR("Failed to delete stale output {}: {}", entry.path().string(), ec.message());
       continue;
     }
-    REXCODEGEN_TRACE("Deleted stale output: {}", entry.path().string());
-    deletedFiles_.push_back(filename);
+    REXCG_TRACE("Deleted stale output: {}", entry.path().string());
+    deleted_files_.push_back(filename);
   }
 
-  pendingWrites.clear();
+  pending_writes_.clear();
   return ok;
 }
 

@@ -1,12 +1,10 @@
-//=============================================================================
 // ReXGlue Generated - {{ project }} Module Registry
-//=============================================================================
 
-#include <rex/system/kernel_state.h>
+#include <rex/kernel/module.h>
 
-void RegisterRecompiledModules(rex::system::KernelState* kernel_state) {
+void RegisterRecompiledModules(rex::kernel::IModuleRegistry& modules) {
 {% for mod in dll_modules %}
-  kernel_state->RegisterRecompiledModule(
+  modules.RegisterRecompiledModule(
       "{{ mod.pe_name }}",
       "{{ mod.guest_path }}",
       "{{ mod.shared_lib_name }}");

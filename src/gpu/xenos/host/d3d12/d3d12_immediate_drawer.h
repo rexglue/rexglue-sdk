@@ -1,0 +1,158 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+
+#pragma once
+
+#include <deque>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "gpu/xenos/host/d3d12/d3d12_api.h"
+#include "gpu/xenos/host/d3d12/d3d12_descriptor_heap_pool.h"
+#include "gpu/xenos/host/d3d12/d3d12_provider.h"
+#include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
+#include "gpu/xenos/host/immediate_drawer.h"
+
+namespace rex::gpu::d3d12 {
+
+class D3D12ImmediateDrawer final : public OverlayDrawer {
+  struct Key {};
+
+ public:
+  explicit D3D12ImmediateDrawer(Key, const D3D12Provider& provider) : provider_(provider) {}
+
+  static std::unique_ptr<D3D12ImmediateDrawer> Create(const D3D12Provider& provider) {
+    auto immediate_drawer = std::make_unique<D3D12ImmediateDrawer>(Key{}, provider);
+    if (!immediate_drawer->Initialize()) {
+      return nullptr;
+    }
+    return std::move(immediate_drawer);
+  }
+
+  ~D3D12ImmediateDrawer();
+
+  [[nodiscard]] Result<std::unique_ptr<gpu::OverlayTexture>> CreateTexture(
+      u32 width, u32 height, gpu::OverlayTextureFilter filter, bool repeat,
+      std::span<const u8> rgba8) override;
+
+  void Begin(gpu::OverlayDrawContext& context, f32 width, f32 height) override;
+  void BeginBatch(const gpu::OverlayBatch& batch) override;
+  void Draw(const gpu::OverlayDraw& draw) override;
+  void EndBatch() override;
+  void End() override;
+
+ protected:
+  void OnLeavePresenter() override;
+
+ private:
+  enum class SamplerIndex : u8 {
+    kNearestClamp,
+    kLinearClamp,
+    kNearestRepeat,
+    kLinearRepeat,
+
+    kCount,
+    kInvalid = kCount
+  };
+
+  class D3D12OverlayTexture final : public gpu::OverlayTexture {
+   public:
+    static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    D3D12OverlayTexture(u32 width, u32 height, ID3D12Resource* resource, SamplerIndex sampler_index,
+                        D3D12ImmediateDrawer* immediate_drawer, size_t immediate_drawer_index);
+    ~D3D12OverlayTexture() override;
+
+    ID3D12Resource* GetResource() const { return resource_.Get(); }
+    SamplerIndex GetSamplerIndex() const { return sampler_index_; }
+
+    size_t GetImmediateDrawerIndex() const { return immediate_drawer_index_; }
+    void SetImmediateDrawerIndex(size_t index) { immediate_drawer_index_ = index; }
+    void OnImmediateDrawerDestroyed();
+
+    UINT64 GetLastUsageSubmissionIndex() const { return last_usage_submission_index_; }
+    void SetLastUsageSubmissionIndex(UINT64 submission_index) {
+      last_usage_submission_index_ = submission_index;
+    }
+
+   private:
+    Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
+    SamplerIndex sampler_index_;
+
+    D3D12ImmediateDrawer* immediate_drawer_;
+    size_t immediate_drawer_index_;
+
+    UINT64 last_usage_submission_index_ = 0;
+  };
+
+  bool Initialize();
+
+  void OnImmediateTextureDestroyed(D3D12OverlayTexture& texture);
+
+  void UploadTextures();
+
+  const D3D12Provider& provider_;
+
+  Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
+  enum class RootParameter : u8 {
+    kTexture,
+    kSampler,
+    kCoordinateSpaceSizeInv,
+
+    kCount
+  };
+
+  Microsoft::WRL::ComPtr<ID3D12PipelineState> pipeline_triangle_;
+  Microsoft::WRL::ComPtr<ID3D12PipelineState> pipeline_line_;
+
+  Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> sampler_heap_;
+  D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;
+  D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
+
+  /** Holds only textures with non null resources. */
+  std::vector<D3D12OverlayTexture*> textures_;
+
+  struct PendingTextureUpload {
+    PendingTextureUpload(ID3D12Resource* texture, ID3D12Resource* buffer)
+        : texture(texture), buffer(buffer) {}
+    Microsoft::WRL::ComPtr<ID3D12Resource> texture;
+    Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
+  };
+  std::vector<PendingTextureUpload> texture_uploads_pending_;
+
+  struct SubmittedTextureUpload {
+    SubmittedTextureUpload(ID3D12Resource* texture, ID3D12Resource* buffer, UINT64 submission_index)
+        : texture(texture), buffer(buffer), submission_index(submission_index) {}
+    Microsoft::WRL::ComPtr<ID3D12Resource> texture;
+    Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
+    UINT64 submission_index;
+  };
+  std::deque<SubmittedTextureUpload> texture_uploads_submitted_;
+
+  std::deque<std::pair<Microsoft::WRL::ComPtr<ID3D12Resource>, UINT64>> textures_deleted_;
+
+  std::unique_ptr<D3D12UploadBufferPool> geometry_buffer_pool_;
+  std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_;
+
+  /** Submission index within the current Begin, or of the last Begin when outside one. */
+  UINT64 last_paint_submission_index_ = 0;
+  UINT64 last_completed_submission_index_ = 0;
+
+  bool batch_open_ = false;
+  bool batch_has_index_buffer_;
+  D3D12_RECT current_scissor_;
+  D3D_PRIMITIVE_TOPOLOGY current_primitive_topology_;
+  ID3D12Resource* current_texture_;
+  u64 current_texture_descriptor_heap_index_;
+  SamplerIndex current_sampler_index_;
+};
+
+}  // namespace rex::gpu::d3d12

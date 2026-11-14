@@ -1,126 +1,93 @@
-/**
- * @file        codegen/template_registry.cpp
- * @brief       Template registry implementation
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- * @license     BSD 3-Clause License
- */
-
-#include <rex/codegen/template_registry.h>
-#include "template_registry_internal.h"
+#include <rex/platform/file.h>
+#include "template_registry.h"
+#include "template_render.h"
 
 #include <inja/inja.hpp>
 #include <rex/hash.h>
-#include <rex/logging.h>
+#include <rex/logging/log_category.h>
+#include "codegen_categories.h"
 
-#include "codegen_logging.h"
-
-// Generated at build time by cmake/embed_templates.cmake
 #include "embedded_templates.h"
 
 #include <algorithm>
+#include <ios>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace rex::codegen {
 
-// ---------------------------------------------------------------------------
-// TemplateError
-// ---------------------------------------------------------------------------
-
-TemplateError::TemplateError(const std::string& templateId, const std::string& message,
+TemplateError::TemplateError(const std::string& template_id, const std::string& message,
                              const std::string& source)
-    : std::runtime_error("[" + source + "] template '" + templateId + "': " + message),
-      templateId_(templateId),
+    : std::runtime_error("[" + source + "] template '" + template_id + "': " + message),
+      template_id_(template_id),
       source_(source) {}
 
-// ---------------------------------------------------------------------------
-// TemplateRegistry::Impl
-// ---------------------------------------------------------------------------
-
 struct TemplateRegistry::Impl {
-  inja::Environment env_;
-  std::unordered_map<std::string, std::string_view> embedded_;
-  std::unordered_map<std::string, inja::Template> overrides_;
-  std::unordered_map<std::string, inja::Template> parsedCache_;
+  inja::Environment env;
+  std::unordered_map<std::string, std::string_view> embedded;
+  std::unordered_map<std::string, inja::Template> overrides;
+  std::unordered_map<std::string, inja::Template> parsed_cache;
 
   Impl() {
-    embedded_ = embeddedTemplates();
+    embedded = EmbeddedTemplates();
 
-    // cmake_var callback: wraps a variable name in ${ }
-    env_.add_callback("cmake_var", 1, [](inja::Arguments& args) {
+    env.add_callback("cmake_var", 1, [](inja::Arguments& args) {
       return "${" + args.at(0)->get<std::string>() + "}";
     });
 
-    // hex callback: format an integer as 0x-prefixed hex
-    env_.add_callback("hex", 1, [](inja::Arguments& args) {
-      auto val = args.at(0)->get<uint64_t>();
+    env.add_callback("hex", 1, [](inja::Arguments& args) {
+      auto val = args.at(0)->get<u64>();
       std::ostringstream oss;
       oss << "0x" << std::hex << std::uppercase << val;
       return oss.str();
     });
 
-    // Resolve {% include "<id>" %} against the embedded registry. Templates
-    // are embedded under canonical IDs without the .inja extension; accept
-    // either form so include directives can use either.
-    env_.set_search_included_templates_in_files(false);
-    env_.set_include_callback(
+    env.set_search_included_templates_in_files(false);
+    env.set_include_callback(
         [this](const std::filesystem::path&, const std::string& name) -> inja::Template {
           std::string id = name;
           if (id.size() > 5 && id.compare(id.size() - 5, 5, ".inja") == 0) {
             id.erase(id.size() - 5);
           }
-          auto it = embedded_.find(id);
-          if (it == embedded_.end()) {
+          auto it = embedded.find(id);
+          if (it == embedded.end()) {
             throw TemplateError(name, "include not found in embedded registry");
           }
-          return env_.parse(std::string(it->second));
+          return env.parse(std::string(it->second));
         });
   }
 
-  std::string renderImpl(const std::string& id, const nlohmann::json& data) {
-    // Check overrides first
-    auto ovIt = overrides_.find(id);
-    if (ovIt != overrides_.end()) {
-      return env_.render(ovIt->second, data);
+  std::string Render(const std::string& id, const nlohmann::json& data) {
+    auto ov_it = overrides.find(id);
+    if (ov_it != overrides.end()) {
+      return env.render(ov_it->second, data);
     }
 
-    // Check parsed cache
-    auto cacheIt = parsedCache_.find(id);
-    if (cacheIt != parsedCache_.end()) {
-      return env_.render(cacheIt->second, data);
+    auto cache_it = parsed_cache.find(id);
+    if (cache_it != parsed_cache.end()) {
+      return env.render(cache_it->second, data);
     }
 
-    // Look up in embedded templates
-    auto embIt = embedded_.find(id);
-    if (embIt == embedded_.end()) {
+    auto emb_it = embedded.find(id);
+    if (emb_it == embedded.end()) {
       throw TemplateError(id, "no template registered with this ID");
     }
 
-    // Parse, cache, and render
-    auto tmpl = env_.parse(std::string(embIt->second));
-    auto [it, _] = parsedCache_.emplace(id, std::move(tmpl));
-    return env_.render(it->second, data);
+    auto tmpl = env.parse(std::string(emb_it->second));
+    auto [it, _] = parsed_cache.emplace(id, std::move(tmpl));
+    return env.render(it->second, data);
   }
 };
-
-// ---------------------------------------------------------------------------
-// TemplateRegistry special members
-// ---------------------------------------------------------------------------
 
 TemplateRegistry::TemplateRegistry() : impl_(std::make_unique<Impl>()) {}
 TemplateRegistry::~TemplateRegistry() = default;
 TemplateRegistry::TemplateRegistry(TemplateRegistry&&) noexcept = default;
 TemplateRegistry& TemplateRegistry::operator=(TemplateRegistry&&) noexcept = default;
 
-// ---------------------------------------------------------------------------
-// TemplateRegistry public methods
-// ---------------------------------------------------------------------------
-
-void TemplateRegistry::loadOverrides(const std::filesystem::path& dir) {
+void TemplateRegistry::LoadOverrides(const std::filesystem::path& dir) {
   if (!std::filesystem::exists(dir)) {
-    REXCODEGEN_WARN("Override directory does not exist: {}", dir.string());
+    REXCG_WARN("Override directory does not exist: {}", dir.string());
     return;
   }
 
@@ -130,39 +97,34 @@ void TemplateRegistry::loadOverrides(const std::filesystem::path& dir) {
     if (entry.path().extension() != ".inja")
       continue;
 
-    // Compute canonical ID from relative path, stripping .inja extension
-    auto relPath = std::filesystem::relative(entry.path(), dir).string();
-    // Normalize path separators to forward slash
-    std::replace(relPath.begin(), relPath.end(), '\\', '/');
-    // Strip .inja extension
-    auto id = relPath.substr(0, relPath.size() - 5);  // strlen(".inja") == 5
+    auto rel_path = std::filesystem::relative(entry.path(), dir).string();
+    std::replace(rel_path.begin(), rel_path.end(), '\\', '/');
+    auto id = rel_path.substr(0, rel_path.size() - 5);
 
-    if (impl_->embedded_.find(id) == impl_->embedded_.end()) {
-      REXCODEGEN_WARN("Override file does not match a known template ID: {} (from {})", id,
-                      entry.path().string());
+    if (impl_->embedded.find(id) == impl_->embedded.end()) {
+      REXCG_WARN("Override file does not match a known template ID: {} (from {})", id,
+                 entry.path().string());
       continue;
     }
 
     try {
-      auto content = [&]() {
-        std::ifstream ifs(entry.path());
-        return std::string(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
-      }();
-      auto tmpl = impl_->env_.parse(content);
-      impl_->overrides_[id] = std::move(tmpl);
-      REXCODEGEN_TRACE("Loaded template override: {} -> {}", id, entry.path().string());
+      const auto bytes = rex::platform::ReadHostFile(entry.path());
+      const std::string content = bytes ? std::string(bytes->begin(), bytes->end()) : std::string{};
+      auto tmpl = impl_->env.parse(content);
+      impl_->overrides[id] = std::move(tmpl);
+      REXCG_TRACE("Loaded template override: {} -> {}", id, entry.path().string());
     } catch (const std::exception& e) {
       throw TemplateError(id, e.what(), entry.path().string());
     }
   }
 }
 
-std::string TemplateRegistry::render(const std::string& id, const std::string& jsonData) {
+std::string TemplateRegistry::Render(const std::string& id, const std::string& json_data) {
   try {
-    auto data = nlohmann::json::parse(jsonData);
-    return impl_->renderImpl(id, data);
+    auto data = nlohmann::json::parse(json_data);
+    return impl_->Render(id, data);
   } catch (const TemplateError&) {
-    throw;  // Already wrapped
+    throw;
   } catch (const nlohmann::json::exception& e) {
     throw TemplateError(id, std::string("JSON parse error: ") + e.what());
   } catch (const inja::InjaError& e) {
@@ -172,12 +134,12 @@ std::string TemplateRegistry::render(const std::string& id, const std::string& j
   }
 }
 
-std::string TemplateRegistry::renderString(const std::string& templateContent,
-                                           const std::string& jsonData) {
+std::string TemplateRegistry::RenderString(const std::string& template_content,
+                                           const std::string& json_data) {
   try {
-    auto data = nlohmann::json::parse(jsonData);
-    auto tmpl = impl_->env_.parse(templateContent);
-    return impl_->env_.render(tmpl, data);
+    auto data = nlohmann::json::parse(json_data);
+    auto tmpl = impl_->env.parse(template_content);
+    return impl_->env.render(tmpl, data);
   } catch (const nlohmann::json::exception& e) {
     throw TemplateError("<inline>", std::string("JSON parse error: ") + e.what(), "string");
   } catch (const inja::InjaError& e) {
@@ -187,18 +149,18 @@ std::string TemplateRegistry::renderString(const std::string& templateContent,
   }
 }
 
-std::vector<std::string> TemplateRegistry::registeredIds() const {
+std::vector<std::string> TemplateRegistry::GetRegisteredIDs() const {
   std::vector<std::string> ids;
-  ids.reserve(impl_->embedded_.size());
-  for (const auto& [id, _] : impl_->embedded_) {
+  ids.reserve(impl_->embedded.size());
+  for (const auto& [id, _] : impl_->embedded) {
     ids.push_back(id);
   }
   return ids;
 }
 
-std::string EmbeddedTemplatesHash() {
-  static const std::string hash = [] {
-    const auto& templates = embeddedTemplates();
+std::string GetEmbeddedTemplatesHash() {
+  static const std::string kHash = [] {
+    const auto& templates = EmbeddedTemplates();
     std::vector<std::pair<std::string, std::string_view>> ordered(templates.begin(),
                                                                   templates.end());
     std::sort(ordered.begin(), ordered.end(),
@@ -211,18 +173,14 @@ std::string EmbeddedTemplatesHash() {
       accumulator += content;
       accumulator += '\n';
     }
-    return rex::hash_bytes(accumulator);
+    return rex::HashBytes(accumulator);
   }();
-  return hash;
+  return kHash;
 }
 
-// ---------------------------------------------------------------------------
-// Free function: renderWithJson (internal API)
-// ---------------------------------------------------------------------------
-
-std::string renderWithJson(TemplateRegistry& registry, const std::string& id,
+std::string RenderWithJSON(TemplateRegistry& registry, const std::string& id,
                            const nlohmann::json& data) {
-  return registry.render(id, data.dump());
+  return registry.Render(id, data.dump());
 }
 
 }  // namespace rex::codegen

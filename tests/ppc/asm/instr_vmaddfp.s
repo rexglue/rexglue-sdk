@@ -3,17 +3,17 @@ test_vmaddfp_1:
   # 1.0, 1.5, 1.1, 1.9
   vmaddfp v3, v4, v4, v4
   blr
-  #_ REGISTER_OUT v3 [40000000, 40700000, 4013d70a, 40b051eb]
+  #_ REGISTER_OUT v3 [40000000, 40700000, 4013d70b, 40b051eb]
   #_ REGISTER_OUT v4 [3f800000, 3fc00000, 3f8ccccd, 3ff33333]
   # 2.0, 3.75, 2.31, 5.51
-  # 40b051eb is actually 5.50999975, not 5.51?
+  # 40b051eb is 5.50999975, not 5.51?
   # 40b051ec is 5.51
 
 test_vmaddfp_2:
   #_ REGISTER_IN v4 [3f800000, 3f800000, 3f800000, 3f800000]
   #_ REGISTER_IN v5 [3f800000, 3f800000, 3f800000, 3f800000]
   #_ REGISTER_IN v6 [3f800000, 3f800000, 3f800000, 3f800000]
-  # 1.0, 1.5, 1.1, 1.9
+  # 1.0 x4
   vmaddfp v3, v4, v5, v6
   blr
   #_ REGISTER_OUT v3 [40000000, 40000000, 40000000, 40000000]
@@ -28,7 +28,6 @@ test_vmaddfp_3:
   #_ REGISTER_IN v4 [40a00000, 40a00000, 3f800000, 3f800000]
   #_ REGISTER_IN v5 [40a00000, 40a00000, 3f800000, 3f800000]
   #_ REGISTER_IN v6 [3f800000, 3f800000, 3f800000, 3f800000]
-  # 1.0, 1.5, 1.1, 1.9
   vmaddfp v3, v4, v5, v6
   blr
   # v3 = 26.0, 26.0, 2.0, 2.0

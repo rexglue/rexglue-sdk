@@ -1,6 +1,6 @@
 /**
  * @file        codegen/phase_scan.cpp
- * @brief       Scan phase: segment binary into code/data regions
+ * @brief       Scan phase that segments the binary into code regions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,53 +11,47 @@
 
 #include <unordered_set>
 
-#include <rex/codegen/phases.h>
+#include "pipeline.h"
 
-#include <rex/codegen/config.h>
-#include <rex/logging.h>
+#include "config.h"
+#include <rex/logging/log_category.h>
+#include "codegen_categories.h"
 
-#include "codegen_logging.h"
-#include <rex/memory/utils.h>
-
-using rex::memory::load_and_swap;
+#include <rex/memory/endian.h>
 
 namespace rex::codegen {
 
 namespace {
 
-//=============================================================================
-// Scan Phase: segment binary into code/data regions
-//=============================================================================
-
-std::vector<CodeRegion> segmentSection(const SectionView& section,
-                                       const std::unordered_set<uint32_t>& exceptionHandlerFuncs,
-                                       uint32_t exportTable) {
+std::vector<CodeRegion> SegmentSection(const SectionView& section,
+                                       const std::unordered_set<u32>& exception_handler_funcs,
+                                       u32 export_table) {
   std::vector<CodeRegion> regions;
 
-  const uint8_t* data = section.data;
-  const uint8_t* dataEnd = section.data + section.size;
+  const u8* data = section.data;
+  const u8* data_end = section.data + section.size;
 
-  if (exportTable && exportTable >= section.baseAddress &&
-      exportTable < section.baseAddress + section.size) {
-    dataEnd = section.data + (exportTable - section.baseAddress);
+  if (export_table && export_table >= section.base_address &&
+      export_table < section.base_address + section.size) {
+    data_end = section.data + (export_table - section.base_address);
   }
 
-  uint32_t regionStart = 0;
-  bool inCode = false;
+  u32 region_start = 0;
+  bool in_code = false;
 
-  while (data < dataEnd) {
-    uint32_t addr = section.baseAddress + static_cast<uint32_t>(data - section.data);
-    uint32_t word = load_and_swap<uint32_t>(data);
+  while (data < data_end) {
+    u32 addr = section.base_address + static_cast<u32>(data - section.data);
+    u32 word = memory::load<be_u32>(data);
 
     if (word == 0x00000000) {
-      if (inCode) {
-        regions.push_back({regionStart, addr});
-        inCode = false;
+      if (in_code) {
+        regions.push_back({region_start, addr});
+        in_code = false;
       }
 
-      if (data + 12 <= dataEnd) {
-        uint32_t nextWord = load_and_swap<uint32_t>(data + 4);
-        if (exceptionHandlerFuncs.contains(nextWord)) {
+      if (data + 12 <= data_end) {
+        u32 next_word = memory::load<be_u32>(data + 4);
+        if (exception_handler_funcs.contains(next_word)) {
           data += 12;
           continue;
         }
@@ -66,113 +60,66 @@ std::vector<CodeRegion> segmentSection(const SectionView& section,
       continue;
     }
 
-    if (!inCode) {
-      regionStart = addr;
-      inCode = true;
+    if (!in_code) {
+      region_start = addr;
+      in_code = true;
     }
     data += 4;
   }
 
-  if (inCode) {
-    uint32_t endAddr = section.baseAddress + static_cast<uint32_t>(dataEnd - section.data);
-    regions.push_back({regionStart, endAddr});
+  if (in_code) {
+    u32 end_addr = section.base_address + static_cast<u32>(data_end - section.data);
+    regions.push_back({region_start, end_addr});
   }
 
   return regions;
 }
 
-void scanBinary(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: scanning binary...");
+void ScanBinary(CodegenContext& ctx) {
+  REXCG_TRACE("Analyze: scanning binary...");
 
-  auto& binary = ctx.binary();
-  auto& config = ctx.Config();
-  auto& state = ctx.analysisState();
+  auto& binary = ctx.GetBinary();
+  auto& state = ctx.GetAnalysisState();
   auto& scan = ctx.scan;
   auto& graph = ctx.graph;
 
-  uint32_t exportTable = binary.exportTableAddr();
+  u32 export_table = binary.GetExportTableAddress();
 
-  // Build exception handler function set
-  std::unordered_set<uint32_t> exceptionHandlerFuncs;
-  for (uint32_t addr : state.exceptionHandlerFuncs) {
-    exceptionHandlerFuncs.insert(addr);
+  std::unordered_set<u32> exception_handler_funcs;
+  for (u32 addr : state.exception_handler_funcs) {
+    exception_handler_funcs.insert(addr);
   }
 
-  for (const auto& [addr, node] : graph.functions()) {
-    if (node->authority() != FunctionAuthority::IMPORT)
+  for (const auto& [addr, node] : graph.GetFunctions()) {
+    if (node->GetAuthority() != FunctionAuthority::kImport)
       continue;
-    if (node->name() == "__imp____C_specific_handler") {
-      exceptionHandlerFuncs.insert(addr);
+    if (node->GetName() == "__imp____C_specific_handler") {
+      exception_handler_funcs.insert(addr);
       break;
     }
   }
 
-  // Segment executable sections
-  for (const auto& section : binary.sections()) {
+  for (const auto& section : binary.GetSections()) {
     if (!section.executable)
       continue;
 
-    auto regions = segmentSection(section, exceptionHandlerFuncs, exportTable);
-    scan.codeRegions.insert(scan.codeRegions.end(), regions.begin(), regions.end());
+    auto regions = SegmentSection(section, exception_handler_funcs, export_table);
+    scan.code_regions.insert(scan.code_regions.end(), regions.begin(), regions.end());
   }
 
-  REXCODEGEN_TRACE("Analyze: segmented into {} code regions", scan.codeRegions.size());
-
-  // Detect data regions
-  for (const auto& section : binary.sections()) {
-    if (!section.executable)
-      continue;
-
-    const uint8_t* data = section.data;
-    const uint8_t* dataEnd = section.data + section.size;
-
-    if (exportTable && exportTable >= section.baseAddress &&
-        exportTable < section.baseAddress + section.size) {
-      dataEnd = section.data + (exportTable - section.baseAddress);
-    }
-
-    uint32_t consecutiveInvalid = 0;
-    uint32_t dataRegionStart = 0;
-
-    while (data < dataEnd) {
-      uint32_t addr = section.baseAddress + static_cast<uint32_t>(data - section.data);
-      uint32_t insn = load_and_swap<uint32_t>(data);
-
-      bool isInvalid = (insn == 0x00000000 || insn == 0xFFFFFFFF);
-      if (isInvalid) {
-        if (consecutiveInvalid == 0)
-          dataRegionStart = addr;
-        consecutiveInvalid++;
-      } else {
-        if (consecutiveInvalid >= config.dataRegionThreshold) {
-          scan.dataRegions.emplace_back(dataRegionStart, addr);
-        }
-        consecutiveInvalid = 0;
-      }
-
-      data += 4;
-    }
-
-    if (consecutiveInvalid >= config.dataRegionThreshold) {
-      uint32_t endAddr = section.baseAddress + static_cast<uint32_t>(dataEnd - section.data);
-      scan.dataRegions.emplace_back(dataRegionStart, endAddr);
-    }
-  }
-
-  REXCODEGEN_TRACE("Analyze: {} code regions, {} data regions", scan.codeRegions.size(),
-                   scan.dataRegions.size());
+  REXCG_TRACE("Analyze: segmented into {} code regions", scan.code_regions.size());
 }
 
 }  // anonymous namespace
 
-namespace phases {
+namespace detail {
 
-VoidResult Scan(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> ScanRegions(CodegenContext& ctx, IProgressReporter* reporter) {
   (void)reporter;
-  scanBinary(ctx);
+  ScanBinary(ctx);
   return Ok();
 }
 
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

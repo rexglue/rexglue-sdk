@@ -1,0 +1,72 @@
+PROJECT_NAME           = "ReXGlue SDK"
+OUTPUT_DIRECTORY       = out/docs/doxygen
+HTML_OUTPUT            = html
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+GENERATE_TAGFILE       = out/docs/doxygen/rex.tag
+QUIET                  = YES
+WARN_LOGFILE           = out/docs/doxygen/warnings.log
+
+INPUT                  = include/rex \
+                         docs/doxygen/codegen_macros.h \
+                         docs/doxygen/generated_symbols.h \
+                         docs/doxygen/namespaces.h
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h
+EXCLUDE_SYMBOLS        = *::detail::* \
+                         *::detail \
+                         REX_DETAIL_* \
+                         REX_STATIC_ASSERT_SIZE \
+                         pad \
+                         pad_* \
+                         *::pad \
+                         *::pad_*
+
+ALIASES                = "license=\par License^^" \
+                         "modified=\par Modified^^" \
+                         "tctechstuff=\@tctechstuff" \
+                         "gmail=\@gmail"
+
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+SEARCH_INCLUDES        = NO
+INCLUDE_PATH           = include
+PREDEFINED             = __attribute__(x)= \
+                         REXGLUE_ENABLE_PROFILING=1 \
+                         REXGLUE_ENABLE_PERF_COUNTERS=1 \
+                         _WIN32=1 \
+                         WIN32=1 \
+                         _M_AMD64=1 \
+                         REX_API= \
+                         REX_KERNEL_API= \
+                         REX_GPU_XENOS_API= \
+                         REX_IMGUI_API= \
+                         REX_EXPORT= \
+                         REX_IMPORT= \
+                         REX_DETAIL_EXPORT= \
+                         REX_DETAIL_ENTRY_EXPORT= \
+                         "REX_DECLARE_INTERFACE(Name, version)=class Name : public ::rex::IInterface {" \
+                         "REX_DECLARE_PRIVATE_INTERFACE(Name, version)=class Name : public ::rex::IInterface {"
+
+EXTRACT_ALL            = NO
+DISTRIBUTE_GROUP_DOC    = YES
+CASE_SENSE_NAMES       = YES
+FULL_PATH_NAMES        = YES
+STRIP_FROM_PATH        = include
+STRIP_FROM_INC_PATH    = include
+SOURCE_BROWSER         = NO
+GENERATE_TREEVIEW      = YES
+SEARCHENGINE           = YES
+
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = NO
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = NO
+INCLUDED_BY_GRAPH      = NO
+GRAPHICAL_HIERARCHY    = YES
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO

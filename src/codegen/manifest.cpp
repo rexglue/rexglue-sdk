@@ -1,32 +1,29 @@
-/**
- * @file        codegen/manifest.cpp
- * @brief       Manifest TOML parser for multi-binary projects
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
+#include "manifest.h"
 
-#include <rex/codegen/manifest.h>
+#include "config_keys.h"
 
 #include <algorithm>
 #include <cctype>
+#include <format>
 #include <fstream>
+#include <iterator>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
 #include <toml++/toml.hpp>
 
-#include <rex/logging.h>
-#include <rex/system/guest_path.h>
+#include <rex/logging/log_category.h>
+#include "codegen_categories.h"
+#include <rex/platform/file.h>
+#include <rex/string/text.h>
+#include <rex/string/path.h>
 
 namespace rex::codegen {
 
 std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view project_name) {
-  std::string guest_path = rex::system::NormalizeGuestPath(path);
+  std::string guest_path = rex::string::NormalizeGuestPath(path);
 
   if (!project_name.empty()) {
     std::string lower_project(project_name);
@@ -53,16 +50,14 @@ bool IsValidProjectName(std::string_view name) {
                      [](unsigned char c) { return std::isalnum(c) || c == '_'; });
 }
 
-/**
- * Pull file_path / out_directory_path / project_name onto the recompiler
- * config so downstream consumers can rely on them. Other fields (codegen
- * flags, sub-tables, includes) come from RecompilerConfig::LoadFromTable.
- */
 bool LoadBinaryConfig(const toml::table& tbl, const std::filesystem::path& base_dir,
-                      std::string_view project_name, BinaryConfig& out) {
-  out.recompiler = RecompilerConfig{};
-  out.recompiler.projectName = std::string(project_name);
-  if (!out.recompiler.LoadFromTable(tbl, base_dir)) {
+                      std::string_view project_name, const RecompilerConfig& shared,
+                      BinaryConfig& out, const std::string& source) {
+  out.recompiler = shared;
+  out.recompiler.ClearAddressEntries();
+  out.recompiler.load_warnings.clear();
+  out.recompiler.project_name = std::string(project_name);
+  if (!out.recompiler.LoadFromTable(tbl, base_dir, source)) {
     return false;
   }
   return true;
@@ -75,71 +70,90 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   try {
     tbl = toml::parse_file(path.string());
   } catch (const toml::parse_error& err) {
-    REXLOG_ERROR("Failed to parse manifest {}: {}", path.string(), err.what());
-    return std::nullopt;
+    REXCG_FAIL(std::nullopt, "Failed to parse manifest {}: {}", path.string(), err.what());
   }
 
   ManifestConfig manifest;
-  manifest.manifestDir = path.parent_path();
-  manifest.manifestPath = path;
+  manifest.manifest_dir = path.parent_path();
+  manifest.manifest_path = path;
 
   auto* project = tbl["project"].as_table();
   if (!project) {
-    REXLOG_ERROR("Manifest missing [project] section: {}", path.string());
-    return std::nullopt;
+    REXCG_FAIL(std::nullopt, "Manifest missing [project] section: {}", path.string());
   }
-  manifest.projectName = (*project)["name"].value_or<std::string>("");
-  if (manifest.projectName.empty()) {
-    REXLOG_ERROR("Manifest missing [project].name: {}", path.string());
-    return std::nullopt;
+  CheckProjectKeys(*project, path.string() + " [project]", manifest.warnings);
+  for (const auto& warning : manifest.warnings) {
+    REXCG_WARN("manifest {}", warning);
   }
-  if (!IsValidProjectName(manifest.projectName)) {
-    REXLOG_ERROR(
-        "Manifest [project].name '{}' is not a valid identifier "
-        "(letters, digits, underscore; must not start with a digit): {}",
-        manifest.projectName, path.string());
-    return std::nullopt;
+  manifest.project_name = (*project)["name"].value_or<std::string>("");
+  if (manifest.project_name.empty()) {
+    REXCG_FAIL(std::nullopt, "Manifest missing [project].name: {}", path.string());
+  }
+  if (!IsValidProjectName(manifest.project_name)) {
+    REXCG_FAIL(std::nullopt,
+               "Manifest [project].name '{}' is not a valid identifier "
+               "(letters, digits and underscore, and must not start with a digit): {}",
+               manifest.project_name, path.string());
   }
   if (auto stamp = (*project)["sdk_version"].value<std::string>(); stamp && !stamp->empty()) {
-    manifest.sdkVersion = *stamp;
+    manifest.sdk_version = *stamp;
   }
   if (auto root = (*project)["game_root"].value<std::string>(); root && !root->empty()) {
-    manifest.gameRoot = *root;
+    manifest.game_root = *root;
+  }
+  if (auto* sources = (*project)["hook_sources"].as_array()) {
+    for (const auto& source : *sources) {
+      auto folder = source.value<std::string>();
+      if (!folder || folder->empty()) {
+        REXCG_FAIL(std::nullopt,
+                   "Manifest [project].hook_sources must hold non empty folder strings: {}",
+                   path.string());
+      }
+      manifest.hook_sources.push_back(*folder);
+    }
+  } else if ((*project).contains("hook_sources")) {
+    REXCG_FAIL(std::nullopt, "Manifest [project].hook_sources must be an array: {}", path.string());
   }
 
   auto* entrypoint = tbl["entrypoint"].as_table();
   if (!entrypoint) {
-    REXLOG_ERROR("Manifest missing [entrypoint] section: {}", path.string());
+    REXCG_FAIL(std::nullopt, "Manifest missing [entrypoint] section: {}", path.string());
+  }
+  toml::table shared_table = tbl;
+  for (const char* key : {"project", "entrypoint", "modules"}) {
+    shared_table.erase(key);
+  }
+  if (!manifest.shared.LoadShared(shared_table, manifest.manifest_dir, path.string())) {
     return std::nullopt;
   }
-  if (!LoadBinaryConfig(*entrypoint, manifest.manifestDir, manifest.projectName,
-                        manifest.entrypoint)) {
+
+  if (!LoadBinaryConfig(*entrypoint, manifest.manifest_dir, manifest.project_name, manifest.shared,
+                        manifest.entrypoint, path.string() + " [entrypoint]")) {
     return std::nullopt;
   }
 
   if (auto modules = tbl["modules"].as_array()) {
     size_t index = 0;
     for (const auto& mod : *modules) {
-      auto* modTbl = mod.as_table();
-      if (!modTbl) {
-        REXLOG_ERROR("Manifest [[modules]] entry #{} is not a table", index);
-        return std::nullopt;
+      auto* mod_tbl = mod.as_table();
+      if (!mod_tbl) {
+        REXCG_FAIL(std::nullopt, "Manifest [[modules]] entry #{} is not a table", index);
       }
       BinaryConfig binary;
-      if (!LoadBinaryConfig(*modTbl, manifest.manifestDir, manifest.projectName, binary)) {
+      if (!LoadBinaryConfig(*mod_tbl, manifest.manifest_dir, manifest.project_name, manifest.shared,
+                            binary, std::format("{} [[modules]] #{}", path.string(), index))) {
         return std::nullopt;
       }
-      auto guest_path = (*modTbl)["guest_path"].value_or<std::string>("");
+      auto guest_path = (*mod_tbl)[kModuleGuestPathKey].value_or<std::string>("");
       if (guest_path.empty()) {
-        REXLOG_ERROR("Manifest [[modules]] entry #{} missing guest_path", index);
-        return std::nullopt;
+        REXCG_FAIL(std::nullopt, "Manifest [[modules]] entry #{} missing {}", index,
+                   kModuleGuestPathKey);
       }
-      binary.guestPath = CanonicalizeModuleGuestPath(guest_path, manifest.projectName);
+      binary.guest_path = CanonicalizeModuleGuestPath(guest_path, manifest.project_name);
       for (const auto& existing : manifest.modules) {
-        if (existing.guestPath == binary.guestPath) {
-          REXLOG_ERROR("Manifest [[modules]] duplicate guest_path '{}' (entry #{})",
-                       binary.guestPath, index);
-          return std::nullopt;
+        if (existing.guest_path == binary.guest_path) {
+          REXCG_FAIL(std::nullopt, "Manifest [[modules]] duplicate {} '{}' (entry #{})",
+                     kModuleGuestPathKey, binary.guest_path, index);
         }
       }
       manifest.modules.push_back(std::move(binary));
@@ -187,12 +201,11 @@ bool LineSetsKey(std::string_view line, std::string_view key) {
 
 }  // namespace
 
-bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
+bool ManifestConfig::WriteSDKVersionStamp(const std::filesystem::path& path,
                                           std::string_view version) {
   std::ifstream in(path);
   if (!in) {
-    REXLOG_ERROR("Failed to open manifest for stamping: {}", path.string());
-    return false;
+    REXCG_FAIL(false, "Failed to open manifest for stamping: {}", path.string());
   }
   std::vector<std::string> lines;
   std::string buf;
@@ -225,7 +238,8 @@ bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
   if (stamp_idx) {
     lines[*stamp_idx] = stamp_line;
   } else if (project_header_idx) {
-    lines.insert(lines.begin() + *project_header_idx + 1, stamp_line);
+    lines.insert(std::next(lines.begin(), static_cast<std::ptrdiff_t>(*project_header_idx + 1)),
+                 stamp_line);
   } else {
     if (!lines.empty() && !lines.back().empty())
       lines.emplace_back();
@@ -233,35 +247,15 @@ bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
     lines.push_back(stamp_line);
   }
 
-  auto tmp_path = path;
-  tmp_path += ".tmp";
-  {
-    std::ofstream out(tmp_path, std::ios::binary);
-    if (!out) {
-      REXLOG_ERROR("Failed to open manifest tmp for writing: {}", tmp_path.string());
-      return false;
-    }
-    for (size_t i = 0; i < lines.size(); ++i) {
-      out << lines[i];
-      if (i + 1 < lines.size())
-        out << '\n';
-    }
-    out << '\n';
-    if (!out.good()) {
-      REXLOG_ERROR("Failed while writing manifest tmp: {}", tmp_path.string());
-      std::error_code ignore;
-      std::filesystem::remove(tmp_path, ignore);
-      return false;
-    }
+  std::string content;
+  for (const auto& line : lines) {
+    content += line;
+    content += '\n';
   }
-
-  std::error_code ec;
-  std::filesystem::rename(tmp_path, path, ec);
-  if (ec) {
-    REXLOG_ERROR("Failed to rename manifest tmp into place: {}", ec.message());
-    std::error_code ignore;
-    std::filesystem::remove(tmp_path, ignore);
-    return false;
+  auto written = rex::platform::WriteHostFile(
+      path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
+  if (!written) {
+    REXCG_FAIL(false, "Failed to write the manifest: {}", written.error().message);
   }
   return true;
 }

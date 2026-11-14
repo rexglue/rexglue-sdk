@@ -1,0 +1,221 @@
+#include "filesystem/host_file.h"
+
+#include <cwchar>
+#include <format>
+
+#include <windows.h>
+
+#include <rex/filesystem/file_system_error.h>
+#include <rex/filesystem/file_open.h>
+#include <rex/logging/log_category.h>
+#include <rex/string/text.h>
+
+namespace rex::filesystem {
+
+namespace {
+
+u64 JoinHighLow(FILETIME time) {
+  return (static_cast<u64>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
+}
+
+u64 Combine(DWORD high, DWORD low) {
+  return (static_cast<u64>(high) << 32) | low;
+}
+
+OVERLAPPED OverlappedAt(u64 offset) {
+  OVERLAPPED overlapped{};
+  overlapped.Offset = static_cast<DWORD>(offset);
+  overlapped.OffsetHigh = static_cast<DWORD>(offset >> 32);
+  return overlapped;
+}
+
+rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
+  return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, error {}", what,
+                                                      string::PathToUTF8(path), GetLastError()));
+}
+
+}  // namespace
+
+HostFile::HostFile(Key /*key*/, std::filesystem::path path, NativeHandle native)
+    : path_(std::move(path)), native_(native) {}
+
+HostFile::~HostFile() {
+  CloseHandle(native_);
+}
+
+Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::path& path,
+                                                         Access access) {
+  DWORD open_access = 0;
+  if (HasFlags(access, Access::kReadAccess)) {
+    open_access |= GENERIC_READ;
+  }
+  if (HasFlags(access, Access::kWriteAccess)) {
+    open_access |= GENERIC_WRITE;
+  }
+  if (HasFlags(access, Access::kExecuteAccess)) {
+    open_access |= GENERIC_EXECUTE;
+  }
+  if (HasFlags(access, Access::kAllAccess)) {
+    open_access |= GENERIC_READ | GENERIC_WRITE;
+  }
+  if (HasFlags(access, Access::kReadData)) {
+    open_access |= FILE_READ_DATA;
+  }
+  if (HasFlags(access, Access::kWriteData)) {
+    open_access |= FILE_WRITE_DATA;
+  }
+  if (HasFlags(access, Access::kAppendData)) {
+    open_access |= FILE_APPEND_DATA;
+  }
+  constexpr DWORD kShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+  HANDLE handle = CreateFileW(path.c_str(), open_access, kShareMode, nullptr, OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  if (handle == INVALID_HANDLE_VALUE) {
+    const DWORD error = GetLastError();
+    FileSystemError code = FileSystemError::kIO;
+    if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+      code = FileSystemError::kNotFound;
+    } else if (error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION) {
+      code = FileSystemError::kSharingViolation;
+    } else if (error == ERROR_ACCESS_DENIED) {
+      code = FileSystemError::kAccessDenied;
+    }
+    return Err<std::unique_ptr<HostFile>>(BuildError(
+        code,
+        std::format("cannot open host file '{}', error {}", string::PathToUTF8(path), error)));
+  }
+  return std::make_unique<HostFile>(Key{}, path, handle);
+}
+
+Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
+  OVERLAPPED overlapped = OverlappedAt(offset);
+  DWORD bytes_read = 0;
+  if (!ReadFile(native_, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read,
+                &overlapped)) {
+    if (GetLastError() == ERROR_HANDLE_EOF) {
+      return size_t{0};
+    }
+    if (GetLastError() == ERROR_NOACCESS) {
+      REXFS_WARN("host read of {:#x} bytes into {} was refused, read only memory", buffer.size(),
+                 static_cast<const void*>(buffer.data()));
+    }
+    return Err<size_t>(HostError("read", path_));
+  }
+  return static_cast<size_t>(bytes_read);
+}
+
+Result<size_t> HostFile::Write(u64 offset, std::span<const u8> buffer) {
+  OVERLAPPED overlapped = OverlappedAt(offset);
+  DWORD bytes_written = 0;
+  if (!WriteFile(native_, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_written,
+                 &overlapped)) {
+    return Err<size_t>(HostError("write", path_));
+  }
+  return static_cast<size_t>(bytes_written);
+}
+
+Result<void> HostFile::SetLength(u64 length) {
+  FILE_END_OF_FILE_INFO info{};
+  info.EndOfFile.QuadPart = static_cast<LONGLONG>(length);
+  if (!SetFileInformationByHandle(native_, FileEndOfFileInfo, &info, sizeof(info))) {
+    return Err(HostError("set length of", path_));
+  }
+  return Ok();
+}
+
+Result<void> HostFile::Flush() const {
+  if (!FlushFileBuffers(native_)) {
+    return Err(HostError("flush", path_));
+  }
+  return Ok();
+}
+
+[[nodiscard]] Result<void> HostCreateNew(const std::filesystem::path& path) {
+  HANDLE handle = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (handle == INVALID_HANDLE_VALUE) {
+    const DWORD error = GetLastError();
+    FileSystemError code = FileSystemError::kIO;
+    if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS) {
+      code = FileSystemError::kExists;
+    } else if (error == ERROR_ACCESS_DENIED) {
+      code = FileSystemError::kAccessDenied;
+    }
+    return Err(BuildError(code, std::format("cannot create host file '{}', error {}",
+                                            string::PathToUTF8(path), error)));
+  }
+  CloseHandle(handle);
+  return Ok();
+}
+
+[[nodiscard]] Result<void> HostMove(const std::filesystem::path& from,
+                                    const std::filesystem::path& to, bool replace_existing) {
+  if (MoveFileExW(from.c_str(), to.c_str(), replace_existing ? MOVEFILE_REPLACE_EXISTING : 0)) {
+    return Ok();
+  }
+  const DWORD error = GetLastError();
+  FileSystemError code = FileSystemError::kIO;
+  if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) {
+    code = FileSystemError::kExists;
+  } else if (error == ERROR_SHARING_VIOLATION) {
+    code = FileSystemError::kSharingViolation;
+  } else if (error == ERROR_ACCESS_DENIED) {
+    code = FileSystemError::kAccessDenied;
+  } else if (error == ERROR_NOT_SAME_DEVICE) {
+    code = FileSystemError::kNotSameDevice;
+  }
+  return Err(
+      BuildError(code, std::format("cannot move '{}' to '{}', error {}", string::PathToUTF8(from),
+                                   string::PathToUTF8(to), error)));
+}
+
+std::optional<HostFileStat> HostStat(const std::filesystem::path& path) {
+  WIN32_FILE_ATTRIBUTE_DATA data{};
+  if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
+    return std::nullopt;
+  }
+  HostFileStat info;
+  info.name = path.filename();
+  if (info.name.native().find_first_of(L"*?") == std::wstring::npos) {
+    WIN32_FIND_DATAW found{};
+    if (HANDLE handle = FindFirstFileW(path.c_str(), &found); handle != INVALID_HANDLE_VALUE) {
+      FindClose(handle);
+      if (rex::string::utf8_equal_case(string::PathToUTF8(found.cFileName),
+                                       string::PathToUTF8(info.name))) {
+        info.name = found.cFileName;
+      }
+    }
+  }
+  info.directory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+  info.size = info.directory ? 0 : Combine(data.nFileSizeHigh, data.nFileSizeLow);
+  info.create_time = JoinHighLow(data.ftCreationTime);
+  info.access_time = JoinHighLow(data.ftLastAccessTime);
+  info.write_time = JoinHighLow(data.ftLastWriteTime);
+  return info;
+}
+
+std::vector<HostFileStat> HostList(const std::filesystem::path& path) {
+  std::vector<HostFileStat> result;
+  WIN32_FIND_DATAW data{};
+  HANDLE handle = FindFirstFileW((path / "*").c_str(), &data);
+  if (handle == INVALID_HANDLE_VALUE) {
+    return result;
+  }
+  do {
+    if (std::wcscmp(data.cFileName, L".") == 0 || std::wcscmp(data.cFileName, L"..") == 0) {
+      continue;
+    }
+    HostFileStat info;
+    info.name = data.cFileName;
+    info.directory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    info.size = info.directory ? 0 : Combine(data.nFileSizeHigh, data.nFileSizeLow);
+    info.create_time = JoinHighLow(data.ftCreationTime);
+    info.access_time = JoinHighLow(data.ftLastAccessTime);
+    info.write_time = JoinHighLow(data.ftLastWriteTime);
+    result.push_back(std::move(info));
+  } while (FindNextFileW(handle, &data) != 0);
+  FindClose(handle);
+  return result;
+}
+
+}  // namespace rex::filesystem

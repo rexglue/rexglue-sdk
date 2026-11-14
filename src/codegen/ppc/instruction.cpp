@@ -1,43 +1,114 @@
-/**
- * @file        arch/ppc/instruction.cpp
- * @brief       PowerPC instruction implementation
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "instruction.h"
+#include "disasm.h"
 #include "opcode.h"
+
+#include <algorithm>
+#include <array>
+#include <iterator>
+#include <string_view>
 
 #include <rex/types.h>
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 
-//=============================================================================
-// Helper functions
-//=============================================================================
+namespace {
 
-// Special SPR numbers
-constexpr u32 SPR_LR = 8;   // Link Register
-constexpr u32 SPR_CTR = 9;  // Count Register
+constexpr u32 kIgnoreBranchConditions = 0x14;
 
-//=============================================================================
-// Instruction helper methods implementation
-//=============================================================================
+constexpr int kClassGPR = 1;
+constexpr int kClassGPROrZero = 2;
+constexpr int kClassFPR = 3;
+constexpr u32 kRegisterCount = 32;
 
-bool Instruction::is_branch() const {
-  const auto& info = get_opcode_info(opcode);
-  return info.group == OpcodeGroup::kBranch;
+constexpr u32 RegisterRange(u32 first, u32 last) {
+  u32 mask = 0;
+  for (u32 index = first; index <= last; ++index) {
+    mask |= 1u << index;
+  }
+  return mask;
 }
 
-bool Instruction::is_call() const {
+bool ReadsEveryOperand(std::string_view name) {
+  constexpr std::array<std::string_view, 11> kPrefixes = {"st",  "cmp", "fcmp", "tw",  "td", "mt",
+                                                          "dcb", "icb", "dst",  "dss", "eco"};
+  return std::ranges::any_of(kPrefixes,
+                             [&](std::string_view prefix) { return name.starts_with(prefix); });
+}
+
+bool InsertsIntoDestination(std::string_view name) {
+  if (name.ends_with('.')) {
+    name.remove_suffix(1);
+  }
+  return name == "rlwimi" || name == "rldimi" || name == "inslwi" || name == "insrwi" ||
+         name == "insrdi";
+}
+
+bool IsUpdateForm(std::string_view name) {
+  if (!name.starts_with('l') && !name.starts_with("st")) {
+    return false;
+  }
+  return name != "liu" && (name.ends_with("ux") || name.ends_with('u'));
+}
+
+u32 WordCount(const ppc_insn& insn, std::string_view name) {
+  if (name == "lmw" || name == "stmw") {
+    return kRegisterCount - insn.operands[0];
+  }
+  if (name == "lswi" || name == "stswi") {
+    const u32 bytes = insn.operands[2] == 0 ? 32 : insn.operands[2];
+    return (bytes + 3) / 4;
+  }
+  return 1;
+}
+
+InstrFormat FormatOf(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::b:
+    case Opcode::ba:
+    case Opcode::bl:
+    case Opcode::bla:
+      return InstrFormat::kI;
+    case Opcode::bc:
+    case Opcode::bca:
+    case Opcode::bcl:
+    case Opcode::bcla:
+      return InstrFormat::kB;
+    case Opcode::bclr:
+    case Opcode::bclrl:
+    case Opcode::bcctr:
+    case Opcode::bcctrl:
+      return InstrFormat::kXL;
+    default:
+      return InstrFormat::kUnknown;
+  }
+}
+
+}  // namespace
+
+bool Instruction::IsBranch() const {
+  switch (opcode) {
+    case Opcode::b:
+    case Opcode::ba:
+    case Opcode::bl:
+    case Opcode::bla:
+    case Opcode::bc:
+    case Opcode::bca:
+    case Opcode::bcl:
+    case Opcode::bcla:
+    case Opcode::bclr:
+    case Opcode::bclrl:
+    case Opcode::bcctr:
+    case Opcode::bcctrl:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool Instruction::IsCall() const {
   switch (opcode) {
     case Opcode::bl:
     case Opcode::bla:
-      return true;
     case Opcode::bcl:
     case Opcode::bcla:
     case Opcode::bclrl:
@@ -48,38 +119,15 @@ bool Instruction::is_call() const {
   }
 }
 
-bool Instruction::is_return() const {
-  // blr is bclr with BO=20 (unconditional)
+bool Instruction::IsReturn() const {
+  // blr is bclr with BO=20, the unconditional form
   if (opcode == Opcode::bclr) {
-    return (raw == 0x4E800020);  // Specific encoding for blr
+    return (raw == 0x4E800020);
   }
   return false;
 }
 
-bool Instruction::is_indirect_branch() const {
-  return opcode == Opcode::bclr || opcode == Opcode::bcctr;
-}
-
-bool Instruction::is_record_form() const {
-  switch (format) {
-    case InstrFormat::kX:
-      return X.Rc != 0;
-    case InstrFormat::kXO:
-      return XO.Rc != 0;
-    case InstrFormat::kM:
-      return M.Rc != 0;
-    case InstrFormat::kMD:
-      return MD.Rc != 0;
-    case InstrFormat::kA:
-      return A.Rc != 0;
-    case InstrFormat::kVXR:
-      return VXR.Rc != 0;
-    default:
-      return false;
-  }
-}
-
-bool Instruction::is_conditional() const {
+bool Instruction::IsConditional() const {
   switch (opcode) {
     case Opcode::bc:
     case Opcode::bca:
@@ -90,199 +138,70 @@ bool Instruction::is_conditional() const {
     case Opcode::bclrl:
     case Opcode::bcctr:
     case Opcode::bcctrl:
-      // Check BO field - unconditional if BO=20
-      return XL.BO != 20;
+      return (XL.BO & kIgnoreBranchConditions) != kIgnoreBranchConditions;
     default:
       return false;
   }
 }
 
-std::vector<u8> Instruction::get_register_reads() const {
-  std::vector<u8> regs;
-
-  switch (format) {
-    case InstrFormat::kD:
-      if (D.RA != 0)
-        regs.push_back((u8)D.RA);
-      break;
-    case InstrFormat::kX:
-      if (X.RA != 0)
-        regs.push_back((u8)X.RA);
-      if (X.RB != 0)
-        regs.push_back((u8)X.RB);
-      break;
-    case InstrFormat::kXO:
-      if (XO.RA != 0)
-        regs.push_back((u8)XO.RA);
-      if (XO.RB != 0)
-        regs.push_back((u8)XO.RB);
-      break;
-    case InstrFormat::kM:
-      regs.push_back((u8)M.RS);
-      break;
+bool Instruction::IsBranchAlways() const {
+  switch (opcode) {
+    case Opcode::b:
+    case Opcode::ba:
+      return true;
+    case Opcode::bc:
+    case Opcode::bca:
+      return (B.BO & kIgnoreBranchConditions) == kIgnoreBranchConditions;
+    case Opcode::bclr:
+    case Opcode::bcctr:
+      return (XL.BO & kIgnoreBranchConditions) == kIgnoreBranchConditions;
     default:
-      break;
+      return false;
   }
-
-  return regs;
 }
 
-std::vector<u8> Instruction::get_register_writes() const {
-  std::vector<u8> regs;
-
-  switch (format) {
-    case InstrFormat::kD:
-      regs.push_back((u8)D.RT);
-      break;
-    case InstrFormat::kX:
-      regs.push_back((u8)X.RT);
-      break;
-    case InstrFormat::kXO:
-      regs.push_back((u8)XO.RT);
-      break;
-    case InstrFormat::kM:
-      regs.push_back((u8)M.RA);
-      break;
-    default:
-      break;
-  }
-
-  return regs;
+bool Instruction::IsTrapAlways() const {
+  constexpr u32 kTrapAlways = 31;
+  if (opcode == Opcode::twi)
+    return D.RT == kTrapAlways;
+  return opcode == Opcode::tw && X.RT == kTrapAlways;
 }
 
-Instruction::Semantics Instruction::get_semantics() const {
-  Semantics sem;
-
-  sem.reads_gpr = get_register_reads();
-  sem.writes_gpr = get_register_writes();
-  sem.is_branch = is_branch();
-  sem.is_call = is_call();
-  sem.is_return = is_return();
-
-  // Memory access
-  const auto& info = get_opcode_info(opcode);
-  if (info.group == OpcodeGroup::kMemory) {
-    switch (opcode) {
-      case Opcode::lbz:
-      case Opcode::lbzu:
-      case Opcode::lhz:
-      case Opcode::lhzu:
-      case Opcode::lwz:
-      case Opcode::lwzu:
-      case Opcode::ld:
-      case Opcode::ldu:
-        sem.reads_memory = true;
-        break;
-      case Opcode::stb:
-      case Opcode::stbu:
-      case Opcode::sth:
-      case Opcode::sthu:
-      case Opcode::stw:
-      case Opcode::stwu:
-      case Opcode::std:
-      case Opcode::stdu:
-        sem.writes_memory = true;
-        break;
-      default:
-        break;
-    }
-  }
-
-  // Special register access
-  if (opcode == Opcode::mfspr) {
-    u32 spr = XFX.spr_num();
-    if (spr == SPR_LR)
-      sem.reads_lr = true;
-    else if (spr == SPR_CTR)
-      sem.reads_ctr = true;
-  } else if (opcode == Opcode::mtspr) {
-    u32 spr = XFX.spr_num();
-    if (spr == SPR_LR)
-      sem.writes_lr = true;
-    else if (spr == SPR_CTR)
-      sem.writes_ctr = true;
-  }
-
-  // Simplified mnemonics
-  if (opcode == Opcode::mflr)
-    sem.reads_lr = true;
-  if (opcode == Opcode::mtlr)
-    sem.writes_lr = true;
-  if (opcode == Opcode::mfctr)
-    sem.reads_ctr = true;
-  if (opcode == Opcode::mtctr)
-    sem.writes_ctr = true;
-
-  // Branch instructions
-  if (opcode == Opcode::bclr || opcode == Opcode::bclrl) {
-    sem.reads_lr = true;
-  }
-  if (opcode == Opcode::bcctr || opcode == Opcode::bcctrl) {
-    sem.reads_ctr = true;
-  }
-
-  // Condition register
-  if (opcode == Opcode::cmp || opcode == Opcode::cmpi || opcode == Opcode::cmpl ||
-      opcode == Opcode::cmpli) {
-    sem.writes_cr = true;
-  }
-
-  return sem;
-}
-
-//=============================================================================
-// Instruction decoding
-//=============================================================================
-
-Instruction decode_instruction(guest_addr_t address, u32 code) {
+Instruction DecodeInstruction(u32 address, u32 code) {
   Instruction instr;
   instr.address = address;
   instr.code = code;
-  instr.raw = code;  // Store in union
+  instr.raw = code;
 
-  // Lookup opcode
-  instr.opcode = lookup_opcode(code);
+  instr.opcode = LookupOpcode(code);
+  instr.format = FormatOf(instr.opcode);
 
-  // Get opcode info
-  const auto& info = get_opcode_info(instr.opcode);
-  instr.format = info.format;
-
-  // Compute branch target if applicable
-  if (instr.is_branch()) {
+  if (instr.IsBranch()) {
     switch (instr.format) {
       case InstrFormat::kI: {
-        // Unconditional branch (b, ba, bl, bla)
-        // Use reliable XOR-subtract sign extension
-        i32 offset = Instruction::get_i_offset(code);
-        bool aa = (code >> 1) & 1;  // AA bit (absolute address)
+        i32 offset = Instruction::GetIOffset(code);
+        bool aa = (code >> 1) & 1;
         if (aa) {
-          // Absolute address
-          instr.branch_target = static_cast<guest_addr_t>(offset & 0xFFFFFFFF);
+          instr.branch_target = static_cast<u32>(offset & 0xFFFFFFFF);
         } else {
-          // Relative address
           instr.branch_target = address + offset;
         }
         break;
       }
 
       case InstrFormat::kB: {
-        // Conditional branch (bc, bca, bcl, bcla)
-        // Use reliable XOR-subtract sign extension
-        i32 offset = Instruction::get_b_offset(code);
-        bool aa = (code >> 1) & 1;  // AA bit (absolute address)
+        i32 offset = Instruction::GetBOffset(code);
+        bool aa = (code >> 1) & 1;
         if (aa) {
-          // Absolute address
-          instr.branch_target = static_cast<guest_addr_t>(offset & 0xFFFF);
+          instr.branch_target = static_cast<u32>(offset & 0xFFFF);
         } else {
-          // Relative address
           instr.branch_target = address + offset;
         }
         break;
       }
 
       case InstrFormat::kXL: {
-        // Indirect branch (bclr, bcctr)
-        // Target is runtime-dependent (in LR or CTR)
+        // The target is read from LR or CTR at run time
         instr.branch_target = std::nullopt;
         break;
       }
@@ -293,63 +212,92 @@ Instruction decode_instruction(guest_addr_t address, u32 code) {
     }
   }
 
-  // Handle simplified mnemonics
-  // blr = bclr with BO=20
-  if (code == 0x4E800020) {
-    instr.opcode = Opcode::bclr;  // Already set, but ensure
-  }
-
-  // bctr = bcctr with BO=20
-  if (code == 0x4E800420) {
-    instr.opcode = Opcode::bcctr;
-  }
-
-  // nop = ori 0,0,0
-  if (code == 0x60000000) {
-    instr.opcode = Opcode::nop;
-  }
-
-  // li rD, value = addi rD, 0, value
-  if (instr.opcode == Opcode::addi && instr.D.RA == 0) {
-    instr.opcode = Opcode::li;
-  }
-
-  // lis rD, value = addis rD, 0, value
-  if (instr.opcode == Opcode::addis && instr.D.RA == 0) {
-    instr.opcode = Opcode::lis;
-  }
-
-  // mr rA, rS = or rA, rS, rS (both source operands are the same register)
-  if (instr.opcode == Opcode::or_ && instr.X.RT == instr.X.RB) {
-    instr.opcode = Opcode::mr;
-  }
-
-  // mflr rD = mfspr rD, LR (SPR 8)
-  if (instr.opcode == Opcode::mfspr && instr.XFX.spr_num() == SPR_LR) {
-    instr.opcode = Opcode::mflr;
-  }
-
-  // mtlr rS = mtspr LR, rS (SPR 8)
-  if (instr.opcode == Opcode::mtspr && instr.XFX.spr_num() == SPR_LR) {
-    instr.opcode = Opcode::mtlr;
-  }
-
-  // mfctr rD = mfspr rD, CTR (SPR 9)
-  if (instr.opcode == Opcode::mfspr && instr.XFX.spr_num() == SPR_CTR) {
-    instr.opcode = Opcode::mfctr;
-  }
-
-  // mtctr rS = mtspr CTR, rS (SPR 9)
-  if (instr.opcode == Opcode::mtspr && instr.XFX.spr_num() == SPR_CTR) {
-    instr.opcode = Opcode::mtctr;
-  }
-
   return instr;
 }
 
-std::string Instruction::to_string() const {
-  // Placeholder - will be implemented in ppc_disasm.cpp
-  const auto& info = get_opcode_info(opcode);
-  return std::string(info.name);
+RegisterEffects GetRegisterEffects(const Instruction& instr) {
+  RegisterEffects effects;
+  if (instr.IsCall()) {
+    effects.gpr_def = RegisterRange(3, 12);
+    effects.fpr_def = RegisterRange(0, 13);
+    return effects;
+  }
+
+  ppc_insn insn{};
+  Disassemble(&instr.code, 4, instr.address, insn);
+  if (insn.opcode == nullptr) {
+    return effects;
+  }
+
+  const std::string_view name = insn.opcode->name;
+  const bool reads_every_operand = ReadsEveryOperand(name);
+  const bool is_update_form = IsUpdateForm(name);
+  const unsigned update_position =
+      is_update_form && (OperandRegisterClass(insn.opcode, 1) == kClassGPR ||
+                         OperandRegisterClass(insn.opcode, 1) == kClassGPROrZero)
+          ? 1
+          : 2;
+  bool first_register = true;
+  bool first_gpr = true;
+  for (unsigned position = 0; position < std::size(insn.opcode->operands); ++position) {
+    if (insn.opcode->operands[position] == 0) {
+      break;
+    }
+    const int register_class = OperandRegisterClass(insn.opcode, position);
+    const u32 number = insn.operands[position];
+    if (register_class == 0 || number >= kRegisterCount ||
+        (register_class == kClassGPROrZero && number == 0)) {
+      continue;
+    }
+    const bool is_destination = first_register && !reads_every_operand;
+    first_register = false;
+    if (register_class == kClassFPR) {
+      (is_destination ? effects.fpr_def : effects.fpr_use) |= 1u << number;
+    } else if (register_class == kClassGPR || register_class == kClassGPROrZero) {
+      const u32 count = first_gpr ? WordCount(insn, name) : 1;
+      const u32 bits = RegisterRange(number, std::min(number + count - 1, kRegisterCount - 1));
+      (is_destination ? effects.gpr_def : effects.gpr_use) |= bits;
+      if (is_destination && InsertsIntoDestination(name)) {
+        effects.gpr_use |= bits;
+      }
+      if (is_update_form && position == update_position) {
+        effects.gpr_def |= bits;
+      }
+      first_gpr = false;
+    }
+  }
+  return effects;
 }
-}  // namespace rex::codegen::ppc
+
+bool IsFrameAllocation(const Instruction& instr) {
+  const u32 word = static_cast<u32>(instr.code);
+  const u32 primary = word >> 26;
+  const u32 base = (word >> 16) & 31;
+  if (base != 1) {
+    return false;
+  }
+  return primary == 37 || (primary == 62 && (word & 3) == 1);
+}
+
+bool IsCallerFrameSpill(const Instruction& instr) {
+  const u32 word = static_cast<u32>(instr.code);
+  const u32 primary = word >> 26;
+  const u32 base = (word >> 16) & 31;
+  if (base != 1) {
+    return false;
+  }
+  switch (primary) {
+    case 36:
+    case 38:
+    case 44:
+    case 52:
+    case 54:
+      return static_cast<i16>(word & 0xFFFF) > 0;
+    case 62:
+      return (word & 3) == 0 && static_cast<i16>(word & 0xFFFC) > 0;
+    default:
+      return false;
+  }
+}
+
+}  // namespace rex::codegen::detail

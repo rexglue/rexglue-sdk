@@ -1,0 +1,81 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit SHA, branch or tag to publish (empty publishes main)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  DOXYGEN_VERSION: "1.18.0"
+  DOXYGEN_SHA256: "14fa81bdc34171edb5f1f02b1d60e74802f0439b77fa44e592565d517d72df90"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/site/requirements.txt
+
+      - name: Install MkDocs
+        run: python -m pip install -r docs/site/requirements.txt
+
+      - name: Install Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+          dot -V
+
+      - name: Install Doxygen
+        run: |
+          curl -fsSL -o doxygen.tar.gz \
+            "https://github.com/doxygen/doxygen/releases/download/Release_${DOXYGEN_VERSION//./_}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          echo "${DOXYGEN_SHA256}  doxygen.tar.gz" | sha256sum -c -
+          tar -xzf doxygen.tar.gz
+          echo "${PWD}/doxygen-${DOXYGEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Build API reference
+        run: |
+          mkdir -p out/docs/doxygen
+          doxygen docs/doxygen/Doxyfile
+          echo "Doxygen warnings: $(wc -l < out/docs/doxygen/warnings.log)"
+
+      - name: Build site
+        run: |
+          mkdocs build --strict -f docs/site/mkdocs.yml -d "${PWD}/out/docs/site"
+          cp -r out/docs/doxygen/html out/docs/site/api
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: out/docs/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

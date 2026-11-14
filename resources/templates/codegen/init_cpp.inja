@@ -4,16 +4,16 @@
 #include "{{ project }}_init.h"
 
 {% if has_dll_modules and not is_dll %}
-void RegisterRecompiledModules(rex::system::KernelState*);
+void RegisterRecompiledModules(rex::kernel::IModuleRegistry&);
 {% endif %}
 
-const rex::PPCImageInfo PPCImageConfig = {
+const rex::ppc::PPCImage kPPCImageConfig = {
     .code_base = REX_CODE_BASE,
     .code_size = REX_CODE_SIZE,
     .image_base = REX_IMAGE_BASE,
     .image_size = REX_IMAGE_SIZE,
-    .func_mappings = PPCFuncMappings,
-    .rexcrt_heap = REXCRT_HEAP,
+    .func_mappings = kPPCFuncMappings,
+    .shim_heap = REX_SHIM_HEAP,
 {% if has_dll_modules and not is_dll %}
     .register_modules = RegisterRecompiledModules,
 {% endif %}
@@ -27,9 +27,16 @@ const rex::PPCImageInfo PPCImageConfig = {
         .non_argument_as_local = {{ config_flags.non_argument_as_local }},
         .non_volatile_as_local = {{ config_flags.non_volatile_as_local }},
     },
+    .recompiled_code = [] { return REX_RECOMPILED_CODE(); },
+    .call_usage = kPPCCallUsage,
 };
 
-PPCFuncMapping PPCFuncMappings[] = {
+const PPCFuncMapping kPPCFuncMappings[] = {
 {% for fn in functions %}{% if not fn.below_code_base or fn.is_import %}	{ {{ fn.address }}, {{ fn.name }} },
 {% endif %}{% endfor %}	{ 0, nullptr }
+};
+
+const rex::ppc::PPCCallUsage kPPCCallUsage[] = {
+{% for entry in call_usage %}	{ {{ entry.address }}, {{ entry.gpr_mask }}, {{ entry.fpr_mask }} },
+{% endfor %}	{ 0, 0, 0 }
 };

@@ -35,7 +35,13 @@ foreach ($file in $staged) {
         "*.cxx"  { $cppFiles += $file }
         "*.hxx"  { $cppFiles += $file }
         "CMakeLists.txt" { $cmakeFiles += $file }
+        "*/CMakeLists.txt" { $cmakeFiles += $file }
         "*.cmake" { $cmakeFiles += $file }
+        "*.cmake.in" { $cmakeFiles += $file }
+        "resources/templates/init/cmakelists.inja" { $cmakeFiles += $file }
+        "resources/templates/init/rexglue_cmake.inja" { $cmakeFiles += $file }
+        "resources/templates/codegen/dll_targets_cmake.inja" { $cmakeFiles += $file }
+        "resources/templates/codegen/sources_cmake.inja" { $cmakeFiles += $file }
     }
 }
 
@@ -76,17 +82,14 @@ try {
         }
     }
 
-    # -- cmake-format (CMake files) --------------------------------------------
-    if ($cmakeFiles.Count -gt 0 -and (Get-Command cmake-format -ErrorAction SilentlyContinue)) {
-        foreach ($file in $cmakeFiles) {
-            $tmpFile = Extract-Staged $file
-            & cmake-format --check `
-                -c "$RepoRoot/.cmake-format.yaml" `
-                $tmpFile *> $null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "[$file] failed cmake-format"
-                $failedFiles += $file
-            }
+    # -- cmake-format and cmake-lint (CMake files and scaffold templates) -------
+    if ($cmakeFiles.Count -gt 0) {
+        foreach ($file in $cmakeFiles) { Extract-Staged $file | Out-Null }
+        $cmakeOutput = & python "$RepoRoot/scripts/check_cmake.py" `
+            --root $tmpDir --config "$RepoRoot/.cmake-format.yaml" @cmakeFiles 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $cmakeOutput | ForEach-Object { Write-Host $_ }
+            $failedFiles += $cmakeFiles
         }
     }
 

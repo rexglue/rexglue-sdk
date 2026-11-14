@@ -16,25 +16,23 @@ test_divw_1_constant:
   #_ REGISTER_OUT r4 1
   #_ REGISTER_OUT r5 2
 
-# TODO(benvanik): x64 ignore divide by zero (=0)
-#test_divw_2:
-#  #_ REGISTER_IN r4 1
-#  #_ REGISTER_IN r5 0
-#  divw r3, r4, r5
-#  blr
-#  #_ REGISTER_OUT r3 0
-#  #_ REGISTER_OUT r4 1
-#  #_ REGISTER_OUT r5 0
+test_divw_2:
+  #_ REGISTER_IN r4 1
+  #_ REGISTER_IN r5 0
+  divw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 0
 
-# TODO(benvanik): x64 ignore divide by zero (=0)
-#test_divw_2_constant:
-#  li r4, 1
-#  li r5, 0
-#  divw r3, r4, r5
-#  blr
-#  #_ REGISTER_OUT r3 0
-#  #_ REGISTER_OUT r4 1
-#  #_ REGISTER_OUT r5 0
+test_divw_2_constant:
+  li r4, 1
+  li r5, 0
+  divw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 0
 
 test_divw_3:
   #_ REGISTER_IN r4 2
@@ -201,20 +199,19 @@ test_divw_11_constant:
   #_ REGISTER_OUT r4 1
   #_ REGISTER_OUT r5 0x000000007FFFFFFF
 
-# TODO(benvanik): integer overflow (=0)
-#test_divw_12:
-#  #_ REGISTER_IN r4 0x80000000
-#  #_ REGISTER_IN r5 -1
-#  divw r3, r4, r5
-#  blr
-#  #_ REGISTER_OUT r3 0
-#  #_ REGISTER_OUT r4 0x80000000
-#  #_ REGISTER_OUT r5 -1
+test_divw_12:
+  #_ REGISTER_IN r4 0x80000000
+  #_ REGISTER_IN r5 -1
+  divw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0x80000000
+  #_ REGISTER_OUT r5 -1
 
 # TODO(benvanik): integer overflow (=0)
 #test_divw_12_constant:
 #  li r4, 1
-#  srdi r4, 31
+#  sldi r4, r4, 31
 #  li r5, -1
 #  divw r3, r4, r5
 #  blr

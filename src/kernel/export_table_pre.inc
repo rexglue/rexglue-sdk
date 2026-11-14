@@ -5,24 +5,33 @@
  * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
 /**
- * Pre-include file for an export table.
- * Use this to build tables of exports:
- *
- * // Build the export table used for resolution.
- * #include "rex/kernel/util/export_table_pre.inc"
- * static Export my_module_export_table[] = {
- *   #include "xenia/kernel/my_module/my_module_table.inc"
- * };
- * #include "rex/kernel/util/export_table_post.inc"
- * export_resolver_->RegisterTable(
- *     "my_module.xex",
- *     my_module_export_table, rex::countof(my_module_export_table));
+ * Pre-include file for an export table. Defines REX_EXPORT and REX_EXPORT_FLAG.
  */
 
-#define XE_EXPORT(module, ordinal, name, type) \
-  rex::runtime::Export(ordinal, rex::runtime::Export::Type::type, #name)
+/**
+ * Forwards an export table row to the REX_EXPORT_ROW macro named by its type.
+ *
+ * @param module The module that owns the export.
+ * @param ordinal The number a title import uses to find the export.
+ * @param name The export name, passed as text and as the __imp__ symbol.
+ * @param type The export type, kFunction or kVariable.
+ *
+ * @code
+ * REX_EXPORT(xam, 0x00000001, NetDll_WSAStartup, kFunction)
+ * @endcode
+ */
+#define REX_EXPORT(module, ordinal, name, type) REX_EXPORT_ROW_##type(ordinal, #name, __imp__##name)
 
-#define FLAG(t) kXEKernelExportFlag##t
+/**
+ * Names the export flag constant for a flag suffix.
+ *
+ * @code
+ * REX_EXPORT_FLAG(Variable)
+ * @endcode
+ */
+#define REX_EXPORT_FLAG(t) kXEKernelExportFlag##t

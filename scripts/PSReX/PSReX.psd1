@@ -14,6 +14,7 @@
         'Invoke-ReXLint'
         'Invoke-ReXSetup'
         'Get-ReXClangFormat'
+        'Get-ReXCMakeLang'
     )
     AliasesToExport   = @(
         'rex-configure'

@@ -1,27 +1,48 @@
-/**
- * @file        test_memory.cpp
- * @brief       Single shared guest Memory instance for the unit test binary
- *
- * @copyright   Copyright (c) 2026 Tom Clay
- * @license     BSD 3-Clause License
- */
-
 #include "test_memory.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/reporters/catch_reporter_event_listener.hpp>
 
-#include <rex/logging.h>
+#include <memory>
 
-namespace rex::testing {
+#include <rex/logging/log_category.h>
 
-rex::memory::Memory& GetTestMemory() {
-  static rex::memory::Memory memory;
-  static bool initialized = [] {
-    rex::InitLogging();
-    return memory.Initialize();
-  }();
-  REQUIRE(initialized);
-  return memory;
+#include "rex_test.h"
+
+namespace rex::test {
+
+namespace {
+std::unique_ptr<rex::kernel::GuestAddressSpace> g_memory;
+}  // namespace
+
+rex::kernel::GuestAddressSpace& GetTestMemory() {
+  if (!g_memory) {
+    g_memory = std::make_unique<rex::kernel::GuestAddressSpace>();
+    const bool initialized = g_memory->Initialize();
+    if (!initialized) {
+      g_memory.reset();
+    }
+    REQUIRE(initialized);
+  }
+  return *g_memory;
 }
 
-}  // namespace rex::testing
+void ReleaseTestMemory() {
+  g_memory.reset();
+}
+
+}  // namespace rex::test
+
+namespace {
+
+class TestMemoryListener : public Catch::EventListenerBase {
+ public:
+  using Catch::EventListenerBase::EventListenerBase;
+
+  void testCaseEnded(const Catch::TestCaseStats&) override { rex::test::ReleaseTestMemory(); }
+};
+
+const auto kListenerRegistrar =
+    rex::test::RegisterListener<TestMemoryListener>("TestMemoryListener"_catch_sr);
+
+}  // namespace

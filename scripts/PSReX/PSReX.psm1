@@ -15,8 +15,8 @@ foreach ($file in $Private) { . $file.FullName }
 $Public = @(Get-ChildItem -Path "$PSScriptRoot/Public/*.ps1" -ErrorAction SilentlyContinue)
 foreach ($file in $Public) { . $file.FullName }
 
-# Ensure VS developer tools are on PATH (no-op if already active or not on Windows)
-Initialize-VsEnvironment
+# Put VS developer tools on PATH (no-op if active or not on Windows)
+Initialize-VSEnvironment
 
 # Convenience aliases
 New-Alias -Name 'rex-configure' -Value 'Invoke-ReXConfigure'

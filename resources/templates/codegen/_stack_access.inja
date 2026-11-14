@@ -1,0 +1,14 @@
+// Accesses through r1 skip the physical alias offset. Every guest stack lies
+// below 0xE0000000, which Debug builds assert.
+
+#define REX_STACK_ADDR(x) (assert(static_cast<u32>(x) < 0xE0000000u), base + static_cast<u32>(x))
+
+#define REX_STACK_LOAD_U8(x) (*reinterpret_cast<volatile u8*>(REX_STACK_ADDR(x)))
+#define REX_STACK_LOAD_U16(x) __builtin_bswap16(*reinterpret_cast<volatile u16*>(REX_STACK_ADDR(x)))
+#define REX_STACK_LOAD_U32(x) __builtin_bswap32(*reinterpret_cast<volatile u32*>(REX_STACK_ADDR(x)))
+#define REX_STACK_LOAD_U64(x) __builtin_bswap64(*reinterpret_cast<volatile u64*>(REX_STACK_ADDR(x)))
+
+#define REX_STACK_STORE_U8(x, y) (*reinterpret_cast<volatile u8*>(REX_STACK_ADDR(x)) = (y))
+#define REX_STACK_STORE_U16(x, y) (*reinterpret_cast<volatile u16*>(REX_STACK_ADDR(x)) = __builtin_bswap16(y))
+#define REX_STACK_STORE_U32(x, y) (*reinterpret_cast<volatile u32*>(REX_STACK_ADDR(x)) = __builtin_bswap32(y))
+#define REX_STACK_STORE_U64(x, y) (*reinterpret_cast<volatile u64*>(REX_STACK_ADDR(x)) = __builtin_bswap64(y))

@@ -7,15 +7,12 @@ sdk_version = "{{ sdk_version }}"
 {% endif -%}
 {% if game_root -%}
 game_root = "{{ game_root }}"
-{% endif %}
+{% endif -%}
+hook_sources = ["src"]
+
 [entrypoint]
 file_path = "{{ xex_path }}"
 out_directory_path = "{{ out_directory_path }}"
 includes = []
 {% for m in modules %}
-[[modules]]
-guest_path = "{{ m.guest_path }}"
-file_path = "{{ m.file_path }}"
-out_directory_path = "{{ m.out_directory_path }}"
-includes = []
-{% endfor -%}
+{% include "init/manifest_module" %}{% endfor -%}

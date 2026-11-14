@@ -17,7 +17,7 @@ function Invoke-ReXTest {
     $preset = Get-ReXPreset
     $testPreset = "$preset-$($Config.ToLower())"
 
-    Write-Host "=== Running tests: $testPreset ==="
+    Write-Host "=== Running tests with preset $testPreset ==="
     ctest --preset $testPreset
     if ($LASTEXITCODE -ne 0) { throw "ctest failed (exit $LASTEXITCODE)" }
 }

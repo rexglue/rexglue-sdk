@@ -1,6 +1,5 @@
 /**
- * @file        codegen/output_partition_test.cpp
- * @brief       Tests for stable recomp file partitioning
+ * @file        tests/unit/codegen/output_partition_test.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -9,23 +8,24 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
+#include "temp_folder.h"
 
 #include <filesystem>
 #include <fstream>
 #include <span>
 #include <vector>
 
-#include <rex/codegen/output_partition.h>
+#include "codegen/output_partition.h"
 
 namespace fs = std::filesystem;
 using namespace rex::codegen;
 
 namespace {
 
-/// Index of the bucket holding `address`, or SIZE_MAX when absent.
+/** Returns the index of the bucket holding the address, or SIZE_MAX when absent. */
 size_t BucketOf(const std::vector<std::vector<size_t>>& buckets,
-                std::span<const FunctionSize> entries, uint32_t address) {
+                std::span<const FunctionSize> entries, u32 address) {
   for (size_t b = 0; b < buckets.size(); ++b) {
     for (size_t i : buckets[b]) {
       if (entries[i].address == address)
@@ -35,15 +35,14 @@ size_t BucketOf(const std::vector<std::vector<size_t>>& buckets,
   return SIZE_MAX;
 }
 
-fs::path ScratchPath(std::string_view name) {
-  auto dir = fs::temp_directory_path() / "rexglue_partition_test";
-  fs::create_directories(dir);
-  return dir / fs::path(name);
+fs::path ScratchPath(const rex::test::TempFolder& folder, std::string_view name) {
+  return folder.path / fs::path(name);
 }
 
 }  // namespace
 
-TEST_CASE("File count is derived from the total size and the byte budget", "[output_partition]") {
+REX_TEST_CASE("File count is derived from the total size and the byte budget",
+              "[codegen][output_partition]") {
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
   OutputPartition partition;
@@ -53,7 +52,7 @@ TEST_CASE("File count is derived from the total size and the byte budget", "[out
   CHECK(buckets[0].size() + buckets[1].size() == 3);
 }
 
-TEST_CASE("New functions go to the smallest bucket", "[output_partition]") {
+REX_TEST_CASE("New functions go to the smallest bucket", "[codegen][output_partition]") {
   std::vector<FunctionSize> entries{{0x8200'0000, 90}, {0x8200'0100, 10}, {0x8200'0200, 10}};
 
   OutputPartition partition;
@@ -65,22 +64,25 @@ TEST_CASE("New functions go to the smallest bucket", "[output_partition]") {
   CHECK(BucketOf(buckets, entries, 0x8200'0200) == 1);
 }
 
-TEST_CASE("A function stays in its bucket when an earlier function grows", "[output_partition]") {
+REX_TEST_CASE("A function stays in its bucket when an earlier function grows",
+              "[codegen][output_partition]") {
   std::vector<FunctionSize> first{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
   OutputPartition partition;
   auto before = partition.Assign(first, 100);
-  auto lastBucketBefore = BucketOf(before, first, 0x8200'0200);
+  auto last_bucket_before = BucketOf(before, first, 0x8200'0200);
 
   std::vector<FunctionSize> second{{0x8200'0000, 90}, {0x8200'0100, 40}, {0x8200'0200, 40}};
   auto after = partition.Assign(second, 100);
 
-  CHECK(BucketOf(after, second, 0x8200'0200) == lastBucketBefore);
+  CHECK(BucketOf(after, second, 0x8200'0200) == last_bucket_before);
 }
 
-TEST_CASE("The file count survives functions growing far past the budget", "[output_partition]") {
+REX_TEST_CASE("The file count survives functions growing far past the budget",
+              "[codegen][output_partition]") {
   std::vector<FunctionSize> first;
-  for (uint32_t i = 0; i < 20; ++i) {
+  first.reserve(20);
+  for (u32 i = 0; i < 20; ++i) {
     first.push_back({0x8200'0000 + i * 0x100, 10});
   }
 
@@ -96,8 +98,9 @@ TEST_CASE("The file count survives functions growing far past the budget", "[out
   CHECK(partition.Assign(second, 100).size() == 2);
 }
 
-TEST_CASE("The file count survives a reload", "[output_partition]") {
-  auto path = ScratchPath("count.json");
+REX_TEST_CASE("The file count survives a reload", "[codegen][output_partition]") {
+  const rex::test::TempFolder folder("rexglue_partition_test_");
+  auto path = ScratchPath(folder, "count.json");
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
   OutputPartition partition;
@@ -109,8 +112,9 @@ TEST_CASE("The file count survives a reload", "[output_partition]") {
   fs::remove(path);
 }
 
-TEST_CASE("A changed byte budget re-derives the file count", "[output_partition]") {
-  auto path = ScratchPath("budget.json");
+REX_TEST_CASE("A changed byte budget re-derives the file count", "[codegen][output_partition]") {
+  const rex::test::TempFolder folder("rexglue_partition_test_");
+  auto path = ScratchPath(folder, "budget.json");
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
   OutputPartition partition;
@@ -122,8 +126,9 @@ TEST_CASE("A changed byte budget re-derives the file count", "[output_partition]
   fs::remove(path);
 }
 
-TEST_CASE("A sidecar from another version is ignored", "[output_partition]") {
-  auto path = ScratchPath("other_version.json");
+REX_TEST_CASE("A sidecar from another version is ignored", "[codegen][output_partition]") {
+  const rex::test::TempFolder folder("rexglue_partition_test_");
+  auto path = ScratchPath(folder, "other_version.json");
   {
     std::ofstream(path, std::ios::binary)
         << R"({"version":1,"file_count":7,"assignments":{"82000000":6}})";
@@ -136,8 +141,10 @@ TEST_CASE("A sidecar from another version is ignored", "[output_partition]") {
   fs::remove(path);
 }
 
-TEST_CASE("A wrongly typed file_count is ignored, not thrown on", "[output_partition]") {
-  auto path = ScratchPath("bad_count.json");
+REX_TEST_CASE("A wrongly typed file_count is ignored, not thrown on",
+              "[codegen][output_partition]") {
+  const rex::test::TempFolder folder("rexglue_partition_test_");
+  auto path = ScratchPath(folder, "bad_count.json");
   {
     std::ofstream(path, std::ios::binary)
         << R"({"version":2,"file_count":"two","max_file_bytes":100,"assignments":{}})";
@@ -150,7 +157,7 @@ TEST_CASE("A wrongly typed file_count is ignored, not thrown on", "[output_parti
   fs::remove(path);
 }
 
-TEST_CASE("A new function does not change the file count", "[output_partition]") {
+REX_TEST_CASE("A new function does not change the file count", "[codegen][output_partition]") {
   std::vector<FunctionSize> first{{0x8200'0000, 40}, {0x8200'0100, 40}};
 
   OutputPartition partition;
@@ -163,7 +170,7 @@ TEST_CASE("A new function does not change the file count", "[output_partition]")
   CHECK(after[0].size() == 3);
 }
 
-TEST_CASE("Buckets stay sorted by address", "[output_partition]") {
+REX_TEST_CASE("Buckets stay sorted by address", "[codegen][output_partition]") {
   std::vector<FunctionSize> entries{{0x8200'0000, 10}, {0x8200'0100, 10}, {0x8200'0200, 10}};
 
   OutputPartition partition;
@@ -173,8 +180,10 @@ TEST_CASE("Buckets stay sorted by address", "[output_partition]") {
   CHECK(buckets[0] == std::vector<size_t>{0, 1, 2});
 }
 
-TEST_CASE("Serialize and Load round-trip preserves assignments", "[output_partition]") {
-  auto path = ScratchPath("roundtrip.json");
+REX_TEST_CASE("Serialize and Load round trip preserves assignments",
+              "[codegen][output_partition]") {
+  const rex::test::TempFolder folder("rexglue_partition_test_");
+  auto path = ScratchPath(folder, "roundtrip.json");
   std::vector<FunctionSize> entries{{0x8200'0000, 90}, {0x8200'0100, 10}, {0x8200'0200, 10}};
 
   OutputPartition partition;
@@ -190,8 +199,8 @@ TEST_CASE("Serialize and Load round-trip preserves assignments", "[output_partit
   fs::remove(path);
 }
 
-TEST_CASE("Functions that disappear are dropped from the serialized partition",
-          "[output_partition]") {
+REX_TEST_CASE("Functions that disappear are dropped from the serialized partition",
+              "[codegen][output_partition]") {
   std::vector<FunctionSize> first{{0x8200'0000, 40}, {0x8200'0100, 40}};
   OutputPartition partition;
   partition.Assign(first, 100);
@@ -202,8 +211,10 @@ TEST_CASE("Functions that disappear are dropped from the serialized partition",
   CHECK(partition.Serialize().find("82000100") == std::string::npos);
 }
 
-TEST_CASE("A malformed sidecar falls back to a fresh partition", "[output_partition]") {
-  auto path = ScratchPath("malformed.json");
+REX_TEST_CASE("A malformed sidecar falls back to a fresh partition",
+              "[codegen][output_partition]") {
+  const rex::test::TempFolder folder("rexglue_partition_test_");
+  auto path = ScratchPath(folder, "malformed.json");
   { std::ofstream(path, std::ios::binary) << "{ this is not json"; }
 
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
@@ -213,8 +224,9 @@ TEST_CASE("A malformed sidecar falls back to a fresh partition", "[output_partit
   fs::remove(path);
 }
 
-TEST_CASE("A non-hex assignment key is skipped, not thrown on", "[output_partition]") {
-  auto path = ScratchPath("bad_key.json");
+REX_TEST_CASE("A nonhex assignment key is skipped, not thrown on", "[codegen][output_partition]") {
+  const rex::test::TempFolder folder("rexglue_partition_test_");
+  auto path = ScratchPath(folder, "bad_key.json");
   {
     std::ofstream(path, std::ios::binary)
         << R"({"version":2,"file_count":2,"max_file_bytes":100,)"
@@ -231,8 +243,9 @@ TEST_CASE("A non-hex assignment key is skipped, not thrown on", "[output_partiti
   fs::remove(path);
 }
 
-TEST_CASE("A missing sidecar falls back to a fresh partition", "[output_partition]") {
-  auto loaded = OutputPartition::Load(ScratchPath("does_not_exist.json"));
+REX_TEST_CASE("A missing sidecar falls back to a fresh partition", "[codegen][output_partition]") {
+  auto loaded = OutputPartition::Load(
+      ScratchPath(rex::test::TempFolder("rexglue_partition_test_"), "does_not_exist.json"));
 
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}};
   auto buckets = loaded.Assign(entries, 100);

@@ -9,30 +9,26 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
-#include <rex/hook.h>
+#include <rex/logging/log_category.h>
+#include <rex/ppc/hook.h>
+#include <rex/memory/mapped_ptr.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/status.h>
 
 namespace rex::kernel::xboxkrnl {
 
-u32 XUsbcamCreate_entry(u32 buffer,
-                        u32 buffer_size,  // 0x4B000 640x480?
-                        mapped_void unk3_ptr) {
-  // This function should return success.
-  // It looks like it only allocates space for usbcam support.
-  // returning error code might cause games to initialize incorrectly.
-  // "Carcassonne" initalization function checks for result from this
-  // function. If value is different than 0 instead of loading
-  // rest of the game it returns from initalization function and tries
-  // to run game normally which causes crash, due to uninitialized data.
+/**
+ * Reports success without creating a camera, because titles that see a failure skip their
+ * initialization and then run on uninitialized data.
+ */
+u32 XUsbcamCreate_entry([[maybe_unused]] u32 buffer, [[maybe_unused]] u32 buffer_size,
+                        [[maybe_unused]] MappedVoid unk3_ptr) {
   return X_STATUS_SUCCESS;
 }
 
+/** Reports the camera as not connected. */
 u32 XUsbcamGetState_entry() {
-  // 0 = not connected.
   return 0;
 }
 

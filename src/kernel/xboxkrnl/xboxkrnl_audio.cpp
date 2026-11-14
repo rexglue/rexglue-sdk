@@ -9,98 +9,107 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
-#include <rex/audio/audio_system.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
-#include <rex/hook.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/object/kernel_thread.h>
+#include <rex/logging/log_category.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/status.h>
+
+#include "kernel/apu.h"
+#include <rex/kernel/thread_state.h>
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::kernel;
 
-u32 XAudioGetSpeakerConfig_entry(mapped_u32 config_ptr) {
-  *config_ptr = 0x00010001;
+constexpr u32 kSpeakerAnalogSurround = 0x00000001;
+constexpr u32 kSpeakerDigitalDolbyDigital = 0x00010000;
+constexpr u32 kSurroundChannels = 6;
+
+u32 XAudioGetSpeakerConfig_entry(MappedU32 config_ptr) {
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
+  if (apu && apu->GetOutputChannels() == kSurroundChannels) {
+    *config_ptr = kSpeakerDigitalDolbyDigital | kSpeakerAnalogSurround;
+  } else {
+    *config_ptr = kSpeakerAnalogSurround;
+  }
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(mapped_void driver_ptr, mapped_u32 out_ptr) {
-  assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
+u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(MappedVoid driver_ptr, MappedU32 out_ptr) {
+  REX_ASSERT((driver_ptr.GetGuestAddress() & 0xFFFF0000) == 0x41550000);
 
-  rex::thread::Sleep(std::chrono::microseconds(1));
+  rex::kernel::KernelThread::SleepFor(std::chrono::microseconds(1));
 
-  // Checking these bits to see if any voice volume changed.
-  // I think.
   *out_ptr = 0;
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioGetVoiceCategoryVolume_entry(u32 unk, mapped_f32 out_ptr) {
-  // Expects a floating point single. Volume %?
+u32 XAudioGetVoiceCategoryVolume_entry([[maybe_unused]] u32 unk, MappedF32 out_ptr) {
   *out_ptr = 1.0f;
 
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioEnableDucker_entry(u32 unk) {
+u32 XAudioEnableDucker_entry([[maybe_unused]] u32 unk) {
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioRegisterRenderDriverClient_entry(mapped_u32 callback_ptr, mapped_u32 driver_ptr) {
+u32 XAudioRegisterRenderDriverClient_entry(MappedU32 callback_ptr, MappedU32 driver_ptr) {
   REXKRNL_DEBUG("XAudioRegisterRenderDriverClient called! callback_ptr={:08X} driver_ptr={:08X}",
-                callback_ptr.guest_address(), driver_ptr.guest_address());
+                callback_ptr.GetGuestAddress(), driver_ptr.GetGuestAddress());
   if (!callback_ptr) {
     return X_E_INVALIDARG;
   }
 
-  uint32_t callback = callback_ptr[0];
+  u32 callback = callback_ptr[0];
 
   if (!callback) {
     return X_E_INVALIDARG;
   }
-  uint32_t callback_arg = callback_ptr[1];
+  u32 callback_arg = callback_ptr[1];
 
-  auto* audio_system =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
-
-  size_t index;
-  auto result = audio_system->RegisterClient(callback, callback_arg, &index);
-  if (XFAILED(result)) {
-    return result;
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
+  if (!apu) {
+    return X_STATUS_UNSUCCESSFUL;
   }
-
-  assert_true(!(index & ~0x0000FFFF));
-  *driver_ptr = 0x41550000 | (static_cast<uint32_t>(index) & 0x0000FFFF);
+  auto index = apu->RegisterClient(callback, callback_arg);
+  if (!index) {
+    return kernel::ToXStatus(index.error());
+  }
+  *driver_ptr = 0x41550000 | (*index & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioUnregisterRenderDriverClient_entry(mapped_void driver_ptr) {
-  assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
+u32 XAudioUnregisterRenderDriverClient_entry(MappedVoid driver_ptr) {
+  REX_ASSERT((driver_ptr.GetGuestAddress() & 0xFFFF0000) == 0x41550000);
 
-  auto* audio_system =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
-  audio_system->UnregisterClient(driver_ptr.guest_address() & 0x0000FFFF);
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
+  if (!apu) {
+    return X_ERROR_SUCCESS;
+  }
+  apu->UnregisterClient(driver_ptr.GetGuestAddress() & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioSubmitRenderDriverFrame_entry(mapped_void driver_ptr, mapped_void samples_ptr) {
-  assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
+u32 XAudioSubmitRenderDriverFrame_entry(MappedVoid driver_ptr, MappedVoid samples_ptr) {
+  REX_ASSERT((driver_ptr.GetGuestAddress() & 0xFFFF0000) == 0x41550000);
 
-  static uint32_t submit_krnl_count = 0;
-  if (submit_krnl_count < 10) {
+  if (kernel::GetCurrentState().audio_submit_logs < 10) {
     REXKRNL_DEBUG("XAudioSubmitRenderDriverFrame: driver={:08X} samples={:08X}",
-                  driver_ptr.guest_address(), samples_ptr.guest_address());
-    submit_krnl_count++;
+                  driver_ptr.GetGuestAddress(), samples_ptr.GetGuestAddress());
+    ++kernel::GetCurrentState().audio_submit_logs;
   }
 
-  auto* audio_system =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
-  audio_system->SubmitFrame(driver_ptr.guest_address() & 0x0000FFFF, samples_ptr.guest_address());
+  kernel::APU* apu = kernel::GetCurrentState().GetAPU();
+  if (!apu) {
+    return X_ERROR_SUCCESS;
+  }
+  apu->SubmitFrame(driver_ptr.GetGuestAddress() & 0x0000FFFF, samples_ptr.GetGuestAddress());
 
   return X_ERROR_SUCCESS;
 }

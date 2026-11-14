@@ -44,8 +44,8 @@ IncludeCategories:
   - Regex: '^<(sys/|unistd|fcntl|poll|pthread|dlfcn|netdb|netinet|arpa|windows|winnt|winbase|winsock|d3d|dxgi|vulkan|vk_)'
     Priority: 3
     SortPriority: 3
-  # 5. Third-party headers
-  - Regex: '^<(fmt|spdlog|SDL|imgui|toml|catch2|CLI|glslang|spirv|renderdoc|simde|date|utfcpp|aes|mspack|xxhash|disruptorplus)/'
+  # 5. Third party headers
+  - Regex: '^<(fmt|SDL|imgui|toml|catch2|CLI|glslang|spirv|renderdoc|simde|date|utfcpp|aes|mspack|xxhash|disruptorplus)/'
     Priority: 4
     SortPriority: 4
   # 6. Project headers
@@ -106,4 +106,8 @@ SpacesInContainerLiterals: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 Standard: Latest
+CommentPragmas: '^ *@file '
+Macros:
+  - 'REX_DECLARE_INTERFACE(a, b)=class a {'
+  - 'REX_DECLARE_PRIVATE_INTERFACE(a, b)=class a {'
 ...

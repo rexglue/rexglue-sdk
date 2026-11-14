@@ -1,562 +1,323 @@
 /**
- * Unit tests for kernel object system (XObject and ObjectTable)
+ * @file        tests/unit/kernel/object_table_test.cpp
  *
- * Tests handle management, reference counting, and name mapping.
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
-#include <rex/logging.h>
-#include <rex/system/util/object_table.h>
-#include <rex/system/xobject.h>
+#include <atomic>
+#include <memory>
+#include <optional>
+#include <thread>
 
-using namespace rex;
-using namespace rex::system;
-using namespace rex::system::util;
+#include <rex/kernel/types/status.h>
+#include <rex/kernel/object/xam_object.h>
+#include <rex/kernel/object/object_table.h>
 
-// =============================================================================
-// Test Fixtures and Helpers
-// =============================================================================
+#include "kernel/object_table.h"
 
-// Minimal XObject subclass for testing
-class TestObject : public XObject {
+using rex::kernel::AddOptions;
+using rex::kernel::EventObject;
+using rex::kernel::ObjectTable;
+using rex::kernel::ObjectType;
+using rex::kernel::SemaphoreObject;
+using rex::kernel::ToXStatus;
+using rex::kernel::X_HANDLE;
+using rex::kernel::X_STATUS;
+
+namespace {
+
+class CountedXAMObject final : public rex::kernel::IXAMObject {
  public:
-  static constexpr Type kObjectType = Type::Undefined;
+  static constexpr rex::u32 kTag = 0x434E5431;
 
-  TestObject() : XObject(Type::Undefined) {}
+  explicit CountedXAMObject(int& destroyed) : destroyed_(destroyed) {}
+  ~CountedXAMObject() override { ++destroyed_; }
 
-  // Track destructor calls for leak detection
-  static int destructor_count;
-  ~TestObject() override { destructor_count++; }
+  [[nodiscard]] rex::u32 GetTag() const override { return kTag; }
+
+ private:
+  int& destroyed_;
 };
 
-int TestObject::destructor_count = 0;
+class OtherXAMObject final : public rex::kernel::IXAMObject {
+ public:
+  static constexpr rex::u32 kTag = 0x4F544852;
 
-// Reset destructor count before each test
-struct DestructorCountReset {
-  DestructorCountReset() { TestObject::destructor_count = 0; }
+  [[nodiscard]] rex::u32 GetTag() const override { return kTag; }
 };
 
-// Initialize logging once
-void InitTestLogging() {
-  static bool initialized = false;
-  if (!initialized) {
-    rex::InitLogging();
-    initialized = true;
-  }
+rex::kernel::X_HANDLE AddEvent(ObjectTable& table, std::string_view name = {}) {
+  auto added = table.Emplace<EventObject>(AddOptions{name, {}}, true, false);
+  REQUIRE(added.has_value());
+  return *added;
 }
 
-// =============================================================================
-// object_ref Smart Pointer Tests
-// =============================================================================
+}  // namespace
 
-TEST_CASE("object_ref default construction is null", "[kernel][object_ref]") {
-  InitTestLogging();
-  object_ref<TestObject> ref;
-
-  CHECK(ref.get() == nullptr);
-  CHECK(!ref);
-  CHECK(ref == nullptr);
+REX_TEST_CASE("ObjectTable first handle is slot 1 not 0", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  CHECK(AddEvent(table) == 0xF8000004);
 }
 
-TEST_CASE("object_ref construction from raw pointer", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
+REX_TEST_CASE("ObjectTable gives each object a unique 4 aligned handle", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE a = AddEvent(table);
+  const rex::kernel::X_HANDLE b = AddEvent(table);
+  CHECK(a != b);
+  CHECK((a & 3) == 0);
+  CHECK((b & 3) == 0);
+  CHECK(b == a + 4);
+}
 
-  auto* obj = new TestObject();
-  // Object starts with ref count of 1 from constructor
+REX_TEST_CASE("ObjectTable Get is type checked", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  CHECK(table.Get<EventObject>(handle));
+  CHECK_FALSE(table.Get<SemaphoreObject>(handle));
+  CHECK(table.Get(handle).GetType() == ObjectType::kEvent);
+}
 
+REX_TEST_CASE("ObjectTable Get checks the tag of an XAM object", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  int destroyed = 0;
+  auto added = table.Emplace<CountedXAMObject>(AddOptions{}, destroyed);
+  REQUIRE(added.has_value());
+  CHECK(table.Get<CountedXAMObject>(*added));
+  CHECK_FALSE(table.Get<OtherXAMObject>(*added));
+  CHECK_FALSE(table.Get<EventObject>(*added));
+  CHECK(table.Get(*added).GetType() == ObjectType::kXAM);
+}
+
+REX_TEST_CASE("ObjectTable destroys an XAM object when its last handle closes",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  int destroyed = 0;
+  auto added = table.Emplace<CountedXAMObject>(AddOptions{}, destroyed);
+  REQUIRE(added.has_value());
+  CHECK(destroyed == 0);
+  REQUIRE(table.Close(*added).has_value());
+  CHECK(destroyed == 1);
+}
+
+REX_TEST_CASE("ObjectTable Get rejects 0 pseudo and unknown handles", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  AddEvent(table);
+  CHECK_FALSE(table.Get(0));
+  CHECK_FALSE(table.Get(0xFFFFFFFF));
+  CHECK_FALSE(table.Get(0xFFFFFFFE));
+  CHECK_FALSE(table.Get(0xF8FFFFF0));
+  CHECK_FALSE(table.Get(0x12345678));
+}
+
+REX_TEST_CASE("ObjectTable Duplicate gives a new handle to the same object",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto duplicated = table.Duplicate(handle);
+  REQUIRE(duplicated.has_value());
+  const rex::kernel::X_HANDLE copy = *duplicated;
+  CHECK(copy != handle);
+  CHECK(&*table.Get<EventObject>(handle) == &*table.Get<EventObject>(copy));
+  CHECK(ToXStatus(table.Duplicate(0xF8FFFFF0)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+}
+
+REX_TEST_CASE("ObjectTable Close removes at zero and reports bad handles",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK_FALSE(table.Get(handle));
+  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+  CHECK(ToXStatus(table.Close(0)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+  CHECK(ToXStatus(table.Close(0xFFFFFFFF)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+}
+
+REX_TEST_CASE("ObjectTable Open gives each call its own handle", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto first = table.Open(table.Get(handle));
+  auto second = table.Open(table.Get(handle));
+  REQUIRE(first.has_value());
+  REQUIRE(second.has_value());
+  CHECK(*first != handle);
+  CHECK(*second != *first);
+  CHECK(ToXStatus(table.Close(*first)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(*first)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+  CHECK(table.Get(handle));
+  CHECK(table.Get(*second));
+}
+
+REX_TEST_CASE("ObjectTable Reference keeps the object after its last handle closes",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
   {
-    object_ref<TestObject> ref(obj);
-    CHECK(ref.get() == obj);
-    CHECK(ref);
-    CHECK(ref != nullptr);
+    auto pin = table.Get(handle);
+    REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
   }
-  // Destructor should release, destroying object
-  CHECK(TestObject::destructor_count == 1);
+  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK_FALSE(table.Get(handle));
+  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+  CHECK(table.GetAll().size() == 1);
 }
 
-TEST_CASE("object_ref copy construction retains", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
+REX_TEST_CASE("ObjectTable Dereference destroys the object once no handle is left",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto pin = table.Get(handle);
+  REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  REQUIRE(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Dereference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(table.GetAll().empty());
+  CHECK(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_INVALID_HANDLE);
+}
 
-  auto* obj = new TestObject();
+REX_TEST_CASE("ObjectTable Dereference leaves an object that still has a handle",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto pin = table.Get(handle);
+  REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Dereference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(table.Get(handle));
+  CHECK(ToXStatus(table.Dereference(pin)) == rex::kernel::X_STATUS_INVALID_PARAMETER);
+}
 
+REX_TEST_CASE("ObjectTable GetByAddress finds an object that has no handle of the title",
+              "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  auto added =
+      table.Emplace<EventObject>(AddOptions{{}, rex::kernel::ObjectBlock{0x2000}}, true, false);
+  REQUIRE(added.has_value());
+  CHECK(table.GetByAddress(0x2000));
+  CHECK_FALSE(table.GetByAddress(0x2004));
   {
-    object_ref<TestObject> ref1(obj);
-    {
-      object_ref<TestObject> ref2(ref1);  // Copy - should retain
-      CHECK(ref1.get() == ref2.get());
-      CHECK(TestObject::destructor_count == 0);  // Still alive
+    auto pin = table.Get(*added);
+    REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
+  }
+  REQUIRE(ToXStatus(table.Close(*added)) == rex::kernel::X_STATUS_SUCCESS);
+  auto found = table.GetByAddress(0x2000);
+  REQUIRE(found);
+  CHECK(ToXStatus(table.Dereference(found)) == rex::kernel::X_STATUS_SUCCESS);
+  found.Reset();
+  CHECK_FALSE(table.GetByAddress(0x2000));
+}
+
+REX_TEST_CASE("ObjectTable keeps a pinned object alive across Close",
+              "[kernel][object_table][pin]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
+  auto pin = table.Get<EventObject>(handle);
+  REQUIRE(pin);
+  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK_FALSE(table.Get(handle));
+  CHECK(pin->event != nullptr);
+}
+
+REX_TEST_CASE("ObjectTable destroys on the last pin when another thread closed first",
+              "[kernel][object_table][pin]") {
+  for (int round = 0; round < 200; ++round) {
+    ObjectTable table(nullptr);
+    const rex::kernel::X_HANDLE handle = AddEvent(table);
+    std::atomic<bool> pinned{false};
+    std::atomic<bool> closed{false};
+    std::thread holder([&] {
+      auto pin = table.Get<EventObject>(handle);
+      pinned = true;
+      while (!closed) {
+        std::this_thread::yield();
+      }
+      pin->event->Set();
+    });
+    while (!pinned) {
+      std::this_thread::yield();
     }
-    // ref2 destroyed, but ref1 still holds
-    CHECK(TestObject::destructor_count == 0);
+    REQUIRE(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+    closed = true;
+    holder.join();
   }
-  // Both refs destroyed
-  CHECK(TestObject::destructor_count == 1);
 }
 
-TEST_CASE("object_ref move construction transfers ownership", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
+REX_TEST_CASE("ObjectTable names are case insensitive and collide",
+              "[kernel][object_table][names]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table, "Alpha");
+  auto found = table.OpenByName("ALPHA");
+  REQUIRE(found.has_value());
+  CHECK(*found != handle);
+  CHECK(&*table.Get<EventObject>(*found) == &*table.Get<EventObject>(handle));
+  CHECK(ToXStatus(table.AddName("alpha", 0xF8000008)) ==
+        rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
+  auto missing = table.OpenByName("Missing");
+  CHECK(ToXStatus(missing) == rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+  CHECK(missing.value_or(rex::kernel::kXInvalidHandleValue) == rex::kernel::kXInvalidHandleValue);
+}
 
-  auto* obj = new TestObject();
+REX_TEST_CASE("ObjectTable OpenByName gives each open its own handle",
+              "[kernel][object_table][names]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table, "Beta");
+  auto opened = table.OpenByName("Beta");
+  REQUIRE(opened.has_value());
+  CHECK(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK_FALSE(table.Get(handle));
+  CHECK(table.Get(*opened));
+  auto again = table.OpenByName("Beta");
+  REQUIRE(again.has_value());
+  CHECK(ToXStatus(table.Close(*opened)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(*again)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.OpenByName("Beta")) == rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+}
 
+REX_TEST_CASE("ObjectTable keeps a name while any handle is open",
+              "[kernel][object_table][names]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table, "Gamma");
+  auto duplicated = table.Duplicate(handle);
+  REQUIRE(duplicated.has_value());
+  REQUIRE(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  auto found = table.OpenByName("Gamma");
+  REQUIRE(found.has_value());
+  CHECK(ToXStatus(table.AddName("Gamma", 0xF8000010)) ==
+        rex::kernel::X_STATUS_OBJECT_NAME_COLLISION);
+  REQUIRE(ToXStatus(table.Close(*duplicated)) == rex::kernel::X_STATUS_SUCCESS);
+  REQUIRE(ToXStatus(table.Close(*found)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.OpenByName("Gamma")) == rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
+}
+
+REX_TEST_CASE("ObjectTable frees a name when the last handle closes under a reference",
+              "[kernel][object_table][names]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table, "Delta");
   {
-    object_ref<TestObject> ref1(obj);
-    object_ref<TestObject> ref2(std::move(ref1));
-
-    CHECK(ref1.get() == nullptr);  // Moved from
-    CHECK(ref2.get() == obj);
-    CHECK(TestObject::destructor_count == 0);
+    auto pin = table.Get(handle);
+    REQUIRE(ToXStatus(table.Reference(pin)) == rex::kernel::X_STATUS_SUCCESS);
   }
-  CHECK(TestObject::destructor_count == 1);
+  REQUIRE(ToXStatus(table.Close(handle)) == rex::kernel::X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.OpenByName("Delta")) == rex::kernel::X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
-TEST_CASE("object_ref copy assignment retains", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  auto* obj = new TestObject();
-
-  {
-    object_ref<TestObject> ref1(obj);
-    object_ref<TestObject> ref2;
-
-    ref2 = ref1;  // Copy assign
-    CHECK(ref1.get() == ref2.get());
-    CHECK(TestObject::destructor_count == 0);
-  }
-  CHECK(TestObject::destructor_count == 1);
+REX_TEST_CASE("ObjectTable All returns one pin per object of the type", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE a = AddEvent(table);
+  AddEvent(table);
+  REQUIRE(table.Duplicate(a).has_value());
+  REQUIRE(table.Emplace<SemaphoreObject>(AddOptions{}, 1, 2).has_value());
+  CHECK(table.All<EventObject>().size() == 2);
+  CHECK(table.All<SemaphoreObject>().size() == 1);
+  CHECK(table.GetAll().size() == 3);
 }
 
-TEST_CASE("object_ref move assignment transfers ownership", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  auto* obj = new TestObject();
-
-  {
-    object_ref<TestObject> ref1(obj);
-    object_ref<TestObject> ref2;
-
-    ref2 = std::move(ref1);
-    CHECK(ref1.get() == nullptr);
-    CHECK(ref2.get() == obj);
-  }
-  CHECK(TestObject::destructor_count == 1);
-}
-
-TEST_CASE("object_ref reset releases reference", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  auto* obj = new TestObject();
-
-  object_ref<TestObject> ref(obj);
-  CHECK(TestObject::destructor_count == 0);
-
-  ref.reset();
-  CHECK(ref.get() == nullptr);
-  CHECK(TestObject::destructor_count == 1);
-}
-
-TEST_CASE("object_ref release returns pointer without destroying", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  auto* obj = new TestObject();
-
-  object_ref<TestObject> ref(obj);
-  auto* released = ref.release();
-
-  CHECK(released == obj);
-  CHECK(ref.get() == nullptr);
-  CHECK(TestObject::destructor_count == 0);  // Not destroyed
-
-  // Clean up manually
-  released->Release();
-  CHECK(TestObject::destructor_count == 1);
-}
-
-TEST_CASE("retain_object helper retains and wraps", "[kernel][object_ref]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  auto* obj = new TestObject();
-  // obj has ref count 1
-
-  {
-    auto ref = retain_object(obj);  // Should retain, ref count now 2
-    CHECK(ref.get() == obj);
-  }
-  // ref destroyed, ref count back to 1
-  CHECK(TestObject::destructor_count == 0);
-
-  obj->Release();  // Final release
-  CHECK(TestObject::destructor_count == 1);
-}
-
-// =============================================================================
-// ObjectTable Handle Allocation Tests
-// =============================================================================
-
-TEST_CASE("ObjectTable AddHandle allocates valid handle", "[kernel][object_table]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  X_STATUS status = table.AddHandle(obj, &handle);
-
-  CHECK(status == X_STATUS_SUCCESS);
-  CHECK(handle != 0);
-  CHECK(handle >= XObject::kHandleBase);  // 0xF8000000
-
-  // Handle should be in object's handle list
-  CHECK(obj->handles().size() == 1);
-  CHECK(obj->handles()[0] == handle);
-
+REX_TEST_CASE("ObjectTable Reset closes everything", "[kernel][object_table]") {
+  ObjectTable table(nullptr);
+  const rex::kernel::X_HANDLE handle = AddEvent(table);
   table.Reset();
+  CHECK_FALSE(table.Get(handle));
 }
-
-TEST_CASE("ObjectTable first handle is slot 1 not 0", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-
-  // First handle should be slot 1: kHandleBase + (1 << 2) = 0xF8000004
-  CHECK(handle == XObject::kHandleBase + 4);
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable multiple objects get unique handles", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj1 = new TestObject();
-  auto* obj2 = new TestObject();
-  auto* obj3 = new TestObject();
-
-  X_HANDLE h1 = 0, h2 = 0, h3 = 0;
-  table.AddHandle(obj1, &h1);
-  table.AddHandle(obj2, &h2);
-  table.AddHandle(obj3, &h3);
-
-  CHECK(h1 != h2);
-  CHECK(h2 != h3);
-  CHECK(h1 != h3);
-
-  // Handles increment by 4 (slot << 2)
-  CHECK(h2 == h1 + 4);
-  CHECK(h3 == h2 + 4);
-
-  table.Reset();
-}
-
-// =============================================================================
-// ObjectTable Handle Lookup Tests
-// =============================================================================
-
-TEST_CASE("ObjectTable LookupObject finds object by handle", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-
-  auto found = table.LookupObject<XObject>(handle);
-  CHECK(found.get() == obj);
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable LookupObject returns null for invalid handle", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-
-  auto found = table.LookupObject<XObject>(0xF8001234);
-  CHECK(found.get() == nullptr);
-}
-
-TEST_CASE("ObjectTable LookupObject returns null for handle 0", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-
-  auto found = table.LookupObject<XObject>(0);
-  CHECK(found.get() == nullptr);
-}
-
-// =============================================================================
-// ObjectTable Handle Reference Counting Tests
-// =============================================================================
-
-TEST_CASE("ObjectTable RetainHandle increments ref count", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-
-  X_STATUS status = table.RetainHandle(handle);
-  CHECK(status == X_STATUS_SUCCESS);
-
-  // Need two releases to remove
-  table.ReleaseHandle(handle);
-  auto still_there = table.LookupObject<XObject>(handle);
-  CHECK(still_there.get() == obj);
-
-  table.ReleaseHandle(handle);  // This should remove it
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable ReleaseHandle removes at zero refs", "[kernel][object_table]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-
-  X_STATUS status = table.ReleaseHandle(handle);
-  CHECK(status == X_STATUS_SUCCESS);
-
-  // Handle should be gone
-  auto found = table.LookupObject<XObject>(handle);
-  CHECK(found.get() == nullptr);
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable ReleaseHandle on invalid handle returns error", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-
-  X_STATUS status = table.ReleaseHandle(0xF8001234);
-  CHECK(status == X_STATUS_INVALID_HANDLE);
-}
-
-TEST_CASE("ObjectTable DuplicateHandle creates new handle for same object",
-          "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE h1 = 0, h2 = 0;
-  table.AddHandle(obj, &h1);
-  table.DuplicateHandle(h1, &h2);
-
-  CHECK(h1 != h2);
-
-  // Both handles refer to same object
-  auto found1 = table.LookupObject<XObject>(h1);
-  auto found2 = table.LookupObject<XObject>(h2);
-  CHECK(found1.get() == obj);
-  CHECK(found2.get() == obj);
-
-  // Object should have both handles
-  CHECK(obj->handles().size() == 2);
-
-  table.Reset();
-}
-
-// =============================================================================
-// ObjectTable Handle Release Tests
-// =============================================================================
-
-TEST_CASE("ObjectTable ReleaseHandle removes handle from table", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-
-  // ReleaseHandle decrements ref count; at 0 it removes the handle
-  X_STATUS status = table.ReleaseHandle(handle);
-  CHECK(status == X_STATUS_SUCCESS);
-
-  auto found = table.LookupObject<XObject>(handle);
-  CHECK(found.get() == nullptr);
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable ReleaseHandle updates object's handle list", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-  obj->Retain();  // Keep alive after table releases
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-  CHECK(obj->handles().size() == 1);
-
-  table.ReleaseHandle(handle);
-  CHECK(obj->handles().empty());
-
-  obj->Release();
-  table.Reset();
-}
-
-// =============================================================================
-// ObjectTable Name Mapping Tests
-// =============================================================================
-
-TEST_CASE("ObjectTable AddNameMapping registers name", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-
-  X_STATUS status = table.AddNameMapping("TestName", handle);
-  CHECK(status == X_STATUS_SUCCESS);
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable duplicate name returns collision", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj1 = new TestObject();
-  auto* obj2 = new TestObject();
-
-  X_HANDLE h1 = 0, h2 = 0;
-  table.AddHandle(obj1, &h1);
-  table.AddHandle(obj2, &h2);
-
-  CHECK(table.AddNameMapping("SharedName", h1) == X_STATUS_SUCCESS);
-  CHECK(table.AddNameMapping("SharedName", h2) == X_STATUS_OBJECT_NAME_COLLISION);
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable name collision is case-insensitive", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj1 = new TestObject();
-  auto* obj2 = new TestObject();
-
-  X_HANDLE h1 = 0, h2 = 0;
-  table.AddHandle(obj1, &h1);
-  table.AddHandle(obj2, &h2);
-
-  CHECK(table.AddNameMapping("TestName", h1) == X_STATUS_SUCCESS);
-  // Different case should still collide
-  CHECK(table.AddNameMapping("testname", h2) == X_STATUS_OBJECT_NAME_COLLISION);
-  CHECK(table.AddNameMapping("TESTNAME", h2) == X_STATUS_OBJECT_NAME_COLLISION);
-
-  table.Reset();
-}
-
-TEST_CASE("ObjectTable GetObjectByName returns not found for missing name",
-          "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-
-  X_HANDLE found = 0;
-  X_STATUS status = table.GetObjectByName("DoesNotExist", &found);
-  CHECK(status == X_STATUS_OBJECT_NAME_NOT_FOUND);
-  CHECK(found == X_INVALID_HANDLE_VALUE);
-}
-
-TEST_CASE("ObjectTable RemoveNameMapping clears name", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj = new TestObject();
-
-  X_HANDLE handle = 0;
-  table.AddHandle(obj, &handle);
-  table.AddNameMapping("TempName", handle);
-
-  table.RemoveNameMapping("TempName");
-
-  X_HANDLE found = 0;
-  CHECK(table.GetObjectByName("TempName", &found) == X_STATUS_OBJECT_NAME_NOT_FOUND);
-
-  table.Reset();
-}
-
-// =============================================================================
-// ObjectTable Reset and Bulk Operations
-// =============================================================================
-
-TEST_CASE("ObjectTable Reset releases all objects", "[kernel][object_table]") {
-  InitTestLogging();
-  DestructorCountReset reset;
-
-  ObjectTable table;
-  auto* obj1 = new TestObject();
-  auto* obj2 = new TestObject();
-  auto* obj3 = new TestObject();
-
-  table.AddHandle(obj1, nullptr);
-  table.AddHandle(obj2, nullptr);
-  table.AddHandle(obj3, nullptr);
-
-  // Objects have ref count 2: 1 from new, 1 from AddHandle's Retain
-  // Release our initial ref so table owns them exclusively
-  obj1->Release();
-  obj2->Release();
-  obj3->Release();
-
-  CHECK(TestObject::destructor_count == 0);
-
-  table.Reset();
-
-  // Now Reset's Release brings ref count from 1 to 0, destroying them
-  CHECK(TestObject::destructor_count == 3);
-}
-
-TEST_CASE("ObjectTable GetAllObjects returns all objects", "[kernel][object_table]") {
-  InitTestLogging();
-
-  ObjectTable table;
-  auto* obj1 = new TestObject();
-  auto* obj2 = new TestObject();
-
-  table.AddHandle(obj1, nullptr);
-  table.AddHandle(obj2, nullptr);
-
-  auto all = table.GetAllObjects();
-  CHECK(all.size() == 2);
-
-  table.Reset();
-}
-
-// =============================================================================
-// TODO: Tests requiring kernel integration
-// =============================================================================
-
-// TODO: Test handle 0xFFFFFFFF (CurrentProcess) - requires full KernelState
-// TODO: Test handle 0xFFFFFFFE (CurrentThread) - requires XThread integration
-// TODO: Test GetObjectsByType<T>() with real typed objects
-// TODO: Test GetObjectByName with existing object - requires kernel_state for RetainHandle
-// TODO: Test case-insensitive name lookup via GetObjectByName

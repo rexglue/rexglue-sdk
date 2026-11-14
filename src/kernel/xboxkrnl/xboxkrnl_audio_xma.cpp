@@ -9,66 +9,45 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
+#include <bit>
 #include <cstring>
 
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/object/kernel_thread.h>
 #include <rex/assert.h>
-#include <rex/audio/audio_system.h>
-#include <rex/audio/xma/decoder.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
-#include <rex/hook.h>
+#include <rex/logging/log_category.h>
+#include "kernel/categories.h"
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/types/status.h>
+
+#include "kernel/apu.h"
+#include "kernel/xma/decoder.h"
+#include "kernel/title_state.h"
+#include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::kernel;
 
-using rex::audio::XMA_CONTEXT_DATA;
+using rex::kernel::XMA_CONTEXT_DATA;
 
-// See audio_system.cc for implementation details.
-//
-// XMA details:
-// https://devel.nuclex.org/external/svn/directx/trunk/include/xma2defs.h
-// https://github.com/gdawg/fsbext/blob/master/src/xma_header.h
-//
-// XMA is undocumented, but the methods are pretty simple.
-// Games do this sequence to decode (now):
-//   (not sure we are setting buffer validity/offsets right)
-// d> XMACreateContext(20656800)
-// d> XMAIsInputBuffer0Valid(000103E0)
-// d> XMAIsInputBuffer1Valid(000103E0)
-// d> XMADisableContext(000103E0, 0)
-// d> XMABlockWhileInUse(000103E0)
-// d> XMAInitializeContext(000103E0, 20008810)
-// d> XMASetOutputBufferValid(000103E0)
-// d> XMASetInputBuffer0Valid(000103E0)
-// d> XMAEnableContext(000103E0)
-// d> XMAGetOutputBufferWriteOffset(000103E0)
-// d> XMAGetOutputBufferReadOffset(000103E0)
-// d> XMAIsOutputBufferValid(000103E0)
-// d> XMAGetOutputBufferReadOffset(000103E0)
-// d> XMAGetOutputBufferWriteOffset(000103E0)
-// d> XMAIsInputBuffer0Valid(000103E0)
-// d> XMAIsInputBuffer1Valid(000103E0)
-// d> XMAIsInputBuffer0Valid(000103E0)
-// d> XMAIsInputBuffer1Valid(000103E0)
-// d> XMAReleaseContext(000103E0)
-//
-// XAudio2 uses XMA under the covers, and seems to map with the same
-// restrictions of frame/subframe/etc:
-// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
+namespace {
 
-u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
-  REXKRNL_NOISY_DEBUG("XMACreateContext called!");
-  auto xma_decoder =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
-          ->xma_decoder();
-  uint32_t context_ptr = xma_decoder->AllocateContext();
+kernel::XMADecoder* GetXMADecoder(TitleRuntime& runtime) {
+  kernel::APU* apu = StateOf(runtime).GetAPU();
+  return apu ? &apu->GetXMADecoder() : nullptr;
+}
+
+}  // namespace
+
+u32 XMACreateContext_entry(MappedU32 context_out_ptr) {
+  REXKRNL_DEV("XMACreateContext called!");
+  auto* xma_decoder = GetXMADecoder(kernel::GetCurrent());
+  if (!xma_decoder) {
+    return X_STATUS_NO_MEMORY;
+  }
+  u32 context_ptr = xma_decoder->AllocateContext();
   *context_out_ptr = context_ptr;
   if (!context_ptr) {
     return X_STATUS_NO_MEMORY;
@@ -76,89 +55,81 @@ u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-u32 XMAReleaseContext_entry(mapped_void context_ptr) {
-  auto xma_decoder =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
-          ->xma_decoder();
-  xma_decoder->ReleaseContext(context_ptr.guest_address());
+u32 XMAReleaseContext_entry(MappedVoid context_ptr) {
+  auto* xma_decoder = GetXMADecoder(kernel::GetCurrent());
+  if (!xma_decoder) {
+    return 0;
+  }
+  xma_decoder->ReleaseContext(context_ptr.GetGuestAddress());
   return 0;
 }
 
-void StoreXmaContextIndexedRegister(system::KernelState* kernel_state, uint32_t base_reg,
-                                    uint32_t context_ptr) {
-  uint32_t context_physical_address = REX_KERNEL_MEMORY()->GetPhysicalAddress(context_ptr);
-  assert_true(context_physical_address != UINT32_MAX);
-  auto xma_decoder =
-      static_cast<audio::AudioSystem*>(kernel_state->emulator()->audio_system())->xma_decoder();
-  uint32_t hw_index =
-      (context_physical_address - xma_decoder->context_array_ptr()) / sizeof(XMA_CONTEXT_DATA);
-  uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
-  uint32_t reg_value = 1 << (hw_index & 0x1F);
-  xma_decoder->WriteRegister(reg_num, rex::byte_swap(reg_value));
+void StoreXMAContextIndexedRegister(TitleRuntime& runtime, u32 base_reg, u32 context_ptr) {
+  u32 context_physical_address =
+      StateOf(runtime).GetAddressSpace()->GetPhysicalAddress(context_ptr);
+  auto* xma_decoder = GetXMADecoder(runtime);
+  if (xma_decoder) {
+    xma_decoder->SignalContext(base_reg, context_physical_address);
+  }
 }
 
 struct XMA_LOOP_DATA {
-  rex::be<uint32_t> loop_start;
-  rex::be<uint32_t> loop_end;
-  uint8_t loop_count;
-  uint8_t loop_subframe_end;
-  uint8_t loop_subframe_skip;
+  be_u32 loop_start;
+  be_u32 loop_end;
+  u8 loop_count;
+  u8 loop_subframe_end;
+  u8 loop_subframe_skip;
 };
-static_assert_size(XMA_LOOP_DATA, 12);
+REX_STATIC_ASSERT_SIZE(XMA_LOOP_DATA, 12);
 
 struct XMA_CONTEXT_INIT {
-  rex::be<uint32_t> input_buffer_0_ptr;
-  rex::be<uint32_t> input_buffer_0_packet_count;
-  rex::be<uint32_t> input_buffer_1_ptr;
-  rex::be<uint32_t> input_buffer_1_packet_count;
-  rex::be<uint32_t> input_buffer_read_offset;
-  rex::be<uint32_t> output_buffer_ptr;
-  rex::be<uint32_t> output_buffer_block_count;
-  rex::be<uint32_t> work_buffer;
-  rex::be<uint32_t> subframe_decode_count;
-  rex::be<uint32_t> channel_count;
-  rex::be<uint32_t> sample_rate;
+  be_u32 input_buffer_0_ptr;
+  be_u32 input_buffer_0_packet_count;
+  be_u32 input_buffer_1_ptr;
+  be_u32 input_buffer_1_packet_count;
+  be_u32 input_buffer_read_offset;
+  be_u32 output_buffer_ptr;
+  be_u32 output_buffer_block_count;
+  be_u32 work_buffer_ptr;
+  be_u32 subframe_decode_count;
+  be_u32 channel_count;
+  be_u32 sample_rate;
   XMA_LOOP_DATA loop_data;
 };
-static_assert_size(XMA_CONTEXT_INIT, 56);
+REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_INIT, 56);
 
-u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_INIT> context_init) {
-  // Input buffers may be null (buffer 1 in 415607D4).
-  // Convert to host endianness.
-  uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
-  uint32_t input_buffer_0_physical_address = 0;
+u32 XMAInitializeContext_entry(MappedVoid context_ptr, GuestPtrT<XMA_CONTEXT_INIT> context_init) {
+  // Input buffers may be null.
+  u32 input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
+  u32 input_buffer_0_physical_address = 0;
   if (input_buffer_0_guest_ptr) {
     input_buffer_0_physical_address =
-        REX_KERNEL_MEMORY()->GetPhysicalAddress(input_buffer_0_guest_ptr);
-    // Xenia-specific safety check.
-    assert_true(input_buffer_0_physical_address != UINT32_MAX);
+        kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(input_buffer_0_guest_ptr);
+    REX_ASSERT(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
-      REXKRNL_ERROR("XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
-                    input_buffer_0_guest_ptr);
-      return X_E_FALSE;
+      REXKRNL_FAIL(X_E_FALSE, "XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
+                   input_buffer_0_guest_ptr);
     }
   }
-  uint32_t input_buffer_1_guest_ptr = context_init->input_buffer_1_ptr;
-  uint32_t input_buffer_1_physical_address = 0;
+  u32 input_buffer_1_guest_ptr = context_init->input_buffer_1_ptr;
+  u32 input_buffer_1_physical_address = 0;
   if (input_buffer_1_guest_ptr) {
     input_buffer_1_physical_address =
-        REX_KERNEL_MEMORY()->GetPhysicalAddress(input_buffer_1_guest_ptr);
-    assert_true(input_buffer_1_physical_address != UINT32_MAX);
+        kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(input_buffer_1_guest_ptr);
+    REX_ASSERT(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
-      REXKRNL_ERROR("XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
-                    input_buffer_1_guest_ptr);
-      return X_E_FALSE;
+      REXKRNL_FAIL(X_E_FALSE, "XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
+                   input_buffer_1_guest_ptr);
     }
   }
-  uint32_t output_buffer_guest_ptr = context_init->output_buffer_ptr;
-  assert_not_zero(output_buffer_guest_ptr);
-  uint32_t output_buffer_physical_address =
-      REX_KERNEL_MEMORY()->GetPhysicalAddress(output_buffer_guest_ptr);
-  assert_true(output_buffer_physical_address != UINT32_MAX);
+  u32 output_buffer_guest_ptr = context_init->output_buffer_ptr;
+  REX_ASSERT(output_buffer_guest_ptr != 0);
+  u32 output_buffer_physical_address =
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(output_buffer_guest_ptr);
+  REX_ASSERT(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
-    REXKRNL_ERROR("XMAInitializeContext: Invalid output buffer virtual address {:08X}",
-                  output_buffer_guest_ptr);
-    return X_E_FALSE;
+    REXKRNL_FAIL(X_E_FALSE, "XMAInitializeContext: Invalid output buffer virtual address {:08X}",
+                 output_buffer_guest_ptr);
   }
 
   std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));
@@ -173,7 +144,6 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   context.output_buffer_ptr = output_buffer_physical_address;
   context.output_buffer_block_count = context_init->output_buffer_block_count;
 
-  // context.work_buffer = context_init->work_buffer;  // ?
   context.subframe_decode_count = context_init->subframe_decode_count;
   context.is_stereo = context_init->channel_count >= 1;
   context.sample_rate = context_init->sample_rate;
@@ -186,12 +156,12 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
 
   context.Store(context_ptr);
 
-  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1A80, context_ptr.guest_address());
+  StoreXMAContextIndexedRegister(kernel::GetCurrent(), 0x1A80, context_ptr.GetGuestAddress());
 
   return 0;
 }
 
-u32 XMASetLoopData_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_DATA> loop_data) {
+u32 XMASetLoopData_entry(MappedVoid context_ptr, GuestPtrT<XMA_CONTEXT_DATA> loop_data) {
   XMA_CONTEXT_DATA context(context_ptr);
 
   context.loop_start = loop_data->loop_start;
@@ -205,12 +175,12 @@ u32 XMASetLoopData_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_DATA> lo
   return 0;
 }
 
-u32 XMAGetInputBufferReadOffset_entry(mapped_void context_ptr) {
+u32 XMAGetInputBufferReadOffset_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_read_offset;
 }
 
-u32 XMASetInputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
+u32 XMASetInputBufferReadOffset_entry(MappedVoid context_ptr, u32 value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -218,15 +188,13 @@ u32 XMASetInputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
   return 0;
 }
 
-u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
-  uint32_t buffer_physical_address =
-      REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
-  assert_true(buffer_physical_address != UINT32_MAX);
+u32 XMASetInputBuffer0_entry(MappedVoid context_ptr, MappedVoid buffer, u32 packet_count) {
+  u32 buffer_physical_address =
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(buffer.GetGuestAddress());
+  REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
-    // Xenia-specific safety check.
-    REXKRNL_ERROR("XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
-                  buffer.guest_address());
-    return X_E_FALSE;
+    REXKRNL_FAIL(X_E_FALSE, "XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
+                 buffer.GetGuestAddress());
   }
 
   XMA_CONTEXT_DATA context(context_ptr);
@@ -239,12 +207,12 @@ u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
   return 0;
 }
 
-u32 XMAIsInputBuffer0Valid_entry(mapped_void context_ptr) {
+u32 XMAIsInputBuffer0Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_0_valid;
 }
 
-u32 XMASetInputBuffer0Valid_entry(mapped_void context_ptr) {
+u32 XMASetInputBuffer0Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_0_valid = 1;
   context.Store(context_ptr);
@@ -252,15 +220,13 @@ u32 XMASetInputBuffer0Valid_entry(mapped_void context_ptr) {
   return 0;
 }
 
-u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
-  uint32_t buffer_physical_address =
-      REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
-  assert_true(buffer_physical_address != UINT32_MAX);
+u32 XMASetInputBuffer1_entry(MappedVoid context_ptr, MappedVoid buffer, u32 packet_count) {
+  u32 buffer_physical_address =
+      kernel::GetCurrentState().GetAddressSpace()->GetPhysicalAddress(buffer.GetGuestAddress());
+  REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
-    // Xenia-specific safety check.
-    REXKRNL_ERROR("XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
-                  buffer.guest_address());
-    return X_E_FALSE;
+    REXKRNL_FAIL(X_E_FALSE, "XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
+                 buffer.GetGuestAddress());
   }
 
   XMA_CONTEXT_DATA context(context_ptr);
@@ -273,12 +239,12 @@ u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
   return 0;
 }
 
-u32 XMAIsInputBuffer1Valid_entry(mapped_void context_ptr) {
+u32 XMAIsInputBuffer1Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_1_valid;
 }
 
-u32 XMASetInputBuffer1Valid_entry(mapped_void context_ptr) {
+u32 XMASetInputBuffer1Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_1_valid = 1;
   context.Store(context_ptr);
@@ -286,12 +252,12 @@ u32 XMASetInputBuffer1Valid_entry(mapped_void context_ptr) {
   return 0;
 }
 
-u32 XMAIsOutputBufferValid_entry(mapped_void context_ptr) {
+u32 XMAIsOutputBufferValid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_valid;
 }
 
-u32 XMASetOutputBufferValid_entry(mapped_void context_ptr) {
+u32 XMASetOutputBufferValid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_valid = 1;
   context.Store(context_ptr);
@@ -299,12 +265,12 @@ u32 XMASetOutputBufferValid_entry(mapped_void context_ptr) {
   return 0;
 }
 
-u32 XMAGetOutputBufferReadOffset_entry(mapped_void context_ptr) {
+u32 XMAGetOutputBufferReadOffset_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_read_offset;
 }
 
-u32 XMASetOutputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
+u32 XMASetOutputBufferReadOffset_entry(MappedVoid context_ptr, u32 value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -312,33 +278,32 @@ u32 XMASetOutputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
   return 0;
 }
 
-u32 XMAGetOutputBufferWriteOffset_entry(mapped_void context_ptr) {
+u32 XMAGetOutputBufferWriteOffset_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_write_offset;
 }
 
-u32 XMAGetPacketMetadata_entry(mapped_void context_ptr) {
+u32 XMAGetPacketMetadata_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.packet_metadata;
 }
 
-u32 XMAEnableContext_entry(mapped_void context_ptr) {
-  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1940, context_ptr.guest_address());
+u32 XMAEnableContext_entry(MappedVoid context_ptr) {
+  StoreXMAContextIndexedRegister(kernel::GetCurrent(), 0x1940, context_ptr.GetGuestAddress());
   return 0;
 }
 
-u32 XMADisableContext_entry(mapped_void context_ptr, u32 wait) {
+u32 XMADisableContext_entry(MappedVoid context_ptr, u32 wait) {
   X_HRESULT result = X_E_SUCCESS;
-  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1A40, context_ptr.guest_address());
-  if (!static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
-           ->xma_decoder()
-           ->BlockOnContext(context_ptr.guest_address(), !wait)) {
+  StoreXMAContextIndexedRegister(kernel::GetCurrent(), 0x1A40, context_ptr.GetGuestAddress());
+  auto* xma_decoder = GetXMADecoder(kernel::GetCurrent());
+  if (xma_decoder && !xma_decoder->BlockOnContext(context_ptr.GetGuestAddress(), !wait)) {
     result = X_E_FALSE;
   }
   return result;
 }
 
-u32 XMABlockWhileInUse_entry(mapped_void context_ptr) {
+u32 XMABlockWhileInUse_entry(MappedVoid context_ptr) {
   do {
     XMA_CONTEXT_DATA context(context_ptr);
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
@@ -347,7 +312,7 @@ u32 XMABlockWhileInUse_entry(mapped_void context_ptr) {
     if (!context.work_buffer_ptr) {
       break;
     }
-    rex::thread::Sleep(std::chrono::milliseconds(1));
+    rex::kernel::KernelThread::SleepFor(std::chrono::milliseconds(1));
   } while (true);
   return 0;
 }

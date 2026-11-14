@@ -9,88 +9,101 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
-#include <rex/cvar.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
-#include <rex/hook.h>
+#include <rex/memory/mapped_ptr.h>
+#include <rex/kernel/title_runtime.h>
+#include <rex/kernel/kernel_settings.h>
+#include <rex/logging/log_category.h>
+#include <rex/ppc/hook.h>
 #include <rex/types.h>
-#include <rex/system/flags.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xtypes.h>
+#include <rex/kernel/object/module_object.h>
+#include <rex/kernel/types/status.h>
+#include "kernel/stub_log.h"
+#include "kernel/kernel.h"
+#include "kernel/settings_access.h"
 
 namespace rex::kernel::xboxkrnl {
 
-X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
-                               uint16_t buffer_size, uint16_t* required_size) {
-  uint16_t setting_size = 0;
-  alignas(uint32_t) uint8_t value[4];
+/**
+ * Reads a console configuration setting.
+ *
+ * Category 0x0002 (secured) supports setting 0x0002 (AV region), reported as 0x1000 (USA/Canada).
+ * Category 0x0003 (user) supports the settings
+ * - 0x0001 to 0x0007 (time zone), reported as 0
+ * - 0x0009 (language)
+ * - 0x000A (video flags)
+ * - 0x000B (audio flags)
+ * - 0x000C (retail flags)
+ * - 0x000E (country)
+ * - 0x0019 (PC flags), reported as 0x03 (XBLAllowed | XBLMembershipCreationAllowed)
+ *
+ * @param category The setting category.
+ * @param setting The setting within the category.
+ * @param buffer Receives the value, may be null to query the size.
+ * @param buffer_size The size of buffer in bytes.
+ * @param required_size Receives the size of the value in bytes, may be null.
+ * @return X_STATUS_SUCCESS, or an error status for an unknown category or setting or a bad buffer.
+ */
+X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer_size,
+                             u16* required_size) {
+  u16 setting_size = 0;
+  alignas(u32) u8 value[4];
 
-  // TODO(benvanik): have real structs here that just get copied from.
-  // https://free60project.github.io/wiki/XConfig.html
-  // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
     case 0x0002:
-      // XCONFIG_SECURED_CATEGORY
       switch (setting) {
-        case 0x0002:  // XCONFIG_SECURED_AV_REGION
+        case 0x0002:
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x00001000);  // USA/Canada
+          memory::store<be_u32>(value, 0x00001000);
           break;
         default:
-          REXKRNL_WARN("Unimplemented XConfig SECURED setting 0x{:04X}", setting);
+          REX_KERNEL_STUB("XConfig SECURED setting 0x{:04X}", setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
     case 0x0003:
-      // XCONFIG_USER_CATEGORY
       switch (setting) {
-        case 0x0001:  // XCONFIG_USER_TIME_ZONE_BIAS
-        case 0x0002:  // XCONFIG_USER_TIME_ZONE_STD_NAME
-        case 0x0003:  // XCONFIG_USER_TIME_ZONE_DLT_NAME
-        case 0x0004:  // XCONFIG_USER_TIME_ZONE_STD_DATE
-        case 0x0005:  // XCONFIG_USER_TIME_ZONE_DLT_DATE
-        case 0x0006:  // XCONFIG_USER_TIME_ZONE_STD_BIAS
-        case 0x0007:  // XCONFIG_USER_TIME_ZONE_DLT_BIAS
+        case 0x0001:
+        case 0x0002:
+        case 0x0003:
+        case 0x0004:
+        case 0x0005:
+        case 0x0006:
+        case 0x0007:
           setting_size = 4;
-          // TODO(benvanik): get this value.
-          memory::store_and_swap<uint32_t>(value, 0);
+          memory::store<be_u32>(value, 0);
           break;
-        case 0x0009:  // XCONFIG_USER_LANGUAGE
+        case 0x0009:
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, REXCVAR_GET(user_language));
+          memory::store<be_u32>(value, static_cast<u32>(kernel::GetCurrent().GetUserLanguage()));
           break;
-        case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
+        case 0x000A:
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x00040000);
+          memory::store<be_u32>(value, 0x00040000);
           break;
-        case 0x000B:  // XCONFIG_USER_AUDIO_FLAGS
+        case 0x000B:
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x00010001);
+          memory::store<be_u32>(value, 0x00010001);
           break;
-        case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
+        case 0x000C:
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x40);
+          memory::store<be_u32>(value, 0x40);
           break;
-        case 0x000E:  // XCONFIG_USER_COUNTRY
+        case 0x000E:
           setting_size = 1;
-          value[0] = static_cast<uint8_t>(REXCVAR_GET(user_country));
+          value[0] =
+              static_cast<u8>(kernel::GetCurrentState().GetKernelSettings().user_country.Get());
           break;
-        case 0x0019:  // XCONFIG_USER_PC_FLAGS
+        case 0x0019:
           setting_size = 1;
-          // XBLAllowed | XBLMembershipCreationAllowed
           value[0] = 0x03;
           break;
         default:
-          REXKRNL_WARN("Unimplemented XConfig USER setting 0x{:04X}", setting);
+          REX_KERNEL_STUB("XConfig USER setting 0x{:04X}", setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
     default:
-      REXKRNL_WARN("Unimplemented XConfig category 0x{:04X}", category);
+      REX_KERNEL_STUB("XConfig category 0x{:04X}", category);
       return X_STATUS_INVALID_PARAMETER_1;
   }
 
@@ -112,11 +125,10 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
   return X_STATUS_SUCCESS;
 }
 
-u32 ExGetXConfigSetting_entry(u16 category, u16 setting, mapped_void buffer_ptr, u16 buffer_size,
-                              mapped_u16 required_size_ptr) {
-  uint16_t required_size = 0;
-  X_STATUS result =
-      xeExGetXConfigSetting(category, setting, buffer_ptr, buffer_size, &required_size);
+u32 ExGetXConfigSetting_entry(u16 category, u16 setting, MappedVoid buffer_ptr, u16 buffer_size,
+                              MappedU16 required_size_ptr) {
+  u16 required_size = 0;
+  X_STATUS result = ExGetXConfigSetting(category, setting, buffer_ptr, buffer_size, &required_size);
 
   if (required_size_ptr) {
     *required_size_ptr = required_size;

@@ -1,22 +1,26 @@
 /**
- * @file        test_memory.h
- * @brief       Single shared guest Memory instance for the unit test binary
+ * @file        tests/unit/test_memory.h
  *
- * Memory::Initialize reserves a 4.5GB page-file backed mapping. Two instances
- * in one process do not both survive, so every test must share this one.
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
  *
- * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #pragma once
 
-#include <rex/system/xmemory.h>
+#include <rex/kernel/heap.h>
 
-namespace rex::testing {
+namespace rex::test {
 
-/// Returns the process-wide guest Memory, initializing it on first use.
-/// Fails the calling assertion if initialization did not succeed.
-rex::memory::Memory& GetTestMemory();
+/**
+ * Returns the guest address space shared by the test case, creating it on first use.
+ * It is destroyed when the test case ends.
+ */
+rex::kernel::GuestAddressSpace& GetTestMemory();
 
-}  // namespace rex::testing
+/** Destroys the shared guest address space so another owner can create its own. */
+void ReleaseTestMemory();
+
+}  // namespace rex::test

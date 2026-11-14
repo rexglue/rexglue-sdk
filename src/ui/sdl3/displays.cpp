@@ -1,0 +1,77 @@
+/**
+ * @file        ui/sdl3/displays.cpp
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#include <memory>
+#include <span>
+
+#include <SDL3/SDL_locale.h>
+#include <SDL3/SDL_stdinc.h>
+#include <SDL3/SDL_video.h>
+
+#include "ui/sdl3/sdl_helper.h"
+#include "ui/sdl3/video_scope.h"
+
+namespace rex::ui::sdl3 {
+
+std::vector<Monitor> GetSDLDisplays() {
+  VideoScope video;
+  if (!video.IsOk()) {
+    return {};
+  }
+  int count = 0;
+  std::unique_ptr<SDL_DisplayID, decltype(&SDL_free)> ids(SDL_GetDisplays(&count), &SDL_free);
+  if (!ids) {
+    return {};
+  }
+  std::vector<Monitor> displays;
+  i32 index = 1;
+  for (const SDL_DisplayID id :
+       std::span<const SDL_DisplayID>(ids.get(), static_cast<size_t>(count))) {
+    Monitor info;
+    info.index = index++;
+    if (const char* name = SDL_GetDisplayName(id)) {
+      info.name = name;
+    }
+    SDL_Rect bounds{};
+    if (SDL_GetDisplayBounds(id, &bounds)) {
+      info.x = bounds.x;
+      info.y = bounds.y;
+      info.width = static_cast<u32>(bounds.w);
+      info.height = static_cast<u32>(bounds.h);
+    }
+    if (const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(id)) {
+      info.refresh_rate = mode->refresh_rate;
+    }
+    if (const f32 scale = SDL_GetDisplayContentScale(id); scale > 0.0f) {
+      info.content_scale = scale;
+    }
+    displays.push_back(std::move(info));
+  }
+  return displays;
+}
+
+std::vector<HostLocale> GetSDLPreferredLocales() {
+  i32 count = 0;
+  std::unique_ptr<SDL_Locale*, decltype(&SDL_free)> locales(SDL_GetPreferredLocales(&count),
+                                                            &SDL_free);
+  std::vector<HostLocale> result;
+  if (!locales) {
+    return result;
+  }
+  for (const SDL_Locale* locale : std::span(locales.get(), static_cast<size_t>(count))) {
+    if (locale && locale->language) {
+      result.push_back(
+          {.language = locale->language, .country = locale->country ? locale->country : ""});
+    }
+  }
+  return result;
+}
+
+}  // namespace rex::ui::sdl3
