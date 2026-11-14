@@ -52,6 +52,12 @@ bool BeginReport();
  */
 void WaitForOtherReport();
 
+/**
+ * Reports whether the calling thread is inside the terminate handler's rethrow of the active
+ * exception. An abort raised there means the rethrow found no active exception.
+ */
+bool IsReadingException();
+
 /** Reports whether InstallCrashReporter has run and UninstallCrashReporter has not. */
 bool IsCrashReporterInstalled();
 

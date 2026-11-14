@@ -38,6 +38,32 @@ REX_TEST_CASE("std::terminate names the exception type and message",
   CHECK(result.Has("crash child terminate"));
 }
 
+REX_TEST_CASE("std::terminate names a filesystem_error and its message",
+              "[base][crash][crash_report]") {
+  const auto result = RunChild("terminate-filesystem");
+  CHECK(result.status != 0);
+  CHECK(result.Has("uncaught"));
+  CHECK(result.Has("filesystem_error"));
+  CHECK(result.Has("crash child filesystem"));
+  CHECK(result.Has("end of crash report"));
+}
+
+REX_TEST_CASE("std::terminate reports an exception that is not a std::exception",
+              "[base][crash][crash_report]") {
+  const auto result = RunChild("terminate-other");
+  CHECK(result.status != 0);
+  CHECK(result.Has("uncaught exception of a type not derived from std::exception"));
+  CHECK(result.Has("end of crash report"));
+}
+
+REX_TEST_CASE("std::terminate with no active exception is reported",
+              "[base][crash][crash_report]") {
+  const auto result = RunChild("terminate-none");
+  CHECK(result.status != 0);
+  CHECK(result.Has("std::terminate with no active exception"));
+  CHECK(result.Has("end of crash report"));
+}
+
 REX_TEST_CASE("abort is reported", "[base][crash][crash_report]") {
   const auto result = RunChild("abort");
   CHECK(result.status != 0);

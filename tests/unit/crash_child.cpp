@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <memory>
@@ -83,8 +84,27 @@ namespace {
   throw std::runtime_error("crash child terminate");
 }
 
+[[noreturn, gnu::noinline]] void ThrowFilesystemError() {
+  throw std::filesystem::filesystem_error(
+      "crash child filesystem", "first.bin", "second.bin",
+      std::make_error_code(std::errc::no_such_file_or_directory));
+}
+
+[[noreturn, gnu::noinline]] void ThrowInt() {
+  throw 7;
+}
+
 // NOLINTNEXTLINE(bugprone-exception-escape): the test needs the throw to reach std::terminate
-[[noreturn]] void ThrowFromNoexcept() noexcept {
+[[noreturn]] void ThrowFromNoexcept(std::string_view mode) noexcept {
+  if (mode == "terminate-filesystem") {
+    ThrowFilesystemError();
+  }
+  if (mode == "terminate-other") {
+    ThrowInt();
+  }
+  if (mode == "terminate-none") {
+    std::terminate();
+  }
   Throw();
 }
 
@@ -402,12 +422,12 @@ int main(int argc, char** argv) {
     if (!rex::platform::InstallCrashReporter({.app_name = "rex-crash-child"})) {
       return 7;
     }
-    if (mode != "terminate") {
+    if (!mode.starts_with("terminate")) {
       return Run(mode);
     }
   } catch (const std::exception& error) {
     std::fprintf(stderr, "crash child failed: %s\n", error.what());
     return 9;
   }
-  ThrowFromNoexcept();
+  ThrowFromNoexcept(mode);
 }
