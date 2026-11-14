@@ -121,7 +121,13 @@ class REX_APP_API App : public SettingOwner {
   /**
    * The start and modules phases. Ends with OnInit.
    *
-   * @return Ok, or an error, which the app logged and showed.
+   * A shutdown or restart requested in OnConfigure or in OnAction ends startup after the last
+   * OnAction, before the instance lock and before any driver module loads. OnInit does not run,
+   * Init returns Ok and logs no error, and the caller goes on to Shutdown. A caller that runs Init
+   * itself tells the two outcomes apart with rex::app::IsShutdownRequested.
+   *
+   * @return Ok after OnInit, or Ok with startup ended early because a shutdown or restart was
+   *         requested, or an error, which the app logged and showed.
    */
   [[nodiscard]] Result<void> Init(const CLIArgList& args);
 
@@ -153,7 +159,8 @@ class REX_APP_API App : public SettingOwner {
 
   /**
    * Init, after the modules connect and before the config file, environment and command line
-   * apply. Set title layer values and register the program's own setting owners here.
+   * apply. Set title layer values and register the program's own setting owners here. A shutdown or
+   * restart requested here ends startup before any driver module loads.
    *
    * @return Ok, or an error that fails Init.
    */
@@ -165,7 +172,8 @@ class REX_APP_API App : public SettingOwner {
   virtual std::span<const CLIAction> GetActions() const;
 
   /**
-   * Init, after the command line is read, once for each action given.
+   * Init, after the command line is read, once for each action given. A shutdown or restart
+   * requested here ends startup after the last action, before any driver module loads.
    *
    * @param hit The action and the text given with it.
    * @return Ok, or an error that fails Init.

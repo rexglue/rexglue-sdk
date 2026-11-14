@@ -209,6 +209,55 @@ class ClashApp : public TestApp {
       rex::CLIAction{"config_file", "Clashes."}};
 };
 
+class InitProvider final : public rex::IModule {
+ public:
+  std::string_view GetName() const override { return "init_event"; }
+  rex::Result<void> Connect(rex::IInterfaceFactory&) override { return rex::Ok(); }
+  void Disconnect() override {}
+  rex::Result<void> Init() override {
+    g_events.push_back("provider:init");
+    return rex::Ok();
+  }
+  void Shutdown() override {}
+  rex::IInterface* QueryInterface(std::string_view, rex::u32) override { return nullptr; }
+};
+
+enum class RequestIn : rex::u8 { kConfigure, kAction, kInit };
+
+class RestartApp final : public ActionApp {
+ public:
+  explicit RestartApp(RequestIn where) : where_(where) { extra_providers.push_back(&provider_); }
+
+ protected:
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
+    REX_TRY_VOID(ActionApp::OnConfigure(settings));
+    Request(RequestIn::kConfigure);
+    return rex::Ok();
+  }
+
+  [[nodiscard]] rex::Result<void> OnAction(const rex::CLIActionHit& hit) override {
+    REX_TRY_VOID(ActionApp::OnAction(hit));
+    Request(RequestIn::kAction);
+    return rex::Ok();
+  }
+
+  [[nodiscard]] rex::Result<void> OnInit() override {
+    REX_TRY_VOID(ActionApp::OnInit());
+    Request(RequestIn::kInit);
+    return rex::Ok();
+  }
+
+ private:
+  void Request(RequestIn at) {
+    if (at == where_) {
+      rex::app::RequestRestart({"--updated", "--profile", "b"});
+    }
+  }
+
+  RequestIn where_;
+  InitProvider provider_;
+};
+
 std::filesystem::path LogFile(const std::filesystem::path& root) {
   for (const auto& entry : std::filesystem::directory_iterator(root / "logs")) {
     return entry.path();
@@ -452,6 +501,56 @@ REX_TEST_CASE_METHOD(Fixture, "A failed relaunch reaches the log before logging 
   REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
     return entry.text.find("relaunch failed") != std::string::npos;
   }));
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "A restart requested in OnConfigure ends startup before the modules init",
+                     "[app][app][restart]") {
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  RestartApp app(RequestIn::kConfigure);
+  REQUIRE(app.Init(Args()));
+  CHECK(rex::app::IsShutdownRequested());
+  CHECK(g_events == std::vector<std::string>{"app:configure"});
+  REQUIRE(app.Shutdown() == 0);
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  CHECK(std::ranges::none_of(entries, [](const rex::log::CapturedMessage& entry) {
+    return entry.level >= rex::log::Level::kWarn;
+  }));
+  CHECK(g_events == std::vector<std::string>{"app:configure", "relaunch"});
+  CHECK(g_relaunched == std::vector<std::string>{"--updated", "--profile", "b"});
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "A restart requested in OnAction ends startup before the modules init",
+                     "[app][app][restart]") {
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  RestartApp app(RequestIn::kAction);
+  REQUIRE(app.Init(Args({"--repair"})));
+  CHECK(rex::app::IsShutdownRequested());
+  CHECK(g_events == std::vector<std::string>{"app:configure", "app:action:repair"});
+  REQUIRE(app.Shutdown() == 0);
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  CHECK(std::ranges::none_of(entries, [](const rex::log::CapturedMessage& entry) {
+    return entry.level >= rex::log::Level::kWarn;
+  }));
+  CHECK(g_relaunched == std::vector<std::string>{"--updated", "--profile", "b"});
+}
+
+REX_TEST_CASE_METHOD(Fixture, "A restart requested in OnInit does not end startup",
+                     "[app][app][restart]") {
+  RestartApp app(RequestIn::kInit);
+  REQUIRE(app.Init(Args({"--repair"})));
+  CHECK(rex::app::IsShutdownRequested());
+  CHECK(g_events == std::vector<std::string>{"app:configure", "app:action:repair", "provider:init",
+                                             "app:init"});
+  REQUIRE(app.Shutdown() == 0);
+  CHECK(g_relaunched == std::vector<std::string>{"--updated", "--profile", "b"});
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Shutdown without Init returns 0", "[app][app]") {
