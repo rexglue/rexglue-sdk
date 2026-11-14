@@ -241,11 +241,9 @@ set(REXGLUE_FLOOR_VERSION
 
 rex_version_channel(REXGLUE_VERSION_CHANNEL VERSION "${REXGLUE_FULL_VERSION}")
 
-# Generate version header. Must run after REX_PLATFORM is set. The nonce stays the same across
-# reconfigures of one build tree, so the header only changes when the version does.
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_build_nonce.cmake)
-rexglue_get_build_nonce(REXGLUE_BUILD_NONCE)
-set(REXGLUE_BUILD_IDENTITY "${REXGLUE_FULL_VERSION}-${REXGLUE_BUILD_NONCE}")
+# Generate version header. Must run after REX_PLATFORM is set. Modules report the build identity,
+# the full version, and the loader logs it.
+set(REXGLUE_BUILD_IDENTITY "${REXGLUE_FULL_VERSION}")
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/rex/version.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h @ONLY

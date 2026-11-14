@@ -30,15 +30,7 @@ namespace rex {
  */
 class REX_API ModuleGroup final : public IInterfaceFactory {
  public:
-  /** Accepts modules built with the identity of this build. */
   ModuleGroup();
-
-  /**
-   * Accepts modules built with an identity.
-   *
-   * @param identity The identity a module must report.
-   */
-  explicit ModuleGroup(std::string_view identity);
 
   ~ModuleGroup() override;
 
@@ -77,12 +69,15 @@ class REX_API ModuleGroup final : public IInterfaceFactory {
 
   /**
    * Loads one module by name from the executable folder, then from the install library folder. A
-   * loaded module is not loaded again. The build identity is checked before any other symbol is
-   * resolved.
+   * loaded module is not loaded again. The build the library reports is logged, one line for
+   * each module, and not compared: a module loads on the interface names and versions it serves
+   * and requires.
    *
    * @param module_name The module name without postfix or extension, such as rexapu-sdl3.
-   * @return Success, or an error naming the module when it is missing, exports no identity, was
-   *         built for another release, serves no IModule or fails to connect or init.
+   * @return Success, or an error naming the module when it is missing, exports no module
+   *         symbols, serves no IModule or another version of it, or fails to connect or init. An
+   *         error ends with a line that names the build of the host and of each loaded library
+   *         when they are not all the same.
    */
   [[nodiscard]] Result<void> Load(std::string_view module_name);
 

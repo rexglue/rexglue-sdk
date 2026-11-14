@@ -33,6 +33,10 @@ Pull requests target the `development` branch of rexglue/rexglue-sdk and merge i
 3. Bring your branch up to date with the latest upstream `development` before you push, and resolve any conflicts.
 4. Open a pull request against `development` and link the issue in the description.
 
+## Changing an interface
+
+A change to the functions of an interface, to their order or to a type that crosses the boundary raises the version of that interface in the same commit. A version never goes down and is never reused. The SDK serves one version of each interface, so a raise does not keep the old version working. A reviewer checks the interface headers of every pull request for such a change.
+
 ## Pull request checks
 
 A maintainer starts the pull request checks by hand, in one of two ways:

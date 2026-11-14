@@ -151,7 +151,7 @@ class REX_UI_API UISettings final : public SettingOwner {
  * Window, ImGui, overlay and dialog calls belong on the UI thread. Calls marked "any thread" are
  * safe everywhere.
  */
-REX_DECLARE_INTERFACE(IUISystem, 1)
+REX_DECLARE_INTERFACE(IUISystem, 2)
 /** Returns the player's UI settings. */
   virtual UISettings& GetSettings() = 0;
 

@@ -171,7 +171,7 @@ namespace rex {
 class ProcessLoggerControl;
 
 /** The process logger as modules reach it. */
-REX_DECLARE_INTERFACE(ILogger, 1)
+REX_DECLARE_INTERFACE(ILogger, 2)
 /**
  * Adds categories, each with a setting log.categories.<name>, empty to follow log.level.
  *

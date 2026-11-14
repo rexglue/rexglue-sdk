@@ -16,7 +16,7 @@
 namespace rex::kernel {
 
 /** Interface the app uses to configure the kernel module before it starts. */
-REX_DECLARE_PRIVATE_INTERFACE(IKernelControl, 1)
+REX_DECLARE_PRIVATE_INTERFACE(IKernelControl, 2)
 /**
  * Sets the private factory the kernel gets its internal UI, graphics and settings interfaces
  * from. The app calls it between Connect and Init.

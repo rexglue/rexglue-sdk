@@ -12,7 +12,7 @@ There are three kinds of module:
 - A driver module is a shared library that provides drivers. A driver is the host implementation that a system runs, such as SDL3 audio or Vulkan graphics. The app loads a driver module only when a setting selects one of its drivers.
 - A code module is a module compiled into your program. The app adds it to the list without loading a library.
 
-A module library contains one `REX_DECLARE_MODULE` line. The macro creates the module object and exports three functions from the library: `ReXBuildIdentity`, `ReXEnumerateInterfaces` and `ReXCreateInterface`. The app reads the build identity first and refuses a library from another SDK build. It then lists the interfaces the module serves and creates the module object through `ReXCreateInterface`.
+A module library contains one `REX_DECLARE_MODULE` line. The macro creates the module object and exports three functions from the library: `ReXBuildIdentity`, `ReXEnumerateInterfaces` and `ReXCreateInterface`. The app reads the build identity and writes it to the log, one line for each module. It does not compare it. It then lists the interfaces the module serves and creates the module object through `ReXCreateInterface`.
 
 ## Interfaces
 
@@ -65,7 +65,7 @@ flowchart TB
         enum --> served
         create --> qi
     end
-    factory["IInterfaceFactory"] -- checks --> id
+    factory["IInterfaceFactory"] -- logs --> id
     factory -- lists --> enum
     factory -- creates --> create
     other["Other modules"] -- Connect --> factory
@@ -237,7 +237,15 @@ The file name has a postfix for the build configuration: `d` for Debug, `rd` for
 | macOS | `librexapu-sdl3d.dylib` |
 
 - A missing file fails `rex::Init` with "module 'rexapu-sdl3' not found at" and the path it tried.
-- Every module must come from the same SDK build as the program. A module from another build fails with "was built for another release".
+- A module is accepted on the interface names and versions it serves and requires. See [Versions and Builds](#versions-and-builds).
+
+## Versions and Builds
+
+The app does not check which SDK build a module comes from. A module loads when it serves `IModule` at the version the app knows, and every interface it requires is served at the same name and version. A module that requires a version nobody serves fails with "requires X version N". A module that serves another version of `IModule` fails with a message that names both versions.
+
+The build a library reports is logged at info level, one line for each module with its name, its file and the SDK build, or "unknown build" when the library reports none. When a module group fails and the host and the loaded libraries do not all report the same build, the error ends with a line such as `builds: host 0.11.0-dev.g0b78fa33, rexhid 0.11.0-dev.g0b78fa33, rexhid-sdl3 0.11.0-dev.g351bc94d`. A half updated install is then named where the failure is.
+
+A change to an interface needs a new version number when it changes a function, the order of the functions, or a type that crosses the boundary. The loader cannot see these changes, and a module built against the old layout calls the wrong function or reads the wrong bytes. Types of the standard library cross the boundary in most interfaces, such as `std::string`, `std::vector` and `Result`. Modules and the program need the same compiler, the same standard library and the same build configuration, such as `/MD` against `/MDd` on Windows, or their layouts differ without any version number changing. The rule for raising a version is in [Changing an interface](../contributing.md#changing-an-interface).
 
 ## Write a Module
 

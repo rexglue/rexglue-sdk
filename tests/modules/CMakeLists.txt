@@ -60,13 +60,53 @@ foreach (role exporter importer)
   )
 endforeach ()
 
-rex_add_test_module(rexmod-test-noidentity FOREIGN SOURCES foreign.cpp)
+rex_add_test_module(rexmod-test-nomodule FOREIGN SOURCES foreign.cpp)
 
 rex_add_test_module(rexmod-test-alloc SOURCES alloc/alloc_module.cpp LIBS rexbase)
 
 rex_add_test_module(rexmodule-test-good SOURCES good_module.cpp LIBS rexbase)
 rex_add_test_module(rexmodule-test-dyninit SOURCES dyninit_module.cpp LIBS rexbase)
-rex_add_test_module(rexmodule-test-otheridentity FOREIGN SOURCES otheridentity_module.cpp)
+
+# One source in four variants that differ in what they report. otherbuild reports another SDK build,
+# unknownbuild reports none, needsnewer requires a version nobody serves and othermodule serves
+# another version of IModule.
+set(_rex_variant_sources versioned_module.cpp)
+rex_add_test_module(
+  rexmodule-test-otherbuild
+  SOURCES
+  ${_rex_variant_sources}
+  LIBS
+  rexbase
+  DEFS
+  REX_TEST_BUILD="0.0.0-other"
+)
+rex_add_test_module(
+  rexmodule-test-unknownbuild
+  SOURCES
+  ${_rex_variant_sources}
+  LIBS
+  rexbase
+  DEFS
+  REX_TEST_NO_BUILD=1
+)
+rex_add_test_module(
+  rexmodule-test-needsnewer
+  SOURCES
+  ${_rex_variant_sources}
+  LIBS
+  rexbase
+  DEFS
+  REX_TEST_REQUIRES_VERSION=2
+)
+rex_add_test_module(
+  rexmodule-test-othermodule
+  SOURCES
+  ${_rex_variant_sources}
+  LIBS
+  rexbase
+  DEFS
+  REX_TEST_MODULE_VERSION=1
+)
 
 rexglue_audit_provider_init(rexmodule-test-good)
 rexglue_audit_provider_init(rexmodule-test-dyninit EXPECT_FAIL)

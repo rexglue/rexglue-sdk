@@ -39,7 +39,7 @@ struct AddOptions {
  * Owns every kernel object and maps handle values to them. Handles are 0xF8000000 plus 4 times
  * the slot. The pseudo handle 0xFFFFFFFF translates to 0 and 0xFFFFFFFE to the calling thread.
  */
-REX_DECLARE_INTERFACE(IObjectTable, 1)
+REX_DECLARE_INTERFACE(IObjectTable, 2)
   virtual ~IObjectTable() = default;
 
   /**

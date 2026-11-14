@@ -1,6 +1,6 @@
 /**
  * @file        tests/modules/foreign.cpp
- * @brief       Test module that exports no build identity
+ * @brief       Test library that exports none of the module symbols
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

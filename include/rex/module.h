@@ -174,7 +174,7 @@ class IInterfaceFactory {
 };
 
 /** A unit of the SDK or of a project. It connects to the interfaces it needs and serves its own. */
-REX_DECLARE_INTERFACE(IModule, 1)
+REX_DECLARE_INTERFACE(IModule, 2)
   virtual std::string_view GetName() const = 0;
 
   /**
@@ -277,11 +277,12 @@ inline constexpr const char* kCreateInterfaceSymbol = "ReXCreateInterface";
 /** The symbol a module exports to list its interfaces. */
 inline constexpr const char* kEnumerateInterfacesSymbol = "ReXEnumerateInterfaces";
 
-/** The symbol a module exports to report the SDK build it was compiled against. */
+/**
+ * The symbol a module exports to report the SDK build it was compiled against. The loader logs the
+ * text and does not compare it. A module loads on the interface names and versions it serves and
+ * requires.
+ */
 inline constexpr const char* kBuildIdentitySymbol = "ReXBuildIdentity";
-
-/** The identity of the SDK build these headers belong to. A module loads only when it matches. */
-inline constexpr const char* kBuildIdentity = REXGLUE_BUILD_IDENTITY;
 
 /** The type of ReXCreateInterface. Returns null when the module serves no such interface. */
 using CreateInterfaceFn = IInterface* (*)(const char* name, u32 version);

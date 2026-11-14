@@ -69,7 +69,7 @@ namespace rex::xam {
     std::span<const ui::HostLocale> locales);
 
 /** Picks the title language of the host. */
-REX_DECLARE_INTERFACE(IXAMLanguage, 1)
+REX_DECLARE_INTERFACE(IXAMLanguage, 2)
   virtual ~IXAMLanguage() = default;
 
   /**

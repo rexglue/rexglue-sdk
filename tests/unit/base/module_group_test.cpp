@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 
+#include <format>
 #include <span>
 #include <string>
 #include <vector>
@@ -327,38 +328,79 @@ REX_TEST_CASE("load keeps a module loaded twice once", "[base][module]") {
   CHECK(group.FindAll<ITestService>().size() == 1);
 }
 
-REX_TEST_CASE("load refuses another build identity before calling the module", "[base][module]") {
-  const auto file = rex::platform::GetExecutableFolder() /
-                    rex::detail::ModuleFileName("rexmodule-test-otheridentity");
-  rex::platform::DynamicLibrary probe;
-  REQUIRE(probe.Load(file, rex::platform::SymbolResolution::kImmediate));
-  auto* create_calls = probe.GetSymbol<int*>("rex_test_create_calls");
-  auto* enumerate_calls = probe.GetSymbol<int*>("rex_test_enumerate_calls");
-  REQUIRE(create_calls != nullptr);
-  REQUIRE(enumerate_calls != nullptr);
+REX_TEST_CASE("load accepts a module that reports another SDK build", "[base][module]") {
   rex::ModuleGroup group;
-  auto loaded = group.Load("rexmodule-test-otheridentity");
-  REQUIRE_FALSE(loaded);
-  CHECK(loaded.error().message.find("rexmodule-test-otheridentity") != std::string::npos);
-  CHECK(loaded.error().message.find("another release") != std::string::npos);
-  CHECK(*create_calls == 0);
-  CHECK(*enumerate_calls == 0);
+  REQUIRE(group.Load("rexmodule-test-otherbuild"));
+  REQUIRE(group.Connect());
+  REQUIRE(group.Init());
+  auto* service = group.Get<ITestService>();
+  REQUIRE(service != nullptr);
+  CHECK(service->GetValue() == 7);
 }
 
-REX_TEST_CASE("load compares the identity exactly", "[base][module]") {
-  rex::ModuleGroup other("another-release");
-  CHECK_FALSE(other.Load("rexmodule-test-good"));
-  rex::ModuleGroup matching("0.0.0-000000000000");
-  auto loaded = matching.Load("rexmodule-test-otheridentity");
-  REQUIRE_FALSE(loaded);
-  CHECK(loaded.error().message.find("does not serve") != std::string::npos);
+REX_TEST_CASE("load accepts a module that reports no build", "[base][module]") {
+  rex::ModuleGroup group;
+  REQUIRE(group.Load("rexmodule-test-unknownbuild"));
+  REQUIRE(group.Connect());
+  CHECK(group.Get<ITestService>() != nullptr);
 }
 
-REX_TEST_CASE("load refuses a module that exports no identity", "[base][module]") {
+REX_TEST_CASE("load refuses a library that is no module and names the symbol", "[base][module]") {
   rex::ModuleGroup group;
-  auto loaded = group.Load("rexmod-test-noidentity");
+  auto loaded = group.Load("rexmod-test-nomodule");
   REQUIRE_FALSE(loaded);
-  CHECK(loaded.error().message.find(rex::kBuildIdentitySymbol) != std::string::npos);
+  CHECK(loaded.error().message.find(rex::kCreateInterfaceSymbol) != std::string::npos);
+}
+
+REX_TEST_CASE("a module that requires a version nobody serves fails to connect", "[base][module]") {
+  rex::ModuleGroup group;
+  REQUIRE(group.Load("rexmodule-test-needsnewer"));
+  auto connected = group.Connect();
+  REQUIRE_FALSE(connected);
+  CHECK(connected.error().message.find("requires") != std::string::npos);
+  CHECK(connected.error().message.find("version 2") != std::string::npos);
+  // The host and the module report the same build, so no line names the builds.
+  CHECK(connected.error().message.find("builds:") == std::string::npos);
+}
+
+REX_TEST_CASE("a module that serves another version of IModule is refused naming both versions",
+              "[base][module]") {
+  rex::ModuleGroup group;
+  auto loaded = group.Load("rexmodule-test-othermodule");
+  REQUIRE_FALSE(loaded);
+  const std::string& message = loaded.error().message;
+  CHECK(message.find("rexmodule-test-othermodule") != std::string::npos);
+  CHECK(message.find(std::format("serves {} version 1, and this host needs version {}",
+                                 rex::IModule::kInterface.name,
+                                 rex::IModule::kInterface.version)) != std::string::npos);
+  CHECK(message.find("builds:") == std::string::npos);
+}
+
+REX_TEST_CASE("a failure names the builds when the host and the modules differ", "[base][module]") {
+  rex::ModuleGroup group;
+  REQUIRE(group.Load("rexmodule-test-otherbuild"));
+  REQUIRE(group.Load("rexmodule-test-unknownbuild"));
+  REQUIRE(group.Load("rexmodule-test-needsnewer"));
+  auto connected = group.Connect();
+  REQUIRE_FALSE(connected);
+  const std::string& message = connected.error().message;
+  const size_t line = message.find("builds: host ");
+  REQUIRE(line != std::string::npos);
+  const std::string builds = message.substr(line);
+  CHECK(builds.find(REXGLUE_BUILD_IDENTITY) != std::string::npos);
+  CHECK(builds.find("rexmodule-test-otherbuild 0.0.0-other") != std::string::npos);
+  CHECK(builds.find("rexmodule-test-unknownbuild unknown") != std::string::npos);
+  CHECK(builds.find("rexmodule-test-needsnewer " REXGLUE_BUILD_IDENTITY) != std::string::npos);
+  // The line ends the message.
+  CHECK(builds.find('\n') == std::string::npos);
+
+  rex::ModuleGroup refused;
+  REQUIRE(refused.Load("rexmodule-test-otherbuild"));
+  auto other = refused.Load("rexmodule-test-othermodule");
+  REQUIRE_FALSE(other);
+  CHECK(other.error().message.find("builds: host ") != std::string::npos);
+  CHECK(other.error().message.find("rexmodule-test-othermodule " REXGLUE_BUILD_IDENTITY) !=
+        std::string::npos);
 }
 
 REX_TEST_CASE("load reports a module that is not there", "[base][module]") {

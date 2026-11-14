@@ -20,7 +20,7 @@ class ILogger;
 class ISettingsRegistry;
 
 /** What a driver receives at Initialize, and its only route to core services. */
-REX_DECLARE_INTERFACE(IDriverContext, 1)
+REX_DECLARE_INTERFACE(IDriverContext, 2)
 /** Returns the settings registry, where the driver registers its own settings. */
   virtual ISettingsRegistry& GetSettingsRegistry() = 0;
 

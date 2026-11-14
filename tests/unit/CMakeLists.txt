@@ -432,7 +432,7 @@ target_compile_definitions(unit_tests PRIVATE REX_GPU_XENOS_STATIC)
 
 add_dependencies(
   unit_tests
-  rexmod-test-noidentity
+  rexmod-test-nomodule
   rexapu-sdl3
   rexhid-sdl3
   rexui-sdl3
@@ -440,7 +440,10 @@ add_dependencies(
   rexmod-test-recompiled-b
   rexmodule-test-good
   rexmodule-test-dyninit
-  rexmodule-test-otheridentity
+  rexmodule-test-otherbuild
+  rexmodule-test-unknownbuild
+  rexmodule-test-needsnewer
+  rexmodule-test-othermodule
 )
 if (WIN32)
   add_dependencies(unit_tests rexhid-xinput)

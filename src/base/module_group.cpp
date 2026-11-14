@@ -17,12 +17,17 @@ namespace rex {
 
 namespace {
 
+/** The build of the SDK this host was compiled from. */
+constexpr std::string_view kHostBuild = REXGLUE_BUILD_IDENTITY;
+
 struct Entry {
   platform::DynamicLibrary library;
   std::vector<InterfaceType> types;
   IModule* module = nullptr;
   CreateInterfaceFn create = nullptr;
   std::string label;
+  /** The build the library reports, or empty when the library reports none. */
+  std::string build;
   std::unique_ptr<IInterfaceFactory> factory;
   bool connected = false;
   bool inited = false;
@@ -51,7 +56,6 @@ IInterface* Query(Entry& entry, std::string_view name, u32 version) {
 }  // namespace
 
 struct ModuleGroup::State {
-  std::string identity;
   std::vector<std::unique_ptr<Entry>> entries;
   std::vector<Served> served;
   std::function<void(IModule&, bool)> observer;
@@ -185,6 +189,40 @@ struct ModuleGroup::State {
     return found;
   }
 
+  /**
+   * Adds a line to an error message that names the build of the host and of every loaded library,
+   * when they are not all the same. A mixed install is then named where the failure is.
+   *
+   * @param message The error message.
+   * @param pending A library that is loaded but not in the list yet, or null.
+   * @return The message, with the line when the builds differ.
+   */
+  std::string WithBuilds(std::string message, const Entry* pending = nullptr) const {
+    std::vector<std::pair<std::string_view, std::string_view>> builds{{"host", kHostBuild}};
+    const auto add = [&](const Entry& entry) {
+      if (entry.library) {
+        builds.emplace_back(entry.label, entry.build.empty() ? std::string_view("unknown")
+                                                             : std::string_view(entry.build));
+      }
+    };
+    for (const auto& entry : entries) {
+      add(*entry);
+    }
+    if (pending) {
+      add(*pending);
+    }
+    const bool same = std::ranges::all_of(
+        builds, [&](const auto& build) { return build.second == builds.front().second; });
+    if (same) {
+      return message;
+    }
+    message += "\nbuilds: ";
+    for (size_t i = 0; i < builds.size(); ++i) {
+      message += std::format("{}{} {}", i ? ", " : "", builds[i].first, builds[i].second);
+    }
+    return message;
+  }
+
   Result<void> ConnectEntry(size_t index) {
     Entry& entry = *entries[index];
     auto prefix_owner = std::make_unique<Prefix>(*this, entry);
@@ -193,15 +231,15 @@ struct ModuleGroup::State {
     for (const InterfaceType& required : entry.module->GetRequiredInterfaces()) {
       if (!prefix.Find(required.name, required.version)) {
         return Err(ErrorCategory::kModule,
-                   std::format("module '{}' requires {} version {}, which the host and the "
-                               "earlier modules do not serve",
-                               entry.label, required.name, required.version));
+                   WithBuilds(std::format("module '{}' requires {} version {}, which the host "
+                                          "and the earlier modules do not serve",
+                                          entry.label, required.name, required.version)));
       }
     }
     if (auto connected_module = entry.module->Connect(prefix); !connected_module) {
       return Err(ErrorCategory::kModule,
-                 std::format("module '{}' failed to connect, {}", entry.label,
-                             connected_module.error().message));
+                 WithBuilds(std::format("module '{}' failed to connect, {}", entry.label,
+                                        connected_module.error().message)));
     }
     entry.connected = true;
     prefix.Open();
@@ -211,8 +249,9 @@ struct ModuleGroup::State {
   Result<void> InitEntry(size_t index) {
     Entry& entry = *entries[index];
     if (auto started = entry.module->Init(); !started) {
-      return Err(ErrorCategory::kModule, std::format("module '{}' failed to init, {}", entry.label,
-                                                     started.error().message));
+      return Err(ErrorCategory::kModule,
+                 WithBuilds(std::format("module '{}' failed to init, {}", entry.label,
+                                        started.error().message)));
     }
     entry.inited = true;
     if (observer) {
@@ -306,8 +345,6 @@ struct ModuleGroup::State {
   }
 };
 
-ModuleGroup::ModuleGroup() : ModuleGroup(REXGLUE_BUILD_IDENTITY) {}
-
 namespace {
 
 class PrivateFactory final : public IInterfaceFactory {
@@ -328,8 +365,7 @@ class PrivateFactory final : public IInterfaceFactory {
 
 }  // namespace
 
-ModuleGroup::ModuleGroup(std::string_view identity) : state_(std::make_unique<State>()) {
-  state_->identity = identity;
+ModuleGroup::ModuleGroup() : state_(std::make_unique<State>()) {
   State* state = state_.get();
   state_->private_factory = std::make_unique<PrivateFactory>(
       [state](std::string_view name, u32 version) {
@@ -420,27 +456,24 @@ Result<void> ModuleGroup::Load(std::string_view module_name) {
   auto entry = std::make_unique<Entry>();
   entry->label = std::string(module_name);
   if (!entry->library.Load(file, platform::SymbolResolution::kImmediate)) {
-    return Err(ErrorCategory::kModule,
-               std::format("module '{}' failed to load from '{}', {}", module_name, file.string(),
-                           entry->library.GetLastError()));
+    return Err(ErrorCategory::kModule, state_->WithBuilds(std::format(
+                                           "module '{}' failed to load from '{}', {}", module_name,
+                                           file.string(), entry->library.GetLastError())));
   }
   using IdentityFn = const char* (*)();
-  auto identity = entry->library.GetSymbol<IdentityFn>(kBuildIdentitySymbol);
-  if (!identity) {
-    return Err(ErrorCategory::kModule,
-               std::format("module '{}' exports no {}", module_name, kBuildIdentitySymbol));
-  }
-  if (state_->identity != identity()) {
-    return Err(ErrorCategory::kModule,
-               std::format("module '{}' was built for another release ({}), this build is {}",
-                           module_name, identity(), state_->identity));
+  if (auto identity = entry->library.GetSymbol<IdentityFn>(kBuildIdentitySymbol)) {
+    if (const char* build = identity()) {
+      entry->build = build;
+    }
   }
   auto create = entry->library.GetSymbol<CreateInterfaceFn>(kCreateInterfaceSymbol);
   auto enumerate = entry->library.GetSymbol<EnumerateInterfacesFn>(kEnumerateInterfacesSymbol);
   if (!create || !enumerate) {
     return Err(ErrorCategory::kModule,
-               std::format("module '{}' exports no {}", module_name,
-                           create ? kEnumerateInterfacesSymbol : kCreateInterfaceSymbol));
+               state_->WithBuilds(
+                   std::format("module '{}' exports no {}", module_name,
+                               create ? kEnumerateInterfacesSymbol : kCreateInterfaceSymbol),
+                   entry.get()));
   }
   std::vector<InterfaceType> types(enumerate(nullptr, 0));
   enumerate(types.data(), static_cast<u32>(types.size()));
@@ -448,8 +481,16 @@ Result<void> ModuleGroup::Load(std::string_view module_name) {
     return Matches(IModule::kInterface, type.name, type.version);
   });
   if (!serves_module) {
-    return Err(ErrorCategory::kModule,
-               std::format("module '{}' does not serve {}", module_name, IModule::kInterface.name));
+    const auto other = std::ranges::find_if(types, [](const InterfaceType& type) {
+      return std::string_view(type.name) == IModule::kInterface.name;
+    });
+    const std::string reason =
+        other == types.end()
+            ? std::format("module '{}' does not serve {}", module_name, IModule::kInterface.name)
+            : std::format("module '{}' serves {} version {}, and this host needs version {}",
+                          module_name, IModule::kInterface.name, other->version,
+                          IModule::kInterface.version);
+    return Err(ErrorCategory::kModule, state_->WithBuilds(reason, entry.get()));
   }
   entry->types = types;
   entry->create = create;
@@ -457,8 +498,13 @@ Result<void> ModuleGroup::Load(std::string_view module_name) {
       static_cast<IModule*>(create(IModule::kInterface.name, IModule::kInterface.version));
   if (!entry->module) {
     return Err(ErrorCategory::kModule,
-               std::format("module '{}' returned no {}", module_name, IModule::kInterface.name));
+               state_->WithBuilds(
+                   std::format("module '{}' returned no {}", module_name, IModule::kInterface.name),
+                   entry.get()));
   }
+  REXLOG_INFO(
+      "module '{}' loaded from '{}', SDK build {}", module_name, file.string(),
+      entry->build.empty() ? std::string_view("unknown build") : std::string_view(entry->build));
   state_->entries.push_back(std::move(entry));
   return state_->Settle(state_->entries.size() - 1);
 }

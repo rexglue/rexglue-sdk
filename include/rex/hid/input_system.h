@@ -51,7 +51,7 @@ class REX_HID_API InputSettings final : public SettingOwner {
  * one when nothing else is present. Without input capture only the keyboard and mouse source reads
  * neutral, and AcquireUIBlock makes every user neutral. Any thread.
  */
-REX_DECLARE_INTERFACE(IInputSystem, 1)
+REX_DECLARE_INTERFACE(IInputSystem, 2)
   static constexpr u32 kMaxUsers = 4;
 
   /** The user value for GetKeystroke that takes a keystroke from any user. */

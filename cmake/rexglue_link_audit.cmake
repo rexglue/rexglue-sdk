@@ -276,8 +276,8 @@ rexglue_audit_export_visibility()
 # Requires the host allocator forwarders in every executable and shared or module library the SDK
 # builds, since a binary without them frees blocks of other binaries with the CRT.
 function (rexglue_audit_host_allocator)
-  # These model a module built against another SDK build, or against none, and have no forwarders.
-  set(allocator_exempt rexmod-test-noidentity rexmodule-test-otheridentity)
+  # This one models a library that is no module of the SDK, and has no forwarders.
+  set(allocator_exempt rexmod-test-nomodule)
   _rexglue_collect_targets("${PROJECT_SOURCE_DIR}" all_targets)
   _rexglue_collect_targets("${PROJECT_SOURCE_DIR}/thirdparty" third_party)
   set(missing "")
