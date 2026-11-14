@@ -386,12 +386,6 @@ Result<void> App::Init(const CLIArgList& args) {
         return failed("command line action", handled.error());
       }
     }
-    if (IsShutdownRequested()) {
-      // The error only unwinds rex::Init. Init reports success to the caller.
-      state.ended_early = true;
-      return Result<std::vector<std::string>>(
-          std::unexpected(Error(ErrorCategory::kRuntime, "startup ended by a shutdown request")));
-    }
     if (!single_instance.Get().empty()) {
       auto lock = platform::InstanceLock::Acquire(single_instance.Get());
       if (!lock) {
@@ -415,6 +409,12 @@ Result<void> App::Init(const CLIArgList& args) {
     }
     State::DrainNotices(settings_control);
 
+    if (IsShutdownRequested()) {
+      // The error only unwinds rex::Init. Init reports success to the caller.
+      state.ended_early = true;
+      return Result<std::vector<std::string>>(
+          std::unexpected(Error(ErrorCategory::kRuntime, "startup ended by a shutdown request")));
+    }
     if (auto crash = platform::InstallCrashReporter(GetCrashOptions()); !crash) {
       return failed("crash reporter", crash.error());
     }
@@ -442,8 +442,11 @@ Result<void> App::Init(const CLIArgList& args) {
 
   detail::SetInitOwner(this);
   if (auto started = rex::Init(config); !started) {
+    ILogger* const logger = state.logger;
     state.ForgetSystems();
     if (state.ended_early) {
+      // Shutdown flushes the log file through this pointer.
+      state.logger = logger;
       return Ok();
     }
     if (state.error_reported) {

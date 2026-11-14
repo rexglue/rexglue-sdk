@@ -121,10 +121,10 @@ class REX_APP_API App : public SettingOwner {
   /**
    * The start and modules phases. Ends with OnInit.
    *
-   * A shutdown or restart requested in OnConfigure or in OnAction ends startup after the last
-   * OnAction, before the instance lock and before any driver module loads. OnInit does not run,
-   * Init returns Ok and logs no error, and the caller goes on to Shutdown. A caller that runs Init
-   * itself tells the two outcomes apart with rex::app::IsShutdownRequested.
+   * A shutdown or restart requested in OnConfigure or in OnAction ends startup once the
+   * log file is open, before the crash reporter and before any driver module loads. OnInit does not
+   * run, Init returns Ok and logs no error, and the caller goes on to Shutdown. A caller that runs
+   * Init itself tells the two outcomes apart with rex::app::IsShutdownRequested.
    *
    * @return Ok after OnInit, or Ok with startup ended early because a shutdown or restart was
    *         requested, or an error, which the app logged and showed.
@@ -173,7 +173,7 @@ class REX_APP_API App : public SettingOwner {
 
   /**
    * Init, after the command line is read, once for each action given. A shutdown or restart
-   * requested here ends startup after the last action, before any driver module loads.
+   * requested here ends startup once the log file is open, before any driver module loads.
    *
    * @param hit The action and the text given with it.
    * @return Ok, or an error that fails Init.

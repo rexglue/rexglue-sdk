@@ -231,6 +231,7 @@ class RestartApp final : public ActionApp {
  protected:
   [[nodiscard]] rex::Result<void> OnConfigure(rex::SettingsRegistry& settings) override {
     REX_TRY_VOID(ActionApp::OnConfigure(settings));
+    REXLOG_INFO("update installed in OnConfigure");
     Request(RequestIn::kConfigure);
     return rex::Ok();
   }
@@ -519,6 +520,9 @@ REX_TEST_CASE_METHOD(Fixture,
   CHECK(std::ranges::none_of(entries, [](const rex::log::CapturedMessage& entry) {
     return entry.level >= rex::log::Level::kWarn;
   }));
+  std::ifstream in(LogFile(app.folder.path));
+  const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+  CHECK(text.find("update installed in OnConfigure") != std::string::npos);
   CHECK(g_events == std::vector<std::string>{"app:configure", "relaunch"});
   CHECK(g_relaunched == std::vector<std::string>{"--updated", "--profile", "b"});
 }
@@ -539,6 +543,9 @@ REX_TEST_CASE_METHOD(Fixture,
   CHECK(std::ranges::none_of(entries, [](const rex::log::CapturedMessage& entry) {
     return entry.level >= rex::log::Level::kWarn;
   }));
+  std::ifstream in(LogFile(app.folder.path));
+  const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+  CHECK(text.find("update installed in OnConfigure") != std::string::npos);
   CHECK(g_relaunched == std::vector<std::string>{"--updated", "--profile", "b"});
 }
 

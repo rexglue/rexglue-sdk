@@ -115,7 +115,7 @@ See [Exit Code](#exit-code) for the value that `main` returns.
 15. `OnInit` runs. The systems run and the window is open.
 16. The app reports each setting name from a source that no settings class declares.
 
-A shutdown or restart requested in `OnConfigure` or in `OnAction` ends `Init` after step 6. No driver module loads, `OnInit` does not run, `Init` returns Ok and logs no error, and the program goes on to `Shutdown`, which starts the new process when a restart was requested. A caller that calls `Init` itself tells this from a finished start with `rex::app::IsShutdownRequested`. A request made in `OnInit` or later does not change the start.
+A shutdown or restart requested in `OnConfigure` or in `OnAction` ends `Init` after step 10, once the log file is open and holds what `OnConfigure` and `OnAction` logged. The instance lock and the config file apply before that point, and a failure in them is an error as usual. No driver module loads, `OnInit` does not run, `Init` returns Ok and logs no error, and the program goes on to `Shutdown`, which starts the new process when a restart was requested. A caller that calls `Init` itself tells this from a finished start with `rex::app::IsShutdownRequested`. A request made in `OnInit` or later does not change the start.
 
 Steps 4 to 12 run inside the `select_plugins` callback of `rex::Init`, after the modules connect and before they init. See [Modules and Interfaces](modules.md#lifecycle) for that callback.
 
