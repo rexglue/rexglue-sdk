@@ -442,6 +442,12 @@ bool Build<PPC_INST_VMAXUH>(BuilderContext& ctx) {
 }
 
 template <>
+bool Build<PPC_INST_VMAXUW>(BuilderContext& ctx) {
+  ctx.EmitVecIntBinary("max_epu32", "u32");
+  return true;
+}
+
+template <>
 bool Build<PPC_INST_VMINUH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("min_epu16", "u16");
   return true;
