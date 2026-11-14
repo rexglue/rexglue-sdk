@@ -84,7 +84,11 @@ runs:
         curl -fsSL -o vulkan_sdk.zip "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/mac/vulkan_sdk.zip"
         unzip -q vulkan_sdk.zip
         installer=$(ls -d vulkansdk-*.app | head -n 1)
-        sudo "${installer}/Contents/MacOS/${installer%.app}" --root "${root}" --accept-licenses --default-answer --confirm-command install copy_only=1
+        sudo "${installer}/Contents/MacOS/${installer%.app}" --root "${root}" --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.vma copy_only=1
+        if [ ! -f "${root}/macOS/include/vma/vk_mem_alloc.h" ] && [ ! -f "${root}/macOS/include/vk_mem_alloc.h" ]; then
+          echo "error: the Vulkan SDK install has no vk_mem_alloc.h below ${root}/macOS/include, so the VMA component was not installed" >&2
+          exit 1
+        fi
         before=$(env | sort)
         old_path="$PATH"
         source "${root}/setup-env.sh"
