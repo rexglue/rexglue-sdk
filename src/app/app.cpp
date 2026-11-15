@@ -101,6 +101,8 @@ int ReportEntryFailure(const char* what) noexcept {
 
 class AppInfoModule final : public IModule {
  public:
+  REX_MODULE_SERVES(IAppInfo)
+
   explicit AppInfoModule(IAppInfo& info) : info_(info) {}
 
   std::string_view GetName() const override { return "appinfo"; }

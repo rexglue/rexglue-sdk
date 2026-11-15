@@ -151,6 +151,8 @@ class LayerApp : public TestApp {
 
 class OrderProvider final : public rex::IModule, public rex::IDriverModule {
  public:
+  REX_MODULE_SERVES(rex::IDriverModule)
+
   std::string_view GetName() const override { return "order"; }
   rex::Result<void> Connect(rex::IInterfaceFactory&) override {
     g_events.push_back("provider:connect");
@@ -855,6 +857,8 @@ std::unique_ptr<rex::IDriver> CreateUI() {
 
 class OrderProvider final : public rex::IModule, public rex::IDriverModule {
  public:
+  REX_MODULE_SERVES(rex::IDriverModule)
+
   std::string_view GetName() const override { return "order"; }
   rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}

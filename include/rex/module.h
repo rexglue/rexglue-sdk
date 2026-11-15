@@ -185,7 +185,10 @@ REX_DECLARE_INTERFACE(IModule, 2)
   virtual std::span<const InterfaceType> GetRequiredInterfaces() const { return {}; }
 
   /**
-   * Lists the interfaces this module serves besides IModule. REX_MODULE_SERVES defines it.
+   * Lists the interfaces this module serves besides IModule. REX_MODULE_SERVES defines it. A
+   * single lookup asks only the module that lists the name. A module that answers a name it does
+   * not list is found only when no module lists that name. FindAll asks every module. The host logs
+   * a warning once for each name a module answers without listing.
    *
    * @return The served interfaces. Empty by default.
    */
@@ -253,7 +256,11 @@ REX_API IInterfaceFactory* GetAppInterfaceFactory();
 
 }  // namespace detail
 
-/** Reaches the interfaces of the running app from anywhere in the program. */
+/**
+ * Reaches the interfaces of the running app from anywhere in the program. Each call asks the host
+ * list, then the one module that lists the name, and that module's QueryInterface or create
+ * function runs on every call. A caller that uses an interface often keeps the pointer it gets.
+ */
 class AppInterfaces {
  public:
   /**
@@ -269,6 +276,11 @@ class AppInterfaces {
   }
 };
 
+/**
+ * Finds an interface of the running app, as AppInterfaces::Get does.
+ *
+ * @param T An interface declared with REX_DECLARE_INTERFACE.
+ */
 #define REX_INTERFACE(T) ::rex::AppInterfaces::Get<T>()
 
 /** The symbol a module exports to hand over its interfaces. */
