@@ -79,9 +79,10 @@ struct ManifestConfig {
   static bool IsManifest(const std::filesystem::path& path);
 
   /**
-   * Inserts or overwrites [project].sdk_version in the manifest file.
+   * Inserts or overwrites [project].sdk_version in the manifest file. A file whose line holds the
+   * version is not written, so its time stays what it was.
    *
-   * @return True when the stamp was written, false on parse or write failure.
+   * @return True when the file holds the stamp afterwards, false on parse or write failure.
    */
   static bool WriteSDKVersionStamp(const std::filesystem::path& path, std::string_view version);
 };

@@ -163,7 +163,7 @@ flowchart TD
 ```
 
 - `foobar_codegen` runs `rexglue codegen`, and reruns it when an input listed in `codegen.d` changes.
-- `sources.cmake` lists the generated `.cpp` files of a binary. A change to it makes CMake configure again.
+- `sources.cmake` lists the generated `.cpp` files of a binary. A change to it, to `dll_targets.cmake` or to the `sources.cmake` of a DLL module makes CMake configure again.
 - `rexglue_setup_target` builds the entrypoint sources into the object library `foobar_recompiled`, with the precompiled header, and links it into the program.
 - `CMakeLists.txt` builds your hook sources into the object library `foobar_common`, which the program links. See [Weak Symbols](hooks.md#weak-symbols) for why it is an object library.
 - `dll_targets.cmake` defines a shared library for each DLL module, built into the folder of the program, which loads it at runtime.

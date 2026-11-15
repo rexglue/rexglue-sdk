@@ -75,25 +75,32 @@ macro (rexglue_project name)
 
   rexglue_recomp_options(REXGLUE_RECOMP_OPTIONS REXGLUE_RECOMP_OPTIMIZED)
 
-  # Include entrypoint generated code if codegen has been run.
-  if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_rexglue_project_OUTPUT_DIR}/sources.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/${_rexglue_project_OUTPUT_DIR}/sources.cmake")
-    set(REXGLUE_ENTRYPOINT_GENERATED_SOURCES ${GENERATED_SOURCES})
-    set(REXGLUE_ENTRYPOINT_PREFIX ${GENERATED_PREFIX})
-    set(REXGLUE_ENTRYPOINT_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${_rexglue_project_OUTPUT_DIR}")
-
-    # Carried on the sources so they hold for whichever target compiles them.
-    set_source_files_properties(
-      ${REXGLUE_ENTRYPOINT_GENERATED_SOURCES} PROPERTIES COMPILE_OPTIONS
-                                                         "${REXGLUE_RECOMP_OPTIONS}"
+  # A project that has not run codegen gets an empty sources.cmake. The file is then a configure
+  # dependency, so the first codegen run that fills it regenerates the build files.
+  set(_rexglue_project_sources
+      "${CMAKE_CURRENT_SOURCE_DIR}/${_rexglue_project_OUTPUT_DIR}/sources.cmake"
+  )
+  if (NOT EXISTS "${_rexglue_project_sources}")
+    file(WRITE "${_rexglue_project_sources}"
+         "set(GENERATED_SOURCES)\nset(GENERATED_PREFIX \"${name}\")\n"
     )
   endif ()
+  include("${_rexglue_project_sources}")
+  unset(_rexglue_project_sources)
+  set(REXGLUE_ENTRYPOINT_GENERATED_SOURCES ${GENERATED_SOURCES})
+  set(REXGLUE_ENTRYPOINT_PREFIX ${GENERATED_PREFIX})
+  set(REXGLUE_ENTRYPOINT_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${_rexglue_project_OUTPUT_DIR}")
 
-  # Codegen runs as part of the build, re-running only when an input in codegen.d or
-  # REXGLUE_RECOMP_MAX_FILE_SIZE changes. A run that changes the list of sources regenerates the
-  # build files before anything compiles them. Listing the sources as outputs orders any target
-  # that compiles them after codegen, including one a project assembles itself rather than taking
-  # the library rexglue_setup_target() builds.
+  # Carried on the sources so they hold for whichever target compiles them.
+  set_source_files_properties(
+    ${REXGLUE_ENTRYPOINT_GENERATED_SOURCES} PROPERTIES COMPILE_OPTIONS "${REXGLUE_RECOMP_OPTIONS}"
+  )
+
+  # Codegen runs as part of the build, re-running only when an input in its dependency file in the
+  # build folder or REXGLUE_RECOMP_MAX_FILE_SIZE changes. A run that changes the list of sources
+  # regenerates the build files before anything compiles them. Listing the sources as outputs orders
+  # any target that compiles them after codegen, including one a project assembles itself rather
+  # than taking the library rexglue_setup_target() builds.
   set(_rexglue_codegen_max_file_size)
   if (REXGLUE_RECOMP_MAX_FILE_SIZE)
     set(_rexglue_codegen_max_file_size MAX_FILE_SIZE "${REXGLUE_RECOMP_MAX_FILE_SIZE}")
