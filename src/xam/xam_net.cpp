@@ -650,11 +650,22 @@ void NetDll_XNetInAddrToString_entry([[maybe_unused]] u32 caller, [[maybe_unused
   rex::string::CopyTruncating(string_out, "666.666.666.666", string_size);
 }
 
-u32 NetDll_XNetXnAddrToInAddr_entry([[maybe_unused]] u32 caller,
-                                    [[maybe_unused]] GuestPtrT<XNADDR> xn_addr,
-                                    [[maybe_unused]] MappedVoid xid,
-                                    [[maybe_unused]] MappedVoid in_addr) {
-  return 1;
+u32 NetDll_XNetXnAddrToInAddr_entry([[maybe_unused]] u32 caller, GuestPtrT<XNADDR> xn_addr,
+                                    [[maybe_unused]] MappedVoid xid, MappedVoid in_addr) {
+  if (!xn_addr || !in_addr) {
+    return 1;
+  }
+  // Without real XNet security associations the IN_ADDR is simply the peer's address. Prefer
+  // the online address and fall back to the LAN one (titles fill either, depending on how they
+  // found the peer). Both fields and the IN_ADDR are in network byte order in guest memory, so
+  // copy the bytes.
+  u32 addr = 0;
+  std::memcpy(&addr, &xn_addr->inaOnline, sizeof(addr));
+  if (!addr) {
+    std::memcpy(&addr, &xn_addr->ina, sizeof(addr));
+  }
+  std::memcpy(in_addr.GetHostPtr(), &addr, sizeof(addr));
+  return addr ? 0 : 1;
 }
 
 u32 NetDll_XNetInAddrToXnAddr_entry([[maybe_unused]] u32 caller,
