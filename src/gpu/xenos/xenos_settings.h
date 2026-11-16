@@ -66,7 +66,7 @@ class XenosSettings : public SettingOwner {
   REX_SETTING(bool, half_pixel_offset, true, "Enable half pixel offset");
   REX_SETTING(bool, resolve_resolution_scale_fill_half_pixel_offset, true,
               "Fill half pixel offset during resolution scale resolve");
-  REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu, false,
+  REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu, true,
               "Execute the unclipped draw vertex shader on the CPU");
   REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu_with_scissor, false,
               "Execute the unclipped draw vertex shader on the CPU with scissor");
