@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -289,6 +290,11 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
    * @return True when the packet executed.
    */
   bool ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, u32 packet, u32 count);
+  /**
+   * Under vsync, waits until one guest refresh interval has passed since the previous swap, as the
+   * console completes a swap at a vertical blank.
+   */
+  void PaceSwap();
   bool ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader, u32 packet, u32 count);
   bool ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reader, u32 packet, u32 count);
   bool ExecutePacketType3_REG_RMW(memory::RingBuffer* reader, u32 packet, u32 count);
@@ -371,6 +377,8 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   IPhysicalWriteWatch& write_watch_;
   IGuestInterrupts& guest_interrupts_;
   XenosGraphicsDriverBase* graphics_system_ = nullptr;
+  /** When the next swap may complete under vsync, see PaceSwap. */
+  std::chrono::steady_clock::time_point next_swap_time_;
   xenos::RegisterFile* register_file_ = nullptr;
   rex::log::OncePerKey<xenos::RegisterFile::kRegisterCount> unknown_write_once_;
 

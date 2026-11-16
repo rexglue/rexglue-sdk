@@ -67,7 +67,10 @@ class VulkanSettings : public SettingOwner {
               kStartupOnly);
   REX_SETTING(bool, log_debug_messages, true, "Log Vulkan debug messages");
   REX_SETTING(bool, render_pass_clear, true, "Clear render pass during presentation");
-  REX_SETTING(bool, allow_present_mode_immediate, true, "Allow immediate present mode (no vsync)");
+  REX_SETTING(bool, allow_present_mode_immediate, true,
+              "Allow immediate present mode (may tear). Also used with gpu.vsync when mailbox is "
+              "unavailable, as guest frames are paced to the refresh rate by the GPU emulation; "
+              "disable it and mailbox to get blocking FIFO presentation instead");
   REX_SETTING(bool, allow_present_mode_mailbox, true,
               "Allow mailbox present mode (triple buffering)");
   REX_SETTING(bool, allow_present_mode_fifo_relaxed, true, "Allow FIFO relaxed present mode");

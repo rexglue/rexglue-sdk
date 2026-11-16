@@ -156,7 +156,7 @@ Every program has these settings. Declared by [`GraphicsSettings`](../devices/gr
 | Name | Type | Default | Life | Meaning |
 |---|---|---|---|---|
 | `gpu.driver` | `string` | `"any"` | startup only | `d3d12`, `vulkan`, `null`, `none` or `any`. `any` is `d3d12` on Windows and `vulkan` elsewhere. `none` fails in an app that requires graphics, such as a `TitleApp`. |
-| `gpu.vsync` | `bool` | `true` | live | Wait for vblank when presenting. |
+| `gpu.vsync` | `bool` | `true` | live | Pace guest frames to the refresh rate. Vulkan then presents with mailbox, else immediate, and waits for vblank (FIFO) only when both are disallowed; D3D12 waits for vblank. |
 | `gpu.frame_limit` | `f64` | `0.0` | live | Most presents per second. 0 is no limit. 0.0 to 1000.0. |
 | `gpu.resolution_scale_x` | `i32` | `1` | restart | Horizontal draw resolution scale. 1 to 8. |
 | `gpu.resolution_scale_y` | `i32` | `1` | restart | Vertical draw resolution scale. 1 to 8. |
@@ -233,7 +233,7 @@ These settings exist while the Vulkan driver is initialized. Declared by `Vulkan
 | `gpu.vulkan.require_fill_mode_non_solid` | `bool` | `true` | startup only | Require fillModeNonSolid support. Turn it off to fall back to solid fill for line and point polygon modes. |
 | `gpu.vulkan.log_debug_messages` | `bool` | `true` | live | Log Vulkan debug messages. |
 | `gpu.vulkan.render_pass_clear` | `bool` | `true` | live | Clear the render pass during presentation. |
-| `gpu.vulkan.allow_present_mode_immediate` | `bool` | `true` | live | Allow the immediate present mode, which does not wait for vsync. |
+| `gpu.vulkan.allow_present_mode_immediate` | `bool` | `true` | live | Allow the immediate present mode, which does not wait for vsync and may tear. With `gpu.vsync` it is used when mailbox is unavailable; disable it and mailbox to present with FIFO. |
 | `gpu.vulkan.allow_present_mode_mailbox` | `bool` | `true` | live | Allow the mailbox present mode, which gives triple buffering. |
 | `gpu.vulkan.allow_present_mode_fifo_relaxed` | `bool` | `true` | live | Allow the FIFO relaxed present mode. |
 | `gpu.vulkan.validation` | `bool` | `false` | startup only | Enable the Vulkan validation layers. |
