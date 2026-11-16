@@ -11,7 +11,7 @@ namespace rex::codegen {
 
 namespace {
 
-enum class Type : std::uint8_t { kString, kInteger, kBoolean, kArray, kTable };
+enum class Type : std::uint8_t { kString, kInteger, kBoolean, kArray, kTable, kIntegerOrArray };
 
 struct KeySpec {
   std::string_view name;
@@ -32,8 +32,8 @@ constexpr std::array kBinaryKeys = {
     KeySpec{"file_path", Type::kString},
     KeySpec{"out_directory_path", Type::kString},
     KeySpec{"template_dir", Type::kString},
-    KeySpec{"longjmp_address", Type::kInteger},
-    KeySpec{"setjmp_address", Type::kInteger},
+    KeySpec{"longjmp_address", Type::kIntegerOrArray},
+    KeySpec{"setjmp_address", Type::kIntegerOrArray},
     KeySpec{"skip_lr", Type::kBoolean},
     KeySpec{"skip_msr", Type::kBoolean},
     KeySpec{"ctr_as_local", Type::kBoolean},
@@ -121,6 +121,8 @@ std::string_view TypeName(Type type) {
       return "an array";
     case Type::kTable:
       return "a table";
+    case Type::kIntegerOrArray:
+      return "an integer or an array of integers";
   }
   return "";
 }
@@ -137,6 +139,8 @@ bool Matches(const toml::node& node, Type type) {
       return node.is_array();
     case Type::kTable:
       return node.is_table();
+    case Type::kIntegerOrArray:
+      return node.is_integer() || node.is_array();
   }
   return false;
 }

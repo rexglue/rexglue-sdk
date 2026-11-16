@@ -269,7 +269,7 @@ bool BuilderContext::CanTailCall() const {
 
 bool BuilderContext::EmitTailCall(u32 address) {
   const auto& cfg = GetConfig();
-  if (!CanTailCall() || address == cfg.longjmp_address || address == cfg.setjmp_address) {
+  if (!CanTailCall() || cfg.IsLongjmp(address) || cfg.IsSetjmp(address)) {
     return false;
   }
   const auto* target = FindCallTarget(base);
@@ -288,12 +288,12 @@ bool BuilderContext::EmitTailCall(u32 address) {
 void BuilderContext::EmitFunctionCall(u32 address) {
   const auto& cfg = GetConfig();
 
-  if (address == cfg.longjmp_address) {
+  if (cfg.IsLongjmp(address)) {
     Println("\tppc_longjmp({}.u32, {}.s32);", R(3), R(4));
     return;
   }
 
-  if (address == cfg.setjmp_address) {
+  if (cfg.IsSetjmp(address)) {
     Println("\t{}", kSyncToCtx);
     Println("\t{} = ctx;", Env());
     Println("\t{}.s64 = ppc_setjmp({}.u32);", Temp(), R(3));

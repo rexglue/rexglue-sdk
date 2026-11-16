@@ -149,14 +149,29 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
     cfg.is_dll = root["is_dll"].value_or(false);
   }
 
-  if (auto v = root["longjmp_address"].value<i64>()) {
-    u32 addr = static_cast<u32>(*v);
-    MergeScalar(cfg.longjmp_address, addr, "longjmp_address");
-  }
-  if (auto v = root["setjmp_address"].value<i64>()) {
-    u32 addr = static_cast<u32>(*v);
-    MergeScalar(cfg.setjmp_address, addr, "setjmp_address");
-  }
+  // longjmp_address / setjmp_address: an address, or an array of every address the game calls
+  // it at (a body and the incremental linker's thunks to it). A later file's value replaces an
+  // earlier one's, as a scalar does; the first address is also the scalar.
+  auto jmp_addresses = [&](const char* key, u32& first, std::unordered_set<u32>& all) {
+    std::vector<u32> addrs;
+    if (auto v = root[key].value<i64>()) {
+      addrs.push_back(static_cast<u32>(*v));
+    } else if (auto* arr = root[key].as_array()) {
+      for (auto& e : *arr) {
+        if (auto a = e.value<i64>()) {
+          addrs.push_back(static_cast<u32>(*a));
+        }
+      }
+    }
+    if (addrs.empty()) {
+      return;
+    }
+    MergeScalar(first, addrs[0], key);
+    all.clear();
+    all.insert(addrs.begin(), addrs.end());
+  };
+  jmp_addresses("longjmp_address", cfg.longjmp_address, cfg.longjmp_addresses);
+  jmp_addresses("setjmp_address", cfg.setjmp_address, cfg.setjmp_addresses);
 
   if (auto* analysis_table = root["analysis"].as_table()) {
     if (auto handlers = (*analysis_table)["exception_handler_funcs"].as_array()) {
@@ -552,6 +567,8 @@ void RecompilerConfig::ClearAddressEntries() {
   mid_asm_hooks.clear();
   longjmp_address = 0;
   setjmp_address = 0;
+  longjmp_addresses.clear();
+  setjmp_addresses.clear();
   shim_functions.clear();
   invalid_instruction_hints.clear();
   declared_mmio_accesses.clear();
@@ -588,6 +605,16 @@ void RecompilerConfig::MergeSharedEntriesIn(const RecompilerConfig& shared, u32 
   if (setjmp_address == 0 && InImage(shared.setjmp_address, base, size) &&
       shared.setjmp_address != 0) {
     setjmp_address = shared.setjmp_address;
+  }
+  for (u32 address : shared.longjmp_addresses) {
+    if (InImage(address, base, size)) {
+      longjmp_addresses.insert(address);
+    }
+  }
+  for (u32 address : shared.setjmp_addresses) {
+    if (InImage(address, base, size)) {
+      setjmp_addresses.insert(address);
+    }
   }
   for (const auto& [name, address] : shared.shim_functions) {
     if (InImage(address, base, size)) {
@@ -642,6 +669,16 @@ std::vector<std::string> RecompilerConfig::ListEntriesOutside(
   if (setjmp_address != 0) {
     check("setjmp_address", setjmp_address);
   }
+  for (u32 address : longjmp_addresses) {
+    if (address != longjmp_address) {
+      check("longjmp_address", address);
+    }
+  }
+  for (u32 address : setjmp_addresses) {
+    if (address != setjmp_address) {
+      check("setjmp_address", address);
+    }
+  }
   std::sort(outside.begin(), outside.end());
   return outside;
 }
@@ -658,6 +695,12 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
 
   check_alignment(longjmp_address, "longjmp");
   check_alignment(setjmp_address, "setjmp");
+  for (u32 addr : longjmp_addresses) {
+    check_alignment(addr, "longjmp");
+  }
+  for (u32 addr : setjmp_addresses) {
+    check_alignment(addr, "setjmp");
+  }
   for (const auto& entry : declared_mmio_accesses) {
     check_alignment(entry.first, "mmio");
   }

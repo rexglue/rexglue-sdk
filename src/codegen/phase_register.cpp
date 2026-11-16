@@ -694,6 +694,9 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
   if (config.longjmp_address != 0) {
     graph.DeclareNoReturn(config.longjmp_address);
   }
+  for (u32 address : config.longjmp_addresses) {
+    graph.DeclareNoReturn(address);
+  }
 
   size_t config_funcs = 0, config_chunks = 0;
   for (const auto& [address, cfg] : config.functions) {
