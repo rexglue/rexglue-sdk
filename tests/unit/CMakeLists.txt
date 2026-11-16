@@ -521,9 +521,13 @@ target_include_directories(
   midasm-generated-hooks PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/midasm_generated
 )
 target_link_libraries(midasm-generated-hooks PRIVATE rexkernel)
+# The test below builds this target after unit_tests writes declarations.inc, so rexglue_tests
+# leaves it out.
 set_target_properties(
-  midasm-generated-hooks PROPERTIES EXPORT_COMPILE_COMMANDS OFF RUNTIME_OUTPUT_DIRECTORY
-                                                                $<TARGET_FILE_DIR:rexkernel>
+  midasm-generated-hooks
+  PROPERTIES EXPORT_COMPILE_COMMANDS OFF
+             RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexkernel>
+             REXGLUE_BUILT_BY_TEST ON
 )
 if (UNIX AND NOT APPLE)
   rexglue_set_rpath(midasm-generated-hooks "$ORIGIN")

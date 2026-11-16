@@ -321,7 +321,7 @@ A variable with a configuration suffix overrides the plain variable for that con
 
 | Option | Default | Meaning |
 |---|---|---|
-| `REXGLUE_BUILD_TESTS` | `ON` when the SDK is the top level project | Builds the unit tests. |
+| `REXGLUE_BUILD_TESTS` | `ON` when the SDK is the top level project | Adds the unit tests. The default target and `install` do not build them. Build the `rexglue_tests` target, then run `ctest`. |
 | `REXGLUE_BUILD_PPC_TESTS` | `OFF` | Builds the PPC instruction tests, which require the PPC toolchain. |
 | `REXGLUE_ENABLE_SANITIZERS` | `OFF` | Builds with UndefinedBehaviorSanitizer. |
 | `REXGLUE_ENABLE_TSAN` | `OFF` | Builds with ThreadSanitizer and adds a `-tsan` suffix to the output folder. |

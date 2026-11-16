@@ -61,3 +61,38 @@ add_subdirectory(unit)
 if (REXGLUE_BUILD_PPC_TESTS)
   add_subdirectory(ppc)
 endif ()
+
+# Builds every test executable and test module. The folder is excluded from the default target, so
+# build this target before ctest. Object libraries and targets with REXGLUE_BUILT_BY_TEST are left
+# out, since a test builds them itself.
+function (_rexglue_collect_test_targets folder out_var)
+  get_property(
+    _targets
+    DIRECTORY "${folder}"
+    PROPERTY BUILDSYSTEM_TARGETS
+  )
+  foreach (_target IN LISTS _targets)
+    get_target_property(_type ${_target} TYPE)
+    get_target_property(_built_by_test ${_target} REXGLUE_BUILT_BY_TEST)
+    if (_type MATCHES "^(EXECUTABLE|SHARED_LIBRARY|MODULE_LIBRARY)$" AND NOT _built_by_test)
+      list(APPEND _found ${_target})
+    endif ()
+  endforeach ()
+  get_property(
+    _folders
+    DIRECTORY "${folder}"
+    PROPERTY SUBDIRECTORIES
+  )
+  foreach (_folder IN LISTS _folders)
+    _rexglue_collect_test_targets("${_folder}" _nested)
+    list(APPEND _found ${_nested})
+  endforeach ()
+  set(${out_var}
+      ${_found}
+      PARENT_SCOPE
+  )
+endfunction ()
+
+_rexglue_collect_test_targets("${CMAKE_CURRENT_SOURCE_DIR}" _rexglue_test_targets)
+add_custom_target(rexglue_tests COMMENT "Building the tests")
+add_dependencies(rexglue_tests ${_rexglue_test_targets})

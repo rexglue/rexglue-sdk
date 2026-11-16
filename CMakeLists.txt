@@ -319,10 +319,11 @@ add_subdirectory(src/rexglue)
 rexglue_group_object_libraries()
 include(cmake/rexglue_sdk.cmake)
 
-# Add tests subdirectory if tests are enabled
+# Add tests subdirectory if tests are enabled. EXCLUDE_FROM_ALL keeps the test targets out of the
+# default target and out of install, and the rexglue_tests target builds them.
 if (REXGLUE_BUILD_TESTS)
   enable_testing()
-  add_subdirectory(tests)
+  add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif ()
 
 include(cmake/rexglue_link_audit.cmake)
