@@ -105,6 +105,14 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysical
    */
   void RangeWrittenByGPU(u32 start, u32 length);
 
+  /**
+   * Checks whether every page of the range holds the current guest data, uploaded or written by
+   * the GPU and not invalidated by the CPU since.
+   *
+   * @param lock The lock from AcquireLock, held by the caller.
+   */
+  bool IsRangeValid(const ScopeGuard& lock, u32 start, u32 length) const;
+
  protected:
   SharedMemory(IPhysicalMemory& memory, IPhysicalWriteWatch& watch);
   /** Implementations call it from their initialization. */

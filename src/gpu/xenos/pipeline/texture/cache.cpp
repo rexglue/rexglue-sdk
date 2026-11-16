@@ -476,21 +476,35 @@ TextureCache::Texture::~Texture() {
 
 void TextureCache::Texture::UpdateAndWatch(const ScopeGuard& watch_lock) {
   SharedMemory& shared_memory = GetTextureCache().GetSharedMemory();
+  // The CPU may have written the memory after RequestRanges uploaded it for this load, but before
+  // the watches below exist. That write invalidated and unprotected the pages without firing a
+  // watch for this texture, so watching them now would keep the stale data until the CPU writes a
+  // page that is still protected, possibly never. Such a part stays outdated instead, to be loaded
+  // again on its next use. The lock is held, so no write can be handled between the check and the
+  // watch.
   if (base_outdated_) {
     REX_ASSERT(GetGuestBaseSize() != 0);
-    base_outdated_ = false;
-    base_watch_handle_ =
-        shared_memory.WatchMemoryRange(watch_lock, GetKey().base_page << 12, GetGuestBaseSize(),
-                                       TextureCache::WatchCallback, this, nullptr, 0);
-    outdated_mask_.fetch_and(~kOutdatedBitBase, std::memory_order_release);
+    if (shared_memory.IsRangeValid(watch_lock, GetKey().base_page << 12, GetGuestBaseSize())) {
+      base_outdated_ = false;
+      base_watch_handle_ =
+          shared_memory.WatchMemoryRange(watch_lock, GetKey().base_page << 12, GetGuestBaseSize(),
+                                         TextureCache::WatchCallback, this, nullptr, 0);
+      outdated_mask_.fetch_and(~kOutdatedBitBase, std::memory_order_release);
+    } else {
+      GetTextureCache().texture_became_outdated_.store(true, std::memory_order_release);
+    }
   }
   if (mips_outdated_) {
     REX_ASSERT(GetGuestMipsSize() != 0);
-    mips_outdated_ = false;
-    mips_watch_handle_ =
-        shared_memory.WatchMemoryRange(watch_lock, GetKey().mip_page << 12, GetGuestMipsSize(),
-                                       TextureCache::WatchCallback, this, nullptr, 1);
-    outdated_mask_.fetch_and(~kOutdatedBitMips, std::memory_order_release);
+    if (shared_memory.IsRangeValid(watch_lock, GetKey().mip_page << 12, GetGuestMipsSize())) {
+      mips_outdated_ = false;
+      mips_watch_handle_ =
+          shared_memory.WatchMemoryRange(watch_lock, GetKey().mip_page << 12, GetGuestMipsSize(),
+                                         TextureCache::WatchCallback, this, nullptr, 1);
+      outdated_mask_.fetch_and(~kOutdatedBitMips, std::memory_order_release);
+    } else {
+      GetTextureCache().texture_became_outdated_.store(true, std::memory_order_release);
+    }
   }
 }
 
