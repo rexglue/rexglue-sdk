@@ -73,10 +73,10 @@ bool SettingBase::IsFrozen() const {
   if (state_->layer == SettingLayer::kLock) {
     return true;
   }
-  switch (state_->constraints.life) {
-    case SettingLife::kStartupOnly:
+  switch (state_->constraints.mode) {
+    case SettingMode::kInitOnly:
       return g_startup_frozen.load();
-    case SettingLife::kUntilLaunch:
+    case SettingMode::kLockedInGame:
       return g_launch_frozen.load();
     default:
       return false;
@@ -183,7 +183,7 @@ Result<void> SettingBase::SetText(SettingLayer layer, std::string_view text) {
   if (Render() == before) {
     return Ok();
   }
-  if (state_->constraints.life == SettingLife::kRestart && g_startup_frozen.load()) {
+  if (state_->constraints.mode == SettingMode::kRequiresRestart && g_startup_frozen.load()) {
     state_->restart_pending = true;
     return Ok();
   }

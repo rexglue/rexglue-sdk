@@ -220,19 +220,19 @@ class REX_API Logger final : public SettingOwner, public ILogger {
               Allowed("trace", "dev", "debug", "info", "warn", "error", "critical", "off"));
   REX_SETTING(std::string, flush_level, "warn", "Lowest level that flushes every sink at once",
               Allowed("trace", "dev", "debug", "info", "warn", "error", "critical", "off"),
-              kStartupOnly);
-  REX_SETTING(i32, flush_interval, 1, "Seconds between flushes", Range{0, 60}, kStartupOnly);
-  REX_SETTING(bool, console, true, "Write to the console", kStartupOnly);
-  REX_SETTING(bool, debugger, true, "Write to an attached debugger", kStartupOnly);
-  REX_SETTING(bool, file, true, "Write a log file under app.log_root", kStartupOnly);
-  REX_SETTING(std::string, file_name, "", "File name, the app name when empty", kStartupOnly);
+              kInitOnly);
+  REX_SETTING(i32, flush_interval, 1, "Seconds between flushes", Range{0, 60}, kInitOnly);
+  REX_SETTING(bool, console, true, "Write to the console", kInitOnly);
+  REX_SETTING(bool, debugger, true, "Write to an attached debugger", kInitOnly);
+  REX_SETTING(bool, file, true, "Write a log file under app.log_root", kInitOnly);
+  REX_SETTING(std::string, file_name, "", "File name, the app name when empty", kInitOnly);
   REX_SETTING(i64, folder_budget, 0, "Bytes of old log files kept, 0 keeps all",
-              Range{0, 9007199254740992.0}, kStartupOnly);
+              Range{0, 9007199254740992.0}, kInitOnly);
   REX_SETTING(std::string, pattern, "%^%Y-%m-%d %H:%M:%S.%e %Q %-10n %j %v%$",
               "Layout of each line, an spdlog pattern with %Q for the level letter and %j for the "
               "thread",
-              kStartupOnly);
-  REX_SETTING(bool, color, false, "Color the console", kStartupOnly);
+              kInitOnly);
+  REX_SETTING(bool, color, false, "Color the console", kInitOnly);
 
   [[nodiscard]] Result<void> AddCategories(
       std::span<const log::LogCategory* const> categories) override;

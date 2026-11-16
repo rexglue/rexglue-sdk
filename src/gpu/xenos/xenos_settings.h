@@ -36,7 +36,7 @@ class XenosSettings : public SettingOwner {
   REX_SETTING(bool, allow_invalid_fetch_constants, false, "Allow invalid fetch constants");
   REX_SETTING(std::string, dump_shaders, "", "Path to dump shaders to");
   REX_SETTING(std::string, swap_post_effect, "none", "Swap post effect",
-              Allowed("none", "fxaa", "fxaa_extreme"), kRestart);
+              Allowed("none", "fxaa", "fxaa_extreme"), kRequiresRestart);
   REX_SETTING(bool, store_shaders, true,
               "Keep compiled shaders on disk and load them on later runs to avoid stutter");
   REX_SETTING(bool, mrt_edram_used_range_clamp_to_min, true,
@@ -45,11 +45,12 @@ class XenosSettings : public SettingOwner {
               "Execute the unclipped draw vertex shader on the CPU for the pixel shader interlock "
               "render backend");
   REX_SETTING(i32, texture_cache_memory_limit_render_to_texture, 24,
-              "Texture cache memory limit for render to texture (MB)", Range{1, 256}, kRestart);
+              "Texture cache memory limit for render to texture (MB)", Range{1, 256},
+              kRequiresRestart);
   REX_SETTING(i32, texture_cache_memory_limit_soft, 384, "Soft texture cache memory limit (MB)",
-              Range{64, 4096}, kRestart);
+              Range{64, 4096}, kRequiresRestart);
   REX_SETTING(i32, texture_cache_memory_limit_hard, 768, "Hard texture cache memory limit (MB)",
-              Range{128, 8192}, kRestart);
+              Range{128, 8192}, kRequiresRestart);
   REX_SETTING(i32, texture_cache_memory_limit_soft_lifetime, 30,
               "Soft texture cache memory limit lifetime (seconds)", Range{1, 3600});
   REX_SETTING(bool, pre_mask_resolve_l2_block, true,

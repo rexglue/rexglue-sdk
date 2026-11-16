@@ -74,7 +74,7 @@ sequenceDiagram
     R->>G: Route GPU block
     R->>U: AttachTitle
     R->>T: Create suspended
-    R->>R: Freeze kUntilLaunch
+    R->>R: Freeze kLockedInGame
     R->>T: Resume
     R->>R: Start Title Monitor
 ```
@@ -84,7 +84,7 @@ sequenceDiagram
 3. It attaches the title to the graphics system with the [driver context](../devices/driver-context.md) and routes the GPU register block to it.
 4. It attaches the title to the UI system with the title information.
 5. It creates `Main XThread` at the entry point of the executable, suspended.
-6. It freezes the `kUntilLaunch` settings, then resumes the thread.
+6. It freezes the `kLockedInGame` settings, then resumes the thread.
 7. It starts `Title Monitor`, which reports a normal exit when the main thread returns.
 
 If an attach or the thread creation fails, `Launch` unloads the title and returns the error.
@@ -103,7 +103,7 @@ sequenceDiagram
     R->>U: DetachTitle
     R->>T: Terminate
     R->>R: Join Title Monitor
-    R->>R: Thaw kUntilLaunch
+    R->>R: Thaw kLockedInGame
     R->>R: Stop threads
     R->>G: Detach GPU block
     R->>G: DetachTitle

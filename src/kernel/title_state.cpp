@@ -425,7 +425,7 @@ void TitleState::DetachSystems() {
 void TitleState::Shutdown() {
   title_launched_.store(false, std::memory_order_release);
   if (settings_control_) {
-    settings_control_->Thaw(SettingLife::kUntilLaunch);
+    settings_control_->Thaw(SettingMode::kLockedInGame);
     settings_control_ = nullptr;
   }
   TitleRuntime* self = &owner_;
@@ -576,7 +576,7 @@ void TitleState::ReportTitleLaunched() {
     if (services && services->controls) {
       settings_control_ = services->controls->Get<ISettingsRegistryControl>();
       if (settings_control_) {
-        settings_control_->Freeze(SettingLife::kUntilLaunch);
+        settings_control_->Freeze(SettingMode::kLockedInGame);
       }
     }
   }

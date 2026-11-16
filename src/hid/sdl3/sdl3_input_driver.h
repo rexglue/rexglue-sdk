@@ -32,7 +32,7 @@ namespace rex::hid::sdl3 {
 class SDL3InputDriver final : public IInputDriver, public SettingOwner {
  public:
   REX_SETTING(std::filesystem::path, mappings_file, "{app.root}/gamecontrollerdb.txt",
-              "SDL gamepad mappings file", kStartupOnly);
+              "SDL gamepad mappings file", kInitOnly);
 
   SDL3InputDriver();
 

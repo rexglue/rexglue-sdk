@@ -18,8 +18,8 @@ namespace rex {
 /** Reaches the private members of the process settings. */
 class ProcessSettingsControl final : public ISettingsRegistryControl {
  public:
-  void Freeze(SettingLife life) override;
-  void Thaw(SettingLife life) override;
+  void Freeze(SettingMode mode) override;
+  void Thaw(SettingMode mode) override;
   void ApplyEnvironment() override;
   std::vector<std::string> TakeNotices() override;
   std::vector<UnknownSetting> TakeUnknown() override;

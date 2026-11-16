@@ -4,7 +4,7 @@ A program keeps its files in host folders, and a setting chooses each folder. Th
 
 ## App Folders
 
-The `app.*` settings are [`kStartupOnly`](../app/settings.md#traits), so they are fixed once the systems start.
+The `app.*` settings are [`kInitOnly`](../app/settings.md#traits), so they are fixed once the systems start.
 
 | Setting | Default | Holds |
 |---|---|---|
@@ -36,7 +36,7 @@ When there is no user config folder, such as with no home folder, the app folder
 
 ## Game Folders
 
-The `title.*` settings are [`kUntilLaunch`](../app/settings.md#traits), so they are fixed when the game launches.
+The `title.*` settings are [`kLockedInGame`](../app/settings.md#traits), so they are fixed when the game launches.
 
 | Setting | Command line option | Default | Holds |
 |---|---|---|---|

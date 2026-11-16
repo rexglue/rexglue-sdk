@@ -28,7 +28,7 @@ class PerfSettings final : public SettingOwner {
   PerfSettings() : SettingOwner("perf") {}
 
   REX_SETTING(bool, profiler, false, "Start the Tracy profiler at startup when the build has it",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(i32, alloc_stack_depth, 0,
               "Call stack frames Tracy records for each memory allocation, 0 for none",
               Range{0, 32});

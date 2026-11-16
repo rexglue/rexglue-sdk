@@ -460,7 +460,7 @@ Result<void> App::Init(const CLIArgList& args) {
   State::DrainNotices(settings_control);
   detail::SetShutdownWake([ui = state.ui_control] { ui->EndFrameLoop(); });
 
-  settings_control.Freeze(SettingLife::kStartupOnly);
+  settings_control.Freeze(SettingMode::kInitOnly);
   state.phase = AppPhase::kRunning;
   if (auto initialized = OnInit(); !initialized) {
     return Fail("OnInit", initialized.error());

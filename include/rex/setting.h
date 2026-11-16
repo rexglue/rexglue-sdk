@@ -57,18 +57,18 @@ enum class SettingLayer : u8 {
   kLock,        /**< Locked by the project's code. */
 };
 
-enum class SettingLife : u8 {
-  kLive,        /**< Any time. Readers see the change on their next read. */
-  kRestart,     /**< Any time, applied on the next start. The registry lists it as pending. */
-  kStartupOnly, /**< Until the modules init, just before OnInit. */
-  kUntilLaunch,
+enum class SettingMode : u8 {
+  kNormal,          /**< Any time. Readers see the change on their next read. */
+  kRequiresRestart, /**< Any time, applied on the next start. The registry lists it as pending. */
+  kInitOnly,        /**< Until the modules init, just before OnInit. */
+  kLockedInGame,    /**< Locked while a title runs, from its launch until it unloads. */
 };
 
 struct SettingConstraints {
   std::optional<f64> min;
   std::optional<f64> max;
   std::vector<std::string> allowed; /**< The only accepted texts, when not empty. */
-  SettingLife life = SettingLife::kLive;
+  SettingMode mode = SettingMode::kNormal;
   bool no_save = false;    /**< Never written to the config file. */
   bool debug_only = false; /**< Hidden from the settings overlay outside debug builds. */
   bool key_chord = false;  /**< A key combination the settings overlay captures. */
@@ -88,9 +88,9 @@ struct Allowed {
   explicit Allowed(Texts... texts) : values{std::string(texts)...} {}
 };
 
-inline constexpr SettingLife kRestart = SettingLife::kRestart;
-inline constexpr SettingLife kStartupOnly = SettingLife::kStartupOnly;
-inline constexpr SettingLife kUntilLaunch = SettingLife::kUntilLaunch;
+inline constexpr SettingMode kRequiresRestart = SettingMode::kRequiresRestart;
+inline constexpr SettingMode kInitOnly = SettingMode::kInitOnly;
+inline constexpr SettingMode kLockedInGame = SettingMode::kLockedInGame;
 inline constexpr struct NoSave {
 } kNoSave;
 inline constexpr struct DebugOnly {
@@ -122,10 +122,11 @@ class REX_API SettingBase : public NonCopyable {
    */
   SettingLayer GetLayer() const;
 
-  /** Reports whether the value can no longer change, because it is locked or past its life. */
+  /** Reports whether the value can no longer change, because it is locked or its mode has closed
+   * it. */
   bool IsFrozen() const;
 
-  /** Reports whether a kRestart setting changed and waits for the next start. */
+  /** Reports whether a kRequiresRestart setting changed and waits for the next start. */
   bool IsRestartPending() const;
 
   /** Returns the value as text. A path keeps its {scope.name} references. */
@@ -193,7 +194,7 @@ class Setting final : public SettingBase {
   /**
    * Declares the setting. REX_SETTING is the usual way to write it.
    *
-   * @tparam Traits The traits, such as Range, Allowed, kRestart or kNoSave.
+   * @tparam Traits The traits, such as Range, Allowed, kRequiresRestart or kNoSave.
    */
   template <typename... Traits>
   Setting(SettingOwner* owner, std::string_view name, const T& default_value, std::string_view help,
@@ -320,8 +321,8 @@ inline void ApplyTrait(SettingConstraints& c, const Range& r) {
 inline void ApplyTrait(SettingConstraints& c, const Allowed& a) {
   c.allowed = a.values;
 }
-inline void ApplyTrait(SettingConstraints& c, SettingLife life) {
-  c.life = life;
+inline void ApplyTrait(SettingConstraints& c, SettingMode mode) {
+  c.mode = mode;
 }
 inline void ApplyTrait(SettingConstraints& c, NoSave) {
   c.no_save = true;
@@ -441,12 +442,12 @@ void Setting<T>::Notify() {
  * Declares a setting inside a SettingOwner.
  *
  * @code
- * REX_SETTING(i32, count, 4, "How many", Range{1, 8}, kRestart);
+ * REX_SETTING(i32, count, 4, "How many", Range{1, 8}, kRequiresRestart);
  * @endcode
  *
  * @param name The member name. The full name is the owner's scope plus this.
  * @param default_value A path default may name other paths as {scope.name}.
- * @param ... Optional traits such as Range, Allowed, kRestart, kStartupOnly and kUntilLaunch.
+ * @param ... Optional traits such as Range, Allowed, kRequiresRestart, kInitOnly and kLockedInGame.
  */
 #define REX_SETTING(Type, name, default_value, help, ...)       \
   ::rex::Setting<Type> name {                                   \

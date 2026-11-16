@@ -35,12 +35,12 @@ class REX_GPU_API GraphicsSettings final : public SettingOwner {
       "Graphics driver within the title's family. Values are d3d12, vulkan, null, none for no "
       "driver in an app that does not require one, or any for d3d12 on Windows and vulkan "
       "elsewhere",
-      kStartupOnly);
+      kInitOnly);
   REX_SETTING(bool, vsync, true, "Wait for vertical blank when presenting");
   REX_SETTING(f64, frame_limit, 0.0, "Most presents per second, 0 for no limit",
               Range{0.0, 1000.0});
-  REX_SETTING(i32, resolution_scale_x, 1, "Draw resolution scale X", Range{1, 8}, kRestart);
-  REX_SETTING(i32, resolution_scale_y, 1, "Draw resolution scale Y", Range{1, 8}, kRestart);
+  REX_SETTING(i32, resolution_scale_x, 1, "Draw resolution scale X", Range{1, 8}, kRequiresRestart);
+  REX_SETTING(i32, resolution_scale_y, 1, "Draw resolution scale Y", Range{1, 8}, kRequiresRestart);
   REX_SETTING(i32, anisotropic_override, 3,
               "Anisotropic filtering, -1 for the title's choice, 0 for off, 1 to 5 for 1x to 16x",
               Range{-1, 5});

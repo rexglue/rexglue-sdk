@@ -114,7 +114,7 @@ REX_DECLARE_INTERFACE(ISettingsRegistry, 1)
    */
   [[nodiscard]] virtual Result<void> Run(std::string_view name, std::string_view args) = 0;
 
-  /** Lists the kRestart settings whose change waits for the next start. */
+  /** Lists the kRequiresRestart settings whose change waits for the next start. */
   virtual std::vector<std::string> GetRestartPending() const = 0;
 
   /**

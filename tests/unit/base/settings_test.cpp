@@ -42,12 +42,12 @@ class AliasNamed final : public rex::SettingOwner {
   REX_SETTING(bool, debug, false, "Debug");
 };
 
-class LifeOwner final : public rex::SettingOwner {
+class ModeOwner final : public rex::SettingOwner {
  public:
-  LifeOwner() : SettingOwner("life") {}
-  REX_SETTING(rex::i32, startup, 1, "Startup", rex::kStartupOnly);
-  REX_SETTING(rex::i32, launch, 1, "Until launch", rex::kUntilLaunch);
-  REX_SETTING(rex::i32, restart, 5, "Restart", rex::kRestart);
+  ModeOwner() : SettingOwner("mode") {}
+  REX_SETTING(rex::i32, startup, 1, "Startup", rex::kInitOnly);
+  REX_SETTING(rex::i32, launch, 1, "Until launch", rex::kLockedInGame);
+  REX_SETTING(rex::i32, restart, 5, "Restart", rex::kRequiresRestart);
   REX_SETTING(rex::i32, live, 1, "Live");
 };
 
@@ -117,18 +117,18 @@ REX_TEST_CASE("a setting cannot take a name that is an alias", "[base][settings]
 }
 
 REX_TEST_CASE("settings: startup only refuses after freeze", "[base][settings]") {
-  LifeOwner life;
+  ModeOwner modes;
   HarnessApp app;
   app.configure = [&](rex::SettingsRegistry& settings) -> rex::Result<void> {
-    REX_TRY_VOID(settings.Register(life));
-    REQUIRE(life.startup.Set(2));
+    REX_TRY_VOID(settings.Register(modes));
+    REQUIRE(modes.startup.Set(2));
     return rex::Ok();
   };
   app.init = [&]() -> rex::Result<void> {
-    REQUIRE(life.startup.IsFrozen());
-    REQUIRE_FALSE(life.startup.Set(3));
-    REQUIRE(life.startup.Get() == 2);
-    REQUIRE(life.live.Set(9));
+    REQUIRE(modes.startup.IsFrozen());
+    REQUIRE_FALSE(modes.startup.Set(3));
+    REQUIRE(modes.startup.Get() == 2);
+    REQUIRE(modes.live.Set(9));
     return rex::Ok();
   };
   REQUIRE(app.Start());
@@ -137,26 +137,26 @@ REX_TEST_CASE("settings: startup only refuses after freeze", "[base][settings]")
 
 REX_TEST_CASE("settings: until launch writes at the title layer", "[base][settings]") {
   RunInInit([] {
-    LifeOwner life;
-    REQUIRE(REX_SETTINGS().Register(life));
-    REQUIRE(life.launch.Set(6));
-    REQUIRE(life.launch.GetLayer() == SettingLayer::kTitle);
-    REQUIRE(life.live.Set(4));
-    REQUIRE(life.live.Get() == 4);
+    ModeOwner modes;
+    REQUIRE(REX_SETTINGS().Register(modes));
+    REQUIRE(modes.launch.Set(6));
+    REQUIRE(modes.launch.GetLayer() == SettingLayer::kTitle);
+    REQUIRE(modes.live.Set(4));
+    REQUIRE(modes.live.Get() == 4);
   });
 }
 
 REX_TEST_CASE("settings: restart stages the value", "[base][settings]") {
   RunInInit([] {
-    LifeOwner life;
-    REQUIRE(REX_SETTINGS().Register(life));
-    REQUIRE(life.restart.Set(3));
-    REQUIRE(life.restart.Get() == 5);
-    REQUIRE(life.restart.GetText() == "3");
-    REQUIRE(life.restart.IsRestartPending());
+    ModeOwner modes;
+    REQUIRE(REX_SETTINGS().Register(modes));
+    REQUIRE(modes.restart.Set(3));
+    REQUIRE(modes.restart.Get() == 5);
+    REQUIRE(modes.restart.GetText() == "3");
+    REQUIRE(modes.restart.IsRestartPending());
     const auto pending = REX_SETTINGS().GetRestartPending();
     REQUIRE(pending.size() == 1);
-    REQUIRE(pending[0] == "life.restart");
+    REQUIRE(pending[0] == "mode.restart");
   });
 }
 

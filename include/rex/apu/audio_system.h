@@ -41,7 +41,7 @@ class REX_APU_API AudioSettings final : public SettingOwner {
   AudioSettings();
 
   REX_SETTING(std::string, driver, "sdl3",
-              "Audio driver, none for silence in an app that does not require audio", kStartupOnly);
+              "Audio driver, none for silence in an app that does not require audio", kInitOnly);
   REX_SETTING(bool, mute, false, "Mute the audio output");
   REX_SETTING(bool, mute_unfocused, false, "Mute while the window does not have focus");
   REX_SETTING(f64, gain, 1.0, "Output gain, 1 is unity", Range{0.0, 4.0});
@@ -50,7 +50,7 @@ class REX_APU_API AudioSettings final : public SettingOwner {
   REX_SETTING(f64, lfe, 1.0, "LFE level on a surround device", Range{0.0, 2.0});
   REX_SETTING(f64, peak_limit, 0.0, "Silence a stream that stays above this peak, 0 is off",
               Range{0.0, 8.0});
-  REX_SETTING(u32, max_queued_frames, 8, "Frames a stream may queue", Range{4, 64}, kUntilLaunch);
+  REX_SETTING(u32, max_queued_frames, 8, "Frames a stream may queue", Range{4, 64}, kLockedInGame);
 };
 
 /**

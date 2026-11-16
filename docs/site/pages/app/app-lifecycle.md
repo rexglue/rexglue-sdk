@@ -111,7 +111,7 @@ See [Exit Code](#exit-code) for the value that `main` returns.
 11. The app installs the crash reporter with the options from `GetCrashOptions`.
 12. The app calls `GetRequirements` and collects the driver modules that the driver settings select.
 13. `rex::Init` loads the driver modules, starts the profiler if `perf.profiler` is set, and inits every module. Each system starts its drivers. On Windows, `rex::Init` raises the timer resolution to 1 ms.
-14. The app freezes the `kStartupOnly` settings.
+14. The app freezes the `kInitOnly` settings.
 15. `OnInit` runs. The systems run and the window is open.
 16. The app reports each setting name from a source that no settings class declares.
 
@@ -146,7 +146,7 @@ See [Selecting Drivers](modules.md#selecting-drivers) for the driver settings.
 3. The app calls `OnTitleLaunch`. If the hook returns an error, the title unloads and the launch fails.
 4. The app calls `TitleRuntime::Launch`.
 
-From step 4 until the title unloads, a write to a `kUntilLaunch` setting such as `title.game_root` fails. See [Runtime Lifecycle](../runtime/lifecycle.md) for what `Load` and `Launch` do.
+From step 4 until the title unloads, a write to a `kLockedInGame` setting such as `title.game_root` fails. See [Runtime Lifecycle](../runtime/lifecycle.md) for what `Load` and `Launch` do.
 
 ## Title Exit
 

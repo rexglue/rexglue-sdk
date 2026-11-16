@@ -13,7 +13,7 @@ class MixerSettings : public rex::SettingOwner {
 
   REX_SETTING(bool, mute, false, "Silence all output");
   REX_SETTING(f64, volume, 1.0, "Output volume", rex::Range{0.0, 1.0});
-  REX_SETTING(std::string, quality, "high", "Resampler quality", rex::Allowed("low", "high"), rex::kRestart);
+  REX_SETTING(std::string, quality, "high", "Resampler quality", rex::Allowed("low", "high"), rex::kRequiresRestart);
 };
 ```
 
@@ -39,14 +39,14 @@ A trait after the help text in `REX_SETTING` limits the values or changes when a
 |---|---|---|
 | `Range{min, max}` | Refuses a number outside the range. | `apu.gain` has `Range{0.0, 4.0}`, so `gain = 40` under `[apu]` in the config file stops startup with the file name and the reason. |
 | `Allowed(...)` | Accepts only the listed texts in a string setting. | `log.level` accepts the level names from `trace` to `off`, so `warning` is refused. |
-| `kRestart` | Applies a change at the next start of the program. | `gpu.resolution_scale_x` can be changed in the settings overlay, and the new scale applies after a restart. |
-| `kStartupOnly` | Refuses writes once the systems have started. | `apu.driver` selects the audio driver module, which loads during startup. |
-| `kUntilLaunch` | Refuses writes while a title runs. | `kernel.user_language` and `runtime.title_memory_mb` are read when the title loads. |
+| `kRequiresRestart` | Applies a change at the next start of the program. | `gpu.resolution_scale_x` can be changed in the settings overlay, and the new scale applies after a restart. |
+| `kInitOnly` | Refuses writes once the systems have started. | `apu.driver` selects the audio driver module, which loads during startup. |
+| `kLockedInGame` | Refuses writes while a title runs. | `kernel.user_language` and `runtime.title_memory_mb` are read when the title loads. |
 | `kNoSave` | Keeps the value out of the config file. | `app.name` is set by the `App` constructor on every start. |
 | `kDebugOnly` | Hides the setting from the settings overlay outside Debug builds. | A switch that helps only while you debug your own code. No SDK setting uses it. |
 | `kKeyChord` | Makes the settings overlay capture the value from the keyboard. | `ui.bind.console` is the key that opens the console overlay, `Backtick` by default. |
 
-See [When a Setting Can Change](#when-a-setting-can-change) for the exact points where `kRestart`, `kStartupOnly` and `kUntilLaunch` take effect.
+See [When a Setting Can Change](#when-a-setting-can-change) for the exact points where `kRequiresRestart`, `kInitOnly` and `kLockedInGame` take effect.
 
 ## Layers
 
@@ -198,16 +198,16 @@ The console overlay is the in app console that opens with `ui.bind.console`. It 
 
 A setting with none of the traits below accepts writes at any time. These traits close or delay writes at fixed points:
 
-- A `kStartupOnly` setting is frozen once the systems have started, right before `OnInit`. The `app` path settings, `hid.drivers`, `apu.driver`, `ui.driver` and `gpu.driver` are `kStartupOnly`.
-- A `kUntilLaunch` setting is frozen when `TitleRuntime::Launch` starts the title, and writable again once the title unloads.
-- A `kRestart` setting accepts writes at any time. Once the startup settings are frozen, a new value is pending. `Get()` keeps returning the old value until the next start of the program.
+- A `kInitOnly` setting is frozen once the systems have started, right before `OnInit`. The `app` path settings, `hid.drivers`, `apu.driver`, `ui.driver` and `gpu.driver` are `kInitOnly`.
+- A `kLockedInGame` setting is frozen when `TitleRuntime::Launch` starts the title, and writable again once the title unloads.
+- A `kRequiresRestart` setting accepts writes at any time. Once the startup settings are frozen, a new value is pending. `Get()` keeps returning the old value until the next start of the program.
 - A locked setting refuses every later write.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> Writable
-    Writable --> Pending : kRestart after start
+    Writable --> Pending : kRequiresRestart after start
     Writable --> Frozen : startup or launch
     Frozen --> Writable : title unloads
     Writable --> Locked : Lock
@@ -277,7 +277,7 @@ A `log.file` value that is a path is an old form. It sets `log.file` to true, `l
 - It replaces the whole file, so comments and unknown keys are lost.
 - The **Save to config** button of the settings overlay writes to `app.config_file`.
 
-A saved pending `kRestart` value applies at the next start unless the environment or the command line sets another.
+A saved pending `kRequiresRestart` value applies at the next start unless the environment or the command line sets another.
 
 ## Commands
 

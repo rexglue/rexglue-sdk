@@ -121,7 +121,7 @@ class DepthOwner final : public rex::SettingOwner {
  public:
   DepthOwner() : SettingOwner("feedlayers") {}
   REX_SETTING(rex::i32, depth, 0, "Depth");
-  REX_SETTING(rex::i32, startup, 0, "Startup", rex::kStartupOnly);
+  REX_SETTING(rex::i32, startup, 0, "Startup", rex::kInitOnly);
 };
 
 class LayerApp : public TestApp {

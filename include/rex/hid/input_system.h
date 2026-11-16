@@ -33,8 +33,8 @@ class REX_HID_API InputSettings final : public SettingOwner {
   InputSettings();
 
   REX_SETTING(std::string, drivers, "sdl3", "Input drivers in priority order, comma separated",
-              kStartupOnly);
-  REX_SETTING(bool, shared_pads, false, "Every pad feeds user 0", kStartupOnly);
+              kInitOnly);
+  REX_SETTING(bool, shared_pads, false, "Every pad feeds user 0", kInitOnly);
   REX_SETTING(bool, vibration, true, "Allow vibration");
   REX_SETTING(bool, guide_button, false, "Pass the guide button to the title");
   REX_SETTING(f64, left_stick_deadzone, 0.0, "Left stick deadzone", Range{0.0, 1.0});
