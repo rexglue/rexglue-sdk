@@ -919,6 +919,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
   u32 frontbuffer_height = reader->ReadAndSwap<u32>();
   reader->AdvanceRead((count - 4) * sizeof(u32));
 
+  PaceSwap();
   IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
   if (graphics_system_) {
     graphics_system_->NotifySwap();
@@ -926,6 +927,26 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
 
   ++counter_;
   return true;
+}
+
+void CommandProcessor::PaceSwap() {
+  if (!graphics_system_ || !graphics_system_->IsVSyncEnabled()) {
+    next_swap_time_ = {};
+    return;
+  }
+  const f64 refresh_rate_hz = title_info_.video_mode.refresh_rate > 0
+                                  ? static_cast<f64>(title_info_.video_mode.refresh_rate)
+                                  : 60.0;
+  const auto interval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+      std::chrono::duration<f64>(1.0 / refresh_rate_hz));
+  auto now = std::chrono::steady_clock::now();
+  if (next_swap_time_ > now) {
+    rex::platform::SleepFor(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(next_swap_time_ - now));
+    now = std::chrono::steady_clock::now();
+  }
+  next_swap_time_ =
+      (now - next_swap_time_ > interval) ? now + interval : next_swap_time_ + interval;
 }
 
 bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader,
