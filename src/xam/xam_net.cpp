@@ -871,9 +871,6 @@ u32 NetDll_bind_entry([[maybe_unused]] u32 caller, u32 socket_handle, GuestPtrT<
 
   N_XSOCKADDR_IN native_name(name);
 
-  // The console has no privileged port range, but the host does. A title that binds a port below
-  // 1024, such as an Xbox LIVE sign in socket on port 1000, gets EACCES from the host and can treat
-  // the network stack as broken. Remap privileged ports into the 10000 range, as xenia does.
   const u32 port = native_name.sin_port;
   if (port > 0 && port < 1024) {
     native_name.sin_port = static_cast<u16>(port + 10000);
