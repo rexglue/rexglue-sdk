@@ -65,7 +65,10 @@ class XenosSettings : public SettingOwner {
   REX_SETTING(bool, half_pixel_offset, true, "Enable half pixel offset");
   REX_SETTING(bool, resolve_resolution_scale_fill_half_pixel_offset, true,
               "Fill half pixel offset during resolution scale resolve");
-  REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu, false,
+  // On by default, as in xenia. Without the estimate an unclipped draw, such as a screen space
+  // clear, is assumed to cover the whole EDRAM, and the ownership transfers that follow can
+  // discard the contents of other render targets.
+  REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu, true,
               "Execute the unclipped draw vertex shader on the CPU");
   REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu_with_scissor, false,
               "Execute the unclipped draw vertex shader on the CPU with scissor");

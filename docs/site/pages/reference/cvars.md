@@ -193,7 +193,7 @@ These settings exist while a Xenos driver is initialized, with any host API. Dec
 | `gpu.xenos.primitive_processor_cache_min_indices` | `i32` | `0` | live | The smallest index count for which the primitive processor caches a result. 0 to 1000000. |
 | `gpu.xenos.half_pixel_offset` | `bool` | `true` | live | Apply the half pixel offset. |
 | `gpu.xenos.resolve_resolution_scale_fill_half_pixel_offset` | `bool` | `true` | live | Fill the half pixel offset during a resolve with resolution scaling. |
-| `gpu.xenos.execute_unclipped_draw_vs_on_cpu` | `bool` | `false` | live | Run the vertex shader of an unclipped draw on the CPU. |
+| `gpu.xenos.execute_unclipped_draw_vs_on_cpu` | `bool` | `true` | live | Run the vertex shader of an unclipped draw on the CPU. |
 | `gpu.xenos.execute_unclipped_draw_vs_on_cpu_with_scissor` | `bool` | `false` | live | Run the vertex shader of an unclipped draw on the CPU, with the scissor applied. |
 | `gpu.xenos.clear_memory_page_state` | `bool` | `true` | live | Refresh page valid state from GPU written memory each frame. Off can break coherency. |
 | `gpu.xenos.occlusion_query_enable` | `bool` | `true` | live | Handle occlusion queries on the host. |
