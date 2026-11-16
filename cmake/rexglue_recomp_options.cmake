@@ -6,9 +6,8 @@ function (_rexglue_recomp_configs out_var)
   )
 endfunction ()
 
-# Declares the cache variables of the plain and the per configuration settings.
+# Declares the cache variables of the settings.
 function (rexglue_recomp_declare_settings)
-  _rexglue_recomp_configs(recomp_configs)
   set(REXGLUE_RECOMP_OPTIMIZATION
       ""
       CACHE STRING "Optimization level for generated code in every configuration (empty keeps the \
@@ -21,31 +20,12 @@ per configuration defaults, or O0 to O3)"
 per configuration defaults, line-tables-only, full or none)"
   )
   set_property(CACHE REXGLUE_RECOMP_DEBUG_INFO PROPERTY STRINGS "" line-tables-only full none)
-  foreach (config IN LISTS recomp_configs)
-    set(REXGLUE_RECOMP_OPTIMIZATION_${config}
-        ""
-        CACHE STRING "Optimization level for generated code in the ${config} configuration (empty \
-keeps REXGLUE_RECOMP_OPTIMIZATION)"
-    )
-    set_property(CACHE REXGLUE_RECOMP_OPTIMIZATION_${config} PROPERTY STRINGS "" O0 O1 O2 O3)
-    set(REXGLUE_RECOMP_DEBUG_INFO_${config}
-        ""
-        CACHE STRING "Debug info level for generated code in the ${config} configuration (empty \
-keeps REXGLUE_RECOMP_DEBUG_INFO)"
-    )
-    set_property(
-      CACHE REXGLUE_RECOMP_DEBUG_INFO_${config} PROPERTY STRINGS "" line-tables-only full none
-    )
-  endforeach ()
 endfunction ()
 
 # Resolves the optimization and the debug info level of one configuration from the settings and
 # the defaults.
 function (rexglue_recomp_resolve config optimization_var debug_info_var)
-  set(optimization "${REXGLUE_RECOMP_OPTIMIZATION_${config}}")
-  if (optimization STREQUAL "")
-    set(optimization "${REXGLUE_RECOMP_OPTIMIZATION}")
-  endif ()
+  set(optimization "${REXGLUE_RECOMP_OPTIMIZATION}")
   if (optimization STREQUAL "" AND config STREQUAL "DEBUG")
     set(optimization O1)
   endif ()
@@ -55,10 +35,7 @@ function (rexglue_recomp_resolve config optimization_var debug_info_var)
     )
   endif ()
 
-  set(debug_info "${REXGLUE_RECOMP_DEBUG_INFO_${config}}")
-  if (debug_info STREQUAL "")
-    set(debug_info "${REXGLUE_RECOMP_DEBUG_INFO}")
-  endif ()
+  set(debug_info "${REXGLUE_RECOMP_DEBUG_INFO}")
   if (debug_info STREQUAL "" AND config STREQUAL "RELEASE")
     set(debug_info none)
   elseif (debug_info STREQUAL "")
@@ -107,8 +84,6 @@ endfunction ()
 # wrapped in $<CONFIG:...>, so one configure serves a multi-config generator.
 # The cache variables REXGLUE_RECOMP_OPTIMIZATION (empty, O0, O1, O2 or O3) and
 # REXGLUE_RECOMP_DEBUG_INFO (empty, line-tables-only, full or none) apply to every configuration.
-# A variable with a _DEBUG, _RELEASE or _RELWITHDEBINFO suffix applies to that configuration and
-# wins over the plain one.
 # With nothing set the defaults are
 #   Debug           O1                   line-tables-only
 #   Release         build type flags     none

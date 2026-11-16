@@ -42,8 +42,6 @@ PAGE_LINKS = {
     "REXGLUE_RECOMP_OPTIMIZATION": "reference/cmake.md#cache-variables",
     "REXGLUE_RECOMP_DEBUG_INFO": "reference/cmake.md#cache-variables",
     "REXGLUE_RECOMP_MAX_FILE_SIZE": "reference/cmake.md#cache-variables",
-    "REXGLUE_RECOMP_OPTIMIZATION_<CONFIG>": "reference/cmake.md#per-configuration-variables",
-    "REXGLUE_RECOMP_DEBUG_INFO_<CONFIG>": "reference/cmake.md#per-configuration-variables",
     "REXSDK_DIR": "reference/cmake.md#sdk-discovery",
 }
 

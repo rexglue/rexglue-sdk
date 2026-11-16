@@ -283,15 +283,6 @@ These cache variables apply to the recompiled sources only, not to your own code
 | `REXGLUE_RECOMP_DEBUG_INFO` | Sets the debug info level to empty, `line-tables-only`, `full` or `none`. |
 | `REXGLUE_RECOMP_MAX_FILE_SIZE` | Sets the largest generated source file in bytes. Empty uses the tool default. See [Limits](cli.md#limits). |
 
-### Per Configuration Variables
-
-A variable with a configuration suffix overrides the plain variable for that configuration.
-
-| Variable | Meaning |
-|---|---|
-| `REXGLUE_RECOMP_OPTIMIZATION_DEBUG`, `REXGLUE_RECOMP_OPTIMIZATION_RELEASE`, `REXGLUE_RECOMP_OPTIMIZATION_RELWITHDEBINFO` | Set the optimization level of one configuration. |
-| `REXGLUE_RECOMP_DEBUG_INFO_DEBUG`, `REXGLUE_RECOMP_DEBUG_INFO_RELEASE`, `REXGLUE_RECOMP_DEBUG_INFO_RELWITHDEBINFO` | Set the debug info level of one configuration. |
-
 ### Defaults
 
 | Configuration | Optimization | Debug info |
