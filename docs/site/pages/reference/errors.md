@@ -1,6 +1,6 @@
 # Errors
 
-SDK functions that can fail return their error as a value, not as an exception. Modules are separate libraries, and an exception must not cross from one to another, so every fallible call returns a `rex::Result` from `rex/result.h`.
+SDK functions that can fail return their error as a value, not as an exception. [SDK modules](glossary.md#sdk-module) are separate libraries, and an exception must not cross from one to another, so every fallible call returns a `rex::Result` from `rex/result.h`.
 
 ## Result
 
@@ -13,7 +13,7 @@ The header provides two helpers to build results:
 
 Three macros return early from a function that itself returns a `Result`:
 
-- `REX_TRY(decl, expr)` evaluates `expr`, returns its error on failure, and otherwise moves its value into the declaration `decl`.
+- `REX_TRY(decl, expr)` evaluates `expr`, returns its error on failure, and otherwise moves its value into the declaration `decl`. `REX_TRY(auto file, Open(path));` declares `file` and initializes it with the value.
 - `REX_TRY_VOID(expr)` returns the error of `expr` on failure, and discards any value.
 - `REX_ERROR_IF(cond, error)` returns `error` when `cond` is true.
 
@@ -32,7 +32,7 @@ An `Error` holds three fields:
 - `message`, the error text.
 - `code`, a code from the platform or a library, or the value of an error enum. It is 0 when there is none.
 
-`GetDescription` returns `Success` for the category `kNoError`, and otherwise the message, with the code appended when it is not 0. `Error::FromErrno` builds an error from an `errno` value or another platform code.
+The `Error` member `GetDescription` returns `Success` for the category `kNoError`, and otherwise the message, with the code appended when it is not 0. `Error::FromErrno` builds an error from an `errno` value or another platform code.
 
 The categories are `kIO`, `kMemory`, `kFormat`, `kCrypto`, `kCompression`, `kRuntime`, `kPlatform`, `kConfig`, `kValidation`, `kNotFound`, `kNotImplemented` and `kModule`. A default constructed `Error` has the category `kNoError`, which `IsSuccess` reports as true.
 
@@ -42,7 +42,7 @@ Two parts of the SDK need finer codes than a category. Each declares an error en
 
 | Enum | Header | Category of the error |
 |---|---|---|
-| `FileSystemError` | `rex/filesystem/file_system_error.h` | `kNotFound` for `kNotFound`, `kPathNotFound` and `kNoMount`, `kFormat` for `kCorrupt`, `kNotImplemented` for `kUnsupported`, and `kIO` for the others. |
+| `FileSystemError` | `rex/filesystem/file_system_error.h` | `ErrorCategory::kNotFound` for `FileSystemError::kNotFound`, `kPathNotFound` and `kNoMount`, `ErrorCategory::kFormat` for `kCorrupt`, `ErrorCategory::kNotImplemented` for `kUnsupported`, and `ErrorCategory::kIO` for the others. |
 | `HIDError` | `rex/xam/input.h` | Always `kPlatform`. |
 
 ```cpp

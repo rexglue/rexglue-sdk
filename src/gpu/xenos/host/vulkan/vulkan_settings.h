@@ -52,7 +52,9 @@ class VulkanSettings : public SettingOwner {
               "Force quad list conversion to triangle lists in primitive processing, even when "
               "geometry shaders are available",
               kInitOnly);
-  REX_SETTING(std::string, render_target_path, "", "Render target implementation path", kInitOnly);
+  REX_SETTING(std::string, render_target_path, "",
+              "Render target implementation path, empty uses host framebuffers",
+              Allowed("", "fbo", "fsi"), kInitOnly);
   REX_SETTING(bool, sparse_shared_memory, true, "Use sparse shared memory", kRequiresRestart);
   REX_SETTING(bool, cube_map_edge_filtering_off, false,
               "Sample cube maps without edge filtering across faces");

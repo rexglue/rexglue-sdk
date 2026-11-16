@@ -2,7 +2,7 @@
 
 This page lists every setting that the SDK registers, and the old setting names that the SDK accepts in their place.
 
-A setting has a full name made of a scope and a name, such as `gpu.vsync`. Set it in the config file, in the environment or on the command line as `--gpu.vsync=false`, or from code. See [Settings](../app/settings.md) for how settings are declared and which source wins.
+A setting has a full name made of a scope and a name, such as `gpu.vsync`. Set it in the config file, in the environment or on the command line as `--gpu.vsync=false`, or from code. See [Settings](../app/settings.md) for how settings are declared and which source wins. The `title.*` settings use [title](../reference/glossary.md#title), the Xbox 360 term for a game.
 
 ## Columns
 
@@ -18,17 +18,17 @@ A setting with an empty Restriction can change at any time, and the new value ap
 
 | Restriction | Meaning |
 |---|---|
-| requires restart | Writable at any time. The new value applies at the next start. |
-| init only | Fixed once the systems start, before `App::OnInit`. |
-| locked in game | Fixed while a game runs, from its launch until it unloads. |
+| requires restart | Writable at any time. The new value takes effect at the next start. |
+| init only | Set in the config file, the environment, the command line or `App::OnConfigure`. Fixed once the systems have started, right before `App::OnInit`. |
+| locked in game | Writable while no game runs. Fixed from the launch of the game until it unloads. |
 
 See [When a Setting Can Change](../app/settings.md#when-a-setting-can-change) for the exact points.
 
 ### Availability
 
-- A setting exists while its settings class exists. Each table gives its settings class.
-- The registry keeps a config file or title layer value for a name that no settings class declares, until a settings class that declares the name is added.
-- On the command line, a name that no settings class declares is an error.
+- A setting exists while its [settings class](../app/settings.md#declaring-settings) exists. Each table gives its settings class.
+- A value can be given for a setting before its settings class is registered, for example for a driver setting. The SDK keeps the value and applies it when the class registers.
+- A name that no class has declared by the end of startup logs a warning when it came from the config file, and stops startup when it came from the command line.
 - The SDK reads an environment variable only for a registered setting.
 
 See [Unknown Names](../app/settings.md#unknown-names).
@@ -42,7 +42,7 @@ Every program has these settings. `App` declares `app.name`, `app.root`, `app.lo
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
 | `app.name` | `string` | `""` | init only | Base name of the default config file and the log file. Passed to the `App` constructor and never written to the config file. |
-| `app.root` | `path` | `""` | init only | Empty means the executable folder. |
+| `app.root` | `path` | `""` | init only | Base folder that the other default paths start from. Empty means the executable folder. |
 | `app.config_file` | `path` | `"{app.root}/{app.name}.toml"` | init only | Config file loaded at startup. |
 | `app.log_root` | `path` | `"{app.root}/logs"` | init only | Log folder. |
 | `app.user_root` | `path` | `"{app.root}/user"` | init only | Saves and per player data. |
@@ -55,7 +55,7 @@ Every program has this setting. Declared by `ClockSettings` in `rexbase`.
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `clock.no_scaling` | `bool` | `false` |  | The guest clock ignores requested time scales. |
+| `clock.no_scaling` | `bool` | `false` |  | The guest clock follows host time and ignores the guest time scale. |
 
 ### log
 
@@ -69,7 +69,7 @@ Every program has these settings. Declared by [`Logger`](../app/logging.md). Eac
 | `log.console` | `bool` | `true` | init only | Log to the terminal. |
 | `log.debugger` | `bool` | `true` | init only | Log to an attached debugger, on Windows only. |
 | `log.file` | `bool` | `true` | init only | Log to a file under `app.log_root`. |
-| `log.file_name` | `string` | `""` | init only | Empty uses the program name. |
+| `log.file_name` | `string` | `""` | init only | Name of the log file. Empty uses the program name. See [Logging](../app/logging.md#settings). |
 | `log.folder_budget` | `i64` | `0` | init only | Bytes of old log files to keep. 0 keeps all. 0 to 9007199254740992. |
 | `log.pattern` | `string` | `"%^%Y-%m-%d %H:%M:%S.%e %Q %-10n %j %v%$"` | init only | Layout of each line, an spdlog pattern. `%Q` is the level letter and `%j` the thread. |
 | `log.color` | `bool` | `false` | init only | Color the terminal output. |
@@ -89,7 +89,7 @@ Every program has these settings. Declared by [`AudioSettings`](../devices/audio
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `apu.driver` | `string` | `"sdl3"` | init only | `none` plays no sound and fails in an app that requires audio, such as a `TitleApp`. |
+| `apu.driver` | `string` | `"sdl3"` | init only | Audio driver, `sdl3` or `none`. `none` plays no sound and fails in an app that requires audio, such as a `TitleApp`. |
 | `apu.mute` | `bool` | `false` |  | Mute. |
 | `apu.mute_unfocused` | `bool` | `false` |  | Mute while the window has no focus. |
 | `apu.gain` | `f64` | `1.0` |  | Output gain. 0.0 to 4.0. |
@@ -108,16 +108,16 @@ Every program has these settings. Declared by [`InputSettings`](../devices/input
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `hid.drivers` | `string` | `"sdl3"` | init only | Comma separated, in priority order. |
+| `hid.drivers` | `string` | `"sdl3"` | init only | The input drivers to start, as names separated by commas, such as `sdl3,xinput`. Every listed driver runs. When two drivers see the same pad, the driver listed first wins. |
 | `hid.shared_pads` | `bool` | `false` | init only | Every input device goes to user 0. |
 | `hid.vibration` | `bool` | `true` |  | Allow vibration. |
-| `hid.guide_button` | `bool` | `false` |  | Pass the guide button to the title. |
-| `hid.left_stick_deadzone` | `f64` | `0.0` |  | 0.0 to 1.0. |
-| `hid.right_stick_deadzone` | `f64` | `0.0` |  | 0.0 to 1.0. |
+| `hid.guide_button` | `bool` | `false` |  | Pass the guide button to the game. |
+| `hid.left_stick_deadzone` | `f64` | `0.0` |  | Stick movement inside this fraction of full travel is ignored. 0.0 to 0.99. |
+| `hid.right_stick_deadzone` | `f64` | `0.0` |  | Stick movement inside this fraction of full travel is ignored. 0.0 to 0.99. |
 | `hid.mnk_mode` | `bool` | `false` |  | Keyboard and mouse act as a gamepad. |
 | `hid.mnk_mouse` | `bool` | `false` |  | The mouse moves the right stick. |
 | `hid.mnk_sensitivity` | `f64` | `1.0` |  | Mouse to stick scale. 0.01 to 100.0. |
-| `hid.mnk_passthrough` | `bool` | `false` |  | Keys reach the title as keystrokes. |
+| `hid.mnk_passthrough` | `bool` | `false` |  | Keys reach the game as keystrokes. |
 | `hid.keybind_a` | `string` | `"Semicolon,Space"` |  | A button. |
 | `hid.keybind_b` | `string` | `"Quote,Backspace"` |  | B button. |
 | `hid.keybind_x` | `string` | `"L"` |  | X button. |
@@ -158,33 +158,33 @@ Every program has these settings. Declared by [`GraphicsSettings`](../devices/gr
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `gpu.driver` | `string` | `"any"` | init only | `d3d12`, `vulkan`, `null`, `none` or `any`. `any` is `d3d12` on Windows and `vulkan` elsewhere. `none` fails in an app that requires graphics, such as a `TitleApp`. |
+| `gpu.driver` | `string` | `"any"` | init only | `d3d12`, `vulkan`, `null`, `none` or `any`. `any` is `d3d12` on Windows and `vulkan` elsewhere. `null` runs the graphics commands of the game and shows no picture. `none` fails in an app that requires graphics, such as a `TitleApp`. |
 | `gpu.vsync` | `bool` | `true` |  | Wait for vblank when presenting. |
 | `gpu.frame_limit` | `f64` | `0.0` |  | Most presents per second. 0 is no limit. 0.0 to 1000.0. |
 | `gpu.resolution_scale_x` | `i32` | `1` | requires restart | Horizontal draw resolution scale. 1 to 8. |
 | `gpu.resolution_scale_y` | `i32` | `1` | requires restart | Vertical draw resolution scale. 1 to 8. |
-| `gpu.anisotropic_override` | `i32` | `3` |  | -1 keeps the title's choice, 0 is off, 1 to 5 select 1x to 16x. |
+| `gpu.anisotropic_override` | `i32` | `3` |  | -1 keeps the choice of the game, 0 is off, 1 to 5 select 1x to 16x. |
 
 ### gpu.xenos
 
-These settings exist while a Xenos driver is initialized, with any host API. Declared by `XenosSettings`, a base class of `XenosGraphicsDriverBase`.
+These settings exist while a Xenos driver is initialized, with any host API. Declared by `XenosSettings`, a base class of `XenosGraphicsDriverBase`. Most of them are compatibility and debugging switches of the GPU emulation. Leave them at the default unless a game shows a rendering fault.
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `gpu.xenos.present_letterbox` | `bool` | `true` |  | Keep the title's aspect ratio with bars. |
-| `gpu.xenos.present_safe_area_x` | `i32` | `90` |  | The horizontal title safe area as a percent of the screen. 50 to 100. |
-| `gpu.xenos.present_safe_area_y` | `i32` | `90` |  | The vertical title safe area as a percent of the screen. 50 to 100. |
+| `gpu.xenos.present_letterbox` | `bool` | `true` |  | Keep the aspect ratio of the game with bars. |
+| `gpu.xenos.present_safe_area_x` | `i32` | `90` |  | The horizontal safe area as a percent of the screen. 50 to 100. |
+| `gpu.xenos.present_safe_area_y` | `i32` | `90` |  | The vertical safe area as a percent of the screen. 50 to 100. |
 | `gpu.xenos.present_dither` | `bool` | `false` |  | Dither when presenting to an 8 bit swap chain. |
 | `gpu.xenos.present_allow_overscan_cutoff` | `bool` | `false` |  | Allow the presented image to cut off the overscan area. |
-| `gpu.xenos.readback_resolve` | `string` | `"none"` |  | CPU readback of render to texture resolves. `none`, `fast`, `some` or `full`. |
-| `gpu.xenos.readback_memexport` | `bool` | `true` |  | Read back memexport writes to guest memory. |
-| `gpu.xenos.query_occlusion_fake_sample_count` | `i32` | `1000` |  | The sample count reported for an occlusion query. 1 to 100000. |
-| `gpu.xenos.allow_invalid_fetch_constants` | `bool` | `false` |  | Allow fetch constants that are invalid. |
+| `gpu.xenos.readback_resolve` | `string` | `"none"` |  | Copies the result of each render to texture resolve back to guest memory, for games that read it. `none` is off. `fast` and `some` read the result one frame late without waiting for the GPU, and `some` copies less often. `full` waits for the GPU and copies every resolve, which is slow. A value set here, even `none`, overrides `gpu.d3d12.readback_resolve` and `gpu.vulkan.readback_resolve`. |
+| `gpu.xenos.readback_memexport` | `bool` | `true` |  | Copies data that shaders write with memory export back to guest memory, which keeps guest memory coherent and costs GPU and CPU synchronization. `gpu.d3d12.readback_memexport` and `gpu.vulkan.readback_memexport` override it once any source sets them. |
+| `gpu.xenos.query_occlusion_fake_sample_count` | `i32` | `1000` |  | The sample count that the game receives for an occlusion query that the host does not run, such as while `gpu.xenos.occlusion_query_enable` is off. 1 to 100000. |
+| `gpu.xenos.allow_invalid_fetch_constants` | `bool` | `false` |  | Use a texture fetch constant of the invalid type. When off, the fetch is skipped with a warning. |
 | `gpu.xenos.dump_shaders` | `string` | `""` |  | Shader dump folder. Empty dumps nothing. |
-| `gpu.xenos.swap_post_effect` | `string` | `"none"` | requires restart | `none`, `fxaa` or `fxaa_extreme`. |
+| `gpu.xenos.swap_post_effect` | `string` | `"none"` | requires restart | Antialiasing filter applied to the final image. `none`, `fxaa` or `fxaa_extreme`. |
 | `gpu.xenos.store_shaders` | `bool` | `true` |  | Cache compiled shaders on disk. |
 | `gpu.xenos.mrt_edram_used_range_clamp_to_min` | `bool` | `true` |  | Clamp the used EDRAM range of multiple render targets to the minimum. |
-| `gpu.xenos.execute_unclipped_draw_vs_on_cpu_for_psi_render_backend` | `bool` | `true` |  | Run the vertex shader of an unclipped draw on the CPU when the render backend uses pixel shader interlock. |
+| `gpu.xenos.execute_unclipped_draw_vs_on_cpu_for_psi_render_backend` | `bool` | `true` |  | Run the vertex shader of an unclipped draw on the CPU when render targets use pixel shader interlock, which is the `rov` path on Direct3D 12 and the `fsi` path on Vulkan. |
 | `gpu.xenos.texture_cache_memory_limit_render_to_texture` | `i32` | `24` | requires restart | The texture cache memory limit for render to texture, in MB. 1 to 256. |
 | `gpu.xenos.texture_cache_memory_limit_soft` | `i32` | `384` | requires restart | The soft texture cache memory limit in MB. 64 to 4096. |
 | `gpu.xenos.texture_cache_memory_limit_hard` | `i32` | `768` | requires restart | The hard texture cache memory limit in MB. 128 to 8192. |
@@ -214,13 +214,13 @@ These settings exist while a Xenos driver is initialized, with any host API. Dec
 
 ### gpu.vulkan
 
-These settings exist while the Vulkan driver is initialized. Declared by `VulkanSettings`, a member of `VulkanXenosGraphicsDriver`. The two `require_` settings default to `false` on macOS and `true` elsewhere.
+These settings exist while the Vulkan driver is initialized. Declared by `VulkanSettings`, a member of `VulkanXenosGraphicsDriver`. The two `require_` settings default to `false` on macOS and `true` elsewhere. Most of these settings are compatibility and debugging switches. Leave them at the default unless a game shows a rendering fault.
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
 | `gpu.vulkan.device` | `i32` | `-1` | init only | Physical device index. -1 is automatic. -1 to 15. |
-| `gpu.vulkan.readback_resolve` | `bool` | `false` |  | Read render to texture results on the CPU. |
-| `gpu.vulkan.readback_memexport` | `bool` | `false` |  | Read data that shaders write with memory export on the CPU. |
+| `gpu.vulkan.readback_resolve` | `bool` | `false` |  | True copies render to texture results back to guest memory as `fast` does for `gpu.xenos.readback_resolve`. Used only while `gpu.xenos.readback_resolve` is `none` and no source set it. |
+| `gpu.vulkan.readback_memexport` | `bool` | `false` |  | Copies data that shaders write with memory export back to guest memory. Overrides `gpu.xenos.readback_memexport` once any source sets it. |
 | `gpu.vulkan.async_skip_incomplete_frames` | `bool` | `true` |  | With async shader compilation, skip frames that used placeholder pipelines. |
 | `gpu.vulkan.submit_on_primary_buffer_end` | `bool` | `true` |  | Submit the command buffer when a PM4 primary buffer ends. |
 | `gpu.vulkan.dynamic_rendering` | `bool` | `true` |  | Use VK_KHR_dynamic_rendering when supported. |
@@ -229,7 +229,7 @@ These settings exist while the Vulkan driver is initialized. Declared by `Vulkan
 | `gpu.vulkan.force_expand_point_sprites_in_vs` | `bool` | `false` | init only | Expand point sprites in the vertex shader even when geometry shaders are available. |
 | `gpu.vulkan.force_expand_rectangle_lists_in_vs` | `bool` | `false` | init only | Expand rectangle lists in the vertex shader even when geometry shaders are available. |
 | `gpu.vulkan.force_convert_quad_lists_to_triangle_lists` | `bool` | `false` | init only | Convert quad lists to triangle lists in primitive processing even when geometry shaders are available. |
-| `gpu.vulkan.render_target_path` | `string` | `""` | init only | The render target implementation path. |
+| `gpu.vulkan.render_target_path` | `string` | `""` | init only | How render targets are emulated, not a folder. `fsi` uses fragment shader interlock, and `fbo` or empty uses framebuffer objects. Any other value is refused. |
 | `gpu.vulkan.sparse_shared_memory` | `bool` | `true` | requires restart | Use sparse shared memory. |
 | `gpu.vulkan.cube_map_edge_filtering_off` | `bool` | `false` |  | Sample cube maps without filtering across the edges of faces. |
 | `gpu.vulkan.require_geometry_shader` | `bool` | `true` | init only | Require geometryShader support. Turn it off to allow the fallback primitive emulation paths. |
@@ -247,15 +247,15 @@ These settings exist while the Vulkan driver is initialized. Declared by `Vulkan
 
 ### gpu.d3d12
 
-These settings exist while the Direct3D 12 driver is initialized, on Windows only. Declared by `D3D12Settings`, a member of `D3D12XenosGraphicsDriver`.
+These settings exist while the Direct3D 12 driver is initialized, on Windows only. Declared by `D3D12Settings`, a member of `D3D12XenosGraphicsDriver`. Most of these settings are compatibility and debugging switches. Leave them at the default unless a game shows a rendering fault.
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
 | `gpu.d3d12.adapter` | `i32` | `-1` | init only | Adapter index. -1 is the first hardware adapter, -2 is WARP. -2 to 15. |
 | `gpu.d3d12.debug_markers` | `bool` | `false` |  | Debug markers for PIX and RenderDoc. Turns on when RenderDoc is detected. |
 | `gpu.d3d12.bindless` | `bool` | `true` | requires restart | Use bindless resources where available. |
-| `gpu.d3d12.readback_memexport` | `bool` | `false` |  | Read data that shaders write with memory export on the CPU. |
-| `gpu.d3d12.readback_resolve` | `bool` | `false` |  | Read render to texture results on the CPU. |
+| `gpu.d3d12.readback_memexport` | `bool` | `false` |  | Copies data that shaders write with memory export back to guest memory. Overrides `gpu.xenos.readback_memexport` once any source sets it. |
+| `gpu.d3d12.readback_resolve` | `bool` | `false` |  | True copies render to texture results back to guest memory as `fast` does for `gpu.xenos.readback_resolve`. Used only while `gpu.xenos.readback_resolve` is `none` and no source set it. |
 | `gpu.d3d12.submit_on_primary_buffer_end` | `bool` | `true` |  | Submit the command list when a PM4 primary buffer ends. |
 | `gpu.d3d12.dxbc_disasm` | `bool` | `false` |  | Dump the DXBC disassembly of shaders. |
 | `gpu.d3d12.dxbc_disasm_dxilconv` | `bool` | `false` |  | Dump the disassembly of the DXIL conversion. |
@@ -267,7 +267,7 @@ These settings exist while the Direct3D 12 driver is initialized, on Windows onl
 | `gpu.d3d12.dxbc_source_map` | `bool` | `false` |  | Generate source maps for DXBC. |
 | `gpu.d3d12.draw_resolution_scaled_texture_offsets` | `bool` | `true` |  | Scale texture offsets with the draw resolution. |
 | `gpu.d3d12.native_stencil_value_output_intel` | `bool` | `false` |  | Use native stencil value output on Intel graphics. |
-| `gpu.d3d12.render_target_path` | `string` | `""` | init only | The render target implementation path. |
+| `gpu.d3d12.render_target_path` | `string` | `""` | init only | How render targets are emulated, not a folder. `rtv` uses render target views and `rov` uses rasterizer ordered views. Empty uses rasterizer ordered views on an Intel adapter that supports them, and render target views on any other adapter. Any other value is refused. |
 | `gpu.d3d12.tiled_shared_memory` | `bool` | `true` | requires restart | Use tiled shared memory. |
 | `gpu.d3d12.allow_tearing` | `bool` | `true` |  | Allow variable refresh rate and tearing. |
 | `gpu.d3d12.debug` | `bool` | `false` | init only | Enable the Direct3D 12 and DXGI debug layer. |
@@ -281,10 +281,10 @@ These settings exist while the `rexkernel` module is connected. Declared by `Run
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `runtime.heap_size_mb` | `u32` | `256` | locked in game | Shim heap size in MiB. 4 to 2048. |
+| `runtime.heap_size_mb` | `u32` | `256` | locked in game | Size in MiB of the first segment of the heap that the [shims](../runtime/shims.md) allocate from. 4 to 2048. |
 | `runtime.title_memory_mb` | `u32` | `480` | locked in game | Title memory cap in MiB. 0 removes the cap. 0 to 512. |
 | `runtime.writable_code_segments` | `bool` | `false` | locked in game | Load code and read only data as writable memory. |
-| `runtime.protect_zero` | `bool` | `true` | locked in game | The first 64 KiB fault on any access. |
+| `runtime.protect_zero` | `bool` | `true` | locked in game | Any access to the first 64 KiB of guest memory faults, which catches null pointers. |
 | `runtime.protect_on_release` | `bool` | `false` | locked in game | Released memory faults on access. |
 | `runtime.scribble_heap` | `bool` | `false` | locked in game | Fill new heap memory with a pattern. |
 | `runtime.ignore_thread_priorities` | `bool` | `true` |  | Ignore the priorities that guest threads set. |
@@ -299,10 +299,10 @@ These settings exist while the `rexkernel` module is connected. Declared by `Ker
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
 | `kernel.headless` | `bool` | `false` |  | System dialogs return immediately without showing. |
-| `kernel.user_language` | `u32` | `1` | locked in game | XLanguage ID. 0 follows the host language. |
-| `kernel.user_country` | `u32` | `103` | locked in game | Country code. |
-| `kernel.license_mask` | `u32` | `0` | locked in game | Content license mask. |
-| `kernel.command_line` | `string` | `""` | locked in game | Arguments after `default.xex`. |
+| `kernel.user_language` | `u32` | `1` | locked in game | Language that the game reads, as an XLanguage ID. 0 follows the host language. |
+| `kernel.user_country` | `u32` | `103` | locked in game | Country code that the game reads from the console configuration. |
+| `kernel.license_mask` | `u32` | `0` | locked in game | The license bits that `XamContentGetLicenseMask` returns to the game, combined with OR. |
+| `kernel.command_line` | `string` | `""` | locked in game | Command line arguments that the game sees after `default.xex`. |
 
 ### title
 
@@ -313,8 +313,8 @@ These settings exist while the `rexkernel` module is connected. Declared by `Tit
 | `title.game_root` | `path` | `""` | locked in game | Game files, mounted read only as `game:`. |
 | `title.game_writable` | `bool` | `false` | locked in game | Mount `game:` read write. |
 | `title.update_root` | `path` | `""` | locked in game | Title update files. Empty means none. |
-| `title.metadata_root` | `path` | `"{app.root}/metadata"` | locked in game | Achievement icons and other metadata. |
-| `title.entry` | `string` | `"default.xex"` | locked in game | Executable under `game:` that `TitleRuntime::Load` runs. Empty loads none. |
+| `title.metadata_root` | `path` | `""` | locked in game | Achievement icons and other metadata. Empty searches near `title.game_root`. |
+| `title.entry` | `string` | `"default.xex"` | locked in game | Executable under `game:` that `TitleRuntime::Load` loads. Empty loads none. |
 | `title.imports` | `string` | `""` | locked in game | Files under `game:` the executable may import from, separated by `\|`. |
 
 ### ui
@@ -323,20 +323,20 @@ Every program has these settings. Declared by [`UISettings`](../devices/ui.md).
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `ui.driver` | `string` | `"sdl3"` | init only | `none` runs headless and fails in an app that requires a UI, such as a `TitleApp`. |
+| `ui.driver` | `string` | `"sdl3"` | init only | UI driver, `sdl3` or `none`. `none` runs headless and fails in an app that requires a UI, such as a `TitleApp`. |
 | `ui.title` | `string` | `""` |  | Empty uses the program name and the build label. |
 | `ui.window_width` | `i32` | `0` |  | 0 uses the video mode width. 0 to 16384. |
 | `ui.window_height` | `i32` | `0` |  | 0 uses the video mode height. 0 to 16384. |
 | `ui.fullscreen` | `bool` | `true` |  | Fullscreen. |
 | `ui.fullscreen_exclusive` | `bool` | `false` |  | Exclusive instead of borderless fullscreen. |
 | `ui.monitor` | `i32` | `0` |  | Display index. 0 to 16. |
-| `ui.min_width` | `i32` | `0` |  | 0 to 16384. |
-| `ui.min_height` | `i32` | `0` |  | 0 to 16384. |
-| `ui.aspect_ratio` | `string` | `"stretch"` |  | `stretch`, `4:3`, `5:4`, `3:2`, `16:10`, `16:9`, `21:9` or `32:9`. |
-| `ui.resolution` | `string` | `""` |  | A video mode preset or `WxH`. Overrides the window size. |
-| `ui.video_mode_width` | `i32` | `1280` | requires restart | Video mode width the title reads. 640 to 4095. |
-| `ui.video_mode_height` | `i32` | `720` | requires restart | Video mode height the title reads. 480 to 4095. |
-| `ui.video_mode_refresh_rate` | `f64` | `60.0` | requires restart | Refresh rate the title reads. 24.0 to 240.0. |
+| `ui.min_width` | `i32` | `0` |  | Smallest window width. 0 to 16384. |
+| `ui.min_height` | `i32` | `0` |  | Smallest window height. 0 to 16384. |
+| `ui.aspect_ratio` | `string` | `"stretch"` |  | Shape that the window keeps when resized. `stretch` keeps no fixed shape, and the other values are the ratios `4:3`, `5:4`, `3:2`, `16:10`, `16:9`, `21:9` or `32:9`. |
+| `ui.resolution` | `string` | `""` |  | One value for both the window size and the video mode, which is the display mode that the console reports to the game. A preset such as `720p`, `1080p` or `4k`, or `WxH` such as `1920x1080`. Empty uses the `ui.window_*` and `ui.video_mode_*` settings. |
+| `ui.video_mode_width` | `i32` | `1280` | requires restart | Width of the video mode that the console reports to the game. 640 to 4095. |
+| `ui.video_mode_height` | `i32` | `720` | requires restart | Height of the video mode that the console reports to the game. 480 to 4095. |
+| `ui.video_mode_refresh_rate` | `f64` | `60.0` | requires restart | Refresh rate of the video mode that the console reports to the game. 24.0 to 240.0. |
 | `ui.cursor_timeout` | `f64` | `0.0` |  | Seconds before an idle cursor hides. 0 never. 0.0 to 3600.0. |
 
 ### ui.sdl
@@ -373,7 +373,7 @@ These are the four standard overlays.
 
 ### console
 
-Console commands run from the console overlay. They have dotted names like settings, but hold no value. Declared by `ConsoleCommandTable`, which the UI adds to the registry while the window is open.
+Console commands run from the console overlay. They have dotted names like settings, but hold no value. `help` and `clear` are built into the overlay and are not registered commands. Declared by `ConsoleCommandTable`, which the UI adds to the registry while the window is open.
 
 | Name | Meaning |
 |---|---|
@@ -577,7 +577,7 @@ An empty value changes nothing.
 
 ## Command Line Options
 
-These options use another form than `--scope.name=value`.
+These older options have no scope. Each takes a value, as in `--game_data_root=path`, and sets the setting in the table.
 
 | Option | Setting |
 |---|---|

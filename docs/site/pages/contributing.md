@@ -2,7 +2,7 @@
 
 ## Building
 
-Install the tools and build the SDK as the [Getting Started](getting-started.md) guide shows. The SDK needs CMake 3.25 or newer, Clang 20 or newer (Apple Clang 17 or newer on macOS), lld 20 on Linux x86_64, and Ninja. On Linux the SDK packages are built against the GCC 13 libstdc++, so also install `g++-13` and `libstdc++-13-dev` and configure with `-DREXGLUE_GCC_INSTALL_DIR=/usr/lib/gcc/<triple>/13`. A project must build against the same major version.
+Install the tools and build the SDK as the [Getting Started](getting-started.md) guide shows. The SDK needs CMake 3.25 or newer, Clang 20 or newer (Apple Clang 17 or newer on macOS), lld 20 on Linux x86_64, and Ninja. On Linux the SDK packages are built against the GCC 13 libstdc++, so also install `g++-13` and `libstdc++-13-dev` and configure with `-DREXGLUE_GCC_INSTALL_DIR=/usr/lib/gcc/<triple>/13`, where `<triple>` is `x86_64-linux-gnu` or `aarch64-linux-gnu`. A project that uses these packages must build against libstdc++ 13 too.
 
 On Windows, the `scripts/PSReX` PowerShell module wraps the CMake steps. Run `Import-Module ./scripts/PSReX`, then `rex-configure`, `rex-build`, `rex-test` and `rex-format`.
 
@@ -35,7 +35,7 @@ Pull requests target the `development` branch of rexglue/rexglue-sdk and merge i
 
 ## Changing an interface
 
-A change to the functions of an interface, to their order or to a type that crosses the boundary raises the version of that interface in the same commit. A version never goes down and is never reused. The SDK serves one version of each interface, so a raise does not keep the old version working. A reviewer checks the interface headers of every pull request for such a change.
+An interface is an abstract class declared with `REX_DECLARE_INTERFACE(Name, version)` that an [SDK module](reference/glossary.md#sdk-module) serves to other modules (see [Declaring an Interface](app/modules.md#declaring-an-interface)). If you change a function of an interface, the order of its functions, or a type passed through it, raise the version number in the same commit. Never lower or reuse a number. The SDK provides only the newest version, so code built against the old one stops loading (see [Versions and Builds](app/modules.md#versions-and-builds)). A reviewer checks the interface headers of every pull request for such a change.
 
 ## Pull request checks
 
@@ -47,6 +47,6 @@ A maintainer starts the pull request checks by hand, in one of two ways:
 The checks build the merge of the pull request with its base and run two jobs:
 
 - `format` checks the C and C++ formatting with clang-format, runs the CMake format and lint check, and runs the script tests.
-- `lint` runs clang-tidy 22 through `scripts/lint.py` on the source files the pull request changes, and on the public headers it changes through their header check units. Any warning or error fails the job. To run the same check locally on a configured build directory, use `rex-lint` on Windows or run `python scripts/lint.py <build dir> --since development`. Add `--all` instead of `--since` to check the whole tree. The build directory needs `-DREXGLUE_VERIFY_HEADERS=ON` for the public headers to be checked. The job also builds the SDK with its unit tests and runs them with ctest. A failing test fails the job, the same as a clang-tidy warning.
+- `lint` runs clang-tidy 22 through `scripts/lint.py` on the source files the pull request changes, and on the public headers it changes, each compiled alone through the targets that `REXGLUE_VERIFY_HEADERS` creates. Any warning or error fails the job. To run the same check locally on a configured build directory, use `rex-lint` on Windows or run `python scripts/lint.py <build dir> --since development`. Add `--all` instead of `--since` to check the whole tree. The build directory needs `-DREXGLUE_VERIFY_HEADERS=ON` for the public headers to be checked. The job also builds the SDK with its unit tests and runs them with ctest. A failing test fails the job, the same as a clang-tidy warning.
 
-A pull request from a fork runs with the default read token and no secrets.
+The checks need no secrets, so they also run for pull requests from forks.

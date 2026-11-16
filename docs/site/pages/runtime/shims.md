@@ -1,17 +1,17 @@
 # Shims
 
-A shim is a host function of the SDK that replaces a library routine compiled into the title, such as `memcpy` or `CreateFileA`.
+A shim is a host function of the SDK that replaces a library routine compiled into the game, such as `memcpy` or `CreateFileA`.
 
 ## What a Shim Does
 
-A kernel export replaces a function that the title imports from the console. The title links the C library, the Win32 style file routines and the `Rtl` heap routines statically, so they are compiled into the XEX as PowerPC code like the rest of the title, and codegen recompiles them like any other function.
+A kernel export replaces a function that the game imports from the console. The game links the C library, the Win32 style file routines and the `Rtl` heap routines statically, so they are compiled into the XEX as PowerPC code like the rest of the game, and codegen recompiles them like any other function.
 
 A shim replaces one of these routines with a host function. Codegen gives the function at the manifest address the name `rexshim_` plus the routine name, such as `rexshim_memcpy`, and emits no body for it. Every call to the routine then runs the host function of the SDK. A shim is a [function hook](../codegen/hooks.md) that the SDK provides.
 
 Each group of shims does its work on the host:
 
 - The `memory` and `string` shims run the host C library on the guest buffers.
-- The `file` shims open, read and write files through the filesystem, so the paths of the title resolve through the [mounts](../filesystem/filesystem.md#links-and-mounts).
+- The `file` shims open, read and write files through the filesystem, so the paths of the game resolve through the [mounts](../filesystem/filesystem.md#links-and-mounts).
 - The `heap` shims allocate from the [shim heap](#shim-heap).
 - The `atof` shim parses numbers with the C locale, regardless of the host locale.
 - The `DebugPrint` shim writes the formatted message to the `kernel` log category at `debug` level.
@@ -32,7 +32,7 @@ Find the address of the routine in IDA or in a symbol map of the executable. [`r
 
 ## Rules
 
-Codegen checks the `[shim]` table and fails on any of these errors:
+Codegen checks the `[shim]` table against these rules and fails when one is broken.
 
 - The name must be a shim of the SDK. An unknown name fails with "is not in the shim registry", and the error can suggest the closest registered name.
 - The address must be 4 byte aligned.
@@ -45,11 +45,11 @@ The shim heap is a heap in guest memory that the `heap` shims allocate from. It 
 
 - [`runtime.heap_size_mb`](../reference/cvars.md#runtime) sets the size of the first heap segment in MiB. The default is 256 and the range is 4 to 2048.
 - When the heap is full, it adds a segment of at least 64 MiB from guest memory.
-- An allocation that fails after the heap grows returns a null address to the title.
+- An allocation that fails after the heap grows returns a null address to the game.
 
 ## Shims That Do Nothing
 
-`FlushFileBuffers`, `SetFileAttributesA` and `SetFileTime` return success to the title and change nothing.
+`FlushFileBuffers`, `SetFileAttributesA` and `SetFileTime` return success to the game and change nothing.
 
 ## Shim List
 

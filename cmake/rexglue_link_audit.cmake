@@ -140,7 +140,7 @@ function (_rexglue_audit_forbidden target_name)
   endforeach ()
 endfunction ()
 
-# Keeps SDL and ImGui out of core and runtime, and SDL, ImGui and the GPU drivers out of ui.
+# Excludes SDL and ImGui from core and runtime, and SDL, ImGui and the GPU drivers from ui.
 # rexglue_audit_host_service_links covers rexgpu.
 function (rexglue_audit_ui_links)
   set(sdl_libs SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static)
@@ -162,7 +162,7 @@ rexglue_audit_core_linkage()
 rexglue_audit_core_tier()
 rexglue_audit_ui_links()
 
-# Keeps host libraries out of the neutral targets and out of rexkernel.
+# Excludes host libraries from the neutral targets and from rexkernel.
 function (rexglue_audit_host_service_links)
   set(host_libs
       SDL3::SDL3

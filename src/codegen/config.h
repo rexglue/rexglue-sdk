@@ -165,8 +165,8 @@ struct RecompilerConfig {
    */
   bool reserved_register_as_local_variable = false;
   /**
-   * TOML key `skip_msr`, default false. When true, omits the global lock check at mfmsr, and the
-   * MSR update and the global lock enter and leave at mtmsrd.
+   * TOML key `skip_msr`, default false. When true, omits the MSR read at mfmsr, and the
+   * MSR update and the interrupt enable bit change at mtmsrd.
    */
   bool skip_msr = false;
   /**

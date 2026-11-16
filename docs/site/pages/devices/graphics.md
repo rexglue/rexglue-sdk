@@ -6,7 +6,7 @@ The SDK's graphics system runs those commands on a host graphics API and present
 
 ## Drivers
 
-The graphics system does not draw. A graphics driver, an `IGraphicsDriver` in a separate driver module, does the work on the host GPU. A driver for the Xenos command stream is an `IXenosGraphicsDriver`, which adds the ring buffer, the register reads and writes, and the read pointer write back to `IGraphicsDriver`.
+The graphics system does not draw. A graphics driver, an `IGraphicsDriver` in a separate driver module, does the work on the host GPU. A driver for the Xenos command stream is an `IXenosGraphicsDriver`, which adds the ring buffer, the register reads and writes, and read pointer write back to `IGraphicsDriver`. With read pointer write back, the GPU copies its read position in the ring buffer to a guest address that the game chose, so the game can see how far the GPU has read.
 
 Each driver belongs to a graphics family, the GPU command set it runs. The SDK has one family, `xenos`. A program states the family it requires in `AppSysRequirements::graphics_family`:
 
@@ -20,7 +20,7 @@ The driver is selected in two steps:
 1. Before the systems start, the app loads the driver module of the family and the driver name, such as `rexgpu-xenos-vulkan` for `gpu.driver = vulkan`.
 2. When the graphics system starts, it creates the driver of that name from the loaded modules.
 
-In a program that requires `xenos`, startup fails when the selection finds no driver, or finds a driver that is not a Xenos driver. [`rexglue_configure_target`](../reference/cmake.md#staged-files) copies every built graphics driver module next to the executable, so each value of `gpu.driver` can load.
+In a program that requires `xenos`, startup fails when the selection finds no driver, or finds a driver that is not a Xenos driver. [`rexglue_configure_target`](../reference/cmake.md#runtime-files) copies every built graphics driver module next to the executable, so each value of `gpu.driver` can load.
 
 `gpu.d3d12.adapter` and `gpu.vulkan.device` choose the host GPU when the machine has more than one.
 
@@ -28,13 +28,13 @@ In a program that requires `xenos`, startup fails when the selection finds no dr
 
 The three Xenos drivers, for Direct3D 12, Vulkan and no GPU, derive from `XenosGraphicsDriverBase` in the static library `rexgpu-xenos-base`. The base class holds what all three share:
 
-- The register file of the GPU.
+- The current values of the GPU registers.
 - The command processor, which reads the ring buffer and runs the PM4 packets on the `GPU Commands` thread.
 - The `GPU VSync` thread.
 - The `gpu.xenos.*` settings.
 - The shader cache.
 
-When a title attaches, the driver starts the `GPU Commands` and `GPU VSync` threads, and when it detaches, the driver stops them. The shader cache opens at attach for the title ID, under `app.cache_root`, when that setting is not empty and `gpu.xenos.store_shaders` is on. See [Shader Cache](../filesystem/folders-and-storage.md#shader-cache) for its files.
+When a game attaches, the driver starts the `GPU Commands` and `GPU VSync` threads, and when it detaches, the driver stops them. The shader cache opens at attach for the [title](../reference/glossary.md#title) ID, under `app.cache_root`, when that setting is not empty and `gpu.xenos.store_shaders` is on. See [Shader Cache](../filesystem/folders-and-storage.md#shader-cache) for its files.
 
 ### Null Xenos Driver
 
@@ -46,8 +46,8 @@ The null driver runs a game's GPU commands on a machine without a usable GPU. To
 
 In a program that requires no graphics family, the graphics system starts no driver. If such a program launches a game, the graphics system handles the GPU register accesses of the game:
 
-- A register read returns the fixed value for the video mode, or else the last value written.
-- After `EnableReadPointerWriteBack`, each write to the ring buffer write pointer is copied to the write back address, as if the GPU had read every command immediately.
+- A few registers return fixed values, and the video mode registers return the size of the current video mode. Any other register returns the last value written to it.
+- After `EnableReadPointerWriteBack`, each write to the ring buffer write pointer is copied to the write back address that the game gave, as if the GPU had read every command immediately.
 
 No PM4 packet runs. A game that waits for a fence that a PM4 packet writes waits forever.
 
@@ -56,7 +56,7 @@ No PM4 packet runs. A game that waits for a fence that a PM4 packet writes waits
 A driver presents frames through two objects. The provider holds the connection to the host GPU, and the presenter shows the finished frames in the window.
 
 - With a window, the driver creates both in `SetSurface`, when the graphics system starts. If either cannot be created, graphics fails to start.
-- Without a window, the driver creates only the provider, when a title attaches.
+- Without a window, the driver creates only the provider, when a game attaches.
 
 The graphics system makes the present calls of a driver from one thread, the present thread. The ring buffer and register calls of a Xenos driver come from guest threads. The present thread runs this loop:
 
@@ -80,14 +80,14 @@ flowchart TD
 
 ## MMIO Block
 
-Recompiled code reaches the GPU registers through the MMIO block at `0x7FC80000`. `TitleRuntime::Launch` attaches the block, as `MMIOBlock::kGPU`, after the graphics system accepts the title. The block passes each access to the graphics system, which passes it to the driver. See [MMIO Blocks](../runtime/memory.md#mmio-blocks).
+Recompiled code reaches the GPU registers through the MMIO block at `0x7FC80000`. `TitleRuntime::Launch` attaches the block, as `MMIOBlock::kGPU`, after the graphics system accepts the game. The block passes each access to the graphics system, which passes it to the driver. See [MMIO Blocks](../runtime/memory.md#mmio-blocks).
 
 ## Threads
 
 | Thread | Started by | Runs |
 |---|---|---|
 | Present thread | `IGraphicsSystem` | The present calls and the overlays. |
-| `GPU Commands` | A Xenos driver at title attach | The PM4 command stream. |
-| `GPU VSync` | A Xenos driver at title attach | A vblank at the refresh rate of the video mode, or every millisecond when `gpu.vsync` is off. It can call into the game. |
+| `GPU Commands` | A Xenos driver when a game attaches | The PM4 command stream. |
+| `GPU VSync` | A Xenos driver when a game attaches | A vblank at the refresh rate of the video mode, or every millisecond when `gpu.vsync` is off. It can call into the game. |
 
-The `GPU VSync` thread calls into the game because the game registers a graphics interrupt callback that runs at each vblank. See [Driver Context](driver-context.md#host-threads) for how a driver thread raises it, and [Startup Order](../app/app-lifecycle.md#startup-order) for when each step runs.
+The `GPU VSync` thread calls into the game because the game registers a graphics interrupt callback that runs at each vblank. See [Driver Context](driver-context.md#host-threads) for how a driver thread raises it, and [Startup Order](../app/app-lifecycle.md#startup-order) for when the graphics system starts.

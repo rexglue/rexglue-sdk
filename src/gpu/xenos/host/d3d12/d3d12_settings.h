@@ -49,7 +49,9 @@ class D3D12Settings : public SettingOwner {
               "Scale texture offsets with draw resolution");
   REX_SETTING(bool, native_stencil_value_output_intel, false,
               "Native stencil value output for Intel");
-  REX_SETTING(std::string, render_target_path, "", "Render target implementation path", kInitOnly);
+  REX_SETTING(std::string, render_target_path, "",
+              "Render target implementation path, empty chooses by the adapter",
+              Allowed("", "rtv", "rov"), kInitOnly);
   REX_SETTING(bool, tiled_shared_memory, true, "Use tiled shared memory", kRequiresRestart);
   REX_SETTING(bool, allow_tearing, true, "Allow variable refresh rate and tearing");
   REX_SETTING(bool, debug, false, "Enable Direct3D 12 and DXGI debug layer", kInitOnly);

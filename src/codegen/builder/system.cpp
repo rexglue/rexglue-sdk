@@ -275,7 +275,7 @@ bool Build<PPC_INST_MFLR>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_MFMSR>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_msr) {
-    // REX_CHECK_GLOBAL_LOCK yields 0x8000 when interrupts are enabled and 0 when locked
+    // REX_CHECK_GLOBAL_LOCK reads ctx.msr, where bit 0x8000 is set while interrupts are enabled
     ctx.Println("\t{}.u64 = REX_CHECK_GLOBAL_LOCK();", ctx.R(ctx.insn.operands[0]));
   }
   return true;
@@ -344,7 +344,7 @@ bool Build<PPC_INST_MTMSRD>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_msr) {
     ctx.Println("\tctx.msr = ({}.u32 & 0x8002) | (ctx.msr & ~0x8002);",
                 ctx.R(ctx.insn.operands[0]));
-    // r13 enters the global lock (interrupts off), any other source register leaves it
+    // r13 clears the interrupt enable bit (interrupts off), any other source register leaves it set
     u32 src_reg = ctx.insn.operands[0];
     if (src_reg == 13) {
       ctx.Println("\tREX_ENTER_GLOBAL_LOCK();");

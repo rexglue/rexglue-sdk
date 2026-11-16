@@ -27,8 +27,8 @@ REX_TRY_VOID(REX_LOGGER().AddCategories(rex::log::kAppLog));
 ```
 
 - `AddCategories` fails for a category name that the logger has added, and when the logger has 256 categories.
-- Each added category gets a setting `log.categories.input`, named after the category, that sets its level.
-- A message in a category that was never added is written at the `log.level` threshold, with a warning that the category is not registered.
+- Each added category gets a setting named `log.categories.` plus its name, such as `log.categories.input`, that sets its level.
+- A message in a category that was never added is written when its level is at or above `log.level`. The first such message also logs a warning that the category is not registered.
 
 See [Log Categories and Macros](../appendix/log-categories-and-macros.md) for the categories of the SDK.
 
@@ -39,7 +39,7 @@ Each message has a level, and each category has a threshold level. The logger wr
 | Level | Name | Purpose |
 |---|---|---|
 | `kTrace` | `trace` | Detail per instruction, per packet and per loop iteration. |
-| `kDev` | `dev` | ReX debug output and repeated stub calls. |
+| `kDev` | `dev` | Detail for people who make a game run on the SDK, such as a call to a kernel function that is only a stub. |
 | `kDebug` | `debug` | State changes and intermediate values. |
 | `kInfo` | `info` | Events that a user reads. |
 | `kWarn` | `warn` | Recoverable problems, fallbacks and unsupported features. |
@@ -70,7 +70,7 @@ REXGPU_DEBUG("register r{} = {:#x}", reg, value);
 REXFS_WARN("{} not found", path);
 ```
 
-Each prefix has the level forms from `TRACE` to `CRITICAL`, plus `WARN_ONCE` and the failure forms `FAIL`, `FATAL` and `CHECK` listed [below](#failures-and-assertions). See [Log Categories and Macros](../appendix/log-categories-and-macros.md#category-prefixes) for every prefix.
+Each prefix has the level forms from `TRACE` to `CRITICAL`, plus `WARN_ONCE` and the failure forms `FAIL`, `FATAL` and `CHECK` listed [below](#failures-and-assertions). For `core` the failure forms are `REX_FAIL`, `REX_FATAL` and `REX_CHECK`, not `REXLOG_FAIL`, `REXLOG_FATAL` and `REXLOG_CHECK`. See [Log Categories and Macros](../appendix/log-categories-and-macros.md#category-prefixes) for every prefix.
 
 ### Lines Before the Log File
 
@@ -84,7 +84,7 @@ The app opens the log file during `App::Init`, after it applies the settings. Th
 
 See [Settings Reference](../reference/cvars.md#log) for every `log` setting.
 
-- Every `log` setting except `log.level` and the `log.categories` settings is startup only.
+- Every `log` setting except `log.level` and the `log.categories` settings is [init only](../reference/cvars.md#restriction).
 - `log.debugger` writes to the debugger on Windows and has no effect elsewhere.
 - A `log.pattern` with a flag the logger does not know is refused with a warning, and the logger keeps the default pattern.
 - The log file is in `app.log_root`. Its name is `log.file_name`, or the app name when that is empty, followed by a run number, such as `mygame_007.log`. The run number is one higher than the highest number in the folder.
@@ -109,7 +109,7 @@ level = "info"
 gpu = "debug"
 ```
 
-To set a default that players can override, write at the title layer in `App::OnConfigure`:
+To set a default that players can override, write at the [title layer](settings.md#layers) in `App::OnConfigure`:
 
 ```cpp
 rex::Result<void> MyApp::OnConfigure(rex::SettingsRegistry& settings) {
@@ -120,7 +120,7 @@ rex::Result<void> MyApp::OnConfigure(rex::SettingsRegistry& settings) {
 
 ## Sinks
 
-A sink is a class that implements `rex::log::ILogSink`, with a `Write` call that receives each message and a `Flush` call. The logger never calls the sinks on two threads at once. The SDK has two sinks:
+A sink is a class that implements `rex::log::ILogSink`, with a `Write` call that receives each message and a `Flush` call. The logger never calls the sinks on two threads at once. The SDK has two sink classes that your code can use:
 
 - `LogFileSink` writes to a file opened with `LogFileSink::Open`, which appends to the file and creates missing folders.
 - `LogCaptureSink` keeps the newest 4096 messages in memory. The console overlay reads them with `CopySince` and `GetLatestSequence`.
@@ -157,7 +157,7 @@ Three macros end a function or the process with a log message:
 | `REX_CAT_FATAL(category, fmt, ...)` | Writes a critical message, flushes every sink and aborts. |
 | `REX_CAT_CHECK(category, cond, fmt, ...)` | Runs `REX_CAT_FATAL` when `cond` is false. |
 
-The prefix forms such as `REXFS_FAIL` take the same arguments without the category. For `core` they are `REX_FAIL`, `REX_FATAL` and `REX_CHECK`.
+These three start with `REX_CAT_`, not `REXLOG_CAT_`. The prefix forms such as `REXFS_FAIL` take the same arguments without the category. For `core` they are `REX_FAIL`, `REX_FATAL` and `REX_CHECK`.
 
 The assertion macros in `rex/assert.h` print to standard error, not through the logger, and they do nothing in Release builds. Use a `CHECK` or `FATAL` macro for a failure that must reach the log file in every build.
 

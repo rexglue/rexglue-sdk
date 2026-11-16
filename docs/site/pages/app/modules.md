@@ -1,6 +1,6 @@
 # Modules and Interfaces
 
-The SDK is built from modules that find each other at runtime. This page explains what a module is, how modules reach each other through interfaces, and how the app starts and stops them.
+The SDK is built from [SDK modules](../reference/glossary.md#sdk-module) that find each other at runtime. This page explains what an SDK module is, how modules reach each other through interfaces, and how the app starts and stops them. An SDK module is not a [DLL module](../reference/glossary.md#dll-module), which is a XEX of the game.
 
 ## What a Module Is
 
@@ -8,11 +8,11 @@ A module is an object that implements `rex::IModule` from `rex/module.h`. It has
 
 There are three kinds of module:
 
-- A system module is one of the eight SDK libraries that an `App` loads at every start. Five of them provide the filesystem and the four systems for input, audio, UI and graphics. The other three, `rexxam`, `rexxbdm` and `rexkernel`, connect the XAM, XBDM and kernel parts of the SDK.
+- The eight SDK libraries that an `App` loads at every start are the system libraries, and the module in each is a system module. Five of them provide the filesystem and the four systems for input, audio, UI and graphics. The other three, `rexxam`, `rexxbdm` and `rexkernel`, connect the XAM, XBDM and kernel parts of the SDK.
 - A driver module is a shared library that provides drivers. A driver is the host implementation that a system runs, such as SDL3 audio or Vulkan graphics. The app loads a driver module only when a setting selects one of its drivers.
 - A code module is a module compiled into your program. The app adds it to the list without loading a library.
 
-A module library contains one `REX_DECLARE_MODULE` line. The macro creates the module object and exports three functions from the library: `ReXBuildIdentity`, `ReXEnumerateInterfaces` and `ReXCreateInterface`. The app reads the build identity and writes it to the log, one line for each module. It does not compare it. It then lists the interfaces the module serves and creates the module object through `ReXCreateInterface`.
+The library of a module contains one `REX_DECLARE_MODULE` line. The macro creates the module object and exports three functions from the library: `ReXBuildIdentity`, `ReXEnumerateInterfaces` and `ReXCreateInterface`. The app reads the build identity and writes it to the log, one line for each module. It does not check that the builds match. It then lists the interfaces the module serves and creates the module object through `ReXCreateInterface`.
 
 ## Interfaces
 
@@ -20,7 +20,7 @@ Modules never call each other's classes. Each module serves interfaces, and othe
 
 ### Declaring an Interface
 
-`REX_DECLARE_INTERFACE(Name, version)` from `rex/module.h` opens a class that derives from `IInterface` and declares `kInterface`, the name and version that a lookup matches. The macro writes the `public:` label.
+`REX_DECLARE_INTERFACE(Name, version)` from `rex/module.h` starts the definition of a class that derives from `IInterface` and declares `kInterface`, the name and version that a lookup matches. The members you write after the macro are public, and you close the class with `};`.
 
 ```cpp
 namespace rex::example {
@@ -42,9 +42,9 @@ Any code can call `REX_INTERFACE(T)` from `rex/module.h` to get an interface tha
 - The app has not connected the modules yet. This includes `App::OnConfigure`, where the `App` getters such as `GetAudio` work instead.
 - `rex::Stop` has run.
 
-The filesystem, the content manager and the achievement manager belong to the loaded title, not to a module, so `REX_INTERFACE` does not return them. Get them from the `TitleRuntime`, through `REX_RUNTIME()` or the runtime your code receives, such as `REX_RUNTIME()->GetFileSystem()`. See [Runtime Lifecycle](../runtime/lifecycle.md) for when the runtime exists.
+The filesystem, the content manager and the achievement manager belong to the loaded game, not to a module, so `REX_INTERFACE` does not return them. Get them from the `TitleRuntime`, through `REX_RUNTIME()` or the runtime your code receives, such as `REX_RUNTIME()->GetFileSystem()`. See [Runtime Lifecycle](../runtime/lifecycle.md) for when the runtime exists.
 
-The kernel module serves five interfaces of the loaded title: `IObjectTable`, `IThreadRegistry`, `IModuleRegistry`, `INotificationBroadcaster` and `IOverlappedDispatcher`. Each resolves to the instance of the title that is being set up, running or being torn down, and returns null while no title is in that window. One title is loaded at a time, so a second title that loads after the first unloads gets its own instances.
+The kernel module serves five interfaces of the loaded game: `IObjectTable`, `IThreadRegistry`, `IModuleRegistry`, `INotificationBroadcaster` and `IOverlappedDispatcher`. Each resolves to the instance of the game that is being set up, running or being torn down, and returns null at any other time. One game is loaded at a time, so a second game that loads after the first unloads gets its own instances.
 
 ### Interfaces a Module Serves
 
@@ -91,7 +91,7 @@ A driver implements `IDriver`. The system of its type calls `IDriver::Initialize
 - `RunOnUIThread` runs a function on the UI thread and waits for it.
 - `PostToUIThread` queues a function for the UI thread and returns immediately.
 
-A graphics driver also receives its window surface through `IGraphicsDriver::SetSurface` and the running title through `AttachTitle`. See [Driver Context](../devices/driver-context.md) for what the driver receives at attach. The other driver types never see the title.
+A graphics driver also receives its window surface through `IGraphicsDriver::SetSurface` and the running game through `AttachTitle`. See [Driver Context](../devices/driver-context.md) for what the driver receives at attach. The other driver types never see the game.
 
 ## Lifecycle
 
@@ -178,13 +178,13 @@ An `App` loads these libraries, in this order:
 See [Binaries and Modules](../appendix/binaries-and-modules.md#system-libraries) for the interfaces each one serves and requires. To change the list, override `App::OnModules`.
 
 - `rexkernel` must come last. It reads the filesystem, input, audio, UI, graphics and XAM interfaces during `Connect`, and those come only from earlier modules.
-- `rexxam` must come before `rexkernel`. A program that never launches a title can remove it. Without it, `TitleRuntime::Load` fails with "the rexxam module is not loaded, a title cannot launch without it".
-- `rexxbdm` must come before `rexkernel`. A program that never launches a title can remove it. Without it, each XBDM export logs that it was called and returns the value that the module would return.
+- `rexxam` must come before `rexkernel`. A program that never launches a game can remove it. Without it, `TitleRuntime::Load` fails with "the rexxam module is not loaded, a title cannot launch without it".
+- `rexxbdm` must come before `rexkernel`. A program that never launches a game can remove it. Without it, a call from the game to an XBDM function is logged and returns the same value as with the module.
 - `rexhid` can be removed when the app needs no input.
 
 ## Selecting Drivers
 
-Each system has a setting that lists its drivers. The app turns the names into driver modules before `Init`, and each system creates its drivers during `Init`.
+Each system has a setting that lists its drivers. The app turns the names into driver modules before the modules init, and each system creates its drivers when its module inits.
 
 - `GetDriverModules` from `rex/driver_module.h` returns the library names of the drivers that the settings select, and skips drivers that a connected module provides.
 - `SelectDrivers` creates and initializes the drivers of one type in list order.
@@ -225,7 +225,7 @@ The app finds a driver module from the name of the driver. The module name is th
 
 When neither holds the file, the load fails with an error that names every folder it looked in. No setting or environment variable adds a folder.
 
-- `rexglue_configure_target` copies the system libraries and every built driver module there. `EXCLUDE` leaves out the modules it lists, and `NO_COPY` copies nothing.
+- The CMake function `rexglue_configure_target` copies the system libraries and every built driver module to the folder of your executable. `EXCLUDE` leaves out the modules it lists, and `NO_COPY` copies nothing.
 - An installed SDK puts its shared libraries, module libraries included, in `lib` on Linux and macOS and in `bin` next to `rexglue` on Windows. The loader finds them through `rexbase`, so the executable can be anywhere.
 
 The file name has a postfix for the build configuration: `d` for Debug, `rd` for RelWithDebInfo and nothing for Release. A Debug build loads `rexapu-sdl3` from these files:
@@ -237,13 +237,13 @@ The file name has a postfix for the build configuration: `d` for Debug, `rd` for
 | macOS | `librexapu-sdl3d.dylib` |
 
 - A missing file fails `rex::Init` with "module 'rexapu-sdl3' not found at" and the path it tried.
-- A module is accepted on the interface names and versions it serves and requires. See [Versions and Builds](#versions-and-builds).
+- The loader accepts a module by the names and versions of the interfaces it serves and requires, not by its SDK build. See [Versions and Builds](#versions-and-builds).
 
 ## Versions and Builds
 
 The app does not check which SDK build a module comes from. A module loads when it serves `IModule` at the version the app knows, and every interface it requires is served at the same name and version. A module that requires a version nobody serves fails with "requires X version N". A module that serves another version of `IModule` fails with a message that names both versions.
 
-The build a library reports is logged at info level, one line for each module with its name, its file and the SDK build, or "unknown build" when the library reports none. When a module group fails and the host and the loaded libraries do not all report the same build, the error ends with a line such as `builds: host 0.11.0-dev.g0b78fa33, rexhid 0.11.0-dev.g0b78fa33, rexhid-sdl3 0.11.0-dev.g351bc94d`. A half updated install is then named where the failure is.
+The build a library reports is logged at info level, one line for each module with its name, its file and the SDK build, or "unknown build" when the library reports none. When loading or starting the modules fails, and the program and the loaded libraries do not all report the same build, the error ends with a line such as `builds: host 0.11.0-dev.g0b78fa33, rexhid 0.11.0-dev.g0b78fa33, rexhid-sdl3 0.11.0-dev.g351bc94d`, where `host` is the program. The error then shows that the install is only partly updated.
 
 A change to an interface needs a new version number when it changes a function, the order of the functions, or a type that crosses the boundary. The loader cannot see these changes, and a module built against the old layout calls the wrong function or reads the wrong bytes. Types of the standard library cross the boundary in most interfaces, such as `std::string`, `std::vector` and `Result`. Modules and the program need the same compiler, the same standard library and the same build configuration, such as `/MD` against `/MDd` on Windows, or their layouts differ without any version number changing. The rule for raising a version is in [Changing an interface](../contributing.md#changing-an-interface).
 

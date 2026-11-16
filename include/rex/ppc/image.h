@@ -50,7 +50,7 @@ struct PPCCodegenFlags {
   /** Keeps the reservation register in a local variable instead of `ctx.reserved`. */
   bool reserved_as_local = false;
   /**
-   * Omits the global lock check at mfmsr, and the MSR update and the global lock enter and leave at
+   * Omits the MSR read at mfmsr, and the MSR update and the interrupt enable bit change at
    * mtmsrd. Config key `skip_msr`.
    */
   bool skip_msr = false;

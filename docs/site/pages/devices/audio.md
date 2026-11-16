@@ -37,14 +37,14 @@ With `apu.peak_limit` above 0, a stream whose peak stays above the limit for two
 
 ## Guest Audio
 
-The game reaches audio through kernel exports, which the APU of the runtime serves. `TitleRuntime::Launch` starts the APU, with its XMA decoder and the `Audio Worker` thread, when it attaches the game to the systems. If the APU fails to start, the runtime logs a warning and the game runs without audio.
+The game reaches audio through kernel exports, which guest audio serves. Guest audio is the audio part of the runtime, and it stands in for the APU. `TitleRuntime::Launch` starts guest audio, with its XMA decoder and the `Audio Worker` thread, when it attaches the game to the systems. If guest audio fails to start, the runtime logs a warning and the game runs without audio.
 
-A game registers a render client with `XAudioRegisterRenderDriverClient`. The APU then opens a stream on the audio system for the client, and the `Audio Worker` thread calls the client's callback each time the stream can take another frame:
+A game registers a render client with `XAudioRegisterRenderDriverClient`. Guest audio then opens a stream on the audio system for the client, and the `Audio Worker` thread calls the client's callback each time the stream can take another frame:
 
 ```mermaid
 sequenceDiagram
     participant G as Game
-    participant A as APU
+    participant A as Guest audio
     participant W as Audio Worker
     participant S as IAudioSystem
     G->>A: Register render client
@@ -58,20 +58,20 @@ sequenceDiagram
 ```
 
 1. At registration, the stream can queue `apu.max_queued_frames` frames, so the worker calls the callback that many times.
-2. In the callback, the game mixes a frame and submits it with `XAudioSubmitRenderDriverFrame`, and the APU submits it to the stream.
+2. In the callback, the game mixes a frame and submits it with `XAudioSubmitRenderDriverFrame`, and guest audio submits it to the stream.
 3. Each time the mix takes a frame from the stream, one more frame is free, and the worker calls the callback again.
 
 The worker is a kernel thread, so the callback runs as guest code like any other game thread. At most eight render clients can be registered.
 
 ## XMA Decoder
 
-The XMA decoder of the APU has 320 contexts. A context is a block in guest memory that holds the state of one XMA stream: its input buffers, its output buffer and its decode state. The decoder decodes the contexts with FFmpeg on the `XMA Decoder` thread.
+The XMA decoder of guest audio has 320 contexts. A context is a block in guest memory that holds the state of one XMA stream, which is its input buffers, its output buffer and its decode state. The decoder decodes the contexts with FFmpeg on the `XMA Decoder` thread.
 
 A game reaches the decoder through the XMA kernel exports, or by writing the contexts and the APU registers, as it would on the console. `TitleRuntime::SetAudioPaused` pauses both the decoder and the `Audio Worker`.
 
 ## MMIO Block
 
-Recompiled code reaches the APU registers through the MMIO block at `0x7FEA0000`. The XMA decoder attaches the block, as `MMIOBlock::kAPU`, when the APU starts during `TitleRuntime::Launch`. See [MMIO Blocks](../runtime/memory.md#mmio-blocks).
+Recompiled code reaches the APU registers through the MMIO block at `0x7FEA0000`. The XMA decoder attaches the block, as `MMIOBlock::kAPU`, when guest audio starts during `TitleRuntime::Launch`. See [MMIO Blocks](../runtime/memory.md#mmio-blocks).
 
 ## Threads
 
@@ -81,4 +81,4 @@ Recompiled code reaches the APU registers through the MMIO block at `0x7FEA0000`
 | `XMA Decoder` | `TitleRuntime::Launch` | The XMA decoding. |
 | Mix thread, unnamed | `IAudioSystem` | The mix on a timer while no device is open, and the check for a lost device. |
 
-When the device is lost, the mix thread closes it, mixes on its timer, and tries to open the device again after about one second. See [Startup Order](../app/app-lifecycle.md#startup-order) for when each step runs.
+When the device is lost, the mix thread closes it, mixes on its timer, and tries to open the device again after about one second. See [Startup Order](../app/app-lifecycle.md#startup-order) for when the audio system starts and [Launch](../runtime/lifecycle.md#launch) for when guest audio starts.

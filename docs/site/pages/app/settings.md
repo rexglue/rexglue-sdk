@@ -29,7 +29,7 @@ rex::Result<void> MyApp::OnConfigure(rex::SettingsRegistry& settings) {
 
 `SettingsRegistry::Register` fails when one of its full names is already registered or is an [old name](#old-names). Destroying a settings class removes its settings from the registry.
 
-A path setting can refer to another setting by writing its name in braces, such as `{app.root}`. `Get()` replaces the reference with the current value of that setting, and a name in braces that is not a setting stays as written, together with every reference after it. For example, `app.log_root` defaults to `{app.root}/logs`, so a player who moves `app.root` also moves the log folder.
+A path setting can refer to another setting by writing its name in braces, such as `{app.root}`. `Get()` replaces the reference with the current value of that setting. When a name in braces is not a setting, `Get()` stops replacing there, and that name and every reference after it in the value stay as written. For example, `app.log_root` defaults to `{app.root}/logs`, so a player who moves `app.root` also moves the log folder.
 
 ### Traits
 
@@ -41,8 +41,8 @@ A trait after the help text in `REX_SETTING` limits the values or changes when a
 | `Allowed(...)` | Accepts only the listed texts in a string setting. | `log.level` accepts the level names from `trace` to `off`, so `warning` is refused. |
 | `kRequiresRestart` | Applies a change at the next start of the program. | `gpu.resolution_scale_x` can be changed in the settings overlay, and the new scale applies after a restart. |
 | `kInitOnly` | Refuses writes once the systems have started. | `apu.driver` selects the audio driver module, which loads during startup. |
-| `kLockedInGame` | Refuses writes while a title runs. | `kernel.user_language` and `runtime.title_memory_mb` are read when the title loads. |
-| `kNoSave` | Keeps the value out of the config file. | `app.name` is set by the `App` constructor on every start. |
+| `kLockedInGame` | Refuses writes while a game runs. | `kernel.user_language` and `runtime.title_memory_mb` are read when the game loads. |
+| `kNoSave` | Excludes the value from the config file. | `app.name` is set by the `App` constructor on every start. |
 | `kDebugOnly` | Hides the setting from the settings overlay outside Debug builds. | A switch that helps only while you debug your own code. No SDK setting uses it. |
 | `kKeyChord` | Makes the settings overlay capture the value from the keyboard. | `ui.bind.console` is the key that opens the console overlay, `Backtick` by default. |
 
@@ -55,11 +55,11 @@ Each value carries the layer that wrote it. A layer is a rank for the source of 
 | Layer | `SettingLayer` | Source |
 |---|---|---|
 | default | `kDefault` | The default declared in `REX_SETTING`. |
-| title | `kTitle` | Your code, before the title launches. |
+| title | `kTitle` | Your code while no game runs, for your own defaults. An app with no game uses this layer too. |
 | file | `kFile` | The config file. |
 | environment | `kEnvironment` | A `REX_` environment variable. |
 | command line | `kCommandLine` | A `--scope.name` option. |
-| runtime | `kRuntime` | The console overlay, the settings overlay, and your code while a title runs. |
+| runtime | `kRuntime` | The console overlay, the settings overlay, and your code while a game runs. |
 | lock | `kLock` | A value locked by your code. No later write replaces it. |
 
 The order lets your program change a default without taking the choice from the player. A value that your code sets in `OnConfigure` is lower than the config file, the environment and the command line of the player. A change in an overlay while the program runs is higher than all three. For example, a program that sets `ui.video_mode_width` to 1920 in `OnConfigure` starts at 1920, and `--ui.video_mode_width=1280` on the command line starts it at 1280.
@@ -71,9 +71,9 @@ A source that the registry applies, such as the config file, loses to a higher l
 A `Setting` member has these calls:
 
 - `Get()` returns the value.
-- `Set(value)` writes at the title layer before the title launches and at the runtime layer after. It returns an error when the setting is frozen or locked, when a higher layer holds the value, or when the value is refused.
+- `Set(value)` writes at the runtime layer while a game runs, and at the title layer at any other time, including in an app that never launches a game. It returns an error when the setting is [frozen](#when-a-setting-can-change) or locked, when a higher layer holds the value, or when the value is refused.
 - `Lock(value)` writes at the lock layer. It returns an error when the setting is frozen or locked, or when the value is refused.
-- `Reset()` returns the setting to its default and clears its layer.
+- `Reset()` returns the setting and its layer to the default.
 
 `SettingsRegistry::SetText(name, text)` writes a setting by name from text at the runtime layer. An overload takes the layer to write at. See `SettingsRegistry` and `Setting` in the API reference for the calls that find, list, load and save settings.
 
@@ -196,11 +196,11 @@ The console overlay is the in app console that opens with `ui.bind.console`. It 
 
 ## When a Setting Can Change
 
-A setting with none of the traits below accepts writes at any time. These traits close or delay writes at fixed points:
+A setting with none of the traits below accepts writes at any time. The Settings Reference shows these traits in its Restriction column as requires restart, init only and locked in game. These traits close or delay writes at fixed points:
 
-- A `kInitOnly` setting is frozen once the systems have started, right before `OnInit`. The `app` path settings, `hid.drivers`, `apu.driver`, `ui.driver` and `gpu.driver` are `kInitOnly`.
-- A `kLockedInGame` setting is frozen when `TitleRuntime::Launch` starts the title, and writable again once the title unloads.
-- A `kRequiresRestart` setting accepts writes at any time. Once the startup settings are frozen, a new value is pending. `Get()` keeps returning the old value until the next start of the program.
+- A `kInitOnly` setting (init only) is frozen once the systems have started, right before `OnInit`. Set it in the config file, the environment, the command line or `OnConfigure`. The `app` path settings, `hid.drivers`, `apu.driver`, `ui.driver` and `gpu.driver` are `kInitOnly`.
+- A `kLockedInGame` setting (locked in game) is frozen when `TitleRuntime::Launch` starts the game, and writable again once the game unloads.
+- A `kRequiresRestart` setting (requires restart) accepts writes at any time. Once the startup settings are frozen, a new value is pending. `Get()` keeps returning the old value until the next start of the program.
 - A locked setting refuses every later write.
 
 ```mermaid
@@ -222,7 +222,7 @@ A write to a frozen setting returns an error with "can no longer change". A writ
 - `SettingsRegistry::GetRestartPending` lists the settings with a pending value.
 - `App::RequestRestart` shuts the app down and starts the process again with the same arguments. The new process reads its values from the sources again, so a value set in an overlay or from code applies at that start only after `SettingsRegistry::Save` writes it to the config file.
 
-`rex::Shutdown` ends the settings session. It returns every setting to its default and clears every lock and freeze.
+`rex::Shutdown` resets the settings. It returns every setting to its default and clears every lock and freeze.
 
 ## Values and Errors
 

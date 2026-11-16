@@ -3,7 +3,7 @@
 A hook is host C++ code that takes the place of, or runs inside, a recompiled guest function. Hooks are how a project changes the behavior of the generated code without editing it. There are three kinds:
 
 - A function hook replaces a whole function.
-- A detour is a function hook whose body can call the original function.
+- A detour is a function hook that wraps the original function. Its body must call the original on every path.
 - A mid function hook runs at one instruction inside a function.
 
 `rexglue init` creates a source file for your hooks, named after the project. For the project `foobar` from [Getting Started](../getting-started.md), it is `src/foobar_hooks.cpp`.
@@ -27,11 +27,11 @@ The macros are in `rex/ppc/hook.h`. Each macro except `REX_IMPORT` defines an `e
 |---|---|
 | `REX_HOOK` | Takes a symbol name and a host function. Calls the host function with arguments read from the guest registers and writes the result to `r3`, `f1` or `v1`. |
 | `REX_HOOK_RAW` | Takes a symbol name. Opens a body with `ctx` and `base` in scope. |
-| `REX_DETOUR` | Takes a symbol name, a return type and a parameter list. The body can call the [original](#detours). |
+| `REX_DETOUR` | Takes a symbol name, a return type and a parameter list. The body must call the [original](#detours) on every path. |
 | `REX_STUB` | Takes a symbol name. Logs a stub message and leaves `r3` unchanged. |
 | `REX_STUB_LOG` | Takes a symbol name and a message, and logs the message with the stub message. |
 | `REX_STUB_RETURN` | Takes a symbol name and a value. Logs the value and writes it to `r3`. |
-| `REX_IMPORT` | Takes a symbol, a callable name and a signature. Declares a host callable for a guest function, with internal linkage. |
+| `REX_IMPORT` | Lets host code call a guest function. Takes the symbol of the guest function, a name for the host callable and its signature, and declares that callable with internal linkage. |
 
 ```cpp
 #include <rex/ppc/hook.h>
@@ -49,7 +49,7 @@ When the runtime stops a guest thread, such as at shutdown, it sets a stop reque
 
 ### Export Macros
 
-The symbol of a kernel export is `__imp__` and the export name, such as `__imp__NtCreateFile`, and the export tables of the SDK link against that symbol.
+The SDK implements each kernel export as a function named `__imp__` plus the export name, such as `__imp__NtCreateFile`. To replace or stub a kernel export in your project, define that symbol with one of the export macros.
 
 The export macros `REX_EXPORT`, `REX_EXPORT_STUB` and `REX_EXPORT_STUB_RETURN` work like `REX_HOOK`, `REX_STUB` and `REX_STUB_RETURN`, and take the `__imp__` symbol of the export:
 
@@ -73,7 +73,7 @@ REX_EXPORT(__imp__NtCreateFile, rex::kernel::xboxkrnl::NtCreateFile_entry)
 
 Three SDK types appear in hook signatures:
 
-- The `be_` aliases, such as `be_u32`, hold a big endian value in guest byte order. Reading the value swaps the bytes.
+- The `be_` aliases, such as `be_u32`, hold a big endian value in guest byte order. Reading the value swaps the bytes to host order.
 - `rex::memory::MappedPtr` is a host pointer that keeps the guest address it maps.
 - `rex::ppc::ByValue` wraps a structure of `be_` fields passed by value.
 
@@ -83,7 +83,7 @@ Three SDK types appear in hook signatures:
 | `f32`, `f64` | The float register, or the stack slot. |
 | `T*` | Null for 0, otherwise the host pointer of the guest address. |
 | `MappedPtr` | Null for 0, otherwise a host pointer that keeps its guest address. |
-| `be_u32` and the other `be_` aliases | The slot without a swap. Reading the value swaps it. |
+| `be_u32` and the other `be_` aliases | The slot is stored as is, so reading the parameter returns the slot value with its bytes swapped. |
 | `PPCVRegister` | The vector register. |
 
 | Result type | Result |
@@ -108,7 +108,8 @@ REX_DETOUR(ExampleFunction, u32, (u32 count)) {
 - `original` calls `__imp__ExampleFunction` on the current register state of the thread.
 - A detour that returns `void` leaves the registers as the original left them.
 - A detour cannot return a structure over 8 bytes by value.
-- A detour must not stay running across a guest `SwitchToFiber`, because the chain of running detours belongs to the host thread.
+- To replace a function without calling the original, use `REX_HOOK`.
+- Do not detour a function that can switch fibers with `SwitchToFiber` before it returns. The SDK tracks the running detours for each host thread, and a fiber switch inside one breaks that tracking.
 
 ### Context Form
 
@@ -125,7 +126,7 @@ A `rex::ppc::StackFrame` pushes space on the guest stack for the length of a C++
 It warns once when:
 
 - the parameters leave out an argument register that the function reads
-- the body writes through `ctx` to a register that the image keeps in a local
+- the body writes through `ctx` to a register that the generated code keeps in a local (see [Registers in Locals](codegen-pipeline.md#registers-in-locals)), so the generated code can miss the write
 
 ## Mid Function Hooks
 
@@ -165,9 +166,9 @@ A body takes at most 32 parameters. Each is one of:
 - a `MappedPtr`
 - a non const reference to a register type or to `PPCContext`
 
-Each register token fits these parameter types:
+Each register token allows these parameter types:
 
-| Register token | Fits |
+| Register token | Allowed parameter types |
 |---|---|
 | `r0` to `r31` except `r1` | `u32`, `u64`, `PPCRegister&`, a pointer, a `MappedPtr` |
 | `f0` to `f31` | `f64`, `PPCRegister&` |
@@ -180,7 +181,7 @@ Each register token fits these parameter types:
 
 - Codegen rejects `r1`.
 - The address must be a nonzero multiple of 4.
-- A register that does not fit its parameter type fails to compile.
+- A parameter type that the register does not allow fails to compile.
 
 ## Hook Sources
 
@@ -198,10 +199,12 @@ Because codegen reads the text without a preprocessor, it accepts these forms:
 
 For the same reason, do not put the `REX_MIDASM_` macros inside a preprocessor conditional. A header guard around the whole file is allowed. To make a hook conditional, put the condition inside the body.
 
+A source hook is a mid function hook declared in C++ with `REX_MIDASM_AT`.
+
 - An address can have one source hook.
-- A `before` and an `after` source hook at the same address collide, as do a source hook and a `[[midasm_hook]]` entry.
+- Codegen fails when two source hooks use the same address, even when one is `before` and the other `after`. It fails the same way for a source hook and a `[[midasm_hook]]` entry at one address.
 - Of two `[[midasm_hook]]` entries at one address, the later one replaces the earlier one.
-- Other errors give the file and line of the macro.
+- Every source hook error gives the file and line of the macro.
 
 Source hooks use C linkage, so each body name must be unique across the program.
 

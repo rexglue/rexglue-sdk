@@ -36,22 +36,22 @@ When there is no user config folder, such as with no home folder, the app folder
 
 ## Game Folders
 
-The `title.*` settings are [`kLockedInGame`](../app/settings.md#traits), so they are fixed when the game launches.
+ The `title.*` settings, named for the [title](../reference/glossary.md#title), are [`kLockedInGame`](../app/settings.md#traits), so they are fixed when the game launches.
 
 | Setting | Command line option | Default | Holds |
 |---|---|---|---|
 | `title.game_root` | `--game_data_root` | Empty | The game files, mounted as `game:`. |
 | `title.game_writable` | None | `false` | Whether `game:` is writable. |
 | `title.update_root` | `--update_data_root` | Empty | The title update files, mounted as `update:`. |
-| `title.metadata_root` | `--metadata_root` | `{app.root}/metadata` | The achievement metadata. |
-| `title.entry` | None | `default.xex` | The executable under `game:` that `TitleRuntime::Load` runs. |
+| `title.metadata_root` | `--metadata_root` | Empty, so the runtime searches near `title.game_root` (see [Metadata](#metadata)) | The achievement metadata. |
+| `title.entry` | None | `default.xex` | The executable under `game:` that `TitleRuntime::Load` loads. |
 | `title.imports` | None | Empty | Other files under `game:` that the executable can import from, separated by `\|`. |
 
 `TitleApp::LaunchTitle` fails when `title.game_root` is empty or is not a folder. A relative `title.game_root` or `title.update_root` is relative to the working directory.
 
 ### Metadata
 
-The runtime reads the achievement metadata from a file named `achievements.toml`. When `title.metadata_root` is set in any layer, the runtime looks for the file only in that folder. While the setting keeps its default, the runtime ignores the default value and tries three places in order:
+The runtime reads the achievement metadata from a file named `achievements.toml`. When `title.metadata_root` is not empty, the runtime looks for the file only in that folder. While the setting is empty, the runtime tries three places in order:
 
 1. The `metadata` folder in `title.game_root`.
 2. A `metadata` folder next to `title.game_root`.
@@ -69,7 +69,7 @@ A content package is a save or a piece of downloaded content. The path of a pack
 
 The default profile has the name `User` and the XUID `B13EBABEBABEBABE`.
 
-When a folder exists whose name differs from a content package or achievement path only in case, the SDK uses that folder. A relative `app.user_root` is relative to the working directory for content packages and profile data. Achievement state and the console overlay history use the path as written.
+When a folder exists whose name differs from a content package or achievement path only in case, the SDK uses that folder. Content packages and profile data resolve a relative `app.user_root` once, against the working directory when the game loads. Achievement state and the console overlay history use the path as written, so the operating system resolves it each time they open a file, and it follows a change of the working directory.
 
 ### Content Mounts
 
@@ -82,6 +82,6 @@ When the game opens a content package, XAM mounts it in the filesystem and links
 
 The Xenos graphics drivers keep the guest shaders and the pipeline descriptions of a game under `app.cache_root`, one set of files for each title ID, and translate them again when the next run starts. With an empty `app.cache_root`, or with `gpu.xenos.store_shaders` off, they keep none.
 
-The pipeline file name holds a variant, the render target path that the driver uses, so each path keeps its own file. The Direct3D 12 variant is `rov` or `rtv`, and the Vulkan variant is `fsi` or `fbo`. See [Storage Paths](../appendix/storage-paths.md#shader-cache) for the file names.
+The pipeline file name holds a variant, which names the method that the driver uses to emulate the render targets of the console. Each method keeps its own file. Direct3D 12 uses `rov` (rasterizer ordered views) or `rtv` (render target views), and Vulkan uses `fsi` (fragment shader interlock) or `fbo` (framebuffer objects). See [Storage Paths](../appendix/storage-paths.md#shader-cache) for the file names.
 
 `gpu.xenos.dump_shaders` sets a separate folder where the driver writes the shaders it translates, for debugging.

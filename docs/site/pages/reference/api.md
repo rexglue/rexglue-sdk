@@ -13,16 +13,16 @@ A program is a subclass of one of two classes from `rexapp`:
 
 See [App Lifecycle](../app/app-lifecycle.md) for the steps and hooks of both classes.
 
-Code that is not part of the app class, such as a hook or a module, reaches the running program through the global access macros:
+Code that is not part of the app class, such as a hook or an [SDK module](glossary.md#sdk-module), reaches the running program through the global access macros:
 
-- `REX_INTERFACE(T)` from `rex/module.h` returns the interface `T` of a loaded module, or null. See [Finding an Interface](../app/modules.md#finding-an-interface).
+- `REX_INTERFACE(T)` from `rex/module.h` returns the interface `T` of a loaded SDK module, or null. See [Finding an Interface](../app/modules.md#finding-an-interface).
 - `REX_RUNTIME()` from `rex/kernel/title_runtime.h` returns the `TitleRuntime` of the loaded game, or null when no game is loaded.
 - `REX_GUEST_MEMORY()` from the same header returns its guest memory, or null.
 - `REX_SETTINGS()` from `rex/settings_registry.h` returns the settings registry.
 - `REX_LOGGER()` from `rex/logging/logger.h` returns the logger.
 - `REX_PATHS()` from `rex/path_settings.h` returns the `PathSettings`.
 
-Hook sources include `rex/ppc/hook.h`. See [Hooks](../codegen/hooks.md) for function hooks and detours.
+A source file that defines hooks must `#include <rex/ppc/hook.h>`. See [Hooks](../codegen/hooks.md) for function hooks and detours.
 
 ## Kernel Services
 

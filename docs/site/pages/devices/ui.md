@@ -1,6 +1,6 @@
 # UI
 
-The UI system holds the window of the program. It opens the window, receives its keyboard, mouse and window events, draws the SDK overlays on top of each frame, and shows message boxes and prompts. The Xbox 360 had no window, so nothing in the game calls the UI system. It serves the program, the overlays and the XAM dialogs.
+The UI system holds the window of the program. It opens the window, receives its keyboard, mouse and window events, draws the SDK overlays on top of each frame, and shows message boxes and prompts. The Xbox 360 had no window, so nothing in the game calls the UI system. It serves the program, the overlays and the XAM dialogs. A dialog is an ImGui window drawn in the program window, and a prompt is a dialog that asks the player a question.
 
 `App::GetUI()` returns the UI system as `IUISystem`, and the `rexui` system library provides it. The UI system runs on the UI thread, the thread that called `App::Init`.
 
@@ -16,7 +16,7 @@ A program states whether it needs a window in `AppSysRequirements::ui`. `TitleAp
 
 The `ui.*` settings set the window size, the fullscreen mode, the display and the aspect ratio. See [ui](../reference/cvars.md#ui) in the settings reference for the list.
 
-The video mode is the display mode that the game reads, the resolution and refresh rate it renders for. The `ui.video_mode_*` settings set it and apply at the next start, because the game reads the mode once when it launches. While both video mode size settings keep their defaults, the video mode size follows `ui.resolution`, and then the window size.
+The video mode is the display mode that the game reads, the resolution and refresh rate it renders for. The `ui.video_mode_*` settings set it and apply at the next start, because the game reads the mode once when it launches. While both video mode size settings keep their defaults, the video mode size is taken from `ui.resolution` when it is set. Otherwise it is taken from the window size, when `ui.window_width` and `ui.window_height` are both above 0.
 
 ### Headless
 
@@ -45,29 +45,33 @@ Code outside the input system receives window events through a listener. Impleme
 - `OnUIEvent` receives the window events, such as resize, focus and close, as `UIEvent`.
 - `OnInputEvent` receives the keyboard and mouse events as `InputEvent`.
 - Setting `handled` on a key press or a character keeps it from the overlay hotkeys and the input system.
-- Wheel events carry fractional detents in `scroll_x` and `scroll_y`.
+- Wheel events carry fractional wheel steps in `scroll_x` and `scroll_y`.
 
 A keyboard or mouse event from the UI driver takes this path:
 
 ```mermaid
 flowchart TD
     D["UI driver"] --> U["IUISystem"]
-    U --> C{"Dialog holds device?"}
+    U --> C{"Held by overlay or dialog?"}
     C -- no --> L["Event listeners"]
     C -- yes --> G["ImGui"]
     L --> G
-    G --> H{"Overlay hotkey?"}
+    G -- release --> I
+    G --> A{"Key press or character handled?"}
+    A -- yes --> X(["Not sent to IInputSystem"])
+    A -- no --> H{"Overlay hotkey?"}
     H -- yes --> O["Toggle overlay"]
-    H -- no --> F{"Handled or held?"}
+    H -- no --> F{"Press held by overlay or dialog?"}
+    F -- yes --> X
     F -- no --> I["IInputSystem"]
 ```
 
 1. An open overlay or dialog holds the keyboard or the mouse while ImGui wants that device, such as while a text field has focus. A press, character, motion or wheel turn on a held device skips the listeners.
 2. ImGui receives every event, so the overlays can react to it.
-3. A key press that matches an overlay hotkey toggles that overlay and goes no further.
-4. The input system receives the event unless a dialog holds the device, or a listener handled a key press or a character. Key and button releases always reach it, so no key stays pressed.
+3. A key press that no listener handled and that matches an overlay hotkey toggles that overlay and goes no further.
+4. The input system receives the event unless an overlay or dialog holds the device, or a listener handled a key press or a character. Key and button releases always reach it, so no key stays pressed.
 
-A window event goes to the listeners first. The UI system then passes resize and focus changes to the input system, and focus changes to the audio system for `apu.mute_unfocused`. See [UI Block](input.md#ui-block) for how the console overlay and prompts hide the controllers from the game.
+A window event goes to the listeners first. The UI system then passes resize and focus changes to the input system, and focus changes to the audio system for `apu.mute_unfocused`. See [Blocking Game Input While UI Is Open](input.md#blocking-game-input-while-ui-is-open) for how the console overlay and prompts hide the controllers from the game.
 
 ## Overlays and Dialogs
 
@@ -80,7 +84,7 @@ An overlay is an SDK window that ImGui draws on top of the game. A hotkey shows 
 | Achievements | F7 | The achievements of the game |
 | Console | Backtick | The log, and a command line for settings and commands |
 
-Each hotkey is a `ui.bind.*` setting, such as `ui.bind.console`. `IUISystem::ShowOverlay` and `IUISystem::ToggleOverlay` take an overlay name. Overlays and dialogs draw only when `IUISystem::DrawOverlays` runs. The graphics system calls it once per present, so a program with no graphics driver shows none unless its own renderer calls it.
+Each hotkey is a `ui.bind.*` setting, such as `ui.bind.console`. `IUISystem::ShowOverlay` and `IUISystem::ToggleOverlay` take an overlay name, which is `debug`, `settings`, `achievements`, `console` or the name of an added overlay. Overlays and dialogs draw only when `IUISystem::DrawOverlays` runs. The graphics system calls it once per present, so a program with no graphics driver shows none unless its own renderer calls it.
 
 ### Adding an Overlay
 

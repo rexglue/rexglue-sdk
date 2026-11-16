@@ -1,8 +1,8 @@
 # Driver Context
 
-A system or driver runs before a game launches and after it exits, so it does not look up the running game. It receives what it needs at two points:
+The graphics, audio, input and UI [systems](../reference/glossary.md#system) and their drivers live longer than any one game, so they hold no reference to a running game. They receive what they need at two points:
 
-- When a driver starts, it receives an `IDriverContext` from `rex/driver_context.h`, which serves the settings registry, the logger and the UI thread.
+- When a driver starts, it receives an `IDriverContext` from `rex/driver_context.h`, which gives access to the settings registry, the logger and the UI thread.
 - When a game launches, the runtime attaches it to each system. The system then receives the game interfaces it needs, and gives them back when the game exits.
 
 ## Driver Start
@@ -29,7 +29,7 @@ Each system receives only what it uses:
 - The UI system receives `TitleInfo` and `IAchievementRegistry`, for the achievements overlay.
 - The audio and input systems receive nothing. The kernel calls them through their public interfaces.
 
-Several of these calls return a `ScopeGuard`, an object from `rex/utility.h` that runs a cleanup function once when it is destroyed. Destroying the guard undoes the call.
+Several calls on these interfaces return a `ScopeGuard`, an object from `rex/utility.h` that runs a cleanup function once when it is destroyed. Destroying the guard undoes the call.
 
 ## Physical Memory
 
@@ -37,7 +37,7 @@ The Xenos GPU reads and writes memory by physical address, from `0` to `0x1FFFFF
 
 Calls ignore guest allocation and page protection. A range that ends above `0x20000000` fails with a `kMemory` error, and nothing is read or written.
 
-`CopyToPhysical` notifies the write listeners of the pages it writes. A write through the span that `GetWritablePhysicalSpan` returns notifies nobody.
+`CopyToPhysical` notifies the write listeners of the pages it writes (see [Write Watches](#write-watches)). A write through the span that `GetWritablePhysicalSpan` returns notifies nobody.
 
 ### Fences
 
@@ -70,7 +70,7 @@ sequenceDiagram
 1. `AddWriteListener` adds the listener and returns a `ScopeGuard`. Destroying the guard removes the listener, so the listener must outlive the guard.
 2. `WatchPhysicalWrites` watches a range of physical addresses until the next write to it. A range that ends above `0x20000000` is ignored.
 3. On a write to a watched page, `OnPhysicalWrite(range, exact)` runs on the writing thread, with the write watch lock held. `range` is in physical addresses and covers whole host pages.
-4. If `exact` is false, the listener returns the largest range around `range` that it no longer needs watched, or `{0, 0xFFFFFFFF}` for any range. If `exact` is true, the return value is ignored.
+4. `exact` is false when a write hit a watched page. The listener then returns the largest range around `range` that it no longer needs watched, or `{0, 0xFFFFFFFF}` when it needs no range to stay watched. `exact` is true when the runtime unwatches exactly `range`, such as after `CopyToPhysical`. The return value is then ignored.
 5. A watch fires once. To watch the range again, the driver calls `WatchPhysicalWrites` after the listener returns.
 
 The Xenos drivers use write watches in two places. Shared memory, the driver's copy of guest memory on the GPU, watches each range after it uploads it, and its listener marks the written pages for upload again. The primitive processor, which converts index data the host GPU cannot read as it is, watches that index data and removes its cached conversions when the data changes.

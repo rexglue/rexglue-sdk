@@ -105,9 +105,7 @@ void TitleState::ResolveRoots() {
       paths.game_writable.Get() ? filesystem::MountFlags::kWritable : filesystem::MountFlags::kNone;
   user_data_root_ = REX_PATHS().user_root.Get();
   update_data_root_ = paths.update_root.Get();
-  metadata_root_ = paths.metadata_root.GetLayer() == SettingLayer::kDefault
-                       ? std::filesystem::path()
-                       : paths.metadata_root.Get();
+  metadata_root_ = paths.metadata_root.Get();
 }
 
 filesystem::IFileSystem* TitleState::GetFileSystem() const {

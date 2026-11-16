@@ -54,12 +54,12 @@ These shims copy and fill memory.
 |---|---|
 | `memcpy` | Copies memory. |
 | `memmove` | Copies overlapping memory. |
-| `memset` | Fills memory. |
+| `memset` | Fills memory with a byte value. |
 | `memchr` | Finds a byte in memory. |
-| `XMemCpy` | Copies memory. |
-| `XMemSet` | Fills memory. |
-| `XMemSet128` | Fills memory with a byte value. |
-| `memset_vmx` | Fills memory with a byte value. |
+| `XMemCpy` | The copy routine of the XAM library. Copies like `memcpy`. |
+| `XMemSet` | The fill routine of the XAM library. Fills like `memset`. |
+| `XMemSet128` | A second fill routine that takes the arguments of `memset` and fills like it. |
+| `memset_vmx` | A vector (VMX) fill routine that takes the arguments of `memset` and fills like it. |
 | `memcpy_s` | Copies memory with a size check. |
 | `memmove_s` | Copies overlapping memory with a size check. |
 

@@ -225,9 +225,14 @@
 #define ppc_trap(ctx, base, trap_type) ::rex::ppc::Trap((ctx), (base), (trap_type))
 
 
+// The interrupt enable bit is bit 0x8000 of ctx.msr. No lock exists behind these macros.
+// mfmsr reads ctx.msr, where the bit is set while interrupts are enabled.
 #define REX_CHECK_GLOBAL_LOCK() (static_cast<u64>(ctx.msr))
 
+// mtmsrd from r13 clears the bit, which disables interrupts.
 #define REX_ENTER_GLOBAL_LOCK() (ctx.msr &= ~static_cast<u32>(0x8000))
 
+// mtmsrd from any other register sets the bit through the ctx.msr update before this macro, so
+// nothing is left to do here.
 #define REX_LEAVE_GLOBAL_LOCK() ((void)0)
 
