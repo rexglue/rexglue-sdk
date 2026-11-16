@@ -67,11 +67,15 @@ function (rexglue_detect_stdlib name_var release_var)
   )
 endfunction ()
 
-# rexglue_check_stdlib()
+# rexglue_check_stdlib([APPLY_GCC_INSTALL_DIR])
 # On Linux, compares the C++ standard library of the project's compiler with the one the SDK package
 # was built against (REXGLUE_STDLIB and REXGLUE_LIBSTDCXX_RELEASE, set by rexglueConfig.cmake).
 # Only the major release is compared. Does nothing before the C++ language is enabled, when the SDK
 # is added as a subdirectory, or when the package records no library.
+# On a mismatch of libstdc++ with Clang, when the GCC install of the recorded release exists, with
+# APPLY_GCC_INSTALL_DIR the function adds --gcc-install-dir=<that folder> to CMAKE_C_FLAGS and
+# CMAKE_CXX_FLAGS in the scope of its caller and detects again. Only rexglueConfig.cmake passes the
+# argument, so the flags are set in the scope of the project's find_package call.
 function (rexglue_check_stdlib)
   if (NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_CXX_COMPILER_LOADED)
     return()
@@ -90,6 +94,29 @@ function (rexglue_check_stdlib)
     return()
   endif ()
 
+  set(_gcc_dir "/usr/lib/gcc/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu/${REXGLUE_LIBSTDCXX_RELEASE}")
+  if ("APPLY_GCC_INSTALL_DIR" IN_LIST ARGN
+      AND REXGLUE_LIBSTDCXX_RELEASE
+      AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+      AND IS_DIRECTORY "${_gcc_dir}"
+  )
+    string(APPEND CMAKE_C_FLAGS " --gcc-install-dir=${_gcc_dir}")
+    string(APPEND CMAKE_CXX_FLAGS " --gcc-install-dir=${_gcc_dir}")
+    rexglue_detect_stdlib(_name _release)
+    if (_name STREQUAL REXGLUE_STDLIB AND _release STREQUAL REXGLUE_LIBSTDCXX_RELEASE)
+      set(CMAKE_C_FLAGS
+          "${CMAKE_C_FLAGS}"
+          PARENT_SCOPE
+      )
+      set(CMAKE_CXX_FLAGS
+          "${CMAKE_CXX_FLAGS}"
+          PARENT_SCOPE
+      )
+      message(STATUS "ReXGlue: using the GCC ${REXGLUE_LIBSTDCXX_RELEASE} install ${_gcc_dir}")
+      return()
+    endif ()
+  endif ()
+
   if (REXGLUE_LIBSTDCXX_RELEASE)
     set(_built "libstdc++ ${REXGLUE_LIBSTDCXX_RELEASE}")
   else ()
@@ -103,8 +130,6 @@ function (rexglue_check_stdlib)
   if (REXGLUE_LIBSTDCXX_RELEASE)
     set(_fix
         "Install g++-${REXGLUE_LIBSTDCXX_RELEASE} and libstdc++-${REXGLUE_LIBSTDCXX_RELEASE}-dev. "
-        "With clang, also pass --gcc-install-dir=/usr/lib/gcc/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu/"
-        "${REXGLUE_LIBSTDCXX_RELEASE} in CMAKE_C_FLAGS and CMAKE_CXX_FLAGS. "
         "Or build the SDK from source with REXSDK_DIR, which uses this project's compiler."
     )
   else ()

@@ -271,7 +271,7 @@ An installed SDK records what it was built with. `rexglueConfig.cmake` sets thes
 | `REXGLUE_STDLIB` | Linux only: `libstdc++`, `libc++` or `unknown`. |
 | `REXGLUE_LIBSTDCXX_RELEASE` | Linux only: the major release of libstdc++ (`_GLIBCXX_RELEASE`), empty for another library. |
 
-On Linux, `find_package(rexglue)` and `rexglue_configure_target` compare `REXGLUE_STDLIB` and `REXGLUE_LIBSTDCXX_RELEASE` with the standard library of the project's C++ compiler. A mismatch stops the configure with an error that names both libraries and the fix. Only the major release is compared, and no setting turns the check off.
+On Linux, `find_package(rexglue)` and `rexglue_configure_target` compare `REXGLUE_STDLIB` and `REXGLUE_LIBSTDCXX_RELEASE` with the standard library of the project's C++ compiler. A mismatch stops the configure with an error that names both libraries and the fix. Only the major release is compared, and no setting turns the check off. With Clang, when the GCC install of the release the package was built against exists in `/usr/lib/gcc/<processor>-linux-gnu/<release>`, `find_package(rexglue)` adds `--gcc-install-dir=<that folder>` to `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS` and checks again, so the project needs no flag. The flags are set where `find_package(rexglue)` runs, so call it at the top level of the project's `CMakeLists.txt`, not inside a function or a subdirectory. The error remains when the folder is missing or the second check still differs.
 
 ## Cache Variables
 
