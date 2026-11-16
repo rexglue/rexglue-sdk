@@ -281,6 +281,12 @@ void CommandProcessor::WorkerThreadMain() {
         const int wait_time_ms = 5;
         rex::platform::Wait(write_ptr_index_event_.get(), true,
                             std::chrono::milliseconds(wait_time_ms));
+        // Refresh the write back while idling, so a title that enables the write back after the
+        // consumer already drained the ring still sees the current read pointer, as on the
+        // console.
+        if (read_ptr_writeback_ptr_) {
+          StoreReleaseHost(physical_memory_, read_ptr_writeback_ptr_, read_ptr_index_);
+        }
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && !HasPendingFns() &&
                (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index));
@@ -320,6 +326,13 @@ void CommandProcessor::EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) 
   CallInThreadNoWait([this, ptr, block_size_log2]() {
     read_ptr_writeback_ptr_ = ptr;
     read_ptr_update_freq_ = static_cast<u32>(1) << block_size_log2 >> 2;
+    // The console publishes the current read pointer as soon as the write back is enabled. A title
+    // that submitted packets before enabling it, such as the initial D3D command buffer, observes
+    // the progress the consumer already made, so write the pointer here instead of only after the
+    // next primary buffer execution.
+    if (read_ptr_writeback_ptr_) {
+      StoreReleaseHost(physical_memory_, read_ptr_writeback_ptr_, read_ptr_index_);
+    }
   });
 }
 
