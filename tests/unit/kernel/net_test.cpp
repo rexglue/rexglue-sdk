@@ -426,6 +426,18 @@ REX_TEST_CASE("net: a bind to a port in use fails with WSAEADDRINUSE", "[kernel]
   });
 }
 
+REX_TEST_CASE("net: a bind to a privileged port binds the port 10000 above it", "[kernel][net]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, 987), 16}) == 0);
+    CHECK(PortOf(c, datagram) == 10987);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
 REX_TEST_CASE("net: listen on a datagram socket fails with WSAEOPNOTSUPP", "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
