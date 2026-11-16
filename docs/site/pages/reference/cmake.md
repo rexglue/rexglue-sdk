@@ -208,7 +208,6 @@ Connects a project to codegen. `<name>` is the project name, which starts the na
 - Includes `sources.cmake` from the output folder when codegen has written it. It then sets `REXGLUE_ENTRYPOINT_GENERATED_SOURCES`, `REXGLUE_ENTRYPOINT_PREFIX` and `REXGLUE_ENTRYPOINT_INCLUDE_DIR`, and puts the recompile options on the generated sources.
 - Calls `rexglue_add_codegen` for `foobar_codegen`.
 - Includes `dll_targets.cmake` when codegen has written it.
-- Stops with an error when `generated/rexglue.cmake` exists, since the file is no longer used.
 
 `rexglue_project`, `rexglue_setup_host_library` and `rexglue_setup_target` are macros, so the variables above and the ones `sources.cmake` and `dll_targets.cmake` set stay visible to the project's `CMakeLists.txt`. `rexglue_apply_recomp_settings` is a function.
 
@@ -259,17 +258,7 @@ rexglue_project(foobar OUTPUT_DIR generated/default)
 
 The `REXSDK_DIR` branch builds the SDK from a source folder. Leave it out when the project only uses an installed SDK. `OUTPUT_DIR` is the folder the manifest writes the entrypoint to, `generated/<name of the XEX>`.
 
-A project that is not edited keeps configuring and building. The old file redefines the setup functions the package provides, so the project runs on the old copy of them. Each configure prints one deprecation warning:
-
-```
-CMake Deprecation Warning at <prefix>/lib/cmake/rexglue/rexglue_project.cmake:14 (message):
-  The SDK no longer writes or updates generated/rexglue.cmake.  Delete it,
-  and replace include(generated/rexglue.cmake) in CMakeLists.txt with
-  find_package(rexglue <version> REQUIRED CONFIG) and
-  rexglue_project(<name>).  The CMake reference page shows the lines.
-```
-
-Pass `-Wno-deprecated` to CMake to silence the warning, or `-Werror=deprecated` to make it stop the configure.
+A project that is not edited stops at configure with an error that gives the two edits above, with the project's name and output folder filled in. A leftover `generated/rexglue.cmake` that `CMakeLists.txt` no longer includes does nothing.
 
 ### Build Record
 

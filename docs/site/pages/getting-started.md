@@ -96,7 +96,7 @@ A project name starts with a letter and contains only letters, digits and `_`, b
 
 The presets hold no path of your machine. CMake finds the installed SDK through the user package registry, which the install fills, or through `CMAKE_PREFIX_PATH`. When the SDK is in the registry the project needs no further setup. When it is not, `init` prints the folder and how to point CMake at it. Nothing under `generated` needs to be committed, because `rexglue_project` comes from the SDK package and codegen runs as part of the build.
 
-A project made with an earlier SDK has `generated/rexglue.cmake`. See [Updating a Project](reference/cmake.md#updating-a-project) for the two edits that remove it.
+A project made with an earlier SDK has `generated/rexglue.cmake`. Its configure stops with an error that shows the two edits, which [Updating a Project](reference/cmake.md#updating-a-project) lists.
 
 ## Build the Project
 

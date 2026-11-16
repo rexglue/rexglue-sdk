@@ -8,17 +8,6 @@ include_guard(GLOBAL)
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_target.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/rexglue_metadata.cmake)
 
-# The package config and the add_subdirectory path both include this file, and include_guard makes
-# it run once per configure, so the message appears once.
-if (EXISTS "${CMAKE_SOURCE_DIR}/generated/rexglue.cmake")
-  message(
-    DEPRECATION
-      "The SDK no longer writes or updates generated/rexglue.cmake. Delete it, and replace "
-      "include(generated/rexglue.cmake) in CMakeLists.txt with find_package(rexglue <version> "
-      "REQUIRED CONFIG) and rexglue_project(<name>). The CMake reference page shows the lines."
-  )
-endif ()
-
 # Stops with a clear error when rexglue_project has not run.
 function (_rexglue_require_project caller)
   get_property(
