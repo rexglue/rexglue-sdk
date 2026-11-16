@@ -61,12 +61,6 @@ struct VulkanPresentModeSupport {
 };
 
 /**
- * Guest frame pacing for vsync is done by the command processor (swaps wait for the guest refresh
- * interval), so presentation itself must not block: a FIFO present that waits for the display
- * holds the queue the GPU emulation submits to and stalls it (as xenia notes, presentation is
- * driven by the GPU command processor). With vsync this prefers mailbox (no tearing), then
- * immediate, and uses FIFO only when neither is allowed.
- *
  * @return For vsync, the first allowed of mailbox and immediate, otherwise FIFO. Without vsync,
  * the first allowed of immediate, mailbox and relaxed FIFO, and FIFO when none is allowed.
  */

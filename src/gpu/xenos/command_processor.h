@@ -377,7 +377,6 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   IPhysicalWriteWatch& write_watch_;
   IGuestInterrupts& guest_interrupts_;
   XenosGraphicsDriverBase* graphics_system_ = nullptr;
-  /** When the next swap may complete under vsync, see PaceSwap. */
   std::chrono::steady_clock::time_point next_swap_time_;
   xenos::RegisterFile* register_file_ = nullptr;
   rex::log::OncePerKey<xenos::RegisterFile::kRegisterCount> unknown_write_once_;

@@ -927,9 +927,6 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
 }
 
 void CommandProcessor::PaceSwap() {
-  // On the console the swap completes at a vertical blank, which caps titles at the refresh rate
-  // through command buffer back pressure. Presentation does not block on the display (see
-  // ChooseVulkanPresentMode), so the cap is applied here instead.
   if (!graphics_system_ || !graphics_system_->IsVSyncEnabled()) {
     next_swap_time_ = {};
     return;
@@ -945,8 +942,6 @@ void CommandProcessor::PaceSwap() {
         std::chrono::duration_cast<std::chrono::nanoseconds>(next_swap_time_ - now));
     now = std::chrono::steady_clock::now();
   }
-  // Keep a fixed schedule so pacing does not drift, but restart it after a long frame instead of
-  // letting the title catch up with a burst of fast frames.
   next_swap_time_ =
       (now - next_swap_time_ > interval) ? now + interval : next_swap_time_ + interval;
 }
