@@ -256,6 +256,30 @@ void SharedMemory::RangeWrittenByGPU(u32 start, u32 length) {
   MarkRangeValid(start, length, true);
 }
 
+bool SharedMemory::IsRangeValid(const ScopeGuard&, u32 start, u32 length) const {
+  if (length == 0 || start >= kBufferSize) {
+    return true;
+  }
+  length = std::min(length, kBufferSize - start);
+  u32 page_first = start >> page_size_log2_;
+  u32 page_last = (start + length - 1) >> page_size_log2_;
+  u32 block_first = page_first >> 6;
+  u32 block_last = page_last >> 6;
+  for (u32 i = block_first; i <= block_last; ++i) {
+    u64 range_bits = UINT64_MAX;
+    if (i == block_first) {
+      range_bits &= ~((static_cast<u64>(1) << (page_first & 63)) - 1);
+    }
+    if (i == block_last && (page_last & 63) != 63) {
+      range_bits &= (static_cast<u64>(1) << ((page_last & 63) + 1)) - 1;
+    }
+    if ((system_page_flags_valid_[i] & range_bits) != range_bits) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool SharedMemory::AllocateSparseHostGPUMemoryRange([[maybe_unused]] u32 offset_allocations,
                                                     [[maybe_unused]] u32 length_allocations) {
   REX_ASSERT_ALWAYS(
