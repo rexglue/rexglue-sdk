@@ -281,6 +281,9 @@ void CommandProcessor::WorkerThreadMain() {
         const int wait_time_ms = 5;
         rex::platform::Wait(write_ptr_index_event_.get(), true,
                             std::chrono::milliseconds(wait_time_ms));
+        if (read_ptr_writeback_ptr_) {
+          StoreReleaseHost(physical_memory_, read_ptr_writeback_ptr_, read_ptr_index_);
+        }
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && !HasPendingFns() &&
                (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index));
@@ -320,6 +323,9 @@ void CommandProcessor::EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) 
   CallInThreadNoWait([this, ptr, block_size_log2]() {
     read_ptr_writeback_ptr_ = ptr;
     read_ptr_update_freq_ = static_cast<u32>(1) << block_size_log2 >> 2;
+    if (read_ptr_writeback_ptr_) {
+      StoreReleaseHost(physical_memory_, read_ptr_writeback_ptr_, read_ptr_index_);
+    }
   });
 }
 
