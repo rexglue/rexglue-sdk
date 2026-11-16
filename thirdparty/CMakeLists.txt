@@ -300,6 +300,10 @@ set(ENABLE_RTTI ON)
 # Older glslang versions declare an outdated cmake_minimum_required
 block()
 set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
+# glslang sets CMAKE_INSTALL_PREFIX to the relative folder "install" in the cache on Windows when
+# the prefix is the default. In a project that builds the SDK from source that changes the
+# project's own cache, so the next configure sees a relative prefix.
+set(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT OFF)
 add_subdirectory(glslang)
 endblock()
 foreach (glslang_target glslang MachineIndependent GenericCodeGen OSDependent SPIRV)

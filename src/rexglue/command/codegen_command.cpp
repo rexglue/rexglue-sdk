@@ -58,7 +58,8 @@ void ReportStaleIncludes(const fs::path& manifest_path,
 
 [[nodiscard]] Result<void> RecompileProject(const fs::path& manifest_path, const CLIContext& ctx,
                                             const std::vector<std::string>& targets,
-                                            bool ignore_stamp, const rex::codegen::Limits& limits) {
+                                            bool ignore_stamp, const rex::codegen::Limits& limits,
+                                            const fs::path& depfile) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   if (!manifest) {
     return Err<void>(rex::ErrorCategory::kConfig, "Failed to load manifest");
@@ -72,6 +73,7 @@ void ReportStaleIncludes(const fs::path& manifest_path,
       .reporter = &progress,
       .ignore_stamp = ignore_stamp,
       .limits = limits,
+      .depfile = depfile,
       .sdk_version = REXGLUE_VERSION_FLOOR "-" REXGLUE_VERSION_CHANNEL,
       .tools = ctx.tools,
   };
@@ -130,6 +132,7 @@ struct CodegenOptions {
   std::vector<std::string> targets;
   bool ignore_stamp = false;
   rex::codegen::Limits limits;
+  std::string depfile;
 };
 
 }  // namespace
@@ -179,7 +182,7 @@ Result<std::string> DiscoverManifestInCwd() {
 
 Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext& ctx,
                                const std::vector<std::string>& targets, bool ignore_stamp,
-                               const rex::codegen::Limits& limits) {
+                               const rex::codegen::Limits& limits, const fs::path& depfile) {
   REXGLUE_TRACE("Generating code with config: {}", config_path);
 
   fs::path manifest_path = config_path;
@@ -199,7 +202,8 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
   const std::string current_version = REXGLUE_VERSION_FLOOR;
   EmitProjectHeader(manifest_path, summary);
 
-  if (auto run_result = RecompileProject(manifest_path, ctx, targets, ignore_stamp, limits);
+  if (auto run_result =
+          RecompileProject(manifest_path, ctx, targets, ignore_stamp, limits, depfile);
       !run_result) {
     return run_result;
   }
@@ -222,6 +226,9 @@ void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pe
       ->take_all();
   sub->add_flag("--ignore-stamp", args->ignore_stamp,
                 "Regenerate even when inputs match the recorded stamp");
+  sub->add_option("--depfile", args->depfile,
+                  "Write the inputs of the run to this make style dependency file")
+      ->type_name("PATH");
   sub->add_option("--max_file_size_bytes", args->limits.max_file_size_bytes,
                   "Largest generated source file in bytes")
       ->check(CLI::Range(65536u, 67108864u));
@@ -262,7 +269,8 @@ void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pe
           return Err<void>(discovered.error());
         path = *discovered;
       }
-      return CodegenFromConfig(path, ctx, args->targets, args->ignore_stamp, args->limits);
+      return CodegenFromConfig(path, ctx, args->targets, args->ignore_stamp, args->limits,
+                               args->depfile);
     };
   });
 }

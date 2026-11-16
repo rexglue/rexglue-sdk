@@ -20,7 +20,6 @@ The entrypoint folder also holds these files:
 
 | File | Purpose |
 |---|---|
-| `codegen.d` | Lists the inputs of the run, so the build reruns codegen when one changes. |
-| `codegen.build.stamp` | The output file of the rule in `codegen.d`. Holds the fingerprint of each binary. |
+| `codegen.build.stamp` | The output file of the codegen rule. Holds the fingerprint of each binary. |
 | `module_registry.cpp` | Registers the DLL modules with the runtime. Written only when the manifest lists `[[modules]]`. |
 | `dll_targets.cmake` | Defines a shared library target for each DLL module. Written only when the manifest lists `[[modules]]`. |

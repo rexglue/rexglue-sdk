@@ -23,8 +23,6 @@ namespace rex::codegen {
 inline constexpr std::string_view kStampFileName = "codegen.stamp";
 /** File the build touches after a successful run. */
 inline constexpr std::string_view kBuildStampFileName = "codegen.build.stamp";
-/** Make syntax dependency file. */
-inline constexpr std::string_view kDepfileName = "codegen.d";
 
 /** What a module output was generated from, and what it produced. */
 struct OutputStamp {

@@ -35,7 +35,6 @@ struct InitOptions {
   bool scan_dlls = false;
   std::string template_dir;
   bool force = false;
-  std::filesystem::path sdk_exe; /**< Executable that locates the SDK, this one when empty. */
 };
 
 struct InitModuleOptions {

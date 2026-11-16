@@ -133,6 +133,7 @@ out_directory_path = "generated/entry"
   codegen::ProjectRecompilerOptions options;
   options.tools = &tools;
   options.force = force;
+  options.depfile = folder.path / "generated" / "entry" / "codegen.d";
   auto result = recompiler.Run(options);
   logger.RemoveCategories(rexglue::kLogCategories);
   if (sink) {

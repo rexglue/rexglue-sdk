@@ -46,6 +46,7 @@ rexglue codegen [config] [options]
 | `config` | Points to the manifest file. If it is omitted, codegen searches (see [Finding the manifest](#finding-the-manifest)). |
 | `--target NAME` | Processes this DLL module. Can be repeated. The entrypoint is always processed. |
 | `--ignore-stamp` | Regenerates even when the inputs match the stamp from the last run. |
+| `--depfile PATH` | Writes the inputs of the run to this file in make syntax. Without it no file is written. |
 
 ### Finding the Manifest
 
@@ -91,7 +92,7 @@ The limits bound the analysis passes and the size of the output files. Changing 
 1. Skips each binary whose manifest settings, input files, limits and SDK version are unchanged since the last run, and whose generated files all exist. `--ignore-stamp` and `--force` turn off the skip.
 2. Analyzes each binary that is not skipped. If validation fails, codegen stops before it writes any generated file, unless `--force` is passed.
 3. Writes the files of each analyzed binary. A file whose content is unchanged keeps its time stamp. Codegen removes the generated files that the run no longer writes.
-4. Writes `codegen.stamp` in each output folder, and `codegen.d` and `codegen.build.stamp` in the entrypoint folder.
+4. Writes `codegen.stamp` in each output folder and `codegen.build.stamp` in the entrypoint folder. With `--depfile PATH` it writes the inputs of the run to that file in make syntax. The build passes a file in the build folder.
 5. Scans the `src` folder next to the manifest, and lists each file and line that includes a header that this run removed.
 6. Writes the SDK version into `[project].sdk_version` and logs a summary, such as:
 
@@ -116,6 +117,8 @@ rexglue init --project-name NAME --xex-path PATH [options]
 | `--scan-dll` | Scans the game root and its subfolders for `.dll` files and adds each one as a `[[modules]]` entry. |
 | `--template-dir PATH` | Points to a folder of templates that replace the built in templates. |
 
+The manifest holds the XEX, the game root and each DLL as paths relative to the project. When one of them has no relative path, such as a file on another drive, `init` stops with an error that names both folders and writes nothing.
+
 `init` writes these files, shown for the project name `foobar`:
 
 | File | When it is written |
@@ -131,7 +134,9 @@ If `CMakeLists.txt`, `CMakePresets.json` or the manifest exists and `--force` is
 - `CMakePresets.json` defines the configure presets `win-amd64`, `win-arm64`, `linux-amd64`, `linux-arm64`, `mac-amd64` and `mac-arm64`.
 - Each configure preset has `-debug`, `-release` and `-relwithdebinfo` build presets.
 
-When `rexglue` runs from an installed SDK, the presets set `CMAKE_PREFIX_PATH` to the install folder, so that CMake finds the SDK package. When `rexglue` runs from a build inside the SDK source tree, the presets set `REXSDK_DIR` to the source folder, so that the project builds the SDK from source. See [SDK Discovery](cmake.md#sdk-discovery).
+The presets hold no path of your machine, so the same project works on every machine. CMake finds an installed SDK through `CMAKE_PREFIX_PATH` and then through the user package registry that the install fills. `init` never writes to the registry. It reads it, and when the installed SDK it runs from is not listed, it prints the folder, the `CMAKE_PREFIX_PATH` environment variable and the `-DCMAKE_PREFIX_PATH=<folder>` argument that point CMake at it.
+
+When `rexglue` runs from a build inside an SDK source tree, the presets get `REXSDK_DIR` as `${sourceDir}/<folder>` if the tree is inside the project, such as a submodule, so that the project builds the SDK from source on every clone. For a source tree outside the project, `init` writes nothing and prints the folder and the `-DREXSDK_DIR=<folder>` argument. See [SDK Discovery](cmake.md#sdk-discovery).
 
 ## `init module`
 

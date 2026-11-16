@@ -10,7 +10,7 @@ Codegen writes each binary into the folder given by the binary's `out_directory_
 
 Every C++ file name starts with a prefix, which is `[project].name` for every binary, DLL modules included. The `project_name` key in a [binary table](../reference/manifest.md#binary-tables) sets another prefix for that binary. For `foobar`, the names start with `foobar_`, such as `foobar_pch.h` and the numbered files `foobar_recomp.0.cpp` and up. See [Generated Files](../appendix/generated-files.md) for the purpose of each file.
 
-The entrypoint folder also holds `codegen.d` and `codegen.build.stamp`, which the build uses to rerun codegen. When the manifest lists `[[modules]]`, it holds `module_registry.cpp` and `dll_targets.cmake` too.
+The entrypoint folder holds `codegen.build.stamp`, which the build uses to rerun codegen. When the manifest lists `[[modules]]`, it holds `module_registry.cpp` and `dll_targets.cmake` too.
 
 - To replace a built in template for the headers, the init file, the register file or `sources.cmake`, add a file `codegen/` plus the template name and `.inja`, such as `codegen/pch_h.inja`, to the folder that the manifest key `template_dir` points to.
 - The templates for `module_registry.cpp` and `dll_targets.cmake` cannot be replaced.
@@ -162,7 +162,7 @@ flowchart TD
     modules -. loaded by .-> exe
 ```
 
-- `foobar_codegen` runs `rexglue codegen`, and reruns it when an input listed in `codegen.d` changes.
+- `foobar_codegen` runs `rexglue codegen`, and reruns it when an input listed in its dependency file in the build folder changes.
 - `sources.cmake` lists the generated `.cpp` files of a binary. A change to it, to `dll_targets.cmake` or to the `sources.cmake` of a DLL module makes CMake configure again.
 - `rexglue_setup_target` builds the entrypoint sources into the object library `foobar_recompiled`, with the precompiled header, and links it into the program.
 - `CMakeLists.txt` builds your hook sources into the object library `foobar_common`, which the program links. See [Weak Symbols](hooks.md#weak-symbols) for why it is an object library.

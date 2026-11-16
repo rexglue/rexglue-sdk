@@ -46,9 +46,6 @@ set(CMAKE_FOLDER "sdk")
 
 option(REXGLUE_BUILD_TESTS "Build unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(REXGLUE_BUILD_PPC_TESTS "Build PPC instruction tests" OFF)
-option(REXGLUE_REGISTER_PACKAGE "Register the install prefix in the CMake user package registry"
-       OFF
-)
 option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
 option(REXGLUE_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 option(REXGLUE_ENABLE_TRACY "Enable Tracy profiler integration" ON)
@@ -66,8 +63,17 @@ set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # SDK install support
 include(GNUInstallDirs)
-file(RELATIVE_PATH REXGLUE_LIBDIR_FROM_BINDIR "${CMAKE_INSTALL_FULL_BINDIR}"
-     "${CMAKE_INSTALL_FULL_LIBDIR}"
+# A relative install prefix is relative to the same folder for both, so the result does not change.
+cmake_path(
+  ABSOLUTE_PATH CMAKE_INSTALL_FULL_BINDIR BASE_DIRECTORY "${CMAKE_BINARY_DIR}" OUTPUT_VARIABLE
+  REXGLUE_BINDIR_ABSOLUTE
+)
+cmake_path(
+  ABSOLUTE_PATH CMAKE_INSTALL_FULL_LIBDIR BASE_DIRECTORY "${CMAKE_BINARY_DIR}" OUTPUT_VARIABLE
+  REXGLUE_LIBDIR_ABSOLUTE
+)
+file(RELATIVE_PATH REXGLUE_LIBDIR_FROM_BINDIR "${REXGLUE_BINDIR_ABSOLUTE}"
+     "${REXGLUE_LIBDIR_ABSOLUTE}"
 )
 include(CMakePackageConfigHelpers)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)

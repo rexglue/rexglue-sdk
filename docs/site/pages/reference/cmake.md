@@ -110,14 +110,14 @@ rexglue_add_codegen(<target> MANIFEST <file> OUTPUT_DIR <folder> WORKING_DIRECTO
 
 Defines a custom target that runs `rexglue codegen`. `rexglue_project` calls it to create `foobar_codegen`.
 
-- The target reruns when an input in `codegen.d` or `MAX_FILE_SIZE` changes.
+- The target reruns when an input in its dependency file, `<target>.d` in the build folder, or `MAX_FILE_SIZE` changes.
 - The target writes `sources.cmake`, a configure dependency, so a changed source list regenerates the build files.
 
 | Argument | Meaning |
 |---|---|
 | `<target>` | The custom target. |
 | `MANIFEST` | Points to the [project manifest](manifest.md). |
-| `OUTPUT_DIR` | Points to the entrypoint output folder, which contains `codegen.build.stamp`, `sources.cmake` and `codegen.d`. |
+| `OUTPUT_DIR` | Points to the entrypoint output folder, which contains `codegen.build.stamp` and `sources.cmake`. |
 | `WORKING_DIRECTORY` | Sets the folder the tool runs in. |
 | `TOOL` | Gives the command that runs the tool, such as `$<TARGET_FILE:rex::rexglue>`. |
 | `MAX_FILE_SIZE` | Passed as `--max_file_size_bytes`. |
@@ -235,9 +235,9 @@ Applies the precompiled header and the recompile options to a target.
 The project's `CMakeLists.txt` finds the SDK in one of two ways:
 
 - When the cache variable `REXSDK_DIR` points to an SDK source folder, such as a submodule, it adds that folder with `add_subdirectory` and builds the SDK with the project.
-- Otherwise it finds an installed SDK with `find_package(rexglue)`, which searches `CMAKE_PREFIX_PATH`.
+- Otherwise it finds an installed SDK with `find_package(rexglue)`. CMake searches `CMAKE_PREFIX_PATH` first and then the user package registry, which every install fills.
 
-`rexglue init` sets one of the two in the presets it writes. From an installed SDK it sets `CMAKE_PREFIX_PATH` to the install folder, and from a build inside the SDK source tree it sets `REXSDK_DIR`.
+`rexglue init` writes no path of your machine into the presets and never writes to the registry. For an SDK source tree inside the project, it sets `REXSDK_DIR` to `${sourceDir}/<folder>`. Otherwise it prints how to point CMake at the SDK.
 
 The number in `find_package(rexglue <version> REQUIRED CONFIG)` is the SDK version that wrote the project. CMake accepts that version or a newer one with the same major version. To ask for another version, edit the number. To use one install, set `rexglue_DIR` to its `lib/cmake/rexglue` folder or `CMAKE_PREFIX_PATH` to its prefix. When CMake finds no package, it reports `Could not find a package configuration file provided by "rexglue"`.
 
@@ -245,7 +245,7 @@ The number in `find_package(rexglue <version> REQUIRED CONFIG)` is the SDK versi
 
 A project made with an earlier SDK includes `generated/rexglue.cmake`. The SDK no longer writes or updates the file. Remove it once:
 
-1. Delete `generated/rexglue.cmake`. Nothing else under the output folder needs to be committed.
+1. Delete `generated/rexglue.cmake`. Nothing else under the output folder needs to be committed. Delete `generated/<entry>/codegen.d` too. An earlier SDK wrote it with absolute paths, and the dependency file now lives in the build folder.
 2. In `CMakeLists.txt`, replace the line `include(generated/rexglue.cmake)` with the lines below, for a project named `foobar` whose entrypoint is `default.xex`:
 
 ```cmake
@@ -334,7 +334,6 @@ A variable with a configuration suffix overrides the plain variable for that con
 |---|---|---|
 | `REXGLUE_BUILD_TESTS` | `ON` when the SDK is the top level project | Builds the unit tests. |
 | `REXGLUE_BUILD_PPC_TESTS` | `OFF` | Builds the PPC instruction tests, which require the PPC toolchain. |
-| `REXGLUE_REGISTER_PACKAGE` | `OFF` | Registers the install prefix in the CMake user package registry. |
 | `REXGLUE_ENABLE_SANITIZERS` | `OFF` | Builds with UndefinedBehaviorSanitizer. |
 | `REXGLUE_ENABLE_TSAN` | `OFF` | Builds with ThreadSanitizer and adds a `-tsan` suffix to the output folder. |
 | `REXGLUE_ENABLE_TRACY` | `ON` | Links Tracy and defines `REXGLUE_ENABLE_PROFILING` in every configuration except Release. |

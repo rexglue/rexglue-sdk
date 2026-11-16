@@ -381,8 +381,7 @@ REX_TEST_CASE("The depfile lists the hook source folders and files",
   std::ofstream(folder.path / "src" / "nested" / "extra.cpp") << "int kExtra = 1;\n";
   REQUIRE(RunWithSource(
       folder, "REX_MIDASM_HOOK(SrcDep, (u32 value)) {}\n" + Attach("SrcDep", "before", "r3")));
-  std::ifstream in(folder.path / "generated" / "entry" / rex::codegen::kDepfileName,
-                   std::ios::binary);
+  std::ifstream in(folder.path / "generated" / "entry" / "codegen.d", std::ios::binary);
   std::istringstream tokens(
       std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()));
   std::vector<std::string> listed;

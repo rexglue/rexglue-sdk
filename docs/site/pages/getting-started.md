@@ -80,11 +80,10 @@ Run `rexglue --help` to check the install. See [CMake](reference/cmake.md#preset
 
 ## Create a Project
 
-A project is a folder with a CMake build that turns one XEX into a native program. This example starts from a folder `assets` that holds the game files, with the executable at `assets/default.xex`. From the folder that contains `assets`, run:
+A project is a folder with a CMake build that turns one XEX into a native program. This example makes a folder `foobar` for the project and puts the game files in a folder `assets` inside it, with the executable at `foobar/assets/default.xex`. From inside `foobar`, run:
 
 ```
-rexglue init --project-name foobar --xex-path ./assets/default.xex --project-root ./foobar
-cd foobar
+rexglue init --project-name foobar --xex-path ./assets/default.xex --project-root .
 ```
 
 `rexglue init` writes these files into `foobar`:
@@ -95,7 +94,7 @@ cd foobar
 
 A project name starts with a letter and contains only letters, digits and `_`, because it starts the names of the generated C++ files and functions. See [`init`](reference/cli.md#init) for all options.
 
-The presets that `init` writes point CMake at the installed SDK, so the project needs no further setup. Nothing under `generated` needs to be committed, because `rexglue_project` comes from the SDK package and codegen runs as part of the build.
+The presets hold no path of your machine. CMake finds the installed SDK through the user package registry, which the install fills, or through `CMAKE_PREFIX_PATH`. When the SDK is in the registry the project needs no further setup. When it is not, `init` prints the folder and how to point CMake at it. Nothing under `generated` needs to be committed, because `rexglue_project` comes from the SDK package and codegen runs as part of the build.
 
 A project made with an earlier SDK has `generated/rexglue.cmake`. See [Updating a Project](reference/cmake.md#updating-a-project) for the two edits that remove it.
 
@@ -160,24 +159,24 @@ See [`[functions]`](reference/manifest.md#functions) for the other keys, and [Pr
 
 ## Run the Project
 
-Start the program with the game root, the folder that contains `default.xex`. The project is inside `foobar`, so that folder is `../assets`:
+Start the program with the game root, the folder that contains `default.xex`. The game files are inside the project, so that folder is `assets`:
 
 === "Windows"
 
     ```
-    out/build/win-amd64/Debug/foobar.exe --title.game_root=../assets
+    out/build/win-amd64/Debug/foobar.exe --title.game_root=assets
     ```
 
 === "Linux"
 
     ```
-    ./out/build/linux-amd64/Debug/foobar --title.game_root=../assets
+    ./out/build/linux-amd64/Debug/foobar --title.game_root=assets
     ```
 
 === "macOS"
 
     ```
-    ./out/build/mac-arm64/Debug/foobar --title.game_root=../assets
+    ./out/build/mac-arm64/Debug/foobar --title.game_root=assets
     ```
 
 `title.game_root` is a setting. Every setting can be given on the command line as `--name=value`, for example `--gpu.vsync=false`. `--game_data_root` is a short alias for `--title.game_root`. See the [Settings Reference](reference/cvars.md) for every setting.
@@ -191,6 +190,6 @@ Start the program with the game root, the folder that contains `default.xex`. Th
 | `ReXGlue requires AppleClang 17 or newer` | Install Xcode 26 or newer. |
 | `The ReXGlue SDK package was built against libstdc++ 13, but the C++ compiler of this project ... uses libstdc++ 14` | The Linux SDK packages are built against the GCC 13 libstdc++, and a project must use the same major version, since both sides emit the same standard library classes with different layouts and the process crashes at startup. Install `g++-13` and `libstdc++-13-dev`. With Clang, also pass `--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/13` (`aarch64-linux-gnu` on arm64) in `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS`. Or set `REXSDK_DIR` to build the SDK from source with the project's own compiler, where the check does not apply. A package built against another standard library, such as libc++, gives the same error with that library named. |
 | `Could NOT find Vulkan` | Install the LunarG Vulkan SDK 1.4.313 or newer, or 1.3.275 or newer on Linux arm64. On Windows, open a new shell. On Linux and macOS, source `setup-env.sh`. |
-| `Could not find a package configuration file provided by "rexglue"` | Add the SDK install folder, such as `out/install/win-amd64`, to `CMAKE_PREFIX_PATH`. To build the SDK from source with the project, set `REXSDK_DIR` to the SDK source folder. |
+| `Could not find a package configuration file provided by "rexglue"` | Install the SDK again, which registers it for CMake, or set the `CMAKE_PREFIX_PATH` environment variable, or pass `-DCMAKE_PREFIX_PATH=<folder>` at configure, with the SDK install folder, such as `out/install/win-amd64`. To build the SDK from source with the project, set `REXSDK_DIR` to the SDK source folder. |
 | `--game_data_root was not provided` | Pass `--title.game_root` with the folder of the game files. |
 | `unknown setting '<name>' from CommandLine` | Check the name in the [Settings Reference](reference/cvars.md). |
