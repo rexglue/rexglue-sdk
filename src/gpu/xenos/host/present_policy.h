@@ -61,12 +61,18 @@ struct VulkanPresentModeSupport {
 };
 
 /**
- * @return FIFO for vsync, otherwise the first allowed of immediate, mailbox and relaxed FIFO, and
- * FIFO when none is allowed.
+ * @return For vsync, the first allowed of mailbox and immediate, otherwise FIFO. Without vsync,
+ * the first allowed of immediate, mailbox and relaxed FIFO, and FIFO when none is allowed.
  */
 constexpr VulkanPresentMode ChooseVulkanPresentMode(bool vsync,
                                                     const VulkanPresentModeSupport& support) {
   if (vsync) {
+    if (support.mailbox) {
+      return VulkanPresentMode::kMailbox;
+    }
+    if (support.immediate) {
+      return VulkanPresentMode::kImmediate;
+    }
     return VulkanPresentMode::kFifo;
   }
   if (support.immediate) {

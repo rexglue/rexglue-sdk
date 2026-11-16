@@ -37,8 +37,10 @@ REX_TEST_CASE("No vsync presents with sync interval 0 and tears when the swap ch
   CHECK_FALSE(plain.allow_tearing);
 }
 
-REX_TEST_CASE("Vsync picks FIFO whatever other modes are allowed", "[gpu][present]") {
-  CHECK(ChooseVulkanPresentMode(true, {true, true, true}) == VulkanPresentMode::kFifo);
+REX_TEST_CASE("Vsync picks mailbox, then immediate, then FIFO", "[gpu][present]") {
+  CHECK(ChooseVulkanPresentMode(true, {true, true, true}) == VulkanPresentMode::kMailbox);
+  CHECK(ChooseVulkanPresentMode(true, {true, false, true}) == VulkanPresentMode::kImmediate);
+  CHECK(ChooseVulkanPresentMode(true, {false, false, true}) == VulkanPresentMode::kFifo);
   CHECK(ChooseVulkanPresentMode(true, {false, false, false}) == VulkanPresentMode::kFifo);
 }
 
