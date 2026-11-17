@@ -333,7 +333,7 @@ REX_TEST_CASE("The DPC safe calls work inside a DPC", "[kernel][dpc]") {
 
 REX_TEST_CASE("Queueing a DPC that sits in a write watched page keeps the lock order",
               "[kernel][dpc][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   Reset();

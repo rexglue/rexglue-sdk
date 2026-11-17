@@ -15,7 +15,7 @@ void DefaultHandler(LockRank, LockRank) {
 
 std::atomic<LockOrderHandler> g_handler{&DefaultHandler};
 
-#ifndef NDEBUG
+#if defined(REXGLUE_LOCK_RANK_CHECKS)
 constexpr size_t kMaxHeld = 16;
 
 struct HeldStack {
@@ -33,7 +33,7 @@ LockOrderHandler SetLockOrderHandler(LockOrderHandler handler) {
 }
 
 void PushLockRank(LockRank rank) {
-#ifndef NDEBUG
+#if defined(REXGLUE_LOCK_RANK_CHECKS)
   HeldStack& held = t_held;
   if (held.depth > 0) {
     const LockRank top = held.ranks[held.depth - 1];
@@ -53,7 +53,7 @@ void PushLockRank(LockRank rank) {
 }
 
 void PopLockRank(LockRank rank) {
-#ifndef NDEBUG
+#if defined(REXGLUE_LOCK_RANK_CHECKS)
   HeldStack& held = t_held;
   for (size_t i = held.depth; i > 0; --i) {
     if (held.ranks[i - 1] == rank) {

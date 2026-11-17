@@ -48,13 +48,35 @@ REX_API void PushLockRank(LockRank rank);
 
 REX_API void PopLockRank(LockRank rank);
 
+namespace detail {
+
+/** Calls PushLockRank in a debug build and does nothing otherwise. */
+inline void PushRankChecked(LockRank rank) {
+#if defined(REXGLUE_LOCK_RANK_CHECKS)
+  PushLockRank(rank);
+#else
+  (void)rank;
+#endif
+}
+
+/** Calls PopLockRank in a debug build and does nothing otherwise. */
+inline void PopRankChecked(LockRank rank) {
+#if defined(REXGLUE_LOCK_RANK_CHECKS)
+  PopLockRank(rank);
+#else
+  (void)rank;
+#endif
+}
+
+}  // namespace detail
+
 /** A non recursive mutex that reports order violations in a debug build. */
 class RankedMutex : public rex::NonCopyable {
  public:
   explicit RankedMutex(LockRank rank) : rank_(rank) {}
 
   void lock() {
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     mutex_.lock();
   }
 
@@ -62,12 +84,12 @@ class RankedMutex : public rex::NonCopyable {
     if (!mutex_.try_lock()) {
       return false;
     }
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     return true;
   }
 
   void unlock() {
-    PopLockRank(rank_);
+    detail::PopRankChecked(rank_);
     mutex_.unlock();
   }
 
@@ -82,22 +104,22 @@ class RankedSharedMutex : public rex::NonCopyable {
   explicit RankedSharedMutex(LockRank rank) : rank_(rank) {}
 
   void lock() {
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     mutex_.lock();
   }
 
   void unlock() {
-    PopLockRank(rank_);
+    detail::PopRankChecked(rank_);
     mutex_.unlock();
   }
 
   void lock_shared() {
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     mutex_.lock_shared();
   }
 
   void unlock_shared() {
-    PopLockRank(rank_);
+    detail::PopRankChecked(rank_);
     mutex_.unlock_shared();
   }
 

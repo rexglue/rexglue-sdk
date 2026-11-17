@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <catch2/benchmark/catch_benchmark.hpp>
+
 #include <atomic>
 #include <mutex>
 #include <shared_mutex>
@@ -30,7 +32,7 @@ void CountViolation(LockRank, LockRank) {
 }  // namespace
 
 REX_TEST_CASE("lock order accepts ascending ranks", "[kernel][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   g_violations = 0;
@@ -50,7 +52,7 @@ REX_TEST_CASE("lock order accepts ascending ranks", "[kernel][lock_order]") {
 }
 
 REX_TEST_CASE("lock order reports a descending acquire", "[kernel][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   g_violations = 0;
@@ -67,7 +69,7 @@ REX_TEST_CASE("lock order reports a descending acquire", "[kernel][lock_order]")
 
 REX_TEST_CASE("a leaf lock may follow any lock and nothing may follow a leaf",
               "[kernel][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   g_violations = 0;
@@ -86,7 +88,7 @@ REX_TEST_CASE("a leaf lock may follow any lock and nothing may follow a leaf",
 }
 
 REX_TEST_CASE("an interrupt lock comes before every other rank", "[kernel][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   g_violations = 0;
@@ -110,7 +112,7 @@ REX_TEST_CASE("an interrupt lock comes before every other rank", "[kernel][lock_
 }
 
 REX_TEST_CASE("lock order is tracked per thread", "[kernel][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   g_violations = 0;
@@ -125,7 +127,7 @@ REX_TEST_CASE("lock order is tracked per thread", "[kernel][lock_order]") {
 }
 
 REX_TEST_CASE("lock order compares the numbers of ranks a module defines", "[kernel][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   g_violations = 0;
@@ -143,4 +145,22 @@ REX_TEST_CASE("lock order compares the numbers of ranks a module defines", "[ker
     CHECK(g_violations == 1);
   }
   rex::platform::SetLockOrderHandler(previous);
+}
+
+REX_TEST_CASE("ranked mutex cost", "[kernel][lock_order][benchmark]") {
+  RankedMutex ranked(lock_rank::kObjectState);
+  RankedSharedMutex shared(lock_rank::kObjectTable);
+  std::mutex plain;
+  BENCHMARK("RankedMutex lock and unlock") {
+    ranked.lock();
+    ranked.unlock();
+  };
+  BENCHMARK("RankedSharedMutex lock_shared and unlock_shared") {
+    shared.lock_shared();
+    shared.unlock_shared();
+  };
+  BENCHMARK("std::mutex lock and unlock") {
+    plain.lock();
+    plain.unlock();
+  };
 }
