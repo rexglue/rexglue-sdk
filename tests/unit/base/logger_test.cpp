@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <catch2/benchmark/catch_benchmark.hpp>
+
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -365,4 +367,52 @@ REX_TEST_CASE("a positive flush_interval writes the file without a flush call", 
   }
   CHECK(found);
   app.Finish();
+}
+
+REX_TEST_CASE("IsEnabled matches the level of the category at every level and setting",
+              "[base][logger]") {
+  ResetLogger();
+  Logger& logger = REX_LOGGER();
+  REQUIRE(logger.AddCategories(rex::log::kLogTestTable));
+  const rex::log::LogCategory& category = rex::log::logtest;
+  const auto expected = [](rex::log::Level setting, rex::log::Level level) {
+    return level != rex::log::Level::kOff && level >= setting;
+  };
+  for (const std::string_view setting : {"trace", "dev", "info", "warn", "error", "off", ""}) {
+    REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", setting));
+    const std::string text = setting.empty() ? logger.level.GetText() : std::string(setting);
+    const auto resolved = rex::log::ParseLevel(text);
+    REQUIRE(resolved);
+    for (size_t index = 0; index < rex::log::kLevelNames.size(); ++index) {
+      const auto level = static_cast<rex::log::Level>(index);
+      CHECK(category.IsEnabled(level) == expected(*resolved, level));
+    }
+  }
+  logger.RemoveCategories(rex::log::kLogTestTable);
+  ResetLogger();
+}
+
+REX_TEST_CASE("IsEnabled resolves a category that has not written yet", "[base][logger]") {
+  ResetLogger();
+  const rex::log::LogCategory fresh("logfresh", "A category nothing registered");
+  REQUIRE(fresh.IsEnabled(rex::log::Level::kError));
+  REQUIRE_FALSE(fresh.IsEnabled(rex::log::Level::kTrace));
+  CHECK(fresh.IsEnabled(rex::log::Level::kError));
+  CHECK_FALSE(fresh.IsEnabled(rex::log::Level::kOff));
+  ResetLogger();
+}
+
+REX_TEST_CASE("log level check cost", "[base][logger][benchmark]") {
+  ResetLogger();
+  Logger& logger = REX_LOGGER();
+  REQUIRE(logger.AddCategories(rex::log::kLogTestTable));
+  REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", "info"));
+  BENCHMARK("a disabled REXLOG_CAT_TRACE") {
+    REXLOG_CAT_TRACE(::rex::log::logtest, "trace {}", 1);
+  };
+  BENCHMARK("IsEnabled, disabled level") {
+    return rex::log::logtest.IsEnabled(rex::log::Level::kTrace);
+  };
+  logger.RemoveCategories(rex::log::kLogTestTable);
+  ResetLogger();
 }

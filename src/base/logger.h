@@ -31,8 +31,6 @@
 
 namespace rex::log {
 
-inline constexpr size_t kMaxCategories = 256;
-
 /** Lines kept for sinks that join later. */
 inline constexpr size_t kReplayLines = 4096;
 
@@ -58,7 +56,9 @@ struct Logger::State {
 
   u16 Resolve(const log::LogCategory& category);
 
-  log::Level GetSlotLevel(u16 slot) const { return levels[slot].load(std::memory_order_relaxed); }
+  log::Level GetSlotLevel(u16 slot) const {
+    return log::detail::g_slot_levels[slot].level.load(std::memory_order_relaxed);
+  }
 
   void Write(const log::Message& message) const;
 
@@ -131,7 +131,6 @@ struct Logger::State {
   static State& Instance();
 
   Logger& owner;
-  std::array<std::atomic<log::Level>, log::kMaxCategories> levels{};
   std::vector<Slot> slots;
   log::Level default_level = log::Level::kInfo;
   mutable std::mutex mutex;

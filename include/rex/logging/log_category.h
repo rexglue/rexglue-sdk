@@ -63,6 +63,25 @@ REX_API std::string_view LevelName(Level level);
 namespace rex::log {
 
 class DetailAccess;
+class LogCategory;
+
+/** The number of category slots. */
+inline constexpr size_t kMaxCategories = 256;
+
+namespace detail {
+
+/** Effective level of one category slot. */
+struct SlotLevel {
+  std::atomic<Level> level{Level::kInfo};
+};
+
+/** The effective level of every slot, written by the logger when a level changes. */
+REX_API extern SlotLevel g_slot_levels[kMaxCategories];
+
+/** Resolves the slot of a category that has not written yet and returns its effective level. */
+REX_API Level ResolveCategoryLevel(const LogCategory& category);
+
+}  // namespace detail
 
 /**
  * Log category declared with REXLOG_CATEGORY and added with Logger::AddCategories. Copies with the
@@ -91,7 +110,13 @@ class REX_API LogCategory : public NonCopyable {
    *
    * @return True when the level is at or above the category's effective level.
    */
-  bool IsEnabled(Level level) const;
+  bool IsEnabled(Level level) const {
+    const u16 slot = slot_.load(std::memory_order_acquire);
+    const Level effective = slot == kUnresolved
+                                ? detail::ResolveCategoryLevel(*this)
+                                : detail::g_slot_levels[slot].level.load(std::memory_order_relaxed);
+    return level != Level::kOff && level >= effective;
+  }
 
  private:
   friend class DetailAccess;

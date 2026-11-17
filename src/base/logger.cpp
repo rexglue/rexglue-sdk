@@ -266,16 +266,14 @@ std::string_view LevelName(Level level) {
   return index < kLevelNames.size() ? kLevelNames[index] : kLevelNames.back();
 }
 
-bool LogCategory::IsEnabled(Level level) const {
-  Logger::State& logger = GetLoggerInstance();
-  u16 slot = slot_.load(std::memory_order_acquire);
-  if (slot == kUnresolved) {
-    slot = logger.Resolve(*this);
-  }
-  return level != Level::kOff && level >= logger.GetSlotLevel(slot);
-}
-
 namespace detail {
+
+constinit SlotLevel g_slot_levels[kMaxCategories];
+
+Level ResolveCategoryLevel(const LogCategory& category) {
+  Logger::State& logger = GetLoggerInstance();
+  return logger.GetSlotLevel(logger.Resolve(category));
+}
 
 void Write(const LogCategory& category, Level level, std::string_view text) {
   Logger::State& logger = GetLoggerInstance();
@@ -370,8 +368,8 @@ Logger::State::State(Logger& logger)
       pattern(logger.pattern.GetDefaultText()),
       start_time(std::chrono::system_clock::now()) {
   slots.reserve(log::kMaxCategories);
-  for (auto& slot_level : levels) {
-    slot_level.store(log::Level::kInfo, std::memory_order_relaxed);
+  for (auto& slot_level : log::detail::g_slot_levels) {
+    slot_level.level.store(log::Level::kInfo, std::memory_order_relaxed);
   }
   engine->flush_on(spdlog::level::warn);
   CreateLocked(log::core.GetName(), log::core.GetDescription());
@@ -404,7 +402,7 @@ u16 Logger::State::CreateLocked(std::string_view name, std::string_view descript
 
 void Logger::State::RecomputeLocked(u16 slot) {
   const log::Level resolved = slots[slot].explicit_level.value_or(default_level);
-  levels[slot].store(resolved, std::memory_order_release);
+  log::detail::g_slot_levels[slot].level.store(resolved, std::memory_order_release);
 }
 
 void Logger::State::RecomputeAllLocked() {
