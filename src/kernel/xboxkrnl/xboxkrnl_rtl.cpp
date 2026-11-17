@@ -376,7 +376,7 @@ u32 RtlImageXexHeaderField_entry(GuestPtrT<XEXHeader> xex_header, u32 field_dwor
 #pragma pack(push, 1)
 struct X_RTL_CRITICAL_SECTION {
   X_DISPATCH_HEADER header;
-  i32 lock_count;         /**< -1 becomes 0 on first lock. */
+  be_i32 lock_count;      /**< -1 becomes 0 on first lock. */
   be_i32 recursion_count; /**< 0 becomes 1 on first lock. */
   be_u32 owning_thread;   /**< PKTHREAD or 0 when unlocked. */
 };
@@ -388,14 +388,16 @@ static_assert(offsetof(X_RTL_CRITICAL_SECTION, lock_count) %
 
 namespace {
 
-std::atomic_ref<i32> LockCount(X_RTL_CRITICAL_SECTION& cs) {
-  return std::atomic_ref<i32>(*reinterpret_cast<i32*>(
-      reinterpret_cast<u8*>(&cs) + offsetof(X_RTL_CRITICAL_SECTION, lock_count)));
-}
-
 bool TryAcquireLockCount(X_RTL_CRITICAL_SECTION& cs) {
   i32 expected = -1;
-  return LockCount(cs).compare_exchange_strong(expected, 0);
+  return cs.lock_count.CompareExchange(expected, 0, std::memory_order_seq_cst);
+}
+
+/** Adds to lock_count with a compare exchange on the big endian word and returns the new value. */
+i32 AddLockCount(X_RTL_CRITICAL_SECTION& cs, i32 delta) {
+  i32 current = cs.lock_count.Load(std::memory_order_relaxed);
+  while (!cs.lock_count.CompareExchange(current, current + delta, std::memory_order_seq_cst)) {}
+  return current + delta;
 }
 
 }  // namespace
@@ -443,7 +445,7 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   u32 spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
-    ++LockCount(*cs);
+    AddLockCount(*cs, 1);
     cs->recursion_count++;
     return;
   }
@@ -456,7 +458,7 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
     }
   }
 
-  if (++LockCount(*cs) != 0) {
+  if (AddLockCount(*cs, 1) != 0) {
     KeWaitForSingleObject(cs.GetGuestAddress(), 8, 0, 0, nullptr);
   }
 
@@ -473,7 +475,7 @@ u32 RtlTryEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
     cs->recursion_count = 1;
     return 1;
   } else if (cs->owning_thread == thread) {
-    ++LockCount(*cs);
+    AddLockCount(*cs, 1);
     ++cs->recursion_count;
     return 1;
   }
@@ -488,12 +490,12 @@ void RtlLeaveCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   if (--cs->recursion_count != 0) {
     REX_ASSERT(cs->recursion_count >= 0);
 
-    --LockCount(*cs);
+    AddLockCount(*cs, -1);
     return;
   }
 
   cs->owning_thread = 0;
-  if (--LockCount(*cs) != -1) {
+  if (AddLockCount(*cs, -1) != -1) {
     KeSetEvent(cs.GetGuestAddress(), 1, 0);
   }
 }

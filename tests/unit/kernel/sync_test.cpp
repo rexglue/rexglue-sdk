@@ -596,6 +596,42 @@ REX_TEST_CASE("A critical section counts recursion and excludes another thread",
   });
 }
 
+REX_TEST_CASE("A critical section keeps its lock count as a big endian word",
+              "[kernel][interlocked]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    constexpr u32 kLockCountOffset = 16;
+    const u32 section = c.Alloc(28);
+    c.Kernel("RtlInitializeCriticalSection", {section});
+    CHECK(c.Load32(section + kLockCountOffset) == 0xFFFFFFFF);
+    c.Kernel("RtlEnterCriticalSection", {section});
+    CHECK(c.Load32(section + kLockCountOffset) == 0);
+    c.Kernel("RtlEnterCriticalSection", {section});
+    CHECK(c.Load32(section + kLockCountOffset) == 1);
+
+    auto entered = std::make_shared<std::atomic<bool>>(false);
+    const u32 thread = c.Spawn([section, entered](Caller& t) {
+      t.Kernel("RtlEnterCriticalSection", {section});
+      entered->store(true);
+      t.Kernel("RtlLeaveCriticalSection", {section});
+    });
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (c.Load32(section + kLockCountOffset) != 2 && std::chrono::steady_clock::now() < until) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(c.Load32(section + kLockCountOffset) == 2);
+    CHECK(c.Load8(section + kLockCountOffset + 3) == 2);
+    CHECK_FALSE(entered->load());
+
+    c.Kernel("RtlLeaveCriticalSection", {section});
+    c.Kernel("RtlLeaveCriticalSection", {section});
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-50000000)}) == 0);
+    c.Kernel("NtClose", {thread});
+    CHECK(entered->load());
+    CHECK(c.Load32(section + kLockCountOffset) == 0xFFFFFFFF);
+  });
+}
+
 namespace wait_tests {
 
 using rex::kernel::X_STATUS;
