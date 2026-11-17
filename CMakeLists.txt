@@ -29,7 +29,7 @@ endif ()
 
 project(
   ReXGlue
-  VERSION 0.11.0
+  VERSION 0.12.0
   LANGUAGES ${REXGLUE_LANGUAGES}
   DESCRIPTION "Xbox 360 Recompilation SDK"
 )
