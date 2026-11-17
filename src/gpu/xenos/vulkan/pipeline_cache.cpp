@@ -2816,6 +2816,15 @@ bool VulkanPipelineCache::CreatePipeline(const PipelineCreationArguments& creati
       return false;
   }
   input_assembly_state.primitiveRestartEnable = description.primitive_restart ? VK_TRUE : VK_FALSE;
+#if defined(__APPLE__)
+  // Metal can't disable primitive restart for strips: MoltenVK refuses such a pipeline ("Metal
+  // does not support disabling primitive restart") and every strip draw using it is dropped. A
+  // strip that doesn't use restart has no all-ones indices, so enabling it is harmless.
+  if (input_assembly_state.topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+      input_assembly_state.topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP) {
+    input_assembly_state.primitiveRestartEnable = VK_TRUE;
+  }
+#endif
 
   VkPipelineViewportStateCreateInfo viewport_state;
   viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
