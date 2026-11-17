@@ -10,9 +10,13 @@
 
 #include "rex_test.h"
 
+#include <catch2/benchmark/catch_benchmark.hpp>
+
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <latch>
 #include <new>
 #include <thread>
 #include <vector>
@@ -323,3 +327,94 @@ REX_TEST_CASE("Debug builds fill new and freed memory", "[base][memory]") {
 }
 
 #endif
+
+REX_TEST_CASE("Counters from many threads sum to every allocation", "[base][memory][threads]") {
+  constexpr size_t kThreads = 8;
+  constexpr size_t kPerThread = 20000;
+  constexpr size_t kBlock = 48;
+  const auto before = GetHostStats();
+  {
+    std::latch start(kThreads);
+    std::vector<std::jthread> threads;
+    threads.reserve(kThreads);
+    for (size_t t = 0; t < kThreads; ++t) {
+      threads.emplace_back([&start] {
+        TagScope scope(kSecondTag);
+        start.arrive_and_wait();
+        for (size_t i = 0; i < kPerThread; ++i) {
+          void* block = HostAlloc(kBlock);
+          HostFree(block);
+        }
+      });
+    }
+  }
+  const auto after = GetHostStats();
+  const auto& was = before.tags[Index(kSecondTag)];
+  const auto& now = after.tags[Index(kSecondTag)];
+  CHECK(now.total_count == was.total_count + kThreads * kPerThread);
+  CHECK(now.live_bytes == was.live_bytes);
+  CHECK(now.live_count == was.live_count);
+  CHECK(now.peak_bytes >= was.peak_bytes);
+}
+
+REX_TEST_CASE("A block freed by another thread is counted live until then", "[base][memory]") {
+  const auto before = GetHostStats();
+  constexpr size_t kBlocks = 5000;
+  std::vector<void*> blocks;
+  blocks.reserve(kBlocks);
+  {
+    TagScope scope(kThirdTag);
+    for (size_t i = 0; i < kBlocks; ++i) {
+      blocks.push_back(HostAlloc(100));
+    }
+  }
+  const auto during = GetHostStats();
+  CHECK(during.tags[Index(kThirdTag)].live_bytes ==
+        before.tags[Index(kThirdTag)].live_bytes + kBlocks * 100);
+  CHECK(during.tags[Index(kThirdTag)].peak_bytes >= during.tags[Index(kThirdTag)].live_bytes);
+  std::jthread freeing([&blocks] {
+    for (void* block : blocks) {
+      HostFree(block);
+    }
+  });
+  freeing.join();
+  const auto after = GetHostStats();
+  CHECK(after.tags[Index(kThirdTag)].live_bytes == before.tags[Index(kThirdTag)].live_bytes);
+  CHECK(after.tags[Index(kThirdTag)].live_count == before.tags[Index(kThirdTag)].live_count);
+}
+
+namespace {
+
+void PairsOnThreads(size_t threads, size_t pairs) {
+  std::latch start(static_cast<std::ptrdiff_t>(threads));
+  std::vector<std::jthread> workers;
+  workers.reserve(threads);
+  for (size_t t = 0; t < threads; ++t) {
+    workers.emplace_back([&start, pairs] {
+      start.arrive_and_wait();
+      for (size_t i = 0; i < pairs; ++i) {
+        void* block = HostAlloc(64);
+        Catch::Benchmark::keep_memory(block);
+        HostFree(block);
+      }
+    });
+  }
+}
+
+}  // namespace
+
+REX_TEST_CASE("host allocator cost", "[base][memory][benchmark]") {
+  BENCHMARK("HostAlloc and HostFree of 64 bytes, 1 thread, 100000 pairs") {
+    PairsOnThreads(1, 100000);
+  };
+  BENCHMARK("HostAlloc and HostFree of 64 bytes, 8 threads, 100000 pairs each") {
+    PairsOnThreads(8, 100000);
+  };
+  BENCHMARK("malloc and free of 64 bytes, 1 thread, 100000 pairs") {
+    for (size_t i = 0; i < 100000; ++i) {
+      void* block = std::malloc(64);
+      Catch::Benchmark::keep_memory(block);
+      std::free(block);
+    }
+  };
+}

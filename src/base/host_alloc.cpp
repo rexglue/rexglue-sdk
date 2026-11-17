@@ -54,21 +54,41 @@ struct Header {
 };
 static_assert(sizeof(Header) == kHeaderSize);
 
-struct alignas(64) Counters {
-  std::atomic<u64> live_bytes{0};
-  std::atomic<u64> live_count{0};
-  std::atomic<u64> peak_bytes{0};
-  std::atomic<u64> total_count{0};
+constexpr size_t kShardCount = 32;
+constexpr u32 kNoShard = ~u32{0};
+constexpr u64 kPeakSampleMask = 4095;
+
+struct alignas(32) Counters {
+  std::atomic<u64> alloc_bytes{0};
+  std::atomic<u64> alloc_count{0};
+  std::atomic<u64> free_bytes{0};
+  std::atomic<u64> free_count{0};
 };
 
-constinit Counters g_tags[kTagCount];
-constinit Counters g_total;
+struct alignas(64) Peak {
+  std::atomic<u64> bytes{0};
+};
+
+struct ThreadState {
+  Tag tag;
+  u32 shard;
+};
+
+struct alignas(64) ShardRow {
+  Counters tags[kTagCount];
+};
+static_assert(sizeof(ShardRow) % 64 == 0);
+
+constinit ShardRow g_shards[kShardCount];
+constinit Peak g_peaks[kTagCount];
+constinit Peak g_peak_total;
+constinit std::atomic<u32> g_next_shard{0};
 
 constexpr i32 kMaxStackDepth = 32;
 constinit std::atomic<i32> g_stack_depth{0};
 constinit std::atomic<u32> g_fail_count{0};
 constinit std::atomic<detail::BlockErrorHandler> g_error_handler{nullptr};
-constinit thread_local Tag t_tag = Tag::kCore;
+constinit thread_local ThreadState t_thread = {Tag::kCore, kNoShard};
 #ifdef REXGLUE_ENABLE_PROFILING
 constinit thread_local bool t_reporting = false;
 #endif
@@ -90,30 +110,68 @@ const char* GetPoolName(Tag tag) noexcept {
 }
 #endif
 
-void RaisePeak(Counters& counters, u64 live) noexcept {
-  u64 peak = counters.peak_bytes.load(std::memory_order_relaxed);
-  while (live > peak &&
-         !counters.peak_bytes.compare_exchange_weak(peak, live, std::memory_order_relaxed)) {}
+void RaisePeak(Peak& peak, u64 live) noexcept {
+  u64 seen = peak.bytes.load(std::memory_order_relaxed);
+  while (live > seen && !peak.bytes.compare_exchange_weak(seen, live, std::memory_order_relaxed)) {}
+}
+
+u32 ShardOfThread() noexcept {
+  u32 shard = t_thread.shard;
+  if (shard == kNoShard) {
+    shard = g_next_shard.fetch_add(1, std::memory_order_relaxed) % kShardCount;
+    t_thread.shard = shard;
+  }
+  return shard;
+}
+
+struct TagTotals {
+  u64 live_bytes;
+  u64 live_count;
+  u64 total_count;
+};
+
+TagTotals SumTag(size_t tag) noexcept {
+  u64 freed_bytes = 0;
+  u64 freed_count = 0;
+  for (size_t shard = 0; shard < kShardCount; ++shard) {
+    const Counters& counters = g_shards[shard].tags[tag];
+    freed_bytes += counters.free_bytes.load(std::memory_order_relaxed);
+    freed_count += counters.free_count.load(std::memory_order_relaxed);
+  }
+  u64 bytes = 0;
+  u64 count = 0;
+  for (size_t shard = 0; shard < kShardCount; ++shard) {
+    const Counters& counters = g_shards[shard].tags[tag];
+    bytes += counters.alloc_bytes.load(std::memory_order_relaxed);
+    count += counters.alloc_count.load(std::memory_order_relaxed);
+  }
+  return {bytes > freed_bytes ? bytes - freed_bytes : 0,
+          count > freed_count ? count - freed_count : 0, count};
+}
+
+void SamplePeaks(size_t tag) noexcept {
+  RaisePeak(g_peaks[tag], SumTag(tag).live_bytes);
+  u64 all = 0;
+  for (size_t i = 0; i < kTagCount; ++i) {
+    all += SumTag(i).live_bytes;
+  }
+  RaisePeak(g_peak_total, all);
 }
 
 void CountAlloc(Tag tag, u64 size) noexcept {
-  Counters& counters = g_tags[static_cast<size_t>(tag)];
-  const u64 live = counters.live_bytes.fetch_add(size, std::memory_order_relaxed) + size;
-  counters.live_count.fetch_add(1, std::memory_order_relaxed);
-  counters.total_count.fetch_add(1, std::memory_order_relaxed);
-  RaisePeak(counters, live);
-  const u64 all = g_total.live_bytes.fetch_add(size, std::memory_order_relaxed) + size;
-  g_total.live_count.fetch_add(1, std::memory_order_relaxed);
-  g_total.total_count.fetch_add(1, std::memory_order_relaxed);
-  RaisePeak(g_total, all);
+  const size_t index = static_cast<size_t>(tag);
+  Counters& counters = g_shards[ShardOfThread()].tags[index];
+  counters.alloc_bytes.fetch_add(size, std::memory_order_relaxed);
+  const u64 count = counters.alloc_count.fetch_add(1, std::memory_order_relaxed) + 1;
+  if ((count & kPeakSampleMask) == 0) {
+    SamplePeaks(index);
+  }
 }
 
 void CountFree(Tag tag, u64 size) noexcept {
-  Counters& counters = g_tags[static_cast<size_t>(tag)];
-  counters.live_bytes.fetch_sub(size, std::memory_order_relaxed);
-  counters.live_count.fetch_sub(1, std::memory_order_relaxed);
-  g_total.live_bytes.fetch_sub(size, std::memory_order_relaxed);
-  g_total.live_count.fetch_sub(1, std::memory_order_relaxed);
+  Counters& counters = g_shards[ShardOfThread()].tags[static_cast<size_t>(tag)];
+  counters.free_bytes.fetch_add(size, std::memory_order_relaxed);
+  counters.free_count.fetch_add(1, std::memory_order_relaxed);
 }
 
 #ifdef REXGLUE_ENABLE_PROFILING
@@ -216,7 +274,7 @@ void* AllocBlock(size_t size, size_t align, detail::AllocType type) noexcept {
     return nullptr;
   }
   u8* user = static_cast<u8*>(base) + offset;
-  const Tag tag = t_tag;
+  const Tag tag = t_thread.tag;
   Header* header = HeaderOf(user);
   header->magic = kLiveMagic;
   header->base_offset = static_cast<u32>(offset);
@@ -251,16 +309,22 @@ size_t HostSize(const void* ptr) noexcept {
 
 HostStats GetHostStats() noexcept {
   HostStats stats;
-  const auto read = [](const Counters& from, TagStats& to) {
-    to.live_bytes = from.live_bytes.load(std::memory_order_relaxed);
-    to.live_count = from.live_count.load(std::memory_order_relaxed);
-    to.peak_bytes = from.peak_bytes.load(std::memory_order_relaxed);
-    to.total_count = from.total_count.load(std::memory_order_relaxed);
-  };
+  u64 all_bytes = 0;
   for (size_t i = 0; i < kTagCount; ++i) {
-    read(g_tags[i], stats.tags[i]);
+    const TagTotals totals = SumTag(i);
+    RaisePeak(g_peaks[i], totals.live_bytes);
+    TagStats& to = stats.tags[i];
+    to.live_bytes = totals.live_bytes;
+    to.live_count = totals.live_count;
+    to.peak_bytes = g_peaks[i].bytes.load(std::memory_order_relaxed);
+    to.total_count = totals.total_count;
+    stats.total.live_bytes += totals.live_bytes;
+    stats.total.live_count += totals.live_count;
+    stats.total.total_count += totals.total_count;
+    all_bytes += totals.live_bytes;
   }
-  read(g_total, stats.total);
+  RaisePeak(g_peak_total, all_bytes);
+  stats.total.peak_bytes = g_peak_total.bytes.load(std::memory_order_relaxed);
   return stats;
 }
 
@@ -274,7 +338,7 @@ i32 GetAllocStackDepth() noexcept {
 }
 
 Tag GetThreadTag() noexcept {
-  return t_tag;
+  return t_thread.tag;
 }
 
 const char* GetTagName(Tag tag) noexcept {
@@ -296,12 +360,12 @@ void SetTagName(Tag tag, const char* name) noexcept {
   }
 }
 
-TagScope::TagScope(Tag tag) noexcept : previous_(t_tag) {
-  t_tag = static_cast<size_t>(tag) < kTagCount ? tag : Tag::kCore;
+TagScope::TagScope(Tag tag) noexcept : previous_(t_thread.tag) {
+  t_thread.tag = static_cast<size_t>(tag) < kTagCount ? tag : Tag::kCore;
 }
 
 TagScope::~TagScope() {
-  t_tag = previous_;
+  t_thread.tag = previous_;
 }
 
 namespace detail {
@@ -325,7 +389,7 @@ void* NewBlock(size_t size, size_t align, AllocType type, bool can_throw) {
         return nullptr;
       }
       std::fprintf(stderr, "host allocator: out of memory, %zu bytes requested for tag %s\n", size,
-                   GetTagName(t_tag));
+                   GetTagName(t_thread.tag));
       throw std::bad_alloc();
     }
     if (can_throw) {
