@@ -82,6 +82,7 @@ add_executable(
   kernel/identity_test.cpp
   kernel/object_resolve_benchmark_test.cpp
   kernel/wait_poll_benchmark_test.cpp
+  kernel/irql_benchmark_test.cpp
   kernel/interrupt_test.cpp
   kernel/dpc_test.cpp
   kernel/notify_test.cpp

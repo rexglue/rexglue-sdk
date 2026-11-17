@@ -192,6 +192,7 @@ bool Dispatcher::Queue(u32 dpc, u32 arg1, u32 arg2) {
   object->arg1 = arg1;
   object->arg2 = arg2;
   kernel::InsertTailList(dpc_list_head_, dpc + kDPCListEntryOffset, memory);
+  queued_dpcs_.fetch_add(1, std::memory_order_relaxed);
   return true;
 }
 
@@ -204,10 +205,14 @@ bool Dispatcher::Remove(u32 dpc) {
   }
   kernel::RemoveEntryList(&object->list_entry, memory);
   object->inserted_number = 0;
+  queued_dpcs_.fetch_sub(1, std::memory_order_relaxed);
   return true;
 }
 
 bool Dispatcher::HasQueuedDPCs() {
+  if (queued_dpcs_.load(std::memory_order_relaxed) == 0) {
+    return false;
+  }
   auto* memory = StateOf(runtime_).GetAddressSpace();
   std::lock_guard lock(dpc_mutex_);
   return !kernel::IsListEmpty(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_), memory);
@@ -223,6 +228,7 @@ std::optional<Dispatcher::QueuedDPC> Dispatcher::PopDPC() {
   const u32 address = kernel::RemoveHeadList(head, memory) - kDPCListEntryOffset;
   auto* object = memory->TranslateVirtual<X_KDPC*>(address);
   object->inserted_number = 0;
+  queued_dpcs_.fetch_sub(1, std::memory_order_relaxed);
   return QueuedDPC{address, object->routine, object->context, object->arg1, object->arg2};
 }
 

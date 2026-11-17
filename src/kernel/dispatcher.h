@@ -135,6 +135,8 @@ class Dispatcher final : public IOverlappedDispatcher, public IDPCQueue {
   u32 dpc_stack_base_ = 0;
   u32 dpc_stack_top_ = 0;
   std::atomic<bool> draining_{false};
+  /** The number of DPCs in the queue, changed under dpc_mutex_ and read without it. */
+  std::atomic<u32> queued_dpcs_{0};
   rex::platform::RankedMutex dpc_mutex_{rex::platform::lock_rank::kDPC};
   rex::platform::RankedMutex dispatch_mutex_{rex::platform::LockRank::kLeaf};
   std::condition_variable_any dispatch_cond_;
