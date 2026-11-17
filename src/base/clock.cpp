@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <limits>
 #include <mutex>
+#include <thread>
+#include <utility>
 
 #include <rex/chrono.h>
 #include <rex/math.h>
@@ -46,19 +48,64 @@ constexpr u64 kFileTimeTicksPerSecond = 10000000;
 constinit std::atomic<f64> g_guest_time_scalar{1.0};
 constinit std::atomic<u64> g_guest_tick_frequency{0};
 constinit std::atomic<u64> g_resolved_tick_frequency{0};
-constinit u64 g_guest_system_time_base = 0;
-constinit std::pair<u64, u64> g_guest_tick_ratio{1, 1};
-constinit std::pair<u64, u64> g_system_time_ratio{0, 0};
+constinit std::atomic<u64> g_guest_system_time_base{0};
 
-u64 g_last_guest_tick_count = 0;
-constinit u64 g_last_host_tick_count = 0;
+/** The point the guest tick count is computed from, and the ratios that convert from it. */
+struct TickState {
+  u64 host = 0;
+  u64 guest = 0;
+  u64 ratio_num = 1;
+  u64 ratio_den = 1;
+  u64 time_num = 0;
+  u64 time_den = 0;
+};
+
+struct SharedTickState {
+  std::atomic<u64> host{0};
+  std::atomic<u64> guest{0};
+  std::atomic<u64> ratio_num{1};
+  std::atomic<u64> ratio_den{1};
+  std::atomic<u64> time_num{0};
+  std::atomic<u64> time_den{0};
+};
+
+constinit SharedTickState g_tick_state;
+constinit std::atomic<u32> g_tick_sequence{0};
+constinit std::atomic<u64> g_last_guest_tick{0};
 std::mutex g_tick_mutex;
 
-u64 GuestSystemTimeBaseLocked() {
-  if (g_guest_system_time_base == 0) {
-    g_guest_system_time_base = Clock::QueryHostSystemTime();
+TickState ReadTickState() {
+  for (;;) {
+    const u32 before = g_tick_sequence.load(std::memory_order_acquire);
+    if (before & 1) {
+      std::this_thread::yield();
+      continue;
+    }
+    TickState state;
+    state.host = g_tick_state.host.load(std::memory_order_relaxed);
+    state.guest = g_tick_state.guest.load(std::memory_order_relaxed);
+    state.ratio_num = g_tick_state.ratio_num.load(std::memory_order_relaxed);
+    state.ratio_den = g_tick_state.ratio_den.load(std::memory_order_relaxed);
+    state.time_num = g_tick_state.time_num.load(std::memory_order_relaxed);
+    state.time_den = g_tick_state.time_den.load(std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_acquire);
+    if (g_tick_sequence.load(std::memory_order_relaxed) == before) {
+      return state;
+    }
   }
-  return g_guest_system_time_base;
+}
+
+void WriteTickStateLocked(const TickState& state) {
+  const u32 sequence = g_tick_sequence.load(std::memory_order_relaxed);
+  g_tick_sequence.store(sequence + 1, std::memory_order_relaxed);
+  std::atomic_thread_fence(std::memory_order_release);
+  g_tick_state.host.store(state.host, std::memory_order_relaxed);
+  g_tick_state.guest.store(state.guest, std::memory_order_relaxed);
+  g_tick_state.ratio_num.store(state.ratio_num, std::memory_order_relaxed);
+  g_tick_state.ratio_den.store(state.ratio_den, std::memory_order_relaxed);
+  g_tick_state.time_num.store(state.time_num, std::memory_order_relaxed);
+  g_tick_state.time_den.store(state.time_den, std::memory_order_relaxed);
+  g_tick_sequence.store(sequence + 2, std::memory_order_release);
 }
 
 u64 GuestTickFrequency() {
@@ -75,7 +122,7 @@ u64 GuestTickFrequency() {
   return frequency;
 }
 
-void RecomputeGuestTickRatioLocked() {
+std::pair<u64, u64> ComputeGuestTickRatio() {
   const f64 scalar = g_guest_time_scalar.load(std::memory_order_relaxed);
   auto frac = std::make_pair(GuestTickFrequency(), Clock::GetHostTickFrequency());
   if (scalar > 1.0) {
@@ -86,46 +133,95 @@ void RecomputeGuestTickRatioLocked() {
     frac.second *= static_cast<u64>(10.0 / scalar);
   }
   reduce_fraction(frac);
-  g_guest_tick_ratio = frac;
+  return frac;
 }
 
-std::unique_lock<std::mutex> LockAndUpdateGuestClock() {
-  const u64 host_tick_count = Clock::GetHostTickCount();
-  std::unique_lock<std::mutex> lock(g_tick_mutex, std::try_to_lock);
-  if (!lock.owns_lock()) {
-    lock.lock();
-    return lock;
-  }
-  if (g_last_host_tick_count == 0) {
-    g_last_host_tick_count = host_tick_count;
-  }
-  const u64 host_tick_delta =
-      host_tick_count > g_last_host_tick_count ? host_tick_count - g_last_host_tick_count : 0;
-  g_last_host_tick_count = host_tick_count;
-  g_last_guest_tick_count +=
-      mul_div(host_tick_delta, g_guest_tick_ratio.first, g_guest_tick_ratio.second);
-  return lock;
+std::pair<u64, u64> ComputeSystemTimeRatio() {
+  u64 numerator = kFileTimeTicksPerSecond;
+  u64 denominator = GuestTickFrequency();
+  reduce_fraction(numerator, denominator);
+  return {numerator, denominator};
 }
 
-u64 GuestSystemTimeOffsetLocked() {
-  if (g_system_time_ratio.second == 0) {
-    u64 numerator = kFileTimeTicksPerSecond;
-    u64 denominator = GuestTickFrequency();
-    reduce_fraction(numerator, denominator);
-    g_system_time_ratio = {numerator, denominator};
+/** Raises the last published guest tick count to at least the given one and returns the result. */
+u64 PublishGuestTick(u64 guest) {
+  u64 last = g_last_guest_tick.load(std::memory_order_relaxed);
+  while (guest > last &&
+         !g_last_guest_tick.compare_exchange_weak(last, guest, std::memory_order_relaxed)) {}
+  return std::max(guest, last);
+}
+
+u64 GuestTickFrom(const TickState& state, u64 host_tick_count) {
+  const u64 host_tick_delta = host_tick_count > state.host ? host_tick_count - state.host : 0;
+  return state.guest + mul_div(host_tick_delta, state.ratio_num, state.ratio_den);
+}
+
+/** Starts the tick state at the first read. Holds g_tick_mutex. */
+TickState InitTickStateLocked() {
+  TickState state = ReadTickState();
+  if (state.host == 0) {
+    state.host = Clock::GetHostTickCount();
+    state.guest = 0;
+    const auto time_ratio = ComputeSystemTimeRatio();
+    state.time_num = time_ratio.first;
+    state.time_den = time_ratio.second;
+    WriteTickStateLocked(state);
   }
-  return mul_div(g_last_guest_tick_count, g_system_time_ratio.first, g_system_time_ratio.second);
+  return state;
+}
+
+TickState LoadTickState() {
+  TickState state = ReadTickState();
+  if (state.host == 0) {
+    std::lock_guard<std::mutex> lock(g_tick_mutex);
+    state = InitTickStateLocked();
+  }
+  return state;
+}
+
+/** Moves the start of the tick state to now with the current ratios, then replaces the ratios. */
+void RebaseTickStateLocked() {
+  const TickState before = InitTickStateLocked();
+  const u64 host = Clock::GetHostTickCount();
+  TickState state;
+  state.host = host;
+  state.guest = PublishGuestTick(GuestTickFrom(before, host));
+  const auto ratio = ComputeGuestTickRatio();
+  state.ratio_num = ratio.first;
+  state.ratio_den = ratio.second;
+  const auto time_ratio = ComputeSystemTimeRatio();
+  state.time_num = time_ratio.first;
+  state.time_den = time_ratio.second;
+  WriteTickStateLocked(state);
+}
+
+u64 QueryGuestTickFrom(const TickState& state) {
+  return PublishGuestTick(GuestTickFrom(state, Clock::GetHostTickCount()));
+}
+
+u64 GuestSystemTimeBase() {
+  u64 base = g_guest_system_time_base.load(std::memory_order_relaxed);
+  if (base == 0) {
+    const u64 host_system_time = Clock::QueryHostSystemTime();
+    if (g_guest_system_time_base.compare_exchange_strong(base, host_system_time,
+                                                         std::memory_order_relaxed)) {
+      base = host_system_time;
+    }
+  }
+  return base;
+}
+
+u64 GuestSystemTimeOffset(const TickState& state, u64 guest_tick_count) {
+  return mul_div(guest_tick_count, state.time_num, state.time_den);
 }
 
 u64 QueryGuestSystemTimeOffset() {
   if (GetClockSettings().no_scaling.Get()) {
-    const u64 host_system_time = Clock::QueryHostSystemTime();
-    std::lock_guard<std::mutex> lock(g_tick_mutex);
-    return host_system_time - GuestSystemTimeBaseLocked();
+    return Clock::QueryHostSystemTime() - GuestSystemTimeBase();
   }
 
-  const auto lock = LockAndUpdateGuestClock();
-  return GuestSystemTimeOffsetLocked();
+  const TickState state = LoadTickState();
+  return GuestSystemTimeOffset(state, QueryGuestTickFrom(state));
 }
 }  // namespace
 
@@ -140,12 +236,12 @@ void Clock::SetGuestTimeScalar(f64 scalar) {
 
   std::lock_guard<std::mutex> lock(g_tick_mutex);
   g_guest_time_scalar.store(scalar, std::memory_order_relaxed);
-  RecomputeGuestTickRatioLocked();
+  RebaseTickStateLocked();
 }
 
 std::pair<u64, u64> Clock::GetGuestTickRatio() {
-  std::lock_guard<std::mutex> lock(g_tick_mutex);
-  return g_guest_tick_ratio;
+  const TickState state = ReadTickState();
+  return {state.ratio_num, state.ratio_den};
 }
 
 u64 Clock::GetGuestTickFrequency() {
@@ -157,29 +253,25 @@ void Clock::SetGuestTickFrequency(u64 frequency) {
   g_guest_tick_frequency.store(frequency, std::memory_order_relaxed);
   g_resolved_tick_frequency.store(frequency ? frequency : Clock::GetHostTickFrequency(),
                                   std::memory_order_relaxed);
-  g_system_time_ratio = {0, 0};
-  RecomputeGuestTickRatioLocked();
+  RebaseTickStateLocked();
 }
 
 u64 Clock::GetGuestSystemTimeBase() {
-  std::lock_guard<std::mutex> lock(g_tick_mutex);
-  return GuestSystemTimeBaseLocked();
+  return GuestSystemTimeBase();
 }
 
 void Clock::SetGuestSystemTimeBase(u64 time_base) {
-  std::lock_guard<std::mutex> lock(g_tick_mutex);
-  g_guest_system_time_base = time_base;
+  g_guest_system_time_base.store(time_base, std::memory_order_relaxed);
 }
 
 u64 Clock::QueryGuestTickCount() {
   if (GetClockSettings().no_scaling.Get()) {
     const u64 host_tick_count = GetHostTickCount();
-    std::lock_guard<std::mutex> lock(g_tick_mutex);
-    return mul_div(host_tick_count, g_guest_tick_ratio.first, g_guest_tick_ratio.second);
+    const TickState state = ReadTickState();
+    return mul_div(host_tick_count, state.ratio_num, state.ratio_den);
   }
 
-  const auto lock = LockAndUpdateGuestClock();
-  return g_last_guest_tick_count;
+  return QueryGuestTickFrom(LoadTickState());
 }
 
 u64 Clock::QueryGuestSystemTime() {
@@ -187,8 +279,8 @@ u64 Clock::QueryGuestSystemTime() {
     return Clock::QueryHostSystemTime();
   }
 
-  const auto lock = LockAndUpdateGuestClock();
-  return GuestSystemTimeBaseLocked() + GuestSystemTimeOffsetLocked();
+  const TickState state = LoadTickState();
+  return GuestSystemTimeBase() + GuestSystemTimeOffset(state, QueryGuestTickFrom(state));
 }
 
 u32 Clock::GetGuestUptimeMillis() {
@@ -201,8 +293,10 @@ void Clock::SetGuestSystemTime(u64 system_time) {
     return;
   }
 
-  const auto lock = LockAndUpdateGuestClock();
-  g_guest_system_time_base = system_time - GuestSystemTimeOffsetLocked();
+  std::lock_guard<std::mutex> lock(g_tick_mutex);
+  const TickState state = InitTickStateLocked();
+  const u64 offset = GuestSystemTimeOffset(state, QueryGuestTickFrom(state));
+  g_guest_system_time_base.store(system_time - offset, std::memory_order_relaxed);
 }
 
 u32 Clock::ScaleGuestDurationMillis(u32 guest_ms) {
@@ -229,8 +323,9 @@ i64 Clock::ScaleGuestDurationFileTime(i64 guest_file_time) {
   if (!guest_file_time) {
     return 0;
   } else if (guest_file_time > 0) {
-    const auto lock = LockAndUpdateGuestClock();
-    const u64 guest_time = GuestSystemTimeBaseLocked() + GuestSystemTimeOffsetLocked();
+    const TickState state = LoadTickState();
+    const u64 guest_time =
+        GuestSystemTimeBase() + GuestSystemTimeOffset(state, QueryGuestTickFrom(state));
     i64 relative_time = guest_file_time - static_cast<i64>(guest_time);
     i64 scaled_time = static_cast<i64>(static_cast<f64>(relative_time) * GetGuestTimeScalar());
     return static_cast<i64>(guest_time) + scaled_time;

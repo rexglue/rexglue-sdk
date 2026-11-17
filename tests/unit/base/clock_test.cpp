@@ -13,6 +13,7 @@
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_approx.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <latch>
 #include <thread>
@@ -62,7 +63,18 @@ REX_TEST_CASE("Guest tick counts never decrease across threads", "[base][clock][
   constexpr size_t kThreads = 8;
   constexpr size_t kReads = 50000;
   std::atomic<size_t> backwards{0};
+  std::atomic<size_t> below_published{0};
+  std::atomic<rex::u64> published{0};
+  std::atomic<bool> readers_done{false};
+  const rex::f64 scalar = rex::Clock::GetGuestTimeScalar();
+  const bool rescale = !rex::Clock::IsNoScaling();
   {
+    std::jthread retuner([&] {
+      for (int i = 0; rescale && !readers_done.load(); ++i) {
+        rex::Clock::SetGuestTimeScalar(i % 2 ? 1.0 : 2.0);
+        std::this_thread::sleep_for(std::chrono::microseconds(200));
+      }
+    });
     std::latch start(kThreads);
     std::vector<std::jthread> threads;
     threads.reserve(kThreads);
@@ -72,16 +84,87 @@ REX_TEST_CASE("Guest tick counts never decrease across threads", "[base][clock][
         rex::u64 last = 0;
         rex::u64 last_time = 0;
         for (size_t i = 0; i < kReads; ++i) {
+          const rex::u64 before = published.load();
           const rex::u64 count = rex::Clock::QueryGuestTickCount();
           const rex::u64 time = rex::Clock::QueryGuestSystemTime();
           backwards += count < last || time < last_time;
+          below_published += count < before;
+          rex::u64 seen = published.load();
+          while (count > seen && !published.compare_exchange_weak(seen, count)) {}
           last = count;
           last_time = time;
         }
       });
     }
+    threads.clear();
+    readers_done = true;
   }
+  rex::Clock::SetGuestTimeScalar(scalar);
   CHECK(backwards.load() == 0);
+  CHECK(below_published.load() == 0);
+}
+
+namespace {
+
+struct PollResult {
+  rex::u64 guest_ticks;
+  rex::u64 expected_ticks;
+  rex::u64 calls;
+};
+
+/** Reads the guest tick count once per microsecond for one second and returns how far it moved. */
+PollResult PollGuestTicksForOneSecond() {
+  constexpr rex::u64 kGuestFrequency = 50000000;
+  const rex::f64 scalar = rex::Clock::GetGuestTimeScalar();
+  const rex::u64 frequency = rex::Clock::GetGuestTickFrequency();
+  rex::Clock::SetGuestTimeScalar(1.0);
+  rex::Clock::SetGuestTickFrequency(kGuestFrequency);
+  const rex::u64 host_frequency = rex::Clock::GetHostTickFrequency();
+  const rex::u64 step = std::max<rex::u64>(host_frequency / 1000000, 1);
+  const rex::u64 host_start = rex::Clock::GetHostTickCount();
+  const rex::u64 guest_start = rex::Clock::QueryGuestTickCount();
+  rex::u64 calls = 0;
+  rex::u64 next = host_start;
+  rex::u64 host_now = host_start;
+  while (host_now - host_start < host_frequency) {
+    if (host_now >= next) {
+      rex::Clock::QueryGuestTickCount();
+      ++calls;
+      next = host_now + step;
+    }
+    host_now = rex::Clock::GetHostTickCount();
+  }
+  const rex::u64 host_end = rex::Clock::GetHostTickCount();
+  const rex::u64 guest_end = rex::Clock::QueryGuestTickCount();
+  rex::Clock::SetGuestTimeScalar(scalar);
+  rex::Clock::SetGuestTickFrequency(frequency);
+  const auto expected = static_cast<rex::u64>(static_cast<rex::f64>(host_end - host_start) *
+                                              static_cast<rex::f64>(kGuestFrequency) /
+                                              static_cast<rex::f64>(host_frequency));
+  return {guest_end - guest_start, expected, calls};
+}
+
+}  // namespace
+
+REX_TEST_CASE("The guest tick count follows the host under frequent polling", "[base][clock]") {
+  if (rex::Clock::IsNoScaling()) {
+    SKIP("clock.no_scaling is set");
+  }
+  const PollResult result = PollGuestTicksForOneSecond();
+  CAPTURE(result.guest_ticks, result.expected_ticks, result.calls);
+  CHECK(result.calls > 1000);
+  CHECK(result.guest_ticks + result.expected_ticks / 1000 >= result.expected_ticks);
+  CHECK(result.guest_ticks <= result.expected_ticks + result.expected_ticks / 1000);
+}
+
+REX_TEST_CASE("guest tick accuracy", "[base][clock][benchmark]") {
+  if (rex::Clock::IsNoScaling()) {
+    SKIP("clock.no_scaling is set");
+  }
+  const PollResult result = PollGuestTicksForOneSecond();
+  WARN("guest ticks after one second of polling " << result.guest_ticks << ", expected "
+                                                  << result.expected_ticks << ", calls "
+                                                  << result.calls);
 }
 
 REX_TEST_CASE("The guest time scalar scales durations and the tick ratio", "[base][clock]") {
