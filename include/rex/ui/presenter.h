@@ -1070,6 +1070,10 @@ class Presenter {
   std::atomic<uint64_t> guest_frame_pace_window_start_frame_count_{0};
   std::atomic<uint64_t> guest_frame_pace_window_start_vblank_count_{0};
 
+  // `host_frame_limit` state. Platform-independent: HostFrameLimitAllows and
+  // HostFrameLimitNotePresent are used on every backend.
+  PresentRateLimiter host_frame_limiter_;
+
 #if REX_PLATFORM_WIN32
   static Microsoft::WRL::ComPtr<IDXGIOutput> GetDXGIOutputForMonitor(IDXGIFactory1* factory,
                                                                      HMONITOR monitor);
@@ -1104,7 +1108,6 @@ class Presenter {
   // only touched under dxgi_ui_tick_mutex_.
   std::atomic<uint64_t> vsync_present_gate_last_present_tick_{0};
   std::atomic<uint64_t> vsync_present_gate_suppressed_{0};
-  PresentRateLimiter host_frame_limiter_;
   uint64_t vsync_present_gate_last_log_time_ms_ = 0;
   // If output is null or shutdown is true, the signal may not be sent, either
   // don't limit the frame rate in this case (an exceptional situation, such as

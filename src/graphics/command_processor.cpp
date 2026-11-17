@@ -86,6 +86,16 @@ REXCVAR_DEFINE_BOOL(readback_memexport, true, "GPU",
                     "coherency (can reduce correctness issues, but may add GPU/CPU sync cost)")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_BOOL(terrain_tess_cpu, true, "GPU",
+                    "Compute Fable II's terrain tessellation factors on the CPU so the "
+                    "memexport draw does not wait for the GPU every frame")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(skinning_cpu, true, "GPU",
+                    "Compute Fable II's memexport skinning on the CPU so the draw does not "
+                    "wait for the GPU every frame")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 REXCVAR_DEFINE_BOOL(readback_memexport_fast, true, "GPU",
                     "Use fast double-buffered memexport readback when possible, with "
                     "automatic fallback to full synchronous readback")

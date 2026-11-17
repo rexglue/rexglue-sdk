@@ -11,7 +11,7 @@
 #include <rex/graphics/register_file.h>
 #include <rex/memory.h>
 
-namespace rex::graphics::d3d12 {
+namespace rex::graphics {
 
 constexpr uint64_t kFable2TerrainTessShader = 0x695413A9831D88DAull;
 
@@ -22,4 +22,4 @@ bool ComputeFable2TerrainTess(const RegisterFile& regs, memory::Memory& memory,
                               const Shader& vertex_shader, uint32_t& written_start,
                               uint32_t& written_length);
 
-}  // namespace rex::graphics::d3d12
+}  // namespace rex::graphics

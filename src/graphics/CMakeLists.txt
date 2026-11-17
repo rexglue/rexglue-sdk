@@ -18,6 +18,8 @@ set(REXGPU_XENOS_SOURCES
     # GPU system
     graphics_system.cpp
     command_processor.cpp
+    fable2_skinning.cpp
+    fable2_terrain_tess.cpp
     frame_limiter.cpp
     util/draw_extent_estimator.cpp
     util/draw.cpp
@@ -77,8 +79,6 @@ if(REXGLUE_USE_D3D12)
     set(REXGPU_XENOS_D3D12_SOURCES
         d3d12/graphics_system.cpp
         d3d12/command_processor.cpp
-        d3d12/fable2_terrain_tess.cpp
-        d3d12/fable2_skinning.cpp
         d3d12/primitive_processor.cpp
         d3d12/render_target_cache.cpp
         d3d12/shader.cpp

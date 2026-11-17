@@ -9,7 +9,7 @@
 #include <rex/graphics/xenos.h>
 #include <rex/types.h>
 
-namespace rex::graphics::d3d12 {
+namespace rex::graphics {
 
 namespace {
 
@@ -150,4 +150,4 @@ bool ComputeFable2TerrainTess(const RegisterFile& regs, memory::Memory& memory,
   return true;
 }
 
-}  // namespace rex::graphics::d3d12
+}  // namespace rex::graphics

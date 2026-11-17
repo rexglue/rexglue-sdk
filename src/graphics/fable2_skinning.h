@@ -12,7 +12,7 @@
 #include <rex/graphics/register_file.h>
 #include <rex/memory.h>
 
-namespace rex::graphics::d3d12 {
+namespace rex::graphics {
 
 constexpr uint64_t kFable2SkinningShader = 0xF6C546D6C2645541ull;
 
@@ -24,4 +24,4 @@ bool ComputeFable2Skinning(const RegisterFile& regs, memory::Memory& memory,
                            const Shader& vertex_shader, std::vector<uint8_t>* capture,
                            uint32_t& written_start, uint32_t& written_length);
 
-}  // namespace rex::graphics::d3d12
+}  // namespace rex::graphics
