@@ -619,6 +619,48 @@ REX_TEST_CASE("threads: a new thread starts on its creator's processor", "[kerne
   });
 }
 
+namespace {
+
+/** Spends CPU time on the calling host thread until its CPU clock reaches at least the target. */
+void BurnCPUUntil(std::chrono::milliseconds target) {
+  while (rex::platform::GetCurrentThreadCPUTime() < target) {}
+}
+
+}  // namespace
+
+REX_TEST_CASE("threads: kernel time at exit is the final CPU time", "[kernel][threads][times]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    struct Seen {
+      std::atomic<u32> after_wait{0};
+      std::atomic<u32> object{0};
+    };
+    auto seen = std::make_shared<Seen>();
+    const u32 event = c.Alloc(0x10);
+    c.Kernel("KeInitializeEvent", {event, 0, 0});
+    const u32 handle = c.Spawn([seen, event](Caller& t) {
+      auto* thread = rex::kernel::KernelThread::GetCallingThread();
+      auto* object = thread->GetGuestObject<rex::kernel::X_KTHREAD>();
+      seen->object.store(thread->GetGuestObject());
+      BurnCPUUntil(std::chrono::milliseconds(50));
+      t.Kernel("KeWaitForSingleObject", {event, 0, 0, 0, t.AllocQuad(0)});
+      seen->after_wait.store(object->kernel_time);
+      BurnCPUUntil(std::chrono::milliseconds(70));
+    });
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
+    const u32 object = seen->object.load();
+    REQUIRE(object != 0);
+    CHECK(seen->after_wait.load() >= 50);
+    const u32 at_exit = StateOf(c.GetRuntime())
+                            .GetAddressSpace()
+                            ->TranslateVirtual<rex::kernel::X_KTHREAD*>(object)
+                            ->kernel_time;
+    CHECK(at_exit >= 70);
+    CHECK(at_exit >= seen->after_wait.load());
+    c.Kernel("NtClose", {handle});
+  });
+}
+
 REX_TEST_CASE("A new thread links its wait, timer and spare lists to themselves",
               "[kernel][threads]") {
   KernelFixture fixture;

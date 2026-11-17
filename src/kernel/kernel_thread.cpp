@@ -533,7 +533,18 @@ void KernelThread::WriteKernelTime() {
   if (!self || !self->guest_object_ptr_) {
     return;
   }
-  self->GetGuestObject<X_KTHREAD>()->kernel_time =
+  const u64 now_ms = static_cast<u64>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                          std::chrono::steady_clock::now().time_since_epoch())
+                                          .count());
+  if (now_ms == self->kernel_time_written_ms_) {
+    return;
+  }
+  self->kernel_time_written_ms_ = now_ms;
+  self->StoreKernelTime();
+}
+
+void KernelThread::StoreKernelTime() {
+  GetGuestObject<X_KTHREAD>()->kernel_time =
       static_cast<u32>(rex::platform::GetCurrentThreadCPUTime().count());
 }
 
@@ -542,7 +553,7 @@ void KernelThread::WriteExitState(u32 exit_code) {
   thread->terminated = 1;
   thread->thread_state = kKThreadStateTerminated;
   if (IsInThread(this)) {
-    WriteKernelTime();
+    StoreKernelTime();
   }
   thread->exit_time = Clock::QueryGuestSystemTime();
   thread->exit_status = exit_code;

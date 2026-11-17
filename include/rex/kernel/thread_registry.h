@@ -126,7 +126,7 @@ class IObjectWaiter {
 };
 
 /** Owns every `KernelThread`, finds them by ID or handle, and keeps the TLS slots and fibers. */
-REX_DECLARE_INTERFACE(IThreadRegistry, 3)
+REX_DECLARE_INTERFACE(IThreadRegistry, 4)
   virtual ~IThreadRegistry() = default;
 
   /**
