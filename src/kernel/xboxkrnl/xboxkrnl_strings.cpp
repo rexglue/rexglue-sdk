@@ -33,6 +33,12 @@ REX_HOOK_RAW(__imp__DbgPrint) {
     ctx.r3.u64 = 0;
     return;
   }
+  // The text is only logged at Dev level, so skip the format below it. A %n in the format then
+  // writes no count, where the console formats before it decides whether a debugger listens.
+  if (!::rex::log::title.IsEnabled(::rex::log::Level::kDev)) {
+    ctx.r3.u64 = 0;
+    return;
+  }
   auto format = GuestPtr<const u8*>(base, format_ptr);
 
   StackArgList args(ctx, base, 1);
@@ -53,6 +59,12 @@ REX_HOOK_RAW(__imp__DbgPrint) {
 REX_HOOK_RAW(__imp__XamDbgPrint) {
   u32 format_ptr = ctx.r3.u32;
   if (!format_ptr) {
+    ctx.r3.u64 = 0;
+    return;
+  }
+  // The text is only logged at Dev level, so skip the format below it. A %n in the format then
+  // writes no count, where the console formats before it decides whether a debugger listens.
+  if (!::rex::log::title.IsEnabled(::rex::log::Level::kDev)) {
     ctx.r3.u64 = 0;
     return;
   }
