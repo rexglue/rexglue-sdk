@@ -303,14 +303,34 @@ void WriteFailure(const LogCategory& category, const char* what) noexcept {
   }
 }
 
+namespace {
+
+Level NextStubLevel(std::atomic_flag& seen) noexcept {
+  if (seen.test(std::memory_order_relaxed)) {
+    return Level::kDev;
+  }
+  return seen.test_and_set(std::memory_order_relaxed) ? Level::kDev : Level::kWarn;
+}
+
+}  // namespace
+
 void WriteStub(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
                std::string_view detail) {
-  const Level level = seen.test_and_set(std::memory_order_relaxed) ? Level::kDev : Level::kWarn;
+  const Level level = NextStubLevel(seen);
   if (!category.IsEnabled(level)) {
     return;
   }
   Write(category, level,
         detail.empty() ? std::format("{} stub", name) : std::format("{} stub, {}", name, detail));
+}
+
+void WriteStubValue(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
+                    u32 value) {
+  const Level level = NextStubLevel(seen);
+  if (!category.IsEnabled(level)) {
+    return;
+  }
+  Write(category, level, std::format("{} stub, returning {:#x}", name, value));
 }
 
 }  // namespace detail

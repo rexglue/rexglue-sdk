@@ -101,6 +101,7 @@ add_executable(
   base/module_group_test.cpp
   base/module_served_test.cpp
   base/logger_test.cpp
+  base/stub_log_test.cpp
   base/math_test.cpp
   base/propagate_const_test.cpp
   base/sleep_test.cpp

@@ -137,6 +137,16 @@ void WriteFormatted(const LogCategory& category, Level level, std::format_string
 REX_API void WriteStub(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
                        std::string_view detail);
 
+/**
+ * Writes a stub call that returns a value. The first call of each stub is a warning, later calls
+ * are Dev. The text is formatted only when the level is enabled.
+ *
+ * @param seen Per stub flag, set by the first call.
+ * @param value The value the stub returns.
+ */
+REX_API void WriteStubValue(const LogCategory& category, std::atomic_flag& seen,
+                            std::string_view name, u32 value);
+
 /** Collects categories for Logger::AddCategories. */
 template <typename... Categories>
 constexpr std::array<const LogCategory*, sizeof...(Categories)> BuildTable(
