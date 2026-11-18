@@ -56,6 +56,7 @@ struct ChangeQueue {
   bool running = false;
   bool last_round = false;
   std::vector<std::shared_ptr<detail::SettingWatch>> pending;
+  std::vector<std::shared_ptr<detail::SettingWatch>> round; /**< Kept so its capacity is reused. */
 };
 
 thread_local ChangeQueue t_changes;
@@ -92,9 +93,21 @@ std::string NameRound(std::span<const std::shared_ptr<detail::SettingWatch>> rou
   return out;
 }
 
-void RunPending() {
+/** True when the calling thread delivers immediately instead of queueing. */
+bool CanDeliver() {
+  const ChangeQueue& queue = t_changes;
+  return queue.depth == 0 && queue.batches == 0 && !queue.running;
+}
+
+/**
+ * Runs the queued change calls of the thread in rounds.
+ *
+ * @param first The watches of the first round, delivered before the queued ones. Empty when the
+ * queue holds the first round.
+ */
+void RunPending(std::span<const std::shared_ptr<detail::SettingWatch>> first = {}) {
   ChangeQueue& queue = t_changes;
-  if (queue.depth > 0 || queue.batches > 0 || queue.running) {
+  if (!CanDeliver()) {
     return;
   }
   queue.running = true;
@@ -102,16 +115,24 @@ void RunPending() {
     queue.running = false;
     queue.last_round = false;
     queue.pending.clear();
+    queue.round.clear();
   });
   u32 rounds = 0;
+  if (!first.empty()) {
+    for (const auto& watch : first) {
+      watch->Deliver();
+    }
+    ++rounds;
+  }
   while (!queue.pending.empty()) {
     if (rounds == kMaxChangeRounds) {
       queue.last_round = true;
       REXSYS_ERROR("setting change calls stopped after {} rounds, the last round calls {}",
                    kMaxChangeRounds, NameRound(queue.pending));
     }
-    const auto round = std::exchange(queue.pending, {});
-    for (const auto& watch : round) {
+    queue.round.clear();
+    std::swap(queue.round, queue.pending);
+    for (const auto& watch : queue.round) {
       watch->Deliver();
     }
     ++rounds;
@@ -454,13 +475,15 @@ SettingBase::SettingBase(SettingOwner& owner, std::string_view name, SettingType
 }
 
 SettingBase::~SettingBase() {
-  std::vector<std::shared_ptr<detail::SettingWatch>> watches;
+  std::shared_ptr<const State::WatchList> watches;
   {
     std::lock_guard lock(state_->watches_mutex);
     watches = std::exchange(state_->watches, {});
   }
-  for (const auto& watch : watches) {
-    watch->Detach(*this);
+  if (watches) {
+    for (const auto& watch : *watches) {
+      watch->Detach(*this);
+    }
   }
   SettingOwner::State& owner = *state_->owner->state_;
   if (owner.registered) {
@@ -641,28 +664,43 @@ Result<void> SettingBase::StoreFailed(std::string_view text, CommitKind kind) co
 }
 
 void SettingBase::Notify() {
-  std::vector<std::shared_ptr<detail::SettingWatch>> watches;
+  std::shared_ptr<const State::WatchList> watches;
   {
     std::lock_guard lock(state_->watches_mutex);
     watches = state_->watches;
   }
-  if (watches.empty()) {
+  if (!watches) {
     return;
   }
-  for (const auto& watch : watches) {
+  if (CanDeliver()) {
+    RunPending(*watches);
+    return;
+  }
+  for (const auto& watch : *watches) {
     Enqueue(watch);
   }
-  RunPending();
 }
 
 void SettingBase::LinkWatch(std::shared_ptr<detail::SettingWatch> watch) {
   std::lock_guard lock(state_->watches_mutex);
-  state_->watches.push_back(std::move(watch));
+  auto next = state_->watches ? std::make_shared<State::WatchList>(*state_->watches)
+                              : std::make_shared<State::WatchList>();
+  next->push_back(std::move(watch));
+  state_->watches = std::move(next);
 }
 
 void SettingBase::UnlinkWatch(const detail::SettingWatch* watch) {
   std::lock_guard lock(state_->watches_mutex);
-  std::erase_if(state_->watches, [watch](const auto& entry) { return entry.get() == watch; });
+  if (!state_->watches) {
+    return;
+  }
+  auto next = std::make_shared<State::WatchList>(*state_->watches);
+  std::erase_if(*next, [watch](const auto& entry) { return entry.get() == watch; });
+  if (next->empty()) {
+    state_->watches.reset();
+  } else {
+    state_->watches = std::move(next);
+  }
 }
 
 Result<void> SettingBase::SetText(SettingLayer layer, std::string_view text) {

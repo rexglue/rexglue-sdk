@@ -61,8 +61,13 @@ struct SettingBase::State {
   std::atomic<SettingLayer> layer{SettingLayer::kDefault};
   std::atomic<bool> restart_pending{false};
   std::atomic<u64> generation{1};
+  using WatchList = std::vector<std::shared_ptr<detail::SettingWatch>>;
   std::mutex watches_mutex; /**< Unranked, it takes no other lock and calls no other code. */
-  std::vector<std::shared_ptr<detail::SettingWatch>> watches;
+  /**
+   * The watches in registration order, or null when there are none. Copied on write, so a write
+   * reads the list by taking the pointer and never copies it while it is unchanged.
+   */
+  std::shared_ptr<const WatchList> watches;
 };
 
 struct ConsoleCommand::State {
