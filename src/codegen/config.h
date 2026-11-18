@@ -218,14 +218,27 @@ struct RecompilerConfig {
   std::unordered_map<u32, MidAsmHook> mid_asm_hooks;
   /**
    * TOML key `longjmp_address`, default 0. Function address whose calls are emitted as
-   * `ppc_longjmp`.
+   * `ppc_longjmp`. The key may also be an array of every address the game calls longjmp at (a
+   * body and the incremental linker's thunks to it, or a second copy of the CRT's): this is the
+   * first, longjmp_addresses holds all of them.
    */
   u32 longjmp_address = 0;
   /**
    * TOML key `setjmp_address`, default 0. Function address whose calls are emitted as
-   * `ppc_setjmp`.
+   * `ppc_setjmp`. An array as for longjmp_address.
    */
   u32 setjmp_address = 0;
+  /** Every longjmp address, longjmp_address among them. */
+  std::unordered_set<u32> longjmp_addresses;
+  /** Every setjmp address, setjmp_address among them. */
+  std::unordered_set<u32> setjmp_addresses;
+
+  bool IsLongjmp(u32 address) const {
+    return address != 0 && (address == longjmp_address || longjmp_addresses.contains(address));
+  }
+  bool IsSetjmp(u32 address) const {
+    return address != 0 && (address == setjmp_address || setjmp_addresses.contains(address));
+  }
 
   /** Shim function addresses keyed by registry name, read from the [shim] TOML table. */
   std::unordered_map<std::string, u32> shim_functions;
