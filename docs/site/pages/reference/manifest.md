@@ -68,6 +68,7 @@ Each flag is a boolean and defaults to `false`. See [Optimizations](../codegen/c
 | `cr_as_local` | Keeps the CR fields in locals instead of `ctx.cr0` to `ctx.cr7`. |
 | `non_argument_as_local` | Keeps `r0`, `r11`, `r12`, `f0` and `v32` to `v63` in locals. |
 | `non_volatile_as_local` | Keeps `r14` to `r31`, `f14` to `f31`, `v14` to `v31` and `v64` to `v127` in locals, except in the functions listed under [Restore Exits](../codegen/codegen-pipeline.md#restore-exits-and-millicode). |
+| `share_non_volatile_live_ins` | With `non_volatile_as_local`, gives `share_registers` to every function that reads a non volatile register before it writes it, instead of a warning for each. See [Non Volatile Live Ins](../codegen/codegen-pipeline.md#non-volatile-live-ins). |
 | `forward_stack_stores` | Makes a load through `r1` reuse the value of an earlier write in the same basic block to the same `r1` offset with the same width, instead of reading guest memory. |
 | `generate_exception_handlers` | Wraps functions that have SEH scopes in exception handlers. See [Exception Scopes](../codegen/generated-code.md#exception-scopes). |
 

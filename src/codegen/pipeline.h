@@ -141,4 +141,14 @@ namespace rex::codegen::detail {
  */
 [[nodiscard]] Result<void> ValidateGraph(CodegenContext& ctx);
 
+/**
+ * With non_volatile_as_local, finds the functions that read a non volatile register before they
+ * write it, which would read zero from their own locals instead of the value their caller set.
+ * Warns about each one, or gives it share_registers when share_non_volatile_live_ins is set. Runs
+ * after ValidateGraph.
+ *
+ * @param ctx CodegenContext with the function graph built
+ */
+void ShareNonVolatileLiveIns(CodegenContext& ctx);
+
 }  // namespace rex::codegen::detail

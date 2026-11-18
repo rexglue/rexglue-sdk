@@ -70,6 +70,8 @@ namespace rex::codegen {
     return validate_result;
   }
 
+  detail::ShareNonVolatileLiveIns(ctx);
+
   REXCG_TRACE("Analyze: complete - {} functions ready for code generation",
               ctx.graph.GetFunctionCount());
 

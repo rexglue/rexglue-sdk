@@ -141,6 +141,8 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
   MergeBool(cfg.non_volatile_registers_as_local_variables,
             root["non_volatile_as_local"].value_or(false), has_bool("non_volatile_as_local"),
             "non_volatile_as_local");
+  MergeBool(cfg.share_non_volatile_live_ins, root["share_non_volatile_live_ins"].value_or(false),
+            has_bool("share_non_volatile_live_ins"), "share_non_volatile_live_ins");
   MergeBool(cfg.forward_stack_stores, root["forward_stack_stores"].value_or(false),
             has_bool("forward_stack_stores"), "forward_stack_stores");
   MergeBool(cfg.generate_exception_handlers, root["generate_exception_handlers"].value_or(false),
