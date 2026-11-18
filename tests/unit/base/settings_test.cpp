@@ -248,15 +248,13 @@ REX_TEST_CASE("settings: a change watch runs until it is destroyed", "[base][set
         ++calls;
         last = value;
       });
-      REQUIRE(calls == 1);
-      REQUIRE(last == 3);
       REQUIRE(audio.count.Set(2));
       REQUIRE(audio.count.Set(4));
-      REQUIRE(calls == 3);
+      REQUIRE(calls == 2);
       REQUIRE(last == 4);
     }
     REQUIRE(audio.count.Set(5));
-    REQUIRE(calls == 3);
+    REQUIRE(calls == 2);
   });
 }
 
@@ -267,23 +265,22 @@ REX_TEST_CASE("settings: a write that keeps the value does not call the watch",
     REQUIRE(REX_SETTINGS().Register(audio));
     int calls = 0;
     auto watch = audio.count.OnChange([&](const rex::i32&) { ++calls; });
-    REQUIRE(calls == 1);
     REQUIRE(audio.count.Set(3));
+    REQUIRE(calls == 0);
+    REQUIRE(audio.count.Set(4));
     REQUIRE(calls == 1);
     REQUIRE(audio.count.Set(4));
-    REQUIRE(calls == 2);
-    REQUIRE(audio.count.Set(4));
+    REQUIRE(calls == 1);
+    REQUIRE(audio.count.Reset());
     REQUIRE(calls == 2);
     REQUIRE(audio.count.Reset());
-    REQUIRE(calls == 3);
-    REQUIRE(audio.count.Reset());
-    REQUIRE(calls == 3);
+    REQUIRE(calls == 2);
     REQUIRE(audio.count.SetText(SettingLayer::kFile, "3"));
-    REQUIRE(calls == 3);
+    REQUIRE(calls == 2);
     REQUIRE(audio.count.GetLayer() == SettingLayer::kFile);
     REQUIRE_FALSE(audio.count.SetText(SettingLayer::kTitle, "5"));
     REQUIRE(audio.count.Get() == 3);
-    REQUIRE(calls == 3);
+    REQUIRE(calls == 2);
   });
 }
 
@@ -390,22 +387,169 @@ class OrderViolationCount {
 
 }  // namespace
 
-REX_TEST_CASE("settings: a new watch receives the current value before OnChange returns",
+REX_TEST_CASE("settings: a bound watch receives the current value before Bind returns",
               "[base][settings]") {
   RunInInit([] {
     AudioOwner audio;
     REQUIRE(REX_SETTINGS().Register(audio));
     REQUIRE(audio.count.Set(6));
     std::vector<rex::i32> seen;
-    auto watch = audio.count.OnChange([&](const rex::i32& value) { seen.push_back(value); });
+    auto watch = audio.count.Bind([&](const rex::i32& value) { seen.push_back(value); });
     REQUIRE(seen == std::vector<rex::i32>{6});
     std::vector<std::string> group;
-    auto both = rex::OnChange(
+    auto both = rex::Bind(
         [&](const rex::i32& count, const std::string& mode) {
           group.push_back(std::format("{} {}", count, mode));
         },
         audio.count, audio.mode);
     REQUIRE(group == std::vector<std::string>{"6 fast"});
+  });
+}
+
+REX_TEST_CASE("settings: OnChange is not called when it subscribes and returns the current value",
+              "[base][settings]") {
+  RunInInit([] {
+    AudioOwner audio;
+    REQUIRE(REX_SETTINGS().Register(audio));
+    REQUIRE(audio.count.Set(6));
+    std::vector<rex::i32> seen;
+    auto [watch, value] = audio.count.OnChange([&](const rex::i32& v) { seen.push_back(v); });
+    REQUIRE(value == 6);
+    REQUIRE(seen.empty());
+    REQUIRE(audio.count.Set(7));
+    REQUIRE(seen == std::vector<rex::i32>{7});
+  });
+}
+
+REX_TEST_CASE("settings: Bind is called once when it subscribes and once after each change",
+              "[base][settings]") {
+  RunInInit([] {
+    AudioOwner audio;
+    REQUIRE(REX_SETTINGS().Register(audio));
+    std::vector<rex::i32> seen;
+    auto watch = audio.count.Bind([&](const rex::i32& v) { seen.push_back(v); });
+    REQUIRE(seen == std::vector<rex::i32>{3});
+    REQUIRE(audio.count.Set(4));
+    REQUIRE(audio.count.Set(4));
+    REQUIRE(audio.count.Set(5));
+    REQUIRE(seen == std::vector<rex::i32>{3, 4, 5});
+  });
+}
+
+REX_TEST_CASE(
+    "settings: the group and list OnChange return the current values and wait for a change",
+    "[base][settings]") {
+  RunInInit([] {
+    PairOwner pair;
+    REQUIRE(REX_SETTINGS().Register(pair));
+    REQUIRE(pair.left.Set(1));
+    REQUIRE(pair.right.Set(2));
+    std::vector<std::string> group_seen;
+    auto [group, values] = rex::OnChange(
+        [&](const rex::i32& left, const rex::i32& right) {
+          group_seen.push_back(std::format("{} {}", left, right));
+        },
+        pair.left, pair.right);
+    REQUIRE(values == std::tuple<rex::i32, rex::i32>{1, 2});
+    std::vector<rex::Setting<rex::i32>*> members{&pair.right, &pair.left};
+    std::vector<std::vector<rex::i32>> list_seen;
+    auto [list, list_values] = rex::OnChange<rex::i32>(
+        [&](std::span<const rex::i32> v) { list_seen.emplace_back(v.begin(), v.end()); },
+        std::span<rex::Setting<rex::i32>* const>(members));
+    REQUIRE(list_values == std::vector<rex::i32>{2, 1});
+    REQUIRE(group_seen.empty());
+    REQUIRE(list_seen.empty());
+    REQUIRE(pair.left.Set(3));
+    REQUIRE(group_seen == std::vector<std::string>{"3 2"});
+    REQUIRE(list_seen == std::vector<std::vector<rex::i32>>{{2, 3}});
+  });
+}
+
+REX_TEST_CASE(
+    "settings: the group and list Bind are called once when they subscribe and after a "
+    "change",
+    "[base][settings]") {
+  RunInInit([] {
+    PairOwner pair;
+    REQUIRE(REX_SETTINGS().Register(pair));
+    REQUIRE(pair.left.Set(1));
+    std::vector<std::string> group_seen;
+    auto group = rex::Bind(
+        [&](const rex::i32& left, const rex::i32& right) {
+          group_seen.push_back(std::format("{} {}", left, right));
+        },
+        pair.left, pair.right);
+    std::vector<rex::Setting<rex::i32>*> members{&pair.left, &pair.right};
+    std::vector<std::vector<rex::i32>> list_seen;
+    auto list = rex::Bind<rex::i32>(
+        [&](std::span<const rex::i32> v) { list_seen.emplace_back(v.begin(), v.end()); },
+        std::span<rex::Setting<rex::i32>* const>(members));
+    REQUIRE(group_seen == std::vector<std::string>{"1 0"});
+    REQUIRE(list_seen == std::vector<std::vector<rex::i32>>{{1, 0}});
+    REQUIRE(pair.right.Set(2));
+    REQUIRE(group_seen == std::vector<std::string>{"1 0", "1 2"});
+    REQUIRE(list_seen == std::vector<std::vector<rex::i32>>{{1, 0}, {1, 2}});
+  });
+}
+
+REX_TEST_CASE("settings: a write racing OnChange is in the returned value or in a later call",
+              "[base][settings]") {
+  RunInInit([] {
+    AudioOwner audio;
+    REQUIRE(REX_SETTINGS().Register(audio));
+    REQUIRE(audio.count.Set(0));
+    constexpr rex::i32 kLast = 2000;
+    std::latch go(1);
+    std::atomic<int> refused{0};
+    std::jthread writer([&] {
+      go.wait();
+      for (rex::i32 v = 1; v <= kLast; ++v) {
+        refused += !audio.count.Set(v).has_value();
+      }
+    });
+    std::mutex seen_mutex;
+    std::vector<rex::i32> seen;
+    go.count_down();
+    auto [watch, value] = audio.count.OnChange([&](const rex::i32& v) {
+      std::lock_guard lock(seen_mutex);
+      seen.push_back(v);
+    });
+    writer.join();
+    REQUIRE(refused == 0);
+    std::lock_guard lock(seen_mutex);
+    // Every call carries a value newer than the one returned, and the last value written is seen.
+    for (const rex::i32 v : seen) {
+      REQUIRE(v > value);
+    }
+    const rex::i32 latest = seen.empty() ? value : seen.back();
+    REQUIRE(latest == kLast);
+  });
+}
+
+REX_TEST_CASE(
+    "settings: OnChange and Bind inside a change function report no lock order and Bind "
+    "calls after it",
+    "[base][settings]") {
+  RunInInit([] {
+    PairOwner pair;
+    REQUIRE(REX_SETTINGS().Register(pair));
+    std::vector<std::string> order;
+    std::optional<std::pair<rex::ScopeGuard, rex::i32>> changed;
+    std::optional<rex::ScopeGuard> bound;
+    auto outer = pair.left.OnChange([&](const rex::i32& value) {
+      order.push_back(std::format("outer {}", value));
+      changed.emplace(pair.right.OnChange(
+          [&](const rex::i32& v) { order.push_back(std::format("changed {}", v)); }));
+      order.push_back(std::format("changed returned {}", changed->second));
+      bound.emplace(
+          pair.right.Bind([&](const rex::i32& v) { order.push_back(std::format("bound {}", v)); }));
+      order.push_back("outer end");
+    });
+    const OrderViolationCount violations;
+    REQUIRE(pair.left.Set(1));
+    REQUIRE(g_order_violations == 0);
+    REQUIRE(order ==
+            std::vector<std::string>{"outer 1", "changed returned 0", "outer end", "bound 0"});
   });
 }
 
@@ -416,10 +560,10 @@ REX_TEST_CASE("settings: a watch added inside a change call receives its first c
     REQUIRE(REX_SETTINGS().Register(audio));
     std::vector<std::string> order;
     std::optional<rex::ScopeGuard> inner;
-    auto outer = audio.count.OnChange([&](const rex::i32& value) {
+    auto outer = audio.count.Bind([&](const rex::i32& value) {
       order.push_back(std::format("outer {}", value));
       if (value == 4 && !inner) {
-        inner = audio.mode.OnChange(
+        inner = audio.mode.Bind(
             [&](const std::string& mode) { order.push_back(std::format("inner {}", mode)); });
         order.push_back("added");
       }
@@ -438,9 +582,8 @@ REX_TEST_CASE("settings: writes from several threads end with every watch on the
     constexpr rex::i32 kWrites = 200;
     std::vector<rex::i32> first;
     std::vector<rex::i32> second;
-    auto first_watch = audio.count.OnChange([&](const rex::i32& value) { first.push_back(value); });
-    auto second_watch =
-        audio.count.OnChange([&](const rex::i32& value) { second.push_back(value); });
+    auto first_watch = audio.count.Bind([&](const rex::i32& value) { first.push_back(value); });
+    auto second_watch = audio.count.Bind([&](const rex::i32& value) { second.push_back(value); });
     std::latch start(kThreads);
     std::atomic<int> refused{0};
     {
@@ -480,8 +623,7 @@ REX_TEST_CASE("settings: the watches of a setting run in the order they were add
     std::vector<int> order;
     std::vector<rex::ScopeGuard> watches;
     for (int id = 1; id <= 4; ++id) {
-      watches.push_back(
-          audio.count.OnChange([&order, id](const rex::i32&) { order.push_back(id); }));
+      watches.push_back(audio.count.Bind([&order, id](const rex::i32&) { order.push_back(id); }));
     }
     order.clear();
     REQUIRE(audio.count.Set(8));
@@ -503,7 +645,7 @@ REX_TEST_CASE("settings: a second writer returns only after every watch saw its 
     std::vector<rex::i32> after_seen;
     std::latch entered(1);
     std::latch release(1);
-    auto slow = audio.count.OnChange([&](const rex::i32& value) {
+    auto slow = audio.count.Bind([&](const rex::i32& value) {
       {
         std::lock_guard lock(record_mutex);
         slow_seen.push_back(value);
@@ -513,7 +655,7 @@ REX_TEST_CASE("settings: a second writer returns only after every watch saw its 
         release.wait();
       }
     });
-    auto after = audio.count.OnChange([&](const rex::i32& value) {
+    auto after = audio.count.Bind([&](const rex::i32& value) {
       std::lock_guard lock(record_mutex);
       after_seen.push_back(value);
     });
@@ -544,7 +686,7 @@ REX_TEST_CASE("settings: a second writer returns only after every watch saw its 
 
 namespace {
 
-/** Holds each call of a change function until the test releases it, and counts the releases. */
+/** Holds each call of a change function until the test releases it. */
 class CallStepper {
  public:
   void Arm() {
@@ -559,6 +701,7 @@ class CallStepper {
       return;
     }
     const int index = ++started_;
+    held_runner_ = std::this_thread::get_id();
     changed_.notify_all();
     changed_.wait(lock, [&] { return released_ >= index || !armed_; });
   }
@@ -569,6 +712,12 @@ class CallStepper {
     std::unique_lock lock(mutex_);
     changed_.wait(lock, [&] { return started_ > released_ || done(); });
     return started_ > released_ && !done();
+  }
+
+  /** Returns the thread of the call held last. */
+  std::thread::id HeldRunner() {
+    std::lock_guard lock(mutex_);
+    return held_runner_;
   }
 
   void Release() {
@@ -596,113 +745,143 @@ class CallStepper {
   bool armed_ = false;
   int started_ = 0;
   int released_ = 0;
+  std::thread::id held_runner_;
 };
 
-/**
- * Releases the held calls one at a time until the condition holds, at most a given number, and
- * returns how many it released.
- */
-template <typename Done>
-int ReleaseUntil(CallStepper& stepper, int most, Done done) {
-  int released = 0;
-  while (released < most && stepper.WaitHeldOr(done)) {
-    stepper.Release();
-    ++released;
+/** Waits for a flag without blocking, so the thread that sets it is not preempted by a wake. */
+void SpinUntil(const std::atomic<bool>& flag) {
+  while (!flag.load()) {
+    std::this_thread::yield();
   }
-  return released;
 }
+
+/**
+ * One try of a second write behind a writer that never stops. The second writer reaches the group
+ * watch while a call of the first writer is held. When it takes its ticket before that call ends,
+ * the next call is its own, and it returns after that call with no further call released.
+ *
+ * @return False when the second writer reached the watch only after the held call ended, so the
+ * try shows nothing.
+ */
+bool WriteBehindWriterOnce() {
+  AudioOwner audio;
+  REQUIRE(REX_SETTINGS().Register(audio));
+  CallStepper stepper;
+  std::atomic<bool> arrived{false};
+  // Added before the group watch, so the second writer calls it just before it reaches the group.
+  auto first = audio.count.Bind([&](const rex::i32& value) {
+    if (value == 100) {
+      arrived = true;
+    }
+  });
+  auto group =
+      rex::Bind([&](const bool&, const rex::i32&) { stepper.Enter(); }, audio.flag, audio.count);
+  stepper.Arm();
+  std::atomic<int> refused{0};
+  std::jthread writer([&](const std::stop_token& stop) {
+    bool value = false;
+    while (!stop.stop_requested()) {
+      value = !value;
+      refused += !audio.flag.SetText(SettingLayer::kRuntime, value ? "true" : "false");
+    }
+  });
+  REQUIRE(stepper.WaitHeldOr([] { return false; }));
+  std::jthread second([&] { refused += !audio.count.Set(100); });
+  SpinUntil(arrived);
+  stepper.Release();
+  REQUIRE(stepper.WaitHeldOr([] { return false; }));
+  const bool own_call = stepper.HeldRunner() == second.get_id();
+  if (own_call) {
+    // The call in progress and its own call: the second write returns with nothing more released.
+    stepper.Release();
+    second.join();
+  }
+  stepper.Open();
+  if (second.joinable()) {
+    second.join();
+  }
+  writer.request_stop();
+  writer.join();
+  REQUIRE(refused == 0);
+  return own_call;
+}
+
+/**
+ * One try of a removal behind a writer that never stops. The removal starts while a call is held.
+ * When it is stored before that call ends, Remove returns after that call and no call starts again.
+ *
+ * @return False when the removal was stored only after the held call ended, so the try shows
+ * nothing.
+ */
+bool RemoveBehindWriterOnce() {
+  AudioOwner audio;
+  REQUIRE(REX_SETTINGS().Register(audio));
+  CallStepper stepper;
+  std::atomic<int> calls_after_removal{0};
+  std::atomic<bool> removed{false};
+  std::optional<rex::ScopeGuard> group = rex::Bind(
+      [&](const bool&) {
+        stepper.Enter();
+        calls_after_removal += removed.load();
+      },
+      audio.flag);
+  stepper.Arm();
+  std::atomic<int> refused{0};
+  std::jthread writer([&](const std::stop_token& stop) {
+    bool value = false;
+    while (!stop.stop_requested()) {
+      value = !value;
+      refused += !audio.flag.SetText(SettingLayer::kRuntime, value ? "true" : "false");
+    }
+  });
+  REQUIRE(stepper.WaitHeldOr([] { return false; }));
+  std::atomic<bool> removing{false};
+  std::jthread remover([&] {
+    removing = true;
+    group.reset();
+    removed = true;
+    stepper.Wake();
+  });
+  SpinUntil(removing);
+  stepper.Release();
+  // Only the call in progress: once the removal is stored, no call starts, so Remove returns.
+  const bool one_call = !stepper.WaitHeldOr([&] { return removed.load(); });
+  while (stepper.WaitHeldOr([&] { return removed.load(); })) {
+    stepper.Release();
+  }
+  remover.join();
+  stepper.Open();
+  writer.request_stop();
+  writer.join();
+  REQUIRE(calls_after_removal == 0);
+  REQUIRE(refused == 0);
+  return one_call;
+}
+
+/** Tries before a test that needs one try to show its case fails. */
+constexpr int kTries = 20;
 
 }  // namespace
 
 REX_TEST_CASE("settings: a write behind a writer that never stops returns after at most two calls",
               "[base][settings]") {
   RunInInit([] {
-    AudioOwner audio;
-    REQUIRE(REX_SETTINGS().Register(audio));
-    CallStepper stepper;
-    std::latch arrived(1);
-    // Added before the group watch, so the second writer calls it just before it reaches the group.
-    auto first = audio.count.OnChange([&](const rex::i32& value) {
-      if (value == 100) {
-        arrived.count_down();
-      }
-    });
-    auto group = rex::OnChange([&](const bool&, const rex::i32&) { stepper.Enter(); }, audio.flag,
-                               audio.count);
-    stepper.Arm();
-    std::atomic<int> refused{0};
-    std::jthread writer([&](const std::stop_token& stop) {
-      bool value = false;
-      while (!stop.stop_requested()) {
-        value = !value;
-        refused += !audio.flag.SetText(SettingLayer::kRuntime, value ? "true" : "false");
-      }
-    });
-    REQUIRE(stepper.WaitHeldOr([] { return false; }));
-    std::atomic<bool> done{false};
-    std::jthread second([&] {
-      refused += !audio.count.Set(100);
-      done = true;
-      stepper.Wake();
-    });
-    arrived.wait();
-    // The call in progress, then at most one more call before the second write returns. No
-    // further call is released, so a write that waited behind more calls would not return.
-    stepper.Release();
-    const int more = ReleaseUntil(stepper, 1, [&] { return done.load(); });
-    REQUIRE(more <= 1);
-    second.join();
-    stepper.Open();
-    writer.request_stop();
-    writer.join();
-    REQUIRE(done);
-    REQUIRE(refused == 0);
+    bool shown = false;
+    for (int i = 0; i < kTries && !shown; ++i) {
+      shown = WriteBehindWriterOnce();
+    }
+    REQUIRE(shown);
   });
 }
 
 REX_TEST_CASE("settings: removing a watch behind a writer that never stops waits for one call",
               "[base][settings]") {
   RunInInit([] {
-    AudioOwner audio;
-    REQUIRE(REX_SETTINGS().Register(audio));
-    CallStepper stepper;
-    std::atomic<int> calls_after_removal{0};
-    std::atomic<bool> removed{false};
-    std::optional<rex::ScopeGuard> group = rex::OnChange(
-        [&](const bool&) {
-          stepper.Enter();
-          calls_after_removal += removed.load();
-        },
-        audio.flag);
-    stepper.Arm();
-    std::atomic<int> refused{0};
-    std::jthread writer([&](const std::stop_token& stop) {
-      bool value = false;
-      while (!stop.stop_requested()) {
-        value = !value;
-        refused += !audio.flag.SetText(SettingLayer::kRuntime, value ? "true" : "false");
-      }
-    });
-    REQUIRE(stepper.WaitHeldOr([] { return false; }));
-    std::latch removing(1);
-    std::jthread remover([&] {
-      removing.count_down();
-      group.reset();
-      removed = true;
-      stepper.Wake();
-    });
-    removing.wait();
-    // The call in progress, then no new call starts once the removal is seen, so at most the call
-    // that started before it. No further call is released.
-    stepper.Release();
-    const int more = ReleaseUntil(stepper, 1, [&] { return removed.load(); });
-    REQUIRE(more <= 1);
-    remover.join();
-    stepper.Open();
-    writer.request_stop();
-    writer.join();
-    REQUIRE(calls_after_removal == 0);
-    REQUIRE(refused == 0);
+    bool shown = false;
+    for (int i = 0; i < kTries && !shown; ++i) {
+      shown = RemoveBehindWriterOnce();
+    }
+    REQUIRE(shown);
   });
 }
 
@@ -714,7 +893,7 @@ REX_TEST_CASE("settings: a write inside a change call stores immediately and cal
     std::vector<std::string> order;
     bool inner_stored = false;
     bool inner_read = false;
-    auto writer = audio.count.OnChange([&](const rex::i32& value) {
+    auto writer = audio.count.Bind([&](const rex::i32& value) {
       order.push_back(std::format("writer {}", value));
       if (value == 2) {
         inner_stored = audio.count.Set(7).has_value() && audio.mode.Set("slow").has_value();
@@ -722,9 +901,9 @@ REX_TEST_CASE("settings: a write inside a change call stores immediately and cal
         order.push_back("writer returns");
       }
     });
-    auto reader = audio.count.OnChange(
+    auto reader = audio.count.Bind(
         [&](const rex::i32& value) { order.push_back(std::format("reader {}", value)); });
-    auto mode = audio.mode.OnChange(
+    auto mode = audio.mode.Bind(
         [&](const std::string& value) { order.push_back(std::format("mode {}", value)); });
     order.clear();
     REQUIRE(audio.count.Set(2));
@@ -744,13 +923,13 @@ REX_TEST_CASE("settings: change calls that keep rewriting each other stop on the
     int refused = 0;
     rex::i32 left_seen = -1;
     rex::i32 right_seen = -1;
-    auto left = pair.left.OnChange([&](const rex::i32& value) {
+    auto left = pair.left.Bind([&](const rex::i32& value) {
       left_seen = value;
       if (armed && !pair.right.Set(value + 1)) {
         ++refused;
       }
     });
-    auto right = pair.right.OnChange([&](const rex::i32& value) {
+    auto right = pair.right.Bind([&](const rex::i32& value) {
       right_seen = value;
       if (armed && !pair.left.Set(value + 1)) {
         ++refused;
@@ -776,8 +955,8 @@ REX_TEST_CASE("settings: a batch calls each watch once when it ends", "[base][se
     REQUIRE(REX_SETTINGS().Register(audio));
     std::vector<rex::i32> counts;
     std::vector<std::string> groups;
-    auto count = audio.count.OnChange([&](const rex::i32& value) { counts.push_back(value); });
-    auto group = rex::OnChange(
+    auto count = audio.count.Bind([&](const rex::i32& value) { counts.push_back(value); });
+    auto group = rex::Bind(
         [&](const rex::i32& value, const std::string& mode) {
           groups.push_back(std::format("{} {}", value, mode));
         },
@@ -804,7 +983,7 @@ REX_TEST_CASE("settings: a batch inside a batch joins it", "[base][settings]") {
     AudioOwner audio;
     REQUIRE(REX_SETTINGS().Register(audio));
     std::vector<rex::i32> counts;
-    auto count = audio.count.OnChange([&](const rex::i32& value) { counts.push_back(value); });
+    auto count = audio.count.Bind([&](const rex::i32& value) { counts.push_back(value); });
     counts.clear();
     {
       const rex::SettingsBatch outer;
@@ -830,14 +1009,14 @@ REX_TEST_CASE("settings: a watch removed inside a change call is not called agai
     bool armed = false;
     std::optional<rex::ScopeGuard> self;
     std::optional<rex::ScopeGuard> later;
-    self = audio.count.OnChange([&](const rex::i32&) {
+    self = audio.count.Bind([&](const rex::i32&) {
       ++self_calls;
       if (armed) {
         self.reset();
         later.reset();
       }
     });
-    later = audio.count.OnChange([&](const rex::i32&) { ++later_calls; });
+    later = audio.count.Bind([&](const rex::i32&) { ++later_calls; });
     armed = true;
     REQUIRE(audio.count.Set(2));
     REQUIRE(audio.count.Set(4));
@@ -856,7 +1035,7 @@ REX_TEST_CASE("settings: removing a watch waits for its call on another thread",
     std::atomic<bool> removed{false};
     std::atomic<bool> removed_while_running{true};
     std::atomic<int> calls{0};
-    std::optional<rex::ScopeGuard> watch = audio.count.OnChange([&](const rex::i32& value) {
+    std::optional<rex::ScopeGuard> watch = audio.count.Bind([&](const rex::i32& value) {
       if (value != 2) {
         return;
       }
@@ -893,7 +1072,7 @@ REX_TEST_CASE("settings: a group watch runs one call at a time and ends on the l
     std::atomic<int> overlapped{0};
     rex::i32 left_seen = -1;
     rex::i32 right_seen = -1;
-    auto group = rex::OnChange(
+    auto group = rex::Bind(
         [&](const rex::i32& left, const rex::i32& right) {
           overlapped += inside.exchange(true) ? 1 : 0;
           left_seen = left;
@@ -930,7 +1109,7 @@ REX_TEST_CASE("settings: a list watch receives the values in list order", "[base
     REQUIRE(REX_SETTINGS().Register(pair));
     std::vector<rex::Setting<rex::i32>*> members{&pair.right, &pair.left};
     std::vector<std::vector<rex::i32>> seen;
-    auto group = rex::OnChange<rex::i32>(
+    auto group = rex::Bind<rex::i32>(
         [&](std::span<const rex::i32> values) { seen.emplace_back(values.begin(), values.end()); },
         std::span<rex::Setting<rex::i32>* const>(members));
     REQUIRE(pair.left.Set(3));
@@ -943,7 +1122,7 @@ REX_TEST_CASE("settings: a destroyed setting stops its watch and the guard remov
   RunInInit([] {
     auto pair = std::make_unique<PairOwner>();
     int calls = 0;
-    auto watch = pair->left.OnChange([&](const rex::i32&) { ++calls; });
+    auto watch = pair->left.Bind([&](const rex::i32&) { ++calls; });
     pair.reset();
     watch.Reset();
     REQUIRE(calls == 1);
@@ -995,7 +1174,7 @@ REX_TEST_CASE("settings: a write that calls a watch under a ranked lock is a loc
     AudioOwner audio;
     REQUIRE(REX_SETTINGS().Register(audio));
     int calls = 0;
-    auto watch = audio.count.OnChange([&](const rex::i32&) { ++calls; });
+    auto watch = audio.count.Bind([&](const rex::i32&) { ++calls; });
     const OrderViolationCount violations;
     {
       rex::platform::RankedMutex held(rex::platform::lock_rank::kObjectState);
@@ -1056,7 +1235,7 @@ REX_TEST_CASE("settings: thread model costs", "[base][settings][benchmark]") {
       return audio.count.SetText(SettingLayer::kRuntime, "3").has_value();
     };
     int calls = 0;
-    auto watch = audio.count.OnChange([&](const rex::i32&) { ++calls; });
+    auto watch = audio.count.Bind([&](const rex::i32&) { ++calls; });
     bool ten = false;
     BENCHMARK("SetText with a new value and one watch") {
       ten = !ten;
@@ -1068,7 +1247,7 @@ REX_TEST_CASE("settings: thread model costs", "[base][settings][benchmark]") {
     BENCHMARK("Get of a string") {
       return audio.mode.Get();
     };
-    auto slow = audio.flag.OnChange(
+    auto slow = audio.flag.Bind(
         [](const bool&) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); });
     std::atomic<int> refused{0};
     std::latch looping(1);
@@ -1107,7 +1286,7 @@ REX_TEST_CASE("settings: a change call that removes a watch running on another t
     std::latch removing(1);
     std::atomic<bool> right_done{false};
     std::atomic<bool> done_before_return{false};
-    std::optional<rex::ScopeGuard> right = pair.right.OnChange([&](const rex::i32&) {
+    std::optional<rex::ScopeGuard> right = pair.right.Bind([&](const rex::i32&) {
       if (!armed) {
         return;
       }
@@ -1115,7 +1294,7 @@ REX_TEST_CASE("settings: a change call that removes a watch running on another t
       removing.wait();
       right_done = true;
     });
-    auto left = pair.left.OnChange([&](const rex::i32&) {
+    auto left = pair.left.Bind([&](const rex::i32&) {
       if (!armed) {
         return;
       }
@@ -1146,14 +1325,14 @@ REX_TEST_CASE("settings: two change calls that remove each other's watches repor
     std::atomic<int> right_calls{0};
     std::optional<rex::ScopeGuard> left;
     std::optional<rex::ScopeGuard> right;
-    left = pair.left.OnChange([&](const rex::i32&) {
+    left = pair.left.Bind([&](const rex::i32&) {
       ++left_calls;
       if (armed) {
         both.arrive_and_wait();
         right.reset();
       }
     });
-    right = pair.right.OnChange([&](const rex::i32&) {
+    right = pair.right.Bind([&](const rex::i32&) {
       ++right_calls;
       if (armed) {
         both.arrive_and_wait();

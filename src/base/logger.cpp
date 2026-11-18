@@ -355,7 +355,7 @@ class CategoryEntry final : public SettingOwner {
       : SettingOwner("log.categories"),
         level(this, name, std::string(), description,
               Allowed("", "trace", "dev", "debug", "info", "warn", "error", "critical", "off")) {
-    watch_ = level.OnChange([&state, name = std::string(name)](const std::string& text) {
+    watch_ = level.Bind([&state, name = std::string(name)](const std::string& text) {
       state.ApplyCategoryLevel(name, text);
     });
   }
@@ -782,9 +782,9 @@ Logger::~Logger() = default;
 
 Logger::Logger() : SettingOwner("log"), state_(std::make_unique<State>(*this)) {
   state_->settled_watch =
-      rex::OnChange([this](const std::string&, const std::string&, const bool&, const bool&,
-                           const std::string&, const bool&) { state_->ApplySettled(); },
-                    level, flush_level, console, debugger, pattern, color);
+      rex::Bind([this](const std::string&, const std::string&, const bool&, const bool&,
+                       const std::string&, const bool&) { state_->ApplySettled(); },
+                level, flush_level, console, debugger, pattern, color);
   if (auto registered = REX_SETTINGS().Register(*this); !registered) {
     std::fprintf(stderr, "log: registering the log settings failed, %s\n",
                  registered.error().message.c_str());

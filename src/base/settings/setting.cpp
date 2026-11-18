@@ -328,20 +328,7 @@ void SettingWatch::Run(std::unique_lock<std::mutex>& lock, u64 ticket) {
       }
       thread.running.store(nullptr, std::memory_order_relaxed);
       state.lock();
-      if (watch.requests_ > served && !watch.removed_.load(std::memory_order_relaxed)) {
-        // The handoff is written before served_, whose release store the waiter reads with
-        // acquire.
-        watch.handoff_.store(served + 1, std::memory_order_relaxed);
-        watch.served_.store(served, std::memory_order_release);
-      } else {
-        watch.running_ = false;
-        watch.served_.store(watch.requests_, std::memory_order_release);
-      }
-      const bool waiters = watch.requests_ > own;
-      state.unlock();
-      if (waiters) {
-        watch.served_.notify_all();
-      }
+      watch.HandOn(state, own, served);
     }
   };
   const End end{*this, lock, self, ticket, covering};
@@ -350,6 +337,41 @@ void SettingWatch::Run(std::unique_lock<std::mutex>& lock, u64 ticket) {
     const ChangeCall depth;
     Call();
   }
+}
+
+void SettingWatch::HandOn(std::unique_lock<std::mutex>& lock, u64 own, u64 served) {
+  if (requests_ > served && !removed_.load(std::memory_order_relaxed)) {
+    // The handoff is written before served_, whose release store the waiter reads with acquire.
+    handoff_.store(served + 1, std::memory_order_relaxed);
+    served_.store(served, std::memory_order_release);
+  } else {
+    running_ = false;
+    served_.store(requests_, std::memory_order_release);
+  }
+  const bool waiters = requests_ > own;
+  lock.unlock();
+  if (waiters) {
+    served_.notify_all();
+  }
+}
+
+/*
+ * The hold takes a ticket like an arriving writer that becomes the runner, so a write that arrives
+ * while the watch is linked takes a later ticket and waits. Ending the hold serves only the hold's
+ * own ticket, so the oldest waiting writer is handed the next call, and that call runs only when a
+ * generation is newer than the one the hold marked seen. A write that stores after a value is read
+ * is linked to the watch by then, so it either takes a ticket during the hold or arrives after it,
+ * and either way reaches the function as a change.
+ */
+SettingWatch::Hold::Hold(SettingWatch& watch) : watch_(watch) {
+  std::lock_guard lock(watch_.mutex_);
+  watch_.running_ = true;
+  ticket_ = ++watch_.requests_;
+}
+
+SettingWatch::Hold::~Hold() {
+  std::unique_lock lock(watch_.mutex_);
+  watch_.HandOn(lock, ticket_, ticket_);
 }
 
 bool SettingWatch::WaitTurn(u64 ticket) const {
@@ -438,6 +460,10 @@ void SettingWatch::Link(const std::shared_ptr<SettingWatch>& self) {
   }
 }
 
+ScopeGuard SettingWatch::Guard(std::shared_ptr<SettingWatch> self) {
+  return ScopeGuard([watch = std::move(self)] { watch->Remove(); });
+}
+
 ScopeGuard AddWatch(std::shared_ptr<SettingWatch> watch) {
   SettingWatch::Link(watch);
   if (IsInSettingChange()) {
@@ -446,7 +472,7 @@ ScopeGuard AddWatch(std::shared_ptr<SettingWatch> watch) {
     watch->Deliver();
     RunPending();
   }
-  return ScopeGuard([watch = std::move(watch)] { watch->Remove(); });
+  return SettingWatch::Guard(std::move(watch));
 }
 
 bool IsInSettingChange() {

@@ -62,7 +62,11 @@ struct SettingBase::State {
   std::atomic<bool> restart_pending{false};
   std::atomic<u64> generation{1};
   using WatchList = std::vector<std::shared_ptr<detail::SettingWatch>>;
-  std::mutex watches_mutex; /**< Unranked, it takes no other lock and calls no other code. */
+  /**
+   * Unranked. It takes no other lock and calls no other code, and it is never held while a value
+   * lock is taken. The value lock of the setting takes it when OnChange links a watch.
+   */
+  std::mutex watches_mutex;
   /**
    * The watches in registration order, or null when there are none. Copied on write, so a write
    * reads the list by taking the pointer and never copies it while it is unchanged.

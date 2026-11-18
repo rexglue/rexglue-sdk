@@ -357,7 +357,7 @@ REX_TEST_CASE("BindingSet reads the new inputs right after a write in a batch an
     auto found = REX_SETTINGS().Find("bind.menu");
     REQUIRE(found);
     auto* menu = static_cast<rex::Setting<std::string>*>(*found);
-    auto watch = menu->OnChange([&](const std::string&) {
+    auto watch = menu->Bind([&](const std::string&) {
       if (armed) {
         CHECK(fixture.set.SetSources(kFire, fire));
         seen = fixture.set.GetSources(kFire);

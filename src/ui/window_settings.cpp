@@ -74,20 +74,20 @@ void UISystem::State::WatchWindowSettings() {
     driver->SetLimits(wanted.min_width, wanted.min_height, wanted.ratio);
   };
   UISettings& settings = owner.GetSettings();
-  watches.push_back(rex::OnChange(
+  watches.push_back(rex::Bind(
       [on_ui_thread, apply_fullscreen](const bool&, const bool&, const i32&, const std::string&) {
         on_ui_thread(apply_fullscreen);
       },
       settings.fullscreen, settings.fullscreen_exclusive, settings.monitor, settings.resolution));
   watches.push_back(
-      rex::OnChange([on_ui_thread, apply_size](const i32&, const i32&,
-                                               const std::string&) { on_ui_thread(apply_size); },
-                    settings.window_width, settings.window_height, settings.resolution));
+      rex::Bind([on_ui_thread, apply_size](const i32&, const i32&,
+                                           const std::string&) { on_ui_thread(apply_size); },
+                settings.window_width, settings.window_height, settings.resolution));
   watches.push_back(
-      rex::OnChange([on_ui_thread, apply_limits](
-                        const i32&, const i32&, const std::string&) { on_ui_thread(apply_limits); },
-                    settings.min_width, settings.min_height, settings.aspect_ratio));
-  watches.push_back(settings.title.OnChange([this, on_ui_thread](const std::string&) {
+      rex::Bind([on_ui_thread, apply_limits](const i32&, const i32&,
+                                             const std::string&) { on_ui_thread(apply_limits); },
+                settings.min_width, settings.min_height, settings.aspect_ratio));
+  watches.push_back(settings.title.Bind([this, on_ui_thread](const std::string&) {
     on_ui_thread([this] {
       const std::string text = owner.GetSettings().title.Get();
       if (applied_title == text) {
@@ -97,17 +97,19 @@ void UISystem::State::WatchWindowSettings() {
       driver->SetTitle(text.empty() ? std::string_view("ReXGlue") : std::string_view(text));
     });
   }));
-  watches.push_back(settings.cursor_timeout.OnChange([on_ui_thread, this](const f64&) {
-    on_ui_thread([this] {
-      last_pointer_motion = std::chrono::steady_clock::now();
-      if (cursor_hidden_by_timeout) {
-        cursor_hidden_by_timeout = false;
-        if (applied_pointer_mode == PointerMode::kFree) {
-          driver->SetCursorShape(true, rex::ui::CursorShape::kArrow);
-        }
-      }
-    });
-  }));
+  watches.push_back(settings.cursor_timeout
+                        .OnChange([on_ui_thread, this](const f64&) {
+                          on_ui_thread([this] {
+                            last_pointer_motion = std::chrono::steady_clock::now();
+                            if (cursor_hidden_by_timeout) {
+                              cursor_hidden_by_timeout = false;
+                              if (applied_pointer_mode == PointerMode::kFree) {
+                                driver->SetCursorShape(true, rex::ui::CursorShape::kArrow);
+                              }
+                            }
+                          });
+                        })
+                        .first);
 }
 
 }  // namespace rex::ui

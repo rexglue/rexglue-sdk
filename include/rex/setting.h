@@ -58,6 +58,13 @@ class REX_API SettingWatch : public NonCopyable {
   static void Link(const std::shared_ptr<SettingWatch>& self);
 
   /**
+   * Returns the guard that removes the watch.
+   *
+   * @param self The watch.
+   */
+  [[nodiscard]] static ScopeGuard Guard(std::shared_ptr<SettingWatch> self);
+
+  /**
    * Calls the function when a watched setting changed since the values of its last call. When a
    * call runs on another thread, it waits for that call and for at most one more call, which it
    * makes itself when that call is handed to it.
@@ -92,6 +99,22 @@ class REX_API SettingWatch : public NonCopyable {
    */
   void MarkSeen(size_t index, u64 generation);
 
+  /**
+   * Holds the call of a watch while it is linked and its first values are read, without calling
+   * it. A write that arrives meanwhile waits, and when the hold ends it is handed the next call,
+   * which calls only when a generation is newer than the one marked seen. No user code runs during
+   * the hold, so it holds no lock rank.
+   */
+  class REX_API Hold : public NonCopyable {
+   public:
+    explicit Hold(SettingWatch& watch);
+    ~Hold();
+
+   private:
+    SettingWatch& watch_;
+    u64 ticket_;
+  };
+
  private:
   /** Reads the current values, passes each generation to MarkSeen, and calls the function. */
   virtual void Call() = 0;
@@ -122,8 +145,18 @@ class REX_API SettingWatch : public NonCopyable {
    */
   bool WaitTurn(u64 ticket) const;
 
+  /**
+   * Ends the hold of the call: hands the next call to the oldest waiting ticket, or marks the
+   * watch idle and serves every ticket.
+   *
+   * @param lock The held lock of mutex_, released on return.
+   * @param own The ticket of the calling thread.
+   * @param served The last ticket the ended hold serves.
+   */
+  void HandOn(std::unique_lock<std::mutex>& lock, u64 own, u64 served);
+
   std::mutex mutex_;     /**< Unranked, it guards running_ and requests_, takes no other lock and
-                              calls no other code. */
+                               calls no other code. */
   bool running_ = false; /**< A thread holds the call, from its ticket until it hands it on. */
   u64 requests_ = 0;     /**< The last ticket issued. */
   std::vector<SettingBase*> settings_;
@@ -330,6 +363,9 @@ class REX_API SettingBase : public NonCopyable {
   /** Calls the watches of the setting, or queues them while this thread runs a change call. */
   void Notify();
 
+  /** Adds a watch after the other watches of the setting. Takes watches_mutex. */
+  void LinkWatch(std::shared_ptr<detail::SettingWatch> watch);
+
  private:
   friend class SettingOwner;
   friend class SettingsRegistry;
@@ -348,7 +384,6 @@ class REX_API SettingBase : public NonCopyable {
   /** Returns once a commit in progress on another thread has stored. */
   virtual void WaitForCommit() const = 0;
 
-  void LinkWatch(std::shared_ptr<detail::SettingWatch> watch);
   void UnlinkWatch(const detail::SettingWatch* watch);
 
   struct State;
@@ -390,20 +425,36 @@ class Setting final : public SettingBase {
   [[nodiscard]] Result<void> Lock(const T& value);
 
   /**
-   * Calls a function with the current value now, and again after every change. A call after a
+   * Calls a function after each change of the value, never when OnChange is called, and returns
+   * the current value with the guard. The value is read under the value lock the watch is linked
+   * under, so a write that stores after that read reaches the function as a change. A call after a
    * change runs on the writing thread before the write returns. The functions of a setting run in
    * the order they were added, and a function never runs concurrently with itself. A write made
-   * inside a change function stores immediately, and its calls run after that function returns.
-   * The first call of a function added inside a change function waits the same way. A change
-   * function may write settings and post work to another thread, and must not wait for another
-   * thread.
+   * inside a change function stores immediately, and its calls run after that function returns. A
+   * change function may write settings and post work to another thread, and must not wait for
+   * another thread.
+   *
+   * @code
+   * auto [guard, depth] = perf.depth.OnChange([](const i32& value) { Resize(value); });
+   * Resize(depth);
+   * @endcode
+   *
+   * @param fn Called with the new value after each change.
+   * @return The guard, and the value current when the watch was linked. Destroying the guard waits
+   * for a call in progress on another thread, and the function is never called after that.
+   * Destroyed inside the function's own call, it does not wait.
+   */
+  [[nodiscard]] std::pair<ScopeGuard, T> OnChange(MoveOnlyFunction<void(const T&)> fn);
+
+  /**
+   * Calls a function with the current value before Bind returns, and again after each change. The
+   * rules of OnChange apply to every call. Bound inside a change function, the first call runs
+   * after that function returns.
    *
    * @param fn Called with the current value.
-   * @return The guard. Destroying it waits for a call in progress on another thread, and the
-   * function is never called after that. Destroyed inside the function's own call, it does not
-   * wait.
+   * @return The guard, as for OnChange.
    */
-  [[nodiscard]] ScopeGuard OnChange(MoveOnlyFunction<void(const T&)> fn);
+  [[nodiscard]] ScopeGuard Bind(MoveOnlyFunction<void(const T&)> fn);
 
  private:
   template <typename... U>
@@ -426,10 +477,20 @@ class Setting final : public SettingBase {
   /** Returns the published value and its generation, read together. */
   T Snapshot(u64& generation) const;
 
+  /**
+   * Returns the published value and its generation, read together, and links a watch to the
+   * setting under the same value lock, so a write that stores after the read reaches the watch.
+   */
+  T SnapshotLinked(u64& generation, std::shared_ptr<detail::SettingWatch> watch);
+
   T default_;
   T staged_;
   Storage active_;
-  mutable std::mutex mutex_; /**< Unranked, it takes no other lock and calls no other code. */
+  /**
+   * Unranked. It takes only the watches_mutex of the setting, which takes no lock and is never held
+   * while a value lock is taken, so the pair has one order and no cycle. It calls no other code.
+   */
+  mutable std::mutex mutex_;
 };
 
 /** A class whose members include settings. Its scope prefixes every member name. */
@@ -540,7 +601,33 @@ class SettingGroupWatch final : public SettingWatch {
   SettingGroupWatch(MoveOnlyFunction<void(const T&...)> fn, Setting<T>&... settings)
       : SettingWatch({&settings...}), members_(&settings...), fn_(std::move(fn)) {}
 
+  /**
+   * Links the watch to each setting and reads its value under that setting's value lock, holding
+   * the call meanwhile, without calling the function.
+   *
+   * @param self This watch.
+   * @return The values in the order of the settings.
+   */
+  std::tuple<T...> Start(const std::shared_ptr<SettingWatch>& self) {
+    const Hold hold(*this);
+    return StartWith(self, std::index_sequence_for<T...>{});
+  }
+
  private:
+  template <size_t... I>
+  std::tuple<T...> StartWith(const std::shared_ptr<SettingWatch>& self, std::index_sequence<I...>) {
+    // A braced list evaluates in order, so the settings link one after another.
+    return std::tuple<T...>{ReadLinked<I>(self)...};
+  }
+
+  template <size_t I>
+  auto ReadLinked(const std::shared_ptr<SettingWatch>& self) {
+    u64 generation = 0;
+    auto value = std::get<I>(members_)->SnapshotLinked(generation, self);
+    MarkSeen(I, generation);
+    return value;
+  }
+
   void Call() override { CallWith(std::index_sequence_for<T...>{}); }
 
   template <size_t... I>
@@ -571,6 +658,25 @@ class SettingListWatch final : public SettingWatch {
         members_(settings.begin(), settings.end()),
         fn_(std::move(fn)) {}
 
+  /**
+   * Links the watch to each setting and reads its value under that setting's value lock, holding
+   * the call meanwhile, without calling the function.
+   *
+   * @param self This watch.
+   * @return The values in list order.
+   */
+  std::vector<T> Start(const std::shared_ptr<SettingWatch>& self) {
+    const Hold hold(*this);
+    std::vector<T> values;
+    values.reserve(members_.size());
+    for (size_t i = 0; i < members_.size(); ++i) {
+      u64 generation = 0;
+      values.push_back(members_[i]->SnapshotLinked(generation, self));
+      MarkSeen(i, generation);
+    }
+    return values;
+  }
+
  private:
   void Call() override {
     std::vector<T> values;
@@ -590,12 +696,61 @@ class SettingListWatch final : public SettingWatch {
 }  // namespace detail
 
 /**
- * Calls a function with the current values of several settings now, and again after any of them
- * changes, as one watch. Changes to several of them in one batch or in one round of change calls
- * make one call. The rules of Setting::OnChange apply.
+ * Calls a function after any of several settings changes, never when OnChange is called, as one
+ * watch, and returns their current values with the guard. Changes to several of them in one batch
+ * or in one round of change calls make one call. Each value is read under its own value lock, as
+ * the watch is linked to that setting, so a write that stores after a read reaches the function as
+ * a change. The values are read one setting at a time, not as one snapshot. The rules of
+ * Setting::OnChange apply.
  *
  * @code
- * auto guard = rex::OnChange(
+ * auto [guard, values] = rex::OnChange(
+ *     [](const std::string& level, const bool& console) { Apply(level, console); },
+ *     logger.level, logger.console);
+ * std::apply(Apply, values);
+ * @endcode
+ *
+ * @tparam T The value types.
+ * @param fn Called with the current value of each setting, in the order given, after a change.
+ * @param settings The settings, one or more.
+ * @return The guard, as for Setting::OnChange, and the current values in the order given.
+ */
+template <typename... T>
+[[nodiscard]] std::pair<ScopeGuard, std::tuple<T...>> OnChange(
+    std::type_identity_t<MoveOnlyFunction<void(const T&...)>> fn, Setting<T>&... settings) {
+  static_assert(sizeof...(T) > 0, "OnChange watches one or more settings");
+  auto watch = std::make_shared<detail::SettingGroupWatch<T...>>(std::move(fn), settings...);
+  ScopeGuard guard = detail::SettingWatch::Guard(watch);
+  std::tuple<T...> values = watch->Start(watch);
+  return {std::move(guard), std::move(values)};
+}
+
+/**
+ * Calls a function after any of a list of settings changes, never when OnChange is called, as one
+ * watch, and returns their current values with the guard. The rules of the group OnChange apply.
+ *
+ * @tparam T The value type.
+ * @param fn Called with the current values, in list order, after a change.
+ * @param settings The settings, one or more, each listed once.
+ * @return The guard, as for Setting::OnChange, and the current values in list order.
+ */
+template <typename T>
+[[nodiscard]] std::pair<ScopeGuard, std::vector<T>> OnChange(
+    std::type_identity_t<MoveOnlyFunction<void(std::span<const T>)>> fn,
+    std::span<Setting<T>* const> settings) {
+  auto watch = std::make_shared<detail::SettingListWatch<T>>(std::move(fn), settings);
+  ScopeGuard guard = detail::SettingWatch::Guard(watch);
+  std::vector<T> values = watch->Start(watch);
+  return {std::move(guard), std::move(values)};
+}
+
+/**
+ * Calls a function with the current values of several settings before Bind returns, and again
+ * after any of them changes, as one watch. The rules of the group OnChange and of Setting::Bind
+ * apply.
+ *
+ * @code
+ * auto guard = rex::Bind(
  *     [](const std::string& level, const bool& console) { Apply(level, console); },
  *     logger.level, logger.console);
  * @endcode
@@ -606,16 +761,16 @@ class SettingListWatch final : public SettingWatch {
  * @return The guard, as for Setting::OnChange.
  */
 template <typename... T>
-[[nodiscard]] ScopeGuard OnChange(std::type_identity_t<MoveOnlyFunction<void(const T&...)>> fn,
-                                  Setting<T>&... settings) {
-  static_assert(sizeof...(T) > 0, "OnChange watches one or more settings");
+[[nodiscard]] ScopeGuard Bind(std::type_identity_t<MoveOnlyFunction<void(const T&...)>> fn,
+                              Setting<T>&... settings) {
+  static_assert(sizeof...(T) > 0, "Bind watches one or more settings");
   return detail::AddWatch(
       std::make_shared<detail::SettingGroupWatch<T...>>(std::move(fn), settings...));
 }
 
 /**
- * Calls a function with the current values of a list of settings now, and again after any of them
- * changes, as one watch. The rules of the group OnChange apply.
+ * Calls a function with the current values of a list of settings before Bind returns, and again
+ * after any of them changes, as one watch. The rules of the group Bind apply.
  *
  * @tparam T The value type.
  * @param fn Called with the current values, in list order.
@@ -623,9 +778,8 @@ template <typename... T>
  * @return The guard, as for Setting::OnChange.
  */
 template <typename T>
-[[nodiscard]] ScopeGuard OnChange(
-    std::type_identity_t<MoveOnlyFunction<void(std::span<const T>)>> fn,
-    std::span<Setting<T>* const> settings) {
+[[nodiscard]] ScopeGuard Bind(std::type_identity_t<MoveOnlyFunction<void(std::span<const T>)>> fn,
+                              std::span<Setting<T>* const> settings) {
   return detail::AddWatch(std::make_shared<detail::SettingListWatch<T>>(std::move(fn), settings));
 }
 
@@ -662,6 +816,18 @@ T Setting<T>::Snapshot(u64& generation) const {
 }
 
 template <typename T>
+T Setting<T>::SnapshotLinked(u64& generation, std::shared_ptr<detail::SettingWatch> watch) {
+  std::lock_guard lock(mutex_);
+  generation = GetGeneration();
+  LinkWatch(std::move(watch));
+  if constexpr (kScalar) {
+    return active_.load(std::memory_order_relaxed);
+  } else {
+    return active_;
+  }
+}
+
+template <typename T>
 T Setting<T>::Get() const {
   if constexpr (std::is_same_v<T, std::filesystem::path>) {
     return detail::ResolveSettingPath(GetActive());
@@ -681,8 +847,14 @@ Result<void> Setting<T>::Lock(const T& value) {
 }
 
 template <typename T>
-ScopeGuard Setting<T>::OnChange(MoveOnlyFunction<void(const T&)> fn) {
-  return rex::OnChange<T>(std::move(fn), *this);
+std::pair<ScopeGuard, T> Setting<T>::OnChange(MoveOnlyFunction<void(const T&)> fn) {
+  auto [guard, values] = rex::OnChange<T>(std::move(fn), *this);
+  return {std::move(guard), std::move(std::get<0>(values))};
+}
+
+template <typename T>
+ScopeGuard Setting<T>::Bind(MoveOnlyFunction<void(const T&)> fn) {
+  return rex::Bind<T>(std::move(fn), *this);
 }
 
 template <typename T>

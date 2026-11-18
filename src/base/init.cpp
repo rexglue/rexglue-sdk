@@ -70,7 +70,7 @@ Result<void> Init(const Config& config) {
   (void)REX_LOGGER();
   PerfSettings& perf = GetPerfSettings();
   g_state.alloc_stack_depth_watch =
-      perf.alloc_stack_depth.OnChange([](const i32& depth) { memory::SetAllocStackDepth(depth); });
+      perf.alloc_stack_depth.Bind([](const i32& depth) { memory::SetAllocStackDepth(depth); });
 
   g_state.group = std::make_unique<ModuleGroup>();
   g_state.context = std::make_unique<AppDriverContext>(REX_SETTINGS(), REX_LOGGER());

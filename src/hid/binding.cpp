@@ -205,7 +205,7 @@ Result<void> BindingSet::Register(ISettingsRegistry& settings) {
     members.push_back(var.get());
   }
   if (!members.empty()) {
-    impl_->watch = rex::OnChange<std::string>(
+    impl_->watch = rex::Bind<std::string>(
         [impl = impl_.get()](std::span<const std::string>) { impl->Refresh(); },
         std::span<Setting<std::string>* const>(members));
   }

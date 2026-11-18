@@ -686,7 +686,7 @@ REX_TEST_CASE("RunSynchronous inside a setting change function returns without r
   bool ran = false;
   bool accepted = true;
   {
-    auto watch = ui.GetSettings().title.OnChange([&](const std::string&) {
+    auto watch = ui.GetSettings().title.Bind([&](const std::string&) {
       if (armed) {
         accepted = ui.RunSynchronous([&] { ran = true; });
       }

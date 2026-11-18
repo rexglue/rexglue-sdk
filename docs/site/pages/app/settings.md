@@ -94,19 +94,19 @@ rex::Result<void> MyApp::OnConfigure(rex::SettingsRegistry& settings) {
 
 Code that keeps its own copy of a value, instead of calling `Get()` on each use, needs to know when the value changes. The logger, for example, applies a new `log.level` to its output, and the UI resizes the window when `ui.window_width` changes.
 
-`OnChange(fn)` calls the function once with the current value when it registers, and again after each change, on the thread that made the change, before that write returns. That can be the thread of the console overlay or the settings overlay, so the window settings post their work to the UI thread. The functions of a setting run in the order they were added, and one function never runs on two threads at the same time.
+`Bind(fn)` calls the function with the current value before `Bind` returns, and again after each change. `OnChange(fn)` calls the function only after a change, never when `OnChange` is called, and returns the current value beside the guard, as `auto [guard, value] = setting.OnChange(fn);`. The value is read under the lock the callback is added under, so a write that stores after that read reaches the function as a change, and none is missed. Use `Bind` where the code needs the current value from the start, and `OnChange` where it runs only on a change. A call after a change runs on the thread that made the change, before that write returns. That can be the thread of the console overlay or the settings overlay, so the window settings post their work to the UI thread. The functions of a setting run in the order they were added, and one function never runs on two threads at the same time.
 
 A change function may write settings. Those writes store immediately, and their change calls run after the current function returns. A change function must not wait for another thread, because that thread may be writing a setting the function watches. It posts work to reach another thread, and `RunSynchronous` called from a change function returns false without running.
 
-`rex::OnChange(fn, a, b)` watches several settings as one function, called with all their current values, once for changes to several of them in one round. A `rex::SettingsBatch` holds back the change calls of its thread until the outermost batch ends, so a group of writes makes one call per function.
+`rex::Bind(fn, a, b)` and `rex::OnChange(fn, a, b)` watch several settings as one function, called with all their current values, once for changes to several of them in one round. The group `OnChange` returns the current values as a `std::tuple` in the order given, and the form that takes a `std::span` of settings returns them as a `std::vector`. A `rex::SettingsBatch` holds back the change calls of its thread until the outermost batch ends, so a group of writes makes one call per function.
 
-`OnChange` returns a `rex::ScopeGuard` from `rex/utility.h`. A `ScopeGuard` holds one function and runs it once, when the guard is destroyed, reset or assigned over. Here the function removes the callback, so the callback stays registered exactly as long as you keep the guard. Store it as a member of the object that the callback uses, so the callback stops before the object is destroyed:
+`Bind` returns a `rex::ScopeGuard`, and `OnChange` returns one beside the value, from `rex/utility.h`. A `ScopeGuard` holds one function and runs it once, when the guard is destroyed, reset or assigned over. Here the function removes the callback, so the callback stays registered exactly as long as you keep the guard. Store it as a member of the object that the callback uses, so the callback stops before the object is destroyed:
 
 ```cpp
 class Mixer {
  public:
   explicit Mixer(MixerSettings& settings)
-      : volume_watch_(settings.volume.OnChange([this](const f64& volume) { SetGain(volume); })) {}
+      : volume_watch_(settings.volume.Bind([this](const f64& volume) { SetGain(volume); })) {}
 
  private:
   void SetGain(f64 volume);
