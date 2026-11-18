@@ -95,7 +95,8 @@ class REX_KERNEL_API FunctionDispatcher : public IFunctionRegistrar {
   static constexpr u32 kThunkReserveSize = 0x10000;
 
   /**
-   * Initializes the function table of a module at image_base + image_size.
+   * Initializes the function table of a module at table_base, or image_base + image_size when
+   * table_base is 0.
    *
    * AllocateThunk with caller_address 0 uses the pool of the entrypoint module.
    *
@@ -103,7 +104,7 @@ class REX_KERNEL_API FunctionDispatcher : public IFunctionRegistrar {
    * @param is_entrypoint True for the host loaded entrypoint module.
    */
   bool InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size,
-                               bool is_entrypoint = false);
+                               bool is_entrypoint = false, u32 table_base = 0);
   /**
    * @return False when the address is outside every registered module.
    */
@@ -153,6 +154,7 @@ class REX_KERNEL_API FunctionDispatcher : public IFunctionRegistrar {
     u32 code_size;
     u32 image_base;
     u32 image_size;
+    u32 table_base;
     u32 next_thunk_address;
     u32 thunk_limit;
   };

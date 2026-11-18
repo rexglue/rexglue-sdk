@@ -34,7 +34,7 @@ rex::kernel::GuestAddressSpace& GetPPCTestMemory() {
                 rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
                 rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite);
         }
-        if (!memory.InitializeFunctionTable(REX_CODE_BASE, REX_CODE_SIZE, REX_IMAGE_BASE, REX_IMAGE_SIZE)) {
+        if (!memory.InitializeFunctionTable(REX_CODE_BASE, REX_CODE_SIZE, REX_FUNC_TABLE_BASE)) {
             throw std::runtime_error("Failed to initialize function table");
         }
         initialized = true;

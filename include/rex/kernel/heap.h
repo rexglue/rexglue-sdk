@@ -782,13 +782,13 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
   void PlotProfile();
 
   /**
-   * Initializes the per module function dispatch table at IMAGE_BASE + IMAGE_SIZE, indexed by
-   * (guest_addr - code_base) * 2. The function table calls are internally locked and may be made
-   * from any thread.
+   * Initializes the per module function dispatch table at table_base (IMAGE_BASE + IMAGE_SIZE
+   * unless the module's config places it), indexed by (guest_addr - code_base) * 2. The function
+   * table calls are internally locked and may be made from any thread.
    *
    * @param code_base The first guest address of the code.
    */
-  bool InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size);
+  bool InitializeFunctionTable(u32 code_base, u32 code_size, u32 table_base);
   /**
    * Removes the function table of a module and releases its pages.
    *

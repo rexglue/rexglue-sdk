@@ -75,6 +75,8 @@ struct PPCImage {
   u32 code_size;
   u32 image_base;
   u32 image_size;
+  /** Guest address of the indirect call table, 0 for image_base + image_size. */
+  u32 function_table_base = 0;
   /** Guest address and host function pairs registered at startup, ended by guest address 0. */
   const PPCFuncMapping* func_mappings;
   bool shim_heap = false; /**< Set by codegen when [shim] holds the heap functions. */

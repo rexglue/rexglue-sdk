@@ -327,9 +327,9 @@ Result<void> TitleState::InstallImage() {
     function_dispatcher_->AddRecompiledCode(image_info.recompiled_code());
   }
 
-  if (!function_dispatcher_->InitializeFunctionTable(image_info.code_base, image_info.code_size,
-                                                     image_info.image_base, image_info.image_size,
-                                                     /*is_entrypoint=*/true)) {
+  if (!function_dispatcher_->InitializeFunctionTable(
+          image_info.code_base, image_info.code_size, image_info.image_base, image_info.image_size,
+          /*is_entrypoint=*/true, image_info.function_table_base)) {
     Shutdown();
     return Err(SetupError(X_STATUS_UNSUCCESSFUL, "the function table cannot be initialized"));
   }

@@ -480,7 +480,8 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
               xex->GetBaseAddress() + xex->GetImageSize());
         } else if (!StateOf(runtime_).GetFunctionDispatcher()->InitializeFunctionTable(
                        image_info->code_base, image_info->code_size, image_info->image_base,
-                       image_info->image_size)) {
+                       image_info->image_size, /*is_entrypoint=*/false,
+                       image_info->function_table_base)) {
           REXSYS_ERROR("InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
           StateOf(runtime_).GetFunctionDispatcher()->RegisterModule(

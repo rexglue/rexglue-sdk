@@ -226,6 +226,12 @@ struct RecompilerConfig {
    * `ppc_setjmp`.
    */
   u32 setjmp_address = 0;
+  /**
+   * TOML key `function_table_base`, default 0. Guest address of this binary's indirect call
+   * table; 0 puts it right after the image. Needed when the next module is loaded too close to
+   * the image for the table to fit there.
+   */
+  u32 function_table_base = 0;
 
   /** Shim function addresses keyed by registry name, read from the [shim] TOML table. */
   std::unordered_map<std::string, u32> shim_functions;

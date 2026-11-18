@@ -284,7 +284,8 @@
 #define REX_CALL_FUNC(x)
 
 /**
- * Looks up the host function pointer of a guest address in the table placed after the image.
+ * Looks up the host function pointer of a guest address in the function table, at
+ * `REX_FUNC_TABLE_BASE` (after the image unless the manifest sets `function_table_base`).
  *
  * @param x The `base` pointer.
  * @param y The guest address.
@@ -292,8 +293,8 @@
 #define REX_LOOKUP_FUNC(x, y)
 
 /**
- * Calls the function at a guest address. Reads the pointer from the table placed after the image
- * and calls `rex::ppc::ResolveFunction` when the slot is empty or the target is out of range.
+ * Calls the function at a guest address. Reads the pointer from the function table and calls
+ * `rex::ppc::ResolveFunction` when the slot is empty or the target is out of range.
  *
  * @param x The guest address.
  */
