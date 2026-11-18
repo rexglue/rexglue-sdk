@@ -108,6 +108,7 @@ nav:
       - Log Categories and Macros: appendix/log-categories-and-macros.md
       - Shim List: appendix/shim-list.md
       - Thread List: appendix/thread-list.md
+      - Third Party: appendix/third-party.md
       - Storage Paths: appendix/storage-paths.md
       - File Exports: appendix/file-exports.md
       - XAM Input Exports: appendix/xam-input-exports.md

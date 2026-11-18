@@ -95,7 +95,9 @@ void StopLogging() {
 
 int RunCLI(rex::codegen::ToolApp& tools, const rex::CLIArgList& args) {
   CLI::App app{BannerString(), "rexglue"};
-  app.set_version_flag("--version", REXGLUE_VERSION_STRING);
+  app.set_version_flag("--version",
+                       std::format("{}\nLicensed under GPL-2.0-or-later, see rexglue-NOTICE.txt",
+                                   REXGLUE_VERSION_STRING));
   app.require_subcommand(1);
   app.fallthrough();
 

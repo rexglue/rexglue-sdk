@@ -106,6 +106,19 @@ install(
   EXPORT rexglueTargets
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} CONFIGURATIONS Release
 )
+# The tool includes the GNU binutils PowerPC disassembler and is distributed under GPL 2.0 or later.
+install(
+  FILES docs/licenses/disasm/COPYING
+  DESTINATION ${CMAKE_INSTALL_BINDIR}
+  CONFIGURATIONS Release
+  RENAME rexglue-COPYING.txt
+)
+install(
+  FILES src/rexglue/NOTICE
+  DESTINATION ${CMAKE_INSTALL_BINDIR}
+  CONFIGURATIONS Release
+  RENAME rexglue-NOTICE.txt
+)
 
 # Install public headers
 install(DIRECTORY include/rex DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -126,6 +139,80 @@ install(FILES thirdparty/imgui/imgui.h thirdparty/imgui/imconfig.h thirdparty/im
               thirdparty/imgui/imstb_rectpack.h thirdparty/imgui/imstb_textedit.h
               thirdparty/imgui/imstb_truetype.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+
+# The license files of what the install includes, as the page appendix/third-party.md lists them.
+set(_licenses licenses)
+install(FILES thirdparty/libmspack/libmspack/COPYING.LIB DESTINATION ${_licenses}/libmspack)
+install(FILES thirdparty/glslang/LICENSE.txt DESTINATION ${_licenses}/glslang)
+install(FILES thirdparty/FFmpeg/COPYING.LGPLv2.1 thirdparty/FFmpeg/LICENSE.md
+        DESTINATION ${_licenses}/FFmpeg
+)
+install(FILES thirdparty/tomlplusplus/LICENSE DESTINATION ${_licenses}/tomlplusplus)
+install(FILES thirdparty/simde/COPYING DESTINATION ${_licenses}/simde)
+install(FILES thirdparty/xxHash/LICENSE DESTINATION ${_licenses}/xxHash)
+install(FILES thirdparty/imgui/LICENSE.txt DESTINATION ${_licenses}/imgui)
+install(FILES thirdparty/cli11/LICENSE DESTINATION ${_licenses}/cli11)
+install(FILES thirdparty/sdl3/LICENSE.txt DESTINATION ${_licenses}/SDL3)
+if (NOT WIN32 OR MINGW)
+  # SDL installs a second copy of its license under the data folder here. The copy above is the
+  # one the install keeps.
+  install(
+    CODE "
+    set(_sdl_copy \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATAROOTDIR}/licenses\")
+    file(REMOVE_RECURSE \"\${_sdl_copy}/SDL3\")
+    file(GLOB _sdl_left \"\${_sdl_copy}/*\")
+    if (NOT _sdl_left)
+      file(REMOVE_RECURSE \"\${_sdl_copy}\")
+    endif ()
+    get_filename_component(_sdl_data \"\${_sdl_copy}\" DIRECTORY)
+    file(GLOB _sdl_left \"\${_sdl_data}/*\")
+    if (NOT _sdl_left)
+      file(REMOVE_RECURSE \"\${_sdl_data}\")
+    endif ()
+    "
+  )
+endif ()
+install(FILES thirdparty/inja/LICENSE DESTINATION ${_licenses}/inja)
+install(FILES thirdparty/excrypt/LICENSE DESTINATION ${_licenses}/excrypt)
+install(FILES thirdparty/spdlog/LICENSE DESTINATION ${_licenses}/spdlog)
+install(FILES thirdparty/VulkanMemoryAllocator/LICENSE.txt
+        DESTINATION ${_licenses}/VulkanMemoryAllocator
+)
+install(FILES thirdparty/Vulkan-Headers/LICENSE.md thirdparty/Vulkan-Headers/LICENSES/Apache-2.0.txt
+              thirdparty/Vulkan-Headers/LICENSES/MIT.txt DESTINATION ${_licenses}/Vulkan-Headers
+)
+install(
+  FILES docs/licenses/disasm/COPYING
+  DESTINATION ${_licenses}/disasm
+  CONFIGURATIONS Release
+)
+if (REXGLUE_ENABLE_TRACY)
+  install(FILES thirdparty/tracy/LICENSE DESTINATION ${_licenses}/tracy)
+endif ()
+install(FILES LICENSE DESTINATION ${_licenses})
+install(FILES thirdparty/inja/third_party/include/nlohmann/LICENSE.MIT
+        DESTINATION ${_licenses}/nlohmann-json
+)
+install(FILES docs/licenses/tlsf/LICENSE DESTINATION ${_licenses}/tlsf)
+install(FILES docs/licenses/renderdoc/LICENSE DESTINATION ${_licenses}/renderdoc)
+install(FILES docs/licenses/stb/LICENSE DESTINATION ${_licenses}/stb)
+install(FILES docs/licenses/ProggyFonts/LICENSE DESTINATION ${_licenses}/ProggyFonts)
+if (REXGLUE_GPU_D3D12)
+  install(FILES docs/licenses/dxbc/LICENSE DESTINATION ${_licenses}/dxbc)
+  install(FILES docs/licenses/dxc/LICENSE.TXT DESTINATION ${_licenses}/dxc)
+endif ()
+if (APPLE)
+  install(
+    DIRECTORY docs/licenses/Vulkan-Loader/
+    DESTINATION ${_licenses}/Vulkan-Loader
+    CONFIGURATIONS Release
+  )
+  install(
+    FILES docs/licenses/MoltenVK/LICENSE
+    DESTINATION ${_licenses}/MoltenVK
+    CONFIGURATIONS Release
+  )
+endif ()
 
 if (APPLE)
   install(

@@ -327,6 +327,7 @@ if (REXGLUE_BUILD_TESTS)
 endif ()
 
 include(cmake/rexglue_link_audit.cmake)
+include(cmake/rexglue_third_party.cmake)
 
 # Print configuration summary
 message(STATUS "===========================================")

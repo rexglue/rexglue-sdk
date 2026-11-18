@@ -16,13 +16,17 @@ rexglue [global options] <command> [options]
 | [`vfs dump`](#vfs-dump) | Extracts a container file to a folder. |
 | [`recompile-tests`](#recompile-tests) | Writes recompiler tests from PowerPC test programs. |
 
+## License
+
+The `rexglue` tool includes the PowerPC disassembler of GNU binutils (`thirdparty/disasm/ppc-dis.c`), which is licensed under the GNU General Public License version 2 or, at your option, any later version. The `rexglue` tool as a whole is distributed under GPL 2.0 or later. The SDK libraries and the runtime stay under the SDK license, and titles built with the SDK do not link this code. The corresponding source is the public repository [rexglue/rexglue-sdk](https://github.com/rexglue/rexglue-sdk) at the release tag. The install puts the license text in `bin/rexglue-COPYING.txt` and `licenses/disasm/COPYING`, and the notice in `bin/rexglue-NOTICE.txt`. The configure fails when a target other than the codegen library, the `rexglue` tool and the test executables links the disassembler or the codegen library, directly or through other targets.
+
 ## Global Options
 
 Global options go before or after the command name.
 
 | Option | Meaning |
 |---|---|
-| `--version` | Prints the SDK version and exits. |
+| `--version` | Prints the SDK version and the license of the tool, and exits. |
 | `--log-level LEVEL` | Sets the log level to `trace`, `dev`, `debug`, `info`, `warn`, `error`, `critical` or `off`, ignoring case. Any other value fails before the command runs, unless `--verbose` is also passed. The default is `info`. See [Logging](../app/logging.md). |
 | `--log-file PATH` | Appends the log to this file in addition to the terminal. |
 | `-v`, `--verbose` | Sets the level to `trace`. Overrides `--log-level`. |
