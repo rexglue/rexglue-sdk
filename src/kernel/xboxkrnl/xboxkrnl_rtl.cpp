@@ -485,11 +485,25 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
     return;
   }
 
-  while (spin_count--) {
+  // After a failed exchange the console reads lock_count, exchanges again at -1, and stops spinning
+  // once it is above 0, which means threads wait.
+  bool spinning = spin_count != 0;
+  while (spinning) {
     if (TryAcquireLockCount(*cs)) {
       cs->owning_thread = cur_thread;
       cs->recursion_count = 1;
       return;
+    }
+    while (true) {
+      const i32 count = cs->lock_count.Load(std::memory_order_relaxed);
+      if (count == -1) {
+        spinning = --spin_count != 0;
+        break;
+      }
+      if (count > 0 || --spin_count == 0) {
+        spinning = false;
+        break;
+      }
     }
   }
 
