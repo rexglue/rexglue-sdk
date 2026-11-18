@@ -23,7 +23,7 @@ namespace rex::filesystem {
 
 namespace {
 
-constexpr std::string_view kGamePartition = "\\Device\\Harddisk0\\Partition1";
+constexpr std::string_view kGamePartition = kGamePartitionPath;
 constexpr std::string_view kUpdatePartition = "\\Device\\Harddisk0\\PartitionUpdate";
 constexpr std::string_view kHarddisk = "\\Device\\Harddisk0";
 constexpr size_t kMaxLinkDepth = 64;

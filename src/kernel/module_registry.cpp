@@ -17,6 +17,7 @@
 #include <utility>
 
 #include <rex/ppc/image.h>
+#include <rex/filesystem/mount.h>
 #include <rex/logging/log_category.h>
 #include <rex/math.h>
 #include <rex/platform/file.h>
@@ -621,6 +622,14 @@ std::optional<ModuleRegistry::RecompiledModule> ModuleRegistry::FindRecompiledMo
     std::string_view guest_path) {
   std::lock_guard lock(recompiled_mutex_);
   auto normalized = rex::string::NormalizeGuestPath(guest_path);
+  // The registered paths are relative to game:, which links to the game partition. A title that
+  // names a module through the partition itself (From Dust loads its DLLs from
+  // \Device\Harddisk0\Partition1) means the same file.
+  static const std::string partition =
+      rex::string::NormalizeGuestPath(rex::filesystem::kGamePartitionPath) + "/";
+  if (normalized.starts_with(partition)) {
+    normalized.erase(0, partition.size());
+  }
   for (const auto& info : recompiled_modules_) {
     if (info.guest_path == normalized) {
       return info;
