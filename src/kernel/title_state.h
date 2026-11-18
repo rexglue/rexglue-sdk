@@ -40,6 +40,7 @@
 #include <rex/filesystem/mount.h>
 #include <rex/filesystem/file_system.h>
 #include <rex/filesystem/xdbf.h>
+#include <rex/kernel/guest_allocator.h>
 #include <rex/kernel/guest_memory.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/kernel_settings.h>
@@ -107,7 +108,10 @@ namespace kernel {
  * public TitleRuntime forwards its calls here. The subsystem getters are valid between Load and
  * Unload.
  */
-class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonCopyable {
+class TitleState : public ITitleExit,
+                   public ITitleDebugOutput,
+                   public ITitleWorkspace,
+                   public rex::NonCopyable {
  public:
   /**
    * Creates an unloaded state for a title image.
@@ -343,6 +347,14 @@ class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonC
 
   /** Logs debug text the title printed, in the title category. */
   void WriteTitleDebugString(std::string_view text) override;
+
+  /**
+   * The title workspace as XAM uses it, forwarded to the current heap: InitializeProcess makes a
+   * new heap of the size the executable asks for after XAM took its interfaces, and a reference to
+   * the first heap would dangle (Brothers - A Tale of Two Sons crashed in XamAlloc).
+   */
+  [[nodiscard]] Result<u32> Allocate(u32 size, bool zero) override;
+  void Free(u32 address) override;
 
   bool IsTerminatingTitle() const { return terminating_title_.load(std::memory_order_acquire); }
 
