@@ -269,3 +269,39 @@ REX_TEST_CASE("restoring a zeroed fpscr leaves host FP exception masks intact",
 REX_TEST_CASE("FunctionDispatcher deletes through a base pointer", "[kernel]") {
   STATIC_REQUIRE(std::has_virtual_destructor_v<rex::kernel::FunctionDispatcher>);
 }
+
+REX_TEST_CASE("a table placed apart lets the next image start where it would have been",
+              "[kernel][dispatcher]") {
+  auto& memory = GetTestMemory();
+  rex::kernel::FunctionDispatcher dispatcher(&memory);
+
+  constexpr u32 kModA = 0x8D000000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
+  // B starts right after A's image, where A's table goes by default.
+  constexpr u32 kModB = kModA + kImageSize;
+  constexpr u32 kTableA = 0x8E000000u;
+
+  REQUIRE(dispatcher.InitializeFunctionTable(kModA, kCodeSize, kModA, kImageSize,
+                                             /*is_entrypoint=*/false, kTableA));
+  REQUIRE(dispatcher.InitializeFunctionTable(kModB, kCodeSize, kModB, kImageSize));
+
+  u32 thunk_a = dispatcher.AllocateThunk(&DummyFn, kModA + 0x100);
+  u32 thunk_b = dispatcher.AllocateThunk(&DummyFn, kModB + 0x100);
+  CHECK(dispatcher.GetFunction(thunk_a) == &DummyFn);
+  CHECK(dispatcher.GetFunction(thunk_b) == &DummyFn);
+}
+
+REX_TEST_CASE("a table placed over another module's image is refused", "[kernel][dispatcher]") {
+  auto& memory = GetTestMemory();
+  rex::kernel::FunctionDispatcher dispatcher(&memory);
+
+  constexpr u32 kModA = 0x8F000000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
+  constexpr u32 kModB = 0x8F400000u;
+
+  REQUIRE(dispatcher.InitializeFunctionTable(kModA, kCodeSize, kModA, kImageSize));
+  CHECK_FALSE(dispatcher.InitializeFunctionTable(kModB, kCodeSize, kModB, kImageSize,
+                                                 /*is_entrypoint=*/false, kModA + 0x10000u));
+}

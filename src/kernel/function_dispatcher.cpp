@@ -160,7 +160,8 @@ void FunctionDispatcher::RaiseGraphicsInterrupt(u32 source, u32 cpu) {
 }
 
 bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base,
-                                                 u32 image_size, bool is_entrypoint) {
+                                                 u32 image_size, bool is_entrypoint,
+                                                 u32 table_base) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
 
   if (is_entrypoint && entrypoint_code_base_ != 0) {
@@ -168,15 +169,27 @@ bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u
                 entrypoint_code_base_);
   }
 
-  u32 new_table_end = image_base + image_size + (code_size + kThunkReserveSize) * 2;
+  if (!table_base) {
+    table_base = image_base + image_size;
+  }
+  u32 new_table_end = table_base + (code_size + kThunkReserveSize) * 2;
   u32 new_code_end = code_base + code_size + kThunkReserveSize;
+  u32 image_end = image_base + image_size;
+  // Each module's image and table must stay clear of the other module's image and table.
+  auto overlaps = [](u32 a0, u32 a1, u32 b0, u32 b1) { return a0 < b1 && b0 < a1; };
   for (const auto& existing : module_tables_) {
-    u32 existing_table_end =
-        existing.image_base + existing.image_size + (existing.code_size + kThunkReserveSize) * 2;
+    u32 existing_table_end = existing.table_base + (existing.code_size + kThunkReserveSize) * 2;
+    u32 existing_image_end = existing.image_base + existing.image_size;
     u32 existing_code_end = existing.code_base + existing.code_size + kThunkReserveSize;
-    if (image_base < existing_table_end && new_table_end > existing.image_base) {
-      REXCPU_FAIL(false, "Module image range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
-                  image_base, new_table_end, existing.image_base, existing_table_end);
+    if (overlaps(image_base, image_end, existing.image_base, existing_image_end) ||
+        overlaps(table_base, new_table_end, existing.image_base, existing_image_end) ||
+        overlaps(image_base, image_end, existing.table_base, existing_table_end) ||
+        overlaps(table_base, new_table_end, existing.table_base, existing_table_end)) {
+      REXCPU_FAIL(false,
+                  "Module image {:08X}-{:08X} / table {:08X}-{:08X} overlaps existing image "
+                  "{:08X}-{:08X} / table {:08X}-{:08X}",
+                  image_base, image_end, table_base, new_table_end, existing.image_base,
+                  existing_image_end, existing.table_base, existing_table_end);
     }
     if (code_base < existing_code_end && new_code_end > existing.code_base) {
       REXCPU_FAIL(false, "Module code range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
@@ -184,7 +197,7 @@ bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u
     }
   }
 
-  if (!memory_->InitializeFunctionTable(code_base, code_size, image_base, image_size)) {
+  if (!memory_->InitializeFunctionTable(code_base, code_size, table_base)) {
     REXCPU_FAIL(false, "Failed to initialize guest memory function table");
   }
 
@@ -193,6 +206,7 @@ bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u
       .code_size = code_size,
       .image_base = image_base,
       .image_size = image_size,
+      .table_base = table_base,
       .next_thunk_address = code_base + code_size,
       .thunk_limit = code_base + code_size + kThunkReserveSize,
   });

@@ -19,7 +19,7 @@ The entrypoint folder holds `codegen.build.stamp`, which the build uses to rerun
 
 `foobar_pch.h` is the precompiled header of the generated sources. It defines:
 
-- the image constants `REX_IMAGE_BASE`, `REX_IMAGE_SIZE`, `REX_CODE_BASE` and `REX_CODE_SIZE`, the guest address and size of the loaded image and of its code
+- the image constants `REX_IMAGE_BASE`, `REX_IMAGE_SIZE`, `REX_CODE_BASE` and `REX_CODE_SIZE`, the guest address and size of the loaded image and of its code, and `REX_FUNC_TABLE_BASE`, the guest address of the function table
 - a `REX_CONFIG_` define for each register flag that the manifest turns on, such as `REX_CONFIG_SKIP_LR`
 - the macros that generated code uses for functions, memory accesses and calls
 
@@ -141,7 +141,7 @@ The `src/main.cpp` that `rexglue init` writes includes `foobar_init.h`, passes `
 
 The function table maps each guest code address to its host function. Every indirect call, such as a call through a function pointer or a vtable, reads it.
 
-- `GuestAddressSpace::InitializeFunctionTable` reserves a zeroed table in guest memory at `REX_IMAGE_BASE + REX_IMAGE_SIZE`, in the `v80000000` heap.
+- `GuestAddressSpace::InitializeFunctionTable` reserves a zeroed table in guest memory at `REX_FUNC_TABLE_BASE`, in the `v80000000` heap. It is `REX_IMAGE_BASE + REX_IMAGE_SIZE` unless the manifest sets [`function_table_base`](../reference/manifest.md#function-table).
 - The table is `(code_size + 0x10000) * 2` bytes, an 8 byte host pointer for every 4 byte instruction, with room for `0x10000` bytes of thunks after the code.
 - The slot of a guest address is at `table_base + (address - code_base) * 2`. `GuestAddressSpace::SetFunction` writes a slot.
 

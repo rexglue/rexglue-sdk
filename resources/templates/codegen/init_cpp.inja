@@ -12,6 +12,7 @@ const rex::ppc::PPCImage kPPCImageConfig = {
     .code_size = REX_CODE_SIZE,
     .image_base = REX_IMAGE_BASE,
     .image_size = REX_IMAGE_SIZE,
+    .function_table_base = REX_FUNC_TABLE_BASE,
     .func_mappings = kPPCFuncMappings,
     .shim_heap = REX_SHIM_HEAP,
 {% if has_dll_modules and not is_dll %}

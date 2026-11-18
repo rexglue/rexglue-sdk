@@ -775,10 +775,8 @@ void GuestAddressSpace::PlotProfile() {
 #endif
 }
 
-bool GuestAddressSpace::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base,
-                                                u32 image_size) {
+bool GuestAddressSpace::InitializeFunctionTable(u32 code_base, u32 code_size, u32 table_base) {
   constexpr u32 kThunkReserveSize = kernel::FunctionDispatcher::kThunkReserveSize;
-  u32 table_base = image_base + image_size;
   u32 table_size = (code_size + kThunkReserveSize) * 2;
 
   REXSYS_DEBUG(

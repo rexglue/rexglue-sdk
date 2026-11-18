@@ -157,6 +157,10 @@ bool ApplyTOML(const toml::table& root, RecompilerConfig& cfg, const std::string
     u32 addr = static_cast<u32>(*v);
     MergeScalar(cfg.setjmp_address, addr, "setjmp_address");
   }
+  if (auto v = root["function_table_base"].value<i64>()) {
+    u32 addr = static_cast<u32>(*v);
+    MergeScalar(cfg.function_table_base, addr, "function_table_base");
+  }
 
   if (auto* analysis_table = root["analysis"].as_table()) {
     if (auto handlers = (*analysis_table)["exception_handler_funcs"].as_array()) {

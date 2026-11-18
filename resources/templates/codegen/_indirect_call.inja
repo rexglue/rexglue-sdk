@@ -14,7 +14,7 @@
 
 #define REX_LOOKUP_FUNC(x, y) \
   (*reinterpret_cast<PPCFunc**>(                                                   \
-      x + REX_IMAGE_BASE + REX_IMAGE_SIZE +                                        \
+      x + REX_FUNC_TABLE_BASE +                                                    \
       (static_cast<u64>(static_cast<u32>(y) - REX_CODE_BASE) * 2)))
 
 #define REX_RESOLVE_INDIRECT_FUNC(x)                                                       \
