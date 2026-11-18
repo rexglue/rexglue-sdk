@@ -160,6 +160,21 @@ A generated function keeps the guest registers in `PPCContext`, the register sta
 - `r1` to `r10`, `r13`, `f1` to `f13` and `v0` to `v13` always stay in `ctx`.
 - `non_argument_as_local` and `non_volatile_as_local` do not apply inside millicode, and `non_volatile_as_local` skips the functions listed under [Restore Exits](#restore-exits-and-millicode).
 
+### Non Volatile Live Ins
+
+`non_volatile_as_local` gives each function its own copy of the non volatile registers, set to zero, on the ABI's word that a function never takes them from its caller. Code from the Xbox 360 compiler does not always keep it: some of its internal helpers, and functions split from the one they belong to, read non volatile registers their caller set. With their own copy they read zero.
+
+With `non_volatile_as_local`, codegen finds these functions after analysis, by a liveness analysis of `r14` to `r31`, `f14` to `f31`, `v14` to `v31` and `v64` to `v127`:
+
+- A function that reads one of them on some path before it writes it takes it from its caller.
+- A direct call or tail branch reads what its target reads, so a caller that passes such a register on without writing it is found too.
+- A store through `r1` saves a register in the frame, as a prologue does, and is not a read.
+- Clearing a register from itself, such as `xor r30,r30,r30` or `vxor128 v96,v96,v96`, is not a read.
+- A register the function writes itself, other than an epilogue's reload through `r1`, is not reported: the function sets it, and a path that reads it first is one the code does not take.
+- A call to a register save or restore helper, to `setjmp_address` or to `longjmp_address` reads nothing.
+
+Codegen logs a warning that names each function and its registers. Give the function `share_registers = true` in `[functions]`: it then keeps the registers in `ctx`, and its callers copy their locals to `ctx` around the call. `share_non_volatile_live_ins = true` does that for every function found, without the warnings.
+
 ### Link and Machine State Registers
 
 `skip_lr` removes the `mflr` read (which copies the link register to a general register) and the writes to the link register, except the write of a `bl` to an import. Use it only for a game that never reads the link register as data.

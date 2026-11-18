@@ -233,6 +233,7 @@ add_executable(
   codegen/setjmp_test.cpp
   codegen/skip_lr_test.cpp
   codegen/call_usage_test.cpp
+  codegen/non_volatile_live_in_test.cpp
   codegen/function_scanner_test.cpp
   codegen/hook_scan_test.cpp
   codegen/manifest_test.cpp

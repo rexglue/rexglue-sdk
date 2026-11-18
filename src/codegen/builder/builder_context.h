@@ -28,6 +28,13 @@ namespace rex::codegen {
 
 class FunctionNode;
 
+/**
+ * Reports whether a function keeps its non volatile registers in locals: true with
+ * non_volatile_as_local, except in a save or restore helper, a function that shares registers and
+ * a function with SEH scopes when exception handlers are generated.
+ */
+bool LocalizesNonVolatiles(const FunctionNode& fn, const RecompilerConfig& config);
+
 struct RecompilerLocalVariables {
   bool ctr{};
   bool xer{};

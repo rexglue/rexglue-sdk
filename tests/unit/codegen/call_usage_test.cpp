@@ -48,6 +48,8 @@ constexpr u32 kAddiR3R1 = DForm(14, 3, 1, 16);
 constexpr u32 kLwzR4R13 = DForm(32, 4, 13, 0);
 constexpr u32 kLwzR5R2 = DForm(32, 5, 2, 0);
 constexpr u32 kRlwimiR4R3 = (20u << 26) | (3u << 21) | (4u << 16) | (15u << 1);
+constexpr u32 kLvx128V64R3R4 = 0x100320CB;
+constexpr u32 kXorR3R4R4 = XForm(31, 4, 3, 4, 316);
 
 constexpr u32 OrR4(u32 source) {
   return XForm(31, source, 4, source, 444);
@@ -134,6 +136,16 @@ REX_TEST_CASE("call usage: a function that only writes r3 reads nothing", "[code
 
 REX_TEST_CASE("call usage: a store reads its source and its base", "[codegen][call_usage]") {
   CHECK(Single({kStwR5R3, kBlr}) == Usage{0x5, 0});
+}
+
+REX_TEST_CASE("call usage: a vector load into v64 reads its address registers",
+              "[codegen][call_usage]") {
+  CHECK(Single({kLvx128V64R3R4, kBlr}) == Usage{0x3, 0});
+}
+
+REX_TEST_CASE("call usage: an xor of a register with itself reads nothing",
+              "[codegen][call_usage]") {
+  CHECK(Single({kXorR3R4R4, kBlr}) == Usage{0, 0});
 }
 
 REX_TEST_CASE("call usage: a float add reads both float sources", "[codegen][call_usage]") {

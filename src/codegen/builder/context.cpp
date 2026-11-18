@@ -126,12 +126,16 @@ std::optional<std::string> BuilderContext::FindStackWrite(u8 width) const {
   return std::nullopt;
 }
 
-bool BuilderContext::CanLocalizeNonVolatiles() const {
+bool LocalizesNonVolatiles(const FunctionNode& fn, const RecompilerConfig& config) {
   const auto& info = fn.GetExceptionInfo();
   const auto* seh = info ? info->AsSEH() : nullptr;
-  const bool seh_scope = GetConfig().generate_exception_handlers && seh && !seh->scopes.empty();
-  return GetConfig().non_volatile_registers_as_local_variables && !fn.GetMillicode() &&
+  const bool seh_scope = config.generate_exception_handlers && seh && !seh->scopes.empty();
+  return config.non_volatile_registers_as_local_variables && !fn.GetMillicode() &&
          !fn.IsRegisterSharing() && !seh_scope;
+}
+
+bool BuilderContext::CanLocalizeNonVolatiles() const {
+  return LocalizesNonVolatiles(fn, GetConfig());
 }
 
 std::string BuilderContext::R(size_t index) {

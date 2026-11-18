@@ -186,6 +186,12 @@ struct RecompilerConfig {
    */
   bool non_volatile_registers_as_local_variables = false;
   /**
+   * TOML key `share_non_volatile_live_ins`, default false. With non_volatile_as_local, codegen
+   * warns about each function that reads a non volatile register before it writes it, a value its
+   * caller set. When true, it gives those functions share_registers instead.
+   */
+  bool share_non_volatile_live_ins = false;
+  /**
    * TOML key `forward_stack_stores`, default false. When true, a load through r1 reads the value
    * an earlier store through r1 of the same offset and width left in the same basic block, instead
    * of reading guest memory.
