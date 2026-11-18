@@ -30,6 +30,7 @@
 
 #include <rex/utility.h>
 
+#include "kernel/thread_wait.h"
 #include "kernel/title_context.h"
 #include "kernel/apu.h"
 #include <rex/assert.h>
@@ -207,6 +208,7 @@ Result<void> TitleState::LoadKernel() {
   Clock::SetGuestTimeScalar(1.0);
 
   platform::WidenProcessAffinity();
+  MeasureWaitSpinBound();
 
   ui_ = nullptr;
   user_language_ = ResolveUserLanguage(GetKernelSettings().user_language.Get(), ui_);

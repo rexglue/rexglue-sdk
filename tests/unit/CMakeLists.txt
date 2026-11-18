@@ -66,6 +66,8 @@ add_executable(
   kernel/varargs_test.cpp
   kernel/shutdown_test.cpp
   kernel/threads_test.cpp
+  kernel/wait_spin_test.cpp
+  kernel/critical_section_benchmark_test.cpp
   kernel/files_test.cpp
   kernel/memory_test.cpp
   kernel/net_test.cpp

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <string>
 
@@ -26,7 +27,9 @@
 #include <rex/kernel/object/module_object.h>
 #include <rex/kernel/types/io.h>
 #include <rex/kernel/object/kernel_thread.h>
+#include <rex/platform/perf.h>
 #include <rex/platform/thread.h>
+#include "kernel/thread_wait.h"
 #include "kernel/stub_log.h"
 #include "kernel/title_state.h"
 #include "kernel/kernel_pool.h"
@@ -400,6 +403,38 @@ i32 AddLockCount(X_RTL_CRITICAL_SECTION& cs, i32 delta) {
   return current + delta;
 }
 
+/** Takes the permit a leaving owner published in signal_state, and returns whether it did. */
+bool TakePermit(X_RTL_CRITICAL_SECTION& cs) {
+  if (cs.header.signal_state.Load(std::memory_order_relaxed) != 1) {
+    return false;
+  }
+  u32 expected = 1;
+  return cs.header.signal_state.CompareExchange(expected, 0, std::memory_order_seq_cst);
+}
+
+/**
+ * Returns once the calling thread owns the section, after a failed enter counted it as a waiter.
+ * The event of the section only rings a sleeper, so a ring that finds no permit sleeps again.
+ */
+void AcquireContended(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
+  const std::chrono::nanoseconds bound = GetWaitSpinBound();
+  while (true) {
+    if (TakePermit(*cs)) {
+      return;
+    }
+    if (bound.count() > 0) {
+      const auto end = std::chrono::steady_clock::now() + bound;
+      do {
+        if (TakePermit(*cs)) {
+          return;
+        }
+      } while (std::chrono::steady_clock::now() < end);
+    }
+    REX_PERF_INC("critical_section_blocks");
+    KeWaitForSingleObject(cs.GetGuestAddress(), 8, 0, 0, nullptr);
+  }
+}
+
 }  // namespace
 
 void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
@@ -459,7 +494,7 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   }
 
   if (AddLockCount(*cs, 1) != 0) {
-    KeWaitForSingleObject(cs.GetGuestAddress(), 8, 0, 0, nullptr);
+    AcquireContended(cs);
   }
 
   REX_ASSERT(cs->owning_thread == 0);
@@ -496,6 +531,7 @@ void RtlLeaveCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
 
   cs->owning_thread = 0;
   if (AddLockCount(*cs, -1) != -1) {
+    cs->header.signal_state.Store(1, std::memory_order_seq_cst);
     KeSetEvent(cs.GetGuestAddress(), 1, 0);
   }
 }

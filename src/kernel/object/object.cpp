@@ -12,6 +12,8 @@
 #include <rex/kernel/object/object.h>
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <type_traits>
@@ -28,7 +30,9 @@
 #include <rex/kernel/thread_registry.h>
 #include <rex/kernel/guest_allocator.h>
 #include <rex/platform/sync.h>
+#include <rex/platform/thread.h>
 #include <rex/kernel/object/object_table.h>
+#include "kernel/categories.h"
 #include "kernel/kernel_pool.h"
 
 #include "kernel/thread_wait.h"
@@ -383,6 +387,102 @@ X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects,
       }
       return X_STATUS_ABANDONED_WAIT_0;
   }
+}
+
+namespace {
+
+std::atomic<i64> g_spin_bound_ns{0};
+std::once_flag g_spin_bound_once;
+
+constexpr int kWarmupRoundTrips = 32;
+constexpr int kTimedRoundTrips = 200;
+
+/** Returns the lowest set bit of the mask, or 0 for an empty mask. */
+u64 LowestBitOf(u64 mask) {
+  return mask & (~mask + 1);
+}
+
+/**
+ * Returns half the median round trip of 2 host threads that pass control through 2 auto reset
+ * events, the cost of one block and one wake on another processor. Each thread is pinned to its
+ * own processor of the process affinity mask, and the measuring thread is unpinned before it ends.
+ * Returns 0 when the mask holds 1 processor.
+ */
+std::chrono::nanoseconds MeasureBlockAndWake() {
+  auto ping = rex::platform::Event::CreateAutoResetEvent(false);
+  auto pong = rex::platform::Event::CreateAutoResetEvent(false);
+  if (!ping || !pong) {
+    return {};
+  }
+  using clock = std::chrono::steady_clock;
+  clock::duration cost{};
+  auto measurer = rex::platform::Thread::Create({}, [&] {
+    rex::platform::Thread* self = rex::platform::Thread::GetCallingThread();
+    const u64 mask = self->GetAffinityMask();
+    const u64 first = LowestBitOf(mask);
+    const u64 second = LowestBitOf(mask & ~first);
+    if (second == 0) {
+      return;
+    }
+    self->SetAffinityMask(first);
+    constexpr int kRoundTrips = kWarmupRoundTrips + kTimedRoundTrips;
+    auto partner = rex::platform::Thread::Create({}, [&] {
+      rex::platform::Thread::GetCallingThread()->SetAffinityMask(second);
+      for (int n = 0; n < kRoundTrips; ++n) {
+        (void)rex::platform::Wait(ping.get(), false);
+        pong->Set();
+      }
+    });
+    if (partner) {
+      std::array<clock::duration, kTimedRoundTrips> trips{};
+      for (int n = 0; n < kRoundTrips; ++n) {
+        const auto start = clock::now();
+        ping->Set();
+        (void)rex::platform::Wait(pong.get(), false);
+        if (n >= kWarmupRoundTrips) {
+          trips[n - kWarmupRoundTrips] = clock::now() - start;
+        }
+      }
+      (void)rex::platform::Wait(partner.get(), false);
+      auto median = trips.begin() + kTimedRoundTrips / 2;
+      std::ranges::nth_element(trips, median);
+      cost = *median;
+    }
+    self->SetAffinityMask(mask);
+  });
+  if (measurer) {
+    (void)rex::platform::Wait(measurer.get(), false);
+  }
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(cost) / 2;
+}
+
+}  // namespace
+
+void MeasureWaitSpinBound() {
+  std::call_once(g_spin_bound_once, [] {
+    if (rex::platform::GetLogicalProcessorCount() < 2) {
+      REXKRNL_INFO("Contended critical sections do not spin on a host with 1 logical processor");
+      return;
+    }
+    const std::chrono::nanoseconds bound = MeasureBlockAndWake();
+    g_spin_bound_ns.store(bound.count(), std::memory_order_relaxed);
+    if (bound.count() == 0) {
+      REXKRNL_INFO("Contended critical sections do not spin, no 2 processors to measure across");
+      return;
+    }
+    REXKRNL_INFO(
+        "Contended critical sections spin for up to {} ns before they block, the measured host "
+        "block and wake cost across processors",
+        bound.count());
+  });
+}
+
+std::chrono::nanoseconds GetWaitSpinBound() {
+  return std::chrono::nanoseconds(g_spin_bound_ns.load(std::memory_order_relaxed));
+}
+
+void SetWaitSpinBoundForTest(std::chrono::nanoseconds bound) {
+  g_spin_bound_ns.store(bound.count(), std::memory_order_relaxed);
 }
 
 }  // namespace rex::kernel
