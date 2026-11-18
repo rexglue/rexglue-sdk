@@ -313,7 +313,7 @@ REX_TEST_CASE("the default pattern writes the timestamp, level letter, category 
   REQUIRE(files.size() == 1);
   const std::string text = ReadFile(files[0]);
   const std::regex line(
-      "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}) ([TVDIWEC]) core       t\\d{5} "
+      "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}) ([TVDIWEC]) core       t\\d{5,} "
       "pattern line\n");
   std::string letters;
   for (std::sregex_iterator it(text.begin(), text.end(), line), end; it != end; ++it) {
@@ -346,7 +346,7 @@ REX_TEST_CASE("a pattern with an unknown flag logs an error and uses the default
   REQUIRE(files.size() == 1);
   const std::string text = ReadFile(files[0]);
   CHECK(text.find("log.pattern '%k %v' is not used") != std::string::npos);
-  CHECK(std::regex_search(text, std::regex(" I core       t\\d{5} line under the fallback\n")));
+  CHECK(std::regex_search(text, std::regex(" I core       t\\d{5,} line under the fallback\n")));
 }
 
 REX_TEST_CASE("a positive flush_interval writes the file without a flush call", "[base][logger]") {

@@ -181,12 +181,17 @@ struct WaitRings {
   rex::u32 second = 0;
   rex::u32 second_count = 0;
   rex::u32 gate = 0;
+  rex::u32 reached_marker = 0;
   rex::u32 first_marker = 0;
   rex::u32 second_marker = 0;
 };
 
-// The first ring waits on memory the second step writes, then stores a marker. The second ring only
-// stores a marker.
+constexpr rex::u32 kReachedValue = 0x0F0F0F0F;
+
+// The first ring stores a reached marker, waits on memory the second step writes, then stores a
+// marker. The second ring only stores a marker. The processor runs a ring up to its write pointer
+// before it applies a pending ring change, so once the reached marker is stored the processor is
+// in the wait.
 WaitRings BuildWaitRings(rex::kernel::GuestAddressSpace& memory) {
   const rex::u32 block = memory.SystemHeapAlloc(0x2000, 0x1000, rex::kernel::kSystemHeapPhysical);
   WaitRings rings;
@@ -196,8 +201,12 @@ WaitRings BuildWaitRings(rex::kernel::GuestAddressSpace& memory) {
   rings.gate = base + 0x1200;
   rings.first_marker = base + 0x1100;
   rings.second_marker = base + 0x1104;
+  rings.reached_marker = base + 0x1108;
   const auto swap = std::to_underlying(rex::xenos::Endian::k8in32);
   const rex::u32 first[] = {
+      rex::xenos::BuildPacketType3(rex::xenos::PM4_MEM_WRITE, 2),
+      rings.reached_marker | swap,
+      kReachedValue,
       rex::xenos::BuildPacketType3(rex::xenos::PM4_WAIT_REG_MEM, 5),
       0x13,
       rings.gate | swap,
@@ -240,7 +249,7 @@ REX_TEST_CASE_METHOD(Fixture,
   const WaitRings rings = BuildWaitRings(memory);
   driver.InitializeRingBuffer(rings.first, 9);
   driver.WriteRegister(kWritePointerRegister, rings.first_count);
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  REQUIRE(WaitFor([&] { return Get(memory, rings.reached_marker) == kReachedValue; }));
 
   std::atomic<bool> returned{false};
   std::thread guest([&] {
@@ -273,7 +282,7 @@ REX_TEST_CASE_METHOD(Fixture,
   const WaitRings rings = BuildWaitRings(memory);
   driver.InitializeRingBuffer(rings.first, 9);
   driver.WriteRegister(kWritePointerRegister, rings.first_count);
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  REQUIRE(WaitFor([&] { return Get(memory, rings.reached_marker) == kReachedValue; }));
 
   driver.InitializeRingBuffer(rings.second, 9);
   driver.WriteRegister(kWritePointerRegister, rings.second_count);

@@ -48,7 +48,7 @@ REX_TEST_CASE("Guest system time tracks the host after the setters run", "[base]
   const rex::u64 frequency = rex::Clock::GetGuestTickFrequency();
   const rex::u64 base = rex::Clock::GetGuestSystemTimeBase();
   rex::Clock::SetGuestTickFrequency(50000000);
-  rex::Clock::SetGuestSystemTimeBase(rex::Clock::QueryHostSystemTime());
+  rex::Clock::SetGuestSystemTime(rex::Clock::QueryHostSystemTime());
   CHECK(rex::Clock::GetGuestTickFrequency() == 50000000);
   const rex::u64 guest = rex::Clock::QueryGuestSystemTime();
   const rex::u64 host = rex::Clock::QueryHostSystemTime();
