@@ -106,6 +106,17 @@ struct Logger::State {
     std::shared_ptr<spdlog::sinks::sink> adapter;
   };
 
+  /** The settings a sink rebuild reads, compared with the ones last applied. */
+  struct SinkInputs {
+    std::string flush_level;
+    std::string pattern;
+    bool console = false;
+    bool debugger = false;
+    bool color = false;
+
+    bool operator==(const SinkInputs&) const = default;
+  };
+
   struct Slot {
     std::string name;
     std::string description;
@@ -154,8 +165,8 @@ struct Logger::State {
 
   std::atomic<u64> sequence = 0;
   std::chrono::system_clock::time_point start_time;
-  ScopeGuard level_watch;
-  std::vector<ScopeGuard> watches;
+  std::optional<SinkInputs> applied_sinks;
+  ScopeGuard settled_watch;
 };
 
 }  // namespace rex
@@ -163,6 +174,9 @@ struct Logger::State {
 namespace rex::log {
 
 Logger::State& GetLoggerInstance();
+
+/** True when the calling thread is inside a log sink. */
+bool IsInSinks();
 
 /** Returns the logs folder of the application root, without creating it. */
 std::filesystem::path DefaultLogFolder();

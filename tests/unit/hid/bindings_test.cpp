@@ -11,10 +11,13 @@
 #include "rex_test.h"
 
 #include <array>
+#include <atomic>
 #include <functional>
+#include <latch>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <rex/hid/binding.h>
@@ -293,5 +296,116 @@ REX_TEST_CASE("BindingSet answers an index out of range without failing", "[hid]
     CHECK_FALSE(fixture.set.SetSources(99, {}));
     CHECK_FALSE(fixture.set.Clear(99));
     CHECK_FALSE(fixture.set.Reset(99));
+  });
+}
+
+REX_TEST_CASE("BindingSet keeps two SetSource calls in a row inside a batch", "[hid][bindings]") {
+  Run([](Registered& fixture) {
+    {
+      const rex::SettingsBatch batch;
+      CHECK(fixture.set.SetSource(kJump, 0, Parse("Q")));
+      CHECK(fixture.set.SetSource(kJump, 1, Parse("E")));
+      const auto jump = fixture.set.GetSources(kJump);
+      REQUIRE(jump.size() == 2);
+      CHECK(jump[0] == Parse("Q"));
+      CHECK(jump[1] == Parse("E"));
+    }
+    CHECK(fixture.Text("bind.jump") == "Q,E");
+  });
+}
+
+REX_TEST_CASE("BindingSet keeps two SetSource calls made together from two threads",
+              "[hid][bindings]") {
+  Run([](Registered& fixture) {
+    const InputSource first = Parse("Q");
+    const InputSource second = Parse("E");
+    std::latch start(2);
+    std::atomic<int> stored{0};
+    {
+      std::jthread one([&] {
+        start.arrive_and_wait();
+        stored += fixture.set.SetSource(kJump, 0, first) ? 1 : 0;
+      });
+      std::jthread two([&] {
+        start.arrive_and_wait();
+        stored += fixture.set.SetSource(kJump, 1, second) ? 1 : 0;
+      });
+    }
+    CHECK(stored == 2);
+    const auto jump = fixture.set.GetSources(kJump);
+    REQUIRE(jump.size() == 2);
+    CHECK(jump[0] == first);
+    CHECK(jump[1] == second);
+    CHECK(fixture.Text("bind.jump") == "Q,E");
+  });
+}
+
+REX_TEST_CASE("BindingSet reads the new inputs right after a write in a batch and in a change call",
+              "[hid][bindings]") {
+  Run([](Registered& fixture) {
+    const std::array<InputSource, 1> fire = {Parse("PadX")};
+    {
+      const rex::SettingsBatch batch;
+      const u32 before = fixture.set.GetGeneration();
+      fixture.Write("bind.jump", "PadX");
+      CHECK(fixture.set.GetSources(kJump) == std::vector<InputSource>{Parse("PadX")});
+      CHECK(fixture.set.FindConflict(kFire, Parse("PadX")) == kJump);
+      CHECK(fixture.set.GetGeneration() > before);
+    }
+    std::vector<InputSource> seen;
+    bool armed = false;
+    auto found = REX_SETTINGS().Find("bind.menu");
+    REQUIRE(found);
+    auto* menu = static_cast<rex::Setting<std::string>*>(*found);
+    auto watch = menu->OnChange([&](const std::string&) {
+      if (armed) {
+        CHECK(fixture.set.SetSources(kFire, fire));
+        seen = fixture.set.GetSources(kFire);
+      }
+    });
+    armed = true;
+    fixture.Write("bind.menu", "Q");
+    CHECK(seen == std::vector<InputSource>{Parse("PadX")});
+  });
+}
+
+REX_TEST_CASE("BindingSet sources read on another thread are whole while they change",
+              "[hid][bindings]") {
+  Run([](Registered& fixture) {
+    constexpr int kRounds = 500;
+    const InputSource q = Parse("Q");
+    const InputSource e = Parse("E");
+    const InputSource r = Parse("R");
+    const InputSource space = Parse("Space");
+    const InputSource pad_a = Parse("PadA");
+    std::latch start(2);
+    std::atomic<int> torn{0};
+    std::atomic<int> refused{0};
+    {
+      std::jthread writer([&] {
+        start.arrive_and_wait();
+        for (int i = 0; i < kRounds; ++i) {
+          const std::array<InputSource, 1> one{q};
+          const std::array<InputSource, 2> two{e, r};
+          refused += !(i % 2 == 0 ? fixture.set.SetSources(kJump, one)
+                                  : fixture.set.SetSources(kJump, two));
+        }
+      });
+      std::jthread reader([&] {
+        start.arrive_and_wait();
+        u32 last = fixture.set.GetGeneration();
+        for (int i = 0; i < kRounds; ++i) {
+          const std::vector<InputSource> jump = fixture.set.GetSources(kJump);
+          const bool whole = (jump.size() == 1 && jump[0] == q) ||
+                             (jump.size() == 2 && jump[0] == e && jump[1] == r) ||
+                             (jump.size() == 2 && jump[0] == space && jump[1] == pad_a);
+          const u32 generation = fixture.set.GetGeneration();
+          torn += !whole || generation < last;
+          last = generation;
+        }
+      });
+    }
+    CHECK(refused == 0);
+    CHECK(torn == 0);
   });
 }

@@ -51,7 +51,7 @@ class REX_GPU_API GraphicsSettings final : public SettingOwner {
  * Vd calls and GPU register accesses to a Xenos driver. With no driver a project that presents
  * itself calls ReportFrame and UISystem::DrawOverlays from its own present.
  */
-REX_DECLARE_INTERFACE(IGraphicsSystem, 1)
+REX_DECLARE_INTERFACE(IGraphicsSystem, 2)
   virtual GraphicsSettings& GetSettings() = 0;
 
   virtual bool HasDriver() const = 0;

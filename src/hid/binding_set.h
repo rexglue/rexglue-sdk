@@ -38,7 +38,7 @@ class BindingSet final : public IBindingSet {
   [[nodiscard]] Result<void> Register(ISettingsRegistry& settings) override;
   void Unregister() override;
   [[nodiscard]] size_t GetCount() const override;
-  [[nodiscard]] std::span<const InputSource> GetSources(size_t binding) const override;
+  [[nodiscard]] std::vector<InputSource> GetSources(size_t binding) const override;
   bool SetSource(size_t binding, size_t slot, const InputSource& source) override;
   bool SetSources(size_t binding, std::span<const InputSource> sources) override;
   bool Clear(size_t binding) override;

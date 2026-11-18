@@ -15,6 +15,8 @@
 #include <rex/ui/window.h>
 #include <rex/ui/ui_event.h>
 #include <rex/logging/logger.h>
+#include <rex/platform/lock_order.h>
+#include <rex/setting.h>
 #include <rex/ui/style.h>
 #include <rex/utility.h>
 #include <rex/overlay_renderer.h>
@@ -141,6 +143,14 @@ void UISystem::PostTask(MoveOnlyFunction<void()> fn) {
 }
 
 bool UISystem::RunSynchronous(MoveOnlyFunction<void()> fn) {
+  if (rex::detail::IsInSettingChange()) {
+    REXUI_ERROR("RunSynchronous refused, the thread runs a setting change function");
+    platform::detail::PushRankChecked(platform::LockRank::kLeaf);
+    platform::detail::PushRankChecked(platform::lock_rank::kSettingsWatch);
+    platform::detail::PopRankChecked(platform::lock_rank::kSettingsWatch);
+    platform::detail::PopRankChecked(platform::LockRank::kLeaf);
+    return false;
+  }
   State& s = *state_;
   if (s.stopped.load()) {
     return false;
@@ -255,23 +265,33 @@ void UISystem::State::OpenWindow() {
   config.title = window_title.empty() ? std::string("ReXGlue") : window_title;
   i32 width = 1280;
   i32 height = 720;
-  ui::detail::ResolveConfiguredSize(owner.GetSettings(), width, height);
+  const bool sized = ui::detail::ResolveConfiguredSize(owner.GetSettings(), width, height);
   config.width = static_cast<u32>(std::max(width, 1));
   config.height = static_cast<u32>(std::max(height, 1));
-  config.min_width = static_cast<u32>(owner.GetSettings().min_width.Get());
-  config.min_height = static_cast<u32>(owner.GetSettings().min_height.Get());
-  config.aspect_ratio = ui::detail::ParseAspectRatio(owner.GetSettings().aspect_ratio.Get());
-  config.fullscreen = owner.GetSettings().fullscreen.Get();
-  config.fullscreen_exclusive = owner.GetSettings().fullscreen_exclusive.Get();
-  config.monitor = owner.GetSettings().monitor.Get();
+  const AppliedLimits limits = ResolveLimits();
+  config.min_width = limits.min_width;
+  config.min_height = limits.min_height;
+  config.aspect_ratio = limits.ratio;
+  const AppliedFullscreen fullscreen = ResolveFullscreen();
+  config.fullscreen = fullscreen.fullscreen;
+  config.fullscreen_exclusive = fullscreen.exclusive;
+  config.monitor = fullscreen.monitor;
   config.vulkan_surface = graphics && graphics->GetDriverName() == "vulkan";
-  ui::detail::ResolveModeSize(owner.GetSettings(), config.mode_width, config.mode_height);
+  config.mode_width = fullscreen.mode_width;
+  config.mode_height = fullscreen.mode_height;
   if (auto opened = driver->OpenWindow(config); !opened) {
     REXUI_WARN("the window did not open, running headless, {}", opened.error().message);
     headless = true;
     return;
   }
   window_open = true;
+  applied_title = window_title;
+  applied_fullscreen = fullscreen;
+  applied_limits = limits;
+  applied_size.reset();
+  if (sized && width > 0 && height > 0) {
+    applied_size = std::pair{config.width, config.height};
+  }
   focused = driver->HasFocus();
   const ui::WindowSize size = driver->GetWindowSize();
   window_width = size.width_px;

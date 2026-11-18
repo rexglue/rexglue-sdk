@@ -35,7 +35,7 @@ struct UnknownSetting {
 };
 
 /** The registry of every registered owner's settings. Values for a later owner wait here. */
-REX_DECLARE_INTERFACE(ISettingsRegistry, 1)
+REX_DECLARE_INTERFACE(ISettingsRegistry, 2)
 /**
  * Registers an owner and applies values waiting for its settings.
  *
@@ -177,6 +177,9 @@ class REX_API SettingsRegistry final : public ISettingsRegistry {
 
   /** Applies the REX_<SCOPE>_<NAME> environment variables at the environment layer. */
   void ApplyEnvironment();
+
+  /** Returns once every commit in progress on another thread has stored. */
+  void WaitForCommits() const;
 
   /**
    * Returns the messages the registry produced, such as an old name used, and clears them, oldest

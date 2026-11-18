@@ -61,7 +61,7 @@ class REX_APU_API AudioSettings final : public SettingOwner {
  * A sample that is not finite becomes silence. With apu.peak_limit above 0, a stream whose peak
  * stays above it for two periods ramps to silence until a frame comes back under it.
  */
-REX_DECLARE_INTERFACE(IAudioSystem, 1)
+REX_DECLARE_INTERFACE(IAudioSystem, 2)
   static constexpr u32 kMaxStreams = 8;
 
   virtual AudioSettings& GetSettings() = 0;

@@ -94,7 +94,11 @@ rex::Result<void> MyApp::OnConfigure(rex::SettingsRegistry& settings) {
 
 Code that keeps its own copy of a value, instead of calling `Get()` on each use, needs to know when the value changes. The logger, for example, applies a new `log.level` to its output, and the UI resizes the window when `ui.window_width` changes.
 
-`OnChange(fn)` registers a function that runs after each change, with the new value, on the thread that made the change. That can be the thread of the console overlay or the settings overlay, so the window settings post their work to the UI thread.
+`OnChange(fn)` calls the function once with the current value when it registers, and again after each change, on the thread that made the change, before that write returns. That can be the thread of the console overlay or the settings overlay, so the window settings post their work to the UI thread. The functions of a setting run in the order they were added, and one function never runs on two threads at the same time.
+
+A change function may write settings. Those writes store immediately, and their change calls run after the current function returns. A change function must not wait for another thread, because that thread may be writing a setting the function watches. It posts work to reach another thread, and `RunSynchronous` called from a change function returns false without running.
+
+`rex::OnChange(fn, a, b)` watches several settings as one function, called with all their current values, once for changes to several of them in one round. A `rex::SettingsBatch` holds back the change calls of its thread until the outermost batch ends, so a group of writes makes one call per function.
 
 `OnChange` returns a `rex::ScopeGuard` from `rex/utility.h`. A `ScopeGuard` holds one function and runs it once, when the guard is destroyed, reset or assigned over. Here the function removes the callback, so the callback stays registered exactly as long as you keep the guard. Store it as a member of the object that the callback uses, so the callback stops before the object is destroyed:
 

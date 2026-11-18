@@ -12,9 +12,13 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <format>
 #include <iterator>
+#include <mutex>
 
+#include <rex/platform/lock_order.h>
+#include <rex/setting.h>
 #include <rex/string/text.h>
 
 namespace rex::hid {
@@ -39,12 +43,41 @@ struct BindingSet::Impl {
   std::string scope;
   BindingOwner owner;
   std::vector<std::vector<InputSource>> sources;
+  std::vector<u64> built;
   std::vector<std::unique_ptr<Setting<std::string>>> vars;
-  std::vector<ScopeGuard> watches;
+  ScopeGuard watch;
   std::vector<std::string> parse_errors;
-  ISettingsRegistry* registry = nullptr;
-  u32 generation = 1;
+  std::atomic<ISettingsRegistry*> registry{nullptr};
+  std::atomic<u32> generation{1};
+  mutable platform::RankedMutex sources_mutex{platform::LockRank::kLeaf};
+  platform::RankedMutex edit_mutex{platform::lock_rank::kBindingEdit};
 
+  /** Rebuilds the inputs of every binding whose setting moved past the generation they hold. */
+  void Refresh() {
+    for (size_t i = 0; i < vars.size(); ++i) {
+      Refresh(i);
+    }
+  }
+
+  /** Rebuilds the inputs of one binding when its setting moved past the generation they hold. */
+  void Refresh(size_t binding) {
+    const u64 generation_now = vars[binding]->GetGeneration();
+    {
+      std::lock_guard lock(sources_mutex);
+      if (built[binding] >= generation_now) {
+        return;
+      }
+    }
+    const std::string value = vars[binding]->Get();
+    std::lock_guard lock(sources_mutex);
+    if (built[binding] >= generation_now) {
+      return;
+    }
+    built[binding] = generation_now;
+    Apply(binding, value);
+  }
+
+  /** Parses a value into the inputs of a binding. Called under the sources lock. */
   void Apply(size_t binding, std::string_view value) {
     const BindingConfig& config = configs[binding];
     std::vector<InputSource> out;
@@ -90,7 +123,7 @@ struct BindingSet::Impl {
       return;
     }
     sources[binding] = std::move(out);
-    ++generation;
+    generation.fetch_add(1, std::memory_order_acq_rel);
   }
 
   std::string Format(std::span<const InputSource> list) const {
@@ -132,7 +165,7 @@ struct BindingSet::Impl {
   }
 
   bool SetText(size_t binding, std::string_view text) {
-    if (!registry || binding >= configs.size()) {
+    if (!registry.load(std::memory_order_acquire) || binding >= configs.size()) {
       return false;
     }
     return vars[binding]->Set(std::string(text)).has_value();
@@ -144,13 +177,14 @@ BindingSet::BindingSet(std::span<const BindingConfig> configs, std::string_view 
   impl_->configs = configs;
   impl_->scope = std::string(scope);
   impl_->sources.resize(configs.size());
+  impl_->built.resize(configs.size(), 0);
   impl_->vars.reserve(configs.size());
   for (size_t i = 0; i < configs.size(); ++i) {
-    impl_->Apply(i, configs[i].defaults);
     impl_->vars.push_back(std::make_unique<Setting<std::string>>(
         &impl_->owner, configs[i].name, std::string(configs[i].defaults), configs[i].description,
         kKeyChord));
   }
+  impl_->Refresh();
 }
 
 BindingSet::~BindingSet() {
@@ -158,38 +192,45 @@ BindingSet::~BindingSet() {
 }
 
 Result<void> BindingSet::Register(ISettingsRegistry& settings) {
-  if (impl_->registry) {
+  if (impl_->registry.load(std::memory_order_acquire)) {
     return Err<void>(ErrorCategory::kConfig, "the bindings are already registered");
   }
   if (auto added = settings.Register(impl_->owner); !added) {
     return added;
   }
-  impl_->registry = &settings;
-  for (size_t i = 0; i < impl_->vars.size(); ++i) {
-    impl_->watches.push_back(impl_->vars[i]->OnChange(
-        [impl = impl_.get(), i](const std::string& value) { impl->Apply(i, value); }));
-    impl_->Apply(i, impl_->vars[i]->Get());
+  impl_->registry.store(&settings, std::memory_order_release);
+  std::vector<Setting<std::string>*> members;
+  members.reserve(impl_->vars.size());
+  for (const auto& var : impl_->vars) {
+    members.push_back(var.get());
+  }
+  if (!members.empty()) {
+    impl_->watch = rex::OnChange<std::string>(
+        [impl = impl_.get()](std::span<const std::string>) { impl->Refresh(); },
+        std::span<Setting<std::string>* const>(members));
   }
   return Ok();
 }
 
 void BindingSet::Unregister() {
-  impl_->watches.clear();
-  if (!impl_->registry) {
+  impl_->watch.Reset();
+  ISettingsRegistry* registry = impl_->registry.exchange(nullptr, std::memory_order_acq_rel);
+  if (!registry) {
     return;
   }
-  impl_->registry->Unregister(impl_->owner);
-  impl_->registry = nullptr;
+  registry->Unregister(impl_->owner);
 }
 
 size_t BindingSet::GetCount() const {
   return impl_->configs.size();
 }
 
-std::span<const InputSource> BindingSet::GetSources(size_t binding) const {
+std::vector<InputSource> BindingSet::GetSources(size_t binding) const {
   if (binding >= impl_->sources.size()) {
     return {};
   }
+  impl_->Refresh(binding);
+  std::lock_guard lock(impl_->sources_mutex);
   return impl_->sources[binding];
 }
 
@@ -197,13 +238,20 @@ bool BindingSet::SetSource(size_t binding, size_t slot, const InputSource& sourc
   if (binding >= impl_->sources.size() || InputSourceToString(source).empty()) {
     return false;
   }
-  std::vector<InputSource> updated = impl_->sources[binding];
+  const SettingsBatch batch;
+  std::lock_guard edit(impl_->edit_mutex);
+  impl_->Refresh(binding);
+  std::vector<InputSource> updated;
+  {
+    std::lock_guard lock(impl_->sources_mutex);
+    updated = impl_->sources[binding];
+  }
   if (slot < updated.size()) {
     updated[slot] = source;
   } else {
     updated.push_back(source);
   }
-  return SetSources(binding, updated);
+  return impl_->SetText(binding, impl_->Format(updated));
 }
 
 bool BindingSet::SetSources(size_t binding, std::span<const InputSource> sources) {
@@ -218,7 +266,7 @@ bool BindingSet::Clear(size_t binding) {
 }
 
 bool BindingSet::Reset(size_t binding) {
-  if (!impl_->registry || binding >= impl_->configs.size()) {
+  if (!impl_->registry.load(std::memory_order_acquire) || binding >= impl_->configs.size()) {
     return false;
   }
   return impl_->vars[binding]->Reset().has_value();
@@ -242,6 +290,8 @@ std::optional<size_t> BindingSet::FindConflict(size_t binding, const InputSource
     return std::nullopt;
   }
   const u32 group = impl_->configs[binding].group;
+  impl_->Refresh();
+  std::lock_guard lock(impl_->sources_mutex);
   for (size_t i = 0; i < impl_->configs.size(); ++i) {
     if (i == binding || impl_->configs[i].group != group) {
       continue;
@@ -270,10 +320,13 @@ std::optional<size_t> BindingSet::FindBySetting(std::string_view setting_name) c
 }
 
 u32 BindingSet::GetGeneration() const {
-  return impl_->generation;
+  impl_->Refresh();
+  return impl_->generation.load(std::memory_order_acquire);
 }
 
 std::vector<std::string> BindingSet::TakeParseErrors() {
+  impl_->Refresh();
+  std::lock_guard lock(impl_->sources_mutex);
   return std::exchange(impl_->parse_errors, {});
 }
 

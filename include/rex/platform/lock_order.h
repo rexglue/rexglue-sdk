@@ -132,7 +132,13 @@ class RankedSharedMutex : public rex::NonCopyable {
 
 namespace rex::platform::lock_rank {
 
-/** Rank 1, the lowest. Guards the interrupt state of the function dispatcher. */
+/**
+ * Rank 0, the lowest. Held while a thread delivers a change to one setting change function, waits
+ * for its call or makes it, so everything the function takes ranks above it.
+ */
+inline constexpr LockRank kSettingsWatch{0};
+
+/** Rank 1. Guards the interrupt state of the function dispatcher. */
 inline constexpr LockRank kInterruptState{1};
 
 /** Rank 2. Guards the identity map of the object table and the module load counts. */
@@ -155,5 +161,11 @@ inline constexpr LockRank kObjectState{7};
 
 /** Rank 8. Guards the deferred procedure call queue of the dispatcher. */
 inline constexpr LockRank kDPC{8};
+
+/** Rank 253. Guards the read and rewrite of one input binding edit. */
+inline constexpr LockRank kBindingEdit{253};
+
+/** Rank 254, below the leaf rank only. Guards the maps of the settings registry. */
+inline constexpr LockRank kSettingsRegistry{254};
 
 }  // namespace rex::platform::lock_rank

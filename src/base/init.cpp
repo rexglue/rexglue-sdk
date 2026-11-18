@@ -71,7 +71,6 @@ Result<void> Init(const Config& config) {
   PerfSettings& perf = GetPerfSettings();
   g_state.alloc_stack_depth_watch =
       perf.alloc_stack_depth.OnChange([](const i32& depth) { memory::SetAllocStackDepth(depth); });
-  memory::SetAllocStackDepth(perf.alloc_stack_depth.Get());
 
   g_state.group = std::make_unique<ModuleGroup>();
   g_state.context = std::make_unique<AppDriverContext>(REX_SETTINGS(), REX_LOGGER());

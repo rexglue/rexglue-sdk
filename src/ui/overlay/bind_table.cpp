@@ -61,7 +61,6 @@ void BindTable::AddToRegistry(Entry& entry) {
   entry.added = true;
   entry.watch = entry.owner->chord.OnChange(
       [this, name = entry.name](const std::string& value) { OnChanged(name, value); });
-  OnChanged(entry.name, entry.owner->chord.Get());
 }
 
 void BindTable::RemoveFromRegistry(Entry& entry) {

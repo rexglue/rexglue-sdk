@@ -16,12 +16,14 @@
 #include <memory>
 #include <new>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include <imgui.h>
 
 #include <rex/hid/input_system.h>
+#include <rex/platform/lock_order.h>
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
 #include <rex/logging/logger.h>
@@ -662,4 +664,53 @@ REX_TEST_CASE("the UI starts without an input system and shows bindings as text"
   CHECK((*found)->GetText() == "Ctrl+K");
   CHECK(app.Pump());
   app.Shutdown();
+}
+
+namespace {
+std::atomic<int> g_change_violations{0};
+void CountChangeViolation(rex::platform::LockRank, rex::platform::LockRank) {
+  ++g_change_violations;
+}
+}  // namespace
+
+REX_TEST_CASE("RunSynchronous inside a setting change function returns without running", "[ui]") {
+  UIApp app;
+  REQUIRE(app.Start());
+  rex::ui::IUISystem& ui = app.GetUI();
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  const rex::u64 since = sink.GetLatestSequence();
+  g_change_violations = 0;
+  auto previous = rex::platform::SetLockOrderHandler(&CountChangeViolation);
+  bool armed = false;
+  bool ran = false;
+  bool accepted = true;
+  {
+    auto watch = ui.GetSettings().title.OnChange([&](const std::string&) {
+      if (armed) {
+        accepted = ui.RunSynchronous([&] { ran = true; });
+      }
+    });
+    armed = true;
+    REQUIRE(ui.GetSettings().title.Set("refused inside a change call"));
+  }
+  rex::platform::SetLockOrderHandler(previous);
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> lines;
+  sink.CopySince(since, lines);
+  int errors = 0;
+  for (const auto& line : lines) {
+    errors += line.level == rex::log::Level::kError &&
+              line.text.find("setting change function") != std::string::npos;
+  }
+  CHECK(errors == 1);
+  CHECK_FALSE(accepted);
+  CHECK_FALSE(ran);
+#ifndef REXGLUE_LOCK_RANK_CHECKS
+  CHECK(g_change_violations == 0);
+#else
+  CHECK(g_change_violations == 1);
+#endif
+  CHECK(ui.RunSynchronous([&] { ran = true; }));
+  CHECK(ran);
 }

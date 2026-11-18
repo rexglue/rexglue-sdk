@@ -15,6 +15,7 @@ void ProcessSettingsControl::Freeze(SettingMode mode) {
   if (mode == SettingMode::kLockedInGame) {
     g_launch_frozen = true;
   }
+  REX_SETTINGS().WaitForCommits();
 }
 
 void ProcessSettingsControl::Thaw(SettingMode mode) {
