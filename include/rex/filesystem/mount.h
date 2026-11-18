@@ -12,12 +12,16 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <rex/bit.h>
 #include <rex/types.h>
 
 namespace rex::filesystem {
+
+/** Guest path of the title's partition, which game: and d: link to. */
+inline constexpr std::string_view kGamePartitionPath = "\\Device\\Harddisk0\\Partition1";
 
 using rex::HasFlags;
 using rex::operator|;

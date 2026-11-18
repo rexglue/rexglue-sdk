@@ -33,7 +33,7 @@ Relative paths in `file_path`, `out_directory_path`, `template_dir`, `game_root`
 | Key | Type | Meaning |
 |---|---|---|
 | `file_path` | string | Required. Points to the XEX file. |
-| `guest_path` | string | Required for modules. Sets the path that the game uses to load the module, such as `game:\plugins\foo.xex`. Two modules cannot have the same path. Paths are compared without the device prefix (`game:`), without regard to case or slash direction, and with a leading `<project name>/assets/` removed. |
+| `guest_path` | string | Required for modules. Sets the path that the game uses to load the module, such as `game:\plugins\foo.xex`. Two modules cannot have the same path. Paths are compared without the device prefix (`game:`) or the game partition it links to (`\Device\Harddisk0\Partition1`), without regard to case or slash direction, and with a leading `<project name>/assets/` removed. |
 | `out_directory_path` | string | Sets the output folder. Each binary that one codegen run processes (see [`--target`](cli.md#targets)) needs its own. |
 | `project_name` | string | Sets the file prefix for this binary. The default is `[project].name`. |
 | `template_dir` | string | Points to a folder of `.inja` template files that replace the built in templates of the same path, for the files that codegen writes. |
