@@ -42,6 +42,7 @@ class TitleRuntime;
 
 namespace rex::kernel {
 
+class HostSlot;
 class ThreadRegistry;
 
 /** Table slot data that names the `KernelThread` of a thread ID. */
@@ -389,6 +390,8 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
 
   TitleRuntime* runtime_;
   ThreadRegistry* registry_ = nullptr;
+  /** Counts this thread while its host thread runs, set by Create. */
+  std::shared_ptr<HostSlot> host_slot_;
   X_HANDLE handle_ = 0;
   u32 guest_object_ptr_ = 0;
   rex::MoveOnlyFunction<int()> host_fn_;

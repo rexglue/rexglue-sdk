@@ -337,6 +337,13 @@ const char* ThreadRegistry::GetOrCreateFiberName(u32 address, const char* thread
   return ptr;
 }
 
+void ThreadRegistry::WaitForHosts(std::chrono::milliseconds interval) {
+  host_fence_->WaitIdle(KernelThread::IsInThread() ? 1 : 0, interval, [interval](u32 running) {
+    REXSYS_WARN("{} host threads still run after {} ms, teardown waits for them", running,
+                interval.count());
+  });
+}
+
 void ThreadRegistry::DestroyFibers() {
   decltype(fiber_map_) fibers;
   {

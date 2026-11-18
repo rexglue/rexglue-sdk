@@ -17,6 +17,7 @@
 #include <condition_variable>
 #include <format>
 #include <functional>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -33,6 +34,7 @@
 
 #include "kernel_fixture.h"
 #include "elapsed.h"
+#include "kernel/thread_registry.h"
 #include "kernel/title_state.h"
 
 #if REX_PLATFORM_WIN32
@@ -129,6 +131,17 @@ void WaitUntil(const std::atomic<bool>& flag) {
     std::this_thread::sleep_for(1ms);
   }
   CHECKED_ELSE(flag.load()) {
+    FAIL_CHECK("the check above failed");
+    return;
+  }
+}
+
+void WaitUntilTrue(const std::function<bool()>& condition) {
+  const auto until = std::chrono::steady_clock::now() + 2s;
+  while (!condition() && std::chrono::steady_clock::now() < until) {
+    std::this_thread::sleep_for(1ms);
+  }
+  CHECKED_ELSE(condition()) {
     FAIL_CHECK("the check above failed");
     return;
   }
@@ -473,8 +486,9 @@ REX_TEST_CASE("TerminateTitle ends guest threads in every wait type with no kill
     threads.push_back(c.Spawn([handles](Caller& t) {
       t.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, 0});
     }));
-    threads.push_back(c.Spawn([event](Caller& t) {
-      t.Kernel("NtSignalAndWaitForSingleObjectEx", {CreateGuestEvent(t), event, 0, 0, 0});
+    const u32 signaled = CreateGuestEvent(c);
+    threads.push_back(c.Spawn([event, signaled](Caller& t) {
+      t.Kernel("NtSignalAndWaitForSingleObjectEx", {signaled, event, 0, 0, 0});
     }));
     threads.push_back(c.Spawn([](Caller& t) {
       t.Kernel("KeDelayExecutionThread", {1, 0, t.AllocQuad(-36000000000LL)});
@@ -512,7 +526,10 @@ REX_TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kern
         }
       }
     }));
-    std::this_thread::sleep_for(20ms);
+    WaitUntilTrue([launched] {
+      std::lock_guard lock(launched->mutex);
+      return !launched->handles.empty();
+    });
   });
   const auto start = std::chrono::steady_clock::now();
   StateOf(fixture.GetRuntime()).TerminateTitle();
@@ -821,6 +838,39 @@ REX_TEST_CASE("Teardown stops a thread whose exit notification waits forever",
   fixture.reset();
   g_exit_wait_armed.store(false);
   CHECK(MillisSince(start) < 5000);
+}
+
+REX_TEST_CASE(
+    "The host fence counts a KernelThread from its creation to the end of its host thread",
+    "[kernel][shutdown]") {
+  KernelFixture fixture;
+  auto& registry =
+      static_cast<rex::kernel::ThreadRegistry&>(StateOf(fixture.GetRuntime()).GetThreadRegistry());
+  const auto fence = registry.GetHostFence();
+  const u32 before = fence->GetCount();
+  std::promise<void> release;
+  auto released = release.get_future().share();
+  auto started = std::make_shared<std::atomic<bool>>(false);
+  auto launched = registry.Launch(std::make_unique<rex::kernel::KernelThread>(
+      fixture.GetRuntime(), 128 * 1024, 0, [released, started] {
+        started->store(true);
+        released.wait();
+        return 0;
+      }));
+  REQUIRE(launched);
+  WaitUntil(*started);
+  CHECK(fence->GetCount() == before + 1);
+  std::atomic<bool> waited{false};
+  std::thread waiter([&fence, &waited, before] {
+    fence->WaitIdle(before, 1s, [](u32) {});
+    waited.store(true);
+  });
+  std::this_thread::sleep_for(100ms);
+  CHECK_FALSE(waited.load());
+  release.set_value();
+  waiter.join();
+  CHECK(waited.load());
+  CHECK(fence->GetCount() == before);
 }
 
 u32 SocketAddress(Caller& c, u32 address, u32 port) {

@@ -74,6 +74,8 @@ A guest thread cannot be killed from outside, because it may hold locks or be in
 1. `RequestStop` marks the thread. The thread stops at its next call to `CheckStop` or its next alertable wait, a wait that the kernel can interrupt to deliver an asynchronous procedure call. Both throw `ThreadStop` to unwind the thread.
 2. If the thread has not stopped after `runtime.terminate_timeout_ms`, 2000 ms by default, the runtime logs a warning and calls `ForceStop` every 5 ms. `ForceStop` makes a thread that is inside recompiled code throw `ThreadStop` immediately. The warning repeats each time the timeout passes again.
 
+Teardown also waits until every host thread of a `KernelThread` has left its entry function, before it resets the object table, the thread registry and the guest memory. A thread that already left the registry still deletes its `KernelThread` and frees its guest blocks on its own host thread, so waiting for the registry entries alone is not enough.
+
 A guest thread moves between these states:
 
 ```mermaid

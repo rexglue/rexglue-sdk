@@ -127,6 +127,8 @@ void kernel::TitleState::DestroySubsystems() {
       REXSYS_WARN("Thread {:08X} '{}' still running after {} ms", thread->GetThreadID(),
                   thread->GetName(), interval.count());
     });
+    threads.clear();
+    thread_registry_->WaitForHosts(interval);
   }
   if (module_registry_) {
     module_registry_->UnloadAll();
@@ -153,6 +155,10 @@ void kernel::TitleState::DestroySubsystems() {
   object_table_.reset();
   DestroyXAM();
   workspace_.reset();
+  if (thread_registry_) {
+    thread_registry_->WaitForHosts(
+        std::chrono::milliseconds(GetRuntimeSettings().terminate_timeout_ms.Get()));
+  }
   thread_registry_.reset();
   {
     std::lock_guard lock(terminate_mutex_);

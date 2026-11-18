@@ -83,6 +83,9 @@ KernelThread::KernelThread(TitleRuntime& runtime, u32 stack_size, u32 creation_f
 }
 
 KernelThread::~KernelThread() {
+  if (host_slot_ && !host_slot_->IsEntered()) {
+    host_slot_->Leave();
+  }
   if (main_fiber_) {
     main_fiber_->Destroy();
     main_fiber_ = nullptr;
@@ -442,7 +445,15 @@ X_STATUS KernelThread::Create() {
   rex::platform::Thread::CreationParameters params;
   params.stack_size = 16_MiB;
   params.create_suspended = true;
-  auto thread = rex::platform::Thread::Create(params, [this]() {
+  host_slot_ = std::make_shared<HostSlot>(registry_->GetHostFence());
+  auto thread = rex::platform::Thread::Create(params, [this, slot = host_slot_]() {
+    slot->MarkEntered();
+    // The last statement of the host thread, after the KernelThread may be deleted, so the guard
+    // owns a copy of the slot.
+    struct Leave {
+      std::shared_ptr<HostSlot> slot;
+      ~Leave() { slot->Leave(); }
+    } leave{slot};
     if (abandoned_.load(std::memory_order_acquire)) {
       return;
     }
