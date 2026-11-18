@@ -429,14 +429,18 @@ Result<void> App::Init(const CLIArgList& args) {
       }
     };
     state.DetectHeadless();
-    add_plugins(GetDriverModules(DriverType::kAudio, state.audio->GetSettings().driver.Get(), {},
-                                 &factory));
+    if (state.needs.audio) {
+      add_plugins(GetDriverModules(DriverType::kAudio, state.audio->GetSettings().driver.Get(), {},
+                                   &factory));
+    }
     if (state.input) {
       add_plugins(GetDriverModules(DriverType::kInput, state.input->GetSettings().drivers.Get(), {},
                                    &factory));
     }
-    add_plugins(
-        GetDriverModules(DriverType::kUI, state.ui->GetSettings().driver.Get(), {}, &factory));
+    if (state.needs.ui) {
+      add_plugins(
+          GetDriverModules(DriverType::kUI, state.ui->GetSettings().driver.Get(), {}, &factory));
+    }
     add_plugins(GetDriverModules(DriverType::kGraphics, state.graphics->GetDriverName(),
                                  state.needs.graphics_family, &factory));
     return plugins;

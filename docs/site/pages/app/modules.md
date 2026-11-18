@@ -195,9 +195,9 @@ Each system has a setting that lists its drivers. The app turns the names into d
 | Driver type | Setting | Default | On failure |
 |---|---|---|---|
 | Graphics | `gpu.driver` | `any`, which is `d3d12` on Windows and `vulkan` elsewhere | `App::Init` fails. |
-| Audio | `apu.driver` | `sdl3` | The audio system logs a warning and runs with no driver. `App::Init` fails when the app requires audio. |
+| Audio | `apu.driver` | `sdl3` | The driver loads only when the app requires audio. The audio system logs a warning and runs with no driver. `App::Init` fails when the app requires audio. |
 | Input | `hid.drivers` | `sdl3` | The input system tries each name on its own and logs a warning for each one that fails. `App::Init` fails with "no input driver started, and the app needs input" when none started and the app requires input. |
-| UI | `ui.driver` | `sdl3` | The UI system logs a warning. `App::Init` fails when the app requires a UI. |
+| UI | `ui.driver` | `sdl3` | The driver loads only when the app requires a UI. The UI system logs a warning. `App::Init` fails when the app requires a UI. |
 
 ### Requirements
 

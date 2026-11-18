@@ -150,10 +150,20 @@ class AudioApp final : public rex::test::ObjectApp<rex::app::App> {
     providers.push_back(&ui_provider_);
   }
 
+  rex::AppSysRequirements GetRequirements() const override {
+    rex::AppSysRequirements needs;
+    needs.ui = windowed;
+    needs.audio = std::ranges::any_of(settings_, [](const auto& setting) {
+      return setting.first == "apu.driver" && setting.second != "none";
+    });
+    return needs;
+  }
+
   rex::Result<void> OnConfigure(rex::SettingsRegistry& registry) override {
     REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
-    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle,
-                                                      windowed ? "fake" : "none"));
+    if (windowed) {
+      REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "fake"));
+    }
     for (const auto& [name, value] : settings_) {
       REX_TRY_VOID(registry.SetText(rex::SettingLayer::kTitle, name, value));
     }

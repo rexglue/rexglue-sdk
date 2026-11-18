@@ -272,6 +272,12 @@ class UIApp final : public rex::test::ObjectApp<rex::app::App> {
   ui::IUIControl* GetUIControl() { return GetControlFactory().Get<ui::IUIControl>(); }
 
  protected:
+  AppSysRequirements GetRequirements() const override {
+    AppSysRequirements needs;
+    needs.ui = display_;
+    return needs;
+  }
+
   void OnModules(std::vector<std::string>& modules) override {
     if (without_input) {
       std::erase(modules, "rexhid");
@@ -288,8 +294,9 @@ class UIApp final : public rex::test::ObjectApp<rex::app::App> {
   Result<void> OnConfigure(SettingsRegistry& settings) override {
     REX_TRY_VOID(settings.SetText(SettingLayer::kTitle, "kernel.user_language", "0"));
     REX_TRY_VOID(root.SetText(SettingLayer::kTitle, folder_.path.string()));
-    REX_TRY_VOID(
-        GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, display_ ? "fake" : "none"));
+    if (display_) {
+      REX_TRY_VOID(GetUI().GetSettings().driver.SetText(SettingLayer::kTitle, "fake"));
+    }
     if (!input_drivers.empty()) {
       test_input::g_fake = {};
       REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(SettingLayer::kTitle, input_drivers));

@@ -82,6 +82,8 @@ class LaunchApp final : public rex::test::ObjectApp<rex::app::App> {
   rex::AppSysRequirements GetRequirements() const override {
     rex::AppSysRequirements needs;
     needs.graphics_family = rex::GraphicsFamily::kXenos;
+    needs.ui = true;
+    needs.audio = !audio_driver.empty();
     return needs;
   }
 

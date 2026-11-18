@@ -8,7 +8,7 @@ The UI system holds the window of the program. It opens the window, receives its
 
 The UI system draws nothing on its own and reaches the host through a UI driver, an `IUIDriver` in a module named after the driver, such as `rexui-sdl3`. A UI driver provides the native window, its events, the native message boxes and file dialogs, the list of displays, the host locales and the clipboard. It never draws. The graphics driver draws into the window, and ImGui draws the overlays.
 
-`ui.driver` selects the UI driver. The SDK includes the SDL3 driver, `sdl3`, which adds the `ui.sdl.video_driver` setting. The value `none` starts no UI driver.
+`ui.driver` selects the UI driver. The SDK includes the SDL3 driver, `sdl3`, which adds the `ui.sdl.video_driver` setting. The value `none` starts no UI driver. A driver loads only for a program that requires a UI. A program that does not require one runs headless and opens no window, whatever `ui.driver` names.
 
 A program states whether it needs a window in `AppSysRequirements::ui`. `TitleApp` needs one, because the game draws into it. When a program needs a window and none opens, startup fails with a `kConfig` error. So `ui.driver = none` works only in a program that needs no window.
 

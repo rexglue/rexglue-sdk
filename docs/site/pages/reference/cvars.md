@@ -89,7 +89,7 @@ Every program has these settings. Declared by [`AudioSettings`](../devices/audio
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `apu.driver` | `string` | `"sdl3"` | init only | Audio driver, `sdl3` or `none`. `none` plays no sound and fails in an app that requires audio, such as a `TitleApp`. |
+| `apu.driver` | `string` | `"sdl3"` | init only | Audio driver, `sdl3` or `none`. The driver loads only for an app that requires audio. `none` plays no sound and fails in an app that requires audio, such as a `TitleApp`. |
 | `apu.mute` | `bool` | `false` |  | Mute. |
 | `apu.mute_unfocused` | `bool` | `false` |  | Mute while the window has no focus. |
 | `apu.gain` | `f64` | `1.0` |  | Output gain. 0.0 to 4.0. |
@@ -323,7 +323,7 @@ Every program has these settings. Declared by [`UISettings`](../devices/ui.md).
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `ui.driver` | `string` | `"sdl3"` | init only | UI driver, `sdl3` or `none`. `none` runs headless and fails in an app that requires a UI, such as a `TitleApp`. |
+| `ui.driver` | `string` | `"sdl3"` | init only | UI driver, `sdl3` or `none`. The driver loads only for an app that requires a UI. `none` runs headless and fails in an app that requires a UI, such as a `TitleApp`. |
 | `ui.title` | `string` | `""` |  | Empty uses the program name and the build label. |
 | `ui.window_width` | `i32` | `0` |  | 0 uses the video mode width. 0 to 16384. |
 | `ui.window_height` | `i32` | `0` |  | 0 uses the video mode height. 0 to 16384. |

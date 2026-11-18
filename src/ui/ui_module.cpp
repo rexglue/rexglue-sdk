@@ -58,7 +58,7 @@ void UIModule::Disconnect() {
 
 Result<void> UIModule::Init() {
   rex::ui::IUIDriver* driver = nullptr;
-  if (needs_->ui || system_->GetSettings().driver.Get() != "none") {
+  if (needs_->ui) {
     auto selected =
         SelectDrivers(*factory_, DriverType::kUI, system_->GetSettings().driver.Get(), *context_);
     if (selected && !selected->empty()) {

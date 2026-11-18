@@ -142,7 +142,7 @@ REX_TEST_CASE("A callback queued to an exited thread is dropped quietly", "[base
         }));
         thread.reset();
       },
-      {"--apu.driver=none", "--hid.drivers=none", "--ui.driver=none"});
+      {"--hid.drivers=none"});
 }
 
 REX_TEST_CASE("NoThrow logs an exception from its step and returns", "[base][no_throw]") {

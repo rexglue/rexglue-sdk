@@ -121,6 +121,13 @@ class FixtureApp final : public rex::test::ObjectApp<codegen::ToolApp> {
   ui::IUIControl* GetUIControl() { return GetControlFactory().Get<ui::IUIControl>(); }
 
  protected:
+  AppSysRequirements GetRequirements() const override {
+    AppSysRequirements needs;
+    needs.audio = !audio_driver_.empty();
+    needs.ui = !ui_driver_.empty();
+    return needs;
+  }
+
   void OnRegisterModules(std::vector<IModule*>& providers) override {
     ObjectApp::OnRegisterModules(providers);
     providers.insert(providers.end(), providers_.begin(), providers_.end());

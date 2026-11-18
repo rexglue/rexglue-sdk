@@ -133,7 +133,6 @@ class InputApp final : public rex::test::ObjectApp<rex::app::App> {
   rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
     REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
     REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, names_));
-    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     return rex::Ok();
   }
 
