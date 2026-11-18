@@ -29,15 +29,15 @@ namespace {
 // the guest read buffer after they were read (content substitution without
 // touching the files on disk).
 struct XFilePostReadHook {
-  void (*fn)(const char* path, uint8_t* host_buffer, size_t bytes_read,
-             uint64_t byte_offset, uint32_t guest_address) = nullptr;
+  void (*fn)(const char* path, uint8_t* host_buffer, size_t bytes_read, uint64_t byte_offset,
+             uint32_t guest_address) = nullptr;
 };
 XFilePostReadHook g_xfile_post_read_hook;
 }  // namespace
 
-extern "C" void RexSetXFilePostReadHook(
-    void (*fn)(const char* path, uint8_t* host_buffer, size_t bytes_read,
-               uint64_t byte_offset, uint32_t guest_address)) {
+extern "C" void RexSetXFilePostReadHook(void (*fn)(const char* path, uint8_t* host_buffer,
+                                                   size_t bytes_read, uint64_t byte_offset,
+                                                   uint32_t guest_address)) {
   g_xfile_post_read_hook.fn = fn;
 }
 
@@ -189,10 +189,11 @@ X_STATUS XFile::ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_leng
             }
 
             if (g_xfile_post_read_hook.fn && bytes_read) {
-              uint8_t* host_buffer = buffer_physical_heap
-                  ? memory()->TranslatePhysical(
-                        buffer_physical_heap->GetPhysicalAddress(buffer_guest_address))
-                  : memory()->TranslateVirtual(buffer_guest_address);
+              uint8_t* host_buffer =
+                  buffer_physical_heap
+                      ? memory()->TranslatePhysical(
+                            buffer_physical_heap->GetPhysicalAddress(buffer_guest_address))
+                      : memory()->TranslateVirtual(buffer_guest_address);
               g_xfile_post_read_hook.fn(path().c_str(), host_buffer, bytes_read, byte_offset,
                                         buffer_guest_address);
             }
