@@ -37,6 +37,12 @@ Pull requests target the `development` branch of rexglue/rexglue-sdk and merge i
 
 An interface is an abstract class declared with `REX_DECLARE_INTERFACE(Name, version)` that an [SDK module](reference/glossary.md#sdk-module) serves to other modules (see [Declaring an Interface](app/modules.md#declaring-an-interface)). If you change a function of an interface, the order of its functions, or a type passed through it, raise the version number in the same commit. Never lower or reuse a number. The SDK provides only the newest version, so code built against the old one stops loading (see [Versions and Builds](app/modules.md#versions-and-builds)). A reviewer checks the interface headers of every pull request for such a change.
 
+## Benchmarks
+
+A test case tagged `[benchmark]` is a benchmark. ctest runs each of them once, with `--benchmark-samples 1 --benchmark-warmup-time 0`, set in `tests/unit/CMakeLists.txt`, so that a gate checks that the case runs. Those runs give no figures. Figures come only from running `unit_tests "[benchmark]"` (or one case by name) directly on a Release build with the sample count and warm up Catch2 sets by default, or more.
+
+A benchmark times one operation. Lookups, allocation and thread start stay outside the timed region, and each group has a baseline, an empty call through the same path, whose cost is read beside the result. A case that needs threads to overlap starts them once and releases them together through `ThreadPool` in `tests/unit/benchmark_pool.h`, which also reports how long they ran together. A report names the host, whether the run was pinned, the number of runs, and the median with the spread.
+
 ## Pull request checks
 
 A maintainer starts the pull request checks by hand, in one of two ways:

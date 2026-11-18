@@ -12,22 +12,36 @@
 
 #include <catch2/benchmark/catch_benchmark.hpp>
 
-#include <vector>
+#include <rex/ppc/recompiled_code.h>
 
+#include "benchmark_pool.h"
 #include "kernel_fixture.h"
+#include "kernel/dispatcher.h"
+#include "kernel/title_state.h"
 
 using rex::test::Caller;
 using rex::test::KernelFixture;
+using rex::test::ThreadPool;
 
 namespace {
 
 constexpr int kPairsPerThread = 5000;
+constexpr int kThreads = 4;
 
-void RaiseAndLower(Caller& c, int pairs) {
+/** An export that does nothing, for the baseline of the call path. */
+REX_FUNC(NoOp) {}
+
+/** Raises and lowers the IRQL pairs times with the exports found once by the caller. */
+void RaiseAndLower(Caller& c, const Caller::ResolvedExport& raise,
+                   const Caller::ResolvedExport& lower, int pairs) {
   for (int i = 0; i < pairs; ++i) {
-    const u32 old_irql = c.Kernel("KeRaiseIrqlToDpcLevel");
-    c.Kernel("KfLowerIrql", {old_irql});
+    lower(c, {raise(c)});
   }
+}
+
+bool HasQueuedDPCs(Caller& c) {
+  return static_cast<rex::kernel::Dispatcher&>(StateOf(c.GetRuntime()).GetDPCQueue())
+      .HasQueuedDPCs();
 }
 
 }  // namespace
@@ -35,25 +49,39 @@ void RaiseAndLower(Caller& c, int pairs) {
 REX_TEST_CASE("Raising and lowering the IRQL with an empty DPC queue", "[kernel][dpc][benchmark]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
+    CHECK_FALSE(HasQueuedDPCs(c));
+    const auto raise = Caller::Resolve("KeRaiseIrqlToDpcLevel");
+    const auto lower = Caller::Resolve("KfLowerIrql");
+    const auto nothing = Caller::Resolve(&NoOp);
+    BENCHMARK("baseline: 2 empty calls through the same path") {
+      nothing(c, {0});
+      return nothing(c, {0});
+    };
     BENCHMARK("raise and lower, 1 pair") {
-      RaiseAndLower(c, 1);
+      RaiseAndLower(c, raise, lower, 1);
       return 0;
     };
     BENCHMARK("raise and lower, 1 thread, 5000 pairs") {
-      RaiseAndLower(c, kPairsPerThread);
+      RaiseAndLower(c, raise, lower, kPairsPerThread);
+      return 0;
+    };
+    ThreadPool pool(
+        kThreads,
+        [&raise, &lower](int, Caller* thread) {
+          RaiseAndLower(*thread, raise, lower, kPairsPerThread);
+        },
+        &c);
+    ThreadPool idle(kThreads, [](int, Caller*) {}, &c);
+    BENCHMARK("baseline: 4 threads released and joined, no pairs") {
+      idle.Run();
       return 0;
     };
     BENCHMARK("raise and lower, 4 threads, 5000 pairs each") {
-      std::vector<u32> threads;
-      threads.reserve(4);
-      for (int i = 0; i < 4; ++i) {
-        threads.push_back(c.Spawn([](Caller& t) { RaiseAndLower(t, kPairsPerThread); }));
-      }
-      for (const u32 thread : threads) {
-        c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.AllocQuad(-100000000)});
-        c.Kernel("NtClose", {thread});
-      }
+      pool.Run();
       return 0;
     };
+    WARN("the 4 thread rounds ran together for " << pool.GetOverlap() * 100.0
+                                                 << " percent of the round");
+    CHECK_FALSE(HasQueuedDPCs(c));
   });
 }

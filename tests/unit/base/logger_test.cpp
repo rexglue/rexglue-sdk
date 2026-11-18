@@ -407,6 +407,9 @@ REX_TEST_CASE("log level check cost", "[base][logger][benchmark]") {
   Logger& logger = REX_LOGGER();
   REQUIRE(logger.AddCategories(rex::log::kLogTestTable));
   REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", "info"));
+  BENCHMARK("baseline: an empty body") {
+    return 0;
+  };
   BENCHMARK("a disabled REXLOG_CAT_TRACE") {
     REXLOG_CAT_TRACE(::rex::log::logtest, "trace {}", 1);
   };

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <rex/logging/logger.h>
+#include <rex/settings_registry.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/hook.h>
 #include <rex/ppc/recompiled_code.h>
@@ -28,6 +29,9 @@ REX_STUB_RETURN(StubLogTestReturn, 5);
 REX_STUB(StubLogTestPlain);
 
 namespace {
+
+/** A function that does nothing, for the baseline of the call path. */
+REX_FUNC(StubLogTestNoOp) {}
 
 using rex::test::RunInInit;
 
@@ -74,9 +78,18 @@ REX_TEST_CASE("a stub warns on its first call and stays quiet at the default lev
 
 REX_TEST_CASE("stub call cost", "[base][logging][benchmark]") {
   RunInInit([] {
+    REQUIRE(REX_SETTINGS().SetText("log.categories.cpu", "info"));
+    REQUIRE(REX_SETTINGS().SetText("log.categories.kernel", "info"));
     PPCContext ctx{};
+    // The first call of each stub warns and flushes the log, so it runs before the timed calls.
     StubLogTestReturn(ctx, nullptr);
+    StubLogTestPlain(ctx, nullptr);
     KernelSite();
+    void (*volatile no_op)(PPCContext&, u8*) = StubLogTestNoOp;
+    BENCHMARK("baseline: an empty function called through a pointer") {
+      no_op(ctx, nullptr);
+      return ctx.r3.u32;
+    };
     BENCHMARK("REX_STUB_RETURN after the first call, logging at Info") {
       StubLogTestReturn(ctx, nullptr);
       return ctx.r3.u32;

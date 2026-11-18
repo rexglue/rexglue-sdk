@@ -150,6 +150,26 @@ u32 Caller::Call(kernel::ExportModule module, std::string_view name,
     AddFailure("no export named " + std::string(name));
     return 0xFFFFFFFF;
   }
+  return Run(entry->fn, args);
+}
+
+Caller::ResolvedExport Caller::Resolve(std::string_view name) {
+  const auto* entry = FindExport(kernel::ExportModule::kXboxkrnl, name);
+  if (!entry || !entry->fn) {
+    AddFailure("no export named " + std::string(name));
+    return ResolvedExport(nullptr);
+  }
+  return ResolvedExport(entry->fn);
+}
+
+Caller::ResolvedExport Caller::Resolve(::PPCFunc* fn) {
+  return ResolvedExport(fn);
+}
+
+u32 Caller::Run(::PPCFunc* fn, std::initializer_list<u64> args) {
+  if (!fn) {
+    return 0xFFFFFFFF;
+  }
   PPCRegister* registers[] = {&ctx_.r3, &ctx_.r4, &ctx_.r5, &ctx_.r6,
                               &ctx_.r7, &ctx_.r8, &ctx_.r9, &ctx_.r10};
   const u64 saved_r1 = ctx_.r1.u64;
@@ -165,7 +185,7 @@ u32 Caller::Call(kernel::ExportModule module, std::string_view name,
     }
     ++index;
   }
-  entry->fn(ctx_, base_);
+  fn(ctx_, base_);
   ctx_.r1.u64 = saved_r1;
   return ctx_.r3.u32;
 }

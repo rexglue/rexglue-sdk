@@ -16,6 +16,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -1231,6 +1232,10 @@ REX_TEST_CASE("settings: thread model costs", "[base][settings][benchmark]") {
   RunInInit([] {
     AudioOwner audio;
     REQUIRE(REX_SETTINGS().Register(audio));
+    rex::u64 baseline = 0;
+    BENCHMARK("harness baseline, a no-op") {
+      return ++baseline;
+    };
     BENCHMARK("SetText with the same value") {
       return audio.count.SetText(SettingLayer::kRuntime, "3").has_value();
     };
@@ -1247,8 +1252,21 @@ REX_TEST_CASE("settings: thread model costs", "[base][settings][benchmark]") {
     BENCHMARK("Get of a string") {
       return audio.mode.Get();
     };
-    auto slow = audio.flag.Bind(
-        [](const bool&) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); });
+    // The slow watch spins to a deadline, since a sleep can take a whole timer tick on Windows. It
+    // counts its calls by the thread that makes them.
+    const std::thread::id bench_thread = std::this_thread::get_id();
+    std::atomic<int> bench_calls{0};
+    std::atomic<int> writer_calls{0};
+    std::atomic<int> active{0};
+    auto slow = audio.flag.Bind([&](const bool&) {
+      ++active;
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+      while (std::chrono::steady_clock::now() < deadline) {}
+      // Counted before it stops being active, so a reader that reads active and then the count
+      // sees the call in one of them.
+      ++(std::this_thread::get_id() == bench_thread ? bench_calls : writer_calls);
+      --active;
+    });
     std::atomic<int> refused{0};
     std::latch looping(1);
     std::jthread writer([&audio, &refused, &looping](const std::stop_token& stop) {
@@ -1260,17 +1278,34 @@ REX_TEST_CASE("settings: thread model costs", "[base][settings][benchmark]") {
       }
     });
     looping.wait();
+    // Starts while a slow call of the writer is in progress, so at least one is in progress during
+    // the case: it ends during the case or is still active after it.
+    while (active.load() == 0) {
+      std::this_thread::yield();
+    }
+    const int writer_before_other = writer_calls.load();
     BENCHMARK("SetText of another setting behind a 1 ms watch on another thread") {
       ten = !ten;
       return audio.count.SetText(SettingLayer::kRuntime, ten ? "10" : "11").has_value();
     };
+    const int active_after_other = active.load();
+    const int slow_during_other = writer_calls.load() - writer_before_other + active_after_other;
+    REQUIRE(slow_during_other > 0);
+    const int bench_before_same = bench_calls.load();
+    const int writer_before_same = writer_calls.load();
     bool flag = false;
     BENCHMARK("SetText of the same setting behind a 1 ms watch on another thread") {
       flag = !flag;
       return audio.flag.SetText(SettingLayer::kRuntime, flag ? "true" : "false").has_value();
     };
+    const int bench_same = bench_calls.load() - bench_before_same;
+    const int writer_same = writer_calls.load() - writer_before_same;
     writer.request_stop();
     writer.join();
+    std::printf(
+        "slow watch calls: %d of the writer in progress during the other setting case; in the same "
+        "setting case %d by the benchmark thread and %d by the writer\n",
+        slow_during_other, bench_same, writer_same);
     REQUIRE(calls > 0);
     REQUIRE(refused == 0);
   });

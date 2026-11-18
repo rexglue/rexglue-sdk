@@ -3,6 +3,7 @@ set(CMAKE_FOLDER "tests/unit")
 add_executable(
   unit_tests
   test_memory.cpp
+  benchmark_pool.cpp
   crash_child_runner.cpp
   hid/xam_input_error_test.cpp
   apu/audio_system_test.cpp
@@ -625,6 +626,8 @@ elseif (REXGLUE_ENABLE_SANITIZERS)
 endif ()
 # SDL_ASSERT=always_ignore makes SDL print an assert and go on instead of waiting on a dialog. A run
 # with no display reaches an SDL assert on Windows.
+# A [benchmark] case runs once here, with one sample and no warm up, to check that it runs. Its
+# figures come only from a direct run of unit_tests, see Benchmarks in the contributing page.
 catch_discover_tests(
   unit_tests
   DISCOVERY_MODE

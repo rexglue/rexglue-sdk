@@ -23,6 +23,8 @@
 
 #include <rex/memory/host.h>
 
+#include "benchmark_pool.h"
+
 using rex::memory::GetHostStats;
 using rex::memory::HostAlloc;
 using rex::memory::HostFree;
@@ -385,36 +387,56 @@ REX_TEST_CASE("A block freed by another thread is counted live until then", "[ba
 
 namespace {
 
-void PairsOnThreads(size_t threads, size_t pairs) {
-  std::latch start(static_cast<std::ptrdiff_t>(threads));
-  std::vector<std::jthread> workers;
-  workers.reserve(threads);
-  for (size_t t = 0; t < threads; ++t) {
-    workers.emplace_back([&start, pairs] {
-      start.arrive_and_wait();
-      for (size_t i = 0; i < pairs; ++i) {
-        void* block = HostAlloc(64);
-        Catch::Benchmark::keep_memory(block);
-        HostFree(block);
-      }
-    });
+constexpr size_t kPairs = 100000;
+
+/** Allocates and frees 64 bytes kPairs times with the host allocator. */
+void HostPairs() {
+  for (size_t i = 0; i < kPairs; ++i) {
+    void* block = HostAlloc(64);
+    Catch::Benchmark::keep_memory(block);
+    HostFree(block);
+  }
+}
+
+/** Allocates and frees 64 bytes kPairs times with malloc and free. */
+void MallocPairs() {
+  for (size_t i = 0; i < kPairs; ++i) {
+    void* block = std::malloc(64);
+    Catch::Benchmark::keep_memory(block);
+    std::free(block);
   }
 }
 
 }  // namespace
 
 REX_TEST_CASE("host allocator cost", "[base][memory][benchmark]") {
+  using rex::test::ThreadPool;
+  // Every case runs on threads started before the timed rounds and released together, so the
+  // host allocator and malloc are timed the same way and the thread start is in none of them.
+  ThreadPool idle_one(1, [](int, rex::test::Caller*) {});
+  ThreadPool idle_eight(8, [](int, rex::test::Caller*) {});
+  ThreadPool host_one(1, [](int, rex::test::Caller*) { HostPairs(); });
+  ThreadPool host_eight(8, [](int, rex::test::Caller*) { HostPairs(); });
+  ThreadPool malloc_one(1, [](int, rex::test::Caller*) { MallocPairs(); });
+  ThreadPool malloc_eight(8, [](int, rex::test::Caller*) { MallocPairs(); });
+  BENCHMARK("baseline: 1 thread released and joined, 0 pairs") {
+    idle_one.Run();
+  };
+  BENCHMARK("baseline: 8 threads released and joined, 0 pairs") {
+    idle_eight.Run();
+  };
   BENCHMARK("HostAlloc and HostFree of 64 bytes, 1 thread, 100000 pairs") {
-    PairsOnThreads(1, 100000);
+    host_one.Run();
   };
   BENCHMARK("HostAlloc and HostFree of 64 bytes, 8 threads, 100000 pairs each") {
-    PairsOnThreads(8, 100000);
+    host_eight.Run();
   };
+  WARN("8 thread HostAlloc rounds ran together for " << host_eight.GetOverlap() * 100.0
+                                                     << " percent of the round");
   BENCHMARK("malloc and free of 64 bytes, 1 thread, 100000 pairs") {
-    for (size_t i = 0; i < 100000; ++i) {
-      void* block = std::malloc(64);
-      Catch::Benchmark::keep_memory(block);
-      std::free(block);
-    }
+    malloc_one.Run();
+  };
+  BENCHMARK("malloc and free of 64 bytes, 8 threads, 100000 pairs each") {
+    malloc_eight.Run();
   };
 }

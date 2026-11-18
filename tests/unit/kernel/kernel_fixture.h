@@ -55,6 +55,41 @@ class Caller {
   u32 Kernel(std::string_view name, std::initializer_list<u64> args = {});
 
   /**
+   * A kernel export found once, for a timed loop that must not search the export table, which
+   * Kernel does on every call. It belongs to no thread: each call names the Caller it runs on.
+   */
+  class ResolvedExport {
+   public:
+    /**
+     * Calls the export on a caller's thread as Kernel does.
+     *
+     * @param caller The caller the export runs on.
+     * @param args Arguments placed in r3 to r10.
+     * @return The value of r3.
+     */
+    u32 operator()(Caller& caller, std::initializer_list<u64> args = {}) const {
+      return caller.Run(fn_, args);
+    }
+
+   private:
+    friend class Caller;
+    explicit ResolvedExport(::PPCFunc* fn) : fn_(fn) {}
+
+    ::PPCFunc* fn_;
+  };
+
+  /**
+   * Finds a kernel export by name once. A name that is not exported fails the test, and calling
+   * the result returns 0xFFFFFFFF.
+   */
+  static ResolvedExport Resolve(std::string_view name);
+
+  /**
+   * Wraps a function as an export, so a baseline runs the same call path with no work in it.
+   */
+  static ResolvedExport Resolve(::PPCFunc* fn);
+
+  /**
    * Calls an XAM export by name.
    *
    * @param args Arguments placed in r3 to r10.
@@ -117,6 +152,7 @@ class Caller {
 
  private:
   u32 Call(kernel::ExportModule module, std::string_view name, std::initializer_list<u64> args);
+  u32 Run(::PPCFunc* fn, std::initializer_list<u64> args);
 
   PPCContext& ctx_;
   u8* base_;

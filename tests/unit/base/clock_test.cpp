@@ -16,10 +16,13 @@
 #include <algorithm>
 #include <atomic>
 #include <latch>
+#include <memory>
 #include <thread>
 #include <vector>
 
 #include <rex/chrono.h>
+
+#include "benchmark_pool.h"
 
 namespace {
 
@@ -187,42 +190,62 @@ REX_TEST_CASE("The guest time scalar scales durations and the tick ratio", "[bas
 
 namespace {
 
-void QueryOnThreads(size_t threads, size_t calls, rex::u64 (*query)()) {
-  std::latch start(static_cast<std::ptrdiff_t>(threads));
-  std::vector<std::jthread> workers;
-  workers.reserve(threads);
-  for (size_t t = 0; t < threads; ++t) {
-    workers.emplace_back([&start, calls, query] {
-      start.arrive_and_wait();
-      rex::u64 sum = 0;
-      for (size_t i = 0; i < calls; ++i) {
-        sum += query();
-      }
-      Catch::Benchmark::keep_memory(&sum);
-    });
+/** Calls query calls times on the thread and keeps the sum. */
+void Query(size_t calls, rex::u64 (*query)()) {
+  rex::u64 sum = 0;
+  for (size_t i = 0; i < calls; ++i) {
+    sum += query();
   }
+  Catch::Benchmark::keep_memory(&sum);
+}
+
+rex::u64 NoQuery() {
+  return 1;
 }
 
 }  // namespace
 
 REX_TEST_CASE("guest clock cost", "[base][clock][benchmark]") {
+  using rex::test::Caller;
+  using rex::test::ThreadPool;
+  constexpr size_t kCalls = 20000;
+  // The threads start before the timed rounds and are released together for each one.
+  const auto pool = [](int count, rex::u64 (*query)()) {
+    return std::make_unique<ThreadPool>(count, [query](int, Caller*) { Query(kCalls, query); });
+  };
+  auto none_one = pool(1, NoQuery);
+  auto none_eight = pool(8, NoQuery);
+  auto time_one = pool(1, [] { return rex::Clock::QueryGuestSystemTime(); });
+  auto time_eight = pool(8, [] { return rex::Clock::QueryGuestSystemTime(); });
+  auto tick_one = pool(1, [] { return rex::Clock::QueryGuestTickCount(); });
+  auto tick_eight = pool(8, [] { return rex::Clock::QueryGuestTickCount(); });
+  auto frequency_eight = pool(8, [] { return rex::Clock::GetGuestTickFrequency(); });
+  auto scale_eight =
+      pool(8, [] { return static_cast<rex::u64>(rex::Clock::ScaleGuestDurationMillis(16)); });
+  BENCHMARK("baseline: a no-op query, 1 thread, 20000 calls") {
+    none_one->Run();
+  };
+  BENCHMARK("baseline: a no-op query, 8 threads, 20000 calls each") {
+    none_eight->Run();
+  };
   BENCHMARK("QueryGuestSystemTime, 1 thread, 20000 calls") {
-    QueryOnThreads(1, 20000, [] { return rex::Clock::QueryGuestSystemTime(); });
+    time_one->Run();
   };
   BENCHMARK("QueryGuestSystemTime, 8 threads, 20000 calls each") {
-    QueryOnThreads(8, 20000, [] { return rex::Clock::QueryGuestSystemTime(); });
+    time_eight->Run();
   };
   BENCHMARK("QueryGuestTickCount, 1 thread, 20000 calls") {
-    QueryOnThreads(1, 20000, [] { return rex::Clock::QueryGuestTickCount(); });
+    tick_one->Run();
   };
   BENCHMARK("QueryGuestTickCount, 8 threads, 20000 calls each") {
-    QueryOnThreads(8, 20000, [] { return rex::Clock::QueryGuestTickCount(); });
+    tick_eight->Run();
   };
   BENCHMARK("GetGuestTickFrequency, 8 threads, 20000 calls each") {
-    QueryOnThreads(8, 20000, [] { return rex::Clock::GetGuestTickFrequency(); });
+    frequency_eight->Run();
   };
   BENCHMARK("ScaleGuestDurationMillis, 8 threads, 20000 calls each") {
-    QueryOnThreads(8, 20000,
-                   [] { return static_cast<rex::u64>(rex::Clock::ScaleGuestDurationMillis(16)); });
+    scale_eight->Run();
   };
+  WARN("8 thread QueryGuestSystemTime rounds ran together for " << time_eight->GetOverlap() * 100.0
+                                                                << " percent of the round");
 }

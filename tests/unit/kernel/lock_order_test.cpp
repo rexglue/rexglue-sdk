@@ -151,6 +151,9 @@ REX_TEST_CASE("ranked mutex cost", "[kernel][lock_order][benchmark]") {
   RankedMutex ranked(lock_rank::kObjectState);
   RankedSharedMutex shared(lock_rank::kObjectTable);
   std::mutex plain;
+  BENCHMARK("baseline: an empty body") {
+    return 0;
+  };
   BENCHMARK("RankedMutex lock and unlock") {
     ranked.lock();
     ranked.unlock();

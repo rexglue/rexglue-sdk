@@ -18,6 +18,7 @@
 #include <rex/kernel/heap.h>
 #include <rex/kernel/object/object.h>
 #include <rex/kernel/object/object_block.h>
+#include <rex/ppc/recompiled_code.h>
 
 #include "kernel/kernel_fixture.h"
 #include "kernel/kernel_pool.h"
@@ -236,12 +237,26 @@ REX_TEST_CASE("A named object block takes the console size and a thread block mo
   CHECK_FALSE(memory.GetPool().Owns(block - 8));
 }
 
+namespace {
+
+/** An export that does nothing, for the baseline of the call path. */
+REX_FUNC(NoOp) {}
+
+}  // namespace
+
 REX_TEST_CASE("Pool allocate and free of 64 bytes", "[kernel][pool][benchmark]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
+    const auto allocate = Caller::Resolve("ExAllocatePoolTypeWithTag");
+    const auto release = Caller::Resolve("ExFreePool");
+    const auto nothing = Caller::Resolve(&NoOp);
+    BENCHMARK("baseline: 2 empty calls through the same path") {
+      nothing(c, {64, kTag, kTitlePool});
+      return nothing(c, {0});
+    };
     BENCHMARK("allocate and free 64 bytes") {
-      const u32 block = c.Kernel("ExAllocatePoolTypeWithTag", {64, kTag, kTitlePool});
-      c.Kernel("ExFreePool", {block});
+      const u32 block = allocate(c, {64, kTag, kTitlePool});
+      release(c, {block});
       return block;
     };
   });
@@ -251,13 +266,25 @@ REX_TEST_CASE("Pool allocate 1000 live blocks of 64 bytes and free them",
               "[kernel][pool][benchmark]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
+    const auto allocate = Caller::Resolve("ExAllocatePoolTypeWithTag");
+    const auto release = Caller::Resolve("ExFreePool");
+    const auto nothing = Caller::Resolve(&NoOp);
     std::vector<u32> blocks(1000);
-    BENCHMARK("allocate 1000 blocks, then free 1000 blocks") {
+    BENCHMARK("baseline: 2000 empty calls through the same path") {
       for (u32& block : blocks) {
-        block = c.Kernel("ExAllocatePoolTypeWithTag", {64, kTag, kTitlePool});
+        block = nothing(c, {64, kTag, kTitlePool});
       }
       for (const u32 block : blocks) {
-        c.Kernel("ExFreePool", {block});
+        nothing(c, {block});
+      }
+      return blocks.back();
+    };
+    BENCHMARK("allocate 1000 blocks, then free 1000 blocks") {
+      for (u32& block : blocks) {
+        block = allocate(c, {64, kTag, kTitlePool});
+      }
+      for (const u32 block : blocks) {
+        release(c, {block});
       }
       return blocks.back();
     };
