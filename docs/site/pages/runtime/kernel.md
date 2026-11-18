@@ -52,7 +52,7 @@ Every console synchronization object starts with an `X_DISPATCH_HEADER`, a small
 | `kThread` | A `ThreadRef`, which refers to a `KernelThread` in the thread registry. |
 | `kXAM` | An `IXAMObject` from `object/xam_object.h`, such as an enumerator. |
 
-The console keeps a guest block for each object, an `X_OBJECT_HEADER` followed by the object body. `AllocObjectBlock` allocates this block from the system heap or from a workspace. XAM enumerator objects take their blocks from the [title workspace](#title-workspace). `NtCreateEvent`, `NtCreateSemaphore`, `NtCreateMutant` and `NtCreateTimer` allocate this block, so `ObReferenceObjectByHandle` returns the body address for their handles. The body of every synchronization object, an object whose guest block starts with an `X_DISPATCH_HEADER`, starts with an empty wait list, as the console writes it.
+The console keeps a guest block for each object, an `X_OBJECT_HEADER` followed by the object body. `AllocObjectBlock` allocates this block from the kernel pool, from a workspace, or from the system heap for an object type that the console has no type for. A pool block counts against the [title budget](memory.md#title-budget) by the pool rule. XAM enumerator objects take their blocks from the [title workspace](#title-workspace). `NtCreateEvent`, `NtCreateSemaphore`, `NtCreateMutant` and `NtCreateTimer` allocate this block, so `ObReferenceObjectByHandle` returns the body address for their handles. The body of every synchronization object, an object whose guest block starts with an `X_DISPATCH_HEADER`, starts with an empty wait list, as the console writes it.
 
 ## Threads
 

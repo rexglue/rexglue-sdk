@@ -255,14 +255,18 @@ Result<X_HANDLE> ObjectTable::AddFile(std::unique_ptr<filesystem::IFile> file, b
 
 Result<X_HANDLE> ObjectTable::AddWithBlock(std::unique_ptr<KernelObject> object, u32 attributes_ptr,
                                            u32 block_size) {
+  const std::string name = NameFromAttributes(memory_, attributes_ptr);
   ObjectBlock block;
   if (block_size) {
-    block = AllocObjectBlock(memory_, block_size, GetTypeAddress(object->GetType()));
+    const size_t separator = name.rfind('\\');
+    const u32 name_length = static_cast<u32>(
+        separator == std::string::npos ? name.size() : name.size() - separator - 1);
+    block = AllocObjectBlock(memory_, block_size, GetTypeAddress(object->GetType()), nullptr,
+                             ObjectBlockOptions{.name_length = name_length});
     if (!block.address) {
       return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
     }
   }
-  const std::string name = NameFromAttributes(memory_, attributes_ptr);
   Result<X_HANDLE> handle = Add(std::move(object), AddOptions{name, block});
   if (!handle && block.address) {
     FreeObjectBlock(memory_, block.address);

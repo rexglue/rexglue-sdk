@@ -44,6 +44,7 @@
 #include "kernel/argument_check.h"
 #include "kernel/object_lookup.h"
 #include "kernel/title_state.h"
+#include "kernel/kernel_pool.h"
 #include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
@@ -1244,7 +1245,7 @@ void NtQueueApcThread_entry(u32 thread_handle, MappedVoid apc_routine,
     return;
   }
 
-  u32 apc_ptr = mem->SystemHeapAlloc(XAPC::kSize);
+  u32 apc_ptr = mem->GetPool().Allocate(XAPC::kSize, 0x70617845, 0);
   if (!apc_ptr) {
     return;
   }
@@ -1255,7 +1256,7 @@ void NtQueueApcThread_entry(u32 thread_handle, MappedVoid apc_routine,
 
   if (!KeInsertQueueApc(*mem, apc, arg1.GetGuestAddress(), arg2.GetGuestAddress(), 0,
                         ThreadState::Get()->GetContext())) {
-    mem->SystemHeapFree(apc_ptr);
+    mem->GetPool().Free(apc_ptr);
     return;
   }
   // The callback is a wakeup hint and alertable wait handling delivers the APCs.

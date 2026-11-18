@@ -96,6 +96,7 @@ set(REXKERNEL_SOURCES
     thread_registry.cpp
     ppc_hooks.cpp
     guest_stack.cpp
+    kernel_pool.cpp
     process.cpp
     dispatcher.cpp
     notification_broadcaster.cpp

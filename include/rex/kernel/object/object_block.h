@@ -24,6 +24,20 @@ struct ObjectBlock {
   WorkspaceHeap* workspace = nullptr; /**< Null for the system heap. */
 };
 
+/** What AllocObjectBlock needs beyond the size and the type. */
+struct ObjectBlockOptions {
+  /**
+   * 0x1000 takes the block from the title pool, 0x2000 from the system pool, and 0 from the pool of
+   * the calling thread's process, like the object attributes of ObCreateObject.
+   */
+  u32 attributes = 0;
+  /** Bytes of the last path component of the object name, 0 for an unnamed object. */
+  u32 name_length = 0;
+  /** True for a thread object, which the console moves up by 8 bytes when it is not page aligned.
+   */
+  bool thread = false;
+};
+
 enum class ObjectBlockHeap : u8 {
   kSystem,
   kWorkspace,
@@ -34,11 +48,17 @@ enum class ObjectBlockHeap : u8 {
  *
  * @param type_address The guest address of the exported type object of the object, such as
  *        ExEventObjectType, 0 for an object that has none.
- * @param workspace The workspace for the header and body, null for the system heap.
- * @return The block with owned set, address 0 when the allocation failed.
+ * @param workspace The workspace for the header and body, null for the kernel pool or the system
+ *        heap.
+ * @param options The pool choice, the name length and the thread shift.
+ * @return The block with owned set, address 0 when the allocation failed. A block of an object
+ *         type with a type object comes from the kernel pool with the tag of the type, and the
+ *         title pool counts its pages against the title budget. A block without a type object
+ *         comes from the system heap and no budget counts it.
  */
 REX_KERNEL_API ObjectBlock AllocObjectBlock(kernel::GuestAddressSpace* memory, u32 size,
-                                            u32 type_address, WorkspaceHeap* workspace = nullptr);
+                                            u32 type_address, WorkspaceHeap* workspace = nullptr,
+                                            const ObjectBlockOptions& options = {});
 
 /**
  * Frees a block made by AllocObjectBlock. The type object it points at is not freed.

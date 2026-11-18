@@ -29,6 +29,7 @@
 #include "kernel/argument_check.h"
 #include "kernel/guest_stack.h"
 #include "kernel/title_state.h"
+#include "kernel/kernel_pool.h"
 #include "kernel/kernel.h"
 
 namespace rex::kernel::xboxkrnl {
@@ -605,30 +606,11 @@ u32 MmMapIoSpace_entry(u32 unk0, MappedVoid src_address, u32 size, u32 flags) {
   return src_address.GetGuestAddress();
 }
 
-struct X_POOL_ALLOC_HEADER {
-  u8 unk_0;
-  u8 unk_1;
-  u8 unk_2;
-  u8 unk_3;
-  be_u32 tag;
-};
-REX_STATIC_ASSERT_SIZE(X_POOL_ALLOC_HEADER, 8);
-
-u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero) {
-  if (size <= 0xFD8) {
-    u32 adjusted_size = size + sizeof(X_POOL_ALLOC_HEADER);
-    u32 addr = kernel::GetCurrentState().GetAddressSpace()->SystemHeapAlloc(adjusted_size, 64);
-    if (!addr)
-      return 0;
-    auto header =
-        kernel::GetCurrentState().GetAddressSpace()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
-    header->unk_2 = 170;
-    header->tag = tag;
-    return addr + sizeof(X_POOL_ALLOC_HEADER);
-  } else {
-    return kernel::GetCurrentState().GetAddressSpace()->SystemHeapAlloc(size,
-                                                                        kernel::kPageSize4KiB);
-  }
+// Pool type 0 takes the pool of the calling thread's process, 1 the title pool and 2 the system
+// pool. Types 3 and 4 use debug pools that exist only with devkit memory, which the SDK does not
+// have, so they return 0 like a retail console, and so does any other type.
+u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, u32 pool_type) {
+  return kernel::GetCurrentState().GetAddressSpace()->GetPool().Allocate(size, tag, pool_type);
 }
 
 u32 ExAllocatePool_entry(u32 size) {
@@ -637,12 +619,9 @@ u32 ExAllocatePool_entry(u32 size) {
 }
 
 void ExFreePool_entry(MappedVoid base_address) {
-  u32 addr = base_address.GetGuestAddress();
-  if ((addr & (kernel::kPageSize4KiB - 1)) == 0) {
-    // A page aligned address is a large allocation without a pool header.
-    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(addr);
-  } else {
-    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(addr - sizeof(X_POOL_ALLOC_HEADER));
+  const u32 addr = base_address.GetGuestAddress();
+  if (!kernel::GetCurrentState().GetAddressSpace()->GetPool().Free(addr)) {
+    REXKRNL_WARN("ExFreePool of {:08X} that is not a pool block", addr);
   }
 }
 
@@ -693,8 +672,8 @@ u32 MmDeleteKernelStack_entry(MappedVoid stack_base, MappedVoid stack_end) {
   return X_STATUS_SUCCESS;
 }
 
-u32 ExAllocatePoolWithTag_entry(u32 numbytes, u32 tag, u32 zero) {
-  return ExAllocatePoolTypeWithTag_entry(numbytes, tag, zero);
+u32 ExAllocatePoolWithTag_entry(u32 numbytes, u32 tag) {
+  return ExAllocatePoolTypeWithTag_entry(numbytes, tag, 0);
 }
 
 u32 MmIsAddressValid_entry(u32 address) {

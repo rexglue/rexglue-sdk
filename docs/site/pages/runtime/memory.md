@@ -52,7 +52,7 @@ The two virtual heaps keep their top range for system allocations, which the sys
 | `v00000000` | Below `0x30000000` | `0x30000000` to `0x3FFFFFFF` |
 | `v40000000` | Below `0x70000000` | `0x70000000` to `0x7EFFFFFF` |
 
-`GuestAddressSpace::SystemHeapAlloc` allocates zeroed memory in the system range of `v00000000`. When the caller asks for physical memory it allocates from `ve0000000`, which has no system range.
+`GuestAddressSpace::SystemHeapAlloc` allocates zeroed memory in the system range of `v00000000`. When the caller passes the physical flag it allocates from `ve0000000`, which has no system range. The heap commits whole 4 KiB pages, and the call counts them against the [title budget](#title-budget) only when the caller passes `kSystemHeapTitle`.
 
 Guest thread stacks are in `0x70000000` to `0x7F000000`, each with a no access guard page at its low end.
 
@@ -94,6 +94,9 @@ The runtime commits the first 256 KiB of `v80000000` and writes the value `0x2A6
 - It defaults to 480 and refuses a value above 512.
 - 0 removes the cap.
 - Allocations with the flag `kMemoryAllocationTitle` count against it.
+- The kernel pool, which `ExAllocatePoolTypeWithTag`, `ExAllocatePoolWithTag`, `ExAllocatePool` and the kernel object blocks take memory from, has a title and a system descriptor like the console. A block of up to `0xFD8` bytes comes from a 4 KiB pool page that holds blocks of 32 byte units, and the title descriptor counts one page against the budget when it takes a page and returns it when every block of the page is free. A larger block takes whole pages. Pool type 0 takes the title descriptor when the calling thread belongs to the title process and the system descriptor otherwise, 1 takes the title descriptor and 2 the system descriptor, and every other type returns 0.
+- A kernel object takes its block from the pool by the pool rule, following the calling thread. A thread object and its kernel stack follow the creation flag instead: the system descriptor with flag 2, the title descriptor without it. The block of an unnamed object is the body plus 16 bytes, a named object adds the last component of its name and 16 more bytes, and a thread object adds the TLS size of the title process. The block of an object that the console has no type for, the per thread PCR and scratch block and the internal APCs stay in the uncounted system heap.
+- `GuestMemory::Allocate` counts `GuestHeap::kTitle` and `GuestHeap::kPhysical`, so memory that host code such as a hook allocates for the game counts like memory that the game commits. It does not count `GuestHeap::kSystem`.
 
 ## Access Violation Handler
 
@@ -124,8 +127,8 @@ See `GuestMemory` in the API reference for the calls.
 
 | Heap | Purpose |
 |---|---|
-| `GuestHeap::kTitle` (default) | Allocates virtual memory in 64 KiB pages without counting against the [title budget](#title-budget). Needs an alignment of at least 4096. |
-| `GuestHeap::kSystem` | Allocates zeroed memory from the system range. |
+| `GuestHeap::kTitle` (default) | Allocates virtual memory in 64 KiB pages and counts it against the [title budget](#title-budget). Needs an alignment of at least 4096. |
+| `GuestHeap::kSystem` | Allocates zeroed memory from the system range, which the title budget does not count. |
 | `GuestHeap::kPhysical` | Allocates physical memory in 64 KiB pages at `0xA0000000` and counts it against the title budget. |
 
 - `Free` needs the first address of an allocation.

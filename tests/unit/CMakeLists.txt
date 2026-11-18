@@ -17,6 +17,7 @@ add_executable(
   kernel/heap_allocation_test.cpp
   kernel/access_violation_test.cpp
   kernel/memory_budget_test.cpp
+  kernel/kernel_pool_test.cpp
   base/byte_swap_test.cpp
   base/mapped_memory_test.cpp
   base/file_mapping_test.cpp
@@ -627,6 +628,11 @@ catch_discover_tests(
   TEST_PREFIX
   "unit."
   ADD_TAGS_AS_LABELS
+  EXTRA_ARGS
+  --benchmark-samples
+  1
+  --benchmark-warmup-time
+  0
   PROPERTIES
   TIMEOUT
   60

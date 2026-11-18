@@ -43,6 +43,7 @@
 #include "kernel/delay_observer.h"
 #include "kernel/thread_registry.h"
 #include "kernel/guest_stack.h"
+#include "kernel/kernel_pool.h"
 #include "kernel/settings_access.h"
 #include "kernel/title_state.h"
 
@@ -51,6 +52,13 @@ namespace rex::kernel {
 namespace {
 
 thread_local std::unique_ptr<rex::platform::Thread> t_exiting_thread;
+
+/** Frees a KAPC from the kernel pool, or from the system heap for an APC that EnqueueAPC made. */
+void FreeAPC(GuestAddressSpace* memory, u32 address) {
+  if (!memory->GetPool().Free(address)) {
+    memory->SystemHeapFree(address);
+  }
+}
 
 }  // namespace
 
@@ -360,7 +368,8 @@ X_STATUS KernelThread::Create() {
   const u32 stack_size =
       ResolveGuestStackSize(creation_params_.stack_size, guest_default, kMinimumThreadStackSize);
   Result<GuestStack> stack =
-      AllocateGuestStack(*GetAddressSpace(), stack_size, tls_size, guest_thread_);
+      AllocateGuestStack(*GetAddressSpace(), stack_size, tls_size,
+                         guest_thread_ && !(creation_params_.creation_flags & 2));
   if (!stack) {
     return X_STATUS_NO_MEMORY;
   }
@@ -380,6 +389,8 @@ X_STATUS KernelThread::Create() {
   }
   tls_slot_count_.store(slot_count, std::memory_order_release);
 
+  // The console has no per thread PCR, its KPCR is per processor, so no pool or budget count
+  // matches this block.
   pcr_address_ = GetAddressSpace()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
     REXSYS_WARN("Unable to allocate thread state block");
@@ -790,7 +801,7 @@ void KernelThread::DeliverAPCs() {
                      static_cast<u32>(apc->kernel_routine));
       }
     } else {
-      mem->SystemHeapFree(apc_ptr);
+      FreeAPC(mem, apc_ptr);
     }
 
     u32 normal_routine = args->normal_routine;
@@ -852,7 +863,7 @@ void KernelThread::RundownAPCs() {
       }
 
       if (needs_freeing) {
-        mem->SystemHeapFree(apc_ptr);
+        FreeAPC(mem, apc_ptr);
       }
 
       old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock);

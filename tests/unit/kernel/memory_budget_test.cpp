@@ -21,6 +21,7 @@
 #include <rex/kernel/runtime_settings.h>
 #include <rex/kernel/module.h>
 #include <rex/kernel/heap.h>
+#include <rex/kernel/guest_memory.h>
 
 #include "base/xex_builder.h"
 #include "kernel/kernel_fixture.h"
@@ -80,6 +81,28 @@ REX_TEST_CASE("A title commit counts its pages and a release returns them", "[ke
   CHECK(memory.GetTitlePages() == before + 16);
   REQUIRE(VirtualHeap4K(memory)->Release(address));
   CHECK(memory.GetTitlePages() == before);
+}
+
+REX_TEST_CASE("A kTitle allocation counts its pages, a system allocation does not",
+              "[kernel][budget]") {
+  KernelFixture fixture;
+  rex::kernel::GuestMemory& guest = fixture.GetRuntime().GetGuestMemory();
+  GuestAddressSpace& memory = *StateOf(fixture.GetRuntime()).GetAddressSpace();
+  const u32 before = memory.GetTitlePages();
+  auto title = guest.Allocate(0x10000, 0x10000, rex::kernel::GuestProtect::kReadWrite);
+  REQUIRE(title.has_value());
+  CHECK(memory.GetTitlePages() == before + 16);
+  auto system = guest.Allocate(0x1000, 0x1000, rex::kernel::GuestProtect::kReadWrite,
+                               rex::kernel::GuestHeap::kSystem);
+  REQUIRE(system.has_value());
+  CHECK(memory.GetTitlePages() == before + 16);
+  REQUIRE(guest.Free(*system).has_value());
+  REQUIRE(guest.Free(*title).has_value());
+  CHECK(memory.GetTitlePages() == before);
+
+  const u32 filler = RoomAfter(memory, 8);
+  CHECK_FALSE(guest.Allocate(0x10000, 0x10000, rex::kernel::GuestProtect::kReadWrite).has_value());
+  ReleaseFiller(memory, filler);
 }
 
 REX_TEST_CASE("Commits without the title flag and system heap blocks are not counted",

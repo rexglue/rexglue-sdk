@@ -29,6 +29,7 @@
 #include <rex/kernel/guest_allocator.h>
 #include <rex/platform/sync.h>
 #include <rex/kernel/object/object_table.h>
+#include "kernel/kernel_pool.h"
 
 #include "kernel/thread_wait.h"
 
@@ -193,10 +194,28 @@ std::string NameFromAttributes(kernel::GuestAddressSpace* memory, u32 obj_attrib
 }
 
 ObjectBlock AllocObjectBlock(kernel::GuestAddressSpace* memory, u32 size, u32 type_address,
-                             WorkspaceHeap* workspace) {
-  const u32 total_size = size + sizeof(X_OBJECT_HEADER);
-  const u32 mem = workspace ? workspace->Allocate(total_size, false).value_or(0)
-                            : memory->SystemHeapAlloc(total_size);
+                             WorkspaceHeap* workspace, const ObjectBlockOptions& options) {
+  // A named object takes the name after the 4 byte aligned body and 16 more header bytes, as the
+  // console does. The SDK layout keeps the body after the first header, and the rest is unused.
+  const u32 header_size = sizeof(X_OBJECT_HEADER);
+  const u32 total_size = options.name_length
+                             ? ((size + 3) & ~3u) + options.name_length + 2 * header_size
+                             : size + header_size;
+  const u32 thread_shift = options.thread ? 8 : 0;
+  u32 mem = 0;
+  if (workspace) {
+    mem = workspace->Allocate(total_size, false).value_or(0);
+  } else if (type_address != 0) {
+    const u32 pool_type = (options.attributes & 0x1000) ? 1 : (options.attributes & 0x2000) ? 2 : 0;
+    const u32 tag =
+        static_cast<u32>(memory->TranslateVirtual<const X_OBJECT_TYPE*>(type_address)->pool_tag);
+    mem = memory->GetPool().Allocate(total_size + thread_shift, tag, pool_type);
+    if (mem && thread_shift && (mem & 0xFFF) != 0) {
+      mem += thread_shift;
+    }
+  } else {
+    mem = memory->SystemHeapAlloc(total_size);
+  }
   if (!mem) {
     return {};
   }
@@ -213,7 +232,7 @@ void FreeObjectBlock(kernel::GuestAddressSpace* memory, u32 address, WorkspaceHe
   const u32 block = address - sizeof(X_OBJECT_HEADER);
   if (workspace) {
     workspace->Free(block);
-  } else {
+  } else if (!memory->GetPool().Free(block % 32 == 16 ? block - 8 : block)) {
     memory->SystemHeapFree(block);
   }
 }

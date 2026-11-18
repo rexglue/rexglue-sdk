@@ -68,16 +68,16 @@ Result<void> kernel::TitleState::CreateSubsystems() {
   auto globals = memory_->TranslateVirtual<KernelGuestGlobals*>(kernel_guest_globals_);
   std::memset(globals, 0, sizeof(KernelGuestGlobals));
 
-  globals->ExThreadObjectType.pool_tag = memory::make_fourcc('T', 'h', 'r', 'd');
-  globals->ExEventObjectType.pool_tag = memory::make_fourcc('E', 'v', 'n', 't');
-  globals->ExMutantObjectType.pool_tag = memory::make_fourcc('M', 'u', 't', 'a');
-  globals->ExSemaphoreObjectType.pool_tag = memory::make_fourcc('S', 'e', 'm', 'a');
-  globals->ExTimerObjectType.pool_tag = memory::make_fourcc('T', 'i', 'm', 'r');
-  globals->IoCompletionObjectType.pool_tag = memory::make_fourcc('I', 'o', 'C', 'p');
-  globals->IoDeviceObjectType.pool_tag = memory::make_fourcc('I', 'o', 'D', 'v');
-  globals->IoFileObjectType.pool_tag = memory::make_fourcc('I', 'o', 'F', 'l');
-  globals->ObDirectoryObjectType.pool_tag = memory::make_fourcc('O', 'b', 'D', 'r');
-  globals->ObSymbolicLinkObjectType.pool_tag = memory::make_fourcc('O', 'b', 'S', 'l');
+  globals->ExThreadObjectType.pool_tag = 0x65726854;
+  globals->ExEventObjectType.pool_tag = 0x76657645;
+  globals->ExMutantObjectType.pool_tag = 0x6174754D;
+  globals->ExSemaphoreObjectType.pool_tag = 0x616D6553;
+  globals->ExTimerObjectType.pool_tag = 0x656D6954;
+  globals->IoCompletionObjectType.pool_tag = 0x706D6F43;
+  globals->IoDeviceObjectType.pool_tag = 0x69766544;
+  globals->IoFileObjectType.pool_tag = 0x656C6946;
+  globals->ObDirectoryObjectType.pool_tag = 0x65726944;
+  globals->ObSymbolicLinkObjectType.pool_tag = 0x626D7953;
 
   auto* usbd_event = reinterpret_cast<X_DISPATCH_HEADER*>(&globals->UsbdBootEnumerationDoneEvent);
   // Dispatch header type 0 is a notification event and type 1 is a synchronization event.

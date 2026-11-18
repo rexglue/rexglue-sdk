@@ -29,6 +29,7 @@
 #include <rex/platform/thread.h>
 #include "kernel/stub_log.h"
 #include "kernel/title_state.h"
+#include "kernel/kernel_pool.h"
 #include "kernel/kernel.h"
 #include <rex/kernel/types/xex.h>
 
@@ -46,6 +47,8 @@ constexpr u8 kLatin1Division = 0xF7;
 constexpr u8 kCaseBit = 0x20;
 constexpr u8 kUnmappableChar = '?';
 constexpr u32 kMaxStringBytes = 0xFFFF;
+/** The pool tag value that the console Rtl string routines pass to ExAllocatePoolWithTag. */
+constexpr u32 kStringTag = 0x67727453;
 constexpr u32 kDosNewHeaderOffset = 0x3C;
 constexpr u32 kMaxNtHeaderOffset = 0x10000000;
 
@@ -155,7 +158,7 @@ void RtlInitAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination, MappedString 
 
 void RtlFreeAnsiString_entry(GuestPtrT<X_ANSI_STRING> string) {
   if (string->pointer) {
-    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetAddressSpace()->GetPool().Free(string->pointer);
   }
 
   string->Reset();
@@ -173,7 +176,7 @@ void RtlInitUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination, MappedW
 
 void RtlFreeUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> string) {
   if (string->pointer) {
-    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetAddressSpace()->GetPool().Free(string->pointer);
   }
 
   string->Reset();
@@ -220,7 +223,7 @@ u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
   u32 buffer_ptr = 0;
   if (alloc_dest) {
     capacity = count + 1;
-    buffer_ptr = memory->SystemHeapAlloc(capacity);
+    buffer_ptr = memory->GetPool().Allocate(capacity, kStringTag, 0);
     if (!buffer_ptr) {
       return X_STATUS_NO_MEMORY;
     }
@@ -257,7 +260,7 @@ u32 RtlAnsiStringToUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination_p
   }
   u32 buffer_ptr = 0;
   if (alloc_dest) {
-    buffer_ptr = memory->SystemHeapAlloc(needed);
+    buffer_ptr = memory->GetPool().Allocate(needed, kStringTag, 0);
     if (!buffer_ptr) {
       return X_STATUS_NO_MEMORY;
     }

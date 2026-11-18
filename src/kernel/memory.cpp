@@ -32,6 +32,7 @@
 #include <rex/kernel/guest_allocator.h>
 #include <rex/ppc/mmio.h>
 #include <rex/kernel/object/kernel_thread.h>
+#include "kernel/kernel_pool.h"
 #include <rex/platform/process.h>
 #include <rex/platform/thread.h>
 #include <rex/kernel/title_runtime.h>
@@ -180,7 +181,7 @@ void StorePageEntry(PageEntry& slot, PageEntry entry) {
 
 }  // namespace
 
-GuestAddressSpace::GuestAddressSpace() {
+GuestAddressSpace::GuestAddressSpace() : pool_(std::make_unique<KernelPool>(*this)) {
   system_page_size_ = static_cast<u32>(rex::memory::GetPageSize());
   system_allocation_granularity_ = static_cast<u32>(rex::memory::GetAllocationGranularity());
   REX_ASSERT(g_active_memory.load() == nullptr);
@@ -222,6 +223,10 @@ GuestAddressSpace::~GuestAddressSpace() {
 }
 
 bool GuestAddressSpace::Initialize() {
+  if (!pool_->IsValid()) {
+    REXSYS_ERROR("Unable to allocate the kernel pool page table.");
+    return false;
+  }
   if ((system_page_size_ > 0x1000) != rex::memory::detail::kPhysicalOffsetInCode) {
     REXSYS_ERROR(
         "The host page size is 0x{:X}, which does not match how this build applies the 0xE0000000 "
@@ -662,7 +667,9 @@ u32 GuestAddressSpace::SystemHeapAlloc(u32 size, u32 alignment, u32 system_heap_
   auto heap = LookupHeapByType(is_physical, 4096);
   u32 address;
   if (!heap->AllocSystemHeap(
-          size, alignment, kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit,
+          size, alignment,
+          kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit |
+              ((system_heap_flags & kernel::kSystemHeapTitle) ? kernel::kMemoryAllocationTitle : 0),
           kernel::kMemoryProtectRead | kernel::kMemoryProtectWrite, false, &address)) {
     return 0;
   }
