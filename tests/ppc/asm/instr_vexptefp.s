@@ -4,3 +4,10 @@ test_vexptefp_1:
   blr
   #_ REGISTER_OUT v3 [40000000, 40400000, 40800000, 40A00000]
   #_ REGISTER_OUT v4 [40800000, 41000000, 41800000, 42000000]
+
+test_vexptefp_range:
+  # -200, 128, -inf, +inf: below 2^-126 flushes to 0, 128 and up is +inf
+  #_ REGISTER_IN v3 [C3480000, 43000000, FF800000, 7F800000]
+  vexptefp v4, v3
+  blr
+  #_ REGISTER_OUT v4 [00000000, 7F800000, 00000000, 7F800000]

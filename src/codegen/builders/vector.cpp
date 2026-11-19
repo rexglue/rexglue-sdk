@@ -142,31 +142,43 @@ bool build_vrsqrtefp(BuilderContext& ctx) {
 
 bool build_vexptefp(BuilderContext& ctx) {
   // SIMD exp2 estimate (~12-bit precision, matching PPC vexptefp spec)
-  // Algorithm: exp2(x) = 2^n * poly(f), where n = floor(x), f = x - n
+  // Algorithm: exp2(x) = 2^n * poly(f), where n = floor(x), f = x - n.
+  // 2^n is built from exponent bits, so n is clamped to the normal range
+  // [-126, 127] and out-of-range inputs are patched afterwards: results below
+  // 2^-126 flush to 0 (x < -126, including -inf), x >= 128 gives +inf (the
+  // unclamped bits gave garbage or ~0 there, and +-inf gave NaN), and NaN
+  // inputs pass through.
   auto vD = ctx.v(ctx.insn.operands[0]);
   auto vA = ctx.v(ctx.insn.operands[1]);
   ctx.emit_set_flush_mode(true);
-  ctx.println("\t{{");
-  ctx.println("\t\tsimde__m128 x = simde_mm_load_ps({}.f32);", vA);
+  ctx.println("	{{");
+  ctx.println("		simde__m128 x = simde_mm_load_ps({}.f32);", vA);
   ctx.println(
-      "\t\tsimde__m128 n = simde_mm_round_ps(x, "
+      "		simde__m128 n = simde_mm_round_ps(x, "
       "SIMDE_MM_FROUND_TO_NEG_INF | SIMDE_MM_FROUND_NO_EXC);");
-  ctx.println("\t\tsimde__m128 f = simde_mm_sub_ps(x, n);");
-  // 4th-order minimax polynomial for 2^f, f in [0,1), ~12-bit accuracy
-  ctx.println("\t\tsimde__m128 p = simde_mm_set1_ps(1.8775767e-3f);");
-  ctx.println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(8.9893397e-3f));");
-  ctx.println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(5.5826318e-2f));");
-  ctx.println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(2.4015361e-1f));");
-  ctx.println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(6.9315308e-1f));");
-  ctx.println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(1.0f));");
-  // Construct 2^n by adding n to the IEEE 754 exponent bias and shifting into place
-  ctx.println("\t\tsimde__m128i exp_bits = simde_mm_slli_epi32(");
-  ctx.println("\t\t\tsimde_mm_add_epi32(simde_mm_cvttps_epi32(n), simde_mm_set1_epi32(127)), 23);");
+  ctx.println("		simde__m128 f = simde_mm_sub_ps(x, n);");
   ctx.println(
-      "\t\tsimde_mm_store_ps({}.f32, "
-      "simde_mm_mul_ps(p, simde_mm_castsi128_ps(exp_bits)));",
-      vD);
-  ctx.println("\t}}");
+      "		n = simde_mm_max_ps(simde_mm_min_ps(n, simde_mm_set1_ps(127.0f)), "
+      "simde_mm_set1_ps(-126.0f));");
+  // 4th-order minimax polynomial for 2^f, f in [0,1), ~12-bit accuracy
+  ctx.println("		simde__m128 p = simde_mm_set1_ps(1.8775767e-3f);");
+  ctx.println("		p = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(8.9893397e-3f));");
+  ctx.println("		p = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(5.5826318e-2f));");
+  ctx.println("		p = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(2.4015361e-1f));");
+  ctx.println("		p = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(6.9315308e-1f));");
+  ctx.println("		p = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(1.0f));");
+  // Construct 2^n by adding n to the IEEE 754 exponent bias and shifting into place
+  ctx.println("		simde__m128i exp_bits = simde_mm_slli_epi32(");
+  ctx.println("			simde_mm_add_epi32(simde_mm_cvttps_epi32(n), simde_mm_set1_epi32(127)), 23);");
+  ctx.println("		simde__m128 r = simde_mm_mul_ps(p, simde_mm_castsi128_ps(exp_bits));");
+  ctx.println(
+      "		r = simde_mm_andnot_ps(simde_mm_cmplt_ps(x, simde_mm_set1_ps(-126.0f)), r);");
+  ctx.println(
+      "		r = simde_mm_blendv_ps(r, simde_mm_set1_ps(__builtin_inff()), "
+      "simde_mm_cmpge_ps(x, simde_mm_set1_ps(128.0f)));");
+  ctx.println("		r = simde_mm_blendv_ps(r, x, simde_mm_cmpunord_ps(x, x));");
+  ctx.println("		simde_mm_store_ps({}.f32, r);", vD);
+  ctx.println("	}}");
   return true;
 }
 
