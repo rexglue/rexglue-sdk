@@ -87,6 +87,40 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
   }
   ImGui::End();
 
+  // Where the frame time goes, when the frame recorder is on (the
+  // frame_recorder cvar). Means over the last 60 recorded frames.
+  if (rex::perf::FrameRecorderLevel() > 0) {
+    const auto now = std::chrono::steady_clock::now();
+    if (now - recorder_summary_time_ >= std::chrono::milliseconds(500)) {
+      recorder_summary_time_ = now;
+      rex_frame_recorder_summary(60, &recorder_summary_);
+    }
+    ImGui::SetNextWindowPos(ImVec2(10, 80), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowBgAlpha(0.5f);
+    if (ImGui::Begin("Frame time##recorder", nullptr,
+                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+      const rex::perf::FrameSummary& summary = recorder_summary_;
+      if (!summary.frames) {
+        ImGui::TextUnformatted("Waiting for frames");
+      } else {
+        ImGui::Text("%.2f ms mean, %.2f ms max", summary.frame_ms_mean, summary.frame_ms_max);
+        for (uint32_t zone = 0; zone < rex::perf::kFrameZoneCount; ++zone) {
+          if (summary.zone_calls_mean[zone] <= 0.0f)
+            continue;
+          ImGui::TextUnformatted(rex_frame_zone_name(zone));
+          ImGui::SameLine(170.0f);
+          ImGui::Text("%6.2f ms", summary.zone_ms_mean[zone]);
+          ImGui::SameLine(250.0f);
+          ImGui::Text("x%.0f", summary.zone_calls_mean[zone]);
+        }
+        ImGui::TextUnformatted("other");
+        ImGui::SameLine(170.0f);
+        ImGui::Text("%6.2f ms", summary.other_ms_mean);
+      }
+    }
+    ImGui::End();
+  }
+
   // Build stamp watermark -- centered near bottom of screen
   auto text_size = ImGui::CalcTextSize(REXGLUE_BUILD_STAMP);
   float padding = ImGui::GetStyle().WindowPadding.x * 2.0f;

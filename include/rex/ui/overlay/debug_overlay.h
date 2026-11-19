@@ -10,8 +10,10 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
+#include <rex/perf/frame_recorder.h>
 #include <rex/ui/imgui_dialog.h>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 
@@ -37,6 +39,9 @@ class DebugOverlayDialog : public ImGuiDialog {
 
  private:
   FrameStatsProvider stats_provider_;
+  // Frame recorder rows, refreshed twice a second while the recorder is on.
+  rex::perf::FrameSummary recorder_summary_{};
+  std::chrono::steady_clock::time_point recorder_summary_time_{};
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
   static constexpr size_t kFrameHistorySize = 120;
   std::array<float, kFrameHistorySize> frame_time_history_{};

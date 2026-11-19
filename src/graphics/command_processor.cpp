@@ -23,6 +23,7 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
+#include <rex/perf/frame_recorder.h>
 #include <rex/chrono/clock.h>
 #include <rex/graphics/command_processor.h>
 #include <rex/graphics/flags.h>
@@ -44,6 +45,13 @@ REXCVAR_DEFINE_INT32(frame_limit, 0, "GPU",
                      "Host guest-frame swap limit in FPS (0 = unlimited). "
                      "VSync and guest timing may impose a lower rate.")
     .range(0, 240)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_INT32(frame_recorder, 0, "GPU",
+                     "Per-frame time breakdown kept in memory (rex/perf/frame_recorder.h): "
+                     "0 = off, 1 = frame sections, 2 = also the sections inside each draw, "
+                     "which costs more.")
+    .range(0, 2)
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
@@ -350,6 +358,7 @@ void CommandProcessor::WorkerThreadMain() {
     uint32_t write_ptr_index = write_ptr_index_.load();
     if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
       SCOPE_profile_cpu_i("gpu", "rex::graphics::CommandProcessor::Stall");
+      REX_FRAME_ZONE(kIdle);
       // We've run out of commands to execute.
       // We spin here waiting for new ones, as the overhead of waiting on our
       // event is too high.
@@ -1076,7 +1085,10 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
-  frame_limiter_.Pace(REXCVAR_GET(frame_limit));
+  {
+    REX_FRAME_ZONE(kLimiter);
+    frame_limiter_.Pace(REXCVAR_GET(frame_limit));
+  }
 
   // The small guest FPS readout also works in Release, where the full
   // profiling macros compile out. Shared runtime counters feed the F3 UI.
@@ -1102,6 +1114,11 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
   reader->AdvanceRead((count - 4) * sizeof(uint32_t));
 
   IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
+
+  // One frame recorder row per guest swap, ending once the swap is issued.
+  // The level follows the cvar here, so it can change while the game runs.
+  rex_frame_recorder_end_frame();
+  rex_frame_recorder_set_level(static_cast<uint32_t>(std::max(0, REXCVAR_GET(frame_recorder))));
 
   ++counter_;
   return true;
@@ -1203,11 +1220,14 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
           diag_last_log = now_log;
         }
         PrepareForWait();
-        if (!REXCVAR_GET(vsync)) {
-          // User wants it fast and dangerous.
-          rex::thread::MaybeYield();
-        } else {
-          rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
+        {
+          REX_FRAME_ZONE(kRegWait);
+          if (!REXCVAR_GET(vsync)) {
+            // User wants it fast and dangerous.
+            rex::thread::MaybeYield();
+          } else {
+            rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
+          }
         }
         rex::thread::SyncMemory();
         ReturnFromWait();

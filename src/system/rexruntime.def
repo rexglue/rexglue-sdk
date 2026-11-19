@@ -26,6 +26,15 @@ EXPORTS
 ?AddInputListener@Window@ui@rex@@QEAAXPEAVWindowInputListener@23@_K@Z
 ?AddLine@ImDrawList@@QEAAXAEBUImVec2@@0IM@Z
 ?AddListener@Window@ui@rex@@QEAAXPEAVWindowListener@23@@Z
+rex_frame_recorder_dump
+rex_frame_recorder_end_frame
+rex_frame_recorder_level_ptr
+rex_frame_recorder_reset
+rex_frame_recorder_set_level
+rex_frame_recorder_summary
+rex_frame_zone_begin
+rex_frame_zone_end
+rex_frame_zone_name
 rex_get_swap_color_grade
 rex_set_swap_color_grade
 ?AddRect@ImDrawList@@QEAAXAEBUImVec2@@0IMHM@Z

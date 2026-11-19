@@ -19,6 +19,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/perf/frame_recorder.h>
 #include <rex/ui/d3d12/d3d12_presenter.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
 #include <rex/ui/d3d12/d3d12_util.h>
@@ -555,6 +556,7 @@ void D3D12Presenter::PaintContext::DestroySwapChain() {
 }
 
 Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawers) {
+  REX_FRAME_ZONE(kPresent);
   // Begin the command list with the command allocator not currently potentially
   // used on the GPU.
   UINT64 current_paint_submission = paint_context_.paint_submission_tracker.GetCurrentSubmission();
