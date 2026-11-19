@@ -391,6 +391,19 @@ class VulkanCommandProcessor : public CommandProcessor {
     uint32_t size[2];
     float size_inv[2];
   };
+  // Swap colour grade (rex_set_swap_color_grade), in place after the gamma
+  // pass, compute presentation path only.
+  struct SwapColorGradeConstants {
+    uint32_t size[2];
+    float contrast;
+    float gamma;
+    float row_r[4];
+    float row_g[4];
+    float row_b[4];
+    float shadows[4];
+    float highlights[4];
+    float fade[4];
+  };
 
   // Framebuffer for the current presenter's guest output image revision, and
   // its usage tracking.
@@ -705,6 +718,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkPipeline swap_apply_gamma_compute_pwl_fxaa_luma_rb_swap_pipeline_ = VK_NULL_HANDLE;
   VkPipeline swap_fxaa_pipeline_ = VK_NULL_HANDLE;
   VkPipeline swap_fxaa_extreme_pipeline_ = VK_NULL_HANDLE;
+  VkPipelineLayout swap_color_grade_pipeline_layout_ = VK_NULL_HANDLE;
+  // For the guest output image (rgb10_a2) and the FXAA source image (rgba16f).
+  VkPipeline swap_color_grade_pipeline_ = VK_NULL_HANDLE;
+  VkPipeline swap_color_grade_fxaa_source_pipeline_ = VK_NULL_HANDLE;
   VkPipelineLayout resolve_downscale_pipeline_layout_ = VK_NULL_HANDLE;
   VkPipeline resolve_downscale_pipeline_ = VK_NULL_HANDLE;
   VkBuffer resolve_downscale_buffer_ = VK_NULL_HANDLE;

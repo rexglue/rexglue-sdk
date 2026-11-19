@@ -42,6 +42,7 @@
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/types.h>
 #include <rex/memory/utils.h>
+#include <rex/ui/color_grade.h>
 #include <rex/ui/flags.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
@@ -193,6 +194,48 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
         /* .generalConstantMatrixVectorIndexing = */ 1,
     },
 };
+
+// Swap colour grade, the same as color_grade_cs.hlsl on Direct3D 12. The image
+// format is substituted for FORMAT.
+constexpr std::string_view kSwapColorGradeComputeSource = R"(#version 450
+layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
+layout(push_constant) uniform XeColorGradeConstants {
+  uvec2 size;
+  float contrast;   // power curve around the pivot (shadows.w)
+  float gamma;      // applied after contrast (> 1 darkens mid tones)
+  vec4 row_r;       // colour matrix rows: rgb weights, w = offset
+  vec4 row_g;
+  vec4 row_b;
+  vec4 shadows;     // rgb offset weighted towards the shadows, w = contrast pivot
+  vec4 highlights;  // rgb offset weighted towards the highlights
+  vec4 fade;        // rgb colour, w = amount (lifted / faded blacks)
+} xe_grade;
+layout(set = 0, binding = 0, FORMAT) uniform image2D xe_grade_dest;
+void main() {
+  uvec2 pixel = gl_GlobalInvocationID.xy;
+  if (any(greaterThanEqual(pixel, xe_grade.size))) {
+    return;
+  }
+  vec4 texel = imageLoad(xe_grade_dest, ivec2(pixel));
+  vec3 c = texel.rgb;
+  c = vec3(dot(xe_grade.row_r.rgb, c) + xe_grade.row_r.w,
+           dot(xe_grade.row_g.rgb, c) + xe_grade.row_g.w,
+           dot(xe_grade.row_b.rgb, c) + xe_grade.row_b.w);
+  c = clamp(c, 0.0, 1.0);
+  // Contrast that keeps black, white and the pivot fixed.
+  float p = clamp(xe_grade.shadows.w, 0.05, 0.95);
+  vec3 lo = p * pow(max(c / p, vec3(1.0e-6)), vec3(xe_grade.contrast));
+  vec3 hi = 1.0 - (1.0 - p) * pow(max((1.0 - c) / (1.0 - p), vec3(1.0e-6)),
+                                  vec3(xe_grade.contrast));
+  c = mix(hi, lo, lessThan(c, vec3(p)));
+  c = pow(max(c, vec3(1.0e-5)), vec3(xe_grade.gamma));
+  float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float shadow = (1.0 - luma) * (1.0 - luma);
+  c += xe_grade.shadows.rgb * shadow + xe_grade.highlights.rgb * (luma * luma);
+  c = mix(c, xe_grade.fade.rgb, xe_grade.fade.w);
+  imageStore(xe_grade_dest, ivec2(pixel), vec4(clamp(c, 0.0, 1.0), texel.a));
+}
+)";
 
 const char* GetSwapFxaaComputeSource(bool extreme_quality) {
   return extreme_quality ? R"(#version 450
@@ -1874,6 +1917,45 @@ bool VulkanCommandProcessor::SetupContext() {
     }
   }
 
+  // Swap colour grade (optional: without it, the grade is just skipped).
+  {
+    VkPipelineLayoutCreateInfo color_grade_layout_create_info = {};
+    color_grade_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    color_grade_layout_create_info.setLayoutCount = 1;
+    color_grade_layout_create_info.pSetLayouts = &swap_descriptor_set_layout_storage_image_;
+    VkPushConstantRange color_grade_push_constant_range = {};
+    color_grade_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    color_grade_push_constant_range.offset = 0;
+    color_grade_push_constant_range.size = sizeof(SwapColorGradeConstants);
+    color_grade_layout_create_info.pushConstantRangeCount = 1;
+    color_grade_layout_create_info.pPushConstantRanges = &color_grade_push_constant_range;
+    if (dfn.vkCreatePipelineLayout(device, &color_grade_layout_create_info, nullptr,
+                                   &swap_color_grade_pipeline_layout_) == VK_SUCCESS) {
+      auto create_color_grade_pipeline = [&](std::string_view format, VkPipeline& pipeline_out) {
+        std::string source(kSwapColorGradeComputeSource);
+        source.replace(source.find("FORMAT"), 6, format);
+        std::vector<uint32_t> spirv;
+        std::string compile_error;
+        if (!CompileGlslToSpirv(VK_SHADER_STAGE_COMPUTE_BIT, source, spirv, compile_error)) {
+          REXGPU_WARN("Failed to compile the swap colour grade shader to SPIR-V: {}",
+                      compile_error);
+          return;
+        }
+        pipeline_out = ui::vulkan::util::CreateComputePipeline(
+            vulkan_device, swap_color_grade_pipeline_layout_, spirv.data(),
+            sizeof(uint32_t) * spirv.size());
+      };
+      create_color_grade_pipeline("rgb10_a2", swap_color_grade_pipeline_);
+      create_color_grade_pipeline("rgba16f", swap_color_grade_fxaa_source_pipeline_);
+    }
+    if (swap_color_grade_pipeline_ == VK_NULL_HANDLE) {
+      REXGPU_WARN("Swap colour grade unavailable (pipeline creation failed)");
+    } else {
+      REXGPU_INFO("Swap colour grade ready (FXAA source: {})",
+                  swap_color_grade_fxaa_source_pipeline_ != VK_NULL_HANDLE);
+    }
+  }
+
   VkPipelineLayoutCreateInfo resolve_downscale_layout_create_info = {};
   resolve_downscale_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   VkDescriptorSetLayout resolve_downscale_set_layout =
@@ -1966,6 +2048,11 @@ void VulkanCommandProcessor::ShutdownContext() {
   }
   DestroySwapFxaaSourceImage();
 
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_color_grade_fxaa_source_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, swap_color_grade_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                         swap_color_grade_pipeline_layout_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                          swap_fxaa_extreme_pipeline_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, swap_fxaa_pipeline_);
@@ -2693,6 +2780,49 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
           uint32_t group_count_x = (guest_output_width + 15) / 16;
           uint32_t group_count_y = (guest_output_height + 7) / 8;
           deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
+
+          // Swap colour grade (photo mode filters), in place on what the gamma
+          // pass just wrote, so FXAA, presentation and screenshots all see it.
+          // Only on this compute path (the same as on Direct3D 12, where it
+          // needs typed UAV loads).
+          rex::ui::SwapColorGrade grade;
+          VkPipeline color_grade_pipeline =
+              use_fxaa ? swap_color_grade_fxaa_source_pipeline_ : swap_color_grade_pipeline_;
+          if (color_grade_pipeline != VK_NULL_HANDLE && rex_get_swap_color_grade(&grade)) {
+            PushImageMemoryBarrier(use_fxaa ? swap_fxaa_source_image_ : vulkan_context.image(),
+                                   guest_output_subresource_range,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+                                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                                   VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
+            SubmitBarriers(true);
+            // The destination storage descriptor already points at that image.
+            deferred_command_buffer_.CmdVkBindDescriptorSets(
+                VK_PIPELINE_BIND_POINT_COMPUTE, swap_color_grade_pipeline_layout_, 0, 1,
+                &swap_descriptor_destination_storage, 0, nullptr);
+            SwapColorGradeConstants grade_constants;
+            grade_constants.size[0] = guest_output_width;
+            grade_constants.size[1] = guest_output_height;
+            grade_constants.contrast = grade.contrast;
+            grade_constants.gamma = grade.gamma;
+            std::memcpy(grade_constants.row_r, grade.row_r, sizeof(grade.row_r));
+            std::memcpy(grade_constants.row_g, grade.row_g, sizeof(grade.row_g));
+            std::memcpy(grade_constants.row_b, grade.row_b, sizeof(grade.row_b));
+            std::memcpy(grade_constants.shadows, grade.shadows, sizeof(grade.shadows));
+            std::memcpy(grade_constants.highlights, grade.highlights, sizeof(grade.highlights));
+            std::memcpy(grade_constants.fade, grade.fade, sizeof(grade.fade));
+            deferred_command_buffer_.CmdVkPushConstants(swap_color_grade_pipeline_layout_,
+                                                        VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                                                        sizeof(grade_constants), &grade_constants);
+            BindExternalComputePipeline(color_grade_pipeline);
+            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
+            static bool grade_logged = false;
+            if (!grade_logged) {
+              grade_logged = true;
+              REXGPU_INFO("Swap colour grade applied ({}x{}, {})", guest_output_width,
+                          guest_output_height, use_fxaa ? "FXAA source" : "guest output");
+            }
+          }
 
           if (use_fxaa) {
             // Make the FXAA source image readable and bind a separate
