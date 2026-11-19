@@ -89,7 +89,7 @@ function(rexglue_configure_target target_name)
             INSTALL_RPATH "$ORIGIN"
             BUILD_WITH_INSTALL_RPATH ON
         )
-    elseif(APPLE)
+    elseif(APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         # macOS analogue of $ORIGIN: resolve @rpath dylibs (librexruntime,
         # libTracyClient, ...) next to the executable. Pairs with the runtime
         # dylib staging below so the app is self-contained.
@@ -109,7 +109,7 @@ function(rexglue_configure_target target_name)
             COMMAND_EXPAND_LISTS
             VERBATIM
         )
-    elseif(APPLE)
+    elseif(APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         # macOS: $<TARGET_RUNTIME_DLLS> does not resolve imported dylibs, so
         # stage the shared runtime libraries explicitly next to the executable
         # (paired with the @executable_path rpath above). Everything else the
@@ -166,7 +166,7 @@ function(rexglue_configure_target target_name)
         unset(_plugin_target)
     endforeach()
 
-    if(APPLE AND REXGLUE_USE_VULKAN)
+    if(APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND REXGLUE_USE_VULKAN)
         _rexglue_stage_macos_vulkan_runtime(${target_name})
     endif()
 endfunction()

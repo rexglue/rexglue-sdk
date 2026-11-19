@@ -21,6 +21,9 @@
 #include <rex/platform.h>
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_sdl.h>
+#if REX_PLATFORM_IOS
+#include <SDL3/SDL_main.h>
+#endif
 
 #if REX_PLATFORM_WIN32
 #ifndef WIN32_LEAN_AND_MEAN

@@ -4,21 +4,29 @@ set_target_properties(rexui PROPERTIES EXPORT_NAME ui)
 set_target_properties(rexinput PROPERTIES EXPORT_NAME input)
 set_target_properties(rexaudio PROPERTIES EXPORT_NAME audio)
 set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
-set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
+if(TARGET rexcodegen)
+    set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
+endif()
 
 set(REXGLUE_INSTALL_TARGETS
     rexruntime
-    rexgpu-xenos
+)
+if(TARGET rexgpu-xenos)
+    list(APPEND REXGLUE_INSTALL_TARGETS rexgpu-xenos)
+endif()
+list(APPEND REXGLUE_INSTALL_TARGETS
     disruptorplus renderdoc simde tomlplusplus
     aes128 mspack o1heap disasm xxhash
     libavcodec libavutil
 )
 
 if(REXGLUE_USE_VULKAN)
-    list(APPEND REXGLUE_INSTALL_TARGETS
-        SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler  # glslang
-        spirv-tools-headers
-    )
+    if(TARGET SPIRV)
+        list(APPEND REXGLUE_INSTALL_TARGETS
+            SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler  # glslang
+        )
+    endif()
+    list(APPEND REXGLUE_INSTALL_TARGETS spirv-tools-headers)
 endif()
 
 if(REXGLUE_USE_D3D12)

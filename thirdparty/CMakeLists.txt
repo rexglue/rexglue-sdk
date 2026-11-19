@@ -202,16 +202,18 @@ if(REXGLUE_USE_VULKAN)
     add_subdirectory(vulkan-memory-allocator)
 
     if(APPLE)
-        # Build the loader and MoltenVK revisions shipped by the pinned SDK.
-        # They remain runtime-loaded; no Vulkan implementation is linked into
-        # rexglue itself.
-        set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(BUILD_WERROR OFF CACHE BOOL "" FORCE)
-        set(LOADER_CODEGEN OFF CACHE BOOL "" FORCE)
-        string(REGEX REPLACE "\\.[0-9]+$" "" VulkanHeaders_VERSION
-            "${REXGLUE_VULKAN_SDK_VERSION}")
-        add_subdirectory(vulkan-loader EXCLUDE_FROM_ALL)
-        set_target_properties(vulkan PROPERTIES EXCLUDE_FROM_ALL FALSE)
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+            # Build the loader and MoltenVK revisions shipped by the pinned SDK.
+            # They remain runtime-loaded; no Vulkan implementation is linked into
+            # rexglue itself.
+            set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+            set(BUILD_WERROR OFF CACHE BOOL "" FORCE)
+            set(LOADER_CODEGEN OFF CACHE BOOL "" FORCE)
+            string(REGEX REPLACE "\\.[0-9]+$" "" VulkanHeaders_VERSION
+                "${REXGLUE_VULKAN_SDK_VERSION}")
+            add_subdirectory(vulkan-loader EXCLUDE_FROM_ALL)
+            set_target_properties(vulkan PROPERTIES EXCLUDE_FROM_ALL FALSE)
+        endif()
 
         set(MVK_BUILD_SHADER_CONVERTER_TOOL OFF CACHE BOOL "" FORCE)
         set(MVK_EXCLUDE_SPIRV_TOOLS ON CACHE BOOL "" FORCE)
@@ -245,10 +247,20 @@ target_compile_options(imgui PRIVATE -w)
 # SDL3 - Cross-platform media layer
 #=============================================================================
 set(SDL_INSTALL ON CACHE BOOL "" FORCE)
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    set(SDL_RPATH OFF CACHE BOOL "" FORCE)
+else()
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+endif()
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
-set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(SDL_UNIX_CONSOLE_BUILD OFF CACHE BOOL "" FORCE)
+else()
+    set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
+endif()
 
 # Video provides the windowing/event layer; presenters create their own
 # D3D12/Vulkan surfaces from native handles, so SDL_RENDER stays off.
@@ -275,7 +287,11 @@ set(SDL_FILESYSTEM OFF CACHE BOOL "" FORCE)
 set(SDL_LOCALE ON CACHE BOOL "" FORCE)
 set(SDL_FILE OFF CACHE BOOL "" FORCE)
 set(SDL_MISC OFF CACHE BOOL "" FORCE)
-set(SDL_DIALOG ON CACHE BOOL "" FORCE)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(SDL_DIALOG OFF CACHE BOOL "" FORCE)
+else()
+    set(SDL_DIALOG ON CACHE BOOL "" FORCE)
+endif()
 set(SDL_TRAY OFF CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
 
@@ -302,6 +318,15 @@ if(UNIX AND NOT APPLE)
 endif()
 
 add_subdirectory(sdl3)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND TARGET SDL3-shared)
+    set_property(TARGET SDL3-shared PROPERTY VERSION)
+    set_property(TARGET SDL3-shared PROPERTY SOVERSION)
+    set_target_properties(SDL3-shared PROPERTIES
+        INSTALL_NAME_DIR "@rpath"
+        BUILD_WITH_INSTALL_NAME_DIR ON
+        MACOSX_RPATH ON
+    )
+endif()
 
 #=============================================================================
 # DXC API headers (vendored from DirectXShaderCompiler, runtime-loaded)
@@ -327,6 +352,7 @@ if(REXGLUE_USE_VULKAN)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/spirv-tools/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     # glslang/SPIRV - SPIR-V code generation for shader translation
     set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
     set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
@@ -343,6 +369,7 @@ if(REXGLUE_USE_VULKAN)
     # Create alias for older glslang versions that don't provide it
     if(NOT TARGET glslang::SPIRV)
         add_library(glslang::SPIRV ALIAS SPIRV)
+    endif()
     endif()
 endif()
 

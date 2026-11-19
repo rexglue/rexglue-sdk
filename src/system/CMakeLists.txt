@@ -48,12 +48,22 @@ set(REXSYSTEM_SOURCES
     xex_module.cpp
 )
 
-add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
+if(REXGLUE_BUILD_SHARED_RUNTIME)
+    add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
+else()
+    add_library(rexruntime STATIC ${REXSYSTEM_SOURCES})
+endif()
 add_library(rex::runtime ALIAS rexruntime)
 add_library(rex::system ALIAS rexruntime)
 add_library(rex::kernel ALIAS rexruntime)
 
 set_target_properties(rexruntime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set_target_properties(rexruntime PROPERTIES
+        INSTALL_NAME_DIR "@rpath"
+        BUILD_WITH_INSTALL_NAME_DIR ON
+    )
+endif()
 rexglue_add_version_resource(rexruntime DESCRIPTION "ReXGlue runtime")
 
 rex_target_pch(rexruntime

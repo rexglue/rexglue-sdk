@@ -20,8 +20,13 @@
 #include <fcntl.h>
 
 #if REX_PLATFORM_MAC
+#include <TargetConditionals.h>
 #include <mach/mach.h>
+#if TARGET_OS_IOS
+#include <mach/vm_map.h>
+#else
 #include <mach/mach_vm.h>
+#endif
 #include <mach/vm_region.h>
 #endif  // REX_PLATFORM_MAC
 
@@ -375,6 +380,26 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 #if REX_PLATFORM_MAC
+#if TARGET_OS_IOS
+  vm_address_t address = reinterpret_cast<vm_address_t>(base_address);
+  vm_size_t region_size = 0;
+  vm_region_basic_info_data_64_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
+  mach_port_t object_name;
+
+  kern_return_t kr =
+      vm_region_64(mach_task_self(), &address, &region_size, VM_REGION_BASIC_INFO_64,
+                   reinterpret_cast<vm_region_info_t>(&info), &info_count, &object_name);
+  if (kr != KERN_SUCCESS) {
+    return false;
+  }
+  if (address > reinterpret_cast<vm_address_t>(base_address)) {
+    return false;
+  }
+
+  length = static_cast<size_t>((address + region_size) -
+                               reinterpret_cast<vm_address_t>(base_address));
+#else
   mach_vm_address_t address = reinterpret_cast<mach_vm_address_t>(base_address);
   mach_vm_size_t region_size = 0;
   vm_region_basic_info_data_64_t info;
@@ -393,6 +418,7 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 
   length = static_cast<size_t>((address + region_size) -
                                reinterpret_cast<mach_vm_address_t>(base_address));
+#endif
 
   if ((info.protection & (VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE)) ==
       (VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE)) {

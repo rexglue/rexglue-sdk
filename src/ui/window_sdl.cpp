@@ -98,6 +98,11 @@ WindowSDL::~WindowSDL() {
 bool WindowSDL::OpenImpl() {
   // SDL window coordinates are physical pixels on Windows and X11. Cocoa
   // uses logical points and applies the backing scale itself.
+#if REX_PLATFORM_IOS
+  SDL_WindowFlags flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_METAL;
+  int initial_width = 0;
+  int initial_height = 0;
+#else
   SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
 #if REX_PLATFORM_MAC
   int initial_width = int(GetDesiredLogicalWidth());
@@ -105,6 +110,7 @@ bool WindowSDL::OpenImpl() {
 #else
   int initial_width = int(SizeToPhysical(GetDesiredLogicalWidth()));
   int initial_height = int(SizeToPhysical(GetDesiredLogicalHeight()));
+#endif
 #endif
   sdl_window_ = SDL_CreateWindow(GetTitle().c_str(), initial_width, initial_height, flags);
   if (!sdl_window_) {
@@ -114,6 +120,7 @@ bool WindowSDL::OpenImpl() {
   sdl_window_id_ = SDL_GetWindowID(sdl_window_);
   sdl_app_context().RegisterWindow(sdl_window_id_, this);
 
+#if !REX_PLATFORM_IOS
   CenterOnConfiguredDisplay();
 
   if (IsFullscreen()) {
@@ -124,6 +131,7 @@ bool WindowSDL::OpenImpl() {
   CFPreferencesSetAppValue(CFSTR("ApplePressAndHoldEnabled"), kCFBooleanFalse,
                            kCFPreferencesCurrentApplication);
   CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
+#endif
 #endif
   // SDL3 requires explicit opt in for text input events. Reapplied from the
   // desired state so a reopened window comes back with the state it had.

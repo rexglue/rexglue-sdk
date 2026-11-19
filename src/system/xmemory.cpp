@@ -15,6 +15,11 @@
 
 #if REX_PLATFORM_MAC
 #include <sys/mman.h>
+#include <cerrno>
+#if REX_PLATFORM_IOS
+#include <mach/mach.h>
+#include <mach/vm_map.h>
+#endif
 #endif
 
 #include <fmt/format.h>
@@ -120,6 +125,16 @@ Memory::~Memory() {
   heaps_.physical.Dispose();
 
   // Unmap all views and close mapping.
+#if REX_PLATFORM_IOS
+  if (mapping_base_) {
+    const size_t total_size = 0x120000000ull;
+    munmap(mapping_base_, total_size);
+    for (auto& view : views_.all_views) {
+      view = nullptr;
+    }
+    mapping_base_ = nullptr;
+  }
+#endif
   if (mapping_ != rex::memory::kFileMappingHandleInvalid) {
     UnmapViews();
     rex::memory::CloseFileMappingHandle(mapping_, file_name_);
@@ -134,6 +149,7 @@ Memory::~Memory() {
 bool Memory::Initialize() {
   file_name_ = fmt::format("xenia_memory_{}", chrono::Clock::QueryHostTickCount());
 
+#if !REX_PLATFORM_IOS
   // Create main page file-backed mapping. This is all reserved but
   // uncommitted (so it shouldn't expand page file).
   // Round up to allocation granularity to accommodate platforms with large pages.
@@ -147,6 +163,7 @@ bool Memory::Initialize() {
     assert_always();
     return false;
   }
+#endif
 
 #if REX_PLATFORM_MAC
   // On macOS, reserve a contiguous host range first, then carve guest views
@@ -332,6 +349,53 @@ int Memory::MapViewsMac() {
   uint8_t* mapping_base = reinterpret_cast<uint8_t*>(reserved_base);
   uint64_t granularity_mask = ~uint64_t(system_allocation_granularity_ - 1);
 
+#if REX_PLATFORM_IOS
+  for (size_t n = 0; n < rex::countof(map_info); n++) {
+    const size_t view_size = static_cast<size_t>(map_info[n].virtual_address_end -
+                                                 map_info[n].virtual_address_start + 1);
+    const uint64_t src_off = map_info[n].target_address & granularity_mask;
+    if (src_off != map_info[n].virtual_address_start) {
+      continue;
+    }
+    void* target_address = mapping_base + map_info[n].virtual_address_start;
+    void* result = mmap(target_address, view_size, PROT_READ | PROT_WRITE,
+                        MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    if (result == MAP_FAILED || result != target_address) {
+      REXSYS_ERROR("MapViewsIOS: primary map failed view {} addr 0x{:016X} size 0x{:X} err {} ({})",
+                   n, reinterpret_cast<uintptr_t>(target_address), view_size, errno,
+                   std::strerror(errno));
+      munmap(reserved_base, total_size);
+      for (auto& view : views_.all_views) view = nullptr;
+      return 1;
+    }
+    views_.all_views[n] = reinterpret_cast<uint8_t*>(result);
+  }
+  for (size_t n = 0; n < rex::countof(map_info); n++) {
+    const size_t view_size = static_cast<size_t>(map_info[n].virtual_address_end -
+                                                 map_info[n].virtual_address_start + 1);
+    const uint64_t src_off = map_info[n].target_address & granularity_mask;
+    if (src_off == map_info[n].virtual_address_start) {
+      continue;
+    }
+    vm_address_t target_address =
+        reinterpret_cast<vm_address_t>(mapping_base + map_info[n].virtual_address_start);
+    vm_address_t source_address = reinterpret_cast<vm_address_t>(mapping_base + src_off);
+    vm_prot_t cur_prot = 0;
+    vm_prot_t max_prot = 0;
+    kern_return_t kr = vm_remap(mach_task_self(), &target_address, view_size, 0,
+                                VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, mach_task_self(),
+                                source_address, FALSE, &cur_prot, &max_prot, VM_INHERIT_SHARE);
+    if (kr != KERN_SUCCESS) {
+      REXSYS_ERROR("MapViewsIOS: vm_remap failed view {} dst 0x{:016X} src 0x{:016X} size 0x{:X} kr {}",
+                   n, static_cast<uintptr_t>(target_address), static_cast<uintptr_t>(source_address),
+                   view_size, kr);
+      munmap(reserved_base, total_size);
+      for (auto& view : views_.all_views) view = nullptr;
+      return 1;
+    }
+    views_.all_views[n] = reinterpret_cast<uint8_t*>(target_address);
+  }
+#else
   for (size_t n = 0; n < rex::countof(map_info); n++) {
     size_t view_size = static_cast<size_t>(map_info[n].virtual_address_end -
                                            map_info[n].virtual_address_start + 1);
@@ -353,6 +417,7 @@ int Memory::MapViewsMac() {
     }
     views_.all_views[n] = reinterpret_cast<uint8_t*>(result);
   }
+#endif
 
   return 0;
 }
