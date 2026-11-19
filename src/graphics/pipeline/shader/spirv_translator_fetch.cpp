@@ -1408,9 +1408,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         spv::Id is_any_unsigned =
             builder_->createUnaryOp(spv::OpLogicalNot, type_bool_, is_all_signed);
 
-        // Load the fetch constant word 4, needed unconditionally for LOD
-        // biasing, for result exponent biasing, and conditionally for stacked
-        // texture filtering.
+        // Load fetch constant word 4 for LOD bias and stacked texture filtering.
         id_vector_temp_.clear();
         id_vector_temp_.push_back(const_int_0_);
         id_vector_temp_.push_back(
@@ -2029,11 +2027,22 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           }
         }
 
-        // Apply the exponent bias from the bits 13:18 of the fetch constant
-        // word 4.
+        // The result exponent is signed bits 13:18 of word 3. Word 4 holds
+        // the unrelated LOD bias, which can otherwise darken sampled colors.
+        const uint32_t exponent_word_index = fetch_constant_word_0_index + 3;
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(const_int_0_);
+        id_vector_temp_.push_back(builder_->makeIntConstant(int(exponent_word_index >> 2)));
+        id_vector_temp_.push_back(builder_->makeIntConstant(int(exponent_word_index & 3)));
+        spv::Id exponent_word = builder_->createLoad(
+            builder_->createAccessChain(spv::StorageClassUniform, uniform_fetch_constants_,
+                                        id_vector_temp_),
+            spv::NoPrecision);
+        spv::Id exponent_word_signed =
+            builder_->createUnaryOp(spv::OpBitcast, type_int_, exponent_word);
         spv::Id result_exponent_bias = builder_->createBinBuiltinCall(
             type_float_, ext_inst_glsl_std_450_, GLSLstd450Ldexp, const_float_1_,
-            builder_->createTriOp(spv::OpBitFieldSExtract, type_int_, fetch_constant_word_4_signed,
+            builder_->createTriOp(spv::OpBitFieldSExtract, type_int_, exponent_word_signed,
                                   builder_->makeUintConstant(13), builder_->makeUintConstant(6)));
         {
           uint32_t result_remaining_components = used_result_nonzero_components;
