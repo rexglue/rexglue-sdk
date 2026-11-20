@@ -884,39 +884,76 @@ REX_TEST_CASE("settings: a write inside a change call stores immediately and cal
   });
 }
 
-REX_TEST_CASE("settings: change calls that keep rewriting each other stop on the stored values",
+REX_TEST_CASE("settings: change calls that keep rewriting each other stop and log once",
               "[base][settings]") {
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
   RunInInit([] {
     PairOwner pair;
     REQUIRE(REX_SETTINGS().Register(pair));
     bool armed = false;
-    int refused = 0;
+    int calls = 0;
     rex::i32 left_seen = -1;
-    rex::i32 right_seen = -1;
     auto left = pair.left.Bind([&](const rex::i32& value) {
       left_seen = value;
-      if (armed && !pair.right.Set(value + 1)) {
-        ++refused;
+      if (armed) {
+        ++calls;
+        REQUIRE(pair.right.Set(value + 1));
       }
     });
     auto right = pair.right.Bind([&](const rex::i32& value) {
-      right_seen = value;
-      if (armed && !pair.left.Set(value + 1)) {
-        ++refused;
+      if (armed) {
+        ++calls;
+        REQUIRE(pair.left.Set(value + 1));
       }
     });
-    const OrderViolationCount violations;
     armed = true;
     REQUIRE(pair.left.Set(1));
     armed = false;
-    REQUIRE(refused == 1);
-    REQUIRE(g_order_violations == OrderViolationCount::Expected(1));
-    REQUIRE(left_seen == pair.left.Get());
-    REQUIRE(right_seen == pair.right.Get());
+    REQUIRE(calls > 16);
+    REQUIRE(calls < 40);
     REQUIRE(pair.left.Get() + pair.right.Get() > 16);
     REQUIRE(pair.left.Set(100));
     REQUIRE(left_seen == 100);
   });
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> lines;
+  sink.CopySince(0, lines);
+  int stops = 0;
+  for (const auto& line : lines) {
+    stops += line.text.find("setting change calls stopped") != std::string::npos;
+  }
+  REQUIRE(stops == 1);
+}
+
+REX_TEST_CASE("settings: a chain of change calls is not cut", "[base][settings]") {
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  RunInInit([] {
+    PairOwner pair;
+    AudioOwner audio;
+    REQUIRE(REX_SETTINGS().Register(pair));
+    REQUIRE(REX_SETTINGS().Register(audio));
+    std::vector<std::string> order;
+    auto left = pair.left.OnChange([&](const rex::i32& value) {
+      order.push_back(std::format("left {}", value));
+      REQUIRE(pair.right.Set(value + 1));
+    });
+    auto right = pair.right.OnChange([&](const rex::i32& value) {
+      order.push_back(std::format("right {}", value));
+      REQUIRE(audio.count.Set(value + 1));
+    });
+    auto count = audio.count.OnChange(
+        [&](const rex::i32& value) { order.push_back(std::format("count {}", value)); });
+    REQUIRE(pair.left.Set(5));
+    REQUIRE(order == std::vector<std::string>{"left 5", "right 6", "count 7"});
+  });
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> lines;
+  sink.CopySince(0, lines);
+  for (const auto& line : lines) {
+    REQUIRE(line.text.find("setting change calls stopped") == std::string::npos);
+  }
 }
 
 REX_TEST_CASE("settings: a batch calls each watch once when it ends", "[base][settings]") {

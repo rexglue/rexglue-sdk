@@ -668,7 +668,8 @@ class SettingListWatch final : public SettingWatch {
 /**
  * Calls a function with the current values of several settings before Bind returns, and again
  * after any of them changes, as one watch. The rules of Setting::OnChange and of Setting::Bind
- * apply. Changes to several of them in one batch or in one round of change calls make one call.
+ * apply. Changes to several of them in one batch, or made by the change calls of one write while
+ * the watch waits to be called, make one call.
  *
  * @code
  * auto guard = rex::Bind(

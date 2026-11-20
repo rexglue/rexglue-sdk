@@ -33,10 +33,10 @@ std::atomic<bool> g_launch_frozen{false};
 namespace {
 
 /**
- * Rounds of change calls a thread runs for one outermost write before the last round. A round is
- * the calls made for the writes of the round before, so a chain of settings each derived from the
- * one before takes one round per link. No chain in the SDK or its consumers is longer than two, and
- * a cycle with changing values stops after these rounds.
+ * Deliveries of one watch from the queue, for the writes of one outermost write, before the drain
+ * stops. A chain of settings each derived from the one before delivers each watch once per link,
+ * and no chain in the SDK or its consumers is longer than two. A cycle with changing values stops
+ * at this bound.
  */
 constexpr u32 kMaxChangeRounds = 16;
 
@@ -44,9 +44,10 @@ struct ChangeQueue {
   u32 depth = 0;
   u32 batches = 0;
   bool running = false;
-  bool last_round = false;
+  size_t next = 0; /**< The first watch of pending that is not yet delivered. */
   std::vector<std::shared_ptr<detail::SettingWatch>> pending;
-  std::vector<std::shared_ptr<detail::SettingWatch>> round; /**< Kept so its capacity is reused. */
+  /** The queue deliveries of each watch in the drain, cleared when it ends. */
+  std::vector<std::pair<const detail::SettingWatch*, u32>> deliveries;
 };
 
 thread_local ChangeQueue t_changes;
@@ -59,26 +60,31 @@ void ReportSettingOrder() {
 }
 
 void Enqueue(const std::shared_ptr<detail::SettingWatch>& watch) {
-  if (std::ranges::find(t_changes.pending, watch) == t_changes.pending.end()) {
+  const auto waiting = t_changes.pending.begin() + static_cast<std::ptrdiff_t>(t_changes.next);
+  if (std::find(waiting, t_changes.pending.end(), watch) == t_changes.pending.end()) {
     t_changes.pending.push_back(watch);
   }
 }
 
-std::string NameRound(std::span<const std::shared_ptr<detail::SettingWatch>> round) {
-  std::vector<std::string_view> names;
-  for (const auto& watch : round) {
-    for (const SettingBase* setting : watch->GetSettings()) {
-      if (std::ranges::find(names, std::string_view(setting->GetName())) == names.end()) {
-        names.emplace_back(setting->GetName());
-      }
+/** Counts one delivery from the queue and returns the count of that watch in this drain. */
+u32 CountDelivery(const detail::SettingWatch* watch) {
+  auto& deliveries = t_changes.deliveries;
+  for (auto& entry : deliveries) {
+    if (entry.first == watch) {
+      return ++entry.second;
     }
   }
+  deliveries.emplace_back(watch, 1);
+  return 1;
+}
+
+std::string NameWatch(const detail::SettingWatch* watch) {
   std::string out;
-  for (const std::string_view name : names) {
+  for (const SettingBase* setting : watch->GetSettings()) {
     if (!out.empty()) {
       out += ", ";
     }
-    out += name;
+    out += setting->GetName();
   }
   return out;
 }
@@ -90,10 +96,10 @@ bool CanDeliver() {
 }
 
 /**
- * Runs the queued change calls of the thread in rounds.
+ * Runs the queued change calls of the thread in the order they were queued, each watch once while
+ * it waits in the list.
  *
- * @param first The watches of the first round, delivered before the queued ones. Empty when the
- * queue holds the first round.
+ * @param first The watches delivered before the queued ones. Empty when the queue holds them all.
  */
 void RunPending(std::span<const std::shared_ptr<detail::SettingWatch>> first = {}) {
   ChangeQueue& queue = t_changes;
@@ -103,29 +109,26 @@ void RunPending(std::span<const std::shared_ptr<detail::SettingWatch>> first = {
   queue.running = true;
   const ScopeGuard finish([&queue] {
     queue.running = false;
-    queue.last_round = false;
     queue.pending.clear();
-    queue.round.clear();
+    queue.next = 0;
+    queue.deliveries.clear();
   });
-  u32 rounds = 0;
-  if (!first.empty()) {
-    for (const auto& watch : first) {
-      watch->Deliver();
-    }
-    ++rounds;
+  for (const auto& watch : first) {
+    watch->Deliver();
   }
-  while (!queue.pending.empty()) {
-    if (rounds == kMaxChangeRounds) {
-      queue.last_round = true;
-      REXSYS_ERROR("setting change calls stopped after {} rounds, the last round calls {}",
-                   kMaxChangeRounds, NameRound(queue.pending));
+  while (queue.next < queue.pending.size()) {
+    // A copy, since the call may queue a watch and move the list.
+    const std::shared_ptr<detail::SettingWatch> watch = queue.pending[queue.next++];
+    if (queue.next == queue.pending.size()) {
+      queue.pending.clear();
+      queue.next = 0;
     }
-    queue.round.clear();
-    std::swap(queue.round, queue.pending);
-    for (const auto& watch : queue.round) {
-      watch->Deliver();
+    if (CountDelivery(watch.get()) > kMaxChangeRounds) {
+      REXSYS_ERROR("setting change calls stopped after {} calls of the watch of {}",
+                   kMaxChangeRounds, NameWatch(watch.get()));
+      return;
     }
-    ++rounds;
+    watch->Deliver();
   }
 }
 
@@ -157,12 +160,6 @@ Result<void> CheckSettingWrite(std::string_view name) {
   if (log::IsInSinks()) {
     ReportSettingOrder();
     return Err(ErrorCategory::kConfig, std::format("{} cannot change inside a log sink", name));
-  }
-  if (t_changes.last_round && t_changes.depth > 0) {
-    ReportSettingOrder();
-    return Err(ErrorCategory::kConfig,
-               std::format("{} cannot change, the change calls stopped after {} rounds", name,
-                           kMaxChangeRounds));
   }
   return Ok();
 }

@@ -34,8 +34,7 @@ inline constexpr size_t kSettingLayerCount = 7;
 void RegisterAliases(SettingsRegistry& settings);
 
 /**
- * Refuses a write from inside a log sink, and a write from inside the last round of change calls.
- * A debug build reports either as a lock order violation.
+ * Refuses a write from inside a log sink. A debug build reports it as a lock order violation.
  *
  * @param name The setting the write is for.
  * @return Ok, or an error naming it.
