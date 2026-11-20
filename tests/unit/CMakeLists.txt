@@ -9,6 +9,7 @@ add_executable(
   apu/sdl3_audio_test.cpp
   hid/input_system_test.cpp
   hid/sdl3_input_test.cpp
+  hid/sdl3_pad_refresher_test.cpp
   hid/bindings_test.cpp
   hid/input_source_test.cpp
   hid/key_capture_test.cpp
@@ -254,6 +255,7 @@ add_executable(
 target_sources(
   unit_tests
   PRIVATE ${PROJECT_SOURCE_DIR}/src/gpu/xenos/null/null_command_processor.cpp
+          ${PROJECT_SOURCE_DIR}/src/hid/sdl3/sdl3_pad_refresher.cpp
           ${PROJECT_SOURCE_DIR}/tests/code_image.cpp
           ${PROJECT_SOURCE_DIR}/tests/object_app.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/null/null_xenos_graphics_driver.cpp
