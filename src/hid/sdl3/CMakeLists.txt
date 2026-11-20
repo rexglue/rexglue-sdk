@@ -1,4 +1,4 @@
-add_library(rexhid-sdl3 SHARED sdl3_input_driver.cpp)
+add_library(rexhid-sdl3 SHARED sdl3_input_driver.cpp sdl3_pad_refresher.cpp)
 add_library(rex::hid-sdl3 ALIAS rexhid-sdl3)
 rexglue_link_host_allocator(rexhid-sdl3)
 set_target_properties(
