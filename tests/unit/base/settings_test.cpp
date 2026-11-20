@@ -438,35 +438,6 @@ REX_TEST_CASE("settings: Bind is called once when it subscribes and once after e
 }
 
 REX_TEST_CASE(
-    "settings: the group and list OnChange return the current values and wait for a change",
-    "[base][settings]") {
-  RunInInit([] {
-    PairOwner pair;
-    REQUIRE(REX_SETTINGS().Register(pair));
-    REQUIRE(pair.left.Set(1));
-    REQUIRE(pair.right.Set(2));
-    std::vector<std::string> group_seen;
-    auto [group, values] = rex::OnChange(
-        [&](const rex::i32& left, const rex::i32& right) {
-          group_seen.push_back(std::format("{} {}", left, right));
-        },
-        pair.left, pair.right);
-    REQUIRE(values == std::tuple<rex::i32, rex::i32>{1, 2});
-    std::vector<rex::Setting<rex::i32>*> members{&pair.right, &pair.left};
-    std::vector<std::vector<rex::i32>> list_seen;
-    auto [list, list_values] = rex::OnChange<rex::i32>(
-        [&](std::span<const rex::i32> v) { list_seen.emplace_back(v.begin(), v.end()); },
-        std::span<rex::Setting<rex::i32>* const>(members));
-    REQUIRE(list_values == std::vector<rex::i32>{2, 1});
-    REQUIRE(group_seen.empty());
-    REQUIRE(list_seen.empty());
-    REQUIRE(pair.left.Set(3));
-    REQUIRE(group_seen == std::vector<std::string>{"3 2"});
-    REQUIRE(list_seen == std::vector<std::vector<rex::i32>>{{2, 3}});
-  });
-}
-
-REX_TEST_CASE(
     "settings: the group and list Bind are called once when they subscribe and after a "
     "change",
     "[base][settings]") {

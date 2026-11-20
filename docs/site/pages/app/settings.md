@@ -98,7 +98,7 @@ Code that keeps its own copy of a value, instead of calling `Get()` on each use,
 
 A change function may write settings. Those writes store immediately, and their change calls run after the current function returns. A change function must not wait for another thread, because that thread may be writing a setting the function watches. It posts work to reach another thread, and `RunSynchronous` called from a change function returns false without running.
 
-`rex::Bind(fn, a, b)` and `rex::OnChange(fn, a, b)` watch several settings as one function, called with all their current values, once for changes to several of them in one round. The group `OnChange` returns the current values as a `std::tuple` in the order given, and the form that takes a `std::span` of settings returns them as a `std::vector`. A `rex::SettingsBatch` holds back the change calls of its thread until the outermost batch ends, so a group of writes makes one call per function.
+`rex::Bind(fn, a, b)` watches several settings as one function, called with all their current values, once for changes to several of them in one round. The form that takes a `std::span` of settings passes the values as a `std::span`. A `rex::SettingsBatch` holds back the change calls of its thread until the outermost batch ends, so a group of writes makes one call per function.
 
 `Bind` returns a `rex::ScopeGuard`, and `OnChange` returns one beside the value, from `rex/utility.h`. A `ScopeGuard` holds one function and runs it once, when the guard is destroyed, reset or assigned over. Here the function removes the callback, so the callback stays registered exactly as long as you keep the guard. Store it as a member of the object that the callback uses, so the callback stops before the object is destroyed:
 

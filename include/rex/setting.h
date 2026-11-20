@@ -658,25 +658,6 @@ class SettingListWatch final : public SettingWatch {
         members_(settings.begin(), settings.end()),
         fn_(std::move(fn)) {}
 
-  /**
-   * Links the watch to each setting and reads its value under that setting's value lock, holding
-   * the call meanwhile, without calling the function.
-   *
-   * @param self This watch.
-   * @return The values in list order.
-   */
-  std::vector<T> Start(const std::shared_ptr<SettingWatch>& self) {
-    const Hold hold(*this);
-    std::vector<T> values;
-    values.reserve(members_.size());
-    for (size_t i = 0; i < members_.size(); ++i) {
-      u64 generation = 0;
-      values.push_back(members_[i]->SnapshotLinked(generation, self));
-      MarkSeen(i, generation);
-    }
-    return values;
-  }
-
  private:
   void Call() override {
     std::vector<T> values;
@@ -696,58 +677,9 @@ class SettingListWatch final : public SettingWatch {
 }  // namespace detail
 
 /**
- * Calls a function after any of several settings changes, never when OnChange is called, as one
- * watch, and returns their current values with the guard. Changes to several of them in one batch
- * or in one round of change calls make one call. Each value is read under its own value lock, as
- * the watch is linked to that setting, so a write that stores after a read reaches the function as
- * a change. The values are read one setting at a time, not as one snapshot. The rules of
- * Setting::OnChange apply.
- *
- * @code
- * auto [guard, values] = rex::OnChange(
- *     [](const std::string& level, const bool& console) { Apply(level, console); },
- *     logger.level, logger.console);
- * std::apply(Apply, values);
- * @endcode
- *
- * @tparam T The value types.
- * @param fn Called with the current value of each setting, in the order given, after a change.
- * @param settings The settings, one or more.
- * @return The guard, as for Setting::OnChange, and the current values in the order given.
- */
-template <typename... T>
-[[nodiscard]] std::pair<ScopeGuard, std::tuple<T...>> OnChange(
-    std::type_identity_t<MoveOnlyFunction<void(const T&...)>> fn, Setting<T>&... settings) {
-  static_assert(sizeof...(T) > 0, "OnChange watches one or more settings");
-  auto watch = std::make_shared<detail::SettingGroupWatch<T...>>(std::move(fn), settings...);
-  ScopeGuard guard = detail::SettingWatch::Guard(watch);
-  std::tuple<T...> values = watch->Start(watch);
-  return {std::move(guard), std::move(values)};
-}
-
-/**
- * Calls a function after any of a list of settings changes, never when OnChange is called, as one
- * watch, and returns their current values with the guard. The rules of the group OnChange apply.
- *
- * @tparam T The value type.
- * @param fn Called with the current values, in list order, after a change.
- * @param settings The settings, one or more, each listed once.
- * @return The guard, as for Setting::OnChange, and the current values in list order.
- */
-template <typename T>
-[[nodiscard]] std::pair<ScopeGuard, std::vector<T>> OnChange(
-    std::type_identity_t<MoveOnlyFunction<void(std::span<const T>)>> fn,
-    std::span<Setting<T>* const> settings) {
-  auto watch = std::make_shared<detail::SettingListWatch<T>>(std::move(fn), settings);
-  ScopeGuard guard = detail::SettingWatch::Guard(watch);
-  std::vector<T> values = watch->Start(watch);
-  return {std::move(guard), std::move(values)};
-}
-
-/**
  * Calls a function with the current values of several settings before Bind returns, and again
- * after any of them changes, as one watch. The rules of the group OnChange and of Setting::Bind
- * apply.
+ * after any of them changes, as one watch. The rules of Setting::OnChange and of Setting::Bind
+ * apply. Changes to several of them in one batch or in one round of change calls make one call.
  *
  * @code
  * auto guard = rex::Bind(
@@ -848,8 +780,10 @@ Result<void> Setting<T>::Lock(const T& value) {
 
 template <typename T>
 std::pair<ScopeGuard, T> Setting<T>::OnChange(MoveOnlyFunction<void(const T&)> fn) {
-  auto [guard, values] = rex::OnChange<T>(std::move(fn), *this);
-  return {std::move(guard), std::move(std::get<0>(values))};
+  auto watch = std::make_shared<detail::SettingGroupWatch<T>>(std::move(fn), *this);
+  ScopeGuard guard = detail::SettingWatch::Guard(watch);
+  T value = std::get<0>(watch->Start(watch));
+  return {std::move(guard), std::move(value)};
 }
 
 template <typename T>
