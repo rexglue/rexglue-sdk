@@ -12,6 +12,7 @@
 
 #include <catch2/benchmark/catch_benchmark.hpp>
 
+#include <rex/kernel/types/status.h>
 #include <rex/ppc/recompiled_code.h>
 
 #include "kernel_fixture.h"
@@ -21,8 +22,22 @@ using rex::test::KernelFixture;
 
 namespace {
 
+constexpr u32 kTimeout = rex::kernel::X_STATUS_TIMEOUT;
+
 /** An export that does nothing, for the baseline of the call path. */
 REX_FUNC(NoOp) {}
+
+constexpr u32 kProofCalls = 2000;
+
+/** Runs a call outside the timed loop and returns how many of the calls returned expected. */
+template <typename Call>
+u32 CountResults(Call&& call, u32 expected) {
+  u32 matched = 0;
+  for (u32 n = 0; n < kProofCalls; ++n) {
+    matched += call() == expected ? 1u : 0u;
+  }
+  return matched;
+}
 
 }  // namespace
 
@@ -40,6 +55,9 @@ REX_TEST_CASE("A zero timeout poll of an unsignaled event", "[kernel][waits][ben
     BENCHMARK("zero timeout poll, 1 thread") {
       return wait(c, {event, 0, 0, 0, poll});
     };
+    const u32 timed_out = CountResults([&] { return wait(c, {event, 0, 0, 0, poll}); }, kTimeout);
+    WARN("zero timeout polls that returned timeout: " << timed_out << " of " << kProofCalls);
+    CHECK(timed_out == kProofCalls);
   });
 }
 
@@ -57,5 +75,8 @@ REX_TEST_CASE("A wait on a signaled manual reset event", "[kernel][waits][benchm
     BENCHMARK("wait on a signaled manual reset event, 1 thread") {
       return wait(c, {event, 0, 0, 0, poll});
     };
+    const u32 succeeded = CountResults([&] { return wait(c, {event, 0, 0, 0, poll}); }, 0);
+    WARN("signaled waits that returned success: " << succeeded << " of " << kProofCalls);
+    CHECK(succeeded == kProofCalls);
   });
 }

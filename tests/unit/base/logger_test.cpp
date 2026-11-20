@@ -412,6 +412,7 @@ REX_TEST_CASE("log level check cost", "[base][logger][benchmark]") {
   };
   BENCHMARK("a disabled REXLOG_CAT_TRACE") {
     REXLOG_CAT_TRACE(::rex::log::logtest, "trace {}", 1);
+    return 0;
   };
   BENCHMARK("IsEnabled, disabled level") {
     return rex::log::logtest.IsEnabled(rex::log::Level::kTrace);
