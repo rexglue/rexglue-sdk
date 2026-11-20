@@ -12,6 +12,7 @@
 
 #include <catch2/benchmark/catch_benchmark.hpp>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -19,6 +20,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <format>
+#include <functional>
 #include <fstream>
 #include <latch>
 #include <memory>
@@ -407,15 +409,13 @@ REX_TEST_CASE("settings: a bound watch receives the current value before Bind re
   });
 }
 
-REX_TEST_CASE("settings: OnChange is not called when it subscribes and returns the current value",
-              "[base][settings]") {
+REX_TEST_CASE("settings: OnChange is not called when it subscribes", "[base][settings]") {
   RunInInit([] {
     AudioOwner audio;
     REQUIRE(REX_SETTINGS().Register(audio));
     REQUIRE(audio.count.Set(6));
     std::vector<rex::i32> seen;
-    auto [watch, value] = audio.count.OnChange([&](const rex::i32& v) { seen.push_back(v); });
-    REQUIRE(value == 6);
+    auto watch = audio.count.OnChange([&](const rex::i32& v) { seen.push_back(v); });
     REQUIRE(seen.empty());
     REQUIRE(audio.count.Set(7));
     REQUIRE(seen == std::vector<rex::i32>{7});
@@ -464,8 +464,9 @@ REX_TEST_CASE(
   });
 }
 
-REX_TEST_CASE("settings: a write racing OnChange is in the returned value or in a later call",
-              "[base][settings]") {
+REX_TEST_CASE(
+    "settings: a write racing OnChange reaches a later call in order and the last write is seen",
+    "[base][settings]") {
   RunInInit([] {
     AudioOwner audio;
     REQUIRE(REX_SETTINGS().Register(audio));
@@ -482,19 +483,16 @@ REX_TEST_CASE("settings: a write racing OnChange is in the returned value or in 
     std::mutex seen_mutex;
     std::vector<rex::i32> seen;
     go.count_down();
-    auto [watch, value] = audio.count.OnChange([&](const rex::i32& v) {
+    auto watch = audio.count.OnChange([&](const rex::i32& v) {
       std::lock_guard lock(seen_mutex);
       seen.push_back(v);
     });
     writer.join();
     REQUIRE(refused == 0);
     std::lock_guard lock(seen_mutex);
-    // Every call carries a value newer than the one returned, and the last value written is seen.
-    for (const rex::i32 v : seen) {
-      REQUIRE(v > value);
-    }
-    const rex::i32 latest = seen.empty() ? value : seen.back();
-    REQUIRE(latest == kLast);
+    // The calls run in write order, and when any ran, the last one carries the last value written.
+    REQUIRE(std::ranges::is_sorted(seen, std::less_equal<>{}));
+    REQUIRE((seen.empty() || seen.back() == kLast));
   });
 }
 
@@ -506,13 +504,13 @@ REX_TEST_CASE(
     PairOwner pair;
     REQUIRE(REX_SETTINGS().Register(pair));
     std::vector<std::string> order;
-    std::optional<std::pair<rex::ScopeGuard, rex::i32>> changed;
+    std::optional<rex::ScopeGuard> changed;
     std::optional<rex::ScopeGuard> bound;
     auto outer = pair.left.OnChange([&](const rex::i32& value) {
       order.push_back(std::format("outer {}", value));
       changed.emplace(pair.right.OnChange(
           [&](const rex::i32& v) { order.push_back(std::format("changed {}", v)); }));
-      order.push_back(std::format("changed returned {}", changed->second));
+      order.push_back("changed returned");
       bound.emplace(
           pair.right.Bind([&](const rex::i32& v) { order.push_back(std::format("bound {}", v)); }));
       order.push_back("outer end");
@@ -521,7 +519,7 @@ REX_TEST_CASE(
     REQUIRE(pair.left.Set(1));
     REQUIRE(g_order_violations == 0);
     REQUIRE(order ==
-            std::vector<std::string>{"outer 1", "changed returned 0", "outer end", "bound 0"});
+            std::vector<std::string>{"outer 1", "changed returned", "outer end", "bound 0"});
   });
 }
 

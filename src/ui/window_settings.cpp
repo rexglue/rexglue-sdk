@@ -97,19 +97,17 @@ void UISystem::State::WatchWindowSettings() {
       driver->SetTitle(text.empty() ? std::string_view("ReXGlue") : std::string_view(text));
     });
   }));
-  watches.push_back(settings.cursor_timeout
-                        .OnChange([on_ui_thread, this](const f64&) {
-                          on_ui_thread([this] {
-                            last_pointer_motion = std::chrono::steady_clock::now();
-                            if (cursor_hidden_by_timeout) {
-                              cursor_hidden_by_timeout = false;
-                              if (applied_pointer_mode == PointerMode::kFree) {
-                                driver->SetCursorShape(true, rex::ui::CursorShape::kArrow);
-                              }
-                            }
-                          });
-                        })
-                        .first);
+  watches.push_back(settings.cursor_timeout.OnChange([on_ui_thread, this](const f64&) {
+    on_ui_thread([this] {
+      last_pointer_motion = std::chrono::steady_clock::now();
+      if (cursor_hidden_by_timeout) {
+        cursor_hidden_by_timeout = false;
+        if (applied_pointer_mode == PointerMode::kFree) {
+          driver->SetCursorShape(true, rex::ui::CursorShape::kArrow);
+        }
+      }
+    });
+  }));
 }
 
 }  // namespace rex::ui

@@ -425,26 +425,24 @@ class Setting final : public SettingBase {
   [[nodiscard]] Result<void> Lock(const T& value);
 
   /**
-   * Calls a function after each change of the value, never when OnChange is called, and returns
-   * the current value with the guard. The value is read under the value lock the watch is linked
-   * under, so a write that stores after that read reaches the function as a change. A call after a
-   * change runs on the writing thread before the write returns. The functions of a setting run in
-   * the order they were added, and a function never runs concurrently with itself. A write made
-   * inside a change function stores immediately, and its calls run after that function returns. A
-   * change function may write settings and post work to another thread, and must not wait for
-   * another thread.
+   * Calls a function after each change of the value, never when OnChange is called. The watch is
+   * linked under the value lock, so a write that stores after that is a change that reaches the
+   * function. A call after a change runs on the writing thread before the write returns. The
+   * functions of a setting run in the order they were added, and a function never runs
+   * concurrently with itself. A write made inside a change function stores immediately, and its
+   * calls run after that function returns. A change function may write settings and post work to
+   * another thread, and must not wait for another thread.
    *
    * @code
-   * auto [guard, depth] = perf.depth.OnChange([](const i32& value) { Resize(value); });
-   * Resize(depth);
+   * auto guard = perf.depth.OnChange([](const i32& value) { Resize(value); });
    * @endcode
    *
    * @param fn Called with the new value after each change.
-   * @return The guard, and the value current when the watch was linked. Destroying the guard waits
-   * for a call in progress on another thread, and the function is never called after that.
-   * Destroyed inside the function's own call, it does not wait.
+   * @return The guard. Destroying it waits for a call in progress on another thread, and the
+   * function is never called after that. Destroyed inside the function's own call, it does not
+   * wait.
    */
-  [[nodiscard]] std::pair<ScopeGuard, T> OnChange(MoveOnlyFunction<void(const T&)> fn);
+  [[nodiscard]] ScopeGuard OnChange(MoveOnlyFunction<void(const T&)> fn);
 
   /**
    * Calls a function with the current value before Bind returns, and again after each change. The
@@ -602,30 +600,28 @@ class SettingGroupWatch final : public SettingWatch {
       : SettingWatch({&settings...}), members_(&settings...), fn_(std::move(fn)) {}
 
   /**
-   * Links the watch to each setting and reads its value under that setting's value lock, holding
-   * the call meanwhile, without calling the function.
+   * Links the watch to each setting under that setting's value lock, holding the call meanwhile,
+   * without calling the function.
    *
    * @param self This watch.
-   * @return The values in the order of the settings.
    */
-  std::tuple<T...> Start(const std::shared_ptr<SettingWatch>& self) {
+  void Start(const std::shared_ptr<SettingWatch>& self) {
     const Hold hold(*this);
-    return StartWith(self, std::index_sequence_for<T...>{});
+    StartWith(self, std::index_sequence_for<T...>{});
   }
 
  private:
   template <size_t... I>
-  std::tuple<T...> StartWith(const std::shared_ptr<SettingWatch>& self, std::index_sequence<I...>) {
-    // A braced list evaluates in order, so the settings link one after another.
-    return std::tuple<T...>{ReadLinked<I>(self)...};
+  void StartWith(const std::shared_ptr<SettingWatch>& self, std::index_sequence<I...>) {
+    // A fold over the comma operator evaluates in order, so the settings link one after another.
+    (LinkOne<I>(self), ...);
   }
 
   template <size_t I>
-  auto ReadLinked(const std::shared_ptr<SettingWatch>& self) {
+  void LinkOne(const std::shared_ptr<SettingWatch>& self) {
     u64 generation = 0;
-    auto value = std::get<I>(members_)->SnapshotLinked(generation, self);
+    (void)std::get<I>(members_)->SnapshotLinked(generation, self);
     MarkSeen(I, generation);
-    return value;
   }
 
   void Call() override { CallWith(std::index_sequence_for<T...>{}); }
@@ -779,11 +775,11 @@ Result<void> Setting<T>::Lock(const T& value) {
 }
 
 template <typename T>
-std::pair<ScopeGuard, T> Setting<T>::OnChange(MoveOnlyFunction<void(const T&)> fn) {
+ScopeGuard Setting<T>::OnChange(MoveOnlyFunction<void(const T&)> fn) {
   auto watch = std::make_shared<detail::SettingGroupWatch<T>>(std::move(fn), *this);
   ScopeGuard guard = detail::SettingWatch::Guard(watch);
-  T value = std::get<0>(watch->Start(watch));
-  return {std::move(guard), std::move(value)};
+  watch->Start(watch);
+  return guard;
 }
 
 template <typename T>
