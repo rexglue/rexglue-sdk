@@ -68,14 +68,16 @@ REX_TEST_CASE("Guest tick counts never decrease across threads", "[base][clock][
   std::atomic<size_t> backwards{0};
   std::atomic<size_t> below_published{0};
   std::atomic<rex::u64> published{0};
+  std::atomic<rex::u64> published_time{0};
   std::atomic<bool> readers_done{false};
+  std::atomic<size_t> rebases{0};
   const rex::f64 scalar = rex::Clock::GetGuestTimeScalar();
   const bool rescale = !rex::Clock::IsNoScaling();
   {
     std::jthread retuner([&] {
       for (int i = 0; rescale && !readers_done.load(); ++i) {
         rex::Clock::SetGuestTimeScalar(i % 2 ? 1.0 : 2.0);
-        std::this_thread::sleep_for(std::chrono::microseconds(200));
+        ++rebases;
       }
     });
     std::latch start(kThreads);
@@ -88,12 +90,15 @@ REX_TEST_CASE("Guest tick counts never decrease across threads", "[base][clock][
         rex::u64 last_time = 0;
         for (size_t i = 0; i < kReads; ++i) {
           const rex::u64 before = published.load();
+          const rex::u64 before_time = published_time.load();
           const rex::u64 count = rex::Clock::QueryGuestTickCount();
           const rex::u64 time = rex::Clock::QueryGuestSystemTime();
           backwards += count < last || time < last_time;
-          below_published += count < before;
+          below_published += count < before || time < before_time;
           rex::u64 seen = published.load();
           while (count > seen && !published.compare_exchange_weak(seen, count)) {}
+          rex::u64 seen_time = published_time.load();
+          while (time > seen_time && !published_time.compare_exchange_weak(seen_time, time)) {}
           last = count;
           last_time = time;
         }
@@ -105,6 +110,8 @@ REX_TEST_CASE("Guest tick counts never decrease across threads", "[base][clock][
   rex::Clock::SetGuestTimeScalar(scalar);
   CHECK(backwards.load() == 0);
   CHECK(below_published.load() == 0);
+  WARN("rebases during the run: " << rebases.load());
+  CHECK((!rescale || rebases.load() > 1000));
 }
 
 namespace {
@@ -214,10 +221,13 @@ REX_TEST_CASE("guest clock cost", "[base][clock][benchmark]") {
     return std::make_unique<ThreadPool>(count, [query](int, Caller*) { Query(kCalls, query); });
   };
   auto none_one = pool(1, NoQuery);
+  auto none_four = pool(4, NoQuery);
   auto none_eight = pool(8, NoQuery);
   auto time_one = pool(1, [] { return rex::Clock::QueryGuestSystemTime(); });
+  auto time_four = pool(4, [] { return rex::Clock::QueryGuestSystemTime(); });
   auto time_eight = pool(8, [] { return rex::Clock::QueryGuestSystemTime(); });
   auto tick_one = pool(1, [] { return rex::Clock::QueryGuestTickCount(); });
+  auto tick_four = pool(4, [] { return rex::Clock::QueryGuestTickCount(); });
   auto tick_eight = pool(8, [] { return rex::Clock::QueryGuestTickCount(); });
   auto frequency_eight = pool(8, [] { return rex::Clock::GetGuestTickFrequency(); });
   auto scale_eight =
@@ -225,17 +235,26 @@ REX_TEST_CASE("guest clock cost", "[base][clock][benchmark]") {
   BENCHMARK("baseline: a no-op query, 1 thread, 20000 calls") {
     none_one->Run();
   };
+  BENCHMARK("baseline: a no-op query, 4 threads, 20000 calls each") {
+    none_four->Run();
+  };
   BENCHMARK("baseline: a no-op query, 8 threads, 20000 calls each") {
     none_eight->Run();
   };
   BENCHMARK("QueryGuestSystemTime, 1 thread, 20000 calls") {
     time_one->Run();
   };
+  BENCHMARK("QueryGuestSystemTime, 4 threads, 20000 calls each") {
+    time_four->Run();
+  };
   BENCHMARK("QueryGuestSystemTime, 8 threads, 20000 calls each") {
     time_eight->Run();
   };
   BENCHMARK("QueryGuestTickCount, 1 thread, 20000 calls") {
     tick_one->Run();
+  };
+  BENCHMARK("QueryGuestTickCount, 4 threads, 20000 calls each") {
+    tick_four->Run();
   };
   BENCHMARK("QueryGuestTickCount, 8 threads, 20000 calls each") {
     tick_eight->Run();
@@ -246,6 +265,12 @@ REX_TEST_CASE("guest clock cost", "[base][clock][benchmark]") {
   BENCHMARK("ScaleGuestDurationMillis, 8 threads, 20000 calls each") {
     scale_eight->Run();
   };
+  WARN("4 thread QueryGuestSystemTime rounds ran together for " << time_four->GetOverlap() * 100.0
+                                                                << " percent of the round");
+  WARN("4 thread QueryGuestTickCount rounds ran together for " << tick_four->GetOverlap() * 100.0
+                                                               << " percent of the round");
   WARN("8 thread QueryGuestSystemTime rounds ran together for " << time_eight->GetOverlap() * 100.0
                                                                 << " percent of the round");
+  WARN("8 thread QueryGuestTickCount rounds ran together for " << tick_eight->GetOverlap() * 100.0
+                                                               << " percent of the round");
 }
