@@ -42,9 +42,6 @@ class Setting;
 
 namespace detail {
 
-/** The watch a thread runs and the watch it waits to remove, read by other threads. */
-struct ChangeThread;
-
 /** One function watching one or more settings, called with their current values. */
 class REX_API SettingWatch : public NonCopyable {
  public:
@@ -73,8 +70,7 @@ class REX_API SettingWatch : public NonCopyable {
 
   /**
    * Stops every later call, and waits for a call in progress on another thread. Inside the
-   * watch's own call it does not wait. When that wait would close a cycle of threads each waiting
-   * to remove the watch the next one runs, it logs an error and returns without waiting.
+   * watch's own call it does not wait.
    */
   void Remove();
 
@@ -121,9 +117,6 @@ class REX_API SettingWatch : public NonCopyable {
 
   void Unlink(const SettingBase* skip);
 
-  /** True when waiting for this watch leads back to the calling thread through other removals. */
-  bool WaitLeadsBack(const ChangeThread& self) const;
-
   /** True when a watched setting has a generation the last call did not read. Under mutex_. */
   bool HasNewer() const;
 
@@ -165,7 +158,7 @@ class REX_API SettingWatch : public NonCopyable {
   std::atomic<u64> handoff_{0}; /**< The ticket the next call is handed to. */
   std::atomic<bool> removed_{false};
   std::atomic<bool> unlinked_{false};
-  std::atomic<ChangeThread*> runner_{nullptr};
+  std::atomic<const void*> runner_{nullptr}; /**< The tag of the thread that holds the call. */
 };
 
 template <typename... T>

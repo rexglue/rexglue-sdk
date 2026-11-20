@@ -9,7 +9,6 @@
  */
 
 #include <algorithm>
-#include <deque>
 #include <format>
 #include <mutex>
 #include <string>
@@ -30,15 +29,6 @@ namespace rex {
 
 std::atomic<bool> g_startup_frozen{false};
 std::atomic<bool> g_launch_frozen{false};
-
-namespace detail {
-
-struct ChangeThread {
-  std::atomic<SettingWatch*> running{nullptr};
-  std::atomic<SettingWatch*> waiting_on{nullptr};
-};
-
-}  // namespace detail
 
 namespace {
 
@@ -139,71 +129,9 @@ void RunPending(std::span<const std::shared_ptr<detail::SettingWatch>> first = {
   }
 }
 
-/**
- * Steps of the wait-for walk before it gives up looking for a cycle. Each step crosses one thread
- * that runs a watch and waits to remove another, so this bounds the threads in a cycle.
+/** The address of this is the tag of the calling thread, which names the thread that holds a call.
  */
-constexpr u32 kMaxWaitSteps = 64;
-
-/**
- * Hands out the entries of the threads that run change calls. An entry goes back to the free list
- * when its thread ends and is never freed, so another thread can read one at any time.
- */
-class ChangeThreadPool {
- public:
-  detail::ChangeThread* Take();
-  void Give(detail::ChangeThread* entry);
-
- private:
-  std::mutex mutex_; /**< Unranked, it takes no other lock and calls no other code. */
-  std::deque<detail::ChangeThread> entries_;
-  std::vector<detail::ChangeThread*> free_;
-};
-
-ChangeThreadPool& GetChangeThreadPool() {
-  static auto* pool = new ChangeThreadPool();
-  return *pool;
-}
-
-struct ChangeThreadHolder {
-  constexpr ChangeThreadHolder() = default;
-  ~ChangeThreadHolder() {
-    if (entry) {
-      GetChangeThreadPool().Give(entry);
-    }
-  }
-  ChangeThreadHolder(const ChangeThreadHolder&) = delete;
-  ChangeThreadHolder& operator=(const ChangeThreadHolder&) = delete;
-
-  detail::ChangeThread* entry = nullptr;
-};
-
-thread_local ChangeThreadHolder t_thread;
-
-/** Returns the entry of the calling thread, taking one from the pool on the first call. */
-detail::ChangeThread& GetChangeThread() {
-  if (!t_thread.entry) {
-    t_thread.entry = GetChangeThreadPool().Take();
-  }
-  return *t_thread.entry;
-}
-
-detail::ChangeThread* ChangeThreadPool::Take() {
-  std::lock_guard lock(mutex_);
-  if (!free_.empty()) {
-    detail::ChangeThread* entry = free_.back();
-    free_.pop_back();
-    return entry;
-  }
-  return &entries_.emplace_back();
-}
-
-void ChangeThreadPool::Give(detail::ChangeThread* entry) {
-  entry->running.store(nullptr, std::memory_order_seq_cst);
-  entry->waiting_on.store(nullptr, std::memory_order_seq_cst);
-  std::lock_guard lock(mutex_);
-  free_.push_back(entry);
-}
+thread_local char t_thread_tag = 0;
 
 /**
  * Holds rank 0 for a delivery, so a caller holding a ranked lock is reported, and every lock the
@@ -222,17 +150,6 @@ struct ChangeCall {
   ChangeCall(const ChangeCall&) = delete;
   ChangeCall& operator=(const ChangeCall&) = delete;
 };
-
-std::string NameWatch(const detail::SettingWatch* watch) {
-  std::string out;
-  for (const SettingBase* setting : watch->GetSettings()) {
-    if (!out.empty()) {
-      out += ", ";
-    }
-    out += setting->GetName();
-  }
-  return out;
-}
 
 }  // namespace
 
@@ -309,8 +226,7 @@ bool SettingWatch::HasNewer() const {
 }
 
 void SettingWatch::Run(std::unique_lock<std::mutex>& lock, u64 ticket) {
-  ChangeThread& self = GetChangeThread();
-  runner_.store(&self, std::memory_order_seq_cst);
+  runner_.store(&t_thread_tag, std::memory_order_seq_cst);
   const u64 covering = requests_;
   const bool call = !removed_.load(std::memory_order_seq_cst) && HasNewer();
   lock.unlock();
@@ -318,7 +234,6 @@ void SettingWatch::Run(std::unique_lock<std::mutex>& lock, u64 ticket) {
   struct End {
     SettingWatch& watch;
     std::unique_lock<std::mutex>& state;
-    ChangeThread& thread;
     u64 own;    /**< The ticket of the thread. */
     u64 served; /**< The last ticket the call serves. */
     ~End() {
@@ -326,14 +241,12 @@ void SettingWatch::Run(std::unique_lock<std::mutex>& lock, u64 ticket) {
       if (watch.removed_.load(std::memory_order_seq_cst)) {
         watch.runner_.notify_all();
       }
-      thread.running.store(nullptr, std::memory_order_relaxed);
       state.lock();
       watch.HandOn(state, own, served);
     }
   };
-  const End end{*this, lock, self, ticket, covering};
+  const End end{*this, lock, ticket, covering};
   if (call) {
-    self.running.store(this, std::memory_order_relaxed);
     const ChangeCall depth;
     Call();
   }
@@ -398,47 +311,16 @@ void SettingWatch::Unlink(const SettingBase* skip) {
   }
 }
 
-bool SettingWatch::WaitLeadsBack(const ChangeThread& self) const {
-  const SettingWatch* watch = this;
-  for (u32 step = 0; step < kMaxWaitSteps && watch; ++step) {
-    const ChangeThread* runner = watch->runner_.load(std::memory_order_seq_cst);
-    if (!runner) {
-      return false;
-    }
-    if (runner == &self) {
-      return true;
-    }
-    watch = runner->waiting_on.load(std::memory_order_seq_cst);
-  }
-  return false;
-}
-
 void SettingWatch::Remove() {
   removed_.store(true, std::memory_order_seq_cst);
   Unlink(nullptr);
-  ChangeThread& self = GetChangeThread();
-  // Each thread in a cycle stores its waiting_on and then reads the runner_ and waiting_on of the
-  // others. All of these are seq_cst, so in their single total order the last thread to store its
-  // waiting_on reads every other store of the cycle and finds it, and no cycle goes unseen.
-  self.waiting_on.store(this, std::memory_order_seq_cst);
   for (;;) {
-    ChangeThread* runner = runner_.load(std::memory_order_seq_cst);
-    if (!runner || runner == &self) {
-      break;
-    }
-    if (WaitLeadsBack(self)) {
-      // Only this thread writes its running field, so a relaxed read sees its own last store.
-      const SettingWatch* running = self.running.load(std::memory_order_relaxed);
-      REXSYS_ERROR(
-          "the change call of {} removes the watch of {}, whose call waits to remove it, so the "
-          "removal does not wait",
-          running ? NameWatch(running) : std::string("no setting"), NameWatch(this));
-      ReportSettingOrder();
+    const void* runner = runner_.load(std::memory_order_seq_cst);
+    if (!runner || runner == &t_thread_tag) {
       break;
     }
     runner_.wait(runner, std::memory_order_acquire);
   }
-  self.waiting_on.store(nullptr, std::memory_order_seq_cst);
 }
 
 void SettingWatch::Detach(const SettingBase& setting) {
