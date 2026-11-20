@@ -11,6 +11,8 @@
 #include "rex_test.h"
 
 #include <algorithm>
+#include <catch2/benchmark/catch_benchmark.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <thread>
@@ -97,17 +99,55 @@ class TestSharedMemory final : public rex::gpu::SharedMemory {
     InitializeCommon();
   }
 
+  rex::u32 PageSizeLog2() const { return GetPageSizeLog2(); }
+
   rex::u32 uploads = 0;
+  rex::u64 pages = 0;
+  bool record = false;
+  /** False leaves the uploaded pages invalid, so the next request uploads them again. */
+  bool mark_valid = true;
+  std::vector<std::pair<rex::u32, rex::u32>> recorded;
 
  protected:
   bool UploadRanges(const std::vector<std::pair<rex::u32, rex::u32>>& ranges) override {
     ++uploads;
     for (const auto& [start, count] : ranges) {
-      MarkRangeValid(start << GetPageSizeLog2(), count << GetPageSizeLog2(), false);
+      pages += count;
+      if (mark_valid) {
+        MarkRangeValid(start << GetPageSizeLog2(), count << GetPageSizeLog2(), false);
+      }
+    }
+    if (record) {
+      recorded.insert(recorded.end(), ranges.begin(), ranges.end());
     }
     return true;
   }
 };
+
+/** One range requested through RequestRange and through RequestRanges on fresh shared memory. */
+struct RequestOutcome {
+  bool result = false;
+  rex::u32 uploads = 0;
+  rex::u64 pages = 0;
+  std::vector<std::pair<rex::u32, rex::u32>> recorded;
+  bool operator==(const RequestOutcome&) const = default;
+};
+
+RequestOutcome Outcome(FakeTitleContext& title, rex::u32 start, rex::u32 length, bool single) {
+  TestSharedMemory shared(title);
+  shared.record = true;
+  RequestOutcome outcome;
+  if (single) {
+    outcome.result = shared.RequestRange(start, length);
+  } else {
+    const std::pair<rex::u32, rex::u32> range(start, length);
+    outcome.result = shared.RequestRanges(&range, 1);
+  }
+  outcome.uploads = shared.uploads;
+  outcome.pages = shared.pages;
+  outcome.recorded = shared.recorded;
+  return outcome;
+}
 
 }  // namespace
 
@@ -171,6 +211,86 @@ REX_TEST_CASE_METHOD(Fixture, "write listener invalidates shared memory", "[gpu]
   title.listeners[0]->OnPhysicalWrite({kStart, kLength}, true);
   REQUIRE(shared.RequestRange(kStart, kLength));
   CHECK(shared.uploads == 2);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "RequestRange uploads the pages RequestRanges uploads for one range",
+                     "[gpu][xenos][shared_memory]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  constexpr rex::u32 kSize = rex::gpu::SharedMemory::kBufferSize;
+  const std::pair<rex::u32, rex::u32> cases[] = {
+      {0x10000, 0x10000},
+      {0x10000, 0x1000},
+      {0x10001, 1},
+      {0x10FFF, 2},
+      {0x20000, 0},
+      {0, 0},
+      {kSize, 0},
+      {kSize + 1, 0},
+      {kSize - 0x1000, 0x1000},
+      {kSize - 0x1000, 0x1001},
+      {kSize, 1},
+      {kSize + 1, 1},
+      {0x7FFFFFFF, 0x1000},
+      {0xFFFFFFFF, 2},
+      {kSize - 1, 1},
+      {0x100, 0xFFFFFFFF},
+  };
+  for (const auto& [start, length] : cases) {
+    INFO("start " << start << " length " << length);
+    const RequestOutcome single = Outcome(title, start, length, true);
+    const RequestOutcome vector_path = Outcome(title, start, length, false);
+    CHECK(single == vector_path);
+    CHECK(single.result == (length == 0 || (start <= kSize && kSize - start >= length)));
+  }
+}
+
+REX_TEST_CASE_METHOD(Fixture, "RequestRange of valid and invalid ranges, with the work counted",
+                     "[gpu][xenos][shared_memory][benchmark]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  TestSharedMemory shared(title);
+  constexpr rex::u32 kRange = 0x10000;
+  constexpr rex::u32 kValidStart = 0x100000;
+  constexpr rex::u32 kInvalidStart = 0x1000000;
+  REQUIRE(shared.RequestRange(kValidStart, kRange));
+  rex::u64 valid_calls = 0;
+  const rex::u32 valid_uploads_before = shared.uploads;
+  BENCHMARK("baseline: an empty call") {
+    return valid_calls;
+  };
+  BENCHMARK("RequestRange, valid 64 KiB range") {
+    ++valid_calls;
+    return shared.RequestRange(kValidStart, kRange);
+  };
+  const rex::u32 valid_uploads = shared.uploads - valid_uploads_before;
+  // The uploaded pages stay invalid, so every request below uploads its range again.
+  shared.mark_valid = false;
+  rex::u64 invalid_calls = 0;
+  rex::u64 invalid_succeeded = 0;
+  const rex::u64 invalid_pages_before = shared.pages;
+  BENCHMARK("RequestRange, invalid 64 KiB range that uploads") {
+    ++invalid_calls;
+    const bool ok = shared.RequestRange(kInvalidStart, kRange);
+    invalid_succeeded += ok;
+    return ok;
+  };
+  const rex::u64 invalid_pages = shared.pages - invalid_pages_before;
+  rex::u64 small_calls = 0;
+  const rex::u64 small_pages_before = shared.pages;
+  BENCHMARK("RequestRange, invalid 4 KiB range that uploads") {
+    ++small_calls;
+    return shared.RequestRange(kInvalidStart + 0x400000, 0x1000);
+  };
+  const rex::u64 small_pages = shared.pages - small_pages_before;
+  WARN("valid range: " << valid_calls << " calls, " << valid_uploads << " uploads; invalid 64 KiB: "
+                       << invalid_calls << " calls, " << invalid_succeeded << " succeeded, "
+                       << invalid_pages << " pages uploaded; invalid 4 KiB: " << small_calls
+                       << " calls, " << small_pages << " pages uploaded");
+  CHECK(valid_uploads == 0);
+  CHECK(invalid_succeeded == invalid_calls);
+  CHECK(invalid_pages == invalid_calls * (kRange >> shared.PageSizeLog2()));
+  CHECK(small_pages == small_calls * (0x1000 >> shared.PageSizeLog2()));
 }
 
 namespace {
