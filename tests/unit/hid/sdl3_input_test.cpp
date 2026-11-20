@@ -50,6 +50,20 @@ class TrackingContext final : public rex::IDriverContext {
   std::vector<rex::MoveOnlyFunction<void()>> posted;
 };
 
+// Takes the UI thread work and never runs it, so the driver starts no SDL.
+class HeldContext final : public rex::IDriverContext {
+ public:
+  rex::ISettingsRegistry& GetSettingsRegistry() override { return REX_SETTINGS(); }
+  rex::ILogger& GetLogger() override { return REX_LOGGER(); }
+  rex::Result<void> RunOnUIThread(rex::MoveOnlyFunction<void()>) override {
+    ++held;
+    return rex::Ok();
+  }
+  void PostToUIThread(rex::MoveOnlyFunction<void()>) override { ++held; }
+
+  int held = 0;
+};
+
 struct Fixture {
   Fixture() {
     REQUIRE(group.Load("rexhid-sdl3").has_value());
@@ -80,6 +94,9 @@ REX_TEST_CASE_METHOD(Fixture, "sdl3 devices are live after Initialize", "[hid][s
   const u64 before = driver->GetDeviceRevision();
   REQUIRE(driver->Initialize(context).has_value());
   CHECK(driver->GetDeviceRevision() > before);
+  // With hid.sdl.fresh_read on (the default), the read first waits for a refresh round on the
+  // pad thread, then reports the unknown pad as not connected.
+  CHECK(!driver->GetDeviceState(rex::hid::PadDeviceID{999}).has_value());
 
   driver->Shutdown();
   context.RunPosted();
@@ -102,4 +119,24 @@ REX_TEST_CASE_METHOD(Fixture,
   CHECK((*found)->GetText() == "pads.txt");
 
   driver->Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "fresh read setting is hid.sdl.fresh_read, on by default, applied at restart",
+                     "[hid][sdl3]") {
+  auto driver = Create();
+  REQUIRE(driver);
+  HeldContext context;
+  REQUIRE(driver->Initialize(context).has_value());
+  CHECK(context.held == 1);
+
+  auto found = REX_SETTINGS().Find("hid.sdl.fresh_read");
+  REQUIRE(found.has_value());
+  CHECK((*found)->GetType() == rex::SettingType::kBool);
+  CHECK((*found)->GetDefaultText() == "true");
+  CHECK((*found)->GetText() == "true");
+  CHECK((*found)->GetConstraints().mode == rex::SettingMode::kRequiresRestart);
+
+  driver->Shutdown();
+  CHECK(!REX_SETTINGS().Find("hid.sdl.fresh_read").has_value());
 }

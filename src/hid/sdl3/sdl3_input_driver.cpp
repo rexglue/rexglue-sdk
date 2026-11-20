@@ -15,6 +15,8 @@
 #include <array>
 #include <atomic>
 #include <cctype>
+#include <chrono>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -29,7 +31,10 @@
 #include <rex/hid/pad.h>
 #include <rex/platform.h>
 #include <rex/platform/file.h>
+#include <rex/platform/thread.h>
 #include <rex/settings_registry.h>
+
+#include "hid/sdl3/sdl3_pad_refresher.h"
 
 namespace rex::hid::sdl3 {
 
@@ -37,6 +42,10 @@ namespace {
 
 constexpr u32 kRumbleDurationMs = 0xFFFF;
 constexpr size_t kMaxEventsBeforeFlush = 64;
+// How long a state read waits for the pads to be refreshed.
+constexpr std::chrono::milliseconds kFreshReadLimit(2);
+// Timeouts after this many are not logged.
+constexpr u64 kFreshReadWarnings = 3;
 
 constexpr u8 kSubtypeGamepad = 0x01;
 constexpr u8 kSubtypeWheel = 0x02;
@@ -180,6 +189,11 @@ struct SDL3InputDriver::State {
   std::atomic<bool> events_up{false};
   std::atomic<bool> gamepad_up{false};
 
+  // Refreshes the pads on its own thread just before a state read (hid.sdl.fresh_read). Set on
+  // the UI thread in Initialize before gamepad_up, stopped in Shutdown before SDL closes the pads.
+  // Null when the setting is off or the gamepad subsystem did not start.
+  std::unique_ptr<PadRefresher> refresher;
+
   static bool EventWatch(void* userdata, SDL_Event* event);
   void HandleEvent(const SDL_Event& event);
   std::unique_lock<std::mutex> DrainAndLock();
@@ -192,6 +206,9 @@ struct SDL3InputDriver::State {
   Controller* FindByInstance(SDL_JoystickID instance);
   Controller* FindByID(PadDeviceID id);
   void QueuePump(const std::shared_ptr<State>& self);
+  void StartRefresher();
+  void WaitForFreshPads() const;
+  void StopRefresher() const;
 };
 
 bool SDL3InputDriver::State::EventWatch(void* userdata, SDL_Event* event) {
@@ -403,6 +420,58 @@ void SDL3InputDriver::State::QueuePump(const std::shared_ptr<State>& self) {
   });
 }
 
+void SDL3InputDriver::State::StartRefresher() {
+  PadRefresher::Options options;
+  // The events a round produces reach EventWatch, as the pump's do.
+  options.refresh = [] { SDL_UpdateGamepads(); };
+  options.thread_setup = [] {
+    rex::platform::SetCurrentThreadName("SDL pad refresh");
+#if REX_PLATFORM_WIN32
+    // A round must not queue behind the title's threads: a read waits for it. Not on POSIX, where
+    // the call asks for real time scheduling.
+    rex::platform::SetCurrentThreadPriority(rex::platform::ThreadPriority::kAboveNormal);
+#endif
+  };
+  refresher = std::make_unique<PadRefresher>(std::move(options));
+  if (refresher->IsRunning()) {
+    REXHID_INFO("SDL fresh pad read: on");
+  } else {
+    REXHID_WARN("SDL fresh pad read: the refresh thread did not start, reads use the last poll");
+  }
+}
+
+void SDL3InputDriver::State::WaitForFreshPads() const {
+  if (!refresher) {
+    return;
+  }
+  if (refresher->RefreshAndWait(kFreshReadLimit) == PadRefresher::Result::kTimedOut) {
+    const u64 timed_out = refresher->GetCounts().timed_out;
+    if (timed_out <= kFreshReadWarnings) {
+      REXHID_WARN("SDL fresh pad read: a read waited {} ms for the pads and went on without ({})",
+                  kFreshReadLimit.count(), timed_out);
+    }
+  }
+}
+
+void SDL3InputDriver::State::StopRefresher() const {
+  if (!refresher) {
+    return;
+  }
+  // The object stays: a read that comes later returns at once.
+  refresher->Stop();
+  const PadRefresher::Counts counts = refresher->GetCounts();
+  const PadRefresher::RoundCost cost = PadRefresher::RoundCostOf(counts);
+  REXHID_INFO(
+      "SDL fresh pad read: {} fresh, {} recent, {} timed out, {} skipped, {} rounds, longest round "
+      "{} us, mean {} us, longest start delay {} us",
+      counts.fresh, counts.recent, counts.timed_out, counts.skipped, counts.rounds,
+      counts.longest_round_us, cost.mean_us, counts.longest_start_delay_us);
+  if (cost.warn) {
+    REXHID_WARN("SDL fresh pad read: pad refreshes took {} us on average, and reads wait for them",
+                cost.mean_us);
+  }
+}
+
 SDL3InputDriver::SDL3InputDriver() : SettingOwner("hid.sdl") {}
 
 std::string_view SDL3InputDriver::GetName() const {
@@ -417,8 +486,9 @@ Result<void> SDL3InputDriver::Initialize(IDriverContext& context) {
   state_->running = true;
 
   std::filesystem::path mappings = mappings_file.Get();
+  const bool fresh = fresh_read.Get();
   const Result<void> ran =
-      context.RunOnUIThread([state = state_, mappings = std::move(mappings)]() {
+      context.RunOnUIThread([state = state_, mappings = std::move(mappings), fresh] {
         if (!state->running) {
           return;
         }
@@ -434,6 +504,11 @@ Result<void> SDL3InputDriver::Initialize(IDriverContext& context) {
         if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
           REXHID_ERROR("SDL: failed to init gamepad subsystem: {}", SDL_GetError());
           return;
+        }
+        if (fresh) {
+          state->StartRefresher();
+        } else {
+          REXHID_INFO("SDL fresh pad read: off (hid.sdl.fresh_read)");
         }
         state->gamepad_up = true;
         ++state->revision;
@@ -471,6 +546,8 @@ void SDL3InputDriver::Shutdown() {
   state_->running = false;
   state_->context->GetSettingsRegistry().Unregister(*this);
   std::shared_ptr<State> state = std::move(state_);
+  // The refresh thread calls into SDL: it stops before SDL closes the pads and its subsystems.
+  state->StopRefresher();
   const Result<void> ran = state->context->RunOnUIThread([state]() {
     {
       std::lock_guard<std::mutex> guard(state->mutex);
@@ -531,6 +608,9 @@ Result<PadState> SDL3InputDriver::GetDeviceState(PadDeviceID id) {
   if (!state_ || !state_->gamepad_up) {
     return std::unexpected(NotConnected());
   }
+  // The read a title makes every frame, keystrokes included: the pads are refreshed first, so the
+  // events drained below are the newest. The pump still delivers hot plug events.
+  state_->WaitForFreshPads();
   state_->QueuePump(state_);
   auto guard = state_->DrainAndLock();
   const State::Controller* controller = state_->FindByID(id);

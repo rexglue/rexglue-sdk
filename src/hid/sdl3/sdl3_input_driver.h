@@ -33,6 +33,10 @@ class SDL3InputDriver final : public IInputDriver, public SettingOwner {
  public:
   REX_SETTING(std::filesystem::path, mappings_file, "{app.root}/gamecontrollerdb.txt",
               "SDL gamepad mappings file", kInitOnly);
+  REX_SETTING(bool, fresh_read, true,
+              "Refresh the pads just before each read, so a read returns the newest state "
+              "(off: a read returns the state from the previous poll)",
+              kRequiresRestart);
 
   SDL3InputDriver();
 
