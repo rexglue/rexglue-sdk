@@ -78,6 +78,9 @@ VulkanPipelineCache::VulkanPipelineCache(VulkanCommandProcessor& command_process
       guest_shader_vertex_stages_(guest_shader_vertex_stages) {}
 
 void VulkanPipelineCache::AnalyzeShaderUCode(Shader& shader) {
+  if (shader.IsUcodeAnalyzed()) {
+    return;
+  }
   shader.AnalyzeUcode(ucode_disasm_buffer_,
                       command_processor_.GetXenosSettings().dump_shaders.Get());
 }

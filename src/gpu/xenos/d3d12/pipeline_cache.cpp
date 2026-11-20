@@ -109,6 +109,9 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
 }
 
 void PipelineCache::AnalyzeShaderUCode(Shader& shader) {
+  if (shader.IsUcodeAnalyzed()) {
+    return;
+  }
   shader.AnalyzeUcode(ucode_disasm_buffer_,
                       command_processor_.GetXenosSettings().dump_shaders.Get());
 }
