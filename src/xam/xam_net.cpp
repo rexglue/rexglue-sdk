@@ -870,6 +870,14 @@ u32 NetDll_bind_entry([[maybe_unused]] u32 caller, u32 socket_handle, GuestPtrT<
   }
 
   N_XSOCKADDR_IN native_name(name);
+
+  const u32 port = native_name.sin_port;
+  if (port > 0 && port < 1024) {
+    native_name.sin_port = static_cast<u16>(port + 10000);
+    REXXAM_WARN("NetDll_bind: port {} requires privileges, remapping to port {}", port,
+                port + 10000);
+  }
+
   kernel::X_STATUS status = socket->Bind(&native_name, namelen);
   if (kernel::XFAILED(status)) {
     CurrentThread().SetLastError(IsValidNameLength(namelen) ? CallError(*socket) : kWSAEFAULT);
