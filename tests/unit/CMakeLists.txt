@@ -443,6 +443,7 @@ target_compile_definitions(unit_tests PRIVATE REX_GPU_XENOS_STATIC)
 add_dependencies(
   unit_tests
   rexmod-test-nomodule
+  rexmod-test-alloc
   rexapu-sdl3
   rexhid-sdl3
   rexui-sdl3
