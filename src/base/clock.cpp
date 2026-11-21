@@ -19,9 +19,14 @@
 
 #include <rex/chrono.h>
 #include <rex/math.h>
+#include <rex/platform.h>
 #include <rex/settings_registry.h>
 
 #include "base/core_settings.h"
+
+#if REX_ARCH_ARM64 && REX_COMPILER_MSVC
+#include <intrin.h>
+#endif
 
 namespace rex {
 
@@ -73,6 +78,18 @@ constinit SharedTickState g_tick_state;
 constinit std::atomic<u32> g_tick_sequence{0};
 std::mutex g_tick_mutex;
 
+/** Finishes every earlier instruction before a later one starts. ARM64 may run a later load ahead
+ * of a host tick read, or a host tick read ahead of an earlier store. x86 keeps that order. */
+void FinishEarlierInstructions() {
+#if REX_ARCH_ARM64
+#if REX_COMPILER_MSVC
+  __isb(_ARM64_BARRIER_SY);
+#else
+  __asm__ volatile("isb");
+#endif
+#endif
+}
+
 /** Reads the tick state. With a host tick count pointer, the host tick is read inside the read
  * section, so the result pairs the state with a host tick taken while it was current. */
 TickState ReadTickState(u64* host_tick_count = nullptr) {
@@ -91,6 +108,7 @@ TickState ReadTickState(u64* host_tick_count = nullptr) {
     state.time_den = g_tick_state.time_den.load(std::memory_order_relaxed);
     if (host_tick_count) {
       *host_tick_count = Clock::GetHostTickCount();
+      FinishEarlierInstructions();
     }
     std::atomic_thread_fence(std::memory_order_acquire);
     if (g_tick_sequence.load(std::memory_order_relaxed) == before) {
@@ -104,6 +122,7 @@ u32 BeginTickWriteLocked() {
   const u32 sequence = g_tick_sequence.load(std::memory_order_relaxed);
   g_tick_sequence.store(sequence + 1, std::memory_order_relaxed);
   std::atomic_thread_fence(std::memory_order_seq_cst);
+  FinishEarlierInstructions();
   return sequence + 2;
 }
 
