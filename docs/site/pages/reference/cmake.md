@@ -309,7 +309,7 @@ These cache variables apply to the recompiled sources only, not to your own code
 
 | Option | Default | Meaning |
 |---|---|---|
-| `REXGLUE_BUILD_TESTS` | `ON` when the SDK is the top level project | Adds the unit tests. The default target and `install` do not build them. Build the `rexglue_tests` target, then run `ctest`. |
+| `REXGLUE_BUILD_TESTS` | `ON` when the SDK is the top level project | Adds the unit tests. The default target and `install` do not build them. Build the `rextest_check_all` target to build and run them, or `rextest_benchmark_all` to run the benchmarks. |
 | `REXGLUE_BUILD_PPC_TESTS` | `OFF` | Builds the PPC instruction tests, which require the PPC toolchain. |
 | `REXGLUE_ENABLE_SANITIZERS` | `OFF` | Builds with UndefinedBehaviorSanitizer. |
 | `REXGLUE_ENABLE_TSAN` | `OFF` | Builds with ThreadSanitizer and adds a `-tsan` suffix to the output folder. |

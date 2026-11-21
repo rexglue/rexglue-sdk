@@ -23,6 +23,12 @@ namespace rex::test {
 class Caller;
 
 /**
+ * How long a benchmark body may run on its thread. Full sampling runs every benchmark of a case
+ * inside one body, which takes longer than the 20 seconds a test body gets.
+ */
+inline constexpr std::chrono::seconds kBenchmarkBodyTimeout{600};
+
+/**
  * Threads started once and released together for each round, so a timed loop holds the work and
  * not the thread start. Every thread waits at a rendezvous until all of them have arrived, then
  * runs its body, so the bodies begin together. The pool records when each body began and ended and

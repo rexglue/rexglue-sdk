@@ -246,7 +246,7 @@ REX_FUNC(NoOp) {}
 
 REX_TEST_CASE("Pool allocate and free of 64 bytes", "[kernel][pool][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     const auto allocate = Caller::Resolve("ExAllocatePoolTypeWithTag");
     const auto release = Caller::Resolve("ExFreePool");
     const auto nothing = Caller::Resolve(&NoOp);
@@ -265,7 +265,7 @@ REX_TEST_CASE("Pool allocate and free of 64 bytes", "[kernel][pool][benchmark]")
 REX_TEST_CASE("Pool allocate 1000 live blocks of 64 bytes and free them",
               "[kernel][pool][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     const auto allocate = Caller::Resolve("ExAllocatePoolTypeWithTag");
     const auto release = Caller::Resolve("ExFreePool");
     const auto nothing = Caller::Resolve(&NoOp);

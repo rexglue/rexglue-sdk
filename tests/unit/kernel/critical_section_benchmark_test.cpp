@@ -185,7 +185,7 @@ std::function<u32(Caller&, int)> CountUnder(const Exports& exports, u32 section,
 /** Reports threads counting under one critical section, after a run that checks the count. */
 void ReportCriticalSection(std::string_view name, int threads, u32 spin_count) {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([name, threads, spin_count](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([name, threads, spin_count](Caller& c) {
     const Exports exports;
     const u32 section = c.Alloc(28);
     c.Kernel("RtlInitializeCriticalSectionAndSpinCount", {section, spin_count});
@@ -202,7 +202,7 @@ void ReportCriticalSection(std::string_view name, int threads, u32 spin_count) {
 
 REX_TEST_CASE("Critical section benchmark: harness with an empty loop", "[kernel][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     Report("harness, 4 threads, empty loop", u64{4} * kOpsPerThread, [&] {
       return TimeThreads(c, 4, [](Caller&, int) -> u32 {
         volatile u32 sink = 0;
@@ -234,7 +234,7 @@ REX_TEST_CASE("Critical section benchmark: 4 threads with a spin count of 4000",
 
 REX_TEST_CASE("Critical section benchmark: event round trips", "[kernel][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     const Exports exports;
     const u32 ping = c.Alloc(0x10);
     const u32 pong = c.Alloc(0x10);

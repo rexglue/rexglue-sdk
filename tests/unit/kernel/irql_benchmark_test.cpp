@@ -48,7 +48,7 @@ bool HasQueuedDPCs(Caller& c) {
 
 REX_TEST_CASE("Raising and lowering the IRQL with an empty DPC queue", "[kernel][dpc][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     CHECK_FALSE(HasQueuedDPCs(c));
     const auto raise = Caller::Resolve("KeRaiseIrqlToDpcLevel");
     const auto lower = Caller::Resolve("KfLowerIrql");

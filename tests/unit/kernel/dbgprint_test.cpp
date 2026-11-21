@@ -108,7 +108,7 @@ REX_TEST_CASE("DbgPrint and XamDbgPrint log nothing above Dev level and still re
 REX_TEST_CASE("DbgPrint with the level at Info", "[kernel][strings][dbgprint][benchmark]") {
   KernelFixture fixture;
   REQUIRE(REX_SETTINGS().SetText("log.categories.title", rex::log::LevelName(Level::kInfo)));
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     const u32 format = c.AllocString("%s %d");
     const u32 word = c.AllocString("value");
     u8* const base = BaseOf(c);

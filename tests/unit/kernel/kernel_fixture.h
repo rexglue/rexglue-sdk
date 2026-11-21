@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <initializer_list>
@@ -187,8 +188,22 @@ class KernelFixture {
 
   const std::filesystem::path& GetRoot() const;
 
-  /** Runs a body on a guest thread created through the ExCreateThread export and waits for it. */
-  void RunOnGuestThread(const std::function<void(Caller&)>& body);
+  /**
+   * Runs a body on a guest thread created through the ExCreateThread export and waits for it.
+   *
+   * @param body The code to run on the guest thread.
+   * @param timeout How long to wait for the body.
+   */
+  void RunOnGuestThread(const std::function<void(Caller&)>& body,
+                        std::chrono::seconds timeout = std::chrono::seconds(20));
+
+  /**
+   * Runs a benchmark body on a guest thread and waits for it. The body gets kBenchmarkBodyTimeout,
+   * because full sampling runs every benchmark of a case inside one body.
+   *
+   * @param body The benchmark code to run on the guest thread.
+   */
+  void RunBenchmarkOnGuestThread(const std::function<void(Caller&)>& body);
 
   /**
    * Runs a body on a guest thread and waits for the thread to end, including an exit from inside an

@@ -43,7 +43,7 @@ u32 CountResults(Call&& call, u32 expected) {
 
 REX_TEST_CASE("A zero timeout poll of an unsignaled event", "[kernel][waits][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {event, 0, 0});
     const u32 poll = c.AllocQuad(0);
@@ -63,7 +63,7 @@ REX_TEST_CASE("A zero timeout poll of an unsignaled event", "[kernel][waits][ben
 
 REX_TEST_CASE("A wait on a signaled manual reset event", "[kernel][waits][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {event, 0, 1});
     const u32 poll = c.AllocQuad(0);

@@ -631,7 +631,7 @@ endif ()
 # SDL_ASSERT=always_ignore makes SDL print an assert and go on instead of waiting on a dialog. A run
 # with no display reaches an SDL assert on Windows.
 # A [benchmark] case runs once here, with one sample and no warm up, to check that it runs. Its
-# figures come only from a direct run of unit_tests, see Benchmarks in the contributing page.
+# figures come only from the rextest_benchmark_all target, see Benchmarks in the contributing page.
 catch_discover_tests(
   unit_tests
   DISCOVERY_MODE

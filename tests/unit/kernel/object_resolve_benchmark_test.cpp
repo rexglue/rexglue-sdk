@@ -79,7 +79,7 @@ ThreadPool::Body LockBody(rex::platform::RankedSharedMutex& mutex) {
 
 REX_TEST_CASE("ResolveObject on one thread", "[kernel][identity][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     ResolveSetup setup(c);
     ThreadPool one(1, setup.ResolveBody(false));
     ThreadPool idle_one(1, [](int, Caller*) {});
@@ -100,7 +100,7 @@ REX_TEST_CASE("ResolveObject on one thread", "[kernel][identity][benchmark]") {
 
 REX_TEST_CASE("ResolveObject on 4 and 8 threads", "[kernel][identity][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller& c) {
+  fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     ResolveSetup setup(c);
     ThreadPool four(4, setup.ResolveBody(false));
     ThreadPool eight(8, setup.ResolveBody(false));
@@ -131,7 +131,7 @@ REX_TEST_CASE("ResolveObject on 4 and 8 threads", "[kernel][identity][benchmark]
 
 REX_TEST_CASE("The object table lock alone", "[kernel][identity][benchmark]") {
   KernelFixture fixture;
-  fixture.RunOnGuestThread([](Caller&) {
+  fixture.RunBenchmarkOnGuestThread([](Caller&) {
     rex::platform::RankedSharedMutex mutex(rex::platform::lock_rank::kObjectTable);
     ThreadPool one(1, LockBody(mutex));
     ThreadPool four(4, LockBody(mutex));

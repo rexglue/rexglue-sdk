@@ -28,6 +28,7 @@
 #include <rex/kernel/thread_state.h>
 #include <rex/kernel/heap.h>
 
+#include "../benchmark_pool.h"
 #include "../test_memory.h"
 #include "temp_folder.h"
 #include "codegen/tool_runtime.h"
@@ -348,7 +349,8 @@ KernelFixture::~KernelFixture() {
   }
 }
 
-void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
+void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body,
+                                     std::chrono::seconds timeout) {
   auto done = std::make_shared<std::promise<void>>();
   auto finished = done->get_future();
 
@@ -363,14 +365,17 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
     done->set_value();
   });
 
-  const bool finished_in_time =
-      finished.wait_for(std::chrono::seconds(20)) == std::future_status::ready;
+  const bool finished_in_time = finished.wait_for(timeout) == std::future_status::ready;
   CHECK(finished_in_time);
   CheckNoFailures();
   if (finished_in_time) {
     main_caller.Kernel("NtClose", {handle});
   }
   kernel::ThreadState::Bind(previous);
+}
+
+void KernelFixture::RunBenchmarkOnGuestThread(const std::function<void(Caller&)>& body) {
+  RunOnGuestThread(body, kBenchmarkBodyTimeout);
 }
 
 void KernelFixture::RunUntilGuestThreadEnds(const std::function<void(Caller&)>& body) {

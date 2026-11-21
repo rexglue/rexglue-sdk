@@ -6,6 +6,16 @@ Install the tools and build the SDK as the [Getting Started](getting-started.md)
 
 On Windows, the `scripts/PSReX` PowerShell module wraps the CMake steps. Run `Import-Module ./scripts/PSReX`, then `rex-configure`, `rex-build`, `rex-test` and `rex-format`.
 
+## Running the tests
+
+The test programs are not part of the default build. The `rextest_check_all` target builds every test program and then runs ctest for the configuration that you build. With a configured build folder, run
+
+```
+cmake --build out/build/<preset> --config Release --target rextest_check_all
+```
+
+Replace `<preset>` with the preset you configured, such as `win-amd64` or `linux-amd64`. Use `--config Debug` to test a Debug build. A failing test prints its output and fails the target. To run one test, build `rexglue_tests` and call `ctest -C <config> -R <name>` in the build folder.
+
 ## Code style
 
 The code follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html), with the formatting in `.clang-format` and the naming checks in `.clang-tidy`. Format with clang-format before you commit.
@@ -39,9 +49,19 @@ An interface is an abstract class declared with `REX_DECLARE_INTERFACE(Name, ver
 
 ## Benchmarks
 
-A test case tagged `[benchmark]` is a benchmark. ctest runs each of them once, with `--benchmark-samples 1 --benchmark-warmup-time 0`, set in `tests/unit/CMakeLists.txt`, so that a gate checks that the case runs. Those runs give no figures. Figures come only from running `unit_tests "[benchmark]"` (or one case by name) directly on a Release build with the sample count and warm up Catch2 sets by default, or more.
+A test case tagged `[benchmark]` is a benchmark. ctest runs each of them once, with `--benchmark-samples 1 --benchmark-warmup-time 0`, set in `tests/unit/CMakeLists.txt`, so that a check shows that the case runs. Those runs give no figures. Figures come from the `rextest_benchmark_all` target, which builds `unit_tests`, runs every benchmark with 100 samples and writes the results to a CSV file.
+
+```
+cmake --build out/build/<preset> --config Release --target rextest_benchmark_all
+```
+
+Use a Release build, since Debug figures do not describe the speed of the SDK. Catch2 prints its table to the terminal during the run. The CSV file is `rextest/rextest-benchmark-<commit>-<config>-<time>.csv` in the build folder, and every run writes a new file. [Running the Benchmarks](running-benchmarks.md) lists the columns and the steps for a person who only wants to produce the figures.
+
+Two cache variables change the run. `REXTEST_BENCHMARK_FILTER` is the Catch2 test spec and defaults to `[benchmark]`. `REXTEST_BENCHMARK_SAMPLES` is the number of samples and defaults to 100. Set them at configure time, for example `-DREXTEST_BENCHMARK_FILTER="[benchmark]" -DREXTEST_BENCHMARK_SAMPLES=50`. A filter that matches no case fails the target.
 
 A benchmark times one operation. Lookups, allocation and thread start stay outside the timed region, and each group has a baseline, an empty call through the same path, whose cost is read beside the result. A case that needs threads to overlap starts them once and releases them together through `ThreadPool` in `tests/unit/benchmark_pool.h`, which also reports how long they ran together. A report names the host, whether the run was pinned, the number of runs, and the median with the spread.
+
+To compare a change with its base, run `rextest_benchmark_all` in two worktrees, one for each, and compare the two CSV files. Runs of the same code taken at different times on a shared host have differed by up to 2x. Alternate the two builds several times, and read each figure beside the baseline case of its own run.
 
 ## Pull request checks
 
