@@ -289,7 +289,11 @@ void EmitPrint(std::string& out, std::format_string<Args...> fmt, Args&&... args
   std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
 }
 
-/** Builds one assignment per localized nonvolatile, from the locals into ctx or back. */
+/**
+ * Builds one assignment per localized nonvolatile, from the locals into ctx or back. The localized
+ * r0, r11 and r12 go into ctx only, since a register-sharing callee reads them and they are
+ * volatile.
+ */
 std::string RegisterSyncLines(const RecompilerLocalVariables& locals, bool to_ctx) {
   std::string lines;
   auto copy = [&](const std::string& name) {
@@ -298,6 +302,12 @@ std::string RegisterSyncLines(const RecompilerLocalVariables& locals, bool to_ct
     else
       EmitPrintln(lines, "\t{0} = ctx.{0};", name);
   };
+  if (to_ctx) {
+    for (size_t i : {0, 11, 12}) {
+      if (locals.r[i])
+        copy(std::format("r{}", i));
+    }
+  }
   for (size_t i = 14; i < 32; ++i) {
     if (locals.r[i])
       copy(std::format("r{}", i));

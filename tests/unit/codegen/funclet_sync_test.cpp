@@ -30,6 +30,8 @@ constexpr u32 kCmpwiCR5R3 = 0x2E830000;
 constexpr u32 kStvx128V64 = 0x100B61CB;
 constexpr u32 kVorV14 = 0x11CE7484;
 constexpr u32 kVorV31 = 0x13FFFC84;
+constexpr u32 kLwzR3FromR12Plus96 = 0x806C0060;
+constexpr u32 kAddiR12R31Plus112 = 0x399F0070;
 constexpr u32 kOwnerWords = 9;
 constexpr u32 kFuncletIndex = kOwnerWords;
 
@@ -48,10 +50,19 @@ std::string Body(const std::string& tree, std::string_view name) {
   return tree.substr(begin, tree.find("\n}\n", begin) - begin);
 }
 
-std::string GenerateOwner(std::string_view flags) {
-  const std::vector<u32> words = {
-      kMrR31R3, kFmrF31F1, kCmpwiCR5R3, kStvx128V64, kVorV14, kVorV31, BranchLink(6, kFuncletIndex),
-      kMrR3R31, kBlr,      kLiR3One,    kBlr};
+std::string Generate(std::string_view flags, u32 funclet_instruction = kLiR3One,
+                     u32 owner_instruction = kVorV31) {
+  const std::vector<u32> words = {kMrR31R3,
+                                  kFmrF31F1,
+                                  kCmpwiCR5R3,
+                                  kStvx128V64,
+                                  kVorV14,
+                                  owner_instruction,
+                                  BranchLink(6, kFuncletIndex),
+                                  kMrR3R31,
+                                  kBlr,
+                                  funclet_instruction,
+                                  kBlr};
   const rex::test::PDataEntry pdata[] = {{Address(0), kOwnerWords}};
   rex::test::TempFolder folder;
   const auto result = rex::test::GenerateFromImage(
@@ -60,7 +71,11 @@ std::string GenerateOwner(std::string_view flags) {
                   Address(kFuncletIndex)));
   INFO((result ? std::string() : result.error().message));
   REQUIRE(result);
-  return Body(rex::test::ReadGeneratedTree(folder.path / "generated" / "entry"), "xstart");
+  return rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
+}
+
+std::string GenerateOwner(std::string_view flags) {
+  return Body(Generate(flags), "xstart");
 }
 
 bool SyncedAround(const std::string& body, std::string_view reg) {
@@ -88,4 +103,31 @@ REX_TEST_CASE("An owner that keeps registers in ctx copies nothing around a func
   const auto body = GenerateOwner("");
   CHECK(body.find("ctx.r31 = r31;") == std::string::npos);
   CHECK(body.find("r31 = ctx.r31;") == std::string::npos);
+}
+
+REX_TEST_CASE("A register-sharing funclet reads r12 from its owner's context",
+              "[codegen][funclet][registers]") {
+  const auto tree = Generate("non_argument_as_local = true\n", kLwzR3FromR12Plus96);
+  const auto funclet = Body(tree, std::format("sub_{:08X}", Address(kFuncletIndex)));
+
+  CHECK(funclet.find("PPCRegister r12{}") == std::string::npos);
+  CHECK(funclet.find("ctx.r12") != std::string::npos);
+}
+
+REX_TEST_CASE("An owner passes a localized r12 to a register-sharing funclet through ctx",
+              "[codegen][funclet][registers]") {
+  for (const std::string_view flags :
+       {"non_argument_as_local = true\n",
+        "non_argument_as_local = true\nnon_volatile_as_local = true\n"}) {
+    INFO(flags);
+    const auto tree = Generate(flags, kLwzR3FromR12Plus96, kAddiR12R31Plus112);
+    const auto owner = Body(tree, "xstart");
+    const auto call = owner.find(std::format("sub_{:08X}(ctx, base);", Address(kFuncletIndex)));
+    REQUIRE(call != std::string::npos);
+    const auto before = owner.find("ctx.r12 = r12;");
+    CHECK(before != std::string::npos);
+    CHECK(before < call);
+    const auto funclet = Body(tree, std::format("sub_{:08X}", Address(kFuncletIndex)));
+    CHECK(funclet.find("ctx.r12") != std::string::npos);
+  }
 }
