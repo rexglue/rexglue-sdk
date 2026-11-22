@@ -1893,7 +1893,7 @@ void SPIRVShaderTranslator::SampleTexture(spv::Builder::TextureParameters& textu
               spv::OpVectorTimesScalar, type_float4,
               builder_->CreateNoContractionBinOp(spv::OpFSub, type_float4, sign_result, lerp_first),
               lerp_factor);
-          sign_result = builder_->CreateNoContractionBinOp(spv::OpFAdd, type_float4, sign_result,
+          sign_result = builder_->CreateNoContractionBinOp(spv::OpFAdd, type_float4, lerp_first,
                                                            lerp_difference);
         }
       }
