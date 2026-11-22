@@ -391,3 +391,24 @@ REX_TEST_CASE("A pdata type 2 entry that is not a helper does not take the handl
   REQUIRE_FALSE(result);
   CHECK(Has(result.error().message, "millicode"));
 }
+
+REX_TEST_CASE("Every copy of a helper run is registered, the lowest address with the plain name",
+              "[codegen][millicode]") {
+  constexpr u32 kRunLength = kGPRCount + 2;
+  constexpr u32 kSecondIndex = kHelperIndex + kRunLength;
+  auto code = WithRun({Run::kGPRSave}, {BranchLink(0, kHelperIndex), BranchLink(1, kSecondIndex),
+                                        BranchLink(2, kSecondIndex + 1), kBlr});
+  const auto second = BuildRun({Run::kGPRSave});
+  code.insert(code.end(), second.begin(), second.end());
+  const auto tree = Generate(code, {}, 4);
+  CHECK(Has(tree, Entry(kHelperIndex, "__savegprlr_14")));
+  CHECK(Has(tree, Entry(kHelperIndex + kGPRCount - 1, "__savegprlr_31")));
+  CHECK(
+      Has(tree, Entry(kSecondIndex, std::format("__savegprlr_14_{:08X}", Address(kSecondIndex)))));
+  CHECK(Has(tree,
+            Entry(kSecondIndex + kGPRCount - 1,
+                  std::format("__savegprlr_31_{:08X}", Address(kSecondIndex + kGPRCount - 1)))));
+  CHECK(Has(tree, std::format("__savegprlr_14_{:08X}(ctx, base)", Address(kSecondIndex))));
+  CHECK(Has(tree, std::format("__savegprlr_15_{:08X}(ctx, base)", Address(kSecondIndex + 1))));
+  CHECK(Has(tree, "__savegprlr_14(ctx, base)"));
+}
