@@ -525,6 +525,19 @@ WorkspaceHeap& TitleState::GetWorkspace() {
   return *workspace_;
 }
 
+Result<u32> TitleState::Allocate(u32 size, bool zero) {
+  if (!workspace_) {
+    return Err<u32>(ErrorCategory::kRuntime, "the title has no workspace");
+  }
+  return workspace_->Allocate(size, zero);
+}
+
+void TitleState::Free(u32 address) {
+  if (workspace_) {
+    workspace_->Free(address);
+  }
+}
+
 IModuleRegistry& TitleState::GetModuleRegistry() {
   return *module_registry_;
 }
@@ -792,7 +805,7 @@ Result<void> TitleState::CreateXAM() {
           .exit = *this,
           .debug = *this,
           .heap = *memory_,
-          .workspace = *workspace_,
+          .workspace = *this,
           .file_system = *file_system_,
           .file_system_factory = *GetKernelServices()->file_system,
           .membase = memory_->GetMembase(),
