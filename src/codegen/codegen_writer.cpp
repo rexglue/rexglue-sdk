@@ -1,3 +1,6 @@
+#include <cstdlib>
+#include <thread>
+#include <atomic>
 #include "codegen_writer.h"
 
 #include <algorithm>
@@ -344,23 +347,54 @@ bool CodegenWriter::Write(bool force) {
   references.reserve(functions.size());
 
   const size_t max_file_bytes = ctx_.GetLimits().max_file_size_bytes;
-  std::unordered_set<std::string> referenced;
   std::vector<MMIOReportSite> mmio_sites;
-  emit_ctx.referenced = &referenced;
-  emit_ctx.mmio_sites = &mmio_sites;
-  for (const auto* fn : functions) {
-    referenced.clear();
-    std::string code = fn->EmitCpp(emit_ctx);
-    if (code.size() > max_file_bytes) {
-      REXCG_WARN("Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})", fn->GetBase(),
-                 code.size(), max_file_bytes);
-    }
-    sizes.push_back({fn->GetBase(), code.size()});
-    bodies.push_back(std::move(code));
-    references.push_back(referenced);
+  // Each function's C++ on its own: EmitCpp is const and reads only the binary, the graph and the
+  // config, so the functions are emitted on several threads, each with its own referenced set and
+  // MMIO list, and merged in function order (the same output as one thread).
+  // REXGLUE_CODEGEN_THREADS: how many (default: the machine's hardware threads; 1 = one at a time).
+  const size_t count = functions.size();
+  bodies.resize(count);
+  sizes.resize(count);
+  references.resize(count);
+  std::vector<std::vector<MMIOReportSite>> sites_of(count);
+  unsigned threads = std::max(1u, std::thread::hardware_concurrency());
+  if (const char* env = std::getenv("REXGLUE_CODEGEN_THREADS")) {
+    const int n = std::atoi(env);
+    if (n > 0)
+      threads = static_cast<unsigned>(n);
   }
-  emit_ctx.referenced = nullptr;
-  emit_ctx.mmio_sites = nullptr;
+  threads = static_cast<unsigned>(std::min<size_t>(threads, std::max<size_t>(count, 1)));
+  // IsNoReturn fills a cache the first time (a const method): filled here, before the threads.
+  GetGraph().SolveNoReturn();
+  std::atomic<size_t> next{0};
+  auto emit_some = [&]() {
+    EmitContext local = emit_ctx;
+    for (size_t i = next.fetch_add(1); i < count; i = next.fetch_add(1)) {
+      local.referenced = &references[i];
+      local.mmio_sites = &sites_of[i];
+      std::string code = functions[i]->EmitCpp(local);
+      if (code.size() > max_file_bytes) {
+        REXCG_WARN("Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})",
+                   functions[i]->GetBase(), code.size(), max_file_bytes);
+      }
+      sizes[i] = {functions[i]->GetBase(), code.size()};
+      bodies[i] = std::move(code);
+    }
+  };
+  if (threads <= 1) {
+    emit_some();
+  } else {
+    std::vector<std::thread> pool;
+    pool.reserve(threads - 1);
+    for (unsigned t = 1; t < threads; ++t)
+      pool.emplace_back(emit_some);
+    emit_some();
+    for (auto& t : pool)
+      t.join();
+  }
+  for (auto& sites : sites_of)
+    mmio_sites.insert(mmio_sites.end(), std::make_move_iterator(sites.begin()),
+                      std::make_move_iterator(sites.end()));
 
   for (const auto& [address, declared] : GetConfig().declared_mmio_accesses) {
     const std::string_view block = declared.block == rex::ppc::MMIOBlock::kGPU ? "gpu" : "apu";

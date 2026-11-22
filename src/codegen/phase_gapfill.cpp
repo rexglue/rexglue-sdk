@@ -260,17 +260,30 @@ void CleanupAbsorbedGapFills(CodegenContext& ctx) {
   auto& graph = ctx.graph;
   std::vector<u32> to_remove;
 
+  // Only a function that starts before addr can contain it (ContainsAddress needs base <= addr and
+  // the bases are unique), so a GAP_FILL function goes when an earlier one contains its address.
+  // By base, with the running maximum of the ends: walking back stops once nothing earlier reaches.
+  std::vector<const FunctionNode*> by_base;
+  by_base.reserve(graph.GetFunctionCount());
+  for (const auto& [addr, node] : graph.GetFunctions())
+    by_base.push_back(node.get());
+  std::sort(by_base.begin(), by_base.end(),
+            [](const auto* a, const auto* b) { return a->GetBase() < b->GetBase(); });
+  std::vector<u64> reach(by_base.size());
+  u64 far = 0;
+  for (size_t i = 0; i < by_base.size(); ++i) {
+    far = std::max<u64>(far, u64(by_base[i]->GetBase()) + by_base[i]->GetSize());
+    reach[i] = far;
+  }
   for (const auto& [addr, node] : graph.GetFunctions()) {
     if (node->GetAuthority() != FunctionAuthority::kGapFill)
       continue;
-
-    for (const auto& [otherAddr, otherNode] : graph.GetFunctions()) {
-      if (otherAddr == addr)
-        continue;
-      if (!otherNode->ContainsAddress(addr))
-        continue;
-
-      if (otherNode->GetAuthority() != FunctionAuthority::kGapFill || otherAddr < addr) {
+    auto pos = std::lower_bound(by_base.begin(), by_base.end(), addr,
+                                [](const auto* n, u32 a) { return n->GetBase() < a; });
+    for (size_t i = static_cast<size_t>(pos - by_base.begin()); i-- > 0;) {
+      if (reach[i] <= addr)
+        break;
+      if (by_base[i]->ContainsAddress(addr)) {
         to_remove.push_back(addr);
         break;
       }

@@ -72,6 +72,8 @@ class FunctionGraph : public rex::MoveOnly {
    * unknown address returns.
    */
   bool IsNoReturn(u32 entry) const;
+  /** Solves the no-return set IsNoReturn fills lazily, so that threads can then only read it. */
+  void SolveNoReturn() const;
 
   /** Returns the function at an entry point in O(1), or null when absent. */
   FunctionNode* GetFunction(u32 entry_point);

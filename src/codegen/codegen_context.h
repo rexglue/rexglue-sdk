@@ -142,6 +142,8 @@ class CodegenContext : public rex::MoveOnly {
     ~ScanArtifacts() = default;
 
     std::vector<CodeRegion> code_regions;     /**< Null delimited code regions */
+    /** Functions found outside every code region: discovery never succeeds for them. */
+    std::unordered_set<u32> outside_code;
     std::unordered_map<u32, u32> pdata_sizes; /**< Maps address to size */
   } scan;
 

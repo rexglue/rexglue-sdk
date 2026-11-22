@@ -76,6 +76,7 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
   }
   if (!region) {
     REXCG_WARN("Analyze: function 0x{:08X} not in any code region", func_addr);
+    ctx.scan.outside_code.insert(func_addr);  // the regions are fixed: never retried
     return;
   }
 
@@ -252,7 +253,7 @@ size_t DiscoverPendingFunctions(CodegenContext& ctx,
                                 const std::unordered_set<u32>& known_functions) {
   std::vector<u32> pending;
   for (const auto& [addr, node] : ctx.graph.GetFunctions()) {
-    if (node->CanDiscover()) {
+    if (node->CanDiscover() && !ctx.scan.outside_code.contains(addr)) {
       pending.push_back(addr);
     }
   }

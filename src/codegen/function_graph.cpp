@@ -1030,6 +1030,11 @@ bool FunctionGraph::IsNoReturn(u32 entry) const {
   return tables_->no_return->contains(entry);
 }
 
+void FunctionGraph::SolveNoReturn() const {
+  if (!tables_->no_return)
+    tables_->no_return = NoReturnSolver(*this).Solve();
+}
+
 void FunctionGraph::DeclareNoReturn(u32 address) {
   tables_->declared_no_return.insert(address);
   tables_->no_return.reset();
@@ -1510,7 +1515,7 @@ TargetType FunctionGraph::ClassifyTarget(u32 target, u32 caller_addr,
 
 void FunctionGraph::NotifyFunctionAdded(FunctionNode* new_function) {
   for (auto& [base, node] : tables_->functions) {
-    if (node.get() != new_function && node->IsPending()) {
+    if (node.get() != new_function && node->HasUnresolvedJumps() && node->IsPending()) {
       node->TryResolveAgainst(new_function);
     }
   }
