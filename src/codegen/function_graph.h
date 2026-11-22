@@ -83,6 +83,12 @@ class FunctionGraph : public rex::MoveOnly {
   bool RemoveFunction(u32 entry_point);
 
   /**
+   * The functions still kRegistered (not yet discovered), without walking the graph: from the bases
+   * added since they were last seen discovered. In no particular order.
+   */
+  std::vector<u32> RegisteredFunctions();
+
+  /**
    * Returns the function containing an address in O(log f) through the sorted base index, or null
    * when no function contains addr.
    */
@@ -188,6 +194,10 @@ class FunctionGraph : public rex::MoveOnly {
     std::unordered_map<u32, bool> function_has_xrefs;
     std::unordered_set<u32> declared_no_return;
     std::optional<std::unordered_set<u32>> no_return;
+    /** Target -> the entries holding an unresolved jump to it (may name entries since resolved). */
+    std::unordered_map<u32, std::vector<u32>> waiting_on;
+    /** Bases that may still be kRegistered: every function added, until it is seen discovered. */
+    std::unordered_set<u32> registered;
   };
 
   std::unique_ptr<Tables> tables_ = std::make_unique<Tables>();

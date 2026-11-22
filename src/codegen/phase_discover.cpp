@@ -252,9 +252,17 @@ void DiscoverAllFunctions(CodegenContext& ctx) {
 size_t DiscoverPendingFunctions(CodegenContext& ctx,
                                 const std::unordered_set<u32>& known_functions) {
   std::vector<u32> pending;
-  for (const auto& [addr, node] : ctx.graph.GetFunctions()) {
-    if (node->CanDiscover() && !ctx.scan.outside_code.contains(addr)) {
+  for (u32 addr : ctx.graph.RegisteredFunctions()) {
+    if (!ctx.scan.outside_code.contains(addr))
       pending.push_back(addr);
+  }
+  if (pending.size() > 1) {
+    // Several: in the graph's order, as discovering one can change what the next finds.
+    pending.clear();
+    for (const auto& [addr, node] : ctx.graph.GetFunctions()) {
+      if (node->CanDiscover() && !ctx.scan.outside_code.contains(addr)) {
+        pending.push_back(addr);
+      }
     }
   }
   for (u32 func_addr : pending) {
