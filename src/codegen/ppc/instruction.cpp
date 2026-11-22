@@ -18,6 +18,7 @@ constexpr u32 kIgnoreBranchConditions = 0x14;
 constexpr int kClassGPR = 1;
 constexpr int kClassGPROrZero = 2;
 constexpr int kClassFPR = 3;
+constexpr int kClassVR = 4;
 constexpr u32 kRegisterCount = 32;
 
 constexpr u32 RegisterRange(u32 first, u32 last) {
@@ -245,6 +246,10 @@ RegisterEffects GetRegisterEffects(const Instruction& instr) {
     }
     const int register_class = OperandRegisterClass(insn.opcode, position);
     const u32 number = insn.operands[position];
+    if (register_class == kClassVR) {
+      first_register = false;
+      continue;
+    }
     if (register_class == 0 || number >= kRegisterCount ||
         (register_class == kClassGPROrZero && number == 0)) {
       continue;
