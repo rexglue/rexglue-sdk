@@ -58,3 +58,31 @@ REX_TEST_CASE_METHOD(Fixture, "The command processor shuts down promptly while i
   CHECK(std::chrono::steady_clock::now() - start < kShutdownBound);
   driver.Shutdown();
 }
+
+REX_TEST_CASE_METHOD(Fixture, "Enabling the read pointer write back stores the read pointer",
+                     "[gpu]") {
+  constexpr rex::u32 kWriteBackAddress = 0x100;
+  constexpr auto kStoreBound = std::chrono::seconds(2);
+
+  rex::test::FakeTitleContext title(rex::test::GetTestMemory());
+  rex::test::FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  driver.EnableReadPointerWriteBack(kWriteBackAddress, 6);
+
+  const auto start = std::chrono::steady_clock::now();
+  bool stored = false;
+  while (!stored && std::chrono::steady_clock::now() - start < kStoreBound) {
+    for (const auto& store : title.GetStores()) {
+      stored = stored || store.address == kWriteBackAddress;
+    }
+    if (!stored) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+  CHECK(stored);
+  driver.DetachTitle();
+  driver.Shutdown();
+}

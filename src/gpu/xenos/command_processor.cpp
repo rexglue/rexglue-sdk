@@ -320,6 +320,9 @@ void CommandProcessor::EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) 
   CallInThreadNoWait([this, ptr, block_size_log2]() {
     read_ptr_writeback_ptr_ = ptr;
     read_ptr_update_freq_ = static_cast<u32>(1) << block_size_log2 >> 2;
+    if (read_ptr_writeback_ptr_) {
+      StoreReleaseHost(physical_memory_, read_ptr_writeback_ptr_, read_ptr_index_);
+    }
   });
 }
 
