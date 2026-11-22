@@ -15,6 +15,7 @@
 #include "rex_test.h"
 
 #include "filesystem/fixture.h"
+#include "fixture_dir.h"
 
 namespace {
 
@@ -29,6 +30,7 @@ using rex::filesystem::ProviderType;
 using rex::filesystem::test::Fixture;
 using rex::filesystem::test::ReadText;
 using rex::filesystem::test::WriteHost;
+using rex::test::GetFixtureFolder;
 
 constexpr std::string_view kRoot = "\\Device\\Test";
 
@@ -381,4 +383,41 @@ REX_TEST_CASE("the game partition is read only", "[filesystem][mounts]") {
       "game:\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   CHECK_FALSE(created);
   CHECK_FALSE(std::filesystem::exists(fixture.GetTemp() / "game" / "new.txt"));
+}
+
+REX_TEST_CASE("Standard mounts serve a disc image as game and d", "[filesystem][mounts]") {
+  Fixture fixture;
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(GetFixtureFolder() / "gdfx.iso", {},
+                                                          MountFlags::kWritable));
+
+  CHECK(ReadText(*fixture.Open("game:\\a.txt").file) == "alpha\n");
+  CHECK(ReadText(*fixture.Open("d:\\folder\\c.txt").file) == "charlie in folder\n");
+  const auto mounts = fixture.GetFileSystem().GetMounts();
+  REQUIRE(mounts.size() == 2);
+  CHECK(mounts.front().type == ProviderType::kDiscImage);
+  CHECK(mounts.front().flags == MountFlags::kNone);
+  CHECK(OpenError(fixture, "game:\\new.txt",
+                  {.disposition = Disposition::kCreate, .access = Access::kWriteAccess}) ==
+        FileSystemError::kAccessDenied);
+}
+
+REX_TEST_CASE("Standard mounts refuse a game file that is not a disc image",
+              "[filesystem][mounts]") {
+  Fixture fixture;
+  auto mounted = fixture.GetFileSystem().ConfigureStandardMounts(
+      GetFixtureFolder() / "stfs_con.bin", {}, MountFlags::kNone);
+  REQUIRE_FALSE(mounted);
+  CHECK(CodeOf(mounted.error()) == FileSystemError::kCorrupt);
+}
+
+REX_TEST_CASE("Standard mounts refuse a game file that is not a container",
+              "[filesystem][mounts]") {
+  Fixture fixture;
+  WriteHost(fixture.GetTemp() / "default.xex", "not a disc image, but long enough to be mapped");
+  auto mounted = fixture.GetFileSystem().ConfigureStandardMounts(fixture.GetTemp() / "default.xex",
+                                                                 {}, MountFlags::kNone);
+  REQUIRE_FALSE(mounted);
+  CHECK(CodeOf(mounted.error()) == FileSystemError::kCorrupt);
+  CHECK(mounted.error().message.find("game_data_root") != std::string::npos);
+  CHECK(fixture.GetFileSystem().GetMounts().empty());
 }

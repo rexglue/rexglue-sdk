@@ -310,7 +310,7 @@ These settings exist while the `rexkernel` module is connected. Declared by `Tit
 
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
-| `title.game_root` | `path` | `""` | locked in game | Game files, mounted read only as `game:`. |
+| `title.game_root` | `path` | `""` | locked in game | Game files, or a disc image of them, mounted read only as `game:`. |
 | `title.game_writable` | `bool` | `false` | locked in game | Mount `game:` read write. |
 | `title.update_root` | `path` | `""` | locked in game | Title update files. Empty means none. |
 | `title.metadata_root` | `path` | `""` | locked in game | Achievement icons and other metadata. Empty searches near `title.game_root`. |

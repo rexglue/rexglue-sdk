@@ -149,7 +149,7 @@ See [Selecting Drivers](modules.md#selecting-drivers) for the driver settings.
 
 ### LaunchTitle
 
-`TitleApp::LaunchTitle` returns success without loading anything when a shutdown was requested. It fails when `title.game_root` is empty or is not a folder. Otherwise it runs these steps:
+`TitleApp::LaunchTitle` returns success without loading anything when a shutdown was requested. It fails when `title.game_root` is empty or does not exist. Otherwise it runs these steps:
 
 1. The app calls `TitleRuntime::Load`.
 2. The app registers the exit callback, which posts `TitleApp::OnTitleExit` to the UI thread.

@@ -164,7 +164,7 @@ The table in guest memory that maps a guest address to its recompiled host funct
 
 ### Game Root
 
-The folder that holds the entrypoint and the DLLs of a game, set by `[project].game_root` or `title.game_root`.
+The folder that holds the entrypoint and the DLLs of a game, set by `[project].game_root` or `title.game_root`. At run time `title.game_root` can also name a disc image of the game.
 
 ### Graphics Family
 

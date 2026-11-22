@@ -21,7 +21,9 @@ namespace rex::kernel {
 class REX_KERNEL_API TitlePaths final : public SettingOwner {
  public:
   REX_SETTING(std::filesystem::path, game_root, "",
-              "Game files, mounted as game:, read only unless game_writable is set", kLockedInGame);
+              "Game files folder or disc image, mounted as game:. A folder is read only unless "
+              "game_writable is set",
+              kLockedInGame);
   REX_SETTING(bool, game_writable, false, "Mount game: read write instead of read only",
               kLockedInGame);
   REX_SETTING(std::filesystem::path, update_root, "", "Title update files, empty for none",
