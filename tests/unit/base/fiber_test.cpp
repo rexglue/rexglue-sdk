@@ -11,6 +11,9 @@
 #include "rex_test.h"
 #include <rex/platform/thread.h>
 
+#include <latch>
+#include <thread>
+
 using rex::platform::Fiber;
 
 // Fiber entry functions cannot capture closures, so these are globals.
@@ -38,4 +41,27 @@ REX_TEST_CASE("rex::platform::Fiber switches context", "[base][fiber]") {
   f->Destroy();
   g_main->Destroy();
   g_main = nullptr;
+}
+
+REX_TEST_CASE(
+    "rex::platform::Fiber destroying another thread's fiber keeps the caller's current fiber",
+    "[base][fiber]") {
+  Fiber* other = nullptr;
+  std::latch converted(1);
+  std::latch destroyed(1);
+  std::thread owner([&] {
+    other = Fiber::ConvertCurrentThread();
+    converted.count_down();
+    destroyed.wait();
+  });
+  converted.wait();
+
+  Fiber* mine = Fiber::ConvertCurrentThread();
+  other->Destroy();
+  Fiber* current = Fiber::GetCurrent();
+  destroyed.count_down();
+  owner.join();
+
+  REQUIRE(current == mine);
+  mine->Destroy();
 }
