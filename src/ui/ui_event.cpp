@@ -47,7 +47,9 @@ void UISystem::State::ApplyPointerMode(PointerMode mode) {
   applied_pointer_mode = mode;
   driver->SetCursorShape(mode == PointerMode::kFree && !cursor_hidden_by_timeout,
                          rex::ui::CursorShape::kArrow);
-  REXUI_INFO("pointer mode applied");
+  REXUI_DEBUG("pointer mode {}", mode == PointerMode::kFree     ? "free"
+                                 : mode == PointerMode::kHidden ? "hidden"
+                                                                : "locked");
 }
 
 void UISystem::State::RefreshCapture() {
