@@ -2760,7 +2760,7 @@ void PipelineCache::StorageWriteThread() {
         storage_.write_flush_pipelines = false;
         flush_pipelines = true;
       }
-      if (!shader && !write_pipeline) {
+      if (!shader && !write_pipeline && !flush_shaders && !flush_pipelines) {
         storage_.write_request_cond.wait(lock);
         continue;
       }
