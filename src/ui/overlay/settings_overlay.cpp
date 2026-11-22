@@ -493,18 +493,21 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
                  var->GetType() == rex::SettingType::kU64) {
         if (var->GetType() == rex::SettingType::kU32 || var->GetType() == rex::SettingType::kU64) {
           u64 v = rex::string::from_string<u64>(current_val);
-          if (ImGui::InputScalar("##v", ImGuiDataType_U64, &v)) {
+          if (ImGui::InputScalar("##v", ImGuiDataType_U64, &v) &&
+              ImGui::IsItemDeactivatedAfterEdit()) {
             WarnIfFailed(name, settings_.SetText(name, ClampUnsignedText(constraints, v)));
           }
         } else {
           i64 v = rex::string::from_string<i64>(current_val);
-          if (ImGui::InputScalar("##v", ImGuiDataType_S64, &v)) {
+          if (ImGui::InputScalar("##v", ImGuiDataType_S64, &v) &&
+              ImGui::IsItemDeactivatedAfterEdit()) {
             WarnIfFailed(name, settings_.SetText(name, ClampIntegerText(constraints, v)));
           }
         }
       } else if (var->GetType() == rex::SettingType::kF64) {
         f64 v = rex::string::from_string<f64>(current_val);
-        if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
+        if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f") &&
+            ImGui::IsItemDeactivatedAfterEdit()) {
           if (constraints.min)
             v = std::max(v, *constraints.min);
           if (constraints.max)
