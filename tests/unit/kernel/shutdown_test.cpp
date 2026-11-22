@@ -44,6 +44,7 @@
 extern "C" void rexshim_ConvertThreadToFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_CreateFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_SwitchToFiber(PPCContext& ctx, rex::u8* base);
+extern "C" void rexshim_DeleteFiber(PPCContext& ctx, rex::u8* base);
 
 using rex::i64;
 using rex::u32;
@@ -233,6 +234,38 @@ bool ExitedWithin(rex::kernel::TitleRuntime& runtime, u32 thread,
   return false;
 }
 
+std::atomic<u32> g_self_delete_fiber{0};
+
+void DeleteOwnFiber(PPCContext& ctx, u8* base) {
+  ctx.r3.u64 = g_self_delete_fiber.load();
+  rexshim_DeleteFiber(ctx, base);
+}
+
+u32 SpawnSelfDeletingFiber(Caller& c, bool from_created_fiber) {
+  return c.Spawn([from_created_fiber](Caller& t) {
+    PPCContext& ctx = t.GetContext();
+    u8* base = StateOf(t.GetRuntime()).GetAddressSpace()->GetVirtualMembase();
+    ctx.r3.u64 = 0;
+    rexshim_ConvertThreadToFiber(ctx, base);
+    const u32 main_fiber = ctx.r3.u32;
+    if (!from_created_fiber) {
+      ctx.r3.u64 = main_fiber;
+      rexshim_DeleteFiber(ctx, base);
+      return;
+    }
+    const u32 fiber_entry =
+        StateOf(t.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&DeleteOwnFiber, 0);
+    ctx.r3.u64 = 0x10000;
+    ctx.r4.u64 = fiber_entry;
+    ctx.r5.u64 = 0;
+    rexshim_CreateFiber(ctx, base);
+    const u32 fiber = ctx.r3.u32;
+    g_self_delete_fiber.store(fiber);
+    ctx.r3.u64 = fiber;
+    rexshim_SwitchToFiber(ctx, base);
+  });
+}
+
 std::atomic<u32> g_notify_event{0};
 
 volatile u32 g_never_released = 0;
@@ -359,6 +392,52 @@ REX_TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
     WaitUntil(g_fiber_waiting);
     c.Kernel("NtSetEvent", {g_fiber_event.load(), 0});
     CHECK(Joined(c, thread, kStopBudget));
+    c.Kernel("NtClose", {thread});
+  });
+}
+
+REX_TEST_CASE("A fiber that deletes itself ends its thread with the exit code",
+              "[kernel][shutdown][fiber]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 thread = SpawnSelfDeletingFiber(c, true);
+    CHECKED_ELSE(thread != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(Joined(c, thread, 5s)) {
+      FAIL_CHECK("the thread did not end");
+      return;
+    }
+    auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(thread);
+    CHECKED_ELSE(pin) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(static_cast<u32>(pin->GetGuestObject<rex::kernel::X_KTHREAD>()->exit_status) == 1);
+    c.Kernel("NtClose", {thread});
+  });
+}
+
+REX_TEST_CASE("The main fiber that deletes itself ends its thread with the exit code",
+              "[kernel][shutdown][fiber]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 thread = SpawnSelfDeletingFiber(c, false);
+    CHECKED_ELSE(thread != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(Joined(c, thread, 5s)) {
+      FAIL_CHECK("the thread did not end");
+      return;
+    }
+    auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(thread);
+    CHECKED_ELSE(pin) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(static_cast<u32>(pin->GetGuestObject<rex::kernel::X_KTHREAD>()->exit_status) == 1);
     c.Kernel("NtClose", {thread});
   });
 }
