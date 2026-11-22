@@ -186,11 +186,13 @@ bool Build<PPC_INST_DCBTST>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_DCBZ>(BuilderContext& ctx) {
+  // Xenon has no 32-byte cache block: a plain dcbz zeroes the whole 128-byte line, as dcbz128
+  // (dcbzl) does. Retail code relies on it, e.g. zero fills that step 128 bytes per dcbz.
   ctx.Print("\t{} = (", ctx.EA());
   if (ctx.insn.operands[0] != 0)
     ctx.Print("{}.u32 + ", ctx.R(ctx.insn.operands[0]));
-  ctx.Println("{}.u32) & ~31;", ctx.R(ctx.insn.operands[1]));
-  ctx.Println("\tmemset((void*)REX_RAW_ADDR({}), 0, 32);", ctx.EA());
+  ctx.Println("{}.u32) & ~127;", ctx.R(ctx.insn.operands[1]));
+  ctx.Println("\tmemset((void*)REX_RAW_ADDR({}), 0, 128);", ctx.EA());
   return true;
 }
 
