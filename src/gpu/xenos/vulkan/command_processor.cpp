@@ -4679,16 +4679,23 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(u64 await_submiss
   size_t fences_total = submissions_in_flight_fences_.size();
   size_t fences_awaited = 0;
   if (await_submission > submission_completed_) {
-    VkResult wait_result =
-        dfn.vkWaitForFences(device, static_cast<u32>(await_submission - submission_completed_),
-                            submissions_in_flight_fences_.data(), VK_TRUE, UINT64_MAX);
-    if (wait_result == VK_SUCCESS) {
-      fences_awaited += await_submission - submission_completed_;
-    } else {
-      REXGPU_ERROR("Failed to await submission completion Vulkan fences");
-      if (wait_result == VK_ERROR_DEVICE_LOST) {
-        device_lost_ = true;
+    // Waiting on many fences in one call fails on some drivers, so wait in chunks.
+    constexpr size_t kFenceWaitChunkSize = 32;
+    const size_t fences_to_await = static_cast<size_t>(await_submission - submission_completed_);
+    while (fences_awaited < fences_to_await) {
+      const u32 chunk_size =
+          static_cast<u32>(std::min(kFenceWaitChunkSize, fences_to_await - fences_awaited));
+      VkResult wait_result = dfn.vkWaitForFences(
+          device, chunk_size, submissions_in_flight_fences_.data() + fences_awaited, VK_TRUE,
+          UINT64_MAX);
+      if (wait_result != VK_SUCCESS) {
+        REXGPU_ERROR("Failed to await submission completion Vulkan fences");
+        if (wait_result == VK_ERROR_DEVICE_LOST) {
+          device_lost_ = true;
+        }
+        break;
       }
+      fences_awaited += chunk_size;
     }
   }
   // Checked in order because submissions may execute out of order but are serialized here.
