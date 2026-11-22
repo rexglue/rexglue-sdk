@@ -1433,3 +1433,26 @@ REX_TEST_CASE("net: an accepted stream socket disables Nagle on the host",
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
+
+REX_TEST_CASE("net: XNetXnAddrToInAddr writes the online address, else the LAN address",
+              "[kernel][net]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 xn_addr = c.Alloc(0x24);
+    const u32 in_addr = c.Alloc(4);
+
+    c.Store32(xn_addr, 0xC0A80102);
+    c.Store32(xn_addr + 4, 0x0A000007);
+    c.Store32(in_addr, 0);
+    CHECK(c.XAM("NetDll_XNetXnAddrToInAddr", {0, xn_addr, 0, in_addr}) == 0);
+    CHECK(c.Load32(in_addr) == 0x0A000007);
+
+    c.Store32(xn_addr + 4, 0);
+    c.Store32(in_addr, 0);
+    CHECK(c.XAM("NetDll_XNetXnAddrToInAddr", {0, xn_addr, 0, in_addr}) == 0);
+    CHECK(c.Load32(in_addr) == 0xC0A80102);
+
+    c.Store32(xn_addr, 0);
+    CHECK(c.XAM("NetDll_XNetXnAddrToInAddr", {0, xn_addr, 0, in_addr}) != 0);
+  });
+}
