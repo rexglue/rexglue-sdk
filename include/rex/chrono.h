@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <utility>
@@ -359,6 +360,8 @@ struct clock_time_conversion<std::chrono::steady_clock, ::rex::WinSystemClock> {
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
     auto delta = t - nt_now;
+    constexpr auto kMaxDelta = std::chrono::duration_cast<decltype(delta)>(std::chrono::years(100));
+    delta = std::clamp(delta, -kMaxDelta, kMaxDelta);
     return steady_now + delta;
   }
 };
