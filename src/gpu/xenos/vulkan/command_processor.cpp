@@ -38,6 +38,7 @@
 #include <rex/xenos/register.h>
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/physical_memory.h"
+#include "gpu/xenos/host/present_policy.h"
 #include "gpu/xenos/vulkan/pipeline_cache.h"
 #include "gpu/xenos/vulkan/render_target_cache.h"
 #include "gpu/xenos/vulkan/shader.h"
@@ -2266,6 +2267,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
   const VideoMode video_mode = title_info_.video_mode;
   u32 display_width = std::max(static_cast<u32>(1), video_mode.width);
   u32 display_height = std::max(static_cast<u32>(1), video_mode.height);
+  TryParsePresentAspect(GetXenosSettings().present_aspect.Get(), display_width, display_height);
 
   presenter->RefreshGuestOutput(
       guest_output_width, guest_output_height, display_width, display_height,

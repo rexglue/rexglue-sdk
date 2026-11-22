@@ -1,6 +1,6 @@
 /**
  * @file        gpu/xenos/host/present_policy.h
- * @brief       Present timing decisions that need no GPU
+ * @brief       Present timing and aspect decisions that need no GPU
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,9 +11,11 @@
 
 #pragma once
 
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <string_view>
 
 #include <rex/types.h>
 
@@ -79,6 +81,45 @@ constexpr VulkanPresentMode ChooseVulkanPresentMode(bool vsync,
     return VulkanPresentMode::kFifoRelaxed;
   }
   return VulkanPresentMode::kFifo;
+}
+
+/** The largest term of a gpu.xenos.present_aspect ratio, the largest video mode size. */
+inline constexpr u32 kMaxPresentAspectTerm = 0x0FFF;
+
+/** How far gpu.xenos.present_aspect may be from square, 16:1 to 1:16. */
+inline constexpr u32 kMaxPresentAspectSkew = 16;
+
+/**
+ * Parses gpu.xenos.present_aspect, the aspect ratio to present at, into the display size that
+ * Presenter::RefreshGuestOutput takes, which accepts a ratio such as 16:9 as a size.
+ *
+ * @param aspect W:H with two integers from 1 to kMaxPresentAspectTerm, no further from square
+ * than kMaxPresentAspectSkew, such as 16:9.
+ * @return True with the ratio in width_out and height_out, false with both unchanged when aspect
+ * is empty or not such a ratio.
+ */
+inline bool TryParsePresentAspect(std::string_view aspect, u32& width_out, u32& height_out) {
+  const size_t colon = aspect.find(':');
+  if (colon == std::string_view::npos) {
+    return false;
+  }
+  const char* begin = aspect.data();
+  const char* end = begin + aspect.size();
+  u32 x = 0;
+  u32 y = 0;
+  const auto x_result = std::from_chars(begin, begin + colon, x);
+  const auto y_result = std::from_chars(begin + colon + 1, end, y);
+  if (x_result.ec != std::errc() || x_result.ptr != begin + colon || y_result.ec != std::errc() ||
+      y_result.ptr != end) {
+    return false;
+  }
+  if (x < 1 || x > kMaxPresentAspectTerm || y < 1 || y > kMaxPresentAspectTerm ||
+      x > y * kMaxPresentAspectSkew || y > x * kMaxPresentAspectSkew) {
+    return false;
+  }
+  width_out = x;
+  height_out = y;
+  return true;
 }
 
 /**
