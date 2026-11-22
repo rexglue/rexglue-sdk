@@ -414,3 +414,38 @@ REX_TEST_CASE_METHOD(Fixture,
   driver.DetachTitle();
   driver.Shutdown();
 }
+
+REX_TEST_CASE_METHOD(Fixture, "IsRangeValid is false for a requested range after a CPU write",
+                     "[gpu][xenos][shared_memory]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  TestSharedMemory shared(title);
+  REQUIRE(title.listeners.size() == 1);
+
+  constexpr rex::u32 kWritten = 0x100000;
+  constexpr rex::u32 kUntouched = 0x200000;
+  constexpr rex::u32 kNeverRequested = 0x300000;
+  constexpr rex::u32 kLength = 0x10000;
+  REQUIRE(shared.RequestRange(kWritten, kLength));
+  REQUIRE(shared.RequestRange(kUntouched, kLength));
+
+  {
+    auto lock = shared.AcquireLock();
+    CHECK(shared.IsRangeValid(lock, kWritten, kLength));
+    CHECK(shared.IsRangeValid(lock, kUntouched, kLength));
+    CHECK_FALSE(shared.IsRangeValid(lock, kNeverRequested, kLength));
+  }
+
+  title.listeners[0]->OnPhysicalWrite({kWritten + 0x8000, 0x10}, true);
+  {
+    auto lock = shared.AcquireLock();
+    CHECK_FALSE(shared.IsRangeValid(lock, kWritten, kLength));
+    CHECK(shared.IsRangeValid(lock, kUntouched, kLength));
+  }
+
+  REQUIRE(shared.RequestRange(kWritten, kLength));
+  {
+    auto lock = shared.AcquireLock();
+    CHECK(shared.IsRangeValid(lock, kWritten, kLength));
+  }
+}
