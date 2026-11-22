@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/logging/logger.h>
 #include <rex/kernel/types/list.h>
 #include <rex/kernel/types/thread.h>
 #include <rex/platform/thread.h>
@@ -772,3 +773,31 @@ REX_TEST_CASE("A thread name without a terminator is cut at a fixed length",
     CHECK(applied.rfind(std::string(256, 'A') + " (", 0) == 0);
   });
 }
+
+#if !REX_PLATFORM_WIN32
+REX_TEST_CASE("RtlRaiseException logs the record of an exception it does not handle",
+              "[kernel][threads][exception]") {
+  KernelFixture fixture;
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 record = c.Alloc(0x50);
+    c.Store32(record, 0xC0000017);
+    c.Store32(record + 4, 1);
+    c.Store32(record + 12, 0x82000100);
+    c.Store32(record + 16, 2);
+    c.Store32(record + 20, 0x11);
+    c.Store32(record + 24, 0xABCDEF01);
+    c.Kernel("RtlRaiseException", {record});
+  });
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  CHECK(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
+    return entry.level == rex::log::Level::kError &&
+           entry.text ==
+               "RtlRaiseException: code C0000017, flags 00000001, address 82000100, parameters "
+               "[00000011 ABCDEF01]";
+  }));
+}
+#endif

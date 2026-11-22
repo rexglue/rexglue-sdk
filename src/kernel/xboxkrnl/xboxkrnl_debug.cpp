@@ -9,6 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
+#include <format>
+#include <iterator>
+#include <string>
+
 #include <rex/platform/process.h>
 #include <rex/logging/log_category.h>
 #include "kernel/categories.h"
@@ -95,6 +100,16 @@ void RtlRaiseException_entry(GuestPtrT<X_EXCEPTION_RECORD> record) {
       break;
   }
 
+  const u32 count = std::min<u32>(record->number_parameters,
+                                  static_cast<u32>(std::size(record->exception_information)));
+  std::string parameters;
+  for (u32 i = 0; i < count; ++i) {
+    parameters +=
+        std::format("{}{:08X}", i ? " " : "", static_cast<u32>(record->exception_information[i]));
+  }
+  REXKRNL_ERROR("RtlRaiseException: code {:08X}, flags {:08X}, address {:08X}, parameters [{}]",
+                static_cast<u32>(record->code), static_cast<u32>(record->exception_flags),
+                static_cast<u32>(record->exception_address), parameters);
   rex::platform::Break();
 }
 
