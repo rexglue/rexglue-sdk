@@ -2,6 +2,7 @@
 #include <thread>
 #include <atomic>
 #include "codegen_writer.h"
+#include <rex/platform/process.h>
 
 #include <algorithm>
 #include <array>
@@ -358,8 +359,8 @@ bool CodegenWriter::Write(bool force) {
   references.resize(count);
   std::vector<std::vector<MMIOReportSite>> sites_of(count);
   unsigned threads = std::max(1u, std::thread::hardware_concurrency());
-  if (const char* env = std::getenv("REXGLUE_CODEGEN_THREADS")) {
-    const int n = std::atoi(env);
+  if (const auto env = rex::platform::GetEnvironmentValue("REXGLUE_CODEGEN_THREADS")) {
+    const int n = std::atoi(env->c_str());
     if (n > 0)
       threads = static_cast<unsigned>(n);
   }
