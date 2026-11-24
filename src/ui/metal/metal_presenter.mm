@@ -777,10 +777,14 @@ gpu::Presenter::PaintResult MetalPresenter::DriverPaintAndPresent(
       ++presented_count;
       if (!screenshot_frames.empty() &&
           std::find(screenshot_frames.begin(), screenshot_frames.end(), presented_count) != screenshot_frames.end()) {
+        // Capture the texture the paint actually samples: with MetalFX in the chain that is its
+        // output, and in the presentable fallback there is no mailbox copy to capture at all.
+        id<MTLTexture> shot_texture =
+            effect_source ? (__bridge id<MTLTexture>)effect_source : guest_output_texture;
         RawImage image;
-        if (ReadbackTextureToImage((__bridge void*)guest_output_texture,
-                                   uint32_t(guest_output_texture.width),
-                                   uint32_t(guest_output_texture.height), image) &&
+        if (ReadbackTextureToImage((__bridge void*)shot_texture,
+                                   uint32_t(shot_texture.width),
+                                   uint32_t(shot_texture.height), image) &&
             image.width && image.height) {
           char path[512];
           std::snprintf(path, sizeof(path), "guest_output_%u.ppm", presented_count);

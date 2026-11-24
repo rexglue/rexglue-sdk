@@ -15418,7 +15418,7 @@ bool MetalCommandProcessor::IssueCopy() {
   // copy the color as-is. Skip the copy but still perform the clears, as
   // Canary does when it can't run that shader (resolution scaling).
   if (resolve_info.rb_copy_control.copy_command ==
-      xenos::CopyCommand::kConvert) {  // the 1111 conversion is a format upstream, not a command
+      xenos::CopyCommand::kConstantOne) {  // command 2: the DXT3A as 1_1_1_1 comparison
     static uint32_t s_convert_1111_logs = 0;
     if (s_convert_1111_logs++ < 4) {
       REXLOG_WARN("Metal: resolve copy command 2 (DXT3A as 1_1_1_1) copy skipped");
