@@ -329,6 +329,10 @@ constexpr u32 kResolveSizeBits = 14;
 constexpr u32 kMaxResolveSize = (1 << kResolveSizeBits) - kResolveAlignmentPixels;
 
 // NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
+// The guest's CPU view of an address masked to the GPU-visible range; the fork used it wherever a register value was about to be
+// dereferenced through the physical memory interface.
+constexpr u32 CpuToGpu(u32 p) { return p & 0x1FFFFFFFu; }
+
 enum class CopyCommand : u32 {
   kRaw = 0,
   kConvert = 1,

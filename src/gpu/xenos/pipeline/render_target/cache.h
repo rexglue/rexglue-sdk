@@ -137,6 +137,9 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
                       xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                       u32 normalized_color_mask, const Shader& vertex_shader);
 
+  // MSAA fast-clear fold: the Metal backend renders a fold at a lower Y scale and needs the extent estimate to match.
+  void SetDrawExtentYScale(u32 scale) { draw_extent_y_scale_ = scale ? scale : 1; }
+
   /**
    * Returns a mask where bit 0 is set when a depth render target is bound on the host and bits 1
    * and up are set for bound color render targets. The mask has one bit per bound render target.
@@ -146,6 +149,9 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   u32 GetLastUpdateBoundRenderTargets(u32* depth_and_color_formats_out = nullptr) const;
 
  protected:
+
+  u32 draw_extent_y_scale_ = 1;
+
   RenderTargetCache(const xenos::RegisterFile& register_file, const XenosSettings& settings,
                     IPhysicalMemory& memory, u32 draw_resolution_scale_x,
                     u32 draw_resolution_scale_y)
@@ -403,6 +409,8 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
         : rectangle_index(rectangle_index), dispatch(dispatch) {}
   };
 
+
+
   virtual u32 GetMaxRenderTargetWidth() const = 0;
   virtual u32 GetMaxRenderTargetHeight() const = 0;
 
@@ -428,6 +436,66 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
     REX_ASSERT(GetPath() == Path::kHostRenderTargets);
     return last_update_accumulated_render_targets_;
   }
+  // The three companions the ported Metal path reads: which targets the last update used, where each span starts and how long
+  // it is, in tiles. Upstream kept the accumulated getter and these three arrays protected.
+  RenderTarget* const* GetLastUpdateUsedRenderTargets() const {
+    REX_ASSERT(GetPath() == Path::kHostRenderTargets);
+    return last_update_used_render_targets_;
+  }
+  const u32* GetLastUpdateUsedRenderTargetLengthsTiles() const {
+    REX_ASSERT(GetPath() == Path::kHostRenderTargets);
+    return last_update_used_render_target_lengths_tiles_;
+  }
+  const u32* GetLastUpdateUsedRenderTargetStartsTiles() const {
+    REX_ASSERT(GetPath() == Path::kHostRenderTargets);
+    return last_update_used_render_target_starts_tiles_;
+  }
+  // Locates a cached target by the numeric form of its key. The Metal cache tracks attachment ids and needs to come back to
+  // the target; upstream keeps the map private and offers no such lookup.
+  RenderTarget* PrepareFullEdram1280xRenderTargetForSnapshotRestoration(
+      xenos::ColorRenderTargetFormat color_format);
+
+
+  RenderTarget* FindCachedRenderTarget(u32 key) const {
+    RenderTargetKey render_target_key;
+    render_target_key.key = key;
+    auto found = render_targets_.find(render_target_key);
+    return found != render_targets_.end() ? found->second.get() : nullptr;
+  }
+
+  // Diagnostics: calls fn(render_target, owned_tiles, owned_end_tiles) for every host render target, with the EDRAM tiles it
+  // currently owns and the end of the last of them, as an offset from the target's base.
+  template <typename Fn>
+  void ForEachRenderTargetWithOwnedTiles(Fn&& fn) const {
+    std::unordered_map<u32, std::pair<u32, u32>> owned;
+    for (const auto& range_pair : ownership_ranges_) {
+      const u32 start_tiles = range_pair.first;
+      const OwnershipRange& range = range_pair.second;
+      if (range.end_tiles <= start_tiles) {
+        continue;
+      }
+      const u32 length_tiles = range.end_tiles - start_tiles;
+      const RenderTargetKey keys[] = {range.render_target,
+                                      range.host_depth_render_target_unorm24,
+                                      range.host_depth_render_target_float24};
+      for (size_t i = 0; i < std::size(keys); ++i) {
+        const RenderTargetKey& key = keys[i];
+        if (!key.IsEmpty() && std::find(keys, keys + i, key) == keys + i) {
+          std::pair<u32, u32>& entry = owned[key.key];
+          entry.first += length_tiles;
+          entry.second = std::max(entry.second, range.end_tiles - start_tiles);
+        }
+      }
+    }
+    for (const auto& key_pair : render_targets_) {
+      if (key_pair.second) {
+        auto found = owned.find(key_pair.first.key);
+        fn(key_pair.second.get(), found != owned.end() ? found->second.first : 0,
+           found != owned.end() ? found->second.second : 0);
+      }
+    }
+  }
+
   const std::vector<Transfer>* GetLastUpdateTransfers() const {
     REX_ASSERT(GetPath() == Path::kHostRenderTargets);
     return last_update_transfers_;
@@ -557,6 +625,13 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
   RenderTarget* GetOrCreateRenderTarget(RenderTargetKey key);
 
   /**
+   * Prepares a host render target covering the whole EDRAM at 1280 pixels of pitch for snapshot restoration, and makes it the
+   * sole owner of every tile. The fork had this on its cache; upstream leaves the restoration to the backend.
+   */
+
+
+
+  /**
    * Reports whether changing ownership of the range would require transferring data.
    *
    * @param dest Render target taking ownership.
@@ -594,6 +669,10 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
    * Valid only off the pixel shader interlock path.
    */
   RenderTarget* last_update_used_render_targets_[1 + xenos::kMaxColorRenderTargets];
+  /** Length of each used span, in tiles. */
+  u32 last_update_used_render_target_lengths_tiles_[1 + xenos::kMaxColorRenderTargets] = {};
+  /** Where each used span starts, in tiles past the render target's base. */
+  u32 last_update_used_render_target_starts_tiles_[1 + xenos::kMaxColorRenderTargets] = {};
   /**
    * Render targets of the last successful update or earlier ones, unless a different or new one
    * was bound or surface info changed, to avoid needless switching (undesirable on tile based

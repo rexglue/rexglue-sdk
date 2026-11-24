@@ -105,6 +105,14 @@ class DXBCShaderTranslator : public ShaderTranslator {
       u32 dynamic_addressable_register_count : 8;
       /** Value of PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives. */
       u32 point_ps_ucp_mode : 2;
+      /** Metal: also write the sprite texture coordinate the pixel shader's point PsParamGen reads. */
+      u32 output_point_coordinates : 1;
+      /** Metal: declare cull distances as SV_ClipDistance, since the shader converter never culls on them. */
+      u32 cull_distances_as_clip : 1;
+      /** Metal host tessellation: the vertex shader consumes the domain record, so the domain shader's registers apply. */
+      u32 domain_as_vertex : 1;
+      /** Metal: initialise the interpolators the pixel shader reads to 0.5 when the vertex shader writes none. */
+      u32 fill_unwritten_interpolators : 1;
       Shader::HostVertexShaderType host_vertex_shader_type : Shader::kHostVertexShaderTypeBitCount;
     } vertex;
     struct PixelShaderModification {
@@ -120,6 +128,13 @@ class DXBCShaderTranslator : public ShaderTranslator {
       u32 dynamic_addressable_register_count : 8;
       /** Used without ROV only. */
       DepthStencilMode depth_stencil_mode : 2;
+      /** Metal: source blend factors to pre-multiply by, since MIN/MAX blending ignores them on the host. */
+      u32 rt0_blend_rgb_factor_for_premult : 5;
+      u32 rt0_blend_a_factor_for_premult : 5;
+      /** Metal: index of a fetch pattern that needs no biased or gamma decode after sampling; 0 for all. */
+      u32 fetch_plain_pattern : 4;
+      /** Metal: keep the dynamic alpha test in the function when the early hint is used. */
+      u32 early_hint_keep_alpha_test : 1;
     } pixel;
 
     explicit Modification(u64 modification_value = 0) : value(modification_value) {
@@ -332,6 +347,15 @@ class DXBCShaderTranslator : public ShaderTranslator {
     u32 edram_rt_blend_factors_ops[4];
 
     f32 edram_blend_constant[4];
+
+    // Appended at the end deliberately: the layout is shared with the other backends, so appending keeps every existing offset
+    // fixed. The fork pinned these offsets; a reordering edit fails the static asserts rather than silently repointing constants.
+    u32 texture_integer_scale_bits[32];
+
+    // PA_SC_WINDOW_OFFSET the PsParamGen position needs added when the offset is carried in the EDRAM bases rather than the
+    // viewport; zero when it is in the viewport.
+    f32 param_gen_window_offset[2];
+    u32 param_gen_window_offset_padding[2];
 
    private:
     friend class DXBCShaderTranslator;

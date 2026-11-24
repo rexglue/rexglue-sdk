@@ -695,6 +695,8 @@ class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
 
   const std::vector<TextureBinding>& GetTextureBindings() const { return texture_bindings_; }
 
+  const std::vector<VertexBinding>& GetVertexBindings() const { return vertex_bindings_; }
+
   const ConstantRegisterMap& GetConstantRegisterMap() const { return constant_register_map_; }
 
   /** Memory export state per control flow instruction, empty when there are no eM# writes. */

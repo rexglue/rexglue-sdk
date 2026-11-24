@@ -127,7 +127,7 @@ install(FILES thirdparty/imgui/imgui.h thirdparty/imgui/imconfig.h thirdparty/im
               thirdparty/imgui/imstb_truetype.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-if (APPLE)
+if (APPLE AND REXGLUE_USE_VULKAN)
   install(
     FILES "$<TARGET_FILE:Vulkan::Vulkan>"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}

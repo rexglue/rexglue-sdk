@@ -173,38 +173,43 @@ set(SPDLOG_SYSTEM_INCLUDES ON)
 add_subdirectory(spdlog)
 target_compile_options(spdlog PRIVATE -w)
 
+# fmt - formatting, used by the GPU backends and the UI
+add_subdirectory(fmt)
+
 # disasm - PowerPC disassembler (existing local library)
 add_subdirectory(disasm)
 # Suppress warnings in disasm
 target_compile_options(disasm PRIVATE -w)
 
-#=============================================================================
-# Vulkan dependencies (only when Vulkan backend is enabled)
-#=============================================================================
+if (REXGLUE_USE_VULKAN)
+  #=============================================================================
+  # Vulkan dependencies (only when Vulkan backend is enabled)
+  #=============================================================================
 
-# Vulkan headers, VMA, the loader and MoltenVK all come from the Vulkan SDK. The loader and
-# MoltenVK stay runtime loaded; no Vulkan implementation is linked into rexglue itself.
-set(REXGLUE_VULKAN_MIN_VERSION 1.4.313)
-if (UNIX
-    AND NOT APPLE
-    AND IS_ARM64
-)
-  set(REXGLUE_VULKAN_MIN_VERSION 1.3.275)
-endif ()
-set(REXGLUE_VULKAN_COMPONENTS "")
-if (APPLE)
-  set(REXGLUE_VULKAN_COMPONENTS COMPONENTS MoltenVK)
-endif ()
-find_package(Vulkan ${REXGLUE_VULKAN_MIN_VERSION} REQUIRED ${REXGLUE_VULKAN_COMPONENTS} GLOBAL)
+  # Vulkan headers, VMA, the loader and MoltenVK all come from the Vulkan SDK. The loader and
+  # MoltenVK stay runtime loaded; no Vulkan implementation is linked into rexglue itself.
+  set(REXGLUE_VULKAN_MIN_VERSION 1.4.313)
+  if (UNIX
+      AND NOT APPLE
+      AND IS_ARM64
+  )
+    set(REXGLUE_VULKAN_MIN_VERSION 1.3.275)
+  endif ()
+  set(REXGLUE_VULKAN_COMPONENTS "")
+  if (APPLE)
+    set(REXGLUE_VULKAN_COMPONENTS COMPONENTS MoltenVK)
+  endif ()
+  find_package(Vulkan ${REXGLUE_VULKAN_MIN_VERSION} REQUIRED ${REXGLUE_VULKAN_COMPONENTS} GLOBAL)
 
-# VMA - header-only, from the Vulkan SDK and private to the Vulkan backend
-find_path(
-  REXGLUE_VMA_INCLUDE_DIR vk_mem_alloc.h
-  HINTS "${Vulkan_INCLUDE_DIR}"
-  PATH_SUFFIXES vma REQUIRED
-)
-add_library(rex-vma INTERFACE)
-target_include_directories(rex-vma SYSTEM INTERFACE $<BUILD_INTERFACE:${REXGLUE_VMA_INCLUDE_DIR}>)
+  # VMA - header-only, from the Vulkan SDK and private to the Vulkan backend
+  find_path(
+    REXGLUE_VMA_INCLUDE_DIR vk_mem_alloc.h
+    HINTS "${Vulkan_INCLUDE_DIR}"
+    PATH_SUFFIXES vma REQUIRED
+  )
+  add_library(rex-vma INTERFACE)
+  target_include_directories(rex-vma SYSTEM INTERFACE $<BUILD_INTERFACE:${REXGLUE_VMA_INCLUDE_DIR}>)
+endif ()
 
 #=============================================================================
 # SDL3 - Cross-platform media layer

@@ -1167,3 +1167,37 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, u32 start_tiles_ba
 }
 
 }  // namespace rex::gpu
+namespace rex::gpu {
+
+RenderTargetCache::RenderTarget* RenderTargetCache::
+    PrepareFullEdram1280xRenderTargetForSnapshotRestoration(
+        xenos::ColorRenderTargetFormat color_format) {
+  REX_ASSERT(GetPath() == Path::kHostRenderTargets);
+  // 1280 pixels of pitch at 32bpp, tall enough that the rows fill the EDRAM exactly.
+  constexpr u32 kPitchTilesAt32bpp = 16;
+  constexpr u32 kWidth = kPitchTilesAt32bpp * xenos::kEDRAMTileWidthSamples;
+  if (kWidth * GetDrawResolutionScaleX() > GetMaxRenderTargetWidth()) {
+    return nullptr;
+  }
+  constexpr u32 kHeightTileRows = xenos::kEDRAMTileCount / kPitchTilesAt32bpp;
+  constexpr u32 kHeight = kHeightTileRows * xenos::kEDRAMTileHeightSamples;
+  if (kHeight * GetDrawResolutionScaleY() > GetMaxRenderTargetHeight()) {
+    return nullptr;
+  }
+  RenderTargetKey render_target_key;
+  render_target_key.pitch_tiles_at_32bpp = kPitchTilesAt32bpp;
+  render_target_key.resource_format = u32(GetColorResourceFormat(color_format));
+  RenderTarget* render_target = GetOrCreateRenderTarget(render_target_key);
+  if (!render_target) {
+    return nullptr;
+  }
+  // Ownership changes, contents do not: they are about to be replaced.
+  ownership_ranges_.clear();
+  ownership_ranges_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(u32(0)),
+      std::forward_as_tuple(xenos::kEDRAMTileCount, render_target_key,
+                            RenderTargetKey(), RenderTargetKey()));
+  return render_target;
+}
+
+}  // namespace rex::gpu

@@ -1,3 +1,10 @@
+// Two SAL annotations this header uses were never shipped with the converter interface.
+#ifndef _Outptr_result_bytebuffer_maybenull_
+#define _Outptr_result_bytebuffer_maybenull_
+#endif
+#ifndef _Outptr_result_maybenull_z_
+#define _Outptr_result_maybenull_z_
+#endif
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                           //
 // DxbcConverter.h                                                           //

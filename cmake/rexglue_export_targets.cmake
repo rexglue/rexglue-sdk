@@ -29,8 +29,13 @@ set(REXGLUE_MODULE_TARGETS
     rexapu-sdl3
     rexhid-sdl3
     rexgpu-xenos-null
-    rexgpu-xenos-vulkan
 )
+if (REXGLUE_USE_VULKAN)
+  list(APPEND REXGLUE_MODULE_TARGETS rexgpu-xenos-vulkan)
+endif ()
+if (REXGLUE_USE_METAL)
+  list(APPEND REXGLUE_MODULE_TARGETS rexgpu-xenos-metal)
+endif ()
 if (WIN32)
   list(APPEND REXGLUE_MODULE_TARGETS rexhid-xinput)
 endif ()

@@ -32,6 +32,10 @@ namespace rex::gpu {
  */
 class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysicalWriteListener {
  public:
+  // The physical memory and page granularity this buffer mirrors. Implementations read both; upstream kept them protected.
+  IPhysicalMemory& GetMemory() const { return physical_memory_; }
+  u32 GetPageSizeLog2() const { return page_size_log2_; }
+
   static constexpr u32 kBufferSizeLog2 = 29;
   static constexpr u32 kBufferSize = 1 << kBufferSizeLog2;
 
@@ -116,10 +120,6 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysical
   /** Sparse allocations are 4 MB. */
   static constexpr u32 kHostGPUMemoryOptimalSparseAllocationLog2 = 22;
   static_assert(kHostGPUMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
-
-  IPhysicalMemory& GetMemory() const { return physical_memory_; }
-
-  u32 GetPageSizeLog2() const { return page_size_log2_; }
 
   u32 GetHostGPUMemorySparseGranularityLog2() const {
     return host_gpu_memory_sparse_granularity_log2_;

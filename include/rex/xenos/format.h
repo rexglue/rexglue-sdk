@@ -186,6 +186,14 @@ constexpr f32 UNorm24To32(u32 n24) {
   return static_cast<f32>(n24 + (n24 >> 23)) * (1.0f / static_cast<f32>(1 << 24));
 }
 
+// The reverse direction, which the fork needed for depth writes and upstream does not publish. Saturating: float32 spacing at
+// 2^24 is 1.0, so 1.0f * 16777215 + 0.5 rounds to 2^24 and would overflow the 24-bit field.
+constexpr u32 Float32ToUNorm24(f32 f32_value) {
+  f32 clamped = f32_value < 0.0f ? 0.0f : (f32_value > 1.0f ? 1.0f : f32_value);
+  u32 n24 = u32(clamped * 16777215.0f + 0.5f);
+  return n24 > 0xFFFFFFu ? 0xFFFFFFu : n24;
+}
+
 constexpr u32 kColorRenderTargetFormatBits = 4;
 constexpr u32 kDepthRenderTargetFormatBits = 1;
 /** Width of a field that holds either render target format. */

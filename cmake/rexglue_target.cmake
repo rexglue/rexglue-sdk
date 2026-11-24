@@ -504,7 +504,9 @@ function (_rexglue_stage_runtime_files target_name)
     _rexglue_stage_sdl(stage_commands ${target_name})
   endif ()
 
-  if (APPLE)
+  # A Metal-only build has no Vulkan loader, MoltenVK or ICD to stage, and asking for them made
+  # every REXGLUE_USE_VULKAN=OFF configure on macOS stop here.
+  if (APPLE AND REXGLUE_USE_VULKAN)
     _rexglue_stage_macos_vulkan_runtime(stage_commands ${target_name})
   endif ()
 

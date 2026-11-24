@@ -377,6 +377,44 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
    */
   void DestroyAllTextures(bool from_destructor = false);
 
+  /** Drops the least recently used textures whose last use precedes `completed_submission` until at most `want` remain.
+   *  Returns how many were destroyed. The port's Metal cache answers its host memory ceilings with this; the map is private
+   *  and upstream publishes no eviction. */
+  u32 DestroyLeastRecentlyUsedTextures(u64 completed_submission, u32 want) {
+    std::vector<std::pair<u64, TextureKey>> candidates;
+    candidates.reserve(textures_.size());
+    for (const auto& key_texture : textures_) {
+      if (!key_texture.second ||
+          key_texture.second->GetLastUsageSubmissionIndex() >= completed_submission) {
+        continue;
+      }
+      candidates.emplace_back(key_texture.second->GetLastUsageSubmissionIndex(),
+                              key_texture.first);
+    }
+    if (candidates.size() <= want) {
+      return 0;
+    }
+    // Age order only; the keys are compared through their bytes when ages tie.
+    std::stable_sort(candidates.begin(), candidates.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    const size_t destroy_count = candidates.size() - want;
+    for (size_t i = 0; i < destroy_count; ++i) {
+      textures_.erase(candidates[i].second);
+    }
+    return u32(destroy_count);
+  }
+
+  /** Calls fn(texture) for every live texture. The map is private and upstream publishes no iteration, which the ported
+   *  backend needs for its fault and residency sweeps. */
+  template <typename Fn>
+  void ForEachTexture(Fn&& fn) const {
+    for (const auto& key_texture : textures_) {
+      if (key_texture.second) {
+        fn(*key_texture.second);
+      }
+    }
+  }
+
   /**
    * Reports whether the signed version of the texture has a different host representation than the
    * unsigned one, such as a fixed point texture emulated with a larger host pixel format.

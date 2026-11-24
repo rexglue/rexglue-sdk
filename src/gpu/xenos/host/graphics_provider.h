@@ -59,6 +59,18 @@ class REX_GPU_XENOS_API GraphicsProvider : public rex::NonCopyable {
 
   virtual std::unique_ptr<OverlayDrawer> CreateImmediateDrawer() = 0;
 
+  /**
+   * Recovers from a lost host GPU by replacing the submission queue. Implementations that cannot do this return false; the
+   * default is false, so a provider that never loses its device needs no code.
+   */
+  virtual bool RecreateQueue() { return false; }
+
+  /** The provider's host device, as the backend's own Metal type, or null. */
+  virtual void* SelectedDevice() { return nullptr; }
+
+  /** The provider's submission queue, as the backend's own API type, or null. */
+  virtual void* command_queue() { return nullptr; }
+
  protected:
   GraphicsProvider() = default;
 };
