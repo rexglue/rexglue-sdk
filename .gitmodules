@@ -45,3 +45,6 @@
 [submodule "thirdparty/tlsf"]
 	path = thirdparty/tlsf
 	url = https://github.com/mattconte/tlsf.git
+[submodule "thirdparty/fmt"]
+	path = thirdparty/fmt
+	url = https://github.com/fmtlib/fmt.git
