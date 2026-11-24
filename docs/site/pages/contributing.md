@@ -63,6 +63,12 @@ A benchmark times one operation. Lookups, allocation and thread start stay outsi
 
 To compare a change with its base, run `rextest_benchmark_all` in two worktrees, one for each, and compare the two CSV files. Runs of the same code taken at different times on a shared host have differed by up to 2x. Alternate the two builds several times, and read each figure beside the baseline case of its own run.
 
+## XenosGPU
+
+We prefer to avoid changes to the XenosGPU's Command Processor because it is complex and requires substantial ongoing maintenance. Discuss proposed edits or refactors with the maintainers before starting work. If you submit a change, explain what it does, why it is needed, and how it affects GPU behavior across backends and titles. You must be able to maintain the affected subsystem over time.
+
+For title-specific rendering optimizations, start with the [Xenos Helpers](devices/graphics.md#xenos-helpers) and their linked [API reference](reference/api.md) pages. Use [function hooks and detours](codegen/hooks.md) to intercept recompiled game rendering functions and build a high-level emulation (HLE) rendering pipeline tailored to the title. This route could be more preferrable rather than maintaining the XenosGPU Command Processor.
+
 ## Pull request checks
 
 A maintainer starts the pull request checks by hand, in one of two ways:

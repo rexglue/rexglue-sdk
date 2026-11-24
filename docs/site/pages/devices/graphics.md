@@ -91,3 +91,14 @@ Recompiled code reaches the GPU registers through the MMIO block at `0x7FC80000`
 | `GPU VSync` | A Xenos driver when a game attaches | A vblank at the refresh rate of the video mode, or every millisecond when `gpu.vsync` is off. It can call into the game. |
 
 The `GPU VSync` thread calls into the game because the game registers a graphics interrupt callback that runs at each vblank. See [Driver Context](driver-context.md#host-threads) for how a driver thread raises it, and [Startup Order](../app/app-lifecycle.md#startup-order) for when the graphics system starts.
+
+## Xenos Helpers
+
+The public Xenos headers help a title-specific renderer interpret guest textures and draw state before mapping them to host graphics resources.
+
+| API reference | Use in a title-specific renderer |
+| --- | --- |
+| [Texture layout and tiling](https://docs.rexglue.com/api/texture_8h.html) | Use `rex::xenos::GuestTextureLayout`, `GetGuestTextureLayout`, and `GetPackedMipOffset` to locate texture data. Use `GetTiledOffset2D` or `GetTiledOffset3D` to read tiled blocks and `CopySwapBlock` to convert their byte order. |
+| [Fetch constants](https://docs.rexglue.com/api/fetch_8h.html) | Read `rex::xenos::TextureFetch` for the guest texture descriptor and sampler fields such as filtering, clamping, and border color. |
+| [GPU formats](https://docs.rexglue.com/api/format_8h.html) | Map `TextureFormat` and render target formats to host equivalents. `rex::xenos::FormatInfo` provides texture block dimensions and size. |
+| [Draw state](https://docs.rexglue.com/api/state_8h.html) | Translate Primitive Types, blend factors and operations, depth comparisons, and stencil operations to host draw state. |
