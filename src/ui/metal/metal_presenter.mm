@@ -356,6 +356,11 @@ void* MetalPresenter::GetGuestOutputPaintPipeline(
   if (pipeline_ref) {
     return pipeline_ref;
   }
+  // The functions and the sampler are loaded once; without them the descriptor below carries a
+  // nil vertex function, which Metal rejects with an assertion rather than an NSError.
+  if (!guest_output_paint_resources_loaded_ && !EnsureGuestOutputPaintResources()) {
+    return nullptr;
+  }
   id<MTLDevice> device = (__bridge id<MTLDevice>)device_;
   MTLRenderPipelineDescriptor* desc =
       [[MTLRenderPipelineDescriptor alloc] init];

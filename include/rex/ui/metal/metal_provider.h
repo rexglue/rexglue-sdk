@@ -50,7 +50,7 @@ class MetalProvider : public ::rex::gpu::GraphicsProvider {
 
   // The provider base's host-device hook; the static picker above is for callers without an instance.
   void* SelectedDevice() override { return SelectedDeviceForQueue(); }
-  void* command_queue() override;
+  void* command_queue() override { return command_queue_; }
 
   std::unique_ptr<::rex::gpu::Presenter> CreatePresenter(
       const ::rex::gpu::XenosGraphicsDriverBase& driver,

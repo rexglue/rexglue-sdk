@@ -260,6 +260,14 @@ if (REXGLUE_USE_METAL)
       metal/resolve_writeback_log.cc
       ${REXGLUE_ROOT}/thirdparty/d3d11-tessellator/tessellator.cpp
       metal/metal_xenos_graphics_driver.cpp
+      metal/metal_xenos_provider.cpp
+      # The host provider, presenter and immediate drawer. The Vulkan equivalents live in
+      # gpu/xenos/host/vulkan and build into its plugin; these are the same layer, still filed
+      # under src/ui/metal from the previous tree.
+      ../../../src/ui/metal/metal_provider.mm
+      ../../../src/ui/metal/metal_presenter.mm
+      ../../../src/ui/metal/metal_immediate_drawer.mm
+      ../../../src/ui/metal/metal_alloc_census.mm
   )
 
   rexgpu_xenos_library(
@@ -289,6 +297,9 @@ if (REXGLUE_USE_METAL)
                                -Wno-error=logical-not-parentheses
                                -Wno-error=enum-compare
                                -Wno-error=deprecated-anon-enum-enum-conversion
+                               # macOS 27 deprecates parts of the Metal API the backend still has to
+                               # query on older systems (MTLDevice.lowPower, MTLGPUFamilyMac2).
+                               -Wno-error=deprecated-declarations
   )
 
   # The ported backend owns the public headers it carries: the whole graphics folder plus the metal-specific ones,
@@ -362,6 +373,7 @@ if (REXGLUE_USE_METAL)
             xxHash::xxhash
             fmt::fmt
             "-framework Metal"
+            "-framework MetalFX"
             "-framework Foundation"
             "-framework QuartzCore"
   )

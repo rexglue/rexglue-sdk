@@ -560,8 +560,12 @@ void SDL3UIDriver::SetLimits(u32 min_width, u32 min_height, AspectRatio ratio) {
     return;
   }
   SDL_SetWindowMinimumSize(s.window, static_cast<int>(min_width), static_cast<int>(min_height));
+  // A zero ratio means "stretch", which is the absence of a constraint. Passing 0 to SDL made it
+  // write NaN into the window frame, and AppKit now throws on ShowWindow for a NaN rect.
   const f32 value = RatioOf(ratio);
-  SDL_SetWindowAspectRatio(s.window, value, value);
+  if (value > 0.0f) {
+    SDL_SetWindowAspectRatio(s.window, value, value);
+  }
 }
 
 void SDL3UIDriver::SetFullscreen(bool fullscreen, bool exclusive, i32 monitor, u32 mode_width,

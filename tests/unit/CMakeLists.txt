@@ -38,7 +38,6 @@ add_executable(
   gpu/vblank_pacing_test.cpp
   gpu/shader_interpreter_test.cpp
   gpu/shader_translation_test.cpp
-  gpu/tessellation_glsl_test.cpp
   kernel/be_ptr_test.cpp
   kernel/exit_title_test.cpp
   kernel/xam_input_test.cpp
@@ -257,7 +256,6 @@ target_sources(
           ${PROJECT_SOURCE_DIR}/tests/code_image.cpp
           ${PROJECT_SOURCE_DIR}/tests/object_app.cpp
           ${PROJECT_SOURCE_DIR}/src/gpu/xenos/null/null_xenos_graphics_driver.cpp
-          ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
           $<TARGET_OBJECTS:rexglue-objects>
           $<TARGET_OBJECTS:rexcodegen-objects>
           $<TARGET_OBJECTS:rexkernel-objects>
@@ -289,6 +287,20 @@ target_include_directories(
 # CLI11 instantiates std::wstring_convert, which libc++ marks deprecated
 target_include_directories(unit_tests SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include)
 
+# This test, and the source it exercises, drive the SPIR-V translator through the Vulkan host API,
+# so neither compiles without the Vulkan SDK. Gate both with the backend they belong to.
+if (REXGLUE_USE_VULKAN)
+  target_sources(unit_tests PRIVATE
+                 gpu/tessellation_glsl_test.cpp
+                 ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp)
+endif ()
+
+# Vulkan headers are only present when the Vulkan backend is part of the build; a Metal-only or
+# D3D12-only configure has no such target.
+if (TARGET Vulkan::Headers)
+  target_link_libraries(unit_tests PRIVATE Vulkan::Headers)
+endif ()
+
 target_link_libraries(
   unit_tests
   PRIVATE rexgpu-xenos-base
@@ -307,7 +319,6 @@ target_link_libraries(
           xxHash::xxhash
           Catch2::Catch2WithMain
           SDL3::Headers
-          Vulkan::Headers
 )
 target_compile_definitions(
   unit_tests PRIVATE REX_BUILDING_KERNEL REX_BUILDING_XAM REX_BUILDING_APP REX_BUILDING_HID
@@ -420,11 +431,13 @@ add_dependencies(
   rexxam
   rexxbdm
   rexgpu-xenos-null
-  rexgpu-xenos-vulkan
   rex-sample-console
   rex-sample-title
   rex-crash-test
 )
+if (TARGET rexgpu-xenos-vulkan)
+  add_dependencies(unit_tests rexgpu-xenos-vulkan)
+endif ()
 if (TARGET rexgpu-xenos-d3d12)
   add_dependencies(unit_tests rexgpu-xenos-d3d12)
 endif ()
