@@ -1087,6 +1087,22 @@ dxbc::Src DXBCShaderTranslator::LoadOperand(const InstructionOperand& operand,
         index.index = float_constant_index;
       } else {
         REX_ASSERT(constant_register_map.float_dynamic_addressing);
+        // a0 / aL + offset may go outside the 256 constants of the stage
+        // (a0 is in [-256, 255], aL is not limited at all). The float
+        // constants are bound as a root CBV, which has no size, so an
+        // out-of-range index would read whatever is after (or before) the
+        // 4096-byte buffer in the upload page, or unmapped memory. Clamp the
+        // index to [0, 255].
+        u32 index_temp = PushSystemTemp();
+        temp_pushed_out = true;
+        a_.OpIAdd(dxbc::Dest::R(index_temp, 0b0001),
+                  dxbc::Src::R(index.relative_to_temp >> 2).Select(index.relative_to_temp & 3),
+                  dxbc::Src::LI(i32(index.index)));
+        a_.OpIMax(dxbc::Dest::R(index_temp, 0b0001), dxbc::Src::R(index_temp, dxbc::Src::kXXXX),
+                  dxbc::Src::LI(0));
+        a_.OpIMin(dxbc::Dest::R(index_temp, 0b0001), dxbc::Src::R(index_temp, dxbc::Src::kXXXX),
+                  dxbc::Src::LI(255));
+        index = dxbc::Index(index_temp, 0);
       }
       src = dxbc::Src::CB(cbuffer_index_float_constants_,
                           std::to_underlying(CbufferRegister::kFloatConstants), index);
