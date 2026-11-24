@@ -74,8 +74,12 @@ class MetalSettings : public SettingOwner {
               "Ported from the SDK backend unchanged; the old declaration set this default.");
   REX_SETTING(bool, metal_msaa_clear_fold, true,
               "Ported from the SDK backend unchanged; the old declaration set this default.");
-  REX_SETTING(bool, metal_point_sprite_vs_expansion, true,
-              "Ported from the SDK backend unchanged; the old declaration set this default.");
+  // Off: the shared DXBC translator implements kVertex and the tessellation domain types only,
+  // so a point list translated with kPointListAsTriangleStrip fails and every such draw is
+  // dropped. With this off, points take the backend's geometry-emulation route, which this tree
+  // does implement.
+  REX_SETTING(bool, metal_point_sprite_vs_expansion, false,
+              "Expand point sprites in the vertex shader instead of the point-list geometry emulation");
   REX_SETTING(bool, metal_pwl_gamma, true,
               "Ported from the SDK backend unchanged; the old declaration set this default.");
   REX_SETTING(bool, metal_quad_lists_as_triangles, true,
