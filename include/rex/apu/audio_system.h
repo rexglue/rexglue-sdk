@@ -48,6 +48,8 @@ class REX_APU_API AudioSettings final : public SettingOwner {
   REX_SETTING(f64, center, 1.0, "Center level on a surround device", Range{0.0, 2.0});
   REX_SETTING(f64, surround, 1.0, "Surround level on a surround device", Range{0.0, 2.0});
   REX_SETTING(f64, lfe, 1.0, "LFE level on a surround device", Range{0.0, 2.0});
+  REX_SETTING(bool, force_stereo, false,
+              "Fold the mix to stereo even when the device reports more channels", kStartupOnly);
   REX_SETTING(f64, peak_limit, 0.0, "Silence a stream that stays above this peak, 0 is off",
               Range{0.0, 8.0});
   REX_SETTING(u32, max_queued_frames, 8, "Frames a stream may queue", Range{4, 64}, kUntilLaunch);

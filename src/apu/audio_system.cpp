@@ -279,8 +279,12 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
     });
   };
 
+  // A device that reports more channels than the speakers behind it (an HDMI sink that offers 5.1
+  // for a stereo display) leaves the fold to the system mixer, which may keep the LFE and skip the
+  // normalisation. apu.force_stereo asks for stereo, so the mix folds with its own weights.
+  const u32 wanted_channels = settings_.force_stereo.Get() ? 2u : rex::apu::kAudioFrameChannels;
   if (s.driver) {
-    if (auto opened = s.driver->OpenDevice(rex::apu::kAudioFrameChannels, make_fill())) {
+    if (auto opened = s.driver->OpenDevice(wanted_channels, make_fill())) {
       s.channels = *opened;
       s.device_open = true;
     } else {
@@ -288,7 +292,7 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
       s.reopen_failed = true;
     }
   }
-  s.thread = std::thread([this, make_fill] {
+  s.thread = std::thread([this, make_fill, wanted_channels] {
     State& s = *state_;
     auto next = Clock::now() + kPeriod;
     for (;;) {
@@ -321,8 +325,7 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
         if (s.driver) {
           if (s.reopen_wait > 0) {
             --s.reopen_wait;
-          } else if (auto opened =
-                         s.driver->OpenDevice(rex::apu::kAudioFrameChannels, make_fill())) {
+          } else if (auto opened = s.driver->OpenDevice(wanted_channels, make_fill())) {
             s.channels = *opened;
             s.device_open = true;
             if (s.reopen_failed) {
