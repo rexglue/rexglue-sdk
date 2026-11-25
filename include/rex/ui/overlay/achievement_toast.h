@@ -11,8 +11,10 @@
  */
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <rex/ui/overlay/achievement_notification.h>
@@ -50,6 +52,15 @@ class AchievementToastDialog : public AchievementNotificationDialog {
   std::mutex mutex_;
   std::deque<PendingToast> queue_;
   AchievementIconCache icon_cache_;
+
+  // The dialog is only registered with the ImGuiDrawer while it has a toast to
+  // show. A registered dialog makes the presenter repaint continuously on the
+  // UI thread at the display refresh rate (instead of presenting each guest
+  // frame from the guest output thread), so an always-registered empty toast
+  // doubled presentation work and made FPS overlays report the refresh rate.
+  bool registered_ = false;                // UI thread only.
+  std::atomic<bool> add_queued_{false};    // A deferred AddDialog is pending.
+  std::shared_ptr<std::atomic<bool>> alive_ = std::make_shared<std::atomic<bool>>(true);
 };
 
 }  // namespace rex::ui

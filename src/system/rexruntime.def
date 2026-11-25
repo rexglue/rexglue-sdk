@@ -51,7 +51,6 @@ rex_set_swap_color_grade
 ?AddSink@rex@@YAXV?$shared_ptr@Vsink@sinks@spdlog@@@std@@@Z
 ?AddVirtualMappedRange@Memory@memory@rex@@QEAA_NIIIPEAXP6AI00I@ZP6AX00II@Z@Z
 ?ActiveDeviceIsSynthetic@InputSystem@input@rex@@QEBA_NI@Z
-?AdvanceRead@RingBuffer@memory@rex@@QEAAX_K@Z
 ?Allocate@LinkedTypeDescriptorSetAllocator@vulkan@ui@rex@@QEAAPEAUVkDescriptorSet_T@@PEAUVkDescriptorSetLayout_T@@PEBUVkDescriptorPoolSize@@I@Z
 ?Allocate@SingleLayoutDescriptorSetPool@vulkan@ui@rex@@QEAA_KXZ
 ?AllocateDescriptor@D3D12CpuDescriptorPool@d3d12@ui@rex@@QEAA?AVDescriptor@1234@XZ
@@ -61,7 +60,6 @@ rex_set_swap_color_grade
 ?ApplyLogCvarOverrides@rex@@YAXAEAULogConfig@1@@Z
 ?AttachWindow@InputSystem@input@rex@@QEAAXPEAVWindow@ui@3@@Z
 ?Begin@ImGui@@YA_NPEBDPEA_NH@Z
-?BeginRead@RingBuffer@memory@rex@@QEAA?AUReadRange@123@_K@Z
 ?BuildLogConfig@rex@@YA?AULogConfig@1@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBV?$map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V12@U?$less@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V12@@std@@@2@@4@@Z
 ?BuildLogConfig@rex@@YA?AULogConfig@1@PEBDAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBV?$map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V12@U?$less@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V12@@std@@@2@@4@@Z
 ?Button@ImGui@@YA_NPEBDAEBUImVec2@@@Z
@@ -96,9 +94,9 @@ rex_set_swap_color_grade
 ?CreateManualResetEvent@Event@thread@rex@@SA?AV?$unique_ptr@VEvent@thread@rex@@U?$default_delete@VEvent@thread@rex@@@std@@@std@@_N@Z
 ?CreateRootSignature@util@d3d12@ui@rex@@YAPEAUID3D12RootSignature@@AEBVD3D12Provider@234@AEBUD3D12_ROOT_SIGNATURE_DESC@@@Z
 ?CreateVmaAllocator@vulkan@ui@rex@@YAPEAUVmaAllocator_T@@PEBVVulkanDevice@123@_N@Z
+?DecodeImageRGBA@ui@rex@@YA?AV?$vector@EV?$allocator@E@std@@@std@@PEBE_KAEAH2@Z
 ?EnablePhysicalMemoryAccessCallbacks@Memory@memory@rex@@QEAAXII_N0@Z
 ?End@ImGui@@YAXXZ
-?EndRead@RingBuffer@memory@rex@@QEAAXUReadRange@123@@Z
 ?ExecuteInterrupt@FunctionDispatcher@runtime@rex@@QEAA_KPEAVThreadState@23@IQEA_K_K@Z
 ?ExecutePendingFunctionsFromUIThread@WindowedAppContext@ui@rex@@AEAAX_N@Z
 ?FLAGS_cache_root_storage_@@YAAEAV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -246,8 +244,6 @@ rex_set_swap_color_grade
 ?Wait@thread@rex@@YA?AW4WaitResult@12@PEAVWaitHandle@12@_NV?$duration@_JU?$ratio@$00$0DOI@@std@@@chrono@std@@@Z
 ?Write@ByteStream@stream@rex@@QEAAXV?$span@$$CBE$0?0@std@@@Z
 ?apply_@FlagRegistrar@cvar@rex@@AEAAXV?$function@$$A6AXAEAUFlagEntry@cvar@rex@@@Z@std@@@Z
-?bit_scan_forward@rex@@YA_NIPEAI@Z
-?bit_scan_forward@rex@@YA_N_KPEAI@Z
 ?copy_and_swap_16_unaligned@memory@rex@@YAXPEAXPEBX_K@Z
 ?copy_and_swap_32_aligned@memory@rex@@YAXPEAXPEBX_K@Z
 ?copy_and_swap_32_unaligned@memory@rex@@YAXPEAXPEBX_K@Z

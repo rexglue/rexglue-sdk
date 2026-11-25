@@ -15,10 +15,28 @@
 
 #include <rex/assert.h>
 #include <rex/bit.h>
+#include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/graphics/shared_memory.h>
+#include <rex/hash.h>
 #include <rex/math.h>
 #include <rex/memory.h>
+
+// Off by default: in Fable II it made distant scenery textures (a castle)
+// flicker every frame, so some changes to texture memory are only caught
+// because the widened invalidation around unrelated writes reloads them.
+REXCVAR_DEFINE_BOOL(shared_memory_spare_textures, false, "GPU",
+                    "When a CPU write invalidates the memory around it, stop at textures the "
+                    "write doesn't touch instead of reloading them too (experimental: misses "
+                    "texture changes that nothing else catches)");
+
+REXCVAR_DEFINE_BOOL(shared_memory_protect_ahead, true, "GPU",
+                    "After a CPU write made a run of pages writable again, protect the whole "
+                    "run when the first part of it is uploaded, instead of one piece per "
+                    "upload (several times fewer mprotect calls per frame). Blocks the game "
+                    "keeps writing while the GPU thread reads them fall back to piecewise "
+                    "protection by themselves")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 namespace rex::graphics {
 
@@ -34,6 +52,9 @@ void SharedMemory::InitializeCommon() {
   num_system_page_flags_ = ((kBufferSize >> page_size_log2_) + 63) / 64;
   system_page_flags_valid_.assign(num_system_page_flags_, 0);
   system_page_flags_valid_and_gpu_written_.assign(num_system_page_flags_, 0);
+  system_page_flags_unprotected_.assign(num_system_page_flags_, 0);
+  protect_ahead_block_scores_.assign(num_system_page_flags_, 0);
+  page_content_hashes_.assign(size_t(kBufferSize >> page_size_log2_), 0);
 
   memory_invalidation_callback_handle_ =
       memory_.RegisterPhysicalMemoryInvalidationCallback(MemoryInvalidationCallbackThunk, this);
@@ -86,7 +107,74 @@ void SharedMemory::ShutdownCommon() {
   system_page_flags_valid_.shrink_to_fit();
   system_page_flags_valid_and_gpu_written_.clear();
   system_page_flags_valid_and_gpu_written_.shrink_to_fit();
+  page_content_hashes_.clear();
+  page_content_hashes_.shrink_to_fit();
   num_system_page_flags_ = 0;
+}
+
+void SharedMemory::InvalidateRangeForReupload(uint32_t start, uint32_t length) {
+  if (!length || start >= kBufferSize) {
+    return;
+  }
+  length = std::min(length, kBufferSize - start);
+  const uint32_t page_first = start >> page_size_log2_;
+  const uint32_t page_last = (start + length - 1) >> page_size_log2_;
+  if (!page_content_hashes_.empty()) {
+    std::fill(page_content_hashes_.begin() + page_first,
+              page_content_hashes_.begin() + page_last + 1, uint64_t(0));
+  }
+  auto global_lock = global_critical_region_.Acquire();
+  for (uint32_t i = page_first >> 6; i <= page_last >> 6; ++i) {
+    uint64_t bits = UINT64_MAX;
+    if (i == page_first >> 6) {
+      bits &= ~((uint64_t(1) << (page_first & 63)) - 1);
+    }
+    if (i == page_last >> 6 && (page_last & 63) != 63) {
+      bits &= (uint64_t(1) << ((page_last & 63) + 1)) - 1;
+    }
+    system_page_flags_valid_[i] &= ~bits;
+    system_page_flags_valid_and_gpu_written_[i] &= ~bits;
+  }
+}
+
+bool SharedMemory::IsRangeGpuWritten(uint32_t start, uint32_t length) const {
+  if (!length || start >= kBufferSize || system_page_flags_valid_and_gpu_written_.empty()) {
+    return false;
+  }
+  length = std::min(length, kBufferSize - start);
+  const uint32_t page_first = start >> page_size_log2_;
+  const uint32_t page_last = (start + length - 1) >> page_size_log2_;
+  for (uint32_t i = page_first >> 6; i <= page_last >> 6; ++i) {
+    uint64_t bits = system_page_flags_valid_and_gpu_written_[i];
+    if (i == page_first >> 6) {
+      bits &= ~((uint64_t(1) << (page_first & 63)) - 1);
+    }
+    if (i == page_last >> 6 && (page_last & 63) != 63) {
+      bits &= (uint64_t(1) << ((page_last & 63) + 1)) - 1;
+    }
+    if (bits) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool SharedMemory::GetRangeContentHash(uint32_t start, uint32_t length,
+                                       uint64_t& hash_out) const {
+  if (!length || start >= kBufferSize || page_content_hashes_.empty()) {
+    return false;
+  }
+  length = std::min(length, kBufferSize - start);
+  const uint32_t page_first = start >> page_size_log2_;
+  const uint32_t page_last = (start + length - 1) >> page_size_log2_;
+  for (uint32_t page = page_first; page <= page_last; ++page) {
+    if (!page_content_hashes_[page]) {
+      return false;
+    }
+  }
+  hash_out = XXH3_64bits(page_content_hashes_.data() + page_first,
+                         sizeof(uint64_t) * (page_last - page_first + 1));
+  return true;
 }
 
 void SharedMemory::InvalidateAllPages() {
@@ -223,6 +311,38 @@ void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
   UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
 
+void SharedMemory::InvalidateWatchesInRange(uint32_t start, uint32_t length) {
+  if (length == 0 || start >= kBufferSize) {
+    return;
+  }
+  length = std::min(length, kBufferSize - start);
+  FireWatches(start >> page_size_log2_, (start + length - 1) >> page_size_log2_, true);
+}
+
+void SharedMemory::ForEachWatchedRange(
+    uint32_t start, uint32_t length,
+    const std::function<void(WatchCallback callback, void* context, void* data,
+                             uint64_t argument)>& function) {
+  if (length == 0 || start >= kBufferSize) {
+    return;
+  }
+  length = std::min(length, kBufferSize - start);
+  const uint32_t page_first = start >> page_size_log2_;
+  const uint32_t page_last = (start + length - 1) >> page_size_log2_;
+  const uint32_t bucket_first = start >> kWatchBucketSizeLog2;
+  const uint32_t bucket_last = (start + length - 1) >> kWatchBucketSizeLog2;
+  auto global_lock = global_critical_region_.Acquire();
+  for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
+    for (const WatchNode* node = watch_buckets_[i]; node; node = node->bucket_node_next) {
+      const WatchRange* range = node->range;
+      if (page_first <= range->page_last && page_last >= range->page_first) {
+        function(range->callback, range->callback_context, range->callback_data,
+                 range->callback_argument);
+      }
+    }
+  }
+}
+
 void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu) {
   uint32_t address_first = page_first << page_size_log2_;
   uint32_t address_last = (page_last << page_size_log2_) + ((1 << page_size_log2_) - 1);
@@ -291,6 +411,14 @@ void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length, bool written_
   uint32_t valid_page_last = last >> page_size_log2_;
   uint32_t valid_block_first = valid_page_first >> 6;
   uint32_t valid_block_last = valid_page_last >> 6;
+  uint32_t protect_page_first = valid_page_first;
+  uint32_t protect_page_last = valid_page_last;
+
+  if (written_by_gpu && !page_content_hashes_.empty()) {
+    // The GPU copy no longer holds the data last uploaded.
+    std::fill(page_content_hashes_.begin() + valid_page_first,
+              page_content_hashes_.begin() + valid_page_last + 1, uint64_t(0));
+  }
 
   {
     auto global_lock = global_critical_region_.Acquire();
@@ -306,13 +434,40 @@ void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length, bool written_
       system_page_flags_valid_[i] |= valid_bits;
       uint64_t& gpu_written = system_page_flags_valid_and_gpu_written_[i];
       gpu_written = written_by_gpu ? (gpu_written | valid_bits) : (gpu_written & ~valid_bits);
+      system_page_flags_unprotected_[i] &= ~valid_bits;
+    }
+
+    // Protect the rest of the run a CPU write unprotected along with this
+    // part: the other pages stay invalid, and are uploaded when requested
+    // without another mprotect. (A CPU write to one of them before that costs
+    // one wasted fault - see the scores in MemoryInvalidationCallback.)
+    if (!written_by_gpu && REXCVAR_GET(shared_memory_protect_ahead)) {
+      const uint32_t page_count = uint32_t(num_system_page_flags_) << 6;
+      auto take_unprotected = [&](uint32_t page) {
+        uint64_t& flags = system_page_flags_unprotected_[page >> 6];
+        const uint64_t bit = uint64_t(1) << (page & 63);
+        if (!(flags & bit) || (protect_ahead_block_scores_[page >> 6] & 0x80)) {
+          return false;
+        }
+        flags &= ~bit;
+        return true;
+      };
+      for (uint32_t n = 0; n < 64 && protect_page_first && take_unprotected(protect_page_first - 1);
+           ++n) {
+        --protect_page_first;
+      }
+      for (uint32_t n = 0;
+           n < 64 && protect_page_last + 1 < page_count && take_unprotected(protect_page_last + 1);
+           ++n) {
+        ++protect_page_last;
+      }
     }
   }
 
   if (memory_invalidation_callback_handle_) {
     memory().EnablePhysicalMemoryAccessCallbacks(
-        valid_page_first << page_size_log2_,
-        (valid_page_last - valid_page_first + 1) << page_size_log2_, true, false);
+        protect_page_first << page_size_log2_,
+        (protect_page_last - protect_page_first + 1) << page_size_log2_, true, false);
   }
 }
 
@@ -540,7 +695,27 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
 
   auto global_lock = global_critical_region_.Acquire();
 
+  {
+    // A write to a page that is not valid, yet was still protected: it was
+    // protected ahead of its upload (shared_memory_protect_ahead), and the
+    // game wrote it again first. Blocks where that keeps happening stop being
+    // protected ahead until ordinary faults outnumber such ones again.
+    uint8_t& score = protect_ahead_block_scores_[block_first];
+    const bool wasted =
+        !(system_page_flags_valid_[block_first] & (uint64_t(1) << (page_first & 63)));
+    uint8_t value = score & 0x7F;
+    if (wasted) {
+      value = uint8_t(std::min(uint32_t(value) + 4, uint32_t(0x7F)));
+    } else if (value) {
+      --value;
+    }
+    const bool off = value >= 32 || ((score & 0x80) && value);
+    score = uint8_t(value | (off ? 0x80 : 0));
+  }
+
   if (!exact_range) {
+    const uint32_t exact_page_first = page_first;
+    const uint32_t exact_page_last = page_last;
     // Check if a somewhat wider range (up to 256 KB with 4 KB pages) can be
     // invalidated - if no GPU-written data nearby that was not intended to be
     // invalidated since it's not in sync with CPU memory and can't be
@@ -560,6 +735,28 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
       page_last =
           (page_last & ~uint32_t(63)) + (std::max(rex::tzcnt(gpu_written_end), uint8_t(1)) - 1);
     }
+    // Also stop the widening at watched ranges (textures) that the write
+    // itself doesn't touch. Widening is for buffer memory the CPU streams
+    // through, to take fewer access violations; spreading it over a
+    // neighboring texture only throws that texture away. In Fable II, writes
+    // near textures made about 60 unchanged textures reload every frame. Those
+    // pages stay protected, so a later write to one of them is still caught.
+    const uint32_t bucket_first = (page_first << page_size_log2_) >> kWatchBucketSizeLog2;
+    const uint32_t bucket_last = (page_last << page_size_log2_) >> kWatchBucketSizeLog2;
+    const bool spare_textures = REXCVAR_GET(shared_memory_spare_textures);
+    for (uint32_t bucket = bucket_first; spare_textures && bucket <= bucket_last; ++bucket) {
+      for (const WatchNode* node = watch_buckets_[bucket]; node; node = node->bucket_node_next) {
+        const WatchRange* range = node->range;
+        if (range->page_first <= exact_page_last && range->page_last >= exact_page_first) {
+          continue;  // Written to - invalidated anyway.
+        }
+        if (range->page_last < exact_page_first && range->page_last >= page_first) {
+          page_first = range->page_last + 1;
+        } else if (range->page_first > exact_page_last && range->page_first <= page_last) {
+          page_last = range->page_first - 1;
+        }
+      }
+    }
   }
 
   for (uint32_t i = block_first; i <= block_last; ++i) {
@@ -572,6 +769,8 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
     }
     system_page_flags_valid_[i] &= ~invalidate_bits;
     system_page_flags_valid_and_gpu_written_[i] &= ~invalidate_bits;
+    // The caller makes the returned range writable.
+    system_page_flags_unprotected_[i] |= invalidate_bits;
   }
 
   FireWatches(page_first, page_last, false);

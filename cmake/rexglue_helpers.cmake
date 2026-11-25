@@ -48,8 +48,15 @@ function(rexglue_apply_target_settings target_name)
     if(UNIX AND NOT APPLE)
         # Large executable support
         if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-            target_link_options(${target_name} PRIVATE -Wl,--no-relax)
-            target_compile_options(${target_name} PRIVATE -mcmodel=large)
+            # See REXGLUE_X64_CODE_MODEL in the SDK's CMakeLists.txt. Linker
+            # relaxation (GOT loads -> direct addresses) is only unsafe with
+            # the large model.
+            if(NOT DEFINED REXGLUE_X64_CODE_MODEL OR REXGLUE_X64_CODE_MODEL STREQUAL "large")
+                target_link_options(${target_name} PRIVATE -Wl,--no-relax)
+                target_compile_options(${target_name} PRIVATE -mcmodel=large)
+            else()
+                target_compile_options(${target_name} PRIVATE -mcmodel=${REXGLUE_X64_CODE_MODEL})
+            endif()
         elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
             target_compile_options(${target_name} PRIVATE -march=armv8-a)
         endif()

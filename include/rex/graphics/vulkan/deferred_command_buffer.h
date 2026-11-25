@@ -10,9 +10,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #include <rex/assert.h>
@@ -28,8 +30,34 @@ class DeferredCommandBuffer {
   DeferredCommandBuffer(const VulkanCommandProcessor& command_processor,
                         size_t initial_size_bytes = 1024 * 1024);
 
+  // Must not be called while another thread may be executing the commands.
   void Reset();
+  // Publishes and executes everything recorded.
   void Execute(VkCommandBuffer command_buffer);
+
+  // Incremental execution by another thread while recording continues (the
+  // Vulkan submission worker). The commands are stored in blocks that never
+  // move, so a reader can execute the published part while more is written.
+  // Publish() makes everything recorded so far visible to readers (a release
+  // store); it must only be called when all recorded commands are complete
+  // (the *Emplace functions fill their arguments after writing the header).
+  struct Cursor {
+    uint32_t block = 0;
+    size_t offset = 0;
+  };
+  void Publish(std::memory_order order = std::memory_order_release);
+  // Executes the commands between cursor and the published end, advancing the
+  // cursor. Returns whether anything was executed.
+  bool ExecutePublished(VkCommandBuffer command_buffer, Cursor& cursor) const;
+  bool HasUnexecutedPublished(const Cursor& cursor) const {
+    uint64_t published = published_.load(std::memory_order_acquire);
+    return cursor.block < uint32_t(published >> kPublishedBlockShift) ||
+           cursor.offset < size_t(published & kPublishedOffsetMask);
+  }
+  bool empty() const { return !write_block_ && !write_offset_; }
+  // The published position, for waiting on it to change (std::atomic::wait).
+  std::atomic<uint64_t>& published() { return published_; }
+  const std::atomic<uint64_t>& published() const { return published_; }
 
   // render_pass_begin->pNext of all barriers must be null.
   void CmdVkBeginRenderPass(const VkRenderPassBeginInfo* render_pass_begin,
@@ -210,6 +238,29 @@ class DeferredCommandBuffer {
                 regions, sizeof(VkBufferImageCopy) * region_count);
   }
 
+  // One region, of the same size in both, between two color images.
+  enum class ImageCopyMode : uint32_t {
+    // vkCmdCopyImage: same format, single-sampled source.
+    kCopy,
+    // vkCmdResolveImage: same format, multisampled source (samples averaged).
+    kResolve,
+    // vkCmdBlitImage (nearest): converts between formats, single-sampled
+    // source.
+    kBlit,
+  };
+  void CmdVkCopyOrResolveImage(ImageCopyMode mode, VkImage src_image,
+                               VkImageLayout src_image_layout, VkImage dst_image,
+                               VkImageLayout dst_image_layout, const VkImageCopy& region) {
+    auto& args = *reinterpret_cast<ArgsVkCopyOrResolveImage*>(
+        WriteCommand(Command::kVkCopyOrResolveImage, sizeof(ArgsVkCopyOrResolveImage)));
+    args.src_image = src_image;
+    args.dst_image = dst_image;
+    args.src_image_layout = src_image_layout;
+    args.dst_image_layout = dst_image_layout;
+    args.mode = mode;
+    args.region = region;
+  }
+
   void CmdVkCopyQueryPoolResults(VkQueryPool query_pool, uint32_t first_query, uint32_t query_count,
                                  VkBuffer dst_buffer, VkDeviceSize dst_offset, VkDeviceSize stride,
                                  VkQueryResultFlags flags) {
@@ -351,8 +402,20 @@ class DeferredCommandBuffer {
     std::memcpy(args_ptr + header_size, viewports, sizeof(VkViewport) * viewport_count);
   }
 
+  // GPU time breakdown: commands are tagged with a category, and a marker is
+  // recorded before the first command of a different category. The executing
+  // thread turns markers into timestamps through the sink (no sink: ignored).
+  class TimestampSink {
+   public:
+    virtual void WriteTimestamp(VkCommandBuffer command_buffer, uint32_t category) = 0;
+  };
+  static constexpr uint32_t kNoTimestampCategory = UINT32_MAX;
+  void SetTimestampCategory(uint32_t category) { timestamp_category_ = category; }
+  void set_timestamp_sink(TimestampSink* sink) { timestamp_sink_ = sink; }
+
  private:
   enum class Command {
+    kTimestampMarker,
     kVkBeginRenderPass,
     kVkBeginQuery,
     kVkBindDescriptorSets,
@@ -363,6 +426,7 @@ class DeferredCommandBuffer {
     kVkClearColorImage,
     kVkCopyBuffer,
     kVkCopyBufferToImage,
+    kVkCopyOrResolveImage,
     kVkCopyQueryPoolResults,
     kVkDispatch,
     kVkDraw,
@@ -389,6 +453,10 @@ class DeferredCommandBuffer {
   };
   static constexpr size_t kCommandHeaderSizeElements =
       (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
+
+  struct ArgsTimestampMarker {
+    uint32_t category;
+  };
 
   struct ArgsVkBeginRenderPass {
     VkRenderPass render_pass;
@@ -482,6 +550,15 @@ class DeferredCommandBuffer {
     uint32_t region_count;
     // Followed by aligned VkBufferImageCopy[].
     static_assert(alignof(VkBufferImageCopy) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkCopyOrResolveImage {
+    VkImage src_image;
+    VkImage dst_image;
+    VkImageLayout src_image_layout;
+    VkImageLayout dst_image_layout;
+    ImageCopyMode mode;
+    VkImageCopy region;
   };
 
   struct ArgsVkCopyQueryPoolResults {
@@ -578,11 +655,34 @@ class DeferredCommandBuffer {
   };
 
   void* WriteCommand(Command command, size_t arguments_size_bytes);
+  // Executes the complete commands in [stream, stream + size_elements).
+  void ExecuteRange(VkCommandBuffer command_buffer, const uintmax_t* stream,
+                    size_t size_elements) const;
 
   const VulkanCommandProcessor& command_processor_;
 
-  // uintmax_t to ensure uint64_t and pointer alignment of all structures.
-  std::vector<uintmax_t> command_stream_;
+  // Command storage: blocks of uintmax_t (to ensure uint64_t and pointer
+  // alignment of all structures). A block is never reallocated while the
+  // buffer is in use, and blocks are kept across Reset for reuse.
+  static constexpr uint32_t kMaxBlocks = 4096;
+  static constexpr size_t kBlockElements = (256 * 1024) / sizeof(uintmax_t);
+  static constexpr uint32_t kPublishedBlockShift = 40;
+  static constexpr uint64_t kPublishedOffsetMask = (uint64_t(1) << kPublishedBlockShift) - 1;
+  std::unique_ptr<uintmax_t[]> blocks_[kMaxBlocks];
+  size_t block_capacity_[kMaxBlocks] = {};
+  // End of the commands in each block before write_block_ (written before the
+  // block after it is published).
+  size_t block_end_[kMaxBlocks] = {};
+  uint32_t write_block_ = 0;
+  size_t write_offset_ = 0;
+  // Category of the commands being recorded, and the one of the last marker.
+  uint32_t timestamp_category_ = kNoTimestampCategory;
+  uint32_t timestamp_category_marked_ = kNoTimestampCategory;
+  // Set by the executing thread for the duration of an execution.
+  TimestampSink* timestamp_sink_ = nullptr;
+  void* WriteCommandRaw(Command command, size_t arguments_size_bytes);
+  // (block << kPublishedBlockShift) | offset of the published end.
+  std::atomic<uint64_t> published_{0};
 };
 
 }  // namespace rex::graphics::vulkan

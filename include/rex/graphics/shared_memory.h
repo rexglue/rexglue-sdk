@@ -11,6 +11,7 @@
  */
 
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -72,6 +73,17 @@ class SharedMemory {
                                uint64_t callback_argument);
   // Unregisters previously registered watched memory range.
   void UnwatchMemoryRange(WatchHandle handle);
+  // Fires (and so cancels) the watches of the range as a write by the GPU
+  // would, without changing what the buffer holds or which pages are valid:
+  // for when the data went somewhere else than the buffer.
+  void InvalidateWatchesInRange(uint32_t start, uint32_t length);
+  // Calls the function for every watched range overlapping the memory range
+  // (possibly more than once for one watch), within the global critical
+  // region. Don't watch or unwatch ranges from it.
+  void ForEachWatchedRange(
+      uint32_t start, uint32_t length,
+      const std::function<void(WatchCallback callback, void* context, void* data,
+                               uint64_t argument)>& function);
 
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the host GPU memory backing the range are resident. Returns true if
@@ -94,6 +106,20 @@ class SharedMemory {
   // the pages they touch, the CPU data is properly loaded to the unmodified
   // regions in those pages.
   void RangeWrittenByGpu(uint32_t start, uint32_t length);
+
+  // Content fingerprints of the pages in the GPU buffer (command processor
+  // thread only). A page's fingerprint is the hash of the guest data last
+  // uploaded to it, or 0 when unknown (never uploaded through the hashing
+  // path, or written by the GPU since). An upload of a page whose guest data
+  // still matches its fingerprint only needs to make the page valid again: the
+  // GPU copy is already up to date.
+  // Combined fingerprint of the pages covering [start, start + length), false
+  // if any of them is unknown.
+  bool GetRangeContentHash(uint32_t start, uint32_t length, uint64_t& hash_out) const;
+
+  // Whether any page in the range holds data written by the GPU (for
+  // statistics - read without the global critical region).
+  bool IsRangeGpuWritten(uint32_t start, uint32_t length) const;
 
  protected:
   SharedMemory(memory::Memory& memory);
@@ -128,6 +154,12 @@ class SharedMemory {
 
   // Mark the memory range as updated and protect it.
   void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
+  // After MakeRangeValid for a range whose data could not be uploaded: makes
+  // the next request upload it (the protection stays; the content
+  // fingerprints are cleared).
+  void InvalidateRangeForReupload(uint32_t start, uint32_t length);
+  // The content fingerprint of a page, for uploads to compare and refresh.
+  uint64_t& page_content_hash(uint32_t page) { return page_content_hashes_[page]; }
 
   // Uploads a range of host pages - only called if host GPU sparse memory
   // allocation succeeded if needed. While uploading, MakeRangeValid must be
@@ -174,11 +206,21 @@ class SharedMemory {
   // Things below should be fully protected by global_critical_region.
   // ***************************************************************************
 
+  // Per-page content fingerprints (see GetRangeContentHash). Not protected by
+  // the global critical region: only the command processor thread uses them.
+  std::vector<uint64_t> page_content_hashes_;
+
   // Pages whose contents in the buffer are in sync with guest memory.
   std::vector<uint64_t> system_page_flags_valid_;
   // Subset of valid pages containing data written by the GPU.
   std::vector<uint64_t> system_page_flags_valid_and_gpu_written_;
   uint32_t num_system_page_flags_ = 0;
+  // Pages made writable again by a CPU write notification and not protected
+  // since (see shared_memory_protect_ahead).
+  std::vector<uint64_t> system_page_flags_unprotected_;
+  // Per 64-page block: score of write faults on pages that were protected
+  // ahead of their upload (bit 7 set = protecting ahead is off for the block).
+  std::vector<uint8_t> protect_ahead_block_scores_;
 
   static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
       void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);

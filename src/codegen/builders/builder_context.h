@@ -25,6 +25,12 @@ namespace rex::codegen {
 
 class FunctionNode;
 
+// Lines emit_shared_call writes around a call to a function that shares
+// registers; ExpandRegisterHandovers replaces them once the function's local
+// registers are known.
+inline constexpr std::string_view kHandoverToMarker = "/*@HANDOVER_TO@*/";
+inline constexpr std::string_view kHandoverBackMarker = "/*@HANDOVER_BACK@*/";
+
 struct RecompilerLocalVariables {
   bool ctr{};
   bool xer{};
@@ -53,6 +59,13 @@ struct RecompilerLocalVariables {
   }
   bool is_mmio_base(size_t reg) const { return reg < 32 && (mmio_base_regs & (1u << reg)); }
 };
+
+// Replace the hand-over markers in a function body with the register copies
+// (see emit_shared_call). Returns whether there were any; the caller then
+// declares a saved copy (ho_rN, ho_fN, ho_vN) of every local non-volatile.
+bool ExpandRegisterHandovers(std::string& body, const RecompilerLocalVariables& locals);
+// Whether the hand-over saves and restores this register ('r', 'f' or 'v').
+bool HandoverSavesRegister(char kind, size_t index);
 
 /**
  * @brief CSR (Control/Status Register) flush mode state.
@@ -113,6 +126,17 @@ struct BuilderContext {
    * False when the function shares registers with an intra-function bl partner.
    */
   bool localizeNonVolatiles() const;
+  // Non-argument registers (r0, r2, r11, r12, f0, v32-v63) as locals: off in the
+  // register save/restore helpers, whose ctx-based callers pass the return
+  // address in r12, and in functions that share registers (a fragment may get
+  // a flag in r11, an SEH funclet its frame in r12).
+  bool localizeNonArguments() const;
+  // Call (or tail-branch to) targetFn at the given indentation. When it shares
+  // registers (a split-off fragment, an SEH funclet), the localized registers
+  // are handed over through ctx around the call (see context.cpp).
+  void emit_shared_call(const FunctionNode* targetFn, std::string_view indent);
+  // localizeNonVolatiles() result, computed on first use (-1 = not yet).
+  mutable int8_t localizeNonVolatilesCache = -1;
 
   /**
    * @brief Get expression for general-purpose register access.

@@ -98,6 +98,15 @@ class VulkanPipelineCache {
                                     const PipelineLayoutProvider*& pipeline_layout_out,
                                     bool* is_placeholder_out = nullptr) const;
 
+  // Blocks until the real pipeline for a handle that currently has an async
+  // placeholder has been created (or its creation has failed), creating queued
+  // pipelines on the calling thread in priority order in the meantime. Used
+  // instead of drawing with the placeholder, which discards every pixel, so
+  // objects don't go missing and render-to-texture passes don't leave stale
+  // data. Gives up after timeout_ms. Returns whether the real pipeline is
+  // available.
+  bool WaitForPipeline(void* handle, uint32_t timeout_ms);
+
  private:
   REXPACKEDSTRUCT(ShaderStoredHeader, {
     uint64_t ucode_data_hash;
@@ -369,6 +378,9 @@ class VulkanPipelineCache {
                              VkShaderModule fragment_shader_override = VK_NULL_HANDLE);
   void CreationThread(size_t thread_index);
   void CreateQueuedPipelinesOnProcessorThread();
+  // Creates one pipeline taken from creation_queue_, keeping the placeholder if
+  // the real pipeline can't be created.
+  void CreateQueuedPipeline(const PipelineCreationArguments& creation_arguments);
   void ProcessDeferredPipelineDestructions(bool force_all);
 
   VulkanCommandProcessor& command_processor_;

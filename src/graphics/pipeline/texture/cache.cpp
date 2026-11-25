@@ -18,6 +18,8 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/graphics/flags.h>
+#include <rex/graphics/frame_dump.h>
+#include <rex/graphics/frame_events.h>
 #include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/pipeline/texture/util.h>
@@ -284,6 +286,7 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
     }
     if (!destroyed_any) {
       destroyed_any = true;
+      ClearTextureLookupMemo();
       // The texture being destroyed might have been bound in the previous
       // submissions, and nothing has overwritten the binding yet, so completion
       // of the submission where the texture was last actually used on the GPU
@@ -366,6 +369,25 @@ uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_
   return host_swizzle;
 }
 
+bool TextureCache::GetTexturesWatchingRange(
+    uint32_t start, uint32_t length, std::vector<std::pair<Texture*, bool>>& textures_out) {
+  textures_out.clear();
+  bool only_textures = true;
+  shared_memory().ForEachWatchedRange(
+      start, length,
+      [&](SharedMemory::WatchCallback callback, void* context, void* data, uint64_t argument) {
+        if (callback != WatchCallback) {
+          only_textures = false;
+          return;
+        }
+        const std::pair<Texture*, bool> entry(static_cast<Texture*>(context), argument != 0);
+        if (std::find(textures_out.begin(), textures_out.end(), entry) == textures_out.end()) {
+          textures_out.push_back(entry);
+        }
+      });
+  return only_textures;
+}
+
 bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pending_load_out,
                                       PendingSharedMemoryRange* pending_ranges_out,
                                       size_t& pending_range_count_out) {
@@ -435,9 +457,64 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
     }
   }
 
-  if (!LoadTextureDataFromResidentMemoryImpl(texture, pending_load.load_base,
-                                             pending_load.load_mips)) {
-    return false;
+  // Skip reloading data that is unchanged since the last load: the texture
+  // was invalidated, but the guest data it was loaded from is the same (a CPU
+  // write invalidates the 256 KB around it, and with it unrelated textures).
+  // Known from the shared memory content fingerprints, which the upload just
+  // refreshed; only available for data uploaded from guest memory, never for
+  // GPU-written data or scaled resolves.
+  bool load_base = pending_load.load_base;
+  bool load_mips = pending_load.load_mips;
+  uint64_t base_hash = 0, mips_hash = 0;
+  if (!texture_key.scaled_resolve) {
+    if (load_base &&
+        shared_memory().GetRangeContentHash(texture_key.base_page << 12,
+                                            uint32_t(texture.GetGuestBaseSize()), base_hash) &&
+        base_hash == texture.base_content_hash_) {
+      load_base = false;
+    }
+    if (load_mips &&
+        shared_memory().GetRangeContentHash(texture_key.mip_page << 12,
+                                            uint32_t(texture.GetGuestMipsSize()), mips_hash) &&
+        mips_hash == texture.mips_content_hash_) {
+      load_mips = false;
+    }
+  }
+  if (load_base || load_mips) {
+    if (!LoadTextureDataFromResidentMemoryImpl(texture, load_base, load_mips)) {
+      // Unknown what the texture holds now.
+      texture.base_content_hash_ = 0;
+      texture.mips_content_hash_ = 0;
+      return false;
+    }
+    CountFrameEvent(g_frame_events.texture_loads);
+    if ((load_base && shared_memory().IsRangeGpuWritten(texture_key.base_page << 12,
+                                                        uint32_t(texture.GetGuestBaseSize()))) ||
+        (load_mips && shared_memory().IsRangeGpuWritten(texture_key.mip_page << 12,
+                                                        uint32_t(texture.GetGuestMipsSize())))) {
+      CountFrameEvent(g_frame_events.texture_loads_gpu_written);
+      if (g_frame_dump.active) {
+        ++g_frame_dump.frame_texture_loads;
+        FrameDumpEvent(fmt::format(
+            "  texture load of GPU-written data: base {:08X} mips {:08X}, {}x{}x{} pitch {}, "
+            "format {}, endian {}, {}{}{} mip levels{}{}",
+            uint32_t(texture_key.base_page) << 12, uint32_t(texture_key.mip_page) << 12,
+            texture_key.GetWidth(), texture_key.GetHeight(), texture_key.GetDepthOrArraySize(),
+            uint32_t(texture_key.pitch) << 5, uint32_t(texture_key.format),
+            uint32_t(texture_key.endianness), texture_key.tiled ? "tiled, " : "",
+            texture_key.packed_mips ? "packed mips, " : "", uint32_t(texture_key.mip_max_level) + 1,
+            texture_key.signed_separate ? ", signed" : "",
+            texture_key.scaled_resolve ? ", scaled" : ""));
+      }
+    }
+    if (load_base) {
+      texture.base_content_hash_ = base_hash;
+    }
+    if (load_mips) {
+      texture.mips_content_hash_ = mips_hash;
+    }
+  } else {
+    CountFrameEvent(g_frame_events.texture_loads_skipped);
   }
 
   // Mark the ranges as uploaded and watch them. This is needed for scaled
@@ -453,7 +530,10 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
 void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   const auto& regs = register_file();
 
-  if (texture_became_outdated_.exchange(false, std::memory_order_acquire)) {
+  // Plain load first: the flag is rarely set, and the exchange is a locked
+  // instruction on every draw otherwise.
+  if (texture_became_outdated_.load(std::memory_order_relaxed) &&
+      texture_became_outdated_.exchange(false, std::memory_order_acquire)) {
     // A texture has become outdated - make sure whether textures are outdated
     // is rechecked in this draw and in subsequent ones to reload the new data
     // if needed.
@@ -757,6 +837,7 @@ void TextureCache::WatchCallback(const std::unique_lock<std::recursive_mutex>& g
 
 void TextureCache::DestroyAllTextures(bool from_destructor) {
   ResetTextureBindings(from_destructor);
+  ClearTextureLookupMemo();
   textures_.clear();
   COUNT_profile_set("gpu/texture_cache/textures", 0);
 }
@@ -859,8 +940,14 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Try to find an existing texture.
   // TODO(Triang3l): Reuse a texture with mip_page unchanged, but base_page
   // previously 0, now not 0, to save memory - common case in streaming.
+  TextureLookupMemoEntry& memo = texture_lookup_memo_[TextureLookupMemoIndex(key)];
+  if (memo.texture && memo.key == key) {
+    return memo.texture;
+  }
   auto found_texture_it = textures_.find(key);
   if (found_texture_it != textures_.end()) {
+    memo.key = key;
+    memo.texture = found_texture_it->second.get();
     return found_texture_it->second.get();
   }
 

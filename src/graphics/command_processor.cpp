@@ -17,6 +17,27 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <vector>
+
+#if defined(__linux__)
+#include <cxxabi.h>
+#include <dirent.h>
+#include <dlfcn.h>
+#include <elf.h>
+#include <fcntl.h>
+#include <link.h>
+#include <signal.h>
+#include <time.h>
+#include <ucontext.h>
+#include <unistd.h>
+
+#include <atomic>
+
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#endif
 
 #include <fmt/format.h>
 
@@ -27,6 +48,8 @@
 #include <rex/chrono/clock.h>
 #include <rex/graphics/command_processor.h>
 #include <rex/graphics/flags.h>
+#include <rex/graphics/frame_dump.h>
+#include <rex/graphics/frame_events.h>
 #include <rex/graphics/graphics_system.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/sampler_info.h>
@@ -35,6 +58,7 @@
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/memory/ring_buffer.h>
+#include <rex/pgo.h>
 #include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -45,6 +69,40 @@ REXCVAR_DEFINE_INT32(frame_limit, 0, "GPU",
                      "Host guest-frame swap limit in FPS (0 = unlimited). "
                      "VSync and guest timing may impose a lower rate.")
     .range(0, 240)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_INT32(wait_reg_mem_poll_us, 200, "GPU",
+                     "Longest sleep, in microseconds, between polls while a WAIT_REG_MEM "
+                     "packet waits with vsync on. The guest's wait hint is whole "
+                     "milliseconds, which made the GPU command thread oversleep the counter "
+                     "it waits for (the vblank counter ticks every 1 ms when the guest "
+                     "frame rate is unlocked). 0 = sleep the full hint.")
+    .range(0, 100000)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(log_perf_file, false, "GPU",
+                    "With log_guest_fps, also write the 5-second summaries, with CPU time per "
+                    "thread and CPU/GPU clocks, to perf_log.txt next to the executable "
+                    "(Linux; replaced at every launch)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(log_perf_profile, false, "GPU",
+                    "With log_perf_file, sample the GPU command thread and the main game thread "
+                    "(1 sample per ms of their CPU time) and add their busiest functions to "
+                    "perf_log.txt every 30 s (Linux; needs a restart to turn on)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(log_frame_dump, false, "GPU",
+                    "Every 20 s, append what one guest frame does with render targets "
+                    "(bindings, ownership transfers, resolves, texture loads of GPU-written "
+                    "data, draws in between) to frame_dump.txt next to the executable, up to 40 "
+                    "frames per launch")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(log_guest_fps, false, "GPU",
+                    "Log a guest frame rate summary every 5 seconds: average fps, the "
+                    "slowest frame and how many frames took longer than 33 ms (stutters). "
+                    "Measured at the guest's frame swap, so unaffected by host presentation.")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_INT32(frame_recorder, 0, "GPU",
@@ -94,16 +152,6 @@ REXCVAR_DEFINE_BOOL(readback_memexport, true, "GPU",
                     "coherency (can reduce correctness issues, but may add GPU/CPU sync cost)")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
-REXCVAR_DEFINE_BOOL(terrain_tess_cpu, true, "GPU",
-                    "Compute Fable II's terrain tessellation factors on the CPU so the "
-                    "memexport draw does not wait for the GPU every frame")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(skinning_cpu, true, "GPU",
-                    "Compute Fable II's memexport skinning on the CPU so the draw does not "
-                    "wait for the GPU every frame")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
 REXCVAR_DEFINE_BOOL(readback_memexport_fast, true, "GPU",
                     "Use fast double-buffered memexport readback when possible, with "
                     "automatic fallback to full synchronous readback")
@@ -133,6 +181,13 @@ REXCVAR_DEFINE_BOOL(async_pipeline_wait, true, "GPU",
                     "wait for it instead of skipping the draw. Skipped draws cause missing "
                     "objects and corrupted textures, at the cost of a short stall the first time "
                     "a pipeline is needed. Only used with async_shader_compilation.")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+// Shared by the backends that implement it (Vulkan here; upstream main defines
+// the same cvar in the D3D12 command processor - keep a single definition when
+// merging).
+REXCVAR_DEFINE_BOOL(gpu_sync_at_frame_start, false, "GPU",
+                    "At the start of each frame, wait until the GPU has finished all earlier "
+                    "work, so the GPU is never more than one frame behind")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_INT32(async_pipeline_wait_timeout_ms, 5000, "GPU",
@@ -370,6 +425,7 @@ void CommandProcessor::WorkerThreadMain() {
           const int wait_time_ms = 5;
           rex::thread::Wait(write_ptr_index_event_.get(), true,
                             std::chrono::milliseconds(wait_time_ms));
+          OnWaitTick();
         }
 
         rex::thread::MaybeYield();
@@ -813,6 +869,7 @@ void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
 }
 
 bool CommandProcessor::ExecutePacket(memory::RingBuffer* reader) {
+  ++work_stats_.packets;
   const uint32_t packet = reader->ReadAndSwap<uint32_t>();
   const uint32_t packet_type = packet >> 30;
   if (packet == 0) {
@@ -1081,6 +1138,817 @@ bool CommandProcessor::ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, 
   return true;
 }
 
+// --- Host performance sampling for the log_guest_fps summary (Linux) ---------
+// Every 5 s: CPU time per thread (busiest first), CPU clocks, and the GPU's
+// average utilisation and current clock. Also written, with the frame rate
+// line, to perf_log.txt next to the executable (log_perf_file), a short file
+// meant to be shared when reporting performance. Runs on the command
+// processor thread; reading /proc and sysfs a few times per second is cheap.
+#if defined(__linux__)
+namespace {
+
+std::string ReadSmallFile(const std::string& path) {
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return {};
+  char buf[4096];
+  const size_t n = std::fread(buf, 1, sizeof(buf) - 1, f);
+  std::fclose(f);
+  return std::string(buf, n);
+}
+
+// --- Built-in sampling profiler (perf_log.txt) --------------------------------
+// A per-thread CPU-time timer (SIGPROF, 1 ms of that thread's CPU time) on the
+// GPU command thread and the main game thread records the interrupted
+// instruction address into a ring buffer. Every 30 s the addresses are mapped
+// to function names (from the modules' ELF symbol tables, which the packaged
+// binaries keep) and the top functions per thread are written to the log.
+constexpr int kProfThreads = 4;  // GPU Commands, GameThread, 3D Engine, GPU Submit
+constexpr uint32_t kProfRing = 1u << 16;
+const char* const kProfThreadPrefix[kProfThreads] = {"GPU Commands", "GameThread", "3D Engine",
+                                                    "GPU Submit"};
+
+struct ProfRing {
+  std::atomic<uint32_t> head{0};
+  uintptr_t pc[kProfRing];
+};
+ProfRing g_prof_rings[kProfThreads];
+
+void ProfSignalHandler(int, siginfo_t* info, void* uc_void) {
+  const int idx = info->si_value.sival_int;
+  if (idx < 0 || idx >= kProfThreads) return;
+  const auto* uc = static_cast<const ucontext_t*>(uc_void);
+#if defined(__x86_64__)
+  const uintptr_t pc = uintptr_t(uc->uc_mcontext.gregs[REG_RIP]);
+#elif defined(__aarch64__)
+  const uintptr_t pc = uintptr_t(uc->uc_mcontext.pc);
+#else
+  const uintptr_t pc = 0;
+#endif
+  ProfRing& r = g_prof_rings[idx];
+  const uint32_t at = r.head.fetch_add(1, std::memory_order_relaxed);
+  r.pc[at & (kProfRing - 1)] = pc;
+}
+
+// Function symbols of one loaded module, from its ELF .symtab (or .dynsym).
+struct ModuleSymbols {
+  struct Sym {
+    uintptr_t start, size;
+    std::string name;
+  };
+  std::vector<Sym> syms;  // sorted by start (offsets from the load base)
+  const Sym* Find(uintptr_t off) const {
+    auto it = std::upper_bound(syms.begin(), syms.end(), off,
+                               [](uintptr_t v, const Sym& s) { return v < s.start; });
+    if (it == syms.begin()) return nullptr;
+    --it;
+    return off < it->start + std::max<uintptr_t>(it->size, 1) ? &*it : nullptr;
+  }
+};
+
+ModuleSymbols LoadModuleSymbols(const char* path) {
+  ModuleSymbols out;
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return out;
+  std::vector<uint8_t> data;
+  std::fseek(f, 0, SEEK_END);
+  data.resize(size_t(std::ftell(f)));
+  std::fseek(f, 0, SEEK_SET);
+  const bool ok = std::fread(data.data(), 1, data.size(), f) == data.size();
+  std::fclose(f);
+  if (!ok || data.size() < sizeof(Elf64_Ehdr)) return out;
+  const auto* eh = reinterpret_cast<const Elf64_Ehdr*>(data.data());
+  if (std::memcmp(eh->e_ident, ELFMAG, SELFMAG) != 0 || eh->e_ident[EI_CLASS] != ELFCLASS64 ||
+      eh->e_shoff + uint64_t(eh->e_shnum) * sizeof(Elf64_Shdr) > data.size()) {
+    return out;
+  }
+  const auto* sh = reinterpret_cast<const Elf64_Shdr*>(data.data() + eh->e_shoff);
+  for (int pass = 0; pass < 2 && out.syms.empty(); ++pass) {
+    const uint32_t want = pass == 0 ? SHT_SYMTAB : SHT_DYNSYM;
+    for (int i = 0; i < eh->e_shnum; ++i) {
+      if (sh[i].sh_type != want || sh[i].sh_link >= eh->e_shnum) continue;
+      const Elf64_Shdr& strs = sh[sh[i].sh_link];
+      if (sh[i].sh_offset + sh[i].sh_size > data.size() ||
+          strs.sh_offset + strs.sh_size > data.size()) {
+        continue;
+      }
+      const auto* sym = reinterpret_cast<const Elf64_Sym*>(data.data() + sh[i].sh_offset);
+      const size_t n = sh[i].sh_size / sizeof(Elf64_Sym);
+      for (size_t k = 0; k < n; ++k) {
+        if (ELF64_ST_TYPE(sym[k].st_info) != STT_FUNC || sym[k].st_value == 0 ||
+            sym[k].st_name >= strs.sh_size) {
+          continue;
+        }
+        out.syms.push_back({uintptr_t(sym[k].st_value), uintptr_t(sym[k].st_size),
+                            reinterpret_cast<const char*>(data.data() + strs.sh_offset +
+                                                          sym[k].st_name)});
+      }
+    }
+  }
+  std::sort(out.syms.begin(), out.syms.end(),
+            [](const ModuleSymbols::Sym& a, const ModuleSymbols::Sym& b) {
+              return a.start < b.start;
+            });
+  return out;
+}
+
+// Address range of one loaded module, from dl_iterate_phdr. Sampled addresses
+// are mapped to modules with these instead of dladdr, which walks a module's
+// whole dynamic symbol table on every call: for the game executable that made
+// each 30 s report stall the GPU command thread for 50-140 ms.
+struct LoadedModule {
+  uintptr_t lo, hi;  // [lo, hi) covering the PT_LOAD segments
+  uintptr_t bias;    // added to symbol values (dlpi_addr)
+  std::string path;  // "" for the main program
+};
+
+int CollectLoadedModule(dl_phdr_info* info, size_t, void* data) {
+  uintptr_t lo = UINTPTR_MAX, hi = 0;
+  for (int i = 0; i < info->dlpi_phnum; ++i) {
+    const ElfW(Phdr)& ph = info->dlpi_phdr[i];
+    if (ph.p_type != PT_LOAD) continue;
+    lo = std::min(lo, uintptr_t(info->dlpi_addr + ph.p_vaddr));
+    hi = std::max(hi, uintptr_t(info->dlpi_addr + ph.p_vaddr + ph.p_memsz));
+  }
+  if (lo < hi) {
+    static_cast<std::vector<LoadedModule>*>(data)->push_back(
+        {lo, hi, uintptr_t(info->dlpi_addr), info->dlpi_name ? info->dlpi_name : ""});
+  }
+  return 0;
+}
+
+std::string ShortFunctionName(const std::string& mangled) {
+  int status = 0;
+  char* demangled = abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
+  std::string name = status == 0 && demangled ? demangled : mangled;
+  std::free(demangled);
+  // Drop "(anonymous namespace)::" (its parentheses would cut the name short)
+  // and the parameter list, to keep log lines readable.
+  for (size_t at; (at = name.find("(anonymous namespace)::")) != std::string::npos;) {
+    name.erase(at, sizeof("(anonymous namespace)::") - 1);
+  }
+  if (const size_t paren = name.find('('); paren != std::string::npos) name.resize(paren);
+  if (name.size() > 60) name = "..." + name.substr(name.size() - 57);
+  return name;
+}
+
+struct HostPerfState {
+  int gpu_busy_fd = -2;  // -2 = not opened yet, -1 = unavailable
+  std::string gpu_dir;   // /sys/class/drm/cardN/device
+  uint64_t gpu_busy_sum = 0;
+  uint32_t gpu_busy_samples = 0;
+  // amdgpu hwmon power1_average (microwatts; the whole APU on the Steam Deck).
+  int power_fd = -1;
+  uint64_t power_sum = 0;
+  uint32_t power_samples = 0;
+  std::unordered_map<int, uint64_t> prev_ticks;  // tid -> utime + stime
+  std::FILE* file = nullptr;
+  bool file_failed = false;
+  // Profiler.
+  bool prof_handler_installed = false;
+  int prof_tid[kProfThreads] = {};
+  uint32_t prof_consumed[kProfThreads] = {};
+  uint32_t prof_reports = 0;
+  std::unordered_map<std::string, ModuleSymbols> prof_modules;
+  std::unordered_map<uintptr_t, std::string> prof_pc_names;
+  std::vector<LoadedModule> prof_loaded;
+  bool prof_loaded_refreshed = false;  // re-listed during the current report
+  rex::memory::ProtectStats protect_reported = {};
+  uint64_t texture_loads_reported = 0;
+  uint64_t upload_bytes_reported = 0;
+  uint64_t texture_loads_skipped_reported = 0;
+  uint64_t upload_bytes_skipped_reported = 0;
+  // EDRAM emulation counters of the "EDRAM per frame" line.
+  uint64_t gpu_emulation_reported[16] = {};
+  uint64_t occlusion_reported[6] = {};
+};
+
+// Starts the per-thread profiling timers once the threads exist.
+void ProfEnsureTimers(HostPerfState& s) {
+  if (!REXCVAR_GET(log_perf_profile)) return;
+  if (!s.prof_handler_installed) {
+    struct sigaction sa = {};
+    sa.sa_sigaction = ProfSignalHandler;
+    sa.sa_flags = SA_SIGINFO | SA_RESTART;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGPROF, &sa, nullptr) != 0) return;
+    s.prof_handler_installed = true;
+  }
+  DIR* dir = ::opendir("/proc/self/task");
+  if (!dir) return;
+  while (const dirent* e = ::readdir(dir)) {
+    const int tid = std::atoi(e->d_name);
+    if (tid <= 0) continue;
+    const std::string comm = ReadSmallFile(fmt::format("/proc/self/task/{}/comm", tid));
+    for (int i = 0; i < kProfThreads; ++i) {
+      if (s.prof_tid[i] != 0 || comm.rfind(kProfThreadPrefix[i], 0) != 0) continue;
+      // The CPU-time clock of another thread (MAKE_THREAD_CPUCLOCK, SCHED).
+      const clockid_t clock = clockid_t((~unsigned(tid)) << 3) | 6;
+      struct sigevent sev = {};
+      sev.sigev_notify = SIGEV_THREAD_ID;
+      sev.sigev_signo = SIGPROF;
+      sev.sigev_value.sival_int = i;
+      sev._sigev_un._tid = tid;
+      timer_t timer;
+      if (timer_create(clock, &sev, &timer) != 0) continue;
+      struct itimerspec spec = {};
+      spec.it_interval.tv_nsec = 1000000;  // every 1 ms of that thread's CPU time
+      spec.it_value.tv_nsec = 1000000;
+      if (timer_settime(timer, 0, &spec, nullptr) != 0) {
+        timer_delete(timer);
+        continue;
+      }
+      s.prof_tid[i] = tid;
+      s.prof_consumed[i] = g_prof_rings[i].head.load(std::memory_order_relaxed);
+    }
+  }
+  ::closedir(dir);
+}
+
+// The loaded module containing pc, or nullptr. The module list is read again
+// (once per report) when pc is outside every known module.
+const LoadedModule* ProfFindModule(HostPerfState& s, uintptr_t pc) {
+  auto find = [&]() -> const LoadedModule* {
+    for (const LoadedModule& m : s.prof_loaded) {
+      if (pc >= m.lo && pc < m.hi) return &m;
+    }
+    return nullptr;
+  };
+  const LoadedModule* m = find();
+  if (!m && !s.prof_loaded_refreshed) {
+    s.prof_loaded_refreshed = true;
+    s.prof_loaded.clear();
+    dl_iterate_phdr(CollectLoadedModule, &s.prof_loaded);
+    m = find();
+  }
+  return m;
+}
+
+// Function name for a sampled PC (mangled; shortened when printed).
+std::string ProfResolvePc(HostPerfState& s, uintptr_t pc) {
+  const LoadedModule* m = pc ? ProfFindModule(s, pc) : nullptr;
+  if (!m) {
+    return "[unknown]";
+  }
+  if (!m->path.empty() && !std::strchr(m->path.c_str(), '/')) {
+    // No file to read (the vDSO): its dynamic symbol table is tiny, so dladdr
+    // is cheap here.
+    Dl_info info = {};
+    if (dladdr(reinterpret_cast<void*>(pc), &info) && info.dli_sname) {
+      return info.dli_sname;
+    }
+    return "[" + m->path + "]";
+  }
+  auto it = s.prof_modules.find(m->path);
+  if (it == s.prof_modules.end()) {
+    // The main program has an empty name.
+    const char* file = m->path.empty() ? "/proc/self/exe" : m->path.c_str();
+    it = s.prof_modules.emplace(m->path, LoadModuleSymbols(file)).first;
+  }
+  if (const ModuleSymbols::Sym* sym = it->second.Find(pc - m->bias)) {
+    return sym->name;
+  }
+  const char* slash = std::strrchr(m->path.c_str(), '/');
+  return std::string("[") + (slash ? slash + 1 : m->path.empty() ? "main" : m->path.c_str()) + "]";
+}
+
+// The busiest instruction addresses inside one library, as hex offsets from
+// its load base with their sample counts, sorted by offset. Inlining folds most
+// of the per-draw code into a few large functions, so the function list alone
+// can't say which part of them costs the time; these offsets are mapped to
+// source lines afterwards with llvm-symbolizer on the unstripped library of
+// the same build.
+std::string ProfHotSpots(HostPerfState& s, const std::unordered_map<uintptr_t, uint32_t>& pc_counts,
+                         uint32_t total, const char* library) {
+  const size_t library_length = std::strlen(library);
+  std::vector<std::pair<uintptr_t, uint32_t>> spots;
+  uint32_t in_library = 0;
+  for (const auto& [pc, count] : pc_counts) {
+    const LoadedModule* m = pc ? ProfFindModule(s, pc) : nullptr;
+    if (!m || m->path.size() < library_length ||
+        m->path.compare(m->path.size() - library_length, library_length, library) != 0) {
+      continue;
+    }
+    in_library += count;
+    spots.emplace_back(pc - m->bias, count);
+  }
+  if (spots.empty()) return {};
+  // Keep the busiest addresses (at least 0.05% of the samples each).
+  std::sort(spots.begin(), spots.end(),
+            [](const auto& a, const auto& b) { return a.second > b.second; });
+  const uint32_t min_count = std::max<uint32_t>(2, total / 2000);
+  size_t kept = 0;
+  while (kept < spots.size() && kept < 300 && spots[kept].second >= min_count) ++kept;
+  spots.resize(kept);
+  std::sort(spots.begin(), spots.end());
+  std::string out = fmt::format("\n         hot spots {} ({} of {} samples, offset:count):",
+                                library, in_library, total);
+  for (size_t k = 0; k < spots.size(); ++k) {
+    out += fmt::format("{}{:x}:{}", k % 12 ? " " : "\n           ", spots[k].first,
+                       spots[k].second);
+  }
+  return out;
+}
+
+// Top functions per profiled thread since the last report ("" when nothing).
+std::string ProfReport(HostPerfState& s) {
+  std::string out;
+  s.prof_loaded_refreshed = false;
+  for (int i = 0; i < kProfThreads; ++i) {
+    if (!s.prof_tid[i]) continue;
+    ProfRing& r = g_prof_rings[i];
+    const uint32_t head = r.head.load(std::memory_order_acquire);
+    uint32_t from = s.prof_consumed[i];
+    if (head - from > kProfRing) from = head - kProfRing;
+    s.prof_consumed[i] = head;
+    const uint32_t total = head - from;
+    if (!total) continue;
+    // Aggregate by raw PC first, then resolve each unique PC once (cached
+    // across reports) - dladdr per sample stalled this thread for ~0.7 s.
+    std::unordered_map<uintptr_t, uint32_t> pc_counts;
+    pc_counts.reserve(4096);
+    for (uint32_t k = from; k != head; ++k) {
+      ++pc_counts[r.pc[k & (kProfRing - 1)]];
+    }
+    std::unordered_map<std::string, uint32_t> counts;
+    for (const auto& [pc, count] : pc_counts) {
+      auto cached = s.prof_pc_names.find(pc);
+      if (cached == s.prof_pc_names.end()) {
+        cached = s.prof_pc_names.emplace(pc, ProfResolvePc(s, pc)).first;
+      }
+      counts[cached->second] += count;
+    }
+    std::vector<std::pair<std::string, uint32_t>> top(counts.begin(), counts.end());
+    std::sort(top.begin(), top.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    out += fmt::format("\n         profile {} ({} samples, last 30 s):", kProfThreadPrefix[i],
+                       total);
+    for (size_t k = 0; k < top.size() && k < 25; ++k) {
+      out += fmt::format("\n           {:5.1f}%  {}", 100.0 * top[k].second / total,
+                         ShortFunctionName(top[k].first));
+    }
+    if (i == 0) {
+      out += ProfHotSpots(s, pc_counts, total, "librexgpu-xenos.so");
+    }
+  }
+  return out;
+}
+HostPerfState& HostPerf() {
+  static HostPerfState state;
+  return state;
+}
+
+}  // namespace
+
+void CommandProcessor::HostPerfSampleFrame() {
+  HostPerfState& s = HostPerf();
+  if (s.gpu_busy_fd == -2) {
+    s.gpu_busy_fd = -1;
+    for (int i = 0; i < 8 && s.gpu_busy_fd < 0; ++i) {
+      const std::string dir = fmt::format("/sys/class/drm/card{}/device", i);
+      const int fd = ::open((dir + "/gpu_busy_percent").c_str(), O_RDONLY | O_CLOEXEC);
+      if (fd >= 0) {
+        s.gpu_busy_fd = fd;
+        s.gpu_dir = dir;
+        for (int h = 0; h < 16 && s.power_fd < 0; ++h) {
+          s.power_fd = ::open(fmt::format("{}/hwmon/hwmon{}/power1_average", dir, h).c_str(),
+                              O_RDONLY | O_CLOEXEC);
+        }
+      }
+    }
+  }
+  if (s.power_fd >= 0) {
+    char power_buf[24];
+    const ssize_t power_n = ::pread(s.power_fd, power_buf, sizeof(power_buf) - 1, 0);
+    if (power_n > 0) {
+      power_buf[power_n] = 0;
+      s.power_sum += uint64_t(std::strtoull(power_buf, nullptr, 10));
+      ++s.power_samples;
+    }
+  }
+  if (s.gpu_busy_fd < 0) return;
+  char buf[16];
+  const ssize_t n = ::pread(s.gpu_busy_fd, buf, sizeof(buf) - 1, 0);
+  if (n > 0) {
+    buf[n] = 0;
+    s.gpu_busy_sum += uint64_t(std::strtoul(buf, nullptr, 10));
+    ++s.gpu_busy_samples;
+  }
+}
+
+std::string CommandProcessor::HostPerfReport(double seconds) {
+  HostPerfState& s = HostPerf();
+  ProfEnsureTimers(s);
+  // Threads: CPU time since the last report, busiest first.
+  struct Busy {
+    double pct;
+    std::string name;
+  };
+  std::vector<Busy> busy;
+  std::unordered_map<int, uint64_t> ticks_now;
+  const double hz = double(::sysconf(_SC_CLK_TCK));
+  if (DIR* dir = ::opendir("/proc/self/task")) {
+    while (const dirent* e = ::readdir(dir)) {
+      const int tid = std::atoi(e->d_name);
+      if (tid <= 0) continue;
+      const std::string stat = ReadSmallFile(fmt::format("/proc/self/task/{}/stat", tid));
+      const size_t open = stat.find('('), close = stat.rfind(')');
+      if (open == std::string::npos || close == std::string::npos || close < open) continue;
+      // Fields after ") ": state(3) ... utime(14) stime(15).
+      uint64_t utime = 0, stime = 0;
+      int field = 3;
+      const char* p = stat.c_str() + close + 2;
+      while (*p && field <= 15) {
+        const char* end = std::strchr(p, ' ');
+        if (field == 14) utime = std::strtoull(p, nullptr, 10);
+        if (field == 15) stime = std::strtoull(p, nullptr, 10);
+        if (!end) break;
+        p = end + 1;
+        ++field;
+      }
+      const uint64_t ticks = utime + stime;
+      ticks_now[tid] = ticks;
+      const auto prev = s.prev_ticks.find(tid);
+      if (prev == s.prev_ticks.end() || ticks <= prev->second) continue;
+      const double pct = 100.0 * double(ticks - prev->second) / hz / seconds;
+      if (pct >= 1.0) busy.push_back({pct, stat.substr(open + 1, close - open - 1)});
+    }
+    ::closedir(dir);
+  }
+  const bool first = s.prev_ticks.empty();
+  s.prev_ticks = std::move(ticks_now);
+  std::string out;
+  if (first) {
+    out = "threads: (first sample)";
+  } else {
+    std::sort(busy.begin(), busy.end(), [](const Busy& a, const Busy& b) { return a.pct > b.pct; });
+    out = "threads % of a core:";
+    for (size_t i = 0; i < busy.size() && i < 10; ++i) {
+      out += fmt::format("{} {} {:.0f}", i ? " |" : "", busy[i].name, busy[i].pct);
+    }
+  }
+  // CPU clocks.
+  uint64_t khz_sum = 0, khz_max = 0, cpus = 0;
+  for (int cpu = 0; cpu < 64; ++cpu) {
+    const std::string v =
+        ReadSmallFile(fmt::format("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", cpu));
+    if (v.empty()) {
+      if (cpu > 0) break;
+      continue;
+    }
+    const uint64_t khz = std::strtoull(v.c_str(), nullptr, 10);
+    khz_sum += khz;
+    khz_max = std::max(khz_max, khz);
+    ++cpus;
+  }
+  if (cpus) {
+    out += fmt::format("; CPU MHz avg {} max {}", khz_sum / cpus / 1000, khz_max / 1000);
+  }
+  // GPU utilisation (average of per-frame samples) and current shader clock.
+  if (s.gpu_busy_samples) {
+    out += fmt::format("; GPU busy {}%", s.gpu_busy_sum / s.gpu_busy_samples);
+    const std::string sclk = ReadSmallFile(s.gpu_dir + "/pp_dpm_sclk");
+    const size_t star = sclk.find('*');
+    if (star != std::string::npos) {
+      const size_t line_start = sclk.rfind('\n', star);
+      const size_t colon = sclk.find(':', line_start == std::string::npos ? 0 : line_start);
+      if (colon != std::string::npos && colon < star) {
+        out += fmt::format(" at {} MHz", std::strtoul(sclk.c_str() + colon + 1, nullptr, 10));
+      }
+    }
+  }
+  s.gpu_busy_sum = 0;
+  s.gpu_busy_samples = 0;
+  if (s.power_samples) {
+    out += fmt::format("; APU {:.1f} W", double(s.power_sum) / double(s.power_samples) / 1e6);
+  }
+  s.power_sum = 0;
+  s.power_samples = 0;
+
+  // Host work per guest frame since the last report.
+  const double frames = std::max(1.0, double(fps_log_frames_));
+  const WorkStats& w = work_stats_;
+  const WorkStats& p = work_stats_reported_;
+  auto per_frame = [&](uint64_t now_value, uint64_t then_value) {
+    return uint64_t(double(now_value - then_value) / frames + 0.5);
+  };
+  const rex::memory::ProtectStats protect = rex::memory::GetProtectStats();
+  const uint64_t texture_loads = g_frame_events.texture_loads.load(std::memory_order_relaxed);
+  const uint64_t upload_bytes = g_frame_events.upload_bytes.load(std::memory_order_relaxed);
+  const uint64_t texture_loads_skipped =
+      g_frame_events.texture_loads_skipped.load(std::memory_order_relaxed);
+  const uint64_t upload_bytes_skipped =
+      g_frame_events.upload_bytes_skipped.load(std::memory_order_relaxed);
+  out += fmt::format(
+      "\n         per frame: {} draws, {} packets, {} pipeline binds, {} render passes, "
+      "{:.1f} submissions | texture sets {} written {} reused, constant sets {}, set binds {} | "
+      "uploads sys {} vs {} ps {} bool {} fetch {} | mprotect {} ({} KB), watch faults {} | "
+      "texture loads {} (+{} unchanged, skipped), {} KB uploaded (+{} KB unchanged, skipped)",
+      per_frame(w.draws, p.draws), per_frame(w.packets, p.packets),
+      per_frame(w.pipeline_binds, p.pipeline_binds), per_frame(w.render_passes, p.render_passes),
+      double(w.submissions - p.submissions) / frames,
+      per_frame(w.texture_sets_written, p.texture_sets_written),
+      per_frame(w.texture_sets_reused, p.texture_sets_reused),
+      per_frame(w.constant_sets_written, p.constant_sets_written),
+      per_frame(w.descriptor_set_binds, p.descriptor_set_binds),
+      per_frame(w.constant_uploads[0], p.constant_uploads[0]),
+      per_frame(w.constant_uploads[1], p.constant_uploads[1]),
+      per_frame(w.constant_uploads[2], p.constant_uploads[2]),
+      per_frame(w.constant_uploads[3], p.constant_uploads[3]),
+      per_frame(w.constant_uploads[4], p.constant_uploads[4]),
+      per_frame(protect.protect_calls, s.protect_reported.protect_calls),
+      per_frame(protect.protect_bytes, s.protect_reported.protect_bytes) / 1024,
+      per_frame(protect.watch_faults, s.protect_reported.watch_faults),
+      per_frame(texture_loads, s.texture_loads_reported),
+      per_frame(texture_loads_skipped, s.texture_loads_skipped_reported),
+      per_frame(upload_bytes, s.upload_bytes_reported) / 1024,
+      per_frame(upload_bytes_skipped, s.upload_bytes_skipped_reported) / 1024);
+  {
+    // Which threads take the write-watch faults, and on which guest pages.
+    const rex::memory::WatchFaultDetail faults = rex::memory::TakeWatchFaultDetail();
+    if (!faults.threads.empty()) {
+      out += "\n         watch faults per frame by thread:";
+      for (size_t i = 0; i < faults.threads.size() && i < 6; ++i) {
+        std::string name = ReadSmallFile(
+            fmt::format("/proc/self/task/{}/comm", faults.threads[i].first));
+        while (!name.empty() && (name.back() == '\n' || name.back() == ' ')) name.pop_back();
+        out += fmt::format("{} {} {:.1f}", i ? "," : "", name.empty() ? "?" : name,
+                           double(faults.threads[i].second) / frames);
+      }
+      out += "; hottest pages:";
+      for (size_t i = 0; i < faults.pages.size() && i < 8; ++i) {
+        out += fmt::format(" {:08X} {:.1f}", faults.pages[i].first,
+                           double(faults.pages[i].second) / frames);
+      }
+      out += fmt::format(" ({} pages)", faults.pages.size());
+    }
+  }
+  work_stats_reported_ = work_stats_;
+  s.protect_reported = protect;
+  s.texture_loads_reported = texture_loads;
+  s.upload_bytes_reported = upload_bytes;
+  s.texture_loads_skipped_reported = texture_loads_skipped;
+  s.upload_bytes_skipped_reported = upload_bytes_skipped;
+
+  // EDRAM emulation work: render target ownership transfers, resolves, and
+  // texture loads of GPU-written data.
+  const uint64_t gpu_emulation[16] = {
+      g_frame_events.rt_transfers.load(std::memory_order_relaxed),
+      g_frame_events.rt_transfer_tiles.load(std::memory_order_relaxed),
+      g_frame_events.rt_transfers_to_depth.load(std::memory_order_relaxed),
+      g_frame_events.rt_transfers_skipped.load(std::memory_order_relaxed),
+      g_frame_events.resolves.load(std::memory_order_relaxed),
+      g_frame_events.resolve_dump_tiles.load(std::memory_order_relaxed),
+      g_frame_events.resolve_clears.load(std::memory_order_relaxed),
+      g_frame_events.texture_loads_gpu_written.load(std::memory_order_relaxed),
+      g_frame_events.resolves_direct.load(std::memory_order_relaxed),
+      g_frame_events.resolves_direct_memory_skipped.load(std::memory_order_relaxed),
+      g_frame_events.clears_forwarded.load(std::memory_order_relaxed),
+      g_frame_events.tile_draws_merged.load(std::memory_order_relaxed),
+      g_frame_events.draw_failures.load(std::memory_order_relaxed),
+      g_frame_events.missing_textures.load(std::memory_order_relaxed),
+      g_frame_events.memexport_draws_skipped.load(std::memory_order_relaxed),
+      g_frame_events.memexport_draws_cpu_kept.load(std::memory_order_relaxed)};
+  uint64_t gpu_emulation_per_frame[16];
+  for (int i = 0; i < 16; ++i) {
+    gpu_emulation_per_frame[i] = per_frame(gpu_emulation[i], s.gpu_emulation_reported[i]);
+    s.gpu_emulation_reported[i] = gpu_emulation[i];
+  }
+  out += fmt::format(
+      "\n         EDRAM per frame: {} render target copies ({} tiles, {} to depth; +{} "
+      "skipped), {} resolves ({} tiles dumped; {} direct to texture, {} of those without the "
+      "memory copy), {} resolve clears, {} clears forwarded, {} second-tile draws merged, {} "
+      "texture loads of GPU-written data; {} failed draws, {} null-texture fetches; "
+      "CPU-computed memexport draws: {} skipped, {} run",
+      gpu_emulation_per_frame[0], gpu_emulation_per_frame[1], gpu_emulation_per_frame[2],
+      gpu_emulation_per_frame[3], gpu_emulation_per_frame[4], gpu_emulation_per_frame[5],
+      gpu_emulation_per_frame[8], gpu_emulation_per_frame[9], gpu_emulation_per_frame[6],
+      gpu_emulation_per_frame[10], gpu_emulation_per_frame[11], gpu_emulation_per_frame[7],
+      gpu_emulation_per_frame[12], gpu_emulation_per_frame[13], gpu_emulation_per_frame[14],
+      gpu_emulation_per_frame[15]);
+  {
+    const uint64_t occlusion[6] = {
+        g_frame_events.occlusion_begun.load(std::memory_order_relaxed),
+        g_frame_events.occlusion_measured.load(std::memory_order_relaxed),
+        g_frame_events.occlusion_zero.load(std::memory_order_relaxed),
+        g_frame_events.occlusion_reported_visible.load(std::memory_order_relaxed),
+        g_frame_events.occlusion_split.load(std::memory_order_relaxed),
+        g_frame_events.occlusion_unpaired.load(std::memory_order_relaxed)};
+    uint64_t occlusion_per_frame[6];
+    for (int i = 0; i < 6; ++i) {
+      occlusion_per_frame[i] = per_frame(occlusion[i], s.occlusion_reported[i]);
+      s.occlusion_reported[i] = occlusion[i];
+    }
+    if (occlusion_per_frame[0]) {
+      out += fmt::format(
+          "\n         occlusion queries per frame: {} begun, {} measured ({} with no samples), {} "
+          "reported visible unmeasured ({} split by a render pass), {} unpaired",
+          occlusion_per_frame[0], occlusion_per_frame[1], occlusion_per_frame[2],
+          occlusion_per_frame[3], occlusion_per_frame[4], occlusion_per_frame[5]);
+    }
+  }
+
+  if (++s.prof_reports % 6 == 0) {  // every 30 s
+    out += ProfReport(s);
+    // PGO-instrumented builds: save the profile counters of both libraries.
+    const bool gpu_profile = rex::pgo::WriteModuleProfile();
+    const bool runtime_profile = rex::memory::WriteRuntimeProfile();
+    if (gpu_profile || runtime_profile) {
+      out += fmt::format("\n         PGO profile data saved (graphics {}, runtime {})",
+                         gpu_profile ? "yes" : "no", runtime_profile ? "yes" : "no");
+    }
+  }
+  return out;
+}
+
+void CommandProcessor::HostPerfFileWrite(const std::string& fps_line, const std::string& host) {
+  HostPerfState& s = HostPerf();
+  if (!REXCVAR_GET(log_perf_file) || s.file_failed) return;
+  if (!s.file) {
+    char exe[4096];
+    const ssize_t n = ::readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+    std::string path = "perf_log.txt";
+    if (n > 0) {
+      exe[n] = 0;
+      std::string dir(exe);
+      dir.resize(dir.rfind('/') + 1);
+      path = dir + "perf_log.txt";
+    }
+    s.file = std::fopen(path.c_str(), "w");
+    if (!s.file) {
+      s.file_failed = true;
+      REXGPU_WARN("[host-perf] cannot write {}", path);
+      return;
+    }
+    const std::time_t t = std::time(nullptr);
+    char stamp[64];
+    std::strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
+    std::fprintf(s.file,
+                 "Fable II performance log, started %s. One entry every 5 seconds: game frame "
+                 "rate, then CPU %% per thread (100 = one full core), CPU and GPU clocks.\n",
+                 stamp);
+  }
+  const std::time_t t = std::time(nullptr);
+  char stamp[16];
+  std::strftime(stamp, sizeof(stamp), "%H:%M:%S", std::localtime(&t));
+  std::fprintf(s.file, "%s %s\n         %s\n", stamp, fps_line.c_str(), host.c_str());
+  std::fflush(s.file);
+}
+#else
+void CommandProcessor::HostPerfSampleFrame() {}
+std::string CommandProcessor::HostPerfReport(double) { return {}; }
+void CommandProcessor::HostPerfFileWrite(const std::string&, const std::string&) {}
+#endif
+
+namespace {
+
+// Ends the frame being dumped (writes it out) and decides whether to dump the
+// next one. Called at every guest frame swap.
+void FrameDumpOnSwap() {
+  FrameDump& d = g_frame_dump;
+  if (d.active) {
+    d.active = false;
+    FrameDumpFlushRun();
+    std::string path = "frame_dump.txt";
+#if defined(__linux__)
+    char exe[4096];
+    const ssize_t n = ::readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+    if (n > 0) {
+      exe[n] = 0;
+      std::string dir(exe);
+      dir.resize(dir.rfind('/') + 1);
+      path = dir + path;
+    }
+#endif
+    if (std::FILE* file = std::fopen(path.c_str(), d.captures ? "a" : "w")) {
+      const std::time_t t = std::time(nullptr);
+      char stamp[16];
+      std::strftime(stamp, sizeof(stamp), "%H:%M:%S", std::localtime(&t));
+      std::fprintf(file,
+                   "===== frame dump %u at %s: %u draws (+%u second-tile draws merged), %u "
+                   "transfers (+%u skipped), %u clears forwarded, %u resolves (%u direct to "
+                   "texture), %u texture loads of GPU-written data, %u failed draws, %u "
+                   "null-texture fetches =====\n",
+                   d.captures + 1, stamp, d.frame_draws, d.frame_tile_draws_merged,
+                   d.frame_transfers, d.frame_transfers_skipped, d.frame_clears_forwarded,
+                   d.frame_resolves,
+                   d.frame_direct_resolves,
+                   d.frame_texture_loads, d.frame_draw_failures, d.frame_missing_textures);
+      std::fwrite(d.text.data(), 1, d.text.size(), file);
+      std::fputc('\n', file);
+      std::fclose(file);
+    }
+    ++d.captures;
+    d.text.clear();
+  }
+  if (!REXCVAR_GET(log_frame_dump) || d.captures >= 40) {
+    return;
+  }
+  const double now =
+      std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  if (d.next_capture_time == 0.0) {
+    d.next_capture_time = now + 20.0;
+  } else if (now >= d.next_capture_time) {
+    d.next_capture_time = now + 20.0;
+    d.active = true;
+    d.frame_draws = d.frame_transfers = d.frame_transfers_skipped = d.frame_resolves =
+        d.frame_direct_resolves = d.frame_texture_loads = d.frame_clears_forwarded =
+            d.frame_tile_draws_merged = d.frame_draw_failures = d.frame_missing_textures = 0;
+    d.text.reserve(1 << 18);
+  }
+}
+
+}  // namespace
+
+void CommandProcessor::LogGuestFrameTiming() {
+  FrameDumpOnSwap();
+  using Clock = std::chrono::steady_clock;
+  if (!REXCVAR_GET(log_guest_fps)) {
+    // Off (the default): no per-frame bookkeeping at all; start a fresh window
+    // if it is turned on later.
+    fps_log_window_start_ = {};
+    return;
+  }
+  constexpr auto kWindow = std::chrono::seconds(5);
+  constexpr auto kSlowFrame = std::chrono::microseconds(33334);
+  const Clock::time_point now = Clock::now();
+  if (fps_log_window_start_ == Clock::time_point{}) {
+    fps_log_window_start_ = now;
+    fps_log_last_swap_ = now;
+    fps_log_events_last_[0] = g_frame_events.texture_loads.load(std::memory_order_relaxed);
+    fps_log_events_last_[1] = g_frame_events.upload_bytes.load(std::memory_order_relaxed);
+    fps_log_events_last_[2] = g_frame_events.shader_translations.load(std::memory_order_relaxed);
+    fps_log_events_last_[3] = g_frame_events.pipelines_created.load(std::memory_order_relaxed);
+    return;
+  }
+  const Clock::duration frame = now - fps_log_last_swap_;
+  fps_log_last_swap_ = now;
+  ++fps_log_frames_;
+  HostPerfSampleFrame();
+  const uint64_t events_now[4] = {
+      g_frame_events.texture_loads.load(std::memory_order_relaxed),
+      g_frame_events.upload_bytes.load(std::memory_order_relaxed),
+      g_frame_events.shader_translations.load(std::memory_order_relaxed),
+      g_frame_events.pipelines_created.load(std::memory_order_relaxed)};
+  if (frame > fps_log_worst_) {
+    for (int i = 0; i < 4; ++i) {
+      fps_log_worst_events_[i] = events_now[i] - fps_log_events_last_[i];
+    }
+  }
+  std::memcpy(fps_log_events_last_, events_now, sizeof(events_now));
+  fps_log_worst_ = std::max(fps_log_worst_, frame);
+  if (frame > kSlowFrame) {
+    ++fps_log_slow_frames_;
+  }
+  const Clock::duration window = now - fps_log_window_start_;
+  if (window < kWindow) {
+    return;
+  }
+  ui::Presenter* presenter = graphics_system_ ? graphics_system_->presenter() : nullptr;
+  const uint64_t presents = presenter ? presenter->present_count() : 0;
+  if (REXCVAR_GET(log_guest_fps)) {
+    const double seconds = std::chrono::duration<double>(window).count();
+    const std::string host = HostPerfReport(seconds);
+    static constexpr const char* kSyncNames[] = {"occlusion query", "memexport readback",
+                                                 "resolve readback", "pipeline wait",
+                                                 "frame sync"};
+    std::string syncs;
+    for (uint32_t i = 0; i < uint32_t(GpuSyncKind::kCount); ++i) {
+      if (gpu_sync_count_[i]) {
+        syncs += fmt::format("{}{} {} ({:.1f} ms)", syncs.empty() ? "" : ", ", kSyncNames[i],
+                             gpu_sync_count_[i],
+                             std::chrono::duration<double, std::milli>(gpu_sync_time_[i]).count());
+      }
+    }
+    // GPU execution time per guest frame (the GPU is the limit when this is
+    // close to the frame time).
+    const std::string gpu_time = TakeGpuTimeReport(fps_log_frames_);
+    const std::string line = fmt::format(
+        "{:.1f} fps over {:.1f} s, slowest frame {:.1f} ms ({} texture loads, {} KB uploaded, "
+        "{} shaders translated, {} pipelines created), {} of {} frames over 33 ms; host "
+        "presented {:.1f}/s{}; GPU waits: {}",
+        fps_log_frames_ / seconds, seconds,
+        std::chrono::duration<double, std::milli>(fps_log_worst_).count(),
+        fps_log_worst_events_[0], fps_log_worst_events_[1] / 1024, fps_log_worst_events_[2],
+        fps_log_worst_events_[3], fps_log_slow_frames_, fps_log_frames_,
+        (presents - fps_log_presents_) / seconds, gpu_time, syncs.empty() ? "none" : syncs);
+    REXGPU_INFO("[guest-fps] {}", line);
+    if (!host.empty()) {
+      REXGPU_INFO("[host-perf] {}", host);
+    }
+    HostPerfFileWrite(line, host);
+  }
+  fps_log_presents_ = presents;
+  for (uint32_t i = 0; i < uint32_t(GpuSyncKind::kCount); ++i) {
+    gpu_sync_count_[i] = 0;
+    gpu_sync_time_[i] = {};
+  }
+  fps_log_window_start_ = now;
+  fps_log_frames_ = 0;
+  fps_log_slow_frames_ = 0;
+  fps_log_worst_ = {};
+  std::memset(fps_log_worst_events_, 0, sizeof(fps_log_worst_events_));
+}
+
 bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, uint32_t packet,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
@@ -1089,6 +1957,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
     REX_FRAME_ZONE(kLimiter);
     frame_limiter_.Pace(REXCVAR_GET(frame_limit));
   }
+  LogGuestFrameTiming();
 
   // The small guest FPS readout also works in Release, where the full
   // profiling macros compile out. Shared runtime counters feed the F3 UI.
@@ -1226,7 +2095,12 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
             // User wants it fast and dangerous.
             rex::thread::MaybeYield();
           } else {
-            rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
+            auto sleep = std::chrono::microseconds(std::chrono::milliseconds(wait / 0x100));
+            const int32_t poll_us = REXCVAR_GET(wait_reg_mem_poll_us);
+            if (poll_us > 0) {
+              sleep = std::min(sleep, std::chrono::microseconds(poll_us));
+            }
+            rex::thread::Sleep(sleep);
           }
         }
         rex::thread::SyncMemory();

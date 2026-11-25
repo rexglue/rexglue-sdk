@@ -19,17 +19,6 @@ namespace rex::memory {
 RingBuffer::RingBuffer(uint8_t* buffer, size_t capacity)
     : buffer_(buffer), capacity_(static_cast<ring_size_t>(capacity)) {}
 
-void RingBuffer::AdvanceRead(size_t count) {
-  ring_size_t cnt = static_cast<ring_size_t>(count);
-  if (read_offset_ + cnt < capacity_) {
-    read_offset_ += cnt;
-  } else {
-    ring_size_t left_half = capacity_ - read_offset_;
-    ring_size_t right_half = cnt - left_half;
-    read_offset_ = right_half;
-  }
-}
-
 void RingBuffer::AdvanceWrite(size_t count) {
   ring_size_t cnt = static_cast<ring_size_t>(count);
   if (write_offset_ + cnt < capacity_) {
@@ -38,28 +27,6 @@ void RingBuffer::AdvanceWrite(size_t count) {
     ring_size_t left_half = capacity_ - write_offset_;
     ring_size_t right_half = cnt - left_half;
     write_offset_ = right_half;
-  }
-}
-
-RingBuffer::ReadRange RingBuffer::BeginRead(size_t count) {
-  ring_size_t cnt = static_cast<ring_size_t>(std::min(count, static_cast<size_t>(capacity_)));
-  if (!cnt) {
-    return {nullptr, nullptr, 0, 0};
-  }
-  if (read_offset_ + cnt < capacity_) {
-    return {buffer_ + read_offset_, nullptr, cnt, 0};
-  } else {
-    ring_size_t left_half = capacity_ - read_offset_;
-    ring_size_t right_half = cnt - left_half;
-    return {buffer_ + read_offset_, buffer_, left_half, right_half};
-  }
-}
-
-void RingBuffer::EndRead(ReadRange read_range) {
-  if (read_range.second) {
-    read_offset_ = read_range.second_length;
-  } else {
-    read_offset_ += read_range.first_length;
   }
 }
 

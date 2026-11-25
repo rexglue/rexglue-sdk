@@ -14,19 +14,48 @@
 #include <algorithm>
 
 #include <rex/ui/immediate_drawer.h>
+#include <rex/ui/window.h>
+#include <rex/ui/windowed_app_context.h>
 
 namespace rex::ui {
 
 AchievementToastDialog::AchievementToastDialog(ImGuiDrawer* drawer,
                                                ImmediateDrawer* immediate_drawer,
                                                rex::Runtime* runtime)
-    : AchievementNotificationDialog(drawer), icon_cache_(immediate_drawer, runtime) {}
+    : AchievementNotificationDialog(drawer), icon_cache_(immediate_drawer, runtime) {
+  // ImGuiDialog registered this dialog; stay unregistered until a toast
+  // arrives (see registered_ in the header).
+  imgui_drawer()->RemoveDialog(this);
+}
 
-AchievementToastDialog::~AchievementToastDialog() {}
+AchievementToastDialog::~AchievementToastDialog() {
+  alive_->store(false, std::memory_order_release);
+}
 
 void AchievementToastDialog::Push(const rex::system::AchievementEvent& event) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  queue_.push_back({event, std::chrono::steady_clock::now()});
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    queue_.push_back({event, std::chrono::steady_clock::now()});
+  }
+  // Registering with the drawer must happen on the UI thread.
+  if (add_queued_.exchange(true, std::memory_order_acq_rel)) {
+    return;
+  }
+  Window* window = imgui_drawer()->window();
+  if (!window) {
+    add_queued_.store(false, std::memory_order_release);
+    return;
+  }
+  window->app_context().CallInUIThreadDeferred([this, alive = alive_] {
+    if (!alive->load(std::memory_order_acquire)) {
+      return;
+    }
+    add_queued_.store(false, std::memory_order_release);
+    if (!registered_) {
+      registered_ = true;
+      imgui_drawer()->AddDialog(this);
+    }
+  });
 }
 
 void AchievementToastDialog::OnDraw(ImGuiIO& io) {
@@ -48,6 +77,10 @@ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
       }
     }
     if (queue_.empty()) {
+      // Nothing left to show: unregister so the presenter stops repainting
+      // the UI continuously. Push registers the dialog again.
+      registered_ = false;
+      imgui_drawer()->RemoveDialog(this);
       return;
     }
     toast = queue_.front();

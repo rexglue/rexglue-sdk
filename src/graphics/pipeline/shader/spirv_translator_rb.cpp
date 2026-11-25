@@ -1368,6 +1368,31 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
   if (!edram_fragment_shader_interlock_ && output_fragment_depth_ != spv::NoResult) {
     Modification::DepthStencilMode depth_stencil_mode =
         GetSpirvShaderModification().pixel.depth_stencil_mode;
+    if (depth_stencil_mode != Modification::DepthStencilMode::kFloat24Truncating &&
+        depth_stencil_mode != Modification::DepthStencilMode::kFloat24Rounding &&
+        current_shader().writes_depth()) {
+      // Not converting, but the shader writes depth explicitly: a float24
+      // depth buffer holds guest 0...1 as host 0...0.5 (the viewport maps
+      // rasterized depth there), and the viewport doesn't apply to oDepth, so
+      // scale it, as the DXBC translator does
+      // (CompletePixelShader_DSV_DepthTo24Bit). Without this, depth written by
+      // a shader - such as Fable II's copy of the scene depth into its
+      // half-resolution effects buffer - was twice what draws tested against
+      // it computed, and its quest trail and effects failed the depth test.
+      spv::Id depth_is_float24 = builder_->createBinOp(
+          spv::OpINotEqual, type_bool_,
+          builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
+                                builder_->makeUintConstant(kSysFlag_DepthFloat24)),
+          const_uint_0_);
+      spv::Id depth = builder_->createLoad(output_fragment_depth_, spv::NoPrecision);
+      builder_->createStore(
+          builder_->createTriOp(spv::OpSelect, type_float_, depth_is_float24,
+                                builder_->createNoContractionBinOp(
+                                    spv::OpFMul, type_float_, depth,
+                                    builder_->makeFloatConstant(0.5f)),
+                                depth),
+          output_fragment_depth_);
+    }
     if (depth_stencil_mode == Modification::DepthStencilMode::kFloat24Truncating ||
         depth_stencil_mode == Modification::DepthStencilMode::kFloat24Rounding) {
       // For oDepth, depth is already in guest [0, 1].

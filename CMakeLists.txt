@@ -114,13 +114,24 @@ function(rex_config_postfix target)
         RELWITHDEBINFO_POSTFIX "${CMAKE_RELWITHDEBINFO_POSTFIX}")
 endfunction()
 
+# Linux x86-64 code model for the SDK and the recompiled code.
+#   medium (default): code is addressed with 32-bit PC-relative offsets, so
+#     calls between recompiled functions are plain direct calls; only data
+#     objects over 64 KiB live in the large data sections. Enough as long as
+#     the code stays under 2 GiB (Fable II: about 80 MiB).
+#   large: every call and global access goes through a 64-bit address load
+#     and an indirect call (measured: ~150k indirect vs ~120 direct calls in
+#     the recompiled code), which costs CPU time on every guest call.
+set(REXGLUE_X64_CODE_MODEL "medium" CACHE STRING
+    "x86-64 code model on Linux (medium or large, see CMakeLists.txt)")
+set_property(CACHE REXGLUE_X64_CODE_MODEL PROPERTY STRINGS medium large)
 if(NOT WIN32)
     # Use appropriate code model based on architecture
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64" AND NOT APPLE)
-        # Large code model on Linux x86_64 for linking with very large recompiled executables (35MB+).
         # macOS uses small: the ld64 linker on macOS 15+ rejects text relocations produced
         # by -mcmodel=large, and macOS maps binaries in the low address space so ±2GB is sufficient.
-        add_compile_options(-mcmodel=large)
+        # See REXGLUE_X64_CODE_MODEL above.
+        add_compile_options(-mcmodel=${REXGLUE_X64_CODE_MODEL})
     else()
         add_compile_options(-mcmodel=small)
     endif()
@@ -261,6 +272,71 @@ add_subdirectory(src/system)
 add_subdirectory(src/kernel)
 add_subdirectory(src/codegen)
 add_subdirectory(src/rexglue)
+
+# Profile-guided optimization of the runtime libraries (clang, non-Windows).
+# GENERATE builds instrumented libraries that write .profraw files while the
+# game runs (LLVM_PROFILE_FILE); merge them with llvm-profdata into a .profdata
+# file and build again with USE and REXGLUE_PGO_PROFILE pointing to it. The
+# recompiled game code itself is not instrumented.
+set(REXGLUE_PGO "OFF" CACHE STRING "Profile-guided optimization: OFF, GENERATE or USE")
+set_property(CACHE REXGLUE_PGO PROPERTY STRINGS OFF GENERATE USE)
+set(REXGLUE_PGO_PROFILE "" CACHE FILEPATH "Merged .profdata file for REXGLUE_PGO=USE")
+if(NOT REXGLUE_PGO STREQUAL "OFF")
+    if(WIN32 OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "REXGLUE_PGO needs clang on a non-Windows platform")
+    endif()
+    if(REXGLUE_PGO STREQUAL "GENERATE")
+        set(REXGLUE_PGO_COMPILE_FLAGS -fprofile-generate)
+        set(REXGLUE_PGO_LINK_FLAGS -fprofile-generate)
+    elseif(REXGLUE_PGO STREQUAL "USE")
+        if(NOT EXISTS "${REXGLUE_PGO_PROFILE}")
+            message(FATAL_ERROR "REXGLUE_PGO=USE needs REXGLUE_PGO_PROFILE (got '${REXGLUE_PGO_PROFILE}')")
+        endif()
+        set(REXGLUE_PGO_COMPILE_FLAGS "-fprofile-use=${REXGLUE_PGO_PROFILE}"
+            -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date -Wno-backend-plugin)
+        set(REXGLUE_PGO_LINK_FLAGS "-fprofile-use=${REXGLUE_PGO_PROFILE}")
+    else()
+        message(FATAL_ERROR "REXGLUE_PGO must be OFF, GENERATE or USE (got '${REXGLUE_PGO}')")
+    endif()
+    foreach(pgo_target rexcore rexfilesystem rexui rexinput rexaudio rexkernel rexruntime
+                       rexgpu-xenos)
+        if(TARGET ${pgo_target})
+            target_compile_options(${pgo_target} PRIVATE ${REXGLUE_PGO_COMPILE_FLAGS})
+            get_target_property(pgo_target_type ${pgo_target} TYPE)
+            if(pgo_target_type STREQUAL "SHARED_LIBRARY")
+                target_link_options(${pgo_target} PRIVATE ${REXGLUE_PGO_LINK_FLAGS})
+            endif()
+        endif()
+    endforeach()
+    message(STATUS "ReXGlue PGO: ${REXGLUE_PGO} ${REXGLUE_PGO_PROFILE}")
+endif()
+
+# ThinLTO for the GPU plugin, where the hot per-draw code is (clang + lld,
+# non-Windows). Only this library: the OBJECT libraries that make up the
+# runtime are also linked into targets that aren't built with LTO.
+option(REXGLUE_LTO "ThinLTO for the GPU plugin library (clang, lld)" OFF)
+if(REXGLUE_LTO)
+    if(WIN32 OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "REXGLUE_LTO needs clang on a non-Windows platform")
+    endif()
+    target_compile_options(rexgpu-xenos PRIVATE -flto=thin)
+    target_link_options(rexgpu-xenos PRIVATE -flto=thin -fuse-ld=lld)
+    # Extra flags for the LTO link, where the code is generated (e.g. -Wl,-mllvm,...).
+    if(REXGLUE_LTO_LINK_FLAGS)
+        separate_arguments(_rexglue_lto_link_flags UNIX_COMMAND "${REXGLUE_LTO_LINK_FLAGS}")
+        target_link_options(rexgpu-xenos PRIVATE ${_rexglue_lto_link_flags})
+    endif()
+    message(STATUS "ReXGlue LTO: ThinLTO for rexgpu-xenos")
+endif()
+
+# Line tables for the GPU plugin library, so the hot spot offsets that the
+# built-in profiler writes to perf_log.txt can be mapped to source lines
+# (llvm-symbolizer on the unstripped library). They don't change the generated
+# code, and packaging strips them.
+option(REXGLUE_GPU_LINE_TABLES "Line tables (-gline-tables-only) for the GPU plugin library" OFF)
+if(REXGLUE_GPU_LINE_TABLES AND NOT MSVC)
+    target_compile_options(rexgpu-xenos PRIVATE -gline-tables-only)
+endif()
 
 # Add tests subdirectory if tests are enabled
 if(REXGLUE_BUILD_TESTS)

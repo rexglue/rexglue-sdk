@@ -548,6 +548,38 @@ class RenderTargetCache {
   // EDRAM memory are committed with a memory barrier.
   void PixelShaderInterlockFullEdramBarrierPlaced();
 
+  DrawExtentEstimator& draw_extent_estimator() { return draw_extent_estimator_; }
+
+
+  // Direct3D 9 on the Xbox 360 clears a surface by drawing a rectangle through
+  // a 4x multisampled view of the same EDRAM memory (four samples written per
+  // pixel). Finds the host render target that currently owns the memory under
+  // such a view and lays it out the same way apart from the sample count, so
+  // the clear can be applied to it directly instead of to a render target for
+  // the view (which costs a copy into the view and one back out).
+  // left...bottom: the cleared rectangle in the view's pixels. Returns false
+  // if there is no such render target (then the clear must be drawn as usual).
+  // Changes nothing. If the current owner can't take the clear (it's a 4x or
+  // a 64bpp render target, or laid out differently), and fallback_format is
+  // not negative, an existing 1x or 2x render target at the view's own base
+  // and pitch is used instead: depth of format fallback_format if
+  // fallback_is_depth, color of that format otherwise.
+  bool FindClearThrough4xViewTarget(uint32_t view_base_tiles, uint32_t view_pitch_tiles,
+                                    uint32_t left, uint32_t top, uint32_t right, uint32_t bottom,
+                                    RenderTargetKey& target_key_out,
+                                    Transfer::Rectangle& rectangle_out,
+                                    bool fallback_is_depth = false,
+                                    int32_t fallback_format = -1) const;
+  // Makes the render target the owner of the rectangle's tiles ahead of
+  // clearing it (the rectangle itself is not transferred in). Returns the
+  // render target, or nullptr if it doesn't exist.
+  RenderTarget* TakeOwnershipForClear(RenderTargetKey target_key,
+                                      const Transfer::Rectangle& rectangle,
+                                      std::vector<Transfer>& transfers_out);
+  // The format in the key of the render target used for a guest color format.
+  xenos::ColorRenderTargetFormat GetColorKeyFormat(xenos::ColorRenderTargetFormat format) const {
+    return GetColorResourceFormat(format);
+  }
  private:
   const RegisterFile& register_file_;
   uint32_t draw_resolution_scale_x_;

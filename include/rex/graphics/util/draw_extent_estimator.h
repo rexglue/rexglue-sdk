@@ -30,6 +30,14 @@ class DrawExtentEstimator {
   // The shader must have its ucode analyzed.
   uint32_t EstimateVertexMaxY(const Shader& vertex_shader);
   uint32_t EstimateMaxY(bool try_to_estimate_vertex_max_y, const Shader& vertex_shader);
+  // For a draw of a single auto-indexed rectangle (rectangle list with 3
+  // vertices) without clipping: runs the vertex shader on the CPU and returns
+  // the rectangle in render target pixels (with the half-pixel and window
+  // offsets applied, so pixel x is covered when left <= x + 0.5 < right).
+  // False if it isn't such a draw, the shader can't be interpreted, or the
+  // three vertices aren't three distinct corners of an axis-aligned rectangle.
+  bool EstimateRectangle(const Shader& vertex_shader, float& left, float& top, float& right,
+                         float& bottom);
 
  private:
   class PositionYExportSink : public ShaderInterpreter::ExportSink {

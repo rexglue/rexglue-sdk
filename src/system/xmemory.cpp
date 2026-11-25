@@ -564,6 +564,9 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
   auto physical_heap = static_cast<PhysicalHeap*>(heap);
   if (physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address, 1,
                                       is_write, false)) {
+#if !REX_PLATFORM_WIN32
+    rex::memory::NoteWatchFault(virtual_address);
+#endif
     return true;
   }
 
@@ -2137,7 +2140,20 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
                                                ? rex::memory::PageAccess::kNoAccess
                                                : rex::memory::PageAccess::kReadOnly;
   uint8_t* protect_base = membase_ + heap_base_;
-  uint32_t protect_system_page_first = UINT32_MAX;
+  // Runs of pages to protect may include short stretches of pages that already
+  // have the target protection (already watched, or read-only for the guest),
+  // so a fragmented range is protected with fewer mprotect calls.
+  constexpr uint32_t kMaxMergedGap = 16;
+  uint32_t protect_run_first = UINT32_MAX;
+  uint32_t protect_run_last = 0;
+  auto flush_protect_run = [&]() {
+    if (protect_run_first != UINT32_MAX) {
+      rex::memory::Protect(protect_base + protect_run_first * system_page_size_,
+                           (protect_run_last + 1 - protect_run_first) * system_page_size_,
+                           protect_access);
+      protect_run_first = UINT32_MAX;
+    }
+  };
   auto global_lock = global_critical_region_.Acquire();
   for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
     // Check if need to enable callbacks for the page and raise its protection.
@@ -2174,6 +2190,9 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
     rex::memory::PageAccess current_page_access =
         ToPageAccess(page_table_[guest_page_number].current_protect);
     bool protect_system_page = false;
+    // Whether the page already has the protection being applied, so it may be
+    // included in a run with the same protection.
+    bool page_already_protected = false;
     // Don't do anything with inaccessible pages - don't protect, don't enable
     // callbacks - because real access violations are needed there. And don't
     // enable invalidation notifications for read-only pages for the same
@@ -2181,8 +2200,10 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
     if (current_page_access != rex::memory::PageAccess::kNoAccess) {
       // TODO(Triang3l): Enable data providers.
       if (enable_invalidation_notifications) {
-        if (current_page_access != rex::memory::PageAccess::kReadOnly &&
-            (page_flags_block.notify_on_invalidation & page_flags_bit) == 0) {
+        if (current_page_access == rex::memory::PageAccess::kReadOnly ||
+            (page_flags_block.notify_on_invalidation & page_flags_bit) != 0) {
+          page_already_protected = !enable_data_providers;
+        } else {
           // TODO(Triang3l): Check if data providers are already enabled.
           // If data providers are already enabled for the page, it has even
           // stricter protection.
@@ -2192,22 +2213,16 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
       }
     }
     if (protect_system_page) {
-      if (protect_system_page_first == UINT32_MAX) {
-        protect_system_page_first = i;
+      if (protect_run_first == UINT32_MAX) {
+        protect_run_first = i;
       }
-    } else {
-      if (protect_system_page_first != UINT32_MAX) {
-        rex::memory::Protect(protect_base + protect_system_page_first * system_page_size_,
-                             (i - protect_system_page_first) * system_page_size_, protect_access);
-        protect_system_page_first = UINT32_MAX;
-      }
+      protect_run_last = i;
+    } else if (!page_already_protected || (protect_run_first != UINT32_MAX &&
+                                           i - protect_run_last > kMaxMergedGap)) {
+      flush_protect_run();
     }
   }
-  if (protect_system_page_first != UINT32_MAX) {
-    rex::memory::Protect(protect_base + protect_system_page_first * system_page_size_,
-                         (system_page_last + 1 - protect_system_page_first) * system_page_size_,
-                         protect_access);
-  }
+  flush_protect_run();
 }
 
 bool PhysicalHeap::TriggerCallbacks(std::unique_lock<std::recursive_mutex> global_lock_locked_once,
@@ -2319,37 +2334,40 @@ bool PhysicalHeap::TriggerCallbacks(std::unique_lock<std::recursive_mutex> globa
   // Unprotect ranges that need unprotection.
   if (unprotect) {
     uint8_t* protect_base = membase_ + heap_base_;
-    uint32_t unprotect_system_page_first = UINT32_MAX;
+    // As in EnableAccessCallbacks, runs may include short stretches of pages
+    // that are already writable (guest read-write and not watched).
+    constexpr uint32_t kMaxMergedGap = 16;
+    uint32_t unprotect_run_first = UINT32_MAX;
+    uint32_t unprotect_run_last = 0;
+    auto flush_unprotect_run = [&]() {
+      if (unprotect_run_first != UINT32_MAX) {
+        rex::memory::Protect(protect_base + unprotect_run_first * system_page_size_,
+                             (unprotect_run_last + 1 - unprotect_run_first) * system_page_size_,
+                             rex::memory::PageAccess::kReadWrite);
+        unprotect_run_first = UINT32_MAX;
+      }
+    };
     for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
       // Check if need to allow writing to this page.
-      bool unprotect_page =
+      const bool watched =
           (system_page_flags_[i >> 6].notify_on_invalidation & (uint64_t(1) << (i & 63))) != 0;
-      if (unprotect_page) {
-        uint32_t guest_page_number =
-            rex::sat_sub(i * system_page_size_, host_address_offset()) >> page_size_shift_;
-        if (ToPageAccess(page_table_[guest_page_number].current_protect) !=
-            rex::memory::PageAccess::kReadWrite) {
-          unprotect_page = false;
+      uint32_t guest_page_number =
+          rex::sat_sub(i * system_page_size_, host_address_offset()) >> page_size_shift_;
+      const bool guest_writable =
+          guest_page_number < page_table_.size() &&
+          ToPageAccess(page_table_[guest_page_number].current_protect) ==
+              rex::memory::PageAccess::kReadWrite;
+      if (watched && guest_writable) {
+        if (unprotect_run_first == UINT32_MAX) {
+          unprotect_run_first = i;
         }
-      }
-      if (unprotect_page) {
-        if (unprotect_system_page_first == UINT32_MAX) {
-          unprotect_system_page_first = i;
-        }
-      } else {
-        if (unprotect_system_page_first != UINT32_MAX) {
-          rex::memory::Protect(protect_base + unprotect_system_page_first * system_page_size_,
-                               (i - unprotect_system_page_first) * system_page_size_,
-                               rex::memory::PageAccess::kReadWrite);
-          unprotect_system_page_first = UINT32_MAX;
-        }
+        unprotect_run_last = i;
+      } else if (!guest_writable || (unprotect_run_first != UINT32_MAX &&
+                                     i - unprotect_run_last > kMaxMergedGap)) {
+        flush_unprotect_run();
       }
     }
-    if (unprotect_system_page_first != UINT32_MAX) {
-      rex::memory::Protect(protect_base + unprotect_system_page_first * system_page_size_,
-                           (system_page_last + 1 - unprotect_system_page_first) * system_page_size_,
-                           rex::memory::PageAccess::kReadWrite);
-    }
+    flush_unprotect_run();
   }
 
   // Mark pages as not write-watched.

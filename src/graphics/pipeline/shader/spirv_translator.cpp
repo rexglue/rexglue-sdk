@@ -21,10 +21,24 @@
 #include <fmt/format.h>
 
 #include <rex/assert.h>
+#include <rex/cvar.h>
 #include <rex/graphics/pipeline/shader/spirv.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/math.h>
 #include <rex/string/buffer.h>
+
+REXCVAR_DEFINE_BOOL(spirv_clamp_relative_float_constants, true, "GPU/Shader",
+                    "Clamp relatively addressed float constant indices (c[a0+N], c[aL+N]) to "
+                    "the float constant array so an out-of-range index can't read outside the "
+                    "uniform buffer (an out-of-bounds read can hang AMD GPUs; the SPIR-V "
+                    "counterpart of dxbc_clamp_relative_float_constants; applied at "
+                    "translation, needs a restart)");
+REXCVAR_DEFINE_BOOL(spirv_wrap_relative_float_constants, false, "GPU/Shader",
+                    "With spirv_clamp_relative_float_constants, wrap relatively addressed float "
+                    "constant indices around the 256-entry array (index & 255) instead of "
+                    "clamping them to its ends. Equally safe; experimental test for effects that "
+                    "may treat the constants as a ring buffer (Fable II's trail). Needs a "
+                    "restart");
 
 namespace rex::graphics {
 
@@ -3492,6 +3506,22 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
   if (storage_index) {
     index = builder_->createBinOp(spv::OpIAdd, type_int_, index,
                                   builder_->makeIntConstant(int(storage_index)));
+  }
+  if (is_float_constant && REXCVAR_GET(spirv_clamp_relative_float_constants)) {
+    // a0 is only clamped to [-256, 255], so a0/aL + N can index outside the
+    // float constants. Reading a uniform buffer out of bounds is undefined, and
+    // without robust buffer access AMD hardware can fault and lose the device
+    // (Fable II's trail effect, VS 87D12B6DEC03F597, hangs RDNA 3 and 4 this way
+    // on D3D12). Clamp to the array, as the DXBC translator does.
+    uint32_t float_constant_count = constant_register_map.float_count;
+    if (float_constant_count == 256 && REXCVAR_GET(spirv_wrap_relative_float_constants)) {
+      index = builder_->createBinOp(spv::OpBitwiseAnd, type_int_, index,
+                                    builder_->makeIntConstant(255));
+    } else if (float_constant_count) {
+      index = builder_->createTriBuiltinCall(type_int_, ext_inst_glsl_std_450_, GLSLstd450SClamp,
+                                             index, const_int_0_,
+                                             builder_->makeIntConstant(int(float_constant_count - 1)));
+    }
   }
   return index;
 }

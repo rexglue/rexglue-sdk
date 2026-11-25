@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <type_traits>
@@ -67,7 +68,18 @@ class RingBuffer {
     }
   }
 
-  void AdvanceRead(size_t count);
+  // AdvanceRead, BeginRead and EndRead are inline: the GPU command processor
+  // calls them for nearly every packet, from another library.
+  void AdvanceRead(size_t count) {
+    ring_size_t cnt = static_cast<ring_size_t>(count);
+    if (read_offset_ + cnt < capacity_) {
+      read_offset_ += cnt;
+    } else {
+      ring_size_t left_half = capacity_ - read_offset_;
+      ring_size_t right_half = cnt - left_half;
+      read_offset_ = right_half;
+    }
+  }
   void AdvanceWrite(size_t count);
 
   struct ReadRange {
@@ -76,8 +88,25 @@ class RingBuffer {
     ring_size_t first_length;
     ring_size_t second_length;
   };
-  ReadRange BeginRead(size_t count);
-  void EndRead(ReadRange read_range);
+  ReadRange BeginRead(size_t count) {
+    ring_size_t cnt = static_cast<ring_size_t>(std::min(count, static_cast<size_t>(capacity_)));
+    if (!cnt) {
+      return {nullptr, nullptr, 0, 0};
+    }
+    if (read_offset_ + cnt < capacity_) {
+      return {buffer_ + read_offset_, nullptr, cnt, 0};
+    }
+    ring_size_t left_half = capacity_ - read_offset_;
+    ring_size_t right_half = cnt - left_half;
+    return {buffer_ + read_offset_, buffer_, left_half, right_half};
+  }
+  void EndRead(ReadRange read_range) {
+    if (read_range.second) {
+      read_offset_ = read_range.second_length;
+    } else {
+      read_offset_ += read_range.first_length;
+    }
+  }
 
   size_t Read(uint8_t* buffer, size_t count);
   template <typename T>

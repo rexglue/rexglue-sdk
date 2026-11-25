@@ -8,7 +8,7 @@
 #include <rex/graphics/xenos.h>
 #include <rex/types.h>
 
-namespace rex::graphics {
+namespace rex::graphics::fable2 {
 
 namespace {
 
@@ -145,7 +145,21 @@ bool ComputeFable2Skinning(const RegisterFile& regs, memory::Memory& memory,
     return false;
   }
 
-  std::vector<uint8_t> output(size_t(vertex_count) * kOutputDwords * 4);
+  // The bone matrices (three rows of four half floats each), decoded once
+  // instead of for every vertex that uses them.
+  static thread_local std::vector<Half4> bone_rows;
+  bone_rows.resize(size_t(bone_count) * 3);
+  for (uint32_t bone = 0; bone < bone_count; ++bone) {
+    for (uint32_t row = 0; row < 3; ++row) {
+      bone_rows[size_t(bone) * 3 + row] =
+          ReadHalf4(bones + size_t(bone) * kBoneDwords * 4 + row * 8);
+    }
+  }
+
+  static thread_local std::vector<uint8_t> output_scratch;
+  std::vector<uint8_t> output_capture;
+  std::vector<uint8_t>& output = capture ? output_capture : output_scratch;
+  output.resize(size_t(vertex_count) * kOutputDwords * 4);
   for (uint32_t i = 0; i < vertex_count; ++i) {
     const uint8_t* vertex = vertices + size_t(i + index_offset) * kVertexDwords * 4;
     const Half4 p = ReadHalf4(vertex);
@@ -164,8 +178,9 @@ bool ComputeFable2Skinning(const RegisterFile& regs, memory::Memory& memory,
         return false;
       }
       const float weight = float((bone_weights >> (b * 8)) & 0xFF) * (1.0f / 255.0f);
+      const Half4* const bone_matrix = &bone_rows[size_t(bone) * 3];
       for (uint32_t row = 0; row < 3; ++row) {
-        const Half4 m = ReadHalf4(bones + size_t(bone) * kBoneDwords * 4 + row * 8);
+        const Half4& m = bone_matrix[row];
         position[row] += (m.w * p.w + m.y * p.y + m.x * p.x + m.z) * weight;
         normal[row] += (nz * m.w + nx * m.y + ny * m.x) * weight;
       }
@@ -199,4 +214,4 @@ bool ComputeFable2Skinning(const RegisterFile& regs, memory::Memory& memory,
   return true;
 }
 
-}  // namespace rex::graphics
+}  // namespace rex::graphics::fable2

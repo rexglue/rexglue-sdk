@@ -11,12 +11,16 @@
  */
 
 #include <array>
+#include <atomic>
 #include <climits>
+#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -147,13 +151,36 @@ class VulkanCommandProcessor : public CommandProcessor {
   // submission.
   DeferredCommandBuffer& deferred_command_buffer() {
     assert_true(submission_open_);
-    return deferred_command_buffer_;
+    return *deferred_command_buffer_;
   }
   // Executed before deferred_command_buffer() in the same submission.
   DeferredCommandBuffer& upload_command_buffer() {
     assert_true(submission_open_);
-    return upload_command_buffer_;
+    return *upload_command_buffer_;
   }
+
+  // GPU time breakdown categories for the performance log: work recorded
+  // after SetGpuTimeCategory is attributed to the category.
+  enum GpuTimeCategory : uint32_t {
+    kGpuTimeOther,
+    kGpuTimeDraw,
+    kGpuTimeTessellation,
+    kGpuTimeMemexport,
+    kGpuTimeRenderTarget,
+    kGpuTimeResolveDump,
+    kGpuTimeResolve,
+    kGpuTimeResolveClear,
+    kGpuTimeTextureLoad,
+    kGpuTimeUpload,
+    kGpuTimeCategoryCount,
+  };
+  void SetGpuTimeCategory(uint32_t category) {
+    gpu_time_category_ = category;
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE) {
+      deferred_command_buffer_->SetTimestampCategory(category);
+    }
+  }
+  uint32_t gpu_time_category() const { return gpu_time_category_; }
 
   bool submission_open() const { return submission_open_; }
   uint64_t GetCurrentSubmission() const {
@@ -261,6 +288,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;
   void OnPrimaryBufferEnd() override;
+  std::string TakeGpuTimeReport(uint32_t frames) override;
 
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height) override;
@@ -276,6 +304,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   struct CommandBuffer {
     VkCommandPool pool;
     VkCommandBuffer buffer;
+    // Uploads, submitted before `buffer` (allocated from the same pool).
+    VkCommandBuffer upload_buffer;
   };
 
   struct SparseBufferBind {
@@ -452,10 +482,15 @@ class VulkanCommandProcessor : public CommandProcessor {
   void DestroyScratchBuffer();
   bool InitializeOcclusionQueryResources();
   void ShutdownOcclusionQueryResources();
-  bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
-  bool EndGuestOcclusionQuery(uint32_t sample_count_address);
-  bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
+  bool AcquireOcclusionQueryIndex(uint32_t& host_index_out, bool may_reset);
   void DisableHostOcclusionQueries();
+  // Guest occlusion queries are measured inside render passes: these keep a
+  // query that is active across a render pass change consistent.
+  void OcclusionQueryRenderPassBegun();
+  void OcclusionQueryRenderPassEnding();
+  // Writes the results of the queries whose submissions have completed.
+  void DeliverCompletedOcclusionQueries();
+  void OnWaitTick() override;
   uint64_t NormalizeOcclusionSamples(uint64_t samples) const;
   void WriteGuestOcclusionResult(uint32_t sample_count_address, uint64_t samples);
   void InvalidateAllVertexBufferResidency();
@@ -516,7 +551,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   void DestroySwapFxaaSourceImage();
 
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal,
-                          reg::RB_DEPTHCONTROL normalized_depth_control);
+                          reg::RB_DEPTHCONTROL normalized_depth_control,
+                          const Shader* pixel_shader);
   void UpdateSystemConstantValues(
       bool primitive_polygonal,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
@@ -569,6 +605,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Guest frame index, since some transient resources can be reused across
   // submissions. Values updated in the beginning of a frame.
   uint64_t frame_current_ = 1;
+  // Bottom of the host scissor of the draw being issued when it's a draw of
+  // the first of two merged tiles (0 otherwise) - see
+  // VulkanRenderTargetCache::GetTileMergeDrawAction.
+  uint32_t tile_merge_scissor_bottom_ = 0;
+  // Whether the draw being issued is one of the second of two merged tiles
+  // that has to be drawn without the window offset
+  // (TileMergeAction::kDrawWithoutWindowOffset).
+  bool tile_merge_without_window_offset_ = false;
   uint64_t frame_completed_ = 0;
   // Submission indices of frames that have already been submitted.
   uint64_t closed_frame_submissions_[kMaxFramesInFlight] = {};
@@ -582,8 +626,104 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   std::vector<CommandBuffer> command_buffers_writable_;
   std::deque<std::pair<uint64_t, CommandBuffer>> command_buffers_submitted_;
-  DeferredCommandBuffer deferred_command_buffer_;
-  DeferredCommandBuffer upload_command_buffer_;
+
+  // Submission worker (vulkan_async_submit). The command processor records
+  // each submission into a SubmitJob's deferred command buffers; the worker
+  // thread replays the published part into the job's Vulkan command buffer
+  // while recording continues (the driver's vkCmd* cost leaves the command
+  // processor thread), and submits it once the job is finalized. Submission
+  // numbering and all completion bookkeeping stay on the command processor
+  // thread; anything that waits for a submission first waits until the
+  // worker has submitted it (WaitForSubmitted).
+  struct SubmitJob {
+    SubmitJob(const VulkanCommandProcessor& command_processor)
+        : deferred(command_processor), upload(command_processor, 64 * 1024) {}
+    DeferredCommandBuffer deferred;
+    // Executed before `deferred`, in its own command buffer of the same
+    // submission (uploads may be added until the end of the submission).
+    DeferredCommandBuffer upload;
+    CommandBuffer command_buffer = {};
+    // Set before `finalized`.
+    VkFence fence = VK_NULL_HANDLE;
+    std::vector<VkSemaphore> wait_semaphores;
+    std::vector<VkPipelineStageFlags> wait_stage_masks;
+    uint64_t submission = 0;
+    // Pair of timestamp queries (start, end) in gpu_timestamp_pool_, or
+    // UINT32_MAX without GPU timing.
+    uint32_t timestamp_slot = UINT32_MAX;
+    std::atomic<bool> finalized{false};
+    // Worker-side state.
+    bool recording = false;
+    DeferredCommandBuffer::Cursor cursor;
+  };
+  // Takes a free (or new) job with a writable command buffer and appends it to
+  // the queue; nullptr if the Vulkan objects couldn't be created.
+  SubmitJob* AcquireSubmitJob();
+  // Replays what's published, and if the job is finalized, everything and
+  // submits it. Returns whether the job was submitted (or failed for good).
+  bool ProcessSubmitJob(SubmitJob& job, bool wait_for_work);
+  void SubmitWorkerMain();
+  void StartSubmitWorker();
+  void StopSubmitWorker();
+  // Blocks until the worker has submitted `submission` (and every earlier one).
+  void WaitForSubmitted(uint64_t submission);
+  // Publishes the current job's recorded commands, waking the worker if it is
+  // waiting and enough has accumulated (or if `force`).
+  void PublishSubmitJob(bool force = false);
+  bool async_submit_ = false;
+  // The job of the open submission (owned by submit_queue_; the worker can't
+  // finish it before EndSubmission finalizes it).
+  SubmitJob* submit_job_current_ = nullptr;
+  std::mutex submit_mutex_;
+  std::condition_variable submit_cv_;
+  // Jobs not yet submitted, oldest first (the worker processes the front).
+  std::deque<std::unique_ptr<SubmitJob>> submit_queue_;
+  std::vector<std::unique_ptr<SubmitJob>> submit_jobs_free_;
+  static constexpr size_t kMaxQueuedSubmitJobs = 4;
+  std::atomic<bool> submit_worker_shutdown_{false};
+  std::thread submit_worker_;
+  // Highest submission the worker has passed to vkQueueSubmit.
+  std::atomic<uint64_t> submissions_submitted_{0};
+  std::atomic<bool> submit_worker_waiting_{false};
+  // Incremented (and notified) to wake the worker waiting for new commands or
+  // a finalized job.
+  std::atomic<uint32_t> submit_wake_seq_{0};
+  void WakeSubmitWorker();
+  std::atomic<bool> submit_device_lost_{false};
+  uint32_t submit_publishes_since_wake_ = 0;
+  // GPU timing for the performance log. Each submission gets a slot of
+  // timestamp queries: one at the start of its command buffer, one at each
+  // category marker, and one at the end; as the submissions complete, the
+  // time between consecutive timestamps is added to the category of the
+  // earlier one.
+  static constexpr uint32_t kGpuTimestampSlots = 64;
+  static constexpr uint32_t kGpuTimestampsPerSlot = 1024;
+  VkQueryPool gpu_timestamp_pool_ = VK_NULL_HANDLE;
+  uint32_t gpu_timestamp_slot_next_ = 0;
+  // Written by the submission worker before submitting, read on completion:
+  // the category of each timestamp of a slot, and how many were written.
+  std::vector<uint8_t> gpu_timestamp_categories_;
+  std::vector<uint32_t> gpu_timestamp_counts_;
+  // <Submission, slot> of submitted ones whose time isn't read yet.
+  std::deque<std::pair<uint64_t, uint32_t>> gpu_timestamp_pending_;
+  uint64_t gpu_category_ns_[kGpuTimeCategoryCount] = {};
+  uint32_t gpu_time_category_ = kGpuTimeOther;
+  // log_perf_gpu_passes: plain draws split by the render targets they draw to
+  // (EDRAM layout key), as extra timestamp categories from kGpuTimePassFirst.
+  // The last slot takes every layout beyond the others.
+  static constexpr uint32_t kGpuTimePassFirst = 16;
+  static constexpr uint32_t kGpuTimePassSlots = 40;
+  uint32_t GetGpuTimePassCategory(uint32_t normalized_color_mask,
+                                  reg::RB_DEPTHCONTROL normalized_depth_control);
+  uint64_t gpu_pass_keys_[kGpuTimePassSlots] = {};
+  uint32_t gpu_pass_slots_used_ = 0;
+  uint32_t gpu_pass_last_slot_ = UINT32_MAX;
+  uint64_t gpu_pass_draws_[kGpuTimePassSlots] = {};
+  uint64_t gpu_pass_ns_[kGpuTimePassSlots] = {};
+  // Commands recorded while no submission is open (discarded, as before).
+  std::unique_ptr<DeferredCommandBuffer> closed_command_buffer_;
+  DeferredCommandBuffer* deferred_command_buffer_ = nullptr;
+  DeferredCommandBuffer* upload_command_buffer_ = nullptr;
 
   std::vector<VkSparseMemoryBind> sparse_memory_binds_;
   std::vector<SparseBufferBind> sparse_buffer_binds_;
@@ -621,9 +761,24 @@ class VulkanCommandProcessor : public CommandProcessor {
   static constexpr uint32_t kLinkedTypeDescriptorPoolSetCount = 32768;
   static const VkDescriptorPoolSize kDescriptorPoolSizeUniformBuffer;
   static const VkDescriptorPoolSize kDescriptorPoolSizeStorageBuffer;
+  static const VkDescriptorPoolSize kDescriptorPoolSizeConstants;
   static const VkDescriptorPoolSize kDescriptorPoolSizeTextures[2];
+  static constexpr uint32_t kConstantsDescriptorPoolSetCount = 1024;
   ui::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_uniform_buffer_;
   ui::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_storage_buffer_;
+  // Guest draw constants are dynamic uniform buffers: a constants descriptor
+  // set only depends on which upload pool pages (VkBuffers) hold the constants,
+  // and the per-draw locations within them are dynamic offsets. Sets are
+  // reused for the whole frame (cleared on frame open, as their lifetime is
+  // tracked per frame in constants_transient_descriptors_used_).
+  ui::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_constants_;
+  struct ConstantsDescriptorSet {
+    VkBuffer buffers[SpirvShaderTranslator::kConstantBufferCount];
+    VkDescriptorSet set;
+  };
+  std::vector<ConstantsDescriptorSet> constants_descriptor_sets_frame_;
+  VkBuffer current_constants_set_buffers_[SpirvShaderTranslator::kConstantBufferCount] = {};
+  uint32_t current_constants_dynamic_offsets_[SpirvShaderTranslator::kConstantBufferCount] = {};
   std::deque<UsedSingleTransientDescriptor> single_transient_descriptors_used_;
   std::array<std::vector<VkDescriptorSet>, size_t(SingleTransientDescriptorLayout::kCount)>
       single_transient_descriptors_free_;
@@ -763,7 +918,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t scratch_buffer_last_usage_submission_ = 0;
   bool scratch_buffer_used_ = false;
 
-  static constexpr uint32_t kMaxOcclusionQueries = 8192;
+  // Queries are taken from blocks of the pool, one block per submission that
+  // uses queries, reset (outside a render pass) when the block is taken.
+  static constexpr uint32_t kOcclusionQueryBlockSize = 2048;
+  static constexpr uint32_t kOcclusionQueryBlocks = 8;
+  static constexpr uint32_t kMaxOcclusionQueries = kOcclusionQueryBlockSize * kOcclusionQueryBlocks;
   VkQueryPool occlusion_query_pool_ = VK_NULL_HANDLE;
   VkBuffer occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
   VkDeviceMemory occlusion_query_readback_memory_ = VK_NULL_HANDLE;
@@ -772,11 +931,32 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint8_t* occlusion_query_readback_mapping_ = nullptr;
   uint32_t occlusion_query_cursor_ = 0;
   bool occlusion_query_resources_available_ = false;
+  enum class OcclusionQueryState : uint8_t {
+    // Begun by the guest outside a render pass: the host query begins with the
+    // next render pass.
+    kWaitingForRenderPass,
+    kInRenderPass,
+    // Can't be measured (a render pass ended after drawing, no free query):
+    // reported as visible.
+    kUnmeasurable,
+  };
   struct ActiveOcclusionQuery {
-    uint32_t sample_count_address = 0;
     uint32_t host_index = UINT32_MAX;
+    uint64_t draws_at_begin = 0;
+    OcclusionQueryState state = OcclusionQueryState::kUnmeasurable;
     bool valid = false;
   } active_occlusion_query_;
+  struct PendingOcclusionQuery {
+    uint32_t end_address;
+    uint32_t host_index;
+    uint64_t submission;
+  };
+  std::deque<PendingOcclusionQuery> occlusion_queries_pending_;
+  uint32_t occlusion_query_block_ = UINT32_MAX;
+  uint64_t occlusion_query_block_submission_ = 0;
+  uint32_t occlusion_query_block_used_ = 0;
+  uint32_t occlusion_query_block_next_ = 0;
+  uint64_t occlusion_query_block_last_submission_[kOcclusionQueryBlocks] = {};
   struct VertexBufferState {
     uint32_t address = UINT32_MAX;
     uint32_t size = UINT32_MAX;
@@ -857,6 +1037,21 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Whether descriptor sets in current_graphics_descriptor_sets_ point to
   // up-to-date data.
   uint32_t current_graphics_descriptor_set_values_up_to_date_;
+  // All vertex [0] and pixel [1] texture descriptor sets written in the
+  // current submission, by a hash of their contents, so draws with identical
+  // textures and samplers reuse them. Only valid within the submission they
+  // were written in (textures they reference can't be destroyed while that
+  // submission is pending).
+  struct TextureDescriptorSetCacheEntry {
+    VkDescriptorSetLayout layout;
+    std::vector<VkDescriptorImageInfo> image_infos;
+    VkDescriptorSet set;
+  };
+  std::unordered_map<uint64_t, TextureDescriptorSetCacheEntry> texture_descriptor_set_cache_[2];
+  uint64_t texture_descriptor_set_cache_submission_ = UINT64_MAX;
+  // The entry of the set currently in current_graphics_descriptor_sets_ for
+  // each stage (checked first, without hashing). Map nodes are stable.
+  const TextureDescriptorSetCacheEntry* last_texture_descriptor_set_entries_[2] = {};
   // Whether the descriptor sets currently bound to the command buffer - only
   // low bits for the descriptor set layouts that remained the same are kept
   // when changing the pipeline layout. May be out of sync with

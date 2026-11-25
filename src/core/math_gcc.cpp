@@ -33,15 +33,6 @@ uint8_t tzcnt(uint64_t v) {
   return v == 0 ? 64 : static_cast<uint8_t>(__builtin_ctzll(v));
 }
 
-bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
-  int i = ffs(v);
-  *out_first_set_index = i - 1;
-  return i != 0;
-}
-bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
-  int i = __builtin_ffsll(v);
-  *out_first_set_index = i - 1;
-  return i != 0;
-}
+// bit_scan_forward is inline in rex/math.h for GCC and Clang.
 
 }  // namespace rex

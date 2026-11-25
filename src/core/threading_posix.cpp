@@ -171,6 +171,13 @@ void install_signal_handler(SignalType type) {
 }
 
 // TODO(dougvj)
+// Linux thread names are at most 15 bytes, and pthread_setname_np rejects a
+// longer one (ERANGE) instead of truncating, which left threads such as
+// "Vulkan Pipelines" named after the process in top/perf. Truncate instead.
+static std::string LinuxThreadName(std::string_view name) {
+  return std::string(name.substr(0, 15));
+}
+
 void EnableAffinityConfiguration() {}
 
 // uint64_t ticks() { return mach_absolute_time(); }
@@ -739,7 +746,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         pthread_setname_np(std::string(name).c_str());
       }
 #else
-      pthread_setname_np(thread_, std::string(name).c_str());
+      pthread_setname_np(thread_, LinuxThreadName(name).c_str());
 #endif
 #if REX_PLATFORM_ANDROID
       SetAndroidPreApi26Name(name);
@@ -1514,7 +1521,7 @@ void set_current_thread_name(const std::string_view name) {
 #if defined(__APPLE__)
   pthread_setname_np(std::string(name).c_str());
 #else
-  pthread_setname_np(pthread_self(), std::string(name).c_str());
+  pthread_setname_np(pthread_self(), LinuxThreadName(name).c_str());
 #endif
 #if REX_PLATFORM_ANDROID
   if (!android_pthread_getname_np_ && current_thread_) {

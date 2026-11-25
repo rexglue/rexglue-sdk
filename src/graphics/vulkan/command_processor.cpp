@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -28,8 +29,11 @@
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/thread.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/flags.h>
+#include <rex/graphics/frame_dump.h>
+#include <rex/graphics/frame_events.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/registers.h>
@@ -47,12 +51,33 @@
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
 
-#include "../fable2_skinning.h"
-#include "../fable2_terrain_tess.h"
+#include "../fable2/fable2_draw_hacks.h"
 
 // Legacy backend compatibility aliases for shared readback controls.
 REXCVAR_DEFINE_BOOL(vulkan_readback_resolve, false, "GPU/Vulkan",
                     "Read render-to-texture results on the CPU")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DECLARE(bool, gpu_sync_at_frame_start);
+REXCVAR_DEFINE_BOOL(vulkan_async_submit, true, "GPU/Vulkan",
+                    "Replay recorded GPU commands into Vulkan and submit them on a separate "
+                    "thread, so the driver's command recording cost leaves the GPU command "
+                    "processor thread. Needs a restart")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_BOOL(vulkan_skip_unused_index_address, true, "GPU/Vulkan",
+                    "Don't re-upload the system constants for an index buffer address that the "
+                    "draw's vertex shader doesn't read");
+REXCVAR_DEFINE_BOOL(vulkan_reuse_texture_descriptor_sets, true, "GPU/Vulkan",
+                    "Reuse a texture descriptor set written earlier in the submission when a "
+                    "draw needs identical contents");
+// Fable II regenerates its forced readback texture every frame. Waiting for
+// each current resolve substantially reduced frame rates on the Steam Deck.
+REXCVAR_DEFINE_BOOL(readback_resolve_force_delayed, true, "GPU",
+                    "Read back resolves forced by readback_resolve_force_addresses one resolve "
+                    "late (double-buffered, like readback_resolve = fast) instead of waiting for "
+                    "the GPU to go idle at every one. Saves a full CPU/GPU sync per resolve when "
+                    "the game regenerates such a texture every frame; wrong if the game expects "
+                    "each resolve's own result immediately (Vulkan only).")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_BOOL(vulkan_readback_memexport, false, "GPU/Vulkan",
@@ -66,6 +91,25 @@ REXCVAR_DEFINE_BOOL(vulkan_readback_memexport_per_occurrence, true, "GPU/Vulkan"
                     "this, the second and later exports to a range in one frame find the "
                     "previous copy still unsubmitted and fall back to a full synchronous "
                     "readback, which stalls the GPU thread for the whole frame so far")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(log_perf_gpu_passes, false, "GPU/Vulkan",
+                    "With log_perf_file, also split the GPU time of plain draws by the "
+                    "render targets they draw to (pitch, samples, color 0 and depth "
+                    "format), into the performance log")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(edram_merge_tiles_early, true, "GPU/Vulkan",
+                    "With edram_merge_tiles, decide whether a second-tile draw is dropped "
+                    "before the draw is set up (primitive processing, shaders, textures, "
+                    "samplers), so dropped draws cost almost nothing")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(memexport_skip_cpu_computed, true, "GPU/Vulkan",
+                    "Don't run memexport-only draws whose whole output the CPU has already "
+                    "written to guest memory (Fable II's terrain tessellation and skinning "
+                    "with terrain_tess_cpu / skinning_cpu); the draws reading that output "
+                    "upload it from guest memory instead")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_BOOL(vulkan_async_skip_incomplete_frames, true, "GPU/Vulkan",
@@ -625,6 +669,64 @@ const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeUniformBuf
 const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeStorageBuffer = {
     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kLinkedTypeDescriptorPoolSetCount};
 
+const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeConstants = {
+    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+    SpirvShaderTranslator::kConstantBufferCount* kConstantsDescriptorPoolSetCount};
+
+namespace {
+// Fixed descriptor ranges of the guest draw constant buffers (dynamic uniform
+// buffers, so the range can't depend on the draw). Float constants use the
+// maximum - the uniform buffer pool pages have a tail of this size so the range
+// never crosses the end of a buffer.
+constexpr uint32_t kFloatConstantsMaxSize = sizeof(float) * 4 * 256;
+constexpr uint32_t kConstantBufferRanges[SpirvShaderTranslator::kConstantBufferCount] = {
+    sizeof(SpirvShaderTranslator::SystemConstants),
+    kFloatConstantsMaxSize,
+    kFloatConstantsMaxSize,
+    sizeof(uint32_t) * (8 + 32),
+    sizeof(uint32_t) * 6 * 32,
+};
+
+// Packs the float constants marked in a shader's 256-bit usage map, copying
+// each run of consecutive used constants with one memcpy.
+void CopyFloatConstantRuns(uint8_t* mapping, const uint32_t* constants, const uint64_t map[4]) {
+  for (uint32_t i = 0; i < 4; ++i) {
+    uint64_t bits = map[i];
+    while (bits) {
+      const uint32_t first = uint32_t(std::countr_zero(bits));
+      const uint64_t shifted_inverse = ~(bits >> first);
+      const uint32_t run =
+          shifted_inverse ? uint32_t(std::countr_zero(shifted_inverse)) : 64 - first;
+      const size_t bytes = sizeof(float) * 4 * run;
+      std::memcpy(mapping, constants + (i << 8) + (first << 2), bytes);
+      mapping += bytes;
+      bits = first + run >= 64 ? 0 : bits & ~(((UINT64_C(1) << run) - 1) << first);
+    }
+  }
+}
+
+bool SameImageInfo(const VkDescriptorImageInfo& a, const VkDescriptorImageInfo& b) {
+  return a.sampler == b.sampler && a.imageView == b.imageView && a.imageLayout == b.imageLayout;
+}
+
+// Field-wise (the struct has padding) hash of a texture descriptor set's
+// contents.
+uint64_t HashImageInfos(VkDescriptorSetLayout layout, const VkDescriptorImageInfo* infos,
+                        size_t count) {
+  // A short multiply-xor step per descriptor (the handles are already well
+  // spread, and a collision only costs a compare).
+  uint64_t h = uint64_t(count) * UINT64_C(0x9E3779B97F4A7C15) ^ reinterpret_cast<uint64_t>(layout);
+  for (size_t i = 0; i < count; ++i) {
+    const uint64_t v = (reinterpret_cast<uint64_t>(infos[i].sampler) ^
+                        (reinterpret_cast<uint64_t>(infos[i].imageView) << 1) ^
+                        (uint64_t(infos[i].imageLayout) << 56)) *
+                       UINT64_C(0xC2B2AE3D27D4EB4F);
+    h = (h ^ v) * UINT64_C(0x165667B19E3779F9) + i;
+  }
+  return h ^ (h >> 29);
+}
+}  // namespace
+
 // 2x descriptors for texture images because of unsigned and signed bindings.
 const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeTextures[2] = {
     {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 2 * kLinkedTypeDescriptorPoolSetCount},
@@ -634,8 +736,6 @@ const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeTextures[2
 VulkanCommandProcessor::VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system,
                                                system::KernelState* kernel_state)
     : CommandProcessor(graphics_system, kernel_state),
-      deferred_command_buffer_(*this),
-      upload_command_buffer_(*this, 64 * 1024),
       transient_descriptor_allocator_uniform_buffer_(
           static_cast<const ui::vulkan::VulkanProvider*>(graphics_system->provider())
               ->vulkan_device(),
@@ -644,15 +744,22 @@ VulkanCommandProcessor::VulkanCommandProcessor(VulkanGraphicsSystem* graphics_sy
           static_cast<const ui::vulkan::VulkanProvider*>(graphics_system->provider())
               ->vulkan_device(),
           &kDescriptorPoolSizeStorageBuffer, 1, kLinkedTypeDescriptorPoolSetCount),
+      transient_descriptor_allocator_constants_(
+          static_cast<const ui::vulkan::VulkanProvider*>(graphics_system->provider())
+              ->vulkan_device(),
+          &kDescriptorPoolSizeConstants, 1, kConstantsDescriptorPoolSetCount),
       transient_descriptor_allocator_textures_(
           static_cast<const ui::vulkan::VulkanProvider*>(graphics_system->provider())
               ->vulkan_device(),
           kDescriptorPoolSizeTextures, uint32_t(rex::countof(kDescriptorPoolSizeTextures)),
           kLinkedTypeDescriptorPoolSetCount) {
   legacy_readback_memexport_cvar_name_ = "vulkan_readback_memexport";
+  closed_command_buffer_ = std::make_unique<DeferredCommandBuffer>(*this, 64 * 1024);
+  deferred_command_buffer_ = closed_command_buffer_.get();
+  upload_command_buffer_ = closed_command_buffer_.get();
 }
 
-VulkanCommandProcessor::~VulkanCommandProcessor() = default;
+VulkanCommandProcessor::~VulkanCommandProcessor() { StopSubmitWorker(); }
 
 void VulkanCommandProcessor::ClearCaches() {
   CommandProcessor::ClearCaches();
@@ -708,6 +815,13 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
     return CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
   }
 
+  // Direct3D on the Xbox 360 issues a query as two ZPASS_DONE events with
+  // different sample count addresses: the begin one, and the end one, which it
+  // marks with kQueryFinished beforehand. It subtracts the begin counts from
+  // the end counts, and waits for the GPU to overwrite the marker. So the end
+  // structure gets the host result when the submission has completed, without
+  // waiting for it here; until then the marker tells the guest that the result
+  // isn't ready (Fable II counts such cells as pending and draws them).
   const uint32_t kQueryFinished = rex::byte_swap(0xFFFFFEED);
   assert_true(count == 1);
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
@@ -717,54 +831,60 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
   auto* sample_counts =
       memory_->TranslatePhysical<xenos::xe_gpu_depth_sample_counts*>(sample_count_addr);
   if (!sample_counts) {
-    DisableHostOcclusionQueries();
     return true;
   }
-
-  auto write_fallback_result = [sample_counts]() -> bool {
-    auto fake_sample_count = REXCVAR_GET(query_occlusion_fake_sample_count);
-    if (fake_sample_count < 0) {
-      return true;
-    }
-    bool is_end_via_z_pass =
-        sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished;
-    bool is_end_via_z_fail =
-        sample_counts->ZFail_A == kQueryFinished || sample_counts->ZFail_B == kQueryFinished;
-    std::memset(sample_counts, 0, sizeof(xenos::xe_gpu_depth_sample_counts));
-    if (is_end_via_z_pass || is_end_via_z_fail) {
-      sample_counts->ZPass_A = fake_sample_count;
-      sample_counts->Total_A = fake_sample_count;
-    }
-    return true;
-  };
-
-  bool is_end_via_z_pass =
-      sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished;
-  bool is_end_via_z_fail =
+  bool is_end =
+      sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished ||
       sample_counts->ZFail_A == kQueryFinished || sample_counts->ZFail_B == kQueryFinished;
-  bool is_end = is_end_via_z_pass || is_end_via_z_fail;
+
+  DeliverCompletedOcclusionQueries();
+
+  const uint32_t visible_samples =
+      uint32_t(std::max(REXCVAR_GET(query_occlusion_fake_sample_count), int32_t(1)));
 
   if (!is_end) {
-    if (active_occlusion_query_.valid &&
-        active_occlusion_query_.sample_count_address != sample_count_addr) {
-      DisableHostOcclusionQueries();
-      return write_fallback_result();
+    if (active_occlusion_query_.valid) {
+      // A begin without an end: drop the previous query.
+      if (active_occlusion_query_.state == OcclusionQueryState::kInRenderPass) {
+        deferred_command_buffer_->CmdVkEndQuery(occlusion_query_pool_,
+                                               active_occlusion_query_.host_index);
+      }
+      CountFrameEvent(g_frame_events.occlusion_unpaired);
     }
-    if (!BeginGuestOcclusionQuery(sample_count_addr)) {
-      return write_fallback_result();
+    // The end counts are reported relative to zero.
+    std::memset(sample_counts, 0, sizeof(xenos::xe_gpu_depth_sample_counts));
+    active_occlusion_query_ = {};
+    active_occlusion_query_.valid = true;
+    CountFrameEvent(g_frame_events.occlusion_begun);
+    uint32_t host_index;
+    if (!BeginSubmission(true) || !AcquireOcclusionQueryIndex(host_index, true)) {
+      active_occlusion_query_.state = OcclusionQueryState::kUnmeasurable;
+      return true;
+    }
+    active_occlusion_query_.host_index = host_index;
+    active_occlusion_query_.draws_at_begin = work_stats_.draws;
+    if (in_render_pass_) {
+      deferred_command_buffer_->CmdVkBeginQuery(occlusion_query_pool_, host_index, 0);
+      active_occlusion_query_.state = OcclusionQueryState::kInRenderPass;
+    } else {
+      active_occlusion_query_.state = OcclusionQueryState::kWaitingForRenderPass;
     }
     return true;
   }
 
-  if (!active_occlusion_query_.valid ||
-      active_occlusion_query_.sample_count_address != sample_count_addr) {
-    DisableHostOcclusionQueries();
-    return write_fallback_result();
+  ActiveOcclusionQuery query = active_occlusion_query_;
+  active_occlusion_query_ = {};
+  if (query.valid && query.state == OcclusionQueryState::kInRenderPass) {
+    deferred_command_buffer_->CmdVkEndQuery(occlusion_query_pool_, query.host_index);
+    occlusion_queries_pending_.push_back(
+        PendingOcclusionQuery{sample_count_addr, query.host_index, GetCurrentSubmission()});
+    CountFrameEvent(g_frame_events.occlusion_measured);
+    return true;
   }
-
-  if (!EndGuestOcclusionQuery(sample_count_addr)) {
-    return write_fallback_result();
-  }
+  // Nothing was measured (no begin, nothing drawn, or the query couldn't be
+  // kept): report the object as visible.
+  WriteGuestOcclusionResult(sample_count_addr, visible_samples);
+  CountFrameEvent(g_frame_events.occlusion_reported_visible);
   return true;
 }
 
@@ -861,7 +981,8 @@ bool VulkanCommandProcessor::SetupContext() {
   uniform_buffer_pool_ = std::make_unique<ui::vulkan::VulkanUploadBufferPool>(
       vulkan_device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
       rex::align(std::max(ui::GraphicsUploadBufferPool::kDefaultPageSize, size_t(16384)),
-                 size_t(device_properties.minUniformBufferOffsetAlignment)));
+                 size_t(device_properties.minUniformBufferOffsetAlignment)),
+      size_t(kFloatConstantsMaxSize));
 
   // Descriptor set layouts that don't depend on the setup of other subsystems.
   VkShaderStageFlags guest_shader_stages =
@@ -884,7 +1005,7 @@ bool VulkanCommandProcessor::SetupContext() {
   for (uint32_t i = 0; i < SpirvShaderTranslator::kConstantBufferCount; ++i) {
     VkDescriptorSetLayoutBinding& constants_binding = descriptor_set_layout_bindings_constants[i];
     constants_binding.binding = i;
-    constants_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    constants_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     constants_binding.descriptorCount = 1;
     constants_binding.pImmutableSamplers = nullptr;
   }
@@ -1988,6 +2109,22 @@ bool VulkanCommandProcessor::SetupContext() {
   // Just not to expose uninitialized memory.
   std::memset(&system_constants_, 0, sizeof(system_constants_));
 
+  // GPU timing for the performance log (failure only disables it).
+  if (vulkan_device->properties().timestampComputeAndGraphics) {
+    VkQueryPoolCreateInfo query_pool_create_info = {};
+    query_pool_create_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    query_pool_create_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    query_pool_create_info.queryCount = kGpuTimestampSlots * kGpuTimestampsPerSlot;
+    if (dfn.vkCreateQueryPool(device, &query_pool_create_info, nullptr, &gpu_timestamp_pool_) !=
+        VK_SUCCESS) {
+      gpu_timestamp_pool_ = VK_NULL_HANDLE;
+    }
+    gpu_timestamp_categories_.assign(size_t(kGpuTimestampSlots) * kGpuTimestampsPerSlot, 0);
+    gpu_timestamp_counts_.assign(kGpuTimestampSlots, 0);
+  }
+
+  StartSubmitWorker();
+
   return true;
 }
 
@@ -2157,8 +2294,20 @@ void VulkanCommandProcessor::ShutdownContext() {
   sparse_buffer_binds_.clear();
   sparse_memory_binds_.clear();
 
-  deferred_command_buffer_.Reset();
-  upload_command_buffer_.Reset();
+  StopSubmitWorker();
+  // Jobs never submitted (a submission left open): their command pools go
+  // with the writable ones.
+  for (const std::unique_ptr<SubmitJob>& job : submit_queue_) {
+    command_buffers_writable_.push_back(job->command_buffer);
+  }
+  submit_queue_.clear();
+  submit_job_current_ = nullptr;
+  submit_jobs_free_.clear();
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyQueryPool, device, gpu_timestamp_pool_);
+  gpu_timestamp_pending_.clear();
+  deferred_command_buffer_ = closed_command_buffer_.get();
+  upload_command_buffer_ = closed_command_buffer_.get();
+  closed_command_buffer_->Reset();
   for (const auto& command_buffer_pair : command_buffers_submitted_) {
     dfn.vkDestroyCommandPool(device, command_buffer_pair.second.pool, nullptr);
   }
@@ -2208,6 +2357,7 @@ void VulkanCommandProcessor::ShutdownContext() {
   }
   current_submission_wait_semaphores_.clear();
   submission_completed_ = 0;
+  submissions_submitted_.store(0, std::memory_order_relaxed);
   submission_open_ = false;
 
   for (VkSemaphore semaphore : semaphores_free_) {
@@ -2225,6 +2375,12 @@ void VulkanCommandProcessor::ShutdownContext() {
 }
 
 void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
+  if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
+      index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5 &&
+      register_file_->values[index] == value) {
+    // Identical fetch constant write - nothing derived from it changes.
+    return;
+  }
   CommandProcessor::WriteRegister(index, value);
 
   if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X && index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
@@ -2332,11 +2488,32 @@ void VulkanCommandProcessor::WriteRegistersFromMem(uint32_t start_index, uint32_
 
   if (start_index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
       end_index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
-    memory::copy_and_swap(register_file_->values + start_index, base, num_registers);
+    // Games commonly re-upload whole fetch constant blocks every draw with
+    // mostly identical contents. Only invalidate what actually changed, so the
+    // texture bindings, the fetch constant buffer and vertex buffer residency
+    // aren't recomputed for identical writes.
+    uint32_t* dest = register_file_->values + start_index;
+    uint32_t first_changed = UINT32_MAX, last_changed = 0;
+    for (uint32_t i = 0; i < num_registers; ++i) {
+      uint32_t value;
+      std::memcpy(&value, base + i, sizeof(value));
+      value = rex::byte_swap(value);
+      if (dest[i] != value) {
+        dest[i] = value;
+        if (first_changed == UINT32_MAX) {
+          first_changed = i;
+        }
+        last_changed = i;
+      }
+    }
+    if (first_changed == UINT32_MAX) {
+      return;
+    }
     current_constant_buffers_up_to_date_ &=
         ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFetch);
-    uint32_t first_fetch_dword = start_index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
-    uint32_t last_fetch_dword = end_index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
+    uint32_t first_fetch_dword =
+        start_index + first_changed - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
+    uint32_t last_fetch_dword = start_index + last_changed - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
     if (texture_cache_) {
       texture_cache_->TextureFetchConstantsWritten(first_fetch_dword / 6, last_fetch_dword / 6);
     }
@@ -2373,6 +2550,7 @@ void VulkanCommandProcessor::OnGammaRampPWLValueWritten() {
 void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                                        uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
+  SetGpuTimeCategory(kGpuTimeOther);
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
 
@@ -2673,7 +2851,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
             gamma_ramp_buffer_copy.srcOffset = gamma_ramp_upload_offset;
             gamma_ramp_buffer_copy.dstOffset = gamma_ramp_offset_in_frame;
             gamma_ramp_buffer_copy.size = gamma_ramp_size;
-            deferred_command_buffer_.CmdVkCopyBuffer(gamma_ramp_upload_buffer_, gamma_ramp_buffer_,
+            deferred_command_buffer_->CmdVkCopyBuffer(gamma_ramp_upload_buffer_, gamma_ramp_buffer_,
                                                      1, &gamma_ramp_buffer_copy);
             PushBufferMemoryBarrier(gamma_ramp_buffer_, gamma_ramp_offset_in_frame, gamma_ramp_size,
                                     VK_PIPELINE_STAGE_TRANSFER_BIT, gamma_ramp_read_stage_mask,
@@ -2767,19 +2945,19 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
               swap_descriptor_source;
           swap_apply_gamma_compute_descriptor_sets[kSwapApplyGammaComputeDescriptorSetDestination] =
               swap_descriptor_destination_storage;
-          deferred_command_buffer_.CmdVkBindDescriptorSets(
+          deferred_command_buffer_->CmdVkBindDescriptorSets(
               VK_PIPELINE_BIND_POINT_COMPUTE, swap_apply_gamma_compute_pipeline_layout_, 0,
               uint32_t(swap_apply_gamma_compute_descriptor_sets.size()),
               swap_apply_gamma_compute_descriptor_sets.data(), 0, nullptr);
           SwapApplyGammaConstants swap_apply_gamma_constants = {
               {guest_output_width, guest_output_height}};
-          deferred_command_buffer_.CmdVkPushConstants(
+          deferred_command_buffer_->CmdVkPushConstants(
               swap_apply_gamma_compute_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
               sizeof(swap_apply_gamma_constants), &swap_apply_gamma_constants);
           BindExternalComputePipeline(swap_apply_gamma_compute_pipeline);
           uint32_t group_count_x = (guest_output_width + 15) / 16;
           uint32_t group_count_y = (guest_output_height + 7) / 8;
-          deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
+          deferred_command_buffer_->CmdVkDispatch(group_count_x, group_count_y, 1);
 
           // Swap colour grade (photo mode filters), in place on what the gamma
           // pass just wrote, so FXAA, presentation and screenshots all see it.
@@ -2797,7 +2975,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
             SubmitBarriers(true);
             // The destination storage descriptor already points at that image.
-            deferred_command_buffer_.CmdVkBindDescriptorSets(
+            deferred_command_buffer_->CmdVkBindDescriptorSets(
                 VK_PIPELINE_BIND_POINT_COMPUTE, swap_color_grade_pipeline_layout_, 0, 1,
                 &swap_descriptor_destination_storage, 0, nullptr);
             SwapColorGradeConstants grade_constants;
@@ -2811,11 +2989,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
             std::memcpy(grade_constants.shadows, grade.shadows, sizeof(grade.shadows));
             std::memcpy(grade_constants.highlights, grade.highlights, sizeof(grade.highlights));
             std::memcpy(grade_constants.fade, grade.fade, sizeof(grade.fade));
-            deferred_command_buffer_.CmdVkPushConstants(swap_color_grade_pipeline_layout_,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT, 0,
-                                                        sizeof(grade_constants), &grade_constants);
+            deferred_command_buffer_->CmdVkPushConstants(swap_color_grade_pipeline_layout_,
+                                                         VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                                                         sizeof(grade_constants), &grade_constants);
             BindExternalComputePipeline(color_grade_pipeline);
-            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
+            deferred_command_buffer_->CmdVkDispatch(group_count_x, group_count_y, 1);
             static bool grade_logged = false;
             if (!grade_logged) {
               grade_logged = true;
@@ -2880,20 +3058,20 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
             swap_fxaa_descriptor_sets[kSwapFxaaDescriptorSetSource] = swap_descriptor_fxaa_source;
             swap_fxaa_descriptor_sets[kSwapFxaaDescriptorSetDestination] =
                 swap_descriptor_fxaa_destination_storage;
-            deferred_command_buffer_.CmdVkBindDescriptorSets(
+            deferred_command_buffer_->CmdVkBindDescriptorSets(
                 VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
                 uint32_t(swap_fxaa_descriptor_sets.size()), swap_fxaa_descriptor_sets.data(), 0,
                 nullptr);
             SwapFxaaConstants swap_fxaa_constants = {
                 {guest_output_width, guest_output_height},
                 {1.0f / float(guest_output_width), 1.0f / float(guest_output_height)}};
-            deferred_command_buffer_.CmdVkPushConstants(
+            deferred_command_buffer_->CmdVkPushConstants(
                 swap_fxaa_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                 sizeof(swap_fxaa_constants), &swap_fxaa_constants);
             BindExternalComputePipeline(swap_post_effect == SwapPostEffect::kFxaaExtreme
                                             ? swap_fxaa_extreme_pipeline_
                                             : swap_fxaa_pipeline_);
-            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
+            deferred_command_buffer_->CmdVkDispatch(group_count_x, group_count_y, 1);
           }
 
           // Insert the release barrier.
@@ -2999,7 +3177,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
           render_pass_begin_info.renderArea.extent.height = guest_output_height;
           render_pass_begin_info.clearValueCount = 0;
           render_pass_begin_info.pClearValues = nullptr;
-          deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+          deferred_command_buffer_->CmdVkBeginRenderPass(&render_pass_begin_info,
                                                         VK_SUBPASS_CONTENTS_INLINE);
 
           VkViewport viewport;
@@ -3044,12 +3222,12 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
               swap_descriptors_gamma_ramp_[2 * gamma_ramp_frame_index_ref +
                                            uint32_t(use_pwl_gamma_ramp)];
           swap_descriptor_sets[kSwapApplyGammaDescriptorSetSource] = swap_descriptor_source;
-          deferred_command_buffer_.CmdVkBindDescriptorSets(
+          deferred_command_buffer_->CmdVkBindDescriptorSets(
               VK_PIPELINE_BIND_POINT_GRAPHICS, swap_apply_gamma_pipeline_layout_, 0,
               uint32_t(swap_descriptor_sets.size()), swap_descriptor_sets.data(), 0, nullptr);
 
-          deferred_command_buffer_.CmdVkDraw(3, 1, 0, 0);
-          deferred_command_buffer_.CmdVkEndRenderPass();
+          deferred_command_buffer_->CmdVkDraw(3, 1, 0, 0);
+          deferred_command_buffer_->CmdVkEndRenderPass();
 
           // Insert the release barrier.
           PushImageMemoryBarrier(vulkan_context.image(), guest_output_subresource_range,
@@ -3211,7 +3389,7 @@ bool VulkanCommandProcessor::SubmitBarriers(bool force_end_render_pass) {
     // .data() + offset, not &[offset], for buffer and image barriers, because
     // if there are no buffer or image memory barriers in the last pipeline
     // barriers, the offsets may be equal to the sizes of the vectors.
-    deferred_command_buffer_.CmdVkPipelineBarrier(
+    deferred_command_buffer_->CmdVkPipelineBarrier(
         it->src_stage_mask ? it->src_stage_mask : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         it->dst_stage_mask ? it->dst_stage_mask : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0,
         nullptr,
@@ -3249,12 +3427,14 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
       return;
     }
   }
+  ++work_stats_.render_passes;
 
   if (in_render_pass_) {
+    OcclusionQueryRenderPassEnding();
     if (use_dynamic_rendering) {
-      deferred_command_buffer_.CmdVkEndRendering();
+      deferred_command_buffer_->CmdVkEndRendering();
     } else {
-      deferred_command_buffer_.CmdVkEndRenderPass();
+      deferred_command_buffer_->CmdVkEndRenderPass();
     }
     in_render_pass_ = false;
   }
@@ -3285,7 +3465,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     rendering_info.pColorAttachments = color_attachment_count ? color_attachments : nullptr;
     rendering_info.pDepthAttachment = has_depth ? &depth_attachment : nullptr;
     rendering_info.pStencilAttachment = has_stencil ? &stencil_attachment : nullptr;
-    deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
+    deferred_command_buffer_->CmdVkBeginRendering(&rendering_info);
   } else {
     VkRenderPassBeginInfo render_pass_begin_info;
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -3299,10 +3479,11 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
     render_pass_begin_info.clearValueCount = 0;
     render_pass_begin_info.pClearValues = nullptr;
-    deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+    deferred_command_buffer_->CmdVkBeginRenderPass(&render_pass_begin_info,
                                                   VK_SUBPASS_CONTENTS_INLINE);
   }
   in_render_pass_ = true;
+  OcclusionQueryRenderPassBegun();
 }
 
 void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
@@ -3323,12 +3504,14 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
       return;
     }
   }
+  ++work_stats_.render_passes;
 
   if (in_render_pass_) {
+    OcclusionQueryRenderPassEnding();
     if (use_dynamic_rendering) {
-      deferred_command_buffer_.CmdVkEndRendering();
+      deferred_command_buffer_->CmdVkEndRendering();
     } else {
-      deferred_command_buffer_.CmdVkEndRenderPass();
+      deferred_command_buffer_->CmdVkEndRenderPass();
     }
     in_render_pass_ = false;
   }
@@ -3379,7 +3562,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     rendering_info.pColorAttachments = transfer_dest_is_depth ? nullptr : &color_attachment;
     rendering_info.pDepthAttachment = transfer_dest_is_depth ? &depth_attachment : nullptr;
     rendering_info.pStencilAttachment = transfer_dest_is_depth ? &stencil_attachment : nullptr;
-    deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
+    deferred_command_buffer_->CmdVkBeginRendering(&rendering_info);
   } else {
     VkRenderPassBeginInfo render_pass_begin_info;
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -3391,10 +3574,11 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
     render_pass_begin_info.clearValueCount = 0;
     render_pass_begin_info.pClearValues = nullptr;
-    deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+    deferred_command_buffer_->CmdVkBeginRenderPass(&render_pass_begin_info,
                                                   VK_SUBPASS_CONTENTS_INLINE);
   }
   in_render_pass_ = true;
+  OcclusionQueryRenderPassBegun();
 }
 
 void VulkanCommandProcessor::EndRenderPass() {
@@ -3402,10 +3586,11 @@ void VulkanCommandProcessor::EndRenderPass() {
   if (!in_render_pass_) {
     return;
   }
+  OcclusionQueryRenderPassEnding();
   if (current_render_pass_ == VK_NULL_HANDLE) {
-    deferred_command_buffer_.CmdVkEndRendering();
+    deferred_command_buffer_->CmdVkEndRendering();
   } else {
-    deferred_command_buffer_.CmdVkEndRenderPass();
+    deferred_command_buffer_->CmdVkEndRenderPass();
   }
   current_render_pass_ = VK_NULL_HANDLE;
   current_framebuffer_ = nullptr;
@@ -3675,7 +3860,7 @@ void VulkanCommandProcessor::BindExternalGraphicsPipeline(VkPipeline pipeline,
   if (current_external_graphics_pipeline_ == pipeline) {
     return;
   }
-  deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+  deferred_command_buffer_->CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
   current_external_graphics_pipeline_ = pipeline;
   current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
   current_guest_graphics_pipeline_layout_ = VK_NULL_HANDLE;
@@ -3685,7 +3870,7 @@ void VulkanCommandProcessor::BindExternalComputePipeline(VkPipeline pipeline) {
   if (current_external_compute_pipeline_ == pipeline) {
     return;
   }
-  deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+  deferred_command_buffer_->CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
   current_external_compute_pipeline_ = pipeline;
 }
 
@@ -3700,7 +3885,7 @@ void VulkanCommandProcessor::SetViewport(const VkViewport& viewport) {
   }
   if (dynamic_viewport_update_needed_) {
     dynamic_viewport_ = viewport;
-    deferred_command_buffer_.CmdVkSetViewport(0, 1, &dynamic_viewport_);
+    deferred_command_buffer_->CmdVkSetViewport(0, 1, &dynamic_viewport_);
     dynamic_viewport_update_needed_ = false;
   }
 }
@@ -3714,7 +3899,7 @@ void VulkanCommandProcessor::SetScissor(const VkRect2D& scissor) {
   }
   if (dynamic_scissor_update_needed_) {
     dynamic_scissor_ = scissor;
-    deferred_command_buffer_.CmdVkSetScissor(0, 1, &dynamic_scissor_);
+    deferred_command_buffer_->CmdVkSetScissor(0, 1, &dynamic_scissor_);
     dynamic_scissor_update_needed_ = false;
   }
 }
@@ -3737,6 +3922,13 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
+  // Hand the draw's commands to the submission worker on every return path
+  // (a local class may use the member function's private names).
+  struct PublishOnReturn {
+    VulkanCommandProcessor& command_processor;
+    ~PublishOnReturn() { command_processor.PublishSubmitJob(); }
+  } publish_on_return{*this};
+  SetGpuTimeCategory(kGpuTimeDraw);
 
   const RegisterFile& regs = *register_file_;
   (void)index_buffer_info;
@@ -3751,6 +3943,15 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
         uint32_t(regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select),
         uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode),
         uint32_t(regs.Get<reg::RB_MODECONTROL>().edram_mode));
+    CountFrameEvent(g_frame_events.draw_failures);
+    if (g_frame_dump.active) {
+      ++g_frame_dump.frame_draw_failures;
+      const Shader* vs = active_vertex_shader();
+      const Shader* ps = active_pixel_shader();
+      FrameDumpEvent(fmt::format("  DRAW FAILED at {}: prim {} indices {}, vs {:016X} ps {:016X}",
+                                 stage, uint32_t(prim_type), index_count,
+                                 vs ? vs->ucode_data_hash() : 0, ps ? ps->ucode_data_hash() : 0));
+    }
     return false;
   };
 
@@ -3774,20 +3975,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
   // These memexport shaders only read data the CPU wrote, so the CPU can give the
-  // guest their output directly. The draw still runs, only the wait to read the
-  // result back is skipped (same as the D3D12 command processor).
-  bool memexport_computed_on_cpu = false;
-  {
-    uint32_t written_start = 0, written_length = 0;
-    const uint64_t vs_hash = vertex_shader->ucode_data_hash();
-    memexport_computed_on_cpu =
-        (vs_hash == kFable2TerrainTessShader && REXCVAR_GET(terrain_tess_cpu) &&
-         ComputeFable2TerrainTess(*register_file_, *memory_, *vertex_shader, written_start,
-                                  written_length)) ||
-        (vs_hash == kFable2SkinningShader && REXCVAR_GET(skinning_cpu) &&
-         ComputeFable2Skinning(*register_file_, *memory_, *vertex_shader, nullptr, written_start,
-                               written_length));
-  }
+  // guest their output directly. The wait to read the result back is skipped,
+  // and the draw itself too if that's all it does (memexport_skip_cpu_computed,
+  // below).
+  uint32_t memexport_cpu_start = 0, memexport_cpu_length = 0;
+  const bool memexport_computed_on_cpu = fable2::ComputeMemexportOnCpu(
+      *register_file_, *memory_, *vertex_shader, &memexport_cpu_start, &memexport_cpu_length);
   bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
   if (memexport_used_vertex) {
     if (!device_properties.vertexPipelineStoresAndAtomics) {
@@ -3802,6 +3995,32 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
   bool is_rasterization_done = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  // A memexport-only draw whose whole output the CPU has written: running it
+  // would only write the same bytes again. The CPU wrote through the physical
+  // mapping, which doesn't trigger the write watches, so the GPU's copy of the
+  // range is invalidated here instead; the draws that read the output upload
+  // the CPU's result.
+  if (memexport_computed_on_cpu && !is_rasterization_done && memexport_cpu_length &&
+      !memexport_ranges_.empty() && REXCVAR_GET(memexport_skip_cpu_computed)) {
+    const uint64_t cpu_end = uint64_t(memexport_cpu_start) + memexport_cpu_length;
+    bool covered = true;
+    for (const draw_util::MemExportRange& range : memexport_ranges_) {
+      const uint64_t start = uint64_t(range.base_address_dwords) << 2;
+      if (start < memexport_cpu_start || start + range.size_bytes > cpu_end) {
+        covered = false;
+        break;
+      }
+    }
+    if (covered) {
+      shared_memory_->MemoryInvalidationCallback(memexport_cpu_start, memexport_cpu_length, true);
+      CountFrameEvent(g_frame_events.memexport_draws_skipped);
+      memexport_ranges_.clear();
+      return true;
+    }
+  }
+  if (memexport_computed_on_cpu) {
+    CountFrameEvent(g_frame_events.memexport_draws_cpu_kept);
+  }
   if (surface_pitch_is_zero && is_rasterization_done) {
     // Doesn't actually draw.
     // Unlikely that zero would even really be legal though.
@@ -3854,6 +4073,40 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   VulkanShader::VulkanTranslation* vertex_shader_translation;
   VulkanShader::VulkanTranslation* pixel_shader_translation;
   bool memexport_writes_possible = memexport_used_vertex || memexport_used_pixel;
+
+  // A frame rendered in two tiles: the first tile's draws cover the second
+  // tile's rows as well, and the second tile's draws are dropped. The decision
+  // only depends on registers and the tile merge state. Returns false for a
+  // dropped draw.
+  auto apply_tile_merge = [&]() -> bool {
+    tile_merge_scissor_bottom_ = 0;
+    tile_merge_without_window_offset_ = false;
+    if (!is_rasterization_done || memexport_used_vertex) {
+      return true;
+    }
+    switch (render_target_cache_->GetTileMergeDrawAction(frame_current_, bin_select_, bin_mask_,
+                                                         tile_merge_scissor_bottom_)) {
+      case VulkanRenderTargetCache::TileMergeAction::kSkipDraw:
+        CountFrameEvent(g_frame_events.tile_draws_merged);
+        if (g_frame_dump.active) {
+          ++g_frame_dump.frame_tile_draws_merged;
+        }
+        return false;
+      case VulkanRenderTargetCache::TileMergeAction::kDrawWithoutWindowOffset:
+        tile_merge_without_window_offset_ = true;
+        break;
+      default:
+        break;
+    }
+    return true;
+  };
+  // Decided before the draw is set up (edram_merge_tiles_early), so a dropped
+  // draw costs no primitive processing, shader translation, texture or sampler
+  // work; otherwise just before the render targets are updated.
+  const bool tile_merge_early = REXCVAR_GET(edram_merge_tiles_early);
+  if (tile_merge_early && !apply_tile_merge()) {
+    return true;
+  }
 
   // Two iterations because a submission (even the current one - in which case
   // it needs to be ended, and a new one must be started) may need to be awaited
@@ -3988,20 +4241,41 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       pixel_shader ? draw_util::GetNormalizedColorMask(regs, pixel_shader->writes_color_targets())
                    : 0;
 
+  if (!tile_merge_early && !apply_tile_merge()) {
+    return true;
+  }
+
+  // A Direct3D 9 clear drawn through a 4x view of EDRAM: applied straight to
+  // the render targets holding that memory, without the draw.
+  SetGpuTimeCategory(kGpuTimeRenderTarget);
+  if (render_target_cache_->TryForwardClearThrough4xView(
+          *memory_, *vertex_shader, pixel_shader, normalized_depth_control,
+          normalized_color_mask)) {
+    SetGpuTimeCategory(kGpuTimeDraw);
+    return true;
+  }
+
   // Update the textures before most other work in the submission because
   // samplers depend on this (and in case of sampler overflow in a submission,
   // submissions must be split) - may perform dispatches and copying.
   uint32_t used_texture_mask =
       vertex_shader->GetUsedTextureMaskAfterTranslation() |
       (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMaskAfterTranslation() : 0);
+  SetGpuTimeCategory(kGpuTimeTextureLoad);
   texture_cache_->RequestTextures(used_texture_mask);
 
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
   // Set up the render targets - this may perform dispatches and draws.
+  SetGpuTimeCategory(kGpuTimeRenderTarget);
+  render_target_cache_->SetDepthOverwrittenByNextUpdate(
+      fable2::ShouldSkipDepthTransfers(regs, *memory_, *vertex_shader));
+  render_target_cache_->SetNextUpdateDrawState(pixel_shader, normalized_depth_control);
   if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
                                     normalized_color_mask, *vertex_shader)) {
+    SetGpuTimeCategory(kGpuTimeDraw);
     return draw_fail("render_target_update");
   }
+  SetGpuTimeCategory(kGpuTimeDraw);
 
   // Create the pipeline (for this, need the render pass from the render target
   // cache), translating the shaders - doing this now to obtain the used
@@ -4021,14 +4295,38 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   pipeline_cache_->GetPipelineAndLayoutByHandle(pipeline_handle, pipeline, pipeline_layout_provider,
                                                 &pipeline_is_placeholder);
   if (REXCVAR_GET(async_shader_compilation) && pipeline_is_placeholder) {
-    frame_used_async_placeholder_pipeline_ = true;
-    return true;
+    // Drawing with the placeholder (which discards every pixel) leaves objects
+    // missing for that frame and corrupts any texture rendered by the pass, so
+    // wait for the real pipeline instead, as on D3D12. Only the first use of a
+    // pipeline can stall, as without async compilation.
+    const auto pipeline_wait_start = std::chrono::steady_clock::now();
+    const bool pipeline_ready =
+        REXCVAR_GET(async_pipeline_wait) &&
+        pipeline_cache_->WaitForPipeline(
+            pipeline_handle, uint32_t(std::max(100, REXCVAR_GET(async_pipeline_wait_timeout_ms))));
+    if (REXCVAR_GET(async_pipeline_wait)) {
+      NoteGpuSync(GpuSyncKind::kPipelineWait, pipeline_wait_start);
+    }
+    if (!pipeline_ready) {
+      frame_used_async_placeholder_pipeline_ = true;
+      CountFrameEvent(g_frame_events.draw_failures);
+      if (g_frame_dump.active) {
+        ++g_frame_dump.frame_draw_failures;
+        FrameDumpEvent(fmt::format(
+            "  DRAW DROPPED: pipeline not ready, vs {:016X} ps {:016X}",
+            vertex_shader->ucode_data_hash(), pixel_shader ? pixel_shader->ucode_data_hash() : 0));
+      }
+      return true;
+    }
+    pipeline_cache_->GetPipelineAndLayoutByHandle(pipeline_handle, pipeline,
+                                                  pipeline_layout_provider, &pipeline_is_placeholder);
   }
   if (pipeline == VK_NULL_HANDLE || pipeline_layout_provider == nullptr) {
     return draw_fail("pipeline_lookup");
   }
   if (current_guest_graphics_pipeline_ != pipeline) {
-    deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    ++work_stats_.pipeline_binds;
+    deferred_command_buffer_->CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     current_guest_graphics_pipeline_ = pipeline;
     current_external_graphics_pipeline_ = VK_NULL_HANDLE;
   }
@@ -4084,6 +4382,13 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   // life. Or even disregard the viewport bounds range in the fragment shader
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
+  // A draw of the second of two merged tiles that the first tile didn't
+  // include: the host viewport and scissor are those it would have without the
+  // tile's window offset (the render target cache has seen the real one).
+  const uint32_t window_offset_saved = register_file_->values[XE_GPU_REG_PA_SC_WINDOW_OFFSET];
+  if (tile_merge_without_window_offset_) {
+    register_file_->values[XE_GPU_REG_PA_SC_WINDOW_OFFSET] = 0;
+  }
   draw_util::GetHostViewportInfo(
       regs, draw_resolution_scale_x, draw_resolution_scale_y, false,
       device_properties.maxViewportDimensions[0], device_properties.maxViewportDimensions[1], true,
@@ -4092,7 +4397,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       host_render_targets_used, pixel_shader && pixel_shader->writes_depth(), viewport_info);
 
   // Update dynamic graphics pipeline state.
-  UpdateDynamicState(viewport_info, primitive_polygonal, normalized_depth_control);
+  UpdateDynamicState(viewport_info, primitive_polygonal, normalized_depth_control, pixel_shader);
+  register_file_->values[XE_GPU_REG_PA_SC_WINDOW_OFFSET] = window_offset_saved;
 
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
 
@@ -4237,7 +4543,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       guest_dma_index_copy_region.srcOffset = primitive_processing_result.guest_index_base;
       guest_dma_index_copy_region.dstOffset = 0;
       guest_dma_index_copy_region.size = guest_dma_index_size;
-      deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(),
+      deferred_command_buffer_->CmdVkCopyBuffer(shared_memory_->buffer(),
                                                guest_dma_index_scratch_buffer.buffer(), 1,
                                                &guest_dma_index_copy_region);
       PushBufferMemoryBarrier(
@@ -4267,6 +4573,13 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
   }
 
+  // The draw itself, for the GPU time breakdown.
+  SetGpuTimeCategory(primitive_processing_result.IsTessellated() ? kGpuTimeTessellation
+                     : memexport_writes_possible                  ? kGpuTimeMemexport
+                     : REXCVAR_GET(log_perf_gpu_passes) && gpu_timestamp_pool_ != VK_NULL_HANDLE
+                         ? GetGpuTimePassCategory(normalized_color_mask, normalized_depth_control)
+                         : kGpuTimeDraw);
+
   // After all commands that may dispatch, copy or insert barriers, submit
   // the barriers (may end the render pass), and (re)enter the render pass
   // before drawing.
@@ -4274,11 +4587,20 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       render_target_cache_->last_update_render_pass(),
       render_target_cache_->last_update_framebuffer());
 
+  if (g_frame_dump.active) {
+    FrameDumpDraw(regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET], regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL],
+                  regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR], bin_select_, bin_mask_,
+                  vertex_shader->ucode_data_hash(),
+                  pixel_shader ? pixel_shader->ucode_data_hash() : 0,
+                  primitive_processing_result.host_draw_vertex_count,
+                  primitive_processing_result.IsTessellated(), memexport_writes_possible);
+  }
+
   // Draw.
   if (primitive_processing_result.index_buffer_type ==
           PrimitiveProcessor::ProcessedIndexBufferType::kNone ||
       shader_32bit_index_dma) {
-    deferred_command_buffer_.CmdVkDraw(primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
+    deferred_command_buffer_->CmdVkDraw(primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
   } else {
     std::pair<VkBuffer, VkDeviceSize> index_buffer;
     switch (primitive_processing_result.index_buffer_type) {
@@ -4304,12 +4626,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
         assert_unhandled_case(primitive_processing_result.index_buffer_type);
         return draw_fail("unexpected_index_buffer_type");
     }
-    deferred_command_buffer_.CmdVkBindIndexBuffer(
+    deferred_command_buffer_->CmdVkBindIndexBuffer(
         index_buffer.first, index_buffer.second,
         primitive_processing_result.host_index_format == xenos::IndexFormat::kInt16
             ? VK_INDEX_TYPE_UINT16
             : VK_INDEX_TYPE_UINT32);
-    deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
+    deferred_command_buffer_->CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
                                               0, 0, 0);
   }
 
@@ -4374,7 +4696,7 @@ bool VulkanCommandProcessor::IssueDraw_MemexportReadbackFullPath(uint32_t total_
     readback_region.srcOffset = memexport_range.base_address_dwords << 2;
     readback_region.dstOffset = readback_offset;
     readback_region.size = memexport_range.size_bytes;
-    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(), readback_buffer, 1,
+    deferred_command_buffer_->CmdVkCopyBuffer(shared_memory_->buffer(), readback_buffer, 1,
                                              &readback_region);
     readback_offset += memexport_range.size_bytes;
   }
@@ -4382,7 +4704,10 @@ bool VulkanCommandProcessor::IssueDraw_MemexportReadbackFullPath(uint32_t total_
                           VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                           VK_ACCESS_HOST_READ_BIT);
 
-  if (!AwaitAllQueueOperationsCompletion()) {
+  const auto memexport_wait_start = std::chrono::steady_clock::now();
+  const bool memexport_awaited = AwaitAllQueueOperationsCompletion();
+  NoteGpuSync(GpuSyncKind::kMemexportReadback, memexport_wait_start);
+  if (!memexport_awaited) {
     REXGPU_ERROR("Failed to await completion of Vulkan memexport readback");
     dfn.vkDestroyBuffer(device, readback_buffer, nullptr);
     dfn.vkFreeMemory(device, readback_memory, nullptr);
@@ -4517,7 +4842,7 @@ bool VulkanCommandProcessor::IssueDraw_MemexportReadbackFastPath(uint32_t total_
     readback_region.srcOffset = memexport_range.base_address_dwords << 2;
     readback_region.dstOffset = readback_offset;
     readback_region.size = memexport_range.size_bytes;
-    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(),
+    deferred_command_buffer_->CmdVkCopyBuffer(shared_memory_->buffer(),
                                              readback.buffers[write_index], 1, &readback_region);
     readback_offset += memexport_range.size_bytes;
   }
@@ -4541,7 +4866,9 @@ bool VulkanCommandProcessor::IssueDraw_MemexportReadbackFastPath(uint32_t total_
     // is always one memexport draw old, whether or not the GPU has caught up.
     // A copy recorded in the still-open submission is left to the full path
     // below, as without this cvar, so the open submission is never ended here.
+    const auto fast_wait_start = std::chrono::steady_clock::now();
     CheckSubmissionFenceAndDeviceLoss(readback.submission_written[read_index]);
+    NoteGpuSync(GpuSyncKind::kMemexportReadback, fast_wait_start);
   }
   bool previous_slot_ready =
       previous_slot_written && readback.submission_written[read_index] <= submission_completed_;
@@ -4574,6 +4901,11 @@ bool VulkanCommandProcessor::IssueCopy() {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
+  struct PublishOnReturn {
+    VulkanCommandProcessor& command_processor;
+    ~PublishOnReturn() { command_processor.PublishSubmitJob(); }
+  } publish_on_return{*this};
+  SetGpuTimeCategory(kGpuTimeResolve);
 
   if (!BeginSubmission(true)) {
     return false;
@@ -4584,7 +4916,7 @@ bool VulkanCommandProcessor::IssueCopy() {
       !ShouldForceReadbackResolve(register_file_->values[XE_GPU_REG_RB_COPY_DEST_BASE])) {
     uint32_t written_address, written_length;
     return render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
-                                         written_address, written_length);
+                                         written_address, written_length, false);
   }
 
   return IssueCopy_ReadbackResolvePath();
@@ -4660,6 +4992,8 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     readback.memories[index] = new_memory;
     readback.mapped_data[index] = new_mapping;
     readback.sizes[index] = size;
+    readback.submission_written[index] = 0;
+    readback.written_size[index] = 0;
     return true;
   };
 
@@ -4781,7 +5115,7 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     pre_barrier.buffer = resolve_downscale_buffer_;
     pre_barrier.offset = 0;
     pre_barrier.size = written_length;
-    deferred_command_buffer_.CmdVkPipelineBarrier(
+    deferred_command_buffer_->CmdVkPipelineBarrier(
         VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &pre_barrier, 0, nullptr);
 
@@ -4797,13 +5131,13 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
                                    (constants.scale_x > 1 || constants.scale_y > 1))
                                       ? 1u
                                       : 0u;
-    deferred_command_buffer_.CmdVkPushConstants(resolve_downscale_pipeline_layout_,
+    deferred_command_buffer_->CmdVkPushConstants(resolve_downscale_pipeline_layout_,
                                                 VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants),
                                                 &constants);
-    deferred_command_buffer_.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE,
+    deferred_command_buffer_->CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE,
                                                      resolve_downscale_pipeline_layout_, 0, 1,
                                                      &descriptor_set, 0, nullptr);
-    deferred_command_buffer_.CmdVkDispatch(tile_count, 1, 1);
+    deferred_command_buffer_->CmdVkDispatch(tile_count, 1, 1);
 
     VkBufferMemoryBarrier downscale_barrier = {};
     downscale_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -4814,7 +5148,7 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     downscale_barrier.buffer = resolve_downscale_buffer_;
     downscale_barrier.offset = 0;
     downscale_barrier.size = written_length;
-    deferred_command_buffer_.CmdVkPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    deferred_command_buffer_->CmdVkPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1,
                                                   &downscale_barrier, 0, nullptr);
 
@@ -4822,7 +5156,7 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     readback_region.srcOffset = 0;
     readback_region.dstOffset = 0;
     readback_region.size = written_length;
-    deferred_command_buffer_.CmdVkCopyBuffer(resolve_downscale_buffer_,
+    deferred_command_buffer_->CmdVkCopyBuffer(resolve_downscale_buffer_,
                                              readback.buffers[write_index], 1, &readback_region);
   } else {
     shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
@@ -4832,37 +5166,44 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     readback_region.srcOffset = written_address;
     readback_region.dstOffset = 0;
     readback_region.size = written_length;
-    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(),
+    deferred_command_buffer_->CmdVkCopyBuffer(shared_memory_->buffer(),
                                              readback.buffers[write_index], 1, &readback_region);
   }
 
   PushBufferMemoryBarrier(readback.buffers[write_index], 0, written_length,
                           VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
                           VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+  readback.submission_written[write_index] = GetCurrentSubmission();
+  readback.written_size[write_index] = written_length;
 
-  bool use_delayed_sync =
-      readback_mode == ReadbackResolveMode::kFast || readback_mode == ReadbackResolveMode::kSome;
-  uint32_t read_index = write_index;
-  if (use_delayed_sync) {
-    read_index = 1 - write_index;
-  } else if (!AwaitAllQueueOperationsCompletion()) {
-    return true;
-  }
-
-  bool is_cache_miss = false;
-  if (use_delayed_sync && (readback.buffers[read_index] == VK_NULL_HANDLE ||
-                           written_length > readback.sizes[read_index] ||
-                           readback.mapped_data[read_index] == nullptr)) {
-    is_cache_miss = true;
-    read_index = write_index;
-    if (!AwaitAllQueueOperationsCompletion()) {
+  // Reaching here with readback disabled means this resolve was forced by
+  // readback_resolve_force_addresses.
+  const bool forced = readback_mode == ReadbackResolveMode::kDisabled;
+  const bool use_delayed_sync =
+      readback_mode == ReadbackResolveMode::kFast || readback_mode == ReadbackResolveMode::kSome ||
+      (forced && REXCVAR_GET(readback_resolve_force_delayed));
+  const uint32_t previous_index = 1 - write_index;
+  const bool previous_valid = readback.submission_written[previous_index] != 0 &&
+                              readback.written_size[previous_index] == written_length;
+  if (readback_mode != ReadbackResolveMode::kSome || !previous_valid) {
+    const uint32_t read_index = use_delayed_sync && previous_valid ? previous_index : write_index;
+    const uint64_t read_submission = readback.submission_written[read_index];
+    if (read_submission >= GetCurrentSubmission()) {
+      const auto wait_start = std::chrono::steady_clock::now();
+      const bool completed = AwaitAllQueueOperationsCompletion();
+      NoteGpuSync(GpuSyncKind::kResolveReadback, wait_start);
+      if (!completed) {
+        return true;
+      }
+    } else if (read_submission > GetCompletedSubmission()) {
+      // Async submission can leave the previous copy in flight.
+      const auto wait_start = std::chrono::steady_clock::now();
+      CheckSubmissionFenceAndDeviceLoss(read_submission);
+      NoteGpuSync(GpuSyncKind::kResolveReadback, wait_start);
+    }
+    if (read_submission > GetCompletedSubmission()) {
       return true;
     }
-  }
-
-  bool should_copy = (readback_mode == ReadbackResolveMode::kSome) ? is_cache_miss : true;
-  if (should_copy && readback.buffers[read_index] != VK_NULL_HANDLE &&
-      written_length <= readback.sizes[read_index] && readback.mapped_data[read_index] != nullptr) {
     VkMappedMemoryRange readback_memory_range = {};
     readback_memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     readback_memory_range.memory = readback.memories[read_index];
@@ -4923,7 +5264,12 @@ void VulkanCommandProcessor::EvictOldReadbackBuffers(
 
 bool VulkanCommandProcessor::InitializeOcclusionQueryResources() {
   active_occlusion_query_ = {};
-  occlusion_query_cursor_ = 0;
+  occlusion_queries_pending_.clear();
+  occlusion_query_block_ = UINT32_MAX;
+  occlusion_query_block_used_ = 0;
+  occlusion_query_block_next_ = 0;
+  std::fill(std::begin(occlusion_query_block_last_submission_),
+            std::end(occlusion_query_block_last_submission_), uint64_t(0));
   occlusion_query_resources_available_ = false;
   occlusion_query_pool_ = VK_NULL_HANDLE;
   occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
@@ -4999,108 +5345,128 @@ void VulkanCommandProcessor::ShutdownOcclusionQueryResources() {
   occlusion_query_readback_memory_size_ = 0;
 }
 
-bool VulkanCommandProcessor::AcquireOcclusionQueryIndex(uint32_t& host_index_out) {
-  if (occlusion_query_cursor_ >= kMaxOcclusionQueries) {
-    occlusion_query_cursor_ = 0;
+bool VulkanCommandProcessor::AcquireOcclusionQueryIndex(uint32_t& host_index_out,
+                                                       bool may_reset) {
+  const uint64_t submission = GetCurrentSubmission();
+  if (occlusion_query_block_ == UINT32_MAX || occlusion_query_block_submission_ != submission ||
+      occlusion_query_block_used_ >= kOcclusionQueryBlockSize) {
+    // A new block is needed. It's reset with a command, which can't be in a
+    // render pass, so only when the caller allows ending the render pass.
+    if (!may_reset) {
+      return false;
+    }
+    uint32_t block = occlusion_query_block_next_;
+    uint64_t block_last_submission = occlusion_query_block_last_submission_[block];
+    if (block_last_submission > submission_completed_) {
+      // Its previous queries are still in flight (rare: 8 submissions with
+      // queries ago).
+      CheckSubmissionFenceAndDeviceLoss(block_last_submission);
+      if (submission_completed_ < block_last_submission) {
+        return false;
+      }
+    }
+    DeliverCompletedOcclusionQueries();
+    if (!submission_open_ && !BeginSubmission(true)) {
+      return false;
+    }
+    EndRenderPass();
+    deferred_command_buffer_->CmdVkResetQueryPool(
+        occlusion_query_pool_, block * kOcclusionQueryBlockSize, kOcclusionQueryBlockSize);
+    occlusion_query_block_ = block;
+    occlusion_query_block_submission_ = GetCurrentSubmission();
+    occlusion_query_block_used_ = 0;
+    occlusion_query_block_last_submission_[block] = occlusion_query_block_submission_;
+    occlusion_query_block_next_ = (block + 1) % kOcclusionQueryBlocks;
   }
-  host_index_out = occlusion_query_cursor_++;
+  host_index_out = occlusion_query_block_ * kOcclusionQueryBlockSize + occlusion_query_block_used_++;
   return true;
 }
 
-void VulkanCommandProcessor::DisableHostOcclusionQueries() {
-  if (active_occlusion_query_.valid && occlusion_query_pool_ != VK_NULL_HANDLE) {
-    if (BeginSubmission(true)) {
-      deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
-                                             active_occlusion_query_.host_index);
-      EndSubmission(false);
+void VulkanCommandProcessor::OcclusionQueryRenderPassBegun() {
+  if (!active_occlusion_query_.valid ||
+      active_occlusion_query_.state != OcclusionQueryState::kWaitingForRenderPass) {
+    return;
+  }
+  // The index may be from the block of an earlier submission, whose reset
+  // this submission doesn't order after: take a new one in that case.
+  if (occlusion_query_block_submission_ != GetCurrentSubmission() &&
+      !AcquireOcclusionQueryIndex(active_occlusion_query_.host_index, false)) {
+    active_occlusion_query_.state = OcclusionQueryState::kUnmeasurable;
+    return;
+  }
+  deferred_command_buffer_->CmdVkBeginQuery(occlusion_query_pool_,
+                                           active_occlusion_query_.host_index, 0);
+  active_occlusion_query_.state = OcclusionQueryState::kInRenderPass;
+}
+
+void VulkanCommandProcessor::OcclusionQueryRenderPassEnding() {
+  if (!active_occlusion_query_.valid ||
+      active_occlusion_query_.state != OcclusionQueryState::kInRenderPass) {
+    return;
+  }
+  deferred_command_buffer_->CmdVkEndQuery(occlusion_query_pool_,
+                                         active_occlusion_query_.host_index);
+  if (active_occlusion_query_.draws_at_begin == work_stats_.draws) {
+    // Nothing drawn yet: measure in the next render pass with a new query.
+    uint32_t host_index;
+    if (AcquireOcclusionQueryIndex(host_index, false)) {
+      active_occlusion_query_.host_index = host_index;
+      active_occlusion_query_.state = OcclusionQueryState::kWaitingForRenderPass;
+      return;
     }
   }
-  active_occlusion_query_ = {};
-  occlusion_query_cursor_ = 0;
-  occlusion_query_resources_available_ = false;
+  // The samples of the draws so far would be lost: report visible.
+  active_occlusion_query_.state = OcclusionQueryState::kUnmeasurable;
+  CountFrameEvent(g_frame_events.occlusion_split);
 }
 
-bool VulkanCommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_address) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
-      occlusion_query_pool_ == VK_NULL_HANDLE || occlusion_query_readback_mapping_ == nullptr) {
-    return false;
+void VulkanCommandProcessor::DeliverCompletedOcclusionQueries() {
+  if (occlusion_queries_pending_.empty()) {
+    return;
   }
-  if (active_occlusion_query_.valid) {
-    REXGPU_WARN(
-        "VulkanCommandProcessor: Occlusion query begin issued while another query is active");
-    DisableHostOcclusionQueries();
-    return false;
-  }
-
-  uint32_t host_index = 0;
-  if (!AcquireOcclusionQueryIndex(host_index)) {
-    return false;
-  }
-  if (!BeginSubmission(true)) {
-    return false;
-  }
-
-  EndRenderPass();
-
-  DeferredCommandBuffer& command_buffer = deferred_command_buffer();
-  command_buffer.CmdVkResetQueryPool(occlusion_query_pool_, host_index, 1);
-  command_buffer.CmdVkBeginQuery(occlusion_query_pool_, host_index, 0);
-  active_occlusion_query_.sample_count_address = sample_count_address;
-  active_occlusion_query_.host_index = host_index;
-  active_occlusion_query_.valid = true;
-  return true;
-}
-
-bool VulkanCommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_address) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
-      !active_occlusion_query_.valid || occlusion_query_pool_ == VK_NULL_HANDLE ||
-      occlusion_query_readback_mapping_ == nullptr) {
-    return false;
-  }
-
-  uint32_t host_index = active_occlusion_query_.host_index;
-  active_occlusion_query_ = {};
-
-  if (!BeginSubmission(true)) {
-    return false;
-  }
-
-  EndRenderPass();
-
-  DeferredCommandBuffer& command_buffer = deferred_command_buffer();
-  command_buffer.CmdVkEndQuery(occlusion_query_pool_, host_index);
-  command_buffer.CmdVkCopyQueryPoolResults(occlusion_query_pool_, host_index, 1,
-                                           occlusion_query_readback_buffer_,
-                                           sizeof(uint64_t) * host_index, sizeof(uint64_t),
-                                           VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
-
-  if (!EndSubmission(false)) {
-    return false;
-  }
-  if (!AwaitAllQueueOperationsCompletion()) {
-    return false;
-  }
-
   const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
-  if (!(vulkan_device->memory_types().host_coherent &
-        (uint32_t(1) << occlusion_query_readback_memory_type_))) {
-    VkMappedMemoryRange memory_range = {};
-    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memory_range.memory = occlusion_query_readback_memory_;
-    memory_range.offset = 0;
-    memory_range.size =
-        std::min(rex::round_up(VkDeviceSize(sizeof(uint64_t) * kMaxOcclusionQueries),
-                               vulkan_device->properties().nonCoherentAtomSize),
-                 occlusion_query_readback_memory_size_);
-    dfn.vkInvalidateMappedMemoryRanges(device, 1, &memory_range);
+  while (!occlusion_queries_pending_.empty() &&
+         occlusion_queries_pending_.front().submission <= submission_completed_) {
+    const PendingOcclusionQuery& query = occlusion_queries_pending_.front();
+    uint64_t samples = 0;
+    VkResult result =
+        dfn.vkGetQueryPoolResults(device, occlusion_query_pool_, query.host_index, 1,
+                                  sizeof(samples), &samples, sizeof(samples),
+                                  VK_QUERY_RESULT_64_BIT);
+    if (result != VK_SUCCESS) {
+      // Not expected after the fence: report visible rather than hide things.
+      samples = uint64_t(std::max(REXCVAR_GET(query_occlusion_fake_sample_count), int32_t(1)));
+      CountFrameEvent(g_frame_events.occlusion_reported_visible);
+    } else {
+      samples = NormalizeOcclusionSamples(samples);
+      if (!samples) {
+        CountFrameEvent(g_frame_events.occlusion_zero);
+      }
+    }
+    WriteGuestOcclusionResult(query.end_address, samples);
+    occlusion_queries_pending_.pop_front();
   }
+}
 
-  const uint64_t* results = reinterpret_cast<const uint64_t*>(occlusion_query_readback_mapping_);
-  uint64_t samples = NormalizeOcclusionSamples(results[host_index]);
-  WriteGuestOcclusionResult(sample_count_address, samples);
-  return true;
+void VulkanCommandProcessor::OnWaitTick() {
+  // The guest may poll for query results while no commands arrive.
+  if (occlusion_queries_pending_.empty() || device_lost_) {
+    return;
+  }
+  CheckSubmissionFenceAndDeviceLoss(0);
+  DeliverCompletedOcclusionQueries();
+}
+
+void VulkanCommandProcessor::DisableHostOcclusionQueries() {
+  if (active_occlusion_query_.valid &&
+      active_occlusion_query_.state == OcclusionQueryState::kInRenderPass && submission_open_) {
+    deferred_command_buffer_->CmdVkEndQuery(occlusion_query_pool_,
+                                           active_occlusion_query_.host_index);
+  }
+  active_occlusion_query_ = {};
+  occlusion_query_resources_available_ = false;
 }
 
 uint64_t VulkanCommandProcessor::NormalizeOcclusionSamples(uint64_t samples) const {
@@ -5153,7 +5519,23 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
-  size_t fences_total = submissions_in_flight_fences_.size();
+  // The submission worker may not have passed the latest submissions to
+  // vkQueueSubmit yet: wait for the awaited one, and only check the fences of
+  // the submitted ones.
+  if (await_submission > submission_completed_) {
+    WaitForSubmitted(await_submission);
+  }
+  if (submit_device_lost_.load(std::memory_order_acquire)) {
+    device_lost_ = true;
+    if (graphics_system_) {
+      graphics_system_->OnHostGpuLossFromAnyThread(true);
+    }
+    return;
+  }
+  size_t fences_total =
+      std::min(submissions_in_flight_fences_.size(),
+               size_t(submissions_submitted_.load(std::memory_order_acquire) -
+                      submission_completed_));
   size_t fences_awaited = 0;
   if (await_submission > submission_completed_) {
     // Await in a blocking way if requested.
@@ -5206,6 +5588,39 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
   submissions_in_flight_fences_.erase(submissions_in_flight_fences_.cbegin(),
                                       submissions_in_flight_fences_awaited_end);
   submission_completed_ += fences_awaited;
+  DeliverCompletedOcclusionQueries();
+
+  // Add up the GPU time of the completed submissions, per category.
+  while (!gpu_timestamp_pending_.empty() &&
+         gpu_timestamp_pending_.front().first <= submission_completed_) {
+    const uint32_t slot = gpu_timestamp_pending_.front().second;
+    gpu_timestamp_pending_.pop_front();
+    const uint32_t count = gpu_timestamp_counts_[slot];
+    if (count < 2) {
+      continue;
+    }
+    uint64_t timestamps[kGpuTimestampsPerSlot];
+    if (dfn.vkGetQueryPoolResults(device, gpu_timestamp_pool_, slot * kGpuTimestampsPerSlot, count,
+                                  sizeof(uint64_t) * count, timestamps, sizeof(uint64_t),
+                                  VK_QUERY_RESULT_64_BIT) != VK_SUCCESS) {
+      continue;
+    }
+    const double period = double(vulkan_device->properties().timestampPeriod);
+    const uint8_t* categories = gpu_timestamp_categories_.data() + size_t(slot) * kGpuTimestampsPerSlot;
+    for (uint32_t i = 0; i + 1 < count; ++i) {
+      if (timestamps[i + 1] < timestamps[i]) {
+        continue;
+      }
+      const uint64_t ns = uint64_t(double(timestamps[i + 1] - timestamps[i]) * period);
+      if (categories[i] < kGpuTimeCategoryCount) {
+        gpu_category_ns_[categories[i]] += ns;
+      } else if (categories[i] >= kGpuTimePassFirst &&
+                 categories[i] < kGpuTimePassFirst + kGpuTimePassSlots) {
+        gpu_category_ns_[kGpuTimeDraw] += ns;
+        gpu_pass_ns_[categories[i] - kGpuTimePassFirst] += ns;
+      }
+    }
+  }
 
   // Reclaim semaphores.
   while (!submissions_in_flight_semaphores_.empty()) {
@@ -5302,6 +5717,16 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
   // is still available, and whether the await was successful.
   uint64_t await_submission =
       is_opening_frame ? closed_frame_submissions_[frame_current_ % kMaxFramesInFlight] : 0;
+  if (is_opening_frame && REXCVAR_GET(gpu_sync_at_frame_start) && GetCurrentSubmission() > 1) {
+    // Wait for all earlier work, not just the frame kMaxFramesInFlight back:
+    // effects that read data the CPU rewrites every frame break when the GPU
+    // is still drawing older frames (as on D3D12, distant trees, the dog's
+    // texture and sun lighting flicker there).
+    await_submission = std::max(await_submission, GetCurrentSubmission() - 1);
+    const auto frame_sync_start = std::chrono::steady_clock::now();
+    CheckSubmissionFenceAndDeviceLoss(await_submission);
+    NoteGpuSync(GpuSyncKind::kFrameSync, frame_sync_start);
+  }
   CheckSubmissionFenceAndDeviceLoss(await_submission);
   if (device_lost_ || submission_completed_ < await_submission) {
     return false;
@@ -5322,12 +5747,22 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 
   if (!submission_open_) {
     submission_open_ = true;
+    ++work_stats_.submissions;
 
-    // Start a new deferred command buffer - will submit it to the real one in
-    // the end of the submission (when async pipeline object creation requests
-    // are fulfilled).
-    deferred_command_buffer_.Reset();
-    upload_command_buffer_.Reset();
+    // Start new deferred command buffers - the submission worker replays them
+    // into a real one while recording continues, and submits it in the end of
+    // the submission (when async pipeline object creation requests are
+    // fulfilled).
+    submit_job_current_ = AcquireSubmitJob();
+    if (!submit_job_current_) {
+      submission_open_ = false;
+      return false;
+    }
+    deferred_command_buffer_ = &submit_job_current_->deferred;
+    upload_command_buffer_ = &submit_job_current_->upload;
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE) {
+      deferred_command_buffer_->SetTimestampCategory(gpu_time_category_);
+    }
 
     // Reset cached state of the command buffer.
     dynamic_viewport_update_needed_ = true;
@@ -5363,6 +5798,8 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     std::memset(current_float_constant_map_pixel_, 0, sizeof(current_float_constant_map_pixel_));
     std::memset(current_graphics_descriptor_sets_, 0, sizeof(current_graphics_descriptor_sets_));
     current_constant_buffers_up_to_date_ = 0;
+    // The constants descriptor sets are released per frame.
+    constants_descriptor_sets_frame_.clear();
     current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram] =
         shared_memory_and_edram_descriptor_set_;
     current_graphics_descriptor_set_values_up_to_date_ =
@@ -5457,32 +5894,6 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       }
       semaphores_free_.push_back(semaphore);
     }
-    if (command_buffers_writable_.empty()) {
-      CommandBuffer command_buffer;
-      VkCommandPoolCreateInfo command_pool_create_info;
-      command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-      command_pool_create_info.pNext = nullptr;
-      command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-      command_pool_create_info.queueFamilyIndex = vulkan_device->queue_family_graphics_compute();
-      if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
-                                  &command_buffer.pool) != VK_SUCCESS) {
-        REXGPU_ERROR("Failed to create a Vulkan command pool");
-        return false;
-      }
-      VkCommandBufferAllocateInfo command_buffer_allocate_info;
-      command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-      command_buffer_allocate_info.pNext = nullptr;
-      command_buffer_allocate_info.commandPool = command_buffer.pool;
-      command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-      command_buffer_allocate_info.commandBufferCount = 1;
-      if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info,
-                                       &command_buffer.buffer) != VK_SUCCESS) {
-        REXGPU_ERROR("Failed to allocate a Vulkan command buffer");
-        dfn.vkDestroyCommandPool(device, command_buffer.pool, nullptr);
-        return false;
-      }
-      command_buffers_writable_.push_back(command_buffer);
-    }
   }
 
   bool is_closing_frame = is_swap && frame_open_;
@@ -5496,13 +5907,10 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   if (submission_open_) {
     assert_false(scratch_buffer_used_);
 
-    if (active_occlusion_query_.valid && occlusion_query_pool_ != VK_NULL_HANDLE) {
-      deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
-                                             active_occlusion_query_.host_index);
-      active_occlusion_query_ = {};
-    }
-
     EndRenderPass();
+    if (active_occlusion_query_.valid) {
+      active_occlusion_query_.state = OcclusionQueryState::kUnmeasurable;
+    }
 
     pipeline_cache_->EndSubmission();
 
@@ -5564,79 +5972,67 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
     SubmitBarriers(true);
 
-    assert_false(command_buffers_writable_.empty());
-    CommandBuffer command_buffer = command_buffers_writable_.back();
-    if (dfn.vkResetCommandPool(device, command_buffer.pool, 0) != VK_SUCCESS) {
-      REXGPU_ERROR("Failed to reset a Vulkan command pool");
-      return false;
-    }
-    VkCommandBufferBeginInfo command_buffer_begin_info;
-    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.pNext = nullptr;
-    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    command_buffer_begin_info.pInheritanceInfo = nullptr;
-    if (dfn.vkBeginCommandBuffer(command_buffer.buffer, &command_buffer_begin_info) != VK_SUCCESS) {
-      REXGPU_ERROR("Failed to begin a Vulkan command buffer");
-      return false;
-    }
-    upload_command_buffer_.Execute(command_buffer.buffer);
-    deferred_command_buffer_.Execute(command_buffer.buffer);
-    if (dfn.vkEndCommandBuffer(command_buffer.buffer) != VK_SUCCESS) {
-      REXGPU_ERROR("Failed to end a Vulkan command buffer");
-      return false;
-    }
-
-    VkSubmitInfo submit_info;
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.pNext = nullptr;
-    if (!current_submission_wait_semaphores_.empty()) {
-      submit_info.waitSemaphoreCount = uint32_t(current_submission_wait_semaphores_.size());
-      submit_info.pWaitSemaphores = current_submission_wait_semaphores_.data();
-      submit_info.pWaitDstStageMask = current_submission_wait_stage_masks_.data();
-    } else {
-      submit_info.waitSemaphoreCount = 0;
-      submit_info.pWaitSemaphores = nullptr;
-      submit_info.pWaitDstStageMask = nullptr;
-    }
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer.buffer;
-    submit_info.signalSemaphoreCount = 0;
-    submit_info.pSignalSemaphores = nullptr;
     assert_false(fences_free_.empty());
     VkFence fence = fences_free_.back();
     if (dfn.vkResetFences(device, 1, &fence) != VK_SUCCESS) {
       REXGPU_ERROR("Failed to reset a Vulkan submission fence");
       return false;
     }
-    VkResult submit_result;
-    {
-      ui::vulkan::VulkanDevice::Queue::Acquisition queue_acquisition =
-          vulkan_device->AcquireQueue(vulkan_device->queue_family_graphics_compute(), 0);
-      submit_result = dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info, fence);
-    }
-    if (submit_result != VK_SUCCESS) {
-      REXGPU_ERROR("Failed to submit a Vulkan command buffer");
-      if (submit_result == VK_ERROR_DEVICE_LOST && !device_lost_) {
-        device_lost_ = true;
-        if (graphics_system_) {
-          graphics_system_->OnHostGpuLossFromAnyThread(true);
-        }
-      }
-      return false;
-    }
+
+    // Hand the submission to the worker: it replays the rest of the recorded
+    // commands, records the uploads, and submits with this fence. The
+    // submission gets its number (and all the completion bookkeeping) here.
+    SubmitJob& job = *submit_job_current_;
     uint64_t submission_current = GetCurrentSubmission();
+    job.fence = fence;
+    job.wait_semaphores = current_submission_wait_semaphores_;
+    job.wait_stage_masks = current_submission_wait_stage_masks_;
+    job.submission = submission_current;
+    job.deferred.Publish();
+    job.upload.Publish();
+    job.finalized.store(true, std::memory_order_seq_cst);
     current_submission_wait_stage_masks_.clear();
     for (VkSemaphore semaphore : current_submission_wait_semaphores_) {
       submissions_in_flight_semaphores_.emplace_back(submission_current, semaphore);
     }
     current_submission_wait_semaphores_.clear();
-    command_buffers_submitted_.emplace_back(submission_current, command_buffer);
-    command_buffers_writable_.pop_back();
+    command_buffers_submitted_.emplace_back(submission_current, job.command_buffer);
+    if (job.timestamp_slot != UINT32_MAX) {
+      gpu_timestamp_pending_.emplace_back(submission_current, job.timestamp_slot);
+    }
     // Increments the current submission number, going to the next submission.
     submissions_in_flight_fences_.push_back(fence);
     fences_free_.pop_back();
 
+    submit_job_current_ = nullptr;
+    deferred_command_buffer_ = closed_command_buffer_.get();
+    upload_command_buffer_ = closed_command_buffer_.get();
+    closed_command_buffer_->Reset();
     submission_open_ = false;
+
+    if (async_submit_) {
+      // Wake the worker for the finalized job.
+      WakeSubmitWorker();
+      // The presenter puts its own commands for the guest output after these
+      // in the queue right after a swap submission, so it must be submitted
+      // before returning.
+      if (is_swap) {
+        WaitForSubmitted(submission_current);
+      }
+    } else {
+      // Synchronous: replay and submit here, as before.
+      ProcessSubmitJob(job, false);
+      std::lock_guard<std::mutex> lock(submit_mutex_);
+      assert_true(!submit_queue_.empty() && submit_queue_.front().get() == &job);
+      submit_jobs_free_.push_back(std::move(submit_queue_.front()));
+      submit_queue_.pop_front();
+    }
+    if (submit_device_lost_.load(std::memory_order_acquire) && !device_lost_) {
+      device_lost_ = true;
+      if (graphics_system_) {
+        graphics_system_->OnHostGpuLossFromAnyThread(true);
+      }
+    }
   }
 
   if (is_closing_frame) {
@@ -5683,6 +6079,431 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   return true;
 }
 
+VulkanCommandProcessor::SubmitJob* VulkanCommandProcessor::AcquireSubmitJob() {
+  std::unique_ptr<SubmitJob> job;
+  {
+    std::unique_lock<std::mutex> lock(submit_mutex_);
+    // Bound how far recording may run ahead of the worker. The queued jobs
+    // are all finalized (only one submission is open at a time), so the
+    // worker makes progress.
+    submit_cv_.wait(lock, [this]() { return submit_queue_.size() < kMaxQueuedSubmitJobs; });
+    if (!submit_jobs_free_.empty()) {
+      job = std::move(submit_jobs_free_.back());
+      submit_jobs_free_.pop_back();
+    }
+  }
+  if (!job) {
+    job = std::make_unique<SubmitJob>(*this);
+  }
+  job->deferred.Reset();
+  job->upload.Reset();
+  job->fence = VK_NULL_HANDLE;
+  job->wait_semaphores.clear();
+  job->wait_stage_masks.clear();
+  job->submission = 0;
+  job->finalized.store(false, std::memory_order_relaxed);
+  job->recording = false;
+  job->cursor = {};
+  job->timestamp_slot = UINT32_MAX;
+  if (gpu_timestamp_pool_ != VK_NULL_HANDLE) {
+    job->timestamp_slot = gpu_timestamp_slot_next_;
+    gpu_timestamp_slot_next_ = (gpu_timestamp_slot_next_ + 1) % kGpuTimestampSlots;
+  }
+
+  if (command_buffers_writable_.empty()) {
+    const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+    const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+    const VkDevice device = vulkan_device->device();
+    CommandBuffer command_buffer;
+    VkCommandPoolCreateInfo command_pool_create_info;
+    command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    command_pool_create_info.pNext = nullptr;
+    command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    command_pool_create_info.queueFamilyIndex = vulkan_device->queue_family_graphics_compute();
+    if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
+                                &command_buffer.pool) != VK_SUCCESS) {
+      REXGPU_ERROR("Failed to create a Vulkan command pool");
+      std::lock_guard<std::mutex> lock(submit_mutex_);
+      submit_jobs_free_.push_back(std::move(job));
+      return nullptr;
+    }
+    VkCommandBufferAllocateInfo command_buffer_allocate_info;
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.pNext = nullptr;
+    command_buffer_allocate_info.commandPool = command_buffer.pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = 2;
+    VkCommandBuffer buffers[2];
+    if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, buffers) !=
+        VK_SUCCESS) {
+      REXGPU_ERROR("Failed to allocate Vulkan command buffers");
+      dfn.vkDestroyCommandPool(device, command_buffer.pool, nullptr);
+      std::lock_guard<std::mutex> lock(submit_mutex_);
+      submit_jobs_free_.push_back(std::move(job));
+      return nullptr;
+    }
+    command_buffer.buffer = buffers[0];
+    command_buffer.upload_buffer = buffers[1];
+    command_buffers_writable_.push_back(command_buffer);
+  }
+  job->command_buffer = command_buffers_writable_.back();
+  command_buffers_writable_.pop_back();
+
+  SubmitJob* job_raw = job.get();
+  {
+    std::lock_guard<std::mutex> lock(submit_mutex_);
+    submit_queue_.push_back(std::move(job));
+  }
+  submit_cv_.notify_all();
+  return job_raw;
+}
+
+std::string VulkanCommandProcessor::TakeGpuTimeReport(uint32_t frames) {
+  if (gpu_timestamp_pool_ == VK_NULL_HANDLE || !frames) {
+    return {};
+  }
+  static constexpr const char* kCategoryNames[kGpuTimeCategoryCount] = {
+      "other",         "draws",          "tessellated draws", "memexport draws",
+      "render target copies", "resolve dumps", "resolve copies", "resolve clears",
+      "texture loads", "uploads"};
+  uint64_t total_ns = 0;
+  for (uint64_t ns : gpu_category_ns_) {
+    total_ns += ns;
+  }
+  auto ms_per_frame = [frames](uint64_t ns) { return double(ns) / 1e6 / double(frames); };
+  std::string report = fmt::format("; GPU work {:.1f} ms per frame (", ms_per_frame(total_ns));
+  for (uint32_t i = 0; i < kGpuTimeCategoryCount; ++i) {
+    report += fmt::format("{}{} {:.1f}", i ? ", " : "", kCategoryNames[i],
+                          ms_per_frame(gpu_category_ns_[i]));
+    gpu_category_ns_[i] = 0;
+  }
+  report += ")";
+
+  // Plain draws by render target layout (log_perf_gpu_passes), the most
+  // expensive first.
+  uint32_t order[kGpuTimePassSlots];
+  uint32_t order_count = 0;
+  for (uint32_t i = 0; i < gpu_pass_slots_used_; ++i) {
+    if (gpu_pass_ns_[i] || gpu_pass_draws_[i]) {
+      order[order_count++] = i;
+    }
+  }
+  if (order_count) {
+    std::sort(order, order + order_count,
+              [this](uint32_t a, uint32_t b) { return gpu_pass_ns_[a] > gpu_pass_ns_[b]; });
+    report += "\n         GPU draws by render targets (ms, draws per frame):";
+    for (uint32_t n = 0; n < order_count && n < 12; ++n) {
+      const uint32_t i = order[n];
+      const uint64_t key = gpu_pass_keys_[i];
+      std::string name;
+      if (i == kGpuTimePassSlots - 1) {
+        name = "all others";
+      } else {
+        name = fmt::format("pitch {} {}x", uint32_t(key & 0x3FFF), 1u << ((key >> 14) & 3));
+        if ((key >> 19) & 1) {
+          name += fmt::format(" c{}", uint32_t((key >> 32) & 0xF));
+        }
+        if ((key >> 50) & 1) {
+          name += fmt::format(" d{}", uint32_t((key >> 48) & 1));
+        }
+      }
+      report += fmt::format("{} [{}] {:.2f} {}", n ? " |" : "", name, ms_per_frame(gpu_pass_ns_[i]),
+                            uint64_t(double(gpu_pass_draws_[i]) / double(frames) + 0.5));
+    }
+  }
+  // Fresh slots for each report, so layouts of earlier scenes (menus,
+  // loading) don't fill the table. Timestamps of submissions still in flight
+  // may land in the new slots - a few draws at the boundary.
+  for (uint32_t i = 0; i < kGpuTimePassSlots; ++i) {
+    gpu_pass_ns_[i] = 0;
+    gpu_pass_draws_[i] = 0;
+    gpu_pass_keys_[i] = 0;
+  }
+  gpu_pass_slots_used_ = 0;
+  gpu_pass_last_slot_ = UINT32_MAX;
+  return report;
+}
+
+uint32_t VulkanCommandProcessor::GetGpuTimePassCategory(
+    uint32_t normalized_color_mask, reg::RB_DEPTHCONTROL normalized_depth_control) {
+  const RegisterFile& regs = *register_file_;
+  const auto surface_info = regs.Get<reg::RB_SURFACE_INFO>();
+  uint64_t key = uint64_t(surface_info.surface_pitch & 0x3FFF) |
+                 (uint64_t(surface_info.msaa_samples) << 14);
+  if (normalized_color_mask & 0xF) {
+    const auto color_info = regs.Get<reg::RB_COLOR_INFO>(reg::RB_COLOR_INFO::rt_register_indices[0]);
+    // (EDRAM bases left out: passes of one kind, such as shadow cascades, use
+    // several, and the layout is what tells the passes apart.)
+    key |= (uint64_t(1) << 19) | (uint64_t(uint32_t(color_info.color_format) & 0xF) << 32);
+  }
+  if (normalized_depth_control.z_enable || normalized_depth_control.stencil_enable) {
+    const auto depth_info = regs.Get<reg::RB_DEPTH_INFO>();
+    key |= (uint64_t(uint32_t(depth_info.depth_format) & 1) << 48) | (uint64_t(1) << 50);
+  }
+  uint32_t slot = gpu_pass_last_slot_;
+  if (slot >= gpu_pass_slots_used_ || gpu_pass_keys_[slot] != key) {
+    slot = UINT32_MAX;
+    for (uint32_t i = 0; i < gpu_pass_slots_used_; ++i) {
+      if (gpu_pass_keys_[i] == key) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot == UINT32_MAX) {
+      if (gpu_pass_slots_used_ < kGpuTimePassSlots - 1) {
+        slot = gpu_pass_slots_used_++;
+        gpu_pass_keys_[slot] = key;
+      } else {
+        slot = kGpuTimePassSlots - 1;
+        gpu_pass_slots_used_ = kGpuTimePassSlots;
+      }
+    }
+    gpu_pass_last_slot_ = slot;
+  }
+  ++gpu_pass_draws_[slot];
+  return kGpuTimePassFirst + slot;
+}
+
+void VulkanCommandProcessor::WakeSubmitWorker() {
+  submit_publishes_since_wake_ = 0;
+  submit_wake_seq_.fetch_add(1, std::memory_order_seq_cst);
+  submit_wake_seq_.notify_all();
+}
+
+void VulkanCommandProcessor::PublishSubmitJob(bool force) {
+  if (!submit_job_current_) {
+    return;
+  }
+  submit_job_current_->deferred.Publish();
+  if (!async_submit_) {
+    return;
+  }
+  // A futex wake costs about a microsecond, and the worker replays a draw in
+  // a fraction of the time the command processor takes to record one, so
+  // only wake a waiting worker once a batch of draws has accumulated.
+  constexpr uint32_t kPublishesPerWake = 64;
+  // Publish() is a release store. Only when the waiting flag is read does the
+  // store need to be ordered before that load (the worker sets the flag, then
+  // re-checks the published end), so the full fence is paid once per batch,
+  // not once per draw.
+  if (force || ++submit_publishes_since_wake_ >= kPublishesPerWake) {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (submit_worker_waiting_.load(std::memory_order_seq_cst)) {
+      WakeSubmitWorker();
+    }
+  }
+}
+
+bool VulkanCommandProcessor::ProcessSubmitJob(SubmitJob& job, bool wait_for_work) {
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  bool failed = false;
+  auto fail = [&](const char* message) {
+    REXGPU_ERROR("Vulkan submission worker: {}", message);
+    failed = true;
+  };
+
+  if (!job.recording) {
+    job.recording = true;
+    VkCommandBufferBeginInfo begin_info;
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.pNext = nullptr;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    begin_info.pInheritanceInfo = nullptr;
+    if (dfn.vkResetCommandPool(device, job.command_buffer.pool, 0) != VK_SUCCESS) {
+      fail("failed to reset a command pool");
+    } else if (dfn.vkBeginCommandBuffer(job.command_buffer.buffer, &begin_info) != VK_SUCCESS) {
+      fail("failed to begin a command buffer");
+    } else if (job.timestamp_slot != UINT32_MAX) {
+      dfn.vkCmdResetQueryPool(job.command_buffer.buffer, gpu_timestamp_pool_,
+                              job.timestamp_slot * kGpuTimestampsPerSlot, kGpuTimestampsPerSlot);
+      gpu_timestamp_counts_[job.timestamp_slot] = 0;
+    }
+  }
+
+  // Turns the category markers into timestamps in the job's slot (the first
+  // one at the start of the command buffer, the last one at the end).
+  struct TimestampSink : DeferredCommandBuffer::TimestampSink {
+    VulkanCommandProcessor& command_processor;
+    uint32_t slot;
+    explicit TimestampSink(VulkanCommandProcessor& command_processor, uint32_t slot)
+        : command_processor(command_processor), slot(slot) {}
+    void WriteTimestamp(VkCommandBuffer command_buffer, uint32_t category) override {
+      uint32_t& count = command_processor.gpu_timestamp_counts_[slot];
+      // Keep the last one for the end.
+      if (count >= kGpuTimestampsPerSlot - 1 && category != kGpuTimeCategoryCount) {
+        return;
+      }
+      if (count >= kGpuTimestampsPerSlot) {
+        return;
+      }
+      command_processor.gpu_timestamp_categories_[size_t(slot) * kGpuTimestampsPerSlot + count] =
+          uint8_t(category);
+      command_processor.GetVulkanDevice()->functions().vkCmdWriteTimestamp(
+          command_buffer,
+          count ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          command_processor.gpu_timestamp_pool_, slot * kGpuTimestampsPerSlot + count);
+      ++count;
+    }
+  };
+  TimestampSink timestamp_sink(*this, job.timestamp_slot);
+  const bool timestamps = !failed && job.timestamp_slot != UINT32_MAX;
+  if (timestamps) {
+    if (!gpu_timestamp_counts_[job.timestamp_slot]) {
+      timestamp_sink.WriteTimestamp(job.command_buffer.buffer, kGpuTimeOther);
+    }
+    job.deferred.set_timestamp_sink(&timestamp_sink);
+  }
+
+  // Replay while recording continues, until the job is finalized and fully
+  // replayed. `finalized` is stored after the final Publish, so once it's seen
+  // set, everything recorded is visible.
+  while (true) {
+    const uint32_t wake_seq = submit_wake_seq_.load(std::memory_order_seq_cst);
+    const bool finalized = job.finalized.load(std::memory_order_acquire);
+    if (!failed) {
+      job.deferred.ExecutePublished(job.command_buffer.buffer, job.cursor);
+    }
+    if (finalized) {
+      if (failed || !job.deferred.HasUnexecutedPublished(job.cursor)) {
+        break;
+      }
+      continue;
+    }
+    if (!wait_for_work || submit_worker_shutdown_.load(std::memory_order_acquire)) {
+      job.deferred.set_timestamp_sink(nullptr);
+      return false;
+    }
+    submit_worker_waiting_.store(true, std::memory_order_seq_cst);
+    if (!job.deferred.HasUnexecutedPublished(job.cursor) &&
+        !job.finalized.load(std::memory_order_seq_cst) &&
+        !submit_worker_shutdown_.load(std::memory_order_seq_cst)) {
+      submit_wake_seq_.wait(wake_seq, std::memory_order_seq_cst);
+    }
+    submit_worker_waiting_.store(false, std::memory_order_relaxed);
+  }
+
+  VkCommandBuffer submit_buffers[2];
+  uint32_t submit_buffer_count = 0;
+  job.deferred.set_timestamp_sink(nullptr);
+  if (timestamps && !failed) {
+    // The end (its category ends the last interval).
+    timestamp_sink.WriteTimestamp(job.command_buffer.buffer, kGpuTimeCategoryCount);
+  }
+  if (!failed && dfn.vkEndCommandBuffer(job.command_buffer.buffer) != VK_SUCCESS) {
+    fail("failed to end a command buffer");
+  }
+  if (!failed && !job.upload.empty()) {
+    VkCommandBufferBeginInfo begin_info;
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.pNext = nullptr;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    begin_info.pInheritanceInfo = nullptr;
+    if (dfn.vkBeginCommandBuffer(job.command_buffer.upload_buffer, &begin_info) != VK_SUCCESS) {
+      fail("failed to begin an upload command buffer");
+    } else {
+      job.upload.Execute(job.command_buffer.upload_buffer);
+      if (dfn.vkEndCommandBuffer(job.command_buffer.upload_buffer) != VK_SUCCESS) {
+        fail("failed to end an upload command buffer");
+      } else {
+        // The uploads come first in submission order.
+        submit_buffers[submit_buffer_count++] = job.command_buffer.upload_buffer;
+      }
+    }
+  }
+  submit_buffers[submit_buffer_count++] = job.command_buffer.buffer;
+
+  VkSubmitInfo submit_info;
+  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submit_info.pNext = nullptr;
+  submit_info.waitSemaphoreCount = uint32_t(job.wait_semaphores.size());
+  submit_info.pWaitSemaphores = job.wait_semaphores.empty() ? nullptr : job.wait_semaphores.data();
+  submit_info.pWaitDstStageMask =
+      job.wait_stage_masks.empty() ? nullptr : job.wait_stage_masks.data();
+  submit_info.commandBufferCount = failed ? 0 : submit_buffer_count;
+  submit_info.pCommandBuffers = failed ? nullptr : submit_buffers;
+  submit_info.signalSemaphoreCount = 0;
+  submit_info.pSignalSemaphores = nullptr;
+  VkResult submit_result;
+  {
+    ui::vulkan::VulkanDevice::Queue::Acquisition queue_acquisition =
+        vulkan_device->AcquireQueue(vulkan_device->queue_family_graphics_compute(), 0);
+    // On a failure above, still submit (without the commands) so the fence
+    // and the wait semaphores are consumed and nothing waits forever.
+    submit_result = dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info, job.fence);
+  }
+  if (submit_result != VK_SUCCESS) {
+    REXGPU_ERROR("Failed to submit a Vulkan command buffer");
+    // Without the submission the fence would never be signaled; treat it like
+    // a lost device so nothing waits on it forever.
+    submit_device_lost_.store(true, std::memory_order_release);
+  }
+  submissions_submitted_.store(job.submission, std::memory_order_release);
+  submissions_submitted_.notify_all();
+  return true;
+}
+
+void VulkanCommandProcessor::SubmitWorkerMain() {
+  rex::thread::set_current_thread_name("GPU Submit");
+  while (true) {
+    SubmitJob* job;
+    {
+      std::unique_lock<std::mutex> lock(submit_mutex_);
+      submit_cv_.wait(lock, [this]() {
+        return submit_worker_shutdown_.load(std::memory_order_relaxed) || !submit_queue_.empty();
+      });
+      if (submit_worker_shutdown_.load(std::memory_order_relaxed)) {
+        return;
+      }
+      job = submit_queue_.front().get();
+    }
+    if (!ProcessSubmitJob(*job, true)) {
+      // Only returns early when shutting down.
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(submit_mutex_);
+      submit_jobs_free_.push_back(std::move(submit_queue_.front()));
+      submit_queue_.pop_front();
+    }
+    submit_cv_.notify_all();
+  }
+}
+
+void VulkanCommandProcessor::StartSubmitWorker() {
+  async_submit_ = REXCVAR_GET(vulkan_async_submit);
+  if (!async_submit_ || submit_worker_.joinable()) {
+    return;
+  }
+  submit_worker_shutdown_.store(false, std::memory_order_relaxed);
+  submit_worker_ = std::thread([this]() { SubmitWorkerMain(); });
+  REXGPU_INFO("Vulkan submission worker started");
+}
+
+void VulkanCommandProcessor::StopSubmitWorker() {
+  if (!submit_worker_.joinable()) {
+    async_submit_ = false;
+    return;
+  }
+  {
+    std::lock_guard<std::mutex> lock(submit_mutex_);
+    submit_worker_shutdown_.store(true, std::memory_order_seq_cst);
+  }
+  submit_cv_.notify_all();
+  WakeSubmitWorker();
+  submit_worker_.join();
+  async_submit_ = false;
+}
+
+void VulkanCommandProcessor::WaitForSubmitted(uint64_t submission) {
+  uint64_t submitted = submissions_submitted_.load(std::memory_order_acquire);
+  while (submitted < submission) {
+    submissions_submitted_.wait(submitted, std::memory_order_acquire);
+    submitted = submissions_submitted_.load(std::memory_order_acquire);
+  }
+}
+
 void VulkanCommandProcessor::ClearTransientDescriptorPools() {
   texture_transient_descriptor_sets_free_.clear();
   texture_transient_descriptor_sets_used_.clear();
@@ -5690,6 +6511,8 @@ void VulkanCommandProcessor::ClearTransientDescriptorPools() {
 
   constants_transient_descriptors_free_.clear();
   constants_transient_descriptors_used_.clear();
+  constants_descriptor_sets_frame_.clear();
+  transient_descriptor_allocator_constants_.Reset();
   for (std::vector<VkDescriptorSet>& transient_descriptors_free :
        single_transient_descriptors_free_) {
     transient_descriptors_free.clear();
@@ -5849,7 +6672,8 @@ void VulkanCommandProcessor::DestroySwapFxaaSourceImage() {
 
 void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
                                                 bool primitive_polygonal,
-                                                reg::RB_DEPTHCONTROL normalized_depth_control) {
+                                                reg::RB_DEPTHCONTROL normalized_depth_control,
+                                                const Shader* pixel_shader) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
@@ -5887,6 +6711,10 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
   // Scissor.
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
+  if (tile_merge_scissor_bottom_ > scissor.offset[1] + scissor.extent[1]) {
+    // The first of two merged tiles: down to the bottom of the frame.
+    scissor.extent[1] = tile_merge_scissor_bottom_ - scissor.offset[1];
+  }
   scissor.offset[0] *= draw_resolution_scale_x;
   scissor.offset[1] *= draw_resolution_scale_y;
   scissor.extent[0] *= draw_resolution_scale_x;
@@ -5907,6 +6735,10 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
         regs.Get<reg::RB_DEPTH_INFO>().depth_format == xenos::DepthRenderTargetFormat::kD24S8
             ? draw_util::kD3D10PolygonOffsetFactorUnorm24
             : draw_util::kD3D10PolygonOffsetFactorFloat24;
+    // Extra bias for a pixel shader whose geometry relies on exact depth ties
+    // in the guest's 24-bit depth (depth_bias_shader), as on D3D12, where the
+    // units are added to the integer DepthBias that this factor corresponds to.
+    depth_bias_constant_factor += float(fable2::GetShaderDepthBiasUnits(pixel_shader));
     // With non-square resolution scaling, make sure the worst-case impact is
     // reverted (slope only along the scaled axis), thus max. More bias is
     // better than less bias, because less bias means Z fighting with the
@@ -5923,7 +6755,7 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
     if (dynamic_depth_bias_update_needed_) {
       dynamic_depth_bias_constant_factor_ = depth_bias_constant_factor;
       dynamic_depth_bias_slope_factor_ = depth_bias_slope_factor;
-      deferred_command_buffer_.CmdVkSetDepthBias(dynamic_depth_bias_constant_factor_, 0.0f,
+      deferred_command_buffer_->CmdVkSetDepthBias(dynamic_depth_bias_constant_factor_, 0.0f,
                                                  dynamic_depth_bias_slope_factor_);
       dynamic_depth_bias_update_needed_ = false;
     }
@@ -5939,7 +6771,7 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
         std::memcmp(dynamic_blend_constants_, blend_constants, sizeof(float) * 4) != 0;
     if (dynamic_blend_constants_update_needed_) {
       std::memcpy(dynamic_blend_constants_, blend_constants, sizeof(float) * 4);
-      deferred_command_buffer_.CmdVkSetBlendConstants(dynamic_blend_constants_);
+      deferred_command_buffer_->CmdVkSetBlendConstants(dynamic_blend_constants_);
       dynamic_blend_constants_update_needed_ = false;
     }
 
@@ -5997,15 +6829,15 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
     if (dynamic_stencil_compare_mask_front_update_needed_ ||
         dynamic_stencil_compare_mask_back_update_needed_) {
       if (dynamic_stencil_compare_mask_front_ == dynamic_stencil_compare_mask_back_) {
-        deferred_command_buffer_.CmdVkSetStencilCompareMask(VK_STENCIL_FACE_FRONT_AND_BACK,
+        deferred_command_buffer_->CmdVkSetStencilCompareMask(VK_STENCIL_FACE_FRONT_AND_BACK,
                                                             dynamic_stencil_compare_mask_front_);
       } else {
         if (dynamic_stencil_compare_mask_front_update_needed_) {
-          deferred_command_buffer_.CmdVkSetStencilCompareMask(VK_STENCIL_FACE_FRONT_BIT,
+          deferred_command_buffer_->CmdVkSetStencilCompareMask(VK_STENCIL_FACE_FRONT_BIT,
                                                               dynamic_stencil_compare_mask_front_);
         }
         if (dynamic_stencil_compare_mask_back_update_needed_) {
-          deferred_command_buffer_.CmdVkSetStencilCompareMask(VK_STENCIL_FACE_BACK_BIT,
+          deferred_command_buffer_->CmdVkSetStencilCompareMask(VK_STENCIL_FACE_BACK_BIT,
                                                               dynamic_stencil_compare_mask_back_);
         }
       }
@@ -6015,15 +6847,15 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
     if (dynamic_stencil_write_mask_front_update_needed_ ||
         dynamic_stencil_write_mask_back_update_needed_) {
       if (dynamic_stencil_write_mask_front_ == dynamic_stencil_write_mask_back_) {
-        deferred_command_buffer_.CmdVkSetStencilWriteMask(VK_STENCIL_FACE_FRONT_AND_BACK,
+        deferred_command_buffer_->CmdVkSetStencilWriteMask(VK_STENCIL_FACE_FRONT_AND_BACK,
                                                           dynamic_stencil_write_mask_front_);
       } else {
         if (dynamic_stencil_write_mask_front_update_needed_) {
-          deferred_command_buffer_.CmdVkSetStencilWriteMask(VK_STENCIL_FACE_FRONT_BIT,
+          deferred_command_buffer_->CmdVkSetStencilWriteMask(VK_STENCIL_FACE_FRONT_BIT,
                                                             dynamic_stencil_write_mask_front_);
         }
         if (dynamic_stencil_write_mask_back_update_needed_) {
-          deferred_command_buffer_.CmdVkSetStencilWriteMask(VK_STENCIL_FACE_BACK_BIT,
+          deferred_command_buffer_->CmdVkSetStencilWriteMask(VK_STENCIL_FACE_BACK_BIT,
                                                             dynamic_stencil_write_mask_back_);
         }
       }
@@ -6033,15 +6865,15 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
     if (dynamic_stencil_reference_front_update_needed_ ||
         dynamic_stencil_reference_back_update_needed_) {
       if (dynamic_stencil_reference_front_ == dynamic_stencil_reference_back_) {
-        deferred_command_buffer_.CmdVkSetStencilReference(VK_STENCIL_FACE_FRONT_AND_BACK,
+        deferred_command_buffer_->CmdVkSetStencilReference(VK_STENCIL_FACE_FRONT_AND_BACK,
                                                           dynamic_stencil_reference_front_);
       } else {
         if (dynamic_stencil_reference_front_update_needed_) {
-          deferred_command_buffer_.CmdVkSetStencilReference(VK_STENCIL_FACE_FRONT_BIT,
+          deferred_command_buffer_->CmdVkSetStencilReference(VK_STENCIL_FACE_FRONT_BIT,
                                                             dynamic_stencil_reference_front_);
         }
         if (dynamic_stencil_reference_back_update_needed_) {
-          deferred_command_buffer_.CmdVkSetStencilReference(VK_STENCIL_FACE_BACK_BIT,
+          deferred_command_buffer_->CmdVkSetStencilReference(VK_STENCIL_FACE_BACK_BIT,
                                                             dynamic_stencil_reference_back_);
         }
       }
@@ -6243,9 +7075,18 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.flags != flags;
   system_constants_.flags = flags;
 
-  // Index buffer address for loading in the shaders.
-  if (flags & (SpirvShaderTranslator::kSysFlag_VertexIndexLoad |
-               SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad)) {
+  // Index buffer address for loading in the shaders. A plain vertex shader
+  // (no point or rectangle expansion) reads it only for kSysFlag_VertexIndexLoad
+  // - the host index buffer supplies its indices otherwise - so leave the old
+  // value there: with it changing on nearly every indexed draw, it alone kept
+  // the system constants from being reused between draws.
+  const bool index_load_address_read =
+      !REXCVAR_GET(vulkan_skip_unused_index_address) ||
+      (flags & SpirvShaderTranslator::kSysFlag_VertexIndexLoad) ||
+      ((flags & SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad) &&
+       primitive_processing_result.host_vertex_shader_type !=
+           Shader::HostVertexShaderType::kVertex);
+  if (index_load_address_read) {
     dirty |=
         system_constants_.vertex_index_load_address != primitive_processing_result.guest_index_base;
     system_constants_.vertex_index_load_address = primitive_processing_result.guest_index_base;
@@ -6560,6 +7401,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
+  ++work_stats_.draws;
   const RegisterFile& regs = *register_file_;
 
   const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
@@ -6614,8 +7456,8 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferCount) - 1;
   assert_zero(current_constant_buffers_up_to_date_ & ~kAllConstantBuffersMask);
   if ((current_constant_buffers_up_to_date_ & kAllConstantBuffersMask) != kAllConstantBuffersMask) {
-    current_graphics_descriptor_set_values_up_to_date_ &=
-        ~(UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants);
+    // The constants descriptor set only needs to change if the new data is in
+    // a different pool page - checked below.
     size_t uniform_buffer_alignment =
         size_t(vulkan_device->properties().minUniformBufferOffsetAlignment);
     // System constants.
@@ -6633,6 +7475,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       std::memcpy(mapping, &system_constants_, sizeof(SpirvShaderTranslator::SystemConstants));
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferSystem;
+      ++work_stats_.constant_uploads[0];
     }
     // Vertex shader float constants.
     if (!(current_constant_buffers_up_to_date_ &
@@ -6653,20 +7496,11 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         return false;
       }
       buffer_info.range = VkDeviceSize(float_constants_size);
-      for (uint32_t i = 0; i < 4; ++i) {
-        uint64_t float_constant_map_entry = current_float_constant_map_vertex_[i];
-        uint32_t float_constant_index;
-        while (rex::bit_scan_forward(float_constant_map_entry, &float_constant_index)) {
-          float_constant_map_entry &= ~(1ull << float_constant_index);
-          std::memcpy(
-              mapping,
-              &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) + (float_constant_index << 2)],
-              sizeof(float) * 4);
-          mapping += sizeof(float) * 4;
-        }
-      }
+      CopyFloatConstantRuns(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_000_X],
+                            current_float_constant_map_vertex_);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferFloatVertex;
+      ++work_stats_.constant_uploads[1];
     }
     // Pixel shader float constants.
     if (!(current_constant_buffers_up_to_date_ &
@@ -6682,20 +7516,11 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         return false;
       }
       buffer_info.range = VkDeviceSize(float_constants_size);
-      for (uint32_t i = 0; i < 4; ++i) {
-        uint64_t float_constant_map_entry = current_float_constant_map_pixel_[i];
-        uint32_t float_constant_index;
-        while (rex::bit_scan_forward(float_constant_map_entry, &float_constant_index)) {
-          float_constant_map_entry &= ~(1ull << float_constant_index);
-          std::memcpy(
-              mapping,
-              &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) + (float_constant_index << 2)],
-              sizeof(float) * 4);
-          mapping += sizeof(float) * 4;
-        }
-      }
+      CopyFloatConstantRuns(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_256_X],
+                            current_float_constant_map_pixel_);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferFloatPixel;
+      ++work_stats_.constant_uploads[2];
     }
     // Bool and loop constants.
     if (!(current_constant_buffers_up_to_date_ &
@@ -6713,6 +7538,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031], kBoolLoopConstantsSize);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferBoolLoop;
+      ++work_stats_.constant_uploads[3];
     }
     // Fetch constants.
     if (!(current_constant_buffers_up_to_date_ &
@@ -6730,7 +7556,39 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0], kFetchConstantsSize);
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferFetch;
+      ++work_stats_.constant_uploads[4];
     }
+  }
+
+  // Constants descriptor set: one per combination of pool pages holding the
+  // constants (reused for the whole frame), with the per-draw locations passed
+  // as dynamic offsets when binding.
+  const uint32_t constants_set_bit = UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants;
+  VkBuffer constant_buffers[SpirvShaderTranslator::kConstantBufferCount];
+  uint32_t constant_dynamic_offsets[SpirvShaderTranslator::kConstantBufferCount];
+  for (uint32_t i = 0; i < SpirvShaderTranslator::kConstantBufferCount; ++i) {
+    constant_buffers[i] = current_constant_buffer_infos_[i].buffer;
+    constant_dynamic_offsets[i] = uint32_t(current_constant_buffer_infos_[i].offset);
+  }
+  if (!(current_graphics_descriptor_set_values_up_to_date_ & constants_set_bit) ||
+      std::memcmp(constant_buffers, current_constants_set_buffers_, sizeof(constant_buffers))) {
+    current_graphics_descriptor_set_values_up_to_date_ &= ~constants_set_bit;
+    for (const ConstantsDescriptorSet& constants_set : constants_descriptor_sets_frame_) {
+      if (!std::memcmp(constants_set.buffers, constant_buffers, sizeof(constant_buffers))) {
+        current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetConstants] =
+            constants_set.set;
+        std::memcpy(current_constants_set_buffers_, constant_buffers, sizeof(constant_buffers));
+        current_graphics_descriptor_set_values_up_to_date_ |= constants_set_bit;
+        current_graphics_descriptor_sets_bound_up_to_date_ &= ~constants_set_bit;
+        break;
+      }
+    }
+  }
+  if (std::memcmp(constant_dynamic_offsets, current_constants_dynamic_offsets_,
+                  sizeof(constant_dynamic_offsets))) {
+    std::memcpy(current_constants_dynamic_offsets_, constant_dynamic_offsets,
+                sizeof(constant_dynamic_offsets));
+    current_graphics_descriptor_sets_bound_up_to_date_ &= ~constants_set_bit;
   }
 
   // Textures and samplers.
@@ -6754,32 +7612,13 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     sampler_count_pixel = 0;
     texture_count_pixel = 0;
   }
-  // TODO(Triang3l): Reuse texture and sampler bindings if not changed.
-  current_graphics_descriptor_set_values_up_to_date_ &=
-      ~((UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex) |
-        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel));
-
-  // Make sure new descriptor sets are bound to the command buffer.
-
-  current_graphics_descriptor_sets_bound_up_to_date_ &=
-      current_graphics_descriptor_set_values_up_to_date_;
-
-  // Fill the texture and sampler write image infos.
-
-  bool write_vertex_textures =
-      (texture_count_vertex || sampler_count_vertex) &&
-      !(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex));
-  bool write_pixel_textures =
-      (texture_count_pixel || sampler_count_pixel) &&
-      !(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel));
+  // Fill the texture and sampler image infos for both stages - also needed to
+  // check whether the descriptor sets of the previous draw can be reused.
   descriptor_write_image_info_.clear();
-  descriptor_write_image_info_.reserve(
-      (write_vertex_textures ? texture_count_vertex + sampler_count_vertex : 0) +
-      (write_pixel_textures ? texture_count_pixel + sampler_count_pixel : 0));
+  descriptor_write_image_info_.reserve(texture_count_vertex + sampler_count_vertex +
+                                       texture_count_pixel + sampler_count_pixel);
   size_t vertex_texture_image_info_offset = descriptor_write_image_info_.size();
-  if (write_vertex_textures && texture_count_vertex) {
+  if (texture_count_vertex) {
     for (const VulkanShader::TextureBinding& texture_binding : textures_vertex) {
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
@@ -6791,7 +7630,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     }
   }
   size_t vertex_sampler_image_info_offset = descriptor_write_image_info_.size();
-  if (write_vertex_textures && sampler_count_vertex) {
+  if (sampler_count_vertex) {
     for (const std::pair<VulkanTextureCache::SamplerParameters, VkSampler>& sampler_pair :
          current_samplers_vertex_) {
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
@@ -6799,7 +7638,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     }
   }
   size_t pixel_texture_image_info_offset = descriptor_write_image_info_.size();
-  if (write_pixel_textures && texture_count_pixel) {
+  if (texture_count_pixel) {
     for (const VulkanShader::TextureBinding& texture_binding : *textures_pixel) {
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
@@ -6811,13 +7650,98 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     }
   }
   size_t pixel_sampler_image_info_offset = descriptor_write_image_info_.size();
-  if (write_pixel_textures && sampler_count_pixel) {
+  if (sampler_count_pixel) {
     for (const std::pair<VulkanTextureCache::SamplerParameters, VkSampler>& sampler_pair :
          current_samplers_pixel_) {
       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
       descriptor_image_info.sampler = sampler_pair.second;
     }
   }
+  size_t image_info_end = descriptor_write_image_info_.size();
+
+  // Keep the texture descriptor sets of the previous draw if this draw would
+  // write identical contents into new ones (the common case - many draws in a
+  // row use the same textures and samplers).
+  const uint64_t submission_current = GetCurrentSubmission();
+  const VkDescriptorSetLayout texture_set_layouts[2] = {
+      current_guest_graphics_pipeline_layout_->descriptor_set_layout_textures_vertex_ref(),
+      current_guest_graphics_pipeline_layout_->descriptor_set_layout_textures_pixel_ref()};
+  const size_t texture_set_image_info_ranges[2][2] = {
+      {vertex_texture_image_info_offset, pixel_texture_image_info_offset},
+      {pixel_texture_image_info_offset, image_info_end}};
+  const uint32_t texture_set_indices[2] = {SpirvShaderTranslator::kDescriptorSetTexturesVertex,
+                                           SpirvShaderTranslator::kDescriptorSetTexturesPixel};
+  if (texture_descriptor_set_cache_submission_ != submission_current) {
+    texture_descriptor_set_cache_submission_ = submission_current;
+    texture_descriptor_set_cache_[0].clear();
+    texture_descriptor_set_cache_[1].clear();
+    last_texture_descriptor_set_entries_[0] = nullptr;
+    last_texture_descriptor_set_entries_[1] = nullptr;
+  }
+  auto entry_matches = [&](const TextureDescriptorSetCacheEntry& entry, VkDescriptorSetLayout layout,
+                           size_t begin, size_t count) {
+    if (entry.layout != layout || entry.image_infos.size() != count) {
+      return false;
+    }
+    const VkDescriptorImageInfo* infos = descriptor_write_image_info_.data() + begin;
+    for (size_t j = 0; j < count; ++j) {
+      if (!SameImageInfo(entry.image_infos[j], infos[j])) {
+        return false;
+      }
+    }
+    return true;
+  };
+  uint64_t texture_set_hashes[2] = {};
+  const bool reuse_texture_sets = REXCVAR_GET(vulkan_reuse_texture_descriptor_sets);
+  for (uint32_t i = 0; i < 2; ++i) {
+    const uint32_t set_bit = UINT32_C(1) << texture_set_indices[i];
+    const size_t begin = texture_set_image_info_ranges[i][0];
+    const size_t count = texture_set_image_info_ranges[i][1] - begin;
+    if (!reuse_texture_sets) {
+      // Diagnostic fallback: a new set for every draw that uses textures.
+      current_graphics_descriptor_set_values_up_to_date_ &= ~set_bit;
+      continue;
+    }
+    const TextureDescriptorSetCacheEntry* last = last_texture_descriptor_set_entries_[i];
+    if (count && last && (current_graphics_descriptor_set_values_up_to_date_ & set_bit) &&
+        last->set == current_graphics_descriptor_sets_[texture_set_indices[i]] &&
+        entry_matches(*last, texture_set_layouts[i], begin, count)) {
+      // Same as the previous draw.
+      ++work_stats_.texture_sets_reused;
+      continue;
+    }
+    current_graphics_descriptor_set_values_up_to_date_ &= ~set_bit;
+    if (!count) {
+      continue;
+    }
+    // Maybe written earlier in this submission.
+    texture_set_hashes[i] =
+        HashImageInfos(texture_set_layouts[i], descriptor_write_image_info_.data() + begin, count);
+    auto cached = texture_descriptor_set_cache_[i].find(texture_set_hashes[i]);
+    if (cached == texture_descriptor_set_cache_[i].end() ||
+        !entry_matches(cached->second, texture_set_layouts[i], begin, count)) {
+      continue;
+    }
+    ++work_stats_.texture_sets_reused;
+    current_graphics_descriptor_sets_[texture_set_indices[i]] = cached->second.set;
+    current_graphics_descriptor_set_values_up_to_date_ |= set_bit;
+    current_graphics_descriptor_sets_bound_up_to_date_ &= ~set_bit;
+    last_texture_descriptor_set_entries_[i] = &cached->second;
+  }
+
+  // Make sure new descriptor sets are bound to the command buffer.
+
+  current_graphics_descriptor_sets_bound_up_to_date_ &=
+      current_graphics_descriptor_set_values_up_to_date_;
+
+  bool write_vertex_textures =
+      (texture_count_vertex || sampler_count_vertex) &&
+      !(current_graphics_descriptor_set_values_up_to_date_ &
+        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex));
+  bool write_pixel_textures =
+      (texture_count_pixel || sampler_count_pixel) &&
+      !(current_graphics_descriptor_set_values_up_to_date_ &
+        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel));
 
   // Write the new descriptor sets.
 
@@ -6830,18 +7754,19 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   uint32_t write_descriptor_set_bits = 0;
   assert_not_zero(current_graphics_descriptor_set_values_up_to_date_ &
                   (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram));
-  // Constant buffers.
-  if (!(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants))) {
+  // Constant buffers (dynamic - the descriptors point to the start of the pool
+  // pages, the draw's locations are the dynamic offsets).
+  VkDescriptorBufferInfo constants_set_buffer_infos[SpirvShaderTranslator::kConstantBufferCount];
+  if (!(current_graphics_descriptor_set_values_up_to_date_ & constants_set_bit)) {
     VkDescriptorSet constants_descriptor_set;
     if (!constants_transient_descriptors_free_.empty()) {
       constants_descriptor_set = constants_transient_descriptors_free_.back();
       constants_transient_descriptors_free_.pop_back();
     } else {
       VkDescriptorPoolSize constants_descriptor_count;
-      constants_descriptor_count.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      constants_descriptor_count.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
       constants_descriptor_count.descriptorCount = SpirvShaderTranslator::kConstantBufferCount;
-      constants_descriptor_set = transient_descriptor_allocator_uniform_buffer_.Allocate(
+      constants_descriptor_set = transient_descriptor_allocator_constants_.Allocate(
           descriptor_set_layout_constants_, &constants_descriptor_count, 1);
       if (constants_descriptor_set == VK_NULL_HANDLE) {
         return false;
@@ -6851,6 +7776,10 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     // Consecutive bindings updated via a single VkWriteDescriptorSet must have
     // identical stage flags, but for the constants they vary.
     for (uint32_t i = 0; i < SpirvShaderTranslator::kConstantBufferCount; ++i) {
+      VkDescriptorBufferInfo& buffer_info = constants_set_buffer_infos[i];
+      buffer_info.buffer = constant_buffers[i];
+      buffer_info.offset = 0;
+      buffer_info.range = kConstantBufferRanges[i];
       VkWriteDescriptorSet& write_constants = write_descriptor_sets[write_descriptor_set_count++];
       write_constants.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       write_constants.pNext = nullptr;
@@ -6858,12 +7787,13 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       write_constants.dstBinding = i;
       write_constants.dstArrayElement = 0;
       write_constants.descriptorCount = 1;
-      write_constants.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      write_constants.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
       write_constants.pImageInfo = nullptr;
-      write_constants.pBufferInfo = &current_constant_buffer_infos_[i];
+      write_constants.pBufferInfo = &buffer_info;
       write_constants.pTexelBufferView = nullptr;
     }
     write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants;
+    ++work_stats_.constant_sets_written;
     current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetConstants] =
         constants_descriptor_set;
   }
@@ -6909,6 +7839,26 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   // Only make valid if all descriptor sets have been allocated and written
   // successfully.
   current_graphics_descriptor_set_values_up_to_date_ |= write_descriptor_set_bits;
+  if (write_descriptor_set_bits & constants_set_bit) {
+    ConstantsDescriptorSet& constants_set = constants_descriptor_sets_frame_.emplace_back();
+    std::memcpy(constants_set.buffers, constant_buffers, sizeof(constant_buffers));
+    constants_set.set = current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetConstants];
+    std::memcpy(current_constants_set_buffers_, constant_buffers, sizeof(constant_buffers));
+  }
+  for (uint32_t i = 0; i < 2; ++i) {
+    if (!(write_descriptor_set_bits & (UINT32_C(1) << texture_set_indices[i]))) {
+      continue;
+    }
+    ++work_stats_.texture_sets_written;
+    // Hash collisions just replace the older entry.
+    TextureDescriptorSetCacheEntry& entry = texture_descriptor_set_cache_[i][texture_set_hashes[i]];
+    entry.layout = texture_set_layouts[i];
+    entry.image_infos.assign(
+        descriptor_write_image_info_.begin() + texture_set_image_info_ranges[i][0],
+        descriptor_write_image_info_.begin() + texture_set_image_info_ranges[i][1]);
+    entry.set = current_graphics_descriptor_sets_[texture_set_indices[i]];
+    last_texture_descriptor_set_entries_[i] = &entry;
+  }
 
   // Bind the new descriptor sets.
   uint32_t descriptor_sets_needed = (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetCount) - 1;
@@ -6924,11 +7874,18 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   while (rex::bit_scan_forward(descriptor_sets_remaining, &descriptor_set_index)) {
     uint32_t descriptor_set_mask_tzcnt =
         rex::tzcnt(~(descriptor_sets_remaining | ((UINT32_C(1) << descriptor_set_index) - 1)));
-    deferred_command_buffer_.CmdVkBindDescriptorSets(
+    ++work_stats_.descriptor_set_binds;
+    // The constants set is the only one with dynamic descriptors.
+    const bool binds_constants =
+        descriptor_set_index <= SpirvShaderTranslator::kDescriptorSetConstants &&
+        descriptor_set_mask_tzcnt > SpirvShaderTranslator::kDescriptorSetConstants;
+    deferred_command_buffer_->CmdVkBindDescriptorSets(
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         current_guest_graphics_pipeline_layout_->GetPipelineLayout(), descriptor_set_index,
         descriptor_set_mask_tzcnt - descriptor_set_index,
-        current_graphics_descriptor_sets_ + descriptor_set_index, 0, nullptr);
+        current_graphics_descriptor_sets_ + descriptor_set_index,
+        binds_constants ? SpirvShaderTranslator::kConstantBufferCount : 0,
+        binds_constants ? current_constants_dynamic_offsets_ : nullptr);
     if (descriptor_set_mask_tzcnt >= 32) {
       break;
     }

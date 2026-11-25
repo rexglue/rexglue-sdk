@@ -167,8 +167,22 @@ inline uint8_t tzcnt(int64_t v) {
 // Search the value from least significant bit (LSB) to the most significant bit
 // (MSB) for a set bit (1).
 // Returns false if no bits are set and the output index is invalid.
+#if defined(__GNUC__) || defined(__clang__)
+// Inline: the command processor scans bit masks in every draw (texture,
+// vertex fetch and descriptor set loops), and an out-of-line definition in
+// the runtime library made each scan a cross-library call.
+inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
+  *out_first_set_index = v ? uint32_t(__builtin_ctz(v)) : UINT32_MAX;  // as ffs(v) - 1
+  return v != 0;
+}
+inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
+  *out_first_set_index = v ? uint32_t(__builtin_ctzll(v)) : UINT32_MAX;
+  return v != 0;
+}
+#else
 bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index);
 bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index);
+#endif
 inline bool bit_scan_forward(int32_t v, uint32_t* out_first_set_index) {
   return bit_scan_forward(static_cast<uint32_t>(v), out_first_set_index);
 }

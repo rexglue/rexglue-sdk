@@ -113,6 +113,11 @@ struct RecompilerConfig {
   std::unordered_map<uint32_t, MidAsmHook> midAsmHooks;
   uint32_t longJmpAddress = 0;
   uint32_t setJmpAddress = 0;
+  // Functions that continue another function's register state (for example an
+  // epilogue the analysis split off and reaches by a tail branch): they keep
+  // their non-volatile registers in ctx, like an SEH funclet, and callers that
+  // keep theirs in locals hand them over through ctx.
+  std::vector<uint32_t> shareRegistersFunctions;
 
   // === rexcrt: CRT function address overrides ===
   // Maps function name -> guest address (e.g. "CreateFileA" -> 0x8248B780)

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstdint>
 
 #include <rex/assert.h>
@@ -248,6 +249,133 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   return (uint32_t(std::max(int32_t(0), max_y_24p8)) +
           ((rb_surface_info.msaa_samples == xenos::MsaaSamples::k1X) ? 127 : 255)) >>
          8;
+}
+
+namespace {
+class PositionXYExportSink : public ShaderInterpreter::ExportSink {
+ public:
+  void Export(ucode::ExportRegister export_register, const float* value,
+              uint32_t value_mask) override {
+    if (export_register == ucode::ExportRegister::kVSPosition) {
+      if ((value_mask & 0b1011) == 0b1011) {
+        x = value[0];
+        y = value[1];
+        w = value[3];
+        has_position = true;
+      }
+    } else if (export_register == ucode::ExportRegister::kVSPointSizeEdgeFlagKillVertex) {
+      if ((value_mask & 0b0100) &&
+          (rex::memory::Reinterpret<uint32_t>(value[2]) & ~(UINT32_C(1) << 31))) {
+        killed = true;
+      }
+    }
+  }
+  float x = 0.0f, y = 0.0f, w = 1.0f;
+  bool has_position = false;
+  bool killed = false;
+};
+}  // namespace
+
+bool DrawExtentEstimator::EstimateRectangle(const Shader& vertex_shader, float& left, float& top,
+                                            float& right, float& bottom) {
+  const RegisterFile& regs = register_file_;
+  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+  if (vgt_draw_initiator.prim_type != xenos::PrimitiveType::kRectangleList ||
+      vgt_draw_initiator.num_indices != 3 ||
+      vgt_draw_initiator.source_select != xenos::SourceSelect::kAutoIndex ||
+      !regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable) {
+    return false;
+  }
+  if (xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode, vgt_draw_initiator.prim_type) &&
+      regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
+          xenos::VGTOutputPath::kTessellationEnable) {
+    return false;
+  }
+  if (!vertex_shader.is_ucode_analyzed() || !ShaderInterpreter::CanInterpretShader(vertex_shader)) {
+    return false;
+  }
+
+  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  const float viewport_x_scale =
+      pa_cl_vte_cntl.vport_x_scale_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_XSCALE) : 1.0f;
+  const float viewport_x_offset =
+      pa_cl_vte_cntl.vport_x_offset_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_XOFFSET) : 0.0f;
+  const float viewport_y_scale =
+      pa_cl_vte_cntl.vport_y_scale_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE) : 1.0f;
+  const float viewport_y_offset =
+      pa_cl_vte_cntl.vport_y_offset_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET) : 0.0f;
+  // As in EstimateVertexMaxY: Direct3D 9 pixel centers to the half-pixel
+  // convention, then the window offset.
+  float offset_x = 0.0f, offset_y = 0.0f;
+  if (regs.Get<reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero) {
+    offset_x += 0.5f;
+    offset_y += 0.5f;
+  }
+  if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
+    auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+    offset_x += float(pa_sc_window_offset.window_x_offset);
+    offset_y += float(pa_sc_window_offset.window_y_offset);
+  }
+  const uint32_t index_offset = regs.Get<reg::VGT_INDX_OFFSET>().indx_offset;
+  const uint32_t min_index = regs.Get<reg::VGT_MIN_VTX_INDX>().min_indx;
+  const uint32_t max_index = regs.Get<reg::VGT_MAX_VTX_INDX>().max_indx;
+
+  float xs[3], ys[3];
+  shader_interpreter_.SetShader(vertex_shader);
+  PositionXYExportSink sink;
+  shader_interpreter_.SetExportSink(&sink);
+  bool valid = true;
+  for (uint32_t i = 0; i < 3 && valid; ++i) {
+    const uint32_t vertex_index =
+        std::min(max_index, std::max(min_index, (i + index_offset) & 0xFFFFFF));
+    sink = PositionXYExportSink();
+    shader_interpreter_.temp_registers()[0] = float(vertex_index);
+    shader_interpreter_.Execute();
+    if (!sink.has_position || sink.killed) {
+      valid = false;
+      break;
+    }
+    float x = sink.x, y = sink.y;
+    if (!pa_cl_vte_cntl.vtx_xy_fmt) {
+      if (!(sink.w > 0.0f)) {
+        valid = false;
+        break;
+      }
+      x /= sink.w;
+      y /= sink.w;
+    }
+    xs[i] = x * viewport_x_scale + viewport_x_offset + offset_x;
+    ys[i] = y * viewport_y_scale + viewport_y_offset + offset_y;
+    // Reject NaN and infinities.
+    if (!(std::abs(xs[i]) < 1e7f) || !(std::abs(ys[i]) < 1e7f)) {
+      valid = false;
+    }
+  }
+  shader_interpreter_.SetExportSink(nullptr);
+  if (!valid) {
+    return false;
+  }
+  // Three distinct corners of an axis-aligned rectangle: exactly two distinct
+  // values per axis (then the fourth corner the rectangle list adds is the
+  // remaining one, and the rectangle is the bounding box).
+  auto distinct = [](const float* v) {
+    return (v[0] != v[1]) + (v[0] != v[2] && v[1] != v[2]) + 1;
+  };
+  if (distinct(xs) != 2 || distinct(ys) != 2) {
+    return false;
+  }
+  for (uint32_t i = 0; i < 3; ++i) {
+    for (uint32_t j = i + 1; j < 3; ++j) {
+      if (xs[i] == xs[j] && ys[i] == ys[j]) {
+        return false;
+      }
+    }
+  }
+  left = std::min({xs[0], xs[1], xs[2]});
+  right = std::max({xs[0], xs[1], xs[2]});
+  top = std::min({ys[0], ys[1], ys[2]});
+  bottom = std::max({ys[0], ys[1], ys[2]});
+  return true;
 }
 
 uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,

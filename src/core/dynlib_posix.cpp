@@ -31,6 +31,12 @@ bool DynamicLibrary::Load(const std::filesystem::path& path, SymbolResolution mo
   return handle_ != nullptr;
 }
 
+bool DynamicLibrary::LoadIfAlreadyLoaded(const std::filesystem::path& path) {
+  Close();
+  handle_ = dlopen(path.c_str(), RTLD_NOW | RTLD_NOLOAD);
+  return handle_ != nullptr;
+}
+
 void DynamicLibrary::Close() {
   if (handle_) {
     dlclose(handle_);

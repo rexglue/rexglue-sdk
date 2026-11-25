@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -170,9 +171,15 @@ class CommandProcessor {
   virtual void MakeCoherent();
   virtual void PrepareForWait();
   virtual void ReturnFromWait();
+  // Called about every 5 ms while the worker waits for more commands.
+  virtual void OnWaitTick() {}
 
   uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
   virtual void OnPrimaryBufferEnd() {}
+  // GPU execution time of the submissions completed since the last call, per
+  // guest frame, for the frame rate log ("" if the backend doesn't measure
+  // it).
+  virtual std::string TakeGpuTimeReport(uint32_t frames) { return {}; }
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
   bool ExecutePacket(memory::RingBuffer* reader);
   bool ExecutePacketType0(memory::RingBuffer* reader, uint32_t packet);
@@ -243,6 +250,62 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   FrameLimiter frame_limiter_;
   GuestFrameMeter guest_frame_meter_;
+
+  // Points where the command processor blocks until the GPU has finished
+  // earlier work (no CPU/GPU overlap meanwhile). Counted and timed for the
+  // log_guest_fps summary; called on the command processor thread.
+  enum class GpuSyncKind : uint32_t {
+    kOcclusionQuery,
+    kMemexportReadback,
+    kResolveReadback,
+    kPipelineWait,
+    kFrameSync,
+    kCount,
+  };
+  void NoteGpuSync(GpuSyncKind kind, std::chrono::steady_clock::time_point started) {
+    const uint32_t i = uint32_t(kind);
+    ++gpu_sync_count_[i];
+    gpu_sync_time_[i] += std::chrono::steady_clock::now() - started;
+  }
+  uint32_t gpu_sync_count_[uint32_t(GpuSyncKind::kCount)] = {};
+  std::chrono::steady_clock::duration gpu_sync_time_[uint32_t(GpuSyncKind::kCount)] = {};
+
+  // Running totals of per-draw host work for the performance log (averaged
+  // per guest frame there). Only touched on the command processor thread.
+  struct WorkStats {
+    uint64_t packets;
+    uint64_t draws;
+    uint64_t pipeline_binds;
+    uint64_t render_passes;
+    uint64_t submissions;
+    uint64_t texture_sets_written;
+    uint64_t texture_sets_reused;
+    uint64_t constant_sets_written;
+    uint64_t descriptor_set_binds;
+    // System, vertex float, pixel float, bool/loop, fetch.
+    uint64_t constant_uploads[5];
+  };
+  WorkStats work_stats_ = {};
+  WorkStats work_stats_reported_ = {};
+
+  // log_guest_fps: periodic summary of guest frame (XE_SWAP) timing.
+  void LogGuestFrameTiming();
+  // Host CPU/GPU sampling for that summary and perf_log.txt (Linux; no-ops
+  // elsewhere).
+  void HostPerfSampleFrame();
+  std::string HostPerfReport(double seconds);
+  void HostPerfFileWrite(const std::string& fps_line, const std::string& host);
+  std::chrono::steady_clock::time_point fps_log_window_start_{};
+  std::chrono::steady_clock::time_point fps_log_last_swap_{};
+  uint32_t fps_log_frames_ = 0;
+  uint32_t fps_log_slow_frames_ = 0;
+  std::chrono::steady_clock::duration fps_log_worst_{};
+  uint64_t fps_log_presents_ = 0;
+  // g_frame_events totals at the previous swap, and what the slowest frame of
+  // the current window did (texture loads, KB uploaded, shader translations,
+  // pipelines created).
+  uint64_t fps_log_events_last_[4] = {};
+  uint64_t fps_log_worst_events_[4] = {};
   system::object_ref<system::XHostThread> worker_thread_;
 
   std::queue<std::function<void()>> pending_fns_;

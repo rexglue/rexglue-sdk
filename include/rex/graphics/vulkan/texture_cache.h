@@ -17,6 +17,8 @@
 #include <vector>
 
 #include <rex/graphics/pipeline/texture/cache.h>
+#include <rex/graphics/vulkan/deferred_command_buffer.h>
+#include <rex/graphics/util/draw.h>
 #include <rex/graphics/vulkan/shader.h>
 #include <rex/graphics/vulkan/shared_memory.h>
 #include <rex/hash.h>
@@ -86,6 +88,12 @@ class VulkanTextureCache final : public TextureCache {
   // preceding host GPU work.
   void RequestTextures(uint32_t used_texture_mask) override;
 
+  // Whether the fetch constant has a texture bound (not the null texture).
+  bool IsActiveTextureBindingValid(uint32_t fetch_constant_index) const {
+    const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
+    return binding && (binding->texture || binding->texture_signed);
+  }
+
   VkImageView GetActiveBindingOrNullImageView(uint32_t fetch_constant_index,
                                               xenos::FetchOpDimension dimension, bool is_signed);
 
@@ -129,6 +137,30 @@ class VulkanTextureCache final : public TextureCache {
                                               length_scaled_alignment_log2);
   }
   VkBuffer scaled_resolve_buffer() const { return scaled_resolve_buffer_; }
+
+  // Direct resolves (cvar resolve_direct_to_texture): instead of going through
+  // the EDRAM buffer, guest memory and a texture load, a resolve of an 8888
+  // color render target is copied straight into the host textures whose data
+  // it replaces.
+  //
+  // Collects the textures made of the resolve's destination (address, size,
+  // format - whether up to date or not: games resolve to the same memory in
+  // several formats within a frame) that the resolve of a width x height
+  // rectangle can be written to directly. False if there are none.
+  // only_dependents_out: no other texture currently holds data loaded from
+  // the destination memory, so the copy to memory may be skipped.
+  bool PrepareDirectResolve(const draw_util::ResolveInfo& resolve_info, uint32_t width,
+                            uint32_t height, bool& only_dependents_out);
+  // Copies the rectangle at source_x, source_y of the image (already in the
+  // transfer source layout, its barrier pending) to the prepared textures and
+  // makes them up to date.
+  // invalidate_others: the destination memory was not written although other
+  // textures hold data loaded from it - they become outdated (and reload what
+  // the memory held before if used again).
+  void CommitDirectResolve(const draw_util::ResolveInfo& resolve_info, VkImage source_image,
+                           DeferredCommandBuffer::ImageCopyMode mode, int32_t source_x,
+                           int32_t source_y, bool invalidate_others);
+  size_t direct_resolve_texture_count() const { return direct_resolve_targets_.size(); }
   void UseScaledResolveBufferForRead();
   void UseScaledResolveBufferForWrite(uint64_t written_start_scaled,
                                       uint64_t written_length_scaled);
@@ -202,6 +234,21 @@ class VulkanTextureCache final : public TextureCache {
 
     VkImage image() const { return image_; }
 
+    // Whether the image holds red and blue exchanged compared to what a load
+    // from guest memory would give (a direct resolve of a red/blue-swapping
+    // resolve copies the render target as it is); views exchange them back.
+    bool rb_exchanged() const { return rb_exchanged_; }
+    void set_rb_exchanged(bool rb_exchanged) {
+      if (rb_exchanged_ != rb_exchanged) {
+        rb_exchanged_ = rb_exchanged;
+        last_view_inputs_ = 0;
+      }
+    }
+
+    // Listed in VulkanTextureCache::direct_resolve_candidates_.
+    bool direct_resolve_candidate() const { return direct_resolve_candidate_; }
+    void set_direct_resolve_candidate() { direct_resolve_candidate_ = true; }
+
     // Doesn't transition (the caller must insert the barrier).
     Usage SetUsage(Usage new_usage) {
       Usage old_usage = usage_;
@@ -264,8 +311,13 @@ class VulkanTextureCache final : public TextureCache {
     VmaAllocation allocation_;
 
     Usage usage_ = Usage::kUndefined;
+    bool rb_exchanged_ = false;
+    bool direct_resolve_candidate_ = false;
 
     std::unordered_map<ViewKey, VkImageView, ViewKey::Hasher> views_;
+    // GetView inputs (with the top bit set when valid) and the view they gave.
+    uint32_t last_view_inputs_ = 0;
+    VkImageView last_view_ = VK_NULL_HANDLE;
     std::unique_ptr<VulkanTexture> texture_3d_as_2d_;
     VkImageView image_view_3d_as_2d_unsigned_ = VK_NULL_HANDLE;
     VkImageView image_view_3d_as_2d_signed_ = VK_NULL_HANDLE;
@@ -375,6 +427,32 @@ class VulkanTextureCache final : public TextureCache {
 
   xenos::AnisoFilter max_anisotropy_;
 
+  // Per fetch constant memo of the fetch-derived parts of GetSamplerParameters
+  // (host linear filterability and the mip range), which otherwise re-decode
+  // the whole texture key for every sampler of every draw.
+  struct SamplerFetchMemo {
+    uint32_t dwords[6];
+    bool valid;
+    bool linear_filterable;
+    uint32_t mip_min_level;
+    uint32_t mip_max_level;
+    // The whole result for one binding's filter overrides.
+    bool result_valid;
+    uint32_t result_binding_filters;
+    int32_t result_anisotropic_override;
+    SamplerParameters result;
+  };
+  mutable SamplerFetchMemo sampler_fetch_memo_[32] = {};
+
+  // Direct-mapped memo of UseSampler results within the current submission
+  // (a sampler used in the current submission can't be destroyed).
+  struct UseSamplerMemo {
+    uint64_t submission = UINT64_MAX;
+    uint32_t parameters = 0;
+    VkSampler sampler = VK_NULL_HANDLE;
+  };
+  UseSamplerMemo use_sampler_memo_[64];
+
   std::unordered_map<SamplerParameters, Sampler, SamplerParameters::Hasher> samplers_;
   std::pair<const SamplerParameters, Sampler>* sampler_used_first_ = nullptr;
   std::pair<const SamplerParameters, Sampler>* sampler_used_last_ = nullptr;
@@ -387,6 +465,38 @@ class VulkanTextureCache final : public TextureCache {
   std::vector<VkDeviceMemory> scaled_resolve_buffer_memory_;
   uint32_t scaled_resolve_sparse_granularity_log2_ = UINT32_MAX;
   std::vector<uint64_t> scaled_resolve_sparse_allocated_;
+
+  // Direct resolves.
+  struct DirectResolveTarget {
+    VulkanTexture* texture;
+    uint32_t level;
+    uint32_t x, y, width, height;
+  };
+  // The (page of the level's data, level) pairs of the mip levels of the
+  // texture that a direct resolve can write: whole levels of 2D textures in
+  // the formats handled, stored on their own at a page boundary.
+  void GetDirectResolveLevels(const VulkanTexture& texture,
+                              std::vector<std::pair<uint32_t, uint32_t>>& levels_out) const;
+  // Whether the host supports the copies direct resolves make into textures of
+  // this guest format.
+  bool IsDirectResolveFormat(xenos::TextureFormat format) const;
+  bool direct_resolve_blit_to_1555_supported_ = false;
+  bool direct_resolve_blit_to_2101010_supported_ = false;
+  bool direct_resolve_blit_to_8888_supported_ = false;
+  // Textures of formats direct resolves can write, by the page of their base
+  // level (added when first loaded, removed when destroyed).
+  std::unordered_map<uint32_t, std::vector<std::pair<VulkanTexture*, uint32_t>>>
+      direct_resolve_candidates_;
+  std::vector<std::pair<Texture*, bool>> direct_resolve_watchers_;
+  std::vector<DirectResolveTarget> direct_resolve_targets_;
+  bool direct_resolve_rb_swap_ = false;
+  // The targets of the last committed direct resolve: a resolve to memory
+  // further down in the same texture (the second tile of a frame drawn in two
+  // tiles) has no texture of its own at its address, and continues these.
+  std::vector<DirectResolveTarget> direct_resolve_last_targets_;
+  // A texture loaded from memory had red and blue exchanged by an earlier
+  // direct resolve: its views changed, so the bindings must be made again.
+  bool direct_resolve_rebind_needed_ = false;
   bool scaled_resolve_last_usage_write_ = false;
   std::pair<uint64_t, uint64_t> scaled_resolve_last_written_range_{0, 0};
 };

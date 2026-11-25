@@ -13,6 +13,9 @@
 #include "helpers.h"
 
 #include <algorithm>
+#include <iterator>
+
+#include <fmt/format.h>
 
 #include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
@@ -42,15 +45,149 @@ const FunctionGraph& BuilderContext::graph() const {
 // Register Accessors
 //=============================================================================
 
+namespace {
+bool IsRegisterHelper(const std::string& name) {
+  return name.rfind("__save", 0) == 0 || name.rfind("__rest", 0) == 0;
+}
+}  // namespace
+
 // Localizing a non-volatile assumes the function owns it across its whole body.
 // An SEH funclet does not: it inherits its owner's live registers through ctx.
+// Two more kinds keep their non-volatiles in ctx:
+// - The register save/restore helpers (__savegprlr_N, __restgprlr_N, ...).
+//   Localized code never calls them (the calls are elided), but code that
+//   keeps registers in ctx does: hand-written overrides copied from
+//   ctx-based generated code, and the functions below. Their bodies must keep
+//   saving and restoring ctx, or one such function calling another loses its
+//   non-volatile registers.
+// - Functions that call setjmp: it is emitted as a copy of ctx that longjmp
+//   restores, and registers held in C++ locals would not be part of it.
 bool BuilderContext::localizeNonVolatiles() const {
-  return config().nonVolatileRegistersAsLocalVariables && !fn.sharesRegisters();
+  if (localizeNonVolatilesCache >= 0) {
+    return localizeNonVolatilesCache != 0;
+  }
+  bool localize = config().nonVolatileRegistersAsLocalVariables && !fn.sharesRegisters();
+  if (localize) {
+    if (IsRegisterHelper(fn.name())) {
+      localize = false;
+    }
+  }
+  if (localize && config().setJmpAddress) {
+    for (const auto& edge : fn.calls()) {
+      uint32_t target = 0;
+      if (const auto* f = edge.target.asFunction()) {
+        target = f->base();
+      } else if (const auto* u = std::get_if<CallTarget::Unresolved>(&edge.target.value)) {
+        target = u->address;
+      } else if (const auto* i = std::get_if<CallTarget::ToImport>(&edge.target.value)) {
+        target = i->address;
+      }
+      if (target == config().setJmpAddress) {
+        localize = false;
+        break;
+      }
+    }
+  }
+  localizeNonVolatilesCache = localize ? 1 : 0;
+  return localize;
+}
+
+// A function that shares registers (an SEH funclet or a split-off fragment,
+// see share_registers_functions) reads and writes its caller's registers
+// through ctx. A caller that keeps registers in C++ locals hands them over
+// around the call. Which registers are local is only known once the whole
+// function is emitted, so this writes markers that the function emitter
+// expands (ExpandRegisterHandovers): before the call every local register goes
+// to ctx, the non-volatile ones after saving the ctx value (it belongs to this
+// function's caller, which may keep its registers in ctx); after the call the
+// locals are read back and the saved non-volatiles restored, as the epilogue
+// would have done.
+void BuilderContext::emit_shared_call(const FunctionNode* targetFn, std::string_view indent) {
+  const auto& name = targetFn->name();
+  emitCtx.reference(name);
+  bool handover = targetFn->sharesRegisters() &&
+                  (config().nonVolatileRegistersAsLocalVariables ||
+                   config().nonArgumentRegistersAsLocalVariables) &&
+                  !fn.sharesRegisters();
+  if (handover)
+    println("{}{}", indent, kHandoverToMarker);
+  println("{}{}(ctx, base);", indent, name);
+  if (handover)
+    println("{}{}", indent, kHandoverBackMarker);
+}
+
+namespace {
+bool IsNonVolatileGprFpr(size_t i) {
+  return i >= 14;
+}
+bool IsNonVolatileVr(size_t i) {
+  return (i >= 14 && i < 32) || i >= 64;
+}
+}  // namespace
+
+bool ExpandRegisterHandovers(std::string& body, const RecompilerLocalVariables& locals) {
+  if (body.find(kHandoverToMarker) == std::string::npos &&
+      body.find(kHandoverBackMarker) == std::string::npos) {
+    return false;
+  }
+  std::string out;
+  out.reserve(body.size() + body.size() / 8);
+  size_t pos = 0;
+  while (pos < body.size()) {
+    size_t eol = body.find('\n', pos);
+    size_t next = eol == std::string::npos ? body.size() : eol + 1;
+    std::string_view line(body.data() + pos, next - pos);
+    size_t to = line.find(kHandoverToMarker);
+    size_t back = to == std::string_view::npos ? line.find(kHandoverBackMarker)
+                                               : std::string_view::npos;
+    if (to == std::string_view::npos && back == std::string_view::npos) {
+      out.append(line);
+      pos = next;
+      continue;
+    }
+    std::string_view indent = line.substr(0, to != std::string_view::npos ? to : back);
+    auto copy = [&](char kind, size_t i, bool nonVolatile) {
+      out.append(indent);
+      if (to != std::string_view::npos) {
+        if (nonVolatile)
+          fmt::format_to(std::back_inserter(out), "ho_{0}{1} = ctx.{0}{1}; ", kind, i);
+        fmt::format_to(std::back_inserter(out), "ctx.{0}{1} = {0}{1};\n", kind, i);
+      } else {
+        fmt::format_to(std::back_inserter(out), "{0}{1} = ctx.{0}{1};", kind, i);
+        if (nonVolatile)
+          fmt::format_to(std::back_inserter(out), " ctx.{0}{1} = ho_{0}{1};", kind, i);
+        out += '\n';
+      }
+    };
+    for (size_t i = 0; i < 32; ++i) {
+      if (locals.r[i])
+        copy('r', i, IsNonVolatileGprFpr(i));
+    }
+    for (size_t i = 0; i < 32; ++i) {
+      if (locals.f[i])
+        copy('f', i, IsNonVolatileGprFpr(i));
+    }
+    for (size_t i = 0; i < 128; ++i) {
+      if (locals.v[i])
+        copy('v', i, IsNonVolatileVr(i));
+    }
+    pos = next;
+  }
+  body = std::move(out);
+  return true;
+}
+
+bool HandoverSavesRegister(char kind, size_t i) {
+  return kind == 'v' ? IsNonVolatileVr(i) : IsNonVolatileGprFpr(i);
+}
+
+bool BuilderContext::localizeNonArguments() const {
+  return config().nonArgumentRegistersAsLocalVariables && !fn.sharesRegisters() &&
+         !IsRegisterHelper(fn.name());
 }
 
 std::string BuilderContext::r(size_t index) {
-  const auto& cfg = config();
-  if ((cfg.nonArgumentRegistersAsLocalVariables &&
+  if ((localizeNonArguments() &&
        (index == 0 || index == 2 || index == 11 || index == 12)) ||
       (localizeNonVolatiles() && index >= 14)) {
     locals.r[index] = true;
@@ -60,8 +197,7 @@ std::string BuilderContext::r(size_t index) {
 }
 
 std::string BuilderContext::f(size_t index) {
-  const auto& cfg = config();
-  if ((cfg.nonArgumentRegistersAsLocalVariables && index == 0) ||
+  if ((localizeNonArguments() && index == 0) ||
       (localizeNonVolatiles() && index >= 14)) {
     locals.f[index] = true;
     return fmt::format("f{}", index);
@@ -70,8 +206,7 @@ std::string BuilderContext::f(size_t index) {
 }
 
 std::string BuilderContext::v(size_t index) {
-  const auto& cfg = config();
-  if ((cfg.nonArgumentRegistersAsLocalVariables && (index >= 32 && index <= 63)) ||
+  if ((localizeNonArguments() && (index >= 32 && index <= 63)) ||
       (localizeNonVolatiles() && ((index >= 14 && index <= 31) || (index >= 64 && index <= 127)))) {
     locals.v[index] = true;
     return fmt::format("v{}", index);
@@ -198,36 +333,21 @@ void BuilderContext::emit_function_call(uint32_t address) {
       auto* targetFn = target->asFunction();
       const auto& name = targetFn->name();
 
-      // Handle save/restore helpers. Gated on the global setting, not this
-      // function's: the helper bodies are emitted under it too, so once they
-      // spill to locals they are no-ops that scribble zeros on the caller's
-      // frame. A share_registers function still has to elide them.
-      if (cfg.nonVolatileRegistersAsLocalVariables &&
+      // Handle save/restore helpers: a function with localized non-volatiles
+      // keeps them in C++ locals, so it has nothing to save or restore. A
+      // function that keeps its non-volatiles in ctx (setjmp callers, functions
+      // that share registers) calls them, and their bodies save and restore ctx
+      // (see localizeNonVolatiles): many share_registers functions are whole
+      // functions whose callers read their registers back from ctx afterwards.
+      if (cfg.nonVolatileRegistersAsLocalVariables && localizeNonVolatiles() &&
           (name.find("__rest") == 0 || name.find("__save") == 0)) {
         // print nothing - these are handled by local variable tracking
         return;
       }
 
-      // An SEH funclet runs on its owner's frame and reads whatever non-volatiles
-      // the owner left live, so hand it the localized copies through ctx and take
-      // them back afterwards. Only registers already localized here can be live at
-      // this point, so that set is the whole live-in the funclet can see.
-      if (targetFn->sharesRegisters() && localizeNonVolatiles()) {
-        for (size_t i = 14; i < 32; ++i) {
-          if (locals.r[i])
-            println("\tctx.r{} = r{};", i, i);
-        }
-        emitCtx.reference(name);
-        println("\t{}(ctx, base);", name);
-        for (size_t i = 14; i < 32; ++i) {
-          if (locals.r[i])
-            println("\tr{} = ctx.r{};", i, i);
-        }
-        return;
-      }
-
-      emitCtx.reference(name);
-      println("\t{}(ctx, base);", name);
+      // An SEH funclet or split-off fragment runs on its owner's frame and
+      // reads whatever registers the owner left live (emit_shared_call).
+      emit_shared_call(targetFn, "\t");
       return;
     }
 
@@ -296,9 +416,8 @@ void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
       if (const auto* callTarget = findCallTarget(base)) {
         if (callTarget->isFunction()) {
           auto* targetFn = callTarget->asFunction();
-          emitCtx.reference(targetFn->name());
           println("\tif ({}{}.{}) {{", not_ ? "!" : "", cr(insn.operands[0]), cond);
-          println("\t\t{}(ctx, base);", targetFn->name());
+          emit_shared_call(targetFn, "\t\t");
           println("\t\treturn;");
           println("\t}}");
         } else if (callTarget->isImport()) {

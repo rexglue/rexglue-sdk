@@ -18,10 +18,13 @@ set(REXGPU_XENOS_SOURCES
     # GPU system
     graphics_system.cpp
     command_processor.cpp
-    fable2_skinning.cpp
-    fable2_terrain_tess.cpp
     frame_limiter.cpp
     util/draw_extent_estimator.cpp
+
+    # Fable II specific draw handling (shared by D3D12 and Vulkan)
+    fable2/fable2_draw_hacks.cpp
+    fable2/fable2_terrain_tess.cpp
+    fable2/fable2_skinning.cpp
     util/draw.cpp
     packet_disassembler.cpp
     precise_sleeper.cpp

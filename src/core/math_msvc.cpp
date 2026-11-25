@@ -57,11 +57,14 @@ uint8_t tzcnt(uint64_t v) {
   return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 64);
 }
 
+// bit_scan_forward is inline in rex/math.h for GCC and Clang; only define it here for MSVC.
+#if !defined(__GNUC__) && !defined(__clang__)
 bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   return _BitScanForward(reinterpret_cast<unsigned long*>(out_first_set_index), v) != 0;
 }
 bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
   return _BitScanForward64(reinterpret_cast<unsigned long*>(out_first_set_index), v) != 0;
 }
+#endif
 
 }  // namespace rex

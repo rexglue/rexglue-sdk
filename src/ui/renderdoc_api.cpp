@@ -25,10 +25,12 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
 
   pRENDERDOC_GetAPI get_api = nullptr;
 
-  // Try to load the RenderDoc library. If RenderDoc is attached, the library
-  // should already be loaded into the process and this will increment the
-  // reference count. If not attached, the load will fail and we return nullptr.
-  if (!renderdoc_api->library_.Load(platform::lib_names::kRenderDoc)) {
+  // If RenderDoc is attached, its library is already loaded into the process
+  // and this only takes a reference. It must never load the library from disk:
+  // on a system with RenderDoc installed (SteamOS ships it) a plain load
+  // injects the capture layer and its overlay into every run, which costs
+  // performance and also turns on GPU debug markers (gpu_debug_markers).
+  if (!renderdoc_api->library_.LoadIfAlreadyLoaded(platform::lib_names::kRenderDoc)) {
     return nullptr;
   }
   get_api = renderdoc_api->library_.GetSymbol<pRENDERDOC_GetAPI>("RENDERDOC_GetAPI");

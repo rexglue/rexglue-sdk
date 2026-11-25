@@ -18,6 +18,8 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <rex/assert.h>
 #include <rex/platform.h>
@@ -107,6 +109,30 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
 // access rights. Both base_address and length will be adjusted to page_size().
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access = nullptr);
+
+#if !REX_PLATFORM_WIN32
+// Running totals for the performance log: Protect calls and bytes protected,
+// and write faults on pages watched for GPU invalidation.
+struct ProtectStats {
+  uint64_t protect_calls;
+  uint64_t protect_bytes;
+  uint64_t watch_faults;
+};
+ProtectStats GetProtectStats();
+// Called from the fault handler (async-signal-safe): counts the fault, and by
+// thread and guest page for TakeWatchFaultDetail.
+void NoteWatchFault(uint32_t guest_address);
+// Watch faults since the last call, by thread (Linux thread id, count) and by
+// guest page (page address, count), each sorted by count, most first.
+struct WatchFaultDetail {
+  std::vector<std::pair<int, uint64_t>> threads;
+  std::vector<std::pair<uint32_t, uint64_t>> pages;
+};
+WatchFaultDetail TakeWatchFaultDetail();
+// Writes the runtime library's PGO profile counters (rex/pgo.h); false when
+// it's not an instrumented build.
+bool WriteRuntimeProfile();
+#endif
 
 // Queries a region of pages to get the access rights. This will modify the
 // length parameter to the length of pages with the same consecutive access

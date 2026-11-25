@@ -1030,6 +1030,8 @@ class Shader {
 
   // Modification bits -> translation.
   std::unordered_map<uint64_t, Translation*> translations_;
+  // The translation GetOrCreateTranslation returned last (one of translations_).
+  Translation* last_translation_ = nullptr;
 
   uint32_t ucode_storage_index_ = UINT32_MAX;
 

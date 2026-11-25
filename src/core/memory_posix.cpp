@@ -9,6 +9,8 @@
  * @modified    Tom Clay & Rien Gupta, 2026 - Adapted for ReXGlue runtime (POSIX + macOS)
  */
 
+#include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
@@ -28,10 +30,14 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#if defined(__linux__)
+#include <sys/syscall.h>
+#endif
 
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/utils.h>
+#include <rex/pgo.h>
 #include <rex/platform.h>
 #include <rex/string.h>
 
@@ -189,38 +195,6 @@ static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
   return false;
 }
 
-// Check if [base, base+length) is fully covered by existing mappings (no gaps)
-static bool IsRangeFullyMapped(void* base_address, size_t length) {
-  if (!base_address || length == 0)
-    return false;
-
-  const uintptr_t begin = reinterpret_cast<uintptr_t>(base_address);
-  const uintptr_t end = begin + length;
-  if (end < begin) {  // overflow check
-    return false;
-  }
-
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open())
-    return false;
-
-  uintptr_t cursor = begin;
-  std::string line;
-  while (std::getline(maps, line)) {
-    LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e))
-      continue;
-    if (e.end <= cursor)
-      continue;
-    if (e.start > cursor)
-      return false;  // gap found
-    cursor = e.end;
-    if (cursor >= end)
-      return true;
-  }
-  return cursor >= end;
-}
-
 // Convert /proc/self/maps permission chars to PageAccess
 static PageAccess PermsToPageAccess(const char perms[5]) {
   const bool r = perms[0] == 'r';
@@ -304,11 +278,16 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
   if (errno == EEXIST && base_address &&
       (allocation_type == AllocationType::kCommit ||
        allocation_type == AllocationType::kReserveCommit)) {
-    // Verify the entire range is mapped before using mprotect
-    if (IsRangeFullyMapped(base_address, length)) {
-      if (mprotect(base_address, length, static_cast<int>(prot_requested)) == 0) {
-        return base_address;
-      }
+    // mprotect itself fails with ENOMEM when part of the range is not
+    // mapped, so no separate check is needed. The old check read and parsed
+    // all of /proc/self/maps on every commit; with the thousands of mappings
+    // that write watches split guest memory into, that took tens of ms per
+    // burst of MmAllocatePhysicalMemoryEx calls (camera-turn stutter on the
+    // Steam Deck). On ENOMEM, mappings before the gap may already have the
+    // new protection; that case already returned nullptr before, and guest
+    // heaps commit only inside their own reservations.
+    if (mprotect(base_address, length, static_cast<int>(prot_requested)) == 0) {
+      return base_address;
     }
   }
 #endif
@@ -338,7 +317,98 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
   }
 }
 
+namespace {
+std::atomic<uint64_t> g_protect_calls{0};
+std::atomic<uint64_t> g_protect_bytes{0};
+std::atomic<uint64_t> g_watch_faults{0};
+}  // namespace
+
+ProtectStats GetProtectStats() {
+  return {g_protect_calls.load(std::memory_order_relaxed),
+          g_protect_bytes.load(std::memory_order_relaxed),
+          g_watch_faults.load(std::memory_order_relaxed)};
+}
+
+namespace {
+// Fault counts by thread and by guest page, filled from the signal handler, so
+// lock-free fixed tables only. A full table drops the extra entries.
+struct WatchFaultThread {
+  std::atomic<int> tid{0};
+  std::atomic<uint64_t> count{0};
+};
+struct WatchFaultPage {
+  std::atomic<uint32_t> page{0};  // guest address >> 12, plus 1 (0 = free)
+  std::atomic<uint64_t> count{0};
+};
+WatchFaultThread g_watch_fault_threads[32];
+WatchFaultPage g_watch_fault_pages[512];
+}  // namespace
+
+void NoteWatchFault(uint32_t guest_address) {
+  g_watch_faults.fetch_add(1, std::memory_order_relaxed);
+#if defined(__linux__)
+  const int tid = int(::syscall(SYS_gettid));
+  for (WatchFaultThread& slot : g_watch_fault_threads) {
+    int current = slot.tid.load(std::memory_order_relaxed);
+    if (current == 0 &&
+        slot.tid.compare_exchange_strong(current, tid, std::memory_order_relaxed)) {
+      current = tid;
+    }
+    if (current == tid) {
+      slot.count.fetch_add(1, std::memory_order_relaxed);
+      break;
+    }
+  }
+#endif
+  const uint32_t page = (guest_address >> 12) + 1;
+  uint32_t index = (page * 2654435761u) >> 23;  // 9 bits
+  for (uint32_t probe = 0; probe < 16; ++probe, index = (index + 1) & 511) {
+    WatchFaultPage& slot = g_watch_fault_pages[index];
+    uint32_t current = slot.page.load(std::memory_order_relaxed);
+    if (current == 0 &&
+        slot.page.compare_exchange_strong(current, page, std::memory_order_relaxed)) {
+      current = page;
+    }
+    if (current == page) {
+      slot.count.fetch_add(1, std::memory_order_relaxed);
+      break;
+    }
+  }
+}
+
+WatchFaultDetail TakeWatchFaultDetail() {
+  WatchFaultDetail detail;
+  for (WatchFaultThread& slot : g_watch_fault_threads) {
+    const int tid = slot.tid.load(std::memory_order_relaxed);
+    const uint64_t count = slot.count.exchange(0, std::memory_order_relaxed);
+    if (tid && count) {
+      detail.threads.emplace_back(tid, count);
+    }
+  }
+  for (WatchFaultPage& slot : g_watch_fault_pages) {
+    const uint64_t count = slot.count.exchange(0, std::memory_order_relaxed);
+    const uint32_t page = slot.page.exchange(0, std::memory_order_relaxed);
+    if (page && count) {
+      detail.pages.emplace_back((page - 1) << 12, count);
+    }
+  }
+  auto by_count = [](const auto& a, const auto& b) { return a.second > b.second; };
+  std::sort(detail.threads.begin(), detail.threads.end(), by_count);
+  std::sort(detail.pages.begin(), detail.pages.end(), by_count);
+  return detail;
+}
+
+bool WriteRuntimeProfile() {
+#if defined(__linux__)
+  return rex::pgo::WriteModuleProfile();
+#else
+  return false;
+#endif
+}
+
 bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* out_old_access) {
+  g_protect_calls.fetch_add(1, std::memory_order_relaxed);
+  g_protect_bytes.fetch_add(length, std::memory_order_relaxed);
   if (out_old_access) {
     *out_old_access = PageAccess::kNoAccess;
   }

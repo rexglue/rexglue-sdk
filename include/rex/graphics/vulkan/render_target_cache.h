@@ -32,6 +32,21 @@ class VulkanCommandProcessor;
 
 class VulkanRenderTargetCache final : public RenderTargetCache {
  public:
+  // Set before Update when the draw replaces all depth and stencil in the
+  // render target (a Direct3D 9 style depth clear), so the depth transfer into
+  // the host render target can be skipped (fable2::ShouldSkipDepthTransfers).
+  void SetDepthOverwrittenByNextUpdate(bool overwritten) {
+    depth_overwritten_by_next_update_ = overwritten;
+  }
+  // Set before Update: the draw's pixel shader and normalized depth control,
+  // to skip copying old contents into color render targets that the draw
+  // overwrites completely (see ColorRenderTargetsOverwritten).
+  void SetNextUpdateDrawState(const Shader* pixel_shader,
+                              reg::RB_DEPTHCONTROL normalized_depth_control) {
+    next_update_pixel_shader_ = pixel_shader;
+    next_update_depth_control_ = normalized_depth_control;
+  }
+
   union RenderPassKey {
     struct {
       // If emulating 2x as 4x, this is still 2x for simplicity of using this
@@ -105,9 +120,43 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the render targets if needed. Must be in a
   // frame for calling.
+  // Merging of the tiles of a frame rendered in two tiles (predicated tiling:
+  // the color and depth buffers of the frame don't fit EDRAM together, so the
+  // game draws the scene once for the upper rows and once more, with a window
+  // offset, for the rest - edram_merge_tiles). Once a frame has shown the
+  // layout, the draws of the first tile are rasterized down to the bottom of
+  // the frame, into rows of the host render targets that EDRAM has no room
+  // for, the draws of the second tile are dropped, and the second tile's
+  // resolve reads those rows.
+  enum class TileMergeAction {
+    kNone,
+    // Draw with the scissor extended down to scissor_bottom_out.
+    kExtendScissor,
+    // The draw was already done in the first tile.
+    kSkipDraw,
+    // A draw of the second tile that was not part of the first (the game
+    // gives some draws, such as terrain patches, to one tile only): draw it
+    // without the window offset, so it lands in the rows below the first
+    // tile's as well.
+    kDrawWithoutWindowOffset,
+  };
+  TileMergeAction GetTileMergeDrawAction(uint64_t frame, uint64_t bin_select, uint64_t bin_mask,
+                                         uint32_t& scissor_bottom_out);
+
+  // If the draw is a Direct3D 9 clear through a 4x multisampled view of EDRAM
+  // (edram_forward_4x_clears), applies it straight to the host render targets
+  // holding that memory and returns true: the draw must then be dropped.
+  bool TryForwardClearThrough4xView(const memory::Memory& memory, const Shader& vertex_shader,
+                                    const Shader* pixel_shader,
+                                    reg::RB_DEPTHCONTROL normalized_depth_control,
+                                    uint32_t normalized_color_mask);
+
+  // memory_copy_required: the resolved data is going to be read back from the
+  // shared memory buffer, so a direct resolve to textures can't replace the
+  // copy to memory.
   bool Resolve(const memory::Memory& memory, VulkanSharedMemory& shared_memory,
                VulkanTextureCache& texture_cache, uint32_t& written_address_out,
-               uint32_t& written_length_out);
+               uint32_t& written_length_out, bool memory_copy_required = true);
 
   bool Update(bool is_rasterization_done, reg::RB_DEPTHCONTROL normalized_depth_control,
               uint32_t normalized_color_mask, const Shader& vertex_shader) override;
@@ -177,6 +226,16 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   void RequestPixelShaderInterlockBarrier() override;
 
  private:
+  bool depth_overwritten_by_next_update_ = false;
+  const Shader* next_update_pixel_shader_ = nullptr;
+  reg::RB_DEPTHCONTROL next_update_depth_control_ = {};
+  // Clears the transfers into the color render targets (slots 1-4 of the last
+  // update) that the current draw overwrites completely, before they are
+  // performed. Returns the number of transfers dropped.
+  uint32_t SkipTransfersOverwrittenByDraw(const Shader& vertex_shader,
+                                          RenderTarget* const* render_targets,
+                                          std::vector<Transfer>* transfers);
+
   enum class EdramBufferUsage {
     // There's no need for combined fragment and compute usages.
     // With host render targets, the usual usage sequence is as follows:
@@ -859,6 +918,65 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   // Temporary storage for Resolve.
   std::vector<Transfer> clear_transfers_[2];
+
+  struct TileMerge {
+    // The layout seen in an earlier frame.
+    bool learned = false;
+    uint32_t surface_info = 0;
+    uint32_t color_info = 0;
+    uint32_t depth_info = 0;
+    uint32_t first_tile_height = 0;
+    uint32_t frame_height = 0;
+    // The frame in which the first tile's draws were extended (0 if none).
+    uint64_t merged_frame = 0;
+    // All bin selections of the extended draws.
+    uint64_t first_tile_bin_selects = 0;
+    bool first_tile_resolved = false;
+  };
+  TileMerge tile_merge_;
+
+  // resolve_direct_hdr_depth: a compute shader converts the render target the
+  // way the path through EDRAM and memory would (2:10:10:10 float samples
+  // quantized to 7e3 and averaged; depth encoded as 20e4 and decoded again)
+  // into a scratch image, which the texture cache copies into the textures.
+  enum DirectConvertMode : uint32_t { kDirectConvertHdr, kDirectConvertDepth };
+  static constexpr uint32_t kDirectConvertImageSize = 1280;
+  bool EnsureDirectConvertLayouts();
+  VkPipeline GetDirectConvertPipeline(uint32_t mode, bool multisampled);
+  bool EnsureDirectConvertImage(uint32_t mode);
+  // Records the conversion of width x height pixels at source_x, source_y;
+  // host_sample_1 < 0 for one sample. Returns the scratch image (in the
+  // transfer source layout, its barrier pending), or VK_NULL_HANDLE.
+  VkImage RunDirectConvert(uint32_t mode, VulkanRenderTarget& source, int32_t source_x,
+                           int32_t source_y, uint32_t width, uint32_t height,
+                           int32_t host_sample_0, int32_t host_sample_1);
+  void DestroyDirectConvertResources();
+  VkDescriptorSetLayout direct_convert_storage_layout_ = VK_NULL_HANDLE;
+  VkDescriptorPool direct_convert_descriptor_pool_ = VK_NULL_HANDLE;
+  VkPipelineLayout direct_convert_pipeline_layouts_[2] = {};
+  VkPipeline direct_convert_pipelines_[2][2] = {};
+  bool direct_convert_pipeline_failed_[2][2] = {};
+  bool direct_convert_layouts_failed_ = false;
+  struct DirectConvertImage {
+    VkImage image = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VkImageView view = VK_NULL_HANDLE;
+    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+    bool failed = false;
+    // VK_IMAGE_LAYOUT_UNDEFINED before the first use.
+    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  };
+  DirectConvertImage direct_convert_images_[2];
+  // What identifies the surfaces of the tiles in the current registers: pitch
+  // and sample count, and the EDRAM base and host render target format of
+  // color 0 and of depth. Not the raw register values: the game switches
+  // between variants of a format that share one host render target within a
+  // tile (2:10:10:10 float and its blendable 16:16:16:16 form in Fable II).
+  void GetTileMergeLayout(uint32_t& surface_out, uint32_t& color_out, uint32_t& depth_out) const;
+  // For the resolve of the merged second tile: dumping this render target
+  // reads this many tiles further down than the EDRAM tiles being dumped.
+  RenderTargetKey dump_source_shift_key_;
+  uint32_t dump_source_shift_tiles_ = 0;
 
   // Temporary storage for PerformTransfersAndResolveClears.
   std::vector<TransferInvocation> current_transfer_invocations_;

@@ -238,6 +238,12 @@ class TextureCache {
 
     void LogAction(const char* action) const;
 
+    // Shared memory content fingerprints of the base and mip data the texture
+    // was last loaded from (0 = unknown). A reload of data whose fingerprint is
+    // unchanged is skipped. Command processor thread only.
+    uint64_t base_content_hash_ = 0;
+    uint64_t mips_content_hash_ = 0;
+
    protected:
     // If track_usage is false, the texture won't be added to the LRU list.
     explicit Texture(TextureCache& texture_cache, const TextureKey& key, bool track_usage = true);
@@ -547,6 +553,18 @@ class TextureCache {
   // implementation to update the internal dependencies of the binding.
   virtual void UpdateTextureBindingsImpl(uint32_t /*fetch_constant_mask*/) {}
 
+  // Textures whose current host contents were loaded from memory overlapping
+  // the range and are still up to date with it (each with whether it's their
+  // mip tail, not their base level, that overlaps). Returns false if something
+  // other than a texture watches the range as well.
+  bool GetTexturesWatchingRange(uint32_t start, uint32_t length,
+                                std::vector<std::pair<Texture*, bool>>& textures_out);
+  // For a texture the implementation has filled with the current data of its
+  // memory range by itself, without a load.
+  void MakeTextureUpToDateAndWatch(Texture& texture) {
+    texture.MakeUpToDateAndWatch(global_critical_region_.Acquire());
+  }
+
  private:
   struct PendingTextureLoad {
     Texture* texture = nullptr;
@@ -604,6 +622,30 @@ class TextureCache {
   uint64_t current_submission_time_ = 0;
 
   std::unordered_map<TextureKey, std::unique_ptr<Texture>, TextureKey::Hasher> textures_;
+  // Direct-mapped memo in front of textures_ for FindOrCreateTexture, which
+  // runs whenever a texture binding changes (most draws). Cleared whenever a
+  // texture is destroyed.
+  struct TextureLookupMemoEntry {
+    TextureKey key;
+    Texture* texture = nullptr;
+  };
+  // A busy frame binds a few thousand different textures, so 256 entries
+  // mostly missed.
+  static constexpr uint32_t kTextureLookupMemoSizeLog2 = 12;
+  TextureLookupMemoEntry texture_lookup_memo_[1u << kTextureLookupMemoSizeLog2];
+  static uint32_t TextureLookupMemoIndex(const TextureKey& key) {
+    static_assert(sizeof(TextureKey) == 16, "TextureKey memo hash reads 16 bytes");
+    uint64_t words[2];
+    std::memcpy(words, &key, sizeof(words));
+    return uint32_t(((words[0] ^ (words[1] * UINT64_C(0xC2B2AE3D27D4EB4F))) *
+                     UINT64_C(0x9E3779B97F4A7C15)) >>
+                    (64 - kTextureLookupMemoSizeLog2));
+  }
+  void ClearTextureLookupMemo() {
+    for (TextureLookupMemoEntry& entry : texture_lookup_memo_) {
+      entry.texture = nullptr;
+    }
+  }
 
   uint64_t textures_total_host_memory_usage_ = 0;
 

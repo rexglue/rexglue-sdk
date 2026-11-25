@@ -47,6 +47,7 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
 
   void AddDialog(ImGuiDialog* dialog);
   void RemoveDialog(ImGuiDialog* dialog);
+  Window* window() const { return window_; }
 
   // Whether Draw would render anything, so a caller that has to marshal to the
   // UI thread can skip the round trip entirely.

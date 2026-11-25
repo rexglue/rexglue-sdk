@@ -638,6 +638,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   }
 
   // --- Emit local variable declarations, then body ---
+  bool handovers = ExpandRegisterHandovers(body, localVariables);
   if (localVariables.ctr)
     emit_println(out, "\tPPCRegister ctr{{}};");
   if (localVariables.xer)
@@ -663,6 +664,22 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   for (size_t i = 0; i < 128; i++) {
     if (localVariables.v[i])
       emit_println(out, "\tPPCVRegister v{}{{}};", i);
+  }
+
+  // Saved ctx copies for the register hand-over around shared-register calls.
+  if (handovers) {
+    for (size_t i = 0; i < 32; i++) {
+      if (localVariables.r[i] && HandoverSavesRegister('r', i))
+        emit_println(out, "\tPPCRegister ho_r{}{{}};", i);
+    }
+    for (size_t i = 0; i < 32; i++) {
+      if (localVariables.f[i] && HandoverSavesRegister('f', i))
+        emit_println(out, "\tPPCRegister ho_f{}{{}};", i);
+    }
+    for (size_t i = 0; i < 128; i++) {
+      if (localVariables.v[i] && HandoverSavesRegister('v', i))
+        emit_println(out, "\tPPCVRegister ho_v{}{{}};", i);
+    }
   }
 
   if (localVariables.env)

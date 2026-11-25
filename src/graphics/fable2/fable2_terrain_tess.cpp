@@ -9,7 +9,7 @@
 #include <rex/graphics/xenos.h>
 #include <rex/types.h>
 
-namespace rex::graphics {
+namespace rex::graphics::fable2 {
 
 namespace {
 
@@ -112,7 +112,17 @@ bool ComputeFable2TerrainTess(const RegisterFile& regs, memory::Memory& memory,
     return float(byte_value) / 255.0f;
   };
 
-  std::vector<uint8_t> output(size_t(vertex_count) * kOutputBytes);
+  // The shader's 256 constants in a local array: read through the register
+  // file they had to be loaded again after every store to a shader register,
+  // as the compiler can't tell the two apart.
+  float constants[256][4];
+  std::memcpy(constants, &constant_registers[constant_base * 4], sizeof(constants));
+  const auto LC = [&constants](uint32_t index, uint32_t component) {
+    return constants[index][component];
+  };
+
+  static thread_local std::vector<uint8_t> output;
+  output.resize(size_t(vertex_count) * kOutputBytes);
   for (uint32_t vertex = 0; vertex < vertex_count; ++vertex) {
     const uint32_t index = vertex + index_offset;
     const uint8_t* attributes = vertices + size_t(index) * kVertexBytes;
@@ -135,7 +145,7 @@ bool ComputeFable2TerrainTess(const RegisterFile& regs, memory::Memory& memory,
     fetch(0, 10, 3, 1);
     fetch(6, 11, 3, 0);
     r[0][0] = float(index);
-    RunTerrainTessVS(r, C, sample);
+    RunTerrainTessVS(r, LC, sample);
     uint8_t* element = output.data() + size_t(vertex) * kOutputBytes;
     for (uint32_t i = 0; i < 4; ++i) {
       uint32_t value;
@@ -150,4 +160,4 @@ bool ComputeFable2TerrainTess(const RegisterFile& regs, memory::Memory& memory,
   return true;
 }
 
-}  // namespace rex::graphics
+}  // namespace rex::graphics::fable2

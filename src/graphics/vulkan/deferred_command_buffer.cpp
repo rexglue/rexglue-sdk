@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -25,28 +26,78 @@ namespace rex::graphics::vulkan {
 DeferredCommandBuffer::DeferredCommandBuffer(const VulkanCommandProcessor& command_processor,
                                              size_t initial_size)
     : command_processor_(command_processor) {
-  command_stream_.reserve(initial_size / sizeof(uintmax_t));
+  size_t first_block = std::max(kBlockElements, initial_size / sizeof(uintmax_t));
+  blocks_[0] = std::make_unique<uintmax_t[]>(first_block);
+  block_capacity_[0] = first_block;
 }
 
 void DeferredCommandBuffer::Reset() {
-  command_stream_.clear();
+  write_block_ = 0;
+  write_offset_ = 0;
+  timestamp_category_marked_ = kNoTimestampCategory;
+  published_.store(0, std::memory_order_relaxed);
+}
+
+void DeferredCommandBuffer::Publish(std::memory_order order) {
+  // Release by default (a plain store on x86): ExecutePublished reads it with
+  // acquire. A caller that then reads another thread's flag (Dekker-style) adds
+  // its own seq_cst fence, see VulkanCommandProcessor::PublishSubmitJob.
+  published_.store((uint64_t(write_block_) << kPublishedBlockShift) | uint64_t(write_offset_),
+                   order);
 }
 
 void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
+  Publish();
+  Cursor cursor;
+  ExecutePublished(command_buffer, cursor);
+}
+
+bool DeferredCommandBuffer::ExecutePublished(VkCommandBuffer command_buffer,
+                                             Cursor& cursor) const {
+  const uint64_t published = published_.load(std::memory_order_acquire);
+  const uint32_t published_block = uint32_t(published >> kPublishedBlockShift);
+  const size_t published_offset = size_t(published & kPublishedOffsetMask);
+  bool executed = false;
+  while (cursor.block < published_block ||
+         (cursor.block == published_block && cursor.offset < published_offset)) {
+    const size_t end =
+        cursor.block < published_block ? block_end_[cursor.block] : published_offset;
+    if (end > cursor.offset) {
+      ExecuteRange(command_buffer, blocks_[cursor.block].get() + cursor.offset,
+                   end - cursor.offset);
+      executed = true;
+    }
+    if (cursor.block < published_block) {
+      ++cursor.block;
+      cursor.offset = 0;
+    } else {
+      cursor.offset = end;
+    }
+  }
+  return executed;
+}
+
+void DeferredCommandBuffer::ExecuteRange(VkCommandBuffer command_buffer, const uintmax_t* stream,
+                                         size_t stream_remaining) const {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const ui::vulkan::VulkanDevice::Functions& dfn =
       command_processor_.GetVulkanDevice()->functions();
-  const uintmax_t* stream = command_stream_.data();
-  size_t stream_remaining = command_stream_.size();
   while (stream_remaining) {
     const CommandHeader& header = *reinterpret_cast<const CommandHeader*>(stream);
     stream += kCommandHeaderSizeElements;
     stream_remaining -= kCommandHeaderSizeElements;
 
     switch (header.command) {
+      case Command::kTimestampMarker: {
+        if (timestamp_sink_) {
+          timestamp_sink_->WriteTimestamp(
+              command_buffer, reinterpret_cast<const ArgsTimestampMarker*>(stream)->category);
+        }
+      } break;
+
       case Command::kVkBeginRenderPass: {
         auto& args = *reinterpret_cast<const ArgsVkBeginRenderPass*>(stream);
         size_t offset_bytes = sizeof(ArgsVkBeginRenderPass);
@@ -154,6 +205,37 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
             reinterpret_cast<const VkBufferImageCopy*>(
                 reinterpret_cast<const uint8_t*>(stream) +
                 rex::align(sizeof(ArgsVkCopyBufferToImage), alignof(VkBufferImageCopy))));
+      } break;
+
+      case Command::kVkCopyOrResolveImage: {
+        auto& args = *reinterpret_cast<const ArgsVkCopyOrResolveImage*>(stream);
+        if (args.mode == ImageCopyMode::kBlit) {
+          VkImageBlit region;
+          region.srcSubresource = args.region.srcSubresource;
+          region.srcOffsets[0] = args.region.srcOffset;
+          region.srcOffsets[1].x = args.region.srcOffset.x + int32_t(args.region.extent.width);
+          region.srcOffsets[1].y = args.region.srcOffset.y + int32_t(args.region.extent.height);
+          region.srcOffsets[1].z = 1;
+          region.dstSubresource = args.region.dstSubresource;
+          region.dstOffsets[0] = args.region.dstOffset;
+          region.dstOffsets[1].x = args.region.dstOffset.x + int32_t(args.region.extent.width);
+          region.dstOffsets[1].y = args.region.dstOffset.y + int32_t(args.region.extent.height);
+          region.dstOffsets[1].z = 1;
+          dfn.vkCmdBlitImage(command_buffer, args.src_image, args.src_image_layout, args.dst_image,
+                             args.dst_image_layout, 1, &region, VK_FILTER_NEAREST);
+        } else if (args.mode == ImageCopyMode::kResolve) {
+          VkImageResolve region;
+          region.srcSubresource = args.region.srcSubresource;
+          region.srcOffset = args.region.srcOffset;
+          region.dstSubresource = args.region.dstSubresource;
+          region.dstOffset = args.region.dstOffset;
+          region.extent = args.region.extent;
+          dfn.vkCmdResolveImage(command_buffer, args.src_image, args.src_image_layout,
+                                args.dst_image, args.dst_image_layout, 1, &region);
+        } else {
+          dfn.vkCmdCopyImage(command_buffer, args.src_image, args.src_image_layout, args.dst_image,
+                             args.dst_image_layout, 1, &args.region);
+        }
       } break;
 
       case Command::kVkCopyQueryPoolResults: {
@@ -414,14 +496,40 @@ void DeferredCommandBuffer::CmdVkBeginRendering(const VkRenderingInfo* rendering
 }
 
 void* DeferredCommandBuffer::WriteCommand(Command command, size_t arguments_size_bytes) {
+  if (timestamp_category_ != timestamp_category_marked_) {
+    timestamp_category_marked_ = timestamp_category_;
+    if (timestamp_category_ != kNoTimestampCategory) {
+      auto& marker = *reinterpret_cast<ArgsTimestampMarker*>(
+          WriteCommandRaw(Command::kTimestampMarker, sizeof(ArgsTimestampMarker)));
+      marker.category = timestamp_category_;
+    }
+  }
+  return WriteCommandRaw(command, arguments_size_bytes);
+}
+
+void* DeferredCommandBuffer::WriteCommandRaw(Command command, size_t arguments_size_bytes) {
   size_t arguments_size_elements =
       (arguments_size_bytes + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
-  size_t offset = command_stream_.size();
-  command_stream_.resize(offset + kCommandHeaderSizeElements + arguments_size_elements);
-  CommandHeader& header = *reinterpret_cast<CommandHeader*>(command_stream_.data() + offset);
+  const size_t command_size_elements = kCommandHeaderSizeElements + arguments_size_elements;
+  if (write_offset_ + command_size_elements > block_capacity_[write_block_]) {
+    // Continue in the next block (commands don't span blocks). The end of this
+    // one becomes visible to readers when the next block is published.
+    assert_true(write_block_ + 1 < kMaxBlocks);
+    block_end_[write_block_] = write_offset_;
+    ++write_block_;
+    write_offset_ = 0;
+    if (block_capacity_[write_block_] < command_size_elements) {
+      size_t capacity = std::max(kBlockElements, command_size_elements);
+      blocks_[write_block_] = std::make_unique<uintmax_t[]>(capacity);
+      block_capacity_[write_block_] = capacity;
+    }
+  }
+  uintmax_t* command_ptr = blocks_[write_block_].get() + write_offset_;
+  write_offset_ += command_size_elements;
+  CommandHeader& header = *reinterpret_cast<CommandHeader*>(command_ptr);
   header.command = command;
   header.arguments_size_elements = uint32_t(arguments_size_elements);
-  return command_stream_.data() + (offset + kCommandHeaderSizeElements);
+  return command_ptr + kCommandHeaderSizeElements;
 }
 
 }  // namespace rex::graphics::vulkan

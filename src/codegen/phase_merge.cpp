@@ -72,6 +72,21 @@ void mergeAndSeal(CodegenContext& ctx) {
   if (sharedRegs > 0) {
     REXCODEGEN_DEBUG("Analyze: {} functions share registers with an SEH funclet", sharedRegs);
   }
+  size_t configShared = 0;
+  for (uint32_t addr : ctx.Config().shareRegistersFunctions) {
+    if (auto* node = graph.getFunction(addr)) {
+      if (!node->sharesRegisters()) {
+        node->setSharesRegisters(true);
+        ++configShared;
+      }
+    } else {
+      REXCODEGEN_WARN("share_registers_functions: no function at 0x{:08X}", addr);
+    }
+  }
+  if (configShared > 0) {
+    REXCODEGEN_INFO("Analyze: {} functions share registers (share_registers_functions)",
+                    configShared);
+  }
 
   size_t totalSealed = graph.sealAllReady();
   size_t stillPending = graph.pendingCount();
