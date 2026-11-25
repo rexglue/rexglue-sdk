@@ -1487,6 +1487,81 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
             }
             spv::Id layer_0_coordinate = builder_->CreateUnaryBuiltinCall(
                 type_float, ext_inst_glsl_std_450_, GLSLstd450Floor, layer_coordinate);
+            auto load_fetch_constant_word = [&](u32 word_offset) {
+              id_vector_temp_.clear();
+              id_vector_temp_.push_back(const_int_0_);
+              id_vector_temp_.push_back(
+                  builder_->makeIntConstant(int((fetch_constant_word_0_index + word_offset) >> 2)));
+              id_vector_temp_.push_back(
+                  builder_->makeIntConstant(int((fetch_constant_word_0_index + word_offset) & 3)));
+              return builder_->createLoad(
+                  builder_->createAccessChain(spv::StorageClassUniform, uniform_fetch_constants_,
+                                              id_vector_temp_),
+                  spv::NoPrecision);
+            };
+            spv::Id layer_clamp_z_uses_border = builder_->createBinOp(
+                spv::OpIEqual, type_bool,
+                builder_->createTriOp(spv::OpBitFieldUExtract, type_uint,
+                                      load_fetch_constant_word(0), builder_->makeUintConstant(17),
+                                      builder_->makeUintConstant(2)),
+                builder_->makeUintConstant(3));
+            spv::Id layer_count = builder_->createUnaryOp(
+                spv::OpConvertUToF, type_float,
+                builder_->createBinOp(spv::OpIAdd, type_uint,
+                                      builder_->createTriOp(spv::OpBitFieldUExtract, type_uint,
+                                                            load_fetch_constant_word(2),
+                                                            builder_->makeUintConstant(26),
+                                                            builder_->makeUintConstant(6)),
+                                      builder_->makeUintConstant(1)));
+            spv::Id layer_border_color_index = builder_->createTriOp(
+                spv::OpBitFieldUExtract, type_uint, load_fetch_constant_word(5), const_uint_0_,
+                builder_->makeUintConstant(2));
+            spv::Id layer_border_is_white = builder_->createBinOp(
+                spv::OpIEqual, type_bool, layer_border_color_index, builder_->makeUintConstant(1));
+            spv::Id layer_border_is_ycbcr_0 = builder_->createBinOp(
+                spv::OpIEqual, type_bool, layer_border_color_index, builder_->makeUintConstant(2));
+            spv::Id layer_border_is_ycbcr_1 = builder_->createBinOp(
+                spv::OpIEqual, type_bool, layer_border_color_index, builder_->makeUintConstant(3));
+            spv::Id const_float_half = builder_->makeFloatConstant(0.5f);
+            spv::Id const_float_one = builder_->makeFloatConstant(1.0f);
+            spv::Id const_float_zero = builder_->makeFloatConstant(0.0f);
+            id_vector_temp_.clear();
+            id_vector_temp_.push_back(builder_->createTriOp(
+                spv::OpSelect, type_float, layer_border_is_white, const_float_one,
+                builder_->createTriOp(spv::OpSelect, type_float, layer_border_is_ycbcr_0,
+                                      const_float_half, const_float_zero)));
+            id_vector_temp_.push_back(builder_->createTriOp(
+                spv::OpSelect, type_float, layer_border_is_white, const_float_one,
+                builder_->createTriOp(spv::OpSelect, type_float, layer_border_is_ycbcr_1,
+                                      const_float_half, const_float_zero)));
+            id_vector_temp_.push_back(builder_->createTriOp(
+                spv::OpSelect, type_float, layer_border_is_white, const_float_one,
+                builder_->createTriOp(
+                    spv::OpSelect, type_float,
+                    builder_->createBinOp(spv::OpLogicalOr, type_bool, layer_border_is_ycbcr_0,
+                                          layer_border_is_ycbcr_1),
+                    const_float_half, const_float_zero)));
+            id_vector_temp_.push_back(builder_->createTriOp(spv::OpSelect, type_float,
+                                                            layer_border_is_white, const_float_one,
+                                                            const_float_zero));
+            spv::Id layer_border_color =
+                builder_->createCompositeConstruct(type_float4, id_vector_temp_);
+            auto apply_layer_border = [&](spv::Id layer_index, spv::Id sample_result) {
+              spv::Id layer_is_outside =
+                  builder_->createBinOp(spv::OpLogicalOr, type_bool,
+                                        builder_->createBinOp(spv::OpFOrdLessThan, type_bool,
+                                                              layer_index, const_float_zero),
+                                        builder_->createBinOp(spv::OpFOrdGreaterThanEqual,
+                                                              type_bool, layer_index, layer_count));
+              return builder_->createTriOp(
+                  spv::OpSelect, type_float4,
+                  builder_->smearScalar(
+                      spv::NoPrecision,
+                      builder_->createBinOp(spv::OpLogicalAnd, type_bool, layer_clamp_z_uses_border,
+                                            layer_is_outside),
+                      type_bool4),
+                  layer_border_color, sample_result);
+            };
             id_vector_temp_.clear();
             id_vector_temp_.push_back(coordinates[0]);
             id_vector_temp_.push_back(coordinates[1]);
@@ -1496,6 +1571,10 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
             SampleTexture(texture_parameters, image_operands_mask, image_2d_array_or_cube_unsigned,
                           image_2d_array_or_cube_signed, sampler, is_any_unsigned, is_any_signed,
                           sample_result_unsigned_stacked, sample_result_signed_stacked);
+            sample_result_unsigned_stacked =
+                apply_layer_border(layer_0_coordinate, sample_result_unsigned_stacked);
+            sample_result_signed_stacked =
+                apply_layer_border(layer_0_coordinate, sample_result_signed_stacked);
             if (vol_filter_is_linear != spv::NoResult || vol_mag_filter_is_linear) {
               spv::Block& block_z_head = *builder_->getBuildPoint();
               spv::Block& block_z_linear =
@@ -1524,8 +1603,19 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
               SampleTexture(texture_parameters, image_operands_mask,
                             image_2d_array_or_cube_unsigned, image_2d_array_or_cube_signed, sampler,
                             is_any_unsigned, is_any_signed, sample_result_unsigned_stacked_filtered,
-                            sample_result_signed_stacked_filtered, layer_lerp_factor,
-                            sample_result_unsigned_stacked, sample_result_signed_stacked);
+                            sample_result_signed_stacked_filtered);
+              for (u32 i = 0; i < 2; ++i) {
+                spv::Id& filtered_ref = i ? sample_result_signed_stacked_filtered
+                                          : sample_result_unsigned_stacked_filtered;
+                spv::Id first = i ? sample_result_signed_stacked : sample_result_unsigned_stacked;
+                spv::Id second = apply_layer_border(layer_1_coordinate, filtered_ref);
+                filtered_ref = builder_->CreateNoContractionBinOp(
+                    spv::OpFAdd, type_float4, first,
+                    builder_->CreateNoContractionBinOp(
+                        spv::OpVectorTimesScalar, type_float4,
+                        builder_->CreateNoContractionBinOp(spv::OpFSub, type_float4, second, first),
+                        layer_lerp_factor));
+              }
               if (vol_filter_is_linear != spv::NoResult) {
                 // Take the build point after the SampleTexture call for the phi.
                 spv::Block& block_z_linear_end = *builder_->getBuildPoint();
@@ -1871,8 +1961,7 @@ void SPIRVShaderTranslator::SampleTexture(spv::Builder::TextureParameters& textu
                                           spv::Id image_unsigned, spv::Id image_signed,
                                           spv::Id sampler, spv::Id is_any_unsigned,
                                           spv::Id is_any_signed, spv::Id& result_unsigned_out,
-                                          spv::Id& result_signed_out, spv::Id lerp_factor,
-                                          spv::Id lerp_first_unsigned, spv::Id lerp_first_signed) {
+                                          spv::Id& result_signed_out) {
   for (u32 i = 0; i < 2; ++i) {
     SPIRVBuilder::IfBuilder sign_if(i ? is_any_signed : is_any_unsigned,
                                     spv::SelectionControlDontFlattenMask, *builder_);
@@ -1886,17 +1975,6 @@ void SPIRVShaderTranslator::SampleTexture(spv::Builder::TextureParameters& textu
       sign_result =
           builder_->createTextureCall(spv::NoPrecision, type_float4, false, false, false, false,
                                       false, texture_parameters, image_operands_mask);
-      if (lerp_factor != spv::NoResult) {
-        spv::Id lerp_first = i ? lerp_first_signed : lerp_first_unsigned;
-        if (lerp_first != spv::NoResult) {
-          spv::Id lerp_difference = builder_->CreateNoContractionBinOp(
-              spv::OpVectorTimesScalar, type_float4,
-              builder_->CreateNoContractionBinOp(spv::OpFSub, type_float4, sign_result, lerp_first),
-              lerp_factor);
-          sign_result = builder_->CreateNoContractionBinOp(spv::OpFAdd, type_float4, lerp_first,
-                                                           lerp_difference);
-        }
-      }
     }
     sign_if.MakeEndIf();
     (i ? result_signed_out : result_unsigned_out) =

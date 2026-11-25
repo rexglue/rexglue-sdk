@@ -1440,6 +1440,32 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
                                     std::to_underlying(SRVMainRegister::kBindfulTexturesStart) +
                                         texture_binding_index_signed);
         }
+        u32 layer_border_temp = UINT32_MAX;
+        u32 layer_border_flags_temp = UINT32_MAX;
+        if (is_stacked) {
+          layer_border_temp = PushSystemTemp();
+          layer_border_flags_temp = PushSystemTemp();
+          a_.OpUBFE(dxbc::Dest::R(layer_border_flags_temp, 0b0001), dxbc::Src::LU(2),
+                    dxbc::Src::LU(17), RequestTextureFetchConstantWord(tfetch_index, 0));
+          a_.OpIEq(dxbc::Dest::R(layer_border_flags_temp, 0b0001),
+                   dxbc::Src::R(layer_border_flags_temp, dxbc::Src::kXXXX), dxbc::Src::LU(3));
+          a_.OpUBFE(dxbc::Dest::R(layer_border_temp, 0b0001), dxbc::Src::LU(2), dxbc::Src::LU(0),
+                    RequestTextureFetchConstantWord(tfetch_index, 5));
+          a_.OpSwitch(dxbc::Src::R(layer_border_temp, dxbc::Src::kXXXX));
+          a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::BorderColor::k_ABGR_White)));
+          a_.OpMov(dxbc::Dest::R(layer_border_temp), dxbc::Src::LF(1.0f));
+          a_.OpBreak();
+          a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::BorderColor::k_ACBYCR_Black)));
+          a_.OpMov(dxbc::Dest::R(layer_border_temp), dxbc::Src::LF(0.5f, 0.0f, 0.5f, 0.0f));
+          a_.OpBreak();
+          a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::BorderColor::k_ACBCRY_Black)));
+          a_.OpMov(dxbc::Dest::R(layer_border_temp), dxbc::Src::LF(0.0f, 0.5f, 0.5f, 0.0f));
+          a_.OpBreak();
+          a_.OpDefault();
+          a_.OpMov(dxbc::Dest::R(layer_border_temp), dxbc::Src::LF(0.0f));
+          a_.OpBreak();
+          a_.OpEndSwitch();
+        }
         for (u32 layer = 0; layer < (layer_lerp_needed ? 2u : 1u); ++layer) {
           u32 layer_value_temp = system_temp_result_;
           if (layer) {
@@ -1509,6 +1535,23 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
             PopSystemTemp();
           }
           a_.OpEndIf();
+          if (is_stacked) {
+            a_.OpLT(dxbc::Dest::R(layer_border_flags_temp, 0b0010),
+                    dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kZZZZ), dxbc::Src::LF(0.0f));
+            a_.OpGE(dxbc::Dest::R(layer_border_flags_temp, 0b0100),
+                    dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kZZZZ),
+                    dxbc::Src::R(size_and_is_3d_temp, dxbc::Src::kZZZZ));
+            a_.OpOr(dxbc::Dest::R(layer_border_flags_temp, 0b0010),
+                    dxbc::Src::R(layer_border_flags_temp, dxbc::Src::kYYYY),
+                    dxbc::Src::R(layer_border_flags_temp, dxbc::Src::kZZZZ));
+            a_.OpAnd(dxbc::Dest::R(layer_border_flags_temp, 0b0010),
+                     dxbc::Src::R(layer_border_flags_temp, dxbc::Src::kYYYY),
+                     dxbc::Src::R(layer_border_flags_temp, dxbc::Src::kXXXX));
+            a_.OpIf(true, dxbc::Src::R(layer_border_flags_temp, dxbc::Src::kYYYY));
+            a_.OpMov(dxbc::Dest::R(layer_value_temp, used_result_nonzero_components),
+                     dxbc::Src::R(layer_border_temp));
+            a_.OpEndIf();
+          }
           if (layer) {
             REX_ASSERT(layer_value_temp != system_temp_result_);
             a_.OpAdd(dxbc::Dest::R(layer_value_temp, used_result_nonzero_components),
@@ -1519,6 +1562,10 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
             a_.OpEndIf();
             PopSystemTemp();
           }
+        }
+        if (is_stacked) {
+          PopSystemTemp();
+          PopSystemTemp();
         }
       }
       if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
