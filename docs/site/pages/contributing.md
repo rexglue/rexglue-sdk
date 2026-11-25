@@ -1,5 +1,11 @@
 # Contributing
 
+## AI policy
+
+Write contributions yourself and communicate with maintainers in your own words. AI-generated code, tests, documentation, media, issue reports, pull requests, and discussion replies are out of scope. Commits authored or co-authored by AI agents are ineligible for merge and will be immediately declined.
+
+Write any resulting contribution yourself. Be prepared to explain what your change does and how it interacts with the rest of the SDK and how it may affect Xbox 360 titles as a whole. Contributions that are title-specific are meant to be stored in individual static recompilation projects rather than living in the SDK. Proposals for title-specific changes often come from a lack of understanding how the console works (hallucinated interpretation), which will be declined. All fixes and refactors must be applicable for all titles suffering from a similar issue, combatting the Xbox 360 hardware's idiosyncrasies and limitations
+
 ## Building
 
 Install the tools and build the SDK as the [Getting Started](getting-started.md) guide shows. The SDK needs CMake 3.25 or newer, Clang 20 or newer (Apple Clang 17 or newer on macOS), lld 20 on Linux x86_64, and Ninja. On Linux the SDK packages are built against the GCC 13 libstdc++, so also install `g++-13` and `libstdc++-13-dev` and configure with `-DREXGLUE_GCC_INSTALL_DIR=/usr/lib/gcc/<triple>/13`, where `<triple>` is `x86_64-linux-gnu` or `aarch64-linux-gnu`. A project that uses these packages must build against libstdc++ 13 too.
@@ -48,6 +54,8 @@ Pull requests target the `development` branch of rexglue/rexglue-sdk and merge i
 An interface is an abstract class declared with `REX_DECLARE_INTERFACE(Name, version)` that an [SDK module](reference/glossary.md#sdk-module) serves to other modules (see [Declaring an Interface](app/modules.md#declaring-an-interface)). If you change a function of an interface, the order of its functions, or a type passed through it, raise the version number in the same commit. Never lower or reuse a number. The SDK provides only the newest version, so code built against the old one stops loading (see [Versions and Builds](app/modules.md#versions-and-builds)). A reviewer checks the interface headers of every pull request for such a change.
 
 ## Benchmarks
+
+Run tests and benchmarks with a native SDK build on a supported platform. Wine and Proton can change both behavior and performance, so maintainers will reject submissions that use either layer as a testing or benchmarking environment. Compatibility fixes and workarounds for Wine or Proton are out of scope.
 
 A test case tagged `[benchmark]` is a benchmark. ctest runs each of them once, with `--benchmark-samples 1 --benchmark-warmup-time 0`, set in `tests/unit/CMakeLists.txt`, so that a check shows that the case runs. Those runs give no figures. Figures come from the `rextest_benchmark_all` target, which builds `unit_tests`, runs every benchmark with 100 samples and writes the results to a CSV file.
 
