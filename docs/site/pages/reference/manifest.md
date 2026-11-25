@@ -47,6 +47,12 @@ Relative paths in `file_path`, `out_directory_path`, `template_dir`, `game_root`
 | `longjmp_address` | integer | Gives the address of the guest `longjmp`. Codegen writes calls to it as `ppc_longjmp`, and calls to a function that only branches to it. |
 | `setjmp_address` | integer | Gives the address of the guest `setjmp`. Codegen writes calls to it as `ppc_setjmp`, and calls to a function that only branches to it. |
 
+### Function Table
+
+| Key | Type | Meaning |
+|---|---|---|
+| `function_table_base` | integer | Places the [function table](../codegen/generated-code.md#function-table) of the binary at this guest address, 64 KB aligned, in `0x80000000` to `0x8FFFFFFF`. The default, `0`, places it right after the image, at `image_base + image_size`. Set it when another module's image starts before the end of the table there. |
+
 ### Addresses
 
 - Addresses in `longjmp_address`, `setjmp_address`, `[mmio]`, `[shim]` and `[functions]` must be 4 byte aligned.

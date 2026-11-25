@@ -34,6 +34,7 @@ constexpr std::array kBinaryKeys = {
     KeySpec{"template_dir", Type::kString},
     KeySpec{"longjmp_address", Type::kInteger},
     KeySpec{"setjmp_address", Type::kInteger},
+    KeySpec{"function_table_base", Type::kInteger},
     KeySpec{"skip_lr", Type::kBoolean},
     KeySpec{"skip_msr", Type::kBoolean},
     KeySpec{"ctr_as_local", Type::kBoolean},

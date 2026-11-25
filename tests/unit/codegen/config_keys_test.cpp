@@ -157,3 +157,32 @@ REX_TEST_CASE("A vector math key for an instruction without a fast form warns",
   const auto loaded = LoadBody("[vector_math]\nvlogefp = \"fast\"\n");
   CHECK(Mentions(loaded.config.load_warnings, "vector_math.vlogefp"));
 }
+
+REX_TEST_CASE("A function table base that is not 64 KB aligned fails validation",
+              "[codegen][config][keys]") {
+  RecompilerConfig config;
+  config.function_table_base = 0x8E001000;
+  const auto result = config.Validate();
+  CHECK_FALSE(result.valid);
+  CHECK(Mentions(result.errors, "function_table_base"));
+}
+
+REX_TEST_CASE("A function table base outside the heap range fails validation",
+              "[codegen][config][keys]") {
+  RecompilerConfig below;
+  below.function_table_base = 0x7FFF0000;
+  RecompilerConfig above;
+  above.function_table_base = 0x90000000;
+  CHECK_FALSE(below.Validate().valid);
+  CHECK_FALSE(above.Validate().valid);
+}
+
+REX_TEST_CASE("A function table base inside the heap range loads", "[codegen][config][keys]") {
+  const auto loaded = LoadBody("function_table_base = 0x8E000000\n");
+  CHECK(loaded.ok);
+  CHECK(loaded.config.function_table_base == 0x8E000000);
+}
+
+REX_TEST_CASE("A misaligned function table base fails the load", "[codegen][config][keys]") {
+  CHECK_FALSE(LoadBody("function_table_base = 0x8E001000\n").ok);
+}

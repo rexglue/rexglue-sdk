@@ -109,6 +109,10 @@ nlohmann::json BuildTemplateData(const rex::codegen::CodegenContext& ctx,
       {"project", cfg.project_name},
       {"image_base", std::format("0x{:X}", ctx.GetBinary().GetBaseAddress())},
       {"image_size", std::format("0x{:X}", ctx.GetBinary().GetImageSize())},
+      {"function_table_base",
+       std::format("0x{:X}", cfg.function_table_base ? cfg.function_table_base
+                                                     : ctx.GetBinary().GetBaseAddress() +
+                                                           ctx.GetBinary().GetImageSize())},
       {"code_base", std::format("0x{:X}", code_min)},
       {"code_size", std::format("0x{:X}", code_max - code_min)},
       {"shim_heap", cfg.UsesShimHeap() ? 1 : 0},
