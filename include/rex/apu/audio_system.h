@@ -48,6 +48,8 @@ class REX_APU_API AudioSettings final : public SettingOwner {
   REX_SETTING(f64, center, 1.0, "Center level on a surround device", Range{0.0, 2.0});
   REX_SETTING(f64, surround, 1.0, "Surround level on a surround device", Range{0.0, 2.0});
   REX_SETTING(f64, lfe, 1.0, "LFE level on a surround device", Range{0.0, 2.0});
+  REX_SETTING(bool, force_stereo, false,
+              "Open the device with 2 channels and fold the mix to stereo", kInitOnly);
   REX_SETTING(f64, peak_limit, 0.0, "Silence a stream that stays above this peak, 0 is off",
               Range{0.0, 8.0});
   REX_SETTING(u32, max_queued_frames, 8, "Frames a stream may queue", Range{4, 64}, kLockedInGame);
@@ -61,7 +63,7 @@ class REX_APU_API AudioSettings final : public SettingOwner {
  * A sample that is not finite becomes silence. With apu.peak_limit above 0, a stream whose peak
  * stays above it for two periods ramps to silence until a frame comes back under it.
  */
-REX_DECLARE_INTERFACE(IAudioSystem, 2)
+REX_DECLARE_INTERFACE(IAudioSystem, 3)
   static constexpr u32 kMaxStreams = 8;
 
   virtual AudioSettings& GetSettings() = 0;

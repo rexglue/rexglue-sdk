@@ -96,6 +96,7 @@ Every program has these settings. Declared by [`AudioSettings`](../devices/audio
 | `apu.center` | `f64` | `1.0` |  | Center level on a surround device. 0.0 to 2.0. |
 | `apu.surround` | `f64` | `1.0` |  | Surround level on a surround device. 0.0 to 2.0. |
 | `apu.lfe` | `f64` | `1.0` |  | LFE level on a surround device. 0.0 to 2.0. |
+| `apu.force_stereo` | `bool` | `false` | init only | Open the device with 2 channels and fold the mix to stereo, even when the device offers more. |
 | `apu.peak_limit` | `f64` | `0.0` |  | Silences a stream whose peak stays above it. 0 is off. 0.0 to 8.0. |
 | `apu.max_queued_frames` | `u32` | `8` | locked in game | Frames one stream may queue. 4 to 64. |
 

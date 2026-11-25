@@ -29,7 +29,7 @@ The host audio device asks for samples at its own pace. Each time it needs more,
 
 - It takes the next frame from each open stream and adds them together. A stream with nothing queued adds silence and counts as an underrun.
 - It applies `apu.gain`, and mutes the output when `apu.mute` is on, or when `apu.mute_unfocused` is on and the window has no focus.
-- It mixes down to the channels of the device. `IAudioSystem::GetOutputChannels` returns 6 for a surround device and 2 for stereo, and 2 while no device is open.
+- It mixes down to the channels of the device. `IAudioSystem::GetOutputChannels` returns 6 for a surround device and 2 for stereo, and 2 while no device is open. With `apu.force_stereo` on, the device opens with 2 channels, so the mix always folds to stereo and `GetOutputChannels` returns 2.
 
 With `apu.peak_limit` above 0, a stream whose peak stays above the limit for two periods in a row fades to silence, and fades back in once a frame comes back under the limit. A frame with a sample that is not a finite number is silenced immediately. These guards keep a broken stream from producing loud noise.
 

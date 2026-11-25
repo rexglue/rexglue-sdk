@@ -48,6 +48,7 @@ struct FakeDevice {
   std::atomic<bool> stereo_only{false};
   std::atomic<rex::u32> opens{0};
   std::atomic<rex::u32> closes{0};
+  std::atomic<rex::u32> wanted{0};
   rex::test::PullDevice pull;
   std::mutex mutex;
   std::vector<Block> blocks;
@@ -57,6 +58,7 @@ struct FakeDevice {
     stereo_only = false;
     opens = 0;
     closes = 0;
+    wanted = 0;
     pull.Close();
     pull.SetPaused(false);
     pull.SetRequest(kPeriodFrames);
@@ -84,6 +86,7 @@ class FakeDriver final : public rex::apu::IAudioDriver {
   void Shutdown() override {}
   rex::Result<rex::u32> OpenDevice(rex::u32 wanted, rex::apu::AudioFill fill) override {
     ++g_device.opens;
+    g_device.wanted = wanted;
     if (g_device.lost) {
       return rex::Err<rex::u32>(rex::ErrorCategory::kPlatform, "no device");
     }
@@ -343,6 +346,32 @@ REX_TEST_CASE("a stereo device gets a folded mix", "[apu]") {
   };
   REQUIRE(app.Start());
   app.Finish();
+}
+
+REX_TEST_CASE("force_stereo folds the mix for a device that takes six channels", "[apu]") {
+  Run({{"apu.driver", "fake"}, {"apu.force_stereo", "true"}}, [](rex::apu::IAudioSystem& audio) {
+    CHECK(g_device.wanted == 2);
+    CHECK(audio.GetOutputChannels() == 2);
+    auto stream = audio.OpenStream([] {});
+    REQUIRE(stream);
+    Feeder feeder(audio, *stream, Constant(0.2f));
+    REQUIRE(WaitFor([&] { return g_device.GetBlockCount() >= 30; }));
+    const auto blocks = g_device.Take();
+    bool found = false;
+    for (size_t i = blocks.size() / 2; i < blocks.size(); ++i) {
+      REQUIRE(blocks[i].size() == static_cast<size_t>(2) * kPeriodFrames);
+      if (Peak(blocks[i], 2, 0) < 0.2f) {
+        continue;
+      }
+      const rex::f32 expected = 0.2f * 2.41421356f * 0.58578644f;
+      CHECK(Near(At(blocks[i], 2, 0, 100), expected, 1e-3f));
+      CHECK(Near(At(blocks[i], 2, 1, 100), expected, 1e-3f));
+      found = true;
+      break;
+    }
+    CHECK(found);
+    audio.CloseStream(*stream);
+  });
 }
 
 REX_TEST_CASE("mute ramps over one period and never steps", "[apu]") {
