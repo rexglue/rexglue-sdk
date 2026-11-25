@@ -379,6 +379,21 @@ REX_TEST_CASE("net: a recv with no data on a nonblocking socket fails with WSAEW
   });
 }
 
+REX_TEST_CASE("net: a recvfrom on an unbound blocking datagram socket fails with WSAEINVAL",
+              "[kernel][net][error]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(datagram != kSocketError);
+    const u32 buffer = c.Alloc(16);
+    CHECK(LastErrorOf(c, "NetDll_recvfrom", {0, datagram, buffer, 16, 0, 0, 0}) == kWSAEINVAL);
+    CHECK(LastErrorOf(c, "NetDll_recv", {0, datagram, buffer, 16, 0}) == kWSAEINVAL);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
 REX_TEST_CASE("net: send and shutdown on an unconnected stream socket fail with WSAENOTCONN",
               "[kernel][net][error]") {
   KernelFixture fixture;
