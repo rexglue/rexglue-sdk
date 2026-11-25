@@ -44,8 +44,8 @@ Relative paths in `file_path`, `out_directory_path`, `template_dir`, `game_root`
 
 | Key | Type | Meaning |
 |---|---|---|
-| `longjmp_address` | integer | Gives the address of the guest `longjmp`. Codegen writes calls to it as `ppc_longjmp`. |
-| `setjmp_address` | integer | Gives the address of the guest `setjmp`. Codegen writes calls to it as `ppc_setjmp`. |
+| `longjmp_address` | integer | Gives the address of the guest `longjmp`. Codegen writes calls to it as `ppc_longjmp`, and calls to a function that only branches to it. |
+| `setjmp_address` | integer | Gives the address of the guest `setjmp`. Codegen writes calls to it as `ppc_setjmp`, and calls to a function that only branches to it. |
 
 ### Addresses
 

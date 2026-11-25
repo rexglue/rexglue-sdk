@@ -8,6 +8,7 @@
 #include "binary_view.h"
 #include <rex/logging/log_category.h>
 #include "codegen_categories.h"
+#include "decoded_binary.h"
 
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/export.h>
@@ -268,8 +269,32 @@ bool BuilderContext::CanTailCall() const {
   return hook == emit_ctx.config.mid_asm_hooks.end() || !hook->second.after_instruction;
 }
 
+u32 BuilderContext::ResolveJumpThunk(u32 address) const {
+  const auto& cfg = GetConfig();
+  if (address == cfg.longjmp_address || address == cfg.setjmp_address) {
+    return address;
+  }
+  const auto* thunk = emit_ctx.graph.GetFunction(address);
+  if (!thunk || thunk->IsImport() || thunk->GetInstructions().size() != 1) {
+    return address;
+  }
+  const auto& first = *thunk->GetInstructions().front();
+  if (first.opcode != rex::codegen::detail::Opcode::b || !first.branch_target) {
+    return address;
+  }
+  const u32 target = *first.branch_target;
+  if (cfg.longjmp_address != 0 && target == cfg.longjmp_address) {
+    return cfg.longjmp_address;
+  }
+  if (cfg.setjmp_address != 0 && target == cfg.setjmp_address) {
+    return cfg.setjmp_address;
+  }
+  return address;
+}
+
 bool BuilderContext::EmitTailCall(u32 address) {
   const auto& cfg = GetConfig();
+  address = ResolveJumpThunk(address);
   if (!CanTailCall() || address == cfg.longjmp_address || address == cfg.setjmp_address) {
     return false;
   }
@@ -288,6 +313,7 @@ bool BuilderContext::EmitTailCall(u32 address) {
 
 void BuilderContext::EmitFunctionCall(u32 address) {
   const auto& cfg = GetConfig();
+  address = ResolveJumpThunk(address);
 
   if (address == cfg.longjmp_address) {
     Println("\tppc_longjmp({}.u32, {}.s32);", R(3), R(4));

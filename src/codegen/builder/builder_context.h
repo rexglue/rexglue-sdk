@@ -195,6 +195,15 @@ struct BuilderContext {
   const CallTarget* FindCallTarget(u32 site) const;
 
   /**
+   * Resolves a linker thunk to the setjmp or longjmp function it branches to. A thunk is a
+   * function whose only instruction is an unconditional branch without link.
+   *
+   * @param address The call or branch target.
+   * @return The setjmp or longjmp address when address is a thunk to one, address otherwise.
+   */
+  u32 ResolveJumpThunk(u32 address) const;
+
+  /**
    * Logs an error and emits REXCPU_FATAL when the function node has no call target. Save and
    * restore helper calls are elided in a function that localizes its nonvolatiles. An SEH funclet
    * and a setjmp call copy the localized registers into ctx before the call and back after it.
