@@ -14,8 +14,12 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <string>
 #include <thread>
 #include <vector>
+
+#include <SDL3/SDL_audio.h>
+#include <SDL3/SDL_hints.h>
 
 #include <rex/apu/audio_driver.h>
 #include <rex/logging/logger.h>
@@ -76,4 +80,35 @@ REX_TEST_CASE_METHOD(Fixture, "sdl3 opens 2 or 6 channels", "[apu][sdl3]") {
   CHECK(aligned);
   driver->CloseDevice();
   driver->Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture, "apu.sdl.device_sample_frames sets the device buffer size",
+                     "[apu][sdl3]") {
+  auto driver = Create();
+  REQUIRE(driver);
+  REQUIRE(REX_SETTINGS()
+              .SetText(rex::SettingLayer::kTitle, "apu.sdl.device_sample_frames", "256")
+              .has_value());
+  rex::AppDriverContext context(REX_SETTINGS(), REX_LOGGER());
+  REQUIRE(driver->Initialize(context).has_value());
+  auto found = REX_SETTINGS().Find("apu.sdl.device_sample_frames");
+  REQUIRE(found.has_value());
+  CHECK((*found)->GetText() == "256");
+  const char* hint = SDL_GetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES);
+  REQUIRE(hint != nullptr);
+  CHECK(std::string(hint) == "256");
+
+  auto channels = driver->OpenDevice(
+      2, [](std::span<rex::f32> samples, rex::u32) { std::ranges::fill(samples, 0.0f); });
+  REQUIRE(channels.has_value());
+  SDL_AudioSpec spec{};
+  int sample_frames = 0;
+  REQUIRE(SDL_GetAudioDeviceFormat(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, &sample_frames));
+  CHECK(sample_frames == 256);
+
+  driver->CloseDevice();
+  REQUIRE((*found)->SetText(rex::SettingLayer::kTitle, "0").has_value());
+  driver->Shutdown();
+  SDL_ResetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES);
+  CHECK_FALSE(REX_SETTINGS().Find("apu.sdl.device_sample_frames").has_value());
 }

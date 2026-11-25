@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <format>
+#include <string>
 
 #include <SDL3/SDL.h>
 
@@ -12,6 +13,7 @@
 #include <rex/driver.h>
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
+#include <rex/settings_registry.h>
 
 namespace rex::apu::sdl3 {
 
@@ -30,20 +32,33 @@ constexpr std::array<DriverRegistration, 1> kDrivers = {
 
 }  // namespace
 
+SDL3AudioDriver::SDL3AudioDriver() : SettingOwner("apu.sdl") {}
+
 std::string_view SDL3AudioDriver::GetName() const {
   return "sdl3";
 }
 
 Result<void> SDL3AudioDriver::Initialize(IDriverContext& context) {
+  REX_TRY_VOID(context.GetSettingsRegistry().Register(*this));
   context_ = &context;
+  // The system mixer picks the buffer size otherwise. PipeWire's 1024 frame default quantum pulls
+  // four guest frames per callback, a burst a title's audio thread may not refill in time.
+  const u32 sample_frames = device_sample_frames.Get();
   Result<void> result = Ok();
-  const Result<void> ran = context.RunOnUIThread([&result] {
+  const Result<void> ran = context.RunOnUIThread([&result, sample_frames] {
     SDL_SetHint(SDL_HINT_AUDIO_CATEGORY, "playback");
+    if (sample_frames != 0) {
+      SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, std::to_string(sample_frames).c_str());
+    }
     if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
       result = Err(ErrorCategory::kPlatform,
                    std::format("SDL_InitSubSystem(SDL_INIT_AUDIO) failed: {}", SDL_GetError()));
     }
   });
+  if (!ran || !result) {
+    context.GetSettingsRegistry().Unregister(*this);
+    context_ = nullptr;
+  }
   if (!ran) {
     return ran;
   }
@@ -57,6 +72,7 @@ void SDL3AudioDriver::Shutdown() {
         !quit) {
       REXAPU_WARN("SDL audio was not stopped, {}", quit.error().message);
     }
+    context_->GetSettingsRegistry().Unregister(*this);
     context_ = nullptr;
   }
 }

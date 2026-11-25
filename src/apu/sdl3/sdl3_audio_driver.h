@@ -18,14 +18,22 @@
 #include <rex/driver_context.h>
 #include <rex/driver_registration.h>
 #include <rex/driver_module.h>
+#include <rex/setting.h>
 
 struct SDL_AudioStream;
 
 namespace rex::apu::sdl3 {
 
 /** Plays through one SDL3 audio stream bound to the default playback device. */
-class SDL3AudioDriver final : public IAudioDriver {
+class SDL3AudioDriver final : public IAudioDriver, public SettingOwner {
  public:
+  REX_SETTING(u32, device_sample_frames, 0,
+              "Sample frames per device buffer, 0 for the system default. 256 is one guest audio "
+              "frame",
+              Range{0, 8192}, kStartupOnly);
+
+  SDL3AudioDriver();
+
   std::string_view GetName() const override;
   [[nodiscard]] Result<void> Initialize(IDriverContext& context) override;
   void Shutdown() override;
