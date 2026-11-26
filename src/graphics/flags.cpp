@@ -19,6 +19,13 @@ REXCVAR_DEFINE_BOOL(native_2x_msaa, true, "GPU", "Enable native 2x MSAA");
 REXCVAR_DEFINE_BOOL(depth_float24_round, false, "GPU", "Round float24 depth values");
 REXCVAR_DEFINE_BOOL(depth_float24_convert_in_pixel_shader, false, "GPU",
                     "Convert float24 depth in pixel shader");
+REXCVAR_DEFINE_STRING(pixel_shader_constant_overrides, "", "GPU",
+                      "Per-shader float constant overrides, applied when the pixel shader's "
+                      "constant buffer is built (the guest registers and the translated shader "
+                      "are unchanged). Format: HASH:c47.z*rsx,c77.x*0.5;HASH2:c3.w=1 - "
+                      "HASH = guest pixel shader ucode hash (hex), '*' multiplies, '=' sets, "
+                      "factor is a number or rsx/rsy (draw resolution scale).")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_BOOL(depth_transfer_not_equal_test, true, "GPU",
                     "Use not-equal test for depth transfer");
 REXCVAR_DEFINE_BOOL(gamma_render_target_as_unorm16, true, "GPU",

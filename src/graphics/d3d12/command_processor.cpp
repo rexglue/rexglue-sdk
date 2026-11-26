@@ -4248,6 +4248,31 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
     std::memset(current_float_constant_map_pixel_, 0, sizeof(current_float_constant_map_pixel_));
   }
 
+  // Per-shader float constant overrides (pixel_shader_constant_overrides). The buffer must be
+  // rebuilt when the overrides change, and whenever a draw switches between a shader with
+  // overrides and any other shader (the plain buffer may otherwise be reused for it, or the
+  // overridden one for the next shader).
+  {
+    uint32_t malformed = 0;
+    if (pixel_constant_overrides_.Update(REXCVAR_GET(pixel_shader_constant_overrides),
+                                         &malformed)) {
+      cbuffer_binding_float_pixel_.up_to_date = false;
+      if (malformed) {
+        REXGPU_WARN("pixel_shader_constant_overrides: {} malformed entr{} ignored", malformed,
+                    malformed == 1 ? "y" : "ies");
+      }
+    }
+  }
+  const ::rex::graphics::util::ShaderConstantOverrides::Entry* pixel_constant_override =
+      (pixel_shader != nullptr && !pixel_constant_overrides_.empty())
+          ? pixel_constant_overrides_.Find(pixel_shader->ucode_data_hash())
+          : nullptr;
+  uint64_t pixel_constant_override_hash =
+      pixel_constant_override ? pixel_constant_override->ucode_hash : 0;
+  if (pixel_constant_override_hash != cbuffer_float_pixel_override_hash_) {
+    cbuffer_binding_float_pixel_.up_to_date = false;
+  }
+
   // Write the constant buffer data.
   if (!cbuffer_binding_system_.up_to_date) {
     uint8_t* system_constants = constant_buffer_pool_->Request(
@@ -4307,10 +4332,18 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
               float_constants,
               &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) + (float_constant_index << 2)],
               4 * sizeof(float));
+          if (pixel_constant_override) {
+            ::rex::graphics::util::ShaderConstantOverrides::Apply(
+                *pixel_constant_override, (i << 6) + float_constant_index,
+                reinterpret_cast<float*>(float_constants),
+                float(texture_cache_->draw_resolution_scale_x()),
+                float(texture_cache_->draw_resolution_scale_y()));
+          }
           float_constants += 4 * sizeof(float);
         }
       }
     }
+    cbuffer_float_pixel_override_hash_ = pixel_constant_override_hash;
     cbuffer_binding_float_pixel_.up_to_date = true;
     current_graphics_root_up_to_date_ &= ~(1u << root_parameter_float_constants_pixel);
   }

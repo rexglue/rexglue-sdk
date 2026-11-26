@@ -52,6 +52,9 @@ REXCVAR_DECLARE(bool, snorm16_render_target_full_range);
 REXCVAR_DECLARE(bool, mrt_edram_used_range_clamp_to_min);
 REXCVAR_DECLARE(bool, direct_host_resolve);
 
+// GPU Enhancements
+REXCVAR_DECLARE(std::string, pixel_shader_constant_overrides);
+
 // GPU Textures
 REXCVAR_DECLARE(bool, gpu_allow_invalid_fetch_constants);
 REXCVAR_DECLARE(bool, gpu_3d_to_2d_texture);

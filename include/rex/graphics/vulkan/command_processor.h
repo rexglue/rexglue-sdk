@@ -31,6 +31,7 @@
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
+#include <rex/graphics/util/shader_constant_overrides.h>
 #include <rex/graphics/vulkan/deferred_command_buffer.h>
 #include <rex/graphics/vulkan/graphics_system.h>
 #include <rex/graphics/vulkan/pipeline_cache.h>
@@ -1070,6 +1071,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Float constant usage masks of the last draw call.
   uint64_t current_float_constant_map_vertex_[4];
   uint64_t current_float_constant_map_pixel_[4];
+  // pixel_shader_constant_overrides: parsed cvar, and the ucode hash of the pixel shader whose
+  // overrides are in the current pixel float constant buffer (0 = none).
+  ::rex::graphics::util::ShaderConstantOverrides pixel_constant_overrides_;
+  uint64_t float_pixel_override_hash_ = 0;
 
   // System shader constants.
   SpirvShaderTranslator::SystemConstants system_constants_;

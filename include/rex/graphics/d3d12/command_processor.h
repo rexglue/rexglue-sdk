@@ -35,6 +35,7 @@
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
+#include <rex/graphics/util/shader_constant_overrides.h>
 #include <rex/graphics/xenos.h>
 #include <rex/system/kernel_state.h>
 #include <rex/ui/d3d12/d3d12_descriptor_heap_pool.h>
@@ -729,6 +730,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   ConstantBufferBinding cbuffer_binding_system_;
   ConstantBufferBinding cbuffer_binding_float_vertex_;
   ConstantBufferBinding cbuffer_binding_float_pixel_;
+  // pixel_shader_constant_overrides: parsed cvar, and the ucode hash of the pixel shader whose
+  // overrides are in the current pixel float constant buffer (0 = none).
+  ::rex::graphics::util::ShaderConstantOverrides pixel_constant_overrides_;
+  uint64_t cbuffer_float_pixel_override_hash_ = 0;
   ConstantBufferBinding cbuffer_binding_bool_loop_;
   ConstantBufferBinding cbuffer_binding_fetch_;
   ConstantBufferBinding cbuffer_binding_descriptor_indices_vertex_;

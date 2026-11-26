@@ -7451,6 +7451,32 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     std::memset(current_float_constant_map_pixel_, 0, sizeof(current_float_constant_map_pixel_));
   }
 
+  // Per-shader float constant overrides (pixel_shader_constant_overrides): rebuild the pixel
+  // float constants when the overrides change, and when a draw switches between a shader with
+  // overrides and any other shader.
+  {
+    uint32_t malformed = 0;
+    if (pixel_constant_overrides_.Update(REXCVAR_GET(pixel_shader_constant_overrides),
+                                         &malformed)) {
+      current_constant_buffers_up_to_date_ &=
+          ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatPixel);
+      if (malformed) {
+        REXGPU_WARN("pixel_shader_constant_overrides: {} malformed entr{} ignored", malformed,
+                    malformed == 1 ? "y" : "ies");
+      }
+    }
+  }
+  const ::rex::graphics::util::ShaderConstantOverrides::Entry* pixel_constant_override =
+      (pixel_shader != nullptr && !pixel_constant_overrides_.empty())
+          ? pixel_constant_overrides_.Find(pixel_shader->ucode_data_hash())
+          : nullptr;
+  uint64_t pixel_constant_override_hash =
+      pixel_constant_override ? pixel_constant_override->ucode_hash : 0;
+  if (pixel_constant_override_hash != float_pixel_override_hash_) {
+    current_constant_buffers_up_to_date_ &=
+        ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatPixel);
+  }
+
   // Write the new constant buffers.
   constexpr uint32_t kAllConstantBuffersMask =
       (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferCount) - 1;
@@ -7518,6 +7544,13 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       buffer_info.range = VkDeviceSize(float_constants_size);
       CopyFloatConstantRuns(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_256_X],
                             current_float_constant_map_pixel_);
+      if (pixel_constant_override) {
+        ::rex::graphics::util::ShaderConstantOverrides::ApplyToPacked(
+            *pixel_constant_override, mapping, current_float_constant_map_pixel_,
+            float(texture_cache_->draw_resolution_scale_x()),
+            float(texture_cache_->draw_resolution_scale_y()));
+      }
+      float_pixel_override_hash_ = pixel_constant_override_hash;
       current_constant_buffers_up_to_date_ |= UINT32_C(1)
                                               << SpirvShaderTranslator::kConstantBufferFloatPixel;
       ++work_stats_.constant_uploads[2];
