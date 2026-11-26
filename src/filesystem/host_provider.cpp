@@ -31,6 +31,8 @@ bool IsHostName(std::string_view name) {
          std::ranges::none_of(name, [](char c) { return static_cast<u8>(c) < 0x20; });
 }
 
+}  // namespace
+
 class HostStream final : public NodeStream {
  public:
   HostStream(HostNode& node, Access access, std::unique_ptr<HostFile> file)
@@ -54,14 +56,20 @@ class HostStream final : public NodeStream {
       return Err<size_t>(
           BuildError(FileSystemError::kAccessDenied, "the file was opened without write"));
     }
-    return file_->Write(offset, buffer);
+    REX_TRY(const size_t count, file_->Write(offset, buffer));
+    if (count != 0) {
+      node_.GrowSize(offset + count);
+    }
+    return count;
   }
 
   [[nodiscard]] Result<void> SetLength(u64 length) override {
     if (!CanSetLength(access_)) {
       return Err(BuildError(FileSystemError::kAccessDenied, "the file was opened without write"));
     }
-    return file_->SetLength(length);
+    REX_TRY_VOID(file_->SetLength(length));
+    node_.SetSize(length);
+    return Ok();
   }
 
   [[nodiscard]] Result<void> Flush() override { return file_->Flush(); }
@@ -84,8 +92,6 @@ class HostStream final : public NodeStream {
   std::unique_ptr<HostFile> file_;
   std::unique_ptr<memory::MappedMemory> map_;
 };
-
-}  // namespace
 
 HostProvider::HostProvider(Key, MountEntry entry) : Provider(std::move(entry)) {}
 
@@ -227,6 +233,21 @@ Result<void> HostNode::Truncate() {
   info_.size = 0;
   info_.allocation_size = 0;
   return Ok();
+}
+
+void HostNode::SetSize(u64 size) {
+  std::lock_guard lock(GetProvider().GetMutex());
+  info_.size = size;
+  info_.allocation_size = RoundUpNonZero(size, u64{kBytesPerSector});
+}
+
+void HostNode::GrowSize(u64 size) {
+  std::lock_guard lock(GetProvider().GetMutex());
+  if (size <= info_.size) {
+    return;
+  }
+  info_.size = size;
+  info_.allocation_size = RoundUpNonZero(size, u64{kBytesPerSector});
 }
 
 void HostNode::Refresh() {
