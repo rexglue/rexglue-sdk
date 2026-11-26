@@ -2268,8 +2268,7 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
           bound_depth_and_color_render_target_formats, &pipeline_handle, &root_signature)) {
     return false;
   }
-  if (GetXenosSettings().async_shader_compilation.Get() &&
-      pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
+  if (pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
     return true;
   }
 
@@ -3311,7 +3310,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 }
 
 bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
-  return !submission_open_ || !pipeline_cache_->IsCreatingPipelines();
+  return !submission_open_ || GetXenosSettings().async_shader_compilation.Get() ||
+         !pipeline_cache_->IsCreatingPipelines();
 }
 
 void D3D12CommandProcessor::ClearCommandAllocatorCache() {
