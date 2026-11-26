@@ -51,7 +51,7 @@ class REX_HID_API InputSettings final : public SettingOwner {
  * one when nothing else is present. Without input capture only the keyboard and mouse source reads
  * neutral, and AcquireUIBlock makes every user neutral. Any thread.
  */
-REX_DECLARE_INTERFACE(IInputSystem, 3)
+REX_DECLARE_INTERFACE(IInputSystem, 4)
   static constexpr u32 kMaxUsers = 4;
 
   /** The user value for GetKeystroke that takes a keystroke from any user. */
@@ -71,6 +71,16 @@ REX_DECLARE_INTERFACE(IInputSystem, 3)
    * @return The reading, or kNotFound when no pad is assigned to the user.
    */
   [[nodiscard]] virtual Result<PadReading> GetState(u32 user) = 0;
+
+  /**
+   * Returns the pad buttons that went down since the last call, and clears them. A press and
+   * release between two reads is kept. Guide masking and shared_pads follow GetState. While a UI
+   * block is held the result is 0 and the presses made then are dropped. One consumer takes them.
+   *
+   * @param user Slot 0 to 3.
+   * @return The button bits of PadButton, or kNotFound when no pad is assigned to the user.
+   */
+  [[nodiscard]] virtual Result<u16> TakePadPresses(u32 user) = 0;
 
   /**
    * Returns the capabilities of a user's pad, with the guide bit cleared when guide_button is off,

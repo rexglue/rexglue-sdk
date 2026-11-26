@@ -57,6 +57,19 @@ class IInputDriver : public IDriver {
    */
   [[nodiscard]] virtual Result<void> SetDeviceVibration(PadDeviceID id,
                                                         const PadVibration& vibration) = 0;
+
+  /**
+   * Returns the buttons of a pad that went down since the last call, and clears them. A driver that
+   * sees a press between two reads reports it here. The default reports none, and InputSystem then
+   * finds the presses from the levels GetDeviceState returns.
+   *
+   * @param id The pad.
+   * @return The PadButton bits, 0 when none or the pad is gone.
+   */
+  [[nodiscard]] virtual u16 TakeDevicePresses(PadDeviceID id) {
+    static_cast<void>(id);
+    return 0;
+  }
 };
 
 }  // namespace rex::hid

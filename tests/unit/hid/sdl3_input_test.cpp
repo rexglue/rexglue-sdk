@@ -151,3 +151,49 @@ REX_TEST_CASE_METHOD(Fixture, "sdl3 a pad read returns the state of the poll it 
   driver->Shutdown();
   context.RunPosted();
 }
+
+REX_TEST_CASE_METHOD(Fixture, "sdl3 a press and release between two reads is a press",
+                     "[hid][sdl3]") {
+  SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+  auto driver = Create();
+  REQUIRE(driver);
+  TrackingContext context;
+  REQUIRE(driver->Initialize(context).has_value());
+
+  SDL_VirtualJoystickDesc desc;
+  SDL_INIT_INTERFACE(&desc);
+  desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
+  desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
+  desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+  desc.button_mask = 0x7FFF;
+  desc.axis_mask = 0x3F;
+  desc.name = "virtual pad";
+  const SDL_JoystickID instance = SDL_AttachVirtualJoystick(&desc);
+  REQUIRE(instance != 0);
+  SDL_Joystick* joystick = SDL_OpenJoystick(instance);
+  REQUIRE(joystick != nullptr);
+
+  std::vector<rex::hid::PadDevice> devices;
+  for (int attempt = 0; attempt < 10 && devices.empty(); ++attempt) {
+    context.RunPosted();
+    driver->EnumerateDevices(devices);
+  }
+  REQUIRE(devices.size() == 1);
+  const rex::hid::PadDeviceID id = devices[0].id;
+  REQUIRE(driver->GetDeviceState(id).has_value());
+  CHECK(driver->TakeDevicePresses(id) == 0);
+
+  REQUIRE(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_SOUTH, true));
+  SDL_UpdateJoysticks();
+  REQUIRE(SDL_SetJoystickVirtualButton(joystick, SDL_GAMEPAD_BUTTON_SOUTH, false));
+  auto after = driver->GetDeviceState(id);
+  REQUIRE(after.has_value());
+  CHECK((after->buttons & rex::hid::kPadA) == 0);
+  CHECK(driver->TakeDevicePresses(id) == rex::hid::kPadA);
+  CHECK(driver->TakeDevicePresses(id) == 0);
+
+  SDL_CloseJoystick(joystick);
+  SDL_DetachVirtualJoystick(instance);
+  driver->Shutdown();
+  context.RunPosted();
+}

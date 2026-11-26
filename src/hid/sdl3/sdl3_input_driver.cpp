@@ -18,6 +18,7 @@
 #include <mutex>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -162,6 +163,7 @@ struct SDL3InputDriver::State {
     SDL_Gamepad* sdl = nullptr;
     PadDeviceID id = kInvalidPadDeviceID;
     PadState state;
+    u16 presses = 0;
     i32 xinput_slot = -1;
   };
 
@@ -369,6 +371,7 @@ void SDL3InputDriver::State::OnButtonLocked(const SDL_Event& event) {
   const u16 bit = kButtonLookup[event.gbutton.button];
   if (event.gbutton.down) {
     controller->state.buttons = static_cast<u16>(controller->state.buttons | bit);
+    controller->presses = static_cast<u16>(controller->presses | bit);
   } else {
     controller->state.buttons = static_cast<u16>(controller->state.buttons & ~bit);
   }
@@ -535,6 +538,18 @@ Result<PadState> SDL3InputDriver::GetDeviceState(PadDeviceID id) {
     return std::unexpected(NotConnected());
   }
   return controller->state;
+}
+
+u16 SDL3InputDriver::TakeDevicePresses(PadDeviceID id) {
+  if (!state_ || !state_->gamepad_up) {
+    return 0;
+  }
+  auto guard = state_->DrainAndLock();
+  State::Controller* controller = state_->FindByID(id);
+  if (!controller) {
+    return 0;
+  }
+  return std::exchange(controller->presses, u16{0});
 }
 
 Result<PadCapabilities> SDL3InputDriver::GetDeviceCapabilities(PadDeviceID id) {

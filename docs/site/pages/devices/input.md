@@ -111,6 +111,7 @@ While a XAM dialog, the console overlay or a prompt is open, the game must not r
 App code that is not a game, such as an overlay or a tool, reads the keyboard and mouse from `IInputSystem`:
 
 - `IsKeyDown` polls a key.
+- `TakePadPresses` returns the pad buttons that went down since the last call, so a press and release between two reads is not lost. It follows the guide masking, the shared pads setting and the UI block of `GetState`, and presses made during a UI block are dropped.
 - `GetPointer` returns the pointer position, and `TakeMotion` and `TakeWheel` return the motion and wheel turns since the last call. The wheel counts whole steps (notches) and carries the remaining fraction to the next turn.
 - `ParseVirtualKey`, `VirtualKeyToString`, `ParseInputSource`, `InputSourceToString`, `ParseKeyChord` and `FormatKeyChord` convert keys, inputs and chords to and from text.
 
