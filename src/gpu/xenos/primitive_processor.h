@@ -147,9 +147,9 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable,
    *
    * - No conversion needs up to 0xFFFF vertices, as the vertex count in VGT_DRAW_INITIATOR is 16
    * bit.
-   * - Triangle fans to lists need 3 * (UINT16_MAX - 2), or 0x2FFF7, since every guest vertex from
-   * the third creates a triangle. Primitive reset only slows the amplification, as the three
-   * vertices after a reset add one host vertex each, not three each.
+   * - Triangle fans and strips to lists need 3 * (UINT16_MAX - 2), or 0x2FFF7, since every guest
+   * vertex from the third creates a triangle. Primitive reset only slows the amplification, as the
+   * three vertices after a reset add one host vertex each, not three each.
    * - Line loops to strips add one vertex if the original primitive has at least two vertices,
    *   either replacing the primitive reset index with the new closing vertex or, for the final
    *   primitive, adding a vertex, so the absolute limit is UINT16_MAX + 1, or 0x10000.
@@ -288,6 +288,28 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable,
   }
 
   /**
+   * Returns the index count of a triangle strip as a triangle list, ordered as (v0, v1, v2),
+   * (v2, v1, v3), (v2, v3, v4) in Direct3D, so every other triangle swaps its first two vertices.
+   */
+  static constexpr u32 GetTriangleStripListIndexCount(u32 strip_index_count) {
+    return strip_index_count > 2 ? (strip_index_count - 2) * 3 : 0;
+  }
+  template <typename Index, typename IndexTransform>
+  static void TriangleStripToList(Index* dest, const Index* source, u32 source_index_count,
+                                  const IndexTransform& index_transform) {
+    for (u32 i = 2; i < source_index_count; ++i) {
+      Index index_first = index_transform(source[i - 2]);
+      Index index_second = index_transform(source[i - 1]);
+      if (i & 1) {
+        std::swap(index_first, index_second);
+      }
+      *(dest++) = index_first;
+      *(dest++) = index_second;
+      *(dest++) = index_transform(source[i]);
+    }
+  }
+
+  /**
    * Loops draw n lines for n input vertices, so two vertices draw two lines, and a loop of one
    * vertex is ignored.
    */
@@ -368,6 +390,14 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable,
              ++range_it) {
           TriangleFanToList(dest_write_ptr, source + range_it->guest_offset,
                             range_it->guest_index_count, index_transform);
+          dest_write_ptr += range_it->host_index_count;
+        }
+        break;
+      case xenos::PrimitiveType::kTriangleStrip:
+        for (PrimitiveRangeIterator range_it = ranges_beginning; range_it != ranges_end;
+             ++range_it) {
+          TriangleStripToList(dest_write_ptr, source + range_it->guest_offset,
+                              range_it->guest_index_count, index_transform);
           dest_write_ptr += range_it->host_index_count;
         }
         break;

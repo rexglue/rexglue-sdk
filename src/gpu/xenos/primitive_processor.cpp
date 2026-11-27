@@ -174,7 +174,9 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     host_vertex_shader_type = static_cast<Shader::HostVertexShaderType>(-1);
     switch (guest_primitive_type) {
       case xenos::PrimitiveType::kTriangleList:
-        // Triangle strips and fans would need conversion to triangle lists and are unsupported.
+      case xenos::PrimitiveType::kTriangleFan:
+      case xenos::PrimitiveType::kTriangleStrip:
+        host_primitive_type = xenos::PrimitiveType::kTriangleList;
         switch (tessellation_mode) {
           case xenos::TessellationMode::kDiscrete:
           case xenos::TessellationMode::kContinuous:
@@ -350,9 +352,49 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           REX_ASSERT(host_primitive_type == xenos::PrimitiveType::kTriangleList);
           cacheable.host_draw_vertex_count =
               GetTriangleFanListIndexCount(cacheable.host_draw_vertex_count);
-          cacheable.index_buffer_type = ProcessedIndexBufferType::kHostBuiltinForAuto;
-          REX_ASSERT(builtin_ib_offset_triangle_fans_to_lists_ != SIZE_MAX);
-          cacheable.host_index_buffer_handle = builtin_ib_offset_triangle_fans_to_lists_;
+          if (builtin_ib_offset_triangle_fans_to_lists_ != SIZE_MAX) {
+            cacheable.index_buffer_type = ProcessedIndexBufferType::kHostBuiltinForAuto;
+            cacheable.host_index_buffer_handle = builtin_ib_offset_triangle_fans_to_lists_;
+          } else if (cacheable.host_draw_vertex_count) {
+            cacheable.index_buffer_type = ProcessedIndexBufferType::kHostConverted;
+            auto host_indices =
+                reinterpret_cast<u16*>(RequestHostConvertedIndexBufferForCurrentFrame(
+                    xenos::IndexFormat::kInt16, cacheable.host_draw_vertex_count, false, 0,
+                    cacheable.host_index_buffer_handle));
+            if (!host_indices) {
+              return false;
+            }
+            for (u32 i = 2; i < guest_draw_vertex_count; ++i) {
+              *(host_indices++) = static_cast<u16>(i - 1);
+              *(host_indices++) = static_cast<u16>(i);
+              *(host_indices++) = 0;
+            }
+          }
+          break;
+        case xenos::PrimitiveType::kTriangleStrip:
+          REX_ASSERT(host_primitive_type == xenos::PrimitiveType::kTriangleList);
+          cacheable.host_draw_vertex_count =
+              GetTriangleStripListIndexCount(cacheable.host_draw_vertex_count);
+          if (cacheable.host_draw_vertex_count) {
+            cacheable.index_buffer_type = ProcessedIndexBufferType::kHostConverted;
+            auto host_indices =
+                reinterpret_cast<u16*>(RequestHostConvertedIndexBufferForCurrentFrame(
+                    xenos::IndexFormat::kInt16, cacheable.host_draw_vertex_count, false, 0,
+                    cacheable.host_index_buffer_handle));
+            if (!host_indices) {
+              return false;
+            }
+            for (u32 i = 2; i < guest_draw_vertex_count; ++i) {
+              u16 first = static_cast<u16>(i - 2);
+              u16 second = static_cast<u16>(i - 1);
+              if (i & 1) {
+                std::swap(first, second);
+              }
+              *(host_indices++) = first;
+              *(host_indices++) = second;
+              *(host_indices++) = static_cast<u16>(i);
+            }
+          }
           break;
         case xenos::PrimitiveType::kLineLoop:
           // The extra closing index counts as 0 in the vertex shaders.
@@ -478,6 +520,9 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         switch (guest_primitive_type) {
           case xenos::PrimitiveType::kTriangleFan:
             host_index_count_getter = GetTriangleFanListIndexCount;
+            break;
+          case xenos::PrimitiveType::kTriangleStrip:
+            host_index_count_getter = GetTriangleStripListIndexCount;
             break;
           case xenos::PrimitiveType::kLineLoop:
             host_index_count_getter = GetLineLoopStripIndexCount;
@@ -769,6 +814,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       const PassthroughIndexTransform& index_transform);                 \
   REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION_NO_PASSTHROUGH(ConverterName)
 REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION(TriangleFanToList)
+REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION(TriangleStripToList)
 REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION_NO_PASSTHROUGH(LineLoopToStrip)
 REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION(QuadListToTriangleList)
 #undef REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION_NO_PASSTHROUGH
