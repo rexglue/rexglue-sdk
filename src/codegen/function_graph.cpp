@@ -1031,6 +1031,11 @@ bool FunctionGraph::IsNoReturn(u32 entry) const {
   return tables_->no_return->contains(entry);
 }
 
+void FunctionGraph::SolveNoReturn() {
+  if (!tables_->no_return)
+    tables_->no_return = NoReturnSolver(*this).Solve();
+}
+
 void FunctionGraph::DeclareNoReturn(u32 address) {
   tables_->declared_no_return.insert(address);
   tables_->no_return.reset();

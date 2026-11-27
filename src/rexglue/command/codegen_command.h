@@ -31,7 +31,8 @@ using rex::Result;
                                              const std::vector<std::string>& targets,
                                              bool ignore_stamp = false,
                                              const rex::codegen::Limits& limits = {},
-                                             const std::filesystem::path& depfile = {});
+                                             const std::filesystem::path& depfile = {},
+                                             u32 threads = 0);
 
 [[nodiscard]] Result<std::string> DiscoverManifestInCwd();
 

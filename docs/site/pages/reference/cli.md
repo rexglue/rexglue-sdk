@@ -51,6 +51,7 @@ rexglue codegen [config] [options]
 | `--target NAME` | Processes only the DLL modules named by the options, and the entrypoint. Can be repeated. Without `--target`, every DLL module of the manifest is processed, which is what the project build does. See [Targets](#targets). |
 | `--ignore-stamp` | Regenerates even when the inputs match the stamp from the last run. |
 | `--depfile PATH` | Writes the inputs of the run to this file in make syntax. Without it no file is written. |
+| `--threads N` | Sets how many threads generate the function bodies, from 0 to 1024. The default 0 uses the hardware thread count. The generated files are the same for every value, so a change does not regenerate. |
 
 ### Finding the Manifest
 

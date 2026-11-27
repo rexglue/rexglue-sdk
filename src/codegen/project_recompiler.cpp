@@ -561,7 +561,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     }
     REXCG_TRACE("Writing output for '{}'...", entry.module->target_name);
     CodegenWriter writer(entry.ctx);
-    if (!writer.Write(opts.force)) {
+    if (!writer.Write(opts.force, opts.threads)) {
       return Err<void>(ErrorCategory::kValidation,
                        std::format("Write failed for '{}'", entry.module->target_name));
     }

@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <regex>
@@ -87,7 +88,57 @@ struct WriterFixture {
   fs::path GetOutputDir() const { return root / "generated"; }
 };
 
+std::map<std::string, std::string> WriteCallChain(u32 threads) {
+  constexpr u32 kChainLength = 64;
+  constexpr u32 kFunctionSize = 8;
+  std::vector<u8> data;
+  data.reserve(size_t{kChainLength} * kFunctionSize);
+  for (u32 i = 0; i < kChainLength; ++i) {
+    const u32 offset = (((i + 1) % kChainLength) * kFunctionSize) - (i * kFunctionSize);
+    const u32 call = 0x48000001u | (offset & 0x03FFFFFCu);
+    for (const u32 word : {call, 0x4E800020u}) {
+      data.insert(data.end(), {static_cast<u8>(word >> 24), static_cast<u8>(word >> 16),
+                               static_cast<u8>(word >> 8), static_cast<u8>(word)});
+    }
+  }
+
+  rex::test::TempFolder folder("rexglue_writer_threads_");
+  StubModule module;
+  module.Load(kBaseAddress, data.data(), data.size());
+  RecompilerConfig config;
+  config.project_name = "testproj";
+  config.out_directory_path = "generated";
+  auto ctx = CodegenContext::Create(BinaryView::FromModule(module), std::move(config));
+  ctx.SetConfigDir(folder.path);
+  ctx.GetAnalysisState().format = "xex";
+  ctx.GetAnalysisState().load_address = kBaseAddress;
+  ctx.GetAnalysisState().entry_point = kBaseAddress;
+  ctx.GetAnalysisState().image_size = static_cast<u32>(data.size());
+  for (u32 i = 0; i < kChainLength; ++i) {
+    const u32 addr = kBaseAddress + (i * kFunctionSize);
+    auto* node = ctx.graph.AddFunction(addr, kFunctionSize, FunctionAuthority::kDiscovered, true);
+    REQUIRE(node != nullptr);
+    node->Discover({{addr, kFunctionSize}}, {}, {});
+    node->Seal();
+  }
+
+  CodegenWriter writer(ctx);
+  REQUIRE(writer.Write(false, threads));
+  std::map<std::string, std::string> files;
+  for (const auto& entry : fs::directory_iterator(folder.path / "generated")) {
+    files.emplace(entry.path().filename().string(), ReadText(entry.path()));
+  }
+  return files;
+}
+
 }  // namespace
+
+REX_TEST_CASE("Code generation on several threads writes the files of one thread",
+              "[codegen][codegen_writer]") {
+  const auto one = WriteCallChain(1);
+  REQUIRE(one.size() > 1);
+  CHECK(WriteCallChain(4) == one);
+}
 
 REX_TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen][codegen_writer]") {
   WriterFixture fx("unchanged");

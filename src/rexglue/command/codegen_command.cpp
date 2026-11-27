@@ -59,7 +59,7 @@ void ReportStaleIncludes(const fs::path& manifest_path,
 [[nodiscard]] Result<void> RecompileProject(const fs::path& manifest_path, const CLIContext& ctx,
                                             const std::vector<std::string>& targets,
                                             bool ignore_stamp, const rex::codegen::Limits& limits,
-                                            const fs::path& depfile) {
+                                            const fs::path& depfile, u32 threads) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   if (!manifest) {
     return Err<void>(rex::ErrorCategory::kConfig, "Failed to load manifest");
@@ -73,6 +73,7 @@ void ReportStaleIncludes(const fs::path& manifest_path,
       .reporter = &progress,
       .ignore_stamp = ignore_stamp,
       .limits = limits,
+      .threads = threads,
       .depfile = depfile,
       .sdk_version = REXGLUE_VERSION_FLOOR "-" REXGLUE_VERSION_CHANNEL,
       .tools = ctx.tools,
@@ -133,6 +134,7 @@ struct CodegenOptions {
   bool ignore_stamp = false;
   rex::codegen::Limits limits;
   std::string depfile;
+  u32 threads = 0;
 };
 
 }  // namespace
@@ -182,7 +184,8 @@ Result<std::string> DiscoverManifestInCwd() {
 
 Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext& ctx,
                                const std::vector<std::string>& targets, bool ignore_stamp,
-                               const rex::codegen::Limits& limits, const fs::path& depfile) {
+                               const rex::codegen::Limits& limits, const fs::path& depfile,
+                               u32 threads) {
   REXGLUE_TRACE("Generating code with config: {}", config_path);
 
   fs::path manifest_path = config_path;
@@ -203,7 +206,7 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
   EmitProjectHeader(manifest_path, summary);
 
   if (auto run_result =
-          RecompileProject(manifest_path, ctx, targets, ignore_stamp, limits, depfile);
+          RecompileProject(manifest_path, ctx, targets, ignore_stamp, limits, depfile, threads);
       !run_result) {
     return run_result;
   }
@@ -229,6 +232,9 @@ void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pe
   sub->add_option("--depfile", args->depfile,
                   "Write the inputs of the run to this make style dependency file")
       ->type_name("PATH");
+  sub->add_option("--threads", args->threads,
+                  "Threads that generate code, 0 for the hardware thread count")
+      ->check(CLI::Range(0u, 1024u));
   sub->add_option("--max_file_size_bytes", args->limits.max_file_size_bytes,
                   "Largest generated source file in bytes")
       ->check(CLI::Range(65536u, 67108864u));
@@ -270,7 +276,7 @@ void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pe
         path = *discovered;
       }
       return CodegenFromConfig(path, ctx, args->targets, args->ignore_stamp, args->limits,
-                               args->depfile);
+                               args->depfile, args->threads);
     };
   });
 }

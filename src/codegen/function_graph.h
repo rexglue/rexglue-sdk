@@ -73,6 +73,9 @@ class FunctionGraph : public rex::MoveOnly {
    */
   bool IsNoReturn(u32 entry) const;
 
+  /** Computes the functions that never return, which IsNoReturn otherwise computes on first use. */
+  void SolveNoReturn();
+
   /** Returns the function at an entry point in O(1), or null when absent. */
   FunctionNode* GetFunction(u32 entry_point);
   const FunctionNode* GetFunction(u32 entry_point) const;
