@@ -205,6 +205,20 @@ REX_TEST_CASE("settings: higher layers win", "[base][settings]") {
   });
 }
 
+REX_TEST_CASE("settings: a typed Set at a named layer replaces a lower layer", "[base][settings]") {
+  RunInInit([] {
+    AudioOwner audio;
+    REQUIRE(REX_SETTINGS().Register(audio));
+    REQUIRE(REX_SETTINGS().SetText(SettingLayer::kFile, "audio.count", "20"));
+    REQUIRE(audio.count.Get() == 20);
+    REQUIRE(audio.count.Set(SettingLayer::kRuntime, 7));
+    REQUIRE(audio.count.Get() == 7);
+    REQUIRE(audio.count.GetLayer() == SettingLayer::kRuntime);
+    REQUIRE_FALSE(audio.count.Set(SettingLayer::kTitle, 9));
+    REQUIRE(audio.count.Get() == 7);
+  });
+}
+
 REX_TEST_CASE("settings: path template resolves at read", "[base][settings]") {
   RunInInit([] {
     PathOwner paths;

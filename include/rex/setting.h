@@ -411,6 +411,19 @@ class Setting final : public SettingBase {
   [[nodiscard]] Result<void> Set(const T& value);
 
   /**
+   * Stores a value at a layer, the typed form of SetText.
+   *
+   * @code
+   * REX_TRY_VOID(audio.gain.Set(rex::SettingLayer::kRuntime, 2.0));
+   * @endcode
+   *
+   * @param layer The layer to write at.
+   * @param value The value to store.
+   * @return Ok, or the same errors as SetText.
+   */
+  [[nodiscard]] Result<void> Set(SettingLayer layer, const T& value);
+
+  /**
    * Stores a value at the lock layer, so no later layer changes it.
    *
    * @return Ok, or an error when the setting is frozen.
@@ -761,6 +774,11 @@ T Setting<T>::Get() const {
 template <typename T>
 Result<void> Setting<T>::Set(const T& value) {
   return SetFromCode(detail::RenderSetting(value));
+}
+
+template <typename T>
+Result<void> Setting<T>::Set(SettingLayer layer, const T& value) {
+  return SetText(layer, detail::RenderSetting(value));
 }
 
 template <typename T>

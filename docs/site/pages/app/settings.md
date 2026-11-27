@@ -72,6 +72,7 @@ A `Setting` member has these calls:
 
 - `Get()` returns the value.
 - `Set(value)` writes at the runtime layer while a game runs, and at the title layer at any other time, including in an app that never launches a game. It returns an error when the setting is [frozen](#when-a-setting-can-change) or locked, when a higher layer holds the value, or when the value is refused.
+- `Set(layer, value)` writes at the layer you name, with the same refusals as `Set(value)`. For example, `count.Set(rex::SettingLayer::kRuntime, 7)` replaces a value that the config file gave.
 - `Lock(value)` writes at the lock layer. It returns an error when the setting is frozen or locked, or when the value is refused.
 - `Reset()` returns the setting and its layer to the default.
 
