@@ -132,8 +132,8 @@ class VulkanPresenter final : public Presenter {
   }
 
   /**
-   * Awaits all paint submissions, then destroys the swapchain before the semaphore that
-   * vkQueuePresentKHR waits on.
+   * Awaits all paint submissions and the present queue, then destroys the swapchain and its
+   * presentation semaphores.
    */
   ~VulkanPresenter();
 
@@ -280,7 +280,6 @@ class VulkanPresenter final : public Presenter {
       ~Submission();
 
       VkSemaphore GetAcquireSemaphore() const { return acquire_semaphore_; }
-      VkSemaphore GetPresentSemaphore() const { return present_semaphore_; }
       VkCommandPool GetDrawCommandPool() const { return draw_command_pool_; }
       VkCommandBuffer GetDrawCommandBuffer() const { return draw_command_buffer_; }
 
@@ -289,7 +288,6 @@ class VulkanPresenter final : public Presenter {
 
       const VulkanDevice* vulkan_device_;
       VkSemaphore acquire_semaphore_ = VK_NULL_HANDLE;
-      VkSemaphore present_semaphore_ = VK_NULL_HANDLE;
       VkCommandPool draw_command_pool_ = VK_NULL_HANDLE;
       VkCommandBuffer draw_command_buffer_ = VK_NULL_HANDLE;
     };
@@ -363,7 +361,8 @@ class VulkanPresenter final : public Presenter {
         bool& is_fifo_out, bool& ui_surface_unusable_out);
 
     /**
-     * Destroys the swapchain derivatives and nulls swapchain.
+     * Awaits all paint submissions and the present queue, destroys the swapchain derivatives and
+     * the presentation semaphores, and nulls swapchain.
      *
      * @return The original swapchain, if any, for use as oldSwapchain and for destruction.
      */
@@ -405,6 +404,7 @@ class VulkanPresenter final : public Presenter {
     VkExtent2D swapchain_extent = {};
     bool swapchain_is_fifo = false;
     std::vector<VkImage> swapchain_images;
+    std::vector<VkSemaphore> swapchain_present_semaphores;
     std::vector<SwapchainFramebuffer> swapchain_framebuffers;
   };
 
