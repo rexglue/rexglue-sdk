@@ -78,7 +78,7 @@ Each `hid.keybind_*` setting is a binding, a comma separated list of key chords,
 - `kHidden` hides the pointer, for a game or overlay that draws its own.
 - `kLocked` hides the pointer, keeps it in the window and reports motion as deltas.
 
-The pointer is free while the window has no focus or while an overlay or dialog wants the mouse. The UI system reports this to the input system with `SetInputCaptured`. The SDK applies the requested mode again when the window regains focus. With `hid.mnk_mode` and `hid.mnk_mouse` on, the pointer is locked while the window has focus.
+The pointer is free while the window has no focus, while an overlay or dialog wants the mouse, or while the UI holds an input block (see [Blocking Game Input While UI Is Open](#blocking-game-input-while-ui-is-open)). `GetPointerModeToApply` returns `kFree` during a block, and the pointer mode listener runs when a block starts or ends, so the requested mode applies again after the block. The UI system reports this to the input system with `SetInputCaptured`. The SDK applies the requested mode again when the window regains focus. With `hid.mnk_mode` and `hid.mnk_mouse` on, the pointer is locked while the window has focus.
 
 ## Window Events
 
@@ -100,7 +100,7 @@ Other code can watch the same changes. `IInputSystem::OnConnectionChange` regist
 
 ### Blocking Game Input While UI Is Open
 
-While a XAM dialog, the console overlay or a prompt is open, the game must not react to the controller that the player uses for it. Each of them calls `IInputSystem::AcquireUIBlock` while it is open. Blocks nest, so the game gets input again only after every block is released. During a block:
+While a XAM dialog, the console overlay, an added dialog that wants exclusive input or a prompt is open, the game must not react to the controller that the player uses for it. Each of them calls `IInputSystem::AcquireUIBlock` while it is open. Blocks nest, so the game gets input again only after every block is released. During a block:
 
 - A user with a device reads a neutral state, and a user without one reads as not connected.
 - Vibration works.

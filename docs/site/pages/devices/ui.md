@@ -109,6 +109,8 @@ A dialog is an ImGui window without a hotkey. `IUISystem::AddDialog` has two for
 - The form that takes a reference returns a `ScopeGuard` that removes the dialog. The dialog must outlive the guard.
 - The form that takes a `std::unique_ptr` owns the dialog and destroys it when `Draw` returns false.
 
+A dialog whose `WantsExclusiveInput` returns true holds the input block while it is added, the same way an overlay does. The UI system checks it when a dialog is added or removed and after each drawn frame, so a dialog that stops wanting exclusive input releases the block on the next frame. `IUISystem::IsExclusiveInputActive` is true while the block is held for an overlay, a dialog or a prompt.
+
 ## Prompts and Messages
 
 | Call | Behavior |

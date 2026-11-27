@@ -69,6 +69,15 @@ class TextBoxDialog final : public rex::ui::DialogBase {
   char text_[32] = {};
 };
 
+class ExclusiveDialog final : public rex::ui::DialogBase {
+ public:
+  bool wants = true;
+
+  bool Draw(ImGuiIO&) override { return true; }
+
+  bool WantsExclusiveInput() const override { return wants; }
+};
+
 class ClosingDialog final : public rex::ui::DialogBase {
  public:
   ClosingDialog(int& closed, int& destroyed) : closed_(closed), destroyed_(destroyed) {}
@@ -395,6 +404,35 @@ REX_TEST_CASE("an overlay with keyboard focus hides keys from the title", "[ui]"
   CHECK(listener.key_downs == 1);
   CHECK(app.GetInput().IsKeyDown(rex::VirtualKey::kB));
   listener_guard.Reset();
+  app.Shutdown();
+}
+
+REX_TEST_CASE("an added dialog that wants exclusive input holds the input block", "[ui]") {
+  UIApp app;
+  REQUIRE(app.Start());
+  rex::ui::IUISystem& ui = app.GetUI();
+  CHECK_FALSE(ui.IsExclusiveInputActive());
+  ExclusiveDialog dialog;
+  auto guard = ui.AddDialog(dialog);
+  CHECK(ui.IsExclusiveInputActive());
+  guard.Reset();
+  CHECK_FALSE(ui.IsExclusiveInputActive());
+  app.Shutdown();
+}
+
+REX_TEST_CASE("an added dialog releases the input block when it stops wanting exclusive input",
+              "[ui]") {
+  UIApp app;
+  REQUIRE(app.Start());
+  rex::ui::IUISystem& ui = app.GetUI();
+  ExclusiveDialog dialog;
+  auto guard = ui.AddDialog(dialog);
+  REQUIRE(ui.IsExclusiveInputActive());
+  dialog.wants = false;
+  NullRenderer renderer;
+  ui.DrawOverlays(renderer);
+  CHECK_FALSE(ui.IsExclusiveInputActive());
+  guard.Reset();
   app.Shutdown();
 }
 

@@ -36,6 +36,7 @@ class ImGuiHost final {
     MoveOnlyFunction<void(bool)> set_mouse_capture;
     MoveOnlyFunction<std::string()> get_clipboard;
     MoveOnlyFunction<void(std::string_view)> set_clipboard;
+    MoveOnlyFunction<void()> dialogs_changed;
   };
 
   explicit ImGuiHost(Hooks hooks);
@@ -53,6 +54,7 @@ class ImGuiHost final {
   void DestroyDialogs();
   void DestroyOwnedDialogs();
   bool HasDialogs() const { return !dialogs_.empty(); }
+  bool HasExclusiveDialog() const;
   void SetDialogCounter(std::atomic<u32>* counter);
 
   void SetDisplay(u32 physical_width, u32 physical_height, f32 content_scale);
@@ -73,6 +75,7 @@ class ImGuiHost final {
   bool IsDrawingDialogs() const { return dialog_loop_next_index_ != SIZE_MAX; }
   void DetachIfLastDialogRemoved();
   void PublishDialogCount();
+  void NotifyDialogsChanged();
   void SetTextInputActive(bool active);
   static void PlatformSetImeData(ImGuiContext* context, ImGuiViewport* viewport,
                                  ImGuiPlatformImeData* data);

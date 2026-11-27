@@ -151,7 +151,7 @@ class REX_UI_API UISettings final : public SettingOwner {
  * Window, ImGui, overlay and dialog calls belong on the UI thread. Calls marked "any thread" are
  * safe everywhere.
  */
-REX_DECLARE_INTERFACE(IUISystem, 3)
+REX_DECLARE_INTERFACE(IUISystem, 4)
 /** Returns the player's UI settings. */
   virtual UISettings& GetSettings() = 0;
 
@@ -241,6 +241,14 @@ REX_DECLARE_INTERFACE(IUISystem, 3)
 
   /** Reports whether any overlay is shown. Any thread. */
   virtual bool IsAnyOverlayVisible() const = 0;
+
+  /**
+   * True when the UI holds the input block for an overlay, a dialog or a prompt that wants
+   * exclusive input. Any thread.
+   *
+   * @return True while the block is held.
+   */
+  [[nodiscard]] virtual bool IsExclusiveInputActive() const = 0;
 
   /**
    * Adds a dialog drawn with the overlays.

@@ -193,6 +193,7 @@ u64 ImGuiHost::AddDialog(IDialog& dialog) {
   dialogs_.push_back({&dialog, id});
   changed_ = true;
   PublishDialogCount();
+  NotifyDialogsChanged();
   return id;
 }
 
@@ -277,6 +278,18 @@ void ImGuiHost::RemoveDialog(IDialog& dialog, u64 id) {
   DetachIfLastDialogRemoved();
   PublishDialogCount();
   changed_ = true;
+  NotifyDialogsChanged();
+}
+
+bool ImGuiHost::HasExclusiveDialog() const {
+  return std::ranges::any_of(
+      dialogs_, [](const DialogEntry& entry) { return entry.dialog->WantsExclusiveInput(); });
+}
+
+void ImGuiHost::NotifyDialogsChanged() {
+  if (hooks_.dialogs_changed) {
+    hooks_.dialogs_changed();
+  }
 }
 
 void ImGuiHost::Initialize() {

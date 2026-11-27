@@ -72,6 +72,7 @@ class UISystem final : public rex::ui::IUISystem, public IUIControl, public IUIT
   void ToggleOverlay(std::string_view name) override;
   [[nodiscard]] Result<ui::IDialog*> GetOverlay(std::string_view name) override;
   bool IsAnyOverlayVisible() const override;
+  bool IsExclusiveInputActive() const override;
   [[nodiscard]] ScopeGuard AddDialog(ui::IDialog& dialog) override;
   void AddDialog(std::unique_ptr<ui::IDialog> dialog) override;
   bool HasDialogs() const override;

@@ -102,6 +102,13 @@ struct InputSystem::State {
   MoveOnlyFunction<void()> pointer_listener;
   u64 pointer_serial = 0;
 
+  void NotifyPointerListener() {
+    std::lock_guard lock(pointer_mutex);
+    if (pointer_listener) {
+      pointer_listener();
+    }
+  }
+
   bool IsActive() const {
     return focused.load(std::memory_order_relaxed) && captured.load(std::memory_order_relaxed);
   }
@@ -588,6 +595,7 @@ ScopeGuard InputSystem::OnConnectionChange(MoveOnlyFunction<void(u32 user, bool 
 
 void InputSystem::AcquireUIBlock() {
   state_->ui_blocks.fetch_add(1);
+  state_->NotifyPointerListener();
 }
 
 void InputSystem::ReleaseUIBlock() {
@@ -606,6 +614,7 @@ void InputSystem::ReleaseUIBlock() {
     state.ui_blocks.fetch_sub(1);
   }
   state.Fire(events);
+  state.NotifyPointerListener();
 }
 
 void InputSystem::OnInputEvent(InputEvent& event) {
@@ -767,15 +776,12 @@ i32 InputSystem::GetWheel() const {
 
 void InputSystem::SetPointerMode(PointerMode mode) {
   state_->requested_mode.store(mode, std::memory_order_relaxed);
-  std::lock_guard lock(state_->pointer_mutex);
-  if (state_->pointer_listener) {
-    state_->pointer_listener();
-  }
+  state_->NotifyPointerListener();
 }
 
 PointerMode InputSystem::GetPointerModeToApply() const {
   const State& state = *state_;
-  if (!state.IsActive()) {
+  if (state.ui_blocks.load() > 0 || !state.IsActive()) {
     return PointerMode::kFree;
   }
   if (state.keyboard_mouse->IsPointerLockWanted()) {

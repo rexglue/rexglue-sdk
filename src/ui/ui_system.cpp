@@ -252,6 +252,13 @@ void UISystem::State::CreateImGui() {
   hooks.set_mouse_capture = [this](bool captured) { driver->CaptureMouse(captured); };
   hooks.get_clipboard = [this] { return driver->GetClipboardText(); };
   hooks.set_clipboard = [this](std::string_view text) { driver->SetClipboardText(text); };
+  hooks.dialogs_changed = [this] {
+    if (IsUIThread()) {
+      SyncOverlayBlock();
+    } else {
+      owner.PostTask([this] { SyncOverlayBlock(); });
+    }
+  };
   imgui = std::make_unique<ui::ImGuiHost>(std::move(hooks));
   imgui->SetDialogCounter(&dialog_count);
   imgui->SetDisplay(window_width, window_height, content_scale);
@@ -357,6 +364,7 @@ void UISystem::State::CloseWindow() {
     if (block_acquired) {
       input->ReleaseUIBlock();
       block_acquired = false;
+      block_held.store(false);
     }
   }
   watches.clear();
@@ -471,6 +479,10 @@ Result<ui::IDialog*> UISystem::GetOverlay(std::string_view name) {
   return overlay;
 }
 
+bool UISystem::IsExclusiveInputActive() const {
+  return state_->block_held.load();
+}
+
 bool UISystem::IsAnyOverlayVisible() const {
   return state_->overlay_visible_count.load() != 0;
 }
@@ -516,6 +528,7 @@ void UISystem::DrawOverlays(IOverlayRenderer& renderer) {
     }
     s.imgui->SetDisplay(s.window_width, s.window_height, s.content_scale);
     data = s.imgui->BuildFrame();
+    s.SyncOverlayBlock();
   });
   if (data) {
     renderer.RenderOverlays(*data);
@@ -620,16 +633,18 @@ void UISystem::State::SyncOverlayBlock() {
   const bool visible = overlays && overlays->IsAnyVisible();
   overlay_visible_count = visible ? 1 : 0;
   const bool exclusive = overlays && overlays->IsExclusiveVisible();
-  const bool want = exclusive || prompt_count > 0;
+  const bool want = exclusive || prompt_count > 0 || (imgui && imgui->HasExclusiveDialog());
   if (!input) {
     return;
   }
   if (want && !block_acquired) {
     input->AcquireUIBlock();
     block_acquired = true;
+    block_held.store(true);
   } else if (!want && block_acquired) {
     input->ReleaseUIBlock();
     block_acquired = false;
+    block_held.store(false);
   }
   RefreshCapture();
 }

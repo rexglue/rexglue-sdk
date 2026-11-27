@@ -128,6 +128,7 @@ struct UISystem::State {
   PointerMode applied_pointer_mode = PointerMode::kFree;
   bool cursor_hidden_by_timeout = false;
   bool block_acquired = false;
+  std::atomic<bool> block_held{false};
   std::chrono::steady_clock::time_point last_pointer_motion;
   std::vector<ScopeGuard> watches;
 

@@ -360,6 +360,25 @@ REX_TEST_CASE("dropping the guard removes the pointer mode listener", "[hid]") {
   app.Shutdown();
 }
 
+REX_TEST_CASE("the pointer mode to apply is free while the UI block is held", "[hid]") {
+  rex::test_ui::UIApp app;
+  app.input_drivers = "none";
+  REQUIRE(app.Start());
+  rex::hid::IInputSystem& input = app.GetInput();
+  input.SetPointerMode(rex::PointerMode::kLocked);
+  REQUIRE(input.GetPointerModeToApply() == rex::PointerMode::kLocked);
+  int calls = 0;
+  auto listener_guard = input.SetPointerModeListener([&] { ++calls; });
+  input.AcquireUIBlock();
+  CHECK(calls == 1);
+  CHECK(input.GetPointerModeToApply() == rex::PointerMode::kFree);
+  input.ReleaseUIBlock();
+  CHECK(calls == 2);
+  CHECK(input.GetPointerModeToApply() == rex::PointerMode::kLocked);
+  listener_guard.Reset();
+  app.Shutdown();
+}
+
 REX_TEST_CASE("an old guard does not clear a newer pointer mode listener", "[hid]") {
   rex::test_ui::UIApp app;
   app.input_drivers = "none";
