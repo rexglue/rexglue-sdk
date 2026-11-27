@@ -35,6 +35,8 @@ bool ProfilingEnabledZones([[maybe_unused]] const std::string& name) {
   REX_PROFILE_THREAD("ProfilingEnabledZones");
   REX_PROFILE_PLOT("ProfilingEnabledZones Integer", 3);
   REX_PROFILE_PLOT_F64("ProfilingEnabledZones Float", 0.5);
+  REX_PROFILE_PLOT_CONFIG("ProfilingEnabledZones Integer", kNumber);
+  REX_PROFILE_PLOT_CONFIG("ProfilingEnabledZones Float", kPercent);
   REX_PROFILE_FRAME();
   return REX_PROFILE_IS_CONNECTED();
 }

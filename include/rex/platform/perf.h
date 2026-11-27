@@ -94,6 +94,13 @@ REX_API void WriteCSVFrame();
 
 REX_API void CloseCSV();
 
+/** How the profiler formats the values of a plot, for REX_PROFILE_PLOT_CONFIG. */
+enum class PlotFormat : u8 {
+  kNumber,  /**< Plain numbers. */
+  kMemory,  /**< Byte counts. */
+  kPercent, /**< Percentages. */
+};
+
 }  // namespace rex::platform
 
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
@@ -296,6 +303,46 @@ REX_API void CloseCSV();
       TracyPlot(name, static_cast<::rex::f64>(value)); \
   } while (0)
 
+namespace rex::platform::detail {
+
+/**
+ * Returns the Tracy plot format of a PlotFormat.
+ *
+ * @param format The format.
+ * @return The Tracy plot format.
+ */
+constexpr ::tracy::PlotFormatType ToTracyPlotFormat(PlotFormat format) {
+  switch (format) {
+    case PlotFormat::kMemory:
+      return ::tracy::PlotFormatType::Memory;
+    case PlotFormat::kPercent:
+      return ::tracy::PlotFormatType::Percentage;
+    case PlotFormat::kNumber:
+      break;
+  }
+  return ::tracy::PlotFormatType::Number;
+}
+
+}  // namespace rex::platform::detail
+
+/**
+ * Sets how Tracy formats the values of a named plot.
+ *
+ * @param name The plot name, a string literal.
+ * @param type A rex::platform::PlotFormat value as a bare token: kNumber, kMemory or kPercent.
+ *
+ * @code
+ * REX_PROFILE_PLOT_CONFIG("GPU Memory", kMemory);
+ * @endcode
+ */
+#define REX_PROFILE_PLOT_CONFIG(name, type)                                                    \
+  do {                                                                                         \
+    if (TracyIsStarted)                                                                        \
+      TracyPlotConfig(                                                                         \
+          name, ::rex::platform::detail::ToTracyPlotFormat(::rex::platform::PlotFormat::type), \
+          false, true, 0);                                                                     \
+  } while (0)
+
 /**
  * Reports an allocation to the unnamed Tracy memory pool.
  *
@@ -485,6 +532,7 @@ REX_API void CloseCSV();
 #define REX_PROFILE_FIBER_LEAVE()
 #define REX_PROFILE_PLOT(name, value)
 #define REX_PROFILE_PLOT_F64(name, value)
+#define REX_PROFILE_PLOT_CONFIG(name, type)
 #define REX_PROFILE_ALLOC(ptr, size)
 #define REX_PROFILE_FREE(ptr)
 #define REX_PROFILE_ALLOC_NAMED(ptr, size, pool)
