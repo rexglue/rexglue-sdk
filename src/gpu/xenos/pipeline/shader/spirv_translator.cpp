@@ -252,6 +252,11 @@ void SPIRVShaderTranslator::StartTranslation() {
   spv::Id type_uint4_array_4 =
       builder_->makeArrayType(type_uint4, builder_->makeUintConstant(4), sizeof(u32) * 4);
   builder_->addDecoration(type_uint4_array_4, spv::DecorationArrayStride, sizeof(u32) * 4);
+  spv::Id type_uint4_array_8 =
+      builder_->makeArrayType(type_uint4, builder_->makeUintConstant(8), sizeof(u32) * 4);
+  builder_->addDecoration(type_uint4_array_8, spv::DecorationArrayStride, sizeof(u32) * 4);
+  static_assert(offsetof(SystemConstants, texture_integer_scale_bits) % 16 == 0,
+                "std140 requires 16-byte alignment for uint4 arrays");
   const SystemConstant system_constants[] = {
       {"flags", offsetof(SystemConstants, flags), type_uint},
       {"vertex_index_load_address", offsetof(SystemConstants, vertex_index_load_address),
@@ -304,6 +309,8 @@ void SPIRVShaderTranslator::StartTranslation() {
       {"edram_rt_keep_mask", offsetof(SystemConstants, edram_rt_keep_mask), type_uint4_array_2},
       {"edram_rt_clamp", offsetof(SystemConstants, edram_rt_clamp), type_float4_array_4},
       {"edram_blend_constant", offsetof(SystemConstants, edram_blend_constant), type_float4},
+      {"texture_integer_scale_bits", offsetof(SystemConstants, texture_integer_scale_bits),
+       type_uint4_array_8},
   };
   id_vector_temp_.clear();
   id_vector_temp_.reserve(rex::CountOf(system_constants));

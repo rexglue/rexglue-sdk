@@ -331,6 +331,8 @@ struct FormatInfo {
   u32 block_width;
   u32 block_height;
   u32 bits_per_pixel;
+  u8 component_bits[4]; /**< Width of each fixed-point component, 0 if not fixed-point. */
+  bool fixed;           /**< Whether the components are fixed-point. */
 
   u32 GetBytesPerBlock() const { return block_width * block_height * bits_per_pixel / 8; }
 

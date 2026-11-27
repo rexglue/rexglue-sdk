@@ -32,7 +32,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
  public:
   union Modification {
     /** Pipeline storage version, incremented when the layout changes incompatibly. */
-    static constexpr u32 kVersion = 12;
+    static constexpr u32 kVersion = 13;
 
     // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
     enum class DepthStencilMode : u32 {
@@ -287,6 +287,13 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     u32 vertex_index_max;
     f32 tessellation_factor_range_min;
     f32 tessellation_factor_range_max;
+
+    /**
+     * Integer num_format on fixed-point textures, accessed as uint4[8] (std140). Each dword
+     * packs the scale that turns normalized host samples back into guest integer values,
+     * 5 bits per component: bits 0:3 = component bits - 1, bit 4 = signed. Zero means no scale.
+     */
+    alignas(16) u32 texture_integer_scale_bits[32];
   };
 
   enum ConstantBuffer : u8 {
@@ -1081,6 +1088,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
     kSystemConstantEDRAMRTKeepMask,
     kSystemConstantEDRAMRTClamp,
     kSystemConstantEDRAMBlendConstant,
+    kSystemConstantTextureIntegerScaleBits,
   };
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
