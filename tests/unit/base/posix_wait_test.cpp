@@ -19,6 +19,11 @@
 
 #if defined(__linux__)
 #include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+#include <fstream>
+#include <string>
 #endif
 
 #include <rex/platform/thread.h>
@@ -71,6 +76,16 @@ bool WaitUntil(Predicate ready, std::chrono::milliseconds limit = 5s) {
   }
   return true;
 }
+
+#if defined(__linux__)
+bool IsThreadSleeping(long tid) {
+  std::ifstream stat("/proc/self/task/" + std::to_string(tid) + "/stat");
+  std::string line;
+  std::getline(stat, line);
+  const auto name_end = line.rfind(')');
+  return name_end != std::string::npos && name_end + 2 < line.size() && line[name_end + 2] == 'S';
+}
+#endif
 
 }  // namespace
 
@@ -320,3 +335,62 @@ REX_TEST_CASE("Many multi waiters lose no wakeup under contention", "[base][posi
   REQUIRE_FALSE(lost);
   REQUIRE(consumed.load() == kRounds);
 }
+
+#if !defined(_WIN32)
+REX_TEST_CASE("A signal and wait keeps a signal that the thread it wakes sets before waiting",
+              "[base][posix_wait]") {
+  constexpr int kRounds = 2000;
+  for (const bool alertable : {false, true}) {
+    auto ping = Event::CreateAutoResetEvent(false);
+    auto pong = Event::CreateAutoResetEvent(false);
+    std::atomic<bool> stop{false};
+    std::atomic<int> taken{0};
+    std::thread partner([&] {
+      while (!stop) {
+        if (rex::platform::Wait(ping.get(), false, 100ms) != WaitResult::kSuccess) {
+          continue;
+        }
+        pong->Set();
+        if (rex::platform::Wait(pong.get(), false, 0ms) == WaitResult::kSuccess) {
+          ++taken;
+        }
+      }
+    });
+    int completed = 0;
+    while (completed < kRounds && rex::platform::SignalAndWait(ping.get(), pong.get(), alertable,
+                                                               1s) == WaitResult::kSuccess) {
+      ++completed;
+    }
+    stop = true;
+    partner.join();
+    REQUIRE(taken.load() == 0);
+    REQUIRE(completed == kRounds);
+  }
+}
+#endif
+
+#if defined(__linux__)
+REX_TEST_CASE("A set and an immediate reset wake a thread blocked on a manual reset event",
+              "[base][posix_wait]") {
+  constexpr int kRounds = 200;
+  auto event = Event::CreateManualResetEvent(false);
+  auto other = Event::CreateManualResetEvent(false);
+  for (const bool multi : {false, true}) {
+    for (int round = 0; round < kRounds; ++round) {
+      std::atomic<long> tid{0};
+      WaitResult result = WaitResult::kFailed;
+      std::thread waiter([&] {
+        WaitHandle* handles[2] = {event.get(), other.get()};
+        tid = syscall(SYS_gettid);
+        result = multi ? rex::platform::WaitAny(handles, 2, false, 2s).first
+                       : rex::platform::Wait(event.get(), false, 2s);
+      });
+      REQUIRE(WaitUntil([&] { return tid.load() != 0 && IsThreadSleeping(tid.load()); }));
+      event->Set();
+      event->Reset();
+      waiter.join();
+      REQUIRE(result == WaitResult::kSuccess);
+    }
+  }
+}
+#endif
