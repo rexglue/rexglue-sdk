@@ -21,6 +21,11 @@ namespace rex::gpu {
 class XenosSettings : public SettingOwner {
  public:
   REX_SETTING(bool, present_letterbox, true, "Keep the title's aspect ratio when presenting");
+  REX_SETTING(std::string, present_aspect, "",
+              "Aspect ratio to present at as W:H, such as 16:9, instead of the video mode's. "
+              "Empty keeps the video mode's. Title code can set it while content of another "
+              "ratio shows",
+              kNoSave);
   REX_SETTING(i32, present_safe_area_x, 90, "Horizontal title safe area percent", Range{50, 100});
   REX_SETTING(i32, present_safe_area_y, 90, "Vertical title safe area percent", Range{50, 100});
   REX_SETTING(bool, present_dither, false, "Dither when presenting to an 8 bit swap chain");

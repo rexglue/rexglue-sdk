@@ -174,6 +174,7 @@ These settings exist while a Xenos driver is initialized, with any host API. Dec
 | Name | Type | Default | Restriction | Meaning |
 |---|---|---|---|---|
 | `gpu.xenos.present_letterbox` | `bool` | `true` |  | Keep the aspect ratio of the game with bars. |
+| `gpu.xenos.present_aspect` | `string` | `""` |  | The aspect ratio to present at as `W:H`, such as `16:9`, in place of the aspect ratio of the video mode. Each term is 1 to 4095, and the ratio is 16:1 to 1:16. With `gpu.xenos.present_letterbox` the bars keep this ratio; without it the image fills the window, and the ratio only changes how much `gpu.xenos.present_allow_overscan_cutoff` cuts off. Empty or invalid keeps the ratio of the video mode. A title that renders wider than 16:9 but shows 16:9 content, such as movies, can set it at run time while that content is on screen. Never written to the config file. |
 | `gpu.xenos.present_safe_area_x` | `i32` | `90` |  | The horizontal safe area as a percent of the screen. 50 to 100. |
 | `gpu.xenos.present_safe_area_y` | `i32` | `90` |  | The vertical safe area as a percent of the screen. 50 to 100. |
 | `gpu.xenos.present_dither` | `bool` | `false` |  | Dither when presenting to an 8 bit swap chain. |

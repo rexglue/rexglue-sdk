@@ -411,91 +411,27 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
 
   flow.properties = properties;
 
-  auto rescale_unsigned = [](u32 value, u32 new_scale, u32 old_scale) -> u32 {
-    return static_cast<u32>((static_cast<u64>(value) * new_scale + (old_scale >> 1)) / old_scale);
-  };
-  auto rescale_signed = [](i32 value, u32 new_scale, u32 old_scale) -> i32 {
-    // The sign of the half scale offset matches the value, since / truncates toward zero.
-    return static_cast<i32>((static_cast<i64>(value) * new_scale +
-                             static_cast<i64>(old_scale >> 1) * (value < 0 ? -1 : 1)) /
-                            old_scale);
-  };
-
-  u32 output_width, output_height;
-  if (static_cast<u64>(surface_width_in_paint_connection_) * properties.display_aspect_ratio_y >
-      static_cast<u64>(surface_height_in_paint_connection_) * properties.display_aspect_ratio_x) {
-    u32 present_safe_area;
-    if (config.GetAllowOverscanCutoff() && driver_.present_safe_area_y.Get() > 0 &&
-        driver_.present_safe_area_y.Get() < 100) {
-      present_safe_area = static_cast<u32>(driver_.present_safe_area_y.Get());
-    } else {
-      present_safe_area = 100;
-    }
-    output_height =
-        rescale_unsigned(surface_width_in_paint_connection_, properties.display_aspect_ratio_y,
-                         properties.display_aspect_ratio_x);
-    bool letterbox = false;
-    if (output_height * present_safe_area > surface_height_in_paint_connection_ * 100) {
-      output_height = rescale_unsigned(surface_height_in_paint_connection_, 100, present_safe_area);
-      letterbox = true;
-    }
-    if (letterbox && driver_.present_letterbox.Get()) {
-      output_width = rescale_unsigned(surface_height_in_paint_connection_ * 100,
-                                      properties.display_aspect_ratio_x,
-                                      properties.display_aspect_ratio_y * present_safe_area);
-      flow.output_x =
-          (static_cast<i32>(surface_width_in_paint_connection_) - static_cast<i32>(output_width)) /
-          2;
-    } else {
-      output_width = surface_width_in_paint_connection_;
-      flow.output_x = 0;
-    }
-    flow.output_y =
-        (static_cast<i32>(surface_height_in_paint_connection_) - static_cast<i32>(output_height)) /
-        2;
-  } else {
-    u32 present_safe_area;
-    if (config.GetAllowOverscanCutoff() && driver_.present_safe_area_x.Get() > 0 &&
-        driver_.present_safe_area_x.Get() < 100) {
-      present_safe_area = static_cast<u32>(driver_.present_safe_area_x.Get());
-    } else {
-      present_safe_area = 100;
-    }
-    output_width =
-        rescale_unsigned(surface_height_in_paint_connection_, properties.display_aspect_ratio_x,
-                         properties.display_aspect_ratio_y);
-    bool letterbox = false;
-    if (output_width * present_safe_area > surface_width_in_paint_connection_ * 100) {
-      output_width = rescale_unsigned(surface_width_in_paint_connection_, 100, present_safe_area);
-      letterbox = true;
-    }
-    if (letterbox && driver_.present_letterbox.Get()) {
-      output_height = rescale_unsigned(surface_width_in_paint_connection_ * 100,
-                                       properties.display_aspect_ratio_y,
-                                       properties.display_aspect_ratio_x * present_safe_area);
-      flow.output_y = (static_cast<i32>(surface_height_in_paint_connection_) -
-                       static_cast<i32>(output_height)) /
-                      2;
-    } else {
-      output_height = surface_height_in_paint_connection_;
-      flow.output_y = 0;
-    }
-    flow.output_x =
-        (static_cast<i32>(surface_width_in_paint_connection_) - static_cast<i32>(output_width)) / 2;
-  }
+  const PresentRect rect =
+      ComputePresentRect(surface_width_in_paint_connection_, surface_height_in_paint_connection_,
+                         properties.display_aspect_ratio_x, properties.display_aspect_ratio_y,
+                         static_cast<u32>(std::max(driver_.present_safe_area_x.Get(), 0)),
+                         static_cast<u32>(std::max(driver_.present_safe_area_y.Get(), 0)),
+                         config.GetAllowOverscanCutoff(), driver_.present_letterbox.Get());
+  u32 output_width = rect.width;
+  u32 output_height = rect.height;
+  flow.output_x = rect.x;
+  flow.output_y = rect.y;
 
   // Converts from surface pixels, 1:1 with the physical display, to render target pixels.
   if (host_rt_width != surface_width_in_paint_connection_) {
-    flow.output_x =
-        rescale_signed(flow.output_x, host_rt_width, surface_width_in_paint_connection_);
-    output_width =
-        rescale_unsigned(output_width, host_rt_width, surface_width_in_paint_connection_);
+    flow.output_x = RescaleSigned(flow.output_x, host_rt_width, surface_width_in_paint_connection_);
+    output_width = RescaleUnsigned(output_width, host_rt_width, surface_width_in_paint_connection_);
   }
   if (host_rt_height != surface_height_in_paint_connection_) {
     flow.output_y =
-        rescale_signed(flow.output_y, host_rt_height, surface_height_in_paint_connection_);
+        RescaleSigned(flow.output_y, host_rt_height, surface_height_in_paint_connection_);
     output_height =
-        rescale_unsigned(output_height, host_rt_height, surface_height_in_paint_connection_);
+        RescaleUnsigned(output_height, host_rt_height, surface_height_in_paint_connection_);
   }
 
   i32 output_right = flow.output_x + static_cast<i32>(output_width);

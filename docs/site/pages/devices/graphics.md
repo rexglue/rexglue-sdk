@@ -76,6 +76,8 @@ flowchart TD
 
 `BeginPresent` returns false while the window is minimized or the surface is lost, and the loop then waits 5 ms before it tries again. The overlays are the UI system's debug, settings, achievements and console windows, which it draws on top of the frame. `gpu.frame_limit` sets the most presents per second, and 0 means no limit.
 
+`gpu.xenos.present_aspect` sets the aspect ratio of the presented image in place of the one of the video mode, such as `16:9`. The Xenos presenter reads it with each swap, so a change applies on the next frame.
+
 `IGraphicsSystem::GetFrameStats` returns `frame_time_ms` and `fps` over the last second, and `frame_count` since launch. A program that presents with its own renderer instead of a driver calls `IGraphicsSystem::ReportFrame` once per present, so these counts stay correct.
 
 ## MMIO Block

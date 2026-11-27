@@ -33,6 +33,7 @@
 #include <rex/logging/log_category.h>
 #include <rex/memory/endian.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
+#include "gpu/xenos/host/present_policy.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 #include "gpu/xenos/host/renderdoc_api.h"
 
@@ -1876,6 +1877,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
   const VideoMode video_mode = title_info_.video_mode;
   u32 display_width = std::max(static_cast<u32>(1), video_mode.width);
   u32 display_height = std::max(static_cast<u32>(1), video_mode.height);
+  TryParsePresentAspect(GetXenosSettings().present_aspect.Get(), display_width, display_height);
 
   presenter->RefreshGuestOutput(
       guest_output_width, guest_output_height, display_width, display_height,
