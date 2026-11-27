@@ -621,7 +621,7 @@ std::vector<ui::Monitor> UISystem::GetDisplays() {
   return s.driver->GetDisplays();
 }
 
-std::vector<ui::HostLocale> UISystem::GetPreferredLocales() {
+std::vector<platform::HostLocale> UISystem::GetPreferredLocales() {
   State& s = *state_;
   if (s.headless.load() || !s.driver) {
     return {};

@@ -84,7 +84,7 @@ class UISystem final : public rex::ui::IUISystem, public IUIControl, public IUIT
   void ShowPrompt(ui::PromptConfig config, MoveOnlyFunction<void(ui::PromptResult)> done) override;
   void CancelPrompts() override;
   std::vector<ui::Monitor> GetDisplays() override;
-  std::vector<ui::HostLocale> GetPreferredLocales() override;
+  std::vector<platform::HostLocale> GetPreferredLocales() override;
 
   [[nodiscard]] Result<void> AttachTitle(const TitleInfo& info,
                                          IAchievementRegistry& achievements) override;

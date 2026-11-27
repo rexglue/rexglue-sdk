@@ -57,11 +57,11 @@ std::vector<Monitor> GetSDLDisplays() {
   return displays;
 }
 
-std::vector<HostLocale> GetSDLPreferredLocales() {
+std::vector<platform::HostLocale> GetSDLPreferredLocales() {
   i32 count = 0;
   std::unique_ptr<SDL_Locale*, decltype(&SDL_free)> locales(SDL_GetPreferredLocales(&count),
                                                             &SDL_free);
-  std::vector<HostLocale> result;
+  std::vector<platform::HostLocale> result;
   if (!locales) {
     return result;
   }

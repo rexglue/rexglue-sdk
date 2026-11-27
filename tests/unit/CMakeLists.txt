@@ -108,6 +108,7 @@ add_executable(
   base/module_test.cpp
   base/module_group_test.cpp
   base/module_served_test.cpp
+  base/locale_parse_test.cpp
   base/logger_test.cpp
   base/stub_log_test.cpp
   base/math_test.cpp

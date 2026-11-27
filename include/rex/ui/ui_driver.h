@@ -21,6 +21,7 @@
 #include <rex/memory/host.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/platform/locale.h>
 #include <rex/platform/process.h>
 #include <rex/ui/dialog.h>
 #include <rex/platform/native_window.h>
@@ -145,7 +146,7 @@ class IUIDriver : public IDriver {
   /**
    * Lists the host's preferred locales, most preferred first.
    */
-  virtual std::vector<ui::HostLocale> GetPreferredLocales() = 0;
+  virtual std::vector<platform::HostLocale> GetPreferredLocales() = 0;
 
   /**
    * @return The text, empty when none.

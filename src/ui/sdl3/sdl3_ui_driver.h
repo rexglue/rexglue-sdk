@@ -61,7 +61,7 @@ class SDL3UIDriver final : public IUIDriver, public SettingOwner {
   [[nodiscard]] Result<std::vector<std::filesystem::path>> ShowFileDialog(
       const FileDialogConfig& config) override;
   std::vector<Monitor> GetDisplays() override;
-  std::vector<HostLocale> GetPreferredLocales() override;
+  std::vector<platform::HostLocale> GetPreferredLocales() override;
   std::string GetClipboardText() override;
   void SetClipboardText(std::string_view text) override;
 

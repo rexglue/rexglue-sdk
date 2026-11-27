@@ -12,6 +12,12 @@ The UI system draws nothing on its own and reaches the host through a UI driver,
 
 A program states whether it needs a window in `AppSysRequirements::ui`. `TitleApp` needs one, because the game draws into it. When a program needs a window and none opens, startup fails with a `kConfig` error. So `ui.driver = none` works only in a program that needs no window.
 
+## Host Locales
+
+`IUISystem::GetPreferredLocales` lists the host locales, most preferred first, as `rex::platform::HostLocale` values with a lowercase language and an uppercase country. It is empty when the program runs headless. `rex::platform::GetPreferredLocales` reads the same list from the operating system and needs no UI driver. It uses the preferred UI languages on Windows, `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` and `LANG` on Linux, and the preferred languages of the system on macOS.
+
+The game language follows `kernel.user_language` unless it is 0. At 0 the XAM language detection picks the first locale that maps to a game language. It takes the locales from the UI driver, and from the operating system when the driver gives none. English applies when no locale maps.
+
 ## Window
 
 The `ui.*` settings set the window size, the fullscreen mode, the display and the aspect ratio. See [ui](../reference/cvars.md#ui) in the settings reference for the list.

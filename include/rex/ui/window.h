@@ -57,13 +57,6 @@ struct Monitor {
   f32 content_scale = 1;
 };
 
-struct HostLocale {
-  /** Language code such as en or ja. */
-  std::string language;
-  /** Country code such as US, empty when the system gives none. */
-  std::string country;
-};
-
 struct WindowConfig {
   std::string title;
   u32 width = 1280;

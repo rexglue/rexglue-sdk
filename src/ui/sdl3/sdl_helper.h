@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <rex/result.h>
+#include <rex/platform/locale.h>
 #include <rex/ui/dialog.h>
 #include <rex/ui/window.h>
 
@@ -23,7 +24,7 @@ namespace rex::ui::sdl3 {
 
 std::vector<Monitor> GetSDLDisplays();
 
-std::vector<HostLocale> GetSDLPreferredLocales();
+std::vector<platform::HostLocale> GetSDLPreferredLocales();
 
 [[nodiscard]] Result<std::vector<std::filesystem::path>> ShowSDLFileDialog(
     const FileDialogConfig& config, SDL_Window* parent);

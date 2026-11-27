@@ -784,7 +784,7 @@ std::vector<Monitor> SDL3UIDriver::GetDisplays() {
   return GetSDLDisplays();
 }
 
-std::vector<HostLocale> SDL3UIDriver::GetPreferredLocales() {
+std::vector<platform::HostLocale> SDL3UIDriver::GetPreferredLocales() {
   return GetSDLPreferredLocales();
 }
 

@@ -50,7 +50,7 @@ rex::kernel::XLanguage FindLanguage(std::string_view base) {
 
 }  // namespace
 
-rex::kernel::XLanguage GetLanguageForLocale(const ui::HostLocale& locale) {
+rex::kernel::XLanguage GetLanguageForLocale(const platform::HostLocale& locale) {
   if (string::utf8_equal_case(locale.language, "zh")) {
     return IsTraditionalRegion(locale.country) ? rex::kernel::XLanguage::kTChinese
                                                : rex::kernel::XLanguage::kSChinese;
@@ -58,8 +58,8 @@ rex::kernel::XLanguage GetLanguageForLocale(const ui::HostLocale& locale) {
   return FindLanguage(locale.language);
 }
 
-rex::kernel::XLanguage GetLanguageForLocales(std::span<const ui::HostLocale> locales) {
-  for (const ui::HostLocale& locale : locales) {
+rex::kernel::XLanguage GetLanguageForLocales(std::span<const platform::HostLocale> locales) {
+  for (const platform::HostLocale& locale : locales) {
     const rex::kernel::XLanguage language = GetLanguageForLocale(locale);
     if (language != rex::kernel::XLanguage::kInvalid) {
       return language;
@@ -69,7 +69,11 @@ rex::kernel::XLanguage GetLanguageForLocales(std::span<const ui::HostLocale> loc
 }
 
 rex::kernel::XLanguage XAMLanguage::DetectHostLanguage(rex::ui::IUISystem& ui) {
-  return GetLanguageForLocales(ui.GetPreferredLocales());
+  const std::vector<platform::HostLocale> locales = ui.GetPreferredLocales();
+  if (!locales.empty()) {
+    return GetLanguageForLocales(locales);
+  }
+  return GetLanguageForLocales(platform::GetPreferredLocales());
 }
 
 std::string_view GetLanguageName(rex::kernel::XLanguage language) {

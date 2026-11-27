@@ -70,7 +70,7 @@ struct FakeUIData {
   int set_fullscreen_calls = 0;
   int set_size_calls = 0;
   int wake_calls = 0;
-  std::vector<ui::HostLocale> locales;
+  std::vector<platform::HostLocale> locales;
   std::vector<ui::Monitor> displays;
   std::vector<std::string> boxes;
   u32 box_choice = 0;
@@ -184,7 +184,7 @@ class FakeUIDriver : public rex::ui::IUIDriver {
     return std::vector<std::filesystem::path>{};
   }
   std::vector<ui::Monitor> GetDisplays() override { return g_ui.displays; }
-  std::vector<ui::HostLocale> GetPreferredLocales() override { return g_ui.locales; }
+  std::vector<platform::HostLocale> GetPreferredLocales() override { return g_ui.locales; }
   std::string GetClipboardText() override { return g_ui.clipboard; }
   void SetClipboardText(std::string_view text) override { g_ui.clipboard = std::string(text); }
 };

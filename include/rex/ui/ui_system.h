@@ -25,6 +25,7 @@
 #include <rex/input_keys.h>
 #include <rex/module.h>
 #include <rex/ui/dialog.h>
+#include <rex/platform/locale.h>
 #include <rex/platform/native_window.h>
 #include <rex/ui/window.h>
 #include <rex/ui/ui_event.h>
@@ -321,7 +322,7 @@ REX_DECLARE_INTERFACE(IUISystem, 4)
    *
    * @return The locales, empty when headless.
    */
-  virtual std::vector<ui::HostLocale> GetPreferredLocales() = 0;
+  virtual std::vector<platform::HostLocale> GetPreferredLocales() = 0;
 };
 
 }  // namespace rex::ui

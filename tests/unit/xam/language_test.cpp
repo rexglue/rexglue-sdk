@@ -12,6 +12,8 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -21,6 +23,8 @@
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/kernel_settings.h>
 #include <rex/kernel/export.h>
+#include <rex/platform.h>
+#include <rex/platform/process.h>
 #include <rex/xam/language.h>
 #include <rex/kernel/thread_state.h>
 #include <rex/ui/ui_system.h>
@@ -32,7 +36,7 @@
 #include <rex/kernel/types/content.h>
 
 using rex::kernel::XLanguage;
-using rex::ui::HostLocale;
+using rex::platform::HostLocale;
 
 namespace {
 
@@ -138,13 +142,41 @@ REX_TEST_CASE("Language: DetectHostLanguage reads the preferred locales of the i
   REQUIRE(app.Start());
   rex::ui::IUISystem& ui = app.GetUI();
   rex::xam::XAMLanguage language;
-  CHECK(language.DetectHostLanguage(ui) == rex::kernel::XLanguage::kEnglish);
   rex::test_ui::g_ui.locales = {{"zh", "HK"}, {"en", "US"}};
   CHECK(language.DetectHostLanguage(ui) == rex::kernel::XLanguage::kTChinese);
   rex::test_ui::g_ui.locales = {{"da", "DK"}, {"de", "DE"}};
   CHECK(language.DetectHostLanguage(ui) == rex::kernel::XLanguage::kGerman);
   app.Shutdown();
 }
+
+#if REX_PLATFORM_LINUX
+REX_TEST_CASE("Language: DetectHostLanguage reads the operating system when the driver gives none",
+              "[xam][language]") {
+  rex::test_ui::UIApp app;
+  REQUIRE(app.Start());
+  rex::ui::IUISystem& ui = app.GetUI();
+  rex::test_ui::g_ui.locales = {};
+  const char* names[] = {"LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"};
+  std::vector<std::pair<std::string, std::optional<std::string>>> saved;
+  for (const char* name : names) {
+    saved.emplace_back(name, rex::platform::GetEnvironmentValue(name));
+    REQUIRE(rex::platform::UnsetEnvironmentValue(name));
+  }
+  REQUIRE(rex::platform::SetEnvironmentValue("LANG", "ja_JP.UTF-8"));
+  rex::xam::XAMLanguage language;
+  CHECK(language.DetectHostLanguage(ui) == rex::kernel::XLanguage::kJapanese);
+  rex::test_ui::g_ui.locales = {{"de", "DE"}};
+  CHECK(language.DetectHostLanguage(ui) == rex::kernel::XLanguage::kGerman);
+  for (const auto& [name, value] : saved) {
+    if (value) {
+      REQUIRE(rex::platform::SetEnvironmentValue(name, *value));
+    } else {
+      REQUIRE(rex::platform::UnsetEnvironmentValue(name));
+    }
+  }
+  app.Shutdown();
+}
+#endif
 
 REX_TEST_CASE("Language: ParseLanguageCode accepts standard tags", "[xam][language]") {
   CHECK(rex::xam::ParseLanguageCode("en") == rex::kernel::XLanguage::kEnglish);

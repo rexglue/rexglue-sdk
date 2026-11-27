@@ -40,6 +40,7 @@
 #include <rex/utility.h>
 #include <rex/module.h>
 #include <rex/title.h>
+#include <rex/platform/locale.h>
 #include <rex/ui/window.h>
 
 namespace rex {
@@ -57,7 +58,8 @@ namespace rex::xam {
  * @param locale The host locale, language such as zh and country such as TW.
  * @return The title language, or XLanguage::kInvalid when the locale names none.
  */
-[[nodiscard]] REX_XAM_API rex::kernel::XLanguage GetLanguageForLocale(const ui::HostLocale& locale);
+[[nodiscard]] REX_XAM_API rex::kernel::XLanguage GetLanguageForLocale(
+    const platform::HostLocale& locale);
 
 /**
  * Picks the title language of the first locale of a list that maps to one.
@@ -66,14 +68,15 @@ namespace rex::xam {
  * @return The title language, or XLanguage::kEnglish when no locale maps.
  */
 [[nodiscard]] REX_XAM_API rex::kernel::XLanguage GetLanguageForLocales(
-    std::span<const ui::HostLocale> locales);
+    std::span<const platform::HostLocale> locales);
 
 /** Picks the title language of the host. */
 REX_DECLARE_INTERFACE(IXAMLanguage, 2)
   virtual ~IXAMLanguage() = default;
 
   /**
-   * Picks the title language from the preferred locales of the host.
+   * Picks the title language from the preferred locales of the UI driver, or of the operating
+   * system when the driver gives none.
    *
    * @return The title language, or XLanguage::kEnglish when no locale maps.
    */

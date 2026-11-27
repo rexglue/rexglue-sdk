@@ -30,6 +30,7 @@ target_sources(
           driver_context.cpp
           driver_select.cpp
           platform/file.cpp
+          platform/locale_parse.cpp
           process_lifecycle.cpp
           ring_buffer.cpp
           settings/aliases.cpp
@@ -94,6 +95,7 @@ if (WIN32)
             platform/console_win.cpp
             platform/env_win.cpp
             platform/file_win.cpp
+            platform/locale_win.cpp
             process_resources_win.cpp
             relaunch_win.cpp
             socket_win.cpp
@@ -126,6 +128,12 @@ elseif (UNIX)
             threading_posix.cpp
             utf8_posix.cpp
   )
+  if (APPLE)
+    target_sources(rexbase PRIVATE platform/locale_mac.cpp)
+    target_link_libraries(rexbase PRIVATE "-framework CoreFoundation")
+  else ()
+    target_sources(rexbase PRIVATE platform/locale_posix.cpp)
+  endif ()
   # These define _XOPEN_SOURCE before any system header, which a precompiled header would precede.
   set_source_files_properties(
     exception_handler_posix.cpp fiber_posix.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON
