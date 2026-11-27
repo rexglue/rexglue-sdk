@@ -241,14 +241,16 @@ Result<X_HANDLE> ObjectTable::AddXAMObject(std::unique_ptr<IXAMObject> body,
              options);
 }
 
-Result<X_HANDLE> ObjectTable::AddFile(std::unique_ptr<filesystem::IFile> file, bool synchronous) {
+Result<X_HANDLE> ObjectTable::AddFile(std::unique_ptr<filesystem::IFile> file, bool synchronous,
+                                      bool unbuffered) {
   ObjectBlock block =
       AllocateObjectBlock(kFileObjectSize, ObjectType::kFile, ObjectBlockHeap::kSystem);
   if (!block.address) {
     return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
   }
   *memory_->TranslateVirtual<be_u16*>(block.address) = kFileObjectTypeId;
-  std::unique_ptr<KernelObject> object = MakeObject<FileObject>(std::move(file), synchronous);
+  std::unique_ptr<KernelObject> object =
+      MakeObject<FileObject>(std::move(file), synchronous, unbuffered);
   std::get<FileObject>(object->data).owner = owner_;
   return Add(std::move(object), AddOptions{{}, block});
 }

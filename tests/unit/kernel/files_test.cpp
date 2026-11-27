@@ -1161,6 +1161,134 @@ REX_TEST_CASE("files: a synchronous read error leaves its block alone", "[kernel
   });
 }
 
+REX_TEST_CASE("files: an unbuffered async read returns pending and completes", "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteScratch(root, "ur.bin", 1024); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\ur.bin", 0x8);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtReadFile", {handle, event, 0, 0, block, buffer, 512, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_PENDING);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an unbuffered async write that grows a file returns pending",
+              "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "uw.bin", 0); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\uw.bin", 0x8);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtWriteFile", {handle, event, 0, 0, block, buffer, 512, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_PENDING);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an unbuffered async write inside a file returns pending", "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteScratch(root, "ui.bin", 1024); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\ui.bin", 0x8);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtWriteFile", {handle, 0, 0, 0, block, buffer, 512, c.AllocQuad(512)}) ==
+          rex::kernel::X_STATUS_PENDING);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an unbuffered async read at end of file leaves its block and event alone",
+              "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteScratch(root, "ue.bin", 512); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\ue.bin", 0x8);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtReadFile", {handle, event, 0, 0, block, buffer, 512, c.AllocQuad(512)}) ==
+          rex::kernel::X_STATUS_END_OF_FILE);
+    CHECK(c.Load32(block) == kPrefill);
+    CHECK(c.Load32(block + 4) == kPrefill);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_TIMEOUT);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an unbuffered synchronous read completes inline", "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteScratch(root, "us.bin", 1024); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\us.bin", 0x8 | 0x20);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, block, buffer, 512, c.AllocQuad(0)}) == 0);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an unbuffered async scatter read returns pending", "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteScratch(root, "ug.bin", 1024); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "scratch:\\ug.bin", 0x8);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    const u32 segments = c.Alloc(8);
+    c.Store32(segments, buffer);
+    c.Store32(segments + 4, 0);
+    CHECK(c.Kernel("NtReadFileScatter", {handle, 0, 0, 0, block, segments, 512, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_PENDING);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an unbuffered async read still queues its APC", "[kernel][files][apc]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteScratch(root, "ua.bin", 1024); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 routine = RecordingAPC(c);
+    const u32 handle = OpenScratch(c, "scratch:\\ua.bin", 0x8);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtReadFile", {handle, 0, routine, 0x1234, block, buffer, 512,
+                                  c.AllocQuad(0)}) == rex::kernel::X_STATUS_PENDING);
+    CHECK(DeliverAPCs(c) == rex::kernel::X_STATUS_USER_APC);
+    CHECK(g_apc_calls == 1);
+    CHECK(g_apc_context == 0x1234);
+    CHECK(g_apc_status_block == block);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
 namespace {
 
 u64 LoadGuestTime(Caller& c, u32 address) {

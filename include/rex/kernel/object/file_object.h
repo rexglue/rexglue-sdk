@@ -161,8 +161,10 @@ class IOpenedFile {
 struct FileObject : IOpenedFile {
   /**
    * @param synchronous True when the file was opened for synchronous IO.
+   * @param unbuffered True when the file was opened with no intermediate buffering.
    */
-  REX_KERNEL_API FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous);
+  REX_KERNEL_API FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous,
+                            bool unbuffered);
 
   /** Closes the IO completion port handles the file owns. */
   REX_KERNEL_API ~FileObject();
@@ -179,6 +181,8 @@ struct FileObject : IOpenedFile {
   /** Directory listing a find call is walking, null before the first find. */
   PropagateConst<std::unique_ptr<filesystem::IDirectory>> find;
   bool is_synchronous = false;
+  /** True when the file was opened with no intermediate buffering. */
+  bool is_unbuffered = false;
   /** The runtime the interface Read and Write run in, set when the table creates the file. */
   TitleRuntime* owner = nullptr;
 

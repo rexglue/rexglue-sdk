@@ -128,8 +128,9 @@ X_STATUS FileObject::ReadInternal(TitleRuntime& runtime, u32 buffer_address, u32
   return result;
 }
 
-FileObject::FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous)
-    : file(std::move(file_in)), is_synchronous(synchronous) {
+FileObject::FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous,
+                       bool unbuffered)
+    : file(std::move(file_in)), is_synchronous(synchronous), is_unbuffered(unbuffered) {
   async_event = rex::platform::Event::CreateAutoResetEvent(false);
   REX_ASSERT(async_event != nullptr);
 }

@@ -67,8 +67,8 @@ class ObjectTable final : public IObjectTable {
   [[nodiscard]] Result<X_HANDLE> AddEvent(bool manual_reset, bool initial_state) override;
   [[nodiscard]] Result<X_HANDLE> AddXAMObject(std::unique_ptr<IXAMObject> body,
                                               const AddOptions& options) override;
-  [[nodiscard]] Result<X_HANDLE> AddFile(std::unique_ptr<filesystem::IFile> file,
-                                         bool synchronous) override;
+  [[nodiscard]] Result<X_HANDLE> AddFile(std::unique_ptr<filesystem::IFile> file, bool synchronous,
+                                         bool unbuffered) override;
   [[nodiscard]] Result<X_HANDLE> Duplicate(X_HANDLE handle) override;
   [[nodiscard]] Result<X_HANDLE> Open(const ObjectPin& object) override;
   [[nodiscard]] Result<void> Close(X_HANDLE handle) override;

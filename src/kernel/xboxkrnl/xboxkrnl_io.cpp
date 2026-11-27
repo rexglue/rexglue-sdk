@@ -160,8 +160,9 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
     // desired_access must carry the SYNCHRONIZE flag when synchronous.
     bool synchronous = (create_options & CreateOptions::kFileSynchronousIOAlert) ||
                        (create_options & CreateOptions::kFileSynchronousIONonAlert);
-    auto added =
-        kernel::GetCurrent().GetObjectTable().AddFile(std::move(opened->file), synchronous);
+    const bool unbuffered = (create_options & CreateOptions::kFileNoIntermediateBuffering) != 0;
+    auto added = kernel::GetCurrent().GetObjectTable().AddFile(std::move(opened->file), synchronous,
+                                                               unbuffered);
     if (added) {
       handle = *added;
       if (auto file = kernel::GetCurrent().GetObjectTable().Get(handle)) {
@@ -277,6 +278,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
         "{:#x} (apc_requested={}, apc_queued={})",
         result, apc_requested, apc_queued);
   }
+  if (signal_event && file->is_unbuffered && !file->is_synchronous) {
+    return X_STATUS_PENDING;
+  }
   return result;
 }
 
@@ -320,6 +324,10 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, MappedVoid apc_ro
     ev->Set();
   }
 
+  if (signal_event && file->is_unbuffered && !file->is_synchronous) {
+    return X_STATUS_PENDING;
+  }
+
   return result;
 }
 
@@ -361,6 +369,10 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
 
   if (ev && signal_event) {
     ev->Set();
+  }
+
+  if (signal_event && file->is_unbuffered && !file->is_synchronous) {
+    return X_STATUS_PENDING;
   }
 
   return result;
