@@ -18,6 +18,8 @@ A program states whether it needs a window in `AppSysRequirements::ui`. `TitleAp
 
 The game language follows `kernel.user_language` unless it is 0. At 0 the XAM language detection picks the first locale that maps to a game language. It takes the locales from the UI driver, and from the operating system when the driver gives none. English applies when no locale maps.
 
+`rex::xam::GetLanguageForLocales` also takes the languages a game accepts. It returns the language of the first locale that maps into that set, else the first accepted language, else English when the set is empty.
+
 ## Window
 
 The `ui.*` settings set the window size, the fullscreen mode, the display and the aspect ratio. See [ui](../reference/cvars.md#ui) in the settings reference for the list.

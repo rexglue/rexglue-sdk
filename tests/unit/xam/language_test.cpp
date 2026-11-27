@@ -136,6 +136,26 @@ REX_TEST_CASE("Language: a list picks the first locale that maps and falls back 
   CHECK(rex::xam::GetLanguageForLocales({}) == rex::kernel::XLanguage::kEnglish);
 }
 
+REX_TEST_CASE("Language: accepted languages limit the pick", "[xam][language]") {
+  using rex::kernel::XLanguage;
+  const std::vector<HostLocale> japanese_english = {{"ja", "JP"}, {"en", "US"}};
+  const std::vector<XLanguage> english = {XLanguage::kEnglish};
+  CHECK(rex::xam::GetLanguageForLocales(japanese_english, english) == XLanguage::kEnglish);
+
+  const std::vector<HostLocale> japanese = {{"ja", "JP"}};
+  const std::vector<XLanguage> english_french = {XLanguage::kEnglish, XLanguage::kFrench};
+  CHECK(rex::xam::GetLanguageForLocales(japanese, english_french) == XLanguage::kEnglish);
+
+  const std::vector<HostLocale> taiwan = {{"zh", "TW"}};
+  const std::vector<XLanguage> simplified = {XLanguage::kSChinese};
+  CHECK(rex::xam::GetLanguageForLocale(taiwan[0]) == XLanguage::kTChinese);
+  CHECK(rex::xam::GetLanguageForLocales(taiwan, simplified) == XLanguage::kSChinese);
+  const std::vector<XLanguage> both = {XLanguage::kSChinese, XLanguage::kTChinese};
+  CHECK(rex::xam::GetLanguageForLocales(taiwan, both) == XLanguage::kTChinese);
+
+  CHECK(rex::xam::GetLanguageForLocales(japanese, {}) == XLanguage::kEnglish);
+}
+
 REX_TEST_CASE("Language: DetectHostLanguage reads the preferred locales of the interface",
               "[xam][language]") {
   rex::test_ui::UIApp app;

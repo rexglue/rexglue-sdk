@@ -70,6 +70,19 @@ namespace rex::xam {
 [[nodiscard]] REX_XAM_API rex::kernel::XLanguage GetLanguageForLocales(
     std::span<const platform::HostLocale> locales);
 
+/**
+ * Picks the title language of the first locale of a list that maps to a language the title
+ * accepts.
+ *
+ * @param locales The locales, most preferred first.
+ * @param accepted The languages the title accepts.
+ * @return The language of the first locale that maps into accepted, else the first entry of
+ * accepted, else XLanguage::kEnglish when accepted is empty.
+ */
+[[nodiscard]] REX_XAM_API rex::kernel::XLanguage GetLanguageForLocales(
+    std::span<const platform::HostLocale> locales,
+    std::span<const rex::kernel::XLanguage> accepted);
+
 /** Picks the title language of the host. */
 REX_DECLARE_INTERFACE(IXAMLanguage, 2)
   virtual ~IXAMLanguage() = default;

@@ -1,5 +1,6 @@
 #include <rex/xam/language.h>
 
+#include <algorithm>
 #include <array>
 #include <string>
 
@@ -66,6 +67,20 @@ rex::kernel::XLanguage GetLanguageForLocales(std::span<const platform::HostLocal
     }
   }
   return rex::kernel::XLanguage::kEnglish;
+}
+
+rex::kernel::XLanguage GetLanguageForLocales(std::span<const platform::HostLocale> locales,
+                                             std::span<const rex::kernel::XLanguage> accepted) {
+  if (accepted.empty()) {
+    return rex::kernel::XLanguage::kEnglish;
+  }
+  for (const platform::HostLocale& locale : locales) {
+    const rex::kernel::XLanguage language = GetLanguageForLocale(locale);
+    if (std::ranges::find(accepted, language) != accepted.end()) {
+      return language;
+    }
+  }
+  return accepted.front();
 }
 
 rex::kernel::XLanguage XAMLanguage::DetectHostLanguage(rex::ui::IUISystem& ui) {
