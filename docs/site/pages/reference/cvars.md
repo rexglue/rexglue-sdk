@@ -564,6 +564,44 @@ These names have no setting. The registry ignores a value set under one of them,
 | Old name | Effect |
 |---|---|
 | `xenos.present_from_non_ui_thread` | Ignored. Presentation no longer depends on a setting. |
+| `max_file_size_bytes` | Removed. |
+| `progress_log_frequency` | Removed. |
+| `max_discovery_iterations` | Removed. |
+| `max_vtable_iterations` | Removed. |
+| `max_resolve_iterations` | Removed. |
+| `max_eh_states` | Removed. |
+| `max_eh_try_blocks` | Removed. |
+| `max_eh_ip_map_entries` | Removed. |
+| `max_seh_scope_entries` | Removed. |
+| `backward_scan_limit` | Removed. |
+| `max_jump_table_entries` | Removed. |
+| `max_blocks_per_function` | Removed. |
+| `clock_source_raw` | Removed. |
+| `log_verbose` | Removed. |
+| `log_noisy` | Removed. |
+| `perf_log_csv` | Removed. |
+| `dump_source` | Removed. |
+| `dump_path` | Removed. |
+| `allow_game_relative_writes` | Removed. |
+| `input_backend` | Removed. |
+| `hid_mappings_file` | Removed. |
+| `rexcrt_heap_enable` | Removed. |
+| `rexcrt_heap_size_mb` | Removed. |
+| `license_mask` | Removed. |
+| `user_country` | Removed. |
+| `headless` | Removed. |
+| `user_language` | Removed. |
+| `kernel_pix` | Removed. |
+| `log_high_frequency_kernel_calls` | Removed. |
+| `cl` | Removed. |
+| `kernel_debug_monitor` | Removed. |
+| `kernel_cert_monitor` | Removed. |
+| `game_data_root` | Removed. |
+| `user_data_root` | Removed. |
+| `update_data_root` | Removed. |
+| `cache_root` | Removed. |
+| `metadata_root` | Removed. |
+| `video_driver` | Removed. |
 | `log.timestamps` | Set `log.pattern` to change the line layout. |
 | `log.show_category` | Set `log.pattern` to change the line layout. |
 | `log.show_thread` | Set `log.pattern` to change the line layout. |
