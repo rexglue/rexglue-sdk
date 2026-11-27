@@ -302,6 +302,44 @@ REX_TEST_CASE("a lost focus releases keys", "[ui]") {
   app.Shutdown();
 }
 
+REX_TEST_CASE("the window state is current when listeners see an event", "[ui]") {
+  UIApp app;
+  REQUIRE(app.Start());
+  rex::ui::IUISystem& ui = app.GetUI();
+  NullRenderer renderer;
+  ui.ShowPrompt({.title = "Title", .body = "Body"}, [](const rex::ui::PromptResult&) {});
+  struct StateListener final : rex::ui::IUIEventListener {
+    void OnUIEvent(const rex::ui::UIEvent& event) override {
+      if (event.GetType() == rex::ui::UIEvent::Type::kFocus) {
+        focused_in_event = ui->IsFocused();
+      } else if (event.GetType() == rex::ui::UIEvent::Type::kResize) {
+        ui->DrawOverlays(*renderer);
+        display_width = ui->GetImGuiIO().DisplaySize.x;
+      }
+    }
+    void OnInputEvent(rex::InputEvent&) override {}
+    rex::ui::IUISystem* ui = nullptr;
+    NullRenderer* renderer = nullptr;
+    bool focused_in_event = true;
+    rex::f32 display_width = 0.0f;
+  } listener;
+  listener.ui = &ui;
+  listener.renderer = &renderer;
+  auto guard = ui.AddEventListener(listener);
+
+  rex::test_ui::DeliverFocus(false);
+  app.Pump();
+  CHECK_FALSE(listener.focused_in_event);
+  rex::test_ui::DeliverFocus(true);
+  app.Pump();
+  CHECK(listener.focused_in_event);
+
+  rex::test_ui::DeliverResize(800, 450);
+  app.Pump();
+  CHECK(listener.display_width == 800.0f);
+  app.Shutdown();
+}
+
 REX_TEST_CASE("a post from another thread wakes the driver", "[ui]") {
   UIApp app;
   REQUIRE(app.Start());

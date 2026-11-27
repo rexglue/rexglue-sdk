@@ -243,6 +243,15 @@ inline void DeliverWheel(i32 detents) {
   DeliverWheelTurn(static_cast<f32>(detents));
 }
 
+inline void DeliverResize(u32 width, u32 height) {
+  g_ui.width = width;
+  g_ui.height = height;
+  Deliver([=](rex::ui::IUIEventListener& listener) {
+    ui::UISetupEvent event(ui::UIEvent::Type::kResize);
+    listener.OnUIEvent(event);
+  });
+}
+
 inline void DeliverFocus(bool focused) {
   g_ui.focus = focused;
   Deliver([=](rex::ui::IUIEventListener& listener) {

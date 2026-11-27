@@ -164,6 +164,27 @@ void UISystem::State::OnInputEvent(InputEvent& event) {
 }
 
 void UISystem::State::OnEvent(ui::UIEvent& event) {
+  using Type = ui::UIEvent::Type;
+  bool gained = false;
+  switch (event.GetType()) {
+    case Type::kResize: {
+      const ui::WindowSize size = driver->GetWindowSize();
+      window_width = size.width_px;
+      window_height = size.height_px;
+      content_scale = driver->GetContentScale();
+      break;
+    }
+    case Type::kDPIChanged:
+    case Type::kMonitorUpdate:
+      content_scale = driver->GetContentScale();
+      break;
+    case Type::kFocus:
+      gained = driver->HasFocus();
+      focused = gained;
+      break;
+    default:
+      break;
+  }
   {
     std::lock_guard delivery(delivery_mutex);
     std::vector<rex::ui::IUIEventListener*> snapshot;
@@ -175,13 +196,8 @@ void UISystem::State::OnEvent(ui::UIEvent& event) {
       listener->OnUIEvent(event);
     }
   }
-  using Type = ui::UIEvent::Type;
   switch (event.GetType()) {
     case Type::kResize: {
-      const ui::WindowSize size = driver->GetWindowSize();
-      window_width = size.width_px;
-      window_height = size.height_px;
-      content_scale = driver->GetContentScale();
       if (resize_handler) {
         resize_handler(window_width, window_height);
       }
@@ -192,13 +208,7 @@ void UISystem::State::OnEvent(ui::UIEvent& event) {
       }
       break;
     }
-    case Type::kDPIChanged:
-    case Type::kMonitorUpdate:
-      content_scale = driver->GetContentScale();
-      break;
     case Type::kFocus: {
-      const bool gained = driver->HasFocus();
-      focused = gained;
       if (audio) {
         audio->SetFocused(gained);
       }
