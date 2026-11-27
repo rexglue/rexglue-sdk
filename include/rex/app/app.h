@@ -98,6 +98,14 @@ class REX_APP_API App : public SettingOwner {
    */
   std::span<const std::string> GetArgs() const;
 
+  /**
+   * Returns the command line that Init received, with every option and positional argument.
+   *
+   * @return The list, valid from the start of Init, so in OnConfigure, until the app is destroyed.
+   *         Before Init it fails a check.
+   */
+  [[nodiscard]] const CLIArgList& GetCommandLine() const;
+
   /** Returns the input system. Its settings register in Init and it starts with the modules. */
   rex::hid::IInputSystem& GetInput();
 

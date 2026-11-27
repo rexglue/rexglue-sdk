@@ -12,6 +12,7 @@
 #include "object_app.h"
 
 #include <array>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -60,7 +61,37 @@ class ActionApp final : public rex::test::ObjectApp<rex::app::App> {
   rex::test::TempFolder folder_;
 };
 
+class CommandLineApp final : public rex::test::ObjectApp<rex::app::App> {
+ public:
+  CommandLineApp() : ObjectApp("command_line_app"), folder_("rex_command_line_app_") {}
+
+  rex::Result<void> Start(std::vector<std::string> args) { return Init(Args(std::move(args))); }
+
+  std::optional<std::string> seen;
+
+ protected:
+  rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
+    REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
+    if (const auto value = GetCommandLine().Get("repair")) {
+      seen = std::string(*value);
+    }
+    return rex::Ok();
+  }
+
+  std::span<const rex::CLIAction> GetActions() const override { return kActions; }
+
+ private:
+  rex::test::TempFolder folder_;
+};
+
 }  // namespace
+
+REX_TEST_CASE("GetCommandLine returns the named options inside OnConfigure", "[app][cli]") {
+  CommandLineApp app;
+  REQUIRE(app.Start({"--repair=intro"}));
+  CHECK(app.seen == "intro");
+  CHECK(app.GetCommandLine().Has("repair"));
+}
 
 REX_TEST_CASE("An action name is lowercase with digits, underscores and hyphens",
               "[app][cli][action]") {

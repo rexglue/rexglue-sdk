@@ -129,6 +129,8 @@ A shutdown or restart requested in `OnConfigure` or in `OnAction` ends `Init` af
 
 Steps 4 to 12 run inside the `select_plugins` callback of `rex::Init`, after the modules connect and before they init. See [Modules and Interfaces](modules.md#lifecycle) for that callback.
 
+`App::GetCommandLine` returns the `CLIArgList` that `Init` received, with its options and positional arguments. It works from the start of `Init`, so `OnConfigure` can read a named option with `GetCommandLine().Get("name")`, and it stays valid until the app is destroyed. Before `Init` it fails a check. `GetArgs` returns only the positional arguments that the framework did not consume.
+
 The system getters such as `GetUI` work from `OnConfigure` on. A value that `OnConfigure` sets goes to the [title layer](settings.md#layers), so the config file, the environment and the command line override it. See [Sources and Precedence](settings.md#sources-and-precedence).
 
 #### Failures

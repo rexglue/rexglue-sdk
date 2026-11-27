@@ -227,6 +227,11 @@ std::span<const std::string> App::GetArgs() const {
   return state_->positionals;
 }
 
+const CLIArgList& App::GetCommandLine() const {
+  REX_CHECK(state_->stage != State::Stage::kNone, "GetCommandLine is valid from the start of Init");
+  return state_->args;
+}
+
 void App::RequestShutdown() {
   rex::app::RequestShutdown(0);
 }
