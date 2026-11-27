@@ -18,6 +18,7 @@
 #include <rex/logging/log_category.h>
 #include "xam/categories.h"
 #include <rex/ppc/hook.h>
+#include <rex/memory/endian.h>
 #include <rex/memory/mapped_ptr.h>
 #include <rex/kernel/module.h>
 #include <rex/types.h>
@@ -136,6 +137,10 @@ void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, MappedVoi
   rex::string::CopyAndSwapTruncating(output_buffer.As<char16_t*>(), str, output_count);
 }
 
+std::u16string HostText(const MappedWString& text) {
+  return rex::memory::load_and_swap<std::u16string>(text.GetValue().data());
+}
+
 u32 BuildResourceLocator(u64 module, std::u16string_view container, std::u16string_view resource,
                          MappedVoid buffer_ptr, u32 buffer_count) {
   std::u16string path;
@@ -155,7 +160,7 @@ u32 BuildResourceLocator(u64 module, std::u16string_view container, std::u16stri
 
 u32 XamBuildResourceLocator_entry(u64 module, MappedWString container, MappedWString resource,
                                   MappedVoid buffer_ptr, u32 buffer_count) {
-  return BuildResourceLocator(module, container.GetValue(), resource.GetValue(), buffer_ptr,
+  return BuildResourceLocator(module, HostText(container), HostText(resource), buffer_ptr,
                               buffer_count);
 }
 
@@ -163,12 +168,12 @@ u32 XamBuildGamercardResourceLocator_entry(MappedWString filename, MappedVoid bu
                                            u32 buffer_count) {
   // Resources resolve to local .xzp files extracted from xam.xex.
 
-  return BuildResourceLocator(0, u"gamercrd", filename.GetValue(), buffer_ptr, buffer_count);
+  return BuildResourceLocator(0, u"gamercrd", HostText(filename), buffer_ptr, buffer_count);
 }
 
 u32 XamBuildSharedSystemResourceLocator_entry(MappedWString filename, MappedVoid buffer_ptr,
                                               u32 buffer_count) {
-  return BuildResourceLocator(0, u"shrdres", filename.GetValue(), buffer_ptr, buffer_count);
+  return BuildResourceLocator(0, u"shrdres", HostText(filename), buffer_ptr, buffer_count);
 }
 
 u32 XamBuildLegacySystemResourceLocator_entry(MappedWString filename, MappedVoid buffer_ptr,
@@ -178,7 +183,7 @@ u32 XamBuildLegacySystemResourceLocator_entry(MappedWString filename, MappedVoid
 
 u32 XamBuildXamResourceLocator_entry(MappedWString filename, MappedVoid buffer_ptr,
                                      u32 buffer_count) {
-  return BuildResourceLocator(0, u"xam", filename.GetValue(), buffer_ptr, buffer_count);
+  return BuildResourceLocator(0, u"xam", HostText(filename), buffer_ptr, buffer_count);
 }
 
 u32 XamGetSystemVersion_entry() {

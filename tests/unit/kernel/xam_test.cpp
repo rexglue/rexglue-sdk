@@ -25,6 +25,8 @@
 #include "kernel/title_state.h"
 #include "xam/xam_state.h"
 #include <atomic>
+#include <string>
+#include <string_view>
 #include <rex/kernel/title_exit.h>
 #include <rex/kernel/xboxkrnl.h>
 #include <rex/title.h>
@@ -379,5 +381,45 @@ REX_TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video
     CHECK(static_cast<rex::u32>(mode.is_widescreen) == 1);
     CHECK(static_cast<rex::u32>(mode.is_hi_def) == 1);
     CHECK(static_cast<rex::u32>(mode.is_interlaced) == 0);
+  });
+}
+
+namespace {
+
+u32 PutWide(rex::test::Caller& c, std::u16string_view text) {
+  const u32 address = c.Alloc(static_cast<u32>(text.size() + 2) * 2);
+  for (size_t i = 0; i < text.size(); i += 2) {
+    const u32 high = text[i];
+    const u32 low = i + 1 < text.size() ? text[i + 1] : 0;
+    c.Store32(address + static_cast<u32>(i) * 2, (high << 16) | low);
+  }
+  return address;
+}
+
+std::u16string ReadWide(rex::test::Caller& c, u32 address) {
+  std::u16string text;
+  for (;;) {
+    const u32 offset = static_cast<u32>(text.size()) * 2;
+    const char16_t unit =
+        static_cast<char16_t>((c.Load8(address + offset) << 8) | c.Load8(address + offset + 1));
+    if (!unit) {
+      return text;
+    }
+    text.push_back(unit);
+  }
+}
+
+}  // namespace
+
+REX_TEST_CASE("XAM: a resource locator is built from host order names", "[kernel][xam]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 buffer = c.Alloc(256);
+    const u32 container = PutWide(c, u"foo");
+    const u32 resource = PutWide(c, u"bar");
+    CHECK(c.XAM("XamBuildResourceLocator", {0, container, resource, buffer, 64}) == 0);
+    CHECK(ReadWide(c, buffer) == u"file://media:/foo.xzp#bar");
+    CHECK(c.XAM("XamBuildResourceLocator", {0x2A, container, resource, buffer, 64}) == 0);
+    CHECK(ReadWide(c, buffer) == u"section://2A,foo#bar");
   });
 }
