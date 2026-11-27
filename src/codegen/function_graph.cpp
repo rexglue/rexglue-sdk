@@ -874,6 +874,7 @@ FunctionNode* FunctionGraph::AddFunction(u32 base, u32 size, FunctionAuthority a
   tables_->no_return.reset();
 
   tables_->function_has_xrefs[base] = has_xrefs;
+  tables_->registered.insert(base);
 
   NotifyFunctionAdded(node_ptr);
 
@@ -1219,6 +1220,9 @@ void FunctionGraph::AddUnresolvedJumpToFunction(u32 entry, u32 site, u32 target,
   }
 
   node->AddUnresolvedJump(site, target, is_call, conditional);
+  auto& waiting = tables_->waiting_on[target];
+  if (waiting.empty() || waiting.back() != entry)
+    waiting.push_back(entry);
   REXCG_TRACE("FunctionGraph: added unresolved {} 0x{:08X}->0x{:08X} to function 0x{:08X}",
               is_call ? "call" : "jump", site, target, entry);
 }
@@ -1509,11 +1513,33 @@ TargetType FunctionGraph::ClassifyTarget(u32 target, u32 caller_addr,
 }
 
 void FunctionGraph::NotifyFunctionAdded(FunctionNode* new_function) {
-  for (auto& [base, node] : tables_->functions) {
-    if (node.get() != new_function && node->IsPending()) {
+  auto waiting = tables_->waiting_on.find(new_function->GetBase());
+  if (waiting == tables_->waiting_on.end())
+    return;
+  for (u32 entry : waiting->second) {
+    auto it = tables_->functions.find(entry);
+    if (it == tables_->functions.end())
+      continue;
+    FunctionNode* node = it->second.get();
+    if (node != new_function && node->HasUnresolvedJumps() && node->IsPending()) {
       node->TryResolveAgainst(new_function);
     }
   }
+}
+
+std::vector<u32> FunctionGraph::GetRegisteredFunctions() {
+  std::vector<u32> out;
+  auto& registered = tables_->registered;
+  for (auto it = registered.begin(); it != registered.end();) {
+    auto node = tables_->functions.find(*it);
+    if (node == tables_->functions.end() || !node->second->CanDiscover()) {
+      it = registered.erase(it);
+      continue;
+    }
+    out.push_back(*it);
+    ++it;
+  }
+  return out;
 }
 
 }  // namespace rex::codegen
