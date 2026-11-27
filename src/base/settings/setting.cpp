@@ -154,6 +154,16 @@ struct ChangeCall {
   ChangeCall& operator=(const ChangeCall&) = delete;
 };
 
+template <typename T>
+bool IsListed(const std::vector<std::string>& allowed, const T& value) {
+  if (allowed.empty())
+    return true;
+  return std::ranges::any_of(allowed, [&](const std::string& entry) {
+    T parsed{};
+    return detail::ParseSetting(entry, parsed) && parsed == value;
+  });
+}
+
 }  // namespace
 
 Result<void> CheckSettingWrite(std::string_view name) {
@@ -459,20 +469,24 @@ Result<void> SettingBase::Check(std::string_view text) const {
   const auto fail = [&](std::string_view why) {
     return Err(ErrorCategory::kConfig, std::format("{}: '{}' {}", state_->name, text, why));
   };
+  const auto& c = state_->constraints;
   f64 numeric = 0;
   bool is_numeric = true;
+  bool listed = true;
   switch (state_->type) {
     case SettingType::kBool: {
       bool v;
       is_numeric = false;
       if (!detail::ParseSetting(text, v))
         return fail("is not a boolean");
+      listed = IsListed(c.allowed, v);
       break;
     }
     case SettingType::kI32: {
       i32 v;
       if (!detail::ParseSetting(text, v))
         return fail("is not a 32 bit integer");
+      listed = IsListed(c.allowed, v);
       numeric = v;
       break;
     }
@@ -480,6 +494,7 @@ Result<void> SettingBase::Check(std::string_view text) const {
       i64 v;
       if (!detail::ParseSetting(text, v))
         return fail("is not a 64 bit integer");
+      listed = IsListed(c.allowed, v);
       numeric = static_cast<f64>(v);
       break;
     }
@@ -487,6 +502,7 @@ Result<void> SettingBase::Check(std::string_view text) const {
       u32 v;
       if (!detail::ParseSetting(text, v))
         return fail("is not an unsigned 32 bit integer");
+      listed = IsListed(c.allowed, v);
       numeric = v;
       break;
     }
@@ -494,6 +510,7 @@ Result<void> SettingBase::Check(std::string_view text) const {
       u64 v;
       if (!detail::ParseSetting(text, v))
         return fail("is not an unsigned 64 bit integer");
+      listed = IsListed(c.allowed, v);
       numeric = static_cast<f64>(v);
       break;
     }
@@ -501,22 +518,23 @@ Result<void> SettingBase::Check(std::string_view text) const {
       f64 v;
       if (!detail::ParseSetting(text, v))
         return fail("is not a number");
+      listed = IsListed(c.allowed, v);
       numeric = v;
       break;
     }
     default:
       is_numeric = false;
+      listed =
+          c.allowed.empty() || std::ranges::find(c.allowed, std::string(text)) != c.allowed.end();
       break;
   }
-  const auto& c = state_->constraints;
   if (is_numeric) {
     if (c.min && numeric < *c.min)
       return fail(std::format("is below {}", *c.min));
     if (c.max && numeric > *c.max)
       return fail(std::format("is above {}", *c.max));
   }
-  if (!c.allowed.empty() && state_->type == SettingType::kString &&
-      std::ranges::find(c.allowed, std::string(text)) == c.allowed.end()) {
+  if (!listed) {
     return fail("is not an accepted value");
   }
   return Ok();

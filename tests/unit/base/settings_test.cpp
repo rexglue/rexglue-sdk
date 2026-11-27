@@ -54,6 +54,8 @@ class AudioOwner final : public rex::SettingOwner {
   REX_SETTING(rex::i32, count, 3, "Count");
   REX_SETTING(std::string, mode, "fast", "Mode", rex::Allowed("fast", "slow"));
   REX_SETTING(bool, flag, false, "Flag");
+  REX_SETTING(rex::i32, samples, 0, "Samples", rex::Allowed("0", "2", "4"));
+  REX_SETTING(bool, locked_on, true, "Locked on", rex::Allowed("true"));
 };
 
 class AliasNamed final : public rex::SettingOwner {
@@ -251,6 +253,25 @@ REX_TEST_CASE("settings: range, allowed texts and types are checked", "[base][se
     REQUIRE(audio.flag.Get());
     REQUIRE(REX_SETTINGS().SetText("audio.nothing", "1").error().category ==
             rex::ErrorCategory::kNotFound);
+  });
+}
+
+REX_TEST_CASE("settings: allowed values apply to every setting type", "[base][settings]") {
+  RunInInit([] {
+    AudioOwner audio;
+    REQUIRE(REX_SETTINGS().Register(audio));
+    REQUIRE(audio.samples.Set(2));
+    const auto refused = audio.samples.Set(3);
+    REQUIRE_FALSE(refused);
+    REQUIRE(refused.error().message.find("is not an accepted value") != std::string::npos);
+    REQUIRE(audio.samples.Get() == 2);
+    REQUIRE(REX_SETTINGS().SetText("audio.samples", "4"));
+    REQUIRE(audio.samples.Get() == 4);
+    REQUIRE_FALSE(REX_SETTINGS().SetText("audio.samples", "1"));
+    REQUIRE_FALSE(audio.locked_on.Set(false));
+    REQUIRE(audio.locked_on.Set(true));
+    REQUIRE_FALSE(audio.mode.Set("medium"));
+    REQUIRE(audio.mode.Set("slow"));
   });
 }
 

@@ -38,7 +38,7 @@ A trait after the help text in `REX_SETTING` limits the values or changes when a
 | Trait | Effect | Example |
 |---|---|---|
 | `Range{min, max}` | Refuses a number outside the range. | `apu.gain` has `Range{0.0, 4.0}`, so `gain = 40` under `[apu]` in the config file stops startup with the file name and the reason. |
-| `Allowed(...)` | Accepts only the listed texts in a string setting. | `log.level` accepts the level names from `trace` to `off`, so `warning` is refused. |
+| `Allowed(...)` | Accepts only the listed values. Each entry is compared as the type of the setting, so `"2"` and `"02"` are the same integer. | `log.level` accepts the level names from `trace` to `off`, so `warning` is refused. |
 | `kRequiresRestart` | Applies a change at the next start of the program. | `gpu.resolution_scale_x` can be changed in the settings overlay, and the new scale applies after a restart. |
 | `kInitOnly` | Refuses writes once the systems have started. | `apu.driver` selects the audio driver module, which loads during startup. |
 | `kLockedInGame` | Refuses writes while a game runs. | `kernel.user_language` and `runtime.title_memory_mb` are read when the game loads. |

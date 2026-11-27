@@ -225,7 +225,7 @@ struct Range {
   f64 max;
 };
 
-/** Trait for REX_SETTING that sets the only accepted texts. */
+/** Trait for REX_SETTING that sets the only accepted values, compared as the setting's type. */
 struct Allowed {
   std::vector<std::string> values;
 
