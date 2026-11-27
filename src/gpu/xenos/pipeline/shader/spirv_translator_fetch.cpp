@@ -1819,6 +1819,68 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
           }
         }
 
+        // num_format is applied after signs and gamma. Fixed-point textures sample as
+        // normalized host values, so an integer num_format scales them back to guest
+        // integer units here. Ported from Xenia Canary d119505289.
+        {
+          id_vector_temp_.clear();
+          id_vector_temp_.push_back(
+              builder_->makeIntConstant(kSystemConstantTextureIntegerScaleBits));
+          id_vector_temp_.push_back(
+              builder_->makeIntConstant(static_cast<int>(fetch_constant_index >> 2)));
+          id_vector_temp_.push_back(
+              builder_->makeIntConstant(static_cast<int>(fetch_constant_index & 3)));
+          spv::Id integer_scale_bits_packed = builder_->createLoad(
+              builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
+                                          id_vector_temp_),
+              spv::NoPrecision);
+          // Uniform early out: zero means leave the sample alone.
+          spv::Id integer_scale_active = builder_->createBinOp(
+              spv::OpINotEqual, type_bool, integer_scale_bits_packed, const_uint_0_);
+          SPIRVBuilder::IfBuilder if_integer_scale(integer_scale_active,
+                                                   spv::SelectionControlMaskNone, *builder_);
+          spv::Id scaled_result[4] = {};
+          {
+            spv::Id const_uint_1 = builder_->makeUintConstant(1);
+            u32 result_remaining_components = used_result_nonzero_components;
+            u32 result_component_index;
+            while (rex::bit_scan_forward(result_remaining_components, &result_component_index)) {
+              result_remaining_components &= ~(UINT32_C(1) << result_component_index);
+              spv::Id scale_bits = builder_->createTriOp(
+                  spv::OpBitFieldUExtract, type_uint, integer_scale_bits_packed,
+                  builder_->makeUintConstant(result_component_index * 5),
+                  builder_->makeUintConstant(5));
+              spv::Id scale_shift = builder_->createBinOp(
+                  spv::OpIAdd, type_uint,
+                  builder_->createBinOp(spv::OpBitwiseAnd, type_uint, scale_bits,
+                                        builder_->makeUintConstant(0xF)),
+                  const_uint_1);
+              scale_shift = builder_->createBinOp(
+                  spv::OpISub, type_uint, scale_shift,
+                  builder_->createTriOp(spv::OpBitFieldUExtract, type_uint, scale_bits,
+                                        builder_->makeUintConstant(4),
+                                        builder_->makeUintConstant(1)));
+              spv::Id scale_uint =
+                  builder_->createBinOp(spv::OpISub, type_uint,
+                                        builder_->createBinOp(spv::OpShiftLeftLogical, type_uint,
+                                                              const_uint_1, scale_shift),
+                                        const_uint_1);
+              scaled_result[result_component_index] = builder_->CreateNoContractionBinOp(
+                  spv::OpFMul, type_float, result[result_component_index],
+                  builder_->createUnaryOp(spv::OpConvertUToF, type_float, scale_uint));
+            }
+          }
+          if_integer_scale.MakeEndIf();
+          // Keep the original result when the scale branch is skipped.
+          u32 result_remaining_components = used_result_nonzero_components;
+          u32 result_component_index;
+          while (rex::bit_scan_forward(result_remaining_components, &result_component_index)) {
+            result_remaining_components &= ~(UINT32_C(1) << result_component_index);
+            result[result_component_index] = if_integer_scale.CreateMergePhi(
+                scaled_result[result_component_index], result[result_component_index]);
+          }
+        }
+
         spv::Id result_exponent_bias = builder_->CreateBinBuiltinCall(
             type_float, ext_inst_glsl_std_450_, GLSLstd450Ldexp, const_float_1,
             builder_->createTriOp(spv::OpBitFieldSExtract, type_int, fetch_constant_word_3_signed,

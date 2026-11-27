@@ -69,7 +69,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
      * Layout version in 0xYYYYMMDD form, increased on incompatible changes to invalidate pipeline
      * storage.
      */
-    static constexpr u32 kVersion = 0x20260226;
+    static constexpr u32 kVersion = 0x20261127;
 
     // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
     enum class DepthStencilMode : u32 {
@@ -333,6 +333,13 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
     f32 edram_blend_constant[4];
 
+    /**
+     * Integer num_format on fixed-point textures. Each dword packs the scale that turns
+     * normalized host samples back into guest integer values, 5 bits per component:
+     * bits 0:3 = component bits - 1, bit 4 = signed. Zero means no scale.
+     */
+    alignas(16) u32 texture_integer_scale_bits[32];
+
    private:
     friend class DXBCShaderTranslator;
 
@@ -384,6 +391,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
       kEDRAMRTBlendFactorsOps,
 
       kEDRAMBlendConstant,
+
+      kTextureIntegerScaleBits,
 
       kCount,
     };

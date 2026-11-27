@@ -296,6 +296,7 @@ void TextureCache::RequestTextures(u32 used_texture_mask) {
     TextureBinding& binding = texture_bindings_[index];
     xenos::TextureFetch fetch = regs.GetTextureFetch(index);
     TextureKey old_key = binding.key;
+    u32 old_integer_scale_bits = binding.integer_scale_bits;
     u8 old_swizzled_signs = binding.swizzled_signs;
     GetTextureKeyFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
     texture_bindings_in_sync_ |= index_bit;
@@ -308,13 +309,16 @@ void TextureCache::RequestTextures(u32 used_texture_mask) {
     }
     u32 old_host_swizzle = binding.host_swizzle;
     binding.host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(binding.key));
+    binding.integer_scale_bits = GetIntegerScaleBits(fetch.format, fetch.num_format,
+                                                     binding.host_swizzle, binding.swizzled_signs);
 
     bool key_changed = binding.key != old_key;
     bool any_sign_was_not_signed = xenos::HasNonSignedComponent(old_swizzled_signs);
     bool any_sign_was_signed = xenos::HasSignedComponent(old_swizzled_signs);
     bool any_sign_is_not_signed = xenos::HasNonSignedComponent(binding.swizzled_signs);
     bool any_sign_is_signed = xenos::HasSignedComponent(binding.swizzled_signs);
-    if (key_changed || binding.host_swizzle != old_host_swizzle ||
+    if (key_changed || binding.integer_scale_bits != old_integer_scale_bits ||
+        binding.host_swizzle != old_host_swizzle ||
         any_sign_is_not_signed != any_sign_was_not_signed ||
         any_sign_is_signed != any_sign_was_signed) {
       bindings_changed |= index_bit;
@@ -552,6 +556,38 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
   ResetTextureBindings(from_destructor);
   textures_.clear();
   REX_PROFILE_PLOT("gpu/texture_cache/textures", 0);
+}
+
+// Packs the integer scale the fetch shader reads from the system constants to undo the
+// host sampler's normalization: the guest wants e.g. [0, 255], not [0, 1]. 5 bits per
+// output component: bits 0:3 = width - 1, bit 4 = signed. The scale is applied after
+// swizzling, so each output lane follows the host swizzle back to its source component;
+// constant (0/1) lanes, gamma, and non-fixed formats stay 0.
+// Ported from Xenia Canary d119505289 ("Texture integer scaling fetches").
+u32 TextureCache::GetIntegerScaleBits(xenos::TextureFormat guest_format, u32 num_format,
+                                      u32 host_swizzle, u8 swizzled_signs) {
+  const xenos::FormatInfo& format_info = *xenos::FormatInfo::Get(guest_format);
+  if (!num_format || !format_info.fixed) {
+    return 0;
+  }
+  u32 scale_bits = 0;
+  for (u32 i = 0; i < 4; ++i) {
+    u32 source_component = (host_swizzle >> (i * 3)) & 0b111;
+    if (source_component >= xenos::REXGPU_SWIZZLE_0) {
+      continue;
+    }
+    auto sign = xenos::TextureSign((swizzled_signs >> (i * 2)) & 0b11);
+    u8 width = format_info.component_bits[source_component];
+    if (!width || width > 16 || sign == xenos::TextureSign::kGamma) {
+      continue;
+    }
+    u32 component_scale = u32(width - 1);
+    if (sign == xenos::TextureSign::kSigned) {
+      component_scale |= UINT32_C(1) << 4;
+    }
+    scale_bits |= component_scale << (i * 5);
+  }
+  return scale_bits;
 }
 
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {

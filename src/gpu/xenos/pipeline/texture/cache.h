@@ -116,6 +116,10 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     return binding ? binding->swizzled_signs : kSwizzledSignsUnsigned;
   }
+  u32 GetActiveIntegerScaleBits(u32 fetch_constant_index) const {
+    const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
+    return binding ? binding->integer_scale_bits : 0;
+  }
   bool IsActiveTextureResolutionScaled(u32 fetch_constant_index) const {
     const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     if (!binding) {
@@ -350,6 +354,8 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
 
   struct TextureBinding {
     TextureKey key;
+    /** Packed integer num_format scale, 5 bits per component (see GetIntegerScaleBits). */
+    u32 integer_scale_bits;
     u32 host_swizzle;
     /** Packed TextureSign values, 2 bits per component, after the fetch constant swizzle. */
     u8 swizzled_signs;
@@ -418,6 +424,12 @@ class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
     REX_ASSERT(load_shader_index < kLoadShaderCount);
     return kLoadShaderInfo[load_shader_index];
   }
+  /**
+   * Packs the scale the fetch shader applies to turn normalized host samples of a
+   * fixed-point texture with an integer num_format back into guest integer units.
+   */
+  static u32 GetIntegerScaleBits(xenos::TextureFormat guest_format, u32 num_format,
+                                 u32 host_swizzle, u8 swizzled_signs);
   bool LoadTextureData(Texture& texture);
   /**
    * Loads the base level, the mips or both from the shared memory or the scaled resolve memory.

@@ -1608,6 +1608,36 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
         a_.OpBreak();
         a_.OpEndSwitch();
       }
+      // num_format is applied after signedness. A fixed-point format's host view returns
+      // normalized values, so for an integer num_format restore the guest integer range here.
+      // Ported from Xenia Canary d119505289 ("Texture integer scaling fetches").
+      u32 integer_scale_bits_temp = PushSystemTemp();
+      u32 integer_scale_temp = PushSystemTemp();
+      dxbc::Dest integer_scale_bits_dest(
+          dxbc::Dest::R(integer_scale_bits_temp, used_result_nonzero_components));
+      dxbc::Src integer_scale_bits_src(dxbc::Src::R(integer_scale_bits_temp));
+      dxbc::Dest integer_scale_dest(
+          dxbc::Dest::R(integer_scale_temp, used_result_nonzero_components));
+      dxbc::Src integer_scale_src(dxbc::Src::R(integer_scale_temp));
+      MarkSystemConstantUsed(SystemConstants::Index::kTextureIntegerScaleBits);
+      dxbc::Src integer_scale_bits_packed(GetSystemConstantSrc(
+          offsetof(SystemConstants, texture_integer_scale_bits) + sizeof(u32) * tfetch_index,
+          dxbc::Src::kXXXX));
+      // Uniform early out: zero means leave the sample alone.
+      a_.OpIf(true, integer_scale_bits_packed);
+      a_.OpUBFE(integer_scale_bits_dest, dxbc::Src::LU(5), dxbc::Src::LU(0, 5, 10, 15),
+                integer_scale_bits_packed);
+      a_.OpAnd(integer_scale_dest, integer_scale_bits_src, dxbc::Src::LU(0xF));
+      a_.OpIAdd(integer_scale_dest, integer_scale_src, dxbc::Src::LU(1));
+      a_.OpUShR(integer_scale_bits_dest, integer_scale_bits_src, dxbc::Src::LU(4));
+      a_.OpIAdd(integer_scale_dest, integer_scale_src, -integer_scale_bits_src);
+      a_.OpIShL(integer_scale_dest, dxbc::Src::LU(1), integer_scale_src);
+      a_.OpIAdd(integer_scale_dest, integer_scale_src, dxbc::Src::LI(-1));
+      a_.OpUToF(integer_scale_dest, integer_scale_src);
+      a_.OpMul(dxbc::Dest::R(system_temp_result_, used_result_nonzero_components),
+               dxbc::Src::R(system_temp_result_), integer_scale_src);
+      a_.OpEndIf();
+      PopSystemTemp(2);
     }
     if (signs_temp != UINT32_MAX) {
       PopSystemTemp();

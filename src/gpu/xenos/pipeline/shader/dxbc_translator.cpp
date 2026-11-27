@@ -1616,6 +1616,8 @@ const DXBCShaderTranslator::SystemConstantRDEF
         {"xe_edram_rt_blend_factors_ops", ShaderRDEFTypeIndex::kUint4, sizeof(u32) * 4},
 
         {"xe_edram_blend_constant", ShaderRDEFTypeIndex::kFloat4, sizeof(f32) * 4},
+
+        {"xe_texture_integer_scale_bits", ShaderRDEFTypeIndex::kUint4Array8, sizeof(u32) * 32},
 };
 
 void DXBCShaderTranslator::WriteResourceDefinition() {
