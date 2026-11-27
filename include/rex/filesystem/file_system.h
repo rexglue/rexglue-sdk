@@ -78,9 +78,12 @@ class IFileSystem : public NonCopyable {
   /**
    * Replaces the table with the standard game, update and Harddisk0 mounts.
    *
-   * @param game_root The host folder of the game files.
+   * @param game_root The host folder of the game files, or a GDFX disc image file. A disc
+   *        image is mounted read only whatever game_flags holds.
    * @param update_root The host folder of the title update files, empty for none.
-   * @return kNotFound when game_root is empty or not a folder.
+   * @return kNotFound when game_root is empty, missing or neither a folder nor a file, and the
+   *         error of the disc image mount when the file cannot be mounted (kCorrupt when it is
+   *         not a GDFX image).
    */
   [[nodiscard]] virtual Result<void> ConfigureStandardMounts(
       const std::filesystem::path& game_root, const std::filesystem::path& update_root,

@@ -119,7 +119,8 @@ Result<void> TitleApp::LaunchTitle() {
   if (game_root.empty()) {
     return failure("--game_data_root was not provided");
   }
-  if (!std::filesystem::is_directory(game_root)) {
+  // A folder with the game files, or a disc image file.
+  if (!std::filesystem::exists(game_root)) {
     return failure(std::format("--game_data_root {} does not exist", game_root.string()));
   }
 

@@ -40,14 +40,14 @@ When there is no user config folder, such as with no home folder, the app folder
 
 | Setting | Command line option | Default | Holds |
 |---|---|---|---|
-| `title.game_root` | `--game_data_root` | Empty | The game files, mounted as `game:`. |
-| `title.game_writable` | None | `false` | Whether `game:` is writable. |
+| `title.game_root` | `--game_data_root` | Empty | The game files, mounted as `game:`: a folder, or a disc image (ISO) file. |
+| `title.game_writable` | None | `false` | Whether `game:` is writable. A disc image is always read only. |
 | `title.update_root` | `--update_data_root` | Empty | The title update files, mounted as `update:`. |
 | `title.metadata_root` | `--metadata_root` | Empty, so the runtime searches near `title.game_root` (see [Metadata](#metadata)) | The achievement metadata. |
 | `title.entry` | None | `default.xex` | The executable under `game:` that `TitleRuntime::Load` loads. |
 | `title.imports` | None | Empty | Other files under `game:` that the executable can import from, separated by `\|`. |
 
-`TitleApp::LaunchTitle` fails when `title.game_root` is empty or is not a folder. A relative `title.game_root` or `title.update_root` is relative to the working directory.
+`TitleApp::LaunchTitle` fails when `title.game_root` is empty or does not exist, and the title fails to load when it is neither a folder nor a disc image. A relative `title.game_root` or `title.update_root` is relative to the working directory.
 
 ### Metadata
 
@@ -56,6 +56,8 @@ The runtime reads the achievement metadata from a file named `achievements.toml`
 1. The `metadata` folder in `title.game_root`.
 2. A `metadata` folder next to `title.game_root`.
 3. `title.game_root` itself.
+
+With a disc image as `title.game_root`, only the second place can match: the runtime does not read the metadata from inside the image.
 
 ## Saves and Content
 

@@ -11,7 +11,7 @@ The Xbox 360 kernel identifies each storage device by a device path, such as `\D
 The filesystem resolves a guest path in two steps and keeps one table for each:
 
 - A link maps a short name to a device path. The link `game:` stands for `\Device\Harddisk0\Partition1`.
-- A mount maps a device path to a provider, the object that serves the files under that path. The provider of the game partition reads the host folder in `title.game_root`.
+- A mount maps a device path to a provider, the object that serves the files under that path. The provider of the game partition reads the host folder in `title.game_root`, or the disc image file it names.
 
 So the link turns `game:\data\a.bin` into `\Device\Harddisk0\Partition1\data\a.bin`, and the mount turns that into the host file `data/a.bin` under `title.game_root`.
 
@@ -56,11 +56,11 @@ When `title.game_root` is set, `TitleRuntime::Load` calls `IFileSystem::Configur
 
 | Mount | Links | Contents |
 |---|---|---|
-| `\Device\Harddisk0\Partition1` | `game:` and `d:` | The folder in `title.game_root`. It is writable only when `title.game_writable` is true. |
+| `\Device\Harddisk0\Partition1` | `game:` and `d:` | The folder in `title.game_root`, or the disc image file it names. A folder is writable only when `title.game_writable` is true; a disc image is always read only. |
 | `\Device\Harddisk0\PartitionUpdate` | `update:` | The folder in `title.update_root`, read only. It is added only when that folder exists. |
 | `\Device\Harddisk0` | None | A writable null mount with the empty files `\Partition0`, `\Cache0` and `\Cache1`. |
 
-With an empty `title.game_root`, `Load` logs a warning and adds no mounts. A `title.game_root` that is not a folder fails `Load`. A failed update mount logs a warning, and `Load` continues without it.
+With an empty `title.game_root`, `Load` logs a warning and adds no mounts. A `title.game_root` that is neither a folder nor a readable GDFX disc image fails `Load`. A failed update mount logs a warning, and `Load` continues without it.
 
 `Load` reads `title.game_writable` once. Set it before `Load` runs, such as from your program in `OnConfigure`. A value from the config file or the command line works too. No link points at `cache:`, so a path under `cache:` fails with `kNoMount`.
 

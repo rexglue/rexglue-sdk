@@ -25,6 +25,7 @@
 #include "kernel/settings_access.h"
 #include "kernel/title_fixture.h"
 #include "kernel/title_image.h"
+#include "fixture_dir.h"
 #include "temp_folder.h"
 #include "test_memory.h"
 #include "kernel/title_state.h"
@@ -191,6 +192,21 @@ REX_TEST_CASE("game: is read only by default", "[kernel][filesystem]") {
   rex::test::LoadedTitle loaded(
       {}, false, [&] { REQUIRE(rex::kernel::GetTitlePaths().game_root.Set(game_root)); });
   CHECK_FALSE(CanCreateOnGame(loaded.runtime, game_root, "a.txt"));
+}
+
+REX_TEST_CASE("a disc image as the game root loads and serves game: read only",
+              "[kernel][filesystem]") {
+  rex::test::LoadedTitle loaded({}, false, [&] {
+    REQUIRE(rex::kernel::GetTitlePaths().game_root.Set(rex::test::GetFixtureFolder() / "gdfx.iso"));
+    REQUIRE(rex::kernel::GetTitlePaths().game_writable.Set(true));
+  });
+  using namespace rex::filesystem;
+  auto& file_system = *StateOf(loaded.runtime).GetFileSystem();
+  CHECK(file_system.Open("game:\\a.txt", {}).has_value());
+  CHECK_FALSE(file_system
+                  .Open("game:\\new.txt",
+                        {.disposition = Disposition::kCreate, .access = Access::kWriteAccess})
+                  .has_value());
 }
 
 REX_TEST_CASE("title.game_writable mounts game: read write", "[kernel][filesystem]") {

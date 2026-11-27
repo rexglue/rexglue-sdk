@@ -336,13 +336,26 @@ Result<void> FileSystem::ConfigureStandardMounts(const std::filesystem::path& ga
   Clear();
   std::error_code ec;
   const std::filesystem::path game_path = std::filesystem::absolute(game_root, ec);
-  if (game_root.empty() || !std::filesystem::is_directory(game_path, ec)) {
-    return Err(BuildError(
-        FileSystemError::kNotFound,
-        std::format("game_data_root '{}' is not a folder", string::PathToUTF8(game_root))));
+  // A folder with the game files, or a disc image file. A disc image is always read only.
+  const std::filesystem::file_status status = std::filesystem::status(game_path, ec);
+  const bool disc_image = std::filesystem::is_regular_file(status);
+  if (game_root.empty() || (!disc_image && !std::filesystem::is_directory(status))) {
+    return Err(BuildError(FileSystemError::kNotFound,
+                          std::format("game_data_root '{}' is not a folder or a disc image",
+                                      string::PathToUTF8(game_root))));
   }
-  REX_TRY_VOID(Mount(
-      {std::string(kGamePartition), ProviderType::kHostDirectory, game_path, game_flags, {}}));
+  if (disc_image) {
+    if (auto mounted = Mount(
+            {std::string(kGamePartition), ProviderType::kDiscImage, game_path, game_flags, {}});
+        !mounted) {
+      return Err(BuildError(CodeOf(mounted.error()),
+                            std::format("game_data_root '{}' is not a readable disc image, {}",
+                                        string::PathToUTF8(game_root), mounted.error().message)));
+    }
+  } else {
+    REX_TRY_VOID(Mount(
+        {std::string(kGamePartition), ProviderType::kHostDirectory, game_path, game_flags, {}}));
+  }
   REX_TRY_VOID(Link("game:", kGamePartition));
   REX_TRY_VOID(Link("d:", kGamePartition));
 
