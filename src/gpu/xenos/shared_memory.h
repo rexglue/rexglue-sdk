@@ -35,6 +35,10 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysical
   static constexpr u32 kBufferSizeLog2 = 29;
   static constexpr u32 kBufferSize = 1 << kBufferSizeLog2;
 
+  /** Guest physical memory this buffer mirrors. Backends read and commit guest
+   *  ranges through it (for example to publish a resolve into guest RAM). */
+  IPhysicalMemory& GetMemory() const { return physical_memory_; }
+
   virtual ~SharedMemory();
   /** Implementations call it from their ClearCache. */
   virtual void ClearCache();
@@ -127,8 +131,6 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysical
   /** Sparse allocations are 4 MB. */
   static constexpr u32 kHostGPUMemoryOptimalSparseAllocationLog2 = 22;
   static_assert(kHostGPUMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
-
-  IPhysicalMemory& GetMemory() const { return physical_memory_; }
 
   u32 GetPageSizeLog2() const { return page_size_log2_; }
 
