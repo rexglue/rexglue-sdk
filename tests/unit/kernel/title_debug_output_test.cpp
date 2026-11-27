@@ -382,12 +382,12 @@ REX_TEST_CASE("PrintfCall consumes %n and stores nothing", "[kernel][title_debug
     auto ctx = MakeCallContext(c);
     const u32 word = c.Alloc(4);
     c.Store32(word, 0xDEADBEEF);
-    SetArgument(c, *ctx, 0, c.AllocString("abc%d%n!"));
-    SetArgument(c, *ctx, 1, 7);
-    SetArgument(c, *ctx, 2, word);
+    SetArgument(c, *ctx, 0, c.AllocString("abc%n%d"));
+    SetArgument(c, *ctx, 1, word);
+    SetArgument(c, *ctx, 2, 7);
     const auto text = PrintfCall::FromVarArgs(*ctx, 0).Format();
     REQUIRE(text.has_value());
-    CHECK(*text == "abc7!");
+    CHECK(*text == "abc7");
     CHECK(c.Load32(word) == 0xDEADBEEF);
   });
 }

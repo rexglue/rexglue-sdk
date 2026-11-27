@@ -114,6 +114,26 @@ REX_TEST_CASE("format: %Z prints the counted string and consumes its argument",
   });
 }
 
+REX_TEST_CASE("format: text after a %n conversion is parsed as plain text", "[kernel][format]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 out = c.Alloc(64);
+    const u32 count = c.Alloc(4);
+    c.Store32(count, 0xDEADBEEF);
+    CHECK(c.Kernel("sprintf", {out, PutText(c, "abc%n%d"), count, 7}) == 4);
+    CHECK(ReadText(c, out) == "abc7");
+    CHECK(c.Load32(count) == 3);
+    c.Store32(count, 0xDEADBEEF);
+    CHECK(c.Kernel("sprintf", {out, PutText(c, "abc%n"), count}) == 3);
+    CHECK(ReadText(c, out) == "abc");
+    CHECK(c.Load32(count) == 3);
+    c.Store32(count, 0xDEADBEEF);
+    CHECK(c.Kernel("sprintf", {out, PutText(c, "%d%n!"), 42, count}) == 3);
+    CHECK(ReadText(c, out) == "42!");
+    CHECK(c.Load32(count) == 2);
+  });
+}
+
 REX_TEST_CASE("format: an unknown conversion prints its character", "[kernel][format]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {

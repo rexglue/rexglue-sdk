@@ -1017,6 +1017,7 @@ i32 FormatCore(Memory& memory, Data& data, Args& args, const bool wide) {
             if (!memory.StoreCount(pointer, count, (flags & kFFIsShort) != 0)) {
               return -1;
             }
+            state = kFSLiteral;
             continue;
           }
 
