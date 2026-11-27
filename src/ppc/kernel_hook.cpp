@@ -7,6 +7,8 @@
 #include <rex/ppc/kernel_hook.h>
 #include <rex/ppc/recompiled_code.h>
 
+#include "ppc/kernel_hook.h"
+
 namespace rex::ppc {
 
 namespace {
@@ -68,6 +70,13 @@ void detail::CheckBoundDetourArguments(const char* name, PPCFunc* host, u8 decla
   const KernelHooks* hooks = GetHooks();
   if (hooks != nullptr && hooks->check_bound_detour_arguments != nullptr) {
     hooks->check_bound_detour_arguments(name, host, declared_gpr, declared_fpr);
+  }
+}
+
+void detail::WriteDebugText(u32 address, u32 length) {
+  const KernelHooks* hooks = GetHooks();
+  if (hooks != nullptr && hooks->write_debug_text != nullptr) {
+    hooks->write_debug_text(address, length);
   }
 }
 

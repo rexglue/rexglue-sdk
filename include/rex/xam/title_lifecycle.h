@@ -59,7 +59,7 @@ struct XAMKernelInterfaces {
 };
 
 /** Title load and unload calls from the kernel to XAM. */
-REX_DECLARE_INTERFACE(IXAMTitleLifecycle, 2)
+REX_DECLARE_INTERFACE(IXAMTitleLifecycle, 3)
   virtual ~IXAMTitleLifecycle() = default;
 
   /**

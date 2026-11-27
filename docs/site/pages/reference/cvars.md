@@ -306,6 +306,7 @@ These settings exist while the `rexkernel` module is connected. Declared by `Ker
 | `kernel.user_country` | `u32` | `103` | locked in game | Country code that the game reads from the console configuration. |
 | `kernel.license_mask` | `u32` | `0` | locked in game | The license bits that `XamContentGetLicenseMask` returns to the game, combined with OR. |
 | `kernel.command_line` | `string` | `""` | locked in game | Command line arguments that the game sees after `default.xex`. |
+| `kernel.debug_text_encoding` | `string` | `"utf8"` |  | Encoding of the narrow [debug text of the title](../runtime/kernel.md#debug-text-of-the-title), `utf8` or `shift_jis`. |
 
 ### title
 

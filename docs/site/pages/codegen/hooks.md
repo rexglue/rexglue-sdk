@@ -128,6 +128,55 @@ It warns once when:
 - the parameters leave out an argument register that the function reads
 - the body writes through `ctx` to a register that the generated code keeps in a local (see [Registers in Locals](codegen-pipeline.md#registers-in-locals)), so the generated code can miss the write
 
+## Logging a printf Style Function
+
+`rex/kernel/title_debug_output.h` declares `PrintfCall`, which formats a printf style call from the register file of a hook, and `ITitleDebugOutput`, which logs text as lines. See [Debug Text of the Title](../runtime/kernel.md#debug-text-of-the-title) for how the lines are logged.
+
+This hook logs a variadic function whose format is its second argument, as one line per call, and then runs the original:
+
+```cpp
+#include <rex/kernel/title_runtime.h>
+#include <rex/ppc/hook.h>
+
+REX_EXTERN(__imp__ExamplePrint);
+
+REX_HOOK_RAW(ExamplePrint) {
+    auto& out = rex::kernel::GetCurrent().GetDebugOutput();
+    if (out.IsEnabled()) {
+        if (auto text = rex::kernel::PrintfCall::FromVarArgs(ctx, 1).Format()) {
+            out.Write(*text, out.GetEncoding());
+            out.Flush();
+        }
+    }
+    __imp__ExamplePrint(ctx, base);
+}
+```
+
+The same with `REX_DETOUR`, which always runs the original and keeps its result:
+
+```cpp
+REX_DETOUR(ExamplePrint, u32, (PPCContext& ctx, u32 color, u32 format)) {
+    auto& out = rex::kernel::GetCurrent().GetDebugOutput();
+    if (out.IsEnabled()) {
+        if (auto text = rex::kernel::PrintfCall::FromVarArgs(ctx, 1).Format()) {
+            out.Write(*text, rex::kernel::TextEncoding::kShiftJIS);
+            out.Flush();
+        }
+    }
+    return original(ctx, color, format);
+}
+```
+
+- `PrintfCall::FromVarArgs(ctx, index)` reads the format pointer from argument `index` and the values after it from `r3` to `r10`, then from the stack slots.
+- `PrintfCall::FromVaList(ctx, format_index, list_index)` reads the values from the guest `va_list` in argument `list_index`.
+- `Format` reads guest memory only where the title could read it and writes none, so a `%n` conversion stores no count. It leaves the registers unchanged.
+- `Format` cuts the text at `max_length` bytes, 4096 by default, and returns it in the encoding of the title.
+- On failure the error code is a `PrintfError`. `kUnreadableFormat` is a null or unreadable format, `kUnterminatedFormat` a format with no terminator in 4096 bytes, `kUnreadableArgument` a string or stack argument that is not readable, and `kInvalidFormat` a format the engine refused. `kNoMemory` means the context has no guest memory.
+- `Write` adds text to the line of the calling thread and logs each line it completes. `Flush` logs the rest of the line, so `Write` followed by `Flush` logs one call as one line.
+- Check `IsEnabled` first. It returns false when the category of the output, `kernel` unless `SetCategory` chose another, is above info, and the hook then reads no guest memory.
+- A `REX_DETOUR` of a variadic function warns once in a debug build that the parameters leave out argument registers the function reads (see [Debug Checks](#debug-checks)). Use `REX_HOOK_RAW` for a variadic function.
+- A condition of your own, such as a developer mode of the title or a check of `ctx.lr` to skip some callers, goes in the hook in front of `IsEnabled`.
+
 ## Mid Function Hooks
 
 A mid function hook calls host code at one guest instruction, before or after it, without replacing the function. Codegen reads the hook declarations and writes the call into the generated function. They come from C++ [hook sources](#hook-sources) or from [manifest entries](#manifest-hooks).

@@ -26,6 +26,8 @@ class REX_KERNEL_API KernelSettings final : public SettingOwner {
   REX_SETTING(u32, license_mask, 0, "Content license mask", kLockedInGame);
   REX_SETTING(std::string, command_line, "", "Arguments the title sees after default.xex",
               kLockedInGame);
+  REX_SETTING(std::string, debug_text_encoding, "utf8",
+              "Encoding of narrow debug text of the title", Allowed("utf8", "shift_jis"));
 
   KernelSettings();
 };

@@ -17,10 +17,14 @@
 #include <cstdint>
 #include <cstring>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <rex/assert.h>
+#include <rex/kernel/memory_view.h>
 #include <rex/memory/endian.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/call.h>
@@ -79,6 +83,227 @@ template <typename T>
 concept ArgListSource = requires(T& t) {
   { t.get32() } -> std::same_as<u32>;
   { t.get64() } -> std::same_as<u64>;
+};
+
+template <typename T>
+concept FormatMemory = requires(T& t, u32 pointer, bool wide, i32 cap, i32 count, bool is_short,
+                                const void*& buffer, i32& length) {
+  { t.GetString(pointer, wide, cap, buffer, length) } -> std::same_as<bool>;
+  { t.GetCountedString(pointer, wide, buffer, length) } -> std::same_as<bool>;
+  { t.StoreCount(pointer, count, is_short) } -> std::same_as<bool>;
+};
+
+/** Reads and writes the guest memory a conversion names without checking the addresses. */
+class DirectMemory {
+ public:
+  /**
+   * Binds the engine to guest memory.
+   *
+   * @param base The host base of guest memory.
+   */
+  explicit DirectMemory(u8* base) : base_(base) {}
+
+  /**
+   * Finds the text of a %s or %S argument.
+   *
+   * @param pointer The guest address of the string, not 0.
+   * @param wide True when the string is UTF-16.
+   * @param cap The most characters to take.
+   * @param buffer Receives the host address of the text.
+   * @param length Receives the length in characters.
+   * @return True.
+   */
+  bool GetString(u32 pointer, bool wide, i32 cap, const void*& buffer, i32& length) const {
+    const void* str = rex::memory::GuestPtr<void*>(base_, pointer);
+    length = 0;
+    if (!wide) {
+      for (auto s = static_cast<const u8*>(str); cap > 0 && *s; ++s, cap--) {
+        length++;
+      }
+    } else {
+      for (auto s = static_cast<const u16*>(str); cap > 0 && *s; ++s, cap--) {
+        length++;
+      }
+    }
+    buffer = str;
+    return true;
+  }
+
+  /**
+   * Finds the text of a %Z argument.
+   *
+   * @param pointer The guest address of the counted string, not 0.
+   * @param wide True when the string is UTF-16.
+   * @param buffer Receives the host address of the text, null when the string has no buffer.
+   * @param length Receives the length in characters.
+   * @return True.
+   */
+  bool GetCountedString(u32 pointer, bool wide, const void*& buffer, i32& length) const {
+    const u32 buffer_pointer =
+        static_cast<u32>(*rex::memory::GuestPtr<const be_u32*>(base_, pointer + 4));
+    if (!buffer_pointer) {
+      buffer = nullptr;
+      length = 0;
+      return true;
+    }
+    const i32 bytes =
+        static_cast<i16>(static_cast<u16>(*rex::memory::GuestPtr<const be_u16*>(base_, pointer)));
+    length = std::max(wide ? bytes / 2 : bytes, 0);
+    buffer = rex::memory::GuestPtr<void*>(base_, buffer_pointer);
+    return true;
+  }
+
+  /**
+   * Writes the count of a %n conversion.
+   *
+   * @param pointer The guest address the conversion names.
+   * @param count The characters written so far.
+   * @param is_short True for %hn.
+   * @return True.
+   */
+  bool StoreCount(u32 pointer, i32 count, bool is_short) const {
+    if (is_short) {
+      *rex::memory::GuestPtr<be_u16*>(base_, pointer) = static_cast<u16>(count);
+    } else {
+      *rex::memory::GuestPtr<be_u32*>(base_, pointer) = static_cast<u32>(count);
+    }
+    return true;
+  }
+
+ private:
+  u8* base_;
+};
+
+/**
+ * Reads the guest memory a conversion names only where the title could read it, and writes none.
+ * A %n conversion stores nothing.
+ */
+class CheckedMemory {
+ public:
+  /**
+   * Binds the engine to guest memory.
+   *
+   * @param view The guest memory of the calling thread.
+   */
+  explicit CheckedMemory(const rex::kernel::MemoryView& view) : view_(view) {}
+
+  /**
+   * Finds the text of a %s or %S argument, cut short at unreadable memory.
+   *
+   * @param pointer The guest address of the string, not 0.
+   * @param wide True when the string is UTF-16.
+   * @param cap The most characters to take.
+   * @param buffer Receives the host address of the text.
+   * @param length Receives the length in characters.
+   * @return False when the first character is not readable.
+   */
+  bool GetString(u32 pointer, bool wide, i32 cap, const void*& buffer, i32& length) {
+    if (!wide) {
+      const auto text = view_.TryGetCString(pointer, static_cast<size_t>(cap));
+      if (!text) {
+        return Fail();
+      }
+      buffer = text->data();
+      length = static_cast<i32>(text->size());
+      return true;
+    }
+    wide_.clear();
+    wide_.reserve(1);
+    for (i32 index = 0; index < cap; ++index) {
+      const auto c = LoadAt<u16>(pointer, static_cast<u64>(index) * 2);
+      if (!c) {
+        if (index == 0) {
+          return Fail();
+        }
+        break;
+      }
+      if (*c == 0) {
+        break;
+      }
+      wide_.emplace_back(*c);
+    }
+    buffer = wide_.data();
+    length = static_cast<i32>(wide_.size());
+    return true;
+  }
+
+  /**
+   * Copies the text of a %Z argument.
+   *
+   * @param pointer The guest address of the counted string, not 0.
+   * @param wide True when the string is UTF-16.
+   * @param buffer Receives the host address of the copy, null when the string has no buffer.
+   * @param length Receives the length in characters.
+   * @return False when the header or a character is not readable.
+   */
+  bool GetCountedString(u32 pointer, bool wide, const void*& buffer, i32& length) {
+    const auto buffer_pointer = LoadAt<u32>(pointer, 4);
+    const auto bytes = view_.TryLoad<u16>(pointer);
+    if (!buffer_pointer || !bytes) {
+      return Fail();
+    }
+    if (*buffer_pointer == 0) {
+      buffer = nullptr;
+      length = 0;
+      return true;
+    }
+    const i32 signed_bytes = static_cast<i16>(*bytes);
+    const i32 count = std::max(wide ? signed_bytes / 2 : signed_bytes, 0);
+    narrow_.clear();
+    wide_.clear();
+    wide_.reserve(1);
+    for (i32 index = 0; index < count; ++index) {
+      if (wide) {
+        const auto c = LoadAt<u16>(*buffer_pointer, static_cast<u64>(index) * 2);
+        if (!c) {
+          return Fail();
+        }
+        wide_.emplace_back(*c);
+      } else {
+        const auto c = LoadAt<u8>(*buffer_pointer, static_cast<u64>(index));
+        if (!c) {
+          return Fail();
+        }
+        narrow_.push_back(static_cast<char>(*c));
+      }
+    }
+    buffer = wide ? static_cast<const void*>(wide_.data()) : narrow_.c_str();
+    length = count;
+    return true;
+  }
+
+  /**
+   * Consumes a %n conversion and stores nothing.
+   *
+   * @return True.
+   */
+  bool StoreCount([[maybe_unused]] u32 pointer, [[maybe_unused]] i32 count,
+                  [[maybe_unused]] bool is_short) const {
+    return true;
+  }
+
+  /** True when a string argument was not readable. */
+  bool IsUnreadable() const { return unreadable_; }
+
+ private:
+  template <typename T>
+  std::optional<T> LoadAt(u32 address, u64 offset) const {
+    const u64 at = static_cast<u64>(address) + offset;
+    if (at > 0xFFFFFFFFull) {
+      return std::nullopt;
+    }
+    return view_.TryLoad<T>(static_cast<u32>(at));
+  }
+
+  bool Fail() {
+    unreadable_ = true;
+    return false;
+  }
+
+  const rex::kernel::MemoryView& view_;
+  std::string narrow_;
+  std::vector<be_u16> wide_;
+  bool unreadable_ = false;
 };
 
 /**
@@ -173,6 +398,85 @@ class ArrayArgList {
   i32 index_;
 };
 
+/**
+ * Reads variadic arguments as StackArgList does, but reads a stack slot only when the title could
+ * read it.
+ */
+class CheckedStackArgList {
+ public:
+  /**
+   * Reads variadic arguments starting at an argument index.
+   *
+   * @param ctx The register file at the entry of the function that received the arguments.
+   * @param view The guest memory of the calling thread.
+   * @param start_index Index of the first argument to read, which counts the fixed parameters.
+   */
+  CheckedStackArgList(const PPCContext& ctx, const rex::kernel::MemoryView& view, u32 start_index)
+      : ctx_(ctx), view_(view), index_(start_index) {}
+
+  u32 get32() { return static_cast<u32>(get64()); }
+
+  /** Returns the next argument, 0 when its stack slot is not readable. */
+  u64 get64() {
+    const size_t index = index_++;
+    if (index < rex::ppc::ArgTranslator::kIntegerRegisters) {
+      return rex::ppc::ArgTranslator::GetIntegerRegister(const_cast<PPCContext&>(ctx_), index).u64;
+    }
+    const auto value =
+        view_.TryLoad<u64>(rex::ppc::ArgTranslator::GetStackSlotAddress(ctx_, index));
+    if (!value) {
+      unreadable_ = true;
+      return 0;
+    }
+    return *value;
+  }
+
+  /** True when a stack slot was not readable. */
+  bool IsUnreadable() const { return unreadable_; }
+
+ private:
+  const PPCContext& ctx_;
+  const rex::kernel::MemoryView& view_;
+  u32 index_;
+  bool unreadable_ = false;
+};
+
+/** Reads arguments from a guest va_list as ArrayArgList does, but only where the title could. */
+class CheckedArrayArgList {
+ public:
+  /**
+   * Reads the values of a va_list.
+   *
+   * @param view The guest memory of the calling thread.
+   * @param arg_ptr The guest address of the first value.
+   */
+  CheckedArrayArgList(const rex::kernel::MemoryView& view, u32 arg_ptr)
+      : view_(view), arg_ptr_(arg_ptr) {}
+
+  u32 get32() { return static_cast<u32>(get64()); }
+
+  /** Returns the next value, 0 when it is not readable. */
+  u64 get64() {
+    const u64 address = static_cast<u64>(arg_ptr_) + static_cast<u64>(index_++) * 8;
+    const auto value =
+        address <= 0xFFFFFFF8ull ? view_.TryLoad<u64>(static_cast<u32>(address)) : std::nullopt;
+    if (!value) {
+      unreadable_ = true;
+      return 0;
+    }
+    return *value;
+  }
+
+  /** True when a value was not readable. */
+  bool IsUnreadable() const { return unreadable_; }
+
+ private:
+  const rex::kernel::MemoryView& view_;
+  u32 arg_ptr_;
+  u32 index_ = 0;
+  bool unreadable_ = false;
+};
+
 /** Narrow format string source and sink. */
 class StringFormatData {
  public:
@@ -215,6 +519,70 @@ class StringFormatData {
  private:
   const u8* input_;
   std::string output_;
+};
+
+/** Narrow format string source and a sink that keeps at most a given number of bytes. */
+class BoundedStringFormatData {
+ public:
+  /**
+   * Formats a copied format string.
+   *
+   * @param input The format string, without its terminator.
+   * @param max_length The most bytes the output keeps.
+   */
+  BoundedStringFormatData(std::string_view input, size_t max_length)
+      : input_(input), max_length_(max_length) {}
+
+  /** Returns the next character and advances, or 0 at the end. */
+  u16 GetNext() {
+    const u16 result = peek(0);
+    if (result) {
+      position_++;
+    }
+    return result;
+  }
+
+  u16 peek(i32 offset) {
+    const size_t at = position_ + static_cast<size_t>(offset);
+    return at < input_.size() ? static_cast<u8>(input_[at]) : 0;
+  }
+
+  void skip(i32 count) {
+    while (count-- > 0) {
+      if (!GetNext()) {
+        break;
+      }
+    }
+  }
+
+  /**
+   * Appends a character to the output.
+   *
+   * @return False when c does not fit in a narrow character or the output is full.
+   */
+  bool TryPut(u16 c) {
+    if (c >= 0x100) {
+      return false;
+    }
+    if (output_.size() >= max_length_) {
+      truncated_ = true;
+      return false;
+    }
+    output_.push_back(static_cast<char>(c));
+    return true;
+  }
+
+  std::string& GetOutput() { return output_; }
+
+  /** True when the output reached max_length and a character was refused. */
+  bool IsTruncated() const { return truncated_; }
+
+ private:
+  std::string_view input_;
+  size_t max_length_;
+  size_t position_ = 0;
+  std::string output_;
+  bool truncated_ = false;
 };
 
 /** Wide format string source and sink. */
@@ -292,15 +660,16 @@ class WideCountFormatData {
 /**
  * Runs the printf format string state machine.
  *
+ * @tparam Memory The access to the guest memory that string and count conversions name.
  * @tparam Data The format string source and sink.
  * @tparam Args The argument list source.
- * @param base The host base of guest memory.
+ * @param memory The access to the guest memory that string and count conversions name.
  * @param data The format string source and sink.
  * @param wide True when the format string is wide.
  * @return The number of characters written, or -1 on failure.
  */
-template <FormatDataSource Data, ArgListSource Args>
-i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
+template <FormatMemory Memory, FormatDataSource Data, ArgListSource Args>
+i32 FormatCore(Memory& memory, Data& data, Args& args, const bool wide) {
   i32 count = 0;
 
   char work8[512];
@@ -645,10 +1014,8 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
 
           case 'n': {
             auto pointer = static_cast<u32>(args.get32());
-            if (flags & kFFIsShort) {
-              *rex::memory::GuestPtr<be_u16*>(base, pointer) = static_cast<u16>(count);
-            } else {
-              *rex::memory::GuestPtr<be_u32*>(base, pointer) = static_cast<u32>(count);
+            if (!memory.StoreCount(pointer, count, (flags & kFFIsShort) != 0)) {
+              return -1;
             }
             continue;
           }
@@ -677,7 +1044,6 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
               text.length = std::min(static_cast<i32>(strlen(nullstr)), cap);
               text.is_wide = false;
             } else {
-              void* str = rex::memory::GuestPtr<void*>(base, pointer);
               bool is_wide;
               if (flags & (kFFIsLong | kFFIsWide)) {
                 is_wide = true;
@@ -686,22 +1052,9 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
               } else {
                 is_wide = ((flags & kFFInvertWide) != 0) ^ wide;
               }
-              i32 length;
-
-              if (!is_wide) {
-                length = 0;
-                for (auto s = static_cast<const u8*>(str); cap > 0 && *s; ++s, cap--) {
-                  length++;
-                }
-              } else {
-                length = 0;
-                for (auto s = static_cast<const u16*>(str); cap > 0 && *s; ++s, cap--) {
-                  length++;
-                }
+              if (!memory.GetString(pointer, is_wide, cap, text.buffer, text.length)) {
+                return -1;
               }
-
-              text.buffer = str;
-              text.length = length;
               text.is_wide = is_wide;
             }
             break;
@@ -709,20 +1062,18 @@ i32 FormatCore(u8* base, Data& data, Args& args, const bool wide) {
 
           case 'Z': {
             const u32 pointer = args.get32();
-            const u32 buffer_pointer =
-                pointer ? static_cast<u32>(*rex::memory::GuestPtr<const be_u32*>(base, pointer + 4))
-                        : 0;
-            if (!buffer_pointer) {
+            const bool is_wide = (flags & kFFIsWide) != 0;
+            text.buffer = nullptr;
+            if (pointer && !memory.GetCountedString(pointer, is_wide, text.buffer, text.length)) {
+              return -1;
+            }
+            if (!text.buffer) {
               static constexpr char kNullString[] = "(null)";
               text.buffer = kNullString;
               text.length = static_cast<i32>(std::size(kNullString) - 1);
               text.is_wide = false;
             } else {
-              const i32 bytes = static_cast<i16>(
-                  static_cast<u16>(*rex::memory::GuestPtr<const be_u16*>(base, pointer)));
-              text.is_wide = (flags & kFFIsWide) != 0;
-              text.length = std::max(text.is_wide ? bytes / 2 : bytes, 0);
-              text.buffer = rex::memory::GuestPtr<void*>(base, buffer_pointer);
+              text.is_wide = is_wide;
             }
             break;
           }

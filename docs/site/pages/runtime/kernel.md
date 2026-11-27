@@ -158,6 +158,35 @@ The title workspace is a range of title memory that XAM uses on behalf of the ga
 - `ITitleWorkspace::Free` ignores an address outside the workspace, or one that is not a live block, with a log message.
 - `XamAlloc` returns `0` on success, `E_INVALIDARG` for a null out pointer, `E_UNEXPECTED` for flags that select no heap, or `E_OUTOFMEMORY` when the heap is full. `XamAllocEx` takes the same path, or allocates physical memory when flags bit `0x40000000` is set.
 
+## Debug Text of the Title
+
+The SDK logs the text that the title prints for a debugger at info level, one message per line with no prefix. The lines go to the `kernel` category unless the title sets another. The text comes from these sources:
+
+- the `DbgPrint` and `XamDbgPrint` exports
+- the `OutputDebugStringA`, `OutputDebugStringW`, `RtlOutputDebugString` and `RtlDebugTrace` exports
+- the debug print service traps 20 and 26
+- hooks in your program that write to `ITitleDebugOutput`, see [Logging a printf Style Function](../codegen/hooks.md#logging-a-printf-style-function)
+
+`TitleRuntime::GetDebugOutput` returns the `ITitleDebugOutput` of the title. `SetCategory` sends every line to a category of your program, which the logger must have added. Call it before guest threads start, such as in `TitleApp::OnTitleLaunch`:
+
+```cpp
+REXLOG_CATEGORY(example, "Debug text of the example title")
+
+rex::Result<void> ExampleApp::OnTitleLaunch(rex::kernel::TitleRuntime& title) {
+    title.GetDebugOutput().SetCategory(rex::log::example);
+    return rex::Ok();
+}
+```
+
+- Each thread collects its own line, so the text of two threads never mixes in one message. A line ends at a line feed.
+- A trailing carriage return is removed, and an empty line is not logged.
+- A line longer than 1024 bytes is logged in parts of at most 1024 bytes. Each part ends on a whole UTF-8 character.
+- When a guest thread ends, the SDK logs its unfinished line.
+- `kernel.debug_text_encoding` sets the encoding of narrow text, `utf8` by default or `shift_jis`. A title whose text is in code page 932 sets `shift_jis` at the [title layer](../app/settings.md#layers) in `OnConfigure`. Bytes that are not valid UTF-8 are logged as U+FFFD.
+- `OutputDebugStringW` converts its text from UTF-16.
+- `DbgPrint` and `XamDbgPrint` read the format and its arguments only where the title could read them, and a `%n` conversion stores no count.
+- A level above info for the category, such as `log.categories.kernel=warn`, turns the text off. The sources then read no guest memory and format nothing.
+
 ## Kernel Exports
 
 A kernel export is a host function that takes the place of a function that the game imports from the console's kernel, XAM or XBDM. The game reaches it through its import table. See [Export Macros](../codegen/hooks.md#export-macros) for the macros that define exports.

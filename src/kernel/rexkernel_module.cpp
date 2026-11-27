@@ -27,7 +27,7 @@
 #include "kernel/xam/forward.h"
 #include "kernel/xbdm/forward.h"
 
-REXLOG_TABLE(kRuntimeLog, kernel, cpu, title)
+REXLOG_TABLE(kRuntimeLog, kernel, cpu)
 
 namespace rex::kernel {
 

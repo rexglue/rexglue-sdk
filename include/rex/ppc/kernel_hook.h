@@ -32,11 +32,13 @@ struct KernelHooks {
   /** Checks the argument registers a detour declares against the usage of the bound runtime. */
   void (*check_bound_detour_arguments)(const char* name, PPCFunc* host, u8 declared_gpr,
                                        u16 declared_fpr);
+  /** Writes the text of a debug print service trap to the debug output of the bound runtime. */
+  void (*write_debug_text)(u32 address, u32 length);
 };
 
 /**
- * Sets the kernel calls of the PPC runtime. With none set, no thread is bound, no address resolves
- * and the detour checks do nothing.
+ * Sets the kernel calls of the PPC runtime. With none set, no thread is bound, no address resolves,
+ * the detour checks do nothing and a debug print service trap prints nothing.
  *
  * @param hooks The calls, which must stay valid until they are replaced. Null clears them.
  */

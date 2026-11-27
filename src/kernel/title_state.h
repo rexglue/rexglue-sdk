@@ -345,8 +345,12 @@ class TitleState : public ITitleExit,
   /** Reports a title exit, then terminates the title from the calling thread. */
   void ExitTitle(TitleExitReason reason) override;
 
-  /** Logs debug text the title printed, in the title category. */
-  void WriteTitleDebugString(std::string_view text) override;
+  void SetCategory(const rex::log::LogCategory& category) override;
+  const rex::log::LogCategory& GetCategory() const override;
+  bool IsEnabled() const override;
+  TextEncoding GetEncoding() const override;
+  void Write(std::string_view text, TextEncoding encoding) override;
+  void Flush() override;
 
   /** Allocates from the current workspace, which a title workspace size header can replace. */
   [[nodiscard]] Result<u32> Allocate(u32 size, bool zero) override;
@@ -455,6 +459,7 @@ class TitleState : public ITitleExit,
   std::unique_ptr<kernel::ModuleRegistry> module_registry_;
   std::unique_ptr<kernel::NotificationBroadcaster> notifier_;
   rex::xam::IXAMTitleLifecycle* xam_ = nullptr;
+  std::atomic<const rex::log::LogCategory*> debug_category_{nullptr};
   rex::xam::IXAMTitleServices* xam_managers_ = nullptr;
   std::unique_ptr<TitleContext> title_context_;
   std::unique_ptr<kernel::Dispatcher> dispatcher_;

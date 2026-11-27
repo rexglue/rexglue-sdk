@@ -818,10 +818,6 @@ Result<void> TitleState::CreateXAM() {
   return {};
 }
 
-void TitleState::WriteTitleDebugString(std::string_view text) {
-  REXTITLE_DEV("{}", text);
-}
-
 void TitleState::ReleaseXAMApps() {
   if (xam_) {
     xam_->DestroyApps();

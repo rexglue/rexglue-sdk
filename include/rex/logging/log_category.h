@@ -478,8 +478,8 @@ REXLOG_CATEGORY(console, "Console command output")
  *
  * Every prefix has TRACE, DEV, DEBUG, INFO, WARN, ERROR, CRITICAL, WARN_ONCE, FAIL, FATAL and
  * CHECK. REXLOG_ is core, with REX_FAIL, REX_FATAL and REX_CHECK. REXSYS_ is system, REXFS_
- * filesystem and REXCON_ console. Kernel, title, XAM, codegen and rexglue define theirs beside
- * their categories.
+ * filesystem and REXCON_ console. Kernel, XAM, codegen and rexglue define theirs beside their
+ * categories.
  */
 #define REXLOG_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXLOG_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)

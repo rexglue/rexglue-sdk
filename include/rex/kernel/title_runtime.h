@@ -22,6 +22,7 @@
 #include <rex/types.h>
 #include <rex/result.h>
 #include <rex/kernel/title_exit.h>
+#include <rex/kernel/title_debug_output.h>
 
 struct PPCFuncMapping;
 
@@ -177,6 +178,13 @@ class REX_KERNEL_API TitleRuntime final : public rex::NonCopyable {
   rex::memory::GuestMembase GetMembase();
 
   kernel::ITitleExit& GetTitleExit();
+
+  /**
+   * Returns the output that logs the debug text of the title as lines.
+   *
+   * @return The output, valid from Load until Unload.
+   */
+  kernel::ITitleDebugOutput& GetDebugOutput();
 
   kernel::INotificationBroadcaster& GetNotificationBroadcaster();
 

@@ -23,6 +23,9 @@ namespace {
 
 u32 g_resolved_address = 0;
 u32 g_detour_checks = 0;
+u32 g_debug_text_writes = 0;
+u32 g_debug_text_address = 0;
+u32 g_debug_text_length = 0;
 u8 g_fake_base = 0;
 PPCContext g_fake_ctx;
 
@@ -41,6 +44,12 @@ void FakeCheckBoundDetourArguments(const char*, PPCFunc*, u8, u16) {
   ++g_detour_checks;
 }
 
+void FakeWriteDebugText(u32 address, u32 length) {
+  ++g_debug_text_writes;
+  g_debug_text_address = address;
+  g_debug_text_length = length;
+}
+
 struct HooksGuard {
   ~HooksGuard() { rex::ppc::SetKernelHooks(nullptr); }
 };
@@ -53,9 +62,11 @@ REX_TEST_CASE("The PPC runtime functions reach the kernel through registered hoo
   rex::ppc::SetKernelHooks(nullptr);
   g_resolved_address = 0;
   g_detour_checks = 0;
+  g_debug_text_writes = 0;
 
   const rex::ppc::KernelHooks fake = {
       FakeGetBoundThread, FakeResolveFunction, nullptr, nullptr, FakeCheckBoundDetourArguments,
+      FakeWriteDebugText,
   };
 
   SECTION("Without hooks no thread is bound and an address resolves to a trap") {
@@ -89,5 +100,36 @@ REX_TEST_CASE("The PPC runtime functions reach the kernel through registered hoo
     CHECK(g_resolved_address == 0);
     rex::ppc::detail::CheckBoundDetourArguments("Detour", &FakeGuest, 0, 0);
     CHECK(g_detour_checks == 0);
+  }
+}
+
+REX_TEST_CASE("Debug print service traps reach the kernel hook with the text address and length",
+              "[ppc][kernel_hooks]") {
+  HooksGuard guard;
+  rex::ppc::SetKernelHooks(nullptr);
+  g_debug_text_writes = 0;
+  const rex::ppc::KernelHooks fake = {
+      nullptr, nullptr, nullptr, nullptr, nullptr, FakeWriteDebugText,
+  };
+  PPCContext ctx{};
+  ctx.r3.u64 = 0x82000100;
+  ctx.r4.u64 = 0xABCD0012;
+
+  SECTION("Without hooks the trap writes nothing") {
+    rex::ppc::Trap(ctx, nullptr, 20);
+    rex::ppc::Trap(ctx, nullptr, 26);
+    CHECK(g_debug_text_writes == 0);
+  }
+
+  SECTION("With hooks traps 20 and 26 pass r3 and the low half word of r4") {
+    rex::ppc::SetKernelHooks(&fake);
+    rex::ppc::Trap(ctx, nullptr, 20);
+    CHECK(g_debug_text_writes == 1);
+    CHECK(g_debug_text_address == 0x82000100);
+    CHECK(g_debug_text_length == 0x12);
+    rex::ppc::Trap(ctx, nullptr, 26);
+    CHECK(g_debug_text_writes == 2);
+    rex::ppc::Trap(ctx, nullptr, 25);
+    CHECK(g_debug_text_writes == 2);
   }
 }

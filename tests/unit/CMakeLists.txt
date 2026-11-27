@@ -47,7 +47,7 @@ add_executable(
   kernel/xam_input_test.cpp
   kernel/object_table_test.cpp
   kernel/shim_crt_test.cpp
-  kernel/shim_debug_test.cpp
+  kernel/title_debug_output_test.cpp
   kernel/shim_math_test.cpp
   kernel/shim_registry_test.cpp
   kernel/exports_test.cpp

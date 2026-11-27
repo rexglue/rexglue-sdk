@@ -2,7 +2,7 @@
 
 ## Shims
 
-The shim registry in `rex/kernel/shim.h` lists 69 shims in seven groups. See [Shims](../runtime/shims.md) for how to enable a shim.
+The shim registry in `rex/kernel/shim.h` lists 68 shims in six groups. See [Shims](../runtime/shims.md) for how to enable a shim.
 
 ### `file`
 
@@ -101,14 +101,6 @@ These shims compute floating point math and convert text to numbers.
 |---|---|
 | `atan2` | Returns the arc tangent of y over x. |
 | `atof` | Parses a floating point number, independent of the locale. |
-
-### `debug`
-
-This shim writes debug output to the log.
-
-| Name | Description |
-|---|---|
-| `DebugPrint` | Logs a formatted debug message at `debug` level, converted from Shift-JIS to UTF-8. |
 
 ### `threading`
 

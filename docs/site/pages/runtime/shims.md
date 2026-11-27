@@ -14,7 +14,6 @@ Each group of shims does its work on the host:
 - The `file` shims open, read and write files through the filesystem, so the paths of the game resolve through the [mounts](../filesystem/filesystem.md#links-and-mounts).
 - The `heap` shims allocate from the [shim heap](#shim-heap).
 - The `atof` shim parses numbers with the C locale, regardless of the host locale.
-- The `DebugPrint` shim writes the formatted message to the `kernel` log category at `debug` level.
 - The `threading` shims run each guest fiber on a host fiber with its own guest stack.
 
 ## Enable a Shim

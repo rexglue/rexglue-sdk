@@ -580,6 +580,7 @@ void KernelThread::Exit(int exit_code) {
 }
 
 void KernelThread::Finish(int exit_code) {
+  StateOf(*runtime_).Flush();
   thread_state_->ClearStop();
   if (!host_fn_ && !StateOf(*runtime_).IsTerminatingTitle()) {
     try {

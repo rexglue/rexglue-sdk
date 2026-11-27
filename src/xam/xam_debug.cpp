@@ -9,53 +9,50 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <format>
+#include <string>
 
+#include <rex/memory/endian.h>
 #include <rex/ppc/hook.h>
 #include <rex/memory/mapped_ptr.h>
 #include <rex/types.h>
 #include <rex/kernel/title_debug_output.h>
 #include <rex/kernel/title_runtime.h>
+#include <rex/string/text.h>
 #include "xam/xam_bodies.h"
 #include "xam/xam_state.h"
 
 namespace rex {
 namespace xam {
 
-void OutputDebugStringA_entry(MappedString string) {
-  if (string) {
-    CurrentTitle().debug.WriteTitleDebugString(
-        std::format("OutputDebugStringA: {}", string.GetValue()));
+namespace {
+
+void WriteNarrow(MappedString string) {
+  rex::kernel::ITitleDebugOutput& debug = CurrentTitle().debug;
+  if (string && debug.IsEnabled()) {
+    debug.Write(string.GetValue(), debug.GetEncoding());
   }
 }
 
+}  // namespace
+
+void OutputDebugStringA_entry(MappedString string) {
+  WriteNarrow(string);
+}
+
 void OutputDebugStringW_entry(MappedWString string) {
-  if (string) {
-    std::u16string_view sv = string.GetValue();
-    std::string utf8;
-    utf8.reserve(sv.size());
-    for (char16_t c : sv) {
-      if (c < 0x80) {
-        utf8.push_back(static_cast<char>(c));
-      } else {
-        utf8.push_back('?');
-      }
-    }
-    CurrentTitle().debug.WriteTitleDebugString(std::format("OutputDebugStringW: {}", utf8));
+  rex::kernel::ITitleDebugOutput& debug = CurrentTitle().debug;
+  if (string && debug.IsEnabled()) {
+    const auto text = rex::memory::load_and_swap<std::u16string>(string.GetValue().data());
+    debug.Write(rex::string::ToUTF8(text), rex::kernel::TextEncoding::kUTF8);
   }
 }
 
 void RtlOutputDebugString_entry(MappedString string) {
-  if (string) {
-    CurrentTitle().debug.WriteTitleDebugString(
-        std::format("RtlOutputDebugString: {}", string.GetValue()));
-  }
+  WriteNarrow(string);
 }
 
 void RtlDebugTrace_entry(MappedString string) {
-  if (string) {
-    CurrentTitle().debug.WriteTitleDebugString(std::format("RtlDebugTrace: {}", string.GetValue()));
-  }
+  WriteNarrow(string);
 }
 
 }  // namespace xam

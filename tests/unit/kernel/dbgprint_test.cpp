@@ -15,7 +15,6 @@
 #include <functional>
 #include <initializer_list>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include <rex/logging/logger.h>
@@ -55,19 +54,19 @@ u64 Print(Caller& c, u8* base, void (*print)(PPCContext&, u8*), u32 format,
   return ctx.r3.u64;
 }
 
-std::vector<std::string> RunPrint(Level level, std::string_view prefix,
-                                  const std::function<void(Caller&)>& body) {
+std::vector<std::string> RunPrint(Level level, const std::function<void(Caller&)>& body) {
   KernelFixture fixture;
-  REQUIRE(REX_SETTINGS().SetText("log.categories.title", rex::log::LevelName(level)));
+  REQUIRE(REX_SETTINGS().SetText("log.categories.kernel", rex::log::LevelName(level)));
   rex::log::LogCaptureSink sink;
   auto sink_guard = REX_LOGGER().AddSink(sink);
+  const u64 mark = sink.GetLatestSequence();
   fixture.RunOnGuestThread(body);
   sink_guard.Reset();
   std::vector<rex::log::CapturedMessage> captured;
-  sink.CopySince(0, captured);
+  sink.CopySince(mark, captured);
   std::vector<std::string> texts;
   for (const auto& message : captured) {
-    if (message.text.starts_with(prefix)) {
+    if (message.category == "kernel" && message.level == Level::kInfo) {
       texts.push_back(message.text);
     }
   }
@@ -76,38 +75,45 @@ std::vector<std::string> RunPrint(Level level, std::string_view prefix,
 
 }  // namespace
 
-REX_TEST_CASE("DbgPrint and XamDbgPrint log the formatted text at Dev level",
+REX_TEST_CASE("DbgPrint and XamDbgPrint log the formatted text at Info in the kernel category",
               "[kernel][strings][dbgprint]") {
-  const auto debug = RunPrint(Level::kDev, "DbgPrint: ", [](Caller& c) {
+  const auto debug = RunPrint(Level::kInfo, [](Caller& c) {
     const u32 word = c.AllocString("world");
     CHECK(Print(c, BaseOf(c), __imp__DbgPrint, c.AllocString("hello %d %s\r\n"), {42, word}) == 0);
+    CHECK(Print(c, BaseOf(c), __imp__XamDbgPrint, c.AllocString("xam %d\n"), {7}) == 0);
   });
-  REQUIRE(debug.size() == 1);
-  CHECK(debug[0] == "DbgPrint: hello 42 world");
-  const auto xam = RunPrint(Level::kDev, "XamDbgPrint: ", [](Caller& c) {
-    CHECK(Print(c, BaseOf(c), __imp__XamDbgPrint, c.AllocString("xam %d"), {7}) == 0);
-  });
-  REQUIRE(xam.size() == 1);
-  CHECK(xam[0] == "XamDbgPrint: xam 7");
+  REQUIRE(debug.size() == 2);
+  CHECK(debug[0] == "hello 42 world");
+  CHECK(debug[1] == "xam 7");
 }
 
-REX_TEST_CASE("DbgPrint and XamDbgPrint log nothing above Dev level and still return 0",
-              "[kernel][strings][dbgprint]") {
-  const auto texts = RunPrint(Level::kInfo, "", [](Caller& c) {
+REX_TEST_CASE("Two DbgPrint calls form one line", "[kernel][strings][dbgprint]") {
+  const auto texts = RunPrint(Level::kInfo, [](Caller& c) {
     u8* const base = BaseOf(c);
-    CHECK(Print(c, base, __imp__DbgPrint, c.AllocString("filtered %d"), {1}) == 0);
-    CHECK(Print(c, base, __imp__XamDbgPrint, c.AllocString("filtered %d"), {1}) == 0);
+    CHECK(Print(c, base, __imp__DbgPrint, c.AllocString("first %d, "), {1}) == 0);
+    CHECK(Print(c, base, __imp__DbgPrint, c.AllocString("second %d\n"), {2}) == 0);
+  });
+  REQUIRE(texts.size() == 1);
+  CHECK(texts[0] == "first 1, second 2");
+}
+
+REX_TEST_CASE(
+    "DbgPrint and XamDbgPrint log nothing with the kernel category at Warn and still "
+    "return 0",
+    "[kernel][strings][dbgprint]") {
+  const auto texts = RunPrint(Level::kWarn, [](Caller& c) {
+    u8* const base = BaseOf(c);
+    CHECK(Print(c, base, __imp__DbgPrint, c.AllocString("filtered %d\n"), {1}) == 0);
+    CHECK(Print(c, base, __imp__XamDbgPrint, c.AllocString("filtered %d\n"), {1}) == 0);
     CHECK(Print(c, base, __imp__DbgPrint, 0) == 0);
   });
-  for (const std::string& text : texts) {
-    CHECK_FALSE(text.starts_with("DbgPrint: "));
-    CHECK_FALSE(text.starts_with("XamDbgPrint: "));
-  }
+  CHECK(texts.empty());
 }
 
-REX_TEST_CASE("DbgPrint with the level at Info", "[kernel][strings][dbgprint][benchmark]") {
+REX_TEST_CASE("DbgPrint with the kernel category at Warn",
+              "[kernel][strings][dbgprint][benchmark]") {
   KernelFixture fixture;
-  REQUIRE(REX_SETTINGS().SetText("log.categories.title", rex::log::LevelName(Level::kInfo)));
+  REQUIRE(REX_SETTINGS().SetText("log.categories.kernel", rex::log::LevelName(Level::kWarn)));
   fixture.RunBenchmarkOnGuestThread([](Caller& c) {
     const u32 format = c.AllocString("%s %d");
     const u32 word = c.AllocString("value");
@@ -115,7 +121,7 @@ REX_TEST_CASE("DbgPrint with the level at Info", "[kernel][strings][dbgprint][be
     BENCHMARK("baseline: an empty function through the same Print") {
       return Print(c, base, NoOp, format, {word, 5});
     };
-    BENCHMARK("DbgPrint(\"%s %d\") with Dev off") {
+    BENCHMARK("DbgPrint(\"%s %d\") with the kernel category off") {
       return Print(c, base, __imp__DbgPrint, format, {word, 5});
     };
   });

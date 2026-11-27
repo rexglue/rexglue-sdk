@@ -2,23 +2,21 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <unordered_map>
 
 #include <rex/logging/log_category.h>
-#include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/recompiled_code.h>
 
+#include "ppc/kernel_hook.h"
+
 namespace rex::ppc {
 
-void Trap(PPCContext& ctx, u8* base, u16 trap_type) {
+void Trap(PPCContext& ctx, u8* /*base*/, u16 trap_type) {
   switch (trap_type) {
     case 20:
     case 26: {
-      const u32 address = ctx.r3.u32;
-      const std::string_view text(rex::memory::GuestPtr<const char*>(base, address), ctx.r4.u16);
-      REXCPU_DEBUG("(service trap) {}", text);
+      detail::WriteDebugText(ctx.r3.u32, ctx.r4.u16);
       break;
     }
     case 0:

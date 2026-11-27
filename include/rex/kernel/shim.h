@@ -22,9 +22,8 @@ enum class Group : u8 {
   kFile, /**< File I/O backed by the filesystem module. */
   kHeap, /**< The shim heap, all four entries are required together. */
   kMemory,
-  kString, /**< C, Win32 and UTF-16 string routines. */
-  kMath,   /**< Floating point math and text conversion routines. */
-  kDebug,
+  kString,    /**< C, Win32 and UTF-16 string routines. */
+  kMath,      /**< Floating point math and text conversion routines. */
   kThreading, /**< Fiber routines. */
 };
 
@@ -55,17 +54,16 @@ struct Entry {
   std::string_view description;
 };
 
-inline constexpr std::array<GroupTraits, 7> kGroups = {{
+inline constexpr std::array<GroupTraits, 6> kGroups = {{
     {Group::kFile, "file", false, "File I/O backed by the filesystem module"},
     {Group::kHeap, "heap", true, "The shim heap, all 4 routines are required together"},
     {Group::kMemory, "memory", false, "Memory copy and fill routines"},
     {Group::kString, "string", false, "C, Win32 and UTF-16 string routines"},
     {Group::kMath, "math", false, "Floating point math and text conversion routines"},
-    {Group::kDebug, "debug", false, "Debug output routines"},
     {Group::kThreading, "threading", false, "Fiber routines"},
 }};
 
-inline constexpr std::array<Entry, 69> kRegistry = {{
+inline constexpr std::array<Entry, 68> kRegistry = {{
     {"CreateFileA", Group::kFile, Flag::kNone, "Opens or creates a file"},
     {"ReadFile", Group::kFile, Flag::kNone, "Reads from an open file handle"},
     {"WriteFile", Group::kFile, Flag::kNone, "Writes to an open file handle"},
@@ -134,8 +132,6 @@ inline constexpr std::array<Entry, 69> kRegistry = {{
     {"atan2", Group::kMath, Flag::kNone, "Returns the arc tangent of y over x"},
     {"atof", Group::kMath, Flag::kNone,
      "Parses a floating point number, independent of the locale"},
-    {"DebugPrint", Group::kDebug, Flag::kNone,
-     "Logs a formatted debug message at Debug level, Shift-JIS converted to UTF-8"},
     {"ConvertThreadToFiber", Group::kThreading, Flag::kNone,
      "Turns the calling thread into a fiber"},
     {"ConvertFiberToThread", Group::kThreading, Flag::kNone,

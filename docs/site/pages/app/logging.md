@@ -30,7 +30,7 @@ REX_TRY_VOID(REX_LOGGER().AddCategories(rex::log::kAppLog));
 - Each added category gets a setting named `log.categories.` plus its name, such as `log.categories.input`, that sets its level.
 - A message in a category that was never added is written when its level is at or above `log.level`. The first such message also logs a warning that the category is not registered.
 
-See [Log Categories and Macros](../appendix/log-categories-and-macros.md) for the categories of the SDK.
+See [Log Categories and Macros](../appendix/log-categories-and-macros.md) for the categories of the SDK. The `kernel` category also holds the [debug text of the title](../runtime/kernel.md#debug-text-of-the-title), unless the title sends it to a category of its own.
 
 ## Levels
 
