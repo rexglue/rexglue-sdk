@@ -26,6 +26,8 @@ REXLOG_CATEGORY(xam, "XAM exports")
 #define REXXAM_WARN_ONCE(once, key, fmt, ...)                           \
   REXLOG_CAT_ONCE(::rex::log::xam, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXXAM_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::xam, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXXAM_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::xam, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXXAM_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::xam, fmt __VA_OPT__(, ) __VA_ARGS__)

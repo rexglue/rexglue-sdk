@@ -26,6 +26,8 @@ REXLOG_CATEGORY(kernel, "Kernel exports of xboxkrnl")
 #define REXKRNL_WARN_ONCE(once, key, fmt, ...)                             \
   REXLOG_CAT_ONCE(::rex::log::kernel, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXKRNL_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::kernel, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXKRNL_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::kernel, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXKRNL_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::kernel, fmt __VA_OPT__(, ) __VA_ARGS__)

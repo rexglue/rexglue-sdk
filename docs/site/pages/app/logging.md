@@ -62,6 +62,8 @@ The macros do not evaluate the arguments when the category does not write at tha
 
 `REXLOG_CAT_ONCE` writes a message only the first time a key is seen. It takes the category, the level, a `rex::log::OncePerKey` object that remembers the keys, the key, the format string and its arguments. `OncePerKey<64>` remembers the keys 0 to 63, and a key at or above 64 writes every time.
 
+`REXLOG_CAT_FIRST` writes a message only the first `n` times its call site runs. It takes the category, the level, `n` as a constant expression, the format string and its arguments. Each call site has its own counter, and the site counts a run even when the category hides the level, so a message that was hidden for its first `n` runs never writes later.
+
 The SDK categories have shorter macros that take no category. Each prefix belongs to one category, such as `REXGPU_` for `gpu` and `REXFS_` for `filesystem`, and `REXLOG_` is the prefix of `core`:
 
 ```cpp
@@ -70,7 +72,7 @@ REXGPU_DEBUG("register r{} = {:#x}", reg, value);
 REXFS_WARN("{} not found", path);
 ```
 
-Each prefix has the level forms from `TRACE` to `CRITICAL`, plus `WARN_ONCE` and the failure forms `FAIL`, `FATAL` and `CHECK` listed [below](#failures-and-assertions). For `core` the failure forms are `REX_FAIL`, `REX_FATAL` and `REX_CHECK`, not `REXLOG_FAIL`, `REXLOG_FATAL` and `REXLOG_CHECK`. See [Log Categories and Macros](../appendix/log-categories-and-macros.md#category-prefixes) for every prefix.
+Each prefix has the level forms from `TRACE` to `CRITICAL`, plus `WARN_ONCE`, `WARN_FIRST` and the failure forms `FAIL`, `FATAL` and `CHECK` listed [below](#failures-and-assertions). For `core` the failure forms are `REX_FAIL`, `REX_FATAL` and `REX_CHECK`, not `REXLOG_FAIL`, `REXLOG_FATAL` and `REXLOG_CHECK`. See [Log Categories and Macros](../appendix/log-categories-and-macros.md#category-prefixes) for every prefix.
 
 ### Lines Before the Log File
 

@@ -32,6 +32,8 @@ REXLOG_CATEGORY(rexglue, "The rexglue command line tool")
 #define REXGLUE_WARN_ONCE(once, key, fmt, ...)                              \
   REXLOG_CAT_ONCE(::rex::log::rexglue, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGLUE_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::rexglue, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXGLUE_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::rexglue, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXGLUE_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::rexglue, fmt __VA_OPT__(, ) __VA_ARGS__)

@@ -36,6 +36,8 @@ Each prefix forms the macros of one category, such as `REXGPU_INFO` and `REXGPU_
 | `REXUI_` | `ui` |
 | `REXCON_` | `console` |
 
+Each prefix has `WARN_ONCE`, which writes once per key, and `WARN_FIRST`, which writes the first `n` runs of its call site, as in `REXGPU_WARN_FIRST(3, "unsupported blend {}", blend)`.
+
 The `core` failure macros have no `LOG` in their names: `REX_FAIL`, `REX_FATAL` and `REX_CHECK`.
 
 The prefixes of `kernel`, `xam`, `codegen` and `rexglue` are declared in private headers under `src`, not in the public headers.

@@ -302,6 +302,29 @@ void NoThrow(const LogCategory& category, Fn&& fn) noexcept {
   } while (0)
 
 /**
+ * Writes a message the first n times the call site runs, then nothing. The site counts every run,
+ * including the ones where the category is disabled at the level.
+ *
+ * @param cat A rex::log::LogCategory lvalue.
+ * @param level A rex::log::Level.
+ * @param n How many runs write, a constant expression.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_CAT_FIRST(category, ::rex::log::Level::kWarn, 3, "unsupported mode {}", mode);
+ * @endcode
+ */
+#define REXLOG_CAT_FIRST(cat, level, n, fmt, ...)                                                  \
+  do {                                                                                             \
+    static std::atomic<::rex::u32> rexlog_first_count{0};                                          \
+    if (rexlog_first_count.load(std::memory_order_relaxed) < static_cast<::rex::u32>(n) &&         \
+        rexlog_first_count.fetch_add(1, std::memory_order_relaxed) < static_cast<::rex::u32>(n)) { \
+      REXLOG_DETAIL_WRITE(cat, level, fmt __VA_OPT__(, ) __VA_ARGS__);                             \
+    }                                                                                              \
+  } while (0)
+
+/**
  * Writes a Trace message.
  *
  * @param cat A rex::log::LogCategory lvalue.
@@ -474,12 +497,13 @@ REXLOG_CATEGORY(console, "Console command output")
  * REXGPU_INFO("{} pipelines", count);
  * REXSYS_FAIL(X_STATUS_INVALID_PARAMETER, "{} is out of range", index);
  * REXAPU_WARN_ONCE(write_once_, index, "write to unknown register {:04X}", index);
+ * REXGPU_WARN_FIRST(3, "unsupported blend {}", blend);
  * @endcode
  *
- * Every prefix has TRACE, DEV, DEBUG, INFO, WARN, ERROR, CRITICAL, WARN_ONCE, FAIL, FATAL and
- * CHECK. REXLOG_ is core, with REX_FAIL, REX_FATAL and REX_CHECK. REXSYS_ is system, REXFS_
- * filesystem and REXCON_ console. Kernel, XAM, codegen and rexglue define theirs beside their
- * categories.
+ * Every prefix has TRACE, DEV, DEBUG, INFO, WARN, ERROR, CRITICAL, WARN_ONCE, WARN_FIRST, FAIL,
+ * FATAL and CHECK. REXLOG_ is core, with REX_FAIL, REX_FATAL and REX_CHECK. REXSYS_ is system,
+ * REXFS_ filesystem and REXCON_ console. Kernel, XAM, codegen and rexglue define theirs beside
+ * their categories.
  */
 #define REXLOG_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXLOG_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -492,6 +516,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXLOG_WARN_ONCE(once, key, fmt, ...)                            \
   REXLOG_CAT_ONCE(::rex::log::core, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::core, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REX_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::core, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REX_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -513,6 +539,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXSYS_WARN_ONCE(once, key, fmt, ...)                              \
   REXLOG_CAT_ONCE(::rex::log::system, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXSYS_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::system, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXSYS_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::system, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXSYS_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::system, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -534,6 +562,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXAPU_WARN_ONCE(once, key, fmt, ...)                           \
   REXLOG_CAT_ONCE(::rex::log::apu, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXAPU_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::apu, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXAPU_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::apu, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXAPU_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::apu, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -558,6 +588,9 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXFS_WARN_ONCE(once, key, fmt, ...)                                   \
   REXLOG_CAT_ONCE(::rex::log::filesystem, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXFS_WARN_FIRST(n, fmt, ...)                                   \
+  REXLOG_CAT_FIRST(::rex::log::filesystem, ::rex::log::Level::kWarn, n, \
+                   fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXFS_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::filesystem, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXFS_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::filesystem, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -579,6 +612,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXGPU_WARN_ONCE(once, key, fmt, ...)                           \
   REXLOG_CAT_ONCE(::rex::log::gpu, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXGPU_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::gpu, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXGPU_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::gpu, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXGPU_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::gpu, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -600,6 +635,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXHID_WARN_ONCE(once, key, fmt, ...)                           \
   REXLOG_CAT_ONCE(::rex::log::hid, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXHID_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::hid, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXHID_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::hid, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXHID_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::hid, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -621,6 +658,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXCPU_WARN_ONCE(once, key, fmt, ...)                           \
   REXLOG_CAT_ONCE(::rex::log::cpu, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCPU_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::cpu, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXCPU_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::cpu, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXCPU_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::cpu, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -641,6 +680,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXUI_WARN_ONCE(once, key, fmt, ...)                           \
   REXLOG_CAT_ONCE(::rex::log::ui, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXUI_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::ui, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXUI_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::ui, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXUI_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::ui, fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -662,6 +703,8 @@ REXLOG_CATEGORY(console, "Console command output")
 #define REXCON_WARN_ONCE(once, key, fmt, ...)                               \
   REXLOG_CAT_ONCE(::rex::log::console, ::rex::log::Level::kWarn, once, key, \
                   fmt __VA_OPT__(, ) __VA_ARGS__)
+#define REXCON_WARN_FIRST(n, fmt, ...) \
+  REXLOG_CAT_FIRST(::rex::log::console, ::rex::log::Level::kWarn, n, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXCON_FAIL(value, fmt, ...) \
   REX_CAT_FAIL(::rex::log::console, value, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXCON_FATAL(fmt, ...) REX_CAT_FATAL(::rex::log::console, fmt __VA_OPT__(, ) __VA_ARGS__)

@@ -203,6 +203,37 @@ REX_TEST_CASE("log.level sets the level of categories without their own", "[base
   ResetLogger();
 }
 
+void WriteFirstThree(int index) {
+  REXLOG_CAT_FIRST(::rex::log::logtest, ::rex::log::Level::kInfo, 3, "run {}", index);
+}
+
+void WriteFirstTwo(int index) {
+  REXLOG_CAT_FIRST(::rex::log::logtest, ::rex::log::Level::kInfo, 2, "run {}", index);
+}
+
+REX_TEST_CASE("a first N site writes N lines and counts runs the level hides", "[base][logger]") {
+  ResetLogger();
+  Logger& logger = REX_LOGGER();
+  REQUIRE(logger.AddCategories(rex::log::kLogTestTable));
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = logger.AddSink(sink);
+  for (int i = 0; i < 10; ++i) {
+    WriteFirstThree(i);
+  }
+  REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", "error"));
+  for (int i = 0; i < 3; ++i) {
+    WriteFirstTwo(i);
+  }
+  REQUIRE(REX_SETTINGS().SetText("log.categories.logtest", ""));
+  for (int i = 3; i < 6; ++i) {
+    WriteFirstTwo(i);
+  }
+  sink_guard.Reset();
+  logger.RemoveCategories(rex::log::kLogTestTable);
+  REQUIRE(Texts(sink) == std::vector<std::string>{"run 0", "run 1", "run 2"});
+  ResetLogger();
+}
+
 REX_TEST_CASE("a category added twice is refused", "[base][logger]") {
   ResetLogger();
   Logger& logger = REX_LOGGER();
