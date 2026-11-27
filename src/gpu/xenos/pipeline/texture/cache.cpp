@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <mutex>
+#include <unordered_set>
 #include <utility>
 
 #include <rex/assert.h>
@@ -696,9 +698,25 @@ void TextureCache::GetTextureKeyFromFetchConstant(const xenos::TextureFetch& fet
   switch (fetch.type) {
     case xenos::FetchConstantType::kTexture:
       break;
-    case xenos::FetchConstantType::kInvalidTexture:
+    case xenos::FetchConstantType::kInvalidTexture: {
       if (settings_.allow_invalid_fetch_constants.Get()) {
         break;
+      }
+      // A title that never initialises a fetch constant draws with that value every time: one
+      // Halo 3 session logged the same six dwords 10,193 times in 70 s, 2.6 MB of log. Warn
+      // once per distinct value so the problem is visible without the flood.
+      static std::mutex logged_mutex;
+      static std::unordered_set<u64> logged;
+      u64 constant_hash = 0xCBF29CE484222325ull;
+      for (u32 dword : {fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4,
+                        fetch.dword_5}) {
+        constant_hash = (constant_hash ^ dword) * 0x100000001B3ull;
+      }
+      {
+        std::lock_guard lock(logged_mutex);
+        if (!logged.insert(constant_hash).second) {
+          return;
+        }
       }
       REXGPU_WARN(
           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
@@ -707,6 +725,7 @@ void TextureCache::GetTextureKeyFromFetchConstant(const xenos::TextureFetch& fet
           "xenos.allow_invalid_fetch_constants=true.",
           fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
       return;
+    }
     default:
       REXGPU_WARN(
           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
