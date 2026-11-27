@@ -63,6 +63,8 @@ struct BindingConfig {
   u32 group = 0;
   /** The stick a row binds, kNone for a plain list of inputs. */
   PadAxes axes = PadAxes::kNone;
+  /** The bits of the contexts the binding is active in. */
+  u32 conflict_mask = 0;
 };
 
 /**
@@ -144,7 +146,8 @@ class IBindingSet {
   virtual bool ResetGroup(u32 group) = 0;
 
   /**
-   * Finds another binding of the same group that already uses an input.
+   * Finds another binding that already uses an input and is in the same group or shares a bit of
+   * conflict_mask with the binding being edited.
    *
    * @param binding The index into the descriptions of the binding being edited.
    * @param source The input to look for, compared with IsSameInput.

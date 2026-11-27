@@ -119,7 +119,7 @@ App code that is not a game, such as an overlay or a tool, reads the keyboard an
 
 ## Adding App Key Bindings
 
-An app declares its own bindings with `IInputSystem::CreateBindingSet`, which returns a `rex::hid::IBindingSet` from `rex/hid/binding.h`. Each `BindingConfig` holds a name, the default inputs, a description, a group number and, optionally, the stick it binds. Bindings conflict only within one group. The example below sets group 1 and omits the stick, so its binding is a plain list of inputs.
+An app declares its own bindings with `IInputSystem::CreateBindingSet`, which returns a `rex::hid::IBindingSet` from `rex/hid/binding.h`. Each `BindingConfig` holds a name, the default inputs, a description, a group number and, optionally, the stick it binds. Two bindings conflict when they share a group, or when their `conflict_mask` values share a bit. The mask holds the bits of the contexts a binding is active in, so bindings of different groups that are active in one context still conflict, and the default mask 0 leaves a binding to its group. The example below sets group 1 and omits the mask and the stick, so its binding is a plain list of inputs.
 
 ```cpp
 static constexpr rex::hid::BindingConfig kBindings[] = {
@@ -132,6 +132,6 @@ auto bindings = GetInput().CreateBindingSet(kBindings, "bind");
 - Each binding becomes a string setting named after the scope and the binding, here `bind.jump`. The settings overlay captures a key press for it.
 - A stick binding is a list of up to eight keys. The positions are the first key of each of the four directions, then the second key of each direction. Each item fills the next position, an empty item skips a position, and a whole stick input such as `LStick` takes no position.
 - Call `SetSource`, `SetSources`, `Clear`, `Reset` and `ResetGroup` on the UI thread.
-- `FindConflict` finds another binding in the same group that uses an input.
+- `FindConflict` finds another binding that uses an input and is in the same group or shares a bit of `conflict_mask`. `ResetGroup` still resets one group only.
 - If any item of the text of a binding does not parse, the set rejects the whole text. `TakeParseErrors` returns a message for each bad item.
 - `FindBySetting` returns the binding index for a setting name, such as `bind.jump`.

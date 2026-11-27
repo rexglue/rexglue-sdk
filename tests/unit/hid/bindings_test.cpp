@@ -190,6 +190,21 @@ REX_TEST_CASE("BindingSet FindConflict looks only inside the group", "[hid][bind
   CHECK_FALSE(set.FindConflict(99, Parse("Space")));
 }
 
+REX_TEST_CASE("BindingSet FindConflict also reports bindings whose conflict masks overlap",
+              "[hid][bindings]") {
+  constexpr std::array<BindingConfig, 5> kMasked = {{
+      {"walk", "Space", "Walk", 1, PadAxes::kNone, 0b01},
+      {"drive", "Space", "Drive", 2, PadAxes::kNone, 0b11},
+      {"talk", "Space", "Talk", 3, PadAxes::kNone, 0b100},
+      {"look", "Space", "Look", 4, PadAxes::kNone, 0},
+      {"aim", "Space", "Aim", 4, PadAxes::kNone, 0},
+  }};
+  BindingSet set(kMasked);
+  CHECK(set.FindConflict(0, Parse("Space")) == std::optional<size_t>(1));
+  CHECK_FALSE(set.FindConflict(2, Parse("Space")));
+  CHECK(set.FindConflict(4, Parse("Space")) == std::optional<size_t>(3));
+}
+
 REX_TEST_CASE("BindingSet folds repeats in a plain list", "[hid][bindings]") {
   Run([](Registered& fixture) {
     fixture.Write("bind.jump", "W,W,Shift+W,W");

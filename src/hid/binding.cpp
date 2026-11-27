@@ -289,11 +289,14 @@ std::optional<size_t> BindingSet::FindConflict(size_t binding, const InputSource
   if (binding >= impl_->configs.size()) {
     return std::nullopt;
   }
-  const u32 group = impl_->configs[binding].group;
+  const BindingConfig& edited = impl_->configs[binding];
   impl_->Refresh();
   std::lock_guard lock(impl_->sources_mutex);
   for (size_t i = 0; i < impl_->configs.size(); ++i) {
-    if (i == binding || impl_->configs[i].group != group) {
+    const BindingConfig& other = impl_->configs[i];
+    const bool related =
+        other.group == edited.group || (other.conflict_mask & edited.conflict_mask) != 0;
+    if (i == binding || !related) {
       continue;
     }
     if (std::ranges::any_of(impl_->sources[i],
