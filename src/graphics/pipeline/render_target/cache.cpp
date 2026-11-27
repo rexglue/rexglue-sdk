@@ -24,6 +24,7 @@
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
+#include <rex/graphics/util/hdr_output.h>
 #include <rex/graphics/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -36,6 +37,13 @@ REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_for_psi_render_backend, tru
 
 REXCVAR_DEFINE_BOOL(snorm16_render_target_full_range, true, "GPU",
                     "Use full range for SNORM16 render targets");
+
+REXCVAR_DEFINE_BOOL(hdr_output, false, "GPU",
+                    "HDR output path: keep the render target that the guest resolves into the "
+                    "frontbuffer in float16 on the host, and present from that copy, so values "
+                    "above 1 written by a replaced final pass (an HDR shader mod or a host HDR "
+                    "pass) reach the presenter. Host render targets path only; D3D12 only")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 REXCVAR_DEFINE_BOOL(direct_host_resolve, true, "GPU",
                     "Resolve from host render targets directly to shared memory when possible")
@@ -489,7 +497,9 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         color_resource_format = is_64bpp ? xenos::ColorRenderTargetFormat::k_16_16_16_16
                                          : xenos::ColorRenderTargetFormat::k_8_8_8_8;
       } else {
-        color_resource_format = GetColorResourceFormat(xenos::GetStorageColorFormat(color_format));
+        color_resource_format = GetHdrOutputResourceFormat(
+            color_info.color_base, pitch_tiles_at_32bpp, msaa_samples,
+            GetColorResourceFormat(xenos::GetStorageColorFormat(color_format)));
       }
       resource_formats[rt_bit_index] = uint32_t(color_resource_format);
     }
@@ -759,6 +769,91 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   }
 
   return true;
+}
+
+xenos::ColorRenderTargetFormat RenderTargetCache::GetHdrOutputResourceFormat(
+    uint32_t base_tiles, uint32_t pitch_tiles_at_32bpp, xenos::MsaaSamples msaa_samples,
+    xenos::ColorRenderTargetFormat resource_format) const {
+  if (REXCVAR_GET(hdr_output) && hdr_output_target_.valid &&
+      hdr_output_target_.base_tiles == base_tiles &&
+      hdr_output_target_.pitch_tiles_at_32bpp == pitch_tiles_at_32bpp &&
+      hdr_output_target_.msaa_samples == msaa_samples &&
+      hdr_output_target_.storage_format == resource_format) {
+    return xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+  }
+  return resource_format;
+}
+
+RenderTargetCache::HdrOutputResolve RenderTargetCache::PrepareHdrOutputResolve(
+    draw_util::ResolveInfo& resolve_info, std::vector<ResolveCopyDumpRectangle>& rectangles_out) {
+  HdrOutputResolve result;
+  if (!REXCVAR_GET(hdr_output) || GetPath() != Path::kHostRenderTargets ||
+      !resolve_info.copy_dest_extent_length || resolve_info.IsCopyingDepth()) {
+    return result;
+  }
+  const draw_util::ResolveEdramInfo& color_edram_info = resolve_info.color_edram_info;
+  // Gamma render targets are not promoted, so the storage format is the
+  // resource format for every format accepted below.
+  xenos::ColorRenderTargetFormat source_format =
+      xenos::GetStorageColorFormat(xenos::ColorRenderTargetFormat(color_edram_info.format));
+  result.to_frontbuffer =
+      hdr_frontbuffer_address_ && resolve_info.copy_dest_base == hdr_frontbuffer_address_;
+  bool eligible = !color_edram_info.format_is_64bpp &&
+                  color_edram_info.msaa_samples == xenos::MsaaSamples::k1X &&
+                  (source_format == xenos::ColorRenderTargetFormat::k_2_10_10_10 ||
+                   source_format == xenos::ColorRenderTargetFormat::k_8_8_8_8);
+  if (!eligible) {
+    return result;
+  }
+  if (result.to_frontbuffer &&
+      (!hdr_output_target_.valid ||
+       hdr_output_target_.base_tiles != resolve_info.color_original_base ||
+       hdr_output_target_.pitch_tiles_at_32bpp != color_edram_info.pitch_tiles ||
+       hdr_output_target_.storage_format != source_format)) {
+    hdr_output_target_.valid = true;
+    hdr_output_target_.base_tiles = resolve_info.color_original_base;
+    hdr_output_target_.pitch_tiles_at_32bpp = color_edram_info.pitch_tiles;
+    hdr_output_target_.msaa_samples = xenos::MsaaSamples::k1X;
+    hdr_output_target_.storage_format = source_format;
+    REXGPU_INFO(
+        "HDR output: frontbuffer {:08X} is resolved from the color render target at EDRAM "
+        "tile {}, pitch {} tiles, format {}; storing it as float16",
+        hdr_frontbuffer_address_, hdr_output_target_.base_tiles,
+        hdr_output_target_.pitch_tiles_at_32bpp, uint32_t(source_format));
+  }
+  if (!hdr_output_target_.valid || hdr_output_target_.storage_format != source_format) {
+    return result;
+  }
+  uint32_t dump_base, dump_row_length_used, dump_rows, dump_pitch;
+  resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+  GetResolveCopyRectanglesToDump(dump_base, dump_row_length_used, dump_rows, dump_pitch,
+                                 rectangles_out);
+  if (rectangles_out.empty()) {
+    return result;
+  }
+  for (const ResolveCopyDumpRectangle& rectangle : rectangles_out) {
+    RenderTargetKey key = rectangle.render_target->key();
+    if (key.is_depth || key.base_tiles != hdr_output_target_.base_tiles ||
+        key.pitch_tiles_at_32bpp != hdr_output_target_.pitch_tiles_at_32bpp ||
+        key.msaa_samples != xenos::MsaaSamples::k1X ||
+        key.GetColorFormat() != xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT) {
+      return result;
+    }
+  }
+  result.from_hdr_target = true;
+  resolve_info.color_edram_info.format =
+      uint32_t(xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
+  if (resolve_info.IsClearingColor() && resolve_info.rb_color_clear) {
+    // The guest's clear color is packed for its own format.
+    resolve_info.rb_color_clear = util::RepackColorClearAsFloat7e3(
+        resolve_info.rb_color_clear, source_format == xenos::ColorRenderTargetFormat::k_8_8_8_8);
+  }
+  if (!result.to_frontbuffer && !hdr_other_resolve_logged_) {
+    hdr_other_resolve_logged_ = true;
+    REXGPU_INFO("HDR output: resolving the float16 render target to {:08X} as 7e3",
+                resolve_info.copy_dest_base);
+  }
+  return result;
 }
 
 uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(

@@ -1992,6 +1992,17 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
         fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
     return;
   }
+  // HDR output: present from the float16 copy of the frontbuffer resolve when
+  // the guest frontbuffer was last written from the promoted render target.
+  if (REXCVAR_GET(hdr_output)) {
+    render_target_cache_->SetHdrFrontbufferAddress(frontbuffer_ptr);
+    D3D12_SHADER_RESOURCE_VIEW_DESC hdr_srv_desc;
+    if (ID3D12Resource* hdr_frontbuffer =
+            render_target_cache_->GetHdrFrontbuffer(frontbuffer_ptr, hdr_srv_desc)) {
+      swap_texture_resource = hdr_frontbuffer;
+      swap_texture_srv_desc = hdr_srv_desc;
+    }
+  }
   D3D12_RESOURCE_DESC swap_texture_desc = swap_texture_resource->GetDesc();
   // The swap gamma / FXAA pass samples source texels by pixel index, but swap
   // textures may be allocation-padded. Prefer the active frontbuffer region

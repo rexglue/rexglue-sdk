@@ -58,6 +58,12 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   void CompletedSubmissionUpdated();
   void BeginSubmission();
 
+  // HDR output: float16 copy of the latest resolve from the HDR output render
+  // target into the frontbuffer at the address, transitioned for non-pixel
+  // shader reading, or nullptr if the address was last written another way.
+  ID3D12Resource* GetHdrFrontbuffer(uint32_t address,
+                                    D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out);
+
   Path GetPath() const override { return path_; }
 
   bool Update(bool is_rasterization_done, reg::RB_DEPTHCONTROL normalized_depth_control,
@@ -721,6 +727,15 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   // Temporary storage for DumpRenderTargets.
   std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
+
+  // HDR output frontbuffer copy (see GetHdrFrontbuffer).
+  void CopyHdrFrontbuffer(const draw_util::ResolveInfo& resolve_info);
+  Microsoft::WRL::ComPtr<ID3D12Resource> hdr_frontbuffer_;
+  D3D12_RESOURCE_STATES hdr_frontbuffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+  uint32_t hdr_frontbuffer_written_address_ = 0;
+  bool hdr_frontbuffer_valid_ = false;
+  // Replaced copies, released once the GPU is done with the submission.
+  std::deque<std::pair<uint64_t, Microsoft::WRL::ComPtr<ID3D12Resource>>> hdr_frontbuffers_retired_;
   std::vector<DumpInvocation> dump_invocations_;
   std::vector<ResolveCopyDispatch> direct_resolve_dispatches_;
 

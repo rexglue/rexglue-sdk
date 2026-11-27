@@ -180,7 +180,36 @@ class RenderTargetCache {
   // each.
   uint32_t GetLastUpdateBoundRenderTargets(uint32_t* depth_and_color_formats_out = nullptr) const;
 
+  // HDR output (hdr_output): the guest frontbuffer address of the latest swap.
+  // The 32bpp color render target resolved into it is stored on the host as
+  // k_2_10_10_10_FLOAT (float16), so values above 1 written into it (by a
+  // replaced final pass) survive until the swap.
+  void SetHdrFrontbufferAddress(uint32_t address) { hdr_frontbuffer_address_ = address; }
+
  protected:
+  struct HdrOutputTarget {
+    bool valid = false;
+    uint32_t base_tiles = 0;
+    uint32_t pitch_tiles_at_32bpp = 0;
+    xenos::MsaaSamples msaa_samples = xenos::MsaaSamples::k1X;
+    xenos::ColorRenderTargetFormat storage_format = xenos::ColorRenderTargetFormat::k_8_8_8_8;
+  };
+  // Storage format to use on the host for a color render target: the HDR
+  // output target is promoted to k_2_10_10_10_FLOAT, others are unchanged.
+  xenos::ColorRenderTargetFormat GetHdrOutputResourceFormat(
+      uint32_t base_tiles, uint32_t pitch_tiles_at_32bpp, xenos::MsaaSamples msaa_samples,
+      xenos::ColorRenderTargetFormat resource_format) const;
+  struct HdrOutputResolve {
+    // The resolved range is owned by the promoted render target: resolve_info
+    // now reads it as k_2_10_10_10_FLOAT (and clears it with a 7e3 color).
+    bool from_hdr_target = false;
+    // The resolve writes the guest frontbuffer of the latest swap.
+    bool to_frontbuffer = false;
+  };
+  HdrOutputTarget hdr_output_target_;
+  uint32_t hdr_frontbuffer_address_ = 0;
+  bool hdr_other_resolve_logged_ = false;
+
   RenderTargetCache(const RegisterFile& register_file, const memory::Memory& memory,
                     uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y)
       : register_file_(register_file),
@@ -519,6 +548,16 @@ class RenderTargetCache {
   // render target texture rectangle - textures may have any pitch they need)
   // from ResolveInfo::GetCopyEdramTileSpan and render targets owning them to
   // rectangles_out.
+  // For backends using host render targets, at the start of a color resolve:
+  // learns which render target the guest resolves into the frontbuffer, and
+  // for every resolve whose range that promoted render target owns (the
+  // frontbuffer, and others such as a save thumbnail), makes resolve_info read
+  // it as k_2_10_10_10_FLOAT, so the guest copy is converted from float16
+  // instead of being decoded in the guest's 32bpp format. rectangles_out
+  // receives the render targets dumped for the range. No-op with hdr_output
+  // off.
+  HdrOutputResolve PrepareHdrOutputResolve(draw_util::ResolveInfo& resolve_info,
+                                           std::vector<ResolveCopyDumpRectangle>& rectangles_out);
   void GetResolveCopyRectanglesToDump(uint32_t base, uint32_t row_length, uint32_t rows,
                                       uint32_t pitch,
                                       std::vector<ResolveCopyDumpRectangle>& rectangles_out) const;

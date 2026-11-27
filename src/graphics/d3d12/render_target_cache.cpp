@@ -960,6 +960,10 @@ bool D3D12RenderTargetCache::Initialize() {
 }
 
 void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
+  hdr_frontbuffer_.Reset();
+  hdr_frontbuffers_retired_.clear();
+  hdr_frontbuffer_valid_ = false;
+
   ui::d3d12::util::ReleaseAndNull(resolve_rov_clear_64bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(resolve_rov_clear_32bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(resolve_rov_clear_root_signature_);
@@ -1184,6 +1188,11 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
     return true;
   }
 
+  // HDR output (hdr_output): resolves from the promoted frontbuffer render
+  // target read it as 7e3; the one into the frontbuffer also keeps a float16
+  // copy for the swap (after copying, below).
+  HdrOutputResolve hdr_resolve = PrepareHdrOutputResolve(resolve_info, dump_rectangles_);
+
   DeferredCommandList& command_list = command_processor_.GetDeferredCommandList();
 
   // Copying.
@@ -1328,6 +1337,15 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
     }
   } else {
     copied = true;
+  }
+
+  if (copied && resolve_info.copy_dest_extent_length) {
+    if (hdr_resolve.from_hdr_target && hdr_resolve.to_frontbuffer) {
+      CopyHdrFrontbuffer(resolve_info);
+    } else if (hdr_frontbuffer_written_address_ &&
+               resolve_info.copy_dest_base == hdr_frontbuffer_written_address_) {
+      hdr_frontbuffer_valid_ = false;
+    }
   }
 
   // Clearing.
@@ -5535,6 +5553,141 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDirectResolvePipeline(
   }
   direct_resolve_pipelines_.emplace(key, pipeline);
   return pipeline;
+}
+
+void D3D12RenderTargetCache::CopyHdrFrontbuffer(const draw_util::ResolveInfo& resolve_info) {
+  hdr_frontbuffer_valid_ = false;
+  D3D12RenderTarget* render_target = nullptr;
+  for (const ResolveCopyDumpRectangle& rectangle : dump_rectangles_) {
+    RenderTargetKey key = rectangle.render_target->key();
+    if (!key.is_depth && key.base_tiles == hdr_output_target_.base_tiles &&
+        key.GetColorFormat() == xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT) {
+      render_target = static_cast<D3D12RenderTarget*>(rectangle.render_target);
+      break;
+    }
+  }
+  if (!render_target) {
+    return;
+  }
+  RenderTargetKey key = render_target->key();
+  uint32_t base_offset_tiles = resolve_info.color_edram_info.base_tiles - key.base_tiles;
+  if (resolve_info.color_edram_info.base_tiles < key.base_tiles || !key.pitch_tiles_at_32bpp) {
+    return;
+  }
+  uint32_t scale_x = draw_resolution_scale_x();
+  uint32_t scale_y = draw_resolution_scale_y();
+  D3D12_RESOURCE_DESC source_desc = render_target->resource()->GetDesc();
+  uint32_t x = ((base_offset_tiles % key.pitch_tiles_at_32bpp) * xenos::kEdramTileWidthSamples +
+                resolve_info.coordinate_info.edram_offset_x_div_8 * 8) *
+               scale_x;
+  uint32_t y = ((base_offset_tiles / key.pitch_tiles_at_32bpp) * xenos::kEdramTileHeightSamples +
+                resolve_info.coordinate_info.edram_offset_y_div_8 * 8) *
+               scale_y;
+  if (x >= source_desc.Width || y >= source_desc.Height) {
+    return;
+  }
+  uint32_t width = std::min(resolve_info.coordinate_info.width_div_8 * 8 * scale_x,
+                            uint32_t(source_desc.Width) - x);
+  uint32_t height =
+      std::min(resolve_info.height_div_8 * 8 * scale_y, uint32_t(source_desc.Height) - y);
+
+  uint64_t completed = command_processor_.GetCompletedSubmission();
+  while (!hdr_frontbuffers_retired_.empty() &&
+         hdr_frontbuffers_retired_.front().first <= completed) {
+    hdr_frontbuffers_retired_.pop_front();
+  }
+  if (hdr_frontbuffer_) {
+    D3D12_RESOURCE_DESC desc = hdr_frontbuffer_->GetDesc();
+    if (desc.Width != width || desc.Height != height) {
+      hdr_frontbuffers_retired_.emplace_back(command_processor_.GetCurrentSubmission(),
+                                             std::move(hdr_frontbuffer_));
+      hdr_frontbuffer_.Reset();
+    }
+  }
+  if (!hdr_frontbuffer_) {
+    const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
+    D3D12_RESOURCE_DESC desc = {};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    desc.Width = width;
+    desc.Height = height;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    desc.SampleDesc.Count = 1;
+    desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+    if (FAILED(provider.GetDevice()->CreateCommittedResource(
+            &ui::d3d12::util::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(), &desc,
+            D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&hdr_frontbuffer_)))) {
+      REXGPU_ERROR("HDR output: failed to create the {}x{} float16 frontbuffer copy", width,
+                   height);
+      return;
+    }
+    hdr_frontbuffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+  }
+
+  command_processor_.PushTransitionBarrier(
+      render_target->resource(), render_target->SetResourceState(D3D12_RESOURCE_STATE_COPY_SOURCE),
+      D3D12_RESOURCE_STATE_COPY_SOURCE);
+  command_processor_.PushTransitionBarrier(hdr_frontbuffer_.Get(), hdr_frontbuffer_state_,
+                                           D3D12_RESOURCE_STATE_COPY_DEST);
+  hdr_frontbuffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+  command_processor_.SubmitBarriers();
+  D3D12_TEXTURE_COPY_LOCATION location_dest;
+  location_dest.pResource = hdr_frontbuffer_.Get();
+  location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  location_dest.SubresourceIndex = 0;
+  D3D12_TEXTURE_COPY_LOCATION location_source;
+  location_source.pResource = render_target->resource();
+  location_source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  location_source.SubresourceIndex = 0;
+  D3D12_BOX box = {x, y, 0, x + width, y + height, 1};
+  DeferredCommandList& command_list = command_processor_.GetDeferredCommandList();
+  command_list.D3DCopyTextureRegion(&location_dest, 0, 0, 0, &location_source, &box);
+  // With resolution scaling, the guest's D3D half-pixel offset leaves the first
+  // scale / 2 host pixels on the left and top of the target uncovered by
+  // full-screen passes; they hold stale data (in a float target: arbitrary,
+  // often very bright values). The SDK's own resolve hides them by stretching
+  // the first covered pixel over them (resolve_resolution_scale_fill_half_pixel
+  // _offset); do the same here, from the source, so the HDR copy matches the
+  // guest frontbuffer.
+  uint32_t fill_x = resolve_info.color_edram_info.fill_half_pixel_offset ? scale_x >> 1 : 0;
+  uint32_t fill_y = resolve_info.color_edram_info.fill_half_pixel_offset ? scale_y >> 1 : 0;
+  if (fill_x < width && fill_y < height) {
+    for (uint32_t i = 0; i < fill_x; ++i) {
+      D3D12_BOX column = {x + fill_x, y + fill_y, 0, x + fill_x + 1, y + height, 1};
+      command_list.D3DCopyTextureRegion(&location_dest, i, fill_y, 0, &location_source, &column);
+    }
+    for (uint32_t j = 0; j < fill_y; ++j) {
+      D3D12_BOX row = {x + fill_x, y + fill_y, 0, x + width, y + fill_y + 1, 1};
+      command_list.D3DCopyTextureRegion(&location_dest, fill_x, j, 0, &location_source, &row);
+    }
+    D3D12_BOX corner = {x + fill_x, y + fill_y, 0, x + fill_x + 1, y + fill_y + 1, 1};
+    for (uint32_t j = 0; j < fill_y; ++j) {
+      for (uint32_t i = 0; i < fill_x; ++i) {
+        command_list.D3DCopyTextureRegion(&location_dest, i, j, 0, &location_source, &corner);
+      }
+    }
+  }
+  hdr_frontbuffer_written_address_ = resolve_info.copy_dest_base;
+  hdr_frontbuffer_valid_ = true;
+}
+
+ID3D12Resource* D3D12RenderTargetCache::GetHdrFrontbuffer(
+    uint32_t address, D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out) {
+  if (!REXCVAR_GET(hdr_output) || !hdr_frontbuffer_valid_ || !hdr_frontbuffer_ ||
+      address != hdr_frontbuffer_written_address_) {
+    return nullptr;
+  }
+  command_processor_.PushTransitionBarrier(hdr_frontbuffer_.Get(), hdr_frontbuffer_state_,
+                                           D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  hdr_frontbuffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+  srv_desc_out = {};
+  srv_desc_out.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+  srv_desc_out.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srv_desc_out.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srv_desc_out.Texture2D.MipLevels = 1;
+  return hdr_frontbuffer_.Get();
 }
 
 bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
