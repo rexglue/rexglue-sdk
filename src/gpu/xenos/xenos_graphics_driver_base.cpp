@@ -157,15 +157,20 @@ Result<void> XenosGraphicsDriverBase::AttachTitle(const TitleInfo& info, IPhysic
   auto thread = guest_interrupts_->StartHostThread("GPU VSync", [this](const std::stop_token&) {
     f64 refresh_rate_hz = std::max(1.0, static_cast<f64>(title_info_.video_mode.refresh_rate));
     u64 guest_tick_frequency = Clock::GetGuestTickFrequency();
-    u64 vsync_interval_ticks =
-        std::max(static_cast<u64>(1),
-                 static_cast<u64>(static_cast<f64>(guest_tick_frequency) / refresh_rate_hz));
     u64 no_vsync_interval_ticks = std::max(static_cast<u64>(1), guest_tick_frequency / 1000);
     const f64 nanoseconds_per_tick = 1e9 / static_cast<f64>(guest_tick_frequency);
     constexpr std::chrono::milliseconds kLongestSleep{50};
     u64 last_frame_time = Clock::QueryGuestTickCount();
+    u64 scheduled_interval = 0;
     while (vsync_worker_running_) {
-      u64 interval_ticks = IsVSyncEnabled() ? vsync_interval_ticks : no_vsync_interval_ticks;
+      const u64 interval_ticks =
+          IsVSyncEnabled()
+              ? GetVblankIntervalTicks(
+                    graphics_settings_ != nullptr ? graphics_settings_->vblank_rate.Get() : 0.0,
+                    refresh_rate_hz, guest_tick_frequency)
+              : no_vsync_interval_ticks;
+      ApplyVblankInterval(Clock::QueryGuestTickCount(), last_frame_time, scheduled_interval,
+                          interval_ticks);
       DeliverVblanks(
           Clock::QueryGuestTickCount(), last_frame_time, interval_ticks, kMaxVblankCatchUp,
           [this] { MarkVblank(); }, [this] { return vsync_worker_running_.load(); });

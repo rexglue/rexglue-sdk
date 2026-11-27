@@ -88,7 +88,7 @@ Recompiled code reaches the GPU registers through the MMIO block at `0x7FC80000`
 |---|---|---|
 | Present thread | `IGraphicsSystem` | The present calls and the overlays. |
 | `GPU Commands` | A Xenos driver when a game attaches | The PM4 command stream. |
-| `GPU VSync` | A Xenos driver when a game attaches | A vblank at the refresh rate of the video mode, or every millisecond when `gpu.vsync` is off. It can call into the game. |
+| `GPU VSync` | A Xenos driver when a game attaches | A vblank at `gpu.vblank_rate`, or at the refresh rate of the video mode when that is 0, or every millisecond when `gpu.vsync` is off. It can call into the game. |
 
 The `GPU VSync` thread calls into the game because the game registers a graphics interrupt callback that runs at each vblank. See [Driver Context](driver-context.md#host-threads) for how a driver thread raises it, and [Startup Order](../app/app-lifecycle.md#startup-order) for when the graphics system starts.
 

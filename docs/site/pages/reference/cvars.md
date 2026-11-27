@@ -162,6 +162,7 @@ Every program has these settings. Declared by [`GraphicsSettings`](../devices/gr
 | `gpu.driver` | `string` | `"any"` | init only | `d3d12`, `vulkan`, `null`, `none` or `any`. `any` is `d3d12` on Windows and `vulkan` elsewhere. `null` runs the graphics commands of the game and shows no picture. `none` fails in an app that requires graphics, such as a `TitleApp`. |
 | `gpu.vsync` | `bool` | `true` |  | Wait for vblank when presenting. Vulkan then presents with mailbox, else immediate, and uses FIFO only when both are disallowed. D3D12 waits for vblank. |
 | `gpu.frame_limit` | `f64` | `0.0` |  | Most presents per second. 0 is no limit. 0.0 to 1000.0. |
+| `gpu.vblank_rate` | `f64` | `0.0` |  | Guest vblank rate in Hz. 0 is the refresh rate of the video mode of the game. It does not change the refresh rate the game reads, so a game that presents on vblank is capped to this rate. Ignored when `gpu.vsync` is off. Values from 1.0 to 1000.0 apply. 0.0 to 1000.0. |
 | `gpu.resolution_scale_x` | `i32` | `1` | requires restart | Horizontal draw resolution scale. 1 to 8. |
 | `gpu.resolution_scale_y` | `i32` | `1` | requires restart | Vertical draw resolution scale. 1 to 8. |
 | `gpu.anisotropic_override` | `i32` | `3` |  | -1 keeps the choice of the game, 0 is off, 1 to 5 select 1x to 16x. |

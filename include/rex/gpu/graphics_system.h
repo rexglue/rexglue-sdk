@@ -39,6 +39,10 @@ class REX_GPU_API GraphicsSettings final : public SettingOwner {
   REX_SETTING(bool, vsync, true, "Wait for vertical blank when presenting");
   REX_SETTING(f64, frame_limit, 0.0, "Most presents per second, 0 for no limit",
               Range{0.0, 1000.0});
+  REX_SETTING(f64, vblank_rate, 0.0,
+              "Guest vblank rate in Hz, 0 for the refresh rate of the title's video mode. Ignored "
+              "when vsync is off",
+              Range{0.0, 1000.0});
   REX_SETTING(i32, resolution_scale_x, 1, "Draw resolution scale X", Range{1, 8}, kRequiresRestart);
   REX_SETTING(i32, resolution_scale_y, 1, "Draw resolution scale Y", Range{1, 8}, kRequiresRestart);
   REX_SETTING(i32, anisotropic_override, 3,
@@ -51,7 +55,7 @@ class REX_GPU_API GraphicsSettings final : public SettingOwner {
  * Vd calls and GPU register accesses to a Xenos driver. With no driver a project that presents
  * itself calls ReportFrame and UISystem::DrawOverlays from its own present.
  */
-REX_DECLARE_INTERFACE(IGraphicsSystem, 2)
+REX_DECLARE_INTERFACE(IGraphicsSystem, 3)
   virtual GraphicsSettings& GetSettings() = 0;
 
   virtual bool HasDriver() const = 0;
