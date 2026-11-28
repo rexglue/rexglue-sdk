@@ -413,7 +413,9 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
  *
  * Used memexport stream constants are stored because the CPU code needs addresses and sizes. eA is
  * expected to be written by `mad eA, r#, const0100, c#`, and export goes to vector_dest for both
- * vector and scalar operations so there is one check.
+ * vector and scalar operations so there is one check. The swizzle of the constant naming the stream
+ * is not part of the check: the descriptor is read from the whole constant register, so a broadcast
+ * such as `mad eA, c22.yyyy, c22.yyyy, c22.yyyy` names the same stream as c22 itself.
  *
  * @param exec_cf_index Control flow index of the containing exec.
  * @param ucode_disasm_buffer Buffer receiving the disassembly.
@@ -1329,8 +1331,7 @@ u32 ParsedALUInstruction::GetMemExportStreamConstant() const {
       !vector_and_constant_result.is_clamped &&
       vector_operands[2].storage_source == InstructionStorageSource::kConstantFloat &&
       vector_operands[2].storage_addressing_mode == InstructionStorageAddressingMode::kAbsolute &&
-      vector_operands[2].IsStandardSwizzle() && !vector_operands[2].is_negated &&
-      !vector_operands[2].is_absolute_value) {
+      !vector_operands[2].is_negated && !vector_operands[2].is_absolute_value) {
     return vector_operands[2].storage_index;
   }
   return UINT32_MAX;
