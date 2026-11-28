@@ -248,7 +248,7 @@ A project made with an earlier SDK includes `generated/rexglue.cmake`. The SDK n
 if (REXSDK_DIR)
   add_subdirectory("${REXSDK_DIR}" rexglue-sdk)
 else ()
-  find_package(rexglue 0.12.0 REQUIRED CONFIG)
+  find_package(rexglue 0.13.0 REQUIRED CONFIG)
 endif ()
 rexglue_project(foobar OUTPUT_DIR generated/default)
 ```
