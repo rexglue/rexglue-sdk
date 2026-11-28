@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -54,6 +55,14 @@ std::string WriteFile(const HarnessApp& app, std::string_view text) {
   const auto path = app.folder / "feed.toml";
   std::ofstream(path, std::ios::binary) << text;
   return "--config_file=" + path.string();
+}
+
+size_t CountWarnings(rex::log::LogCaptureSink& sink, std::string_view text) {
+  std::vector<rex::log::CapturedMessage> lines;
+  sink.CopySince(0, lines);
+  return static_cast<size_t>(std::ranges::count_if(lines, [&](const auto& line) {
+    return line.level == rex::log::Level::kWarn && line.text.contains(text);
+  }));
 }
 
 }  // namespace
@@ -121,31 +130,54 @@ REX_TEST_CASE("a setting on the command line is not an unknown option", "[base][
   app.Finish();
 }
 
-REX_TEST_CASE("a config file key holding an array fails Init naming the key and the file",
+REX_TEST_CASE("a config file key holding an array is ignored with a warning",
               "[base][settings_feed]") {
   HarnessApp app;
-  const auto arg = WriteFile(app, "[log]\ncategories = [1, 2]\n");
-  auto started = app.Start({arg});
-  REQUIRE_FALSE(started);
-  CHECK(started.error().message.find("key 'log.categories' is an array") != std::string::npos);
-  CHECK(started.error().message.find("feed.toml") != std::string::npos);
-  CHECK(app.Finish() == 1);
+  const auto arg = WriteFile(app, "[log]\ncategories = [1, 2]\nlevel = \"debug\"\n");
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  REQUIRE(app.Start({arg}));
+  CHECK(REX_LOGGER().level.Get() == "debug");
+  app.Finish();
+  sink_guard.Reset();
+  CHECK(CountWarnings(sink, "key 'log.categories' is an array") == 1);
 }
 
-REX_TEST_CASE("a no flag on a setting that is not a bool fails Init", "[base][settings_feed]") {
+REX_TEST_CASE("a no flag on a setting that is not a bool warns and keeps the value",
+              "[base][settings_feed]") {
   HarnessApp app;
-  auto started = app.Start({"--no-log.level"});
-  REQUIRE_FALSE(started);
-  CHECK(started.error().message.find("--no-log.level needs a bool setting") != std::string::npos);
-  CHECK(app.Finish() == 1);
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  REQUIRE(app.Start({"--no-log.level"}));
+  CHECK(REX_LOGGER().level.GetLayer() == SettingLayer::kDefault);
+  app.Finish();
+  sink_guard.Reset();
+  CHECK(CountWarnings(sink, "--no-log.level needs a bool setting") == 1);
 }
 
-REX_TEST_CASE("a refused setting value fails Init", "[base][settings_feed]") {
+REX_TEST_CASE("a refused setting value warns and keeps the value", "[base][settings_feed]") {
   HarnessApp app;
-  auto started = app.Start({"--log.level=loud"});
-  REQUIRE_FALSE(started);
-  CHECK(started.error().message.find("loud") != std::string::npos);
-  CHECK(app.Finish() == 1);
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  REQUIRE(app.Start({"--log.level=loud"}));
+  CHECK(REX_LOGGER().level.Get() != "loud");
+  CHECK(REX_LOGGER().level.GetLayer() == SettingLayer::kDefault);
+  app.Finish();
+  sink_guard.Reset();
+  CHECK(CountWarnings(sink, "loud") == 1);
+}
+
+REX_TEST_CASE("a config file that does not parse is ignored with a warning",
+              "[base][settings_feed]") {
+  HarnessApp app;
+  const auto arg = WriteFile(app, "[log\nlevel = = debug\n");
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  REQUIRE(app.Start({arg}));
+  CHECK(REX_LOGGER().level.GetLayer() == SettingLayer::kDefault);
+  app.Finish();
+  sink_guard.Reset();
+  CHECK(CountWarnings(sink, "feed.toml") == 1);
 }
 
 REX_TEST_CASE("unknown name reported once", "[base][settings_feed]") {

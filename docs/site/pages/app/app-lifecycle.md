@@ -125,7 +125,7 @@ See [Exit Code](#exit-code) for the value that `main` returns.
 15. `OnInit` runs. The systems run and the window is open.
 16. The app reports each setting name that a source set and that no settings class declares.
 
-A shutdown or restart requested in `OnConfigure` or in `OnAction` ends `Init` after step 10, once the log file is open and holds what `OnConfigure` and `OnAction` logged. The instance lock and the config file apply before that point, and a failure in them is an error as usual. No driver module loads, `OnInit` does not run, `Init` returns Ok and logs no error, and the program goes on to `Shutdown`, which starts the new process when a restart was requested. If your code calls `Init` itself, check `rex::app::IsShutdownRequested` after it returns. True means that the start was cut short. A request made in `OnInit` or later does not change the start.
+A shutdown or restart requested in `OnConfigure` or in `OnAction` ends `Init` after step 10, once the log file is open and holds what `OnConfigure` and `OnAction` logged. The instance lock and the config file apply before that point, and a failure in the instance lock is an error as usual. No driver module loads, `OnInit` does not run, `Init` returns Ok and logs no error, and the program goes on to `Shutdown`, which starts the new process when a restart was requested. If your code calls `Init` itself, check `rex::app::IsShutdownRequested` after it returns. True means that the start was cut short. A request made in `OnInit` or later does not change the start.
 
 Steps 4 to 12 run inside the `select_plugins` callback of `rex::Init`, after the modules connect and before they init. See [Modules and Interfaces](modules.md#lifecycle) for that callback.
 
@@ -141,11 +141,11 @@ A failed step calls `ReportError`, which logs the error, and `App::Init` returns
 |---|---|
 | 3, 13 | A module fails to load, connect or init. A driver module that fails to load only logs a warning, but a system that needs it then fails to init. |
 | 4, 6, 15 | `OnConfigure`, `OnAction` or `OnInit` returns an error. |
-| 5 | An option is not a setting name, an action or one of the [older options](settings.md#command-line), or a setting rejects its value. `GetActions` returns an action with an invalid name, a duplicate name or the name of an older option. |
+| 5 | `GetActions` returns an action with an invalid name, a duplicate name or the name of an older option. An option that is not a setting name, an action or one of the [older options](settings.md#command-line), and a refused value, log a warning and are skipped. |
 | 7 | Another running copy holds the instance lock. |
-| 8 | The config file does not parse. A missing file is not an error. Clearing `app.config_file` in `OnConfigure` skips the step. |
 | 13 | A system that the app requires has no driver. A `TitleApp` fails when `gpu.driver`, `apu.driver`, `ui.driver` or `hid.drivers` is `none`. |
-| 16 | No settings class declares a setting name from the command line. A name from the config file only logs a warning. An environment variable for an unknown name is never read. |
+
+A mistake in a setting from the player never fails a step. A config file that does not parse, a refused value and an unknown name or option each log a warning, and the app starts with the earlier value. See [Values and Errors](settings.md#values-and-errors). An environment variable for an unknown name is never read.
 
 See [Selecting Drivers](modules.md#selecting-drivers) for the driver settings.
 

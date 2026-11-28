@@ -11,6 +11,7 @@
 #include "rex_test.h"
 #include "object_app.h"
 
+#include <algorithm>
 #include <array>
 #include <optional>
 #include <span>
@@ -19,6 +20,7 @@
 
 #include <rex/app/app.h>
 #include <rex/cli.h>
+#include <rex/logging/logger.h>
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
 
@@ -136,17 +138,33 @@ REX_TEST_CASE("Actions are reported in command line order and a repeat reports t
 
 REX_TEST_CASE("An action takes no negation", "[app][cli][action]") {
   ActionApp app;
-  auto started = app.Start({"--no-repair"});
-  REQUIRE_FALSE(started);
-  CHECK(started.error().message == "unknown option '--no-repair'");
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  REQUIRE(app.Start({"--no-repair"}));
   CHECK(app.hits.empty());
   app.Shutdown();
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  CHECK(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
+    return entry.level == rex::log::Level::kWarn &&
+           entry.text.contains("unknown option '--no-repair'");
+  }));
 }
 
 REX_TEST_CASE("An undeclared action name is unknown", "[app][cli][action]") {
-  auto parsed = rex::app::detail::ParseCommandLine(Args({"--repair"}));
-  REQUIRE_FALSE(parsed);
-  CHECK(parsed.error().message == "unknown option '--repair'");
+  rex::test::RunInInit([] {
+    rex::log::LogCaptureSink sink;
+    auto sink_guard = REX_LOGGER().AddSink(sink);
+    rex::app::detail::ParseCommandLine(Args({"--repair"}));
+    sink_guard.Reset();
+    std::vector<rex::log::CapturedMessage> entries;
+    sink.CopySince(0, entries);
+    CHECK(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
+      return entry.level == rex::log::Level::kWarn &&
+             entry.text.contains("unknown option '--repair'");
+    }));
+  });
 }
 
 REX_TEST_CASE("Declared actions validate when names are unique and not structural flags",

@@ -28,17 +28,18 @@ toml::table& TableFor(toml::table& root, std::string_view dotted_scope) {
   return *table;
 }
 
-Result<void> CollectLeaves(const toml::table& table, const std::string& prefix,
-                           const std::filesystem::path& file,
-                           std::vector<std::pair<std::string, std::string>>& out) {
+void CollectLeaves(const toml::table& table, const std::string& prefix,
+                   const std::filesystem::path& file,
+                   std::vector<std::pair<std::string, std::string>>& out,
+                   std::vector<std::string>& notices) {
   for (auto&& [key, node] : table) {
     std::string name =
         prefix.empty() ? std::string(key.str()) : prefix + "." + std::string(key.str());
     if (auto* child = node.as_table()) {
-      REX_TRY_VOID(CollectLeaves(*child, name, file, out));
+      CollectLeaves(*child, name, file, out, notices);
     } else if (node.is_array()) {
-      return Err(ErrorCategory::kConfig,
-                 std::format("{}: key '{}' is an array", file.string(), name));
+      notices.push_back(
+          std::format("{}: key '{}' is an array, so it is ignored", file.string(), name));
     } else if (auto* b = node.as_boolean()) {
       out.emplace_back(name, b->get() ? "true" : "false");
     } else if (auto* i = node.as_integer()) {
@@ -49,7 +50,6 @@ Result<void> CollectLeaves(const toml::table& table, const std::string& prefix,
       out.emplace_back(name, s->get());
     }
   }
-  return Ok();
 }
 
 }  // namespace
@@ -111,11 +111,15 @@ Result<void> SettingsRegistry::Load(const std::filesystem::path& file, SettingLa
                std::format("{}: {}", file.string(), std::string(error.description())));
   }
   std::vector<std::pair<std::string, std::string>> leaves;
-  REX_TRY_VOID(CollectLeaves(parsed, {}, file, leaves));
+  std::vector<std::string> notices;
+  CollectLeaves(parsed, {}, file, leaves, notices);
+  for (std::string& notice : notices) {
+    state_->AddNotice(std::move(notice));
+  }
   for (auto& [name, text] : leaves) {
     if (auto r = SetText(layer, name, text); !r) {
-      return Err(ErrorCategory::kConfig,
-                 std::format("{}: {}", file.string(), r.error().GetDescription()));
+      state_->AddNotice(
+          std::format("{}: {}, so it is ignored", file.string(), r.error().GetDescription()));
     }
   }
   return Ok();

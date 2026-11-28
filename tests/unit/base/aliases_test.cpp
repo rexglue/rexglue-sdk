@@ -388,7 +388,7 @@ REX_TEST_CASE("the structural flags map to their settings", "[base][aliases]") {
                                            "--metadata_root=" + base + "/meta",
                                            "--config_file=" + base + "/x.toml",
                                            "--gpu.driver=any"};
-    CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args));
     CHECK(Count(sink, "--modules sets no setting, drivers are chosen by driver settings") == 1);
     const std::pair<const char*, std::string> expected[] = {{"title.game_root", base + "/game"},
                                                             {"app.user_root", base + "/user"},
@@ -415,7 +415,7 @@ REX_TEST_CASE("an old flat name on the command line sets the new setting", "[bas
   HarnessApp app;
   app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     const std::vector<std::string> args = {"--log_flush_interval=5"};
-    CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args));
     auto found = REX_SETTINGS().Find("log.flush_interval");
     REQUIRE(found);
     CHECK((*found)->GetLayer() == SettingLayer::kCommandLine);
@@ -444,7 +444,7 @@ REX_TEST_CASE("an old flat bool name takes the bare form", "[base][aliases]") {
   HarnessApp app;
   app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     const std::vector<std::string> args = {"--clock_no_scaling"};
-    CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args));
     auto found = REX_SETTINGS().Find("clock.no_scaling");
     REQUIRE(found);
     CHECK((*found)->GetLayer() == SettingLayer::kCommandLine);
@@ -459,7 +459,7 @@ REX_TEST_CASE("an old flat bool name takes the no form", "[base][aliases]") {
   HarnessApp app;
   app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
     const std::vector<std::string> args = {"--no-clock_no_scaling"};
-    CHECK(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args));
     auto found = REX_SETTINGS().Find("clock.no_scaling");
     REQUIRE(found);
     CHECK((*found)->GetLayer() == SettingLayer::kCommandLine);
@@ -472,9 +472,12 @@ REX_TEST_CASE("an old flat bool name takes the no form", "[base][aliases]") {
 
 REX_TEST_CASE("a flat name that is no alias stays an unknown option", "[base][aliases]") {
   HarnessApp app;
+  rex::log::LogCaptureSink sink;
   app.configure = [&](rex::SettingsRegistry&) -> rex::Result<void> {
+    auto sink_guard = REX_LOGGER().AddSink(sink);
     const std::vector<std::string> args = {"--no_such_flat_name=1"};
-    CHECK_FALSE(rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args)));
+    rex::app::detail::ParseCommandLine(rex::CLIArgList::Parse(args));
+    CHECK(Count(sink, "unknown option '--no_such_flat_name=1'") == 1);
     return rex::Ok();
   };
   REQUIRE(app.Start());

@@ -354,6 +354,56 @@ REX_TEST_CASE("settings: save writes changed settings and load reads them back",
   std::filesystem::remove(file);
 }
 
+REX_TEST_CASE("settings: a refused value in the config file is skipped and the rest applies",
+              "[base][settings]") {
+  AudioOwner audio;
+  HarnessApp app;
+  app.configure = [&](rex::SettingsRegistry& settings) -> rex::Result<void> {
+    return settings.Register(audio);
+  };
+  const auto file = app.folder / "refused.toml";
+  std::ofstream(file, std::ios::binary) << "[audio]\nsamples = 3\ncount = 9\n";
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  REQUIRE(app.Start({"--config_file=" + file.string()}));
+  CHECK(audio.samples.Get() == 0);
+  CHECK(audio.count.Get() == 9);
+  app.Finish();
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> lines;
+  sink.CopySince(0, lines);
+  CHECK(std::ranges::any_of(lines, [](const rex::log::CapturedMessage& line) {
+    return line.level == rex::log::Level::kWarn && line.text.contains("refused.toml") &&
+           line.text.contains("audio.samples: '3' is not an accepted value") &&
+           line.text.ends_with(", so it is ignored");
+  }));
+}
+
+REX_TEST_CASE("settings: a command line value that does not parse keeps the default",
+              "[base][settings]") {
+  AudioOwner audio;
+  HarnessApp app;
+  app.configure = [&](rex::SettingsRegistry& settings) -> rex::Result<void> {
+    return settings.Register(audio);
+  };
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  REQUIRE(app.Start({"--audio.count=abc", "--no-audio.count", "--audio.flag"}));
+  CHECK(audio.count.Get() == 3);
+  CHECK(audio.flag.Get());
+  app.Finish();
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> lines;
+  sink.CopySince(0, lines);
+  const auto warned = [&](std::string_view text) {
+    return std::ranges::any_of(lines, [&](const rex::log::CapturedMessage& line) {
+      return line.level == rex::log::Level::kWarn && line.text.contains(text);
+    });
+  };
+  CHECK(warned("audio.count: 'abc'"));
+  CHECK(warned("--no-audio.count needs a bool setting"));
+}
+
 REX_TEST_CASE("settings: a duplicate full name is refused and names both owners",
               "[base][settings]") {
   RunInInit([] {

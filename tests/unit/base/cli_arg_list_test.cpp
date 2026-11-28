@@ -10,12 +10,15 @@
 
 #include "rex_test.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
 #include <rex/cli.h>
+#include <rex/logging/logger.h>
 
 #include "app/command_line.h"
+#include "base/app_harness.h"
 
 namespace {
 
@@ -54,8 +57,17 @@ REX_TEST_CASE("A trailing option without a value has none", "[base][cli]") {
   REQUIRE_FALSE(args.Get("last").has_value());
 }
 
-REX_TEST_CASE("A structural option without a value is unknown", "[base][cli]") {
-  auto parsed = rex::app::detail::ParseCommandLine(Args({"--game_data_root"}));
-  REQUIRE_FALSE(parsed);
-  REQUIRE(parsed.error().message == "unknown option '--game_data_root'");
+REX_TEST_CASE("A structural option without a value warns", "[base][cli]") {
+  rex::test::RunInInit([] {
+    rex::log::LogCaptureSink sink;
+    auto sink_guard = REX_LOGGER().AddSink(sink);
+    rex::app::detail::ParseCommandLine(Args({"--game_data_root"}));
+    sink_guard.Reset();
+    std::vector<rex::log::CapturedMessage> entries;
+    sink.CopySince(0, entries);
+    REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
+      return entry.level == rex::log::Level::kWarn &&
+             entry.text.contains("unknown option '--game_data_root'");
+    }));
+  });
 }

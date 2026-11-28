@@ -257,7 +257,7 @@ class REX_APP_API App : public SettingOwner {
   void SetPhase(AppPhase phase);
 
  private:
-  [[nodiscard]] Result<void> ReportUnknownSettings();
+  void ReportUnknownSettings();
 
   struct State;
   std::unique_ptr<State> state_;

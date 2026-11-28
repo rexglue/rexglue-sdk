@@ -126,9 +126,10 @@ REX_DECLARE_INTERFACE(ISettingsRegistry, 2)
 
   /**
    * Reads a TOML file into the runtime layer. Old names apply through the alias table.
+   * A refused value or an array key is skipped with a notice and the rest applies.
    *
    * @param layer The layer the values apply at.
-   * @return Ok, or an error naming the file and the first refused value.
+   * @return Ok, or an error when the file cannot be read or parsed.
    */
   [[nodiscard]] virtual Result<void> Load(const std::filesystem::path& file,
                                           SettingLayer layer = SettingLayer::kRuntime) = 0;

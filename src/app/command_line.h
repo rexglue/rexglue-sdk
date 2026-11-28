@@ -27,15 +27,14 @@ namespace rex::app::detail {
  * --scope.name=value and --scope.name set a setting, --no-scope.name sets it false.
  * --game_data_root, --user_data_root, --update_data_root, --cache_root, --metadata_root and
  * --config_file set the matching setting. --modules sets nothing and logs a warning.
+ * A refused value and an unknown option log a warning and are skipped.
  *
  * @param args The parsed command line.
  * @param actions The actions the app declares.
  * @param hits Receives each declared action found, in command line order. May be null.
- * @return Ok, or a Config error for unknown options or a setting that refuses its value.
  */
-[[nodiscard]] Result<void> ParseCommandLine(const CLIArgList& args,
-                                            std::span<const CLIAction> actions = {},
-                                            std::vector<CLIActionHit>* hits = nullptr);
+void ParseCommandLine(const CLIArgList& args, std::span<const CLIAction> actions = {},
+                      std::vector<CLIActionHit>* hits = nullptr);
 
 /**
  * Checks the actions an app declares.

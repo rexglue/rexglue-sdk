@@ -355,18 +355,26 @@ REX_TEST_CASE_METHOD(Fixture, "a structural flag overrides OnConfigure", "[app][
   app.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "An unknown option fails Init and names it", "[app][app]") {
+REX_TEST_CASE_METHOD(Fixture, "An unknown option warns and Init succeeds", "[app][app]") {
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
   TestApp app;
-  auto result = app.Init(Args({"--nope=1"}));
-  REQUIRE_FALSE(result);
-  REQUIRE(result.error().message.find("--nope=1") != std::string::npos);
-  REQUIRE(app.Shutdown() == 1);
+  REQUIRE(app.Init(Args({"--nope=1"})));
+  CHECK(app.Shutdown() == 0);
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  CHECK(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
+    return entry.level == rex::log::Level::kWarn &&
+           entry.text.contains("unknown option '--nope=1'");
+  }));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Shutdown after a failed module start leaves the systems alone",
                      "[app][app]") {
   TestApp app;
-  REQUIRE_FALSE(app.Init(Args({"--nope=1"})));
+  app.fail_configure = true;
+  REQUIRE_FALSE(app.Init(Args()));
   g_events.clear();
   REQUIRE(app.Shutdown() == 1);
   REQUIRE(std::ranges::find(g_events, "app:init") == g_events.end());
@@ -747,13 +755,20 @@ REX_TEST_CASE_METHOD(Fixture, "two apps in one process", "[app][app]") {
   CHECK(second.GetPhase() == rex::app::AppPhase::kShutdown);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "an unknown setting on the command line fails Init and names it",
+REX_TEST_CASE_METHOD(Fixture, "an unknown setting on the command line is only a warning",
                      "[app][app]") {
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
   TestApp app;
-  auto result = app.Init(Args({"--nope.thing=1"}));
-  REQUIRE_FALSE(result);
-  CHECK(result.error().message == "unknown setting 'nope.thing' from CommandLine");
-  CHECK(app.Shutdown() == 1);
+  REQUIRE(app.Init(Args({"--nope.thing=1"})));
+  CHECK(app.Shutdown() == 0);
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  CHECK(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
+    return entry.level == rex::log::Level::kWarn &&
+           entry.text.contains("unknown setting 'nope.thing' from CommandLine");
+  }));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "an unknown setting from the config file is only a warning",

@@ -28,7 +28,7 @@ See [When a Setting Can Change](../app/settings.md#when-a-setting-can-change) fo
 
 - A setting exists while its [settings class](../app/settings.md#declaring-settings) exists. Each table gives its settings class.
 - A value can be given for a setting before its settings class is registered, for example for a driver setting. The SDK keeps the value and applies it when the class registers.
-- A name that no class has declared by the end of startup logs a warning when it came from the config file, and stops startup when it came from the command line.
+- A name that no class has declared by the end of startup logs a warning when it came from the config file or the command line.
 - The SDK reads an environment variable only for a registered setting.
 
 See [Unknown Names](../app/settings.md#unknown-names).

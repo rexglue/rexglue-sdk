@@ -489,11 +489,10 @@ struct StartupBoxScope {
 
 class FailingStartApp : public rex::test::ObjectApp<rex::app::TitleApp> {
  public:
-  explicit FailingStartApp(bool missing_module, bool headless_setting, bool fail_configure = true)
+  FailingStartApp(bool missing_module, bool headless_setting)
       : ObjectApp("failing_start", {}),
         missing_module_(missing_module),
-        headless_setting_(headless_setting),
-        fail_configure_(fail_configure) {}
+        headless_setting_(headless_setting) {}
 
   rex::Result<void> Start(std::vector<std::string> args) {
     return Init(rex::CLIArgList::Parse(std::span<const std::string>(args)));
@@ -514,16 +513,12 @@ class FailingStartApp : public rex::test::ObjectApp<rex::app::TitleApp> {
     if (headless_setting_) {
       REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     }
-    if (fail_configure_) {
-      return rex::Err<void>(rex::ErrorCategory::kConfig, "configure failed");
-    }
-    return rex::Ok();
+    return rex::Err<void>(rex::ErrorCategory::kConfig, "configure failed");
   }
 
  private:
   bool missing_module_;
   bool headless_setting_;
-  bool fail_configure_;
 };
 
 }  // namespace
@@ -546,16 +541,6 @@ REX_TEST_CASE("A module that fails to load with --ui.driver=none shows no box", 
     CHECK(app.Shutdown() == 1);
   }
   CHECK(g_startup_boxes == 0);
-}
-
-REX_TEST_CASE("An unknown option shows one box", "[ui][title_app]") {
-  StartupBoxScope scope;
-  {
-    FailingStartApp app(false, false, false);
-    REQUIRE_FALSE(app.Start({"--nope=1"}));
-    CHECK(app.Shutdown() == 1);
-  }
-  CHECK(g_startup_boxes == 1);
 }
 
 REX_TEST_CASE("A module that fails to load shows one box", "[ui][title_app]") {

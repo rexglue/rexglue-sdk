@@ -382,9 +382,7 @@ Result<void> App::Init(const CLIArgList& args) {
       return failed("command line action", valid.error());
     }
     std::vector<CLIActionHit> hits;
-    if (auto parsed = rex::app::detail::ParseCommandLine(state.args, actions, &hits); !parsed) {
-      return failed("command line", parsed.error());
-    }
+    rex::app::detail::ParseCommandLine(state.args, actions, &hits);
     for (const std::string& positional : state.args.GetPositionals()) {
       state.positionals.push_back(positional);
     }
@@ -404,7 +402,7 @@ Result<void> App::Init(const CLIArgList& args) {
       std::error_code exists;
       if (std::filesystem::exists(file, exists)) {
         if (auto loaded = settings.Load(file, SettingLayer::kFile); !loaded) {
-          return failed("config file", loaded.error());
+          REXLOG_WARN("{}, so the config file is ignored", loaded.error().GetDescription());
         }
       }
     }
@@ -475,28 +473,22 @@ Result<void> App::Init(const CLIArgList& args) {
     return Fail("OnInit", initialized.error());
   }
   state.on_init_done = true;
-  REX_TRY_VOID(ReportUnknownSettings());
+  ReportUnknownSettings();
   state.init_done = true;
   return Ok();
 }
 
-Result<void> App::ReportUnknownSettings() {
-  std::string hard;
+void App::ReportUnknownSettings() {
   for (const UnknownSetting& unknown :
        state_->private_host->Get<ISettingsRegistryControl>()->TakeUnknown()) {
-    if (unknown.layer == SettingLayer::kCommandLine) {
-      hard += std::format("{}unknown setting '{}' from CommandLine", hard.empty() ? "" : ", ",
-                          unknown.name);
-    } else if (unknown.layer == SettingLayer::kFile ||
-               unknown.layer == SettingLayer::kEnvironment) {
+    if (unknown.layer == SettingLayer::kCommandLine || unknown.layer == SettingLayer::kFile ||
+        unknown.layer == SettingLayer::kEnvironment) {
       REXLOG_WARN("unknown setting '{}' from {}", unknown.name,
-                  unknown.layer == SettingLayer::kFile ? "Config" : "Environment");
+                  unknown.layer == SettingLayer::kCommandLine ? "CommandLine"
+                  : unknown.layer == SettingLayer::kFile      ? "Config"
+                                                              : "Environment");
     }
   }
-  if (!hard.empty()) {
-    return Fail("command line", Error(ErrorCategory::kConfig, std::move(hard)));
-  }
-  return Ok();
 }
 
 void App::Run() {

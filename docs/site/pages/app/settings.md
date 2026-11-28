@@ -37,7 +37,7 @@ A trait after the help text in `REX_SETTING` limits the values or changes when a
 
 | Trait | Effect | Example |
 |---|---|---|
-| `Range{min, max}` | Refuses a number outside the range. | `apu.gain` has `Range{0.0, 4.0}`, so `gain = 40` under `[apu]` in the config file stops startup with the file name and the reason. |
+| `Range{min, max}` | Refuses a number outside the range. | `apu.gain` has `Range{0.0, 4.0}`, so `gain = 40` under `[apu]` in the config file logs a warning with the file name and the reason, and the gain keeps its default. |
 | `Allowed(...)` | Accepts only the listed values. Each entry is compared as the type of the setting, so `"2"` and `"02"` are the same integer. | `log.level` accepts the level names from `trace` to `off`, so `warning` is refused. |
 | `kRequiresRestart` | Applies a change at the next start of the program. | `gpu.resolution_scale_x` can be changed in the settings overlay, and the new scale applies after a restart. |
 | `kInitOnly` | Refuses writes once the systems have started. | `apu.driver` selects the audio driver module, which loads during startup. |
@@ -160,7 +160,7 @@ A program with no `App` registers its settings classes with `REX_SETTINGS()` and
 
 Put positional arguments before the options, or write each option as `--name=value`, because a positional argument after `--scope.name` is read as its value.
 
-Seven older options without a scope are accepted. Six of them, such as `--game_data_root` and `--config_file`, each set one setting. `--modules` sets no setting and logs a warning. Each fails with "unknown option" when it has no value. See [Command Line Options](../reference/cvars.md#command-line-options) for the list.
+Seven older options without a scope are accepted. Six of them, such as `--game_data_root` and `--config_file`, each set one setting. `--modules` sets no setting and logs a warning. Each logs an "unknown option" warning and is skipped when it has no value. See [Command Line Options](../reference/cvars.md#command-line-options) for the list.
 
 An action that your program declares in `GetActions`, such as `--version`, is not a setting. The app passes it to `OnAction`.
 
@@ -171,7 +171,7 @@ Every app reads the TOML file at `app.config_file`, `{app.root}/{app.name}.toml`
 - `--config_file` or `--app.config_file` replaces the path.
 - An empty path reads no file.
 - A missing file is not an error.
-- A file that fails to parse stops startup.
+- A file that fails to parse logs a warning and the app starts without it.
 
 ```toml
 [gpu]
@@ -236,25 +236,25 @@ A write to a frozen setting returns an error with "can no longer change". A writ
 - A value outside the range or the allowed list is refused, never clamped. Only the settings overlay clamps a number typed into it.
 - The settings overlay shows a setting that has an allowed list, other than a bool, as a list of those values.
 
-What happens to a refused value depends on its source:
+A mistake in a setting from the player logs one warning, and the setting keeps the value it had from the lower layers. Startup continues.
 
-- On the command line, it stops startup with the setting, the text and the reason.
-- In the config file, it stops startup with the file name and the reason. The values from the file that were applied before it stay applied.
-- In the environment, it logs a warning and is ignored.
-- For a setting whose class registers later, it logs a warning when the class registers and is ignored.
-- From `SettingsRegistry::SetText` or `Set()`, it returns an error and keeps the old value.
-- `--no-scope.name` on a setting that is not a bool stops startup.
+- A refused value on the command line, `--no-scope.name` on a setting that is not a bool and an unknown option each log a warning and are skipped.
+- A refused value in the config file logs a warning with the file name, the setting, the text and the reason. The rest of the file still applies.
+- A config file that does not parse logs a warning and the app starts without it. `SettingsRegistry::Load` still returns the error.
+- A refused value in the environment logs a warning and is ignored.
+- For a setting whose class registers later, a refused value logs a warning when the class registers and is ignored.
+- `SettingsRegistry::SetText` and `Set()` from code return an error and keep the old value.
+
+The app still checks the command line actions that the program declares at startup. An action declared twice, an invalid action name or a name shared with a command line flag stops startup, because the mistake is in the program.
 
 ### Unknown Names
 
 After `OnInit`, the app reports every name that a source set and that no registered settings class declares:
 
-- A name from the command line stops startup with "unknown setting 'name' from CommandLine".
+- A name from the command line logs the warning "unknown setting 'name' from CommandLine".
 - A name from the config file logs the warning "unknown setting 'name' from Config".
 - An environment variable for an unknown name is never read.
-- An option that is not shaped like a setting name stops startup with "unknown option".
-
-An unknown name given both on the command line and in the config file stops startup, because the command line is the higher source.
+- An option that is not shaped like a setting name logs the warning "unknown option".
 
 ## Values Before Registration
 

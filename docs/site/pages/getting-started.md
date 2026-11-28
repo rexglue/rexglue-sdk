@@ -191,4 +191,4 @@ Start the program with the game root, the folder that contains `default.xex`. Th
 | `Could NOT find Vulkan` | Only macOS looks for the SDK. Install the LunarG Vulkan SDK 1.4.328 or newer and source its `setup-env.sh`. Older SDKs include a MoltenVK that reports less than Vulkan 1.4. |
 | `Could not find a package configuration file provided by "rexglue"` | Install the SDK again, which registers it for CMake, or set the `CMAKE_PREFIX_PATH` environment variable, or pass `-DCMAKE_PREFIX_PATH=<folder>` at configure, with the SDK install folder, such as `out/install/win-amd64`. To build the SDK from source with the project, set the CMake cache variable `REXSDK_DIR` to the SDK source folder (see [SDK Discovery](reference/cmake.md#sdk-discovery)). |
 | `--game_data_root was not provided` | Pass `--title.game_root` with the folder of the game files. |
-| `unknown setting '<name>' from CommandLine` | Check the name in the [Settings Reference](reference/cvars.md). |
+| `unknown setting '<name>' from CommandLine` | A warning, and the option is ignored. Check the name in the [Settings Reference](reference/cvars.md). |
