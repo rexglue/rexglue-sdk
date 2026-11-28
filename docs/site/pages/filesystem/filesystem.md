@@ -58,7 +58,8 @@ When `title.game_root` is set, `TitleRuntime::Load` calls `IFileSystem::Configur
 |---|---|---|
 | `\Device\Harddisk0\Partition1` | `game:` and `d:` | The folder in `title.game_root`. It is writable only when `title.game_writable` is true. |
 | `\Device\Harddisk0\PartitionUpdate` | `update:` | The folder in `title.update_root`, read only. It is added only when that folder exists. |
-| `\Device\Harddisk0` | None | A writable null mount with the empty files `\Partition0`, `\Cache0` and `\Cache1`. |
+| `\Device\Harddisk0\Cache0`, `\Cache1` and `\Cache` | `cache0:`, `cache1:` and `cache:` | The utility drive, writable: the folders `cache0`, `cache1` and `cache` in `<app.user_root>\utility`, as Xenia mounts them. A title mounts it with `XMountUtilityDrive`, which fails here because the volume query does not answer the device type it checks, and then uses `cache:` as a scratch drive. |
+| `\Device\Harddisk0` | None | A writable null mount with the empty files `\Partition0`, `\Cache0` and `\Cache1`, which the utility drive's folders cover. |
 
 With an empty `title.game_root`, `Load` logs a warning and adds no mounts. A `title.game_root` that is not a folder fails `Load`. A failed update mount logs a warning, and `Load` continues without it.
 

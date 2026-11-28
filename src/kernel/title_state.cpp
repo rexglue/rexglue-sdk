@@ -235,8 +235,9 @@ Result<void> TitleState::LoadKernel() {
   if (game_data_root_.empty()) {
     REXSYS_WARN("TitleRuntime::Load: no game_data_root, the standard mounts are skipped");
   } else {
-    if (auto mounted =
-            file_system_->ConfigureStandardMounts(game_data_root_, update_data_root_, game_flags_);
+    if (auto mounted = file_system_->ConfigureStandardMounts(
+            game_data_root_, update_data_root_, game_flags_,
+            user_data_root_.empty() ? std::filesystem::path() : user_data_root_ / "utility");
         !mounted) {
       return fail(X_STATUS_UNSUCCESSFUL, mounted.error().message);
     }

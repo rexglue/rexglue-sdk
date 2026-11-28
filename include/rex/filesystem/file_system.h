@@ -80,11 +80,14 @@ class IFileSystem : public NonCopyable {
    *
    * @param game_root The host folder of the game files.
    * @param update_root The host folder of the title update files, empty for none.
+   * @param game_flags The flags of the game mount.
+   * @param utility_root The host folder of the utility drive, with the folders cache, cache0 and
+   *     cache1 for cache:, cache0: and cache1:, empty for none.
    * @return kNotFound when game_root is empty or not a folder.
    */
   [[nodiscard]] virtual Result<void> ConfigureStandardMounts(
       const std::filesystem::path& game_root, const std::filesystem::path& update_root,
-      MountFlags game_flags) = 0;
+      MountFlags game_flags, const std::filesystem::path& utility_root) = 0;
 
   /** Removes every mount and every link. */
   virtual void Clear() = 0;
