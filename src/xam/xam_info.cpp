@@ -42,6 +42,7 @@
 #include <format>
 #include <rex/kernel/thread_state.h>
 #include <rex/kernel/types/xex.h>
+#include <rex/kernel/object/event_object.h>
 #include <rex/kernel/object/object_table.h>
 #include "xam/xam_bodies.h"
 
@@ -415,9 +416,40 @@ u32 XamLoaderGetDvdTrayState_entry(MappedU32 out_state) {
   return kernel::X_STATUS_SUCCESS;
 }
 
-u32 XamSwapDisc_entry(u32 disc_number) {
-  REX_XAM_STUB("XamSwapDisc({})", static_cast<u32>(disc_number));
-  return kernel::X_STATUS_SUCCESS;
+/**
+ * Asks for a disc of a multi disc title. The title shows its own "insert disc" screen and waits on
+ * the completion event. The disc that is running is already in the drive, so the event is set at
+ * once, as Xenia canary does. No other disc can be inserted, so for one the event stays clear and
+ * the title keeps asking for it.
+ *
+ * @param disc_number The disc the title asks for, from 1.
+ * @param completion_event Guest address of the KEVENT set when the disc is in.
+ * @param error_message Guest address of the message the title would show, unused.
+ * @return X_ERROR_INVALID_PARAMETER when the running disc is past the disc count, otherwise
+ *         X_ERROR_SUCCESS.
+ */
+u32 XamSwapDisc_entry(u32 disc_number, u32 completion_event, [[maybe_unused]] u32 error_message) {
+  auto module = CurrentTitle().objects.Get<kernel::ILoadedModule>(
+      CurrentTitle().modules.GetExecutable().value_or(0));
+  kernel::XEXOptExecutionInfo* info = nullptr;
+  if (module) {
+    module->OptHeader(kernel::kXEXHeaderExecutionInfo, &info);
+  }
+  const u32 running = info && info->disc_number ? info->disc_number : 1;
+  const u32 count = info && info->disc_count ? info->disc_count : 1;
+  if (running > count) {
+    return kernel::X_ERROR_INVALID_PARAMETER;
+  }
+  if (disc_number == running) {
+    REXXAM_INFO("XamSwapDisc({}): disc {} of {} is running", disc_number, running, count);
+    if (auto event = CurrentTitle().objects.Resolve<kernel::IGuestEvent>(completion_event)) {
+      event->Set();
+    }
+    return kernel::X_ERROR_SUCCESS;
+  }
+  REXXAM_WARN("XamSwapDisc({}): disc {} of {} is running; another disc can't be inserted",
+              disc_number, running, count);
+  return kernel::X_ERROR_SUCCESS;
 }
 
 }  // namespace xam
