@@ -104,3 +104,32 @@ REX_TEST_CASE("The normalized depth control of a never passing test is unchanged
   CHECK(normalized.z_enable == 1);
   CHECK(normalized.zfunc == CompareFunction::kNever);
 }
+
+REX_TEST_CASE("A 64bpp color clear value has RB_COLOR_CLEAR_LO as its low half",
+              "[gpu][draw_state]") {
+  rex::gpu::draw_state::ResolveRequest request{};
+  request.rb_copy_control.color_clear_enable = 1;
+  request.color_edram_info.format_is_64bpp = 1;
+  // (0, 0, 0, 1) in 16_16_16_16_FLOAT: R | G << 16 is 0, B | A << 16 is 0x3C000000.
+  request.rb_color_clear_lo = 0;
+  request.rb_color_clear = 0x3C000000;
+  REQUIRE(request.IsClearingColor());
+  CHECK(request.GetColorClearValue() == 0x3C00000000000000ull);
+  rex::gpu::draw_state::ResolveClearShaderConstants constants{};
+  request.GetColorClearShaderConstants(constants);
+  CHECK(constants.rt_specific.clear_value[0] == 0);
+  CHECK(constants.rt_specific.clear_value[1] == 0x3C000000);
+}
+
+REX_TEST_CASE("A 32bpp color clear value is RB_COLOR_CLEAR alone", "[gpu][draw_state]") {
+  rex::gpu::draw_state::ResolveRequest request{};
+  request.rb_copy_control.color_clear_enable = 1;
+  request.rb_color_clear_lo = 0xDEADBEEF;
+  request.rb_color_clear = 0x11223344;
+  REQUIRE(request.IsClearingColor());
+  CHECK(request.GetColorClearValue() == 0x11223344ull);
+  rex::gpu::draw_state::ResolveClearShaderConstants constants{};
+  request.GetColorClearShaderConstants(constants);
+  CHECK(constants.rt_specific.clear_value[0] == 0x11223344);
+  CHECK(constants.rt_specific.clear_value[1] == 0x11223344);
+}

@@ -1234,8 +1234,7 @@ bool D3D12RenderTargetCache::Resolve(IPhysicalMemory& memory, D3D12SharedMemory&
                                                  clear_render_targets[1], clear_transfers_[1])) {
           u64 clear_values[2];
           clear_values[0] = resolve_info.rb_depth_clear;
-          clear_values[1] = resolve_info.rb_color_clear |
-                            (static_cast<u64>(resolve_info.rb_color_clear_lo) << 32);
+          clear_values[1] = resolve_info.GetColorClearValue();
           PerformTransfersAndResolveClears(2, clear_render_targets, clear_transfers_, clear_values,
                                            &clear_rectangle);
         }
