@@ -747,6 +747,15 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    * @param predicate_written Set when the operation writes the predicate.
    */
+  /**
+   * Rounds a finite result of a host approximation to fewer mantissa bits. The exact precision
+   * and midpoint rounding of Xenos are not known.
+   *
+   * @param value The float result.
+   * @param mantissa_bits The mantissa bits to keep, 1 to 22.
+   * @return The rounded result. Infinity, NaN and signed zero are unchanged.
+   */
+  spv::Id ReduceFloatPrecision(spv::Id value, u32 mantissa_bits);
   spv::Id ProcessScalarALUOperation(const ParsedALUInstruction& instr,
                                     u8 memexport_em_potentially_written_before,
                                     bool& predicate_written);

@@ -34,6 +34,13 @@
 
 namespace rex::gpu {
 
+/**
+ * The mantissa bits that the results of the transcendental scalar operations (EXP, LOG, LOGC, RCP,
+ * RCPC, RCPF, RSQ, RSQC, RSQF and SQRT) are rounded to, as in Xenia canary 3a44f20. The exact
+ * precision of Xenos is not known.
+ */
+inline constexpr u32 kTranscendentalMantissaBits = 21;
+
 // Shared with disassembly, so parsing keeps nops for XNA round trips.
 
 enum class InstructionStorageTarget : u8 {

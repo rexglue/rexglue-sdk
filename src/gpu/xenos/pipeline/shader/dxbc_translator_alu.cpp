@@ -530,6 +530,40 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedALUInstruction&
   PopSystemTemp(operand_temps);
 }
 
+void DXBCShaderTranslator::ReduceFloatPrecision(const dxbc::Dest& dest, const dxbc::Src& value,
+                                                u32 mantissa_bits) {
+  // Round to nearest, halfway values away from zero, as Xenia canary 3a44f20 does. The exact
+  // precision and midpoint rounding of Xenos are not known. Signed zero stays signed, denormals
+  // follow the host float controls, and infinity and NaN stay as the host gave them.
+  REX_ASSERT(mantissa_bits > 0 && mantissa_bits < 23);
+  const u32 truncate_bits = 23 - mantissa_bits;
+  const u32 discarded_mask = (u32(1) << truncate_bits) - 1;
+  const u32 truncate_mask = ~discarded_mask;
+  const u32 round_bit = u32(1) << (truncate_bits - 1);
+  const u32 reduced_ulp = u32(1) << truncate_bits;
+  // x the original, y truncated, z rounded, w scratch.
+  u32 temp = PushSystemTemp();
+  dxbc::Dest x_dest(dxbc::Dest::R(temp, 0b0001)), y_dest(dxbc::Dest::R(temp, 0b0010)),
+      z_dest(dxbc::Dest::R(temp, 0b0100)), w_dest(dxbc::Dest::R(temp, 0b1000));
+  dxbc::Src x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX)),
+      y_src(dxbc::Src::R(temp, dxbc::Src::kYYYY)), z_src(dxbc::Src::R(temp, dxbc::Src::kZZZZ)),
+      w_src(dxbc::Src::R(temp, dxbc::Src::kWWWW));
+  a_.OpMov(x_dest, value);
+  a_.OpAnd(y_dest, x_src, dxbc::Src::LU(truncate_mask));
+  a_.OpIAdd(z_dest, y_src, dxbc::Src::LU(reduced_ulp));
+  // Rounding never turns a finite result into infinity: then the truncated value.
+  a_.OpAnd(w_dest, z_src, dxbc::Src::LU(0x7F800000u));
+  a_.OpIEq(w_dest, w_src, dxbc::Src::LU(0x7F800000u));
+  a_.OpMovC(z_dest, w_src, y_src, z_src);
+  a_.OpAnd(w_dest, x_src, dxbc::Src::LU(discarded_mask));
+  a_.OpUGE(w_dest, w_src, dxbc::Src::LU(round_bit));
+  a_.OpMovC(y_dest, w_src, z_src, y_src);
+  a_.OpAnd(w_dest, x_src, dxbc::Src::LU(0x7F800000u));
+  a_.OpIEq(w_dest, w_src, dxbc::Src::LU(0x7F800000u));
+  a_.OpMovC(dest, w_src, x_src, y_src);
+  PopSystemTemp();
+}
+
 void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedALUInstruction& instr,
                                                      u8 memexport_em_potentially_written_before,
                                                      bool& predicate_written) {
@@ -651,9 +685,11 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedALUInstruction&
 
     case AluScalarOpcode::kExp:
       a_.OpExp(ps_dest, operand_0_a);
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       break;
     case AluScalarOpcode::kLogc: {
       a_.OpLog(ps_dest, operand_0_a);
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       u32 is_neg_infinity_temp = PushSystemTemp();
       a_.OpEq(dxbc::Dest::R(is_neg_infinity_temp, 0b0001), ps_src, dxbc::Src::LF(-INFINITY));
       a_.OpMovC(ps_dest, dxbc::Src::R(is_neg_infinity_temp, dxbc::Src::kXXXX),
@@ -662,14 +698,17 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedALUInstruction&
     } break;
     case AluScalarOpcode::kLog:
       a_.OpLog(ps_dest, operand_0_a);
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       break;
     case AluScalarOpcode::kRcpc:
     case AluScalarOpcode::kRsqc: {
       if (instr.scalar_opcode == AluScalarOpcode::kRsqc) {
-        a_.OpRSq(ps_dest, operand_0_a);
+        a_.OpSqRt(ps_dest, operand_0_a);
+        a_.OpDiv(ps_dest, dxbc::Src::LF(1.0f), ps_src);
       } else {
-        a_.OpRcp(ps_dest, operand_0_a);
+        a_.OpDiv(ps_dest, dxbc::Src::LF(1.0f), operand_0_a);
       }
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       u32 is_infinity_temp = PushSystemTemp();
       a_.OpEq(dxbc::Dest::R(is_infinity_temp, 0b0001), ps_src.Abs(), dxbc::Src::LF(INFINITY));
       // Adding 0xFFFFFFFF turns +-Infinity (0x7F800000, 0xFF800000) into +-FLT_MAX.
@@ -679,10 +718,12 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedALUInstruction&
     case AluScalarOpcode::kRcpf:
     case AluScalarOpcode::kRsqf: {
       if (instr.scalar_opcode == AluScalarOpcode::kRsqf) {
-        a_.OpRSq(ps_dest, operand_0_a);
+        a_.OpSqRt(ps_dest, operand_0_a);
+        a_.OpDiv(ps_dest, dxbc::Src::LF(1.0f), ps_src);
       } else {
-        a_.OpRcp(ps_dest, operand_0_a);
+        a_.OpDiv(ps_dest, dxbc::Src::LF(1.0f), operand_0_a);
       }
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       u32 is_not_infinity_temp = PushSystemTemp();
       a_.OpNE(dxbc::Dest::R(is_not_infinity_temp, 0b0001), ps_src.Abs(), dxbc::Src::LF(INFINITY));
       a_.OpOr(dxbc::Dest::R(is_not_infinity_temp, 0b0001),
@@ -692,10 +733,13 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedALUInstruction&
       PopSystemTemp();
     } break;
     case AluScalarOpcode::kRcp:
-      a_.OpRcp(ps_dest, operand_0_a);
+      a_.OpDiv(ps_dest, dxbc::Src::LF(1.0f), operand_0_a);
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       break;
     case AluScalarOpcode::kRsq:
-      a_.OpRSq(ps_dest, operand_0_a);
+      a_.OpSqRt(ps_dest, operand_0_a);
+      a_.OpDiv(ps_dest, dxbc::Src::LF(1.0f), ps_src);
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       break;
 
     case AluScalarOpcode::kMaxAs:
@@ -808,6 +852,7 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedALUInstruction&
 
     case AluScalarOpcode::kSqrt:
       a_.OpSqRt(ps_dest, operand_0_a);
+      ReduceFloatPrecision(ps_dest, ps_src, kTranscendentalMantissaBits);
       break;
 
     case AluScalarOpcode::kMulsc0:

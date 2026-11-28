@@ -925,6 +925,15 @@ class DXBCShaderTranslator : public ShaderTranslator {
   void ProcessVectorAluOperation(const ParsedALUInstruction& instr,
                                  u8 memexport_em_potentially_written_before, u32& result_swizzle,
                                  bool& predicate_written);
+  /**
+   * Rounds a finite result of a host approximation to fewer mantissa bits. The exact precision
+   * and midpoint rounding of Xenos are not known.
+   *
+   * @param dest Receives the rounded result. Infinity, NaN and signed zero are unchanged.
+   * @param value The float result.
+   * @param mantissa_bits The mantissa bits to keep, 1 to 22.
+   */
+  void ReduceFloatPrecision(const dxbc::Dest& dest, const dxbc::Src& value, u32 mantissa_bits);
   void ProcessScalarAluOperation(const ParsedALUInstruction& instr,
                                  u8 memexport_em_potentially_written_before,
                                  bool& predicate_written);
