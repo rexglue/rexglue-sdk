@@ -180,17 +180,17 @@ REX_TEST_CASE("BindingSet Reset and ResetGroup restore the defaults", "[hid][bin
   });
 }
 
-REX_TEST_CASE("BindingSet FindConflict looks only inside the group", "[hid][bindings]") {
+REX_TEST_CASE("BindingSet FindConflicts looks only inside the group", "[hid][bindings]") {
   BindingSet set(kDescs);
-  CHECK(set.FindConflict(kFire, Parse("Space")) == std::optional<size_t>(kJump));
-  CHECK_FALSE(set.FindConflict(kJump, Parse("Space")));
-  CHECK_FALSE(set.FindConflict(kFire, Parse("Escape")));
-  CHECK_FALSE(set.FindConflict(kFire, Parse("Shift+Space")));
-  CHECK(set.FindConflict(kJump, Parse("W")) == std::optional<size_t>(kMove));
-  CHECK_FALSE(set.FindConflict(99, Parse("Space")));
+  CHECK(set.FindConflicts(kFire, Parse("Space")) == std::vector<size_t>{kJump});
+  CHECK(set.FindConflicts(kJump, Parse("Space")).empty());
+  CHECK(set.FindConflicts(kFire, Parse("Escape")).empty());
+  CHECK(set.FindConflicts(kFire, Parse("Shift+Space")).empty());
+  CHECK(set.FindConflicts(kJump, Parse("W")) == std::vector<size_t>{kMove});
+  CHECK(set.FindConflicts(99, Parse("Space")).empty());
 }
 
-REX_TEST_CASE("BindingSet FindConflict also reports bindings whose conflict masks overlap",
+REX_TEST_CASE("BindingSet FindConflicts relates bindings by mask overlap or by group",
               "[hid][bindings]") {
   constexpr std::array<BindingConfig, 5> kMasked = {{
       {"walk", "Space", "Walk", 1, PadAxes::kNone, 0b01},
@@ -200,9 +200,65 @@ REX_TEST_CASE("BindingSet FindConflict also reports bindings whose conflict mask
       {"aim", "Space", "Aim", 4, PadAxes::kNone, 0},
   }};
   BindingSet set(kMasked);
-  CHECK(set.FindConflict(0, Parse("Space")) == std::optional<size_t>(1));
-  CHECK_FALSE(set.FindConflict(2, Parse("Space")));
-  CHECK(set.FindConflict(4, Parse("Space")) == std::optional<size_t>(3));
+  CHECK(set.FindConflicts(0, Parse("Space")) == std::vector<size_t>{1});
+  CHECK(set.FindConflicts(2, Parse("Space")).empty());
+  CHECK(set.FindConflicts(4, Parse("Space")) == std::vector<size_t>{3});
+}
+
+REX_TEST_CASE("BindingSet FindConflicts ignores the group when both masks are nonzero",
+              "[hid][bindings]") {
+  constexpr std::array<BindingConfig, 2> kDisjoint = {{
+      {"walk", "Space", "Walk", 1, PadAxes::kNone, 0b01},
+      {"talk", "Space", "Talk", 1, PadAxes::kNone, 0b10},
+  }};
+  BindingSet set(kDisjoint);
+  CHECK(set.FindConflicts(0, Parse("Space")).empty());
+  CHECK(set.FindConflicts(1, Parse("Space")).empty());
+}
+
+REX_TEST_CASE("BindingSet FindConflicts relates different groups with overlapping masks",
+              "[hid][bindings]") {
+  constexpr std::array<BindingConfig, 2> kOverlap = {{
+      {"walk", "Space", "Walk", 1, PadAxes::kNone, 0b011},
+      {"talk", "Space", "Talk", 2, PadAxes::kNone, 0b110},
+  }};
+  BindingSet set(kOverlap);
+  CHECK(set.FindConflicts(0, Parse("Space")) == std::vector<size_t>{1});
+  CHECK(set.FindConflicts(1, Parse("Space")) == std::vector<size_t>{0});
+}
+
+REX_TEST_CASE("BindingSet FindConflicts falls back to the group when one mask is zero",
+              "[hid][bindings]") {
+  constexpr std::array<BindingConfig, 2> kMixed = {{
+      {"walk", "Space", "Walk", 1, PadAxes::kNone, 0b01},
+      {"talk", "Space", "Talk", 1, PadAxes::kNone, 0},
+  }};
+  BindingSet set(kMixed);
+  CHECK(set.FindConflicts(0, Parse("Space")) == std::vector<size_t>{1});
+  CHECK(set.FindConflicts(1, Parse("Space")) == std::vector<size_t>{0});
+}
+
+REX_TEST_CASE("BindingSet FindConflicts skips bindings that share an input by name",
+              "[hid][bindings]") {
+  static constexpr std::array<std::string_view, 2> kShared = {"talk", "missing"};
+  const std::array<BindingConfig, 2> pair = {{
+      {"walk", "Space", "Walk", 1, PadAxes::kNone, 0, kShared},
+      {"talk", "Space", "Talk", 1},
+  }};
+  BindingSet set(pair);
+  CHECK(set.FindConflicts(0, Parse("Space")).empty());
+  CHECK(set.FindConflicts(1, Parse("Space")).empty());
+}
+
+REX_TEST_CASE("BindingSet FindConflicts returns every match in index order", "[hid][bindings]") {
+  constexpr std::array<BindingConfig, 3> kThree = {{
+      {"walk", "Space", "Walk", 1},
+      {"talk", "Space", "Talk", 1},
+      {"look", "Space", "Look", 1},
+  }};
+  BindingSet set(kThree);
+  CHECK(set.FindConflicts(1, Parse("Space")) == std::vector<size_t>{0, 2});
+  CHECK(set.FindConflicts(2, Parse("Space")) == std::vector<size_t>{0, 1});
 }
 
 REX_TEST_CASE("BindingSet folds repeats in a plain list", "[hid][bindings]") {
@@ -364,7 +420,7 @@ REX_TEST_CASE("BindingSet reads the new inputs right after a write in a batch an
       const u32 before = fixture.set.GetGeneration();
       fixture.Write("bind.jump", "PadX");
       CHECK(fixture.set.GetSources(kJump) == std::vector<InputSource>{Parse("PadX")});
-      CHECK(fixture.set.FindConflict(kFire, Parse("PadX")) == kJump);
+      CHECK(fixture.set.FindConflicts(kFire, Parse("PadX")) == std::vector<size_t>{kJump});
       CHECK(fixture.set.GetGeneration() > before);
     }
     std::vector<InputSource> seen;

@@ -285,26 +285,43 @@ bool BindingSet::ResetGroup(u32 group) {
   return any && all;
 }
 
-std::optional<size_t> BindingSet::FindConflict(size_t binding, const InputSource& source) const {
+namespace {
+
+bool IsListed(const BindingConfig& owner, std::string_view name) {
+  return std::ranges::find(owner.shares_with, name) != owner.shares_with.end();
+}
+
+bool AreRelated(const BindingConfig& a, const BindingConfig& b) {
+  if (IsListed(a, b.name) || IsListed(b, a.name)) {
+    return false;
+  }
+  if (a.conflict_mask != 0 && b.conflict_mask != 0) {
+    return (a.conflict_mask & b.conflict_mask) != 0;
+  }
+  return a.group == b.group;
+}
+
+}  // namespace
+
+std::vector<size_t> BindingSet::FindConflicts(size_t binding, const InputSource& source) const {
+  std::vector<size_t> found;
   if (binding >= impl_->configs.size()) {
-    return std::nullopt;
+    return found;
   }
   const BindingConfig& edited = impl_->configs[binding];
   impl_->Refresh();
   std::lock_guard lock(impl_->sources_mutex);
   for (size_t i = 0; i < impl_->configs.size(); ++i) {
     const BindingConfig& other = impl_->configs[i];
-    const bool related =
-        other.group == edited.group || (other.conflict_mask & edited.conflict_mask) != 0;
-    if (i == binding || !related) {
+    if (i == binding || !AreRelated(edited, other)) {
       continue;
     }
     if (std::ranges::any_of(impl_->sources[i],
                             [&](const auto& have) { return IsSameInput(have, source); })) {
-      return i;
+      found.push_back(i);
     }
   }
-  return std::nullopt;
+  return found;
 }
 
 std::optional<size_t> BindingSet::FindBySetting(std::string_view setting_name) const {

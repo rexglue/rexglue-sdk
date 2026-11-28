@@ -410,8 +410,9 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
         if (const auto binding =
                 key_bindings_ ? key_bindings_->FindBySetting(name) : std::nullopt) {
           for (const rex::InputSource& source : key_bindings_->GetSources(*binding)) {
-            if (const auto other = key_bindings_->FindConflict(*binding, source)) {
-              conflicts.insert(*other);
+            const std::vector<size_t> others = key_bindings_->FindConflicts(*binding, source);
+            if (!others.empty()) {
+              conflicts.insert(others.front());
             }
           }
         }

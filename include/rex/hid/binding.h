@@ -65,6 +65,9 @@ struct BindingConfig {
   PadAxes axes = PadAxes::kNone;
   /** The bits of the contexts the binding is active in. */
   u32 conflict_mask = 0;
+  /** Names of other bindings in this set that may use the same input. Other names are ignored. */
+  // NOLINTNEXTLINE(readability-redundant-member-init): brace initializers omit this field
+  std::span<const std::string_view> shares_with = {};
 };
 
 /**
@@ -146,15 +149,18 @@ class IBindingSet {
   virtual bool ResetGroup(u32 group) = 0;
 
   /**
-   * Finds another binding that already uses an input and is in the same group or shares a bit of
-   * conflict_mask with the binding being edited.
+   * Finds the other bindings that already use an input and conflict with the binding being edited.
+   * Two bindings are related when both conflict_mask values are nonzero and share a bit, or, when
+   * either mask is zero, when they are in the same group. They are never related when either one
+   * lists the name of the other in shares_with.
    *
    * @param binding The index into the descriptions of the binding being edited.
    * @param source The input to look for, compared with IsSameInput.
-   * @return Index of the first other binding using the input, or empty.
+   * @return The indexes of the related bindings using the input in index order, empty when there is
+   * none or the index is out of range.
    */
-  [[nodiscard]] virtual std::optional<size_t> FindConflict(size_t binding,
-                                                           const InputSource& source) const = 0;
+  [[nodiscard]] virtual std::vector<size_t> FindConflicts(size_t binding,
+                                                          const InputSource& source) const = 0;
 
   /**
    * Finds the binding behind a setting.

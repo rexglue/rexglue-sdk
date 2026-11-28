@@ -44,8 +44,8 @@ class BindingSet final : public IBindingSet {
   bool Clear(size_t binding) override;
   bool Reset(size_t binding) override;
   bool ResetGroup(u32 group) override;
-  [[nodiscard]] std::optional<size_t> FindConflict(size_t binding,
-                                                   const InputSource& source) const override;
+  [[nodiscard]] std::vector<size_t> FindConflicts(size_t binding,
+                                                  const InputSource& source) const override;
   [[nodiscard]] std::optional<size_t> FindBySetting(std::string_view setting_name) const override;
   [[nodiscard]] u32 GetGeneration() const override;
   [[nodiscard]] std::vector<std::string> TakeParseErrors() override;
