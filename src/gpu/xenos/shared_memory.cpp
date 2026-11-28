@@ -211,6 +211,10 @@ void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
   UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
 
+void SharedMemory::UnwatchMemoryRange(const ScopeGuard&, WatchHandle handle) {
+  UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
+}
+
 void SharedMemory::FireWatches(u32 page_first, u32 page_last, bool invalidated_by_gpu) {
   auto lock = AcquireLock();
   FireWatchesLocked(page_first, page_last, invalidated_by_gpu);

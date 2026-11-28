@@ -78,6 +78,14 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysical
    */
   ScopeGuard AcquireLock() const { return write_watch_.LockWriteWatches(); }
   void UnwatchMemoryRange(WatchHandle handle);
+  /**
+   * Removes a watch while the caller holds the lock. A watch fires and is removed under the same
+   * lock, so a caller that reads its handle under the lock never removes a fired watch again.
+   *
+   * @param lock The lock from AcquireLock, held by the caller.
+   * @param handle The watch to remove, not yet fired.
+   */
+  void UnwatchMemoryRange(const ScopeGuard& lock, WatchHandle handle);
 
   /**
    * Uploads new data for ranges that changed and makes the host GPU memory backing them resident.
