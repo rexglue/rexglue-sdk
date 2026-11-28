@@ -42,6 +42,16 @@ class ShaderInterpreter {
 
   void SetExportSink(ExportSink* new_export_sink) { export_sink_ = new_export_sink; }
 
+  /**
+   * Rounds a finite result of a host approximation to fewer mantissa bits, to nearest with halfway
+   * values away from zero. A result that would round to infinity keeps its truncated value.
+   *
+   * @param value The float result.
+   * @param mantissa_bits The mantissa bits to keep, 1 to 22.
+   * @return The rounded result. Infinity, NaN and signed zero are unchanged.
+   */
+  static f32 ReduceFloatPrecision(f32 value, u32 mantissa_bits);
+
   const f32* GetTempRegisters() const { return &temp_registers_[0][0]; }
   f32* GetTempRegisters() { return &temp_registers_[0][0]; }
 

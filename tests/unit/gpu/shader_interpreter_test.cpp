@@ -63,3 +63,28 @@ REX_TEST_CASE(
     "[gpu][shader][interpreter]") {
   CHECK(RunMulConstTemp(false) == -6.0f);
 }
+
+REX_TEST_CASE("Transcendental results are rounded to 21 mantissa bits, halfway away from zero",
+              "[gpu][shader][interpreter]") {
+  using rex::gpu::ShaderInterpreter;
+  constexpr u32 kBits = rex::gpu::kTranscendentalMantissaBits;
+  const auto reduce = [](u32 bits) {
+    return std::bit_cast<u32>(
+        ShaderInterpreter::ReduceFloatPrecision(std::bit_cast<f32>(bits), kBits));
+  };
+  // 1 / 3 is 0x3EAAAAAB: the two discarded bits are 0b11, so it rounds up, away from zero.
+  CHECK(reduce(0x3EAAAAABu) == 0x3EAAAAACu);
+  CHECK(reduce(0xBEAAAAABu) == 0xBEAAAAACu);
+  // Halfway (0b10) rounds up, below it (0b01) rounds down.
+  CHECK(reduce(0x3F800002u) == 0x3F800004u);
+  CHECK(reduce(0x3F800001u) == 0x3F800000u);
+  // A value that fits in 21 bits is unchanged.
+  CHECK(reduce(0x3F000000u) == 0x3F000000u);
+  // The largest finite value keeps its truncated bits instead of rounding to infinity.
+  CHECK(reduce(0x7F7FFFFFu) == 0x7F7FFFFCu);
+  // Infinity, NaN and signed zero are unchanged.
+  CHECK(reduce(0x7F800000u) == 0x7F800000u);
+  CHECK(reduce(0xFF800000u) == 0xFF800000u);
+  CHECK(reduce(0x7FC00001u) == 0x7FC00001u);
+  CHECK(reduce(0x80000000u) == 0x80000000u);
+}

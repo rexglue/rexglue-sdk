@@ -262,6 +262,24 @@ const std::array<f32, 4> ShaderInterpreter::GetFloatConstant(u32 address, bool i
   return value;
 }
 
+f32 ShaderInterpreter::ReduceFloatPrecision(f32 value, u32 mantissa_bits) {
+  REX_ASSERT(mantissa_bits > 0 && mantissa_bits < 23);
+  const u32 value_bits = std::bit_cast<u32>(value);
+  if ((value_bits & 0x7F800000u) == 0x7F800000u) {
+    return value;
+  }
+  const u32 truncate_bits = 23 - mantissa_bits;
+  const u32 discarded_mask = (u32{1} << truncate_bits) - 1;
+  const u32 truncated_bits = value_bits & ~discarded_mask;
+  u32 rounded_bits = truncated_bits + (u32{1} << truncate_bits);
+  if ((rounded_bits & 0x7F800000u) == 0x7F800000u) {
+    rounded_bits = truncated_bits;
+  }
+  const u32 round_bit = u32{1} << (truncate_bits - 1);
+  return std::bit_cast<f32>((value_bits & discarded_mask) >= round_bit ? rounded_bits
+                                                                       : truncated_bits);
+}
+
 void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr) {
   f32 vector_result[4] = {};
   xenos::ucode::AluVectorOpcode vector_opcode = instr.GetVectorOpcode();
@@ -687,19 +705,23 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       state_.previous_scalar = std::floor(scalar_operands[0]);
     } break;
     case xenos::ucode::AluScalarOpcode::kExp: {
-      state_.previous_scalar = std::exp2(scalar_operands[0]);
+      state_.previous_scalar =
+          ReduceFloatPrecision(std::exp2(scalar_operands[0]), kTranscendentalMantissaBits);
     } break;
     case xenos::ucode::AluScalarOpcode::kLogc: {
-      state_.previous_scalar = std::log2(scalar_operands[0]);
+      state_.previous_scalar =
+          ReduceFloatPrecision(std::log2(scalar_operands[0]), kTranscendentalMantissaBits);
       if (state_.previous_scalar == -INFINITY) {
         state_.previous_scalar = -FLT_MAX;
       }
     } break;
     case xenos::ucode::AluScalarOpcode::kLog: {
-      state_.previous_scalar = std::log2(scalar_operands[0]);
+      state_.previous_scalar =
+          ReduceFloatPrecision(std::log2(scalar_operands[0]), kTranscendentalMantissaBits);
     } break;
     case xenos::ucode::AluScalarOpcode::kRcpc: {
-      state_.previous_scalar = 1.0f / scalar_operands[0];
+      state_.previous_scalar =
+          ReduceFloatPrecision(1.0f / scalar_operands[0], kTranscendentalMantissaBits);
       if (state_.previous_scalar == -INFINITY) {
         state_.previous_scalar = -FLT_MAX;
       } else if (state_.previous_scalar == INFINITY) {
@@ -707,7 +729,8 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       }
     } break;
     case xenos::ucode::AluScalarOpcode::kRcpf: {
-      state_.previous_scalar = 1.0f / scalar_operands[0];
+      state_.previous_scalar =
+          ReduceFloatPrecision(1.0f / scalar_operands[0], kTranscendentalMantissaBits);
       if (state_.previous_scalar == -INFINITY) {
         state_.previous_scalar = -0.0f;
       } else if (state_.previous_scalar == INFINITY) {
@@ -715,10 +738,12 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       }
     } break;
     case xenos::ucode::AluScalarOpcode::kRcp: {
-      state_.previous_scalar = 1.0f / scalar_operands[0];
+      state_.previous_scalar =
+          ReduceFloatPrecision(1.0f / scalar_operands[0], kTranscendentalMantissaBits);
     } break;
     case xenos::ucode::AluScalarOpcode::kRsqc: {
-      state_.previous_scalar = 1.0f / std::sqrt(scalar_operands[0]);
+      state_.previous_scalar =
+          ReduceFloatPrecision(1.0f / std::sqrt(scalar_operands[0]), kTranscendentalMantissaBits);
       if (state_.previous_scalar == -INFINITY) {
         state_.previous_scalar = -FLT_MAX;
       } else if (state_.previous_scalar == INFINITY) {
@@ -726,7 +751,8 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       }
     } break;
     case xenos::ucode::AluScalarOpcode::kRsqf: {
-      state_.previous_scalar = 1.0f / std::sqrt(scalar_operands[0]);
+      state_.previous_scalar =
+          ReduceFloatPrecision(1.0f / std::sqrt(scalar_operands[0]), kTranscendentalMantissaBits);
       if (state_.previous_scalar == -INFINITY) {
         state_.previous_scalar = -0.0f;
       } else if (state_.previous_scalar == INFINITY) {
@@ -734,7 +760,8 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       }
     } break;
     case xenos::ucode::AluScalarOpcode::kRsq: {
-      state_.previous_scalar = 1.0f / std::sqrt(scalar_operands[0]);
+      state_.previous_scalar =
+          ReduceFloatPrecision(1.0f / std::sqrt(scalar_operands[0]), kTranscendentalMantissaBits);
     } break;
     case xenos::ucode::AluScalarOpcode::kMaxAs: {
       state_.address_register = static_cast<i32>(
@@ -808,7 +835,8 @@ void ShaderInterpreter::ExecuteALUInstruction(xenos::ucode::AluInstruction instr
       state_.previous_scalar = static_cast<f32>(scalar_operands[0] == 1.0f);
     } break;
     case xenos::ucode::AluScalarOpcode::kSqrt: {
-      state_.previous_scalar = std::sqrt(scalar_operands[0]);
+      state_.previous_scalar =
+          ReduceFloatPrecision(std::sqrt(scalar_operands[0]), kTranscendentalMantissaBits);
     } break;
     case xenos::ucode::AluScalarOpcode::kSin: {
       state_.previous_scalar = std::sin(scalar_operands[0]);

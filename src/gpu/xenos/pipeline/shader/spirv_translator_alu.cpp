@@ -695,6 +695,47 @@ spv::Id SPIRVShaderTranslator::ProcessVectorALUOperation(const ParsedALUInstruct
   return spv::NoResult;
 }
 
+spv::Id SPIRVShaderTranslator::ReduceFloatPrecision(spv::Id value, u32 mantissa_bits) {
+  // Round to nearest, halfway values away from zero, as Xenia canary 3a44f20 does. The exact
+  // precision and midpoint rounding of Xenos are not known. Signed zero stays signed, and denormals
+  // follow the host float controls.
+  REX_ASSERT(mantissa_bits > 0 && mantissa_bits < 23);
+  StartNewBlockIfTerminated();
+  spv::Id value_bits = builder_->createUnaryOp(spv::OpBitcast, type_uint, value);
+  const u32 truncate_bits = 23 - mantissa_bits;
+  // The sign, the exponent and the mantissa bits that are kept.
+  const u32 truncate_mask = ~((u32{1} << truncate_bits) - 1);
+  const u32 round_bit = u32{1} << (truncate_bits - 1);
+  spv::Id truncated_bits = builder_->createBinOp(spv::OpBitwiseAnd, type_uint, value_bits,
+                                                 builder_->makeUintConstant(truncate_mask));
+  spv::Id discarded_bits = builder_->createBinOp(spv::OpBitwiseAnd, type_uint, value_bits,
+                                                 builder_->makeUintConstant(~truncate_mask));
+  spv::Id round_up = builder_->createBinOp(spv::OpUGreaterThanEqual, type_bool, discarded_bits,
+                                           builder_->makeUintConstant(round_bit));
+  spv::Id rounded_up_bits = builder_->createBinOp(
+      spv::OpIAdd, type_uint, truncated_bits, builder_->makeUintConstant(u32{1} << truncate_bits));
+  spv::Id exponent_mask = builder_->makeUintConstant(0x7F800000u);
+  spv::Id original_finite = builder_->createBinOp(
+      spv::OpINotEqual, type_bool,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, value_bits, exponent_mask),
+      exponent_mask);
+  spv::Id rounded_infinite = builder_->createBinOp(
+      spv::OpIEqual, type_bool,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint, rounded_up_bits, exponent_mask),
+      exponent_mask);
+  // A finite result that would round to infinity keeps its truncated value.
+  spv::Id safe_rounded_bits = builder_->createTriOp(
+      spv::OpSelect, type_uint,
+      builder_->createBinOp(spv::OpLogicalAnd, type_bool, original_finite, rounded_infinite),
+      truncated_bits, rounded_up_bits);
+  spv::Id result_bits =
+      builder_->createTriOp(spv::OpSelect, type_uint, round_up, safe_rounded_bits, truncated_bits);
+  // Infinity and NaN stay as the host gave them.
+  result_bits =
+      builder_->createTriOp(spv::OpSelect, type_uint, original_finite, result_bits, value_bits);
+  return builder_->createUnaryOp(spv::OpBitcast, type_float, result_bits);
+}
+
 spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedALUInstruction& instr,
                                                          u8 memexport_em_potentially_written_before,
                                                          bool& predicate_written) {
@@ -889,20 +930,27 @@ spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedALUInstruct
     case xenos::ucode::AluScalarOpcode::kFrcs:
     case xenos::ucode::AluScalarOpcode::kTruncs:
     case xenos::ucode::AluScalarOpcode::kFloors:
-    case xenos::ucode::AluScalarOpcode::kExp:
-    case xenos::ucode::AluScalarOpcode::kLog:
-    case xenos::ucode::AluScalarOpcode::kRsq:
-    case xenos::ucode::AluScalarOpcode::kSqrt:
     case xenos::ucode::AluScalarOpcode::kSin:
     case xenos::ucode::AluScalarOpcode::kCos:
       return builder_->CreateUnaryBuiltinCall(
           type_float, ext_inst_glsl_std_450_,
           static_cast<GLSLstd450>(kOps[static_cast<size_t>(instr.scalar_opcode)]),
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
+    case xenos::ucode::AluScalarOpcode::kExp:
+    case xenos::ucode::AluScalarOpcode::kLog:
+    case xenos::ucode::AluScalarOpcode::kRsq:
+    case xenos::ucode::AluScalarOpcode::kSqrt:
+      return ReduceFloatPrecision(
+          builder_->CreateUnaryBuiltinCall(
+              type_float, ext_inst_glsl_std_450_,
+              static_cast<GLSLstd450>(kOps[static_cast<size_t>(instr.scalar_opcode)]),
+              GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001)),
+          kTranscendentalMantissaBits);
     case xenos::ucode::AluScalarOpcode::kLogc: {
       spv::Id result = builder_->CreateUnaryBuiltinCall(
           type_float, ext_inst_glsl_std_450_, GLSLstd450Log2,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
+      result = ReduceFloatPrecision(result, kTranscendentalMantissaBits);
       return builder_->createTriOp(spv::OpSelect, type_float,
                                    builder_->createBinOp(spv::OpFOrdEqual, type_bool, result,
                                                          builder_->makeFloatConstant(-INFINITY)),
@@ -912,6 +960,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedALUInstruct
       spv::Id result = builder_->CreateNoContractionBinOp(
           spv::OpFDiv, type_float, const_float_1,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
+      result = ReduceFloatPrecision(result, kTranscendentalMantissaBits);
       result = builder_->createTriOp(spv::OpSelect, type_float,
                                      builder_->createBinOp(spv::OpFOrdEqual, type_bool, result,
                                                            builder_->makeFloatConstant(-INFINITY)),
@@ -925,6 +974,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedALUInstruct
       spv::Id result = builder_->CreateNoContractionBinOp(
           spv::OpFDiv, type_float, const_float_1,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
+      result = ReduceFloatPrecision(result, kTranscendentalMantissaBits);
       result = builder_->createTriOp(spv::OpSelect, type_float,
                                      builder_->createBinOp(spv::OpFOrdEqual, type_bool, result,
                                                            builder_->makeFloatConstant(INFINITY)),
@@ -938,14 +988,17 @@ spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedALUInstruct
       return builder_->createUnaryOp(spv::OpBitcast, type_float, result);
     }
     case xenos::ucode::AluScalarOpcode::kRcp: {
-      return builder_->CreateNoContractionBinOp(
-          spv::OpFDiv, type_float, const_float_1,
-          GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
+      return ReduceFloatPrecision(
+          builder_->CreateNoContractionBinOp(
+              spv::OpFDiv, type_float, const_float_1,
+              GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001)),
+          kTranscendentalMantissaBits);
     }
     case xenos::ucode::AluScalarOpcode::kRsqc: {
       spv::Id result = builder_->CreateUnaryBuiltinCall(
           type_float, ext_inst_glsl_std_450_, GLSLstd450InverseSqrt,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
+      result = ReduceFloatPrecision(result, kTranscendentalMantissaBits);
       result = builder_->createTriOp(spv::OpSelect, type_float,
                                      builder_->createBinOp(spv::OpFOrdEqual, type_bool, result,
                                                            builder_->makeFloatConstant(-INFINITY)),
@@ -959,6 +1012,7 @@ spv::Id SPIRVShaderTranslator::ProcessScalarALUOperation(const ParsedALUInstruct
       spv::Id result = builder_->CreateUnaryBuiltinCall(
           type_float, ext_inst_glsl_std_450_, GLSLstd450InverseSqrt,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0], 0b0001));
+      result = ReduceFloatPrecision(result, kTranscendentalMantissaBits);
       result = builder_->createTriOp(spv::OpSelect, type_float,
                                      builder_->createBinOp(spv::OpFOrdEqual, type_bool, result,
                                                            builder_->makeFloatConstant(INFINITY)),
