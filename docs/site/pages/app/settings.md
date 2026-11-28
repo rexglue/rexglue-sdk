@@ -234,6 +234,7 @@ A write to a frozen setting returns an error with "can no longer change". A writ
 - A bool is `true`, `1`, `false` or `0`.
 - An integer must parse in full as a decimal number, with no plus sign, no minus sign on an unsigned type and no spaces.
 - A value outside the range or the allowed list is refused, never clamped. Only the settings overlay clamps a number typed into it.
+- The settings overlay shows a setting that has an allowed list, other than a bool, as a list of those values.
 
 What happens to a refused value depends on its source:
 

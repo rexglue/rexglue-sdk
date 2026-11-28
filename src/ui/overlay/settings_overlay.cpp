@@ -466,7 +466,7 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
         if (ImGui::Checkbox("##v", &v)) {
           WarnIfFailed(name, settings_.SetText(name, v ? "true" : "false"));
         }
-      } else if (var->GetType() == rex::SettingType::kString && !constraints.allowed.empty()) {
+      } else if (!constraints.allowed.empty()) {
         const auto& opts = constraints.allowed;
         int cur_idx = 0;
         for (int i = 0; i < static_cast<int>(opts.size()); ++i) {
