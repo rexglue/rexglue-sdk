@@ -495,6 +495,16 @@ struct REX_GPU_XENOS_API ResolveRequest {
     return !IsCopyingDepth() && rb_copy_control.color_clear_enable != 0;
   }
 
+  /**
+   * @return The packed color clear value. For a 64bpp format, RB_COLOR_CLEAR_LO holds its low 32
+   *         bits and RB_COLOR_CLEAR its high 32 bits. A 32bpp value is RB_COLOR_CLEAR alone.
+   */
+  u64 GetColorClearValue() const {
+    return color_edram_info.format_is_64bpp
+               ? rb_color_clear_lo | (static_cast<u64>(rb_color_clear) << 32)
+               : rb_color_clear;
+  }
+
   void GetDepthClearShaderConstants(ResolveClearShaderConstants& constants_out) const {
     REX_ASSERT(IsClearingDepth());
     constants_out.rt_specific.clear_value[0] = rb_depth_clear;
@@ -513,8 +523,16 @@ struct REX_GPU_XENOS_API ResolveRequest {
    */
   void GetColorClearShaderConstants(ResolveClearShaderConstants& constants_out) const {
     REX_ASSERT(IsClearingColor());
-    constants_out.rt_specific.clear_value[0] = rb_color_clear;
-    constants_out.rt_specific.clear_value[1] = rb_color_clear_lo;
+    if (color_edram_info.format_is_64bpp) {
+      // D3D writes the low 32 bits of a 64bpp clear value (R | G << 16 for 16_16_16_16, R for
+      // 32_32_FLOAT) to RB_COLOR_CLEAR_LO and the high 32 bits to RB_COLOR_CLEAR.
+      constants_out.rt_specific.clear_value[0] = rb_color_clear_lo;
+      constants_out.rt_specific.clear_value[1] = rb_color_clear;
+    } else {
+      // A 32bpp clear value is RB_COLOR_CLEAR alone.
+      constants_out.rt_specific.clear_value[0] = rb_color_clear;
+      constants_out.rt_specific.clear_value[1] = rb_color_clear;
+    }
     constants_out.rt_specific.edram_info = color_edram_info;
     constants_out.coordinate_info = coordinate_info;
   }
