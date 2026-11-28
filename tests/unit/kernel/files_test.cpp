@@ -81,6 +81,25 @@ void MountScratch(KernelFixture& fixture) {
   REQUIRE(file_system->Link("scratch:", "\\Device\\Scratch"));
 }
 
+void MountContent(KernelFixture& fixture) {
+  namespace fs = rex::filesystem;
+  auto* file_system = StateOf(fixture.GetRuntime()).GetFileSystem();
+  REQUIRE(file_system);
+  REQUIRE(file_system->Mount({"\\Device\\Content\\0",
+                              fs::ProviderType::kHostDirectory,
+                              fixture.GetRoot() / "content",
+                              fs::MountFlags::kWritable,
+                              {}}));
+  REQUIRE(file_system->Link("content:", "\\Device\\Content\\0"));
+}
+
+void WriteContent(const std::filesystem::path& root, const char* name, std::streamsize size) {
+  std::filesystem::create_directories(root / "content");
+  std::ofstream out(root / "content" / name, std::ios::binary);
+  const std::string bytes(static_cast<size_t>(size), 'x');
+  out.write(bytes.data(), size);
+}
+
 void WriteScratch(const std::filesystem::path& root, const char* name, std::streamsize size) {
   std::filesystem::create_directories(root / "scratch");
   std::ofstream out(root / "scratch" / name, std::ios::binary);
@@ -1320,6 +1339,80 @@ REX_TEST_CASE(
     CHECK(LoadGuestTime(c, find + 12) == stat->access_time);
     CHECK(LoadGuestTime(c, find + 20) == write_time);
     c.Kernel("NtClose", {handle});
+  });
+}
+
+REX_TEST_CASE("files: an async read in a content package returns pending and completes",
+              "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteContent(root, "cr.bin", 1024); });
+  MountContent(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "content:\\cr.bin", 0);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtReadFile", {handle, event, 0, 0, block, buffer, 512, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_PENDING);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an async read at end of file in a content package returns pending",
+              "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteContent(root, "ce.bin", 512); });
+  MountContent(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "content:\\ce.bin", 0);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtReadFile", {handle, event, 0, 0, block, buffer, 512, c.AllocQuad(512)}) ==
+          rex::kernel::X_STATUS_PENDING);
+    CHECK(c.Load32(block) == rex::kernel::X_STATUS_END_OF_FILE);
+    CHECK(c.Load32(block + 4) == 0);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: an async write in a content package returns pending", "[kernel][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteContent(root, "cw.bin", 0); });
+  MountContent(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "content:\\cw.bin", 0);
+    const u32 event = NewEvent(c);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtWriteFile", {handle, event, 0, 0, block, buffer, 512, c.AllocQuad(0)}) ==
+          rex::kernel::X_STATUS_PENDING);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.AllocQuad(0)}) == 0);
+    CHECK(c.Kernel("NtClose", {event}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("files: a synchronous read in a content package completes inline",
+              "[kernel][files]") {
+  KernelFixture fixture(
+      [](const std::filesystem::path& root) { WriteContent(root, "cs.bin", 1024); });
+  MountContent(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle = OpenScratch(c, "content:\\cs.bin", 0x20);
+    const u32 block = PrefilledBlock(c);
+    const u32 buffer = c.Alloc(512);
+    CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, block, buffer, 512, c.AllocQuad(0)}) == 0);
+    CHECK(c.Load32(block) == 0);
+    CHECK(c.Load32(block + 4) == 512);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }
 

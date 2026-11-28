@@ -183,6 +183,8 @@ struct FileObject : IOpenedFile {
   bool is_synchronous = false;
   /** True when the file was opened with no intermediate buffering. */
   bool is_unbuffered = false;
+  /** True for a file in a mounted content package, whose driver queues every request. */
+  bool in_content_package = false;
   /** The runtime the interface Read and Write run in, set when the table creates the file. */
   TitleRuntime* owner = nullptr;
 

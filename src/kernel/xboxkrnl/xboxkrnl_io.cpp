@@ -30,6 +30,7 @@
 #include <rex/kernel/object/file_object.h>
 #include <rex/kernel/object/kernel_thread.h>
 #include <rex/kernel/types/status.h>
+#include <rex/string/text.h>
 #include "kernel/argument_check.h"
 #include "kernel/object_lookup.h"
 #include "kernel/path_check.h"
@@ -86,6 +87,36 @@ static void InitializeFileObject(u32 address, u32 create_options, u32 related_fi
 
 static bool IsErrorStatus(X_STATUS status) {
   return (status & 0xC0000000) == 0xC0000000;
+}
+
+/**
+ * Whether an asynchronous read or write that is already done returns X_STATUS_PENDING, with its
+ * result in the status block and its event set. The content package driver queues every request,
+ * so a request on a file in a content package is pending when it succeeds and when it stops at the
+ * end of the file. Elsewhere only an unbuffered request that succeeds is pending.
+ *
+ * @param file The file the request was made on.
+ * @param result The status the request completed with.
+ * @return True when the call returns X_STATUS_PENDING.
+ */
+static bool CompletesPending(const FileObject& file, X_STATUS result) {
+  if (file.is_synchronous) {
+    return false;
+  }
+  if (file.in_content_package) {
+    return !IsErrorStatus(result) || result == X_STATUS_END_OF_FILE;
+  }
+  return file.is_unbuffered && !IsErrorStatus(result);
+}
+
+/**
+ * @param path A resolved guest path.
+ * @return True when the path is in a mounted content package.
+ */
+static bool IsContentPackagePath(std::string_view path) {
+  constexpr std::string_view kContentDevice = "\\Device\\Content\\";
+  return path.size() >= kContentDevice.size() &&
+         rex::string::utf8_equal_case(path.substr(0, kContentDevice.size()), kContentDevice);
 }
 
 static bool QueueCompletionAPC(u32 apc_routine, u32 apc_context, u32 io_status_block,
@@ -169,6 +200,9 @@ u32 NtCreateFile_entry(MappedU32 handle_out, u32 desired_access,
         InitializeFileObject(file.GetGuestAddress(), create_options,
                              root_file ? root_file.GetGuestAddress() : 0);
       }
+      if (auto file = kernel::GetCurrent().GetObjectTable().Get<FileObject>(handle)) {
+        file->in_content_package = IsContentPackagePath(file->GetAbsolutePath());
+      }
     }
     result = ToXStatus(added);
   }
@@ -226,6 +260,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
       byte_offset_ptr ? static_cast<i64>(byte_offset) : -1);
   X_STATUS result = X_STATUS_SUCCESS;
   bool apc_queued = false;
+  bool pending = false;
 
   bool signal_event = false;
   auto ev = kernel::GetCurrent().GetObjectTable().Get<EventObject>(event_handle);
@@ -243,8 +278,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
     result = file->Read(kernel::GetCurrent(), buffer.GetGuestAddress(), buffer_length,
                         byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_read,
                         apc_context.GetGuestAddress());
+    pending = CompletesPending(*file, result);
 
-    if (!IsErrorStatus(result)) {
+    if (!IsErrorStatus(result) || pending) {
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_read;
@@ -278,7 +314,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, MappedVoid apc_routine_p
         "{:#x} (apc_requested={}, apc_queued={})",
         result, apc_requested, apc_queued);
   }
-  if (signal_event && file->is_unbuffered && !file->is_synchronous) {
+  if (pending) {
     return X_STATUS_PENDING;
   }
   return result;
@@ -288,6 +324,7 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, MappedVoid apc_ro
                             MappedVoid apc_context, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block,
                             MappedU32 segment_array, u32 length, MappedU64 byte_offset_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
+  bool pending = false;
 
   bool signal_event = false;
   auto ev = kernel::GetCurrent().GetObjectTable().Get<EventObject>(event_handle);
@@ -305,8 +342,9 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, MappedVoid apc_ro
     result = file->ReadScatter(kernel::GetCurrent(), segment_array.GetGuestAddress(), length,
                                byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
                                &bytes_read, apc_context.GetGuestAddress());
+    pending = CompletesPending(*file, result);
 
-    if (!IsErrorStatus(result)) {
+    if (!IsErrorStatus(result) || pending) {
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_read;
@@ -324,7 +362,7 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, MappedVoid apc_ro
     ev->Set();
   }
 
-  if (signal_event && file->is_unbuffered && !file->is_synchronous) {
+  if (pending) {
     return X_STATUS_PENDING;
   }
 
@@ -335,6 +373,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
                       GuestPtrT<X_IO_STATUS_BLOCK> io_status_block, MappedVoid buffer,
                       u32 buffer_length, MappedU64 byte_offset_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
+  bool pending = false;
 
   bool signal_event = false;
   auto ev = kernel::GetCurrent().GetObjectTable().Get<EventObject>(event_handle);
@@ -352,8 +391,9 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
     result = file->Write(kernel::GetCurrent(), buffer.GetGuestAddress(), buffer_length,
                          byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_written,
                          apc_context.GetGuestAddress());
+    pending = CompletesPending(*file, result);
 
-    if (!IsErrorStatus(result)) {
+    if (!IsErrorStatus(result) || pending) {
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_written;
@@ -371,7 +411,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, Mapped
     ev->Set();
   }
 
-  if (signal_event && file->is_unbuffered && !file->is_synchronous) {
+  if (pending) {
     return X_STATUS_PENDING;
   }
 
