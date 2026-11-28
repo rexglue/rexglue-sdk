@@ -28,7 +28,7 @@ class IContainerImage;
 struct XContentPackageHeader;
 
 /** Creates file systems and parsers. Its objects must be destroyed before the module unloads. */
-REX_DECLARE_INTERFACE(IFileSystemFactory, 2)
+REX_DECLARE_INTERFACE(IFileSystemFactory, 3)
 /**
  * Creates an empty mount table.
  *

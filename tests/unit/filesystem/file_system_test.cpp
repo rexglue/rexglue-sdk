@@ -346,8 +346,8 @@ REX_TEST_CASE("Standard mounts serve game, d, update and the null paths", "[file
   WriteHost(fixture.GetTemp() / "update" / "patch.bin", "patch");
   const std::filesystem::path game_root = fixture.GetTemp() / "game";
   const std::filesystem::path update_root = fixture.GetTemp() / "update";
-  REQUIRE(
-      fixture.GetFileSystem().ConfigureStandardMounts(game_root, update_root, MountFlags::kNone));
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(game_root, update_root, MountFlags::kNone,
+                                                          {}));
 
   CHECK(ReadText(*fixture.Open("game:\\default.xex").file) == "xex");
   CHECK(ReadText(*fixture.Open("d:\\default.xex").file) == "xex");
@@ -362,21 +362,45 @@ REX_TEST_CASE("Standard mounts serve game, d, update and the null paths", "[file
                   {.disposition = Disposition::kCreate, .access = Access::kWriteAccess}) ==
         FileSystemError::kAccessDenied);
 
-  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(game_root, {}, MountFlags::kNone));
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(game_root, {}, MountFlags::kNone, {}));
   CHECK(fixture.GetFileSystem().GetMounts().size() == 2);
   CHECK(fixture.GetFileSystem().FindLink("update:\\patch.bin") == std::nullopt);
 
   auto missing = fixture.GetFileSystem().ConfigureStandardMounts(fixture.GetTemp() / "missing", {},
-                                                                 MountFlags::kNone);
+                                                                 MountFlags::kNone, {});
   REQUIRE_FALSE(missing);
   CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
+}
+
+REX_TEST_CASE("Standard mounts give the utility drive as host folders", "[filesystem][mounts]") {
+  Fixture fixture;
+  std::filesystem::create_directories(fixture.GetTemp() / "game");
+  const std::filesystem::path utility = fixture.GetTemp() / "utility";
+  REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(fixture.GetTemp() / "game", {},
+                                                          MountFlags::kNone, utility));
+  // cache: and cache0: are separate folders though one name starts the other.
+  struct Case {
+    std::string_view path, folder, name;
+  };
+  for (const Case& c :
+       {Case{"cache:\\stream.bin", "cache", "stream.bin"},
+        Case{"cache0:\\a.bin", "cache0", "a.bin"}, Case{"cache1:\\b.bin", "cache1", "b.bin"}}) {
+    INFO(c.path);
+    auto created = fixture.GetFileSystem().Open(
+        c.path, {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
+    REQUIRE(created);
+    CHECK(std::filesystem::exists(utility / std::string(c.folder) / std::string(c.name)));
+  }
+  // The hard disk's Partition0 is still the empty one.
+  CHECK(fixture.Open("\\Device\\Harddisk0\\Partition0").file->GetInfo().size == 0);
+  CHECK(fixture.GetFileSystem().GetMounts().size() == 5);
 }
 
 REX_TEST_CASE("the game partition is read only", "[filesystem][mounts]") {
   Fixture fixture;
   std::filesystem::create_directories(fixture.GetTemp() / "game");
   REQUIRE(fixture.GetFileSystem().ConfigureStandardMounts(fixture.GetTemp() / "game", {},
-                                                          MountFlags::kNone));
+                                                          MountFlags::kNone, {}));
   auto created = fixture.GetFileSystem().Open(
       "game:\new.txt", {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
   CHECK_FALSE(created);

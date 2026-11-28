@@ -331,7 +331,8 @@ std::optional<std::string> FileSystem::FindLink(std::string_view path) const {
 
 Result<void> FileSystem::ConfigureStandardMounts(const std::filesystem::path& game_root,
                                                  const std::filesystem::path& update_root,
-                                                 MountFlags game_flags) {
+                                                 MountFlags game_flags,
+                                                 const std::filesystem::path& utility_root) {
   std::lock_guard lock(mutex_);
   Clear();
   std::error_code ec;
@@ -357,6 +358,31 @@ Result<void> FileSystem::ConfigureStandardMounts(const std::filesystem::path& ga
         REX_TRY_VOID(Link("update:", kUpdatePartition));
       } else {
         REXFS_WARN("update_data_root is not mounted, {}", mounted.error().message);
+      }
+    }
+  }
+
+  // The utility drive that a title mounts with XMountUtilityDrive: cache0:, cache1: and cache: as
+  // writable host folders, mounted before the hard disk so that they cover its Cache partitions,
+  // as Xenia mounts them. The XAM task fails here, because the volume query does not answer the
+  // device type it checks, so the title would find no mount for cache:.
+  if (!utility_root.empty()) {
+    const std::filesystem::path base = std::filesystem::absolute(utility_root, ec);
+    constexpr std::pair<std::string_view, std::string_view> kCaches[] = {
+        {"\\Device\\Harddisk0\\Cache0", "cache0"},
+        {"\\Device\\Harddisk0\\Cache1", "cache1"},
+        {"\\Device\\Harddisk0\\Cache", "cache"}};
+    for (const auto& [device, name] : kCaches) {
+      const std::filesystem::path folder = base / std::filesystem::path(name);
+      std::filesystem::create_directories(folder, ec);
+      if (auto mounted = Mount({std::string(device),
+                                ProviderType::kHostDirectory,
+                                folder,
+                                MountFlags::kWritable,
+                                {}})) {
+        REX_TRY_VOID(Link(std::string(name) + ":", device));
+      } else {
+        REXFS_WARN("the utility drive's {}: is not mounted, {}", name, mounted.error().message);
       }
     }
   }

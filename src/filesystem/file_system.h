@@ -37,9 +37,9 @@ class FileSystem final : public IFileSystem {
   [[nodiscard]] Result<void> Link(std::string_view link, std::string_view target) override;
   [[nodiscard]] Result<void> Unlink(std::string_view link) override;
   [[nodiscard]] std::optional<std::string> FindLink(std::string_view path) const override;
-  [[nodiscard]] Result<void> ConfigureStandardMounts(const std::filesystem::path& game_root,
-                                                     const std::filesystem::path& update_root,
-                                                     MountFlags game_flags) override;
+  [[nodiscard]] Result<void> ConfigureStandardMounts(
+      const std::filesystem::path& game_root, const std::filesystem::path& update_root,
+      MountFlags game_flags, const std::filesystem::path& utility_root) override;
   void Clear() override;
   [[nodiscard]] Result<Opened> Open(std::string_view path, const OpenOptions& options) override;
   [[nodiscard]] Result<Opened> OpenRelative(IFile& root, std::string_view path,
