@@ -193,6 +193,43 @@ REX_TEST_CASE("XEX delta patch applies to header and image", "[base][xex]") {
   }
 }
 
+REX_TEST_CASE("XEX header delta patch runs every entry of its list", "[base][xex]") {
+  XEXSpec base_spec;
+  base_spec.image = TestImage(0x1000);
+  const auto base_file = BuildXEX(base_spec);
+  auto base = XEXImage::Parse(base_file);
+  REQUIRE(base);
+  const auto base_header = base->GetHeaderBytes();
+  const u32 base_size = static_cast<u32>(base_header.size());
+
+  // A copy that changes nothing, then a copy of the first 16 header bytes past the base header,
+  // then the empty entry that ends the list.
+  auto descriptor = test::BuildPatchDescriptor(*base);
+  descriptor.resize(0x4C + 3 * 12, 0);
+  test::PutBE32(descriptor, 0x0, static_cast<u32>(descriptor.size()));
+  test::PutBE32(descriptor, 0x30, base_size + 0x10);
+  test::PutBE32(descriptor, 0x4C + 12, 0);
+  test::PutBE32(descriptor, 0x4C + 16, base_size);
+  test::PutBE16(descriptor, 0x4C + 20, 0x10);
+  test::PutBE16(descriptor, 0x4C + 22, 1);
+
+  XEXSpec patch_spec;
+  patch_spec.module_flags = kernel::kXEXModulePatchDelta;
+  patch_spec.compression = kernel::kXEXCompressionDelta;
+  patch_spec.patch_descriptor = descriptor;
+  patch_spec.patch_body = test::BuildPatchBody();
+  const auto patch_file = BuildXEX(patch_spec);
+  auto patch = XEXImage::Parse(patch_file);
+  REQUIRE(patch);
+  REQUIRE(patch->IsPatch());
+
+  auto patched = base->ApplyHeaderDelta(*patch);
+  REQUIRE(patched);
+  const auto header = (*patched)->GetHeaderBytes();
+  REQUIRE(header.size() == base_size + 0x10);
+  CHECK(std::memcmp(header.data() + base_size, base_header.data(), 0x10) == 0);
+}
+
 REX_TEST_CASE("PE headers parse from a decoded image", "[base][xex]") {
   std::vector<u8> image(0x2000, 0);
   auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image.data());
