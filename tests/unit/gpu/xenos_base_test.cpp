@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <initializer_list>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -448,4 +449,217 @@ REX_TEST_CASE_METHOD(Fixture, "IsRangeValid is false for a requested range after
     auto lock = shared.AcquireLock();
     CHECK(shared.IsRangeValid(lock, kWritten, kLength));
   }
+}
+
+namespace {
+
+// 1 << (9 + 3) bytes, 1024 dwords.
+constexpr rex::u32 kPacketRingSizeLog2 = 9;
+constexpr rex::u32 kPacketRingDwords = (1u << (kPacketRingSizeLog2 + 3)) / 4;
+
+constexpr rex::u32 kShaderConstant =
+    std::to_underlying(rex::xenos::Register::SHADER_CONSTANT_000_X) + 8;
+
+// Packets written one after another into a ring, wrapping at its end. Run hands the new packets
+// to the processor and waits until it executed them.
+class PacketRing {
+ public:
+  PacketRing(rex::kernel::GuestAddressSpace& memory,
+             rex::gpu::null::NullXenosGraphicsDriver& driver)
+      : memory_(memory), driver_(driver) {
+    const rex::u32 block = memory.SystemHeapAlloc(0x2000, 0x1000, rex::kernel::kSystemHeapPhysical);
+    base_ = memory.GetPhysicalAddress(block);
+    driver.InitializeRingBuffer(base_, kPacketRingSizeLog2);
+  }
+
+  /** Guest memory after the ring, for the packets to store to. */
+  rex::u32 Results() const { return base_ + 0x1000; }
+
+  void Append(std::initializer_list<rex::u32> packets) {
+    for (const rex::u32 packet : packets) {
+      Put(memory_, base_ + (position_ % kPacketRingDwords) * 4, packet);
+      ++position_;
+    }
+  }
+
+  /** Appends type 2 packets until `position` dwords from the start of the ring. */
+  void PadTo(rex::u32 position) {
+    while (position_ < position) {
+      Append({rex::xenos::BuildPacketType2()});
+    }
+  }
+
+  /** Stores the register `index` at Results() + 4 * `slot`. */
+  void ReadBack(rex::u32 index, rex::u32 slot) {
+    Append({rex::xenos::BuildPacketType3(rex::xenos::PM4_REG_TO_MEM, 2), index,
+            (Results() + slot * 4) | std::to_underlying(rex::xenos::Endian::k8in32)});
+  }
+
+  bool Run() {
+    const rex::u32 done = Results() + 0xFFC;
+    const rex::u32 run = ++runs_;
+    Append({rex::xenos::BuildPacketType3(rex::xenos::PM4_MEM_WRITE, 2),
+            done | std::to_underlying(rex::xenos::Endian::k8in32), run});
+    driver_.WriteRegister(kWritePointerRegister, position_ % kPacketRingDwords);
+    return WaitFor([&] { return Get(memory_, done) == run; });
+  }
+
+  rex::u32 Result(rex::u32 slot) const { return Get(memory_, Results() + slot * 4); }
+
+ private:
+  rex::kernel::GuestAddressSpace& memory_;
+  rex::gpu::null::NullXenosGraphicsDriver& driver_;
+  rex::u32 base_ = 0;
+  rex::u32 position_ = 0;
+  rex::u32 runs_ = 0;
+};
+
+}  // namespace
+
+REX_TEST_CASE_METHOD(Fixture, "a type 0 packet writes consecutive registers", "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  PacketRing ring(memory, driver);
+  ring.Append({rex::xenos::BuildPacketType0(kShaderConstant, 4), 1, 2, 3, 4});
+  for (rex::u32 i = 0; i < 4; ++i) {
+    ring.ReadBack(kShaderConstant + i, i);
+  }
+  REQUIRE(ring.Run());
+  for (rex::u32 i = 0; i < 4; ++i) {
+    CHECK(ring.Result(i) == i + 1);
+  }
+
+  driver.DetachTitle();
+  driver.Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture, "a one register type 0 packet writes every value to one register",
+                     "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  PacketRing ring(memory, driver);
+  ring.Append({rex::xenos::BuildPacketType0(kShaderConstant + 1, 1), 5});
+  ring.Append({rex::xenos::BuildPacketType0(kShaderConstant, 3, true), 7, 8, 9});
+  ring.ReadBack(kShaderConstant, 0);
+  ring.ReadBack(kShaderConstant + 1, 1);
+  REQUIRE(ring.Run());
+  CHECK(ring.Result(0) == 9);
+  CHECK(ring.Result(1) == 5);
+
+  driver.DetachTitle();
+  driver.Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture, "a type 0 packet across the end of the ring writes every register",
+                     "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  PacketRing ring(memory, driver);
+  // Run appends three dwords, so the header lands four dwords before the end and the last value
+  // wraps.
+  ring.PadTo(kPacketRingDwords - 7);
+  REQUIRE(ring.Run());
+  ring.Append({rex::xenos::BuildPacketType0(kShaderConstant, 4), 1, 2, 3, 4});
+  for (rex::u32 i = 0; i < 4; ++i) {
+    ring.ReadBack(kShaderConstant + i, i);
+  }
+  REQUIRE(ring.Run());
+  for (rex::u32 i = 0; i < 4; ++i) {
+    CHECK(ring.Result(i) == i + 1);
+  }
+
+  driver.DetachTitle();
+  driver.Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture,
+                     "a type 0 packet that ends at the end of the ring writes every register",
+                     "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  PacketRing ring(memory, driver);
+  // Run appends three dwords, so the header lands five dwords before the end and the last value
+  // is the last dword of the ring.
+  ring.PadTo(kPacketRingDwords - 8);
+  REQUIRE(ring.Run());
+  ring.Append({rex::xenos::BuildPacketType0(kShaderConstant, 4), 1, 2, 3, 4});
+  for (rex::u32 i = 0; i < 4; ++i) {
+    ring.ReadBack(kShaderConstant + i, i);
+  }
+  REQUIRE(ring.Run());
+  for (rex::u32 i = 0; i < 4; ++i) {
+    CHECK(ring.Result(i) == i + 1);
+  }
+
+  driver.DetachTitle();
+  driver.Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture, "a type 0 packet past the register file keeps extended registers",
+                     "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  constexpr auto kFirst = static_cast<rex::u32>(rex::xenos::RegisterFile::kRegisterCount - 2);
+  PacketRing ring(memory, driver);
+  ring.Append({rex::xenos::BuildPacketType0(kFirst, 4), 1, 2, 3, 4});
+  for (rex::u32 i = 0; i < 4; ++i) {
+    ring.ReadBack(kFirst + i, i);
+  }
+  REQUIRE(ring.Run());
+  for (rex::u32 i = 0; i < 4; ++i) {
+    CHECK(ring.Result(i) == i + 1);
+  }
+
+  driver.DetachTitle();
+  driver.Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture, "a scratch register in a type 0 range is written back to memory",
+                     "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  FakeDriverContext context;
+  rex::gpu::null::NullXenosGraphicsDriver driver;
+  REQUIRE(driver.Initialize(context));
+  REQUIRE(driver.AttachTitle(rex::TitleInfo{}, title, title, title));
+
+  constexpr rex::u32 kScratch0 = std::to_underlying(rex::xenos::Register::SCRATCH_REG0);
+  PacketRing ring(memory, driver);
+  const rex::u32 scratch = ring.Results() + 0x800;
+  ring.Append(
+      {rex::xenos::BuildPacketType0(std::to_underlying(rex::xenos::Register::SCRATCH_ADDR), 1),
+       scratch});
+  ring.Append(
+      {rex::xenos::BuildPacketType0(std::to_underlying(rex::xenos::Register::SCRATCH_UMSK), 1), 1});
+  ring.Append({rex::xenos::BuildPacketType0(kScratch0 - 1, 3), 0x11, 0x22, 0x33});
+  REQUIRE(ring.Run());
+  CHECK(Get(memory, scratch) == 0x22);
+
+  driver.DetachTitle();
+  driver.Shutdown();
 }

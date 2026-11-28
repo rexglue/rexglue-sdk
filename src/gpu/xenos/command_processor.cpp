@@ -10,6 +10,7 @@
  */
 
 #include <bit>
+#include <bitset>
 #include <algorithm>
 #include <chrono>
 #include <cinttypes>
@@ -75,6 +76,18 @@ void StoreRelease(IPhysicalMemory& memory, u32 address, u32 value) {
 u32 LoadAcquire(IPhysicalMemory& memory, u32 address) {
   auto value = memory.LoadAcquire32(address & kPhysicalAddressMask);
   return value ? rex::byte_swap(*value) : 0;
+}
+
+// GetRegisterInfo is a switch over every register; this is one bit per register.
+bool IsKnownRegister(u32 index) {
+  static const std::bitset<xenos::RegisterFile::kRegisterCount> kKnown = [] {
+    std::bitset<xenos::RegisterFile::kRegisterCount> bits;
+    for (u32 i = 0; i < xenos::RegisterFile::kRegisterCount; ++i) {
+      bits[i] = xenos::RegisterFile::GetRegisterInfo(i) != nullptr;
+    }
+    return bits;
+  }();
+  return kKnown[index];
 }
 
 }  // namespace
@@ -352,7 +365,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
 
   // Volatile for the WAIT_REG_MEM loop.
   const_cast<volatile u32&>(regs.values[index]) = value;
-  if (!regs.GetRegisterInfo(index)) {
+  if (!IsKnownRegister(index)) [[unlikely]] {
     REXGPU_WARN_ONCE(unknown_write_once_, index, "GPU: Write to unknown register ({:04X} = {:08X})",
                      index, value);
   }
@@ -680,10 +693,14 @@ bool CommandProcessor::ExecutePacketType0(memory::RingBuffer* reader, u32 packet
 
   u32 base_index = (packet & 0x7FFF);
   u32 write_one_reg = (packet >> 15) & 0x1;
-  for (u32 m = 0; m < count; m++) {
-    u32 reg_data = reader->ReadAndSwap<u32>();
-    u32 target_index = write_one_reg ? base_index : base_index + m;
-    WriteRegister(target_index, reg_data);
+  if (write_one_reg || count == 1) {
+    // One register: a range would cost more than the single write.
+    for (u32 m = 0; m < count; m++) {
+      WriteRegister(base_index, reader->ReadAndSwap<u32>());
+    }
+  } else {
+    // As a range, so that a backend can take a block of shader constants at once.
+    WriteRegisterRangeFromRing(reader, base_index, count);
   }
 
   return true;
