@@ -35,6 +35,9 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
   const uintmax_t* stream = command_stream_.Data();
   size_t stream_remaining = command_stream_.Size();
   ID3D12PipelineState* current_pipeline_state = nullptr;
+  // Queried at the first per-face stencil reference.
+  Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList8> command_list_8;
+  bool command_list_8_queried = false;
   while (stream_remaining != 0) {
     const CommandHeader& header = *reinterpret_cast<const CommandHeader*>(stream);
     stream += kCommandHeaderSizeElements;
@@ -142,6 +145,18 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
       } break;
       case Command::kD3DOMSetStencilRef: {
         command_list->OMSetStencilRef(*reinterpret_cast<const UINT*>(stream));
+      } break;
+      case Command::kD3DOMSetFrontAndBackStencilRef: {
+        auto args = reinterpret_cast<const UINT*>(stream);
+        if (!command_list_8_queried) {
+          command_list->QueryInterface(IID_PPV_ARGS(&command_list_8));
+          command_list_8_queried = true;
+        }
+        if (command_list_8) {
+          command_list_8->OMSetFrontAndBackStencilRef(args[0], args[1]);
+        } else {
+          command_list->OMSetStencilRef(args[0]);
+        }
       } break;
       case Command::kD3DResourceBarrier: {
         static_assert(alignof(D3D12_RESOURCE_BARRIER) <= alignof(uintmax_t));

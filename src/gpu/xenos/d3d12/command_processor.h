@@ -632,6 +632,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   D3D12_RECT ff_scissor_;
   f32 ff_blend_factor_[4];
   u32 ff_stencil_ref_;
+  u32 ff_stencil_ref_back_ = 0;
   bool ff_viewport_update_needed_;
   bool ff_scissor_update_needed_;
   bool ff_blend_factor_update_needed_;

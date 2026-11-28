@@ -393,6 +393,14 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
     unaligned_block_textures_supported_ =
         static_cast<bool>(options8.UnalignedBlockTexturesSupported);
   }
+  // OMSetFrontAndBackStencilRef (ID3D12GraphicsCommandList8).
+  independent_front_and_back_stencil_ref_mask_supported_ = false;
+  D3D12_FEATURE_DATA_D3D12_OPTIONS14 options14;
+  if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS14, &options14,
+                                            sizeof(options14)))) {
+    independent_front_and_back_stencil_ref_mask_supported_ =
+        static_cast<bool>(options14.IndependentFrontAndBackStencilRefMaskSupported);
+  }
   virtual_address_bits_per_resource_ = 0;
   D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT virtual_address_support;
   if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_GPU_VIRTUAL_ADDRESS_SUPPORT,
@@ -403,6 +411,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   }
   REXGPU_INFO(
       "Direct3D 12 device and OS features:\n"
+      "* Independent front and back stencil reference: {}\n"
       "* Max GPU virtual address bits per resource: {}\n"
       "* Non-zeroed heap creation: {}\n"
       "* Pixel shader specified stencil reference: {}\n"
@@ -411,6 +420,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
       "* Resource binding: tier {}\n"
       "* Tiled resources: tier {}\n"
       "* Unaligned block-compressed textures: {}",
+      independent_front_and_back_stencil_ref_mask_supported_ ? "yes" : "no",
       virtual_address_bits_per_resource_,
       (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes" : "no",
       ps_specified_stencil_reference_supported_ ? "yes" : "no",
